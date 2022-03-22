@@ -1,0 +1,5 @@
+#pragma once
+
+#cmakedefine NNTILE_USE_CBLAS
+#cmakedefine NNTILE_USE_CUDA
+
