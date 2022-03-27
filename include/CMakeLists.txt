@@ -1,12 +1,17 @@
 # Set list of headers
 set(HDR
     "nntile.hh"
+    "nntile/starpu.hh"
     "nntile/base_type.hh"
     "nntile/tile.hh"
     "nntile/tile/traits.hh"
     "nntile/tile/tile.hh"
     "nntile/tile/gemm.hh"
     "nntile/tile/gelu.hh"
+    "nntile/tensor.hh"
+    "nntile/tensor/traits.hh"
+    "nntile/tensor/tensor.hh"
+    "nntile/tensor/gemm.hh"
     )
 
 target_sources(nntile INTERFACE ${HDR})

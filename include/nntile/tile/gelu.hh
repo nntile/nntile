@@ -6,13 +6,6 @@ namespace nntile
 {
 
 template<typename T>
-void gelu(ContiguousTile<T> &A)
-{
-    gelu_async(A);
-    starpu_task_wait_for_all();
-}
-
-template<typename T>
 void gelu_codelet_cpu(void *buffers[], void *cl_args)
 {
     int nelems = STARPU_VECTOR_GET_NX(buffers[0]);
@@ -28,7 +21,7 @@ void gelu_codelet_cpu(void *buffers[], void *cl_args)
 }
 
 template<typename T>
-void gelu_async(ContiguousTile<T> &A)
+void gelu_async(const starpu_data_handle_t &handle)
 {
     static struct starpu_codelet codelet_gelu =
     {
@@ -37,8 +30,27 @@ void gelu_async(ContiguousTile<T> &A)
         .modes = {STARPU_RW}
     };
     starpu_task_insert(&codelet_gelu,
-            STARPU_RW, A.handle,
+            STARPU_RW, handle,
             0);
+}
+
+template<typename T>
+void gelu_async(const Tile<T> &A)
+{
+    gelu_async<T>(A.handle);
+}
+
+template<typename T>
+void gelu(const starpu_data_handle_t &handle)
+{
+    gelu_async<T>(handle);
+    starpu_task_wait_for_all();
+}
+
+template<typename T>
+void gelu(const Tile<T> &A)
+{
+    gelu<T>(A.handle);
 }
 
 } // namespace nntile

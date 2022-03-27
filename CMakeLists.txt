@@ -1,5 +1,5 @@
 # Set minimum CMake version to avoid configuration problems
-cmake_minimum_required(VERSION 3.18.6)
+cmake_minimum_required(VERSION 3.16.3)
 
 # Define the project
 project(NNTile VERSION 0.0.1 LANGUAGES CXX)
@@ -14,7 +14,7 @@ option(USE_CBLAS "Use CPU BLAS" ON)
 add_library(nntile INTERFACE)
 
 # Set C++ standard for all sources
-set_property(TARGET nntile PROPERTY CXX_STANDARD 17)
+#set_property(TARGET nntile PROPERTY CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 

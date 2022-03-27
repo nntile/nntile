@@ -7,84 +7,47 @@
 namespace nntile
 {
 
-struct BaseContiguousTile: public ContiguousTileTraits
+struct TileHandle: public TileTraits
 {
-    //! Raw pointer to the tile data
-    void *ptr;
-    //! Data type
-    BaseType dtype;
-    //! Size of a single tile element
-    size_t elem_size;
-    //! Total size of allocated memory
-    size_t alloc_size;
     //! Starpu handle for tile data
-    starpu_data_handle_t handle;
-    //! Flag if the data is pinned
-    int pinned;
+    StarPUSharedHandle handle;
+    //! Underlying data type
+    BaseType dtype;
     //! Constructor
-    template<typename T_shape>
-    BaseContiguousTile(const T_shape &shape_, void *ptr_,
-            BaseType dtype_):
-        ContiguousTileTraits(shape_),
-        ptr(ptr_),
-        dtype(dtype_),
-        elem_size(dtype.size()),
-        alloc_size(nelems * elem_size),
-        handle(nullptr),
-        pinned(0)
+    TileHandle(const std::vector<int> &shape_,
+            const StarPUSharedHandle &handle_,
+            const BaseType &dtype_):
+        TileTraits(shape_),
+        handle(handle_),
+        dtype(dtype_)
     {
     }
-    //! Register starpu handle
-    void data_register()
+    //! Constructor
+    TileHandle(const TileTraits &traits,
+            const StarPUSharedHandle &handle_,
+            const BaseType &dtype_):
+        TileTraits(traits),
+        handle(handle_),
+        dtype(dtype_)
     {
-        starpu_vector_data_register(&handle, STARPU_MAIN_RAM,
-                reinterpret_cast<uintptr_t>(ptr), nelems,
-                elem_size);
-    }
-    //! Unregister starpu handle
-    void data_unregister()
-    {
-        starpu_data_unregister(handle);
-        handle = nullptr;
-    }
-    //! Pin memory
-    void data_pin()
-    {
-        starpu_memory_pin(ptr, alloc_size);
-    }
-    //! Unpin memory
-    void data_unpin()
-    {
-        starpu_memory_unpin(ptr, alloc_size);
-    }
-    //! Offset
-    size_t offset(const std::vector<int> &index) const
-    {
-        return elem_size * ContiguousTileTraits::offset(index);
-    }
-    template<size_t NDIM>
-    size_t offset(const std::array<int, NDIM> &index) const
-    {
-        return elem_size * ContiguousTileTraits::offset(index);
     }
 };
 
 template<typename T>
-struct ContiguousTile: public BaseContiguousTile
+struct Tile: public TileHandle
 {
-    //! Type of values
-    using value_type = T;
+    // No new member fields
     //! Constructor
-    template<typename T_shape>
-    ContiguousTile(const T_shape &shape_, T *ptr_):
-        BaseContiguousTile(shape_, ptr_, ptr_)
+    Tile(const std::vector<int> &shape_,
+            const StarPUSharedHandle &handle_):
+        TileHandle(shape_, handle_, BaseType(T{0}))
     {
     }
-    //! Pointer to the corresponding index
-    template<typename T_index>
-    T at(const T_index &index) const
+    //! Constructor
+    Tile(const TileTraits &traits,
+            const StarPUSharedHandle &handle_):
+        TileHandle(traits, handle_, BaseType(T{0}))
     {
-        return reinterpret_cast<T *>(ptr)[ContiguousTileTraits::offset(index)];
     }
 };
 

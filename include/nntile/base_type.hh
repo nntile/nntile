@@ -1,52 +1,98 @@
 #pragma once
 
-#include <complex>
+#include <cstddef>
+#include <stdexcept>
 
 namespace nntile
 {
+
+using fp64_t = double;
+using fp32_t = float;
+
+class tf32_t
+{
+    int32_t value;
+public:
+    //! Constructor
+    constexpr tf32_t(float value_):
+        value(*reinterpret_cast<int32_t *>(&value_))
+    {
+    }
+};
+
+class fp16_t
+{
+    int16_t value;
+public:
+    //! Constructor
+    constexpr fp16_t(float value_):
+        value(*reinterpret_cast<int16_t *>(&value_))
+    {
+    }
+};
+
+class bf16_t
+{
+    int16_t value;
+public:
+    //! Constructor
+    constexpr bf16_t(float value_):
+        value(*reinterpret_cast<int16_t *>(&value_))
+    {
+    }
+};
 
 struct BaseType
 {
     enum Value: int
     {
-        Single = 1,
-        Double = 2,
-        SingleComplex = 3,
-        DoubleComplex = 4
+        Undefined = 0,
+        FP64 = 1,
+        FP32 = 2,
+        TF32 = 3,
+        FP16 = 4,
+        BF16 = 5,
     } value;
-    BaseType(const float *):
-        value(Single)
+    explicit constexpr BaseType(const enum Value &value_):
+        value(value_)
     {
     }
-    BaseType(const double *):
-        value(Double)
+    explicit constexpr BaseType(fp64_t):
+        value(BaseType::FP64)
     {
     }
-    BaseType(const std::complex<float> *):
-        value(SingleComplex)
+    explicit constexpr BaseType(fp32_t):
+        value(BaseType::FP32)
     {
     }
-    BaseType(const std::complex<double> *):
-        value(DoubleComplex)
+    explicit constexpr BaseType(tf32_t):
+        value(BaseType::TF32)
+    {
+    }
+    explicit constexpr BaseType(fp16_t):
+        value(BaseType::FP16)
+    {
+    }
+    explicit constexpr BaseType(bf16_t):
+        value(BaseType::BF16)
     {
     }
     template<typename T>
     explicit operator T() = delete;
-    size_t size()
+    constexpr size_t size() const
     {
         switch(value)
         {
-            case Single:
-                return sizeof(float);
+            case FP64:
+                return 8;
                 break;
-            case Double:
-                return sizeof(double);
+            case FP32:
+            case TF32:
+                return 4;
                 break;
-            case SingleComplex:
-                return sizeof(std::complex<float>);
-                break;
-            case DoubleComplex:
-                return sizeof(std::complex<double>);
+            case FP16:
+            case BF16:
+                return 2;
                 break;
             default:
                 throw std::runtime_error("Wrong enum value");
