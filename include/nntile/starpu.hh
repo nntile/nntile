@@ -1,8 +1,9 @@
 #pragma once
 
-#include <starpu.h>
 #include <stdexcept>
 #include <memory>
+#include <iostream>
+#include <starpu.h>
 
 namespace nntile
 {
@@ -30,77 +31,94 @@ public:
     StarPU &operator=(StarPU &&) = delete;
 };
 
-class StarPUHandle
+//! StarPU data handle as a shared pointer to its internal state
+//
+// This class takes the ownership of the data handle. That said, it unregisters
+// the data handle automatically at the end of lifetime.
+class StarpuHandle
 {
-    starpu_data_handle_t handle;
+    //! Shared handle itself
+    std::shared_ptr<struct _starpu_data_state> handle;
+    //! Deleter function for starpu_data_handle_t
+    static void _handle_deleter(starpu_data_handle_t ptr)
+    {
+        starpu_data_unregister(ptr);
+    }
 public:
-    //! Constructor
-    explicit StarPUHandle(int home_node,
-            uintptr_t ptr,
-            uint32_t nelems,
-            size_t elem_size)
+    //! Default constructor with no handle
+    StarpuHandle() = default;
+    //! Constructor owns registered handle and unregisters it when needed
+    StarpuHandle(starpu_data_handle_t handle_):
+        handle(handle_, _handle_deleter)
     {
-        starpu_vector_data_register(&handle, home_node, ptr, nelems,
-                elem_size);
     }
-    //! Destructor
-    ~StarPUHandle()
-    {
-        starpu_data_unregister(handle);
-    }
-    //! No copy constructor
-    StarPUHandle(const StarPUHandle &) = delete;
-    //! No move constructor
-    StarPUHandle(StarPUHandle &&) = delete;
-    //! No copy assignment
-    StarPUHandle &operator=(const StarPUHandle &) = delete;
-    //! No move assignment
-    StarPUHandle &operator=(StarPUHandle &&) = delete;
+    //! Destructor is virtual as this is a base class
+    virtual ~StarpuHandle() = default;
     //! Convert to starpu_data_handle_t
     operator starpu_data_handle_t() const
     {
-        return handle;
+        return handle.get();
+    }
+    //! Get pointer to local data if corresponding interface supports it
+    const void *get_local_ptr() const
+    {
+        return starpu_data_get_local_ptr(handle.get());
+    }
+    //! Invalidate handle
+    void invalidate() const
+    {
+        starpu_data_invalidate(handle.get());
+    }
+    //! Invalidate handle
+    void invalidate_submit() const
+    {
+        starpu_data_invalidate_submit(handle.get());
+    }
+    //! Acquire data
+    void acquire(enum starpu_data_access_mode mode) const
+    {
+        starpu_data_acquire(handle.get(), mode);
+    }
+    //! Release acquired data
+    void release() const
+    {
+        starpu_data_release(handle.get());
+    }
+    //! Advise to flush from GPU to main memory
+    void wont_use() const
+    {
+        starpu_data_wont_use(handle.get());
     }
 };
 
-class StarPUSharedHandle
+//! Class for StarPU handle for easy registration and unregistration
+class StarpuVariableHandle: public StarpuHandle
 {
-    std::shared_ptr<StarPUHandle> shared_handle;
+    //! Register variable for starpu-owned memory
+    static starpu_data_handle_t _reg_data(size_t size)
+    {
+        starpu_data_handle_t tmp;
+        starpu_variable_data_register(&tmp, -1, 0, size);
+        return tmp;
+    }
+    //! Register variable
+    static starpu_data_handle_t _reg_data(uintptr_t ptr, size_t size)
+    {
+        starpu_data_handle_t tmp;
+        starpu_variable_data_register(&tmp, STARPU_MAIN_RAM, ptr, size);
+        return tmp;
+    }
 public:
-    StarPUSharedHandle() = default;
-    StarPUSharedHandle(int home_node,
-            uintptr_t ptr,
-            uint32_t nelems,
-            size_t elem_size):
-        shared_handle(::new StarPUHandle(home_node, ptr, nelems, elem_size))
+    //! Constructor for variable that is (de)allocated by starpu
+    StarpuVariableHandle(size_t size):
+        StarpuHandle(_reg_data(size))
     {
     }
-    StarPUSharedHandle(int home_node,
-            float *ptr,
-            uint32_t nelems):
-        StarPUSharedHandle(home_node, reinterpret_cast<uintptr_t>(ptr),
-                nelems, sizeof(*ptr))
+    //! Constructor for variable that is (de)allocated by user
+    StarpuVariableHandle(uintptr_t ptr, size_t size):
+        StarpuHandle(_reg_data(ptr, size))
     {
     }
-    StarPUSharedHandle(int home_node,
-            float *ptr,
-            int nelems):
-        StarPUSharedHandle(home_node, reinterpret_cast<uintptr_t>(ptr),
-                static_cast<uint32_t>(nelems), sizeof(*ptr))
-    {
-        if(nelems < 0)
-        {
-            throw std::runtime_error("nelems < 0");
-        }
-    }
-    operator starpu_data_handle_t() const
-    {
-        if(!shared_handle)
-        {
-            throw std::runtime_error("shared_handle is nullptr");
-        }
-        return starpu_data_handle_t{shared_handle.get()[0]};
-    };
 };
 
 } // namespace nntile

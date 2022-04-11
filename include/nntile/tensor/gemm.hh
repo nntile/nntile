@@ -1,6 +1,7 @@
 #pragma once
 
 #include <nntile/tensor/tensor.hh>
+#include <nntile/tile/gemm.hh>
 
 namespace nntile
 {
@@ -11,25 +12,27 @@ inline void gemm_check_ndim(const TensorTraits &A,
         const TensorTraits &C,
         int ndim=1)
 {
+    // Check if ndim is negative since it will be converted to size_t
     if(ndim <= 0)
     {
         throw std::runtime_error("ndim <= 0");
     }
-    if(A.ndim < ndim)
+    size_t ndim_ = ndim;
+    if(A.ndim < ndim_)
     {
         throw std::runtime_error("A.ndim < ndim");
     }
-    if(B.ndim < ndim)
+    if(B.ndim < ndim_)
     {
         throw std::runtime_error("B.ndim < ndim");
     }
-    if(C.ndim < ndim)
+    if(C.ndim < ndim_)
     {
         throw std::runtime_error("C.ndim < ndim");
     }
-    if(A.ndim + B.ndim - C.ndim != 2*ndim)
+    if(A.ndim + B.ndim != C.ndim + 2*ndim_)
     {
-        throw std::runtime_error("A.ndim + B.ndim - C.ndim != 2*ndim");
+        throw std::runtime_error("A.ndim + B.ndim != C.ndim + 2*ndim");
     }
 }
 
@@ -45,10 +48,10 @@ inline void gemm_check_A_B(const TensorTraits &A,
             throw std::runtime_error("A.shape[A.ndim-ndim:A.ndim] != "
                     "B.shape[0:ndim]");
         }
-        if(A.tile_shape[A.ndim-ndim+i] != B.tile_shape[i])
+        if(A.basetile_shape[A.ndim-ndim+i] != B.basetile_shape[i])
         {
-            throw std::runtime_error("A.tile_shape[A.ndim-ndim:A.ndim] != "
-                    "B.tile_shape[0:ndim]");
+            throw std::runtime_error("A.basetile_shape[A.ndim-ndim:A.ndim] != "
+                    "B.basetile_shape[0:ndim]");
         }
     }
 }
@@ -64,10 +67,10 @@ inline void gemm_check_AT_B(const TensorTraits &A,
         {
             throw std::runtime_error("A.shape[0:ndim] != B.shape[0:ndim]");
         }
-        if(A.tile_shape[i] != B.tile_shape[i])
+        if(A.basetile_shape[i] != B.basetile_shape[i])
         {
-            throw std::runtime_error("A.tile_shape[0:ndim] != "
-                    "B.tile_shape[0:ndim]");
+            throw std::runtime_error("A.basetile_shape[0:ndim] != "
+                    "B.basetile_shape[0:ndim]");
         }
     }
 }
@@ -84,9 +87,9 @@ inline void gemm_check_A_BT(const TensorTraits &A,
             throw std::runtime_error("A.shape[A.ndim-ndim:A.ndim] != "
                     "B.shape[B.ndim-ndim:B.ndim]");
         }
-        if(A.tile_shape[A.ndim-ndim+i] != B.tile_shape[B.ndim-ndim+i])
+        if(A.basetile_shape[A.ndim-ndim+i] != B.basetile_shape[B.ndim-ndim+i])
         {
-            throw std::runtime_error("A.tile_shape[A.ndim-ndim:A.ndim] != "
+            throw std::runtime_error("A.basetile_shape[A.ndim-ndim:A.ndim] != "
                     "B.shape[B.ndim-ndim:B.ndim]");
         }
     }
@@ -104,10 +107,10 @@ inline void gemm_check_AT_BT(const TensorTraits &A,
             throw std::runtime_error("A.shape[0:ndim] != "
                     "B.shape[B.ndim-ndim:B.ndim]");
         }
-        if(A.tile_shape[i] != B.tile_shape[B.ndim-ndim+i])
+        if(A.basetile_shape[i] != B.basetile_shape[B.ndim-ndim+i])
         {
-            throw std::runtime_error("A.tile_shape[0:ndim] != "
-                    "B.tile_shape[B.ndim-ndim:B.ndim]");
+            throw std::runtime_error("A.basetile_shape[0:ndim] != "
+                    "B.basetile_shape[B.ndim-ndim:B.ndim]");
         }
     }
 }
@@ -164,10 +167,10 @@ inline void gemm_check_A_C(const TensorTraits &A,
             throw std::runtime_error("A.shape[0:A.ndim-ndim] != "
                     "C.shape[0:A.ndim-ndim]");
         }
-        if(A.tile_shape[i] != C.tile_shape[i])
+        if(A.basetile_shape[i] != C.basetile_shape[i])
         {
-            throw std::runtime_error("A.tile_shape[0:A.ndim-ndim] != "
-                    "C.tile_shape[0:A.ndim-ndim]");
+            throw std::runtime_error("A.basetile_shape[0:A.ndim-ndim] != "
+                    "C.basetile_shape[0:A.ndim-ndim]");
         }
     }
 }
@@ -184,10 +187,10 @@ inline void gemm_check_AT_C(const TensorTraits &A,
             throw std::runtime_error("A.shape[ndim:A.ndim] != "
                     "C.shape[0:A.ndim-ndim]");
         }
-        if(A.tile_shape[i] != C.tile_shape[i-ndim])
+        if(A.basetile_shape[i] != C.basetile_shape[i-ndim])
         {
-            throw std::runtime_error("A.tile_shape[ndim:A.ndim] != "
-                    "C.tile_shape[0:A.ndim-ndim]");
+            throw std::runtime_error("A.basetile_shape[ndim:A.ndim] != "
+                    "C.basetile_shape[0:A.ndim-ndim]");
         }
     }
 }
@@ -223,10 +226,10 @@ inline void gemm_check_B_C(const TensorTraits &B,
             throw std::runtime_error("B.shape[ndim:B.ndim] != "
                     "C.shape[C.ndim-B.ndim+ndim:C.ndim]");
         }
-        if(B.tile_shape[i] != C.tile_shape[C.ndim-B.ndim+i])
+        if(B.basetile_shape[i] != C.basetile_shape[C.ndim-B.ndim+i])
         {
-            throw std::runtime_error("B.tile_shape[ndim:B.ndim] != "
-                    "C.tile_shape[C.ndim-B.ndim+ndim:C.ndim]");
+            throw std::runtime_error("B.basetile_shape[ndim:B.ndim] != "
+                    "C.basetile_shape[C.ndim-B.ndim+ndim:C.ndim]");
         }
     }
 }
@@ -243,10 +246,10 @@ inline void gemm_check_BT_C(const TensorTraits &B,
             throw std::runtime_error("B.shape[0:B.ndim-ndim] != "
                     "C.shape[C.ndim-B.ndim+ndim:C.ndim]");
         }
-        if(B.tile_shape[i] != C.tile_shape[C.ndim-B.ndim+ndim+i])
+        if(B.basetile_shape[i] != C.basetile_shape[C.ndim-B.ndim+ndim+i])
         {
-            throw std::runtime_error("B.tile_shape[0:B.ndim-ndim] != "
-                    "C.tile_shape[C.ndim-B.ndim+ndim:C.ndim]");
+            throw std::runtime_error("B.basetile_shape[0:B.ndim-ndim] != "
+                    "C.basetile_shape[C.ndim-B.ndim+ndim:C.ndim]");
         }
     }
 }
@@ -291,31 +294,28 @@ void gemm_check(const TransOp &transA,
 template<typename T>
 void gemm_async(T alpha,
         const TransOp &transA,
-        const TensorTraits &A,
-        const std::vector<StarPUSharedHandle> &A_tiles_handle,
+        const Tensor<T> &A,
         const TransOp &transB,
-        const TensorTraits &B,
-        const std::vector<StarPUSharedHandle> &B_tiles_handle,
+        const Tensor<T> &B,
         T beta,
-        const TensorTraits &C,
-        const std::vector<StarPUSharedHandle> &C_tiles_handle,
+        const Tensor<T> &C,
         int ndim=1)
 {
     // Check if tensors match gemm
     gemm_check(transA, A, transB, B, C, ndim);
     // Sizes of A, B and C as simple matrices (grids of tiles) for gemm
-    int m = C.grid_matrix_shape[A.ndim-ndim-1][0];
-    int n = C.grid_matrix_shape[A.ndim-ndim-1][1];
-    int k;
-    std::array<int, 2> opA_stride, opB_stride;
+    size_t m = C.grid.matrix_shape[A.ndim-ndim][0];
+    size_t n = C.grid.matrix_shape[A.ndim-ndim][1];
+    size_t k;
+    std::array<size_t, 2> opA_stride, opB_stride;
     switch(transA.value)
     {
         case TransOp::NoTrans:
-            k = A.grid_matrix_shape[A.ndim-ndim-1][1];
+            k = A.grid.matrix_shape[A.ndim-ndim][1];
             opA_stride = {1, m};
             break;
         case TransOp::Trans:
-            k = A.grid_matrix_shape[ndim-1][0];
+            k = A.grid.matrix_shape[ndim][0];
             opA_stride = {k, 1};
             break;
         default:
@@ -335,49 +335,36 @@ void gemm_async(T alpha,
             break;
     }
     // All per-tile gemm_async calls shall appear here
-    for(int j = 0; j < n; ++j)
+    for(size_t j = 0; j < n; ++j)
     {
-        for(int i = 0; i < m; ++i)
+        for(size_t i = 0; i < m; ++i)
         {
-            int C_tile_offset = j*m + i;
-            const auto &C_tile_traits = C.tiles_traits[C_tile_offset];
-            const auto &C_tile_handle = C_tiles_handle[C_tile_offset];
+            size_t C_tile_offset = j*m + i;
+            const auto &C_tile = C.tiles[C_tile_offset];
             // initialize C(i,j) = a*opA(i,0)*opB(0,j) + b*C(i,j)
-            int A_tile_offset = opA_stride[0] * i;
-            int B_tile_offset = opB_stride[1] * j;
-            const auto &A_tile_traits = A.tiles_traits[A_tile_offset];
-            const auto &A_tile_handle = A_tiles_handle[A_tile_offset];
-            const auto &B_tile_traits = B.tiles_traits[B_tile_offset];
-            const auto &B_tile_handle = B_tiles_handle[B_tile_offset];
-            std::cout << "i=" << i << " j=" << j << "\n"
-                << "m=" << m << " n=" << n << " k=" << k << "\n"
-                << "offsets:"
-                << " " << A_tile_offset
-                << " " << B_tile_offset
-                << " " << C_tile_offset << "\n"
-                << "A\n" << A_tile_traits
-                << "B\n" << B_tile_traits
-                << "C\n" << C_tile_traits << "\n";
-            gemm_async<T>(alpha, transA, A_tile_traits, A_tile_handle,
-                    transB, B_tile_traits, B_tile_handle,
-                    beta, C_tile_traits, C_tile_handle, ndim);
-//            // all other l>0
-//            for(int l = 1; l < k; ++l)
-//            {
-//                // accumulate C(i,j) = a*opA(i,l)*opB(0,l) + C(i,j)
-//                A_tile_offset = opA_stride[0]*i + opA_stride[1]*l;
-//                B_tile_offset = opB_stride[0]*l + opB_stride[1]*j;
-//                auto &A_tile_traits = A.tiles_traits[A_tile_offset];
-//                auto &A_tile_handle = A_tiles_handle[A_tile_offset];
-//                auto &B_tile_traits = B.tiles_traits[B_tile_offset];
-//                auto &B_tile_handle = B_tiles_handle[B_tile_offset];
-//            }
+            size_t A_tile_offset = opA_stride[0] * i;
+            size_t B_tile_offset = opB_stride[1] * j;
+            const auto &A_tile = A.tiles[A_tile_offset];
+            const auto &B_tile = B.tiles[B_tile_offset];
+            gemm_async<T>(alpha, transA, A_tile, transB, B_tile, beta,
+                    C_tile, ndim);
+            // all other l>0
+            for(int l = 1; l < k; ++l)
+            {
+                // accumulate C(i,j) = a*opA(i,l)*opB(0,l) + C(i,j)
+                A_tile_offset += opA_stride[1];
+                B_tile_offset += opB_stride[0];
+                const auto &A_tile = A.tiles[A_tile_offset];
+                const auto &B_tile = B.tiles[B_tile_offset];
+                gemm_async<T>(alpha, transA, A_tile, transB, B_tile, beta,
+                        C_tile, ndim);
+            }
         }
     }
 }
 
 template<typename T>
-void gemm_async(T alpha,
+void gemm(T alpha,
         const TransOp &transA,
         const Tensor<T> &A,
         const TransOp &transB,
@@ -386,40 +373,7 @@ void gemm_async(T alpha,
         const Tensor<T> &C,
         int ndim=1)
 {
-    gemm_async(alpha, transA, A, A.tiles_handle, B, B.tiles_handle, beta, C,
-            C.tiles_handle, ndim);
-}
-
-template<typename T>
-void gemm(T alpha,
-        const TransOp &transA,
-        const TensorTraits &A,
-        const std::vector<StarPUSharedHandle> &A_tiles_handle,
-        const TransOp &transB,
-        const TensorTraits &B,
-        const std::vector<StarPUSharedHandle> &B_tiles_handle,
-        T beta,
-        const TensorTraits &C,
-        const std::vector<StarPUSharedHandle> &C_tiles_handle,
-        int ndim)
-{
-    gemm_async(alpha, transA, A, A_tiles_handle, transB, B, B_tiles_handle,
-            beta, C, C_tiles_handle, ndim);
-    starpu_task_wait_for_all();
-}
-
-template<typename T>
-void gemm(T alpha,
-        const TransOp &transA,
-        const Tensor<T> &A,
-        const TransOp &transB,
-        const Tensor<T> &B,
-        T beta,
-        const Tensor<T> &C,
-        int ndim)
-{
-    gemm_async(alpha, transA, A, A.tiles_handle, transB, B, B.tiles_handle,
-            beta, C, C.tiles_handle, ndim);
+    gemm_async(alpha, transA, A, transB, B, beta, C, ndim);
     starpu_task_wait_for_all();
 }
 

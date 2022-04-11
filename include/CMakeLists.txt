@@ -6,7 +6,10 @@ set(HDR
     "nntile/tile.hh"
     "nntile/tile/traits.hh"
     "nntile/tile/tile.hh"
+    "nntile/tile/randn.hh"
+    "nntile/tile/cblas.hh"
     "nntile/tile/gemm.hh"
+    "nntile/tile/bias.hh"
     "nntile/tile/gelu.hh"
     "nntile/tensor.hh"
     "nntile/tensor/traits.hh"
@@ -14,5 +17,5 @@ set(HDR
     "nntile/tensor/gemm.hh"
     )
 
-target_sources(nntile INTERFACE ${HDR})
+target_sources(nntile PUBLIC ${HDR})
 

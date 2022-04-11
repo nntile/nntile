@@ -1,81 +1,114 @@
 #pragma once
 
 #include <nntile/tensor/traits.hh>
+#include <nntile/tile/tile.hh>
 #include <memory>
 
 namespace nntile
 {
 
-struct TensorHandle: public TensorTraits
+template<typename T>
+class Tensor: public TensorTraits
 {
+public:
     //! Pointer to the contiguous memory
-    std::shared_ptr<std::byte> ptr;
-    //! Data type
-    BaseType dtype;
-    //! Total size of allocated memory
+    std::shared_ptr<std::byte[]> ptr;
+    //! Total size of allocated memory in bytes
     size_t alloc_size;
-    //! Starpu handles for tile data
-    std::vector<StarPUSharedHandle> tiles_handle;
+    //! Tiles
+    std::vector<Tile<T>> tiles;
     //! Constructor
-    TensorHandle(const TensorTraits &traits,
-            BaseType dtype_,
-            int alignment=16):
+    Tensor(const TensorTraits &traits,
+            size_t alignment=16):
         TensorTraits(traits),
-        dtype(dtype_),
-        alloc_size(0)
+        ptr(),
+        alloc_size(0),
+        tiles()
     {
         // At first compute memory footprint and offsets for each tile
-        size_t elem_size = dtype.size();
-        std::vector<size_t> tiles_offset(ntiles);
-        for(int i = 0; i < ntiles; ++i)
+        std::vector<size_t> tiles_nelems(grid.nelems);
+        std::vector<size_t> tiles_offset(grid.nelems);
+        for(size_t i = 0; i < grid.nelems; ++i)
         {
-            // Store offset in bytes
+            // Remember offset to current tile
             tiles_offset[i] = alloc_size;
-            // Actual memory for the tile in bytes
-            size_t tile_alloc_size = elem_size * tiles_traits[i].nelems;
-            // Round up to the alignment parameter
-            size_t naligns = (tile_alloc_size-1)/alignment + 1;
-            alloc_size += naligns * alignment;
+            // Get shape of corresponding tile
+            const auto tile_shape = TensorTraits::get_tile_shape(i);
+            // Actual memory for the tile in elements T
+            tiles_nelems[i] = 1;
+            for(size_t j = 0; j < ndim; ++j)
+            {
+                tiles_nelems[i] *= tile_shape[j];
+            }
+            // Total memory for tile in bytes
+            size_t tile_alloc_size = tiles_nelems[i] * sizeof(T);
+            // Compute offset only if allocation is non-zero
+            if(tile_alloc_size != 0)
+            {
+                // Round up to the alignment parameter
+                size_t naligns = (tile_alloc_size-1)/alignment + 1;
+                // Update allocation size
+                alloc_size += naligns * alignment;
+            }
         }
-        //std::cout << "tile_traits.size()=" << tiles_traits.size() << "\n";
         // Allocate memory
-        //std::cout << "alloc_size=" << alloc_size << "\n";
         auto ptr_raw = ::new std::byte[alloc_size];
-        ptr = std::shared_ptr<std::byte>(ptr_raw);
-        uintptr_t ptr_uint = reinterpret_cast<uintptr_t>(ptr_raw);
+        ptr = std::shared_ptr<std::byte[]>(ptr_raw);
         // Register tiles
-        tiles_handle.reserve(ntiles);
-        for(int i = 0; i < ntiles; ++i)
+        tiles.reserve(grid.nelems);
+        for(size_t i = 0; i < grid.nelems; ++i)
         {
-            tiles_handle.emplace_back(STARPU_MAIN_RAM,
-                    ptr_uint+tiles_offset[i], tiles_traits[i].nelems,
-                    elem_size);
+            tiles.emplace_back(TensorTraits::get_tile_shape(i),
+                    reinterpret_cast<T *>(&ptr_raw[tiles_offset[i]]),
+                    tiles_nelems[i]);
         }
     }
     //! Constructor
-    TensorHandle(const std::vector<int> &shape_,
-            const std::vector<int> &tile_shape_,
-            BaseType dtype_,
-            int alignment=16):
-        TensorHandle({shape_, tile_shape_}, dtype_, alignment)
+    Tensor(const std::vector<size_t> &shape_,
+            const std::vector<size_t> &basetile_shape_,
+            size_t alignment=16):
+        Tensor({shape_, basetile_shape_}, alignment)
     {
     }
-};
-
-template<typename T>
-struct Tensor: public TensorHandle
-{
-    // No new member fields
-    //! Constructor
-    Tensor(const TensorTraits &traits):
-        TensorHandle(traits, BaseType(T{0}))
+    const Tile<T> &get_tile(size_t offset) const
     {
+        if(offset >= grid.nelems)
+        {
+            throw std::runtime_error("Tile offset is out of bounds");
+        }
+        return tiles[offset];
     }
-    //! Constructor
-    Tensor(const std::vector<int> &shape_,
-            const std::vector<int> &tile_shape_):
-        TensorHandle(shape_, tile_shape_, BaseType(T{0}))
+    const Tile<T> &get_tile(const std::vector<size_t> &index) const
     {
+        size_t offset = get_tile_offset(index);
+        return tiles[offset];
+    }
+    const TileTraits &get_tile_traits(size_t offset) const
+    {
+        if(offset >= grid.nelems)
+        {
+            throw std::runtime_error("Tile offset is out of bounds");
+        }
+        return tiles[offset];
+    }
+    const TileTraits &get_tile_traits(const std::vector<size_t> &index) const
+    {
+        size_t offset = get_tile_offset(index);
+        return tiles[offset];
+    }
+    const std::vector<size_t> &get_tile_shape(size_t offset) const
+    {
+        if(offset >= grid.nelems)
+        {
+            throw std::runtime_error("Tile offset is out of bounds");
+        }
+        return tiles[offset].shape;
+    }
+    const std::vector<size_t> &get_tile_shape(
+            const std::vector<size_t> &index) const
+    {
+        size_t offset = get_tile_offset(index);
+        return tiles[offset].shape;
     }
 };
 

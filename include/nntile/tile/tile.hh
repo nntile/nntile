@@ -1,53 +1,50 @@
 #pragma once
 
-#include <nntile/base_type.hh>
 #include <nntile/tile/traits.hh>
-#include <starpu.h>
+#include <nntile/starpu.hh>
 
 namespace nntile
 {
 
-struct TileHandle: public TileTraits
-{
-    //! Starpu handle for tile data
-    StarPUSharedHandle handle;
-    //! Underlying data type
-    BaseType dtype;
-    //! Constructor
-    TileHandle(const std::vector<int> &shape_,
-            const StarPUSharedHandle &handle_,
-            const BaseType &dtype_):
-        TileTraits(shape_),
-        handle(handle_),
-        dtype(dtype_)
-    {
-    }
-    //! Constructor
-    TileHandle(const TileTraits &traits,
-            const StarPUSharedHandle &handle_,
-            const BaseType &dtype_):
-        TileTraits(traits),
-        handle(handle_),
-        dtype(dtype_)
-    {
-    }
-};
-
 template<typename T>
-struct Tile: public TileHandle
+class Tile: public TileTraits, public StarpuVariableHandle
 {
-    // No new member fields
-    //! Constructor
-    Tile(const std::vector<int> &shape_,
-            const StarPUSharedHandle &handle_):
-        TileHandle(shape_, handle_, BaseType(T{0}))
+    size_t check_nelems(size_t req_nelems, size_t ptr_nelems)
+    {
+        if(req_nelems > ptr_nelems)
+        {
+            throw std::runtime_error("Required memory size is larger than "
+                    "actually allocated memory");
+        }
+        return req_nelems;
+    }
+public:
+    Tile(const std::vector<size_t> &shape_):
+        TileTraits(shape_),
+        StarpuVariableHandle(nelems*sizeof(T))
     {
     }
-    //! Constructor
-    Tile(const TileTraits &traits,
-            const StarPUSharedHandle &handle_):
-        TileHandle(traits, handle_, BaseType(T{0}))
+    Tile(const TileTraits &traits):
+        TileTraits(traits),
+        StarpuVariableHandle(nelems*sizeof(T))
     {
+    }
+    Tile(const std::vector<size_t> &shape_, T *ptr, size_t ptr_nelems):
+        TileTraits(shape_),
+        StarpuVariableHandle(reinterpret_cast<uintptr_t>(ptr),
+                sizeof(T)*check_nelems(nelems, ptr_nelems))
+    {
+    }
+    Tile(const TileTraits &traits, T *ptr, size_t ptr_nelems):
+        TileTraits(traits),
+        StarpuVariableHandle(reinterpret_cast<uintptr_t>(ptr),
+                sizeof(T)*check_nelems(nelems, ptr_nelems))
+    {
+    }
+    //! Get pointer to local data if corresponding interface supports it
+    const T *get_local_ptr() const
+    {
+        return reinterpret_cast<const T *>(StarpuHandle::get_local_ptr());
     }
 };
 
