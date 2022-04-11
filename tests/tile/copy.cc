@@ -90,7 +90,7 @@ int main(int argc, char **argv)
 {
     StarPU starpu;
     validate_copy<float>();
-    //validate_copy<double>();
+    validate_copy<double>();
     return 0;
 }
 
