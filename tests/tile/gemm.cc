@@ -162,100 +162,228 @@ void validate_gemm()
     // Scalar values
     T one = 1.0, zero = 0.0;
     // Check gemm with alpha=one and beta=zero
+    for(size_t i = 0; i < C1.nelems; ++i)
+    {
+        C1_copy_ptr[i] = C1_ptr[i];
+    }
     gemm(one, TransOp::NoTrans, A1, TransOp::NoTrans, B1, zero, C1, 1);
     test_gemm(TransOp::NoTrans, TransOp::NoTrans, C1M, C1N, C1K, one,
             A1_ptr, C1M, B1_ptr, C1K, zero, C1_copy_ptr, C1M, C1_ptr, C1M);
+    for(size_t i = 0; i < C1.nelems; ++i)
+    {
+        C1_copy_ptr[i] = C1_ptr[i];
+    }
     gemm(one, TransOp::NoTrans, A1, TransOp::Trans, B1T, zero, C1, 1);
     test_gemm(TransOp::NoTrans, TransOp::Trans, C1M, C1N, C1K, one,
             A1_ptr, C1M, B1_ptr, C1N, zero, C1_copy_ptr, C1M, C1_ptr, C1M);
+    for(size_t i = 0; i < C1.nelems; ++i)
+    {
+        C1_copy_ptr[i] = C1_ptr[i];
+    }
     gemm(one, TransOp::Trans, A1T, TransOp::NoTrans, B1, zero, C1, 1);
     test_gemm(TransOp::Trans, TransOp::NoTrans, C1M, C1N, C1K, one,
             A1_ptr, C1K, B1_ptr, C1K, zero, C1_copy_ptr, C1M, C1_ptr, C1M);
+    for(size_t i = 0; i < C1.nelems; ++i)
+    {
+        C1_copy_ptr[i] = C1_ptr[i];
+    }
     gemm(one, TransOp::Trans, A1T, TransOp::Trans, B1T, zero, C1, 1);
     test_gemm(TransOp::Trans, TransOp::Trans, C1M, C1N, C1K, one,
             A1_ptr, C1K, B1_ptr, C1N, zero, C1_copy_ptr, C1M, C1_ptr, C1M);
+    for(size_t i = 0; i < C1.nelems; ++i)
+    {
+        C1_copy_ptr[i] = C1_ptr[i];
+    }
     gemm(one, TransOp::NoTrans, B1T, TransOp::NoTrans, A1T, zero, C1T, 1);
     test_gemm(TransOp::NoTrans, TransOp::NoTrans, C1N, C1M, C1K, one,
             B1_ptr, C1N, A1_ptr, C1K, zero, C1_copy_ptr, C1N, C1_ptr, C1N);
+    for(size_t i = 0; i < C1.nelems; ++i)
+    {
+        C1_copy_ptr[i] = C1_ptr[i];
+    }
     gemm(one, TransOp::NoTrans, B1T, TransOp::Trans, A1, zero, C1T, 1);
     test_gemm(TransOp::NoTrans, TransOp::Trans, C1N, C1M, C1K, one,
             B1_ptr, C1N, A1_ptr, C1M, zero, C1_copy_ptr, C1N, C1_ptr, C1N);
+    for(size_t i = 0; i < C1.nelems; ++i)
+    {
+        C1_copy_ptr[i] = C1_ptr[i];
+    }
     gemm(one, TransOp::Trans, B1, TransOp::NoTrans, A1T, zero, C1T, 1);
     test_gemm(TransOp::Trans, TransOp::NoTrans, C1N, C1M, C1K, one,
             B1_ptr, C1K, A1_ptr, C1K, zero, C1_copy_ptr, C1N, C1_ptr, C1N);
+    for(size_t i = 0; i < C1.nelems; ++i)
+    {
+        C1_copy_ptr[i] = C1_ptr[i];
+    }
     gemm(one, TransOp::Trans, B1, TransOp::Trans, A1, zero, C1T, 1);
     test_gemm(TransOp::Trans, TransOp::Trans, C1N, C1M, C1K, one,
             B1_ptr, C1K, A1_ptr, C1M, zero, C1_copy_ptr, C1N, C1_ptr, C1N);
+    for(size_t i = 0; i < C2.nelems; ++i)
+    {
+        C2_copy_ptr[i] = C2_ptr[i];
+    }
     gemm(one, TransOp::NoTrans, A2, TransOp::NoTrans, B2, zero, C2, 2);
     test_gemm(TransOp::NoTrans, TransOp::NoTrans, C2M, C2N, C2K, one,
             A2_ptr, C2M, B2_ptr, C2K, zero, C2_copy_ptr, C2M, C2_ptr, C2M);
+    for(size_t i = 0; i < C2.nelems; ++i)
+    {
+        C2_copy_ptr[i] = C2_ptr[i];
+    }
     gemm(one, TransOp::NoTrans, A2, TransOp::Trans, B2T, zero, C2, 2);
     test_gemm(TransOp::NoTrans, TransOp::Trans, C2M, C2N, C2K, one,
             A2_ptr, C2M, B2_ptr, C2N, zero, C2_copy_ptr, C2M, C2_ptr, C2M);
+    for(size_t i = 0; i < C2.nelems; ++i)
+    {
+        C2_copy_ptr[i] = C2_ptr[i];
+    }
     gemm(one, TransOp::Trans, A2T, TransOp::NoTrans, B2, zero, C2, 2);
     test_gemm(TransOp::Trans, TransOp::NoTrans, C2M, C2N, C2K, one,
             A2_ptr, C2K, B2_ptr, C2K, zero, C2_copy_ptr, C2M, C2_ptr, C2M);
+    for(size_t i = 0; i < C2.nelems; ++i)
+    {
+        C2_copy_ptr[i] = C2_ptr[i];
+    }
     gemm(one, TransOp::Trans, A2T, TransOp::Trans, B2T, zero, C2, 2);
     test_gemm(TransOp::Trans, TransOp::Trans, C2M, C2N, C2K, one,
             A2_ptr, C2K, B2_ptr, C2N, zero, C2_copy_ptr, C2M, C2_ptr, C2M);
+    for(size_t i = 0; i < C2.nelems; ++i)
+    {
+        C2_copy_ptr[i] = C2_ptr[i];
+    }
     gemm(one, TransOp::NoTrans, B2T, TransOp::NoTrans, A2T, zero, C2T, 2);
     test_gemm(TransOp::NoTrans, TransOp::NoTrans, C2N, C2M, C2K, one,
             B2_ptr, C2N, A2_ptr, C2K, zero, C2_copy_ptr, C2N, C2_ptr, C2N);
+    for(size_t i = 0; i < C2.nelems; ++i)
+    {
+        C2_copy_ptr[i] = C2_ptr[i];
+    }
     gemm(one, TransOp::NoTrans, B2T, TransOp::Trans, A2, zero, C2T, 2);
     test_gemm(TransOp::NoTrans, TransOp::Trans, C2N, C2M, C2K, one,
             B2_ptr, C2N, A2_ptr, C2M, zero, C2_copy_ptr, C2N, C2_ptr, C2N);
+    for(size_t i = 0; i < C2.nelems; ++i)
+    {
+        C2_copy_ptr[i] = C2_ptr[i];
+    }
     gemm(one, TransOp::Trans, B2, TransOp::NoTrans, A2T, zero, C2T, 2);
     test_gemm(TransOp::Trans, TransOp::NoTrans, C2N, C2M, C2K, one,
             B2_ptr, C2K, A2_ptr, C2K, zero, C2_copy_ptr, C2N, C2_ptr, C2N);
+    for(size_t i = 0; i < C2.nelems; ++i)
+    {
+        C2_copy_ptr[i] = C2_ptr[i];
+    }
     gemm(one, TransOp::Trans, B2, TransOp::Trans, A2, zero, C2T, 2);
     test_gemm(TransOp::Trans, TransOp::Trans, C2N, C2M, C2K, one,
             B2_ptr, C2K, A2_ptr, C2M, zero, C2_copy_ptr, C2N, C2_ptr, C2N);
     // Check gemm with alpha=one and beta=one
+    for(size_t i = 0; i < C1.nelems; ++i)
+    {
+        C1_copy_ptr[i] = C1_ptr[i];
+    }
     gemm(one, TransOp::NoTrans, A1, TransOp::NoTrans, B1, one, C1, 1);
     test_gemm(TransOp::NoTrans, TransOp::NoTrans, C1M, C1N, C1K, one,
             A1_ptr, C1M, B1_ptr, C1K, one, C1_copy_ptr, C1M, C1_ptr, C1M);
+    for(size_t i = 0; i < C1.nelems; ++i)
+    {
+        C1_copy_ptr[i] = C1_ptr[i];
+    }
     gemm(one, TransOp::NoTrans, A1, TransOp::Trans, B1T, one, C1, 1);
     test_gemm(TransOp::NoTrans, TransOp::Trans, C1M, C1N, C1K, one,
             A1_ptr, C1M, B1_ptr, C1N, one, C1_copy_ptr, C1M, C1_ptr, C1M);
+    for(size_t i = 0; i < C1.nelems; ++i)
+    {
+        C1_copy_ptr[i] = C1_ptr[i];
+    }
     gemm(one, TransOp::Trans, A1T, TransOp::NoTrans, B1, one, C1, 1);
     test_gemm(TransOp::Trans, TransOp::NoTrans, C1M, C1N, C1K, one,
             A1_ptr, C1K, B1_ptr, C1K, one, C1_copy_ptr, C1M, C1_ptr, C1M);
+    for(size_t i = 0; i < C1.nelems; ++i)
+    {
+        C1_copy_ptr[i] = C1_ptr[i];
+    }
     gemm(one, TransOp::Trans, A1T, TransOp::Trans, B1T, one, C1, 1);
     test_gemm(TransOp::Trans, TransOp::Trans, C1M, C1N, C1K, one,
             A1_ptr, C1K, B1_ptr, C1N, one, C1_copy_ptr, C1M, C1_ptr, C1M);
+    for(size_t i = 0; i < C1.nelems; ++i)
+    {
+        C1_copy_ptr[i] = C1_ptr[i];
+    }
     gemm(one, TransOp::NoTrans, B1T, TransOp::NoTrans, A1T, one, C1T, 1);
     test_gemm(TransOp::NoTrans, TransOp::NoTrans, C1N, C1M, C1K, one,
             B1_ptr, C1N, A1_ptr, C1K, one, C1_copy_ptr, C1N, C1_ptr, C1N);
+    for(size_t i = 0; i < C1.nelems; ++i)
+    {
+        C1_copy_ptr[i] = C1_ptr[i];
+    }
     gemm(one, TransOp::NoTrans, B1T, TransOp::Trans, A1, one, C1T, 1);
     test_gemm(TransOp::NoTrans, TransOp::Trans, C1N, C1M, C1K, one,
             B1_ptr, C1N, A1_ptr, C1M, one, C1_copy_ptr, C1N, C1_ptr, C1N);
+    for(size_t i = 0; i < C1.nelems; ++i)
+    {
+        C1_copy_ptr[i] = C1_ptr[i];
+    }
     gemm(one, TransOp::Trans, B1, TransOp::NoTrans, A1T, one, C1T, 1);
     test_gemm(TransOp::Trans, TransOp::NoTrans, C1N, C1M, C1K, one,
             B1_ptr, C1K, A1_ptr, C1K, one, C1_copy_ptr, C1N, C1_ptr, C1N);
+    for(size_t i = 0; i < C1.nelems; ++i)
+    {
+        C1_copy_ptr[i] = C1_ptr[i];
+    }
     gemm(one, TransOp::Trans, B1, TransOp::Trans, A1, one, C1T, 1);
     test_gemm(TransOp::Trans, TransOp::Trans, C1N, C1M, C1K, one,
             B1_ptr, C1K, A1_ptr, C1M, one, C1_copy_ptr, C1N, C1_ptr, C1N);
+    for(size_t i = 0; i < C2.nelems; ++i)
+    {
+        C2_copy_ptr[i] = C2_ptr[i];
+    }
     gemm(one, TransOp::NoTrans, A2, TransOp::NoTrans, B2, one, C2, 2);
     test_gemm(TransOp::NoTrans, TransOp::NoTrans, C2M, C2N, C2K, one,
             A2_ptr, C2M, B2_ptr, C2K, one, C2_copy_ptr, C2M, C2_ptr, C2M);
+    for(size_t i = 0; i < C2.nelems; ++i)
+    {
+        C2_copy_ptr[i] = C2_ptr[i];
+    }
     gemm(one, TransOp::NoTrans, A2, TransOp::Trans, B2T, one, C2, 2);
     test_gemm(TransOp::NoTrans, TransOp::Trans, C2M, C2N, C2K, one,
             A2_ptr, C2M, B2_ptr, C2N, one, C2_copy_ptr, C2M, C2_ptr, C2M);
+    for(size_t i = 0; i < C2.nelems; ++i)
+    {
+        C2_copy_ptr[i] = C2_ptr[i];
+    }
     gemm(one, TransOp::Trans, A2T, TransOp::NoTrans, B2, one, C2, 2);
     test_gemm(TransOp::Trans, TransOp::NoTrans, C2M, C2N, C2K, one,
             A2_ptr, C2K, B2_ptr, C2K, one, C2_copy_ptr, C2M, C2_ptr, C2M);
+    for(size_t i = 0; i < C2.nelems; ++i)
+    {
+        C2_copy_ptr[i] = C2_ptr[i];
+    }
     gemm(one, TransOp::Trans, A2T, TransOp::Trans, B2T, one, C2, 2);
     test_gemm(TransOp::Trans, TransOp::Trans, C2M, C2N, C2K, one,
             A2_ptr, C2K, B2_ptr, C2N, one, C2_copy_ptr, C2M, C2_ptr, C2M);
+    for(size_t i = 0; i < C2.nelems; ++i)
+    {
+        C2_copy_ptr[i] = C2_ptr[i];
+    }
     gemm(one, TransOp::NoTrans, B2T, TransOp::NoTrans, A2T, one, C2T, 2);
     test_gemm(TransOp::NoTrans, TransOp::NoTrans, C2N, C2M, C2K, one,
             B2_ptr, C2N, A2_ptr, C2K, one, C2_copy_ptr, C2N, C2_ptr, C2N);
+    for(size_t i = 0; i < C2.nelems; ++i)
+    {
+        C2_copy_ptr[i] = C2_ptr[i];
+    }
     gemm(one, TransOp::NoTrans, B2T, TransOp::Trans, A2, one, C2T, 2);
     test_gemm(TransOp::NoTrans, TransOp::Trans, C2N, C2M, C2K, one,
             B2_ptr, C2N, A2_ptr, C2M, one, C2_copy_ptr, C2N, C2_ptr, C2N);
+    for(size_t i = 0; i < C2.nelems; ++i)
+    {
+        C2_copy_ptr[i] = C2_ptr[i];
+    }
     gemm(one, TransOp::Trans, B2, TransOp::NoTrans, A2T, one, C2T, 2);
     test_gemm(TransOp::Trans, TransOp::NoTrans, C2N, C2M, C2K, one,
             B2_ptr, C2K, A2_ptr, C2K, one, C2_copy_ptr, C2N, C2_ptr, C2N);
+    for(size_t i = 0; i < C2.nelems; ++i)
+    {
+        C2_copy_ptr[i] = C2_ptr[i];
+    }
     gemm(one, TransOp::Trans, B2, TransOp::Trans, A2, one, C2T, 2);
     test_gemm(TransOp::Trans, TransOp::Trans, C2N, C2M, C2K, one,
             B2_ptr, C2K, A2_ptr, C2M, one, C2_copy_ptr, C2N, C2_ptr, C2N);

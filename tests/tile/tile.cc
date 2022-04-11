@@ -46,6 +46,7 @@ int main(int argc, char **argv)
 {
     StarPU starpu;
     validate_tile<float>();
+    validate_tile<double>();
     return 0;
 }
 

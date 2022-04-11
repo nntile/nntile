@@ -22,7 +22,7 @@ static void cpu_chameleon_randn_ndim0(void *buffers[], void *cl_args)
     unsigned long long seed;
     T mean, stddev;
     starpu_codelet_unpack_args(cl_args, &seed, &mean, &stddev);
-    T *A = reinterpret_cast<T *>(STARPU_VECTOR_GET_PTR(buffers[0]));
+    T *A = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
     *A = chameleon_randn(seed, mean, stddev);
 }
 
@@ -37,7 +37,7 @@ static void cpu_chameleon_randn(void *buffers[], void *cl_args)
     std::vector<size_t> shape(ndim), offset(ndim), stride(ndim);
     starpu_codelet_unpack_args(cl_args, &ndim, &seed, &mean, &stddev,
             &nelems, &(shape[0]), &(offset[0]), &(stride[0]));
-    T *A = reinterpret_cast<T *>(STARPU_VECTOR_GET_PTR(buffers[0]));
+    T *A = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
     std::vector<size_t> index(ndim, 0);
     size_t global_offset = offset[0]; // stride[0] = 1
     for(size_t i = 1; i < ndim; ++i)

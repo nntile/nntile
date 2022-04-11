@@ -275,9 +275,9 @@ static void gemm_codelet_cpu(void *buffers[], void *cl_args)
     T alpha, beta;
     starpu_codelet_unpack_args(cl_args, &transA, &transB, &m, &n, &k, &alpha,
             &beta);
-    const T *A = reinterpret_cast<T *>(STARPU_VECTOR_GET_PTR(buffers[0]));
-    const T *B = reinterpret_cast<T *>(STARPU_VECTOR_GET_PTR(buffers[1]));
-    T *C = reinterpret_cast<T *>(STARPU_VECTOR_GET_PTR(buffers[2]));
+    const T *A = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
+    const T *B = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[1]));
+    T *C = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[2]));
     CBLAS_TRANSPOSE transA_, transB_;
     CBLAS_INT M=m, N=n, K=k, ldA, ldB;
     switch(transA.value)

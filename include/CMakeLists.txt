@@ -9,6 +9,7 @@ set(HDR
     "nntile/tile/randn.hh"
     "nntile/tile/cblas.hh"
     "nntile/tile/gemm.hh"
+    "nntile/tile/copy.hh"
     "nntile/tile/bias.hh"
     "nntile/tile/gelu.hh"
     "nntile/tensor.hh"
