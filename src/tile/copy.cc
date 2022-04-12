@@ -4,7 +4,7 @@ namespace nntile
 {
 
 template<typename T>
-void cpu_copy(void *buffers[], void *cl_args)
+static void cpu_copy(void *buffers[], void *cl_args)
 {
     size_t ndim;
     starpu_codelet_unpack_args(cl_args, &ndim, 0);
@@ -58,8 +58,8 @@ void cpu_copy(void *buffers[], void *cl_args)
 }
 
 template<typename T>
-void copy_async(const Tile<T> &src, const std::vector<size_t> src_coord,
-        const Tile<T> &dst, const std::vector<size_t> dst_coord)
+void copy_async(const Tile<T> &src, const std::vector<size_t> &src_coord,
+        const Tile<T> &dst, const std::vector<size_t> &dst_coord)
 {
     static struct starpu_codelet codelet_copy_rw =
     {
@@ -144,12 +144,12 @@ void copy_async(const Tile<T> &src, const std::vector<size_t> src_coord,
 }
 
 template
-void copy_async(const Tile<float> &src, const std::vector<size_t> src_coord,
-        const Tile<float> &dst, const std::vector<size_t> dst_coord);
+void copy_async(const Tile<float> &src, const std::vector<size_t> &src_coord,
+        const Tile<float> &dst, const std::vector<size_t> &dst_coord);
 
 template
-void copy_async(const Tile<double> &src, const std::vector<size_t> src_coord,
-        const Tile<double> &dst, const std::vector<size_t> dst_coord);
+void copy_async(const Tile<double> &src, const std::vector<size_t> &src_coord,
+        const Tile<double> &dst, const std::vector<size_t> &dst_coord);
 
 } // namespace nntile
 

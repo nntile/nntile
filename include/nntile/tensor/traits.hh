@@ -1,12 +1,11 @@
 #pragma once
 
 #include <nntile/tile/traits.hh>
-#include <map>
 
 namespace nntile
 {
 
-class TensorTraits
+class TensorTraits: public TileTraits
 {
     const std::vector<size_t> &_get_basetile_shape(
             const std::vector<size_t> &basetile_shape) const
@@ -42,10 +41,6 @@ class TensorTraits
         return leftover_shape;
     }
 public:
-    //! Run-time dimensionality
-    size_t ndim;
-    //! Shape of tensor
-    std::vector<size_t> shape;
     //! Shape of base tile
     std::vector<size_t> basetile_shape;
     //! Grid of tiles viewed as tile of tiles
@@ -55,8 +50,7 @@ public:
     //! Constructor
     TensorTraits(const std::vector<size_t> &shape_,
             const std::vector<size_t> &basetile_shape_):
-        ndim(shape_.size()),
-        shape(shape_),
+        TileTraits(shape_),
         basetile_shape(_get_basetile_shape(basetile_shape_)),
         grid(_get_grid_shape()),
         leftover_shape(_get_leftover_shape())
@@ -149,70 +143,6 @@ public:
     friend std::ostream &operator<<(std::ostream &os,
             const TensorTraits &traits);
 };
-
-std::ostream &operator<<(std::ostream &os, const TensorTraits &traits)
-{
-    os << "TensorTraits object at " << &traits << "\n";
-    os << "shape=(";
-    if(traits.ndim > 0)
-    {
-        os << traits.shape[0];
-        for(size_t i = 1; i < traits.ndim; ++i)
-        {
-            os << "," << traits.shape[i];
-        }
-    }
-    os << ")\n";
-    os << "basetile_shape=(";
-    if(traits.ndim > 0)
-    {
-        os << traits.basetile_shape[0];
-        for(size_t i = 1; i < traits.ndim; ++i)
-        {
-            os << "," << traits.basetile_shape[i];
-        }
-    }
-    os << ")\n";
-    os << "leftover_shape=(";
-    if(traits.ndim > 0)
-    {
-        os << traits.leftover_shape[0];
-        for(size_t i = 1; i < traits.ndim; ++i)
-        {
-            os << "," << traits.leftover_shape[i];
-        }
-    }
-    os << ")\n";
-    os << "grid\n" << traits.grid;
-    os << "Tiles\n";
-    for(size_t i = 0; i < traits.grid.nelems; ++i)
-    {
-        const auto index = traits.get_tile_index(i);
-        os << "  " << i << "\n";
-        os << "    index=(";
-        if(traits.ndim > 0)
-        {
-            os << index[0];
-            for(size_t j = 1; j < traits.ndim; ++j)
-            {
-                os << "," << index[j];
-            }
-        }
-        os << ")\n";
-        const auto shape = traits.get_tile_shape(index);
-        os << "    shape=(";
-        if(traits.ndim > 0)
-        {
-            os << shape[0];
-            for(size_t j = 1; j < traits.ndim; ++j)
-            {
-                os << "," << shape[j];
-            }
-        }
-        os << ")\n";
-    }
-    return os;
-}
 
 } // namespace nntile
 

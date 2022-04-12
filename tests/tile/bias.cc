@@ -48,14 +48,13 @@ void validate_bias()
 {
     Tile<T> A({3, 4, 5, 6}), b0({4, 5, 6}), b1({3, 5, 6}), b2({3, 4, 6}),
         b3({3, 4, 5});
-    std::vector<size_t> zero4(4, 0), zero3(3, 0);
-    unsigned long long seed = 100;
-    T one = 1, zero = 0;
-    randn(A, zero4, A.stride, seed, zero, one);
-    randn(b0, zero3, b0.stride, seed, zero, one);
-    randn(b1, zero3, b1.stride, seed, zero, one);
-    randn(b2, zero3, b2.stride, seed, zero, one);
-    randn(b3, zero3, b3.stride, seed, zero, one);
+    unsigned long long A_seed = 100, b0_seed = 101, b1_seed = 102,
+                  b2_seed = 103, b3_seed = 104;
+    randn(A, A_seed);
+    randn(b0, b0_seed);
+    randn(b1, b1_seed);
+    randn(b2, b2_seed);
+    randn(b3, b3_seed);
     check_bias<T>(A, b0, 0);
 }
 

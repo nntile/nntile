@@ -39,6 +39,5 @@ std::ostream &operator<<(std::ostream &os, const TileTraits &traits)
     return os;
 }
 
-
 } // namespace nntile
 

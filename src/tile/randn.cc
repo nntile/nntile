@@ -7,13 +7,13 @@ namespace nntile
 static inline float chameleon_randn(unsigned long long &seed, float mean,
         float stddev)
 {
-    return stddev*CORE_slaran(&seed)+mean;
+    return stddev*CORE_slaran(&seed) + mean;
 }
 
 static inline double chameleon_randn(unsigned long long &seed, double mean,
         double stddev)
 {
-    return stddev*CORE_dlaran(&seed)+mean;
+    return stddev*CORE_dlaran(&seed) + mean;
 }
 
 template<typename T>
@@ -34,92 +34,131 @@ static void cpu_chameleon_randn(void *buffers[], void *cl_args)
     unsigned long long seed;
     T mean, stddev;
     size_t nelems;
-    std::vector<size_t> shape(ndim), offset(ndim), stride(ndim);
+    std::vector<size_t> src_stride(ndim), randn_shape(ndim), dst_stride(ndim);
     starpu_codelet_unpack_args(cl_args, &ndim, &seed, &mean, &stddev,
-            &nelems, &(shape[0]), &(offset[0]), &(stride[0]));
-    T *A = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
-    std::vector<size_t> index(ndim, 0);
-    size_t global_offset = offset[0]; // stride[0] = 1
-    for(size_t i = 1; i < ndim; ++i)
+            &(src_stride[0]), &(randn_shape[0]), &(dst_stride[0]));
+    T *dst = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
+    size_t randn_nelems = 1;
+    for(size_t i = 0; i < ndim; ++i)
     {
-        global_offset += offset[i] * stride[i];
+        randn_nelems *= randn_shape[i];
     }
-    seed = CORE_rnd64_jump(global_offset, seed);
+    std::vector<size_t> index(ndim, 0);
     // View tile as a matrix of shape (shape[0], prod(shape[1:ndim]))
-    size_t nrows = shape[0], ncols = nelems / nrows;
+    size_t nrows = randn_shape[0], ncols = randn_nelems / nrows;
     for(size_t i = 0; i < nrows; ++i)
     {
-        *A = chameleon_randn(seed, mean, stddev);
-        //*A = global_offset;
-        ++A;
-        ++global_offset;
+        *dst = chameleon_randn(seed, mean, stddev);
+        ++dst;
     }
     for(size_t j = 1; j < ncols; ++j)
     {
+        ++index[1];
         size_t k = 1;
-        ++index[k];
-        size_t shift = stride[1] - shape[0];
-        while(index[k] == shape[k])
+        size_t shift = src_stride[1] - nrows;
+        dst += dst_stride[1] - nrows;
+        while(index[k] == randn_shape[k])
         {
             index[k] = 0;
             ++k;
             ++index[k];
-            shift += stride[k] - shape[k-1]*stride[k-1];
+            shift += src_stride[k] - src_stride[k-1]*randn_shape[k-1];
+            dst += dst_stride[k] - dst_stride[k-1]*randn_shape[k-1];
         }
         seed = CORE_rnd64_jump(shift, seed);
-        global_offset += shift;
         for(size_t i = 0; i < nrows; ++i)
         {
-            *A = chameleon_randn(seed, mean, stddev);
-            //*A = global_offset;
-            ++A;
-            ++global_offset;
+            *dst = chameleon_randn(seed, mean, stddev);
+            ++dst;
         }
     }
 }
 
 template<typename T>
-void randn_async(const Tile<T> &A, const std::vector<size_t> &offset,
-        const std::vector<size_t> &stride, unsigned long long &seed,
-        T mean, T stddev)
+void randn_async(const TileTraits &src, const Tile<T> &dst,
+        const std::vector<size_t> &dst_coord, unsigned long long seed, T mean,
+        T stddev)
 {
-    static struct starpu_codelet codelet_randn =
+    static struct starpu_codelet codelet_randn_rw =
+    {
+        .cpu_funcs = {cpu_chameleon_randn<T>},
+        .nbuffers = 1,
+        .modes = {STARPU_RW}
+    };
+    static struct starpu_codelet codelet_randn_w =
     {
         .cpu_funcs = {cpu_chameleon_randn<T>},
         .nbuffers = 1,
         .modes = {STARPU_W}
     };
-    if(A.ndim != offset.size())
+    if(src.ndim != dst.ndim)
     {
-        throw std::runtime_error("A.ndim != offset.size()");
+        throw std::runtime_error("src.ndim != dst.ndim");
     }
-    if(A.ndim != stride.size())
+    if(dst.ndim != dst_coord.size())
     {
-        throw std::runtime_error("A.ndim != stride.size()");
+        throw std::runtime_error("dst.ndim != dst_coord.size()");
     }
-    starpu_task_insert(&codelet_randn,
-            STARPU_VALUE, &(A.ndim), sizeof(A.ndim),
-            STARPU_VALUE, &seed, sizeof(seed),
-            STARPU_VALUE, &mean, sizeof(mean),
-            STARPU_VALUE, &stddev, sizeof(stddev),
-            STARPU_VALUE, &(A.nelems), sizeof(A.nelems),
-            STARPU_VALUE, &(A.shape[0]), A.ndim*sizeof(A.shape[0]),
-            STARPU_VALUE, &(offset[0]), A.ndim*sizeof(offset[0]),
-            STARPU_VALUE, &(stride[0]), A.ndim*sizeof(stride[0]),
-            STARPU_W, static_cast<starpu_data_handle_t>(A),
-            0);
-    seed = CORE_rnd64_jump(A.nelems, seed);
+    size_t ndim = src.ndim;
+    std::vector<size_t> randn_shape(dst.shape);
+    bool full_overwrite = true;
+    for(size_t i = 0; i < ndim; ++i)
+    {
+        // Do nothing if tiles do not intersect
+        if(src.shape[i] <= dst_coord[i])
+        {
+            return;
+        }
+        size_t tmp = src.shape[i] - dst_coord[i];
+        if(randn_shape[i] > tmp)
+        {
+            randn_shape[i] = tmp;
+            full_overwrite = false;
+        }
+    }
+    size_t jump = dst_coord[0]; // src.stride[0] = 1
+    for(size_t i = 1; i < ndim; ++i)
+    {
+        jump += src.stride[i] * dst_coord[i];
+    }
+    seed = CORE_rnd64_jump(jump, seed);
+    if(full_overwrite)
+    {
+        starpu_task_insert(&codelet_randn_w,
+                STARPU_VALUE, &(ndim), sizeof(ndim),
+                STARPU_VALUE, &seed, sizeof(seed),
+                STARPU_VALUE, &mean, sizeof(mean),
+                STARPU_VALUE, &stddev, sizeof(stddev),
+                STARPU_VALUE, &(src.stride[0]), ndim*sizeof(src.stride[0]),
+                STARPU_VALUE, &(randn_shape[0]), ndim*sizeof(randn_shape[0]),
+                STARPU_VALUE, &(dst.stride[0]), ndim*sizeof(dst.stride[0]),
+                STARPU_W, static_cast<starpu_data_handle_t>(dst),
+                0);
+    }
+    else
+    {
+        starpu_task_insert(&codelet_randn_rw,
+                STARPU_VALUE, &(ndim), sizeof(ndim),
+                STARPU_VALUE, &seed, sizeof(seed),
+                STARPU_VALUE, &mean, sizeof(mean),
+                STARPU_VALUE, &stddev, sizeof(stddev),
+                STARPU_VALUE, &(src.stride[0]), ndim*sizeof(src.stride[0]),
+                STARPU_VALUE, &(randn_shape[0]), ndim*sizeof(randn_shape[0]),
+                STARPU_VALUE, &(dst.stride[0]), ndim*sizeof(dst.stride[0]),
+                STARPU_RW, static_cast<starpu_data_handle_t>(dst),
+                0);
+    }
 }
 
 template
-void randn_async(const Tile<float> &A, const std::vector<size_t> &offset,
-        const std::vector<size_t> &stride, unsigned long long &seed,
-        float mean, float stddev);
+void randn_async(const TileTraits &src, const Tile<float> &dst,
+        const std::vector<size_t> &dst_coord, unsigned long long seed,
+        float mean=0, float stddev=1);
 
 template
-void randn_async(const Tile<double> &A, const std::vector<size_t> &offset,
-        const std::vector<size_t> &stride, unsigned long long &seed,
-        double mean, double stddev);
+void randn_async(const TileTraits &src, const Tile<double> &dst,
+        const std::vector<size_t> &dst_coord, unsigned long long seed,
+        double mean=0, double stddev=1);
 
 } // namespace nntile
 

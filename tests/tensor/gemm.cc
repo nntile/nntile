@@ -33,23 +33,6 @@ void validate_gemm()
         C2T(C2T_traits);
     // Scalar values
     T one = 1.0, zero = 0.0;
-    // Check if tensors match gemm operation
-    gemm_check(TransOp::NoTrans, A1, TransOp::NoTrans, B1, C1);
-    gemm_check(TransOp::NoTrans, A1, TransOp::Trans, B1T, C1);
-    gemm_check(TransOp::Trans, A1T, TransOp::NoTrans, B1, C1);
-    gemm_check(TransOp::Trans, A1T, TransOp::Trans, B1T, C1);
-    gemm_check(TransOp::NoTrans, B1T, TransOp::NoTrans, A1T, C1T);
-    gemm_check(TransOp::NoTrans, B1T, TransOp::Trans, A1, C1T);
-    gemm_check(TransOp::Trans, B1, TransOp::NoTrans, A1T, C1T);
-    gemm_check(TransOp::Trans, B1, TransOp::Trans, A1, C1T);
-    gemm_check(TransOp::NoTrans, A2, TransOp::NoTrans, B2, C2, 2);
-    gemm_check(TransOp::NoTrans, A2, TransOp::Trans, B2T, C2, 2);
-    gemm_check(TransOp::Trans, A2T, TransOp::NoTrans, B2, C2, 2);
-    gemm_check(TransOp::Trans, A2T, TransOp::Trans, B2T, C2, 2);
-    gemm_check(TransOp::NoTrans, B2T, TransOp::NoTrans, A2T, C2T, 2);
-    gemm_check(TransOp::NoTrans, B2T, TransOp::Trans, A2, C2T, 2);
-    gemm_check(TransOp::Trans, B2, TransOp::NoTrans, A2T, C2T, 2);
-    gemm_check(TransOp::Trans, B2, TransOp::Trans, A2, C2T, 2);
     // Check gemm with alpha=one and beta=zero
     gemm(one, TransOp::NoTrans, A1, TransOp::NoTrans, B1, zero, C1, 1);
     gemm(one, TransOp::NoTrans, A1, TransOp::Trans, B1T, zero, C1, 1);

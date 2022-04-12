@@ -36,9 +36,7 @@ void validate_gelu()
 {
     Tile<T> A({4, 5, 6, 3});
     unsigned long long seed = 100;
-    T one = 1, zero = 0;
-    std::vector<size_t> offset(A.ndim, 0);
-    randn(A, offset, A.stride, seed, zero, one);
+    randn(A, seed);
     check_gelu(A);
 }
 
