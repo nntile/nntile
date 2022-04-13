@@ -1,8 +1,9 @@
 # Set list of headers
 set(HDR
     "nntile.hh"
+    "nntile/base_types.hh"
+    "nntile/constants.hh"
     "nntile/starpu.hh"
-    "nntile/base_type.hh"
     "nntile/tile.hh"
     "nntile/tile/traits.hh"
     "nntile/tile/tile.hh"
@@ -17,7 +18,6 @@ set(HDR
     "nntile/tensor/randn.hh"
     "nntile/tensor/gemm.hh"
     "nntile/tensor/copy.hh"
-    "nntile/tensor/gemm.hh"
     #"nntile/tensor/bias.hh"
     #"nntile/tensor/gelu.hh"
     )

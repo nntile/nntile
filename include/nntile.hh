@@ -1,11 +1,17 @@
 #pragma once
 
-// Get StarPU class
+// Base data types (e.g., float, double)
+#include <nntile/base_types.hh>
+
+// Constants (e.g., transposition for gemm)
+#include <nntile/constants.hh>
+
+// StarPU init/deinit and data handles
 #include <nntile/starpu.hh>
 
-// Get Tile with its operations
+// Fortran-contiguous tile with its operations
 #include <nntile/tile.hh>
 
-// Get Tensor with its operations
+// Tensor as a set of tiles with its operations
 #include <nntile/tensor.hh>
 

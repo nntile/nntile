@@ -1,6 +1,7 @@
-#include <nntile/tile/gemm.hh>
-#include <nntile/tile/randn.hh>
-#include <nntile/tile/copy.hh>
+#include "nntile/tile/gemm.hh"
+#include "nntile/tile/randn.hh"
+#include "nntile/tile/copy.hh"
+#include "../testing.hh"
 #include <limits>
 #include <cmath>
 #include <iostream>
@@ -344,11 +345,39 @@ void validate_gemm()
     gemm(one, TransOp::Trans, B2, TransOp::Trans, A2, one, C2T, 2);
     test_gemm(TransOp::Trans, TransOp::Trans, C2N, C2M, C2K, one,
             B2_ptr, C2K, A2_ptr, C2M, one, C2_copy_ptr, C2N, C2_ptr, C2N);
+    copy(C2, C2_copy);
+    gemm(T{2}, TransOp::Trans, B2, TransOp::Trans, A2, T{2}, C2T, 2);
+    test_gemm(TransOp::Trans, TransOp::Trans, C2N, C2M, C2K, T{2},
+            B2_ptr, C2K, A2_ptr, C2M, T{2}, C2_copy_ptr, C2N, C2_ptr, C2N);
+    // Negative tests
+    auto fail_trans_val = static_cast<TransOp::Value>(-1);
+    auto fail_trans = *reinterpret_cast<TransOp *>(&fail_trans_val);
+    TESTN(gemm(one, fail_trans, A1, TransOp::NoTrans, B1, one, C1, 1));
+    TESTN(gemm(one, fail_trans, A1, TransOp::Trans, B1T, one, C1, 1));
+    TESTN(gemm(one, TransOp::NoTrans, A1, fail_trans, B1, one, C1, 1));
+    TESTN(gemm(one, TransOp::Trans, A1T, fail_trans, B1, one, C1, 1));
+    TESTN(gemm(one, TransOp::Trans, B2, TransOp::Trans, A2, one, C2T, -1));
+    TESTN(gemm(one, TransOp::Trans, B1, TransOp::Trans, A2, one, C2T, 2));
+    TESTN(gemm(one, TransOp::Trans, B2, TransOp::Trans, A2, one, C2T, 4));
+    TESTN(gemm(one, TransOp::Trans, B1, TransOp::Trans, A1, one, C1T, 4));
+    TESTN(gemm(one, TransOp::NoTrans, A1T, TransOp::NoTrans, B1, one, C1, 1));
+    TESTN(gemm(one, TransOp::Trans, A1, TransOp::NoTrans, B1, one, C1, 1));
+    TESTN(gemm(one, TransOp::NoTrans, A1T, TransOp::Trans, B1T, one, C1, 1));
+    TESTN(gemm(one, TransOp::Trans, A1, TransOp::Trans, B1T, one, C1, 1));
+    TESTN(gemm(one, TransOp::NoTrans, A1, TransOp::NoTrans, B1, one, C1T, 1));
+    TESTN(gemm(one, TransOp::Trans, A1T, TransOp::NoTrans, B1, one, C1T, 1));
+    TESTN(gemm(one, TransOp::NoTrans, A1, TransOp::Trans, B1T, one, C1T, 1));
+    TESTN(gemm(one, TransOp::Trans, A1T, TransOp::Trans, B1T, one, C1T, 1));
+    Tile<T> C3({3, 2, 2, 5, 5});
+    TESTN(gemm(one, TransOp::NoTrans, A1, TransOp::NoTrans, B1, one, C3, 1));
+    TESTN(gemm(one, TransOp::Trans, A1T, TransOp::NoTrans, B1, one, C3, 1));
+    TESTN(gemm(one, TransOp::NoTrans, A1, TransOp::Trans, B1T, one, C3, 1));
+    TESTN(gemm(one, TransOp::Trans, A1T, TransOp::Trans, B1T, one, C3, 1));
 }
 
 int main(int argc, char **argv)
 {
-    StarPU starpu;
+    Starpu starpu;
     validate_gemm<float>();
     validate_gemm<double>();
     return 0;

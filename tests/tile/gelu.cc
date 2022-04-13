@@ -42,9 +42,9 @@ void validate_gelu()
 
 int main(int argc, char **argv)
 {
-    StarPU starpu;
-    validate_gelu<float>;
-    validate_gelu<double>;
+    Starpu starpu;
+    validate_gelu<float>();
+    validate_gelu<double>();
     return 0;
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <nntile/tile/tile.hh>
+#include <nntile/constants.hh>
 
 namespace nntile
 {

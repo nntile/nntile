@@ -1,4 +1,5 @@
-#include <nntile/tile/tile.hh>
+#include "nntile/tile/tile.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 
@@ -28,23 +29,35 @@ void validate_tile()
     auto *B2_ptr = new T[B2_traits.nelems];
     auto *C2_ptr = new T[C2_traits.nelems];
     // Construct tiles
-    Tile<T> A1(A1_traits, A1_ptr, A1_traits.nelems),
-        A1T(A1T_traits, A1_ptr, A1_traits.nelems),
-        B1(B1_traits, B1_ptr, B1_traits.nelems),
-        B1T(B1T_traits, B1_ptr, B1_traits.nelems),
-        C1(C1_traits, C1_ptr, C1_traits.nelems),
-        C1T(C1T_traits, C1_ptr, C1_traits.nelems),
-        A2(A2_traits, A2_ptr, A2_traits.nelems),
-        A2T(A2T_traits, A2_ptr, A2_traits.nelems),
-        B2(B2_traits, B2_ptr, B2_traits.nelems),
-        B2T(B2T_traits, B2_ptr, B2_traits.nelems),
-        C2(C2_traits, C2_ptr, C2_traits.nelems),
-        C2T(C2T_traits, C2_ptr, C2_traits.nelems);
+    TESTP(Tile<T> A1(A1_traits, A1_ptr, A1_traits.nelems));
+    TESTN(Tile<T> A1(A1_traits, A1_ptr, A1_traits.nelems-1));
+    TESTP(Tile<T> A1T(A1T_traits, A1_ptr, A1_traits.nelems));
+    TESTN(Tile<T> A1T(A1T_traits, A1_ptr, A1_traits.nelems-1));
+    TESTP(Tile<T> B1(B1_traits, B1_ptr, B1_traits.nelems));
+    TESTN(Tile<T> B1(B1_traits, B1_ptr, B1_traits.nelems-1));
+    TESTP(Tile<T> B1T(B1T_traits, B1_ptr, B1_traits.nelems));
+    TESTN(Tile<T> B1T(B1T_traits, B1_ptr, B1_traits.nelems-1));
+    TESTP(Tile<T> C1(C1_traits, C1_ptr, C1_traits.nelems));
+    TESTN(Tile<T> C1(C1_traits, C1_ptr, C1_traits.nelems-1));
+    TESTP(Tile<T> C1T(C1T_traits, C1_ptr, C1_traits.nelems));
+    TESTN(Tile<T> C1T(C1T_traits, C1_ptr, C1_traits.nelems-1));
+    TESTP(Tile<T> A2(A2_traits, A2_ptr, A2_traits.nelems));
+    TESTN(Tile<T> A2(A2_traits, A2_ptr, A2_traits.nelems-1));
+    TESTP(Tile<T> A2T(A2T_traits, A2_ptr, A2_traits.nelems));
+    TESTN(Tile<T> A2T(A2T_traits, A2_ptr, A2_traits.nelems-1));
+    TESTP(Tile<T> B2(B2_traits, B2_ptr, B2_traits.nelems));
+    TESTN(Tile<T> B2(B2_traits, B2_ptr, B2_traits.nelems-1));
+    TESTP(Tile<T> B2T(B2T_traits, B2_ptr, B2_traits.nelems));
+    TESTN(Tile<T> B2T(B2T_traits, B2_ptr, B2_traits.nelems-1));
+    TESTP(Tile<T> C2(C2_traits, C2_ptr, C2_traits.nelems));
+    TESTN(Tile<T> C2(C2_traits, C2_ptr, C2_traits.nelems-1));
+    TESTP(Tile<T> C2T(C2T_traits, C2_ptr, C2_traits.nelems));
+    TESTN(Tile<T> C2T(C2T_traits, C2_ptr, C2_traits.nelems-1));
 }
 
 int main(int argc, char **argv)
 {
-    StarPU starpu;
+    Starpu starpu;
     validate_tile<float>();
     validate_tile<double>();
     return 0;

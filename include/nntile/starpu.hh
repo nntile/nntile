@@ -8,27 +8,48 @@
 namespace nntile
 {
 
-class StarPU
+class Starpu: public starpu_conf
 {
-    struct starpu_conf conf;
-public:
-    StarPU()
+    static struct starpu_conf _init_conf()
     {
-        int ret = starpu_init(nullptr);
-        if(ret == -ENODEV)
+        struct starpu_conf conf;
+        // This function either returns 0 or aborts the program
+        int ret = starpu_conf_init(&conf);
+        // LCOV_EXCL_START
+        if(ret != 0)
         {
-            throw std::runtime_error("Error in starpu_init");
+            throw std::runtime_error("Error in starpu_conf_init()");
+        }
+        return conf;
+        // LCOV_EXCL_STOP
+    }
+public:
+    Starpu(const struct starpu_conf &conf):
+        starpu_conf(conf)
+    {
+        if(starpu_is_initialized() != 0)
+        {
+            throw std::runtime_error("Starpu was already initialized");
+        }
+        int ret = starpu_init(this);
+        if(ret != 0)
+        {
+            throw std::runtime_error("Error in starpu_init()");
         }
     }
-    ~StarPU()
+    Starpu():
+        Starpu(_init_conf())
+    {
+    }
+    ~Starpu()
     {
         starpu_task_wait_for_all();
         starpu_shutdown();
     }
-    StarPU(const StarPU &) = delete;
-    StarPU(StarPU &&) = delete;
-    StarPU &operator=(const StarPU &) = delete;
-    StarPU &operator=(StarPU &&) = delete;
+    Starpu(const Starpu &) = delete;
+    Starpu(Starpu &&) = delete;
+    Starpu &operator=(const Starpu &) = delete;
+    Starpu &operator=(Starpu &&) = delete;
 };
 
 //! StarPU data handle as a shared pointer to its internal state

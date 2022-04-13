@@ -91,6 +91,12 @@ void randn_async(const TileTraits &src, const Tile<T> &dst,
         .nbuffers = 1,
         .modes = {STARPU_W}
     };
+    static struct starpu_codelet codelet_randn_ndim0 =
+    {
+        .cpu_funcs = {cpu_chameleon_randn_ndim0<T>},
+        .nbuffers = 1,
+        .modes = {STARPU_W}
+    };
     if(src.ndim != dst.ndim)
     {
         throw std::runtime_error("src.ndim != dst.ndim");
@@ -99,6 +105,18 @@ void randn_async(const TileTraits &src, const Tile<T> &dst,
     {
         throw std::runtime_error("dst.ndim != dst_coord.size()");
     }
+    // Treat special case of ndim=0
+    if(src.ndim == 0)
+    {
+        starpu_task_insert(&codelet_randn_ndim0,
+                STARPU_VALUE, &seed, sizeof(seed),
+                STARPU_VALUE, &mean, sizeof(mean),
+                STARPU_VALUE, &stddev, sizeof(stddev),
+                STARPU_W, static_cast<starpu_data_handle_t>(dst),
+                0);
+        return;
+    }
+    // Treat non-zero ndim
     size_t ndim = src.ndim;
     std::vector<size_t> randn_shape(dst.shape);
     bool full_overwrite = true;

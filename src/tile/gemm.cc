@@ -1,5 +1,7 @@
 #include "nntile/tile/gemm.hh"
+#include <type_traits>
 
+#include "nntile/defs.h"
 //#define NNTILE_USE_APPLE_ACCELERATE
 
 #if defined(NNTILE_USE_APPLE_ACCELERATE)
@@ -40,10 +42,6 @@ static inline void gemm_check_ndim(const TileTraits &A, const TileTraits &B,
     if(B.ndim < ndim_)
     {
         throw std::runtime_error("B.ndim < ndim");
-    }
-    if(C.ndim < ndim_)
-    {
-        throw std::runtime_error("C.ndim < ndim");
     }
     if(A.ndim + B.ndim != C.ndim + 2*ndim_)
     {
@@ -162,7 +160,7 @@ static inline void gemm_check_A_C(const TileTraits &A, const TileTraits &C,
 static inline void gemm_check_AT_C(const TileTraits &A, const TileTraits &C,
         int ndim=1)
 {
-    for(int i = ndim; i < A.ndim-ndim; ++i)
+    for(int i = ndim; i < A.ndim; ++i)
     {
         if(A.shape[i] != C.shape[i-ndim])
         {
@@ -184,8 +182,7 @@ static inline void gemm_check_opA_C(const TransOp &transA, const TileTraits &A,
         case TransOp::Trans:
             gemm_check_AT_C(A, C, ndim);
             break;
-        default:
-            throw std::runtime_error("Wrong value of transA");
+        // This parameter was already checked in gemm_check_opA_opB
     }
 }
 
@@ -229,8 +226,7 @@ static inline void gemm_check_opB_C(const TransOp &transB, const TileTraits &B,
         case TransOp::Trans:
             gemm_check_BT_C(B, C, ndim);
             break;
-        default:
-            throw std::runtime_error("Wrong value of transB");
+        // This parameter was already checked in gemm_check_opA_opB
     }
 }
 
@@ -270,17 +266,17 @@ static inline void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
 template<typename T>
 static void gemm_codelet_cpu(void *buffers[], void *cl_args)
 {
-    TransOp transA, transB;
+    TransOp::Value transA_value, transB_value;
     size_t m, n, k;
     T alpha, beta;
-    starpu_codelet_unpack_args(cl_args, &transA, &transB, &m, &n, &k, &alpha,
-            &beta);
+    starpu_codelet_unpack_args(cl_args, &transA_value, &transB_value, &m, &n,
+            &k, &alpha, &beta);
     const T *A = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
     const T *B = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[1]));
     T *C = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[2]));
     CBLAS_TRANSPOSE transA_, transB_;
     CBLAS_INT M=m, N=n, K=k, ldA, ldB;
-    switch(transA.value)
+    switch(transA_value)
     {
         case TransOp::NoTrans:
             transA_ = CblasNoTrans;
@@ -290,10 +286,9 @@ static void gemm_codelet_cpu(void *buffers[], void *cl_args)
             transA_ = CblasTrans;
             ldA = K;
             break;
-        default:
-            throw std::runtime_error("Wrong value of transA");
+        // This parameter was already checked in gemm_check_opA_opB
     }
-    switch(transB.value)
+    switch(transB_value)
     {
         case TransOp::NoTrans:
             transB_ = CblasNoTrans;
@@ -303,8 +298,7 @@ static void gemm_codelet_cpu(void *buffers[], void *cl_args)
             transB_ = CblasTrans;
             ldB = N;
             break;
-        default:
-            throw std::runtime_error("Wrong value of transA");
+        // This parameter was already checked in gemm_check_opA_opB
     }
     cblas_gemm(transA_, transB_, M, N, K, alpha, A, ldA, B, ldB, beta, C,
             M);
@@ -358,11 +352,11 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
         case TransOp::Trans:
             k = A.matrix_shape[ndim][0];
             break;
-        default:
-            // All parameters were already checked in gemm_check
-            break;
+        // This parameter was already checked in gemm_check_opA_opB
     }
     // Check that matrix sizes fit proper types for underlying CBLAS
+    // Ignore code coverage on the following lines
+    // LCOV_EXCL_START
 #if defined(NNTILE_USE_CBLAS)
     if(static_cast<CBLAS_INT>(m) != m)
     {
@@ -392,12 +386,13 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
         throw std::runtime_error("GEMM size K does not fit int");
     }
 #endif
+    // LCOV_EXCL_STOP
     constexpr T zero = 0, one = 1;
     if(beta == zero)
     {
         starpu_task_insert(&codelet_gemm_w,
-                STARPU_VALUE, &transA, sizeof(transA),
-                STARPU_VALUE, &transB, sizeof(transB),
+                STARPU_VALUE, &transA.value, sizeof(transA.value),
+                STARPU_VALUE, &transB.value, sizeof(transB.value),
                 STARPU_VALUE, &m, sizeof(m),
                 STARPU_VALUE, &n, sizeof(n),
                 STARPU_VALUE, &k, sizeof(k),
@@ -411,8 +406,8 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
     else if(beta == one)
     {
         starpu_task_insert(&codelet_gemm_rw_commute,
-                STARPU_VALUE, &transA, sizeof(transA),
-                STARPU_VALUE, &transB, sizeof(transB),
+                STARPU_VALUE, &transA.value, sizeof(transA.value),
+                STARPU_VALUE, &transB.value, sizeof(transB.value),
                 STARPU_VALUE, &m, sizeof(m),
                 STARPU_VALUE, &n, sizeof(n),
                 STARPU_VALUE, &k, sizeof(k),
@@ -427,8 +422,8 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
     else
     {
         starpu_task_insert(&codelet_gemm_rw,
-                STARPU_VALUE, &transA, sizeof(transA),
-                STARPU_VALUE, &transB, sizeof(transB),
+                STARPU_VALUE, &transA.value, sizeof(transA.value),
+                STARPU_VALUE, &transB.value, sizeof(transB.value),
                 STARPU_VALUE, &m, sizeof(m),
                 STARPU_VALUE, &n, sizeof(n),
                 STARPU_VALUE, &k, sizeof(k),

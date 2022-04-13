@@ -51,15 +51,20 @@ function(custom_add_test src deps)
         math(EXPR ntests ${ARGC}-2)
         message(STATUS "Adding ${ntests} tests: ${path}/${exec}")
         # For every string of parameters, register corresponding test
-        foreach(i RANGE 2 ${ntests})
+        foreach(i RANGE 1 ${ntests})
+            # Get corresponding arguments as a string
+            math(EXPR ip1 ${i}+1)
+            set(test_argv ${ARGV${ip1}})
             # Convert arguments from string to list
-            string(REPLACE " " ";" param ${ARGV${i}})
+            string(REPLACE " " ";" param ${test_argv})
+            # Add test to the pool of tests
             add_test(NAME ${logical}_${i} COMMAND ${exec} ${param})
         endforeach()
     endif()
 endfunction(custom_add_test)
 
-custom_add_test("starpu.cc" nntile)
+custom_add_test("constants.cc" nntile)
+custom_add_test("starpu.cc" nntile "1" "2" "3" "4")
 
 add_subdirectory("tile")
 add_subdirectory("tensor")

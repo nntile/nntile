@@ -1,44 +1,46 @@
 #include "nntile/tile/bias.hh"
 #include "nntile/tile/randn.hh"
 #include "nntile/tile/copy.hh"
+#include "../testing.hh"
 
 using namespace nntile;
 
 template<typename T>
-void check_bias(const Tile<T> &A, const Tile<T> &b, int batch_dim)
+void check_bias(const Tile<T> &src, const Tile<T> &dst, int batch_dim)
 {
-    Tile<T> B(A.shape);
-    std::vector<size_t> index(B.ndim, 0);
-    copy(A, index, B, index);
-    bias(B, b, batch_dim);
-    auto A_ptr = A.get_local_ptr(), B_ptr = B.get_local_ptr(),
-         b_ptr = b.get_local_ptr();
-    if(A_ptr[0]+b_ptr[0] != B_ptr[0])
+    Tile<T> res(dst.shape);
+    std::vector<size_t> index(dst.ndim, 0);
+    copy(dst, index, res, index);
+    bias(src, res, batch_dim);
+    auto src_ptr = src.get_local_ptr(), dst_ptr = dst.get_local_ptr(),
+         res_ptr = res.get_local_ptr();
+    if(src_ptr[0]+dst_ptr[0] != res_ptr[0])
     {
-        throw std::runtime_error("A_ptr[0]+b_ptr[0] != B_ptr[0]");
+        throw std::runtime_error("src_ptr[0]+dst_ptr[0] != res_ptr[0]");
     }
-    for(size_t i = 1; i < B.nelems; ++i)
+    for(size_t i = 1; i < dst.nelems; ++i)
     {
         ++index[0];
         size_t j = 0;
-        while(index[j] == B.shape[j])
+        while(index[j] == dst.shape[j])
         {
             index[j] = 0;
             ++j;
             ++index[j];
         }
-        size_t b_offset = 0;
+        size_t src_offset = 0;
         for(size_t k = 0; k < batch_dim; ++k)
         {
-            b_offset += index[k] * b.stride[k];
+            src_offset += index[k] * src.stride[k];
         }
-        for(size_t k = batch_dim+1; k < B.ndim; ++k)
+        for(size_t k = batch_dim+1; k < dst.ndim; ++k)
         {
-            b_offset += index[k] * b.stride[k-1];
+            src_offset += index[k] * src.stride[k-1];
         }
-        if(A_ptr[i]+b_ptr[b_offset] != B_ptr[i])
+        if(src_ptr[src_offset]+dst_ptr[i] != res_ptr[i])
         {
-            throw std::runtime_error("A_ptr[i]+b_ptr[b_offset] != B_ptr[i]");
+            throw std::runtime_error("src_ptr[src_offset]+dst_ptr[i] != "
+                    "dst_ptr[i]");
         }
     }
 }
@@ -55,12 +57,21 @@ void validate_bias()
     randn(b1, b1_seed);
     randn(b2, b2_seed);
     randn(b3, b3_seed);
-    check_bias<T>(A, b0, 0);
+    check_bias<T>(b0, A, 0);
+    check_bias<T>(b1, A, 1);
+    check_bias<T>(b2, A, 2);
+    check_bias<T>(b3, A, 3);
+    Tile<T> C({3});
+    TESTN(bias(C, A, 0));
+    TESTN(bias(b2, A, 3));
+    TESTN(bias(b0, A, -1));
+    Tile<T> fail_b0({4, 5, 5});
+    TESTN(bias(fail_b0, A, 0));
 }
 
 int main(int argc, char **argv)
 {
-    StarPU starpu;
+    Starpu starpu;
     validate_bias<float>();
     validate_bias<double>();
     return 0;

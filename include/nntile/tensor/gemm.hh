@@ -1,6 +1,7 @@
 #pragma once
 
 #include <nntile/tensor/tensor.hh>
+#include <nntile/constants.hh>
 
 namespace nntile
 {

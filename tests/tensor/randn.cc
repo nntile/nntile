@@ -15,7 +15,7 @@ void validate_randn()
 
 int main(int argc, char **argv)
 {
-    StarPU starpu;
+    Starpu starpu;
     validate_randn<float>();
     validate_randn<double>();
     return 0;

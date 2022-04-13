@@ -71,7 +71,7 @@ void validate_gemm()
 
 int main(int argc, char **argv)
 {
-    StarPU starpu;
+    Starpu starpu;
     validate_gemm<float>();
     return 0;
 }

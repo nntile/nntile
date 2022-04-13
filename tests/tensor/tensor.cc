@@ -35,7 +35,7 @@ void validate_tensor()
 
 int main(int argc, char ** argv)
 {
-    StarPU starpu;
+    Starpu starpu;
     validate_tensor<float>();
     return 0;
 }

@@ -1,35 +1,12 @@
 #pragma once
 
-#include <array>
 #include <vector>
+#include <array>
 #include <stdexcept>
 #include <iostream>
 
 namespace nntile
 {
-
-class TransOp
-{
-public:
-    enum Value: int
-    {
-        Undefined,
-        NoTrans,
-        Trans
-    } value;
-    constexpr TransOp():
-        value(Undefined)
-    {
-    }
-    constexpr TransOp(const enum Value &value_):
-        value(value_)
-    {
-    }
-    template<typename T>
-    TransOp(const T &) = delete;
-    template<typename T>
-    operator T() = delete;
-};
 
 //! Integer arithmetics for tiles
 class TileTraits
@@ -85,11 +62,15 @@ public:
         }
     }
     //! Offset from a starting point of tile to a given coordinate.
-    size_t offset(const std::vector<size_t> &index) const
+    size_t get_offset(const std::vector<size_t> &index) const
     {
         if(index.size() != ndim)
         {
             throw std::runtime_error("Wrong dimensionality");
+        }
+        if(ndim == 0)
+        {
+            return 0;
         }
         if(index[0] >= shape[0])
         {
