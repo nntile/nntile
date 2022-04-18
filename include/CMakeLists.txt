@@ -16,8 +16,8 @@ set(HDR
     "nntile/tensor/traits.hh"
     "nntile/tensor/tensor.hh"
     "nntile/tensor/randn.hh"
-    "nntile/tensor/gemm.hh"
     "nntile/tensor/copy.hh"
+    "nntile/tensor/gemm.hh"
     #"nntile/tensor/bias.hh"
     #"nntile/tensor/gelu.hh"
     )

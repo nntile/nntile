@@ -36,7 +36,7 @@ void bias_async(const Tile<T> &src, const Tile<T> &dst, int batch_dim)
     {
         .cpu_funcs = {cpu_bias<T>},
         .nbuffers = 2,
-        .modes = {STARPU_R, STARPU_RW}//commute_mode}
+        .modes = {STARPU_R, commute_mode}
     };
     if(dst.ndim != src.ndim+1)
     {
@@ -84,8 +84,7 @@ void bias_async(const Tile<T> &src, const Tile<T> &dst, int batch_dim)
             STARPU_VALUE, &n, sizeof(n),
             STARPU_VALUE, &k, sizeof(k),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
-            //commute_mode, static_cast<starpu_data_handle_t>(dst),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
+            commute_mode, static_cast<starpu_data_handle_t>(dst),
             0);
 }
 

@@ -6,6 +6,7 @@ namespace nntile
 std::ostream &operator<<(std::ostream &os, const TensorTraits &traits)
 {
     os << "TensorTraits object at " << &traits << "\n";
+    os << "ndim=" << traits.ndim << "\n";
     os << "shape=(";
     if(traits.ndim > 0)
     {

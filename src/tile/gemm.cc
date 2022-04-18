@@ -355,8 +355,6 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
         // This parameter was already checked in gemm_check_opA_opB
     }
     // Check that matrix sizes fit proper types for underlying CBLAS
-    // Ignore code coverage on the following lines
-    // LCOV_EXCL_START
 #if defined(NNTILE_USE_CBLAS)
     if(static_cast<CBLAS_INT>(m) != m)
     {
@@ -386,7 +384,6 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
         throw std::runtime_error("GEMM size K does not fit int");
     }
 #endif
-    // LCOV_EXCL_STOP
     constexpr T zero = 0, one = 1;
     if(beta == zero)
     {

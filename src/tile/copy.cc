@@ -4,7 +4,7 @@ namespace nntile
 {
 
 template<typename T>
-static void cpu_copy(void *buffers[], void *cl_args)
+static void cpu_copy_intersection(void *buffers[], void *cl_args)
 {
     size_t ndim;
     starpu_codelet_unpack_args(cl_args, &ndim, 0);
@@ -58,32 +58,33 @@ static void cpu_copy(void *buffers[], void *cl_args)
 }
 
 template<typename T>
-void copy_async(const Tile<T> &src, const std::vector<size_t> &src_coord,
-        const Tile<T> &dst, const std::vector<size_t> &dst_coord)
+void copy_intersection_async(const Tile<T> &src,
+        const std::vector<size_t> &src_offset, const Tile<T> &dst,
+        const std::vector<size_t> &dst_offset)
 {
     static struct starpu_codelet codelet_copy_rw =
     {
-        .cpu_funcs = {cpu_copy<T>},
+        .cpu_funcs = {cpu_copy_intersection<T>},
         .nbuffers = 2,
         .modes = {STARPU_R, STARPU_RW}
     };
     static struct starpu_codelet codelet_copy_w =
     {
-        .cpu_funcs = {cpu_copy<T>},
+        .cpu_funcs = {cpu_copy_intersection<T>},
         .nbuffers = 2,
         .modes = {STARPU_R, STARPU_W}
     };
-    if(src.ndim != src_coord.size())
+    if(src.ndim != src_offset.size())
     {
-        throw std::runtime_error("src.ndim != src_coord.size()");
+        throw std::runtime_error("src.ndim != src_offset.size()");
     }
     if(src.ndim != dst.ndim)
     {
         throw std::runtime_error("src.ndim != dst.ndim");
     }
-    if(dst.ndim != dst_coord.size())
+    if(dst.ndim != dst_offset.size())
     {
-        throw std::runtime_error("dst.ndim != dst_coord.size()");
+        throw std::runtime_error("dst.ndim != dst_offset.size()");
     }
     size_t ndim = src.ndim;
     std::vector<size_t> src_start(ndim), dst_start(ndim), copy_shape(ndim);
@@ -91,21 +92,21 @@ void copy_async(const Tile<T> &src, const std::vector<size_t> &src_coord,
     for(size_t i = 0; i < ndim; ++i)
     {
         // Do nothing if tiles do not intersect
-        if((src_coord[i]+src.shape[i] <= dst_coord[i])
-                or (dst_coord[i]+dst.shape[i] <= src_coord[i]))
+        if((src_offset[i]+src.shape[i] <= dst_offset[i])
+                or (dst_offset[i]+dst.shape[i] <= src_offset[i]))
         {
             return;
         }
-        if(src_coord[i] < dst_coord[i])
+        if(src_offset[i] < dst_offset[i])
         {
             dst_start[i] = 0;
-            src_start[i] = dst_coord[i] - src_coord[i];
+            src_start[i] = dst_offset[i] - src_offset[i];
             copy_shape[i] = std::min(src.shape[i]-src_start[i],
                     dst.shape[i]);
         }
         else
         {
-            dst_start[i] = src_coord[i] - dst_coord[i];
+            dst_start[i] = src_offset[i] - dst_offset[i];
             src_start[i] = 0;
             copy_shape[i] = std::min(dst.shape[i]-dst_start[i],
                     src.shape[i]);
@@ -144,12 +145,14 @@ void copy_async(const Tile<T> &src, const std::vector<size_t> &src_coord,
 }
 
 template
-void copy_async(const Tile<float> &src, const std::vector<size_t> &src_coord,
-        const Tile<float> &dst, const std::vector<size_t> &dst_coord);
+void copy_intersection_async(const Tile<float> &src,
+        const std::vector<size_t> &src_offset, const Tile<float> &dst,
+        const std::vector<size_t> &dst_offset);
 
 template
-void copy_async(const Tile<double> &src, const std::vector<size_t> &src_coord,
-        const Tile<double> &dst, const std::vector<size_t> &dst_coord);
+void copy_intersection_async(const Tile<double> &src,
+        const std::vector<size_t> &src_offset, const Tile<double> &dst,
+        const std::vector<size_t> &dst_offset);
 
 } // namespace nntile
 

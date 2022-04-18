@@ -5,71 +5,39 @@
 using nntile::Tile;
 
 template<typename T>
-void check_tiles_intersection(const Tile<T> &src,
-        const std::vector<size_t> &src_coord, const Tile<T> &dst,
-        const std::vector<size_t> &dst_coord)
+int check_tiles_intersection(const Tile<T> &A, const Tile<T> &B)
 {
-    size_t ndim = src.ndim;
-    const auto src_ptr = src.get_local_ptr(), dst_ptr = dst.get_local_ptr();
-    std::vector<size_t> src_index(ndim), dst_index(ndim, 0);
-    bool ignore_element = false;
-    for(size_t k = 0; k < ndim; ++k)
+    size_t ndim = A.ndim;
+    A.acquire(STARPU_R);
+    B.acquire(STARPU_R);
+    const auto A_ptr = A.get_local_ptr(), B_ptr = B.get_local_ptr();
+    int ok = 1;
+    for(size_t i = 0; i < A.nelems; ++i)
     {
-        size_t global_coord = dst_coord[k];
-        if((global_coord >= src_coord[k]+src.shape[k])
-                or (global_coord < src_coord[k]))
+        auto index = A.linear_to_index(i);
+        if(B.contains_index(index))
         {
-            ignore_element = true;
-            break;
-        }
-        src_index[k] = global_coord - src_coord[k];
-    }
-    if(!ignore_element)
-    {
-        size_t src_offset = src_index[0];
-        for(size_t k = 1; k < ndim; ++k)
-        {
-            src_offset += src_index[k] * src.stride[k];
-        }
-        if(dst_ptr[0] != src_ptr[src_offset])
-        {
-            throw std::runtime_error("dst_ptr[0] != src_ptr[src_offset]");
-        }
-    }
-    for(size_t i = 1; i < dst.nelems; ++i)
-    {
-        ++dst_index[0];
-        size_t j = 0;
-        while(dst_index[j] == dst.shape[j])
-        {
-            dst_index[j] = 0;
-            ++j;
-            ++dst_index[j];
-        }
-        ignore_element = false;
-        for(size_t k = 0; k < ndim; ++k)
-        {
-            size_t global_coord = dst_index[k] + dst_coord[k];
-            if((global_coord >= src_coord[k]+src.shape[k])
-                    or (global_coord < src_coord[k]))
+            size_t B_linear_offset = B.index_to_linear(index);
+            if(A_ptr[i] != B_ptr[B_linear_offset])
             {
-                ignore_element = true;
+                ok = 0;
                 break;
             }
-            src_index[k] = global_coord - src_coord[k];
-        }
-        if(!ignore_element)
-        {
-            size_t src_offset = src_index[0];
-            for(size_t k = 1; k < ndim; ++k)
-            {
-                src_offset += src_index[k] * src.stride[k];
-            }
-            if(dst_ptr[i] != src_ptr[src_offset])
-            {
-                throw std::runtime_error("dst_ptr[i] != src_ptr[src_offset]");
-            }
         }
     }
+    A.release();
+    B.release();
+    return ok;
+}
+
+template<typename T>
+int check_tiles_intersection(const Tile<T> &A,
+        const std::vector<size_t> &A_offset, const Tile<T> &B,
+        const std::vector<size_t> &B_offset)
+{
+    Tile<T> A2(A), B2(B);
+    A2.offset = A_offset;
+    B2.offset = B_offset;
+    return check_tiles_intersection(A2, B2);
 }
 

@@ -10,10 +10,24 @@ void copy_async(const Tensor<T> &src, const std::vector<size_t> &src_coord,
 {
     std::vector<size_t> src_offset(src_coord), dst_offset(dst_coord),
         vzero(src.ndim, 0), src_index(vzero), dst_index(vzero);
-    copy_async(src.get_tile(0), src_offset, dst.get_tile(0), dst_offset);
+    std::cout << src.grid;
+    std::cout << "src_offset\n";
+    for(size_t k = 0; k < src.ndim; ++k)
+    {
+        std::cout << src_offset[k] << " ";
+    }
+    std::cout << "\n";
+    std::cout << "dst_offset\n";
+    for(size_t k = 0; k < src.ndim; ++k)
+    {
+        std::cout << dst_offset[k] << " ";
+    }
+    std::cout << "\n";
+    copy_async<T>(src.get_tile(0), src_offset, dst.get_tile(0), dst_offset);
     for(size_t k = 1; k < dst.grid.nelems; ++k)
     {
         ++dst_index[0];
+        dst_offset[0] += dst.basetile_shape[0];
         size_t l = 0;
         while(dst_index[l] == dst.shape[l])
         {
@@ -23,13 +37,26 @@ void copy_async(const Tensor<T> &src, const std::vector<size_t> &src_coord,
             ++dst_index[l];
             dst_offset[l] += dst.basetile_shape[l];
         }
-        copy_async(src.get_tile(0), src_offset, dst.get_tile(k), dst_offset);
+        std::cout << "src_offset\n";
+        for(size_t k = 0; k < src.ndim; ++k)
+        {
+            std::cout << src_offset[k] << " ";
+        }
+        std::cout << "\n";
+        std::cout << "dst_offset\n";
+        for(size_t k = 0; k < src.ndim; ++k)
+        {
+            std::cout << dst_offset[k] << " ";
+        }
+        std::cout << "\n";
+        copy_async<T>(src.get_tile(0), src_offset, dst.get_tile(k), dst_offset);
     }
     for(size_t i = 1; i < src.grid.nelems; ++i)
     {
         dst_index = vzero;
         dst_offset = dst_coord;
         ++src_index[0];
+        src_offset[0] += src.basetile_shape[0];
         size_t j = 0;
         while(src_index[j] == src.shape[j])
         {
@@ -39,10 +66,36 @@ void copy_async(const Tensor<T> &src, const std::vector<size_t> &src_coord,
             ++src_index[j];
             src_offset[j] += src.basetile_shape[j];
         }
-        copy_async(src.get_tile(i), src_offset, dst.get_tile(0), dst_offset);
+        std::cout << "i=" << i << "\n";
+        std::cout << "src_offset\n";
+        for(size_t k = 0; k < src.ndim; ++k)
+        {
+            std::cout << src_offset[k] << " ";
+        }
+        std::cout << "\nsrc_index\n";
+        for(size_t k = 0; k < src.ndim; ++k)
+        {
+            std::cout << src_index[k] << " ";
+        }
+        std::cout << "\nget_tile_index\n";
+        for(size_t k = 0; k < src.ndim; ++k)
+        {
+            std::cout << src.get_tile_index(i)[k] << " ";
+        }
+        std::cout << "\n";
+        std::cout << src.get_tile(i);
+        std::cout << "dst_offset\n";
+        for(size_t k = 0; k < src.ndim; ++k)
+        {
+            std::cout << dst_offset[k] << " ";
+        }
+        std::cout << "\n";
+        std::cout << dst.get_tile(0);
+        copy_async<T>(src.get_tile(i), src_offset, dst.get_tile(0), dst_offset);
         for(size_t k = 1; k < dst.grid.nelems; ++k)
         {
             ++dst_index[0];
+            dst_offset[0] += dst.basetile_shape[0];
             size_t l = 0;
             while(dst_index[l] == dst.shape[l])
             {
@@ -52,7 +105,19 @@ void copy_async(const Tensor<T> &src, const std::vector<size_t> &src_coord,
                 ++dst_index[l];
                 dst_offset[l] += dst.basetile_shape[l];
             }
-            copy_async(src.get_tile(i), src_offset, dst.get_tile(k),
+            std::cout << "src_offset\n";
+            for(size_t k = 0; k < src.ndim; ++k)
+            {
+                std::cout << src_offset[k] << " ";
+            }
+            std::cout << "\n";
+            std::cout << "dst_offset\n";
+            for(size_t k = 0; k < src.ndim; ++k)
+            {
+                std::cout << dst_offset[k] << " ";
+            }
+            std::cout << "\n";
+            copy_async<T>(src.get_tile(i), src_offset, dst.get_tile(k),
                     dst_offset);
         }
     }

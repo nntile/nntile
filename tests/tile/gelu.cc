@@ -11,8 +11,10 @@ void check_gelu(const Tile<T> &A)
 {
     Tile<T> B(A.shape);
     std::vector<size_t> index(B.ndim, 0);
-    copy(A, index, B, index);
+    copy_intersection(A, index, B, index);
     gelu(B);
+    A.acquire(STARPU_R);
+    B.acquire(STARPU_R);
     auto A_ptr = A.get_local_ptr(), B_ptr = B.get_local_ptr();
     for(size_t i = 0; i < B.nelems; ++i)
     {
@@ -26,15 +28,19 @@ void check_gelu(const Tile<T> &A)
         T threshold = abs(val) * std::numeric_limits<T>::epsilon();
         if(diff > threshold)
         {
+            A.release();
+            B.release();
             throw std::runtime_error("diff > threshold");
         }
     }
+    A.release();
+    B.release();
 }
 
 template<typename T>
 void validate_gelu()
 {
-    Tile<T> A({4, 5, 6, 3});
+    Tile<T> A({{4, 5, 6, 3}, {1, 2, 3, 4}, {100, 100, 100, 100}});
     unsigned long long seed = 100;
     randn(A, seed);
     check_gelu(A);

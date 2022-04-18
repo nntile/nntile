@@ -4,55 +4,38 @@
 using namespace nntile;
 
 template<typename T>
+void check_tile_ptr(const TileTraits &traits)
+{
+    T *ptr = new T[traits.nelems];
+    TESTN(Tile<T>(traits, ptr, traits.nelems-1));
+    for(size_t i = 0; i < traits.nelems; ++i)
+    {
+        ptr[i] = static_cast<T>(i);
+    }
+    Tile<T> tile(traits, ptr, traits.nelems);
+    TESTN(tile.at_linear(tile.nelems));
+    for(size_t i = 0; i < tile.nelems; ++i)
+    {
+        T value = static_cast<T>(i);
+        auto index = tile.linear_to_index(i);
+        TESTA(value == tile.at_linear(i));
+        TESTA(value == tile.at_index(index));
+    }
+    // Check tile with allocation done by StarPU
+    Tile<T> tile2(traits);
+    tile2.acquire(STARPU_W);
+    TESTA(tile2.get_local_ptr() != nullptr);
+    tile2.release();
+    delete[] ptr;
+}
+
+template<typename T>
 void validate_tile()
 {
-    // Traits for different tiles to check operations
-    TileTraits A1_traits({3, 2, 1, 10}),
-               A1T_traits({10, 3, 2, 1}),
-               B1_traits({10, 5, 6}),
-               B1T_traits({5, 6, 10}),
-               C1_traits({3, 2, 1, 5, 6}),
-               C1T_traits({5, 6, 3, 2, 1}),
-               A2_traits({3, 4, 5}),
-               A2T_traits({4, 5, 3}),
-               B2_traits({4, 5, 5, 6}),
-               B2T_traits({5, 6, 4, 5}),
-               C2_traits({3, 5, 6}),
-               C2T_traits({5, 6, 3});
-    // Check tile without allocating memory
-    Tile<T> tmp(A1_traits);
-    // Allocate memory for tiles
-    auto *A1_ptr = new T[A1_traits.nelems];
-    auto *B1_ptr = new T[B1_traits.nelems];
-    auto *C1_ptr = new T[C1_traits.nelems];
-    auto *A2_ptr = new T[A2_traits.nelems];
-    auto *B2_ptr = new T[B2_traits.nelems];
-    auto *C2_ptr = new T[C2_traits.nelems];
-    // Construct tiles
-    TESTP(Tile<T> A1(A1_traits, A1_ptr, A1_traits.nelems));
-    TESTN(Tile<T> A1(A1_traits, A1_ptr, A1_traits.nelems-1));
-    TESTP(Tile<T> A1T(A1T_traits, A1_ptr, A1_traits.nelems));
-    TESTN(Tile<T> A1T(A1T_traits, A1_ptr, A1_traits.nelems-1));
-    TESTP(Tile<T> B1(B1_traits, B1_ptr, B1_traits.nelems));
-    TESTN(Tile<T> B1(B1_traits, B1_ptr, B1_traits.nelems-1));
-    TESTP(Tile<T> B1T(B1T_traits, B1_ptr, B1_traits.nelems));
-    TESTN(Tile<T> B1T(B1T_traits, B1_ptr, B1_traits.nelems-1));
-    TESTP(Tile<T> C1(C1_traits, C1_ptr, C1_traits.nelems));
-    TESTN(Tile<T> C1(C1_traits, C1_ptr, C1_traits.nelems-1));
-    TESTP(Tile<T> C1T(C1T_traits, C1_ptr, C1_traits.nelems));
-    TESTN(Tile<T> C1T(C1T_traits, C1_ptr, C1_traits.nelems-1));
-    TESTP(Tile<T> A2(A2_traits, A2_ptr, A2_traits.nelems));
-    TESTN(Tile<T> A2(A2_traits, A2_ptr, A2_traits.nelems-1));
-    TESTP(Tile<T> A2T(A2T_traits, A2_ptr, A2_traits.nelems));
-    TESTN(Tile<T> A2T(A2T_traits, A2_ptr, A2_traits.nelems-1));
-    TESTP(Tile<T> B2(B2_traits, B2_ptr, B2_traits.nelems));
-    TESTN(Tile<T> B2(B2_traits, B2_ptr, B2_traits.nelems-1));
-    TESTP(Tile<T> B2T(B2T_traits, B2_ptr, B2_traits.nelems));
-    TESTN(Tile<T> B2T(B2T_traits, B2_ptr, B2_traits.nelems-1));
-    TESTP(Tile<T> C2(C2_traits, C2_ptr, C2_traits.nelems));
-    TESTN(Tile<T> C2(C2_traits, C2_ptr, C2_traits.nelems-1));
-    TESTP(Tile<T> C2T(C2T_traits, C2_ptr, C2_traits.nelems));
-    TESTN(Tile<T> C2T(C2T_traits, C2_ptr, C2_traits.nelems-1));
+    // Check tiles with pointers
+    check_tile_ptr<T>({{3, 2, 1}});
+    check_tile_ptr<T>({{3, 2, 1}, {0, 0, 0}, {3, 2, 1}});
+    check_tile_ptr<T>({{3, 2, 1}, {1, 1, 1}, {4, 3, 2}});
 }
 
 int main(int argc, char **argv)

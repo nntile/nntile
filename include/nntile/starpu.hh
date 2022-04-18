@@ -15,13 +15,13 @@ class Starpu: public starpu_conf
         struct starpu_conf conf;
         // This function either returns 0 or aborts the program
         int ret = starpu_conf_init(&conf);
-        // LCOV_EXCL_START
+        // In case of non-zero return starpu_conf_init currently aborts the
+        // program, so code coverage shows the following line as uncovered
         if(ret != 0)
         {
             throw std::runtime_error("Error in starpu_conf_init()");
         }
         return conf;
-        // LCOV_EXCL_STOP
     }
 public:
     Starpu(const struct starpu_conf &conf):
@@ -66,8 +66,6 @@ class StarpuHandle
         starpu_data_unregister(ptr);
     }
 public:
-    //! Default constructor with no handle
-    StarpuHandle() = default;
     //! Constructor owns registered handle and unregisters it when needed
     StarpuHandle(starpu_data_handle_t handle_):
         handle(handle_, _handle_deleter)
@@ -98,6 +96,10 @@ public:
     //! Acquire data
     void acquire(enum starpu_data_access_mode mode) const
     {
+        if(mode < 0 or mode >= STARPU_ACCESS_MODE_MAX)
+        {
+            throw std::runtime_error("Invalid value of mode");
+        }
         starpu_data_acquire(handle.get(), mode);
     }
     //! Release acquired data

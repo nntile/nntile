@@ -11,6 +11,7 @@ int main(int argc, char **argv)
         switch(value)
         {
             case TransOp::NoTrans:
+                std::cout << "NT\n";
             case TransOp::Trans:
                 TESTP((nntile::TransOp(value)));
                 break;

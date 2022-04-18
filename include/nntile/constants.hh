@@ -16,13 +16,9 @@ public:
     constexpr TransOp(const enum TransOp::Value &value_):
         value(value_)
     {
-        switch(value)
+        if(value != TransOp::NoTrans and value != TransOp::Trans)
         {
-            case TransOp::NoTrans:
-            case TransOp::Trans:
-                break;
-            default:
-                throw std::runtime_error("Invalid value of TransOp object");
+            throw std::runtime_error("Invalid value of TransOp object");
         }
     }
     template<typename T>

@@ -92,7 +92,7 @@ if(COVERAGE)
     append_coverage_compiler_flags()
     # Setup a target for an overall coverage
     setup_target_for_coverage_lcov(NAME coverage
-        EXECUTABLE ctest
+        EXECUTABLE ctest -j
         EXCLUDE "${CMAKE_SOURCE_DIR}/tests/*"
         LCOV_ARGS --no-external)
 endif()

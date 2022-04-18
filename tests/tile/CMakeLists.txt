@@ -1,8 +1,20 @@
-custom_add_test("traits.cc" nntile)
-custom_add_test("tile.cc" nntile)
-custom_add_test("randn.cc" nntile)
-custom_add_test("gemm.cc" nntile)
-custom_add_test("copy.cc" nntile)
-custom_add_test("gelu.cc" nntile)
-custom_add_test("bias.cc" nntile)
+# All unit tests without arguments to test executable
+set(TESTS
+    "traits"
+    "tile"
+    "randn"
+    "copy"
+    "gemm"
+    "bias"
+    "gelu"
+    )
+
+foreach(test IN LISTS TESTS)
+    add_test_set(TARGET tests_tile_${test}
+        COVERAGE coverage_tile_${test}
+        EXECUTABLE ${test}
+        SOURCES ${test}.cc
+        LINK_LIBRARIES nntile
+        )
+endforeach()
 
