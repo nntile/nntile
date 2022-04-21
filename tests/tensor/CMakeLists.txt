@@ -5,8 +5,8 @@ set(TESTS
     "randn"
     "copy"
     "gemm"
-    #"gelu"
-    #"bias"
+    "bias"
+    "gelu"
     )
 
 foreach(test IN LISTS TESTS)

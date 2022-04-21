@@ -10,8 +10,8 @@ set(SRC
     "tensor/randn.cc"
     "tensor/copy.cc"
     "tensor/gemm.cc"
-    #"tensor/bias.cc"
-    #"tensor/gelu.cc"
+    "tensor/bias.cc"
+    "tensor/gelu.cc"
     )
 
 target_sources(nntile PRIVATE ${SRC})
