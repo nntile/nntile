@@ -7,17 +7,61 @@ using namespace nntile;
 template<typename T>
 void validate_randn()
 {
-    Tensor<T> A({4, 5, 6, 7}, {1, 2, 3, 4}), B(A.shape, A.shape);
-    unsigned long long seed = 100;
-    randn(A, seed);
-    TESTN(randn(A, B, {0}, seed));
-    TESTN(randn(A, B, {0, 0, 0, 0, 0}, seed));
-    randn(A, B, {1, 1, 1, 1}, seed);
-    check_tensors_intersection(A, {0, 0, 0, 0}, B, {1, 1, 1, 1});
-    randn(A, B, {14, 0, 0, 0}, seed);
-    check_tensors_intersection(A, {0, 0, 0, 0}, B, {14, 0, 0, 0});
-    Tensor<T> C({1, 2, 3}, {1, 2, 3});
-    TESTN(randn(A, C, {0, 0, 0, 0}, seed));
+    Tensor<T> scalar({}, {}), scalar2({}, {});
+    T one = 1, zero = 0;
+    constexpr unsigned long long seed = 100000000000001ULL;
+    randn(scalar, {}, {}, {}, seed);
+    randn(scalar2, {}, {}, {}, seed);
+    TESTA(check_tensors_intersection(scalar, scalar2));
+    randn(scalar2, seed*seed);
+    TESTA(!check_tensors_intersection(scalar, scalar2));
+    Tensor<T> big({5, 6, 7, 8}, {2, 3, 4, 5}),
+        small({2, 2, 2, 2}, {1, 2, 2, 1});
+    randn_async(big, seed);
+    starpu_task_wait_for_all();
+    randn(small, {1, 2, 3, 2}, big.shape, big.stride, seed);
+    TESTA(check_tensors_intersection(big, {0, 0, 0, 0}, small, {1, 2, 3, 2}));
+    TESTA(check_tensors_intersection(small, {1, 2, 3, 2}, big, {0, 0, 0, 0}));
+    TESTA(!check_tensors_intersection(big, {1, 0, 0, 0}, small, {1, 2, 3, 2}));
+    TESTA(!check_tensors_intersection(big, {0, 1, 0, 0}, small, {1, 2, 3, 2}));
+    TESTA(!check_tensors_intersection(big, {0, 0, 1, 0}, small, {1, 2, 3, 2}));
+    TESTA(!check_tensors_intersection(big, {0, 0, 0, 1}, small, {1, 2, 3, 2}));
+    TESTA(!check_tensors_intersection(small, {1, 2, 3, 2}, big, {1, 0, 0, 0}));
+    TESTA(!check_tensors_intersection(small, {1, 2, 3, 2}, big, {0, 1, 0, 0}));
+    TESTA(!check_tensors_intersection(small, {1, 2, 3, 2}, big, {0, 0, 1, 0}));
+    TESTA(!check_tensors_intersection(small, {1, 2, 3, 2}, big, {0, 0, 0, 1}));
+    TESTN(randn(small, {4, 0, 0, 0}, big.shape, big.stride, seed));
+    TESTN(randn(small, {0, 5, 0, 0}, big.shape, big.stride, seed));
+    TESTN(randn(small, {0, 0, 6, 0}, big.shape, big.stride, seed));
+    TESTN(randn(small, {0, 0, 0, 7}, big.shape, big.stride, seed));
+    TESTN(randn(small, {-1, 0, 0, 0}, big.shape, big.stride, seed));
+    TESTN(randn(small, {0, -1, 0, 0}, big.shape, big.stride, seed));
+    TESTN(randn(small, {0, 0, -1, 0}, big.shape, big.stride, seed));
+    TESTN(randn(small, {0, 0, 0, -1}, big.shape, big.stride, seed));
+    std::vector<Index> stride(big.stride);
+    ++stride[0];
+    TESTN(randn(small, {0, 0, 0, 0}, big.shape, stride, seed));
+    for(int i = 1; i < stride.size(); ++i)
+    {
+        --stride[i-1];
+        ++stride[i];
+        TESTN(randn(small, {0, 0, 0, 0}, big.shape, stride, seed));
+    }
+    TESTA(stride != big.stride);
+    Tensor<T> small2({3, 3, 3, 3}, {2, 3, 2, 3});
+    randn(small2, {1, 1, 1, 1}, big.shape, big.stride, seed);
+    TESTA(check_tensors_intersection(small2, {1, 1, 1, 1}, big,
+                {0, 0, 0, 0}));
+    TESTA(check_tensors_intersection(small, {1, 2, 3, 2}, small2,
+                {1, 1, 1, 1}));
+    TESTA(check_tensors_intersection(small2, {1, 1, 1, 1}, small,
+                {1, 2, 3, 2}));
+    auto small_tile = small.get_tile(0);
+    small_tile.acquire(STARPU_RW);
+    const_cast<T *>(small_tile.get_local_ptr())[small_tile.nelems-1] = 0;
+    small_tile.release();
+    TESTA(!check_tensors_intersection(big, {0, 0, 0, 0}, small, {1, 2, 3, 2}));
+    TESTA(!check_tensors_intersection(small, {1, 2, 3, 2}, big, {0, 0, 0, 0}));
 }
 
 int main(int argc, char **argv)

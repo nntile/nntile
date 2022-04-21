@@ -9,18 +9,18 @@
 using namespace nntile;
 
 template<typename T>
-void gemm_naive(TransOp transA, TransOp transB, int M, int N, int K,
-        T alpha, const T *A, int ldA, const T *B, int ldB, T beta,
-        T *C, int ldC)
+void gemm_naive(TransOp transA, TransOp transB, Index M, Index N, Index K,
+        T alpha, const T *A, Index ldA, const T *B, Index ldB, T beta,
+        T *C, Index ldC)
 {
-    for(int m = 0; m < M; ++m)
+    for(Index m = 0; m < M; ++m)
     {
-        for(int n = 0; n < N; ++n)
+        for(Index n = 0; n < N; ++n)
         {
             T res = 0;
-            for(int k = 0; k < K; ++k)
+            for(Index k = 0; k < K; ++k)
             {
-                size_t A_offset, B_offset;
+                Index A_offset, B_offset;
                 switch(transA.value)
                 {
                     case TransOp::NoTrans:
@@ -39,7 +39,7 @@ void gemm_naive(TransOp transA, TransOp transB, int M, int N, int K,
                 }
                 res += A[A_offset] * B[B_offset];
             }
-            size_t C_offset = n*ldC + m;
+            Index C_offset = n*ldC + m;
             if(beta == 0)
             {
                 C[C_offset] = alpha * res;
@@ -53,14 +53,14 @@ void gemm_naive(TransOp transA, TransOp transB, int M, int N, int K,
 }
 
 template<typename T>
-T norm(int M, int N, const T *C, int ldC)
+T norm(Index M, Index N, const T *C, Index ldC)
 {
     T scale = 1, ssq = 0;
-    for(int m = 0; m < M; ++m)
+    for(Index m = 0; m < M; ++m)
     {
-        for(int n = 0; n < N; ++n)
+        for(Index n = 0; n < N; ++n)
         {
-            size_t C_offset = n*ldC + m;
+            Index C_offset = n*ldC + m;
             T val = C[C_offset];
             if(val > scale)
             {
@@ -80,9 +80,9 @@ T norm(int M, int N, const T *C, int ldC)
 }
 
 template<typename T>
-void test_gemm(TransOp transA, TransOp transB, int M, int N, int K,
-        T alpha, const Tile<T> &A, int ldA, const Tile<T> &B, int ldB, T beta,
-        const Tile<T> &C, int ldC, const Tile<T> &D, int ldD)
+void test_gemm(TransOp transA, TransOp transB, Index M, Index N, Index K,
+        T alpha, const Tile<T> &A, Index ldA, const Tile<T> &B, Index ldB,
+        T beta, const Tile<T> &C, Index ldC, const Tile<T> &D, Index ldD)
 {
     A.acquire(STARPU_R);
     B.acquire(STARPU_R);
@@ -93,7 +93,7 @@ void test_gemm(TransOp transA, TransOp transB, int M, int N, int K,
     T *tmp_ptr = new T[D.nelems];
     // D = alpha*op(A)*op(B) + beta*C
     // tmp = alpha*op(A)*op(B) + beta*C
-    for(size_t i = 0; i < D.nelems; ++i)
+    for(Index i = 0; i < D.nelems; ++i)
     {
         tmp_ptr[i] = D_ptr[i];
     }
@@ -107,12 +107,12 @@ void test_gemm(TransOp transA, TransOp transB, int M, int N, int K,
     // tmp = beta*C
     if(beta != 0)
     {
-        for(int m = 0; m < M; ++m)
+        for(Index m = 0; m < M; ++m)
         {
-            for(int n = 0; n < N; ++n)
+            for(Index n = 0; n < N; ++n)
             {
-                size_t C_offset = n*ldC + m;
-                size_t D_offset = n*ldD + m;
+                Index C_offset = n*ldC + m;
+                Index D_offset = n*ldD + m;
                 tmp_ptr[D_offset] -= beta * C_ptr[C_offset];
             }
         }
@@ -147,7 +147,7 @@ void validate_gemm()
                C2_traits({3, 5, 6}),
                C2T_traits({5, 6, 3});
     // Sizes of corresponding matrices
-    int C1M = 12, C1N = 30, C1K = 10, C2M = 3, C2N = 30, C2K = 20;
+    Index C1M = 3*2*2, C1N = 5*6, C1K = 10, C2M = 3, C2N = 5*6, C2K = 4*5;
     // Construct tiles
     Tile<T> A1(A1_traits), A1T(A1T_traits),
         B1(B1_traits), B1T(B1T_traits),
@@ -183,7 +183,7 @@ void validate_gemm()
     // Scalar values
     T alpha[3] = {0.0, 1.0, 2.0}, beta[3] = {1.0, 0.0, -2.0};
     // Check gemm with alpha=one and beta=zero
-    for(int i = 0; i < 3; ++i)
+    for(Index i = 0; i < 3; ++i)
     {
         T a = alpha[i], b = beta[i];
         copy_intersection(C1, C1_copy);
@@ -271,7 +271,7 @@ void validate_gemm()
     TESTN(gemm(one, TransOp::Trans, A1T, TransOp::NoTrans, B1, one, C1T, 1));
     TESTN(gemm(one, TransOp::NoTrans, A1, TransOp::Trans, B1T, one, C1T, 1));
     TESTN(gemm(one, TransOp::Trans, A1T, TransOp::Trans, B1T, one, C1T, 1));
-    Tile<T> C3({{3, 2, 2, 5, 5}});
+    Tile<T> C3({3, 2, 2, 5, 5});
     TESTN(gemm(one, TransOp::NoTrans, A1, TransOp::NoTrans, B1, one, C3, 1));
     TESTN(gemm(one, TransOp::Trans, A1T, TransOp::NoTrans, B1, one, C3, 1));
     TESTN(gemm(one, TransOp::NoTrans, A1, TransOp::Trans, B1T, one, C3, 1));

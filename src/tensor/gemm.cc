@@ -6,29 +6,22 @@ namespace nntile
 
 //! Check if dimensionalities of tensors match gemm
 static inline void gemm_check_ndim(const TensorTraits &A,
-        const TensorTraits &B,
-        const TensorTraits &C,
-        int ndim=1)
+        const TensorTraits &B, const TensorTraits &C, Index ndim=1)
 {
-    // Check if ndim is negative since it will be converted to size_t
+    // Check if ndim is negative since it will be converted to Index
     if(ndim <= 0)
     {
         throw std::runtime_error("ndim <= 0");
     }
-    size_t ndim_ = ndim;
-    if(A.ndim < ndim_)
+    if(A.ndim < ndim)
     {
         throw std::runtime_error("A.ndim < ndim");
     }
-    if(B.ndim < ndim_)
+    if(B.ndim < ndim)
     {
         throw std::runtime_error("B.ndim < ndim");
     }
-    if(C.ndim < ndim_)
-    {
-        throw std::runtime_error("C.ndim < ndim");
-    }
-    if(A.ndim + B.ndim != C.ndim + 2*ndim_)
+    if(A.ndim + B.ndim != C.ndim + 2*ndim)
     {
         throw std::runtime_error("A.ndim + B.ndim != C.ndim + 2*ndim");
     }
@@ -36,10 +29,9 @@ static inline void gemm_check_ndim(const TensorTraits &A,
 
 //! Check if shapes of tensors A and B match gemm
 static inline void gemm_check_A_B(const TensorTraits &A,
-        const TensorTraits &B,
-        int ndim=1)
+        const TensorTraits &B, Index ndim=1)
 {
-    for(int i = 0; i < ndim; ++i)
+    for(Index i = 0; i < ndim; ++i)
     {
         if(A.shape[A.ndim-ndim+i] != B.shape[i])
         {
@@ -56,10 +48,9 @@ static inline void gemm_check_A_B(const TensorTraits &A,
 
 //! Check if shapes of tensors A^T and B match gemm
 static inline void gemm_check_AT_B(const TensorTraits &A,
-        const TensorTraits &B,
-        int ndim=1)
+        const TensorTraits &B, Index ndim=1)
 {
-    for(int i = 0; i < ndim; ++i)
+    for(Index i = 0; i < ndim; ++i)
     {
         if(A.shape[i] != B.shape[i])
         {
@@ -75,10 +66,9 @@ static inline void gemm_check_AT_B(const TensorTraits &A,
 
 //! Check if shapes of tensors A and B^T match gemm
 static inline void gemm_check_A_BT(const TensorTraits &A,
-        const TensorTraits &B,
-        int ndim=1)
+        const TensorTraits &B, Index ndim=1)
 {
-    for(int i = 0; i < ndim; ++i)
+    for(Index i = 0; i < ndim; ++i)
     {
         if(A.shape[A.ndim-ndim+i] != B.shape[B.ndim-ndim+i])
         {
@@ -95,10 +85,9 @@ static inline void gemm_check_A_BT(const TensorTraits &A,
 
 //! Check if shapes of tensors A^T and B^T match gemm
 static inline void gemm_check_AT_BT(const TensorTraits &A,
-        const TensorTraits &B,
-        int ndim=1)
+        const TensorTraits &B, Index ndim=1)
 {
-    for(int i = 0; i < ndim; ++i)
+    for(Index i = 0; i < ndim; ++i)
     {
         if(A.shape[i] != B.shape[B.ndim-ndim+i])
         {
@@ -115,10 +104,8 @@ static inline void gemm_check_AT_BT(const TensorTraits &A,
 
 //! Check if shapes of tensors op(A) and op(B) match gemm
 static inline void gemm_check_opA_opB(const TransOp &transA,
-        const TensorTraits &A,
-        const TransOp &transB,
-        const TensorTraits &B,
-        int ndim=1)
+        const TensorTraits &A, const TransOp &transB, const TensorTraits &B,
+        Index ndim=1)
 {
     switch(transB.value)
     {
@@ -155,10 +142,9 @@ static inline void gemm_check_opA_opB(const TransOp &transA,
 
 //! Check if shapes of tensors A and C match gemm
 static inline void gemm_check_A_C(const TensorTraits &A,
-        const TensorTraits &C,
-        int ndim=1)
+        const TensorTraits &C, Index ndim=1)
 {
-    for(int i = 0; i < A.ndim-ndim; ++i)
+    for(Index i = 0; i < A.ndim-ndim; ++i)
     {
         if(A.shape[i] != C.shape[i])
         {
@@ -175,10 +161,9 @@ static inline void gemm_check_A_C(const TensorTraits &A,
 
 //! Check if shapes of tensors A^T and C match gemm
 static inline void gemm_check_AT_C(const TensorTraits &A,
-        const TensorTraits &C,
-        int ndim=1)
+        const TensorTraits &C, Index ndim=1)
 {
-    for(int i = ndim; i < A.ndim-ndim; ++i)
+    for(Index i = ndim; i < A.ndim-ndim; ++i)
     {
         if(A.shape[i] != C.shape[i-ndim])
         {
@@ -195,9 +180,7 @@ static inline void gemm_check_AT_C(const TensorTraits &A,
 
 //! Check if shapes of tensors op(A) and C match gemm
 static inline void gemm_check_opA_C(const TransOp &transA,
-        const TensorTraits &A,
-        const TensorTraits &C,
-        int ndim=1)
+        const TensorTraits &A, const TensorTraits &C, Index ndim=1)
 {
     switch(transA.value)
     {
@@ -207,17 +190,15 @@ static inline void gemm_check_opA_C(const TransOp &transA,
         case TransOp::Trans:
             gemm_check_AT_C(A, C, ndim);
             break;
-        default:
-            throw std::runtime_error("Wrong value of transA");
+        // This parameter was already checked in gemm_check_opA_opB
     }
 }
 
 //! Check if shapes of tensors B and C match gemm
 static inline void gemm_check_B_C(const TensorTraits &B,
-        const TensorTraits &C,
-        int ndim=1)
+        const TensorTraits &C, Index ndim=1)
 {
-    for(int i = ndim; i < B.ndim; ++i)
+    for(Index i = ndim; i < B.ndim; ++i)
     {
         if(B.shape[i] != C.shape[C.ndim-B.ndim+i])
         {
@@ -234,10 +215,9 @@ static inline void gemm_check_B_C(const TensorTraits &B,
 
 //! Check if shapes of tensors B^T and C match gemm
 static inline void gemm_check_BT_C(const TensorTraits &B,
-        const TensorTraits &C,
-        int ndim=1)
+        const TensorTraits &C, Index ndim=1)
 {
-    for(int i = 0; i < B.ndim-ndim; ++i)
+    for(Index i = 0; i < B.ndim-ndim; ++i)
     {
         if(B.shape[i] != C.shape[C.ndim-B.ndim+ndim+i])
         {
@@ -254,9 +234,7 @@ static inline void gemm_check_BT_C(const TensorTraits &B,
 
 //! Check if shapes of tensors op(B) and C match gemm
 static inline void gemm_check_opB_C(const TransOp &transB,
-        const TensorTraits &B,
-        const TensorTraits &C,
-        int ndim=1)
+        const TensorTraits &B, const TensorTraits &C, Index ndim=1)
 {
     switch(transB.value)
     {
@@ -266,18 +244,14 @@ static inline void gemm_check_opB_C(const TransOp &transB,
         case TransOp::Trans:
             gemm_check_BT_C(B, C, ndim);
             break;
-        default:
-            throw std::runtime_error("Wrong value of transB");
+        // This parameter was already checked in gemm_check_opA_opB
     }
 }
 
 //! Check if tensors match gemm
-static inline void gemm_check(const TransOp &transA,
-        const TensorTraits &A,
-        const TransOp &transB,
-        const TensorTraits &B,
-        const TensorTraits &C,
-        int ndim=1)
+static inline void gemm_check(const TransOp &transA, const TensorTraits &A,
+        const TransOp &transB, const TensorTraits &B, const TensorTraits &C,
+        Index ndim=1)
 {
     // Check if dimensionalities match
     gemm_check_ndim(A, B, C, ndim);
@@ -290,22 +264,17 @@ static inline void gemm_check(const TransOp &transA,
 }
 
 template<typename T>
-void gemm_async(T alpha,
-        const TransOp &transA,
-        const Tensor<T> &A,
-        const TransOp &transB,
-        const Tensor<T> &B,
-        T beta,
-        const Tensor<T> &C,
-        int ndim)
+void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
+        const TransOp &transB, const Tensor<T> &B, T beta, const Tensor<T> &C,
+        Index ndim)
 {
     // Check if tensors match gemm
     gemm_check(transA, A, transB, B, C, ndim);
     // Sizes of A, B and C as simple matrices (grids of tiles) for gemm
-    size_t m = C.grid.matrix_shape[A.ndim-ndim][0];
-    size_t n = C.grid.matrix_shape[A.ndim-ndim][1];
-    size_t k;
-    std::array<size_t, 2> opA_stride, opB_stride;
+    Index m = C.grid.matrix_shape[A.ndim-ndim][0];
+    Index n = C.grid.matrix_shape[A.ndim-ndim][1];
+    Index k;
+    std::array<Index, 2> opA_stride, opB_stride;
     switch(transA.value)
     {
         case TransOp::NoTrans:
@@ -316,9 +285,6 @@ void gemm_async(T alpha,
             k = A.grid.matrix_shape[ndim][0];
             opA_stride = {k, 1};
             break;
-        default:
-            // All parameters were already checked in gemm_check
-            break;
     }
     switch(transB.value)
     {
@@ -328,28 +294,25 @@ void gemm_async(T alpha,
         case TransOp::Trans:
             opB_stride = {n, 1};
             break;
-        default:
-            // All parameters were already checked in gemm_check
-            break;
     }
     // All per-tile gemm_async calls shall appear here
-    for(size_t j = 0; j < n; ++j)
+    for(Index j = 0; j < n; ++j)
     {
-        for(size_t i = 0; i < m; ++i)
+        for(Index i = 0; i < m; ++i)
         {
-            size_t C_tile_offset = j*m + i;
+            Index C_tile_offset = j*m + i;
             const auto &C_tile = C.tiles[C_tile_offset];
             // initialize C(i,j) = a*opA(i,0)*opB(0,j) + b*C(i,j)
-            size_t A_tile_offset = opA_stride[0] * i;
-            size_t B_tile_offset = opB_stride[1] * j;
+            Index A_tile_offset = opA_stride[0] * i;
+            Index B_tile_offset = opB_stride[1] * j;
             const auto &A_tile = A.tiles[A_tile_offset];
             const auto &B_tile = B.tiles[B_tile_offset];
             gemm_async<T>(alpha, transA, A_tile, transB, B_tile, beta,
                     C_tile, ndim);
             // all other l>0
-            for(int l = 1; l < k; ++l)
+            for(Index l = 1; l < k; ++l)
             {
-                // accumulate C(i,j) = a*opA(i,l)*opB(0,l) + C(i,j)
+                // accumulate C(i,j) = a*opA(i,l)*opB(l,j) + C(i,j)
                 A_tile_offset += opA_stride[1];
                 B_tile_offset += opB_stride[0];
                 const auto &A_tile = A.tiles[A_tile_offset];
@@ -363,24 +326,14 @@ void gemm_async(T alpha,
 }
 
 template
-void gemm_async(float alpha,
-        const TransOp &transA,
-        const Tensor<float> &A,
-        const TransOp &transB,
-        const Tensor<float> &B,
-        float beta,
-        const Tensor<float> &C,
-        int ndim=1);
+void gemm_async(float alpha, const TransOp &transA, const Tensor<float> &A,
+        const TransOp &transB, const Tensor<float> &B, float beta,
+        const Tensor<float> &C, Index ndim=1);
 
 template
-void gemm_async(double alpha,
-        const TransOp &transA,
-        const Tensor<double> &A,
-        const TransOp &transB,
-        const Tensor<double> &B,
-        double beta,
-        const Tensor<double> &C,
-        int ndim=1);
+void gemm_async(double alpha, const TransOp &transA, const Tensor<double> &A,
+        const TransOp &transB, const Tensor<double> &B, double beta,
+        const Tensor<double> &C, Index ndim=1);
 
 } // namespace nntile
 

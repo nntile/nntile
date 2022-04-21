@@ -5,133 +5,65 @@ namespace nntile
 {
 
 template<typename T>
-void copy_async(const Tensor<T> &src, const std::vector<size_t> &src_coord,
-        const Tensor<T> &dst, const std::vector<size_t> &dst_coord)
+void copy_intersection_async(const Tensor<T> &src,
+        const std::vector<Index> &src_offset, const Tensor<T> &dst,
+        const std::vector<Index> &dst_offset)
 {
-    std::vector<size_t> src_offset(src_coord), dst_offset(dst_coord),
-        vzero(src.ndim, 0), src_index(vzero), dst_index(vzero);
-    std::cout << src.grid;
-    std::cout << "src_offset\n";
-    for(size_t k = 0; k < src.ndim; ++k)
+    // Check inputs
+    if(src.ndim != src_offset.size())
     {
-        std::cout << src_offset[k] << " ";
+        throw std::runtime_error("src.ndim != src_offset.size()");
     }
-    std::cout << "\n";
-    std::cout << "dst_offset\n";
-    for(size_t k = 0; k < src.ndim; ++k)
+    if(src.ndim != dst.ndim)
     {
-        std::cout << dst_offset[k] << " ";
+        throw std::runtime_error("src.ndim != dst.ndim");
     }
-    std::cout << "\n";
-    copy_async<T>(src.get_tile(0), src_offset, dst.get_tile(0), dst_offset);
-    for(size_t k = 1; k < dst.grid.nelems; ++k)
+    if(dst.ndim != dst_offset.size())
     {
-        ++dst_index[0];
-        dst_offset[0] += dst.basetile_shape[0];
-        size_t l = 0;
-        while(dst_index[l] == dst.shape[l])
-        {
-            dst_index[l] = 0;
-            dst_offset[l] = dst_coord[l];
-            ++l;
-            ++dst_index[l];
-            dst_offset[l] += dst.basetile_shape[l];
-        }
-        std::cout << "src_offset\n";
-        for(size_t k = 0; k < src.ndim; ++k)
-        {
-            std::cout << src_offset[k] << " ";
-        }
-        std::cout << "\n";
-        std::cout << "dst_offset\n";
-        for(size_t k = 0; k < src.ndim; ++k)
-        {
-            std::cout << dst_offset[k] << " ";
-        }
-        std::cout << "\n";
-        copy_async<T>(src.get_tile(0), src_offset, dst.get_tile(k), dst_offset);
+        throw std::runtime_error("dst.ndim != dst_offset.size()");
     }
-    for(size_t i = 1; i < src.grid.nelems; ++i)
+    Index ndim = src.ndim;
+    // Treat special case of ndim=0
+    if(ndim == 0)
     {
-        dst_index = vzero;
-        dst_offset = dst_coord;
-        ++src_index[0];
-        src_offset[0] += src.basetile_shape[0];
-        size_t j = 0;
-        while(src_index[j] == src.shape[j])
+        copy_intersection_async(src.get_tile(0), src_offset, dst.get_tile(0),
+                dst_offset);
+        return;
+    }
+    // Treat non-zero ndim
+    for(Index i = 0; i < src.grid.nelems; ++i)
+    {
+        auto src_tile_index = src.grid.linear_to_index(i);
+        auto src_tile_offset(src_offset);
+        for(Index k = 0; k < ndim; ++k)
         {
-            src_index[j] = 0;
-            src_offset[j] = src_coord[j];
-            ++j;
-            ++src_index[j];
-            src_offset[j] += src.basetile_shape[j];
+            src_tile_offset[k] += src_tile_index[k] * src.basetile_shape[k];
         }
-        std::cout << "i=" << i << "\n";
-        std::cout << "src_offset\n";
-        for(size_t k = 0; k < src.ndim; ++k)
+        auto src_tile = src.get_tile(i);
+        for(Index j = 0; j < dst.grid.nelems; ++j)
         {
-            std::cout << src_offset[k] << " ";
-        }
-        std::cout << "\nsrc_index\n";
-        for(size_t k = 0; k < src.ndim; ++k)
-        {
-            std::cout << src_index[k] << " ";
-        }
-        std::cout << "\nget_tile_index\n";
-        for(size_t k = 0; k < src.ndim; ++k)
-        {
-            std::cout << src.get_tile_index(i)[k] << " ";
-        }
-        std::cout << "\n";
-        std::cout << src.get_tile(i);
-        std::cout << "dst_offset\n";
-        for(size_t k = 0; k < src.ndim; ++k)
-        {
-            std::cout << dst_offset[k] << " ";
-        }
-        std::cout << "\n";
-        std::cout << dst.get_tile(0);
-        copy_async<T>(src.get_tile(i), src_offset, dst.get_tile(0), dst_offset);
-        for(size_t k = 1; k < dst.grid.nelems; ++k)
-        {
-            ++dst_index[0];
-            dst_offset[0] += dst.basetile_shape[0];
-            size_t l = 0;
-            while(dst_index[l] == dst.shape[l])
+            auto dst_tile_index = dst.grid.linear_to_index(j);
+            auto dst_tile_offset(dst_offset);
+            for(Index k = 0; k < ndim; ++k)
             {
-                dst_index[l] = 0;
-                dst_offset[l] = dst_coord[l];
-                ++l;
-                ++dst_index[l];
-                dst_offset[l] += dst.basetile_shape[l];
+                dst_tile_offset[k] += dst_tile_index[k] *
+                    dst.basetile_shape[k];
             }
-            std::cout << "src_offset\n";
-            for(size_t k = 0; k < src.ndim; ++k)
-            {
-                std::cout << src_offset[k] << " ";
-            }
-            std::cout << "\n";
-            std::cout << "dst_offset\n";
-            for(size_t k = 0; k < src.ndim; ++k)
-            {
-                std::cout << dst_offset[k] << " ";
-            }
-            std::cout << "\n";
-            copy_async<T>(src.get_tile(i), src_offset, dst.get_tile(k),
-                    dst_offset);
+            copy_intersection_async<T>(src_tile, src_tile_offset,
+                    dst.get_tile(j), dst_tile_offset);
         }
     }
 }
 
 template
-void copy_async(const Tensor<float> &src,
-        const std::vector<size_t> &src_coord, const Tensor<float> &dst,
-        const std::vector<size_t> &dst_coord);
+void copy_intersection_async(const Tensor<float> &src,
+        const std::vector<Index> &src_offset, const Tensor<float> &dst,
+        const std::vector<Index> &dst_offset);
 
 template
-void copy_async(const Tensor<double> &src,
-        const std::vector<size_t> &src_coord, const Tensor<double> &dst,
-        const std::vector<size_t> &dst_coord);
+void copy_intersection_async(const Tensor<double> &src,
+        const std::vector<Index> &src_offset, const Tensor<double> &dst,
+        const std::vector<Index> &dst_offset);
 
 } // namespace nntile
 

@@ -6,37 +6,54 @@
 using nntile::Tensor;
 
 template<typename T>
-void check_tensors_intersection(const Tensor<T> &src,
-        const std::vector<size_t> &src_coord, const Tensor<T> &dst,
-        const std::vector<size_t> &dst_coord)
+bool check_tensors_intersection(const Tensor<T> &A,
+        const std::vector<Index> &A_offset, const Tensor<T> &B,
+        const std::vector<Index> &B_offset)
 {
-    for(size_t i = 0; i < src.grid.nelems; ++i)
+    if(A.ndim != A_offset.size())
     {
-        auto src_tile = src.get_tile(i);
-        auto src_index = src.get_tile_index(i);
-        auto src_tile_coord(src_coord);
-        std::cout << "src_tile_coord\n";
-        for(size_t k = 0; k < src.ndim; ++k)
+        throw std::runtime_error("A.ndim != A_offset.size()");
+    }
+    if(B.ndim != A.ndim)
+    {
+        throw std::runtime_error("B.ndim != A.ndim");
+    }
+    if(B_offset.size() != B.ndim)
+    {
+        throw std::runtime_error("B_offset.size() != B.ndim");
+    }
+    for(Index i = 0; i < A.grid.nelems; ++i)
+    {
+        auto A_tile = A.get_tile(i);
+        auto A_tile_index = A.grid.linear_to_index(i);
+        auto A_tile_offset(A_offset);
+        for(Index j = 0; j < A.ndim; ++j)
         {
-            src_tile_coord[k] += src_index[k] * src.basetile_shape[k];
-            std::cout << src_tile_coord[k] << " ";
+            A_tile_offset[j] += A_tile_index[j] * A.basetile_shape[j];
         }
-        std::cout << "\n";
-        for(size_t j = 0; j < dst.grid.nelems; ++j)
+        for(Index j = 0; j < B.grid.nelems; ++j)
         {
-            auto dst_tile = dst.get_tile(j);
-            auto dst_index = dst.get_tile_index(j);
-            auto dst_tile_coord(dst_coord);
-            std::cout << "dst_tile_coord\n";
-            for(size_t k = 0; k < dst.ndim; ++k)
+            auto B_tile = B.get_tile(j);
+            auto B_tile_index = B.grid.linear_to_index(j);
+            auto B_tile_offset(B_offset);
+            for(Index k = 0; k < A.ndim; ++k)
             {
-                dst_tile_coord[k] += dst_index[k] * dst.basetile_shape[k];
-                std::cout << dst_tile_coord[k] << " ";
+                B_tile_offset[k] += B_tile_index[k] * B.basetile_shape[k];
             }
-            std::cout << "\n";
-            check_tiles_intersection(src_tile, src_tile_coord, dst_tile,
-                    dst_tile_coord);
+            if(!check_tiles_intersection(A_tile, A_tile_offset, B_tile,
+                    B_tile_offset))
+            {
+                return false;
+            }
         }
     }
+    return true;
+}
+
+template<typename T>
+bool check_tensors_intersection(const Tensor<T> &A, const Tensor<T> &B)
+{
+    return check_tensors_intersection(A, std::vector<Index>(A.ndim),
+            B, std::vector<Index>(B.ndim));
 }
 

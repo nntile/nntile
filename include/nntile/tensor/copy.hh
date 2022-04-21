@@ -6,39 +6,41 @@ namespace nntile
 {
 
 template<typename T>
-void copy_async(const Tensor<T> &src, const std::vector<size_t> &src_coord,
-        const Tensor<T> &dst, const std::vector<size_t> &dst_coord);
+void copy_intersection_async(const Tensor<T> &src,
+        const std::vector<Index> &src_offset,
+        const Tensor<T> &dst, const std::vector<Index> &dst_offset);
 
 extern template
-void copy_async(const Tensor<float> &src,
-        const std::vector<size_t> &src_coord, const Tensor<float> &dst,
-        const std::vector<size_t> &dst_coord);
+void copy_intersection_async(const Tensor<float> &src,
+        const std::vector<Index> &src_offset, const Tensor<float> &dst,
+        const std::vector<Index> &dst_offset);
 
 extern template
-void copy_async(const Tensor<double> &src,
-        const std::vector<size_t> &src_coord, const Tensor<double> &dst,
-        const std::vector<size_t> &dst_coord);
+void copy_intersection_async(const Tensor<double> &src,
+        const std::vector<Index> &src_offset, const Tensor<double> &dst,
+        const std::vector<Index> &dst_offset);
 
 template<typename T>
-void copy_async(const Tensor<T> &src, const Tensor<T> &dst)
+void copy_intersection_async(const Tensor<T> &src, const Tensor<T> &dst)
 {
-    copy_async<T>(src, std::vector<size_t>(src.ndim, 0), dst,
-            std::vector<size_t>(dst.ndim, 0));
+    copy_intersection_async<T>(src, std::vector<Index>(src.ndim), dst,
+            std::vector<Index>(dst.ndim));
 }
 
 template<typename T>
-void copy(const Tensor<T> &src, const std::vector<size_t> &src_coord,
-        const Tensor<T> &dst, const std::vector<size_t> &dst_coord)
+void copy_intersection(const Tensor<T> &src,
+        const std::vector<Index> &src_offset, const Tensor<T> &dst,
+        const std::vector<Index> &dst_offset)
 {
-    copy_async<T>(src, src_coord, dst, dst_coord);
+    copy_intersection_async<T>(src, src_offset, dst, dst_offset);
     starpu_task_wait_for_all();
 }
 
 template<typename T>
-void copy(const Tensor<T> &src, const Tensor<T> &dst)
+void copy_intersection(const Tensor<T> &src, const Tensor<T> &dst)
 {
-    copy_async<T>(src, std::vector<size_t>(src.ndim, 0), dst,
-            std::vector<size_t>(dst.ndim, 0));
+    copy_intersection_async<T>(src, std::vector<Index>(src.ndim), dst,
+            std::vector<Index>(dst.ndim));
     starpu_task_wait_for_all();
 }
 

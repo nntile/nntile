@@ -4,7 +4,7 @@ set(TESTS
     "tensor"
     "randn"
     "copy"
-    #"gemm"
+    "gemm"
     #"gelu"
     #"bias"
     )

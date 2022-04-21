@@ -27,23 +27,22 @@ namespace nntile
 
 //! Check if dimensionalities of tensors match gemm
 static inline void gemm_check_ndim(const TileTraits &A, const TileTraits &B,
-        const TileTraits &C, int ndim=1)
+        const TileTraits &C, Index ndim=1)
 {
-    // Check if ndim is negative since it will be converted to size_t
+    // Check if ndim is negative since it will be converted to Index
     if(ndim <= 0)
     {
         throw std::runtime_error("ndim <= 0");
     }
-    size_t ndim_ = ndim;
-    if(A.ndim < ndim_)
+    if(A.ndim < ndim)
     {
         throw std::runtime_error("A.ndim < ndim");
     }
-    if(B.ndim < ndim_)
+    if(B.ndim < ndim)
     {
         throw std::runtime_error("B.ndim < ndim");
     }
-    if(A.ndim + B.ndim != C.ndim + 2*ndim_)
+    if(A.ndim + B.ndim != C.ndim + 2*ndim)
     {
         throw std::runtime_error("A.ndim + B.ndim != C.ndim + 2*ndim");
     }
@@ -51,9 +50,9 @@ static inline void gemm_check_ndim(const TileTraits &A, const TileTraits &B,
 
 //! Check if shapes of matricized tensors A and B match gemm
 static inline void gemm_check_A_B(const TileTraits &A, const TileTraits &B,
-        int ndim=1)
+        Index ndim=1)
 {
-    for(int i = 0; i < ndim; ++i)
+    for(Index i = 0; i < ndim; ++i)
     {
         if(A.shape[A.ndim-ndim+i] != B.shape[i])
         {
@@ -65,9 +64,9 @@ static inline void gemm_check_A_B(const TileTraits &A, const TileTraits &B,
 
 //! Check if shapes of matricized tensors A^T and B match gemm
 static inline void gemm_check_AT_B(const TileTraits &A, const TileTraits &B,
-        int ndim=1)
+        Index ndim=1)
 {
-    for(int i = 0; i < ndim; ++i)
+    for(Index i = 0; i < ndim; ++i)
     {
         if(A.shape[i] != B.shape[i])
         {
@@ -78,9 +77,9 @@ static inline void gemm_check_AT_B(const TileTraits &A, const TileTraits &B,
 
 //! Check if shapes of tensors A and B^T match gemm
 static inline void gemm_check_A_BT(const TileTraits &A, const TileTraits &B,
-        int ndim=1)
+        Index ndim=1)
 {
-    for(int i = 0; i < ndim; ++i)
+    for(Index i = 0; i < ndim; ++i)
     {
         if(A.shape[A.ndim-ndim+i] != B.shape[B.ndim-ndim+i])
         {
@@ -92,9 +91,9 @@ static inline void gemm_check_A_BT(const TileTraits &A, const TileTraits &B,
 
 //! Check if shapes of tensors A^T and B^T match gemm
 static inline void gemm_check_AT_BT(const TileTraits &A, const TileTraits &B,
-        int ndim=1)
+        Index ndim=1)
 {
-    for(int i = 0; i < ndim; ++i)
+    for(Index i = 0; i < ndim; ++i)
     {
         if(A.shape[i] != B.shape[B.ndim-ndim+i])
         {
@@ -107,7 +106,7 @@ static inline void gemm_check_AT_BT(const TileTraits &A, const TileTraits &B,
 //! Check if shapes of tensors op(A) and op(B) match gemm
 static inline void gemm_check_opA_opB(const TransOp &transA,
         const TileTraits &A, const TransOp &transB, const TileTraits &B,
-        int ndim=1)
+        Index ndim=1)
 {
     switch(transB.value)
     {
@@ -144,9 +143,9 @@ static inline void gemm_check_opA_opB(const TransOp &transA,
 
 //! Check if shapes of tensors A and C match gemm
 static inline void gemm_check_A_C(const TileTraits &A, const TileTraits &C,
-        int ndim=1)
+        Index ndim=1)
 {
-    for(int i = 0; i < A.ndim-ndim; ++i)
+    for(Index i = 0; i < A.ndim-ndim; ++i)
     {
         if(A.shape[i] != C.shape[i])
         {
@@ -158,9 +157,9 @@ static inline void gemm_check_A_C(const TileTraits &A, const TileTraits &C,
 
 //! Check if shapes of tensors A^T and C match gemm
 static inline void gemm_check_AT_C(const TileTraits &A, const TileTraits &C,
-        int ndim=1)
+        Index ndim=1)
 {
-    for(int i = ndim; i < A.ndim; ++i)
+    for(Index i = ndim; i < A.ndim; ++i)
     {
         if(A.shape[i] != C.shape[i-ndim])
         {
@@ -172,7 +171,7 @@ static inline void gemm_check_AT_C(const TileTraits &A, const TileTraits &C,
 
 //! Check if shapes of tensors op(A) and C match gemm
 static inline void gemm_check_opA_C(const TransOp &transA, const TileTraits &A,
-        const TileTraits &C, int ndim=1)
+        const TileTraits &C, Index ndim=1)
 {
     switch(transA.value)
     {
@@ -188,9 +187,9 @@ static inline void gemm_check_opA_C(const TransOp &transA, const TileTraits &A,
 
 //! Check if shapes of tensors B and C match gemm
 static inline void gemm_check_B_C(const TileTraits &B, const TileTraits &C,
-        int ndim=1)
+        Index ndim=1)
 {
-    for(int i = ndim; i < B.ndim; ++i)
+    for(Index i = ndim; i < B.ndim; ++i)
     {
         if(B.shape[i] != C.shape[C.ndim-B.ndim+i])
         {
@@ -202,9 +201,9 @@ static inline void gemm_check_B_C(const TileTraits &B, const TileTraits &C,
 
 //! Check if shapes of tensors B^T and C match gemm
 static inline void gemm_check_BT_C(const TileTraits &B, const TileTraits &C,
-        int ndim=1)
+        Index ndim=1)
 {
-    for(int i = 0; i < B.ndim-ndim; ++i)
+    for(Index i = 0; i < B.ndim-ndim; ++i)
     {
         if(B.shape[i] != C.shape[C.ndim-B.ndim+ndim+i])
         {
@@ -216,7 +215,7 @@ static inline void gemm_check_BT_C(const TileTraits &B, const TileTraits &C,
 
 //! Check if shapes of tensors op(B) and C match gemm
 static inline void gemm_check_opB_C(const TransOp &transB, const TileTraits &B,
-        const TileTraits &C, int ndim=1)
+        const TileTraits &C, Index ndim=1)
 {
     switch(transB.value)
     {
@@ -233,7 +232,7 @@ static inline void gemm_check_opB_C(const TransOp &transB, const TileTraits &B,
 //! Check if tensors match gemm
 static inline void gemm_check(const TransOp &transA, const TileTraits &A,
         const TransOp &transB, const TileTraits &B, const TileTraits &C,
-        int ndim=1)
+        Index ndim=1)
 {
     // Check if dimensionalities match
     gemm_check_ndim(A, B, C, ndim);
@@ -267,7 +266,7 @@ template<typename T>
 static void gemm_codelet_cpu(void *buffers[], void *cl_args)
 {
     TransOp::Value transA_value, transB_value;
-    size_t m, n, k;
+    Index m, n, k;
     T alpha, beta;
     starpu_codelet_unpack_args(cl_args, &transA_value, &transB_value, &m, &n,
             &k, &alpha, &beta);
@@ -307,7 +306,7 @@ static void gemm_codelet_cpu(void *buffers[], void *cl_args)
 template<typename T>
 void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
         const TransOp &transB, const Tile<T> &B, T beta, const Tile<T> &C,
-        int ndim)
+        Index ndim)
 {
     static struct starpu_codelet codelet_gemm_w =
     {
@@ -341,9 +340,9 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
     // Check if tensors match gemm
     gemm_check(transA, A, transB, B, C, ndim);
     // Reference tensors as matrices
-    size_t m = C.matrix_shape[A.ndim-ndim][0];
-    size_t n = C.matrix_shape[A.ndim-ndim][1];
-    size_t k;
+    Index m = C.matrix_shape[A.ndim-ndim][0];
+    Index n = C.matrix_shape[A.ndim-ndim][1];
+    Index k;
     switch(transA.value)
     {
         case TransOp::NoTrans:
@@ -434,14 +433,14 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
 }
 
 template
-void gemm_async<float>(float alpha, const TransOp &transA,
-        const Tile<float> &A, const TransOp &transB, const Tile<float> &B,
-        float beta, const Tile<float> &C, int ndim=1);
+void gemm_async(float alpha, const TransOp &transA, const Tile<float> &A,
+        const TransOp &transB, const Tile<float> &B, float beta,
+        const Tile<float> &C, Index ndim=1);
 
 template
-void gemm_async<double>(double alpha, const TransOp &transA,
-        const Tile<double> &A, const TransOp &transB, const Tile<double> &B,
-        double beta, const Tile<double> &C, int ndim=1);
+void gemm_async(double alpha, const TransOp &transA, const Tile<double> &A,
+        const TransOp &transB, const Tile<double> &B, double beta,
+        const Tile<double> &C, Index ndim=1);
 
 } // namespace nntile
 

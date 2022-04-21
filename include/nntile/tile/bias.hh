@@ -6,18 +6,18 @@ namespace nntile
 {
 
 template<typename T>
-void bias_async(const Tile<T> &src, const Tile<T> &dst, int batch_dim);
+void bias_async(const Tile<T> &src, const Tile<T> &dst, Index batch_dim);
 
 extern template
 void bias_async(const Tile<float> &src, const Tile<float> &dst,
-        int batch_dim);
+        Index batch_dim);
 
 extern template
 void bias_async(const Tile<double> &src, const Tile<double> &dst,
-        int batch_dim);
+        Index batch_dim);
 
 template<typename T>
-void bias(const Tile<T> &src, const Tile<T> &dst, int batch_dim)
+void bias(const Tile<T> &src, const Tile<T> &dst, Index batch_dim)
 {
     bias_async<T>(src, dst, batch_dim);
     starpu_task_wait_for_all();

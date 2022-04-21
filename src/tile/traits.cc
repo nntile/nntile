@@ -11,29 +11,9 @@ std::ostream &operator<<(std::ostream &os, const TileTraits &traits)
     if(traits.ndim > 0)
     {
         os << traits.shape[0];
-        for(size_t i = 1; i < traits.ndim; ++i)
+        for(Index i = 1; i < traits.ndim; ++i)
         {
             os << "," << traits.shape[i];
-        }
-    }
-    os << ")\n";
-    os << "offset=(";
-    if(traits.ndim > 0)
-    {
-        os << traits.offset[0];
-        for(size_t i = 1; i < traits.ndim; ++i)
-        {
-            os << "," << traits.offset[i];
-        }
-    }
-    os << ")\n";
-    os << "underlying_shape=(";
-    if(traits.ndim > 0)
-    {
-        os << traits.underlying_shape[0];
-        for(size_t i = 1; i < traits.ndim; ++i)
-        {
-            os << "," << traits.underlying_shape[i];
         }
     }
     os << ")\n";
@@ -41,26 +21,16 @@ std::ostream &operator<<(std::ostream &os, const TileTraits &traits)
     if(traits.ndim > 0)
     {
         os << traits.stride[0];
-        for(size_t i = 1; i < traits.ndim; ++i)
+        for(Index i = 1; i < traits.ndim; ++i)
         {
             os << "," << traits.stride[i];
         }
     }
     os << ")\n";
     os << "nelems=" << traits.nelems << "\n";
-    os << "underlying_stride=(";
-    if(traits.ndim > 0)
-    {
-        os << traits.underlying_stride[0];
-        for(size_t i = 1; i < traits.ndim; ++i)
-        {
-            os << "," << traits.underlying_stride[i];
-        }
-    }
-    os << ")\n";
     os << "matrix_shape=((" << traits.matrix_shape[0][0] <<
         "," << traits.matrix_shape[0][1] << ")";
-    for(size_t i = 1; i <= traits.ndim; ++i)
+    for(Index i = 1; i <= traits.ndim; ++i)
     {
         os << ",(" << traits.matrix_shape[i][0] << "," <<
             traits.matrix_shape[i][1] << ")";

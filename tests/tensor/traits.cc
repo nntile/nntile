@@ -5,7 +5,7 @@ using namespace nntile;
 
 void validate_traits(const TensorTraits &traits)
 {
-    for(size_t i = 0; i < traits.ndim; ++i)
+    for(Index i = 0; i < traits.ndim; ++i)
     {
         if(traits.grid.shape[i] == 0 and traits.shape[i] != 0)
         {
@@ -13,7 +13,7 @@ void validate_traits(const TensorTraits &traits)
         }
         else if(traits.grid.shape[i] != 0)
         {
-            size_t tmp = traits.grid.shape[i] - 1;
+            Index tmp = traits.grid.shape[i] - 1;
             tmp = tmp*traits.basetile_shape[i] + traits.leftover_shape[i];
             if(traits.shape[i] != tmp)
             {
@@ -21,63 +21,77 @@ void validate_traits(const TensorTraits &traits)
             }
         }
     }
-    for(size_t i = 0; i < traits.grid.nelems; ++i)
+    Index nelems = 0;
+    for(Index i = 0; i < traits.grid.nelems; ++i)
     {
-        TESTA(traits.get_tile_offset(traits.get_tile_index(i)) == i);
+        auto grid_index = traits.grid.linear_to_index(i);
+        TESTA(traits.grid.index_to_linear(grid_index) == i);
+        nelems += TileTraits(traits.get_tile_shape(grid_index)).nelems;
+    }
+    if(traits.nelems != nelems)
+    {
+        throw std::runtime_error("traits.nelem != nelem");
     }
 }
 
 
 int main(int argc, char **argv)
 {
+    std::vector<Index> empty;
     // Check scalar case with empty shape
-    TensorTraits scalar_traits({}, {});
-    TESTA(scalar_traits.shape == std::vector<size_t>());
-    TESTA(scalar_traits.basetile_shape == std::vector<size_t>());
-    TESTA(scalar_traits.leftover_shape == std::vector<size_t>());
-    TESTA(scalar_traits.grid.shape == std::vector<size_t>());
-    scalar_traits.get_tile_index(0);
-    scalar_traits.get_tile_offset({});
-    scalar_traits.get_tile_shape({});
-    TESTN(scalar_traits.get_tile_index(1));
-    TESTN(scalar_traits.get_tile_shape({1}));
-    std::cout << "scalar case\n" << scalar_traits;
+    std::cout << "scalar case\n";
+    TensorTraits scalar_traits(empty, empty);
+    std::cout << scalar_traits;
     validate_traits(scalar_traits);
+    TESTA(scalar_traits.shape == std::vector<Index>());
+    TESTA(scalar_traits.basetile_shape == std::vector<Index>());
+    TESTA(scalar_traits.leftover_shape == std::vector<Index>());
+    TESTA(scalar_traits.grid.shape == std::vector<Index>());
+    TESTA(scalar_traits.get_tile_shape({}) == empty);
+    TESTN(scalar_traits.get_tile_shape({1}));
+    TESTP(TensorTraits({}, {}));
+    TESTN(TensorTraits({}, {1}));
+    TESTN(TensorTraits({1}, {}));
     // Check vector case
-    TensorTraits vector_traits({10}, {2});
-    std::cout << "vector case\n" << vector_traits;
+    std::cout << "vector case\n";
+    TensorTraits vector_traits({10}, {3});
+    std::cout << vector_traits;
     validate_traits(vector_traits);
-    vector_traits.get_tile_offset({4});
-    TESTN(vector_traits.get_tile_shape(std::vector<size_t>{5}));
-    vector_traits.get_tile_shape(4);
-    TESTN((vector_traits.get_tile_offset({5})));
-    TESTN((vector_traits.get_tile_offset({0, 0})));
-    TESTN((vector_traits.get_tile_offset({})));
+    TESTA(vector_traits.shape == std::vector<Index>{10});
+    TESTA(vector_traits.basetile_shape == std::vector<Index>{3});
+    TESTA(vector_traits.leftover_shape == std::vector<Index>{1});
+    TESTA(vector_traits.grid.shape == std::vector<Index>{4});
+    TESTN(vector_traits.get_tile_shape({-1}));
+    TESTN(vector_traits.get_tile_shape({4}));
+    TESTA(vector_traits.get_tile_shape({3}) == std::vector<Index>{1});
+    TESTA(vector_traits.get_tile_shape({2}) == std::vector<Index>{3});
+    TESTN(TensorTraits({0}, {1}));
+    TESTN(TensorTraits({1}, {0}));
+    TESTN(TensorTraits({1}, {1, 1}));
+    TESTN(TensorTraits({1, 1}, {1}));
     // Check matrix case
+    std::cout << "matrix case\n";
     TensorTraits matrix_traits({3, 5}, {3, 5});
-    std::cout << "matrix case\n" << matrix_traits;
     validate_traits(matrix_traits);
-    matrix_traits.get_tile_offset({0, 0});
-    TESTN((matrix_traits.get_tile_offset({3, 2})));
-    TESTN((matrix_traits.get_tile_offset({2, 5})));
-    TESTN((matrix_traits.get_tile_offset({1})));
-    TESTN((matrix_traits.get_tile_offset({1, 1, 1})));
+    std::cout << matrix_traits;
+    TESTN(matrix_traits.get_tile_shape({0, -1}));
+    TESTN(matrix_traits.get_tile_shape({-1, 0}));
+    TESTN(matrix_traits.get_tile_shape({0, 1}));
+    TESTN(matrix_traits.get_tile_shape({1, 0}));
+    TESTA((matrix_traits.get_tile_shape({0, 0}) == std::vector<Index>{3, 5}));
+    TESTN(TensorTraits({3, 5}, {3, 0}));
+    TESTN(TensorTraits({3, 5}, {0, 5}));
+    TESTN(TensorTraits({3, 0}, {3, 5}));
+    TESTN(TensorTraits({0, 5}, {3, 5}));
     // Check 5-dimensional tensor
+    std::cout << "5D-tensor case\n";
     TensorTraits t5d_traits({7, 9, 11, 13, 15}, {100, 100, 100, 100, 100});
-    TESTA(t5d_traits.shape == std::vector<size_t>({7, 9, 11, 13, 15}));
-    std::cout << "5D-tensor case\n" << t5d_traits;
+    std::cout << t5d_traits;
     validate_traits(t5d_traits);
-    t5d_traits.get_tile_offset({0, 0, 0, 0, 0});
-    TESTN((t5d_traits.get_tile_offset({0, 1, 2, 3, 15})));
-    TESTN((t5d_traits.get_tile_offset({0, 1, 2, 3})));
-    TESTN((t5d_traits.get_tile_offset({0, 1, 2, 3, 4, 5})));
-    // Other checks
-    TESTN(TensorTraits({1}, {1, 2}));
-    validate_traits(TensorTraits({0}, {0}));
-    TESTN(TensorTraits({0}, {0}).get_tile_offset({0}));
-    validate_traits(TensorTraits({1, 2, 0}, {4, 1, 0}));
-    TESTN(TensorTraits({1, 2, 0}, {4, 0, 0}));
-    validate_traits(TensorTraits({1, 0, 0}, {4, 1, 0}));
+    TESTA(t5d_traits.shape == std::vector<Index>({7, 9, 11, 13, 15}));
+    TESTA(t5d_traits.basetile_shape ==
+            std::vector<Index>({100, 100, 100, 100, 100}));
+    TESTA(t5d_traits.leftover_shape == std::vector<Index>({7, 9, 11, 13, 15}));
     return 0;
 }
 

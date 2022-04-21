@@ -10,13 +10,13 @@ template<typename T>
 void check_gelu(const Tile<T> &A)
 {
     Tile<T> B(A.shape);
-    std::vector<size_t> index(B.ndim, 0);
+    std::vector<Index> index(B.ndim);
     copy_intersection(A, index, B, index);
     gelu(B);
     A.acquire(STARPU_R);
     B.acquire(STARPU_R);
     auto A_ptr = A.get_local_ptr(), B_ptr = B.get_local_ptr();
-    for(size_t i = 0; i < B.nelems; ++i)
+    for(Index i = 0; i < B.nelems; ++i)
     {
         constexpr T sqrt2 = std::sqrt(T{2.0});
         constexpr T one = 1.0;
@@ -40,7 +40,7 @@ void check_gelu(const Tile<T> &A)
 template<typename T>
 void validate_gelu()
 {
-    Tile<T> A({{4, 5, 6, 3}, {1, 2, 3, 4}, {100, 100, 100, 100}});
+    Tile<T> A({4, 5, 6, 3});
     unsigned long long seed = 100;
     randn(A, seed);
     check_gelu(A);

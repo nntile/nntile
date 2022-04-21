@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cstddef>
+#include <bitset>
 
 namespace nntile
 {
@@ -10,34 +10,35 @@ using fp32_t = float;
 
 class tf32_t
 {
-    int32_t value;
+    // 32-bit
+    std::bitset<32> value;
 public:
     //! Constructor
-    constexpr tf32_t(float value_):
-        value(*reinterpret_cast<int32_t *>(&value_))
+    constexpr tf32_t(double value_)
     {
+        static_assert("Not implemented");
     }
 };
 
 class fp16_t
 {
-    int16_t value;
+    std::bitset<16> value;
 public:
     //! Constructor
-    constexpr fp16_t(float value_):
-        value(*reinterpret_cast<int16_t *>(&value_))
+    constexpr fp16_t(double value_)
     {
+        static_assert("Not implemented");
     }
 };
 
 class bf16_t
 {
-    int16_t value;
+    std::bitset<16> value;
 public:
     //! Constructor
-    constexpr bf16_t(float value_):
-        value(*reinterpret_cast<int16_t *>(&value_))
+    constexpr bf16_t(double value_)
     {
+        static_assert("Not implemented");
     }
 };
 

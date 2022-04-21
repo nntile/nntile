@@ -14,39 +14,46 @@ public:
     //! Pointer to the contiguous memory
     std::shared_ptr<std::byte[]> ptr;
     //! Total size of allocated memory in bytes
-    size_t alloc_size;
+    Index alloc_size;
     //! Tiles
     std::vector<Tile<T>> tiles;
     //! Constructor
     Tensor(const TensorTraits &traits,
-            size_t alignment=16):
+            Index alignment=16):
         TensorTraits(traits),
         ptr(),
         alloc_size(0),
         tiles()
     {
+        // Check if alignment is positive
+        if(alignment <= 0)
+        {
+            throw std::runtime_error("alignment <= 0");
+        }
         // At first compute memory footprint and offsets for each tile
-        std::vector<size_t> tiles_nelems(grid.nelems);
-        std::vector<size_t> tiles_offset(grid.nelems);
-        for(size_t i = 0; i < grid.nelems; ++i)
+        std::vector<Index> tiles_nelems(grid.nelems);
+        std::vector<Index> tiles_offset(grid.nelems);
+        for(Index i = 0; i < grid.nelems; ++i)
         {
             // Remember offset to current tile
             tiles_offset[i] = alloc_size;
+            // Get tile index
+            const auto tile_index = grid.linear_to_index(i);
             // Get shape of corresponding tile
-            const auto tile_shape = TensorTraits::get_tile_shape(i);
+            const auto tile_shape = TensorTraits::get_tile_shape(tile_index);
             // Actual memory for the tile in elements T
             tiles_nelems[i] = 1;
-            for(size_t j = 0; j < ndim; ++j)
+            for(Index j = 0; j < ndim; ++j)
             {
                 tiles_nelems[i] *= tile_shape[j];
             }
             // Total memory for tile in bytes
-            size_t tile_alloc_size = tiles_nelems[i] * sizeof(T);
+            Index tile_alloc_size = tiles_nelems[i] * sizeof(T);
             // Compute offset only if allocation is non-zero
             if(tile_alloc_size != 0)
             {
                 // Round up to the alignment parameter
-                size_t naligns = (tile_alloc_size-1)/alignment + 1;
+                Index naligns = (tile_alloc_size-1)/alignment + 1;
                 // Update allocation size
                 alloc_size += naligns * alignment;
             }
@@ -56,59 +63,45 @@ public:
         ptr = std::shared_ptr<std::byte[]>(ptr_raw);
         // Register tiles
         tiles.reserve(grid.nelems);
-        for(size_t i = 0; i < grid.nelems; ++i)
+        for(Index i = 0; i < grid.nelems; ++i)
         {
-            tiles.emplace_back(TensorTraits::get_tile_shape(i),
+            // Get tile index
+            const auto tile_index = grid.linear_to_index(i);
+            // Get shape of corresponding tile
+            const auto tile_shape = TensorTraits::get_tile_shape(tile_index);
+            tiles.emplace_back(tile_shape,
                     reinterpret_cast<T *>(&ptr_raw[tiles_offset[i]]),
                     tiles_nelems[i]);
         }
     }
     //! Constructor
-    Tensor(const std::vector<size_t> &shape_,
-            const std::vector<size_t> &basetile_shape_,
-            size_t alignment=16):
+    Tensor(const std::vector<Index> &shape_,
+            const std::vector<Index> &basetile_shape_,
+            Index alignment=16):
         Tensor({shape_, basetile_shape_}, alignment)
     {
     }
-    const Tile<T> &get_tile(size_t offset) const
+    const Tile<T> &get_tile(Index linear_offset) const
     {
-        if(offset >= grid.nelems)
+        if(linear_offset < 0 or linear_offset >= grid.nelems)
         {
             throw std::runtime_error("Tile offset is out of bounds");
         }
-        return tiles[offset];
+        return tiles[linear_offset];
     }
-    const Tile<T> &get_tile(const std::vector<size_t> &index) const
+    const Tile<T> &get_tile(const std::vector<Index> &tile_index) const
     {
-        size_t offset = get_tile_offset(index);
-        return tiles[offset];
+        Index linear_offset = grid.index_to_linear(tile_index);
+        return tiles[linear_offset];
     }
-    const TileTraits &get_tile_traits(size_t offset) const
+    const TileTraits &get_tile_traits(Index linear_offset) const
     {
-        if(offset >= grid.nelems)
-        {
-            throw std::runtime_error("Tile offset is out of bounds");
-        }
-        return tiles[offset];
+        return get_tile(linear_offset);
     }
-    const TileTraits &get_tile_traits(const std::vector<size_t> &index) const
+    const TileTraits &get_tile_traits(const std::vector<Index> &tile_index)
+        const
     {
-        size_t offset = get_tile_offset(index);
-        return tiles[offset];
-    }
-    const std::vector<size_t> &get_tile_shape(size_t offset) const
-    {
-        if(offset >= grid.nelems)
-        {
-            throw std::runtime_error("Tile offset is out of bounds");
-        }
-        return tiles[offset].shape;
-    }
-    const std::vector<size_t> &get_tile_shape(
-            const std::vector<size_t> &index) const
-    {
-        size_t offset = get_tile_offset(index);
-        return tiles[offset].shape;
+        return get_tile(tile_index);
     }
 };
 

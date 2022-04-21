@@ -9,22 +9,38 @@ namespace nntile
 template<typename T>
 class Tile: public TileTraits, public StarpuVariableHandle
 {
-    size_t check_nelems(size_t req_nelems, size_t ptr_nelems)
+    size_t check_nelems(Index req_nelems, Index ptr_nelems)
     {
         if(req_nelems > ptr_nelems)
         {
             throw std::runtime_error("Required memory size is larger than "
                     "actually allocated memory");
         }
-        return req_nelems;
+        size_t result = req_nelems;
+        if(req_nelems != result)
+        {
+            throw std::runtime_error("req_nelems != result");
+        }
+        return result;
     }
 public:
+    Tile(const std::vector<Index> &shape_):
+        TileTraits(shape_),
+        StarpuVariableHandle(nelems*sizeof(T))
+    {
+    }
     Tile(const TileTraits &traits):
         TileTraits(traits),
         StarpuVariableHandle(nelems*sizeof(T))
     {
     }
-    Tile(const TileTraits &traits, T *ptr, size_t ptr_nelems):
+    Tile(const std::vector<Index> &shape_, T *ptr, Index ptr_nelems):
+        TileTraits(shape_),
+        StarpuVariableHandle(reinterpret_cast<uintptr_t>(ptr),
+                sizeof(T)*check_nelems(nelems, ptr_nelems))
+    {
+    }
+    Tile(const TileTraits &traits, T *ptr, Index ptr_nelems):
         TileTraits(traits),
         StarpuVariableHandle(reinterpret_cast<uintptr_t>(ptr),
                 sizeof(T)*check_nelems(nelems, ptr_nelems))
@@ -35,8 +51,8 @@ public:
     {
         return reinterpret_cast<const T *>(StarpuHandle::get_local_ptr());
     }
-    //! Read an element of the tile
-    T at_index(const std::vector<size_t> &index) const
+    //! Read an element of the tile by its coordinate
+    T at_index(const std::vector<Index> &index) const
     {
         // Get the corresponding tile data to the local buffer
         acquire(STARPU_R);
@@ -46,8 +62,8 @@ public:
         release();
         return value;
     }
-    //! Read an element of the tile
-    T at_linear(size_t linear_offset) const
+    //! Read an element of the tile by its linear memory offset
+    T at_linear(Index linear_offset) const
     {
         // Check bounds
         if(linear_offset >= nelems)
