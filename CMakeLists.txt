@@ -76,7 +76,7 @@ add_subdirectory("include")
 add_subdirectory("external")
 
 # Add subdirectory with examples
-#add_subdirectory("examples")
+add_subdirectory("examples")
 
 # Check if code coverage report is needed
 if(COVERAGE)
