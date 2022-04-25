@@ -99,16 +99,17 @@ void bias_async(const Tile<T> &src, const Tile<T> &dst, Index batch_dim)
             STARPU_VALUE, &k, sizeof(k),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             commute_mode, static_cast<starpu_data_handle_t>(dst),
+            STARPU_FLOPS, static_cast<double>(dst.nelems),
             0);
 }
 
 template
 void bias_async(const Tile<float> &src, const Tile<float> &dst,
-        Index batch_dim=1);
+        Index batch_dim);
 
 template
 void bias_async(const Tile<double> &src, const Tile<double> &dst,
-        Index batch_dim=1);
+        Index batch_dim);
 
 } // namespace nntile
 

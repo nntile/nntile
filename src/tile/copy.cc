@@ -116,11 +116,13 @@ void copy_intersection_async(const Tile<T> &src,
     }
     Index ndim = src.ndim;
     // Treat special case of ndim=0
+    constexpr double zero_flops = 0;
     if(ndim == 0)
     {
         starpu_task_insert(&codelet_copy_ndim0,
                 STARPU_R, static_cast<starpu_data_handle_t>(src),
                 STARPU_W, static_cast<starpu_data_handle_t>(dst),
+                STARPU_FLOPS, zero_flops, // No floating point operations
                 0);
         return;
     }
@@ -165,6 +167,7 @@ void copy_intersection_async(const Tile<T> &src,
                 STARPU_VALUE, &(dst.stride[0]), ndim*sizeof(dst.stride[0]),
                 STARPU_R, static_cast<starpu_data_handle_t>(src),
                 STARPU_W, static_cast<starpu_data_handle_t>(dst),
+                STARPU_FLOPS, zero_flops, // No floating point operations
                 0);
     }
     else
@@ -178,6 +181,7 @@ void copy_intersection_async(const Tile<T> &src,
                 STARPU_VALUE, &(dst.stride[0]), ndim*sizeof(dst.stride[0]),
                 STARPU_R, static_cast<starpu_data_handle_t>(src),
                 STARPU_RW, static_cast<starpu_data_handle_t>(dst),
+                STARPU_FLOPS, zero_flops, // No floating point operations
                 0);
     }
 }

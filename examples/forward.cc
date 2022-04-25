@@ -33,12 +33,12 @@ void run_forward(const std::vector<Index> &shape,
         randn(B[i-1], seed);
         seed = seed*seed + 1;
     }
-    randn(X[0], seed);
     T one = 1, zero = 0;
     std::chrono::steady_clock clock;
     auto start = clock.now();
     for(Index i = 0; i < nforward; ++i)
     {
+        randn_async(X[0], seed);
         for(Index j = 0; j < nlayers; ++j)
         {
             gemm_async(one, TransOp::NoTrans, X[j], TransOp::NoTrans, W[j],
@@ -46,7 +46,7 @@ void run_forward(const std::vector<Index> &shape,
             bias_async(B[j], X[j+1], 0);
             gelu_async(X[j+1]);
         }
-        copy_intersection_async(X[nlayers], X[0]);
+        //copy_intersection_async(X[nlayers], X[0]);
     }
     starpu_task_wait_for_all();
     auto end = clock.now();
@@ -61,7 +61,7 @@ int main(int argc, char **argv)
         basetile_shape{256, 256, 256, 256, 256, 256, 256, 256};
     Index nforward = 20;
     run_forward<fp32_t>(shape, basetile_shape, nforward);
-    run_forward<fp32_t>(shape, shape, nforward);
+    //run_forward<fp32_t>(shape, shape, nforward);
     return 0;
 }
 

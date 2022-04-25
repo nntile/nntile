@@ -121,6 +121,8 @@ void randn_async(const Tile<T> &dst, const std::vector<Index> &offset,
                 STARPU_VALUE, &mean, sizeof(mean),
                 STARPU_VALUE, &stddev, sizeof(stddev),
                 STARPU_W, static_cast<starpu_data_handle_t>(dst),
+                // 2 flops per single element
+                STARPU_FLOPS, static_cast<double>(2),
                 0);
         return;
     }
@@ -167,6 +169,8 @@ void randn_async(const Tile<T> &dst, const std::vector<Index> &offset,
             STARPU_VALUE, &(dst.shape[0]), dst.ndim*sizeof(dst.shape[0]),
             STARPU_VALUE, &(dst.stride[0]), dst.ndim*sizeof(dst.stride[0]),
             STARPU_W, static_cast<starpu_data_handle_t>(dst),
+            // 2 flops per single element
+            STARPU_FLOPS, static_cast<double>(2*dst.nelems),
             0);
 }
 

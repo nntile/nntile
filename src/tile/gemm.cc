@@ -410,6 +410,7 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
                 STARPU_R, static_cast<starpu_data_handle_t>(B),
                 STARPU_VALUE, &beta, sizeof(beta),
                 STARPU_W, static_cast<starpu_data_handle_t>(C),
+                STARPU_FLOPS, static_cast<double>(2*m*n*k),
                 0);
     }
     else if(beta == one)
@@ -426,6 +427,7 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
                 STARPU_VALUE, &beta, sizeof(beta),
                 STARPU_RW | STARPU_COMMUTE,
                 static_cast<starpu_data_handle_t>(C),
+                STARPU_FLOPS, static_cast<double>(2*m*n*k),
                 0);
     }
     else
@@ -441,6 +443,7 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
                 STARPU_R, static_cast<starpu_data_handle_t>(B),
                 STARPU_VALUE, &beta, sizeof(beta),
                 STARPU_RW, static_cast<starpu_data_handle_t>(C),
+                STARPU_FLOPS, static_cast<double>(2*m*n*k),
                 0);
     }
 }

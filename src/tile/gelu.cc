@@ -46,6 +46,8 @@ void gelu_async(const Tile<T> &A)
     starpu_task_insert(&codelet_gelu,
             STARPU_VALUE, &A.nelems, sizeof(A.nelems),
             STARPU_RW, static_cast<starpu_data_handle_t>(A),
+            // std::erf is assumed as a single flop
+            STARPU_FLOPS, static_cast<double>(5*A.nelems),
             0);
 }
 
