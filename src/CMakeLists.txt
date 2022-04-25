@@ -6,6 +6,7 @@ set(SRC
     "tile/gemm.cc"
     "tile/bias.cc"
     "tile/gelu.cc"
+    "tile/norm.cc"
     "tensor/traits.cc"
     "tensor/randn.cc"
     "tensor/copy.cc"

@@ -7,6 +7,7 @@ set(TESTS
     "gemm"
     "bias"
     "gelu"
+    "norm"
     )
 
 foreach(test IN LISTS TESTS)
