@@ -4,7 +4,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tile/gemm.cc
+ * @file src/tile/gemm.cc.in
  * GEMM operation for Tile<T>
  *
  * @version 1.0.0
@@ -13,25 +13,12 @@
  * */
 
 #include "nntile/tile/gemm.hh"
-
 #include "nntile/defs.h"
-//#define NNTILE_USE_APPLE_ACCELERATE
 
-#if defined(NNTILE_USE_APPLE_ACCELERATE)
-#   include <Accelerate/Accelerate.h>
-#   define CBLAS_INT int
-#elif defined(NNTILE_USE_INTEL_MKL)
-#   include <mkl.h>
-#else
-#   include <cblas.h>
-#endif
-
-// Define type CBLAS_INT to use cblas properly
-#ifndef CBLAS_INT
-#   if defined(f77_int)
-#      define CBLAS_INT f77_int
-#   elif defined(CBLAS_INDEX)
-#       define CBLAS_INT CBLAS_INDEX
+#ifdef NNTILE_USE_CBLAS
+#   include <@CBLAS_H_NAME@>
+#   ifndef CBLAS_INT
+#       define CBLAS_INT @CBLAS_INT_TYPE@
 #   endif
 #endif
 

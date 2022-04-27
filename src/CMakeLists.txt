@@ -3,7 +3,7 @@ set(SRC
     "tile/traits.cc"
     "tile/randn.cc"
     "tile/copy.cc"
-    "tile/gemm.cc"
+    "${CMAKE_CURRENT_BINARY_DIR}/tile/gemm.cc"
     "tile/bias.cc"
     "tile/gelu.cc"
     "tile/norm.cc"

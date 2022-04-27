@@ -29,7 +29,7 @@ template<typename T>
 static void cpu_copy_intersection(void *buffers[], void *cl_args)
 {
     Index ndim;
-    starpu_codelet_unpack_args(cl_args, &ndim, 0);
+    starpu_codelet_unpack_args(cl_args, &ndim, nullptr);
     std::vector<Index> src_start(ndim), src_stride(ndim), copy_shape(ndim),
         dst_start(ndim), dst_stride(ndim);
     starpu_codelet_unpack_args(cl_args, &ndim, &(src_start[0]),

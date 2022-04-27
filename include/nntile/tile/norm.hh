@@ -69,35 +69,5 @@ void norm_sum_ssq(const Tile<T> &src, const Tile<T> &sum_ssq,
     starpu_task_wait_for_all();
 }
 
-//! Asynchronously accumulate sum and scaled sum of squares
-//
-// @param[in] sum_ssq: Sum and scaled sum of squares of some tile/tensor
-// @param[inout] sum_ssq_total: Sum and scaled sum of squares of another
-//      tile/tensor. On output, contains accumulated values.
-template<typename T>
-void norm_sum_ssq_accumulate_async(const Tile<T> &sum_ssq,
-        const Tile<T> &sum_ssq_total);
-
-extern template
-void norm_sum_ssq_accumulate_async(const Tile<fp32_t> &sum_ssq,
-        const Tile<fp32_t> &sum_ssq_total);
-
-extern template
-void norm_sum_ssq_accumulate_async(const Tile<fp64_t> &sum_ssq,
-        const Tile<fp64_t> &sum_ssq_total);
-
-//! Blocking version of accumulate sum and scaled sum of squares
-//
-// @param[in] sum_ssq: Sum and scaled sum of squares of some tile/tensor
-// @param[inout] sum_ssq_total: Sum and scaled sum of squares of another
-//      tile/tensor. On output, contains accumulated values.
-template<typename T>
-void norm_sum_ssq_accumulate(const Tile<T> &sum_ssq,
-        const Tile<T> &sum_ssq_total)
-{
-    norm_sum_ssq_accumulate_async(sum_ssq, sum_ssq_total);
-    starpu_task_wait_for_all();
-}
-
 } // namespace nntile
 

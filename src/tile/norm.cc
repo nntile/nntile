@@ -22,7 +22,7 @@ static void cpu_sum_ssq(void *buffers[], void *cl_args)
 {
     Index src_ndim, axes_ndim;
     // Read number of dimensions of corresponding arrays
-    starpu_codelet_unpack_args(cl_args, &src_ndim, &axes_ndim, 0);
+    starpu_codelet_unpack_args(cl_args, &src_ndim, &axes_ndim, nullptr);
     Index sum_ssq_ndim = src_ndim + 1 - axes_ndim;
     // Allocate space for arrays
     std::vector<Index> src_shape(src_ndim), sum_ssq_shape(sum_ssq_ndim),
@@ -90,6 +90,12 @@ static void cpu_sum_ssq(void *buffers[], void *cl_args)
             }
             // Get correspondign value
             T val = src[src_linear_offset];
+            // No need to update anything if new value is zero
+            // This way we avoid absval=scale=0 situation with division by zero
+            if(val == 0)
+            {
+                continue;
+            }
             // Update sum
             sum += val;
             // Update scale and scaled sum of scares
@@ -204,12 +210,13 @@ void norm_sum_ssq_async(const Tile<T> &src, const Tile<T> &sum_ssq,
             throw std::runtime_error("axes[i] <= axes[i-1]");
         }
     }
-    // Check shapes of src and mean/var
+    // Check shapes of src and sum_ssq
     if(sum_ssq.shape[0] != 3)
     {
         throw std::runtime_error("sum_ssq.shape[0] != 3");
     }
-    Index nchecked_axes = 0; // Number of checked items in axes
+    // Number of checked items in axes
+    Index nchecked_axes = 0;
     for(Index i = 0; i < src.ndim; ++i)
     {
         if(nchecked_axes < axes.size() and i == axes[nchecked_axes])

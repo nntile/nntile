@@ -1,5 +1,6 @@
 # Set minimum CMake version to avoid configuration problems
-cmake_minimum_required(VERSION 3.16.3)
+cmake_minimum_required(VERSION 3.18.6)
+# BLAS::BLAS target is added in version 3.18
 
 # Define the project
 project(NNTile VERSION 0.0.1 LANGUAGES CXX)
@@ -11,9 +12,18 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake_modules")
 # Build shared libraries instead of static
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static" ON)
 option(USE_CUDA "Use CUDA toolkit" ON)
-option(USE_CBLAS "Use CPU BLAS" ON)
+option(USE_CBLAS "Use CPU CBLAS" ON)
+set(CBLAS_INT_TYPE "int32_t" CACHE STRING
+    "CBLAS_INT_TYPE=int32_t for LP64 and CBLAS_INT_TYPE=int64_t for ILP64")
+set(CBLAS_H_NAME "cblas.h" CACHE STRING
+    "name of header file containing cblas routines")
 option(BUILD_TESTS "Build tests" ON)
 option(COVERAGE "Generate code coverage report" OFF)
+
+# Provide options for certain cache variables
+set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "None" "Debug" "Release"
+    "RelWithDebInfo" "MinSizeRel")
+set_property(CACHE CBLAS_INT_TYPE PROPERTY STRINGS "int32_t" "int64_t")
 
 # Specify the library
 add_library(nntile)
@@ -65,6 +75,10 @@ target_include_directories(nntile PRIVATE
 # Configure list of definitions
 configure_file("include/nntile/defs.h.in"
     "${CMAKE_BINARY_DIR}/include/nntile/defs.h" @ONLY)
+
+# Configure src/tile/gemm.cc that relies on cblas
+configure_file("src/tile/gemm.cc.in"
+    "${CMAKE_BINARY_DIR}/src/tile/gemm.cc" @ONLY)
 
 # Add directory with the sources
 add_subdirectory("src")

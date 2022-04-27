@@ -44,7 +44,7 @@ template<typename T>
 static void cpu_chameleon_randn(void *buffers[], void *cl_args)
 {
     Index ndim;
-    starpu_codelet_unpack_args(cl_args, &ndim, 0);
+    starpu_codelet_unpack_args(cl_args, &ndim, nullptr);
     unsigned long long seed;
     T mean, stddev;
     Index nelems;
