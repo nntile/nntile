@@ -65,6 +65,24 @@ public:
     Starpu(Starpu &&) = delete;
     Starpu &operator=(const Starpu &) = delete;
     Starpu &operator=(Starpu &&) = delete;
+    void profiling_enable() const
+    {
+        // Need to treat output of this function properly
+        starpu_profiling_status_set(STARPU_PROFILING_ENABLE);
+    }
+    void profiling_disable() const
+    {
+        // Need to treat output of this function properly
+        starpu_profiling_status_set(STARPU_PROFILING_DISABLE);
+    }
+    void display_summary_worker() const
+    {
+         starpu_profiling_worker_helper_display_summary();
+    }
+    void display_summary_bus() const
+    {
+         starpu_profiling_bus_helper_display_summary();
+    }
 };
 
 //! StarPU data handle as a shared pointer to its internal state

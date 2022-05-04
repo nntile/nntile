@@ -13,6 +13,7 @@ set(SRC
     "tensor/gemm.cc"
     "tensor/bias.cc"
     "tensor/gelu.cc"
+    "tensor/norm.cc"
     )
 
 target_sources(nntile PRIVATE ${SRC})

@@ -69,5 +69,44 @@ void norm_sum_ssq(const Tile<T> &src, const Tile<T> &sum_ssq,
     starpu_task_wait_for_all();
 }
 
+template<typename T>
+void norm_sum_ssq_async(const Tile<T> &src, const Tile<T> &sum_ssq,
+        Index axis);
+
+extern template
+void norm_sum_ssq_async(const Tile<fp32_t> &src, const Tile<fp32_t> &sum_ssq,
+        Index axis);
+
+extern template
+void norm_sum_ssq_async(const Tile<fp64_t> &src, const Tile<fp64_t> &sum_ssq,
+        Index axis);
+
+template<typename T>
+void norm_sum_ssq(const Tile<T> &src, const Tile<T> &sum_ssq, Index axis)
+{
+    norm_sum_ssq_async(src, sum_ssq, axis);
+    starpu_task_wait_for_all();
+}
+
+template<typename T>
+void norm_avg_dev_async(const Tile<T> &sum_ssq, const Tile<T> &avg_dev,
+        Index nelems, T eps);
+
+extern template
+void norm_avg_dev_async(const Tile<fp32_t> &sum_ssq,
+        const Tile<fp32_t> &avg_dev, Index nelems, fp32_t eps);
+
+extern template
+void norm_avg_dev_async(const Tile<fp64_t> &sum_ssq,
+        const Tile<fp64_t> &avg_dev, Index nelems, fp64_t eps);
+
+template<typename T>
+void norm_avg_dev(const Tile<T> &sum_ssq, const Tile<T> &avg_dev, Index nelems,
+        T eps)
+{
+    norm_avg_dev_async(sum_ssq, avg_dev, nelems, eps);
+    starpu_task_wait_for_all();
+}
+
 } // namespace nntile
 

@@ -39,6 +39,9 @@ bool check_tiles_intersection(const Tile<T> &A,
             Index B_linear_offset = B.index_to_linear(index);
             if(A_ptr[i] != B_ptr[B_linear_offset])
             {
+                std::cout << "A_ptr[" << i << "]=" << A_ptr[i] << "\n";
+                std::cout << "B_ptr[" << B_linear_offset << "]=" <<
+                    B_ptr[B_linear_offset] << "\n";
                 result = false;
                 break;
             }

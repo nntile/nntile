@@ -38,6 +38,9 @@ void validate_randn()
     TESTN(randn(small, {0, -1, 0, 0}, big.shape, big.stride, seed));
     TESTN(randn(small, {0, 0, -1, 0}, big.shape, big.stride, seed));
     TESTN(randn(small, {0, 0, 0, -1}, big.shape, big.stride, seed));
+    TESTN(randn(small, {0, 0, 0}, big.shape, big.stride, seed));
+    TESTN(randn(small, {0, 0, 0, 0}, {5, 6, 7}, big.stride, seed));
+    TESTN(randn(small, {0, 0, 0, -1}, big.shape, {5, 30, 210}, seed));
     std::vector<Index> stride(big.stride);
     ++stride[0];
     TESTN(randn(small, {0, 0, 0, 0}, big.shape, stride, seed));

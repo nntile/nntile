@@ -3,6 +3,8 @@
 
 using namespace nntile;
 
+Starpu starpu;
+
 template<typename T>
 void run_forward(const std::vector<Index> &shape,
         const std::vector<Index> &basetile_shape, Index nforward)
@@ -35,6 +37,8 @@ void run_forward(const std::vector<Index> &shape,
     }
     T one = 1, zero = 0;
     std::chrono::steady_clock clock;
+    starpu.profiling_enable();
+    randn(X[0], seed);
     auto start = clock.now();
     for(Index i = 0; i < nforward; ++i)
     {
@@ -46,9 +50,11 @@ void run_forward(const std::vector<Index> &shape,
             bias_async(B[j], X[j+1], 0);
             gelu_async(X[j+1]);
         }
-        //copy_intersection_async(X[nlayers], X[0]);
+        copy_intersection_async(X[nlayers], X[0]);
     }
     starpu_task_wait_for_all();
+    starpu.display_summary_worker();
+    starpu.profiling_disable();
     auto end = clock.now();
     std::chrono::duration<double> diff = end - start;
     std::cout << "Done in " << diff.count() << " seconds\n";
@@ -56,9 +62,9 @@ void run_forward(const std::vector<Index> &shape,
 
 int main(int argc, char **argv)
 {
-    Starpu starpu;
-    std::vector<Index> shape{1024, 1024, 256, 1024, 256, 1024, 256, 1024},
-        basetile_shape{256, 256, 256, 256, 256, 256, 256, 256};
+    //Starpu starpu;
+    std::vector<Index> shape{4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096},
+        basetile_shape{1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024};
     Index nforward = 20;
     run_forward<fp32_t>(shape, basetile_shape, nforward);
     //run_forward<fp32_t>(shape, shape, nforward);

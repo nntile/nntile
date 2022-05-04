@@ -99,7 +99,7 @@ void norm_sum_ssq_async(const Tensor<fp64_t> &src,
 // src[i,:,j].
 template<typename T>
 void norm_sum_ssq(const Tensor<T> &src, const Tensor<T> &sum_ssq,
-        const Tensor<T> &sum_ssq_tmp, const std::vector<Index> &axes)
+        const Tensor<T> &sum_ssq_work, const std::vector<Index> &axes)
 {
     norm_sum_ssq_async(src, sum_ssq, sum_ssq_work, axes);
     starpu_task_wait_for_all();

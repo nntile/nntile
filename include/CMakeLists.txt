@@ -21,6 +21,7 @@ set(HDR
     "nntile/tensor/gemm.hh"
     "nntile/tensor/bias.hh"
     "nntile/tensor/gelu.hh"
+    "nntile/tensor/norm.hh"
     )
 
 target_sources(nntile PUBLIC ${HDR})

@@ -24,10 +24,8 @@ static void cpu_gelu(void *buffers[], void *cl_args)
     Index nelems;
     starpu_codelet_unpack_args(cl_args, &nelems);
     T *data = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
-    constexpr T sqrt2 = std::sqrt(T{2.0});
-    constexpr T one = 1.0;
-    constexpr T pt5 = 0.5;
-    for(size_t i = 0; i < nelems; ++i)
+    constexpr T one = 1, pt5 = 0.5, sqrt2 = std::sqrt(T{2.0});
+    for(Index i = 0; i < nelems; ++i)
     {
         T tmp = pt5*(std::erf(data[i]/sqrt2)) + pt5;
         data[i] *= tmp;
