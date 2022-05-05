@@ -385,7 +385,7 @@ static void cpu_avg_dev(void *buffers[], void *cl_args)
     Index m, nelems;
     T eps;
     starpu_codelet_unpack_args(cl_args, &m, &nelems, &eps);
-    T inv_nelems = T{1} / static_cast<T>(nelems);
+    const T inv_nelems = T{1} / static_cast<T>(nelems);
     // Get pointers
     const T *sum_ssq = reinterpret_cast<T *>(
             STARPU_VARIABLE_GET_PTR(buffers[0]));

@@ -101,8 +101,8 @@ void norm_avg_dev_async(const Tile<fp64_t> &sum_ssq,
         const Tile<fp64_t> &avg_dev, Index nelems, fp64_t eps);
 
 template<typename T>
-void norm_avg_dev(const Tile<T> &sum_ssq, const Tile<T> &avg_dev, Index nelems,
-        T eps)
+void norm_avg_dev(const Tile<T> &sum_ssq, const Tile<T> &avg_dev,
+        Index nelems, T eps)
 {
     norm_avg_dev_async(sum_ssq, avg_dev, nelems, eps);
     starpu_task_wait_for_all();

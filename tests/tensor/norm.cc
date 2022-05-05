@@ -69,96 +69,111 @@ void validate_sum_ssq()
     // Avoid mean=0 because of instable relative error of sum (division by 0)
     randn(A, seed, T{1}, T{1});
     copy_intersection(A, A_tile);
+    std::vector<std::vector<Index>> axes = {{0}, {1}, {2}, {3}, {0, 1}, {0, 2},
+        {0, 3}, {1, 2}, {1, 3}, {2, 3}, {0, 1, 2}, {0, 1, 3}, {0, 2, 3},
+        {1, 2, 3}, {0, 1, 2, 3}};
+    for(Index i = 0; i < axes.size(); ++i)
     {
-        std::vector<Index> axes{0};
-        Tensor<T> sum_ssq({3, 10, 13, 15}, {3, 5, 6, 7}),
-            sum_ssq_work({3, 3, 10, 13, 15}, {3, 1, 5, 6, 7});
-        check_sum_ssq(A, A_tile, sum_ssq, sum_ssq_work, axes);
+        std::vector<Index> shape(A.ndim+1-axes[i].size()), basetile(shape);
+        std::vector<Index> work_shape(A.ndim+1), work_basetile(A.ndim+1);
+        work_shape[0] = 3;
+        work_basetile[0] = 3;
+        shape[0] = 3;
+        basetile[0] = 3;
+        Index k = 0;
+        for(Index j = 0; j < A.ndim; ++j)
+        {
+            if(k == axes[i].size() or axes[i][k] != j)
+            {
+                shape[j+1-k] = A.shape[j];
+                basetile[j+1-k] = A.basetile_shape[j];
+                work_shape[j+1] = A.shape[j];
+                work_basetile[j+1] = A.basetile_shape[j];
+            }
+            else
+            {
+                ++k;
+                work_shape[j+1] = A.grid.shape[j];
+                work_basetile[j+1] = 1;
+            }
+        }
+        Tensor<T> sum_ssq(shape, basetile),
+            sum_ssq_work(work_shape, work_basetile);
+        check_sum_ssq(A, A_tile, sum_ssq, sum_ssq_work, axes[i]);
     }
+}
+
+template<typename T>
+void check_avg_dev(const Tensor<T> &sum_ssq, const Tensor<T> &sum_ssq_tile,
+        const Tensor<T> &avg_dev, const Tensor<T> &avg_dev_tile,
+        Index nelems, T eps)
+{
+    norm_avg_dev(sum_ssq, avg_dev, nelems, eps);
+    norm_avg_dev(sum_ssq_tile, avg_dev_tile, nelems, eps);
+    TESTA(check_tensors_intersection(avg_dev, avg_dev_tile));
+}
+
+template<typename T>
+void validate_avg_dev()
+{
+    Tensor<T> A({9, 10, 13, 15}, {4, 5, 6, 7}), A_tile(A.shape, A.shape);
+    constexpr unsigned long long seed = 100000000000001ULL;
+    constexpr T eps0 = 0, eps1 = 0.01, eps2=1e+10;
+    // Avoid mean=0 because of instable relative error of sum (division by 0)
+    randn(A, seed, T{1}, T{1});
+    std::vector<std::vector<Index>> axes = {{0}, {1}, {2}, {3}, {0, 1}, {0, 2},
+        {0, 3}, {1, 2}, {1, 3}, {2, 3}, {0, 1, 2}, {0, 1, 3}, {0, 2, 3},
+        {1, 2, 3}, {0, 1, 2, 3}};
+    for(Index i = 0; i < axes.size(); ++i)
     {
-        std::vector<Index> axes{1};
-        Tensor<T> sum_ssq({3, 9, 13, 15}, {3, 4, 6, 7}),
-            sum_ssq_work({3, 9, 2, 13, 15}, {3, 4, 1, 6, 7});
-        check_sum_ssq(A, A_tile, sum_ssq, sum_ssq_work, axes);
+        std::vector<Index> shape(A.ndim+1-axes[i].size()), basetile(shape);
+        std::vector<Index> work_shape(A.ndim+1), work_basetile(A.ndim+1);
+        work_shape[0] = 3;
+        work_basetile[0] = 3;
+        shape[0] = 3;
+        basetile[0] = 3;
+        Index k = 0;
+        Index nelems = 1;
+        for(Index j = 0; j < A.ndim; ++j)
+        {
+            if(k == axes[i].size() or axes[i][k] != j)
+            {
+                shape[j+1-k] = A.shape[j];
+                basetile[j+1-k] = A.basetile_shape[j];
+                work_shape[j+1] = A.shape[j];
+                work_basetile[j+1] = A.basetile_shape[j];
+            }
+            else
+            {
+                nelems *= A.shape[j];
+                ++k;
+                work_shape[j+1] = A.grid.shape[j];
+                work_basetile[j+1] = 1;
+            }
+        }
+        std::vector<Index> shape2(shape), basetile2(basetile);
+        shape2[0] = 2;
+        basetile2[0] = 2;
+        Tensor<T> sum_ssq(shape, basetile), sum_ssq_tile(shape, shape),
+            sum_ssq_work(work_shape, work_basetile);
+        Tensor<T> avg_dev(shape2, basetile2), avg_dev_tile(shape2, shape2);
+        norm_sum_ssq(A, sum_ssq, sum_ssq_work, axes[i]);
+        copy_intersection(sum_ssq, sum_ssq_tile);
+        check_avg_dev(sum_ssq, sum_ssq_tile, avg_dev, avg_dev_tile, nelems,
+                eps0);
+        check_avg_dev(sum_ssq, sum_ssq_tile, avg_dev, avg_dev_tile, nelems,
+                eps1);
+        check_avg_dev(sum_ssq, sum_ssq_tile, avg_dev, avg_dev_tile, nelems,
+                eps2);
     }
-    {
-        std::vector<Index> axes{2};
-        Tensor<T> sum_ssq({3, 9, 10, 15}, {3, 4, 5, 7}),
-            sum_ssq_work({3, 9, 10, 3, 15}, {3, 4, 5, 1, 7});
-        check_sum_ssq(A, A_tile, sum_ssq, sum_ssq_work, axes);
-    }
-    {
-        std::vector<Index> axes{3};
-        Tensor<T> sum_ssq({3, 9, 10, 13}, {3, 4, 5, 6}),
-            sum_ssq_work({3, 9, 10, 13, 3}, {3, 4, 5, 6, 1});
-        check_sum_ssq(A, A_tile, sum_ssq, sum_ssq_work, axes);
-    }
-    {
-        std::vector<Index> axes{0, 1};
-        Tensor<T> sum_ssq({3, 13, 15}, {3, 6, 7}),
-            sum_ssq_work({3, 3, 2, 13, 15}, {3, 1, 1, 6, 7});
-        check_sum_ssq(A, A_tile, sum_ssq, sum_ssq_work, axes);
-    }
-    {
-        std::vector<Index> axes{0, 2};
-        Tensor<T> sum_ssq({3, 10, 15}, {3, 5, 7}),
-            sum_ssq_work({3, 3, 10, 3, 15}, {3, 1, 5, 1, 7});
-        check_sum_ssq(A, A_tile, sum_ssq, sum_ssq_work, axes);
-    }
-    {
-        std::vector<Index> axes{0, 3};
-        Tensor<T> sum_ssq({3, 10, 13}, {3, 5, 6}),
-            sum_ssq_work({3, 3, 10, 13, 3}, {3, 1, 5, 6, 1});
-        check_sum_ssq(A, A_tile, sum_ssq, sum_ssq_work, axes);
-    }
-    {
-        std::vector<Index> axes{1, 2};
-        Tensor<T> sum_ssq({3, 9, 15}, {3, 4, 7}),
-            sum_ssq_work({3, 9, 2, 3, 15}, {3, 4, 1, 1, 7});
-        check_sum_ssq(A, A_tile, sum_ssq, sum_ssq_work, axes);
-    }
-    {
-        std::vector<Index> axes{1, 3};
-        Tensor<T> sum_ssq({3, 9, 13}, {3, 4, 6}),
-            sum_ssq_work({3, 9, 2, 13, 3}, {3, 4, 1, 6, 1});
-        check_sum_ssq(A, A_tile, sum_ssq, sum_ssq_work, axes);
-    }
-    {
-        std::vector<Index> axes{2, 3};
-        Tensor<T> sum_ssq({3, 9, 10}, {3, 4, 5}),
-            sum_ssq_work({3, 9, 10, 3, 3}, {3, 4, 5, 1, 1});
-        check_sum_ssq(A, A_tile, sum_ssq, sum_ssq_work, axes);
-    }
-    {
-        std::vector<Index> axes{0, 1, 2};
-        Tensor<T> sum_ssq({3, 15}, {3, 7}),
-            sum_ssq_work({3, 3, 2, 3, 15}, {3, 1, 1, 1, 7});
-        check_sum_ssq(A, A_tile, sum_ssq, sum_ssq_work, axes);
-    }
-    {
-        std::vector<Index> axes{0, 1, 3};
-        Tensor<T> sum_ssq({3, 13}, {3, 6}),
-            sum_ssq_work({3, 3, 2, 13, 3}, {3, 1, 1, 6, 1});
-        check_sum_ssq(A, A_tile, sum_ssq, sum_ssq_work, axes);
-    }
-    {
-        std::vector<Index> axes{0, 2, 3};
-        Tensor<T> sum_ssq({3, 10}, {3, 5}),
-            sum_ssq_work({3, 3, 10, 3, 3}, {3, 1, 5, 1, 1});
-        check_sum_ssq(A, A_tile, sum_ssq, sum_ssq_work, axes);
-    }
-    {
-        std::vector<Index> axes{1, 2, 3};
-        Tensor<T> sum_ssq({3, 9}, {3, 4}),
-            sum_ssq_work({3, 9, 2, 3, 3}, {3, 4, 1, 1, 1});
-        check_sum_ssq(A, A_tile, sum_ssq, sum_ssq_work, axes);
-    }
-    {
-        std::vector<Index> axes{0, 1, 2, 3};
-        Tensor<T> sum_ssq({3}, {3}),
-            sum_ssq_work({3, 3, 2, 3, 3}, {3, 1, 1, 1, 1});
-        check_sum_ssq(A, A_tile, sum_ssq, sum_ssq_work, axes);
-    }
+//    TESTN(norm_avg_dev(Tensor<T>({3}), Tensor<T>({2}), -1, T{0}));
+//    TESTN(norm_avg_dev(Tensor<T>({3}), Tensor<T>({2}), 0, T{0}));
+//    TESTN(norm_avg_dev(Tensor<T>({3}), Tensor<T>({2}), 1, T{-1}));
+//    TESTN(norm_avg_dev(Tensor<T>({2}), Tensor<T>({2}), 1, T{1}));
+//    TESTN(norm_avg_dev(Tensor<T>({3}), Tensor<T>({3}), 1, T{1}));
+//    TESTN(norm_avg_dev(Tensor<T>({3}), Tensor<T>({2, 3}), 1, T{1}));
+//    TESTN(norm_avg_dev(Tensor<T>({}), Tensor<T>({}), 1, T{1}));
+//    TESTN(norm_avg_dev(Tensor<T>({3, 4}), Tensor<T>({2, 3}), 1, T{1}));
 }
 
 int main(int argc, char **argv)
@@ -166,6 +181,8 @@ int main(int argc, char **argv)
     Starpu starpu;
     validate_sum_ssq<fp32_t>();
     validate_sum_ssq<fp64_t>();
+    validate_avg_dev<fp32_t>();
+    //validate_avg_dev<fp64_t>();
     return 0;
 }
 

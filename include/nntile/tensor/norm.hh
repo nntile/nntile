@@ -105,5 +105,25 @@ void norm_sum_ssq(const Tensor<T> &src, const Tensor<T> &sum_ssq,
     starpu_task_wait_for_all();
 }
 
+template<typename T>
+void norm_avg_dev_async(const Tensor<T> &sum_ssq, const Tensor<T> &avg_dev,
+        Index nelems, T eps);
+
+extern template
+void norm_avg_dev_async(const Tensor<fp32_t> &sum_ssq,
+        const Tensor<fp32_t> &avg_dev, Index nelems, fp32_t eps);
+
+extern template
+void norm_avg_dev_async(const Tensor<fp64_t> &sum_ssq,
+        const Tensor<fp64_t> &avg_dev, Index nelems, fp64_t eps);
+
+template<typename T>
+void norm_avg_dev(const Tensor<T> &sum_ssq, const Tensor<T> &avg_dev,
+        Index nelems, T eps)
+{
+    norm_avg_dev_async(sum_ssq, avg_dev, nelems, eps);
+    starpu_task_wait_for_all();
+}
+
 } // namespace nntile
 
