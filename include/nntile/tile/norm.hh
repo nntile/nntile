@@ -36,15 +36,15 @@ namespace nntile
 // src[i,:,j].
 template<typename T>
 void norm_sum_ssq_async(const Tile<T> &src, const Tile<T> &sum_ssq,
-        const std::vector<Index> &axes);
+        const std::vector<Index> &axes, bool init_output=true);
 
 extern template
 void norm_sum_ssq_async(const Tile<fp32_t> &src, const Tile<fp32_t> &sum_ssq,
-        const std::vector<Index> &axes);
+        const std::vector<Index> &axes, bool init_output=true);
 
 extern template
 void norm_sum_ssq_async(const Tile<fp64_t> &src, const Tile<fp64_t> &sum_ssq,
-        const std::vector<Index> &axes);
+        const std::vector<Index> &axes, bool init_output=true);
 
 //! Blocking tile-wise sum and scaled sum of squares along given axes
 //
@@ -63,28 +63,29 @@ void norm_sum_ssq_async(const Tile<fp64_t> &src, const Tile<fp64_t> &sum_ssq,
 // src[i,:,j].
 template<typename T>
 void norm_sum_ssq(const Tile<T> &src, const Tile<T> &sum_ssq,
-        const std::vector<Index> &axes)
+        const std::vector<Index> &axes, bool init_output=true)
 {
-    norm_sum_ssq_async(src, sum_ssq, axes);
+    norm_sum_ssq_async(src, sum_ssq, axes, init_output);
     starpu_task_wait_for_all();
 }
 
 template<typename T>
 void norm_sum_ssq_async(const Tile<T> &src, const Tile<T> &sum_ssq,
-        Index axis);
+        Index axis, bool init_output=true);
 
 extern template
 void norm_sum_ssq_async(const Tile<fp32_t> &src, const Tile<fp32_t> &sum_ssq,
-        Index axis);
+        Index axis, bool init_output=true);
 
 extern template
 void norm_sum_ssq_async(const Tile<fp64_t> &src, const Tile<fp64_t> &sum_ssq,
-        Index axis);
+        Index axis, bool init_output=true);
 
 template<typename T>
-void norm_sum_ssq(const Tile<T> &src, const Tile<T> &sum_ssq, Index axis)
+void norm_sum_ssq(const Tile<T> &src, const Tile<T> &sum_ssq, Index axis,
+        bool init_output=true)
 {
-    norm_sum_ssq_async(src, sum_ssq, axis);
+    norm_sum_ssq_async(src, sum_ssq, axis, init_output);
     starpu_task_wait_for_all();
 }
 

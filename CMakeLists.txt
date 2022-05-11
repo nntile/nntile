@@ -29,7 +29,7 @@ set_property(CACHE CBLAS_INT_TYPE PROPERTY STRINGS "int32_t" "int64_t")
 add_library(nntile)
 
 # Set C++ standard for all sources
-#set_property(TARGET nntile PROPERTY CXX_STANDARD 17)
+set_property(TARGET nntile PROPERTY CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 

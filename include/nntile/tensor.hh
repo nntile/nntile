@@ -25,4 +25,6 @@
 #include <nntile/tensor/gemm.hh>
 #include <nntile/tensor/bias.hh>
 #include <nntile/tensor/gelu.hh>
+#include <nntile/tensor/relu.hh>
+#include <nntile/tensor/norm.hh>
 

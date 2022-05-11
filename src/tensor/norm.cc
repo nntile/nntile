@@ -92,14 +92,10 @@ void norm_sum_ssq_accumulate_async(const Tile<fp64_t> &sum_ssq,
 
 template<typename T>
 void norm_sum_ssq_async(const Tensor<T> &src, const Tensor<T> &sum_ssq,
-        const Tensor<T> &sum_ssq_work, const std::vector<Index> &axes)
+        const std::vector<Index> &axes)
 {
     // Check dimensions
     if(src.ndim+1 != sum_ssq.ndim+axes.size())
-    {
-        throw std::runtime_error("src.ndim+1 != sum_ssq.ndim+axes.size()");
-    }
-    if(src.ndim+1 != sum_ssq_work.ndim)
     {
         throw std::runtime_error("src.ndim+1 != sum_ssq.ndim+axes.size()");
     }
@@ -138,35 +134,19 @@ void norm_sum_ssq_async(const Tensor<T> &src, const Tensor<T> &sum_ssq,
     {
         throw std::runtime_error("sum_ssq.basetile_shape[0] != 3");
     }
-    if(sum_ssq_work.shape[0] != 3)
-    {
-        throw std::runtime_error("sum_ssq_work.shape[0] != 3");
-    }
-    if(sum_ssq_work.basetile_shape[0] != 3)
-    {
-        throw std::runtime_error("sum_ssq_work.basetile_shape[0] != 3");
-    }
     // Number of checked items in axes
     Index nchecked_axes = 0;
     for(Index i = 0; i < src.ndim; ++i)
     {
         if(nchecked_axes < axes.size() and i == axes[nchecked_axes])
         {
-            if(sum_ssq_work.shape[i+1] != src.grid.shape[i])
-            {
-                throw std::runtime_error("sum_ssq_work.shape[i+1] != "
-                        "src.grid.shape[i]");
-            }
-            if(sum_ssq_work.basetile_shape[i+1] != 1)
-            {
-                throw std::runtime_error("sum_ssq_work.basetile_shape[i+1] "
-                        "!= 1");
-            }
             ++nchecked_axes;
             continue;
         }
         if(src.shape[i] != sum_ssq.shape[i-nchecked_axes+1])
         {
+            std::cout << i << " " << nchecked_axes << "\n";
+            std::cout << src.shape[i] << " " << sum_ssq.shape[i-nchecked_axes+1] << "\n";
             throw std::runtime_error("src.shape[i] != "
                     "sum_ssq.shape[i-nchecked_axes+1]");
         }
@@ -174,16 +154,6 @@ void norm_sum_ssq_async(const Tensor<T> &src, const Tensor<T> &sum_ssq,
         {
             throw std::runtime_error("src.basetile_shape[i] != "
                     "sum_ssq.basetile_shape[i-nchecked_axes+1]");
-        }
-        if(src.shape[i] != sum_ssq_work.shape[i+1])
-        {
-            throw std::runtime_error("src.shape[i] != "
-                    "sum_ssq_work.shape[i+1]");
-        }
-        if(src.basetile_shape[i] != sum_ssq_work.basetile_shape[i+1])
-        {
-            throw std::runtime_error("src.basetile_shape[i] != "
-                    "sum_ssq_work.basetile_shape[i+1]");
         }
     }
     // Non-slice axes
@@ -201,32 +171,6 @@ void norm_sum_ssq_async(const Tensor<T> &src, const Tensor<T> &sum_ssq,
             ++j;
         }
     }
-    // Compute sum and sum of squares for each tile in grid of src tensor
-    for(Index i = 0; i < src.grid.nelems; ++i)
-    {
-        // Linear offsets of corresponding tiles of work and src tensors are
-        // equal
-        auto work_tile = sum_ssq_work.get_tile(i);
-        // Reshape
-        TileTraits &work_tile_traits = work_tile;
-        std::vector<Index> new_shape = {3};
-        new_shape.reserve(sum_ssq.ndim-1);
-        Index nchecked_axes = 0;
-        for(Index j = 0; j < src.ndim; ++j)
-        {
-            if(nchecked_axes < axes.size() and j == axes[nchecked_axes])
-            {
-                ++nchecked_axes;
-            }
-            else
-            {
-                new_shape.push_back(work_tile.shape[j+1]);
-            }
-        }
-        work_tile_traits = TileTraits(new_shape);
-        // Launch per-tile kernel
-        norm_sum_ssq_async(src.get_tile(i), work_tile, axes);
-    }
     // Get number of slices and size of each slice
     Index slice_size = 1;
     for(Index i = 0; i < axes.size(); ++i)
@@ -235,106 +179,159 @@ void norm_sum_ssq_async(const Tensor<T> &src, const Tensor<T> &sum_ssq,
     }
     Index nslices = src.grid.nelems / slice_size;
     // Accumulate results for the first slice
-    auto dst_tile = sum_ssq_work.get_tile(0);
-    std::vector<Index> src_tile_index(sum_ssq_work.ndim);
+    auto dst_tile = sum_ssq.get_tile(0);
+    std::vector<Index> src_tile_index(src.ndim);
+    norm_sum_ssq_async(src.get_tile(0), dst_tile, axes, true);
     for(Index j = 1; j < slice_size; ++j)
     {
-        ++src_tile_index[axes[0]+1];
+        ++src_tile_index[axes[0]];
         Index k = 0;
-        while(src_tile_index[axes[k]+1] == src.grid.shape[axes[k]])
+        while(src_tile_index[axes[k]] == src.grid.shape[axes[k]])
         {
-            src_tile_index[axes[k]+1] = 0;
+            src_tile_index[axes[k]] = 0;
             ++k;
-            ++src_tile_index[axes[k]+1];
+            ++src_tile_index[axes[k]];
         }
-        Index src_tile_offset = sum_ssq_work.grid.index_to_linear(
-                src_tile_index);
-        auto src_tile = sum_ssq_work.get_tile(src_tile_offset);
-        norm_sum_ssq_accumulate_async(src_tile, dst_tile);
+        norm_sum_ssq_async(src.get_tile(src_tile_index), dst_tile, axes,
+                false);
     }
-    // Create a reshaped tile of sum_ssq_work
-    TileTraits &dst_tile_traits = dst_tile;
-    std::vector<Index> new_shape = {3};
-    new_shape.reserve(sum_ssq.ndim-1);
-    nchecked_axes = 0;
-    for(Index j = 0; j < src.ndim; ++j)
-    {
-        if(nchecked_axes < axes.size() and j == axes[nchecked_axes])
-        {
-            ++nchecked_axes;
-        }
-        else
-        {
-            new_shape.push_back(dst_tile.shape[j+1]);
-        }
-    }
-    dst_tile_traits = TileTraits(new_shape);
-    copy_intersection(dst_tile, sum_ssq.get_tile(0));
     // Other slices
-    std::vector<Index> dst_tile_index(sum_ssq_work.ndim);
-    std::vector<Index> sum_ssq_tile_index(sum_ssq.ndim);
+    std::vector<Index> dst_tile_index(sum_ssq.ndim);
     for(Index i = 1; i < nslices; ++i)
     {
-        ++dst_tile_index[sum_ssq_axes[0]+1];
-        ++sum_ssq_tile_index[1];
-        Index j = 0;
-        while(sum_ssq_tile_index[j+1] == sum_ssq.grid.shape[j+1])
+        // Clear inside-slice indices
+        for(Index j = 0; j < axes.size(); ++j)
         {
-            dst_tile_index[sum_ssq_axes[j]+1] = 0;
-            sum_ssq_tile_index[j+1] = 0;
-            ++j;
-            ++dst_tile_index[sum_ssq_axes[j]+1];
-            ++sum_ssq_tile_index[j+1];
+            src_tile_index[axes[j]] = 0;
         }
-        Index dst_tile_offset = sum_ssq_work.grid.index_to_linear(
-                dst_tile_index);
-        auto dst_tile = sum_ssq_work.get_tile(dst_tile_offset);
-        std::vector<Index> src_tile_index(dst_tile_index);
+        // Update outside-slice indices
+        ++src_tile_index[sum_ssq_axes[0]];
+        ++dst_tile_index[1];
+        Index j = 0;
+        while(dst_tile_index[j+1] == sum_ssq.grid.shape[j+1])
+        {
+            src_tile_index[sum_ssq_axes[j]] = 0;
+            dst_tile_index[j+1] = 0;
+            ++j;
+            ++src_tile_index[sum_ssq_axes[j]];
+            ++dst_tile_index[j+1];
+        }
+        auto dst_tile = sum_ssq.get_tile(dst_tile_index);
+        norm_sum_ssq_async(src.get_tile(src_tile_index), dst_tile, axes, true);
         for(Index j = 1; j < slice_size; ++j)
         {
-            ++src_tile_index[axes[0]+1];
+            ++src_tile_index[axes[0]];
             Index k = 0;
-            while(src_tile_index[axes[k]+1] == src.grid.shape[axes[k]])
+            while(src_tile_index[axes[k]] == src.grid.shape[axes[k]])
             {
-                src_tile_index[axes[k]+1] = 0;
+                src_tile_index[axes[k]] = 0;
                 ++k;
-                ++src_tile_index[axes[k]+1];
+                ++src_tile_index[axes[k]];
             }
-            Index src_tile_offset = sum_ssq_work.grid.index_to_linear(
-                    src_tile_index);
-            auto src_tile = sum_ssq_work.get_tile(src_tile_offset);
-            norm_sum_ssq_accumulate_async(src_tile, dst_tile);
+            auto src_tile = src.get_tile(src_tile_index);
+            norm_sum_ssq_async(src_tile, dst_tile, axes, false);
         }
-        // Create a reshaped tile of sum_ssq_work
-        TileTraits &dst_tile_traits = dst_tile;
-        std::vector<Index> new_shape = {3};
-        new_shape.reserve(sum_ssq.ndim-1);
-        Index nchecked_axes = 0;
-        for(Index j = 0; j < src.ndim; ++j)
-        {
-            if(nchecked_axes < axes.size() and j == axes[nchecked_axes])
-            {
-                ++nchecked_axes;
-            }
-            else
-            {
-                new_shape.push_back(dst_tile.shape[j+1]);
-            }
-        }
-        dst_tile_traits = TileTraits(new_shape);
-        copy_intersection(dst_tile, sum_ssq.get_tile(sum_ssq_tile_index));
     }
 }
 
 template
 void norm_sum_ssq_async(const Tensor<fp32_t> &src,
-        const Tensor<fp32_t> &sum_ssq, const Tensor<fp32_t> &sum_ssq_work,
-        const std::vector<Index> &axes);
+        const Tensor<fp32_t> &sum_ssq, const std::vector<Index> &axes);
 
 template
 void norm_sum_ssq_async(const Tensor<fp64_t> &src,
-        const Tensor<fp64_t> &sum_ssq, const Tensor<fp64_t> &sum_ssq_work,
-        const std::vector<Index> &axes);
+        const Tensor<fp64_t> &sum_ssq, const std::vector<Index> &axes);
+
+template<typename T>
+void norm_sum_ssq_async(const Tensor<T> &src, const Tensor<T> &sum_ssq,
+        Index axis)
+{
+    // Check dimensions
+    if(src.ndim != sum_ssq.ndim)
+    {
+        throw std::runtime_error("src.ndim != sum_ssq.ndim");
+    }
+    // Treat special case of src.ndim=0
+    if(src.ndim == 0)
+    {
+        throw std::runtime_error("Scalar input makes no sense");
+    }
+    // Check axis
+    if(axis < 0)
+    {
+        throw std::runtime_error("axis < 0");
+    }
+    if(axis >= src.ndim)
+    {
+        throw std::runtime_error("axis >= src.ndim");
+    }
+    // Check shapes of src and sum_ssq
+    if(sum_ssq.shape[0] != 3)
+    {
+        throw std::runtime_error("sum_ssq.shape[0] != 3");
+    }
+    if(sum_ssq.basetile_shape[0] != 3)
+    {
+        throw std::runtime_error("sum_ssq.basetile_shape[0] != 3");
+    }
+    for(Index i = 0; i < axis; ++i)
+    {
+        if(src.shape[i] != sum_ssq.shape[i+1])
+        {
+            throw std::runtime_error("src.shape[i] != sum_ssq.shape[i+1]");
+        }
+        if(src.basetile_shape[i] != sum_ssq.basetile_shape[i+1])
+        {
+            throw std::runtime_error("src.basetile_shape[i] != "
+                    "sum_ssq.basetile_shape[i+1]");
+        }
+    }
+    for(Index i = axis+1; i < src.ndim; ++i)
+    {
+        if(src.shape[i] != sum_ssq.shape[i])
+        {
+            throw std::runtime_error("src.shape[i] != sum_ssq.shape[i]");
+        }
+        if(src.basetile_shape[i] != sum_ssq.basetile_shape[i])
+        {
+            throw std::runtime_error("src.basetile_shape[i] != "
+                    "sum_ssq.basetile_shape[i]");
+        }
+    }
+    // Compute sum and sum of squares for each tile in grid of src tensor
+    for(Index i = 0; i < sum_ssq.grid.nelems; ++i)
+    {
+        auto dst_tile = sum_ssq.get_tile(i);
+        auto dst_tile_index = sum_ssq.grid.linear_to_index(i);
+        std::vector<Index> src_tile_index(src.ndim);
+        for(Index j = 0; j < axis; ++j)
+        {
+            src_tile_index[j] = dst_tile_index[j+1];
+        }
+        src_tile_index[axis] = 0;
+        for(Index j = axis+1; j < src.ndim; ++j)
+        {
+            src_tile_index[j] = dst_tile_index[j];
+        }
+        // Launch per-tile kernel
+        auto src_tile = src.get_tile(src_tile_index);
+        norm_sum_ssq_async(src_tile, dst_tile, axis, true);
+        for(Index j = 1; j < src.grid.shape[axis]; ++j)
+        {
+            src_tile_index[axis] = j;
+            auto src_tile = src.get_tile(src_tile_index);
+            norm_sum_ssq_async(src_tile, dst_tile, axis, false);
+        }
+    }
+}
+
+template
+void norm_sum_ssq_async(const Tensor<fp32_t> &src,
+        const Tensor<fp32_t> &sum_ssq, Index axis);
+
+template
+void norm_sum_ssq_async(const Tensor<fp64_t> &src,
+        const Tensor<fp64_t> &sum_ssq, Index axis);
 
 template<typename T>
 void norm_avg_dev_async(const Tensor<T> &sum_ssq, const Tensor<T> &avg_dev,

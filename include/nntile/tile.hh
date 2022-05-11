@@ -25,4 +25,6 @@
 #include <nntile/tile/gemm.hh>
 #include <nntile/tile/bias.hh>
 #include <nntile/tile/gelu.hh>
+#include <nntile/tile/relu.hh>
+#include <nntile/tile/norm.hh>
 

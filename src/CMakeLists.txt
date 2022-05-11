@@ -6,6 +6,7 @@ set(SRC
     "${CMAKE_CURRENT_BINARY_DIR}/tile/gemm.cc"
     "tile/bias.cc"
     "tile/gelu.cc"
+    "tile/relu.cc"
     "tile/norm.cc"
     "tensor/traits.cc"
     "tensor/randn.cc"
@@ -13,6 +14,7 @@ set(SRC
     "tensor/gemm.cc"
     "tensor/bias.cc"
     "tensor/gelu.cc"
+    "tensor/relu.cc"
     "tensor/norm.cc"
     )
 
