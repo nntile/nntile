@@ -24,7 +24,6 @@ static void cpu_relu(void *buffers[], void *cl_args)
     Index nelems;
     starpu_codelet_unpack_args(cl_args, &nelems);
     T *data = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
-    constexpr T one = 1, pt5 = 0.5, sqrt2 = std::sqrt(T{2.0});
     for(Index i = 0; i < nelems; ++i)
     {
         data[i] = std::max(T{0}, data[i]);
@@ -44,15 +43,15 @@ void relu_async(const Tile<T> &A)
             STARPU_VALUE, &A.nelems, sizeof(A.nelems),
             STARPU_RW, static_cast<starpu_data_handle_t>(A),
             // std::erf is assumed as a single flop
-            STARPU_FLOPS, static_cast<double>(5*A.nelems),
+            STARPU_FLOPS, static_cast<double>(A.nelems),
             0);
 }
 
 template
-void relu_async(const Tile<float> &A);
+void relu_async(const Tile<fp32_t> &A);
 
 template
-void relu_async(const Tile<double> &A);
+void relu_async(const Tile<fp64_t> &A);
 
 } // namespace nntile
 

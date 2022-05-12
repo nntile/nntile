@@ -50,10 +50,10 @@ void gelu_async(const Tile<T> &A)
 }
 
 template
-void gelu_async(const Tile<float> &A);
+void gelu_async(const Tile<fp32_t> &A);
 
 template
-void gelu_async(const Tile<double> &A);
+void gelu_async(const Tile<fp64_t> &A);
 
 } // namespace nntile
 

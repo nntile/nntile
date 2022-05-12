@@ -28,10 +28,10 @@ void relu_async(const Tensor<T> &A)
 }
 
 template
-void relu_async(const Tensor<float> &A);
+void relu_async(const Tensor<fp32_t> &A);
 
 template
-void relu_async(const Tensor<double> &A);
+void relu_async(const Tensor<fp64_t> &A);
 
 } // namespace nntile
 

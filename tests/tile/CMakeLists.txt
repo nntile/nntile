@@ -7,6 +7,7 @@ set(TESTS
     "gemm"
     "bias"
     "gelu"
+    "relu"
     "norm"
     )
 
