@@ -17,28 +17,17 @@
 namespace nntile
 {
 
+// CPU codelet for bias operation with a single axis provided
 template<typename T>
 static void cpu_bias(void *buffers[], void *cl_args)
 {
+    // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
+    // Both source and destination are Fortran-contiguous
     Index m, n, k;
     starpu_codelet_unpack_args(cl_args, &m, &n, &k);
     const Index mk = m * k;
     const T *src = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
     T *dst = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[1]));
-//    Index dst_offset = 0;
-//    for(Index i2 = 0; i2 < n; ++i2)
-//    {
-//        for(Index i1 = 0; i1 < k; ++i1)
-//        {
-//            Index src_offset = i2 * m;
-//            for(Index i0 = 0; i0 < m; ++i0)
-//            {
-//                dst[dst_offset] += src[src_offset];
-//                ++dst_offset;
-//                ++src_offset;
-//            }
-//        }
-//    }
     Index src_offset = 0;
     for(Index i2 = 0; i2 < n; ++i2)
     {
@@ -57,46 +46,18 @@ static void cpu_bias(void *buffers[], void *cl_args)
     }
 }
 
+// Bias operation over single axis
 template<typename T>
-void bias_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
+void bias_work(const Tile<T> &src, const Tile<T> &dst, Index axis)
 {
     // StarPU codelet
-    constexpr auto commute_mode = static_cast<enum starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
     static struct starpu_codelet codelet_bias =
     {
         .cpu_funcs = {cpu_bias<T>},
         .nbuffers = 2,
-        .modes = {STARPU_R, commute_mode}
+        .modes = {STARPU_R, Starpu::STARPU_RW_COMMUTE},
+        .name = "bias"
     };
-    // Check dimensions
-    if(dst.ndim != src.ndim+1)
-    {
-        throw std::runtime_error("dst.ndim != src.ndim+1");
-    }
-    if(axis < 0)
-    {
-        throw std::runtime_error("axis < 0");
-    }
-    if(axis >= dst.ndim)
-    {
-        throw std::runtime_error("axis >= dst.ndim");
-    }
-    // Check shapes of input tiles
-    for(Index i = 0; i < axis; ++i)
-    {
-        if(dst.shape[i] != src.shape[i])
-        {
-            throw std::runtime_error("dst.shape[i] != src.shape[i]");
-        }
-    }
-    for(Index i = axis+1; i < dst.ndim; ++i)
-    {
-        if(dst.shape[i] != src.shape[i-1])
-        {
-            throw std::runtime_error("dst.shape[i] != src.shape[i-1]");
-        }
-    }
     // Reshape inputs for simplicity: src -> (m,n), dst -> (m,k,n)
     Index m, n, k;
     if(axis == 0)
@@ -123,39 +84,51 @@ void bias_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
             STARPU_VALUE, &n, sizeof(n),
             STARPU_VALUE, &k, sizeof(k),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
-            commute_mode, static_cast<starpu_data_handle_t>(dst),
+            Starpu::STARPU_RW_COMMUTE, static_cast<starpu_data_handle_t>(dst),
             STARPU_FLOPS, static_cast<double>(dst.nelems),
             0);
 }
 
+// Explicit instantiation of template
 template
-void bias_async(const Tile<float> &src, const Tile<float> &dst,
-        Index axis);
+void bias_work(const Tile<fp32_t> &src, const Tile<fp32_t> &dst, Index axis);
 
+// Explicit instantiation of template
 template
-void bias_async(const Tile<double> &src, const Tile<double> &dst,
-        Index axis);
+void bias_work(const Tile<fp64_t> &src, const Tile<fp64_t> &dst, Index axis);
 
+// CPU codelet for normalization over single axis
 template<typename T>
 static void cpu_bias_avg_dev(void *buffers[], void *cl_args)
 {
+    // Source (avg_dev) is a 2-by-m-by-n tile, which contains mean and
+    // deviation values
+    // Destination is an m-by-k-by-n tile
+    // Both source and destination are Fortran-contiguous
     Index m, n, k;
     starpu_codelet_unpack_args(cl_args, &m, &n, &k);
     const T *avg_dev = reinterpret_cast<T *>(
             STARPU_VARIABLE_GET_PTR(buffers[0]));
     T *dst = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[1]));
     Index dst_offset = 0;
+    // Outer loop by the last mode of source and destination tiles
     for(Index i2 = 0; i2 < n; ++i2)
     {
+        // Middle loop by the middle mode of destination tile
         for(Index i1 = 0; i1 < k; ++i1)
         {
             Index src_offset = 2 * m * i2;
+            // Inner loop by the first mode of source and destination tiles
             for(Index i0 = 0; i0 < m; ++i0)
             {
+                // Value-to-update
                 T &val = dst[dst_offset];
+                // Corresponding mean and deviation
                 const T &avg = avg_dev[src_offset];
                 const T &dev = avg_dev[src_offset+1];
+                // Normalization
                 val = (val-avg) / dev;
+                // Update pointers
                 ++dst_offset;
                 src_offset += 2;
             }
@@ -163,76 +136,58 @@ static void cpu_bias_avg_dev(void *buffers[], void *cl_args)
     }
 }
 
+// CPU codelet for normalization over single axis if m=1
 template<typename T>
 static void cpu_bias_avg_dev_m1(void *buffers[], void *cl_args)
 {
+    // Source (avg_dev) is a 2-by-1-by-n tile, which contains mean and
+    // deviation values
+    // Destination is an 1-by-k-by-n tile
+    // Both source and destination are Fortran-contiguous
     Index n, k;
     starpu_codelet_unpack_args(cl_args, &n, &k);
     const T *avg_dev = reinterpret_cast<T *>(
             STARPU_VARIABLE_GET_PTR(buffers[0]));
     T *dst = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[1]));
     Index dst_offset = 0;
+    // Outer loop by the last mode of source and destination tiles
     for(Index i2 = 0; i2 < n; ++i2)
     {
         Index src_offset = 2 * i2;
         const T &avg = avg_dev[src_offset];
         const T &dev = avg_dev[src_offset+1];
+        // Middle loop by the middle mode of destination tile
         for(Index i1 = 0; i1 < k; ++i1)
         {
+            // No inner loop as m=1
+            // Value-to-update
             T &val = dst[dst_offset];
             val = (val-avg) / dev;
+            // Update pointer
             ++dst_offset;
         }
     }
 }
 
+// Normalization operation over single axis
 template<typename T>
-void bias_avg_dev_async(const Tile<T> &avg_dev, const Tile<T> &dst, Index axis)
+void bias_avg_dev_work(const Tile<T> &avg_dev, const Tile<T> &dst, Index axis)
 {
     // StarPU codelet
     static struct starpu_codelet codelet_bias_avg_dev =
     {
         .cpu_funcs = {cpu_bias_avg_dev<T>},
         .nbuffers = 2,
-        .modes = {STARPU_R, STARPU_RW}
+        .modes = {STARPU_R, STARPU_RW},
+        .name = "normalize"
     };
     static struct starpu_codelet codelet_bias_avg_dev_m1 =
     {
         .cpu_funcs = {cpu_bias_avg_dev_m1<T>},
         .nbuffers = 2,
-        .modes = {STARPU_R, STARPU_RW}
+        .modes = {STARPU_R, STARPU_RW},
+        .name = "normalize m=1"
     };
-    // Check dimensions
-    if(dst.ndim != avg_dev.ndim)
-    {
-        throw std::runtime_error("dst.ndim != avg_dev.ndim");
-    }
-    if(axis < 0)
-    {
-        throw std::runtime_error("axis < 0");
-    }
-    if(axis >= dst.ndim)
-    {
-        throw std::runtime_error("axis >= dst.ndim");
-    }
-    if(avg_dev.shape[0] != 2)
-    {
-        throw std::runtime_error("avg_dev.shape[0] != 2");
-    }
-    for(Index i = 0; i < axis; ++i)
-    {
-        if(dst.shape[i] != avg_dev.shape[i+1])
-        {
-            throw std::runtime_error("dst.shape[i] != avg_dev.shape[i+1]");
-        }
-    }
-    for(Index i = axis+1; i < dst.ndim; ++i)
-    {
-        if(dst.shape[i] != avg_dev.shape[i])
-        {
-            throw std::runtime_error("dst.shape[i] != src.shape[i]");
-        }
-    }
     // Reshape inputs for simplicity: src -> (2,m,n), dst -> (m,k,n)
     Index m, n, k;
     if(axis == 0)
@@ -277,12 +232,14 @@ void bias_avg_dev_async(const Tile<T> &avg_dev, const Tile<T> &dst, Index axis)
     }
 }
 
+// Explicit instantiation of template
 template
-void bias_avg_dev_async(const Tile<float> &avg_dev, const Tile<float> &dst,
+void bias_avg_dev_work(const Tile<fp32_t> &avg_dev, const Tile<fp32_t> &dst,
         Index axis);
 
+// Explicit instantiation of template
 template
-void bias_avg_dev_async(const Tile<double> &avg_dev, const Tile<double> &dst,
+void bias_avg_dev_work(const Tile<fp64_t> &avg_dev, const Tile<fp64_t> &dst,
         Index axis);
 
 } // namespace nntile

@@ -18,6 +18,7 @@
 namespace nntile
 {
 
+// Compute sum and scaled sum of squares of a tile
 template<typename T>
 static void cpu_sum_ssq_init(void *buffers[], void *cl_args)
 {
@@ -160,6 +161,7 @@ static void cpu_sum_ssq_init(void *buffers[], void *cl_args)
     }
 }
 
+// Accumulate sum and scaled sum of squares of a tile
 template<typename T>
 static void cpu_sum_ssq_update(void *buffers[], void *cl_args)
 {
@@ -322,74 +324,23 @@ static void cpu_sum_ssq_update(void *buffers[], void *cl_args)
 }
 
 template<typename T>
-void norm_sum_ssq_async(const Tile<T> &src, const Tile<T> &sum_ssq,
+void norm_sum_ssq_work(const Tile<T> &src, const Tile<T> &sum_ssq,
         const std::vector<Index> &axes, bool init_output)
 {
     static struct starpu_codelet codelet_sum_ssq_init =
     {
         .cpu_funcs = {cpu_sum_ssq_init<T>},
         .nbuffers = 2,
-        .modes = {STARPU_R, STARPU_W}
+        .modes = {STARPU_R, STARPU_W},
+        .name = "sum_ssq_init"
     };
-    constexpr auto commute_mode = static_cast<enum starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
     static struct starpu_codelet codelet_sum_ssq_update =
     {
         .cpu_funcs = {cpu_sum_ssq_update<T>},
         .nbuffers = 2,
-        .modes = {STARPU_R, commute_mode}
+        .modes = {STARPU_R, Starpu::STARPU_RW_COMMUTE},
+        .name = "sum_ssq_update"
     };
-    // Check inputs
-    if(src.ndim+1 != sum_ssq.ndim+axes.size())
-    {
-        throw std::runtime_error("src.ndim+1 != sum_ssq.ndim+axes.size()");
-    }
-    // Treat special case of src.ndim=0
-    if(src.ndim == 0)
-    {
-        throw std::runtime_error("Scalar input makes no sense");
-    }
-    // Treat special case of empty axes
-    if(axes.size() == 0)
-    {
-        throw std::runtime_error("Empty axes");
-    }
-    // Check axes
-    if(axes[0] < 0)
-    {
-        throw std::runtime_error("axes[0] < 0");
-    }
-    if(axes[axes.size()-1] >= src.ndim)
-    {
-        throw std::runtime_error("axes[axes.size()-1] >= src.ndim");
-    }
-    for(Index i = 1; i < axes.size(); ++i)
-    {
-        if(axes[i] <= axes[i-1])
-        {
-            throw std::runtime_error("axes[i] <= axes[i-1]");
-        }
-    }
-    // Check shapes of src and sum_ssq
-    if(sum_ssq.shape[0] != 3)
-    {
-        throw std::runtime_error("sum_ssq.shape[0] != 3");
-    }
-    // Number of checked items in axes
-    Index nchecked_axes = 0;
-    for(Index i = 0; i < src.ndim; ++i)
-    {
-        if(nchecked_axes < axes.size() and i == axes[nchecked_axes])
-        {
-            ++nchecked_axes;
-            continue;
-        }
-        if(src.shape[i] != sum_ssq.shape[i-nchecked_axes+1])
-        {
-            throw std::runtime_error("src.shape[i] != "
-                    "sum_ssq.shape[i-nchecked_axes+1]");
-        }
-    }
     // Insert task
     Index axes_ndim = axes.size();
     if(init_output)
@@ -417,17 +368,18 @@ void norm_sum_ssq_async(const Tile<T> &src, const Tile<T> &sum_ssq,
                 sum_ssq.ndim*sizeof(sum_ssq.shape[0]),
                 STARPU_VALUE, &(axes[0]), axes_ndim*sizeof(axes[0]),
                 STARPU_R, static_cast<starpu_data_handle_t>(src),
-                commute_mode, static_cast<starpu_data_handle_t>(sum_ssq),
+                Starpu::STARPU_RW_COMMUTE,
+                static_cast<starpu_data_handle_t>(sum_ssq),
                 0);
     }
 }
 
 template
-void norm_sum_ssq_async(const Tile<fp32_t> &src, const Tile<fp32_t> &sum_ssq,
+void norm_sum_ssq_work(const Tile<fp32_t> &src, const Tile<fp32_t> &sum_ssq,
         const std::vector<Index> &axes, bool init_output=true);
 
 template
-void norm_sum_ssq_async(const Tile<fp64_t> &src, const Tile<fp64_t> &sum_ssq,
+void norm_sum_ssq_work(const Tile<fp64_t> &src, const Tile<fp64_t> &sum_ssq,
         const std::vector<Index> &axes, bool init_output=true);
 
 template<typename T>
@@ -654,7 +606,7 @@ static void cpu_sum_ssq_single_axis_m1(void *buffers[], void *cl_args)
 }
 
 template<typename T>
-void norm_sum_ssq_async(const Tile<T> &src, const Tile<T> &sum_ssq,
+void norm_sum_ssq_work(const Tile<T> &src, const Tile<T> &sum_ssq,
         Index axis, bool init_output)
 {
     static struct starpu_codelet codelet_sum_ssq_single_axis_init =
@@ -663,52 +615,12 @@ void norm_sum_ssq_async(const Tile<T> &src, const Tile<T> &sum_ssq,
         .nbuffers = 2,
         .modes = {STARPU_R, STARPU_W}
     };
-    constexpr auto commute_mode = static_cast<enum starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
     static struct starpu_codelet codelet_sum_ssq_single_axis_update =
     {
         .cpu_funcs = {cpu_sum_ssq_single_axis_update<T>},
         .nbuffers = 2,
-        .modes = {STARPU_R, commute_mode}
+        .modes = {STARPU_R, Starpu::STARPU_RW_COMMUTE}
     };
-    // Check inputs
-    if(src.ndim != sum_ssq.ndim)
-    {
-        throw std::runtime_error("src.ndim != sum_ssq.ndim");
-    }
-    // Treat special case of src.ndim=0
-    if(src.ndim == 0)
-    {
-        throw std::runtime_error("Scalar input makes no sense");
-    }
-    // Check axis
-    if(axis < 0)
-    {
-        throw std::runtime_error("axis < 0");
-    }
-    if(axis >= src.ndim)
-    {
-        throw std::runtime_error("axis >= src.ndim");
-    }
-    // Check shapes of src and sum_ssq
-    if(sum_ssq.shape[0] != 3)
-    {
-        throw std::runtime_error("sum_ssq.shape[0] != 3");
-    }
-    for(Index i = 0; i < axis; ++i)
-    {
-        if(src.shape[i] != sum_ssq.shape[i+1])
-        {
-            throw std::runtime_error("src.shape[i] != sum_ssq.shape[i+1]");
-        }
-    }
-    for(Index i = axis+1; i < src.ndim; ++i)
-    {
-        if(src.shape[i] != sum_ssq.shape[i])
-        {
-            throw std::runtime_error("src.shape[i] != sum_ssq.shape[i]");
-        }
-    }
     // Get sizes
     Index m, n, k;
     if(axis == 0)
@@ -749,17 +661,18 @@ void norm_sum_ssq_async(const Tile<T> &src, const Tile<T> &sum_ssq,
                 STARPU_VALUE, &n, sizeof(n),
                 STARPU_VALUE, &k, sizeof(k),
                 STARPU_R, static_cast<starpu_data_handle_t>(src),
-                commute_mode, static_cast<starpu_data_handle_t>(sum_ssq),
+                Starpu::STARPU_RW_COMMUTE,
+                static_cast<starpu_data_handle_t>(sum_ssq),
                 0);
     }
 }
 
 template
-void norm_sum_ssq_async(const Tile<fp32_t> &src, const Tile<fp32_t> &sum_ssq,
+void norm_sum_ssq_work(const Tile<fp32_t> &src, const Tile<fp32_t> &sum_ssq,
         Index axis, bool init_output=false);
 
 template
-void norm_sum_ssq_async(const Tile<fp64_t> &src, const Tile<fp64_t> &sum_ssq,
+void norm_sum_ssq_work(const Tile<fp64_t> &src, const Tile<fp64_t> &sum_ssq,
         Index axis, bool init_output=false);
 
 template<typename T>

@@ -20,75 +20,18 @@ namespace nntile
 {
 
 template<typename T>
-static void cpu_sum_ssq_accumulate(void *buffers[], void *cl_args)
+void norm_sum_ssq_accumulate_work(const Tensor<T> &sum_ssq,
+        const Tensor<T> &sum_ssq_total)
 {
-    Index nelems;
-    starpu_codelet_unpack_args(cl_args, &nelems);
-    const T *src = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
-    T *dst = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[1]));
-    for(Index i = 0; i < nelems; i += 3)
-    {
-        // If maximal absolute value is 0 do no update to avoid division by 0
-        if(src[i+1] == 0)
-        {
-            continue;
-        }
-        // Now src[i+1]>0
-        dst[i] += src[i];
-        if(dst[i+1] > src[i+1])
-        {
-            T tmp = src[i+1] / dst[i+1];
-            dst[i+2] += src[i+2] * tmp * tmp;
-        }
-        else
-        {
-            // No division by 0 here since src[i+1]>0
-            T tmp = dst[i+1] / src[i+1];
-            dst[i+1] = src[i+1];
-            dst[i+2] = dst[i+2]*tmp*tmp + src[i+2];
-        }
-    }
-}
-
-template<typename T>
-void norm_sum_ssq_accumulate_async(const Tile<T> &sum_ssq,
-        const Tile<T> &sum_ssq_total)
-{
-    static starpu_codelet codelet_sum_ssq_accumulate =
-    {
-        .cpu_funcs = {cpu_sum_ssq_accumulate<T>},
-        .nbuffers = 2,
-        .modes = {STARPU_R, STARPU_RW}
-    };
-    // Check inputs
-    if(sum_ssq.ndim != sum_ssq_total.ndim)
-    {
-        throw std::runtime_error("sum_ssq.ndim != sum_ssq_total.ndim");
-    }
-    Index ndim = sum_ssq.ndim;
-    for(Index i = 0; i < ndim; ++i)
-    {
-        if(sum_ssq.shape[i] != sum_ssq_total.shape[i])
-        {
-            throw std::runtime_error("sum_ssq.shape[i] != "
-                    "sum_ssq_total.shape[i]");
-        }
-    }
-    // Insert task
-    starpu_task_insert(&codelet_sum_ssq_accumulate,
-            STARPU_VALUE, &(sum_ssq.nelems), sizeof(sum_ssq.nelems),
-            STARPU_R, static_cast<starpu_data_handle_t>(sum_ssq),
-            STARPU_RW, static_cast<starpu_data_handle_t>(sum_ssq_total),
-            0);
 }
 
 template
-void norm_sum_ssq_accumulate_async(const Tile<fp32_t> &sum_ssq,
-        const Tile<fp32_t> &sum_ssq_total);
+void norm_sum_ssq_accumulate_work(const Tensor<fp32_t> &sum_ssq,
+        const Tensor<fp32_t> &sum_ssq_total);
 
 template
-void norm_sum_ssq_accumulate_async(const Tile<fp64_t> &sum_ssq,
-        const Tile<fp64_t> &sum_ssq_total);
+void norm_sum_ssq_accumulate_work(const Tensor<fp64_t> &sum_ssq,
+        const Tensor<fp64_t> &sum_ssq_total);
 
 template<typename T>
 void norm_sum_ssq_async(const Tensor<T> &src, const Tensor<T> &sum_ssq,

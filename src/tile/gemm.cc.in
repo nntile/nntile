@@ -326,8 +326,6 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_R, STARPU_RW}
     };
-    constexpr auto commute_mode = static_cast<enum starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
     static struct starpu_codelet codelet_gemm_rw_commute =
     {
         //.where = STARPU_CUDA,
@@ -335,7 +333,7 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
         //.cuda_funcs = {gemm_codelet_gpu_func<T>},
         //.cuda_flags = {STARPU_CUDA_ASYNC},
         .nbuffers = 3,
-        .modes = {STARPU_R, STARPU_R, commute_mode}
+        .modes = {STARPU_R, STARPU_R, Starpu::STARPU_RW_COMMUTE}
     };
     // Check if tensors match gemm
     gemm_check(transA, A, transB, B, C, ndim);
@@ -412,7 +410,7 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
                 STARPU_R, static_cast<starpu_data_handle_t>(A),
                 STARPU_R, static_cast<starpu_data_handle_t>(B),
                 STARPU_VALUE, &beta, sizeof(beta),
-                STARPU_RW | STARPU_COMMUTE,
+                Starpu::STARPU_RW_COMMUTE,
                 static_cast<starpu_data_handle_t>(C),
                 STARPU_FLOPS, static_cast<double>(2*m*n*k),
                 0);

@@ -18,49 +18,11 @@
 namespace nntile
 {
 
-// Asynchronous bias
+// Bias operation over single axis
 template<typename T>
-void bias_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
+void bias_work(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
 {
-    // Check dimensions
-    if(dst.ndim != src.ndim+1)
-    {
-        throw std::runtime_error("dst.ndim != src.ndim+1");
-    }
-    if(axis < 0)
-    {
-        throw std::runtime_error("axis < 0");
-    }
-    if(axis >= dst.ndim)
-    {
-        throw std::runtime_error("axis >= dst.ndim");
-    }
-    // Check shapes of input tensors
-    for(Index i = 0; i < axis; ++i)
-    {
-        if(dst.shape[i] != src.shape[i])
-        {
-            throw std::runtime_error("dst.shape[i] != src.shape[i]");
-        }
-        if(dst.basetile_shape[i] != src.basetile_shape[i])
-        {
-            throw std::runtime_error("dst.basetile_shape[i] != "
-                    "src.basetile_shape[i]");
-        }
-    }
-    for(Index i = axis+1; i < dst.ndim; ++i)
-    {
-        if(dst.shape[i] != src.shape[i-1])
-        {
-            throw std::runtime_error("dst.shape[i] != src.shape[i-1]");
-        }
-        if(dst.basetile_shape[i] != src.basetile_shape[i-1])
-        {
-            throw std::runtime_error("dst.basetile_shape[i] != "
-                    "src.basetile_shape[i-1]");
-        }
-    }
-    // Now apply per-tile bias asynchronously as needed
+    // Apply per-tile bias asynchronously as needed
     for(Index i = 0; i < src.grid.nelems; ++i)
     {
         // Index of current source tile
@@ -87,70 +49,27 @@ void bias_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
             // Get destination tile
             auto dst_tile = dst.get_tile(dst_tile_offset);
             // Apply per-tile bias
-            bias_async(src_tile, dst_tile, axis);
+            bias_work(src_tile, dst_tile, axis);
         }
     }
 }
 
+// Explicit instantiation of template
 template
-void bias_async(const Tensor<float> &src, const Tensor<float> &dst,
-        Index axis=1);
+void bias_work(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst,
+        Index axis);
 
+// Explicit instantiation of template
 template
-void bias_async(const Tensor<double> &src, const Tensor<double> &dst,
-        Index axis=1);
+void bias_work(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst,
+        Index axis);
 
+// Normalization operation over single axis
 template<typename T>
-void bias_avg_dev_async(const Tensor<T> &avg_dev, const Tensor<T> &dst,
+void bias_avg_dev_work(const Tensor<T> &avg_dev, const Tensor<T> &dst,
         Index axis)
 {
-    // Check dimensions
-    if(dst.ndim != avg_dev.ndim)
-    {
-        throw std::runtime_error("dst.ndim != avg_dev.ndim");
-    }
-    if(axis < 0)
-    {
-        throw std::runtime_error("axis < 0");
-    }
-    if(axis >= dst.ndim)
-    {
-        throw std::runtime_error("axis >= dst.ndim");
-    }
-    // Check shapes of input tensors
-    if(avg_dev.shape[0] != 2)
-    {
-        throw std::runtime_error("avg_dev.shape[0] != 2");
-    }
-    if(avg_dev.basetile_shape[0] != 2)
-    {
-        throw std::runtime_error("avg_dev.basetile_shape[0] != 2");
-    }
-    for(Index i = 0; i < axis; ++i)
-    {
-        if(dst.shape[i] != avg_dev.shape[i+1])
-        {
-            throw std::runtime_error("dst.shape[i] != avg_dev.shape[i+1]");
-        }
-        if(dst.basetile_shape[i] != avg_dev.basetile_shape[i+1])
-        {
-            throw std::runtime_error("dst.basetile_shape[i] != "
-                    "avg_dev.basetile_shape[i+1]");
-        }
-    }
-    for(Index i = axis+1; i < dst.ndim; ++i)
-    {
-        if(dst.shape[i] != avg_dev.shape[i])
-        {
-            throw std::runtime_error("dst.shape[i] != avg_dev.shape[i]");
-        }
-        if(dst.basetile_shape[i] != avg_dev.basetile_shape[i])
-        {
-            throw std::runtime_error("dst.basetile_shape[i] != "
-                    "avg_dev.basetile_shape[i]");
-        }
-    }
-    // Now apply per-tile bias asynchronously as needed
+    // Apply per-tile bias asynchronously as needed
     for(Index i = 0; i < avg_dev.grid.nelems; ++i)
     {
         // Index of current source tile
@@ -177,17 +96,19 @@ void bias_avg_dev_async(const Tensor<T> &avg_dev, const Tensor<T> &dst,
             // Get destination tile
             auto dst_tile = dst.get_tile(dst_tile_offset);
             // Apply per-tile bias
-            bias_avg_dev_async(avg_dev_tile, dst_tile, axis);
+            bias_avg_dev_work(avg_dev_tile, dst_tile, axis);
         }
     }
 }
 
+// Explicit instantiation of template
 template
-void bias_avg_dev_async(const Tensor<fp32_t> &avg_dev,
+void bias_avg_dev_work(const Tensor<fp32_t> &avg_dev,
         const Tensor<fp32_t> &dst, Index axis);
 
+// Explicit instantiation of template
 template
-void bias_avg_dev_async(const Tensor<fp64_t> &avg_dev,
+void bias_avg_dev_work(const Tensor<fp64_t> &avg_dev,
         const Tensor<fp64_t> &dst, Index axis);
 
 } // namespace nntile

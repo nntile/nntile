@@ -48,31 +48,5 @@ public:
     operator T() = delete;
 };
 
-//! Enumeration for norms
-class NormOp
-{
-public:
-    //! Norm value
-    enum Value: int
-    {
-        MeanVar, // Get mean and variance values
-    } value;
-    //! Constructor for norm type object
-    constexpr NormOp(const enum NormOp::Value &value_):
-        value(value_)
-    {
-        if(value != NormOp::MeanVar)
-        {
-            throw std::runtime_error("Invalud value of NormOp object");
-        }
-    }
-    //! All constructors but one are disabled
-    template<typename T>
-    NormOp(const T &) = delete;
-    //! All conversions are disabled
-    template<typename T>
-    operator T() = delete;
-};
-
 } // namespace nntile
 

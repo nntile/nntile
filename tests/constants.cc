@@ -20,19 +20,6 @@ int main(int argc, char **argv)
                 TESTN((TransOp(value)));
         }
     }
-    TESTP(NormOp(NormOp::MeanVar));
-    for(int i = -10; i < 10; ++i)
-    {
-        auto value = static_cast<enum NormOp::Value>(i);
-        switch(value)
-        {
-            case NormOp::MeanVar:
-                TESTP((NormOp(value)));
-                break;
-            default:
-                TESTN((NormOp(value)));
-        }
-    }
     return 0;
 }
 

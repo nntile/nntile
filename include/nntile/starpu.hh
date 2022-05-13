@@ -83,6 +83,9 @@ public:
     {
          starpu_profiling_bus_helper_display_summary();
     }
+    static constexpr enum starpu_data_access_mode
+        STARPU_RW_COMMUTE = static_cast<enum starpu_data_access_mode>(
+                STARPU_RW | STARPU_COMMUTE);
 };
 
 //! StarPU data handle as a shared pointer to its internal state
