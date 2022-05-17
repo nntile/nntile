@@ -1,0 +1,26 @@
+stages:
+  - image
+  - build
+  - check
+
+image-builder:
+  image: docker:20.10.16
+  stage: image
+  script:
+    - echo $CI_REGISTRY_PASSWORD | docker -D login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    - docker build -f ci/Dockerfile -t $CI_REGISTRY_IMAGE/builder ci
+    - docker push $CI_REGISTRY_IMAGE/builder
+
+build-clang:
+  image: $CI_REGISTRY_IMAGE/builder
+  stage: build
+  script:
+    - cmake -B build/debug -S . -G Ninja -DCMAKE_CXX_COMPILER=clang++
+    - cmake --build build/debug
+
+build-gcc:
+  image: $CI_REGISTRY_IMAGE/builder
+  stage: build
+  script:
+    - cmake -B build/debug -S . -G Ninja -DCMAKE_CXX_COMPILER=g++
+    - cmake --build build/debug
