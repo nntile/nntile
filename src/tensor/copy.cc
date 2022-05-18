@@ -19,29 +19,17 @@ namespace nntile
 {
 
 template<typename T>
-void copy_intersection_async(const Tensor<T> &src,
+void copy_intersection_work(const Tensor<T> &src,
         const std::vector<Index> &src_offset, const Tensor<T> &dst,
-        const std::vector<Index> &dst_offset)
+        const std::vector<Index> &dst_offset,
+        const StarpuVariableHandle &scratch)
 {
-    // Check inputs
-    if(src.ndim != src_offset.size())
-    {
-        throw std::runtime_error("src.ndim != src_offset.size()");
-    }
-    if(src.ndim != dst.ndim)
-    {
-        throw std::runtime_error("src.ndim != dst.ndim");
-    }
-    if(dst.ndim != dst_offset.size())
-    {
-        throw std::runtime_error("dst.ndim != dst_offset.size()");
-    }
     Index ndim = src.ndim;
     // Treat special case of ndim=0
     if(ndim == 0)
     {
-        copy_intersection_async(src.get_tile(0), src_offset, dst.get_tile(0),
-                dst_offset);
+        copy_intersection_work(src.get_tile(0), src_offset, dst.get_tile(0),
+                dst_offset, scratch);
         return;
     }
     // Treat non-zero ndim
@@ -63,21 +51,23 @@ void copy_intersection_async(const Tensor<T> &src,
                 dst_tile_offset[k] += dst_tile_index[k] *
                     dst.basetile_shape[k];
             }
-            copy_intersection_async<T>(src_tile, src_tile_offset,
-                    dst.get_tile(j), dst_tile_offset);
+            copy_intersection_work<T>(src_tile, src_tile_offset,
+                    dst.get_tile(j), dst_tile_offset, scratch);
         }
     }
 }
 
 template
-void copy_intersection_async(const Tensor<float> &src,
-        const std::vector<Index> &src_offset, const Tensor<float> &dst,
-        const std::vector<Index> &dst_offset);
+void copy_intersection_work(const Tensor<fp32_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<fp32_t> &dst,
+        const std::vector<Index> &dst_offset,
+        const StarpuVariableHandle &scratch);
 
 template
-void copy_intersection_async(const Tensor<double> &src,
-        const std::vector<Index> &src_offset, const Tensor<double> &dst,
-        const std::vector<Index> &dst_offset);
+void copy_intersection_work(const Tensor<fp64_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<fp64_t> &dst,
+        const std::vector<Index> &dst_offset,
+        const StarpuVariableHandle &scratch);
 
 } // namespace nntile
 

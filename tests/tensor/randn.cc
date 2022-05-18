@@ -59,10 +59,9 @@ void validate_randn()
                 {1, 1, 1, 1}));
     TESTA(check_tensors_intersection(small2, {1, 1, 1, 1}, small,
                 {1, 2, 3, 2}));
-    auto small_tile = small.get_tile(0);
-    small_tile.acquire(STARPU_RW);
-    const_cast<T *>(small_tile.get_local_ptr())[small_tile.nelems-1] = 0;
-    small_tile.release();
+    auto small_local = small.get_tile(0).acquire(STARPU_RW);
+    small_local[small.get_tile(0).nelems-1] = 0;
+    small_local.release();
     TESTA(!check_tensors_intersection(big, {0, 0, 0, 0}, small, {1, 2, 3, 2}));
     TESTA(!check_tensors_intersection(small, {1, 2, 3, 2}, big, {0, 0, 0, 0}));
 }

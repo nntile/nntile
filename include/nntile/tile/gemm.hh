@@ -31,19 +31,34 @@ namespace nntile
 // @param[inout] C: Output tile C
 // @param[in] ndim: Number of dimensions used in gemm contraction
 template<typename T>
-void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
+void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
         const TransOp &transB, const Tile<T> &B, T beta, const Tile<T> &C,
         Index ndim=1);
 
 extern template
-void gemm_async(fp32_t alpha, const TransOp &transA, const Tile<fp32_t> &A,
+void gemm_work(fp32_t alpha, const TransOp &transA, const Tile<fp32_t> &A,
         const TransOp &transB, const Tile<fp32_t> &B, fp32_t beta,
         const Tile<fp32_t> &C, Index ndim=1);
 
 extern template
-void gemm_async(fp64_t alpha, const TransOp &transA, const Tile<fp64_t> &A,
+void gemm_work(fp64_t alpha, const TransOp &transA, const Tile<fp64_t> &A,
         const TransOp &transB, const Tile<fp64_t> &B, fp64_t beta,
         const Tile<fp64_t> &C, Index ndim=1);
+
+void gemm_check(const TransOp &transA, const TileTraits &A,
+        const TransOp &transB, const TileTraits &B, const TileTraits &C,
+        Index ndim=1);
+
+template<typename T>
+void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
+        const TransOp &transB, const Tile<T> &B, T beta, const Tile<T> &C,
+        Index ndim=1)
+{
+    // Check inputs (throw exception in case of an error)
+    gemm_check(transA, A, transB, B, C, ndim);
+    // Launch codelet
+    gemm_work<T>(alpha, transA, A, transB, B, beta, C, ndim);
+}
 
 //! Blocking version of tile-wise gemm operation
 //

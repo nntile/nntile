@@ -25,7 +25,8 @@ namespace nntile
 //! Convenient StarPU initialization and shutdown
 class Starpu: public starpu_conf
 {
-    static struct starpu_conf _init_conf()
+    static
+    struct starpu_conf _init_conf()
     {
         struct starpu_conf conf;
         // This function either returns 0 or aborts the program
@@ -65,28 +66,54 @@ public:
     Starpu(Starpu &&) = delete;
     Starpu &operator=(const Starpu &) = delete;
     Starpu &operator=(Starpu &&) = delete;
-    void profiling_enable() const
-    {
-        // Need to treat output of this function properly
-        starpu_profiling_status_set(STARPU_PROFILING_ENABLE);
-    }
-    void profiling_disable() const
-    {
-        // Need to treat output of this function properly
-        starpu_profiling_status_set(STARPU_PROFILING_DISABLE);
-    }
-    void display_summary_worker() const
-    {
-         starpu_profiling_worker_helper_display_summary();
-    }
-    void display_summary_bus() const
-    {
-         starpu_profiling_bus_helper_display_summary();
-    }
+    //! StarPU commute data access mode
     static constexpr enum starpu_data_access_mode
         STARPU_RW_COMMUTE = static_cast<enum starpu_data_access_mode>(
                 STARPU_RW | STARPU_COMMUTE);
+    // Unpack args by pointers without copying actual data
+    template<typename... Ts>
+    static
+    void unpack_args_ptr(void *cl_args, const Ts *&...args)
+    {
+        // The first element is a total number of packed arguments
+        int nargs = reinterpret_cast<int *>(cl_args)[0];
+        cl_args = reinterpret_cast<char *>(cl_args) + sizeof(int);
+        // Unpack arguments one by one
+        if(nargs > 0)
+        {
+            unpack_args_ptr_single_arg(cl_args, nargs, args...);
+        }
+    }
+    // Unpack with no argument remaining
+    static
+    void unpack_args_ptr_single_arg(void *cl_args, int nargs)
+    {
+    }
+    // Unpack arguments one by one
+    template<typename T, typename... Ts>
+    static
+    void unpack_args_ptr_single_arg(void *cl_args, int nargs, const T *&ptr,
+            const Ts *&...args)
+    {
+        // Do nothing if there are no remaining arguments
+        if(nargs == 0)
+        {
+            return;
+        }
+        // The first element is a size of argument
+        size_t arg_size = reinterpret_cast<size_t *>(cl_args)[0];
+        // Get pointer to the data
+        char *char_ptr = reinterpret_cast<char *>(cl_args) + sizeof(size_t);
+        ptr = reinterpret_cast<T *>(char_ptr);
+        // Move pointer by data size
+        cl_args = char_ptr + arg_size;
+        // Unpack next argument
+        unpack_args_ptr_single_arg(cl_args, nargs-1, args...);
+    }
 };
+
+// Forward declaration
+class StarpuHandleLocalData;
 
 //! StarPU data handle as a shared pointer to its internal state
 //
@@ -99,7 +126,8 @@ class StarpuHandle
     //! Deleter function for starpu_data_handle_t
     static void _handle_deleter(starpu_data_handle_t ptr)
     {
-        starpu_data_unregister(ptr);
+        // Lazy unregister data
+        starpu_data_unregister_submit(ptr);
     }
 public:
     //! Constructor owns registered handle and unregisters it when needed
@@ -108,16 +136,13 @@ public:
     {
     }
     //! Destructor is virtual as this is a base class
-    virtual ~StarpuHandle() = default;
+    virtual ~StarpuHandle()
+    {
+    }
     //! Convert to starpu_data_handle_t
     operator starpu_data_handle_t() const
     {
         return handle.get();
-    }
-    //! Get pointer to local data if corresponding interface supports it
-    const void *get_local_ptr() const
-    {
-        return starpu_data_get_local_ptr(handle.get());
     }
     //! Invalidate handle
     void invalidate() const
@@ -129,26 +154,64 @@ public:
     {
         starpu_data_invalidate_submit(handle.get());
     }
-    //! Acquire data
-    void acquire(enum starpu_data_access_mode mode) const
-    {
-        if(mode < 0 or mode >= STARPU_ACCESS_MODE_MAX)
-        {
-            throw std::runtime_error("Invalid value of mode");
-        }
-        starpu_data_acquire(handle.get(), mode);
-    }
-    //! Release acquired data
-    void release() const
-    {
-        starpu_data_release(handle.get());
-    }
     //! Advise to flush from GPU to main memory
     void wont_use() const
     {
         starpu_data_wont_use(handle.get());
     }
+    //! Acquire data locally
+    inline
+    StarpuHandleLocalData acquire(enum starpu_data_access_mode mode)
+        const;
 };
+
+class StarpuHandleLocalData
+{
+    StarpuHandle handle;
+    void *ptr = nullptr;
+    bool acquired = false;
+public:
+    StarpuHandleLocalData(const StarpuHandle &handle_,
+            enum starpu_data_access_mode mode):
+        handle(handle_)
+    {
+        acquire(mode);
+    }
+    virtual ~StarpuHandleLocalData()
+    {
+        if(acquired)
+        {
+            release();
+        }
+    }
+    void acquire(enum starpu_data_access_mode mode)
+    {
+        int status = starpu_data_acquire(handle, mode);
+        if(status != 0)
+        {
+            throw std::runtime_error("status != 0");
+        }
+        acquired = true;
+        ptr = starpu_data_get_local_ptr(handle);
+    }
+    void release()
+    {
+        starpu_data_release(handle);
+        acquired = false;
+        ptr = nullptr;
+    }
+    void *get_ptr() const
+    {
+        return ptr;
+    }
+};
+
+inline
+StarpuHandleLocalData StarpuHandle::acquire(enum starpu_data_access_mode mode)
+    const
+{
+    return StarpuHandleLocalData(*this, mode);
+}
 
 //! Convenient registration and deregistration of data through StarPU handle
 class StarpuVariableHandle: public StarpuHandle

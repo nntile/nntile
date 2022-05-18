@@ -84,26 +84,19 @@ void test_gemm(TransOp transA, TransOp transB, Index M, Index N, Index K,
         T alpha, const Tile<T> &A, Index ldA, const Tile<T> &B, Index ldB,
         T beta, const Tile<T> &C, Index ldC, const Tile<T> &D, Index ldD)
 {
-    A.acquire(STARPU_R);
-    B.acquire(STARPU_R);
-    C.acquire(STARPU_R);
-    D.acquire(STARPU_R);
-    const auto A_ptr = A.get_local_ptr(), B_ptr = B.get_local_ptr(),
-          C_ptr = C.get_local_ptr(), D_ptr = D.get_local_ptr();
-    T *tmp_ptr = new T[D.nelems];
+    auto A_local = A.acquire(STARPU_R), B_local = B.acquire(STARPU_R),
+         C_local = C.acquire(STARPU_R), D_local = D.acquire(STARPU_R);
+    std::vector<T> tmp_local(D.nelems);
     // D = alpha*op(A)*op(B) + beta*C
     // tmp = alpha*op(A)*op(B) + beta*C
     for(Index i = 0; i < D.nelems; ++i)
     {
-        tmp_ptr[i] = D_ptr[i];
+        tmp_local[i] = D_local[i];
     }
-    D.release();
-    T full = norm(M, N, tmp_ptr, ldD);
+    T full = norm(M, N, &tmp_local[0], ldD);
     T one = 1;
-    gemm_naive(transA, transB, M, N, K, -alpha, A_ptr, ldA, B_ptr, ldB, one,
-            tmp_ptr, ldD);
-    A.release();
-    B.release();
+    gemm_naive(transA, transB, M, N, K, -alpha, &A_local[0], ldA, &B_local[0],
+            ldB, one, &tmp_local[0], ldD);
     // tmp = beta*C
     if(beta != 0)
     {
@@ -113,14 +106,12 @@ void test_gemm(TransOp transA, TransOp transB, Index M, Index N, Index K,
             {
                 Index C_offset = n*ldC + m;
                 Index D_offset = n*ldD + m;
-                tmp_ptr[D_offset] -= beta * C_ptr[C_offset];
+                tmp_local[D_offset] -= beta * C_local[C_offset];
             }
         }
     }
-    C.release();
     // D = 0
-    T diff = norm(M, N, tmp_ptr, ldD);
-    delete[] tmp_ptr;
+    T diff = norm(M, N, &tmp_local[0], ldD);
     // 3 is a magic constant to supress growing rounding errors
     T threshold = 3 * full * std::numeric_limits<T>::epsilon();
     if(diff > threshold)

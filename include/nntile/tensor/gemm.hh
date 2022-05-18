@@ -31,19 +31,34 @@ namespace nntile
 // @param[inout] C: Output tensor C
 // @param[in] ndim: Number of dimensions used in gemm contraction
 template<typename T>
-void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
+void gemm_work(T alpha, const TransOp &transA, const Tensor<T> &A,
         const TransOp &transB, const Tensor<T> &B, T beta, const Tensor<T> &C,
         Index ndim=1);
 
 extern template
-void gemm_async(fp32_t alpha, const TransOp &transA, const Tensor<fp32_t> &A,
+void gemm_work(fp32_t alpha, const TransOp &transA, const Tensor<fp32_t> &A,
         const TransOp &transB, const Tensor<fp32_t> &B, fp32_t beta,
         const Tensor<fp32_t> &C, Index ndim=1);
 
 extern template
-void gemm_async(fp64_t alpha, const TransOp &transA, const Tensor<fp64_t> &A,
+void gemm_work(fp64_t alpha, const TransOp &transA, const Tensor<fp64_t> &A,
         const TransOp &transB, const Tensor<fp64_t> &B, fp64_t beta,
         const Tensor<fp64_t> &C, Index ndim=1);
+
+void gemm_check(const TransOp &transA, const TensorTraits &A,
+        const TransOp &transB, const TensorTraits &B, const TensorTraits &C,
+        Index ndim=1);
+
+template<typename T>
+void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
+        const TransOp &transB, const Tensor<T> &B, T beta, const Tensor<T> &C,
+        Index ndim=1)
+{
+    // Check inputs (throw exception in case of an error)
+    gemm_check(transA, A, transB, B, C, ndim);
+    // Launch all gemms
+    gemm_work<T>(alpha, transA, A, transB, B, beta, C, ndim);
+}
 
 //! Blocking version of tensor-wise gemm operation
 //

@@ -23,13 +23,20 @@ namespace nntile
 //
 // @param[inout] A: Tensor for the element-wise GeLU operation
 template<typename T>
-void gelu_async(const Tensor<T> &A);
+void gelu_work(const Tensor<T> &A);
 
 extern template
-void gelu_async(const Tensor<fp32_t> &A);
+void gelu_work(const Tensor<fp32_t> &A);
 
 extern template
-void gelu_async(const Tensor<fp64_t> &A);
+void gelu_work(const Tensor<fp64_t> &A);
+
+template<typename T>
+void gelu_async(const Tensor<T> &A)
+{
+    // No argument checking
+    gelu_work<T>(A);
+}
 
 //! Blocking version of tensor-wise GeLU operation
 //

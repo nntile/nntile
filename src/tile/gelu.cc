@@ -19,7 +19,9 @@ namespace nntile
 {
 
 template<typename T>
-static void cpu_gelu(void *buffers[], void *cl_args)
+static
+void cpu_gelu(void *buffers[], void *cl_args)
+    noexcept
 {
     Index nelems;
     starpu_codelet_unpack_args(cl_args, &nelems);
@@ -33,7 +35,7 @@ static void cpu_gelu(void *buffers[], void *cl_args)
 }
 
 template<typename T>
-void gelu_async(const Tile<T> &A)
+void gelu_work(const Tile<T> &A)
 {
     static struct starpu_codelet codelet_gelu =
     {
@@ -41,19 +43,23 @@ void gelu_async(const Tile<T> &A)
         .nbuffers = 1,
         .modes = {STARPU_RW}
     };
-    starpu_task_insert(&codelet_gelu,
+    int ret = starpu_task_insert(&codelet_gelu,
             STARPU_VALUE, &A.nelems, sizeof(A.nelems),
             STARPU_RW, static_cast<starpu_data_handle_t>(A),
             // std::erf is assumed as a single flop
             STARPU_FLOPS, static_cast<double>(5*A.nelems),
             0);
+    if(ret != 0)
+    {
+        throw std::runtime_error("ret != 0");
+    }
 }
 
 template
-void gelu_async(const Tile<fp32_t> &A);
+void gelu_work(const Tile<fp32_t> &A);
 
 template
-void gelu_async(const Tile<fp64_t> &A);
+void gelu_work(const Tile<fp64_t> &A);
 
 } // namespace nntile
 

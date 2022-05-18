@@ -144,8 +144,8 @@ int main(int argc, char **argv)
     }
     starpu_task_wait_for_all();
     // Flush profiling data
-    starpu.profiling_enable();
     std::chrono::steady_clock clock;
+    starpu_profiling_init();
     auto start = clock.now();
     // Project patches into hidden dimensions
     gemm_async(T{1}, TransOp::Trans, input_images, TransOp::NoTrans, projector,
@@ -183,6 +183,7 @@ int main(int argc, char **argv)
     }
     // The last layer is yet missing
     starpu_task_wait_for_all();
+    starpu_profiling_worker_helper_display_summary();
     auto end = clock.now();
     std::chrono::duration<double> diff = end - start;
     std::cout << "Done in " << diff.count() << " seconds\n";

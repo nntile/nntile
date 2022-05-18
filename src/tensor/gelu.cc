@@ -19,7 +19,7 @@ namespace nntile
 {
 
 template<typename T>
-void gelu_async(const Tensor<T> &A)
+void gelu_work(const Tensor<T> &A)
 {
     for(Index i = 0; i < A.grid.nelems; ++i)
     {
@@ -28,10 +28,10 @@ void gelu_async(const Tensor<T> &A)
 }
 
 template
-void gelu_async(const Tensor<float> &A);
+void gelu_work(const Tensor<fp32_t> &A);
 
 template
-void gelu_async(const Tensor<double> &A);
+void gelu_work(const Tensor<fp64_t> &A);
 
 } // namespace nntile
 

@@ -13,23 +13,17 @@ void check_relu(const Tile<T> &A)
     std::vector<Index> index(B.ndim);
     copy_intersection(A, index, B, index);
     relu(B);
-    A.acquire(STARPU_R);
-    B.acquire(STARPU_R);
-    auto A_ptr = A.get_local_ptr(), B_ptr = B.get_local_ptr();
+    auto A_local = A.acquire(STARPU_R), B_local = B.acquire(STARPU_R);
     for(Index i = 0; i < B.nelems; ++i)
     {
-        T val = std::max(T{0}, A_ptr[i]);
-        T diff = std::abs(val - B_ptr[i]);
+        T val = std::max(T{0}, A_local[i]);
+        T diff = std::abs(val - B_local[i]);
         T threshold = std::abs(val) * std::numeric_limits<T>::epsilon();
         if(diff > threshold)
         {
-            A.release();
-            B.release();
             throw std::runtime_error("diff > threshold");
         }
     }
-    A.release();
-    B.release();
 }
 
 template<typename T>

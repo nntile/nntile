@@ -20,6 +20,10 @@
 namespace nntile
 {
 
+// Forward declaration
+template<typename T>
+class TileLocalData;
+
 //! Many-dimensional tensor, stored contiguously in a Fortran order
 //
 // This is the main data storage class, that is handled by StarPU runtime
@@ -64,39 +68,39 @@ public:
                 sizeof(T)*check_nelems(nelems, ptr_nelems))
     {
     }
-    //! Get pointer to local data if corresponding interface supports it
-    const T *get_local_ptr() const
+    TileLocalData<T> acquire(enum starpu_data_access_mode mode)
+        const;
+};
+
+template<typename T>
+class TileLocalData: public StarpuHandleLocalData
+{
+public:
+    TileLocalData(const Tile<T> &tile, enum starpu_data_access_mode mode):
+        StarpuHandleLocalData(tile, mode)
     {
-        return reinterpret_cast<const T *>(StarpuHandle::get_local_ptr());
     }
-    //! Read an element of the tile by its coordinate
-    T at_index(const std::vector<Index> &index) const
+    const T &operator[](Index i)
+        const
     {
-        // Get the corresponding tile data to the local buffer
-        acquire(STARPU_R);
-        // Read the value, bounds are checked in index_to_linear() function
-        T value = get_local_ptr()[index_to_linear(index)];
-        // Release the buffer
-        release();
-        return value;
+        return get_ptr()[i];
     }
-    //! Read an element of the tile by its linear memory offset
-    T at_linear(Index linear_offset) const
+    T &operator[](Index i)
     {
-        // Check bounds
-        if(linear_offset < 0 or linear_offset >= nelems)
-        {
-            throw std::runtime_error("Index out of bounds");
-        }
-        // Get the corresponding tile data to the local buffer
-        acquire(STARPU_R);
-        // Read the value
-        T value = get_local_ptr()[linear_offset];
-        // Release the buffer
-        release();
-        return value;
+        return get_ptr()[i];
+    }
+    T *get_ptr() const
+    {
+        return reinterpret_cast<T *>(StarpuHandleLocalData::get_ptr());
     }
 };
+
+template<typename T>
+TileLocalData<T> Tile<T>::acquire(enum starpu_data_access_mode mode)
+    const
+{
+    return TileLocalData<T>(*this, mode);
+}
 
 } // namespace nntile
 

@@ -108,7 +108,7 @@ add_test_set(TEST_NAME tests_starpu
     EXEC_NAME starpu
     SOURCES starpu.cc
     LINK_LIBRARIES nntile
-    ARGS "1" "2" "3" "4"
+    ARGS "1" "2" "3" "4" "5"
     COV_ENABLE ${COVERAGE}
     COV_NAME coverage_starpu
     COV_GLOBAL coverage

@@ -84,36 +84,27 @@ void test_gemm(TransOp transA, TransOp transB, Index M, Index N, Index K,
         T alpha, const Tensor<T> &A, Index ldA, const Tensor<T> &B, Index ldB,
         T beta, const Tensor<T> &C, Index ldC, const Tensor<T> &D, Index ldD)
 {
-    Tensor<T> A_local(A.shape, A.shape), B_local(B.shape, B.shape),
-        C_local(C.shape, C.shape), D_local(D.shape, D.shape);
-    copy_intersection(A, A_local);
-    copy_intersection(B, B_local);
-    copy_intersection(C, C_local);
-    copy_intersection(D, D_local);
-    auto A_tile = A_local.get_tile(0), B_tile = B_local.get_tile(0),
-         C_tile = C_local.get_tile(0), D_tile = D_local.get_tile(0);
-    A_tile.acquire(STARPU_R);
-    B_tile.acquire(STARPU_R);
-    C_tile.acquire(STARPU_R);
-    D_tile.acquire(STARPU_R);
-    auto A_tile_ptr = A_tile.get_local_ptr(),
-         B_tile_ptr = B_tile.get_local_ptr(),
-         C_tile_ptr = C_tile.get_local_ptr(),
-         D_tile_ptr = D_tile.get_local_ptr();
-    T *tmp_ptr = new T[D_tile.nelems];
+    Tensor<T> A2(A.shape, A.shape), B2(B.shape, B.shape), C2(C.shape, C.shape),
+        D2(D.shape, D.shape);
+    copy_intersection(A, A2);
+    copy_intersection(B, B2);
+    copy_intersection(C, C2);
+    copy_intersection(D, D2);
+    auto A2_local = A2.get_tile(0).acquire(STARPU_R),
+         B2_local = B2.get_tile(0).acquire(STARPU_R),
+         C2_local = C2.get_tile(0).acquire(STARPU_R),
+         D2_local = D2.get_tile(0).acquire(STARPU_R);
+    std::vector<T> tmp_local(D2.nelems);
     // D = alpha*op(A)*op(B) + beta*C
     // tmp = alpha*op(A)*op(B) + beta*C
-    for(Index i = 0; i < D_tile.nelems; ++i)
+    for(Index i = 0; i < D2.nelems; ++i)
     {
-        tmp_ptr[i] = D_tile_ptr[i];
+        tmp_local[i] = D2_local[i];
     }
-    D_tile.release();
-    T full = norm(M, N, tmp_ptr, ldD);
+    T full = norm(M, N, &tmp_local[0], ldD);
     T one = 1;
-    gemm_naive(transA, transB, M, N, K, -alpha, A_tile_ptr, ldA, B_tile_ptr,
-            ldB, one, tmp_ptr, ldD);
-    A_tile.release();
-    B_tile.release();
+    gemm_naive(transA, transB, M, N, K, -alpha, &A2_local[0], ldA,
+            &B2_local[0], ldB, one, &tmp_local[0], ldD);
     // tmp = beta*C
     if(beta != 0)
     {
@@ -123,14 +114,12 @@ void test_gemm(TransOp transA, TransOp transB, Index M, Index N, Index K,
             {
                 Index C_offset = n*ldC + m;
                 Index D_offset = n*ldD + m;
-                tmp_ptr[D_offset] -= beta * C_tile_ptr[C_offset];
+                tmp_local[D_offset] -= beta * C2_local[C_offset];
             }
         }
     }
-    C_tile.release();
     // D = 0
-    T diff = norm(M, N, tmp_ptr, ldD);
-    delete[] tmp_ptr;
+    T diff = norm(M, N, &tmp_local[0], ldD);
     // 3 is a magic constant to supress growing rounding errors
     T threshold = 3 * full * std::numeric_limits<T>::epsilon();
     if(diff > threshold)

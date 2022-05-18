@@ -17,47 +17,36 @@ void check_sum_ssq(const Tensor<T> &src, const Tensor<T> &src_tile,
     norm_sum_ssq(src_tile.get_tile(0), sum_ssq_tile.get_tile(0), axes);
     Tensor<T> sum_ssq_tile2(sum_ssq.shape, sum_ssq.shape);
     copy_intersection(sum_ssq, sum_ssq_tile2);
-    auto tile = sum_ssq_tile.get_tile(0);
-    tile.acquire(STARPU_R);
-    auto tile2 = sum_ssq_tile2.get_tile(0);
-    tile2.acquire(STARPU_R);
-    const T *ptr = tile.get_local_ptr(), *ptr2 = tile2.get_local_ptr();
-    for(Index i = 0; i < tile.nelems; i += 3)
+    auto local = sum_ssq_tile.get_tile(0).acquire(STARPU_R),
+         local2 = sum_ssq_tile2.get_tile(0).acquire(STARPU_R);
+    for(Index i = 0; i < sum_ssq.nelems; i += 3)
     {
-        T sum = ptr[i], sum2 = ptr2[i];
+        T sum = local[i], sum2 = local2[i];
         T diff = std::abs(sum-sum2), norm = std::abs(sum);
         T threshold = 50 * norm * std::numeric_limits<T>::epsilon();
         if(diff > threshold)
         {
-            tile.release();
-            tile2.release();
             std::cout << diff << " " << threshold << "\n";
             std::cout << sum << " " << sum2 << "\n";
             throw std::runtime_error("Invalid sum");
         }
-        T scale = ptr[i+1], scale2 = ptr2[i+1];
+        T scale = local[i+1], scale2 = local2[i+1];
         diff = std::abs(scale-scale2);
         if(diff != 0)
         {
-            tile.release();
-            tile2.release();
             throw std::runtime_error("Invalid scale");
         }
-        T ssq = ptr[i+2], ssq2 = ptr2[i+2];
+        T ssq = local[i+2], ssq2 = local2[i+2];
         diff = std::abs(ssq-ssq2);
         norm = std::abs(ssq);
         threshold = 50 * norm * std::numeric_limits<T>::epsilon();
         if(diff > threshold)
         {
-            tile.release();
-            tile2.release();
             std::cout << diff << " " << threshold << "\n";
             std::cout << ssq << " " << ssq2 << "\n";
             throw std::runtime_error("Invalid ssq");
         }
     }
-    tile.release();
-    tile2.release();
 }
 
 template<typename T>

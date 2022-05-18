@@ -13,28 +13,22 @@ void check_gelu(const Tile<T> &A)
     std::vector<Index> index(B.ndim);
     copy_intersection(A, index, B, index);
     gelu(B);
-    A.acquire(STARPU_R);
-    B.acquire(STARPU_R);
-    auto A_ptr = A.get_local_ptr(), B_ptr = B.get_local_ptr();
+    auto A_local = A.acquire(STARPU_R), B_local = B.acquire(STARPU_R);
     for(Index i = 0; i < B.nelems; ++i)
     {
         constexpr T sqrt2 = std::sqrt(T{2.0});
         constexpr T one = 1.0;
         constexpr T pt5 = 0.5;
-        T val = A_ptr[i];
+        T val = A_local[i];
         T tmp = pt5*(std::erf(val/sqrt2)) + pt5;
         val *= tmp;
-        T diff = std::abs(val - B_ptr[i]);
+        T diff = std::abs(val - B_local[i]);
         T threshold = std::abs(val) * std::numeric_limits<T>::epsilon();
         if(diff > threshold)
         {
-            A.release();
-            B.release();
             throw std::runtime_error("diff > threshold");
         }
     }
-    A.release();
-    B.release();
 }
 
 template<typename T>

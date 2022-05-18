@@ -23,9 +23,8 @@ bool check_tiles_intersection(const Tile<T> &A,
     {
         throw std::runtime_error("B_offset.size() != ndim");
     }
-    A.acquire(STARPU_R);
-    B.acquire(STARPU_R);
-    const auto A_ptr = A.get_local_ptr(), B_ptr = B.get_local_ptr();
+    auto A_local = A.acquire(STARPU_R);
+    auto B_local = B.acquire(STARPU_R);
     bool result = true;
     for(Index i = 0; i < A.nelems; ++i)
     {
@@ -37,18 +36,16 @@ bool check_tiles_intersection(const Tile<T> &A,
         if(B.contains_index(index))
         {
             Index B_linear_offset = B.index_to_linear(index);
-            if(A_ptr[i] != B_ptr[B_linear_offset])
+            if(A_local[i] != B_local[B_linear_offset])
             {
-                std::cout << "A_ptr[" << i << "]=" << A_ptr[i] << "\n";
-                std::cout << "B_ptr[" << B_linear_offset << "]=" <<
-                    B_ptr[B_linear_offset] << "\n";
+                std::cout << "A_local[" << i << "]=" << A_local[i] << "\n";
+                std::cout << "B_local[" << B_linear_offset << "]=" <<
+                    B_local[B_linear_offset] << "\n";
                 result = false;
                 break;
             }
         }
     }
-    A.release();
-    B.release();
     return result;
 }
 

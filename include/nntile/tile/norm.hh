@@ -67,7 +67,7 @@ void norm_sum_ssq_accumulate_async(const Tile<T> &sum_ssq,
         }
     }
     // Launch codelet
-    norm_sum_ssq_accumulate_async(sum_ssq, sum_ssq_total);
+    norm_sum_ssq_accumulate_work(sum_ssq, sum_ssq_total);
 }
 
 //! Accumulate sum and scaled sum of squares of 2 tiles
@@ -99,15 +99,18 @@ void norm_sum_ssq_accumulate(const Tile<T> &sum_ssq,
 // src[i,:,j].
 template<typename T>
 void norm_sum_ssq_work(const Tile<T> &src, const Tile<T> &sum_ssq,
-        const std::vector<Index> &axes, bool init_output=true);
+        const std::vector<Index> &axes, const StarpuVariableHandle &scratch,
+        bool init_output=true);
 
 extern template
 void norm_sum_ssq_work(const Tile<fp32_t> &src, const Tile<fp32_t> &sum_ssq,
-        const std::vector<Index> &axes, bool init_output=true);
+        const std::vector<Index> &axes, const StarpuVariableHandle &scratch,
+        bool init_output=true);
 
 extern template
 void norm_sum_ssq_work(const Tile<fp64_t> &src, const Tile<fp64_t> &sum_ssq,
-        const std::vector<Index> &axes, bool init_output=true);
+        const std::vector<Index> &axes, const StarpuVariableHandle &scratch,
+        bool init_output=true);
 
 //! Tile-wise sum and scaled sum of squares along given set of axes
 //
@@ -178,8 +181,10 @@ void norm_sum_ssq_async(const Tile<T> &src, const Tile<T> &sum_ssq,
                     "sum_ssq.shape[j+1-axes.size()]");
         }
     }
+    // Scratch buffer
+    StarpuVariableHandle scratch(2 * (src.ndim+sum_ssq.ndim) * sizeof(Index));
     // Launch codelet
-    norm_sum_ssq_work(src, sum_ssq, axes, init_output);
+    norm_sum_ssq_work(src, sum_ssq, axes, scratch, init_output);
 }
 
 //! Tile-wise sum and scaled sum of squares along given set of axes
@@ -291,7 +296,47 @@ void norm_avg_dev_work(const Tile<fp64_t> &sum_ssq,
 // Checks input arguments
 template<typename T>
 void norm_avg_dev_async(const Tile<T> &sum_ssq, const Tile<T> &avg_dev,
-        Index nelems, T eps);
+        Index nelems, T eps)
+{
+    // Check inputs
+    if(sum_ssq.ndim != avg_dev.ndim)
+    {
+        throw std::runtime_error("sum_ssq.ndim != avg_dev.ndim");
+    }
+    // Input shape dimension shall be at least 1
+    if(sum_ssq.ndim == 0)
+    {
+        throw std::runtime_error("sum_ssq.ndim == 0");
+    }
+    // Check number of elements
+    if(nelems <= 0)
+    {
+        throw std::runtime_error("nelems <= 0");
+    }
+    // Check regularization
+    if(eps < 0)
+    {
+        throw std::runtime_error("eps < 0");
+    }
+    // Check shapes
+    if(sum_ssq.shape[0] != 3)
+    {
+        throw std::runtime_error("sum_ssq.shape[0] != 3");
+    }
+    if(avg_dev.shape[0] != 2)
+    {
+        throw std::runtime_error("avg_dev.shape[0] != 2");
+    }
+    for(Index i = 1; i < sum_ssq.ndim; ++i)
+    {
+        if(sum_ssq.shape[i] != avg_dev.shape[i])
+        {
+            throw std::runtime_error("sum_ssq.shape[i] != avg_dev.shape[i]");
+        }
+    }
+    // Launch codelet
+    norm_avg_dev_work<T>(sum_ssq, avg_dev, nelems, eps);
+}
 
 //! Tile-wise average and deviation from sum and scaled sum of squares
 //

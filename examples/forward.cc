@@ -35,10 +35,10 @@ void run_forward(const std::vector<Index> &shape,
         randn(B[i-1], seed);
         seed = seed*seed + 1;
     }
+    randn(X[0], seed);
     T one = 1, zero = 0;
     std::chrono::steady_clock clock;
-    starpu.profiling_enable();
-    randn(X[0], seed);
+    starpu_profiling_init();
     auto start = clock.now();
     for(Index i = 0; i < nforward; ++i)
     {
@@ -53,8 +53,7 @@ void run_forward(const std::vector<Index> &shape,
         copy_intersection_async(X[nlayers], X[0]);
     }
     starpu_task_wait_for_all();
-    starpu.display_summary_worker();
-    starpu.profiling_disable();
+    starpu_profiling_worker_helper_display_summary();
     auto end = clock.now();
     std::chrono::duration<double> diff = end - start;
     std::cout << "Done in " << diff.count() << " seconds\n";

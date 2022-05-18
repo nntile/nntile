@@ -23,13 +23,21 @@ namespace nntile
 //
 // @param[inout] A: Tile for the element-wise GeLU operation
 template<typename T>
-void gelu_async(const Tile<T> &A);
+void gelu_work(const Tile<T> &A);
 
 extern template
-void gelu_async(const Tile<fp32_t> &A);
+void gelu_work(const Tile<fp32_t> &A);
 
 extern template
-void gelu_async(const Tile<fp64_t> &A);
+void gelu_work(const Tile<fp64_t> &A);
+
+template<typename T>
+void gelu_async(const Tile<T> &A)
+{
+    // No argument checking
+    gelu_work<T>(A);
+}
+
 
 //! Blocking version of tile-wise GeLU operation
 //

@@ -230,9 +230,9 @@ static inline void gemm_check_opB_C(const TransOp &transB, const TileTraits &B,
 }
 
 //! Check if tensors match gemm
-static inline void gemm_check(const TransOp &transA, const TileTraits &A,
+void gemm_check(const TransOp &transA, const TileTraits &A,
         const TransOp &transB, const TileTraits &B, const TileTraits &C,
-        Index ndim=1)
+        Index ndim)
 {
     // Check if dimensionalities match
     gemm_check_ndim(A, B, C, ndim);
@@ -304,7 +304,7 @@ static void gemm_codelet_cpu(void *buffers[], void *cl_args)
 }
 
 template<typename T>
-void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
+void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
         const TransOp &transB, const Tile<T> &B, T beta, const Tile<T> &C,
         Index ndim)
 {
@@ -335,8 +335,6 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_R, Starpu::STARPU_RW_COMMUTE}
     };
-    // Check if tensors match gemm
-    gemm_check(transA, A, transB, B, C, ndim);
     // Reference tensors as matrices
     Index m = C.matrix_shape[A.ndim-ndim][0];
     Index n = C.matrix_shape[A.ndim-ndim][1];
@@ -382,9 +380,10 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
     }
 #endif
     constexpr T zero = 0, one = 1;
+    int ret;
     if(beta == zero)
     {
-        starpu_task_insert(&codelet_gemm_w,
+        ret = starpu_task_insert(&codelet_gemm_w,
                 STARPU_VALUE, &transA.value, sizeof(transA.value),
                 STARPU_VALUE, &transB.value, sizeof(transB.value),
                 STARPU_VALUE, &m, sizeof(m),
@@ -400,7 +399,7 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
     }
     else if(beta == one)
     {
-        starpu_task_insert(&codelet_gemm_rw_commute,
+        ret = starpu_task_insert(&codelet_gemm_rw_commute,
                 STARPU_VALUE, &transA.value, sizeof(transA.value),
                 STARPU_VALUE, &transB.value, sizeof(transB.value),
                 STARPU_VALUE, &m, sizeof(m),
@@ -417,7 +416,7 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
     }
     else
     {
-        starpu_task_insert(&codelet_gemm_rw,
+        ret = starpu_task_insert(&codelet_gemm_rw,
                 STARPU_VALUE, &transA.value, sizeof(transA.value),
                 STARPU_VALUE, &transB.value, sizeof(transB.value),
                 STARPU_VALUE, &m, sizeof(m),
@@ -431,15 +430,19 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
                 STARPU_FLOPS, static_cast<double>(2*m*n*k),
                 0);
     }
+    if(ret != 0)
+    {
+        throw std::runtime_error("ret != 0");
+    }
 }
 
 template
-void gemm_async(float alpha, const TransOp &transA, const Tile<float> &A,
+void gemm_work(float alpha, const TransOp &transA, const Tile<float> &A,
         const TransOp &transB, const Tile<float> &B, float beta,
         const Tile<float> &C, Index ndim=1);
 
 template
-void gemm_async(double alpha, const TransOp &transA, const Tile<double> &A,
+void gemm_work(double alpha, const TransOp &transA, const Tile<double> &A,
         const TransOp &transB, const Tile<double> &B, double beta,
         const Tile<double> &C, Index ndim=1);
 

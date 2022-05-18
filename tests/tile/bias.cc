@@ -13,14 +13,11 @@ void check_bias(const Tile<T> &src, const Tile<T> &dst, Index axis)
     std::vector<Index> index(dst.ndim, 0);
     copy_intersection(dst, index, res, index);
     bias(src, res, axis);
-    src.acquire(STARPU_R);
-    dst.acquire(STARPU_R);
-    res.acquire(STARPU_R);
-    auto src_ptr = src.get_local_ptr(), dst_ptr = dst.get_local_ptr(),
-         res_ptr = res.get_local_ptr();
-    if(src_ptr[0]+dst_ptr[0] != res_ptr[0])
+    auto src_local = src.acquire(STARPU_R), dst_local = dst.acquire(STARPU_R),
+         res_local = res.acquire(STARPU_R);
+    if(src_local[0]+dst_local[0] != res_local[0])
     {
-        throw std::runtime_error("src_ptr[0]+dst_ptr[0] != res_ptr[0]");
+        throw std::runtime_error("src_local[0]+dst_local[0] != res_local[0]");
     }
     for(Index i = 1; i < dst.nelems; ++i)
     {
@@ -41,18 +38,12 @@ void check_bias(const Tile<T> &src, const Tile<T> &dst, Index axis)
         {
             src_offset += index[k] * src.stride[k-1];
         }
-        if(src_ptr[src_offset]+dst_ptr[i] != res_ptr[i])
+        if(src_local[src_offset]+dst_local[i] != res_local[i])
         {
-            src.release();
-            dst.release();
-            res.release();
-            throw std::runtime_error("src_ptr[src_offset]+dst_ptr[i] != "
-                    "dst_ptr[i]");
+            throw std::runtime_error("src_local[src_offset]+dst_local[i] != "
+                    "dst_local[i]");
         }
     }
-    src.release();
-    dst.release();
-    res.release();
 }
 
 template<typename T>
@@ -62,11 +53,8 @@ void check_bias_avg_dev(const Tile<T> &avg_dev, const Tile<T> &dst, Index axis)
     std::vector<Index> index(dst.ndim, 0);
     copy_intersection(dst, index, res, index);
     bias_avg_dev(avg_dev, res, axis);
-    avg_dev.acquire(STARPU_R);
-    dst.acquire(STARPU_R);
-    res.acquire(STARPU_R);
-    auto avg_dev_ptr = avg_dev.get_local_ptr(), dst_ptr = dst.get_local_ptr(),
-         res_ptr = res.get_local_ptr();
+    auto avg_dev_local = avg_dev.acquire(STARPU_R),
+         dst_local = dst.acquire(STARPU_R), res_local = res.acquire(STARPU_R);
     for(Index i = 0; i < dst.nelems; ++i)
     {
         // Get offset for averages and deviations
@@ -80,22 +68,19 @@ void check_bias_avg_dev(const Tile<T> &avg_dev, const Tile<T> &dst, Index axis)
             avg_dev_offset += index[k] * avg_dev.stride[k];
         }
         // Check
-        const T &dst_val = dst_ptr[i], &res_val = res_ptr[i];
-        const T &avg_val = avg_dev_ptr[avg_dev_offset];
-        const T &dev_val = avg_dev_ptr[avg_dev_offset+1];
+        const T &dst_val = dst_local[i], &res_val = res_local[i];
+        const T &avg_val = avg_dev_local[avg_dev_offset];
+        const T &dev_val = avg_dev_local[avg_dev_offset+1];
         const T ref_val = (dst_val-avg_val) / dev_val;
         const T norm = std::abs(ref_val);
-        const T diff = std::abs(ref_val-res_ptr[i]);
+        const T diff = std::abs(ref_val-res_local[i]);
         T threshold = norm * std::numeric_limits<T>::epsilon();
         // Accuracy is bad if dst_val is close to avg_val, need to adjust
         // threshold
         threshold *= 2 + std::abs(dst_val/(dst_val-avg_val));
         if(diff > threshold)
         {
-            avg_dev.release();
-            dst.release();
-            res.release();
-            throw std::runtime_error("ref_val != res_ptr[i]");
+            throw std::runtime_error("ref_val != res_local[i]");
         }
         // Get next item
         if(i == dst.nelems-1)
@@ -111,9 +96,6 @@ void check_bias_avg_dev(const Tile<T> &avg_dev, const Tile<T> &dst, Index axis)
             ++index[j];
         }
     }
-    avg_dev.release();
-    dst.release();
-    res.release();
 }
 
 template<typename T>

@@ -20,22 +20,25 @@ namespace nntile
 
 // Compute sum and scaled sum of squares of a tile
 template<typename T>
-static void cpu_sum_ssq_init(void *buffers[], void *cl_args)
+static
+void cpu_sum_ssq_init(void *buffers[], void *cl_args)
+    noexcept
 {
-    Index src_ndim, axes_ndim;
-    // Read number of dimensions of corresponding arrays
-    starpu_codelet_unpack_args(cl_args, &src_ndim, &axes_ndim, nullptr);
+    const Index *src_ndim_ptr, *axes_ndim_ptr, *src_nelems_ptr, *src_shape,
+          *sum_ssq_shape, *axes;
+    Starpu::unpack_args_ptr(cl_args, src_ndim_ptr, axes_ndim_ptr,
+            src_nelems_ptr, src_shape, sum_ssq_shape, axes);
+    Index src_ndim = *src_ndim_ptr, axes_ndim = *axes_ndim_ptr,
+          src_nelems = *src_nelems_ptr;
     Index sum_ssq_ndim = src_ndim + 1 - axes_ndim;
-    // Allocate space for arrays
-    std::vector<Index> src_shape(src_ndim), sum_ssq_shape(sum_ssq_ndim),
-        axes(axes_ndim);
-    Index src_nelems;
-    // Read arrays
-    starpu_codelet_unpack_args(cl_args, &src_ndim, &axes_ndim, &src_nelems,
-            &(src_shape[0]), &(sum_ssq_shape[0]), &(axes[0]));
     // Get pointers
     const T *src = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
     T *sum_ssq = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[1]));
+    Index *src_stride = reinterpret_cast<Index *>(
+            STARPU_VARIABLE_GET_PTR(buffers[2]));
+    Index *src_index = src_stride + src_ndim;
+    Index *sum_ssq_stride = src_index + src_ndim;
+    Index *sum_ssq_index = sum_ssq_stride + sum_ssq_ndim;
     // Define number of slices and size of each slice
     Index slice_nelems = 1;
     for(Index i = 0; i < axes_ndim; ++i)
@@ -44,19 +47,21 @@ static void cpu_sum_ssq_init(void *buffers[], void *cl_args)
     }
     Index nslices = src_nelems / slice_nelems;
     // Define stride arrays
-    std::vector<Index> src_stride(src_ndim), sum_ssq_stride(sum_ssq_ndim);
     src_stride[0] = 1;
+    src_index[0] = 0;
     for(Index i = 1; i < src_ndim; ++i)
     {
         src_stride[i] = src_stride[i-1] * src_shape[i-1];
+        src_index[i] = 0;
     }
     sum_ssq_stride[0] = 1;
+    sum_ssq_index[0] = 0;
     for(Index i = 1; i < sum_ssq_ndim; ++i)
     {
         sum_ssq_stride[i] = sum_ssq_stride[i-1] * sum_ssq_shape[i-1];
+        sum_ssq_index[i] = 0;
     }
     // Compute sum and scaled sum of squares for each slice
-    std::vector<Index> sum_ssq_index(sum_ssq_ndim), src_index(src_ndim);
     Index sum_ssq_linear_offset = 0, src_linear_offset = 0;
     for(Index i = 0; i < nslices; ++i)
     {
@@ -163,22 +168,25 @@ static void cpu_sum_ssq_init(void *buffers[], void *cl_args)
 
 // Accumulate sum and scaled sum of squares of a tile
 template<typename T>
-static void cpu_sum_ssq_update(void *buffers[], void *cl_args)
+static
+void cpu_sum_ssq_update(void *buffers[], void *cl_args)
+    noexcept
 {
-    Index src_ndim, axes_ndim;
-    // Read number of dimensions of corresponding arrays
-    starpu_codelet_unpack_args(cl_args, &src_ndim, &axes_ndim, nullptr);
+    const Index *src_ndim_ptr, *axes_ndim_ptr, *src_nelems_ptr, *src_shape,
+          *sum_ssq_shape, *axes;
+    Starpu::unpack_args_ptr(cl_args, src_ndim_ptr, axes_ndim_ptr,
+            src_nelems_ptr, src_shape, sum_ssq_shape, axes);
+    Index src_ndim = *src_ndim_ptr, axes_ndim = *axes_ndim_ptr,
+          src_nelems = *src_nelems_ptr;
     Index sum_ssq_ndim = src_ndim + 1 - axes_ndim;
-    // Allocate space for arrays
-    std::vector<Index> src_shape(src_ndim), sum_ssq_shape(sum_ssq_ndim),
-        axes(axes_ndim);
-    Index src_nelems;
-    // Read arrays
-    starpu_codelet_unpack_args(cl_args, &src_ndim, &axes_ndim, &src_nelems,
-            &(src_shape[0]), &(sum_ssq_shape[0]), &(axes[0]));
     // Get pointers
     const T *src = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
     T *sum_ssq = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[1]));
+    Index *src_stride = reinterpret_cast<Index *>(
+            STARPU_VARIABLE_GET_PTR(buffers[2]));
+    Index *src_index = src_stride + src_ndim;
+    Index *sum_ssq_stride = src_index + src_ndim;
+    Index *sum_ssq_index = sum_ssq_stride + sum_ssq_ndim;
     // Define number of slices and size of each slice
     Index slice_nelems = 1;
     for(Index i = 0; i < axes_ndim; ++i)
@@ -187,19 +195,21 @@ static void cpu_sum_ssq_update(void *buffers[], void *cl_args)
     }
     Index nslices = src_nelems / slice_nelems;
     // Define stride arrays
-    std::vector<Index> src_stride(src_ndim), sum_ssq_stride(sum_ssq_ndim);
     src_stride[0] = 1;
+    src_index[0] = 0;
     for(Index i = 1; i < src_ndim; ++i)
     {
         src_stride[i] = src_stride[i-1] * src_shape[i-1];
+        src_index[i] = 0;
     }
     sum_ssq_stride[0] = 1;
+    sum_ssq_index[0] = 0;
     for(Index i = 1; i < sum_ssq_ndim; ++i)
     {
         sum_ssq_stride[i] = sum_ssq_stride[i-1] * sum_ssq_shape[i-1];
+        sum_ssq_index[i] = 0;
     }
     // Compute sum and scaled sum of squares for each slice
-    std::vector<Index> sum_ssq_index(sum_ssq_ndim), src_index(src_ndim);
     Index sum_ssq_linear_offset = 0, src_linear_offset = 0;
     for(Index i = 0; i < nslices; ++i)
     {
@@ -219,7 +229,7 @@ static void cpu_sum_ssq_update(void *buffers[], void *cl_args)
             {
                 T tmp = scale / absval;
                 scale = absval;
-                ssq = ssq*tmp*tmp + 1;
+                ssq = ssq*tmp*tmp + T{1};
             }
             else
             {
@@ -325,27 +335,29 @@ static void cpu_sum_ssq_update(void *buffers[], void *cl_args)
 
 template<typename T>
 void norm_sum_ssq_work(const Tile<T> &src, const Tile<T> &sum_ssq,
-        const std::vector<Index> &axes, bool init_output)
+        const std::vector<Index> &axes, const StarpuVariableHandle &scratch,
+        bool init_output)
 {
     static struct starpu_codelet codelet_sum_ssq_init =
     {
         .cpu_funcs = {cpu_sum_ssq_init<T>},
-        .nbuffers = 2,
-        .modes = {STARPU_R, STARPU_W},
+        .nbuffers = 3,
+        .modes = {STARPU_R, STARPU_W, STARPU_SCRATCH},
         .name = "sum_ssq_init"
     };
     static struct starpu_codelet codelet_sum_ssq_update =
     {
         .cpu_funcs = {cpu_sum_ssq_update<T>},
-        .nbuffers = 2,
-        .modes = {STARPU_R, Starpu::STARPU_RW_COMMUTE},
+        .nbuffers = 3,
+        .modes = {STARPU_R, Starpu::STARPU_RW_COMMUTE, STARPU_SCRATCH},
         .name = "sum_ssq_update"
     };
     // Insert task
     Index axes_ndim = axes.size();
+    int ret;
     if(init_output)
     {
-        starpu_task_insert(&codelet_sum_ssq_init,
+        ret = starpu_task_insert(&codelet_sum_ssq_init,
                 STARPU_VALUE, &(src.ndim), sizeof(src.ndim),
                 STARPU_VALUE, &(axes_ndim), sizeof(axes_ndim),
                 STARPU_VALUE, &(src.nelems), sizeof(src.nelems),
@@ -355,11 +367,12 @@ void norm_sum_ssq_work(const Tile<T> &src, const Tile<T> &sum_ssq,
                 STARPU_VALUE, &(axes[0]), axes_ndim*sizeof(axes[0]),
                 STARPU_R, static_cast<starpu_data_handle_t>(src),
                 STARPU_W, static_cast<starpu_data_handle_t>(sum_ssq),
+                STARPU_SCRATCH, static_cast<starpu_data_handle_t>(scratch),
                 0);
     }
     else
     {
-        starpu_task_insert(&codelet_sum_ssq_update,
+        ret = starpu_task_insert(&codelet_sum_ssq_update,
                 STARPU_VALUE, &(src.ndim), sizeof(src.ndim),
                 STARPU_VALUE, &(axes_ndim), sizeof(axes_ndim),
                 STARPU_VALUE, &(src.nelems), sizeof(src.nelems),
@@ -370,20 +383,29 @@ void norm_sum_ssq_work(const Tile<T> &src, const Tile<T> &sum_ssq,
                 STARPU_R, static_cast<starpu_data_handle_t>(src),
                 Starpu::STARPU_RW_COMMUTE,
                 static_cast<starpu_data_handle_t>(sum_ssq),
+                STARPU_SCRATCH, static_cast<starpu_data_handle_t>(scratch),
                 0);
+    }
+    if(ret != 0)
+    {
+        throw std::runtime_error("ret != 0");
     }
 }
 
 template
 void norm_sum_ssq_work(const Tile<fp32_t> &src, const Tile<fp32_t> &sum_ssq,
-        const std::vector<Index> &axes, bool init_output=true);
+        const std::vector<Index> &axes, const StarpuVariableHandle &scratch,
+        bool init_output=true);
 
 template
 void norm_sum_ssq_work(const Tile<fp64_t> &src, const Tile<fp64_t> &sum_ssq,
-        const std::vector<Index> &axes, bool init_output=true);
+        const std::vector<Index> &axes, const StarpuVariableHandle &scratch,
+        bool init_output=true);
 
 template<typename T>
-static void cpu_sum_ssq_single_axis_init(void *buffers[], void *cl_args)
+static
+void cpu_sum_ssq_single_axis_init(void *buffers[], void *cl_args)
+    noexcept
 {
     // Get sizes
     Index m, n, k;
@@ -483,7 +505,9 @@ static void cpu_sum_ssq_single_axis_init(void *buffers[], void *cl_args)
 }
 
 template<typename T>
-static void cpu_sum_ssq_single_axis_update(void *buffers[], void *cl_args)
+static
+void cpu_sum_ssq_single_axis_update(void *buffers[], void *cl_args)
+    noexcept
 {
     // Get sizes
     Index m, n, k;
@@ -562,7 +586,9 @@ static void cpu_sum_ssq_single_axis_update(void *buffers[], void *cl_args)
 }
 
 template<typename T>
-static void cpu_sum_ssq_single_axis_m1(void *buffers[], void *cl_args)
+static
+void cpu_sum_ssq_single_axis_m1(void *buffers[], void *cl_args)
+    noexcept
 {
     // Get sizes
     Index n, k;
@@ -642,10 +668,11 @@ void norm_sum_ssq_work(const Tile<T> &src, const Tile<T> &sum_ssq,
         k = src.shape[axis];
     }
     // Insert task
+    int ret;
     if(init_output)
     {
         // Init output
-        starpu_task_insert(&codelet_sum_ssq_single_axis_init,
+        ret = starpu_task_insert(&codelet_sum_ssq_single_axis_init,
                 STARPU_VALUE, &m, sizeof(m),
                 STARPU_VALUE, &n, sizeof(n),
                 STARPU_VALUE, &k, sizeof(k),
@@ -656,7 +683,7 @@ void norm_sum_ssq_work(const Tile<T> &src, const Tile<T> &sum_ssq,
     else
     {
         // Update output
-        starpu_task_insert(&codelet_sum_ssq_single_axis_update,
+        ret = starpu_task_insert(&codelet_sum_ssq_single_axis_update,
                 STARPU_VALUE, &m, sizeof(m),
                 STARPU_VALUE, &n, sizeof(n),
                 STARPU_VALUE, &k, sizeof(k),
@@ -664,6 +691,10 @@ void norm_sum_ssq_work(const Tile<T> &src, const Tile<T> &sum_ssq,
                 Starpu::STARPU_RW_COMMUTE,
                 static_cast<starpu_data_handle_t>(sum_ssq),
                 0);
+    }
+    if(ret != 0)
+    {
+        throw std::runtime_error("ret != 0");
     }
 }
 
@@ -676,7 +707,9 @@ void norm_sum_ssq_work(const Tile<fp64_t> &src, const Tile<fp64_t> &sum_ssq,
         Index axis, bool init_output=false);
 
 template<typename T>
-static void cpu_avg_dev(void *buffers[], void *cl_args)
+static
+void cpu_avg_dev(void *buffers[], void *cl_args)
+    noexcept
 {
     // Get sizes
     Index m, nelems;
@@ -719,7 +752,7 @@ static void cpu_avg_dev(void *buffers[], void *cl_args)
 }
 
 template<typename T>
-void norm_avg_dev_async(const Tile<T> &sum_ssq, const Tile<T> &avg_dev,
+void norm_avg_dev_work(const Tile<T> &sum_ssq, const Tile<T> &avg_dev,
         Index nelems, T eps)
 {
     static struct starpu_codelet codelet_avg_dev =
@@ -728,60 +761,28 @@ void norm_avg_dev_async(const Tile<T> &sum_ssq, const Tile<T> &avg_dev,
         .nbuffers = 2,
         .modes = {STARPU_R, STARPU_W}
     };
-    // Check inputs
-    if(sum_ssq.ndim != avg_dev.ndim)
-    {
-        throw std::runtime_error("sum_ssq.ndim != avg_dev.ndim");
-    }
-    // Input shape dimension shall be at least 1
-    if(sum_ssq.ndim == 0)
-    {
-        throw std::runtime_error("sum_ssq.ndim == 0");
-    }
-    // Check number of elements
-    if(nelems <= 0)
-    {
-        throw std::runtime_error("nelems <= 0");
-    }
-    // Check regularization
-    if(eps < 0)
-    {
-        throw std::runtime_error("eps < 0");
-    }
-    // Check shapes
-    if(sum_ssq.shape[0] != 3)
-    {
-        throw std::runtime_error("sum_ssq.shape[0] != 3");
-    }
-    if(avg_dev.shape[0] != 2)
-    {
-        throw std::runtime_error("avg_dev.shape[0] != 2");
-    }
-    for(Index i = 1; i < sum_ssq.ndim; ++i)
-    {
-        if(sum_ssq.shape[i] != avg_dev.shape[i])
-        {
-            throw std::runtime_error("sum_ssq.shape[i] != avg_dev.shape[i]");
-        }
-    }
     // Get sizes
     Index m = avg_dev.nelems / 2; // 2 elements per m
     // Insert task
-    starpu_task_insert(&codelet_avg_dev,
+    int ret = starpu_task_insert(&codelet_avg_dev,
             STARPU_VALUE, &m, sizeof(m),
             STARPU_VALUE, &nelems, sizeof(nelems),
             STARPU_VALUE, &eps, sizeof(eps),
             STARPU_R, static_cast<starpu_data_handle_t>(sum_ssq),
             STARPU_W, static_cast<starpu_data_handle_t>(avg_dev),
             0);
+    if(ret != 0)
+    {
+        throw std::runtime_error("ret != 0");
+    }
 }
 
 template
-void norm_avg_dev_async(const Tile<fp32_t> &sum_ssq,
+void norm_avg_dev_work(const Tile<fp32_t> &sum_ssq,
         const Tile<fp32_t> &avg_dev, Index nelems, fp32_t eps);
 
 template
-void norm_avg_dev_async(const Tile<fp64_t> &sum_ssq,
+void norm_avg_dev_work(const Tile<fp64_t> &sum_ssq,
         const Tile<fp64_t> &avg_dev, Index nelems, fp64_t eps);
 
 } // namespace nntile

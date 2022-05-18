@@ -10,58 +10,64 @@ void check_tile(const std::vector<Index> &shape)
     // Check tile with allocation done by StarPU
     Tile<T> tile1(shape);
     TESTA(static_cast<starpu_data_handle_t>(tile1) != nullptr);
-    tile1.acquire(STARPU_W);
-    TESTA(tile1.get_local_ptr() != nullptr);
-    tile1.release();
+    auto tile1_local = tile1.acquire(STARPU_W);
+    TESTA(tile1_local.get_ptr() != nullptr);
+    for(Index i = 0; i < tile1.nelems; ++i)
+    {
+        tile1_local[i] = static_cast<T>(i);
+    }
+    tile1_local.release();
     // Check copy construction
     Tile<T> tile2(tile1);
     TESTA(static_cast<starpu_data_handle_t>(tile2) ==
             static_cast<starpu_data_handle_t>(tile1));
+    auto tile2_local = tile2.acquire(STARPU_R);
+    for(Index i = 0; i < tile1.nelems; ++i)
+    {
+        TESTA(tile2_local[i] == static_cast<T>(i));
+    }
+    tile2_local.release();
     // Check constructor from TileTraits
     Tile<T> tile3(static_cast<TileTraits>(tile2));
     TESTA(static_cast<starpu_data_handle_t>(tile3) != nullptr);
     TESTA(static_cast<starpu_data_handle_t>(tile2) !=
             static_cast<starpu_data_handle_t>(tile3));
-    tile2.acquire(STARPU_R);
-    tile3.acquire(STARPU_W);
-    TESTA(tile2.get_local_ptr() != tile3.get_local_ptr());
-    tile2.release();
-    tile3.release();
     // Check with shape and pointer
-    T *ptr = new T[tile1.nelems];
+    std::vector<T> data(tile1.nelems);
     for(Index i = 0; i < tile1.nelems; ++i)
     {
-        ptr[i] = static_cast<T>(i);
+        data[i] = static_cast<T>(i);
     }
-    TESTN(Tile<T>(shape, ptr, tile1.nelems-1));
-    Tile<T> tile4(tile1, ptr, tile1.nelems);
+    TESTN(Tile<T>(shape, &data[0], tile1.nelems-1));
+    Tile<T> tile4(tile1, &data[0], tile1.nelems);
     TESTA(static_cast<starpu_data_handle_t>(tile4) != nullptr);
-    TESTN(tile4.at_linear(-1));
-    TESTN(tile4.at_linear(tile4.nelems));
-    for(Index i = 0; i < tile4.nelems; ++i)
+    auto tile4_local = tile4.acquire(STARPU_R);
+    for(Index i = 0; i < tile1.nelems; ++i)
     {
-        T value = static_cast<T>(i);
-        const auto index = tile4.linear_to_index(i);
-        TESTA(value == tile4.at_linear(i));
-        TESTA(value == tile4.at_index(index));
+        TESTA(tile4_local[i] == static_cast<T>(i));
     }
+    tile4_local.release();
     // Check with TileTraits and pointer
-    TESTN(Tile<T>(tile4, ptr, tile4.nelems-1));
-    Tile<T> tile5(tile4, ptr, tile4.nelems);
+    TESTN(Tile<T>(tile4, &data[0], tile4.nelems-1));
+    Tile<T> tile5(tile4, &data[0], tile4.nelems);
     TESTA(static_cast<starpu_data_handle_t>(tile5) != nullptr);
     TESTA(static_cast<starpu_data_handle_t>(tile5) !=
             static_cast<starpu_data_handle_t>(tile4));
-    TESTA(tile4.get_local_ptr() == tile5.get_local_ptr());
-    TESTN(tile5.at_linear(-1));
-    TESTN(tile5.at_linear(tile5.nelems));
-    for(Index i = 0; i < tile5.nelems; ++i)
+    auto tile5_local = tile5.acquire(STARPU_RW);
+    for(Index i = 0; i < tile1.nelems; ++i)
     {
-        T value = static_cast<T>(i);
-        const auto index = tile5.linear_to_index(i);
-        TESTA(value == tile5.at_linear(i));
-        TESTA(value == tile5.at_index(index));
+        TESTA(tile5_local[i] == static_cast<T>(i));
+        tile5_local[i] += T{1};
     }
-    delete[] ptr;
+    tile5_local.release();
+    // Check if 2 handles with the same user-provided buffer are actually
+    // sharing data
+    tile4_local.acquire(STARPU_R);
+    for(Index i = 0; i < tile1.nelems; ++i)
+    {
+        TESTA(tile4_local[i] == static_cast<T>(i+1));
+    }
+    tile4_local.release();
 }
 
 template<typename T>

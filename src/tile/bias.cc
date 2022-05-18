@@ -19,7 +19,9 @@ namespace nntile
 
 // CPU codelet for bias operation with a single axis provided
 template<typename T>
-static void cpu_bias(void *buffers[], void *cl_args)
+static
+void cpu_bias(void *buffers[], void *cl_args)
+    noexcept
 {
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
     // Both source and destination are Fortran-contiguous
@@ -79,7 +81,7 @@ void bias_work(const Tile<T> &src, const Tile<T> &dst, Index axis)
         k = dst.shape[axis];
     }
     // Insert corresponding task
-    starpu_task_insert(&codelet_bias,
+    int ret = starpu_task_insert(&codelet_bias,
             STARPU_VALUE, &m, sizeof(m),
             STARPU_VALUE, &n, sizeof(n),
             STARPU_VALUE, &k, sizeof(k),
@@ -87,6 +89,10 @@ void bias_work(const Tile<T> &src, const Tile<T> &dst, Index axis)
             Starpu::STARPU_RW_COMMUTE, static_cast<starpu_data_handle_t>(dst),
             STARPU_FLOPS, static_cast<double>(dst.nelems),
             0);
+    if(ret != 0)
+    {
+        throw std::runtime_error("ret != 0");
+    }
 }
 
 // Explicit instantiation of template
@@ -99,7 +105,9 @@ void bias_work(const Tile<fp64_t> &src, const Tile<fp64_t> &dst, Index axis);
 
 // CPU codelet for normalization over single axis
 template<typename T>
-static void cpu_bias_avg_dev(void *buffers[], void *cl_args)
+static
+void cpu_bias_avg_dev(void *buffers[], void *cl_args)
+    noexcept
 {
     // Source (avg_dev) is a 2-by-m-by-n tile, which contains mean and
     // deviation values
@@ -138,7 +146,9 @@ static void cpu_bias_avg_dev(void *buffers[], void *cl_args)
 
 // CPU codelet for normalization over single axis if m=1
 template<typename T>
-static void cpu_bias_avg_dev_m1(void *buffers[], void *cl_args)
+static
+void cpu_bias_avg_dev_m1(void *buffers[], void *cl_args)
+    noexcept
 {
     // Source (avg_dev) is a 2-by-1-by-n tile, which contains mean and
     // deviation values
@@ -209,9 +219,10 @@ void bias_avg_dev_work(const Tile<T> &avg_dev, const Tile<T> &dst, Index axis)
         k = dst.shape[axis];
     }
     // Insert corresponding task
+    int ret;
     if(m == 1)
     {
-        starpu_task_insert(&codelet_bias_avg_dev_m1,
+        ret = starpu_task_insert(&codelet_bias_avg_dev_m1,
                 STARPU_VALUE, &n, sizeof(n),
                 STARPU_VALUE, &k, sizeof(k),
                 STARPU_R, static_cast<starpu_data_handle_t>(avg_dev),
@@ -221,7 +232,7 @@ void bias_avg_dev_work(const Tile<T> &avg_dev, const Tile<T> &dst, Index axis)
     }
     else
     {
-        starpu_task_insert(&codelet_bias_avg_dev,
+        ret = starpu_task_insert(&codelet_bias_avg_dev,
                 STARPU_VALUE, &m, sizeof(m),
                 STARPU_VALUE, &n, sizeof(n),
                 STARPU_VALUE, &k, sizeof(k),
@@ -229,6 +240,10 @@ void bias_avg_dev_work(const Tile<T> &avg_dev, const Tile<T> &dst, Index axis)
                 STARPU_RW, static_cast<starpu_data_handle_t>(dst),
                 STARPU_FLOPS, static_cast<double>(dst.nelems),
                 0);
+    }
+    if(ret != 0)
+    {
+        throw std::runtime_error("ret != 0");
     }
 }
 

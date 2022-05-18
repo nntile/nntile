@@ -30,19 +30,46 @@ namespace nntile
 // and copies only the data within the found intersection. No elements of the
 // destination tensor outside the intersection mask are updated.
 template<typename T>
+void copy_intersection_work(const Tensor<T> &src,
+        const std::vector<Index> &src_offset, const Tensor<T> &dst,
+        const std::vector<Index> &dst_offset,
+        const StarpuVariableHandle &scratch);
+
+extern template
+void copy_intersection_work(const Tensor<fp32_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<fp32_t> &dst,
+        const std::vector<Index> &dst_offset,
+        const StarpuVariableHandle &scratch);
+
+extern template
+void copy_intersection_work(const Tensor<fp64_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<fp64_t> &dst,
+        const std::vector<Index> &dst_offset,
+        const StarpuVariableHandle &scratch);
+
+template<typename T>
 void copy_intersection_async(const Tensor<T> &src,
         const std::vector<Index> &src_offset,
-        const Tensor<T> &dst, const std::vector<Index> &dst_offset);
-
-extern template
-void copy_intersection_async(const Tensor<fp32_t> &src,
-        const std::vector<Index> &src_offset, const Tensor<fp32_t> &dst,
-        const std::vector<Index> &dst_offset);
-
-extern template
-void copy_intersection_async(const Tensor<fp64_t> &src,
-        const std::vector<Index> &src_offset, const Tensor<fp64_t> &dst,
-        const std::vector<Index> &dst_offset);
+        const Tensor<T> &dst, const std::vector<Index> &dst_offset)
+{
+    // Check dimensions
+    if(src.ndim != src_offset.size())
+    {
+        throw std::runtime_error("src.ndim != src_offset.size()");
+    }
+    if(src.ndim != dst.ndim)
+    {
+        throw std::runtime_error("src.ndim != dst.ndim");
+    }
+    if(dst.ndim != dst_offset.size())
+    {
+        throw std::runtime_error("dst.ndim != dst_offset.size()");
+    }
+    // Temporary buffer for indexing, that is allocated per-worker when needed
+    StarpuVariableHandle scratch(2 * src.ndim * sizeof(Index));
+    // Launch codelet
+    copy_intersection_work(src, src_offset, dst, dst_offset, scratch);
+}
 
 //! Asynchronous tensor-wise copy operation
 //

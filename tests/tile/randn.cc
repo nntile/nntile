@@ -49,9 +49,9 @@ void validate_randn()
         ++stride[i];
         TESTN(randn(small, {0, 0, 0, 0}, big.shape, stride, seed));
     }
-    small.acquire(STARPU_RW);
-    const_cast<T *>(small.get_local_ptr())[small.nelems-1] = 0;
-    small.release();
+    auto small_local = small.acquire(STARPU_RW);
+    const_cast<T *>(small_local.get_ptr())[small.nelems-1] = 0;
+    small_local.release();
     TESTA(!check_tiles_intersection(big, {0, 0, 0, 0}, small, {1, 2, 3, 2}));
     TESTA(!check_tiles_intersection(small, {1, 2, 3, 2}, big, {0, 0, 0, 0}));
     Tile<T> small2({3, 3, 3, 3});

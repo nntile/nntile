@@ -177,7 +177,7 @@ static inline void gemm_check_A_C(const TensorTraits &A,
 static inline void gemm_check_AT_C(const TensorTraits &A,
         const TensorTraits &C, Index ndim=1)
 {
-    for(Index i = ndim; i < A.ndim-ndim; ++i)
+    for(Index i = ndim; i < A.ndim; ++i)
     {
         if(A.shape[i] != C.shape[i-ndim])
         {
@@ -263,9 +263,9 @@ static inline void gemm_check_opB_C(const TransOp &transB,
 }
 
 //! Check if tensors match gemm
-static inline void gemm_check(const TransOp &transA, const TensorTraits &A,
+void gemm_check(const TransOp &transA, const TensorTraits &A,
         const TransOp &transB, const TensorTraits &B, const TensorTraits &C,
-        Index ndim=1)
+        Index ndim)
 {
     // Check if dimensionalities match
     gemm_check_ndim(A, B, C, ndim);
@@ -278,12 +278,10 @@ static inline void gemm_check(const TransOp &transA, const TensorTraits &A,
 }
 
 template<typename T>
-void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
+void gemm_work(T alpha, const TransOp &transA, const Tensor<T> &A,
         const TransOp &transB, const Tensor<T> &B, T beta, const Tensor<T> &C,
         Index ndim)
 {
-    // Check if tensors match gemm
-    gemm_check(transA, A, transB, B, C, ndim);
     // Sizes of A, B and C as simple matrices (grids of tiles) for gemm
     Index m = C.grid.matrix_shape[A.ndim-ndim][0];
     Index n = C.grid.matrix_shape[A.ndim-ndim][1];
@@ -321,7 +319,7 @@ void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
             Index B_tile_offset = opB_stride[1] * j;
             const auto &A_tile = A.tiles[A_tile_offset];
             const auto &B_tile = B.tiles[B_tile_offset];
-            gemm_async<T>(alpha, transA, A_tile, transB, B_tile, beta,
+            gemm_work<T>(alpha, transA, A_tile, transB, B_tile, beta,
                     C_tile, ndim);
             // all other l>0
             for(Index l = 1; l < k; ++l)
@@ -332,7 +330,7 @@ void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
                 const auto &A_tile = A.tiles[A_tile_offset];
                 const auto &B_tile = B.tiles[B_tile_offset];
                 constexpr T one = 1;
-                gemm_async<T>(alpha, transA, A_tile, transB, B_tile, one,
+                gemm_work<T>(alpha, transA, A_tile, transB, B_tile, one,
                         C_tile, ndim);
             }
         }
@@ -340,12 +338,12 @@ void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
 }
 
 template
-void gemm_async(float alpha, const TransOp &transA, const Tensor<float> &A,
+void gemm_work(float alpha, const TransOp &transA, const Tensor<float> &A,
         const TransOp &transB, const Tensor<float> &B, float beta,
         const Tensor<float> &C, Index ndim=1);
 
 template
-void gemm_async(double alpha, const TransOp &transA, const Tensor<double> &A,
+void gemm_work(double alpha, const TransOp &transA, const Tensor<double> &A,
         const TransOp &transB, const Tensor<double> &B, double beta,
         const Tensor<double> &C, Index ndim=1);
 
