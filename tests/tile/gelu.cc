@@ -16,9 +16,9 @@ void check_gelu(const Tile<T> &A)
     auto A_local = A.acquire(STARPU_R), B_local = B.acquire(STARPU_R);
     for(Index i = 0; i < B.nelems; ++i)
     {
-        constexpr T sqrt2 = std::sqrt(T{2.0});
         constexpr T one = 1.0;
         constexpr T pt5 = 0.5;
+        const T sqrt2 = std::sqrt(T{2.0});
         T val = A_local[i];
         T tmp = pt5*(std::erf(val/sqrt2)) + pt5;
         val *= tmp;
