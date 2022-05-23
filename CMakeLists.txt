@@ -8,30 +8,29 @@ project(NNTile VERSION 0.0.1 LANGUAGES CXX)
 # Show a path to additional auxiliary CMake scripts
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake_modules")
 
-# List of options
+# List of options and cache variables
 # Build shared libraries instead of static
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static" ON)
 option(USE_CUDA "Use CUDA toolkit" ON)
 option(USE_CBLAS "Use CPU CBLAS" ON)
-set(CBLAS_INT_TYPE "int32_t" CACHE STRING
-    "CBLAS_INT_TYPE=int32_t for LP64 and CBLAS_INT_TYPE=int64_t for ILP64")
+set(CBLAS_INT_TYPE "int" CACHE STRING "CBLAS integer type: int, int32_t or int64_t")
 set(CBLAS_H_NAME "cblas.h" CACHE STRING
-    "name of header file containing cblas routines")
+    "Name of header file containing cblas routines")
 option(BUILD_TESTS "Build tests" ON)
-option(COVERAGE "Generate code coverage report" OFF)
+option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
+option(BUILD_EXAMPLES "Build examples" ON)
+option(BUILD_COVERAGE "Generate code coverage report" OFF)
 
 # Provide options for certain cache variables
 set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "None" "Debug" "Release"
     "RelWithDebInfo" "MinSizeRel")
-set_property(CACHE CBLAS_INT_TYPE PROPERTY STRINGS "int32_t" "int64_t")
+set_property(CACHE CBLAS_INT_TYPE PROPERTY STRINGS "int" "int32_t" "int64_t")
 
 # Specify the library
 add_library(nntile)
 
-# Set C++ standard for all sources
-set_property(TARGET nntile PROPERTY CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# Set C++-17 standard publicly
+target_compile_features(nntile PUBLIC cxx_std_17)
 
 # Check if CUDA is available
 set(NNTILE_USE_CUDA OFF)
@@ -90,10 +89,12 @@ add_subdirectory("include")
 add_subdirectory("external")
 
 # Add subdirectory with examples
-add_subdirectory("examples")
+if(BUILD_EXAMPLES)
+    add_subdirectory("examples")
+endif()
 
 # Check if code coverage report is needed
-if(COVERAGE)
+if(BUILD_COVERAGE)
     # Tell user what we are doing here
     message(STATUS "Code coverage report was requested, so option BUILD_TESTS"
         " is ON."
