@@ -20,6 +20,7 @@ option(BUILD_TESTS "Build tests" ON)
 option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
+option(BUILD_PYTHON_WRAPPERS "Generate Python wrappers" OFF)
 
 # Provide options for certain cache variables
 set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "None" "Debug" "Release"
@@ -118,3 +119,7 @@ if(BUILD_TESTS)
     add_subdirectory("tests")
 endif()
 
+# Check if Python wrappers are requested
+if(BUILD_PYTHON_WRAPPERS)
+    add_subdirectory("wrappers/python")
+endif()
