@@ -157,8 +157,8 @@ void validate_bias()
 int main(int argc, char **argv)
 {
     Starpu starpu;
-    validate_bias<float>();
-    validate_bias<double>();
+    validate_bias<fp32_t>();
+    validate_bias<fp64_t>();
     return 0;
 }
 

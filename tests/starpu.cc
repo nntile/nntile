@@ -10,8 +10,6 @@ template<typename T>
 void test_starpu()
 {
     StarpuHandle *x = new StarpuVariableHandle(100*sizeof(T));
-    x->invalidate();
-    x->wont_use();
     delete x;
     std::vector<T> data(100);
     uintptr_t ptr = reinterpret_cast<uintptr_t>(&data[0]);
@@ -23,7 +21,6 @@ void test_starpu()
     auto z_local = z.acquire(STARPU_RW);
     TESTA(z_local.get_ptr() == &data[0]);
     z_local.release();
-    y.invalidate_submit();
     // All the local handles/buffers shall be released before syncing to avoid
     // dead lock
     starpu_task_wait_for_all();
@@ -53,7 +50,7 @@ int main(int argc, char **argv)
     else if(test == 3)
     {
         Starpu starpu;
-        TESTN(Starpu starpu2);
+        TESTP(Starpu starpu2);
     }
     else if(test == 4)
     {

@@ -4,6 +4,7 @@ set(HDR
     "nntile/base_types.hh"
     "nntile/constants.hh"
     "nntile/starpu.hh"
+    # Tile operations
     "nntile/tile.hh"
     "nntile/tile/traits.hh"
     "nntile/tile/tile.hh"
@@ -14,6 +15,7 @@ set(HDR
     "nntile/tile/gelu.hh"
     "nntile/tile/relu.hh"
     "nntile/tile/norm.hh"
+    # Tensor operations
     "nntile/tensor.hh"
     "nntile/tensor/traits.hh"
     "nntile/tensor/tensor.hh"
@@ -24,6 +26,9 @@ set(HDR
     "nntile/tensor/gelu.hh"
     "nntile/tensor/relu.hh"
     "nntile/tensor/norm.hh"
+    # Layers
+    "nntile/layer.hh"
+    "nntile/layer/fully_connected.hh"
     )
 
 target_sources(nntile PUBLIC ${HDR})

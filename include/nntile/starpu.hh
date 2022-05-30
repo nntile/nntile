@@ -25,6 +25,7 @@ namespace nntile
 //! Convenient StarPU initialization and shutdown
 class Starpu: public starpu_conf
 {
+
     static
     struct starpu_conf _init_conf()
     {
@@ -43,11 +44,13 @@ public:
     Starpu(const struct starpu_conf &conf):
         starpu_conf(conf)
     {
-        if(starpu_is_initialized() != 0)
+        int ret = starpu_is_initialized();
+        // Do nothing if already initialized
+        if(ret == 1)
         {
-            throw std::runtime_error("Starpu was already initialized");
+            return;
         }
-        int ret = starpu_init(this);
+        ret = starpu_init(this);
         if(ret != 0)
         {
             throw std::runtime_error("Error in starpu_init()");
@@ -59,6 +62,12 @@ public:
     }
     ~Starpu()
     {
+        int ret = starpu_is_initialized();
+        // Do nothing if not initialized
+        if(ret != 1)
+        {
+            return;
+        }
         starpu_task_wait_for_all();
         starpu_shutdown();
     }
@@ -66,6 +75,12 @@ public:
     Starpu(Starpu &&) = delete;
     Starpu &operator=(const Starpu &) = delete;
     Starpu &operator=(Starpu &&) = delete;
+    //! StarPU wait for all
+    static
+    void wait_for_all()
+    {
+        starpu_task_wait_for_all();
+    }
     //! StarPU commute data access mode
     static constexpr enum starpu_data_access_mode
         STARPU_RW_COMMUTE = static_cast<enum starpu_data_access_mode>(
@@ -123,16 +138,53 @@ class StarpuHandle
 {
     //! Shared handle itself
     std::shared_ptr<struct _starpu_data_state> handle;
-    //! Deleter function for starpu_data_handle_t
-    static void _handle_deleter(starpu_data_handle_t ptr)
+    // Different deleters for the handle
+    static void _deleter(starpu_data_handle_t ptr)
     {
-        // Lazy unregister data
+        // Unregister data and bring back result
+        // All the tasks using given starpu data handle shall be finished
+        // before unregistering the handle
+        starpu_data_unregister(ptr);
+    }
+    static void _deleter_no_coherency(starpu_data_handle_t ptr)
+    {
+        // Unregister data without bringing back result
+        // All the tasks using given starpu data handle shall be finished
+        // before unregistering the handle
+        starpu_data_unregister_no_coherency(ptr);
+    }
+    static void _deleter_temporary(starpu_data_handle_t ptr)
+    {
+        // Lazily unregister data as it is defined as temporary and may still
+        // be in use. This shall only appear in use for data, allocated by
+        // starpu as it will be deallocated during actual unregistering and at
+        // the time of submission.
         starpu_data_unregister_submit(ptr);
+    }
+    static std::shared_ptr<struct _starpu_data_state> _get_shared_ptr(
+            starpu_data_handle_t ptr, enum starpu_data_access_mode mode)
+    {
+        switch(mode)
+        {
+            case STARPU_R:
+                return std::shared_ptr<struct _starpu_data_state>(ptr,
+                        _deleter_no_coherency);
+            case STARPU_RW:
+            case STARPU_W:
+                return std::shared_ptr<struct _starpu_data_state>(ptr,
+                        _deleter);
+            case STARPU_SCRATCH:
+                return std::shared_ptr<struct _starpu_data_state>(ptr,
+                        _deleter_temporary);
+            default:
+                throw std::runtime_error("Invalid value of mode");
+        }
     }
 public:
     //! Constructor owns registered handle and unregisters it when needed
-    StarpuHandle(starpu_data_handle_t handle_):
-        handle(handle_, _handle_deleter)
+    StarpuHandle(starpu_data_handle_t handle_,
+            enum starpu_data_access_mode mode):
+        handle(_get_shared_ptr(handle_, mode))
     {
     }
     //! Destructor is virtual as this is a base class
@@ -144,25 +196,14 @@ public:
     {
         return handle.get();
     }
-    //! Invalidate handle
-    void invalidate() const
-    {
-        starpu_data_invalidate(handle.get());
-    }
-    //! Invalidate handle
-    void invalidate_submit() const
-    {
-        starpu_data_invalidate_submit(handle.get());
-    }
-    //! Advise to flush from GPU to main memory
-    void wont_use() const
-    {
-        starpu_data_wont_use(handle.get());
-    }
     //! Acquire data locally
-    inline
     StarpuHandleLocalData acquire(enum starpu_data_access_mode mode)
         const;
+    //! Unregister underlying handle without waiting for destructor
+    void unregister()
+    {
+        handle.reset();
+    }
 };
 
 class StarpuHandleLocalData
@@ -207,7 +248,8 @@ public:
 };
 
 inline
-StarpuHandleLocalData StarpuHandle::acquire(enum starpu_data_access_mode mode)
+StarpuHandleLocalData StarpuHandle::acquire(
+        enum starpu_data_access_mode mode)
     const
 {
     return StarpuHandleLocalData(*this, mode);
@@ -231,14 +273,15 @@ class StarpuVariableHandle: public StarpuHandle
         return tmp;
     }
 public:
-    //! Constructor for variable that is (de)allocated by starpu
+    //! Constructor for temporary variable that is (de)allocated by starpu
     StarpuVariableHandle(size_t size):
-        StarpuHandle(_reg_data(size))
+        StarpuHandle(_reg_data(size), STARPU_SCRATCH)
     {
     }
     //! Constructor for variable that is (de)allocated by user
-    StarpuVariableHandle(uintptr_t ptr, size_t size):
-        StarpuHandle(_reg_data(ptr, size))
+    StarpuVariableHandle(uintptr_t ptr, size_t size,
+            enum starpu_data_access_mode mode=STARPU_RW):
+        StarpuHandle(_reg_data(ptr, size), mode)
     {
     }
 };

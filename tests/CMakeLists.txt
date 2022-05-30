@@ -120,4 +120,5 @@ add_test_set(TARGET_NAME tests_starpu
 
 add_subdirectory("tile")
 add_subdirectory("tensor")
+add_subdirectory("layer")
 

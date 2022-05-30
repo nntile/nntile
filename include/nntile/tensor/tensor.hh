@@ -121,6 +121,14 @@ public:
     {
         return get_tile(tile_index);
     }
+    //! Unregister underlying handles without waiting for destructor
+    void unregister()
+    {
+        for(Index i = 0; i < grid.nelems; ++i)
+        {
+            tiles[i].unregister();
+        }
+    }
 };
 
 } // namespace nntile
