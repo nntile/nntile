@@ -29,6 +29,7 @@ set(HDR
     # Layers
     "nntile/layer.hh"
     "nntile/layer/fully_connected.hh"
+    "nntile/layer/mixer.hh"
     )
 
 target_sources(nntile PUBLIC ${HDR})

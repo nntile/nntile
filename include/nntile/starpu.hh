@@ -75,6 +75,21 @@ public:
     Starpu(Starpu &&) = delete;
     Starpu &operator=(const Starpu &) = delete;
     Starpu &operator=(Starpu &&) = delete;
+    static
+    void shutdown()
+    {
+        starpu_shutdown();
+    }
+    static
+    void pause()
+    {
+        starpu_pause();
+    }
+    static
+    void resume()
+    {
+        starpu_resume();
+    }
     //! StarPU wait for all
     static
     void wait_for_all()

@@ -22,5 +22,8 @@ PYBIND11_MODULE(starpu, m)
 {
     py::class_<Starpu>(m, "Starpu").
         def(py::init<>()).
+        def_static("shutdown", Starpu::shutdown).
+        def_static("pause", Starpu::pause).
+        def_static("resume", Starpu::resume).
         def_static("wait_for_all", Starpu::wait_for_all);
 }

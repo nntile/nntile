@@ -21,7 +21,7 @@ int main(int argc, char **argv)
     Index n_mlp_S_tile = 320;
     Index n_mlp_C = 5120; // MLP size for hidden dimension
     Index n_mlp_C_tile = 512;
-    Index n_mixer_layers = 4; // 32; //
+    Index n_mixer_layers = 1; // 32; //
     T eps = std::sqrt(1e-5);
     // NNTile parameters
     Index n_images_tile = 512;
@@ -50,8 +50,6 @@ int main(int argc, char **argv)
     }
     // Temporary for layer normalization
     Tensor<T> mixer_x_norm(mixer_x_traits);
-    // Temporary for intermediate values (between MLP1 and MLP2) of each layer
-    Tensor<T> mixer_u(mixer_x_traits);
     // Shape of linear layers of each MLP1 layer
     std::vector<Index> mixer_mlp1_fc1_shape = {n_mlp_S, n_patches},
         mixer_mlp1_fc1_basetile = {n_mlp_S_tile, n_patches},
@@ -143,13 +141,13 @@ int main(int argc, char **argv)
         randn_async(mixer_mlp2_fc2[i], seed_mlp2_fc2[i]);
     }
     starpu_task_wait_for_all();
+    // Project patches into hidden dimensions
+    gemm(T{1}, TransOp::Trans, input_images, TransOp::NoTrans, projector,
+            T{0}, mixer_x[0], 1);
     // Flush profiling data
     std::chrono::steady_clock clock;
     starpu_profiling_init();
     auto start = clock.now();
-    // Project patches into hidden dimensions
-    gemm_async(T{1}, TransOp::Trans, input_images, TransOp::NoTrans, projector,
-            T{0}, mixer_x[0], 1);
     // Apply all mixer layers
     for(Index i = 0; i < n_mixer_layers; ++i)
     {
@@ -183,8 +181,8 @@ int main(int argc, char **argv)
     }
     // The last layer is yet missing
     starpu_task_wait_for_all();
-    starpu_profiling_worker_helper_display_summary();
     auto end = clock.now();
+    starpu_profiling_worker_helper_display_summary();
     std::chrono::duration<double> diff = end - start;
     std::cout << "Done in " << diff.count() << " seconds\n";
     return 0;

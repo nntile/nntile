@@ -8,6 +8,7 @@ import time
 
 starpu = st.Starpu()
 
+n_iters = 3
 n_layers = 10
 n_batch = 4096
 n_seq = 4096
@@ -34,17 +35,28 @@ starpu.wait_for_all()
 print("Start timer")
 time0 = time.perf_counter()
 # Launch the code
-for i in range(n_layers):
-    FC_nntile[i].forward_async(X_nntile[i], X_nntile[i+1])
+for it in range(n_iters):
+    for i in range(n_layers):
+        FC_nntile[i].forward_async(X_nntile[i], X_nntile[i+1])
 # Finish the timer
 starpu.wait_for_all()
 print("Finish timer")
 time1 = time.perf_counter()
-dtime = time1 - time0
+dtime = (time1-time0) / n_iters
+# Copy the final result into Numpy array
+Y = np.ndarray((n_seq, n_batch), dtype=np.float32, order='F')
+X_nntile[n_layers].to_array(Y)
+# Unregister all the NNTile data
+for i in range(n_layers):
+    X_nntile[i].unregister()
+    FC_nntile[i].unregister()
+X_nntile[n_layers].unregister()
+# Pause StarPU
+starpu.pause()
 # Output results
 gflops = n_layers * 2 * n_batch * n_seq**2 / 10**9
 print("Gflops    : {}".format(gflops))
-print("Time      : {}".format(dtime))
+print("Avg.time  : {}".format(dtime))
 print("Gflops/s  : {}".format(gflops/dtime))
 # Compare result
 time0 = time.perf_counter()
@@ -52,14 +64,9 @@ for i in range(n_layers):
     X[i+1] = FC[i] @ X[i]
 time1 = time.perf_counter()
 dtime = time1 - time0
-print("Numpy time: P={}".format(dtime))
-Y = np.ndarray((n_seq, n_batch), dtype=np.float32, order='F')
-X_nntile[n_layers].to_array(Y)
+print("Numpy time: {}".format(dtime))
 Z = X[n_layers]
 print("diff/norm : {}".format(np.linalg.norm(Y-Z) / np.linalg.norm(Z)))
-# Unregister all the NNTile data
-for i in range(n_layers):
-    X_nntile[i].unregister()
-    FC_nntile[i].unregister()
-X_nntile[n_layers].unregister()
+# Resume StarPU
+starpu.resume()
 

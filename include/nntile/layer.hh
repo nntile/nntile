@@ -14,5 +14,6 @@
 
 #pragma once
 
-#include <nntile/tile/layer/fully_connected.hh>
+#include <nntile/layer/fully_connected.hh>
+#include <nntile/layer/mixer.hh>
 
