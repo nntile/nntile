@@ -18,7 +18,7 @@ n_seq_tile = 512
 # States in numpy
 X = [np.random.randn(n_seq, n_batch).astype(np.float32)]
 X.extend([np.ndarray((n_seq, n_batch), dtype=np.float32) for i in
-    range(n_layers+1)])
+    range(n_layers)])
 # States in nntile
 X_nntile = [nt.Tensor_fp32([n_seq, n_batch], [n_seq_tile, n_batch_tile]) for i in
         range(n_layers+1)]
