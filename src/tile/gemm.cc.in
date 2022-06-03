@@ -22,6 +22,11 @@
 #   endif
 #endif
 
+#ifdef NNTILE_USE_CUDA
+#   include <cublas_v2.h>
+#   include <starpu_cublas_v2.h>
+#endif
+
 namespace nntile
 {
 
@@ -303,6 +308,68 @@ static void gemm_codelet_cpu(void *buffers[], void *cl_args)
             M);
 }
 
+static inline void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
+        cublasOperation_t transB, int M, int N, int K, float alpha,
+        const float *A, int ldA, const float *B, int ldB, float beta,
+        float *C, int ldC)
+{
+    cublasSgemm(handle, transA, transB, M, N, K, &alpha, A, ldA, B, ldB, &beta,
+            C, ldC);
+}
+
+static inline void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
+        cublasOperation_t transB, int M, int N, int K, double alpha,
+        const double *A, int ldA, const double *B, int ldB, double beta,
+        double *C, int ldC)
+{
+    cublasDgemm(handle, transA, transB, M, N, K, &alpha, A, ldA, B, ldB, &beta,
+            C, ldC);
+}
+
+template<typename T>
+static void gemm_codelet_gpu(void *buffers[], void *cl_args)
+{
+    TransOp::Value transA_value, transB_value;
+    Index m, n, k;
+    T alpha, beta;
+    starpu_codelet_unpack_args(cl_args, &transA_value, &transB_value, &m, &n,
+            &k, &alpha, &beta);
+    const T *A = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
+    const T *B = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[1]));
+    T *C = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[2]));
+    cublasOperation_t transA_, transB_;
+    int M=m, N=n, K=k, ldA, ldB;
+    switch(transA_value)
+    {
+        case TransOp::NoTrans:
+            transA_ = CUBLAS_OP_N;
+            ldA = M;
+            break;
+        case TransOp::Trans:
+            transA_ = CUBLAS_OP_T;
+            ldA = K;
+            break;
+        // This parameter was already checked in gemm_check_opA_opB
+    }
+    switch(transB_value)
+    {
+        case TransOp::NoTrans:
+            transB_ = CUBLAS_OP_N;
+            ldB = K;
+            break;
+        case TransOp::Trans:
+            transB_ = CUBLAS_OP_T;
+            ldB = N;
+            break;
+        // This parameter was already checked in gemm_check_opA_opB
+    }
+    cublasHandle_t handle = starpu_cublas_get_local_handle();
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    cublasSetStream(handle, stream);
+    cublas_gemm(handle, transA_, transB_, M, N, K, alpha, A, ldA, B, ldB, beta,
+            C, M);
+}
+
 template<typename T>
 void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
         const TransOp &transB, const Tile<T> &B, T beta, const Tile<T> &C,
@@ -311,27 +378,27 @@ void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
     static struct starpu_codelet codelet_gemm_w =
     {
         //.where = STARPU_CUDA,
-        .cpu_funcs = {gemm_codelet_cpu<T>},
-        //.cuda_funcs = {gemm_codelet_gpu_func<T>},
-        //.cuda_flags = {STARPU_CUDA_ASYNC},
+        //.cpu_funcs = {gemm_codelet_cpu<T>},
+        .cuda_funcs = {gemm_codelet_gpu<T>},
+        .cuda_flags = {STARPU_CUDA_ASYNC},
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_R, STARPU_W}
     };
     static struct starpu_codelet codelet_gemm_rw =
     {
         //.where = STARPU_CUDA,
-        .cpu_funcs = {gemm_codelet_cpu<T>},
-        //.cuda_funcs = {gemm_codelet_gpu_func<T>},
-        //.cuda_flags = {STARPU_CUDA_ASYNC},
+        //.cpu_funcs = {gemm_codelet_cpu<T>},
+        .cuda_funcs = {gemm_codelet_gpu<T>},
+        .cuda_flags = {STARPU_CUDA_ASYNC},
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_R, STARPU_RW}
     };
     static struct starpu_codelet codelet_gemm_rw_commute =
     {
         //.where = STARPU_CUDA,
-        .cpu_funcs = {gemm_codelet_cpu<T>},
-        //.cuda_funcs = {gemm_codelet_gpu_func<T>},
-        //.cuda_flags = {STARPU_CUDA_ASYNC},
+        //.cpu_funcs = {gemm_codelet_cpu<T>},
+        .cuda_funcs = {gemm_codelet_gpu<T>},
+        .cuda_flags = {STARPU_CUDA_ASYNC},
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_R, Starpu::STARPU_RW_COMMUTE}
     };
@@ -365,7 +432,7 @@ void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
     }
 #endif
     // Check that matrix sizes fit proper types for underlying CUBLAS
-#if defined(NNTILE_USE_CUBLAS)
+#if defined(NNTILE_USE_CUDA)
     if(static_cast<int>(m) != m)
     {
         throw std::runtime_error("GEMM size M does not fit int");

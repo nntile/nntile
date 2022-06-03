@@ -16,7 +16,6 @@
 
 #include <nntile/tensor/traits.hh>
 #include <nntile/tile/tile.hh>
-#include <memory>
 
 namespace nntile
 {
@@ -30,7 +29,7 @@ class Tensor: public TensorTraits
 {
 public:
     //! Pointer to the contiguous memory
-    std::shared_ptr<std::byte[]> ptr;
+    std::shared_ptr<void> ptr;
     //! Total size of allocated memory in bytes
     Index alloc_size;
     //! Tiles
@@ -77,8 +76,14 @@ public:
             }
         }
         // Allocate memory
-        auto ptr_raw = ::new std::byte[alloc_size];
-        ptr = std::shared_ptr<std::byte[]>(ptr_raw);
+        void *ptr_raw;
+        //int ret = starpu_malloc(&ptr_raw, alloc_size);
+        //if(ret != 0)
+        //{
+        //    throw std::runtime_error("ret != 0");
+        //}
+        //char *ptr_char = reinterpret_cast<char *>(ptr_raw);
+        //ptr = std::shared_ptr<void>(ptr_raw, starpu_free);
         // Register tiles
         tiles.reserve(grid.nelems);
         for(Index i = 0; i < grid.nelems; ++i)
@@ -87,9 +92,10 @@ public:
             const auto tile_index = grid.linear_to_index(i);
             // Get shape of corresponding tile
             const auto tile_shape = TensorTraits::get_tile_shape(tile_index);
-            tiles.emplace_back(tile_shape,
-                    reinterpret_cast<T *>(&ptr_raw[tiles_offset[i]]),
-                    tiles_nelems[i]);
+            //tiles.emplace_back(tile_shape,
+            //        reinterpret_cast<T *>(&ptr_char[tiles_offset[i]]),
+            //        tiles_nelems[i]);
+            tiles.push_back(Tile<T>(tile_shape));
         }
     }
     //! Constructor

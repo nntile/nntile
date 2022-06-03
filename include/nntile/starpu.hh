@@ -18,6 +18,7 @@
 #include <memory>
 #include <iostream>
 #include <starpu.h>
+#include <nntile/defs.h>
 
 namespace nntile
 {
@@ -55,6 +56,9 @@ public:
         {
             throw std::runtime_error("Error in starpu_init()");
         }
+#       ifdef NNTILE_USE_CUDA
+        starpu_cublas_init();
+#       endif
     }
     Starpu():
         Starpu(_init_conf())
@@ -69,6 +73,7 @@ public:
             return;
         }
         starpu_task_wait_for_all();
+        starpu_cublas_shutdown();
         starpu_shutdown();
     }
     Starpu(const Starpu &) = delete;

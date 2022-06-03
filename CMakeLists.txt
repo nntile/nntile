@@ -41,7 +41,7 @@ if(USE_CUDA)
     if(CMAKE_CUDA_COMPILER)
         enable_language(CUDA)
         # Get cublas
-        find_package(CUDAToolkit >=10.1)
+        find_package(CUDAToolkit 10.1)
         target_link_libraries(nntile PRIVATE CUDA::cublas)
         set(NNTILE_USE_CUDA ON)
     endif()
@@ -65,10 +65,10 @@ pkg_check_modules(StarPU REQUIRED starpu-1.3)
 target_link_libraries(nntile PUBLIC ${StarPU_LDFLAGS})
 target_include_directories(nntile PUBLIC
     "${CMAKE_SOURCE_DIR}/include"
+    "${CMAKE_BINARY_DIR}/include"
     ${StarPU_INCLUDE_DIRS}
     )
 target_include_directories(nntile PRIVATE
-    "${CMAKE_BINARY_DIR}/include"
     "${CMAKE_SOURCE_DIR}/external"
     )
 

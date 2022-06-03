@@ -39,32 +39,36 @@ void run_forward(const std::vector<Index> &shape,
     T one = 1, zero = 0;
     std::chrono::steady_clock clock;
     starpu_profiling_init();
+    starpu_profiling_worker_helper_display_summary();
     auto start = clock.now();
     for(Index i = 0; i < nforward; ++i)
     {
-        randn_async(X[0], seed);
+        //randn_async(X[0], seed);
         for(Index j = 0; j < nlayers; ++j)
         {
             gemm_async(one, TransOp::NoTrans, X[j], TransOp::NoTrans, W[j],
                     zero, X[j+1]);
-            bias_async(B[j], X[j+1], 0);
-            gelu_async(X[j+1]);
+            //bias_async(B[j], X[j+1], 0);
+            //relu_async(X[j+1]);
         }
-        copy_intersection_async(X[nlayers], X[0]);
+        //copy_intersection_async(X[nlayers], X[0]);
     }
     starpu_task_wait_for_all();
     starpu_profiling_worker_helper_display_summary();
     auto end = clock.now();
     std::chrono::duration<double> diff = end - start;
-    std::cout << "Done in " << diff.count() << " seconds\n";
+    std::cout << "Done in  " << diff.count() << " seconds\n";
+    std::cout << "Gflops/s " << 2*shape[0]*shape[0]*shape[0]*1e-9*nlayers*nforward/diff.count() << "\n";
 }
 
 int main(int argc, char **argv)
 {
     //Starpu starpu;
-    std::vector<Index> shape{4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096},
-        basetile_shape{1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024};
-    Index nforward = 20;
+    //std::vector<Index> shape{4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096},
+    //    basetile_shape{1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024};
+    std::vector<Index> shape{16384, 16384, 16384, 16384, 16384, 16384, 16384, 16384},
+        basetile_shape{4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096};
+    Index nforward = 1;
     run_forward<fp32_t>(shape, basetile_shape, nforward);
     //run_forward<fp32_t>(shape, shape, nforward);
     return 0;
