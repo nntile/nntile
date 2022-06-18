@@ -73,7 +73,9 @@ public:
             return;
         }
         starpu_task_wait_for_all();
+#       ifdef NNTILE_USE_CUDA
         starpu_cublas_shutdown();
+#       endif
         starpu_shutdown();
     }
     Starpu(const Starpu &) = delete;
@@ -179,6 +181,7 @@ class StarpuHandle
         // be in use. This shall only appear in use for data, allocated by
         // starpu as it will be deallocated during actual unregistering and at
         // the time of submission.
+        //std::cout << "unregister_submit(" << ptr << ")\n";
         starpu_data_unregister_submit(ptr);
     }
     static std::shared_ptr<struct _starpu_data_state> _get_shared_ptr(
@@ -194,6 +197,7 @@ class StarpuHandle
                 return std::shared_ptr<struct _starpu_data_state>(ptr,
                         _deleter);
             case STARPU_SCRATCH:
+                //std::cout << "register tmp=" << ptr << "\n";
                 return std::shared_ptr<struct _starpu_data_state>(ptr,
                         _deleter_temporary);
             default:

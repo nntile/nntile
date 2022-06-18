@@ -308,6 +308,7 @@ static void gemm_codelet_cpu(void *buffers[], void *cl_args)
             M);
 }
 
+#ifdef NNTILE_USE_CUDA
 static inline void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
         cublasOperation_t transB, int M, int N, int K, float alpha,
         const float *A, int ldA, const float *B, int ldB, float beta,
@@ -369,6 +370,7 @@ static void gemm_codelet_gpu(void *buffers[], void *cl_args)
     cublas_gemm(handle, transA_, transB_, M, N, K, alpha, A, ldA, B, ldB, beta,
             C, M);
 }
+#endif // NNTILE_USE_CUDA
 
 template<typename T>
 void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
@@ -377,28 +379,31 @@ void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
 {
     static struct starpu_codelet codelet_gemm_w =
     {
-        //.where = STARPU_CUDA,
-        //.cpu_funcs = {gemm_codelet_cpu<T>},
+        .cpu_funcs = {gemm_codelet_cpu<T>},
+#       ifdef NNTILE_USE_CUDA
         .cuda_funcs = {gemm_codelet_gpu<T>},
         .cuda_flags = {STARPU_CUDA_ASYNC},
+#       endif // NNTILE_USE_CUDA
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_R, STARPU_W}
     };
     static struct starpu_codelet codelet_gemm_rw =
     {
-        //.where = STARPU_CUDA,
-        //.cpu_funcs = {gemm_codelet_cpu<T>},
+        .cpu_funcs = {gemm_codelet_cpu<T>},
+#       ifdef NNTILE_USE_CUDA
         .cuda_funcs = {gemm_codelet_gpu<T>},
         .cuda_flags = {STARPU_CUDA_ASYNC},
+#       endif // NNTILE_USE_CUDA
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_R, STARPU_RW}
     };
     static struct starpu_codelet codelet_gemm_rw_commute =
     {
-        //.where = STARPU_CUDA,
-        //.cpu_funcs = {gemm_codelet_cpu<T>},
+        .cpu_funcs = {gemm_codelet_cpu<T>},
+#       ifdef NNTILE_USE_CUDA
         .cuda_funcs = {gemm_codelet_gpu<T>},
         .cuda_flags = {STARPU_CUDA_ASYNC},
+#       endif // NNTILE_USE_CUDA
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_R, Starpu::STARPU_RW_COMMUTE}
     };

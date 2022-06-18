@@ -28,6 +28,35 @@ void cpu_copy_intersection_ndim0(void *buffers[], void *cl_args)
 }
 
 template<typename T>
+void copy_intersection_work_ndim0(const Tile<T> &src, const Tile<T> &dst)
+{
+    static struct starpu_codelet codelet_copy_ndim0 =
+    {
+        .cpu_funcs = {cpu_copy_intersection_ndim0<T>},
+        .nbuffers = 2,
+        .modes = {STARPU_R, STARPU_W}
+    };
+    constexpr double zero_flops = 0;
+    int ret = starpu_task_insert(&codelet_copy_ndim0,
+            STARPU_R, static_cast<starpu_data_handle_t>(src),
+            STARPU_W, static_cast<starpu_data_handle_t>(dst),
+            STARPU_FLOPS, zero_flops, // No floating point operations
+            0);
+    if(ret != 0)
+    {
+        throw std::runtime_error("ret != 0");
+    }
+}
+
+template
+void copy_intersection_work_ndim0(const Tile<fp32_t> &src,
+        const Tile<fp32_t> &dst);
+
+template
+void copy_intersection_work_ndim0(const Tile<fp64_t> &src,
+        const Tile<fp64_t> &dst);
+
+template<typename T>
 static
 void cpu_copy_intersection(void *buffers[], void *cl_args)
     noexcept
@@ -88,45 +117,90 @@ void cpu_copy_intersection(void *buffers[], void *cl_args)
 
 template<typename T>
 void copy_intersection_work(const Tile<T> &src,
-        const std::vector<Index> &src_offset, const Tile<T> &dst,
-        const std::vector<Index> &dst_offset,
-        const StarpuVariableHandle &scratch)
+        const std::vector<Index> &src_start, const Tile<T> &dst,
+        const std::vector<Index> &dst_start,
+        const std::vector<Index> &copy_shape,
+        const StarpuVariableHandle &scratch,
+        enum starpu_data_access_mode mode)
 {
-    static struct starpu_codelet codelet_copy_rw =
-    {
-        .cpu_funcs = {cpu_copy_intersection<T>},
-        .nbuffers = 3,
-        .modes = {STARPU_R, STARPU_RW, STARPU_SCRATCH}
-    };
     static struct starpu_codelet codelet_copy_w =
     {
         .cpu_funcs = {cpu_copy_intersection<T>},
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_W, STARPU_SCRATCH}
     };
-    static struct starpu_codelet codelet_copy_ndim0 =
+    static struct starpu_codelet codelet_copy_rw =
     {
-        .cpu_funcs = {cpu_copy_intersection_ndim0<T>},
-        .nbuffers = 2,
-        .modes = {STARPU_R, STARPU_W}
+        .cpu_funcs = {cpu_copy_intersection<T>},
+        .nbuffers = 3,
+        .modes = {STARPU_R, STARPU_RW, STARPU_SCRATCH}
     };
-    Index ndim = src.ndim;
-    // Treat special case of ndim=0
-    constexpr double zero_flops = 0;
-    if(ndim == 0)
+    static struct starpu_codelet codelet_copy_rw_commute =
     {
-        int ret = starpu_task_insert(&codelet_copy_ndim0,
-                STARPU_R, static_cast<starpu_data_handle_t>(src),
-                STARPU_W, static_cast<starpu_data_handle_t>(dst),
-                STARPU_FLOPS, zero_flops, // No floating point operations
-                0);
-        if(ret != 0)
-        {
-            throw std::runtime_error("ret != 0");
-        }
-        return;
+        .cpu_funcs = {cpu_copy_intersection<T>},
+        .nbuffers = 3,
+        .modes = {STARPU_R, Starpu::STARPU_RW_COMMUTE, STARPU_SCRATCH}
+    };
+    struct starpu_codelet *current_codelet;
+    switch(mode)
+    {
+        case STARPU_W:
+            current_codelet = &codelet_copy_w;
+            break;
+        case STARPU_RW:
+            current_codelet = &codelet_copy_rw;
+            break;
+        case Starpu::STARPU_RW_COMMUTE:
+            current_codelet = &codelet_copy_rw_commute;
+            break;
+        default:
+            throw std::runtime_error("Unsupported mode");
     }
+    // Launch codelet
+    constexpr double zero_flops = 0;
+    Index ndim = src.ndim;
+    int ret = starpu_task_insert(current_codelet,
+            STARPU_VALUE, &(ndim), sizeof(ndim),
+            STARPU_VALUE, &(src_start[0]), ndim*sizeof(src_start[0]),
+            STARPU_VALUE, &(src.stride[0]), ndim*sizeof(src.stride[0]),
+            STARPU_VALUE, &(copy_shape[0]), ndim*sizeof(copy_shape[0]),
+            STARPU_VALUE, &(dst_start[0]), ndim*sizeof(dst_start[0]),
+            STARPU_VALUE, &(dst.stride[0]), ndim*sizeof(dst.stride[0]),
+            STARPU_R, static_cast<starpu_data_handle_t>(src),
+            mode, static_cast<starpu_data_handle_t>(dst),
+            STARPU_SCRATCH, static_cast<starpu_data_handle_t>(scratch),
+            STARPU_FLOPS, zero_flops, // No floating point operations
+            0);
+    if(ret != 0)
+    {
+        throw std::runtime_error("ret != 0");
+    }
+}
+
+template
+void copy_intersection_work(const Tile<fp32_t> &src,
+        const std::vector<Index> &src_start, const Tile<fp32_t> &dst,
+        const std::vector<Index> &dst_start,
+        const std::vector<Index> &copy_shape,
+        const StarpuVariableHandle &scratch,
+        enum starpu_data_access_mode mode);
+
+template
+void copy_intersection_work(const Tile<fp64_t> &src,
+        const std::vector<Index> &src_start, const Tile<fp64_t> &dst,
+        const std::vector<Index> &dst_start,
+        const std::vector<Index> &copy_shape,
+        const StarpuVariableHandle &scratch,
+        enum starpu_data_access_mode mode);
+
+template<typename T>
+void copy_intersection_work(const Tile<T> &src,
+        const std::vector<Index> &src_offset, const Tile<T> &dst,
+        const std::vector<Index> &dst_offset,
+        const StarpuVariableHandle &scratch)
+{
     // Treat non-zero ndim
+    Index ndim = src.ndim;
     std::vector<Index> src_start(ndim), dst_start(ndim), copy_shape(ndim);
     bool full_overwrite = true;
     // Obtain starting indices and shape of intersection for copying
@@ -161,52 +235,28 @@ void copy_intersection_work(const Tile<T> &src,
         }
     }
     // Launch codelet
-    int ret;
+    enum starpu_data_access_mode mode;
     if(full_overwrite)
     {
-        ret = starpu_task_insert(&codelet_copy_w,
-                STARPU_VALUE, &(ndim), sizeof(ndim),
-                STARPU_VALUE, &(src_start[0]), ndim*sizeof(src_start[0]),
-                STARPU_VALUE, &(src.stride[0]), ndim*sizeof(src.stride[0]),
-                STARPU_VALUE, &(copy_shape[0]), ndim*sizeof(copy_shape[0]),
-                STARPU_VALUE, &(dst_start[0]), ndim*sizeof(dst_start[0]),
-                STARPU_VALUE, &(dst.stride[0]), ndim*sizeof(dst.stride[0]),
-                STARPU_R, static_cast<starpu_data_handle_t>(src),
-                STARPU_W, static_cast<starpu_data_handle_t>(dst),
-                STARPU_SCRATCH, static_cast<starpu_data_handle_t>(scratch),
-                STARPU_FLOPS, zero_flops, // No floating point operations
-                0);
+        mode = STARPU_W;
     }
     else
     {
-        ret = starpu_task_insert(&codelet_copy_rw,
-                STARPU_VALUE, &(ndim), sizeof(ndim),
-                STARPU_VALUE, &(src_start[0]), ndim*sizeof(src_start[0]),
-                STARPU_VALUE, &(src.stride[0]), ndim*sizeof(src.stride[0]),
-                STARPU_VALUE, &(copy_shape[0]), ndim*sizeof(copy_shape[0]),
-                STARPU_VALUE, &(dst_start[0]), ndim*sizeof(dst_start[0]),
-                STARPU_VALUE, &(dst.stride[0]), ndim*sizeof(dst.stride[0]),
-                STARPU_R, static_cast<starpu_data_handle_t>(src),
-                STARPU_RW, static_cast<starpu_data_handle_t>(dst),
-                STARPU_SCRATCH, static_cast<starpu_data_handle_t>(scratch),
-                STARPU_FLOPS, zero_flops, // No floating point operations
-                0);
+        mode = STARPU_RW;
     }
-    if(ret != 0)
-    {
-        throw std::runtime_error("ret != 0");
-    }
+    copy_intersection_work(src, src_start, dst, dst_start, copy_shape,
+            scratch, mode);
 }
 
 template
-void copy_intersection_work(const Tile<float> &src,
-        const std::vector<Index> &src_offset, const Tile<float> &dst,
+void copy_intersection_work(const Tile<fp32_t> &src,
+        const std::vector<Index> &src_offset, const Tile<fp32_t> &dst,
         const std::vector<Index> &dst_offset,
         const StarpuVariableHandle &scratch);
 
 template
-void copy_intersection_work(const Tile<double> &src,
-        const std::vector<Index> &src_offset, const Tile<double> &dst,
+void copy_intersection_work(const Tile<fp64_t> &src,
+        const std::vector<Index> &src_offset, const Tile<fp64_t> &dst,
         const std::vector<Index> &dst_offset,
         const StarpuVariableHandle &scratch);
 

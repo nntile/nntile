@@ -9,7 +9,8 @@ template<typename T>
 void validate_copy()
 {
     Tensor<T> scalar({}, {}), scalar2({}, {});
-    Tensor<T> A({4, 5, 6}, {1, 2, 3}), B(A.shape, A.shape);
+    Tensor<T> A({4, 5, 6}, {1, 2, 3}), B(A.shape, A.shape),
+        C({5, 6, 7}, {3, 4, 5});
     unsigned long long seed = 100000000000UL;
     randn(scalar, seed);
     randn(scalar2, seed*seed);
@@ -22,19 +23,35 @@ void validate_copy()
     TESTN(copy_intersection(scalar, {}, Tensor<T>({1}, {1}), {0}));
     randn(A, seed);
     randn(B, seed*seed+1);
+    randn(C, (seed*seed+1)*seed+1);
     TESTA(!check_tensors_intersection(A, {0, 0, 0}, B, {0, 0, 0}));
     TESTN(copy_intersection(A, {0, 0, 0, 0}, B, {0}));
     TESTN(copy_intersection(A, {0, 0, 0, 0}, B, {0, 0, 0, 0, 0}));
     TESTN(copy_intersection(A, {0, 0, 0, 0, 0}, B, {0, 0, 0, 0}));
+    copy_intersection(A, {1, 1, 1}, B, {0, 0, 0});
+    TESTA(check_tensors_intersection(A, {1, 1, 1}, B, {0, 0, 0}));
+    TESTA(check_tensors_intersection(B, {0, 0, 0}, A, {1, 1, 1}));
+    copy_intersection(A, {0, 0, 0}, C, {0, 0, 0});
+    TESTA(check_tensors_intersection(A, {0, 0, 0}, C, {0, 0, 0}));
+    TESTA(check_tensors_intersection(C, {0, 0, 0}, A, {0, 0, 0}));
+    copy_intersection(A, {0, 0, 0}, C, {1, 2, 3});
+    TESTA(check_tensors_intersection(A, {0, 0, 0}, C, {1, 2, 3}));
+    TESTA(check_tensors_intersection(C, {1, 2, 3}, A, {0, 0, 0}));
+    copy_intersection(A, {2, 1, 3}, C, {1, 2, 3});
+    TESTA(check_tensors_intersection(A, {2, 1, 3}, C, {1, 2, 3}));
+    TESTA(check_tensors_intersection(C, {1, 2, 3}, A, {2, 1, 3}));
+    copy_intersection(B, {1, 1, 1}, A, {0, 0, 0});
+    TESTA(check_tensors_intersection(A, {0, 0, 0}, B, {1, 1, 1}));
+    TESTA(check_tensors_intersection(B, {1, 1, 1}, A, {0, 0, 0}));
     copy_intersection(A, {0, 0, 0}, B, {1, 1, 1});
     TESTA(check_tensors_intersection(A, {0, 0, 0}, B, {1, 1, 1}));
     TESTA(check_tensors_intersection(B, {1, 1, 1}, A, {0, 0, 0}));
     copy_intersection(A, {0, 0, 0}, B, {3, 4, 5});
     TESTA(!check_tensors_intersection(A, {0, 0, 0}, B, {0, 0, 0}));
     TESTA(!check_tensors_intersection(B, {0, 0, 0}, A, {0, 0, 0}));
-    Tensor<T> C({1, 2, 3, 4}, {1, 2, 3, 4});
-    TESTN(copy_intersection(A, C));
-    TESTN(copy_intersection(A, {0, 0, 0}, C, {0, 0, 0, 0}));
+    Tensor<T> D({1, 2, 3, 4}, {1, 2, 3, 4});
+    TESTN(copy_intersection(A, D));
+    TESTN(copy_intersection(A, {0, 0, 0}, D, {0, 0, 0, 0}));
 }
 
 int main(int argc, char **argv)

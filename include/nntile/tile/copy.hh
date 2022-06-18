@@ -19,6 +19,17 @@
 namespace nntile
 {
 
+template<typename T>
+void copy_intersection_work_ndim0(const Tile<T> &src, const Tile<T> &dst);
+
+extern template
+void copy_intersection_work_ndim0(const Tile<fp32_t> &src,
+        const Tile<fp32_t> &dst);
+
+extern template
+void copy_intersection_work_ndim0(const Tile<fp64_t> &src,
+        const Tile<fp64_t> &dst);
+
 //! Asynchronous tile-wise copy operation
 //
 // @param[in] src: Source tile
@@ -29,6 +40,30 @@ namespace nntile
 // This operation finds an intersection of the source and the target tiles
 // and copies only the data within the found intersection. No elements of the
 // destination tile outside the intersection mask are updated.
+template<typename T>
+void copy_intersection_work(const Tile<T> &src,
+        const std::vector<Index> &src_start, const Tile<T> &dst,
+        const std::vector<Index> &dst_start,
+        const std::vector<Index> &copy_shape,
+        const StarpuVariableHandle &scratch,
+        enum starpu_data_access_mode mode);
+
+extern template
+void copy_intersection_work(const Tile<fp32_t> &src,
+        const std::vector<Index> &src_start, const Tile<fp32_t> &dst,
+        const std::vector<Index> &dst_start,
+        const std::vector<Index> &copy_shape,
+        const StarpuVariableHandle &scratch,
+        enum starpu_data_access_mode mode);
+
+extern template
+void copy_intersection_work(const Tile<fp64_t> &src,
+        const std::vector<Index> &src_start, const Tile<fp64_t> &dst,
+        const std::vector<Index> &dst_start,
+        const std::vector<Index> &copy_shape,
+        const StarpuVariableHandle &scratch,
+        enum starpu_data_access_mode mode);
+
 template<typename T>
 void copy_intersection_work(const Tile<T> &src,
         const std::vector<Index> &src_offset, const Tile<T> &dst,
@@ -65,9 +100,15 @@ void copy_intersection_async(const Tile<T> &src,
     {
         throw std::runtime_error("dst.ndim != dst_offset.size()");
     }
+    // Treat special case of ndim=0
+    if(src.ndim == 0)
+    {
+        copy_intersection_work_ndim0(src, dst);
+        return;
+    }
     // Temporary buffer for indexing
     StarpuVariableHandle scratch(2 * src.ndim * sizeof(Index));
-    // Launch codelet
+    // Delegate computations
     copy_intersection_work(src, src_offset, dst, dst_offset, scratch);
 }
 

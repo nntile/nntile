@@ -29,7 +29,7 @@ class Tensor: public TensorTraits
 {
 public:
     //! Pointer to the contiguous memory
-    std::shared_ptr<void> ptr;
+    //std::shared_ptr<void> ptr;
     //! Total size of allocated memory in bytes
     Index alloc_size;
     //! Tiles
@@ -38,7 +38,7 @@ public:
     Tensor(const TensorTraits &traits,
             Index alignment=16):
         TensorTraits(traits),
-        ptr(),
+        //ptr(),
         alloc_size(0),
         tiles()
     {
@@ -76,7 +76,7 @@ public:
             }
         }
         // Allocate memory
-        void *ptr_raw;
+        //void *ptr_raw;
         //int ret = starpu_malloc(&ptr_raw, alloc_size);
         //if(ret != 0)
         //{
@@ -95,7 +95,7 @@ public:
             //tiles.emplace_back(tile_shape,
             //        reinterpret_cast<T *>(&ptr_char[tiles_offset[i]]),
             //        tiles_nelems[i]);
-            tiles.push_back(Tile<T>(tile_shape));
+            tiles.emplace_back(tile_shape);
         }
     }
     //! Constructor
