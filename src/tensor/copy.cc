@@ -201,6 +201,54 @@ void copy_intersection_work(const Tensor<T> &src,
             }
             src_ntiles *= src_tile_index_end[j] - src_tile_index_begin[j];
         }
+        auto dst_tile = dst.get_tile(dst_tile_index);
+        if(src_ntiles == 1)
+        {
+            auto src_tile = src.get_tile(src_tile_index_begin);
+            std::vector<Index> src_tile_start(ndim), dst_tile_start(ndim),
+                copy_tile_shape(ndim);
+            for(Index k = 0; k < ndim; ++k)
+            {
+                if(dst_tile_index[k] == dst_tile_index_begin[k])
+                {
+                    src_tile_start[k] = src_start[k]
+                        - src_tile_index_begin[k]*src.basetile_shape[k];
+                    dst_tile_start[k] = dst_start[k]
+                        - dst_tile_index[k]*dst.basetile_shape[k];
+                }
+                else
+                {
+                    src_tile_start[k] = src_start[k] - dst_start[k]
+                        + dst_tile_index[k]*dst.basetile_shape[k]
+                        - src_tile_index_begin[k]*src.basetile_shape[k];
+                    dst_tile_start[k] = 0;
+                }
+                if(dst_tile_index[k]+1 == dst_tile_index_end[k])
+                {
+                    copy_tile_shape[k] = src_start[k] + copy_shape[k]
+                        - src_tile_index_begin[k]*src.basetile_shape[k]
+                        - src_tile_start[k];
+                }
+                else
+                {
+                    copy_tile_shape[k] = 0
+                        + dst.basetile_shape[k]
+                        - dst_tile_start[k];
+                }
+            }
+            if(copy_tile_shape == dst_tile.shape
+                    and copy_tile_shape == src_tile.shape)
+            {
+                starpu_data_cpy(dst_tile, src_tile, 1, nullptr, nullptr);
+            }
+            else
+            {
+                copy_intersection_work(src_tile, src_tile_start, dst_tile,
+                        dst_tile_start, copy_tile_shape, scratch, STARPU_W);
+            }
+        }
+        else
+        {
 //        // Print some info
 //        std::cout << "src tiles(";
 //        for(Index k = 0; k < ndim; ++k)
@@ -223,121 +271,120 @@ void copy_intersection_work(const Tensor<T> &src,
 //            std::cout << ",";
 //        }
 //        std::cout << ")\n";
-        auto dst_tile = dst.get_tile(dst_tile_index);
-        std::vector<Index> src_tile_index(src_tile_index_begin);
-        // Cycle through all corresponding source tiles
-        for(Index j = 0; j < src_ntiles; ++j)
-        {
-            std::vector<Index> src_tile_start(ndim), dst_tile_start(ndim),
-                copy_tile_shape(ndim);
-            for(Index k = 0; k < ndim; ++k)
+            std::vector<Index> src_tile_index(src_tile_index_begin);
+            // Cycle through all corresponding source tiles
+            for(Index j = 0; j < src_ntiles; ++j)
             {
-                if(src_tile_index[k] == src_tile_index_begin[k])
+                std::vector<Index> src_tile_start(ndim), dst_tile_start(ndim),
+                    copy_tile_shape(ndim);
+                for(Index k = 0; k < ndim; ++k)
                 {
-                    if(dst_tile_index[k] == dst_tile_index_begin[k])
+                    if(src_tile_index[k] == src_tile_index_begin[k])
                     {
-                        src_tile_start[k] = src_start[k]
-                            - src_tile_index[k]*src.basetile_shape[k];
-                        dst_tile_start[k] = dst_start[k]
-                            - dst_tile_index[k]*dst.basetile_shape[k];
+                        if(dst_tile_index[k] == dst_tile_index_begin[k])
+                        {
+                            src_tile_start[k] = src_start[k]
+                                - src_tile_index[k]*src.basetile_shape[k];
+                            dst_tile_start[k] = dst_start[k]
+                                - dst_tile_index[k]*dst.basetile_shape[k];
+                        }
+                        else
+                        {
+                            src_tile_start[k] = src_start[k] - dst_start[k]
+                                + dst_tile_index[k]*dst.basetile_shape[k]
+                                - src_tile_index[k]*src.basetile_shape[k];
+                            dst_tile_start[k] = 0;
+                        }
                     }
                     else
                     {
-                        src_tile_start[k] = src_start[k]
-                            + dst_tile_index[k]*dst.basetile_shape[k]
-                            - dst_start[k]
-                            - src_tile_index[k]*src.basetile_shape[k];
-                        dst_tile_start[k] = 0;
+                        src_tile_start[k] = 0;
+                        dst_tile_start[k] = dst_start[k] - src_start[k]
+                            + src_tile_index[k]*src.basetile_shape[k]
+                            - dst_tile_index[k]*dst.basetile_shape[k];
                     }
-                }
-                else
-                {
-                    src_tile_start[k] = 0;
-                    dst_tile_start[k] = dst_start[k] - src_start[k]
-                        + src_tile_index[k]*src.basetile_shape[k]
-                        - dst_tile_index[k]*dst.basetile_shape[k];
-                }
-                if(src_tile_index[k]+1 == src_tile_index_end[k])
-                {
-                    if(dst_tile_index[k]+1 == dst_tile_index_end[k])
+                    if(src_tile_index[k]+1 == src_tile_index_end[k])
                     {
-                        copy_tile_shape[k] = src_start[k] + copy_shape[k]
-                            - src_tile_index[k]*src.basetile_shape[k]
-                            - src_tile_start[k];
+                        if(dst_tile_index[k]+1 == dst_tile_index_end[k])
+                        {
+                            copy_tile_shape[k] = src_start[k] + copy_shape[k]
+                                - src_tile_index[k]*src.basetile_shape[k]
+                                - src_tile_start[k];
+                        }
+                        else
+                        {
+                            copy_tile_shape[k] = 0
+                                + dst.basetile_shape[k]
+                                - dst_tile_start[k];
+                        }
                     }
                     else
                     {
                         copy_tile_shape[k] = 0
-                            + dst.basetile_shape[k]
-                            - dst_tile_start[k];
+                            + src.basetile_shape[k]
+                            - src_tile_start[k];
                     }
                 }
-                else
+    //            // Print some info
+    //            std::cout << "from src(";
+    //            for(Index k = 0; k < ndim; ++k)
+    //            {
+    //                std::cout << src_tile_index[k]*src.basetile_shape[k] << ":";
+    //                if(src_tile_index[k]+1 == src.grid.shape[k])
+    //                {
+    //                    std::cout << src.shape[k];
+    //                }
+    //                else
+    //                {
+    //                    std::cout << (src_tile_index[k]+1)*src.basetile_shape[k];
+    //                }
+    //                std::cout << ",";
+    //            }
+    //            std::cout << ")[";
+    //            for(Index k = 0; k < ndim; ++k)
+    //            {
+    //                std::cout << src_tile_start[k] << ":"
+    //                    << src_tile_start[k]+copy_tile_shape[k] << ",";
+    //            }
+    //            std::cout << "] to dst(";
+    //            for(Index k = 0; k < ndim; ++k)
+    //            {
+    //                std::cout << dst_tile_index[k]*dst.basetile_shape[k] << ":";
+    //                if(dst_tile_index[k]+1 == dst.grid.shape[k])
+    //                {
+    //                    std::cout << dst.shape[k];
+    //                }
+    //                else
+    //                {
+    //                    std::cout << (dst_tile_index[k]+1)*dst.basetile_shape[k];
+    //                }
+    //                std::cout << ",";
+    //            }
+    //            std::cout << ")[";
+    //            for(Index k = 0; k < ndim; ++k)
+    //            {
+    //                std::cout << dst_tile_start[k] << ":"
+    //                    << dst_tile_start[k]+copy_tile_shape[k] << ",";
+    //            }
+    //            std::cout << "]\n";
+                // Call copy for the tiles
+                auto src_tile = src.get_tile(src_tile_index);
+                copy_intersection_work(src_tile, src_tile_start, dst_tile,
+                        dst_tile_start, copy_tile_shape, scratch, STARPU_W);
+                // Get out if it was the last source tile
+                if(j == src_ntiles-1)
                 {
-                    copy_tile_shape[k] = 0
-                        + src.basetile_shape[k]
-                        - src_tile_start[k];
+                    break;
                 }
-            }
-//            // Print some info
-//            std::cout << "from src(";
-//            for(Index k = 0; k < ndim; ++k)
-//            {
-//                std::cout << src_tile_index[k]*src.basetile_shape[k] << ":";
-//                if(src_tile_index[k]+1 == src.grid.shape[k])
-//                {
-//                    std::cout << src.shape[k];
-//                }
-//                else
-//                {
-//                    std::cout << (src_tile_index[k]+1)*src.basetile_shape[k];
-//                }
-//                std::cout << ",";
-//            }
-//            std::cout << ")[";
-//            for(Index k = 0; k < ndim; ++k)
-//            {
-//                std::cout << src_tile_start[k] << ":"
-//                    << src_tile_start[k]+copy_tile_shape[k] << ",";
-//            }
-//            std::cout << "] to dst(";
-//            for(Index k = 0; k < ndim; ++k)
-//            {
-//                std::cout << dst_tile_index[k]*dst.basetile_shape[k] << ":";
-//                if(dst_tile_index[k]+1 == dst.grid.shape[k])
-//                {
-//                    std::cout << dst.shape[k];
-//                }
-//                else
-//                {
-//                    std::cout << (dst_tile_index[k]+1)*dst.basetile_shape[k];
-//                }
-//                std::cout << ",";
-//            }
-//            std::cout << ")[";
-//            for(Index k = 0; k < ndim; ++k)
-//            {
-//                std::cout << dst_tile_start[k] << ":"
-//                    << dst_tile_start[k]+copy_tile_shape[k] << ",";
-//            }
-//            std::cout << "]\n";
-            // Call copy for the tiles
-            auto src_tile = src.get_tile(src_tile_index);
-            copy_intersection_work(src_tile, src_tile_start, dst_tile,
-                    dst_tile_start, copy_tile_shape, scratch, STARPU_W);
-            // Get out if it was the last source tile
-            if(j == src_ntiles-1)
-            {
-                break;
-            }
-            // Get next tile
-            ++src_tile_index[0];
-            Index k = 0;
-            while(src_tile_index[k] == src_tile_index_end[k])
-            {
-                src_tile_index[k] = src_tile_index_begin[k];
-                ++k;
-                ++src_tile_index[k];
+                // Get next tile
+                ++src_tile_index[0];
+                Index k = 0;
+                while(src_tile_index[k] == src_tile_index_end[k])
+                {
+                    src_tile_index[k] = src_tile_index_begin[k];
+                    ++k;
+                    ++src_tile_index[k];
+                }
             }
         }
         // Get out if it was the last tile

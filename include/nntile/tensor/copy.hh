@@ -15,6 +15,7 @@
 #pragma once
 
 #include <nntile/tensor/tensor.hh>
+#include <nntile/tile/copy.hh>
 
 namespace nntile
 {
@@ -273,6 +274,24 @@ void copy_intersection_async(const Tensor<T> &src,
     {
         throw std::runtime_error("dst.ndim != dst_offset.size()");
     }
+    // Treat special case of ndim=0
+    if(src.ndim == 0)
+    {
+        copy_intersection_work_ndim0(src.get_tile(0), dst.get_tile(0));
+        return;
+    }
+    // Treat easy case of full copy
+    if(src_offset == dst_offset and src.shape == dst.shape
+            and src.basetile_shape == dst.basetile_shape)
+    {
+        for(Index i = 0; i < src.grid.nelems; ++i)
+        {
+            starpu_data_cpy(dst.get_tile(i), src.get_tile(i), 1, nullptr,
+                    nullptr);
+        }
+        return;
+    }
+    // Do the slow partial copy
     // Temporary buffer for indexing, that is allocated per-worker when needed
     StarpuVariableHandle scratch(2 * src.ndim * sizeof(Index));
     // Launch codelet

@@ -52,6 +52,15 @@ void validate_copy()
     Tensor<T> D({1, 2, 3, 4}, {1, 2, 3, 4});
     TESTN(copy_intersection(A, D));
     TESTN(copy_intersection(A, {0, 0, 0}, D, {0, 0, 0, 0}));
+    Tensor<T> AA(A.shape, A.basetile_shape);
+    copy_intersection(A, AA);
+    TESTA(check_tensors_intersection(A, {0, 0, 0}, AA, {0, 0, 0}));
+    TESTA(check_tensors_intersection(AA, {0, 0, 0}, A, {0, 0, 0}));
+    copy_intersection(A, {0, 0, 0}, AA, A.basetile_shape);
+    TESTA(!check_tensors_intersection(A, {0, 0, 0}, AA, {0, 0, 0}));
+    TESTA(!check_tensors_intersection(AA, {0, 0, 0}, A, {0, 0, 0}));
+    TESTA(check_tensors_intersection(A, {0, 0, 0}, AA, A.basetile_shape));
+    TESTA(check_tensors_intersection(AA, A.basetile_shape, A, {0, 0, 0}));
 }
 
 int main(int argc, char **argv)

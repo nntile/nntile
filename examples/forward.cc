@@ -51,7 +51,7 @@ void run_forward(const std::vector<Index> &shape,
             //bias_async(B[j], X[j+1], 0);
             //relu_async(X[j+1]);
         }
-        //copy_intersection_async(X[nlayers], X[0]);
+        copy_intersection_async(X[nlayers], X[0]);
     }
     starpu_task_wait_for_all();
     starpu_profiling_worker_helper_display_summary();
@@ -64,11 +64,11 @@ void run_forward(const std::vector<Index> &shape,
 int main(int argc, char **argv)
 {
     //Starpu starpu;
-    //std::vector<Index> shape{4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096},
-    //    basetile_shape{1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024};
-    std::vector<Index> shape{16384, 16384, 16384, 16384, 16384, 16384, 16384, 16384},
-        basetile_shape{4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096};
-    Index nforward = 1;
+    std::vector<Index> shape{4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096},
+        basetile_shape{1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024};
+    //std::vector<Index> shape{16384, 16384, 16384, 16384, 16384, 16384, 16384, 16384},
+    //    basetile_shape{4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096};
+    Index nforward = 10;
     run_forward<fp32_t>(shape, basetile_shape, nforward);
     //run_forward<fp32_t>(shape, shape, nforward);
     return 0;

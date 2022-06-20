@@ -45,6 +45,9 @@ void validate_copy()
     TESTN(copy_intersection(A, {0, 0, 0}, B, {0, 0, 0, 0}));
     Tile<T> C({4, 5, 6, 7});
     randn(C, seed*seed+1);
+    copy_intersection(A, {1, 1, 1, 1}, C, {1, 1, 1, 1});
+    TESTA(check_tiles_intersection(A, {1, 1, 1, 1}, C, {1, 1, 1, 1}));
+    TESTA(check_tiles_intersection(C, {1, 1, 1, 1}, A, {1, 1, 1, 1}));
     copy_intersection(B, {1, 0, 0, 0}, C, {1, 1, 1, 1});
     TESTA(check_tiles_intersection(B, {1, 0, 0, 0}, C, {1, 1, 1, 1}));
     TESTA(!check_tiles_intersection(B, {1, 0, 0, 0}, A, {1, 1, 1, 1}));

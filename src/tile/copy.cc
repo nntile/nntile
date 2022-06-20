@@ -201,6 +201,13 @@ void copy_intersection_work(const Tile<T> &src,
 {
     // Treat non-zero ndim
     Index ndim = src.ndim;
+    // Check if can simply call starpu_data_cpy
+    if(src_offset == dst_offset and src.shape == dst.shape)
+    {
+        starpu_data_cpy(dst, src, 1, nullptr, nullptr);
+        return;
+    }
+    // Otherwise we need to perform smart copy
     std::vector<Index> src_start(ndim), dst_start(ndim), copy_shape(ndim);
     bool full_overwrite = true;
     // Obtain starting indices and shape of intersection for copying

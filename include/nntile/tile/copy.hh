@@ -106,6 +106,13 @@ void copy_intersection_async(const Tile<T> &src,
         copy_intersection_work_ndim0(src, dst);
         return;
     }
+    // Treat easy case of full copy
+    if(src_offset == dst_offset and src.shape == dst.shape)
+    {
+        starpu_data_cpy(dst, src, 1, nullptr, nullptr);
+        return;
+    }
+    // Do the slow partial copy
     // Temporary buffer for indexing
     StarpuVariableHandle scratch(2 * src.ndim * sizeof(Index));
     // Delegate computations
