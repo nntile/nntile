@@ -209,7 +209,7 @@ void copy_intersection_work(const Tile<T> &src,
     }
     // Otherwise we need to perform smart copy
     std::vector<Index> src_start(ndim), dst_start(ndim), copy_shape(ndim);
-    bool full_overwrite = true;
+    enum starpu_data_access_mode dst_tile_mode = STARPU_W;
     // Obtain starting indices and shape of intersection for copying
     for(Index i = 0; i < ndim; ++i)
     {
@@ -238,21 +238,12 @@ void copy_intersection_work(const Tile<T> &src,
         // Check if destination is fully inside source
         if(copy_shape[i] != dst.shape[i])
         {
-            full_overwrite = false;
+            dst_tile_mode = STARPU_RW;
         }
     }
     // Launch codelet
-    enum starpu_data_access_mode mode;
-    if(full_overwrite)
-    {
-        mode = STARPU_W;
-    }
-    else
-    {
-        mode = STARPU_RW;
-    }
     copy_intersection_work(src, src_start, dst, dst_start, copy_shape,
-            scratch, mode);
+            scratch, dst_tile_mode);
 }
 
 template
