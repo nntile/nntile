@@ -51,8 +51,8 @@ for i in range(n_layers):
     X_nntile[i].unregister()
     FC_nntile[i].unregister()
 X_nntile[n_layers].unregister()
-# Pause StarPU
-starpu.pause()
+# Shutdown StarPU
+starpu.shutdown()
 # Output results
 gflops = n_layers * 2 * n_batch * n_seq**2 / 10**9
 print("Gflops    : {}".format(gflops))
@@ -67,6 +67,4 @@ dtime = time1 - time0
 print("Numpy time: {}".format(dtime))
 Z = X[n_layers]
 print("diff/norm : {}".format(np.linalg.norm(Y-Z) / np.linalg.norm(Z)))
-# Resume StarPU
-starpu.resume()
 

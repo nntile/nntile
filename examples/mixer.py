@@ -62,3 +62,5 @@ for i in range(n_layers):
 X_nntile[n_layers].unregister()
 del X_nntile
 del MX_nntile
+# Shutdown StarPU
+starpu.shutdown()
