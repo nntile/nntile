@@ -94,7 +94,7 @@ public:
             throw std::runtime_error("Wrong dimensionality");
         }
         // Init tile shape with base tile shape
-        std::vector<Index> shape(basetile_shape);
+        std::vector<Index> tile_shape(basetile_shape);
         // Update tile shape if necessary
         for(Index i = 0; i < ndim; ++i)
         {
@@ -106,10 +106,10 @@ public:
             // If tile is the last in corresponding dimension
             else if(grid.shape[i]-tile_index[i] == 1)
             {
-                shape[i] = leftover_shape[i];
+                tile_shape[i] = leftover_shape[i];
             }
         }
-        return shape;
+        return tile_shape;
     }
     friend std::ostream &operator<<(std::ostream &os,
             const TensorTraits &traits);

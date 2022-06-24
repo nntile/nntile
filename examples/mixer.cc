@@ -147,6 +147,7 @@ int main(int argc, char **argv)
     // Flush profiling data
     std::chrono::steady_clock clock;
     starpu_profiling_init();
+    starpu_profiling_worker_helper_display_summary();
     auto start = clock.now();
     // Apply all mixer layers
     for(Index i = 0; i < n_mixer_layers; ++i)

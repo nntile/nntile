@@ -18,5 +18,12 @@ set(SRC
     "tensor/norm.cc"
     )
 
+if(USE_CUDA)
+    set(SRC
+        ${SRC}
+	#"tile/relu.cu"
+        )
+endif()
+
 target_sources(nntile PRIVATE ${SRC})
 

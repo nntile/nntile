@@ -249,6 +249,7 @@ void gemm_check(const TransOp &transA, const TileTraits &A,
     gemm_check_opB_C(transB, B, C, ndim);
 }
 
+#ifdef NNTILE_USE_CBLAS
 static inline void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
         CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, float alpha, const float *A,
         CBLAS_INT ldA, const float *B, CBLAS_INT ldB, float beta, float *C,
@@ -307,6 +308,7 @@ static void gemm_codelet_cpu(void *buffers[], void *cl_args)
     cblas_gemm(transA_, transB_, M, N, K, alpha, A, ldA, B, ldB, beta, C,
             M);
 }
+#endif // NNTILE_USE_CBLAS
 
 #ifdef NNTILE_USE_CUDA
 static inline void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
@@ -379,7 +381,9 @@ void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
 {
     static struct starpu_codelet codelet_gemm_w =
     {
+#       ifdef NNTILE_USE_CBLAS
         .cpu_funcs = {gemm_codelet_cpu<T>},
+#       endif
 #       ifdef NNTILE_USE_CUDA
         .cuda_funcs = {gemm_codelet_gpu<T>},
         .cuda_flags = {STARPU_CUDA_ASYNC},
@@ -389,7 +393,9 @@ void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
     };
     static struct starpu_codelet codelet_gemm_rw =
     {
+#       ifdef NNTILE_USE_CBLAS
         .cpu_funcs = {gemm_codelet_cpu<T>},
+#       endif
 #       ifdef NNTILE_USE_CUDA
         .cuda_funcs = {gemm_codelet_gpu<T>},
         .cuda_flags = {STARPU_CUDA_ASYNC},
@@ -399,7 +405,9 @@ void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
     };
     static struct starpu_codelet codelet_gemm_rw_commute =
     {
+#       ifdef NNTILE_USE_CBLAS
         .cpu_funcs = {gemm_codelet_cpu<T>},
+#       endif
 #       ifdef NNTILE_USE_CUDA
         .cuda_funcs = {gemm_codelet_gpu<T>},
         .cuda_flags = {STARPU_CUDA_ASYNC},

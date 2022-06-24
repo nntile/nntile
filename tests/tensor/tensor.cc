@@ -47,10 +47,6 @@ void validate_tensor()
     check_tensor<T>(t5d);
     Tensor<T> t5d2({100, 100, 100, 100, 100}, {11, 13, 15, 17, 19});
     check_tensor<T>(t5d2);
-    TESTN(Tensor<T>({}, {}, 0));
-    TESTN(Tensor<T>({}, {}, -1));
-    TESTN(Tensor<T>({1}, {1}, 0));
-    TESTN(Tensor<T>({1}, {1}, -1));
 }
 
 int main(int argc, char ** argv)

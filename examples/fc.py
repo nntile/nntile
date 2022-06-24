@@ -8,12 +8,14 @@ import time
 
 starpu = st.Starpu()
 
-n_iters = 3
-n_layers = 10
-n_batch = 4096
-n_seq = 4096
-n_batch_tile = 512
-n_seq_tile = 512
+n_iters = 10
+n_layers = 6
+v1 = 4096
+v2 = 1024
+n_batch = v1
+n_seq = v1
+n_batch_tile = v2
+n_seq_tile = v2
 
 # States in numpy
 X = [np.random.randn(n_seq, n_batch).astype(np.float32)]
@@ -58,6 +60,8 @@ gflops = n_layers * 2 * n_batch * n_seq**2 / 10**9
 print("Gflops    : {}".format(gflops))
 print("Avg.time  : {}".format(dtime))
 print("Gflops/s  : {}".format(gflops/dtime))
+import sys
+sys.exit(0)
 # Compare result
 time0 = time.perf_counter()
 for i in range(n_layers):

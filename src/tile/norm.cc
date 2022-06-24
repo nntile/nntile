@@ -4,7 +4,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tile/norm.hh
+ * @file src/tile/norm.cc
  * Functions that compute different norms.
  *
  * @version 1.0.0
@@ -449,58 +449,6 @@ void cpu_sum_ssq_single_axis_init(void *buffers[], void *cl_args)
             sum_ssq[dst_offset+2] = ssq;
             dst_offset += 3;
         }
-
-//        const T *src_ptr = src + i2*mk;
-//        Index dst_offset = 3 * i2 * m;
-//        for(Index i1 = 0; i1 < m; ++i1)
-//        {
-//            // Read value from source
-//            T val = src_ptr[i1];
-//            // Update scale and scaled sum of squares
-//            if(val == 0)
-//            {
-//                sum_ssq[dst_offset] = 0;
-//                sum_ssq[dst_offset+1] = 0;
-//                sum_ssq[dst_offset+2] = 0;
-//                dst_offset += 3;
-//                continue;
-//            }
-//            sum_ssq[dst_offset] = val;
-//            sum_ssq[dst_offset+1] = val;
-//            sum_ssq[dst_offset+2] = 1;
-//            dst_offset += 3;
-//        }
-//        for(Index i0 = 1; i0 < k; ++i0)
-//        {
-//            const T *src_ptr = src + i2*mk + i0*m;
-//            Index dst_offset = 3 * i2 * m;
-//            for(Index i1 = 0; i1 < m; ++i1)
-//            {
-//                // Read value from source
-//                T val = src_ptr[i1];
-//                // Update scale and scaled sum of squares
-//                if(val == 0)
-//                {
-//                    continue;
-//                }
-//                sum_ssq[dst_offset] += val;
-//                T absval = std::abs(val);
-//                T &scale = sum_ssq[dst_offset+1];
-//                T &ssq = sum_ssq[dst_offset+2];
-//                if(absval > scale)
-//                {
-//                    T tmp = scale / absval;
-//                    scale = absval;
-//                    ssq = ssq*tmp*tmp + T{1};
-//                }
-//                else
-//                {
-//                    T tmp = absval / scale;
-//                    ssq += tmp*tmp;
-//                }
-//                dst_offset += 3;
-//            }
-//        }
     }
 }
 

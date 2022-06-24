@@ -57,6 +57,7 @@ public:
             throw std::runtime_error("Error in starpu_init()");
         }
 #       ifdef NNTILE_USE_CUDA
+	std::cout << "starpu_cublas_init()\n";
         starpu_cublas_init();
 #       endif
     }

@@ -19,6 +19,17 @@
 namespace nntile
 {
 
+//#ifdef NNTILE_USE_CUDA
+//template<typename T>
+//void relu_codelet_gpu(void *buffers[], void *cl_args);
+//
+//extern template
+//void relu_codelet_gpu<fp32_t>(void *buffers[], void *cl_args);
+//
+//extern template
+//void relu_codelet_gpu<fp64_t>(void *buffers[], void *cl_args);
+//#endif // NNTILE_USE_CUDA
+
 //! Asynchronous tile-wise ReLU operation
 //
 // @param[inout] A: Tile for the element-wise ReLU operation

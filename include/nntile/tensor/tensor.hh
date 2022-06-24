@@ -27,13 +27,24 @@ namespace nntile
 template<typename T>
 class Tensor: public TensorTraits
 {
+    void _free_mem(void *ptr)
+    {
+        //starpu_memory_unpin(ptr, alloc_size);
+    }
 public:
     //! Pointer to the contiguous memory
-    //std::shared_ptr<void> ptr;
+    std::shared_ptr<char> ptr;
     //! Total size of allocated memory in bytes
     Index alloc_size;
     //! Tiles
     std::vector<Tile<T>> tiles;
+    ~Tensor()
+    {
+        if(ptr.use_count() == 1)
+        {
+            //starpu_memory_unpin(ptr.get(), alloc_size);
+        }
+    }
     //! Constructor
     Tensor(const TensorTraits &traits,
             Index alignment=16):
@@ -76,14 +87,21 @@ public:
             }
         }
         // Allocate memory
-        //void *ptr_raw;
-        //int ret = starpu_malloc(&ptr_raw, alloc_size);
-        //if(ret != 0)
-        //{
-        //    throw std::runtime_error("ret != 0");
-        //}
-        //char *ptr_char = reinterpret_cast<char *>(ptr_raw);
-        //ptr = std::shared_ptr<void>(ptr_raw, starpu_free);
+//        void *ptr_raw;
+//        int ret = starpu_malloc(&ptr_raw, alloc_size);
+//        if(ret != 0)
+//        {
+//            throw std::runtime_error("ret != 0");
+//        }
+//        ret = starpu_memory_pin(ptr_raw, alloc_size);
+//        if(ret != 0)
+//        {
+//            throw std::runtime_error("ret != 0");
+//        }
+//        char *ptr_char = reinterpret_cast<char *>(ptr_raw);
+//        ptr = std::shared_ptr<void>(ptr_raw, starpu_free);
+        char *ptr_char = new char[alloc_size];
+        ptr = std::shared_ptr<char>(ptr_char);
         // Register tiles
         tiles.reserve(grid.nelems);
         for(Index i = 0; i < grid.nelems; ++i)
@@ -92,10 +110,10 @@ public:
             const auto tile_index = grid.linear_to_index(i);
             // Get shape of corresponding tile
             const auto tile_shape = TensorTraits::get_tile_shape(tile_index);
-            //tiles.emplace_back(tile_shape,
-            //        reinterpret_cast<T *>(&ptr_char[tiles_offset[i]]),
-            //        tiles_nelems[i]);
-            tiles.emplace_back(tile_shape);
+            tiles.emplace_back(tile_shape,
+                    reinterpret_cast<T *>(&ptr_char[tiles_offset[i]]),
+                    tiles_nelems[i]);
+            //tiles.emplace_back(tile_shape);
         }
     }
     //! Constructor
