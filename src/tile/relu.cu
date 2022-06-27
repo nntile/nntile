@@ -18,32 +18,37 @@ namespace nntile
 {
 
 template<typename T>
-__global__ static void cuda_relu_work(T *data)
+__global__ static
+void cuda_relu_work(Index nelems, T *data)
 {
-    int i = blockIdx.x;
+    int start = threadIdx.x + blockIdx.x*blockDim.x,
+        step = blockDim.x*gridDim.x;
     constexpr T zero{0};
-    if(data[i] < zero)
+    for(Index i = start; i < nelems; i += step)
     {
-        data[i] = zero;
+        if(data[i] < zero)
+        {
+            data[i] = zero;
+        }
     }
 }
 
 template<typename T>
-void relu_codelet_gpu(void *buffers[], void *cl_args)
+void relu_codelet_cuda(void *buffers[], void *cl_args)
 {
     Index nelems;
     starpu_codelet_unpack_args(cl_args, &nelems);
     T *data = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
     cudaStream_t stream = starpu_cuda_get_local_stream();
-    dim3 threads(1);
-    (cuda_relu_work<T>)<<<nelems, 1, 0, stream>>>(data);
+    dim3 grid(256), block(32);
+    (cuda_relu_work<T>)<<<grid, block, 0, stream>>>(nelems, data);
 }
 
 template
-void relu_codelet_gpu<fp32_t>(void *buffers[], void *cl_args);
+void relu_codelet_cuda<fp32_t>(void *buffers[], void *cl_args);
 
 template
-void relu_codelet_gpu<fp64_t>(void *buffers[], void *cl_args);
+void relu_codelet_cuda<fp64_t>(void *buffers[], void *cl_args);
 
 } // namespace nntile
 

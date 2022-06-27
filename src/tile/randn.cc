@@ -92,13 +92,15 @@ void randn_async(const Tile<T> &dst, const std::vector<Index> &offset,
     {
         .cpu_funcs = {cpu_chameleon_randn<T>},
         .nbuffers = 1,
-        .modes = {STARPU_W}
+        .modes = {STARPU_W},
+        .name = "randn",
     };
     static struct starpu_codelet codelet_randn_ndim0 =
     {
         .cpu_funcs = {cpu_chameleon_randn_ndim0<T>},
         .nbuffers = 1,
-        .modes = {STARPU_W}
+        .modes = {STARPU_W},
+        .name = "randn",
     };
     // Check inputs
     if(dst.ndim != offset.size())

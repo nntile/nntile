@@ -19,6 +19,18 @@
 namespace nntile
 {
 
+#ifdef NNTILE_USE_CUDA
+// CUDA codelet for bias operation with a single axis provided
+template<typename T>
+void bias_codelet_cuda_single_axis(void *buffers[], void *cl_args);
+
+extern template
+void bias_codelet_cuda_single_axis<fp32_t>(void *buffers[], void *cl_args);
+
+extern template
+void bias_codelet_cuda_single_axis<fp64_t>(void *buffers[], void *cl_args);
+#endif // NNTILE_USE_CUDA
+
 //! Tile-wise bias operation
 //
 // Main computational routine that does NO argument checking.
@@ -88,6 +100,20 @@ void bias(const Tile<T> &src, const Tile<T> &dst, Index axis)
     bias_async<T>(src, dst, axis);
     starpu_task_wait_for_all();
 }
+
+#ifdef NNTILE_USE_CUDA
+// CUDA codelet for bias operation with a single axis provided
+template<typename T>
+void bias_avg_dev_codelet_cuda_single_axis(void *buffers[], void *cl_args);
+
+extern template
+void bias_avg_dev_codelet_cuda_single_axis<fp32_t>(void *buffers[],
+        void *cl_args);
+
+extern template
+void bias_avg_dev_codelet_cuda_single_axis<fp64_t>(void *buffers[],
+        void *cl_args);
+#endif // NNTILE_USE_CUDA
 
 //! Tile-wise bias operation by averages and deviations
 //

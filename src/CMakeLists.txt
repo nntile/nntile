@@ -21,7 +21,9 @@ set(SRC
 if(USE_CUDA)
     set(SRC
         ${SRC}
-	#"tile/relu.cu"
+	"tile/relu.cu"
+	"tile/norm.cu"
+	"tile/bias.cu"
         )
 endif()
 

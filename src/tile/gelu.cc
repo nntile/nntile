@@ -42,7 +42,8 @@ void gelu_work(const Tile<T> &A)
     {
         .cpu_funcs = {cpu_gelu<T>},
         .nbuffers = 1,
-        .modes = {STARPU_RW}
+        .modes = {STARPU_RW},
+        .name = "gelu",
     };
     int ret = starpu_task_insert(&codelet_gelu,
             STARPU_VALUE, &A.nelems, sizeof(A.nelems),

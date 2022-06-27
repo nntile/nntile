@@ -55,7 +55,9 @@ void bias_work(const Tile<T> &src, const Tile<T> &dst, Index axis)
     // StarPU codelet
     static struct starpu_codelet codelet_bias =
     {
-        .cpu_funcs = {cpu_bias<T>},
+        //.cpu_funcs = {cpu_bias<T>},
+        .cuda_funcs = {bias_codelet_cuda_single_axis<T>},
+        .cuda_flags = {STARPU_CUDA_ASYNC},
         .nbuffers = 2,
         .modes = {STARPU_R, Starpu::STARPU_RW_COMMUTE},
         .name = "bias"
@@ -186,18 +188,20 @@ void bias_avg_dev_work(const Tile<T> &avg_dev, const Tile<T> &dst, Index axis)
     // StarPU codelet
     static struct starpu_codelet codelet_bias_avg_dev =
     {
-        .cpu_funcs = {cpu_bias_avg_dev<T>},
+        //.cpu_funcs = {cpu_bias_avg_dev<T>},
+        .cuda_funcs = {bias_avg_dev_codelet_cuda_single_axis<T>},
+        .cuda_flags = {STARPU_CUDA_ASYNC},
         .nbuffers = 2,
         .modes = {STARPU_R, STARPU_RW},
-        .name = "normalize"
+        .name = "bias_avg_dev"
     };
-    static struct starpu_codelet codelet_bias_avg_dev_m1 =
-    {
-        .cpu_funcs = {cpu_bias_avg_dev_m1<T>},
-        .nbuffers = 2,
-        .modes = {STARPU_R, STARPU_RW},
-        .name = "normalize m=1"
-    };
+    //static struct starpu_codelet codelet_bias_avg_dev_m1 =
+    //{
+    //    .cpu_funcs = {cpu_bias_avg_dev_m1<T>},
+    //    .nbuffers = 2,
+    //    .modes = {STARPU_R, STARPU_RW},
+    //    .name = "normalize m=1"
+    //};
     // Reshape inputs for simplicity: src -> (2,m,n), dst -> (m,k,n)
     Index m, n, k;
     if(axis == 0)
@@ -222,7 +226,15 @@ void bias_avg_dev_work(const Tile<T> &avg_dev, const Tile<T> &dst, Index axis)
     int ret;
     if(m == 1)
     {
-        ret = starpu_task_insert(&codelet_bias_avg_dev_m1,
+        //ret = starpu_task_insert(&codelet_bias_avg_dev_m1,
+        //        STARPU_VALUE, &n, sizeof(n),
+        //        STARPU_VALUE, &k, sizeof(k),
+        //        STARPU_R, static_cast<starpu_data_handle_t>(avg_dev),
+        //        STARPU_RW, static_cast<starpu_data_handle_t>(dst),
+        //        STARPU_FLOPS, static_cast<double>(dst.nelems),
+        //        0);
+        ret = starpu_task_insert(&codelet_bias_avg_dev,
+                STARPU_VALUE, &m, sizeof(m),
                 STARPU_VALUE, &n, sizeof(n),
                 STARPU_VALUE, &k, sizeof(k),
                 STARPU_R, static_cast<starpu_data_handle_t>(avg_dev),

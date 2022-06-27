@@ -389,7 +389,8 @@ void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
         .cuda_flags = {STARPU_CUDA_ASYNC},
 #       endif // NNTILE_USE_CUDA
         .nbuffers = 3,
-        .modes = {STARPU_R, STARPU_R, STARPU_W}
+        .modes = {STARPU_R, STARPU_R, STARPU_W},
+        .name = "gemm",
     };
     static struct starpu_codelet codelet_gemm_rw =
     {
@@ -401,7 +402,8 @@ void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
         .cuda_flags = {STARPU_CUDA_ASYNC},
 #       endif // NNTILE_USE_CUDA
         .nbuffers = 3,
-        .modes = {STARPU_R, STARPU_R, STARPU_RW}
+        .modes = {STARPU_R, STARPU_R, STARPU_RW},
+        .name = "gemm",
     };
     static struct starpu_codelet codelet_gemm_rw_commute =
     {
@@ -413,7 +415,8 @@ void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
         .cuda_flags = {STARPU_CUDA_ASYNC},
 #       endif // NNTILE_USE_CUDA
         .nbuffers = 3,
-        .modes = {STARPU_R, STARPU_R, Starpu::STARPU_RW_COMMUTE}
+        .modes = {STARPU_R, STARPU_R, Starpu::STARPU_RW_COMMUTE},
+        .name = "gemm",
     };
     // Reference tensors as matrices
     Index m = C.matrix_shape[A.ndim-ndim][0];

@@ -33,14 +33,14 @@ class Tensor: public TensorTraits
     }
 public:
     //! Pointer to the contiguous memory
-    std::shared_ptr<char> ptr;
+    std::shared_ptr<void> ptr;
     //! Total size of allocated memory in bytes
     Index alloc_size;
     //! Tiles
     std::vector<Tile<T>> tiles;
     ~Tensor()
     {
-        if(ptr.use_count() == 1)
+        //if(ptr.use_count() == 1)
         {
             //starpu_memory_unpin(ptr.get(), alloc_size);
         }
@@ -87,21 +87,14 @@ public:
             }
         }
         // Allocate memory
-//        void *ptr_raw;
-//        int ret = starpu_malloc(&ptr_raw, alloc_size);
-//        if(ret != 0)
-//        {
-//            throw std::runtime_error("ret != 0");
-//        }
-//        ret = starpu_memory_pin(ptr_raw, alloc_size);
-//        if(ret != 0)
-//        {
-//            throw std::runtime_error("ret != 0");
-//        }
-//        char *ptr_char = reinterpret_cast<char *>(ptr_raw);
-//        ptr = std::shared_ptr<void>(ptr_raw, starpu_free);
-        char *ptr_char = new char[alloc_size];
-        ptr = std::shared_ptr<char>(ptr_char);
+        void *ptr_raw;
+        int ret = starpu_malloc(&ptr_raw, alloc_size);
+        if(ret != 0)
+        {
+            throw std::runtime_error("ret != 0");
+        }
+        char *ptr_char = reinterpret_cast<char *>(ptr_raw);
+        ptr = std::shared_ptr<void>(ptr_raw, starpu_free);
         // Register tiles
         tiles.reserve(grid.nelems);
         for(Index i = 0; i < grid.nelems; ++i)
@@ -151,6 +144,22 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             tiles[i].unregister();
+        }
+    }
+    //! Invalidate tensor values
+    void invalidate_submit()
+    {
+        for(Index i = 0; i < grid.nelems; ++i)
+        {
+            starpu_data_invalidate_submit(tiles[i]);
+        }
+    }
+    //! Advice to evict data from GPU
+    void wont_use()
+    {
+        for(Index i = 0; i < grid.nelems; ++i)
+        {
+            starpu_data_wont_use(tiles[i]);
         }
     }
 };

@@ -343,14 +343,14 @@ void norm_sum_ssq_work(const Tile<T> &src, const Tile<T> &sum_ssq,
         .cpu_funcs = {cpu_sum_ssq_init<T>},
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_W, STARPU_SCRATCH},
-        .name = "sum_ssq_init"
+        .name = "norm_sum_ssq_init_axes"
     };
     static struct starpu_codelet codelet_sum_ssq_update =
     {
         .cpu_funcs = {cpu_sum_ssq_update<T>},
         .nbuffers = 3,
         .modes = {STARPU_R, Starpu::STARPU_RW_COMMUTE, STARPU_SCRATCH},
-        .name = "sum_ssq_update"
+        .name = "norm_sum_ssq_update_axes"
     };
     // Insert task
     Index axes_ndim = axes.size();
@@ -585,15 +585,21 @@ void norm_sum_ssq_work(const Tile<T> &src, const Tile<T> &sum_ssq,
 {
     static struct starpu_codelet codelet_sum_ssq_single_axis_init =
     {
-        .cpu_funcs = {cpu_sum_ssq_single_axis_init<T>},
+        //.cpu_funcs = {cpu_sum_ssq_single_axis_init<T>},
+        .cuda_funcs = {norm_sum_ssq_codelet_cuda_single_axis_init<T>},
+        .cuda_flags = {STARPU_CUDA_ASYNC},
         .nbuffers = 2,
-        .modes = {STARPU_R, STARPU_W}
+        .modes = {STARPU_R, STARPU_W},
+        .name = "norm_sum_ssq_init",
     };
     static struct starpu_codelet codelet_sum_ssq_single_axis_update =
     {
-        .cpu_funcs = {cpu_sum_ssq_single_axis_update<T>},
+        //.cpu_funcs = {cpu_sum_ssq_single_axis_update<T>},
+        .cuda_funcs = {norm_sum_ssq_codelet_cuda_single_axis_update<T>},
+        .cuda_flags = {STARPU_CUDA_ASYNC},
         .nbuffers = 2,
-        .modes = {STARPU_R, Starpu::STARPU_RW_COMMUTE}
+        .modes = {STARPU_R, Starpu::STARPU_RW_COMMUTE},
+        .name = "norm_sum_ssq_update",
     };
     // Get sizes
     Index m, n, k;
@@ -705,9 +711,12 @@ void norm_avg_dev_work(const Tile<T> &sum_ssq, const Tile<T> &avg_dev,
 {
     static struct starpu_codelet codelet_avg_dev =
     {
-        .cpu_funcs = {cpu_avg_dev<T>},
+        //.cpu_funcs = {cpu_avg_dev<T>},
+        .cuda_funcs = {norm_avg_dev_codelet_cuda_single_axis<T>},
+        .cuda_flags = {STARPU_CUDA_ASYNC},
         .nbuffers = 2,
-        .modes = {STARPU_R, STARPU_W}
+        .modes = {STARPU_R, STARPU_W},
+        .name = "norm_avg_dev",
     };
     // Get sizes
     Index m = avg_dev.nelems / 2; // 2 elements per m

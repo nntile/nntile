@@ -51,6 +51,8 @@ public:
         {
             return;
         }
+        // Disable automatic profiling
+        starpu_fxt_autostart_profiling(0);
         ret = starpu_init(this);
         if(ret != 0)
         {

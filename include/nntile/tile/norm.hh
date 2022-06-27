@@ -198,6 +198,32 @@ void norm_sum_ssq(const Tile<T> &src, const Tile<T> &sum_ssq,
     starpu_task_wait_for_all();
 }
 
+#ifdef NNTILE_USE_CUDA
+template<typename T>
+void norm_sum_ssq_codelet_cuda_single_axis_init(void *buffers[],
+        void *cl_args);
+
+extern template
+void norm_sum_ssq_codelet_cuda_single_axis_init<fp32_t>(void *buffers[],
+        void *cl_args);
+
+extern template
+void norm_sum_ssq_codelet_cuda_single_axis_init<fp64_t>(void *buffers[],
+        void *cl_args);
+
+template<typename T>
+void norm_sum_ssq_codelet_cuda_single_axis_update(void *buffers[],
+        void *cl_args);
+
+extern template
+void norm_sum_ssq_codelet_cuda_single_axis_update<fp32_t>(void *buffers[],
+        void *cl_args);
+
+extern template
+void norm_sum_ssq_codelet_cuda_single_axis_update<fp64_t>(void *buffers[],
+        void *cl_args);
+#endif // NNTILE_USE_CUDA
+
 //! Tile-wise sum and scaled sum of squares along single given axis
 //
 // Main computational routine that does NO argument checking.
@@ -275,6 +301,19 @@ void norm_sum_ssq(const Tile<T> &src, const Tile<T> &sum_ssq, Index axis,
     norm_sum_ssq_async(src, sum_ssq, axis, init_output);
     starpu_task_wait_for_all();
 }
+
+#ifdef NNTILE_USE_CUDA
+template<typename T>
+void norm_avg_dev_codelet_cuda_single_axis(void *buffers[], void *cl_args);
+
+extern template
+void norm_avg_dev_codelet_cuda_single_axis<fp32_t>(void *buffers[],
+        void *cl_args);
+
+extern template
+void norm_avg_dev_codelet_cuda_single_axis<fp64_t>(void *buffers[],
+        void *cl_args);
+#endif // NNTILE_USE_CUDA
 
 //! Tile-wise average and deviation from sum and scaled sum of squares
 //

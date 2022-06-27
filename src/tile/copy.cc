@@ -34,7 +34,8 @@ void copy_intersection_work_ndim0(const Tile<T> &src, const Tile<T> &dst)
     {
         .cpu_funcs = {cpu_copy_intersection_ndim0<T>},
         .nbuffers = 2,
-        .modes = {STARPU_R, STARPU_W}
+        .modes = {STARPU_R, STARPU_W},
+        .name = "copy_ndim0",
     };
     constexpr double zero_flops = 0;
     int ret = starpu_task_insert(&codelet_copy_ndim0,
@@ -127,19 +128,22 @@ void copy_intersection_work(const Tile<T> &src,
     {
         .cpu_funcs = {cpu_copy_intersection<T>},
         .nbuffers = 3,
-        .modes = {STARPU_R, STARPU_W, STARPU_SCRATCH}
+        .modes = {STARPU_R, STARPU_W, STARPU_SCRATCH},
+        .name = "copy_intersection",
     };
     static struct starpu_codelet codelet_copy_rw =
     {
         .cpu_funcs = {cpu_copy_intersection<T>},
         .nbuffers = 3,
-        .modes = {STARPU_R, STARPU_RW, STARPU_SCRATCH}
+        .modes = {STARPU_R, STARPU_RW, STARPU_SCRATCH},
+        .name = "copy_intersection",
     };
     static struct starpu_codelet codelet_copy_rw_commute =
     {
         .cpu_funcs = {cpu_copy_intersection<T>},
         .nbuffers = 3,
-        .modes = {STARPU_R, Starpu::STARPU_RW_COMMUTE, STARPU_SCRATCH}
+        .modes = {STARPU_R, Starpu::STARPU_RW_COMMUTE, STARPU_SCRATCH},
+        .name = "copy_intersection",
     };
     struct starpu_codelet *current_codelet;
     switch(mode)

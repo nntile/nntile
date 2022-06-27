@@ -29,7 +29,7 @@ void check_relu(const Tile<T> &A)
 template<typename T>
 void validate_relu()
 {
-    Tile<T> scalar({}), A({4, 5, 6, 3});
+    Tile<T> scalar({}), A({40, 50, 60, 30});
     unsigned long long seed = 100000000000001ULL;
     randn(scalar, seed);
     check_relu(scalar);

@@ -64,12 +64,12 @@ void run_forward(const std::vector<Index> &shape,
 int main(int argc, char **argv)
 {
     //Starpu starpu;
-    std::vector<Index> shape{4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096},
+    //std::vector<Index> shape{4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096},
     //    basetile_shape{2048, 2048, 2048, 2048, 2048, 2048, 2048, 2048};
     //    basetile_shape{1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024};
-        basetile_shape{500, 500, 500, 500, 500, 500, 500, 500};
-    //std::vector<Index> shape{16384, 16384, 16384, 16384, 16384, 16384, 16384, 16384},
-    //    basetile_shape{4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096};
+    //    basetile_shape{500, 500, 500, 500, 500, 500, 500, 500};
+    std::vector<Index> shape{16384, 16384, 16384, 16384, 16384, 16384, 16384, 16384},
+        basetile_shape{4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096};
     Index nforward = 10;
     run_forward<fp32_t>(shape, basetile_shape, nforward);
     //run_forward<fp32_t>(shape, shape, nforward);

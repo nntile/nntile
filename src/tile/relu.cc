@@ -35,14 +35,15 @@ void relu_async(const Tile<T> &A)
 {
     static struct starpu_codelet codelet_relu =
     {
-//#       ifdef NNTILE_USE_CUDA
-//        .cuda_funcs = {relu_codelet_gpu<T>},
-//        .cuda_flags = {STARPU_CUDA_ASYNC},
-//#       else
+#       ifdef NNTILE_USE_CUDA
+        .cuda_funcs = {relu_codelet_cuda<T>},
+        .cuda_flags = {STARPU_CUDA_ASYNC},
+#       else
         .cpu_funcs = {cpu_relu<T>},
-//#       endif
+#       endif
         .nbuffers = 1,
-        .modes = {STARPU_RW}
+        .modes = {STARPU_RW},
+        .name = "relu",
     };
     starpu_task_insert(&codelet_relu,
             STARPU_VALUE, &A.nelems, sizeof(A.nelems),

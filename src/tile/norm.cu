@@ -18,152 +18,236 @@
 namespace nntile
 {
 
+static inline __device__
+fp32_t cuda_abs(fp32_t x)
+{
+    return fabsf(x);
+}
+
+static inline __device__
+fp64_t cuda_abs(fp64_t x)
+{
+    return fabs(x);
+}
+
+static inline __device__
+fp32_t cuda_sqrt(fp32_t x)
+{
+    return sqrtf(x);
+}
+
+static inline __device__
+fp64_t cuda_sqrt(fp64_t x)
+{
+    return sqrt(x);
+}
+
 // Compute sum and scaled sum of squares of a tile
 template<typename T>
-static
-void cuda_sum_ssq_init(void *buffers[], void *cl_args)
-    noexcept
+__global__ static
+void cuda_sum_ssq_single_axis_init(Index m, Index n, Index k, Index mk,
+        const T *src, T *sum_ssq)
 {
-    const Index *src_ndim_ptr, *axes_ndim_ptr, *src_nelems_ptr, *src_shape,
-          *sum_ssq_shape, *axes;
-    Starpu::unpack_args_ptr(cl_args, src_ndim_ptr, axes_ndim_ptr,
-            src_nelems_ptr, src_shape, sum_ssq_shape, axes);
-    Index src_ndim = *src_ndim_ptr, axes_ndim = *axes_ndim_ptr,
-          src_nelems = *src_nelems_ptr;
-    Index sum_ssq_ndim = src_ndim + 1 - axes_ndim;
-    // Get pointers
-    const T *src = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
-    T *sum_ssq = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[1]));
-    Index *src_stride = reinterpret_cast<Index *>(
-            STARPU_VARIABLE_GET_PTR(buffers[2]));
-    Index *src_index = src_stride + src_ndim;
-    Index *sum_ssq_stride = src_index + src_ndim;
-    Index *sum_ssq_index = sum_ssq_stride + sum_ssq_ndim;
-    // Define number of slices and size of each slice
-    Index slice_nelems = 1;
-    for(Index i = 0; i < axes_ndim; ++i)
+    Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
+          i1_start = threadIdx.y + blockIdx.y*blockDim.y,
+          i2_step = blockDim.x * gridDim.x,
+          i1_step = blockDim.y * gridDim.y;
+    for(Index i2 = i2_start; i2 < n; i2 += i2_step)
     {
-        slice_nelems *= src_shape[axes[i]];
-    }
-    Index nslices = src_nelems / slice_nelems;
-    // Define stride arrays
-    src_stride[0] = 1;
-    src_index[0] = 0;
-    for(Index i = 1; i < src_ndim; ++i)
-    {
-        src_stride[i] = src_stride[i-1] * src_shape[i-1];
-        src_index[i] = 0;
-    }
-    sum_ssq_stride[0] = 1;
-    sum_ssq_index[0] = 0;
-    for(Index i = 1; i < sum_ssq_ndim; ++i)
-    {
-        sum_ssq_stride[i] = sum_ssq_stride[i-1] * sum_ssq_shape[i-1];
-        sum_ssq_index[i] = 0;
-    }
-    // Compute sum and scaled sum of squares for each slice
-    Index sum_ssq_linear_offset = 0, src_linear_offset = 0;
-    for(Index i = 0; i < nslices; ++i)
-    {
-        T val = src[src_linear_offset];
-        T sum = val, scale = std::abs(val), ssq = 1;
-        for(Index j = 1; j < slice_nelems; ++j)
+        for(Index i1 = i1_start; i1 < m; i1 += i1_step)
         {
-            // Update src_index
-            Index nchecked_axes = 0, k = axes[nchecked_axes];
-            ++src_index[k];
-            while(src_index[k] == src_shape[k])
+            const T *src_slice = src + i2*mk + i1;
+            T sum = 0, scale = 0, ssq = 0;
+            for(Index i0 = 0; i0 < k; ++i0)
             {
-                src_index[k] = 0;
-                ++nchecked_axes;
-                k = axes[nchecked_axes];
-                ++src_index[k];
+                // Read value from source
+                T val = src_slice[i0*m];
+                // Update scale and scaled sum of squares
+                if(val == 0)
+                {
+                    continue;
+                }
+                sum += val;
+                T absval = cuda_abs(val);
+                if(absval > scale)
+                {
+                    T tmp = scale / absval;
+                    scale = absval;
+                    ssq = ssq*tmp*tmp + T{1};
+                }
+                else
+                {
+                    T tmp = absval / scale;
+                    ssq += tmp*tmp;
+                }
             }
-            // Update linear offset for src
-            src_linear_offset = src_index[0];
-            for(Index m = 1; m < src_ndim; ++m)
-            {
-                src_linear_offset += src_index[m] * src_stride[m];
-            }
-            // Get corresponding value
-            T val = src[src_linear_offset];
-            // No need to update anything if new value is zero
-            // This way we avoid absval=scale=0 situation with division by zero
-            if(val == 0)
-            {
-                continue;
-            }
-            // Update sum
-            sum += val;
-            // Update scale and scaled sum of scares
-            T absval = std::abs(val);
-            if(absval > scale)
-            {
-                T tmp = scale / absval;
-                scale = absval;
-                ssq = ssq*tmp*tmp + T{1};
-            }
-            else
-            {
-                T tmp = absval / scale;
-                ssq += tmp*tmp;
-            }
-        }
-        // Set output
-        sum_ssq[sum_ssq_linear_offset] = sum;
-        sum_ssq[sum_ssq_linear_offset+1] = scale;
-        sum_ssq[sum_ssq_linear_offset+2] = ssq;
-        // Update linear offset for sum_ssq
-        if(i == nslices-1)
-        {
-            break;
-        }
-        ++sum_ssq_index[1];
-        Index j = 0, k = 0;
-        while(k < axes_ndim and axes[k] == j)
-        {
-            ++k;
-            ++j;
-        }
-        while(sum_ssq_index[j-k+1] == src_shape[j])
-        {
-            sum_ssq_index[j-k+1] = 0;
-            ++j;
-            while(k < axes_ndim and axes[k] == j)
-            {
-                ++j;
-                ++k;
-            }
-            ++sum_ssq_index[j-k+1];
-        }
-        sum_ssq_linear_offset = 0;
-        for(Index k = 1; k < sum_ssq_ndim; ++k)
-        {
-            sum_ssq_linear_offset += sum_ssq_index[k] * sum_ssq_stride[k];
-        }
-        // Update src_index
-        for(Index k = 0; k < src_ndim; ++k)
-        {
-            src_index[k] = 0;
-        }
-        Index nchecked_axes = 0;
-        for(Index k = 0; k < src_ndim; ++k)
-        {
-            if(nchecked_axes < axes_ndim and k == axes[nchecked_axes])
-            {
-                ++nchecked_axes;
-                continue;
-            }
-            src_index[k] = sum_ssq_index[k-nchecked_axes+1];
-        }
-        // Update linear offset for src
-        src_linear_offset = src_index[src_ndim-1];
-        for(Index k = src_ndim-2; k >= 0; --k)
-        {
-            src_linear_offset *= src_shape[k];
-            src_linear_offset += src_index[k];
+            Index dst_offset = 3 * (i2*m+i1);
+            sum_ssq[dst_offset] = sum;
+            sum_ssq[dst_offset+1] = scale;
+            sum_ssq[dst_offset+2] = ssq;
         }
     }
 }
+
+template<typename T>
+void norm_sum_ssq_codelet_cuda_single_axis_init(void *buffers[],
+        void *cl_args)
+{
+    // Get sizes
+    Index m, n, k;
+    starpu_codelet_unpack_args(cl_args, &m, &n, &k);
+    const Index mk = m * k;
+    // Get pointers
+    const T *src = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
+    T *sum_ssq = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[1]));
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    dim3 blocks(16, 16), threads(8, 4);
+    (cuda_sum_ssq_single_axis_init<T>)<<<blocks, threads, 0, stream>>>(m, n, k,
+            mk, src, sum_ssq);
+}
+
+template
+void norm_sum_ssq_codelet_cuda_single_axis_init<fp32_t>(void *buffers[],
+        void *cl_args);
+
+template
+void norm_sum_ssq_codelet_cuda_single_axis_init<fp64_t>(void *buffers[],
+        void *cl_args);
+
+// Compute sum and scaled sum of squares of a tile
+template<typename T>
+__global__ static
+void cuda_sum_ssq_single_axis_update(Index m, Index n, Index k, Index mk,
+        const T *src, T *sum_ssq)
+{
+    Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
+          i1_start = threadIdx.y + blockIdx.y*blockDim.y,
+          i2_step = blockDim.x * gridDim.x,
+          i1_step = blockDim.y * gridDim.y;
+    for(Index i2 = i2_start; i2 < n; i2 += i2_step)
+    {
+        for(Index i1 = i1_start; i1 < m; i1 += i1_step)
+        {
+            const T *src_slice = src + i2*mk + i1;
+            Index dst_offset = 3 * (i2*m+i1);
+            T &sum = sum_ssq[dst_offset];
+            T &scale = sum_ssq[dst_offset+1];
+            T &ssq = sum_ssq[dst_offset+2];
+            for(Index i0 = 0; i0 < k; ++i0)
+            {
+                // Read value from source
+                T val = src_slice[i0*m];
+                // Update scale and scaled sum of squares
+                if(val == 0)
+                {
+                    continue;
+                }
+                sum += val;
+                T absval = cuda_abs(val);
+                if(absval > scale)
+                {
+                    T tmp = scale / absval;
+                    scale = absval;
+                    ssq = ssq*tmp*tmp + T{1};
+                }
+                else
+                {
+                    T tmp = absval / scale;
+                    ssq += tmp*tmp;
+                }
+            }
+        }
+    }
+}
+
+template<typename T>
+void norm_sum_ssq_codelet_cuda_single_axis_update(void *buffers[],
+        void *cl_args)
+{
+    // Get sizes
+    Index m, n, k;
+    starpu_codelet_unpack_args(cl_args, &m, &n, &k);
+    const Index mk = m * k;
+    // Get pointers
+    const T *src = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
+    T *sum_ssq = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[1]));
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    dim3 blocks(16, 16), threads(8, 4);
+    (cuda_sum_ssq_single_axis_update<T>)<<<blocks, threads, 0, stream>>>(m, n,
+            k, mk, src, sum_ssq);
+}
+
+template
+void norm_sum_ssq_codelet_cuda_single_axis_update<fp32_t>(void *buffers[],
+        void *cl_args);
+
+template
+void norm_sum_ssq_codelet_cuda_single_axis_update<fp64_t>(void *buffers[],
+        void *cl_args);
+
+template<typename T>
+__global__ static
+void cuda_avg_dev_single_axis(Index m, T inv_nelems, T eps, const T *sum_ssq,
+        T *avg_dev)
+{
+    Index i_start = threadIdx.x + blockIdx.x*blockDim.x,
+          i_step = blockDim.x * gridDim.x;
+    for(Index i = i_start; i < m; i += i_step)
+    {
+        const T avg = sum_ssq[3*i] * inv_nelems;
+        T scale = sum_ssq[3*i+1];
+        T scaled_avg_sqr = sum_ssq[3*i+2] * inv_nelems;
+        avg_dev[2*i] = avg;
+        // Mean of square values minus square of mean values
+        // |avg| <= scale since |1/n sum x_i| <= max|x_i|
+        T tmp = avg / scale;
+        scaled_avg_sqr -= tmp * tmp;
+        // Update by eps
+        if(eps > 0)
+        {
+            if(scale >= eps)
+            {
+                T tmp = eps / scale;
+                scaled_avg_sqr += tmp*tmp;
+            }
+            else
+            {
+                T tmp = scale / eps;
+                scale = eps;
+                scaled_avg_sqr *= tmp*tmp;
+                scaled_avg_sqr += T{1};
+            }
+        }
+        // Set deviation
+        avg_dev[2*i+1] = scale * cuda_sqrt(scaled_avg_sqr);
+    }
+}
+
+template<typename T>
+void norm_avg_dev_codelet_cuda_single_axis(void *buffers[], void *cl_args)
+{
+    // Get sizes
+    Index m, nelems;
+    T eps;
+    starpu_codelet_unpack_args(cl_args, &m, &nelems, &eps);
+    const T inv_nelems = T{1} / static_cast<T>(nelems);
+    // Get pointers
+    const T *sum_ssq = reinterpret_cast<T *>(
+            STARPU_VARIABLE_GET_PTR(buffers[0]));
+    T *avg_dev = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[1]));
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    dim3 blocks(256), threads(32);
+    (cuda_avg_dev_single_axis<T>)<<<blocks, threads, 0, stream>>>(m,
+            inv_nelems, eps, sum_ssq, avg_dev);
+}
+
+template
+void norm_avg_dev_codelet_cuda_single_axis<fp32_t>(void *buffers[],
+        void *cl_args);
+
+template
+void norm_avg_dev_codelet_cuda_single_axis<fp64_t>(void *buffers[],
+        void *cl_args);
+
 } // namespace nntile
 
