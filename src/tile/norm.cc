@@ -338,19 +338,31 @@ void norm_sum_ssq_work(const Tile<T> &src, const Tile<T> &sum_ssq,
         const std::vector<Index> &axes, const StarpuVariableHandle &scratch,
         bool init_output)
 {
+    static struct starpu_perfmodel model_norm_sum_ssq_init_axes =
+    {
+        .type = STARPU_HISTORY_BASED,
+        .symbol = "norm_sum_ssq_init_axes",
+    };
     static struct starpu_codelet codelet_sum_ssq_init =
     {
         .cpu_funcs = {cpu_sum_ssq_init<T>},
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_W, STARPU_SCRATCH},
-        .name = "norm_sum_ssq_init_axes"
+        .model = &model_norm_sum_ssq_init_axes,
+        .name = "norm_sum_ssq_init_axes",
+    };
+    static struct starpu_perfmodel model_norm_sum_ssq_update_axes =
+    {
+        .type = STARPU_HISTORY_BASED,
+        .symbol = "norm_sum_ssq_update_axes",
     };
     static struct starpu_codelet codelet_sum_ssq_update =
     {
         .cpu_funcs = {cpu_sum_ssq_update<T>},
         .nbuffers = 3,
         .modes = {STARPU_R, Starpu::STARPU_RW_COMMUTE, STARPU_SCRATCH},
-        .name = "norm_sum_ssq_update_axes"
+        .model = &model_norm_sum_ssq_update_axes,
+        .name = "norm_sum_ssq_update_axes",
     };
     // Insert task
     Index axes_ndim = axes.size();
@@ -583,22 +595,42 @@ template<typename T>
 void norm_sum_ssq_work(const Tile<T> &src, const Tile<T> &sum_ssq,
         Index axis, bool init_output)
 {
+    static struct starpu_perfmodel model_norm_sum_ssq_init =
+    {
+        .type = STARPU_HISTORY_BASED,
+        .symbol = "norm_sum_ssq_init",
+    };
     static struct starpu_codelet codelet_sum_ssq_single_axis_init =
     {
-        //.cpu_funcs = {cpu_sum_ssq_single_axis_init<T>},
+#       if !defined(PREFER_CUDA)
+        .cpu_funcs = {cpu_sum_ssq_single_axis_init<T>},
+#       endif
+#       if defined(NNTILE_USE_CUDA)
         .cuda_funcs = {norm_sum_ssq_codelet_cuda_single_axis_init<T>},
         .cuda_flags = {STARPU_CUDA_ASYNC},
+#       endif
         .nbuffers = 2,
         .modes = {STARPU_R, STARPU_W},
+        .model = &model_norm_sum_ssq_init,
         .name = "norm_sum_ssq_init",
+    };
+    static struct starpu_perfmodel model_norm_sum_ssq_update =
+    {
+        .type = STARPU_HISTORY_BASED,
+        .symbol = "norm_sum_ssq_update",
     };
     static struct starpu_codelet codelet_sum_ssq_single_axis_update =
     {
-        //.cpu_funcs = {cpu_sum_ssq_single_axis_update<T>},
+#       if !defined(PREFER_CUDA)
+        .cpu_funcs = {cpu_sum_ssq_single_axis_update<T>},
+#       endif
+#       if defined(NNTILE_USE_CUDA)
         .cuda_funcs = {norm_sum_ssq_codelet_cuda_single_axis_update<T>},
         .cuda_flags = {STARPU_CUDA_ASYNC},
+#       endif
         .nbuffers = 2,
         .modes = {STARPU_R, Starpu::STARPU_RW_COMMUTE},
+        .model = &model_norm_sum_ssq_update,
         .name = "norm_sum_ssq_update",
     };
     // Get sizes
@@ -709,13 +741,23 @@ template<typename T>
 void norm_avg_dev_work(const Tile<T> &sum_ssq, const Tile<T> &avg_dev,
         Index nelems, T eps)
 {
+    static struct starpu_perfmodel model_norm_avg_dev =
+    {
+        .type = STARPU_HISTORY_BASED,
+        .symbol = "norm_avg_dev",
+    };
     static struct starpu_codelet codelet_avg_dev =
     {
-        //.cpu_funcs = {cpu_avg_dev<T>},
+#       if !defined(PREFER_CUDA)
+        .cpu_funcs = {cpu_avg_dev<T>},
+#       endif
+#       if defined(NNTILE_USE_CUDA)
         .cuda_funcs = {norm_avg_dev_codelet_cuda_single_axis<T>},
         .cuda_flags = {STARPU_CUDA_ASYNC},
+#       endif
         .nbuffers = 2,
         .modes = {STARPU_R, STARPU_W},
+        .model = &model_norm_avg_dev,
         .name = "norm_avg_dev",
     };
     // Get sizes

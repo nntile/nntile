@@ -33,16 +33,23 @@ static void cpu_relu(void *buffers[], void *cl_args)
 template<typename T>
 void relu_async(const Tile<T> &A)
 {
+    static struct starpu_perfmodel model_relu =
+    {
+        .type = STARPU_HISTORY_BASED,
+        .symbol = "relu",
+    };
     static struct starpu_codelet codelet_relu =
     {
-#       ifdef NNTILE_USE_CUDA
+#       if !defined(PREFER_CUDA)
+        .cpu_funcs = {cpu_relu<T>},
+#       endif
+#       if defined(NNTILE_USE_CUDA)
         .cuda_funcs = {relu_codelet_cuda<T>},
         .cuda_flags = {STARPU_CUDA_ASYNC},
-#       else
-        .cpu_funcs = {cpu_relu<T>},
 #       endif
         .nbuffers = 1,
         .modes = {STARPU_RW},
+        .model = &model_relu,
         .name = "relu",
     };
     starpu_task_insert(&codelet_relu,

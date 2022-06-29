@@ -13,9 +13,6 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake_modules")
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static" ON)
 option(USE_CUDA "Use CUDA toolkit" ON)
 option(USE_CBLAS "Use CPU CBLAS" ON)
-set(CBLAS_INT_TYPE "int" CACHE STRING "CBLAS integer type: int, int32_t or int64_t")
-set(CBLAS_H_NAME "cblas.h" CACHE STRING
-    "Name of header file containing cblas routines")
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
 option(BUILD_EXAMPLES "Build examples" ON)
@@ -25,7 +22,6 @@ option(BUILD_PYTHON_WRAPPERS "Generate Python wrappers" OFF)
 # Provide options for certain cache variables
 set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "None" "Debug" "Release"
     "RelWithDebInfo" "MinSizeRel")
-set_property(CACHE CBLAS_INT_TYPE PROPERTY STRINGS "int" "int32_t" "int64_t")
 
 # Specify the library
 add_library(nntile)
@@ -42,9 +38,12 @@ if(USE_CUDA)
         enable_language(CUDA)
         # Get cublas
         find_package(CUDAToolkit 10.1)
-	target_link_libraries(nntile PUBLIC CUDA::cublas)# CUDA::cudart CUDA::cuda_driver)
-        #set_target_properties(nntile PROPERTIES CUDA_ARCHITECTURES "70")
+	target_link_libraries(nntile PUBLIC CUDA::cublas)
         set(NNTILE_USE_CUDA ON)
+        option(PREFER_CUDA OFF)
+        if(PREFER_CUDA)
+            add_definitions("-DPREFER_CUDA")
+        endif()
     endif()
 endif()
 
@@ -55,6 +54,12 @@ if(USE_CBLAS)
     if(BLAS_FOUND)
         target_link_libraries(nntile PRIVATE BLAS::BLAS)
         set(NNTILE_USE_CBLAS ON)
+        set(CBLAS_INT_TYPE "int" CACHE STRING
+            "CBLAS integer type: int, int32_t or int64_t")
+        set_property(CACHE CBLAS_INT_TYPE PROPERTY STRINGS "int" "int32_t"
+            "int64_t")
+        set(CBLAS_H_NAME "cblas.h" CACHE STRING
+            "Name of header file containing cblas routines")
     endif()
 endif()
 

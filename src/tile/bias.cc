@@ -53,14 +53,24 @@ template<typename T>
 void bias_work(const Tile<T> &src, const Tile<T> &dst, Index axis)
 {
     // StarPU codelet
+    static struct starpu_perfmodel model_bias =
+    {
+        .type = STARPU_HISTORY_BASED,
+        .symbol = "bias",
+    };
     static struct starpu_codelet codelet_bias =
     {
-        //.cpu_funcs = {cpu_bias<T>},
+#       if !defined(PREFER_CUDA)
+        .cpu_funcs = {cpu_bias<T>},
+#       endif
+#       if defined(NNTILE_USE_CUDA)
         .cuda_funcs = {bias_codelet_cuda_single_axis<T>},
         .cuda_flags = {STARPU_CUDA_ASYNC},
+#       endif
         .nbuffers = 2,
         .modes = {STARPU_R, Starpu::STARPU_RW_COMMUTE},
-        .name = "bias"
+        .model = &model_bias,
+        .name = "bias",
     };
     // Reshape inputs for simplicity: src -> (m,n), dst -> (m,k,n)
     Index m, n, k;
@@ -186,14 +196,24 @@ template<typename T>
 void bias_avg_dev_work(const Tile<T> &avg_dev, const Tile<T> &dst, Index axis)
 {
     // StarPU codelet
+    static struct starpu_perfmodel model_bias_avg_dev =
+    {
+        .type = STARPU_HISTORY_BASED,
+        .symbol = "bias_avg_dev",
+    };
     static struct starpu_codelet codelet_bias_avg_dev =
     {
-        //.cpu_funcs = {cpu_bias_avg_dev<T>},
+#       if !defined(PREFER_CUDA)
+        .cpu_funcs = {cpu_bias_avg_dev<T>},
+#       endif
+#       if defined(NNTILE_USE_CUDA)
         .cuda_funcs = {bias_avg_dev_codelet_cuda_single_axis<T>},
         .cuda_flags = {STARPU_CUDA_ASYNC},
+#       endif
         .nbuffers = 2,
         .modes = {STARPU_R, STARPU_RW},
-        .name = "bias_avg_dev"
+        .model = &model_bias_avg_dev,
+        .name = "bias_avg_dev",
     };
     //static struct starpu_codelet codelet_bias_avg_dev_m1 =
     //{

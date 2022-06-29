@@ -30,11 +30,17 @@ void cpu_copy_intersection_ndim0(void *buffers[], void *cl_args)
 template<typename T>
 void copy_intersection_work_ndim0(const Tile<T> &src, const Tile<T> &dst)
 {
+    static struct starpu_perfmodel model_copy_ndim0 =
+    {
+        .type = STARPU_HISTORY_BASED,
+        .symbol = "copy_ndim0",
+    };
     static struct starpu_codelet codelet_copy_ndim0 =
     {
         .cpu_funcs = {cpu_copy_intersection_ndim0<T>},
         .nbuffers = 2,
         .modes = {STARPU_R, STARPU_W},
+        .model = &model_copy_ndim0,
         .name = "copy_ndim0",
     };
     constexpr double zero_flops = 0;
@@ -124,11 +130,17 @@ void copy_intersection_work(const Tile<T> &src,
         const StarpuVariableHandle &scratch,
         enum starpu_data_access_mode mode)
 {
+    static struct starpu_perfmodel model_copy_intersection =
+    {
+        .type = STARPU_HISTORY_BASED,
+        .symbol = "copy_intersection",
+    };
     static struct starpu_codelet codelet_copy_w =
     {
         .cpu_funcs = {cpu_copy_intersection<T>},
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_W, STARPU_SCRATCH},
+        .model = &model_copy_intersection,
         .name = "copy_intersection",
     };
     static struct starpu_codelet codelet_copy_rw =
@@ -136,6 +148,7 @@ void copy_intersection_work(const Tile<T> &src,
         .cpu_funcs = {cpu_copy_intersection<T>},
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_RW, STARPU_SCRATCH},
+        .model = &model_copy_intersection,
         .name = "copy_intersection",
     };
     static struct starpu_codelet codelet_copy_rw_commute =
@@ -143,6 +156,7 @@ void copy_intersection_work(const Tile<T> &src,
         .cpu_funcs = {cpu_copy_intersection<T>},
         .nbuffers = 3,
         .modes = {STARPU_R, Starpu::STARPU_RW_COMMUTE, STARPU_SCRATCH},
+        .model = &model_copy_intersection,
         .name = "copy_intersection",
     };
     struct starpu_codelet *current_codelet;

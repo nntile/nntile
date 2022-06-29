@@ -48,10 +48,19 @@ void run_forward(const std::vector<Index> &shape,
         {
             gemm_async(one, TransOp::NoTrans, X[j], TransOp::NoTrans, W[j],
                     zero, X[j+1]);
+            //X[j].wont_use();
+            //W[j].wont_use();
+            if(j > 0)
+            {
+                X[j].invalidate_submit();
+            }
+            W[j].wont_use();
             //bias_async(B[j], X[j+1], 0);
             //relu_async(X[j+1]);
         }
         //copy_intersection_async(X[nlayers], X[0]);
+        //X[nlayers].wont_use();
+        X[nlayers].invalidate_submit();
     }
     starpu_task_wait_for_all();
     starpu_profiling_worker_helper_display_summary();
@@ -64,14 +73,16 @@ void run_forward(const std::vector<Index> &shape,
 int main(int argc, char **argv)
 {
     //Starpu starpu;
+    std::vector<Index> shape{8192, 8192, 8192, 8192, 8192, 8192},
+        basetile_shape{4096, 4096, 4096, 4096, 4096, 4096};
     //std::vector<Index> shape{4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096},
     //    basetile_shape{2048, 2048, 2048, 2048, 2048, 2048, 2048, 2048};
     //    basetile_shape{1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024};
     //    basetile_shape{500, 500, 500, 500, 500, 500, 500, 500};
-    std::vector<Index> shape{16384, 16384, 16384, 16384, 16384, 16384, 16384, 16384},
-        basetile_shape{4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096};
-    Index nforward = 10;
-    run_forward<fp32_t>(shape, basetile_shape, nforward);
+    //std::vector<Index> shape{16384, 16384, 16384, 16384, 16384, 16384, 16384, 16384},
+    //    basetile_shape{4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096};
+    Index nforward = 1;
+    run_forward<fp64_t>(shape, basetile_shape, nforward);
     //run_forward<fp32_t>(shape, shape, nforward);
     return 0;
 }

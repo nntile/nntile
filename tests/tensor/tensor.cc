@@ -45,7 +45,7 @@ void validate_tensor()
     check_tensor<T>(matrix);
     Tensor<T> t5d({11, 13, 15, 17, 19}, {100, 100, 100, 100, 100});
     check_tensor<T>(t5d);
-    Tensor<T> t5d2({100, 100, 100, 100, 100}, {11, 13, 15, 17, 19});
+    Tensor<T> t5d2({40, 40, 40, 40, 40}, {11, 13, 15, 17, 19});
     check_tensor<T>(t5d2);
 }
 

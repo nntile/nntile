@@ -38,11 +38,17 @@ void cpu_gelu(void *buffers[], void *cl_args)
 template<typename T>
 void gelu_work(const Tile<T> &A)
 {
+    static struct starpu_perfmodel model_gelu =
+    {
+        .type = STARPU_HISTORY_BASED,
+        .symbol = "gelu",
+    };
     static struct starpu_codelet codelet_gelu =
     {
         .cpu_funcs = {cpu_gelu<T>},
         .nbuffers = 1,
         .modes = {STARPU_RW},
+        .model = &model_gelu,
         .name = "gelu",
     };
     int ret = starpu_task_insert(&codelet_gelu,

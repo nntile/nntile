@@ -88,11 +88,17 @@ void randn_async(const Tile<T> &dst, const std::vector<Index> &offset,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
         unsigned long long seed, T mean, T stddev)
 {
+    static struct starpu_perfmodel model_randn =
+    {
+        .type = STARPU_HISTORY_BASED,
+        .symbol = "randn",
+    };
     static struct starpu_codelet codelet_randn =
     {
         .cpu_funcs = {cpu_chameleon_randn<T>},
         .nbuffers = 1,
         .modes = {STARPU_W},
+        .model = &model_randn,
         .name = "randn",
     };
     static struct starpu_codelet codelet_randn_ndim0 =
@@ -100,6 +106,7 @@ void randn_async(const Tile<T> &dst, const std::vector<Index> &offset,
         .cpu_funcs = {cpu_chameleon_randn_ndim0<T>},
         .nbuffers = 1,
         .modes = {STARPU_W},
+        .model = &model_randn,
         .name = "randn",
     };
     // Check inputs

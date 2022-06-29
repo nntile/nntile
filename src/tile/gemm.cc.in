@@ -379,43 +379,51 @@ void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
         const TransOp &transB, const Tile<T> &B, T beta, const Tile<T> &C,
         Index ndim)
 {
+    static struct starpu_perfmodel model_gemm =
+    {
+        .type = STARPU_HISTORY_BASED,
+        .symbol = "gemm",
+    };
     static struct starpu_codelet codelet_gemm_w =
     {
-#       ifdef NNTILE_USE_CBLAS
+#       if defined(NNTILE_USE_CBLAS) and !defined(PREFER_CUDA)
         .cpu_funcs = {gemm_codelet_cpu<T>},
 #       endif
-#       ifdef NNTILE_USE_CUDA
+#       if defined(NNTILE_USE_CUDA)
         .cuda_funcs = {gemm_codelet_gpu<T>},
         .cuda_flags = {STARPU_CUDA_ASYNC},
-#       endif // NNTILE_USE_CUDA
+#       endif
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_R, STARPU_W},
+        .model = &model_gemm,
         .name = "gemm",
     };
     static struct starpu_codelet codelet_gemm_rw =
     {
-#       ifdef NNTILE_USE_CBLAS
+#       if defined(NNTILE_USE_CBLAS) and !defined(PREFER_CUDA)
         .cpu_funcs = {gemm_codelet_cpu<T>},
 #       endif
-#       ifdef NNTILE_USE_CUDA
+#       if defined(NNTILE_USE_CUDA)
         .cuda_funcs = {gemm_codelet_gpu<T>},
         .cuda_flags = {STARPU_CUDA_ASYNC},
-#       endif // NNTILE_USE_CUDA
+#       endif
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_R, STARPU_RW},
+        .model = &model_gemm,
         .name = "gemm",
     };
     static struct starpu_codelet codelet_gemm_rw_commute =
     {
-#       ifdef NNTILE_USE_CBLAS
+#       if defined(NNTILE_USE_CBLAS) and !defined(PREFER_CUDA)
         .cpu_funcs = {gemm_codelet_cpu<T>},
 #       endif
-#       ifdef NNTILE_USE_CUDA
+#       if defined(NNTILE_USE_CUDA)
         .cuda_funcs = {gemm_codelet_gpu<T>},
         .cuda_flags = {STARPU_CUDA_ASYNC},
-#       endif // NNTILE_USE_CUDA
+#       endif
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_R, Starpu::STARPU_RW_COMMUTE},
+        .model = &model_gemm,
         .name = "gemm",
     };
     // Reference tensors as matrices
