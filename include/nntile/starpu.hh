@@ -16,6 +16,7 @@
 
 #include <stdexcept>
 #include <memory>
+#include <cstring>
 #include <iostream>
 #include <starpu.h>
 #include <nntile/defs.h>
@@ -26,7 +27,6 @@ namespace nntile
 //! Convenient StarPU initialization and shutdown
 class Starpu: public starpu_conf
 {
-
     static
     struct starpu_conf _init_conf()
     {
@@ -310,6 +310,105 @@ public:
             enum starpu_data_access_mode mode=STARPU_RW):
         StarpuHandle(_reg_data(ptr, size), mode)
     {
+    }
+};
+
+//! Convenient registration and deregistration of data through StarPU handle
+class StarpuMatrixHandle: public StarpuHandle
+{
+    //! Register variable for starpu-owned memory
+    static starpu_data_handle_t _reg_data(int M, int N, size_t elem_size)
+    {
+        starpu_data_handle_t tmp;
+        starpu_matrix_data_register(&tmp, -1, 0, M, M, N, elem_size);
+        return tmp;
+    }
+    //! Register variable
+    static starpu_data_handle_t _reg_data(uintptr_t ptr, int M, int N,
+            size_t elem_size)
+    {
+        starpu_data_handle_t tmp;
+        starpu_matrix_data_register(&tmp, STARPU_MAIN_RAM, ptr, M, M, N,
+                elem_size);
+        return tmp;
+    }
+public:
+    //! Constructor for temporary variable that is (de)allocated by starpu
+    StarpuMatrixHandle(int M, int N, size_t elem_size):
+        StarpuHandle(_reg_data(M, N, elem_size), STARPU_SCRATCH)
+    {
+    }
+    //! Constructor for variable that is (de)allocated by user
+    StarpuMatrixHandle(uintptr_t ptr, int M, int N, size_t elem_size,
+            enum starpu_data_access_mode mode=STARPU_RW):
+        StarpuHandle(_reg_data(ptr, M, N, elem_size), mode)
+    {
+    }
+};
+
+//! StarPU codelet wrapper
+class StarpuCodelet: public starpu_codelet
+{
+private:
+    uint32_t where_default;
+public:
+    StarpuCodelet(const char *name_, starpu_perfmodel *perfmodel,
+            std::initializer_list<starpu_cpu_func_t> cpu_funcs_,
+            std::initializer_list<starpu_cuda_func_t> cuda_funcs_)
+    {
+        // Initialize codelet
+        std::memset(this, 0, sizeof(*this));
+        // Set its name and performance model
+        name = name_;
+        model = perfmodel;
+        // Runtime decision on number of buffers and modes
+        nbuffers = STARPU_VARIABLE_NBUFFERS;
+        // Add CPU implementations
+        if(cpu_funcs_.size() > STARPU_MAXIMPLEMENTATIONS)
+        {
+            throw std::runtime_error("Too many CPU func implementations");
+        }
+        if(cpu_funcs_.size() > 0)
+        {
+            auto it = cpu_funcs_.begin();
+            for(int i = 0; i < cpu_funcs_.size(); ++i, ++it)
+            {
+                if(*it)
+                {
+                    cpu_funcs[i] = *it;
+                    where = where_default = STARPU_CPU;
+                }
+            }
+        }
+        // Add CUDA implementations
+        if(cuda_funcs_.size() > STARPU_MAXIMPLEMENTATIONS)
+        {
+            throw std::runtime_error("Too many CUDA func implementations");
+        }
+        if(cuda_funcs_.size() > 0)
+        {
+            auto it = cuda_funcs_.begin();
+            for(int i = 0; i < cuda_funcs_.size(); ++i, ++it)
+            {
+                if(*it)
+                {
+                    cuda_funcs[i] = *it;
+                    cuda_flags[i] = STARPU_CUDA_ASYNC;
+                    where = where_default = where_default | STARPU_CUDA;
+                }
+            }
+        }
+    }
+    void restrict_where(uint32_t where_)
+    {
+        if((where & where_) == where_)
+        {
+            where = where_;
+        }
+    }
+    void restore_where()
+    {
+        where = where_default;
     }
 };
 

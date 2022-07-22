@@ -19,17 +19,17 @@ void check_bias(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
     TESTA(check_tensors_intersection(dst_local, dst));
 }
 
-template<typename T>
-void check_bias_avg_dev(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
-{
-    Tensor<T> src_local(src.shape, src.shape), dst_local(dst.shape, dst.shape);
-    copy_intersection(src, src_local);
-    copy_intersection(dst, dst_local);
-    bias_avg_dev(src, dst, axis);
-    bias_avg_dev(src_local.get_tile(0), dst_local.get_tile(0), axis);
-    TESTA(check_tensors_intersection(dst, dst_local));
-    TESTA(check_tensors_intersection(dst_local, dst));
-}
+//template<typename T>
+//void check_bias2(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
+//{
+//    Tensor<T> src_local(src.shape, src.shape), dst_local(dst.shape, dst.shape);
+//    copy_intersection(src, src_local);
+//    copy_intersection(dst, dst_local);
+//    bias2(src, dst, axis);
+//    bias2(src_local.get_tile(0), dst_local.get_tile(0), axis);
+//    TESTA(check_tensors_intersection(dst, dst_local));
+//    TESTA(check_tensors_intersection(dst_local, dst));
+//}
 
 template<typename T>
 void validate_bias()
@@ -67,48 +67,48 @@ void validate_bias()
     TESTN(bias(Tensor<T>({4, 5, 6}, {2, 3, 3}), A, 0));
     TESTN(bias(Tensor<T>({3, 4, 6}, {1, 2, 3}), A, 3));
     TESTN(bias(Tensor<T>({3, 4, 5}, {1, 2, 4}), A, 3));
-    // Check bias_avg_dev
-    Tensor<T> c0({2, 4, 5, 6}, {2, 2, 3, 4}), c1({2, 3, 5, 6}, {2, 1, 3, 4}),
-        c2({2, 3, 4, 6}, {2, 1, 2, 4}), c3({2, 3, 4, 5}, {2, 1, 2, 3});
-    unsigned long long c0_seed = 105, c1_seed = 106, c2_seed = 107,
-                  c3_seed = 108;
-    randn(c0, c0_seed);
-    randn(c1, c1_seed);
-    randn(c2, c2_seed);
-    randn(c3, c3_seed);
-    check_bias_avg_dev<T>(c0, A, 0);
-    check_bias_avg_dev<T>(c1, A, 1);
-    check_bias_avg_dev<T>(c2, A, 2);
-    check_bias_avg_dev<T>(c3, A, 3);
-    TESTN(bias_avg_dev(c0, A, 1));
-    TESTN(bias_avg_dev(c0, A, 2));
-    TESTN(bias_avg_dev(c0, A, 3));
-    TESTN(bias_avg_dev(c1, A, 0));
-    TESTN(bias_avg_dev(c1, A, 2));
-    TESTN(bias_avg_dev(c1, A, 3));
-    TESTN(bias_avg_dev(c2, A, 0));
-    TESTN(bias_avg_dev(c2, A, 1));
-    TESTN(bias_avg_dev(c2, A, 3));
-    TESTN(bias_avg_dev(c3, A, 0));
-    TESTN(bias_avg_dev(c3, A, 1));
-    TESTN(bias_avg_dev(c3, A, 2));
-    TESTN(bias_avg_dev(Tensor<T>({2, 4, 5, 6}, {1, 2, 3, 4}), A, 0));
-    TESTN(bias_avg_dev(Tensor<T>({2, 3, 5, 6}, {1, 1, 3, 4}), A, 1));
-    TESTN(bias_avg_dev(Tensor<T>({2, 3, 4, 6}, {1, 1, 2, 4}), A, 2));
-    TESTN(bias_avg_dev(Tensor<T>({2, 3, 4, 5}, {1, 1, 2, 3}), A, 3));
-    TESTN(bias_avg_dev(Tensor<T>({2, 4, 5, 6}, {2, 1, 3, 4}), A, 0));
-    TESTN(bias_avg_dev(Tensor<T>({2, 3, 5, 6}, {2, 2, 3, 4}), A, 1));
-    TESTN(bias_avg_dev(Tensor<T>({2, 3, 4, 6}, {2, 1, 2, 3}), A, 2));
-    TESTN(bias_avg_dev(Tensor<T>({2, 3, 4, 5}, {2, 1, 2, 4}), A, 3));
-    TESTN(bias_avg_dev<T>(c0, A, -1));
-    TESTN(bias_avg_dev<T>(c3, A, 4));
-    TESTN(bias_avg_dev(c0, A, 1));
-    TESTN(bias_avg_dev(c1, A, 0));
-    TESTN(bias_avg_dev(Tensor<T>({3, 4, 5, 6}, {2, 4, 5, 6}), A, 0));
-    TESTN(bias_avg_dev(Tensor<T>({2, 4, 5, 6}, {1, 4, 5, 6}), A, 0));
-    TESTN(bias_avg_dev(Tensor<T>({4, 5, 6}, {4, 5, 6}), A, 0));
-    TESTN(bias_avg_dev(A, A, 1));
-    bias_avg_dev(c0, c0, 0);
+//    // Check bias2
+//    Tensor<T> c0({2, 4, 5, 6}, {2, 2, 3, 4}), c1({2, 3, 5, 6}, {2, 1, 3, 4}),
+//        c2({2, 3, 4, 6}, {2, 1, 2, 4}), c3({2, 3, 4, 5}, {2, 1, 2, 3});
+//    unsigned long long c0_seed = 105, c1_seed = 106, c2_seed = 107,
+//                  c3_seed = 108;
+//    randn(c0, c0_seed);
+//    randn(c1, c1_seed);
+//    randn(c2, c2_seed);
+//    randn(c3, c3_seed);
+//    check_bias2<T>(c0, A, 0);
+//    check_bias2<T>(c1, A, 1);
+//    check_bias2<T>(c2, A, 2);
+//    check_bias2<T>(c3, A, 3);
+//    TESTN(bias2(c0, A, 1));
+//    TESTN(bias2(c0, A, 2));
+//    TESTN(bias2(c0, A, 3));
+//    TESTN(bias2(c1, A, 0));
+//    TESTN(bias2(c1, A, 2));
+//    TESTN(bias2(c1, A, 3));
+//    TESTN(bias2(c2, A, 0));
+//    TESTN(bias2(c2, A, 1));
+//    TESTN(bias2(c2, A, 3));
+//    TESTN(bias2(c3, A, 0));
+//    TESTN(bias2(c3, A, 1));
+//    TESTN(bias2(c3, A, 2));
+//    TESTN(bias2(Tensor<T>({2, 4, 5, 6}, {1, 2, 3, 4}), A, 0));
+//    TESTN(bias2(Tensor<T>({2, 3, 5, 6}, {1, 1, 3, 4}), A, 1));
+//    TESTN(bias2(Tensor<T>({2, 3, 4, 6}, {1, 1, 2, 4}), A, 2));
+//    TESTN(bias2(Tensor<T>({2, 3, 4, 5}, {1, 1, 2, 3}), A, 3));
+//    TESTN(bias2(Tensor<T>({2, 4, 5, 6}, {2, 1, 3, 4}), A, 0));
+//    TESTN(bias2(Tensor<T>({2, 3, 5, 6}, {2, 2, 3, 4}), A, 1));
+//    TESTN(bias2(Tensor<T>({2, 3, 4, 6}, {2, 1, 2, 3}), A, 2));
+//    TESTN(bias2(Tensor<T>({2, 3, 4, 5}, {2, 1, 2, 4}), A, 3));
+//    TESTN(bias2<T>(c0, A, -1));
+//    TESTN(bias2<T>(c3, A, 4));
+//    TESTN(bias2(c0, A, 1));
+//    TESTN(bias2(c1, A, 0));
+//    TESTN(bias2(Tensor<T>({3, 4, 5, 6}, {2, 4, 5, 6}), A, 0));
+//    TESTN(bias2(Tensor<T>({2, 4, 5, 6}, {1, 4, 5, 6}), A, 0));
+//    TESTN(bias2(Tensor<T>({4, 5, 6}, {4, 5, 6}), A, 0));
+//    TESTN(bias2(A, A, 1));
+//    bias2(c0, c0, 0);
 }
 
 int main(int argc, char **argv)

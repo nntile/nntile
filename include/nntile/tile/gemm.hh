@@ -79,5 +79,29 @@ void gemm(T alpha, const TransOp &transA, const Tile<T> &A,
     starpu_task_wait_for_all();
 }
 
+extern starpu_perfmodel perfmodel_gemm_fp32, perfmodel_gemm_fp64;
+extern StarpuCodelet codelet_gemm_fp32, codelet_gemm_fp64;
+void gemm_restrict_where(uint32_t where);
+void gemm_restore_where();
+
+template<typename T>
+constexpr StarpuCodelet *gemm_get_codelet()
+{
+    throw std::runtime_error("Non-supported type");
+    return nullptr;
+}
+
+template<>
+constexpr StarpuCodelet *gemm_get_codelet<fp32_t>()
+{
+    return &codelet_gemm_fp32;
+}
+
+template<>
+constexpr StarpuCodelet *gemm_get_codelet<fp64_t>()
+{
+    return &codelet_gemm_fp64;
+}
+
 } // namespace nntile
 

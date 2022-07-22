@@ -162,7 +162,7 @@ int main(int argc, char **argv)
         norm_sum_ssq_async(mixer_x_norm, sum_ssq1, 2);
         norm_avg_dev_async(sum_ssq1, avg_dev1, n_channels, eps);
         sum_ssq1.invalidate_submit();
-        bias_avg_dev_async(avg_dev1, mixer_x_norm, 2);
+        bias2_async(avg_dev1, mixer_x_norm, 2);
         avg_dev1.invalidate_submit();
         // Apply MLP1
         gemm_async(T{1}, TransOp::NoTrans, mixer_mlp1_fc1[i], TransOp::NoTrans,
@@ -179,7 +179,7 @@ int main(int argc, char **argv)
         norm_sum_ssq_async(mixer_x_norm, sum_ssq2, 0);
         norm_avg_dev_async(sum_ssq2, avg_dev2, n_patches, eps);
         sum_ssq2.invalidate_submit();
-        bias_avg_dev_async(avg_dev2, mixer_x_norm, 0);
+        bias2_async(avg_dev2, mixer_x_norm, 0);
         avg_dev2.invalidate_submit();
         // Apply MLP2
         gemm_async(T{1}, TransOp::NoTrans, mixer_x_norm, TransOp::NoTrans,

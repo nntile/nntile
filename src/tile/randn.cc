@@ -83,32 +83,89 @@ static void cpu_chameleon_randn(void *buffers[], void *cl_args)
     }
 }
 
+starpu_perfmodel perfmodel_randn_ndim0_fp32 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .symbol = "nntile_randn_ndim0_fp32",
+};
+
+starpu_perfmodel perfmodel_randn_ndim0_fp64 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .symbol = "nntile_randn_ndim0_fp64",
+};
+
+StarpuCodelet codelet_randn_ndim0_fp32("nntile_randn_ndim0_fp32",
+        &perfmodel_randn_ndim0_fp32, {cpu_chameleon_randn_ndim0<fp32_t>},
+        {});
+
+StarpuCodelet codelet_randn_ndim0_fp64("nntile_randn_ndim0_fp64",
+        &perfmodel_randn_ndim0_fp64, {cpu_chameleon_randn_ndim0<fp64_t>},
+        {});
+
+template<typename T>
+constexpr StarpuCodelet *randn_ndim0_get_codelet()
+{
+    throw std::runtime_error("Non-supported type");
+    return nullptr;
+}
+
+template<>
+constexpr StarpuCodelet *randn_ndim0_get_codelet<fp32_t>()
+{
+    return &codelet_randn_ndim0_fp32;
+}
+
+template<>
+constexpr StarpuCodelet *randn_ndim0_get_codelet<fp64_t>()
+{
+    return &codelet_randn_ndim0_fp64;
+}
+
+starpu_perfmodel perfmodel_randn_fp32 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .symbol = "nntile_randn_fp32",
+};
+
+starpu_perfmodel perfmodel_randn_fp64 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .symbol = "nntile_randn_fp64",
+};
+
+StarpuCodelet codelet_randn_fp32("nntile_randn_fp32",
+        &perfmodel_randn_fp32, {cpu_chameleon_randn<fp32_t>},
+        {});
+
+StarpuCodelet codelet_randn_fp64("nntile_randn_fp64",
+        &perfmodel_randn_fp64, {cpu_chameleon_randn<fp64_t>},
+        {});
+
+template<typename T>
+constexpr StarpuCodelet *randn_get_codelet()
+{
+    throw std::runtime_error("Non-supported type");
+    return nullptr;
+}
+
+template<>
+constexpr StarpuCodelet *randn_get_codelet<fp32_t>()
+{
+    return &codelet_randn_fp32;
+}
+
+template<>
+constexpr StarpuCodelet *randn_get_codelet<fp64_t>()
+{
+    return &codelet_randn_fp64;
+}
+
 template<typename T>
 void randn_async(const Tile<T> &dst, const std::vector<Index> &offset,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
         unsigned long long seed, T mean, T stddev)
 {
-    static struct starpu_perfmodel model_randn =
-    {
-        .type = STARPU_HISTORY_BASED,
-        .symbol = "randn",
-    };
-    static struct starpu_codelet codelet_randn =
-    {
-        .cpu_funcs = {cpu_chameleon_randn<T>},
-        .nbuffers = 1,
-        .modes = {STARPU_W},
-        .model = &model_randn,
-        .name = "randn",
-    };
-    static struct starpu_codelet codelet_randn_ndim0 =
-    {
-        .cpu_funcs = {cpu_chameleon_randn_ndim0<T>},
-        .nbuffers = 1,
-        .modes = {STARPU_W},
-        .model = &model_randn,
-        .name = "randn",
-    };
     // Check inputs
     if(dst.ndim != offset.size())
     {
@@ -125,7 +182,7 @@ void randn_async(const Tile<T> &dst, const std::vector<Index> &offset,
     // Treat special case of ndim=0
     if(dst.ndim == 0)
     {
-        starpu_task_insert(&codelet_randn_ndim0,
+        starpu_task_insert(randn_ndim0_get_codelet<T>(),
                 STARPU_VALUE, &seed, sizeof(seed),
                 STARPU_VALUE, &mean, sizeof(mean),
                 STARPU_VALUE, &stddev, sizeof(stddev),
@@ -168,7 +225,7 @@ void randn_async(const Tile<T> &dst, const std::vector<Index> &offset,
         jump += offset[i] * stride[i];
     }
     seed = CORE_rnd64_jump(jump, seed);
-    starpu_task_insert(&codelet_randn,
+    starpu_task_insert(randn_get_codelet<T>(),
             STARPU_VALUE, &(dst.ndim), sizeof(dst.ndim),
             STARPU_VALUE, &(dst.nelems), sizeof(dst.nelems),
             STARPU_VALUE, &seed, sizeof(seed),

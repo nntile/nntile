@@ -308,6 +308,9 @@ static void gemm_codelet_cpu(void *buffers[], void *cl_args)
     cblas_gemm(transA_, transB_, M, N, K, alpha, A, ldA, B, ldB, beta, C,
             M);
 }
+#else
+template<typename T>
+static void (*gemm_codelet_cpu)(void *buffers[], void *cl_args) = nullptr;
 #endif // NNTILE_USE_CBLAS
 
 #ifdef NNTILE_USE_CUDA
@@ -330,7 +333,7 @@ static inline void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
 }
 
 template<typename T>
-static void gemm_codelet_gpu(void *buffers[], void *cl_args)
+static void gemm_codelet_cuda(void *buffers[], void *cl_args)
 {
     TransOp::Value transA_value, transB_value;
     Index m, n, k;
@@ -372,60 +375,48 @@ static void gemm_codelet_gpu(void *buffers[], void *cl_args)
     cublas_gemm(handle, transA_, transB_, M, N, K, alpha, A, ldA, B, ldB, beta,
             C, M);
 }
+#else
+template<typename T>
+static void (*gemm_codelet_cuda)(void *buffers[], void *cl_args) = nullptr;
 #endif // NNTILE_USE_CUDA
+
+starpu_perfmodel perfmodel_gemm_fp32 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .symbol = "nntile_gemm_fp32",
+};
+
+starpu_perfmodel perfmodel_gemm_fp64 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .symbol = "nntile_gemm_fp64",
+};
+
+StarpuCodelet codelet_gemm_fp32("nntile_gemm_fp32",
+        &perfmodel_gemm_fp32, {gemm_codelet_cpu<fp32_t>},
+        {gemm_codelet_cuda<fp32_t>});
+
+StarpuCodelet codelet_gemm_fp64("nntile_gemm_fp64",
+        &perfmodel_gemm_fp64, {gemm_codelet_cpu<fp64_t>},
+        {gemm_codelet_cuda<fp64_t>});
+
+void gemm_restrict_where(uint32_t where)
+{
+    codelet_gemm_fp32.restrict_where(where);
+    codelet_gemm_fp64.restrict_where(where);
+}
+
+void gemm_restore_where()
+{
+    codelet_gemm_fp32.restore_where();
+    codelet_gemm_fp64.restore_where();
+}
 
 template<typename T>
 void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
         const TransOp &transB, const Tile<T> &B, T beta, const Tile<T> &C,
         Index ndim)
 {
-    static struct starpu_perfmodel model_gemm =
-    {
-        .type = STARPU_HISTORY_BASED,
-        .symbol = "gemm",
-    };
-    static struct starpu_codelet codelet_gemm_w =
-    {
-#       if defined(NNTILE_USE_CBLAS) and !defined(PREFER_CUDA)
-        .cpu_funcs = {gemm_codelet_cpu<T>},
-#       endif
-#       if defined(NNTILE_USE_CUDA)
-        .cuda_funcs = {gemm_codelet_gpu<T>},
-        .cuda_flags = {STARPU_CUDA_ASYNC},
-#       endif
-        .nbuffers = 3,
-        .modes = {STARPU_R, STARPU_R, STARPU_W},
-        .model = &model_gemm,
-        .name = "gemm",
-    };
-    static struct starpu_codelet codelet_gemm_rw =
-    {
-#       if defined(NNTILE_USE_CBLAS) and !defined(PREFER_CUDA)
-        .cpu_funcs = {gemm_codelet_cpu<T>},
-#       endif
-#       if defined(NNTILE_USE_CUDA)
-        .cuda_funcs = {gemm_codelet_gpu<T>},
-        .cuda_flags = {STARPU_CUDA_ASYNC},
-#       endif
-        .nbuffers = 3,
-        .modes = {STARPU_R, STARPU_R, STARPU_RW},
-        .model = &model_gemm,
-        .name = "gemm",
-    };
-    static struct starpu_codelet codelet_gemm_rw_commute =
-    {
-#       if defined(NNTILE_USE_CBLAS) and !defined(PREFER_CUDA)
-        .cpu_funcs = {gemm_codelet_cpu<T>},
-#       endif
-#       if defined(NNTILE_USE_CUDA)
-        .cuda_funcs = {gemm_codelet_gpu<T>},
-        .cuda_flags = {STARPU_CUDA_ASYNC},
-#       endif
-        .nbuffers = 3,
-        .modes = {STARPU_R, STARPU_R, Starpu::STARPU_RW_COMMUTE},
-        .model = &model_gemm,
-        .name = "gemm",
-    };
     // Reference tensors as matrices
     Index m = C.matrix_shape[A.ndim-ndim][0];
     Index n = C.matrix_shape[A.ndim-ndim][1];
@@ -471,56 +462,32 @@ void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
     }
 #endif
     constexpr T zero = 0, one = 1;
-    int ret;
+    enum starpu_data_access_mode C_mode;
     if(beta == zero)
     {
-        ret = starpu_task_insert(&codelet_gemm_w,
-                STARPU_VALUE, &transA.value, sizeof(transA.value),
-                STARPU_VALUE, &transB.value, sizeof(transB.value),
-                STARPU_VALUE, &m, sizeof(m),
-                STARPU_VALUE, &n, sizeof(n),
-                STARPU_VALUE, &k, sizeof(k),
-                STARPU_VALUE, &alpha, sizeof(alpha),
-                STARPU_R, static_cast<starpu_data_handle_t>(A),
-                STARPU_R, static_cast<starpu_data_handle_t>(B),
-                STARPU_VALUE, &beta, sizeof(beta),
-                STARPU_W, static_cast<starpu_data_handle_t>(C),
-                STARPU_FLOPS, static_cast<double>(2*m*n*k),
-                0);
+        C_mode = STARPU_W;
     }
     else if(beta == one)
     {
-        ret = starpu_task_insert(&codelet_gemm_rw_commute,
-                STARPU_VALUE, &transA.value, sizeof(transA.value),
-                STARPU_VALUE, &transB.value, sizeof(transB.value),
-                STARPU_VALUE, &m, sizeof(m),
-                STARPU_VALUE, &n, sizeof(n),
-                STARPU_VALUE, &k, sizeof(k),
-                STARPU_VALUE, &alpha, sizeof(alpha),
-                STARPU_R, static_cast<starpu_data_handle_t>(A),
-                STARPU_R, static_cast<starpu_data_handle_t>(B),
-                STARPU_VALUE, &beta, sizeof(beta),
-                Starpu::STARPU_RW_COMMUTE,
-                static_cast<starpu_data_handle_t>(C),
-                STARPU_FLOPS, static_cast<double>(2*m*n*k),
-                0);
+        C_mode = Starpu::STARPU_RW_COMMUTE;
     }
     else
     {
-        ret = starpu_task_insert(&codelet_gemm_rw,
-                STARPU_VALUE, &transA.value, sizeof(transA.value),
-                STARPU_VALUE, &transB.value, sizeof(transB.value),
-                STARPU_VALUE, &m, sizeof(m),
-                STARPU_VALUE, &n, sizeof(n),
-                STARPU_VALUE, &k, sizeof(k),
-                STARPU_VALUE, &alpha, sizeof(alpha),
-                STARPU_R, static_cast<starpu_data_handle_t>(A),
-                STARPU_R, static_cast<starpu_data_handle_t>(B),
-                STARPU_VALUE, &beta, sizeof(beta),
-                STARPU_RW, static_cast<starpu_data_handle_t>(C),
-                STARPU_FLOPS, static_cast<double>(2*m*n*k),
-                0);
+        C_mode = STARPU_RW;
     }
+    int ret = starpu_task_insert(gemm_get_codelet<T>(),
+            STARPU_VALUE, &transA.value, sizeof(transA.value),
+            STARPU_VALUE, &transB.value, sizeof(transB.value),
+            STARPU_VALUE, &m, sizeof(m),
+            STARPU_VALUE, &n, sizeof(n),
+            STARPU_VALUE, &k, sizeof(k),
+            STARPU_VALUE, &alpha, sizeof(alpha),
+            STARPU_R, static_cast<starpu_data_handle_t>(A),
+            STARPU_R, static_cast<starpu_data_handle_t>(B),
+            STARPU_VALUE, &beta, sizeof(beta),
+            C_mode, static_cast<starpu_data_handle_t>(C),
+            STARPU_FLOPS, static_cast<double>(2*m*n*k),
+            0);
     if(ret != 0)
     {
         throw std::runtime_error("ret != 0");

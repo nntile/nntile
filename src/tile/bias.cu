@@ -18,8 +18,8 @@ namespace nntile
 {
 
 template<typename T>
-__global__ static
-void cuda_bias_single_axis(Index m, Index n, Index k, Index mk, const T *src,
+__global__
+void bias_kernel_cuda(Index m, Index n, Index k, Index mk, const T *src,
         T *dst)
 {
     Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
@@ -42,9 +42,8 @@ void cuda_bias_single_axis(Index m, Index n, Index k, Index mk, const T *src,
     }
 }
 
-// CUDA codelet for bias operation with a single axis provided
 template<typename T>
-void bias_codelet_cuda_single_axis(void *buffers[], void *cl_args)
+void bias_starpu_cuda(void *buffers[], void *cl_args)
 {
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
     // Both source and destination are Fortran-contiguous
@@ -55,15 +54,15 @@ void bias_codelet_cuda_single_axis(void *buffers[], void *cl_args)
     T *dst = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[1]));
     cudaStream_t stream = starpu_cuda_get_local_stream();
     dim3 blocks(16, 16), threads(8, 4);
-    (cuda_bias_single_axis<T>)<<<blocks, threads, 0, stream>>>(m, n, k, mk,
+    (bias_kernel_cuda<T>)<<<blocks, threads, 0, stream>>>(m, n, k, mk,
             src, dst);
 }
 
 template
-void bias_codelet_cuda_single_axis<fp32_t>(void *buffers[], void *cl_args);
+starpu_cuda_func_t bias_starpu_cuda<fp32_t>;
 
 template
-void bias_codelet_cuda_single_axis<fp64_t>(void *buffers[], void *cl_args);
+starpu_cuda_func_t bias_starpu_cuda<fp64_t>;
 
 template<typename T>
 __global__ static

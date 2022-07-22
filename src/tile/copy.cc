@@ -140,7 +140,7 @@ void copy_intersection_work(const Tile<T> &src,
         .cpu_funcs = {cpu_copy_intersection<T>},
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_W, STARPU_SCRATCH},
-        .model = &model_copy_intersection,
+        //.model = &model_copy_intersection,
         .name = "copy_intersection",
     };
     static struct starpu_codelet codelet_copy_rw =
@@ -148,7 +148,7 @@ void copy_intersection_work(const Tile<T> &src,
         .cpu_funcs = {cpu_copy_intersection<T>},
         .nbuffers = 3,
         .modes = {STARPU_R, STARPU_RW, STARPU_SCRATCH},
-        .model = &model_copy_intersection,
+        //.model = &model_copy_intersection,
         .name = "copy_intersection",
     };
     static struct starpu_codelet codelet_copy_rw_commute =
@@ -156,7 +156,7 @@ void copy_intersection_work(const Tile<T> &src,
         .cpu_funcs = {cpu_copy_intersection<T>},
         .nbuffers = 3,
         .modes = {STARPU_R, Starpu::STARPU_RW_COMMUTE, STARPU_SCRATCH},
-        .model = &model_copy_intersection,
+        //.model = &model_copy_intersection,
         .name = "copy_intersection",
     };
     struct starpu_codelet *current_codelet;

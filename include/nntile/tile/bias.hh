@@ -19,17 +19,47 @@
 namespace nntile
 {
 
-#ifdef NNTILE_USE_CUDA
-// CUDA codelet for bias operation with a single axis provided
 template<typename T>
-void bias_codelet_cuda_single_axis(void *buffers[], void *cl_args);
+void bias_kernel_cpu(Index, Index, Index, const T *, T *)
+    noexcept;
 
-extern template
-void bias_codelet_cuda_single_axis<fp32_t>(void *buffers[], void *cl_args);
+template<typename T>
+void bias_starpu_cpu(void *[], void *)
+    noexcept;
 
-extern template
-void bias_codelet_cuda_single_axis<fp64_t>(void *buffers[], void *cl_args);
+#ifdef NNTILE_USE_CUDA
+template<typename T>
+void bias_kernel_cuda(Index, Index, Index, Index, const T *, T *)
+    noexcept;
+
+template<typename T>
+void bias_starpu_cuda(void *[], void *)
+    noexcept;
 #endif // NNTILE_USE_CUDA
+
+extern starpu_perfmodel bias_perfmodel_fp32, bias_perfmodel_fp64;
+extern StarpuCodelet bias_codelet_fp32, bias_codelet_fp64;
+void bias_restrict_where(uint32_t where);
+void bias_restore_where();
+
+template<typename T>
+constexpr StarpuCodelet *bias_get_codelet()
+{
+    throw std::runtime_error("Non-supported type");
+    return nullptr;
+}
+
+template<>
+constexpr StarpuCodelet *bias_get_codelet<fp32_t>()
+{
+    return &bias_codelet_fp32;
+}
+
+template<>
+constexpr StarpuCodelet *bias_get_codelet<fp64_t>()
+{
+    return &bias_codelet_fp64;
+}
 
 //! Tile-wise bias operation
 //
@@ -45,12 +75,6 @@ void bias_codelet_cuda_single_axis<fp64_t>(void *buffers[], void *cl_args);
 // @param[in] axis: Dimension index of the bias
 template<typename T>
 void bias_work(const Tile<T> &src, const Tile<T> &dst, Index axis);
-
-extern template
-void bias_work(const Tile<fp32_t> &src, const Tile<fp32_t> &dst, Index axis);
-
-extern template
-void bias_work(const Tile<fp64_t> &src, const Tile<fp64_t> &dst, Index axis);
 
 //! Tile-wise bias operation
 //
@@ -88,7 +112,7 @@ void bias_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
         }
     }
     // Launch codelet
-    bias_work(src, dst, axis);
+    bias_work<T>(src, dst, axis);
 }
 
 //! Tile-wise bias operation
@@ -98,92 +122,6 @@ template<typename T>
 void bias(const Tile<T> &src, const Tile<T> &dst, Index axis)
 {
     bias_async<T>(src, dst, axis);
-    starpu_task_wait_for_all();
-}
-
-#ifdef NNTILE_USE_CUDA
-// CUDA codelet for bias operation with a single axis provided
-template<typename T>
-void bias_avg_dev_codelet_cuda_single_axis(void *buffers[], void *cl_args);
-
-extern template
-void bias_avg_dev_codelet_cuda_single_axis<fp32_t>(void *buffers[],
-        void *cl_args);
-
-extern template
-void bias_avg_dev_codelet_cuda_single_axis<fp64_t>(void *buffers[],
-        void *cl_args);
-#endif // NNTILE_USE_CUDA
-
-//! Tile-wise bias operation by averages and deviations
-//
-// Main computational routine that does NO argument checking.
-// @param[in] avg_dev: Source of the bias (averages and deviations)
-// @param[inout] dst: Destination of the bias
-// @param[in] axis: Dimension index of the bias
-template<typename T>
-void bias_avg_dev_work(const Tile<T> &avg_dev, const Tile<T> &dst,
-        Index axis);
-
-extern template
-void bias_avg_dev_work(const Tile<fp32_t> &avg_dev, const Tile<fp32_t> &dst,
-        Index axis);
-
-extern template
-void bias_avg_dev_work(const Tile<fp64_t> &avg_dev, const Tile<fp64_t> &dst,
-        Index axis);
-
-//! Tile-wise bias operation by averages and deviations
-//
-// Checks input arguments
-template<typename T>
-void bias_avg_dev_async(const Tile<T> &avg_dev, const Tile<T> &dst,
-        Index axis)
-{
-    // Check dimensions
-    if(dst.ndim != avg_dev.ndim)
-    {
-        throw std::runtime_error("dst.ndim != avg_dev.ndim");
-    }
-    // Check axis
-    if(axis < 0)
-    {
-        throw std::runtime_error("axis < 0");
-    }
-    if(axis >= dst.ndim)
-    {
-        throw std::runtime_error("axis >= dst.ndim");
-    }
-    // Check shapes
-    if(avg_dev.shape[0] != 2)
-    {
-        throw std::runtime_error("avg_dev.shape[0] != 2");
-    }
-    for(Index i = 0; i < axis; ++i)
-    {
-        if(dst.shape[i] != avg_dev.shape[i+1])
-        {
-            throw std::runtime_error("dst.shape[i] != avg_dev.shape[i+1]");
-        }
-    }
-    for(Index i = axis+1; i < dst.ndim; ++i)
-    {
-        if(dst.shape[i] != avg_dev.shape[i])
-        {
-            throw std::runtime_error("dst.shape[i] != src.shape[i]");
-        }
-    }
-    // Launch codelet
-    bias_avg_dev_work(avg_dev, dst, axis);
-}
-
-//! Tile-wise bias operation by averages and deviations
-//
-// Checks input arguments and blocks until finished
-template<typename T>
-void bias_avg_dev(const Tile<T> &avg_dev, const Tile<T> &dst, Index axis)
-{
-    bias_avg_dev_async<T>(avg_dev, dst, axis);
     starpu_task_wait_for_all();
 }
 
