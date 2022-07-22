@@ -155,9 +155,9 @@ int main(int argc, char **argv)
     for(Index i = 0; i < n_mixer_layers; ++i)
     {
         // Skip connection
-        copy_intersection_async(mixer_x[i], mixer_x[i+1]);
+        copy_async(mixer_x[i], mixer_x[i+1]);
         // Layer normalization
-        copy_intersection_async(mixer_x[i], mixer_x_norm);
+        copy_async(mixer_x[i], mixer_x_norm);
         mixer_x[i].wont_use();
         norm_sum_ssq_async(mixer_x_norm, sum_ssq1, 2);
         norm_avg_dev_async(sum_ssq1, avg_dev1, n_channels, eps);
@@ -175,7 +175,7 @@ int main(int argc, char **argv)
         mixer_x_mlp1_gelu.invalidate_submit();
         // Skip connection is already inplace
         // Layer normalization
-        copy_intersection_async(mixer_x[i+1], mixer_x_norm);
+        copy_async(mixer_x[i+1], mixer_x_norm);
         norm_sum_ssq_async(mixer_x_norm, sum_ssq2, 0);
         norm_avg_dev_async(sum_ssq2, avg_dev2, n_patches, eps);
         sum_ssq2.invalidate_submit();

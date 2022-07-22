@@ -132,7 +132,7 @@ void bias2_work(const Tile<T> &avg_dev, const Tile<T> &dst, Index axis)
         k = dst.shape[axis];
     }
     // Insert corresponding task
-    int ret = starpu_task_insert(bias2_get_codelet<T>(),
+    int ret = starpu_task_insert(bias2_codelet<T>(),
             STARPU_VALUE, &m, sizeof(m),
             STARPU_VALUE, &n, sizeof(n),
             STARPU_VALUE, &k, sizeof(k),

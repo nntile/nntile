@@ -11,8 +11,8 @@ template<typename T>
 void check_bias(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
 {
     Tensor<T> src_local(src.shape, src.shape), dst_local(dst.shape, dst.shape);
-    copy_intersection(src, src_local);
-    copy_intersection(dst, dst_local);
+    copy(src, src_local);
+    copy(dst, dst_local);
     bias(src, dst, axis);
     bias(src_local.get_tile(0), dst_local.get_tile(0), axis);
     TESTA(check_tensors_intersection(dst, dst_local));
@@ -23,8 +23,8 @@ void check_bias(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
 //void check_bias2(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
 //{
 //    Tensor<T> src_local(src.shape, src.shape), dst_local(dst.shape, dst.shape);
-//    copy_intersection(src, src_local);
-//    copy_intersection(dst, dst_local);
+//    copy(src, src_local);
+//    copy(dst, dst_local);
 //    bias2(src, dst, axis);
 //    bias2(src_local.get_tile(0), dst_local.get_tile(0), axis);
 //    TESTA(check_tensors_intersection(dst, dst_local));

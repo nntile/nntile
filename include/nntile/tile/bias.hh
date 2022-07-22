@@ -38,25 +38,28 @@ void bias_starpu_cuda(void *[], void *)
 #endif // NNTILE_USE_CUDA
 
 extern starpu_perfmodel bias_perfmodel_fp32, bias_perfmodel_fp64;
+
 extern StarpuCodelet bias_codelet_fp32, bias_codelet_fp64;
+
 void bias_restrict_where(uint32_t where);
+
 void bias_restore_where();
 
 template<typename T>
-constexpr StarpuCodelet *bias_get_codelet()
+constexpr StarpuCodelet *bias_codelet()
 {
     throw std::runtime_error("Non-supported type");
     return nullptr;
 }
 
 template<>
-constexpr StarpuCodelet *bias_get_codelet<fp32_t>()
+constexpr StarpuCodelet *bias_codelet<fp32_t>()
 {
     return &bias_codelet_fp32;
 }
 
 template<>
-constexpr StarpuCodelet *bias_get_codelet<fp64_t>()
+constexpr StarpuCodelet *bias_codelet<fp64_t>()
 {
     return &bias_codelet_fp64;
 }

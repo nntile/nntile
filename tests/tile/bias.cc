@@ -11,7 +11,7 @@ void check_bias(const Tile<T> &src, const Tile<T> &dst, Index axis)
 {
     Tile<T> res(TileTraits(dst.shape));
     std::vector<Index> index(dst.ndim, 0);
-    copy_intersection(dst, index, res, index);
+    copy(dst, index, res, index);
     bias(src, res, axis);
     auto src_local = src.acquire(STARPU_R), dst_local = dst.acquire(STARPU_R),
          res_local = res.acquire(STARPU_R);
@@ -51,7 +51,7 @@ void check_bias(const Tile<T> &src, const Tile<T> &dst, Index axis)
 //{
 //    Tile<T> res(TileTraits(dst.shape));
 //    std::vector<Index> index(dst.ndim, 0);
-//    copy_intersection(dst, index, res, index);
+//    copy(dst, index, res, index);
 //    bias2(avg_dev, res, axis);
 //    auto avg_dev_local = avg_dev.acquire(STARPU_R),
 //         dst_local = dst.acquire(STARPU_R), res_local = res.acquire(STARPU_R);

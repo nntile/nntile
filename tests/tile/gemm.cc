@@ -177,67 +177,67 @@ void validate_gemm()
     for(Index i = 0; i < 3; ++i)
     {
         T a = alpha[i], b = beta[i];
-        copy_intersection(C1, C1_copy);
+        copy(C1, C1_copy);
         gemm(a, TransOp::NoTrans, A1, TransOp::NoTrans, B1, b, C1, 1);
         test_gemm(TransOp::NoTrans, TransOp::NoTrans, C1M, C1N, C1K, a,
                 A1, C1M, B1, C1K, b, C1_copy, C1M, C1, C1M);
-        copy_intersection(C1, C1_copy);
+        copy(C1, C1_copy);
         gemm(a, TransOp::NoTrans, A1, TransOp::Trans, B1T, b, C1, 1);
         test_gemm(TransOp::NoTrans, TransOp::Trans, C1M, C1N, C1K, a,
                 A1, C1M, B1T, C1N, b, C1_copy, C1M, C1, C1M);
-        copy_intersection(C1, C1_copy);
+        copy(C1, C1_copy);
         gemm(a, TransOp::Trans, A1T, TransOp::NoTrans, B1, b, C1, 1);
         test_gemm(TransOp::Trans, TransOp::NoTrans, C1M, C1N, C1K, a,
                 A1T, C1K, B1, C1K, b, C1_copy, C1M, C1, C1M);
-        copy_intersection(C1, C1_copy);
+        copy(C1, C1_copy);
         gemm(a, TransOp::Trans, A1T, TransOp::Trans, B1T, b, C1, 1);
         test_gemm(TransOp::Trans, TransOp::Trans, C1M, C1N, C1K, a,
                 A1T, C1K, B1T, C1N, b, C1_copy, C1M, C1, C1M);
-        copy_intersection(C1T, C1T_copy);
+        copy(C1T, C1T_copy);
         gemm(a, TransOp::NoTrans, B1T, TransOp::NoTrans, A1T, b, C1T, 1);
         test_gemm(TransOp::NoTrans, TransOp::NoTrans, C1N, C1M, C1K, a,
                 B1T, C1N, A1T, C1K, b, C1T_copy, C1N, C1T, C1N);
-        copy_intersection(C1T, C1T_copy);
+        copy(C1T, C1T_copy);
         gemm(a, TransOp::NoTrans, B1T, TransOp::Trans, A1, b, C1T, 1);
         test_gemm(TransOp::NoTrans, TransOp::Trans, C1N, C1M, C1K, a,
                 B1T, C1N, A1, C1M, b, C1T_copy, C1N, C1T, C1N);
-        copy_intersection(C1T, C1T_copy);
+        copy(C1T, C1T_copy);
         gemm(a, TransOp::Trans, B1, TransOp::NoTrans, A1T, b, C1T, 1);
         test_gemm(TransOp::Trans, TransOp::NoTrans, C1N, C1M, C1K, a,
                 B1, C1K, A1T, C1K, b, C1T_copy, C1N, C1T, C1N);
-        copy_intersection(C1T, C1T_copy);
+        copy(C1T, C1T_copy);
         gemm(a, TransOp::Trans, B1, TransOp::Trans, A1, b, C1T, 1);
         test_gemm(TransOp::Trans, TransOp::Trans, C1N, C1M, C1K, a,
                 B1, C1K, A1, C1M, b, C1T_copy, C1N, C1T, C1N);
-        copy_intersection(C2, C2_copy);
+        copy(C2, C2_copy);
         gemm(a, TransOp::NoTrans, A2, TransOp::NoTrans, B2, b, C2, 2);
         test_gemm(TransOp::NoTrans, TransOp::NoTrans, C2M, C2N, C2K, a,
                 A2, C2M, B2, C2K, b, C2_copy, C2M, C2, C2M);
-        copy_intersection(C2, C2_copy);
+        copy(C2, C2_copy);
         gemm(a, TransOp::NoTrans, A2, TransOp::Trans, B2T, b, C2, 2);
         test_gemm(TransOp::NoTrans, TransOp::Trans, C2M, C2N, C2K, a,
                 A2, C2M, B2T, C2N, b, C2_copy, C2M, C2, C2M);
-        copy_intersection(C2, C2_copy);
+        copy(C2, C2_copy);
         gemm(a, TransOp::Trans, A2T, TransOp::NoTrans, B2, b, C2, 2);
         test_gemm(TransOp::Trans, TransOp::NoTrans, C2M, C2N, C2K, a,
                 A2T, C2K, B2, C2K, b, C2_copy, C2M, C2, C2M);
-        copy_intersection(C2, C2_copy);
+        copy(C2, C2_copy);
         gemm(a, TransOp::Trans, A2T, TransOp::Trans, B2T, b, C2, 2);
         test_gemm(TransOp::Trans, TransOp::Trans, C2M, C2N, C2K, a,
                 A2T, C2K, B2T, C2N, b, C2_copy, C2M, C2, C2M);
-        copy_intersection(C2T, C2T_copy);
+        copy(C2T, C2T_copy);
         gemm(a, TransOp::NoTrans, B2T, TransOp::NoTrans, A2T, b, C2T, 2);
         test_gemm(TransOp::NoTrans, TransOp::NoTrans, C2N, C2M, C2K, a,
                 B2T, C2N, A2T, C2K, b, C2T_copy, C2N, C2T, C2N);
-        copy_intersection(C2T, C2T_copy);
+        copy(C2T, C2T_copy);
         gemm(a, TransOp::NoTrans, B2T, TransOp::Trans, A2, b, C2T, 2);
         test_gemm(TransOp::NoTrans, TransOp::Trans, C2N, C2M, C2K, a,
                 B2T, C2N, A2, C2M, b, C2T_copy, C2N, C2T, C2N);
-        copy_intersection(C2T, C2T_copy);
+        copy(C2T, C2T_copy);
         gemm(a, TransOp::Trans, B2, TransOp::NoTrans, A2T, b, C2T, 2);
         test_gemm(TransOp::Trans, TransOp::NoTrans, C2N, C2M, C2K, a,
                 B2, C2K, A2T, C2K, b, C2T_copy, C2N, C2T, C2N);
-        copy_intersection(C2T, C2T_copy);
+        copy(C2T, C2T_copy);
         gemm(a, TransOp::Trans, B2, TransOp::Trans, A2, b, C2T, 2);
         test_gemm(TransOp::Trans, TransOp::Trans, C2N, C2M, C2K, a,
                 B2, C2K, A2, C2M, b, C2T_copy, C2N, C2T, C2N);

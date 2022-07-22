@@ -12,9 +12,9 @@ void check_relu(const Tensor<T> &A)
 {
     std::cout << "Alloc local\n";
     Tensor<T> A_local(A.shape, A.shape);
-    std::cout << "before copy_intersection\n";
-    copy_intersection(A, A_local);
-    std::cout << "after copy_intersection\n";
+    std::cout << "before copy\n";
+    copy(A, A_local);
+    std::cout << "after copy\n";
     return;
     relu(A);
     TESTA(!check_tensors_intersection(A, A_local));

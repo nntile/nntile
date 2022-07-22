@@ -11,7 +11,7 @@ template<typename T>
 void check_gelu(const Tensor<T> &A)
 {
     Tensor<T> A_local(A.shape, A.shape);
-    copy_intersection(A, A_local);
+    copy(A, A_local);
     gelu(A);
     TESTA(!check_tensors_intersection(A, A_local));
     TESTA(!check_tensors_intersection(A_local, A));

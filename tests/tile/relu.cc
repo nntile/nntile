@@ -11,7 +11,7 @@ void check_relu(const Tile<T> &A)
 {
     Tile<T> B(A.shape);
     std::vector<Index> index(B.ndim);
-    copy_intersection(A, index, B, index);
+    copy(A, index, B, index);
     relu(B);
     auto A_local = A.acquire(STARPU_R), B_local = B.acquire(STARPU_R);
     for(Index i = 0; i < B.nelems; ++i)

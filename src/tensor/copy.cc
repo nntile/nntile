@@ -19,7 +19,7 @@ namespace nntile
 {
 
 template<typename T>
-void copy_intersection_work(const Tile<T> &src,
+void copy_work(const Tile<T> &src,
         const std::vector<Index> &src_offset, const Tensor<T> &dst,
         const std::vector<Index> &dst_offset,
         const StarpuVariableHandle &scratch)
@@ -82,7 +82,7 @@ void copy_intersection_work(const Tile<T> &src,
         // Smart copying otherwise
         else
         {
-            copy_intersection_work(src, src_start, dst_tile, dst_tile_start,
+            copy_work(src, src_start, dst_tile, dst_tile_start,
                     copy_shape, scratch, dst_tile_mode);
         }
     }
@@ -143,7 +143,7 @@ void copy_intersection_work(const Tile<T> &src,
                 }
             }
             // Smart copy
-            copy_intersection_work(src, src_tile_start, dst_tile,
+            copy_work(src, src_tile_start, dst_tile,
                     dst_tile_start, copy_tile_shape, scratch,
                     dst_tile_mode);
             // Get out if it was the last tile
@@ -165,19 +165,19 @@ void copy_intersection_work(const Tile<T> &src,
 }
 
 template
-void copy_intersection_work(const Tile<fp32_t> &src,
+void copy_work(const Tile<fp32_t> &src,
         const std::vector<Index> &src_offset, const Tensor<fp32_t> &dst,
         const std::vector<Index> &dst_offset,
         const StarpuVariableHandle &scratch);
 
 template
-void copy_intersection_work(const Tile<fp64_t> &src,
+void copy_work(const Tile<fp64_t> &src,
         const std::vector<Index> &src_offset, const Tensor<fp64_t> &dst,
         const std::vector<Index> &dst_offset,
         const StarpuVariableHandle &scratch);
 
 template<typename T>
-void copy_intersection_work(const Tensor<T> &src,
+void copy_work(const Tensor<T> &src,
         const std::vector<Index> &src_offset, const Tile<T> &dst,
         const std::vector<Index> &dst_offset,
         const StarpuVariableHandle &scratch)
@@ -240,7 +240,7 @@ void copy_intersection_work(const Tensor<T> &src,
                 src_tile_start[k] = src_start[k]
                     - src_tile_index_begin[k]*src.basetile_shape[k];
             }
-            copy_intersection_work(src_tile, src_tile_start, dst,
+            copy_work(src_tile, src_tile_start, dst,
                     dst_start, copy_shape, scratch, dst_mode);
         }
     }
@@ -264,7 +264,7 @@ void copy_intersection_work(const Tensor<T> &src,
             }
         }
         // The first update of the destination tile uses dst_mode
-        copy_intersection_work(src_tile, src_tile_start, dst, dst_start,
+        copy_work(src_tile, src_tile_start, dst, dst_start,
                 copy_tile_shape, scratch, dst_mode);
         // Proceed with all the rest source tiles
         std::vector<Index> src_tile_index(src_tile_index_begin);
@@ -311,26 +311,26 @@ void copy_intersection_work(const Tensor<T> &src,
             }
             // Call copy instruction for the tiles
             auto src_tile = src.get_tile(src_tile_index);
-            copy_intersection_work(src_tile, src_tile_start, dst,
+            copy_work(src_tile, src_tile_start, dst,
                     dst_tile_start, copy_tile_shape, scratch, STARPU_RW);
         }
     }
 }
 
 template
-void copy_intersection_work(const Tensor<fp32_t> &src,
+void copy_work(const Tensor<fp32_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp32_t> &dst,
         const std::vector<Index> &dst_offset,
         const StarpuVariableHandle &scratch);
 
 template
-void copy_intersection_work(const Tensor<fp64_t> &src,
+void copy_work(const Tensor<fp64_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp64_t> &dst,
         const std::vector<Index> &dst_offset,
         const StarpuVariableHandle &scratch);
 
 template<typename T>
-void copy_intersection_work(const Tensor<T> &src,
+void copy_work(const Tensor<T> &src,
         const std::vector<Index> &src_offset, const Tensor<T> &dst,
         const std::vector<Index> &dst_offset,
         const StarpuVariableHandle &scratch)
@@ -466,7 +466,7 @@ void copy_intersection_work(const Tensor<T> &src,
             // Smart copying otherwise
             else
             {
-                copy_intersection_work(src_tile, src_tile_start, dst_tile,
+                copy_work(src_tile, src_tile_start, dst_tile,
                         dst_tile_start, copy_tile_shape, scratch,
                         dst_tile_mode);
             }
@@ -474,7 +474,7 @@ void copy_intersection_work(const Tensor<T> &src,
         else
         {
             // The first update of the destination tile uses dst_tile_mode
-            copy_intersection_work(src_tile, src_tile_start, dst_tile,
+            copy_work(src_tile, src_tile_start, dst_tile,
                     dst_tile_start, copy_tile_shape, scratch,
                     dst_tile_mode);
             // Proceed with all the rest source tiles
@@ -541,7 +541,7 @@ void copy_intersection_work(const Tensor<T> &src,
                 }
                 // Call copy instruction for the tiles
                 auto src_tile = src.get_tile(src_tile_index);
-                copy_intersection_work(src_tile, src_tile_start, dst_tile,
+                copy_work(src_tile, src_tile_start, dst_tile,
                         dst_tile_start, copy_tile_shape, scratch, STARPU_RW);
             }
         }
@@ -563,13 +563,13 @@ void copy_intersection_work(const Tensor<T> &src,
 }
 
 template
-void copy_intersection_work(const Tensor<fp32_t> &src,
+void copy_work(const Tensor<fp32_t> &src,
         const std::vector<Index> &src_offset, const Tensor<fp32_t> &dst,
         const std::vector<Index> &dst_offset,
         const StarpuVariableHandle &scratch);
 
 template
-void copy_intersection_work(const Tensor<fp64_t> &src,
+void copy_work(const Tensor<fp64_t> &src,
         const std::vector<Index> &src_offset, const Tensor<fp64_t> &dst,
         const std::vector<Index> &dst_offset,
         const StarpuVariableHandle &scratch);

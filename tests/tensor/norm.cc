@@ -16,7 +16,7 @@ void check_sum_ssq(const Tensor<T> &src, const Tensor<T> &src_tile,
     Tensor<T> sum_ssq_tile(sum_ssq.shape, sum_ssq.shape);
     norm_sum_ssq(src_tile.get_tile(0), sum_ssq_tile.get_tile(0), axes);
     Tensor<T> sum_ssq_tile2(sum_ssq.shape, sum_ssq.shape);
-    copy_intersection(sum_ssq, sum_ssq_tile2);
+    copy(sum_ssq, sum_ssq_tile2);
     auto local = sum_ssq_tile.get_tile(0).acquire(STARPU_R),
          local2 = sum_ssq_tile2.get_tile(0).acquire(STARPU_R);
     for(Index i = 0; i < sum_ssq.nelems; i += 3)
@@ -56,7 +56,7 @@ void validate_sum_ssq()
     constexpr unsigned long long seed = 100000000000001ULL;
     // Avoid mean=0 because of instable relative error of sum (division by 0)
     randn(A, seed, T{1}, T{1});
-    copy_intersection(A, A_tile);
+    copy(A, A_tile);
     std::vector<std::vector<Index>> axes = {{0}, {1}, {2}, {3}, {0, 1}, {0, 2},
         {0, 3}, {1, 2}, {1, 3}, {2, 3}, {0, 1, 2}, {0, 1, 3}, {0, 2, 3},
         {1, 2, 3}, {0, 1, 2, 3}};
@@ -130,7 +130,7 @@ void validate_avg_dev()
         Tensor<T> sum_ssq(shape, basetile), sum_ssq_tile(shape, shape);
         Tensor<T> avg_dev(shape2, basetile2), avg_dev_tile(shape2, shape2);
         norm_sum_ssq(A, sum_ssq, axes[i]);
-        copy_intersection(sum_ssq, sum_ssq_tile);
+        copy(sum_ssq, sum_ssq_tile);
         check_avg_dev(sum_ssq, sum_ssq_tile, avg_dev, avg_dev_tile, nelems,
                 eps0);
         check_avg_dev(sum_ssq, sum_ssq_tile, avg_dev, avg_dev_tile, nelems,

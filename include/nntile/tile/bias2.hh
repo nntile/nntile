@@ -22,6 +22,7 @@ namespace nntile
 template<typename T>
 void bias2_kernel_cpu(Index, Index, Index, const T *, T *)
     noexcept;
+
 template<typename T>
 void bias2_starpu_cpu(void *[], void *)
     noexcept;
@@ -30,6 +31,7 @@ void bias2_starpu_cpu(void *[], void *)
 template<typename T>
 void bias2_kernel_cuda(Index, Index, Index, Index, const T *, T *)
     noexcept;
+
 template<typename T>
 void bias2_starpu_cuda(void *[], void *)
     noexcept;
@@ -41,20 +43,20 @@ void bias2_restrict_where(uint32_t where);
 void bias2_restore_where();
 
 template<typename T>
-constexpr StarpuCodelet *bias2_get_codelet()
+constexpr StarpuCodelet *bias2_codelet()
 {
     throw std::runtime_error("Non-supported type");
     return nullptr;
 }
 
 template<>
-constexpr StarpuCodelet *bias2_get_codelet<fp32_t>()
+constexpr StarpuCodelet *bias2_codelet<fp32_t>()
 {
     return &bias2_codelet_fp32;
 }
 
 template<>
-constexpr StarpuCodelet *bias2_get_codelet<fp64_t>()
+constexpr StarpuCodelet *bias2_codelet<fp64_t>()
 {
     return &bias2_codelet_fp64;
 }

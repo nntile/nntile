@@ -20,15 +20,37 @@ namespace nntile
 {
 
 template<typename T>
-void copy_intersection_work_ndim0(const Tile<T> &src, const Tile<T> &dst);
+void copy_kernel_cpu(Index ndim, const Index *src_start,
+        const Index *src_stride, const Index *copy_shape, const T *src,
+        const Index *dst_start, const Index *dst_stride, T *dst,
+        Index *tmp_index)
+    noexcept;
 
-extern template
-void copy_intersection_work_ndim0(const Tile<fp32_t> &src,
-        const Tile<fp32_t> &dst);
+template<typename T>
+void copy_starpu_cpu(void *[], void *)
+    noexcept;
 
-extern template
-void copy_intersection_work_ndim0(const Tile<fp64_t> &src,
-        const Tile<fp64_t> &dst);
+extern starpu_perfmodel copy_perfmodel_fp32, copy_perfmodel_fp64;
+extern StarpuCodelet copy_codelet_fp32, copy_codelet_fp64;
+
+template<typename T>
+constexpr StarpuCodelet *copy_codelet()
+{
+    throw std::runtime_error("Non-supported type");
+    return nullptr;
+}
+
+template<>
+constexpr StarpuCodelet *copy_codelet<fp32_t>()
+{
+    return &copy_codelet_fp32;
+}
+
+template<>
+constexpr StarpuCodelet *copy_codelet<fp64_t>()
+{
+    return &copy_codelet_fp64;
+}
 
 //! Asynchronous tile-wise copy operation
 //
@@ -41,49 +63,45 @@ void copy_intersection_work_ndim0(const Tile<fp64_t> &src,
 // and copies only the data within the found intersection. No elements of the
 // destination tile outside the intersection mask are updated.
 template<typename T>
-void copy_intersection_work(const Tile<T> &src,
+void copy_work(const Tile<T> &src,
         const std::vector<Index> &src_start, const Tile<T> &dst,
         const std::vector<Index> &dst_start,
         const std::vector<Index> &copy_shape,
         const StarpuVariableHandle &scratch,
         enum starpu_data_access_mode mode);
 
-extern template
-void copy_intersection_work(const Tile<fp32_t> &src,
-        const std::vector<Index> &src_start, const Tile<fp32_t> &dst,
-        const std::vector<Index> &dst_start,
-        const std::vector<Index> &copy_shape,
-        const StarpuVariableHandle &scratch,
-        enum starpu_data_access_mode mode);
-
-extern template
-void copy_intersection_work(const Tile<fp64_t> &src,
-        const std::vector<Index> &src_start, const Tile<fp64_t> &dst,
-        const std::vector<Index> &dst_start,
-        const std::vector<Index> &copy_shape,
-        const StarpuVariableHandle &scratch,
-        enum starpu_data_access_mode mode);
-
 template<typename T>
-void copy_intersection_work(const Tile<T> &src,
+void copy_work(const Tile<T> &src,
         const std::vector<Index> &src_offset, const Tile<T> &dst,
         const std::vector<Index> &dst_offset,
         const StarpuVariableHandle &scratch);
 
-extern template
-void copy_intersection_work(const Tile<fp32_t> &src,
-        const std::vector<Index> &src_offset, const Tile<fp32_t> &dst,
-        const std::vector<Index> &dst_offset,
-        const StarpuVariableHandle &scratch);
-
-extern template
-void copy_intersection_work(const Tile<fp64_t> &src,
-        const std::vector<Index> &src_offset, const Tile<fp64_t> &dst,
-        const std::vector<Index> &dst_offset,
-        const StarpuVariableHandle &scratch);
+template<typename T>
+void copy_work(const Tile<T> &src,
+        const std::vector<Index> &src_offset, const Tile<T> &dst,
+        const std::vector<Index> &dst_offset)
+{
+    // Treat special case of ndim=0
+    if(src.ndim == 0)
+    {
+        starpu_data_cpy(dst, src, 1, nullptr, nullptr);
+        return;
+    }
+    // Treat easy case of full copy
+    if(src_offset == dst_offset and src.shape == dst.shape)
+    {
+        starpu_data_cpy(dst, src, 1, nullptr, nullptr);
+        return;
+    }
+    // Do the slow partial copy
+    // Temporary buffer for indexing
+    StarpuVariableHandle scratch(2 * src.ndim * sizeof(Index));
+    // Delegate computations
+    copy_work<T>(src, src_offset, dst, dst_offset, scratch);
+}
 
 template<typename T>
-void copy_intersection_async(const Tile<T> &src,
+void copy_async(const Tile<T> &src,
         const std::vector<Index> &src_offset, const Tile<T> &dst,
         const std::vector<Index> &dst_offset)
 {
@@ -100,23 +118,8 @@ void copy_intersection_async(const Tile<T> &src,
     {
         throw std::runtime_error("dst.ndim != dst_offset.size()");
     }
-    // Treat special case of ndim=0
-    if(src.ndim == 0)
-    {
-        copy_intersection_work_ndim0(src, dst);
-        return;
-    }
-    // Treat easy case of full copy
-    if(src_offset == dst_offset and src.shape == dst.shape)
-    {
-        starpu_data_cpy(dst, src, 1, nullptr, nullptr);
-        return;
-    }
-    // Do the slow partial copy
-    // Temporary buffer for indexing
-    StarpuVariableHandle scratch(2 * src.ndim * sizeof(Index));
     // Delegate computations
-    copy_intersection_work(src, src_offset, dst, dst_offset, scratch);
+    copy_work<T>(src, src_offset, dst, dst_offset);
 }
 
 //! Asynchronous tile-wise copy operation
@@ -129,9 +132,9 @@ void copy_intersection_async(const Tile<T> &src,
 // destination tile outside the intersection mask are updated. Both the
 // source and the target tiles assumed to have the same offset.
 template<typename T>
-void copy_intersection_async(const Tile<T> &src, const Tile<T> &dst)
+void copy_async(const Tile<T> &src, const Tile<T> &dst)
 {
-    copy_intersection_async<T>(src, std::vector<Index>(src.ndim), dst,
+    copy_async<T>(src, std::vector<Index>(src.ndim), dst,
             std::vector<Index>(dst.ndim));
 }
 
@@ -146,11 +149,11 @@ void copy_intersection_async(const Tile<T> &src, const Tile<T> &dst)
 // and copies only the data within the found intersection. No elements of the
 // destination tile outside the intersection mask are updated.
 template<typename T>
-void copy_intersection(const Tile<T> &src,
+void copy(const Tile<T> &src,
         const std::vector<Index> &src_offset, const Tile<T> &dst,
         const std::vector<Index> &dst_offset)
 {
-    copy_intersection_async<T>(src, src_offset, dst, dst_offset);
+    copy_async<T>(src, src_offset, dst, dst_offset);
     starpu_task_wait_for_all();
 }
 
@@ -164,9 +167,9 @@ void copy_intersection(const Tile<T> &src,
 // destination tile outside the intersection mask are updated. Both the
 // source and the target tiles assumed to have the same offset.
 template<typename T>
-void copy_intersection(const Tile<T> &src, const Tile<T> &dst)
+void copy(const Tile<T> &src, const Tile<T> &dst)
 {
-    copy_intersection_async<T>(src, std::vector<Index>(src.ndim), dst,
+    copy_async<T>(src, std::vector<Index>(src.ndim), dst,
             std::vector<Index>(dst.ndim));
     starpu_task_wait_for_all();
 }
