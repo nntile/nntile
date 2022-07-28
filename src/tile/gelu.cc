@@ -19,13 +19,9 @@ namespace nntile
 {
 
 template<typename T>
-static
-void cpu_gelu(void *buffers[], void *cl_args)
+void gelu_kernel_cpu(Index nelems, T *data)
     noexcept
 {
-    Index nelems;
-    starpu_codelet_unpack_args(cl_args, &nelems);
-    T *data = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
     constexpr T one = 1, pt5 = 0.5;
     const T sqrt2 = std::sqrt(T{2.0});
     for(Index i = 0; i < nelems; ++i)
@@ -36,22 +32,43 @@ void cpu_gelu(void *buffers[], void *cl_args)
 }
 
 template<typename T>
+void gelu_starpu_cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    Index nelems;
+    starpu_codelet_unpack_args(cl_args, &nelems);
+    T *data = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
+    gelu_kernel_cpu<T>(nelems, data);
+}
+
+starpu_perfmodel gelu_perfmodel_fp32 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .symbol = "nntile_gelu_fp32",
+};
+
+starpu_perfmodel gelu_perfmodel_fp64 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .symbol = "nntile_gelu_fp64",
+};
+
+StarpuCodelet gelu_codelet_fp32("nntile_gelu_fp32",
+        &gelu_perfmodel_fp32,
+        {gelu_starpu_cpu<fp32_t>},
+        {}
+        );
+
+StarpuCodelet gelu_codelet_fp64("nntile_gelu_fp64",
+        &gelu_perfmodel_fp64,
+        {gelu_starpu_cpu<fp64_t>},
+        {}
+        );
+
+template<typename T>
 void gelu_work(const Tile<T> &A)
 {
-    static struct starpu_perfmodel model_gelu =
-    {
-        .type = STARPU_HISTORY_BASED,
-        .symbol = "gelu",
-    };
-    static struct starpu_codelet codelet_gelu =
-    {
-        .cpu_funcs = {cpu_gelu<T>},
-        .nbuffers = 1,
-        .modes = {STARPU_RW},
-        .model = &model_gelu,
-        .name = "gelu",
-    };
-    int ret = starpu_task_insert(&codelet_gelu,
+    int ret = starpu_task_insert(gelu_codelet<T>(),
             STARPU_VALUE, &A.nelems, sizeof(A.nelems),
             STARPU_RW, static_cast<starpu_data_handle_t>(A),
             // std::erf is assumed as a single flop

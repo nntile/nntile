@@ -18,8 +18,9 @@ namespace nntile
 {
 
 template<typename T>
-__global__ static
-void cuda_relu_work(Index nelems, T *data)
+__global__
+void relu_kernel_cuda_global(Index nelems, T *data)
+    noexcept
 {
     int start = threadIdx.x + blockIdx.x*blockDim.x,
         step = blockDim.x*gridDim.x;
@@ -34,21 +35,29 @@ void cuda_relu_work(Index nelems, T *data)
 }
 
 template<typename T>
-void relu_codelet_cuda(void *buffers[], void *cl_args)
+void relu_kernel_cuda(Index nelems, T *data, const dim3 &grid,
+        const dim3 &block, const cudaStream_t stream)
+{
+    (relu_kernel_cuda_global<T>)<<<grid, block, 0, stream>>>(nelems, data);
+}
+
+template<typename T>
+void relu_starpu_cuda(void *buffers[], void *cl_args)
+    noexcept
 {
     Index nelems;
     starpu_codelet_unpack_args(cl_args, &nelems);
     T *data = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
     cudaStream_t stream = starpu_cuda_get_local_stream();
     dim3 grid(256), block(32);
-    (cuda_relu_work<T>)<<<grid, block, 0, stream>>>(nelems, data);
+    relu_kernel_cuda<T>(nelems, data, grid, block, stream);
 }
 
 template
-void relu_codelet_cuda<fp32_t>(void *buffers[], void *cl_args);
+void relu_starpu_cuda<fp32_t>(void *buffers[], void *cl_args);
 
 template
-void relu_codelet_cuda<fp64_t>(void *buffers[], void *cl_args);
+void relu_starpu_cuda<fp64_t>(void *buffers[], void *cl_args);
 
 } // namespace nntile
 

@@ -18,6 +18,7 @@
 #include <memory>
 #include <cstring>
 #include <iostream>
+#include <vector>
 #include <starpu.h>
 #include <nntile/defs.h>
 
@@ -314,34 +315,41 @@ public:
 };
 
 //! Convenient registration and deregistration of data through StarPU handle
-class StarpuMatrixHandle: public StarpuHandle
+class StarpuNDimHandle: public StarpuHandle
 {
     //! Register variable for starpu-owned memory
-    static starpu_data_handle_t _reg_data(int M, int N, size_t elem_size)
+    static starpu_data_handle_t _reg_data(std::vector<uint32_t> &shape,
+            std::vector<uint32_t> &stride, size_t elem_size)
     {
         starpu_data_handle_t tmp;
-        starpu_matrix_data_register(&tmp, -1, 0, M, M, N, elem_size);
+        // Register StarPU handle
+        starpu_ndim_data_register(&tmp, -1, 0, &stride[0], &shape[0],
+                shape.size(), elem_size);
         return tmp;
     }
     //! Register variable
-    static starpu_data_handle_t _reg_data(uintptr_t ptr, int M, int N,
+    static starpu_data_handle_t _reg_data(uintptr_t ptr,
+            std::vector<uint32_t> &shape, std::vector<uint32_t> &stride,
             size_t elem_size)
     {
         starpu_data_handle_t tmp;
-        starpu_matrix_data_register(&tmp, STARPU_MAIN_RAM, ptr, M, M, N,
-                elem_size);
+        // Register StarPU handle
+        starpu_ndim_data_register(&tmp, STARPU_MAIN_RAM, ptr, &stride[0],
+                &shape[0], shape.size(), elem_size);
         return tmp;
     }
 public:
     //! Constructor for temporary variable that is (de)allocated by starpu
-    StarpuMatrixHandle(int M, int N, size_t elem_size):
-        StarpuHandle(_reg_data(M, N, elem_size), STARPU_SCRATCH)
+    StarpuNDimHandle(std::vector<uint32_t> shape, std::vector<uint32_t> stride,
+            size_t elem_size):
+        StarpuHandle(_reg_data(shape, stride, elem_size), STARPU_SCRATCH)
     {
     }
     //! Constructor for variable that is (de)allocated by user
-    StarpuMatrixHandle(uintptr_t ptr, int M, int N, size_t elem_size,
+    StarpuNDimHandle(uintptr_t ptr, std::vector<uint32_t> shape,
+            std::vector<uint32_t> stride, size_t elem_size,
             enum starpu_data_access_mode mode=STARPU_RW):
-        StarpuHandle(_reg_data(ptr, M, N, elem_size), mode)
+        StarpuHandle(_reg_data(ptr, shape, stride, elem_size), mode)
     {
     }
 };

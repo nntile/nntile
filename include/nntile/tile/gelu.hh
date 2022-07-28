@@ -19,17 +19,42 @@
 namespace nntile
 {
 
+template<typename T>
+void gelu_kernel_cpu(Index nelems, T *data)
+    noexcept;
+
+template<typename T>
+void gelu_starpu_cpu(void *buffers[], void *cl_args)
+    noexcept;
+
+extern starpu_perfmodel gelu_perfmodel_fp32, gelu_perfmodel_fp64;
+
+extern StarpuCodelet gelu_codelet_fp32, gelu_codelet_fp64;
+
+template<typename T>
+constexpr StarpuCodelet *gelu_codelet()
+{
+    throw std::runtime_error("Non-supported type");
+    return nullptr;
+}
+
+template<>
+constexpr StarpuCodelet *gelu_codelet<fp32_t>()
+{
+    return &gelu_codelet_fp32;
+}
+
+template<>
+constexpr StarpuCodelet *gelu_codelet<fp64_t>()
+{
+    return &gelu_codelet_fp64;
+}
+
 //! Asynchronous tile-wise GeLU operation
 //
 // @param[inout] A: Tile for the element-wise GeLU operation
 template<typename T>
 void gelu_work(const Tile<T> &A);
-
-extern template
-void gelu_work(const Tile<fp32_t> &A);
-
-extern template
-void gelu_work(const Tile<fp64_t> &A);
 
 template<typename T>
 void gelu_async(const Tile<T> &A)
@@ -37,7 +62,6 @@ void gelu_async(const Tile<T> &A)
     // No argument checking
     gelu_work<T>(A);
 }
-
 
 //! Blocking version of tile-wise GeLU operation
 //

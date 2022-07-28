@@ -29,43 +29,72 @@ class TileLocalData;
 // This is the main data storage class, that is handled by StarPU runtime
 // system.
 template<typename T>
-class Tile: public TileTraits, public StarpuVariableHandle
+class Tile: public TileTraits, public StarpuNDimHandle
 {
-    size_t check_nelems(Index req_nelems, Index ptr_nelems)
+    std::vector<uint32_t> _starpu_shape()
     {
-        if(req_nelems > ptr_nelems)
+        // Convert data for StarPU
+        std::vector<uint32_t> starpu_shape(ndim);
+        for(size_t i = 0; i < ndim; ++i)
+        {
+            starpu_shape[i] = shape[i];
+            // Check if conversion did not change values
+            if(shape[i] != starpu_shape[i])
+            {
+                throw std::runtime_error("starpu_ndim_interface supports only "
+                        "uint32_t type, which is not enough to hold provided "
+                        "shape input");
+            }
+        }
+        return starpu_shape;
+    }
+    std::vector<uint32_t> _starpu_stride()
+    {
+        // Convert data for StarPU
+        std::vector<uint32_t> starpu_stride(ndim);
+        for(size_t i = 0; i < ndim; ++i)
+        {
+            starpu_stride[i] = stride[i];
+            // Check if conversion did not change values
+            if(stride[i] != starpu_stride[i])
+            {
+                throw std::runtime_error("starpu_ndim_interface supports only "
+                        "uint32_t type, which is not enough to hold provided "
+                        "stride input");
+            }
+        }
+        return starpu_stride;
+    }
+    uintptr_t _check_ptr(T *ptr, Index ptr_nelems)
+    {
+        if(nelems > ptr_nelems)
         {
             throw std::runtime_error("Required memory size is larger than "
                     "actually allocated memory");
         }
-        size_t result = req_nelems;
-        if(req_nelems != result)
-        {
-            throw std::runtime_error("req_nelems != result");
-        }
-        return result;
+        return reinterpret_cast<uintptr_t>(ptr);
     }
 public:
     Tile(const std::vector<Index> &shape_):
         TileTraits(shape_),
-        StarpuVariableHandle(nelems*sizeof(T))
+        StarpuNDimHandle(_starpu_shape(), _starpu_stride(), sizeof(T))
     {
     }
     Tile(const TileTraits &traits):
         TileTraits(traits),
-        StarpuVariableHandle(nelems*sizeof(T))
+        StarpuNDimHandle(_starpu_shape(), _starpu_stride(), sizeof(T))
     {
     }
     Tile(const std::vector<Index> &shape_, T *ptr, Index ptr_nelems):
         TileTraits(shape_),
-        StarpuVariableHandle(reinterpret_cast<uintptr_t>(ptr),
-                sizeof(T)*check_nelems(nelems, ptr_nelems))
+        StarpuNDimHandle(_check_ptr(ptr, ptr_nelems), _starpu_shape(),
+                _starpu_stride(), sizeof(T))
     {
     }
     Tile(const TileTraits &traits, T *ptr, Index ptr_nelems):
         TileTraits(traits),
-        StarpuVariableHandle(reinterpret_cast<uintptr_t>(ptr),
-                sizeof(T)*check_nelems(nelems, ptr_nelems))
+        StarpuNDimHandle(_check_ptr(ptr, ptr_nelems), _starpu_shape(),
+                _starpu_stride(), sizeof(T))
     {
     }
     TileLocalData<T> acquire(enum starpu_data_access_mode mode)

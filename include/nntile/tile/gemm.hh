@@ -20,6 +20,10 @@
 namespace nntile
 {
 
+void gemm_check(const TransOp &transA, const TileTraits &A,
+        const TransOp &transB, const TileTraits &B, const TileTraits &C,
+        Index ndim=1);
+
 //! Asynchronous tile-wise gemm operation
 //
 // @param[in] alpha: Alpha multiplier
@@ -33,20 +37,6 @@ namespace nntile
 template<typename T>
 void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
         const TransOp &transB, const Tile<T> &B, T beta, const Tile<T> &C,
-        Index ndim=1);
-
-extern template
-void gemm_work(fp32_t alpha, const TransOp &transA, const Tile<fp32_t> &A,
-        const TransOp &transB, const Tile<fp32_t> &B, fp32_t beta,
-        const Tile<fp32_t> &C, Index ndim=1);
-
-extern template
-void gemm_work(fp64_t alpha, const TransOp &transA, const Tile<fp64_t> &A,
-        const TransOp &transB, const Tile<fp64_t> &B, fp64_t beta,
-        const Tile<fp64_t> &C, Index ndim=1);
-
-void gemm_check(const TransOp &transA, const TileTraits &A,
-        const TransOp &transB, const TileTraits &B, const TileTraits &C,
         Index ndim=1);
 
 template<typename T>
@@ -79,28 +69,86 @@ void gemm(T alpha, const TransOp &transA, const Tile<T> &A,
     starpu_task_wait_for_all();
 }
 
-extern starpu_perfmodel perfmodel_gemm_fp32, perfmodel_gemm_fp64;
-extern StarpuCodelet codelet_gemm_fp32, codelet_gemm_fp64;
+extern starpu_perfmodel gemmNN_perfmodel_fp32, gemmNN_perfmodel_fp64,
+       gemmNT_perfmodel_fp32, gemmNT_perfmodel_fp64,
+       gemmTN_perfmodel_fp32, gemmTN_perfmodel_fp64,
+       gemmTT_perfmodel_fp32, gemmTT_perfmodel_fp64;
+
+extern StarpuCodelet gemmNN_codelet_fp32, gemmNN_codelet_fp64,
+       gemmNT_codelet_fp32, gemmNT_codelet_fp64,
+       gemmTN_codelet_fp32, gemmTN_codelet_fp64,
+       gemmTT_codelet_fp32, gemmTT_codelet_fp64;
+
 void gemm_restrict_where(uint32_t where);
 void gemm_restore_where();
 
 template<typename T>
-constexpr StarpuCodelet *gemm_get_codelet()
+constexpr StarpuCodelet *gemm_get_codelet(TransOp transA, TransOp transB)
 {
     throw std::runtime_error("Non-supported type");
     return nullptr;
 }
 
 template<>
-constexpr StarpuCodelet *gemm_get_codelet<fp32_t>()
+constexpr StarpuCodelet *gemm_get_codelet<fp32_t>(TransOp transA,
+        TransOp transB)
 {
-    return &codelet_gemm_fp32;
+    switch(transA.value)
+    {
+        case TransOp::NoTrans:
+            switch(transB.value)
+            {
+                case TransOp::NoTrans:
+                    return &gemmNN_codelet_fp32;
+                default:
+                // This parameter was already checked in gemm_check_opA_opB
+                //case TransOp::Trans:
+                    return &gemmNT_codelet_fp32;
+            }
+        // This parameter was already checked in gemm_check_opA_opB
+        //case TransOp::Trans:
+        default:
+            switch(transB.value)
+            {
+                case TransOp::NoTrans:
+                    return &gemmTN_codelet_fp32;
+                // This parameter was already checked in gemm_check_opA_opB
+                //case TransOp::Trans:
+                default:
+                    return &gemmTT_codelet_fp32;
+            }
+    }
 }
 
 template<>
-constexpr StarpuCodelet *gemm_get_codelet<fp64_t>()
+constexpr StarpuCodelet *gemm_get_codelet<fp64_t>(TransOp transA,
+        TransOp transB)
 {
-    return &codelet_gemm_fp64;
+    switch(transA.value)
+    {
+        case TransOp::NoTrans:
+            switch(transB.value)
+            {
+                case TransOp::NoTrans:
+                    return &gemmNN_codelet_fp64;
+                default:
+                // This parameter was already checked in gemm_check_opA_opB
+                //case TransOp::Trans:
+                    return &gemmNT_codelet_fp64;
+            }
+        // This parameter was already checked in gemm_check_opA_opB
+        //case TransOp::Trans:
+        default:
+            switch(transB.value)
+            {
+                case TransOp::NoTrans:
+                    return &gemmTN_codelet_fp64;
+                // This parameter was already checked in gemm_check_opA_opB
+                //case TransOp::Trans:
+                default:
+                    return &gemmTT_codelet_fp64;
+            }
+    }
 }
 
 } // namespace nntile

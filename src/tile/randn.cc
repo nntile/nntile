@@ -18,20 +18,20 @@
 namespace nntile
 {
 
-static inline float chameleon_randn(unsigned long long &seed, float mean,
-        float stddev)
+static inline fp32_t chameleon_randn(unsigned long long &seed, fp32_t mean,
+        fp32_t stddev)
 {
     return stddev*CORE_slaran(&seed) + mean;
 }
 
-static inline double chameleon_randn(unsigned long long &seed, double mean,
-        double stddev)
+static inline fp64_t chameleon_randn(unsigned long long &seed, fp64_t mean,
+        fp64_t stddev)
 {
     return stddev*CORE_dlaran(&seed) + mean;
 }
 
 template<typename T>
-static void cpu_chameleon_randn_ndim0(void *buffers[], void *cl_args)
+void randn_starpu_cpu_ndim0(void *buffers[], void *cl_args)
 {
     unsigned long long seed;
     T mean, stddev;
@@ -41,17 +41,11 @@ static void cpu_chameleon_randn_ndim0(void *buffers[], void *cl_args)
 }
 
 template<typename T>
-static void cpu_chameleon_randn(void *buffers[], void *cl_args)
+void randn_kernel_cpu(Index ndim, Index nelems, unsigned long long seed,
+        T mean, T stddev, const Index *shape, const Index *stride,
+        const Index *underlying_stride, T *dst, Index *tmp_index)
+    noexcept
 {
-    Index ndim;
-    starpu_codelet_unpack_args(cl_args, &ndim, nullptr);
-    unsigned long long seed;
-    T mean, stddev;
-    Index nelems;
-    std::vector<Index> underlying_stride(ndim), shape(ndim), stride(ndim);
-    starpu_codelet_unpack_args(cl_args, &ndim, &nelems, &seed, &mean, &stddev,
-            &(underlying_stride[0]), &(shape[0]), &(stride[0]));
-    T *dst = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
     // View tile as a matrix of shape (shape[0], prod(shape[1:ndim]))
     Index nrows = shape[0], ncols = nelems / nrows;
     for(Index i = 0; i < nrows; ++i)
@@ -59,18 +53,21 @@ static void cpu_chameleon_randn(void *buffers[], void *cl_args)
         *dst = chameleon_randn(seed, mean, stddev);
         ++dst;
     }
-    std::vector<Index> index(ndim, 0);
+    for(Index i = 0; i < ndim; ++ i)
+    {
+        tmp_index[i] = 0;
+    }
     for(Index j = 1; j < ncols; ++j)
     {
-        ++index[1];
+        ++tmp_index[1];
         Index k = 1;
         Index shift = underlying_stride[1] - nrows;
         dst += stride[1] - nrows;
-        while(index[k] == shape[k])
+        while(tmp_index[k] == shape[k])
         {
-            index[k] = 0;
+            tmp_index[k] = 0;
             ++k;
-            ++index[k];
+            ++tmp_index[k];
             shift += underlying_stride[k] - underlying_stride[k-1]*shape[k-1];
             dst += stride[k] - stride[k-1]*shape[k-1];
         }
@@ -81,6 +78,20 @@ static void cpu_chameleon_randn(void *buffers[], void *cl_args)
             ++dst;
         }
     }
+}
+
+template<typename T>
+void randn_starpu_cpu(void *buffers[], void *cl_args)
+{
+    const Index *ndim_ptr, *nelems_ptr, *shape, *stride, *underlying_stride;
+    const unsigned long long *seed_ptr;
+    const T *mean_ptr, *stddev_ptr;
+    Starpu::unpack_args_ptr(cl_args, ndim_ptr, nelems_ptr, seed_ptr, mean_ptr,
+            stddev_ptr, shape, stride, underlying_stride);
+    T *dst = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
+    std::vector<Index> tmp_index(*ndim_ptr);
+    randn_kernel_cpu(*ndim_ptr, *nelems_ptr, *seed_ptr, *mean_ptr, *stddev_ptr,
+            shape, stride, underlying_stride, dst, &tmp_index[0]);
 }
 
 starpu_perfmodel perfmodel_randn_ndim0_fp32 =
@@ -96,11 +107,11 @@ starpu_perfmodel perfmodel_randn_ndim0_fp64 =
 };
 
 StarpuCodelet codelet_randn_ndim0_fp32("nntile_randn_ndim0_fp32",
-        &perfmodel_randn_ndim0_fp32, {cpu_chameleon_randn_ndim0<fp32_t>},
+        &perfmodel_randn_ndim0_fp32, {randn_starpu_cpu_ndim0<fp32_t>},
         {});
 
 StarpuCodelet codelet_randn_ndim0_fp64("nntile_randn_ndim0_fp64",
-        &perfmodel_randn_ndim0_fp64, {cpu_chameleon_randn_ndim0<fp64_t>},
+        &perfmodel_randn_ndim0_fp64, {randn_starpu_cpu_ndim0<fp64_t>},
         {});
 
 template<typename T>
@@ -135,11 +146,11 @@ starpu_perfmodel perfmodel_randn_fp64 =
 };
 
 StarpuCodelet codelet_randn_fp32("nntile_randn_fp32",
-        &perfmodel_randn_fp32, {cpu_chameleon_randn<fp32_t>},
+        &perfmodel_randn_fp32, {randn_starpu_cpu<fp32_t>},
         {});
 
 StarpuCodelet codelet_randn_fp64("nntile_randn_fp64",
-        &perfmodel_randn_fp64, {cpu_chameleon_randn<fp64_t>},
+        &perfmodel_randn_fp64, {randn_starpu_cpu<fp64_t>},
         {});
 
 template<typename T>
@@ -188,7 +199,7 @@ void randn_async(const Tile<T> &dst, const std::vector<Index> &offset,
                 STARPU_VALUE, &stddev, sizeof(stddev),
                 STARPU_W, static_cast<starpu_data_handle_t>(dst),
                 // 2 flops per single element
-                STARPU_FLOPS, static_cast<double>(2),
+                STARPU_FLOPS, static_cast<fp64_t>(2),
                 0);
         return;
     }
@@ -231,24 +242,24 @@ void randn_async(const Tile<T> &dst, const std::vector<Index> &offset,
             STARPU_VALUE, &seed, sizeof(seed),
             STARPU_VALUE, &mean, sizeof(mean),
             STARPU_VALUE, &stddev, sizeof(stddev),
-            STARPU_VALUE, &(stride[0]), dst.ndim*sizeof(stride[0]),
             STARPU_VALUE, &(dst.shape[0]), dst.ndim*sizeof(dst.shape[0]),
             STARPU_VALUE, &(dst.stride[0]), dst.ndim*sizeof(dst.stride[0]),
+            STARPU_VALUE, &(stride[0]), dst.ndim*sizeof(stride[0]),
             STARPU_W, static_cast<starpu_data_handle_t>(dst),
             // 2 flops per single element
-            STARPU_FLOPS, static_cast<double>(2*dst.nelems),
+            STARPU_FLOPS, static_cast<fp64_t>(2*dst.nelems),
             0);
 }
 
 template
-void randn_async(const Tile<float> &dst, const std::vector<Index> &offset,
+void randn_async(const Tile<fp32_t> &dst, const std::vector<Index> &offset,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
-        unsigned long long seed, float mean=0, float stddev=1);
+        unsigned long long seed, fp32_t mean, fp32_t stddev);
 
 template
-void randn_async(const Tile<double> &dst, const std::vector<Index> &offset,
+void randn_async(const Tile<fp64_t> &dst, const std::vector<Index> &offset,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
-        unsigned long long seed, double mean=0, double stddev=1);
+        unsigned long long seed, fp64_t mean, fp64_t stddev);
 
 } // namespace nntile
 

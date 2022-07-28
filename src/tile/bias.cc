@@ -53,13 +53,13 @@ void bias_starpu_cpu(void *buffers[], void *cl_args)
     bias_kernel_cpu<T>(m, n, k, src, dst);
 }
 
-starpu_perfmodel bias_perfmodel_fp32 =
+struct starpu_perfmodel bias_perfmodel_fp32 =
 {
     .type = STARPU_HISTORY_BASED,
     .symbol = "nntile_bias_fp32",
 };
 
-starpu_perfmodel bias_perfmodel_fp64 =
+struct starpu_perfmodel bias_perfmodel_fp64 =
 {
     .type = STARPU_HISTORY_BASED,
     .symbol = "nntile_bias_fp64",

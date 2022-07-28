@@ -27,10 +27,6 @@ namespace nntile
 template<typename T>
 class Tensor: public TensorTraits
 {
-    void _free_mem(void *ptr)
-    {
-        //starpu_memory_unpin(ptr, alloc_size);
-    }
 public:
     //! Pointer to the contiguous memory
     std::shared_ptr<void> ptr;
@@ -94,7 +90,8 @@ public:
             throw std::runtime_error("ret != 0");
         }
         char *ptr_char = reinterpret_cast<char *>(ptr_raw);
-        ptr = std::shared_ptr<void>(ptr_raw, starpu_free);
+        ptr = std::shared_ptr<void>(ptr_raw,
+                [this](void *ptr_){starpu_free_noflag(ptr_, alloc_size);});
         // Register tiles
         tiles.reserve(grid.nelems);
         for(Index i = 0; i < grid.nelems; ++i)

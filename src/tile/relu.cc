@@ -19,40 +19,74 @@ namespace nntile
 {
 
 template<typename T>
-static void cpu_relu(void *buffers[], void *cl_args)
+void relu_kernel_cpu(Index nelems, T *data)
+    noexcept
+{
+    constexpr T zero = 0;
+    for(Index i = 0; i < nelems; ++i)
+    {
+        data[i] = std::max(zero, data[i]);
+    }
+}
+
+template<typename T>
+void relu_starpu_cpu(void *buffers[], void *cl_args)
+    noexcept
 {
     Index nelems;
     starpu_codelet_unpack_args(cl_args, &nelems);
     T *data = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
-    for(Index i = 0; i < nelems; ++i)
-    {
-        data[i] = std::max(T{0}, data[i]);
-    }
+    relu_kernel_cpu<T>(nelems, data);
+}
+
+starpu_perfmodel relu_perfmodel_fp32 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .symbol = "nntile_relu_fp32",
+};
+
+starpu_perfmodel relu_perfmodel_fp64 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .symbol = "nntile_relu_fp64",
+};
+
+StarpuCodelet relu_codelet_fp32("nntile_relu_fp32",
+        &relu_perfmodel_fp32,
+        {relu_starpu_cpu<fp32_t>},
+#       ifdef NNTILE_USE_CUDA
+            {relu_starpu_cuda<fp32_t>}
+#       else // NNTILE_USE_CUDA
+            {}
+#       endif // NNTILE_USE_CUDA
+        );
+
+StarpuCodelet relu_codelet_fp64("nntile_relu_fp64",
+        &relu_perfmodel_fp64,
+        {relu_starpu_cpu<fp64_t>},
+#       ifdef NNTILE_USE_CUDA
+            {relu_starpu_cuda<fp64_t>}
+#       else // NNTILE_USE_CUDA
+            {}
+#       endif // NNTILE_USE_CUDA
+        );
+
+void relu_restrict_where(uint32_t where)
+{
+    relu_codelet_fp32.restrict_where(where);
+    relu_codelet_fp64.restrict_where(where);
+}
+
+void relu_restore_where()
+{
+    relu_codelet_fp32.restore_where();
+    relu_codelet_fp64.restore_where();
 }
 
 template<typename T>
 void relu_async(const Tile<T> &A)
 {
-    static struct starpu_perfmodel model_relu =
-    {
-        .type = STARPU_HISTORY_BASED,
-        .symbol = "relu",
-    };
-    static struct starpu_codelet codelet_relu =
-    {
-#       if !defined(PREFER_CUDA)
-        .cpu_funcs = {cpu_relu<T>},
-#       endif
-#       if defined(NNTILE_USE_CUDA)
-        .cuda_funcs = {relu_codelet_cuda<T>},
-        .cuda_flags = {STARPU_CUDA_ASYNC},
-#       endif
-        .nbuffers = 1,
-        .modes = {STARPU_RW},
-        .model = &model_relu,
-        .name = "relu",
-    };
-    starpu_task_insert(&codelet_relu,
+    starpu_task_insert(relu_codelet<T>(),
             STARPU_VALUE, &A.nelems, sizeof(A.nelems),
             STARPU_RW, static_cast<starpu_data_handle_t>(A),
             // std::erf is assumed as a single flop

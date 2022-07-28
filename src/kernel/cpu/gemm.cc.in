@@ -1,0 +1,109 @@
+/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+ *                           (Skoltech). All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file src/kernel/cpu/gemm.cc.in
+ * GEMM operation for Tile<T>
+ *
+ * @version 1.0.0
+ * @author Aleksandr Mikhalev
+ * @date 2022-04-22
+ * */
+
+#include "nntile/kernel/cpu/gemm.hh"
+#include <starpu_data_interfaces.h>
+
+#include <@CBLAS_H_NAME@>
+
+#ifndef CBLAS_INT
+#   define CBLAS_INT @CBLAS_INT_TYPE@
+#endif
+
+namespace nntile
+{
+
+// Overloaded call to CBLAS GEMM
+static inline
+void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
+        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp32_t alpha, const fp32_t *A,
+        CBLAS_INT ldA, const fp32_t *B, CBLAS_INT ldB, fp32_t beta, fp32_t *C,
+        CBLAS_INT ldC)
+{
+    cblas_sgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
+            beta, C, ldC);
+}
+
+// Overloaded call to CBLAS GEMM
+static inline
+void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
+        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp64_t alpha, const fp64_t *A,
+        CBLAS_INT ldA, const fp64_t *B, CBLAS_INT ldB, fp64_t beta, fp64_t *C,
+        CBLAS_INT ldC)
+{
+    cblas_dgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
+            beta, C, ldC);
+}
+
+//! GEMM for contiguous matrices without padding
+template<typename T>
+void gemm_kernel_cblas(TransOp transA, TransOp transB, Index m, Index n,
+        Index k, T alpha, const T *A, const T *B, T beta, T *C)
+{
+    // It is OK to convert values as it was checked during task submission
+    CBLAS_INT M=m, N=n, K=k, ldA, ldB, ldC=M;
+    CBLAS_TRANSPOSE transA_, transB_;
+    // Convert other values to CBLAS types
+    switch(transA.value)
+    {
+        case TransOp::NoTrans:
+            transA_ = CblasNoTrans;
+            ldA = M;
+            break;
+        // This parameter was already checked in gemm_check_opA_opB
+        //case TransOp::Trans:
+        default:
+            transA_ = CblasTrans;
+            ldA = K;
+    }
+    switch(transB.value)
+    {
+        case TransOp::NoTrans:
+            transB_ = CblasNoTrans;
+            ldB = K;
+            break;
+        // This parameter was already checked in gemm_check_opA_opB
+        //case TransOp::Trans:
+        default:
+            transB_ = CblasTrans;
+            ldB = N;
+    }
+    // Call corresponding CBLAS routine
+    cblas_gemm(transA_, transB_, M, N, K, alpha, A, ldA, B, ldB, beta, C, ldC);
+}
+
+//! GEMM for contiguous matrices without padding through StarPU buffers
+template<typename T>
+void gemm_starpu_cpu(void *buffers[], void *cl_args)
+{
+    TransOp transA(TransOp::Trans), transB(transA);
+    Index m, n, k;
+    T alpha, beta;
+    starpu_codelet_unpack_args(cl_args, &transA.value, &transB.value, &m, &n,
+            &k, &alpha, &beta);
+    const T *A = reinterpret_cast<T *>(STARPU_NDIM_GET_PTR(buffers[0]));
+    const T *B = reinterpret_cast<T *>(STARPU_NDIM_GET_PTR(buffers[1]));
+    T *C = reinterpret_cast<T *>(STARPU_NDIM_GET_PTR(buffers[2]));
+    gemm_kernel_cblas<T>(transA, transB, m, n, k, alpha, A, B, beta, C);
+}
+
+// Explicit instantiation of templates
+template
+void gemm_starpu_cpu<fp32_t>(void *buffers[], void *cl_args);
+
+template
+void gemm_starpu_cpu<fp64_t>(void *buffers[], void *cl_args);
+
+} // namespace nntile
+

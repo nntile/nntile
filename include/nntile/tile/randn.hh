@@ -37,16 +37,6 @@ void randn_async(const Tile<T> &dst, const std::vector<Index> &offset,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
         unsigned long long seed, T mean=0, T stddev=1);
 
-extern template
-void randn_async(const Tile<fp32_t> &dst, const std::vector<Index> &offset,
-        const std::vector<Index> &shape, const std::vector<Index> &stride,
-        unsigned long long seed, fp32_t mean=0, fp32_t stddev=1);
-
-extern template
-void randn_async(const Tile<fp64_t> &dst, const std::vector<Index> &offset,
-        const std::vector<Index> &shape, const std::vector<Index> &stride,
-        unsigned long long seed, fp64_t mean=0, fp64_t stddev=1);
-
 //! Asynchronous tile-wise random generation operation
 //
 // @param[out] dst: Destination tile

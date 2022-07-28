@@ -19,16 +19,51 @@
 namespace nntile
 {
 
+template<typename T>
+void relu_kernel_cpu(Index nelems, T *data)
+    noexcept;
+
+template<typename T>
+void relu_starpu_cpu(void *buffers[], void *cl_args)
+    noexcept;
+
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void relu_codelet_cuda(void *buffers[], void *cl_args);
+void relu_kernel_cuda(Index nelems, T *data, const dim3 &grid,
+        const dim3 &block, const cudaStream_t stream)
+    noexcept;
 
-extern template
-void relu_codelet_cuda<fp32_t>(void *buffers[], void *cl_args);
-
-extern template
-void relu_codelet_cuda<fp64_t>(void *buffers[], void *cl_args);
+template<typename T>
+void relu_starpu_cuda(void *buffers[], void *cl_args)
+    noexcept;
 #endif // NNTILE_USE_CUDA
+
+extern starpu_perfmodel relu_perfmodel_fp32, relu_perfmodel_fp64;
+
+extern StarpuCodelet relu_codelet_fp32, relu_codelet_fp64;
+
+void relu_restrict_where(uint32_t where);
+
+void relu_restore_where();
+
+template<typename T>
+constexpr StarpuCodelet *relu_codelet()
+{
+    throw std::runtime_error("Non-supported type");
+    return nullptr;
+}
+
+template<>
+constexpr StarpuCodelet *relu_codelet<fp32_t>()
+{
+    return &relu_codelet_fp32;
+}
+
+template<>
+constexpr StarpuCodelet *relu_codelet<fp64_t>()
+{
+    return &relu_codelet_fp64;
+}
 
 //! Asynchronous tile-wise ReLU operation
 //

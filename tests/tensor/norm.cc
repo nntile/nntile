@@ -10,11 +10,11 @@ using namespace nntile;
 
 template<typename T>
 void check_sum_ssq(const Tensor<T> &src, const Tensor<T> &src_tile,
-        const Tensor<T> &sum_ssq, const std::vector<Index> &axes)
+        const Tensor<T> &sum_ssq, Index axis)
 {
-    norm_sum_ssq(src, sum_ssq, axes);
+    norm_sum_ssq(src, sum_ssq, axis);
     Tensor<T> sum_ssq_tile(sum_ssq.shape, sum_ssq.shape);
-    norm_sum_ssq(src_tile.get_tile(0), sum_ssq_tile.get_tile(0), axes);
+    norm_sum_ssq(src_tile.get_tile(0), sum_ssq_tile.get_tile(0), axis);
     Tensor<T> sum_ssq_tile2(sum_ssq.shape, sum_ssq.shape);
     copy(sum_ssq, sum_ssq_tile2);
     auto local = sum_ssq_tile.get_tile(0).acquire(STARPU_R),
@@ -57,29 +57,24 @@ void validate_sum_ssq()
     // Avoid mean=0 because of instable relative error of sum (division by 0)
     randn(A, seed, T{1}, T{1});
     copy(A, A_tile);
-    std::vector<std::vector<Index>> axes = {{0}, {1}, {2}, {3}, {0, 1}, {0, 2},
-        {0, 3}, {1, 2}, {1, 3}, {2, 3}, {0, 1, 2}, {0, 1, 3}, {0, 2, 3},
-        {1, 2, 3}, {0, 1, 2, 3}};
-    for(Index i = 0; i < axes.size(); ++i)
+    for(Index i = 0; i < A.ndim; ++i)
     {
-        std::vector<Index> shape(A.ndim+1-axes[i].size()), basetile(shape);
+        std::vector<Index> shape(A.ndim), basetile(A.ndim);
         shape[0] = 3;
         basetile[0] = 3;
         Index k = 0;
-        for(Index j = 0; j < A.ndim; ++j)
+        for(Index j = 0; j < i; ++j)
         {
-            if(k == axes[i].size() or axes[i][k] != j)
-            {
-                shape[j+1-k] = A.shape[j];
-                basetile[j+1-k] = A.basetile_shape[j];
-            }
-            else
-            {
-                ++k;
-            }
+            shape[j+1] = A.shape[j];
+            basetile[j+1] = A.basetile_shape[j];
+        }
+        for(Index j = i+1; j < A.ndim; ++j)
+        {
+            shape[j] = A.shape[j];
+            basetile[j] = A.basetile_shape[j];
         }
         Tensor<T> sum_ssq(shape, basetile);
-        check_sum_ssq(A, A_tile, sum_ssq, axes[i]);
+        check_sum_ssq(A, A_tile, sum_ssq, i);
     }
 }
 
@@ -101,35 +96,29 @@ void validate_avg_dev()
     constexpr T eps0 = 0, eps1 = 0.01, eps2=1e+10;
     // Avoid mean=0 because of instable relative error of sum (division by 0)
     randn(A, seed, T{1}, T{1});
-    std::vector<std::vector<Index>> axes = {{0}, {1}, {2}, {3}, {0, 1}, {0, 2},
-        {0, 3}, {1, 2}, {1, 3}, {2, 3}, {0, 1, 2}, {0, 1, 3}, {0, 2, 3},
-        {1, 2, 3}, {0, 1, 2, 3}};
-    for(Index i = 0; i < axes.size(); ++i)
+    for(Index i = 0; i < A.ndim; ++i)
     {
-        std::vector<Index> shape(A.ndim+1-axes[i].size()), basetile(shape);
+        std::vector<Index> shape(A.ndim), basetile(A.ndim);
         shape[0] = 3;
         basetile[0] = 3;
         Index k = 0;
-        Index nelems = 1;
-        for(Index j = 0; j < A.ndim; ++j)
+        Index nelems = A.shape[i];
+        for(Index j = 0; j < i; ++j)
         {
-            if(k == axes[i].size() or axes[i][k] != j)
-            {
-                shape[j+1-k] = A.shape[j];
-                basetile[j+1-k] = A.basetile_shape[j];
-            }
-            else
-            {
-                nelems *= A.shape[j];
-                ++k;
-            }
+            shape[j+1] = A.shape[j];
+            basetile[j+1] = A.basetile_shape[j];
+        }
+        for(Index j = i+1; j < A.ndim; ++j)
+        {
+            shape[j] = A.shape[j];
+            basetile[j] = A.basetile_shape[j];
         }
         std::vector<Index> shape2(shape), basetile2(basetile);
         shape2[0] = 2;
         basetile2[0] = 2;
         Tensor<T> sum_ssq(shape, basetile), sum_ssq_tile(shape, shape);
         Tensor<T> avg_dev(shape2, basetile2), avg_dev_tile(shape2, shape2);
-        norm_sum_ssq(A, sum_ssq, axes[i]);
+        norm_sum_ssq(A, sum_ssq, i);
         copy(sum_ssq, sum_ssq_tile);
         check_avg_dev(sum_ssq, sum_ssq_tile, avg_dev, avg_dev_tile, nelems,
                 eps0);

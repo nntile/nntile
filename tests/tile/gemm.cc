@@ -272,8 +272,8 @@ void validate_gemm()
 int main(int argc, char **argv)
 {
     Starpu starpu;
-    validate_gemm<float>();
-    validate_gemm<double>();
+    validate_gemm<fp32_t>();
+    validate_gemm<fp64_t>();
     return 0;
 }
 

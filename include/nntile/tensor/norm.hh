@@ -49,56 +49,6 @@ void norm_sum_ssq_accumulate(const Tensor<T> &sum_ssq,
     starpu_task_wait_for_all();
 }
 
-//! Asynchronous tensor-wise sum and scaled sum of squares along given axes
-//
-// @param[in] src: Source tensor to get mean and variance
-// @param[out] sum_ssq: Sum and scaled sum of squares along given axes
-// @param[in] axes: Axes to be used
-//
-// For example, if src is a 4-by-5-by-6 tensor and axes contains two values 0
-// and 2, then output sum_sumssq is 2-dimensional tensor of shape (3,5), and
-// sum_sumssq[0,i] is an average value, sum_sumssq[1,i] is a maximum absolute
-// value and sum_ssq[2,i] is a scaled sum of squares over slice src[:,i,:].
-// If src is again a 4-by-5-by-6 tensor and axes contains one value 1, then
-// output sum_sumssq is 3-dimensional tensor of shape (3,4,6), and
-// sum_sumssq[0,i,j] is an average value, sum_sumssq[1,i,j] is a maximum
-// absolute value and sum_ssq[2,i,j] is a scaled sum of squares over slice
-// src[i,:,j].
-template<typename T>
-void norm_sum_ssq_async(const Tensor<T> &src, const Tensor<T> &sum_ssq,
-        const std::vector<Index> &axes);
-
-extern template
-void norm_sum_ssq_async(const Tensor<fp32_t> &src,
-        const Tensor<fp32_t> &sum_ssq, const std::vector<Index> &axes);
-
-extern template
-void norm_sum_ssq_async(const Tensor<fp64_t> &src,
-        const Tensor<fp64_t> &sum_ssq, const std::vector<Index> &axes);
-
-//! Blocking tensor-wise sum and scaled sum of squares along given axes
-//
-// @param[in] src: Source tensor to get mean and variance
-// @param[out] sum_ssq: Sum and scaled sum of squares along given axes
-// @param[in] axes: Axes to be used
-//
-// For example, if src is a 4-by-5-by-6 tensor and axes contains two values 0
-// and 2, then output sum_sumssq is 2-dimensional tensor of shape (3,5), and
-// sum_sumssq[0,i] is an average value, sum_sumssq[1,i] is a maximum absolute
-// value and sum_ssq[2,i] is a scaled sum of squares over slice src[:,i,:].
-// If src is again a 4-by-5-by-6 tensor and axes contains one value 1, then
-// output sum_sumssq is 3-dimensional tensor of shape (3,4,6), and
-// sum_sumssq[0,i,j] is an average value, sum_sumssq[1,i,j] is a maximum
-// absolute value and sum_ssq[2,i,j] is a scaled sum of squares over slice
-// src[i,:,j].
-template<typename T>
-void norm_sum_ssq(const Tensor<T> &src, const Tensor<T> &sum_ssq,
-        const std::vector<Index> &axes)
-{
-    norm_sum_ssq_async(src, sum_ssq, axes);
-    starpu_task_wait_for_all();
-}
-
 template<typename T>
 void norm_sum_ssq_async(const Tensor<T> &src, const Tensor<T> &sum_ssq,
         Index axis);
