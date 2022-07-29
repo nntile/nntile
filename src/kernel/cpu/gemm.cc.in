@@ -30,6 +30,7 @@ void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
         CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp32_t alpha, const fp32_t *A,
         CBLAS_INT ldA, const fp32_t *B, CBLAS_INT ldB, fp32_t beta, fp32_t *C,
         CBLAS_INT ldC)
+    noexcept
 {
     cblas_sgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
             beta, C, ldC);
@@ -41,6 +42,7 @@ void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
         CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp64_t alpha, const fp64_t *A,
         CBLAS_INT ldA, const fp64_t *B, CBLAS_INT ldB, fp64_t beta, fp64_t *C,
         CBLAS_INT ldC)
+    noexcept
 {
     cblas_dgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
             beta, C, ldC);
@@ -50,6 +52,7 @@ void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
 template<typename T>
 void gemm_kernel_cblas(TransOp transA, TransOp transB, Index m, Index n,
         Index k, T alpha, const T *A, const T *B, T beta, T *C)
+    noexcept
 {
     // It is OK to convert values as it was checked during task submission
     CBLAS_INT M=m, N=n, K=k, ldA, ldB, ldC=M;
@@ -86,6 +89,7 @@ void gemm_kernel_cblas(TransOp transA, TransOp transB, Index m, Index n,
 //! GEMM for contiguous matrices without padding through StarPU buffers
 template<typename T>
 void gemm_starpu_cpu(void *buffers[], void *cl_args)
+    noexcept
 {
     TransOp transA(TransOp::Trans), transB(transA);
     Index m, n, k;
@@ -100,10 +104,12 @@ void gemm_starpu_cpu(void *buffers[], void *cl_args)
 
 // Explicit instantiation of templates
 template
-void gemm_starpu_cpu<fp32_t>(void *buffers[], void *cl_args);
+void gemm_starpu_cpu<fp32_t>(void *buffers[], void *cl_args)
+    noexcept;
 
 template
-void gemm_starpu_cpu<fp64_t>(void *buffers[], void *cl_args);
+void gemm_starpu_cpu<fp64_t>(void *buffers[], void *cl_args)
+    noexcept;
 
 } // namespace nntile
 

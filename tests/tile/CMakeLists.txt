@@ -4,11 +4,13 @@ set(TESTS
     "tile"
     "randn"
     "copy"
+    "clear"
     "gemm"
     "bias"
     "gelu"
     "relu"
     "norm"
+    "sumnorm"
     )
 
 foreach(test IN LISTS TESTS)

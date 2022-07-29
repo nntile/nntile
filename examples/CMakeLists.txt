@@ -48,8 +48,8 @@ add_example(TARGET_NAME examples_forward
     SOURCES "forward.cc"
     LINK_LIBRARIES nntile)
 
-add_example(TARGET_NAME examples_mixer
-    EXEC_NAME "mixer"
-    SOURCES "mixer.cc"
-    LINK_LIBRARIES nntile)
+#add_example(TARGET_NAME examples_mixer
+#    EXEC_NAME "mixer"
+#    SOURCES "mixer.cc"
+#    LINK_LIBRARIES nntile)
 

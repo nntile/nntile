@@ -479,7 +479,7 @@ void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
             STARPU_R, static_cast<starpu_data_handle_t>(B),
             STARPU_VALUE, &beta, sizeof(beta),
             C_mode, static_cast<starpu_data_handle_t>(C),
-            STARPU_FLOPS, static_cast<double>(2*m*n*k),
+            STARPU_FLOPS, static_cast<fp64_t>(2*m*n*k),
             0);
     if(ret != 0)
     {
@@ -487,15 +487,16 @@ void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
     }
 }
 
+// Explicit instantiation of templates
 template
-void gemm_work(float alpha, const TransOp &transA, const Tile<float> &A,
-        const TransOp &transB, const Tile<float> &B, float beta,
-        const Tile<float> &C, Index ndim);
+void gemm_work(fp32_t alpha, const TransOp &transA, const Tile<fp32_t> &A,
+        const TransOp &transB, const Tile<fp32_t> &B, fp32_t beta,
+        const Tile<fp32_t> &C, Index ndim);
 
 template
-void gemm_work(double alpha, const TransOp &transA, const Tile<double> &A,
-        const TransOp &transB, const Tile<double> &B, double beta,
-        const Tile<double> &C, Index ndim);
+void gemm_work(fp64_t alpha, const TransOp &transA, const Tile<fp64_t> &A,
+        const TransOp &transB, const Tile<fp64_t> &B, fp64_t beta,
+        const Tile<fp64_t> &C, Index ndim);
 
 } // namespace nntile
 

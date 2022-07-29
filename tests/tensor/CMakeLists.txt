@@ -4,11 +4,13 @@ set(TESTS
     "tensor"
     "randn"
     "copy"
+    "clear"
     "gemm"
     "bias"
     "gelu"
     "relu"
-    "norm"
+    #"norm"
+    "sumnorm"
     )
 
 foreach(test IN LISTS TESTS)
@@ -21,3 +23,4 @@ foreach(test IN LISTS TESTS)
         COV_GLOBAL coverage
         )
 endforeach()
+

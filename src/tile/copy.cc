@@ -13,79 +13,10 @@
  * */
 
 #include "nntile/tile/copy.hh"
+#include "nntile/kernel/cpu/copy.hh"
 
 namespace nntile
 {
-
-template<typename T>
-void copy_kernel_cpu(Index ndim, const Index *src_start,
-        const Index *src_stride, const Index *copy_shape, const T *src,
-        const Index *dst_start, const Index *dst_stride, T *dst,
-        Index *tmp_index)
-    noexcept
-{
-    Index *src_index = tmp_index;
-    Index *dst_index = tmp_index + ndim;
-    Index nelems = 1;
-    for(Index i = 0; i < ndim; ++i)
-    {
-        nelems *= copy_shape[i];
-        src_index[i] = src_start[i];
-        dst_index[i] = dst_start[i];
-    }
-    Index src_offset = src_start[0]; // src_stride[0] = 1
-    Index dst_offset = dst_start[0]; // src_stride[0] = 1
-    for(Index i = 1; i < ndim; ++i)
-    {
-        src_offset += src_start[i] * src_stride[i];
-        dst_offset += dst_start[i] * dst_stride[i];
-    }
-    dst[dst_offset] = src[src_offset];
-    ++src_offset;
-    ++dst_offset;
-    for(Index i = 1; i < nelems; ++i)
-    {
-        ++src_index[0];
-        ++dst_index[0];
-        Index j = 0;
-        while(src_index[j] == src_start[j]+copy_shape[j])
-        {
-            src_index[j] = src_start[j];
-            ++j;
-            ++src_index[j];
-            src_offset += src_stride[j] - copy_shape[j-1]*src_stride[j-1];
-        }
-        j = 0;
-        while(dst_index[j] == dst_start[j]+copy_shape[j])
-        {
-            dst_index[j] = dst_start[j];
-            ++j;
-            ++dst_index[j];
-            dst_offset += dst_stride[j] - copy_shape[j-1]*dst_stride[j-1];
-        }
-        dst[dst_offset] = src[src_offset];
-        ++src_offset;
-        ++dst_offset;
-    }
-}
-
-template<typename T>
-void copy_starpu_cpu(void *buffers[], void *cl_args)
-    noexcept
-{
-    const Index *ndim_ptr, *src_start, *src_stride, *copy_shape, *dst_start,
-          *dst_stride;
-    // Read arguments
-    Starpu::unpack_args_ptr(cl_args, ndim_ptr, src_start, src_stride,
-            copy_shape, dst_start, dst_stride);
-    Index ndim = *ndim_ptr;
-    T *src = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
-    T *dst = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[1]));
-    Index *tmp_index = reinterpret_cast<Index *>(
-            STARPU_VARIABLE_GET_PTR(buffers[2]));
-    copy_kernel_cpu<T>(ndim, src_start, src_stride, copy_shape, src, dst_start,
-            dst_stride, dst, tmp_index);
-}
 
 starpu_perfmodel copy_perfmodel_fp32 =
 {

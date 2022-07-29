@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/cpu/gemm.hh
- * GEMM operation for Tile<T>
+ * @file include/nntile/kernel/cpu/clear.hh
+ * Clear a buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -14,19 +14,15 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
-#include <nntile/constants.hh>
+#include <cstddef>
 
 namespace nntile
 {
 
-template<typename T>
-void gemm_kernel_cblas(TransOp transA, TransOp transB, Index m, Index n,
-        Index k, T alpha, const T *A, const T *B, T beta, T *C)
+void clear_kernel_cpu(std::size_t size, void *buffer)
     noexcept;
 
-template<typename T>
-void gemm_starpu_cpu(void *buffers[], void *cl_args)
+void clear_starpu_cpu(void *buffers[], void *cl_args)
     noexcept;
 
 } // namespace nntile

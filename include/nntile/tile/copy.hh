@@ -19,17 +19,6 @@
 namespace nntile
 {
 
-template<typename T>
-void copy_kernel_cpu(Index ndim, const Index *src_start,
-        const Index *src_stride, const Index *copy_shape, const T *src,
-        const Index *dst_start, const Index *dst_stride, T *dst,
-        Index *tmp_index)
-    noexcept;
-
-template<typename T>
-void copy_starpu_cpu(void *[], void *)
-    noexcept;
-
 extern starpu_perfmodel copy_perfmodel_fp32, copy_perfmodel_fp64;
 extern StarpuCodelet copy_codelet_fp32, copy_codelet_fp64;
 

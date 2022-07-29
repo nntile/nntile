@@ -19,25 +19,6 @@
 namespace nntile
 {
 
-template<typename T>
-void bias_kernel_cpu(Index m, Index n, Index k, const T *src, T *dst)
-    noexcept;
-
-template<typename T>
-void bias_starpu_cpu(void *buffers[], void *cl_args)
-    noexcept;
-
-#ifdef NNTILE_USE_CUDA
-template<typename T>
-void bias_kernel_cuda(Index m, Index n, Index k, Index mk, const T *src,
-        T *dst)
-    noexcept;
-
-template<typename T>
-void bias_starpu_cuda(void *buffers[], void *cl_args)
-    noexcept;
-#endif // NNTILE_USE_CUDA
-
 extern starpu_perfmodel bias_perfmodel_fp32, bias_perfmodel_fp64;
 
 extern StarpuCodelet bias_codelet_fp32, bias_codelet_fp64;

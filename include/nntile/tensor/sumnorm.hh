@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/cpu/gemm.hh
- * GEMM operation for Tile<T>
+ * @file include/nntile/tensor/sumnorm.hh
+ * Sum and Euclidian norm of Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -14,20 +14,20 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
-#include <nntile/constants.hh>
+#include <nntile/tensor/tensor.hh>
 
 namespace nntile
 {
 
 template<typename T>
-void gemm_kernel_cblas(TransOp transA, TransOp transB, Index m, Index n,
-        Index k, T alpha, const T *A, const T *B, T beta, T *C)
-    noexcept;
+void sumnorm_async(const Tensor<T> &src, const Tensor<T> &sumnorm, Index axis);
 
 template<typename T>
-void gemm_starpu_cpu(void *buffers[], void *cl_args)
-    noexcept;
+void sumnorm(const Tensor<T> &src, const Tensor<T> &sumnorm, Index axis)
+{
+    sumnorm_async(src, sumnorm, axis);
+    starpu_task_wait_for_all();
+}
 
 } // namespace nntile
 
