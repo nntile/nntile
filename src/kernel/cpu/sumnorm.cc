@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-01
  * */
 
 #include "nntile/kernel/cpu/sumnorm.hh"
@@ -19,7 +19,23 @@
 namespace nntile
 {
 
-// Update sum and Euclidian norm along middle axis
+//! Sum and Euclidian norm along middle axis
+//
+// For a provided m-by-k-by-n input tensor src compute sums and norms of slices
+// along second axis with k elements, resulting in 2-by-m-by-n output matrix
+// sumnorm. sumnorm[0, i, j] is increased by a sum of elements of a slice
+// src[i, :, j], while sumnorm[1, i, j] is a square root of sumnorm[1, i, j]
+// and norm of a slice src[i, :, j]. Values of tensor sumnorm are updated by
+// this routine in read-write mode, therefore sumnorm must be initialized
+// before use with zeros (clear).
+//
+// @param[in] m: Size of the first mode of src and sumnorm tensors
+// @param[in] n: Size of the last mode of src and sumnorm tensors
+// @param[in] k: Size of the middle mode of src tensor
+// @param[in] src: Input tensor to compute sums and norms of slices
+// @param[inout] sumnorm: Sums and norms of slices
+//
+// @sa clear_kernel_cpu
 template<typename T>
 void sumnorm_kernel_cpu(Index m, Index n, Index k, const T *src, T *sumnorm)
     noexcept
@@ -73,7 +89,21 @@ void sumnorm_kernel_cpu(Index m, Index n, Index k, const T *src, T *sumnorm)
     }
 }
 
-// Update sum and Euclidian norm along middle axis of StarPU buffer
+//! Sum and Euclidian norm along middle axis of StarPU buffer
+//
+// For a provided m-by-k-by-n input tensor src compute sums and norms of slices
+// along second axis with k elements, resulting in 2-by-m-by-n output matrix
+// sumnorm. sumnorm[0, i, j] is increased by a sum of elements of a slice
+// src[i, :, j], while sumnorm[1, i, j] is a square root of sumnorm[1, i, j]
+// and norm of a slice src[i, :, j]. Values of tensor sumnorm are updated by
+// this routine in read-write mode, therefore sumnorm must be initialized
+// before use with zeros (clear).
+//
+// @param[in] buffers: input src and output sumnorm tensors through StarPU
+//      handles
+// @param[in] cl_args: Sizes m, n and k
+//
+// @sa sumnorm_kernel_cpu, clear_starpu_cpu
 template<typename T>
 void sumnorm_starpu_cpu(void *buffers[], void *cl_args)
     noexcept

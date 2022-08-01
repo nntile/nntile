@@ -7,6 +7,7 @@ set(KERNEL_SRC
     "kernel/cpu/gelu.cc"
     "kernel/cpu/scal.cc"
     "kernel/cpu/sumnorm.cc"
+    "kernel/cpu/normalize.cc"
     )
 
 set(TILE_SRC
@@ -22,6 +23,7 @@ set(TILE_SRC
     "tile/norm.cc"
     "tile/scal.cc"
     "tile/sumnorm.cc"
+    "tile/normalize.cc"
     )
 
 set(TENSOR_SRC

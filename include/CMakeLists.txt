@@ -22,6 +22,7 @@ set(TILE_HDR
     "nntile/tile/norm.hh"
     "nntile/tile/scal.hh"
     "nntile/tile/sumnorm.hh"
+    "nntile/tile/normalize.hh"
     )
 
 set(TENSOR_SRC

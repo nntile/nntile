@@ -118,6 +118,7 @@ add_test_set(TARGET_NAME tests_starpu
     COV_GLOBAL coverage
     )
 
+add_subdirectory("kernel")
 add_subdirectory("tile")
 add_subdirectory("tensor")
 add_subdirectory("layer")
