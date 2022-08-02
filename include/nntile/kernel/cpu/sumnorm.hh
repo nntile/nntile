@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/kernel/cpu/sumnorm.hh
- * Sum and Euclidian norm of a buffer
+ * Sum and Euclidian norm of a buffer on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-02
  * */
 
 #pragma once

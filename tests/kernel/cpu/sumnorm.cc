@@ -5,14 +5,15 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/kernel/cpu/sumnorm.cc
- * Sum and Euclidian norm of a buffer
+ * Sum and Euclidian norm of a buffer on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-01
+ * @date 2022-08-02
  * */
 
 #include "nntile/kernel/cpu/sumnorm.hh"
+#include "nntile/kernel/args/sumnorm.hh"
 #include "nntile/starpu.hh"
 #include <vector>
 #include <stdexcept>
@@ -22,7 +23,7 @@ using namespace nntile;
 
 // Templated validation
 template<typename T>
-void validate(Index m, Index k, Index n)
+void validate(Index m, Index n, Index k)
 {
     // Init test input
     std::vector<T> src(m*n*k), sumnorm(2*m*n);
@@ -84,51 +85,21 @@ void validate(Index m, Index k, Index n)
         }
     }
     // Now check StarPU codelet
-    // Convert to uint32_t
-    uint32_t m_ = m, k_ = k, n_ = n;
-    // StarPU interface for src
-    std::vector<uint32_t> src_nn{m_, k_, n_}, src_ldn{1, m_, m_*k_};
-    starpu_ndim_interface src_interface =
-    {
-        .id = STARPU_NDIM_INTERFACE_ID,
-        .ptr = reinterpret_cast<uintptr_t>(&src[0]),
-        .dev_handle = 0,
-        .offset = 0,
-        .allocsize = m*k*n*sizeof(T),
-        .nn = &src_nn[0],
-        .ldn = &src_ldn[0],
-        .ndim = 3,
-        .elemsize = sizeof(T)
-    };
-    // StarPU interface for sumnorm
-    std::vector<uint32_t> sumnorm_nn{2, m_, n_}, sumnorm_ldn{1, 2, 2*m_};
-    starpu_ndim_interface sumnorm_interface = 
-    {
-        .id = STARPU_NDIM_INTERFACE_ID,
-        .ptr = reinterpret_cast<uintptr_t>(&sumnorm[0]),
-        .dev_handle = 0,
-        .offset = 0,
-        .allocsize = 2*m*n*sizeof(T),
-        .nn = &sumnorm_nn[0],
-        .ldn = &sumnorm_ldn[0],
-        .ndim = 3,
-        .elemsize = sizeof(T)
-    };
+    // StarPU interfaces
+    StarpuVariableInterface src_interface(&src[0], m*n*k*sizeof(T)),
+            sumnorm_interface(&sumnorm[0], 2*m*n*sizeof(T));
     // Codelet arguments
-    void *cl_args;
-    std::size_t cl_args_size;
-    starpu_codelet_pack_args(&cl_args, &cl_args_size,
-            STARPU_VALUE, &m, sizeof(m),
-            STARPU_VALUE, &n, sizeof(n),
-            STARPU_VALUE, &k, sizeof(k),
-            0);
+    sumnorm_starpu_args args =
+    {
+        .m = m,
+        .n = n,
+        .k = k
+    };
     void *buffers[2] = {&src_interface, &sumnorm_interface};
     // Launch codelet
-    sumnorm_starpu_cpu<T>(buffers, cl_args);
-    sumnorm_starpu_cpu<T>(buffers, cl_args);
-    sumnorm_starpu_cpu<T>(buffers, cl_args);
-    // Free allocated memory
-    free(cl_args);
+    sumnorm_starpu_cpu<T>(buffers, &args);
+    sumnorm_starpu_cpu<T>(buffers, &args);
+    sumnorm_starpu_cpu<T>(buffers, &args);
     // Check it
     for(Index i = 0; i < 2*m*n; ++i)
     {

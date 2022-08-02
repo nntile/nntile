@@ -4,28 +4,31 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/cpu/bias.hh
- * Bias operation on a buffer on CPU
+ * @file include/nntile/kernel/args/normalize.hh
+ * Arguments for normalize codelet
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @date 2022-08-02
  * */
 
+#pragma once
+
 #include <nntile/base_types.hh>
 
 namespace nntile
 {
 
-// Apply bias along middle axis
+//! Structure for arguments
 template<typename T>
-void bias_kernel_cpu(Index m, Index n, Index k, const T *src, T *dst)
-    noexcept;
-
-// Apply bias along middle axis of StarPU buffer
-template<typename T>
-void bias_starpu_cpu(void *buffers[], void *cl_args)
-    noexcept;
+struct normalize_starpu_args
+{
+    Index m;
+    Index n;
+    Index k;
+    Index l;
+    T eps;
+};
 
 } // namespace nntile
 

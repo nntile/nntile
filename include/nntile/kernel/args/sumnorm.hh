@@ -4,12 +4,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/cuda/bias2.cuh
- * Bias operation for Tile<T>
+ * @file include/nntile/kernel/args/sumnorm.hh
+ * Arguments for sumnorm codelet
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-02
  * */
 
 #pragma once
@@ -19,15 +19,13 @@
 namespace nntile
 {
 
-template<typename T>
-__global__
-void bias2_kernel_cuda(Index m, Index n, Index k, Index mk, const T *src,
-        T *dst)
-    noexcept;
-
-template<typename T>
-void bias2_starpu_cuda(void *buffers[], void *cl_args)
-    noexcept;
+//! Structure for arguments
+struct sumnorm_starpu_args
+{
+    Index m;
+    Index n;
+    Index k;
+};
 
 } // namespace nntile
 

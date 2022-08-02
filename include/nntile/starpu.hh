@@ -283,6 +283,27 @@ StarpuHandleLocalData StarpuHandle::acquire(
     return StarpuHandleLocalData(*this, mode);
 }
 
+//! Wrapper for struct starpu_variable_interface
+class StarpuVariableInterface: public starpu_variable_interface
+{
+public:
+    //! Construct from a pointer (CPU, CUDA). OpenCL is not yet supported.
+    StarpuVariableInterface(void *ptr_, std::size_t size_)
+    {
+        id = STARPU_VARIABLE_INTERFACE_ID;
+        ptr = reinterpret_cast<uintptr_t>(ptr_);
+        dev_handle = 0;
+        offset = 0;
+        elemsize = size_;
+    }
+    //! Get pointer of a proper type
+    template<typename T>
+    T *get_ptr() const
+    {
+        return reinterpret_cast<T *>(ptr);
+    }
+};
+
 //! Convenient registration and deregistration of data through StarPU handle
 class StarpuVariableHandle: public StarpuHandle
 {
@@ -310,6 +331,12 @@ public:
     StarpuVariableHandle(uintptr_t ptr, size_t size,
             enum starpu_data_access_mode mode=STARPU_RW):
         StarpuHandle(_reg_data(ptr, size), mode)
+    {
+    }
+    //! Constructor for variable that is (de)allocated by user
+    StarpuVariableHandle(void *ptr, size_t size,
+            enum starpu_data_access_mode mode=STARPU_RW):
+        StarpuHandle(_reg_data(reinterpret_cast<uintptr_t>(ptr), size), mode)
     {
     }
 };

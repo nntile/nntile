@@ -1,6 +1,8 @@
 # All unit tests without arguments to test executable
 set(TESTS
+    "bias"
     "sumnorm"
+    "normalize"
     )
 
 foreach(test IN LISTS TESTS)

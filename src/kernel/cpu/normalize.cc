@@ -5,7 +5,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/cpu/normalize.cc
- * Normalize operation for buffer
+ * Normalize operation for a buffer on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -13,12 +13,27 @@
  * */
 
 #include "nntile/kernel/cpu/normalize.hh"
-#include <starpu_data_interfaces.h>
+#include "nntile/kernel/args/normalize.hh"
+#include "nntile/starpu.hh"
 #include <cmath>
 
 namespace nntile
 {
 
+//! Renormalize buffer along middle axis
+//
+// Provided m-by-k-by-n output tensor dst is renormalized along second axis
+// with k elements. The following operations is applied:
+//      dst[i, l, j] := (dst[i, l, j]-sumnorm[0, i, j]) / sqrt(sumnorm[1, i,
+//      j]**2+eps) * gamma + beta
+//
+// @param[in] m: Size of the first mode of src and sumnorm tensors
+// @param[in] n: Size of the last mode of src and sumnorm tensors
+// @param[in] k: Size of the middle mode of src tensor
+// @param[in] src: Input tensor to compute sums and norms of slices
+// @param[inout] sumnorm: Sums and norms of slices
+//
+// @sa clear_kernel_cpu
 template<typename T>
 void normalize_kernel_cpu(Index m, Index n, Index k, Index l, T eps, T gamma,
         T beta, const T *sumnorm, T *dst)
@@ -73,23 +88,24 @@ void normalize_kernel_cpu(Index m, Index n, Index k, Index l, T eps, T gamma,
     }
 }
 
+//! Renormalize buffer along middle axis of StarPU buffer
+//
+// See normalize_kernel_cpu function for more info.
 template<typename T>
 void normalize_starpu_cpu(void *buffers[], void *cl_args)
     noexcept
 {
-    // Source (avg_dev) is a 2-by-m-by-n tile, which contains mean and
-    // deviation values
-    // Destination is an m-by-k-by-n tile
-    // Both source and destination are Fortran-contiguous
-    Index m, n, k, l;
-    T eps;
-    starpu_codelet_unpack_args(cl_args, &m, &n, &k, &l, &eps);
-    const T *gamma_beta = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(
-                buffers[0]));
-    const T *sumnorm = reinterpret_cast<T *>(STARPU_NDIM_GET_PTR(buffers[1]));
+    // Get arguments
+    auto args = reinterpret_cast<normalize_starpu_args<T> *>(cl_args);
+    // Get interfaces
+    auto interface = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    // Launch kernel
+    const T *gamma_beta = interface[0]->get_ptr<T>();
     T gamma = gamma_beta[0], beta = gamma_beta[1];
-    T *dst = reinterpret_cast<T *>(STARPU_NDIM_GET_PTR(buffers[2]));
-    normalize_kernel_cpu<T>(m, n, k, l, eps, gamma, beta, sumnorm, dst);
+    const T *sumnorm = interface[1]->get_ptr<T>();
+    T *dst = interface[2]->get_ptr<T>();
+    normalize_kernel_cpu<T>(args->m, args->n, args->k, args->l, args->eps,
+            gamma, beta, sumnorm, dst);
 }
 
 // Explicit instantiation of templates

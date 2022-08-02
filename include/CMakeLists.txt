@@ -1,7 +1,6 @@
 # Set list of headers
 set(KERNEL_HDR
     "nntile/kernel/cpu/bias.hh"
-    "nntile/kernel/cpu/bias2.hh"
     "nntile/kernel/cpu/copy.hh"
     "nntile/kernel/cpu/gelu.hh"
     "nntile/kernel/cpu/scal.hh"
@@ -16,7 +15,6 @@ set(TILE_HDR
     "nntile/tile/copy.hh"
     "nntile/tile/gemm.hh"
     "nntile/tile/bias.hh"
-    "nntile/tile/bias2.hh"
     "nntile/tile/gelu.hh"
     "nntile/tile/relu.hh"
     "nntile/tile/norm.hh"
@@ -33,7 +31,6 @@ set(TENSOR_SRC
     "nntile/tensor/copy.hh"
     "nntile/tensor/gemm.hh"
     "nntile/tensor/bias.hh"
-    "nntile/tensor/bias2.hh"
     "nntile/tensor/gelu.hh"
     "nntile/tensor/relu.hh"
     "nntile/tensor/norm.hh"
@@ -53,7 +50,6 @@ if(NNTILE_USE_CUDA)
         ${KERNEL_HDR}
         "kernel/cuda/gemm.hh"
         "kernel/cuda/bias.hh"
-        "kernel/cuda/bias2.hh"
         )
     set(TILE_HDR
         ${TILE_HDR}
