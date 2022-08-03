@@ -88,6 +88,7 @@ void validate(Index m, Index n, Index k)
     // StarPU interfaces
     StarpuVariableInterface src_interface(&src[0], m*n*k*sizeof(T)),
             sumnorm_interface(&sumnorm[0], 2*m*n*sizeof(T));
+    void *buffers[2] = {&src_interface, &sumnorm_interface};
     // Codelet arguments
     sumnorm_starpu_args args =
     {
@@ -95,7 +96,6 @@ void validate(Index m, Index n, Index k)
         .n = n,
         .k = k
     };
-    void *buffers[2] = {&src_interface, &sumnorm_interface};
     // Launch codelet
     sumnorm_starpu_cpu<T>(buffers, &args);
     sumnorm_starpu_cpu<T>(buffers, &args);

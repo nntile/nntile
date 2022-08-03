@@ -1,6 +1,11 @@
 # All unit tests without arguments to test executable
 set(TESTS
+    "clear"
+    "copy"
     "bias"
+    "gelu"
+    "gemm"
+    "scal"
     "sumnorm"
     "normalize"
     )

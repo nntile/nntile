@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/cpu/copy.cc
- * Smart copy operation
+ * Smart copy operation on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-02
  * */
 
 #include "nntile/kernel/cpu/copy.hh"
@@ -18,7 +18,17 @@
 namespace nntile
 {
 
-//! Smart copying
+//! Smart copying of one buffer into another
+//
+// @param[in] ndim: Dimensionality of underlying buffers
+// @param[in] src_start: Start element to copy from source buffer
+// @param[in] src_stride: Strides of the source buffer
+// @param[in] copy_shape: Shape of buffer to copy
+// @param[in] src: Pointer to input data
+// @param[in] dst_start: Start element to copy to destination buffer
+// @param[in] dst_stride: Strides of the destination buffer
+// @param[inout] dst: Pointer to output data
+// @param[out] tmp_index: Temporary buffer for indexing
 template<typename T>
 void copy_kernel_cpu(Index ndim, const Index *src_start,
         const Index *src_stride, const Index *copy_shape, const T *src,
@@ -26,8 +36,11 @@ void copy_kernel_cpu(Index ndim, const Index *src_start,
         Index *tmp_index)
     noexcept
 {
+    // Map temporary buffer into source index and destination index
     Index *src_index = tmp_index;
     Index *dst_index = tmp_index + ndim;
+    // Get number of elements to copy and init source and target indexes for
+    // the first element to copy
     Index nelems = 1;
     for(Index i = 0; i < ndim; ++i)
     {
@@ -35,6 +48,7 @@ void copy_kernel_cpu(Index ndim, const Index *src_start,
         src_index[i] = src_start[i];
         dst_index[i] = dst_start[i];
     }
+    // Get offsets for both source and target elements
     Index src_offset = src_start[0]; // src_stride[0] = 1
     Index dst_offset = dst_start[0]; // src_stride[0] = 1
     for(Index i = 1; i < ndim; ++i)
@@ -42,13 +56,17 @@ void copy_kernel_cpu(Index ndim, const Index *src_start,
         src_offset += src_start[i] * src_stride[i];
         dst_offset += dst_start[i] * dst_stride[i];
     }
+    // Copy source into destination
     dst[dst_offset] = src[src_offset];
+    // Get source and target offsets for the next element to copy
     ++src_offset;
     ++dst_offset;
     for(Index i = 1; i < nelems; ++i)
     {
+        // Update indexes of source and target positions
         ++src_index[0];
         ++dst_index[0];
+        // Get index and offset of the next source
         Index j = 0;
         while(src_index[j] == src_start[j]+copy_shape[j])
         {
@@ -57,6 +75,7 @@ void copy_kernel_cpu(Index ndim, const Index *src_start,
             ++src_index[j];
             src_offset += src_stride[j] - copy_shape[j-1]*src_stride[j-1];
         }
+        // Get index and offset of the next target
         j = 0;
         while(dst_index[j] == dst_start[j]+copy_shape[j])
         {
@@ -65,27 +84,31 @@ void copy_kernel_cpu(Index ndim, const Index *src_start,
             ++dst_index[j];
             dst_offset += dst_stride[j] - copy_shape[j-1]*dst_stride[j-1];
         }
+        // Copy source into destination
         dst[dst_offset] = src[src_offset];
+        // Update offsets for the next copy
         ++src_offset;
         ++dst_offset;
     }
 }
 
-// Smart copying through StarPU buffers
+//! Smart copying through StarPU buffers
 template<typename T>
 void copy_starpu_cpu(void *buffers[], void *cl_args)
     noexcept
 {
+    // Get arguments
     const Index *ndim_ptr, *src_start, *src_stride, *copy_shape, *dst_start,
           *dst_stride;
-    // Read arguments
     Starpu::unpack_args_ptr(cl_args, ndim_ptr, src_start, src_stride,
             copy_shape, dst_start, dst_stride);
     Index ndim = *ndim_ptr;
-    const T *src = reinterpret_cast<T *>(STARPU_NDIM_GET_PTR(buffers[0]));
-    T *dst = reinterpret_cast<T *>(STARPU_NDIM_GET_PTR(buffers[1]));
-    Index *tmp_index = reinterpret_cast<Index *>(STARPU_NDIM_GET_PTR(
-                buffers[2]));
+    // Get interfaces
+    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    // Launch kernel
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
+    Index *tmp_index = interfaces[2]->get_ptr<Index>();
     copy_kernel_cpu<T>(ndim, src_start, src_stride, copy_shape, src, dst_start,
             dst_stride, dst, tmp_index);
 }

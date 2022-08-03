@@ -104,10 +104,10 @@ void sumnorm_starpu_cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<sumnorm_starpu_args *>(cl_args);
     // Get interfaces
-    auto interface = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     // Launch kernel
-    const T *src = interface[0]->get_ptr<T>();
-    T *sumnorm = interface[1]->get_ptr<T>();
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *sumnorm = interfaces[1]->get_ptr<T>();
     sumnorm_kernel_cpu<T>(args->m, args->n, args->k, src, sumnorm);
 }
 

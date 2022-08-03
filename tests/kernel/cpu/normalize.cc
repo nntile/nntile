@@ -72,6 +72,8 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     StarpuVariableInterface sumnorm_interface(&sumnorm[0], 2*m*n*sizeof(T)),
             dst2_interface(&dst2[0], m*n*k*sizeof(T)),
             gamma_beta_interface(gamma_beta, sizeof(gamma_beta));
+    void *buffers[3] = {&gamma_beta_interface, &sumnorm_interface,
+        &dst2_interface};
     // Codelet arguments
     normalize_starpu_args<T> args =
     {
@@ -81,8 +83,6 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
         .l = l,
         .eps = eps
     };
-    void *buffers[3] = {&gamma_beta_interface, &sumnorm_interface,
-        &dst2_interface};
     // Launch codelet
     normalize_starpu_cpu<T>(buffers, &args);
     // Check it

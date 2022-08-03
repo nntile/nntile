@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-03
  * */
 
 #include "nntile/kernel/cpu/normalize.hh"
@@ -98,12 +98,12 @@ void normalize_starpu_cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<normalize_starpu_args<T> *>(cl_args);
     // Get interfaces
-    auto interface = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     // Launch kernel
-    const T *gamma_beta = interface[0]->get_ptr<T>();
+    const T *gamma_beta = interfaces[0]->get_ptr<T>();
     T gamma = gamma_beta[0], beta = gamma_beta[1];
-    const T *sumnorm = interface[1]->get_ptr<T>();
-    T *dst = interface[2]->get_ptr<T>();
+    const T *sumnorm = interfaces[1]->get_ptr<T>();
+    T *dst = interfaces[2]->get_ptr<T>();
     normalize_kernel_cpu<T>(args->m, args->n, args->k, args->l, args->eps,
             gamma, beta, sumnorm, dst);
 }

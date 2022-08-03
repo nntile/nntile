@@ -5,21 +5,24 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/cpu/gelu.cc
- * GeLU operation
+ * GeLU operation on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-03
  * */
 
 #include "nntile/kernel/cpu/gelu.hh"
+#include "nntile/starpu.hh"
 #include <cmath>
-#include <starpu_data_interfaces.h>
 
 namespace nntile
 {
 
-// GeLU operation on a buffer
+//! GeLU operation inplace of a buffer on CPU
+//
+// @params[in] nelems: Number of elements in a buffer
+// @params[inout] data: Buffer to apply GeLU
 template<typename T>
 void gelu_kernel_cpu(Index nelems, T *data)
     noexcept
@@ -33,14 +36,17 @@ void gelu_kernel_cpu(Index nelems, T *data)
     }
 }
 
-// GeLU operation on a StarPU buffer
+//! GeLU operation inplace of a StarPU buffer on CPU
 template<typename T>
 void gelu_starpu_cpu(void *buffers[], void *cl_args)
     noexcept
 {
-    Index nelems;
-    starpu_codelet_unpack_args(cl_args, &nelems);
-    T *data = reinterpret_cast<T *>(STARPU_NDIM_GET_PTR(buffers[0]));
+    // Get arguments
+    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    // Get interfaces
+    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    // Launch kernel
+    T *data = interfaces[0]->get_ptr<T>();
     gelu_kernel_cpu<T>(nelems, data);
 }
 

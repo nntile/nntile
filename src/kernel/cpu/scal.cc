@@ -9,10 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-02
+ * @date 2022-08-03
  * */
 
 #include "nntile/kernel/cpu/scal.hh"
+#include "nntile/kernel/args/scal.hh"
 #include "nntile/starpu.hh"
 
 namespace nntile
@@ -46,11 +47,13 @@ template<typename T>
 void scal_starpu_cpu(void *buffers[], void *cl_args)
     noexcept
 {
-    Index nelems;
-    T alpha;
-    starpu_codelet_unpack_args(cl_args, &nelems, &alpha);
-    T *src = reinterpret_cast<T *>(STARPU_NDIM_GET_PTR(buffers[0]));
-    scal_kernel_cpu<T>(nelems, alpha, src);
+    // Get arguments
+    auto args = reinterpret_cast<scal_starpu_args<T> *>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    // Launch kernel
+    T *src = interfaces[0]->get_ptr<T>();
+    scal_kernel_cpu<T>(args->nelems, args->alpha, src);
 }
 
 // Explicit instantiation

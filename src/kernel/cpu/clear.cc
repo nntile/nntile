@@ -5,33 +5,39 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/cpu/clear.cc
- * Clear a buffer
+ * Clear a buffer on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-02
  * */
 
 #include "nntile/kernel/cpu/clear.hh"
+#include "nntile/starpu.hh"
 #include <cstring>
-#include <starpu_data_interfaces.h>
 
 namespace nntile
 {
 
-void clear_kernel_cpu(std::size_t size, void *buffer)
+//! Clear buffer
+//
+// @param[in] size: size of buffer to clear in bytes
+// @param[out] dst: buffer to fill with zeros
+void clear_kernel_cpu(std::size_t size, void *dst)
     noexcept
 {
-    memset(buffer, 0, size);
+    std::memset(dst, 0, size);
 }
 
 void clear_starpu_cpu(void *buffers[], void *cl_args)
     noexcept
 {
-    auto ndim_buf = reinterpret_cast<starpu_ndim_interface *>(buffers[0]);
-    std::size_t size = ndim_buf->allocsize;
-    void *buffer = reinterpret_cast<void *>(ndim_buf->ptr);
-    clear_kernel_cpu(size, buffer);
+    // No arguments
+    // Get interfaces
+    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    std::size_t size = interfaces[0]->elemsize;
+    void *dst = interfaces[0]->get_ptr<void>();
+    clear_kernel_cpu(size, dst);
 }
 
 } // namespace nntile

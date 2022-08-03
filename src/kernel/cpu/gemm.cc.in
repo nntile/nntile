@@ -9,11 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-03
  * */
 
 #include "nntile/kernel/cpu/gemm.hh"
-#include <starpu_data_interfaces.h>
+#include "nntile/kernel/args/gemm.hh"
+#include "nntile/starpu.hh"
 
 #include <@CBLAS_H_NAME@>
 
@@ -48,17 +49,24 @@ void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
             beta, C, ldC);
 }
 
-//! GEMM for contiguous matrices without padding
+//! GEMM for contiguous matrices without padding through StarPU buffers
 template<typename T>
-void gemm_kernel_cblas(TransOp transA, TransOp transB, Index m, Index n,
-        Index k, T alpha, const T *A, const T *B, T beta, T *C)
+void gemm_starpu_cpu(void *buffers[], void *cl_args)
     noexcept
 {
+    // Get arguments
+    auto args = reinterpret_cast<gemm_starpu_args<T> *>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    // Launch kernel
+    const T *A = interfaces[0]->get_ptr<T>();
+    const T *B = interfaces[1]->get_ptr<T>();
+    T *C = interfaces[2]->get_ptr<T>();
     // It is OK to convert values as it was checked during task submission
-    CBLAS_INT M=m, N=n, K=k, ldA, ldB, ldC=M;
+    CBLAS_INT M=args->m, N=args->n, K=args->k, ldA, ldB, ldC=M;
     CBLAS_TRANSPOSE transA_, transB_;
     // Convert other values to CBLAS types
-    switch(transA.value)
+    switch(args->transA.value)
     {
         case TransOp::NoTrans:
             transA_ = CblasNoTrans;
@@ -70,7 +78,7 @@ void gemm_kernel_cblas(TransOp transA, TransOp transB, Index m, Index n,
             transA_ = CblasTrans;
             ldA = K;
     }
-    switch(transB.value)
+    switch(args->transB.value)
     {
         case TransOp::NoTrans:
             transB_ = CblasNoTrans;
@@ -83,23 +91,8 @@ void gemm_kernel_cblas(TransOp transA, TransOp transB, Index m, Index n,
             ldB = N;
     }
     // Call corresponding CBLAS routine
-    cblas_gemm(transA_, transB_, M, N, K, alpha, A, ldA, B, ldB, beta, C, ldC);
-}
-
-//! GEMM for contiguous matrices without padding through StarPU buffers
-template<typename T>
-void gemm_starpu_cpu(void *buffers[], void *cl_args)
-    noexcept
-{
-    TransOp transA(TransOp::Trans), transB(transA);
-    Index m, n, k;
-    T alpha, beta;
-    starpu_codelet_unpack_args(cl_args, &transA.value, &transB.value, &m, &n,
-            &k, &alpha, &beta);
-    const T *A = reinterpret_cast<T *>(STARPU_NDIM_GET_PTR(buffers[0]));
-    const T *B = reinterpret_cast<T *>(STARPU_NDIM_GET_PTR(buffers[1]));
-    T *C = reinterpret_cast<T *>(STARPU_NDIM_GET_PTR(buffers[2]));
-    gemm_kernel_cblas<T>(transA, transB, m, n, k, alpha, A, B, beta, C);
+    cblas_gemm(transA_, transB_, M, N, K, args->alpha, A, ldA, B, ldB,
+            args->beta, C, ldC);
 }
 
 // Explicit instantiation of templates

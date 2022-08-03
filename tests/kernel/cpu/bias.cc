@@ -67,6 +67,7 @@ void validate(Index m, Index n, Index k)
     // StarPU interfaces
     StarpuVariableInterface src_interface(&src[0], m*n*sizeof(T)),
             dst2_interface(&dst2[0], m*n*k*sizeof(T));
+    void *buffers[2] = {&src_interface, &dst2_interface};
     // Codelet arguments
     bias_starpu_args args =
     {
@@ -74,7 +75,6 @@ void validate(Index m, Index n, Index k)
         .n = n,
         .k = k
     };
-    void *buffers[2] = {&src_interface, &dst2_interface};
     // Launch codelet
     bias_starpu_cpu<T>(buffers, &args);
     // Check it
