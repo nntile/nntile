@@ -78,9 +78,9 @@ target_include_directories(nntile PRIVATE
 configure_file("include/nntile/defs.h.in"
     "${CMAKE_BINARY_DIR}/include/nntile/defs.h" @ONLY)
 
-# Configure src/tile/gemm.cc that relies on cblas
-configure_file("src/tile/gemm.cc.in"
-    "${CMAKE_BINARY_DIR}/src/tile/gemm.cc" @ONLY)
+# Configure src/starpu/gemm.cc that relies on cblas
+configure_file("src/starpu/gemm.cc.in"
+    "${CMAKE_BINARY_DIR}/src/starpu/gemm.cc" @ONLY)
 
 # Add directory with the sources
 add_subdirectory("src")

@@ -4,28 +4,24 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/args/bias.hh
- * Arguments for bias codelet
+ * @file include/nntile/kernel.hh
+ * General info about namespace nntile::kernel
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-02
+ * @date 2022-08-04
  * */
 
 #pragma once
 
-#include <nntile/base_types.hh>
-
 namespace nntile
 {
-
-//! Structure for arguments
-struct bias_starpu_args
+//! @namespace nntile::kernel
+/*! This namespace holds low-level routines for codelets
+ * */
+namespace kernel
 {
-    Index m;
-    Index n;
-    Index k;
-};
 
+} // namespace kernel
 } // namespace nntile
 

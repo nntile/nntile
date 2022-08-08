@@ -9,11 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-08
  * */
 
 #include "nntile/tensor/bias.hh"
-#include "nntile/tile/bias.hh"
+#include "nntile/starpu/bias.hh"
 
 namespace nntile
 {
@@ -48,8 +48,28 @@ void bias_work(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
             Index dst_tile_offset = dst.grid.index_to_linear(dst_tile_index);
             // Get destination tile
             auto dst_tile = dst.get_tile(dst_tile_offset);
-            // Apply per-tile bias
-            bias_work(src_tile, dst_tile, axis);
+            // Reshape inputs: src_tile -> (m,n), dst_tile -> (m,k,n)
+            Index m, n, k;
+            if(axis == 0)
+            {
+                m = 1;
+                n = src_tile.nelems;
+                k = dst_tile.shape[0];
+            }
+            else if(axis == dst.ndim-1)
+            {
+                m = src_tile.nelems;
+                n = 1;
+                k = dst_tile.shape[axis];
+            }
+            else
+            {
+                m = dst_tile.stride[axis];
+                n = dst_tile.matrix_shape[axis+1][1];
+                k = dst_tile.shape[axis];
+            }
+            // Insert corresponding task
+            nntile::starpu::bias<T>(m, n, k, src_tile, dst_tile);
         }
     }
 }

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-04
  * */
 
 #pragma once
@@ -18,37 +18,6 @@
 
 namespace nntile
 {
-
-template<typename T>
-void gelu_kernel_cpu(Index nelems, T *data)
-    noexcept;
-
-template<typename T>
-void gelu_starpu_cpu(void *buffers[], void *cl_args)
-    noexcept;
-
-extern starpu_perfmodel gelu_perfmodel_fp32, gelu_perfmodel_fp64;
-
-extern StarpuCodelet gelu_codelet_fp32, gelu_codelet_fp64;
-
-template<typename T>
-constexpr StarpuCodelet *gelu_codelet()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
-
-template<>
-constexpr StarpuCodelet *gelu_codelet<fp32_t>()
-{
-    return &gelu_codelet_fp32;
-}
-
-template<>
-constexpr StarpuCodelet *gelu_codelet<fp64_t>()
-{
-    return &gelu_codelet_fp64;
-}
 
 //! Asynchronous tile-wise GeLU operation
 //

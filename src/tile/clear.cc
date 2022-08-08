@@ -9,37 +9,19 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-05
  * */
 
 #include "nntile/tile/clear.hh"
-#include "nntile/kernel/cpu/clear.hh"
+#include "nntile/starpu/clear.hh"
 
 namespace nntile
 {
 
-starpu_perfmodel clear_perfmodel =
-{
-    .type = STARPU_HISTORY_BASED,
-    .symbol = "nntile_clear",
-};
-
-StarpuCodelet clear_codelet("nntile_clear",
-        &clear_perfmodel,
-        {clear_starpu_cpu},
-        {}
-        );
-
 template<typename T>
 void clear_work(const Tile<T> &src)
 {
-    int ret = starpu_task_insert(&clear_codelet,
-            STARPU_W, static_cast<starpu_data_handle_t>(src),
-            0);
-    if(ret != 0)
-    {
-        throw std::runtime_error("ret != 0");
-    }
+    nntile::starpu::clear(src);
 }
 
 // Explicit instantiation

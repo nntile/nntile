@@ -3,8 +3,17 @@ set(KERNEL_HDR
     "nntile/kernel/cpu/bias.hh"
     "nntile/kernel/cpu/copy.hh"
     "nntile/kernel/cpu/gelu.hh"
+    "nntile/kernel/cpu/gelutanh.hh"
     "nntile/kernel/cpu/scal.hh"
     "nntile/kernel/cpu/sumnorm.hh"
+    "nntile/kernel/cpu/normalize.hh"
+    )
+
+set(STARPU_HDR
+    "nntile/starpu/bias.hh"
+    "nntile/starpu/clear.hh"
+    "nntile/starpu/copy.hh"
+    "nntile/starpu/gelu.hh"
     )
 
 set(TILE_HDR
@@ -17,7 +26,6 @@ set(TILE_HDR
     "nntile/tile/bias.hh"
     "nntile/tile/gelu.hh"
     "nntile/tile/relu.hh"
-    "nntile/tile/norm.hh"
     "nntile/tile/scal.hh"
     "nntile/tile/sumnorm.hh"
     "nntile/tile/normalize.hh"
@@ -33,17 +41,9 @@ set(TENSOR_SRC
     "nntile/tensor/bias.hh"
     "nntile/tensor/gelu.hh"
     "nntile/tensor/relu.hh"
-    "nntile/tensor/norm.hh"
     "nntile/tensor/scal.hh"
     "nntile/tensor/sumnorm.hh"
     )
-
-if(NNTILE_USE_CBLAS)
-    set(KERNEL_HDR
-        ${KERNEL_HDR}
-        "nntile/kernel/cpu/gemm.hh"
-        )
-endif()
 
 if(NNTILE_USE_CUDA)
     set(KERNEL_HDR
@@ -63,6 +63,8 @@ set(HDR
     "nntile/starpu.hh"
     # Kernel operations
     ${KERNEL_HDR}
+    # StarPU codelets
+    ${STARPU_HDR}
     # Tile operations
     ${TILE_HDR}
     # Tensor operations

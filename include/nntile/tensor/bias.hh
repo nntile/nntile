@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-05
  * */
 
 #pragma once

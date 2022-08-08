@@ -82,7 +82,7 @@ void copy_work(const Tile<T> &src,
         // Smart copying otherwise
         else
         {
-            copy_work(src, src_start, dst_tile, dst_tile_start,
+            copy_work<T>(src, src_start, dst_tile, dst_tile_start,
                     copy_shape, scratch, dst_tile_mode);
         }
     }
@@ -143,7 +143,7 @@ void copy_work(const Tile<T> &src,
                 }
             }
             // Smart copy
-            copy_work(src, src_tile_start, dst_tile,
+            copy_work<T>(src, src_tile_start, dst_tile,
                     dst_tile_start, copy_tile_shape, scratch,
                     dst_tile_mode);
             // Get out if it was the last tile

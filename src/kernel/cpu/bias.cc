@@ -9,14 +9,16 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-02
+ * @date 2022-08-04
  * */
 
 #include "nntile/kernel/cpu/bias.hh"
-#include "nntile/kernel/args/bias.hh"
-#include "nntile/starpu.hh"
 
 namespace nntile
+{
+namespace kernel
+{
+namespace cpu
 {
 
 //! Apply bias along middle axis
@@ -33,7 +35,7 @@ namespace nntile
 //
 // @sa bias_starpu_cpu
 template<typename T>
-void bias_kernel_cpu(Index m, Index n, Index k, const T *src, T *dst)
+void bias(Index m, Index n, Index k, const T *src, T *dst)
     noexcept
 {
     Index src_offset = 0;
@@ -60,39 +62,16 @@ void bias_kernel_cpu(Index m, Index n, Index k, const T *src, T *dst)
     }
 }
 
-//! Apply bias along middle axis of StarPU buffer
-//
-// For a provided m-by-k-by-n output tensor dst apply bias along second axis
-// with k elements from m-by-n tensor src. A value src[i, j] is added to the
-// entire slice dst[i, :, j].
-//
-// @param[in] buffers: input src and output dst tensors through StarPU
-//      handles
-// @param[in] cl_args: Sizes m, n and k
-//
-// @sa bias_kernel_cpu
-template<typename T>
-void bias_starpu_cpu(void *buffers[], void *cl_args)
-    noexcept
-{
-    // Get arguments
-    auto args = reinterpret_cast<bias_starpu_args *>(cl_args);
-    // Get interfaces
-    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
-    // Launch kernel
-    const T *src = interfaces[0]->get_ptr<T>();
-    T *dst = interfaces[1]->get_ptr<T>();
-    bias_kernel_cpu<T>(args->m, args->n, args->k, src, dst);
-}
-
 // Explicit instantiation
 template
-void bias_starpu_cpu<fp32_t>(void *buffers[], void *cl_args)
+void bias<fp32_t>(Index m, Index n, Index k, const fp32_t *src, fp32_t *dst)
     noexcept;
 
 template
-void bias_starpu_cpu<fp64_t>(void *buffers[], void *cl_args)
+void bias<fp64_t>(Index m, Index n, Index k, const fp64_t *src, fp64_t *dst)
     noexcept;
 
+} // namespace cpu
+} // namespace kernel
 } // namespace nntile
 

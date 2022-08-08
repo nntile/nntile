@@ -9,7 +9,6 @@ set(TESTS
     "bias"
     "gelu"
     "relu"
-    "norm"
     "sumnorm"
     "normalize"
     )

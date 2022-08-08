@@ -4,26 +4,27 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/cpu/clear.hh
- * Clear a buffer
+ * @file include/nntile/kernel/cpu.hh
+ * General info about namespace nntile::kernel::cpu
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-04
  * */
 
 #pragma once
 
-#include <cstddef>
-
 namespace nntile
 {
+namespace kernel
+{
+//! @namespace nntile::kernel::cpu
+/*! This namespace holds low-level CPU routines for codelets
+ * */
+namespace cpu
+{
 
-void clear_kernel_cpu(std::size_t size, void *buffer)
-    noexcept;
-
-void clear_starpu_cpu(void *buffers[], void *cl_args)
-    noexcept;
-
+} // namespace cpu
+} // namespace kernel
 } // namespace nntile
 

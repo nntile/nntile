@@ -9,13 +9,16 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-02
+ * @date 2022-08-04
  * */
 
 #include "nntile/kernel/cpu/copy.hh"
-#include "nntile/starpu.hh"
 
 namespace nntile
+{
+namespace kernel
+{
+namespace cpu
 {
 
 //! Smart copying of one buffer into another
@@ -30,10 +33,9 @@ namespace nntile
 // @param[inout] dst: Pointer to output data
 // @param[out] tmp_index: Temporary buffer for indexing
 template<typename T>
-void copy_kernel_cpu(Index ndim, const Index *src_start,
-        const Index *src_stride, const Index *copy_shape, const T *src,
-        const Index *dst_start, const Index *dst_stride, T *dst,
-        Index *tmp_index)
+void copy(Index ndim, const Index *src_start, const Index *src_stride,
+        const Index *copy_shape, const T *src, const Index *dst_start,
+        const Index *dst_stride, T *dst, Index *tmp_index)
     noexcept
 {
     // Map temporary buffer into source index and destination index
@@ -92,35 +94,20 @@ void copy_kernel_cpu(Index ndim, const Index *src_start,
     }
 }
 
-//! Smart copying through StarPU buffers
-template<typename T>
-void copy_starpu_cpu(void *buffers[], void *cl_args)
-    noexcept
-{
-    // Get arguments
-    const Index *ndim_ptr, *src_start, *src_stride, *copy_shape, *dst_start,
-          *dst_stride;
-    Starpu::unpack_args_ptr(cl_args, ndim_ptr, src_start, src_stride,
-            copy_shape, dst_start, dst_stride);
-    Index ndim = *ndim_ptr;
-    // Get interfaces
-    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
-    // Launch kernel
-    const T *src = interfaces[0]->get_ptr<T>();
-    T *dst = interfaces[1]->get_ptr<T>();
-    Index *tmp_index = interfaces[2]->get_ptr<Index>();
-    copy_kernel_cpu<T>(ndim, src_start, src_stride, copy_shape, src, dst_start,
-            dst_stride, dst, tmp_index);
-}
-
 // Explicit instantiation
 template
-void copy_starpu_cpu<fp32_t>(void *buffers[], void *cl_args)
+void copy<fp32_t>(Index ndim, const Index *src_start, const Index *src_stride,
+        const Index *copy_shape, const fp32_t *src, const Index *dst_start,
+        const Index *dst_stride, fp32_t *dst, Index *tmp_index)
     noexcept;
 
 template
-void copy_starpu_cpu<fp64_t>(void *buffers[], void *cl_args)
+void copy<fp64_t>(Index ndim, const Index *src_start, const Index *src_stride,
+        const Index *copy_shape, const fp64_t *src, const Index *dst_start,
+        const Index *dst_stride, fp64_t *dst, Index *tmp_index)
     noexcept;
 
+} // namespace cpu
+} // namespace kernel
 } // namespace nntile
 

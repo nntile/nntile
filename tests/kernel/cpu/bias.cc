@@ -9,17 +9,16 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-02
+ * @date 2022-08-04
  * */
 
 #include "nntile/kernel/cpu/bias.hh"
-#include "nntile/kernel/args/bias.hh"
-#include "nntile/starpu.hh"
 #include <vector>
 #include <stdexcept>
 #include <limits>
 
 using namespace nntile;
+using namespace nntile::kernel::cpu;
 
 // Templated validation
 template<typename T>
@@ -46,7 +45,7 @@ void validate(Index m, Index n, Index k)
     }
     std::vector<T> dst2(dst);
     // Check low-level kernel
-    bias_kernel_cpu<T>(m, n, k, &src[0], &dst[0]);
+    bias<T>(m, n, k, &src[0], &dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
@@ -61,28 +60,6 @@ void validate(Index m, Index n, Index k)
                     throw std::runtime_error("Wrong value");
                 }
             }
-        }
-    }
-    // Now check StarPU codelet
-    // StarPU interfaces
-    StarpuVariableInterface src_interface(&src[0], m*n*sizeof(T)),
-            dst2_interface(&dst2[0], m*n*k*sizeof(T));
-    void *buffers[2] = {&src_interface, &dst2_interface};
-    // Codelet arguments
-    bias_starpu_args args =
-    {
-        .m = m,
-        .n = n,
-        .k = k
-    };
-    // Launch codelet
-    bias_starpu_cpu<T>(buffers, &args);
-    // Check it
-    for(Index i = 0; i < m*n*k; ++i)
-    {
-        if(dst[i] != dst2[i])
-        {
-            throw std::runtime_error("Starpu codelet wrong result");
         }
     }
 }

@@ -9,38 +9,14 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-05
  * */
 
 #include "nntile/tile/copy.hh"
-#include "nntile/kernel/cpu/copy.hh"
+#include "nntile/starpu/copy.hh"
 
 namespace nntile
 {
-
-starpu_perfmodel copy_perfmodel_fp32 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .symbol = "nntile_copy_fp32",
-};
-
-starpu_perfmodel copy_perfmodel_fp64 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .symbol = "nntile_copy_fp64",
-};
-
-StarpuCodelet copy_codelet_fp32("nntile_copy_fp32",
-        &copy_perfmodel_fp32,
-        {copy_starpu_cpu<fp32_t>},
-        {}
-        );
-
-StarpuCodelet copy_codelet_fp64("nntile_copy_fp64",
-        &copy_perfmodel_fp64,
-        {copy_starpu_cpu<fp64_t>},
-        {}
-        );
 
 template<typename T>
 void copy_work(const Tile<T> &src, const std::vector<Index> &src_start,
@@ -58,25 +34,9 @@ void copy_work(const Tile<T> &src, const std::vector<Index> &src_start,
         default:
             throw std::runtime_error("Unsupported mode");
     }
-    // Launch codelet
-    constexpr double zero_flops = 0;
-    Index ndim = src.ndim;
-    int ret = starpu_task_insert(copy_codelet<T>(),
-            STARPU_VALUE, &(ndim), sizeof(ndim),
-            STARPU_VALUE, &(src_start[0]), ndim*sizeof(src_start[0]),
-            STARPU_VALUE, &(src.stride[0]), ndim*sizeof(src.stride[0]),
-            STARPU_VALUE, &(copy_shape[0]), ndim*sizeof(copy_shape[0]),
-            STARPU_VALUE, &(dst_start[0]), ndim*sizeof(dst_start[0]),
-            STARPU_VALUE, &(dst.stride[0]), ndim*sizeof(dst.stride[0]),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
-            mode, static_cast<starpu_data_handle_t>(dst),
-            STARPU_SCRATCH, static_cast<starpu_data_handle_t>(scratch),
-            STARPU_FLOPS, zero_flops, // No floating point operations
-            0);
-    if(ret != 0)
-    {
-        throw std::runtime_error("ret != 0");
-    }
+    // Insert task
+    nntile::starpu::copy<T>(src.ndim, src_start, src.stride, dst_start,
+            dst.stride, copy_shape, src, dst, scratch, mode);
 }
 
 template<typename T>

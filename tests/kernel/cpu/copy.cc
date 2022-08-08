@@ -9,17 +9,16 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-03
+ * @date 2022-08-04
  * */
 
 #include "nntile/kernel/cpu/copy.hh"
-#include "nntile/starpu.hh"
-#include "nntile/base_types.hh"
 #include <array>
 #include <vector>
 #include <stdexcept>
 
 using namespace nntile;
+using namespace nntile::kernel::cpu;
 
 // Templated validation
 template<typename T, std::size_t NDIM>
@@ -103,7 +102,7 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
     std::vector<T> src2_data(src_data);
     // Check low-level kernel
     std::vector<Index> tmp_index(2*NDIM);
-    copy_kernel_cpu<T>(NDIM, &src_start[0], &src_stride[0], &copy_shape[0],
+    copy<T>(NDIM, &src_start[0], &src_stride[0], &copy_shape[0],
             &src_data[0], &dst_start[0], &dst_stride[0], &dst_data[0],
             &tmp_index[0]);
     // Check source is unchanged
@@ -158,44 +157,6 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
             dst_index[j] = 0;
             ++j;
             ++dst_index[j];
-        }
-    }
-    // Now check StarPU codelet
-    // StarPU interfaces
-    StarpuVariableInterface src_interface(&src_data[0], src_nelems*sizeof(T)),
-                dst2_interface(&dst2_data[0], dst_nelems*sizeof(T)),
-                index_interface(&tmp_index[0], 2*NDIM*sizeof(Index));
-    void *buffers[3] = {&src_interface, &dst2_interface, &index_interface};
-    // Codelet arguments
-    void *cl_args;
-    std::size_t cl_args_size;
-    Index ndim = NDIM;
-    starpu_codelet_pack_args(&cl_args, &cl_args_size,
-            STARPU_VALUE, &ndim, sizeof(ndim),
-            STARPU_VALUE, &src_start[0], NDIM*sizeof(src_start[0]),
-            STARPU_VALUE, &src_stride[0], NDIM*sizeof(src_stride[0]),
-            STARPU_VALUE, &copy_shape[0], NDIM*sizeof(copy_shape[0]),
-            STARPU_VALUE, &dst_start[0], NDIM*sizeof(dst_start[0]),
-            STARPU_VALUE, &dst_stride[0], NDIM*sizeof(dst_stride[0]),
-            0
-            );
-    // Launch codelet
-    copy_starpu_cpu<T>(buffers, cl_args);
-    // Clear memory
-    free(cl_args);
-    // Check it
-    for(Index i = 0; i < src_nelems; ++i)
-    {
-        if(src2_data[i] != src_data[i])
-        {
-            throw std::runtime_error("Starpu codelet wrong result");
-        }
-    }
-    for(Index i = 0; i < dst_nelems; ++i)
-    {
-        if(dst2_data[i] != dst_data[i])
-        {
-            throw std::runtime_error("Starpu codelet wrong result");
         }
     }
 }

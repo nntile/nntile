@@ -1,0 +1,420 @@
+/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+ *                           (Skoltech). All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file src/starpu/gemm.cc.in
+ * GEMM operation for StarPU buffers
+ *
+ * @version 1.0.0
+ * @author Aleksandr Mikhalev
+ * @date 2022-08-08
+ * */
+
+#include "nntile/starpu/gemm.hh"
+
+#include <@CBLAS_H_NAME@>
+
+#ifndef CBLAS_INT
+#   define CBLAS_INT @CBLAS_INT_TYPE@
+#endif
+
+namespace nntile
+{
+namespace starpu
+{
+
+#ifdef NNTILE_USE_CBLAS
+// Overloaded call to CBLAS GEMM
+static inline
+void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
+        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp32_t alpha, const fp32_t *A,
+        CBLAS_INT ldA, const fp32_t *B, CBLAS_INT ldB, fp32_t beta, fp32_t *C,
+        CBLAS_INT ldC)
+    noexcept
+{
+    cblas_sgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
+            beta, C, ldC);
+}
+
+// Overloaded call to CBLAS GEMM
+static inline
+void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
+        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp64_t alpha, const fp64_t *A,
+        CBLAS_INT ldA, const fp64_t *B, CBLAS_INT ldB, fp64_t beta, fp64_t *C,
+        CBLAS_INT ldC)
+    noexcept
+{
+    cblas_dgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
+            beta, C, ldC);
+}
+
+//! GEMM for contiguous matrices without padding through StarPU buffers
+template<typename T>
+void gemm_cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<gemm_starpu_args<T> *>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    // Launch kernel
+    const T *A = interfaces[0]->get_ptr<T>();
+    const T *B = interfaces[1]->get_ptr<T>();
+    T *C = interfaces[2]->get_ptr<T>();
+    // It is OK to convert values as it was checked during task submission
+    CBLAS_INT M=args->m, N=args->n, K=args->k, ldA, ldB, ldC=M;
+    CBLAS_TRANSPOSE transA_, transB_;
+    // Convert other values to CBLAS types
+    switch(args->transA.value)
+    {
+        case TransOp::NoTrans:
+            transA_ = CblasNoTrans;
+            ldA = M;
+            break;
+        // This parameter was already checked in gemm_check_opA_opB
+        //case TransOp::Trans:
+        default:
+            transA_ = CblasTrans;
+            ldA = K;
+    }
+    switch(args->transB.value)
+    {
+        case TransOp::NoTrans:
+            transB_ = CblasNoTrans;
+            ldB = K;
+            break;
+        // This parameter was already checked in gemm_check_opA_opB
+        //case TransOp::Trans:
+        default:
+            transB_ = CblasTrans;
+            ldB = N;
+    }
+    // Call corresponding CBLAS routine
+    cblas_gemm(transA_, transB_, M, N, K, args->alpha, A, ldA, B, ldB,
+            args->beta, C, ldC);
+}
+#endif // NNTILE_USE_CBLAS
+
+//! Footprint for GEMM tasks that depends only on M, N, K and alpha
+template<typename T>
+static
+uint32_t gemm_footprint(struct starpu_task *task)
+{
+    // Get arguments
+    auto args = reinterpret_cast<gemm_starpu_args<T> *>(task->cl_arg);
+    // In case alpha is zero, entire gemm is unnecessary so it is better to
+    // give it a different footprint since gemm time will be totally different
+    uint32_t hash = args->alpha == T{0} ? -1 : 0;
+    // Apply hash over parameters M, N and K. This way if we swap values of M,
+    // N and K total size of buffers will remain the same, but the footprint
+    // will be different
+    hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
+    hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
+    hash = starpu_hash_crc32c_be_n(&args->k, sizeof(args->k), hash);
+    return hash;
+}
+
+//! Performance model for GEMM C=aAB+bC
+starpu_perfmodel gemmNN_perfmodel_fp32 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .footprint = gemm_footprint<fp32_t>,
+    .symbol = "nntile_gemmNN_fp32",
+};
+
+//! Performance model for GEMM C=aAB+bC
+starpu_perfmodel gemmNN_perfmodel_fp64 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .footprint = gemm_footprint<fp64_t>,
+    .symbol = "nntile_gemmNN_fp64",
+};
+
+//! Performance model for GEMM C=aAB^T+bC
+starpu_perfmodel gemmNT_perfmodel_fp32 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .footprint = gemm_footprint<fp32_t>,
+    .symbol = "nntile_gemmNT_fp32",
+};
+
+//! Performance model for GEMM C=aAB^T+bC
+starpu_perfmodel gemmNT_perfmodel_fp64 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .footprint = gemm_footprint<fp64_t>,
+    .symbol = "nntile_gemmNT_fp64",
+};
+
+//! Performance model for GEMM C=aA^TB+bC
+starpu_perfmodel gemmTN_perfmodel_fp32 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .footprint = gemm_footprint<fp32_t>,
+    .symbol = "nntile_gemmTN_fp32",
+};
+
+//! Performance model for GEMM C=aA^TB+bC
+starpu_perfmodel gemmTN_perfmodel_fp64 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .footprint = gemm_footprint<fp64_t>,
+    .symbol = "nntile_gemmTN_fp64",
+};
+
+//! Performance model for GEMM C=aA^TB^T+bC
+starpu_perfmodel gemmTT_perfmodel_fp32 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .footprint = gemm_footprint<fp32_t>,
+    .symbol = "nntile_gemmTT_fp32",
+};
+
+//! Performance model for GEMM C=aA^TB^T+bC
+starpu_perfmodel gemmTT_perfmodel_fp64 =
+{
+    .type = STARPU_HISTORY_BASED,
+    .footprint = gemm_footprint<fp64_t>,
+    .symbol = "nntile_gemmTT_fp64",
+};
+
+//! Codelet for GEMM C=aAB+C
+StarpuCodelet gemmNN_codelet_fp32("nntile_gemmNN_fp32",
+        &gemmNN_perfmodel_fp32,
+        {gemm_cpu<fp32_t>},
+        {}
+        );
+
+//! Codelet for GEMM C=aAB+C
+StarpuCodelet gemmNN_codelet_fp64("nntile_gemmNN_fp64",
+        &gemmNN_perfmodel_fp64,
+        {gemm_cpu<fp64_t>},
+        {}
+        );
+
+//! Codelet for GEMM C=aAB^T+C
+StarpuCodelet gemmNT_codelet_fp32("nntile_gemmNT_fp32",
+        &gemmNT_perfmodel_fp32,
+        {gemm_cpu<fp32_t>},
+        {}
+        );
+
+//! Codelet for GEMM C=aAB^T+C
+StarpuCodelet gemmNT_codelet_fp64("nntile_gemmNT_fp64",
+        &gemmNT_perfmodel_fp64,
+        {gemm_cpu<fp64_t>},
+        {}
+        );
+
+//! Codelet for GEMM C=aA^TB+C
+StarpuCodelet gemmTN_codelet_fp32("nntile_gemmTN_fp32",
+        &gemmTN_perfmodel_fp32,
+        {gemm_cpu<fp32_t>},
+        {}
+        );
+
+//! Codelet for GEMM C=aA^TB+C
+StarpuCodelet gemmTN_codelet_fp64("nntile_gemmTN_fp64",
+        &gemmTN_perfmodel_fp64,
+        {gemm_cpu<fp64_t>},
+        {}
+        );
+
+//! Codelet for GEMM C=aA^TB^T+C
+StarpuCodelet gemmTT_codelet_fp32("nntile_gemmTT_fp32",
+        &gemmTT_perfmodel_fp32,
+        {gemm_cpu<fp32_t>},
+        {}
+        );
+
+//! Codelet for GEMM C=aA^TB^T+C
+StarpuCodelet gemmTT_codelet_fp64("nntile_gemmTT_fp64",
+        &gemmTT_perfmodel_fp64,
+        {gemm_cpu<fp64_t>},
+        {}
+        );
+
+void gemm_restrict_where(uint32_t where)
+{
+    gemmNN_codelet_fp32.restrict_where(where);
+    gemmNN_codelet_fp64.restrict_where(where);
+    gemmNT_codelet_fp32.restrict_where(where);
+    gemmNT_codelet_fp64.restrict_where(where);
+    gemmTN_codelet_fp32.restrict_where(where);
+    gemmTN_codelet_fp64.restrict_where(where);
+    gemmTT_codelet_fp32.restrict_where(where);
+    gemmTT_codelet_fp64.restrict_where(where);
+}
+
+void gemm_restore_where()
+{
+    gemmNN_codelet_fp32.restore_where();
+    gemmNN_codelet_fp64.restore_where();
+    gemmNT_codelet_fp32.restore_where();
+    gemmNT_codelet_fp64.restore_where();
+    gemmTN_codelet_fp32.restore_where();
+    gemmTN_codelet_fp64.restore_where();
+    gemmTT_codelet_fp32.restore_where();
+    gemmTT_codelet_fp64.restore_where();
+}
+
+template<typename T>
+static
+StarpuCodelet *gemm_codelet(TransOp transA, TransOp transB)
+{
+    throw std::runtime_error("Non-supported type");
+    return nullptr;
+}
+
+template<>
+StarpuCodelet *gemm_codelet<fp32_t>(TransOp transA, TransOp transB)
+{
+    switch(transA.value)
+    {
+        case TransOp::NoTrans:
+            switch(transB.value)
+            {
+                case TransOp::NoTrans:
+                    return &gemmNN_codelet_fp32;
+                default:
+                // This parameter was already checked in gemm_check_opA_opB
+                //case TransOp::Trans:
+                    return &gemmNT_codelet_fp32;
+            }
+        // This parameter was already checked in gemm_check_opA_opB
+        //case TransOp::Trans:
+        default:
+            switch(transB.value)
+            {
+                case TransOp::NoTrans:
+                    return &gemmTN_codelet_fp32;
+                // This parameter was already checked in gemm_check_opA_opB
+                //case TransOp::Trans:
+                default:
+                    return &gemmTT_codelet_fp32;
+            }
+    }
+}
+
+template<>
+StarpuCodelet *gemm_codelet<fp64_t>(TransOp transA, TransOp transB)
+{
+    switch(transA.value)
+    {
+        case TransOp::NoTrans:
+            switch(transB.value)
+            {
+                case TransOp::NoTrans:
+                    return &gemmNN_codelet_fp64;
+                default:
+                // This parameter was already checked in gemm_check_opA_opB
+                //case TransOp::Trans:
+                    return &gemmNT_codelet_fp64;
+            }
+        // This parameter was already checked in gemm_check_opA_opB
+        //case TransOp::Trans:
+        default:
+            switch(transB.value)
+            {
+                case TransOp::NoTrans:
+                    return &gemmTN_codelet_fp64;
+                // This parameter was already checked in gemm_check_opA_opB
+                //case TransOp::Trans:
+                default:
+                    return &gemmTT_codelet_fp64;
+            }
+    }
+}
+
+template<typename T>
+void gemm(const TransOp &transA, const TransOp &transB, Index m, Index n,
+        Index k, T alpha, starpu_data_handle_t A, starpu_data_handle_t B,
+        T beta, starpu_data_handle_t C)
+{
+    // Check that matrix sizes fit proper types for underlying CBLAS
+#if defined(NNTILE_USE_CBLAS)
+    if(static_cast<CBLAS_INT>(m) != m)
+    {
+        throw std::runtime_error("GEMM size M does not fit CBLAS_INT");
+    }
+    if(static_cast<CBLAS_INT>(n) != n)
+    {
+        throw std::runtime_error("GEMM size N does not fit CBLAS_INT");
+    }
+    if(static_cast<CBLAS_INT>(k) != k)
+    {
+        throw std::runtime_error("GEMM size K does not fit CBLAS_INT");
+    }
+#endif
+    // Check that matrix sizes fit proper types for underlying CUBLAS
+#if defined(NNTILE_USE_CUDA)
+    if(static_cast<int>(m) != m)
+    {
+        throw std::runtime_error("GEMM size M does not fit int");
+    }
+    if(static_cast<int>(n) != n)
+    {
+        throw std::runtime_error("GEMM size N does not fit int");
+    }
+    if(static_cast<int>(k) != k)
+    {
+        throw std::runtime_error("GEMM size K does not fit int");
+    }
+#endif
+    constexpr T zero = 0, one = 1;
+    enum starpu_data_access_mode C_mode;
+    if(beta == zero)
+    {
+        C_mode = STARPU_W;
+    }
+    else if(beta == one)
+    {
+        C_mode = Starpu::STARPU_RW_COMMUTE;
+    }
+    else
+    {
+        C_mode = STARPU_RW;
+    }
+    // Codelet arguments
+    auto args = new gemm_starpu_args<T>
+    {
+        .transA = transA,
+        .transB = transB,
+        .m = m,
+        .n = n,
+        .k = k,
+        .alpha = alpha,
+        .beta = beta
+    };
+    fp64_t nflops = 2 * m * n * k;
+    // Submit task
+    int ret = starpu_task_insert(gemm_codelet<T>(transA, transB),
+            STARPU_R, A,
+            STARPU_R, B,
+            C_mode, C,
+            STARPU_CL_ARGS, args, sizeof(*args),
+            STARPU_FLOPS, nflops,
+            0);
+    // Check submission
+    if(ret != 0)
+    {
+        throw std::runtime_error("Error in gemm task submission");
+    }
+}
+
+// Explicit instantiation
+template
+void gemm<fp32_t>(const TransOp &transA, const TransOp &transB, Index m,
+        Index n, Index k, fp32_t alpha, starpu_data_handle_t A,
+        starpu_data_handle_t B, fp32_t beta, starpu_data_handle_t C);
+
+template
+void gemm<fp64_t>(const TransOp &transA, const TransOp &transB, Index m,
+        Index n, Index k, fp64_t alpha, starpu_data_handle_t A,
+        starpu_data_handle_t B, fp64_t beta, starpu_data_handle_t C);
+
+} // namespace starpu
+} // namespace nntile
+

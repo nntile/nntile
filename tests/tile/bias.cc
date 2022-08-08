@@ -46,58 +46,6 @@ void check_bias(const Tile<T> &src, const Tile<T> &dst, Index axis)
     }
 }
 
-//template<typename T>
-//void check_bias2(const Tile<T> &avg_dev, const Tile<T> &dst, Index axis)
-//{
-//    Tile<T> res(TileTraits(dst.shape));
-//    std::vector<Index> index(dst.ndim, 0);
-//    copy(dst, index, res, index);
-//    bias2(avg_dev, res, axis);
-//    auto avg_dev_local = avg_dev.acquire(STARPU_R),
-//         dst_local = dst.acquire(STARPU_R), res_local = res.acquire(STARPU_R);
-//    for(Index i = 0; i < dst.nelems; ++i)
-//    {
-//        // Get offset for averages and deviations
-//        Index avg_dev_offset = 0;
-//        for(Index k = 0; k < axis; ++k)
-//        {
-//            avg_dev_offset += index[k] * avg_dev.stride[k+1];
-//        }
-//        for(Index k = axis+1; k < dst.ndim; ++k)
-//        {
-//            avg_dev_offset += index[k] * avg_dev.stride[k];
-//        }
-//        // Check
-//        const T &dst_val = dst_local[i], &res_val = res_local[i];
-//        const T &avg_val = avg_dev_local[avg_dev_offset];
-//        const T &dev_val = avg_dev_local[avg_dev_offset+1];
-//        const T ref_val = (dst_val-avg_val) / dev_val;
-//        const T norm = std::abs(ref_val);
-//        const T diff = std::abs(ref_val-res_local[i]);
-//        T threshold = norm * std::numeric_limits<T>::epsilon();
-//        // Accuracy is bad if dst_val is close to avg_val, need to adjust
-//        // threshold
-//        threshold *= 2 + std::abs(dst_val/(dst_val-avg_val));
-//        if(diff > threshold)
-//        {
-//            throw std::runtime_error("ref_val != res_local[i]");
-//        }
-//        // Get next item
-//        if(i == dst.nelems-1)
-//        {
-//            break;
-//        }
-//        ++index[0];
-//        Index j = 0;
-//        while(index[j] == dst.shape[j])
-//        {
-//            index[j] = 0;
-//            ++j;
-//            ++index[j];
-//        }
-//    }
-//}
-
 template<typename T>
 void validate_bias()
 {
@@ -132,26 +80,6 @@ void validate_bias()
     TESTN(bias(b0, A, 4));
     Tile<T> fail_b0({4, 5, 5});
     TESTN(bias(fail_b0, A, 0));
-//    // Check bias2
-//    Tile<T> c0({2, 4, 5, 6}), c1({2, 3, 5, 6}), c2({2, 3, 4, 6}),
-//        c3({2, 3, 4, 5});
-//    unsigned long long c0_seed = 105, c1_seed = 106, c2_seed = 107,
-//                  c3_seed = 108;
-//    randn(c0, c0_seed);
-//    randn(c1, c1_seed);
-//    randn(c2, c2_seed);
-//    randn(c3, c3_seed);
-//    check_bias2<T>(c0, A, 0);
-//    check_bias2<T>(c1, A, 1);
-//    check_bias2<T>(c2, A, 2);
-//    check_bias2<T>(c3, A, 3);
-//    TESTN(bias2(c0, A, -1));
-//    TESTN(bias2(c3, A, 4));
-//    TESTN(bias2(c0, A, 1));
-//    TESTN(bias2(c1, A, 0));
-//    TESTN(bias2(b0, A, 1));
-//    TESTN(bias2(A, A, 1));
-//    bias2(c0, c0, 0);
 }
 
 int main(int argc, char **argv)

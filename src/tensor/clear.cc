@@ -9,11 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-05
  * */
 
 #include "nntile/tensor/clear.hh"
-#include "nntile/tile/clear.hh"
+#include "nntile/starpu/clear.hh"
 
 namespace nntile
 {
@@ -23,7 +23,7 @@ void clear_work(const Tensor<T> &src)
 {
     for(Index i = 0; i < src.grid.nelems; ++i)
     {
-        clear_work<T>(src.get_tile(i));
+        nntile::starpu::clear(src.get_tile(i));
     }
 }
 

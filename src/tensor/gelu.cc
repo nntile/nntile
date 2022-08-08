@@ -9,11 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-08
  * */
 
 #include "nntile/tensor/gelu.hh"
-#include "nntile/tile/gelu.hh"
+#include "nntile/starpu/gelu.hh"
 
 namespace nntile
 {
@@ -23,7 +23,8 @@ void gelu_work(const Tensor<T> &A)
 {
     for(Index i = 0; i < A.grid.nelems; ++i)
     {
-        gelu_async(A.get_tile(i));
+        auto &tile = A.get_tile(i);
+        nntile::starpu::gelu<T>(tile.nelems, tile);
     }
 }
 

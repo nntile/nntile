@@ -4,33 +4,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tile/gemm.cc.in
+ * @file src/tile/gemm.cc
  * GEMM operation for Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-08
  * */
 
 #include "nntile/tile/gemm.hh"
-#include "nntile/defs.h"
-
-#ifdef NNTILE_USE_CBLAS
-#   include "nntile/kernel/cpu/gemm.hh"
-#   ifndef CBLAS_INT
-#       define CBLAS_INT @CBLAS_INT_TYPE@
-#   endif
-#else // NNTILE_USE_CBLAS
-    template<typename T>
-    static void (*gemm_starpu_cpu)(void *buffers[], void *cl_args) = nullptr;
-#endif // NNTILE_USE_CBLAS
-
-#ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/gemm.hh"
-#else // NNTILE_USE_CUDA
-    template<typename T>
-    static void (*gemm_starpu_cuda)(void *buffers[], void *cl_args) = nullptr;
-#endif // NNTILE_USE_CUDA
+#include "nntile/starpu/gemm.hh"
 
 namespace nntile
 {
@@ -254,156 +237,6 @@ void gemm_check(const TransOp &transA, const TileTraits &A,
     gemm_check_opB_C(transB, B, C, ndim);
 }
 
-//! Footprint for GEMM tasks that depends only on M, N and K
-template<typename T>
-static
-uint32_t gemm_footprint(struct starpu_task *task)
-{
-    const TransOp::Value *transA_value, *transB_value;
-    const Index *m, *n, *k;
-    const T *alpha, *beta;
-    Starpu::unpack_args_ptr(task->cl_arg, transA_value, transB_value, m, n,
-            k, alpha, beta);
-    // In case alpha is zero, entire gemm is unnecessary so it is better to
-    // give it a different footprint since gemm time will be totally different
-    uint32_t hash = *alpha == T{0} ? -1 : 0;
-    // Apply hash over parameters M, N and K. This way if we swap values of M,
-    // N and K total size of buffers will remain the same, but the footprint
-    // will be different
-    hash = starpu_hash_crc32c_be_n(m, sizeof(*m), hash);
-    hash = starpu_hash_crc32c_be_n(n, sizeof(*n), hash);
-    hash = starpu_hash_crc32c_be_n(k, sizeof(*k), hash);
-    return hash;
-}
-
-//! Performance model for GEMM C=aAB+bC
-starpu_perfmodel gemmNN_perfmodel_fp32 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = gemm_footprint<fp32_t>,
-    .symbol = "nntile_gemmNN_fp32",
-};
-
-//! Performance model for GEMM C=aAB+bC
-starpu_perfmodel gemmNN_perfmodel_fp64 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = gemm_footprint<fp64_t>,
-    .symbol = "nntile_gemmNN_fp64",
-};
-
-//! Performance model for GEMM C=aAB^T+bC
-starpu_perfmodel gemmNT_perfmodel_fp32 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = gemm_footprint<fp32_t>,
-    .symbol = "nntile_gemmNT_fp32",
-};
-
-//! Performance model for GEMM C=aAB^T+bC
-starpu_perfmodel gemmNT_perfmodel_fp64 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = gemm_footprint<fp64_t>,
-    .symbol = "nntile_gemmNT_fp64",
-};
-
-//! Performance model for GEMM C=aA^TB+bC
-starpu_perfmodel gemmTN_perfmodel_fp32 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = gemm_footprint<fp32_t>,
-    .symbol = "nntile_gemmTN_fp32",
-};
-
-//! Performance model for GEMM C=aA^TB+bC
-starpu_perfmodel gemmTN_perfmodel_fp64 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = gemm_footprint<fp64_t>,
-    .symbol = "nntile_gemmTN_fp64",
-};
-
-//! Performance model for GEMM C=aA^TB^T+bC
-starpu_perfmodel gemmTT_perfmodel_fp32 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = gemm_footprint<fp32_t>,
-    .symbol = "nntile_gemmTT_fp32",
-};
-
-//! Performance model for GEMM C=aA^TB^T+bC
-starpu_perfmodel gemmTT_perfmodel_fp64 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = gemm_footprint<fp64_t>,
-    .symbol = "nntile_gemmTT_fp64",
-};
-
-//! Codelet for GEMM C=aAB+C
-StarpuCodelet gemmNN_codelet_fp32("nntile_gemmNN_fp32",
-        &gemmNN_perfmodel_fp32, {gemm_starpu_cpu<fp32_t>},
-        {gemm_starpu_cuda<fp32_t>});
-
-//! Codelet for GEMM C=aAB+C
-StarpuCodelet gemmNN_codelet_fp64("nntile_gemmNN_fp64",
-        &gemmNN_perfmodel_fp64, {gemm_starpu_cpu<fp64_t>},
-        {gemm_starpu_cuda<fp64_t>});
-
-//! Codelet for GEMM C=aAB^T+C
-StarpuCodelet gemmNT_codelet_fp32("nntile_gemmNT_fp32",
-        &gemmNT_perfmodel_fp32, {gemm_starpu_cpu<fp32_t>},
-        {gemm_starpu_cuda<fp32_t>});
-
-//! Codelet for GEMM C=aAB^T+C
-StarpuCodelet gemmNT_codelet_fp64("nntile_gemmNT_fp64",
-        &gemmNT_perfmodel_fp64, {gemm_starpu_cpu<fp64_t>},
-        {gemm_starpu_cuda<fp64_t>});
-
-//! Codelet for GEMM C=aA^TB+C
-StarpuCodelet gemmTN_codelet_fp32("nntile_gemmTN_fp32",
-        &gemmTN_perfmodel_fp32, {gemm_starpu_cpu<fp32_t>},
-        {gemm_starpu_cuda<fp32_t>});
-
-//! Codelet for GEMM C=aA^TB+C
-StarpuCodelet gemmTN_codelet_fp64("nntile_gemmTN_fp64",
-        &gemmTN_perfmodel_fp64, {gemm_starpu_cpu<fp64_t>},
-        {gemm_starpu_cuda<fp64_t>});
-
-//! Codelet for GEMM C=aA^TB^T+C
-StarpuCodelet gemmTT_codelet_fp32("nntile_gemmTT_fp32",
-        &gemmTT_perfmodel_fp32, {gemm_starpu_cpu<fp32_t>},
-        {gemm_starpu_cuda<fp32_t>});
-
-//! Codelet for GEMM C=aA^TB^T+C
-StarpuCodelet gemmTT_codelet_fp64("nntile_gemmTT_fp64",
-        &gemmTT_perfmodel_fp64, {gemm_starpu_cpu<fp64_t>},
-        {gemm_starpu_cuda<fp64_t>});
-
-void gemm_restrict_where(uint32_t where)
-{
-    gemmNN_codelet_fp32.restrict_where(where);
-    gemmNN_codelet_fp64.restrict_where(where);
-    gemmNT_codelet_fp32.restrict_where(where);
-    gemmNT_codelet_fp64.restrict_where(where);
-    gemmTN_codelet_fp32.restrict_where(where);
-    gemmTN_codelet_fp64.restrict_where(where);
-    gemmTT_codelet_fp32.restrict_where(where);
-    gemmTT_codelet_fp64.restrict_where(where);
-}
-
-void gemm_restore_where()
-{
-    gemmNN_codelet_fp32.restore_where();
-    gemmNN_codelet_fp64.restore_where();
-    gemmNT_codelet_fp32.restore_where();
-    gemmNT_codelet_fp64.restore_where();
-    gemmTN_codelet_fp32.restore_where();
-    gemmTN_codelet_fp64.restore_where();
-    gemmTT_codelet_fp32.restore_where();
-    gemmTT_codelet_fp64.restore_where();
-}
-
 template<typename T>
 void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
         const TransOp &transB, const Tile<T> &B, T beta, const Tile<T> &C,
@@ -424,67 +257,7 @@ void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
             k = A.matrix_shape[ndim][0];
             break;
     }
-    // Check that matrix sizes fit proper types for underlying CBLAS
-#if defined(NNTILE_USE_CBLAS)
-    if(static_cast<CBLAS_INT>(m) != m)
-    {
-        throw std::runtime_error("GEMM size M does not fit CBLAS_INT");
-    }
-    if(static_cast<CBLAS_INT>(n) != n)
-    {
-        throw std::runtime_error("GEMM size N does not fit CBLAS_INT");
-    }
-    if(static_cast<CBLAS_INT>(k) != k)
-    {
-        throw std::runtime_error("GEMM size K does not fit CBLAS_INT");
-    }
-#endif
-    // Check that matrix sizes fit proper types for underlying CUBLAS
-#if defined(NNTILE_USE_CUDA)
-    if(static_cast<int>(m) != m)
-    {
-        throw std::runtime_error("GEMM size M does not fit int");
-    }
-    if(static_cast<int>(n) != n)
-    {
-        throw std::runtime_error("GEMM size N does not fit int");
-    }
-    if(static_cast<int>(k) != k)
-    {
-        throw std::runtime_error("GEMM size K does not fit int");
-    }
-#endif
-    constexpr T zero = 0, one = 1;
-    enum starpu_data_access_mode C_mode;
-    if(beta == zero)
-    {
-        C_mode = STARPU_W;
-    }
-    else if(beta == one)
-    {
-        C_mode = Starpu::STARPU_RW_COMMUTE;
-    }
-    else
-    {
-        C_mode = STARPU_RW;
-    }
-    int ret = starpu_task_insert(gemm_get_codelet<T>(transA, transB),
-            STARPU_VALUE, &transA.value, sizeof(transA.value),
-            STARPU_VALUE, &transB.value, sizeof(transB.value),
-            STARPU_VALUE, &m, sizeof(m),
-            STARPU_VALUE, &n, sizeof(n),
-            STARPU_VALUE, &k, sizeof(k),
-            STARPU_VALUE, &alpha, sizeof(alpha),
-            STARPU_R, static_cast<starpu_data_handle_t>(A),
-            STARPU_R, static_cast<starpu_data_handle_t>(B),
-            STARPU_VALUE, &beta, sizeof(beta),
-            C_mode, static_cast<starpu_data_handle_t>(C),
-            STARPU_FLOPS, static_cast<fp64_t>(2*m*n*k),
-            0);
-    if(ret != 0)
-    {
-        throw std::runtime_error("ret != 0");
-    }
+    nntile::starpu::gemm<T>(transA, transB, m, n, k, alpha, A, B, beta, C);
 }
 
 // Explicit instantiation of templates

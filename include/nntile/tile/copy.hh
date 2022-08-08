@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-04
  * */
 
 #pragma once
@@ -18,28 +18,6 @@
 
 namespace nntile
 {
-
-extern starpu_perfmodel copy_perfmodel_fp32, copy_perfmodel_fp64;
-extern StarpuCodelet copy_codelet_fp32, copy_codelet_fp64;
-
-template<typename T>
-constexpr StarpuCodelet *copy_codelet()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
-
-template<>
-constexpr StarpuCodelet *copy_codelet<fp32_t>()
-{
-    return &copy_codelet_fp32;
-}
-
-template<>
-constexpr StarpuCodelet *copy_codelet<fp64_t>()
-{
-    return &copy_codelet_fp64;
-}
 
 //! Asynchronous tile-wise copy operation
 //

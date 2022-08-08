@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-04
  * */
 
 #pragma once
@@ -18,10 +18,6 @@
 
 namespace nntile
 {
-
-extern starpu_perfmodel clear_perfmodel;
-
-extern StarpuCodelet clear_codelet;
 
 template<typename T>
 void clear_work(const Tile<T> &src);

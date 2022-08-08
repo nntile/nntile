@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-05
  * */
 
 #pragma once
@@ -18,33 +18,6 @@
 
 namespace nntile
 {
-
-extern starpu_perfmodel bias_perfmodel_fp32, bias_perfmodel_fp64;
-
-extern StarpuCodelet bias_codelet_fp32, bias_codelet_fp64;
-
-void bias_restrict_where(uint32_t where);
-
-void bias_restore_where();
-
-template<typename T>
-constexpr StarpuCodelet *bias_codelet()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
-
-template<>
-constexpr StarpuCodelet *bias_codelet<fp32_t>()
-{
-    return &bias_codelet_fp32;
-}
-
-template<>
-constexpr StarpuCodelet *bias_codelet<fp64_t>()
-{
-    return &bias_codelet_fp64;
-}
 
 //! Tile-wise bias operation
 //

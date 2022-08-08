@@ -4,18 +4,19 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/cpu/gelu.cc
- * GeLU operation on a buffer on CPU
+ * @file tests/kernel/cpu/gelutanh.cc
+ * Approximate GeLU operation on a buffer on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @date 2022-08-04
  * */
 
-#include "nntile/kernel/cpu/gelu.hh"
+#include "nntile/kernel/cpu/gelutanh.hh"
 #include <vector>
 #include <stdexcept>
 #include <cmath>
+#include <limits>
 
 using namespace nntile;
 using namespace nntile::kernel::cpu;
@@ -24,6 +25,8 @@ using namespace nntile::kernel::cpu;
 template<typename T>
 void validate(Index nelems)
 {
+    constexpr T pi = 3.141592653589793238462643383279502884L;
+    constexpr T eps = std::numeric_limits<T>::epsilon();
     // Init test input
     std::vector<T> dst(nelems);
     for(Index i = 0; i < nelems; ++i)
@@ -32,13 +35,26 @@ void validate(Index nelems)
     }
     std::vector<T> dst2(dst);
     // Check low-level kernel
-    gelu<T>(nelems, &dst[0]);
+    gelutanh<T>(nelems, &dst[0]);
     for(Index i = 0; i < nelems; ++i)
     {
         T x = dst2[i];
-        T val_ref = 0.5*std::erf(x/std::sqrt(T(2))) + 0.5;
-        val_ref *= x;
-        if(dst[i] != val_ref)
+        T y = std::sqrt(T{2}/pi) * (x+T{0.044715}*x*x*x);
+        T z = T{1}+std::tanh(y);
+        T val_ref = T{0.5} * x * z;
+        // Obtain range of correct values
+        T val_ref_min, val_ref_max;
+        if(val_ref < 0)
+        {
+            val_ref_min = val_ref * (T{1}+eps) - eps;
+            val_ref_max = val_ref * (T{1}-eps) + eps;
+        }
+        else
+        {
+            val_ref_min = val_ref * (T{1}-eps) - eps;
+            val_ref_max = val_ref * (T{1}+eps) + eps;
+        }
+        if(dst[i] < val_ref_min or dst[i] > val_ref_max)
         {
             throw std::runtime_error("Wrong value");
         }
