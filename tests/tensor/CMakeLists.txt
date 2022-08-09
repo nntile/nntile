@@ -28,7 +28,7 @@ set(TESTS
 
 foreach(test IN LISTS TESTS)
     add_test_set(TARGET_NAME tests_tensor_${test}
-        EXEC_NAME ${test}
+        EXEC_NAME test_${test}
         SOURCES ${test}.cc
         LINK_LIBRARIES nntile
         COV_ENABLE ${BUILD_COVERAGE}

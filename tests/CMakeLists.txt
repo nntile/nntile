@@ -113,7 +113,7 @@ function(add_test_set)
 endfunction()
 
 add_test_set(TARGET_NAME tests_constants
-    EXEC_NAME constants
+    EXEC_NAME test_constants
     SOURCES constants.cc
     LINK_LIBRARIES nntile
     COV_ENABLE ${BUILD_COVERAGE}
@@ -122,7 +122,7 @@ add_test_set(TARGET_NAME tests_constants
     )
 
 add_test_set(TARGET_NAME tests_starpu
-    EXEC_NAME starpu
+    EXEC_NAME test_starpu
     SOURCES starpu.cc
     LINK_LIBRARIES nntile
     ARGS "1" "2" "3" "4" "5"
@@ -132,7 +132,7 @@ add_test_set(TARGET_NAME tests_starpu
     )
 
 add_subdirectory("kernel")
-#add_subdirectory("starpu")
+add_subdirectory("starpu")
 #add_subdirectory("tile")
 #add_subdirectory("tensor")
 #add_subdirectory("layer")

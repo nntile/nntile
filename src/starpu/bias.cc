@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-08
+ * @date 2022-08-09
  * */
 
 #include "nntile/starpu/bias.hh"
@@ -29,21 +29,39 @@ void bias_cpu(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<bias_args *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
-    // Launch kernel
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
+    // Launch kernel
     nntile::kernel::cpu::bias<T>(args->m, args->n, args->k, src, dst);
+}
+
+//! Footprint for bias tasks that depends only on m, n and k
+static
+uint32_t bias_footprint(struct starpu_task *task)
+{
+    // Get arguments
+    auto args = reinterpret_cast<bias_args *>(task->cl_arg);
+    // Apply hash over parameters m, n and k. This way if we swap values of m,
+    // n and k, then the total size of buffers will remain the same, but the
+    // footprint will be different
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
+    hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
+    hash = starpu_hash_crc32c_be_n(&args->k, sizeof(args->k), hash);
+    return hash;
 }
 
 starpu_perfmodel bias_perfmodel_fp32 =
 {
     .type = STARPU_HISTORY_BASED,
+    .footprint = bias_footprint,
     .symbol = "nntile_bias_fp32",
 };
 
 starpu_perfmodel bias_perfmodel_fp64 =
 {
     .type = STARPU_HISTORY_BASED,
+    .footprint = bias_footprint,
     .symbol = "nntile_bias_fp64",
 };
 
@@ -90,10 +108,14 @@ constexpr StarpuCodelet *bias_codelet<fp64_t>()
     return &bias_codelet_fp64;
 }
 
-//! Insert task bias
 template<typename T>
 void bias(Index m, Index n, Index k, starpu_data_handle_t src,
         starpu_data_handle_t dst)
+//! Insert bias task into StarPU pool of tasks
+/*! No argument checking is performed. All the inputs are packed and passed to
+ * starpu_task_insert() function. If task submission fails, this routines
+ * throws an std::runtime_error() exception.
+ * */
 {
     // Codelet arguments
     auto args = new bias_args

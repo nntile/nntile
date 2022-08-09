@@ -29,8 +29,8 @@ set(KERNEL_HDR
     )
 
 set(STARPU_HDR
-    #"nntile/starpu.hh"
-    #"nntile/starpu/bias.hh"
+    "nntile/starpu.hh"
+    "nntile/starpu/bias.hh"
     #"nntile/starpu/clear.hh"
     #"nntile/starpu/copy.hh"
     #"nntile/starpu/gelu.hh"

@@ -23,7 +23,7 @@ set(KERNEL_SRC
     )
 
 set(STARPU_SRC
-    #"starpu/bias.cc"
+    "starpu/bias.cc"
     #"starpu/clear.cc"
     #"starpu/copy.cc"
     #"starpu/gelu.cc"
