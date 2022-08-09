@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/cpu/copy.cc
- * Smart copy operation on CPU
+ * Complex copy operation on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-04
+ * @date 2022-08-09
  * */
 
 #include "nntile/kernel/cpu/copy.hh"
@@ -21,22 +21,34 @@ namespace kernel
 namespace cpu
 {
 
-//! Smart copying of one buffer into another
-//
-// @param[in] ndim: Dimensionality of underlying buffers
-// @param[in] src_start: Start element to copy from source buffer
-// @param[in] src_stride: Strides of the source buffer
-// @param[in] copy_shape: Shape of buffer to copy
-// @param[in] src: Pointer to input data
-// @param[in] dst_start: Start element to copy to destination buffer
-// @param[in] dst_stride: Strides of the destination buffer
-// @param[inout] dst: Pointer to output data
-// @param[out] tmp_index: Temporary buffer for indexing
 template<typename T>
 void copy(Index ndim, const Index *src_start, const Index *src_stride,
         const Index *copy_shape, const T *src, const Index *dst_start,
         const Index *dst_stride, T *dst, Index *tmp_index)
     noexcept
+//! Complex copying of one multidimensional array into another
+/*! This function is not meant for a performant implementation, as its sole
+ * purpose is an easy data redistribution. It helps, for example, in case of
+ * converting between a single contiguous array on a single node (e.g., a
+ * Python numpy or torch array) and a distributed allocation on many nodes
+ * (e.g., nntile data distribution).
+ * A simple memory copy shall be treated with a help of starpu_data_cpy()
+ * function.
+ *
+ * @param[in] ndim: Dimensionality of underlying arrays
+ * @param[in] src_start: Start element to copy from source array. Contains ndim
+ *      values.
+ * @param[in] src_stride: Strides of the source array. Contains ndim values.
+ * @param[in] copy_shape: Shape of array to copy. Contains ndim values.
+ * @param[in] src: Pointer to input data
+ * @param[in] dst_start: Start element to copy to destination array. Contains
+ *      ndim values.
+ * @param[in] dst_stride: Strides of the destination array. Contains ndim
+ *      values.
+ * @param[inout] dst: Pointer to output data
+ * @param[out] tmp_index: Temporary buffer for indexing. Contains 2*ndim
+ *      values.
+ * */
 {
     // Map temporary buffer into source index and destination index
     Index *src_index = tmp_index;

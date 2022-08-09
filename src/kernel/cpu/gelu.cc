@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-04
+ * @date 2022-08-08
  * */
 
 #include "nntile/kernel/cpu/gelu.hh"
@@ -22,13 +22,17 @@ namespace kernel
 namespace cpu
 {
 
-//! GeLU operation inplace of a buffer on CPU
-//
-// @params[in] nelems: Number of elements in a buffer
-// @params[inout] data: Buffer to apply GeLU
 template<typename T>
 void gelu(Index nelems, T *data)
     noexcept
+//! Inplace GeLU operation
+/*! Uses very slow std::erf() function, so consider using approximated version
+ * nntile::kernel::cpu::gelutanh(). Applies the following per-elemtn operation:
+ * GeLU(x) = 0.5x(erf(x/sqrt(2))+1)
+ *
+ * @params[in] nelems: Number of elements in a buffer
+ * @params[inout] data: Buffer to apply GeLU
+ * */
 {
     constexpr T one = 1, pt5 = 0.5;
     const T sqrt2 = std::sqrt(T{2.0});
@@ -39,7 +43,7 @@ void gelu(Index nelems, T *data)
     }
 }
 
-// Explicit instantation
+// Explicit instantiation
 template
 void gelu<fp32_t>(Index nelems, fp32_t *data)
     noexcept;

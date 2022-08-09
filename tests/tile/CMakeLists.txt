@@ -1,3 +1,16 @@
+# @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+#                          (Skoltech). All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file tests/tile/CMakeLists.txt
+# Tests for nntile::tile functions
+#
+# @version 1.0.0
+# @author Aleksandr Mikhalev
+# @date 2022-08-09
+
 # All unit tests without arguments to test executable
 set(TESTS
     "traits"

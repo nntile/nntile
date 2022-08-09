@@ -4,12 +4,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/cpu/normalize.cc
- * Normalize operation for Tile<T>
+ * @file include/nntile/kernel/cpu/normalize.hh
+ * Normalize operation on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-08
  * */
 
 #pragma once
@@ -18,15 +18,17 @@
 
 namespace nntile
 {
+namespace kernel
+{
+namespace cpu
+{
 
 template<typename T>
-void normalize_kernel_cpu(Index m, Index n, Index k, Index l, T eps, T gamma,
-        T beta, const T *sumnorm, T *dst)
+void normalize(Index m, Index n, Index k, Index l, T eps, T gamma, T beta,
+        const T *sumnorm, T *dst)
     noexcept;
 
-template<typename T>
-void normalize_starpu_cpu(void *buffers[], void *cl_args)
-    noexcept;
-
+} // namespace cpu
+} // namespace kernel
 } // namespace nntile
 

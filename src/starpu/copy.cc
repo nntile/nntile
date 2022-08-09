@@ -30,15 +30,14 @@ void copy_cpu(void *buffers[], void *cl_args)
           *dst_stride;
     Starpu::unpack_args_ptr(cl_args, ndim_ptr, src_start, src_stride,
             copy_shape, dst_start, dst_stride);
-    Index ndim = *ndim_ptr;
     // Get interfaces
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     // Launch kernel
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     Index *tmp_index = interfaces[2]->get_ptr<Index>();
-    nntile::kernel::cpu::copy<T>(ndim, src_start, src_stride, copy_shape, src,
-            dst_start, dst_stride, dst, tmp_index);
+    nntile::kernel::cpu::copy<T>(*ndim_ptr, src_start, src_stride, copy_shape,
+            src, dst_start, dst_stride, dst, tmp_index);
 }
 
 starpu_perfmodel copy_perfmodel_fp32 =
@@ -105,7 +104,7 @@ void copy(Index ndim, const std::vector<Index> &src_start,
         starpu_data_handle_t src, starpu_data_handle_t dst,
         starpu_data_handle_t tmp_index, starpu_data_access_mode mode)
 {
-    constexpr double zero_flops = 0;
+    constexpr fp64_t zero_flops = 0;
     // Submit task
     int ret = starpu_task_insert(copy_codelet<T>(),
             STARPU_VALUE, &(ndim), sizeof(ndim),

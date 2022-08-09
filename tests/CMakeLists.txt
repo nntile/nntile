@@ -1,3 +1,16 @@
+# @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+#                          (Skoltech). All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file tests/CMakeLists.txt
+# Function to register test sets with CTest
+#
+# @version 1.0.0
+# @author Aleksandr Mikhalev
+# @date 2022-08-09
+
 # Extend set of ctest-controlled tests and enable code coverage if required.
 # All of the tests shall be launched by the same executable but with different
 # arguments. All the arguments are passed by corresponding keyword ARGS. All
@@ -119,7 +132,8 @@ add_test_set(TARGET_NAME tests_starpu
     )
 
 add_subdirectory("kernel")
-add_subdirectory("tile")
-add_subdirectory("tensor")
-add_subdirectory("layer")
+#add_subdirectory("starpu")
+#add_subdirectory("tile")
+#add_subdirectory("tensor")
+#add_subdirectory("layer")
 

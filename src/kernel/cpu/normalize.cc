@@ -9,58 +9,66 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-03
+ * @date 2022-08-09
  * */
 
 #include "nntile/kernel/cpu/normalize.hh"
-#include "nntile/kernel/args/normalize.hh"
-#include "nntile/starpu.hh"
 #include <cmath>
 
 namespace nntile
 {
+namespace kernel
+{
+namespace cpu
+{
 
-//! Renormalize buffer along middle axis
-//
-// Provided m-by-k-by-n output tensor dst is renormalized along second axis
-// with k elements. The following operations is applied:
-//      dst[i, l, j] := (dst[i, l, j]-sumnorm[0, i, j]) / sqrt(sumnorm[1, i,
-//      j]**2+eps) * gamma + beta
-//
-// @param[in] m: Size of the first mode of src and sumnorm tensors
-// @param[in] n: Size of the last mode of src and sumnorm tensors
-// @param[in] k: Size of the middle mode of src tensor
-// @param[in] src: Input tensor to compute sums and norms of slices
-// @param[inout] sumnorm: Sums and norms of slices
-//
-// @sa clear_kernel_cpu
 template<typename T>
-void normalize_kernel_cpu(Index m, Index n, Index k, Index l, T eps, T gamma,
-        T beta, const T *sumnorm, T *dst)
+void normalize(Index m, Index n, Index k, Index l, T eps, T gamma, T beta,
+        const T *sumnorm, T *dst)
     noexcept
+//! Renormalize buffer along middle axis
+/*! Provided m-by-k-by-n output array dst is renormalized along second axis
+ * with k elements. The following operations is applied:
+ *      dst[i, :, j] := (dst[i, :, j]-mean(i, j)) / sqrt(var(i, j)+eps)
+ *          * gamma + beta
+ * where mean and var functions are computed as follows:
+ *      mean(i, j) = sumnorm[0, i, j] / l
+ *      var(i, j) = sumnorm[1, i, j]^2/l - mean(i,j)^2
+ *
+ * @param[in] m: Size of the first mode of dst and sumnorm arrays
+ * @param[in] n: Size of the last mode of dst and sumnorm arrays
+ * @param[in] k: Size of the middle mode of dst array
+ * @param[in] l: Number of elements used to calculate sum and Euclidian norm
+ * @param[in] eps: Regularization parameter for variance
+ * @param[in] gamma: Deviation for the renormalized output
+ * @param[in] beta: Mean value for the renormalized output
+ * @param[in] sumnorm: Sums and norms of slices
+ * @param[in] dst: Contiguous output array
+ * */
 {
     Index dst_offset = 0;
     constexpr T one = 1;
     const T invl = one / T(l);
     const T rinvl = std::sqrt(invl);
     const T reps = std::sqrt(eps);
-    // Outer loop by the last mode of source and destination tiles
+    // Outer loop by the last mode of dst and sumnorm arrays
     for(Index i2 = 0; i2 < n; ++i2)
     {
-        // Middle loop by the middle mode of destination tile
+        // Middle loop by the middle mode of dst array
         for(Index i1 = 0; i1 < k; ++i1)
         {
             Index src_offset = 2 * m * i2;
-            // Inner loop by the first mode of source and destination tiles
+            // Inner loop by the first mode of dst and sumnorm arrays
             for(Index i0 = 0; i0 < m; ++i0)
             {
                 // Value-to-update
                 T &val = dst[dst_offset];
-                // Corresponding mean and deviation
+                // Corresponding mean and root-mean-square
                 const T sum = sumnorm[src_offset];
                 const T mean = sum * invl;
                 const T norm = sumnorm[src_offset+1];
                 const T rms = norm * rinvl;
+                // Deviation
                 T dev;
                 if(rms > reps)
                 {
@@ -88,34 +96,18 @@ void normalize_kernel_cpu(Index m, Index n, Index k, Index l, T eps, T gamma,
     }
 }
 
-//! Renormalize buffer along middle axis of StarPU buffer
-//
-// See normalize_kernel_cpu function for more info.
-template<typename T>
-void normalize_starpu_cpu(void *buffers[], void *cl_args)
-    noexcept
-{
-    // Get arguments
-    auto args = reinterpret_cast<normalize_starpu_args<T> *>(cl_args);
-    // Get interfaces
-    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
-    // Launch kernel
-    const T *gamma_beta = interfaces[0]->get_ptr<T>();
-    T gamma = gamma_beta[0], beta = gamma_beta[1];
-    const T *sumnorm = interfaces[1]->get_ptr<T>();
-    T *dst = interfaces[2]->get_ptr<T>();
-    normalize_kernel_cpu<T>(args->m, args->n, args->k, args->l, args->eps,
-            gamma, beta, sumnorm, dst);
-}
-
-// Explicit instantiation of templates
+// Explicit instantiation
 template
-void normalize_starpu_cpu<fp32_t>(void *buffers[], void *cl_args)
+void normalize<fp32_t>(Index m, Index n, Index k, Index l, fp32_t eps,
+        fp32_t gamma, fp32_t beta, const fp32_t *sumnorm, fp32_t *dst)
     noexcept;
 
 template
-void normalize_starpu_cpu<fp64_t>(void *buffers[], void *cl_args)
+void normalize<fp64_t>(Index m, Index n, Index k, Index l, fp64_t eps,
+        fp64_t gamma, fp64_t beta, const fp64_t *sumnorm, fp64_t *dst)
     noexcept;
 
+} // namespace cpu
+} // namespace kernel
 } // namespace nntile
 

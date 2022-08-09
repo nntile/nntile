@@ -1,3 +1,25 @@
+# @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+#                          (Skoltech). All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file CMakeLists.txt
+# This is a top-level CMake script, that is tested to work only with a
+# single-configuration build systems like Ninja or Unix Makefile.
+#
+# @version 1.0.0
+# @author Aleksandr Mikhalev
+# @date 2022-08-09
+
+
+###############################################################################
+#                       THIS IS A TOP-LEVEL CMAKELISTS.txt                    #
+#                                                                             #
+#        It is intended to find all dependencies (required or optional)       #
+#                    and set up corresponding variables                       #
+###############################################################################
+
 # Set minimum CMake version to avoid configuration problems
 cmake_minimum_required(VERSION 3.18.6)
 # BLAS::BLAS target is added in version 3.18

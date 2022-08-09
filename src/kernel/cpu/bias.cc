@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/cpu/bias.cc
- * Bias operation on a buffer on CPU
+ * Bias operation on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-04
+ * @date 2022-08-08
  * */
 
 #include "nntile/kernel/cpu/bias.hh"
@@ -21,22 +21,20 @@ namespace kernel
 namespace cpu
 {
 
-//! Apply bias along middle axis
-//
-// For a provided m-by-k-by-n output tensor dst apply bias along second axis
-// with k elements from m-by-n tensor src. A value src[i, j] is added to the
-// entire slice dst[i, :, j].
-//
-// @param[in] m: Size of the first mode of src and dst tensors
-// @param[in] n: Size of the last mode of src and dst tensors
-// @param[in] k: Size of the middle mode of dst tensor
-// @param[in] src: Source of the bias
-// @param[inout] dst: Destination of the bias
-//
-// @sa bias_starpu_cpu
 template<typename T>
 void bias(Index m, Index n, Index k, const T *src, T *dst)
     noexcept
+//! Bias along middle axis
+/*! For a provided m-by-k-by-n output tensor dst apply bias along second axis
+ * with k elements from m-by-n input tensor src. A value src[i, j] is added to
+ * an entire slice dst[i, :, j].
+ *
+ * @param[in] m: Size of the first mode of src and dst tensors
+ * @param[in] n: Size of the last mode of src and dst tensors
+ * @param[in] k: Size of the middle mode of dst tensor
+ * @param[in] src: Source of the bias
+ * @param[inout] dst: Destination of the bias
+ * */
 {
     Index src_offset = 0;
     const Index mk = m * k;

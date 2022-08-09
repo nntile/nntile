@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/kernel/cpu/copy.hh
- * Smart copy of a buffer on CPU
+ * Complex copy of a buffer on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-04
+ * @date 2022-08-09
  * */
 
 #pragma once
@@ -23,7 +23,7 @@ namespace kernel
 namespace cpu
 {
 
-// Smart copying
+// Complex copying
 template<typename T>
 void copy(Index ndim, const Index *src_start, const Index *src_stride,
         const Index *copy_shape, const T *src, const Index *dst_start,

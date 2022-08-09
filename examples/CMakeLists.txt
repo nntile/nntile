@@ -1,3 +1,16 @@
+# @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+#                          (Skoltech). All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file examples/CMakeLists.txt
+# Add examples to the CMake
+#
+# @version 1.0.0
+# @author Aleksandr Mikhalev
+# @date 2022-08-09
+
 # Add an example, which is NOT controlled by the ctest. Example executable
 # shall not take any arguments, as all of the inputs shall be within the
 # executable. The following sample code generates an example:
@@ -43,10 +56,10 @@ function(add_example)
     message(STATUS "Adding example ${_args_TARGET_NAME}")
 endfunction()
 
-add_example(TARGET_NAME examples_forward
-    EXEC_NAME "forward"
-    SOURCES "forward.cc"
-    LINK_LIBRARIES nntile)
+#add_example(TARGET_NAME examples_forward
+#    EXEC_NAME "forward"
+#    SOURCES "forward.cc"
+#    LINK_LIBRARIES nntile)
 
 #add_example(TARGET_NAME examples_mixer
 #    EXEC_NAME "mixer"

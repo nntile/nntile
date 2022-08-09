@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-02
+ * @date 2022-08-09
  * */
 
 #pragma once
@@ -18,16 +18,17 @@
 
 namespace nntile
 {
+namespace kernel
+{
+namespace cpu
+{
 
 // Compute sum and Euclidian norm along middle axis
 template<typename T>
-void sumnorm_kernel_cpu(Index m, Index n, Index k, const T *src, T *sumnorm)
+void sumnorm(Index m, Index n, Index k, const T *src, T *sumnorm)
     noexcept;
 
-// Compute sum and Euclidian norm along middle axis of StarPU buffer
-template<typename T>
-void sumnorm_starpu_cpu(void *buffers[], void *cl_args)
-    noexcept;
-
+} // namespace cpu
+} // namespace kernel
 } // namespace nntile
 

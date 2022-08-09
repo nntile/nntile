@@ -13,14 +13,13 @@
  * */
 
 #include "nntile/kernel/cpu/normalize.hh"
-#include "nntile/kernel/args/normalize.hh"
-#include "nntile/starpu.hh"
 #include <vector>
 #include <stdexcept>
 #include <limits>
 #include <cmath>
 
 using namespace nntile;
+using namespace nntile::kernel::cpu;
 
 // Templated validation
 template<typename T>
@@ -49,7 +48,7 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     }
     std::vector<T> dst2(dst);
     // Check low-level kernel
-    normalize_kernel_cpu<T>(m, n, k, l, eps, gamma, beta, &sumnorm[0], &dst[0]);
+    normalize<T>(m, n, k, l, eps, gamma, beta, &sumnorm[0], &dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
@@ -64,33 +63,6 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
                     throw std::runtime_error("Wrong value");
                 }
             }
-        }
-    }
-    // Now check StarPU codelet
-    // StarPU interfaces
-    T gamma_beta[2] = {gamma, beta};
-    StarpuVariableInterface sumnorm_interface(&sumnorm[0], 2*m*n*sizeof(T)),
-            dst2_interface(&dst2[0], m*n*k*sizeof(T)),
-            gamma_beta_interface(gamma_beta, sizeof(gamma_beta));
-    void *buffers[3] = {&gamma_beta_interface, &sumnorm_interface,
-        &dst2_interface};
-    // Codelet arguments
-    normalize_starpu_args<T> args =
-    {
-        .m = m,
-        .n = n,
-        .k = k,
-        .l = l,
-        .eps = eps
-    };
-    // Launch codelet
-    normalize_starpu_cpu<T>(buffers, &args);
-    // Check it
-    for(Index i = 0; i < m*n*k; ++i)
-    {
-        if(dst[i] != dst2[i])
-        {
-            throw std::runtime_error("Starpu codelet wrong result");
         }
     }
 }

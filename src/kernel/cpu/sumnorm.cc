@@ -9,39 +9,44 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-02
+ * @date 2022-08-09
  * */
 
 #include "nntile/kernel/cpu/sumnorm.hh"
-#include "nntile/kernel/args/sumnorm.hh"
-#include "nntile/starpu.hh"
 #include <cmath>
 
 namespace nntile
 {
+namespace kernel
+{
+namespace cpu
+{
 
-//! Sum and Euclidian norm along middle axis
-//
-// For a provided m-by-k-by-n input tensor src compute sums and norms of slices
-// along second axis with k elements, resulting in 2-by-m-by-n output matrix
-// sumnorm. sumnorm[0, i, j] is increased by a sum of elements of a slice
-// src[i, :, j], while sumnorm[1, i, j] is a square root of sumnorm[1, i, j]
-// and norm of a slice src[i, :, j]. Values of tensor sumnorm are updated by
-// this routine in read-write mode, therefore sumnorm must be initialized
-// before use with zeros (clear).
-//
-// @param[in] m: Size of the first mode of src and the second mode of sumnorm
-// @param[in] n: Size of the last mode of src and sumnorm tensors
-// @param[in] k: Size of the middle mode of src tensor
-// @param[in] src: Input contiguous m-by-k-by-n tensor
-// @param[inout] sumnorm: Output contiguous 2-by-m-by-n tensor, sumnorm[0,i,j]
-//      contains a sum of all elements of src[i,:,j] and sumnorm[1,i,j] is
-//      Euclidian norm of src[i,:,j].
-//
-// @sa clear_kernel_cpu
 template<typename T>
-void sumnorm_kernel_cpu(Index m, Index n, Index k, const T *src, T *sumnorm)
+void sumnorm(Index m, Index n, Index k, const T *src, T *sumnorm)
     noexcept
+//! Sum and Euclidian norm along middle axis
+/*! For a provided m-by-k-by-n input array src compute sums and norms of slices
+ * along second axis with k elements, resulting in 2-by-m-by-n output array
+ * sumnorm. Input value sumnorm[0, i, j] is increased by a sum of elements of a
+ * slice src[i, :, j] on output, while output value of sumnorm[1, i, j] is a
+ * square root of sum of squares of input sumnorm[1, i, j] and norm of a slice
+ * src[i, :, j]. Values of array sumnorm are updated by this routine in
+ * read-write mode, therefore sumnorm must be initialized before use with zeros
+ * (e.g., by clear() function).
+ *
+ * Mnemonically, the following operations are performed:
+ *      sumnorm[0,i,j] = sumnorm[0,i,j] + sum(src[i,:,j])
+ *      sumnorm[1,i,j] = sqrt(sumnorm[1,i,j] + norm(src[i,:,j])^2)
+ *
+ * @param[in] m: Size of the first mode of src and the second mode of sumnorm
+ *      arrays.
+ * @param[in] n: Size of the last mode of src and sumnorm arrays
+ * @param[in] k: Size of the middle mode of src array
+ * @param[in] src: Input contiguous m-by-k-by-n array
+ * @param[inout] sumnorm: Output contiguous 2-by-m-by-n array, that accumulates
+ *      sums and norms of slices along middle axis.
+ * */
 {
     const Index mk = m * k;
     Index dst_offset = 0;
@@ -92,33 +97,18 @@ void sumnorm_kernel_cpu(Index m, Index n, Index k, const T *src, T *sumnorm)
     }
 }
 
-//! Sum and Euclidian norm along middle axis of StarPU buffer
-//
-// See sumnorm_kernel_cpu function for more info.
-//
-// @sa sumnorm_kernel_cpu, clear_starpu_cpu
-template<typename T>
-void sumnorm_starpu_cpu(void *buffers[], void *cl_args)
-    noexcept
-{
-    // Get arguments
-    auto args = reinterpret_cast<sumnorm_starpu_args *>(cl_args);
-    // Get interfaces
-    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
-    // Launch kernel
-    const T *src = interfaces[0]->get_ptr<T>();
-    T *sumnorm = interfaces[1]->get_ptr<T>();
-    sumnorm_kernel_cpu<T>(args->m, args->n, args->k, src, sumnorm);
-}
-
 // Explicit instantiation
 template
-void sumnorm_starpu_cpu<fp32_t>(void *buffers[], void *cl_args)
+void sumnorm<fp32_t>(Index m, Index n, Index k, const fp32_t *src,
+        fp32_t *sumnorm)
     noexcept;
 
 template
-void sumnorm_starpu_cpu<fp64_t>(void *buffers[], void *cl_args)
+void sumnorm<fp64_t>(Index m, Index n, Index k, const fp64_t *src,
+        fp64_t *sumnorm)
     noexcept;
 
+} // namespace cpu
+} // namespace kernel
 } // namespace nntile
 

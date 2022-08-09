@@ -9,8 +9,10 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-04
+ * @date 2022-08-09
  * */
+
+#pragma once
 
 #include <nntile/base_types.hh>
 
