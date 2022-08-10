@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-04
+ * @date 2022-08-10
  * */
 
 #include "nntile/kernel/cpu/copy.hh"
@@ -70,7 +70,8 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
         src_stride[i] = src_stride[i-1] * src_shape[i-1];
         dst_stride[i] = dst_stride[i-1] * dst_shape[i-1];
     }
-    // Init test input. Set non-copied values to 1 and copied values to 2
+    // Init test input. Set non-copied values to 1 and copied values to 2 in
+    // the source and set all the elements to 3 in the destination.
     std::vector<T> src_data(src_nelems, T{1}), dst_data(dst_nelems, T{3}),
         dst2_data(dst_data);
     std::vector<Index> src_index(src_start);

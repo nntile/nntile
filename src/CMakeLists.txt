@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-09
+# @date 2022-08-10
 
 # Set list of sources
 set(KERNEL_SRC
@@ -24,10 +24,11 @@ set(KERNEL_SRC
 
 set(STARPU_SRC
     "starpu/bias.cc"
-    #"starpu/clear.cc"
-    #"starpu/copy.cc"
-    #"starpu/gelu.cc"
-    #"${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"
+    "starpu/clear.cc"
+    "starpu/copy.cc"
+    "starpu/gelu.cc"
+    "starpu/gelutanh.cc"
+    "${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"
     )
 
 set(TILE_SRC

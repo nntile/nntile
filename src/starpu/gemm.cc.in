@@ -9,16 +9,17 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-08
+ * @date 2022-08-10
  * */
 
 #include "nntile/starpu/gemm.hh"
 
-#include <@CBLAS_H_NAME@>
-
-#ifndef CBLAS_INT
-#   define CBLAS_INT @CBLAS_INT_TYPE@
-#endif
+#ifdef NNTILE_USE_CBLAS
+#   include <@CBLAS_H_NAME@>
+#   ifndef CBLAS_INT
+#       define CBLAS_INT @CBLAS_INT_TYPE@
+#   endif // CBLAS_INT
+#endif // NNTILE_USE_CBLAS
 
 namespace nntile
 {
@@ -56,7 +57,7 @@ void gemm_cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<gemm_starpu_args<T> *>(cl_args);
+    auto args = reinterpret_cast<gemm_args<T> *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     // Launch kernel
@@ -103,7 +104,7 @@ static
 uint32_t gemm_footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<gemm_starpu_args<T> *>(task->cl_arg);
+    auto args = reinterpret_cast<gemm_args<T> *>(task->cl_arg);
     // In case alpha is zero, entire gemm is unnecessary so it is better to
     // give it a different footprint since gemm time will be totally different
     uint32_t hash = args->alpha == T{0} ? -1 : 0;
@@ -183,56 +184,88 @@ starpu_perfmodel gemmTT_perfmodel_fp64 =
 //! Codelet for GEMM C=aAB+C
 StarpuCodelet gemmNN_codelet_fp32("nntile_gemmNN_fp32",
         &gemmNN_perfmodel_fp32,
-        {gemm_cpu<fp32_t>},
+#       ifdef NNTILE_USE_CBLAS
+            {gemm_cpu<fp32_t>},
+#       else // NNTILE_USE_CBLAS
+            {},
+#       endif // NNTILE_USE_CBLAS
         {}
         );
 
 //! Codelet for GEMM C=aAB+C
 StarpuCodelet gemmNN_codelet_fp64("nntile_gemmNN_fp64",
         &gemmNN_perfmodel_fp64,
-        {gemm_cpu<fp64_t>},
+#       ifdef NNTILE_USE_CBLAS
+            {gemm_cpu<fp64_t>},
+#       else // NNTILE_USE_CBLAS
+            {},
+#       endif // NNTILE_USE_CBLAS
         {}
         );
 
 //! Codelet for GEMM C=aAB^T+C
 StarpuCodelet gemmNT_codelet_fp32("nntile_gemmNT_fp32",
         &gemmNT_perfmodel_fp32,
-        {gemm_cpu<fp32_t>},
+#       ifdef NNTILE_USE_CBLAS
+            {gemm_cpu<fp32_t>},
+#       else // NNTILE_USE_CBLAS
+            {},
+#       endif // NNTILE_USE_CBLAS
         {}
         );
 
 //! Codelet for GEMM C=aAB^T+C
 StarpuCodelet gemmNT_codelet_fp64("nntile_gemmNT_fp64",
         &gemmNT_perfmodel_fp64,
-        {gemm_cpu<fp64_t>},
+#       ifdef NNTILE_USE_CBLAS
+            {gemm_cpu<fp64_t>},
+#       else // NNTILE_USE_CBLAS
+            {},
+#       endif // NNTILE_USE_CBLAS
         {}
         );
 
 //! Codelet for GEMM C=aA^TB+C
 StarpuCodelet gemmTN_codelet_fp32("nntile_gemmTN_fp32",
         &gemmTN_perfmodel_fp32,
-        {gemm_cpu<fp32_t>},
+#       ifdef NNTILE_USE_CBLAS
+            {gemm_cpu<fp32_t>},
+#       else // NNTILE_USE_CBLAS
+            {},
+#       endif // NNTILE_USE_CBLAS
         {}
         );
 
 //! Codelet for GEMM C=aA^TB+C
 StarpuCodelet gemmTN_codelet_fp64("nntile_gemmTN_fp64",
         &gemmTN_perfmodel_fp64,
-        {gemm_cpu<fp64_t>},
+#       ifdef NNTILE_USE_CBLAS
+            {gemm_cpu<fp64_t>},
+#       else // NNTILE_USE_CBLAS
+            {},
+#       endif // NNTILE_USE_CBLAS
         {}
         );
 
 //! Codelet for GEMM C=aA^TB^T+C
 StarpuCodelet gemmTT_codelet_fp32("nntile_gemmTT_fp32",
         &gemmTT_perfmodel_fp32,
-        {gemm_cpu<fp32_t>},
+#       ifdef NNTILE_USE_CBLAS
+            {gemm_cpu<fp32_t>},
+#       else // NNTILE_USE_CBLAS
+            {},
+#       endif // NNTILE_USE_CBLAS
         {}
         );
 
 //! Codelet for GEMM C=aA^TB^T+C
 StarpuCodelet gemmTT_codelet_fp64("nntile_gemmTT_fp64",
         &gemmTT_perfmodel_fp64,
-        {gemm_cpu<fp64_t>},
+#       ifdef NNTILE_USE_CBLAS
+            {gemm_cpu<fp64_t>},
+#       else // NNTILE_USE_CBLAS
+            {},
+#       endif // NNTILE_USE_CBLAS
         {}
         );
 
@@ -378,7 +411,7 @@ void gemm(const TransOp &transA, const TransOp &transB, Index m, Index n,
         C_mode = STARPU_RW;
     }
     // Codelet arguments
-    auto args = new gemm_starpu_args<T>
+    auto args = new gemm_args<T>
     {
         .transA = transA,
         .transB = transB,

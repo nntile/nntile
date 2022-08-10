@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-08
+ * @date 2022-08-10
  * */
 
 #include "nntile/starpu/gelu.hh"
@@ -34,12 +34,14 @@ void gelu_cpu(void *buffers[], void *cl_args)
     nntile::kernel::cpu::gelu<T>(nelems, data);
 }
 
+// No custom footprint as buffer size is enough for this purpose
 starpu_perfmodel gelu_perfmodel_fp32 =
 {
     .type = STARPU_HISTORY_BASED,
     .symbol = "nntile_gelu_fp32",
 };
 
+// No custom footprint as buffer size is enough for this purpose
 starpu_perfmodel gelu_perfmodel_fp64 =
 {
     .type = STARPU_HISTORY_BASED,
@@ -90,14 +92,14 @@ constexpr StarpuCodelet *gelu_codelet<fp64_t>()
 }
 
 template<typename T>
-void gelu(Index nelems, starpu_data_handle_t dst)
+void gelu(Index nelems, starpu_data_handle_t data)
 {
     Index *nelems_ = new Index{nelems};
-    fp64_t nflops = 5 * nelems;
+    //fp64_t nflops = 5 * nelems;
     int ret = starpu_task_insert(gelu_codelet<T>(),
-            STARPU_RW, dst,
+            STARPU_RW, data,
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
-            STARPU_FLOPS, nflops,
+            //STARPU_FLOPS, nflops,
             0);
     // Check submission
     if(ret != 0)
@@ -108,10 +110,10 @@ void gelu(Index nelems, starpu_data_handle_t dst)
 
 // Explicit instantiaion
 template
-void gelu<fp32_t>(Index nelems, starpu_data_handle_t dst);
+void gelu<fp32_t>(Index nelems, starpu_data_handle_t data);
 
 template
-void gelu<fp64_t>(Index nelems, starpu_data_handle_t dst);
+void gelu<fp64_t>(Index nelems, starpu_data_handle_t data);
 
 } // namespace starpu
 } // namespace nntile

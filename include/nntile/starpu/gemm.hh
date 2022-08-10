@@ -26,7 +26,7 @@ namespace starpu
 
 //! Structure for arguments
 template<typename T>
-struct gemm_starpu_args
+struct gemm_args
 {
     TransOp transA;
     TransOp transB;

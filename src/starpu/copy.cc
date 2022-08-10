@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-05
+ * @date 2022-08-10
  * */
 
 #include "nntile/starpu/copy.hh"
@@ -32,23 +32,39 @@ void copy_cpu(void *buffers[], void *cl_args)
             copy_shape, dst_start, dst_stride);
     // Get interfaces
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
-    // Launch kernel
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     Index *tmp_index = interfaces[2]->get_ptr<Index>();
+    // Launch kernel
     nntile::kernel::cpu::copy<T>(*ndim_ptr, src_start, src_stride, copy_shape,
             src, dst_start, dst_stride, dst, tmp_index);
+}
+
+//! Footprint for copy tasks that depend on copy shape
+static
+uint32_t copy_footprint(struct starpu_task *task)
+{
+    // Get arguments
+    const Index *ndim_ptr, *src_start, *src_stride, *copy_shape, *dst_start,
+          *dst_stride;
+    Starpu::unpack_args_ptr(task->cl_arg, ndim_ptr, src_start, src_stride,
+            copy_shape, dst_start, dst_stride);
+    std::size_t copy_shape_size = *ndim_ptr * sizeof(*copy_shape);
+    // Apply hash over parameter copy_shape
+    return starpu_hash_crc32c_be_n(copy_shape, copy_shape_size, 0);
 }
 
 starpu_perfmodel copy_perfmodel_fp32 =
 {
     .type = STARPU_HISTORY_BASED,
+    .footprint = copy_footprint,
     .symbol = "nntile_copy_fp32",
 };
 
 starpu_perfmodel copy_perfmodel_fp64 =
 {
     .type = STARPU_HISTORY_BASED,
+    .footprint = copy_footprint,
     .symbol = "nntile_copy_fp64",
 };
 

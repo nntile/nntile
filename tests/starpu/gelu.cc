@@ -4,71 +4,58 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/starpu/bias.cc
- * Bias operation on a StarPU buffer
+ * @file tests/starpu/gelu.cc
+ * GeLU operation on a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-09
+ * @date 2022-08-10
  * */
 
-#include "nntile/starpu/bias.hh"
-#include "nntile/kernel/cpu/bias.hh"
+#include "nntile/starpu/gelu.hh"
+#include "nntile/kernel/cpu/gelu.hh"
 #include <vector>
 #include <stdexcept>
 
 using namespace nntile;
 
 template<typename T>
-void validate_cpu(Index m, Index n, Index k)
+void validate_cpu(Index nelems)
 {
     // Init all the data
-    std::vector<T> src(m*n);
-    for(Index i = 0; i < m*n; ++i)
+    std::vector<T> data(nelems);
+    for(Index i = 0; i < nelems; ++i)
     {
-        src[i] = T(i+1);
-    }
-    std::vector<T> dst(m*n*k);
-    for(Index i = 0; i < m*n*k; ++i)
-    {
-        dst[i] = T(-i-1);
+        data[i] = T(i+1);
     }
     // Create copies of destination
-    std::vector<T> dst2(dst), dst3(dst);
+    std::vector<T> data2(data), data3(data);
     // Launch low-level kernel
-    kernel::cpu::bias<T>(m, n, k, &src[0], &dst[0]);
+    kernel::cpu::gelu<T>(nelems, &data[0]);
     // Launch corresponding StarPU codelet
-    starpu::bias_args args =
-    {
-        .m = m,
-        .n = n,
-        .k = k
-    };
-    StarpuVariableInterface src_interface(&src[0], sizeof(T)*m*n),
-        dst2_interface(&dst2[0], sizeof(T)*m*n*k);
-    void *buffers[2] = {&src_interface, &dst2_interface};
-    starpu::bias_cpu<T>(buffers, &args);
+    StarpuVariableInterface data2_interface(&data2[0], sizeof(T)*nelems);
+    void *buffers[1] = {&data2_interface};
+    starpu::gelu_cpu<T>(buffers, &nelems);
     // Check result
-    for(Index i = 0; i < m*n*k; ++i)
+    for(Index i = 0; i < nelems; ++i)
     {
-        if(dst[i] != dst2[i])
+        if(data[i] != data2[i])
         {
             throw std::runtime_error("StarPU codelet wrong result");
         }
     }
     // Check by actually submitting a task
-    StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n),
-        dst3_handle(&dst3[0], sizeof(T)*m*n*k);
-    starpu::bias_restrict_where(STARPU_CPU);
+    StarpuVariableHandle data3_handle(&data3[0], sizeof(T)*nelems);
+    starpu::gelu_restrict_where(STARPU_CPU);
     starpu_resume();
-    starpu::bias<T>(m, n, k, src_handle, dst3_handle);
+    starpu::gelu<T>(nelems, data3_handle);
     starpu_task_wait_for_all();
-    dst3_handle.unregister();
+    data3_handle.unregister();
     starpu_pause();
     // Check result
-    for(Index i = 0; i < m*n*k; ++i)
+    for(Index i = 0; i < nelems; ++i)
     {
-        if(dst[i] != dst3[i])
+        if(data[i] != data3[i])
         {
             throw std::runtime_error("StarPU submission wrong result");
         }
@@ -92,8 +79,12 @@ int main(int argc, char **argv)
     }
     // Launch all tests
     starpu_pause();
-    validate_cpu<fp32_t>(3, 5, 7);
-    validate_cpu<fp64_t>(3, 5, 7);
+    validate_cpu<fp32_t>(0);
+    validate_cpu<fp32_t>(1);
+    validate_cpu<fp32_t>(10000);
+    validate_cpu<fp64_t>(0);
+    validate_cpu<fp64_t>(1);
+    validate_cpu<fp64_t>(10000);
     starpu_resume();
     starpu_shutdown();
     return 0;

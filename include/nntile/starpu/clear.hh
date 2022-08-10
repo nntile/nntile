@@ -34,7 +34,7 @@ void clear_restrict_where(uint32_t where);
 void clear_restore_where();
 
 //! Insert task to clear buffer
-void clear(starpu_data_handle_t src);
+void clear(starpu_data_handle_t data);
 
 } // namespace starpu
 } // namespace nntile

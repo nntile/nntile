@@ -28,10 +28,11 @@ void clear_cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     std::size_t size = interfaces[0]->elemsize;
-    void *dst = interfaces[0]->get_ptr<void>();
-    std::memset(dst, 0, size);
+    void *data = interfaces[0]->get_ptr<void>();
+    std::memset(data, 0, size);
 }
 
+// No custom footprint as buffer size is enough for this purpose
 starpu_perfmodel clear_perfmodel =
 {
     .type = STARPU_HISTORY_BASED,
@@ -55,11 +56,11 @@ void clear_restore_where()
 }
 
 //! Insert task to clear buffer
-void clear(starpu_data_handle_t src)
+void clear(starpu_data_handle_t data)
 {
     // Submit task
     int ret = starpu_task_insert(&clear_codelet,
-            STARPU_W, src,
+            STARPU_W, data,
             0);
     // Check submission
     if(ret != 0)

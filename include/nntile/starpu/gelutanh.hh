@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-08
+ * @date 2022-08-10
  * */
 
 #pragma once
@@ -36,7 +36,7 @@ void gelutanh_restrict_where(uint32_t where);
 void gelutanh_restore_where();
 
 template<typename T>
-void gelutanh(Index nelems, starpu_data_handle_t dst);
+void gelutanh(Index nelems, starpu_data_handle_t data);
 
 } // namespace starpu
 } // namespace nntile

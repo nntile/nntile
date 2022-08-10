@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-08
+ * @date 2022-08-10
  * */
 
 #include "nntile/starpu/gelutanh.hh"
@@ -34,12 +34,14 @@ void gelutanh_cpu(void *buffers[], void *cl_args)
     nntile::kernel::cpu::gelutanh<T>(nelems, data);
 }
 
+// No custom footprint as buffer size is enough for this purpose
 starpu_perfmodel gelutanh_perfmodel_fp32 =
 {
     .type = STARPU_HISTORY_BASED,
     .symbol = "nntile_gelutanh_fp32",
 };
 
+// No custom footprint as buffer size is enough for this purpose
 starpu_perfmodel gelutanh_perfmodel_fp64 =
 {
     .type = STARPU_HISTORY_BASED,
@@ -90,14 +92,14 @@ constexpr StarpuCodelet *gelutanh_codelet<fp64_t>()
 }
 
 template<typename T>
-void gelutanh(Index nelems, starpu_data_handle_t dst)
+void gelutanh(Index nelems, starpu_data_handle_t data)
 {
     Index *nelems_ = new Index{nelems};
-    fp64_t nflops = 5 * nelems;
+    //fp64_t nflops = 5 * nelems;
     int ret = starpu_task_insert(gelutanh_codelet<T>(),
-            STARPU_RW, dst,
+            STARPU_RW, data,
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
-            STARPU_FLOPS, nflops,
+            //STARPU_FLOPS, nflops,
             0);
     // Check submission
     if(ret != 0)
@@ -108,10 +110,10 @@ void gelutanh(Index nelems, starpu_data_handle_t dst)
 
 // Explicit instantiaion
 template
-void gelutanh<fp32_t>(Index nelems, starpu_data_handle_t dst);
+void gelutanh<fp32_t>(Index nelems, starpu_data_handle_t data);
 
 template
-void gelutanh<fp64_t>(Index nelems, starpu_data_handle_t dst);
+void gelutanh<fp64_t>(Index nelems, starpu_data_handle_t data);
 
 } // namespace starpu
 } // namespace nntile

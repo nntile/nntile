@@ -1,0 +1,188 @@
+/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+ *                           (Skoltech). All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file tests/starpu/gemm.cc.in
+ * GEMM operation for StarPU buffers
+ *
+ * @version 1.0.0
+ * @author Aleksandr Mikhalev
+ * @date 2022-08-10
+ * */
+
+#include "nntile/starpu/gemm.hh"
+#include <vector>
+#include <stdexcept>
+
+using namespace nntile;
+
+#ifdef NNTILE_USE_CBLAS
+
+#include <@CBLAS_H_NAME@>
+
+#ifndef CBLAS_INT
+#   define CBLAS_INT @CBLAS_INT_TYPE@
+#endif
+
+// Overloaded call to CBLAS GEMM
+static inline
+void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
+        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp32_t alpha, const fp32_t *A,
+        CBLAS_INT ldA, const fp32_t *B, CBLAS_INT ldB, fp32_t beta, fp32_t *C,
+        CBLAS_INT ldC)
+    noexcept
+{
+    cblas_sgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
+            beta, C, ldC);
+}
+
+// Overloaded call to CBLAS GEMM
+static inline
+void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
+        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp64_t alpha, const fp64_t *A,
+        CBLAS_INT ldA, const fp64_t *B, CBLAS_INT ldB, fp64_t beta, fp64_t *C,
+        CBLAS_INT ldC)
+    noexcept
+{
+    cblas_dgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
+            beta, C, ldC);
+}
+
+template<typename T>
+void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
+        T alpha, T beta)
+{
+    // Init all the data
+    std::vector<T> A(m*k), B(n*k), C(m*n);
+    for(Index i = 0; i < m*k; ++i)
+    {
+        A[i] = T(i+1);
+    }
+    for(Index i = 0; i < n*k; ++i)
+    {
+        B[i] = T(-i-1);
+    }
+    for(Index i = 0; i < m*n; ++i)
+    {
+        C[i] = T(2*i+1);
+    }
+    // Create copies of C
+    std::vector<T> C2(C), C3(C);
+    // Launch low-level kernel
+    CBLAS_TRANSPOSE transA_, transB_;
+    Index ldA, ldB;
+    switch(transA.value)
+    {
+        case TransOp::NoTrans:
+            transA_ = CblasNoTrans;
+            ldA = m;
+            break;
+        case TransOp::Trans:
+            transA_ = CblasTrans;
+            ldA = k;
+    }
+    switch(transB.value)
+    {
+        case TransOp::NoTrans:
+            transB_ = CblasNoTrans;
+            ldB = k;
+            break;
+        case TransOp::Trans:
+            transB_ = CblasTrans;
+            ldB = n;
+    }
+    cblas_gemm(transA_, transB_, m, n, k, alpha, &A[0], ldA, &B[0], ldB, beta,
+            &C[0], m);
+    // Launch corresponding StarPU codelet
+    starpu::gemm_args<T> args =
+    {
+        .transA = transA,
+        .transB = transB,
+        .m = m,
+        .n = n,
+        .k = k,
+        .alpha = alpha,
+        .beta = beta
+    };
+    StarpuVariableInterface A_interface(&A[0], sizeof(T)*m*k),
+        B_interface(&B[0], sizeof(T)*n*k), C2_interface(&C2[0], sizeof(T)*m*n);
+    void *buffers[3] = {&A_interface, &B_interface, &C2_interface};
+    starpu::gemm_cpu<T>(buffers, &args);
+    // Check result
+    for(Index i = 0; i < m*n; ++i)
+    {
+        if(C[i] != C2[i])
+        {
+            throw std::runtime_error("StarPU codelet wrong result");
+        }
+    }
+    // Check by actually submitting a task
+    StarpuVariableHandle A_handle(&A[0], sizeof(T)*m*k),
+        B_handle(&B[0], sizeof(T)*n*k), C3_handle(&C3[0], sizeof(T)*m*n);
+    starpu::gemm_restrict_where(STARPU_CPU);
+    starpu_resume();
+    starpu::gemm<T>(transA, transB, m, n, k, alpha, A_handle, B_handle, beta,
+            C3_handle);
+    starpu_task_wait_for_all();
+    C3_handle.unregister();
+    starpu_pause();
+    // Check result
+    for(Index i = 0; i < m*n; ++i)
+    {
+        if(C[i] != C3[i])
+        {
+            throw std::runtime_error("StarPU submission wrong result");
+        }
+    }
+}
+
+template<typename T>
+void validate_cpu_many()
+{
+    TransOp trans[2] = {TransOp::NoTrans, TransOp::Trans};
+    T alpha[3] = {0, 1, -3};
+    T beta[3] = {0, 1, 2};
+    for(auto transA: trans)
+    {
+        for(auto transB: trans)
+        {
+            for(T a: alpha)
+            {
+                for(T b: beta)
+                {
+                    validate_cpu<T>(transA, transB, 10, 6, 3, a, b);
+                }
+            }
+        }
+    }
+}
+#endif // NNTILE_USE_CBLAS
+
+int main(int argc, char **argv)
+{
+    // Init StarPU configuration and set number of CPU workers to 1
+    starpu_conf conf;
+    int ret = starpu_conf_init(&conf);
+    if(ret != 0)
+    {
+        throw std::runtime_error("starpu_conf_init error");
+    }
+    conf.ncpus = 1;
+    ret = starpu_init(&conf);
+    if(ret != 0)
+    {
+        throw std::runtime_error("starpu_init error");
+    }
+    // Launch all tests
+    starpu_pause();
+#   ifdef NNTILE_USE_CBLAS
+        validate_cpu_many<fp32_t>();
+        validate_cpu_many<fp64_t>();
+#   endif // NNTILE_USE_CBLAS
+    starpu_resume();
+    starpu_shutdown();
+    return 0;
+}
+

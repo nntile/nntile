@@ -104,6 +104,10 @@ configure_file("include/nntile/defs.h.in"
 configure_file("src/starpu/gemm.cc.in"
     "${CMAKE_BINARY_DIR}/src/starpu/gemm.cc" @ONLY)
 
+# Configure tests/starpu/gemm.cc that relies on cblas
+configure_file("tests/starpu/gemm.cc.in"
+    "${CMAKE_BINARY_DIR}/tests/starpu/gemm.cc" @ONLY)
+
 # Add directory with the sources
 add_subdirectory("src")
 
