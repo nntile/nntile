@@ -18,9 +18,9 @@ set(TESTS
     "copy"
     "gelu"
     "gelutanh"
-    #"randn"
-    #"sumnorm"
-    #"normalize"
+    "normalize"
+    "randn"
+    "sumnorm"
     )
 
 foreach(test IN LISTS TESTS)

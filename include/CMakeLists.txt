@@ -23,17 +23,22 @@ set(KERNEL_HDR
     "nntile/kernel/cpu/copy.hh"
     "nntile/kernel/cpu/gelu.hh"
     "nntile/kernel/cpu/gelutanh.hh"
+    "nntile/kernel/cpu/normalize.hh"
     "nntile/kernel/cpu/randn.hh"
     "nntile/kernel/cpu/sumnorm.hh"
-    "nntile/kernel/cpu/normalize.hh"
     )
 
 set(STARPU_HDR
     "nntile/starpu.hh"
     "nntile/starpu/bias.hh"
-    #"nntile/starpu/clear.hh"
-    #"nntile/starpu/copy.hh"
-    #"nntile/starpu/gelu.hh"
+    "nntile/starpu/clear.hh"
+    "nntile/starpu/copy.hh"
+    "nntile/starpu/gelu.hh"
+    "nntile/starpu/gelutanh.hh"
+    "nntile/starpu/gemm.hh"
+    "nntile/starpu/normalize.hh"
+    "nntile/starpu/randn.hh"
+    "nntile/starpu/sumnorm.hh"
     )
 
 set(TILE_HDR

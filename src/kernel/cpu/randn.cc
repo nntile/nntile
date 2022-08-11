@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-09
+ * @date 2022-08-11
  * */
 
 #include "nntile/kernel/cpu/randn.hh"
@@ -90,7 +90,7 @@ void randn(Index ndim, Index nelems, unsigned long long seed,
     for(Index i = 0; i < nrows; ++i)
     {
         *data = chameleon_randn(seed, mean, stddev);
-        ++data;
+        data += stride[0];
     }
     // Init temporary index
     for(Index i = 0; i < ndim; ++i)
@@ -110,7 +110,7 @@ void randn(Index ndim, Index nelems, unsigned long long seed,
         // Init stride for the current dimension
         Index underlying_stride = underlying_shape[0];
         // Update pointer to the current buffer element
-        data += stride[1] - nrows;
+        data += stride[1] - stride[0]*nrows;
         // Check if currently stored index is out-of-bounds
         while(tmp_index[k] == shape[k])
         {
@@ -133,7 +133,7 @@ void randn(Index ndim, Index nelems, unsigned long long seed,
         for(Index i = 0; i < nrows; ++i)
         {
             *data = chameleon_randn(seed, mean, stddev);
-            ++data;
+            data += stride[0];
         }
     }
 }

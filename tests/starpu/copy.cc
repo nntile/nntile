@@ -104,6 +104,7 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
         tmp_interface(&tmp_index[0], sizeof(Index)*NDIM*2);
     void *buffers[3] = {&src_interface, &dst2_interface, &tmp_interface};
     starpu::copy_cpu<T>(buffers, args);
+    free(args);
     // Check result
     for(Index i = 0; i < dst_nelems; ++i)
     {

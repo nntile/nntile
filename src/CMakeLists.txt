@@ -17,9 +17,9 @@ set(KERNEL_SRC
     "kernel/cpu/copy.cc"
     "kernel/cpu/gelu.cc"
     "kernel/cpu/gelutanh.cc"
+    "kernel/cpu/normalize.cc"
     "kernel/cpu/randn.cc"
     "kernel/cpu/sumnorm.cc"
-    "kernel/cpu/normalize.cc"
     )
 
 set(STARPU_SRC
@@ -29,6 +29,9 @@ set(STARPU_SRC
     "starpu/gelu.cc"
     "starpu/gelutanh.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"
+    "starpu/normalize.cc"
+    "starpu/randn.cc"
+    "starpu/sumnorm.cc"
     )
 
 set(TILE_SRC

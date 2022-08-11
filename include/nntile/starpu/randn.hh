@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-04
+ * @date 2022-08-11
  * */
 
 #pragma once
@@ -36,9 +36,10 @@ void randn_restrict_where(uint32_t where);
 void randn_restore_where();
 
 template<typename T>
-void randn(Index ndim, Index nelems, unsigned long long seed, T mean, T stddev,
+void randn(Index ndim, Index nelems, unsigned long long seed,
+        T mean, T stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
-        const std::vector<Index> &underlying_stride, starpu_data_handle_t dst,
+        const std::vector<Index> &underlying_shape, starpu_data_handle_t data,
         starpu_data_handle_t tmp_index);
 
 } // namespace starpu

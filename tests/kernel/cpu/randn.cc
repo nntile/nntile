@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-09
+ * @date 2022-08-11
  * */
 
 #include "nntile/kernel/cpu/randn.hh"
@@ -171,14 +171,17 @@ void validate_part(std::array<Index, NDIM> underlying_shape,
     unsigned long long seed = -1;
     // Init strides
     std::array<Index, NDIM> stride, tmp_index;
-    stride[0] = 1;
+    stride[0] = 2;
     Index underlying_nelems = underlying_shape[0];
+    Index nelems = shape[0];
+    Index size = (shape[0]-1)*stride[0] + 1;
     for(Index i = 1; i < NDIM; ++i)
     {
-        stride[i] = stride[i-1] * shape[i-1];
+        stride[i] = stride[i-1]*shape[i-1] + 1; // Stride is larger than needed
         underlying_nelems *= underlying_shape[i];
+        nelems *= shape[i];
+        size += (shape[i]-1) * stride[i];
     }
-    Index nelems = stride[NDIM-1] * shape[NDIM-1];
     // Init reference array
     std::vector<T> underlying_array(underlying_nelems);
     unsigned long long seed2 = seed;
@@ -186,7 +189,11 @@ void validate_part(std::array<Index, NDIM> underlying_shape,
     {
         underlying_array[i] = chameleon_randn(seed2, mean, stddev);
     }
-    std::vector<T> data_ref(nelems);
+    // Run kernel
+    std::vector<T> data(size);
+    randn<T>(NDIM, nelems, seed, mean, stddev, &start[0], &shape[0],
+            &underlying_shape[0], &data[0], &stride[0], &tmp_index[0]);
+    // Check if the result is the same as the reference one
     for(Index i = 0; i < nelems; ++i)
     {
         // Get index of the current element within output array
@@ -203,25 +210,23 @@ void validate_part(std::array<Index, NDIM> underlying_shape,
         {
             underlying_index[j] = index[j] + start[j];
         }
-        // Convert index to offset
-        offset = underlying_index[NDIM-1];
+        // Convert underlying index to underlying memory offset
+        Index underlying_offset = underlying_index[NDIM-1];
         for(Index j = NDIM-2; j >= 0; --j)
         {
-            offset = underlying_index[j] + offset*underlying_shape[j];
+            underlying_offset = underlying_index[j]
+                + underlying_offset*underlying_shape[j];
         }
-        // Set reference array
-        data_ref[i] = underlying_array[offset];
-    }
-    // Run kernel
-    std::vector<T> data(nelems);
-    randn<T>(NDIM, nelems, seed, mean, stddev, &start[0], &shape[0],
-            &underlying_shape[0], &data[0], &stride[0], &tmp_index[0]);
-    // Check if the result is the same as the reference one
-    for(Index i = 0; i < nelems; ++i)
-    {
-        if(data[i] != data_ref[i])
+        // Convert index to memory offset
+        offset = 0;
+        for(Index j = 0; j < NDIM; ++j)
         {
-            throw std::runtime_error("Full array generation error");
+            offset += stride[j] * index[j];
+        }
+        // Compare results
+        if(data[offset] != underlying_array[underlying_offset])
+        {
+            throw std::runtime_error("Part array generation error");
         }
     }
 }
