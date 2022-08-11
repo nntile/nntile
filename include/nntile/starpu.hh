@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-11
  * */
 
 #pragma once
@@ -341,63 +341,25 @@ public:
     }
 };
 
-//! Convenient registration and deregistration of data through StarPU handle
-class StarpuNDimHandle: public StarpuHandle
-{
-    //! Register variable for starpu-owned memory
-    static starpu_data_handle_t _reg_data(std::vector<uint32_t> &shape,
-            std::vector<uint32_t> &stride, size_t elem_size)
-    {
-        starpu_data_handle_t tmp;
-        // Register StarPU handle
-        starpu_ndim_data_register(&tmp, -1, 0, &stride[0], &shape[0],
-                shape.size(), elem_size);
-        return tmp;
-    }
-    //! Register variable
-    static starpu_data_handle_t _reg_data(uintptr_t ptr,
-            std::vector<uint32_t> &shape, std::vector<uint32_t> &stride,
-            size_t elem_size)
-    {
-        starpu_data_handle_t tmp;
-        // Register StarPU handle
-        starpu_ndim_data_register(&tmp, STARPU_MAIN_RAM, ptr, &stride[0],
-                &shape[0], shape.size(), elem_size);
-        return tmp;
-    }
-public:
-    //! Constructor for temporary variable that is (de)allocated by starpu
-    StarpuNDimHandle(std::vector<uint32_t> shape, std::vector<uint32_t> stride,
-            size_t elem_size):
-        StarpuHandle(_reg_data(shape, stride, elem_size), STARPU_SCRATCH)
-    {
-    }
-    //! Constructor for variable that is (de)allocated by user
-    StarpuNDimHandle(uintptr_t ptr, std::vector<uint32_t> shape,
-            std::vector<uint32_t> stride, size_t elem_size,
-            enum starpu_data_access_mode mode=STARPU_RW):
-        StarpuHandle(_reg_data(ptr, shape, stride, elem_size), mode)
-    {
-    }
-};
-
-//! StarPU codelet wrapper
-class StarpuCodelet: public starpu_codelet
+//! StarPU codelet+perfmodel wrapper
+class StarpuCodelet: public starpu_codelet, public starpu_perfmodel
 {
 private:
     uint32_t where_default;
 public:
-    StarpuCodelet(const char *name_, starpu_perfmodel *perfmodel,
+    StarpuCodelet(const char *name_, uint32_t (*footprint_)(starpu_task *),
             std::initializer_list<starpu_cpu_func_t> cpu_funcs_,
             std::initializer_list<starpu_cuda_func_t> cuda_funcs_)
     {
-        // Initialize codelet
+        // Initialize codelet + perfmodel
         std::memset(this, 0, sizeof(*this));
-        // Set its name and performance model
-        name = name_;
-        model = perfmodel;
+        // Set codelet name and performance model symbol
+        starpu_codelet::name = name_;
+        starpu_perfmodel::symbol = name_;
+        // Set footprint function
+        starpu_perfmodel::footprint = footprint_;
         // Runtime decision on number of buffers and modes
-        nbuffers = STARPU_VARIABLE_NBUFFERS;
+        starpu_codelet::nbuffers = STARPU_VARIABLE_NBUFFERS;
         // Add CPU implementations
         if(cpu_funcs_.size() > STARPU_MAXIMPLEMENTATIONS)
         {
@@ -410,8 +372,8 @@ public:
             {
                 if(*it)
                 {
-                    cpu_funcs[i] = *it;
-                    where = where_default = STARPU_CPU;
+                    starpu_codelet::cpu_funcs[i] = *it;
+                    starpu_codelet::where = where_default = STARPU_CPU;
                 }
             }
         }
@@ -427,23 +389,24 @@ public:
             {
                 if(*it)
                 {
-                    cuda_funcs[i] = *it;
-                    cuda_flags[i] = STARPU_CUDA_ASYNC;
-                    where = where_default = where_default | STARPU_CUDA;
+                    starpu_codelet::cuda_funcs[i] = *it;
+                    starpu_codelet::cuda_flags[i] = STARPU_CUDA_ASYNC;
+                    where_default = where_default | STARPU_CUDA;
+                    starpu_codelet::where = where_default;
                 }
             }
         }
     }
     void restrict_where(uint32_t where_)
     {
-        if((where & where_) == where_)
+        if((starpu_codelet::where & where_) == where_)
         {
-            where = where_;
+            starpu_codelet::where = where_;
         }
     }
     void restore_where()
     {
-        where = where_default;
+        starpu_codelet::where = where_default;
     }
 };
 

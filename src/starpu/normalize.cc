@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-10
+ * @date 2022-08-11
  * */
 
 #include "nntile/starpu/normalize.hh"
@@ -55,28 +55,14 @@ uint32_t normalize_footprint(struct starpu_task *task)
     return hash;
 }
 
-starpu_perfmodel normalize_perfmodel_fp32 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = normalize_footprint<fp32_t>,
-    .symbol = "nntile_normalize_fp32",
-};
-
-starpu_perfmodel normalize_perfmodel_fp64 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = normalize_footprint<fp64_t>,
-    .symbol = "nntile_normalize_fp64",
-};
-
 StarpuCodelet normalize_codelet_fp32("nntile_normalize_fp32",
-        &normalize_perfmodel_fp32,
+        normalize_footprint<fp32_t>,
         {normalize_cpu<fp32_t>},
         {}
         );
 
 StarpuCodelet normalize_codelet_fp64("nntile_normalize_fp64",
-        &normalize_perfmodel_fp64,
+        normalize_footprint<fp64_t>,
         {normalize_cpu<fp64_t>},
         {}
         );

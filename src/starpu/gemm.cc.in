@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-10
+ * @date 2022-08-11
  * */
 
 #include "nntile/starpu/gemm.hh"
@@ -117,73 +117,9 @@ uint32_t gemm_footprint(struct starpu_task *task)
     return hash;
 }
 
-//! Performance model for GEMM C=aAB+bC
-starpu_perfmodel gemmNN_perfmodel_fp32 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = gemm_footprint<fp32_t>,
-    .symbol = "nntile_gemmNN_fp32",
-};
-
-//! Performance model for GEMM C=aAB+bC
-starpu_perfmodel gemmNN_perfmodel_fp64 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = gemm_footprint<fp64_t>,
-    .symbol = "nntile_gemmNN_fp64",
-};
-
-//! Performance model for GEMM C=aAB^T+bC
-starpu_perfmodel gemmNT_perfmodel_fp32 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = gemm_footprint<fp32_t>,
-    .symbol = "nntile_gemmNT_fp32",
-};
-
-//! Performance model for GEMM C=aAB^T+bC
-starpu_perfmodel gemmNT_perfmodel_fp64 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = gemm_footprint<fp64_t>,
-    .symbol = "nntile_gemmNT_fp64",
-};
-
-//! Performance model for GEMM C=aA^TB+bC
-starpu_perfmodel gemmTN_perfmodel_fp32 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = gemm_footprint<fp32_t>,
-    .symbol = "nntile_gemmTN_fp32",
-};
-
-//! Performance model for GEMM C=aA^TB+bC
-starpu_perfmodel gemmTN_perfmodel_fp64 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = gemm_footprint<fp64_t>,
-    .symbol = "nntile_gemmTN_fp64",
-};
-
-//! Performance model for GEMM C=aA^TB^T+bC
-starpu_perfmodel gemmTT_perfmodel_fp32 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = gemm_footprint<fp32_t>,
-    .symbol = "nntile_gemmTT_fp32",
-};
-
-//! Performance model for GEMM C=aA^TB^T+bC
-starpu_perfmodel gemmTT_perfmodel_fp64 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = gemm_footprint<fp64_t>,
-    .symbol = "nntile_gemmTT_fp64",
-};
-
 //! Codelet for GEMM C=aAB+C
 StarpuCodelet gemmNN_codelet_fp32("nntile_gemmNN_fp32",
-        &gemmNN_perfmodel_fp32,
+        gemm_footprint<fp32_t>,
 #       ifdef NNTILE_USE_CBLAS
             {gemm_cpu<fp32_t>},
 #       else // NNTILE_USE_CBLAS
@@ -194,7 +130,7 @@ StarpuCodelet gemmNN_codelet_fp32("nntile_gemmNN_fp32",
 
 //! Codelet for GEMM C=aAB+C
 StarpuCodelet gemmNN_codelet_fp64("nntile_gemmNN_fp64",
-        &gemmNN_perfmodel_fp64,
+        gemm_footprint<fp64_t>,
 #       ifdef NNTILE_USE_CBLAS
             {gemm_cpu<fp64_t>},
 #       else // NNTILE_USE_CBLAS
@@ -205,7 +141,7 @@ StarpuCodelet gemmNN_codelet_fp64("nntile_gemmNN_fp64",
 
 //! Codelet for GEMM C=aAB^T+C
 StarpuCodelet gemmNT_codelet_fp32("nntile_gemmNT_fp32",
-        &gemmNT_perfmodel_fp32,
+        gemm_footprint<fp32_t>,
 #       ifdef NNTILE_USE_CBLAS
             {gemm_cpu<fp32_t>},
 #       else // NNTILE_USE_CBLAS
@@ -216,7 +152,7 @@ StarpuCodelet gemmNT_codelet_fp32("nntile_gemmNT_fp32",
 
 //! Codelet for GEMM C=aAB^T+C
 StarpuCodelet gemmNT_codelet_fp64("nntile_gemmNT_fp64",
-        &gemmNT_perfmodel_fp64,
+        gemm_footprint<fp64_t>,
 #       ifdef NNTILE_USE_CBLAS
             {gemm_cpu<fp64_t>},
 #       else // NNTILE_USE_CBLAS
@@ -227,7 +163,7 @@ StarpuCodelet gemmNT_codelet_fp64("nntile_gemmNT_fp64",
 
 //! Codelet for GEMM C=aA^TB+C
 StarpuCodelet gemmTN_codelet_fp32("nntile_gemmTN_fp32",
-        &gemmTN_perfmodel_fp32,
+        gemm_footprint<fp32_t>,
 #       ifdef NNTILE_USE_CBLAS
             {gemm_cpu<fp32_t>},
 #       else // NNTILE_USE_CBLAS
@@ -238,7 +174,7 @@ StarpuCodelet gemmTN_codelet_fp32("nntile_gemmTN_fp32",
 
 //! Codelet for GEMM C=aA^TB+C
 StarpuCodelet gemmTN_codelet_fp64("nntile_gemmTN_fp64",
-        &gemmTN_perfmodel_fp64,
+        gemm_footprint<fp64_t>,
 #       ifdef NNTILE_USE_CBLAS
             {gemm_cpu<fp64_t>},
 #       else // NNTILE_USE_CBLAS
@@ -249,7 +185,7 @@ StarpuCodelet gemmTN_codelet_fp64("nntile_gemmTN_fp64",
 
 //! Codelet for GEMM C=aA^TB^T+C
 StarpuCodelet gemmTT_codelet_fp32("nntile_gemmTT_fp32",
-        &gemmTT_perfmodel_fp32,
+        gemm_footprint<fp32_t>,
 #       ifdef NNTILE_USE_CBLAS
             {gemm_cpu<fp32_t>},
 #       else // NNTILE_USE_CBLAS
@@ -260,7 +196,7 @@ StarpuCodelet gemmTT_codelet_fp32("nntile_gemmTT_fp32",
 
 //! Codelet for GEMM C=aA^TB^T+C
 StarpuCodelet gemmTT_codelet_fp64("nntile_gemmTT_fp64",
-        &gemmTT_perfmodel_fp64,
+        gemm_footprint<fp64_t>,
 #       ifdef NNTILE_USE_CBLAS
             {gemm_cpu<fp64_t>},
 #       else // NNTILE_USE_CBLAS

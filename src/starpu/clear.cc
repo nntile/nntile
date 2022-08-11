@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-05
+ * @date 2022-08-11
  * */
 
 #include "nntile/starpu/clear.hh"
@@ -32,15 +32,8 @@ void clear_cpu(void *buffers[], void *cl_args)
     std::memset(data, 0, size);
 }
 
-// No custom footprint as buffer size is enough for this purpose
-starpu_perfmodel clear_perfmodel =
-{
-    .type = STARPU_HISTORY_BASED,
-    .symbol = "nntile_clear",
-};
-
 StarpuCodelet clear_codelet("nntile_clear",
-        &clear_perfmodel,
+        nullptr,
         {clear_cpu},
         {}
         );

@@ -59,27 +59,13 @@ uint32_t randn_footprint(struct starpu_task *task)
     return starpu_hash_crc32c_be_n(shape, shape_size, 0);
 }
 
-starpu_perfmodel randn_perfmodel_fp32 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = randn_footprint<fp32_t>,
-    .symbol = "nntile_randn_fp32",
-};
-
-starpu_perfmodel randn_perfmodel_fp64 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = randn_footprint<fp64_t>,
-    .symbol = "nntile_randn_fp64",
-};
-
 StarpuCodelet randn_codelet_fp32("nntile_randn_fp32",
-        &randn_perfmodel_fp32,
+        randn_footprint<fp32_t>,
         {randn_cpu<fp32_t>},
         {});
 
 StarpuCodelet randn_codelet_fp64("nntile_randn_fp64",
-        &randn_perfmodel_fp64,
+        randn_footprint<fp64_t>,
         {randn_cpu<fp64_t>},
         {});
 

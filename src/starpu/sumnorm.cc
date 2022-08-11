@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-10
+ * @date 2022-08-11
  * */
 
 #include "nntile/starpu/sumnorm.hh"
@@ -51,28 +51,14 @@ uint32_t sumnorm_footprint(struct starpu_task *task)
     return hash;
 }
 
-starpu_perfmodel sumnorm_perfmodel_fp32 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = sumnorm_footprint,
-    .symbol = "nntile_sumnorm_fp32",
-};
-
-starpu_perfmodel sumnorm_perfmodel_fp64 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = sumnorm_footprint,
-    .symbol = "nntile_sumnorm_fp64",
-};
-
 StarpuCodelet sumnorm_codelet_fp32("nntile_sumnorm_fp32",
-        &sumnorm_perfmodel_fp32,
+        sumnorm_footprint,
         {sumnorm_cpu<fp32_t>},
         {}
         );
 
 StarpuCodelet sumnorm_codelet_fp64("nntile_sumnorm_fp64",
-        &sumnorm_perfmodel_fp64,
+        sumnorm_footprint,
         {sumnorm_cpu<fp64_t>},
         {}
         );

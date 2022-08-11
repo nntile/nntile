@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-09
+ * @date 2022-08-11
  * */
 
 #include "nntile/starpu/bias.hh"
@@ -51,28 +51,14 @@ uint32_t bias_footprint(struct starpu_task *task)
     return hash;
 }
 
-starpu_perfmodel bias_perfmodel_fp32 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = bias_footprint,
-    .symbol = "nntile_bias_fp32",
-};
-
-starpu_perfmodel bias_perfmodel_fp64 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = bias_footprint,
-    .symbol = "nntile_bias_fp64",
-};
-
 StarpuCodelet bias_codelet_fp32("nntile_bias_fp32",
-        &bias_perfmodel_fp32,
+        bias_footprint,
         {bias_cpu<fp32_t>},
         {}
         );
 
 StarpuCodelet bias_codelet_fp64("nntile_bias_fp64",
-        &bias_perfmodel_fp64,
+        bias_footprint,
         {bias_cpu<fp64_t>},
         {}
         );

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-10
+ * @date 2022-08-11
  * */
 
 #include "nntile/starpu/copy.hh"
@@ -54,28 +54,14 @@ uint32_t copy_footprint(struct starpu_task *task)
     return starpu_hash_crc32c_be_n(copy_shape, copy_shape_size, 0);
 }
 
-starpu_perfmodel copy_perfmodel_fp32 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = copy_footprint,
-    .symbol = "nntile_copy_fp32",
-};
-
-starpu_perfmodel copy_perfmodel_fp64 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .footprint = copy_footprint,
-    .symbol = "nntile_copy_fp64",
-};
-
 StarpuCodelet copy_codelet_fp32("nntile_copy_fp32",
-        &copy_perfmodel_fp32,
+        copy_footprint,
         {copy_cpu<fp32_t>},
         {}
         );
 
 StarpuCodelet copy_codelet_fp64("nntile_copy_fp64",
-        &copy_perfmodel_fp64,
+        copy_footprint,
         {copy_cpu<fp64_t>},
         {}
         );

@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-10
+# @date 2022-08-11
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -34,13 +34,15 @@ foreach(test IN LISTS TESTS)
         )
 endforeach()
 
-# Explicitly add gemm test since it waas generated from gemm.cc.in
-add_test_set(TARGET_NAME tests_starpu_gemm
-    EXEC_NAME test_gemm
-    SOURCES "${CMAKE_CURRENT_BINARY_DIR}/gemm.cc"
-    LINK_LIBRARIES nntile BLAS::BLAS
-    COV_ENABLE ${BUILD_COVERAGE}
-    COV_NAME coverage_starpu_gemm
-    COV_GLOBAL coverage
-    )
+if(NNTILE_USE_CBLAS)
+    # Explicitly add gemm test since it was generated from gemm.cc.in
+    add_test_set(TARGET_NAME tests_starpu_gemm
+        EXEC_NAME test_gemm
+        SOURCES "${CMAKE_CURRENT_BINARY_DIR}/gemm.cc"
+        LINK_LIBRARIES nntile BLAS::BLAS
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_starpu_gemm
+        COV_GLOBAL coverage
+        )
+endif()
 

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-10
+ * @date 2022-08-11
  * */
 
 #include "nntile/starpu/gelu.hh"
@@ -34,28 +34,14 @@ void gelu_cpu(void *buffers[], void *cl_args)
     nntile::kernel::cpu::gelu<T>(nelems, data);
 }
 
-// No custom footprint as buffer size is enough for this purpose
-starpu_perfmodel gelu_perfmodel_fp32 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .symbol = "nntile_gelu_fp32",
-};
-
-// No custom footprint as buffer size is enough for this purpose
-starpu_perfmodel gelu_perfmodel_fp64 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .symbol = "nntile_gelu_fp64",
-};
-
 StarpuCodelet gelu_codelet_fp32("nntile_gelu_fp32",
-        &gelu_perfmodel_fp32,
+        nullptr,
         {gelu_cpu<fp32_t>},
         {}
         );
 
 StarpuCodelet gelu_codelet_fp64("nntile_gelu_fp64",
-        &gelu_perfmodel_fp64,
+        nullptr,
         {gelu_cpu<fp64_t>},
         {}
         );

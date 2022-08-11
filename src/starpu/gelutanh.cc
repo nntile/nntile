@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-10
+ * @date 2022-08-11
  * */
 
 #include "nntile/starpu/gelutanh.hh"
@@ -34,28 +34,14 @@ void gelutanh_cpu(void *buffers[], void *cl_args)
     nntile::kernel::cpu::gelutanh<T>(nelems, data);
 }
 
-// No custom footprint as buffer size is enough for this purpose
-starpu_perfmodel gelutanh_perfmodel_fp32 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .symbol = "nntile_gelutanh_fp32",
-};
-
-// No custom footprint as buffer size is enough for this purpose
-starpu_perfmodel gelutanh_perfmodel_fp64 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .symbol = "nntile_gelutanh_fp64",
-};
-
 StarpuCodelet gelutanh_codelet_fp32("nntile_gelutanh_fp32",
-        &gelutanh_perfmodel_fp32,
+        nullptr,
         {gelutanh_cpu<fp32_t>},
         {}
         );
 
 StarpuCodelet gelutanh_codelet_fp64("nntile_gelutanh_fp64",
-        &gelutanh_perfmodel_fp64,
+        nullptr,
         {gelutanh_cpu<fp64_t>},
         {}
         );

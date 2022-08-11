@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-10
+ * @date 2022-08-11
  * */
 
 #pragma once
@@ -34,8 +34,6 @@ struct sumnorm_args
 template<typename T>
 void sumnorm_cpu(void *buffers[], void *cl_args)
     noexcept;
-
-extern starpu_perfmodel sumnorm_perfmodel_fp32, sumnorm_perfmodel_fp64;
 
 extern StarpuCodelet sumnorm_codelet_fp32, sumnorm_codelet_fp64;
 

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-05
+ * @date 2022-08-11
  * */
 
 #pragma once
@@ -34,8 +34,6 @@ struct bias_args
 template<typename T>
 void bias_cpu(void *buffers[], void *cl_args)
     noexcept;
-
-extern starpu_perfmodel bias_perfmodel_fp32, bias_perfmodel_fp64;
 
 extern StarpuCodelet bias_codelet_fp32, bias_codelet_fp64;
 

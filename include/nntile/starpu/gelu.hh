@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-10
+ * @date 2022-08-11
  * */
 
 #pragma once
@@ -26,8 +26,6 @@ namespace starpu
 template<typename T>
 void gelu_cpu(void *buffers[], void *cl_args)
     noexcept;
-
-extern starpu_perfmodel gelu_perfmodel_fp32, gelu_perfmodel_fp64;
 
 extern StarpuCodelet gelu_codelet_fp32, gelu_codelet_fp64;
 

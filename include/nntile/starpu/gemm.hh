@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-08
+ * @date 2022-08-11
  * */
 
 #pragma once
@@ -42,11 +42,6 @@ template<typename T>
 void gemm_cpu(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CBLAS
-
-extern starpu_perfmodel gemmNN_perfmodel_fp32, gemmNN_perfmodel_fp64,
-       gemmNT_perfmodel_fp32, gemmNT_perfmodel_fp64,
-       gemmTN_perfmodel_fp32, gemmTN_perfmodel_fp64,
-       gemmTT_perfmodel_fp32, gemmTT_perfmodel_fp64;
 
 extern StarpuCodelet gemmNN_codelet_fp32, gemmNN_codelet_fp64,
        gemmNT_codelet_fp32, gemmNT_codelet_fp64,

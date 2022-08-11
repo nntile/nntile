@@ -27,8 +27,6 @@ template<typename T>
 void randn_cpu(void *buffers[], void *cl_args)
     noexcept;
 
-extern starpu_perfmodel randn_perfmodel_fp32, randn_perfmodel_fp64;
-
 extern StarpuCodelet randn_codelet_fp32, randn_codelet_fp64;
 
 void randn_restrict_where(uint32_t where);
