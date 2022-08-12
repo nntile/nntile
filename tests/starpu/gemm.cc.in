@@ -9,23 +9,27 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-10
+ * @date 2022-08-12
  * */
 
 #include "nntile/starpu/gemm.hh"
 #include <vector>
 #include <stdexcept>
 
+#ifdef NNTILE_USE_CBLAS
+#   include <@CBLAS_H_NAME@>
+#   ifndef CBLAS_INT
+#       define CBLAS_INT @CBLAS_INT_TYPE@
+#   endif // CBLAS_INT
+#endif // NNTILE_USE_CBLAS
+
+#ifdef NNTILE_USE_CUDA
+#   include <cublas_v2.h>
+#endif // NNTILE_USE_CUDA
+
 using namespace nntile;
 
 #ifdef NNTILE_USE_CBLAS
-
-#include <@CBLAS_H_NAME@>
-
-#ifndef CBLAS_INT
-#   define CBLAS_INT @CBLAS_INT_TYPE@
-#endif
-
 // Overloaded call to CBLAS GEMM
 static inline
 void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
@@ -68,8 +72,8 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
     {
         C[i] = T(2*i+1);
     }
-    // Create copies of C
-    std::vector<T> C2(C), C3(C);
+    // Create copy of C
+    std::vector<T> C2(C);
     // Launch low-level kernel
     CBLAS_TRANSPOSE transA_, transB_;
     Index ldA, ldB;
@@ -95,43 +99,21 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
     }
     cblas_gemm(transA_, transB_, m, n, k, alpha, &A[0], ldA, &B[0], ldB, beta,
             &C[0], m);
-    // Launch corresponding StarPU codelet
-    starpu::gemm_args<T> args =
-    {
-        .transA = transA,
-        .transB = transB,
-        .m = m,
-        .n = n,
-        .k = k,
-        .alpha = alpha,
-        .beta = beta
-    };
-    StarpuVariableInterface A_interface(&A[0], sizeof(T)*m*k),
-        B_interface(&B[0], sizeof(T)*n*k), C2_interface(&C2[0], sizeof(T)*m*n);
-    void *buffers[3] = {&A_interface, &B_interface, &C2_interface};
-    starpu::gemm_cpu<T>(buffers, &args);
-    // Check result
-    for(Index i = 0; i < m*n; ++i)
-    {
-        if(C[i] != C2[i])
-        {
-            throw std::runtime_error("StarPU codelet wrong result");
-        }
-    }
     // Check by actually submitting a task
-    StarpuVariableHandle A_handle(&A[0], sizeof(T)*m*k),
-        B_handle(&B[0], sizeof(T)*n*k), C3_handle(&C3[0], sizeof(T)*m*n);
+    StarpuVariableHandle A_handle(&A[0], sizeof(T)*m*k, STARPU_R),
+        B_handle(&B[0], sizeof(T)*n*k, STARPU_R),
+        C2_handle(&C2[0], sizeof(T)*m*n, STARPU_RW);
     starpu::gemm_restrict_where(STARPU_CPU);
     starpu_resume();
     starpu::gemm<T>(transA, transB, m, n, k, alpha, A_handle, B_handle, beta,
-            C3_handle);
+            C2_handle);
     starpu_task_wait_for_all();
-    C3_handle.unregister();
+    C2_handle.unregister();
     starpu_pause();
     // Check result
     for(Index i = 0; i < m*n; ++i)
     {
-        if(C[i] != C3[i])
+        if(C[i] != C2[i])
         {
             throw std::runtime_error("StarPU submission wrong result");
         }
@@ -160,6 +142,216 @@ void validate_cpu_many()
 }
 #endif // NNTILE_USE_CBLAS
 
+#ifdef NNTILE_USE_CUDA
+// Overloaded call to cuBLAS GEMM
+static inline
+void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
+        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
+        const fp32_t *A, int ldA, const fp32_t *B, int ldB, fp32_t beta,
+        fp32_t *C, int ldC)
+    noexcept
+{
+    cublasSgemm(handle, transA, transB, M, N, K, &alpha, A, ldA, B, ldB, &beta,
+            C, ldC);
+}
+
+// Overloaded call to cuBLAS GEMM
+static inline
+void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
+        cublasOperation_t transB, int M, int N, int K, fp64_t alpha,
+        const fp64_t *A, int ldA, const fp64_t *B, int ldB, fp64_t beta,
+        fp64_t *C, int ldC)
+    noexcept
+{
+    cublasDgemm(handle, transA, transB, M, N, K, &alpha, A, ldA, B, ldB, &beta,
+            C, ldC);
+}
+
+template<typename T>
+void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
+        T alpha, T beta)
+{
+    // Get a StarPU CUDA worker (to perform computations on the same device)
+    int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
+    // Choose worker CUDA device
+    int dev_id = starpu_worker_get_devid(cuda_worker_id);
+    cudaError_t cuda_err = cudaSetDevice(dev_id);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    // cuBLAS handle
+    cublasHandle_t cublas;
+    cublasStatus_t cublas_err = cublasCreate(&cublas);
+    if(cublas_err != CUBLAS_STATUS_SUCCESS)
+    {
+        throw std::runtime_error("cuBLAS error");
+    }
+    // Create CUDA stream and make cuBLAS use it
+    cudaStream_t stream;
+    cuda_err = cudaStreamCreate(&stream);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cublas_err = cublasSetStream(cublas, stream);
+    if(cublas_err != CUBLAS_STATUS_SUCCESS)
+    {
+        throw std::runtime_error("cuBLAS error");
+    }
+    // Init all the data
+    std::vector<T> A(m*k), B(n*k), C(m*n);
+    for(Index i = 0; i < m*k; ++i)
+    {
+        A[i] = T(i+1);
+    }
+    for(Index i = 0; i < n*k; ++i)
+    {
+        B[i] = T(-i-1);
+    }
+    for(Index i = 0; i < m*n; ++i)
+    {
+        C[i] = T(2*i+1);
+    }
+    // Create copy of C
+    std::vector<T> C2(C);
+    // Launch low-level kernel
+    cublasOperation_t transA_, transB_;
+    Index ldA, ldB;
+    switch(transA.value)
+    {
+        case TransOp::NoTrans:
+            transA_ = CUBLAS_OP_N;
+            ldA = m;
+            break;
+        case TransOp::Trans:
+            transA_ = CUBLAS_OP_T;
+            ldA = k;
+    }
+    switch(transB.value)
+    {
+        case TransOp::NoTrans:
+            transB_ = CUBLAS_OP_N;
+            ldB = k;
+            break;
+        case TransOp::Trans:
+            transB_ = CUBLAS_OP_T;
+            ldB = n;
+    }
+    T *dev_A, *dev_B, *dev_C;
+    cuda_err = cudaMalloc(&dev_A, sizeof(T)*m*k);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaMalloc(&dev_B, sizeof(T)*n*k);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaMalloc(&dev_C, sizeof(T)*m*n);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaMemcpy(dev_A, &A[0], sizeof(T)*m*k, cudaMemcpyHostToDevice);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaMemcpy(dev_B, &B[0], sizeof(T)*n*k, cudaMemcpyHostToDevice);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaMemcpy(dev_C, &C[0], sizeof(T)*m*n, cudaMemcpyHostToDevice);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cublas_gemm(cublas, transA_, transB_, m, n, k, alpha, dev_A, ldA, dev_B,
+            ldB, beta, dev_C, m);
+    // Wait for result and destroy cublas handle and stream
+    cuda_err = cudaStreamSynchronize(stream);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cublas_err = cublasDestroy(cublas);
+    if(cublas_err != CUBLAS_STATUS_SUCCESS)
+    {
+        throw std::runtime_error("cuBLAS error");
+    }
+    cuda_err = cudaStreamDestroy(stream);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    // Copy result back to CPU
+    cuda_err = cudaMemcpy(&C[0], dev_C, sizeof(T)*m*n, cudaMemcpyDeviceToHost);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    // Deallocate CUDA memory
+    cuda_err = cudaFree(dev_A);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaFree(dev_B);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaFree(dev_C);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    // Check by actually submitting a task
+    StarpuVariableHandle A_handle(&A[0], sizeof(T)*m*k, STARPU_R),
+        B_handle(&B[0], sizeof(T)*n*k, STARPU_R),
+        C2_handle(&C2[0], sizeof(T)*m*n, STARPU_RW);
+    starpu::gemm_restrict_where(STARPU_CUDA);
+    starpu_resume();
+    starpu::gemm<T>(transA, transB, m, n, k, alpha, A_handle, B_handle, beta,
+            C2_handle);
+    starpu_task_wait_for_all();
+    C2_handle.unregister();
+    starpu_pause();
+    // Check result
+    for(Index i = 0; i < m*n; ++i)
+    {
+        if(C[i] != C2[i])
+        {
+            throw std::runtime_error("StarPU submission wrong result");
+        }
+    }
+}
+
+template<typename T>
+void validate_cuda_many()
+{
+    TransOp trans[2] = {TransOp::NoTrans, TransOp::Trans};
+    T alpha[3] = {0, 1, -3};
+    T beta[3] = {0, 1, 3};
+    for(auto transA: trans)
+    {
+        for(auto transB: trans)
+        {
+            for(T a: alpha)
+            {
+                for(T b: beta)
+                {
+                    validate_cuda<T>(transA, transB, 10, 6, 3, a, b);
+                }
+            }
+        }
+    }
+}
+#endif //NNTILE_USE_CUDA
+
 int main(int argc, char **argv)
 {
     // Init StarPU configuration and set number of CPU workers to 1
@@ -170,18 +362,34 @@ int main(int argc, char **argv)
         throw std::runtime_error("starpu_conf_init error");
     }
     conf.ncpus = 1;
+#ifdef NNTILE_USE_CUDA
+    conf.ncuda = 1;
+#else // NNTILE_USE_CUDA
+    conf.ncuda = 0;
+#endif // NNTILE_USE_CUDA
     ret = starpu_init(&conf);
     if(ret != 0)
     {
         throw std::runtime_error("starpu_init error");
     }
+#ifdef NNTILE_USE_CUDA
+    // GEMM is within cuBLAS library, which needs to be initialized
+    starpu_cublas_init();
+#endif // NNTILE_USE_CUDA
     // Launch all tests
     starpu_pause();
-#   ifdef NNTILE_USE_CBLAS
-        validate_cpu_many<fp32_t>();
-        validate_cpu_many<fp64_t>();
-#   endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CBLAS
+    validate_cpu_many<fp32_t>();
+    validate_cpu_many<fp64_t>();
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+    validate_cuda_many<fp32_t>();
+    validate_cuda_many<fp64_t>();
+#endif // NNTILE_USE_CUDA
     starpu_resume();
+#ifdef NNTILE_USE_CUDA
+    starpu_cublas_shutdown();
+#endif // NNTILE_USE_CUDA
     starpu_shutdown();
     return 0;
 }

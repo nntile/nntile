@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-09
+ * @date 2022-08-12
  * */
 
 #include "nntile/starpu/bias.hh"
@@ -85,6 +85,7 @@ int main(int argc, char **argv)
         throw std::runtime_error("starpu_conf_init error");
     }
     conf.ncpus = 1;
+    conf.ncuda = 0;
     ret = starpu_init(&conf);
     if(ret != 0)
     {

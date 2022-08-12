@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-11
+ * @date 2022-08-12
  * */
 
 #pragma once
@@ -42,6 +42,12 @@ template<typename T>
 void gemm_cpu(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CBLAS
+
+#ifdef NNTILE_USE_CUDA
+template<typename T>
+void gemm_cuda(void *buffers[], void *cl_args)
+    noexcept;
+#endif // NNTILE_USE_CUDA
 
 extern StarpuCodelet gemmNN_codelet_fp32, gemmNN_codelet_fp64,
        gemmNT_codelet_fp32, gemmNT_codelet_fp64,

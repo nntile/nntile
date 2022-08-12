@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-11
+ * @date 2022-08-12
  * */
 
 #pragma once
@@ -59,10 +59,10 @@ public:
         {
             throw std::runtime_error("Error in starpu_init()");
         }
-#       ifdef NNTILE_USE_CUDA
-	std::cout << "starpu_cublas_init()\n";
+#ifdef NNTILE_USE_CUDA
+        std::cout << "starpu_cublas_init()\n";
         starpu_cublas_init();
-#       endif
+#endif
     }
     Starpu():
         Starpu(_init_conf())
@@ -77,9 +77,9 @@ public:
             return;
         }
         starpu_task_wait_for_all();
-#       ifdef NNTILE_USE_CUDA
+#ifdef NNTILE_USE_CUDA
         starpu_cublas_shutdown();
-#       endif
+#endif
         starpu_shutdown();
     }
     Starpu(const Starpu &) = delete;
@@ -185,7 +185,6 @@ class StarpuHandle
         // be in use. This shall only appear in use for data, allocated by
         // starpu as it will be deallocated during actual unregistering and at
         // the time of submission.
-        //std::cout << "unregister_submit(" << ptr << ")\n";
         starpu_data_unregister_submit(ptr);
     }
     static std::shared_ptr<struct _starpu_data_state> _get_shared_ptr(
