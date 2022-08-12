@@ -74,8 +74,7 @@ set(LAYER_HDR
 if(NNTILE_USE_CUDA)
     set(KERNEL_HDR
         ${KERNEL_HDR}
-        #"kernel/cuda/gemm.hh"
-        #"kernel/cuda/bias.hh"
+        "nntile/kernel/cuda/bias.hh"
         )
     set(TILE_HDR
         ${TILE_HDR}

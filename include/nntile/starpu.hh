@@ -398,9 +398,13 @@ public:
     }
     void restrict_where(uint32_t where_)
     {
-        if((starpu_codelet::where & where_) == where_)
+        if((where_default & where_) == where_)
         {
             starpu_codelet::where = where_;
+        }
+        else
+        {
+            throw std::runtime_error("Provided where is not supported");
         }
     }
     void restore_where()

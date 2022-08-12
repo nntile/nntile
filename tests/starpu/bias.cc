@@ -17,6 +17,11 @@
 #include <vector>
 #include <stdexcept>
 
+#ifdef NNTILE_USE_CUDA
+#   include "nntile/kernel/cuda/bias.hh"
+#   include <cuda_runtime.h>
+#endif // NNTILE_USE_CUDA
+
 using namespace nntile;
 
 template<typename T>
@@ -34,46 +39,134 @@ void validate_cpu(Index m, Index n, Index k)
         dst[i] = T(-i-1);
     }
     // Create copies of destination
-    std::vector<T> dst2(dst), dst3(dst);
+    std::vector<T> dst2(dst);
     // Launch low-level kernel
     kernel::cpu::bias<T>(m, n, k, &src[0], &dst[0]);
-    // Launch corresponding StarPU codelet
-    starpu::bias_args args =
-    {
-        .m = m,
-        .n = n,
-        .k = k
-    };
-    StarpuVariableInterface src_interface(&src[0], sizeof(T)*m*n),
-        dst2_interface(&dst2[0], sizeof(T)*m*n*k);
-    void *buffers[2] = {&src_interface, &dst2_interface};
-    starpu::bias_cpu<T>(buffers, &args);
+    // Check by actually submitting a task
+    StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
+        dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
+    starpu::bias_restrict_where(STARPU_CPU);
+    starpu_resume();
+    starpu::bias<T>(m, n, k, src_handle, dst2_handle);
+    starpu_task_wait_for_all();
+    dst2_handle.unregister();
+    starpu_pause();
     // Check result
     for(Index i = 0; i < m*n*k; ++i)
     {
         if(dst[i] != dst2[i])
         {
-            throw std::runtime_error("StarPU codelet wrong result");
+            throw std::runtime_error("StarPU submission wrong result");
         }
     }
+}
+
+#ifdef NNTILE_USE_CUDA
+template<typename T>
+void validate_cuda(Index m, Index n, Index k)
+{
+    // Get a StarPU CUDA worker (to perform computations on the same device)
+    int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
+    // Choose worker CUDA device
+    int dev_id = starpu_worker_get_devid(cuda_worker_id);
+    cudaError_t cuda_err = cudaSetDevice(dev_id);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    // Create CUDA stream
+    cudaStream_t stream;
+    cuda_err = cudaStreamCreate(&stream);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    // Init all the data
+    std::vector<T> src(m*n);
+    for(Index i = 0; i < m*n; ++i)
+    {
+        src[i] = T(i+1);
+    }
+    std::vector<T> dst(m*n*k);
+    for(Index i = 0; i < m*n*k; ++i)
+    {
+        dst[i] = T(-i-1);
+    }
+    // Create copies of destination
+    std::vector<T> dst2(dst);
+    // Launch low-level kernel
+    T *dev_src, *dev_dst;
+    cuda_err = cudaMalloc(&dev_src, sizeof(T)*m*n);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaMalloc(&dev_dst, sizeof(T)*m*n*k);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*m*n,
+            cudaMemcpyHostToDevice);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*m*n*k,
+            cudaMemcpyHostToDevice);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    kernel::cuda::bias<T>(stream, m, n, k, dev_src, dev_dst);
+    // Wait for result and destroy stream
+    cuda_err = cudaStreamSynchronize(stream);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaStreamDestroy(stream);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    // Copy result back to CPU
+    cuda_err = cudaMemcpy(&dst[0], dev_dst, sizeof(T)*m*n*k,
+            cudaMemcpyDeviceToHost);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    // Deallocate CUDA memory
+    cuda_err = cudaFree(dev_src);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaFree(dev_dst);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
     // Check by actually submitting a task
-    StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n),
-        dst3_handle(&dst3[0], sizeof(T)*m*n*k);
-    starpu::bias_restrict_where(STARPU_CPU);
+    StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
+        dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
+    starpu::bias_restrict_where(STARPU_CUDA);
     starpu_resume();
-    starpu::bias<T>(m, n, k, src_handle, dst3_handle);
+    starpu::bias<T>(m, n, k, src_handle, dst2_handle);
     starpu_task_wait_for_all();
-    dst3_handle.unregister();
+    dst2_handle.unregister();
     starpu_pause();
     // Check result
     for(Index i = 0; i < m*n*k; ++i)
     {
-        if(dst[i] != dst3[i])
+        if(dst[i] != dst2[i])
         {
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
 }
+#endif // NNTILE_USE_CUDA
 
 int main(int argc, char **argv)
 {
@@ -85,7 +178,11 @@ int main(int argc, char **argv)
         throw std::runtime_error("starpu_conf_init error");
     }
     conf.ncpus = 1;
+#ifdef NNTILE_USE_CUDA
+    conf.ncuda = 1;
+#else // NNTILE_USE_CUDA
     conf.ncuda = 0;
+#endif // NNTILE_USE_CUDA
     ret = starpu_init(&conf);
     if(ret != 0)
     {
@@ -95,6 +192,10 @@ int main(int argc, char **argv)
     starpu_pause();
     validate_cpu<fp32_t>(3, 5, 7);
     validate_cpu<fp64_t>(3, 5, 7);
+#ifdef NNTILE_USE_CUDA
+    validate_cuda<fp32_t>(3, 5, 7);
+    validate_cuda<fp64_t>(3, 5, 7);
+#endif // NNTILE_USE_CUDA
     starpu_resume();
     starpu_shutdown();
     return 0;

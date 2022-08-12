@@ -169,6 +169,7 @@ void gemm_cuda(void *buffers[], void *cl_args)
             transB_ = CUBLAS_OP_T;
             ldB = N;
     }
+    // Get cuBLAS handle and CUDA stream
     cublasHandle_t handle = starpu_cublas_get_local_handle();
     cudaStream_t stream = starpu_cuda_get_local_stream();
     cublasSetStream(handle, stream);

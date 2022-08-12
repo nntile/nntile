@@ -65,8 +65,7 @@ set(LAYER_SRC
 if(NNTILE_USE_CUDA)
     set(KERNEL_SRC
         ${KERNEL_SRC}
-        #"kernel/cuda/gemm.cc"
-        #"kernel/cuda/bias.cu"
+        "kernel/cuda/bias.cu"
         )
     set(TILE_SRC
         ${TILE_SRC}

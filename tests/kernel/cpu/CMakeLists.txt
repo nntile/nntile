@@ -13,7 +13,7 @@
 
 # All unit tests without arguments to test executable
 set(TESTS
-    "bias"
+    #"bias"
     "copy"
     "gelu"
     "gelutanh"

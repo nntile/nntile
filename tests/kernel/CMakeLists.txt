@@ -9,7 +9,31 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-09
+# @date 2022-08-12
 
+# CPU directory shall vanish soon, all kernel-realted tests shall be in a
+# single test source file
 add_subdirectory("cpu")
+
+# All unit tests without arguments to test executable
+set(TESTS
+    "bias"
+    #"copy"
+    #"gelu"
+    #"gelutanh"
+    #"randn"
+    #"sumnorm"
+    #"normalize"
+    )
+
+foreach(test IN LISTS TESTS)
+    add_test_set(TARGET_NAME tests_kernel_${test}
+        EXEC_NAME test_${test}
+        SOURCES ${test}.cc
+        LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_kernel_${test}
+        COV_GLOBAL coverage
+        )
+endforeach()
 

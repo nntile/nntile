@@ -9,18 +9,22 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-11
+ * @date 2022-08-12
  * */
 
 #include "nntile/starpu/bias.hh"
 #include "nntile/kernel/cpu/bias.hh"
+
+#ifdef NNTILE_USE_CUDA
+#   include "nntile/kernel/cuda/bias.hh"
+#endif // NNTILE_USE_CUDA
 
 namespace nntile
 {
 namespace starpu
 {
 
-//! Apply bias along middle axis of StarPU buffer
+//! Apply bias along middle axis of StarPU buffer in CPU
 template<typename T>
 void bias_cpu(void *buffers[], void *cl_args)
     noexcept
@@ -34,6 +38,25 @@ void bias_cpu(void *buffers[], void *cl_args)
     // Launch kernel
     nntile::kernel::cpu::bias<T>(args->m, args->n, args->k, src, dst);
 }
+
+#ifdef NNTILE_USE_CUDA
+//! Apply bias along middle axis of StarPU buffer on CUDA
+template<typename T>
+void bias_cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<bias_args *>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Launch kernel
+    nntile::kernel::cuda::bias<T>(stream, args->m, args->n, args->k, src, dst);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for bias tasks that depends only on m, n and k
 static
@@ -54,13 +77,21 @@ uint32_t bias_footprint(struct starpu_task *task)
 StarpuCodelet bias_codelet_fp32("nntile_bias_fp32",
         bias_footprint,
         {bias_cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+        {bias_cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
         {}
+#endif // NNTILE_USE_CUDA
         );
 
 StarpuCodelet bias_codelet_fp64("nntile_bias_fp64",
         bias_footprint,
         {bias_cpu<fp64_t>},
+#ifdef NNTILE_USE_CUDA
+        {bias_cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
         {}
+#endif // NNTILE_USE_CUDA
         );
 
 void bias_restrict_where(uint32_t where)

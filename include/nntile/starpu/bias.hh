@@ -16,6 +16,7 @@
 
 #include <nntile/base_types.hh>
 #include <nntile/starpu.hh>
+#include <nntile/defs.h>
 
 namespace nntile
 {
@@ -34,6 +35,13 @@ struct bias_args
 template<typename T>
 void bias_cpu(void *buffers[], void *cl_args)
     noexcept;
+
+#ifdef NNTILE_USE_CUDA
+// Apply bias along middle axis of StarPU buffer on CUDA
+template<typename T>
+void bias_cuda(void *buffers[], void *cl_args)
+    noexcept;
+#endif // NNTILE_USE_CUDA
 
 extern StarpuCodelet bias_codelet_fp32, bias_codelet_fp64;
 

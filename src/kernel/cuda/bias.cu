@@ -5,23 +5,25 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/cuda/bias.cu
- * Bias operation for Tile<T>
+ * Bias operation on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-12
  * */
 
-#include "nntile/kernel/cuda/bias.cuh"
+#include "nntile/kernel/cuda/bias.hh"
 
 namespace nntile
 {
+namespace kernel
+{
+namespace cuda
+{
 
 template<typename T>
-__global__
-void bias_kernel_cuda(Index m, Index n, Index k, Index mk, const T *src,
-        T *dst)
-    noexcept
+static __global__
+void bias_kernel(Index m, Index n, Index k, Index mk, const T *src, T *dst)
 {
     Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
           i1_start = threadIdx.y + blockIdx.y*blockDim.y,
@@ -44,28 +46,28 @@ void bias_kernel_cuda(Index m, Index n, Index k, Index mk, const T *src,
 }
 
 template<typename T>
-void bias_starpu_cuda(void *buffers[], void *cl_args)
+void bias(cudaStream_t stream, Index m, Index n, Index k, const T *src,
+        T *dst)
     noexcept
 {
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
     // Both source and destination are Fortran-contiguous
-    Index m, n, k;
-    starpu_codelet_unpack_args(cl_args, &m, &n, &k);
-    const Index mk = m * k;
-    const T *src = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[0]));
-    T *dst = reinterpret_cast<T *>(STARPU_VARIABLE_GET_PTR(buffers[1]));
-    cudaStream_t stream = starpu_cuda_get_local_stream();
     dim3 blocks(16, 16), threads(8, 4);
-    (bias_kernel_cuda<T>)<<<blocks, threads, 0, stream>>>(m, n, k, mk,
-            src, dst);
+    (bias_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, src, dst);
 }
 
-// Expliciot instantiation
+// Explicit instantiation
 template
-starpu_cuda_func_t bias_starpu_cuda<fp32_t>;
+void bias<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
+        const fp32_t *src, fp32_t *dst)
+    noexcept;
 
 template
-starpu_cuda_func_t bias_starpu_cuda<fp64_t>;
+void bias<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
+        const fp64_t *src, fp64_t *dst)
+    noexcept;
 
+} // namespace cuda
+} // namespace kernel
 } // namespace nntile
 
