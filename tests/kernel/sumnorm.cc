@@ -14,7 +14,6 @@
 
 #include "nntile/kernel/cpu/sumnorm.hh"
 #include "nntile/defs.h"
-#undef NNTILE_USE_CUDA
 #ifdef NNTILE_USE_CUDA
 #   include "nntile/kernel/cuda/sumnorm.hh"
 #endif // NNTILE_USE_CUDA
