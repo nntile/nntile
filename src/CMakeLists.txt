@@ -69,6 +69,7 @@ if(NNTILE_USE_CUDA)
         "kernel/cuda/gelu.cu"
         "kernel/cuda/gelutanh.cu"
         "kernel/cuda/normalize.cu"
+        "kernel/cuda/sumnorm.cu"
         )
     set(TILE_SRC
         ${TILE_SRC}

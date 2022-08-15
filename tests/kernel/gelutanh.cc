@@ -21,6 +21,7 @@
 #include <stdexcept>
 #include <cmath>
 #include <limits>
+#include <iostream>
 
 using namespace nntile;
 using namespace nntile::kernel;
@@ -90,6 +91,7 @@ void validate(Index nelems)
     }
     std::vector<T> data_save(data);
     // Check low-level kernel
+    std::cout << "Run cpu::gelutanh<T>\n";
     cpu::gelutanh<T>(nelems, &data[0]);
     for(Index i = 0; i < nelems; ++i)
     {
@@ -114,9 +116,11 @@ void validate(Index nelems)
             throw std::runtime_error("Wrong value");
         }
     }
+    std::cout << "OK: cpu::gelutanh<T>\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     data = data_save;
+    std::cout << "Run cuda::gelutanh<T>\n";
     run_cuda<T>(nelems, data);
     for(Index i = 0; i < nelems; ++i)
     {
@@ -141,6 +145,7 @@ void validate(Index nelems)
             throw std::runtime_error("Wrong value");
         }
     }
+    std::cout << "OK: cuda::gelutanh<T>\n";
 #endif // NNTILE_USE_CUDA
 }
 

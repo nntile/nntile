@@ -21,6 +21,7 @@
 #include <stdexcept>
 #include <limits>
 #include <cmath>
+#include <iostream>
 
 using namespace nntile;
 using namespace nntile::kernel;
@@ -111,6 +112,7 @@ void validate(Index m, Index n, Index k)
     }
     std::vector<T> sumnorm_copy(sumnorm);
     // Check low-level kernel
+    std::cout << "Run cpu::sumnorm<T>\n";
     cpu::sumnorm<T>(m, n, k, &src[0], &sumnorm[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -135,9 +137,11 @@ void validate(Index m, Index n, Index k)
             }
         }
     }
+    std::cout << "OK: cpu::sumnorm<T>\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     sumnorm = sumnorm_copy;
+    std::cout << "Run cuda::sumnorm<T>\n";
     run_cuda<T>(m, n, k, src, sumnorm);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -162,9 +166,11 @@ void validate(Index m, Index n, Index k)
             }
         }
     }
+    std::cout << "OK: cuda::sumnorm<T>\n";
 #endif // NNTILE_USE_CUDA
     // Check low-level kernel even more
     sumnorm_copy = sumnorm;
+    std::cout << "Run cpu::sumnorm<T>\n";
     cpu::sumnorm<T>(m, n, k, &src[0], &sumnorm[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -183,9 +189,11 @@ void validate(Index m, Index n, Index k)
             }
         }
     }
+    std::cout << "OK: cpu::sumnorm<T>\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     sumnorm = sumnorm_copy;
+    std::cout << "Run cuda::sumnorm<T>\n";
     run_cuda<T>(m, n, k, src, sumnorm);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -204,6 +212,7 @@ void validate(Index m, Index n, Index k)
             }
         }
     }
+    std::cout << "OK: cuda::sumnorm<T>\n";
 #endif // NNTILE_USE_CUDA
 }
 

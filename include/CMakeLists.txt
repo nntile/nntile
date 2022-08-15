@@ -78,6 +78,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/cuda/gelu.hh"
         "nntile/kernel/cuda/gelutanh.hh"
         "nntile/kernel/cuda/normalize.hh"
+        "nntile/kernel/cuda/sumnorm.hh"
         )
     set(TILE_HDR
         ${TILE_HDR}

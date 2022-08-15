@@ -18,6 +18,7 @@
 #include <vector>
 #include <stdexcept>
 #include <limits>
+#include <iostream>
 
 using namespace nntile;
 using namespace nntile::kernel;
@@ -61,6 +62,7 @@ void validate_full(std::array<Index, NDIM> shape)
     }
     // Run kernel
     std::vector<T> data(nelems);
+    std::cout << "Run cpu::randn<T>\n";
     cpu::randn<T>(NDIM, nelems, seed, mean, stddev, &start[0], &shape[0],
             &shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if the result is the same as the reference one
@@ -71,9 +73,11 @@ void validate_full(std::array<Index, NDIM> shape)
             throw std::runtime_error("Full array generation error");
         }
     }
+    std::cout << "OK: cpu::randn<T>\n";
     // Run kernel with a different seed that shall generate different result
     seed2 = seed + std::numeric_limits<unsigned long long>::max()/2;
     // Launch kernel
+    std::cout << "Run cpu::randn<T>\n";
     cpu::randn<T>(NDIM, nelems, seed2, mean, stddev, &start[0], &shape[0],
             &shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if result is different for the first element
@@ -81,9 +85,11 @@ void validate_full(std::array<Index, NDIM> shape)
     {
         throw std::runtime_error("Different seeds error");
     }
+    std::cout << "OK: cpu::randn<T>\n";
     // Run kernel with a different mean
     T mean2 = mean + T{1};
     // Launch kernel
+    std::cout << "Run cpu::randn<T>\n";
     cpu::randn<T>(NDIM, nelems, seed, mean2, stddev, &start[0], &shape[0],
             &shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if result is different for the first element
@@ -91,9 +97,11 @@ void validate_full(std::array<Index, NDIM> shape)
     {
         throw std::runtime_error("Different mean error");
     }
+    std::cout << "OK: cpu::randn<T>\n";
     // Run kernel with a different stddev
     T stddev2 = stddev + T{1};
     // Launch kernel
+    std::cout << "Run cpu::randn<T>\n";
     cpu::randn<T>(NDIM, nelems, seed, mean, stddev2, &start[0], &shape[0],
             &shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if result is different for the first element
@@ -101,6 +109,7 @@ void validate_full(std::array<Index, NDIM> shape)
     {
         throw std::runtime_error("Different stddev error");
     }
+    std::cout << "OK: cpu::randn<T>\n";
 }
 
 // Check generation of a full contiguous 0-dimensional array
@@ -121,6 +130,7 @@ void validate_full(std::array<Index, 0> shape_)
     T data_ref = chameleon_randn(seed2, mean, stddev);
     // Run kernel
     T data;
+    std::cout << "Run cpu::randn<T>\n";
     cpu::randn<T>(0, nelems, seed, mean, stddev, start, shape, shape, &data,
             stride, tmp_index);
     // Check if the result is the same as the reference one
@@ -128,9 +138,11 @@ void validate_full(std::array<Index, 0> shape_)
     {
         throw std::runtime_error("Full array generation error");
     }
+    std::cout << "OK: cpu::randn<T>\n";
     // Run kernel with a different seed that shall generate different result
     seed2 = seed + std::numeric_limits<unsigned long long>::max()/2;
     // Launch kernel
+    std::cout << "Run cpu::randn<T>\n";
     cpu::randn<T>(0, nelems, seed2, mean, stddev, start, shape, shape, &data,
             stride, tmp_index);
     // Check if result is different for the first element
@@ -138,9 +150,11 @@ void validate_full(std::array<Index, 0> shape_)
     {
         throw std::runtime_error("Different seeds error");
     }
+    std::cout << "OK: cpu::randn<T>\n";
     // Run kernel with a different mean
     T mean2 = mean + T{1};
     // Launch kernel
+    std::cout << "Run cpu::randn<T>\n";
     cpu::randn<T>(0, nelems, seed, mean2, stddev, start, shape, shape, &data,
             stride, tmp_index);
     // Check if result is different for the first element
@@ -148,9 +162,11 @@ void validate_full(std::array<Index, 0> shape_)
     {
         throw std::runtime_error("Different mean error");
     }
+    std::cout << "OK: cpu::randn<T>\n";
     // Run kernel with a different stddev
     T stddev2 = stddev + T{1};
     // Launch kernel
+    std::cout << "Run cpu::randn<T>\n";
     cpu::randn<T>(0, nelems, seed, mean, stddev2, start, shape, shape, &data,
             stride, tmp_index);
     // Check if result is different for the first element
@@ -158,6 +174,7 @@ void validate_full(std::array<Index, 0> shape_)
     {
         throw std::runtime_error("Different stddev error");
     }
+    std::cout << "OK: cpu::randn<T>\n";
 }
 
 // Check partial generation, where parameters start, shape and stride are
@@ -191,6 +208,7 @@ void validate_part(std::array<Index, NDIM> underlying_shape,
     }
     // Run kernel
     std::vector<T> data(size);
+    std::cout << "Run cpu::randn<T>\n";
     cpu::randn<T>(NDIM, nelems, seed, mean, stddev, &start[0], &shape[0],
             &underlying_shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if the result is the same as the reference one
@@ -229,6 +247,7 @@ void validate_part(std::array<Index, NDIM> underlying_shape,
             throw std::runtime_error("Part array generation error");
         }
     }
+    std::cout << "OK: cpu::randn<T>\n";
 }
 
 // Run multiple tests for a given precision

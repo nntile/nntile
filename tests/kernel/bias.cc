@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-14
+ * @date 2022-08-15
  * */
 
 #include "nntile/kernel/cpu/bias.hh"
@@ -20,6 +20,7 @@
 #include <vector>
 #include <stdexcept>
 #include <limits>
+#include <iostream>
 
 using namespace nntile;
 using namespace nntile::kernel;
@@ -118,6 +119,7 @@ void validate(Index m, Index n, Index k)
     // Save original dst
     std::vector<T> dst_save(dst);
     // Check low-level CPU kernel
+    std::cout << "Run cpu::bias<T>\n";
     cpu::bias<T>(m, n, k, &src[0], &dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -135,9 +137,11 @@ void validate(Index m, Index n, Index k)
             }
         }
     }
+    std::cout << "OK: cpu::bias<T>\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
+    std::cout << "Run cuda::bias<T>\n";
     run_cuda<T>(m, n, k, src, dst);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -155,6 +159,7 @@ void validate(Index m, Index n, Index k)
             }
         }
     }
+    std::cout << "OK: cuda::bias<T>\n";
 #endif // NNTILE_USE_CUDA
 }
 

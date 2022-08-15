@@ -21,6 +21,7 @@
 #include <stdexcept>
 #include <limits>
 #include <cmath>
+#include <iostream>
 
 using namespace nntile;
 using namespace nntile::kernel;
@@ -121,6 +122,7 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     }
     std::vector<T> dst_save(dst);
     // Check low-level kernel
+    std::cout << "Run cpu::normalize<T>\n";
     cpu::normalize<T>(m, n, k, l, eps, gamma, beta, &sumnorm[0], &dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -138,9 +140,11 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
             }
         }
     }
+    std::cout << "OK: cpu::normalize<T>\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
+    std::cout << "Run cuda::normalize<T>\n";
     run_cuda<T>(m, n, k, l, eps, gamma, beta, sumnorm, dst);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -158,6 +162,7 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
             }
         }
     }
+    std::cout << "OK: cuda::normalize<T>\n";
 #endif // NNTILE_USE_CUDA
 }
 
