@@ -4,12 +4,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/cpu/copy.cc
- * Smart copy a buffer on CPU
+ * @file tests/kernel/copy.cc
+ * Smart copy a buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-10
+ * @date 2022-08-14
  * */
 
 #include "nntile/kernel/cpu/copy.hh"
@@ -18,17 +18,15 @@
 #include <stdexcept>
 
 using namespace nntile;
-using namespace nntile::kernel::cpu;
+using namespace nntile::kernel;
 
 // Templated validation
 template<typename T, std::size_t NDIM>
 void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
-        std::array<Index, NDIM> shape)
+        std::array<Index, NDIM> copy_shape)
 {
     // Location of copy area in source and target buffers and their shapes
-    std::vector<Index> src_start(NDIM), dst_start(NDIM),
-        copy_shape(shape.cbegin(), shape.cend()),
-        src_shape(NDIM), dst_shape(NDIM);
+    std::array<Index, NDIM> src_start, dst_start, src_shape, dst_shape;
     Index src_nelems = 1, dst_nelems = 1, copy_nelems = 1;
     for(Index i = 0; i < NDIM; ++i)
     {
@@ -36,33 +34,33 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
         if(src[i] >= 0)
         {
             src_start[i] = src[i];
-            src_shape[i] = shape[i] + src[i];
+            src_shape[i] = copy_shape[i] + src[i];
         }
         // Offset from the end
         else
         {
             src_start[i] = 0;
-            src_shape[i] = shape[i] - src[i] - 1;
+            src_shape[i] = copy_shape[i] - src[i] - 1;
         }
         src_nelems *= src_shape[i];
         // Offset from the beginning
         if(dst[i] >= 0)
         {
             dst_start[i] = dst[i];
-            dst_shape[i] = shape[i] + dst[i];
+            dst_shape[i] = copy_shape[i] + dst[i];
         }
         // Offset from the end
         else
         {
             dst_start[i] = 0;
-            dst_shape[i] = shape[i] - dst[i] - 1;
+            dst_shape[i] = copy_shape[i] - dst[i] - 1;
         }
         dst_nelems *= dst_shape[i];
         // Total number of elements to be copied
-        copy_nelems *= shape[i];
+        copy_nelems *= copy_shape[i];
     }
     // Strides
-    std::vector<Index> src_stride(NDIM), dst_stride(NDIM);
+    std::array<Index, NDIM> src_stride, dst_stride;
     src_stride[0] = 1;
     dst_stride[0] = 1;
     for(Index i = 1; i < NDIM; ++i)
@@ -74,7 +72,7 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
     // the source and set all the elements to 3 in the destination.
     std::vector<T> src_data(src_nelems, T{1}), dst_data(dst_nelems, T{3}),
         dst2_data(dst_data);
-    std::vector<Index> src_index(src_start);
+    std::array<Index, NDIM> src_index(src_start);
     for(Index i = 0; i < copy_nelems; ++i)
     {
         // Get offset of the current element to copy
@@ -93,7 +91,7 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
         // Get index of the next element to copy
         ++src_index[0];
         Index j = 0;
-        while(src_index[j] == src_start[j]+shape[j])
+        while(src_index[j] == src_start[j]+copy_shape[j])
         {
             src_index[j] = src_start[j];
             ++j;
@@ -102,8 +100,8 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
     }
     std::vector<T> src2_data(src_data);
     // Check low-level kernel
-    std::vector<Index> tmp_index(2*NDIM);
-    copy<T>(NDIM, &src_start[0], &src_stride[0], &copy_shape[0],
+    std::array<Index, 2*NDIM> tmp_index;
+    cpu::copy<T>(NDIM, &src_start[0], &src_stride[0], &copy_shape[0],
             &src_data[0], &dst_start[0], &dst_stride[0], &dst_data[0],
             &tmp_index[0]);
     // Check source is unchanged
@@ -123,7 +121,7 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
         for(Index j = 0; j < NDIM; ++j)
         {
             if(dst_index[j] < dst_start[j]
-                    or dst_index[j] >= dst_start[j]+shape[j])
+                    or dst_index[j] >= dst_start[j]+copy_shape[j])
             {
                 copied = false;
                 break;

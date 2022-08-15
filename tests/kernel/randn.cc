@@ -4,12 +4,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/cpu/randn.cc
+ * @file tests/kernel/randn.cc
  * Randn operation on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-11
+ * @date 2022-08-15
  * */
 
 #include "nntile/kernel/cpu/randn.hh"
@@ -20,7 +20,7 @@
 #include <limits>
 
 using namespace nntile;
-using namespace nntile::kernel::cpu;
+using namespace nntile::kernel;
 
 static inline fp32_t chameleon_randn(unsigned long long &seed, fp32_t mean,
         fp32_t stddev)
@@ -61,7 +61,7 @@ void validate_full(std::array<Index, NDIM> shape)
     }
     // Run kernel
     std::vector<T> data(nelems);
-    randn<T>(NDIM, nelems, seed, mean, stddev, &start[0], &shape[0],
+    cpu::randn<T>(NDIM, nelems, seed, mean, stddev, &start[0], &shape[0],
             &shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if the result is the same as the reference one
     for(Index i = 0; i < nelems; ++i)
@@ -74,7 +74,7 @@ void validate_full(std::array<Index, NDIM> shape)
     // Run kernel with a different seed that shall generate different result
     seed2 = seed + std::numeric_limits<unsigned long long>::max()/2;
     // Launch kernel
-    randn<T>(NDIM, nelems, seed2, mean, stddev, &start[0], &shape[0],
+    cpu::randn<T>(NDIM, nelems, seed2, mean, stddev, &start[0], &shape[0],
             &shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if result is different for the first element
     if(data[0] == data_ref[0])
@@ -84,7 +84,7 @@ void validate_full(std::array<Index, NDIM> shape)
     // Run kernel with a different mean
     T mean2 = mean + T{1};
     // Launch kernel
-    randn<T>(NDIM, nelems, seed, mean2, stddev, &start[0], &shape[0],
+    cpu::randn<T>(NDIM, nelems, seed, mean2, stddev, &start[0], &shape[0],
             &shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if result is different for the first element
     if(data[0] == data_ref[0])
@@ -94,7 +94,7 @@ void validate_full(std::array<Index, NDIM> shape)
     // Run kernel with a different stddev
     T stddev2 = stddev + T{1};
     // Launch kernel
-    randn<T>(NDIM, nelems, seed, mean, stddev2, &start[0], &shape[0],
+    cpu::randn<T>(NDIM, nelems, seed, mean, stddev2, &start[0], &shape[0],
             &shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if result is different for the first element
     if(data[0] == data_ref[0])
@@ -121,7 +121,7 @@ void validate_full(std::array<Index, 0> shape_)
     T data_ref = chameleon_randn(seed2, mean, stddev);
     // Run kernel
     T data;
-    randn<T>(0, nelems, seed, mean, stddev, start, shape, shape, &data,
+    cpu::randn<T>(0, nelems, seed, mean, stddev, start, shape, shape, &data,
             stride, tmp_index);
     // Check if the result is the same as the reference one
     if(data != data_ref)
@@ -131,7 +131,7 @@ void validate_full(std::array<Index, 0> shape_)
     // Run kernel with a different seed that shall generate different result
     seed2 = seed + std::numeric_limits<unsigned long long>::max()/2;
     // Launch kernel
-    randn<T>(0, nelems, seed2, mean, stddev, start, shape, shape, &data,
+    cpu::randn<T>(0, nelems, seed2, mean, stddev, start, shape, shape, &data,
             stride, tmp_index);
     // Check if result is different for the first element
     if(data == data_ref)
@@ -141,7 +141,7 @@ void validate_full(std::array<Index, 0> shape_)
     // Run kernel with a different mean
     T mean2 = mean + T{1};
     // Launch kernel
-    randn<T>(0, nelems, seed, mean2, stddev, start, shape, shape, &data,
+    cpu::randn<T>(0, nelems, seed, mean2, stddev, start, shape, shape, &data,
             stride, tmp_index);
     // Check if result is different for the first element
     if(data == data_ref)
@@ -151,7 +151,7 @@ void validate_full(std::array<Index, 0> shape_)
     // Run kernel with a different stddev
     T stddev2 = stddev + T{1};
     // Launch kernel
-    randn<T>(0, nelems, seed, mean, stddev2, start, shape, shape, &data,
+    cpu::randn<T>(0, nelems, seed, mean, stddev2, start, shape, shape, &data,
             stride, tmp_index);
     // Check if result is different for the first element
     if(data == data_ref)
@@ -191,7 +191,7 @@ void validate_part(std::array<Index, NDIM> underlying_shape,
     }
     // Run kernel
     std::vector<T> data(size);
-    randn<T>(NDIM, nelems, seed, mean, stddev, &start[0], &shape[0],
+    cpu::randn<T>(NDIM, nelems, seed, mean, stddev, &start[0], &shape[0],
             &underlying_shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if the result is the same as the reference one
     for(Index i = 0; i < nelems; ++i)

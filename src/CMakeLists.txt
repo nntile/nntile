@@ -66,6 +66,9 @@ if(NNTILE_USE_CUDA)
     set(KERNEL_SRC
         ${KERNEL_SRC}
         "kernel/cuda/bias.cu"
+        "kernel/cuda/gelu.cu"
+        "kernel/cuda/gelutanh.cu"
+        "kernel/cuda/normalize.cu"
         )
     set(TILE_SRC
         ${TILE_SRC}

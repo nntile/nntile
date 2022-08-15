@@ -28,9 +28,9 @@ void gelutanh(Index nelems, T *data)
     noexcept
 //! Approximate GeLU operation
 /*! Applies the following approximation of the GeLU function:
- * GeLU(x) \approx 0.5x(1+tanh(sqrt(2/pi)(x+0.044715x^3))),
+ * GeLU(z) \approx 0.5z(1+tanh(sqrt(2/pi)(z+0.044715z^3))),
  * which is actually implemented as
- * GeLU(x) \approx x/(1+exp(-2sqrt(2/pi)x(1+0.044715x^2)))
+ * GeLU(z) \approx z/(1+exp(-2sqrt(2/pi)z(1+0.044715z^2)))
  *
  * @params[in] nelems: Number of elements in a buffer
  * @params[inout] data: Buffer to apply GeLU

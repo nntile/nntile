@@ -9,21 +9,17 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-12
-
-# CPU directory shall vanish soon, all kernel-realted tests shall be in a
-# single test source file
-add_subdirectory("cpu")
+# @date 2022-08-15
 
 # All unit tests without arguments to test executable
 set(TESTS
     "bias"
-    #"copy"
-    #"gelu"
-    #"gelutanh"
-    #"randn"
-    #"sumnorm"
-    #"normalize"
+    "copy"
+    "gelu"
+    "gelutanh"
+    "randn"
+    "sumnorm"
+    "normalize"
     )
 
 foreach(test IN LISTS TESTS)
