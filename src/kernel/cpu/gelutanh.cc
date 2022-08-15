@@ -44,9 +44,9 @@ void gelutanh(Index nelems, T *data)
         f2 = sqrt_2/sqrt_pi, f3 = -T{2}*f2, f4 = f3*f1;
     for(Index i = 0; i < nelems; ++i)
     {
-        T x = data[i];
-        T z = x * (f3 + f4*x*x);
-        data[i] = x / (one+std::exp(z));
+        T z = data[i];
+        T y = z * (f3 + f4*z*z);
+        data[i] = z / (one+std::exp(y));
     }
 }
 

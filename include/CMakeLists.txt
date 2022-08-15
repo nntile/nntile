@@ -75,6 +75,9 @@ if(NNTILE_USE_CUDA)
     set(KERNEL_HDR
         ${KERNEL_HDR}
         "nntile/kernel/cuda/bias.hh"
+        "nntile/kernel/cuda/gelu.hh"
+        "nntile/kernel/cuda/gelutanh.hh"
+        "nntile/kernel/cuda/normalize.hh"
         )
     set(TILE_HDR
         ${TILE_HDR}

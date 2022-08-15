@@ -15,7 +15,7 @@
 #include "nntile/kernel/cpu/gelutanh.hh"
 #include "nntile/defs.h"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/gelu.hh"
+#   include "nntile/kernel/cuda/gelutanh.hh"
 #endif // NNTILE_USE_CUDA
 #include <vector>
 #include <stdexcept>

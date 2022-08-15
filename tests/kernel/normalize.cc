@@ -28,7 +28,7 @@ using namespace nntile::kernel;
 #ifdef NNTILE_USE_CUDA
 template<typename T>
 void run_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta,
-        const std::vector<T> &sumnorm, std::vector<T> &dst);
+        const std::vector<T> &sumnorm, std::vector<T> &dst)
 {
     // Copy to device
     T *dev_sumnorm, *dev_dst;

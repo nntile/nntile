@@ -5,7 +5,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/cuda/normalize.cu
- * Normalize operation for a buffer on CUDA
+ * Normalize operation on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -23,8 +23,8 @@ namespace cuda
 
 template<typename T>
 static __global__
-void normalize_kernel(Index m, Index n, Index k, Index mk, Index l, T eps,
-        T gamma, T beta, const T *sumnorm, T *dst)
+void normalize_kernel(Index m, Index n, Index k, Index l, T eps, T gamma,
+        T beta, const T *sumnorm, T *dst)
 {
     Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
           i1_start = threadIdx.y + blockIdx.y*blockDim.y,
@@ -41,6 +41,7 @@ void normalize_kernel(Index m, Index n, Index k, Index mk, Index l, T eps,
         for(Index i1 = i1_start; i1 < k; i1 += i1_step)
         {
             Index src_offset = 2 * m * i2;
+            Index dst_offset = (i2*k+i1) * m;
             // Inner loop by the first mode of dst and sumnorm arrays
             for(Index i0 = 0; i0 < m; ++i0)
             {
@@ -106,7 +107,7 @@ void normalize(cudaStream_t stream, Index m, Index n, Index k, Index l, T eps,
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
     // Both source and destination are Fortran-contiguous
     dim3 blocks(16, 16), threads(8, 4);
-    (normalize_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, l, eps,
+    (normalize_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, l, eps,
             gamma, beta, sumnorm, dst);
 }
 
