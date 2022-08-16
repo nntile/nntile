@@ -33,7 +33,7 @@ void normalize_cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     const T *gamma_beta = interfaces[0]->get_ptr<T>();
-    T gamma = gamma_beta[0], beta = gamma_beta[1];
+    const T *gamma = &gamma_beta[0], *beta = &gamma_beta[1];
     const T *sumnorm = interfaces[1]->get_ptr<T>();
     T *dst = interfaces[2]->get_ptr<T>();
     // Launch kernel

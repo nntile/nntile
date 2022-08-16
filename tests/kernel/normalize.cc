@@ -32,13 +32,23 @@ void run_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta,
         const std::vector<T> &sumnorm, std::vector<T> &dst)
 {
     // Copy to device
-    T *dev_sumnorm, *dev_dst;
+    T *dev_sumnorm, *dev_dst, *dev_gamma, *dev_beta;
     cudaError_t cuda_err = cudaMalloc(&dev_sumnorm, sizeof(T)*2*m*n);
     if(cuda_err != cudaSuccess)
     {
         throw std::runtime_error("CUDA error");
     }
     cuda_err = cudaMalloc(&dev_dst, sizeof(T)*m*n*k);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaMalloc(&dev_gamma, sizeof(T));
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaMalloc(&dev_beta, sizeof(T));
     if(cuda_err != cudaSuccess)
     {
         throw std::runtime_error("CUDA error");
@@ -55,6 +65,18 @@ void run_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta,
     {
         throw std::runtime_error("CUDA error");
     }
+    cuda_err = cudaMemcpy(dev_gamma, &gamma, sizeof(T),
+            cudaMemcpyHostToDevice);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaMemcpy(dev_beta, &beta, sizeof(T),
+            cudaMemcpyHostToDevice);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
     // Init stream
     cudaStream_t stream;
     cuda_err = cudaStreamCreate(&stream);
@@ -63,9 +85,15 @@ void run_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta,
         throw std::runtime_error("CUDA error");
     }
     // Launch low-level kernel
-    cuda::normalize<T>(stream, m, n, k, l, eps, gamma, beta, dev_sumnorm,
-            dev_dst);
+    cuda::normalize<T>(stream, m, n, k, l, eps, dev_gamma, dev_beta,
+            dev_sumnorm, dev_dst);
+    // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaStreamDestroy(stream);
     if(cuda_err != cudaSuccess)
     {
         throw std::runtime_error("CUDA error");
@@ -87,7 +115,12 @@ void run_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta,
     {
         throw std::runtime_error("CUDA error");
     }
-    cuda_err = cudaStreamDestroy(stream);
+    cuda_err = cudaFree(dev_gamma);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaFree(dev_beta);
     if(cuda_err != cudaSuccess)
     {
         throw std::runtime_error("CUDA error");
@@ -123,7 +156,7 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     std::vector<T> dst_save(dst);
     // Check low-level kernel
     std::cout << "Run cpu::normalize<T>\n";
-    cpu::normalize<T>(m, n, k, l, eps, gamma, beta, &sumnorm[0], &dst[0]);
+    cpu::normalize<T>(m, n, k, l, eps, &gamma, &beta, &sumnorm[0], &dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)

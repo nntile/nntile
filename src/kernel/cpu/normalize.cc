@@ -99,12 +99,14 @@ void normalize(Index m, Index n, Index k, Index l, T eps, const T *gamma,
 // Explicit instantiation
 template
 void normalize<fp32_t>(Index m, Index n, Index k, Index l, fp32_t eps,
-        fp32_t gamma, fp32_t beta, const fp32_t *sumnorm, fp32_t *dst)
+        const fp32_t *gamma, const fp32_t *beta, const fp32_t *sumnorm,
+        fp32_t *dst)
     noexcept;
 
 template
 void normalize<fp64_t>(Index m, Index n, Index k, Index l, fp64_t eps,
-        fp64_t gamma, fp64_t beta, const fp64_t *sumnorm, fp64_t *dst)
+        const fp64_t *gamma, const fp64_t *beta, const fp64_t *sumnorm,
+        fp64_t *dst)
     noexcept;
 
 } // namespace cpu

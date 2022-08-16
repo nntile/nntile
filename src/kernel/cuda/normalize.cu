@@ -120,8 +120,8 @@ void normalize<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Index l,
 
 template
 void normalize<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Index l,
-        fp64_t eps, const fp64_t *gamma, const fp64_t *beta, const fp64_t *sumnorm,
-        fp64_t *dst)
+        fp64_t eps, const fp64_t *gamma, const fp64_t *beta,
+        const fp64_t *sumnorm, fp64_t *dst)
     noexcept;
 
 } // namespace cuda
