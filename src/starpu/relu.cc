@@ -4,18 +4,18 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/gelutanh.cc
- * Approximate GeLU operation on a StarPU buffer
+ * @file src/starpu/relu.cc
+ * ReLU operation on a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-16
  * */
 
-#include "nntile/starpu/gelutanh.hh"
-#include "nntile/kernel/cpu/gelutanh.hh"
+#include "nntile/starpu/relu.hh"
+#include "nntile/kernel/cpu/relu.hh"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/gelutanh.hh"
+#   include "nntile/kernel/cuda/relu.hh"
 #endif // NNTILE_USE_CUDA
 
 namespace nntile
@@ -23,9 +23,9 @@ namespace nntile
 namespace starpu
 {
 
-//! Apply approximate gelu along middle axis of StarPU buffer
+//! Apply relu along middle axis of StarPU buffer on CPU
 template<typename T>
-void gelutanh_cpu(void *buffers[], void *cl_args)
+void relu_cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
@@ -34,13 +34,13 @@ void gelutanh_cpu(void *buffers[], void *cl_args)
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
     // Launch kernel
-    nntile::kernel::cpu::gelutanh<T>(nelems, data);
+    nntile::kernel::cpu::relu<T>(nelems, data);
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply approximate gelu along middle axis of StarPU buffer
+//! Apply relu along middle axis of StarPU buffer on CUDA
 template<typename T>
-void gelutanh_cuda(void *buffers[], void *cl_args)
+void relu_cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
@@ -51,67 +51,67 @@ void gelutanh_cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    nntile::kernel::cuda::gelutanh<T>(stream, nelems, data);
+    nntile::kernel::cuda::relu<T>(stream, nelems, data);
 }
 #endif // NNTILE_USE_CUDA
 
-StarpuCodelet gelutanh_codelet_fp32("nntile_gelutanh_fp32",
+StarpuCodelet relu_codelet_fp32("nntile_relu_fp32",
         nullptr,
-        {gelutanh_cpu<fp32_t>},
+        {relu_cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
-        {gelutanh_cuda<fp32_t>}
+        {relu_cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
         {}
 #endif // NNTILE_USE_CUDA
         );
 
-StarpuCodelet gelutanh_codelet_fp64("nntile_gelutanh_fp64",
+StarpuCodelet relu_codelet_fp64("nntile_relu_fp64",
         nullptr,
-        {gelutanh_cpu<fp64_t>},
+        {relu_cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
-        {gelutanh_cuda<fp64_t>}
+        {relu_cuda<fp64_t>}
 #else // NNTILE_USE_CUDA
         {}
 #endif // NNTILE_USE_CUDA
         );
 
-void gelutanh_restrict_where(uint32_t where)
+void relu_restrict_where(uint32_t where)
 {
-    gelutanh_codelet_fp32.restrict_where(where);
-    gelutanh_codelet_fp64.restrict_where(where);
+    relu_codelet_fp32.restrict_where(where);
+    relu_codelet_fp64.restrict_where(where);
 }
 
-void gelutanh_restore_where()
+void relu_restore_where()
 {
-    gelutanh_codelet_fp32.restore_where();
-    gelutanh_codelet_fp64.restore_where();
+    relu_codelet_fp32.restore_where();
+    relu_codelet_fp64.restore_where();
 }
 
 template<typename T>
-constexpr StarpuCodelet *gelutanh_codelet()
+constexpr StarpuCodelet *relu_codelet()
 {
     throw std::runtime_error("Non-supported type");
     return nullptr;
 }
 
 template<>
-constexpr StarpuCodelet *gelutanh_codelet<fp32_t>()
+constexpr StarpuCodelet *relu_codelet<fp32_t>()
 {
-    return &gelutanh_codelet_fp32;
+    return &relu_codelet_fp32;
 }
 
 template<>
-constexpr StarpuCodelet *gelutanh_codelet<fp64_t>()
+constexpr StarpuCodelet *relu_codelet<fp64_t>()
 {
-    return &gelutanh_codelet_fp64;
+    return &relu_codelet_fp64;
 }
 
 template<typename T>
-void gelutanh(Index nelems, starpu_data_handle_t data)
+void relu(Index nelems, starpu_data_handle_t data)
 {
     Index *nelems_ = new Index{nelems};
     //fp64_t nflops = 5 * nelems;
-    int ret = starpu_task_insert(gelutanh_codelet<T>(),
+    int ret = starpu_task_insert(relu_codelet<T>(),
             STARPU_RW, data,
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
             //STARPU_FLOPS, nflops,
@@ -119,16 +119,16 @@ void gelutanh(Index nelems, starpu_data_handle_t data)
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in gelutanh task submission");
+        throw std::runtime_error("Error in relu task submission");
     }
 }
 
 // Explicit instantiaion
 template
-void gelutanh<fp32_t>(Index nelems, starpu_data_handle_t data);
+void relu<fp32_t>(Index nelems, starpu_data_handle_t data);
 
 template
-void gelutanh<fp64_t>(Index nelems, starpu_data_handle_t data);
+void relu<fp64_t>(Index nelems, starpu_data_handle_t data);
 
 } // namespace starpu
 } // namespace nntile

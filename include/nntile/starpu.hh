@@ -17,7 +17,6 @@
 #include <stdexcept>
 #include <memory>
 #include <cstring>
-#include <iostream>
 #include <vector>
 #include <starpu.h>
 #include <nntile/defs.h>
@@ -60,7 +59,6 @@ public:
             throw std::runtime_error("Error in starpu_init()");
         }
 #ifdef NNTILE_USE_CUDA
-        std::cout << "starpu_cublas_init()\n";
         starpu_cublas_init();
 #endif
     }
@@ -200,7 +198,6 @@ class StarpuHandle
                 return std::shared_ptr<struct _starpu_data_state>(ptr,
                         _deleter);
             case STARPU_SCRATCH:
-                //std::cout << "register tmp=" << ptr << "\n";
                 return std::shared_ptr<struct _starpu_data_state>(ptr,
                         _deleter_temporary);
             default:
@@ -309,6 +306,10 @@ class StarpuVariableHandle: public StarpuHandle
     //! Register variable for starpu-owned memory
     static starpu_data_handle_t _reg_data(size_t size)
     {
+        if(size == 0)
+        {
+            throw std::runtime_error("Zero size is not supported");
+        }
         starpu_data_handle_t tmp;
         starpu_variable_data_register(&tmp, -1, 0, size);
         return tmp;
@@ -316,6 +317,10 @@ class StarpuVariableHandle: public StarpuHandle
     //! Register variable
     static starpu_data_handle_t _reg_data(uintptr_t ptr, size_t size)
     {
+        if(size == 0)
+        {
+            throw std::runtime_error("Zero size is not supported");
+        }
         starpu_data_handle_t tmp;
         starpu_variable_data_register(&tmp, STARPU_MAIN_RAM, ptr, size);
         return tmp;

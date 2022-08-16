@@ -9,18 +9,21 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-11
+ * @date 2022-08-15
  * */
 
 #include "nntile/starpu/gelu.hh"
 #include "nntile/kernel/cpu/gelu.hh"
+#ifdef NNTILE_USE_CUDA
+#   include "nntile/kernel/cuda/gelu.hh"
+#endif // NNTILE_USE_CUDA
 
 namespace nntile
 {
 namespace starpu
 {
 
-//! Apply gelu along middle axis of StarPU buffer
+//! Apply gelu along middle axis of StarPU buffer on CPU
 template<typename T>
 void gelu_cpu(void *buffers[], void *cl_args)
     noexcept
@@ -29,21 +32,47 @@ void gelu_cpu(void *buffers[], void *cl_args)
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
-    // Launch kernel
     T *data = interfaces[0]->get_ptr<T>();
+    // Launch kernel
     nntile::kernel::cpu::gelu<T>(nelems, data);
 }
+
+#ifdef NNTILE_USE_CUDA
+//! Apply gelu along middle axis of StarPU buffer on CUDA
+template<typename T>
+void gelu_cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    // Get interfaces
+    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    T *data = interfaces[0]->get_ptr<T>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Launch kernel
+    nntile::kernel::cuda::gelu<T>(stream, nelems, data);
+}
+#endif // NNTILE_USE_CUDA
 
 StarpuCodelet gelu_codelet_fp32("nntile_gelu_fp32",
         nullptr,
         {gelu_cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+        {gelu_cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
         {}
+#endif // NNTILE_USE_CUDA
         );
 
 StarpuCodelet gelu_codelet_fp64("nntile_gelu_fp64",
         nullptr,
         {gelu_cpu<fp64_t>},
+#ifdef NNTILE_USE_CUDA
+        {gelu_cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
         {}
+#endif // NNTILE_USE_CUDA
         );
 
 void gelu_restrict_where(uint32_t where)

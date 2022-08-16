@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-11
+# @date 2022-08-16
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -20,6 +20,7 @@ set(TESTS
     "gelutanh"
     "normalize"
     "randn"
+    "relu"
     "sumnorm"
     )
 

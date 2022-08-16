@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-16
  * */
 
 #pragma once
@@ -26,7 +26,7 @@ namespace cuda
 
 template<typename T>
 void normalize(cudaStream_t stream, Index m, Index n, Index k, Index l, T eps,
-        T gamma, T beta, const T *sumnorm, T *dst)
+        const T *gamma, const T *beta, const T *sumnorm, T *dst)
     noexcept;
 
 } // namespace cuda

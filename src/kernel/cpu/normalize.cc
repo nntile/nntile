@@ -23,8 +23,8 @@ namespace cpu
 {
 
 template<typename T>
-void normalize(Index m, Index n, Index k, Index l, T eps, T gamma, T beta,
-        const T *sumnorm, T *dst)
+void normalize(Index m, Index n, Index k, Index l, T eps, const T *gamma,
+        const T *beta, const T *sumnorm, T *dst)
     noexcept
 //! Renormalize buffer along middle axis
 /*! Provided m-by-k-by-n output array dst is renormalized along second axis
@@ -87,7 +87,7 @@ void normalize(Index m, Index n, Index k, Index l, T eps, T gamma, T beta,
                 // Normalization
                 val = (val-mean) / dev;
                 // Renormalization
-                val = val*gamma + beta;
+                val = val*gamma[0] + beta[0];
                 // Update pointers
                 ++dst_offset;
                 src_offset += 2;

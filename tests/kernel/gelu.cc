@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/kernel/gelu.cc
- * GeLU operation on a buffer on CPU
+ * GeLU operation on a buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-16
  * */
 
 #include "nntile/kernel/cpu/gelu.hh"

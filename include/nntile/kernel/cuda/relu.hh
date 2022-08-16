@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/cpu/normalize.hh
- * Normalize operation on CPU
+ * @file include/nntile/kernel/cuda/relu.hh
+ * ReLU operation on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -15,20 +15,20 @@
 #pragma once
 
 #include <nntile/base_types.hh>
+#include <cuda_runtime.h>
 
 namespace nntile
 {
 namespace kernel
 {
-namespace cpu
+namespace cuda
 {
 
 template<typename T>
-void normalize(Index m, Index n, Index k, Index l, T eps, const T *gamma,
-        const T *beta, const T *sumnorm, T *dst)
+void relu(cudaStream_t stream, Index nelems, T *data)
     noexcept;
 
-} // namespace cpu
+} // namespace cuda
 } // namespace kernel
 } // namespace nntile
 

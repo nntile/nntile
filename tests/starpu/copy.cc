@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-12
+ * @date 2022-08-15
  * */
 
 #include "nntile/starpu/copy.hh"
@@ -17,6 +17,7 @@
 #include <array>
 #include <vector>
 #include <stdexcept>
+#include <iostream>
 
 using namespace nntile;
 
@@ -81,57 +82,33 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
         dst_data[i] = T(-i-1);
     }
     // Create copies of destination
-    std::vector<T> dst2_data(dst_data), dst3_data(dst_data);
+    std::vector<T> dst2_data(dst_data);
     // Launch low-level kernel
     std::vector<Index> tmp_index(2*NDIM);
+    std::cout << "Run starpu::copy<T>\n";
     kernel::cpu::copy<T>(NDIM, &src_start[0], &src_stride[0], &copy_shape[0],
             &src_data[0], &dst_start[0], &dst_stride[0], &dst_data[0],
             &tmp_index[0]);
-    // Launch corresponding StarPU codelet
-    void *args;
-    std::size_t args_size;
-    Index ndim = NDIM;
-    starpu_codelet_pack_args(&args, &args_size,
-            STARPU_VALUE, &ndim, sizeof(ndim),
-            STARPU_VALUE, &src_start[0], NDIM*sizeof(src_start[0]),
-            STARPU_VALUE, &src_stride[0], NDIM*sizeof(src_stride[0]),
-            STARPU_VALUE, &copy_shape[0], NDIM*sizeof(copy_shape[0]),
-            STARPU_VALUE, &dst_start[0], NDIM*sizeof(dst_start[0]),
-            STARPU_VALUE, &dst_stride[0], NDIM*sizeof(dst_stride[0]),
-            0);
-    StarpuVariableInterface src_interface(&src_data[0], sizeof(T)*src_nelems),
-        dst2_interface(&dst2_data[0], sizeof(T)*dst_nelems),
-        tmp_interface(&tmp_index[0], sizeof(Index)*NDIM*2);
-    void *buffers[3] = {&src_interface, &dst2_interface, &tmp_interface};
-    starpu::copy_cpu<T>(buffers, args);
-    free(args);
+    // Check by actually submitting a task
+    StarpuVariableHandle src_handle(&src_data[0], sizeof(T)*src_nelems),
+        dst2_handle(&dst2_data[0], sizeof(T)*dst_nelems),
+        tmp_handle(&tmp_index[0], sizeof(Index)*NDIM*2);
+    starpu::copy_restrict_where(STARPU_CPU);
+    starpu_resume();
+    starpu::copy<T>(NDIM, src_start, src_stride, dst_start, dst_stride,
+            copy_shape, src_handle, dst2_handle, tmp_handle, STARPU_RW);
+    starpu_task_wait_for_all();
+    dst2_handle.unregister();
+    starpu_pause();
     // Check result
     for(Index i = 0; i < dst_nelems; ++i)
     {
         if(dst_data[i] != dst2_data[i])
         {
-            throw std::runtime_error("StarPU codelet wrong result");
-        }
-    }
-    // Check by actually submitting a task
-    StarpuVariableHandle src_handle(&src_data[0], sizeof(T)*src_nelems),
-        dst3_handle(&dst3_data[0], sizeof(T)*dst_nelems),
-        tmp_handle(&tmp_index[0], sizeof(Index)*NDIM*2);
-    starpu::copy_restrict_where(STARPU_CPU);
-    starpu_resume();
-    starpu::copy<T>(NDIM, src_start, src_stride, dst_start, dst_stride,
-            copy_shape, src_handle, dst3_handle, tmp_handle, STARPU_RW);
-    starpu_task_wait_for_all();
-    dst3_handle.unregister();
-    starpu_pause();
-    // Check result
-    for(Index i = 0; i < dst_nelems; ++i)
-    {
-        if(dst_data[i] != dst3_data[i])
-        {
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
+    std::cout << "OK: starpu::copy<T>\n";
 }
 
 // Run multiple tests for a given precision

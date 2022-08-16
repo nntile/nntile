@@ -20,6 +20,7 @@ set(KERNEL_SRC
     "kernel/cpu/normalize.cc"
     "kernel/cpu/randn.cc"
     "kernel/cpu/sumnorm.cc"
+    "kernel/cpu/relu.cc"
     )
 
 set(STARPU_SRC
@@ -31,6 +32,7 @@ set(STARPU_SRC
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"
     "starpu/normalize.cc"
     "starpu/randn.cc"
+    "starpu/relu.cc"
     "starpu/sumnorm.cc"
     )
 
@@ -69,6 +71,7 @@ if(NNTILE_USE_CUDA)
         "kernel/cuda/gelu.cu"
         "kernel/cuda/gelutanh.cu"
         "kernel/cuda/normalize.cu"
+        "kernel/cuda/relu.cu"
         "kernel/cuda/sumnorm.cu"
         )
     set(TILE_SRC

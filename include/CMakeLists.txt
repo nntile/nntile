@@ -25,6 +25,7 @@ set(KERNEL_HDR
     "nntile/kernel/cpu/gelutanh.hh"
     "nntile/kernel/cpu/normalize.hh"
     "nntile/kernel/cpu/randn.hh"
+    "nntile/kernel/cpu/relu.hh"
     "nntile/kernel/cpu/sumnorm.hh"
     )
 
@@ -38,6 +39,7 @@ set(STARPU_HDR
     "nntile/starpu/gemm.hh"
     "nntile/starpu/normalize.hh"
     "nntile/starpu/randn.hh"
+    "nntile/starpu/relu.hh"
     "nntile/starpu/sumnorm.hh"
     )
 
@@ -78,6 +80,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/cuda/gelu.hh"
         "nntile/kernel/cuda/gelutanh.hh"
         "nntile/kernel/cuda/normalize.hh"
+        "nntile/kernel/cuda/relu.hh"
         "nntile/kernel/cuda/sumnorm.hh"
         )
     set(TILE_HDR

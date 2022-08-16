@@ -14,7 +14,6 @@
 
 #include "nntile/starpu/bias.hh"
 #include "nntile/kernel/cpu/bias.hh"
-
 #ifdef NNTILE_USE_CUDA
 #   include "nntile/kernel/cuda/bias.hh"
 #endif // NNTILE_USE_CUDA

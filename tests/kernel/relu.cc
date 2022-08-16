@@ -4,23 +4,22 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/gelutanh.cc
- * Approximate GeLU operation on a buffer
+ * @file tests/kernel/relu.cc
+ * ReLU operation on a buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @date 2022-08-16
  * */
 
-#include "nntile/kernel/cpu/gelutanh.hh"
+#include "nntile/kernel/cpu/relu.hh"
 #include "nntile/defs.h"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/gelutanh.hh"
+#   include "nntile/kernel/cuda/relu.hh"
 #endif // NNTILE_USE_CUDA
 #include <vector>
 #include <stdexcept>
 #include <cmath>
-#include <limits>
 #include <iostream>
 
 using namespace nntile;
@@ -51,7 +50,7 @@ void run_cuda(Index nelems, std::vector<T> &data)
         throw std::runtime_error("CUDA error");
     }
     // Launch low-level kernel
-    cuda::gelutanh<T>(stream, nelems, dev_data);
+    cuda::relu<T>(stream, nelems, dev_data);
     cuda_err = cudaStreamSynchronize(stream);
     if(cuda_err != cudaSuccess)
     {
@@ -81,7 +80,6 @@ void run_cuda(Index nelems, std::vector<T> &data)
 template<typename T>
 void validate(Index nelems)
 {
-    constexpr T pi = 3.141592653589793238462643383279502884L;
     constexpr T eps = std::numeric_limits<T>::epsilon();
     // Init test input
     std::vector<T> data(nelems);
@@ -91,61 +89,33 @@ void validate(Index nelems)
     }
     std::vector<T> data_save(data);
     // Check low-level kernel
-    std::cout << "Run cpu::gelutanh<T>\n";
-    cpu::gelutanh<T>(nelems, &data[0]);
+    std::cout << "Run cpu::relu<T>\n";
+    cpu::relu<T>(nelems, &data[0]);
     for(Index i = 0; i < nelems; ++i)
     {
         T x = data_save[i];
-        T y = std::sqrt(T{2}/pi) * (x+T{0.044715}*x*x*x);
-        T z = T{1}+std::tanh(y);
-        T val_ref = T{0.5} * x * z;
-        // Obtain range of correct values
-        T val_ref_min, val_ref_max;
-        if(val_ref < 0)
-        {
-            val_ref_min = val_ref * (T{1}+eps) - eps;
-            val_ref_max = val_ref * (T{1}-eps) + eps;
-        }
-        else
-        {
-            val_ref_min = val_ref * (T{1}-eps) - eps;
-            val_ref_max = val_ref * (T{1}+eps) + eps;
-        }
-        if(data[i] < val_ref_min or data[i] > val_ref_max)
+        T val_ref = std::max(x, T{0});
+        if(data[i] != val_ref)
         {
             throw std::runtime_error("Wrong value");
         }
     }
-    std::cout << "OK: cpu::gelutanh<T>\n";
+    std::cout << "OK: cpu::relu<T>\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     data = data_save;
-    std::cout << "Run cuda::gelutanh<T>\n";
+    std::cout << "Run cuda::relu<T>\n";
     run_cuda<T>(nelems, data);
     for(Index i = 0; i < nelems; ++i)
     {
         T x = data_save[i];
-        T y = std::sqrt(T{2}/pi) * (x+T{0.044715}*x*x*x);
-        T z = T{1}+std::tanh(y);
-        T val_ref = T{0.5} * x * z;
-        // Obtain range of correct values
-        T val_ref_min, val_ref_max;
-        if(val_ref < 0)
-        {
-            val_ref_min = val_ref * (T{1}+eps) - eps;
-            val_ref_max = val_ref * (T{1}-eps) + eps;
-        }
-        else
-        {
-            val_ref_min = val_ref * (T{1}-eps) - eps;
-            val_ref_max = val_ref * (T{1}+eps) + eps;
-        }
-        if(data[i] < val_ref_min or data[i] > val_ref_max)
+        T val_ref = std::max(x, T{0});
+        if(data[i] != val_ref)
         {
             throw std::runtime_error("Wrong value");
         }
     }
-    std::cout << "OK: cuda::gelutanh<T>\n";
+    std::cout << "OK: cuda::relu<T>\n";
 #endif // NNTILE_USE_CUDA
 }
 

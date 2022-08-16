@@ -4,18 +4,18 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/starpu/gelutanh.cc
- * Approximate GeLU operation on a StarPU buffer
+ * @file tests/starpu/relu.cc
+ * ReLU operation on a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-16
  * */
 
-#include "nntile/starpu/gelutanh.hh"
-#include "nntile/kernel/cpu/gelutanh.hh"
+#include "nntile/starpu/relu.hh"
+#include "nntile/kernel/cpu/relu.hh"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/gelutanh.hh"
+#   include "nntile/kernel/cuda/relu.hh"
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA
 #include <vector>
@@ -36,14 +36,14 @@ void validate_cpu(Index nelems)
     // Create copies of destination
     std::vector<T> data2(data);
     // Launch low-level kernel
-    std::cout << "Run cpu::gelutanh<T>\n";
-    kernel::cpu::gelutanh<T>(nelems, &data[0]);
+    std::cout << "Run cpu::relu<T>\n";
+    kernel::cpu::relu<T>(nelems, &data[0]);
     // Check by actually submitting a task
     StarpuVariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
-    starpu::gelutanh_restrict_where(STARPU_CPU);
+    starpu::relu_restrict_where(STARPU_CPU);
     starpu_resume();
-    std::cout << "Run starpu::gelutanh<T> restricted to CPU\n";
-    starpu::gelutanh<T>(nelems, data2_handle);
+    std::cout << "Run starpu::relu<T> restricted to CPU\n";
+    starpu::relu<T>(nelems, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     starpu_pause();
@@ -55,7 +55,7 @@ void validate_cpu(Index nelems)
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
-    std::cout << "OK: starpu::gelutanh<T> restricted to CPU\n";
+    std::cout << "OK: starpu::relu<T> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -99,8 +99,8 @@ void validate_cuda(Index nelems)
     {
         throw std::runtime_error("CUDA error");
     }
-    std::cout << "Run cuda::gelutanh<T>\n";
-    kernel::cuda::gelutanh<T>(stream, nelems, dev_data);
+    std::cout << "Run cuda::relu<T>\n";
+    kernel::cuda::relu<T>(stream, nelems, dev_data);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
     if(cuda_err != cudaSuccess)
@@ -127,10 +127,10 @@ void validate_cuda(Index nelems)
     }
     // Check by actually submitting a task
     StarpuVariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
-    starpu::gelutanh_restrict_where(STARPU_CUDA);
+    starpu::relu_restrict_where(STARPU_CUDA);
     starpu_resume();
-    std::cout << "Run starpu::gelutanh<T> restricted to CUDA\n";
-    starpu::gelutanh<T>(nelems, data2_handle);
+    std::cout << "Run starpu::relu<T> restricted to CUDA\n";
+    starpu::relu<T>(nelems, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     starpu_pause();
@@ -142,9 +142,10 @@ void validate_cuda(Index nelems)
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
-    std::cout << "OK: starpu::gelutanh<T> restricted to CUDA\n";
+    std::cout << "OK: starpu::relu<T> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
+
 int main(int argc, char **argv)
 {
     // Init StarPU configuration and set number of CPU workers to 1

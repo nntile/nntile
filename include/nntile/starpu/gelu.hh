@@ -9,13 +9,14 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-11
+ * @date 2022-08-15
  * */
 
 #pragma once
 
 #include <nntile/base_types.hh>
 #include <nntile/starpu.hh>
+#include <nntile/defs.h>
 
 namespace nntile
 {
@@ -26,6 +27,13 @@ namespace starpu
 template<typename T>
 void gelu_cpu(void *buffers[], void *cl_args)
     noexcept;
+
+#ifdef NNTILE_USE_CUDA
+// Apply gelu along middle axis of StarPU buffer on CUDA
+template<typename T>
+void gelu_cuda(void *buffers[], void *cl_args)
+    noexcept;
+#endif // NNTILE_USE_CUDA
 
 extern StarpuCodelet gelu_codelet_fp32, gelu_codelet_fp64;
 

@@ -23,8 +23,8 @@ namespace cuda
 
 template<typename T>
 static __global__
-void normalize_kernel(Index m, Index n, Index k, Index l, T eps, T gamma,
-        T beta, const T *sumnorm, T *dst)
+void normalize_kernel(Index m, Index n, Index k, Index l, T eps,
+        const T *gamma, const T *beta, const T *sumnorm, T *dst)
 {
     Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
           i1_start = threadIdx.y + blockIdx.y*blockDim.y,
@@ -71,7 +71,7 @@ void normalize_kernel(Index m, Index n, Index k, Index l, T eps, T gamma,
                 // Normalization
                 val = (val-mean) / dev;
                 // Renormalization
-                val = val*gamma + beta;
+                val = val*gamma[0] + beta[0];
                 // Update pointers
                 ++dst_offset;
                 src_offset += 2;
@@ -82,7 +82,7 @@ void normalize_kernel(Index m, Index n, Index k, Index l, T eps, T gamma,
 
 template<typename T>
 void normalize(cudaStream_t stream, Index m, Index n, Index k, Index l, T eps,
-        T gamma, T beta, const T *sumnorm, T *dst)
+        const T *gamma, const T *beta, const T *sumnorm, T *dst)
     noexcept
 //! Renormalize buffer along middle axis
 /*! Provided m-by-k-by-n output array dst is renormalized along second axis
@@ -114,13 +114,13 @@ void normalize(cudaStream_t stream, Index m, Index n, Index k, Index l, T eps,
 // Explicit instantiation
 template
 void normalize<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Index l,
-        fp32_t eps, fp32_t gamma, fp32_t beta, const fp32_t *sumnorm,
-        fp32_t *dst)
+        fp32_t eps, const fp32_t *gamma, const fp32_t *beta,
+        const fp32_t *sumnorm, fp32_t *dst)
     noexcept;
 
 template
 void normalize<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Index l,
-        fp64_t eps, fp64_t gamma, fp64_t beta, const fp64_t *sumnorm,
+        fp64_t eps, const fp64_t *gamma, const fp64_t *beta, const fp64_t *sumnorm,
         fp64_t *dst)
     noexcept;
 

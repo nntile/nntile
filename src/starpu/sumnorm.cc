@@ -9,18 +9,21 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-11
+ * @date 2022-08-15
  * */
 
 #include "nntile/starpu/sumnorm.hh"
 #include "nntile/kernel/cpu/sumnorm.hh"
+#ifdef NNTILE_USE_CUDA
+#   include "nntile/kernel/cuda/sumnorm.hh"
+#endif // NNTILE_USE_CUDA
 
 namespace nntile
 {
 namespace starpu
 {
 
-//! Sum and Euclidian norm along middle axis of StarPU buffer
+//! Sum and Euclidian norm along middle axis of StarPU buffer on CPU
 template<typename T>
 void sumnorm_cpu(void *buffers[], void *cl_args)
     noexcept
@@ -34,6 +37,25 @@ void sumnorm_cpu(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::cpu::sumnorm<T>(args->m, args->n, args->k, src, dst);
 }
+
+#ifdef NNTILE_USE_CUDA
+//! Sum and Euclidian norm along middle axis of StarPU buffer on CUDA
+template<typename T>
+void sumnorm_cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<sumnorm_args *>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Launch kernel
+    kernel::cuda::sumnorm<T>(stream, args->m, args->n, args->k, src, dst);
+}
+#endif // NNTIEL_USE_CUDA
 
 //! Footprint for sumnorm tasks that depends only on m, n and k
 static
@@ -54,13 +76,21 @@ uint32_t sumnorm_footprint(struct starpu_task *task)
 StarpuCodelet sumnorm_codelet_fp32("nntile_sumnorm_fp32",
         sumnorm_footprint,
         {sumnorm_cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+        {sumnorm_cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
         {}
+#endif // NNTILE_USE_CUDA
         );
 
 StarpuCodelet sumnorm_codelet_fp64("nntile_sumnorm_fp64",
         sumnorm_footprint,
         {sumnorm_cpu<fp64_t>},
+#ifdef NNTILE_USE_CUDA
+        {sumnorm_cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
         {}
+#endif // NNTILE_USE_CUDA
         );
 
 void sumnorm_restrict_where(uint32_t where)

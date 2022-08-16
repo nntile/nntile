@@ -9,18 +9,23 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-11
+ * @date 2022-08-15
  * */
 
 #include "nntile/starpu/clear.hh"
 #include <cstring>
+#ifdef NNTILE_USE_CUDA
+#   include <cuda_runtime.h>
+#endif // NNTILE_USE_CUDA
+
+#include <iostream>
 
 namespace nntile
 {
 namespace starpu
 {
 
-// Clear a StarPU buffer on CPU
+//! Clear a StarPU buffer on CPU
 void clear_cpu(void *buffers[], void *cl_args)
     noexcept
 {
@@ -29,13 +34,35 @@ void clear_cpu(void *buffers[], void *cl_args)
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     std::size_t size = interfaces[0]->elemsize;
     void *data = interfaces[0]->get_ptr<void>();
+    // Clear buffer
     std::memset(data, 0, size);
 }
+
+#ifdef NNTILE_USE_CUDA
+//! Clear a StarPU buffer on CUDA
+void clear_cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // No arguments
+    // Get interfaces
+    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    std::size_t size = interfaces[0]->elemsize;
+    void *data = interfaces[0]->get_ptr<void>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Clear buffer
+    cudaMemsetAsync(data, 0, size, stream);
+}
+#endif // NNTILE_USE_CUDA
 
 StarpuCodelet clear_codelet("nntile_clear",
         nullptr,
         {clear_cpu},
+#ifdef NNTILE_USE_CUDA
+        {clear_cuda}
+#else // NNTILE_USE_CUDA
         {}
+#endif // NNTILE_USE_CUDA
         );
 
 void clear_restrict_where(uint32_t where)

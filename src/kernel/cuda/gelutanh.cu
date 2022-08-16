@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-16
  * */
 
 #include "nntile/kernel/cuda/gelutanh.hh"
@@ -29,7 +29,7 @@ void gelutanh_kernel(Index nelems, T *data)
         step = blockDim.x * gridDim.x;
     // Constants
     constexpr T pi = 3.141592653589793238462643383279502884L,
-        one = 1, pt5 = 0.5, f1 = T{0.044715};
+        one = 1, f1 = T{0.044715};
     // Square root is not constexpr by standard, proceed with a static const
     const T sqrt_pi = sqrt(pi), sqrt_2 = sqrt(T{2}),
         f2 = sqrt_2/sqrt_pi, f3 = -T{2}*f2, f4 = f3*f1;
@@ -54,8 +54,6 @@ void gelutanh(cudaStream_t stream, Index nelems, T *data)
  * @params[inout] data: Buffer to apply GeLU
  * */
 {
-    // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
-    // Both source and destination are Fortran-contiguous
     dim3 blocks(256), threads(32);
     (gelutanh_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, data);
 }

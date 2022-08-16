@@ -9,13 +9,14 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-11
+ * @date 2022-08-15
  * */
 
 #pragma once
 
 #include <nntile/base_types.hh>
 #include <nntile/starpu.hh>
+#include <nntile/defs.h>
 
 namespace nntile
 {
@@ -37,6 +38,13 @@ struct normalize_args
 template<typename T>
 void normalize_cpu(void *buffers[], void *cl_args)
     noexcept;
+
+#ifdef NNTILE_USE_CUDA
+// Apply normalize along middle axis of StarPU buffer on CUDA
+template<typename T>
+void normalize_cuda(void *buffers[], void *cl_args)
+    noexcept;
+#endif // NNTILE_USE_CUDA
 
 extern StarpuCodelet normalize_codelet_fp32, normalize_codelet_fp64;
 

@@ -9,18 +9,18 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-12
+ * @date 2022-08-15
  * */
 
 #include "nntile/starpu/bias.hh"
 #include "nntile/kernel/cpu/bias.hh"
-#include <vector>
-#include <stdexcept>
-
 #ifdef NNTILE_USE_CUDA
 #   include "nntile/kernel/cuda/bias.hh"
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA
+#include <vector>
+#include <stdexcept>
+#include <iostream>
 
 using namespace nntile;
 
@@ -41,12 +41,14 @@ void validate_cpu(Index m, Index n, Index k)
     // Create copies of destination
     std::vector<T> dst2(dst);
     // Launch low-level kernel
+    std::cout << "Run cpu::bias<T>\n";
     kernel::cpu::bias<T>(m, n, k, &src[0], &dst[0]);
     // Check by actually submitting a task
     StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
     starpu::bias_restrict_where(STARPU_CPU);
     starpu_resume();
+    std::cout << "Run starpu::bias<T> restricted to CPU\n";
     starpu::bias<T>(m, n, k, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
@@ -59,6 +61,7 @@ void validate_cpu(Index m, Index n, Index k)
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
+    std::cout << "OK: starpu::bias<T> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -118,6 +121,7 @@ void validate_cuda(Index m, Index n, Index k)
     {
         throw std::runtime_error("CUDA error");
     }
+    std::cout << "Run cuda::bias<T>\n";
     kernel::cuda::bias<T>(stream, m, n, k, dev_src, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
@@ -153,6 +157,7 @@ void validate_cuda(Index m, Index n, Index k)
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
     starpu::bias_restrict_where(STARPU_CUDA);
     starpu_resume();
+    std::cout << "Run starpu::bias<T> restricted to CUDA\n";
     starpu::bias<T>(m, n, k, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
@@ -165,6 +170,7 @@ void validate_cuda(Index m, Index n, Index k)
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
+    std::cout << "OK: starpu::bias<T> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 
