@@ -9,14 +9,19 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-12
+ * @date 2022-08-17
  * */
 
 #include "nntile/starpu/sumnorm.hh"
 #include "nntile/kernel/cpu/sumnorm.hh"
+#ifdef NNTILE_USE_CUDA
+#   include "nntile/kernel/cuda/sumnorm.hh"
+#   include <cuda_runtime.h>
+#endif // NNTILE_USE_CUDA
 #include <vector>
 #include <stdexcept>
 #include <cmath>
+#include <iostream>
 
 using namespace nntile;
 
@@ -29,53 +34,148 @@ void validate_cpu(Index m, Index n, Index k)
     {
         src[i] = T(i+1);
     }
-    std::vector<T> dst(2*m*n);
+    std::vector<T> sumnorm(2*m*n);
     for(Index i = 0; i < 2*m*n; i += 2)
     {
-        dst[i] = T(-i-1); // Sum
-        dst[i+1] = T(2*i); // Norm
+        sumnorm[i] = T(-i-1); // Sum
+        sumnorm[i+1] = T(2*i); // Norm
     }
     // Create copies of destination
-    std::vector<T> dst2(dst), dst3(dst);
+    std::vector<T> sumnorm2(sumnorm);
     // Launch low-level kernel
-    kernel::cpu::sumnorm<T>(m, n, k, &src[0], &dst[0]);
-    // Launch corresponding StarPU codelet
-    starpu::sumnorm_args args =
-    {
-        .m = m,
-        .n = n,
-        .k = k,
-    };
-    StarpuVariableInterface src_interface(&src[0], sizeof(T)*m*n*k),
-        dst2_interface(&dst2[0], sizeof(T)*2*m*n);
-    void *buffers[2] = {&src_interface, &dst2_interface};
-    starpu::sumnorm_cpu<T>(buffers, &args);
-    // Check result
-    for(Index i = 0; i < m*n; ++i)
-    {
-        if(dst[i] != dst2[i])
-        {
-            throw std::runtime_error("StarPU codelet wrong result");
-        }
-    }
+    std::cout << "Run cpu::sumnorm<T>\n";
+    kernel::cpu::sumnorm<T>(m, n, k, &src[0], &sumnorm[0]);
     // Check by actually submitting a task
     StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n*k),
-        dst3_handle(&dst3[0], sizeof(T)*2*m*n);
+        sumnorm2_handle(&sumnorm2[0], sizeof(T)*2*m*n);
     starpu::sumnorm_restrict_where(STARPU_CPU);
     starpu_resume();
-    starpu::sumnorm<T>(m, n, k, src_handle, dst3_handle);
+    std::cout << "Run starpu::sumnorm<T> restricted to CPU\n";
+    starpu::sumnorm<T>(m, n, k, src_handle, sumnorm2_handle);
     starpu_task_wait_for_all();
-    dst3_handle.unregister();
+    sumnorm2_handle.unregister();
     starpu_pause();
     // Check result
     for(Index i = 0; i < m*n; ++i)
     {
-        if(dst[i] != dst3[i])
+        if(sumnorm[i] != sumnorm2[i])
         {
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
+    std::cout << "OK: starpu::sumnorm<T> restricted to CPU\n";
 }
+
+#ifdef NNTILE_USE_CUDA
+template<typename T>
+void validate_cuda(Index m, Index n, Index k)
+{
+    // Get a StarPU CUDA worker (to perform computations on the same device)
+    int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
+    // Choose worker CUDA device
+    int dev_id = starpu_worker_get_devid(cuda_worker_id);
+    cudaError_t cuda_err = cudaSetDevice(dev_id);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    // Create CUDA stream
+    cudaStream_t stream;
+    cuda_err = cudaStreamCreate(&stream);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    // Init all the data
+    std::vector<T> src(m*n*k);
+    for(Index i = 0; i < m*n*k; ++i)
+    {
+        src[i] = T(i+1);
+    }
+    std::vector<T> sumnorm(2*m*n);
+    for(Index i = 0; i < 2*m*n; i += 2)
+    {
+        sumnorm[i] = T(-i-1); // Sum
+        sumnorm[i+1] = T(2*i); // Norm
+    }
+    // Create copies of destination
+    std::vector<T> sumnorm2(sumnorm);
+    // Launch low-level kernel
+    T *dev_src, *dev_sumnorm;
+    cuda_err = cudaMalloc(&dev_src, sizeof(T)*m*n*k);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaMalloc(&dev_sumnorm, sizeof(T)*2*m*n);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*m*n*k,
+            cudaMemcpyHostToDevice);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaMemcpy(dev_sumnorm, &sumnorm[0], sizeof(T)*2*m*n,
+            cudaMemcpyHostToDevice);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    std::cout << "Run cuda::sumnorm<T>\n";
+    kernel::cuda::sumnorm<T>(stream, m, n, k, dev_src, dev_sumnorm);
+    // Wait for result and destroy stream
+    cuda_err = cudaStreamSynchronize(stream);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaStreamDestroy(stream);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    // Copy result back to CPU
+    cuda_err = cudaMemcpy(&sumnorm[0], dev_sumnorm, sizeof(T)*2*m*n,
+            cudaMemcpyDeviceToHost);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    // Deallocate CUDA memory
+    cuda_err = cudaFree(dev_src);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    cuda_err = cudaFree(dev_sumnorm);
+    if(cuda_err != cudaSuccess)
+    {
+        throw std::runtime_error("CUDA error");
+    }
+    // Check by actually submitting a task
+    StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n*k, STARPU_R),
+        sumnorm2_handle(&sumnorm2[0], sizeof(T)*2*m*n, STARPU_RW);
+    starpu::sumnorm_restrict_where(STARPU_CUDA);
+    starpu_resume();
+    std::cout << "Run starpu::sumnorm<T> restricted to CUDA\n";
+    starpu::sumnorm<T>(m, n, k, src_handle, sumnorm2_handle);
+    starpu_task_wait_for_all();
+    sumnorm2_handle.unregister();
+    starpu_pause();
+    // Check result
+    for(Index i = 0; i < 2*m*n; ++i)
+    {
+        if(sumnorm[i] != sumnorm2[i])
+        {
+            throw std::runtime_error("StarPU submission wrong result");
+        }
+    }
+    std::cout << "OK: starpu::sumnorm<T> restricted to CUDA\n";
+}
+#endif // NNTILE_USE_CUDA
 
 int main(int argc, char **argv)
 {
@@ -87,7 +187,11 @@ int main(int argc, char **argv)
         throw std::runtime_error("starpu_conf_init error");
     }
     conf.ncpus = 1;
+#ifdef NNTILE_USE_CUDA
+    conf.ncuda = 1;
+#else // NNTILE_USE_CUDA
     conf.ncuda = 0;
+#endif // NNTILE_USE_CUDA
     ret = starpu_init(&conf);
     if(ret != 0)
     {
@@ -97,6 +201,10 @@ int main(int argc, char **argv)
     starpu_pause();
     validate_cpu<fp32_t>(3, 5, 7);
     validate_cpu<fp64_t>(3, 5, 7);
+#ifdef NNTILE_USE_CUDA
+    validate_cuda<fp32_t>(3, 5, 7);
+    validate_cuda<fp64_t>(3, 5, 7);
+#endif // NNTILE_USE_CUDA
     starpu_resume();
     starpu_shutdown();
     return 0;

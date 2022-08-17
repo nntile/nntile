@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-12
+ * @date 2022-08-17
  * */
 
 #include "nntile/starpu/randn.hh"
@@ -17,6 +17,7 @@
 #include <array>
 #include <vector>
 #include <stdexcept>
+#include <iostream>
 
 using namespace nntile;
 
@@ -45,63 +46,36 @@ void validate_cpu(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
         data[i] = T(i+1);
     }
     // Create copies of data
-    std::vector<T> data2(data), data3(data);
+    std::vector<T> data2(data);
     // Launch low-level kernel
     std::vector<Index> tmp_index(NDIM);
+    std::cout << "Run cpu::randn<T>\n";
     kernel::cpu::randn<T>(NDIM, nelems, seed, mean, stddev, &start[0],
             &shape[0], &underlying_shape[0], &data[0], &stride[0],
             &tmp_index[0]);
-    // Launch corresponding StarPU codelet
-    void *args;
-    std::size_t args_size;
-    Index ndim = NDIM;
-    starpu_codelet_pack_args(&args, &args_size,
-            STARPU_VALUE, &ndim, sizeof(ndim),
-            STARPU_VALUE, &nelems, sizeof(nelems),
-            STARPU_VALUE, &seed, sizeof(seed),
-            STARPU_VALUE, &mean, sizeof(mean),
-            STARPU_VALUE, &stddev, sizeof(stddev),
-            STARPU_VALUE, &start[0], NDIM*sizeof(start[0]),
-            STARPU_VALUE, &shape[0], NDIM*sizeof(shape[0]),
-            STARPU_VALUE, &stride[0], NDIM*sizeof(stride[0]),
-            STARPU_VALUE, &underlying_shape[0],
-            NDIM*sizeof(underlying_shape[0]),
-            0);
-    StarpuVariableInterface
-        data2_interface(&data2[0], sizeof(T)*size),
-        tmp_interface(&tmp_index[0], sizeof(Index)*NDIM);
-    void *buffers[2] = {&data2_interface, &tmp_interface};
-    starpu::randn_cpu<T>(buffers, args);
-    free(args);
+    // Check by actually submitting a task
+    StarpuVariableHandle data2_handle(&data2[0], sizeof(T)*size),
+        tmp_handle(&tmp_index[0], sizeof(Index)*NDIM);
+    std::vector<Index> start_(start.cbegin(), start.cend()),
+        shape_(shape.cbegin(), shape.cend()),
+        underlying_shape_(underlying_shape.cbegin(), underlying_shape.cend());
+    starpu::randn_restrict_where(STARPU_CPU);
+    starpu_resume();
+    std::cout << "Run starpu::randn<T> restricted to CPU\n";
+    starpu::randn<T>(NDIM, nelems, seed, mean, stddev, start_, shape_, stride,
+            underlying_shape_, data2_handle, tmp_handle);
+    starpu_task_wait_for_all();
+    data2_handle.unregister();
+    starpu_pause();
     // Check result
     for(Index i = 0; i < size; ++i)
     {
         if(data[i] != data2[i])
         {
-            throw std::runtime_error("StarPU codelet wrong result");
-        }
-    }
-    // Check by actually submitting a task
-    StarpuVariableHandle data3_handle(&data3[0], sizeof(T)*size),
-        tmp_handle(&tmp_index[0], sizeof(Index)*NDIM);
-    starpu::randn_restrict_where(STARPU_CPU);
-    std::vector<Index> start_(start.cbegin(), start.cend()),
-        shape_(shape.cbegin(), shape.cend()),
-        underlying_shape_(underlying_shape.cbegin(), underlying_shape.cend());
-    starpu_resume();
-    starpu::randn<T>(NDIM, nelems, seed, mean, stddev, start_, shape_, stride,
-            underlying_shape_, data3_handle, tmp_handle);
-    starpu_task_wait_for_all();
-    data3_handle.unregister();
-    starpu_pause();
-    // Check result
-    for(Index i = 0; i < size; ++i)
-    {
-        if(data[i] != data3[i])
-        {
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
+    std::cout << "OK: starpu::randn<T> restricted to CPU\n";
 }
 
 // Run multiple tests for a given precision

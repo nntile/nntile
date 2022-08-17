@@ -283,15 +283,6 @@ StarpuHandleLocalData StarpuHandle::acquire(
 class StarpuVariableInterface: public starpu_variable_interface
 {
 public:
-    //! Construct from a pointer (CPU, CUDA). OpenCL is not yet supported.
-    StarpuVariableInterface(void *ptr_, std::size_t size_)
-    {
-        id = STARPU_VARIABLE_INTERFACE_ID;
-        ptr = reinterpret_cast<uintptr_t>(ptr_);
-        dev_handle = 0;
-        offset = 0;
-        elemsize = size_;
-    }
     //! Get pointer of a proper type
     template<typename T>
     T *get_ptr() const

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-17
  * */
 
 #include "nntile/starpu/copy.hh"
@@ -85,7 +85,7 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
     std::vector<T> dst2_data(dst_data);
     // Launch low-level kernel
     std::vector<Index> tmp_index(2*NDIM);
-    std::cout << "Run starpu::copy<T>\n";
+    std::cout << "Run cpu::copy<T>\n";
     kernel::cpu::copy<T>(NDIM, &src_start[0], &src_stride[0], &copy_shape[0],
             &src_data[0], &dst_start[0], &dst_stride[0], &dst_data[0],
             &tmp_index[0]);
@@ -95,6 +95,7 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
         tmp_handle(&tmp_index[0], sizeof(Index)*NDIM*2);
     starpu::copy_restrict_where(STARPU_CPU);
     starpu_resume();
+    std::cout << "Run starpu::copy<T> restricted to CPU\n";
     starpu::copy<T>(NDIM, src_start, src_stride, dst_start, dst_stride,
             copy_shape, src_handle, dst2_handle, tmp_handle, STARPU_RW);
     starpu_task_wait_for_all();
@@ -108,7 +109,7 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
-    std::cout << "OK: starpu::copy<T>\n";
+    std::cout << "OK: starpu::copy<T> restricted to CPU\n";
 }
 
 // Run multiple tests for a given precision
