@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-12
+ * @date 2022-08-17
  * */
 
 #pragma once
@@ -348,6 +348,8 @@ public:
     {
         // Initialize codelet + perfmodel
         std::memset(this, 0, sizeof(*this));
+        starpu_codelet::model = this;
+        starpu_perfmodel::type = STARPU_HISTORY_BASED;
         // Set codelet name and performance model symbol
         starpu_codelet::name = name_;
         starpu_perfmodel::symbol = name_;
