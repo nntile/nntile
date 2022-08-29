@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-23
  * */
 
 #include "nntile/kernel/cpu/normalize.hh"
@@ -150,7 +150,7 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
         {
             T avg = T(i0+i1) / T{10};
             sumnorm[2*(i1*m+i0)] = avg * T(l);
-            sumnorm[2*(i1*m+i0)+1] = std::sqrt((avg*avg+T{1}+eps) * T(l));
+            sumnorm[2*(i1*m+i0)+1] = std::sqrt((avg*avg+T{1}) * T(l));
         }
     }
     std::vector<T> dst_save(dst);
@@ -164,7 +164,7 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
             for(Index i2 = 0; i2 < k; ++i2)
             {
                 T val = dst[(i1*k+i2)*m+i0];
-                T val_ref = T(i2)/T{10}/std::sqrt(T{1}+2*eps)*gamma + beta;
+                T val_ref = T(i2)/T{10}/std::sqrt(T{1}+eps)*gamma + beta;
                 if(std::abs(val/val_ref-T{1})
                         / std::numeric_limits<T>::epsilon() > 50)
                 {
@@ -186,7 +186,7 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
             for(Index i2 = 0; i2 < k; ++i2)
             {
                 T val = dst[(i1*k+i2)*m+i0];
-                T val_ref = T(i2)/T{10}/std::sqrt(T{1}+2*eps)*gamma + beta;
+                T val_ref = T(i2)/T{10}/std::sqrt(T{1}+eps)*gamma + beta;
                 if(std::abs(val/val_ref-T{1})
                         / std::numeric_limits<T>::epsilon() > 50)
                 {
@@ -201,7 +201,7 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
 
 int main(int argc, char **argv)
 {
-    fp64_t eps[3] = {0.0, 1.0, 11.1};
+    fp64_t eps[3] = {0.0, 1.0, 1111.1};
     fp64_t gamma[3] = {0.0, 1.0, 3.3};
     fp64_t beta[3] = {0.0, 1.1, -2.2};
     for(Index i = 0 ; i < sizeof(eps)/sizeof(eps[0]); ++i)

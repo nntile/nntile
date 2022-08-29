@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-16
+# @date 2022-08-23
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -24,6 +24,14 @@ set(TESTS
     "sumnorm"
     )
 
+# Add target for local coverage
+if(BUILD_COVERAGE)
+    setup_target_for_coverage_lcov(NAME coverage_starpu
+        EXECUTABLE ctest -R tests_starpu_
+        LCOV_ARGS --no-external
+        GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
+endif()
+
 foreach(test IN LISTS TESTS)
     add_test_set(TARGET_NAME tests_starpu_${test}
         EXEC_NAME test_${test}
@@ -31,7 +39,7 @@ foreach(test IN LISTS TESTS)
         LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_starpu_${test}
-        COV_GLOBAL coverage
+        COV_GLOBAL coverage_starpu coverage
         )
 endforeach()
 
@@ -43,6 +51,6 @@ add_test_set(TARGET_NAME tests_starpu_gemm
     $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cublas CUDA::cudart>
     COV_ENABLE ${BUILD_COVERAGE}
     COV_NAME coverage_starpu_gemm
-    COV_GLOBAL coverage
+    COV_GLOBAL coverage_starpu
     )
 

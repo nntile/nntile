@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-16
+# @date 2022-08-23
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -23,6 +23,14 @@ set(TESTS
     "normalize"
     )
 
+# Setup a target for coverage of kernels
+if(BUILD_COVERAGE)
+    setup_target_for_coverage_lcov(NAME coverage_kernel
+        EXECUTABLE ctest -R tests_kernel_
+        LCOV_ARGS --no-external
+        GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
+endif()
+
 foreach(test IN LISTS TESTS)
     add_test_set(TARGET_NAME tests_kernel_${test}
         EXEC_NAME test_${test}
@@ -30,7 +38,7 @@ foreach(test IN LISTS TESTS)
         LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_kernel_${test}
-        COV_GLOBAL coverage
+        COV_GLOBAL coverage_kernel coverage
         )
 endforeach()
 

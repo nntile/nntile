@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-05
+ * @date 2022-08-22
  * */
 
 #include "nntile/tile/clear.hh"
@@ -17,19 +17,31 @@
 
 namespace nntile
 {
-
-template<typename T>
-void clear_work(const Tile<T> &src)
+namespace tile
 {
-    nntile::starpu::clear(src);
+
+//! Asynchronously clear a tile
+template<typename T>
+void clear_async(const Tile<T> &tile)
+{
+    starpu::clear(tile);
+}
+
+//! Asynchronously clear a tile
+template<typename T>
+void clear(const Tile<T> &tile)
+{
+    clear_async<T>(tile);
+    starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void clear_work<fp32_t>(const Tile<fp32_t> &src);
+void clear<fp32_t>(const Tile<fp32_t> &tile);
 
 template
-void clear_work<fp64_t>(const Tile<fp64_t> &src);
+void clear<fp64_t>(const Tile<fp64_t> &tile);
 
+} // namespace tile
 } // namespace nntile
 

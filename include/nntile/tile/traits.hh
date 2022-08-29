@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-22
  * */
 
 #pragma once
@@ -22,21 +22,25 @@
 
 namespace nntile
 {
+namespace tile
+{
 
-//! Integer arithmetics for tiles
+//! Integer arithmetics for tiles, that are arrays stored contiguously
 class TileTraits
 {
-    //! Check if dimensionalities of inputs match
+    //! Check if number of dimensions is not too much
     static Index _check_ndim(const std::vector<Index> &shape)
     {
+        // Check if number of dimensions fits into Index type
         Index ndim = shape.size();
         if(shape.size() != ndim)
         {
-            throw std::runtime_error("shape.size() != ndim");
+            throw std::runtime_error("Number of dimensions does not fit "
+                    "Index type");
         }
         return ndim;
     }
-    //! Check shape and if tile is fully inside underlying tensor
+    //! Check is shape is positive
     static std::vector<Index> _check_shape(const std::vector<Index> &shape)
     {
         // Dimensions of inputs are already checked to match
@@ -56,27 +60,27 @@ public:
     //! Shape of the tile.
     std::vector<Index> shape;
     //! Stride of the tile.
-    //
-    // stride[0] = 1, while stride[i+1] = stride[i] * shape[i].
+    /*! stride[0] = 1, while stride[i+1] = stride[i] * shape[i].
+     * */
     std::vector<Index> stride;
     //! Number of elements in the tile
     Index nelems;
     //! Shapes of all possible reshapes into matrices
-    //
-    // matrix_shape[0] is a (prod(shape[0:0]), prod(shape[0:ndim]) reshape
-    // matrix_shape[1] is a (prod(shape[0:1]), prod(shape[1:ndim]) reshape
-    // and so on, matrix_shape[ndim] is a (prod(shape[0:ndim]),
-    // prod(shape[ndim:ndim]) reshape
+    /*! matrix_shape[0] is a (prod(shape[0:0]), prod(shape[0:ndim]) reshape
+     * matrix_shape[1] is a (prod(shape[0:1]), prod(shape[1:ndim]) reshape
+     * and so on, matrix_shape[ndim] is a (prod(shape[0:ndim]),
+     * prod(shape[ndim:ndim]) reshape
+     * */
     std::vector<std::array<Index, 2>> matrix_shape;
-    //! Construct a tile
-    //
-    // @param[in] shape_: Shape of the tile itself
+    //! Construct a integer properties of a tile
+    /*! @param[in] shape_: Shape of the tile itself
+     * */
     TileTraits(const std::vector<Index> &shape_):
         // Check if number of dimensions fits into Index type
         ndim(_check_ndim(shape_)),
         // Check input shape
         shape(_check_shape(shape_)),
-        // No other checks are required
+        // No other checks are required, just allocate space
         stride(ndim),
         matrix_shape(ndim+1)
     {
@@ -105,11 +109,13 @@ public:
         }
     }
     //! Linear memory offset of a tile element with proper bounds check.
-    //
-    // @param[in] index: Coordinate of an element. Shall belong to the tile,
-    //      i.e. 0 <= index[i] < shape[i].
-    // @returns Offset of the element in a corresponding linear memory,
-    //      assuming Fortran-order storage of tile elements.
+    /*! This function shall be used for debugging and testing
+     *
+     * @param[in] index: Coordinate of an element. Shall belong to the tile,
+     *      i.e. 0 <= index[i] < shape[i].
+     * @returns Offset of the element in a corresponding linear memory,
+     *      assuming Fortran-order storage of tile elements.
+     * */
     Index index_to_linear(const std::vector<Index> &index) const
     {
         // Check number of dimensions
@@ -140,10 +146,12 @@ public:
         return linear_offset;
     }
     //! Coordinate of a tile element with proper bounds check.
-    //
-    // @param[in] linear_offset: Linear memory offset in range [0,nelems)
-    // @returns Coordinate of the corresponding element,
-    //      assuming Fortran-order storage of tile elements.
+    /*! This function shall be used for debugging and testing
+     *
+     * @param[in] linear_offset: Linear memory offset in range [0,nelems)
+     * @returns Coordinate of the corresponding element,
+     *      assuming Fortran-order storage of tile elements.
+     * */
     std::vector<Index> linear_to_index(Index linear_offset) const
     {
         // Check bounds
@@ -168,8 +176,12 @@ public:
         return index;
     }
     //! Check if tile contains given coordinate
-    bool contains_index(const std::vector<Index> &index) const noexcept
+    bool contains_index(const std::vector<Index> &index) const
     {
+        if(index.size() != ndim)
+        {
+            throw std::runtime_error("Invalid dimensionality");
+        }
         for(Index i = 0; i < ndim; ++i)
         {
             if(index[i] < 0 or index[i] >= shape[i])
@@ -179,9 +191,11 @@ public:
         }
         return true;
     }
+    // Output information about tile properties
     friend std::ostream &operator<<(std::ostream &os,
             const TileTraits &traits);
 };
 
+} // namespace tile
 } // namespace nntile
 

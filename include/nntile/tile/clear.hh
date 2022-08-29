@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-04
+ * @date 2022-08-22
  * */
 
 #pragma once
@@ -18,22 +18,17 @@
 
 namespace nntile
 {
-
-template<typename T>
-void clear_work(const Tile<T> &src);
-
-template<typename T>
-void clear_async(const Tile<T> &src)
+namespace tile
 {
-    clear_work<T>(src);
-}
 
+// Clear a tile
 template<typename T>
-void clear(const Tile<T> &src)
-{
-    clear_async<T>(src);
-    starpu_task_wait_for_all();
-}
+void clear_async(const Tile<T> &tile);
 
+// Clear a tile
+template<typename T>
+void clear(const Tile<T> &tile);
+
+} // namespace tile
 } // namespace nntile
 

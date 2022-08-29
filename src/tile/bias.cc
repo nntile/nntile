@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-05
+ * @date 2022-08-19
  * */
 
 #include "nntile/tile/bias.hh"
@@ -17,11 +17,42 @@
 
 namespace nntile
 {
-
-// Bias operation over single axis
-template<typename T>
-void bias_work(const Tile<T> &src, const Tile<T> &dst, Index axis)
+namespace tile
 {
+
+//! Tile-wise bias operation
+template<typename T>
+void bias_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
+{
+    // Check dimensions
+    if(dst.ndim != src.ndim+1)
+    {
+        throw std::runtime_error("dst.ndim != src.ndim+1");
+    }
+    // Check axis
+    if(axis < 0)
+    {
+        throw std::runtime_error("axis < 0");
+    }
+    if(axis >= dst.ndim)
+    {
+        throw std::runtime_error("axis >= dst.ndim");
+    }
+    // Check shapes of tiles
+    for(Index i = 0; i < axis; ++i)
+    {
+        if(dst.shape[i] != src.shape[i])
+        {
+            throw std::runtime_error("dst.shape[i] != src.shape[i]");
+        }
+    }
+    for(Index i = axis+1; i < dst.ndim; ++i)
+    {
+        if(dst.shape[i] != src.shape[i-1])
+        {
+            throw std::runtime_error("dst.shape[i] != src.shape[i-1]");
+        }
+    }
     // Reshape inputs for simplicity: src -> (m,n), dst -> (m,k,n)
     Index m, n, k;
     if(axis == 0)
@@ -46,13 +77,23 @@ void bias_work(const Tile<T> &src, const Tile<T> &dst, Index axis)
     nntile::starpu::bias<T>(m, n, k, src, dst);
 }
 
-// Explicit instantiation of template
-template
-void bias_work(const Tile<fp32_t> &src, const Tile<fp32_t> &dst, Index axis);
+//! Tile-wise bias operation
+template<typename T>
+void bias(const Tile<T> &src, const Tile<T> &dst, Index axis)
+{
+    bias_async<T>(src, dst, axis);
+    starpu_task_wait_for_all();
+}
 
 // Explicit instantiation of template
 template
-void bias_work(const Tile<fp64_t> &src, const Tile<fp64_t> &dst, Index axis);
+void bias<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst,
+        Index axis);
 
+template
+void bias<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst,
+        Index axis);
+
+} // namespace tile
 } // namespace nntile
 

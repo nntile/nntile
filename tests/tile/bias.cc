@@ -1,92 +1,134 @@
+/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+ *                           (Skoltech). All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file tests/tile/bias.cc
+ * Bias operation on Tile<T>
+ *
+ * @version 1.0.0
+ * @author Aleksandr Mikhalev
+ * @date 2022-08-23
+ * */
+
 #include "nntile/tile/bias.hh"
-#include "nntile/tile/randn.hh"
-#include "nntile/tile/copy.hh"
+#include "nntile/starpu/bias.hh"
 #include "../testing.hh"
-#include <iomanip>
 
 using namespace nntile;
+using namespace nntile::tile;
 
 template<typename T>
-void check_bias(const Tile<T> &src, const Tile<T> &dst, Index axis)
+void check(const Tile<T> &src, const Tile<T> &dst, Index axis)
 {
-    Tile<T> res(TileTraits(dst.shape));
-    std::vector<Index> index(dst.ndim, 0);
-    copy(dst, index, res, index);
-    bias(src, res, axis);
-    auto src_local = src.acquire(STARPU_R), dst_local = dst.acquire(STARPU_R),
-         res_local = res.acquire(STARPU_R);
-    if(src_local[0]+dst_local[0] != res_local[0])
+    std::vector<T> dst2_data(dst.nelems);
+    auto dst_local = dst.acquire(STARPU_R);
+    for(Index i = 0; i < dst.nelems; ++i)
     {
-        throw std::runtime_error("src_local[0]+dst_local[0] != res_local[0]");
+        dst_local[i] = dst2_data[i];
     }
-    for(Index i = 1; i < dst.nelems; ++i)
+    dst_local.release();
+    Tile<T> dst2(dst, &dst2_data[0], dst.nelems, STARPU_RW);
+    starpu_resume();
+    bias<T>(src, dst, axis);
+    starpu_pause();
+    Index m = 1;
+    for(Index i = 0; i < axis; ++i)
     {
-        ++index[0];
-        Index j = 0;
-        while(index[j] == dst.shape[j])
+        m *= dst.shape[i];
+    }
+    Index n = 1;
+    for(Index i = axis+1; i < dst.ndim; ++i)
+    {
+        n *= dst.shape[i];
+    }
+    Index k = dst.shape[axis];
+    starpu_resume();
+    starpu::bias<T>(m, n, k, src, dst2);
+    starpu_task_wait_for_all();
+    starpu_pause();
+    auto dst2_local = dst.acquire(STARPU_R);
+    dst_local.acquire(STARPU_R);
+    for(Index i = 0; i < dst.nelems; ++i)
+    {
+        if(dst_local[i] != dst2_local[i])
         {
-            index[j] = 0;
-            ++j;
-            ++index[j];
-        }
-        Index src_offset = 0;
-        for(Index k = 0; k < axis; ++k)
-        {
-            src_offset += index[k] * src.stride[k];
-        }
-        for(Index k = axis+1; k < dst.ndim; ++k)
-        {
-            src_offset += index[k] * src.stride[k-1];
-        }
-        if(src_local[src_offset]+dst_local[i] != res_local[i])
-        {
-            throw std::runtime_error("src_local[src_offset]+dst_local[i] != "
-                    "dst_local[i]");
+            throw std::runtime_error("dst_local[i] != dst2_local[i]");
         }
     }
 }
 
 template<typename T>
-void validate_bias()
+void validate()
 {
-    Tile<T> A({3, 4, 5, 6}), b0({4, 5, 6}), b1({3, 5, 6}), b2({3, 4, 6}),
-        b3({3, 4, 5});
-    unsigned long long A_seed = 100, b0_seed = 101, b1_seed = 102,
-                  b2_seed = 103, b3_seed = 104;
-    randn(A, A_seed);
-    randn(b0, b0_seed);
-    randn(b1, b1_seed);
-    randn(b2, b2_seed);
-    randn(b3, b3_seed);
-    check_bias<T>(b0, A, 0);
-    check_bias<T>(b1, A, 1);
-    check_bias<T>(b2, A, 2);
-    check_bias<T>(b3, A, 3);
-    Tile<T> C({3});
-    TESTN(bias(C, A, 0));
-    TESTN(bias(b0, A, 1));
-    TESTN(bias(b0, A, 2));
-    TESTN(bias(b0, A, 3));
-    TESTN(bias(b1, A, 0));
-    TESTN(bias(b1, A, 2));
-    TESTN(bias(b1, A, 3));
-    TESTN(bias(b2, A, 0));
-    TESTN(bias(b2, A, 1));
-    TESTN(bias(b2, A, 3));
-    TESTN(bias(b3, A, 0));
-    TESTN(bias(b3, A, 1));
-    TESTN(bias(b3, A, 2));
-    TESTN(bias(b0, A, -1));
-    TESTN(bias(b0, A, 4));
-    Tile<T> fail_b0({4, 5, 5});
-    TESTN(bias(fail_b0, A, 0));
+    std::vector<Index> A_shape{3, 4, 5, 6}, b0_shape{4, 5, 6},
+        b1_shape{3, 5, 6}, b2_shape{3, 4, 6}, b3_shape{3, 4, 5};
+    TileTraits A_traits(A_shape), b0_traits(b0_shape), b1_traits(b1_shape),
+              b2_traits(b2_shape), b3_traits(b3_shape);
+    std::vector<T> A_data(A_traits.nelems), b0_data(b0_traits.nelems),
+        b1_data(b1_traits.nelems), b2_data(b2_traits.nelems),
+        b3_data(b3_traits.nelems);
+    for(Index i = 0; i < A_traits.nelems; ++i)
+    {
+        A_data[i] = T(i+1);
+    }
+    for(Index i = 0; i < b0_traits.nelems; ++i)
+    {
+        b0_data[i] = T(2*i+1);
+    }
+    for(Index i = 0; i < b1_traits.nelems; ++i)
+    {
+        b1_data[i] = T(3*i+1);
+    }
+    for(Index i = 0; i < b2_traits.nelems; ++i)
+    {
+        b2_data[i] = T(4*i+1);
+    }
+    for(Index i = 0; i < b3_traits.nelems; ++i)
+    {
+        b3_data[i] = T(5*i+1);
+    }
+    Tile<T> A(A_traits, &A_data[0], A_traits.nelems, STARPU_RW),
+        b0(b0_traits, &b0_data[0], b0_traits.nelems, STARPU_RW),
+        b1(b1_traits, &b1_data[0], b1_traits.nelems, STARPU_RW),
+        b2(b2_traits, &b2_data[0], b2_traits.nelems, STARPU_RW),
+        b3(b3_traits, &b3_data[0], b3_traits.nelems, STARPU_RW);
+    check<T>(b0, A, 0);
+    check<T>(b1, A, 1);
+    check<T>(b2, A, 2);
+    check<T>(b3, A, 3);
+    // Checking throwing exceptions
+    TEST_THROW(bias(A, A, 0));
+    TEST_THROW(bias(b0, A, -1));
+    TEST_THROW(bias(b0, A, 1));
+    TEST_THROW(bias(b3, A, 2));
+    TEST_THROW(bias(b3, A, 4));
 }
 
 int main(int argc, char **argv)
 {
-    Starpu starpu;
-    validate_bias<fp32_t>();
-    validate_bias<fp64_t>();
+    // Init StarPU configuration and set number of CPU workers to 1
+    starpu_conf conf;
+    int ret = starpu_conf_init(&conf);
+    if(ret != 0)
+    {
+        throw std::runtime_error("starpu_conf_init error");
+    }
+    conf.ncpus = 1;
+    // No CUDA workers since we are checking against results of CPU
+    // implementation
+    conf.ncuda = 0;
+    ret = starpu_init(&conf);
+    if(ret != 0)
+    {
+        throw std::runtime_error("starpu_init error");
+    }
+    starpu_pause();
+    validate<fp32_t>();
+    validate<fp64_t>();
+    starpu_resume();
+    starpu_shutdown();
     return 0;
 }
 

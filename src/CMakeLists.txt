@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-10
+# @date 2022-08-19
 
 # Set list of sources
 set(KERNEL_SRC
@@ -37,12 +37,12 @@ set(STARPU_SRC
     )
 
 set(TILE_SRC
-    #"tile/traits.cc"
+    "tile/traits.cc"
+    "tile/bias.cc"
+    "tile/clear.cc"
     #"tile/randn.cc"
-    #"tile/clear.cc"
     #"tile/copy.cc"
     #"tile/gemm.cc"
-    #"tile/bias.cc"
     #"tile/gelu.cc"
     #"tile/relu.cc"
     #"tile/sumnorm.cc"

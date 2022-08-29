@@ -9,10 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-23
  * */
 
 #include "nntile/starpu/gemm.hh"
+// This file is within generated files, need to properly include common.hh
+#include "../../../tests/starpu/common.hh"
 #include <vector>
 #include <stdexcept>
 #include <iostream>
@@ -361,30 +363,13 @@ void validate_cuda_many()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU configuration and set number of CPU workers to 1
-    starpu_conf conf;
-    int ret = starpu_conf_init(&conf);
-    if(ret != 0)
-    {
-        throw std::runtime_error("starpu_conf_init error");
-    }
-    conf.ncpus = 1;
-#ifdef NNTILE_USE_CUDA
-    conf.ncuda = 1;
-#else // NNTILE_USE_CUDA
-    conf.ncuda = 0;
-#endif // NNTILE_USE_CUDA
-    ret = starpu_init(&conf);
-    if(ret != 0)
-    {
-        throw std::runtime_error("starpu_init error");
-    }
+    // Init StarPU for testing
+    StarpuTest starpu;
 #ifdef NNTILE_USE_CUDA
     // GEMM is within cuBLAS library, which needs to be initialized
     starpu_cublas_init();
 #endif // NNTILE_USE_CUDA
     // Launch all tests
-    starpu_pause();
 #ifdef NNTILE_USE_CBLAS
     validate_cpu_many<fp32_t>();
     validate_cpu_many<fp64_t>();
@@ -393,11 +378,9 @@ int main(int argc, char **argv)
     validate_cuda_many<fp32_t>();
     validate_cuda_many<fp64_t>();
 #endif // NNTILE_USE_CUDA
-    starpu_resume();
 #ifdef NNTILE_USE_CUDA
     starpu_cublas_shutdown();
 #endif // NNTILE_USE_CUDA
-    starpu_shutdown();
     return 0;
 }
 

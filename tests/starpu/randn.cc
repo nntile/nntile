@@ -9,11 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-17
+ * @date 2022-08-23
  * */
 
 #include "nntile/starpu/randn.hh"
 #include "nntile/kernel/cpu/randn.hh"
+#include "common.hh"
 #include <array>
 #include <vector>
 #include <stdexcept>
@@ -93,26 +94,11 @@ void validate_many()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU configuration and set number of CPU workers to 1
-    starpu_conf conf;
-    int ret = starpu_conf_init(&conf);
-    if(ret != 0)
-    {
-        throw std::runtime_error("starpu_conf_init error");
-    }
-    conf.ncpus = 1;
-    conf.ncuda = 0;
-    ret = starpu_init(&conf);
-    if(ret != 0)
-    {
-        throw std::runtime_error("starpu_init error");
-    }
+    // Init StarPU for testing
+    StarpuTest starpu;
     // Launch all tests
-    starpu_pause();
     validate_many<fp32_t>();
     validate_many<fp64_t>();
-    starpu_resume();
-    starpu_shutdown();
     return 0;
 }
 

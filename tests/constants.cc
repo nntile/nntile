@@ -1,3 +1,17 @@
+/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+ *                           (Skoltech). All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file tests/constants.cc
+ * Test TransOp
+ *
+ * @version 1.0.0
+ * @author Aleksandr Mikhalev
+ * @date 2022-08-19
+ * */
+
 #include "nntile/constants.hh"
 #include "testing.hh"
 
@@ -5,8 +19,8 @@ using namespace nntile;
 
 int main(int argc, char **argv)
 {
-    TESTP((TransOp(TransOp::NoTrans)));
-    TESTP((TransOp(TransOp::Trans)));
+    {volatile TransOp x(TransOp::NoTrans);};
+    {volatile TransOp x(TransOp::Trans);};
     for(int i = -10; i < 10; ++i)
     {
         auto value = static_cast<enum TransOp::Value>(i);
@@ -14,10 +28,10 @@ int main(int argc, char **argv)
         {
             case TransOp::NoTrans:
             case TransOp::Trans:
-                TESTP((TransOp(value)));
+                {volatile TransOp x(value);};
                 break;
             default:
-                TESTN((TransOp(value)));
+                TEST_THROW(volatile TransOp x(value));
         }
     }
     return 0;

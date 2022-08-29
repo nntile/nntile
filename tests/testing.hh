@@ -1,72 +1,50 @@
-/*! @copyright (c) 2016-2021 King Abdullah University of Science and
- *                           Technology (KAUST). All rights reserved.
- * @copyright (c) 2020-2021 RWTH Aachen. All rights reserved.
+/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+ *                           (Skoltech). All rights reserved.
  *
- * STARS-H-core is a software package, provided by King Abdullah
- *             University of Science and Technology (KAUST)
- *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
  * @file tests/testing.hh
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2021-01-01
+ * @date 2021-08-19
  * */
 
-#include <limits>
-#include <iostream>
-#include <exception>
+#pragma once
 
-// Test, that must contain an error
-#define TESTN(...)\
-{\
-    bool error=false;\
-    try{\
-        __VA_ARGS__;\
-        error = true;\
-    }\
-    catch(...)\
-    {\
-    }\
-    if (error)\
-    {\
-        throw std::runtime_error(#__VA_ARGS__ " is positive, but "\
-            "claimed as negative");\
-    }\
-}
+#include <stdexcept>
 
-// Test, that must not contain an error
-#define TESTP(...)\
+// Check an exception-throwing expression
+#define TEST_THROW(...)\
 {\
+    /* Init no exception was caught */\
+    bool caught = false;\
+    /* Try to evaluate the expression */\
     try\
     {\
         __VA_ARGS__;\
     }\
-    catch(const std::exception &e)\
-    {\
-        std::cerr << e.what() << std::endl;\
-        throw std::runtime_error(#__VA_ARGS__ " is negative, but "\
-            "claimed as positive");\
-    }\
     catch(...)\
     {\
-        std::cerr << "Caught unexpected error" << std::endl;\
-        throw std::runtime_error(#__VA_ARGS__ " is negative, but "\
-            "claimed as positive");\
+        /* The expression did throw an exception */\
+        caught = true;\
     }\
-}
-
-//! Macro to convert integer from __LINE__ to a string
-#define LINE STRINGIZE1(__LINE__)
-#define STRINGIZE1(X) STRINGIZE2(X)
-#define STRINGIZE2(X) #X
-
-// Simple assert
-#define TESTA(cond)\
-{\
-    if(!bool(cond))\
+    /* Throw an exception if the expression did not throw anything */\
+    if(!caught)\
     {\
-        std::cerr << "Assertion failed on line " LINE " of file \""\
-            __FILE__ "\"" << std::endl;\
-        std::terminate();\
+        throw std::runtime_error(#__VA_ARGS__ " did not throw any exception, "\
+                "while it was claimed to raise some exception");\
     }\
 }
+
+#define TEST_ASSERT(...)\
+{\
+    /* Evaluate input */\
+    bool eval = __VA_ARGS__;\
+    /* Throw exception if assert failed */\
+    if(!eval)\
+    {\
+        throw std::runtime_error("Assert failed");\
+    }\
+}\
+

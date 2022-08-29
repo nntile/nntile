@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-09
+# @date 2022-08-19
 
 # Set list of headers
 set(BASE_HDR
@@ -45,12 +45,12 @@ set(STARPU_HDR
 
 set(TILE_HDR
     #"nntile/tile.hh"
-    #"nntile/tile/traits.hh"
-    #"nntile/tile/tile.hh"
+    "nntile/tile/traits.hh"
+    "nntile/tile/tile.hh"
+    "nntile/tile/bias.hh"
     #"nntile/tile/randn.hh"
     #"nntile/tile/copy.hh"
     #"nntile/tile/gemm.hh"
-    #"nntile/tile/bias.hh"
     #"nntile/tile/gelu.hh"
     #"nntile/tile/relu.hh"
     #"nntile/tile/sumnorm.hh"

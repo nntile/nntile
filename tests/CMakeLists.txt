@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-09
+# @date 2022-08-24
 
 # Extend set of ctest-controlled tests and enable code coverage if required.
 # All of the tests shall be launched by the same executable but with different
@@ -48,9 +48,9 @@ function(add_test_set)
     # List of non-value arguments
     set(options)
     # List of single-value arguments
-    set(one_value_args TARGET_NAME EXEC_NAME COV_ENABLE COV_NAME COV_GLOBAL)
+    set(one_value_args TARGET_NAME EXEC_NAME COV_ENABLE COV_NAME)
     # List of multi-value arguments
-    set(multi_value_args SOURCES LINK_LIBRARIES ARGS)
+    set(multi_value_args SOURCES LINK_LIBRARIES ARGS COV_GLOBAL)
     # Parse arguments
     cmake_parse_arguments(_args "${options}" "${one_value_args}"
         "${multi_value_args}" ${ARGN})
@@ -76,12 +76,15 @@ function(add_test_set)
     # Check if coverage needed
     if(_args_COV_ENABLE)
         # Extend dependencies list for global coverage
-        add_dependencies(${_args_COV_GLOBAL} ${_args_TARGET_NAME})
+        foreach(global_arg IN LISTS ${_args_COV_GLOBAL})
+            add_dependencies(${global_arg} ${_args_TARGET_NAME})
+        endforeach()
         # Add target for local coverage
         setup_target_for_coverage_lcov(NAME ${_args_COV_NAME}
             EXECUTABLE ctest -R ${_args_TARGET_NAME}
             DEPENDENCIES ${_args_TARGET_NAME}
-            LCOV_ARGS --no-external)
+            LCOV_ARGS --no-external
+            GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
     endif()
     # Add test suite to the CTest
     list(LENGTH _args_ARGS ntests)
@@ -121,19 +124,19 @@ add_test_set(TARGET_NAME tests_constants
     COV_GLOBAL coverage
     )
 
-add_test_set(TARGET_NAME tests_starpu
-    EXEC_NAME test_starpu
-    SOURCES starpu.cc
-    LINK_LIBRARIES nntile
-    ARGS "1" "2" "3" "4" "5"
-    COV_ENABLE ${BUILD_COVERAGE}
-    COV_NAME coverage_starpu
-    COV_GLOBAL coverage
-    )
+#add_test_set(TARGET_NAME tests_starpu
+#    EXEC_NAME test_starpu
+#    SOURCES starpu.cc
+#    LINK_LIBRARIES nntile
+#    ARGS "1" "2" "3" "4" "5"
+#    COV_ENABLE ${BUILD_COVERAGE}
+#    COV_NAME coverage_starpu
+#    COV_GLOBAL coverage
+#    )
 
 add_subdirectory("kernel")
 add_subdirectory("starpu")
-#add_subdirectory("tile")
+add_subdirectory("tile")
 #add_subdirectory("tensor")
 #add_subdirectory("layer")
 

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-23
  * */
 
 #include "nntile/starpu/bias.hh"
@@ -18,6 +18,7 @@
 #   include "nntile/kernel/cuda/bias.hh"
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA
+#include "common.hh"
 #include <vector>
 #include <stdexcept>
 #include <iostream>
@@ -176,34 +177,15 @@ void validate_cuda(Index m, Index n, Index k)
 
 int main(int argc, char **argv)
 {
-    // Init StarPU configuration and set number of CPU workers to 1
-    starpu_conf conf;
-    int ret = starpu_conf_init(&conf);
-    if(ret != 0)
-    {
-        throw std::runtime_error("starpu_conf_init error");
-    }
-    conf.ncpus = 1;
-#ifdef NNTILE_USE_CUDA
-    conf.ncuda = 1;
-#else // NNTILE_USE_CUDA
-    conf.ncuda = 0;
-#endif // NNTILE_USE_CUDA
-    ret = starpu_init(&conf);
-    if(ret != 0)
-    {
-        throw std::runtime_error("starpu_init error");
-    }
+    // Init StarPU for testing
+    StarpuTest starpu;
     // Launch all tests
-    starpu_pause();
     validate_cpu<fp32_t>(3, 5, 7);
     validate_cpu<fp64_t>(3, 5, 7);
 #ifdef NNTILE_USE_CUDA
     validate_cuda<fp32_t>(3, 5, 7);
     validate_cuda<fp64_t>(3, 5, 7);
 #endif // NNTILE_USE_CUDA
-    starpu_resume();
-    starpu_shutdown();
     return 0;
 }
 

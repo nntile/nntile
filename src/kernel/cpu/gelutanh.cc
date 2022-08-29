@@ -9,11 +9,10 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-08
+ * @date 2022-08-23
  * */
 
 #include "nntile/kernel/cpu/gelutanh.hh"
-#include "nntile/starpu.hh"
 #include <cmath>
 
 namespace nntile

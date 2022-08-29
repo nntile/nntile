@@ -9,22 +9,30 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-09
+# @date 2022-08-23
 
 # All unit tests without arguments to test executable
 set(TESTS
     "traits"
     "tile"
-    "randn"
-    "copy"
-    "clear"
-    "gemm"
     "bias"
-    "gelu"
-    "relu"
-    "sumnorm"
-    "normalize"
+    "clear"
+    #"randn"
+    #"copy"
+    #"gemm"
+    #"gelu"
+    #"relu"
+    #"sumnorm"
+    #"normalize"
     )
+
+# Add target for local coverage
+if(BUILD_COVERAGE)
+    setup_target_for_coverage_lcov(NAME coverage_tile
+        EXECUTABLE ctest -R tests_tile_
+        LCOV_ARGS --no-external
+        GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
+endif()
 
 foreach(test IN LISTS TESTS)
     add_test_set(TARGET_NAME tests_tile_${test}
@@ -33,7 +41,7 @@ foreach(test IN LISTS TESTS)
         LINK_LIBRARIES nntile
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_tile_${test}
-        COV_GLOBAL coverage
+        COV_GLOBAL coverage_tile coverage
         )
 endforeach()
 

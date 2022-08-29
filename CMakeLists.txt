@@ -10,7 +10,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-09
+# @date 2022-08-23
 
 
 ###############################################################################
@@ -28,7 +28,7 @@ cmake_minimum_required(VERSION 3.18.6)
 project(NNTile VERSION 0.0.1 LANGUAGES CXX)
 
 # Show a path to additional auxiliary CMake scripts
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake_modules")
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake_modules")
 
 # List of options and cache variables
 # Build shared libraries instead of static
@@ -56,7 +56,7 @@ set(NNTILE_USE_CUDA OFF)
 if(USE_CUDA)
     include(CheckLanguage)
     check_language(CUDA)
-    if(CMAKE_CUDA_COMPILER)
+    if(PROJECT_CUDA_COMPILER)
         enable_language(CUDA)
         # Get cublas
         find_package(CUDAToolkit 10.1)
@@ -85,28 +85,28 @@ endif()
 find_package(PkgConfig REQUIRED)
 
 # Get the StarPU
-pkg_check_modules(StarPU REQUIRED starpu-1.3)
+pkg_check_modules(StarPU REQUIRED starpumpi-1.3)
 target_link_libraries(nntile PUBLIC ${StarPU_LDFLAGS})
 target_include_directories(nntile PUBLIC
-    "${CMAKE_SOURCE_DIR}/include"
-    "${CMAKE_BINARY_DIR}/include"
+    "${PROJECT_SOURCE_DIR}/include"
+    "${PROJECT_BINARY_DIR}/include"
     ${StarPU_INCLUDE_DIRS}
     )
 target_include_directories(nntile PRIVATE
-    "${CMAKE_SOURCE_DIR}/external"
+    "${PROJECT_SOURCE_DIR}/external"
     )
 
 # Configure list of definitions
 configure_file("include/nntile/defs.h.in"
-    "${CMAKE_BINARY_DIR}/include/nntile/defs.h" @ONLY)
+    "${PROJECT_BINARY_DIR}/include/nntile/defs.h" @ONLY)
 
 # Configure src/starpu/gemm.cc that relies on cblas
 configure_file("src/starpu/gemm.cc.in"
-    "${CMAKE_BINARY_DIR}/src/starpu/gemm.cc" @ONLY)
+    "${PROJECT_BINARY_DIR}/src/starpu/gemm.cc" @ONLY)
 
 # Configure tests/starpu/gemm.cc that relies on cblas
 configure_file("tests/starpu/gemm.cc.in"
-    "${CMAKE_BINARY_DIR}/tests/starpu/gemm.cc" @ONLY)
+    "${PROJECT_BINARY_DIR}/tests/starpu/gemm.cc" @ONLY)
 
 # Add directory with the sources
 add_subdirectory("src")
@@ -134,11 +134,14 @@ if(BUILD_COVERAGE)
     include(CodeCoverage)
     # Append coverage flags
     append_coverage_compiler_flags()
+    # Set global coverage exclude
+    set(COVERAGE_EXCLUDES "${PROJECT_SOURCE_DIR}/tests/*"
+        "${PROJECT_BINARY_DIR}/tests/*")
     # Setup a target for an overall coverage
     setup_target_for_coverage_lcov(NAME coverage
-        EXECUTABLE ctest -j
-        EXCLUDE "${CMAKE_SOURCE_DIR}/tests/*"
-        LCOV_ARGS --no-external)
+        EXECUTABLE ctest
+        LCOV_ARGS --no-external
+        GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
 endif()
 
 # Add subdirectory with tests
@@ -151,3 +154,4 @@ endif()
 if(BUILD_PYTHON_WRAPPERS)
     add_subdirectory("wrappers/python")
 endif()
+

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-22
  * */
 
 #pragma once
@@ -19,26 +19,30 @@
 
 namespace nntile
 {
+namespace tile
+{
 
 // Forward declaration
 template<typename T>
 class TileLocalData;
 
 //! Many-dimensional tensor, stored contiguously in a Fortran order
-//
-// Underlying StarPU data is variable, as we need only address and size. Each
-// codelet using this buffer shall generate a footprint based on its
-// parameters.
+/*! Underlying StarPU data is variable, as we need only address and size of a
+ * contiguous memory.
+ * */
 template<typename T>
 class Tile: public TileTraits, public StarpuVariableHandle
 {
+    // Check if provided memory is enough to store data
     size_t _get_size(Index ptr_nelems)
     {
+        // At first check if provided storage is enough
         if(nelems > ptr_nelems)
         {
             throw std::runtime_error("Required memory size is larger than "
                     "actually allocated memory");
         }
+        // Check if total size is within size_t type
         std::size_t size = nelems * sizeof(T);
         if(size / sizeof(T) != nelems)
         {
@@ -48,30 +52,39 @@ class Tile: public TileTraits, public StarpuVariableHandle
         return size;
     }
 public:
+    //! Construct a temporary tile, allocated/deallocated by StarPU
     Tile(const std::vector<Index> &shape_):
         TileTraits(shape_),
         StarpuVariableHandle(nelems*sizeof(T))
     {
     }
+    //! Construct a temporary tile, allocated/deallocated by StarPU
     Tile(const TileTraits &traits):
         TileTraits(traits),
         StarpuVariableHandle(nelems*sizeof(T))
     {
     }
-    Tile(const std::vector<Index> &shape_, T *ptr, Index ptr_nelems):
+    //! Construct a tile out of provided contiguous memory buffer
+    Tile(const std::vector<Index> &shape_, T *ptr, Index ptr_nelems,
+            enum starpu_data_access_mode mode=STARPU_RW):
         TileTraits(shape_),
-        StarpuVariableHandle(ptr, _get_size(ptr_nelems))
+        StarpuVariableHandle(ptr, _get_size(ptr_nelems), mode)
     {
     }
-    Tile(const TileTraits &traits, T *ptr, Index ptr_nelems):
+    //! Construct a tile out of provided contiguous memory buffer
+    Tile(const TileTraits &traits, T *ptr, Index ptr_nelems,
+            enum starpu_data_access_mode mode=STARPU_RW):
         TileTraits(traits),
-        StarpuVariableHandle(ptr, _get_size(ptr_nelems))
+        StarpuVariableHandle(ptr, _get_size(ptr_nelems), mode)
     {
     }
     TileLocalData<T> acquire(enum starpu_data_access_mode mode)
         const;
 };
 
+//! Local copy of a tile in CPU RAM
+/*! This is am auxiliary class for debugging and testing
+ * */
 template<typename T>
 class TileLocalData: public StarpuHandleLocalData
 {
@@ -95,6 +108,7 @@ public:
     }
 };
 
+//! Acquire tile locally in CPU RAM
 template<typename T>
 TileLocalData<T> Tile<T>::acquire(enum starpu_data_access_mode mode)
     const
@@ -102,5 +116,6 @@ TileLocalData<T> Tile<T>::acquire(enum starpu_data_access_mode mode)
     return TileLocalData<T>(*this, mode);
 }
 
+} // namespace tile
 } // namespace nntile
 
