@@ -21,29 +21,32 @@ namespace nntile
 {
 namespace starpu
 {
+namespace clear
+{
 
 // Clear a StarPU buffer on CPU
-void clear_cpu(void *buffers[], void *cl_args)
+void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
 // Apply bias along middle axis of StarPU buffer on CUDA
 template<typename T>
-void clear_cuda(void *buffers[], void *cl_args)
+void cuda(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern StarpuCodelet clear_codelet;
+extern StarpuCodelet codelet;
 
-void clear_init();
+void init();
 
-void clear_restrict_where(uint32_t where);
+void restrict_where(uint32_t where);
 
-void clear_restore_where();
+void restore_where();
 
 //! Insert task to clear buffer
-void clear(starpu_data_handle_t data);
+void submit(starpu_data_handle_t data);
 
+} // namespace clear
 } // namespace starpu
 } // namespace nntile
 

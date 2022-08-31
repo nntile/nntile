@@ -9,20 +9,22 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-11
+ * @date 2022-08-31
  * */
 
 #include "nntile/starpu/randn.hh"
-#include "nntile/kernel/cpu/randn.hh"
+#include "nntile/kernel/randn/cpu.hh"
 
 namespace nntile
 {
 namespace starpu
 {
+namespace randn
+{
 
 //! Randn operation on StarPU buffers
 template<typename T>
-void randn_cpu(void *buffers[], void *cl_args)
+void cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
@@ -37,7 +39,7 @@ void randn_cpu(void *buffers[], void *cl_args)
     T *data = interfaces[0]->get_ptr<T>();
     Index *tmp_index = interfaces[1]->get_ptr<Index>();
     // Launch kernel
-    kernel::cpu::randn<T>(*ndim_ptr, *nelems_ptr, *seed_ptr, *mean_ptr,
+    kernel::randn::cpu<T>(*ndim_ptr, *nelems_ptr, *seed_ptr, *mean_ptr,
             *stddev_ptr, start, shape, underlying_shape, data, stride,
             tmp_index);
 }
@@ -45,7 +47,7 @@ void randn_cpu(void *buffers[], void *cl_args)
 //! Footprint for randn tasks that depend on shape
 template<typename T>
 static
-uint32_t randn_footprint(struct starpu_task *task)
+uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
     const Index *ndim_ptr, *nelems_ptr, *start, *shape, *stride,
@@ -59,49 +61,34 @@ uint32_t randn_footprint(struct starpu_task *task)
     return starpu_hash_crc32c_be_n(shape, shape_size, 0);
 }
 
-StarpuCodelet randn_codelet_fp32("nntile_randn_fp32",
-        randn_footprint<fp32_t>,
-        {randn_cpu<fp32_t>},
-        {});
+StarpuCodelet codelet_fp32, codelet_fp64;
 
-StarpuCodelet randn_codelet_fp64("nntile_randn_fp64",
-        randn_footprint<fp64_t>,
-        {randn_cpu<fp64_t>},
-        {});
-
-void randn_restrict_where(uint32_t where)
+void init()
 {
-    randn_codelet_fp32.restrict_where(where);
-    randn_codelet_fp64.restrict_where(where);
+    codelet_fp32.init("nntile_randn_fp32",
+            footprint<fp32_t>,
+            {cpu<fp32_t>},
+            {});
+    codelet_fp64.init("nntile_randn_fp64",
+            footprint<fp64_t>,
+            {cpu<fp64_t>},
+            {});
 }
 
-void randn_restore_where()
+void restrict_where(uint32_t where)
 {
-    randn_codelet_fp32.restore_where();
-    randn_codelet_fp64.restore_where();
+    codelet_fp32.restrict_where(where);
+    codelet_fp64.restrict_where(where);
 }
 
-template<typename T>
-constexpr StarpuCodelet *randn_codelet()
+void restore_where()
 {
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
-
-template<>
-constexpr StarpuCodelet *randn_codelet<fp32_t>()
-{
-    return &randn_codelet_fp32;
-}
-
-template<>
-constexpr StarpuCodelet *randn_codelet<fp64_t>()
-{
-    return &randn_codelet_fp64;
+    codelet_fp32.restore_where();
+    codelet_fp64.restore_where();
 }
 
 template<typename T>
-void randn(Index ndim, Index nelems, unsigned long long seed,
+void submit(Index ndim, Index nelems, unsigned long long seed,
         T mean, T stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
         const std::vector<Index> &underlying_shape, starpu_data_handle_t data,
@@ -109,7 +96,7 @@ void randn(Index ndim, Index nelems, unsigned long long seed,
 {
     fp64_t nflops = 2 * nelems;
     // Submit task
-    int ret = starpu_task_insert(randn_codelet<T>(),
+    int ret = starpu_task_insert(codelet<T>(),
             STARPU_VALUE, &ndim, sizeof(ndim),
             STARPU_VALUE, &nelems, sizeof(nelems),
             STARPU_VALUE, &seed, sizeof(seed),
@@ -133,19 +120,20 @@ void randn(Index ndim, Index nelems, unsigned long long seed,
 
 // Explicit instantiation
 template
-void randn<fp32_t>(Index ndim, Index nelems, unsigned long long seed,
+void submit<fp32_t>(Index ndim, Index nelems, unsigned long long seed,
         fp32_t mean, fp32_t stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
         const std::vector<Index> &underlying_shape, starpu_data_handle_t data,
         starpu_data_handle_t tmp_index);
 
 template
-void randn<fp64_t>(Index ndim, Index nelems, unsigned long long seed,
+void submit<fp64_t>(Index ndim, Index nelems, unsigned long long seed,
         fp64_t mean, fp64_t stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
         const std::vector<Index> &underlying_shape, starpu_data_handle_t data,
         starpu_data_handle_t tmp_index);
 
+} // namespace randn
 } // namespace starpu
 } // namespace nntile
 

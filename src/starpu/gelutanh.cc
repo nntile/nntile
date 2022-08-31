@@ -13,19 +13,21 @@
  * */
 
 #include "nntile/starpu/gelutanh.hh"
-#include "nntile/kernel/cpu/gelutanh.hh"
+#include "nntile/kernel/gelutanh/cpu.hh"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/gelutanh.hh"
+#   include "nntile/kernel/gelutanh/cuda.hh"
 #endif // NNTILE_USE_CUDA
 
 namespace nntile
 {
 namespace starpu
 {
+namespace gelutanh
+{
 
 //! Apply approximate gelu along middle axis of StarPU buffer
 template<typename T>
-void gelutanh_cpu(void *buffers[], void *cl_args)
+void cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
@@ -34,13 +36,13 @@ void gelutanh_cpu(void *buffers[], void *cl_args)
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
     // Launch kernel
-    nntile::kernel::cpu::gelutanh<T>(nelems, data);
+    kernel::gelutanh::cpu<T>(nelems, data);
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Apply approximate gelu along middle axis of StarPU buffer
 template<typename T>
-void gelutanh_cuda(void *buffers[], void *cl_args)
+void cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
@@ -51,68 +53,52 @@ void gelutanh_cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    nntile::kernel::cuda::gelutanh<T>(stream, nelems, data);
+    kernel::gelutanh::cuda<T>(stream, nelems, data);
 }
 #endif // NNTILE_USE_CUDA
 
-StarpuCodelet gelutanh_codelet_fp32, gelutanh_codelet_fp64;
-StarpuCodelet gelutanh_codelet_fp32("nntile_gelutanh_fp32",
-        nullptr,
-        {gelutanh_cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-        {gelutanh_cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
+StarpuCodelet codelet_fp32, codelet_fp64;
 
-StarpuCodelet gelutanh_codelet_fp64("nntile_gelutanh_fp64",
-        nullptr,
-        {gelutanh_cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-        {gelutanh_cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
-
-void gelutanh_restrict_where(uint32_t where)
+void init()
 {
-    gelutanh_codelet_fp32.restrict_where(where);
-    gelutanh_codelet_fp64.restrict_where(where);
+    codelet_fp32.init("nntile_gelutanh_fp32",
+            nullptr,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_fp64.init("nntile_gelutanh_fp64",
+            nullptr,
+            {cpu<fp64_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
 }
 
-void gelutanh_restore_where()
+void restrict_where(uint32_t where)
 {
-    gelutanh_codelet_fp32.restore_where();
-    gelutanh_codelet_fp64.restore_where();
+    codelet_fp32.restrict_where(where);
+    codelet_fp64.restrict_where(where);
+}
+
+void restore_where()
+{
+    codelet_fp32.restore_where();
+    codelet_fp64.restore_where();
 }
 
 template<typename T>
-constexpr StarpuCodelet *gelutanh_codelet()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
-
-template<>
-constexpr StarpuCodelet *gelutanh_codelet<fp32_t>()
-{
-    return &gelutanh_codelet_fp32;
-}
-
-template<>
-constexpr StarpuCodelet *gelutanh_codelet<fp64_t>()
-{
-    return &gelutanh_codelet_fp64;
-}
-
-template<typename T>
-void gelutanh(Index nelems, starpu_data_handle_t data)
+void submit(Index nelems, starpu_data_handle_t data)
 {
     Index *nelems_ = new Index{nelems};
     //fp64_t nflops = 5 * nelems;
-    int ret = starpu_task_insert(gelutanh_codelet<T>(),
+    int ret = starpu_task_insert(codelet<T>(),
             STARPU_RW, data,
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
             //STARPU_FLOPS, nflops,
@@ -126,11 +112,12 @@ void gelutanh(Index nelems, starpu_data_handle_t data)
 
 // Explicit instantiaion
 template
-void gelutanh<fp32_t>(Index nelems, starpu_data_handle_t data);
+void submit<fp32_t>(Index nelems, starpu_data_handle_t data);
 
 template
-void gelutanh<fp64_t>(Index nelems, starpu_data_handle_t data);
+void submit<fp64_t>(Index nelems, starpu_data_handle_t data);
 
+} // namespace gelutanh
 } // namespace starpu
 } // namespace nntile
 

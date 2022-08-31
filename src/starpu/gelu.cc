@@ -13,19 +13,21 @@
  * */
 
 #include "nntile/starpu/gelu.hh"
-#include "nntile/kernel/cpu/gelu.hh"
+#include "nntile/kernel/gelu/cpu.hh"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/gelu.hh"
+#   include "nntile/kernel/gelu/cuda.hh"
 #endif // NNTILE_USE_CUDA
 
 namespace nntile
 {
 namespace starpu
 {
+namespace gelu
+{
 
 //! Apply gelu along middle axis of StarPU buffer on CPU
 template<typename T>
-void gelu_cpu(void *buffers[], void *cl_args)
+void cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
@@ -34,13 +36,13 @@ void gelu_cpu(void *buffers[], void *cl_args)
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
     // Launch kernel
-    nntile::kernel::cpu::gelu<T>(nelems, data);
+    kernel::gelu::cpu<T>(nelems, data);
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Apply gelu along middle axis of StarPU buffer on CUDA
 template<typename T>
-void gelu_cuda(void *buffers[], void *cl_args)
+void cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
@@ -51,71 +53,52 @@ void gelu_cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    nntile::kernel::cuda::gelu<T>(stream, nelems, data);
+    kernel::gelu::cuda<T>(stream, nelems, data);
 }
 #endif // NNTILE_USE_CUDA
 
-StarpuCodelet gelu_codelet_fp32, gelu_codelet_fp64;
+StarpuCodelet codelet_fp32, codelet_fp64;
 
-void gelu_init()
+void init()
 {
-    gelu_codelet_fp32.init("nntile_gelu_fp32",
+    codelet_fp32.init("nntile_gelu_fp32",
             nullptr,
-            {gelu_cpu<fp32_t>},
+            {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
-            {gelu_cuda<fp32_t>}
+            {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
-    gelu_codelet_fp64.init("nntile_gelu_fp64",
+    codelet_fp64.init("nntile_gelu_fp64",
             nullptr,
-            {gelu_cpu<fp64_t>},
+            {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
-            {gelu_cuda<fp64_t>}
+            {cuda<fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
 }
 
-void gelu_restrict_where(uint32_t where)
+void restrict_where(uint32_t where)
 {
-    gelu_codelet_fp32.restrict_where(where);
-    gelu_codelet_fp64.restrict_where(where);
+    codelet_fp32.restrict_where(where);
+    codelet_fp64.restrict_where(where);
 }
 
-void gelu_restore_where()
+void restore_where()
 {
-    gelu_codelet_fp32.restore_where();
-    gelu_codelet_fp64.restore_where();
-}
-
-template<typename T>
-constexpr StarpuCodelet *gelu_codelet()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
-
-template<>
-constexpr StarpuCodelet *gelu_codelet<fp32_t>()
-{
-    return &gelu_codelet_fp32;
-}
-
-template<>
-constexpr StarpuCodelet *gelu_codelet<fp64_t>()
-{
-    return &gelu_codelet_fp64;
+    codelet_fp32.restore_where();
+    codelet_fp64.restore_where();
 }
 
 template<typename T>
-void gelu(Index nelems, starpu_data_handle_t data)
+void submit(Index nelems, starpu_data_handle_t data)
 {
     Index *nelems_ = new Index{nelems};
     //fp64_t nflops = 5 * nelems;
-    int ret = starpu_task_insert(gelu_codelet<T>(),
+    int ret = starpu_task_insert(codelet<T>(),
             STARPU_RW, data,
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
             //STARPU_FLOPS, nflops,
@@ -129,11 +112,12 @@ void gelu(Index nelems, starpu_data_handle_t data)
 
 // Explicit instantiaion
 template
-void gelu<fp32_t>(Index nelems, starpu_data_handle_t data);
+void submit<fp32_t>(Index nelems, starpu_data_handle_t data);
 
 template
-void gelu<fp64_t>(Index nelems, starpu_data_handle_t data);
+void submit<fp64_t>(Index nelems, starpu_data_handle_t data);
 
+} // namespace gelu
 } // namespace starpu
 } // namespace nntile
 

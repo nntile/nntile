@@ -9,13 +9,13 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-23
+ * @date 2022-08-31
  * */
 
 #include "nntile/starpu/sumnorm.hh"
-#include "nntile/kernel/cpu/sumnorm.hh"
+#include "nntile/kernel/sumnorm/cpu.hh"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/sumnorm.hh"
+#   include "nntile/kernel/sumnorm/cuda.hh"
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA
 #include "common.hh"
@@ -44,15 +44,15 @@ void validate_cpu(Index m, Index n, Index k)
     // Create copies of destination
     std::vector<T> sumnorm2(sumnorm);
     // Launch low-level kernel
-    std::cout << "Run cpu::sumnorm<T>\n";
-    kernel::cpu::sumnorm<T>(m, n, k, &src[0], &sumnorm[0]);
+    std::cout << "Run kernel::sumnorm::cpu<T>\n";
+    kernel::sumnorm::cpu<T>(m, n, k, &src[0], &sumnorm[0]);
     // Check by actually submitting a task
     StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n*k),
         sumnorm2_handle(&sumnorm2[0], sizeof(T)*2*m*n);
-    starpu::sumnorm_restrict_where(STARPU_CPU);
+    starpu::sumnorm::restrict_where(STARPU_CPU);
     starpu_resume();
-    std::cout << "Run starpu::sumnorm<T> restricted to CPU\n";
-    starpu::sumnorm<T>(m, n, k, src_handle, sumnorm2_handle);
+    std::cout << "Run starpu::sumnorm::submit<T> restricted to CPU\n";
+    starpu::sumnorm::submit<T>(m, n, k, src_handle, sumnorm2_handle);
     starpu_task_wait_for_all();
     sumnorm2_handle.unregister();
     starpu_pause();
@@ -64,7 +64,7 @@ void validate_cpu(Index m, Index n, Index k)
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
-    std::cout << "OK: starpu::sumnorm<T> restricted to CPU\n";
+    std::cout << "OK: starpu::sumnorm::submit<T> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -125,8 +125,8 @@ void validate_cuda(Index m, Index n, Index k)
     {
         throw std::runtime_error("CUDA error");
     }
-    std::cout << "Run cuda::sumnorm<T>\n";
-    kernel::cuda::sumnorm<T>(stream, m, n, k, dev_src, dev_sumnorm);
+    std::cout << "Run kernel::sumnorm::cuda<T>\n";
+    kernel::sumnorm::cuda<T>(stream, m, n, k, dev_src, dev_sumnorm);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
     if(cuda_err != cudaSuccess)
@@ -159,10 +159,10 @@ void validate_cuda(Index m, Index n, Index k)
     // Check by actually submitting a task
     StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n*k, STARPU_R),
         sumnorm2_handle(&sumnorm2[0], sizeof(T)*2*m*n, STARPU_RW);
-    starpu::sumnorm_restrict_where(STARPU_CUDA);
+    starpu::sumnorm::restrict_where(STARPU_CUDA);
     starpu_resume();
-    std::cout << "Run starpu::sumnorm<T> restricted to CUDA\n";
-    starpu::sumnorm<T>(m, n, k, src_handle, sumnorm2_handle);
+    std::cout << "Run starpu::sumnorm::submit<T> restricted to CUDA\n";
+    starpu::sumnorm::submit<T>(m, n, k, src_handle, sumnorm2_handle);
     starpu_task_wait_for_all();
     sumnorm2_handle.unregister();
     starpu_pause();
@@ -174,7 +174,7 @@ void validate_cuda(Index m, Index n, Index k)
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
-    std::cout << "OK: starpu::sumnorm<T> restricted to CUDA\n";
+    std::cout << "OK: starpu::sumnorm::submit<T> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 
@@ -182,6 +182,8 @@ int main(int argc, char **argv)
 {
     // Init StarPU for testing
     StarpuTest starpu;
+    // Init codelet
+    starpu::sumnorm::init();
     // Launch all tests
     validate_cpu<fp32_t>(3, 5, 7);
     validate_cpu<fp64_t>(3, 5, 7);

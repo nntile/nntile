@@ -23,10 +23,12 @@ namespace nntile
 {
 namespace starpu
 {
+namespace gemm
+{
 
 //! Structure for arguments
 template<typename T>
-struct gemm_args
+struct args_t
 {
     TransOp transA;
     TransOp transB;
@@ -39,32 +41,101 @@ struct gemm_args
 
 #ifdef NNTILE_USE_CBLAS
 template<typename T>
-void gemm_cpu(void *buffers[], void *cl_args)
+void cpu(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CBLAS
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void gemm_cuda(void *buffers[], void *cl_args)
+void cuda(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern StarpuCodelet gemmNN_codelet_fp32, gemmNN_codelet_fp64,
-       gemmNT_codelet_fp32, gemmNT_codelet_fp64,
-       gemmTN_codelet_fp32, gemmTN_codelet_fp64,
-       gemmTT_codelet_fp32, gemmTT_codelet_fp64;
-
-void gemm_init();
-
-void gemm_restrict_where(uint32_t where);
-
-void gemm_restore_where();
+extern StarpuCodelet codelet_NN_fp32, codelet_NN_fp64,
+       codelet_NT_fp32, codelet_NT_fp64,
+       codelet_TN_fp32, codelet_TN_fp64,
+       codelet_TT_fp32, codelet_TT_fp64;
 
 template<typename T>
-void gemm(const TransOp &transA, const TransOp &transB, Index m, Index n,
+static
+StarpuCodelet *codelet(TransOp transA, TransOp transB)
+{
+    throw std::runtime_error("Non-supported type");
+    return nullptr;
+}
+
+template<>
+StarpuCodelet *codelet<fp32_t>(TransOp transA, TransOp transB)
+{
+    switch(transA.value)
+    {
+        case TransOp::NoTrans:
+            switch(transB.value)
+            {
+                case TransOp::NoTrans:
+                    return &codelet_NN_fp32;
+                default:
+                // This parameter was already checked in gemm_check_opA_opB
+                //case TransOp::Trans:
+                    return &codelet_NT_fp32;
+            }
+        // This parameter was already checked in gemm_check_opA_opB
+        //case TransOp::Trans:
+        default:
+            switch(transB.value)
+            {
+                case TransOp::NoTrans:
+                    return &codelet_TN_fp32;
+                // This parameter was already checked in gemm_check_opA_opB
+                //case TransOp::Trans:
+                default:
+                    return &codelet_TT_fp32;
+            }
+    }
+}
+
+template<>
+StarpuCodelet *codelet<fp64_t>(TransOp transA, TransOp transB)
+{
+    switch(transA.value)
+    {
+        case TransOp::NoTrans:
+            switch(transB.value)
+            {
+                case TransOp::NoTrans:
+                    return &codelet_NN_fp64;
+                default:
+                // This parameter was already checked in gemm_check_opA_opB
+                //case TransOp::Trans:
+                    return &codelet_NT_fp64;
+            }
+        // This parameter was already checked in gemm_check_opA_opB
+        //case TransOp::Trans:
+        default:
+            switch(transB.value)
+            {
+                case TransOp::NoTrans:
+                    return &codelet_TN_fp64;
+                // This parameter was already checked in gemm_check_opA_opB
+                //case TransOp::Trans:
+                default:
+                    return &codelet_TT_fp64;
+            }
+    }
+}
+
+void init();
+
+void restrict_where(uint32_t where);
+
+void restore_where();
+
+template<typename T>
+void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
         Index k, T alpha, starpu_data_handle_t A, starpu_data_handle_t B,
         T beta, starpu_data_handle_t C);
 
+} // namespace gemm
 } // namespace starpu
 } // namespace nntile
 

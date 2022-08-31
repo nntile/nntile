@@ -9,13 +9,13 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-23
+ * @date 2022-08-31
  * */
 
 #include "nntile/starpu/gelutanh.hh"
-#include "nntile/kernel/cpu/gelutanh.hh"
+#include "nntile/kernel/gelutanh/cpu.hh"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/gelutanh.hh"
+#   include "nntile/kernel/gelutanh/cuda.hh"
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA
 #include "common.hh"
@@ -37,14 +37,14 @@ void validate_cpu(Index nelems)
     // Create copies of destination
     std::vector<T> data2(data);
     // Launch low-level kernel
-    std::cout << "Run cpu::gelutanh<T>\n";
-    kernel::cpu::gelutanh<T>(nelems, &data[0]);
+    std::cout << "Run kernel::gelutanh::cpu<T>\n";
+    kernel::gelutanh::cpu<T>(nelems, &data[0]);
     // Check by actually submitting a task
     StarpuVariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
-    starpu::gelutanh_restrict_where(STARPU_CPU);
+    starpu::gelutanh::restrict_where(STARPU_CPU);
     starpu_resume();
-    std::cout << "Run starpu::gelutanh<T> restricted to CPU\n";
-    starpu::gelutanh<T>(nelems, data2_handle);
+    std::cout << "Run starpu::gelutanh::submit<T> restricted to CPU\n";
+    starpu::gelutanh::submit<T>(nelems, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     starpu_pause();
@@ -56,7 +56,7 @@ void validate_cpu(Index nelems)
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
-    std::cout << "OK: starpu::gelutanh<T> restricted to CPU\n";
+    std::cout << "OK: starpu::gelutanh::submit<T> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -100,8 +100,8 @@ void validate_cuda(Index nelems)
     {
         throw std::runtime_error("CUDA error");
     }
-    std::cout << "Run cuda::gelutanh<T>\n";
-    kernel::cuda::gelutanh<T>(stream, nelems, dev_data);
+    std::cout << "Run kernel::gelutanh::cuda<T>\n";
+    kernel::gelutanh::cuda<T>(stream, nelems, dev_data);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
     if(cuda_err != cudaSuccess)
@@ -128,10 +128,10 @@ void validate_cuda(Index nelems)
     }
     // Check by actually submitting a task
     StarpuVariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
-    starpu::gelutanh_restrict_where(STARPU_CUDA);
+    starpu::gelutanh::restrict_where(STARPU_CUDA);
     starpu_resume();
-    std::cout << "Run starpu::gelutanh<T> restricted to CUDA\n";
-    starpu::gelutanh<T>(nelems, data2_handle);
+    std::cout << "Run starpu::gelutanh::submit<T> restricted to CUDA\n";
+    starpu::gelutanh::submit<T>(nelems, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     starpu_pause();
@@ -150,6 +150,8 @@ int main(int argc, char **argv)
 {
     // Init StarPU for testing
     StarpuTest starpu;
+    // Init codelet
+    starpu::gelutanh::init();
     // Launch all tests
     validate_cpu<fp32_t>(1);
     validate_cpu<fp32_t>(10000);

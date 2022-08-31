@@ -28,7 +28,7 @@ namespace clear
 {
 
 //! Clear a StarPU buffer on CPU
-void clear_cpu(void *buffers[], void *cl_args)
+void cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // No arguments
@@ -42,7 +42,7 @@ void clear_cpu(void *buffers[], void *cl_args)
 
 #ifdef NNTILE_USE_CUDA
 //! Clear a StarPU buffer on CUDA
-void clear_cuda(void *buffers[], void *cl_args)
+void cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // No arguments
@@ -57,36 +57,36 @@ void clear_cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-StarpuCodelet clear_codelet;
+StarpuCodelet codelet;
 
-void clear_init()
+void init()
 {
-    clear_codelet.init("nntile_clear",
+    codelet.init("nntile_clear",
             nullptr,
-            {clear_cpu},
+            {cpu},
 #ifdef NNTILE_USE_CUDA
-            {clear_cuda}
+            {cuda}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
 }
 
-void clear_restrict_where(uint32_t where)
+void restrict_where(uint32_t where)
 {
-    clear_codelet.restrict_where(where);
+    codelet.restrict_where(where);
 }
 
-void clear_restore_where()
+void restore_where()
 {
-    clear_codelet.restore_where();
+    codelet.restore_where();
 }
 
 //! Insert task to clear buffer
-void clear(starpu_data_handle_t data)
+void submit(starpu_data_handle_t data)
 {
     // Submit task
-    int ret = starpu_task_insert(&clear_codelet,
+    int ret = starpu_task_insert(&codelet,
             STARPU_W, data,
             0);
     // Check submission

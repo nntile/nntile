@@ -22,10 +22,12 @@ namespace nntile
 {
 namespace starpu
 {
+namespace normalize
+{
 
 //! Structure for arguments
 template<typename T>
-struct normalize_args
+struct args_t
 {
     Index m;
     Index n;
@@ -36,29 +38,49 @@ struct normalize_args
 
 // Apply normalize along middle axis of StarPU buffer on CPU
 template<typename T>
-void normalize_cpu(void *buffers[], void *cl_args)
+void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
 // Apply normalize along middle axis of StarPU buffer on CUDA
 template<typename T>
-void normalize_cuda(void *buffers[], void *cl_args)
+void cuda(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern StarpuCodelet normalize_codelet_fp32, normalize_codelet_fp64;
-
-void normalize_init();
-
-void normalize_restrict_where(uint32_t where);
-
-void normalize_restore_where();
+extern StarpuCodelet codelet_fp32, codelet_fp64;
 
 template<typename T>
-void normalize(Index m, Index n, Index k, Index l, T eps,
+constexpr StarpuCodelet *codelet()
+{
+    throw std::runtime_error("Non-supported type");
+    return nullptr;
+}
+
+template<>
+constexpr StarpuCodelet *codelet<fp32_t>()
+{
+    return &codelet_fp32;
+}
+
+template<>
+constexpr StarpuCodelet *codelet<fp64_t>()
+{
+    return &codelet_fp64;
+}
+
+void init();
+
+void restrict_where(uint32_t where);
+
+void restore_where();
+
+template<typename T>
+void submit(Index m, Index n, Index k, Index l, T eps,
         starpu_data_handle_t gamma_beta, starpu_data_handle_t src,
         starpu_data_handle_t dst);
 
+} // namespace normalize
 } // namespace starpu
 } // namespace nntile
 

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-23
+ * @date 2022-08-31
  * */
 
 #include "nntile/starpu/clear.hh"
@@ -35,10 +35,10 @@ void validate(std::size_t size)
     std::vector<char> data(data_init);
     // Check by actually submitting a task
     StarpuVariableHandle data_handle(&data[0], size, STARPU_RW);
-    starpu::clear_restrict_where(STARPU_CPU);
+    starpu::clear::restrict_where(STARPU_CPU);
     starpu_resume();
-    std::cout << "Run starpu::clear restricted to CPU\n";
-    starpu::clear(data_handle);
+    std::cout << "Run starpu::clear::submit restricted to CPU\n";
+    starpu::clear::submit(data_handle);
     starpu_task_wait_for_all();
     data_handle.unregister();
     starpu_pause();
@@ -50,15 +50,15 @@ void validate(std::size_t size)
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
-    std::cout << "OK: starpu::clear restricted to CPU\n";
+    std::cout << "OK: starpu::clear::submit restricted to CPU\n";
 #ifdef NNTILE_USE_CUDA
     // Check by actually submitting a task
     data = data_init;
     data_handle = StarpuVariableHandle(&data[0], size, STARPU_RW);
-    starpu::clear_restrict_where(STARPU_CUDA);
+    starpu::clear::restrict_where(STARPU_CUDA);
     starpu_resume();
-    std::cout << "Run starpu::clear restricted to CUDA\n";
-    starpu::clear(data_handle);
+    std::cout << "Run starpu::clear::submit restricted to CUDA\n";
+    starpu::clear::submit(data_handle);
     starpu_task_wait_for_all();
     data_handle.unregister();
     starpu_pause();
@@ -70,7 +70,7 @@ void validate(std::size_t size)
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
-    std::cout << "OK: starpu::clear restricted to CUDA\n";
+    std::cout << "OK: starpu::clear::submit restricted to CUDA\n";
 #endif // NNTILE_USE_CUDA
 }
 
@@ -78,6 +78,8 @@ int main(int argc, char **argv)
 {
     // Init StarPU for testing
     StarpuTest starpu;
+    // Init codelet
+    starpu::clear::init();
     // Launch all tests
     validate(1);
     validate(100000);

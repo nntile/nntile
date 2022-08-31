@@ -36,16 +36,16 @@ if(NNTILE_USE_CUDA)
 endif()
 
 set(STARPU_SRC
-    #"starpu/bias.cc"
-    #"starpu/clear.cc"
-    #"starpu/copy.cc"
-    #"starpu/gelu.cc"
-    #"starpu/gelutanh.cc"
-    #"${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"
-    #"starpu/normalize.cc"
-    #"starpu/randn.cc"
-    #"starpu/relu.cc"
-    #"starpu/sumnorm.cc"
+    "starpu/bias.cc"
+    "starpu/clear.cc"
+    "starpu/copy.cc"
+    "starpu/gelu.cc"
+    "starpu/gelutanh.cc"
+    "${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"
+    "starpu/normalize.cc"
+    "starpu/randn.cc"
+    "starpu/relu.cc"
+    "starpu/sumnorm.cc"
     )
 
 set(TILE_SRC

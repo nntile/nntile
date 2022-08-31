@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-12
+ * @date 2022-08-31
  * */
 
 #include "nntile/starpu/gemm.hh"
@@ -30,11 +30,13 @@ namespace nntile
 {
 namespace starpu
 {
+namespace gemm
+{
 
 #ifdef NNTILE_USE_CBLAS
 // Overloaded call to CBLAS GEMM
 static inline
-void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
+void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
         CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp32_t alpha, const fp32_t *A,
         CBLAS_INT ldA, const fp32_t *B, CBLAS_INT ldB, fp32_t beta, fp32_t *C,
         CBLAS_INT ldC)
@@ -46,7 +48,7 @@ void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
 
 // Overloaded call to CBLAS GEMM
 static inline
-void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
+void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
         CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp64_t alpha, const fp64_t *A,
         CBLAS_INT ldA, const fp64_t *B, CBLAS_INT ldB, fp64_t beta, fp64_t *C,
         CBLAS_INT ldC)
@@ -58,11 +60,11 @@ void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
 
 //! GEMM for contiguous matrices without padding through StarPU buffers
 template<typename T>
-void gemm_cpu(void *buffers[], void *cl_args)
+void cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<gemm_args<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     // Launch kernel
@@ -98,7 +100,7 @@ void gemm_cpu(void *buffers[], void *cl_args)
             ldB = N;
     }
     // Call corresponding CBLAS routine
-    cblas_gemm(transA_, transB_, M, N, K, args->alpha, A, ldA, B, ldB,
+    cblas(transA_, transB_, M, N, K, args->alpha, A, ldA, B, ldB,
             args->beta, C, ldC);
 }
 #endif // NNTILE_USE_CBLAS
@@ -106,7 +108,7 @@ void gemm_cpu(void *buffers[], void *cl_args)
 #ifdef NNTILE_USE_CUDA
 // Overloaded call to cuBLAS GEMM
 static inline
-void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
+void cublas(cublasHandle_t handle, cublasOperation_t transA,
         cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
         const fp32_t *A, int ldA, const fp32_t *B, int ldB, fp32_t beta,
         fp32_t *C, int ldC)
@@ -118,7 +120,7 @@ void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
 
 // Overloaded call to cuBLAS GEMM
 static inline
-void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
+void cublas(cublasHandle_t handle, cublasOperation_t transA,
         cublasOperation_t transB, int M, int N, int K, fp64_t alpha,
         const fp64_t *A, int ldA, const fp64_t *B, int ldB, fp64_t beta,
         fp64_t *C, int ldC)
@@ -130,11 +132,11 @@ void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
 
 //! GEMM for contiguous matrices without padding through StarPU buffers
 template<typename T>
-void gemm_cuda(void *buffers[], void *cl_args)
+void cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<gemm_args<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     // Launch kernel
@@ -174,7 +176,7 @@ void gemm_cuda(void *buffers[], void *cl_args)
     cudaStream_t stream = starpu_cuda_get_local_stream();
     cublasSetStream(handle, stream);
     // Call corresponding cuBLAS routine
-    cublas_gemm(handle, transA_, transB_, M, N, K, args->alpha, A, ldA, B, ldB,
+    cublas(handle, transA_, transB_, M, N, K, args->alpha, A, ldA, B, ldB,
             args->beta, C, M);
 }
 #endif //NNTILE_USE_CUDA
@@ -182,10 +184,10 @@ void gemm_cuda(void *buffers[], void *cl_args)
 //! Footprint for GEMM tasks that depends only on M, N, K and alpha
 template<typename T>
 static
-uint32_t gemm_footprint(struct starpu_task *task)
+uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<gemm_args<T> *>(task->cl_arg);
+    auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
     // In case alpha is zero, entire gemm is unnecessary so it is better to
     // give it a different footprint since gemm time will be totally different
     uint32_t hash = args->alpha == T{0} ? -1 : 0;
@@ -198,220 +200,145 @@ uint32_t gemm_footprint(struct starpu_task *task)
     return hash;
 }
 
-//! Codelet for GEMM C=aAB+C
-StarpuCodelet gemmNN_codelet_fp32("nntile_gemmNN_fp32",
-        gemm_footprint<fp32_t>,
-#ifdef NNTILE_USE_CBLAS
-        {gemm_cpu<fp32_t>},
-#else // NNTILE_USE_CBLAS
-        {},
-#endif // NNTILE_USE_CBLAS
-#ifdef NNTILE_USE_CUDA
-        {gemm_cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
+StarpuCodelet codelet_NN_fp32, codelet_NN_fp64,
+              codelet_NT_fp32, codelet_NT_fp64,
+              codelet_TN_fp32, codelet_TN_fp64,
+              codelet_TT_fp32, codelet_TT_fp64;
 
-//! Codelet for GEMM C=aAB+C
-StarpuCodelet gemmNN_codelet_fp64("nntile_gemmNN_fp64",
-        gemm_footprint<fp64_t>,
-#ifdef NNTILE_USE_CBLAS
-        {gemm_cpu<fp64_t>},
-#else // NNTILE_USE_CBLAS
-        {},
-#endif // NNTILE_USE_CBLAS
-#ifdef NNTILE_USE_CUDA
-        {gemm_cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
-
-//! Codelet for GEMM C=aAB^T+C
-StarpuCodelet gemmNT_codelet_fp32("nntile_gemmNT_fp32",
-        gemm_footprint<fp32_t>,
-#ifdef NNTILE_USE_CBLAS
-        {gemm_cpu<fp32_t>},
-#else // NNTILE_USE_CBLAS
-        {},
-#endif // NNTILE_USE_CBLAS
-#ifdef NNTILE_USE_CUDA
-        {gemm_cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
-
-//! Codelet for GEMM C=aAB^T+C
-StarpuCodelet gemmNT_codelet_fp64("nntile_gemmNT_fp64",
-        gemm_footprint<fp64_t>,
-#ifdef NNTILE_USE_CBLAS
-        {gemm_cpu<fp64_t>},
-#else // NNTILE_USE_CBLAS
-        {},
-#endif // NNTILE_USE_CBLAS
-#ifdef NNTILE_USE_CUDA
-        {gemm_cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
-
-//! Codelet for GEMM C=aA^TB+C
-StarpuCodelet gemmTN_codelet_fp32("nntile_gemmTN_fp32",
-        gemm_footprint<fp32_t>,
-#ifdef NNTILE_USE_CBLAS
-        {gemm_cpu<fp32_t>},
-#else // NNTILE_USE_CBLAS
-        {},
-#endif // NNTILE_USE_CBLAS
-#ifdef NNTILE_USE_CUDA
-        {gemm_cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
-
-//! Codelet for GEMM C=aA^TB+C
-StarpuCodelet gemmTN_codelet_fp64("nntile_gemmTN_fp64",
-        gemm_footprint<fp64_t>,
-#ifdef NNTILE_USE_CBLAS
-        {gemm_cpu<fp64_t>},
-#else // NNTILE_USE_CBLAS
-        {},
-#endif // NNTILE_USE_CBLAS
-#ifdef NNTILE_USE_CUDA
-        {gemm_cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
-
-//! Codelet for GEMM C=aA^TB^T+C
-StarpuCodelet gemmTT_codelet_fp32("nntile_gemmTT_fp32",
-        gemm_footprint<fp32_t>,
-#ifdef NNTILE_USE_CBLAS
-        {gemm_cpu<fp32_t>},
-#else // NNTILE_USE_CBLAS
-        {},
-#endif // NNTILE_USE_CBLAS
-#ifdef NNTILE_USE_CUDA
-        {gemm_cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
-
-//! Codelet for GEMM C=aA^TB^T+C
-StarpuCodelet gemmTT_codelet_fp64("nntile_gemmTT_fp64",
-        gemm_footprint<fp64_t>,
-#ifdef NNTILE_USE_CBLAS
-        {gemm_cpu<fp64_t>},
-#else // NNTILE_USE_CBLAS
-        {},
-#endif // NNTILE_USE_CBLAS
-#ifdef NNTILE_USE_CUDA
-        {gemm_cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
-
-void gemm_restrict_where(uint32_t where)
+void init()
 {
-    gemmNN_codelet_fp32.restrict_where(where);
-    gemmNN_codelet_fp64.restrict_where(where);
-    gemmNT_codelet_fp32.restrict_where(where);
-    gemmNT_codelet_fp64.restrict_where(where);
-    gemmTN_codelet_fp32.restrict_where(where);
-    gemmTN_codelet_fp64.restrict_where(where);
-    gemmTT_codelet_fp32.restrict_where(where);
-    gemmTT_codelet_fp64.restrict_where(where);
+    codelet_NN_fp32.init("nntile_gemm_NN_fp32",
+            footprint<fp32_t>,
+#ifdef NNTILE_USE_CBLAS
+            {cpu<fp32_t>},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_NN_fp64.init("nntile_gemm_NN_fp64",
+            footprint<fp64_t>,
+#ifdef NNTILE_USE_CBLAS
+            {cpu<fp64_t>},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_NT_fp32.init("nntile_gemm_NT_fp32",
+            footprint<fp32_t>,
+#ifdef NNTILE_USE_CBLAS
+            {cpu<fp32_t>},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_NT_fp64.init("nntile_gemm_NT_fp64",
+            footprint<fp64_t>,
+#ifdef NNTILE_USE_CBLAS
+            {cpu<fp64_t>},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_TN_fp32.init("nntile_gemm_TN_fp32",
+            footprint<fp32_t>,
+#ifdef NNTILE_USE_CBLAS
+            {cpu<fp32_t>},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_TN_fp64.init("nntile_gemm_TN_fp64",
+            footprint<fp64_t>,
+#ifdef NNTILE_USE_CBLAS
+            {cpu<fp64_t>},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_TT_fp32.init("nntile_gemm_TT_fp32",
+            footprint<fp32_t>,
+#ifdef NNTILE_USE_CBLAS
+            {cpu<fp32_t>},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_TT_fp64.init("nntile_gemm_TT_fp64",
+            footprint<fp64_t>,
+#ifdef NNTILE_USE_CBLAS
+            {cpu<fp64_t>},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
 }
 
-void gemm_restore_where()
+void restrict_where(uint32_t where)
 {
-    gemmNN_codelet_fp32.restore_where();
-    gemmNN_codelet_fp64.restore_where();
-    gemmNT_codelet_fp32.restore_where();
-    gemmNT_codelet_fp64.restore_where();
-    gemmTN_codelet_fp32.restore_where();
-    gemmTN_codelet_fp64.restore_where();
-    gemmTT_codelet_fp32.restore_where();
-    gemmTT_codelet_fp64.restore_where();
+    codelet_NN_fp32.restrict_where(where);
+    codelet_NN_fp64.restrict_where(where);
+    codelet_NT_fp32.restrict_where(where);
+    codelet_NT_fp64.restrict_where(where);
+    codelet_TN_fp32.restrict_where(where);
+    codelet_TN_fp64.restrict_where(where);
+    codelet_TT_fp32.restrict_where(where);
+    codelet_TT_fp64.restrict_where(where);
+}
+
+void restore_where()
+{
+    codelet_NN_fp32.restore_where();
+    codelet_NN_fp64.restore_where();
+    codelet_NT_fp32.restore_where();
+    codelet_NT_fp64.restore_where();
+    codelet_TN_fp32.restore_where();
+    codelet_TN_fp64.restore_where();
+    codelet_TT_fp32.restore_where();
+    codelet_TT_fp64.restore_where();
 }
 
 template<typename T>
-static
-StarpuCodelet *gemm_codelet(TransOp transA, TransOp transB)
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
-
-template<>
-StarpuCodelet *gemm_codelet<fp32_t>(TransOp transA, TransOp transB)
-{
-    switch(transA.value)
-    {
-        case TransOp::NoTrans:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &gemmNN_codelet_fp32;
-                default:
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                    return &gemmNT_codelet_fp32;
-            }
-        // This parameter was already checked in gemm_check_opA_opB
-        //case TransOp::Trans:
-        default:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &gemmTN_codelet_fp32;
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                default:
-                    return &gemmTT_codelet_fp32;
-            }
-    }
-}
-
-template<>
-StarpuCodelet *gemm_codelet<fp64_t>(TransOp transA, TransOp transB)
-{
-    switch(transA.value)
-    {
-        case TransOp::NoTrans:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &gemmNN_codelet_fp64;
-                default:
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                    return &gemmNT_codelet_fp64;
-            }
-        // This parameter was already checked in gemm_check_opA_opB
-        //case TransOp::Trans:
-        default:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &gemmTN_codelet_fp64;
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                default:
-                    return &gemmTT_codelet_fp64;
-            }
-    }
-}
-
-template<typename T>
-void gemm(const TransOp &transA, const TransOp &transB, Index m, Index n,
+void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
         Index k, T alpha, starpu_data_handle_t A, starpu_data_handle_t B,
         T beta, starpu_data_handle_t C)
 {
@@ -460,7 +387,7 @@ void gemm(const TransOp &transA, const TransOp &transB, Index m, Index n,
         C_mode = STARPU_RW;
     }
     // Codelet arguments
-    auto args = new gemm_args<T>
+    auto args = new args_t<T>
     {
         .transA = transA,
         .transB = transB,
@@ -472,7 +399,7 @@ void gemm(const TransOp &transA, const TransOp &transB, Index m, Index n,
     };
     fp64_t nflops = 2 * m * n * k;
     // Submit task
-    int ret = starpu_task_insert(gemm_codelet<T>(transA, transB),
+    int ret = starpu_task_insert(codelet<T>(transA, transB),
             STARPU_R, A,
             STARPU_R, B,
             C_mode, C,
@@ -488,15 +415,16 @@ void gemm(const TransOp &transA, const TransOp &transB, Index m, Index n,
 
 // Explicit instantiation
 template
-void gemm<fp32_t>(const TransOp &transA, const TransOp &transB, Index m,
+void submit<fp32_t>(const TransOp &transA, const TransOp &transB, Index m,
         Index n, Index k, fp32_t alpha, starpu_data_handle_t A,
         starpu_data_handle_t B, fp32_t beta, starpu_data_handle_t C);
 
 template
-void gemm<fp64_t>(const TransOp &transA, const TransOp &transB, Index m,
+void submit<fp64_t>(const TransOp &transA, const TransOp &transB, Index m,
         Index n, Index k, fp64_t alpha, starpu_data_handle_t A,
         starpu_data_handle_t B, fp64_t beta, starpu_data_handle_t C);
 
+} // namespace gemm
 } // namespace starpu
 } // namespace nntile
 

@@ -43,11 +43,11 @@ if(NNTILE_USE_CUDA)
 endif()
 
 set(STARPU_HDR
-    #"nntile/starpu.hh"
-    #"nntile/starpu/bias.hh"
-    #"nntile/starpu/clear.hh"
-    #"nntile/starpu/copy.hh"
-    #"nntile/starpu/gelu.hh"
+    "nntile/starpu.hh"
+    "nntile/starpu/bias.hh"
+    "nntile/starpu/clear.hh"
+    "nntile/starpu/copy.hh"
+    "nntile/starpu/gelu.hh"
     #"nntile/starpu/gelutanh.hh"
     #"nntile/starpu/gemm.hh"
     #"nntile/starpu/normalize.hh"

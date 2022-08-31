@@ -135,7 +135,7 @@ add_test_set(TARGET_NAME tests_constants
 #    )
 
 add_subdirectory("kernel")
-#add_subdirectory("starpu")
+add_subdirectory("starpu")
 #add_subdirectory("tile")
 #add_subdirectory("tensor")
 #add_subdirectory("layer")

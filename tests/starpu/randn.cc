@@ -9,11 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-23
+ * @date 2022-08-31
  * */
 
 #include "nntile/starpu/randn.hh"
-#include "nntile/kernel/cpu/randn.hh"
+#include "nntile/kernel/randn/cpu.hh"
 #include "common.hh"
 #include <array>
 #include <vector>
@@ -50,8 +50,8 @@ void validate_cpu(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
     std::vector<T> data2(data);
     // Launch low-level kernel
     std::vector<Index> tmp_index(NDIM);
-    std::cout << "Run cpu::randn<T>\n";
-    kernel::cpu::randn<T>(NDIM, nelems, seed, mean, stddev, &start[0],
+    std::cout << "Run kernel::randn::cpu<T>\n";
+    kernel::randn::cpu<T>(NDIM, nelems, seed, mean, stddev, &start[0],
             &shape[0], &underlying_shape[0], &data[0], &stride[0],
             &tmp_index[0]);
     // Check by actually submitting a task
@@ -60,11 +60,11 @@ void validate_cpu(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
     std::vector<Index> start_(start.cbegin(), start.cend()),
         shape_(shape.cbegin(), shape.cend()),
         underlying_shape_(underlying_shape.cbegin(), underlying_shape.cend());
-    starpu::randn_restrict_where(STARPU_CPU);
+    starpu::randn::restrict_where(STARPU_CPU);
     starpu_resume();
-    std::cout << "Run starpu::randn<T> restricted to CPU\n";
-    starpu::randn<T>(NDIM, nelems, seed, mean, stddev, start_, shape_, stride,
-            underlying_shape_, data2_handle, tmp_handle);
+    std::cout << "Run starpu::randn::submit<T> restricted to CPU\n";
+    starpu::randn::submit<T>(NDIM, nelems, seed, mean, stddev, start_, shape_,
+            stride, underlying_shape_, data2_handle, tmp_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     starpu_pause();
@@ -76,7 +76,7 @@ void validate_cpu(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
-    std::cout << "OK: starpu::randn<T> restricted to CPU\n";
+    std::cout << "OK: starpu::randn::submit<T> restricted to CPU\n";
 }
 
 // Run multiple tests for a given precision
@@ -96,6 +96,8 @@ int main(int argc, char **argv)
 {
     // Init StarPU for testing
     StarpuTest starpu;
+    // Init codelet
+    starpu::randn::init();
     // Launch all tests
     validate_many<fp32_t>();
     validate_many<fp64_t>();

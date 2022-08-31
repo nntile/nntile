@@ -22,30 +22,52 @@ namespace nntile
 {
 namespace starpu
 {
+namespace gelu
+{
 
 // Apply gelu along middle axis of StarPU buffer on CPU
 template<typename T>
-void gelu_cpu(void *buffers[], void *cl_args)
+void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
 // Apply gelu along middle axis of StarPU buffer on CUDA
 template<typename T>
-void gelu_cuda(void *buffers[], void *cl_args)
+void cuda(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern StarpuCodelet gelu_codelet_fp32, gelu_codelet_fp64;
-
-void gelu_init();
-
-void gelu_restrict_where(uint32_t where);
-
-void gelu_restore_where();
+extern StarpuCodelet codelet_fp32, codelet_fp64;
 
 template<typename T>
-void gelu(Index nelems, starpu_data_handle_t data);
+constexpr StarpuCodelet *codelet()
+{
+    throw std::runtime_error("Non-supported type");
+    return nullptr;
+}
 
+template<>
+constexpr StarpuCodelet *codelet<fp32_t>()
+{
+    return &codelet_fp32;
+}
+
+template<>
+constexpr StarpuCodelet *codelet<fp64_t>()
+{
+    return &codelet_fp64;
+}
+
+void init();
+
+void restrict_where(uint32_t where);
+
+void restore_where();
+
+template<typename T>
+void submit(Index nelems, starpu_data_handle_t data);
+
+} // namespace gelu
 } // namespace starpu
 } // namespace nntile
 

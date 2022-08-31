@@ -13,9 +13,9 @@
  * */
 
 #include "nntile/starpu/bias.hh"
-#include "nntile/kernel/cpu/bias.hh"
+#include "nntile/kernel/bias/cpu.hh"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/bias.hh"
+#   include "nntile/kernel/bias/cuda.hh"
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA
 #include "common.hh"
@@ -42,8 +42,8 @@ void validate_cpu(Index m, Index n, Index k)
     // Create copies of destination
     std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run cpu::bias<T>\n";
-    kernel::cpu::bias<T>(m, n, k, &src[0], &dst[0]);
+    std::cout << "Run kernel::bias::cpu<T>\n";
+    kernel::bias::cpu<T>(m, n, k, &src[0], &dst[0]);
     // Check by actually submitting a task
     StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
@@ -122,8 +122,8 @@ void validate_cuda(Index m, Index n, Index k)
     {
         throw std::runtime_error("CUDA error");
     }
-    std::cout << "Run cuda::bias<T>\n";
-    kernel::cuda::bias<T>(stream, m, n, k, dev_src, dev_dst);
+    std::cout << "Run kernel::bias::cuda<T>\n";
+    kernel::bias::cuda<T>(stream, m, n, k, dev_src, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
     if(cuda_err != cudaSuccess)
@@ -179,7 +179,7 @@ int main(int argc, char **argv)
 {
     // Init StarPU for testing
     StarpuTest starpu;
-    // Init bias codelet
+    // Init codelet
     starpu::bias::init();
     // Launch all tests
     validate_cpu<fp32_t>(3, 5, 7);

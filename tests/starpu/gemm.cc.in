@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-23
+ * @date 2022-08-31
  * */
 
 #include "nntile/starpu/gemm.hh"
@@ -107,11 +107,11 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
     StarpuVariableHandle A_handle(&A[0], sizeof(T)*m*k, STARPU_R),
         B_handle(&B[0], sizeof(T)*n*k, STARPU_R),
         C2_handle(&C2[0], sizeof(T)*m*n, STARPU_RW);
-    starpu::gemm_restrict_where(STARPU_CPU);
+    starpu::gemm::restrict_where(STARPU_CPU);
     starpu_resume();
-    std::cout << "Run starpu::gemm<T> restricted to CPU\n";
-    starpu::gemm<T>(transA, transB, m, n, k, alpha, A_handle, B_handle, beta,
-            C2_handle);
+    std::cout << "Run starpu::gemm::submit<T> restricted to CPU\n";
+    starpu::gemm::submit<T>(transA, transB, m, n, k, alpha, A_handle, B_handle,
+            beta, C2_handle);
     starpu_task_wait_for_all();
     C2_handle.unregister();
     starpu_pause();
@@ -123,7 +123,7 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
-    std::cout << "OK: starpu::gemm<T> restricted to CPU\n";
+    std::cout << "OK: starpu::gemm::submit<T> restricted to CPU\n";
 }
 
 template<typename T>
@@ -320,11 +320,11 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
     StarpuVariableHandle A_handle(&A[0], sizeof(T)*m*k, STARPU_R),
         B_handle(&B[0], sizeof(T)*n*k, STARPU_R),
         C2_handle(&C2[0], sizeof(T)*m*n, STARPU_RW);
-    starpu::gemm_restrict_where(STARPU_CUDA);
+    starpu::gemm::restrict_where(STARPU_CUDA);
     starpu_resume();
-    std::cout << "Run starpu::gemm<T> restricted to CUDA\n";
-    starpu::gemm<T>(transA, transB, m, n, k, alpha, A_handle, B_handle, beta,
-            C2_handle);
+    std::cout << "Run starpu::gemm::submit<T> restricted to CUDA\n";
+    starpu::gemm::submit<T>(transA, transB, m, n, k, alpha, A_handle, B_handle,
+            beta, C2_handle);
     starpu_task_wait_for_all();
     C2_handle.unregister();
     starpu_pause();
@@ -336,7 +336,7 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
-    std::cout << "OK: starpu::gemm<T> restricted to CUDA\n";
+    std::cout << "OK: starpu::gemm::submit<T> restricted to CUDA\n";
 }
 
 template<typename T>
@@ -369,6 +369,8 @@ int main(int argc, char **argv)
     // GEMM is within cuBLAS library, which needs to be initialized
     starpu_cublas_init();
 #endif // NNTILE_USE_CUDA
+    // Init codelet
+    starpu::gemm::init();
     // Launch all tests
 #ifdef NNTILE_USE_CBLAS
     validate_cpu_many<fp32_t>();

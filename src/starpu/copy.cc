@@ -13,16 +13,18 @@
  * */
 
 #include "nntile/starpu/copy.hh"
-#include "nntile/kernel/cpu/copy.hh"
+#include "nntile/kernel/copy/cpu.hh"
 
 namespace nntile
 {
 namespace starpu
 {
+namespace copy
+{
 
 //! Smart copying through StarPU buffers
 template<typename T>
-void copy_cpu(void *buffers[], void *cl_args)
+void cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
@@ -36,13 +38,13 @@ void copy_cpu(void *buffers[], void *cl_args)
     T *dst = interfaces[1]->get_ptr<T>();
     Index *tmp_index = interfaces[2]->get_ptr<Index>();
     // Launch kernel
-    nntile::kernel::cpu::copy<T>(*ndim_ptr, src_start, src_stride, copy_shape,
+    kernel::copy::cpu<T>(*ndim_ptr, src_start, src_stride, copy_shape,
             src, dst_start, dst_stride, dst, tmp_index);
 }
 
 //! Footprint for copy tasks that depend on copy shape
 static
-uint32_t copy_footprint(struct starpu_task *task)
+uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
     const Index *ndim_ptr, *src_start, *src_stride, *copy_shape, *dst_start,
@@ -54,55 +56,36 @@ uint32_t copy_footprint(struct starpu_task *task)
     return starpu_hash_crc32c_be_n(copy_shape, copy_shape_size, 0);
 }
 
-StarpuCodelet copy_codelet_fp32, copy_codelet_fp64;
+StarpuCodelet codelet_fp32, codelet_fp64;
 
-void copy_init()
+void init()
 {
-    copy_codelet_fp32.init("nntile_copy_fp32",
-            copy_footprint,
-            {copy_cpu<fp32_t>},
+    codelet_fp32.init("nntile_copy_fp32",
+            footprint,
+            {cpu<fp32_t>},
             {}
             );
-    copy_codelet_fp64.init("nntile_copy_fp64",
-            copy_footprint,
-            {copy_cpu<fp64_t>},
+    codelet_fp64.init("nntile_copy_fp64",
+            footprint,
+            {cpu<fp64_t>},
             {}
             );
 }
 
-void copy_restrict_where(uint32_t where)
+void restrict_where(uint32_t where)
 {
-    copy_codelet_fp32.restrict_where(where);
-    copy_codelet_fp64.restrict_where(where);
+    codelet_fp32.restrict_where(where);
+    codelet_fp64.restrict_where(where);
 }
 
-void copy_restore_where()
+void restore_where()
 {
-    copy_codelet_fp32.restore_where();
-    copy_codelet_fp64.restore_where();
+    codelet_fp32.restore_where();
+    codelet_fp64.restore_where();
 }
 
 template<typename T>
-constexpr StarpuCodelet *copy_codelet()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
-
-template<>
-constexpr StarpuCodelet *copy_codelet<fp32_t>()
-{
-    return &copy_codelet_fp32;
-}
-
-template<>
-constexpr StarpuCodelet *copy_codelet<fp64_t>()
-{
-    return &copy_codelet_fp64;
-}
-
-template<typename T>
-void copy(Index ndim, const std::vector<Index> &src_start,
+void submit(Index ndim, const std::vector<Index> &src_start,
         const std::vector<Index> &src_stride,
         const std::vector<Index> &dst_start,
         const std::vector<Index> &dst_stride,
@@ -112,7 +95,7 @@ void copy(Index ndim, const std::vector<Index> &src_start,
 {
     constexpr fp64_t zero_flops = 0;
     // Submit task
-    int ret = starpu_task_insert(copy_codelet<T>(),
+    int ret = starpu_task_insert(codelet<T>(),
             STARPU_VALUE, &(ndim), sizeof(ndim),
             STARPU_VALUE, &(src_start[0]), ndim*sizeof(src_start[0]),
             STARPU_VALUE, &(src_stride[0]), ndim*sizeof(src_stride[0]),
@@ -133,7 +116,7 @@ void copy(Index ndim, const std::vector<Index> &src_start,
 
 // Explicit instantiation
 template
-void copy<fp32_t>(Index ndim, const std::vector<Index> &src_start,
+void submit<fp32_t>(Index ndim, const std::vector<Index> &src_start,
         const std::vector<Index> &src_stride,
         const std::vector<Index> &dst_start,
         const std::vector<Index> &dst_stride,
@@ -142,7 +125,7 @@ void copy<fp32_t>(Index ndim, const std::vector<Index> &src_start,
         starpu_data_handle_t tmp_index, starpu_data_access_mode mode);
 
 template
-void copy<fp64_t>(Index ndim, const std::vector<Index> &src_start,
+void submit<fp64_t>(Index ndim, const std::vector<Index> &src_start,
         const std::vector<Index> &src_stride,
         const std::vector<Index> &dst_start,
         const std::vector<Index> &dst_stride,
@@ -150,6 +133,7 @@ void copy<fp64_t>(Index ndim, const std::vector<Index> &src_start,
         starpu_data_handle_t src, starpu_data_handle_t dst,
         starpu_data_handle_t tmp_index, starpu_data_access_mode mode);
 
+} // namespace copy
 } // namespace starpu
 } // namespace nntile
 

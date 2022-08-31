@@ -9,23 +9,25 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-16
+ * @date 2022-08-31
  * */
 
 #include "nntile/starpu/relu.hh"
-#include "nntile/kernel/cpu/relu.hh"
+#include "nntile/kernel/relu/cpu.hh"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/relu.hh"
+#   include "nntile/kernel/relu/cuda.hh"
 #endif // NNTILE_USE_CUDA
 
 namespace nntile
 {
 namespace starpu
 {
+namespace relu
+{
 
 //! Apply relu along middle axis of StarPU buffer on CPU
 template<typename T>
-void relu_cpu(void *buffers[], void *cl_args)
+void cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
@@ -34,13 +36,13 @@ void relu_cpu(void *buffers[], void *cl_args)
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
     // Launch kernel
-    nntile::kernel::cpu::relu<T>(nelems, data);
+    kernel::relu::cpu<T>(nelems, data);
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Apply relu along middle axis of StarPU buffer on CUDA
 template<typename T>
-void relu_cuda(void *buffers[], void *cl_args)
+void cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
@@ -51,67 +53,52 @@ void relu_cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    nntile::kernel::cuda::relu<T>(stream, nelems, data);
+    kernel::relu::cuda<T>(stream, nelems, data);
 }
 #endif // NNTILE_USE_CUDA
 
-StarpuCodelet relu_codelet_fp32("nntile_relu_fp32",
-        nullptr,
-        {relu_cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-        {relu_cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
+StarpuCodelet codelet_fp32, codelet_fp64;
 
-StarpuCodelet relu_codelet_fp64("nntile_relu_fp64",
-        nullptr,
-        {relu_cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-        {relu_cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
-
-void relu_restrict_where(uint32_t where)
+void init()
 {
-    relu_codelet_fp32.restrict_where(where);
-    relu_codelet_fp64.restrict_where(where);
+    codelet_fp32.init("nntile_relu_fp32",
+            nullptr,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_fp64.init("nntile_relu_fp64",
+            nullptr,
+            {cpu<fp64_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
 }
 
-void relu_restore_where()
+void restrict_where(uint32_t where)
 {
-    relu_codelet_fp32.restore_where();
-    relu_codelet_fp64.restore_where();
+    codelet_fp32.restrict_where(where);
+    codelet_fp64.restrict_where(where);
+}
+
+void restore_where()
+{
+    codelet_fp32.restore_where();
+    codelet_fp64.restore_where();
 }
 
 template<typename T>
-constexpr StarpuCodelet *relu_codelet()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
-
-template<>
-constexpr StarpuCodelet *relu_codelet<fp32_t>()
-{
-    return &relu_codelet_fp32;
-}
-
-template<>
-constexpr StarpuCodelet *relu_codelet<fp64_t>()
-{
-    return &relu_codelet_fp64;
-}
-
-template<typename T>
-void relu(Index nelems, starpu_data_handle_t data)
+void submit(Index nelems, starpu_data_handle_t data)
 {
     Index *nelems_ = new Index{nelems};
     //fp64_t nflops = 5 * nelems;
-    int ret = starpu_task_insert(relu_codelet<T>(),
+    int ret = starpu_task_insert(codelet<T>(),
             STARPU_RW, data,
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
             //STARPU_FLOPS, nflops,
@@ -125,11 +112,12 @@ void relu(Index nelems, starpu_data_handle_t data)
 
 // Explicit instantiaion
 template
-void relu<fp32_t>(Index nelems, starpu_data_handle_t data);
+void submit<fp32_t>(Index nelems, starpu_data_handle_t data);
 
 template
-void relu<fp64_t>(Index nelems, starpu_data_handle_t data);
+void submit<fp64_t>(Index nelems, starpu_data_handle_t data);
 
+} // namespace relu
 } // namespace starpu
 } // namespace nntile
 

@@ -9,13 +9,13 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-23
+ * @date 2022-08-31
  * */
 
 #include "nntile/starpu/normalize.hh"
-#include "nntile/kernel/cpu/normalize.hh"
+#include "nntile/kernel/normalize/cpu.hh"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/normalize.hh"
+#   include "nntile/kernel/normalize/cuda.hh"
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA
 #include "common.hh"
@@ -44,8 +44,8 @@ void validate_cpu(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     // Create copies of destination
     std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run cpu::normalize<T>\n";
-    kernel::cpu::normalize<T>(m, n, k, l, eps, &gamma, &beta, &sumnorm[0],
+    std::cout << "Run kernel::normalize::cpu<T>\n";
+    kernel::normalize::cpu<T>(m, n, k, l, eps, &gamma, &beta, &sumnorm[0],
             &dst[0]);
     // Check by actually submitting a task
     T gamma_beta[2] = {gamma, beta};
@@ -53,11 +53,11 @@ void validate_cpu(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
             STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW),
         gamma_beta_handle(gamma_beta, sizeof(gamma_beta), STARPU_R);
-    starpu::normalize_restrict_where(STARPU_CPU);
+    starpu::normalize::restrict_where(STARPU_CPU);
     starpu_resume();
-    std::cout << "Run starpu::normalize<T> restricted to CPU\n";
-    starpu::normalize<T>(m, n, k, l, eps, gamma_beta_handle, sumnorm_handle,
-            dst2_handle);
+    std::cout << "Run starpu::normalize::submit<T> restricted to CPU\n";
+    starpu::normalize::submit<T>(m, n, k, l, eps, gamma_beta_handle,
+            sumnorm_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     starpu_pause();
@@ -69,7 +69,7 @@ void validate_cpu(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
-    std::cout << "OK: starpu::normalize<T> restricted to CPU\n";
+    std::cout << "OK: starpu::normalize::submit<T> restricted to CPU\n";
 }
 
 template<typename T>
@@ -159,8 +159,8 @@ void validate_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     {
         throw std::runtime_error("CUDA error");
     }
-    std::cout << "Run cuda::normalize<T>\n";
-    kernel::cuda::normalize<T>(stream, m, n, k, l, eps, dev_gamma, dev_beta,
+    std::cout << "Run kernel::normalize::cuda<T>\n";
+    kernel::normalize::cuda<T>(stream, m, n, k, l, eps, dev_gamma, dev_beta,
             dev_sumnorm, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
@@ -207,11 +207,11 @@ void validate_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
             STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW),
         gamma_beta_handle(gamma_beta, sizeof(T)*2, STARPU_R);
-    starpu::normalize_restrict_where(STARPU_CUDA);
+    starpu::normalize::restrict_where(STARPU_CUDA);
     starpu_resume();
-    std::cout << "Run starpu::normalize<T> restricted to CUDA\n";
-    starpu::normalize<T>(m, n, k, l, eps, gamma_beta_handle, sumnorm_handle,
-            dst2_handle);
+    std::cout << "Run starpu::normalize::submit<T> restricted to CUDA\n";
+    starpu::normalize::submit<T>(m, n, k, l, eps, gamma_beta_handle,
+            sumnorm_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     starpu_pause();
@@ -223,7 +223,7 @@ void validate_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
-    std::cout << "OK: starpu::normalize<T> restricted to CUDA\n";
+    std::cout << "OK: starpu::normalize::submit<T> restricted to CUDA\n";
 }
 
 template<typename T>
@@ -238,6 +238,8 @@ int main(int argc, char **argv)
 {
     // Init StarPU for testing
     StarpuTest starpu;
+    // Init codelet
+    starpu::normalize::init();
     // Launch all tests
     validate_many_cpu<fp32_t>();
     validate_many_cpu<fp64_t>();

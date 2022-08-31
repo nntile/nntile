@@ -22,9 +22,11 @@ namespace nntile
 {
 namespace starpu
 {
+namespace sumnorm
+{
 
 //! Structure for arguments
-struct sumnorm_args
+struct args_t
 {
     Index m;
     Index n;
@@ -33,28 +35,48 @@ struct sumnorm_args
 
 // Sum and Euclidian norm along middle axis of StarPU buffer on CPU
 template<typename T>
-void sumnorm_cpu(void *buffers[], void *cl_args)
+void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
 // Sum and Euclidian norm along middle axis of StarPU buffer on CUDA
 template<typename T>
-void sumnorm_cuda(void *buffers[], void *cl_args)
+void cuda(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern StarpuCodelet sumnorm_codelet_fp32, sumnorm_codelet_fp64;
-
-void sumnorm_init();
-
-void sumnorm_restrict_where(uint32_t where);
-
-void sumnorm_restore_where();
+extern StarpuCodelet codelet_fp32, codelet_fp64;
 
 template<typename T>
-void sumnorm(Index m, Index n, Index k, starpu_data_handle_t src,
+constexpr StarpuCodelet *codelet()
+{
+    throw std::runtime_error("Non-supported type");
+    return nullptr;
+}
+
+template<>
+constexpr StarpuCodelet *codelet<fp32_t>()
+{
+    return &codelet_fp32;
+}
+
+template<>
+constexpr StarpuCodelet *codelet<fp64_t>()
+{
+    return &codelet_fp64;
+}
+
+void init();
+
+void restrict_where(uint32_t where);
+
+void restore_where();
+
+template<typename T>
+void submit(Index m, Index n, Index k, starpu_data_handle_t src,
         starpu_data_handle_t dst);
 
+} // namespace sumnorm
 } // namespace starpu
 } // namespace nntile
 

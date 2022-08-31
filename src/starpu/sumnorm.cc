@@ -9,43 +9,45 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-31
  * */
 
 #include "nntile/starpu/sumnorm.hh"
-#include "nntile/kernel/cpu/sumnorm.hh"
+#include "nntile/kernel/sumnorm/cpu.hh"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/sumnorm.hh"
+#   include "nntile/kernel/sumnorm/cuda.hh"
 #endif // NNTILE_USE_CUDA
 
 namespace nntile
 {
 namespace starpu
 {
+namespace sumnorm
+{
 
 //! Sum and Euclidian norm along middle axis of StarPU buffer on CPU
 template<typename T>
-void sumnorm_cpu(void *buffers[], void *cl_args)
+void cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<sumnorm_args *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::cpu::sumnorm<T>(args->m, args->n, args->k, src, dst);
+    kernel::sumnorm::cpu<T>(args->m, args->n, args->k, src, dst);
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Sum and Euclidian norm along middle axis of StarPU buffer on CUDA
 template<typename T>
-void sumnorm_cuda(void *buffers[], void *cl_args)
+void cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<sumnorm_args *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
@@ -53,16 +55,16 @@ void sumnorm_cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::cuda::sumnorm<T>(stream, args->m, args->n, args->k, src, dst);
+    kernel::sumnorm::cuda<T>(stream, args->m, args->n, args->k, src, dst);
 }
 #endif // NNTIEL_USE_CUDA
 
 //! Footprint for sumnorm tasks that depends only on m, n and k
 static
-uint32_t sumnorm_footprint(struct starpu_task *task)
+uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<sumnorm_args *>(task->cl_arg);
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
     // Apply hash over parameters m, n and k. This way if we swap values of m,
     // n and k, then the total size of buffers will remain the same, but the
     // footprint will be different
@@ -73,59 +75,44 @@ uint32_t sumnorm_footprint(struct starpu_task *task)
     return hash;
 }
 
-StarpuCodelet sumnorm_codelet_fp32("nntile_sumnorm_fp32",
-        sumnorm_footprint,
-        {sumnorm_cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-        {sumnorm_cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
+StarpuCodelet codelet_fp32, codelet_fp64;
 
-StarpuCodelet sumnorm_codelet_fp64("nntile_sumnorm_fp64",
-        sumnorm_footprint,
-        {sumnorm_cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-        {sumnorm_cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
-
-void sumnorm_restrict_where(uint32_t where)
+void init()
 {
-    sumnorm_codelet_fp32.restrict_where(where);
-    sumnorm_codelet_fp64.restrict_where(where);
+    codelet_fp32.init("nntile_sumnorm_fp32",
+            footprint,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_fp64.init("nntile_sumnorm_fp64",
+            footprint,
+            {cpu<fp64_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
 }
 
-void sumnorm_restore_where()
+void restrict_where(uint32_t where)
 {
-    sumnorm_codelet_fp32.restore_where();
-    sumnorm_codelet_fp64.restore_where();
+    codelet_fp32.restrict_where(where);
+    codelet_fp64.restrict_where(where);
+}
+
+void restore_where()
+{
+    codelet_fp32.restore_where();
+    codelet_fp64.restore_where();
 }
 
 template<typename T>
-constexpr StarpuCodelet *sumnorm_codelet()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
-
-template<>
-constexpr StarpuCodelet *sumnorm_codelet<fp32_t>()
-{
-    return &sumnorm_codelet_fp32;
-}
-
-template<>
-constexpr StarpuCodelet *sumnorm_codelet<fp64_t>()
-{
-    return &sumnorm_codelet_fp64;
-}
-
-template<typename T>
-void sumnorm(Index m, Index n, Index k, starpu_data_handle_t src,
+void submit(Index m, Index n, Index k, starpu_data_handle_t src,
         starpu_data_handle_t dst)
 //! Insert sumnorm task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -134,7 +121,7 @@ void sumnorm(Index m, Index n, Index k, starpu_data_handle_t src,
  * */
 {
     // Codelet arguments
-    auto args = new sumnorm_args
+    auto args = new args_t
     {
         .m = m,
         .n = n,
@@ -142,7 +129,7 @@ void sumnorm(Index m, Index n, Index k, starpu_data_handle_t src,
     };
     //fp64_t nflops = m * n * k;
     // Submit task
-    int ret = starpu_task_insert(sumnorm_codelet<T>(),
+    int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, src,
             STARPU_CL_ARGS, args, sizeof(*args),
             Starpu::STARPU_RW_COMMUTE, dst,
@@ -157,13 +144,14 @@ void sumnorm(Index m, Index n, Index k, starpu_data_handle_t src,
 
 // Explicit instantiation
 template
-void sumnorm<fp32_t>(Index m, Index n, Index k, starpu_data_handle_t src,
+void submit<fp32_t>(Index m, Index n, Index k, starpu_data_handle_t src,
         starpu_data_handle_t dst);
 
 template
-void sumnorm<fp64_t>(Index m, Index n, Index k, starpu_data_handle_t src,
+void submit<fp64_t>(Index m, Index n, Index k, starpu_data_handle_t src,
         starpu_data_handle_t dst);
 
+} // namespace sumnorm
 } // namespace starpu
 } // namespace nntile
 

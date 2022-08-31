@@ -21,22 +21,43 @@ namespace nntile
 {
 namespace starpu
 {
+namespace copy
+{
 
 //! Smart copying through StarPU buffers
 template<typename T>
-void copy_cpu(void *buffers[], void *cl_args)
+void cpu(void *buffers[], void *cl_args)
     noexcept;
 
-extern StarpuCodelet copy_codelet_fp32, copy_codelet_fp64;
-
-void copy_init();
-
-void copy_restrict_where(uint32_t where);
-
-void copy_restore_where();
+extern StarpuCodelet codelet_fp32, codelet_fp64;
 
 template<typename T>
-void copy(Index ndim, const std::vector<Index> &src_start,
+constexpr StarpuCodelet *codelet()
+{
+    throw std::runtime_error("Non-supported type");
+    return nullptr;
+}
+
+template<>
+constexpr StarpuCodelet *codelet<fp32_t>()
+{
+    return &codelet_fp32;
+}
+
+template<>
+constexpr StarpuCodelet *codelet<fp64_t>()
+{
+    return &codelet_fp64;
+}
+
+void init();
+
+void restrict_where(uint32_t where);
+
+void restore_where();
+
+template<typename T>
+void submit(Index ndim, const std::vector<Index> &src_start,
         const std::vector<Index> &src_stride,
         const std::vector<Index> &dst_start,
         const std::vector<Index> &dst_stride,
@@ -44,6 +65,7 @@ void copy(Index ndim, const std::vector<Index> &src_start,
         starpu_data_handle_t src, starpu_data_handle_t dst,
         starpu_data_handle_t tmp_index, starpu_data_access_mode mode);
 
+} // namespace copy
 } // namespace starpu
 } // namespace nntile
 

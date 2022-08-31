@@ -9,27 +9,29 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-16
+ * @date 2022-08-31
  * */
 
 #include "nntile/starpu/normalize.hh"
-#include "nntile/kernel/cpu/normalize.hh"
+#include "nntile/kernel/normalize/cpu.hh"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/normalize.hh"
+#   include "nntile/kernel/normalize/cuda.hh"
 #endif // NNTILE_USE_CUDA
 
 namespace nntile
 {
 namespace starpu
 {
+namespace normalize
+{
 
 //! Renormalize buffer along middle axis of StarPU buffer
 template<typename T>
-void normalize_cpu(void *buffers[], void *cl_args)
+void cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<normalize_args<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     const T *gamma_beta = interfaces[0]->get_ptr<T>();
@@ -37,18 +39,18 @@ void normalize_cpu(void *buffers[], void *cl_args)
     const T *sumnorm = interfaces[1]->get_ptr<T>();
     T *dst = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::cpu::normalize<T>(args->m, args->n, args->k, args->l, args->eps,
+    kernel::normalize::cpu<T>(args->m, args->n, args->k, args->l, args->eps,
             gamma, beta, sumnorm, dst);
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Renormalize buffer along middle axis of StarPU buffer
 template<typename T>
-void normalize_cuda(void *buffers[], void *cl_args)
+void cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<normalize_args<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     const T *gamma_beta = interfaces[0]->get_ptr<T>();
@@ -58,7 +60,7 @@ void normalize_cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::cuda::normalize<T>(stream, args->m, args->n, args->k, args->l,
+    kernel::normalize::cuda<T>(stream, args->m, args->n, args->k, args->l,
             args->eps, gamma, beta, sumnorm, dst);
 }
 #endif // NNTILE_USE_CUDA
@@ -66,10 +68,10 @@ void normalize_cuda(void *buffers[], void *cl_args)
 //! Footprint for normalize tasks that depends only on m, n and k
 template<typename T>
 static
-uint32_t normalize_footprint(struct starpu_task *task)
+uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<normalize_args<T> *>(task->cl_arg);
+    auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
     // Apply hash over parameters m, n and k. This way if we swap values of m,
     // n and k, then the total size of buffers will remain the same, but the
     // footprint will be different
@@ -80,59 +82,44 @@ uint32_t normalize_footprint(struct starpu_task *task)
     return hash;
 }
 
-StarpuCodelet normalize_codelet_fp32("nntile_normalize_fp32",
-        normalize_footprint<fp32_t>,
-        {normalize_cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-        {normalize_cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
+StarpuCodelet codelet_fp32, codelet_fp64;
 
-StarpuCodelet normalize_codelet_fp64("nntile_normalize_fp64",
-        normalize_footprint<fp64_t>,
-        {normalize_cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-        {normalize_cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
-
-void normalize_restrict_where(uint32_t where)
+void init()
 {
-    normalize_codelet_fp32.restrict_where(where);
-    normalize_codelet_fp64.restrict_where(where);
+    codelet_fp32.init("nntile_normalize_fp32",
+            footprint<fp32_t>,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_fp64.init("nntile_normalize_fp64",
+            footprint<fp64_t>,
+            {cpu<fp64_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
 }
 
-void normalize_restore_where()
+void restrict_where(uint32_t where)
 {
-    normalize_codelet_fp32.restore_where();
-    normalize_codelet_fp64.restore_where();
+    codelet_fp32.restrict_where(where);
+    codelet_fp64.restrict_where(where);
+}
+
+void restore_where()
+{
+    codelet_fp32.restore_where();
+    codelet_fp64.restore_where();
 }
 
 template<typename T>
-constexpr StarpuCodelet *normalize_codelet()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
-
-template<>
-constexpr StarpuCodelet *normalize_codelet<fp32_t>()
-{
-    return &normalize_codelet_fp32;
-}
-
-template<>
-constexpr StarpuCodelet *normalize_codelet<fp64_t>()
-{
-    return &normalize_codelet_fp64;
-}
-
-template<typename T>
-void normalize(Index m, Index n, Index k, Index l, T eps,
+void submit(Index m, Index n, Index k, Index l, T eps,
         starpu_data_handle_t gamma_beta, starpu_data_handle_t sumnorm,
         starpu_data_handle_t dst)
 //! Insert normalize task into StarPU pool of tasks
@@ -142,7 +129,7 @@ void normalize(Index m, Index n, Index k, Index l, T eps,
  * */
 {
     // Codelet arguments
-    auto args = new normalize_args<T>
+    auto args = new args_t<T>
     {
         .m = m,
         .n = n,
@@ -152,7 +139,7 @@ void normalize(Index m, Index n, Index k, Index l, T eps,
     };
     fp64_t nflops = 14 * m * n * k;
     // Submit task
-    int ret = starpu_task_insert(normalize_codelet<T>(),
+    int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, gamma_beta,
             STARPU_R, sumnorm,
             STARPU_RW, dst,
@@ -168,15 +155,16 @@ void normalize(Index m, Index n, Index k, Index l, T eps,
 
 // Explicit instantiation
 template
-void normalize<fp32_t>(Index m, Index n, Index k, Index l, fp32_t eps,
+void submit<fp32_t>(Index m, Index n, Index k, Index l, fp32_t eps,
         starpu_data_handle_t gamma_beta, starpu_data_handle_t sumnorm,
         starpu_data_handle_t dst);
 
 template
-void normalize<fp64_t>(Index m, Index n, Index k, Index l, fp64_t eps,
+void submit<fp64_t>(Index m, Index n, Index k, Index l, fp64_t eps,
         starpu_data_handle_t gamma_beta, starpu_data_handle_t sumnorm,
         starpu_data_handle_t dst);
 
+} // namespace normalize
 } // namespace starpu
 } // namespace nntile
 

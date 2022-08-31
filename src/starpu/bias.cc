@@ -13,9 +13,9 @@
  * */
 
 #include "nntile/starpu/bias.hh"
-#include "nntile/kernel/cpu/bias.hh"
+#include "nntile/kernel/bias/cpu.hh"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/bias.hh"
+#   include "nntile/kernel/bias/cuda.hh"
 #endif // NNTILE_USE_CUDA
 
 namespace nntile
@@ -37,7 +37,7 @@ void cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    nntile::kernel::cpu::bias<T>(args->m, args->n, args->k, src, dst);
+    kernel::bias::cpu<T>(args->m, args->n, args->k, src, dst);
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -55,7 +55,7 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    nntile::kernel::cuda::bias<T>(stream, args->m, args->n, args->k, src, dst);
+    kernel::bias::cuda<T>(stream, args->m, args->n, args->k, src, dst);
 }
 #endif // NNTILE_USE_CUDA
 
