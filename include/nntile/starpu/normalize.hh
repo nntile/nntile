@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-31
  * */
 
 #pragma once
@@ -47,6 +47,8 @@ void normalize_cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 extern StarpuCodelet normalize_codelet_fp32, normalize_codelet_fp64;
+
+void normalize_init();
 
 void normalize_restrict_where(uint32_t where);
 

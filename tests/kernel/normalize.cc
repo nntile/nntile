@@ -9,13 +9,13 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-23
+ * @date 2022-08-31
  * */
 
-#include "nntile/kernel/cpu/normalize.hh"
+#include "nntile/kernel/normalize/cpu.hh"
 #include "nntile/defs.h"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/normalize.hh"
+#   include "nntile/kernel/normalize/cuda.hh"
 #endif // NNTILE_USE_CUDA
 #include <vector>
 #include <stdexcept>
@@ -24,7 +24,7 @@
 #include <iostream>
 
 using namespace nntile;
-using namespace nntile::kernel;
+using namespace nntile::kernel::normalize;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
@@ -85,7 +85,7 @@ void run_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta,
         throw std::runtime_error("CUDA error");
     }
     // Launch low-level kernel
-    cuda::normalize<T>(stream, m, n, k, l, eps, dev_gamma, dev_beta,
+    cuda<T>(stream, m, n, k, l, eps, dev_gamma, dev_beta,
             dev_sumnorm, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
@@ -155,8 +155,8 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     }
     std::vector<T> dst_save(dst);
     // Check low-level kernel
-    std::cout << "Run cpu::normalize<T>\n";
-    cpu::normalize<T>(m, n, k, l, eps, &gamma, &beta, &sumnorm[0], &dst[0]);
+    std::cout << "Run kernel::normalize::cpu<T>\n";
+    cpu<T>(m, n, k, l, eps, &gamma, &beta, &sumnorm[0], &dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
@@ -173,11 +173,11 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
             }
         }
     }
-    std::cout << "OK: cpu::normalize<T>\n";
+    std::cout << "OK: kernel::normalize::cpu<T>\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
-    std::cout << "Run cuda::normalize<T>\n";
+    std::cout << "Run kernel::normalize::cuda<T>\n";
     run_cuda<T>(m, n, k, l, eps, gamma, beta, sumnorm, dst);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -195,7 +195,7 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
             }
         }
     }
-    std::cout << "OK: cuda::normalize<T>\n";
+    std::cout << "OK: kernel::normalize::cuda<T>\n";
 #endif // NNTILE_USE_CUDA
 }
 

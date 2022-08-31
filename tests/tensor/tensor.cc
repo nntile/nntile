@@ -1,7 +1,22 @@
+/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+ *                           (Skoltech). All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file tests/tensor/tensor.cc
+ * Tensor<T>
+ *
+ * @version 1.0.0
+ * @author Aleksandr Mikhalev
+ * @date 2022-08-29
+ * */
+
 #include "nntile/tensor/tensor.hh"
 #include "../testing.hh"
 
 using namespace nntile;
+using namespace nntile::tensor;
 
 template<typename T>
 void check_tensor(const Tensor<T> &A)

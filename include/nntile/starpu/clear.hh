@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-31
  * */
 
 #pragma once
@@ -34,6 +34,8 @@ void clear_cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 extern StarpuCodelet clear_codelet;
+
+void clear_init();
 
 void clear_restrict_where(uint32_t where);
 

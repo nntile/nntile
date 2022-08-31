@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-31
  * */
 
 #pragma once
@@ -44,6 +44,8 @@ void sumnorm_cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 extern StarpuCodelet sumnorm_codelet_fp32, sumnorm_codelet_fp64;
+
+void sumnorm_init();
 
 void sumnorm_restrict_where(uint32_t where);
 

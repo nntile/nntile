@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-12
+ * @date 2022-08-31
  * */
 
 #pragma once
@@ -54,7 +54,10 @@ extern StarpuCodelet gemmNN_codelet_fp32, gemmNN_codelet_fp64,
        gemmTN_codelet_fp32, gemmTN_codelet_fp64,
        gemmTT_codelet_fp32, gemmTT_codelet_fp64;
 
+void gemm_init();
+
 void gemm_restrict_where(uint32_t where);
+
 void gemm_restore_where();
 
 template<typename T>

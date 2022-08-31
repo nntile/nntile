@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-11
+ * @date 2022-08-31
  * */
 
 #pragma once
@@ -28,6 +28,8 @@ void copy_cpu(void *buffers[], void *cl_args)
     noexcept;
 
 extern StarpuCodelet copy_codelet_fp32, copy_codelet_fp64;
+
+void copy_init();
 
 void copy_restrict_where(uint32_t where);
 

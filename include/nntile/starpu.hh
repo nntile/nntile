@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-17
+ * @date 2022-08-29
  * */
 
 #pragma once
@@ -205,6 +205,11 @@ class StarpuHandle
         }
     }
 public:
+    //! Default constructor with nullptr
+    StarpuHandle():
+        handle(nullptr)
+    {
+    }
     //! Constructor owns registered handle and unregisters it when needed
     StarpuHandle(starpu_data_handle_t handle_,
             enum starpu_data_access_mode mode):
@@ -340,14 +345,18 @@ public:
 class StarpuCodelet: public starpu_codelet, public starpu_perfmodel
 {
 private:
-    uint32_t where_default;
+    uint32_t where_default = STARPU_NOWHERE; // uninitialized value
 public:
-    StarpuCodelet(const char *name_, uint32_t (*footprint_)(starpu_task *),
+    //! Zero-initialize codelet
+    StarpuCodelet()
+    {
+        std::memset(this, 0, sizeof(*this));
+    }
+    void init(const char *name_, uint32_t (*footprint_)(starpu_task *),
             std::initializer_list<starpu_cpu_func_t> cpu_funcs_,
             std::initializer_list<starpu_cuda_func_t> cuda_funcs_)
     {
-        // Initialize codelet + perfmodel
-        std::memset(this, 0, sizeof(*this));
+        // Initialize perfmodel
         starpu_codelet::model = this;
         starpu_perfmodel::type = STARPU_HISTORY_BASED;
         // Set codelet name and performance model symbol

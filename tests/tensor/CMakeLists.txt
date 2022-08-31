@@ -9,21 +9,22 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-09
+# @date 2022-08-29
 
 # All unit tests without arguments to test executable
 set(TESTS
     "traits"
-    "tensor"
-    "randn"
-    "copy"
-    "clear"
-    "gemm"
-    "bias"
-    "gelu"
-    "relu"
+    "distributions"
+    #"tensor"
+    #"randn"
+    #"copy"
+    #"clear"
+    #"gemm"
+    #"bias"
+    #"gelu"
+    #"relu"
     #"norm"
-    "sumnorm"
+    #"sumnorm"
     )
 
 foreach(test IN LISTS TESTS)

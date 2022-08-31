@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-31
  * */
 
 #include "nntile/starpu/clear.hh"
@@ -23,6 +23,8 @@
 namespace nntile
 {
 namespace starpu
+{
+namespace clear
 {
 
 //! Clear a StarPU buffer on CPU
@@ -55,15 +57,20 @@ void clear_cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-StarpuCodelet clear_codelet("nntile_clear",
-        nullptr,
-        {clear_cpu},
+StarpuCodelet clear_codelet;
+
+void clear_init()
+{
+    clear_codelet.init("nntile_clear",
+            nullptr,
+            {clear_cpu},
 #ifdef NNTILE_USE_CUDA
-        {clear_cuda}
+            {clear_cuda}
 #else // NNTILE_USE_CUDA
-        {}
+            {}
 #endif // NNTILE_USE_CUDA
-        );
+            );
+}
 
 void clear_restrict_where(uint32_t where)
 {
@@ -89,6 +96,7 @@ void clear(starpu_data_handle_t data)
     }
 }
 
+} // namespace clear
 } // namespace starpu
 } // namespace nntile
 

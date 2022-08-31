@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-23
+ * @date 2022-08-31
  * */
 
 #include "nntile/starpu/bias.hh"
@@ -47,10 +47,10 @@ void validate_cpu(Index m, Index n, Index k)
     // Check by actually submitting a task
     StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
-    starpu::bias_restrict_where(STARPU_CPU);
+    starpu::bias::restrict_where(STARPU_CPU);
     starpu_resume();
-    std::cout << "Run starpu::bias<T> restricted to CPU\n";
-    starpu::bias<T>(m, n, k, src_handle, dst2_handle);
+    std::cout << "Run starpu::bias::submit<T> restricted to CPU\n";
+    starpu::bias::submit<T>(m, n, k, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     starpu_pause();
@@ -62,7 +62,7 @@ void validate_cpu(Index m, Index n, Index k)
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
-    std::cout << "OK: starpu::bias<T> restricted to CPU\n";
+    std::cout << "OK: starpu::bias::submit<T> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -156,10 +156,10 @@ void validate_cuda(Index m, Index n, Index k)
     // Check by actually submitting a task
     StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
-    starpu::bias_restrict_where(STARPU_CUDA);
+    starpu::bias::restrict_where(STARPU_CUDA);
     starpu_resume();
-    std::cout << "Run starpu::bias<T> restricted to CUDA\n";
-    starpu::bias<T>(m, n, k, src_handle, dst2_handle);
+    std::cout << "Run starpu::bias::submit<T> restricted to CUDA\n";
+    starpu::bias::submit<T>(m, n, k, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     starpu_pause();
@@ -171,7 +171,7 @@ void validate_cuda(Index m, Index n, Index k)
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
-    std::cout << "OK: starpu::bias<T> restricted to CUDA\n";
+    std::cout << "OK: starpu::bias::submit<T> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 
@@ -179,6 +179,8 @@ int main(int argc, char **argv)
 {
     // Init StarPU for testing
     StarpuTest starpu;
+    // Init bias codelet
+    starpu::bias::init();
     // Launch all tests
     validate_cpu<fp32_t>(3, 5, 7);
     validate_cpu<fp64_t>(3, 5, 7);

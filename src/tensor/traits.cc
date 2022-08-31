@@ -9,12 +9,14 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-29
  * */
 
 #include "nntile/tensor/traits.hh"
 
 namespace nntile
+{
+namespace tensor
 {
 
 std::ostream &operator<<(std::ostream &os, const TensorTraits &traits)
@@ -82,5 +84,6 @@ std::ostream &operator<<(std::ostream &os, const TensorTraits &traits)
     return os;
 }
 
+} // namespace tensor
 } // namespace nntile
 

@@ -9,13 +9,13 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-16
+ * @date 2022-08-31
  * */
 
-#include "nntile/kernel/cpu/gelutanh.hh"
+#include "nntile/kernel/gelutanh/cpu.hh"
 #include "nntile/defs.h"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/gelutanh.hh"
+#   include "nntile/kernel/gelutanh/cuda.hh"
 #endif // NNTILE_USE_CUDA
 #include <vector>
 #include <stdexcept>
@@ -24,7 +24,7 @@
 #include <iostream>
 
 using namespace nntile;
-using namespace nntile::kernel;
+using namespace nntile::kernel::gelutanh;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
@@ -50,8 +50,8 @@ void run_cuda(Index nelems, std::vector<T> &data)
     {
         throw std::runtime_error("CUDA error");
     }
-    // Launch low-level kernel
-    cuda::gelutanh<T>(stream, nelems, dev_data);
+    // Launch low-level CUDA kernel
+    cuda<T>(stream, nelems, dev_data);
     cuda_err = cudaStreamSynchronize(stream);
     if(cuda_err != cudaSuccess)
     {
@@ -90,9 +90,9 @@ void validate(Index nelems)
         data[i] = T(2*i+1-nelems) / T{10};
     }
     std::vector<T> data_save(data);
-    // Check low-level kernel
-    std::cout << "Run cpu::gelutanh<T>\n";
-    cpu::gelutanh<T>(nelems, &data[0]);
+    // Check low-level CPU kernel
+    std::cout << "Run kernel::gelutanh::cpu<T>\n";
+    cpu<T>(nelems, &data[0]);
     for(Index i = 0; i < nelems; ++i)
     {
         T x = data_save[i];
@@ -116,11 +116,11 @@ void validate(Index nelems)
             throw std::runtime_error("Wrong value");
         }
     }
-    std::cout << "OK: cpu::gelutanh<T>\n";
+    std::cout << "OK: kernel::gelutanh::cpu<T>\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     data = data_save;
-    std::cout << "Run cuda::gelutanh<T>\n";
+    std::cout << "Run kernel::gelutanh::cuda<T>\n";
     run_cuda<T>(nelems, data);
     for(Index i = 0; i < nelems; ++i)
     {
@@ -145,7 +145,7 @@ void validate(Index nelems)
             throw std::runtime_error("Wrong value");
         }
     }
-    std::cout << "OK: cuda::gelutanh<T>\n";
+    std::cout << "OK: kernel::gelutanh::cuda<T>\n";
 #endif // NNTILE_USE_CUDA
 }
 

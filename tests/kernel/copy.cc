@@ -9,17 +9,17 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-31
  * */
 
-#include "nntile/kernel/cpu/copy.hh"
+#include "nntile/kernel/copy/cpu.hh"
 #include <array>
 #include <vector>
 #include <stdexcept>
 #include <iostream>
 
 using namespace nntile;
-using namespace nntile::kernel;
+using namespace nntile::kernel::copy;
 
 // Templated validation
 template<typename T, std::size_t NDIM>
@@ -102,8 +102,8 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
     std::vector<T> src2_data(src_data);
     // Check low-level kernel
     std::array<Index, 2*NDIM> tmp_index;
-    std::cout << "Run cpu::copy<T>\n";
-    cpu::copy<T>(NDIM, &src_start[0], &src_stride[0], &copy_shape[0],
+    std::cout << "Run kernel::copy::cpu<T>\n";
+    cpu<T>(NDIM, &src_start[0], &src_stride[0], &copy_shape[0],
             &src_data[0], &dst_start[0], &dst_stride[0], &dst_data[0],
             &tmp_index[0]);
     // Check source is unchanged
@@ -160,7 +160,7 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
             ++dst_index[j];
         }
     }
-    std::cout << "Ok: cpu::copy<T>\n";
+    std::cout << "Ok: kernel::copy::cpu<T>\n";
 }
 
 // Run multiple tests for a given precision

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-11
+ * @date 2022-08-31
  * */
 
 #pragma once
@@ -28,6 +28,8 @@ void randn_cpu(void *buffers[], void *cl_args)
     noexcept;
 
 extern StarpuCodelet randn_codelet_fp32, randn_codelet_fp64;
+
+void randn_init();
 
 void randn_restrict_where(uint32_t where);
 

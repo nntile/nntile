@@ -9,45 +9,58 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-19
+# @date 2022-08-31
 
 # Set list of headers
 set(BASE_HDR
     "nntile.hh"
     "nntile/base_types.hh"
     "nntile/constants.hh"
+    "nntile/config.hh"
     )
 
 set(KERNEL_HDR
-    "nntile/kernel/cpu/bias.hh"
-    "nntile/kernel/cpu/copy.hh"
-    "nntile/kernel/cpu/gelu.hh"
-    "nntile/kernel/cpu/gelutanh.hh"
-    "nntile/kernel/cpu/normalize.hh"
-    "nntile/kernel/cpu/randn.hh"
-    "nntile/kernel/cpu/relu.hh"
-    "nntile/kernel/cpu/sumnorm.hh"
+    "nntile/kernel/bias/cpu.hh"
+    "nntile/kernel/copy/cpu.hh"
+    "nntile/kernel/gelu/cpu.hh"
+    "nntile/kernel/gelutanh/cpu.hh"
+    "nntile/kernel/normalize/cpu.hh"
+    "nntile/kernel/randn/cpu.hh"
+    "nntile/kernel/relu/cpu.hh"
+    "nntile/kernel/sumnorm/cpu.hh"
     )
 
+if(NNTILE_USE_CUDA)
+    set(KERNEL_HDR
+        ${KERNEL_HDR}
+        "nntile/kernel/bias/cuda.hh"
+        "nntile/kernel/gelu/cuda.hh"
+        "nntile/kernel/gelutanh/cuda.hh"
+        "nntile/kernel/normalize/cuda.hh"
+        "nntile/kernel/relu/cuda.hh"
+        "nntile/kernel/sumnorm/cuda.hh"
+        )
+endif()
+
 set(STARPU_HDR
-    "nntile/starpu.hh"
-    "nntile/starpu/bias.hh"
-    "nntile/starpu/clear.hh"
-    "nntile/starpu/copy.hh"
-    "nntile/starpu/gelu.hh"
-    "nntile/starpu/gelutanh.hh"
-    "nntile/starpu/gemm.hh"
-    "nntile/starpu/normalize.hh"
-    "nntile/starpu/randn.hh"
-    "nntile/starpu/relu.hh"
-    "nntile/starpu/sumnorm.hh"
+    #"nntile/starpu.hh"
+    #"nntile/starpu/bias.hh"
+    #"nntile/starpu/clear.hh"
+    #"nntile/starpu/copy.hh"
+    #"nntile/starpu/gelu.hh"
+    #"nntile/starpu/gelutanh.hh"
+    #"nntile/starpu/gemm.hh"
+    #"nntile/starpu/normalize.hh"
+    #"nntile/starpu/randn.hh"
+    #"nntile/starpu/relu.hh"
+    #"nntile/starpu/sumnorm.hh"
     )
 
 set(TILE_HDR
     #"nntile/tile.hh"
-    "nntile/tile/traits.hh"
-    "nntile/tile/tile.hh"
-    "nntile/tile/bias.hh"
+    #"nntile/tile/traits.hh"
+    #"nntile/tile/tile.hh"
+    #"nntile/tile/bias.hh"
     #"nntile/tile/randn.hh"
     #"nntile/tile/copy.hh"
     #"nntile/tile/gemm.hh"
@@ -60,6 +73,7 @@ set(TILE_HDR
 set(TENSOR_HDR
     #"nntile/tensor.hh"
     #"nntile/tensor/traits.hh"
+    #"nntile/tensor/distributions.hh"
     #"nntile/tensor/tensor.hh"
     #"nntile/tensor/randn.hh"
     #"nntile/tensor/copy.hh"
@@ -72,21 +86,6 @@ set(TENSOR_HDR
 
 set(LAYER_HDR
     )
-
-if(NNTILE_USE_CUDA)
-    set(KERNEL_HDR
-        ${KERNEL_HDR}
-        "nntile/kernel/cuda/bias.hh"
-        "nntile/kernel/cuda/gelu.hh"
-        "nntile/kernel/cuda/gelutanh.hh"
-        "nntile/kernel/cuda/normalize.hh"
-        "nntile/kernel/cuda/relu.hh"
-        "nntile/kernel/cuda/sumnorm.hh"
-        )
-    set(TILE_HDR
-        ${TILE_HDR}
-        )
-endif()
 
 set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR}
     ${LAYER_HDR})

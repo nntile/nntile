@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-29
  * */
 
 #pragma once
@@ -18,6 +18,8 @@
 #include <nntile/tile/tile.hh>
 
 namespace nntile
+{
+namespace tensor
 {
 
 //! Many-dimensional tensor, presented by a set of subtensors (tiles)
@@ -28,90 +30,32 @@ template<typename T>
 class Tensor: public TensorTraits
 {
 public:
-    //! Pointer to the contiguous memory
-    std::shared_ptr<void> ptr;
-    //! Total size of allocated memory in bytes
-    Index alloc_size;
-    //! Tiles
-    std::vector<Tile<T>> tiles;
-    ~Tensor()
-    {
-        //if(ptr.use_count() == 1)
-        {
-            //starpu_memory_unpin(ptr.get(), alloc_size);
-        }
-    }
+    //! Traits of all tiles
+    std::vector<TileTraits> tile_traits;
+    //! StarPU handles of all tiles
+    std::vector<StarpuVariableHandle> tile_handles;
     //! Constructor
-    Tensor(const TensorTraits &traits,
-            Index alignment=16):
-        TensorTraits(traits),
-        //ptr(),
-        alloc_size(0),
-        tiles()
+    Tensor(const TensorTraits &traits, const std::vector<int> &distribution,
+            starpu_mpi_tag_t &last_tag):
+        TensorTraits(traits)
     {
-        // Check if alignment is positive
-        if(alignment <= 0)
-        {
-            throw std::runtime_error("alignment <= 0");
-        }
-        // At first compute memory footprint and offsets for each tile
-        std::vector<Index> tiles_nelems(grid.nelems);
-        std::vector<Index> tiles_offset(grid.nelems);
-        for(Index i = 0; i < grid.nelems; ++i)
-        {
-            // Remember offset to current tile
-            tiles_offset[i] = alloc_size;
-            // Get tile index
-            const auto tile_index = grid.linear_to_index(i);
-            // Get shape of corresponding tile
-            const auto tile_shape = TensorTraits::get_tile_shape(tile_index);
-            // Actual memory for the tile in elements T
-            tiles_nelems[i] = 1;
-            for(Index j = 0; j < ndim; ++j)
-            {
-                tiles_nelems[i] *= tile_shape[j];
-            }
-            // Total memory for tile in bytes
-            Index tile_alloc_size = tiles_nelems[i] * sizeof(T);
-            // Compute offset only if allocation is non-zero
-            if(tile_alloc_size != 0)
-            {
-                // Round up to the alignment parameter
-                Index naligns = (tile_alloc_size-1)/alignment + 1;
-                // Update allocation size
-                alloc_size += naligns * alignment;
-            }
-        }
-        // Allocate memory
-        void *ptr_raw;
-        int ret = starpu_malloc(&ptr_raw, alloc_size);
-        if(ret != 0)
-        {
-            throw std::runtime_error("ret != 0");
-        }
-        char *ptr_char = reinterpret_cast<char *>(ptr_raw);
-        ptr = std::shared_ptr<void>(ptr_raw,
-                [this](void *ptr_){starpu_free_noflag(ptr_, alloc_size);});
         // Register tiles
-        tiles.reserve(grid.nelems);
+        tile_traits.reserve(grid.nelems);
+        tile_handles.reserve(grid.nelems);
         for(Index i = 0; i < grid.nelems; ++i)
         {
+            // At first check if last tag is less than maximal tag
             // Get tile index
             const auto tile_index = grid.linear_to_index(i);
             // Get shape of corresponding tile
             const auto tile_shape = TensorTraits::get_tile_shape(tile_index);
-            tiles.emplace_back(tile_shape,
-                    reinterpret_cast<T *>(&ptr_char[tiles_offset[i]]),
-                    tiles_nelems[i]);
-            //tiles.emplace_back(tile_shape);
+            // Generate traits for the tile
+            tile_traits.emplace_back(tile_shape);
+            // Set StarPU-managed handle
+            tile_handles.emplace_back(sizeof(T) * tile_traits[i].nelems);
+            starpu_mpi_data_register(tile_handles[i], last_tag,
+                    distribution[i]);
         }
-    }
-    //! Constructor
-    Tensor(const std::vector<Index> &shape_,
-            const std::vector<Index> &basetile_shape_,
-            Index alignment=16):
-        Tensor({shape_, basetile_shape_}, alignment)
-    {
     }
     const Tile<T> &get_tile(Index linear_offset) const
     {
@@ -161,5 +105,6 @@ public:
     }
 };
 
+} // namespace tensor
 } // namespace nntile
 

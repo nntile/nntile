@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-22
+ * @date 2022-08-29
  * */
 
 #pragma once
@@ -52,6 +52,12 @@ class Tile: public TileTraits, public StarpuVariableHandle
         return size;
     }
 public:
+    //! Construct a tile from traits and StarPU handle
+    Tile(const TileTraits &traits_, const StarpuVariableHandle &handle_):
+        TileTraits(traits_),
+        StarpuVariableHandle(handle_)
+    {
+    }
     //! Construct a temporary tile, allocated/deallocated by StarPU
     Tile(const std::vector<Index> &shape_):
         TileTraits(shape_),

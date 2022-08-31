@@ -9,13 +9,13 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-31
  * */
 
-#include "nntile/kernel/cpu/bias.hh"
+#include "nntile/kernel/bias/cpu.hh"
 #include "nntile/defs.h"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/bias.hh"
+#   include "nntile/kernel/bias/cuda.hh"
 #endif // NNTILE_USE_CUDA
 #include <vector>
 #include <stdexcept>
@@ -23,7 +23,7 @@
 #include <iostream>
 
 using namespace nntile;
-using namespace nntile::kernel;
+using namespace nntile::kernel::bias;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
@@ -61,8 +61,8 @@ void run_cuda(Index m, Index n, Index k, const std::vector<T> &src,
     {
         throw std::runtime_error("CUDA error");
     }
-    // Launch low-level kernel
-    cuda::bias<T>(stream, m, n, k, dev_src, dev_dst);
+    // Launch low-level CUDA kernel
+    cuda<T>(stream, m, n, k, dev_src, dev_dst);
     cuda_err = cudaStreamSynchronize(stream);
     if(cuda_err != cudaSuccess)
     {
@@ -119,8 +119,8 @@ void validate(Index m, Index n, Index k)
     // Save original dst
     std::vector<T> dst_save(dst);
     // Check low-level CPU kernel
-    std::cout << "Run cpu::bias<T>\n";
-    cpu::bias<T>(m, n, k, &src[0], &dst[0]);
+    std::cout << "Run kernel::bias::cpu<T>\n";
+    cpu<T>(m, n, k, &src[0], &dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
@@ -137,11 +137,11 @@ void validate(Index m, Index n, Index k)
             }
         }
     }
-    std::cout << "OK: cpu::bias<T>\n";
+    std::cout << "OK: kernel::bias::cpu<T>\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
-    std::cout << "Run cuda::bias<T>\n";
+    std::cout << "Run kernel::bias::cuda<T>\n";
     run_cuda<T>(m, n, k, src, dst);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -159,7 +159,7 @@ void validate(Index m, Index n, Index k)
             }
         }
     }
-    std::cout << "OK: cuda::bias<T>\n";
+    std::cout << "OK: kernel::bias::cuda<T>\n";
 #endif // NNTILE_USE_CUDA
 }
 

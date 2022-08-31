@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-29
  * */
 
 #pragma once
@@ -18,9 +18,11 @@
 
 namespace nntile
 {
+namespace tensor
+{
 
 //! Integer arithmetics for tensors
-class TensorTraits: public TileTraits
+class TensorTraits: public tile::TileTraits
 {
     static const std::vector<Index> &_get_basetile_shape(Index ndim,
             const std::vector<Index> &basetile_shape)
@@ -71,13 +73,13 @@ public:
     //! Shape of base tile
     std::vector<Index> basetile_shape;
     //! Grid of tiles viewed as tile of tiles
-    TileTraits grid;
+    tile::TileTraits grid;
     //! Leftover size in each dimension
     std::vector<Index> leftover_shape;
     //! Constructor
     TensorTraits(const std::vector<Index> &shape_,
             const std::vector<Index> &basetile_shape_):
-        TileTraits(shape_),
+        tile::TileTraits(shape_),
         basetile_shape(_get_basetile_shape(ndim, basetile_shape_)),
         grid(_get_grid_shape(ndim, shape, basetile_shape_)),
         leftover_shape(_get_leftover_shape(ndim, shape, basetile_shape,
@@ -115,5 +117,6 @@ public:
             const TensorTraits &traits);
 };
 
+} // namespace tensor
 } // namespace nntile
 

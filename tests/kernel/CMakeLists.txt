@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-23
+# @date 2022-08-31
 
 # All unit tests without arguments to test executable
 set(TESTS

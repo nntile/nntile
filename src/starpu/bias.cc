@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-12
+ * @date 2022-08-31
  * */
 
 #include "nntile/starpu/bias.hh"
@@ -22,14 +22,16 @@ namespace nntile
 {
 namespace starpu
 {
+namespace bias
+{
 
 //! Apply bias along middle axis of StarPU buffer in CPU
 template<typename T>
-void bias_cpu(void *buffers[], void *cl_args)
+void cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<bias_args *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
@@ -41,11 +43,11 @@ void bias_cpu(void *buffers[], void *cl_args)
 #ifdef NNTILE_USE_CUDA
 //! Apply bias along middle axis of StarPU buffer on CUDA
 template<typename T>
-void bias_cuda(void *buffers[], void *cl_args)
+void cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<bias_args *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
@@ -59,10 +61,10 @@ void bias_cuda(void *buffers[], void *cl_args)
 
 //! Footprint for bias tasks that depends only on m, n and k
 static
-uint32_t bias_footprint(struct starpu_task *task)
+uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<bias_args *>(task->cl_arg);
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
     // Apply hash over parameters m, n and k. This way if we swap values of m,
     // n and k, then the total size of buffers will remain the same, but the
     // footprint will be different
@@ -73,59 +75,44 @@ uint32_t bias_footprint(struct starpu_task *task)
     return hash;
 }
 
-StarpuCodelet bias_codelet_fp32("nntile_bias_fp32",
-        bias_footprint,
-        {bias_cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-        {bias_cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
+StarpuCodelet codelet_fp32, codelet_fp64;
 
-StarpuCodelet bias_codelet_fp64("nntile_bias_fp64",
-        bias_footprint,
-        {bias_cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-        {bias_cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
-
-void bias_restrict_where(uint32_t where)
+void init()
 {
-    bias_codelet_fp32.restrict_where(where);
-    bias_codelet_fp64.restrict_where(where);
+    codelet_fp32.init("nntile_bias_fp32",
+            footprint,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_fp64.init("nntile_bias_fp64",
+            footprint,
+            {cpu<fp64_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
 }
 
-void bias_restore_where()
+void restrict_where(uint32_t where)
 {
-    bias_codelet_fp32.restore_where();
-    bias_codelet_fp64.restore_where();
+    codelet_fp32.restrict_where(where);
+    codelet_fp64.restrict_where(where);
+}
+
+void restore_where()
+{
+    codelet_fp32.restore_where();
+    codelet_fp64.restore_where();
 }
 
 template<typename T>
-constexpr StarpuCodelet *bias_codelet()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
-
-template<>
-constexpr StarpuCodelet *bias_codelet<fp32_t>()
-{
-    return &bias_codelet_fp32;
-}
-
-template<>
-constexpr StarpuCodelet *bias_codelet<fp64_t>()
-{
-    return &bias_codelet_fp64;
-}
-
-template<typename T>
-void bias(Index m, Index n, Index k, starpu_data_handle_t src,
+void submit(Index m, Index n, Index k, starpu_data_handle_t src,
         starpu_data_handle_t dst)
 //! Insert bias task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -134,7 +121,7 @@ void bias(Index m, Index n, Index k, starpu_data_handle_t src,
  * */
 {
     // Codelet arguments
-    auto args = new bias_args
+    auto args = new args_t
     {
         .m = m,
         .n = n,
@@ -142,7 +129,7 @@ void bias(Index m, Index n, Index k, starpu_data_handle_t src,
     };
     fp64_t nflops = m * n * k;
     // Submit task
-    int ret = starpu_task_insert(bias_codelet<T>(),
+    int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, src,
             STARPU_CL_ARGS, args, sizeof(*args),
             Starpu::STARPU_RW_COMMUTE, dst,
@@ -157,13 +144,14 @@ void bias(Index m, Index n, Index k, starpu_data_handle_t src,
 
 // Explicit instantiation
 template
-void bias<fp32_t>(Index m, Index n, Index k, starpu_data_handle_t src,
+void submit<fp32_t>(Index m, Index n, Index k, starpu_data_handle_t src,
         starpu_data_handle_t dst);
 
 template
-void bias<fp64_t>(Index m, Index n, Index k, starpu_data_handle_t src,
+void submit<fp64_t>(Index m, Index n, Index k, starpu_data_handle_t src,
         starpu_data_handle_t dst);
 
+} // namespace bias
 } // namespace starpu
 } // namespace nntile
 

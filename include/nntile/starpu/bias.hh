@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-11
+ * @date 2022-08-31
  * */
 
 #pragma once
@@ -22,9 +22,11 @@ namespace nntile
 {
 namespace starpu
 {
+namespace bias
+{
 
 //! Structure for arguments
-struct bias_args
+struct args_t
 {
     Index m;
     Index n;
@@ -33,26 +35,48 @@ struct bias_args
 
 // Apply bias along middle axis of StarPU buffer on CPU
 template<typename T>
-void bias_cpu(void *buffers[], void *cl_args)
+void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
 // Apply bias along middle axis of StarPU buffer on CUDA
 template<typename T>
-void bias_cuda(void *buffers[], void *cl_args)
+void cuda(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern StarpuCodelet bias_codelet_fp32, bias_codelet_fp64;
-
-void bias_restrict_where(uint32_t where);
-
-void bias_restore_where();
+extern StarpuCodelet codelet_fp32, codelet_fp64;
 
 template<typename T>
-void bias(Index m, Index n, Index k, starpu_data_handle_t src,
+constexpr StarpuCodelet *codelet()
+{
+    throw std::runtime_error("Non-supported type");
+    return nullptr;
+}
+
+template<>
+constexpr StarpuCodelet *codelet<fp32_t>()
+{
+    return &codelet_fp32;
+}
+
+template<>
+constexpr StarpuCodelet *codelet<fp64_t>()
+{
+    return &codelet_fp64;
+}
+
+void init();
+
+void restrict_where(uint32_t where);
+
+void restore_where();
+
+template<typename T>
+void submit(Index m, Index n, Index k, starpu_data_handle_t src,
         starpu_data_handle_t dst);
 
+} // namespace bias
 } // namespace starpu
 } // namespace nntile
 

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-31
  * */
 
 #pragma once
@@ -36,6 +36,8 @@ void gelutanh_cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 extern StarpuCodelet gelutanh_codelet_fp32, gelutanh_codelet_fp64;
+
+void gelutanh_init();
 
 void gelutanh_restrict_where(uint32_t where);
 

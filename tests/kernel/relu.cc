@@ -9,13 +9,13 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-16
+ * @date 2022-08-31
  * */
 
-#include "nntile/kernel/cpu/relu.hh"
+#include "nntile/kernel/relu/cpu.hh"
 #include "nntile/defs.h"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/cuda/relu.hh"
+#   include "nntile/kernel/relu/cuda.hh"
 #endif // NNTILE_USE_CUDA
 #include <vector>
 #include <stdexcept>
@@ -23,7 +23,7 @@
 #include <iostream>
 
 using namespace nntile;
-using namespace nntile::kernel;
+using namespace nntile::kernel::relu;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
@@ -89,8 +89,8 @@ void validate(Index nelems)
     }
     std::vector<T> data_save(data);
     // Check low-level kernel
-    std::cout << "Run cpu::relu<T>\n";
-    cpu::relu<T>(nelems, &data[0]);
+    std::cout << "Run kernel::relu::cpu<T>\n";
+    cpu<T>(nelems, &data[0]);
     for(Index i = 0; i < nelems; ++i)
     {
         T x = data_save[i];
@@ -100,7 +100,7 @@ void validate(Index nelems)
             throw std::runtime_error("Wrong value");
         }
     }
-    std::cout << "OK: cpu::relu<T>\n";
+    std::cout << "OK: kernel::relu::cpu<T>\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     data = data_save;

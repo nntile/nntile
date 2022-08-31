@@ -9,37 +9,49 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-19
+# @date 2022-08-31
 
 # Set list of sources
 set(KERNEL_SRC
-    "kernel/cpu/bias.cc"
-    "kernel/cpu/copy.cc"
-    "kernel/cpu/gelu.cc"
-    "kernel/cpu/gelutanh.cc"
-    "kernel/cpu/normalize.cc"
-    "kernel/cpu/randn.cc"
-    "kernel/cpu/sumnorm.cc"
-    "kernel/cpu/relu.cc"
+    "kernel/bias/cpu.cc"
+    "kernel/copy/cpu.cc"
+    "kernel/gelu/cpu.cc"
+    "kernel/gelutanh/cpu.cc"
+    "kernel/normalize/cpu.cc"
+    "kernel/randn/cpu.cc"
+    "kernel/sumnorm/cpu.cc"
+    "kernel/relu/cpu.cc"
     )
 
+if(NNTILE_USE_CUDA)
+    set(KERNEL_SRC
+        ${KERNEL_SRC}
+        "kernel/bias/cuda.cu"
+        "kernel/gelu/cuda.cu"
+        "kernel/gelutanh/cuda.cu"
+        "kernel/normalize/cuda.cu"
+        "kernel/relu/cuda.cu"
+        "kernel/sumnorm/cuda.cu"
+        )
+endif()
+
 set(STARPU_SRC
-    "starpu/bias.cc"
-    "starpu/clear.cc"
-    "starpu/copy.cc"
-    "starpu/gelu.cc"
-    "starpu/gelutanh.cc"
-    "${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"
-    "starpu/normalize.cc"
-    "starpu/randn.cc"
-    "starpu/relu.cc"
-    "starpu/sumnorm.cc"
+    #"starpu/bias.cc"
+    #"starpu/clear.cc"
+    #"starpu/copy.cc"
+    #"starpu/gelu.cc"
+    #"starpu/gelutanh.cc"
+    #"${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"
+    #"starpu/normalize.cc"
+    #"starpu/randn.cc"
+    #"starpu/relu.cc"
+    #"starpu/sumnorm.cc"
     )
 
 set(TILE_SRC
-    "tile/traits.cc"
-    "tile/bias.cc"
-    "tile/clear.cc"
+    #"tile/traits.cc"
+    #"tile/bias.cc"
+    #"tile/clear.cc"
     #"tile/randn.cc"
     #"tile/copy.cc"
     #"tile/gemm.cc"
@@ -51,6 +63,7 @@ set(TILE_SRC
 
 set(TENSOR_SRC
     #"tensor/traits.cc"
+    #"tensor/distributions.cc"
     #"tensor/randn.cc"
     #"tensor/clear.cc"
     #"tensor/copy.cc"
@@ -63,24 +76,6 @@ set(TENSOR_SRC
 
 set(LAYER_SRC
     )
-
-if(NNTILE_USE_CUDA)
-    set(KERNEL_SRC
-        ${KERNEL_SRC}
-        "kernel/cuda/bias.cu"
-        "kernel/cuda/gelu.cu"
-        "kernel/cuda/gelutanh.cu"
-        "kernel/cuda/normalize.cu"
-        "kernel/cuda/relu.cu"
-        "kernel/cuda/sumnorm.cu"
-        )
-    set(TILE_SRC
-        ${TILE_SRC}
-        #"tile/relu.cu"
-        #"tile/norm.cu"
-        #"tile/bias.cu"
-        )
-endif()
 
 set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC} ${LAYER_SRC})
 

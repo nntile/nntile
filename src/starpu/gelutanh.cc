@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-31
  * */
 
 #include "nntile/starpu/gelutanh.hh"
@@ -55,6 +55,7 @@ void gelutanh_cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
+StarpuCodelet gelutanh_codelet_fp32, gelutanh_codelet_fp64;
 StarpuCodelet gelutanh_codelet_fp32("nntile_gelutanh_fp32",
         nullptr,
         {gelutanh_cpu<fp32_t>},

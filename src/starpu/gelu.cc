@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-15
+ * @date 2022-08-31
  * */
 
 #include "nntile/starpu/gelu.hh"
@@ -55,25 +55,29 @@ void gelu_cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-StarpuCodelet gelu_codelet_fp32("nntile_gelu_fp32",
-        nullptr,
-        {gelu_cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-        {gelu_cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-        {}
-#endif // NNTILE_USE_CUDA
-        );
+StarpuCodelet gelu_codelet_fp32, gelu_codelet_fp64;
 
-StarpuCodelet gelu_codelet_fp64("nntile_gelu_fp64",
-        nullptr,
-        {gelu_cpu<fp64_t>},
+void gelu_init()
+{
+    gelu_codelet_fp32.init("nntile_gelu_fp32",
+            nullptr,
+            {gelu_cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
-        {gelu_cuda<fp64_t>}
+            {gelu_cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
-        {}
+            {}
 #endif // NNTILE_USE_CUDA
-        );
+            );
+    gelu_codelet_fp64.init("nntile_gelu_fp64",
+            nullptr,
+            {gelu_cpu<fp64_t>},
+#ifdef NNTILE_USE_CUDA
+            {gelu_cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+}
 
 void gelu_restrict_where(uint32_t where)
 {

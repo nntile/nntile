@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-16
+ * @date 2022-08-31
  * */
 
 #pragma once
@@ -36,6 +36,8 @@ void relu_cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 extern StarpuCodelet relu_codelet_fp32, relu_codelet_fp64;
+
+void relu_init();
 
 void relu_restrict_where(uint32_t where);
 
