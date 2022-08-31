@@ -9,102 +9,100 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-31
  * */
 
 #include "nntile/tile/randn.hh"
+#include "nntile/starpu/randn.hh"
 
 namespace nntile
 {
-
-template<typename T>
-void randn_async(const Tile<T> &dst, const std::vector<Index> &offset,
-        const std::vector<Index> &shape, const std::vector<Index> &stride,
-        unsigned long long seed, T mean, T stddev)
+namespace tile
 {
-    // Check inputs
-    if(dst.ndim != offset.size())
+
+//! Asynchronous tile-wise random generation operation
+/*! Randomly fill the output tile as if it is a part of the provided
+ * underlying tile. The destination tile shall be fully inside the
+ * underlying tile.
+ *
+ * @param[out] dst: Destination tile
+ * @param[in] start: Starting index of a subarray to generate. Contains ndim
+ *      values.
+ * @param[in] underlying_shape: Shape of the underlying array. Contains ndim
+ *      values.
+ * @param[in] seed: Random seed for the entire underlying array
+ * @param[in] mean: Average value of the normal distribution
+ * @param[in] stddev: Standard deviation of the normal distribution
+ * */
+template<typename T>
+void randn_async(const Tile<T> &dst, const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        T mean, T stddev)
+{
+    // Check dimensions
+    if(dst.ndim != start.size())
     {
-        throw std::runtime_error("dst.ndim != offset.size()");
+        throw std::runtime_error("dst.ndim != start.size()");
     }
-    if(dst.ndim != shape.size())
+    if(dst.ndim != underlying_shape.size())
     {
-        throw std::runtime_error("dst.ndim != shape.size()");
+        throw std::runtime_error("dst.ndim != underlying_shape.size()");
     }
-    if(dst.ndim != stride.size())
+    Index ndim = dst.ndim;
+    // Check start and underlying_shape
+    for(Index i = 0; i < ndim; ++i)
     {
-        throw std::runtime_error("dst.ndim != stride.size()");
-    }
-    // Treat special case of ndim=0
-    if(dst.ndim == 0)
-    {
-        starpu_task_insert(randn_ndim0_get_codelet<T>(),
-                STARPU_VALUE, &seed, sizeof(seed),
-                STARPU_VALUE, &mean, sizeof(mean),
-                STARPU_VALUE, &stddev, sizeof(stddev),
-                STARPU_W, static_cast<starpu_data_handle_t>(dst),
-                // 2 flops per single element
-                STARPU_FLOPS, static_cast<fp64_t>(2),
-                0);
-        return;
-    }
-    // Treat non-zero ndim
-    if(offset[0] < 0)
-    {
-        throw std::runtime_error("offset[0] < 0");
-    }
-    if(offset[0]+dst.shape[0] > shape[0])
-    {
-        throw std::runtime_error("offset[0]+dst.shape[0] > shape[0]");
-    }
-    if(stride[0] != 1)
-    {
-        throw std::runtime_error("stride[0] != 1");
-    }
-    Index jump = offset[0]; // stride[0] = 1
-    Index prod_shape = 1;
-    for(Index i = 1; i < dst.ndim; ++i)
-    {
-        if(offset[i] < 0)
+        if(start[i] < 0)
         {
-            throw std::runtime_error("offset[i] < 0");
+            throw std::runtime_error("start[i] < 0");
         }
-        if(offset[i]+dst.shape[i] > shape[i])
+        if(start[i]+dst.shape[i] > underlying_shape[i])
         {
-            throw std::runtime_error("offset[i]+dst.shape[i] > shape[i]");
+            throw std::runtime_error("start[i]+dst.shape[i] > "
+                    "underlying_shape[i]");
         }
-        prod_shape *= shape[i-1];
-        if(stride[i] != prod_shape)
-        {
-            throw std::runtime_error("stride[i] != prod_shape");
-        }
-        jump += offset[i] * stride[i];
     }
-    seed = CORE_rnd64_jump(jump, seed);
-    starpu_task_insert(randn_get_codelet<T>(),
-            STARPU_VALUE, &(dst.ndim), sizeof(dst.ndim),
-            STARPU_VALUE, &(dst.nelems), sizeof(dst.nelems),
-            STARPU_VALUE, &seed, sizeof(seed),
-            STARPU_VALUE, &mean, sizeof(mean),
-            STARPU_VALUE, &stddev, sizeof(stddev),
-            STARPU_VALUE, &(dst.shape[0]), dst.ndim*sizeof(dst.shape[0]),
-            STARPU_VALUE, &(dst.stride[0]), dst.ndim*sizeof(dst.stride[0]),
-            STARPU_VALUE, &(stride[0]), dst.ndim*sizeof(stride[0]),
-            STARPU_W, static_cast<starpu_data_handle_t>(dst),
-            // 2 flops per single element
-            STARPU_FLOPS, static_cast<fp64_t>(2*dst.nelems),
-            0);
+    // Temporary index
+    StarpuVariableHandle tmp_index(sizeof(Index) * 2 * ndim);
+    // Insert task
+    starpu::randn::submit<T>(ndim, dst.nelems, seed, mean, stddev, start,
+            dst.shape, dst.stride, underlying_shape, dst, tmp_index);
 }
 
+//! Blocking version of tile-wise random generation operation
+/*! Randomly fill the output tile as if it is a part of the provided
+ * underlying tile. The destination tile shall be fully inside the
+ * underlying tile.
+ *
+ * @param[out] dst: Destination tile
+ * @param[in] start: Starting index of a subarray to generate. Contains ndim
+ *      values.
+ * @param[in] underlying_shape: Shape of the underlying array. Contains ndim
+ *      values.
+ * @param[in] seed: Random seed for the entire underlying array
+ * @param[in] mean: Average value of the normal distribution
+ * @param[in] stddev: Standard deviation of the normal distribution
+ * */
+template<typename T>
+void randn(const Tile<T> &dst, const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        T mean, T stddev)
+{
+    randn_async<T>(dst, start, underlying_shape, seed, mean, stddev);
+    starpu_task_wait_for_all();
+}
+
+// Explicit instantiation
 template
-void randn_async(const Tile<fp32_t> &dst, const std::vector<Index> &offset,
-        const std::vector<Index> &shape, const std::vector<Index> &stride,
-        unsigned long long seed, fp32_t mean, fp32_t stddev);
+void randn<fp32_t>(const Tile<fp32_t> &dst, const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        fp32_t mean, fp32_t stddev);
 
 template
-void randn_async(const Tile<fp64_t> &dst, const std::vector<Index> &offset,
-        const std::vector<Index> &shape, const std::vector<Index> &stride,
-        unsigned long long seed, fp64_t mean, fp64_t stddev);
+void randn<fp64_t>(const Tile<fp64_t> &dst, const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        fp64_t mean, fp64_t stddev);
 
+} // namespace tile
 } // namespace nntile
 

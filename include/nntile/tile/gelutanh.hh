@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tile/randn.hh
- * Randn operation for Tile<T>
+ * @file include/nntile/tile/gelutanh.hh
+ * Approximate GeLU operation for Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -22,14 +22,10 @@ namespace tile
 {
 
 template<typename T>
-void randn_async(const Tile<T> &dst, const std::vector<Index> &start,
-        const std::vector<Index> &underlying_shape, unsigned long long seed,
-        T mean, T stddev);
+void gelutanh_async(const Tile<T> &A);
 
 template<typename T>
-void randn(const Tile<T> &dst, const std::vector<Index> &start,
-        const std::vector<Index> &underlying_shape, unsigned long long seed,
-        T mean, T stddev);
+void gelutanh(const Tile<T> &A);
 
 } // namespace tile
 } // namespace nntile

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-04
+ * @date 2022-08-31
  * */
 
 #pragma once
@@ -18,29 +18,15 @@
 
 namespace nntile
 {
-
-//! Asynchronous tile-wise GeLU operation
-//
-// @param[inout] A: Tile for the element-wise GeLU operation
-template<typename T>
-void gelu_work(const Tile<T> &A);
-
-template<typename T>
-void gelu_async(const Tile<T> &A)
+namespace tile
 {
-    // No argument checking
-    gelu_work<T>(A);
-}
 
-//! Blocking version of tile-wise GeLU operation
-//
-// @param[inout] A: Tile for the element-wise GeLU operation
 template<typename T>
-void gelu(const Tile<T> &A)
-{
-    gelu_async<T>(A);
-    starpu_task_wait_for_all();
-}
+void gelu_async(const Tile<T> &A);
 
+template<typename T>
+void gelu(const Tile<T> &A);
+
+} // namespace tile
 } // namespace nntile
 

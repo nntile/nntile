@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-08
+ * @date 2022-08-31
  * */
 
 #include "nntile/tile/gelu.hh"
@@ -17,18 +17,36 @@
 
 namespace nntile
 {
-
-template<typename T>
-void gelu_work(const Tile<T> &A)
+namespace tile
 {
-    nntile::starpu::gelu<T>(A.nelems, A);
+
+//! Blocking version of tile-wise GeLU operation
+/*! @param[inout] A: Tile for the element-wise GeLU operation
+ * */
+template<typename T>
+void gelu_async(const Tile<T> &A)
+{
+    // Submit task without any arguments checked
+    starpu::gelu::submit<T>(A.nelems, A);
 }
 
+//! Blocking version of tile-wise GeLU operation
+/*! @param[inout] A: Tile for the element-wise GeLU operation
+ * */
+template<typename T>
+void gelu(const Tile<T> &A)
+{
+    gelu_async<T>(A);
+    starpu_task_wait_for_all();
+}
+
+// Explicit instantiation
 template
-void gelu_work<fp32_t>(const Tile<fp32_t> &A);
+void gelu<fp32_t>(const Tile<fp32_t> &A);
 
 template
-void gelu_work<fp64_t>(const Tile<fp64_t> &A);
+void gelu<fp64_t>(const Tile<fp64_t> &A);
 
+} // namespace tile
 } // namespace nntile
 

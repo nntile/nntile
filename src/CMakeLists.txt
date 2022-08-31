@@ -49,16 +49,17 @@ set(STARPU_SRC
     )
 
 set(TILE_SRC
-    #"tile/traits.cc"
-    #"tile/bias.cc"
-    #"tile/clear.cc"
-    #"tile/randn.cc"
-    #"tile/copy.cc"
-    #"tile/gemm.cc"
-    #"tile/gelu.cc"
-    #"tile/relu.cc"
-    #"tile/sumnorm.cc"
-    #"tile/normalize.cc"
+    "tile/traits.cc"
+    "tile/bias.cc"
+    "tile/clear.cc"
+    "tile/copy.cc"
+    "tile/gemm.cc"
+    "tile/gelu.cc"
+    "tile/gelutanh.cc"
+    "tile/randn.cc"
+    "tile/relu.cc"
+    "tile/sumnorm.cc"
+    "tile/normalize.cc"
     )
 
 set(TENSOR_SRC

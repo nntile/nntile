@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-05
+ * @date 2022-08-31
  * */
 
 #include "nntile/tile/copy.hh"
@@ -17,34 +17,52 @@
 
 namespace nntile
 {
-
-template<typename T>
-void copy_work(const Tile<T> &src, const std::vector<Index> &src_start,
-        const Tile<T> &dst, const std::vector<Index> &dst_start,
-        const std::vector<Index> &copy_shape,
-        const StarpuVariableHandle &scratch,
-        enum starpu_data_access_mode mode)
+namespace tile
 {
-    switch(mode)
+
+//! Asynchronous version of tile-wise copy operation
+/*! This operation finds an intersection of the source and the target tiles
+ * and copies only the data within the found intersection. No elements of the
+ * destination tile outside the intersection mask are updated.
+ *
+ * @param[in] src: Source tile
+ * @param[in] src_offset: Initial offset of the source tile
+ * @param[inout] dst: Destination tile
+ * @param[in] dst_offset: Initial offset of the destination tile
+ * */
+template<typename T>
+void copy_async(const Tile<T> &src, const std::vector<Index> &src_offset,
+        const Tile<T> &dst, const std::vector<Index> &dst_offset)
+{
+    // Check dimensions
+    if(src.ndim != src_offset.size())
     {
-        case STARPU_W:
-        case STARPU_RW:
-        case Starpu::STARPU_RW_COMMUTE:
-            break;
-        default:
-            throw std::runtime_error("Unsupported mode");
+        throw std::runtime_error("src.ndim != src_offset.size()");
     }
-    // Insert task
-    nntile::starpu::copy<T>(src.ndim, src_start, src.stride, dst_start,
-            dst.stride, copy_shape, src, dst, scratch, mode);
-}
-
-template<typename T>
-void copy_work(const Tile<T> &src, const std::vector<Index> &src_offset,
-        const Tile<T> &dst, const std::vector<Index> &dst_offset,
-        const StarpuVariableHandle &scratch)
-{
+    if(src.ndim != dst.ndim)
+    {
+        throw std::runtime_error("src.ndim != dst.ndim");
+    }
+    if(dst.ndim != dst_offset.size())
+    {
+        throw std::runtime_error("dst.ndim != dst_offset.size()");
+    }
     Index ndim = src.ndim;
+    // Treat special case of ndim=0
+    if(ndim == 0)
+    {
+        starpu_data_cpy(dst, src, 1, nullptr, nullptr);
+        return;
+    }
+    // Treat easy case of full copy
+    if(src_offset == dst_offset and src.shape == dst.shape)
+    {
+        starpu_data_cpy(dst, src, 1, nullptr, nullptr);
+        return;
+    }
+    // Do the slow partial copy
+    // Temporary buffer for indexing
+    StarpuVariableHandle scratch(2 * ndim * sizeof(Index));
     // Perform smart copy
     std::vector<Index> src_start(ndim), dst_start(ndim), copy_shape(ndim);
     enum starpu_data_access_mode dst_tile_mode = STARPU_W;
@@ -79,20 +97,40 @@ void copy_work(const Tile<T> &src, const std::vector<Index> &src_offset,
             dst_tile_mode = STARPU_RW;
         }
     }
-    // Launch codelet
-    copy_work<T>(src, src_start, dst, dst_start, copy_shape,
-            scratch, dst_tile_mode);
+    // Insert task
+    starpu::copy::submit<T>(src.ndim, src_start, src.stride, dst_start,
+            dst.stride, copy_shape, src, dst, scratch, dst_tile_mode);
 }
 
+//! Blocking version of tile-wise copy operation
+/*! This operation finds an intersection of the source and the target tiles
+ * and copies only the data within the found intersection. No elements of the
+ * destination tile outside the intersection mask are updated.
+ *
+ * @param[in] src: Source tile
+ * @param[in] src_offset: Initial offset of the source tile
+ * @param[inout] dst: Destination tile
+ * @param[in] dst_offset: Initial offset of the destination tile
+ * */
+template<typename T>
+void copy(const Tile<T> &src, const std::vector<Index> &src_offset,
+        const Tile<T> &dst, const std::vector<Index> &dst_offset)
+{
+    copy_async<T>(src, src_offset, dst, dst_offset);
+    starpu_task_wait_for_all();
+}
+
+// Explicit instantiation
 template
-void copy_work(const Tile<fp32_t> &src, const std::vector<Index> &src_offset,
-        const Tile<fp32_t> &dst, const std::vector<Index> &dst_offset,
-        const StarpuVariableHandle &scratch);
+void copy<fp32_t>(const Tile<fp32_t> &src,
+        const std::vector<Index> &src_offset,
+        const Tile<fp32_t> &dst, const std::vector<Index> &dst_offset);
 
 template
-void copy_work(const Tile<fp64_t> &src, const std::vector<Index> &src_offset,
-        const Tile<fp64_t> &dst, const std::vector<Index> &dst_offset,
-        const StarpuVariableHandle &scratch);
+void copy<fp64_t>(const Tile<fp64_t> &src,
+        const std::vector<Index> &src_offset,
+        const Tile<fp64_t> &dst, const std::vector<Index> &dst_offset);
 
+} // namespace tile
 } // namespace nntile
 

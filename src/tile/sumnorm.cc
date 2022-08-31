@@ -9,55 +9,71 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-08-31
  * */
 
 #include "nntile/tile/sumnorm.hh"
-#include "nntile/kernel/cpu/sumnorm.hh"
-#include <cmath>
+#include "nntile/starpu/sumnorm.hh"
 
 namespace nntile
 {
-
-starpu_perfmodel sumnorm_perfmodel_fp32 =
+namespace tile
 {
-    .type = STARPU_HISTORY_BASED,
-    .symbol = "nntile_sumnorm_fp32",
-};
 
-starpu_perfmodel sumnorm_perfmodel_fp64 =
-{
-    .type = STARPU_HISTORY_BASED,
-    .symbol = "nntile_sumnorm_fp64",
-};
-
-StarpuCodelet sumnorm_codelet_fp32("nntile_sumnorm_fp32",
-        &sumnorm_perfmodel_fp32,
-        {sumnorm_starpu_cpu<fp32_t>},
-        {}
-        );
-
-StarpuCodelet sumnorm_codelet_fp64("nntile_sumnorm_fp64",
-        &sumnorm_perfmodel_fp64,
-        {sumnorm_starpu_cpu<fp64_t>},
-        {}
-        );
-
-// Update sum and Euclidian norm
+//! Tile-wise sum and scaled sum of squares along single given axis
 template<typename T>
-void sumnorm_work(const Tile<T> &src, const Tile<T> &sumnorm, Index axis)
+void sumnorm_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
 {
+    // Check dimensions
+    if(src.ndim != dst.ndim)
+    {
+        throw std::runtime_error("src.ndim != dst.ndim");
+    }
+    Index ndim = src.ndim;
+    // Treat special case of ndim=0
+    if(ndim == 0)
+    {
+        throw std::runtime_error("Scalar input makes no sense");
+    }
+    // Check axis
+    if(axis < 0)
+    {
+        throw std::runtime_error("axis < 0");
+    }
+    if(axis >= ndim)
+    {
+        throw std::runtime_error("axis >= ndim");
+    }
+    // Check shapes of src and dst
+    if(dst.shape[0] != 2)
+    {
+        throw std::runtime_error("dst.shape[0] != 2");
+    }
+    for(Index i = 0; i < axis; ++i)
+    {
+        if(src.shape[i] != dst.shape[i+1])
+        {
+            throw std::runtime_error("src.shape[i] != dst.shape[i+1]");
+        }
+    }
+    for(Index i = axis+1; i < src.ndim; ++i)
+    {
+        if(src.shape[i] != dst.shape[i])
+        {
+            throw std::runtime_error("src.shape[i] != dst.shape[i]");
+        }
+    }
     // Get sizes
     Index m, n, k;
     if(axis == 0)
     {
         m = 1;
-        n = sumnorm.nelems / 2;
+        n = dst.nelems / 2;
         k = src.shape[0];
     }
-    else if(axis == src.ndim-1)
+    else if(axis == ndim-1)
     {
-        m = sumnorm.nelems / 2;
+        m = dst.nelems / 2;
         n = 1;
         k = src.shape[axis];
     }
@@ -68,28 +84,26 @@ void sumnorm_work(const Tile<T> &src, const Tile<T> &sumnorm, Index axis)
         k = src.shape[axis];
     }
     // Insert task
-    int ret = starpu_task_insert(sumnorm_codelet<T>(),
-                STARPU_VALUE, &m, sizeof(m),
-                STARPU_VALUE, &n, sizeof(n),
-                STARPU_VALUE, &k, sizeof(k),
-                STARPU_R, static_cast<starpu_data_handle_t>(src),
-                Starpu::STARPU_RW_COMMUTE,
-                static_cast<starpu_data_handle_t>(sumnorm),
-                0);
-    if(ret != 0)
-    {
-        throw std::runtime_error("ret != 0");
-    }
+    starpu::sumnorm::submit<T>(m, n, k, src, dst);
+}
+
+//! Tile-wise sum and scaled sum of squares along single given axis
+template<typename T>
+void sumnorm(const Tile<T> &src, const Tile<T> &dst, Index axis)
+{
+    sumnorm_async<T>(src, dst, axis);
+    starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void sumnorm_work<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &sumnorm,
+void sumnorm<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst,
         Index axis);
 
 template
-void sumnorm_work<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &sumnorm,
+void sumnorm<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst,
         Index axis);
 
+} // namespace tile
 } // namespace nntile
 

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-22
+ * @date 2022-08-31
  * */
 
 #include "nntile/tile/clear.hh"
@@ -24,7 +24,7 @@ namespace tile
 template<typename T>
 void clear_async(const Tile<T> &tile)
 {
-    starpu::clear(tile);
+    starpu::clear::submit(tile);
 }
 
 //! Asynchronously clear a tile

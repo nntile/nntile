@@ -9,13 +9,15 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-08
+ * @date 2022-08-31
  * */
 
 #include "nntile/tile/gemm.hh"
 #include "nntile/starpu/gemm.hh"
 
 namespace nntile
+{
+namespace tile
 {
 
 //! Check if dimensionalities of tensors match gemm
@@ -237,11 +239,23 @@ void gemm_check(const TransOp &transA, const TileTraits &A,
     gemm_check_opB_C(transB, B, C, ndim);
 }
 
+//! Asynchronous tile-wise gemm operation
+/*! @param[in] alpha: Alpha multiplier
+ * @param[in] transA: Transposition flag for the tile A
+ * @param[in] A: Input tile A
+ * @param[in] transB: Transposition flag for the tile B
+ * @param[in] B: Input tile B
+ * @param[in] beta: Beta multiplier
+ * @param[inout] C: Output tile C
+ * @param[in] ndim: Number of dimensions used in gemm contraction
+ * */
 template<typename T>
-void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
+void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
         const TransOp &transB, const Tile<T> &B, T beta, const Tile<T> &C,
         Index ndim)
 {
+    // Check inputs (throw exception in case of an error)
+    gemm_check(transA, A, transB, B, C, ndim);
     // Reference tensors as matrices
     Index m = C.matrix_shape[A.ndim-ndim][0];
     Index n = C.matrix_shape[A.ndim-ndim][1];
@@ -257,19 +271,40 @@ void gemm_work(T alpha, const TransOp &transA, const Tile<T> &A,
             k = A.matrix_shape[ndim][0];
             break;
     }
-    nntile::starpu::gemm<T>(transA, transB, m, n, k, alpha, A, B, beta, C);
+    // Insert task
+    starpu::gemm::submit<T>(transA, transB, m, n, k, alpha, A, B, beta, C);
 }
 
-// Explicit instantiation of templates
+//! Blocking version of tile-wise gemm operation
+/*! @param[in] alpha: Alpha multiplier
+ * @param[in] transA: Transposition flag for the tile A
+ * @param[in] A: Input tile A
+ * @param[in] transB: Transposition flag for the tile B
+ * @param[in] B: Input tile B
+ * @param[in] beta: Beta multiplier
+ * @param[inout] C: Output tile C
+ * @param[in] ndim: Number of dimensions used in gemm contraction
+ * */
+template<typename T>
+void gemm(T alpha, const TransOp &transA, const Tile<T> &A,
+        const TransOp &transB, const Tile<T> &B, T beta, const Tile<T> &C,
+        Index ndim)
+{
+    gemm_async<T>(alpha, transA, A, transB, B, beta, C, ndim);
+    starpu_task_wait_for_all();
+}
+
+// Explicit instantiation
 template
-void gemm_work(fp32_t alpha, const TransOp &transA, const Tile<fp32_t> &A,
+void gemm<fp32_t>(fp32_t alpha, const TransOp &transA, const Tile<fp32_t> &A,
         const TransOp &transB, const Tile<fp32_t> &B, fp32_t beta,
         const Tile<fp32_t> &C, Index ndim);
 
 template
-void gemm_work(fp64_t alpha, const TransOp &transA, const Tile<fp64_t> &A,
+void gemm<fp64_t>(fp64_t alpha, const TransOp &transA, const Tile<fp64_t> &A,
         const TransOp &transB, const Tile<fp64_t> &B, fp64_t beta,
         const Tile<fp64_t> &C, Index ndim);
 
+} // namespace tile
 } // namespace nntile
 

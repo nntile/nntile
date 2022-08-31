@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-19
+ * @date 2022-08-31
  * */
 
 #include "nntile/tile/bias.hh"
@@ -74,7 +74,7 @@ void bias_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
         k = dst.shape[axis];
     }
     // Insert corresponding task
-    nntile::starpu::bias<T>(m, n, k, src, dst);
+    starpu::bias::submit<T>(m, n, k, src, dst);
 }
 
 //! Tile-wise bias operation
