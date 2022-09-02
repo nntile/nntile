@@ -22,6 +22,7 @@
 
 # Set minimum CMake version to avoid configuration problems
 cmake_minimum_required(VERSION 3.18.6)
+message(STATUS "Using CMake ${CMAKE_VERSION}")
 # BLAS::BLAS target is added in version 3.18
 
 # Define the project
