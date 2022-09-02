@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-02
  * */
 
 #pragma once
@@ -20,6 +20,16 @@ namespace nntile
 {
 namespace tile
 {
+
+template<typename T>
+void normalize_async(const StarpuVariableHandle &gamma_beta,
+        const Tile<T> &sumnorm, const Tile<T> &dst, Index l, T eps,
+        Index axis);
+
+template<typename T>
+void normalize(const StarpuVariableHandle &gamma_beta,
+        const Tile<T> &sumnorm, const Tile<T> &dst, Index l, T eps,
+        Index axis);
 
 } // namespace tile
 } // namespace nntile

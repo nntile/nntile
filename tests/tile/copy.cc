@@ -1,63 +1,102 @@
+/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+ *                           (Skoltech). All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file tests/tile/copy.cc
+ * Complex copy operation on Tile<T>
+ *
+ * @version 1.0.0
+ * @author Aleksandr Mikhalev
+ * @date 2022-09-01
+ * */
+
 #include "nntile/tile/copy.hh"
-#include "nntile/tile/randn.hh"
-#include "check_tiles_intersection.hh"
+#include "nntile/starpu/copy.hh"
 #include "../testing.hh"
+#include "../starpu/common.hh"
 
 using namespace nntile;
+using namespace nntile::tile;
 
 template<typename T>
-void validate_copy()
+void validate()
 {
-    Tile<T> A({4, 5, 6, 7}), B({2, 3, 4, 5}), scalar({}), scalar2({});
-    unsigned long long seed = 10000000000000UL;
-    randn(scalar, seed);
-    randn(scalar2, seed*seed);
-    TESTA(!check_tiles_intersection(scalar, {}, scalar2, {}));
-    copy(scalar, scalar2);
-    TESTA(check_tiles_intersection(scalar, {}, scalar2, {}));
-    randn(A, seed);
-    randn(B, seed*seed);
-    TESTA(!check_tiles_intersection(A, {0, 0, 0, 0}, B, {0, 0, 0, 0}));
-    copy_async(A, B);
-    starpu_task_wait_for_all();
-    TESTA(check_tiles_intersection(A, {0, 0, 0, 0}, B, {0, 0, 0, 0}));
-    TESTA(!check_tiles_intersection(A, {0, 0, 0, 0}, B, {1, 0, 0, 0}));
-    copy(A, B);
-    TESTA(check_tiles_intersection(A, {0, 0, 0, 0}, B, {0, 0, 0, 0}));
-    TESTA(!check_tiles_intersection(A, {0, 0, 0, 0}, B, {1, 0, 0, 0}));
-    copy(A, {1, 2, 3, 4}, B, {2, 3, 4, 5});
-    TESTA(check_tiles_intersection(A, {1, 2, 3, 4}, B, {2, 3, 4, 5}));
-    TESTA(!check_tiles_intersection(A, {1, 2, 3, 4}, B, {2, 3, 4, 4}));
-    copy(A, {1, 2, 3, 4}, B, {0, 0, 2, 2});
-    TESTA(check_tiles_intersection(A, {1, 2, 3, 4}, B, {0, 0, 2, 2}));
-    TESTA(!check_tiles_intersection(A, {1, 2, 3, 4}, B, {0, 0, 0, 0}));
-    TESTA(!check_tiles_intersection(A, B));
-    copy(A, {1, 2, 3, 4}, B, {4, 5, 8, 0});
-    TESTA(check_tiles_intersection(A, {1, 2, 3, 4}, B, {4, 5, 8, 0}));
-    TESTA(check_tiles_intersection(A, {0, 2, 3, 4}, B, {3, 5, 8, 0}));
-    TESTA(check_tiles_intersection(A, {0, 0, 3, 4}, B, {3, 3, 8, 0}));
-    TESTA(check_tiles_intersection(A, {0, 0, 0, 4}, B, {3, 3, 5, 0}));
-    copy(A, {1, 2, 3, 4}, B, {4, 5, 8, 11});
-    TESTA(check_tiles_intersection(A, {1, 2, 3, 4}, B, {4, 5, 8, 11}));
-    Tile<T> fail({5});
-    TESTN(copy(A, fail));
-    TESTN(copy(A, {0, 0, 0, 0}, B, {0, 0, 0}));
-    TESTN(copy(A, {0, 0, 0}, B, {0, 0, 0, 0}));
-    Tile<T> C({4, 5, 6, 7});
-    randn(C, seed*seed+1);
-    copy(A, {1, 1, 1, 1}, C, {1, 1, 1, 1});
-    TESTA(check_tiles_intersection(A, {1, 1, 1, 1}, C, {1, 1, 1, 1}));
-    TESTA(check_tiles_intersection(C, {1, 1, 1, 1}, A, {1, 1, 1, 1}));
-    copy(B, {1, 0, 0, 0}, C, {1, 1, 1, 1});
-    TESTA(check_tiles_intersection(B, {1, 0, 0, 0}, C, {1, 1, 1, 1}));
-    TESTA(!check_tiles_intersection(B, {1, 0, 0, 0}, A, {1, 1, 1, 1}));
+    Tile<T> tile1({}), tile2({2, 2, 3}), tile3({2, 3, 4});
+    // Check full copying, that is delegated to starpu_data_cpy internally
+    auto tile1_local = tile1.acquire(STARPU_W);
+    tile1_local[0] = T{-1};
+    tile1_local.release();
+    auto tile2_local = tile2.acquire(STARPU_W);
+    for(Index i = 0; i < tile2.nelems; ++i)
+    {
+        tile2_local[i] = T(i+1);
+    }
+    tile2_local.release();
+    auto tile3_local = tile3.acquire(STARPU_W);
+    for(Index i = 0; i < tile3.nelems; ++i)
+    {
+        tile3_local[i] = T(2*i+2);
+    }
+    tile3_local.release();
+    Tile<T> tile1_copy({});
+    starpu_resume();
+    copy<T>(tile1, {}, tile1_copy, {});
+    starpu_pause();
+    auto tile1_copy_local = tile1_copy.acquire(STARPU_R);
+    TEST_ASSERT(tile1_copy_local[0] == T{-1});
+    tile1_copy_local.release();
+    Tile<T> tile2_copy(tile2.shape);
+    starpu_resume();
+    copy<T>(tile2, {0, 0, 0}, tile2_copy, {0, 0, 0});
+    starpu_pause();
+    auto tile2_copy_local = tile2_copy.acquire(STARPU_RW);
+    for(Index i = 0; i < tile2.nelems; ++i)
+    {
+        TEST_ASSERT(tile2_copy_local[i] == T(i+1));
+        tile2_copy_local[i] = T{-2};
+    }
+    tile2_copy_local.release();
+    starpu_resume();
+    copy<T>(tile2, {1, 2, 3}, tile2_copy, {1, 2, 3});
+    starpu_pause();
+    tile2_copy_local.acquire(STARPU_R);
+    for(Index i = 0; i < tile2.nelems; ++i)
+    {
+        TEST_ASSERT(tile2_copy_local[i] == T(i+1));
+    }
+    tile2_copy_local.release();
+    // Check complex copying
+    StarpuVariableHandle scratch(2 * 3 * sizeof(Index));
+    starpu_resume();
+    starpu::copy::submit<T>(3, {0, 0, 2}, tile3.stride, {0, 1, 0},
+            tile2.stride, {2, 1, 2}, tile3, tile2, scratch, STARPU_RW);
+    copy<T>(tile3, {0, 1, 0}, tile2_copy, {0, 0, 2});
+    starpu_pause();
+    tile2_local.acquire(STARPU_R);
+    tile2_copy_local.acquire(STARPU_R);
+    for(Index i = 0; i < tile2.nelems; ++i)
+    {
+        TEST_ASSERT(tile2_local[i] == tile2_copy_local[i]);
+    }
+    tile2_local.release();
+    tile2_copy_local.release();
+    // Checking throwing exceptions
+    TEST_THROW(copy<T>(Tile<T>({1}), {}, Tile<T>({1}), {0}));
+    TEST_THROW(copy<T>(Tile<T>({1}), {0}, Tile<T>({}), {0}));
+    TEST_THROW(copy<T>(Tile<T>({1}), {0}, Tile<T>({1}), {}));
 }
 
 int main(int argc, char **argv)
 {
-    Starpu starpu;
-    validate_copy<float>();
-    validate_copy<double>();
+    // Init StarPU for testing
+    StarpuTest starpu;
+    // Init codelet
+    starpu::copy::init();
+    // Launch all tests
+    validate<fp32_t>();
+    validate<fp64_t>();
     return 0;
 }
 

@@ -9,12 +9,13 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-23
+ * @date 2022-09-02
  * */
 
 #include "nntile/tile/bias.hh"
 #include "nntile/starpu/bias.hh"
 #include "../testing.hh"
+#include "../starpu/common.hh"
 
 using namespace nntile;
 using namespace nntile::tile;
@@ -45,17 +46,14 @@ void check(const Tile<T> &src, const Tile<T> &dst, Index axis)
     }
     Index k = dst.shape[axis];
     starpu_resume();
-    starpu::bias<T>(m, n, k, src, dst2);
+    starpu::bias::submit<T>(m, n, k, src, dst2);
     starpu_task_wait_for_all();
     starpu_pause();
     auto dst2_local = dst.acquire(STARPU_R);
     dst_local.acquire(STARPU_R);
     for(Index i = 0; i < dst.nelems; ++i)
     {
-        if(dst_local[i] != dst2_local[i])
-        {
-            throw std::runtime_error("dst_local[i] != dst2_local[i]");
-        }
+        TEST_ASSERT(dst_local[i] == dst2_local[i]);
     }
 }
 
@@ -108,27 +106,13 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU configuration and set number of CPU workers to 1
-    starpu_conf conf;
-    int ret = starpu_conf_init(&conf);
-    if(ret != 0)
-    {
-        throw std::runtime_error("starpu_conf_init error");
-    }
-    conf.ncpus = 1;
-    // No CUDA workers since we are checking against results of CPU
-    // implementation
-    conf.ncuda = 0;
-    ret = starpu_init(&conf);
-    if(ret != 0)
-    {
-        throw std::runtime_error("starpu_init error");
-    }
-    starpu_pause();
+    // Init StarPU for testing
+    StarpuTest starpu;
+    // Init codelet
+    starpu::bias::init();
+    // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
-    starpu_resume();
-    starpu_shutdown();
     return 0;
 }
 

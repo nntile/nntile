@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-02
  * */
 
 #include "nntile/tile/gemm.hh"
@@ -22,7 +22,7 @@ namespace tile
 
 //! Check if dimensionalities of tensors match gemm
 static inline void gemm_check_ndim(const TileTraits &A, const TileTraits &B,
-        const TileTraits &C, Index ndim=1)
+        const TileTraits &C, Index ndim)
 {
     // Check if ndim is negative since it will be converted to Index
     if(ndim <= 0)
@@ -45,7 +45,7 @@ static inline void gemm_check_ndim(const TileTraits &A, const TileTraits &B,
 
 //! Check if shapes of matricized tensors A and B match gemm
 static inline void gemm_check_A_B(const TileTraits &A, const TileTraits &B,
-        Index ndim=1)
+        Index ndim)
 {
     for(Index i = 0; i < ndim; ++i)
     {
@@ -59,7 +59,7 @@ static inline void gemm_check_A_B(const TileTraits &A, const TileTraits &B,
 
 //! Check if shapes of matricized tensors A^T and B match gemm
 static inline void gemm_check_AT_B(const TileTraits &A, const TileTraits &B,
-        Index ndim=1)
+        Index ndim)
 {
     for(Index i = 0; i < ndim; ++i)
     {
@@ -72,7 +72,7 @@ static inline void gemm_check_AT_B(const TileTraits &A, const TileTraits &B,
 
 //! Check if shapes of tensors A and B^T match gemm
 static inline void gemm_check_A_BT(const TileTraits &A, const TileTraits &B,
-        Index ndim=1)
+        Index ndim)
 {
     for(Index i = 0; i < ndim; ++i)
     {
@@ -86,7 +86,7 @@ static inline void gemm_check_A_BT(const TileTraits &A, const TileTraits &B,
 
 //! Check if shapes of tensors A^T and B^T match gemm
 static inline void gemm_check_AT_BT(const TileTraits &A, const TileTraits &B,
-        Index ndim=1)
+        Index ndim)
 {
     for(Index i = 0; i < ndim; ++i)
     {
@@ -101,7 +101,7 @@ static inline void gemm_check_AT_BT(const TileTraits &A, const TileTraits &B,
 //! Check if shapes of tensors op(A) and op(B) match gemm
 static inline void gemm_check_opA_opB(const TransOp &transA,
         const TileTraits &A, const TransOp &transB, const TileTraits &B,
-        Index ndim=1)
+        Index ndim)
 {
     switch(transB.value)
     {
@@ -138,7 +138,7 @@ static inline void gemm_check_opA_opB(const TransOp &transA,
 
 //! Check if shapes of tensors A and C match gemm
 static inline void gemm_check_A_C(const TileTraits &A, const TileTraits &C,
-        Index ndim=1)
+        Index ndim)
 {
     for(Index i = 0; i < A.ndim-ndim; ++i)
     {
@@ -152,7 +152,7 @@ static inline void gemm_check_A_C(const TileTraits &A, const TileTraits &C,
 
 //! Check if shapes of tensors A^T and C match gemm
 static inline void gemm_check_AT_C(const TileTraits &A, const TileTraits &C,
-        Index ndim=1)
+        Index ndim)
 {
     for(Index i = ndim; i < A.ndim; ++i)
     {
@@ -166,7 +166,7 @@ static inline void gemm_check_AT_C(const TileTraits &A, const TileTraits &C,
 
 //! Check if shapes of tensors op(A) and C match gemm
 static inline void gemm_check_opA_C(const TransOp &transA, const TileTraits &A,
-        const TileTraits &C, Index ndim=1)
+        const TileTraits &C, Index ndim)
 {
     switch(transA.value)
     {
@@ -182,7 +182,7 @@ static inline void gemm_check_opA_C(const TransOp &transA, const TileTraits &A,
 
 //! Check if shapes of tensors B and C match gemm
 static inline void gemm_check_B_C(const TileTraits &B, const TileTraits &C,
-        Index ndim=1)
+        Index ndim)
 {
     for(Index i = ndim; i < B.ndim; ++i)
     {
@@ -196,7 +196,7 @@ static inline void gemm_check_B_C(const TileTraits &B, const TileTraits &C,
 
 //! Check if shapes of tensors B^T and C match gemm
 static inline void gemm_check_BT_C(const TileTraits &B, const TileTraits &C,
-        Index ndim=1)
+        Index ndim)
 {
     for(Index i = 0; i < B.ndim-ndim; ++i)
     {
@@ -210,7 +210,7 @@ static inline void gemm_check_BT_C(const TileTraits &B, const TileTraits &C,
 
 //! Check if shapes of tensors op(B) and C match gemm
 static inline void gemm_check_opB_C(const TransOp &transB, const TileTraits &B,
-        const TileTraits &C, Index ndim=1)
+        const TileTraits &C, Index ndim)
 {
     switch(transB.value)
     {

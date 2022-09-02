@@ -1,182 +1,118 @@
-#include "nntile/tile/clear.hh"
+/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+ *                           (Skoltech). All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file tests/tile/sumnorm.cc
+ * Sumnorm operation on Tile<T>
+ *
+ * @version 1.0.0
+ * @author Aleksandr Mikhalev
+ * @date 2022-09-02
+ * */
+
 #include "nntile/tile/sumnorm.hh"
-#include "nntile/tile/randn.hh"
+#include "nntile/starpu/sumnorm.hh"
 #include "../testing.hh"
-#include <cmath>
+#include "../starpu/common.hh"
 
 using namespace nntile;
-
-Starpu starpu;
+using namespace nntile::tile;
 
 template<typename T>
-void check_sumnorm(const Tile<T> &src, const Tile<T> &dst, Index axis)
+void validate()
 {
-    clear_async(dst);
-    sumnorm(src, dst, axis);
-    Starpu::pause();
-    auto src_local = src.acquire(STARPU_R), dst_local = dst.acquire(STARPU_RW);
-    std::vector<T> local(dst.nelems);
-    for(Index i = 0; i < dst.nelems; i += 2)
-    {
-        local[i] = 0; // sum
-        local[i+1] = 0; // sum of squares
-    }
-    std::vector<Index> dst_index(dst.ndim);
+    // Init data for checking
+    Tile<T> src({3, 4, 5});
+    Tile<T> dst[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
+        Tile<T>({2, 3, 4})};
+    Tile<T> dst2[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
+        Tile<T>({2, 3, 4})};
+    auto src_local = src.acquire(STARPU_W);
     for(Index i = 0; i < src.nelems; ++i)
     {
-        auto src_index = src.linear_to_index(i);
-        for(Index j = 0; j < axis; ++j)
-        {
-            dst_index[j+1] = src_index[j];
-        }
-        for(Index j = axis+1; j < src.ndim; ++j)
-        {
-            dst_index[j] = src_index[j];
-        }
-        Index j = dst.index_to_linear(dst_index);
-        T val = src_local[i];
-        if(val == 0)
-        {
-            continue;
-        }
-        local[j] += val;
-        local[j+1] = std::sqrt(local[j+1]*local[j+1] + val*val);
+        src_local[i] = T(i+1);
     }
     src_local.release();
-    for(Index i = 0; i < dst.nelems; i += 2)
+    T zero = 0;
+    for(Index i = 0; i < 3; ++i)
     {
-        T sum_diff = std::abs(local[i] - dst_local[i]);
-        T sum_ref = std::abs(local[i]);
-        T sum_threshold = 10 * std::numeric_limits<T>::epsilon() * sum_ref;
-        if(sum_diff > sum_threshold)
+        auto dst_local = dst[i].acquire(STARPU_W);
+        auto dst2_local = dst2[i].acquire(STARPU_W);
+        for(Index j = 0; j < dst[i].nelems; ++j)
         {
-            std::cout << "i=" << i << "\n";
-            std::cout << "sum_ref=" << sum_ref << " sum_diff=" << sum_diff
-                << " sum_threshold=" << sum_threshold << "\n";
-            throw std::runtime_error("Wrong sum");
+            dst_local[j] = zero;
+            dst2_local[j] = zero;
         }
-        T norm_diff = std::abs(local[i+1] - dst_local[i+1]);
-        T norm_ref = std::abs(local[i+1]);
-        T norm_threshold = 10 * std::numeric_limits<T>::epsilon() * norm_ref;
-        if(norm_diff > norm_threshold)
-        {
-            std::cout << "i=" << i << "\n";
-            std::cout << "norm_ref=" << norm_ref << " norm_diff=" << norm_diff
-                << " norm_threshold=" << norm_threshold << "\n";
-            throw std::runtime_error("Wrong norm");
-        }
+        dst_local.release();
+        dst2_local.release();
     }
-    for(Index i = 0; i < dst.nelems; i += 2)
+    // Check axis=0
     {
-        dst_local[i] *= 0.1;
-        dst_local[i+1] *= 0.1;
+        starpu_resume();
+        starpu::sumnorm::submit<T>(1, 20, 3, src, dst[0]);
+        sumnorm<T>(src, dst2[0], 0);
+        starpu_pause();
+        auto dst_local = dst[0].acquire(STARPU_R);
+        auto dst2_local = dst2[0].acquire(STARPU_R);
+        for(Index i = 0; i < dst[0].nelems; ++i)
+        {
+            TEST_ASSERT(dst_local[i] == dst2_local[i]);
+        }
+        dst_local.release();
+        dst2_local.release();
     }
-    dst_local.release();
-    // All the local handles/buffers shall be released before submitting
-    // blocking codelets
-    Starpu::resume();
-    sumnorm(src, dst, axis);
-    Starpu::pause();
-    dst_local.acquire(STARPU_R);
-    for(Index i = 0; i < dst.nelems; i += 2)
+    // Check axis=1
     {
-        T sum_diff = std::abs(1.1*local[i] - dst_local[i]);
-        T sum_norm = std::abs(1.1*local[i]);
-        T sum_threshold = 10 * std::numeric_limits<T>::epsilon() * sum_norm;
-        if(sum_diff > sum_threshold)
+        starpu_resume();
+        starpu::sumnorm::submit<T>(3, 5, 4, src, dst[1]);
+        sumnorm<T>(src, dst2[1], 1);
+        starpu_pause();
+        auto dst_local = dst[1].acquire(STARPU_R);
+        auto dst2_local = dst2[1].acquire(STARPU_R);
+        for(Index i = 0; i < dst[1].nelems; ++i)
         {
-            std::cout << "i=" << i << "\n";
-            std::cout << "sum_norm=" << sum_norm << " sum_diff=" << sum_diff <<
-                " sum_threshold=" << sum_threshold << "\n";
-            throw std::runtime_error("Wrong sum");
+            TEST_ASSERT(dst_local[i] == dst2_local[i]);
         }
-        constexpr T f = std::sqrt(1.01);
-        T norm_diff = std::abs(f*local[i+1] - dst_local[i+1]);
-        T norm_ref = std::abs(f*local[i+1]);
-        T norm_threshold = 10 * std::numeric_limits<T>::epsilon() * norm_ref;
-        if(norm_diff > norm_threshold)
-        {
-            std::cout << "i=" << i << "\n";
-            std::cout << "norm_ref=" << norm_ref << " norm_diff=" << norm_diff <<
-                " norm_threshold=" << norm_threshold << "\n";
-            throw std::runtime_error("Wrong norm");
-        }
+        dst_local.release();
+        dst2_local.release();
     }
-    Starpu::resume();
-}
-
-template<typename T>
-void validate_sumnorm()
-{
-    Tile<T> A({4, 5, 6, 7}); 
-    constexpr unsigned long long seed = 100000000000001ULL;
-    // Avoid mean=0 because of instable relative error of sum (division by 0)
-    randn(A, seed, T{1}, T{1});
-    for(Index i = 0; i < A.ndim; ++i)
+    // Check axis=2
     {
-        std::vector<Index> shape(A.ndim);
-        shape[0] = 2;
-        for(Index j = 0; j < i; ++j)
+        starpu_resume();
+        starpu::sumnorm::submit<T>(12, 1, 5, src, dst[2]);
+        sumnorm<T>(src, dst2[2], 2);
+        starpu_pause();
+        auto dst_local = dst[2].acquire(STARPU_R);
+        auto dst2_local = dst2[2].acquire(STARPU_R);
+        for(Index i = 0; i < dst[2].nelems; ++i)
         {
-            shape[j+1] = A.shape[j];
+            TEST_ASSERT(dst_local[i] == dst2_local[i]);
         }
-        for(Index j = i+1; j < A.ndim; ++j)
-        {
-            shape[j] = A.shape[j];
-        }
-        Tile<T> dst(shape);
-        check_sumnorm(A, dst, i);
-        for(Index j = 1; j < shape.size(); ++j)
-        {
-            auto shape2(shape);
-            ++shape2[j];
-            TESTN(sumnorm(A, Tile<T>(shape2), i));
-        }
+        dst_local.release();
+        dst2_local.release();
     }
-    TESTN(sumnorm(Tile<T>({4}), Tile<T>({3}), -1));
-    TESTN(sumnorm(Tile<T>({4}), Tile<T>({3}), 1));
-    TESTN(sumnorm(Tile<T>({3, 3}), Tile<T>({3}), 0));
-    TESTN(sumnorm(Tile<T>({}), Tile<T>({}), 0));
-    TESTN(sumnorm(Tile<T>({3, 3}), Tile<T>({3, 3}), 0));
-    TESTN(sumnorm(Tile<T>({3, 3}), Tile<T>({3, 2}), 0));
-    TESTN(sumnorm(Tile<T>({3, 3, 3}), Tile<T>({3, 2, 3}), 1));
-    // Check certain predefined inputs
-    std::vector<T> data0(A.nelems), data2(A.nelems);
-    for(Index i = 0; i < A.nelems; ++i)
-    {
-        data0[i] = 0;
-        data2[i] = -2;
-    }
-    Tile<T> A0(static_cast<TileTraits>(A), &data0[0], A.nelems);
-    Tile<T> A2(static_cast<TileTraits>(A), &data2[0], A.nelems);
-    {
-        Index axis{0};
-        const T nelems = 4, val = -8;
-        Tile<T> dst0({2, 5, 6, 7}), dst2({2, 5, 6, 7});
-        clear_async(dst0);
-        clear_async(dst2);
-        sumnorm(A0, dst0, axis);
-        sumnorm(A2, dst2, axis);
-        auto local0 = dst0.acquire(STARPU_R),
-             local2 = dst2.acquire(STARPU_R);
-        for(Index i = 0; i < dst0.nelems/2; ++i)
-        {
-            if(local0[2*i] != 0 or local0[2*i+1] != 0)
-            {
-                throw std::runtime_error("0-array is not 0");
-            }
-            if(local2[2*i] != val or local2[2*i+1] != 2*std::sqrt(nelems))
-            {
-                throw std::runtime_error("2-array is not 2");
-            }
-        }
-    }
+    // Check throwing exceptions
+    Tile<T> empty({});
+    TEST_THROW(sumnorm<T>(src, empty, 0));
+    TEST_THROW(sumnorm<T>(empty, empty, 0));
+    TEST_THROW(sumnorm<T>(src, dst[0], -1));
+    TEST_THROW(sumnorm<T>(src, dst[0], 3));
+    TEST_THROW(sumnorm<T>(src, src, 0));
+    TEST_THROW(sumnorm<T>(src, dst[0], 1));
+    TEST_THROW(sumnorm<T>(src, dst[2], 1));
 }
 
 int main(int argc, char **argv)
 {
-    validate_sumnorm<fp32_t>();
-    validate_sumnorm<fp64_t>();
+    // Init StarPU for testing
+    StarpuTest starpu;
+    // Init codelet
+    starpu::sumnorm::init();
+    // Launch all tests
+    validate<fp32_t>();
+    validate<fp64_t>();
     return 0;
 }
 

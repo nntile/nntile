@@ -1,70 +1,66 @@
+/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+ *                           (Skoltech). All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file tests/tile/randn.cc
+ * Randn operation on Tile<T>
+ *
+ * @version 1.0.0
+ * @author Aleksandr Mikhalev
+ * @date 2022-09-02
+ * */
+
 #include "nntile/tile/randn.hh"
-#include "check_tiles_intersection.hh"
+#include "nntile/starpu/randn.hh"
 #include "../testing.hh"
+#include "../starpu/common.hh"
 
 using namespace nntile;
+using namespace nntile::tile;
 
 template<typename T>
-void validate_randn()
+void validate()
 {
-    Tile<T> scalar({}), scalar2({});
-    T one = 1, zero = 0;
-    constexpr unsigned long long seed = 100000000000001ULL;
-    randn(scalar, {}, {}, {}, seed);
-    randn(scalar2, {}, {}, {}, seed);
-    TESTA(check_tiles_intersection(scalar, scalar2));
-    randn(scalar2, seed*seed);
-    TESTA(!check_tiles_intersection(scalar, scalar2));
-    Tile<T> big({5, 5, 5, 5}), small({2, 2, 2, 2});
-    randn_async(big, seed);
-    starpu_task_wait_for_all();
-    randn(small, {1, 2, 3, 2}, big.shape, big.stride, seed);
-    TESTA(check_tiles_intersection(big, {0, 0, 0, 0}, small, {1, 2, 3, 2}));
-    TESTA(check_tiles_intersection(small, {1, 2, 3, 2}, big, {0, 0, 0, 0}));
-    TESTA(!check_tiles_intersection(big, {1, 0, 0, 0}, small, {1, 2, 3, 2}));
-    TESTA(!check_tiles_intersection(big, {0, 1, 0, 0}, small, {1, 2, 3, 2}));
-    TESTA(!check_tiles_intersection(big, {0, 0, 1, 0}, small, {1, 2, 3, 2}));
-    TESTA(!check_tiles_intersection(big, {0, 0, 0, 1}, small, {1, 2, 3, 2}));
-    TESTA(!check_tiles_intersection(small, {1, 2, 3, 2}, big, {1, 0, 0, 0}));
-    TESTA(!check_tiles_intersection(small, {1, 2, 3, 2}, big, {0, 1, 0, 0}));
-    TESTA(!check_tiles_intersection(small, {1, 2, 3, 2}, big, {0, 0, 1, 0}));
-    TESTA(!check_tiles_intersection(small, {1, 2, 3, 2}, big, {0, 0, 0, 1}));
-    TESTN(randn(small, {4, 0, 0, 0}, big.shape, big.stride, seed));
-    TESTN(randn(small, {0, 4, 0, 0}, big.shape, big.stride, seed));
-    TESTN(randn(small, {0, 0, 4, 0}, big.shape, big.stride, seed));
-    TESTN(randn(small, {0, 0, 0, 4}, big.shape, big.stride, seed));
-    TESTN(randn(small, {-1, 0, 0, 0}, big.shape, big.stride, seed));
-    TESTN(randn(small, {0, -1, 0, 0}, big.shape, big.stride, seed));
-    TESTN(randn(small, {0, 0, -1, 0}, big.shape, big.stride, seed));
-    TESTN(randn(small, {0, 0, 0, -1}, big.shape, big.stride, seed));
-    TESTN(randn(small, {0, 0, 0}, big.shape, big.stride, seed));
-    TESTN(randn(small, {0, 0, 0, 0}, {5, 6, 7}, big.stride, seed));
-    TESTN(randn(small, {0, 0, 0, -1}, big.shape, {5, 30, 210}, seed));
-    auto stride = big.stride;
-    ++stride[0];
-    TESTN(randn(small, {0, 0, 0, 0}, big.shape, stride, seed));
-    for(int i = 1; i < stride.size(); ++i)
+    Tile<T> dst({3, 4, 5}), dst2(dst.shape);
+    std::vector<Index> start{1, 1, 1}, underlying_shape{5, 6, 7};
+    unsigned long long seed = -1;
+    T mean = 1, stddev = 2;
+    // Check some valid parameters
+    StarpuVariableHandle tmp_index(sizeof(Index) * 2 * 3);
+    starpu_resume();
+    starpu::randn::submit<T>(3, dst.nelems, seed, mean, stddev, start,
+        dst.shape, dst.stride, underlying_shape, dst, tmp_index);
+    randn(dst2, start, underlying_shape, seed, mean, stddev);
+    starpu_pause();
+    auto dst_local = dst.acquire(STARPU_R);
+    auto dst2_local = dst.acquire(STARPU_R);
+    for(Index i = 0; i < dst.nelems; ++i)
     {
-        --stride[i-1];
-        ++stride[i];
-        TESTN(randn(small, {0, 0, 0, 0}, big.shape, stride, seed));
+        TEST_ASSERT(dst_local[i] == dst2_local[i]);
     }
-    auto small_local = small.acquire(STARPU_RW);
-    const_cast<T *>(small_local.get_ptr())[small.nelems-1] = 0;
-    small_local.release();
-    TESTA(!check_tiles_intersection(big, {0, 0, 0, 0}, small, {1, 2, 3, 2}));
-    TESTA(!check_tiles_intersection(small, {1, 2, 3, 2}, big, {0, 0, 0, 0}));
-    Tile<T> small2({3, 3, 3, 3});
-    randn(small2, {1, 1, 1, 1}, big.shape, big.stride, seed);
-    TESTA(check_tiles_intersection(small, {1, 2, 3, 2}, small2, {1, 1, 1, 1}));
-    TESTA(check_tiles_intersection(small2, {1, 1, 1, 1}, small, {1, 2, 3, 2}));
+    dst_local.release();
+    dst2_local.release();
+    // Check throwing exceptions
+    std::vector<Index> ind2(2);
+    TEST_THROW(randn<T>(dst, ind2, underlying_shape, seed, mean, stddev));
+    TEST_THROW(randn<T>(dst, start, ind2, seed, mean, stddev));
+    start[0] = -1;
+    TEST_THROW(randn<T>(dst, start, underlying_shape, seed, mean, stddev));
+    start[0] = 3;
+    TEST_THROW(randn<T>(dst, start, underlying_shape, seed, mean, stddev));
 }
 
 int main(int argc, char **argv)
 {
-    Starpu starpu;
-    validate_randn<float>();
-    validate_randn<double>();
+    // Init StarPU for testing
+    StarpuTest starpu;
+    // Init codelet
+    starpu::randn::init();
+    // Launch all tests
+    validate<fp32_t>();
+    validate<fp64_t>();
     return 0;
 }
 

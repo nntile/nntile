@@ -4,16 +4,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tile/relu.cc
- * ReLU operation on Tile<T>
+ * @file tests/tile/gelutanh.cc
+ * Approximate GeLU operation on Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @date 2022-09-02
  * */
 
-#include "nntile/tile/relu.hh"
-#include "nntile/starpu/relu.hh"
+#include "nntile/tile/gelutanh.hh"
+#include "nntile/starpu/gelutanh.hh"
 #include "../testing.hh"
 #include "../starpu/common.hh"
 
@@ -40,8 +40,8 @@ void validate()
     tile2_local.release();
     tile2_copy_local.release();
     starpu_resume();
-    starpu::relu::submit<T>(1, tile1);
-    relu<T>(tile1_copy);
+    starpu::gelutanh::submit<T>(1, tile1);
+    gelutanh<T>(tile1_copy);
     starpu_pause();
     tile1_local.acquire(STARPU_R);
     tile1_copy_local.acquire(STARPU_R);
@@ -49,8 +49,8 @@ void validate()
     tile1_local.release();
     tile1_copy_local.release();
     starpu_resume();
-    starpu::relu::submit<T>(tile2.nelems, tile2);
-    relu<T>(tile2_copy);
+    starpu::gelutanh::submit<T>(tile2.nelems, tile2);
+    gelutanh<T>(tile2_copy);
     tile2_local.acquire(STARPU_R);
     tile2_copy_local.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)
@@ -66,7 +66,7 @@ int main(int argc, char **argv)
     // Init StarPU for testing
     StarpuTest starpu;
     // Init codelet
-    starpu::relu::init();
+    starpu::gelutanh::init();
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

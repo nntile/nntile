@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-23
+# @date 2022-09-02
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -17,13 +17,14 @@ set(TESTS
     "tile"
     "bias"
     "clear"
-    #"randn"
-    #"copy"
-    #"gemm"
-    #"gelu"
-    #"relu"
-    #"sumnorm"
-    #"normalize"
+    "copy"
+    "gelu"
+    "gelutanh"
+    "gemm"
+    "normalize"
+    "randn"
+    "relu"
+    "sumnorm"
     )
 
 # Add target for local coverage

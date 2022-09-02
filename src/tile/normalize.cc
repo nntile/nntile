@@ -100,6 +100,17 @@ void normalize(const StarpuVariableHandle &gamma_beta,
     starpu_task_wait_for_all();
 }
 
+// Explicit instantiation
+template
+void normalize(const StarpuVariableHandle &gamma_beta,
+        const Tile<fp32_t> &sumnorm, const Tile<fp32_t> &dst, Index l,
+        fp32_t eps, Index axis);
+
+template
+void normalize(const StarpuVariableHandle &gamma_beta,
+        const Tile<fp64_t> &sumnorm, const Tile<fp64_t> &dst, Index l,
+        fp64_t eps, Index axis);
+
 } // namespace tile
 } // namespace nntile
 

@@ -9,12 +9,13 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-29
+ * @date 2022-09-01
  * */
 
 #include "nntile/tile/tile.hh"
 #include <limits>
 #include "../testing.hh"
+#include "../starpu/common.hh"
 
 using namespace nntile;
 using namespace nntile::tile;
@@ -36,53 +37,49 @@ void check_tile(const std::vector<Index> &shape)
     Tile<T> tile2(tile1);
     TEST_ASSERT(static_cast<starpu_data_handle_t>(tile2) ==
             static_cast<starpu_data_handle_t>(tile1));
-    auto tile2_local = tile2.acquire(STARPU_R);
-    for(Index i = 0; i < tile1.nelems; ++i)
-    {
-        TEST_ASSERT(tile2_local[i] == static_cast<T>(i));
-    }
-    tile2_local.release();
     // Check constructor from TileTraits
     Tile<T> tile3(static_cast<TileTraits>(tile2));
     TEST_ASSERT(static_cast<starpu_data_handle_t>(tile3) != nullptr);
     TEST_ASSERT(static_cast<starpu_data_handle_t>(tile2) !=
             static_cast<starpu_data_handle_t>(tile3));
+    // Check if acquire, release and copy are working together
+    starpu_data_cpy(tile3, tile2, 0, nullptr, nullptr);
+    auto tile3_local = tile3.acquire(STARPU_R);
+    for(Index i = 0; i < tile2.nelems; ++i)
+    {
+        TEST_ASSERT(tile3_local[i] == static_cast<T>(i));
+    }
+    tile3_local.release();
     // Check with shape and pointer
     std::vector<T> data(tile1.nelems);
     for(Index i = 0; i < tile1.nelems; ++i)
     {
-        data[i] = static_cast<T>(i);
+        data[i] = static_cast<T>(i+1);
     }
     TEST_THROW(Tile<T>(shape, &data[0], tile1.nelems-1));
-    Tile<T> tile4(tile1, &data[0], tile1.nelems);
+    Tile<T> tile4(shape, &data[0], tile1.nelems);
     TEST_ASSERT(static_cast<starpu_data_handle_t>(tile4) != nullptr);
-    auto tile4_local = tile4.acquire(STARPU_R);
-    for(Index i = 0; i < tile1.nelems; ++i)
+    starpu_data_cpy(tile3, tile4, 0, nullptr, nullptr);
+    tile3_local.acquire(STARPU_R);
+    for(Index i = 0; i < tile2.nelems; ++i)
     {
-        TEST_ASSERT(tile4_local[i] == static_cast<T>(i));
+        TEST_ASSERT(tile3_local[i] == static_cast<T>(i+1));
     }
-    tile4_local.release();
+    tile3_local.release();
     // Check with TileTraits and pointer
     TEST_THROW(Tile<T>(tile4, &data[0], tile4.nelems-1));
     Tile<T> tile5(tile4, &data[0], tile4.nelems);
     TEST_ASSERT(static_cast<starpu_data_handle_t>(tile5) != nullptr);
     TEST_ASSERT(static_cast<starpu_data_handle_t>(tile5) !=
             static_cast<starpu_data_handle_t>(tile4));
-    auto tile5_local = tile5.acquire(STARPU_RW);
-    for(Index i = 0; i < tile1.nelems; ++i)
+    starpu_data_cpy(tile3, tile5, 0, nullptr, nullptr);
+    tile3_local.acquire(STARPU_RW);
+    for(Index i = 0; i < tile2.nelems; ++i)
     {
-        TEST_ASSERT(tile5_local[i] == static_cast<T>(i));
-        tile5_local[i] += T{1};
+        TEST_ASSERT(tile3_local[i] == static_cast<T>(i+1));
+        tile3_local[i] += T{1};
     }
-    tile5_local.release();
-    // Check if 2 handles with the same user-provided buffer are actually
-    // sharing data
-    tile4_local.acquire(STARPU_R);
-    for(Index i = 0; i < tile1.nelems; ++i)
-    {
-        TEST_ASSERT(tile4_local[i] == static_cast<T>(i+1));
-    }
-    tile4_local.release();
+    tile3_local.release();
 }
 
 template<typename T>
@@ -96,7 +93,10 @@ void validate_tile()
 
 int main(int argc, char **argv)
 {
-    Starpu starpu;
+    // Init StarPU for testing
+    StarpuTest starpu;
+    starpu_resume();
+    // Launch all tests
     validate_tile<fp64_t>();
     validate_tile<fp32_t>();
     return 0;

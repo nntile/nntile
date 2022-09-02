@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-22
+ * @date 2022-09-01
  * */
 
 #include "nntile/tile/traits.hh"
@@ -133,13 +133,13 @@ int main(int argc, char **argv)
     validate_traits(matrix_traits);
     // Check 5-dimensional tensor
     std::cout << "5D-tensor case\n";
-    TileTraits t5d_traits({7, 9, 11, 13, 15});
-    TEST_THROW(TileTraits({7, 9, 11, 13, 0}));
-    TEST_THROW(TileTraits({7, 9, 11, 0, 15}));
-    TEST_THROW(TileTraits({7, 9, 0, 13, 15}));
-    TEST_THROW(TileTraits({7, 0, 11, 13, 15}));
-    TEST_THROW(TileTraits({0, 9, 11, 13, 15}));
-    TEST_ASSERT(t5d_traits.shape == std::vector<Index>({7, 9, 11, 13, 15}));
+    TileTraits t5d_traits({1, 2, 3, 4, 5});
+    TEST_THROW(TileTraits({1, 2, 3, 4, 0}));
+    TEST_THROW(TileTraits({1, 2, 3, 0, 5}));
+    TEST_THROW(TileTraits({1, 2, 0, 4, 5}));
+    TEST_THROW(TileTraits({1, 0, 3, 4, 5}));
+    TEST_THROW(TileTraits({0, 2, 3, 4, 5}));
+    TEST_ASSERT(t5d_traits.shape == std::vector<Index>({1, 2, 3, 4, 5}));
     std::cout << t5d_traits;
     validate_traits(t5d_traits);
     return 0;

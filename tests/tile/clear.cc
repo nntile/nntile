@@ -9,11 +9,13 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-23
+ * @date 2022-09-02
  * */
 
 #include "nntile/tile/clear.hh"
+#include "nntile/starpu/clear.hh"
 #include "../testing.hh"
+#include "../starpu/common.hh"
 
 using namespace nntile;
 using namespace nntile::tile;
@@ -35,36 +37,19 @@ void validate()
     constexpr T zero = 0;
     for(Index i = 0; i < traits.nelems; ++i)
     {
-        if(tile_local[i] != zero)
-        {
-            throw std::runtime_error("Data is not zero");
-        }
+        TEST_ASSERT(tile_local[i] == zero);
     }
 }
 
 int main(int argc, char **argv)
 {
-    // Init StarPU configuration and set number of CPU workers to 1
-    starpu_conf conf;
-    int ret = starpu_conf_init(&conf);
-    if(ret != 0)
-    {
-        throw std::runtime_error("starpu_conf_init error");
-    }
-    conf.ncpus = 1;
-    // No CUDA workers since we are checking against results of CPU
-    // implementation
-    conf.ncuda = 0;
-    ret = starpu_init(&conf);
-    if(ret != 0)
-    {
-        throw std::runtime_error("starpu_init error");
-    }
-    starpu_pause();
+    // Init StarPU for testing
+    StarpuTest starpu;
+    // Init codelet
+    starpu::clear::init();
+    // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
-    starpu_resume();
-    starpu_shutdown();
     return 0;
 }
 
