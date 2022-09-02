@@ -48,7 +48,7 @@ add_test_set(TARGET_NAME tests_starpu_gemm
     EXEC_NAME test_gemm
     SOURCES "${CMAKE_CURRENT_BINARY_DIR}/gemm.cc"
     LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_USE_CBLAS}>:BLAS::BLAS>
-    $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cublas CUDA::cudart>
+    $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cublas;CUDA::cudart>
     COV_ENABLE ${BUILD_COVERAGE}
     COV_NAME coverage_starpu_gemm
     COV_GLOBAL coverage_starpu
