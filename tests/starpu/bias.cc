@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-06
  * */
 
 #include "nntile/starpu/bias.hh"
@@ -48,12 +48,10 @@ void validate_cpu(Index m, Index n, Index k)
     StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
     starpu::bias::restrict_where(STARPU_CPU);
-    starpu_resume();
     std::cout << "Run starpu::bias::submit<T> restricted to CPU\n";
     starpu::bias::submit<T>(m, n, k, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
-    starpu_pause();
     // Check result
     for(Index i = 0; i < m*n*k; ++i)
     {
@@ -157,12 +155,10 @@ void validate_cuda(Index m, Index n, Index k)
     StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
     starpu::bias::restrict_where(STARPU_CUDA);
-    starpu_resume();
     std::cout << "Run starpu::bias::submit<T> restricted to CUDA\n";
     starpu::bias::submit<T>(m, n, k, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
-    starpu_pause();
     // Check result
     for(Index i = 0; i < m*n*k; ++i)
     {

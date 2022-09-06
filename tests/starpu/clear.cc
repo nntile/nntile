@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-06
  * */
 
 #include "nntile/starpu/clear.hh"
@@ -36,12 +36,10 @@ void validate(std::size_t size)
     // Check by actually submitting a task
     StarpuVariableHandle data_handle(&data[0], size, STARPU_RW);
     starpu::clear::restrict_where(STARPU_CPU);
-    starpu_resume();
     std::cout << "Run starpu::clear::submit restricted to CPU\n";
     starpu::clear::submit(data_handle);
     starpu_task_wait_for_all();
     data_handle.unregister();
-    starpu_pause();
     // Check result
     for(std::size_t i = 0; i < size; ++i)
     {
@@ -56,12 +54,10 @@ void validate(std::size_t size)
     data = data_init;
     data_handle = StarpuVariableHandle(&data[0], size, STARPU_RW);
     starpu::clear::restrict_where(STARPU_CUDA);
-    starpu_resume();
     std::cout << "Run starpu::clear::submit restricted to CUDA\n";
     starpu::clear::submit(data_handle);
     starpu_task_wait_for_all();
     data_handle.unregister();
-    starpu_pause();
     // Check result
     for(std::size_t i = 0; i < size; ++i)
     {

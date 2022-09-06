@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-02
+ * @date 2022-09-06
  * */
 
 #include "nntile/tile/bias.hh"
@@ -31,9 +31,7 @@ void check(const Tile<T> &src, const Tile<T> &dst, Index axis)
     }
     dst_local.release();
     Tile<T> dst2(dst, &dst2_data[0], dst.nelems, STARPU_RW);
-    starpu_resume();
     bias<T>(src, dst, axis);
-    starpu_pause();
     Index m = 1;
     for(Index i = 0; i < axis; ++i)
     {
@@ -45,10 +43,8 @@ void check(const Tile<T> &src, const Tile<T> &dst, Index axis)
         n *= dst.shape[i];
     }
     Index k = dst.shape[axis];
-    starpu_resume();
     starpu::bias::submit<T>(m, n, k, src, dst2);
     starpu_task_wait_for_all();
-    starpu_pause();
     auto dst2_local = dst.acquire(STARPU_R);
     dst_local.acquire(STARPU_R);
     for(Index i = 0; i < dst.nelems; ++i)
@@ -92,10 +88,19 @@ void validate()
         b1(b1_traits, &b1_data[0], b1_traits.nelems, STARPU_RW),
         b2(b2_traits, &b2_data[0], b2_traits.nelems, STARPU_RW),
         b3(b3_traits, &b3_data[0], b3_traits.nelems, STARPU_RW);
+    // Compare results of tile::bias and starpu::bias::submit
+    starpu::bias::restrict_where(STARPU_CPU);
     check<T>(b0, A, 0);
     check<T>(b1, A, 1);
     check<T>(b2, A, 2);
     check<T>(b3, A, 3);
+#ifdef NNTILE_USE_CUDA
+    starpu::bias::restrict_where(STARPU_CUDA);
+    check<T>(b0, A, 0);
+    check<T>(b1, A, 1);
+    check<T>(b2, A, 2);
+    check<T>(b3, A, 3);
+#endif
     // Checking throwing exceptions
     TEST_THROW(bias(A, A, 0));
     TEST_THROW(bias(b0, A, -1));

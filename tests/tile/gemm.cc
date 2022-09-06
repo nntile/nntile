@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-02
+ * @date 2022-09-06
  * */
 
 #include "nntile/tile/gemm.hh"
@@ -21,7 +21,7 @@ using namespace nntile;
 using namespace nntile::tile;
 
 template<typename T>
-void validate()
+void check()
 {
     // Check all parameters are properly passed to the underlying gemm
     TransOp opT = TransOp::Trans, opN = TransOp::NoTrans;
@@ -41,10 +41,8 @@ void validate()
     C_local.release();
     D_local.release();
     // Check default parameters
-    starpu_resume();
     starpu::gemm::submit<T>(opN, opN, 4, 4, 4, one, A, B, zero, C);
     gemm<T>(one, opN, A, opN, B, zero, D, 2);
-    starpu_pause();
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
@@ -54,10 +52,8 @@ void validate()
     C_local.release();
     D_local.release();
     // Check transA=opT
-    starpu_resume();
     starpu::gemm::submit<T>(opT, opN, 4, 4, 4, one, A, B, zero, C);
     gemm<T>(one, opT, A, opN, B, zero, D, 2);
-    starpu_pause();
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
@@ -67,10 +63,8 @@ void validate()
     C_local.release();
     D_local.release();
     // Check transB=opT
-    starpu_resume();
     starpu::gemm::submit<T>(opN, opT, 4, 4, 4, one, A, B, zero, C);
     gemm<T>(one, opN, A, opT, B, zero, D, 2);
-    starpu_pause();
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
@@ -80,10 +74,8 @@ void validate()
     C_local.release();
     D_local.release();
     // Check transA=transB=opT
-    starpu_resume();
     starpu::gemm::submit<T>(opT, opT, 4, 4, 4, one, A, B, zero, C);
     gemm<T>(one, opT, A, opT, B, zero, D, 2);
-    starpu_pause();
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
@@ -94,10 +86,8 @@ void validate()
     D_local.release();
     // Check alpha=2
     T two = 2;
-    starpu_resume();
     starpu::gemm::submit<T>(opN, opN, 4, 4, 4, two, A, B, zero, C);
     gemm<T>(two, opN, A, opN, B, zero, D, 2);
-    starpu_pause();
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
@@ -107,10 +97,8 @@ void validate()
     C_local.release();
     D_local.release();
     // Check beta=1
-    starpu_resume();
     starpu::gemm::submit<T>(opN, opN, 4, 4, 4, one, A, B, one, C);
     gemm<T>(one, opN, A, opN, B, one, D, 2);
-    starpu_pause();
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
@@ -121,10 +109,8 @@ void validate()
     D_local.release();
     // Check beta=-1
     T mone = -1;
-    starpu_resume();
     starpu::gemm::submit<T>(opN, opN, 4, 4, 4, one, A, B, mone, C);
     gemm<T>(one, opN, A, opN, B, mone, D, 2);
-    starpu_pause();
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
@@ -133,7 +119,23 @@ void validate()
     }
     C_local.release();
     D_local.release();
+}
+
+template<typename T>
+void validate()
+{
+    // Check normal execution
+#ifdef NNTILE_USE_CBLAS
+    starpu::gemm::restrict_where(STARPU_CPU);
+    check<T>();
+#endif
+#ifdef NNTILE_USE_CUDA
+    starpu::gemm::restrict_where(STARPU_CUDA);
+    check<T>();
+#endif
     // Check throwing exceptions
+    TransOp opT = TransOp::Trans, opN = TransOp::NoTrans;
+    T one = 1, zero = 0;
     Tile<T> mat11({1, 1}), mat12({1, 2}), mat21({2, 1}), mat22({2, 2}),
         mat333({3, 3, 3});
     auto fail_trans_val = static_cast<TransOp::Value>(-1);

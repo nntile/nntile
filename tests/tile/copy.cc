@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-01
+ * @date 2022-09-06
  * */
 
 #include "nntile/tile/copy.hh"
@@ -41,16 +41,12 @@ void validate()
     }
     tile3_local.release();
     Tile<T> tile1_copy({});
-    starpu_resume();
     copy<T>(tile1, {}, tile1_copy, {});
-    starpu_pause();
     auto tile1_copy_local = tile1_copy.acquire(STARPU_R);
     TEST_ASSERT(tile1_copy_local[0] == T{-1});
     tile1_copy_local.release();
     Tile<T> tile2_copy(tile2.shape);
-    starpu_resume();
     copy<T>(tile2, {0, 0, 0}, tile2_copy, {0, 0, 0});
-    starpu_pause();
     auto tile2_copy_local = tile2_copy.acquire(STARPU_RW);
     for(Index i = 0; i < tile2.nelems; ++i)
     {
@@ -58,22 +54,18 @@ void validate()
         tile2_copy_local[i] = T{-2};
     }
     tile2_copy_local.release();
-    starpu_resume();
     copy<T>(tile2, {1, 2, 3}, tile2_copy, {1, 2, 3});
-    starpu_pause();
     tile2_copy_local.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)
     {
         TEST_ASSERT(tile2_copy_local[i] == T(i+1));
     }
     tile2_copy_local.release();
-    // Check complex copying
+    // Check complex copying on CPU, no CUDA implementation as of now
     StarpuVariableHandle scratch(2 * 3 * sizeof(Index));
-    starpu_resume();
     starpu::copy::submit<T>(3, {0, 0, 2}, tile3.stride, {0, 1, 0},
             tile2.stride, {2, 1, 2}, tile3, tile2, scratch, STARPU_RW);
     copy<T>(tile3, {0, 1, 0}, tile2_copy, {0, 0, 2});
-    starpu_pause();
     tile2_local.acquire(STARPU_R);
     tile2_copy_local.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)

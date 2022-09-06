@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-06
  * */
 
 #include "nntile/starpu/randn.hh"
@@ -61,13 +61,11 @@ void validate_cpu(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
         shape_(shape.cbegin(), shape.cend()),
         underlying_shape_(underlying_shape.cbegin(), underlying_shape.cend());
     starpu::randn::restrict_where(STARPU_CPU);
-    starpu_resume();
     std::cout << "Run starpu::randn::submit<T> restricted to CPU\n";
     starpu::randn::submit<T>(NDIM, nelems, seed, mean, stddev, start_, shape_,
             stride, underlying_shape_, data2_handle, tmp_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
-    starpu_pause();
     // Check result
     for(Index i = 0; i < size; ++i)
     {

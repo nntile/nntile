@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-06
  * */
 
 #include "nntile/starpu/gelu.hh"
@@ -42,12 +42,10 @@ void validate_cpu(Index nelems)
     // Check by actually submitting a task
     StarpuVariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
     starpu::gelu::restrict_where(STARPU_CPU);
-    starpu_resume();
     std::cout << "Run starpu::gelu::submit<T> restricted to CPU\n";
     starpu::gelu::submit<T>(nelems, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
-    starpu_pause();
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
@@ -129,12 +127,10 @@ void validate_cuda(Index nelems)
     // Check by actually submitting a task
     StarpuVariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
     starpu::gelu::restrict_where(STARPU_CUDA);
-    starpu_resume();
     std::cout << "Run starpu::gelu::submit<T> restricted to CUDA\n";
-    starpu::gelu<T>(nelems, data2_handle);
+    starpu::gelu::submit<T>(nelems, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
-    starpu_pause();
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {

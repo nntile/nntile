@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-06
  * */
 
 #include "nntile/kernel/sumnorm/cuda.hh"
@@ -107,7 +107,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
     // Both source and destination are Fortran-contiguous
     dim3 blocks(16, 16), threads(8, 4);
-    (sumnorm_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, src,
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, src,
             sumnorm);
 }
 

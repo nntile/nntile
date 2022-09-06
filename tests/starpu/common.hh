@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-23
+ * @date 2022-09-06
  * */
 
 #pragma once
@@ -46,13 +46,9 @@ public:
         {
             throw std::runtime_error("starpu_init error");
         }
-        // Pause StarPU, as it will be enabled only for when needed
-        starpu_pause();
     }
     ~StarpuTest()
     {
-        // Resume StarPU and shut it down
-        starpu_resume();
         starpu_shutdown();
     }
 };

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-02
+ * @date 2022-09-06
  * */
 
 #include "nntile/tile/randn.hh"
@@ -23,17 +23,16 @@ using namespace nntile::tile;
 template<typename T>
 void validate()
 {
+    // Only CPU implementation is check, as there is no other backend yet
     Tile<T> dst({3, 4, 5}), dst2(dst.shape);
     std::vector<Index> start{1, 1, 1}, underlying_shape{5, 6, 7};
     unsigned long long seed = -1;
     T mean = 1, stddev = 2;
     // Check some valid parameters
     StarpuVariableHandle tmp_index(sizeof(Index) * 2 * 3);
-    starpu_resume();
     starpu::randn::submit<T>(3, dst.nelems, seed, mean, stddev, start,
         dst.shape, dst.stride, underlying_shape, dst, tmp_index);
     randn(dst2, start, underlying_shape, seed, mean, stddev);
-    starpu_pause();
     auto dst_local = dst.acquire(STARPU_R);
     auto dst2_local = dst.acquire(STARPU_R);
     for(Index i = 0; i < dst.nelems; ++i)

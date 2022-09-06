@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-06
  * */
 
 #include "nntile/kernel/relu/cpu.hh"
@@ -50,7 +50,7 @@ void run_cuda(Index nelems, std::vector<T> &data)
         throw std::runtime_error("CUDA error");
     }
     // Launch low-level kernel
-    cuda::relu<T>(stream, nelems, dev_data);
+    cuda<T>(stream, nelems, dev_data);
     cuda_err = cudaStreamSynchronize(stream);
     if(cuda_err != cudaSuccess)
     {
@@ -104,7 +104,7 @@ void validate(Index nelems)
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     data = data_save;
-    std::cout << "Run cuda::relu<T>\n";
+    std::cout << "Run kernel::relu::cuda<T>\n";
     run_cuda<T>(nelems, data);
     for(Index i = 0; i < nelems; ++i)
     {
@@ -115,7 +115,7 @@ void validate(Index nelems)
             throw std::runtime_error("Wrong value");
         }
     }
-    std::cout << "OK: cuda::relu<T>\n";
+    std::cout << "OK: kernel::relu::cuda<T>\n";
 #endif // NNTILE_USE_CUDA
 }
 

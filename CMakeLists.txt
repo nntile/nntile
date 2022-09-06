@@ -10,7 +10,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-23
+# @date 2022-09-06
 
 
 ###############################################################################
@@ -57,7 +57,7 @@ set(NNTILE_USE_CUDA OFF)
 if(USE_CUDA)
     include(CheckLanguage)
     check_language(CUDA)
-    if(PROJECT_CUDA_COMPILER)
+    if(CMAKE_CUDA_COMPILER)
         enable_language(CUDA)
         # Get cublas
         find_package(CUDAToolkit 10.1)

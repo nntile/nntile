@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-06
  * */
 
 #include "nntile/starpu/copy.hh"
@@ -95,13 +95,11 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
         dst2_handle(&dst2_data[0], sizeof(T)*dst_nelems),
         tmp_handle(&tmp_index[0], sizeof(Index)*NDIM*2);
     starpu::copy::restrict_where(STARPU_CPU);
-    starpu_resume();
     std::cout << "Run starpu::copy::submit<T> restricted to CPU\n";
     starpu::copy::submit<T>(NDIM, src_start, src_stride, dst_start, dst_stride,
             copy_shape, src_handle, dst2_handle, tmp_handle, STARPU_RW);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
-    starpu_pause();
     // Check result
     for(Index i = 0; i < dst_nelems; ++i)
     {

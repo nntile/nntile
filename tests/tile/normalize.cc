@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-02
+ * @date 2022-09-06
  * */
 
 #include "nntile/tile/normalize.hh"
@@ -22,7 +22,7 @@ using namespace nntile;
 using namespace nntile::tile;
 
 template<typename T>
-void validate()
+void check()
 {
     // Init data for checking
     Tile<T> gamma_beta({2}), dst({3, 4, 5}), dst2({3, 4, 5});
@@ -54,11 +54,9 @@ void validate()
     }
     // Check axis=0
     {
-        starpu_resume();
         starpu::normalize::submit<T>(1, 20, 3, 3, one, gamma_beta, sumnorm[0],
                 dst);
         normalize<T>(gamma_beta, sumnorm[0], dst2, 3, one, 0);
-        starpu_pause();
         dst_local.acquire(STARPU_R);
         dst2_local.acquire(STARPU_R);
         for(Index i = 0; i < dst.nelems; ++i)
@@ -70,11 +68,9 @@ void validate()
     }
     // Check axis=1
     {
-        starpu_resume();
         starpu::normalize::submit<T>(3, 5, 4, 4, one, gamma_beta, sumnorm[1],
                 dst);
         normalize<T>(gamma_beta, sumnorm[1], dst2, 4, one, 1);
-        starpu_pause();
         dst_local.acquire(STARPU_R);
         dst2_local.acquire(STARPU_R);
         for(Index i = 0; i < dst.nelems; ++i)
@@ -86,11 +82,9 @@ void validate()
     }
     // Check axis=2
     {
-        starpu_resume();
         starpu::normalize::submit<T>(12, 1, 5, 5, one, gamma_beta, sumnorm[2],
                 dst);
         normalize<T>(gamma_beta, sumnorm[2], dst2, 5, one, 2);
-        starpu_pause();
         dst_local.acquire(STARPU_R);
         dst2_local.acquire(STARPU_R);
         for(Index i = 0; i < dst.nelems; ++i)
@@ -100,8 +94,24 @@ void validate()
         dst_local.release();
         dst2_local.release();
     }
+}
+
+template<typename T>
+void validate()
+{
+    // Check normal execution
+    starpu::normalize::restrict_where(STARPU_CPU);
+    check<T>();
+#ifdef NNTILE_USE_CUDA
+    starpu::normalize::restrict_where(STARPU_CUDA);
+    check<T>();
+#endif
     // Check throwing exceptions
     Tile<T> empty({});
+    Tile<T> gamma_beta({2}), dst({3, 4, 5}), dst2({3, 4, 5});
+    Tile<T> sumnorm[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
+        Tile<T>({2, 3, 4})};
+    T one = 1, zero = 0;
     TEST_THROW(normalize<T>(gamma_beta, gamma_beta, dst, dst.shape[0], zero,
                 0));
     TEST_THROW(normalize<T>(gamma_beta, empty, empty, dst.shape[0], zero, 0));

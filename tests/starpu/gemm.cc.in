@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-06
  * */
 
 #include "nntile/starpu/gemm.hh"
@@ -108,13 +108,11 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
         B_handle(&B[0], sizeof(T)*n*k, STARPU_R),
         C2_handle(&C2[0], sizeof(T)*m*n, STARPU_RW);
     starpu::gemm::restrict_where(STARPU_CPU);
-    starpu_resume();
     std::cout << "Run starpu::gemm::submit<T> restricted to CPU\n";
     starpu::gemm::submit<T>(transA, transB, m, n, k, alpha, A_handle, B_handle,
             beta, C2_handle);
     starpu_task_wait_for_all();
     C2_handle.unregister();
-    starpu_pause();
     // Check result
     for(Index i = 0; i < m*n; ++i)
     {
@@ -321,13 +319,11 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
         B_handle(&B[0], sizeof(T)*n*k, STARPU_R),
         C2_handle(&C2[0], sizeof(T)*m*n, STARPU_RW);
     starpu::gemm::restrict_where(STARPU_CUDA);
-    starpu_resume();
     std::cout << "Run starpu::gemm::submit<T> restricted to CUDA\n";
     starpu::gemm::submit<T>(transA, transB, m, n, k, alpha, A_handle, B_handle,
             beta, C2_handle);
     starpu_task_wait_for_all();
     C2_handle.unregister();
-    starpu_pause();
     // Check result
     for(Index i = 0; i < m*n; ++i)
     {

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-06
  * */
 
 #include "nntile/starpu/gelutanh.hh"
@@ -42,12 +42,10 @@ void validate_cpu(Index nelems)
     // Check by actually submitting a task
     StarpuVariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
     starpu::gelutanh::restrict_where(STARPU_CPU);
-    starpu_resume();
     std::cout << "Run starpu::gelutanh::submit<T> restricted to CPU\n";
     starpu::gelutanh::submit<T>(nelems, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
-    starpu_pause();
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
@@ -129,12 +127,10 @@ void validate_cuda(Index nelems)
     // Check by actually submitting a task
     StarpuVariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
     starpu::gelutanh::restrict_where(STARPU_CUDA);
-    starpu_resume();
     std::cout << "Run starpu::gelutanh::submit<T> restricted to CUDA\n";
     starpu::gelutanh::submit<T>(nelems, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
-    starpu_pause();
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
@@ -143,7 +139,7 @@ void validate_cuda(Index nelems)
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
-    std::cout << "OK: starpu::gelutanh<T> restricted to CUDA\n";
+    std::cout << "OK: starpu::gelutanh::submit<T> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 int main(int argc, char **argv)

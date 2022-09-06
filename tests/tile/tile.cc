@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-01
+ * @date 2022-09-06
  * */
 
 #include "nntile/tile/tile.hh"
@@ -95,7 +95,6 @@ int main(int argc, char **argv)
 {
     // Init StarPU for testing
     StarpuTest starpu;
-    starpu_resume();
     // Launch all tests
     validate_tile<fp64_t>();
     validate_tile<fp32_t>();
