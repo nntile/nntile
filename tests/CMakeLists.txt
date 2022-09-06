@@ -67,7 +67,8 @@ function(add_test_set)
             ${_args_EXEC_NAME})
     endif()
     # Link to provided libraries
-    target_link_libraries(${_args_TARGET_NAME} PRIVATE ${_args_LINK_LIBRARIES})
+    target_link_libraries(${_args_TARGET_NAME} PRIVATE
+        "${_args_LINK_LIBRARIES}")
     # Try to set environment for a test on Apple MacOS
     if(APPLE AND DEFINED ADD_RPATH)
         set_target_properties(${_args_TARGET_NAME} PROPERTIES BUILD_RPATH
