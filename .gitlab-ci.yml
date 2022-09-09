@@ -15,6 +15,7 @@ build-clang:
   image: $CI_REGISTRY_IMAGE/builder
   stage: build
   script:
+    - export MPICH_CXX=clang++
     - cmake -B build/debug -S . -G Ninja -DCMAKE_CXX_COMPILER=clang++
     - cmake --build build/debug
 
