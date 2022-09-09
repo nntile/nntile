@@ -24,6 +24,13 @@ RUN apt update && \
 
 RUN apt update && \
     apt install -y --no-install-recommends \
+        libhwloc-dev \
+        libmpich-dev \
+        fxt-tools \
+        libfxt-dev
+
+RUN apt update && \
+    apt install -y --no-install-recommends \
         starpu-tools\
         libstarpu-dev && \
     apt clean && \
