@@ -9,23 +9,34 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-29
+# @date 2022-09-09
 
 # All unit tests without arguments to test executable
 set(TESTS
     "traits"
     "distributions"
-    #"tensor"
+    )
+
+set(TESTS_MPI
+    "tensor"
+    "copy"
+    #"bias"
     #"randn"
-    #"copy"
     #"clear"
     #"gemm"
-    #"bias"
     #"gelu"
     #"relu"
     #"norm"
     #"sumnorm"
     )
+
+# Add target for local coverage
+if(BUILD_COVERAGE)
+    setup_target_for_coverage_lcov(NAME coverage_tensor
+        EXECUTABLE ctest -R tests_tensor_
+        LCOV_ARGS --no-external
+        GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
+endif()
 
 foreach(test IN LISTS TESTS)
     add_test_set(TARGET_NAME tests_tensor_${test}
@@ -34,7 +45,19 @@ foreach(test IN LISTS TESTS)
         LINK_LIBRARIES nntile
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_tensor_${test}
-        COV_GLOBAL coverage
+        COV_GLOBAL coverage_tensor coverage
+        )
+endforeach()
+
+foreach(test IN LISTS TESTS_MPI)
+    add_test_set(TARGET_NAME tests_tensor_${test}
+        EXEC_NAME test_${test}
+        SOURCES ${test}.cc
+        LINK_LIBRARIES nntile
+        MPI_NUMPROC 4
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_tensor_${test}
+        COV_GLOBAL coverage_tensor coverage
         )
 endforeach()
 

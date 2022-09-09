@@ -15,6 +15,7 @@
 #pragma once
 
 #include <starpu.h>
+#include <starpu_mpi.h>
 #include <nntile/defs.h>
 
 class StarpuTest
@@ -46,9 +47,16 @@ public:
         {
             throw std::runtime_error("starpu_init error");
         }
+        // Init MPI
+        ret = starpu_mpi_init_conf(nullptr, nullptr, 1, MPI_COMM_WORLD, &conf);
+        if(ret != 0)
+        {
+            throw std::runtime_error("Error in starpu_mpi_init_conf()");
+        }
     }
     ~StarpuTest()
     {
+        starpu_mpi_shutdown();
         starpu_shutdown();
     }
 };

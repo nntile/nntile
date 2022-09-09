@@ -9,26 +9,98 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-09-09
  * */
 
 #include "nntile/tensor/copy.hh"
-#include "nntile/tile/copy.hh"
+#include "nntile/starpu/copy.hh"
 
 namespace nntile
 {
-
-template<typename T>
-void copy_work(const Tile<T> &src,
-        const std::vector<Index> &src_offset, const Tensor<T> &dst,
-        const std::vector<Index> &dst_offset,
-        const StarpuVariableHandle &scratch)
+namespace tensor
 {
+
+//! Asynchronous tensor-wise copy operation
+/*! This operation finds an intersection of the source and the target tensors
+ * and copies only the data within the found intersection. No elements of the
+ * destination tensor outside the intersection mask are updated. Both the
+ * source and the target tensors assumed to have the same offset.
+ *
+ * @param[in] src: Source tensor
+ * @param[in] src_offset: Initial offset of the source tensor
+ * @param[inout] dst: Destination tensor
+ * @param[in] dst_offset: Initial offset of the destination tensor
+ * */
+template<typename T>
+void copy_async(const Tensor<T> &src, const std::vector<Index> &src_offset,
+        const Tensor<T> &dst, const std::vector<Index> &dst_offset)
+{
+    // Check dimensions
+    if(src.ndim != src_offset.size())
+    {
+        throw std::runtime_error("src.ndim != src_offset.size()");
+    }
+    if(src.ndim != dst.ndim)
+    {
+        throw std::runtime_error("src.ndim != dst.ndim");
+    }
+    if(dst.ndim != dst_offset.size())
+    {
+        throw std::runtime_error("dst.ndim != dst_offset.size()");
+    }
+    // Treat special case of ndim=0
+    if(src.ndim == 0)
+    {
+        starpu_data_cpy(dst.get_tile(0), src.get_tile(0), 1, nullptr, nullptr);
+        return;
+    }
+    int mpi_rank = starpu_mpi_world_rank();
+    // Treat easy case of full copy
+    if(src_offset == dst_offset and src.shape == dst.shape
+            and src.basetile_shape == dst.basetile_shape)
+    {
+        for(Index i = 0; i < src.grid.nelems; ++i)
+        {
+            auto src_tile_handle = src.get_tile_handle(i);
+            auto dst_tile_handle = dst.get_tile_handle(i);
+            int src_tile_rank = starpu_mpi_data_get_rank(src_tile_handle);
+            int dst_tile_rank = starpu_mpi_data_get_rank(dst_tile_handle);
+            int tile_tag = starpu_mpi_data_get_tag(src_tile_handle);
+            // Init send for owner of source tile
+            if(mpi_rank == src_tile_rank)
+            {
+                // If both source and destination are owned by the same node
+                if(mpi_rank == dst_tile_rank)
+                {
+                    starpu_data_cpy(dst_tile_handle, src_tile_handle, 1,
+                            nullptr, nullptr);
+                }
+                else
+                {
+                    starpu_mpi_isend_detached(src_tile_handle, dst_tile_rank,
+                            tile_tag, MPI_COMM_WORLD, nullptr, nullptr);
+                }
+            }
+            // Init receive for owner of destination tile
+            else if(mpi_rank == dst_tile_rank)
+            {
+                starpu_mpi_irecv_detached(dst_tile_handle, src_tile_rank,
+                        tile_tag, MPI_COMM_WORLD, nullptr, nullptr);
+            }
+        }
+        return;
+    }
+    // Do the slow complex copy
+    // Temporary buffer for indexing, that is allocated per-worker when needed
+    StarpuVariableHandle scratch(2 * src.ndim * sizeof(Index));
     Index ndim = src.ndim;
+    // We define starting coordinates and shapes for all complex copies of
+    // tiles
     std::vector<Index> src_start(ndim), dst_start(ndim), copy_shape(ndim);
     std::vector<Index> dst_tile_index_begin(ndim), dst_tile_index_end(ndim);
+    // Total amount of destination tiles, touched by the complex copy
     Index dst_ntiles = 1;
-    // Obtain starting indices and shape of intersection for copying
+    // Obtain starting indices and shape of intersection for a tensor-wise copy
     for(Index i = 0; i < ndim; ++i)
     {
         // Do nothing if tensors do not intersect
@@ -40,318 +112,7 @@ void copy_work(const Tile<T> &src,
         // Copy to the beginning of destination
         if(src_offset[i] < dst_offset[i])
         {
-            src_start[i] = dst_offset[i] - src_offset[i]; // positive value
-            dst_start[i] = 0;
-            copy_shape[i] = std::min(src.shape[i]-src_start[i],
-                    dst.shape[i]);
-        }
-        // Copy from the beginning of source
-        else
-        {
-            src_start[i] = 0;
-            dst_start[i] = src_offset[i] - dst_offset[i];
-            copy_shape[i] = std::min(dst.shape[i]-dst_start[i],
-                    src.shape[i]);
-        }
-        dst_tile_index_begin[i] = dst_start[i] / dst.basetile_shape[i];
-        dst_tile_index_end[i] = (dst_start[i]+copy_shape[i]-1)
-            / dst.basetile_shape[i] + 1;
-        dst_ntiles *= dst_tile_index_end[i] - dst_tile_index_begin[i];
-    }
-    // If there is only one destination tile
-    if(dst_ntiles == 1)
-    {
-        auto dst_tile = dst.get_tile(dst_tile_index_begin);
-        std::vector<Index> dst_tile_start(ndim);
-        enum starpu_data_access_mode dst_tile_mode = STARPU_W;
-        // Check if destination tile is only partially overwritten
-        for(Index k = 0; k < ndim; ++k)
-        {
-            dst_tile_start[k] = dst_start[k]
-                - dst_tile_index_begin[k]*dst.basetile_shape[k];
-            if(dst_tile_start[k] != 0 or copy_shape[k] != dst_tile.shape[k])
-            {
-                dst_tile_mode = STARPU_RW;
-            }
-        }
-        // Check if we can simply copy entire buffer
-        if(dst_tile_mode == STARPU_W and copy_shape == src.shape)
-        {
-            starpu_data_cpy(dst_tile, src, 1, nullptr, nullptr);
-        }
-        // Smart copying otherwise
-        else
-        {
-            copy_work<T>(src, src_start, dst_tile, dst_tile_start,
-                    copy_shape, scratch, dst_tile_mode);
-        }
-    }
-    // Cycle through all destination tiles
-    else
-    {
-        std::vector<Index> dst_tile_index(dst_tile_index_begin);
-        for(Index i = 0; i < dst_ntiles; ++i)
-        {
-            auto dst_tile = dst.get_tile(dst_tile_index);
-            enum starpu_data_access_mode dst_tile_mode = STARPU_W;
-            // Check if destination tile is only partially overwritten
-            for(Index j = 0; j < ndim; ++j)
-            {
-                if(dst_tile_index[j] == dst_tile_index_begin[j])
-                {
-                    if(dst_tile_index[j]*dst.basetile_shape[j] != dst_start[j])
-                    {
-                        dst_tile_mode = STARPU_RW;
-                    }
-                }
-                if(dst_tile_index[j]+1 == dst_tile_index_end[j])
-                {
-                    if(dst_tile_index[j]*dst.basetile_shape[j]+dst_tile.shape[j]
-                            != dst_start[j]+copy_shape[j])
-                    {
-                        dst_tile_mode = STARPU_RW;
-                    }
-                }
-            }
-            // Get starting indices of source and destination tiles and deduce
-            // shape of copy
-            std::vector<Index> src_tile_start(ndim), dst_tile_start(ndim),
-                copy_tile_shape(ndim);
-            for(Index k = 0; k < ndim; ++k)
-            {
-                if(dst_tile_index[k] == dst_tile_index_begin[k])
-                {
-                    src_tile_start[k] = src_start[k];
-                    dst_tile_start[k] = dst_start[k]
-                        - dst_tile_index[k]*dst.basetile_shape[k];
-                }
-                else
-                {
-                    src_tile_start[k] = src_start[k] - dst_start[k]
-                        + dst_tile_index[k]*dst.basetile_shape[k];
-                    dst_tile_start[k] = 0;
-                }
-                if(dst_tile_index[k]+1 == dst_tile_index_end[k])
-                {
-                    copy_tile_shape[k] = src_start[k] + copy_shape[k]
-                        - src_tile_start[k];
-                }
-                else
-                {
-                    copy_tile_shape[k] = dst.basetile_shape[k]
-                        - dst_tile_start[k];
-                }
-            }
-            // Smart copy
-            copy_work<T>(src, src_tile_start, dst_tile,
-                    dst_tile_start, copy_tile_shape, scratch,
-                    dst_tile_mode);
-            // Get out if it was the last tile
-            if(i == dst_ntiles-1)
-            {
-                break;
-            }
-            // Get next tile
-            ++dst_tile_index[0];
-            Index k = 0;
-            while(dst_tile_index[k] == dst_tile_index_end[k])
-            {
-                dst_tile_index[k] = dst_tile_index_begin[k];
-                ++k;
-                ++dst_tile_index[k];
-            }
-        }
-    }
-}
-
-template
-void copy_work(const Tile<fp32_t> &src,
-        const std::vector<Index> &src_offset, const Tensor<fp32_t> &dst,
-        const std::vector<Index> &dst_offset,
-        const StarpuVariableHandle &scratch);
-
-template
-void copy_work(const Tile<fp64_t> &src,
-        const std::vector<Index> &src_offset, const Tensor<fp64_t> &dst,
-        const std::vector<Index> &dst_offset,
-        const StarpuVariableHandle &scratch);
-
-template<typename T>
-void copy_work(const Tensor<T> &src,
-        const std::vector<Index> &src_offset, const Tile<T> &dst,
-        const std::vector<Index> &dst_offset,
-        const StarpuVariableHandle &scratch)
-{
-    Index ndim = src.ndim;
-    std::vector<Index> src_start(ndim), dst_start(ndim), copy_shape(ndim);
-    std::vector<Index> src_tile_index_begin(ndim), src_tile_index_end(ndim);
-    Index src_ntiles = 1;
-    enum starpu_data_access_mode dst_mode = STARPU_W;
-    // Obtain starting indices and shape of intersection for copying
-    for(Index i = 0; i < ndim; ++i)
-    {
-        // Do nothing if tensors do not intersect
-        if((src_offset[i]+src.shape[i] <= dst_offset[i])
-                or (dst_offset[i]+dst.shape[i] <= src_offset[i]))
-        {
-            return;
-        }
-        // Copy to the beginning of destination
-        if(src_offset[i] < dst_offset[i])
-        {
-            src_start[i] = dst_offset[i] - src_offset[i]; // positive value
-            dst_start[i] = 0;
-            copy_shape[i] = std::min(src.shape[i]-src_start[i],
-                    dst.shape[i]);
-        }
-        // Copy from the beginning of source
-        else
-        {
-            src_start[i] = 0;
-            dst_start[i] = src_offset[i] - dst_offset[i];
-            copy_shape[i] = std::min(dst.shape[i]-dst_start[i],
-                    src.shape[i]);
-        }
-        // Check if destination will be fully overwritten or not
-        if(dst_start[i] != 0 or copy_shape[i] != dst.shape[i])
-        {
-            dst_mode = STARPU_RW;
-        }
-        src_tile_index_begin[i] = src_start[i] / src.basetile_shape[i];
-        src_tile_index_end[i] = (src_start[i]+copy_shape[i]-1)
-            / src.basetile_shape[i] + 1;
-        src_ntiles *= src_tile_index_end[i] - src_tile_index_begin[i];
-    }
-    // If there is only one corresponding source tile
-    if(src_ntiles == 1)
-    {
-        auto src_tile = src.get_tile(src_tile_index_begin);
-        // Check if we can simply copy entire buffer
-        if(dst_mode == STARPU_W and copy_shape == src_tile.shape)
-        {
-            starpu_data_cpy(dst, src_tile, 1, nullptr, nullptr);
-        }
-        // Smart copying otherwise
-        else
-        {
-            std::vector<Index> src_tile_start(ndim);
-            for(Index k = 0; k < ndim; ++k)
-            {
-                src_tile_start[k] = src_start[k]
-                    - src_tile_index_begin[k]*src.basetile_shape[k];
-            }
-            copy_work(src_tile, src_tile_start, dst,
-                    dst_start, copy_shape, scratch, dst_mode);
-        }
-    }
-    else
-    {
-        // Process the first source tile separately
-        auto src_tile = src.get_tile(src_tile_index_begin);
-        std::vector<Index> src_tile_start(ndim), copy_tile_shape(ndim);
-        for(Index k = 0; k < ndim; ++k)
-        {
-            src_tile_start[k] = src_start[k]
-                - src_tile_index_begin[k]*src.basetile_shape[k];
-            if(src_tile_index_begin[k]+1 == src_tile_index_end[k])
-            {
-                copy_tile_shape[k] = copy_shape[k];
-            }
-            else
-            {
-                copy_tile_shape[k] = src.basetile_shape[k]
-                    - src_tile_start[k];
-            }
-        }
-        // The first update of the destination tile uses dst_mode
-        copy_work(src_tile, src_tile_start, dst, dst_start,
-                copy_tile_shape, scratch, dst_mode);
-        // Proceed with all the rest source tiles
-        std::vector<Index> src_tile_index(src_tile_index_begin);
-        // Cycle through all corresponding source tiles
-        for(Index j = 1; j < src_ntiles; ++j)
-        {
-            // Get next source tile
-            ++src_tile_index[0];
-            Index k = 0;
-            while(src_tile_index[k] == src_tile_index_end[k])
-            {
-                src_tile_index[k] = src_tile_index_begin[k];
-                ++k;
-                ++src_tile_index[k];
-            }
-            // Get starting indices source and destination tiles and deduce
-            // shape of copy
-            std::vector<Index> dst_tile_start(ndim);
-            for(Index k = 0; k < ndim; ++k)
-            {
-                if(src_tile_index[k] == src_tile_index_begin[k])
-                {
-                    src_tile_start[k] = src_start[k]
-                        - src_tile_index[k]*src.basetile_shape[k];
-                    dst_tile_start[k] = dst_start[k];
-                }
-                else
-                {
-                    src_tile_start[k] = 0;
-                    dst_tile_start[k] = dst_start[k] - src_start[k]
-                        + src_tile_index[k]*src.basetile_shape[k];
-                }
-                if(src_tile_index[k]+1 == src_tile_index_end[k])
-                {
-                    copy_tile_shape[k] = src_start[k] + copy_shape[k]
-                        - src_tile_index[k]*src.basetile_shape[k]
-                        - src_tile_start[k];
-                }
-                else
-                {
-                    copy_tile_shape[k] = src.basetile_shape[k]
-                        - src_tile_start[k];
-                }
-            }
-            // Call copy instruction for the tiles
-            auto src_tile = src.get_tile(src_tile_index);
-            copy_work(src_tile, src_tile_start, dst,
-                    dst_tile_start, copy_tile_shape, scratch, STARPU_RW);
-        }
-    }
-}
-
-template
-void copy_work(const Tensor<fp32_t> &src,
-        const std::vector<Index> &src_offset, const Tile<fp32_t> &dst,
-        const std::vector<Index> &dst_offset,
-        const StarpuVariableHandle &scratch);
-
-template
-void copy_work(const Tensor<fp64_t> &src,
-        const std::vector<Index> &src_offset, const Tile<fp64_t> &dst,
-        const std::vector<Index> &dst_offset,
-        const StarpuVariableHandle &scratch);
-
-template<typename T>
-void copy_work(const Tensor<T> &src,
-        const std::vector<Index> &src_offset, const Tensor<T> &dst,
-        const std::vector<Index> &dst_offset,
-        const StarpuVariableHandle &scratch)
-{
-    Index ndim = src.ndim;
-    std::vector<Index> src_start(ndim), dst_start(ndim), copy_shape(ndim);
-    std::vector<Index> dst_tile_index_begin(ndim), dst_tile_index_end(ndim);
-    Index dst_ntiles = 1;
-    // Obtain starting indices and shape of intersection for copying
-    for(Index i = 0; i < ndim; ++i)
-    {
-        // Do nothing if tensors do not intersect
-        if((src_offset[i]+src.shape[i] <= dst_offset[i])
-                or (dst_offset[i]+dst.shape[i] <= src_offset[i]))
-        {
-            return;
-        }
-        // Copy to the beginning of destination
-        if(src_offset[i] < dst_offset[i])
-        {
-            src_start[i] = dst_offset[i] - src_offset[i]; // positive value
+            src_start[i] = dst_offset[i] - src_offset[i];
             dst_start[i] = 0;
             copy_shape[i] = std::min(src.shape[i]-src_start[i],
                     dst.shape[i]);
@@ -373,14 +134,25 @@ void copy_work(const Tensor<T> &src,
     std::vector<Index> dst_tile_index(dst_tile_index_begin);
     for(Index i = 0; i < dst_ntiles; ++i)
     {
-        auto dst_tile = dst.get_tile(dst_tile_index);
+        Index dst_tile_offset = dst.grid.index_to_linear(dst_tile_index);
+        auto dst_tile_traits = dst.get_tile_traits(dst_tile_offset);
+        auto dst_tile_handle = dst.get_tile_handle(dst_tile_offset);
+        int dst_tile_rank = starpu_mpi_data_get_rank(dst_tile_handle);
+        // Total number of source tiles that copy something to the destination
+        // tile
         Index src_ntiles = 1;
+        // Mode for the output destination tile. It is STARPU_W if entire
+        // destination tile is overwritten and STARPU_RW otherwise.
         enum starpu_data_access_mode dst_tile_mode = STARPU_W;
+        // Contiguous indices of source tile to copy from into the current
+        // destination tile
         std::vector<Index> src_tile_index_begin(ndim),
             src_tile_index_end(ndim);
         // Find corresponding source tiles
         for(Index j = 0; j < ndim; ++j)
         {
+            // Check if the current destination tile is the mostleft (minimal
+            // coordinate) in the current dimension
             if(dst_tile_index[j] == dst_tile_index_begin[j])
             {
                 src_tile_index_begin[j] = src_start[j] / src.basetile_shape[j];
@@ -396,13 +168,16 @@ void copy_work(const Tensor<T> &src,
                     (dst_tile_index[j]*dst.basetile_shape[j]
                      -dst_start[j]+src_start[j]) / src.basetile_shape[j];
             }
+            // Check if the current destination tile is the mostright (maximal
+            // coordinate) in the current dimension
             if(dst_tile_index[j]+1 == dst_tile_index_end[j])
             {
                 src_tile_index_end[j] = (src_start[j]+copy_shape[j]-1)
                     /src.basetile_shape[j] + 1;
                 // Check if destination tile is only partially overwritten
-                if(dst_tile_index[j]*dst.basetile_shape[j]+dst_tile.shape[j]
-                            != dst_start[j]+copy_shape[j])
+                if(dst_tile_index[j]*dst.basetile_shape[j]
+                        +dst_tile_traits.shape[j]
+                        != dst_start[j]+copy_shape[j])
                 {
                     dst_tile_mode = STARPU_RW;
                 }
@@ -415,12 +190,13 @@ void copy_work(const Tensor<T> &src,
             }
             src_ntiles *= src_tile_index_end[j] - src_tile_index_begin[j];
         }
-        // Process the first source tile separately
-        auto src_tile = src.get_tile(src_tile_index_begin);
+        // Process the first source tile separately to take into account mode
         std::vector<Index> src_tile_start(ndim), dst_tile_start(ndim),
             copy_tile_shape(ndim);
         for(Index k = 0; k < ndim; ++k)
         {
+            // Check if the current destination tile is the mostleft (minimal
+            // coordinate) in the current dimension
             if(dst_tile_index[k] == dst_tile_index_begin[k])
             {
                 src_tile_start[k] = src_start[k]
@@ -435,8 +211,12 @@ void copy_work(const Tensor<T> &src,
                     - src_tile_index_begin[k]*src.basetile_shape[k];
                 dst_tile_start[k] = 0;
             }
+            // Check if corresponding source tiles have fixed coordinate in the
+            // current dimension
             if(src_tile_index_begin[k]+1 == src_tile_index_end[k])
             {
+                // Check if destination tile is the mostright (maximal
+                // coordinate) in the current dimension
                 if(dst_tile_index[k]+1 == dst_tile_index_end[k])
                 {
                     copy_tile_shape[k] = src_start[k] + copy_shape[k]
@@ -455,28 +235,75 @@ void copy_work(const Tensor<T> &src,
                     - src_tile_start[k];
             }
         }
-        // If there is only one corresponding source tile
-        if(src_ntiles == 1)
+        // All the properties of the first source tile to copy from
+        Index src_first_tile_offset = src.grid.index_to_linear( 
+                src_tile_index_begin);
+        auto src_first_tile_traits = src.get_tile_traits(
+                src_first_tile_offset);
+        auto src_first_tile_handle = src.get_tile_handle(
+                src_first_tile_offset);
+        int src_first_tile_rank = starpu_mpi_data_get_rank(
+                src_first_tile_handle);
+        int first_tile_tag = starpu_mpi_data_get_tag(src_first_tile_handle);
+        // If there is only one corresponding source tile, that can be copied
+        // without calling complex copy codelet
+        if(src_ntiles == 1 and dst_tile_mode == STARPU_W
+                and copy_tile_shape == src_first_tile_traits.shape)
         {
-            // Check if we can simply copy entire buffer
-            if(dst_tile_mode == STARPU_W and copy_tile_shape == src_tile.shape)
+            // Init send for owner of source tile
+            if(mpi_rank == src_first_tile_rank)
             {
-                starpu_data_cpy(dst_tile, src_tile, 1, nullptr, nullptr);
+                // If both source and destination are owned by the same node
+                if(mpi_rank == dst_tile_rank)
+                {
+                    starpu_data_cpy(dst_tile_handle, src_first_tile_handle, 1,
+                            nullptr, nullptr);
+                }
+                else
+                {
+                    starpu_mpi_isend_detached(src_first_tile_handle,
+                            dst_tile_rank, first_tile_tag, MPI_COMM_WORLD,
+                            nullptr, nullptr);
+                }
             }
-            // Smart copying otherwise
-            else
+            // Init receive for owner of destination tile
+            else if(mpi_rank == dst_tile_rank)
             {
-                copy_work(src_tile, src_tile_start, dst_tile,
-                        dst_tile_start, copy_tile_shape, scratch,
-                        dst_tile_mode);
+                starpu_mpi_irecv_detached(dst_tile_handle, src_first_tile_rank,
+                        first_tile_tag, MPI_COMM_WORLD, nullptr, nullptr);
             }
         }
+        // So now we have to use only complex copying
         else
         {
             // The first update of the destination tile uses dst_tile_mode
-            copy_work(src_tile, src_tile_start, dst_tile,
-                    dst_tile_start, copy_tile_shape, scratch,
-                    dst_tile_mode);
+            // Init send for owner of source tile
+            if(mpi_rank == src_first_tile_rank)
+            {
+                // Perform copy only if destination node is different
+                if(mpi_rank != dst_tile_rank)
+                {
+                    starpu_mpi_isend_detached(src_first_tile_handle,
+                            dst_tile_rank, first_tile_tag, MPI_COMM_WORLD,
+                            nullptr, nullptr);
+                }
+            }
+            // Init receive of source tile for owner of destination tile
+            if(mpi_rank == dst_tile_rank)
+            {
+                // Perform copy only if source node is different
+                if(mpi_rank != src_first_tile_rank)
+                {
+                    starpu_mpi_irecv_detached(src_first_tile_handle,
+                            src_first_tile_rank, first_tile_tag,
+                            MPI_COMM_WORLD, nullptr, nullptr);
+                }
+                starpu::copy::submit<T>(ndim, src_tile_start,
+                        src_first_tile_traits.stride, dst_tile_start,
+                        dst_tile_traits.stride, copy_tile_shape,
+                        src_first_tile_handle, dst_tile_handle,
+                        scratch, dst_tile_mode);
+            }
             // Proceed with all the rest source tiles
             std::vector<Index> src_tile_index(src_tile_index_begin);
             // Cycle through all corresponding source tiles
@@ -495,8 +322,13 @@ void copy_work(const Tensor<T> &src,
                 // deduce shape of copy
                 for(Index k = 0; k < ndim; ++k)
                 {
+                    // Check if the current source tile is the mostleft
+                    // (minimal coordinate) in the current dimension
                     if(src_tile_index[k] == src_tile_index_begin[k])
                     {
+                        // Check if the current destination tile is the
+                        // mostleft (minimal coordinate) in the current
+                        // dimension
                         if(dst_tile_index[k] == dst_tile_index_begin[k])
                         {
                             src_tile_start[k] = src_start[k]
@@ -519,8 +351,13 @@ void copy_work(const Tensor<T> &src,
                             + src_tile_index[k]*src.basetile_shape[k]
                             - dst_tile_index[k]*dst.basetile_shape[k];
                     }
+                    // Check if the current source tile is the mostright
+                    // (maximal coordinate) in the current dimension
                     if(src_tile_index[k]+1 == src_tile_index_end[k])
                     {
+                        // Check if the current destination tile is the
+                        // mostright (maximal coordinate) in the current
+                        // dimension
                         if(dst_tile_index[k]+1 == dst_tile_index_end[k])
                         {
                             copy_tile_shape[k] = src_start[k] + copy_shape[k]
@@ -539,10 +376,43 @@ void copy_work(const Tensor<T> &src,
                             - src_tile_start[k];
                     }
                 }
-                // Call copy instruction for the tiles
-                auto src_tile = src.get_tile(src_tile_index);
-                copy_work(src_tile, src_tile_start, dst_tile,
-                        dst_tile_start, copy_tile_shape, scratch, STARPU_RW);
+                // Get all the parameters for the complex copy
+                Index src_tile_offset = src.grid.index_to_linear(
+                        src_tile_index);
+                auto src_tile_traits = src.get_tile_traits(
+                        src_tile_offset);
+                auto src_tile_handle = src.get_tile_handle(
+                        src_tile_offset);
+                int src_tile_rank = starpu_mpi_data_get_rank(
+                        src_tile_handle);
+                int tile_tag = starpu_mpi_data_get_tag(src_tile_handle);
+                // Init send for owner of source tile
+                if(mpi_rank == src_tile_rank)
+                {
+                    // Perform copy only if destination node is different
+                    if(mpi_rank != dst_tile_rank)
+                    {
+                        starpu_mpi_isend_detached(src_tile_handle,
+                                dst_tile_rank, tile_tag, MPI_COMM_WORLD,
+                                nullptr, nullptr);
+                    }
+                }
+                // Init receive of source tile for owner of destination tile
+                if(mpi_rank == dst_tile_rank)
+                {
+                    // Perform copy only if source node is different
+                    if(mpi_rank != src_tile_rank)
+                    {
+                        starpu_mpi_irecv_detached(src_tile_handle,
+                                src_tile_rank, tile_tag, MPI_COMM_WORLD,
+                                nullptr, nullptr);
+                    }
+                    starpu::copy::submit<T>(ndim, src_tile_start,
+                            src_tile_traits.stride, dst_tile_start,
+                            dst_tile_traits.stride, copy_tile_shape,
+                            src_tile_handle, dst_tile_handle,
+                            scratch, STARPU_RW);
+                }
             }
         }
         // Get out if it was the last tile
@@ -562,17 +432,74 @@ void copy_work(const Tensor<T> &src,
     }
 }
 
+//! Asynchronous tensor-wise copy operation
+/*! This operation finds an intersection of the source and the target tensors
+ * and copies only the data within the found intersection. No elements of the
+ * destination tensor outside the intersection mask are updated. Both the
+ * source and the target tensors assumed to have the same offset.
+ *
+ * @param[in] src: Source tensor
+ * @param[inout] dst: Destination tensor
+ * */
+template<typename T>
+void copy_async(const Tensor<T> &src, const Tensor<T> &dst)
+{
+    copy_async<T>(src, std::vector<Index>(src.ndim), dst,
+            std::vector<Index>(dst.ndim));
+}
+
+//! Blocking version of tensor-wise copy operation
+/*! This operation finds an intersection of the source and the target tensors
+ * and copies only the data within the found intersection. No elements of the
+ * destination tensor outside the intersection mask are updated.
+ *
+ * @param[in] src: Source tensor
+ * @param[in] src_offset: Initial offset of the source tensor
+ * @param[inout] dst: Destination tensor
+ * @param[in] dst_offset: Initial offset of the destination tensor
+ * */
+template<typename T>
+void copy(const Tensor<T> &src, const std::vector<Index> &src_offset,
+        const Tensor<T> &dst, const std::vector<Index> &dst_offset)
+{
+    copy_async<T>(src, src_offset, dst, dst_offset);
+    starpu_mpi_wait_for_all(MPI_COMM_WORLD);
+}
+
+// Explicit instantiation
 template
-void copy_work(const Tensor<fp32_t> &src,
+void copy<fp32_t>(const Tensor<fp32_t> &src,
         const std::vector<Index> &src_offset, const Tensor<fp32_t> &dst,
-        const std::vector<Index> &dst_offset,
-        const StarpuVariableHandle &scratch);
+        const std::vector<Index> &dst_offset);
 
 template
-void copy_work(const Tensor<fp64_t> &src,
+void copy<fp64_t>(const Tensor<fp64_t> &src,
         const std::vector<Index> &src_offset, const Tensor<fp64_t> &dst,
-        const std::vector<Index> &dst_offset,
-        const StarpuVariableHandle &scratch);
+        const std::vector<Index> &dst_offset);
 
+//! Blocking version of tensor-wise copy operation
+/*! This operation finds an intersection of the source and the target tensors
+ * and copies only the data within the found intersection. No elements of the
+ * destination tensor outside the intersection mask are updated. Both the
+ * source and the target tensors assumed to have the same offset.
+ *
+ * @param[in] src: Source tensor
+ * @param[inout] dst: Destination tensor
+ * */
+template<typename T>
+void copy(const Tensor<T> &src, const Tensor<T> &dst)
+{
+    copy_async<T>(src, dst);
+    starpu_mpi_wait_for_all(MPI_COMM_WORLD);
+}
+
+// Explicit instantiation
+template
+void copy<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
+
+template
+void copy<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
+
+} // namespace tensor
 } // namespace nntile
 

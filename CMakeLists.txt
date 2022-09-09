@@ -26,7 +26,7 @@ message(STATUS "Using CMake ${CMAKE_VERSION}")
 # BLAS::BLAS target is added in version 3.18
 
 # Define the project
-project(NNTile VERSION 0.0.1 LANGUAGES CXX)
+project(NNTile VERSION 1.0.0 LANGUAGES CXX)
 
 # Show a path to additional auxiliary CMake scripts
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake_modules")
@@ -81,6 +81,10 @@ if(USE_CBLAS)
             "Name of header file containing cblas routines")
     endif()
 endif()
+
+# Get MPI
+find_package(MPI REQUIRED)
+target_link_libraries(nntile PUBLIC MPI::MPI_CXX)
 
 # Get the pkg-config
 find_package(PkgConfig REQUIRED)

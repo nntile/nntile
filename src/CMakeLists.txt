@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-31
+# @date 2022-09-08
 
 # Set list of sources
 set(KERNEL_SRC
@@ -63,13 +63,13 @@ set(TILE_SRC
     )
 
 set(TENSOR_SRC
-    #"tensor/traits.cc"
-    #"tensor/distributions.cc"
-    #"tensor/randn.cc"
+    "tensor/traits.cc"
+    "tensor/distributions.cc"
+    "tensor/copy.cc"
     #"tensor/clear.cc"
-    #"tensor/copy.cc"
-    #"tensor/gemm.cc"
     #"tensor/bias.cc"
+    #"tensor/randn.cc"
+    #"tensor/gemm.cc"
     #"tensor/gelu.cc"
     #"tensor/relu.cc"
     #"tensor/sumnorm.cc"

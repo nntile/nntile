@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-08
+ * @date 2022-09-07
  * */
 
 #include "nntile/tensor/bias.hh"
@@ -17,18 +17,61 @@
 
 namespace nntile
 {
-
-// Bias operation over single axis
-template<typename T>
-void bias_work(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
+namespace tensor
 {
+
+//! Tensor-wise bias operation
+template<typename T>
+void bias_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
+{
+    // Check dimensions
+    if(dst.ndim != src.ndim+1)
+    {
+        throw std::runtime_error("dst.ndim != src.ndim+1");
+    }
+    // Check axis
+    if(axis < 0)
+    {
+        throw std::runtime_error("axis < 0");
+    }
+    if(axis >= dst.ndim)
+    {
+        throw std::runtime_error("axis >= dst.ndim");
+    }
+    // Check shapes of tensors
+    for(Index i = 0; i < axis; ++i)
+    {
+        if(dst.shape[i] != src.shape[i])
+        {
+            throw std::runtime_error("dst.shape[i] != src.shape[i]");
+        }
+        if(dst.basetile_shape[i] != src.basetile_shape[i])
+        {
+            throw std::runtime_error("dst.basetile_shape[i] != "
+                    "src.basetile_shape[i]");
+        }
+    }
+    for(Index i = axis+1; i < dst.ndim; ++i)
+    {
+        if(dst.shape[i] != src.shape[i-1])
+        {
+            throw std::runtime_error("dst.shape[i] != src.shape[i-1]");
+        }
+        if(dst.basetile_shape[i] != src.basetile_shape[i-1])
+        {
+            throw std::runtime_error("dst.basetile_shape[i] != "
+                    "src.basetile_shape[i-1]");
+        }
+    }
     // Apply per-tile bias asynchronously as needed
     for(Index i = 0; i < src.grid.nelems; ++i)
     {
         // Index of current source tile
         auto src_tile_index = src.grid.linear_to_index(i);
-        // Source tile itself
-        auto src_tile = src.get_tile(i);
+        // Source tile traits
+        auto src_tile_traits = src.get_tile_traits(i);
+        // Source tile handle
+        auto src_tile_handle = src.get_tile_handle(i);
         // Set fixed indices of current destination tile
         std::vector<Index> dst_tile_index(dst.ndim);
         for(Index j = 0; j < axis; ++j)
@@ -46,43 +89,51 @@ void bias_work(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
             dst_tile_index[axis] = j;
             // Get linear offset from index
             Index dst_tile_offset = dst.grid.index_to_linear(dst_tile_index);
-            // Get destination tile
-            auto dst_tile = dst.get_tile(dst_tile_offset);
+            // Get destination tile traits
+            auto dst_tile_traits = dst.get_tile_traits(dst_tile_offset);
+            // Get destination tile handle
+            auto dst_tile_handle = dst.get_tile_handle(dst_tile_offset);
             // Reshape inputs: src_tile -> (m,n), dst_tile -> (m,k,n)
             Index m, n, k;
             if(axis == 0)
             {
                 m = 1;
-                n = src_tile.nelems;
-                k = dst_tile.shape[0];
+                n = src_tile_traits.nelems;
+                k = dst_tile_traits.shape[0];
             }
             else if(axis == dst.ndim-1)
             {
-                m = src_tile.nelems;
+                m = src_tile_traits.nelems;
                 n = 1;
-                k = dst_tile.shape[axis];
+                k = dst_tile_traits.shape[axis];
             }
             else
             {
-                m = dst_tile.stride[axis];
-                n = dst_tile.matrix_shape[axis+1][1];
-                k = dst_tile.shape[axis];
+                m = dst_tile_traits.stride[axis];
+                n = dst_tile_traits.matrix_shape[axis+1][1];
+                k = dst_tile_traits.shape[axis];
             }
             // Insert corresponding task
-            nntile::starpu::bias<T>(m, n, k, src_tile, dst_tile);
+            starpu::bias::submit<T>(m, n, k, src_tile_handle, dst_tile_handle);
         }
     }
 }
 
-// Explicit instantiation of template
-template
-void bias_work(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst,
-        Index axis);
+//! Tensor-wise bias operation
+template<typename T>
+void bias(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
+{
+    bias_async<T>(src, dst, axis);
+    starpu_task_wait_for_all();
+}
 
 // Explicit instantiation of template
 template
-void bias_work(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst,
-        Index axis);
+void bias(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst, Index axis);
 
+template
+void bias(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst, Index axis);
+
+} // namespace tensor
 } // namespace nntile
 

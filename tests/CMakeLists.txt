@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-09-01
+# @date 2022-09-09
 
 # Extend set of ctest-controlled tests and enable code coverage if required.
 # All of the tests shall be launched by the same executable but with different
@@ -48,7 +48,7 @@ function(add_test_set)
     # List of non-value arguments
     set(options)
     # List of single-value arguments
-    set(one_value_args TARGET_NAME EXEC_NAME COV_ENABLE COV_NAME)
+    set(one_value_args TARGET_NAME EXEC_NAME MPI_NUMPROC COV_ENABLE COV_NAME)
     # List of multi-value arguments
     set(multi_value_args SOURCES LINK_LIBRARIES ARGS COV_GLOBAL)
     # Parse arguments
@@ -89,17 +89,23 @@ function(add_test_set)
     endif()
     # Add test suite to the CTest
     list(LENGTH _args_ARGS ntests)
+    if(DEFINED _args_MPI_NUMPROC)
+        set(exec_cmd ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG}
+            ${_args_MPI_NUMPROC} $<TARGET_FILE:${_args_TARGET_NAME}>)
+    else()
+        set(exec_cmd $<TARGET_FILE:${_args_TARGET_NAME}>)
+    endif()
     if(ntests EQUAL 0)
         # Test without arguments
         message(STATUS "Adding 1 test ${_args_TARGET_NAME}")
-        add_test(NAME ${_args_TARGET_NAME} COMMAND ${_args_EXEC_NAME})
+        add_test(NAME ${_args_TARGET_NAME} COMMAND ${exec_cmd})
     elseif(ntests EQUAL 1)
         # Test with a single set of arguments
         message(STATUS "Adding 1 test ${_args_TARGET_NAME}")
         # Convert string of arguments to a list
         string(REPLACE " " ";" _args_ARGS "${_args_ARGS}")
         # Test with properly parsed arguments
-        add_test(NAME ${_args_TARGET_NAME} COMMAND ${_args_EXEC_NAME}
+        add_test(NAME ${_args_TARGET_NAME} COMMAND ${exec_cmd}
             ${_args_ARGS})
     else()
         # Multiple sets of arguments
@@ -110,7 +116,7 @@ function(add_test_set)
             # Convert string of arguments to a list
             string(REPLACE " " ";" current_ARGS "${current_ARGS}")
             # Test with properly parsed arguments
-            add_test(NAME ${_args_TARGET_NAME}_${i} COMMAND ${_args_EXEC_NAME}
+            add_test(NAME ${_args_TARGET_NAME}_${i} COMMAND ${exec_cmd}
                 ${current_ARGS})
         endforeach()
     endif()
@@ -138,6 +144,6 @@ add_test_set(TARGET_NAME tests_constants
 add_subdirectory("kernel")
 add_subdirectory("starpu")
 add_subdirectory("tile")
-#add_subdirectory("tensor")
+add_subdirectory("tensor")
 #add_subdirectory("layer")
 

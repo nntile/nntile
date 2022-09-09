@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/tensor/distributions.cc
- * Distributions for tesnors
+ * Distributions for tensors
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-29
+ * @date 2022-09-06
  * */
 
 #include "nntile/tensor/distributions.hh"
@@ -43,6 +43,9 @@ void validate()
             7, 7});
     TEST_ASSERT(distr3 == block_cyclic(tensor_grid3, mpi_grid3, start_rank3,
                 max_rank3));
+    TEST_THROW(block_cyclic(tensor_grid3, mpi_grid2, start_rank, max_rank3));
+    TEST_THROW(block_cyclic(tensor_grid2, mpi_grid2, -1, 1));
+    TEST_THROW(block_cyclic(tensor_grid2, mpi_grid2, 1, 1));
 }
 
 int main(int argc, char ** argv)

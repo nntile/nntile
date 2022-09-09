@@ -72,9 +72,9 @@ set(TILE_HDR
     )
 
 set(TENSOR_HDR
-    #"nntile/tensor.hh"
-    #"nntile/tensor/traits.hh"
-    #"nntile/tensor/distributions.hh"
+    "nntile/tensor.hh"
+    "nntile/tensor/traits.hh"
+    "nntile/tensor/distributions.hh"
     #"nntile/tensor/tensor.hh"
     #"nntile/tensor/randn.hh"
     #"nntile/tensor/copy.hh"

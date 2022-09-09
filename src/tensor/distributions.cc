@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-29
+ * @date 2022-09-06
  * */
 
 #include "nntile/tensor/distributions.hh"
@@ -31,6 +31,11 @@ std::vector<int> block_cyclic(const std::vector<Index> &tensor_grid,
         throw std::runtime_error("Wrong number of dimensions");
     }
     const Index ndim = mpi_grid.size();
+    // Check starting and maximum ranks
+    if(start_rank < 0 or start_rank >= max_rank)
+    {
+        throw std::runtime_error("Invalid starting rank");
+    }
     // Define TileTraits object to use its linear_to_index method
     const tile::TileTraits traits(tensor_grid);
     // Define nodes/ranks for all tiles in a block-cyclic manner

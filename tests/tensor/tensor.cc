@@ -9,20 +9,21 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-29
+ * @date 2022-09-06
  * */
 
 #include "nntile/tensor/tensor.hh"
 #include "../testing.hh"
+#include "../starpu/common.hh"
 
 using namespace nntile;
 using namespace nntile::tensor;
 
 template<typename T>
-void check_tensor(const Tensor<T> &A)
+void check(const Tensor<T> &A)
 {
-    TESTN(A.get_tile(-1));
-    TESTN(A.get_tile(A.grid.nelems));
+    TEST_THROW(A.get_tile(-1));
+    TEST_THROW(A.get_tile(A.grid.nelems));
     auto index = A.grid.shape;
     for(Index i = 0; i < A.ndim; ++i)
     {
@@ -31,43 +32,70 @@ void check_tensor(const Tensor<T> &A)
     if(A.ndim > 0)
     {
         ++index[0];
-        TESTN(A.get_tile(index));
+        TEST_THROW(A.get_tile(index));
         for(Index i = 1; i < A.ndim; ++i)
         {
-            TESTN(A.get_tile(index));
+            --index[i-1];
+            ++index[i];
+            TEST_THROW(A.get_tile(index));
         }
-        TESTN(A.get_tile(std::vector<Index>(A.ndim-1)));
+        TEST_THROW(A.get_tile(std::vector<Index>(A.ndim-1)));
     }
-    TESTN(A.get_tile(std::vector<Index>(A.ndim+1)));
+    TEST_THROW(A.get_tile(std::vector<Index>(A.ndim+1)));
     for(Index i = 0; i < A.grid.nelems; ++i)
     {
         const auto tile_index = A.grid.linear_to_index(i);
-        TESTA(A.get_tile_shape(tile_index) == A.get_tile(tile_index).shape);
-        TESTA(&A.get_tile_traits(tile_index) == &A.get_tile_traits(i));
-        TESTA(&A.get_tile(tile_index) == &A.get_tile(i));
+        TEST_ASSERT(A.get_tile_shape(tile_index)
+                == A.get_tile(tile_index).shape);
     }
 }
 
 template<typename T>
-void validate_tensor()
+void validate()
 {
-    std::vector<Index> empty;
-    Tensor<T> scalar(empty, empty);
-    check_tensor<T>(scalar);
-    Tensor<T> vector({10}, {3});
-    check_tensor<T>(vector);
-    Tensor<T> matrix({3, 5}, {3, 5});
-    check_tensor<T>(matrix);
-    Tensor<T> t5d({11, 13, 15, 17, 19}, {100, 100, 100, 100, 100});
-    check_tensor<T>(t5d);
-    Tensor<T> t5d2({40, 40, 40, 40, 40}, {11, 13, 15, 17, 19});
-    check_tensor<T>(t5d2);
+    starpu_mpi_tag_t last_tag = 0;
+    TensorTraits scalar_traits({}, {});
+    std::vector<int> scalar_distr = {1};
+    Tensor<T> scalar(scalar_traits, scalar_distr, last_tag);
+    TEST_ASSERT(starpu_mpi_data_get_rank(scalar.get_tile(0)) == 1);
+    check<T>(scalar);
+    TensorTraits vector_traits({10}, {3});
+    std::vector<int> vector_distr = {1, 3, 7, 2};
+    Tensor<T> vector(vector_traits, vector_distr, last_tag);
+    for(Index i = 0; i < vector_distr.size(); ++i)
+    {
+        TEST_ASSERT(starpu_mpi_data_get_rank(vector.get_tile(i)) ==
+                vector_distr[i]);
+    }
+    check<T>(vector);
+    TensorTraits matrix_traits({3, 5}, {3, 5});
+    std::vector<int> matrix_distr = {3};
+    Tensor<T> matrix(matrix_traits, matrix_distr, last_tag);
+    TEST_ASSERT(starpu_mpi_data_get_rank(matrix.get_tile(0)) == 3);
+    check<T>(matrix);
+    TensorTraits t5d_traits({11, 13, 15, 17, 19}, {100, 100, 100, 100, 100});
+    std::vector<int> t5d_distr = {4};
+    Tensor<T> t5d(t5d_traits, t5d_distr, last_tag);
+    check<T>(t5d);
+    TensorTraits t5d2_traits({40, 40, 40, 40, 40}, {11, 13, 15, 17, 19});
+    std::vector<int> t5d2_distr(4*4*3*3*3);
+    for(Index i = 0; i < t5d2_distr.size(); ++i)
+    {
+        t5d2_distr[i] = i+3;
+    }
+    Tensor<T> t5d2(t5d2_traits, t5d2_distr, last_tag);
+    for(Index i = 0; i < t5d2_distr.size(); ++i)
+    {
+        TEST_ASSERT(starpu_mpi_data_get_rank(t5d2.get_tile(i)) == i+3);
+    }
+    check<T>(t5d2);
 }
 
 int main(int argc, char ** argv)
 {
-    Starpu starpu;
-    validate_tensor<float>();
+    StarpuTest starpu;
+    validate<fp32_t>();
+    validate<fp64_t>();
     return 0;
 }
 
