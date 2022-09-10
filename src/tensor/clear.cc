@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-05
+ * @date 2022-09-10
  * */
 
 #include "nntile/tensor/clear.hh"
@@ -17,22 +17,32 @@
 
 namespace nntile
 {
+namespace tensor
+{
 
 template<typename T>
-void clear_work(const Tensor<T> &src)
+void clear_async(const Tensor<T> &dst)
 {
-    for(Index i = 0; i < src.grid.nelems; ++i)
+    for(Index i = 0; i < dst.grid.nelems; ++i)
     {
-        nntile::starpu::clear(src.get_tile(i));
+        starpu::clear::submit(dst.get_tile_handle(i));
     }
+}
+
+template<typename T>
+void clear(const Tensor<T> &dst)
+{
+    clear_async<T>(dst);
+    starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void clear_work<fp32_t>(const Tensor<fp32_t> &src);
+void clear<fp32_t>(const Tensor<fp32_t> &dst);
 
 template
-void clear_work<fp64_t>(const Tensor<fp64_t> &src);
+void clear<fp64_t>(const Tensor<fp64_t> &dst);
 
+} // namespace tensor
 } // namespace nntile
 

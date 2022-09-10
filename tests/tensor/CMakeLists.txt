@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-09-09
+# @date 2022-09-10
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -20,9 +20,9 @@ set(TESTS
 set(TESTS_MPI
     "tensor"
     "copy"
+    "clear"
     #"bias"
     #"randn"
-    #"clear"
     #"gemm"
     #"gelu"
     #"relu"

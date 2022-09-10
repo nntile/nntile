@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-09-10
  * */
 
 #pragma once
@@ -18,22 +18,15 @@
 
 namespace nntile
 {
-
-template<typename T>
-void clear_work(const Tensor<T> &src);
-
-template<typename T>
-void clear_async(const Tensor<T> &src)
+namespace tensor
 {
-    clear_work<T>(src);
-}
 
 template<typename T>
-void clear(const Tensor<T> &src)
-{
-    clear_async<T>(src);
-    starpu_task_wait_for_all();
-}
+void clear_async(const Tensor<T> &dst);
 
+template<typename T>
+void clear(const Tensor<T> &dst);
+
+} // namespace tensor
 } // namespace nntile
 

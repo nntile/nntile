@@ -1,49 +1,97 @@
+/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+ *                           (Skoltech). All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file tests/tensor/clear.cc
+ * Clear operation for Tensor<T>
+ *
+ * @version 1.0.0
+ * @author Aleksandr Mikhalev
+ * @date 2022-09-10
+ * */
+
 #include "nntile/tensor/clear.hh"
+#include "nntile/starpu/clear.hh"
+#include "nntile/tensor/copy.hh"
 #include "../testing.hh"
+#include "../starpu/common.hh"
 
 using namespace nntile;
-
-Starpu starpu;
+using namespace nntile::tensor;
 
 template<typename T>
-void validate_clear()
+void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
 {
-    Starpu::pause();
-    Tensor<T> A({4, 5, 6, 7}, {1, 2, 3, 4});
-    for(Index i = 0; i < A.grid.nelems; ++i)
+    // Some preparation
+    starpu_mpi_tag_t last_tag = 1;
+    int mpi_size = starpu_mpi_world_size();
+    int mpi_rank = starpu_mpi_world_rank();
+    // Traits
+    TensorTraits src_traits(shape, basetile), dst_traits(shape, shape);
+    // Distribution
+    Index src_ntiles = src_traits.grid.nelems;
+    std::vector<int> src_distr(src_ntiles), dst_distr(1);
+    for(Index i = 0; i < src_ntiles; ++i)
     {
-        auto tile = A.get_tile(i);
-        auto tile_local = tile.acquire(STARPU_W);
-        for(Index j = 0; j < tile.nelems; ++j)
-        {
-            tile_local[j] = T(i+j+1);
-        }
-        tile_local.release();
+        src_distr[i] = (i+1) % mpi_size;
     }
-    Starpu::resume();
-    clear(A);
-    Starpu::pause();
-    constexpr T zero = 0;
-    for(Index i = 0; i < A.grid.nelems; ++i)
+    // Init source tensor
+    Tensor<T> src(src_traits, src_distr, last_tag);
+    for(Index i = 0; i < src_ntiles; ++i)
     {
-        auto tile = A.get_tile(i);
-        auto tile_local = tile.acquire(STARPU_R);
-        for(Index j = 0; j < tile.nelems; ++j)
+        if(src_distr[i] == mpi_rank)
         {
-            if(tile_local[j] != zero)
+            auto tile_handle = src.get_tile_handle(i);
+            auto tile_local = tile_handle.acquire(STARPU_W);
+            T *tile_local_ptr = reinterpret_cast<T *>(tile_local.get_ptr());
+            auto tile_traits = src.get_tile_traits(i);
+            for(Index j = 0; j < tile_traits.nelems; ++j)
             {
-                throw std::runtime_error("Data is not zero");
+                tile_local_ptr[j] = T{-1};
             }
+            tile_local.release();
+        }
+    }
+    // Define destination tensor
+    Tensor<T> dst(dst_traits, dst_distr, last_tag);
+    // Clear source and copy into destination
+    clear<T>(src);
+    copy<T>(src, dst);
+    // Check
+    if(mpi_rank == dst_distr[0])
+    {
+        auto tile_handle = dst.get_tile_handle(0);
+        auto tile_local = tile_handle.acquire(STARPU_R);
+        T *tile_local_ptr = reinterpret_cast<T *>(tile_local.get_ptr());
+        for(Index i = 0; i < dst_traits.nelems; ++i)
+        {
+            TEST_ASSERT(tile_local_ptr[i] == T{0});
         }
         tile_local.release();
     }
-    Starpu::resume();
+}
+
+template<typename T>
+void validate()
+{
+    check<T>({}, {});
+    MPI_Barrier(MPI_COMM_WORLD);
+    check<T>({11, 12, 13}, {2, 3, 4});
+    MPI_Barrier(MPI_COMM_WORLD);
 }
 
 int main(int argc, char **argv)
 {
-    validate_clear<fp32_t>();
-    validate_clear<fp64_t>();
+    // Init StarPU for testing
+    StarpuTest starpu;
+    // Init codelet
+    starpu::clear::init();
+    starpu::copy::init();
+    // Launch all tests
+    validate<fp32_t>();
+    validate<fp64_t>();
     return 0;
 }
 
