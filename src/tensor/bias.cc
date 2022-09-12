@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-07
+ * @date 2022-09-12
  * */
 
 #include "nntile/tensor/bias.hh"
@@ -64,6 +64,8 @@ void bias_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
         }
     }
     // Apply per-tile bias asynchronously as needed
+    int mpi_rank = starpu_mpi_world_rank();
+    int ret;
     for(Index i = 0; i < src.grid.nelems; ++i)
     {
         // Index of current source tile
@@ -72,6 +74,9 @@ void bias_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
         auto src_tile_traits = src.get_tile_traits(i);
         // Source tile handle
         auto src_tile_handle = src.get_tile_handle(i);
+        // MPI rank and tag of the source tile
+        int src_tile_rank = starpu_mpi_data_get_rank(src_tile_handle);
+        auto tile_tag = starpu_mpi_data_get_tag(src_tile_handle);
         // Set fixed indices of current destination tile
         std::vector<Index> dst_tile_index(dst.ndim);
         for(Index j = 0; j < axis; ++j)
@@ -93,28 +98,56 @@ void bias_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
             auto dst_tile_traits = dst.get_tile_traits(dst_tile_offset);
             // Get destination tile handle
             auto dst_tile_handle = dst.get_tile_handle(dst_tile_offset);
-            // Reshape inputs: src_tile -> (m,n), dst_tile -> (m,k,n)
-            Index m, n, k;
-            if(axis == 0)
+            // MPI rank of the destination tile
+            int dst_tile_rank = starpu_mpi_data_get_rank(dst_tile_handle);
+            // Transfer data
+            if(mpi_rank == src_tile_rank and mpi_rank != dst_tile_rank)
             {
-                m = 1;
-                n = src_tile_traits.nelems;
-                k = dst_tile_traits.shape[0];
+                ret = starpu_mpi_isend_detached(src_tile_handle, dst_tile_rank,
+                        tile_tag, MPI_COMM_WORLD, nullptr, nullptr);
+                if(ret != 0)
+                {
+                    throw std::runtime_error("Error in starpu_mpi_isend_"
+                            "detached");
+                }
             }
-            else if(axis == dst.ndim-1)
+            if(mpi_rank == dst_tile_rank and mpi_rank != src_tile_rank)
             {
-                m = src_tile_traits.nelems;
-                n = 1;
-                k = dst_tile_traits.shape[axis];
+                ret = starpu_mpi_irecv_detached(src_tile_handle, src_tile_rank,
+                        tile_tag, MPI_COMM_WORLD, nullptr, nullptr);
+                if(ret != 0)
+                {
+                    throw std::runtime_error("Error in starpu_mpi_irecv_"
+                            "detached");
+                }
             }
-            else
+            // Execute on destination node
+            if(mpi_rank == dst_tile_rank)
             {
-                m = dst_tile_traits.stride[axis];
-                n = dst_tile_traits.matrix_shape[axis+1][1];
-                k = dst_tile_traits.shape[axis];
+                // Reshape inputs: src_tile -> (m,n), dst_tile -> (m,k,n)
+                Index m, n, k;
+                if(axis == 0)
+                {
+                    m = 1;
+                    n = src_tile_traits.nelems;
+                    k = dst_tile_traits.shape[0];
+                }
+                else if(axis == dst.ndim-1)
+                {
+                    m = src_tile_traits.nelems;
+                    n = 1;
+                    k = dst_tile_traits.shape[axis];
+                }
+                else
+                {
+                    m = dst_tile_traits.stride[axis];
+                    n = dst_tile_traits.matrix_shape[axis+1][1];
+                    k = dst_tile_traits.shape[axis];
+                }
+                // Insert corresponding task
+                starpu::bias::submit<T>(m, n, k, src_tile_handle,
+                        dst_tile_handle);
             }
-            // Insert corresponding task
-            starpu::bias::submit<T>(m, n, k, src_tile_handle, dst_tile_handle);
         }
     }
 }
@@ -125,6 +158,7 @@ void bias(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
 {
     bias_async<T>(src, dst, axis);
     starpu_task_wait_for_all();
+    starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation of template
