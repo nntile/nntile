@@ -9,13 +9,13 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-09-06
+# @date 2022-09-12
 
 # All unit tests without arguments to test executable
 set(TESTS
     "bias"
     "clear"
-    "copy"
+    "copy_intersection"
     "gelu"
     "gelutanh"
     "normalize"

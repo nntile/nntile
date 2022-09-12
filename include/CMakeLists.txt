@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-31
+# @date 2022-09-12
 
 # Set list of headers
 set(BASE_HDR
@@ -21,7 +21,7 @@ set(BASE_HDR
 
 set(KERNEL_HDR
     "nntile/kernel/bias/cpu.hh"
-    "nntile/kernel/copy/cpu.hh"
+    "nntile/kernel/copy_intersection/cpu.hh"
     "nntile/kernel/gelu/cpu.hh"
     "nntile/kernel/gelutanh/cpu.hh"
     "nntile/kernel/normalize/cpu.hh"
@@ -46,7 +46,7 @@ set(STARPU_HDR
     "nntile/starpu.hh"
     "nntile/starpu/bias.hh"
     "nntile/starpu/clear.hh"
-    "nntile/starpu/copy.hh"
+    "nntile/starpu/copy_intersection.hh"
     "nntile/starpu/gelu.hh"
     "nntile/starpu/gelutanh.hh"
     "nntile/starpu/gemm.hh"
@@ -62,6 +62,7 @@ set(TILE_HDR
     "nntile/tile/tile.hh"
     "nntile/tile/bias.hh"
     "nntile/tile/copy.hh"
+    "nntile/tile/copy_intersection.hh"
     "nntile/tile/gemm.hh"
     "nntile/tile/gelu.hh"
     "nntile/tile/gelutanh.hh"
@@ -75,9 +76,13 @@ set(TENSOR_HDR
     "nntile/tensor.hh"
     "nntile/tensor/traits.hh"
     "nntile/tensor/distributions.hh"
-    #"nntile/tensor/tensor.hh"
+    "nntile/tensor/tensor.hh"
+    "nntile/tensor/copy.hh"
+    "nntile/tensor/copy_intersection.hh"
+    "nntile/tensor/scatter.hh"
+    "nntile/tensor/gather.hh"
+    "nntile/tensor/clear.hh"
     #"nntile/tensor/randn.hh"
-    #"nntile/tensor/copy.hh"
     #"nntile/tensor/gemm.hh"
     #"nntile/tensor/bias.hh"
     #"nntile/tensor/gelu.hh"
@@ -88,8 +93,7 @@ set(TENSOR_HDR
 set(LAYER_HDR
     )
 
-set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR}
-    ${LAYER_HDR})
+set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR})# ${LAYER_HDR})
 
 target_sources(nntile PUBLIC ${HDR})
 

@@ -4,16 +4,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/starpu/copy.cc
- * Smart copy StarPU buffer
+ * @file tests/starpu/copy_intersection.cc
+ * Copy intersection of 2 StarPU buffers from one into another
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-06
+ * @date 2022-09-12
  * */
 
-#include "nntile/starpu/copy.hh"
-#include "nntile/kernel/copy/cpu.hh"
+#include "nntile/starpu/copy_intersection.hh"
+#include "nntile/kernel/copy_intersection/cpu.hh"
 #include "common.hh"
 #include <array>
 #include <vector>
@@ -86,18 +86,20 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
     std::vector<T> dst2_data(dst_data);
     // Launch low-level kernel
     std::vector<Index> tmp_index(2*NDIM);
-    std::cout << "Run kernel::copy::cpu<T>\n";
-    kernel::copy::cpu<T>(NDIM, &src_start[0], &src_stride[0], &copy_shape[0],
-            &src_data[0], &dst_start[0], &dst_stride[0], &dst_data[0],
-            &tmp_index[0]);
+    std::cout << "Run kernel::copy_intersection::cpu<T>\n";
+    kernel::copy_intersection::cpu<T>(NDIM, &src_start[0], &src_stride[0],
+            &copy_shape[0], &src_data[0], &dst_start[0], &dst_stride[0],
+            &dst_data[0], &tmp_index[0]);
     // Check by actually submitting a task
     StarpuVariableHandle src_handle(&src_data[0], sizeof(T)*src_nelems),
         dst2_handle(&dst2_data[0], sizeof(T)*dst_nelems),
         tmp_handle(&tmp_index[0], sizeof(Index)*NDIM*2);
-    starpu::copy::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::copy::submit<T> restricted to CPU\n";
-    starpu::copy::submit<T>(NDIM, src_start, src_stride, dst_start, dst_stride,
-            copy_shape, src_handle, dst2_handle, tmp_handle, STARPU_RW);
+    starpu::copy_intersection::restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::copy_intersection::submit<T> restricted to "
+        "CPU\n";
+    starpu::copy_intersection::submit<T>(NDIM, src_start, src_stride,
+            dst_start, dst_stride, copy_shape, src_handle, dst2_handle,
+            tmp_handle, STARPU_RW);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -108,7 +110,8 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
             throw std::runtime_error("StarPU submission wrong result");
         }
     }
-    std::cout << "OK: starpu::copy::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::copy_intersection::submit<T> restricted to "
+        "CPU\n";
 }
 
 // Run multiple tests for a given precision
@@ -131,7 +134,7 @@ int main(int argc, char **argv)
     // Init StarPU for testing
     StarpuTest starpu;
     // Init codelet
-    starpu::copy::init();
+    starpu::copy_intersection::init();
     // Launch all tests
     validate_many<fp32_t>();
     validate_many<fp64_t>();

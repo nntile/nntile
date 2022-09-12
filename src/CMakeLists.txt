@@ -9,12 +9,12 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-09-10
+# @date 2022-09-12
 
 # Set list of sources
 set(KERNEL_SRC
     "kernel/bias/cpu.cc"
-    "kernel/copy/cpu.cc"
+    "kernel/copy_intersection/cpu.cc"
     "kernel/gelu/cpu.cc"
     "kernel/gelutanh/cpu.cc"
     "kernel/normalize/cpu.cc"
@@ -38,7 +38,7 @@ endif()
 set(STARPU_SRC
     "starpu/bias.cc"
     "starpu/clear.cc"
-    "starpu/copy.cc"
+    "starpu/copy_intersection.cc"
     "starpu/gelu.cc"
     "starpu/gelutanh.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"
@@ -53,6 +53,7 @@ set(TILE_SRC
     "tile/bias.cc"
     "tile/clear.cc"
     "tile/copy.cc"
+    "tile/copy_intersection.cc"
     "tile/gemm.cc"
     "tile/gelu.cc"
     "tile/gelutanh.cc"
@@ -66,6 +67,9 @@ set(TENSOR_SRC
     "tensor/traits.cc"
     "tensor/distributions.cc"
     "tensor/copy.cc"
+    "tensor/copy_intersection.cc"
+    "tensor/scatter.cc"
+    "tensor/gather.cc"
     "tensor/clear.cc"
     #"tensor/bias.cc"
     #"tensor/randn.cc"
@@ -78,7 +82,7 @@ set(TENSOR_SRC
 set(LAYER_SRC
     )
 
-set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC} ${LAYER_SRC})
+set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC})# ${LAYER_SRC})
 
 target_sources(nntile PRIVATE ${SRC})
 

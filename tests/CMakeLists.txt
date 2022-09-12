@@ -15,8 +15,8 @@
 # All of the tests shall be launched by the same executable but with different
 # arguments. All the arguments are passed by corresponding keyword ARGS. All
 # the supported keywords are: TARGET_NAME, EXEC_NAME, SOURCES, LINK_LIBRARIES,
-# ARGS, COV_ENABLE, COV_NAME and COV_GLOBAL. The following example generates a
-# test set of 4 ctest tests:
+# ARGS, COV_ENABLE, COV_NAME, COV_GLOBAL and MPI_NUMPROC. The following
+# example generates a test set of 4 ctest tests:
 # add_test_set(TARGET_NAME target_name
 #              EXEC_NAME executable_name
 #              SOURCES ${executable_sources}
@@ -24,7 +24,8 @@
 #              ARGS " " "arg1 arg2 arg3" "arg1 arg2" "arg1"
 #              COV_ENABLE ON
 #              COV_NAME coverage_name
-#              COV_GLOBAL coverage)
+#              COV_GLOBAL coverage
+#              MPI_NUMPROC 4)
 # Here, "target_name" is the base name for all generated tests and it shall be
 # unique across entire CMake build. Actual target names will be: "target_name"
 # in a case of a single test and "target_name_${i}" with integer values ${i} in

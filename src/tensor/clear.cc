@@ -23,9 +23,15 @@ namespace tensor
 template<typename T>
 void clear_async(const Tensor<T> &dst)
 {
+    int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
-        starpu::clear::submit(dst.get_tile_handle(i));
+        auto dst_tile_handle = dst.get_tile_handle(i);
+        int dst_tile_rank = starpu_mpi_data_get_rank(dst_tile_handle);
+        if(mpi_rank == dst_tile_rank)
+        {
+            starpu::clear::submit(dst_tile_handle);
+        }
     }
 }
 
@@ -33,6 +39,7 @@ template<typename T>
 void clear(const Tensor<T> &dst)
 {
     clear_async<T>(dst);
+    starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 

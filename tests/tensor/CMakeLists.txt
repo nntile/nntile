@@ -20,6 +20,9 @@ set(TESTS
 set(TESTS_MPI
     "tensor"
     "copy"
+    "copy_intersection"
+    "scatter"
+    "gather"
     "clear"
     #"bias"
     #"randn"
