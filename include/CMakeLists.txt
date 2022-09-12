@@ -21,7 +21,7 @@ set(BASE_HDR
 
 set(KERNEL_HDR
     "nntile/kernel/bias/cpu.hh"
-    "nntile/kernel/copy_intersection/cpu.hh"
+    "nntile/kernel/subcopy/cpu.hh"
     "nntile/kernel/gelu/cpu.hh"
     "nntile/kernel/gelutanh/cpu.hh"
     "nntile/kernel/normalize/cpu.hh"
@@ -46,7 +46,7 @@ set(STARPU_HDR
     "nntile/starpu.hh"
     "nntile/starpu/bias.hh"
     "nntile/starpu/clear.hh"
-    "nntile/starpu/copy_intersection.hh"
+    "nntile/starpu/subcopy.hh"
     "nntile/starpu/gelu.hh"
     "nntile/starpu/gelutanh.hh"
     "nntile/starpu/gemm.hh"

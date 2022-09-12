@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/copy_intersection.hh
- * Copy intersection of 2 StarPU buffers from one into another
+ * @file include/nntile/starpu/subcopy.hh
+ * Copy subarray based on contiguous indices
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -21,7 +21,7 @@ namespace nntile
 {
 namespace starpu
 {
-namespace copy_intersection
+namespace subcopy
 {
 
 // Complex copying through StarPU buffers is available only on CPU
@@ -65,7 +65,7 @@ void submit(Index ndim, const std::vector<Index> &src_start,
         starpu_data_handle_t src, starpu_data_handle_t dst,
         starpu_data_handle_t tmp_index, starpu_data_access_mode mode);
 
-} // namespace copy_intersection
+} // namespace subcopy
 } // namespace starpu
 } // namespace nntile
 

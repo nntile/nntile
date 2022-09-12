@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/gather.hh"
-#include "nntile/starpu/copy_intersection.hh"
+#include "nntile/starpu/subcopy.hh"
 
 namespace nntile
 {
@@ -136,7 +136,7 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
                 }
             }
             // Perform complex copy
-            starpu::copy_intersection::submit<T>(ndim, src_tile_start,
+            starpu::subcopy::submit<T>(ndim, src_tile_start,
                     src_tile_traits.stride, dst_tile_start,
                     dst_tile_traits.stride, src_tile_traits.shape,
                     src_tile_handle, dst_tile_handle, scratch, STARPU_W);

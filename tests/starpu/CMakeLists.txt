@@ -15,7 +15,7 @@
 set(TESTS
     "bias"
     "clear"
-    "copy_intersection"
+    "subcopy"
     "gelu"
     "gelutanh"
     "normalize"

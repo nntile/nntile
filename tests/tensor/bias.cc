@@ -17,6 +17,7 @@
 #include "nntile/starpu/bias.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
+#include "nntile/starpu/subcopy.hh"
 #include "../testing.hh"
 #include "../starpu/common.hh"
 
@@ -36,13 +37,13 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     Tensor<T> dst_single({shape, shape}, {mpi_root}, last_tag);
     if(mpi_rank == mpi_root)
     {
-        auto tile_handle = dst_single.get_tile_handle(0);
-        auto tile_handle_local = tile_handle.acquire(STARPU_W);
+        auto tile_handle = dst_single.get_tile(0);
+        auto tile_local = tile_handle.acquire(STARPU_W);
         for(Index i = 0; i < dst_single.nelems; ++i)
         {
-            tile_handle_local[i] = T(i);
+            tile_local[i] = T(i);
         }
-        tile_handle_local.release();
+        tile_local.release();
     }
     // Scatter destination tensor
     TensorTraits dst_traits(shape, basetile);
@@ -53,6 +54,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     }
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
     scatter<T>(dst_single, dst);
+    return;
     // Define proper shape and basetile for the source tensor
     std::vector<Index> src_shape(dst_traits.ndim-1),
         src_basetile(dst_traits.ndim-1);
@@ -70,13 +72,13 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     Tensor<T> src_single({src_shape, src_shape}, {mpi_root}, last_tag);
     if(mpi_rank == mpi_root)
     {
-        auto tile_handle = src_single.get_tile_handle(0);
-        auto tile_handle_local = tile_handle.acquire(STARPU_W);
+        auto tile_handle = src_single.get_tile(0);
+        auto tile_local = tile_handle.acquire(STARPU_W);
         for(Index i = 0; i < src_single.nelems; ++i)
         {
-            tile_handle_local[i] = T(-i);
+            tile_local[i] = T(-i);
         }
-        tile_handle_local.release();
+        tile_local.release();
     }
     // Scatter source tensor
     TensorTraits src_traits(src_shape, src_basetile);
@@ -95,20 +97,24 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     gather<T>(dst, dst2_single);
     if(mpi_rank == mpi_root)
     {
-        auto dst_tile_handle = dst_single.get_tile_handle(0);
-        auto dst2_tile_handle = dst2_single.get_tile_handle(0);
-        auto dst_tile_handle_local = dst_tile_handle.acquire(STARPU_R);
-        auto dst2_tile_handle_local = dst2_tile_handle.acquire(STARPU_R);
+        auto tile_handle = dst_single.get_tile(0);
+        auto tile2_handle = dst2_single.get_tile(0);
+        auto tile_local = tile_handle.acquire(STARPU_R);
+        auto tile2_local = tile2_handle.acquire(STARPU_R);
         for(Index i = 0; i < dst_traits.nelems; ++i)
         {
-            TEST_ASSERT(dst_tile_handle_local[i] == dst2_tile_handle_local[i]);
+            TEST_ASSERT(tile_local[i] == tile2_local[i]);
         }
+        tile_local.release();
+        tile2_local.release();
     }
 }
 
 template<typename T>
 void validate()
 {
+    check<T>({11}, {5}, 0);
+    starpu_mpi_barrier(MPI_COMM_WORLD);
 }
 
 int main(int argc, char **argv)
@@ -117,6 +123,7 @@ int main(int argc, char **argv)
     StarpuTest starpu;
     // Init codelet
     starpu::bias::init();
+    starpu::subcopy::init();
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

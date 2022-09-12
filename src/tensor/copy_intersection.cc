@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/copy_intersection.hh"
-#include "nntile/starpu/copy_intersection.hh"
+#include "nntile/starpu/subcopy.hh"
 
 namespace nntile
 {
@@ -378,7 +378,7 @@ void copy_intersection_async(const Tensor<T> &src,
                                 "detached");
                     }
                 }
-                starpu::copy_intersection::submit<T>(ndim, src_tile_start,
+                starpu::subcopy::submit<T>(ndim, src_tile_start,
                         src_first_tile_traits.stride, dst_tile_start,
                         dst_tile_traits.stride, copy_tile_shape,
                         src_first_tile_handle, dst_tile_handle,
@@ -497,7 +497,7 @@ void copy_intersection_async(const Tensor<T> &src,
                                     "irecv_detached");
                         }
                     }
-                    starpu::copy_intersection::submit<T>(ndim, src_tile_start,
+                    starpu::subcopy::submit<T>(ndim, src_tile_start,
                             src_tile_traits.stride, dst_tile_start,
                             dst_tile_traits.stride, copy_tile_shape,
                             src_tile_handle, dst_tile_handle,

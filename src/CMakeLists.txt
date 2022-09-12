@@ -14,7 +14,7 @@
 # Set list of sources
 set(KERNEL_SRC
     "kernel/bias/cpu.cc"
-    "kernel/copy_intersection/cpu.cc"
+    "kernel/subcopy/cpu.cc"
     "kernel/gelu/cpu.cc"
     "kernel/gelutanh/cpu.cc"
     "kernel/normalize/cpu.cc"
@@ -38,7 +38,7 @@ endif()
 set(STARPU_SRC
     "starpu/bias.cc"
     "starpu/clear.cc"
-    "starpu/copy_intersection.cc"
+    "starpu/subcopy.cc"
     "starpu/gelu.cc"
     "starpu/gelutanh.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"

@@ -14,7 +14,7 @@
 # All unit tests without arguments to test executable
 set(TESTS
     "bias"
-    "copy_intersection"
+    "subcopy"
     "gelu"
     "gelutanh"
     "randn"

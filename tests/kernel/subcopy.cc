@@ -4,22 +4,22 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/copy_intersection.cc
- * Copy intersection of 2 buffers from one into another
+ * @file tests/kernel/subcopy.cc
+ * Copy subarray based on contiguous indices
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @date 2022-09-12
  * */
 
-#include "nntile/kernel/copy_intersection/cpu.hh"
+#include "nntile/kernel/subcopy/cpu.hh"
 #include <array>
 #include <vector>
 #include <stdexcept>
 #include <iostream>
 
 using namespace nntile;
-using namespace nntile::kernel::copy_intersection;
+using namespace nntile::kernel::subcopy;
 
 // Templated validation
 template<typename T, std::size_t NDIM>
@@ -102,7 +102,7 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
     std::vector<T> src2_data(src_data);
     // Check low-level kernel
     std::array<Index, 2*NDIM> tmp_index;
-    std::cout << "Run kernel::copy_intersection::cpu<T>\n";
+    std::cout << "Run kernel::subcopy::cpu<T>\n";
     cpu<T>(NDIM, &src_start[0], &src_stride[0], &copy_shape[0],
             &src_data[0], &dst_start[0], &dst_stride[0], &dst_data[0],
             &tmp_index[0]);
@@ -160,7 +160,7 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
             ++dst_index[j];
         }
     }
-    std::cout << "Ok: kernel::copy_intersection::cpu<T>\n";
+    std::cout << "Ok: kernel::subcopy::cpu<T>\n";
 }
 
 // Run multiple tests for a given precision

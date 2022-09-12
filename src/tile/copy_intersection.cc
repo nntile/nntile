@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tile/copy_intersection.hh"
-#include "nntile/starpu/copy_intersection.hh"
+#include "nntile/starpu/subcopy.hh"
 
 namespace nntile
 {
@@ -49,16 +49,25 @@ void copy_intersection_async(const Tile<T> &src,
         throw std::runtime_error("dst.ndim != dst_offset.size()");
     }
     Index ndim = src.ndim;
+    int ret;
     // Treat special case of ndim=0
     if(ndim == 0)
     {
-        starpu_data_cpy(dst, src, 1, nullptr, nullptr);
+        ret = starpu_data_cpy(dst, src, 1, nullptr, nullptr);
+        if(ret != 0)
+        {
+            throw std::runtime_error("Error in starpu_data_cpy");
+        }
         return;
     }
     // Treat easy case of full copy
     if(src_offset == dst_offset and src.shape == dst.shape)
     {
-        starpu_data_cpy(dst, src, 1, nullptr, nullptr);
+        ret = starpu_data_cpy(dst, src, 1, nullptr, nullptr);
+        if(ret != 0)
+        {
+            throw std::runtime_error("Error in starpu_data_cpy");
+        }
         return;
     }
     // Do the slow partial copy
@@ -99,7 +108,7 @@ void copy_intersection_async(const Tile<T> &src,
         }
     }
     // Insert task
-    starpu::copy_intersection::submit<T>(src.ndim, src_start, src.stride,
+    starpu::subcopy::submit<T>(src.ndim, src_start, src.stride,
             dst_start, dst.stride, copy_shape, src, dst, scratch,
             dst_tile_mode);
 }

@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tile/copy_intersection.hh"
-#include "nntile/starpu/copy_intersection.hh"
+#include "nntile/starpu/subcopy.hh"
 #include "../testing.hh"
 #include "../starpu/common.hh"
 
@@ -63,7 +63,7 @@ void validate()
     tile2_copy_local.release();
     // Check complex copying on CPU, no CUDA implementation as of now
     StarpuVariableHandle scratch(2 * 3 * sizeof(Index));
-    starpu::copy_intersection::submit<T>(3, {0, 0, 2}, tile3.stride, {0, 1, 0},
+    starpu::subcopy::submit<T>(3, {0, 0, 2}, tile3.stride, {0, 1, 0},
             tile2.stride, {2, 1, 2}, tile3, tile2, scratch, STARPU_RW);
     copy_intersection<T>(tile3, {0, 1, 0}, tile2_copy, {0, 0, 2});
     tile2_local.acquire(STARPU_R);
@@ -85,7 +85,7 @@ int main(int argc, char **argv)
     // Init StarPU for testing
     StarpuTest starpu;
     // Init codelet
-    starpu::copy_intersection::init();
+    starpu::subcopy::init();
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

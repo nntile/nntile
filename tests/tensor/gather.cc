@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/tensor/gather.hh"
-#include "nntile/starpu/copy_intersection.hh"
+#include "nntile/starpu/subcopy.hh"
 #include "../testing.hh"
 #include "../starpu/common.hh"
 
@@ -108,7 +108,7 @@ int main(int argc, char **argv)
     // Init StarPU for testing
     StarpuTest starpu;
     // Init codelet
-    starpu::copy_intersection::init();
+    starpu::subcopy::init();
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
