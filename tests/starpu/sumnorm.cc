@@ -47,8 +47,8 @@ void validate_cpu(Index m, Index n, Index k)
     std::cout << "Run kernel::sumnorm::cpu<T>\n";
     kernel::sumnorm::cpu<T>(m, n, k, &src[0], &sumnorm[0]);
     // Check by actually submitting a task
-    StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n*k),
-        sumnorm2_handle(&sumnorm2[0], sizeof(T)*2*m*n);
+    StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n*k, STARPU_R),
+        sumnorm2_handle(&sumnorm2[0], sizeof(T)*2*m*n, STARPU_RW);
     starpu::sumnorm::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::sumnorm::submit<T> restricted to CPU\n";
     starpu::sumnorm::submit<T>(m, n, k, src_handle, sumnorm2_handle);

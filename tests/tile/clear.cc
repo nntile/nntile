@@ -29,7 +29,7 @@ void check()
     {
         data[i] = T(i+1);
     }
-    Tile<T> tile(traits, &data[0], traits.nelems, STARPU_RW);
+    Tile<T> tile(traits, &data[0], traits.nelems);
     clear(tile);
     auto tile_local = tile.acquire(STARPU_R);
     constexpr T zero = 0;

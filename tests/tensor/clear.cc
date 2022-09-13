@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-12
+ * @date 2022-09-13
  * */
 
 #include "nntile/tensor/clear.hh"
@@ -25,8 +25,10 @@ using namespace nntile::tensor;
 template<typename T>
 void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
 {
+    // Barrier to wait for cleanup of previously used tags
+    starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
-    starpu_mpi_tag_t last_tag = 1;
+    starpu_mpi_tag_t last_tag = 0;
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     // Traits
@@ -77,10 +79,8 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
 template<typename T>
 void validate()
 {
-    //check<T>({}, {});
-    //starpu_mpi_barrier(MPI_COMM_WORLD);
+    check<T>({}, {});
     check<T>({11, 12, 13}, {2, 3, 4});
-    starpu_mpi_barrier(MPI_COMM_WORLD);
 }
 
 int main(int argc, char **argv)

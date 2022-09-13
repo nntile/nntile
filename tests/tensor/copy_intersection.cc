@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-12
+ * @date 2022-09-13
  * */
 
 #include "nntile/tensor/copy_intersection.hh"
@@ -29,8 +29,10 @@ void check(const std::vector<Index> &shape,
         const std::vector<Index> &dst_shape,
         const std::vector<Index> &dst_basetile)
 {
+    // Barrier to wait for cleanup of previously used tags
+    starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
-    starpu_mpi_tag_t last_tag = 1;
+    starpu_mpi_tag_t last_tag = 0;
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     // Traits of source and destination tensors
@@ -147,37 +149,26 @@ template<typename T>
 void validate()
 {
     check<T>({}, {}, {}, {}, {}, {}, {});
-    starpu_mpi_barrier(MPI_COMM_WORLD);
     check<T>({11, 12, 13}, {0, 0, 0}, {11, 12, 13}, {11, 12, 13}, {0, 0, 0},
             {11, 12, 13}, {11, 12, 13});
-    starpu_mpi_barrier(MPI_COMM_WORLD);
     check<T>({11, 12, 13}, {0, 0, 0}, {11, 12, 13}, {2, 3, 4}, {0, 0, 0},
             {11, 12, 13}, {2, 3, 4});
-    starpu_mpi_barrier(MPI_COMM_WORLD);
     check<T>({11, 12, 13}, {0, 0, 0}, {11, 12, 13}, {11, 12, 13}, {0, 0, 0},
             {11, 12, 13}, {2, 3, 4});
-    starpu_mpi_barrier(MPI_COMM_WORLD);
     check<T>({11, 12, 13}, {0, 0, 0}, {11, 12, 13}, {2, 3, 4}, {0, 0, 0},
             {11, 12, 13}, {11, 12, 13});
-    starpu_mpi_barrier(MPI_COMM_WORLD);
     check<T>({11, 12, 13}, {4, 3, 4}, {5, 5, 5}, {2, 3, 4}, {0, 0, 0},
             {11, 12, 13}, {2, 3, 4});
-    starpu_mpi_barrier(MPI_COMM_WORLD);
     check<T>({11, 12, 13}, {2, 0, 0}, {9, 12, 13}, {2, 3, 4}, {4, 3, 4},
             {5, 5, 5}, {2, 3, 4});
-    starpu_mpi_barrier(MPI_COMM_WORLD);
     check<T>({11, 12, 13}, {0, 0, 0}, {11, 12, 13}, {2, 3, 4}, {0, 0, 0},
             {11, 12, 13}, {3, 4, 5});
-    starpu_mpi_barrier(MPI_COMM_WORLD);
     check<T>({11, 12, 13}, {0, 0, 0}, {11, 12, 13}, {3, 4, 5}, {0, 0, 0},
             {11, 12, 13}, {2, 3, 4});
-    starpu_mpi_barrier(MPI_COMM_WORLD);
     check<T>({11, 12, 13}, {2, 2, 2}, {8, 8, 8}, {3, 4, 5}, {0, 0, 0},
             {11, 12, 13}, {2, 3, 4});
-    starpu_mpi_barrier(MPI_COMM_WORLD);
     check<T>({11, 12, 13}, {2, 2, 2}, {8, 8, 8}, {3, 4, 5}, {3, 3, 3},
             {8, 8, 8}, {2, 3, 4});
-    starpu_mpi_barrier(MPI_COMM_WORLD);
 }
 
 int main(int argc, char **argv)

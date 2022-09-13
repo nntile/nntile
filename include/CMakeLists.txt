@@ -83,7 +83,7 @@ set(TENSOR_HDR
     "nntile/tensor/gather.hh"
     "nntile/tensor/clear.hh"
     "nntile/tensor/bias.hh"
-    #"nntile/tensor/randn.hh"
+    "nntile/tensor/randn.hh"
     #"nntile/tensor/gemm.hh"
     #"nntile/tensor/gelu.hh"
     #"nntile/tensor/relu.hh"

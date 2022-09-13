@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-12
+ * @date 2022-09-13
  * */
 
 #include "nntile/tensor/gather.hh"
@@ -90,7 +90,7 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
     // Do the slow complex copy
     // Temporary buffer for indexing, that is allocated per-worker when needed
     Index ndim = src.ndim;
-    StarpuVariableHandle scratch(2 * ndim * sizeof(Index));
+    StarpuVariableHandle scratch(2*ndim*sizeof(Index), STARPU_SCRATCH);
     // We define starting coordinates and shapes for all complex copies of
     // tiles
     std::vector<Index> src_tile_start(ndim), dst_tile_start(ndim);

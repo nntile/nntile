@@ -1,76 +1,96 @@
+/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+ *                           (Skoltech). All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file tests/tensor/randn.cc
+ * Randn operation for Tensor<T>
+ *
+ * @version 1.0.0
+ * @author Aleksandr Mikhalev
+ * @date 2022-09-13
+ * */
+
 #include "nntile/tensor/randn.hh"
-#include "check_tensors_intersection.hh"
+#include "nntile/tile/randn.hh"
+#include "nntile/starpu/randn.hh"
+#include "nntile/tensor/gather.hh"
+#include "nntile/starpu/subcopy.hh"
 #include "../testing.hh"
+#include "../starpu/common.hh"
 
 using namespace nntile;
+using namespace nntile::tensor;
 
 template<typename T>
-void validate_randn()
+void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
 {
-    Tensor<T> scalar({}, {}), scalar2({}, {});
-    T one = 1, zero = 0;
-    constexpr unsigned long long seed = 100000000000001ULL;
-    randn(scalar, {}, {}, {}, seed);
-    randn(scalar2, {}, {}, {}, seed);
-    TESTA(check_tensors_intersection(scalar, scalar2));
-    randn(scalar2, seed*seed);
-    TESTA(!check_tensors_intersection(scalar, scalar2));
-    Tensor<T> big({5, 6, 7, 8}, {2, 3, 4, 5}),
-        small({2, 2, 2, 2}, {1, 2, 2, 1});
-    randn_async(big, seed);
-    starpu_task_wait_for_all();
-    randn(small, {1, 2, 3, 2}, big.shape, big.stride, seed);
-    TESTA(check_tensors_intersection(big, {0, 0, 0, 0}, small, {1, 2, 3, 2}));
-    TESTA(check_tensors_intersection(small, {1, 2, 3, 2}, big, {0, 0, 0, 0}));
-    TESTA(!check_tensors_intersection(big, {1, 0, 0, 0}, small, {1, 2, 3, 2}));
-    TESTA(!check_tensors_intersection(big, {0, 1, 0, 0}, small, {1, 2, 3, 2}));
-    TESTA(!check_tensors_intersection(big, {0, 0, 1, 0}, small, {1, 2, 3, 2}));
-    TESTA(!check_tensors_intersection(big, {0, 0, 0, 1}, small, {1, 2, 3, 2}));
-    TESTA(!check_tensors_intersection(small, {1, 2, 3, 2}, big, {1, 0, 0, 0}));
-    TESTA(!check_tensors_intersection(small, {1, 2, 3, 2}, big, {0, 1, 0, 0}));
-    TESTA(!check_tensors_intersection(small, {1, 2, 3, 2}, big, {0, 0, 1, 0}));
-    TESTA(!check_tensors_intersection(small, {1, 2, 3, 2}, big, {0, 0, 0, 1}));
-    TESTN(randn(small, {4, 0, 0, 0}, big.shape, big.stride, seed));
-    TESTN(randn(small, {0, 5, 0, 0}, big.shape, big.stride, seed));
-    TESTN(randn(small, {0, 0, 6, 0}, big.shape, big.stride, seed));
-    TESTN(randn(small, {0, 0, 0, 7}, big.shape, big.stride, seed));
-    TESTN(randn(small, {-1, 0, 0, 0}, big.shape, big.stride, seed));
-    TESTN(randn(small, {0, -1, 0, 0}, big.shape, big.stride, seed));
-    TESTN(randn(small, {0, 0, -1, 0}, big.shape, big.stride, seed));
-    TESTN(randn(small, {0, 0, 0, -1}, big.shape, big.stride, seed));
-    TESTN(randn(small, {0, 0, 0}, big.shape, big.stride, seed));
-    TESTN(randn(small, {0, 0, 0, 0}, {5, 6, 7}, big.stride, seed));
-    TESTN(randn(small, {0, 0, 0, -1}, big.shape, {5, 30, 210}, seed));
-    std::vector<Index> stride(big.stride);
-    ++stride[0];
-    TESTN(randn(small, {0, 0, 0, 0}, big.shape, stride, seed));
-    for(int i = 1; i < stride.size(); ++i)
+    // Barrier to wait for cleanup of previously used tags
+    starpu_mpi_barrier(MPI_COMM_WORLD);
+    // Some preparation
+    starpu_mpi_tag_t last_tag = 0;
+    int mpi_size = starpu_mpi_world_size();
+    int mpi_rank = starpu_mpi_world_rank();
+    int mpi_root = 0;
+    unsigned long long seed = -1;
+    T mean = -1;
+    T stddev = 2;
+    std::vector<Index> start(shape.size());
+    // Generate single-tile destination tensor
+    Tensor<T> dst_single({shape, shape}, {mpi_root}, last_tag);
+    if(mpi_rank == mpi_root)
     {
-        --stride[i-1];
-        ++stride[i];
-        TESTN(randn(small, {0, 0, 0, 0}, big.shape, stride, seed));
+        tile::randn<T>(dst_single.get_tile(0), start, shape, seed, mean,
+                stddev);
     }
-    TESTA(stride != big.stride);
-    Tensor<T> small2({3, 3, 3, 3}, {2, 3, 2, 3});
-    randn(small2, {1, 1, 1, 1}, big.shape, big.stride, seed);
-    TESTA(check_tensors_intersection(small2, {1, 1, 1, 1}, big,
-                {0, 0, 0, 0}));
-    TESTA(check_tensors_intersection(small, {1, 2, 3, 2}, small2,
-                {1, 1, 1, 1}));
-    TESTA(check_tensors_intersection(small2, {1, 1, 1, 1}, small,
-                {1, 2, 3, 2}));
-    auto small_local = small.get_tile(0).acquire(STARPU_RW);
-    small_local[small.get_tile(0).nelems-1] = 0;
-    small_local.release();
-    TESTA(!check_tensors_intersection(big, {0, 0, 0, 0}, small, {1, 2, 3, 2}));
-    TESTA(!check_tensors_intersection(small, {1, 2, 3, 2}, big, {0, 0, 0, 0}));
+    return;
+    // Generate distributed-tile destination tensor
+    TensorTraits dst_traits(shape, basetile);
+    std::vector<int> dst_distr(dst_traits.grid.nelems);
+    for(Index i = 0; i < dst_traits.grid.nelems; ++i)
+    {
+        dst_distr[i] = (i+1) % mpi_size;
+    }
+    Tensor<T> dst(dst_traits, dst_distr, last_tag);
+    randn<T>(dst, start, shape, seed, mean, stddev);
+    // Compare results
+    Tensor<T> dst2_single({shape, shape}, {mpi_root}, last_tag);
+    gather<T>(dst, dst2_single);
+    if(mpi_rank == mpi_root)
+    {
+        auto tile = dst_single.get_tile(0);
+        auto tile2 = dst2_single.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_R);
+        auto tile2_local = tile2.acquire(STARPU_R);
+        for(Index i = 0; i < dst_traits.nelems; ++i)
+        {
+            TEST_ASSERT(tile_local[i] == tile2_local[i]);
+        }
+        tile_local.release();
+        tile2_local.release();
+    }
+}
+
+template<typename T>
+void validate()
+{
+    check<T>({}, {});
+    check<T>({5}, {5});
+    check<T>({11}, {5});
+    check<T>({11, 12, 13}, {5, 6, 7});
 }
 
 int main(int argc, char **argv)
 {
-    Starpu starpu;
-    validate_randn<float>();
-    validate_randn<double>();
+    // Init StarPU for testing
+    StarpuTest starpu;
+    // Init codelet
+    starpu::randn::init();
+    starpu::subcopy::init();
+    // Launch all tests
+    validate<fp32_t>();
+    validate<fp64_t>();
     return 0;
 }
 

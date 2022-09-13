@@ -72,7 +72,7 @@ set(TENSOR_SRC
     "tensor/gather.cc"
     "tensor/clear.cc"
     "tensor/bias.cc"
-    #"tensor/randn.cc"
+    "tensor/randn.cc"
     #"tensor/gemm.cc"
     #"tensor/gelu.cc"
     #"tensor/relu.cc"

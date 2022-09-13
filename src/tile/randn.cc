@@ -62,11 +62,19 @@ void randn_async(const Tile<T> &dst, const std::vector<Index> &start,
                     "underlying_shape[i]");
         }
     }
-    // Temporary index
-    StarpuVariableHandle tmp_index(sizeof(Index) * 2 * ndim);
-    // Insert task
-    starpu::randn::submit<T>(ndim, dst.nelems, seed, mean, stddev, start,
-            dst.shape, dst.stride, underlying_shape, dst, tmp_index);
+    if(ndim != 0)
+    {
+        // Temporary index
+        StarpuVariableHandle tmp_index(sizeof(Index)*2*ndim, STARPU_R);
+        // Insert task
+        starpu::randn::submit<T>(ndim, dst.nelems, seed, mean, stddev, start,
+                dst.shape, dst.stride, underlying_shape, dst, tmp_index);
+    }
+    else
+    {
+        starpu::randn::submit<T>(ndim, dst.nelems, seed, mean, stddev, start,
+                dst.shape, dst.stride, underlying_shape, dst, nullptr);
+    }
 }
 
 //! Blocking version of tile-wise random generation operation

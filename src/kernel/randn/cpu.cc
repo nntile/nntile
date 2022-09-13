@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-13
  * */
 
 #include "nntile/kernel/randn/cpu.hh"
@@ -70,13 +70,6 @@ void cpu(Index ndim, Index nelems, unsigned long long seed,
  *      ndim values.
  * */
 {
-    // Check if number of dimensions is 0
-    if(ndim == 0)
-    {
-        // 0-dimensional tensor is just a scalar
-        *data = chameleon_randn(seed, mean, stddev);
-        return;
-    }
     // Jump to the first element to generate
     Index shift = start[ndim-1];
     for(Index i = ndim-2; i >= 0; --i)
@@ -152,6 +145,23 @@ void cpu<fp64_t>(Index ndim, Index nelems, unsigned long long seed,
         const Index *underlying_shape, fp64_t *data, const Index *stride,
         Index *tmp_index)
     noexcept;
+
+template<typename T>
+void cpu_ndim0(unsigned long long seed, T mean, T stddev, T *data)
+    noexcept
+{
+    // 0-dimensional tensor is just a scalar
+    *data = chameleon_randn(seed, mean, stddev);
+}
+
+// Explicit instantiation
+template
+void cpu_ndim0<fp32_t>(unsigned long long seed, fp32_t mean, fp32_t stddev,
+        fp32_t *data);
+
+template
+void cpu_ndim0<fp64_t>(unsigned long long seed, fp64_t mean, fp64_t stddev,
+        fp64_t *data);
 
 } // namespace randn
 } // namespace kernel

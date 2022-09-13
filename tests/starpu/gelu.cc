@@ -40,7 +40,7 @@ void validate_cpu(Index nelems)
     std::cout << "Run kernel::gelu::cpu<T>\n";
     kernel::gelu::cpu<T>(nelems, &data[0]);
     // Check by actually submitting a task
-    StarpuVariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
+    StarpuVariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
     starpu::gelu::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::gelu::submit<T> restricted to CPU\n";
     starpu::gelu::submit<T>(nelems, data2_handle);

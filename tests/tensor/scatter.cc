@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-12
+ * @date 2022-09-13
  * */
 
 #include "nntile/tensor/scatter.hh"
@@ -24,8 +24,10 @@ template<typename T>
 void check(const std::vector<Index> &shape,
         const std::vector<Index> &dst_basetile)
 {
+    // Barrier to wait for cleanup of previously used tags
+    starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
-    starpu_mpi_tag_t last_tag = 1;
+    starpu_mpi_tag_t last_tag = 0;
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     // Traits of source and destination tensors
@@ -89,12 +91,9 @@ template<typename T>
 void validate()
 {
     check<T>({}, {});
-    starpu_mpi_barrier(MPI_COMM_WORLD);
     check<T>({2, 3, 4}, {2, 3, 4});
-    starpu_mpi_barrier(MPI_COMM_WORLD);
     check<T>({11, 12, 13}, {2, 3, 4});
-    starpu_mpi_barrier(MPI_COMM_WORLD);
-    starpu_mpi_tag_t last_tag = 1;
+    starpu_mpi_tag_t last_tag = 0;
     Tensor<T> A({{2, 3, 4}, {2, 3, 4}}, {0}, last_tag),
         B({{2, 3, 5}, {2, 3, 5}}, {0}, last_tag),
         C({{2, 3, 4}, {2, 3, 3}}, {0, 0}, last_tag),

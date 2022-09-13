@@ -62,7 +62,7 @@ void validate()
     }
     tile2_copy_local.release();
     // Check complex copying on CPU, no CUDA implementation as of now
-    StarpuVariableHandle scratch(2 * 3 * sizeof(Index));
+    StarpuVariableHandle scratch(2*3*sizeof(Index), STARPU_R);
     starpu::subcopy::submit<T>(3, {0, 0, 2}, tile3.stride, {0, 1, 0},
             tile2.stride, {2, 1, 2}, tile3, tile2, scratch, STARPU_RW);
     copy_intersection<T>(tile3, {0, 1, 0}, tile2_copy, {0, 0, 2});

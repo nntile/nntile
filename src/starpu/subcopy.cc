@@ -60,12 +60,12 @@ StarpuCodelet codelet_fp32, codelet_fp64;
 
 void init()
 {
-    codelet_fp32.init("nntile_copy_fp32",
+    codelet_fp32.init("nntile_subcopy_fp32",
             footprint,
             {cpu<fp32_t>},
             {}
             );
-    codelet_fp64.init("nntile_copy_fp64",
+    codelet_fp64.init("nntile_subcopy_fp64",
             footprint,
             {cpu<fp64_t>},
             {}
@@ -110,7 +110,7 @@ void submit(Index ndim, const std::vector<Index> &src_start,
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in copy task submission");
+        throw std::runtime_error("Error in subcopy task submission");
     }
 }
 

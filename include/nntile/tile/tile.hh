@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-29
+ * @date 2022-09-13
  * */
 
 #pragma once
@@ -58,30 +58,28 @@ public:
         StarpuVariableHandle(handle_)
     {
     }
-    //! Construct a temporary tile, allocated/deallocated by StarPU
+    //! Construct a tile, allocated/deallocated by StarPU
     Tile(const std::vector<Index> &shape_):
         TileTraits(shape_),
-        StarpuVariableHandle(nelems*sizeof(T))
+        StarpuVariableHandle(nelems*sizeof(T), STARPU_R)
     {
     }
-    //! Construct a temporary tile, allocated/deallocated by StarPU
+    //! Construct a tile, allocated/deallocated by StarPU
     Tile(const TileTraits &traits):
         TileTraits(traits),
-        StarpuVariableHandle(nelems*sizeof(T))
+        StarpuVariableHandle(nelems*sizeof(T), STARPU_R)
     {
     }
     //! Construct a tile out of provided contiguous memory buffer
-    Tile(const std::vector<Index> &shape_, T *ptr, Index ptr_nelems,
-            enum starpu_data_access_mode mode=STARPU_RW):
+    Tile(const std::vector<Index> &shape_, T *ptr, Index ptr_nelems):
         TileTraits(shape_),
-        StarpuVariableHandle(ptr, _get_size(ptr_nelems), mode)
+        StarpuVariableHandle(ptr, _get_size(ptr_nelems), STARPU_RW)
     {
     }
     //! Construct a tile out of provided contiguous memory buffer
-    Tile(const TileTraits &traits, T *ptr, Index ptr_nelems,
-            enum starpu_data_access_mode mode=STARPU_RW):
+    Tile(const TileTraits &traits, T *ptr, Index ptr_nelems):
         TileTraits(traits),
-        StarpuVariableHandle(ptr, _get_size(ptr_nelems), mode)
+        StarpuVariableHandle(ptr, _get_size(ptr_nelems), STARPU_RW)
     {
     }
     TileLocalData<T> acquire(enum starpu_data_access_mode mode)
@@ -89,7 +87,7 @@ public:
 };
 
 //! Local copy of a tile in CPU RAM
-/*! This is am auxiliary class for debugging and testing
+/*! This is an auxiliary class for debugging and testing
  * */
 template<typename T>
 class TileLocalData: public StarpuHandleLocalData

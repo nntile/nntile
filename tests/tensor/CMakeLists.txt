@@ -25,7 +25,7 @@ set(TESTS_MPI
     "gather"
     "clear"
     "bias"
-    #"randn"
+    "randn"
     #"gemm"
     #"gelu"
     #"relu"

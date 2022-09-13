@@ -91,9 +91,10 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
             &copy_shape[0], &src_data[0], &dst_start[0], &dst_stride[0],
             &dst_data[0], &tmp_index[0]);
     // Check by actually submitting a task
-    StarpuVariableHandle src_handle(&src_data[0], sizeof(T)*src_nelems),
-        dst2_handle(&dst2_data[0], sizeof(T)*dst_nelems),
-        tmp_handle(&tmp_index[0], sizeof(Index)*NDIM*2);
+    StarpuVariableHandle src_handle(&src_data[0], sizeof(T)*src_nelems,
+            STARPU_R),
+        dst2_handle(&dst2_data[0], sizeof(T)*dst_nelems, STARPU_RW),
+        tmp_handle(&tmp_index[0], sizeof(Index)*NDIM*2, STARPU_R);
     starpu::subcopy::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::subcopy::submit<T> restricted to "
         "CPU\n";

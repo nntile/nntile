@@ -30,7 +30,7 @@ void check(const Tile<T> &src, const Tile<T> &dst, Index axis)
         dst_local[i] = dst2_data[i];
     }
     dst_local.release();
-    Tile<T> dst2(dst, &dst2_data[0], dst.nelems, STARPU_RW);
+    Tile<T> dst2(dst, &dst2_data[0], dst.nelems);
     bias<T>(src, dst, axis);
     Index m = 1;
     for(Index i = 0; i < axis; ++i)
@@ -83,11 +83,11 @@ void validate()
     {
         b3_data[i] = T(5*i+1);
     }
-    Tile<T> A(A_traits, &A_data[0], A_traits.nelems, STARPU_RW),
-        b0(b0_traits, &b0_data[0], b0_traits.nelems, STARPU_RW),
-        b1(b1_traits, &b1_data[0], b1_traits.nelems, STARPU_RW),
-        b2(b2_traits, &b2_data[0], b2_traits.nelems, STARPU_RW),
-        b3(b3_traits, &b3_data[0], b3_traits.nelems, STARPU_RW);
+    Tile<T> A(A_traits, &A_data[0], A_traits.nelems),
+        b0(b0_traits, &b0_data[0], b0_traits.nelems),
+        b1(b1_traits, &b1_data[0], b1_traits.nelems),
+        b2(b2_traits, &b2_data[0], b2_traits.nelems),
+        b3(b3_traits, &b3_data[0], b3_traits.nelems);
     // Compare results of tile::bias and starpu::bias::submit
     starpu::bias::restrict_where(STARPU_CPU);
     check<T>(b0, A, 0);

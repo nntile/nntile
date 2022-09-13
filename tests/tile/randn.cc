@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-06
+ * @date 2022-09-13
  * */
 
 #include "nntile/tile/randn.hh"
@@ -29,7 +29,7 @@ void validate()
     unsigned long long seed = -1;
     T mean = 1, stddev = 2;
     // Check some valid parameters
-    StarpuVariableHandle tmp_index(sizeof(Index) * 2 * 3);
+    StarpuVariableHandle tmp_index(sizeof(Index)*2*3, STARPU_R);
     starpu::randn::submit<T>(3, dst.nelems, seed, mean, stddev, start,
         dst.shape, dst.stride, underlying_shape, dst, tmp_index);
     randn(dst2, start, underlying_shape, seed, mean, stddev);
@@ -41,6 +41,16 @@ void validate()
     }
     dst_local.release();
     dst2_local.release();
+    // Check scalar tile
+    Tile<T> scalar({}), scalar2({});
+    starpu::randn::submit<T>(0, 1, seed, mean, stddev, scalar.shape,
+            scalar.shape, scalar.shape, scalar.shape, scalar, nullptr);
+    randn(scalar2, scalar.shape, scalar.shape, seed, mean, stddev);
+    auto scalar_local = scalar.acquire(STARPU_R);
+    auto scalar2_local = scalar2.acquire(STARPU_R);
+    TEST_ASSERT(scalar_local[0] == scalar2_local[0]);
+    scalar_local.release();
+    scalar2_local.release();
     // Check throwing exceptions
     std::vector<Index> ind2(2);
     TEST_THROW(randn<T>(dst, ind2, underlying_shape, seed, mean, stddev));

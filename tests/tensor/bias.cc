@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-12
+ * @date 2022-09-13
  * */
 
 #include "nntile/tensor/bias.hh"
@@ -28,8 +28,10 @@ template<typename T>
 void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         Index axis)
 {
+    // Barrier to wait for cleanup of previously used tags
+    starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
-    starpu_mpi_tag_t last_tag = 1;
+    starpu_mpi_tag_t last_tag = 0;
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_root = 0;
@@ -37,8 +39,8 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     Tensor<T> dst_single({shape, shape}, {mpi_root}, last_tag);
     if(mpi_rank == mpi_root)
     {
-        auto tile_handle = dst_single.get_tile(0);
-        auto tile_local = tile_handle.acquire(STARPU_W);
+        auto tile = dst_single.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
         for(Index i = 0; i < dst_single.nelems; ++i)
         {
             tile_local[i] = T(i);
@@ -50,11 +52,11 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     std::vector<int> dst_distr(dst_traits.grid.nelems);
     for(Index i = 0; i < dst_traits.grid.nelems; ++i)
     {
-        dst_distr[i] = (i+1) % mpi_root;
+        dst_distr[i] = (i+1) % mpi_size;
     }
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
-    scatter<T>(dst_single, dst);
     return;
+    scatter<T>(dst_single, dst);
     // Define proper shape and basetile for the source tensor
     std::vector<Index> src_shape(dst_traits.ndim-1),
         src_basetile(dst_traits.ndim-1);
@@ -72,8 +74,8 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     Tensor<T> src_single({src_shape, src_shape}, {mpi_root}, last_tag);
     if(mpi_rank == mpi_root)
     {
-        auto tile_handle = src_single.get_tile(0);
-        auto tile_local = tile_handle.acquire(STARPU_W);
+        auto tile = src_single.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
         for(Index i = 0; i < src_single.nelems; ++i)
         {
             tile_local[i] = T(-i);
@@ -97,10 +99,10 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     gather<T>(dst, dst2_single);
     if(mpi_rank == mpi_root)
     {
-        auto tile_handle = dst_single.get_tile(0);
-        auto tile2_handle = dst2_single.get_tile(0);
-        auto tile_local = tile_handle.acquire(STARPU_R);
-        auto tile2_local = tile2_handle.acquire(STARPU_R);
+        auto tile = dst_single.get_tile(0);
+        auto tile2 = dst2_single.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_R);
+        auto tile2_local = tile2.acquire(STARPU_R);
         for(Index i = 0; i < dst_traits.nelems; ++i)
         {
             TEST_ASSERT(tile_local[i] == tile2_local[i]);
@@ -114,7 +116,8 @@ template<typename T>
 void validate()
 {
     check<T>({11}, {5}, 0);
-    starpu_mpi_barrier(MPI_COMM_WORLD);
+    check<T>({11, 12}, {5, 6}, 0);
+    check<T>({11, 12}, {5, 6}, 1);
 }
 
 int main(int argc, char **argv)

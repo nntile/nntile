@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-13
  * */
 
 #pragma once
@@ -29,7 +29,13 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
 
-extern StarpuCodelet codelet_fp32, codelet_fp64;
+// Randn operation on StarPU buffers
+template<typename T>
+void cpu_ndim0(void *buffers[], void *cl_args)
+    noexcept;
+
+extern StarpuCodelet codelet_fp32, codelet_fp64,
+       codelet_fp32_ndim0, codelet_fp64_ndim0;
 
 template<typename T>
 constexpr StarpuCodelet *codelet()
@@ -48,6 +54,25 @@ template<>
 constexpr StarpuCodelet *codelet<fp64_t>()
 {
     return &codelet_fp64;
+}
+
+template<typename T>
+constexpr StarpuCodelet *codelet_ndim0()
+{
+    throw std::runtime_error("Non-supported type");
+    return nullptr;
+}
+
+template<>
+constexpr StarpuCodelet *codelet_ndim0<fp32_t>()
+{
+    return &codelet_fp32_ndim0;
+}
+
+template<>
+constexpr StarpuCodelet *codelet_ndim0<fp64_t>()
+{
+    return &codelet_fp64_ndim0;
 }
 
 void init();

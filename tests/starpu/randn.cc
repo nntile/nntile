@@ -55,8 +55,8 @@ void validate_cpu(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
             &shape[0], &underlying_shape[0], &data[0], &stride[0],
             &tmp_index[0]);
     // Check by actually submitting a task
-    StarpuVariableHandle data2_handle(&data2[0], sizeof(T)*size),
-        tmp_handle(&tmp_index[0], sizeof(Index)*NDIM);
+    StarpuVariableHandle data2_handle(&data2[0], sizeof(T)*size, STARPU_RW),
+        tmp_handle(&tmp_index[0], sizeof(Index)*NDIM, STARPU_R);
     std::vector<Index> start_(start.cbegin(), start.cend()),
         shape_(shape.cbegin(), shape.cend()),
         underlying_shape_(underlying_shape.cbegin(), underlying_shape.cend());

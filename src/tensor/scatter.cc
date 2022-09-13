@@ -90,7 +90,7 @@ void scatter_async(const Tensor<T> &src, const Tensor<T> &dst)
     // Do the slow complex copy
     // Temporary buffer for indexing, that is allocated per-worker when needed
     Index ndim = src.ndim;
-    StarpuVariableHandle scratch(2 * ndim * sizeof(Index));
+    StarpuVariableHandle scratch(2*ndim*sizeof(Index), STARPU_SCRATCH);
     // We define starting coordinates and shapes for all complex copies of
     // tiles
     std::vector<Index> src_tile_start(ndim), dst_tile_start(ndim);
@@ -169,8 +169,8 @@ template<typename T>
 void scatter(const Tensor<T> &src, const Tensor<T> &dst)
 {
     scatter_async<T>(src, dst);
-    starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
+    starpu_task_wait_for_all();
 }
 
 // Explicit instantiation

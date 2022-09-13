@@ -323,19 +323,19 @@ class StarpuVariableHandle: public StarpuHandle
     }
 public:
     //! Constructor for temporary variable that is (de)allocated by starpu
-    StarpuVariableHandle(size_t size):
-        StarpuHandle(_reg_data(size), STARPU_SCRATCH)
+    StarpuVariableHandle(size_t size, enum starpu_data_access_mode mode):
+        StarpuHandle(_reg_data(size), mode)
     {
     }
     //! Constructor for variable that is (de)allocated by user
     StarpuVariableHandle(uintptr_t ptr, size_t size,
-            enum starpu_data_access_mode mode=STARPU_RW):
+            enum starpu_data_access_mode mode):
         StarpuHandle(_reg_data(ptr, size), mode)
     {
     }
     //! Constructor for variable that is (de)allocated by user
     StarpuVariableHandle(void *ptr, size_t size,
-            enum starpu_data_access_mode mode=STARPU_RW):
+            enum starpu_data_access_mode mode):
         StarpuHandle(_reg_data(reinterpret_cast<uintptr_t>(ptr), size), mode)
     {
     }

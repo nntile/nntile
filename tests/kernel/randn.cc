@@ -254,7 +254,6 @@ void validate_part(std::array<Index, NDIM> underlying_shape,
 template<typename T>
 void validate_many()
 {
-    validate_full<T>({});
     validate_full<T, 1>({1});
     validate_full<T, 2>({2, 3});
     validate_full<T, 4>({3, 4, 5, 6});

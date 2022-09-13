@@ -58,7 +58,8 @@ public:
             // Generate traits for the tile
             tile_traits.emplace_back(tile_shape);
             // Set StarPU-managed handle
-            tile_handles.emplace_back(sizeof(T) * tile_traits[i].nelems);
+            tile_handles.emplace_back(sizeof(T)*tile_traits[i].nelems,
+                    STARPU_R);
             // Register tile with MPI
             starpu_mpi_data_register(tile_handles[i], last_tag,
                     distribution[i]);

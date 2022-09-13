@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-13
  * */
 
 #pragma once
@@ -28,6 +28,10 @@ void cpu(Index ndim, Index nelems, unsigned long long seed,
         T mean, T stddev, const Index *start, const Index *shape,
         const Index *underlying_shape, T *data, const Index *stride,
         Index *tmp_index)
+    noexcept;
+
+template<typename T>
+void cpu_ndim0(unsigned long long seed, T mean, T stddev, T *data)
     noexcept;
 
 } // namespace randn
