@@ -376,12 +376,13 @@ void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
                 switch(transA.value)
                 {
                     case TransOp::NoTrans:
-                        k = A_first_tile_traits.matrix_shape[A.ndim-ndim][1];
+                        tile_k = A_first_tile_traits.matrix_shape[
+                            A.ndim-ndim][1];
                         break;
                         // This parameter was already checked
                         //case TransOp::Trans:
                     default:
-                        k = A_first_tile_traits.matrix_shape[ndim][0];
+                        tile_k = A_first_tile_traits.matrix_shape[ndim][0];
                         break;
                 }
                 starpu::gemm::submit<T>(transA, transB, tile_m, tile_n, tile_k,
@@ -428,12 +429,13 @@ void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
                     switch(transA.value)
                     {
                         case TransOp::NoTrans:
-                            k = A_tile_traits.matrix_shape[A.ndim-ndim][1];
+                            tile_k = A_tile_traits.matrix_shape[
+                                A.ndim-ndim][1];
                             break;
                             // This parameter was already checked
                             //case TransOp::Trans:
                         default:
-                            k = A_tile_traits.matrix_shape[ndim][0];
+                            tile_k = A_tile_traits.matrix_shape[ndim][0];
                             break;
                     }
                     starpu::gemm::submit<T>(transA, transB, tile_m, tile_n,

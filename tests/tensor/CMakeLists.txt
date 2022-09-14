@@ -26,7 +26,7 @@ set(TESTS_MPI
     "clear"
     "bias"
     "randn"
-    #"gemm"
+    "gemm"
     "gelu"
     "gelutanh"
     "relu"
