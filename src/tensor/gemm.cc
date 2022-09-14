@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-13
+ * @date 2022-09-14
  * */
 
 #include "nntile/tensor/gemm.hh"
@@ -301,6 +301,7 @@ void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
     // Sizes of A, B and C as simple matrices (grids of tiles) for gemm
     int mpi_rank = starpu_mpi_world_rank();
     int ret;
+    constexpr T one = 1;
     Index m = C.grid.matrix_shape[A.ndim-ndim][0];
     Index n = C.grid.matrix_shape[A.ndim-ndim][1];
     Index k;
@@ -331,47 +332,117 @@ void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
         for(Index i = 0; i < m; ++i)
         {
             Index C_tile_offset = j*m + i;
-            const auto &C_tile_handle = C.get_tile_handle(C_tile_offset);
+            auto C_tile_handle = C.get_tile_handle(C_tile_offset);
+            auto C_tile_traits = C.get_tile_traits(C_tile_offset);
+            int C_tile_rank = starpu_mpi_data_get_rank(C_tile_handle);
+            Index tile_m = C_tile_traits.matrix_shape[A.ndim-ndim][0];
+            Index tile_n = C_tile_traits.matrix_shape[A.ndim-ndim][1];
             // initialize C(i,j) = a*opA(i,0)*opB(0,j) + b*C(i,j)
             Index A_tile_offset = opA_stride[0] * i;
             Index B_tile_offset = opB_stride[1] * j;
-            auto A_tile_handle = A.get_tile_handle(A_tile_offset);
-            auto B_tile_handle = B.get_tile_handle(B_tile_offset);
-            auto C_tile_traits = C.get_tile_traits(C_tile_offset);
-            int A_tile_rank = starpu_mpi_data_get_rank(A_tile_handle);
-            int B_tile_rank = starpu_mpi_data_get_rank(B_tile_handle);
-            int C_tile_rank = starpu_mpi_data_get_rank(C_tile_handle);
-            if(mpi_rank == A_tile_rank and mpi_rank != C_tile_rank)
+            auto A_first_tile_handle = A.get_tile_handle(A_tile_offset);
+            auto B_first_tile_handle = B.get_tile_handle(B_tile_offset);
+            int A_first_tile_rank = starpu_mpi_data_get_rank(
+                    A_first_tile_handle);
+            int B_first_tile_rank = starpu_mpi_data_get_rank(
+                    B_first_tile_handle);
+            // Transfer first tile A on node with tile C
+            if(mpi_rank == A_first_tile_rank or mpi_rank == C_tile_rank)
             {
-                ret = starpu_mpi_isend_detached
+                ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
+                        A_first_tile_handle, C_tile_rank, nullptr, nullptr);
+                if(ret != 0)
+                {
+                    throw std::runtime_error("Error in starpu_mpi_get_data_on_"
+                            "node_detached");
+                }
             }
-            Index tile_m = C_tile_traits.matrix_shape[A.ndim-ndim][0];
-            Index tile_n = C_tile_traits.matrix_shape[A.ndim-ndim][0];
-            Index tile_k;
-            switch(transA.value)
+            // Transfer first tile B on node with tile C
+            if(mpi_rank == B_first_tile_rank or mpi_rank == C_tile_rank)
             {
-                case TransOp::NoTrans:
-                    k = A.matrix_shape[A.ndim-ndim][1];
-                    break;
-                    // This parameter was already checked in gemm_check_opA_opB
-                    //case TransOp::Trans:
-                default:
-                    k = A.matrix_shape[ndim][0];
-                    break;
+                ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
+                        B_first_tile_handle, C_tile_rank, nullptr, nullptr);
+                if(ret != 0)
+                {
+                    throw std::runtime_error("Error in starpu_mpi_get_data_on_"
+                            "node_detached");
+                }
             }
-            starpu::gemm::submit<T>(transA, transB, m, n, k, alpha, A, B, beta, C);
+            // Execute on node with tile C
+            if(mpi_rank == C_tile_rank)
+            {
+                Index tile_k;
+                auto A_first_tile_traits = A.get_tile_traits(A_tile_offset);
+                switch(transA.value)
+                {
+                    case TransOp::NoTrans:
+                        k = A_first_tile_traits.matrix_shape[A.ndim-ndim][1];
+                        break;
+                        // This parameter was already checked
+                        //case TransOp::Trans:
+                    default:
+                        k = A_first_tile_traits.matrix_shape[ndim][0];
+                        break;
+                }
+                starpu::gemm::submit<T>(transA, transB, tile_m, tile_n, tile_k,
+                        alpha, A_first_tile_handle, B_first_tile_handle, beta,
+                        C_tile_handle);
+            }
             // all other l>0
             for(Index l = 1; l < k; ++l)
             {
                 // accumulate C(i,j) = a*opA(i,l)*opB(l,j) + C(i,j)
                 A_tile_offset += opA_stride[1];
                 B_tile_offset += opB_stride[0];
-                const auto &A_tile = A.tiles[A_tile_offset];
-                const auto &B_tile = B.tiles[B_tile_offset];
-                constexpr T one = 1;
-                gemm_work<T>(alpha, transA, A_tile, transB, B_tile, one,
-                        C_tile, ndim);
+                auto A_tile_handle = A.get_tile_handle(A_tile_offset);
+                auto B_tile_handle = B.get_tile_handle(B_tile_offset);
+                int A_tile_rank = starpu_mpi_data_get_rank(A_tile_handle);
+                int B_tile_rank = starpu_mpi_data_get_rank(B_tile_handle);
+                // Transfer tile A on node with tile C
+                if(mpi_rank == A_tile_rank or mpi_rank == C_tile_rank)
+                {
+                    ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
+                            A_tile_handle, C_tile_rank, nullptr, nullptr);
+                    if(ret != 0)
+                    {
+                        throw std::runtime_error("Error in starpu_mpi_get_"
+                                "data_on_node_detached");
+                    }
+                }
+                // Transfer tile B on node with tile C
+                if(mpi_rank == B_tile_rank or mpi_rank == C_tile_rank)
+                {
+                    ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
+                            B_tile_handle, C_tile_rank, nullptr, nullptr);
+                    if(ret != 0)
+                    {
+                        throw std::runtime_error("Error in starpu_mpi_get_"
+                                "data_on_node_detached");
+                    }
+                }
+                // Execute on node with tile C
+                if(mpi_rank == C_tile_rank)
+                {
+                    Index tile_k;
+                    auto A_tile_traits = A.get_tile_traits(A_tile_offset);
+                    switch(transA.value)
+                    {
+                        case TransOp::NoTrans:
+                            k = A_tile_traits.matrix_shape[A.ndim-ndim][1];
+                            break;
+                            // This parameter was already checked
+                            //case TransOp::Trans:
+                        default:
+                            k = A_tile_traits.matrix_shape[ndim][0];
+                            break;
+                    }
+                    starpu::gemm::submit<T>(transA, transB, tile_m, tile_n,
+                            tile_k, alpha, A_tile_handle, B_tile_handle, one,
+                            C_tile_handle);
+                }
             }
+            // Flush cache for the output tile on every node
+            starpu_mpi_cache_flush(MPI_COMM_WORLD, C_tile_handle);
         }
     }
 }

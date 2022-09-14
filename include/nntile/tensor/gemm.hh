@@ -22,6 +22,20 @@ namespace nntile
 namespace tensor
 {
 
+void gemm_check(const TransOp &transA, const TensorTraits &A,
+        const TransOp &transB, const TensorTraits &B, const TensorTraits &C,
+        Index ndim);
+
+template<typename T>
+void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
+        const TransOp &transB, const Tensor<T> &B, T beta, const Tensor<T> &C,
+        Index ndim);
+
+template<typename T>
+void gemm(T alpha, const TransOp &transA, const Tensor<T> &A,
+        const TransOp &transB, const Tensor<T> &B, T beta, const Tensor<T> &C,
+        Index ndim);
+
 } // namespace tensor
 } // namespace nntile
 

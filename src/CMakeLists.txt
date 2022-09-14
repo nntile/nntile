@@ -73,11 +73,12 @@ set(TENSOR_SRC
     "tensor/clear.cc"
     "tensor/bias.cc"
     "tensor/randn.cc"
-    #"tensor/gemm.cc"
+    "tensor/gemm.cc"
     "tensor/gelu.cc"
     "tensor/gelutanh.cc"
     "tensor/relu.cc"
     #"tensor/sumnorm.cc"
+    #"tensor/normalize.cc"
     )
 
 set(LAYER_SRC
