@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-09-14
  * */
 
 #pragma once
@@ -18,35 +18,15 @@
 
 namespace nntile
 {
-
-//! Asynchronous tensor-wise GeLU operation
-//
-// @param[inout] A: Tensor for the element-wise GeLU operation
-template<typename T>
-void gelu_work(const Tensor<T> &A);
-
-extern template
-void gelu_work(const Tensor<fp32_t> &A);
-
-extern template
-void gelu_work(const Tensor<fp64_t> &A);
-
-template<typename T>
-void gelu_async(const Tensor<T> &A)
+namespace tensor
 {
-    // No argument checking
-    gelu_work<T>(A);
-}
 
-//! Blocking version of tensor-wise GeLU operation
-//
-// @param[inout] A: Tensor for the element-wise GeLU operation
 template<typename T>
-void gelu(const Tensor<T> &A)
-{
-    gelu_async<T>(A);
-    starpu_task_wait_for_all();
-}
+void gelu_async(const Tensor<T> &A);
 
+template<typename T>
+void gelu(const Tensor<T> &A);
+
+} // namespace tensor
 } // namespace nntile
 

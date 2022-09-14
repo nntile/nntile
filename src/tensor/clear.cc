@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-10
+ * @date 2022-09-14
  * */
 
 #include "nntile/tensor/clear.hh"
@@ -32,6 +32,8 @@ void clear_async(const Tensor<T> &dst)
         {
             starpu::clear::submit(dst_tile_handle);
         }
+        // Flush cache for the output tile on every node
+        starpu_mpi_cache_flush(MPI_COMM_WORLD, dst_tile_handle);
     }
 }
 

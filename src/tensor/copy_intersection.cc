@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-12
+ * @date 2022-09-14
  * */
 
 #include "nntile/tensor/copy_intersection.hh"
@@ -58,41 +58,29 @@ void copy_intersection_async(const Tensor<T> &src,
         auto dst_tile_handle = dst.get_tile_handle(0);
         int src_tile_rank = starpu_mpi_data_get_rank(src_tile_handle);
         int dst_tile_rank = starpu_mpi_data_get_rank(dst_tile_handle);
-        int tile_tag = starpu_mpi_data_get_tag(src_tile_handle);
-        // Init send for owner of source tile
-        if(mpi_rank == src_tile_rank)
+        // Transfer source tile to dest node
+        if(mpi_rank == src_tile_rank or mpi_rank == dst_tile_rank)
         {
-            // If both source and destination are owned by the same node
-            if(mpi_rank == dst_tile_rank)
-            {
-                ret = starpu_data_cpy(dst_tile_handle, src_tile_handle, 1,
-                        nullptr, nullptr);
-                if(ret != 0)
-                {
-                    throw std::runtime_error("Error in starpu_data_cpy");
-                }
-            }
-            else
-            {
-                ret = starpu_mpi_isend_detached(src_tile_handle, dst_tile_rank,
-                        tile_tag, MPI_COMM_WORLD, nullptr, nullptr);
-                if(ret != 0)
-                {
-                    throw std::runtime_error("Error in starpu_mpi_isend_"
-                            "detached");
-                }
-            }
-        }
-        // Init receive for owner of destination tile
-        else if(mpi_rank == dst_tile_rank)
-        {
-            ret = starpu_mpi_irecv_detached(dst_tile_handle, src_tile_rank,
-                    tile_tag, MPI_COMM_WORLD, nullptr, nullptr);
+            ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
+                    src_tile_handle, dst_tile_rank, nullptr, nullptr);
             if(ret != 0)
             {
-                throw std::runtime_error("Error in starpu_mpi_irecv_detached");
+                throw std::runtime_error("Error in starpu_mpi_get_data_on_"
+                        "node_detached");
             }
         }
+        // Execute on destination node
+        if(mpi_rank == dst_tile_rank)
+        {
+            ret = starpu_data_cpy(dst_tile_handle, src_tile_handle, 1,
+                    nullptr, nullptr);
+            if(ret != 0)
+            {
+                throw std::runtime_error("Error in starpu_data_cpy");
+            }
+        }
+        // Flush cache for the output tile on every node
+        starpu_mpi_cache_flush(MPI_COMM_WORLD, dst_tile_handle);
         return;
     }
     // Treat easy case of full copy
@@ -105,43 +93,29 @@ void copy_intersection_async(const Tensor<T> &src,
             auto dst_tile_handle = dst.get_tile_handle(i);
             int src_tile_rank = starpu_mpi_data_get_rank(src_tile_handle);
             int dst_tile_rank = starpu_mpi_data_get_rank(dst_tile_handle);
-            int tile_tag = starpu_mpi_data_get_tag(src_tile_handle);
-            // Init send for owner of source tile
-            if(mpi_rank == src_tile_rank)
+            // Transfer source tile to dest node
+            if(mpi_rank == src_tile_rank or mpi_rank == dst_tile_rank)
             {
-                // If both source and destination are owned by the same node
-                if(mpi_rank == dst_tile_rank)
-                {
-                    ret = starpu_data_cpy(dst_tile_handle, src_tile_handle, 1,
-                            nullptr, nullptr);
-                    if(ret != 0)
-                    {
-                        throw std::runtime_error("Error in starpu_data_cpy");
-                    }
-                }
-                else
-                {
-                    ret = starpu_mpi_isend_detached(src_tile_handle,
-                            dst_tile_rank, tile_tag, MPI_COMM_WORLD, nullptr,
-                            nullptr);
-                    if(ret != 0)
-                    {
-                        throw std::runtime_error("Error in starpu_mpi_isend_"
-                                "detached");
-                    }
-                }
-            }
-            // Init receive for owner of destination tile
-            else if(mpi_rank == dst_tile_rank)
-            {
-                ret = starpu_mpi_irecv_detached(dst_tile_handle, src_tile_rank,
-                        tile_tag, MPI_COMM_WORLD, nullptr, nullptr);
+                ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
+                        src_tile_handle, dst_tile_rank, nullptr, nullptr);
                 if(ret != 0)
                 {
-                    throw std::runtime_error("Error in starpu_mpi_irecv_"
-                            "detached");
+                    throw std::runtime_error("Error in starpu_mpi_get_data_on_"
+                            "node_detached");
                 }
             }
+            // Execute on destination node
+            if(mpi_rank == dst_tile_rank)
+            {
+                ret = starpu_data_cpy(dst_tile_handle, src_tile_handle, 1,
+                        nullptr, nullptr);
+                if(ret != 0)
+                {
+                    throw std::runtime_error("Error in starpu_data_cpy");
+                }
+            }
+            // Flush cache for the output tile on every node
+            starpu_mpi_cache_flush(MPI_COMM_WORLD, dst_tile_handle);
         }
         return;
     }
@@ -299,85 +273,39 @@ void copy_intersection_async(const Tensor<T> &src,
                 src_first_tile_offset);
         int src_first_tile_rank = starpu_mpi_data_get_rank(
                 src_first_tile_handle);
-        int first_tile_tag = starpu_mpi_data_get_tag(src_first_tile_handle);
+        // Transfer first source tile to dest node
+        if(mpi_rank == src_first_tile_rank or mpi_rank == dst_tile_rank)
+        {
+            ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
+                    src_first_tile_handle, dst_tile_rank, nullptr, nullptr);
+            if(ret != 0)
+            {
+                throw std::runtime_error("Error in starpu_mpi_get_data_on_"
+                        "node_detached");
+            }
+        }
         // If there is only one corresponding source tile, that can be copied
         // without calling complex copy codelet
         if(src_ntiles == 1 and dst_tile_mode == STARPU_W
                 and copy_tile_shape == src_first_tile_traits.shape)
         {
-            // Init send for owner of source tile
-            if(mpi_rank == src_first_tile_rank)
+            // Execute on destination node
+            if(mpi_rank == dst_tile_rank)
             {
-                // If both source and destination are owned by the same node
-                if(mpi_rank == dst_tile_rank)
-                {
-                    ret = starpu_data_cpy(dst_tile_handle,
-                            src_first_tile_handle, 1, nullptr, nullptr);
-                    if(ret != 0)
-                    {
-                        throw std::runtime_error("Error in starpu_data_cpy");
-                    }
-                }
-                else
-                {
-                    ret = starpu_mpi_isend_detached(src_first_tile_handle,
-                            dst_tile_rank, first_tile_tag, MPI_COMM_WORLD,
-                            nullptr, nullptr);
-                    if(ret != 0)
-                    {
-                        throw std::runtime_error("Error in starpu_mpi_isend_"
-                                "detached");
-                    }
-                }
-            }
-            // Init receive for owner of destination tile
-            else if(mpi_rank == dst_tile_rank)
-            {
-                ret = starpu_mpi_irecv_detached(dst_tile_handle,
-                        src_first_tile_rank, first_tile_tag, MPI_COMM_WORLD,
-                        nullptr, nullptr);
+                ret = starpu_data_cpy(dst_tile_handle, src_first_tile_handle,
+                        1, nullptr, nullptr);
                 if(ret != 0)
                 {
-                    throw std::runtime_error("Error in starpu_mpi_irecv_"
-                            "detached");
+                    throw std::runtime_error("Error in starpu_data_cpy");
                 }
             }
         }
         // So now we have to use only complex copying
         else
         {
-            // The first update of the destination tile uses dst_tile_mode
-            // Init send for owner of source tile
-            if(mpi_rank == src_first_tile_rank)
-            {
-                // Perform copy only if destination node is different
-                if(mpi_rank != dst_tile_rank)
-                {
-                    ret = starpu_mpi_isend_detached(src_first_tile_handle,
-                            dst_tile_rank, first_tile_tag, MPI_COMM_WORLD,
-                            nullptr, nullptr);
-                    if(ret != 0)
-                    {
-                        throw std::runtime_error("Error in starpu_mpi_isend_"
-                                "detached");
-                    }
-                }
-            }
-            // Init receive of source tile for owner of destination tile
+            // Execute on dest node
             if(mpi_rank == dst_tile_rank)
             {
-                // Perform copy only if source node is different
-                if(mpi_rank != src_first_tile_rank)
-                {
-                    ret = starpu_mpi_irecv_detached(src_first_tile_handle,
-                            src_first_tile_rank, first_tile_tag,
-                            MPI_COMM_WORLD, nullptr, nullptr);
-                    if(ret != 0)
-                    {
-                        throw std::runtime_error("Error in starpu_mpi_irecv_"
-                                "detached");
-                    }
-                }
                 starpu::subcopy::submit<T>(ndim, src_tile_start,
                         src_first_tile_traits.stride, dst_tile_start,
                         dst_tile_traits.stride, copy_tile_shape,
@@ -459,44 +387,24 @@ void copy_intersection_async(const Tensor<T> &src,
                 // Get all the parameters for the complex copy
                 Index src_tile_offset = src.grid.index_to_linear(
                         src_tile_index);
-                auto src_tile_traits = src.get_tile_traits(
-                        src_tile_offset);
-                auto src_tile_handle = src.get_tile_handle(
-                        src_tile_offset);
-                int src_tile_rank = starpu_mpi_data_get_rank(
-                        src_tile_handle);
-                int tile_tag = starpu_mpi_data_get_tag(src_tile_handle);
-                // Init send for owner of source tile
-                if(mpi_rank == src_tile_rank)
+                auto src_tile_handle = src.get_tile_handle(src_tile_offset);
+                int src_tile_rank = starpu_mpi_data_get_rank(src_tile_handle);
+                // Transfer source tile to dest node
+                if(mpi_rank == src_tile_rank or mpi_rank == dst_tile_rank)
                 {
-                    // Perform copy only if destination node is different
-                    if(mpi_rank != dst_tile_rank)
+                    ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
+                            src_tile_handle, dst_tile_rank, nullptr, nullptr);
+                    if(ret != 0)
                     {
-                        ret = starpu_mpi_isend_detached(src_tile_handle,
-                                dst_tile_rank, tile_tag, MPI_COMM_WORLD,
-                                nullptr, nullptr);
-                        if(ret != 0)
-                        {
-                            throw std::runtime_error("Error in starpu_mpi_"
-                                    "isend_detached");
-                        }
+                        throw std::runtime_error("Error in starpu_mpi_get_"
+                                "data_on_node_detached");
                     }
                 }
-                // Init receive of source tile for owner of destination tile
+                // Execute on dest node
                 if(mpi_rank == dst_tile_rank)
                 {
-                    // Perform copy only if source node is different
-                    if(mpi_rank != src_tile_rank)
-                    {
-                        ret = starpu_mpi_irecv_detached(src_tile_handle,
-                                src_tile_rank, tile_tag, MPI_COMM_WORLD,
-                                nullptr, nullptr);
-                        if(ret != 0)
-                        {
-                            throw std::runtime_error("Error in starpu_mpi_"
-                                    "irecv_detached");
-                        }
-                    }
+                    auto src_tile_traits = src.get_tile_traits(
+                            src_tile_offset);
                     starpu::subcopy::submit<T>(ndim, src_tile_start,
                             src_tile_traits.stride, dst_tile_start,
                             dst_tile_traits.stride, copy_tile_shape,
@@ -505,6 +413,8 @@ void copy_intersection_async(const Tensor<T> &src,
                 }
             }
         }
+        // Flush cache for the output tile on every node
+        starpu_mpi_cache_flush(MPI_COMM_WORLD, dst_tile_handle);
         // Get out if it was the last tile
         if(i == dst_ntiles-1)
         {

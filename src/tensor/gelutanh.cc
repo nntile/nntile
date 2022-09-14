@@ -4,27 +4,27 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tensor/gelu.cc
- * GeLU operation for Tensor<T>
+ * @file src/tensor/gelutanh.cc
+ * Approximate GeLU operation for Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @date 2022-09-14
  * */
 
-#include "nntile/tensor/gelu.hh"
-#include "nntile/starpu/gelu.hh"
+#include "nntile/tensor/gelutanh.hh"
+#include "nntile/starpu/gelutanh.hh"
 
 namespace nntile
 {
 namespace tensor
 {
 
-//! Asynchronous tensor-wise GeLU operation
+//! Asynchronous tensor-wise approximate GeLU operation
 //
 // @param[inout] A: Tensor for the element-wise GeLU operation
 template<typename T>
-void gelu_async(const Tensor<T> &A)
+void gelutanh_async(const Tensor<T> &A)
 {
     int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < A.grid.nelems; ++i)
@@ -35,30 +35,30 @@ void gelu_async(const Tensor<T> &A)
         if(mpi_rank == tile_rank)
         {
             auto tile_traits = A.get_tile_traits(i);
-            starpu::gelu::submit<T>(tile_traits.nelems, tile_handle);
+            starpu::gelutanh::submit<T>(tile_traits.nelems, tile_handle);
         }
         // Flush cache for the output tile on every node
         starpu_mpi_cache_flush(MPI_COMM_WORLD, tile_handle);
     }
 }
 
-//! Blocking version of tensor-wise GeLU operation
+//! Blocking version of tensor-wise approximate GeLU operation
 //
 // @param[inout] A: Tensor for the element-wise GeLU operation
 template<typename T>
-void gelu(const Tensor<T> &A)
+void gelutanh(const Tensor<T> &A)
 {
-    gelu_async<T>(A);
+    gelutanh_async<T>(A);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void gelu(const Tensor<fp32_t> &A);
+void gelutanh(const Tensor<fp32_t> &A);
 
 template
-void gelu(const Tensor<fp64_t> &A);
+void gelutanh(const Tensor<fp64_t> &A);
 
 } // namespace tensor
 } // namespace nntile

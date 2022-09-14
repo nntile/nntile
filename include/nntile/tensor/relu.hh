@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-09-14
  * */
 
 #pragma once
@@ -18,28 +18,15 @@
 
 namespace nntile
 {
+namespace tensor
+{
 
-//! Asynchronous tensor-wise ReLU operation
-//
-// @param[inout] A: Tensor for the element-wise ReLU operation
 template<typename T>
 void relu_async(const Tensor<T> &A);
 
-extern template
-void relu_async(const Tensor<fp32_t> &A);
-
-extern template
-void relu_async(const Tensor<fp64_t> &A);
-
-//! Blocking version of tensor-wise ReLU operation
-//
-// @param[inout] A: Tensor for the element-wise ReLU operation
 template<typename T>
-void relu(const Tensor<T> &A)
-{
-    relu_async<T>(A);
-    starpu_task_wait_for_all();
-}
+void relu(const Tensor<T> &A);
 
+} // namespace tensor
 } // namespace nntile
 

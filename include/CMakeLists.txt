@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-09-12
+# @date 2022-09-14
 
 # Set list of headers
 set(BASE_HDR
@@ -84,9 +84,10 @@ set(TENSOR_HDR
     "nntile/tensor/clear.hh"
     "nntile/tensor/bias.hh"
     "nntile/tensor/randn.hh"
-    #"nntile/tensor/gemm.hh"
-    #"nntile/tensor/gelu.hh"
-    #"nntile/tensor/relu.hh"
+    "nntile/tensor/gemm.hh"
+    "nntile/tensor/gelu.hh"
+    "nntile/tensor/gelutanh.hh"
+    "nntile/tensor/relu.hh"
     #"nntile/tensor/sumnorm.hh"
     )
 

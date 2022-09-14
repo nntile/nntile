@@ -9,18 +9,20 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-09-13
  * */
 
 #include "nntile/tensor/gemm.hh"
-#include "nntile/tile/gemm.hh"
+#include "nntile/starpu/gemm.hh"
 
 namespace nntile
+{
+namespace tensor
 {
 
 //! Check if dimensionalities of tensors match gemm
 static inline void gemm_check_ndim(const TensorTraits &A,
-        const TensorTraits &B, const TensorTraits &C, Index ndim=1)
+        const TensorTraits &B, const TensorTraits &C, Index ndim)
 {
     // Check if ndim is negative since it will be converted to Index
     if(ndim <= 0)
@@ -277,12 +279,28 @@ void gemm_check(const TransOp &transA, const TensorTraits &A,
     gemm_check_opB_C(transB, B, C, ndim);
 }
 
+//! Asynchronous version of tensor-wise gemm operation
+/*! Matrix multiplication for tensors, which are virtually reshaped
+ *
+ * @param[in] alpha: Alpha multiplier
+ * @param[in] transA: Transposition flag for the tensor A
+ * @param[in] A: Input tensor A
+ * @param[in] transB: Transposition flag for the tensor B
+ * @param[in] B: Input tensor B
+ * @param[in] beta: Beta multiplier
+ * @param[inout] C: Output tensor C
+ * @param[in] ndim: Number of dimensions used in gemm contraction
+ * */
 template<typename T>
-void gemm_work(T alpha, const TransOp &transA, const Tensor<T> &A,
+void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
         const TransOp &transB, const Tensor<T> &B, T beta, const Tensor<T> &C,
         Index ndim)
 {
+    // Check inputs (throw exception in case of an error)
+    gemm_check(transA, A, transB, B, C, ndim);
     // Sizes of A, B and C as simple matrices (grids of tiles) for gemm
+    int mpi_rank = starpu_mpi_world_rank();
+    int ret;
     Index m = C.grid.matrix_shape[A.ndim-ndim][0];
     Index n = C.grid.matrix_shape[A.ndim-ndim][1];
     Index k;
@@ -307,20 +325,41 @@ void gemm_work(T alpha, const TransOp &transA, const Tensor<T> &A,
             opB_stride = {n, 1};
             break;
     }
-    // All per-tile gemm_async calls shall appear here
+    // All per-tile starpu gemm calls shall appear here
     for(Index j = 0; j < n; ++j)
     {
         for(Index i = 0; i < m; ++i)
         {
             Index C_tile_offset = j*m + i;
-            const auto &C_tile = C.tiles[C_tile_offset];
+            const auto &C_tile_handle = C.get_tile_handle(C_tile_offset);
             // initialize C(i,j) = a*opA(i,0)*opB(0,j) + b*C(i,j)
             Index A_tile_offset = opA_stride[0] * i;
             Index B_tile_offset = opB_stride[1] * j;
-            const auto &A_tile = A.tiles[A_tile_offset];
-            const auto &B_tile = B.tiles[B_tile_offset];
-            gemm_work<T>(alpha, transA, A_tile, transB, B_tile, beta,
-                    C_tile, ndim);
+            auto A_tile_handle = A.get_tile_handle(A_tile_offset);
+            auto B_tile_handle = B.get_tile_handle(B_tile_offset);
+            auto C_tile_traits = C.get_tile_traits(C_tile_offset);
+            int A_tile_rank = starpu_mpi_data_get_rank(A_tile_handle);
+            int B_tile_rank = starpu_mpi_data_get_rank(B_tile_handle);
+            int C_tile_rank = starpu_mpi_data_get_rank(C_tile_handle);
+            if(mpi_rank == A_tile_rank and mpi_rank != C_tile_rank)
+            {
+                ret = starpu_mpi_isend_detached
+            }
+            Index tile_m = C_tile_traits.matrix_shape[A.ndim-ndim][0];
+            Index tile_n = C_tile_traits.matrix_shape[A.ndim-ndim][0];
+            Index tile_k;
+            switch(transA.value)
+            {
+                case TransOp::NoTrans:
+                    k = A.matrix_shape[A.ndim-ndim][1];
+                    break;
+                    // This parameter was already checked in gemm_check_opA_opB
+                    //case TransOp::Trans:
+                default:
+                    k = A.matrix_shape[ndim][0];
+                    break;
+            }
+            starpu::gemm::submit<T>(transA, transB, m, n, k, alpha, A, B, beta, C);
             // all other l>0
             for(Index l = 1; l < k; ++l)
             {
@@ -337,15 +376,39 @@ void gemm_work(T alpha, const TransOp &transA, const Tensor<T> &A,
     }
 }
 
+//! Blocking version of tensor-wise gemm operation
+/*! Matrix multiplication for tensors, which are virtually reshaped
+ *
+ * @param[in] alpha: Alpha multiplier
+ * @param[in] transA: Transposition flag for the tensor A
+ * @param[in] A: Input tensor A
+ * @param[in] transB: Transposition flag for the tensor B
+ * @param[in] B: Input tensor B
+ * @param[in] beta: Beta multiplier
+ * @param[inout] C: Output tensor C
+ * @param[in] ndim: Number of dimensions used in gemm contraction
+ * */
+template<typename T>
+void gemm(T alpha, const TransOp &transA, const Tensor<T> &A,
+        const TransOp &transB, const Tensor<T> &B, T beta, const Tensor<T> &C,
+        Index ndim)
+{
+    gemm_async<T>(alpha, transA, A, transB, B, beta, C, ndim);
+    starpu_task_wait_for_all();
+    starpu_mpi_wait_for_all(MPI_COMM_WORLD);
+}
+
+// Explicit instantiation
 template
-void gemm_work(float alpha, const TransOp &transA, const Tensor<float> &A,
-        const TransOp &transB, const Tensor<float> &B, float beta,
-        const Tensor<float> &C, Index ndim=1);
+void gemm<fp32_t>(fp32_t alpha, const TransOp &transA, const Tensor<fp32_t> &A,
+        const TransOp &transB, const Tensor<fp32_t> &B, fp32_t beta,
+        const Tensor<fp32_t> &C, Index ndim);
 
 template
-void gemm_work(double alpha, const TransOp &transA, const Tensor<double> &A,
-        const TransOp &transB, const Tensor<double> &B, double beta,
-        const Tensor<double> &C, Index ndim=1);
+void gemm<fp64_t>(fp64_t alpha, const TransOp &transA, const Tensor<fp64_t> &A,
+        const TransOp &transB, const Tensor<fp64_t> &B, fp64_t beta,
+        const Tensor<fp64_t> &C, Index ndim);
 
+} // namespace tensor
 } // namespace nntile
 

@@ -4,19 +4,19 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/bias.cc
- * Bias operation for Tensor<T>
+ * @file tests/tensor/gelutanh.cc
+ * Approximate GeLU operation for Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-13
+ * @date 2022-09-14
  * */
 
-#include "nntile/tensor/bias.hh"
-#include "nntile/tile/bias.hh"
-#include "nntile/starpu/bias.hh"
-#include "nntile/tensor/scatter.hh"
+#include "nntile/tensor/gelutanh.hh"
+#include "nntile/tile/gelutanh.hh"
+#include "nntile/starpu/gelutanh.hh"
 #include "nntile/tensor/gather.hh"
+#include "nntile/tensor/scatter.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "../testing.hh"
 #include "../starpu/common.hh"
@@ -25,8 +25,7 @@ using namespace nntile;
 using namespace nntile::tensor;
 
 template<typename T>
-void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
-        Index axis)
+void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
 {
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
@@ -35,19 +34,19 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_root = 0;
-    // Generate single-tile destination tensor and init it
+    // Generate single-tile destination tensor
     Tensor<T> dst_single({shape, shape}, {mpi_root}, last_tag);
     if(mpi_rank == mpi_root)
     {
         auto tile = dst_single.get_tile(0);
         auto tile_local = tile.acquire(STARPU_W);
-        for(Index i = 0; i < dst_single.nelems; ++i)
+        for(Index i = 0; i < tile.nelems; ++i)
         {
             tile_local[i] = T(i);
         }
         tile_local.release();
     }
-    // Scatter destination tensor
+    // Generate distributed-tile destination tensor
     TensorTraits dst_traits(shape, basetile);
     std::vector<int> dst_distr(dst_traits.grid.nelems);
     for(Index i = 0; i < dst_traits.grid.nelems; ++i)
@@ -55,49 +54,19 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         dst_distr[i] = (i+1) % mpi_size;
     }
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
-    scatter<T>(dst_single, dst);
-    // Define proper shape and basetile for the source tensor
-    std::vector<Index> src_shape(dst_traits.ndim-1),
-        src_basetile(dst_traits.ndim-1);
-    for(Index i = 0; i < axis; ++i)
-    {
-        src_shape[i] = dst_traits.shape[i];
-        src_basetile[i] = dst_traits.basetile_shape[i];
-    }
-    for(Index i = axis+1; i < dst_traits.ndim; ++i)
-    {
-        src_shape[i-1] = dst_traits.shape[i];
-        src_basetile[i-1] = dst_traits.basetile_shape[i];
-    }
-    // Generate single-tile source tensor and init it
-    Tensor<T> src_single({src_shape, src_shape}, {mpi_root}, last_tag);
+    scatter(dst_single, dst);
+    // Get approximate GeLU
     if(mpi_rank == mpi_root)
     {
-        auto tile = src_single.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_W);
-        for(Index i = 0; i < src_single.nelems; ++i)
-        {
-            tile_local[i] = T(-i);
-        }
-        tile_local.release();
+        auto tile = dst_single.get_tile(0);
+        tile::gelutanh<T>(tile);
     }
-    // Scatter source tensor
-    TensorTraits src_traits(src_shape, src_basetile);
-    std::vector<int> src_distr(src_traits.grid.nelems);
-    for(Index i = 0; i < src_traits.grid.nelems; ++i)
-    {
-        src_distr[i] = (i*i+1) % mpi_size;
-    }
-    Tensor<T> src(src_traits, src_distr, last_tag);
-    scatter<T>(src_single, src);
-    // Perform tensor-wise and tile-wise bias operations
-    bias<T>(src, dst, axis);
+    gelutanh<T>(dst);
     // Compare results
     Tensor<T> dst2_single({shape, shape}, {mpi_root}, last_tag);
     gather<T>(dst, dst2_single);
     if(mpi_rank == mpi_root)
     {
-        tile::bias<T>(src_single.get_tile(0), dst_single.get_tile(0), axis);
         auto tile = dst_single.get_tile(0);
         auto tile2 = dst2_single.get_tile(0);
         auto tile_local = tile.acquire(STARPU_R);
@@ -114,9 +83,10 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
 template<typename T>
 void validate()
 {
-    check<T>({11}, {5}, 0);
-    check<T>({11, 12}, {5, 6}, 0);
-    check<T>({11, 12}, {5, 6}, 1);
+    check<T>({}, {});
+    check<T>({5}, {5});
+    check<T>({11}, {5});
+    check<T>({11, 12, 13}, {5, 6, 7});
 }
 
 int main(int argc, char **argv)
@@ -124,7 +94,7 @@ int main(int argc, char **argv)
     // Init StarPU for testing
     StarpuTest starpu;
     // Init codelet
-    starpu::bias::init();
+    starpu::gelutanh::init();
     starpu::subcopy::init();
     // Launch all tests
     validate<fp32_t>();

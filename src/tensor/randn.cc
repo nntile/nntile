@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-12
+ * @date 2022-09-14
  * */
 
 #include "nntile/tensor/randn.hh"
@@ -63,6 +63,21 @@ void randn_async(const Tensor<T> &dst, const std::vector<Index> &start,
                     "underlying_shape[i]");
         }
     }
+    // Tackle ndim=0 case
+    if(ndim == 0)
+    {
+        auto tile_handle = dst.get_tile_handle(0);
+        int tile_rank = starpu_mpi_data_get_rank(tile_handle);
+        if(mpi_rank == tile_rank)
+        {
+            starpu::randn::submit<T>(0, 1, seed, mean, stddev, start,
+                    dst.shape, dst.stride, underlying_shape, tile_handle,
+                    nullptr);
+        }
+        // Flush cache for the output tile on every node
+        starpu_mpi_cache_flush(MPI_COMM_WORLD, tile_handle);
+        return;
+    }
     // Temporary index
     StarpuVariableHandle tmp_index(sizeof(Index)*2*ndim, STARPU_SCRATCH);
     // Now do the job
@@ -80,7 +95,13 @@ void randn_async(const Tensor<T> &dst, const std::vector<Index> &start,
                     stddev, tile_start, tile_traits.shape, tile_traits.stride,
                     underlying_shape, tile_handle, tmp_index);
         }
+        // Flush cache for the output tile on every node
+        starpu_mpi_cache_flush(MPI_COMM_WORLD, tile_handle);
         // Generate index and starting point for the next tile
+        if(i == dst.grid.nelems-1)
+        {
+            break;
+        }
         ++tile_index[0];
         tile_start[0] += dst.basetile_shape[0];
         Index j = 0;

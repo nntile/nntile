@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-14
  * */
 
 #include "nntile/tile/randn.hh"
@@ -72,7 +72,7 @@ void randn_async(const Tile<T> &dst, const std::vector<Index> &start,
     }
     else
     {
-        starpu::randn::submit<T>(ndim, dst.nelems, seed, mean, stddev, start,
+        starpu::randn::submit<T>(0, 1, seed, mean, stddev, start,
                 dst.shape, dst.stride, underlying_shape, dst, nullptr);
     }
 }

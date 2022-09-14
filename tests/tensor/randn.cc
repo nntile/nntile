@@ -44,7 +44,6 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
         tile::randn<T>(dst_single.get_tile(0), start, shape, seed, mean,
                 stddev);
     }
-    return;
     // Generate distributed-tile destination tensor
     TensorTraits dst_traits(shape, basetile);
     std::vector<int> dst_distr(dst_traits.grid.nelems);
