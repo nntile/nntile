@@ -164,6 +164,8 @@ int main(int argc, char **argv)
     starpu::sumnorm::init();
     starpu::clear::init();
     starpu::subcopy::init();
+    // Restrict execution to CPU to properly compare results
+    starpu::normalize::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

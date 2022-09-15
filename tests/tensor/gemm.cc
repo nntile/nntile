@@ -268,6 +268,8 @@ int main(int argc, char **argv)
     // Init codelet
     starpu::gemm::init();
     starpu::subcopy::init();
+    // Restrict execution to CPU to properly compare results
+    starpu::gemm::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

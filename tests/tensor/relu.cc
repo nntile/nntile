@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-14
+ * @date 2022-09-15
  * */
 
 #include "nntile/tensor/relu.hh"
@@ -96,6 +96,8 @@ int main(int argc, char **argv)
     // Init codelet
     starpu::relu::init();
     starpu::subcopy::init();
+    // Restrict execution to CPU to properly compare results
+    starpu::relu::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

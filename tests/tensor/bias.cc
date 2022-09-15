@@ -145,6 +145,8 @@ int main(int argc, char **argv)
     // Init codelet
     starpu::bias::init();
     starpu::subcopy::init();
+    // Restrict execution to CPU to properly compare results
+    starpu::bias::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
