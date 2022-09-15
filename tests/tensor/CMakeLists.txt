@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-09-14
+# @date 2022-09-15
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -30,8 +30,8 @@ set(TESTS_MPI
     "gelu"
     "gelutanh"
     "relu"
-    #"normalize"
-    #"sumnorm"
+    "sumnorm"
+    "normalize"
     )
 
 # Add target for local coverage

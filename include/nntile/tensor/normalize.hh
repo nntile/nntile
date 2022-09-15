@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/sumnorm.hh
- * Sum and Euclidian norm of Tensor<T> along axis
+ * @file include/nntile/tensor/normalize.hh
+ * Normalize operation for Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -22,10 +22,14 @@ namespace tensor
 {
 
 template<typename T>
-void sumnorm_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis);
+void normalize_async(const StarpuVariableHandle &gamma_beta,
+        const Tensor<T> &src, const Tensor<T> &dst, Index l, T eps,
+        Index axis);
 
 template<typename T>
-void sumnorm(const Tensor<T> &src, const Tensor<T> &dst, Index axis);
+void normalize(const StarpuVariableHandle &gamma_beta,
+        const Tensor<T> &src, const Tensor<T> &dst, Index l, T eps,
+        Index axis);
 
 } // namespace tensor
 } // namespace nntile

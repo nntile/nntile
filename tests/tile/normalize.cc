@@ -122,6 +122,8 @@ void validate()
                 0));
     TEST_THROW(normalize<T>(gamma_beta, sumnorm[1], dst, dst.shape[1], zero,
                 2));
+    TEST_THROW(normalize<T>(gamma_beta, sumnorm[0], dst, 1, zero, -1));
+    TEST_THROW(normalize<T>(gamma_beta, sumnorm[0], dst, 1, zero, 3));
 }
 
 int main(int argc, char **argv)

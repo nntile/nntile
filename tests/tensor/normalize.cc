@@ -4,19 +4,22 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/bias.cc
- * Bias operation for Tensor<T>
+ * @file tests/tensor/normalize.cc
+ * normalize operation for Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @date 2022-09-15
  * */
 
-#include "nntile/tensor/bias.hh"
-#include "nntile/tile/bias.hh"
-#include "nntile/starpu/bias.hh"
+#include "nntile/tensor/normalize.hh"
+#include "nntile/tile/normalize.hh"
+#include "nntile/starpu/normalize.hh"
+#include "nntile/tensor/sumnorm.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
+#include "nntile/starpu/clear.hh"
+#include "nntile/starpu/sumnorm.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "../testing.hh"
 #include "../starpu/common.hh"
@@ -57,31 +60,21 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
     scatter<T>(dst_single, dst);
     // Define proper shape and basetile for the source tensor
-    std::vector<Index> src_shape(dst_traits.ndim-1),
-        src_basetile(dst_traits.ndim-1);
-    for(Index i = 0; i < axis; ++i)
+    std::vector<Index> src_shape(dst_traits.ndim),
+        src_basetile(dst_traits.ndim);
+    src_shape[0] = 2;
+    src_basetile[0] = 2;
+    for(Index i = 1; i <= axis; ++i)
+    {
+        src_shape[i] = shape[i-1];
+        src_basetile[i] = basetile[i-1];
+    }
+    for(Index i = axis+1; i < dst_traits.ndim; ++i)
     {
         src_shape[i] = shape[i];
         src_basetile[i] = basetile[i];
     }
-    for(Index i = axis+1; i < dst_traits.ndim; ++i)
-    {
-        src_shape[i-1] = shape[i];
-        src_basetile[i-1] = basetile[i];
-    }
-    // Generate single-tile source tensor and init it
-    Tensor<T> src_single({src_shape, src_shape}, {mpi_root}, last_tag);
-    if(mpi_rank == mpi_root)
-    {
-        auto tile = src_single.get_tile(0);
-        auto tile_local = tile.acquire(STARPU_W);
-        for(Index i = 0; i < src_single.nelems; ++i)
-        {
-            tile_local[i] = T(-i);
-        }
-        tile_local.release();
-    }
-    // Scatter source tensor
+    // Generate source tensor as a result of sumnorm operation
     TensorTraits src_traits(src_shape, src_basetile);
     std::vector<int> src_distr(src_traits.grid.nelems);
     for(Index i = 0; i < src_traits.grid.nelems; ++i)
@@ -89,12 +82,25 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         src_distr[i] = (i*i+1) % mpi_size;
     }
     Tensor<T> src(src_traits, src_distr, last_tag);
-    scatter<T>(src_single, src);
-    // Perform tensor-wise and tile-wise bias operations
-    bias<T>(src, dst, axis);
+    sumnorm<T>(dst, src, axis);
+    // Collect source in a single-tile tensor
+    Tensor<T> src_single({src_shape, src_shape}, {mpi_root}, last_tag);
+    gather<T>(src, src_single);
+    // Prepare all other parameters
+    Tensor<T> gamma_beta({{2}, {2}}, {mpi_root}, last_tag);
+    {
+        auto gb_tile = gamma_beta.get_tile(0);
+        auto gb_local = gb_tile.acquire(STARPU_W);
+        gb_local[0] = T{1};
+        gb_local[1] = T{0};
+        gb_local.release();
+    }
+    // Perform tensor-wise and tile-wise normalize operations
+    normalize<T>(gamma_beta.get_tile(0), src, dst, shape[axis], T{0}, axis);
     if(mpi_rank == mpi_root)
     {
-        tile::bias<T>(src_single.get_tile(0), dst_single.get_tile(0), axis);
+        tile::normalize<T>(gamma_beta.get_tile(0), src_single.get_tile(0),
+                dst_single.get_tile(0), shape[axis], T{0}, axis);
     }
     // Compare results
     Tensor<T> dst2_single({shape, shape}, {mpi_root}, last_tag);
@@ -128,14 +134,25 @@ void validate()
     // Check throwing exceptions
     starpu_mpi_tag_t last_tag = 0;
     Tensor<T> A({{3, 4}, {2, 3}}, {0, 0, 0, 0}, last_tag),
-        B({{3}, {3}}, {0}, last_tag), C({{4}, {4}}, {0}, last_tag);
-    TEST_THROW(bias<T>(A, A, 0));
-    TEST_THROW(bias<T>(B, A, -1));
-    TEST_THROW(bias<T>(B, A, 2));
-    TEST_THROW(bias<T>(B, A, 0));
-    TEST_THROW(bias<T>(B, A, 1));
-    TEST_THROW(bias<T>(C, A, 0));
-    TEST_THROW(bias<T>(C, A, 1));
+        B({{3}, {3}}, {0}, last_tag),
+        C({{2, 4}, {2, 2}}, {0, 0}, last_tag),
+        D({{}, {}}, {0}, last_tag),
+        E({{3, 3}, {2, 3}}, {0, 0}, last_tag),
+        F({{2, 3}, {1, 3}}, {0, 0}, last_tag),
+        G({{2, 3}, {2, 3}}, {0}, last_tag);
+    StarpuVariableHandle gamma_beta(2*sizeof(T), STARPU_SCRATCH);
+    TEST_THROW(normalize<T>(gamma_beta, B, A, 1, T{0}, 0));
+    TEST_THROW(normalize<T>(gamma_beta, D, D, 1, T{0}, 0));
+    TEST_THROW(normalize<T>(gamma_beta, C, A, 0, T{0}, 0));
+    TEST_THROW(normalize<T>(gamma_beta, C, A, 1, T{-0.1}, 0));
+    TEST_THROW(normalize<T>(gamma_beta, C, A, 1, T{0}, -1));
+    TEST_THROW(normalize<T>(gamma_beta, C, A, 1, T{0}, 2));
+    TEST_THROW(normalize<T>(gamma_beta, E, A, 1, T{0}, 0));
+    TEST_THROW(normalize<T>(gamma_beta, F, A, 1, T{0}, 0));
+    TEST_THROW(normalize<T>(gamma_beta, C, A, 1, T{0}, 0));
+    TEST_THROW(normalize<T>(gamma_beta, C, A, 1, T{0}, 1));
+    TEST_THROW(normalize<T>(gamma_beta, G, A, 1, T{0}, 0));
+    TEST_THROW(normalize<T>(gamma_beta, G, A, 1, T{0}, 1));
 }
 
 int main(int argc, char **argv)
@@ -143,7 +160,9 @@ int main(int argc, char **argv)
     // Init StarPU for testing
     StarpuTest starpu;
     // Init codelet
-    starpu::bias::init();
+    starpu::normalize::init();
+    starpu::sumnorm::init();
+    starpu::clear::init();
     starpu::subcopy::init();
     // Launch all tests
     validate<fp32_t>();

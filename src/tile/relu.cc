@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-15
  * */
 
 #include "nntile/tile/relu.hh"
@@ -42,10 +42,10 @@ void relu(const Tile<T> &A)
 
 // Explicit instantiation
 template
-void relu(const Tile<fp32_t> &A);
+void relu<fp32_t>(const Tile<fp32_t> &A);
 
 template
-void relu(const Tile<fp64_t> &A);
+void relu<fp64_t>(const Tile<fp64_t> &A);
 
 } // namespace tile
 } // namespace nntile
