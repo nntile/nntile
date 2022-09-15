@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-13
+ * @date 2022-09-15
  * */
 
 #include "nntile/tensor/copy.hh"
@@ -106,7 +106,15 @@ void validate()
     check<T>({}, {});
     check<T>({11, 12, 13}, {11, 12, 13});
     check<T>({11, 12, 13}, {3, 4, 5});
-    //TEST_THROW(check<T>());
+    // Barrier to wait for cleanup of previously used tags
+    starpu_mpi_barrier(MPI_COMM_WORLD);
+    // Check throwing exceptions
+    starpu_mpi_tag_t last_tag = 0;
+    Tensor<T> A({{3, 4}, {2, 3}}, {0, 0, 0, 0}, last_tag),
+        B({{3, 3}, {2, 3}}, {0, 0}, last_tag),
+        C({{3, 4}, {2, 4}}, {0, 0}, last_tag);
+    TEST_THROW(copy<T>(A, B));
+    TEST_THROW(copy<T>(A, C));
 }
 
 int main(int argc, char **argv)

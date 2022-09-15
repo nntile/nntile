@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-15
  * */
 
 #include "nntile/kernel/randn/cpu.hh"
@@ -33,6 +33,61 @@ static inline fp64_t chameleon_randn(unsigned long long &seed, fp64_t mean,
         fp64_t stddev)
 {
     return stddev*CORE_dlaran(&seed) + mean;
+}
+
+template<typename T>
+void validate_empty_shape()
+{
+    // Set default values for tests
+    T mean = 0, stddev = 1;
+    unsigned long long seed = -1;
+    // Init reference array
+    T data_ref;
+    unsigned long long seed2 = seed;
+    data_ref = chameleon_randn(seed2, mean, stddev);
+    // Run kernel
+    T data;
+    std::cout << "Run kernel::randn::cpu_ndim0<T>\n";
+    cpu_ndim0<T>(seed, mean, stddev, &data);
+    // Check if the result is the same as the reference one
+    if(data != data_ref)
+    {
+        throw std::runtime_error("Full array generation error");
+    }
+    std::cout << "OK: kernel::randn::cpu_ndim0<T>\n";
+    // Run kernel with a different seed that shall generate different result
+    seed2 = seed + std::numeric_limits<unsigned long long>::max()/2;
+    // Launch kernel
+    std::cout << "Run kernel::randn::cpu_ndim0<T>\n";
+    cpu_ndim0<T>(seed2, mean, stddev, &data);
+    // Check if result is different
+    if(data == data_ref)
+    {
+        throw std::runtime_error("Different seeds error");
+    }
+    std::cout << "OK: kernel::randn::cpu_ndim0<T>\n";
+    // Run kernel with a different mean
+    T mean2 = mean + T{1};
+    // Launch kernel
+    std::cout << "Run kernel::randn::cpu_ndim0<T>\n";
+    cpu_ndim0(seed, mean2, stddev, &data);
+    // Check if result is different for the first element
+    if(data == data_ref)
+    {
+        throw std::runtime_error("Different mean error");
+    }
+    std::cout << "OK: kernel::randn::cpu_ndim0<T>\n";
+    // Run kernel with a different stddev
+    T stddev2 = stddev + T{1};
+    // Launch kernel
+    std::cout << "Run kernel::randn::cpu_ndim0<T>\n";
+    cpu_ndim0<T>(seed, mean, stddev2, &data);
+    // Check if result is different for the first element
+    if(data == data_ref)
+    {
+        throw std::runtime_error("Different stddev error");
+    }
+    std::cout << "OK: kernel::randn::cpu_ndim0<T>\n";
 }
 
 // Check generation of a full contiguous array, which actually checks
@@ -254,6 +309,7 @@ void validate_part(std::array<Index, NDIM> underlying_shape,
 template<typename T>
 void validate_many()
 {
+    validate_empty_shape<T>();
     validate_full<T, 1>({1});
     validate_full<T, 2>({2, 3});
     validate_full<T, 4>({3, 4, 5, 6});

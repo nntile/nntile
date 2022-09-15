@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-13
+ * @date 2022-09-15
  * */
 
 #include "nntile/starpu/randn.hh"
@@ -53,12 +53,12 @@ void cpu_ndim0(void *buffers[], void *cl_args)
     // Get arguments
     const unsigned long long *seed_ptr;
     const T *mean_ptr, *stddev_ptr;
-    //Starpu::unpack_args_ptr(cl_args, seed_ptr, mean_ptr, stddev_ptr);
+    Starpu::unpack_args_ptr(cl_args, seed_ptr, mean_ptr, stddev_ptr);
     // Get interfaces
-    //auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
-    //T *data = interfaces[0]->get_ptr<T>();
+    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    T *data = interfaces[0]->get_ptr<T>();
     // Launch kernel
-    //kernel::randn::cpu_ndim0<T>(*seed_ptr, *mean_ptr, *stddev_ptr, data);
+    kernel::randn::cpu_ndim0<T>(*seed_ptr, *mean_ptr, *stddev_ptr, data);
 }
 
 //! Footprint for randn tasks that depend on shape

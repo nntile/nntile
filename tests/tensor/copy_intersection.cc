@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-13
+ * @date 2022-09-15
  * */
 
 #include "nntile/tensor/copy_intersection.hh"
@@ -169,6 +169,16 @@ void validate()
             {11, 12, 13}, {2, 3, 4});
     check<T>({11, 12, 13}, {2, 2, 2}, {8, 8, 8}, {3, 4, 5}, {3, 3, 3},
             {8, 8, 8}, {2, 3, 4});
+    // Barrier to wait for cleanup of previously used tags
+    starpu_mpi_barrier(MPI_COMM_WORLD);
+    // Check throwing exceptions
+    starpu_mpi_tag_t last_tag = 0;
+    Tensor<T> A({{3, 4}, {2, 3}}, {0, 0, 0, 0}, last_tag),
+        B({{3, 3}, {2, 3}}, {0, 0}, last_tag),
+        C({{3, 3, 3}, {2, 3, 3}}, {0, 0}, last_tag);
+    TEST_THROW(copy_intersection<T>(A, {0}, B, {0, 0}));
+    TEST_THROW(copy_intersection<T>(A, {0, 0}, C, {0, 0}));
+    TEST_THROW(copy_intersection<T>(A, {0, 0}, B, {0}));
 }
 
 int main(int argc, char **argv)

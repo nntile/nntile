@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-14
+ * @date 2022-09-15
  * */
 
 #include "nntile/tensor/gemm.hh"
@@ -215,34 +215,50 @@ template<typename T>
 void validate()
 {
     check<T>();
+    // Barrier to wait for cleanup of previously used tags
+    starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions
-//    TransOp opT = TransOp::Trans, opN = TransOp::NoTrans;
-//    T one = 1, zero = 0;
-//    Tile<T> mat11({1, 1}), mat12({1, 2}), mat21({2, 1}), mat22({2, 2}),
-//        mat333({3, 3, 3});
-//    auto fail_trans_val = static_cast<TransOp::Value>(-1);
-//    auto opF = *reinterpret_cast<TransOp *>(&fail_trans_val);
-//    // Check ndim
-//    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat11, one, mat11, -1));
-//    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat333, one, mat11, 3));
-//    TEST_THROW(gemm<T>(one, opT, mat333, opT, mat11, one, mat11, 3));
-//    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat11, one, mat11, 2));
-//    // Check incorrect transpositions
-//    TEST_THROW(gemm<T>(one, opF, mat11, opN, mat11, one, mat11, 1));
-//    TEST_THROW(gemm<T>(one, opF, mat11, opT, mat11, one, mat11, 1));
-//    TEST_THROW(gemm<T>(one, opN, mat11, opF, mat11, one, mat11, 1));
-//    TEST_THROW(gemm<T>(one, opT, mat11, opF, mat11, one, mat11, 1));
-//    // Check A and B compatibility
-//    TEST_THROW(gemm<T>(one, opN, mat12, opN, mat12, one, mat11, 1));
-//    TEST_THROW(gemm<T>(one, opN, mat12, opT, mat21, one, mat11, 1));
-//    TEST_THROW(gemm<T>(one, opT, mat21, opN, mat12, one, mat11, 1));
-//    TEST_THROW(gemm<T>(one, opT, mat21, opT, mat21, one, mat11, 1));
-//    // Check A and C compatibility
-//    TEST_THROW(gemm<T>(one, opN, mat21, opN, mat11, one, mat11, 1));
-//    TEST_THROW(gemm<T>(one, opT, mat12, opN, mat11, one, mat11, 1));
-//    // Check B and C compatibility
-//    TEST_THROW(gemm<T>(one, opN, mat11, opN, mat12, one, mat11, 1));
-//    TEST_THROW(gemm<T>(one, opN, mat11, opT, mat21, one, mat11, 1));
+    starpu_mpi_tag_t last_tag = 0;
+    TransOp opT = TransOp::Trans, opN = TransOp::NoTrans;
+    T one = 1, zero = 0;
+    Tensor<T> mat11({{1, 1}, {1, 1}}, {0}, last_tag),
+        mat12({{1, 2}, {1, 2}}, {0}, last_tag),
+        mat12_({{1, 2}, {1, 1}}, {0, 0}, last_tag),
+        mat21({{2, 1}, {2, 1}}, {0}, last_tag),
+        mat21_({{2, 1}, {1, 1}}, {0, 0}, last_tag),
+        mat22({{2, 2}, {2, 2}}, {0}, last_tag),
+        mat333({{3, 3, 3}, {3, 3, 3}}, {0}, last_tag);
+    auto fail_trans_val = static_cast<TransOp::Value>(-1);
+    auto opF = *reinterpret_cast<TransOp *>(&fail_trans_val);
+    // Check ndim
+    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat11, one, mat11, -1));
+    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat333, one, mat11, 3));
+    TEST_THROW(gemm<T>(one, opT, mat333, opT, mat11, one, mat11, 3));
+    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat11, one, mat11, 2));
+    // Check incorrect transpositions
+    TEST_THROW(gemm<T>(one, opF, mat11, opN, mat11, one, mat11, 1));
+    TEST_THROW(gemm<T>(one, opF, mat11, opT, mat11, one, mat11, 1));
+    TEST_THROW(gemm<T>(one, opN, mat11, opF, mat11, one, mat11, 1));
+    TEST_THROW(gemm<T>(one, opT, mat11, opF, mat11, one, mat11, 1));
+    // Check A and B compatibility
+    TEST_THROW(gemm<T>(one, opN, mat12, opN, mat12, one, mat11, 1));
+    TEST_THROW(gemm<T>(one, opN, mat12, opN, mat21_, one, mat11, 1));
+    TEST_THROW(gemm<T>(one, opN, mat12, opT, mat21, one, mat11, 1));
+    TEST_THROW(gemm<T>(one, opN, mat12, opT, mat12_, one, mat11, 1));
+    TEST_THROW(gemm<T>(one, opT, mat21, opN, mat12, one, mat11, 1));
+    TEST_THROW(gemm<T>(one, opT, mat21_, opN, mat21, one, mat11, 1));
+    TEST_THROW(gemm<T>(one, opT, mat21, opT, mat21, one, mat11, 1));
+    TEST_THROW(gemm<T>(one, opT, mat21_, opT, mat12, one, mat11, 1));
+    // Check A and C compatibility
+    TEST_THROW(gemm<T>(one, opN, mat21, opN, mat12, one, mat12, 1));
+    TEST_THROW(gemm<T>(one, opN, mat21_, opN, mat12_, one, mat22, 1));
+    TEST_THROW(gemm<T>(one, opT, mat12, opN, mat12, one, mat12, 1));
+    TEST_THROW(gemm<T>(one, opT, mat12_, opN, mat12_, one, mat22, 1));
+    // Check B and C compatibility
+    TEST_THROW(gemm<T>(one, opN, mat11, opN, mat12, one, mat11, 1));
+    TEST_THROW(gemm<T>(one, opN, mat11, opN, mat12_, one, mat12, 1));
+    TEST_THROW(gemm<T>(one, opN, mat11, opT, mat21, one, mat11, 1));
+    TEST_THROW(gemm<T>(one, opN, mat11, opT, mat21_, one, mat12, 1));
 }
 
 int main(int argc, char **argv)

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-13
+ * @date 2022-09-15
  * */
 
 #include "nntile/tensor/bias.hh"
@@ -117,6 +117,22 @@ void validate()
     check<T>({11}, {5}, 0);
     check<T>({11, 12}, {5, 6}, 0);
     check<T>({11, 12}, {5, 6}, 1);
+    check<T>({11, 12, 13}, {5, 6, 5}, 0);
+    check<T>({11, 12, 13}, {5, 6, 5}, 1);
+    check<T>({11, 12, 13}, {5, 6, 5}, 2);
+    // Sync to guarantee old data tags are cleaned up and can be reused
+    starpu_mpi_barrier(MPI_COMM_WORLD);
+    // Check throwing exceptions
+    starpu_mpi_tag_t last_tag = 0;
+    Tensor<T> A({{3, 4}, {2, 3}}, {0, 0, 0, 0}, last_tag),
+        B({{3}, {3}}, {0}, last_tag), C({{4}, {4}}, {0}, last_tag);
+    TEST_THROW(bias<T>(A, A, 0));
+    TEST_THROW(bias<T>(B, A, -1));
+    TEST_THROW(bias<T>(B, A, 2));
+    TEST_THROW(bias<T>(B, A, 0));
+    TEST_THROW(bias<T>(B, A, 1));
+    TEST_THROW(bias<T>(C, A, 0));
+    TEST_THROW(bias<T>(C, A, 1));
 }
 
 int main(int argc, char **argv)

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-13
+ * @date 2022-09-15
  * */
 
 #include "nntile/tensor/randn.hh"
@@ -78,6 +78,17 @@ void validate()
     check<T>({5}, {5});
     check<T>({11}, {5});
     check<T>({11, 12, 13}, {5, 6, 7});
+    // Barrier to wait for cleanup of previously used tags
+    starpu_mpi_barrier(MPI_COMM_WORLD);
+    // Check throwing exceptions
+    unsigned long long seed = -1;
+    T mean = 1, stddev = 2;
+    starpu_mpi_tag_t last_tag = 0;
+    Tensor<T> A({{3, 4}, {2, 3}}, {0, 0, 0, 0}, last_tag);
+    TEST_THROW(randn<T>(A, {0}, {3, 4}, seed, mean, stddev));
+    TEST_THROW(randn<T>(A, {0, 0}, {3}, seed, mean, stddev));
+    TEST_THROW(randn<T>(A, {0, -1}, {3, 4}, seed, mean, stddev));
+    TEST_THROW(randn<T>(A, {0, 1}, {3, 4}, seed, mean, stddev));
 }
 
 int main(int argc, char **argv)
