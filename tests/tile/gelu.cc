@@ -9,19 +9,18 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-06
+ * @date 2022-09-26
  * */
 
 #include "nntile/tile/gelu.hh"
 #include "nntile/starpu/gelu.hh"
 #include "../testing.hh"
-#include "../starpu/common.hh"
 
 using namespace nntile;
 using namespace nntile::tile;
 
 template<typename T>
-void check()
+void validate()
 {
     Tile<T> tile1({}), tile1_copy({}), tile2({2, 3, 4}), tile2_copy({2, 3, 4});
     auto tile1_local = tile1.acquire(STARPU_W);
@@ -58,21 +57,10 @@ void check()
     tile2_copy_local.release();
 }
 
-template<typename T>
-void validate()
-{
-    starpu::gelu::restrict_where(STARPU_CPU);
-    check<T>();
-#ifdef NNTILE_USE_CUDA
-    starpu::gelu::restrict_where(STARPU_CUDA);
-    check<T>();
-#endif
-}
-
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    StarpuTest starpu;
+    // Init StarPU for testing on CPU only
+    starpu::Config starpu(1, 0, 0);
     // Init codelet
     starpu::gelu::init();
     // Launch all tests

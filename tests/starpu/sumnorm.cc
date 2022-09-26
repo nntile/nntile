@@ -9,22 +9,21 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-06
+ * @date 2022-09-26
  * */
 
 #include "nntile/starpu/sumnorm.hh"
-#include "nntile/kernel/sumnorm/cpu.hh"
+#include "nntile/kernel/sumnorm.hh"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/sumnorm/cuda.hh"
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA
-#include "common.hh"
 #include <vector>
 #include <stdexcept>
 #include <cmath>
 #include <iostream>
 
 using namespace nntile;
+using namespace nntile::starpu;
 
 template<typename T>
 void validate_cpu(Index m, Index n, Index k)
@@ -47,11 +46,11 @@ void validate_cpu(Index m, Index n, Index k)
     std::cout << "Run kernel::sumnorm::cpu<T>\n";
     kernel::sumnorm::cpu<T>(m, n, k, &src[0], &sumnorm[0]);
     // Check by actually submitting a task
-    StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n*k, STARPU_R),
+    VariableHandle src_handle(&src[0], sizeof(T)*m*n*k, STARPU_R),
         sumnorm2_handle(&sumnorm2[0], sizeof(T)*2*m*n, STARPU_RW);
-    starpu::sumnorm::restrict_where(STARPU_CPU);
+    sumnorm::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::sumnorm::submit<T> restricted to CPU\n";
-    starpu::sumnorm::submit<T>(m, n, k, src_handle, sumnorm2_handle);
+    sumnorm::submit<T>(m, n, k, src_handle, sumnorm2_handle);
     starpu_task_wait_for_all();
     sumnorm2_handle.unregister();
     // Check result
@@ -155,11 +154,11 @@ void validate_cuda(Index m, Index n, Index k)
         throw std::runtime_error("CUDA error");
     }
     // Check by actually submitting a task
-    StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n*k, STARPU_R),
+    VariableHandle src_handle(&src[0], sizeof(T)*m*n*k, STARPU_R),
         sumnorm2_handle(&sumnorm2[0], sizeof(T)*2*m*n, STARPU_RW);
-    starpu::sumnorm::restrict_where(STARPU_CUDA);
+    sumnorm::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::sumnorm::submit<T> restricted to CUDA\n";
-    starpu::sumnorm::submit<T>(m, n, k, src_handle, sumnorm2_handle);
+    sumnorm::submit<T>(m, n, k, src_handle, sumnorm2_handle);
     starpu_task_wait_for_all();
     sumnorm2_handle.unregister();
     // Check result
@@ -177,9 +176,9 @@ void validate_cuda(Index m, Index n, Index k)
 int main(int argc, char **argv)
 {
     // Init StarPU for testing
-    StarpuTest starpu;
+    Config starpu(1, 1, 0);
     // Init codelet
-    starpu::sumnorm::init();
+    sumnorm::init();
     // Launch all tests
     validate_cpu<fp32_t>(3, 5, 7);
     validate_cpu<fp64_t>(3, 5, 7);

@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-09-09
+# @date 2022-09-26
 
 # Extend set of ctest-controlled tests and enable code coverage if required.
 # All of the tests shall be launched by the same executable but with different
@@ -131,16 +131,6 @@ add_test_set(TARGET_NAME tests_constants
     COV_NAME coverage_constants
     COV_GLOBAL coverage
     )
-
-#add_test_set(TARGET_NAME tests_starpu
-#    EXEC_NAME test_starpu
-#    SOURCES starpu.cc
-#    LINK_LIBRARIES nntile
-#    ARGS "1" "2" "3" "4" "5"
-#    COV_ENABLE ${BUILD_COVERAGE}
-#    COV_NAME coverage_starpu
-#    COV_GLOBAL coverage
-#    )
 
 add_subdirectory("kernel")
 add_subdirectory("starpu")

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-14
+ * @date 2022-09-26
  * */
 
 #include "nntile/tensor/copy_intersection.hh"
@@ -121,7 +121,7 @@ void copy_intersection_async(const Tensor<T> &src,
     }
     // Do the slow complex copy
     // Temporary buffer for indexing, that is allocated per-worker when needed
-    StarpuVariableHandle scratch(2*src.ndim*sizeof(Index), STARPU_SCRATCH);
+    starpu::VariableHandle scratch(2*src.ndim*sizeof(Index), STARPU_SCRATCH);
     Index ndim = src.ndim;
     // We define starting coordinates and shapes for all complex copies of
     // tiles

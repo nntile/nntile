@@ -9,19 +9,17 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-19
  * */
 
 #include "nntile/starpu/bias.hh"
-#include "nntile/kernel/bias/cpu.hh"
-#ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/bias/cuda.hh"
-#endif // NNTILE_USE_CUDA
+#include "nntile/kernel/bias.hh"
 
 namespace nntile
 {
 namespace starpu
 {
+//! StarPU wrappers for bias operation
 namespace bias
 {
 
@@ -33,7 +31,7 @@ void cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
-    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
@@ -49,7 +47,7 @@ void cuda(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
-    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Get CUDA stream
@@ -75,7 +73,7 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-StarpuCodelet codelet_fp32, codelet_fp64;
+Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
@@ -132,7 +130,7 @@ void submit(Index m, Index n, Index k, starpu_data_handle_t src,
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, src,
             STARPU_CL_ARGS, args, sizeof(*args),
-            Starpu::STARPU_RW_COMMUTE, dst,
+            Config::STARPU_RW_COMMUTE, dst,
             STARPU_FLOPS, nflops,
             0);
     // Check submission

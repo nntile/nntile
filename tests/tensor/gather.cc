@@ -9,13 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-13
+ * @date 2022-09-26
  * */
 
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "../testing.hh"
-#include "../starpu/common.hh"
 
 using namespace nntile;
 using namespace nntile::tensor;
@@ -92,6 +91,8 @@ void validate()
     check<T>({}, {}, 0);
     check<T>({2, 3, 4}, {2, 3, 4}, 1);
     check<T>({11, 12, 13}, {2, 3, 4}, 0);
+    // Barrier to wait for cleanup of previously used tags
+    starpu_mpi_barrier(MPI_COMM_WORLD);
     starpu_mpi_tag_t last_tag = 0;
     Tensor<T> A({{2, 3, 4}, {2, 3, 4}}, {0}, last_tag),
         B({{2, 3, 5}, {2, 3, 5}}, {0}, last_tag),
@@ -104,8 +105,8 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    StarpuTest starpu;
+    // Init StarPU for testing on CPU only
+    starpu::Config starpu(1, 0, 0);
     // Init codelet
     starpu::subcopy::init();
     // Launch all tests

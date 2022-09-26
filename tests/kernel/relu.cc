@@ -9,14 +9,10 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-06
+ * @date 2022-09-19
  * */
 
-#include "nntile/kernel/relu/cpu.hh"
-#include "nntile/defs.h"
-#ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/relu/cuda.hh"
-#endif // NNTILE_USE_CUDA
+#include "nntile/kernel/relu.hh"
 #include <vector>
 #include <stdexcept>
 #include <cmath>

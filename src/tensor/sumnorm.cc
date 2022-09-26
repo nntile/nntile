@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-15
+ * @date 2022-09-26
  * */
 
 #include "nntile/tensor/sumnorm.hh"
@@ -166,10 +166,12 @@ void sumnorm(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
 
 // Explicit instantiation
 template
-void sumnorm(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst, Index axis);
+void sumnorm<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst,
+        Index axis);
 
 template
-void sumnorm(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst, Index axis);
+void sumnorm<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst,
+        Index axis);
 
 } // namespace tensor
 } // namespace nntile

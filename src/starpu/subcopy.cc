@@ -9,11 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-12
+ * @date 2022-09-19
  * */
 
 #include "nntile/starpu/subcopy.hh"
-#include "nntile/kernel/subcopy/cpu.hh"
+#include "nntile/kernel/subcopy.hh"
 
 namespace nntile
 {
@@ -30,10 +30,10 @@ void cpu(void *buffers[], void *cl_args)
     // Get arguments
     const Index *ndim_ptr, *src_start, *src_stride, *copy_shape, *dst_start,
           *dst_stride;
-    Starpu::unpack_args_ptr(cl_args, ndim_ptr, src_start, src_stride,
+    Config::unpack_args_ptr(cl_args, ndim_ptr, src_start, src_stride,
             copy_shape, dst_start, dst_stride);
     // Get interfaces
-    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     Index *tmp_index = interfaces[2]->get_ptr<Index>();
@@ -49,14 +49,14 @@ uint32_t footprint(struct starpu_task *task)
     // Get arguments
     const Index *ndim_ptr, *src_start, *src_stride, *copy_shape, *dst_start,
           *dst_stride;
-    Starpu::unpack_args_ptr(task->cl_arg, ndim_ptr, src_start, src_stride,
+    Config::unpack_args_ptr(task->cl_arg, ndim_ptr, src_start, src_stride,
             copy_shape, dst_start, dst_stride);
     std::size_t copy_shape_size = *ndim_ptr * sizeof(*copy_shape);
     // Apply hash over parameter copy_shape
     return starpu_hash_crc32c_be_n(copy_shape, copy_shape_size, 0);
 }
 
-StarpuCodelet codelet_fp32, codelet_fp64;
+Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {

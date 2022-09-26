@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-02
+ * @date 2022-09-19
  * */
 
 #pragma once
@@ -22,14 +22,12 @@ namespace tile
 {
 
 template<typename T>
-void normalize_async(const StarpuVariableHandle &gamma_beta,
-        const Tile<T> &sumnorm, const Tile<T> &dst, Index l, T eps,
-        Index axis);
+void normalize_async(const Tile<T> &gamma_beta, const Tile<T> &sumnorm,
+        const Tile<T> &dst, Index l, T eps, Index axis);
 
 template<typename T>
-void normalize(const StarpuVariableHandle &gamma_beta,
-        const Tile<T> &sumnorm, const Tile<T> &dst, Index l, T eps,
-        Index axis);
+void normalize(const Tile<T> &gamma_beta, const Tile<T> &sumnorm,
+        const Tile<T> &dst, Index l, T eps, Index axis);
 
 } // namespace tile
 } // namespace nntile

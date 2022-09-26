@@ -9,11 +9,16 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-09-19
  * */
 
 #pragma once
 
-#include <nntile/layer/fully_connected.hh>
-#include <nntile/layer/mixer.hh>
+namespace nntile
+{
+namespace layer
+{
+
+} // namespace layer
+} // namespace nntile
 

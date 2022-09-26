@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-14
+ * @date 2022-09-26
  * */
 
 #include "nntile/tensor/gelutanh.hh"
@@ -55,10 +55,10 @@ void gelutanh(const Tensor<T> &A)
 
 // Explicit instantiation
 template
-void gelutanh(const Tensor<fp32_t> &A);
+void gelutanh<fp32_t>(const Tensor<fp32_t> &A);
 
 template
-void gelutanh(const Tensor<fp64_t> &A);
+void gelutanh<fp64_t>(const Tensor<fp64_t> &A);
 
 } // namespace tensor
 } // namespace nntile

@@ -9,21 +9,21 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-06
+ * @date 2022-09-26
  * */
 
 #include "nntile/starpu/bias.hh"
-#include "nntile/kernel/bias/cpu.hh"
+#include "nntile/starpu/config.hh"
+#include "nntile/kernel/bias.hh"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/bias/cuda.hh"
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA
-#include "common.hh"
 #include <vector>
 #include <stdexcept>
 #include <iostream>
 
 using namespace nntile;
+using namespace nntile::starpu;
 
 template<typename T>
 void validate_cpu(Index m, Index n, Index k)
@@ -45,11 +45,11 @@ void validate_cpu(Index m, Index n, Index k)
     std::cout << "Run kernel::bias::cpu<T>\n";
     kernel::bias::cpu<T>(m, n, k, &src[0], &dst[0]);
     // Check by actually submitting a task
-    StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
+    VariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
-    starpu::bias::restrict_where(STARPU_CPU);
+    bias::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::bias::submit<T> restricted to CPU\n";
-    starpu::bias::submit<T>(m, n, k, src_handle, dst2_handle);
+    bias::submit<T>(m, n, k, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -152,11 +152,11 @@ void validate_cuda(Index m, Index n, Index k)
         throw std::runtime_error("CUDA error");
     }
     // Check by actually submitting a task
-    StarpuVariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
+    VariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
-    starpu::bias::restrict_where(STARPU_CUDA);
+    bias::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::bias::submit<T> restricted to CUDA\n";
-    starpu::bias::submit<T>(m, n, k, src_handle, dst2_handle);
+    bias::submit<T>(m, n, k, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -174,9 +174,9 @@ void validate_cuda(Index m, Index n, Index k)
 int main(int argc, char **argv)
 {
     // Init StarPU for testing
-    StarpuTest starpu;
+    Config starpu(1, 1, 0);
     // Init codelet
-    starpu::bias::init();
+    bias::init();
     // Launch all tests
     validate_cpu<fp32_t>(3, 5, 7);
     validate_cpu<fp64_t>(3, 5, 7);

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-26
  * */
 
 #include "nntile/starpu/gemm.hh"
@@ -66,7 +66,7 @@ void cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
-    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     // Launch kernel
     const T *A = interfaces[0]->get_ptr<T>();
     const T *B = interfaces[1]->get_ptr<T>();
@@ -138,7 +138,7 @@ void cuda(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
-    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     // Launch kernel
     const T *A = interfaces[0]->get_ptr<T>();
     const T *B = interfaces[1]->get_ptr<T>();
@@ -200,10 +200,8 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-StarpuCodelet codelet_NN_fp32, codelet_NN_fp64,
-              codelet_NT_fp32, codelet_NT_fp64,
-              codelet_TN_fp32, codelet_TN_fp64,
-              codelet_TT_fp32, codelet_TT_fp64;
+Codelet codelet_NN_fp32, codelet_NN_fp64, codelet_NT_fp32, codelet_NT_fp64,
+        codelet_TN_fp32, codelet_TN_fp64, codelet_TT_fp32, codelet_TT_fp64;
 
 void init()
 {
@@ -380,7 +378,7 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
     }
     else if(beta == one)
     {
-        C_mode = Starpu::STARPU_RW_COMMUTE;
+        C_mode = Config::STARPU_RW_COMMUTE;
     }
     else
     {

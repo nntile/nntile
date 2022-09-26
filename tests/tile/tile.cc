@@ -9,13 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-13
+ * @date 2022-09-26
  * */
 
 #include "nntile/tile/tile.hh"
 #include <limits>
 #include "../testing.hh"
-#include "../starpu/common.hh"
 
 using namespace nntile;
 using namespace nntile::tile;
@@ -93,8 +92,8 @@ void validate_tile()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    StarpuTest starpu;
+    // Init StarPU for testing on CPU only
+    starpu::Config starpu(1, 0, 0);
     // Launch all tests
     validate_tile<fp64_t>();
     validate_tile<fp32_t>();

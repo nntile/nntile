@@ -9,13 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-06
+ * @date 2022-09-26
  * */
 
 #include "nntile/tile/gemm.hh"
 #include "nntile/starpu/gemm.hh"
 #include "../testing.hh"
-#include "../starpu/common.hh"
 
 using namespace nntile;
 using namespace nntile::tile;
@@ -125,14 +124,7 @@ template<typename T>
 void validate()
 {
     // Check normal execution
-#ifdef NNTILE_USE_CBLAS
-    starpu::gemm::restrict_where(STARPU_CPU);
     check<T>();
-#endif
-#ifdef NNTILE_USE_CUDA
-    starpu::gemm::restrict_where(STARPU_CUDA);
-    check<T>();
-#endif
     // Check throwing exceptions
     TransOp opT = TransOp::Trans, opN = TransOp::NoTrans;
     T one = 1, zero = 0;
@@ -165,8 +157,8 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    StarpuTest starpu;
+    // Init StarPU for testing on CPU only
+    starpu::Config starpu(1, 0, 0);
     // Init codelet
     starpu::gemm::init();
     // Launch all tests

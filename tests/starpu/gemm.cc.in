@@ -9,12 +9,10 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-06
+ * @date 2022-09-26
  * */
 
 #include "nntile/starpu/gemm.hh"
-// This file is within generated files, need to properly include common.hh
-#include "../../../tests/starpu/common.hh"
 #include <vector>
 #include <stdexcept>
 #include <iostream>
@@ -31,6 +29,7 @@
 #endif // NNTILE_USE_CUDA
 
 using namespace nntile;
+using namespace nntile::starpu;
 
 #ifdef NNTILE_USE_CBLAS
 // Overloaded call to CBLAS GEMM
@@ -104,12 +103,12 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
     cblas_gemm(transA_, transB_, m, n, k, alpha, &A[0], ldA, &B[0], ldB, beta,
             &C[0], m);
     // Check by actually submitting a task
-    StarpuVariableHandle A_handle(&A[0], sizeof(T)*m*k, STARPU_R),
+    VariableHandle A_handle(&A[0], sizeof(T)*m*k, STARPU_R),
         B_handle(&B[0], sizeof(T)*n*k, STARPU_R),
         C2_handle(&C2[0], sizeof(T)*m*n, STARPU_RW);
-    starpu::gemm::restrict_where(STARPU_CPU);
+    gemm::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::gemm::submit<T> restricted to CPU\n";
-    starpu::gemm::submit<T>(transA, transB, m, n, k, alpha, A_handle, B_handle,
+    gemm::submit<T>(transA, transB, m, n, k, alpha, A_handle, B_handle,
             beta, C2_handle);
     starpu_task_wait_for_all();
     C2_handle.unregister();
@@ -315,12 +314,12 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
         throw std::runtime_error("CUDA error");
     }
     // Check by actually submitting a task
-    StarpuVariableHandle A_handle(&A[0], sizeof(T)*m*k, STARPU_R),
+    VariableHandle A_handle(&A[0], sizeof(T)*m*k, STARPU_R),
         B_handle(&B[0], sizeof(T)*n*k, STARPU_R),
         C2_handle(&C2[0], sizeof(T)*m*n, STARPU_RW);
-    starpu::gemm::restrict_where(STARPU_CUDA);
+    gemm::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::gemm::submit<T> restricted to CUDA\n";
-    starpu::gemm::submit<T>(transA, transB, m, n, k, alpha, A_handle, B_handle,
+    gemm::submit<T>(transA, transB, m, n, k, alpha, A_handle, B_handle,
             beta, C2_handle);
     starpu_task_wait_for_all();
     C2_handle.unregister();
@@ -360,13 +359,9 @@ void validate_cuda_many()
 int main(int argc, char **argv)
 {
     // Init StarPU for testing
-    StarpuTest starpu;
-#ifdef NNTILE_USE_CUDA
-    // GEMM is within cuBLAS library, which needs to be initialized
-    starpu_cublas_init();
-#endif // NNTILE_USE_CUDA
+    Config starpu(1, 1, 1);
     // Init codelet
-    starpu::gemm::init();
+    gemm::init();
     // Launch all tests
 #ifdef NNTILE_USE_CBLAS
     validate_cpu_many<fp32_t>();
@@ -375,9 +370,6 @@ int main(int argc, char **argv)
 #ifdef NNTILE_USE_CUDA
     validate_cuda_many<fp32_t>();
     validate_cuda_many<fp64_t>();
-#endif // NNTILE_USE_CUDA
-#ifdef NNTILE_USE_CUDA
-    starpu_cublas_shutdown();
 #endif // NNTILE_USE_CUDA
     return 0;
 }

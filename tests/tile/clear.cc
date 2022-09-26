@@ -9,19 +9,18 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-06
+ * @date 2022-09-26
  * */
 
 #include "nntile/tile/clear.hh"
 #include "nntile/starpu/clear.hh"
 #include "../testing.hh"
-#include "../starpu/common.hh"
 
 using namespace nntile;
 using namespace nntile::tile;
 
 template<typename T>
-void check()
+void validate()
 {
     TileTraits traits({4, 5, 6, 7});
     std::vector<T> data(traits.nelems);
@@ -40,21 +39,10 @@ void check()
     tile_local.release();
 }
 
-template<typename T>
-void validate()
-{
-    starpu::clear::restrict_where(STARPU_CPU);
-    check<T>();
-#ifdef NNTILE_USE_CUDA
-    starpu::clear::restrict_where(STARPU_CUDA);
-    check<T>();
-#endif
-}
-
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    StarpuTest starpu;
+    // Init StarPU for testing on CPU only
+    starpu::Config starpu(1, 0, 0);
     // Init codelet
     starpu::clear::init();
     // Launch all tests

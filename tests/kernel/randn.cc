@@ -9,10 +9,10 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-15
+ * @date 2022-09-19
  * */
 
-#include "nntile/kernel/randn/cpu.hh"
+#include "nntile/kernel/randn.hh"
 #include "../external/random.h" // external
 #include <array>
 #include <vector>

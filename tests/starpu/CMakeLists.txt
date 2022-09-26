@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-09-12
+# @date 2022-09-19
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -31,6 +31,16 @@ if(BUILD_COVERAGE)
         LCOV_ARGS --no-external
         GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
 endif()
+
+#add_test_set(TARGET_NAME tests_starpu_config
+#    EXEC_NAME test_config
+#    SOURCES config.cc
+#    LINK_LIBRARIES nntile
+#    ARGS "1" "2" "3" "4" "5"
+#    COV_ENABLE ${BUILD_COVERAGE}
+#    COV_NAME coverage_starpu_config
+#    COV_GLOBAL coverage_starpu coverage
+#    )
 
 foreach(test IN LISTS TESTS)
     add_test_set(TARGET_NAME tests_starpu_${test}

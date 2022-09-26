@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-15
+ * @date 2022-09-26
  * */
 
 #include "nntile/tile/normalize.hh"
@@ -22,11 +22,19 @@ namespace tile
 
 //! Tile-wise average and deviation from sum and scaled sum of squares
 template<typename T>
-void normalize_async(const StarpuVariableHandle &gamma_beta,
-        const Tile<T> &src, const Tile<T> &dst, Index l, T eps,
-        Index axis)
+void normalize_async(const Tile<T> &gamma_beta, const Tile<T> &src,
+        const Tile<T> &dst, Index l, T eps, Index axis)
 {
-    // Check inputs
+    // Check gamma_beta
+    if(gamma_beta.shape.size() != 1)
+    {
+        throw std::runtime_error("gamma_beta.shape.size() != 1");
+    }
+    if(gamma_beta.shape[0] != 2)
+    {
+        throw std::runtime_error("gamma_beta.shape[0] != 2");
+    }
+    // Check dimensions
     if(src.ndim != dst.ndim)
     {
         throw std::runtime_error("src.ndim != dst.ndim");
@@ -101,8 +109,8 @@ void normalize_async(const StarpuVariableHandle &gamma_beta,
 
 //! Tile-wise average and deviation from sum and scaled sum of squares
 template<typename T>
-void normalize(const StarpuVariableHandle &gamma_beta,
-        const Tile<T> &src, const Tile<T> &dst, Index l, T eps, Index axis)
+void normalize(const Tile<T> &gamma_beta, const Tile<T> &src,
+        const Tile<T> &dst, Index l, T eps, Index axis)
 {
     normalize_async<T>(gamma_beta, src, dst, l, eps, axis);
     starpu_task_wait_for_all();
@@ -110,14 +118,12 @@ void normalize(const StarpuVariableHandle &gamma_beta,
 
 // Explicit instantiation
 template
-void normalize<fp32_t>(const StarpuVariableHandle &gamma_beta,
-        const Tile<fp32_t> &src, const Tile<fp32_t> &dst, Index l, fp32_t eps,
-        Index axis);
+void normalize<fp32_t>(const Tile<fp32_t> &gamma_beta, const Tile<fp32_t> &src,
+        const Tile<fp32_t> &dst, Index l, fp32_t eps, Index axis);
 
 template
-void normalize<fp64_t>(const StarpuVariableHandle &gamma_beta,
-        const Tile<fp64_t> &src, const Tile<fp64_t> &dst, Index l, fp64_t eps,
-        Index axis);
+void normalize<fp64_t>(const Tile<fp64_t> &gamma_beta, const Tile<fp64_t> &src,
+        const Tile<fp64_t> &dst, Index l, fp64_t eps, Index axis);
 
 } // namespace tile
 } // namespace nntile

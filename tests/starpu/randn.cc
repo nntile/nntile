@@ -9,18 +9,18 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-15
+ * @date 2022-09-26
  * */
 
 #include "nntile/starpu/randn.hh"
-#include "nntile/kernel/randn/cpu.hh"
-#include "common.hh"
+#include "nntile/kernel/randn.hh"
 #include <array>
 #include <vector>
 #include <stdexcept>
 #include <iostream>
 
 using namespace nntile;
+using namespace nntile::starpu;
 
 template<typename T>
 void validate_cpu_empty()
@@ -35,11 +35,11 @@ void validate_cpu_empty()
     std::cout << "Run kernel::randn::cpu_ndim0<T>\n";
     kernel::randn::cpu_ndim0<T>(seed, mean, stddev, &data);
     // Check by actually submitting a task
-    StarpuVariableHandle data2_handle(&data2, sizeof(T), STARPU_RW);
+    VariableHandle data2_handle(&data2, sizeof(T), STARPU_RW);
     std::vector<Index> start, shape, stride, underlying_shape;
-    starpu::randn::restrict_where(STARPU_CPU);
+    randn::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::randn::submit<T> restricted to CPU\n";
-    starpu::randn::submit<T>(0, nelems, seed, mean, stddev, start, shape,
+    randn::submit<T>(0, nelems, seed, mean, stddev, start, shape,
             stride, underlying_shape, data2_handle, nullptr);
     starpu_task_wait_for_all();
     data2_handle.unregister();
@@ -84,14 +84,14 @@ void validate_cpu(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
             &shape[0], &underlying_shape[0], &data[0], &stride[0],
             &tmp_index[0]);
     // Check by actually submitting a task
-    StarpuVariableHandle data2_handle(&data2[0], sizeof(T)*size, STARPU_RW),
+    VariableHandle data2_handle(&data2[0], sizeof(T)*size, STARPU_RW),
         tmp_handle(&tmp_index[0], sizeof(Index)*NDIM, STARPU_R);
     std::vector<Index> start_(start.cbegin(), start.cend()),
         shape_(shape.cbegin(), shape.cend()),
         underlying_shape_(underlying_shape.cbegin(), underlying_shape.cend());
-    starpu::randn::restrict_where(STARPU_CPU);
+    randn::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::randn::submit<T> restricted to CPU\n";
-    starpu::randn::submit<T>(NDIM, nelems, seed, mean, stddev, start_, shape_,
+    randn::submit<T>(NDIM, nelems, seed, mean, stddev, start_, shape_,
             stride, underlying_shape_, data2_handle, tmp_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
@@ -123,9 +123,9 @@ void validate_many()
 int main(int argc, char **argv)
 {
     // Init StarPU for testing
-    StarpuTest starpu;
+    Config starpu(1, 0, 0);
     // Init codelet
-    starpu::randn::init();
+    randn::init();
     // Launch all tests
     validate_many<fp32_t>();
     validate_many<fp64_t>();

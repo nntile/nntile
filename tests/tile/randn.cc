@@ -9,13 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-13
+ * @date 2022-09-26
  * */
 
 #include "nntile/tile/randn.hh"
 #include "nntile/starpu/randn.hh"
 #include "../testing.hh"
-#include "../starpu/common.hh"
 
 using namespace nntile;
 using namespace nntile::tile;
@@ -29,7 +28,7 @@ void validate()
     unsigned long long seed = -1;
     T mean = 1, stddev = 2;
     // Check some valid parameters
-    StarpuVariableHandle tmp_index(sizeof(Index)*2*3, STARPU_R);
+    starpu::VariableHandle tmp_index(sizeof(Index)*2*3, STARPU_R);
     starpu::randn::submit<T>(3, dst.nelems, seed, mean, stddev, start,
         dst.shape, dst.stride, underlying_shape, dst, tmp_index);
     randn(dst2, start, underlying_shape, seed, mean, stddev);
@@ -63,8 +62,8 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    StarpuTest starpu;
+    // Init StarPU for testing on CPU only
+    starpu::Config starpu(1, 0, 0);
     // Init codelet
     starpu::randn::init();
     // Launch all tests

@@ -9,13 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-15
+ * @date 2022-09-26
  * */
 
 #include "nntile/tensor/copy_intersection.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "../testing.hh"
-#include "../starpu/common.hh"
 
 using namespace nntile;
 using namespace nntile::tensor;
@@ -183,8 +182,8 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    StarpuTest starpu;
+    // Init StarPU for testing on CPU only
+    starpu::Config starpu(1, 0, 0);
     // Init codelet
     starpu::subcopy::init();
     // Launch all tests

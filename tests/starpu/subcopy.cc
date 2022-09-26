@@ -9,18 +9,18 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-12
+ * @date 2022-09-26
  * */
 
 #include "nntile/starpu/subcopy.hh"
-#include "nntile/kernel/subcopy/cpu.hh"
-#include "common.hh"
+#include "nntile/kernel/subcopy.hh"
 #include <array>
 #include <vector>
 #include <stdexcept>
 #include <iostream>
 
 using namespace nntile;
+using namespace nntile::starpu;
 
 template<typename T, std::size_t NDIM>
 void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
@@ -91,14 +91,14 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
             &copy_shape[0], &src_data[0], &dst_start[0], &dst_stride[0],
             &dst_data[0], &tmp_index[0]);
     // Check by actually submitting a task
-    StarpuVariableHandle src_handle(&src_data[0], sizeof(T)*src_nelems,
+    VariableHandle src_handle(&src_data[0], sizeof(T)*src_nelems,
             STARPU_R),
         dst2_handle(&dst2_data[0], sizeof(T)*dst_nelems, STARPU_RW),
         tmp_handle(&tmp_index[0], sizeof(Index)*NDIM*2, STARPU_R);
-    starpu::subcopy::restrict_where(STARPU_CPU);
+    subcopy::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::subcopy::submit<T> restricted to "
         "CPU\n";
-    starpu::subcopy::submit<T>(NDIM, src_start, src_stride,
+    subcopy::submit<T>(NDIM, src_start, src_stride,
             dst_start, dst_stride, copy_shape, src_handle, dst2_handle,
             tmp_handle, STARPU_RW);
     starpu_task_wait_for_all();
@@ -133,9 +133,9 @@ void validate_many()
 int main(int argc, char **argv)
 {
     // Init StarPU for testing
-    StarpuTest starpu;
+    Config starpu(1, 0, 0);
     // Init codelet
-    starpu::subcopy::init();
+    subcopy::init();
     // Launch all tests
     validate_many<fp32_t>();
     validate_many<fp64_t>();

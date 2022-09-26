@@ -9,13 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-06
+ * @date 2022-09-26
  * */
 
 #include "nntile/tile/bias.hh"
 #include "nntile/starpu/bias.hh"
 #include "../testing.hh"
-#include "../starpu/common.hh"
 
 using namespace nntile;
 using namespace nntile::tile;
@@ -89,18 +88,10 @@ void validate()
         b2(b2_traits, &b2_data[0], b2_traits.nelems),
         b3(b3_traits, &b3_data[0], b3_traits.nelems);
     // Compare results of tile::bias and starpu::bias::submit
-    starpu::bias::restrict_where(STARPU_CPU);
     check<T>(b0, A, 0);
     check<T>(b1, A, 1);
     check<T>(b2, A, 2);
     check<T>(b3, A, 3);
-#ifdef NNTILE_USE_CUDA
-    starpu::bias::restrict_where(STARPU_CUDA);
-    check<T>(b0, A, 0);
-    check<T>(b1, A, 1);
-    check<T>(b2, A, 2);
-    check<T>(b3, A, 3);
-#endif
     // Checking throwing exceptions
     TEST_THROW(bias(A, A, 0));
     TEST_THROW(bias(b0, A, -1));
@@ -111,8 +102,8 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    StarpuTest starpu;
+    // Init StarPU for testing on CPU only
+    starpu::Config starpu(1, 0, 0);
     // Init codelet
     starpu::bias::init();
     // Launch all tests

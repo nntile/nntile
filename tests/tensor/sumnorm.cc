@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-15
+ * @date 2022-09-26
  * */
 
 #include "nntile/tensor/sumnorm.hh"
@@ -21,7 +21,6 @@
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/starpu/clear.hh"
 #include "../testing.hh"
-#include "../starpu/common.hh"
 #include <limits>
 
 using namespace nntile;
@@ -138,14 +137,12 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    StarpuTest starpu;
+    // Init StarPU for testing on CPU only
+    starpu::Config starpu(1, 0, 0);
     // Init codelet
     starpu::sumnorm::init();
     starpu::subcopy::init();
     starpu::clear::init();
-    // Restrict execution to CPU to properly compare results
-    starpu::sumnorm::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

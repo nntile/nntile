@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-26
  * */
 
 #include "nntile/starpu/clear.hh"
@@ -33,7 +33,7 @@ void cpu(void *buffers[], void *cl_args)
 {
     // No arguments
     // Get interfaces
-    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     std::size_t size = interfaces[0]->elemsize;
     void *data = interfaces[0]->get_ptr<void>();
     // Clear buffer
@@ -47,7 +47,7 @@ void cuda(void *buffers[], void *cl_args)
 {
     // No arguments
     // Get interfaces
-    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     std::size_t size = interfaces[0]->elemsize;
     void *data = interfaces[0]->get_ptr<void>();
     // Get CUDA stream
@@ -57,7 +57,7 @@ void cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-StarpuCodelet codelet;
+Codelet codelet;
 
 void init()
 {

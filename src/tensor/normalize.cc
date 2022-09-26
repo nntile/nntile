@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-15
+ * @date 2022-09-26
  * */
 
 #include "nntile/tensor/normalize.hh"
@@ -22,10 +22,22 @@ namespace tensor
 
 //! Tile-wise average and deviation from sum and scaled sum of squares
 template<typename T>
-void normalize_async(const StarpuVariableHandle &gamma_beta,
-        const Tensor<T> &src, const Tensor<T> &dst, Index l, T eps,
-        Index axis)
+void normalize_async(const Tensor<T> &gamma_beta, const Tensor<T> &src,
+        const Tensor<T> &dst, Index l, T eps, Index axis)
 {
+    // Check gamma_beta
+    if(gamma_beta.shape.size() != 1)
+    {
+        throw std::runtime_error("gamma_beta.shape.size() != 1");
+    }
+    if(gamma_beta.shape[0] != 2)
+    {
+        throw std::runtime_error("gamma_beta.shape[0] != 2");
+    }
+    if(gamma_beta.grid.nelems != 1)
+    {
+        throw std::runtime_error("gamma_beta.grid.nelems != 1");
+    }
     // Check inputs
     if(src.ndim != dst.ndim)
     {
@@ -88,9 +100,43 @@ void normalize_async(const StarpuVariableHandle &gamma_beta,
                     "src.basetile_shape[i]");
         }
     }
-    // Apply per-tile normalization asynchronously as needed
+    // Obtain gamma_beta on every node
     int mpi_rank = starpu_mpi_world_rank();
+    int mpi_size = starpu_mpi_world_size();
+    auto gamma_beta_handle = gamma_beta.get_tile_handle(0);
+    int gamma_beta_rank = starpu_mpi_data_get_rank(gamma_beta_handle);
     int ret;
+    // Transfer data to all nodes from source node
+    if(mpi_rank == gamma_beta_rank)
+    {
+        for(int i = 0; i < mpi_size; ++i)
+        {
+            // Ignore the source node itself
+            if(i == mpi_rank)
+            {
+                continue;
+            }
+            ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
+                    gamma_beta_handle, i, nullptr, nullptr);
+            if(ret != 0)
+            {
+                throw std::runtime_error("Error in starpu_mpi_get_data_on_"
+                        "node_detached");
+            }
+        }
+    }
+    // Receive data on all other nodes
+    else
+    {
+        ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
+                gamma_beta_handle, gamma_beta_rank, nullptr, nullptr);
+        if(ret != 0)
+        {
+            throw std::runtime_error("Error in starpu_mpi_get_data_on_"
+                    "node_detached");
+        }
+    }
+    // Apply per-tile normalization asynchronously as needed
     for(Index i = 0; i < src.grid.nelems; ++i)
     {
         // Index of current source tile
@@ -160,8 +206,8 @@ void normalize_async(const StarpuVariableHandle &gamma_beta,
                     k = dst_tile_traits.shape[axis];
                 }
                 // Insert corresponding task
-                starpu::normalize::submit<T>(m, n, k, l, eps, gamma_beta,
-                        src_tile_handle, dst_tile_handle);
+                starpu::normalize::submit<T>(m, n, k, l, eps,
+                        gamma_beta_handle, src_tile_handle, dst_tile_handle);
             }
             // Flush cache for the output tile on every node
             starpu_mpi_cache_flush(MPI_COMM_WORLD, dst_tile_handle);
@@ -171,10 +217,10 @@ void normalize_async(const StarpuVariableHandle &gamma_beta,
 
 //! Tile-wise average and deviation from sum and scaled sum of squares
 template<typename T>
-void normalize(const StarpuVariableHandle &gamma_beta,
-        const Tensor<T> &src, const Tensor<T> &dst, Index l, T eps,
-        Index axis)
+void normalize(const Tensor<T> &gamma_beta, const Tensor<T> &src,
+        const Tensor<T> &dst, Index l, T eps, Index axis)
 {
+    std::cout << "NORM\n";
     normalize_async<T>(gamma_beta, src, dst, l, eps, axis);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
@@ -182,12 +228,12 @@ void normalize(const StarpuVariableHandle &gamma_beta,
 
 // Explicit instantiation
 template
-void normalize(const StarpuVariableHandle &gamma_beta,
+void normalize<fp32_t>(const Tensor<fp32_t> &gamma_beta,
         const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst, Index l,
         fp32_t eps, Index axis);
 
 template
-void normalize(const StarpuVariableHandle &gamma_beta,
+void normalize<fp64_t>(const Tensor<fp64_t> &gamma_beta,
         const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst, Index l,
         fp64_t eps, Index axis);
 

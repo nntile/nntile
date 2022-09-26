@@ -98,8 +98,11 @@ void validate_traits(const TileTraits &traits)
         index2.push_back(0);
         TEST_THROW(traits.contains_index(index2));
         index2.pop_back();
-        index2.pop_back();
-        TEST_THROW(traits.contains_index(index2));
+        if(traits.ndim > 0)
+        {
+            index2.pop_back();
+            TEST_THROW(traits.contains_index(index2));
+        }
     }
 }
 

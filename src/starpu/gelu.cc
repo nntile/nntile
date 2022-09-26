@@ -9,19 +9,17 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-26
  * */
 
 #include "nntile/starpu/gelu.hh"
-#include "nntile/kernel/gelu/cpu.hh"
-#ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/gelu/cuda.hh"
-#endif // NNTILE_USE_CUDA
+#include "nntile/kernel/gelu.hh"
 
 namespace nntile
 {
 namespace starpu
 {
+//! StarPU wrappers for GeLU operation
 namespace gelu
 {
 
@@ -33,7 +31,7 @@ void cpu(void *buffers[], void *cl_args)
     // Get arguments
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
-    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
     // Launch kernel
     kernel::gelu::cpu<T>(nelems, data);
@@ -48,7 +46,7 @@ void cuda(void *buffers[], void *cl_args)
     // Get arguments
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
-    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
@@ -57,7 +55,7 @@ void cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-StarpuCodelet codelet_fp32, codelet_fp64;
+Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {

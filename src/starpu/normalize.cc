@@ -9,14 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-26
  * */
 
 #include "nntile/starpu/normalize.hh"
-#include "nntile/kernel/normalize/cpu.hh"
-#ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/normalize/cuda.hh"
-#endif // NNTILE_USE_CUDA
+#include "nntile/kernel/normalize.hh"
 
 namespace nntile
 {
@@ -33,7 +30,7 @@ void cpu(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
-    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *gamma_beta = interfaces[0]->get_ptr<T>();
     const T *gamma = &gamma_beta[0], *beta = &gamma_beta[1];
     const T *sumnorm = interfaces[1]->get_ptr<T>();
@@ -52,7 +49,7 @@ void cuda(void *buffers[], void *cl_args)
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
-    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *gamma_beta = interfaces[0]->get_ptr<T>();
     const T *gamma = &gamma_beta[0], *beta = &gamma_beta[1];
     const T *sumnorm = interfaces[1]->get_ptr<T>();
@@ -82,7 +79,7 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-StarpuCodelet codelet_fp32, codelet_fp64;
+Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {

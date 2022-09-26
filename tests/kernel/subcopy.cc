@@ -9,10 +9,10 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-12
+ * @date 2022-09-19
  * */
 
-#include "nntile/kernel/subcopy/cpu.hh"
+#include "nntile/kernel/subcopy.hh"
 #include <array>
 #include <vector>
 #include <stdexcept>

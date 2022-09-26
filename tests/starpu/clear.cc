@@ -9,19 +9,19 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-06
+ * @date 2022-09-26
  * */
 
 #include "nntile/starpu/clear.hh"
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA
-#include "common.hh"
 #include <vector>
 #include <stdexcept>
 #include <iostream>
 
 using namespace nntile;
+using namespace nntile::starpu;
 
 void validate(std::size_t size)
 {
@@ -34,10 +34,10 @@ void validate(std::size_t size)
     // Create copy of data
     std::vector<char> data(data_init);
     // Check by actually submitting a task
-    StarpuVariableHandle data_handle(&data[0], size, STARPU_RW);
-    starpu::clear::restrict_where(STARPU_CPU);
+    VariableHandle data_handle(&data[0], size, STARPU_RW);
+    clear::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::clear::submit restricted to CPU\n";
-    starpu::clear::submit(data_handle);
+    clear::submit(data_handle);
     starpu_task_wait_for_all();
     data_handle.unregister();
     // Check result
@@ -52,10 +52,10 @@ void validate(std::size_t size)
 #ifdef NNTILE_USE_CUDA
     // Check by actually submitting a task
     data = data_init;
-    data_handle = StarpuVariableHandle(&data[0], size, STARPU_RW);
-    starpu::clear::restrict_where(STARPU_CUDA);
+    data_handle = VariableHandle(&data[0], size, STARPU_RW);
+    clear::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::clear::submit restricted to CUDA\n";
-    starpu::clear::submit(data_handle);
+    clear::submit(data_handle);
     starpu_task_wait_for_all();
     data_handle.unregister();
     // Check result
@@ -73,9 +73,9 @@ void validate(std::size_t size)
 int main(int argc, char **argv)
 {
     // Init StarPU for testing
-    StarpuTest starpu;
+    Config starpu(1, 1, 0);
     // Init codelet
-    starpu::clear::init();
+    clear::init();
     // Launch all tests
     validate(1);
     validate(100000);

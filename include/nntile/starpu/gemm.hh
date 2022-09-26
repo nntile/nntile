@@ -9,15 +9,15 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-26
  * */
 
 #pragma once
 
 #include <nntile/base_types.hh>
 #include <nntile/constants.hh>
-#include <nntile/starpu.hh>
-#include <nntile/defs.h>
+// This also includes all definitions
+#include <nntile/starpu/config.hh>
 
 namespace nntile
 {
@@ -51,21 +51,21 @@ void cuda(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern StarpuCodelet codelet_NN_fp32, codelet_NN_fp64,
+extern Codelet codelet_NN_fp32, codelet_NN_fp64,
        codelet_NT_fp32, codelet_NT_fp64,
        codelet_TN_fp32, codelet_TN_fp64,
        codelet_TT_fp32, codelet_TT_fp64;
 
 template<typename T>
 static
-StarpuCodelet *codelet(TransOp transA, TransOp transB)
+Codelet *codelet(TransOp transA, TransOp transB)
 {
     throw std::runtime_error("Non-supported type");
     return nullptr;
 }
 
 template<>
-StarpuCodelet *codelet<fp32_t>(TransOp transA, TransOp transB)
+Codelet *codelet<fp32_t>(TransOp transA, TransOp transB)
 {
     switch(transA.value)
     {
@@ -95,7 +95,7 @@ StarpuCodelet *codelet<fp32_t>(TransOp transA, TransOp transB)
 }
 
 template<>
-StarpuCodelet *codelet<fp64_t>(TransOp transA, TransOp transB)
+Codelet *codelet<fp64_t>(TransOp transA, TransOp transB)
 {
     switch(transA.value)
     {

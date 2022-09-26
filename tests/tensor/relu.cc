@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-15
+ * @date 2022-09-26
  * */
 
 #include "nntile/tensor/relu.hh"
@@ -19,7 +19,6 @@
 #include "nntile/tensor/scatter.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "../testing.hh"
-#include "../starpu/common.hh"
 
 using namespace nntile;
 using namespace nntile::tensor;
@@ -87,17 +86,18 @@ void validate()
     check<T>({5}, {5});
     check<T>({11}, {5});
     check<T>({11, 12, 13}, {5, 6, 7});
+    // Barrier to wait for cleanup of previously used tags
+    starpu_mpi_barrier(MPI_COMM_WORLD);
+    // No checks that throw exceptions
 }
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    StarpuTest starpu;
+    // Init StarPU for testing on CPU only
+    starpu::Config starpu(1, 0, 0);
     // Init codelet
     starpu::relu::init();
     starpu::subcopy::init();
-    // Restrict execution to CPU to properly compare results
-    starpu::relu::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

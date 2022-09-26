@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-14
+ * @date 2022-09-26
  * */
 
 #include "nntile/tile/randn.hh"
@@ -65,7 +65,7 @@ void randn_async(const Tile<T> &dst, const std::vector<Index> &start,
     if(ndim != 0)
     {
         // Temporary index
-        StarpuVariableHandle tmp_index(sizeof(Index)*2*ndim, STARPU_R);
+        starpu::VariableHandle tmp_index(sizeof(Index)*2*ndim, STARPU_R);
         // Insert task
         starpu::randn::submit<T>(ndim, dst.nelems, seed, mean, stddev, start,
                 dst.shape, dst.stride, underlying_shape, dst, tmp_index);

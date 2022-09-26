@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-14
+ * @date 2022-09-26
  * */
 
 #include "nntile/tensor/gelu.hh"
@@ -55,10 +55,10 @@ void gelu(const Tensor<T> &A)
 
 // Explicit instantiation
 template
-void gelu(const Tensor<fp32_t> &A);
+void gelu<fp32_t>(const Tensor<fp32_t> &A);
 
 template
-void gelu(const Tensor<fp64_t> &A);
+void gelu<fp64_t>(const Tensor<fp64_t> &A);
 
 } // namespace tensor
 } // namespace nntile

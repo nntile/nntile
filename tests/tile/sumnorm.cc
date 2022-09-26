@@ -9,13 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-06
+ * @date 2022-09-26
  * */
 
 #include "nntile/tile/sumnorm.hh"
 #include "nntile/starpu/sumnorm.hh"
 #include "../testing.hh"
-#include "../starpu/common.hh"
 
 using namespace nntile;
 using namespace nntile::tile;
@@ -93,14 +92,7 @@ template<typename T>
 void validate()
 {
     // Check normal execution
-#ifdef NNTILE_USE_CBLAS
-    starpu::sumnorm::restrict_where(STARPU_CPU);
     check<T>();
-#endif
-#ifdef NNTILE_USE_CUDA
-    starpu::sumnorm::restrict_where(STARPU_CUDA);
-    check<T>();
-#endif
     // Check throwing exceptions
     Tile<T> src({3, 4, 5});
     Tile<T> dst[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
@@ -117,8 +109,8 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    StarpuTest starpu;
+    // Init StarPU for testing on CPU only
+    starpu::Config starpu(1, 0, 0);
     // Init codelet
     starpu::sumnorm::init();
     // Launch all tests

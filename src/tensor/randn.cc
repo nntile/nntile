@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-14
+ * @date 2022-09-26
  * */
 
 #include "nntile/tensor/randn.hh"
@@ -79,7 +79,7 @@ void randn_async(const Tensor<T> &dst, const std::vector<Index> &start,
         return;
     }
     // Temporary index
-    StarpuVariableHandle tmp_index(sizeof(Index)*2*ndim, STARPU_SCRATCH);
+    starpu::VariableHandle tmp_index(sizeof(Index)*2*ndim, STARPU_SCRATCH);
     // Now do the job
     std::vector<Index> tile_start(start), tile_index(dst.ndim);
     for(Index i = 0; i < dst.grid.nelems; ++i)

@@ -9,14 +9,10 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-19
  * */
 
-#include "nntile/kernel/normalize/cpu.hh"
-#include "nntile/defs.h"
-#ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/normalize/cuda.hh"
-#endif // NNTILE_USE_CUDA
+#include "nntile/kernel/normalize.hh"
 #include <vector>
 #include <stdexcept>
 #include <limits>

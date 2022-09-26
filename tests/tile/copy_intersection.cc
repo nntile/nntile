@@ -9,13 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-12
+ * @date 2022-09-26
  * */
 
 #include "nntile/tile/copy_intersection.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "../testing.hh"
-#include "../starpu/common.hh"
 
 using namespace nntile;
 using namespace nntile::tile;
@@ -62,7 +61,7 @@ void validate()
     }
     tile2_copy_local.release();
     // Check complex copying on CPU, no CUDA implementation as of now
-    StarpuVariableHandle scratch(2*3*sizeof(Index), STARPU_R);
+    starpu::VariableHandle scratch(2*3*sizeof(Index), STARPU_R);
     starpu::subcopy::submit<T>(3, {0, 0, 2}, tile3.stride, {0, 1, 0},
             tile2.stride, {2, 1, 2}, tile3, tile2, scratch, STARPU_RW);
     copy_intersection<T>(tile3, {0, 1, 0}, tile2_copy, {0, 0, 2});
@@ -82,8 +81,8 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    StarpuTest starpu;
+    // Init StarPU for testing on CPU only
+    starpu::Config starpu(1, 0, 0);
     // Init codelet
     starpu::subcopy::init();
     // Launch all tests

@@ -9,22 +9,21 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-06
+ * @date 2022-09-26
  * */
 
 #include "nntile/starpu/normalize.hh"
-#include "nntile/kernel/normalize/cpu.hh"
+#include "nntile/kernel/normalize.hh"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/normalize/cuda.hh"
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA
-#include "common.hh"
 #include <vector>
 #include <stdexcept>
 #include <cmath>
 #include <iostream>
 
 using namespace nntile;
+using namespace nntile::starpu;
 
 template<typename T>
 void validate_cpu(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
@@ -49,13 +48,13 @@ void validate_cpu(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
             &dst[0]);
     // Check by actually submitting a task
     T gamma_beta[2] = {gamma, beta};
-    StarpuVariableHandle sumnorm_handle(&sumnorm[0], sizeof(T)*2*m*n,
+    VariableHandle sumnorm_handle(&sumnorm[0], sizeof(T)*2*m*n,
             STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW),
         gamma_beta_handle(gamma_beta, sizeof(gamma_beta), STARPU_R);
-    starpu::normalize::restrict_where(STARPU_CPU);
+    normalize::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::normalize::submit<T> restricted to CPU\n";
-    starpu::normalize::submit<T>(m, n, k, l, eps, gamma_beta_handle,
+    normalize::submit<T>(m, n, k, l, eps, gamma_beta_handle,
             sumnorm_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
@@ -201,13 +200,13 @@ void validate_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     }
     // Check by actually submitting a task
     T gamma_beta[2] = {gamma, beta};
-    StarpuVariableHandle sumnorm_handle(&sumnorm[0], sizeof(T)*2*m*n,
+    VariableHandle sumnorm_handle(&sumnorm[0], sizeof(T)*2*m*n,
             STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW),
         gamma_beta_handle(gamma_beta, sizeof(T)*2, STARPU_R);
-    starpu::normalize::restrict_where(STARPU_CUDA);
+    normalize::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::normalize::submit<T> restricted to CUDA\n";
-    starpu::normalize::submit<T>(m, n, k, l, eps, gamma_beta_handle,
+    normalize::submit<T>(m, n, k, l, eps, gamma_beta_handle,
             sumnorm_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
@@ -233,9 +232,9 @@ void validate_many_cuda()
 int main(int argc, char **argv)
 {
     // Init StarPU for testing
-    StarpuTest starpu;
+    Config starpu(1, 1, 0);
     // Init codelet
-    starpu::normalize::init();
+    normalize::init();
     // Launch all tests
     validate_many_cpu<fp32_t>();
     validate_many_cpu<fp64_t>();

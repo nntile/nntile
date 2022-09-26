@@ -9,21 +9,20 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-06
+ * @date 2022-09-26
  * */
 
 #include "nntile/starpu/gelutanh.hh"
-#include "nntile/kernel/gelutanh/cpu.hh"
+#include "nntile/kernel/gelutanh.hh"
 #ifdef NNTILE_USE_CUDA
-#   include "nntile/kernel/gelutanh/cuda.hh"
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA
-#include "common.hh"
 #include <vector>
 #include <stdexcept>
 #include <iostream>
 
 using namespace nntile;
+using namespace nntile::starpu;
 
 template<typename T>
 void validate_cpu(Index nelems)
@@ -40,10 +39,11 @@ void validate_cpu(Index nelems)
     std::cout << "Run kernel::gelutanh::cpu<T>\n";
     kernel::gelutanh::cpu<T>(nelems, &data[0]);
     // Check by actually submitting a task
-    StarpuVariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
-    starpu::gelutanh::restrict_where(STARPU_CPU);
+    VariableHandle data2_handle(&data2[0], sizeof(T)*nelems,
+            STARPU_RW);
+    gelutanh::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::gelutanh::submit<T> restricted to CPU\n";
-    starpu::gelutanh::submit<T>(nelems, data2_handle);
+    gelutanh::submit<T>(nelems, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result
@@ -125,10 +125,11 @@ void validate_cuda(Index nelems)
         throw std::runtime_error("CUDA error");
     }
     // Check by actually submitting a task
-    StarpuVariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
-    starpu::gelutanh::restrict_where(STARPU_CUDA);
+    VariableHandle data2_handle(&data2[0], sizeof(T)*nelems,
+            STARPU_RW);
+    gelutanh::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::gelutanh::submit<T> restricted to CUDA\n";
-    starpu::gelutanh::submit<T>(nelems, data2_handle);
+    gelutanh::submit<T>(nelems, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result
@@ -142,12 +143,13 @@ void validate_cuda(Index nelems)
     std::cout << "OK: starpu::gelutanh::submit<T> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
+
 int main(int argc, char **argv)
 {
     // Init StarPU for testing
-    StarpuTest starpu;
+    Config starpu(1, 1, 0);
     // Init codelet
-    starpu::gelutanh::init();
+    gelutanh::init();
     // Launch all tests
     validate_cpu<fp32_t>(1);
     validate_cpu<fp32_t>(10000);

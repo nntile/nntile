@@ -34,7 +34,7 @@ public:
     //! Traits of all tiles
     std::vector<tile::TileTraits> tile_traits;
     //! StarPU handles of all tiles
-    std::vector<StarpuVariableHandle> tile_handles;
+    std::vector<starpu::VariableHandle> tile_handles;
     //! Constructor
     Tensor(const TensorTraits &traits, const std::vector<int> &distribution,
             starpu_mpi_tag_t &last_tag):
@@ -91,11 +91,11 @@ public:
         Index linear_offset = grid.index_to_linear(tile_index);
         return tile_traits[linear_offset];
     }
-    const StarpuHandle &get_tile_handle(Index linear_offset) const
+    const starpu::Handle &get_tile_handle(Index linear_offset) const
     {
         return tile_handles[linear_offset];
     }
-    const StarpuHandle &get_tile_handle(
+    const starpu::Handle &get_tile_handle(
             const std::vector<Index> &tile_index) const
     {
         Index linear_offset = grid.index_to_linear(tile_index);

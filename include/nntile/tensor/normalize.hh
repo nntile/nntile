@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-15
+ * @date 2022-09-26
  * */
 
 #pragma once
@@ -22,14 +22,12 @@ namespace tensor
 {
 
 template<typename T>
-void normalize_async(const StarpuVariableHandle &gamma_beta,
-        const Tensor<T> &src, const Tensor<T> &dst, Index l, T eps,
-        Index axis);
+void normalize_async(const Tensor<T> &gamma_beta, const Tensor<T> &src,
+        const Tensor<T> &dst, Index l, T eps, Index axis);
 
 template<typename T>
-void normalize(const StarpuVariableHandle &gamma_beta,
-        const Tensor<T> &src, const Tensor<T> &dst, Index l, T eps,
-        Index axis);
+void normalize(const Tensor<T> &gamma_beta, const Tensor<T> &src,
+        const Tensor<T> &dst, Index l, T eps, Index axis);
 
 } // namespace tensor
 } // namespace nntile

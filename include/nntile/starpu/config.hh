@@ -9,106 +9,81 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-06
+ * @date 2022-09-19
  * */
 
 #pragma once
 
 #include <stdexcept>
-#include <memory>
-#include <cstring>
 #include <vector>
 #include <starpu.h>
+#include <starpu_mpi.h>
 #include <nntile/defs.h>
 
 namespace nntile
 {
+namespace starpu
+{
 
 //! Convenient StarPU initialization and shutdown
-class Starpu: public starpu_conf
+class Config: public starpu_conf
 {
-    static
-    struct starpu_conf _init_conf()
-    {
-        struct starpu_conf conf;
-        // This function either returns 0 or aborts the program
-        int ret = starpu_conf_init(&conf);
-        // In case of non-zero return starpu_conf_init currently aborts the
-        // program, so code coverage shows the following line as uncovered
-        if(ret != 0)
-        {
-            throw std::runtime_error("Error in starpu_conf_init()");
-        }
-        return conf;
-    }
+#ifdef NNTILE_USE_CUDA
+    int cublas;
+#endif // NNTILE_USE_CUDA
 public:
-    Starpu(const struct starpu_conf &conf):
-        starpu_conf(conf)
+    Config(int ncpus=-1, int ncuda=-1, int cublas_=-1)
     {
-        int ret = starpu_is_initialized();
-        // Do nothing if already initialized
-        if(ret == 1)
-        {
-            return;
-        }
-        // Disable automatic profiling
-        starpu_fxt_autostart_profiling(0);
-        ret = starpu_init(this);
+        // Init StarPU configuration at first
+        starpu_conf conf;
+        int ret = starpu_conf_init(&conf);
         if(ret != 0)
         {
-            throw std::runtime_error("Error in starpu_init()");
+            throw std::runtime_error("starpu_conf_init error");
         }
+        // Set number of workers
+        conf.ncpus = ncpus;
 #ifdef NNTILE_USE_CUDA
-        starpu_cublas_init();
-#endif
-    }
-    Starpu():
-        Starpu(_init_conf())
-    {
-    }
-    ~Starpu()
-    {
-        int ret = starpu_is_initialized();
-        // Do nothing if not initialized
-        if(ret != 1)
+        conf.ncuda = ncuda;
+#else // NNTILE_USE_CUDA
+        conf.ncuda = 0;
+#endif // NNTILE_USE_CUDA
+        // Set history-based scheduler to utilize performance models
+        conf.sched_policy_name = "dmda";
+        // Init StarPU with the config
+        ret = starpu_init(&conf);
+        if(ret != 0)
         {
-            return;
+            throw std::runtime_error("starpu_init error");
         }
-        starpu_task_wait_for_all();
-#ifdef NNTILE_USE_CUDA
-        starpu_cublas_shutdown();
-#endif
+#ifdef NTILE_USE_CUDA
+        cublas = cublas_;
+        if(cublas != 0)
+        {
+            starpu_cublas_init();
+        }
+#endif // NNTILE_USE_CUDA
+        // Init MPI
+        ret = starpu_mpi_init_conf(nullptr, nullptr, 1, MPI_COMM_WORLD, &conf);
+        if(ret != 0)
+        {
+            throw std::runtime_error("Error in starpu_mpi_init_conf()");
+        }
+    }
+    ~Config()
+    {
+        starpu_mpi_shutdown();
+#ifdef NTILE_USE_CUDA
+        if(cublas != 0)
+        {
+            starpu_cublas_shutdown();
+        }
+#endif // NNTILE_USE_CUDA
         starpu_shutdown();
-    }
-    Starpu(const Starpu &) = delete;
-    Starpu(Starpu &&) = delete;
-    Starpu &operator=(const Starpu &) = delete;
-    Starpu &operator=(Starpu &&) = delete;
-    static
-    void shutdown()
-    {
-        starpu_shutdown();
-    }
-    static
-    void pause()
-    {
-        starpu_pause();
-    }
-    static
-    void resume()
-    {
-        starpu_resume();
-    }
-    //! StarPU wait for all
-    static
-    void wait_for_all()
-    {
-        starpu_task_wait_for_all();
     }
     //! StarPU commute data access mode
-    static constexpr enum starpu_data_access_mode
-        STARPU_RW_COMMUTE = static_cast<enum starpu_data_access_mode>(
-                STARPU_RW | STARPU_COMMUTE);
+    static constexpr starpu_data_access_mode STARPU_RW_COMMUTE
+        = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
     // Unpack args by pointers without copying actual data
     template<typename... Ts>
     static
@@ -152,16 +127,16 @@ public:
 };
 
 // Forward declaration
-class StarpuHandleLocalData;
+class HandleLocalData;
 
 //! StarPU data handle as a shared pointer to its internal state
 //
 // This class takes the ownership of the data handle. That said, it unregisters
 // the data handle automatically at the end of lifetime.
-class StarpuHandle
+class Handle
 {
     //! Shared handle itself
-    std::shared_ptr<struct _starpu_data_state> handle;
+    std::shared_ptr<_starpu_data_state> handle;
     // Different deleters for the handle
     static void _deleter(starpu_data_handle_t ptr)
     {
@@ -185,20 +160,20 @@ class StarpuHandle
         // the time of submission.
         starpu_data_unregister_submit(ptr);
     }
-    static std::shared_ptr<struct _starpu_data_state> _get_shared_ptr(
-            starpu_data_handle_t ptr, enum starpu_data_access_mode mode)
+    static std::shared_ptr<_starpu_data_state> _get_shared_ptr(
+            starpu_data_handle_t ptr, starpu_data_access_mode mode)
     {
         switch(mode)
         {
             case STARPU_R:
-                return std::shared_ptr<struct _starpu_data_state>(ptr,
+                return std::shared_ptr<_starpu_data_state>(ptr,
                         _deleter_no_coherency);
             case STARPU_RW:
             case STARPU_W:
-                return std::shared_ptr<struct _starpu_data_state>(ptr,
+                return std::shared_ptr<_starpu_data_state>(ptr,
                         _deleter);
             case STARPU_SCRATCH:
-                return std::shared_ptr<struct _starpu_data_state>(ptr,
+                return std::shared_ptr<_starpu_data_state>(ptr,
                         _deleter_temporary);
             default:
                 throw std::runtime_error("Invalid value of mode");
@@ -206,18 +181,17 @@ class StarpuHandle
     }
 public:
     //! Default constructor with nullptr
-    StarpuHandle():
+    Handle():
         handle(nullptr)
     {
     }
     //! Constructor owns registered handle and unregisters it when needed
-    StarpuHandle(starpu_data_handle_t handle_,
-            enum starpu_data_access_mode mode):
+    Handle(starpu_data_handle_t handle_, starpu_data_access_mode mode):
         handle(_get_shared_ptr(handle_, mode))
     {
     }
     //! Destructor is virtual as this is a base class
-    virtual ~StarpuHandle()
+    virtual ~Handle()
     {
     }
     //! Convert to starpu_data_handle_t
@@ -226,8 +200,7 @@ public:
         return handle.get();
     }
     //! Acquire data locally
-    StarpuHandleLocalData acquire(enum starpu_data_access_mode mode)
-        const;
+    HandleLocalData acquire(starpu_data_access_mode mode) const;
     //! Unregister underlying handle without waiting for destructor
     void unregister()
     {
@@ -235,26 +208,25 @@ public:
     }
 };
 
-class StarpuHandleLocalData
+class HandleLocalData
 {
-    StarpuHandle handle;
+    Handle handle;
     void *ptr = nullptr;
     bool acquired = false;
 public:
-    StarpuHandleLocalData(const StarpuHandle &handle_,
-            enum starpu_data_access_mode mode):
+    HandleLocalData(const Handle &handle_, starpu_data_access_mode mode):
         handle(handle_)
     {
         acquire(mode);
     }
-    virtual ~StarpuHandleLocalData()
+    virtual ~HandleLocalData()
     {
         if(acquired)
         {
             release();
         }
     }
-    void acquire(enum starpu_data_access_mode mode)
+    void acquire(starpu_data_access_mode mode)
     {
         int status = starpu_data_acquire(handle, mode);
         if(status != 0)
@@ -277,15 +249,13 @@ public:
 };
 
 inline
-StarpuHandleLocalData StarpuHandle::acquire(
-        enum starpu_data_access_mode mode)
-    const
+HandleLocalData Handle::acquire(starpu_data_access_mode mode) const
 {
-    return StarpuHandleLocalData(*this, mode);
+    return HandleLocalData(*this, mode);
 }
 
 //! Wrapper for struct starpu_variable_interface
-class StarpuVariableInterface: public starpu_variable_interface
+class VariableInterface: public starpu_variable_interface
 {
 public:
     //! Get pointer of a proper type
@@ -297,7 +267,7 @@ public:
 };
 
 //! Convenient registration and deregistration of data through StarPU handle
-class StarpuVariableHandle: public StarpuHandle
+class VariableHandle: public Handle
 {
     //! Register variable for starpu-owned memory
     static starpu_data_handle_t _reg_data(size_t size)
@@ -323,32 +293,30 @@ class StarpuVariableHandle: public StarpuHandle
     }
 public:
     //! Constructor for temporary variable that is (de)allocated by starpu
-    StarpuVariableHandle(size_t size, enum starpu_data_access_mode mode):
-        StarpuHandle(_reg_data(size), mode)
+    VariableHandle(size_t size, starpu_data_access_mode mode):
+        Handle(_reg_data(size), mode)
     {
     }
     //! Constructor for variable that is (de)allocated by user
-    StarpuVariableHandle(uintptr_t ptr, size_t size,
-            enum starpu_data_access_mode mode):
-        StarpuHandle(_reg_data(ptr, size), mode)
+    VariableHandle(uintptr_t ptr, size_t size, starpu_data_access_mode mode):
+        Handle(_reg_data(ptr, size), mode)
     {
     }
     //! Constructor for variable that is (de)allocated by user
-    StarpuVariableHandle(void *ptr, size_t size,
-            enum starpu_data_access_mode mode):
-        StarpuHandle(_reg_data(reinterpret_cast<uintptr_t>(ptr), size), mode)
+    VariableHandle(void *ptr, size_t size, starpu_data_access_mode mode):
+        Handle(_reg_data(reinterpret_cast<uintptr_t>(ptr), size), mode)
     {
     }
 };
 
 //! StarPU codelet+perfmodel wrapper
-class StarpuCodelet: public starpu_codelet, public starpu_perfmodel
+class Codelet: public starpu_codelet, public starpu_perfmodel
 {
 private:
     uint32_t where_default = STARPU_NOWHERE; // uninitialized value
 public:
     //! Zero-initialize codelet
-    StarpuCodelet()
+    Codelet()
     {
         std::memset(this, 0, sizeof(*this));
     }
@@ -420,5 +388,6 @@ public:
     }
 };
 
+} // namespace config
 } // namespace nntile
 

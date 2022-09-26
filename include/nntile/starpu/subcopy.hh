@@ -9,13 +9,13 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-12
+ * @date 2022-09-19
  * */
 
 #pragma once
 
 #include <nntile/base_types.hh>
-#include <nntile/starpu.hh>
+#include <nntile/starpu/config.hh>
 
 namespace nntile
 {
@@ -29,23 +29,23 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
 
-extern StarpuCodelet codelet_fp32, codelet_fp64;
+extern Codelet codelet_fp32, codelet_fp64;
 
 template<typename T>
-constexpr StarpuCodelet *codelet()
+constexpr Codelet *codelet()
 {
     throw std::runtime_error("Non-supported type");
     return nullptr;
 }
 
 template<>
-constexpr StarpuCodelet *codelet<fp32_t>()
+constexpr Codelet *codelet<fp32_t>()
 {
     return &codelet_fp32;
 }
 
 template<>
-constexpr StarpuCodelet *codelet<fp64_t>()
+constexpr Codelet *codelet<fp64_t>()
 {
     return &codelet_fp64;
 }

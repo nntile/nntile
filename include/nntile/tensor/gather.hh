@@ -9,11 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-12
+ * @date 2022-09-26
  * */
 
 #pragma once
-#include "nntile/tensor/tensor.hh"
+
+#include <nntile/tensor/tensor.hh>
 
 namespace nntile
 {

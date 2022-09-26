@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-12
+ * @date 2022-09-26
  * */
 
 #include "nntile/tile/copy_intersection.hh"
@@ -72,7 +72,7 @@ void copy_intersection_async(const Tile<T> &src,
     }
     // Do the slow partial copy
     // Temporary buffer for indexing
-    StarpuVariableHandle scratch(2*ndim*sizeof(Index), STARPU_SCRATCH);
+    starpu::VariableHandle scratch(2*ndim*sizeof(Index), STARPU_SCRATCH);
     // Perform smart copy
     std::vector<Index> src_start(ndim), dst_start(ndim), copy_shape(ndim);
     enum starpu_data_access_mode dst_tile_mode = STARPU_W;

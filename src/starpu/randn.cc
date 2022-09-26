@@ -9,11 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-15
+ * @date 2022-09-26
  * */
 
 #include "nntile/starpu/randn.hh"
-#include "nntile/kernel/randn/cpu.hh"
+#include "nntile/kernel/randn.hh"
 
 namespace nntile
 {
@@ -32,11 +32,11 @@ void cpu(void *buffers[], void *cl_args)
           *underlying_shape;
     const unsigned long long *seed_ptr;
     const T *mean_ptr, *stddev_ptr;
-    Starpu::unpack_args_ptr(cl_args, ndim_ptr, nelems_ptr, seed_ptr, mean_ptr,
+    Config::unpack_args_ptr(cl_args, ndim_ptr, nelems_ptr, seed_ptr, mean_ptr,
             stddev_ptr, start, shape, stride, underlying_shape);
     // Get interfaces
     Index ndim = *ndim_ptr;
-    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
     Index *tmp_index = interfaces[1]->get_ptr<Index>();
     // Launch kernel
@@ -53,9 +53,9 @@ void cpu_ndim0(void *buffers[], void *cl_args)
     // Get arguments
     const unsigned long long *seed_ptr;
     const T *mean_ptr, *stddev_ptr;
-    Starpu::unpack_args_ptr(cl_args, seed_ptr, mean_ptr, stddev_ptr);
+    Config::unpack_args_ptr(cl_args, seed_ptr, mean_ptr, stddev_ptr);
     // Get interfaces
-    auto interfaces = reinterpret_cast<StarpuVariableInterface **>(buffers);
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
     // Launch kernel
     kernel::randn::cpu_ndim0<T>(*seed_ptr, *mean_ptr, *stddev_ptr, data);
@@ -71,15 +71,14 @@ uint32_t footprint(struct starpu_task *task)
           *underlying_shape;
     const unsigned long long *seed_ptr;
     const T *mean_ptr, *stddev_ptr;
-    Starpu::unpack_args_ptr(task->cl_arg, ndim_ptr, nelems_ptr, seed_ptr,
+    Config::unpack_args_ptr(task->cl_arg, ndim_ptr, nelems_ptr, seed_ptr,
             mean_ptr, stddev_ptr, start, shape, stride, underlying_shape);
     std::size_t shape_size = *ndim_ptr * sizeof(*shape);
     // Apply hash over parameter copy_shape
     return starpu_hash_crc32c_be_n(shape, shape_size, 0);
 }
 
-StarpuCodelet codelet_fp32, codelet_fp64,
-              codelet_fp32_ndim0, codelet_fp64_ndim0;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_ndim0, codelet_fp64_ndim0;
 
 void init()
 {

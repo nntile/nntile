@@ -9,13 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-19
  * */
 
 #pragma once
 
-#include <nntile/starpu.hh>
-#include <nntile/defs.h>
+#include <nntile/starpu/config.hh>
 
 namespace nntile
 {
@@ -35,7 +34,7 @@ void cuda(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern StarpuCodelet codelet;
+extern Codelet codelet;
 
 void init();
 

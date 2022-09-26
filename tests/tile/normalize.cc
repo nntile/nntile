@@ -9,13 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-06
+ * @date 2022-09-26
  * */
 
 #include "nntile/tile/normalize.hh"
 #include "nntile/starpu/normalize.hh"
 #include "../testing.hh"
-#include "../starpu/common.hh"
 #include <cmath>
 
 using namespace nntile;
@@ -100,12 +99,7 @@ template<typename T>
 void validate()
 {
     // Check normal execution
-    starpu::normalize::restrict_where(STARPU_CPU);
     check<T>();
-#ifdef NNTILE_USE_CUDA
-    starpu::normalize::restrict_where(STARPU_CUDA);
-    check<T>();
-#endif
     // Check throwing exceptions
     Tile<T> empty({});
     Tile<T> gamma_beta({2}), dst({3, 4, 5}), dst2({3, 4, 5});
@@ -128,8 +122,8 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    StarpuTest starpu;
+    // Init StarPU for testing on CPU only
+    starpu::Config starpu(1, 0, 0);
     // Init codelet
     starpu::normalize::init();
     // Launch all tests
