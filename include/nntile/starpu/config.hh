@@ -16,6 +16,7 @@
 
 #include <stdexcept>
 #include <vector>
+#include <memory>
 #include <starpu.h>
 #include <starpu_mpi.h>
 #include <nntile/defs.h>
@@ -56,7 +57,7 @@ public:
         {
             throw std::runtime_error("starpu_init error");
         }
-#ifdef NTILE_USE_CUDA
+#ifdef NNTILE_USE_CUDA
         cublas = cublas_;
         if(cublas != 0)
         {
@@ -73,7 +74,7 @@ public:
     ~Config()
     {
         starpu_mpi_shutdown();
-#ifdef NTILE_USE_CUDA
+#ifdef NNTILE_USE_CUDA
         if(cublas != 0)
         {
             starpu_cublas_shutdown();

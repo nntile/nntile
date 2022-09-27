@@ -9,16 +9,17 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-19
+ * @date 2022-09-27
  * */
 
 #pragma once
 
 #include <nntile/kernel/randn/cpu.hh>
-#include <nntile/defs.h>
-#ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/randn/cuda.hh>
-#endif // NNTILE_USE_CUDA
+// No support for randn on CUDA
+//#include <nntile/defs.h>
+//#ifdef NNTILE_USE_CUDA
+//#include <nntile/kernel/randn/cuda.hh>
+//#endif // NNTILE_USE_CUDA
 
 namespace nntile
 {

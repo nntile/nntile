@@ -338,7 +338,8 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
 template<typename T>
 void validate_cuda_many()
 {
-    TransOp trans[2] = {TransOp::NoTrans, TransOp::Trans};
+    TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
+    TransOp trans[2] = {opN, opT};
     T alpha[3] = {0, 1, -3};
     T beta[3] = {0, 1, 3};
     for(auto transA: trans)

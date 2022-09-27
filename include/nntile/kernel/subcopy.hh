@@ -9,16 +9,17 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-19
+ * @date 2022-09-27
  * */
 
 #pragma once
 
 #include <nntile/kernel/subcopy/cpu.hh>
-#include <nntile/defs.h>
-#ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/subcopy/cuda.hh>
-#endif // NNTILE_USE_CUDA
+// No support for subcopy on CUDA
+//#include <nntile/defs.h>
+//#ifdef NNTILE_USE_CUDA
+//#include <nntile/kernel/subcopy/cuda.hh>
+//#endif // NNTILE_USE_CUDA
 
 namespace nntile
 {
