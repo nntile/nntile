@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tensor/randn.hh"
@@ -67,15 +67,16 @@ void randn_async(const Tensor<T> &dst, const std::vector<Index> &start,
     if(ndim == 0)
     {
         auto tile_handle = dst.get_tile_handle(0);
-        int tile_rank = starpu_mpi_data_get_rank(tile_handle);
+        int tile_rank = tile_handle.mpi_get_rank();
         if(mpi_rank == tile_rank)
         {
+            starpu::Handle null_handle;
             starpu::randn::submit<T>(0, 1, seed, mean, stddev, start,
                     dst.shape, dst.stride, underlying_shape, tile_handle,
-                    nullptr);
+                    null_handle);
         }
         // Flush cache for the output tile on every node
-        starpu_mpi_cache_flush(MPI_COMM_WORLD, tile_handle);
+        tile_handle.mpi_flush();
         return;
     }
     // Temporary index
@@ -86,7 +87,7 @@ void randn_async(const Tensor<T> &dst, const std::vector<Index> &start,
     {
         // Get all the info about tile
         auto tile_handle = dst.get_tile_handle(i);
-        int tile_rank = starpu_mpi_data_get_rank(tile_handle);
+        int tile_rank = tile_handle.mpi_get_rank();
         // Insert task
         if(mpi_rank == tile_rank)
         {
@@ -96,7 +97,7 @@ void randn_async(const Tensor<T> &dst, const std::vector<Index> &start,
                     underlying_shape, tile_handle, tmp_index);
         }
         // Flush cache for the output tile on every node
-        starpu_mpi_cache_flush(MPI_COMM_WORLD, tile_handle);
+        tile_handle.mpi_flush();
         // Generate index and starting point for the next tile
         if(i == dst.grid.nelems-1)
         {

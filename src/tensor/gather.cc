@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tensor/gather.hh"
@@ -44,35 +44,27 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
     int mpi_rank = starpu_mpi_world_rank();
     auto dst_tile_handle = dst.get_tile_handle(0);
     auto dst_tile_traits = dst.get_tile_traits(0);
-    int dst_tile_rank = starpu_mpi_data_get_rank(dst_tile_handle);
+    int dst_tile_rank = dst_tile_handle.mpi_get_rank();
     int ret;
     if(src.grid.nelems == 1)
     {
         auto src_tile_handle = src.get_tile_handle(0);
-        int src_tile_rank = starpu_mpi_data_get_rank(src_tile_handle);
         // Transfer source tile to dest node
-        if(mpi_rank == src_tile_rank or mpi_rank == dst_tile_rank)
-        {
-            ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
-                    src_tile_handle, dst_tile_rank, nullptr, nullptr);
-            if(ret != 0)
-            {
-                throw std::runtime_error("Error in starpu_mpi_get_data_on_"
-                        "node_detached");
-            }
-        }
+        src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
         // Execute on destination node
         if(mpi_rank == dst_tile_rank)
         {
-            ret = starpu_data_cpy(dst_tile_handle, src_tile_handle, 1,
-                    nullptr, nullptr);
+            ret = starpu_data_cpy(
+                    static_cast<starpu_data_handle_t>(dst_tile_handle),
+                    static_cast<starpu_data_handle_t>(src_tile_handle),
+                    1, nullptr, nullptr);
             if(ret != 0)
             {
                 throw std::runtime_error("Error in starpu_data_cpy");
             }
         }
         // Flush cache for the output tile on every node
-        starpu_mpi_cache_flush(MPI_COMM_WORLD, dst_tile_handle);
+        dst_tile_handle.mpi_flush();
         return;
     }
     // Do the slow complex copy
@@ -85,18 +77,8 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
     std::vector<Index> src_tile_index(ndim);
     // Init with the first source tile
     auto src_first_tile_handle = src.get_tile_handle(0);
-    int src_first_tile_rank = starpu_mpi_data_get_rank(src_first_tile_handle);
     // Transfer first source tile to dest node
-    if(mpi_rank == src_first_tile_rank or mpi_rank == dst_tile_rank)
-    {
-        ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
-                src_first_tile_handle, dst_tile_rank, nullptr, nullptr);
-        if(ret != 0)
-        {
-            throw std::runtime_error("Error in starpu_mpi_get_data_on_"
-                    "node_detached");
-        }
-    }
+    src_first_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
     // Execute on dest tile
     if(mpi_rank == dst_tile_rank)
     {
@@ -119,18 +101,8 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
             ++src_tile_index[k];
         }
         auto src_tile_handle = src.get_tile_handle(i);
-        int src_tile_rank = starpu_mpi_data_get_rank(src_tile_handle);
         // Transfer source tile to dest node
-        if(mpi_rank == src_tile_rank or mpi_rank == dst_tile_rank)
-        {
-            ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
-                    src_tile_handle, dst_tile_rank, nullptr, nullptr);
-            if(ret != 0)
-            {
-                throw std::runtime_error("Error in starpu_mpi_get_data_on_"
-                        "node_detached");
-            }
-        }
+        src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
         // Execute on dest tile
         if(mpi_rank == dst_tile_rank)
         {
@@ -146,7 +118,7 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
         }
     }
     // Flush cache for the output tile on every node
-    starpu_mpi_cache_flush(MPI_COMM_WORLD, dst_tile_handle);
+    dst_tile_handle.mpi_flush();
 }
 
 //! Blocking version of tensor-wise gather operation

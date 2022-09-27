@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tensor/relu.hh"
@@ -30,7 +30,7 @@ void relu_async(const Tensor<T> &A)
     for(Index i = 0; i < A.grid.nelems; ++i)
     {
         auto tile_handle = A.get_tile_handle(i);
-        int tile_rank = starpu_mpi_data_get_rank(tile_handle);
+        int tile_rank = tile_handle.mpi_get_rank();
         // Execute only on node-owner
         if(mpi_rank == tile_rank)
         {
@@ -38,7 +38,7 @@ void relu_async(const Tensor<T> &A)
             starpu::relu::submit<T>(tile_traits.nelems, tile_handle);
         }
         // Flush cache for the output tile on every node
-        starpu_mpi_cache_flush(MPI_COMM_WORLD, tile_handle);
+        tile_handle.mpi_flush();
     }
 }
 

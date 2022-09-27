@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #pragma once
@@ -132,8 +132,7 @@ void restore_where();
 
 template<typename T>
 void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
-        Index k, T alpha, starpu_data_handle_t A, starpu_data_handle_t B,
-        T beta, starpu_data_handle_t C);
+        Index k, T alpha, Handle A, Handle B, T beta, Handle C);
 
 } // namespace gemm
 } // namespace starpu

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-14
+ * @date 2022-09-27
  * */
 
 #include "nntile/tensor/clear.hh"
@@ -27,13 +27,13 @@ void clear_async(const Tensor<T> &dst)
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
         auto dst_tile_handle = dst.get_tile_handle(i);
-        int dst_tile_rank = starpu_mpi_data_get_rank(dst_tile_handle);
+        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
         if(mpi_rank == dst_tile_rank)
         {
             starpu::clear::submit(dst_tile_handle);
         }
         // Flush cache for the output tile on every node
-        starpu_mpi_cache_flush(MPI_COMM_WORLD, dst_tile_handle);
+        dst_tile_handle.mpi_flush();
     }
 }
 

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-19
+ * @date 2022-09-27
  * */
 
 #pragma once
@@ -72,8 +72,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, starpu_data_handle_t src,
-        starpu_data_handle_t dst);
+void submit(Index m, Index n, Index k, Handle src, Handle dst);
 
 } // namespace sumnorm
 } // namespace starpu

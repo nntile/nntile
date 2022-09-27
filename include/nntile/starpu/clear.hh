@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-19
+ * @date 2022-09-27
  * */
 
 #pragma once
@@ -43,7 +43,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 //! Insert task to clear buffer
-void submit(starpu_data_handle_t data);
+void submit(Handle data);
 
 } // namespace clear
 } // namespace starpu

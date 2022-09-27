@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/starpu/gemm.hh"
@@ -337,8 +337,7 @@ void restore_where()
 
 template<typename T>
 void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
-        Index k, T alpha, starpu_data_handle_t A, starpu_data_handle_t B,
-        T beta, starpu_data_handle_t C)
+        Index k, T alpha, Handle A, Handle B, T beta, Handle C)
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
 #ifdef NNTILE_USE_CBLAS
@@ -398,9 +397,9 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
     fp64_t nflops = 2 * m * n * k;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(transA, transB),
-            STARPU_R, A,
-            STARPU_R, B,
-            C_mode, C,
+            STARPU_R, static_cast<starpu_data_handle_t>(A),
+            STARPU_R, static_cast<starpu_data_handle_t>(B),
+            C_mode, static_cast<starpu_data_handle_t>(C),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
             0);
@@ -414,13 +413,13 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
 // Explicit instantiation
 template
 void submit<fp32_t>(const TransOp &transA, const TransOp &transB, Index m,
-        Index n, Index k, fp32_t alpha, starpu_data_handle_t A,
-        starpu_data_handle_t B, fp32_t beta, starpu_data_handle_t C);
+        Index n, Index k, fp32_t alpha, Handle A, Handle B, fp32_t beta,
+        Handle C);
 
 template
 void submit<fp64_t>(const TransOp &transA, const TransOp &transB, Index m,
-        Index n, Index k, fp64_t alpha, starpu_data_handle_t A,
-        starpu_data_handle_t B, fp64_t beta, starpu_data_handle_t C);
+        Index n, Index k, fp64_t alpha, Handle A, Handle B, fp64_t beta,
+        Handle C);
 
 } // namespace gemm
 } // namespace starpu

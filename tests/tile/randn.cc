@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tile/randn.hh"
@@ -42,8 +42,9 @@ void validate()
     dst2_local.release();
     // Check scalar tile
     Tile<T> scalar({}), scalar2({});
+    starpu::Handle null_handle;
     starpu::randn::submit<T>(0, 1, seed, mean, stddev, scalar.shape,
-            scalar.shape, scalar.shape, scalar.shape, scalar, nullptr);
+            scalar.shape, scalar.shape, scalar.shape, scalar, null_handle);
     randn(scalar2, scalar.shape, scalar.shape, seed, mean, stddev);
     auto scalar_local = scalar.acquire(STARPU_R);
     auto scalar2_local = scalar2.acquire(STARPU_R);

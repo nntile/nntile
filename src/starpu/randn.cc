@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/starpu/randn.hh"
@@ -120,8 +120,8 @@ template<typename T>
 void submit(Index ndim, Index nelems, unsigned long long seed,
         T mean, T stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
-        const std::vector<Index> &underlying_shape, starpu_data_handle_t data,
-        starpu_data_handle_t tmp_index)
+        const std::vector<Index> &underlying_shape, Handle data,
+        Handle tmp_index)
 {
     fp64_t nflops = 2 * nelems;
     // Submit task
@@ -139,8 +139,8 @@ void submit(Index ndim, Index nelems, unsigned long long seed,
                 STARPU_VALUE, &stride[0], ndim*sizeof(stride[0]),
                 STARPU_VALUE, &underlying_shape[0],
                 ndim*sizeof(underlying_shape[0]),
-                STARPU_W, data,
-                STARPU_SCRATCH, tmp_index,
+                STARPU_W, static_cast<starpu_data_handle_t>(data),
+                STARPU_SCRATCH, static_cast<starpu_data_handle_t>(tmp_index),
                 STARPU_FLOPS, nflops,
                 0);
     }
@@ -150,7 +150,7 @@ void submit(Index ndim, Index nelems, unsigned long long seed,
                 STARPU_VALUE, &seed, sizeof(seed),
                 STARPU_VALUE, &mean, sizeof(mean),
                 STARPU_VALUE, &stddev, sizeof(stddev),
-                STARPU_W, data,
+                STARPU_W, static_cast<starpu_data_handle_t>(data),
                 STARPU_FLOPS, nflops,
                 0);
     }
@@ -166,15 +166,15 @@ template
 void submit<fp32_t>(Index ndim, Index nelems, unsigned long long seed,
         fp32_t mean, fp32_t stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
-        const std::vector<Index> &underlying_shape, starpu_data_handle_t data,
-        starpu_data_handle_t tmp_index);
+        const std::vector<Index> &underlying_shape, Handle data,
+        Handle tmp_index);
 
 template
 void submit<fp64_t>(Index ndim, Index nelems, unsigned long long seed,
         fp64_t mean, fp64_t stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
-        const std::vector<Index> &underlying_shape, starpu_data_handle_t data,
-        starpu_data_handle_t tmp_index);
+        const std::vector<Index> &underlying_shape, Handle data,
+        Handle tmp_index);
 
 } // namespace randn
 } // namespace starpu

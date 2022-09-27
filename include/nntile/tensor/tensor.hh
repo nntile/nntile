@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-06
+ * @date 2022-09-27
  * */
 
 #pragma once
@@ -62,8 +62,9 @@ public:
             tile_handles.emplace_back(sizeof(T)*tile_traits[i].nelems,
                     STARPU_R);
             // Register tile with MPI
-            starpu_mpi_data_register(tile_handles[i], last_tag,
-                    distribution[i]);
+            starpu_mpi_data_register(
+                    static_cast<starpu_data_handle_t>(tile_handles[i]),
+                    last_tag, distribution[i]);
             ++last_tag;
         }
     }
@@ -115,7 +116,7 @@ public:
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            starpu_data_invalidate_submit(tile_handles[i]);
+            starpu_data_invalidate_submit(get_tile_handle(i));
         }
     }
     //! Advice to evict data from GPU
@@ -123,7 +124,7 @@ public:
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            starpu_data_wont_use(tile_handles[i]);
+            starpu_data_wont_use(get_tile_handle(i));
         }
     }
 };

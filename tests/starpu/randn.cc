@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/starpu/randn.hh"
@@ -36,11 +36,12 @@ void validate_cpu_empty()
     kernel::randn::cpu_ndim0<T>(seed, mean, stddev, &data);
     // Check by actually submitting a task
     VariableHandle data2_handle(&data2, sizeof(T), STARPU_RW);
+    Handle null_handle;
     std::vector<Index> start, shape, stride, underlying_shape;
     randn::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::randn::submit<T> restricted to CPU\n";
     randn::submit<T>(0, nelems, seed, mean, stddev, start, shape,
-            stride, underlying_shape, data2_handle, nullptr);
+            stride, underlying_shape, data2_handle, null_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result

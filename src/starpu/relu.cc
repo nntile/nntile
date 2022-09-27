@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/starpu/relu.hh"
@@ -91,12 +91,12 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index nelems, starpu_data_handle_t data)
+void submit(Index nelems, Handle data)
 {
     Index *nelems_ = new Index{nelems};
     //fp64_t nflops = 5 * nelems;
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_RW, data,
+            STARPU_RW, static_cast<starpu_data_handle_t>(data),
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
             //STARPU_FLOPS, nflops,
             0);
@@ -109,10 +109,10 @@ void submit(Index nelems, starpu_data_handle_t data)
 
 // Explicit instantiaion
 template
-void submit<fp32_t>(Index nelems, starpu_data_handle_t data);
+void submit<fp32_t>(Index nelems, Handle data);
 
 template
-void submit<fp64_t>(Index nelems, starpu_data_handle_t data);
+void submit<fp64_t>(Index nelems, Handle data);
 
 } // namespace relu
 } // namespace starpu

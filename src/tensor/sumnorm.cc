@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tensor/sumnorm.hh"
@@ -85,7 +85,7 @@ void sumnorm_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
     {
         // Clean up destination tile on dest node
         auto dst_tile_handle = dst.get_tile_handle(i);
-        int dst_tile_rank = starpu_mpi_data_get_rank(dst_tile_handle);
+        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
         if(mpi_rank == dst_tile_rank)
         {
             starpu::clear::submit(dst_tile_handle);
@@ -109,18 +109,9 @@ void sumnorm_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
             src_tile_index[axis] = j;
             Index src_tile_offset = src.grid.index_to_linear(src_tile_index);
             auto src_tile_handle = src.get_tile_handle(src_tile_offset);
-            int src_tile_rank = starpu_mpi_data_get_rank(src_tile_handle);
+            int src_tile_rank = src_tile_handle.mpi_get_rank();
             // Transfer data
-            if(mpi_rank == src_tile_rank or mpi_rank == dst_tile_rank)
-            {
-                ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
-                        src_tile_handle, dst_tile_rank, nullptr, nullptr);
-                if(ret != 0)
-                {
-                    throw std::runtime_error("Error in starpu_mpi_get_data_on_"
-                            "node_detached");
-                }
-            }
+            src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
             // Execute on destination node
             if(mpi_rank == dst_tile_rank)
             {
@@ -151,7 +142,7 @@ void sumnorm_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
             }
         }
         // Flush cache for the output tile on every node
-        starpu_mpi_cache_flush(MPI_COMM_WORLD, dst_tile_handle);
+        dst_tile_handle.mpi_flush();
     }
 }
 

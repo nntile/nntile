@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-19
+ * @date 2022-09-27
  * */
 
 #pragma once
@@ -85,8 +85,8 @@ template<typename T>
 void submit(Index ndim, Index nelems, unsigned long long seed,
         T mean, T stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
-        const std::vector<Index> &underlying_shape, starpu_data_handle_t data,
-        starpu_data_handle_t tmp_index);
+        const std::vector<Index> &underlying_shape, Handle data,
+        Handle tmp_index);
 
 } // namespace randn
 } // namespace starpu

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-19
+ * @date 2022-09-27
  * */
 
 #pragma once
@@ -61,9 +61,8 @@ void submit(Index ndim, const std::vector<Index> &src_start,
         const std::vector<Index> &src_stride,
         const std::vector<Index> &dst_start,
         const std::vector<Index> &dst_stride,
-        const std::vector<Index> &copy_shape,
-        starpu_data_handle_t src, starpu_data_handle_t dst,
-        starpu_data_handle_t tmp_index, starpu_data_access_mode mode);
+        const std::vector<Index> &copy_shape, Handle src, Handle dst,
+        Handle tmp_index, starpu_data_access_mode mode);
 
 } // namespace subcopy
 } // namespace starpu

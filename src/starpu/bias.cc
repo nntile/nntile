@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-19
+ * @date 2022-09-27
  * */
 
 #include "nntile/starpu/bias.hh"
@@ -110,8 +110,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, starpu_data_handle_t src,
-        starpu_data_handle_t dst)
+void submit(Index m, Index n, Index k, Handle src, Handle dst)
 //! Insert bias task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -128,9 +127,9 @@ void submit(Index m, Index n, Index k, starpu_data_handle_t src,
     fp64_t nflops = m * n * k;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, src,
+            STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_CL_ARGS, args, sizeof(*args),
-            Config::STARPU_RW_COMMUTE, dst,
+            Config::STARPU_RW_COMMUTE, static_cast<starpu_data_handle_t>(dst),
             STARPU_FLOPS, nflops,
             0);
     // Check submission
@@ -142,12 +141,10 @@ void submit(Index m, Index n, Index k, starpu_data_handle_t src,
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index m, Index n, Index k, starpu_data_handle_t src,
-        starpu_data_handle_t dst);
+void submit<fp32_t>(Index m, Index n, Index k, Handle src, Handle dst);
 
 template
-void submit<fp64_t>(Index m, Index n, Index k, starpu_data_handle_t src,
-        starpu_data_handle_t dst);
+void submit<fp64_t>(Index m, Index n, Index k, Handle src, Handle dst);
 
 } // namespace bias
 } // namespace starpu

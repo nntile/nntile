@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-02
+ * @date 2022-09-27
  * */
 
 #include "nntile/tile/gemm.hh"

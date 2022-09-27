@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/starpu/normalize.hh"
@@ -116,9 +116,8 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, Index l, T eps,
-        starpu_data_handle_t gamma_beta, starpu_data_handle_t sumnorm,
-        starpu_data_handle_t dst)
+void submit(Index m, Index n, Index k, Index l, T eps, Handle gamma_beta,
+        Handle sumnorm, Handle dst)
 //! Insert normalize task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -137,9 +136,9 @@ void submit(Index m, Index n, Index k, Index l, T eps,
     fp64_t nflops = 14 * m * n * k;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, gamma_beta,
-            STARPU_R, sumnorm,
-            STARPU_RW, dst,
+            STARPU_R, static_cast<starpu_data_handle_t>(gamma_beta),
+            STARPU_R, static_cast<starpu_data_handle_t>(sumnorm),
+            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
             0);
@@ -153,13 +152,11 @@ void submit(Index m, Index n, Index k, Index l, T eps,
 // Explicit instantiation
 template
 void submit<fp32_t>(Index m, Index n, Index k, Index l, fp32_t eps,
-        starpu_data_handle_t gamma_beta, starpu_data_handle_t sumnorm,
-        starpu_data_handle_t dst);
+        Handle gamma_beta, Handle sumnorm, Handle dst);
 
 template
 void submit<fp64_t>(Index m, Index n, Index k, Index l, fp64_t eps,
-        starpu_data_handle_t gamma_beta, starpu_data_handle_t sumnorm,
-        starpu_data_handle_t dst);
+        Handle gamma_beta, Handle sumnorm, Handle dst);
 
 } // namespace normalize
 } // namespace starpu

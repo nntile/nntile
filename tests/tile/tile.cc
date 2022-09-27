@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tile/tile.hh"
@@ -42,7 +42,8 @@ void check_tile(const std::vector<Index> &shape)
     TEST_ASSERT(static_cast<starpu_data_handle_t>(tile2) !=
             static_cast<starpu_data_handle_t>(tile3));
     // Check if acquire, release and copy are working together
-    starpu_data_cpy(tile3, tile2, 0, nullptr, nullptr);
+    starpu_data_cpy(static_cast<starpu_data_handle_t>(tile3),
+            static_cast<starpu_data_handle_t>(tile2), 0, nullptr, nullptr);
     auto tile3_local = tile3.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)
     {
@@ -58,7 +59,8 @@ void check_tile(const std::vector<Index> &shape)
     TEST_THROW(Tile<T>(shape, &data[0], tile1.nelems-1));
     Tile<T> tile4(shape, &data[0], tile1.nelems);
     TEST_ASSERT(static_cast<starpu_data_handle_t>(tile4) != nullptr);
-    starpu_data_cpy(tile3, tile4, 0, nullptr, nullptr);
+    starpu_data_cpy(static_cast<starpu_data_handle_t>(tile3),
+            static_cast<starpu_data_handle_t>(tile4), 0, nullptr, nullptr);
     tile3_local.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)
     {
@@ -71,7 +73,8 @@ void check_tile(const std::vector<Index> &shape)
     TEST_ASSERT(static_cast<starpu_data_handle_t>(tile5) != nullptr);
     TEST_ASSERT(static_cast<starpu_data_handle_t>(tile5) !=
             static_cast<starpu_data_handle_t>(tile4));
-    starpu_data_cpy(tile3, tile5, 0, nullptr, nullptr);
+    starpu_data_cpy(static_cast<starpu_data_handle_t>(tile3),
+            static_cast<starpu_data_handle_t>(tile5), 0, nullptr, nullptr);
     tile3_local.acquire(STARPU_RW);
     for(Index i = 0; i < tile2.nelems; ++i)
     {

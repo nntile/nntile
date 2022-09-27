@@ -56,21 +56,20 @@ void validate()
     TensorTraits scalar_traits({}, {});
     std::vector<int> scalar_distr = {1};
     Tensor<T> scalar(scalar_traits, scalar_distr, last_tag);
-    TEST_ASSERT(starpu_mpi_data_get_rank(scalar.get_tile(0)) == 1);
+    TEST_ASSERT(scalar.get_tile(0).mpi_get_rank() == 1);
     check<T>(scalar);
     TensorTraits vector_traits({10}, {3});
     std::vector<int> vector_distr = {1, 3, 7, 2};
     Tensor<T> vector(vector_traits, vector_distr, last_tag);
     for(Index i = 0; i < vector_distr.size(); ++i)
     {
-        TEST_ASSERT(starpu_mpi_data_get_rank(vector.get_tile(i)) ==
-                vector_distr[i]);
+        TEST_ASSERT(vector.get_tile(i).mpi_get_rank() == vector_distr[i]);
     }
     check<T>(vector);
     TensorTraits matrix_traits({3, 5}, {3, 5});
     std::vector<int> matrix_distr = {3};
     Tensor<T> matrix(matrix_traits, matrix_distr, last_tag);
-    TEST_ASSERT(starpu_mpi_data_get_rank(matrix.get_tile(0)) == 3);
+    TEST_ASSERT(matrix.get_tile(0).mpi_get_rank() == 3);
     check<T>(matrix);
     TensorTraits t5d_traits({11, 13, 15, 17, 19}, {100, 100, 100, 100, 100});
     std::vector<int> t5d_distr = {4};
@@ -85,7 +84,7 @@ void validate()
     Tensor<T> t5d2(t5d2_traits, t5d2_distr, last_tag);
     for(Index i = 0; i < t5d2_distr.size(); ++i)
     {
-        TEST_ASSERT(starpu_mpi_data_get_rank(t5d2.get_tile(i)) == i+3);
+        TEST_ASSERT(t5d2.get_tile(i).mpi_get_rank() == i+3);
     }
     check<T>(t5d2);
 }

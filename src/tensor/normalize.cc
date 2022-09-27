@@ -104,7 +104,7 @@ void normalize_async(const Tensor<T> &gamma_beta, const Tensor<T> &src,
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_size = starpu_mpi_world_size();
     auto gamma_beta_handle = gamma_beta.get_tile_handle(0);
-    int gamma_beta_rank = starpu_mpi_data_get_rank(gamma_beta_handle);
+    int gamma_beta_rank = gamma_beta_handle.mpi_get_rank();
     int ret;
     // Transfer data to all nodes from source node
     if(mpi_rank == gamma_beta_rank)
@@ -116,25 +116,13 @@ void normalize_async(const Tensor<T> &gamma_beta, const Tensor<T> &src,
             {
                 continue;
             }
-            ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
-                    gamma_beta_handle, i, nullptr, nullptr);
-            if(ret != 0)
-            {
-                throw std::runtime_error("Error in starpu_mpi_get_data_on_"
-                        "node_detached");
-            }
+            gamma_beta_handle.mpi_transfer(i, mpi_rank);
         }
     }
     // Receive data on all other nodes
     else
     {
-        ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
-                gamma_beta_handle, mpi_rank, nullptr, nullptr);
-        if(ret != 0)
-        {
-            throw std::runtime_error("Error in starpu_mpi_get_data_on_"
-                    "node_detached");
-        }
+        gamma_beta_handle.mpi_transfer(mpi_rank, mpi_rank);
     }
     // Apply per-tile normalization asynchronously as needed
     for(Index i = 0; i < src.grid.nelems; ++i)
@@ -145,8 +133,6 @@ void normalize_async(const Tensor<T> &gamma_beta, const Tensor<T> &src,
         auto src_tile_traits = src.get_tile_traits(i);
         // Source tile handle
         auto src_tile_handle = src.get_tile_handle(i);
-        // MPI rank and tag of the source tile
-        int src_tile_rank = starpu_mpi_data_get_rank(src_tile_handle);
         // Set fixed indices of current destination tile
         std::vector<Index> dst_tile_index(dst.ndim);
         for(Index j = 0; j < axis; ++j)
@@ -167,18 +153,9 @@ void normalize_async(const Tensor<T> &gamma_beta, const Tensor<T> &src,
             // Get destination tile handle
             auto dst_tile_handle = dst.get_tile_handle(dst_tile_offset);
             // MPI rank of the destination tile
-            int dst_tile_rank = starpu_mpi_data_get_rank(dst_tile_handle);
+            int dst_tile_rank = dst_tile_handle.mpi_get_rank();
             // Transfer data
-            if(mpi_rank == src_tile_rank or mpi_rank == dst_tile_rank)
-            {
-                ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
-                        src_tile_handle, dst_tile_rank, nullptr, nullptr);
-                if(ret != 0)
-                {
-                    throw std::runtime_error("Error in starpu_mpi_get_data_on_"
-                            "node_detached");
-                }
-            }
+            src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
             // Execute on destination node
             if(mpi_rank == dst_tile_rank)
             {
@@ -210,7 +187,7 @@ void normalize_async(const Tensor<T> &gamma_beta, const Tensor<T> &src,
                         gamma_beta_handle, src_tile_handle, dst_tile_handle);
             }
             // Flush cache for the output tile on every node
-            starpu_mpi_cache_flush(MPI_COMM_WORLD, dst_tile_handle);
+            dst_tile_handle.mpi_flush();
         }
     }
 }

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tensor/bias.hh"
@@ -74,8 +74,6 @@ void bias_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
         auto src_tile_traits = src.get_tile_traits(i);
         // Source tile handle
         auto src_tile_handle = src.get_tile_handle(i);
-        // MPI rank and tag of the source tile
-        int src_tile_rank = starpu_mpi_data_get_rank(src_tile_handle);
         // Set fixed indices of current destination tile
         std::vector<Index> dst_tile_index(dst.ndim);
         for(Index j = 0; j < axis; ++j)
@@ -96,18 +94,9 @@ void bias_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
             // Get destination tile handle
             auto dst_tile_handle = dst.get_tile_handle(dst_tile_offset);
             // MPI rank of the destination tile
-            int dst_tile_rank = starpu_mpi_data_get_rank(dst_tile_handle);
+            int dst_tile_rank = dst_tile_handle.mpi_get_rank();
             // Transfer data
-            if(mpi_rank == src_tile_rank or mpi_rank == dst_tile_rank)
-            {
-                ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
-                        src_tile_handle, dst_tile_rank, nullptr, nullptr);
-                if(ret != 0)
-                {
-                    throw std::runtime_error("Error in starpu_mpi_get_data_on_"
-                            "node_detached");
-                }
-            }
+            src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
             // Execute on destination node
             if(mpi_rank == dst_tile_rank)
             {
@@ -138,7 +127,7 @@ void bias_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
                         dst_tile_handle);
             }
             // Flush cache for the output tile on every node
-            starpu_mpi_cache_flush(MPI_COMM_WORLD, dst_tile_handle);
+            dst_tile_handle.mpi_flush();
         }
     }
 }

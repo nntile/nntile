@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tile/copy_intersection.hh"
@@ -53,7 +53,8 @@ void copy_intersection_async(const Tile<T> &src,
     // Treat special case of ndim=0
     if(ndim == 0)
     {
-        ret = starpu_data_cpy(dst, src, 1, nullptr, nullptr);
+        ret = starpu_data_cpy(static_cast<starpu_data_handle_t>(dst),
+                static_cast<starpu_data_handle_t>(src), 1, nullptr, nullptr);
         if(ret != 0)
         {
             throw std::runtime_error("Error in starpu_data_cpy");
@@ -63,7 +64,8 @@ void copy_intersection_async(const Tile<T> &src,
     // Treat easy case of full copy
     if(src_offset == dst_offset and src.shape == dst.shape)
     {
-        ret = starpu_data_cpy(dst, src, 1, nullptr, nullptr);
+        ret = starpu_data_cpy(static_cast<starpu_data_handle_t>(dst),
+                static_cast<starpu_data_handle_t>(src), 1, nullptr, nullptr);
         if(ret != 0)
         {
             throw std::runtime_error("Error in starpu_data_cpy");
@@ -108,9 +110,8 @@ void copy_intersection_async(const Tile<T> &src,
         }
     }
     // Insert task
-    starpu::subcopy::submit<T>(src.ndim, src_start, src.stride,
-            dst_start, dst.stride, copy_shape, src, dst, scratch,
-            dst_tile_mode);
+    starpu::subcopy::submit<T>(src.ndim, src_start, src.stride, dst_start,
+            dst.stride, copy_shape, src, dst, scratch, dst_tile_mode);
 }
 
 //! Blocking version of tile-wise copy operation

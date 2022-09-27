@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-19
+ * @date 2022-09-27
  * */
 
 #include "nntile/starpu/subcopy.hh"
@@ -89,9 +89,8 @@ void submit(Index ndim, const std::vector<Index> &src_start,
         const std::vector<Index> &src_stride,
         const std::vector<Index> &dst_start,
         const std::vector<Index> &dst_stride,
-        const std::vector<Index> &copy_shape,
-        starpu_data_handle_t src, starpu_data_handle_t dst,
-        starpu_data_handle_t tmp_index, starpu_data_access_mode mode)
+        const std::vector<Index> &copy_shape, Handle src, Handle dst,
+        Handle tmp_index, starpu_data_access_mode mode)
 {
     constexpr fp64_t zero_flops = 0;
     // Submit task
@@ -102,9 +101,9 @@ void submit(Index ndim, const std::vector<Index> &src_start,
             STARPU_VALUE, &(copy_shape[0]), ndim*sizeof(copy_shape[0]),
             STARPU_VALUE, &(dst_start[0]), ndim*sizeof(dst_start[0]),
             STARPU_VALUE, &(dst_stride[0]), ndim*sizeof(dst_stride[0]),
-            STARPU_R, src,
-            mode, dst,
-            STARPU_SCRATCH, tmp_index,
+            STARPU_R, static_cast<starpu_data_handle_t>(src),
+            mode, static_cast<starpu_data_handle_t>(dst),
+            STARPU_SCRATCH, static_cast<starpu_data_handle_t>(tmp_index),
             STARPU_FLOPS, zero_flops, // No floating point operations
             0);
     // Check submission
@@ -120,18 +119,16 @@ void submit<fp32_t>(Index ndim, const std::vector<Index> &src_start,
         const std::vector<Index> &src_stride,
         const std::vector<Index> &dst_start,
         const std::vector<Index> &dst_stride,
-        const std::vector<Index> &copy_shape,
-        starpu_data_handle_t src, starpu_data_handle_t dst,
-        starpu_data_handle_t tmp_index, starpu_data_access_mode mode);
+        const std::vector<Index> &copy_shape, Handle src, Handle dst,
+        Handle tmp_index, starpu_data_access_mode mode);
 
 template
 void submit<fp64_t>(Index ndim, const std::vector<Index> &src_start,
         const std::vector<Index> &src_stride,
         const std::vector<Index> &dst_start,
         const std::vector<Index> &dst_stride,
-        const std::vector<Index> &copy_shape,
-        starpu_data_handle_t src, starpu_data_handle_t dst,
-        starpu_data_handle_t tmp_index, starpu_data_access_mode mode);
+        const std::vector<Index> &copy_shape, Handle src, Handle dst,
+        Handle tmp_index, starpu_data_access_mode mode);
 
 } // namespace subcopy
 } // namespace starpu

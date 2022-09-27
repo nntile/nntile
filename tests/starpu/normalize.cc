@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/starpu/normalize.hh"
@@ -54,8 +54,8 @@ void validate_cpu(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
         gamma_beta_handle(gamma_beta, sizeof(gamma_beta), STARPU_R);
     normalize::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::normalize::submit<T> restricted to CPU\n";
-    normalize::submit<T>(m, n, k, l, eps, gamma_beta_handle,
-            sumnorm_handle, dst2_handle);
+    normalize::submit<T>(m, n, k, l, eps, gamma_beta_handle, sumnorm_handle,
+            dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -206,8 +206,8 @@ void validate_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
         gamma_beta_handle(gamma_beta, sizeof(T)*2, STARPU_R);
     normalize::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::normalize::submit<T> restricted to CUDA\n";
-    normalize::submit<T>(m, n, k, l, eps, gamma_beta_handle,
-            sumnorm_handle, dst2_handle);
+    normalize::submit<T>(m, n, k, l, eps, gamma_beta_handle, sumnorm_handle,
+            dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result

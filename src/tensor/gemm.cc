@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-14
+ * @date 2022-09-27
  * */
 
 #include "nntile/tensor/gemm.hh"
@@ -334,7 +334,7 @@ void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
             Index C_tile_offset = j*m + i;
             auto C_tile_handle = C.get_tile_handle(C_tile_offset);
             auto C_tile_traits = C.get_tile_traits(C_tile_offset);
-            int C_tile_rank = starpu_mpi_data_get_rank(C_tile_handle);
+            int C_tile_rank = C_tile_handle.mpi_get_rank();
             Index tile_m = C_tile_traits.matrix_shape[A.ndim-ndim][0];
             Index tile_n = C_tile_traits.matrix_shape[A.ndim-ndim][1];
             // initialize C(i,j) = a*opA(i,0)*opB(0,j) + b*C(i,j)
@@ -342,32 +342,12 @@ void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
             Index B_tile_offset = opB_stride[1] * j;
             auto A_first_tile_handle = A.get_tile_handle(A_tile_offset);
             auto B_first_tile_handle = B.get_tile_handle(B_tile_offset);
-            int A_first_tile_rank = starpu_mpi_data_get_rank(
-                    A_first_tile_handle);
-            int B_first_tile_rank = starpu_mpi_data_get_rank(
-                    B_first_tile_handle);
+            int A_first_tile_rank = A_first_tile_handle.mpi_get_rank();
+            int B_first_tile_rank = B_first_tile_handle.mpi_get_rank();
             // Transfer first tile A on node with tile C
-            if(mpi_rank == A_first_tile_rank or mpi_rank == C_tile_rank)
-            {
-                ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
-                        A_first_tile_handle, C_tile_rank, nullptr, nullptr);
-                if(ret != 0)
-                {
-                    throw std::runtime_error("Error in starpu_mpi_get_data_on_"
-                            "node_detached");
-                }
-            }
+            A_first_tile_handle.mpi_transfer(C_tile_rank, mpi_rank);
             // Transfer first tile B on node with tile C
-            if(mpi_rank == B_first_tile_rank or mpi_rank == C_tile_rank)
-            {
-                ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
-                        B_first_tile_handle, C_tile_rank, nullptr, nullptr);
-                if(ret != 0)
-                {
-                    throw std::runtime_error("Error in starpu_mpi_get_data_on_"
-                            "node_detached");
-                }
-            }
+            B_first_tile_handle.mpi_transfer(C_tile_rank, mpi_rank);
             // Execute on node with tile C
             if(mpi_rank == C_tile_rank)
             {
@@ -397,30 +377,12 @@ void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
                 B_tile_offset += opB_stride[0];
                 auto A_tile_handle = A.get_tile_handle(A_tile_offset);
                 auto B_tile_handle = B.get_tile_handle(B_tile_offset);
-                int A_tile_rank = starpu_mpi_data_get_rank(A_tile_handle);
-                int B_tile_rank = starpu_mpi_data_get_rank(B_tile_handle);
+                int A_tile_rank = A_tile_handle.mpi_get_rank();
+                int B_tile_rank = B_tile_handle.mpi_get_rank();
                 // Transfer tile A on node with tile C
-                if(mpi_rank == A_tile_rank or mpi_rank == C_tile_rank)
-                {
-                    ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
-                            A_tile_handle, C_tile_rank, nullptr, nullptr);
-                    if(ret != 0)
-                    {
-                        throw std::runtime_error("Error in starpu_mpi_get_"
-                                "data_on_node_detached");
-                    }
-                }
+                A_tile_handle.mpi_transfer(C_tile_rank, mpi_rank);
                 // Transfer tile B on node with tile C
-                if(mpi_rank == B_tile_rank or mpi_rank == C_tile_rank)
-                {
-                    ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
-                            B_tile_handle, C_tile_rank, nullptr, nullptr);
-                    if(ret != 0)
-                    {
-                        throw std::runtime_error("Error in starpu_mpi_get_"
-                                "data_on_node_detached");
-                    }
-                }
+                B_tile_handle.mpi_transfer(C_tile_rank, mpi_rank);
                 // Execute on node with tile C
                 if(mpi_rank == C_tile_rank)
                 {
@@ -444,7 +406,7 @@ void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
                 }
             }
             // Flush cache for the output tile on every node
-            starpu_mpi_cache_flush(MPI_COMM_WORLD, C_tile_handle);
+            C_tile_handle.mpi_flush();
         }
     }
 }

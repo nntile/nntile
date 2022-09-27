@@ -195,8 +195,8 @@ public:
     virtual ~Handle()
     {
     }
-    //! Convert to starpu_data_handle_t
-    operator starpu_data_handle_t() const
+    //! Convert to starpu_data_handle_t (only if explicitly asked)
+    explicit operator starpu_data_handle_t() const
     {
         return handle.get();
     }
@@ -206,6 +206,35 @@ public:
     void unregister()
     {
         handle.reset();
+    }
+    //! Get rank of the MPI node owning the data handle
+    int mpi_get_rank() const
+    {
+        return starpu_mpi_data_get_rank(handle.get());
+    }
+    //! Get tag of the data handle
+    int mpi_get_tag() const
+    {
+        return starpu_mpi_data_get_tag(handle.get());
+    }
+    //! Transfer data to a provided node rank
+    void mpi_transfer(int dst_rank, int mpi_rank) const
+    {
+        if(mpi_rank == dst_rank or mpi_rank == mpi_get_rank())
+        {
+            int ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
+                    handle.get(), dst_rank, nullptr, nullptr);
+            if(ret != 0)
+            {
+                throw std::runtime_error("Error in starpu_mpi_get_data_on_"
+                        "node_detached");
+            }
+        }
+    }
+    //! Flush cached data
+    void mpi_flush() const
+    {
+        starpu_mpi_cache_flush(MPI_COMM_WORLD, handle.get());
     }
 };
 
@@ -230,17 +259,18 @@ public:
     }
     void acquire(starpu_data_access_mode mode)
     {
-        int status = starpu_data_acquire(handle, mode);
+        auto starpu_handle = static_cast<starpu_data_handle_t>(handle);
+        int status = starpu_data_acquire(starpu_handle, mode);
         if(status != 0)
         {
             throw std::runtime_error("status != 0");
         }
         acquired = true;
-        ptr = starpu_data_get_local_ptr(handle);
+        ptr = starpu_data_get_local_ptr(starpu_handle);
     }
     void release()
     {
-        starpu_data_release(handle);
+        starpu_data_release(static_cast<starpu_data_handle_t>(handle));
         acquired = false;
         ptr = nullptr;
     }
