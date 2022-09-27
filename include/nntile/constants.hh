@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2022-09-27
  * */
 
 #pragma once
@@ -32,7 +32,7 @@ public:
         Trans
     } value;
     //! Constructor for transposition operation object
-    constexpr TransOp(const enum TransOp::Value &value_):
+    constexpr explicit TransOp(const enum TransOp::Value &value_):
         value(value_)
     {
         if(value != TransOp::NoTrans and value != TransOp::Trans)
@@ -42,7 +42,7 @@ public:
     }
     //! All constructors but one are disabled
     template<typename T>
-    TransOp(const T &) = delete;
+    explicit TransOp(const T &) = delete;
     //! All conversions are disabled
     template<typename T>
     operator T() = delete;

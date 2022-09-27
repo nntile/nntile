@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tensor/normalize.hh"
@@ -129,7 +129,7 @@ void normalize_async(const Tensor<T> &gamma_beta, const Tensor<T> &src,
     else
     {
         ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
-                gamma_beta_handle, gamma_beta_rank, nullptr, nullptr);
+                gamma_beta_handle, mpi_rank, nullptr, nullptr);
         if(ret != 0)
         {
             throw std::runtime_error("Error in starpu_mpi_get_data_on_"
@@ -220,7 +220,6 @@ template<typename T>
 void normalize(const Tensor<T> &gamma_beta, const Tensor<T> &src,
         const Tensor<T> &dst, Index l, T eps, Index axis)
 {
-    std::cout << "NORM\n";
     normalize_async<T>(gamma_beta, src, dst, l, eps, axis);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);

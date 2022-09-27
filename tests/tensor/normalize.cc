@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tensor/normalize.hh"
@@ -38,7 +38,9 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_root = 0;
     // Generate single-tile destination tensor and init it
-    Tensor<T> dst_single({shape, shape}, {mpi_root}, last_tag);
+    TensorTraits dst_single_traits(shape, shape);
+    std::vector<int> dist_root = {mpi_root};
+    Tensor<T> dst_single(dst_single_traits, dist_root, last_tag);
     if(mpi_rank == mpi_root)
     {
         auto tile = dst_single.get_tile(0);
@@ -83,10 +85,13 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     Tensor<T> src(src_traits, src_distr, last_tag);
     sumnorm<T>(dst, src, axis);
     // Collect source in a single-tile tensor
-    Tensor<T> src_single({src_shape, src_shape}, {mpi_root}, last_tag);
+    TensorTraits src_single_traits(src_shape, src_shape);
+    Tensor<T> src_single(src_single_traits, dist_root, last_tag);
     gather<T>(src, src_single);
     // Prepare all other parameters
-    Tensor<T> gamma_beta({{2}, {2}}, {mpi_root}, last_tag);
+    std::vector<Index> gamma_beta_shape = {2};
+    TensorTraits gamma_beta_traits(gamma_beta_shape, gamma_beta_shape);
+    Tensor<T> gamma_beta(gamma_beta_traits, dist_root, last_tag);
     if(mpi_rank == mpi_root)
     {
         auto gb_tile = gamma_beta.get_tile(0);
@@ -102,9 +107,8 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         tile::normalize<T>(gamma_beta.get_tile(0), src_single.get_tile(0),
                 dst_single.get_tile(0), shape[axis], T{0}, axis);
     }
-    return;
     // Compare results
-    Tensor<T> dst2_single({shape, shape}, {mpi_root}, last_tag);
+    Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
     gather<T>(dst, dst2_single);
     if(mpi_rank == mpi_root)
     {
@@ -125,7 +129,6 @@ template<typename T>
 void validate()
 {
     check<T>({11}, {5}, 0);
-    return;
     check<T>({11, 12}, {5, 6}, 0);
     check<T>({11, 12}, {5, 6}, 1);
     check<T>({11, 12, 13}, {5, 6, 5}, 0);
@@ -135,14 +138,16 @@ void validate()
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions
     starpu_mpi_tag_t last_tag = 0;
-    Tensor<T> A({{3, 4}, {2, 3}}, {0, 0, 0, 0}, last_tag),
-        B({{3}, {3}}, {0}, last_tag),
-        C({{2, 4}, {2, 2}}, {0, 0}, last_tag),
-        D({{}, {}}, {0}, last_tag),
-        E({{3, 3}, {2, 3}}, {0, 0}, last_tag),
-        F({{2, 3}, {1, 3}}, {0, 0}, last_tag),
-        G({{2, 3}, {2, 3}}, {0}, last_tag);
-    Tensor<T> gamma_beta({{2}, {2}}, {0}, last_tag);
+    std::vector<Index> sh34 = {3, 4}, sh23 = {2, 3}, sh3 = {3}, sh24 = {2, 4},
+        sh22 = {2, 2}, sh_ = {}, sh33 = {3, 3}, sh13 = {1, 3}, sh2 = {2};
+    TensorTraits trA(sh34, sh23), trB(sh3, sh3), trC(sh24, sh22),
+        trD(sh_, sh_), trE(sh33, sh23), trF(sh23, sh13), trG(sh23, sh23),
+        trgb(sh2, sh2);
+    std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0}, dist00 = {0, 0};
+    Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
+        C(trC, dist00, last_tag), D(trD, dist0, last_tag),
+        E(trE, dist00, last_tag), F(trF, dist00, last_tag),
+        G(trG, dist0, last_tag), gamma_beta(trgb, dist0, last_tag);
     TEST_THROW(normalize<T>(gamma_beta, B, A, 1, T{0}, 0));
     TEST_THROW(normalize<T>(gamma_beta, D, D, 1, T{0}, 0));
     TEST_THROW(normalize<T>(gamma_beta, C, A, 0, T{0}, 0));

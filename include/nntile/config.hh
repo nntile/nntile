@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-09-27
  * */
 
 #pragma once
@@ -22,6 +22,9 @@ namespace nntile
 class Config: public starpu_conf
 {
 public:
+    Config()
+    {
+    }
     void init(int &argc, char **&argv);
     void shutdown();
 };

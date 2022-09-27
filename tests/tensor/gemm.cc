@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tensor/gemm.hh"
@@ -32,13 +32,16 @@ void check()
     int mpi_size = starpu_mpi_world_size();
     int mpi_root = 0;
     starpu_mpi_tag_t last_tag = 0;
-    TransOp opT = TransOp::Trans, opN = TransOp::NoTrans;
+    TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
     T one = 1, zero = 0;
     // Init single-tiled tensors
-    Tensor<T> A_single({{2, 2, 2, 2}, {2, 2, 2, 2}}, {mpi_root}, last_tag),
-        B_single({{2, 2, 2, 2}, {2, 2, 2, 2}}, {mpi_root}, last_tag),
-        C_single({{2, 2, 2, 2}, {2, 2, 2, 2}}, {mpi_root}, last_tag),
-        D_single({{2, 2, 2, 2}, {2, 2, 2, 2}}, {mpi_root}, last_tag);
+    std::vector<Index> sh2222 = {2, 2, 2, 2};
+    TensorTraits tr2222(sh2222, sh2222);
+    std::vector<int> dist0 = {mpi_root};
+    Tensor<T> A_single(tr2222, dist0, last_tag),
+        B_single(tr2222, dist0, last_tag),
+        C_single(tr2222, dist0, last_tag),
+        D_single(tr2222, dist0, last_tag);
     auto A_single_tile = A_single.get_tile(0),
          B_single_tile = B_single.get_tile(0),
          C_single_tile = C_single.get_tile(0),
@@ -67,9 +70,11 @@ void check()
     {
         distr[i] = (i+1) % mpi_size;
     }
-    Tensor<T> A({{2, 2, 2, 2}, {1, 1, 1, 1}}, distr, last_tag),
-        B({{2, 2, 2, 2}, {1, 1, 1, 1}}, distr, last_tag),
-        D({{2, 2, 2, 2}, {1, 1, 1, 1}}, distr, last_tag);
+    std::vector<Index> sh1111 = {1, 1, 1, 1};
+    TensorTraits tr1111(sh2222, sh1111);
+    Tensor<T> A(tr1111, distr, last_tag),
+        B(tr1111, distr, last_tag),
+        D(tr1111, distr, last_tag);
     scatter<T>(A_single, A);
     scatter<T>(B_single, B);
     scatter<T>(D_single, D);
@@ -218,15 +223,22 @@ void validate()
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions
     starpu_mpi_tag_t last_tag = 0;
-    TransOp opT = TransOp::Trans, opN = TransOp::NoTrans;
+    TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
     T one = 1, zero = 0;
-    Tensor<T> mat11({{1, 1}, {1, 1}}, {0}, last_tag),
-        mat12({{1, 2}, {1, 2}}, {0}, last_tag),
-        mat12_({{1, 2}, {1, 1}}, {0, 0}, last_tag),
-        mat21({{2, 1}, {2, 1}}, {0}, last_tag),
-        mat21_({{2, 1}, {1, 1}}, {0, 0}, last_tag),
-        mat22({{2, 2}, {2, 2}}, {0}, last_tag),
-        mat333({{3, 3, 3}, {3, 3, 3}}, {0}, last_tag);
+    std::vector<Index> shape11 = {1, 1}, shape12 = {1, 2},
+        shape21 = {2, 1}, shape22 = {2, 2}, shape333 = {3, 3, 3};
+    TensorTraits tr11(shape11, shape11), tr12(shape12, shape12),
+        tr21(shape21, shape21), tr22(shape22, shape22),
+        tr12_(shape12, shape11), tr21_(shape21, shape11),
+        tr333(shape333, shape333);
+    std::vector<int> dist0 = {0}, dist00 = {0, 0};
+    Tensor<T> mat11(tr11, dist0, last_tag),
+        mat12(tr12, dist0, last_tag),
+        mat12_(tr12_, dist00, last_tag),
+        mat21(tr21, dist0, last_tag),
+        mat21_(tr21_, dist00, last_tag),
+        mat22(tr22, dist0, last_tag),
+        mat333(tr333, dist0, last_tag);
     auto fail_trans_val = static_cast<TransOp::Value>(-1);
     auto opF = *reinterpret_cast<TransOp *>(&fail_trans_val);
     // Check ndim

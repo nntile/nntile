@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tensor/bias.hh"
@@ -35,7 +35,9 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_root = 0;
     // Generate single-tile destination tensor and init it
-    Tensor<T> dst_single({shape, shape}, {mpi_root}, last_tag);
+    TensorTraits dst_single_traits(shape, shape);
+    std::vector<int> dist_root = {mpi_root};
+    Tensor<T> dst_single(dst_single_traits, dist_root, last_tag);
     if(mpi_rank == mpi_root)
     {
         auto tile = dst_single.get_tile(0);
@@ -69,7 +71,8 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         src_basetile[i-1] = basetile[i];
     }
     // Generate single-tile source tensor and init it
-    Tensor<T> src_single({src_shape, src_shape}, {mpi_root}, last_tag);
+    TensorTraits src_single_traits(src_shape, src_shape);
+    Tensor<T> src_single(src_single_traits, dist_root, last_tag);
     if(mpi_rank == mpi_root)
     {
         auto tile = src_single.get_tile(0);
@@ -96,7 +99,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         tile::bias<T>(src_single.get_tile(0), dst_single.get_tile(0), axis);
     }
     // Compare results
-    Tensor<T> dst2_single({shape, shape}, {mpi_root}, last_tag);
+    Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
     gather<T>(dst, dst2_single);
     if(mpi_rank == mpi_root)
     {
@@ -126,8 +129,11 @@ void validate()
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions
     starpu_mpi_tag_t last_tag = 0;
-    Tensor<T> A({{3, 4}, {2, 3}}, {0, 0, 0, 0}, last_tag),
-        B({{3}, {3}}, {0}, last_tag), C({{4}, {4}}, {0}, last_tag);
+    std::vector<Index> sh34 = {3, 4}, sh23 = {2, 3}, sh3 = {3}, sh4 = {4};
+    TensorTraits trA(sh34, sh23), trB(sh3, sh3), trC(sh4, sh4);
+    std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0};
+    Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
+        C(trC, dist0, last_tag);
     TEST_THROW(bias<T>(A, A, 0));
     TEST_THROW(bias<T>(B, A, -1));
     TEST_THROW(bias<T>(B, A, 2));

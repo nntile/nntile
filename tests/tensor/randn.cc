@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tensor/randn.hh"
@@ -37,7 +37,9 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     T stddev = 2;
     std::vector<Index> start(shape.size());
     // Generate single-tile destination tensor
-    Tensor<T> dst_single({shape, shape}, {mpi_root}, last_tag);
+    TensorTraits dst_single_traits(shape, shape);
+    std::vector<int> dist_root = {mpi_root};
+    Tensor<T> dst_single(dst_single_traits, dist_root, last_tag);
     if(mpi_rank == mpi_root)
     {
         tile::randn<T>(dst_single.get_tile(0), start, shape, seed, mean,
@@ -53,7 +55,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
     randn<T>(dst, start, shape, seed, mean, stddev);
     // Compare results
-    Tensor<T> dst2_single({shape, shape}, {mpi_root}, last_tag);
+    Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
     gather<T>(dst, dst2_single);
     if(mpi_rank == mpi_root)
     {
@@ -83,7 +85,10 @@ void validate()
     unsigned long long seed = -1;
     T mean = 1, stddev = 2;
     starpu_mpi_tag_t last_tag = 0;
-    Tensor<T> A({{3, 4}, {2, 3}}, {0, 0, 0, 0}, last_tag);
+    std::vector<Index> sh34 = {3, 4}, sh23 = {2,3};
+    std::vector<int> dist0000 = {0, 0, 0, 0};
+    TensorTraits trA(sh34, sh23);
+    Tensor<T> A(trA, dist0000, last_tag);
     TEST_THROW(randn<T>(A, {0}, {3, 4}, seed, mean, stddev));
     TEST_THROW(randn<T>(A, {0, 0}, {3}, seed, mean, stddev));
     TEST_THROW(randn<T>(A, {0, -1}, {3, 4}, seed, mean, stddev));

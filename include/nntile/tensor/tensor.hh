@@ -36,7 +36,8 @@ public:
     //! StarPU handles of all tiles
     std::vector<starpu::VariableHandle> tile_handles;
     //! Constructor
-    Tensor(const TensorTraits &traits, const std::vector<int> &distribution,
+    explicit Tensor(const TensorTraits &traits,
+            const std::vector<int> &distribution,
             starpu_mpi_tag_t &last_tag):
         TensorTraits(traits)
     {

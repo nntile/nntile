@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tile/gemm.hh"
@@ -23,7 +23,7 @@ template<typename T>
 void check()
 {
     // Check all parameters are properly passed to the underlying gemm
-    TransOp opT = TransOp::Trans, opN = TransOp::NoTrans;
+    TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
     T one = 1, zero = 0;
     Tile<T> A({2, 2, 2, 2}), B(A.shape), C(A.shape), D(A.shape);
     auto A_local = A.acquire(STARPU_W), B_local = B.acquire(STARPU_W),
@@ -126,7 +126,7 @@ void validate()
     // Check normal execution
     check<T>();
     // Check throwing exceptions
-    TransOp opT = TransOp::Trans, opN = TransOp::NoTrans;
+    TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
     T one = 1, zero = 0;
     Tile<T> mat11({1, 1}), mat12({1, 2}), mat21({2, 1}), mat22({2, 2}),
         mat333({3, 3, 3});

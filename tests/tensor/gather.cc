@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tensor/gather.hh"
@@ -94,10 +94,15 @@ void validate()
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     starpu_mpi_tag_t last_tag = 0;
-    Tensor<T> A({{2, 3, 4}, {2, 3, 4}}, {0}, last_tag),
-        B({{2, 3, 5}, {2, 3, 5}}, {0}, last_tag),
-        C({{2, 3, 4}, {2, 3, 3}}, {0, 0}, last_tag),
-        D({{2, 3}, {2, 3}}, {0}, last_tag);
+    std::vector<Index> sh233 = {2, 3, 3}, sh234 = {2, 3, 4}, sh235 = {2, 3, 5},
+        sh23 = {2, 3};
+    TensorTraits trA(sh234, sh234), trB(sh235, sh235), trC(sh234, sh233),
+        trD(sh23, sh23);
+    std::vector<int> dist0 = {0}, dist00 = {0, 0};
+    Tensor<T> A(trA, dist0, last_tag),
+        B(trB, dist0, last_tag),
+        C(trC, dist00, last_tag),
+        D(trD, dist0, last_tag);
     TEST_THROW(gather<T>(A, C));
     TEST_THROW(gather<T>(D, A));
     TEST_THROW(gather<T>(B, A));

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-29
+ * @date 2022-09-27
  * */
 
 #pragma once
@@ -77,7 +77,7 @@ public:
     //! Leftover size in each dimension
     std::vector<Index> leftover_shape;
     //! Constructor
-    TensorTraits(const std::vector<Index> &shape_,
+    explicit TensorTraits(const std::vector<Index> &shape_,
             const std::vector<Index> &basetile_shape_):
         tile::TileTraits(shape_),
         basetile_shape(_get_basetile_shape(ndim, basetile_shape_)),

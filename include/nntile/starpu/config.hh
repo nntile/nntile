@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-19
+ * @date 2022-09-27
  * */
 
 #pragma once
@@ -32,7 +32,7 @@ class Config: public starpu_conf
     int cublas;
 #endif // NNTILE_USE_CUDA
 public:
-    Config(int ncpus=-1, int ncuda=-1, int cublas_=-1)
+    explicit Config(int ncpus=-1, int ncuda=-1, int cublas_=-1)
     {
         // Init StarPU configuration at first
         starpu_conf conf;
@@ -186,7 +186,8 @@ public:
     {
     }
     //! Constructor owns registered handle and unregisters it when needed
-    Handle(starpu_data_handle_t handle_, starpu_data_access_mode mode):
+    explicit Handle(starpu_data_handle_t handle_,
+            starpu_data_access_mode mode):
         handle(_get_shared_ptr(handle_, mode))
     {
     }
@@ -214,7 +215,8 @@ class HandleLocalData
     void *ptr = nullptr;
     bool acquired = false;
 public:
-    HandleLocalData(const Handle &handle_, starpu_data_access_mode mode):
+    explicit HandleLocalData(const Handle &handle_,
+            starpu_data_access_mode mode):
         handle(handle_)
     {
         acquire(mode);
@@ -258,6 +260,10 @@ HandleLocalData Handle::acquire(starpu_data_access_mode mode) const
 class VariableInterface: public starpu_variable_interface
 {
 public:
+    //! No constructor
+    VariableInterface() = delete;
+    //! No destructor
+    ~VariableInterface() = delete;
     //! Get pointer of a proper type
     template<typename T>
     T *get_ptr() const
@@ -293,17 +299,19 @@ class VariableHandle: public Handle
     }
 public:
     //! Constructor for temporary variable that is (de)allocated by starpu
-    VariableHandle(size_t size, starpu_data_access_mode mode):
+    explicit VariableHandle(size_t size, starpu_data_access_mode mode):
         Handle(_reg_data(size), mode)
     {
     }
     //! Constructor for variable that is (de)allocated by user
-    VariableHandle(uintptr_t ptr, size_t size, starpu_data_access_mode mode):
+    explicit VariableHandle(uintptr_t ptr, size_t size,
+            starpu_data_access_mode mode):
         Handle(_reg_data(ptr, size), mode)
     {
     }
     //! Constructor for variable that is (de)allocated by user
-    VariableHandle(void *ptr, size_t size, starpu_data_access_mode mode):
+    explicit VariableHandle(void *ptr, size_t size,
+            starpu_data_access_mode mode):
         Handle(_reg_data(reinterpret_cast<uintptr_t>(ptr), size), mode)
     {
     }

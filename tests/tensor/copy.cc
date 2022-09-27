@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tensor/copy.hh"
@@ -109,9 +109,13 @@ void validate()
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions
     starpu_mpi_tag_t last_tag = 0;
-    Tensor<T> A({{3, 4}, {2, 3}}, {0, 0, 0, 0}, last_tag),
-        B({{3, 3}, {2, 3}}, {0, 0}, last_tag),
-        C({{3, 4}, {2, 4}}, {0, 0}, last_tag);
+    std::vector<Index> sh34 = {3, 4}, sh23 = {2, 3}, sh33 = {3, 3},
+        sh24 = {2, 4};
+    TensorTraits trA(sh34, sh23), trB(sh33, sh23), trC(sh34, sh24);
+    std::vector<int> dist0000 = {0, 0, 0, 0}, dist00 = {0, 0};
+    Tensor<T> A(trA, dist0000, last_tag),
+        B(trB, dist00, last_tag),
+        C(trC, dist00, last_tag);
     TEST_THROW(copy<T>(A, B));
     TEST_THROW(copy<T>(A, C));
 }

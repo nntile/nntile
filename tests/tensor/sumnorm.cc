@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tensor/sumnorm.hh"
@@ -38,7 +38,9 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_root = 0;
     // Generate single-tile source tensor and init it
-    Tensor<T> src_single({shape, shape}, {mpi_root}, last_tag);
+    TensorTraits src_single_traits(shape, shape);
+    std::vector<int> dist_root = {mpi_root};
+    Tensor<T> src_single(src_single_traits, dist_root, last_tag);
     if(mpi_rank == mpi_root)
     {
         auto tile = src_single.get_tile(0);
@@ -68,7 +70,8 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         dst_basetile[i] = basetile[i-1];
     }
     // Generate single-tile and distributed dest tensors
-    Tensor<T> dst_single({dst_shape, dst_shape}, {mpi_root}, last_tag);
+    TensorTraits dst_single_traits(dst_shape, dst_shape);
+    Tensor<T> dst_single(dst_single_traits, dist_root, last_tag);
     TensorTraits dst_traits(dst_shape, dst_basetile);
     std::vector<int> dst_distr(dst_traits.grid.nelems);
     for(Index i = 0; i < dst_traits.grid.nelems; ++i)
@@ -84,7 +87,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         tile::sumnorm<T>(src_single.get_tile(0), dst_single.get_tile(0), axis);
     }
     // Compare results
-    Tensor<T> dst2_single({dst_shape, dst_shape}, {mpi_root}, last_tag);
+    Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
     gather<T>(dst, dst2_single);
     if(mpi_rank == mpi_root)
     {
@@ -116,13 +119,15 @@ void validate()
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions
     starpu_mpi_tag_t last_tag = 0;
-    Tensor<T> A({{3, 4}, {2, 3}}, {0, 0, 0, 0}, last_tag),
-        B({{2, 3}, {2, 3}}, {0}, last_tag),
-        C({{4}, {4}}, {0}, last_tag),
-        D({{3, 3}, {2, 3}}, {0, 0}, last_tag),
-        E({{2, 4}, {1, 3}}, {0, 0, 0, 0}, last_tag),
-        F({{}, {}}, {0}, last_tag),
-        G({{2, 4}, {2, 2}}, {0, 0}, last_tag);
+    std::vector<Index> sh34 = {3, 4}, sh23 = {2, 3}, sh4 = {4}, sh33 = {3, 3},
+        sh24 = {2, 4}, sh13 = {1, 3}, sh_ = {}, sh22 = {2, 2};
+    TensorTraits trA(sh34, sh23), trB(sh23, sh23), trC(sh4, sh4),
+        trD(sh33, sh23), trE(sh24, sh13), trF(sh_, sh_), trG(sh24, sh22);
+    std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0}, dist00 = {0, 0};
+    Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
+        C(trC, dist0, last_tag), D(trD, dist00, last_tag),
+        E(trE, dist0000, last_tag), F(trF, dist0, last_tag),
+        G(trG, dist00, last_tag);
     TEST_THROW(sumnorm<T>(A, C, 0));
     TEST_THROW(sumnorm<T>(F, F, 0));
     TEST_THROW(sumnorm<T>(A, B, -1));

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-22
+ * @date 2022-09-27
  * */
 
 #pragma once
@@ -75,7 +75,7 @@ public:
     //! Construct a integer properties of a tile
     /*! @param[in] shape_: Shape of the tile itself
      * */
-    TileTraits(const std::vector<Index> &shape_):
+    explicit TileTraits(const std::vector<Index> &shape_):
         // Check if number of dimensions fits into Index type
         ndim(_check_ndim(shape_)),
         // Check input shape

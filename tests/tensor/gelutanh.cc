@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-09-27
  * */
 
 #include "nntile/tensor/gelutanh.hh"
@@ -34,7 +34,9 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_root = 0;
     // Generate single-tile destination tensor
-    Tensor<T> dst_single({shape, shape}, {mpi_root}, last_tag);
+    TensorTraits dst_single_traits(shape, shape);
+    std::vector<int> dist_root = {mpi_root};
+    Tensor<T> dst_single(dst_single_traits, dist_root, last_tag);
     if(mpi_rank == mpi_root)
     {
         auto tile = dst_single.get_tile(0);
@@ -62,7 +64,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     }
     gelutanh<T>(dst);
     // Compare results
-    Tensor<T> dst2_single({shape, shape}, {mpi_root}, last_tag);
+    Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
     gather<T>(dst, dst2_single);
     if(mpi_rank == mpi_root)
     {

@@ -59,13 +59,13 @@ public:
     {
     }
     //! Construct a tile, allocated/deallocated by StarPU
-    Tile(const std::vector<Index> &shape_):
+    explicit Tile(const std::vector<Index> &shape_):
         TileTraits(shape_),
         starpu::VariableHandle(nelems*sizeof(T), STARPU_R)
     {
     }
     //! Construct a tile, allocated/deallocated by StarPU
-    Tile(const TileTraits &traits):
+    explicit Tile(const TileTraits &traits):
         TileTraits(traits),
         starpu::VariableHandle(nelems*sizeof(T), STARPU_R)
     {
