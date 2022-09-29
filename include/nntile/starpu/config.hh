@@ -17,6 +17,7 @@
 #include <stdexcept>
 #include <vector>
 #include <memory>
+#include <cstring>
 #include <starpu.h>
 #include <starpu_mpi.h>
 #include <nntile/defs.h>

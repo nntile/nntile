@@ -52,6 +52,9 @@ add_library(nntile)
 # Set C++-17 standard publicly
 target_compile_features(nntile PUBLIC cxx_std_17)
 
+# Add certain compilation flags for warnings etc
+add_compile_options(-Wall -Wextra -Wpedantic-errors)
+
 # Check if CUDA is available
 set(NNTILE_USE_CUDA OFF)
 if(USE_CUDA)
