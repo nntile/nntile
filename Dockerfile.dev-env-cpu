@@ -6,7 +6,7 @@ RUN apt update && apt install -y --no-install-recommends \
     build-essential libopenmpi3 libopenmpi-dev openmpi-bin \
     lsb-release software-properties-common pkg-config \
     fxt-tools libfxt-dev autoconf automake libtool-bin \
-    libhwloc-dev vim wget git gdb libopenblas-dev lcov \
+    libhwloc-dev vim wget git gdb libopenblas-dev lcov
 
 ## Add Kitware repo for the latest CMake package
 # Get Kitware's signing key
@@ -38,6 +38,7 @@ RUN rm -rf /starpu
 
 # Set up workspace for NNTile
 RUN mkdir -p /workspace
+RUN chmod 777 /workspace
 WORKDIR /workspace
 
 ENTRYPOINT ["bash"]
