@@ -1,0 +1,44 @@
+FROM ubuntu:22.04
+
+# Install all the necessary dependencies both for StarPU installation and for
+# NNTile development
+RUN apt update && apt install -y --no-install-recommends \
+    build-essential libopenmpi3 libopenmpi-dev openmpi-bin \
+    lsb-release software-properties-common pkg-config \
+    fxt-tools libfxt-dev autoconf automake libtool-bin \
+    libhwloc-dev vim wget git gdb libopenblas-dev lcov \
+
+## Add Kitware repo for the latest CMake package
+# Get Kitware's signing key
+RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc \
+    2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg \
+    >/dev/null
+# Add Kitware's repo to the list of sources
+RUN apt-add-repository \
+    "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main"
+# Get up-to-date Kitware keyring
+#RUN apt install kitware-archive-keyring
+# Remove GPG key
+#RUN rm /etc/apt/trusted.gpg.d/kitware.gpg
+# Copy public key
+#RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 6AF7F09730B3F0A4
+## Finally, install CMake
+RUN apt update && apt install -y --no-install-recommends \
+    cmake cmake-curses-gui
+
+# Get the latest StarPU, compile and install it
+RUN git clone https://gitlab.inria.fr/starpu/starpu.git /starpu
+WORKDIR /starpu
+RUN ./autogen.sh
+RUN ./configure
+RUN make
+RUN make install
+# Remove build files of StarPU
+RUN rm -rf /starpu
+
+# Set up workspace for NNTile
+RUN mkdir -p /workspace
+WORKDIR /workspace
+
+ENTRYPOINT ["bash"]
+
