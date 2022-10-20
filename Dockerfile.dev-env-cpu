@@ -6,7 +6,8 @@ RUN apt update && apt install -y --no-install-recommends \
     build-essential libopenmpi3 libopenmpi-dev openmpi-bin \
     lsb-release software-properties-common pkg-config \
     fxt-tools libfxt-dev autoconf automake libtool-bin \
-    libhwloc-dev vim wget git gdb libopenblas-dev lcov
+    libhwloc-dev vim wget git gdb libopenblas-dev lcov \
+    python3 ninja-build
 
 ## Add Kitware repo for the latest CMake package
 # Get Kitware's signing key
@@ -29,6 +30,8 @@ RUN apt update && apt install -y --no-install-recommends \
 # Get the latest StarPU, compile and install it
 RUN git clone https://gitlab.inria.fr/starpu/starpu.git /starpu
 WORKDIR /starpu
+# Use the same version across different hardware
+RUN git checkout eccd488dbb9a42867d2e23bb1cbd6dc4272e2749
 RUN ./autogen.sh
 RUN ./configure
 RUN make
