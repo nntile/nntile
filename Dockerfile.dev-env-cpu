@@ -44,5 +44,11 @@ RUN mkdir -p /workspace
 RUN chmod 777 /workspace
 WORKDIR /workspace
 
+# Set path to libstarpumpi library
+ENV LD_LIBRARY_PATH=/usr/local/lib
+# Enable use of MPI with the root user
+ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+ENV OMPI_ALLOW_RUN_AS_ROOT=1
+
 ENTRYPOINT ["bash"]
 
