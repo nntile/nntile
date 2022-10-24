@@ -9,11 +9,12 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-09-12
+# @date 2022-10-24
 
 # All unit tests without arguments to test executable
 set(TESTS
     "bias"
+    "dgelu"
     "subcopy"
     "gelu"
     "gelutanh"

@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-10-20
+# @date 2022-10-24
 
 # Set list of headers
 set(BASE_HDR
@@ -22,6 +22,8 @@ set(BASE_HDR
 set(KERNEL_HDR
     "nntile/kernel/bias.hh"
     "nntile/kernel/bias/cpu.hh"
+    "nntile/kernel/dgelu.hh"
+    "nntile/kernel/dgelu/cpu.hh"
     "nntile/kernel/gelu.hh"
     "nntile/kernel/gelu/cpu.hh"
     "nntile/kernel/subcopy/cpu.hh"
@@ -36,6 +38,7 @@ if(NNTILE_USE_CUDA)
     set(KERNEL_HDR
         ${KERNEL_HDR}
         "nntile/kernel/bias/cuda.hh"
+        "nntile/kernel/dgelu/cuda.hh"
         "nntile/kernel/gelu/cuda.hh"
         "nntile/kernel/gelutanh/cuda.hh"
         "nntile/kernel/normalize/cuda.hh"

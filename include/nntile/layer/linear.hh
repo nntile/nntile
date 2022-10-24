@@ -44,6 +44,18 @@ public:
         constexpr TransOp opN(TransOp::NoTrans);
         tensor::gemm_async<T>(one, opN, weight, opN, input, zero, output, 1);
     }
+    void backward_async(const tensor::Tensor<T> &input,
+            const tensor::Tensor<T> &dldx_input,
+            const tensor::Tensor<T> &dldx_output,
+            const tensor::Tensor<T> &grad_weight) const
+    {
+        constexpr T one = 1, zero = 0;
+        constexpr TransOp opN(TransOp::NoTrans), opT(TransOp::Trans);
+        tensor::gemm_async<T>(one, opN, dldx_input, opT, input, zero,
+                grad_weight, 1);
+        tensor::gemm_async<T>(one, opT, weight, opN, dldx_input, zero,
+                dldx_output, 1);
+    }
     void unregister()
     {
         weight.unregister();

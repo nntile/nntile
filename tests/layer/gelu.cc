@@ -39,17 +39,17 @@ void validate()
     std::vector<int> distr = distributions::block_cyclic(
             traits.grid.shape, mpi_grid, 0, mpi_size),
         distr0 = {mpi_root};
-    Tensor<T> A(traits, distr, last_tag), B(single_traits, distr0, last_tag),
-        C(single_traits, distr0, last_tag);
+    Tensor<T> Ain(traits, distr, last_tag), Aout(traits, distr, last_tag),
+        B(single_traits, distr0, last_tag), C(single_traits, distr0, last_tag);
     unsigned long long seed = -1;
     T mean = 0, stddev = 1;
     std::vector<Index> zeros = {0, 0};
-    randn<T>(A, zeros, traits.shape, seed, mean, stddev);
-    gather<T>(A, B);
+    randn<T>(Ain, zeros, traits.shape, seed, mean, stddev);
+    gather<T>(Ain, B);
     // Launch layer forward
-    layer.forward_async(A);
+    layer.forward_async(Ain, Aout);
     // Gather results on the root node
-    gather<T>(A, C);
+    gather<T>(Aout, C);
     // Get reference result on the root node
     gelu<T>(B);
     // Check results on the root node

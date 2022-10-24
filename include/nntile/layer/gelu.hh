@@ -26,9 +26,16 @@ template<typename T>
 class GeLU
 {
 public:
-    void forward_async(const tensor::Tensor<T> &inout) const
+    void forward_async(const tensor::Tensor<T> &input,
+            const tensor::Tensor<T> &output) const
     {
-        tensor::gelu_async<T>(inout);
+        tensor::copy_async<T>(input, output);
+        tensor::gelu_async<T>(output);
+    }
+    void backward_async(const tensor::Tensor<T> &input,
+            const tensor::Tensor<T> &dldx_input,
+            const tensor::Tensor<T> &dldx_output) const
+    {
     }
 };
 

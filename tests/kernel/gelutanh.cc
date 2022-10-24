@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-19
+ * @date 2022-10-24
  * */
 
 #include "nntile/kernel/gelutanh.hh"
@@ -83,7 +83,7 @@ void validate(Index nelems)
     std::vector<T> data(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        data[i] = T(2*i+1-nelems) / T{10};
+        data[i] = T(2*i+1-nelems) / T{1000};
     }
     std::vector<T> data_save(data);
     // Check low-level CPU kernel
