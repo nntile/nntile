@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-09-15
+# @date 2022-10-20
 
 # Set list of sources
 set(KERNEL_SRC
@@ -82,9 +82,10 @@ set(TENSOR_SRC
     )
 
 set(LAYER_SRC
+    "layer/linear.cc"
     )
 
-set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC})# ${LAYER_SRC})
+set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC} ${LAYER_SRC})
 
 target_sources(nntile PRIVATE ${SRC})
 

@@ -9,21 +9,30 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-09
+# @date 2022-10-20
 
 # All unit tests for layers
 set(TESTS
-    "fully_connected"
+    "linear"
     )
+
+# Add target for local coverage
+if(BUILD_COVERAGE)
+    setup_target_for_coverage_lcov(NAME coverage_layer
+        EXECUTABLE ctest -R tests_layer_
+        LCOV_ARGS --no-external
+        GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
+endif()
 
 foreach(test IN LISTS TESTS)
     add_test_set(TARGET_NAME tests_layer_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
         LINK_LIBRARIES nntile
+        MPI_NUMPROC 4
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_layer_${test}
-        COV_GLOBAL coverage
+        COV_GLOBAL coverage_layer coverage
         )
 endforeach()
 

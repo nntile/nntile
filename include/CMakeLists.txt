@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-09-19
+# @date 2022-10-20
 
 # Set list of headers
 set(BASE_HDR
@@ -95,9 +95,12 @@ set(TENSOR_HDR
     )
 
 set(LAYER_HDR
+    "nntile/layer.hh"
+    "nntile/layer/linear.hh"
     )
 
-set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR})# ${LAYER_HDR})
+set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR}
+    ${LAYER_HDR})
 
 target_sources(nntile PUBLIC ${HDR})
 
