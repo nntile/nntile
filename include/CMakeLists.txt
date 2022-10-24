@@ -97,6 +97,7 @@ set(TENSOR_HDR
 set(LAYER_HDR
     "nntile/layer.hh"
     "nntile/layer/linear.hh"
+    "nntile/layer/gelu.hh"
     )
 
 set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR}

@@ -9,11 +9,12 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-10-20
+# @date 2022-10-24
 
 # All unit tests for layers
 set(TESTS
     "linear"
+    "gelu"
     )
 
 # Add target for local coverage

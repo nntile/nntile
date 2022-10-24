@@ -42,7 +42,7 @@ void validate()
     unsigned long long seed0 = -1, seed1 = 1, seed2 = -100000000ULL;
     T mean = 0, stddev = 1;
     std::vector<Index> zeros2(2), zeros3(3);
-    randn(layer.get_weight(), zeros3, weight_traits.shape, seed0, mean,
+    randn<T>(layer.get_weight(), zeros3, weight_traits.shape, seed0, mean,
             stddev);
     // Set up test input and output
     TensorTraits input_traits({30, 20}, {5, 4}),
@@ -55,9 +55,9 @@ void validate()
     Tensor<T> input(input_traits, input_distr, last_tag),
         output(output_traits, output_distr, last_tag),
         output2(output_traits, output_distr, last_tag);
-    randn(input, zeros2, input_traits.shape, seed1, mean, stddev);
-    randn(output, zeros3, output_traits.shape, seed2, mean, stddev);
-    copy(output, output2);
+    randn<T>(input, zeros2, input_traits.shape, seed1, mean, stddev);
+    randn<T>(output, zeros3, output_traits.shape, seed2, mean, stddev);
+    copy<T>(output, output2);
     // Launch layer forward
     layer.forward_async(input, output);
     // Get the same in terms of tensors

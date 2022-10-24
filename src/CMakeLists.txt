@@ -83,6 +83,7 @@ set(TENSOR_SRC
 
 set(LAYER_SRC
     "layer/linear.cc"
+    "layer/gelu.cc"
     )
 
 set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC} ${LAYER_SRC})
