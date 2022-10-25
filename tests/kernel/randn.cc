@@ -9,11 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-19
+ * @date 2022-10-25
  * */
 
 #include "nntile/kernel/randn.hh"
 #include "../external/random.h" // external
+#include "../testing.hh"
 #include <array>
 #include <vector>
 #include <stdexcept>
@@ -50,10 +51,7 @@ void validate_empty_shape()
     std::cout << "Run kernel::randn::cpu_ndim0<T>\n";
     cpu_ndim0<T>(seed, mean, stddev, &data);
     // Check if the result is the same as the reference one
-    if(data != data_ref)
-    {
-        throw std::runtime_error("Full array generation error");
-    }
+    TEST_ASSERT(data == data_ref);
     std::cout << "OK: kernel::randn::cpu_ndim0<T>\n";
     // Run kernel with a different seed that shall generate different result
     seed2 = seed + std::numeric_limits<unsigned long long>::max()/2;
@@ -61,10 +59,7 @@ void validate_empty_shape()
     std::cout << "Run kernel::randn::cpu_ndim0<T>\n";
     cpu_ndim0<T>(seed2, mean, stddev, &data);
     // Check if result is different
-    if(data == data_ref)
-    {
-        throw std::runtime_error("Different seeds error");
-    }
+    TEST_ASSERT(data != data_ref);
     std::cout << "OK: kernel::randn::cpu_ndim0<T>\n";
     // Run kernel with a different mean
     T mean2 = mean + T{1};
@@ -72,10 +67,7 @@ void validate_empty_shape()
     std::cout << "Run kernel::randn::cpu_ndim0<T>\n";
     cpu_ndim0(seed, mean2, stddev, &data);
     // Check if result is different for the first element
-    if(data == data_ref)
-    {
-        throw std::runtime_error("Different mean error");
-    }
+    TEST_ASSERT(data != data_ref);
     std::cout << "OK: kernel::randn::cpu_ndim0<T>\n";
     // Run kernel with a different stddev
     T stddev2 = stddev + T{1};
@@ -83,10 +75,7 @@ void validate_empty_shape()
     std::cout << "Run kernel::randn::cpu_ndim0<T>\n";
     cpu_ndim0<T>(seed, mean, stddev2, &data);
     // Check if result is different for the first element
-    if(data == data_ref)
-    {
-        throw std::runtime_error("Different stddev error");
-    }
+    TEST_ASSERT(data != data_ref);
     std::cout << "OK: kernel::randn::cpu_ndim0<T>\n";
 }
 
@@ -123,10 +112,7 @@ void validate_full(std::array<Index, NDIM> shape)
     // Check if the result is the same as the reference one
     for(Index i = 0; i < nelems; ++i)
     {
-        if(data[i] != data_ref[i])
-        {
-            throw std::runtime_error("Full array generation error");
-        }
+        TEST_ASSERT(data[i] == data_ref[i]);
     }
     std::cout << "OK: kernel::randn::cpu<T>\n";
     // Run kernel with a different seed that shall generate different result
@@ -136,10 +122,7 @@ void validate_full(std::array<Index, NDIM> shape)
     cpu<T>(NDIM, nelems, seed2, mean, stddev, &start[0], &shape[0],
             &shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if result is different for the first element
-    if(data[0] == data_ref[0])
-    {
-        throw std::runtime_error("Different seeds error");
-    }
+    TEST_ASSERT(data[0] != data_ref[0]);
     std::cout << "OK: kernel::randn::cpu<T>\n";
     // Run kernel with a different mean
     T mean2 = mean + T{1};
@@ -148,10 +131,7 @@ void validate_full(std::array<Index, NDIM> shape)
     cpu(NDIM, nelems, seed, mean2, stddev, &start[0], &shape[0],
             &shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if result is different for the first element
-    if(data[0] == data_ref[0])
-    {
-        throw std::runtime_error("Different mean error");
-    }
+    TEST_ASSERT(data[0] != data_ref[0]);
     std::cout << "OK: kernel::randn::cpu<T>\n";
     // Run kernel with a different stddev
     T stddev2 = stddev + T{1};
@@ -160,10 +140,7 @@ void validate_full(std::array<Index, NDIM> shape)
     cpu<T>(NDIM, nelems, seed, mean, stddev2, &start[0], &shape[0],
             &shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if result is different for the first element
-    if(data[0] == data_ref[0])
-    {
-        throw std::runtime_error("Different stddev error");
-    }
+    TEST_ASSERT(data[0] != data_ref[0])
     std::cout << "OK: kernel::randn::cpu<T>\n";
 }
 
@@ -189,10 +166,7 @@ void validate_full(std::array<Index, 0> shape_)
     cpu<T>(0, nelems, seed, mean, stddev, start, shape, shape, &data,
             stride, tmp_index);
     // Check if the result is the same as the reference one
-    if(data != data_ref)
-    {
-        throw std::runtime_error("Full array generation error");
-    }
+    TEST_ASSERT(data == data_ref);
     std::cout << "OK: kernel::randn::cpu<T>\n";
     // Run kernel with a different seed that shall generate different result
     seed2 = seed + std::numeric_limits<unsigned long long>::max()/2;
@@ -201,10 +175,7 @@ void validate_full(std::array<Index, 0> shape_)
     cpu<T>(0, nelems, seed2, mean, stddev, start, shape, shape, &data,
             stride, tmp_index);
     // Check if result is different for the first element
-    if(data == data_ref)
-    {
-        throw std::runtime_error("Different seeds error");
-    }
+    TEST_ASSERT(data != data_ref);
     std::cout << "OK: kernel::randn::cpu<T>\n";
     // Run kernel with a different mean
     T mean2 = mean + T{1};
@@ -213,10 +184,7 @@ void validate_full(std::array<Index, 0> shape_)
     cpu<T>(0, nelems, seed, mean2, stddev, start, shape, shape, &data,
             stride, tmp_index);
     // Check if result is different for the first element
-    if(data == data_ref)
-    {
-        throw std::runtime_error("Different mean error");
-    }
+    TEST_ASSERT(data != data_ref);
     std::cout << "OK: kernel::randn::cpu<T>\n";
     // Run kernel with a different stddev
     T stddev2 = stddev + T{1};
@@ -225,10 +193,7 @@ void validate_full(std::array<Index, 0> shape_)
     cpu<T>(0, nelems, seed, mean, stddev2, start, shape, shape, &data,
             stride, tmp_index);
     // Check if result is different for the first element
-    if(data == data_ref)
-    {
-        throw std::runtime_error("Different stddev error");
-    }
+    TEST_ASSERT(data != data_ref);
     std::cout << "OK: kernel::randn::cpu<T>\n";
 }
 
@@ -297,10 +262,7 @@ void validate_part(std::array<Index, NDIM> underlying_shape,
             offset += stride[j] * index[j];
         }
         // Compare results
-        if(data[offset] != underlying_array[underlying_offset])
-        {
-            throw std::runtime_error("Part array generation error");
-        }
+        TEST_ASSERT(data[offset] == underlying_array[underlying_offset]);
     }
     std::cout << "OK: kernel::randn::cpu<T>\n";
 }

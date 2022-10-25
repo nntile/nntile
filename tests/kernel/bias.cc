@@ -9,10 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-19
+ * @date 2022-10-25
  * */
 
 #include "nntile/kernel/bias.hh"
+#include "../testing.hh"
 #include <vector>
 #include <stdexcept>
 #include <limits>
@@ -29,63 +30,33 @@ void run_cuda(Index m, Index n, Index k, const std::vector<T> &src,
     // Copy to device
     T *dev_src, *dev_dst;
     cudaError_t cuda_err = cudaMalloc(&dev_src, sizeof(T)*m*n);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaMalloc(&dev_dst, sizeof(T)*m*n*k);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*m*n,
             cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*m*n*k,
             cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     // Init stream
     cudaStream_t stream;
     cuda_err = cudaStreamCreate(&stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     // Launch low-level CUDA kernel
     cuda<T>(stream, m, n, k, dev_src, dev_dst);
     cuda_err = cudaStreamSynchronize(stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     // Copy result and deallocate device memory
     cuda_err = cudaMemcpy(&dst[0], dev_dst, sizeof(T)*m*n*k,
             cudaMemcpyDeviceToHost);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaFree(dev_src);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaFree(dev_dst);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaStreamDestroy(stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -93,6 +64,7 @@ void run_cuda(Index m, Index n, Index k, const std::vector<T> &src,
 template<typename T>
 void validate(Index m, Index n, Index k)
 {
+    constexpr T eps = std::numeric_limits<T>::epsilon();
     // Init test input
     std::vector<T> src(m*n), dst(m*n*k);
     for(Index i0 = 0; i0 < m; ++i0)
@@ -121,15 +93,14 @@ void validate(Index m, Index n, Index k)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
-            for(Index i2 = 0; i2 < k; ++i2)
+            // Check i2=0 at first, as it means val_ref = 0
+            T val = dst[i1*k*m+i0];
+            TEST_ASSERT(std::abs(val) <= 10*eps);
+            for(Index i2 = 1; i2 < k; ++i2)
             {
                 T val = dst[(i1*k+i2)*m+i0];
                 T val_ref = T(i2) / T{10};
-                if(std::abs(val/val_ref-T{1})
-                        / std::numeric_limits<T>::epsilon() > 10)
-                {
-                    throw std::runtime_error("Wrong value");
-                }
+                TEST_ASSERT(std::abs(val/val_ref-T{1}) <= 10*eps);
             }
         }
     }
@@ -143,15 +114,14 @@ void validate(Index m, Index n, Index k)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
-            for(Index i2 = 0; i2 < k; ++i2)
+            // Check i2=0 at first, as it means val_ref = 0
+            T val = dst[i1*k*m+i0];
+            TEST_ASSERT(std::abs(val) <= 10*eps);
+            for(Index i2 = 1; i2 < k; ++i2)
             {
                 T val = dst[(i1*k+i2)*m+i0];
                 T val_ref = T(i2) / T{10};
-                if(std::abs(val/val_ref-T{1})
-                        / std::numeric_limits<T>::epsilon() > 10)
-                {
-                    throw std::runtime_error("Wrong value");
-                }
+                if(std::abs(val/val_ref-T{1}) <= 10*eps);
             }
         }
     }

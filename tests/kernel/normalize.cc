@@ -9,10 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-19
+ * @date 2022-10-25
  * */
 
 #include "nntile/kernel/normalize.hh"
+#include "../testing.hh"
 #include <vector>
 #include <stdexcept>
 #include <limits>
@@ -30,97 +31,49 @@ void run_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta,
     // Copy to device
     T *dev_sumnorm, *dev_dst, *dev_gamma, *dev_beta;
     cudaError_t cuda_err = cudaMalloc(&dev_sumnorm, sizeof(T)*2*m*n);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaMalloc(&dev_dst, sizeof(T)*m*n*k);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaMalloc(&dev_gamma, sizeof(T));
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaMalloc(&dev_beta, sizeof(T));
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaMemcpy(dev_sumnorm, &sumnorm[0], sizeof(T)*2*m*n,
             cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*m*n*k,
             cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaMemcpy(dev_gamma, &gamma, sizeof(T),
             cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaMemcpy(dev_beta, &beta, sizeof(T),
             cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     // Init stream
     cudaStream_t stream;
     cuda_err = cudaStreamCreate(&stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     // Launch low-level kernel
     cuda<T>(stream, m, n, k, l, eps, dev_gamma, dev_beta,
             dev_sumnorm, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaStreamDestroy(stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     // Copy result and deallocate device memory
     cuda_err = cudaMemcpy(&dst[0], dev_dst, sizeof(T)*m*n*k,
             cudaMemcpyDeviceToHost);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaFree(dev_sumnorm);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaFree(dev_dst);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaFree(dev_gamma);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaFree(dev_beta);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -128,6 +81,7 @@ void run_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta,
 template<typename T>
 void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
 {
+    constexpr T epsilon = std::numeric_limits<T>::epsilon();
     // Init test input
     std::vector<T> sumnorm(2*m*n), dst(m*n*k);
     for(Index i0 = 0; i0 < m; ++i0)
@@ -161,10 +115,13 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
             {
                 T val = dst[(i1*k+i2)*m+i0];
                 T val_ref = T(i2)/T{10}/std::sqrt(T{1}+eps)*gamma + beta;
-                if(std::abs(val/val_ref-T{1})
-                        / std::numeric_limits<T>::epsilon() > 50)
+                if(val_ref == T{0})
                 {
-                    throw std::runtime_error("Wrong value");
+                    TEST_ASSERT(std::abs(val) <= 50*eps);
+                }
+                else
+                {
+                    TEST_ASSERT(std::abs(val/val_ref-T{1}) < 50*epsilon);
                 }
             }
         }
@@ -183,10 +140,13 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
             {
                 T val = dst[(i1*k+i2)*m+i0];
                 T val_ref = T(i2)/T{10}/std::sqrt(T{1}+eps)*gamma + beta;
-                if(std::abs(val/val_ref-T{1})
-                        / std::numeric_limits<T>::epsilon() > 50)
+                if(val_ref == T{0})
                 {
-                    throw std::runtime_error("Wrong value");
+                    TEST_ASSERT(std::abs(val) <= 10*eps);
+                }
+                else
+                {
+                    TEST_ASSERT(std::abs(val/val_ref-T{1}) < 50*epsilon);
                 }
             }
         }

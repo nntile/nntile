@@ -9,10 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-24
+ * @date 2022-10-25
  * */
 
 #include "nntile/kernel/gelutanh.hh"
+#include "../testing.hh"
 #include <vector>
 #include <stdexcept>
 #include <cmath>
@@ -29,47 +30,26 @@ void run_cuda(Index nelems, std::vector<T> &data)
     // Copy to device
     T *dev_data;
     cudaError_t cuda_err = cudaMalloc(&dev_data, sizeof(T)*nelems);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaMemcpy(dev_data, &data[0], sizeof(T)*nelems,
             cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     // Init stream
     cudaStream_t stream;
     cuda_err = cudaStreamCreate(&stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     // Launch low-level CUDA kernel
     cuda<T>(stream, nelems, dev_data);
     cuda_err = cudaStreamSynchronize(stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     // Copy result and deallocate device memory
     cuda_err = cudaMemcpy(&data[0], dev_data, sizeof(T)*nelems,
             cudaMemcpyDeviceToHost);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaFree(dev_data);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaStreamDestroy(stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -107,10 +87,8 @@ void validate(Index nelems)
             val_ref_min = val_ref * (T{1}-eps) - eps;
             val_ref_max = val_ref * (T{1}+eps) + eps;
         }
-        if(data[i] < val_ref_min or data[i] > val_ref_max)
-        {
-            throw std::runtime_error("Wrong value");
-        }
+        // NaN-aware comparisons
+        TEST_ASSERT(data[i] >= val_ref_min and data[i] <= val_ref_max);
     }
     std::cout << "OK: kernel::gelutanh::cpu<T>\n";
 #ifdef NNTILE_USE_CUDA
@@ -136,10 +114,8 @@ void validate(Index nelems)
             val_ref_min = val_ref * (T{1}-eps) - eps;
             val_ref_max = val_ref * (T{1}+eps) + eps;
         }
-        if(data[i] < val_ref_min or data[i] > val_ref_max)
-        {
-            throw std::runtime_error("Wrong value");
-        }
+        // NaN-aware comparisons
+        TEST_ASSERT(data[i] >= val_ref_min and data[i] <= val_ref_max);
     }
     std::cout << "OK: kernel::gelutanh::cuda<T>\n";
 #endif // NNTILE_USE_CUDA

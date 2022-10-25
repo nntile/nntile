@@ -9,10 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-19
+ * @date 2022-10-25
  * */
 
 #include "nntile/kernel/sumnorm.hh"
+#include "../testing.hh"
 #include <vector>
 #include <stdexcept>
 #include <limits>
@@ -30,63 +31,33 @@ void run_cuda(Index m, Index n, Index k, const std::vector<T> &src,
     // Copy to device
     T *dev_src, *dev_sumnorm;
     cudaError_t cuda_err = cudaMalloc(&dev_src, sizeof(T)*m*n*k);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaMalloc(&dev_sumnorm, sizeof(T)*2*m*n);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*m*n*k,
             cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaMemcpy(dev_sumnorm, &sumnorm[0], sizeof(T)*2*m*n,
             cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     // Init stream
     cudaStream_t stream;
     cuda_err = cudaStreamCreate(&stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     // Launch low-level kernel
     cuda<T>(stream, m, n, k, dev_src, dev_sumnorm);
     cuda_err = cudaStreamSynchronize(stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     // Copy result and deallocate device memory
     cuda_err = cudaMemcpy(&sumnorm[0], dev_sumnorm, sizeof(T)*2*m*n,
             cudaMemcpyDeviceToHost);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaFree(dev_src);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaFree(dev_sumnorm);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
     cuda_err = cudaStreamDestroy(stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_error == cudaSuccess);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -94,6 +65,7 @@ void run_cuda(Index m, Index n, Index k, const std::vector<T> &src,
 template<typename T>
 void validate(Index m, Index n, Index k)
 {
+    constexpr T eps = std::numeric_limits<T>::epsilon();
     // Init test input
     std::vector<T> src(m*n*k), sumnorm(2*m*n);
     for(Index i0 = 0; i0 < m; ++i0)
@@ -117,19 +89,25 @@ void validate(Index m, Index n, Index k)
             Index a = i0 + i1;
             T sum_ref = k * (2*a+k-1) / 2 / T{10};
             T sum = sumnorm[2*(i1*m+i0)];
-            if(std::abs(sum/sum_ref-T{1}) / std::numeric_limits<T>::epsilon()
-                    > 10)
+            if(sum_ref == T{0})
             {
-                throw std::runtime_error("Wrong sum");
+                TEST_ASSERT(std::abs(sum) <= 10*eps);
+            }
+            else
+            {
+                TEST_ASSERT(std::abs(sum/sum_ref-T{1}) <= 10*eps);
             }
             T norm_sqr_ref = k * (2*(a-1)*a+(2*a+k-1)*(2*a+2*k-1)) / 6
                 / T{100};
             T norm = sumnorm[2*(i1*m+i0)+1];
             T norm_sqr = norm * norm;
-            if(std::abs(norm_sqr/norm_sqr_ref-T{1})
-                    / std::numeric_limits<T>::epsilon() > 10)
+            if(norm_sqr_ref == T{0})
             {
-                throw std::runtime_error("Wrong norm");
+                TEST_ASSERT(norm_sqr <= 10*eps);
+            }
+            else
+            {
+                TEST_ASSERT(std::abs(norm_sqr/norm_sqr_ref-T{1}) <= 10*eps);
             }
         }
     }
@@ -146,19 +124,25 @@ void validate(Index m, Index n, Index k)
             Index a = i0 + i1;
             T sum_ref = k * (2*a+k-1) / 2 / T{10};
             T sum = sumnorm[2*(i1*m+i0)];
-            if(std::abs(sum/sum_ref-T{1}) / std::numeric_limits<T>::epsilon()
-                    > 10)
+            if(sum_ref == T{0})
             {
-                throw std::runtime_error("Wrong sum");
+                TEST_ASSERT(std::abs(sum) <= 10*eps);
+            }
+            else
+            {
+                TEST_ASSERT(std::abs(sum/sum_ref-T{1}) <= 10*eps);
             }
             T norm_sqr_ref = k * (2*(a-1)*a+(2*a+k-1)*(2*a+2*k-1)) / 6
                 / T{100};
             T norm = sumnorm[2*(i1*m+i0)+1];
             T norm_sqr = norm * norm;
-            if(std::abs(norm_sqr/norm_sqr_ref-T{1})
-                    / std::numeric_limits<T>::epsilon() > 10)
+            if(norm_sqr_ref == T{0})
             {
-                throw std::runtime_error("Wrong norm");
+                TEST_ASSERT(norm_sqr <= 10*eps);
+            }
+            else
+            {
+                TEST_ASSERT(std::abs(norm_sqr/norm_sqr_ref-T{1}) <= 10*eps);
             }
         }
     }
@@ -173,15 +157,23 @@ void validate(Index m, Index n, Index k)
         for(Index i1 = 0; i1 < n; ++i1)
         {
             Index i = 2 * (i1*m+i0);
-            if(std::abs(sumnorm[i]/sumnorm_copy[i]-T{2})
-                    / std::numeric_limits<T>::epsilon() > 10)
+            if(sumnorm_copy[i] == T{0})
             {
-                throw std::runtime_error("Wrong sum");
+                TEST_ASSERT(sumnorm[i] == T{0});
             }
-            if(std::abs(sumnorm[i+1]/sumnorm_copy[i+1]-std::sqrt(T{2}))
-                    / std::numeric_limits<T>::epsilon() > 10)
+            else
             {
-                throw std::runtime_error("Wrong norm");
+                TEST_ASSERT(std::abs(sumnorm[i]/sumnorm_copy[i]-T{2})
+                        <= 10*eps);
+            }
+            if(sumnorm_copy[i+1] == T{0})
+            {
+                TEST_ASSERT(sumnorm[i+1] == T{0});
+            }
+            else
+            {
+                TEST_ASSERT(std::abs(sumnorm[i+1]/sumnorm_copy[i+1]
+                        -std::sqrt(T{2})) <= 10*eps);
             }
         }
     }
@@ -196,15 +188,23 @@ void validate(Index m, Index n, Index k)
         for(Index i1 = 0; i1 < n; ++i1)
         {
             Index i = 2 * (i1*m+i0);
-            if(std::abs(sumnorm[i]/sumnorm_copy[i]-T{2})
-                    / std::numeric_limits<T>::epsilon() > 10)
+            if(sumnorm_copy[i] == T{0})
             {
-                throw std::runtime_error("Wrong sum");
+                TEST_ASSERT(sumnorm[i] == T{0});
             }
-            if(std::abs(sumnorm[i+1]/sumnorm_copy[i+1]-std::sqrt(T{2}))
-                    / std::numeric_limits<T>::epsilon() > 10)
+            else
             {
-                throw std::runtime_error("Wrong norm");
+                TEST_ASSERT(std::abs(sumnorm[i]/sumnorm_copy[i]-T{2})
+                        <= 10*eps);
+            }
+            if(sumnorm_copy[i+1] == T{0})
+            {
+                TEST_ASSERT(sumnorm[i+1] == T{0});
+            }
+            else
+            {
+                TEST_ASSERT(std::abs(sumnorm[i+1]/sumnorm_copy[i+1]
+                        -std::sqrt(T{2})) <= 10*eps);
             }
         }
     }

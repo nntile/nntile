@@ -9,10 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-19
+ * @date 2022-10-25
  * */
 
 #include "nntile/kernel/subcopy.hh"
+#include "../testing.hh"
 #include <array>
 #include <vector>
 #include <stdexcept>
@@ -109,10 +110,7 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
     // Check source is unchanged
     for(Index i = 0; i < src_nelems; ++i)
     {
-        if(src_data[i] != src2_data[i])
-        {
-            throw std::runtime_error("Wrong src_data value");
-        }
+        TEST_ASSERT(src_data[i] == src2_data[i]);
     }
     // Check destination
     std::vector<Index> dst_index(NDIM);
@@ -132,18 +130,12 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
         // Check if it was overwritten
         if(copied)
         {
-            if(dst_data[i] != T{2})
-            {
-                throw std::runtime_error("Wrong dst_data value");
-            }
+            TEST_ASSERT(dst_data[i] == T{2});
         }
         // Check if it was not overwritten
         else
         {
-            if(dst_data[i] != T{3})
-            {
-                throw std::runtime_error("Wrong dst_data value");
-            }
+            TEST_ASSERT(dst_data[i] == T{3});
         }
         // Get out if it was last element of destination buffer
         if(i == dst_nelems-1)
