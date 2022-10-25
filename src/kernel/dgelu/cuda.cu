@@ -4,7 +4,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/gelu/cuda.cu
+ * @file src/kernel/dgelu/cuda.cu
  * Derivative of GeLU operation on a buffer on CUDA
  *
  * @version 1.0.0
@@ -44,11 +44,13 @@ void cuda(cudaStream_t stream, Index nelems, T *data)
     noexcept
 //! Inplace derivative of GeLU operation performed on CUDA
 /*! Uses very slow std::erfc() function, so consider using approximated version
- * nntile::kernel::cpu::gelutanh(). Does the following per-element operation:
- * GeLU(z) = 0.5 z erfc(-z/sqrt(2))
+ * nntile::kernel::dgelutanh::cuda(). Does the following per-element operation:
+ * GeLU'(z) = [0.5 z erfc(-z/sqrt(2))]'
+ * GeLU'(z) = 0.5 erfc(-z/sqrt(2)) + [0.5 z (1+erf(z/sqrt(2))']
+ * GeLU'(z) = 0.5 erfc(-z/sqrt(2)) + z 1/sqrt(2pi) e^(-z*z/2)
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data: Buffer to apply GeLU
+ * @params[inout] data: Buffer to apply derivative of GeLU
  * */
 {
     dim3 blocks(256), threads(32);

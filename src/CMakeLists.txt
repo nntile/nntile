@@ -9,12 +9,13 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-10-24
+# @date 2022-10-25
 
 # Set list of sources
 set(KERNEL_SRC
     "kernel/bias/cpu.cc"
     "kernel/dgelu/cpu.cc"
+    "kernel/dgelutanh/cpu.cc"
     "kernel/subcopy/cpu.cc"
     "kernel/gelu/cpu.cc"
     "kernel/gelutanh/cpu.cc"
@@ -29,6 +30,7 @@ if(NNTILE_USE_CUDA)
         ${KERNEL_SRC}
         "kernel/bias/cuda.cu"
         "kernel/dgelu/cuda.cu"
+        "kernel/dgelutanh/cuda.cu"
         "kernel/gelu/cuda.cu"
         "kernel/gelutanh/cuda.cu"
         "kernel/normalize/cuda.cu"

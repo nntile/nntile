@@ -5,49 +5,61 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/gelutanh/cpu.cc
- * Approximate GeLU operation on CPU based on tanh function
+ * Derivative of approximate GeLU operation on CPU based on tanh function
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-10-25
  * */
 
-#include "nntile/kernel/gelutanh/cpu.hh"
+#include "nntile/kernel/dgelutanh/cpu.hh"
 #include <cmath>
 
 namespace nntile
 {
 namespace kernel
 {
-namespace gelutanh
+namespace dgelutanh
 {
 
 template<typename T>
 void cpu(Index nelems, T *data)
     noexcept
-//! Approximate GeLU operation on CPU
-/*! Applies the following approximation of the GeLU function:
+//! Derivative of approximate GeLU operation on CPU
+/*! Applies the following derivative of approximation of the GeLU function:
  * GeLU(z) \approx AGeLU(z)
- * AGeLU(z) \approx 0.5z(1+tanh(sqrt(2/pi)(z+0.044715z^3))),
- * which is actually implemented as
  * f(z) = -2 sqrt(2/pi) z (1+0.044715z^2)
  * AGeLU(z) = z / (1+exp(f(z))
+ * AGeLU'(z) = 1/(1+exp(f(z)) - (zf'(z)exp(f(z)))/(1+exp(f(z)))^2
+ * AGeLU'(z) = (1-(zf'(z)-1)exp(f(z))) / (1+exp(f(z)))^2
+ * zf'(z) = -2 sqrt(2/pi) z (1+3*0.044715z^2)
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data: Buffer to apply GeLU
+ * @params[inout] data: Buffer to apply derivative of approximate GeLU
  * */
 {
     // Constants
     constexpr T pi = 3.141592653589793238462643383279502884L,
-        one = 1, pt5 = 0.5, f1 = T{0.044715};
+        zero = 0, one = 1, pt5 = 0.5, f1 = T{0.044715};
     // Square root is not constexpr by standard, proceed with a static const
     static const T sqrt_pi = std::sqrt(pi), sqrt_2 = std::sqrt(T{2}),
-        f2 = sqrt_2/sqrt_pi, f3 = -T{2}*f2, f4 = f3*f1;
+        f2 = sqrt_2/sqrt_pi, f3 = -T{2}*f2, f4 = f3*f1, f5 = T{3}*f4;
     for(Index i = 0; i < nelems; ++i)
     {
         T z = data[i];
-        T y = z * (f3 + f4*z*z);
-        data[i] = z / (one+std::exp(y));
+        T z2 = z * z;
+        T y1 = z * (f3 + f4*z2);
+        T y2 = z * (f3 + f5*z2);
+        T expy1 = std::exp(y1);
+        if(std::isinf(expy1))
+        {
+            data[i] = zero;
+        }
+        else
+        {
+            T inv_expy1p1 = one / (expy1 + one);
+            data[i] = (one-y2*(one-inv_expy1p1)) * inv_expy1p1;
+        }
     }
 }
 
@@ -60,7 +72,7 @@ template
 void cpu<fp64_t>(Index nelems, fp64_t *data)
     noexcept;
 
-} // namespace gelutanh
+} // namespace dgelutanh
 } // namespace kernel
 } // namespace nntile
 

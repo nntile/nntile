@@ -24,6 +24,8 @@ set(KERNEL_HDR
     "nntile/kernel/bias/cpu.hh"
     "nntile/kernel/dgelu.hh"
     "nntile/kernel/dgelu/cpu.hh"
+    "nntile/kernel/dgelutanh.hh"
+    "nntile/kernel/dgelutanh/cpu.hh"
     "nntile/kernel/gelu.hh"
     "nntile/kernel/gelu/cpu.hh"
     "nntile/kernel/subcopy/cpu.hh"
@@ -39,6 +41,7 @@ if(NNTILE_USE_CUDA)
         ${KERNEL_HDR}
         "nntile/kernel/bias/cuda.hh"
         "nntile/kernel/dgelu/cuda.hh"
+        "nntile/kernel/dgelutanh/cuda.hh"
         "nntile/kernel/gelu/cuda.hh"
         "nntile/kernel/gelutanh/cuda.hh"
         "nntile/kernel/normalize/cuda.hh"

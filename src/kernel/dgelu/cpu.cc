@@ -27,13 +27,13 @@ void cpu(Index nelems, T *data)
     noexcept
 //! Inplace derivative of GeLU operation performed on CPU
 /*! Uses very slow std::erfc() function, so consider using approximated version
- * nntile::kernel::cpu::gelutanh(). Does the following per-element operation:
+ * nntile::kernel::dgelutanh::cpu(). Does the following per-element operation:
  * GeLU'(z) = [0.5 z erfc(-z/sqrt(2))]'
  * GeLU'(z) = 0.5 erfc(-z/sqrt(2)) + [0.5 z (1+erf(z/sqrt(2))']
  * GeLU'(z) = 0.5 erfc(-z/sqrt(2)) + z 1/sqrt(2pi) e^(-z*z/2)
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data: Buffer to apply GeLU
+ * @params[inout] data: Buffer to apply derivative of GeLU
  * */
 {
     constexpr T pi = 3.141592653589793238462643383279502884L,

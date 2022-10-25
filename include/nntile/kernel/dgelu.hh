@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/kernel/dgelu.hh
- * Derivative GeLU low-level kernels
+ * Derivative of GeLU low-level kernels
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-24
+ * @date 2022-10-25
  * */
 
 #pragma once
