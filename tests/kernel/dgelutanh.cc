@@ -140,10 +140,18 @@ void validate(Index nelems)
         T x = data_save[i];
         T x1 = 0.0356774*x*x*x + 0.797885*x;
         T x2 = 0.0535161*x*x*x + 0.398942*x;
-        T tanh = std::tanh(x1);
-        T cosh = std::cosh(x1);
-        T inv_cosh_2 = T{1} / (cosh*cosh);
-        T val_ref = 0.5 + 0.5*tanh + x2*inv_cosh_2;
+        T exp = std::exp(x1);
+        T val_ref;
+        if(std::isinf(exp))
+        {
+            val_ref = T{1};
+        }
+        else
+        {
+            T cosh = std::cosh(x1);
+            T inv_cosh = T{1} / cosh;
+            val_ref = (T{0.5}*exp+x2*inv_cosh) * inv_cosh;
+        }
         // Obtain range of correct values
         T val_ref_min, val_ref_max;
         if(val_ref < 0)
@@ -163,7 +171,6 @@ void validate(Index nelems)
     }
     std::cout << "OK: kernel::dgelutanh::cuda<T>\n";
 #endif // NNTILE_USE_CUDA
-    return;
     // Check if dgelu is a derivative of gelu numerically
     std::vector<T> data2(data_save), data3(data_save);
     constexpr T h = 1e-3, inv_h = 1/h;
@@ -179,8 +186,9 @@ void validate(Index nelems)
         T num_x = inv_h * (data2[i]-data3[i]);
         T diff = std::abs(num_x - data[i]);
         T abs = std::abs(data[i]);
-        T threshold = abs * 5e-2;
-        TEST_ASSERT(diff <= threshold or (diff > threshold and abs < 1e-4));
+        T threshold = abs * 4e-2;
+        TEST_ASSERT(diff <= threshold
+            or (diff > threshold and abs < eps));
     }
 }
 
