@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-10-25
  * */
 
 #include "nntile/starpu/gelutanh.hh"
@@ -22,7 +22,7 @@ namespace starpu
 namespace gelutanh
 {
 
-//! Apply approximate gelu along middle axis of StarPU buffer
+//! Apply approximate gelu on StarPU buffer on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
@@ -37,7 +37,7 @@ void cpu(void *buffers[], void *cl_args)
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply approximate gelu along middle axis of StarPU buffer
+//! Apply approximate gelu on StarPU buffer on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept

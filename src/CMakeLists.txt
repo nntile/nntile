@@ -14,11 +14,11 @@
 # Set list of sources
 set(KERNEL_SRC
     "kernel/bias/cpu.cc"
-    "kernel/dgelu/cpu.cc"
-    "kernel/dgelutanh/cpu.cc"
     "kernel/subcopy/cpu.cc"
     "kernel/gelu/cpu.cc"
     "kernel/gelutanh/cpu.cc"
+    "kernel/dgelu/cpu.cc"
+    "kernel/dgelutanh/cpu.cc"
     "kernel/normalize/cpu.cc"
     "kernel/randn/cpu.cc"
     "kernel/sumnorm/cpu.cc"
@@ -29,10 +29,10 @@ if(NNTILE_USE_CUDA)
     set(KERNEL_SRC
         ${KERNEL_SRC}
         "kernel/bias/cuda.cu"
-        "kernel/dgelu/cuda.cu"
-        "kernel/dgelutanh/cuda.cu"
         "kernel/gelu/cuda.cu"
         "kernel/gelutanh/cuda.cu"
+        "kernel/dgelu/cuda.cu"
+        "kernel/dgelutanh/cuda.cu"
         "kernel/normalize/cuda.cu"
         "kernel/relu/cuda.cu"
         "kernel/sumnorm/cuda.cu"
@@ -45,6 +45,8 @@ set(STARPU_SRC
     "starpu/subcopy.cc"
     "starpu/gelu.cc"
     "starpu/gelutanh.cc"
+    "starpu/dgelu.cc"
+    "starpu/dgelutanh.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"
     "starpu/normalize.cc"
     "starpu/randn.cc"

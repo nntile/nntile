@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-19
+ * @date 2022-10-25
  * */
 
 #pragma once
@@ -17,6 +17,8 @@
 #include <nntile/kernel/bias.hh>
 #include <nntile/kernel/gelu.hh>
 #include <nntile/kernel/gelutanh.hh>
+#include <nntile/kernel/dgelu.hh>
+#include <nntile/kernel/dgelutanh.hh>
 #include <nntile/kernel/normalize.hh>
 #include <nntile/kernel/randn.hh>
 #include <nntile/kernel/relu.hh>

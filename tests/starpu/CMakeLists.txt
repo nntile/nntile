@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-09-19
+# @date 2022-10-25
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -18,6 +18,8 @@ set(TESTS
     "subcopy"
     "gelu"
     "gelutanh"
+    "dgelu"
+    "dgelutanh"
     "normalize"
     "randn"
     "relu"

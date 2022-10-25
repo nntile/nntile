@@ -14,11 +14,11 @@
 # All unit tests without arguments to test executable
 set(TESTS
     "bias"
-    "dgelu"
-    "dgelutanh"
     "subcopy"
     "gelu"
     "gelutanh"
+    "dgelu"
+    "dgelutanh"
     "randn"
     "sumnorm"
     "relu"
