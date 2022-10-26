@@ -9,10 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-10-26
  * */
 
 #include "nntile/starpu/clear.hh"
+#include "../testing.hh"
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA
@@ -43,10 +44,7 @@ void validate(std::size_t size)
     // Check result
     for(std::size_t i = 0; i < size; ++i)
     {
-        if(data[i] != 0)
-        {
-            throw std::runtime_error("StarPU submission wrong result");
-        }
+        TEST_ASSERT(data[i] == 0);
     }
     std::cout << "OK: starpu::clear::submit restricted to CPU\n";
 #ifdef NNTILE_USE_CUDA
@@ -61,10 +59,7 @@ void validate(std::size_t size)
     // Check result
     for(std::size_t i = 0; i < size; ++i)
     {
-        if(data[i] != 0)
-        {
-            throw std::runtime_error("StarPU submission wrong result");
-        }
+        TEST_ASSERT(data[i] == 0);
     }
     std::cout << "OK: starpu::clear::submit restricted to CUDA\n";
 #endif // NNTILE_USE_CUDA

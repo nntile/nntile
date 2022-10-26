@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-24
+ * @date 2022-10-26
  * */
 
 #pragma once
@@ -36,6 +36,7 @@ public:
             const tensor::Tensor<T> &dldx_input,
             const tensor::Tensor<T> &dldx_output) const
     {
+
     }
 };
 

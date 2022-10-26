@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-10-25
+# @date 2022-10-26
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -24,6 +24,7 @@ set(TESTS
     "randn"
     "relu"
     "sumnorm"
+    "prod"
     )
 
 # Add target for local coverage
@@ -54,6 +55,10 @@ foreach(test IN LISTS TESTS)
         COV_GLOBAL coverage_starpu coverage
         )
 endforeach()
+
+# Add include path for generated gemm.cc
+set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/gemm.cc" PROPERTIES
+    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # Explicitly add gemm test since it was generated from gemm.cc.in
 add_test_set(TARGET_NAME tests_starpu_gemm

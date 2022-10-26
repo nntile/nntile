@@ -28,6 +28,7 @@ set(TESTS
     "randn"
     "relu"
     "sumnorm"
+    "prod"
     )
 
 # Add target for local coverage

@@ -31,33 +31,33 @@ void run_cuda(Index m, Index n, Index k, const std::vector<T> &src,
     // Copy to device
     T *dev_src, *dev_sumnorm;
     cudaError_t cuda_err = cudaMalloc(&dev_src, sizeof(T)*m*n*k);
-    TEST_ASSERT(cuda_error == cudaSuccess);
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_sumnorm, sizeof(T)*2*m*n);
-    TEST_ASSERT(cuda_error == cudaSuccess);
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*m*n*k,
             cudaMemcpyHostToDevice);
-    TEST_ASSERT(cuda_error == cudaSuccess);
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_sumnorm, &sumnorm[0], sizeof(T)*2*m*n,
             cudaMemcpyHostToDevice);
-    TEST_ASSERT(cuda_error == cudaSuccess);
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Init stream
     cudaStream_t stream;
     cuda_err = cudaStreamCreate(&stream);
-    TEST_ASSERT(cuda_error == cudaSuccess);
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Launch low-level kernel
     cuda<T>(stream, m, n, k, dev_src, dev_sumnorm);
     cuda_err = cudaStreamSynchronize(stream);
-    TEST_ASSERT(cuda_error == cudaSuccess);
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result and deallocate device memory
     cuda_err = cudaMemcpy(&sumnorm[0], dev_sumnorm, sizeof(T)*2*m*n,
             cudaMemcpyDeviceToHost);
-    TEST_ASSERT(cuda_error == cudaSuccess);
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaFree(dev_src);
-    TEST_ASSERT(cuda_error == cudaSuccess);
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaFree(dev_sumnorm);
-    TEST_ASSERT(cuda_error == cudaSuccess);
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaStreamDestroy(stream);
-    TEST_ASSERT(cuda_error == cudaSuccess);
+    TEST_ASSERT(cuda_err == cudaSuccess);
 }
 #endif // NNTILE_USE_CUDA
 

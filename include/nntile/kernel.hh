@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-25
+ * @date 2022-10-26
  * */
 
 #pragma once
@@ -20,6 +20,7 @@
 #include <nntile/kernel/dgelu.hh>
 #include <nntile/kernel/dgelutanh.hh>
 #include <nntile/kernel/normalize.hh>
+#include <nntile/kernel/prod.hh>
 #include <nntile/kernel/randn.hh>
 #include <nntile/kernel/relu.hh>
 #include <nntile/kernel/subcopy.hh>

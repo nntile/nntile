@@ -9,11 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-10-26
  * */
 
 #include "nntile/starpu/sumnorm.hh"
 #include "nntile/kernel/sumnorm.hh"
+#include "../testing.hh"
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA
@@ -56,10 +57,7 @@ void validate_cpu(Index m, Index n, Index k)
     // Check result
     for(Index i = 0; i < m*n; ++i)
     {
-        if(sumnorm[i] != sumnorm2[i])
-        {
-            throw std::runtime_error("StarPU submission wrong result");
-        }
+        TEST_ASSERT(sumnorm[i] == sumnorm2[i]);
     }
     std::cout << "OK: starpu::sumnorm::submit<T> restricted to CPU\n";
 }
@@ -73,17 +71,11 @@ void validate_cuda(Index m, Index n, Index k)
     // Choose worker CUDA device
     int dev_id = starpu_worker_get_devid(cuda_worker_id);
     cudaError_t cuda_err = cudaSetDevice(dev_id);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Create CUDA stream
     cudaStream_t stream;
     cuda_err = cudaStreamCreate(&stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Init all the data
     std::vector<T> src(m*n*k);
     for(Index i = 0; i < m*n*k; ++i)
@@ -101,58 +93,31 @@ void validate_cuda(Index m, Index n, Index k)
     // Launch low-level kernel
     T *dev_src, *dev_sumnorm;
     cuda_err = cudaMalloc(&dev_src, sizeof(T)*m*n*k);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_sumnorm, sizeof(T)*2*m*n);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*m*n*k,
             cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_sumnorm, &sumnorm[0], sizeof(T)*2*m*n,
             cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     std::cout << "Run kernel::sumnorm::cuda<T>\n";
     kernel::sumnorm::cuda<T>(stream, m, n, k, dev_src, dev_sumnorm);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaStreamDestroy(stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result back to CPU
     cuda_err = cudaMemcpy(&sumnorm[0], dev_sumnorm, sizeof(T)*2*m*n,
             cudaMemcpyDeviceToHost);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Deallocate CUDA memory
     cuda_err = cudaFree(dev_src);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaFree(dev_sumnorm);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*m*n*k, STARPU_R),
         sumnorm2_handle(&sumnorm2[0], sizeof(T)*2*m*n, STARPU_RW);
@@ -164,10 +129,7 @@ void validate_cuda(Index m, Index n, Index k)
     // Check result
     for(Index i = 0; i < 2*m*n; ++i)
     {
-        if(sumnorm[i] != sumnorm2[i])
-        {
-            throw std::runtime_error("StarPU submission wrong result");
-        }
+        TEST_ASSERT(sumnorm[i] == sumnorm2[i]);
     }
     std::cout << "OK: starpu::sumnorm::submit<T> restricted to CUDA\n";
 }

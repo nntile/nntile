@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-10-25
+# @date 2022-10-26
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -23,6 +23,7 @@ set(TESTS
     "sumnorm"
     "relu"
     "normalize"
+    "prod"
     )
 
 # Setup a target for coverage of kernels

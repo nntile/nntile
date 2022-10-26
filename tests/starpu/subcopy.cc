@@ -9,11 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-10-26
  * */
 
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/kernel/subcopy.hh"
+#include "../testing.hh"
 #include <array>
 #include <vector>
 #include <stdexcept>
@@ -106,13 +107,9 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
     // Check result
     for(Index i = 0; i < dst_nelems; ++i)
     {
-        if(dst_data[i] != dst2_data[i])
-        {
-            throw std::runtime_error("StarPU submission wrong result");
-        }
+        TEST_ASSERT(dst_data[i] == dst2_data[i]);
     }
-    std::cout << "OK: starpu::subcopy::submit<T> restricted to "
-        "CPU\n";
+    std::cout << "OK: starpu::subcopy::submit<T> restricted to CPU\n";
 }
 
 // Run multiple tests for a given precision

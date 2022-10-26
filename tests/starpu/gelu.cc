@@ -9,11 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-10-26
  * */
 
 #include "nntile/starpu/gelu.hh"
 #include "nntile/kernel/gelu.hh"
+#include "../testing.hh"
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA
@@ -48,10 +49,7 @@ void validate_cpu(Index nelems)
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
-        if(data[i] != data2[i])
-        {
-            throw std::runtime_error("StarPU submission wrong result");
-        }
+        TEST_ASSERT(data[i] == data2[i]);
     }
     std::cout << "OK: starpu::gelu::submit<T> restricted to CPU\n";
 }
@@ -65,17 +63,11 @@ void validate_cuda(Index nelems)
     // Choose worker CUDA device
     int dev_id = starpu_worker_get_devid(cuda_worker_id);
     cudaError_t cuda_err = cudaSetDevice(dev_id);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Create CUDA stream
     cudaStream_t stream;
     cuda_err = cudaStreamCreate(&stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Init all the data
     std::vector<T> data(nelems);
     for(Index i = 0; i < nelems; ++i)
@@ -87,42 +79,24 @@ void validate_cuda(Index nelems)
     // Launch low-level kernel
     T *dev_data;
     cuda_err = cudaMalloc(&dev_data, sizeof(T)*nelems);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_data, &data[0], sizeof(T)*nelems,
             cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     std::cout << "Run kernel::gelu::cuda<T>\n";
     kernel::gelu::cuda<T>(stream, nelems, dev_data);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaStreamDestroy(stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result back to CPU
     cuda_err = cudaMemcpy(&data[0], dev_data, sizeof(T)*nelems,
             cudaMemcpyDeviceToHost);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Deallocate CUDA memory
     cuda_err = cudaFree(dev_data);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
     gelu::restrict_where(STARPU_CUDA);
@@ -133,10 +107,7 @@ void validate_cuda(Index nelems)
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
-        if(data[i] != data2[i])
-        {
-            throw std::runtime_error("StarPU submission wrong result");
-        }
+        TEST_ASSERT(data[i] == data2[i]);
     }
     std::cout << "OK: starpu::gelu::submit<T> restricted to CUDA\n";
 }

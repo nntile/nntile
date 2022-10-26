@@ -34,6 +34,7 @@ set(TESTS_MPI
     "relu"
     "sumnorm"
     "normalize"
+    "prod"
     )
 
 # Add target for local coverage

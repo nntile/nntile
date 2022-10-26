@@ -20,7 +20,7 @@ namespace nntile
 namespace tile
 {
 
-//! Blocking version of tile-wise approximate GeLU operation
+//! Asyncrhonous tile-wise approximate GeLU operation
 /*! @param[inout] A: Tile for the element-wise GeLU operation
  * */
 template<typename T>

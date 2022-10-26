@@ -9,11 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-10-26
  * */
 
 #include "nntile/starpu/randn.hh"
 #include "nntile/kernel/randn.hh"
+#include "../testing.hh"
 #include <array>
 #include <vector>
 #include <stdexcept>
@@ -45,10 +46,7 @@ void validate_cpu_empty()
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result
-    if(data != data2)
-    {
-        throw std::runtime_error("StarPU submission wrong result");
-    }
+    TEST_ASSERT(data == data2);
     std::cout << "OK: starpu::randn::submit<T> restricted to CPU\n";
 }
 
@@ -99,10 +97,7 @@ void validate_cpu(std::array<Index, NDIM> start, std::array<Index, NDIM> shape,
     // Check result
     for(Index i = 0; i < size; ++i)
     {
-        if(data[i] != data2[i])
-        {
-            throw std::runtime_error("StarPU submission wrong result");
-        }
+        TEST_ASSERT(data[i] == data2[i]);
     }
     std::cout << "OK: starpu::randn::submit<T> restricted to CPU\n";
 }

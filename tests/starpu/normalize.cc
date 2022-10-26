@@ -9,11 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-10-26
  * */
 
 #include "nntile/starpu/normalize.hh"
 #include "nntile/kernel/normalize.hh"
+#include "../testing.hh"
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_runtime.h>
 #endif // NNTILE_USE_CUDA
@@ -61,10 +62,7 @@ void validate_cpu(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     // Check result
     for(Index i = 0; i < m*n*k; ++i)
     {
-        if(dst[i] != dst2[i])
-        {
-            throw std::runtime_error("StarPU submission wrong result");
-        }
+        TEST_ASSERT(dst[i] == dst2[i]);
     }
     std::cout << "OK: starpu::normalize::submit<T> restricted to CPU\n";
 }
@@ -85,17 +83,11 @@ void validate_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     // Choose worker CUDA device
     int dev_id = starpu_worker_get_devid(cuda_worker_id);
     cudaError_t cuda_err = cudaSetDevice(dev_id);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Create CUDA stream
     cudaStream_t stream;
     cuda_err = cudaStreamCreate(&stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Init all the data
     std::vector<T> sumnorm(2*m*n);
     for(Index i = 0; i < 2*m*n; i += 2)
@@ -113,91 +105,46 @@ void validate_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     // Launch low-level kernel
     T *dev_sumnorm, *dev_dst, *dev_gamma, *dev_beta;
     cuda_err = cudaMalloc(&dev_sumnorm, sizeof(T)*2*m*n);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_dst, sizeof(T)*m*n*k);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_gamma, sizeof(T));
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_beta, sizeof(T));
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_sumnorm, &sumnorm[0], sizeof(T)*2*m*n,
             cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*m*n*k,
             cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_gamma, &gamma, sizeof(T),
             cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_beta, &beta, sizeof(T),
             cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     std::cout << "Run kernel::normalize::cuda<T>\n";
     kernel::normalize::cuda<T>(stream, m, n, k, l, eps, dev_gamma, dev_beta,
             dev_sumnorm, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaStreamDestroy(stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result back to CPU
     cuda_err = cudaMemcpy(&dst[0], dev_dst, sizeof(T)*m*n*k,
             cudaMemcpyDeviceToHost);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Deallocate CUDA memory
     cuda_err = cudaFree(dev_sumnorm);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaFree(dev_dst);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaFree(dev_gamma);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaFree(dev_beta);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
     T gamma_beta[2] = {gamma, beta};
     VariableHandle sumnorm_handle(&sumnorm[0], sizeof(T)*2*m*n,
@@ -213,10 +160,7 @@ void validate_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     // Check result
     for(Index i = 0; i < m*n*k; ++i)
     {
-        if(dst[i] != dst2[i])
-        {
-            throw std::runtime_error("StarPU submission wrong result");
-        }
+        TEST_ASSERT(dst[i] == dst2[i]);
     }
     std::cout << "OK: starpu::normalize::submit<T> restricted to CUDA\n";
 }

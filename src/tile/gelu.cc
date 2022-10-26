@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-10-26
  * */
 
 #include "nntile/tile/gelu.hh"
@@ -20,7 +20,7 @@ namespace nntile
 namespace tile
 {
 
-//! Blocking version of tile-wise GeLU operation
+//! Asynchronous tile-wise GeLU operation
 /*! @param[inout] A: Tile for the element-wise GeLU operation
  * */
 template<typename T>

@@ -42,15 +42,15 @@ void run_cuda(Index nelems, std::vector<T> &data)
     // Launch low-level CUDA kernel
     cuda<T>(stream, nelems, dev_data);
     cuda_err = cudaStreamSynchronize(stream);
-    TEST_ASSERT(cuda_error == cudaSuccess);
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result and deallocate device memory
     cuda_err = cudaMemcpy(&data[0], dev_data, sizeof(T)*nelems,
             cudaMemcpyDeviceToHost);
-    TEST_ASSERT(cuda_error == cudaSuccess);
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaFree(dev_data);
-    TEST_ASSERT(cuda_error == cudaSuccess);
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaStreamDestroy(stream);
-    TEST_ASSERT(cuda_error == cudaSuccess);
+    TEST_ASSERT(cuda_err == cudaSuccess);
 }
 #endif // NNTILE_USE_CUDA
 

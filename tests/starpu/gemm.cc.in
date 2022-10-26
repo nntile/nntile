@@ -9,10 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-10-26
  * */
 
 #include "nntile/starpu/gemm.hh"
+#include "../testing.hh"
 #include <vector>
 #include <stdexcept>
 #include <iostream>
@@ -115,10 +116,7 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
     // Check result
     for(Index i = 0; i < m*n; ++i)
     {
-        if(C[i] != C2[i])
-        {
-            throw std::runtime_error("StarPU submission wrong result");
-        }
+        TEST_ASSERT(C[i] == C2[i]);
     }
     std::cout << "OK: starpu::gemm::submit<T> restricted to CPU\n";
 }
@@ -180,29 +178,17 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
     // Choose worker CUDA device
     int dev_id = starpu_worker_get_devid(cuda_worker_id);
     cudaError_t cuda_err = cudaSetDevice(dev_id);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // cuBLAS handle
     cublasHandle_t cublas;
     cublasStatus_t cublas_err = cublasCreate(&cublas);
-    if(cublas_err != CUBLAS_STATUS_SUCCESS)
-    {
-        throw std::runtime_error("cuBLAS error");
-    }
+    TEST_ASSERT(cublas_err == CUBLAS_STATUS_SUCCESS);
     // Create CUDA stream and make cuBLAS use it
     cudaStream_t stream;
     cuda_err = cudaStreamCreate(&stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cublas_err = cublasSetStream(cublas, stream);
-    if(cublas_err != CUBLAS_STATUS_SUCCESS)
-    {
-        throw std::runtime_error("cuBLAS error");
-    }
+    TEST_ASSERT(cublas_err == CUBLAS_STATUS_SUCCESS);
     // Init all the data
     std::vector<T> A(m*k), B(n*k), C(m*n);
     for(Index i = 0; i < m*k; ++i)
@@ -244,76 +230,37 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
     }
     T *dev_A, *dev_B, *dev_C;
     cuda_err = cudaMalloc(&dev_A, sizeof(T)*m*k);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_B, sizeof(T)*n*k);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_C, sizeof(T)*m*n);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_A, &A[0], sizeof(T)*m*k, cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_B, &B[0], sizeof(T)*n*k, cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_C, &C[0], sizeof(T)*m*n, cudaMemcpyHostToDevice);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     std::cout << "Run cublas_gemm<T>\n";
     cublas_gemm(cublas, transA_, transB_, m, n, k, alpha, dev_A, ldA, dev_B,
             ldB, beta, dev_C, m);
     // Wait for result and destroy cublas handle and stream
     cuda_err = cudaStreamSynchronize(stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cublas_err = cublasDestroy(cublas);
-    if(cublas_err != CUBLAS_STATUS_SUCCESS)
-    {
-        throw std::runtime_error("cuBLAS error");
-    }
+    TEST_ASSERT(cublas_err == CUBLAS_STATUS_SUCCESS)
     cuda_err = cudaStreamDestroy(stream);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result back to CPU
     cuda_err = cudaMemcpy(&C[0], dev_C, sizeof(T)*m*n, cudaMemcpyDeviceToHost);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Deallocate CUDA memory
     cuda_err = cudaFree(dev_A);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaFree(dev_B);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaFree(dev_C);
-    if(cuda_err != cudaSuccess)
-    {
-        throw std::runtime_error("CUDA error");
-    }
+    TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
     VariableHandle A_handle(&A[0], sizeof(T)*m*k, STARPU_R),
         B_handle(&B[0], sizeof(T)*n*k, STARPU_R),
@@ -327,10 +274,7 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
     // Check result
     for(Index i = 0; i < m*n; ++i)
     {
-        if(C[i] != C2[i])
-        {
-            throw std::runtime_error("StarPU submission wrong result");
-        }
+        TEST_ASSERT(C[i] == C2[i]);
     }
     std::cout << "OK: starpu::gemm::submit<T> restricted to CUDA\n";
 }
