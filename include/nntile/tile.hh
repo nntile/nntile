@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-29
+ * @date 2022-10-26
  * */
 
 #pragma once
@@ -24,6 +24,8 @@
 #include <nntile/tile/copy_intersection.hh>
 #include <nntile/tile/gelu.hh>
 #include <nntile/tile/gelutanh.hh>
+#include <nntile/tile/dgelu.hh>
+#include <nntile/tile/dgelutanh.hh>
 #include <nntile/tile/gemm.hh>
 #include <nntile/tile/normalize.hh>
 #include <nntile/tile/randn.hh>

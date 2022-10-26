@@ -4,48 +4,48 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tile/gelutanh.cc
- * Approximate GeLU operation for Tile<T>
+ * @file src/tile/dgelu.cc
+ * Derivative of GeLU operation for Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @date 2022-10-26
  * */
 
-#include "nntile/tile/gelutanh.hh"
-#include "nntile/starpu/gelutanh.hh"
+#include "nntile/tile/dgelu.hh"
+#include "nntile/starpu/dgelu.hh"
 
 namespace nntile
 {
 namespace tile
 {
 
-//! Blocking version of tile-wise approximate GeLU operation
-/*! @param[inout] A: Tile for the element-wise GeLU operation
+//! Blocking version of tile-wise derivative of GeLU operation
+/*! @param[inout] A: Tile for the element-wise derivative of GeLU operation
  * */
 template<typename T>
-void gelutanh_async(const Tile<T> &A)
+void dgelu_async(const Tile<T> &A)
 {
     // Submit task without any arguments checked
-    starpu::gelutanh::submit<T>(A.nelems, A);
+    starpu::dgelu::submit<T>(A.nelems, A);
 }
 
-//! Blocking version of tile-wise approximate GeLU operation
-/*! @param[inout] A: Tile for the element-wise GeLU operation
+//! Blocking version of tile-wise derivative of GeLU operation
+/*! @param[inout] A: Tile for the element-wise derivative of GeLU operation
  * */
 template<typename T>
-void gelutanh(const Tile<T> &A)
+void dgelu(const Tile<T> &A)
 {
-    gelutanh_async<T>(A);
+    dgelu_async<T>(A);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void gelutanh<fp32_t>(const Tile<fp32_t> &A);
+void dgelu<fp32_t>(const Tile<fp32_t> &A);
 
 template
-void gelutanh<fp64_t>(const Tile<fp64_t> &A);
+void dgelu<fp64_t>(const Tile<fp64_t> &A);
 
 } // namespace tile
 } // namespace nntile

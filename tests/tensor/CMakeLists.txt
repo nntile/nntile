@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-09-15
+# @date 2022-10-26
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -29,6 +29,8 @@ set(TESTS_MPI
     "gemm"
     "gelu"
     "gelutanh"
+    "dgelu"
+    "dgelutanh"
     "relu"
     "sumnorm"
     "normalize"

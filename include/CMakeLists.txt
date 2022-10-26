@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-10-24
+# @date 2022-10-26
 
 # Set list of headers
 set(BASE_HDR
@@ -22,22 +22,22 @@ set(BASE_HDR
 set(KERNEL_HDR
     "nntile/kernel/bias.hh"
     "nntile/kernel/bias/cpu.hh"
-    "nntile/kernel/gelu.hh"
-    "nntile/kernel/gelu/cpu.hh"
-    "nntile/kernel/gelutanh.hh"
-    "nntile/kernel/gelutanh/cpu.hh"
     "nntile/kernel/dgelu.hh"
     "nntile/kernel/dgelu/cpu.hh"
     "nntile/kernel/dgelutanh.hh"
     "nntile/kernel/dgelutanh/cpu.hh"
-    "nntile/kernel/subcopy.hh"
-    "nntile/kernel/subcopy/cpu.hh"
+    "nntile/kernel/gelu.hh"
+    "nntile/kernel/gelu/cpu.hh"
+    "nntile/kernel/gelutanh.hh"
+    "nntile/kernel/gelutanh/cpu.hh"
     "nntile/kernel/normalize.hh"
     "nntile/kernel/normalize/cpu.hh"
     "nntile/kernel/randn.hh"
     "nntile/kernel/randn/cpu.hh"
     "nntile/kernel/relu.hh"
     "nntile/kernel/relu/cpu.hh"
+    "nntile/kernel/subcopy.hh"
+    "nntile/kernel/subcopy/cpu.hh"
     "nntile/kernel/sumnorm.hh"
     "nntile/kernel/sumnorm/cpu.hh"
     )
@@ -62,13 +62,13 @@ set(STARPU_HDR
     "nntile/starpu/clear.hh"
     "nntile/starpu/dgelu.hh"
     "nntile/starpu/dgelutanh.hh"
-    "nntile/starpu/subcopy.hh"
+    "nntile/starpu/gemm.hh"
     "nntile/starpu/gelu.hh"
     "nntile/starpu/gelutanh.hh"
-    "nntile/starpu/gemm.hh"
     "nntile/starpu/normalize.hh"
     "nntile/starpu/randn.hh"
     "nntile/starpu/relu.hh"
+    "nntile/starpu/subcopy.hh"
     "nntile/starpu/sumnorm.hh"
     )
 
@@ -77,15 +77,18 @@ set(TILE_HDR
     "nntile/tile/traits.hh"
     "nntile/tile/tile.hh"
     "nntile/tile/bias.hh"
+    "nntile/tile/clear.hh"
     "nntile/tile/copy.hh"
     "nntile/tile/copy_intersection.hh"
+    "nntile/tile/dgelu.hh"
+    "nntile/tile/dgelutanh.hh"
     "nntile/tile/gemm.hh"
     "nntile/tile/gelu.hh"
     "nntile/tile/gelutanh.hh"
+    "nntile/tile/normalize.hh"
     "nntile/tile/randn.hh"
     "nntile/tile/relu.hh"
     "nntile/tile/sumnorm.hh"
-    "nntile/tile/normalize.hh"
     )
 
 set(TENSOR_HDR
@@ -93,25 +96,27 @@ set(TENSOR_HDR
     "nntile/tensor/traits.hh"
     "nntile/tensor/distributions.hh"
     "nntile/tensor/tensor.hh"
+    "nntile/tensor/bias.hh"
+    "nntile/tensor/clear.hh"
     "nntile/tensor/copy.hh"
     "nntile/tensor/copy_intersection.hh"
-    "nntile/tensor/scatter.hh"
+    "nntile/tensor/dgelu.hh"
+    "nntile/tensor/dgelutanh.hh"
     "nntile/tensor/gather.hh"
-    "nntile/tensor/clear.hh"
-    "nntile/tensor/bias.hh"
-    "nntile/tensor/randn.hh"
     "nntile/tensor/gemm.hh"
     "nntile/tensor/gelu.hh"
     "nntile/tensor/gelutanh.hh"
-    "nntile/tensor/relu.hh"
-    "nntile/tensor/sumnorm.hh"
     "nntile/tensor/normalize.hh"
+    "nntile/tensor/randn.hh"
+    "nntile/tensor/relu.hh"
+    "nntile/tensor/scatter.hh"
+    "nntile/tensor/sumnorm.hh"
     )
 
 set(LAYER_HDR
     "nntile/layer.hh"
-    "nntile/layer/linear.hh"
     "nntile/layer/gelu.hh"
+    "nntile/layer/linear.hh"
     )
 
 set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR}

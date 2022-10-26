@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-09-12
+# @date 2022-10-26
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -21,6 +21,8 @@ set(TESTS
     "copy_intersection"
     "gelu"
     "gelutanh"
+    "dgelu"
+    "dgelutanh"
     "gemm"
     "normalize"
     "randn"
