@@ -7,7 +7,7 @@ RUN apt update && apt install -y --no-install-recommends \
     lsb-release software-properties-common pkg-config \
     fxt-tools libfxt-dev autoconf automake libtool-bin \
     libhwloc-dev vim wget git gdb libopenblas-dev lcov \
-    python3 ninja-build
+    python3 ninja-build binutils clang
 
 ## Add Kitware repo for the latest CMake package
 # Get Kitware's signing key
