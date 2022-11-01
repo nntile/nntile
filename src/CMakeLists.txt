@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-10-26
+# @date 2022-11-01
 
 # Set list of sources
 set(KERNEL_SRC
@@ -98,7 +98,9 @@ set(TENSOR_SRC
 
 set(LAYER_SRC
     "layer/gelu.cc"
+    "layer/gelutanh.cc"
     "layer/linear.cc"
+    "layer/mlp.cc"
     )
 
 set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC} ${LAYER_SRC})

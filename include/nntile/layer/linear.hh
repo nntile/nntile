@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-20
+ * @date 2022-11-01
  * */
 
 #pragma once
@@ -43,6 +43,8 @@ public:
         constexpr T one = 1, zero = 0;
         constexpr TransOp opN(TransOp::NoTrans);
         tensor::gemm_async<T>(one, opN, weight, opN, input, zero, output, 1);
+        input.wont_use();
+        weight.wont_use();
     }
     void backward_async(const tensor::Tensor<T> &input,
             const tensor::Tensor<T> &dldx_input,
@@ -53,8 +55,11 @@ public:
         constexpr TransOp opN(TransOp::NoTrans), opT(TransOp::Trans);
         tensor::gemm_async<T>(one, opN, dldx_input, opT, input, zero,
                 grad_weight, 1);
+        input.wont_use();
         tensor::gemm_async<T>(one, opT, weight, opN, dldx_input, zero,
                 dldx_output, 1);
+        weight.wont_use();
+        dldx_input.invalidate_submit();
     }
     void unregister()
     {

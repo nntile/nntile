@@ -4,15 +4,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/layer/gelu.cc
- * GeLU layer
+ * @file tests/layer/gelutanh.cc
+ * Approximate GeLU layer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-26
+ * @date 2022-11-01
  * */
 
-#include "nntile/layer/gelu.hh"
+#include "nntile/layer/gelutanh.hh"
 #include "nntile/tensor/distributions.hh"
 #include "nntile/starpu.hh"
 #include "../testing.hh"
@@ -26,7 +26,7 @@ void validate()
     // Wait until all previously used tags are cleaned
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Set up test layer
-    layer::GeLU<T> layer;
+    layer::GeLUTanh<T> layer;
     // Set up test input
     std::vector<int> mpi_grid = {2, 2};
     int mpi_size = starpu_mpi_world_size();
@@ -50,7 +50,7 @@ void validate()
     // Gather results on the root node
     gather<T>(Aout, C);
     // Get reference result on the root node
-    gelu<T>(B);
+    gelutanh<T>(B);
     // Check results on the root node
     if(mpi_rank == mpi_root)
     {

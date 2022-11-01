@@ -4,15 +4,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/layer/gelu.cc
- * GeLU layer
+ * @file src/layer/gelutanh.cc
+ * Approximate GeLU layer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-26
+ * @date 2022-11-01
  * */
 
-#include "nntile/layer/gelu.hh"
+#include "nntile/layer/gelutanh.hh"
 
 namespace nntile
 {
@@ -21,10 +21,10 @@ namespace layer
 
 // Explicit instantiations
 template
-class GeLU<fp32_t>;
+class GeLUTanh<fp32_t>;
 
 template
-class GeLU<fp64_t>;
+class GeLUTanh<fp64_t>;
 
 } // namespace layer
 } // namespace nntile

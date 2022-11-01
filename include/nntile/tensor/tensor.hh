@@ -112,19 +112,21 @@ public:
         }
     }
     //! Invalidate tensor values
-    void invalidate_submit()
+    void invalidate_submit() const
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            starpu_data_invalidate_submit(get_tile_handle(i));
+            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            starpu_data_invalidate_submit(tmp);
         }
     }
     //! Advice to evict data from GPU
-    void wont_use()
+    void wont_use() const
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            starpu_data_wont_use(get_tile_handle(i));
+            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            starpu_data_wont_use(tmp);
         }
     }
 };

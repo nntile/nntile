@@ -28,6 +28,7 @@
 #include <nntile/tile/dgelutanh.hh>
 #include <nntile/tile/gemm.hh>
 #include <nntile/tile/normalize.hh>
+#include <nntile/tile/prod.hh>
 #include <nntile/tile/randn.hh>
 #include <nntile/tile/relu.hh>
 #include <nntile/tile/sumnorm.hh>

@@ -78,7 +78,8 @@ void validate()
         for(Index i = 0; i < output.nelems; ++i)
         {
             T tmp1 = output_local[i], tmp2 = output2_local[i];
-            tmp2 -= tmp1;
+            tmp2 = std::abs(tmp2-tmp1);
+            tmp1 = std::abs(tmp1);
             if(tmp1 > output_max)
             {
                 T tmp = output_max / tmp1;
