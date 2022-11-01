@@ -16,7 +16,7 @@
 
 #include <nntile/tensor.hh>
 #include <nntile/layer/linear.hh>
-#include <nntile/layer/gelu.hh>
+#include <nntile/layer/gelutanh.hh>
 
 namespace nntile
 {
@@ -28,7 +28,7 @@ template<typename T>
 class MLP
 {
     Linear<T> linear1, linear2;
-    GeLU<T> gelu;
+    GeLUTanh<T> gelu;
     tensor::Tensor<T> linear1_out, gelu_out, dldx_linear2_out, dldx_gelu_out;
 public:
     MLP(const tensor::TensorTraits &traits1,
@@ -54,14 +54,16 @@ public:
     {
         return linear2;
     }
+    const tensor::Tensor<T> &get_gelu() const
+    {
+        return gelu_out;
+    }
     void forward_async(const tensor::Tensor<T> &input,
             const tensor::Tensor<T> &output) const
     {
         linear1.forward_async(input, linear1_out);
         input.wont_use();
-        tensor::copy_async<T>(linear1_out, gelu_out);
-        linear1_out.wont_use();
-        tensor::gelu_async<T>(gelu_out);
+        gelu.forward_async(linear1_out, gelu_out);
         linear2.forward_async(gelu_out, output);
         gelu_out.wont_use();
     }

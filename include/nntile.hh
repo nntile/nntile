@@ -29,3 +29,6 @@
 // Tensor as a set of tiles with its operations
 #include <nntile/tensor.hh>
 
+// Layers
+#include <nntile/layer.hh>
+

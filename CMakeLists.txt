@@ -116,20 +116,6 @@ configure_file("src/starpu/gemm.cc.in"
 configure_file("tests/starpu/gemm.cc.in"
     "${PROJECT_BINARY_DIR}/tests/starpu/gemm.cc" @ONLY)
 
-# Add directory with the sources
-add_subdirectory("src")
-
-# Add sirectory with headers
-add_subdirectory("include")
-
-# Add external sources/headers
-add_subdirectory("external")
-
-# Add subdirectory with examples
-if(BUILD_EXAMPLES)
-    add_subdirectory("examples")
-endif()
-
 # Check if code coverage report is needed
 if(BUILD_COVERAGE)
     # Tell user what we are doing here
@@ -152,10 +138,24 @@ if(BUILD_COVERAGE)
         GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
 endif()
 
+# Add directory with the sources
+add_subdirectory("src")
+
+# Add sirectory with headers
+add_subdirectory("include")
+
+# Add external sources/headers
+add_subdirectory("external")
+
 # Add subdirectory with tests
 if(BUILD_TESTS)
     include(CTest)
     add_subdirectory("tests")
+endif()
+
+# Add subdirectory with examples
+if(BUILD_EXAMPLES)
+    add_subdirectory("examples")
 endif()
 
 # Check if Python wrappers are requested

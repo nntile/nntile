@@ -9,10 +9,15 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-19
+ * @date 2022-11-01
  * */
 
 #pragma once
+
+#include <nntile/layer/linear.hh>
+#include <nntile/layer/gelu.hh>
+#include <nntile/layer/gelutanh.hh>
+#include <nntile/layer/mlp.hh>
 
 namespace nntile
 {
