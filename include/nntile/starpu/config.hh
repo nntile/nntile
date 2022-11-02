@@ -52,11 +52,11 @@ public:
 #endif // NNTILE_USE_CUDA
         // Set history-based scheduler to utilize performance models
         conf.sched_policy_name = "dmda";
-        // Init StarPU with the config
-        ret = starpu_init(&conf);
+        // Init StarPU+MPI and reserve a core for MPI thread
+        ret = starpu_mpi_init_conf(nullptr, nullptr, 1, MPI_COMM_WORLD, &conf);
         if(ret != 0)
         {
-            throw std::runtime_error("starpu_init error");
+            throw std::runtime_error("Error in starpu_mpi_init_conf()");
         }
 #ifdef NNTILE_USE_CUDA
         cublas = cublas_;
@@ -65,23 +65,16 @@ public:
             starpu_cublas_init();
         }
 #endif // NNTILE_USE_CUDA
-        // Init MPI
-        ret = starpu_mpi_init_conf(nullptr, nullptr, 1, MPI_COMM_WORLD, &conf);
-        if(ret != 0)
-        {
-            throw std::runtime_error("Error in starpu_mpi_init_conf()");
-        }
     }
     ~Config()
     {
-        starpu_mpi_shutdown();
 #ifdef NNTILE_USE_CUDA
         if(cublas != 0)
         {
             starpu_cublas_shutdown();
         }
 #endif // NNTILE_USE_CUDA
-        starpu_shutdown();
+        starpu_mpi_shutdown();
     }
     //! StarPU commute data access mode
     static constexpr starpu_data_access_mode STARPU_RW_COMMUTE

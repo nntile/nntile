@@ -105,6 +105,11 @@ void scatter_async(const Tensor<T> &src, const Tensor<T> &dst)
                         static_cast<starpu_data_handle_t>(dst_tile_handle),
                         dst_tile_rank, tile_tag, MPI_COMM_WORLD, nullptr,
                         nullptr);
+                std::cout << "send tag=" << tile_tag << " from=" << mpi_rank
+                    << " to=" << dst_tile_rank << " size="
+                    << starpu_data_get_size(
+                        static_cast<starpu_data_handle_t>(dst_tile_handle))
+                    << "\n";
                 if(ret != 0)
                 {
                     throw std::runtime_error("Error in starpu_mpi_isend_"
@@ -121,6 +126,11 @@ void scatter_async(const Tensor<T> &src, const Tensor<T> &dst)
                     static_cast<starpu_data_handle_t>(dst_tile_handle),
                     src_tile_rank, tile_tag, MPI_COMM_WORLD, nullptr,
                     nullptr);
+            std::cout << "recv tag=" << tile_tag << " from=" << src_tile_rank
+                << " to=" << mpi_rank << " size="
+                << starpu_data_get_size(
+                    static_cast<starpu_data_handle_t>(dst_tile_handle))
+                << "\n";
             if(ret != 0)
             {
                 throw std::runtime_error("Error in starpu_mpi_irecv_"

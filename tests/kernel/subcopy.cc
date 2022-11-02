@@ -168,6 +168,7 @@ void validate_many()
     validate<T, 3>({1, 0, 0}, {0, 0, 0}, {2, 3, 4});
     validate<T, 3>({1, 0, 0}, {-1, 0, 0}, {2, 3, 4});
     validate<T, 3>({0, 1, -1}, {3, -4, 5}, {2, 3, 4});
+    validate<T, 2>({384, 500}, {0, 0}, {384, 500});
 }
 
 int main(int argc, char **argv)

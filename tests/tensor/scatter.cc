@@ -92,6 +92,7 @@ void validate()
     check<T>({}, {});
     check<T>({2, 3, 4}, {2, 3, 4});
     check<T>({11, 12, 13}, {2, 3, 4});
+    check<T>({768, 1000}, {384, 500});
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     starpu_mpi_tag_t last_tag = 0;

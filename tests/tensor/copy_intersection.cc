@@ -168,6 +168,8 @@ void validate()
             {11, 12, 13}, {2, 3, 4});
     check<T>({11, 12, 13}, {2, 2, 2}, {8, 8, 8}, {3, 4, 5}, {3, 3, 3},
             {8, 8, 8}, {2, 3, 4});
+    check<T>({2000, 2000}, {600, 600}, {500, 500}, {400, 400}, {400, 400},
+            {600, 600}, {400, 400});
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions
@@ -187,7 +189,7 @@ void validate()
 int main(int argc, char **argv)
 {
     // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
+    starpu::Config starpu(2, 0, 0);
     // Init codelet
     starpu::subcopy::init();
     // Launch all tests
