@@ -102,7 +102,6 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     }
     // Perform tensor-wise and tile-wise normalize operations
     T eps = 1e-16;
-    std::cout << "eps=" << T(1e-100) << " " << eps << "\n";
     normalize<T>(gamma_beta, src, dst, shape[axis], eps, axis);
     if(mpi_rank == mpi_root)
     {

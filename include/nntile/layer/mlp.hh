@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-01
+ * @date 2022-11-03
  * */
 
 #pragma once
@@ -65,6 +65,15 @@ public:
         input.wont_use();
         gelu.forward_async(linear1_out, gelu_out);
         linear2.forward_async(gelu_out, output);
+        gelu_out.wont_use();
+    }
+    void forward_async(const tensor::Tensor<T> &input, T beta,
+            const tensor::Tensor<T> &output) const
+    {
+        linear1.forward_async(input, linear1_out);
+        input.wont_use();
+        gelu.forward_async(linear1_out, gelu_out);
+        linear2.forward_async(T{1}, gelu_out, beta, output);
         gelu_out.wont_use();
     }
     void backward_async(const tensor::Tensor<T> &input,
