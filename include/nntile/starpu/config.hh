@@ -34,29 +34,35 @@ class Config: public starpu_conf
     int cublas;
 #endif // NNTILE_USE_CUDA
 public:
-    explicit Config(int ncpus=-1, int ncuda=-1, int cublas_=-1)
+    explicit Config(int ncpus_=-1, int ncuda_=-1, int cublas_=-1)
     {
         // Init StarPU configuration at first
-        starpu_conf conf;
-        int ret = starpu_conf_init(&conf);
+        int ret = starpu_conf_init(this);
         if(ret != 0)
         {
             throw std::runtime_error("starpu_conf_init error");
         }
         // Set number of workers
-        conf.ncpus = ncpus;
+        ncpus = ncpus_;
 #ifdef NNTILE_USE_CUDA
-        conf.ncuda = ncuda;
+        ncuda = ncuda_;
 #else // NNTILE_USE_CUDA
-        conf.ncuda = 0;
+        ncuda = 0;
 #endif // NNTILE_USE_CUDA
         // Set history-based scheduler to utilize performance models
-        conf.sched_policy_name = "dmda";
+        sched_policy_name = "dmda";
         // Init StarPU+MPI and reserve a core for MPI thread
-        ret = starpu_mpi_init_conf(nullptr, nullptr, 1, MPI_COMM_WORLD, &conf);
+        ret = starpu_mpi_init_conf(nullptr, nullptr, 1, MPI_COMM_WORLD, this);
         if(ret != 0)
         {
             throw std::runtime_error("Error in starpu_mpi_init_conf()");
+        }
+        else
+        {
+            ncpus = starpu_worker_get_count_by_type(STARPU_CPU_WORKER);
+            ncuda = starpu_worker_get_count_by_type(STARPU_CUDA_WORKER);
+            std::cout << "Initialized NCPU=" << ncpus << " NCUDA=" << ncuda
+                << "\n";
         }
 #ifdef NNTILE_USE_CUDA
         cublas = cublas_;

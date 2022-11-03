@@ -128,6 +128,7 @@ int main(int argc, char **argv)
     starpu::Config starpu(1, 0, 0);
     // Init codelet
     starpu::normalize::init();
+    starpu::normalize::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-26
+ * @date 2022-11-03
  * */
 
 #include "nntile/kernel/prod/cuda.hh"
@@ -50,11 +50,13 @@ void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index nelems, fp32_t *data)
+void cuda<fp32_t>(cudaStream_t stream, Index nelems, const fp32_t *src,
+        fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index nelems, fp64_t *data)
+void cuda<fp64_t>(cudaStream_t stream, Index nelems, const fp64_t *src,
+        fp64_t *dst)
     noexcept;
 
 } // namespace prod

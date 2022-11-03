@@ -63,6 +63,7 @@ void cuda_kernel(Index m, Index n, Index k, Index l, T eps,
                     dev = reps;
                 }
                 else if(rms > reps)
+                {
                     T ssq = one - tmp*tmp;
                     T tmp2 = reps / rms;
                     ssq += tmp2*tmp2;

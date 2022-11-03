@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-11-03
  * */
 
 #include "nntile/tensor/randn.hh"
@@ -102,6 +102,8 @@ int main(int argc, char **argv)
     // Init codelet
     starpu::randn::init();
     starpu::subcopy::init();
+    starpu::randn::restrict_where(STARPU_CPU);
+    starpu::subcopy::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

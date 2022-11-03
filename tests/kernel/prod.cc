@@ -30,7 +30,7 @@ void run_cuda(Index nelems, const std::vector<T> &src, std::vector<T> &dst)
     T *dev_src, *dev_dst;
     cudaError_t cuda_err = cudaMalloc(&dev_src, sizeof(T)*nelems);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cudaError_t cuda_err = cudaMalloc(&dev_dst, sizeof(T)*nelems);
+    cuda_err = cudaMalloc(&dev_dst, sizeof(T)*nelems);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*nelems,
             cudaMemcpyHostToDevice);
@@ -103,7 +103,7 @@ void validate(Index nelems)
     for(Index i = 0; i < nelems; ++i)
     {
         T x = dst_save[i];
-        T val_ref = T((2*i+1-nelems)*(nelem-i)) / T{1000000};
+        T val_ref = T((2*i+1-nelems)*(nelems-i)) / T{1000000};
         // Obtain range of correct values
         T val_ref_min, val_ref_max;
         if(val_ref < 0)

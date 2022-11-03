@@ -90,6 +90,8 @@ int main(int argc, char **argv)
     // Init codelet
     starpu::clear::init();
     starpu::subcopy::init();
+    starpu::clear::restrict_where(STARPU_CPU);
+    starpu::subcopy::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

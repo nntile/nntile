@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-26
+ * @date 2022-11-03
  * */
 
 #include "nntile/starpu/bias.hh"
@@ -126,7 +126,7 @@ void validate_cuda(Index m, Index n, Index k)
     // Check result
     for(Index i = 0; i < m*n*k; ++i)
     {
-        TEST_ASSERT(dst[i] != dst2[i]);
+        TEST_ASSERT(dst[i] == dst2[i]);
     }
     std::cout << "OK: starpu::bias::submit<T> restricted to CUDA\n";
 }

@@ -40,7 +40,7 @@ void cpu(Index nelems, T *data)
     {
         T z = data[i];
         T y = std::erfc(f1 * z);
-        data[i] = pt5 * z * y;
+        data[i] = (pt5 * z) * y;
     }
 }
 

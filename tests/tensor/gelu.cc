@@ -101,6 +101,8 @@ int main(int argc, char **argv)
     // Init codelet
     starpu::gelu::init();
     starpu::subcopy::init();
+    starpu::gelu::restrict_where(STARPU_CPU);
+    starpu::subcopy::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

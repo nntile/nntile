@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-11-03
  * */
 
 #include "nntile/tensor/sumnorm.hh"
@@ -148,6 +148,9 @@ int main(int argc, char **argv)
     starpu::sumnorm::init();
     starpu::subcopy::init();
     starpu::clear::init();
+    starpu::sumnorm::restrict_where(STARPU_CPU);
+    starpu::subcopy::restrict_where(STARPU_CPU);
+    starpu::clear::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

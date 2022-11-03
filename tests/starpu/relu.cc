@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-26
+ * @date 2022-11-03
  * */
 
 #include "nntile/starpu/relu.hh"
@@ -107,7 +107,7 @@ void validate_cuda(Index nelems)
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(data[i] != data2[i]);
+        TEST_ASSERT(data[i] == data2[i]);
     }
     std::cout << "OK: starpu::relu::submit<T> restricted to CUDA\n";
 }

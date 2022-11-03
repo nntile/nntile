@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-26
+ * @date 2022-11-03
  * */
 
 #include "nntile/tile/dgelutanh.hh"
@@ -63,6 +63,7 @@ int main(int argc, char **argv)
     starpu::Config starpu(1, 0, 0);
     // Init codelet
     starpu::dgelutanh::init();
+    starpu::dgelutanh::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
