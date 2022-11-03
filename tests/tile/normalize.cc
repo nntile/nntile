@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-11-03
  * */
 
 #include "nntile/tile/normalize.hh"
@@ -105,19 +105,21 @@ void validate()
     Tile<T> gamma_beta({2}), dst({3, 4, 5}), dst2({3, 4, 5});
     Tile<T> sumnorm[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
         Tile<T>({2, 3, 4})};
-    T one = 1, zero = 0;
-    TEST_THROW(normalize<T>(gamma_beta, gamma_beta, dst, dst.shape[0], zero,
+    T one = 1, zero = 0, eps=1e-16;
+    TEST_THROW(normalize<T>(gamma_beta, gamma_beta, dst, dst.shape[0], eps,
                 0));
-    TEST_THROW(normalize<T>(gamma_beta, empty, empty, dst.shape[0], zero, 0));
-    TEST_THROW(normalize<T>(gamma_beta, sumnorm[0], dst, 0, zero, 0));
+    TEST_THROW(normalize<T>(gamma_beta, empty, empty, dst.shape[0], eps, 0));
+    TEST_THROW(normalize<T>(gamma_beta, sumnorm[0], dst, 0, eps, 0));
+    TEST_THROW(normalize<T>(gamma_beta, sumnorm[0], dst, dst.shape[0], zero,
+                0));
     TEST_THROW(normalize<T>(gamma_beta, sumnorm[0], dst, dst.shape[0], -1, 0));
-    TEST_THROW(normalize<T>(gamma_beta, dst, dst, dst.shape[0], zero, 0));
-    TEST_THROW(normalize<T>(gamma_beta, sumnorm[2], dst, dst.shape[0], zero,
+    TEST_THROW(normalize<T>(gamma_beta, dst, dst, dst.shape[0], eps, 0));
+    TEST_THROW(normalize<T>(gamma_beta, sumnorm[2], dst, dst.shape[0], eps,
                 0));
-    TEST_THROW(normalize<T>(gamma_beta, sumnorm[1], dst, dst.shape[1], zero,
+    TEST_THROW(normalize<T>(gamma_beta, sumnorm[1], dst, dst.shape[1], eps,
                 2));
-    TEST_THROW(normalize<T>(gamma_beta, sumnorm[0], dst, 1, zero, -1));
-    TEST_THROW(normalize<T>(gamma_beta, sumnorm[0], dst, 1, zero, 3));
+    TEST_THROW(normalize<T>(gamma_beta, sumnorm[0], dst, 1, eps, -1));
+    TEST_THROW(normalize<T>(gamma_beta, sumnorm[0], dst, 1, eps, 3));
 }
 
 int main(int argc, char **argv)

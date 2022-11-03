@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-26
+ * @date 2022-11-03
  * */
 
 #include "nntile/tensor/clear.hh"
@@ -80,6 +80,7 @@ void validate()
 {
     check<T>({}, {});
     check<T>({11, 12, 13}, {2, 3, 4});
+    check<T>({1000, 1000}, {450, 450});
 }
 
 int main(int argc, char **argv)

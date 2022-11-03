@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-26
+ * @date 2022-11-03
  * */
 
 #include "nntile/starpu/normalize.hh"
@@ -70,7 +70,7 @@ void validate_cpu(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
 template<typename T>
 void validate_many_cpu()
 {
-    validate_cpu<T>(3, 5, 7, 10, 0, 1, 0);
+    validate_cpu<T>(3, 5, 7, 10, 1e-16, 1, 0);
     validate_cpu<T>(3, 5, 7, 2, 10, 2, 1);
 }
 
@@ -168,7 +168,7 @@ void validate_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
 template<typename T>
 void validate_many_cuda()
 {
-    validate_cuda<T>(3, 5, 7, 10, 0, 1, 0);
+    validate_cuda<T>(3, 5, 7, 10, 1e-16, 1, 0);
     validate_cuda<T>(3, 5, 7, 2, 10, 2, 1);
 }
 #endif // NNTILE_USE_CUDA

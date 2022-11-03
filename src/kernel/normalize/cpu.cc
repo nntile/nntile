@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2022-11-03
  * */
 
 #include "nntile/kernel/normalize/cpu.hh"
@@ -39,7 +39,7 @@ void cpu(Index m, Index n, Index k, Index l, T eps, const T *gamma,
  * @param[in] n: Size of the last mode of dst and sumnorm arrays
  * @param[in] k: Size of the middle mode of dst array
  * @param[in] l: Number of elements used to calculate sum and Euclidian norm
- * @param[in] eps: Regularization parameter for variance
+ * @param[in] eps: Regularization parameter for variance. eps > 0
  * @param[in] gamma: Deviation for the renormalized output
  * @param[in] beta: Mean value for the renormalized output
  * @param[in] sumnorm: Sums and norms of slices
@@ -68,19 +68,28 @@ void cpu(Index m, Index n, Index k, Index l, T eps, const T *gamma,
                 const T mean = sum * invl;
                 const T norm = sumnorm[src_offset+1];
                 const T rms = norm * rinvl;
-                // Deviation
+                // Deviation=sqrt(rms*rms-mean*mean+reps*reps)
                 T dev;
-                if(rms > reps)
+                // Although in theory tmp<=1 it is not always true in practice
+                // due presence of rounding errors
+                T tmp = std::abs(mean) / rms;
+                // Check if rounding errors broke theoretical invariant
+                if(tmp >= one)
                 {
-                    T tmp = mean/rms, tmp2 = reps/rms;
+                    dev = reps;
+                }
+                else if(rms > reps)
+                {
                     T ssq = one - tmp*tmp;
+                    T tmp2 = reps / rms;
                     ssq += tmp2*tmp2;
                     dev = rms * std::sqrt(ssq);
                 }
                 else
                 {
-                    T tmp = rms/reps, tmp2 = mean/reps;
-                    T ssq = tmp*tmp - tmp2*tmp2;
+                    T ssq = one - tmp*tmp;
+                    T tmp2 = rms / reps;
+                    ssq *= tmp2 * tmp2;
                     ssq += one;
                     dev = reps * std::sqrt(ssq);
                 }

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-25
+ * @date 2022-11-03
  * */
 
 #include "nntile/kernel/randn.hh"
@@ -275,12 +275,14 @@ void validate_many()
     validate_full<T, 1>({1});
     validate_full<T, 2>({2, 3});
     validate_full<T, 4>({3, 4, 5, 6});
+    validate_full<T, 2>({1000, 1000});
     validate_part<T, 1>({1}, {0}, {1});
     validate_part<T, 2>({2, 3}, {0, 0}, {1, 1});
     validate_part<T, 2>({2, 3}, {0, 0}, {1, 1});
     validate_part<T, 2>({2, 3}, {1, 2}, {1, 1});
     validate_part<T, 4>({3, 4, 5, 6}, {0, 0, 0, 0}, {2, 4, 2, 3});
     validate_part<T, 4>({3, 4, 5, 6}, {1, 2, 1, 3}, {2, 2, 3, 3});
+    validate_part<T, 2>({1000, 1000}, {450, 450}, {450, 450});
 }
 
 int main(int argc, char **argv)

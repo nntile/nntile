@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-11-03
  * */
 
 #include "nntile/tensor/gather.hh"
@@ -91,6 +91,8 @@ void validate()
     check<T>({}, {}, 0);
     check<T>({2, 3, 4}, {2, 3, 4}, 1);
     check<T>({11, 12, 13}, {2, 3, 4}, 0);
+    check<T>({1000, 1000}, {450, 450}, 0);
+    check<T>({1000, 1000}, {450, 450}, 1);
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     starpu_mpi_tag_t last_tag = 0;

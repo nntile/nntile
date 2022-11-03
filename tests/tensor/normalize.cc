@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-11-03
  * */
 
 #include "nntile/tensor/normalize.hh"
@@ -101,11 +101,13 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         gb_local.release();
     }
     // Perform tensor-wise and tile-wise normalize operations
-    normalize<T>(gamma_beta, src, dst, shape[axis], T{0}, axis);
+    T eps = 1e-16;
+    std::cout << "eps=" << T(1e-100) << " " << eps << "\n";
+    normalize<T>(gamma_beta, src, dst, shape[axis], eps, axis);
     if(mpi_rank == mpi_root)
     {
         tile::normalize<T>(gamma_beta.get_tile(0), src_single.get_tile(0),
-                dst_single.get_tile(0), shape[axis], T{0}, axis);
+                dst_single.get_tile(0), shape[axis], eps, axis);
     }
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
@@ -134,6 +136,8 @@ void validate()
     check<T>({11, 12, 13}, {5, 6, 5}, 0);
     check<T>({11, 12, 13}, {5, 6, 5}, 1);
     check<T>({11, 12, 13}, {5, 6, 5}, 2);
+    check<T>({1000, 1000}, {450, 450}, 0);
+    check<T>({1000, 1000}, {450, 450}, 1);
     // Sync to guarantee old data tags are cleaned up and can be reused
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions
@@ -148,18 +152,20 @@ void validate()
         C(trC, dist00, last_tag), D(trD, dist0, last_tag),
         E(trE, dist00, last_tag), F(trF, dist00, last_tag),
         G(trG, dist0, last_tag), gamma_beta(trgb, dist0, last_tag);
-    TEST_THROW(normalize<T>(gamma_beta, B, A, 1, T{0}, 0));
-    TEST_THROW(normalize<T>(gamma_beta, D, D, 1, T{0}, 0));
-    TEST_THROW(normalize<T>(gamma_beta, C, A, 0, T{0}, 0));
+    T eps = 1e-16, zero = 0;
+    TEST_THROW(normalize<T>(gamma_beta, B, A, 1, eps, 0));
+    TEST_THROW(normalize<T>(gamma_beta, D, D, 1, eps, 0));
+    TEST_THROW(normalize<T>(gamma_beta, C, A, 0, eps, 0));
     TEST_THROW(normalize<T>(gamma_beta, C, A, 1, T{-0.1}, 0));
-    TEST_THROW(normalize<T>(gamma_beta, C, A, 1, T{0}, -1));
-    TEST_THROW(normalize<T>(gamma_beta, C, A, 1, T{0}, 2));
-    TEST_THROW(normalize<T>(gamma_beta, E, A, 1, T{0}, 0));
-    TEST_THROW(normalize<T>(gamma_beta, F, A, 1, T{0}, 0));
-    TEST_THROW(normalize<T>(gamma_beta, C, A, 1, T{0}, 0));
-    TEST_THROW(normalize<T>(gamma_beta, C, A, 1, T{0}, 1));
-    TEST_THROW(normalize<T>(gamma_beta, G, A, 1, T{0}, 0));
-    TEST_THROW(normalize<T>(gamma_beta, G, A, 1, T{0}, 1));
+    TEST_THROW(normalize<T>(gamma_beta, C, A, 1, zero, 0));
+    TEST_THROW(normalize<T>(gamma_beta, C, A, 1, eps, -1));
+    TEST_THROW(normalize<T>(gamma_beta, C, A, 1, eps, 2));
+    TEST_THROW(normalize<T>(gamma_beta, E, A, 1, eps, 0));
+    TEST_THROW(normalize<T>(gamma_beta, F, A, 1, eps, 0));
+    TEST_THROW(normalize<T>(gamma_beta, C, A, 1, eps, 0));
+    TEST_THROW(normalize<T>(gamma_beta, C, A, 1, eps, 1));
+    TEST_THROW(normalize<T>(gamma_beta, G, A, 1, eps, 0));
+    TEST_THROW(normalize<T>(gamma_beta, G, A, 1, eps, 1));
 }
 
 int main(int argc, char **argv)

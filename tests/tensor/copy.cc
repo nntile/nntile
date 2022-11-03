@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-11-03
  * */
 
 #include "nntile/tensor/copy.hh"
@@ -105,6 +105,7 @@ void validate()
     check<T>({}, {});
     check<T>({11, 12, 13}, {11, 12, 13});
     check<T>({11, 12, 13}, {3, 4, 5});
+    check<T>({1000, 1000}, {450, 450});
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions

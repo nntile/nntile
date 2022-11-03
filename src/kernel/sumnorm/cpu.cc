@@ -89,7 +89,9 @@ void cpu(Index m, Index n, Index k, const T *src, T *sumnorm)
                     ssq += tmp*tmp;
                 }
             }
-            // Save result
+            // Save result. Due to roundings an average value may become larger
+            // than a root-mean-square value, which is impossible for precise
+            // numbers
             sumnorm[dst_offset] = sum;
             sumnorm[dst_offset+1] = scale * std::sqrt(ssq);
             dst_offset += 2;

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-25
+ * @date 2022-11-03
  * */
 
 #include "nntile/kernel/normalize.hh"
@@ -111,18 +111,22 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
+            T norm = 0, diff = 0;
             for(Index i2 = 0; i2 < k; ++i2)
             {
                 T val = dst[(i1*k+i2)*m+i0];
                 T val_ref = T(i2)/T{10}/std::sqrt(T{1}+eps)*gamma + beta;
-                if(val_ref == T{0})
-                {
-                    TEST_ASSERT(std::abs(val) <= 50*eps);
-                }
-                else
-                {
-                    TEST_ASSERT(std::abs(val/val_ref-T{1}) < 50*epsilon);
-                }
+                T tmp = val - val_ref;
+                norm += val_ref * val_ref;
+                diff += tmp * tmp;
+            }
+            if(norm == T{0})
+            {
+                TEST_ASSERT(diff <= epsilon);
+            }
+            else
+            {
+                TEST_ASSERT(diff/norm < 10*epsilon);
             }
         }
     }
@@ -136,18 +140,22 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
+            T norm = 0, diff = 0;
             for(Index i2 = 0; i2 < k; ++i2)
             {
                 T val = dst[(i1*k+i2)*m+i0];
                 T val_ref = T(i2)/T{10}/std::sqrt(T{1}+eps)*gamma + beta;
-                if(val_ref == T{0})
-                {
-                    TEST_ASSERT(std::abs(val) <= 10*eps);
-                }
-                else
-                {
-                    TEST_ASSERT(std::abs(val/val_ref-T{1}) < 50*epsilon);
-                }
+                T tmp = val - val_ref;
+                norm += val_ref * val_ref;
+                diff += tmp * tmp;
+            }
+            if(norm == T{0})
+            {
+                TEST_ASSERT(diff <= epsilon);
+            }
+            else
+            {
+                TEST_ASSERT(diff/norm < 10*epsilon);
             }
         }
     }
@@ -157,7 +165,7 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
 
 int main(int argc, char **argv)
 {
-    fp64_t eps[3] = {0.0, 1.0, 1111.1};
+    fp64_t eps[3] = {1e-16, 1.0, 1111.1};
     fp64_t gamma[3] = {0.0, 1.0, 3.3};
     fp64_t beta[3] = {0.0, 1.1, -2.2};
     for(Index i = 0 ; i < sizeof(eps)/sizeof(eps[0]); ++i)
@@ -172,6 +180,9 @@ int main(int argc, char **argv)
                 validate<fp64_t>(1, 9, 11, 22, eps[i], gamma[j], beta[k]);
                 validate<fp64_t>(8, 1, 11, 22, eps[i], gamma[j], beta[k]);
                 validate<fp64_t>(8, 9, 1, 22, eps[i], gamma[j], beta[k]);
+                validate<fp64_t>(1, 450, 450, 1000, eps[i], gamma[j], beta[k]);
+                validate<fp64_t>(450, 1, 450, 1000, eps[i], gamma[j], beta[k]);
+                validate<fp64_t>(450, 450, 1, 1000, eps[i], gamma[j], beta[k]);
             }
         }
     }

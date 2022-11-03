@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-11-03
  * */
 
 #include "nntile/tensor/bias.hh"
@@ -125,6 +125,8 @@ void validate()
     check<T>({11, 12, 13}, {5, 6, 5}, 0);
     check<T>({11, 12, 13}, {5, 6, 5}, 1);
     check<T>({11, 12, 13}, {5, 6, 5}, 2);
+    check<T>({1000, 1000}, {450, 450}, 0);
+    check<T>({1000, 1000}, {450, 450}, 1);
     // Sync to guarantee old data tags are cleaned up and can be reused
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions

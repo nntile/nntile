@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-11-03
  * */
 
 #include "nntile/tile/normalize.hh"
@@ -50,9 +50,9 @@ void normalize_async(const Tile<T> &gamma_beta, const Tile<T> &src,
         throw std::runtime_error("l <= 0");
     }
     // Check regularization
-    if(eps < 0)
+    if(eps <= 0)
     {
-        throw std::runtime_error("eps < 0");
+        throw std::runtime_error("eps <= 0");
     }
     // Check axis
     if(axis < 0)

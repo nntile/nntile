@@ -69,7 +69,7 @@ void validate()
     constexpr TransOp opN(TransOp::NoTrans);
     gemm<T>(one, opN, layer.get_linear1().get_weight(), opN, input, zero,
             output2, 1);
-    gelu<T>(output2);
+    gelutanh<T>(output2);
     gemm<T>(one, opN, layer.get_linear2().get_weight(), opN, output2, zero,
             output3, 1);
     // Gather results on the root node

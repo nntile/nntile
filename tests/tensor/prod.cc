@@ -97,6 +97,7 @@ void validate()
     check<T>({5}, {5});
     check<T>({11}, {5});
     check<T>({11, 12, 13}, {5, 6, 7});
+    check<T>({1000, 1000}, {450, 450});
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // No checks that throw exceptions
