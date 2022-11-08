@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-26
+ * @date 2022-11-08
  * */
 
 #pragma once
@@ -20,6 +20,7 @@
 #include <nntile/tensor/distributions.hh>
 
 // Tensor operations
+#include <nntile/tensor/axpy.hh>
 #include <nntile/tensor/bias.hh>
 #include <nntile/tensor/clear.hh>
 #include <nntile/tensor/copy.hh>

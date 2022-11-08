@@ -102,7 +102,7 @@ set(TENSOR_SRC
 set(LAYER_SRC
     #"layer/gelu.cc"
     #"layer/gelutanh.cc"
-    #"layer/linear.cc"
+    "layer/linear.cc"
     #"layer/mlp.cc"
     )
 

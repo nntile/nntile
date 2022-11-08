@@ -39,6 +39,10 @@ public:
         weight.unregister();
         grad_weight.unregister();
     }
+    const tensor::Tensor<T> &get_weight() const
+    {
+        return weight;
+    }
     void forward_async(const tensor::Tensor<T> &input,
             const tensor::Tensor<T> &output) const
     {
@@ -61,7 +65,7 @@ public:
         weight.wont_use();
         input.invalidate_submit();
     }
-    void grad_descent(T rate) const
+    void grad_descent(const tensor::Tensor<T> &rate) const
     {
         tensor::axpy<T>(rate, grad_weight, weight);
         grad_weight.invalidate_submit();
