@@ -24,6 +24,7 @@ set(TESTS_MPI
     "scatter"
     "gather"
     "clear"
+    "axpy"
     "bias"
     "randn"
     "gemm"

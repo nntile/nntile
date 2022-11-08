@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-26
+ * @date 2022-11-08
  * */
 
 #include "nntile/tile/prod.hh"
@@ -36,7 +36,7 @@ void prod_async(const Tile<T> &src, const Tile<T> &dst)
     starpu::prod::submit<T>(src.nelems, src, dst);
 }
 
-//! Blocking version of tile-wise GeLU operation
+//! Blocking version of tile-wise prod operation
 /*! @param[in] src: Input tile for element-wise prod operation
  * @param[inout] dst: Input and output tile for the prod operation
  * */

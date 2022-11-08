@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tile/prod.hh
- * Per-element product of two Tile<T>
+ * @file include/nntile/tensor/axpy.hh
+ * AXPY for two Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -14,19 +14,22 @@
 
 #pragma once
 
-#include <nntile/tile/tile.hh>
+#include <nntile/tensor/tensor.hh>
 
 namespace nntile
 {
-namespace tile
+namespace tensor
 {
 
+// Asynchronous tensor-wise axpy operation
 template<typename T>
-void prod_async(const Tile<T> &src, const Tile<T> &dst);
+void axpy_async(const Tensor<T> &alpha, const Tensor<T> &src,
+        const Tensor<T> &dst);
 
+// Blocking version of tensor-wise axpy operation
 template<typename T>
-void prod(const Tile<T> &src, const Tile<T> &dst);
+void axpy(const Tensor<T> &alpha, const Tensor<T> &src, const Tensor<T> &dst);
 
-} // namespace tile
+} // namespace tensor
 } // namespace nntile
 

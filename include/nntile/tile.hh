@@ -18,6 +18,7 @@
 #include <nntile/tile/tile.hh>
 
 // Tile<T> operations
+#include <nntile/tile/axpy.hh>
 #include <nntile/tile/bias.hh>
 #include <nntile/tile/clear.hh>
 #include <nntile/tile/copy.hh>

@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-11-07
+# @date 2022-11-08
 
 # Set list of headers
 set(BASE_HDR
@@ -81,6 +81,7 @@ set(TILE_HDR
     "nntile/tile.hh"
     "nntile/tile/traits.hh"
     "nntile/tile/tile.hh"
+    "nntile/tile/axpy.hh"
     "nntile/tile/bias.hh"
     "nntile/tile/clear.hh"
     "nntile/tile/copy.hh"
@@ -102,6 +103,7 @@ set(TENSOR_HDR
     "nntile/tensor/traits.hh"
     "nntile/tensor/distributions.hh"
     "nntile/tensor/tensor.hh"
+    "nntile/tensor/axpy.hh"
     "nntile/tensor/bias.hh"
     "nntile/tensor/clear.hh"
     "nntile/tensor/copy.hh"

@@ -60,6 +60,7 @@ set(STARPU_SRC
 
 set(TILE_SRC
     "tile/traits.cc"
+    "tile/axpy.cc"
     "tile/bias.cc"
     "tile/clear.cc"
     "tile/copy.cc"
@@ -79,6 +80,7 @@ set(TILE_SRC
 set(TENSOR_SRC
     "tensor/traits.cc"
     "tensor/distributions.cc"
+    "tensor/axpy.cc"
     "tensor/bias.cc"
     "tensor/clear.cc"
     "tensor/copy.cc"
