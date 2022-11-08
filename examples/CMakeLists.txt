@@ -66,8 +66,8 @@ endfunction()
 #    SOURCES "mixer.cc"
 #    LINK_LIBRARIES nntile)
 
-add_example(TARGET_NAME examples_mlp_mnist
-    EXEC_NAME "mlp_mnist"
-    SOURCES "mlp_mnist.cc"
-    LINK_LIBRARIES nntile)
+#add_example(TARGET_NAME examples_mlp_mnist
+#    EXEC_NAME "mlp_mnist"
+#    SOURCES "mlp_mnist.cc"
+#    LINK_LIBRARIES nntile)
 

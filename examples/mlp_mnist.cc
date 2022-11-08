@@ -172,6 +172,11 @@ int main(int argc, char **argv)
         tensor::copy_async<T>(mnist, outputs[k]);
         decoder[j].forward_async(outputs[k-1], T{-1}, outputs[k]);
         // Backward
+        for(Index j = 0; j < n_mlp_decoder; ++j)
+        {
+            Index k = j + n_mlp_encoder;
+            //decoder[j].backward_async(outputs[k-1], outputs[k]);
+        }
     }
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);

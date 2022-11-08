@@ -18,6 +18,7 @@
 #include <nntile/starpu/config.hh>
 
 // StarPU wrappers for low-level kernels
+#include <nntile/starpu/axpy.hh>
 #include <nntile/starpu/bias.hh>
 #include <nntile/starpu/clear.hh>
 #include <nntile/starpu/gelu.hh>
@@ -42,6 +43,7 @@ namespace starpu
 // Init all codelets
 void init()
 {
+    axpy::init();
     bias::init();
     clear::init();
     gelu::init();
@@ -59,6 +61,7 @@ void init()
 // Restrict StarPU codelets to certain computational units
 void restrict_where(uint32_t where)
 {
+    axpy::restrict_where(where);
     bias::restrict_where(where);
     clear::restrict_where(where);
     gelu::restrict_where(where);
@@ -76,6 +79,7 @@ void restrict_where(uint32_t where)
 // Restore computational units for StarPU codelets
 void restore_where()
 {
+    axpy::restore_where();
     bias::restore_where();
     clear::restore_where();
     gelu::restore_where();

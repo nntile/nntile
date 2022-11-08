@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-11-01
+# @date 2022-11-08
 
 # Set list of sources
 set(KERNEL_SRC
@@ -46,6 +46,7 @@ set(STARPU_SRC
     "starpu/clear.cc"
     "starpu/dgelu.cc"
     "starpu/dgelutanh.cc"
+    "${CMAKE_CURRENT_BINARY_DIR}/starpu/axpy.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"
     "starpu/gelu.cc"
     "starpu/gelutanh.cc"
@@ -97,10 +98,10 @@ set(TENSOR_SRC
     )
 
 set(LAYER_SRC
-    "layer/gelu.cc"
-    "layer/gelutanh.cc"
-    "layer/linear.cc"
-    "layer/mlp.cc"
+    #"layer/gelu.cc"
+    #"layer/gelutanh.cc"
+    #"layer/linear.cc"
+    #"layer/mlp.cc"
     )
 
 set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC} ${LAYER_SRC})

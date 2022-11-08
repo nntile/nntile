@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-10-26
+# @date 2022-11-07
 
 # Set list of headers
 set(BASE_HDR
@@ -61,6 +61,7 @@ endif()
 
 set(STARPU_HDR
     "nntile/starpu/config.hh"
+    "nntile/starpu/axpy.hh"
     "nntile/starpu/bias.hh"
     "nntile/starpu/clear.hh"
     "nntile/starpu/dgelu.hh"
@@ -121,10 +122,11 @@ set(TENSOR_HDR
 
 set(LAYER_HDR
     "nntile/layer.hh"
-    "nntile/layer/gelu.hh"
-    "nntile/layer/gelutanh.hh"
+    "nntile/layer/base.hh"
+    #"nntile/layer/gelu.hh"
+    #"nntile/layer/gelutanh.hh"
     "nntile/layer/linear.hh"
-    "nntile/layer/mlp.hh"
+    #"nntile/layer/mlp.hh"
     )
 
 set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR}

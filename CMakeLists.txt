@@ -108,6 +108,14 @@ target_include_directories(nntile PRIVATE
 configure_file("include/nntile/defs.h.in"
     "${PROJECT_BINARY_DIR}/include/nntile/defs.h" @ONLY)
 
+# Configure src/starpu/axpy.cc that relies on cblas
+configure_file("src/starpu/axpy.cc.in"
+    "${PROJECT_BINARY_DIR}/src/starpu/axpy.cc" @ONLY)
+
+# Configure tests/starpu/axpy.cc that relies on cblas
+configure_file("tests/starpu/axpy.cc.in"
+    "${PROJECT_BINARY_DIR}/tests/starpu/axpy.cc" @ONLY)
+
 # Configure src/starpu/gemm.cc that relies on cblas
 configure_file("src/starpu/gemm.cc.in"
     "${PROJECT_BINARY_DIR}/src/starpu/gemm.cc" @ONLY)
