@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-10-20
+# @date 2022-11-17
 
 # Extend set of ctest-controlled tests and enable code coverage if required.
 # All of the tests shall be launched by the same executable but with different
@@ -137,4 +137,5 @@ add_subdirectory("starpu")
 add_subdirectory("tile")
 add_subdirectory("tensor")
 add_subdirectory("layer")
+#add_subdirectory("model")
 

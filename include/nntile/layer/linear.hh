@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-07
+ * @date 2022-11-18
  * */
 
 #pragma once
@@ -25,24 +25,18 @@ namespace layer
 template<typename T>
 class Linear: public Base<T>
 {
-    tensor::Tensor<T> weight, grad_weight;
 public:
-    Linear(const tensor::TensorTraits &traits,
-            const std::vector<int> &distribution,
-            starpu_mpi_tag_t &last_tag):
-        weight(traits, distribution, last_tag),
-        grad_weight(traits, distribution, last_tag)
+    tensor::Tensor<T> weight, grad_weight;
+    Linear(const tensor::TensorTraits &input_traits_,
+            const tensor::TensorTraits &output_traits_,
+            const tensor::Tensor<T> &params_,
+            const tensor::Tensor<T> &grads_):
+        Base<T>(input_traits_, output_traits_, {params_}, {grads_}),
+        weight(params[0]),
+        grad_weight(grads[0])
     {
     }
-    ~Linear()
-    {
-        weight.unregister();
-        grad_weight.unregister();
-    }
-    const tensor::Tensor<T> &get_weight() const
-    {
-        return weight;
-    }
+    ~Linear() = default;
     void forward_async(const tensor::Tensor<T> &input,
             const tensor::Tensor<T> &output) const
     {
@@ -64,11 +58,6 @@ public:
         tensor::gemm_async<T>(one, opT, weight, opN, input, zero, output, 1);
         weight.wont_use();
         input.invalidate_submit();
-    }
-    void grad_descent(const tensor::Tensor<T> &rate) const
-    {
-        tensor::axpy<T>(rate, grad_weight, weight);
-        grad_weight.invalidate_submit();
     }
 };
 

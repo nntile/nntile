@@ -9,12 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-01
+ * @date 2022-11-09
  * */
 
 #pragma once
 
-#include <nntile/tensor.hh>
+#include <nntile/layer/base.hh>
 
 namespace nntile
 {
@@ -23,7 +23,7 @@ namespace layer
 
 //! GeLU layer
 template<typename T>
-class GeLU
+class GeLU: Base<T>
 {
 public:
     void forward_async(const tensor::Tensor<T> &input,
@@ -37,10 +37,10 @@ public:
             const tensor::Tensor<T> &dldx_input,
             const tensor::Tensor<T> &dldx_output) const
     {
-        tensor::copy(input, dldx_output);
+        tensor::copy_async(input, dldx_output);
         input.invalidate_submit();
-        tensor::dgelu(dldx_output);
-        tensor::prod(dldx_input, dldx_output);
+        tensor::dgelu_async(dldx_output);
+        tensor::prod_async(dldx_input, dldx_output);
         dldx_input.invalidate_submit();
     }
 };

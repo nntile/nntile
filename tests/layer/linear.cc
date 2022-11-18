@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-24
+ * @date 2022-11-17
  * */
 
 #include "nntile/layer/linear.hh"
@@ -29,7 +29,9 @@ void validate()
     // Wait until all previously used tags are cleaned
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Set up test layer
-    TensorTraits weight_traits({10, 20, 30}, {3, 4, 5});
+    TensorTraits input_traits({30, 20}, {5, 4}),
+        output_traits({10, 20, 20}, {3, 4, 4}),
+        weight_traits({10, 20, 30}, {3, 4, 5});
     std::vector<int> mpi_grid3 = {3, 2, 2}, mpi_grid2 = {2, 3};
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
@@ -38,16 +40,16 @@ void validate()
             weight_traits.grid.shape, mpi_grid3, 0, mpi_size);
     std::vector<int> distr0 = {mpi_root};
     starpu_mpi_tag_t last_tag = 0;
-    Linear<T> layer(weight_traits, weight_distr, last_tag);
+    Tensor<T> weight(weight_traits, weight_distr, last_tag),
+        grad_weight(weight_traits, weight_distr, last_tag);
+    Linear<T> layer(input_traits, output_traits, weight, grad_weight);
     unsigned long long seed0 = -1, seed1 = 1, seed2 = -100000000ULL;
     T mean = 0, stddev = 1;
     std::vector<Index> zeros2(2), zeros3(3);
-    randn<T>(layer.get_weight(), zeros3, weight_traits.shape, seed0, mean,
+    randn<T>(layer.weight, zeros3, weight_traits.shape, seed0, mean,
             stddev);
     // Set up test input and output
-    TensorTraits input_traits({30, 20}, {5, 4}),
-                 output_traits({10, 20, 20}, {3, 4, 4}),
-                 output_single_traits({10, 20, 20}, {10, 20, 20});
+    TensorTraits output_single_traits({10, 20, 20}, {10, 20, 20});
     std::vector<int> input_distr = distributions::block_cyclic(
             input_traits.grid.shape, mpi_grid2, 0, mpi_size),
         output_distr = distributions::block_cyclic(
@@ -63,7 +65,7 @@ void validate()
     // Get the same in terms of tensors
     constexpr T one = 1.0, zero = 0.0;
     constexpr TransOp opN(TransOp::NoTrans);
-    gemm<T>(one, opN, layer.get_weight(), opN, input, zero, output2, 1);
+    gemm<T>(one, opN, layer.weight, opN, input, zero, output2, 1);
     // Gather results on the root node
     Tensor<T> output_single(output_single_traits, distr0, last_tag),
         output2_single(output_single_traits, distr0, last_tag);
@@ -80,29 +82,35 @@ void validate()
             T tmp1 = output_local[i], tmp2 = output2_local[i];
             tmp2 = std::abs(tmp2-tmp1);
             tmp1 = std::abs(tmp1);
-            if(tmp1 > output_max)
+            if(tmp1 > 0)
             {
-                T tmp = output_max / tmp1;
-                tmp *= tmp;
-                output_max = tmp1;
-                output_ssq = output_ssq*tmp + 1;
+                if(tmp1 > output_max)
+                {
+                    T tmp = output_max / tmp1;
+                    tmp *= tmp;
+                    output_max = tmp1;
+                    output_ssq = output_ssq*tmp + 1;
+                }
+                else
+                {
+                    T tmp = tmp1 / output_max;
+                    output_ssq += tmp * tmp;
+                }
             }
-            else
+            if(tmp2 > 0)
             {
-                T tmp = tmp1 / output_max;
-                output_ssq += tmp * tmp;
-            }
-            if(tmp2 > output2_max)
-            {
-                T tmp = output2_max / tmp2;
-                tmp *= tmp;
-                output2_max = tmp2;
-                output2_ssq = output_ssq*tmp + 1;
-            }
-            else
-            {
-                T tmp = tmp2 / output2_max;
-                output2_ssq += tmp * tmp;
+                if(tmp2 > output2_max)
+                {
+                    T tmp = output2_max / tmp2;
+                    tmp *= tmp;
+                    output2_max = tmp2;
+                    output2_ssq = output_ssq*tmp + 1;
+                }
+                else
+                {
+                    T tmp = tmp2 / output2_max;
+                    output2_ssq += tmp * tmp;
+                }
             }
         }
         T ratio = std::sqrt(output2_ssq/output_ssq) * output2_max / output_max;
