@@ -131,8 +131,14 @@ set(LAYER_HDR
     #"nntile/layer/mlp.hh"
     )
 
+set(MODEL_HDR
+    "nntile/model.hh"
+    "nntile/model/base.hh"
+    "nntile/model/deep_linear.hh"
+    )
+
 set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR}
-    ${LAYER_HDR})
+    ${LAYER_HDR} ${MODEL_HDR})
 
 target_sources(nntile PUBLIC ${HDR})
 

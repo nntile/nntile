@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-12
+ * @date 2022-11-19
  * */
 
 #pragma once
@@ -24,12 +24,12 @@ namespace tile
 template<typename T>
 void copy_intersection_async(const Tile<T> &src,
         const std::vector<Index> &src_offset, const Tile<T> &dst,
-        const std::vector<Index> &dst_offset);
+        const std::vector<Index> &dst_offset, const Tile<Index> &scratch);
 
 template<typename T>
 void copy_intersection(const Tile<T> &src,
         const std::vector<Index> &src_offset, const Tile<T> &dst,
-        const std::vector<Index> &dst_offset);
+        const std::vector<Index> &dst_offset, const Tile<Index> &scratch);
 
 } // namespace tile
 } // namespace nntile

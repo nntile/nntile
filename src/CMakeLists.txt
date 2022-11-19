@@ -102,11 +102,16 @@ set(TENSOR_SRC
 set(LAYER_SRC
     #"layer/gelu.cc"
     #"layer/gelutanh.cc"
-    #"layer/linear.cc"
+    "layer/linear.cc"
     #"layer/mlp.cc"
     )
 
-set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC} ${LAYER_SRC})
+set(MODEL_SRC
+    "model/deep_linear.cc"
+    )
+
+set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC} ${LAYER_SRC}
+    ${MODEL_SRC})
 
 target_sources(nntile PRIVATE ${SRC})
 

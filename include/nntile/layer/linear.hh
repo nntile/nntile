@@ -15,6 +15,7 @@
 #pragma once
 
 #include <nntile/layer/base.hh>
+#include <nntile/tensor/gemm.hh>
 
 namespace nntile
 {
@@ -26,18 +27,19 @@ template<typename T>
 class Linear: public Base<T>
 {
 public:
-    tensor::Tensor<T> weight, grad_weight;
+    tensor::Tensor<T> &weight;
+    tensor::Tensor<T> &grad_weight;
     Linear(const tensor::TensorTraits &input_traits_,
             const tensor::TensorTraits &output_traits_,
-            const tensor::Tensor<T> &params_,
-            const tensor::Tensor<T> &grads_):
+            tensor::Tensor<T> params_,
+            tensor::Tensor<T> grads_):
         Base<T>(input_traits_, output_traits_, {params_}, {grads_}),
-        weight(params[0]),
-        grad_weight(grads[0])
+        weight(this->params[0]),
+        grad_weight(this->grads[0])
     {
     }
-    ~Linear() = default;
-    void forward_async(const tensor::Tensor<T> &input,
+    virtual ~Linear() = default;
+    virtual void forward_async(const tensor::Tensor<T> &input,
             const tensor::Tensor<T> &output) const
     {
         constexpr T one = 1, zero = 0;
@@ -46,7 +48,7 @@ public:
         input.wont_use();
         weight.wont_use();
     }
-    void backward_async(const tensor::Tensor<T> &forward_input,
+    virtual void backward_async(const tensor::Tensor<T> &forward_input,
             const tensor::Tensor<T> &input,
             const tensor::Tensor<T> &output) const
     {

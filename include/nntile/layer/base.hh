@@ -14,7 +14,7 @@
 
 #pragma once
 
-#include <nntile/tensor.hh>
+#include <nntile/tensor/tensor.hh>
 
 namespace nntile
 {
@@ -26,7 +26,8 @@ template<typename T>
 class Base
 {
 public:
-    tensor::TensorTraits input_traits, output_traits;
+    tensor::TensorTraits input_traits;
+    tensor::TensorTraits output_traits;
     std::vector<tensor::Tensor<T>> params;
     std::vector<tensor::Tensor<T>> grads;
     Base(const tensor::TensorTraits &input_traits_,
@@ -59,11 +60,11 @@ public:
     }
     // Destructor is virtual since this is a base class for all layers
     virtual ~Base() = default;
-    void forward_async(const tensor::Tensor<T> &input,
-            const tensor::Tensor<T> &output) const = delete;
-    void backward_async(const tensor::Tensor<T> &forward_input,
+    virtual void forward_async(const tensor::Tensor<T> &input,
+            const tensor::Tensor<T> &output) const = 0;
+    virtual void backward_async(const tensor::Tensor<T> &forward_input,
             const tensor::Tensor<T> &input,
-            const tensor::Tensor<T> &output) const = delete;
+            const tensor::Tensor<T> &output) const = 0;
     void grads_invalidate_submit() const
     {
         for(auto t: grads)

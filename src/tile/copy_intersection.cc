@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-11-19
  * */
 
 #include "nntile/tile/copy_intersection.hh"
@@ -29,11 +29,12 @@ namespace tile
  * @param[in] src_offset: Initial offset of the source tile
  * @param[inout] dst: Destination tile
  * @param[in] dst_offset: Initial offset of the destination tile
+ * @param[scratch] scratch: Temporary workspace
  * */
 template<typename T>
 void copy_intersection_async(const Tile<T> &src,
         const std::vector<Index> &src_offset, const Tile<T> &dst,
-        const std::vector<Index> &dst_offset)
+        const std::vector<Index> &dst_offset, const Tile<Index> &scratch)
 {
     // Check dimensions
     if(src.ndim != src_offset.size())
@@ -47,6 +48,14 @@ void copy_intersection_async(const Tile<T> &src,
     if(dst.ndim != dst_offset.size())
     {
         throw std::runtime_error("dst.ndim != dst_offset.size()");
+    }
+    if(scratch.ndim != 1)
+    {
+        throw std::runtime_error("scratch.ndim != 1");
+    }
+    if(scratch.shape[0] < 2*src.ndim)
+    {
+        throw std::runtime_error("scratch.shape[0] < 2*src.ndim");
     }
     Index ndim = src.ndim;
     int ret;
@@ -73,8 +82,6 @@ void copy_intersection_async(const Tile<T> &src,
         return;
     }
     // Do the slow partial copy
-    // Temporary buffer for indexing
-    starpu::VariableHandle scratch(2*ndim*sizeof(Index), STARPU_SCRATCH);
     // Perform smart copy
     std::vector<Index> src_start(ndim), dst_start(ndim), copy_shape(ndim);
     enum starpu_data_access_mode dst_tile_mode = STARPU_W;
@@ -123,13 +130,14 @@ void copy_intersection_async(const Tile<T> &src,
  * @param[in] src_offset: Initial offset of the source tile
  * @param[inout] dst: Destination tile
  * @param[in] dst_offset: Initial offset of the destination tile
+ * @param[scratch] scratch: Temporary workspace
  * */
 template<typename T>
 void copy_intersection(const Tile<T> &src,
         const std::vector<Index> &src_offset, const Tile<T> &dst,
-        const std::vector<Index> &dst_offset)
+        const std::vector<Index> &dst_offset, const Tile<Index> &scratch)
 {
-    copy_intersection_async<T>(src, src_offset, dst, dst_offset);
+    copy_intersection_async<T>(src, src_offset, dst, dst_offset, scratch);
     starpu_task_wait_for_all();
 }
 
@@ -137,12 +145,12 @@ void copy_intersection(const Tile<T> &src,
 template
 void copy_intersection<fp32_t>(const Tile<fp32_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp32_t> &dst,
-        const std::vector<Index> &dst_offset);
+        const std::vector<Index> &dst_offset, const Tile<Index> &scratch);
 
 template
 void copy_intersection<fp64_t>(const Tile<fp64_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp64_t> &dst,
-        const std::vector<Index> &dst_offset);
+        const std::vector<Index> &dst_offset, const Tile<Index> &scratch);
 
 } // namespace tile
 } // namespace nntile

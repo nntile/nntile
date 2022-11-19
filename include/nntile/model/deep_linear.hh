@@ -9,13 +9,13 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-17
+ * @date 2022-11-18
  * */
 
 #pragma once
 
 #include <nntile/model/base.hh>
-#include <nntile/tensor/distributions.hh>
+#include <nntile/tensor.hh>
 #include <nntile/starpu.hh>
 #include <nntile/layer.hh>
 
@@ -25,9 +25,9 @@ namespace model
 {
 
 template<typename T>
-class SimpleDeepLinear: public Base<T>
+class DeepLinear: public Base<T>
 {
-    static std::vector<std::shared_ptr<const layer::Base<T>>> _gen_layers(
+    static std::vector<std::shared_ptr<layer::Base<T>>> _gen_layers(
             const std::vector<Index> &shape,
             const std::vector<Index> &basetile,
             const std::vector<int> mpi_grid,
@@ -35,7 +35,7 @@ class SimpleDeepLinear: public Base<T>
     {
         Index nlayers = shape.size() - 2;
         int mpi_size = starpu_mpi_world_size();
-        std::vector<std::shared_ptr<const layer::Base<T>>> layers;
+        std::vector<std::shared_ptr<layer::Base<T>>> layers;
         for(Index i = 0; i < nlayers; ++i)
         {
             std::vector<Index> layer_shape(2), layer_basetile(2),
@@ -58,14 +58,16 @@ class SimpleDeepLinear: public Base<T>
                 output_traits(output_shape, output_basetile);
             std::vector<int> distr = tensor::distributions::block_cyclic(
                     traits.grid.shape, mpi_grid, 0, mpi_size);
+            tensor::Tensor<T> weight(traits, distr, last_tag),
+                grad_weight(traits, distr, last_tag);
             auto layer = new layer::Linear<T>(input_traits, output_traits,
-                    traits, distr, last_tag);
-            layers.push_back(std::shared_ptr<const layer::Base<T>>(layer));
+                    {weight}, {grad_weight});
+            layers.push_back(std::shared_ptr<layer::Base<T>>(layer));
         }
         return layers;
     }
 public:
-    SimpleDeepLinear(const std::vector<Index> &shape,
+    DeepLinear(const std::vector<Index> &shape,
             const std::vector<Index> &basetile,
             const std::vector<int> mpi_grid,
             starpu_mpi_tag_t &last_tag):
@@ -73,6 +75,13 @@ public:
     {
     }
 };
+
+// Explicit instantiation
+extern template
+class DeepLinear<fp32_t>;
+
+extern template
+class DeepLinear<fp64_t>;
 
 } // namespace model
 } // namespace nntile

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-03
+ * @date 2022-11-19
  * */
 
 #include "nntile/tile/copy_intersection.hh"
@@ -40,12 +40,13 @@ void validate()
     }
     tile3_local.release();
     Tile<T> tile1_copy({});
-    copy_intersection<T>(tile1, {}, tile1_copy, {});
+    Tile<Index> scratch({2*3});
+    copy_intersection<T>(tile1, {}, tile1_copy, {}, scratch);
     auto tile1_copy_local = tile1_copy.acquire(STARPU_R);
     TEST_ASSERT(tile1_copy_local[0] == T{-1});
     tile1_copy_local.release();
     Tile<T> tile2_copy(tile2.shape);
-    copy_intersection<T>(tile2, {0, 0, 0}, tile2_copy, {0, 0, 0});
+    copy_intersection<T>(tile2, {0, 0, 0}, tile2_copy, {0, 0, 0}, scratch);
     auto tile2_copy_local = tile2_copy.acquire(STARPU_RW);
     for(Index i = 0; i < tile2.nelems; ++i)
     {
@@ -53,7 +54,7 @@ void validate()
         tile2_copy_local[i] = T{-2};
     }
     tile2_copy_local.release();
-    copy_intersection<T>(tile2, {1, 2, 3}, tile2_copy, {1, 2, 3});
+    copy_intersection<T>(tile2, {1, 2, 3}, tile2_copy, {1, 2, 3}, scratch);
     tile2_copy_local.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)
     {
@@ -61,10 +62,9 @@ void validate()
     }
     tile2_copy_local.release();
     // Check complex copying on CPU, no CUDA implementation as of now
-    starpu::VariableHandle scratch(2*3*sizeof(Index), STARPU_R);
     starpu::subcopy::submit<T>(3, {0, 0, 2}, tile3.stride, {0, 1, 0},
             tile2.stride, {2, 1, 2}, tile3, tile2, scratch, STARPU_RW);
-    copy_intersection<T>(tile3, {0, 1, 0}, tile2_copy, {0, 0, 2});
+    copy_intersection<T>(tile3, {0, 1, 0}, tile2_copy, {0, 0, 2}, scratch);
     tile2_local.acquire(STARPU_R);
     tile2_copy_local.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)
@@ -74,9 +74,12 @@ void validate()
     tile2_local.release();
     tile2_copy_local.release();
     // Checking throwing exceptions
-    TEST_THROW(copy_intersection<T>(Tile<T>({1}), {}, Tile<T>({1}), {0}));
-    TEST_THROW(copy_intersection<T>(Tile<T>({1}), {0}, Tile<T>({}), {0}));
-    TEST_THROW(copy_intersection<T>(Tile<T>({1}), {0}, Tile<T>({1}), {}));
+    TEST_THROW(copy_intersection<T>(Tile<T>({1}), {}, Tile<T>({1}), {0},
+                scratch));
+    TEST_THROW(copy_intersection<T>(Tile<T>({1}), {0}, Tile<T>({}), {0},
+                scratch));
+    TEST_THROW(copy_intersection<T>(Tile<T>({1}), {0}, Tile<T>({1}), {},
+                scratch));
 }
 
 int main(int argc, char **argv)

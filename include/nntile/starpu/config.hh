@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-11-19
  * */
 
 #pragma once
@@ -18,6 +18,7 @@
 #include <vector>
 #include <memory>
 #include <cstring>
+#include <iostream>
 #include <starpu.h>
 #include <starpu_mpi.h>
 #include <nntile/defs.h>
@@ -136,8 +137,6 @@ class HandleLocalData;
 // the data handle automatically at the end of lifetime.
 class Handle
 {
-    //! Shared handle itself
-    std::shared_ptr<_starpu_data_state> handle;
     // Different deleters for the handle
     static void _deleter(starpu_data_handle_t ptr)
     {
@@ -181,9 +180,16 @@ class Handle
         }
     }
 public:
+    //! Shared handle itself
+    std::shared_ptr<_starpu_data_state> handle;
     //! Default constructor with nullptr
     Handle():
         handle(nullptr)
+    {
+    }
+    //! Constructor with shared pointer
+    explicit Handle(std::shared_ptr<_starpu_data_state> handle_):
+        handle(handle_)
     {
     }
     //! Constructor owns registered handle and unregisters it when needed
@@ -306,7 +312,7 @@ public:
 //! Convenient registration and deregistration of data through StarPU handle
 class VariableHandle: public Handle
 {
-    //! Register variable for starpu-owned memory
+    //! Register variable for StarPU-owned memory
     static starpu_data_handle_t _reg_data(size_t size)
     {
         if(size == 0)
@@ -318,32 +324,27 @@ class VariableHandle: public Handle
         return tmp;
     }
     //! Register variable
-    static starpu_data_handle_t _reg_data(uintptr_t ptr, size_t size)
+    static starpu_data_handle_t _reg_data(void *ptr, size_t size)
     {
         if(size == 0)
         {
             throw std::runtime_error("Zero size is not supported");
         }
         starpu_data_handle_t tmp;
-        starpu_variable_data_register(&tmp, STARPU_MAIN_RAM, ptr, size);
+        starpu_variable_data_register(&tmp, STARPU_MAIN_RAM,
+                reinterpret_cast<uintptr_t>(ptr), size);
         return tmp;
     }
 public:
-    //! Constructor for temporary variable that is (de)allocated by starpu
+    //! Constructor for variable that is (de)allocated by StarPU
     explicit VariableHandle(size_t size, starpu_data_access_mode mode):
         Handle(_reg_data(size), mode)
     {
     }
     //! Constructor for variable that is (de)allocated by user
-    explicit VariableHandle(uintptr_t ptr, size_t size,
-            starpu_data_access_mode mode):
-        Handle(_reg_data(ptr, size), mode)
-    {
-    }
-    //! Constructor for variable that is (de)allocated by user
     explicit VariableHandle(void *ptr, size_t size,
             starpu_data_access_mode mode):
-        Handle(_reg_data(reinterpret_cast<uintptr_t>(ptr), size), mode)
+        Handle(_reg_data(ptr, size), mode)
     {
     }
 };

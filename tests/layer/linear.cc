@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/layer/linear.hh"
-#include "nntile/tensor/distributions.hh"
+#include "nntile/tensor.hh"
 #include "nntile/starpu.hh"
 #include "../testing.hh"
 #include <limits>

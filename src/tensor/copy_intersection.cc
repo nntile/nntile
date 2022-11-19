@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-11-19
  * */
 
 #include "nntile/tensor/copy_intersection.hh"
@@ -30,6 +30,7 @@ namespace tensor
  * @param[in] src_offset: Initial offset of the source tensor
  * @param[inout] dst: Destination tensor
  * @param[in] dst_offset: Initial offset of the destination tensor
+ * @param[scratch] scratch: Temporary workspace
  * */
 template<typename T>
 void copy_intersection_async(const Tensor<T> &src,
@@ -407,6 +408,7 @@ void copy_intersection_async(const Tensor<T> &src,
  * @param[in] src_offset: Initial offset of the source tensor
  * @param[inout] dst: Destination tensor
  * @param[in] dst_offset: Initial offset of the destination tensor
+ * @param[scratch] scratch: Temporary workspace
  * */
 template<typename T>
 void copy_intersection(const Tensor<T> &src,
