@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-11-08
+# @date 2022-11-23
 
 # Set list of headers
 set(BASE_HDR
@@ -137,8 +137,14 @@ set(MODEL_HDR
     "nntile/model/deep_linear.hh"
     )
 
+set(OPTIMIZER_HDR
+    "nntile/optimizer.hh"
+    "nntile/optimizer/base.hh"
+    "nntile/optimizer/deep_linear.hh"
+    )
+
 set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR}
-    ${LAYER_HDR} ${MODEL_HDR})
+    ${LAYER_HDR} ${MODEL_HDR} ${OPTIMIZER_HDR})
 
 target_sources(nntile PUBLIC ${HDR})
 

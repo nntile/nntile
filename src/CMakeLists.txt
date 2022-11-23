@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-11-08
+# @date 2022-11-23
 
 # Set list of sources
 set(KERNEL_SRC
@@ -110,8 +110,12 @@ set(MODEL_SRC
     "model/deep_linear.cc"
     )
 
+set(OPTIMIZER_SRC
+    "optimizer/grad_descent.cc"
+    )
+
 set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC} ${LAYER_SRC}
-    ${MODEL_SRC})
+    ${MODEL_SRC} ${OPTIMIZER_SRC})
 
 target_sources(nntile PRIVATE ${SRC})
 
