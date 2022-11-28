@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-08
+ * @date 2022-11-23
  * */
 
 #include "nntile/tensor/axpy.hh"
@@ -103,6 +103,68 @@ void axpy<fp32_t>(const Tensor<fp32_t> &alpha, const Tensor<fp32_t> &src,
 
 template
 void axpy<fp64_t>(const Tensor<fp64_t> &alpha, const Tensor<fp64_t> &src,
+        const Tensor<fp64_t> &dst);
+
+//! Asynchronous tensor-wise axpy operation
+/*! @param[in] src: Input tensor for the axpy operation
+ * @param[inout] dst: Input and output tensor for the axpy operation
+ * */
+template<typename T>
+void axpy2_async(T alpha, const Tensor<T> &src, const Tensor<T> &dst)
+{
+    // Check shapes
+    if(src.shape != dst.shape)
+    {
+        throw std::runtime_error("src.shape != dst.shape");
+    }
+    // Check shapes of base tiles
+    if(src.basetile_shape != dst.basetile_shape)
+    {
+        throw std::runtime_error("src.basetile_shape != dst.basetile_shape");
+    }
+    int mpi_size = starpu_mpi_world_size();
+    int mpi_rank = starpu_mpi_world_rank();
+    // Launch all the required tasks
+    for(Index i = 0; i < src.grid.nelems; ++i)
+    {
+        // Get handle for corresponding tiles of src and dst
+        auto src_tile_handle = src.get_tile_handle(i);
+        auto dst_tile_handle = dst.get_tile_handle(i);
+        // MPI rank of the destination tile
+        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
+        // Transfer data
+        src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
+        // Execute only on destination node
+        if(mpi_rank == dst_tile_rank)
+        {
+            auto traits = src.get_tile_traits(i);
+            starpu::axpy::submit2<T>(alpha, traits.nelems,
+                    src_tile_handle, dst_tile_handle);
+        }
+        // Flush cache for the output tile on every node
+        dst_tile_handle.mpi_flush();
+    }
+}
+
+//! Blocking version of tensor-wise axpy operation
+/*! @param[in] src: Input tensor for the axpy operation
+ * @param[inout] dst: Input and output tensor for the axpy operation
+ * */
+template<typename T>
+void axpy2(T alpha, const Tensor<T> &src, const Tensor<T> &dst)
+{
+    axpy2_async<T>(alpha, src, dst);
+    starpu_task_wait_for_all();
+    starpu_mpi_wait_for_all(MPI_COMM_WORLD);
+}
+
+// Explicit instantiation
+template
+void axpy2<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
+        const Tensor<fp32_t> &dst);
+
+template
+void axpy2<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst);
 
 } // namespace tensor

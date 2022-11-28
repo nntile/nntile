@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-07
+ * @date 2022-11-23
  * */
 
 #pragma once
@@ -26,9 +26,21 @@ namespace starpu
 namespace axpy
 {
 
+//! Structure for arguments
+template<typename T>
+struct args2_t
+{
+    Index nelems;
+    T alpha;
+};
+
 #ifdef NNTILE_USE_CBLAS
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
+    noexcept;
+
+template<typename T>
+void cpu2(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CBLAS
 
@@ -36,9 +48,13 @@ void cpu(void *buffers[], void *cl_args)
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept;
+
+template<typename T>
+void cuda2(void *buffers[], void *cl_args)
+    noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern Codelet codelet_fp32, codelet_fp64;
+extern Codelet codelet_fp32, codelet_fp64, codelet2_fp32, codelet2_fp64;
 
 template<typename T>
 constexpr Codelet *codelet()
@@ -59,6 +75,25 @@ constexpr Codelet *codelet<fp64_t>()
     return &codelet_fp64;
 }
 
+template<typename T>
+constexpr Codelet *codelet2()
+{
+    throw std::runtime_error("Non-supported type");
+    return nullptr;
+}
+
+template<>
+constexpr Codelet *codelet2<fp32_t>()
+{
+    return &codelet2_fp32;
+}
+
+template<>
+constexpr Codelet *codelet2<fp64_t>()
+{
+    return &codelet2_fp64;
+}
+
 void init();
 
 void restrict_where(uint32_t where);
@@ -67,6 +102,9 @@ void restore_where();
 
 template<typename T>
 void submit(Handle alpha, Index nelems, Handle src, Handle dst);
+
+template<typename T>
+void submit2(T alpha, Index nelems, Handle src, Handle dst);
 
 } // namespace axpy
 } // namespace starpu

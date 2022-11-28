@@ -30,6 +30,12 @@ void axpy_async(const Tensor<T> &alpha, const Tensor<T> &src,
 template<typename T>
 void axpy(const Tensor<T> &alpha, const Tensor<T> &src, const Tensor<T> &dst);
 
+template<typename T>
+void axpy2_async(T alpha, const Tensor<T> &src, const Tensor<T> &dst);
+
+template<typename T>
+void axpy2(T alpha, const Tensor<T> &src, const Tensor<T> &dst);
+
 } // namespace tensor
 } // namespace nntile
 

@@ -138,9 +138,9 @@ set(MODEL_HDR
     )
 
 set(OPTIMIZER_HDR
-    "nntile/optimizer.hh"
-    "nntile/optimizer/base.hh"
-    "nntile/optimizer/deep_linear.hh"
+    #"nntile/optimizer.hh"
+    #"nntile/optimizer/base.hh"
+    #"nntile/optimizer/deep_linear.hh"
     )
 
 set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR}

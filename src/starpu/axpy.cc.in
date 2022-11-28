@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-07
+ * @date 2022-11-23
  * */
 
 #include "nntile/starpu/axpy.hh"
@@ -67,6 +67,21 @@ void cpu(void *buffers[], void *cl_args)
     // Call corresponding CBLAS routine
     cblas(nelems, alpha[0], src, 1, dst, 1);
 }
+
+//! AXPY for contiguous matrices without padding through StarPU buffers
+template<typename T>
+void cpu2(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args2_t<T> *>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
+    // Call corresponding CBLAS routine
+    cblas(args->nelems, args->alpha, src, 1, dst, 1);
+}
 #endif // NNTILE_USE_CBLAS
 
 #ifdef NNTILE_USE_CUDA
@@ -107,9 +122,28 @@ void cuda(void *buffers[], void *cl_args)
     // Call corresponding cuBLAS routine
     cublas(handle, nelems, alpha, src, 1, dst, 1);
 }
+
+//! AXPY for contiguous matrices without padding through StarPU buffers
+template<typename T>
+void cuda2(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args2_t *>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
+    // Get cuBLAS handle and CUDA stream
+    cublasHandle_t handle = starpu_cublas_get_local_handle();
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    cublasSetStream(handle, stream);
+    // Call corresponding cuBLAS routine
+    cublas(handle, args->nelems, &(args->alpha), src, 1, dst, 1);
+}
 #endif //NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64;
+Codelet codelet_fp32, codelet_fp64, codelet2_fp32, codelet2_fp64;
 
 void init()
 {
@@ -139,18 +173,48 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
+    codelet2_fp32.init("nntile_axpy2_fp32",
+            nullptr,
+#ifdef NNTILE_USE_CBLAS
+            {cpu2<fp32_t>},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda2<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet2_fp64.init("nntile_axpy2_fp64",
+            nullptr,
+#ifdef NNTILE_USE_CBLAS
+            {cpu2<fp64_t>},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda2<fp64_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
 }
 
 void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
     codelet_fp64.restrict_where(where);
+    codelet2_fp32.restrict_where(where);
+    codelet2_fp64.restrict_where(where);
 }
 
 void restore_where()
 {
     codelet_fp32.restore_where();
     codelet_fp64.restore_where();
+    codelet2_fp32.restore_where();
+    codelet2_fp64.restore_where();
 }
 
 template<typename T>
@@ -193,6 +257,46 @@ void submit<fp32_t>(Handle alpha, Index nelems, Handle src, Handle dst);
 
 template
 void submit<fp64_t>(Handle alpha, Index nelems, Handle src, Handle dst);
+
+template<typename T>
+void submit2(T alpha, Index nelems, Handle src, Handle dst)
+{
+    // Check that matrix sizes fit proper types for underlying CBLAS
+#ifdef NNTILE_USE_CBLAS
+    if(static_cast<CBLAS_INT>(nelems) != nelems)
+    {
+        throw std::runtime_error("AXPY size N does not fit CBLAS_INT");
+    }
+#endif // NNTILE_USE_CBLAS
+    // Check that matrix sizes fit proper types for underlying CUBLAS
+#ifdef NNTILE_USE_CUDA
+    if(static_cast<int>(nelems) != nelems)
+    {
+        throw std::runtime_error("AXPY size N does not fit int");
+    }
+#endif // NNTILE_USE_CUDA
+    // Codelet arguments
+    auto cl_args = new args2_t<T>{nelems, alpha};
+    // Submit task
+    int ret = starpu_task_insert(codelet2<T>(),
+            STARPU_R, static_cast<starpu_data_handle_t>(src),
+            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
+            STARPU_CL_ARGS, cl_args, sizeof(*cl_args),
+            //STARPU_FLOPS, nflops,
+            0);
+    // Check submission
+    if(ret != 0)
+    {
+        throw std::runtime_error("Error in axpy2 task submission");
+    }
+}
+
+// Explicit instantiation
+template
+void submit2<fp32_t>(fp32_t alpha, Index nelems, Handle src, Handle dst);
+
+template
+void submit2<fp64_t>(fp64_t alpha, Index nelems, Handle src, Handle dst);
 
 } // namespace axpy
 } // namespace starpu
