@@ -81,10 +81,11 @@ int main(int argc, char **argv)
             w3_traits.grid.shape, mpi_grid, 0, mpi_size);
     params.reserve(n_linear);
     grads.reserve(n_linear);
-    tmps.reserve(n_linear);
+    tmps.reserve(n_linear+1);
     linear.reserve(n_linear);
     params.emplace_back(w1_traits, w1_distr, last_tag);
     grads.emplace_back(w1_traits, w1_distr, last_tag);
+    tmps.emplace_back(mnist_traits, tmp_distr, last_tag);
     tmps.emplace_back(tmp_traits, tmp_distr, last_tag);
     linear.emplace_back(mnist_traits, tmp_traits, params[0], grads[0]);
     for(Index i = 1; i < n_linear-1; ++i)
@@ -114,20 +115,21 @@ int main(int argc, char **argv)
     Index n_iter = 10;
     for(Index iter = 0; iter < n_iter; ++iter)
     {
+        tensor::copy_async<T>(mnist, tmps[0]);
         // Forward loop through layers
-        linear[0].forward_async(mnist, tmps[0]);
-        for(Index i = 1; i < n_linear; ++i)
+        for(Index i = 0; i < n_linear; ++i)
         {
-            linear[i].forward_async(tmps[i-1], tmps[i]);
+            linear[i].forward_async(tmps[i], tmps[i+1]);
         }
         // Subtract input out of output for gradient
-        tensor::axpy2<T>(-1.0, mnist, tmps[n_linear-1]);
+        tensor::axpy2_async<T>(-1.0, mnist, tmps[n_linear]);
         // Backward loop through layers
-        for(Index i = n_linear-1; i > 0; --i)
+        for(Index i = n_linear-1; i >= 0; --i)
         {
-            linear[i].backward_async(tmps[i-1], tmps[i], tmps[i-1]);
+            linear[i].backward_async(tmps[i], tmps[i+1], tmps[i]);
+            // Update parameters
+            tensor::axpy2_async<T>(-1e-5, grads[i], params[i]);
         }
-        linear[0].backward_async(mnist, tmps[0], tmps[n_linear-1]);
     }
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
