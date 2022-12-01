@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/tensor/axpy.cc
- * AXPY tfor wo Tensor<T>
+ * AXPY for two Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-23
+ * @date 2022-12-01
  * */
 
 #include "nntile/tensor/axpy.hh"
@@ -98,6 +98,15 @@ void axpy(const Tensor<T> &alpha, const Tensor<T> &src, const Tensor<T> &dst)
 
 // Explicit instantiation
 template
+void axpy_async<fp32_t>(const Tensor<fp32_t> &alpha, const Tensor<fp32_t> &src,
+        const Tensor<fp32_t> &dst);
+
+template
+void axpy_async<fp64_t>(const Tensor<fp64_t> &alpha, const Tensor<fp64_t> &src,
+        const Tensor<fp64_t> &dst);
+
+// Explicit instantiation
+template
 void axpy<fp32_t>(const Tensor<fp32_t> &alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
 
@@ -157,6 +166,15 @@ void axpy2(T alpha, const Tensor<T> &src, const Tensor<T> &dst)
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
+
+// Explicit instantiation
+template
+void axpy2_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
+        const Tensor<fp32_t> &dst);
+
+template
+void axpy2_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
+        const Tensor<fp64_t> &dst);
 
 // Explicit instantiation
 template

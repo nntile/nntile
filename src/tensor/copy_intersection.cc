@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-19
+ * @date 2022-12-01
  * */
 
 #include "nntile/tensor/copy_intersection.hh"
@@ -419,6 +419,17 @@ void copy_intersection(const Tensor<T> &src,
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
+
+// Explicit instantiation
+template
+void copy_intersection_async<fp32_t>(const Tensor<fp32_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<fp32_t> &dst,
+        const std::vector<Index> &dst_offset);
+
+template
+void copy_intersection_async<fp64_t>(const Tensor<fp64_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<fp64_t> &dst,
+        const std::vector<Index> &dst_offset);
 
 // Explicit instantiation
 template

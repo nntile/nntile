@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-12-01
  * */
 
 #include "nntile/tensor/gather.hh"
@@ -135,6 +135,15 @@ void gather(const Tensor<T> &src, const Tensor<T> &dst)
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
+
+// Explicit instantiation
+template
+void gather_async<fp32_t>(const Tensor<fp32_t> &src,
+        const Tensor<fp32_t> &dst);
+
+template
+void gather_async<fp64_t>(const Tensor<fp64_t> &src,
+        const Tensor<fp64_t> &dst);
 
 // Explicit instantiation
 template

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-12-01
  * */
 
 #include "nntile/tensor/gelutanh.hh"
@@ -52,6 +52,13 @@ void gelutanh(const Tensor<T> &A)
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
+
+// Explicit instantiation
+template
+void gelutanh_async<fp32_t>(const Tensor<fp32_t> &A);
+
+template
+void gelutanh_async<fp64_t>(const Tensor<fp64_t> &A);
 
 // Explicit instantiation
 template
