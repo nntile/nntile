@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-11-23
+# @date 2022-12-01
 
 # Set list of headers
 set(BASE_HDR
@@ -30,8 +30,8 @@ set(KERNEL_HDR
     "nntile/kernel/gelu/cpu.hh"
     "nntile/kernel/gelutanh.hh"
     "nntile/kernel/gelutanh/cpu.hh"
-    "nntile/kernel/norm.hh"
-    "nntile/kernel/norm/cpu.hh"
+    "nntile/kernel/hypot.hh"
+    "nntile/kernel/hypot/cpu.hh"
     "nntile/kernel/normalize.hh"
     "nntile/kernel/normalize/cpu.hh"
     "nntile/kernel/prod.hh"
@@ -54,7 +54,6 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/dgelutanh/cuda.hh"
         "nntile/kernel/gelu/cuda.hh"
         "nntile/kernel/gelutanh/cuda.hh"
-        "nntile/kernel/norm/cuda.hh"
         "nntile/kernel/normalize/cuda.hh"
         "nntile/kernel/prod/cuda.hh"
         "nntile/kernel/relu/cuda.hh"
@@ -72,6 +71,7 @@ set(STARPU_HDR
     "nntile/starpu/gemm.hh"
     "nntile/starpu/gelu.hh"
     "nntile/starpu/gelutanh.hh"
+    "nntile/starpu/nrm2.hh"
     "nntile/starpu/normalize.hh"
     "nntile/starpu/prod.hh"
     "nntile/starpu/randn.hh"
@@ -94,6 +94,7 @@ set(TILE_HDR
     "nntile/tile/gemm.hh"
     "nntile/tile/gelu.hh"
     "nntile/tile/gelutanh.hh"
+    "nntile/tile/norm.hh"
     "nntile/tile/normalize.hh"
     "nntile/tile/prod.hh"
     "nntile/tile/randn.hh"

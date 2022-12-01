@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-11-28
+# @date 2022-12-01
 
 # Set list of sources
 set(KERNEL_SRC
@@ -18,7 +18,7 @@ set(KERNEL_SRC
     "kernel/dgelutanh/cpu.cc"
     "kernel/gelu/cpu.cc"
     "kernel/gelutanh/cpu.cc"
-    "kernel/norm/cpu.cc"
+    "kernel/hypot/cpu.cc"
     "kernel/normalize/cpu.cc"
     "kernel/prod/cpu.cc"
     "kernel/randn/cpu.cc"
@@ -35,7 +35,6 @@ if(NNTILE_USE_CUDA)
         "kernel/dgelutanh/cuda.cu"
         "kernel/gelu/cuda.cu"
         "kernel/gelutanh/cuda.cu"
-        "kernel/norm/cuda.cu"
         "kernel/normalize/cuda.cu"
         "kernel/prod/cuda.cu"
         "kernel/relu/cuda.cu"
@@ -50,6 +49,7 @@ set(STARPU_SRC
     "starpu/dgelutanh.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/axpy.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"
+    "${CMAKE_CURRENT_BINARY_DIR}/starpu/nrm2.cc"
     "starpu/gelu.cc"
     "starpu/gelutanh.cc"
     "starpu/normalize.cc"

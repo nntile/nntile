@@ -124,6 +124,14 @@ configure_file("src/starpu/gemm.cc.in"
 configure_file("tests/starpu/gemm.cc.in"
     "${PROJECT_BINARY_DIR}/tests/starpu/gemm.cc" @ONLY)
 
+# Configure src/starpu/nrm2.cc that relies on cblas
+configure_file("src/starpu/nrm2.cc.in"
+    "${PROJECT_BINARY_DIR}/src/starpu/nrm2.cc" @ONLY)
+
+# Configure tests/starpu/nrm2.cc that relies on cblas
+configure_file("tests/starpu/nrm2.cc.in"
+    "${PROJECT_BINARY_DIR}/tests/starpu/nrm2.cc" @ONLY)
+
 # Check if code coverage report is needed
 if(BUILD_COVERAGE)
     # Tell user what we are doing here

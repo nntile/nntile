@@ -1,0 +1,193 @@
+/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+ *                           (Skoltech). All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file src/starpu/nrm2.cc.in
+ * NRM2 operation for StarPU buffers
+ *
+ * @version 1.0.0
+ * @author Aleksandr Mikhalev
+ * @date 2022-12-01
+ * */
+
+#include "nntile/starpu/nrm2.hh"
+
+#ifdef NNTILE_USE_CBLAS
+#   include <@CBLAS_H_NAME@>
+#   ifndef CBLAS_INT
+#       define CBLAS_INT @CBLAS_INT_TYPE@
+#   endif // CBLAS_INT
+#endif // NNTILE_USE_CBLAS
+
+#ifdef NNTILE_USE_CUDA
+#   include <cublas_v2.h>
+#   include <starpu_cublas_v2.h>
+#endif // NNTILE_USE_CUDA
+
+namespace nntile
+{
+namespace starpu
+{
+namespace nrm2
+{
+
+#ifdef NNTILE_USE_CBLAS
+// Overloaded call to CBLAS NRM2
+static inline
+void cblas(CBLAS_INT N, const fp32_t *X, CBLAS_INT incX, fp32_t *Y)
+    noexcept
+{
+    *Y = cblas_snrm2(N, X, incX);
+}
+
+// Overloaded call to CBLAS NRM2
+static inline
+void cblas(CBLAS_INT N, const fp64_t *X, CBLAS_INT incX, fp64_t *Y)
+    noexcept
+{
+    *Y = cblas_dnrm2(N, X, incX);
+}
+
+//! NRM2 for contiguous matrices without padding through StarPU buffers
+template<typename T>
+void cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
+    // Call corresponding CBLAS routine
+    cblas(nelems, src, 1, dst);
+}
+#endif // NNTILE_USE_CBLAS
+
+#ifdef NNTILE_USE_CUDA
+// Overloaded call to cuBLAS NRM2
+static inline
+void cublas(cublasHandle_t handle, int N, const fp32_t *X, int incX, fp32_t *Y)
+    noexcept
+{
+    cublasSnrm2(handle, N, X, incX, Y);
+}
+
+// Overloaded call to cuBLAS NRM2
+static inline
+void cublas(cublasHandle_t handle, int N, const fp64_t *X, int incX, fp64_t *Y)
+    noexcept
+{
+    cublasDnrm2(handle, N, X, incX, Y);
+}
+
+//! AXPY for contiguous matrices without padding through StarPU buffers
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
+    // Get cuBLAS handle and CUDA stream
+    cublasHandle_t handle = starpu_cublas_get_local_handle();
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    cublasSetStream(handle, stream);
+    // Call corresponding cuBLAS routine
+    cublas(handle, nelems, src, 1, dst);
+}
+#endif //NNTILE_USE_CUDA
+
+Codelet codelet_fp32, codelet_fp64;
+
+void init()
+{
+    codelet_fp32.init("nntile_nrm2_fp32",
+            nullptr,
+#ifdef NNTILE_USE_CBLAS
+            {cpu<fp32_t>},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_fp64.init("nntile_nrm2_fp64",
+            nullptr,
+#ifdef NNTILE_USE_CBLAS
+            {cpu<fp64_t>},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+}
+
+void restrict_where(uint32_t where)
+{
+    codelet_fp32.restrict_where(where);
+    codelet_fp64.restrict_where(where);
+}
+
+void restore_where()
+{
+    codelet_fp32.restore_where();
+    codelet_fp64.restore_where();
+}
+
+template<typename T>
+void submit(Index nelems, Handle src, Handle dst)
+{
+    // Check that matrix sizes fit proper types for underlying CBLAS
+#ifdef NNTILE_USE_CBLAS
+    if(static_cast<CBLAS_INT>(nelems) != nelems)
+    {
+        throw std::runtime_error("NRM2 size N does not fit CBLAS_INT");
+    }
+#endif // NNTILE_USE_CBLAS
+    // Check that matrix sizes fit proper types for underlying CUBLAS
+#ifdef NNTILE_USE_CUDA
+    if(static_cast<int>(nelems) != nelems)
+    {
+        throw std::runtime_error("NRM2 size N does not fit int");
+    }
+#endif // NNTILE_USE_CUDA
+    // Codelet arguments
+    Index *nelems_ = new Index{nelems};
+    // Submit task
+    int ret = starpu_task_insert(codelet<T>(),
+            STARPU_R, static_cast<starpu_data_handle_t>(src),
+            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
+            STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
+            //STARPU_FLOPS, nflops,
+            0);
+    // Check submission
+    if(ret != 0)
+    {
+        throw std::runtime_error("Error in nrm2 task submission");
+    }
+}
+
+// Explicit instantiation
+template
+void submit<fp32_t>(Index nelems, Handle src, Handle dst);
+
+template
+void submit<fp64_t>(Index nelems, Handle src, Handle dst);
+
+} // namespace nrm2
+} // namespace starpu
+} // namespace nntile
+

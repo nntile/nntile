@@ -26,6 +26,7 @@
 #include <nntile/starpu/dgelu.hh>
 #include <nntile/starpu/dgelutanh.hh>
 #include <nntile/starpu/gemm.hh>
+#include <nntile/starpu/nrm2.hh>
 #include <nntile/starpu/normalize.hh>
 #include <nntile/starpu/randn.hh>
 #include <nntile/starpu/relu.hh>
@@ -51,6 +52,7 @@ void init()
     dgelu::init();
     dgelutanh::init();
     gemm::init();
+    nrm2::init();
     normalize::init();
     randn::init();
     relu::init();
@@ -69,6 +71,7 @@ void restrict_where(uint32_t where)
     dgelu::restrict_where(where);
     dgelutanh::restrict_where(where);
     gemm::restrict_where(where);
+    nrm2::restrict_where(where);
     normalize::restrict_where(where);
     randn::restrict_where(where);
     relu::restrict_where(where);
@@ -87,6 +90,7 @@ void restore_where()
     dgelu::restore_where();
     dgelutanh::restore_where();
     gemm::restore_where();
+    nrm2::restore_where();
     normalize::restore_where();
     randn::restore_where();
     relu::restore_where();
