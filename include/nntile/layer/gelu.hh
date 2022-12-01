@@ -15,6 +15,7 @@
 #pragma once
 
 #include <nntile/layer/base.hh>
+#include <nntile/tensor.hh>
 
 namespace nntile
 {
@@ -23,17 +24,17 @@ namespace layer
 
 //! GeLU layer
 template<typename T>
-class GeLU: Base<T>
+class GeLU: public Base<T>
 {
 public:
-    void forward_async(const tensor::Tensor<T> &input,
+    virtual void forward_async(const tensor::Tensor<T> &input,
             const tensor::Tensor<T> &output) const
     {
         tensor::copy_async<T>(input, output);
         input.wont_use();
         tensor::gelu_async<T>(output);
     }
-    void backward_async(const tensor::Tensor<T> &input,
+    virtual void backward_async(const tensor::Tensor<T> &input,
             const tensor::Tensor<T> &dldx_input,
             const tensor::Tensor<T> &dldx_output) const
     {

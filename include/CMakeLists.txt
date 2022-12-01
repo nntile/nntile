@@ -94,7 +94,6 @@ set(TILE_HDR
     "nntile/tile/gemm.hh"
     "nntile/tile/gelu.hh"
     "nntile/tile/gelutanh.hh"
-    "nntile/tile/norm.hh"
     "nntile/tile/normalize.hh"
     "nntile/tile/prod.hh"
     "nntile/tile/randn.hh"
@@ -129,7 +128,7 @@ set(TENSOR_HDR
 set(LAYER_HDR
     "nntile/layer.hh"
     "nntile/layer/base.hh"
-    #"nntile/layer/gelu.hh"
+    "nntile/layer/gelu.hh"
     #"nntile/layer/gelutanh.hh"
     "nntile/layer/linear.hh"
     #"nntile/layer/mlp.hh"
