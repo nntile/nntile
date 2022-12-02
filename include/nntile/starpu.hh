@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-25
+ * @date 2022-12-02
  * */
 
 #pragma once
@@ -26,6 +26,7 @@
 #include <nntile/starpu/dgelu.hh>
 #include <nntile/starpu/dgelutanh.hh>
 #include <nntile/starpu/gemm.hh>
+#include <nntile/starpu/hypot.hh>
 #include <nntile/starpu/nrm2.hh>
 #include <nntile/starpu/normalize.hh>
 #include <nntile/starpu/randn.hh>
@@ -52,6 +53,7 @@ void init()
     dgelu::init();
     dgelutanh::init();
     gemm::init();
+    hypot::init();
     nrm2::init();
     normalize::init();
     randn::init();
@@ -71,6 +73,7 @@ void restrict_where(uint32_t where)
     dgelu::restrict_where(where);
     dgelutanh::restrict_where(where);
     gemm::restrict_where(where);
+    hypot::restrict_where(where);
     nrm2::restrict_where(where);
     normalize::restrict_where(where);
     randn::restrict_where(where);
@@ -90,6 +93,7 @@ void restore_where()
     dgelu::restore_where();
     dgelutanh::restore_where();
     gemm::restore_where();
+    hypot::restore_where();
     nrm2::restore_where();
     normalize::restore_where();
     randn::restore_where();

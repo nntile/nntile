@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-12-01
+# @date 2022-12-02
 
 # Set list of sources
 set(KERNEL_SRC
@@ -52,6 +52,7 @@ set(STARPU_SRC
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/nrm2.cc"
     "starpu/gelu.cc"
     "starpu/gelutanh.cc"
+    "starpu/hypot.cc"
     "starpu/normalize.cc"
     "starpu/prod.cc"
     "starpu/randn.cc"
@@ -72,6 +73,7 @@ set(TILE_SRC
     "tile/gemm.cc"
     "tile/gelu.cc"
     "tile/gelutanh.cc"
+    "tile/nrm2.cc"
     "tile/normalize.cc"
     "tile/prod.cc"
     "tile/randn.cc"
@@ -93,6 +95,7 @@ set(TENSOR_SRC
     "tensor/gemm.cc"
     "tensor/gelu.cc"
     "tensor/gelutanh.cc"
+    "tensor/nrm2.cc"
     "tensor/normalize.cc"
     "tensor/prod.cc"
     "tensor/randn.cc"

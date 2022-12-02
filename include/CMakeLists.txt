@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-12-01
+# @date 2022-12-02
 
 # Set list of headers
 set(BASE_HDR
@@ -71,6 +71,7 @@ set(STARPU_HDR
     "nntile/starpu/gemm.hh"
     "nntile/starpu/gelu.hh"
     "nntile/starpu/gelutanh.hh"
+    "nntile/starpu/hypot.hh"
     "nntile/starpu/nrm2.hh"
     "nntile/starpu/normalize.hh"
     "nntile/starpu/prod.hh"
@@ -94,6 +95,7 @@ set(TILE_HDR
     "nntile/tile/gemm.hh"
     "nntile/tile/gelu.hh"
     "nntile/tile/gelutanh.hh"
+    "nntile/tile/nrm2.hh"
     "nntile/tile/normalize.hh"
     "nntile/tile/prod.hh"
     "nntile/tile/randn.hh"
@@ -117,6 +119,7 @@ set(TENSOR_HDR
     "nntile/tensor/gemm.hh"
     "nntile/tensor/gelu.hh"
     "nntile/tensor/gelutanh.hh"
+    "nntile/tensor/nrm2.hh"
     "nntile/tensor/normalize.hh"
     "nntile/tensor/prod.hh"
     "nntile/tensor/randn.hh"
