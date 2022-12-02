@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-12-02
  * */
 
 #include "nntile/tile/randn.hh"
@@ -100,6 +100,19 @@ void randn(const Tile<T> &dst, const std::vector<Index> &start,
     randn_async<T>(dst, start, underlying_shape, seed, mean, stddev);
     starpu_task_wait_for_all();
 }
+
+// Explicit instantiation
+template
+void randn_async<fp32_t>(const Tile<fp32_t> &dst,
+        const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        fp32_t mean, fp32_t stddev);
+
+template
+void randn_async<fp64_t>(const Tile<fp64_t> &dst,
+        const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        fp64_t mean, fp64_t stddev);
 
 // Explicit instantiation
 template

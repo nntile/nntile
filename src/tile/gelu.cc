@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-26
+ * @date 2022-12-02
  * */
 
 #include "nntile/tile/gelu.hh"
@@ -39,6 +39,13 @@ void gelu(const Tile<T> &A)
     gelu_async<T>(A);
     starpu_task_wait_for_all();
 }
+
+// Explicit instantiation
+template
+void gelu_async<fp32_t>(const Tile<fp32_t> &A);
+
+template
+void gelu_async<fp64_t>(const Tile<fp64_t> &A);
 
 // Explicit instantiation
 template

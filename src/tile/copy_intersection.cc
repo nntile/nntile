@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-19
+ * @date 2022-12-02
  * */
 
 #include "nntile/tile/copy_intersection.hh"
@@ -140,6 +140,17 @@ void copy_intersection(const Tile<T> &src,
     copy_intersection_async<T>(src, src_offset, dst, dst_offset, scratch);
     starpu_task_wait_for_all();
 }
+
+// Explicit instantiation
+template
+void copy_intersection_async<fp32_t>(const Tile<fp32_t> &src,
+        const std::vector<Index> &src_offset, const Tile<fp32_t> &dst,
+        const std::vector<Index> &dst_offset, const Tile<Index> &scratch);
+
+template
+void copy_intersection_async<fp64_t>(const Tile<fp64_t> &src,
+        const std::vector<Index> &src_offset, const Tile<fp64_t> &dst,
+        const std::vector<Index> &dst_offset, const Tile<Index> &scratch);
 
 // Explicit instantiation
 template

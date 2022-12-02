@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-12-02
  * */
 
 #include "nntile/tile/sumnorm.hh"
@@ -94,6 +94,15 @@ void sumnorm(const Tile<T> &src, const Tile<T> &dst, Index axis)
     sumnorm_async<T>(src, dst, axis);
     starpu_task_wait_for_all();
 }
+
+// Explicit instantiation
+template
+void sumnorm_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst,
+        Index axis);
+
+template
+void sumnorm_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst,
+        Index axis);
 
 // Explicit instantiation
 template

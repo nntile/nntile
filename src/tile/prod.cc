@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-08
+ * @date 2022-12-02
  * */
 
 #include "nntile/tile/prod.hh"
@@ -46,6 +46,13 @@ void prod(const Tile<T> &src, const Tile<T> &dst)
     prod_async<T>(src, dst);
     starpu_task_wait_for_all();
 }
+
+// Explicit instantiation
+template
+void prod_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
+
+template
+void prod_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 // Explicit instantiation
 template

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-12-02
  * */
 
 #include "nntile/tile/gemm.hh"
@@ -293,6 +293,19 @@ void gemm(T alpha, const TransOp &transA, const Tile<T> &A,
     gemm_async<T>(alpha, transA, A, transB, B, beta, C, ndim);
     starpu_task_wait_for_all();
 }
+
+// Explicit instantiation
+template
+void gemm_async<fp32_t>(fp32_t alpha, const TransOp &transA,
+        const Tile<fp32_t> &A,
+        const TransOp &transB, const Tile<fp32_t> &B, fp32_t beta,
+        const Tile<fp32_t> &C, Index ndim);
+
+template
+void gemm_async<fp64_t>(fp64_t alpha, const TransOp &transA,
+        const Tile<fp64_t> &A,
+        const TransOp &transB, const Tile<fp64_t> &B, fp64_t beta,
+        const Tile<fp64_t> &C, Index ndim);
 
 // Explicit instantiation
 template

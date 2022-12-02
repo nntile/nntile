@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2022-12-02
  * */
 
 #include "nntile/tile/copy.hh"
@@ -56,6 +56,13 @@ void copy(const Tile<T> &src, const Tile<T> &dst)
     copy_async<T>(src, dst);
     starpu_task_wait_for_all();
 }
+
+// Explicit instantiation
+template
+void copy_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
+
+template
+void copy_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 // Explicit instantiation
 template

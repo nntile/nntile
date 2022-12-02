@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-23
+ * @date 2022-12-02
  * */
 
 #include "nntile/tile/axpy.hh"
@@ -53,6 +53,15 @@ void axpy(const Tile<T> &alpha, const Tile<T> &src, const Tile<T> &dst)
 
 // Explicit instantiation
 template
+void axpy_async<fp32_t>(const Tile<fp32_t> &alpha, const Tile<fp32_t> &src,
+        const Tile<fp32_t> &dst);
+
+template
+void axpy_async<fp64_t>(const Tile<fp64_t> &alpha, const Tile<fp64_t> &src,
+        const Tile<fp64_t> &dst);
+
+// Explicit instantiation
+template
 void axpy<fp32_t>(const Tile<fp32_t> &alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst);
 
@@ -86,6 +95,15 @@ void axpy2(T alpha, const Tile<T> &src, const Tile<T> &dst)
     axpy2_async<T>(alpha, src, dst);
     starpu_task_wait_for_all();
 }
+
+// Explicit instantiation
+template
+void axpy2_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src,
+        const Tile<fp32_t> &dst);
+
+template
+void axpy2_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src,
+        const Tile<fp64_t> &dst);
 
 // Explicit instantiation
 template

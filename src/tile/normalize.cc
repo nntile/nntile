@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-03
+ * @date 2022-12-02
  * */
 
 #include "nntile/tile/normalize.hh"
@@ -115,6 +115,17 @@ void normalize(const Tile<T> &gamma_beta, const Tile<T> &src,
     normalize_async<T>(gamma_beta, src, dst, l, eps, axis);
     starpu_task_wait_for_all();
 }
+
+// Explicit instantiation
+template
+void normalize_async<fp32_t>(const Tile<fp32_t> &gamma_beta,
+        const Tile<fp32_t> &src,
+        const Tile<fp32_t> &dst, Index l, fp32_t eps, Index axis);
+
+template
+void normalize_async<fp64_t>(const Tile<fp64_t> &gamma_beta,
+        const Tile<fp64_t> &src,
+        const Tile<fp64_t> &dst, Index l, fp64_t eps, Index axis);
 
 // Explicit instantiation
 template
