@@ -23,7 +23,7 @@ namespace tensor
 
 //! Compute Euclidian norm
 template<typename T>
-void nrm_async(const Tensor<T> &src, const Tensor<T> &dst,
+void nrm2_async(const Tensor<T> &src, const Tensor<T> &dst,
         const Tensor<T> &tmp);
 
 template<typename T>

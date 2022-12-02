@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-08
+ * @date 2022-12-02
  * */
 
 #pragma once
@@ -31,6 +31,7 @@
 #include <nntile/tensor/dgelu.hh>
 #include <nntile/tensor/dgelutanh.hh>
 #include <nntile/tensor/gemm.hh>
+#include <nntile/tensor/nrm2.hh>
 #include <nntile/tensor/normalize.hh>
 #include <nntile/tensor/prod.hh>
 #include <nntile/tensor/randn.hh>

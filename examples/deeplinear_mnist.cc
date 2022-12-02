@@ -47,7 +47,7 @@ int main(int argc, char **argv)
             << " " << mnist_pixels << "\n";
         for(Index i = 0; i < mnist_pixels; ++i)
         {
-            ptr[i] = T{0};//static_cast<T>(mnist_single_buffer[i]);
+            ptr[i] = static_cast<T>(mnist_single_buffer[i]);
         }
         tile_local.release();
         // Clear MNIST byte buffer
@@ -113,6 +113,10 @@ int main(int argc, char **argv)
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
     // Iterate
     Index n_iter = 10;
+    tensor::TensorTraits loss_traits({}, {}),
+                 tmp_loss_traits(mnist_traits.grid.shape, {1, 1});
+    tensor::Tensor<T> loss(loss_traits, distr_root, last_tag);
+    tensor::Tensor<T> tmp_loss(tmp_loss_traits, mnist_distr, last_tag);
     for(Index iter = 0; iter < n_iter; ++iter)
     {
         tensor::copy_async<T>(mnist, tmps[0]);
@@ -123,12 +127,20 @@ int main(int argc, char **argv)
         }
         // Subtract input out of output for gradient
         tensor::axpy2_async<T>(-1.0, mnist, tmps[n_linear]);
+        // Get loss
+        tensor::nrm2_async<T>(tmps[n_linear], loss, tmp_loss);
         // Backward loop through layers
         for(Index i = n_linear-1; i >= 0; --i)
         {
             linear[i].backward_async(tmps[i], tmps[i+1], tmps[i]);
             // Update parameters
-            tensor::axpy2_async<T>(-1e-5, grads[i], params[i]);
+            tensor::axpy2_async<T>(-1e-20, grads[i], params[i]);
+        }
+        if(mpi_rank == mpi_root)
+        {
+            auto loss_local = loss.get_tile(0).acquire(STARPU_R);
+            std::cout << "iter=" << iter << " loss=" << loss_local[0] << "\n";
+            loss_local.release();
         }
     }
     starpu_task_wait_for_all();
