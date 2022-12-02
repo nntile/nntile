@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-10-26
+# @date 2022-12-02
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -34,6 +34,7 @@ set(TESTS_MPI
     "dgelutanh"
     "relu"
     "sumnorm"
+    "nrm2"
     "normalize"
     "prod"
     )
