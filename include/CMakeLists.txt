@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-12-02
+# @date 2022-12-07
 
 # Set list of headers
 set(BASE_HDR
@@ -44,6 +44,8 @@ set(KERNEL_HDR
     "nntile/kernel/subcopy/cpu.hh"
     "nntile/kernel/sumnorm.hh"
     "nntile/kernel/sumnorm/cpu.hh"
+    "nntile/kernel/maxsumexp.hh"
+    "nntile/kernel/maxsumexp/cpu.hh"
     )
 
 if(NNTILE_USE_CUDA)
@@ -58,6 +60,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/prod/cuda.hh"
         "nntile/kernel/relu/cuda.hh"
         "nntile/kernel/sumnorm/cuda.hh"
+        "nntile/kernel/maxsumexp/cuda.hh"
         )
 endif()
 

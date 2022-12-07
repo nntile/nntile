@@ -2,6 +2,7 @@
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include <cmath>
 
 using namespace nntile;
 using T = fp32_t;
@@ -63,14 +64,19 @@ int main(int argc, char **argv)
     tensor::Tensor<T> mnist(mnist_traits, mnist_distr, last_tag);
     tensor::scatter<T>(mnist_single, mnist);
     // Set the deep linear network
-    Index n_linear = 4;
+    Index n_linear = 8;
     std::vector<layer::Linear<T>> linear;
     std::vector<tensor::Tensor<T>> params, grads, tmps;
+//    tensor::TensorTraits
+//        tmp_traits({4*n_pixels, n_images}, {4*n_pixels_tile, n_images_tile}),
+//        w1_traits({4*n_pixels, n_pixels}, {4*n_pixels_tile, n_pixels_tile}),
+//        w2_traits({4*n_pixels, 4*n_pixels}, {4*n_pixels_tile, 4*n_pixels_tile}),
+//        w3_traits({n_pixels, 4*n_pixels}, {n_pixels_tile, 4*n_pixels_tile});
     tensor::TensorTraits
-        tmp_traits({4*n_pixels, n_images}, {4*n_pixels_tile, n_images_tile}),
-        w1_traits({4*n_pixels, n_pixels}, {4*n_pixels_tile, n_pixels_tile}),
-        w2_traits({4*n_pixels, 4*n_pixels}, {4*n_pixels_tile, 4*n_pixels_tile}),
-        w3_traits({n_pixels, 4*n_pixels}, {n_pixels_tile, 4*n_pixels_tile});
+        tmp_traits({n_pixels, n_images}, {n_pixels_tile, n_images_tile}),
+        w1_traits({n_pixels, n_pixels}, {n_pixels_tile, n_pixels_tile}),
+        w2_traits({n_pixels, n_pixels}, {n_pixels_tile, n_pixels_tile}),
+        w3_traits({n_pixels, n_pixels}, {n_pixels_tile, n_pixels_tile});
     std::vector<int> tmp_distr = tensor::distributions::block_cyclic(
             tmp_traits.grid.shape, mpi_grid, 0, mpi_size),
         w1_distr = tensor::distributions::block_cyclic(
@@ -101,7 +107,7 @@ int main(int argc, char **argv)
     linear.emplace_back(tmp_traits, mnist_traits, params[n_linear-1],
             grads[n_linear-1]);
     // Init linear layers
-    T mean = 0.0, stddev = 1.0;
+    T mean = 0.0, stddev = 1.0 / std::sqrt(T(n_pixels));
     unsigned long long seed = -1;
     for(Index i = 0; i < n_linear; ++i)
     {
@@ -134,7 +140,7 @@ int main(int argc, char **argv)
         {
             linear[i].backward_async(tmps[i], tmps[i+1], tmps[i]);
             // Update parameters
-            tensor::axpy2_async<T>(-1e-20, grads[i], params[i]);
+            tensor::axpy2_async<T>(-1e-10, grads[i], params[i]);
         }
         if(mpi_rank == mpi_root)
         {

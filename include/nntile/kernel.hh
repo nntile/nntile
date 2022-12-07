@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-02
+ * @date 2022-12-07
  * */
 
 #pragma once
@@ -26,6 +26,7 @@
 #include <nntile/kernel/relu.hh>
 #include <nntile/kernel/subcopy.hh>
 #include <nntile/kernel/sumnorm.hh>
+#include <nntile/kernel/maxsumexp.hh>
 
 namespace nntile
 {

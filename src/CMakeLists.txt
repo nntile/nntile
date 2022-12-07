@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-12-02
+# @date 2022-12-07
 
 # Set list of sources
 set(KERNEL_SRC
@@ -25,6 +25,7 @@ set(KERNEL_SRC
     "kernel/relu/cpu.cc"
     "kernel/subcopy/cpu.cc"
     "kernel/sumnorm/cpu.cc"
+    "kernel/maxsumexp/cpu.cc"
     )
 
 if(NNTILE_USE_CUDA)
@@ -39,6 +40,7 @@ if(NNTILE_USE_CUDA)
         "kernel/prod/cuda.cu"
         "kernel/relu/cuda.cu"
         "kernel/sumnorm/cuda.cu"
+        "kernel/maxsumexp/cuda.cu"
         )
 endif()
 

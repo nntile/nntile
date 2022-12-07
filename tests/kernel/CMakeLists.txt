@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-12-01
+# @date 2022-12-07
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -25,6 +25,7 @@ set(TESTS
     "hypot"
     "normalize"
     "prod"
+    "maxsumexp"
     )
 
 # Setup a target for coverage of kernels
