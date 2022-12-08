@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-12-02
+# @date 2022-12-08
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -31,6 +31,7 @@ set(TESTS
     "relu"
     "sumnorm"
     "prod"
+    "maxsumexp"
     )
 
 # Add target for local coverage
