@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-12-07
+# @date 2022-12-08
 
 # Set list of sources
 set(KERNEL_SRC
@@ -61,6 +61,7 @@ set(STARPU_SRC
     "starpu/relu.cc"
     "starpu/subcopy.cc"
     "starpu/sumnorm.cc"
+    "starpu/maxsumexp.cc"
     )
 
 set(TILE_SRC

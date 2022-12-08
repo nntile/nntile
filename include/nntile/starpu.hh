@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-02
+ * @date 2022-12-08
  * */
 
 #pragma once
@@ -33,6 +33,7 @@
 #include <nntile/starpu/relu.hh>
 #include <nntile/starpu/subcopy.hh>
 #include <nntile/starpu/sumnorm.hh>
+#include <nntile/starpu/maxsumexp.hh>
 
 namespace nntile
 {
@@ -60,6 +61,7 @@ void init()
     relu::init();
     subcopy::init();
     sumnorm::init();
+    maxsumexp::init();
 }
 
 // Restrict StarPU codelets to certain computational units
@@ -80,6 +82,7 @@ void restrict_where(uint32_t where)
     relu::restrict_where(where);
     subcopy::restrict_where(where);
     sumnorm::restrict_where(where);
+    maxsumexp::restrict_where(where);
 }
 
 // Restore computational units for StarPU codelets
@@ -100,6 +103,7 @@ void restore_where()
     relu::restore_where();
     subcopy::restore_where();
     sumnorm::restore_where();
+    maxsumexp::restore_where();
 }
 
 } // namespace starpu

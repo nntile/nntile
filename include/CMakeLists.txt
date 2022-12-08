@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-12-07
+# @date 2022-12-08
 
 # Set list of headers
 set(BASE_HDR
@@ -82,6 +82,7 @@ set(STARPU_HDR
     "nntile/starpu/relu.hh"
     "nntile/starpu/subcopy.hh"
     "nntile/starpu/sumnorm.hh"
+    "nntile/starpu/maxsumexp.hh"
     )
 
 set(TILE_HDR
