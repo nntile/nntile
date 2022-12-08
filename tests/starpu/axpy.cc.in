@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-01
+ * @date 2022-12-08
  * */
 
 #include "nntile/starpu/axpy.hh"
@@ -100,20 +100,20 @@ void validate_cpu_many()
 #ifdef NNTILE_USE_CUDA
 // Overloaded call to cuBLAS AXPY
 static inline
-void cublas_axpy(cublasHandle_t handle, int N, fp32_t alpha, const fp32_t *X,
+void cublas_axpy(cublasHandle_t handle, int N, fp32_t *alpha, const fp32_t *X,
         int incX, fp32_t *Y, int incY)
     noexcept
 {
-    cublasSaxpy(handle, N, &alpha, X, incX, Y, incY);
+    cublasSaxpy(handle, N, alpha, X, incX, Y, incY);
 }
 
 // Overloaded call to cuBLAS AXPY
 static inline
-void cublas_axpy(cublasHandle_t handle, int N, fp64_t alpha, const fp64_t *X,
+void cublas_axpy(cublasHandle_t handle, int N, fp64_t *alpha, const fp64_t *X,
         int incX, fp64_t *Y, int incY)
     noexcept
 {
-    cublasDaxpy(handle, N, &alpha, X, incX, Y, incY);
+    cublasDaxpy(handle, N, alpha, X, incX, Y, incY);
 }
 
 template<typename T>
@@ -156,8 +156,9 @@ void validate_cuda(Index nelems, T alpha)
     cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*nelems,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run cblas_axpy<T>\n";
-    cublas_axpy(cublas, nelems, alpha, dev_src, 1, dev_dst, 1);
+    std::cout << "Run cublas_axpy<T>\n";
+    cublasSetPointerMode(cublas, CUBLAS_POINTER_MODE_HOST);
+    cublas_axpy(cublas, nelems, &alpha, dev_src, 1, dev_dst, 1);
     // Wait for result and destroy cublas handle and stream
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);

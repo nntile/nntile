@@ -70,6 +70,7 @@ public:
         if(cublas != 0)
         {
             starpu_cublas_init();
+            std::cout << "Initialized cuBLAS\n";
         }
 #endif // NNTILE_USE_CUDA
     }

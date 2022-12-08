@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-07
+ * @date 2022-12-08
  * */
 
 #include "nntile/kernel/maxsumexp/cuda.hh"
@@ -66,8 +66,8 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, const T *src,
                 }
             }
             // Save result
-            sumnorm[dst_offset] = max;
-            sumnorm[dst_offset+1] = sum;
+            maxsumexp[dst_offset] = max;
+            maxsumexp[dst_offset+1] = sum;
         }
     }
 }
@@ -87,9 +87,9 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
  *      maxsumexp[1,i,j] = old[1,i,j]*exp(old[0,i,j]-maxsumexp[0,i,j])
  *          + sum(exp(src[i,:,j]-maxsumexp[0,i,j])))
  *
- * @param[in] m: Size of the first mode of src and the second mode of sumnorm
+ * @param[in] m: Size of the first mode of src and the second mode of maxsumexp
  *      arrays.
- * @param[in] n: Size of the last mode of src and sumnorm arrays
+ * @param[in] n: Size of the last mode of src and maxsumexp arrays
  * @param[in] k: Size of the middle mode of src array
  * @param[in] src: Input contiguous m-by-k-by-n array
  * @param[inout] maxsumexp: Output contiguous 2-by-m-by-n array, that accumulates

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-23
+ * @date 2022-12-08
  * */
 
 #include "nntile/starpu/axpy.hh"
@@ -91,7 +91,7 @@ void cublas(cublasHandle_t handle, int N, const fp32_t *alpha, const fp32_t *X,
         int incX, fp32_t *Y, int incY)
     noexcept
 {
-    cublasSgemm(handle, N, alpha, X, incX, Y, incY);
+    cublasSaxpy(handle, N, alpha, X, incX, Y, incY);
 }
 
 // Overloaded call to cuBLAS AXPY
@@ -100,7 +100,7 @@ void cublas(cublasHandle_t handle, int N, const fp64_t *alpha, const fp64_t *X,
         int incX, fp64_t *Y, int incY)
     noexcept
 {
-    cublasDgemm(handle, N, alpha, X, incX, Y, incY);
+    cublasDaxpy(handle, N, alpha, X, incX, Y, incY);
 }
 
 //! AXPY for contiguous matrices without padding through StarPU buffers
@@ -119,6 +119,7 @@ void cuda(void *buffers[], void *cl_args)
     cublasHandle_t handle = starpu_cublas_get_local_handle();
     cudaStream_t stream = starpu_cuda_get_local_stream();
     cublasSetStream(handle, stream);
+    cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_DEVICE);
     // Call corresponding cuBLAS routine
     cublas(handle, nelems, alpha, src, 1, dst, 1);
 }
@@ -129,7 +130,7 @@ void cuda2(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<args2_t *>(cl_args);
+    auto args = reinterpret_cast<args2_t<T> *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
@@ -138,6 +139,7 @@ void cuda2(void *buffers[], void *cl_args)
     cublasHandle_t handle = starpu_cublas_get_local_handle();
     cudaStream_t stream = starpu_cuda_get_local_stream();
     cublasSetStream(handle, stream);
+    cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
     // Call corresponding cuBLAS routine
     cublas(handle, args->nelems, &(args->alpha), src, 1, dst, 1);
 }

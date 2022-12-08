@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-01
+ * @date 2022-12-08
  * */
 
 #include "nntile/starpu/nrm2.hh"
@@ -56,7 +56,7 @@ void validate_cpu(Index nelems)
     std::vector<T> src(nelems), norm(1);
     for(Index i = 0; i < nelems; ++i)
     {
-        src[i] = T(i);
+        src[i] = T(i+1);
     }
     // Create copy of norm
     std::vector<T> norm2(norm);
@@ -98,8 +98,8 @@ void cublas_nrm2(cublasHandle_t handle, int N, const fp32_t *X, int incX,
 
 // Overloaded call to cuBLAS NRM2
 static inline
-void cublas_nrm2(cublasHandle_t handle, int N, fp64_t alpha, const fp64_t *X,
-        int incX, fp64_t *Y, int incY)
+void cublas_nrm2(cublasHandle_t handle, int N, const fp64_t *X, int incX,
+        fp64_t *Y)
     noexcept
 {
     cublasDnrm2(handle, N, X, incX, Y);
@@ -128,7 +128,7 @@ void validate_cuda(Index nelems)
     std::vector<T> src(nelems), norm(1);
     for(Index i = 0; i < nelems; ++i)
     {
-        src[i] = T(i);
+        src[i] = T(i+1);
     }
     // Create copy of dst
     std::vector<T> norm2(norm);
@@ -136,13 +136,12 @@ void validate_cuda(Index nelems)
     T *dev_src, *dev_norm;
     cuda_err = cudaMalloc(&dev_src, sizeof(T)*nelems);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_norm, sizeof(T));
-    TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*nelems,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
     std::cout << "Run cublas_nrm2<T>\n";
-    cublas_nrm2(cublas, nelems, dev_src, 1, dev_norm);
+    cublasSetPointerMode(cublas, CUBLAS_POINTER_MODE_HOST);
+    cublas_nrm2(cublas, nelems, dev_src, 1, &norm[0]);
     // Wait for result and destroy cublas handle and stream
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
@@ -150,14 +149,8 @@ void validate_cuda(Index nelems)
     TEST_ASSERT(cublas_err == CUBLAS_STATUS_SUCCESS)
     cuda_err = cudaStreamDestroy(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    // Copy result back to CPU
-    cuda_err = cudaMemcpy(&norm[0], dev_norm, sizeof(T),
-            cudaMemcpyDeviceToHost);
-    TEST_ASSERT(cuda_err == cudaSuccess);
     // Deallocate CUDA memory
     cuda_err = cudaFree(dev_src);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaFree(dev_norm);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*nelems, STARPU_R),
