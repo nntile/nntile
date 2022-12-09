@@ -26,6 +26,7 @@ set(KERNEL_SRC
     "kernel/subcopy/cpu.cc"
     "kernel/sumnorm/cpu.cc"
     "kernel/maxsumexp/cpu.cc"
+    "kernel/softmax/cpu.cc"
     )
 
 if(NNTILE_USE_CUDA)
@@ -41,6 +42,7 @@ if(NNTILE_USE_CUDA)
         "kernel/relu/cuda.cu"
         "kernel/sumnorm/cuda.cu"
         "kernel/maxsumexp/cuda.cu"
+        "kernel/softmax/cuda.cu"
         )
 endif()
 

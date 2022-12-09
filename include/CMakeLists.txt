@@ -46,6 +46,8 @@ set(KERNEL_HDR
     "nntile/kernel/sumnorm/cpu.hh"
     "nntile/kernel/maxsumexp.hh"
     "nntile/kernel/maxsumexp/cpu.hh"
+    "nntile/kernel/softmax.hh"
+    "nntile/kernel/softmax/cpu.hh"
     )
 
 if(NNTILE_USE_CUDA)
@@ -61,6 +63,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/relu/cuda.hh"
         "nntile/kernel/sumnorm/cuda.hh"
         "nntile/kernel/maxsumexp/cuda.hh"
+        "nntile/kernel/softmax/cuda.hh"
         )
 endif()
 
