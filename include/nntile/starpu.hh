@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-08
+ * @date 2022-12-09
  * */
 
 #pragma once
@@ -34,6 +34,7 @@
 #include <nntile/starpu/subcopy.hh>
 #include <nntile/starpu/sumnorm.hh>
 #include <nntile/starpu/maxsumexp.hh>
+#include <nntile/starpu/softmax.hh>
 
 namespace nntile
 {
