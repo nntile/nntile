@@ -110,6 +110,7 @@ set(TILE_HDR
     "nntile/tile/relu.hh"
     "nntile/tile/sumnorm.hh"
     "nntile/tile/maxsumexp.hh"
+    "nntile/tile/softmax.hh"
     )
 
 set(TENSOR_HDR
@@ -136,6 +137,7 @@ set(TENSOR_HDR
     "nntile/tensor/scatter.hh"
     "nntile/tensor/sumnorm.hh"
     "nntile/tensor/maxsumexp.hh"
+    "nntile/tensor/softmax.hh"
     )
 
 set(LAYER_HDR

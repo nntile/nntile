@@ -34,7 +34,7 @@ void validate_cpu(Index m, Index n, Index k)
     for(Index i = 0; i < 2*m*n; i += 2)
     {
         maxsumexp[i] = T(i); // Max
-        maxsumexp[i+1] = std::exp(T(i)); // Sum of exponents
+        maxsumexp[i+1] = std::exp(T(i) / T{10}); // Sum of exponents
     }
     std::vector<T> dst(m*n*k);
     for(Index i = 0; i < m*n*k; ++i)
@@ -82,7 +82,7 @@ void validate_cuda(Index m, Index n, Index k)
     for(Index i = 0; i < 2*m*n; i += 2)
     {
         maxsumexp[i] = T(i); // Max
-        maxsumexp[i+1] = std::exp(T(i)); // Sum of exponents
+        maxsumexp[i+1] = std::exp(T(i) / T{10}); // Sum of exponents
     }
     std::vector<T> dst(m*n*k);
     for(Index i = 0; i < m*n*k; ++i)

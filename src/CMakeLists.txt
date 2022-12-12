@@ -86,6 +86,7 @@ set(TILE_SRC
     "tile/relu.cc"
     "tile/sumnorm.cc"
     "tile/maxsumexp.cc"
+    "tile/softmax.cc"
     )
 
 set(TENSOR_SRC
@@ -110,6 +111,7 @@ set(TENSOR_SRC
     "tensor/scatter.cc"
     "tensor/sumnorm.cc"
     "tensor/maxsumexp.cc"
+    "tensor/softmax.cc"
     )
 
 set(LAYER_SRC

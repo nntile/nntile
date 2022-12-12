@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-08
+ * @date 2022-12-09
  * */
 
 #pragma once
@@ -39,6 +39,7 @@
 #include <nntile/tensor/scatter.hh>
 #include <nntile/tensor/sumnorm.hh>
 #include <nntile/tensor/maxsumexp.hh>
+#include <nntile/tensor/softmax.hh>
 
 namespace nntile
 {

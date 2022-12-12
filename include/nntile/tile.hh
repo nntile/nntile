@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-08
+ * @date 2022-12-09
  * */
 
 #pragma once
@@ -28,12 +28,14 @@
 #include <nntile/tile/dgelu.hh>
 #include <nntile/tile/dgelutanh.hh>
 #include <nntile/tile/gemm.hh>
+#include <nntile/tile/nrm2.hh>
 #include <nntile/tile/normalize.hh>
 #include <nntile/tile/prod.hh>
 #include <nntile/tile/randn.hh>
 #include <nntile/tile/relu.hh>
 #include <nntile/tile/sumnorm.hh>
 #include <nntile/tile/maxsumexp.hh>
+#include <nntile/tile/softmax.hh>
 
 namespace nntile
 {
