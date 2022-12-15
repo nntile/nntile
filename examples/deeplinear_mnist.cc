@@ -64,7 +64,7 @@ int main(int argc, char **argv)
     tensor::Tensor<T> mnist(mnist_traits, mnist_distr, last_tag);
     tensor::scatter<T>(mnist_single, mnist);
     // Set the deep linear network
-    Index n_linear = 8;
+    Index n_linear = 3;
     std::vector<layer::Linear<T>> linear;
     std::vector<tensor::Tensor<T>> params, grads, tmps;
 //    tensor::TensorTraits
@@ -118,7 +118,7 @@ int main(int argc, char **argv)
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
     // Iterate
-    Index n_iter = 10;
+    Index n_iter = 100;
     tensor::TensorTraits loss_traits({}, {}),
                  tmp_loss_traits(mnist_traits.grid.shape, {1, 1});
     tensor::Tensor<T> loss(loss_traits, distr_root, last_tag);
@@ -140,7 +140,7 @@ int main(int argc, char **argv)
         {
             linear[i].backward_async(tmps[i], tmps[i+1], tmps[i]);
             // Update parameters
-            tensor::axpy2_async<T>(-1e-10, grads[i], params[i]);
+            tensor::axpy2_async<T>(-2e-11, grads[i], params[i]);
         }
         if(mpi_rank == mpi_root)
         {
