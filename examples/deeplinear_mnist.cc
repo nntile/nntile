@@ -16,12 +16,42 @@ int main(int argc, char **argv)
     starpu::init();
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
+    // Read MNIST train data filename
+    if(argc == 1)
+    {
+        if(mpi_rank == 0)
+        {
+            std::cerr << "Please provide path to MNIST file "
+                "train-images-idx3-ubyte\n";
+        }
+        exit(0);
+    }
+    // Read number of images to be used
+    Index n_images; // MNIST train contains 60k images
+    if(argc == 2)
+    {
+        n_images = 10000;
+    }
+    else
+    {
+        n_images = std::atoi(argv[2]);
+        if(n_images <= 0 or n_images > 60000)
+        {
+            n_images = 10000;
+        }
+    }
+    // Read flag if we need to output loss
+    bool print_loss = true;
+    if(argc > 3)
+    {
+        print_loss = std::atoi(argv[3]);
+    }
+    // Proceed with other things
     std::vector<int> mpi_grid = {2, 1};
     int mpi_root = 0;
     starpu_mpi_tag_t last_tag = 0;
     // Setup MNIST dataset for training
     Index n_pixels = 28 * 28; // MNIST contains 28x28 images
-    Index n_images = 10000; // MNIST train contains 60k images
     tensor::TensorTraits mnist_single_traits({n_pixels, n_images},
             {n_pixels, n_images});
     std::vector<int> distr_root = {mpi_root};
@@ -142,7 +172,7 @@ int main(int argc, char **argv)
             // Update parameters
             tensor::axpy2_async<T>(-2e-11, grads[i], params[i]);
         }
-        if(mpi_rank == mpi_root)
+        if(print_loss and mpi_rank == mpi_root)
         {
             auto loss_local = loss.get_tile(0).acquire(STARPU_R);
             std::cout << "iter=" << iter << " loss=" << loss_local[0] << "\n";
