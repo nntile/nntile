@@ -159,6 +159,9 @@ int main(int argc, char **argv)
                  tmp_loss_traits(mnist_traits.grid.shape, {1, 1});
     tensor::Tensor<T> loss(loss_traits, distr_root, last_tag);
     tensor::Tensor<T> tmp_loss(tmp_loss_traits, mnist_distr, last_tag);
+    // Start timer
+    starpu_mpi_barrier(MPI_COMM_WORLD);
+    double time_elapsed = -MPI_Wtime();
     for(Index iter = 0; iter < n_iter; ++iter)
     {
         tensor::copy_async<T>(mnist, tmps[0]);
@@ -188,7 +191,9 @@ int main(int argc, char **argv)
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
     starpu_mpi_barrier(MPI_COMM_WORLD);
+    time_elapsed += MPI_Wtime();
     starpu_fxt_stop_profiling();
+    std::cout << "Training time: " << time_elapsed << " seconds\n";
 //    if(mpi_rank == mpi_root)
 //    {
 //        auto loss_local = loss.get_tile(0).acquire(STARPU_R);
