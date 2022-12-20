@@ -16,6 +16,10 @@ int main(int argc, char **argv)
     starpu::init();
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
+    // Parameters to be read with default values
+    Index n_images = 10000; // MNIST train contains 60k images
+    Index n_linear = 3; // Number of linear layers
+    bool print_loss = true; // Print loss or not
     // Read MNIST train data filename
     if(argc == 1)
     {
@@ -27,12 +31,7 @@ int main(int argc, char **argv)
         exit(0);
     }
     // Read number of images to be used
-    Index n_images; // MNIST train contains 60k images
-    if(argc == 2)
-    {
-        n_images = 10000;
-    }
-    else
+    if(argc >= 3)
     {
         n_images = std::atoi(argv[2]);
         if(n_images <= 0 or n_images > 60000)
@@ -40,11 +39,19 @@ int main(int argc, char **argv)
             n_images = 10000;
         }
     }
-    // Read flag if we need to output loss
-    bool print_loss = true;
-    if(argc > 3)
+    // Read number of linear layers
+    if(argc >= 4)
     {
-        print_loss = std::atoi(argv[3]);
+        n_linear = std::atoi(argv[3]);
+        if(n_linear <= 0 or n_linear > 10)
+        {
+            n_linear = 3;
+        }
+    }
+    // Read flag if we need to output loss
+    if(argc >= 5)
+    {
+        print_loss = std::atoi(argv[4]);
     }
     // Proceed with other things
     std::vector<int> mpi_grid = {2, 1};
@@ -94,7 +101,6 @@ int main(int argc, char **argv)
     tensor::Tensor<T> mnist(mnist_traits, mnist_distr, last_tag);
     tensor::scatter<T>(mnist_single, mnist);
     // Set the deep linear network
-    Index n_linear = 3;
     std::vector<layer::Linear<T>> linear;
     std::vector<tensor::Tensor<T>> params, grads, tmps;
 //    tensor::TensorTraits
