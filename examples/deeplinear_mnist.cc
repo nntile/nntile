@@ -189,12 +189,12 @@ int main(int argc, char **argv)
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
     starpu_mpi_barrier(MPI_COMM_WORLD);
     starpu_fxt_stop_profiling();
-    if(mpi_rank == mpi_root)
-    {
-        auto loss_local = loss.get_tile(0).acquire(STARPU_R);
-        std::cout << "Final loss=" << loss_local[0] << "\n";
-        loss_local.release();
-    }
+//    if(mpi_rank == mpi_root)
+//    {
+//        auto loss_local = loss.get_tile(0).acquire(STARPU_R);
+//        std::cout << "Final loss=" << loss_local[0] << "\n";
+//        loss_local.release();
+//    }
     return 0;
 }
 
