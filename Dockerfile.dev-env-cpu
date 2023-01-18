@@ -50,5 +50,7 @@ ENV LD_LIBRARY_PATH=/usr/local/lib
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 
+# Set entrypoint
 ENTRYPOINT ["bash"]
 
+# Install python3 libraries to properly generate wrappers
