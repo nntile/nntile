@@ -35,6 +35,8 @@ public:
     std::vector<tile::TileTraits> tile_traits;
     //! StarPU handles of all tiles
     std::vector<starpu::VariableHandle> tile_handles;
+    //! Next tag to be used
+    starpu_mpi_tag_t next_tag;
     //! Constructor
     explicit Tensor(const TensorTraits &traits,
             const std::vector<int> &distribution,
@@ -67,6 +69,7 @@ public:
                     last_tag, distribution[i]);
             ++last_tag;
         }
+        next_tag = last_tag;
     }
     tile::Tile<T> get_tile(Index linear_offset) const
     {

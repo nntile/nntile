@@ -9,17 +9,24 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-08-09
+# @date 2023-01-19
 
 # Get pybind11 library
 add_subdirectory("../../external/pybind11" "pybind11")
 
-pybind11_add_module(starpu "starpu.cc")
-target_link_libraries(starpu PRIVATE nntile)
+#pybind11_add_module(starpu "starpu.cc")
+#target_link_libraries(starpu PRIVATE nntile)
 
-pybind11_add_module(tensor "tensor.cc")
+set(TENSOR_SRC
+    "tensor.cc"
+    "tensor/traits.cc"
+    "tensor/distributions.cc"
+    "tensor/tensor.cc"
+    )
+pybind11_add_module(tensor ${TENSOR_SRC})
 target_link_libraries(tensor PRIVATE nntile)
+target_include_directories(tensor PRIVATE "${CMAKE_CURRENT_DIR}")
 
-pybind11_add_module(layer "layer/fully_connected.cc")
-target_link_libraries(layer PRIVATE nntile)
+#pybind11_add_module(layer "layer/fully_connected.cc")
+#target_link_libraries(layer PRIVATE nntile)
 
