@@ -17,6 +17,17 @@ add_subdirectory("../../external/pybind11" "pybind11")
 #pybind11_add_module(starpu "starpu.cc")
 #target_link_libraries(starpu PRIVATE nntile)
 
+# Define module tile
+set(TILE_SRC
+    "tile.cc"
+    "tile/traits.cc"
+    "tile/tile.cc"
+    )
+pybind11_add_module(tile ${TILE_SRC})
+target_link_libraries(tile PRIVATE nntile)
+target_include_directories(tile PRIVATE "${CMAKE_CURRENT_DIR}")
+
+
 set(TENSOR_SRC
     "tensor.cc"
     "tensor/traits.cc"
