@@ -9,35 +9,30 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-01-19
+# @date 2023-01-23
 
-# Get pybind11 library
+# Get pybind11 library and set up binary directory pybind11
 add_subdirectory("../../external/pybind11" "pybind11")
 
-#pybind11_add_module(starpu "starpu.cc")
-#target_link_libraries(starpu PRIVATE nntile)
-
-# Define module tile
-set(TILE_SRC
-    "tile.cc"
-    "tile/traits.cc"
-    "tile/tile.cc"
+# If a single source file will become huge, it will be split into several files
+set(EXT_SRC
+    "nntile/nntile_core.cc"
     )
-pybind11_add_module(tile ${TILE_SRC})
-target_link_libraries(tile PRIVATE nntile)
-target_include_directories(tile PRIVATE "${CMAKE_CURRENT_DIR}")
 
+# Set up python extension module nntile_core and its properties
+pybind11_add_module(nntile_core ${EXT_SRC})
+set_target_properties(nntile_core PROPERTIES LIBRARY_OUTPUT_DIRECTORY "nntile"
+    SUFFIX ".so")
+target_link_libraries(nntile_core PRIVATE nntile)
 
-set(TENSOR_SRC
-    "tensor.cc"
-    "tensor/traits.cc"
-    "tensor/distributions.cc"
-    "tensor/tensor.cc"
-    )
-pybind11_add_module(tensor ${TENSOR_SRC})
-target_link_libraries(tensor PRIVATE nntile)
-target_include_directories(tensor PRIVATE "${CMAKE_CURRENT_DIR}")
+# Collect all *.py source files and copy them into build directory
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/nntile DESTINATION
+    ${CMAKE_CURRENT_BINARY_DIR} FILES_MATCHING PATTERN "*.py"
+    FOLLOW_SYMLINK_CHAIN)
 
-#pybind11_add_module(layer "layer/fully_connected.cc")
-#target_link_libraries(layer PRIVATE nntile)
+# Configure installation scripts in build directory
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/setup.py.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/setup.py" @ONLY)
+
+install(CODE "execute_process(COMMAND ${PYTHON_EXECUTABLE} ${SETUP_PY} install)")
 

@@ -10,7 +10,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-09-06
+# @date 2023-01-23
 
 
 ###############################################################################
@@ -40,7 +40,7 @@ option(BUILD_TESTS "Build tests" ON)
 option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
-option(BUILD_PYTHON_WRAPPERS "Generate Python wrappers" OFF)
+option(BUILD_PYTHON_WRAPPERS "Generate Python wrappers" ON)
 
 # Provide options for certain cache variables
 set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "None" "Debug" "Release"
@@ -51,6 +51,7 @@ add_library(nntile)
 
 # Set C++-17 standard publicly
 target_compile_features(nntile PUBLIC cxx_std_17)
+target_compile_options(nntile PRIVATE -fPIC)
 
 # Add certain compilation flags for warnings etc
 #add_compile_options(-Wall -Wextra)# -Wpedantic-errors)
@@ -105,31 +106,31 @@ target_include_directories(nntile PRIVATE
     )
 
 # Configure list of definitions
-configure_file("include/nntile/defs.h.in"
+configure_file("${PROJECT_SOURCE_DIR}/include/nntile/defs.h.in"
     "${PROJECT_BINARY_DIR}/include/nntile/defs.h" @ONLY)
 
 # Configure src/starpu/axpy.cc that relies on cblas
-configure_file("src/starpu/axpy.cc.in"
+configure_file("${PROJECT_SOURCE_DIR}/src/starpu/axpy.cc.in"
     "${PROJECT_BINARY_DIR}/src/starpu/axpy.cc" @ONLY)
 
 # Configure tests/starpu/axpy.cc that relies on cblas
-configure_file("tests/starpu/axpy.cc.in"
+configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/axpy.cc.in"
     "${PROJECT_BINARY_DIR}/tests/starpu/axpy.cc" @ONLY)
 
 # Configure src/starpu/gemm.cc that relies on cblas
-configure_file("src/starpu/gemm.cc.in"
+configure_file("${PROJECT_SOURCE_DIR}/src/starpu/gemm.cc.in"
     "${PROJECT_BINARY_DIR}/src/starpu/gemm.cc" @ONLY)
 
 # Configure tests/starpu/gemm.cc that relies on cblas
-configure_file("tests/starpu/gemm.cc.in"
+configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/gemm.cc.in"
     "${PROJECT_BINARY_DIR}/tests/starpu/gemm.cc" @ONLY)
 
 # Configure src/starpu/nrm2.cc that relies on cblas
-configure_file("src/starpu/nrm2.cc.in"
+configure_file("${PROJECT_SOURCE_DIR}/src/starpu/nrm2.cc.in"
     "${PROJECT_BINARY_DIR}/src/starpu/nrm2.cc" @ONLY)
 
 # Configure tests/starpu/nrm2.cc that relies on cblas
-configure_file("tests/starpu/nrm2.cc.in"
+configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/nrm2.cc.in"
     "${PROJECT_BINARY_DIR}/tests/starpu/nrm2.cc" @ONLY)
 
 # Check if code coverage report is needed

@@ -1,0 +1,7 @@
+from setuptools import setup, find_packages
+
+setup(name="nntile",
+    version="${PROJECT_VERSION}",
+    author="Aleksandr Mikhalev al.mikhalev@skoltech.ru",
+    packages=find_packages(where="${CMAKE_CURRENT_BINARY_DIR}"),
+    description="Python lib for NNTile")
