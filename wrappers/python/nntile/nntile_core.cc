@@ -29,7 +29,6 @@ void def_mod_starpu(py::module_ &m)
     py::class_<Config>(m, "Config").
         def(py::init<int, int, int>());
     m.def("init", init);
-    m.def("shutdown", starpu_shutdown);
     m.def("pause", starpu_pause);
     m.def("resume", starpu_resume);
     m.def("wait_for_all", [](){starpu_task_wait_for_all;
@@ -162,7 +161,9 @@ void def_mod_tensor(py::module_ &m)
         def("get_tile_shape", &TensorTraits::get_tile_shape).
         // Shape of a grid
         def("get_grid_shape", [](const TensorTraits &data){
-                return data.grid.shape;});
+                return data.grid.shape;}).
+        // Get grid (TileTraits)
+        def_readonly("grid", &TensorTraits::grid);
     // Define wrappers for Tensor<T>
     def_class_tensor<fp32_t>(m, "Tensor_fp32");
     def_class_tensor<fp64_t>(m, "Tensor_fp64");
