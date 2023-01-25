@@ -3,6 +3,9 @@ stages:
   - build
   - check
 
+variable:
+  GIT_STRATEGY: clone
+
 image-builder:
   image: docker:20.10.16
   stage: image
