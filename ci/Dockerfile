@@ -7,7 +7,7 @@ RUN apt update && apt install -y --no-install-recommends \
     lsb-release software-properties-common pkg-config \
     fxt-tools libfxt-dev autoconf automake libtool-bin \
     libhwloc-dev vim wget git gdb libopenblas-dev lcov \
-    python3 ninja-build binutils clang
+    python3 ninja-build binutils clang python3-pip python3-dev
 
 ## Add Kitware repo for the latest CMake package
 # Get Kitware's signing key
@@ -53,5 +53,6 @@ ENV LD_LIBRARY_PATH=/usr/local/lib
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 
+# Set entrypoint (disabled for CI/CD)
 #ENTRYPOINT ["bash"]
 
