@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-01-23
+ * @date 2023-01-24
  * */
 
 #include <pybind11/pybind11.h>
@@ -27,7 +27,9 @@ void def_mod_starpu(py::module_ &m)
 {
     using namespace nntile::starpu;
     py::class_<Config>(m, "Config").
-        def(py::init<int, int, int>());
+        def(py::init<int, int, int>()).
+        def("init", &Config::init).
+        def("shutdown", &Config::shutdown);
     m.def("init", init);
     m.def("pause", starpu_pause);
     m.def("resume", starpu_resume);
@@ -119,6 +121,71 @@ void def_mod_tile(py::module_ &m)
     def_class_tile<fp64_t>(m, "Tile_fp64");
 }
 
+// numpy.ndarray -> Tensor
+template<typename T>
+void tensor_from_array(const tensor::Tensor<T> &tensor,
+        const py::array_t<T, py::array::f_style | py::array::forcecast> &array)
+{
+    if(tensor.ndim != array.ndim())
+    {
+        throw std::runtime_error("tensor.ndim != array.ndim()");
+    }
+    for(Index i = 0; i < tensor.ndim; ++i)
+    {
+        if(array.shape()[i] != tensor.shape[i])
+        {
+            throw std::runtime_error("array.shape()[i] != tensor.shape[i]");
+        }
+    }
+    if(tensor.grid.nelems != 1)
+    {
+        throw std::runtime_error("tensor.grid.nelems != 1");
+    }
+    // Acquire tile and copy data
+    int mpi_rank = starpu_mpi_world_rank();
+    auto tile = tensor.get_tile(0);
+    if(mpi_rank == tile.mpi_get_rank())
+    {
+        auto tile_local = tile.acquire(STARPU_W);
+        std::memcpy(tile_local.get_ptr(), array.data(),
+                tile.nelems*sizeof(T));
+        tile_local.release();
+    }
+    tile.mpi_flush();
+}
+
+// Tensor -> numpy.ndarray
+template<typename T>
+void tensor_to_array(const tensor::Tensor<T> &tensor,
+        py::array_t<T, py::array::f_style> &array)
+{
+    if(tensor.ndim != array.ndim())
+    {
+        throw std::runtime_error("tensor.ndim != array.ndim()");
+    }
+    for(Index i = 0; i < tensor.ndim; ++i)
+    {
+        if(array.shape()[i] != tensor.shape[i])
+        {
+            throw std::runtime_error("array.shape()[i] != tensor.shape[i]");
+        }
+    }
+    if(tensor.grid.nelems != 1)
+    {
+        throw std::runtime_error("tensor.grid.nelems != 1");
+    }
+    // Acquire tile and copy data
+    int mpi_rank = starpu_mpi_world_rank();
+    auto tile = tensor.get_tile(0);
+    if(mpi_rank == tile.mpi_get_rank())
+    {
+        auto tile_local = tile.acquire(STARPU_R);
+        std::memcpy(array.mutable_data(), tile_local.get_ptr(),
+                tile.nelems*sizeof(T));
+        tile_local.release();
+    }
+}
+
 // Extend (sub)module with nntile::tensor::Tensor<T>
 template<typename T>
 void def_class_tensor(py::module_ &m, const char *name)
@@ -127,12 +194,12 @@ void def_class_tensor(py::module_ &m, const char *name)
     py::class_<Tensor<T>, TensorTraits>(m, name, py::multiple_inheritance()).
         def(py::init<const TensorTraits &, const std::vector<int> &,
                 starpu_mpi_tag_t &>()).
-        def_readonly("next_tag", &Tensor<T>::next_tag);
-//        def("unregister", &Tensor<T>::unregister).
-//        def("from_array", tensor_from_array<T>);
-//        def("to_array", tensor_to_array<T>);
-//    m.def("tensor_to_array", tensor_to_array<T>);
-//    m.def("tensor_from_array", tensor_to_array<T>);
+        def_readonly("next_tag", &Tensor<T>::next_tag).
+        def("unregister", &Tensor<T>::unregister).
+        def("from_array", tensor_from_array<T>).
+        def("to_array", tensor_to_array<T>);
+    m.def("tensor_to_array", tensor_to_array<T>);
+    m.def("tensor_from_array", tensor_from_array<T>);
 }
 
 // Extend (sub)module with nntile::tensor::distributions functionality

@@ -50,7 +50,7 @@ foreach(py_test ${PY_TESTS})
     string(REPLACE "/" "_" py_name "${py_name}")
     set(test_name wrappers_python_tests_${py_dir}_${py_name})
     message(STATUS "Adding 1 test ${test_name}")
-    add_test(NAME ${test_name} COMMAND ${PYTHON_EXECUTABLE} -m pytest
+    add_test(NAME ${test_name} COMMAND ${PYTHON_EXECUTABLE} -m pytest -rx
         ${CMAKE_CURRENT_BINARY_DIR}/tests/${py_test})
 endforeach()
 

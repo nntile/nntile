@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-19
+ * @date 2023-01-25
  * */
 
 #pragma once
@@ -31,13 +31,13 @@ namespace starpu
 //! Convenient StarPU initialization and shutdown
 class Config: public starpu_conf
 {
-#ifdef NNTILE_USE_CUDA
     int cublas;
-#endif // NNTILE_USE_CUDA
+    int initialized;
 public:
     explicit Config(int ncpus_=-1, int ncuda_=-1, int cublas_=-1)
     {
-        // Init StarPU configuration at first
+        initialized = 0;
+        // Init StarPU configuration with default values at first
         int ret = starpu_conf_init(this);
         if(ret != 0)
         {
@@ -52,37 +52,55 @@ public:
 #endif // NNTILE_USE_CUDA
         // Set history-based scheduler to utilize performance models
         sched_policy_name = "dmda";
-        // Init StarPU+MPI and reserve a core for MPI thread
-        ret = starpu_mpi_init_conf(nullptr, nullptr, 1, MPI_COMM_WORLD, this);
-        if(ret != 0)
+        // Init MPI and StarPU
+        init();
+    }
+    void init()
+    {
+        if(initialized == 0)
         {
-            throw std::runtime_error("Error in starpu_mpi_init_conf()");
-        }
-        else
-        {
-            ncpus = starpu_worker_get_count_by_type(STARPU_CPU_WORKER);
-            ncuda = starpu_worker_get_count_by_type(STARPU_CUDA_WORKER);
-            std::cout << "Initialized NCPU=" << ncpus << " NCUDA=" << ncuda
-                << "\n";
-        }
+            // Init StarPU+MPI and reserve a core for MPI thread
+            int ret = starpu_mpi_init_conf(nullptr, nullptr, 1, MPI_COMM_WORLD,
+                    this);
+            if(ret != 0)
+            {
+                throw std::runtime_error("Error in starpu_mpi_init_conf()");
+            }
+            else
+            {
+                int ncpus_ = starpu_worker_get_count_by_type(STARPU_CPU_WORKER);
+                int ncuda_ = starpu_worker_get_count_by_type(STARPU_CUDA_WORKER);
+                std::cout << "Initialized NCPU=" << ncpus_ << " NCUDA=" << ncuda_
+                    << "\n";
+            }
 #ifdef NNTILE_USE_CUDA
-        cublas = cublas_;
-        if(cublas != 0)
-        {
-            starpu_cublas_init();
-            std::cout << "Initialized cuBLAS\n";
-        }
+            cublas = cublas_;
+            if(cublas != 0)
+            {
+                starpu_cublas_init();
+                std::cout << "Initialized cuBLAS\n";
+            }
 #endif // NNTILE_USE_CUDA
+            initialized = 1;
+        }
     }
     ~Config()
     {
-#ifdef NNTILE_USE_CUDA
-        if(cublas != 0)
+        shutdown();
+    }
+    void shutdown()
+    {
+        if(initialized)
         {
-            starpu_cublas_shutdown();
-        }
+#ifdef NNTILE_USE_CUDA
+            if(cublas != 0)
+            {
+                starpu_cublas_shutdown();
+            }
 #endif // NNTILE_USE_CUDA
-        starpu_mpi_shutdown();
+            starpu_mpi_shutdown();
+            initialized = 0;
+        }
     }
     //! StarPU commute data access mode
     static constexpr starpu_data_access_mode STARPU_RW_COMMUTE
