@@ -4,6 +4,7 @@ stages:
   - check
 
 variables:
+  GIT_SUBMODULE_STRATEGY: recursive
   GIT_STRATEGY: clone
 
 image-builder:
