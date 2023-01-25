@@ -56,3 +56,6 @@ ENV OMPI_ALLOW_RUN_AS_ROOT=1
 # Set entrypoint (disabled for CI/CD)
 #ENTRYPOINT ["bash"]
 
+# Install required Python packages
+RUN pip install pytest numpy
+
