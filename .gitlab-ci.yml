@@ -3,7 +3,7 @@ stages:
   - build
   - check
 
-variable:
+variables:
   GIT_STRATEGY: clone
 
 image-builder:
