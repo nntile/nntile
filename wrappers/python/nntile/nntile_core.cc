@@ -13,6 +13,7 @@
  * */
 
 #include <pybind11/pybind11.h>
+#include <pybind11/pytypes.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 #include <nntile.hh>
@@ -237,6 +238,11 @@ void def_mod_tensor(py::module_ &m)
     // Add tensor.distributions submodule
     auto distributions = m.def_submodule("distributions");
     def_tensor_distributions(distributions);
+    // Add functions for Tensor<T>
+    m.def("gemm_async_fp32", &gemm_async<fp32_t>);
+    m.def("gemm_fp32", &gemm<fp32_t>);
+    m.def("gemm_async_fp64", &gemm_async<fp64_t>);
+    m.def("gemm_fp64", &gemm<fp64_t>);
 }
 
 // Main extension module with all wrappers
@@ -251,5 +257,11 @@ PYBIND11_MODULE(nntile_core, m)
     // Add tensor submodule
     auto tensor = m.def_submodule("tensor");
     def_mod_tensor(tensor);
+    // Define TransOp class and corresponding constants
+    py::class_<TransOp>(m, "TransOp").
+        // Constructor
+        def(py::init<const enum TransOp::Value &>());
+    m.attr("notrans") = py::cast(new TransOp(TransOp::NoTrans));
+    m.attr("trans") = py::cast(new TransOp(TransOp::Trans));
 }
 
