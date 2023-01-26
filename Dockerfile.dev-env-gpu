@@ -1,4 +1,7 @@
-FROM ubuntu:20.04
+FROM nvidia/cuda:11.0.3-devel-ubuntu20.04
+
+RUN apt-key adv --fetch-keys \
+    http://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
 
 # Set up default timezone
 ENV TZ=Europe/Moscow
@@ -39,9 +42,11 @@ WORKDIR /starpu
 # Use the same version across different hardware
 RUN git checkout eccd488dbb9a42867d2e23bb1cbd6dc4272e2749
 RUN ./autogen.sh
-RUN ./configure
-RUN make
-RUN make install
+RUN mkdir build && cd build && ../configure --disable-build-doc \
+    --disable-build-examples --disable-build-tests --disable-opencl \
+    --disable-socl --disable-starpufft --enable-blas-lib=none \
+    --disable-fortran --with-fxt --enable-maxcudadev=8
+RUN cd build && make -j4 install
 # Remove build files of StarPU
 RUN rm -rf /starpu
 
