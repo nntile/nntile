@@ -63,5 +63,5 @@ ENTRYPOINT ["bash"]
 RUN pip install pytest numpy
 
 # Set OpenBLAS threads to 1 (sequential)
-export OMP_NUM_THREADS=1
+RUN export OMP_NUM_THREADS=1
 
