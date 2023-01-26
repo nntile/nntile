@@ -52,6 +52,8 @@ public:
 #endif // NNTILE_USE_CUDA
         // Set history-based scheduler to utilize performance models
         sched_policy_name = "dmda";
+        // Save initial value
+        cublas = cublas_;
         // Init MPI and StarPU
         init();
     }
@@ -74,7 +76,6 @@ public:
                     << "\n";
             }
 #ifdef NNTILE_USE_CUDA
-            cublas = cublas_;
             if(cublas != 0)
             {
                 starpu_cublas_init();
