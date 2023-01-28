@@ -243,6 +243,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("gemm_fp32", &gemm<fp32_t>);
     m.def("gemm_async_fp64", &gemm_async<fp64_t>);
     m.def("gemm_fp64", &gemm<fp64_t>);
+    // Add acivation functions for Tensor<T> :: relu 
+    m.def("relu_async_fp64", &relu_async<fp64_t>);
+    m.def("relu_async_fp32", &relu_async<fp32_t>);
+    m.def("relu_fp64", &relu<fp64_t>);
+    m.def("relu_fp32", &relu<fp32_t>);
 }
 
 // Main extension module with all wrappers
