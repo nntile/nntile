@@ -53,6 +53,7 @@ set(STARPU_SRC
     "starpu/clear.cc"
     "starpu/dgelu.cc"
     "starpu/dgelutanh.cc"
+    "starpu/drelu.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/axpy.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/nrm2.cc"

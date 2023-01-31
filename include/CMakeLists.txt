@@ -1,4 +1,4 @@
-# @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+# @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
 #                          (Skoltech). All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-12-09
+# @date 2023-01-31
 
 # Set list of headers
 set(BASE_HDR
@@ -26,6 +26,8 @@ set(KERNEL_HDR
     "nntile/kernel/dgelu/cpu.hh"
     "nntile/kernel/dgelutanh.hh"
     "nntile/kernel/dgelutanh/cpu.hh"
+    "nntile/kernel/drelu.hh"
+    "nntile/kernel/drelu/cpu.hh"
     "nntile/kernel/gelu.hh"
     "nntile/kernel/gelu/cpu.hh"
     "nntile/kernel/gelutanh.hh"
@@ -56,6 +58,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/bias/cuda.hh"
         "nntile/kernel/dgelu/cuda.hh"
         "nntile/kernel/dgelutanh/cuda.hh"
+        "nntile/kernel/drelu/cuda.hh"
         "nntile/kernel/gelu/cuda.hh"
         "nntile/kernel/gelutanh/cuda.hh"
         "nntile/kernel/normalize/cuda.hh"
@@ -74,6 +77,7 @@ set(STARPU_HDR
     "nntile/starpu/clear.hh"
     "nntile/starpu/dgelu.hh"
     "nntile/starpu/dgelutanh.hh"
+    "nntile/starpu/drelu.hh"
     "nntile/starpu/gemm.hh"
     "nntile/starpu/gelu.hh"
     "nntile/starpu/gelutanh.hh"

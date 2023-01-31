@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-09
+ * @date 2023-01-31
  * */
 
 #pragma once
@@ -25,6 +25,7 @@
 #include <nntile/starpu/gelutanh.hh>
 #include <nntile/starpu/dgelu.hh>
 #include <nntile/starpu/dgelutanh.hh>
+#include <nntile/starpu/drelu.hh>
 #include <nntile/starpu/gemm.hh>
 #include <nntile/starpu/hypot.hh>
 #include <nntile/starpu/nrm2.hh>
@@ -54,6 +55,7 @@ void init()
     gelutanh::init();
     dgelu::init();
     dgelutanh::init();
+    drelu::init();
     gemm::init();
     hypot::init();
     nrm2::init();
@@ -75,6 +77,7 @@ void restrict_where(uint32_t where)
     gelutanh::restrict_where(where);
     dgelu::restrict_where(where);
     dgelutanh::restrict_where(where);
+    drelu::restrict_where(where);
     gemm::restrict_where(where);
     hypot::restrict_where(where);
     nrm2::restrict_where(where);
@@ -96,6 +99,7 @@ void restore_where()
     gelutanh::restore_where();
     dgelu::restore_where();
     dgelutanh::restore_where();
+    drelu::restore_where();
     gemm::restore_where();
     hypot::restore_where();
     nrm2::restore_where();
