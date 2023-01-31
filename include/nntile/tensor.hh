@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-09
+ * @date 2023-01-31
  * */
 
 #pragma once
@@ -30,6 +30,7 @@
 #include <nntile/tensor/gelutanh.hh>
 #include <nntile/tensor/dgelu.hh>
 #include <nntile/tensor/dgelutanh.hh>
+#include <nntile/tensor/drelu.hh>
 #include <nntile/tensor/gemm.hh>
 #include <nntile/tensor/nrm2.hh>
 #include <nntile/tensor/normalize.hh>

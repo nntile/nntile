@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-01-24
+ * @date 2023-01-31
  * */
 
 #include <pybind11/pybind11.h>
@@ -243,11 +243,15 @@ void def_mod_tensor(py::module_ &m)
     m.def("gemm_fp32", &gemm<fp32_t>);
     m.def("gemm_async_fp64", &gemm_async<fp64_t>);
     m.def("gemm_fp64", &gemm<fp64_t>);
-    // Add acivation functions for Tensor<T> :: relu 
+    // Add activation functions for Tensor<T> :: relu 
     m.def("relu_async_fp64", &relu_async<fp64_t>);
     m.def("relu_async_fp32", &relu_async<fp32_t>);
     m.def("relu_fp64", &relu<fp64_t>);
     m.def("relu_fp32", &relu<fp32_t>);
+    m.def("drelu_async_fp64", &drelu_async<fp64_t>);
+    m.def("drelu_async_fp32", &drelu_async<fp32_t>);
+    m.def("drelu_fp64", &drelu<fp64_t>);
+    m.def("drelu_fp32", &drelu<fp32_t>);
 }
 
 // Main extension module with all wrappers
