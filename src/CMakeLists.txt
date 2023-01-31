@@ -1,4 +1,4 @@
-# @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+# @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
 #                          (Skoltech). All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
@@ -9,13 +9,14 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-12-09
+# @date 2023-01-31
 
 # Set list of sources
 set(KERNEL_SRC
     "kernel/bias/cpu.cc"
     "kernel/dgelu/cpu.cc"
     "kernel/dgelutanh/cpu.cc"
+    "kernel/drelu/cpu.cc"
     "kernel/gelu/cpu.cc"
     "kernel/gelutanh/cpu.cc"
     "kernel/hypot/cpu.cc"
@@ -35,6 +36,7 @@ if(NNTILE_USE_CUDA)
         "kernel/bias/cuda.cu"
         "kernel/dgelu/cuda.cu"
         "kernel/dgelutanh/cuda.cu"
+        "kernel/drelu/cuda.cu"
         "kernel/gelu/cuda.cu"
         "kernel/gelutanh/cuda.cu"
         "kernel/normalize/cuda.cu"
