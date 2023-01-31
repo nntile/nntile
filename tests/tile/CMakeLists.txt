@@ -1,4 +1,4 @@
-# @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+# @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
 #                          (Skoltech). All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-12-12
+# @date 2023-01-31
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -24,6 +24,7 @@ set(TESTS
     "gelutanh"
     "dgelu"
     "dgelutanh"
+    "drelu"
     "gemm"
     "nrm2"
     "normalize"

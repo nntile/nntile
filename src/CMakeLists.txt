@@ -79,6 +79,7 @@ set(TILE_SRC
     "tile/copy_intersection.cc"
     "tile/dgelu.cc"
     "tile/dgelutanh.cc"
+    "tile/drelu.cc"
     "tile/gemm.cc"
     "tile/gelu.cc"
     "tile/gelutanh.cc"
@@ -102,6 +103,7 @@ set(TENSOR_SRC
     "tensor/copy_intersection.cc"
     "tensor/dgelu.cc"
     "tensor/dgelutanh.cc"
+    "tensor/drelu.cc"
     "tensor/gather.cc"
     "tensor/gemm.cc"
     "tensor/gelu.cc"
@@ -132,8 +134,8 @@ set(OPTIMIZER_SRC
     #"optimizer/grad_descent.cc"
     )
 
-set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC} ${LAYER_SRC}
-    ${MODEL_SRC} ${OPTIMIZER_SRC})
+set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC} ${LAYER_SRC})
+    #${MODEL_SRC} ${OPTIMIZER_SRC})
 
 target_sources(nntile PRIVATE ${SRC})
 
