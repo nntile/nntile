@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2023-01-31
  * */
 
 #include "nntile/starpu/gemm.hh"
@@ -175,6 +175,8 @@ void cuda(void *buffers[], void *cl_args)
     cublasHandle_t handle = starpu_cublas_get_local_handle();
     cudaStream_t stream = starpu_cuda_get_local_stream();
     cublasSetStream(handle, stream);
+    // alpha and beta parameters of GEMM operation are on CPU host
+    cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
     // Call corresponding cuBLAS routine
     cublas(handle, transA_, transB_, M, N, K, args->alpha, A, ldA, B, ldB,
             args->beta, C, M);

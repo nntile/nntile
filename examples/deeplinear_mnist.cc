@@ -11,7 +11,7 @@ int main(int argc, char **argv)
 {
     // Initialize StarPU and MPI
     //starpu_fxt_autostart_profiling(0);
-    starpu::Config starpu(4, 0, 0);
+    starpu::Config starpu(4, 1, 1);
     starpu_fxt_stop_profiling();
     starpu::init();
     int mpi_size = starpu_mpi_world_size();
@@ -179,7 +179,7 @@ int main(int argc, char **argv)
         {
             linear[i].backward_async(tmps[i], tmps[i+1], tmps[i]);
             // Update parameters
-            tensor::axpy2_async<T>(-2e-11, grads[i], params[i]);
+            tensor::axpy2_async<T>(-1e-12, grads[i], params[i]);
         }
         if(print_loss and mpi_rank == mpi_root)
         {
