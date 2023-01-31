@@ -243,7 +243,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("gemm_fp32", &gemm<fp32_t>);
     m.def("gemm_async_fp64", &gemm_async<fp64_t>);
     m.def("gemm_fp64", &gemm<fp64_t>);
-    // Add activation functions for Tensor<T> :: relu 
+    // Add activation functions for Tensor<T>
     m.def("relu_async_fp64", &relu_async<fp64_t>);
     m.def("relu_async_fp32", &relu_async<fp32_t>);
     m.def("relu_fp64", &relu<fp64_t>);
@@ -252,6 +252,43 @@ void def_mod_tensor(py::module_ &m)
     m.def("drelu_async_fp32", &drelu_async<fp32_t>);
     m.def("drelu_fp64", &drelu<fp64_t>);
     m.def("drelu_fp32", &drelu<fp32_t>);
+    // Add other functions for Tensor<T>
+    m.def("sumnorm_async_fp64", &sumnorm_async<fp64_t>);
+    m.def("sumnorm_async_fp32", &sumnorm_async<fp32_t>);
+    m.def("sumnorm_fp64", &sumnorm<fp64_t>);
+    m.def("sumnorm_fp32", &sumnorm<fp32_t>);
+    m.def("softmax_async_fp64", &softmax_async<fp64_t>);
+    m.def("softmax_async_fp32", &softmax_async<fp32_t>);
+    m.def("softmax_fp64", &softmax<fp64_t>);
+    m.def("softmax_fp32", &softmax<fp32_t>);
+    m.def("scatter_async_fp64", &scatter_async<fp64_t>);
+    m.def("scatter_async_fp32", &scatter_async<fp32_t>);
+    m.def("scatter_fp64", &scatter<fp64_t>);
+    m.def("scatter_fp32", &scatter<fp32_t>);
+    m.def("randn_async_fp64", &randn_async<fp64_t>);
+    m.def("randn_async_fp32", &randn_async<fp32_t>);
+    m.def("randn_fp64", &randn<fp64_t>);
+    m.def("randn_fp32", &randn<fp32_t>);
+    m.def("prod_async_fp64", &prod_async<fp64_t>);
+    m.def("prod_async_fp32", &prod_async<fp32_t>);
+    m.def("prod_fp64", &prod<fp64_t>);
+    m.def("prod_fp32", &prod<fp32_t>);
+    m.def("nrm2_async_fp64", &nrm2_async<fp64_t>);
+    m.def("nrm2_async_fp32", &nrm2_async<fp32_t>);
+    m.def("nrm2_fp64", &nrm2<fp64_t>);
+    m.def("nrm2_fp32", &nrm2<fp32_t>);
+    m.def("normalize_async_fp64", &normalize_async<fp64_t>);
+    m.def("normalize_async_fp32", &normalize_async<fp32_t>);
+    m.def("normalize_fp64", &normalize<fp64_t>);
+    m.def("normalize_fp32", &normalize<fp32_t>);
+    m.def("maxsumexp_async_fp64", &maxsumexp_async<fp64_t>);
+    m.def("maxsumexp_async_fp32", &maxsumexp_async<fp32_t>);
+    m.def("maxsumexp_fp64", &maxsumexp<fp64_t>);
+    m.def("maxsumexp_fp32", &maxsumexp<fp32_t>);
+    m.def("bias_async_fp64", &bias_async<fp64_t>);
+    m.def("bias_async_fp32", &bias_async<fp32_t>);
+    m.def("bias_fp64", &bias<fp64_t>);
+    m.def("bias_fp32", &bias<fp32_t>);
 }
 
 // Main extension module with all wrappers
