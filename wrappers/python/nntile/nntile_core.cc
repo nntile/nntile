@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-01-31
+ * @date 2023-02-01
  * */
 
 #include <pybind11/pybind11.h>
@@ -116,7 +116,11 @@ void def_mod_tile(py::module_ &m)
         // Shape of a tile
         def_readonly("shape", &TileTraits::shape).
         // Number of elements of a tile
-        def_readonly("nelems", &TileTraits::nelems);
+        def_readonly("nelems", &TileTraits::nelems).
+        // Linear to index
+        def("linear_to_index", &TileTraits::linear_to_index).
+        // Index to linear
+        def("index_to_linear", &TileTraits::index_to_linear);
     // Define wrappers for Tile<T>
     def_class_tile<fp32_t>(m, "Tile_fp32");
     def_class_tile<fp64_t>(m, "Tile_fp64");
@@ -198,7 +202,10 @@ void def_class_tensor(py::module_ &m, const char *name)
         def_readonly("next_tag", &Tensor<T>::next_tag).
         def("unregister", &Tensor<T>::unregister).
         def("from_array", tensor_from_array<T>).
-        def("to_array", tensor_to_array<T>);
+        def("to_array", tensor_to_array<T>).
+        // Get tile
+        def("get_tile", static_cast<tile::Tile<T>(Tensor<T>::*)(Index) const>(
+                    &Tensor<T>::get_tile));
     m.def("tensor_to_array", tensor_to_array<T>);
     m.def("tensor_from_array", tensor_from_array<T>);
 }
