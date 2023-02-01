@@ -1,13 +1,7 @@
 # All necesary imports
 import sys
-# just to run as separate script, to see std out
-try:
-    import nntile
-except: 
-    sys.path.append('./../../') # run from ./build/wrappers/python/tests/nntile_core
-    import nntile
-
-import math    
+import nntile
+import math
 import numpy as np
 from scipy.special import erf
 from numpy import sqrt
@@ -21,28 +15,33 @@ nntile.starpu.init()
 dtypes = [np.float32, np.float64]
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
-        np.float64: nntile.tensor.Tensor_fp64}
+          np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
 gelu = {np.float32: nntile.tensor.gelu_fp32,
         np.float64: nntile.tensor.gelu_fp64}
 
+
 def gelu_numpy(z, approximate=True):
-    # refrence code here https://github.com/ddbourgin/numpy-ml/blob/master/numpy_ml/neural_nets/activations/activations.py
-    # approximated verison also should work, but need to fix tol in all close
-    # now test non-approx version
+    """
+    https://github.com/ddbourgin/numpy-ml/blob/master/numpy_ml/neural_nets/
+    approximated verison also should work, but need to fix tol in all close
+    now test non-approx version
+    """
     if approximate:
         return 0.5 * z * (1 + tanh(sqrt(2 / math.pi) * (z + 0.044715 * z ** 3)))
-    return 0.5 * z * (1 + erf(z / sqrt(2))) # math,erf is not vectorized, sp.special.erf
+    # math,erf is not vectorized, sp.special.erf
+    return 0.5 * z * (1 + erf(z / sqrt(2)))
+
 
 # Helper function returns bool value true if test passes
-def helper(dtype,approximate=True):
+def helper(dtype, approximate=True):
     # Describe single-tile tensor, located at node 0
     shape = [2, 2]
     mpi_distr = [0]
     next_tag = 0
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr, next_tag)  
+    A = Tensor[dtype](traits, mpi_distr, next_tag)
     # Set initial values of tensors
     rand = np.random.randn(*shape)
     src_A = np.array(rand, dtype=dtype, order='F')
@@ -53,23 +52,24 @@ def helper(dtype,approximate=True):
     nntile.starpu.wait_for_all()
     A.unregister()
     # Get result in numpy
-    src_A = gelu_numpy(src_A,approximate=approximate)
-    print(f'src_a {src_A} of {dtype}\ndst_A {dst_A} of {dtype}\n') 
-    return np.allclose(src_A,dst_A)
+    src_A = gelu_numpy(src_A, approximate=approximate)
+    print(f'src_a {src_A} of {dtype}\ndst_A {dst_A} of {dtype}\n')
+    return np.allclose(src_A, dst_A)
+
 
 # Test runner for different precisions
 def test():
     for dtype in dtypes:
         for a in [False]:
-            assert helper(dtype,approximate=a)
+            assert helper(dtype, approximate=a)
+
 
 # Repeat tests
 def test_repeat():
     for dtype in dtypes:
         for a in [False]:
-            assert helper(dtype,approximate=a)
+            assert helper(dtype, approximate=a)
 
 if __name__ == "__main__":
     test()
     test_repeat()
-
