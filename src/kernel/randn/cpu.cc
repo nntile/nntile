@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,10 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-13
+ * @date 2023-02-01
  * */
 
 #include "nntile/kernel/randn/cpu.hh"
+#include <cmath>
+#include <iostream>
 #include "../external/random.h" // from external
 
 namespace nntile
@@ -25,13 +27,21 @@ namespace randn
 static inline fp32_t chameleon_randn(unsigned long long &seed, fp32_t mean,
         fp32_t stddev)
 {
-    return stddev*CORE_slaran(&seed) + mean;
+    constexpr fp32_t two=2.0, twopi=6.2831853071795864769252867663;
+    fp32_t t1 = CORE_slaran(&seed);
+    fp32_t t2 = CORE_slaran(&seed) * twopi;
+    fp32_t t3 = std::sqrt(-two*std::log(t1)) * std::cos(t2);
+    return stddev*t3 + mean;
 }
 
 static inline fp64_t chameleon_randn(unsigned long long &seed, fp64_t mean,
         fp64_t stddev)
 {
-    return stddev*CORE_dlaran(&seed) + mean;
+    constexpr fp64_t two=2.0, twopi=6.2831853071795864769252867663;
+    fp64_t t1 = CORE_dlaran(&seed);
+    fp64_t t2 = CORE_dlaran(&seed) * twopi;
+    fp64_t t3 = std::sqrt(-two*std::log(t1)) * std::cos(t2);
+    return stddev*t3 + mean;
 }
 
 template<typename T>

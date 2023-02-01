@@ -42,6 +42,9 @@ CORE_rnd64_jump(unsigned long long int n, unsigned long long int seed ) {
     a_k = Rnd64_A;
     c_k = Rnd64_C;
 
+    // NNTile requires 2 uniform random numbers per each normal number
+    n <<= 1;
+
     ran = seed;
     for (i = 0; n; n >>= 1, ++i) {
         if (n & 1) {
@@ -57,7 +60,8 @@ CORE_rnd64_jump(unsigned long long int n, unsigned long long int seed ) {
 static inline float
 CORE_slaran( unsigned long long int *ran )
 {
-    float value = 0.5 - (*ran) * RndF_Mul;
+    //float value = 0.5 - (*ran) * RndF_Mul;
+    float value = (*ran) * RndF_Mul;
     *ran = Rnd64_A * (*ran) + Rnd64_C;
 
     return value;
@@ -66,7 +70,8 @@ CORE_slaran( unsigned long long int *ran )
 static inline double
 CORE_dlaran( unsigned long long int *ran )
 {
-    double value = 0.5 - (*ran) * RndD_Mul;
+    //double value = 0.5 - (*ran) * RndD_Mul;
+    double value = (*ran) * RndD_Mul;
     *ran = Rnd64_A * (*ran) + Rnd64_C;
 
     return value;
