@@ -1,6 +1,7 @@
 # All necesary imports
 import nntile
 import numpy as np
+from math import e
 # Set up StarPU configuration and init it
 config = nntile.starpu.Config(1, 0, 0)
 # Init all NNTile-StarPU codelets
@@ -11,8 +12,8 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-sumnorm = {np.float32: nntile.tensor.sumnorm_fp32,
-        np.float64: nntile.tensor.sumnorm_fp64}
+softmax = {np.float32: nntile.tensor.softmax_fp32,
+        np.float64: nntile.tensor.softmax_fp64}
 
 # Helper function returns bool value true if test passes
 def helper(dtype):
@@ -38,19 +39,25 @@ def helper(dtype):
     # Set initial values of tensors
     rand_A = np.random.randn(*A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
-    A.from_array(np_A)
+    np_A2 = np.zeros_like(np_A)
     np_B = []
     for i in range(ndim):
-        np_B.append(np.zeros(B_shape[i], dtype=dtype, order='F'))
+        rand_B = np.random.randn(*B_shape[i])
+        np_B.append(np.array(rand_B, dtype=dtype, order='F'))
         B[i].from_array(np_B[-1])
     # Check result along each axis
     for i in range(ndim):
-        sumnorm[dtype](A, B[i], i)
-        B[i].to_array(np_B[i])
-        nntile.starpu.wait_for_all()
+        A.from_array(np_A)
+        softmax[dtype](B[i], A, i)
         B[i].unregister()
-        np_C = np.array([np.sum(np_A, axis=i), np.sum(np_A**2, axis=i)**0.5])
-        if not np.allclose(np_B[i], np_C):
+        A.to_array(np_A2)
+        np_B_max = np.expand_dims(np_B[i][0, ...], axis=i)
+        np_B_max = np.repeat(np_B_max, A_shape[i], axis=i)
+        np_B_sumexp = np.expand_dims(np_B[i][1, ...], axis=i)
+        np_B_sumexp = np.repeat(np_B_sumexp, A_shape[i], axis=i)
+        np_C = (e**(np_A-np_B_max)) / np_B_sumexp
+        nntile.starpu.wait_for_all()
+        if not np.allclose(np_C, np_A2):
             return False
     A.unregister()
     return True
