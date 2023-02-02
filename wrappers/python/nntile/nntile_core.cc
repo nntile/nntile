@@ -339,26 +339,14 @@ void def_mod_tensor(py::module_ &m)
     m.def("gemm_async_fp64", &gemm_async<fp64_t>);
     m.def("gemm_fp64", &gemm<fp64_t>);
     // Add activation functions for Tensor<T>
-<<<<<<< HEAD
-    // Tensor<T> :: relu
-=======
->>>>>>> main
     m.def("relu_async_fp64", &relu_async<fp64_t>);
     m.def("relu_async_fp32", &relu_async<fp32_t>);
     m.def("relu_fp64", &relu<fp64_t>);
     m.def("relu_fp32", &relu<fp32_t>);
-    // Tensor<T> :: drelu
     m.def("drelu_async_fp64", &drelu_async<fp64_t>);
     m.def("drelu_async_fp32", &drelu_async<fp32_t>);
     m.def("drelu_fp64", &drelu<fp64_t>);
     m.def("drelu_fp32", &drelu<fp32_t>);
-<<<<<<< HEAD
-    // Tensor<T> :: gelu
-    m.def("gelu_async_fp64", &gelu_async<fp64_t>);
-    m.def("gelu_async_fp32", &gelu_async<fp32_t>);
-    m.def("gelu_fp64", &gelu<fp64_t>);
-    m.def("gelu_fp32", &gelu<fp32_t>);
-=======
     // Add other functions for Tensor<T>
     m.def("sumnorm_async_fp64", &sumnorm_async<fp64_t>);
     m.def("sumnorm_async_fp32", &sumnorm_async<fp32_t>);
@@ -412,7 +400,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("clear_async_fp32", &clear_async<fp32_t>);
     m.def("clear_fp64", &clear<fp64_t>);
     m.def("clear_fp32", &clear<fp32_t>);
->>>>>>> main
+    m.def("gelu_async_fp64", &gelu_async<fp64_t>);
+    m.def("gelu_async_fp32", &gelu_async<fp32_t>);
+    m.def("gelu_fp64", &gelu<fp64_t>);
+    m.def("gelu_fp32", &gelu<fp32_t>);
 }
 
 // Main extension module with all wrappers
