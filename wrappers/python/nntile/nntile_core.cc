@@ -384,6 +384,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("bias_async_fp32", &bias_async<fp32_t>);
     m.def("bias_fp64", &bias<fp64_t>);
     m.def("bias_fp32", &bias<fp32_t>);
+    m.def("gather_async_fp64", &gather_async<fp64_t>);
+    m.def("gather_async_fp32", &gather_async<fp32_t>);
+    m.def("gather_fp64", &gather<fp64_t>);
+    m.def("gather_fp32", &gather<fp32_t>);
 }
 
 // Main extension module with all wrappers
