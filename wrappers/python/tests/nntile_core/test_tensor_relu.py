@@ -1,12 +1,20 @@
+# @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
+#                           (Skoltech). All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file wrappers/python/tests/nntile_core/test_tensor_relu.py
+# Test for tensor::relu<T> Python wrapper
+#
+# @version 1.0.0
+# @author Aleksandr Mikhalev
+# @author Konstantin Sozykin
+# @date 2023-02-02
+
 # All necesary imports
 import sys
-# just to run as separate script, to see std out
-try:
-    import nntile
-except: 
-    sys.path.append('./../../') # run from ./build/wrappers/python/tests/nntile_core
-    import nntile
-    
+import nntile
 import numpy as np
 
 # Set up StarPU configuration and init it
