@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-02-01
+ * @date 2023-02-02
  * */
 
 #include <pybind11/pybind11.h>
@@ -43,6 +43,25 @@ template<typename T>
 void tile_from_array(const tile::Tile<T> &tile,
         const py::array_t<T, py::array::f_style | py::array::forcecast> &array)
 {
+    // Treat special 0-dimensional case, where NNTile assumes 1 element in a
+    // tensor, while 0-dimensional numpy array assumes there no array elements
+    if(tile.ndim == 0)
+    {
+        if(array.ndim() != 1)
+        {
+            throw std::runtime_error("array.ndim() != 1");
+        }
+        if(array.shape()[0] != 1)
+        {
+            throw std::runtime_error("array.shape()[0] != 1");
+        }
+        // Acquire tile and copy a single element
+        auto tile_local = tile.acquire(STARPU_W);
+        std::memcpy(tile_local.get_ptr(), array.data(), sizeof(T));
+        tile_local.release();
+        return;
+    }
+    // Treat other cases
     if(tile.ndim != array.ndim())
     {
         throw std::runtime_error("tile.ndim != array.ndim()");
@@ -66,6 +85,25 @@ template<typename T>
 void tile_to_array(const tile::Tile<T> &tile,
         py::array_t<T, py::array::f_style> &array)
 {
+    // Treat special 0-dimensional case, where NNTile assumes 1 element in a
+    // tensor, while 0-dimensional numpy array assumes there no array elements
+    if(tile.ndim == 0)
+    {
+        if(array.ndim() != 1)
+        {
+            throw std::runtime_error("array.ndim() != 1");
+        }
+        if(array.shape()[0] != 1)
+        {
+            throw std::runtime_error("array.shape()[0] != 1");
+        }
+        // Acquire tile and copy a single element
+        auto tile_local = tile.acquire(STARPU_R);
+        std::memcpy(array.mutable_data(), tile_local.get_ptr(), sizeof(T));
+        tile_local.release();
+        return;
+    }
+    // Treat other cases
     if(tile.ndim != array.ndim())
     {
         throw std::runtime_error("tile.ndim != array.ndim()");
@@ -131,6 +169,31 @@ template<typename T>
 void tensor_from_array(const tensor::Tensor<T> &tensor,
         const py::array_t<T, py::array::f_style | py::array::forcecast> &array)
 {
+    // Treat special 0-dimensional case, where NNTile assumes 1 element in a
+    // tensor, while 0-dimensional numpy array assumes there no array elements
+    if(tensor.ndim == 0)
+    {
+        if(array.ndim() != 1)
+        {
+            throw std::runtime_error("array.ndim() != 1");
+        }
+        if(array.shape()[0] != 1)
+        {
+            throw std::runtime_error("array.shape()[0] != 1");
+        }
+        // Acquire tile and copy a single element
+        int mpi_rank = starpu_mpi_world_rank();
+        auto tile = tensor.get_tile(0);
+        if(mpi_rank == tile.mpi_get_rank())
+        {
+            auto tile_local = tile.acquire(STARPU_W);
+            std::memcpy(tile_local.get_ptr(), array.data(), sizeof(T));
+            tile_local.release();
+        }
+        tile.mpi_flush();
+        return;
+    }
+    // Treat other cases
     if(tensor.ndim != array.ndim())
     {
         throw std::runtime_error("tensor.ndim != array.ndim()");
@@ -164,6 +227,31 @@ template<typename T>
 void tensor_to_array(const tensor::Tensor<T> &tensor,
         py::array_t<T, py::array::f_style> &array)
 {
+    // Treat special 0-dimensional case, where NNTile assumes 1 element in a
+    // tensor, while 0-dimensional numpy array assumes there no array elements
+    if(tensor.ndim == 0)
+    {
+        if(array.ndim() != 1)
+        {
+            throw std::runtime_error("array.ndim() != 1");
+        }
+        if(array.shape()[0] != 1)
+        {
+            throw std::runtime_error("array.shape()[0] != 1");
+        }
+        // Acquire tile and copy a single element
+        int mpi_rank = starpu_mpi_world_rank();
+        auto tile = tensor.get_tile(0);
+        if(mpi_rank == tile.mpi_get_rank())
+        {
+            auto tile_local = tile.acquire(STARPU_R);
+            std::memcpy(array.mutable_data(), tile_local.get_ptr(), sizeof(T));
+            tile_local.release();
+        }
+        tile.mpi_flush();
+        return;
+    }
+    // Treat other cases
     if(tensor.ndim != array.ndim())
     {
         throw std::runtime_error("tensor.ndim != array.ndim()");
