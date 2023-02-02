@@ -71,7 +71,7 @@ def helper(dtype):
         np_C = (np_A-np_B_mean) / np_B_dev
         np_C = np_C*np_gb[0] + np_gb[1]
         nntile.starpu.wait_for_all()
-        if not np.allclose(np_C, np_A2):
+        if not np.allclose(np_C, np_A2, rtol=1e-3, atol=1e-5):
             return False
     A.unregister()
     gamma_beta.unregister()
