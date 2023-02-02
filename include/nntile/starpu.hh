@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-01-31
+ * @date 2023-02-02
  * */
 
 #pragma once
@@ -30,6 +30,7 @@
 #include <nntile/starpu/hypot.hh>
 #include <nntile/starpu/nrm2.hh>
 #include <nntile/starpu/normalize.hh>
+#include <nntile/starpu/prod.hh>
 #include <nntile/starpu/randn.hh>
 #include <nntile/starpu/relu.hh>
 #include <nntile/starpu/subcopy.hh>
@@ -62,6 +63,7 @@ void init()
     normalize::init();
     randn::init();
     relu::init();
+    prod::init();
     subcopy::init();
     sumnorm::init();
     softmax::init();
@@ -83,6 +85,7 @@ void restrict_where(uint32_t where)
     hypot::restrict_where(where);
     nrm2::restrict_where(where);
     normalize::restrict_where(where);
+    prod::restrict_where(where);
     randn::restrict_where(where);
     relu::restrict_where(where);
     subcopy::restrict_where(where);
@@ -106,6 +109,7 @@ void restore_where()
     hypot::restore_where();
     nrm2::restore_where();
     normalize::restore_where();
+    prod::restore_where();
     randn::restore_where();
     relu::restore_where();
     subcopy::restore_where();
