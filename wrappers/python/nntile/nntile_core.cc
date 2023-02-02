@@ -34,7 +34,7 @@ void def_mod_starpu(py::module_ &m)
     m.def("init", init);
     m.def("pause", starpu_pause);
     m.def("resume", starpu_resume);
-    m.def("wait_for_all", [](){starpu_task_wait_for_all;
+    m.def("wait_for_all", [](){starpu_task_wait_for_all();
             starpu_mpi_wait_for_all(MPI_COMM_WORLD);});
 }
 
