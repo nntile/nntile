@@ -4,8 +4,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_drelu.py
-# Test for tensor::drelu<T> Python wrapper
+# @file wrappers/python/tests/nntile_core/test_tensor_copy_intersection.py
+# Test for tensor::copy_intersection<T> Python wrapper
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
@@ -24,31 +24,40 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-drelu = {np.float32: nntile.tensor.drelu_fp32,
-        np.float64: nntile.tensor.drelu_fp64}
+copy_intersection = {np.float32: nntile.tensor.copy_intersection_fp32,
+        np.float64: nntile.tensor.copy_intersection_fp64}
 
 # Helper function returns bool value true if test passes
 def helper(dtype):
     # Describe single-tile tensor, located at node 0
-    shape = [2, 2]
-    mpi_distr = [0]
-    next_tag = 0
-    traits = nntile.tensor.TensorTraits(shape, shape)
+    A_shape = [3, 4, 5]
+    B_shape = [5, 4, 3]
+    A_offset = [10, 10, 10]
+    B_offset = [7, 10, 13]
+    ndim = len(A_shape)
+    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
+    B_traits = nntile.tensor.TensorTraits(B_shape, B_shape)
+    A_distr = [0]
+    B_distr = [0]
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr, next_tag)
+    next_tag = 0
+    A = Tensor[dtype](A_traits, A_distr, next_tag)
+    next_tag = A.next_tag
+    B = Tensor[dtype](B_traits, B_distr, next_tag)
     # Set initial values of tensors
-    rand = np.random.randn(*shape)
-    src_A = np.array(rand, dtype=dtype, order='F')
-    dst_A = -np.ones_like(src_A)
-    A.from_array(src_A)
-    drelu[dtype](A)
-    A.to_array(dst_A)
+    rand_A = np.random.randn(*A_shape)
+    np_A = np.array(rand_A, dtype=dtype, order='F')
+    A.from_array(np_A)
+    rand_B = np.random.randn(*B_shape)
+    np_B = np.array(rand_B, dtype=dtype, order='F')
+    B.from_array(np_B)
+    # Check result
+    copy_intersection[dtype](A, A_offset, B, B_offset)
+    B.to_array(np_B)
     nntile.starpu.wait_for_all()
     A.unregister()
-    # Get result in numpy
-    src_A[src_A < 0] = 0
-    src_A[src_A > 0] = 1
-    return (src_A == dst_A).all()
+    B.unregister()
+    return (np_A[:2, :, 3:] == np_B[3:, :, :2]).all()
 
 # Test runner for different precisions
 def test():

@@ -4,8 +4,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_drelu.py
-# Test for tensor::drelu<T> Python wrapper
+# @file wrappers/python/tests/nntile_core/test_tensor_randn.py
+# Test for tensor::randn<T> Python wrapper
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
@@ -24,31 +24,34 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-drelu = {np.float32: nntile.tensor.drelu_fp32,
-        np.float64: nntile.tensor.drelu_fp64}
+randn = {np.float32: nntile.tensor.randn_fp32,
+        np.float64: nntile.tensor.randn_fp64}
 
 # Helper function returns bool value true if test passes
 def helper(dtype):
     # Describe single-tile tensor, located at node 0
-    shape = [2, 2]
+    shape = [100, 100, 100]
+    ndim = len(shape)
+    seed = 1
+    mean = 1.0
+    dev = 0.5
     mpi_distr = [0]
     next_tag = 0
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
     A = Tensor[dtype](traits, mpi_distr, next_tag)
     # Set initial values of tensors
-    rand = np.random.randn(*shape)
-    src_A = np.array(rand, dtype=dtype, order='F')
-    dst_A = -np.ones_like(src_A)
-    A.from_array(src_A)
-    drelu[dtype](A)
-    A.to_array(dst_A)
+    randn[dtype](A, [0]*ndim, shape, seed, mean, dev)
+    np_A = np.zeros(shape, dtype=dtype, order='F')
+    A.to_array(np_A)
     nntile.starpu.wait_for_all()
     A.unregister()
-    # Get result in numpy
-    src_A[src_A < 0] = 0
-    src_A[src_A > 0] = 1
-    return (src_A == dst_A).all()
+    # Check average value and variation
+    mean2 = np.mean(np_A)
+    np_A -= mean2
+    np_A *= np_A
+    dev2 = np.mean(np_A) ** 0.5
+    return abs(1-mean2/mean) < 1e-3 and abs(1-dev2/dev) < 1e-3
 
 # Test runner for different precisions
 def test():
