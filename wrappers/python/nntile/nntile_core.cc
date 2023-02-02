@@ -404,6 +404,14 @@ void def_mod_tensor(py::module_ &m)
     m.def("gelu_async_fp32", &gelu_async<fp32_t>);
     m.def("gelu_fp64", &gelu<fp64_t>);
     m.def("gelu_fp32", &gelu<fp32_t>);
+    m.def("gelu_async_fp64", &gelu_async<fp64_t>);
+    m.def("gelu_async_fp32", &gelu_async<fp32_t>);
+    m.def("gelu_fp64", &gelu<fp64_t>);
+    m.def("gelu_fp32", &gelu<fp32_t>);
+    m.def("gelutanh_async_fp64", &gelutanh_async<fp64_t>);
+    m.def("gelutanh_async_fp32", &gelutanh_async<fp32_t>);
+    m.def("gelutanh_fp64", &gelutanh<fp64_t>);
+    m.def("gelutanh_fp32", &gelutanh<fp32_t>);
 }
 
 // Main extension module with all wrappers
