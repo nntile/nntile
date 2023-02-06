@@ -12,3 +12,4 @@
 # @date 2023-02-02
 
 from .nntile_core import starpu, tile, tensor, TransOp, trans, notrans
+from . import layer

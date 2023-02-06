@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-02-02
+ * @date 2023-02-06
  * */
 
 #include <pybind11/pybind11.h>
@@ -289,11 +289,14 @@ void def_class_tensor(py::module_ &m, const char *name)
                 starpu_mpi_tag_t &>()).
         def_readonly("next_tag", &Tensor<T>::next_tag).
         def("unregister", &Tensor<T>::unregister).
+        def("invalidate_submit", &Tensor<T>::invalidate_submit).
+        def("wont_use", &Tensor<T>::wont_use).
         def("from_array", tensor_from_array<T>).
         def("to_array", tensor_to_array<T>).
         // Get tile
         def("get_tile", static_cast<tile::Tile<T>(Tensor<T>::*)(Index) const>(
-                    &Tensor<T>::get_tile));
+                    &Tensor<T>::get_tile)).
+        def_readonly("distribution", &Tensor<T>::tile_distr);
     m.def("tensor_to_array", tensor_to_array<T>);
     m.def("tensor_from_array", tensor_from_array<T>);
 }
@@ -320,6 +323,8 @@ void def_mod_tensor(py::module_ &m)
                 std::stringstream stream;
                 stream << data;
                 return stream.str();}).
+        // Get basetile shape
+        def_readonly("basetile_shape", &TensorTraits::basetile_shape).
         // Shape of corresponding tile
         def("get_tile_shape", &TensorTraits::get_tile_shape).
         // Shape of a grid
@@ -328,16 +333,16 @@ void def_mod_tensor(py::module_ &m)
         // Get grid (TileTraits)
         def_readonly("grid", &TensorTraits::grid);
     // Define wrappers for Tensor<T>
-    def_class_tensor<fp32_t>(m, "Tensor_fp32");
     def_class_tensor<fp64_t>(m, "Tensor_fp64");
+    def_class_tensor<fp32_t>(m, "Tensor_fp32");
     // Add tensor.distributions submodule
     auto distributions = m.def_submodule("distributions");
     def_tensor_distributions(distributions);
     // Add functions for Tensor<T>
-    m.def("gemm_async_fp32", &gemm_async<fp32_t>);
-    m.def("gemm_fp32", &gemm<fp32_t>);
     m.def("gemm_async_fp64", &gemm_async<fp64_t>);
+    m.def("gemm_async_fp32", &gemm_async<fp32_t>);
     m.def("gemm_fp64", &gemm<fp64_t>);
+    m.def("gemm_fp32", &gemm<fp32_t>);
     // Add activation functions for Tensor<T>
     m.def("relu_async_fp64", &relu_async<fp64_t>);
     m.def("relu_async_fp32", &relu_async<fp32_t>);

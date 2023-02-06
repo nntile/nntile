@@ -9,5 +9,6 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-02
+# @date 2023-02-06
 
+from .norm import Norm_fp32
