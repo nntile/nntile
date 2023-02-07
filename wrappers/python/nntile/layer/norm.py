@@ -25,6 +25,8 @@ class Norm_fp32:
     axis: int
     l: int
     eps: float
+
+    # Construct normalization layer with all the provided data
     def __init__(self, x, dx, y, dy, gb, dgb, sumnorm, y_last, axis, eps):
         self.x = x
         self.dx = dx
@@ -38,22 +40,33 @@ class Norm_fp32:
         self.l = self.x.shape[axis]
         self.eps = eps
 
+    # Simple generator for the normalization layer
     @staticmethod
     def generate_block_cyclic(x, dx, axis, eps, next_tag):
+        # Check if X and dX correspond to each other
         if x.shape != dx.shape or x.basetile_shape != dx.basetile_shape:
             raise ValueError
+        # Get traits of X
         x_traits = tensor.TensorTraits(x.shape, x.basetile_shape)
+        # Create Y with the same traits and distribution as X
         y = tensor.Tensor_fp32(x_traits, x.distribution, next_tag)
         next_tag = y.next_tag
+        # Create dY with the same traits and distribution as X
         dy = tensor.Tensor_fp32(x_traits, x.distribution, next_tag)
         next_tag = dy.next_tag
+        # Gamma and beta simply contain 2 numbers
         gb_traits = tensor.TensorTraits([2], [2])
+        # Home node for gamma-and-beta tensor is 0
         gb = tensor.Tensor_fp32(gb_traits, [0], next_tag)
         next_tag = gb.next_tag
+        # Init gamma=1 and beta=0
         np_gb = np.array([1.0, 0.0], dtype=np.float32, order='F')
+        # TODO: fix for MPI case (only 0-node shall launch the following line
         gb.from_array(np_gb)
+        # derivative over gamma and beta
         dgb = tensor.Tensor_fp32(gb_traits, [0], next_tag)
         next_tag = dgb.next_tag
+        # Define auxiliary tensor to hold sums and norms along axis
         sumnorm_shape = [2] + x.shape[:axis] + x.shape[axis+1:]
         sumnorm_basetile = [2] + x.basetile_shape[:axis] \
                 + x.basetile_shape[axis+1:]
@@ -68,20 +81,23 @@ class Norm_fp32:
             sumnorm_distr.append(x_distr[x_tile_offset])
         sumnorm = tensor.Tensor_fp32(sumnorm_traits, sumnorm_distr, next_tag)
         next_tag = sumnorm.next_tag
+        # Store Y as implementation of backward propagation is based on it
         y_last = tensor.Tensor_fp32(x_traits, x.distribution, next_tag)
         next_tag = y_last.next_tag
+        # No need to store X, as backward propagation does not need it
+        # Create normalization layer with all the provided tensors
         layer = Norm_fp32(x, dx, y, dy, gb, dgb, sumnorm, y_last, axis, eps)
+        # Return layer and next tag to be used
         return (layer, next_tag)
 
+    # Create a new layer that works with a different input size, but relies on
+    # the same layer parameters
     def rebatch(self, new_x, new_dx, batch_axis, next_tag):
         # Shortcuts for new and old shapes and basetiles
         new_shape = new_x.shape
-        new_basetile =new_x.basetile_shape
+        new_basetile = new_x.basetile_shape
         shape = self.x.shape
         basetile = self.x.basetile_shape
-        # In case nothing is changed do nothing
-        if new_shape == shape and new_basetile == basetile:
-            return self
         # Check if new and old shapes differ only in 1 axis
         check_new = new_shape[:batch_axis] + new_shape[batch_axis+1:]
         check_old = shape[:batch_axis] + shape[batch_axis+1:]
@@ -133,14 +149,23 @@ class Norm_fp32:
                 self.dgb, new_sumnorm, new_y_last, self.axis, self.eps)
         return (new_layer, next_tag)
 
+    # Forward propagation of the normalization layer
     def forward_async(self):
+        # Clear auxiliary tensor for sums and norms of slices along given axis
         tensor.clear_async_fp32(self.sumnorm)
+        # Accumulate sums and norms of slices along given axis
         tensor.sumnorm_async_fp32(self.x, self.sumnorm, self.axis)
+        # Init Y as a copy of X
         tensor.copy_async_fp32(self.x, self.y)
+        # Normalize Y inplace
         tensor.normalize_async_fp32(self.gb, self.sumnorm, self.y, self.l,
                 self.eps, self.axis)
+        # Copy Y to utilize it during backward propagation
         tensor.copy_async_fp32(self.y, self.y_last)
+        # Destroy values stored in tensor X
         self.x.invalidate_submit()
+        # Hint for StarPU that gamma-and-beta, sumnorm and y_last tensors will
+        # not be used soon and it is advised to offload data from GPU 
         self.gb.wont_use()
         self.sumnorm.wont_use()
         self.y_last.wont_use()
