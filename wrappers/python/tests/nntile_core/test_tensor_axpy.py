@@ -4,7 +4,7 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_prod.py
+# @file wrappers/python/tests/nntile_core/test_tensor_axpy.py
 # Test for tensor::axpy<T> Python wrapper
 #
 # @version 1.0.0
@@ -59,7 +59,6 @@ def helper(dtype):
     B.unregister()
     alpha.unregister()
     # Compare results
-    # print(np_C, rand_B + alpha_np * rand_A)
     return np.allclose(np_C, rand_B + alpha_np * rand_A)
 
 # Test runner for different precisions
@@ -75,4 +74,3 @@ def test_repeat():
 if __name__ == "__main__":
     test()
     test_repeat()
-
