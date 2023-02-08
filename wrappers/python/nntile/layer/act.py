@@ -63,7 +63,7 @@ class Act_fp32:
         tensor.copy_async_fp32(self.x, self.dx)
         # Destroy values stored in tensor X
         self.x.invalidate_submit()
-        # Hint for StarPU that dx tensor will
+        # Hint for StarPU that dX tensor will
         # not be used soon and it is advised to offload data from GPU 
         self.dx.wont_use()
 

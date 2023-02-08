@@ -61,7 +61,7 @@ class Norm_fp32:
         next_tag = gb.next_tag
         # Init gamma=1 and beta=0
         np_gb = np.array([1.0, 0.0], dtype=np.float32, order='F')
-        # TODO: fix for MPI case (only 0-node shall launch the following line
+        # TODO: fix for MPI case (only 0-node shall launch the following line)
         gb.from_array(np_gb)
         # derivative over gamma and beta
         dgb = tensor.Tensor_fp32(gb_traits, [0], next_tag)
