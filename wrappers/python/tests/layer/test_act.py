@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-07
+# @date 2023-02-09
 
 # All necesary imports
 import nntile
@@ -20,7 +20,7 @@ config = nntile.starpu.Config(1, 0, 0)
 nntile.starpu.init()
 
 Tensor_fp32 = nntile.tensor.Tensor_fp32
-Act_fp32 = nntile.layer.Act_fp32
+Act = nntile.layer.Act
 
 # Helper function returns bool value true if test passes
 def helper_main_fp32():
@@ -41,11 +41,11 @@ def helper_main_fp32():
     np_A = np.array(rand_A, dtype=dtype, order='F')
     np_B = np.zeros_like(np_A)
     # Check result for each activation function
-    for funcname in Act_fp32.activations:
+    for funcname in Act.activations:
         # A is invalidated after each forward_async
         A.from_array(np_A)
         # Set up activation layer
-        layer, next_tag = Act_fp32.generate_block_cyclic(A, dA, funcname, \
+        layer, next_tag = Act.generate_block_cyclic(A, dA, funcname, \
                 next_tag)
         # Do forward pass and wait until it is finished
         layer.forward_async()

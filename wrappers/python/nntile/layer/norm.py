@@ -9,10 +9,11 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-07
+# @date 2023-02-09
 
 import nntile.nntile_core.tensor as tensor
 import numpy as np
+from typing import List
 
 class Norm_fp32:
     x: tensor.Tensor_fp32
@@ -25,6 +26,8 @@ class Norm_fp32:
     axis: int
     l: int
     eps: float
+    params: List[tensor.Tensor_fp32]
+    grads: List[tensor.Tensor_fp32]
 
     # Construct normalization layer with all the provided data
     def __init__(self, x, dx, y, dy, gb, dgb, sumnorm, y_last, axis, eps):
@@ -39,6 +42,8 @@ class Norm_fp32:
         self.axis = axis
         self.l = self.x.shape[axis]
         self.eps = eps
+        self.params = [self.gb]
+        self.grads = [self.dgb]
 
     # Simple generator for the normalization layer
     @staticmethod

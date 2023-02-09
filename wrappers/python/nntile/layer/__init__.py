@@ -12,4 +12,4 @@
 # @date 2023-02-07
 
 from .norm import Norm_fp32
-from .act import Act_fp32
+from .act import Act
