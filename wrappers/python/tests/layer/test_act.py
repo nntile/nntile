@@ -18,23 +18,26 @@ import numpy as np
 config = nntile.starpu.Config(1, 0, 0)
 # Init all NNTile-StarPU codelets
 nntile.starpu.init()
-
-Tensor_fp32 = nntile.tensor.Tensor_fp32
+# Define list of tested types
+dtypes = [np.float32, np.float64]
+# Define mapping between numpy and nntile types
+Tensor = {np.float32: nntile.tensor.Tensor_fp32,
+        np.float64: nntile.tensor.Tensor_fp64}
+# Get multiprecision activation layer
 Act = nntile.layer.Act
 
 # Helper function returns bool value true if test passes
-def helper_main_fp32():
+def helper(dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [4, 5, 6]
     ndim = len(A_shape)
-    dtype = np.float32
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
     next_tag = 0
     # Tensor objects
-    A = Tensor_fp32(A_traits, mpi_distr, next_tag)
+    A = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = A.next_tag
-    dA = Tensor_fp32(A_traits, mpi_distr, next_tag)
+    dA = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = dA.next_tag
     # Set initial values of tensors
     rand_A = np.random.randn(*A_shape)
@@ -56,8 +59,6 @@ def helper_main_fp32():
         np_C = np.zeros_like(np_A)
         np_C[np_A > 0] = np_A[np_A > 0]
         if (np_C != np_B).any():
-            import pdb
-            pdb.set_trace()
             return False
     A.unregister()
     dA.unregister()
@@ -65,11 +66,13 @@ def helper_main_fp32():
 
 # Test runner for different precisions
 def test():
-    assert helper_main_fp32()
+    for dtype in dtypes:
+        assert helper(dtype)
 
 # Repeat tests
 def test_repeat():
-    assert helper_main_fp32()
+    for dtype in dtypes:
+        assert helper(dtype)
 
 if __name__ == "__main__":
     test()

@@ -9,6 +9,6 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-08
+# @date 2023-02-09
 
-from .frob import Frob_fp32
+from .frob import Frob

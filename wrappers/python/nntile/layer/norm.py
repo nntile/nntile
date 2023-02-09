@@ -11,23 +11,24 @@
 # @author Aleksandr Mikhalev
 # @date 2023-02-09
 
-import nntile.nntile_core.tensor as tensor
+import nntile.tensor as tensor
 import numpy as np
 from typing import List
 
-class Norm_fp32:
-    x: tensor.Tensor_fp32
-    dx: tensor.Tensor_fp32
-    y: tensor.Tensor_fp32
-    dy: tensor.Tensor_fp32
-    gb: tensor.Tensor_fp32
-    sumnorm: tensor.Tensor_fp32
-    y_last: tensor.Tensor_fp32
+class Norm:
+    x: tensor.Tensor
+    dx: tensor.Tensor
+    y: tensor.Tensor
+    dy: tensor.Tensor
+    gb: tensor.Tensor
+    dgb: tensor.TensorOrNone
+    sumnorm: tensor.Tensor
+    y_last: tensor.Tensor
     axis: int
     l: int
     eps: float
-    params: List[tensor.Tensor_fp32]
-    grads: List[tensor.Tensor_fp32]
+    params: List[tensor.Tensor]
+    grads: List[tensor.Tensor]
 
     # Construct normalization layer with all the provided data
     def __init__(self, x, dx, y, dy, gb, dgb, sumnorm, y_last, axis, eps):
@@ -54,22 +55,22 @@ class Norm_fp32:
         # Get traits of X
         x_traits = tensor.TensorTraits(x.shape, x.basetile_shape)
         # Create Y with the same traits and distribution as X
-        y = tensor.Tensor_fp32(x_traits, x.distribution, next_tag)
+        y = type(x)(x_traits, x.distribution, next_tag)
         next_tag = y.next_tag
         # Create dY with the same traits and distribution as X
-        dy = tensor.Tensor_fp32(x_traits, x.distribution, next_tag)
+        dy = type(x)(x_traits, x.distribution, next_tag)
         next_tag = dy.next_tag
         # Gamma and beta simply contain 2 numbers
         gb_traits = tensor.TensorTraits([2], [2])
         # Home node for gamma-and-beta tensor is 0
-        gb = tensor.Tensor_fp32(gb_traits, [0], next_tag)
+        gb = type(x)(gb_traits, [0], next_tag)
         next_tag = gb.next_tag
         # Init gamma=1 and beta=0
         np_gb = np.array([1.0, 0.0], dtype=np.float32, order='F')
         # TODO: fix for MPI case (only 0-node shall launch the following line)
         gb.from_array(np_gb)
         # derivative over gamma and beta
-        dgb = tensor.Tensor_fp32(gb_traits, [0], next_tag)
+        dgb = type(x)(gb_traits, [0], next_tag)
         next_tag = dgb.next_tag
         # Define auxiliary tensor to hold sums and norms along axis
         sumnorm_shape = [2] + x.shape[:axis] + x.shape[axis+1:]
@@ -84,14 +85,14 @@ class Norm_fp32:
                     + sumnorm_tile_index[axis+1:]
             x_tile_offset = x.grid.index_to_linear(x_tile_index)
             sumnorm_distr.append(x_distr[x_tile_offset])
-        sumnorm = tensor.Tensor_fp32(sumnorm_traits, sumnorm_distr, next_tag)
+        sumnorm = type(x)(sumnorm_traits, sumnorm_distr, next_tag)
         next_tag = sumnorm.next_tag
         # Store Y as implementation of backward propagation is based on it
-        y_last = tensor.Tensor_fp32(x_traits, x.distribution, next_tag)
+        y_last = type(x)(x_traits, x.distribution, next_tag)
         next_tag = y_last.next_tag
         # No need to store X, as backward propagation does not need it
         # Create normalization layer with all the provided tensors
-        layer = Norm_fp32(x, dx, y, dy, gb, dgb, sumnorm, y_last, axis, eps)
+        layer = Norm(x, dx, y, dy, gb, dgb, sumnorm, y_last, axis, eps)
         # Return layer and next tag to be used
         return (layer, next_tag)
 
@@ -119,9 +120,9 @@ class Norm_fp32:
             raise ValueError
         # Define new Y and dY with the same shape and basetile as new X
         new_x_traits = tensor.TensorTraits(new_x.shape, new_x.basetile_shape)
-        new_y = tensor.Tensor_fp32(new_x_traits, new_x.distribution, next_tag)
+        new_y = type(new_x)(new_x_traits, new_x.distribution, next_tag)
         next_tag = new_y.next_tag
-        new_dy = tensor.Tensor_fp32(new_x_traits, new_x.distribution, next_tag)
+        new_dy = type(new_x)(new_x_traits, new_x.distribution, next_tag)
         next_tag = new_dy.next_tag
         # If normalization axis is the same as batch_axis then we can use the
         # same sumnorm as before
@@ -144,29 +145,29 @@ class Norm_fp32:
                 new_x_tile_offset = new_x.grid.index_to_linear( \
                         new_x_tile_index)
                 new_sumnorm_distr.append(new_x_distr[new_x_tile_offset])
-            new_sumnorm = tensor.Tensor_fp32(new_sumnorm_traits, \
+            new_sumnorm = type(new_x)(new_sumnorm_traits, \
                     new_sumnorm_distr, next_tag)
             next_tag = new_sumnorm.next_tag
-        new_y_last = tensor.Tensor_fp32(new_x_traits, new_x.distribution, \
+        new_y_last = type(new_x)(new_x_traits, new_x.distribution, \
                 next_tag)
         next_tag = new_y_last.next_tag
-        new_layer = Norm_fp32(new_x, new_dx, new_y, new_dy, self.gb, \
+        new_layer = Norm(new_x, new_dx, new_y, new_dy, self.gb, \
                 self.dgb, new_sumnorm, new_y_last, self.axis, self.eps)
         return (new_layer, next_tag)
 
     # Forward propagation of the normalization layer
     def forward_async(self):
         # Clear auxiliary tensor for sums and norms of slices along given axis
-        tensor.clear_async_fp32(self.sumnorm)
+        tensor.clear_async(self.sumnorm)
         # Accumulate sums and norms of slices along given axis
-        tensor.sumnorm_async_fp32(self.x, self.sumnorm, self.axis)
+        tensor.sumnorm_async(self.x, self.sumnorm, self.axis)
         # Init Y as a copy of X
-        tensor.copy_async_fp32(self.x, self.y)
+        tensor.copy_async(self.x, self.y)
         # Normalize Y inplace
-        tensor.normalize_async_fp32(self.gb, self.sumnorm, self.y, self.l,
+        tensor.normalize_async(self.gb, self.sumnorm, self.y, self.l,
                 self.eps, self.axis)
         # Copy Y to utilize it during backward propagation
-        tensor.copy_async_fp32(self.y, self.y_last)
+        tensor.copy_async(self.y, self.y_last)
         # Destroy values stored in tensor X
         self.x.invalidate_submit()
         # Hint for StarPU that gamma-and-beta, sumnorm and y_last tensors will

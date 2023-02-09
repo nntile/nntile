@@ -19,7 +19,9 @@ from typing import Union, List
 # Multiprecision tensor as a union type for all precisions
 Tensor = Union[core_tensor.Tensor_fp32, core_tensor.Tensor_fp64]
 # Union of multiprecision tensor and None type
-TensorNone = Union[Tensor, None]
+TensorOrNone = Union[Tensor, None]
+# Union of multiprecision tensor and float
+TensorOrFloat = Union[Tensor, float]
 
 # Wrapper for multiprecision gemm
 def gemm_async(alpha: float, trans_A: TransOp, A: Tensor, trans_B: TransOp,
@@ -162,4 +164,21 @@ def clear_async(x: Tensor) -> None:
         core_tensor.clear_async_fp32(x)
     else:
         core_tensor.clear_async_fp64(x)
+
+# Wrapper for multiprecision axpy
+def axpy_async(alpha: TensorOrFloat, x: Tensor, y: Tensor) -> None:
+    if type(x) is not type(y):
+        raise TypeError
+    if type(alpha) is Tensor:
+        if type(alpha) is not type(x):
+            raise TypeError
+        if type(x) is core_tensor.Tensor_fp32:
+            core_tensor.axpy_async_fp32(alpha, x, y)
+        else:
+            core_tensor.axpy_async_fp64(alpha, x, y)
+    else:
+        if type(x) is core_tensor.Tensor_fp32:
+            core_tensor.axpy2_async_fp32(alpha, x, y)
+        else:
+            core_tensor.axpy2_async_fp64(alpha, x, y)
 

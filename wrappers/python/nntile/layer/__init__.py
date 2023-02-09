@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-07
+# @date 2023-02-09
 
-from .norm import Norm_fp32
+from .norm import Norm
 from .act import Act

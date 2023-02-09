@@ -17,7 +17,7 @@ from typing import List, Callable
 
 class Act:
     x: tensor.Tensor
-    dx: tensor.TensorNone
+    dx: tensor.TensorOrNone
     y: tensor.Tensor
     dy: tensor.Tensor
     activations = {'relu': (tensor.relu_async, tensor.drelu_async),
@@ -25,10 +25,10 @@ class Act:
     func: Callable[[tensor.Tensor], None]
     dfunc: Callable[[tensor.Tensor], None]
     params: List[tensor.Tensor]
-    grads: List[tensor.TensorNone]
+    grads: List[tensor.TensorOrNone]
 
     # Construct activation layer with all the provided data
-    def __init__(self, x: tensor.Tensor, dx: tensor.TensorNone,
+    def __init__(self, x: tensor.Tensor, dx: tensor.TensorOrNone,
             y: tensor.Tensor, dy: tensor.Tensor, funcname: str):
         self.x = x
         self.dx = dx

@@ -405,12 +405,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("clear_async_fp32", &clear_async<fp32_t>);
     m.def("clear_fp64", &clear<fp64_t>);
     m.def("clear_fp32", &clear<fp32_t>);
-        
     m.def("axpy_async_fp64", &axpy_async<fp64_t>);
     m.def("axpy_async_fp32", &axpy_async<fp32_t>);
     m.def("axpy_fp64", &axpy<fp64_t>);
     m.def("axpy_fp32", &axpy<fp32_t>);
-
     m.def("axpy2_async_fp64", &axpy2_async<fp64_t>);
     m.def("axpy2_async_fp32", &axpy2_async<fp32_t>);
     m.def("axpy2_fp64", &axpy2<fp64_t>);

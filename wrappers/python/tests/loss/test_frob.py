@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-08
+# @date 2023-02-09
 
 # All necesary imports
 import nntile
@@ -18,28 +18,31 @@ import numpy as np
 config = nntile.starpu.Config(1, 0, 0)
 # Init all NNTile-StarPU codelets
 nntile.starpu.init()
-
-Tensor_fp32 = nntile.tensor.Tensor_fp32
-Frob_fp32 = nntile.loss.Frob_fp32
+# Define list of tested types
+dtypes = [np.float32, np.float64]
+# Define mapping between numpy and nntile types
+Tensor = {np.float32: nntile.tensor.Tensor_fp32,
+        np.float64: nntile.tensor.Tensor_fp64}
+# Get multiprecision loss function
+Frob = nntile.loss.Frob
 
 # Helper function returns bool value true if test passes
-def helper_main_fp32():
+def helper(dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [4, 5, 6]
     ndim = len(A_shape)
-    dtype = np.float32
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
     next_tag = 0
     val_traits = nntile.tensor.TensorTraits([], [])
     # Tensor objects
-    A = Tensor_fp32(A_traits, mpi_distr, next_tag)
+    A = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = A.next_tag
-    dA = Tensor_fp32(A_traits, mpi_distr, next_tag)
+    dA = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = dA.next_tag
-    B = Tensor_fp32(A_traits, mpi_distr, next_tag)
+    B = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = B.next_tag
-    val = Tensor_fp32(val_traits, [0], next_tag)
+    val = Tensor[dtype](val_traits, [0], next_tag)
     next_tag = val.next_tag
     # Set initial values of tensors
     rand_A = np.random.randn(*A_shape)
@@ -49,9 +52,9 @@ def helper_main_fp32():
     np_B = np.array(rand_B, dtype=dtype, order='F')
     B.from_array(np_B)
     # Define loss function object
-    loss, next_tag = Frob_fp32.generate_block_cyclic(A, dA, B, val, next_tag)
+    loss, next_tag = Frob.generate_block_cyclic(A, dA, B, val, next_tag)
     # Check loss and gradient
-    loss.grad()
+    loss.value_grad_async()
     np_dA = np.zeros_like(np_A)
     dA.to_array(np_dA)
     np_C = np_A - np_B
@@ -59,7 +62,7 @@ def helper_main_fp32():
         return False
     np_val = np.zeros([1], order='F', dtype=dtype)
     val.to_array(np_val)
-    if not np.isclose(np_val, 0.5*np.linalg.norm(np_C)):
+    if not np.isclose(np_val, 0.5*np.linalg.norm(np_C)**2):
         return False
     # Clear data
     A.unregister()
@@ -70,11 +73,13 @@ def helper_main_fp32():
 
 # Test runner for different precisions
 def test():
-    assert helper_main_fp32()
+    for dtype in dtypes:
+        assert helper(dtype)
 
 # Repeat tests
 def test_repeat():
-    assert helper_main_fp32()
+    for dtype in dtypes:
+        assert helper(dtype)
 
 if __name__ == "__main__":
     test()
