@@ -4,7 +4,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/max/cpu.hh
+ * @file include/nntile/kernel/maximum/cpu.hh
  * Per-element maximum of two buffers on CPU
  *
  * @version 1.0.0
@@ -20,7 +20,7 @@ namespace nntile
 {
 namespace kernel
 {
-namespace max
+namespace maximum
 {
 
 // Per-element maximum of two buffers
@@ -28,7 +28,7 @@ template<typename T>
 void cpu(Index nelems, const T *src, T *dst)
     noexcept;
 
-} // namespace max
+} // namespace maximum
 } // namespace kernel
 } // namespace nntile
 

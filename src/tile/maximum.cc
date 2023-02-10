@@ -4,7 +4,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tile/max.cc
+ * @file src/tile/maximum.cc
  * Per-element maximum of two Tile<T>
  *
  * @version 1.0.0
@@ -12,8 +12,8 @@
  * @date 2023-02-10
  * */
 
-#include "nntile/tile/max.hh"
-#include "nntile/starpu/max.hh"
+#include "nntile/tile/maximum.hh"
+#include "nntile/starpu/maximum.hh"
 
 namespace nntile
 {
@@ -25,7 +25,7 @@ namespace tile
  * @param[inout] dst: Input and output tile for the maximum operation
  * */
 template<typename T>
-void max_async(const Tile<T> &src, const Tile<T> &dst)
+void maximum_async(const Tile<T> &src, const Tile<T> &dst)
 {
     // Check shapes
     if(src.shape != dst.shape)
@@ -33,7 +33,7 @@ void max_async(const Tile<T> &src, const Tile<T> &dst)
         throw std::runtime_error("src.shape != dst.shape");
     }
     // Submit task
-    starpu::max::submit<T>(src.nelems, src, dst);
+    starpu::maximum::submit<T>(src.nelems, src, dst);
 }
 
 //! Blocking version of tile-wise maximum operation
@@ -41,25 +41,25 @@ void max_async(const Tile<T> &src, const Tile<T> &dst)
  * @param[inout] dst: Input and output tile for the maximum operation
  * */
 template<typename T>
-void max(const Tile<T> &src, const Tile<T> &dst)
+void maximum(const Tile<T> &src, const Tile<T> &dst)
 {
-    max_async<T>(src, dst);
+    maximum_async<T>(src, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void max_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
+void maximum_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void max_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+void maximum_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 // Explicit instantiation
 template
-void max<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
+void maximum<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void max<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+void maximum<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 } // namespace tile
 } // namespace nntile

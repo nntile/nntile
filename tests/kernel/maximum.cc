@@ -12,7 +12,7 @@
  * @date 2023-02-10
  * */
 
-#include "nntile/kernel/max.hh"
+#include "nntile/kernel/maximum.hh"
 #include "../testing.hh"
 #include <vector>
 #include <stdexcept>
@@ -20,7 +20,7 @@
 #include <iostream>
 
 using namespace nntile;
-using namespace nntile::kernel::max;
+using namespace nntile::kernel::maximum;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>

@@ -4,17 +4,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/max.cc
- * Maximum operation for Tensor<T>
+ * @file tests/tensor/maximum.cc
+ * Elementwise maximum operation for Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @date 2023-02-10
  * */
 
-#include "nntile/tensor/max.hh"
-#include "nntile/tile/max.hh"
-#include "nntile/starpu/max.hh"
+#include "nntile/tensor/maximum.hh"
+#include "nntile/tile/maximum.hh"
+#include "nntile/starpu/maximum.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/starpu/subcopy.hh"
@@ -69,9 +69,9 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     {
         auto src_tile = src_single.get_tile(0);
         auto dst_tile = dst_single.get_tile(0);
-        tile::max<T>(src_tile, dst_tile);
+        tile::maximum<T>(src_tile, dst_tile);
     }
-    max<T>(src, dst);
+    maximum<T>(src, dst);
     // Compare results
     Tensor<T> dst2_single(single_traits, dist_root, last_tag);
     gather<T>(dst, dst2_single);
@@ -108,9 +108,9 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    starpu::max::init();
+    starpu::maximum::init();
     starpu::subcopy::init();
-    starpu::max::restrict_where(STARPU_CPU);
+    starpu::maximum::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();

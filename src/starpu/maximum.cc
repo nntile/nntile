@@ -4,7 +4,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/max.cc
+ * @file src/starpu/maximum.cc
  * Per-element maximum of two StarPU buffers
  *
  * @version 1.0.0
@@ -12,15 +12,15 @@
  * @date 2023-02-10
  * */
 
-#include "nntile/starpu/max.hh"
-#include "nntile/kernel/max.hh"
+#include "nntile/starpu/maximum.hh"
+#include "nntile/kernel/maximum.hh"
 
 namespace nntile
 {
 namespace starpu
 {
 //! StarPU wrappers for maximum operation
-namespace max
+namespace maximum
 {
 
 //! Apply maximum operation on StarPU buffers on CPU
@@ -35,33 +35,33 @@ void cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::max::cpu<T>(nelems, src, dst);
+    kernel::maximum::cpu<T>(nelems, src, dst);
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Apply gelu on StarPU buffer on CUDA
-template<typename T>
-void cuda(void *buffers[], void *cl_args)
-    noexcept
-{
-    // // Get arguments
-    // Index nelems = reinterpret_cast<Index *>(cl_args)[0];
-    // // Get interfaces
-    // auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    // const T *src = interfaces[0]->get_ptr<T>();
-    // T *dst = interfaces[1]->get_ptr<T>();
-    // // Get CUDA stream
-    // cudaStream_t stream = starpu_cuda_get_local_stream();
-    // // Launch kernel
-    // kernel::prod::cuda<T>(stream, nelems, src, dst);
-}
+// template<typename T>
+// void cuda(void *buffers[], void *cl_args)
+//     noexcept
+// {
+//     // // Get arguments
+//     // Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+//     // // Get interfaces
+//     // auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+//     // const T *src = interfaces[0]->get_ptr<T>();
+//     // T *dst = interfaces[1]->get_ptr<T>();
+//     // // Get CUDA stream
+//     // cudaStream_t stream = starpu_cuda_get_local_stream();
+//     // // Launch kernel
+//     // kernel::prod::cuda<T>(stream, nelems, src, dst);
+// }
 #endif // NNTILE_USE_CUDA
 
 Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
-    codelet_fp32.init("nntile_max_fp32",
+    codelet_fp32.init("nntile_maximum_fp32",
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -70,7 +70,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_fp64.init("nntile_max_fp64",
+    codelet_fp64.init("nntile_maximum_fp64",
             nullptr,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
@@ -118,6 +118,6 @@ void submit<fp32_t>(Index nelems, Handle src, Handle dst);
 template
 void submit<fp64_t>(Index nelems, Handle src, Handle dst);
 
-} // namespace max
+} // namespace maximum
 } // namespace starpu
 } // namespace nntile

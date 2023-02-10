@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tile/max.hh
- * Per-element maximum of two Tile<T>
+ * @file include/nntile/tensor/maximum.hh
+ * Per-element maximum of two Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
@@ -14,19 +14,20 @@
 
 #pragma once
 
-#include <nntile/tile/tile.hh>
+#include <nntile/tensor/tensor.hh>
 
 namespace nntile
 {
-namespace tile
+namespace tensor
 {
 
+// Asynchronous tensor-wise maximum operation
 template<typename T>
-void max_async(const Tile<T> &src, const Tile<T> &dst);
+void maximum_async(const Tensor<T> &src, const Tensor<T> &dst);
 
+// Blocking version of tensor-wise maximum operation
 template<typename T>
-void max(const Tile<T> &src, const Tile<T> &dst);
+void maximum(const Tensor<T> &src, const Tensor<T> &dst);
 
-} // namespace tile
+} // namespace tensor
 } // namespace nntile
-

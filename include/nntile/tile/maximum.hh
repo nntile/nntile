@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/max.hh
- * Per-element maximum of two buffers. low-level kernels
+ * @file include/nntile/tile/max.hh
+ * Per-element maximum of two Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
@@ -14,23 +14,19 @@
 
 #pragma once
 
-#include <nntile/kernel/max/cpu.hh>
-#include <nntile/defs.h>
-#ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/prod/cuda.hh>
-#endif // NNTILE_USE_CUDA
+#include <nntile/tile/tile.hh>
 
 namespace nntile
 {
-namespace kernel
-{
-//! @namespace nntile::kernel::prod
-/*! Low-level implementations of prod operation
- * */
-namespace max
+namespace tile
 {
 
-} // namespace max
-} // namespace kernel
+template<typename T>
+void maximum_async(const Tile<T> &src, const Tile<T> &dst);
+
+template<typename T>
+void maximum(const Tile<T> &src, const Tile<T> &dst);
+
+} // namespace tile
 } // namespace nntile
 

@@ -4,8 +4,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_max.py
-# Test for tensor::max<T> Python wrapper
+# @file wrappers/python/tests/nntile_core/test_tensor_maximum.py
+# Test for tensor::maximum<T> Python wrapper
 #
 # @version 1.0.0
 # @author Aleksandr Katrutsa
@@ -24,8 +24,8 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-max_func = {np.float32: nntile.tensor.max_fp32,
-        np.float64: nntile.tensor.max_fp64}
+maximum_func = {np.float32: nntile.tensor.maximum_fp32,
+        np.float64: nntile.tensor.maximum_fp64}
 
 # Helper function returns bool value true if test passes
 def helper(dtype):
@@ -45,7 +45,7 @@ def helper(dtype):
     rand_B = np.random.randn(*shape)
     np_B = np.array(rand_B, dtype=dtype, order='F')
     B.from_array(np_B)
-    max_func[dtype](A, B)
+    maximum_func[dtype](A, B)
     np_C = np.zeros(shape, dtype=dtype, order='F')
     B.to_array(np_C)
     nntile.starpu.wait_for_all()

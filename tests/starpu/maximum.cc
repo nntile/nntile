@@ -4,16 +4,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tile/max.cc
- * Maximum operation on Tile<T>
+ * @file tests/tile/maximum.cc
+ * Elementwise maximum operation on Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @date 2023-02-10
  * */
 
-#include "nntile/tile/max.hh"
-#include "nntile/starpu/max.hh"
+#include "nntile/tile/maximum.hh"
+#include "nntile/starpu/maximum.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -45,15 +45,15 @@ void validate()
     src2_local.release();
     dst2_local.release();
     dst2_copy_local.release();
-    starpu::max::submit<T>(1, src1, dst1);
-    max<T>(src1, dst1_copy);
+    starpu::maximum::submit<T>(1, src1, dst1);
+    maximum<T>(src1, dst1_copy);
     dst1_local.acquire(STARPU_R);
     dst1_copy_local.acquire(STARPU_R);
     TEST_ASSERT(dst1_local[0] == dst1_copy_local[0]);
     dst1_local.release();
     dst1_copy_local.release();
-    starpu::max::submit<T>(src2.nelems, src2, dst2);
-    max<T>(src2, dst2_copy);
+    starpu::maximum::submit<T>(src2.nelems, src2, dst2);
+    maximum<T>(src2, dst2_copy);
     dst2_local.acquire(STARPU_R);
     dst2_copy_local.acquire(STARPU_R);
     for(Index i = 0; i < src2.nelems; ++i)
@@ -69,8 +69,8 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    starpu::max::init();
-    starpu::max::restrict_where(STARPU_CPU);
+    starpu::maximum::init();
+    starpu::maximum::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

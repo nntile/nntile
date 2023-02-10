@@ -4,7 +4,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tensor/max.cc
+ * @file src/tensor/maximum.cc
  * Per-element maximum of two Tensor<T>
  *
  * @version 1.0.0
@@ -12,8 +12,8 @@
  * @date 2023-01-10
  * */
 
-#include "nntile/tensor/max.hh"
-#include "nntile/starpu/max.hh"
+#include "nntile/tensor/maximum.hh"
+#include "nntile/starpu/maximum.hh"
 
 namespace nntile
 {
@@ -25,7 +25,7 @@ namespace tensor
  * @param[inout] dst: Input and output tensor for the maximum operation
  * */
 template<typename T>
-void max_async(const Tensor<T> &src, const Tensor<T> &dst)
+void maximum_async(const Tensor<T> &src, const Tensor<T> &dst)
 {
     // Check shapes
     if(src.shape != dst.shape)
@@ -51,7 +51,7 @@ void max_async(const Tensor<T> &src, const Tensor<T> &dst)
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::max::submit<T>(traits.nelems, src_tile_handle,
+            starpu::maximum::submit<T>(traits.nelems, src_tile_handle,
                     dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -64,26 +64,26 @@ void max_async(const Tensor<T> &src, const Tensor<T> &dst)
  * @param[inout] dst: Input and output tensor for the maximum operation
  * */
 template<typename T>
-void max(const Tensor<T> &src, const Tensor<T> &dst)
+void maximum(const Tensor<T> &src, const Tensor<T> &dst)
 {
-    max_async<T>(src, dst);
+    maximum_async<T>(src, dst);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void max_async<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
+void maximum_async<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 
 template
-void max_async<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
+void maximum_async<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
 // Explicit instantiation
 template
-void max<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
+void maximum<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 
 template
-void max<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
+void maximum<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
 } // namespace tensor
 } // namespace nntile
