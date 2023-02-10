@@ -28,6 +28,7 @@ set(KERNEL_SRC
     "kernel/sumnorm/cpu.cc"
     "kernel/maxsumexp/cpu.cc"
     "kernel/softmax/cpu.cc"
+    "kernel/max/cpu.cc"
     )
 
 if(NNTILE_USE_CUDA)
@@ -68,6 +69,7 @@ set(STARPU_SRC
     "starpu/sumnorm.cc"
     "starpu/maxsumexp.cc"
     "starpu/softmax.cc"
+    "starpu/max.cc"
     )
 
 set(TILE_SRC
@@ -91,6 +93,7 @@ set(TILE_SRC
     "tile/sumnorm.cc"
     "tile/maxsumexp.cc"
     "tile/softmax.cc"
+    "tile/max.cc"
     )
 
 set(TENSOR_SRC
@@ -117,6 +120,7 @@ set(TENSOR_SRC
     "tensor/sumnorm.cc"
     "tensor/maxsumexp.cc"
     "tensor/softmax.cc"
+    "tensor/max.cc"
     )
 
 set(LAYER_SRC
