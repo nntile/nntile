@@ -50,6 +50,7 @@ set(KERNEL_HDR
     "nntile/kernel/maxsumexp/cpu.hh"
     "nntile/kernel/softmax.hh"
     "nntile/kernel/softmax/cpu.hh"
+    "nntile/kernel/sqrt/cpu.hh"
     )
 
 if(NNTILE_USE_CUDA)
@@ -91,6 +92,7 @@ set(STARPU_HDR
     "nntile/starpu/sumnorm.hh"
     "nntile/starpu/maxsumexp.hh"
     "nntile/starpu/softmax.hh"
+    "nntile/starpu/sqrt.hh"
     )
 
 set(TILE_HDR
@@ -116,6 +118,7 @@ set(TILE_HDR
     "nntile/tile/sumnorm.hh"
     "nntile/tile/maxsumexp.hh"
     "nntile/tile/softmax.hh"
+    "nntile/tile/sqrt.hh"
     )
 
 set(TENSOR_HDR
@@ -144,6 +147,7 @@ set(TENSOR_HDR
     "nntile/tensor/sumnorm.hh"
     "nntile/tensor/maxsumexp.hh"
     "nntile/tensor/softmax.hh"
+    "nntile/tensor/sqrt.hh"
     )
 
 set(LAYER_HDR

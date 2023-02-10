@@ -40,6 +40,7 @@ set(TESTS_MPI
     "prod"
     "maxsumexp"
     "softmax"
+    "sqrt"
     )
 
 # Add target for local coverage
