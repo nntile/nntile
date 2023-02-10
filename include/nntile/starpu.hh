@@ -37,6 +37,7 @@
 #include <nntile/starpu/sumnorm.hh>
 #include <nntile/starpu/maxsumexp.hh>
 #include <nntile/starpu/softmax.hh>
+#include <nntile/starpu/add_scalar.hh>
 
 namespace nntile
 {
@@ -68,6 +69,7 @@ void init()
     sumnorm::init();
     softmax::init();
     maxsumexp::init();
+    add_scalar::init();
 }
 
 // Restrict StarPU codelets to certain computational units
@@ -92,6 +94,7 @@ void restrict_where(uint32_t where)
     sumnorm::restrict_where(where);
     softmax::restrict_where(where);
     maxsumexp::restrict_where(where);
+    add_scalar::restrict_where(where);
 }
 
 // Restore computational units for StarPU codelets
@@ -116,6 +119,7 @@ void restore_where()
     sumnorm::restore_where();
     softmax::restore_where();
     maxsumexp::restore_where();
+    add_scalar::restore_where();
 }
 
 } // namespace starpu
