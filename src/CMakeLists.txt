@@ -131,7 +131,7 @@ set(MODEL_SRC
     )
 
 set(OPTIMIZER_SRC
-    #"optimizer/grad_descent.cc"
+    # "optimizer/sgd.cc"
     )
 
 set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC} ${LAYER_SRC})
