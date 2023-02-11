@@ -17,7 +17,7 @@
 #include <nntile/kernel/sqrt/cpu.hh>
 #include <nntile/defs.h>
 #ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/relu/cuda.hh>
+// #include <nntile/kernel/sqrt/cuda.hh>
 #endif // NNTILE_USE_CUDA
 
 namespace nntile

@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -25,16 +25,16 @@ namespace starpu
 namespace sqrt
 {
 
-// Apply relu along middle axis of StarPU buffer on CPU
+// Apply sqrt elementwise of StarPU buffer on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
-// Apply relu along middle axis of StarPU buffer on CUDA
-template<typename T>
-void cuda(void *buffers[], void *cl_args)
-    noexcept;
+// Apply sqrt elementwise of StarPU buffer on CUDA
+// template<typename T>
+// void cuda(void *buffers[], void *cl_args)
+//     noexcept;
 #endif // NNTILE_USE_CUDA
 
 extern Codelet codelet_fp32, codelet_fp64;
