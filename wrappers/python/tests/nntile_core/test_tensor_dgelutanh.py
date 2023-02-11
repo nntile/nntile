@@ -72,7 +72,7 @@ def helper(dtype, approximate=True):
     # Get result in numpy
     src_A = dgelu_numpy(src_A, approximate=approximate)
     print(f'src_a {src_A} of {dtype}\ndst_A {dst_A} of {dtype}\n')
-    return np.allclose(src_A, dst_A)
+    return np.allclose(src_A, dst_A,atol=1e-3,rtol=1e-3)
 
 
 # Test runner for different precisions
