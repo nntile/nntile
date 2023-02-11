@@ -42,20 +42,34 @@ def helper(dtype: np.dtype):
     # Set initial values of tensors
     rand_A = np.random.randn(*A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
-    A.from_array(np_A)
     # Define linear layer
     layer, next_tag = Linear.generate_block_cyclic(A, dA, 'L', 7, 7, next_tag)
     rand_W = np.random.randn(*layer.w.shape)
     np_W = np.array(rand_W, dtype=dtype, order='F')
     layer.w.from_array(np_W)
     # Check result
+    A.from_array(np_A)
     layer.forward_async()
     np_Y = np_A @ np_W
     np_Y2 = np.zeros_like(np_Y, order='F')
     layer.y.to_array(np_Y2)
+    if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > 1e-5:
+        return False
+    layer.dy.from_array(np_Y)
+    layer.backward_async()
+    np_Z = np.einsum("ijk,ijl->kl", np_A, np_Y2)
+    np_Z2 = np.zeros_like(np_Z, order='F')
+    layer.dw.to_array(np_Z2)
+    if np.linalg.norm(np_Z-np_Z2)/np.linalg.norm(np_Z) > 1e-5:
+        return False
+    np_Z3 = np.einsum("ijk,lk->ijl", np_Y2, np_W)
+    np_Z4 = np.zeros_like(np_Z3, order='F')
+    layer.dx.to_array(np_Z4)
+    if np.linalg.norm(np_Z3-np_Z4)/np.linalg.norm(np_Z3) > 1e-5:
+        return False
     A.unregister()
     dA.unregister()
-    return np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) < 1e-5
+    return True
 
 # Test runner for different precisions
 def test():

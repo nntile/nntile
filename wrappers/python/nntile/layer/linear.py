@@ -97,9 +97,73 @@ class Linear:
         else:
             tensor.gemm_async(1.0, self.trans_w, self.w, self.trans_x, self.x,
                     0.0, self.y, self.ndim)
+        # Copy current X into dX to use it during backward propagation
+        tensor.copy_async(self.x, self.dx)
         # Destroy values stored in tensor X
         self.x.invalidate_submit()
         # Hint for StarPU that W tensor will
         # not be used soon and it is advised to offload data from GPU 
         self.w.wont_use()
+
+    # Backward propagation of the linear layer
+    def backward_async(self):
+        # Perform actual gemms
+        if self.side == 'L':
+            if self.trans_x == tensor.notrans:
+                if self.trans_w == tensor.notrans:
+                    tensor.gemm_async(1.0, tensor.trans, self.dx,
+                            tensor.notrans, self.dy, 0.0, self.dw,
+                            len(self.x.shape)-self.ndim)
+                    tensor.gemm_async(1.0, tensor.notrans, self.dy,
+                            tensor.trans, self.w, 0.0, self.dx,
+                            len(self.w.shape)-self.ndim)
+                else:
+                    tensor.gemm_async(1.0, tensor.trans, self.dy,
+                            tensor.notrans, self.dx, 0.0, self.dw,
+                            len(self.x.shape)-self.ndim)
+                    tensor.gemm_async(1.0, tensor.notrans, self.dy,
+                            tensor.notrans, self.w, 0.0, self.dx,
+                            len(self.w.shape)-self.ndim)
+            else:
+                if self.trans_w == tensor.notrans:
+                    tensor.gemm_async(1.0, tensor.notrans, self.dx,
+                            tensor.notrans, self.dy, 0.0, self.dw,
+                            len(self.x.shape)-self.ndim)
+                else:
+                    tensor.gemm_async(1.0, tensor.trans, self.dy,
+                            tensor.trans, self.dx, 0.0, self.dw,
+                            len(self.x.shape)-self.ndim)
+                tensor.gemm_async(1.0, self.trans_w, self.w, tensor.trans,
+                        self.dy, 0.0, self.dx, len(self.w.shape)-self.ndim)
+        else:
+            if self.trans_x == tensor.notrans:
+                if self.trans_w == tensor.notrans:
+                    tensor.gemm_async(1.0, tensor.notrans, self.dy,
+                            tensor.trans, self.dx, 0.0, self.dw,
+                            len(self.x.shape)-self.ndim)
+                    tensor.gemm_async(1.0, tensor.trans, self.w,
+                            tensor.notrans, self.dy, 0.0, self.dx,
+                            len(self.w.shape)-self.ndim)
+                else:
+                    tensor.gemm_async(1.0, tensor.notrans, self.dx,
+                            tensor.trans, self.dy, 0.0, self.dw,
+                            len(self.x.shape)-self.ndim)
+                    tensor.gemm_async(1.0, tensor.notrans, self.w,
+                            tensor.notrans, self.dy, 0.0, self.dx,
+                            len(self.w.shape)-self.ndim)
+            else:
+                if self.trans_w == tensor.notrans:
+                    tensor.gemm_async(1.0, tensor.notrans, self.dy,
+                            tensor.notrans, self.dx, 0.0, self.dw,
+                            len(self.x.shape)-self.ndim)
+                else:
+                    tensor.gemm_async(1.0, tensor.trans, self.dx,
+                            tensor.trans, self.dy, 0.0, self.dw,
+                            len(self.x.shape)-self.ndim)
+                tensor.gemm_async(1.0, tensor.trans, self.dy, self.trans_w,
+                        self.w, 0.0, self.dx, len(self.w.shape)-self.ndim)
+        # Hint StarPU to offload certain buffers
+        self.dw.wont_use()
+        # Hint StarPU to delete data from certain buffers
+        self.dy.invalidate_submit()
 
