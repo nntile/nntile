@@ -400,7 +400,8 @@ void def_mod_tensor(py::module_ &m)
     m.def("clear_async_fp32", &clear_async<fp32_t>);
     m.def("clear_fp64", &clear<fp64_t>);
     m.def("clear_fp32", &clear<fp32_t>);
-
+    
+    // gelu and dgelu
     m.def("gelu_async_fp64", &gelu_async<fp64_t>);
     m.def("gelu_async_fp32", &gelu_async<fp32_t>);
     m.def("gelu_fp64", &gelu<fp64_t>);
@@ -409,8 +410,17 @@ void def_mod_tensor(py::module_ &m)
     m.def("gelutanh_async_fp32", &gelutanh_async<fp32_t>);
     m.def("gelutanh_fp64", &gelutanh<fp64_t>);
     m.def("gelutanh_fp32", &gelutanh<fp32_t>);
-
-        
+    
+    m.def("dgelu_async_fp64", &dgelu_async<fp64_t>);
+    m.def("dgelu_async_fp32", &dgelu_async<fp32_t>);
+    m.def("dgelu_fp64", &dgelu<fp64_t>);
+    m.def("dgelu_fp32", &dgelu<fp32_t>);
+    m.def("dgelutanh_async_fp64", &dgelutanh_async<fp64_t>);
+    m.def("dgelutanh_async_fp32", &dgelutanh_async<fp32_t>);
+    m.def("dgelutanh_fp64", &dgelutanh<fp64_t>);
+    m.def("dgelutanh_fp32", &dgelutanh<fp32_t>);
+    
+    
     m.def("axpy_async_fp64", &axpy_async<fp64_t>);
     m.def("axpy_async_fp32", &axpy_async<fp32_t>);
     m.def("axpy_fp64", &axpy<fp64_t>);
@@ -420,6 +430,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("axpy2_async_fp32", &axpy2_async<fp32_t>);
     m.def("axpy2_fp64", &axpy2<fp64_t>);
     m.def("axpy2_fp32", &axpy2<fp32_t>);
+    
 
 }
 
