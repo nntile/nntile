@@ -9,7 +9,8 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-09
+# @date 2023-02-11
 
 from .norm import Norm
 from .act import Act
+from .linear import Linear

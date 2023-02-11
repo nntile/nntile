@@ -4,8 +4,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/layer/test_act.py
-# Test for nntile.layer.act
+# @file wrappers/python/tests/nntile_core/layer/test_linear.py
+# Test for nntile.layer.linear
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
@@ -24,7 +24,7 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 # Get multiprecision activation layer
-Act = nntile.layer.Act
+Linear = nntile.layer.Linear
 
 # Helper function returns bool value true if test passes
 def helper(dtype: np.dtype):
@@ -42,27 +42,20 @@ def helper(dtype: np.dtype):
     # Set initial values of tensors
     rand_A = np.random.randn(*A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
-    np_B = np.zeros_like(np_A)
-    # Check result for each activation function
-    for funcname in Act.activations:
-        # A is invalidated after each forward_async
-        A.from_array(np_A)
-        # Set up activation layer
-        layer, next_tag = Act.generate_block_cyclic(A, dA, funcname, \
-                next_tag)
-        # Do forward pass and wait until it is finished
-        layer.forward_async()
-        nntile.starpu.wait_for_all()
-        # Dump output
-        layer.y.to_array(np_B)
-        # Check output correctness
-        np_C = np.zeros_like(np_A)
-        np_C[np_A > 0] = np_A[np_A > 0]
-        if (np_C != np_B).any():
-            return False
+    A.from_array(np_A)
+    # Define linear layer
+    layer, next_tag = Linear.generate_block_cyclic(A, dA, 'L', 7, 7, next_tag)
+    rand_W = np.random.randn(*layer.w.shape)
+    np_W = np.array(rand_W, dtype=dtype, order='F')
+    layer.w.from_array(np_W)
+    # Check result
+    layer.forward_async()
+    np_Y = np_A @ np_W
+    np_Y2 = np.zeros_like(np_Y, order='F')
+    layer.y.to_array(np_Y2)
     A.unregister()
     dA.unregister()
-    return True
+    return np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) < 1e-5
 
 # Test runner for different precisions
 def test():

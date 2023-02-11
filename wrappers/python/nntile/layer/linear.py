@@ -9,29 +9,31 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-09
+# @date 2023-02-11
 
-import nntile.nntile_core.tensor as tensor
+import nntile.tensor as tensor
 import numpy as np
-from typing import List, Str
+from typing import List
 
-class Linear_fp32:
-    x: tensor.Tensor_fp32
-    dx: tensor.Tensor_fp32
-    y: tensor.Tensor_fp32
-    dy: tensor.Tensor_fp32
-    w: tensor.Tensor_fp32
-    dw: tensor.Tensor_fp32
-    b: None | tensor.Tensor_fp32
-    db: None | tensor.Tensor_fp32
-    side: Str
-    trans_x: Str
-    trans_w: Str
-    params: List[tensor.Tensor_fp32]
-    grads: List[tensor.Tensor_fp32]
+class Linear:
+    x: tensor.Tensor
+    dx: tensor.Tensor
+    y: tensor.Tensor
+    dy: tensor.Tensor
+    w: tensor.Tensor
+    dw: tensor.Tensor
+    b: tensor.TensorOrNone
+    db: tensor.TensorOrNone
+    side: str
+    trans_x: tensor.TransOp
+    trans_w: tensor.TransOp
+    ndim: int
+    params: List[tensor.Tensor]
+    grads: List[tensor.Tensor]
 
     # Construct linear layer with all the provided data
-    def __init__(self, x, dx, y, dy, w, dw, b, db, side, trans_x, trans_w):
+    def __init__(self, x, dx, y, dy, w, dw, b, db, side, trans_x, trans_w,
+            ndim):
         self.x = x
         self.dx = dx
         self.y = y
@@ -43,48 +45,61 @@ class Linear_fp32:
         self.side = side
         self.trans_x = trans_x
         self.trans_w = trans_w
+        self.ndim = ndim
         self.params = [w, b]
         self.grads = [dw, db]
 
-#    # Simple generator for the normalization layer
-#    @staticmethod
-#    def generate_block_cyclic(x, dx, funcname, next_tag):
-#        # Check if X and dX correspond to each other
-#        if x.shape != dx.shape or x.basetile_shape != dx.basetile_shape:
-#            raise ValueError
-#        # Get traits of X
-#        x_traits = tensor.TensorTraits(x.shape, x.basetile_shape)
-#        # Create Y with the same traits and distribution as X
-#        y = tensor.Tensor_fp32(x_traits, x.distribution, next_tag)
-#        next_tag = y.next_tag
-#        # Create dY with the same traits and distribution as X
-#        dy = tensor.Tensor_fp32(x_traits, x.distribution, next_tag)
-#        next_tag = dy.next_tag
-#        # Create activation layer with all the provided tensors
-#        layer = Act_fp32(x, dx, y, dy, funcname)
-#        # Return layer and next tag to be used
-#        return (layer, next_tag)
-#
-#    # Forward propagation of the activation layer
-#    def forward_async(self):
-#        # Init Y as a copy of X
-#        tensor.copy_async_fp32(self.x, self.y)
-#        # Non-linear activation of Y inplace
-#        self.func(self.y)
-#        # Copy X into dX to utilize it during backward propagation
-#        tensor.copy_async_fp32(self.x, self.dx)
-#        # Destroy values stored in tensor X
-#        self.x.invalidate_submit()
-#        # Hint for StarPU that dX tensor will
-#        # not be used soon and it is advised to offload data from GPU 
-#        self.dx.wont_use()
-#
-#    # Backward propagation of the activation layer
-#    def backward_async(self):
-#        # Get derivative of activation functions at X inplace of dX
-#        self.dfunc(self.dx)
-#        # Per-element product of dY and f'(x)
-#        tensor.prod_async_fp32(self.dy, self.dx)
-#        # Destroy values stored in tensor dY
-#        self.dy.invalidate_submit()
-#
+    # Simple generator for the linear layer
+    @staticmethod
+    def generate_block_cyclic(x, dx, side, new_shape, new_basetile_shape,
+            next_tag):
+        # Define shapes
+        if side == 'L':
+            w_shape = [x.shape[-1]] + [new_shape]
+            w_basetile = [x.basetile_shape[-1]] + [new_basetile_shape]
+            y_shape = x.shape[:-1] + [new_shape]
+            y_basetile = x.basetile_shape[:-1] + [new_basetile_shape]
+        else:
+            w_shape = [new_shape] + [x.shape[0]]
+            w_basetile = [new_basetile_shape] + [x.basetile_shape[0]]
+            y_shape = [new_shape] + x.shape[1:]
+            y_basetile = [new_basetile_shape] + x.basetile_shape[1:]
+        # Define W
+        w_traits = tensor.TensorTraits(w_shape, w_basetile)
+        # TODO change distribution
+        w_distr = [0] * w_traits.grid.nelems
+        w = type(x)(w_traits, w_distr, next_tag)
+        next_tag = w.next_tag
+        # Define Y
+        y_traits = tensor.TensorTraits(y_shape, y_basetile)
+        # TODO change distribution
+        y_distr = [0] * y_traits.grid.nelems
+        y = type(x)(y_traits, y_distr, next_tag)
+        next_tag = y.next_tag
+        # Create dW with the same traits and distribution as W
+        dw = type(x)(w_traits, w.distribution, next_tag)
+        next_tag = dw.next_tag
+        # Create dY with the same traits and distribution as Y
+        dy = type(x)(y_traits, y.distribution, next_tag)
+        next_tag = dy.next_tag
+        # Create activation layer with all the provided tensors
+        layer = Linear(x, dx, y, dy, w, dw, None, None, side, tensor.notrans,
+                tensor.notrans, 1)
+        # Return layer and next tag to be used
+        return (layer, next_tag)
+
+    # Forward propagation of the linear layer
+    def forward_async(self):
+        # Perform actual gemm
+        if self.side == 'L':
+            tensor.gemm_async(1.0, self.trans_x, self.x, self.trans_w, self.w,
+                    0.0, self.y, self.ndim)
+        else:
+            tensor.gemm_async(1.0, self.trans_w, self.w, self.trans_x, self.x,
+                    0.0, self.y, self.ndim)
+        # Destroy values stored in tensor X
+        self.x.invalidate_submit()
+        # Hint for StarPU that W tensor will
+        # not be used soon and it is advised to offload data from GPU 
+        self.w.wont_use()
+
