@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-01-10
+ * @date 2023-02-10
  * */
 
 #include "nntile/tensor/maximum.hh"

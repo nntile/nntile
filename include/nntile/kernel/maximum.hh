@@ -17,7 +17,7 @@
 #include <nntile/kernel/maximum/cpu.hh>
 #include <nntile/defs.h>
 #ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/prod/cuda.hh>
+// #include <nntile/kernel/maximum/cuda.hh>
 #endif // NNTILE_USE_CUDA
 
 namespace nntile

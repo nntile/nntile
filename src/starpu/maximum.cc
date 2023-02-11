@@ -65,7 +65,7 @@ void init()
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
-            // {cuda<fp32_t>}
+            {}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -74,7 +74,7 @@ void init()
             nullptr,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
-            // {cuda<fp64_t>}
+            // {}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -107,7 +107,7 @@ void submit(Index nelems, Handle src, Handle dst)
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in max task submission");
+        throw std::runtime_error("Error in maximum task submission");
     }
 }
 

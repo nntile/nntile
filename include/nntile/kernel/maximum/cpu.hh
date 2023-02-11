@@ -9,12 +9,13 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-01-10
+ * @date 2023-02-10
  * */
 
 #pragma once
 
 #include <nntile/base_types.hh>
+#include <algorithm>
 
 namespace nntile
 {

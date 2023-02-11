@@ -30,7 +30,7 @@ void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
-// // Apply gelu along middle axis of StarPU buffer on CUDA
+// // Apply elementwise maximum operation of two StarPU buffers on CUDA
 // template<typename T>
 // void cuda(void *buffers[], void *cl_args)
 //     noexcept;
