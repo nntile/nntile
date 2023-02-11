@@ -34,7 +34,7 @@ void def_mod_starpu(py::module_ &m)
     m.def("init", init);
     m.def("pause", starpu_pause);
     m.def("resume", starpu_resume);
-    m.def("wait_for_all", [](){starpu_task_wait_for_all;
+    m.def("wait_for_all", [](){starpu_task_wait_for_all();
             starpu_mpi_wait_for_all(MPI_COMM_WORLD);});
 }
 
@@ -400,10 +400,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("clear_async_fp32", &clear_async<fp32_t>);
     m.def("clear_fp64", &clear<fp64_t>);
     m.def("clear_fp32", &clear<fp32_t>);
-    m.def("gelu_async_fp64", &gelu_async<fp64_t>);
-    m.def("gelu_async_fp32", &gelu_async<fp32_t>);
-    m.def("gelu_fp64", &gelu<fp64_t>);
-    m.def("gelu_fp32", &gelu<fp32_t>);
+
     m.def("gelu_async_fp64", &gelu_async<fp64_t>);
     m.def("gelu_async_fp32", &gelu_async<fp32_t>);
     m.def("gelu_fp64", &gelu<fp64_t>);
@@ -412,6 +409,18 @@ void def_mod_tensor(py::module_ &m)
     m.def("gelutanh_async_fp32", &gelutanh_async<fp32_t>);
     m.def("gelutanh_fp64", &gelutanh<fp64_t>);
     m.def("gelutanh_fp32", &gelutanh<fp32_t>);
+
+        
+    m.def("axpy_async_fp64", &axpy_async<fp64_t>);
+    m.def("axpy_async_fp32", &axpy_async<fp32_t>);
+    m.def("axpy_fp64", &axpy<fp64_t>);
+    m.def("axpy_fp32", &axpy<fp32_t>);
+
+    m.def("axpy2_async_fp64", &axpy2_async<fp64_t>);
+    m.def("axpy2_async_fp32", &axpy2_async<fp32_t>);
+    m.def("axpy2_fp64", &axpy2<fp64_t>);
+    m.def("axpy2_fp32", &axpy2<fp32_t>);
+
 }
 
 // Main extension module with all wrappers
