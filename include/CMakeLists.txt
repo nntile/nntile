@@ -51,6 +51,7 @@ set(KERNEL_HDR
     "nntile/kernel/maxsumexp/cpu.hh"
     "nntile/kernel/softmax.hh"
     "nntile/kernel/softmax/cpu.hh"
+    "nntile/kernel/sqrt.hh"
     "nntile/kernel/sqrt/cpu.hh"
     "nntile/kernel/maximum.hh"
     "nntile/kernel/maximum/cpu.hh"
