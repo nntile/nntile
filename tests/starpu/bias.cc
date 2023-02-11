@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-03
+ * @author Aleksandr Katrutsa
+ * @date 2023-02-11
  * */
 
 #include "nntile/starpu/bias.hh"
@@ -132,6 +133,27 @@ void validate_cuda(Index m, Index n, Index k)
 }
 #endif // NNTILE_USE_CUDA
 
+template<typename T>
+void validate_cpu(T val, Index num_elements)
+{
+    // Init all the data
+    std::vector<T> src(num_elements);
+    for (Index i = 0; i < num_elements; ++i)
+        src[i] = T(i + 1);
+    std::vector<T> src_copy(src);
+    // Check by actually submitting a task
+    VariableHandle src_handle(&src[0], sizeof(T) * num_elements, STARPU_RW);
+    bias::restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::bias::submit<T> restricted to CPU\n";
+    bias::submit<T>(val, num_elements, src_handle);
+    starpu_task_wait_for_all();
+    src_handle.unregister();
+    // Check result
+    for (Index i = 0; i < num_elements; ++i)
+        TEST_ASSERT(src_copy[i] + val == src[i]);
+    std::cout << "OK: starpu::bias::submit<T> restricted to CPU\n";
+}
+
 int main(int argc, char **argv)
 {
     // Init StarPU for testing
@@ -139,8 +161,15 @@ int main(int argc, char **argv)
     // Init codelet
     bias::init();
     // Launch all tests
+    // Bias for middle axis
     validate_cpu<fp32_t>(3, 5, 7);
     validate_cpu<fp64_t>(3, 5, 7);
+
+    // Bias to all tensor elements
+    validate_cpu<fp32_t>(10, 1000);
+    validate_cpu<fp32_t>(-10.34, 10);
+    validate_cpu<fp64_t>(10, 1000);
+    validate_cpu<fp64_t>(-10.34, 10);
 #ifdef NNTILE_USE_CUDA
     validate_cuda<fp32_t>(3, 5, 7);
     validate_cuda<fp64_t>(3, 5, 7);

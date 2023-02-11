@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-03
+ * @author Aleksandr Katrutsa
+ * @date 2023-02-10
  * */
 
 #include "nntile/tile/bias.hh"
@@ -100,6 +101,35 @@ void validate()
     TEST_THROW(bias(b3, A, 4));
 }
 
+template<typename T>
+void validate(T val, const std::vector<Index>& n_elements)
+{
+    Tile<T> src1(n_elements);
+    Tile<T> src1_copy(n_elements);
+    auto src1_local = src1.acquire(STARPU_W);
+    auto src1_copy_local = src1_copy.acquire(STARPU_W);
+    for(Index i = 0; i < src1.nelems; ++i)
+    {
+        src1_local[i] = T(i+1);
+        src1_copy_local[i] = T(i+ 1);
+    }
+    src1_local.release();
+    src1_copy_local.release();
+    
+    
+    starpu::bias::submit<T>(val, src1.nelems, src1);
+    bias<T>(val, src1_copy);
+
+    src1_local.acquire(STARPU_R);
+    src1_copy_local.acquire(STARPU_R);
+    for(Index i = 0; i < src1.nelems; ++i)
+    {
+        TEST_ASSERT(src1_local[i] == src1_copy_local[i]);
+    }
+    src1_local.release();
+    src1_copy_local.release();
+}
+
 int main(int argc, char **argv)
 {
     // Init StarPU for testing on CPU only
@@ -110,6 +140,9 @@ int main(int argc, char **argv)
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
+    // Check adding scalar to all element in Tile
+    validate<fp32_t>(10, {2});
+    validate<fp64_t>(10, {2});
     return 0;
 }
 

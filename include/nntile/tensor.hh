@@ -41,7 +41,6 @@
 #include <nntile/tensor/sumnorm.hh>
 #include <nntile/tensor/maxsumexp.hh>
 #include <nntile/tensor/softmax.hh>
-#include <nntile/tensor/add_scalar.hh>
 
 namespace nntile
 {

@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-02-02
+ * @author Aleksandr Katrutsa
+ * @date 2023-02-11
  * */
 
 #include <pybind11/pybind11.h>
@@ -380,10 +381,27 @@ void def_mod_tensor(py::module_ &m)
     m.def("maxsumexp_async_fp32", &maxsumexp_async<fp32_t>);
     m.def("maxsumexp_fp64", &maxsumexp<fp64_t>);
     m.def("maxsumexp_fp32", &maxsumexp<fp32_t>);
-    m.def("bias_async_fp64", &bias_async<fp64_t>);
-    m.def("bias_async_fp32", &bias_async<fp32_t>);
-    m.def("bias_fp64", &bias<fp64_t>);
-    m.def("bias_fp32", &bias<fp32_t>);
+
+    m.def("bias_async_fp64",
+          py::overload_cast<const Tensor<fp64_t> &, const Tensor<fp64_t> &,
+          Index>(&bias_async<fp64_t>));
+    m.def("bias_async_fp64",
+          py::overload_cast<fp64_t, const Tensor<fp64_t> &>(&bias_async<fp64_t>));
+    m.def("bias_async_fp32",
+          py::overload_cast<const Tensor<fp32_t> &, const Tensor<fp32_t> &,
+          Index>(&bias_async<fp32_t>));
+    m.def("bias_async_fp32",
+          py::overload_cast<fp32_t, const Tensor<fp32_t> &>(&bias_async<fp32_t>));
+    m.def("bias_fp64",
+          py::overload_cast<const Tensor<fp64_t> &, const Tensor<fp64_t> &, Index>(&bias<fp64_t>));
+    m.def("bias_fp64",
+          py::overload_cast<fp64_t, const Tensor<fp64_t> &>(&bias<fp64_t>));
+    m.def("bias_fp32",
+          py::overload_cast<const Tensor<fp32_t> &, const Tensor<fp32_t> &,
+          Index>(&bias<fp32_t>));
+    m.def("bias_fp32",
+          py::overload_cast<fp32_t, const Tensor<fp32_t> &>(&bias<fp32_t>));
+
     m.def("gather_async_fp64", &gather_async<fp64_t>);
     m.def("gather_async_fp32", &gather_async<fp32_t>);
     m.def("gather_fp64", &gather<fp64_t>);
@@ -410,11 +428,6 @@ void def_mod_tensor(py::module_ &m)
     m.def("axpy2_async_fp32", &axpy2_async<fp32_t>);
     m.def("axpy2_fp64", &axpy2<fp64_t>);
     m.def("axpy2_fp32", &axpy2<fp32_t>);
-
-    m.def("add_scalar_async_fp64", &add_scalar_async<fp64_t>);
-    m.def("add_scalar_async_fp32", &add_scalar_async<fp32_t>);
-    m.def("add_scalar_fp64", &add_scalar<fp64_t>);
-    m.def("add_scalar_fp32", &add_scalar<fp32_t>);
 }
 
 // Main extension module with all wrappers

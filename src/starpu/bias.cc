@@ -29,13 +29,23 @@ void cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t *>(cl_args);
-    // Get interfaces
-    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *src = interfaces[0]->get_ptr<T>();
-    T *dst = interfaces[1]->get_ptr<T>();
-    // Launch kernel
-    kernel::bias::cpu<T>(args->m, args->n, args->k, src, dst);
+    auto nargc = reinterpret_cast<argc_t *>(cl_args);
+    if (nargc->num_arguments == 5) {
+        auto args = reinterpret_cast<args_t *>(cl_args);
+        // Get interfaces
+        auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+        const T *src = interfaces[0]->get_ptr<T>();
+        T *dst = interfaces[1]->get_ptr<T>();
+        // Launch kernel
+        kernel::bias::cpu<T>(args->m, args->n, args->k, src, dst);
+    } else if (nargc->num_arguments == 3) {
+        auto args = reinterpret_cast<val_size_t<T> *>(cl_args);
+        // Get interfaces
+        auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+        T *src = interfaces[0]->get_ptr<T>();
+        // Launch kernel
+        kernel::bias::cpu<T>(args->val, args->nelems, src);
+    }
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -118,12 +128,8 @@ void submit(Index m, Index n, Index k, Handle src, Handle dst)
  * */
 {
     // Codelet arguments
-    auto args = new args_t
-    {
-        .m = m,
-        .n = n,
-        .k = k
-    };
+    // 5 is a number of argument in the called kernel function
+    auto args = new args_t(5, m, n, k);
     fp64_t nflops = m * n * k;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
@@ -145,6 +151,31 @@ void submit<fp32_t>(Index m, Index n, Index k, Handle src, Handle dst);
 
 template
 void submit<fp64_t>(Index m, Index n, Index k, Handle src, Handle dst);
+
+
+template<typename T>
+void submit(T val, Index num_elements, Handle src)
+{
+    // Submit task
+    // 3 is a number of argument in the called kernel function
+    auto cl_args = new val_size_t<T>(3, val, num_elements);
+    int ret = starpu_task_insert(codelet<T>(),
+            STARPU_RW, static_cast<starpu_data_handle_t>(src),
+            STARPU_CL_ARGS, cl_args, sizeof(*cl_args),
+            0);
+    // Check submission
+    if(ret != 0)
+    {
+        throw std::runtime_error("Error in bias task submission");
+    }
+}
+
+// Explicit instantiation
+template
+void submit<fp32_t>(fp32_t val, Index num_elements, Handle src);
+
+template
+void submit<fp64_t>(fp64_t val, Index num_elements, Handle src);
 
 } // namespace bias
 } // namespace starpu

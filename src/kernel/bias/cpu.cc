@@ -69,6 +69,28 @@ template
 void cpu<fp64_t>(Index m, Index n, Index k, const fp64_t *src, fp64_t *dst)
     noexcept;
 
+template<typename T>
+void cpu(T val, Index num_elements, T *y)
+    noexcept
+{
+    // Do nothing fancy if x is zero
+    if(val == T(0))
+    {
+        return;
+    }
+    for (Index i = 0; i < num_elements; ++i)
+        y[i] += val;
+}
+
+// Explicit instantiation
+template
+void cpu<fp32_t>(fp32_t val, Index num_elements, fp32_t *y)
+    noexcept;
+
+template
+void cpu<fp64_t>(fp64_t val, Index num_elements, fp64_t *y)
+    noexcept;
+
 } // namespace bias
 } // namespace kernel
 } // namespace nntile

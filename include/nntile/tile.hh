@@ -37,7 +37,6 @@
 #include <nntile/tile/sumnorm.hh>
 #include <nntile/tile/maxsumexp.hh>
 #include <nntile/tile/softmax.hh>
-#include <nntile/tile/add_scalar.hh>
 
 namespace nntile
 {

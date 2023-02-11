@@ -29,7 +29,6 @@ set(TESTS
     "prod"
     "maxsumexp"
     "softmax"
-    "add_scalar"
     )
 
 # Add target for local coverage

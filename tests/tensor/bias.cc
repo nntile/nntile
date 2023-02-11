@@ -117,8 +117,74 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
 }
 
 template<typename T>
+void check(T val, const std::vector<Index> &shape, const std::vector<Index> &basetile)
+{
+    // Barrier to wait for cleanup of previously used tags
+    starpu_mpi_barrier(MPI_COMM_WORLD);
+    // Some preparation
+    starpu_mpi_tag_t last_tag = 0;
+    int mpi_size = starpu_mpi_world_size();
+    int mpi_rank = starpu_mpi_world_rank();
+    int mpi_root = 0;
+    // Generate single-tile source and destination tensors
+    TensorTraits single_traits(shape, shape);
+    std::vector<int> dist_root = {mpi_root};
+    Tensor<T> src_single(single_traits, dist_root, last_tag),
+        src_copy_single(single_traits, dist_root, last_tag);
+    
+    if(mpi_rank == mpi_root)
+    {
+        
+        auto src_tile = src_single.get_tile(0);
+        auto src_copy_tile = src_copy_single.get_tile(0);
+        auto src_local = src_tile.acquire(STARPU_W);
+        auto src_copy_local = src_copy_tile.acquire(STARPU_W);
+        for(Index i = 0; i < src_tile.nelems; ++i)
+        {
+            src_local[i] = T(i);
+            src_copy_local[i] = T(i);
+        }
+        src_local.release();
+        src_copy_local.release();
+    }
+    // Generate distributed-tile source and destination tensors
+    TensorTraits traits(shape, basetile);
+    std::vector<int> src_distr(traits.grid.nelems), dst_distr(src_distr);
+    for(Index i = 0; i < traits.grid.nelems; ++i)
+    {
+        src_distr[i] = (i+1) % mpi_size;
+    }
+    Tensor<T> src(traits, src_distr, last_tag);
+    scatter(src_single, src);
+    // Compute add_scalar
+    if(mpi_rank == mpi_root)
+    {
+        auto src_tile = src_single.get_tile(0);
+        tile::bias<T>(val, src_tile);
+    }
+    bias<T>(val, src_copy_single);
+    // Compare results
+    Tensor<T> dst2_single(single_traits, dist_root, last_tag);
+    gather<T>(src_copy_single, dst2_single);
+    if(mpi_rank == mpi_root)
+    {
+        auto tile = src_single.get_tile(0);
+        auto tile2 = dst2_single.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_R);
+        auto tile2_local = tile2.acquire(STARPU_R);
+        for(Index i = 0; i < traits.nelems; ++i)
+        {
+            TEST_ASSERT(tile_local[i] == tile2_local[i]);
+        }
+        tile_local.release();
+        tile2_local.release();
+    }
+}
+
+template<typename T>
 void validate()
 {
+    // Bias along the given axis
     check<T>({11}, {5}, 0);
     check<T>({11, 12}, {5, 6}, 0);
     check<T>({11, 12}, {5, 6}, 1);
@@ -127,6 +193,14 @@ void validate()
     check<T>({11, 12, 13}, {5, 6, 5}, 2);
     check<T>({1000, 1000}, {450, 450}, 0);
     check<T>({1000, 1000}, {450, 450}, 1);
+
+    // Bias all elements with the same value
+    check<T>(1, {}, {});
+    check<T>(10, {5}, {5});
+    check<T>(-5, {11}, {5});
+    check<T>(123, {11, 12, 13}, {5, 6, 7});
+    check<T>(34.45, {1000, 1000}, {450, 450});
+
     // Sync to guarantee old data tags are cleaned up and can be reused
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions

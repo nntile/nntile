@@ -103,6 +103,34 @@ template
 void bias<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst,
         Index axis);
 
+template<typename T>
+void bias_async(T val, const Tile<T> &src)
+{
+    // Submit task
+    starpu::bias::submit<T>(val, src.nelems, src);
+}
+
+template<typename T>
+void bias(T val, const Tile<T> &src)
+{
+    bias_async<T>(val, src);
+    starpu_task_wait_for_all();
+}
+
+// Explicit instantiation
+template
+void bias_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src);
+
+template
+void bias_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src);
+
+// Explicit instantiation
+template
+void bias<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src);
+
+template
+void bias<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src);
+
 } // namespace tile
 } // namespace nntile
 

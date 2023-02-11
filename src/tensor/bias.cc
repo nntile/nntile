@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-01
+ * @author Aleksandr Katrutsa
+ * @date 2023-02-11
  * */
 
 #include "nntile/tensor/bias.hh"
@@ -158,6 +159,63 @@ void bias<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst,
 template
 void bias<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst,
         Index axis);
+
+
+//! Asynchronous tensor-wise add scalar operation
+/*! @param[in] alpha: Input scalar value 
+ * @param[inout] src: Input and output tensor for the add scalar operation
+ * */
+template<typename T>
+void bias_async(T alpha, const Tensor<T> &src)
+{
+    int mpi_size = starpu_mpi_world_size();
+    int mpi_rank = starpu_mpi_world_rank();
+    // Launch all the required tasks
+    for(Index i = 0; i < src.grid.nelems; ++i)
+    {
+        // Get handle for corresponding tiles of src and dst
+        auto src_tile_handle = src.get_tile_handle(i);
+        // MPI rank of the destination tile
+        int src_tile_rank = src_tile_handle.mpi_get_rank();
+        // Transfer data
+        src_tile_handle.mpi_transfer(src_tile_rank, mpi_rank);
+        // Execute only on destination node
+        if(mpi_rank == src_tile_rank)
+        {
+            auto traits = src.get_tile_traits(i);
+            starpu::bias::submit<T>(alpha, traits.nelems,
+                    src_tile_handle);
+        }
+        // Flush cache for the output tile on every node
+        src_tile_handle.mpi_flush();
+    }
+}
+
+//! Blocking version of tensor-wise add scalar operation
+/*! @param[in] alpha: Input scalar value 
+ * @param[inout] src: Input and output tensor for the add scalar operation
+ * */
+template<typename T>
+void bias(T alpha, const Tensor<T> &src)
+{
+    bias_async<T>(alpha, src);
+    starpu_task_wait_for_all();
+    starpu_mpi_wait_for_all(MPI_COMM_WORLD);
+}
+
+// Explicit instantiation
+template
+void bias_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src);
+
+template
+void bias_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src);
+
+// Explicit instantiation
+template
+void bias<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src);
+
+template
+void bias<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src);
 
 } // namespace tensor
 } // namespace nntile

@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-25
+ * @author Aleksandr Katrutsa
+ * @date 2023-02-10
  * */
 
 #include "nntile/kernel/bias.hh"
@@ -129,16 +130,42 @@ void validate(Index m, Index n, Index k)
 #endif // NNTILE_USE_CUDA
 }
 
+template<typename T>
+void validate(T val, Index num_elements)
+{
+    constexpr T eps = std::numeric_limits<T>::epsilon();
+    // Init test input
+    std::vector<T> x(num_elements);
+    for (Index i = 0; i < num_elements; ++i)
+        x[i] = i / rand();
+    std::vector<T> y(x);
+    // Check low-level kernel
+    std::cout << "Run kernel::bias::cpu<T>\n";
+    cpu<T>(val, num_elements, &x[0]);
+    for (Index i = 0; i < num_elements; ++i)
+        TEST_ASSERT(y[i] + val == x[i]);
+    std::cout << "OK: kernel::bias::cpu<T>\n";
+}
+
 int main(int argc, char **argv)
 {
+    // Validate bias for middle axis
     validate<fp32_t>(1, 9, 10);
     validate<fp32_t>(8, 9, 1);
     validate<fp32_t>(8, 1, 10);
     validate<fp32_t>(4, 7, 8);
+
     validate<fp64_t>(1, 9, 10);
     validate<fp64_t>(8, 9, 1);
     validate<fp64_t>(8, 1, 10);
     validate<fp64_t>(4, 7, 8);
+
+    // Validate bias of all tensor elements
+    validate<fp32_t>(10, 100);
+    validate<fp32_t>(-1, 10);
+    validate<fp64_t>(10.5, 1000);
+    validate<fp64_t>(-1, 10);
+
     return 0;
 }
 

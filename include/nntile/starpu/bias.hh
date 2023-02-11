@@ -25,12 +25,27 @@ namespace starpu
 namespace bias
 {
 
+struct argc_t {
+    argc_t(Index nargc) : num_arguments(nargc) {}
+    Index num_arguments;
+};
+
 //! Structure for arguments
-struct args_t
+struct args_t : argc_t
 {
+    args_t(Index nargc, Index m_, Index n_, Index k_) : argc_t(nargc), m(m_), n(n_), k(k_) {}
     Index m;
     Index n;
     Index k;
+};
+
+//! Structure for arguments
+template<typename T>
+struct val_size_t : argc_t
+{
+    val_size_t(Index nargc, T val_, Index nelems_) : argc_t(nargc), val(val_), nelems(nelems_) {}
+    T val;
+    Index nelems;
 };
 
 // Apply bias along middle axis of StarPU buffer on CPU
@@ -74,6 +89,9 @@ void restore_where();
 
 template<typename T>
 void submit(Index m, Index n, Index k, Handle src, Handle dst);
+
+template<typename T>
+void submit(T val, Index num_elements, Handle src);
 
 } // namespace bias
 } // namespace starpu

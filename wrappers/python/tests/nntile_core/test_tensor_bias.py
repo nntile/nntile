@@ -9,7 +9,8 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-02
+# @author Aleksandr Katrutsa
+# @date 2023-02-11
 
 # All necesary imports
 import nntile
@@ -28,7 +29,7 @@ bias = {np.float32: nntile.tensor.bias_fp32,
         np.float64: nntile.tensor.bias_fp64}
 
 # Helper function returns bool value true if test passes
-def helper(dtype):
+def helper_axis(dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [2, 3, 4]
     B_shape = []
@@ -73,15 +74,40 @@ def helper(dtype):
     A.unregister()
     return True
 
+# Helper function returns bool value true if test passes
+def helper_all(dtype):
+    # Describe single-tile tensor, located at node 0
+    shape = [2, 3, 4]
+    mpi_distr = [0]
+    next_tag = 0
+    traits = nntile.tensor.TensorTraits(shape, shape)
+    # Tensor objects
+    A = Tensor[dtype](traits, mpi_distr, next_tag)
+    next_tag = A.next_tag
+    # Set initial values of tensors
+    rand_A = np.random.randn(*shape)
+    np_A = np.array(rand_A, dtype=dtype, order='F')
+    A.from_array(np_A)
+    a = np.random.randn(1)
+    alpha_np = np.array(a, dtype=dtype, order='F')
+    bias[dtype](alpha_np[0], A)
+    A.to_array(np_A)
+    nntile.starpu.wait_for_all()
+    A.unregister()
+    # Compare results
+    return np.allclose(np_A, alpha_np + rand_A)
+
 # Test runner for different precisions
 def test():
     for dtype in dtypes:
-        assert helper(dtype)
+        assert helper_axis(dtype)
+        assert helper_all(dtype)
 
 # Repeat tests
 def test_repeat():
     for dtype in dtypes:
-        assert helper(dtype)
+        assert helper_axis(dtype)
+        assert helper_all(dtype)
 
 if __name__ == "__main__":
     test()
