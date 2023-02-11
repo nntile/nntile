@@ -428,6 +428,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("axpy2_async_fp32", &axpy2_async<fp32_t>);
     m.def("axpy2_fp64", &axpy2<fp64_t>);
     m.def("axpy2_fp32", &axpy2<fp32_t>);
+
+    m.def("maximum_async_fp64", &maximum_async<fp64_t>);
+    m.def("maximum_async_fp32", &maximum_async<fp32_t>);
+    m.def("maximum_fp64", &maximum<fp64_t>);
+    m.def("maximum_fp32", &maximum<fp32_t>);
 }
 
 // Main extension module with all wrappers
