@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-01-31
+ * @author Aleksandr Katrutsa
+ * @date 2023-02-10
  * */
 
 #pragma once
@@ -42,6 +43,7 @@
 #include <nntile/tensor/maxsumexp.hh>
 #include <nntile/tensor/softmax.hh>
 #include <nntile/tensor/sqrt.hh>
+#include <nntile/tensor/maximum.hh>
 
 namespace nntile
 {
