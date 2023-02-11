@@ -29,6 +29,7 @@ set(KERNEL_SRC
     "kernel/sumnorm/cpu.cc"
     "kernel/maxsumexp/cpu.cc"
     "kernel/softmax/cpu.cc"
+    "kernel/sqrt/cpu.cc"
     "kernel/maximum/cpu.cc"
     )
 
@@ -70,6 +71,7 @@ set(STARPU_SRC
     "starpu/sumnorm.cc"
     "starpu/maxsumexp.cc"
     "starpu/softmax.cc"
+    "starpu/sqrt.cc"
     "starpu/maximum.cc"
     )
 
@@ -94,6 +96,7 @@ set(TILE_SRC
     "tile/sumnorm.cc"
     "tile/maxsumexp.cc"
     "tile/softmax.cc"
+    "tile/sqrt.cc"
     "tile/maximum.cc"
     )
 
@@ -121,6 +124,7 @@ set(TENSOR_SRC
     "tensor/sumnorm.cc"
     "tensor/maxsumexp.cc"
     "tensor/softmax.cc"
+    "tensor/sqrt.cc"
     "tensor/maximum.cc"
     )
 

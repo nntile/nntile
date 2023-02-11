@@ -38,6 +38,7 @@
 #include <nntile/starpu/sumnorm.hh>
 #include <nntile/starpu/maxsumexp.hh>
 #include <nntile/starpu/softmax.hh>
+#include <nntile/starpu/sqrt.hh>
 #include <nntile/starpu/maximum.hh>
 
 namespace nntile
@@ -70,6 +71,7 @@ void init()
     sumnorm::init();
     softmax::init();
     maxsumexp::init();
+    sqrt::init();
     maximum::init();
 }
 
@@ -95,6 +97,7 @@ void restrict_where(uint32_t where)
     sumnorm::restrict_where(where);
     softmax::restrict_where(where);
     maxsumexp::restrict_where(where);
+    sqrt::restrict_where(where);
     maximum::restrict_where(where);
 }
 
@@ -120,6 +123,7 @@ void restore_where()
     sumnorm::restore_where();
     softmax::restore_where();
     maxsumexp::restore_where();
+    sqrt::restore_where();
     maximum::restore_where();
 }
 

@@ -30,6 +30,7 @@ set(TESTS
     "prod"
     "maxsumexp"
     "softmax"
+    "sqrt"
     "maximum"
     )
 

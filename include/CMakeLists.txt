@@ -51,6 +51,8 @@ set(KERNEL_HDR
     "nntile/kernel/maxsumexp/cpu.hh"
     "nntile/kernel/softmax.hh"
     "nntile/kernel/softmax/cpu.hh"
+    "nntile/kernel/sqrt.hh"
+    "nntile/kernel/sqrt/cpu.hh"
     "nntile/kernel/maximum.hh"
     "nntile/kernel/maximum/cpu.hh"
     )
@@ -94,6 +96,7 @@ set(STARPU_HDR
     "nntile/starpu/sumnorm.hh"
     "nntile/starpu/maxsumexp.hh"
     "nntile/starpu/softmax.hh"
+    "nntile/starpu/sqrt.hh"
     "nntile/starpu/maximum.hh"
     )
 
@@ -120,6 +123,7 @@ set(TILE_HDR
     "nntile/tile/sumnorm.hh"
     "nntile/tile/maxsumexp.hh"
     "nntile/tile/softmax.hh"
+    "nntile/tile/sqrt.hh"
     "nntile/tile/maximum.hh"
     )
 
@@ -149,6 +153,7 @@ set(TENSOR_HDR
     "nntile/tensor/sumnorm.hh"
     "nntile/tensor/maxsumexp.hh"
     "nntile/tensor/softmax.hh"
+    "nntile/tensor/sqrt.hh"
     "nntile/tensor/maximum.hh"
     )
 

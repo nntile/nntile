@@ -30,6 +30,7 @@
 #include <nntile/kernel/sumnorm.hh>
 #include <nntile/kernel/maxsumexp.hh>
 #include <nntile/kernel/softmax.hh>
+#include <nntile/kernel/sqrt.hh>
 #include <nntile/kernel/maximum.hh>
 
 namespace nntile

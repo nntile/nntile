@@ -41,6 +41,7 @@ set(TESTS_MPI
     "prod"
     "maxsumexp"
     "softmax"
+    "sqrt"
     "maximum"
     )
 
