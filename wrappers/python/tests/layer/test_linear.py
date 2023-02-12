@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-11
+# @date 2023-02-12
 
 # All necesary imports
 import nntile
@@ -42,31 +42,34 @@ def helper(dtype: np.dtype):
     # Set initial values of tensors
     rand_A = np.random.randn(*A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
+    A_moments = nntile.tensor.TensorMoments(A, dA, True)
     # Define linear layer
-    layer, next_tag = Linear.generate_block_cyclic(A, dA, 'L', 7, 7, next_tag)
-    rand_W = np.random.randn(*layer.w.shape)
+    layer, next_tag = Linear.generate_simple_mpiroot(A_moments, 'L',
+            nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag)
+    rand_W = np.random.randn(*layer.w.value.shape)
     np_W = np.array(rand_W, dtype=dtype, order='F')
-    layer.w.from_array(np_W)
+    layer.w.value.from_array(np_W)
     # Check result
     A.from_array(np_A)
     layer.forward_async()
-    np_Y = np_A @ np_W
+    np_Y = np.tensordot(np_A, np_W, 2)
     np_Y2 = np.zeros_like(np_Y, order='F')
-    layer.y.to_array(np_Y2)
+    layer.y.value.to_array(np_Y2)
     if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > 1e-5:
         return False
-    layer.dy.from_array(np_Y)
+    layer.y.grad.from_array(np_Y)
     layer.backward_async()
-    np_Z = np.einsum("ijk,ijl->kl", np_A, np_Y2)
+    np_Z = np.einsum("ijk,ilm->jklm", np_A, np_Y2)
     np_Z2 = np.zeros_like(np_Z, order='F')
-    layer.dw.to_array(np_Z2)
+    layer.w.grad.to_array(np_Z2)
     if np.linalg.norm(np_Z-np_Z2)/np.linalg.norm(np_Z) > 1e-5:
         return False
-    np_Z3 = np.einsum("ijk,lk->ijl", np_Y2, np_W)
+    np_Z3 = np.einsum("ijk,lmjk->ilm", np_Y2, np_W)
     np_Z4 = np.zeros_like(np_Z3, order='F')
-    layer.dx.to_array(np_Z4)
+    layer.x.grad.to_array(np_Z4)
     if np.linalg.norm(np_Z3-np_Z4)/np.linalg.norm(np_Z3) > 1e-5:
         return False
+    import pdb; pdb.set_trace()
     A.unregister()
     dA.unregister()
     return True

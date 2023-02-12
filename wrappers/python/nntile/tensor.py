@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-09
+# @date 2023-02-12
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64
@@ -22,6 +22,18 @@ Tensor = Union[core_tensor.Tensor_fp32, core_tensor.Tensor_fp64]
 TensorOrNone = Union[Tensor, None]
 # Union of multiprecision tensor and float
 TensorOrFloat = Union[Tensor, float]
+
+# Struct meant for tensor, its gradient and a flag if gradient is required
+class TensorMoments(object):
+    value: TensorOrNone
+    grad: TensorOrNone
+    grad_required: bool
+
+    def __init__(self, value: TensorOrNone, grad: TensorOrNone,
+            grad_required: bool):
+        self.value = value
+        self.grad = grad
+        self.grad_required = grad_required
 
 # Wrapper for multiprecision gemm
 def gemm_async(alpha: float, trans_A: TransOp, A: Tensor, trans_B: TransOp,

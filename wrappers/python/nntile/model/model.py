@@ -9,25 +9,21 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-09
+# @date 2023-02-12
 
-import nntile.nntile_core.tensor as tensor
+import nntile.tensor as tensor
 import numpy as np
 from typing import List
 
-class Model_fp32:
-    x: tensor.Tensor_fp32
-    activation_x: List[tensor.Tensor_fp32]
-    activation_dx: List[tensor.Tensor_fp32]
+class Model:
+    x: List[List[tensor.Tensor, tensor.Tensor, bool]]
     layers: List
-    params: List[tensor.Tensor_fp32]
-    grads: List[tensor.Tensor_fp32]
+    params: List[List[tensor.Tensor, tensor.Tensor, bool]]
 
     # Construct model with all the provided data
-    def __init__(self, x, activation_x, activation_dx, layers):
+    def __init__(self, x, layers):
         self.x = x
-        self.activation_x = activation_x
-        self.activation_dx = activation_dx
+        self.dx = dx
         self.layers = layers
         self.params = []
         self.grads = []
