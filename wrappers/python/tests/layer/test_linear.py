@@ -69,7 +69,6 @@ def helper(dtype: np.dtype):
     layer.x.grad.to_array(np_Z4)
     if np.linalg.norm(np_Z3-np_Z4)/np.linalg.norm(np_Z3) > 1e-5:
         return False
-    import pdb; pdb.set_trace()
     A.unregister()
     dA.unregister()
     return True
