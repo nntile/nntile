@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-12
+# @date 2023-02-13
 
 # All necesary imports
 import nntile
@@ -49,7 +49,7 @@ def helper(dtype: np.dtype):
     rand_W = np.random.randn(*layer.w.value.shape)
     np_W = np.array(rand_W, dtype=dtype, order='F')
     layer.w.value.from_array(np_W)
-    # Check result
+    # Check result of forward pass layer.y.value
     A.from_array(np_A)
     layer.forward_async()
     np_Y = np.tensordot(np_A, np_W, 2)
@@ -57,6 +57,7 @@ def helper(dtype: np.dtype):
     layer.y.value.to_array(np_Y2)
     if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > 1e-5:
         return False
+    # Check results of backward pass layer.w.grad and layer.x.grad
     layer.y.grad.from_array(np_Y)
     layer.backward_async()
     np_Z = np.einsum("ijk,ilm->jklm", np_A, np_Y2)

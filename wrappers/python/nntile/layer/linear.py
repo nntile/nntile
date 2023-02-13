@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-12
+# @date 2023-02-13
 
 from nntile.tensor import TensorTraits, Tensor, TensorMoments, TransOp, \
         trans, notrans, copy_async, gemm_async
@@ -29,13 +29,20 @@ class Linear(BaseLayer):
     # Construct linear layer with all the provided data
     def __init__(self, side: str, trans_x: TransOp, x: TensorMoments,
             y: TensorMoments, w: TensorMoments, b: TensorMoments, ndim: int):
-        super().__init__([x], [y], [w, b])
+        # Bias is not yet supported
+        if b.value is not None:
+            raise NotImplementedError
+        # Check parameter side
         if side != 'L' and side != 'R':
             raise ValueError("side must be either 'L' or 'R'")
-        self.side = side
-        self.trans_x = trans_x
+        # Check parameter ndim
         if ndim <= 0:
             raise ValueError("ndim must be positive integer")
+        # Redirect to BaseClass initialization
+        super().__init__([x], [y], [w, b])
+        # Set up local named parameters
+        self.side = side
+        self.trans_x = trans_x
         self.ndim = ndim
         self.x = x
         self.y = y
@@ -108,16 +115,13 @@ class Linear(BaseLayer):
         else:
             gemm_async(1.0, notrans, self.w.value, self.trans_x, self.x.value,
                     0.0, self.y.value, self.ndim)
-        # Copy current X into grad of X to use it during backward propagation
-        copy_async(self.x.value, self.x.grad)
-        # Destroy values stored in tensor X
-        self.x.value.invalidate_submit()
         # Hint for StarPU that W tensor will
-        # not be used soon and it is advised to offload data from GPU 
+        # not be used soon and it is advised to offload data from GPU
         self.w.value.wont_use()
 
     # Backward propagation of the linear layer
     def backward_async(self):
+        # Obtain 
         # Perform actual gemms
         if self.side == 'L':
             if self.trans_x == notrans:

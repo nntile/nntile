@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-12
+# @date 2023-02-13
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64
@@ -18,7 +18,7 @@ from typing import Union, List
 
 # Multiprecision tensor as a union type for all precisions
 Tensor = Union[core_tensor.Tensor_fp32, core_tensor.Tensor_fp64]
-# Union of multiprecision tensor and None type
+# Optional tensor argument
 TensorOrNone = Union[Tensor, None]
 # Union of multiprecision tensor and float
 TensorOrFloat = Union[Tensor, float]

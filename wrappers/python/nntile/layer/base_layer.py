@@ -11,21 +11,21 @@
 # @author Aleksandr Mikhalev
 # @date 2023-02-12
 
-import nntile.tensor as tensor
+from nntile.tensor import TensorMoments
 import numpy as np
 from typing import List
 
 class BaseLayer(object):
     # Input activations with moments
-    activations_input: List[tensor.TensorMoments]
+    activations_input: List[TensorMoments]
     # Output activations with moments
-    activations_output: List[tensor.TensorMoments]
+    activations_output: List[TensorMoments]
     # Layer parameters with moments
-    parameters: List[tensor.TensorMoments]
+    parameters: List[TensorMoments]
 
-    def __init__(self, activations_input: List[tensor.TensorMoments],
-            activations_output: List[tensor.TensorMoments],
-            parameters: List[tensor.TensorMoments]):
+    def __init__(self, activations_input: List[TensorMoments],
+            activations_output: List[TensorMoments],
+            parameters: List[TensorMoments]):
         self.activations_input = activations_input
         self.activations_output = activations_output
         self.parameters = parameters
