@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-11
+# @date 2023-02-13
 
 # All necesary imports
 import nntile
@@ -39,6 +39,7 @@ def helper(dtype: np.dtype):
     next_tag = A.next_tag
     dA = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = dA.next_tag
+    A_moments = nntile.tensor.TensorMoments(A, dA, True)
     # Set initial values of tensors
     rand_A = np.random.randn(*A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
@@ -48,17 +49,25 @@ def helper(dtype: np.dtype):
         # A is invalidated after each forward_async
         A.from_array(np_A)
         # Set up activation layer
-        layer, next_tag = Act.generate_block_cyclic(A, dA, funcname, \
-                next_tag)
+        layer, next_tag = Act.generate_simple(A_moments, funcname, next_tag)
         # Do forward pass and wait until it is finished
         layer.forward_async()
         nntile.starpu.wait_for_all()
         # Dump output
-        layer.y.to_array(np_B)
+        layer.y.value.to_array(np_B)
         # Check output correctness
         np_C = np.zeros_like(np_A)
         np_C[np_A > 0] = np_A[np_A > 0]
         if (np_C != np_B).any():
+            return False
+        # Do backward
+        layer.y.grad.from_array(2*np_A)
+        layer.backward_async()
+        nntile.starpu.wait_for_all()
+        # Dump output
+        layer.x.grad.to_array(np_B)
+        # Check correctness
+        if (2*np_C != np_B).any():
             return False
     A.unregister()
     dA.unregister()

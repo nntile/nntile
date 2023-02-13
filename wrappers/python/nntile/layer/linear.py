@@ -11,8 +11,8 @@
 # @author Aleksandr Mikhalev
 # @date 2023-02-13
 
-from nntile.tensor import TensorTraits, Tensor, TensorMoments, TransOp, \
-        trans, notrans, copy_async, gemm_async
+from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
+        TransOp, trans, notrans, copy_async, gemm_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -20,18 +20,19 @@ from typing import List
 class Linear(BaseLayer):
     side: str
     trans_x: TransOp
-    ndim: int
     x: TensorMoments
     y: TensorMoments
     w: TensorMoments
-    b: TensorMoments
+    ndim: int
+    #b: TensorMoments
+    #b_axis: int
+    x_copy: TensorOrNone
 
     # Construct linear layer with all the provided data
     def __init__(self, side: str, trans_x: TransOp, x: TensorMoments,
-            y: TensorMoments, w: TensorMoments, b: TensorMoments, ndim: int):
-        # Bias is not yet supported
-        if b.value is not None:
-            raise NotImplementedError
+            y: TensorMoments, w: TensorMoments, ndim: int,
+            #b: TensorMoments, b_axis: int, # No bias as of now
+            x_copy: TensorOrNone):
         # Check parameter side
         if side != 'L' and side != 'R':
             raise ValueError("side must be either 'L' or 'R'")
@@ -39,7 +40,7 @@ class Linear(BaseLayer):
         if ndim <= 0:
             raise ValueError("ndim must be positive integer")
         # Redirect to BaseClass initialization
-        super().__init__([x], [y], [w, b])
+        super().__init__([x], [y], [w])
         # Set up local named parameters
         self.side = side
         self.trans_x = trans_x
@@ -47,7 +48,9 @@ class Linear(BaseLayer):
         self.x = x
         self.y = y
         self.w = w
-        self.b = b
+        #self.b = b
+        #self.b_axis = b_axis
+        self.x_copy = x_copy
 
     # Simple generator for the linear layer
     @staticmethod
@@ -100,14 +103,24 @@ class Linear(BaseLayer):
         # Define Y as TensorMoments
         y = TensorMoments(y_value, y_grad, True)
         # Bias is ignored for now
-        b = TensorMoments(None, None, False)
+        #b = TensorMoments(None, None, False)
+        # Copy of input for backward
+        x_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
+        x_copy = type(x.value)(x_traits, x.value.distribution, next_tag)
+        next_tag = x_copy.next_tag
         # Create linear layer with all the provided data
-        layer = Linear(side, trans_x, x, y, w, b, ndim)
+        layer = Linear(side, trans_x, x, y, w, ndim, x_copy)
         # Return layer and next tag to be used
         return (layer, next_tag)
 
     # Forward propagation of the linear layer
     def forward_async(self):
+        # Copy input X for backward if needed
+        if self.w.grad_required:
+            copy_async(self.x.value, self.x_copy)
+            # Hint for StarPU that X_copy tensor will
+            # not be used soon and it is advised to offload data from GPU
+            self.x_copy.wont_use()
         # Perform actual gemm
         if self.side == 'L':
             gemm_async(1.0, self.trans_x, self.x.value, notrans, self.w.value,
@@ -121,33 +134,44 @@ class Linear(BaseLayer):
 
     # Backward propagation of the linear layer
     def backward_async(self):
-        # Obtain 
-        # Perform actual gemms
-        if self.side == 'L':
-            if self.trans_x == notrans:
-                gemm_async(1.0, trans, self.x.grad, notrans, self.y.grad,
-                        0.0, self.w.grad, len(self.x.value.shape)-self.ndim)
-                gemm_async(1.0, notrans, self.y.grad, trans, self.w.value, 0.0,
-                        self.x.grad, len(self.w.value.shape)-self.ndim)
+        # Gradient over W (weights)
+        if self.w.grad_required:
+            gemm_ndim = len(self.x.value.shape) - self.ndim
+            if self.side == 'L':
+                if self.trans_x == notrans:
+                    gemm_async(1.0, trans, self.x_copy, notrans, self.y.grad,
+                            0.0, self.w.grad, gemm_ndim)
+                else:
+                    gemm_async(1.0, notrans, self.x_copy, notrans, self.y.grad,
+                            0.0, self.w.grad, gemm_ndim)
             else:
-                gemm_async(1.0, notrans, self.x.grad, notrans, self.y.grad,
-                        0.0, self.w.grad, len(self.x.value.shape)-self.ndim)
-                gemm_async(1.0, notrans, self.w.value, trans, self.y.grad, 0.0,
-                        self.x.grad, len(self.w.value.shape)-self.ndim)
-        else:
-            if self.trans_x == notrans:
-                gemm_async(1.0, notrans, self.y.grad, trans, self.x.grad,
-                        0.0, self.w.grad, len(self.x.value.shape)-self.ndim)
-                gemm_async(1.0, trans, self.w.value, notrans, self.y.grad, 0.0,
-                        self.x.grad, len(self.w.value.shape)-self.ndim)
+                if self.trans_x == notrans:
+                    gemm_async(1.0, notrans, self.y.grad, trans, self.x_copy,
+                            0.0, self.w.grad, gemm_ndim)
+                else:
+                    gemm_async(1.0, notrans, self.y.grad, notrans, self.x_copy,
+                            0.0, self.w.grad, gemm_ndim)
+            # Hint StarPU to delete x_copy buffer
+            self.x_copy.invalidate_submit()
+            # Hint StarPU to offload gradient over W if needed
+            self.w.grad.wont_use()
+        # Gradient over X (input)
+        if self.x.grad_required:
+            if self.side == 'L':
+                gemm_ndim = len(self.w.value.shape) - self.ndim
+                if self.trans_x == notrans:
+                    gemm_async(1.0, notrans, self.y.grad, trans, self.w.value,
+                            0.0, self.x.grad, gemm_ndim)
+                else:
+                    gemm_async(1.0, notrans, self.w.value, trans, self.y.grad,
+                            0.0, self.x.grad, gemm_ndim)
             else:
-                gemm_async(1.0, notrans, self.y.grad, notrans, self.x.grad,
-                        0.0, self.w.grad, len(self.x.value.shape)-self.ndim)
-                gemm_async(1.0, trans, self.y.grad, notrans, self.w.value, 0.0,
-                        self.x.grad, len(self.w.value.shape)-self.ndim)
-        # Hint StarPU to offload certain buffers
-        self.w.value.wont_use()
-        self.w.grad.wont_use()
-        # Hint StarPU to delete data from certain buffers
-        self.y.grad.invalidate_submit()
+                if self.trans_x == notrans:
+                    gemm_async(1.0, trans, self.w.value, notrans, self.y.grad,
+                            0.0, self.x.grad, gemm_ndim)
+                else:
+                    gemm_async(1.0, trans, self.y.grad, notrans, self.w.value,
+                            0.0, self.x.grad, gemm_ndim)
+            # Hint StarPU to offload certain buffers
+            self.w.value.wont_use()
 
