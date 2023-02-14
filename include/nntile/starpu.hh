@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-02-02
+ * @author Aleksandr Katrutsa
+ * @date 2023-02-10
  * */
 
 #pragma once
@@ -37,6 +38,8 @@
 #include <nntile/starpu/sumnorm.hh>
 #include <nntile/starpu/maxsumexp.hh>
 #include <nntile/starpu/softmax.hh>
+#include <nntile/starpu/sqrt.hh>
+#include <nntile/starpu/maximum.hh>
 
 namespace nntile
 {
@@ -68,6 +71,8 @@ void init()
     sumnorm::init();
     softmax::init();
     maxsumexp::init();
+    sqrt::init();
+    maximum::init();
 }
 
 // Restrict StarPU codelets to certain computational units
@@ -92,6 +97,8 @@ void restrict_where(uint32_t where)
     sumnorm::restrict_where(where);
     softmax::restrict_where(where);
     maxsumexp::restrict_where(where);
+    sqrt::restrict_where(where);
+    maximum::restrict_where(where);
 }
 
 // Restore computational units for StarPU codelets
@@ -116,6 +123,8 @@ void restore_where()
     sumnorm::restore_where();
     softmax::restore_where();
     maxsumexp::restore_where();
+    sqrt::restore_where();
+    maximum::restore_where();
 }
 
 } // namespace starpu

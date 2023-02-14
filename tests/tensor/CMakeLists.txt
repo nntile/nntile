@@ -9,7 +9,8 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-01-31
+# @author Aleksandr Katrutsa
+# @date 2023-02-10
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -40,6 +41,8 @@ set(TESTS_MPI
     "prod"
     "maxsumexp"
     "softmax"
+    "sqrt"
+    "maximum"
     )
 
 # Add target for local coverage

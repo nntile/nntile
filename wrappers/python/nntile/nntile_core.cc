@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-02-06
+ * @author Aleksandr Katrutsa
+ * @date 2023-02-10
  * */
 
 #include <pybind11/pybind11.h>
@@ -413,6 +414,15 @@ void def_mod_tensor(py::module_ &m)
     m.def("axpy2_async_fp32", &axpy2_async<fp32_t>);
     m.def("axpy2_fp64", &axpy2<fp64_t>);
     m.def("axpy2_fp32", &axpy2<fp32_t>);
+
+    m.def("sqrt_async_fp64", &sqrt_async<fp64_t>);
+    m.def("sqrt_async_fp32", &sqrt_async<fp32_t>);
+    m.def("sqrt_fp64", &sqrt<fp64_t>);
+    m.def("sqrt_fp32", &sqrt<fp32_t>);
+    m.def("maximum_async_fp64", &maximum_async<fp64_t>);
+    m.def("maximum_async_fp32", &maximum_async<fp32_t>);
+    m.def("maximum_fp64", &maximum<fp64_t>);
+    m.def("maximum_fp32", &maximum<fp32_t>);
 }
 
 // Main extension module with all wrappers
