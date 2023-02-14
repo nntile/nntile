@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -8,8 +8,8 @@
  * AXPY for two Tile<T>
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2022-12-02
+ * @author Aleksandr Katrutsa
+ * @date 2023-02-14
  * */
 
 #include "nntile/tile/axpy.hh"
@@ -74,7 +74,7 @@ void axpy<fp64_t>(const Tile<fp64_t> &alpha, const Tile<fp64_t> &src,
  * @param[inout] dst: Input and output tile for the axpy operation
  * */
 template<typename T>
-void axpy2_async(T alpha, const Tile<T> &src, const Tile<T> &dst)
+void axpy_async(T alpha, const Tile<T> &src, const Tile<T> &dst)
 {
     // Check shapes
     if(src.shape != dst.shape)
@@ -82,7 +82,7 @@ void axpy2_async(T alpha, const Tile<T> &src, const Tile<T> &dst)
         throw std::runtime_error("src.shape != dst.shape");
     }
     // Submit task
-    starpu::axpy::submit2<T>(alpha, src.nelems, src, dst);
+    starpu::axpy::submit<T>(alpha, src.nelems, src, dst);
 }
 
 //! Blocking version of tile-wise axpy operation
@@ -90,28 +90,28 @@ void axpy2_async(T alpha, const Tile<T> &src, const Tile<T> &dst)
  * @param[inout] dst: Input and output tile for the axpy operation
  * */
 template<typename T>
-void axpy2(T alpha, const Tile<T> &src, const Tile<T> &dst)
+void axpy(T alpha, const Tile<T> &src, const Tile<T> &dst)
 {
-    axpy2_async<T>(alpha, src, dst);
+    axpy_async<T>(alpha, src, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void axpy2_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src,
+void axpy_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst);
 
 template
-void axpy2_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src,
+void axpy_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst);
 
 // Explicit instantiation
 template
-void axpy2<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src,
+void axpy<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst);
 
 template
-void axpy2<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src,
+void axpy<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst);
 
 } // namespace tile
