@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @date 2023-02-14
  * */
 
 #include <pybind11/pybind11.h>
@@ -420,6 +420,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("maximum_async_fp32", &maximum_async<fp32_t>);
     m.def("maximum_fp64", &maximum<fp64_t>);
     m.def("maximum_fp32", &maximum<fp32_t>);
+
+    m.def("addcdiv_async_fp64", &addcdiv_async<fp64_t>);
+    m.def("addcdiv_async_fp32", &addcdiv_async<fp32_t>);
+    m.def("addcdiv_fp64", &addcdiv<fp64_t>);
+    m.def("addcdiv_fp32", &addcdiv<fp32_t>);
 }
 
 // Main extension module with all wrappers

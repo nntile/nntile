@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @date 2023-02-14
  * */
 
 #pragma once
@@ -32,6 +32,7 @@
 #include <nntile/kernel/softmax.hh>
 #include <nntile/kernel/sqrt.hh>
 #include <nntile/kernel/maximum.hh>
+#include <nntile/kernel/addcdiv.hh>
 
 namespace nntile
 {

@@ -43,6 +43,7 @@ set(TESTS_MPI
     "softmax"
     "sqrt"
     "maximum"
+    "addcdiv"
     )
 
 # Add target for local coverage

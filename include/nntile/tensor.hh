@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @date 2023-02-14
  * */
 
 #pragma once
@@ -44,6 +44,7 @@
 #include <nntile/tensor/softmax.hh>
 #include <nntile/tensor/sqrt.hh>
 #include <nntile/tensor/maximum.hh>
+#include <nntile/tensor/addcdiv.hh>
 
 namespace nntile
 {
