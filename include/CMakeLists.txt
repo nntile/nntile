@@ -46,6 +46,8 @@ set(KERNEL_HDR
     "nntile/kernel/subcopy/cpu.hh"
     "nntile/kernel/sumnorm.hh"
     "nntile/kernel/sumnorm/cpu.hh"
+    "nntile/kernel/sum.hh"
+    "nntile/kernel/sum/cpu.hh"
     "nntile/kernel/maxsumexp.hh"
     "nntile/kernel/maxsumexp/cpu.hh"
     "nntile/kernel/softmax.hh"
@@ -65,6 +67,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/prod/cuda.hh"
         "nntile/kernel/relu/cuda.hh"
         "nntile/kernel/sumnorm/cuda.hh"
+        "nntile/kernel/sum/cuda.hh"
         "nntile/kernel/maxsumexp/cuda.hh"
         "nntile/kernel/softmax/cuda.hh"
         )
@@ -89,6 +92,7 @@ set(STARPU_HDR
     "nntile/starpu/relu.hh"
     "nntile/starpu/subcopy.hh"
     "nntile/starpu/sumnorm.hh"
+    "nntile/starpu/sum.hh"
     "nntile/starpu/maxsumexp.hh"
     "nntile/starpu/softmax.hh"
     )

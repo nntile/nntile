@@ -26,6 +26,7 @@ set(KERNEL_SRC
     "kernel/relu/cpu.cc"
     "kernel/subcopy/cpu.cc"
     "kernel/sumnorm/cpu.cc"
+    "kernel/sum/cpu.cc"
     "kernel/maxsumexp/cpu.cc"
     "kernel/softmax/cpu.cc"
     )
@@ -43,6 +44,7 @@ if(NNTILE_USE_CUDA)
         "kernel/prod/cuda.cu"
         "kernel/relu/cuda.cu"
         "kernel/sumnorm/cuda.cu"
+        "kernel/sum/cuda.cu"
         "kernel/maxsumexp/cuda.cu"
         "kernel/softmax/cuda.cu"
         )

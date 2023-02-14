@@ -27,6 +27,7 @@
 #include <nntile/kernel/relu.hh>
 #include <nntile/kernel/subcopy.hh>
 #include <nntile/kernel/sumnorm.hh>
+#include <nntile/kernel/sum.hh>
 #include <nntile/kernel/maxsumexp.hh>
 #include <nntile/kernel/softmax.hh>
 
