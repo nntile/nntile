@@ -28,6 +28,7 @@ set(TESTS
     "prod"
     "maxsumexp"
     "softmax"
+    "sum"
     )
 
 # Setup a target for coverage of kernels
