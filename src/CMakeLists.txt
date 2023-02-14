@@ -68,6 +68,7 @@ set(STARPU_SRC
     "starpu/relu.cc"
     "starpu/subcopy.cc"
     "starpu/sumnorm.cc"
+    "starpu/sum.cc"
     "starpu/maxsumexp.cc"
     "starpu/softmax.cc"
     )
