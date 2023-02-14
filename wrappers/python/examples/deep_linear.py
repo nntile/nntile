@@ -17,18 +17,28 @@ import nntile
 # Set up StarPU+MPI and init codelets
 config = nntile.starpu.Config(1, 0, 0)
 nntile.starpu.init()
+next_tag = 0
 
 # Define tensor X for input batches
-next_tag = 0
-x_traits = nntile.tensor.TensorTraits([8, 8], [2, 2])
-x = nntile.tensor.Tensor_fp32(x_traits, [0]*x_traits.grid.nelems, next_tag)
+x_shape = [8, 8]
+x_basetile = [2, 2]
+x_traits = nntile.tensor.TensorTraits(x_shape, x_basetile)
+x_ntiles = x_traits.grid.nelems
+x_distribution = [0] * x_ntiles
+x = nntile.tensor.Tensor_fp32(x_traits, x_distribution, next_tag)
 next_tag = x.next_tag
-dx = nntile.tensor.Tensor_fp32(x_traits, [0]*x_traits.grid.nelems, next_tag)
-next_tag = dx.next_tag
-x_moments = nntile.tensor.TensorMoments(x, dx, False)
+x_grad = nntile.tensor.Tensor_fp32(x_traits, x_distribution, next_tag)
+next_tag = x_grad.next_tag
+x_grad_required = False
+x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
 # Define deep linear network
-m = nntile.model.DeepLinear(x_moments, 'R', 1, 4, 3, 3, next_tag)
+gemm_ndim = 1
+new_shape = 4
+new_basetile_shape = 3
+nlayers = 3
+m = nntile.model.DeepLinear(x_moments, 'R', gemm_ndim, new_shape,
+        new_basetile_shape, nlayers, next_tag)
 
 # Randomly init weights of deep linear network
 m.init_randn_async()
