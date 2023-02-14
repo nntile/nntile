@@ -39,6 +39,11 @@ file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/tests DESTINATION
     ${CMAKE_CURRENT_BINARY_DIR}
     FOLLOW_SYMLINK_CHAIN)
 
+# Copy examples into build directory also to avoid __pycache__ in sources
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/examples DESTINATION
+    ${CMAKE_CURRENT_BINARY_DIR}
+    FOLLOW_SYMLINK_CHAIN)
+
 # Collect all the tests and add them to ctest
 file(GLOB_RECURSE PY_TESTS FOLLOW_SYMLINKS LIST_DIRECTORIES FALSE
     RELATIVE ${CMAKE_CURRENT_BINARY_DIR}/tests

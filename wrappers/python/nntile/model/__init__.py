@@ -9,5 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-08
+# @date 2023-02-14
 
+from .base_model import BaseModel
+from .deep_linear import DeepLinear

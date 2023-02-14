@@ -9,10 +9,10 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-13
+# @date 2023-02-14
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        TransOp, trans, notrans, copy_async, gemm_async
+        TransOp, trans, notrans, copy_async, gemm_async, randn_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -112,6 +112,12 @@ class Linear(BaseLayer):
         layer = Linear(side, trans_x, x, y, w, ndim, x_copy)
         # Return layer and next tag to be used
         return (layer, next_tag)
+
+    # Random initialization of weights
+    def init_randn_async(self):
+        seed = 100
+        randn_async(self.w.value, [0]*len(self.w.value.shape),
+                self.w.value.shape, seed, 0.0, 1.0)
 
     # Forward propagation of the linear layer
     def forward_async(self):
