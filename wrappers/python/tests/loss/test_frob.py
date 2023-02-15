@@ -4,12 +4,12 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_copy_intersection.py
-# Test for tensor::copy_intersection<T> Python wrapper
+# @file wrappers/python/tests/loss/test_frob.py
+# Test for nntile.loss.frob
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-09
+# @date 2023-02-15
 
 # All necesary imports
 import nntile
@@ -23,42 +23,47 @@ dtypes = [np.float32, np.float64]
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
-# Define mapping between tested function and numpy type
-copy_intersection = {
-        np.float32: nntile.nntile_core.tensor.copy_intersection_fp32,
-        np.float64: nntile.nntile_core.tensor.copy_intersection_fp64}
+# Get multiprecision loss function
+Frob = nntile.loss.Frob
 
 # Helper function returns bool value true if test passes
-def helper(dtype):
+def helper(dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
-    A_shape = [3, 4, 5]
-    B_shape = [5, 4, 3]
-    A_offset = [10, 10, 10]
-    B_offset = [7, 10, 13]
+    A_shape = [4, 5, 6]
     ndim = len(A_shape)
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
-    B_traits = nntile.tensor.TensorTraits(B_shape, B_shape)
-    A_distr = [0]
-    B_distr = [0]
-    # Tensor objects
+    mpi_distr = [0]
     next_tag = 0
-    A = Tensor[dtype](A_traits, A_distr, next_tag)
+    val_traits = nntile.tensor.TensorTraits([], [])
+    # Tensor objects
+    A = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = A.next_tag
-    B = Tensor[dtype](B_traits, B_distr, next_tag)
+    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
+    next_tag = A_grad.next_tag
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Set initial values of tensors
     rand_A = np.random.randn(*A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A.from_array(np_A)
-    rand_B = np.random.randn(*B_shape)
+    # Define loss function object
+    loss, next_tag = Frob.generate_simple(A_moments, next_tag)
+    # Check loss and gradient
+    rand_B = np.random.randn(*A_shape)
     np_B = np.array(rand_B, dtype=dtype, order='F')
-    B.from_array(np_B)
-    # Check result
-    copy_intersection[dtype](A, A_offset, B, B_offset)
-    B.to_array(np_B)
-    nntile.starpu.wait_for_all()
-    A.unregister()
-    B.unregister()
-    return (np_A[:2, :, 3:] == np_B[3:, :, :2]).all()
+    loss.y.from_array(np_B)
+    loss.calc_async()
+    np_A_grad = np.zeros_like(np_A)
+    A_moments.grad.to_array(np_A_grad)
+    np_C = np_A - np_B
+    if (np_C != np_A_grad).any():
+        return False
+    np_val = np.zeros([1], order='F', dtype=dtype)
+    loss.val.to_array(np_val)
+    if not np.isclose(np_val, 0.5*np.linalg.norm(np_C)**2):
+        return False
+    # Clear data
+    A_moments.unregister()
+    return True
 
 # Test runner for different precisions
 def test():

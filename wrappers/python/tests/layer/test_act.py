@@ -4,12 +4,12 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_bias.py
-# Test for tensor::bias<T> Python wrapper
+# @file wrappers/python/tests/nntile_core/layer/test_act.py
+# Test for nntile.layer.act
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-09
+# @date 2023-02-15
 
 # All necesary imports
 import nntile
@@ -23,54 +23,58 @@ dtypes = [np.float32, np.float64]
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
-# Define mapping between tested function and numpy type
-bias = {np.float32: nntile.nntile_core.tensor.bias_fp32,
-        np.float64: nntile.nntile_core.tensor.bias_fp64}
+# Get multiprecision activation layer
+Act = nntile.layer.Act
 
 # Helper function returns bool value true if test passes
-def helper(dtype):
+def helper(dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
-    A_shape = [2, 3, 4]
-    B_shape = []
+    A_shape = [4, 5, 6]
     ndim = len(A_shape)
-    for i in range(ndim):
-        B_shape.append(A_shape[:i]+A_shape[i+1:])
+    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
     next_tag = 0
-    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
-    B_traits = []
-    for i in range(ndim):
-        B_traits.append(nntile.tensor.TensorTraits(B_shape[i], B_shape[i]))
     # Tensor objects
     A = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = A.next_tag
-    B = []
-    for i in range(ndim):
-        B.append(Tensor[dtype](B_traits[i], mpi_distr, next_tag))
-        next_tag = B[-1].next_tag
+    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
+    next_tag = A_grad.next_tag
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Set initial values of tensors
     rand_A = np.random.randn(*A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
-    np_A2 = np.zeros_like(np_A)
-    np_B = []
-    for i in range(ndim):
-        rand_B = np.random.randn(*B_shape[i])
-        np_B.append(np.array(rand_B, dtype=dtype, order='F'))
-        B[i].from_array(np_B[-1])
-    # Check result along each axis
-    for i in range(ndim):
+    np_B = np.zeros_like(np_A)
+    # Check result for each activation function
+    for funcname in Act.activations:
+        # A is invalidated after each forward_async
         A.from_array(np_A)
-        bias[dtype](B[i], A, i)
-        A.to_array(np_A2)
+        # Set up activation layer
+        layer, next_tag = Act.generate_simple(A_moments, funcname, next_tag)
+        # Do forward pass and wait until it is finished
+        layer.forward_async()
         nntile.starpu.wait_for_all()
-        B[i].unregister()
-        np_C = np.expand_dims(np_B[i], axis=i)
-        np_C = np.repeat(np_C, A_shape[i], axis=i)
-        np_C += np_A
-        nntile.starpu.wait_for_all()
-        if not np.allclose(np_C, np_A2):
+        # Dump output
+        layer.y.value.to_array(np_B)
+        # Check output correctness
+        np_C = np.zeros_like(np_A)
+        np_C[np_A > 0] = np_A[np_A > 0]
+        if (np_C != np_B).any():
+            A_moments.unregister()
+            layer.unregister()
             return False
-    A.unregister()
+        # Do backward
+        layer.y.grad.from_array(2*np_A)
+        layer.backward_async()
+        nntile.starpu.wait_for_all()
+        # Dump output
+        layer.x.grad.to_array(np_B)
+        # Check correctness
+        if (2*np_C != np_B).any():
+            A_moments.unregister()
+            layer.unregister()
+            return False
+    A_moments.unregister()
+    layer.unregister()
     return True
 
 # Test runner for different precisions

@@ -9,6 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Katrutsa
+# @author Aleksandr Mikhalev
 # @date 2023-02-14
 
 # All necesary imports
@@ -24,8 +25,8 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-axpy = {np.float32: nntile.tensor.axpy_fp32,
-        np.float64: nntile.tensor.axpy_fp64}
+axpy = {np.float32: nntile.nntile_core.tensor.axpy_fp32,
+        np.float64: nntile.nntile_core.tensor.axpy_fp64}
 
 
 # Helper function returns bool value true if test passes

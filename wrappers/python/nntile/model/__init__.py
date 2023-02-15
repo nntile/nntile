@@ -4,13 +4,12 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/__init__.py
-# Main init of NNTile Python package
+# @file wrappers/python/nntile/model/__init__.py
+# Submodule with neural network models of NNTile Python package
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-09
+# @date 2023-02-14
 
-from .nntile_core import starpu, tile, TransOp, trans, notrans
-from . import layer, loss, model, tensor
-
+from .base_model import BaseModel
+from .deep_linear import DeepLinear
