@@ -35,6 +35,7 @@
 #include <nntile/tile/randn.hh>
 #include <nntile/tile/relu.hh>
 #include <nntile/tile/sumnorm.hh>
+#include <nntile/tile/sum.hh>
 #include <nntile/tile/maxsumexp.hh>
 #include <nntile/tile/softmax.hh>
 

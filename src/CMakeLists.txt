@@ -92,6 +92,7 @@ set(TILE_SRC
     "tile/randn.cc"
     "tile/relu.cc"
     "tile/sumnorm.cc"
+    "tile/sum.cc"
     "tile/maxsumexp.cc"
     "tile/softmax.cc"
     )

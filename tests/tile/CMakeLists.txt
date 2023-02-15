@@ -33,6 +33,7 @@ set(TESTS
     "sumnorm"
     "prod"
     "maxsumexp"
+    "sum"
     "softmax"
     )
 
