@@ -4,12 +4,12 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_loss_frob.py
+# @file wrappers/python/tests/loss/test_frob.py
 # Test for nntile.loss.frob
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-09
+# @date 2023-02-15
 
 # All necesary imports
 import nntile
@@ -38,37 +38,31 @@ def helper(dtype: np.dtype):
     # Tensor objects
     A = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = A.next_tag
-    dA = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = dA.next_tag
-    B = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = B.next_tag
-    val = Tensor[dtype](val_traits, [0], next_tag)
-    next_tag = val.next_tag
+    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
+    next_tag = A_grad.next_tag
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Set initial values of tensors
     rand_A = np.random.randn(*A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A.from_array(np_A)
+    # Define loss function object
+    loss, next_tag = Frob.generate_simple(A_moments, next_tag)
+    # Check loss and gradient
     rand_B = np.random.randn(*A_shape)
     np_B = np.array(rand_B, dtype=dtype, order='F')
-    B.from_array(np_B)
-    # Define loss function object
-    loss, next_tag = Frob.generate_block_cyclic(A, dA, B, val, next_tag)
-    # Check loss and gradient
-    loss.value_grad_async()
-    np_dA = np.zeros_like(np_A)
-    dA.to_array(np_dA)
+    loss.y.from_array(np_B)
+    loss.calc_async()
+    np_A_grad = np.zeros_like(np_A)
+    A_moments.grad.to_array(np_A_grad)
     np_C = np_A - np_B
-    if (np_C != np_dA).any():
+    if (np_C != np_A_grad).any():
         return False
     np_val = np.zeros([1], order='F', dtype=dtype)
-    val.to_array(np_val)
+    loss.val.to_array(np_val)
     if not np.isclose(np_val, 0.5*np.linalg.norm(np_C)**2):
         return False
     # Clear data
-    A.unregister()
-    dA.unregister()
-    B.unregister()
-    val.unregister()
+    A_moments.unregister()
     return True
 
 # Test runner for different precisions
