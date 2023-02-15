@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-13
+# @date 2023-02-15
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64
@@ -34,6 +34,16 @@ class TensorMoments(object):
         self.value = value
         self.grad = grad
         self.grad_required = grad_required
+
+    def __del__(self):
+        self.unregister()
+
+    def unregister(self):
+        if self.value is not None:
+            self.value.unregister()
+        if self.grad is not None:
+            self.grad.unregister()
+
 
 # Wrapper for multiprecision gemm
 def gemm_async(alpha: float, trans_A: TransOp, A: Tensor, trans_B: TransOp,

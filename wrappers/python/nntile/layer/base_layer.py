@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-12
+# @date 2023-02-15
 
 from nntile.tensor import TensorMoments
 import numpy as np
@@ -43,4 +43,7 @@ class BaseLayer(object):
     def backward(self):
         self.forward_async()
         starpu.wait_for_all()
+
+    def unregister(self):
+        raise NotImplementedError
 

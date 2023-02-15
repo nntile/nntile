@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-14
+# @date 2023-02-15
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments
 from nntile.layer.base_layer import BaseLayer
@@ -46,4 +46,10 @@ class BaseModel:
         for l in reversed(self.layers):
             l.backward_async()
 
+    # Unregister all tensors related to this model
+    def unregister(self):
+        for l in self.layers:
+            l.unregister()
+        for x in self.activations:
+            x.unregister()
 

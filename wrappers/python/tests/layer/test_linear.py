@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-13
+# @date 2023-02-15
 
 # All necesary imports
 import nntile
@@ -37,12 +37,12 @@ def helper(dtype: np.dtype):
     # Tensor objects
     A = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = A.next_tag
-    dA = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = dA.next_tag
+    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
+    next_tag = A_grad.next_tag
     # Set initial values of tensors
     rand_A = np.random.randn(*A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
-    A_moments = nntile.tensor.TensorMoments(A, dA, True)
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Define linear layer
     layer, next_tag = Linear.generate_simple_mpiroot(A_moments, 'L',
             nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag)
@@ -56,6 +56,8 @@ def helper(dtype: np.dtype):
     np_Y2 = np.zeros_like(np_Y, order='F')
     layer.y.value.to_array(np_Y2)
     if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > 1e-5:
+        A_moments.unregister()
+        layer.unregister()
         return False
     # Check results of backward pass layer.w.grad and layer.x.grad
     layer.y.grad.from_array(np_Y)
@@ -64,14 +66,18 @@ def helper(dtype: np.dtype):
     np_Z2 = np.zeros_like(np_Z, order='F')
     layer.w.grad.to_array(np_Z2)
     if np.linalg.norm(np_Z-np_Z2)/np.linalg.norm(np_Z) > 1e-5:
+        A_moments.unregister()
+        layer.unregister()
         return False
     np_Z3 = np.einsum("ijk,lmjk->ilm", np_Y2, np_W)
     np_Z4 = np.zeros_like(np_Z3, order='F')
     layer.x.grad.to_array(np_Z4)
     if np.linalg.norm(np_Z3-np_Z4)/np.linalg.norm(np_Z3) > 1e-5:
+        A_moments.unregister()
+        layer.unregister()
         return False
-    A.unregister()
-    dA.unregister()
+    A_moments.unregister()
+    layer.unregister()
     return True
 
 # Test runner for different precisions

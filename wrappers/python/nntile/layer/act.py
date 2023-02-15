@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-13
+# @date 2023-02-15
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         copy_async, prod_async, relu_async, drelu_async
@@ -32,7 +32,7 @@ class Act(BaseLayer):
         # Check if activation is actually implemented
         if funcname not in Act.activations:
             raise ValueError
-        # Redirect to BaseClass initialization
+        # Redirect to BaseLayer initialization
         super().__init__([x], [y], [])
         # Set up local named parameters
         self.x = x
@@ -82,4 +82,9 @@ class Act(BaseLayer):
             self.dfunc(self.x.grad)
             # Per-element product of gradient of Y and f'(X)
             prod_async(self.y.grad, self.x.grad)
+
+    # Unregister all internal tensors
+    def unregister(self):
+        if self.x_copy is not None:
+            self.x_copy.unregister()
 

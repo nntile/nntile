@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-14
+# @date 2023-02-15
 
 # Imports
 import nntile
@@ -34,11 +34,11 @@ x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
 # Define deep linear network
 gemm_ndim = 1
-new_shape = 4
-new_basetile_shape = 3
+hidden_layer_dim = 4
+hidden_layer_dim_tile = 3
 nlayers = 3
-m = nntile.model.DeepLinear(x_moments, 'R', gemm_ndim, new_shape,
-        new_basetile_shape, nlayers, next_tag)
+m = nntile.model.DeepLinear(x_moments, 'R', gemm_ndim, hidden_layer_dim,
+        hidden_layer_dim_tile, nlayers, next_tag)
 
 # Randomly init weights of deep linear network
 m.init_randn_async()
@@ -63,6 +63,9 @@ nntile.tensor.randn_async(grad, [0]*len(grad.shape), grad.shape, seed_grad,
 
 # Run backward propagation
 m.backward_async()
+
+# Unregister all tensors related to model
+m.unregister()
 
 # Wait for all computations to finish
 nntile.starpu.wait_for_all()

@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-13
+# @date 2023-02-15
 
 # All necesary imports
 import nntile
@@ -37,9 +37,9 @@ def helper(dtype: np.dtype):
     # Tensor objects
     A = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = A.next_tag
-    dA = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = dA.next_tag
-    A_moments = nntile.tensor.TensorMoments(A, dA, True)
+    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
+    next_tag = A_grad.next_tag
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Set initial values of tensors
     rand_A = np.random.randn(*A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
@@ -59,6 +59,8 @@ def helper(dtype: np.dtype):
         np_C = np.zeros_like(np_A)
         np_C[np_A > 0] = np_A[np_A > 0]
         if (np_C != np_B).any():
+            A_moments.unregister()
+            layer.unregister()
             return False
         # Do backward
         layer.y.grad.from_array(2*np_A)
@@ -68,9 +70,11 @@ def helper(dtype: np.dtype):
         layer.x.grad.to_array(np_B)
         # Check correctness
         if (2*np_C != np_B).any():
+            A_moments.unregister()
+            layer.unregister()
             return False
-    A.unregister()
-    dA.unregister()
+    A_moments.unregister()
+    layer.unregister()
     return True
 
 # Test runner for different precisions

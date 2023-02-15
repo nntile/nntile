@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-14
+# @date 2023-02-15
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, copy_async, gemm_async, randn_async
@@ -180,4 +180,10 @@ class Linear(BaseLayer):
                             0.0, self.x.grad, gemm_ndim)
             # Hint StarPU to offload certain buffers
             self.w.value.wont_use()
+
+    # Unregister all internal tensors
+    def unregister(self):
+        self.w.unregister()
+        if self.x_copy is not None:
+            self.x_copy.unregister()
 

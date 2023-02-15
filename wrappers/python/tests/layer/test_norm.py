@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-11
+# @date 2023-02-15
 
 # All necesary imports
 import nntile
@@ -40,12 +40,14 @@ def helper(dtype: np.dtype):
     # Tensor objects
     A = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = A.next_tag
-    dA = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = dA.next_tag
+    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
+    next_tag = A_grad.next_tag
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     new_A = Tensor[dtype](new_A_traits, mpi_distr, next_tag)
     next_tag = new_A.next_tag
-    new_dA = Tensor[dtype](new_A_traits, mpi_distr, next_tag)
-    next_tag = new_dA.next_tag
+    new_A_grad = Tensor[dtype](new_A_traits, mpi_distr, next_tag)
+    next_tag = new_A_grad.next_tag
+    new_A_moments = nntile.tensor.TensorMoments(new_A, new_A_grad, True)
     # Set initial values of tensors
     rand_A = np.random.randn(*A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
@@ -58,13 +60,12 @@ def helper(dtype: np.dtype):
         # A is invalidated after each forward_async
         A.from_array(np_A)
         # Set up normalization layer
-        layer, next_tag = Norm.generate_block_cyclic(A, dA, i, eps, \
-                next_tag)
+        layer, next_tag = Norm.generate_simple(A_moments, i, eps, next_tag)
         # Do forward pass and wait until it is finished
         layer.forward_async()
         nntile.starpu.wait_for_all()
         # Dump output
-        layer.y.to_array(np_B)
+        layer.y.value.to_array(np_B)
         # Check output correctness
         np_A_mean = np_A.mean(axis=i, keepdims=True)
         np_C = np_A - np_A_mean
@@ -75,12 +76,12 @@ def helper(dtype: np.dtype):
         # new_A is invalidated after each forward_async
         new_A.from_array(np_new_A)
         # Rebatch layer
-        new_layer, next_tag = layer.rebatch(new_A, new_dA, 1, next_tag)
+        new_layer, next_tag = layer.rebatch(new_A_moments, 1, next_tag)
         # Do forward pass and wait until it is finished
         new_layer.forward_async()
         nntile.starpu.wait_for_all()
         # Dump output
-        new_layer.y.to_array(np_new_B)
+        new_layer.y.value.to_array(np_new_B)
         # Check output correctness
         np_new_A_mean = np_new_A.mean(axis=i, keepdims=True)
         np_new_C = np_new_A - np_new_A_mean
@@ -88,10 +89,8 @@ def helper(dtype: np.dtype):
         np_new_C /= np_new_A_dev
         if not np.allclose(np_new_C, np_new_B, rtol=1e-4, atol=1e-5):
             return False
-    A.unregister()
-    dA.unregister()
-    new_A.unregister()
-    new_dA.unregister()
+    A_moments.unregister()
+    new_A_moments.unregister()
     return True
 
 # Test runner for different precisions
