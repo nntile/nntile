@@ -5,7 +5,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/kernel/addcdiv/cpu.hh
- * Per-element maximum of two buffers on CPU
+ * Per-element addcdiv operation for buffers on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa

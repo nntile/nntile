@@ -25,6 +25,14 @@ template<typename T>
 void addcdiv_async(T val, T eps, const Tensor<T> &nom, const Tensor<T> &denom,
                    const Tensor<T> &src)
 {
+    if (nom.matrix_shape != denom.matrix_shape) {
+        throw std::runtime_error("Nominator shape is not equal to denominator shape");
+    }
+
+    if (src.matrix_shape != nom.matrix_shape) {
+        throw std::runtime_error("Nominator shape is not equal to source shape");
+    }
+
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
 
@@ -35,10 +43,13 @@ void addcdiv_async(T val, T eps, const Tensor<T> &nom, const Tensor<T> &denom,
         auto nom_tile_handle = nom.get_tile_handle(i);
         auto denom_tile_handle = denom.get_tile_handle(i);
         // MPI rank of the destination tile
+        int nom_tile_rank = nom_tile_handle.mpi_get_rank();
+        int denom_tile_rank = denom_tile_handle.mpi_get_rank();
         int src_tile_rank = src_tile_handle.mpi_get_rank();
         // Transfer data
-        nom_tile_handle.mpi_transfer(src_tile_rank, mpi_rank);
-        denom_tile_handle.mpi_transfer(src_tile_rank, mpi_rank);
+        nom_tile_handle.mpi_transfer(nom_tile_rank, mpi_rank);
+        denom_tile_handle.mpi_transfer(denom_tile_rank, mpi_rank);
+        src_tile_handle.mpi_transfer(src_tile_rank, mpi_rank);
         // Execute only on destination node
         if(mpi_rank == src_tile_rank)
         {

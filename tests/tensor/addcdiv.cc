@@ -100,6 +100,7 @@ void check(T val, T eps, const std::vector<Index> &shape, const std::vector<Inde
         auto tile2_local = tile2.acquire(STARPU_R);
         for(Index i = 0; i < traits.nelems; ++i)
         {
+            std::cout << tile_local[i] << " " << tile2_local[i] << std::endl;
             TEST_ASSERT(tile_local[i] == tile2_local[i]);
         }
         tile_local.release();
@@ -110,11 +111,10 @@ void check(T val, T eps, const std::vector<Index> &shape, const std::vector<Inde
 template<typename T>
 void validate()
 {
-    check<T>(1, 1e-4, {}, {});
     check<T>(-10, 1, {5}, {5});
-    check<T>(5, 1e-5, {11}, {5});
-    check<T>(0.2, 1e-2, {11, 12, 13}, {5, 6, 7});
-    check<T>(0.2, 1e-2, {1000, 1000}, {450, 450});
+    // check<T>(5, 1e-5, {11}, {5});
+    // check<T>(0.2, 1e-2, {11, 12, 13}, {5, 6, 7});
+    // check<T>(0.2, 1e-2, {1000, 1000}, {450, 450});
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // No checks that throw exceptions

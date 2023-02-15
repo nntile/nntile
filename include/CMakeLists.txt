@@ -159,6 +159,7 @@ set(TENSOR_HDR
     "nntile/tensor/softmax.hh"
     "nntile/tensor/sqrt.hh"
     "nntile/tensor/maximum.hh"
+    "nntile/tensor/addcdiv.hh"
     )
 
 set(LAYER_HDR

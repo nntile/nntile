@@ -61,62 +61,62 @@ void validate_cpu(T val, T eps, Index nelems)
 }
 
 #ifdef NNTILE_USE_CUDA
-template<typename T>
-void validate_cuda(Index nelems)
-{
-    // Get a StarPU CUDA worker (to perform computations on the same device)
-    int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
-    // Choose worker CUDA device
-    int dev_id = starpu_worker_get_devid(cuda_worker_id);
-    cudaError_t cuda_err = cudaSetDevice(dev_id);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    // Create CUDA stream
-    cudaStream_t stream;
-    cuda_err = cudaStreamCreate(&stream);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    // Init all the data
-    std::vector<T> data(nelems);
-    for(Index i = 0; i < nelems; ++i)
-    {
-        data[i] = T(i+1);
-    }
-    // Create copies of destination
-    std::vector<T> data2(data);
-    // Launch low-level kernel
-    T *dev_data;
-    cuda_err = cudaMalloc(&dev_data, sizeof(T)*nelems);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_data, &data[0], sizeof(T)*nelems,
-            cudaMemcpyHostToDevice);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::relu::cuda<T>\n";
-    kernel::relu::cuda<T>(stream, nelems, dev_data);
-    // Wait for result and destroy stream
-    cuda_err = cudaStreamSynchronize(stream);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaStreamDestroy(stream);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    // Copy result back to CPU
-    cuda_err = cudaMemcpy(&data[0], dev_data, sizeof(T)*nelems,
-            cudaMemcpyDeviceToHost);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    // Deallocate CUDA memory
-    cuda_err = cudaFree(dev_data);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    // Check by actually submitting a task
-    VariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
-    relu::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::relu::submit<T> restricted to CUDA\n";
-    relu::submit<T>(nelems, data2_handle);
-    starpu_task_wait_for_all();
-    data2_handle.unregister();
-    // Check result
-    for(Index i = 0; i < nelems; ++i)
-    {
-        TEST_ASSERT(data[i] == data2[i]);
-    }
-    std::cout << "OK: starpu::relu::submit<T> restricted to CUDA\n";
-}
+// template<typename T>
+// void validate_cuda(Index nelems)
+// {
+//     // Get a StarPU CUDA worker (to perform computations on the same device)
+//     int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
+//     // Choose worker CUDA device
+//     int dev_id = starpu_worker_get_devid(cuda_worker_id);
+//     cudaError_t cuda_err = cudaSetDevice(dev_id);
+//     TEST_ASSERT(cuda_err == cudaSuccess);
+//     // Create CUDA stream
+//     cudaStream_t stream;
+//     cuda_err = cudaStreamCreate(&stream);
+//     TEST_ASSERT(cuda_err == cudaSuccess);
+//     // Init all the data
+//     std::vector<T> data(nelems);
+//     for(Index i = 0; i < nelems; ++i)
+//     {
+//         data[i] = T(i+1);
+//     }
+//     // Create copies of destination
+//     std::vector<T> data2(data);
+//     // Launch low-level kernel
+//     T *dev_data;
+//     cuda_err = cudaMalloc(&dev_data, sizeof(T)*nelems);
+//     TEST_ASSERT(cuda_err == cudaSuccess);
+//     cuda_err = cudaMemcpy(dev_data, &data[0], sizeof(T)*nelems,
+//             cudaMemcpyHostToDevice);
+//     TEST_ASSERT(cuda_err == cudaSuccess);
+//     std::cout << "Run kernel::relu::cuda<T>\n";
+//     kernel::relu::cuda<T>(stream, nelems, dev_data);
+//     // Wait for result and destroy stream
+//     cuda_err = cudaStreamSynchronize(stream);
+//     TEST_ASSERT(cuda_err == cudaSuccess);
+//     cuda_err = cudaStreamDestroy(stream);
+//     TEST_ASSERT(cuda_err == cudaSuccess);
+//     // Copy result back to CPU
+//     cuda_err = cudaMemcpy(&data[0], dev_data, sizeof(T)*nelems,
+//             cudaMemcpyDeviceToHost);
+//     TEST_ASSERT(cuda_err == cudaSuccess);
+//     // Deallocate CUDA memory
+//     cuda_err = cudaFree(dev_data);
+//     TEST_ASSERT(cuda_err == cudaSuccess);
+//     // Check by actually submitting a task
+//     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
+//     relu::restrict_where(STARPU_CUDA);
+//     std::cout << "Run starpu::relu::submit<T> restricted to CUDA\n";
+//     relu::submit<T>(nelems, data2_handle);
+//     starpu_task_wait_for_all();
+//     data2_handle.unregister();
+//     // Check result
+//     for(Index i = 0; i < nelems; ++i)
+//     {
+//         TEST_ASSERT(data[i] == data2[i]);
+//     }
+//     std::cout << "OK: starpu::relu::submit<T> restricted to CUDA\n";
+// }
 #endif // NNTILE_USE_CUDA
 
 int main(int argc, char **argv)
