@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-14
+# @date 2023-02-15
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         notrans
@@ -19,6 +19,7 @@ import numpy as np
 from typing import List
 
 class DeepLinear(BaseModel):
+    next_tag: int
 
     # Construct model with all the provided data
     def __init__(self, x: TensorMoments, side: str, ndim: int, add_shape: int,
@@ -49,15 +50,16 @@ class DeepLinear(BaseModel):
             activations.extend(new_layer.activations_output)
         # Finalizing linear layer that converts result back to proper shape
         if side == 'L':
-            new_shape = x.value.shape[:ndim]
-            new_base = x.value.basetile_shape[:ndim]
-        else:
             new_shape = x.value.shape[-ndim:]
             new_base = x.value.basetile_shape[-ndim:]
+        else:
+            new_shape = x.value.shape[:ndim]
+            new_base = x.value.basetile_shape[:ndim]
         new_layer, next_tag = Linear.generate_simple_mpiroot(activations[-1],
                 side, notrans, 1, new_shape, new_base, next_tag)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
+        self.next_tag = next_tag
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
 

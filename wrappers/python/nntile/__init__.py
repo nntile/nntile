@@ -9,8 +9,8 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-09
+# @date 2023-02-15
 
 from .nntile_core import starpu, tile, TransOp, trans, notrans
-from . import layer, loss, model, tensor
+from . import layer, loss, model, tensor, pipeline
 

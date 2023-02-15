@@ -51,14 +51,14 @@ class Frob:
         # Define gradient dX as X-Y
         axpy_async(-1, self.y, self.x.grad)
         # Values Y are not needed anymore
-        self.y.invalidate_submit()
+        #self.y.invalidate_submit()
         # Get value ||grad X||
         nrm2_async(self.x.grad, self.val, self.tmp)
         # Ignore temporary values
-        self.tmp.invalidate_submit()
+        #self.tmp.invalidate_submit()
         # Invalidate gradient if it is unnecessary
-        if self.x.grad_required is False:
-            self.x.grad.invalidate_submit()
+        #if self.x.grad_required is False:
+        #    self.x.grad.invalidate_submit()
         # Compute loss as 0.5*||dX||^2
         prod_async(self.val, self.val)
         axpy_async(-0.5, self.val, self.val)
