@@ -200,7 +200,7 @@ def axpy_async(alpha: TensorOrFloat, x: Tensor, y: Tensor) -> None:
             core_tensor.axpy_async_fp64(alpha, x, y)
     else:
         if type(x) is core_tensor.Tensor_fp32:
-            core_tensor.axpy2_async_fp32(alpha, x, y)
+            core_tensor.axpy_async_fp32(alpha, x, y)
         else:
-            core_tensor.axpy2_async_fp64(alpha, x, y)
+            core_tensor.axpy_async_fp64(alpha, x, y)
 
