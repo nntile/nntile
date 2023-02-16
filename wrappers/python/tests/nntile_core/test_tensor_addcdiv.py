@@ -9,7 +9,8 @@
 #
 # @version 1.0.0
 # @author Aleksandr Katrutsa
-# @date 2023-02-14
+# @author Aleksandr Mikhalev
+# @date 2023-02-16
 
 # All necesary imports
 import nntile
@@ -25,8 +26,8 @@ Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
 
-addcdiv = {np.float32: nntile.tensor.addcdiv_fp32,
-        np.float64: nntile.tensor.addcdiv_fp64}
+addcdiv = {np.float32: nntile.nntile_core.tensor.addcdiv_fp32,
+        np.float64: nntile.nntile_core.tensor.addcdiv_fp64}
 
 
 # Helper function returns bool value true if test passes
