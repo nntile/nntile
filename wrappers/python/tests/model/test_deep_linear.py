@@ -15,9 +15,10 @@
 import nntile
 import numpy as np
 import time
+import sys
 
 # Set up StarPU+MPI and init codelets
-config = nntile.starpu.Config(-1, -1, 1)
+config = nntile.starpu.Config(-1, 0, 0)
 nntile.starpu.init()
 next_tag = 0
 
@@ -26,12 +27,12 @@ n_rows = 128
 n_cols = 128
 n_batches = 10
 batch_size = 128
-n_cols_tile = 128
-n_rows_tile = 128
-batch_size_tile = 128
+n_cols_tile = 32
+n_rows_tile = 32
+batch_size_tile = 32
 gemm_ndim = 1
 hidden_layer_dim = 128
-hidden_layer_dim_tile = 128
+hidden_layer_dim_tile = 32
 nlayers = 2
 A = np.zeros((n_rows, n_cols), order='F', dtype=np.float32)
 for i in range(n_rows):
@@ -52,38 +53,13 @@ y_traits = nntile.tensor.TensorTraits([n_rows, batch_size], [n_rows_tile,
     batch_size_tile])
 y_distr = [0] * y_traits.grid.nelems
 np.random.seed(0)
-for i in range(n_batches):
-    X = np.random.randn(n_cols, batch_size)
-    Y = A @ X
-    x_full = nntile.tensor.Tensor_fp32(x_traits_full, [0], next_tag)
-    next_tag = x_full.next_tag
-    nntile.starpu.wait_for_all()
-    x_full.from_array(X)
-    nntile.starpu.wait_for_all()
-    x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
-    next_tag = x.next_tag
-    nntile.nntile_core.tensor.scatter_fp32(x_full, x)
-    x_full.unregister()
-    del x_full
-    batch_input.append(x)
-    y_full = nntile.tensor.Tensor_fp32(y_traits_full, [0], next_tag)
-    next_tag = y_full.next_tag
-    nntile.starpu.wait_for_all()
-    y_full.from_array(Y)
-    nntile.starpu.wait_for_all()
-    y = nntile.tensor.Tensor_fp32(y_traits, y_distr, next_tag)
-    next_tag = y.next_tag
-    nntile.nntile_core.tensor.scatter_fp32(y_full, y)
-    y_full.unregister()
-    del y_full
-    batch_output.append(y)
 
 # Define tensor X for input batches
 x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
 next_tag = x.next_tag
 x_grad = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
 next_tag = x_grad.next_tag
-x_grad_required = False
+x_grad_required = True
 x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
 # Define deep linear network
@@ -91,17 +67,47 @@ m = nntile.model.DeepLinear(x_moments, 'R', gemm_ndim, hidden_layer_dim,
         hidden_layer_dim_tile, nlayers, next_tag)
 next_tag = m.next_tag
 
-# Randomly init weights of deep linear network
-m.init_randn_async()
-
 # Set up Frobenius loss function for the model
 frob, next_tag = nntile.loss.Frob.generate_simple(m.activations[-1], next_tag)
 
 # Set up training pipeline
-n_epochs = 1
-lr = -1e-9
+n_epochs = 100
+lr = -1e-5
 pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, m, None, frob,
         n_epochs, lr)
+
+for i in range(n_batches):
+    X = np.random.randn(n_cols, batch_size)
+    Y = A @ X
+    x_full = nntile.tensor.Tensor_fp32(x_traits_full, [0], next_tag)
+    next_tag = x_full.next_tag
+    nntile.starpu.wait_for_all()
+    #x_full.from_array(X)
+    nntile.nntile_core.tensor.randn_fp32(x_full, [0, 0], [n_cols, batch_size],
+                                         1, 0.0, 1.0)
+    nntile.starpu.wait_for_all()
+    x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
+    next_tag = x.next_tag
+    nntile.nntile_core.tensor.scatter_fp32(x_full, x)
+    x_full.unregister()
+    #del x_full
+    batch_input.append(x)
+    y_full = nntile.tensor.Tensor_fp32(y_traits_full, [0], next_tag)
+    next_tag = y_full.next_tag
+    nntile.starpu.wait_for_all()
+    #y_full.from_array(Y)
+    nntile.nntile_core.tensor.randn_fp32(y_full, [0, 0], [n_rows, batch_size],
+                                         100, 0.0, 1.0)
+    nntile.starpu.wait_for_all()
+    y = nntile.tensor.Tensor_fp32(y_traits, y_distr, next_tag)
+    next_tag = y.next_tag
+    nntile.nntile_core.tensor.scatter_fp32(y_full, y)
+    y_full.unregister()
+    #del y_full
+    batch_output.append(y)
+
+# Randomly init weights of deep linear network
+m.init_randn_async()
 
 # Wait for all computations to finish
 nntile.starpu.wait_for_all()
@@ -116,41 +122,22 @@ time0 += time.time()
 print("Done in {} seconds".format(time0))
 np_val = np.array([1], order='F', dtype=np.float32)
 np_val[0] = 0
-frob.val.to_array(np_val)
-nntile.starpu.wait_for_all()
-print("Loss is {}".format(np_val[0]))
-print("Norm is {}".format(np.linalg.norm(A, 'fro')))
+#frob.val.to_array(np_val)
+#nntile.starpu.wait_for_all()
+#print("Loss is {}".format(np_val[0]))
+#print("Norm is {}".format(np.linalg.norm(A, 'fro')))
 
-## Check a single test
-#X = np.eye(n_rows, dtype=np.float32, order='F')
-#Y = A
-#x_full = nntile.tensor.Tensor_fp32(x_traits_full, [0], next_tag)
-#next_tag = x_full.next_tag
-#nntile.starpu.wait_for_all()
-#x_full.from_array(X)
-#nntile.starpu.wait_for_all()
-#x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
-#next_tag = x.next_tag
-#nntile.nntile_core.tensor.scatter_fp32(x_full, x)
-#x_full.unregister()
-#del x_full
-#nntile.tensor.copy_async(x, m.activations[0].value)
-#m.forward_async()
-#nntile.starpu.wait_for_all()
-#Y2 = np.zeros_like(Y, order='F', dtype=np.float32)
-#m.activations[-1].value.to_array(Y2)
+# Unregister all tensors related to model
+m.unregister()
 
-## Unregister all tensors related to model
-#m.unregister()
-#
-## Unregister loss function
-#frob.y.unregister()
-#frob.val.unregister()
-#frob.tmp.unregister()
-#
-## Unregister input/output batches
-#for x in batch_input:
-#    x.unregister()
-#for x in batch_output:
-#    x.unregister()
+# Unregister loss function
+frob.y.unregister()
+frob.val.unregister()
+frob.tmp.unregister()
+
+# Unregister input/output batches
+for x in batch_input:
+    x.unregister()
+for x in batch_output:
+    x.unregister()
 
