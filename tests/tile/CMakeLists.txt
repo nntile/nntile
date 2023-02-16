@@ -37,6 +37,7 @@ set(TESTS
     "softmax"
     "sqrt"
     "maximum"
+    "addcdiv"
     )
 
 # Add target for local coverage

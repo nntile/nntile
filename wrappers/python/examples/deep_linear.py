@@ -73,7 +73,7 @@ next_tag = m.next_tag
 frob, next_tag = nntile.loss.Frob.generate_simple(m.activations[-1], next_tag)
 
 # Set up training pipeline
-n_epochs = 1000
+n_epochs = 100
 lr = -1e-6
 pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, m, None, frob,
         n_epochs, lr)
@@ -151,4 +151,3 @@ for x in batch_input:
     x.unregister()
 for x in batch_output:
     x.unregister()
-

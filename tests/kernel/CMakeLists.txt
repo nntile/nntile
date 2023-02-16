@@ -31,6 +31,7 @@ set(TESTS
     "softmax"
     "sqrt"
     "maximum"
+    "addcdiv"
     )
 
 # Setup a target for coverage of kernels

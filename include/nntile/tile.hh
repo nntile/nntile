@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @date 2023-02-14
  * */
 
 #pragma once
@@ -40,6 +40,7 @@
 #include <nntile/tile/softmax.hh>
 #include <nntile/tile/sqrt.hh>
 #include <nntile/tile/maximum.hh>
+#include <nntile/tile/addcdiv.hh>
 
 namespace nntile
 {

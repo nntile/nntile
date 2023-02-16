@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @date 2023-02-14
  * */
 
 #include <pybind11/pybind11.h>
@@ -406,14 +406,16 @@ void def_mod_tensor(py::module_ &m)
     m.def("clear_async_fp32", &clear_async<fp32_t>);
     m.def("clear_fp64", &clear<fp64_t>);
     m.def("clear_fp32", &clear<fp32_t>);
-    m.def("axpy_async_fp64", &axpy_async<fp64_t>);
-    m.def("axpy_async_fp32", &axpy_async<fp32_t>);
-    m.def("axpy_fp64", &axpy<fp64_t>);
-    m.def("axpy_fp32", &axpy<fp32_t>);
-    m.def("axpy2_async_fp64", &axpy2_async<fp64_t>);
-    m.def("axpy2_async_fp32", &axpy2_async<fp32_t>);
-    m.def("axpy2_fp64", &axpy2<fp64_t>);
-    m.def("axpy2_fp32", &axpy2<fp32_t>);
+        
+    m.def("axpy_async_fp64", py::overload_cast<fp64_t, const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
+    m.def("axpy_async_fp32", py::overload_cast<fp32_t, const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
+    m.def("axpy_fp64", py::overload_cast<fp64_t, const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy<fp64_t>));
+    m.def("axpy_fp32", py::overload_cast<fp32_t, const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy<fp32_t>));
+
+    m.def("axpy_async_fp64", py::overload_cast<const Tensor<fp64_t>&, const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
+    m.def("axpy_async_fp32", py::overload_cast<const Tensor<fp32_t>&, const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
+    m.def("axpy_fp64", py::overload_cast<const Tensor<fp64_t>&, const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy<fp64_t>));
+    m.def("axpy_fp32", py::overload_cast<const Tensor<fp32_t>&, const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy<fp32_t>));
 
     m.def("sqrt_async_fp64", &sqrt_async<fp64_t>);
     m.def("sqrt_async_fp32", &sqrt_async<fp32_t>);
@@ -423,6 +425,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("maximum_async_fp32", &maximum_async<fp32_t>);
     m.def("maximum_fp64", &maximum<fp64_t>);
     m.def("maximum_fp32", &maximum<fp32_t>);
+
+    m.def("addcdiv_async_fp64", &addcdiv_async<fp64_t>);
+    m.def("addcdiv_async_fp32", &addcdiv_async<fp32_t>);
+    m.def("addcdiv_fp64", &addcdiv<fp64_t>);
+    m.def("addcdiv_fp32", &addcdiv<fp32_t>);
 }
 
 // Main extension module with all wrappers
