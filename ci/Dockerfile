@@ -34,11 +34,11 @@ RUN apt clean && rm -rf /var/lib/apt/lists/*
 RUN git clone https://gitlab.inria.fr/starpu/starpu.git /starpu
 WORKDIR /starpu
 # Use the same version across different hardware
-RUN git checkout eccd488dbb9a42867d2e23bb1cbd6dc4272e2749
+RUN git checkout 51afa9119289d29076b563f264235abfcf7d24ff
 RUN ./autogen.sh
-RUN ./configure
-RUN make
-RUN make install
+RUN ./configure --disable-build-doc --disable-build-tests \
+    --disable-build-examples --disable-fortran --disable-opencl
+RUN make -j 4 install
 # Remove build files of StarPU
 RUN rm -rf /starpu
 
