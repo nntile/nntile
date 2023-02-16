@@ -9,7 +9,8 @@
 #
 # @version 1.0.0
 # @author Aleksandr Katrutsa
-# @date 2023-02-07
+# @author Aleksandr Mikhalev
+# @date 2023-02-14
 
 # All necesary imports
 import nntile
@@ -24,11 +25,8 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-axpy = {np.float32: nntile.tensor.axpy_fp32,
-        np.float64: nntile.tensor.axpy_fp64}
-
-axpy2 = {np.float32: nntile.tensor.axpy2_fp32,
-        np.float64: nntile.tensor.axpy2_fp64}
+axpy = {np.float32: nntile.nntile_core.tensor.axpy_fp32,
+        np.float64: nntile.nntile_core.tensor.axpy_fp64}
 
 
 # Helper function returns bool value true if test passes
@@ -85,7 +83,7 @@ def helper2(dtype):
     np_B = np.array(rand_B, dtype=dtype, order='F')
     B.from_array(np_B)
     a = np.array(np.random.randn(1), dtype=dtype)
-    axpy2[dtype](a[0], A, B)
+    axpy[dtype](a[0], A, B)
     np_C = np.zeros(shape, dtype=dtype, order='F')
     B.to_array(np_C)
     nntile.starpu.wait_for_all()

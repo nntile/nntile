@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-01-31
+ * @author Aleksandr Katrutsa
+ * @date 2023-02-14
  * */
 
 #pragma once
@@ -29,6 +30,9 @@
 #include <nntile/kernel/sumnorm.hh>
 #include <nntile/kernel/maxsumexp.hh>
 #include <nntile/kernel/softmax.hh>
+#include <nntile/kernel/sqrt.hh>
+#include <nntile/kernel/maximum.hh>
+#include <nntile/kernel/addcdiv.hh>
 
 namespace nntile
 {

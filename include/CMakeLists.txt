@@ -9,7 +9,8 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-01-31
+# @author Aleksandr Katrutsa
+# @date 2023-02-10
 
 # Set list of headers
 set(BASE_HDR
@@ -50,6 +51,12 @@ set(KERNEL_HDR
     "nntile/kernel/maxsumexp/cpu.hh"
     "nntile/kernel/softmax.hh"
     "nntile/kernel/softmax/cpu.hh"
+    "nntile/kernel/sqrt.hh"
+    "nntile/kernel/sqrt/cpu.hh"
+    "nntile/kernel/maximum.hh"
+    "nntile/kernel/maximum/cpu.hh"
+    "nntile/kernel/addcdiv.hh"
+    "nntile/kernel/addcdiv/cpu.hh"
     )
 
 if(NNTILE_USE_CUDA)
@@ -91,6 +98,9 @@ set(STARPU_HDR
     "nntile/starpu/sumnorm.hh"
     "nntile/starpu/maxsumexp.hh"
     "nntile/starpu/softmax.hh"
+    "nntile/starpu/sqrt.hh"
+    "nntile/starpu/maximum.hh"
+    "nntile/starpu/addcdiv.hh"
     )
 
 set(TILE_HDR
@@ -116,6 +126,9 @@ set(TILE_HDR
     "nntile/tile/sumnorm.hh"
     "nntile/tile/maxsumexp.hh"
     "nntile/tile/softmax.hh"
+    "nntile/tile/sqrt.hh"
+    "nntile/tile/maximum.hh"
+    "nntile/tile/addcdiv.hh"
     )
 
 set(TENSOR_HDR
@@ -144,6 +157,9 @@ set(TENSOR_HDR
     "nntile/tensor/sumnorm.hh"
     "nntile/tensor/maxsumexp.hh"
     "nntile/tensor/softmax.hh"
+    "nntile/tensor/sqrt.hh"
+    "nntile/tensor/maximum.hh"
+    "nntile/tensor/addcdiv.hh"
     )
 
 set(LAYER_HDR

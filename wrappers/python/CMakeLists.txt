@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-01-23
+# @date 2023-02-15
 
 # Get pybind11 library and set up binary directory pybind11
 add_subdirectory("../../external/pybind11" "pybind11")
@@ -38,6 +38,11 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/setup.py.in"
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/tests DESTINATION
     ${CMAKE_CURRENT_BINARY_DIR}
     FOLLOW_SYMLINK_CHAIN)
+
+# Copy examples into build directory also to avoid __pycache__ in sources
+#file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/examples DESTINATION
+#    ${CMAKE_CURRENT_BINARY_DIR}
+#    FOLLOW_SYMLINK_CHAIN)
 
 # Collect all the tests and add them to ctest
 file(GLOB_RECURSE PY_TESTS FOLLOW_SYMLINKS LIST_DIRECTORIES FALSE
