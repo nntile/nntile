@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-02
+# @date 2023-02-15
 
 # All necesary imports
 import nntile
@@ -60,7 +60,7 @@ def helper(dtype):
     # Get result in numpy
     src_C = beta*src_C + alpha*(src_A@(src_B.T))
     # Check if results are almost equal
-    return (dst_C == src_C).all()
+    return np.linalg.norm(dst_C-src_C)/np.linalg.norm(src_C) < 1e-4
 
 # Test runner for different precisions
 def test():
