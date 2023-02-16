@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-02-14
+ * @date 2023-02-16
  * */
 
 #include "nntile/tensor/addcdiv.hh"
@@ -47,9 +47,8 @@ void addcdiv_async(T val, T eps, const Tensor<T> &nom, const Tensor<T> &denom,
         int denom_tile_rank = denom_tile_handle.mpi_get_rank();
         int src_tile_rank = src_tile_handle.mpi_get_rank();
         // Transfer data
-        nom_tile_handle.mpi_transfer(nom_tile_rank, mpi_rank);
-        denom_tile_handle.mpi_transfer(denom_tile_rank, mpi_rank);
-        src_tile_handle.mpi_transfer(src_tile_rank, mpi_rank);
+        nom_tile_handle.mpi_transfer(src_tile_rank, mpi_rank);
+        denom_tile_handle.mpi_transfer(src_tile_rank, mpi_rank);
         // Execute only on destination node
         if(mpi_rank == src_tile_rank)
         {
@@ -74,21 +73,21 @@ void addcdiv(T val, T eps, const Tensor<T> &nom, const Tensor<T> &denom,
 
 // Explicit instantiation
 template
-void addcdiv_async<fp32_t>(fp32_t val, fp32_t eps, const Tensor<fp32_t> &nom, const Tensor<fp32_t> &denom,
-                   const Tensor<fp32_t> &src);
+void addcdiv_async<fp32_t>(fp32_t val, fp32_t eps, const Tensor<fp32_t> &nom,
+        const Tensor<fp32_t> &denom, const Tensor<fp32_t> &src);
 
 template
-void addcdiv_async<fp64_t>(fp64_t val, fp64_t eps, const Tensor<fp64_t> &nom, const Tensor<fp64_t> &denom,
-                   const Tensor<fp64_t> &src);
+void addcdiv_async<fp64_t>(fp64_t val, fp64_t eps, const Tensor<fp64_t> &nom,
+        const Tensor<fp64_t> &denom, const Tensor<fp64_t> &src);
 
 // Explicit instantiation
 template
-void addcdiv<fp32_t>(fp32_t val, fp32_t eps, const Tensor<fp32_t> &nom, const Tensor<fp32_t> &denom,
-                   const Tensor<fp32_t> &src);
+void addcdiv<fp32_t>(fp32_t val, fp32_t eps, const Tensor<fp32_t> &nom,
+        const Tensor<fp32_t> &denom, const Tensor<fp32_t> &src);
 
 template
-void addcdiv<fp64_t>(fp64_t val, fp64_t eps, const Tensor<fp64_t> &nom, const Tensor<fp64_t> &denom,
-                   const Tensor<fp64_t> &src);
+void addcdiv<fp64_t>(fp64_t val, fp64_t eps, const Tensor<fp64_t> &nom,
+        const Tensor<fp64_t> &denom, const Tensor<fp64_t> &src);
 
 } // namespace tensor
 } // namespace nntile

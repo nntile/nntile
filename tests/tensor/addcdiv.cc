@@ -9,6 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
+ * @author Aleksandr Mikhalev
  * @date 2023-02-14
  * */
 
@@ -24,7 +25,8 @@ using namespace nntile;
 using namespace nntile::tensor;
 
 template<typename T>
-void check(T val, T eps, const std::vector<Index> &shape, const std::vector<Index> &basetile)
+void check(T val, T eps, const std::vector<Index> &shape,
+        const std::vector<Index> &basetile)
 {
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
@@ -39,25 +41,24 @@ void check(T val, T eps, const std::vector<Index> &shape, const std::vector<Inde
     Tensor<T> src_single(single_traits, dist_root, last_tag),
               nom_single(single_traits, dist_root, last_tag),
               denom_single(single_traits, dist_root, last_tag);
-        
     if(mpi_rank == mpi_root)
     {
-        
+        // Get the only tiles of single-tiled tensors
         auto src_tile = src_single.get_tile(0);
         auto nom_tile = nom_single.get_tile(0);
         auto denom_tile = denom_single.get_tile(0);
-        
+        // Ask StarPU to allocate buffers local to write into them
         auto src_local = src_tile.acquire(STARPU_W);
         auto nom_local = nom_tile.acquire(STARPU_W);
         auto denom_local = denom_tile.acquire(STARPU_W);
-        
+        // Init tiles
         for(Index i = 0; i < src_tile.nelems; ++i)
         {
             src_local[i] = T(i);
             nom_local[i] = T(i-100);
             denom_local[i] = T(i+1);
         }
-        
+        // Put data back into StarPU
         src_local.release();
         nom_local.release();
         denom_local.release();
@@ -85,7 +86,7 @@ void check(T val, T eps, const std::vector<Index> &shape, const std::vector<Inde
         auto src_tile = src_single.get_tile(0);
         auto nom_tile = nom_single.get_tile(0);
         auto denom_tile = denom_single.get_tile(0);
-
+        // Per-tile routine
         tile::addcdiv<T>(val, eps, nom_tile, denom_tile, src_tile);
     }
     addcdiv<T>(val, eps, nom, denom, src);
