@@ -1,15 +1,29 @@
+# @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
+#                           (Skoltech). All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file wrappers/python/nntile/optimizer/sgd.py
+# Implementation of SGD with momentum option within nntile package
+#
+# @version 1.0.0
+# @author Aleksandr Katrutsa
+# @date 2023-02-17
+
 import nntile
 import numpy as np
+from nntile.tensor import TensorTraits
 
 class SGD:
-    def __init__(self, params, grads, lr,
+    def __init__(self, params, lr, next_tag,
                  momentum=0., nesterov=False,
                  weight_decay=0., damping=0., dtype=np.float32):
         self.params = params
-        self.grads = grads
         self.nesterov = nesterov
         self.num_iter = 0
         self.dtype=dtype
+        self.next_tag = next_tag
         if dtype == np.float32:
             self.lr = np.float32(lr)
             self.momentum = np.float32(momentum)
@@ -21,52 +35,34 @@ class SGD:
             self.weight_decay = np.float64(weight_decay)
             self.damping = np.float64(damping)
         if momentum > 0:
-            if dtype == np.float32:
-                self.states = [nntile.tensor.Tensor_fp32() for p in params]
-            elif dtype == np.float64:
-                self.states = [nntile.tensor.Tensor_fp64() for p in params]
+            self.states = []
+            for p in self.params:
+                p_traits = TensorTraits(p.value.shape, p.value.basetile_shape)
+                self.states.append(type(p.value)(p_traits, p.value.distribution, self.next_tag))
+                self.next_tag = self.states[-1].next_tag
 
-    def step_fp32_(self):
-        for i in range(len(self.params)):
-            if self.weight_decay != 0.:
-                nntile.tensor.axpy2_async_fp32(self.weight_decay, self.params[i], self.grads[i])
-
-            if self.momentum > 0:
-                if self.num_iter == 0:
-                    nntile.tensor.copy_fp32(self.grads[i], self.states[i])
-                else:
-                    nntile.tensor.axpy2_async_fp32(self.momentum - 1, self.states[i], self.states[i])
-                    nntile.tensor.axpy2_async_fp32(1 - self.damping, self.grads[i], self.states[i])
-                if self.nesterov:
-                    nntile.tensor.axpy2_async_fp32(self.momentum, self.states[i], self.grads[i])
-                else:
-                    nntile.tensor.copy_async_fp32(self.states[i], self.grads[i])
-            nntile.tensor.axpy2_async_fp32(self.lr, self.grads[i], self.params[i])
-        self.num_iter += 1
-
-    def step_fp64_(self):
-        for i in range(len(self.params)):
-            if self.weight_decay != 0.:
-                nntile.tensor.axpy2_async_fp64(self.weight_decay, self.params[i], self.grads[i])
-
-            if self.momentum > 0:
-                if self.num_iter == 0:
-                    nntile.tensor.copy_fp64(self.grads[i], self.states[i])
-                else:
-                    nntile.tensor.axpy2_async_fp64(self.momentum - 1, self.states[i], self.states[i])
-                    nntile.tensor.axpy2_async_fp64(1 - self.damping, self.grads[i], self.states[i])
-                if self.nesterov:
-                    nntile.tensor.axpy2_async_fp64(self.momentum, self.states[i], self.grads[i])
-                else:
-                    nntile.tensor.copy_async_fp64(self.states[i], self.grads[i])
-            nntile.tensor.axpy2_async_fp64(self.lr, self.grads[i], self.params[i])
-        self.num_iter += 1
-
+    def get_next_tag(self):
+        return self.next_tag
+    
+    def unregister(self):
+        if self.momentum > 0:
+            for s in self.states:
+                s.unregister()
+            
     def step(self):
-        if self.dtype == np.float32:
-            self.step_fp32_()
-        elif self.dtype == np.float64:
-            self.step_fp64_()
+        for i, p in enumerate(self.params):
+            if self.weight_decay != 0.:
+                nntile.tensor.axpy_async(self.weight_decay, p.value, p.grad)
 
-if __name__ == "__main__":
-    pass
+            if self.momentum > 0:
+                if self.num_iter == 0:
+                    nntile.tensor.copy_async(p.grad, self.states[i])
+                else:
+                    nntile.tensor.axpy_async(self.momentum - 1, self.states[i], self.states[i])
+                    nntile.tensor.axpy_async(1 - self.damping, p.grad, self.states[i])
+                if self.nesterov:
+                    nntile.tensor.axpy_async(self.momentum, self.states[i], p.grad)
+                else:
+                    nntile.tensor.copy_async(self.states[i], p.grad)
+            nntile.tensor.axpy_async(-self.lr, p.grad, p.value)
+        self.num_iter += 1

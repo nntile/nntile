@@ -9,13 +9,15 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-16
+# @author Aleksandr Katrutsa
+# @date 2023-02-17
 
 # Imports
 import nntile
 import numpy as np
 import time
 import sys
+import nntile.optimizer as opt
 
 time0 = -time.time()
 
@@ -76,13 +78,18 @@ m = nntile.model.DeepLinear(x_moments, 'R', gemm_ndim, hidden_layer_dim,
         hidden_layer_dim_tile, nlayers, next_tag)
 next_tag = m.next_tag
 
+# Set up learning rate and optimizer for training
+lr = 1e-7
+optimizer = opt.SGD(m.get_parameters(), lr, next_tag, momentum=0.9, nesterov=False, weight_decay=1e-6)
+# optimizer = opt.Adam(m.get_parameters(), lr, next_tag)
+next_tag = optimizer.get_next_tag()
+
 # Set up Frobenius loss function for the model
 frob, next_tag = nntile.loss.Frob.generate_simple(m.activations[-1], next_tag)
 
 # Set up training pipeline
-n_epochs = 1000
-lr = -1e-6
-pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, m, None, frob,
+n_epochs = 100
+pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, m, optimizer, frob,
         n_epochs, lr)
 
 for i in range(n_batches):
@@ -144,6 +151,9 @@ print("Norm is {}".format(np.linalg.norm(Y, 'fro')))
 
 # Unregister all tensors related to model
 m.unregister()
+
+# Unregister optimizer states
+optimizer.unregister()
 
 # Unregister loss function
 frob.y.unregister()

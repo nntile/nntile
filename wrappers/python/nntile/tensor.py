@@ -204,3 +204,30 @@ def axpy_async(alpha: TensorOrFloat, x: Tensor, y: Tensor) -> None:
         else:
             core_tensor.axpy_async_fp64(alpha, x, y)
 
+# Wrapper for multiprecision square root
+def sqrt_async(x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.sqrt_async_fp32(x)
+    else:
+        core_tensor.sqrt_async_fp64(x)
+
+# Wrapper for multiprecision elementwise maximum
+def maximum_async(x: Tensor, y: Tensor) -> None:
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.maximum_async_fp32(x, y)
+    else:
+        core_tensor.maximum_async_fp64(x, y)
+
+# Wrapper for multiprecision axpy
+def addcdiv_async(alpha: float, eps: float, nom: Tensor, denom: Tensor, src: Tensor) -> None:
+    if type(nom) is not type(denom):
+        raise TypeError
+    if type(nom) is not type(src):
+        raise TypeError
+    
+    if type(nom) is core_tensor.Tensor_fp32:
+        core_tensor.addcdiv_async_fp32(alpha, eps, nom, denom, src)
+    else:
+        core_tensor.addcdiv_async_fp64(alpha, eps, nom, denom, src)

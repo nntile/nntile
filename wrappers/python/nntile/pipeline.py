@@ -53,7 +53,5 @@ class Pipeline(object):
                 # Now do the backward pass
                 self.model.backward_async()
                 # Apply optimizer here
-                # For now I put simple gradient descent
-                for param in self.model.parameters:
-                    axpy_async(self.lr, param.grad, param.value)
+                self.opt.step()
 
