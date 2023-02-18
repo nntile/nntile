@@ -16,6 +16,7 @@ import nntile
 import numpy as np
 import time
 import sys
+import nntile.optimizer as opt
 
 time0 = -time.time()
 
@@ -35,9 +36,9 @@ batch_size_tile = 128
 gemm_ndim = 1
 hidden_layer_dim = 128 # Rank of approximation
 hidden_layer_dim_tile = 128
-nlayers = 2 # U V^T
-n_epochs = 1000
-lr = -3e-7
+nlayers = 2
+n_epochs = 100
+lr = 1e-3
 A = np.zeros((n_rows, n_cols), order='F', dtype=np.float32)
 for i in range(n_rows):
     for j in range(n_cols):
@@ -73,17 +74,23 @@ next_tag = x_grad.next_tag
 x_grad_required = False
 x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
-# Define deep linear network
+# Define deep ReLU network
 m = nntile.model.DeepReLU(x_moments, 'R', gemm_ndim, hidden_layer_dim,
         hidden_layer_dim_tile, nlayers, next_tag)
 next_tag = m.next_tag
+
+# Set up learning rate and optimizer for training
+#optimizer = opt.SGD(m.get_parameters(), lr, next_tag, momentum=0.9,
+#        nesterov=False, weight_decay=1e-6)
+optimizer = opt.Adam(m.get_parameters(), lr, next_tag)
+next_tag = optimizer.get_next_tag()
 
 # Set up Frobenius loss function for the model
 frob, next_tag = nntile.loss.Frob.generate_simple(m.activations[-1], next_tag)
 
 # Set up training pipeline
-pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, m, None, frob,
-        n_epochs, lr)
+pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, m, optimizer,
+        frob, n_epochs, lr)
 
 for i in range(n_batches):
     # Generate input and output batches
@@ -123,7 +130,7 @@ time0 += time.time()
 print("Finish random weights init in {} seconds".format(time0))
 
 # Start timer and run training
-#nntile.starpu.pause()
+nntile.starpu.pause()
 time0 = -time.time()
 pipeline.train_async()
 time0 += time.time()
@@ -131,7 +138,7 @@ print("Finish adding tasks in {} seconds".format(time0))
 
 # Wait for all computations to finish
 time0 = -time.time()
-#nntile.starpu.resume()
+nntile.starpu.resume()
 nntile.starpu.wait_for_all()
 time0 += time.time()
 print("Done in {} seconds".format(time0))
@@ -144,6 +151,9 @@ print("Norm is {}".format(np.linalg.norm(Y, 'fro')))
 
 # Unregister all tensors related to model
 m.unregister()
+
+# Unregister optimizer states
+optimizer.unregister()
 
 # Unregister loss function
 frob.y.unregister()

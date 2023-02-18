@@ -38,6 +38,8 @@ gemm_ndim = 1
 hidden_layer_dim = 128 # Rank of approximation
 hidden_layer_dim_tile = 128
 nlayers = 2 # U V^T
+n_epochs = 1000
+lr = 1e-7
 A = np.zeros((n_rows, n_cols), order='F', dtype=np.float32)
 for i in range(n_rows):
     for j in range(n_cols):
@@ -79,8 +81,8 @@ m = nntile.model.DeepLinear(x_moments, 'R', gemm_ndim, hidden_layer_dim,
 next_tag = m.next_tag
 
 # Set up learning rate and optimizer for training
-lr = 1e-7
-optimizer = opt.SGD(m.get_parameters(), lr, next_tag, momentum=0.9, nesterov=False, weight_decay=1e-6)
+optimizer = opt.SGD(m.get_parameters(), lr, next_tag, momentum=0.9,
+        nesterov=False, weight_decay=1e-6)
 # optimizer = opt.Adam(m.get_parameters(), lr, next_tag)
 next_tag = optimizer.get_next_tag()
 
@@ -88,9 +90,8 @@ next_tag = optimizer.get_next_tag()
 frob, next_tag = nntile.loss.Frob.generate_simple(m.activations[-1], next_tag)
 
 # Set up training pipeline
-n_epochs = 100
-pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, m, optimizer, frob,
-        n_epochs, lr)
+pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, m, optimizer,
+        frob, n_epochs, lr)
 
 for i in range(n_batches):
     # Generate input and output batches

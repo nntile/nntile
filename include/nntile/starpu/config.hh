@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-01-25
+ * @date 2023-02-18
  * */
 
 #pragma once
@@ -97,10 +97,12 @@ public:
             if(cublas != 0)
             {
                 starpu_cublas_shutdown();
+                std::cout << "Shutdown cuBLAS\n";
             }
 #endif // NNTILE_USE_CUDA
             starpu_mpi_shutdown();
             initialized = 0;
+            std::cout << "Shutdown StarPU-MPI\n";
         }
     }
     //! StarPU commute data access mode
@@ -164,6 +166,7 @@ class Handle
         // Unregister data and bring back result
         // All the tasks using given starpu data handle shall be finished
         // before unregistering the handle
+        std::cerr << "[nntile] unregister\n";
         starpu_data_unregister(ptr);
     }
     static void _deleter_no_coherency(starpu_data_handle_t ptr)
@@ -171,6 +174,7 @@ class Handle
         // Unregister data without bringing back result
         // All the tasks using given starpu data handle shall be finished
         // before unregistering the handle
+        std::cerr << "[nntile] unregister_no_coherency\n";
         starpu_data_unregister_no_coherency(ptr);
     }
     static void _deleter_temporary(starpu_data_handle_t ptr)
@@ -179,6 +183,7 @@ class Handle
         // be in use. This shall only appear in use for data, allocated by
         // starpu as it will be deallocated during actual unregistering and at
         // the time of submission.
+        std::cerr << "[nntile] unregister_submit\n";
         starpu_data_unregister_submit(ptr);
     }
     static std::shared_ptr<_starpu_data_state> _get_shared_ptr(
