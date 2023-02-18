@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -11,7 +11,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @date 2023-02-18
  * */
 
 #pragma once
@@ -60,23 +60,23 @@ public:
         for (Index i = 0; i < Base<T>::params.size(); ++i)
         {
             if (weight_decay != T(0.)) {
-                tensor::axpy2_async(weight_decay, Base<T>::params[i], Base<T>::grads[i]);
+                tensor::axpy_async(weight_decay, Base<T>::params[i], Base<T>::grads[i]);
             }
             if (momentum > 0) {
                 if (num_iter == 0) {
-                    tensor::copy(Base<T>::grads[i], states[i]);
+                    tensor::copy_async(Base<T>::grads[i], states[i]);
                 } else {
                     // FIX: multiplication of state tensor by scalar momentum is done via axpy operation
-                    tensor::axpy2_async(momentum - 1, Base<T>::states[i], Base<T>::states[i]);
-                    tensor::axpy2_async(1 - damping, Base<T>::grads[i], Base<T>::states[i]);
+                    tensor::axpy_async(momentum - 1, Base<T>::states[i], Base<T>::states[i]);
+                    tensor::axpy_async(1 - damping, Base<T>::grads[i], Base<T>::states[i]);
                 }
                 if (nesterov) {
-                    tensor::axpy2_async(momentum, Base<T>::states[i], Base<T>::grads[i]);
+                    tensor::axpy_async(momentum, Base<T>::states[i], Base<T>::grads[i]);
                 } else {
-                    tensor::copy(ase<T>::states[i], Base<T>::grads[i]);
+                    tensor::copy_async(ase<T>::states[i], Base<T>::grads[i]);
                 }
             }
-            tensor::axpy2_async(lr, Base<T>::grads[i], Base<T>::params[i]);
+            tensor::axpy_async(lr, Base<T>::grads[i], Base<T>::params[i]);
         }
         ++num_iter;
     }
@@ -84,10 +84,10 @@ public:
 
 // Explicit instantiation
 extern template
-class GradDescent<fp32_t>;
+class SGD<fp32_t>;
 
 extern template
-class GradDescent<fp64_t>;
+class SGD<fp64_t>;
 
 } // namespace optimizer
 } // namespace nntile

@@ -54,5 +54,5 @@ class BaseModel:
             x.unregister()
 
     def get_parameters(self):
-        return [p for p in self.parameters]
+        return self.parameters
 
