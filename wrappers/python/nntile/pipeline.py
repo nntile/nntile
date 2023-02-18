@@ -9,7 +9,8 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-15
+# @author Aleksandr Katrutsa
+# @date 2023-02-18
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         copy_async, axpy_async
@@ -53,7 +54,5 @@ class Pipeline(object):
                 # Now do the backward pass
                 self.model.backward_async()
                 # Apply optimizer here
-                # For now I put simple gradient descent
-                for param in self.model.parameters:
-                    axpy_async(self.lr, param.grad, param.value)
+                self.opt.step()
 

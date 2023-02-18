@@ -178,8 +178,9 @@ set(MODEL_HDR
     )
 
 set(OPTIMIZER_HDR
-    #"nntile/optimizer.hh"
-    #"nntile/optimizer/base.hh"
+    # "nntile/optimizer.hh"
+    # "nntile/optimizer/base.hh"
+    # "nntile/optimizer/sgd.hh"
     #"nntile/optimizer/deep_linear.hh"
     )
 

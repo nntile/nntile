@@ -53,3 +53,6 @@ class BaseModel:
         for x in self.activations:
             x.unregister()
 
+    def get_parameters(self):
+        return self.parameters
+
