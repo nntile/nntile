@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-02-18
+ * @date 2023-02-19
  * */
 
 #pragma once
@@ -51,7 +51,9 @@ public:
         ncuda = 0;
 #endif // NNTILE_USE_CUDA
         // Set history-based scheduler to utilize performance models
-        sched_policy_name = "dmda";
+        // "dmda" leads to an "Assertion failed: (0 && "!worker->state_sched_op_pending")"
+        //sched_policy_name = "dmda";
+        sched_policy_name = "lws"; // Temporary choice until the bug is fixed
         // Save initial value
         cublas = cublas_;
         // Init MPI and StarPU
@@ -107,8 +109,8 @@ public:
     }
     //! StarPU commute data access mode
     static constexpr starpu_data_access_mode STARPU_RW_COMMUTE
-    //    = STARPU_RW; // Temporarily disabled commute mode
-        = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
+        = STARPU_RW; // Temporarily disabled commute mode
+    //    = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
     // Unpack args by pointers without copying actual data
     template<typename... Ts>
     static
@@ -166,7 +168,7 @@ class Handle
         // Unregister data and bring back result
         // All the tasks using given starpu data handle shall be finished
         // before unregistering the handle
-        std::cerr << "[nntile] unregister\n";
+        //std::cerr << "[nntile] unregister\n";
         starpu_data_unregister(ptr);
     }
     static void _deleter_no_coherency(starpu_data_handle_t ptr)
@@ -174,7 +176,7 @@ class Handle
         // Unregister data without bringing back result
         // All the tasks using given starpu data handle shall be finished
         // before unregistering the handle
-        std::cerr << "[nntile] unregister_no_coherency\n";
+        //std::cerr << "[nntile] unregister_no_coherency\n";
         starpu_data_unregister_no_coherency(ptr);
     }
     static void _deleter_temporary(starpu_data_handle_t ptr)
@@ -183,7 +185,7 @@ class Handle
         // be in use. This shall only appear in use for data, allocated by
         // starpu as it will be deallocated during actual unregistering and at
         // the time of submission.
-        std::cerr << "[nntile] unregister_submit\n";
+        //std::cerr << "[nntile] unregister_submit\n";
         starpu_data_unregister_submit(ptr);
     }
     static std::shared_ptr<_starpu_data_state> _get_shared_ptr(
@@ -192,13 +194,16 @@ class Handle
         switch(mode)
         {
             case STARPU_R:
+                //std::cerr << "[nntile] register READ\n";
                 return std::shared_ptr<_starpu_data_state>(ptr,
                         _deleter_no_coherency);
             case STARPU_RW:
             case STARPU_W:
+                //std::cerr << "[nntile] register WRITE\n";
                 return std::shared_ptr<_starpu_data_state>(ptr,
                         _deleter);
             case STARPU_SCRATCH:
+                //std::cerr << "[nntile] register SCRATCH\n";
                 return std::shared_ptr<_starpu_data_state>(ptr,
                         _deleter_temporary);
             default:

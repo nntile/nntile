@@ -112,14 +112,16 @@ for i in range(n_batches):
     nntile.nntile_core.tensor.scatter_fp32(y_full, y)
     batch_output.append(y)
 
+# Wait for all computations to finish
+nntile.starpu.wait_for_all()
+
 # Full tensors (stored as a single tile) are not needed anymore
 x_full.unregister()
 y_full.unregister()
+nntile.starpu.wait_for_all()
 
 time0 += time.time()
 print("Finish generating in {} seconds".format(time0))
-# Wait for all computations to finish
-nntile.starpu.wait_for_all()
 
 # Randomly init weights of deep linear network
 time0 = -time.time()
@@ -131,7 +133,7 @@ time0 += time.time()
 print("Finish random weights init in {} seconds".format(time0))
 
 # Start timer and run training
-nntile.starpu.pause()
+#nntile.starpu.pause()
 time0 = -time.time()
 pipeline.train_async()
 time0 += time.time()
@@ -139,7 +141,7 @@ print("Finish adding tasks in {} seconds".format(time0))
 
 # Wait for all computations to finish
 time0 = -time.time()
-nntile.starpu.resume()
+#nntile.starpu.resume()
 nntile.starpu.wait_for_all()
 time0 += time.time()
 print("Done in {} seconds".format(time0))
