@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-02-10
+# @date 2023-02-19
 
 # Set list of headers
 set(BASE_HDR
@@ -128,6 +128,7 @@ set(TILE_HDR
     "nntile/tile/randn.hh"
     "nntile/tile/relu.hh"
     "nntile/tile/sumnorm.hh"
+    "nntile/tile/sum.hh"
     "nntile/tile/maxsumexp.hh"
     "nntile/tile/softmax.hh"
     "nntile/tile/sqrt.hh"

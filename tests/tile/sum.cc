@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-03
+ * @author Konstantin Sozykin
+ * @date 2023-02-19
  * */
 
 #include "nntile/tile/sum.hh"
@@ -24,10 +25,10 @@ void check()
 {
     // Init data for checking
     Tile<T> src({3, 4, 5});
-    Tile<T> dst[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
-        Tile<T>({2, 3, 4})};
-    Tile<T> dst2[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
-        Tile<T>({2, 3, 4})};
+    Tile<T> dst[3] = {Tile<T>({4, 5}), Tile<T>({3, 5}),
+        Tile<T>({3, 4})};
+    Tile<T> dst2[3] = {Tile<T>({4, 5}), Tile<T>({3, 5}),
+        Tile<T>({3, 4})};
     auto src_local = src.acquire(STARPU_W);
     for(Index i = 0; i < src.nelems; ++i)
     {

@@ -8,8 +8,9 @@
  * Sum and Euclidian norm of Tile<T>
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev and K. Sozykin
- * @date 2022-12-02
+ * @author Aleksandr Mikhalev 
+ * @author K. Sozykin
+ * @date 2023-02-19
  * */
 
 #include "nntile/tile/sum.hh"
@@ -25,9 +26,9 @@ template<typename T>
 void sum_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
 {
     // Check dimensions
-    if(src.ndim != dst.ndim)
+    if(src.ndim - 1 != dst.ndim) // before was src.ndim != dst.ndim
     {
-        throw std::runtime_error("src.ndim != dst.ndim");
+        throw std::runtime_error("src.ndim -1 != dst.ndim");
     }
     Index ndim = src.ndim;
     // Treat special case of ndim=0
@@ -44,21 +45,18 @@ void sum_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
     {
         throw std::runtime_error("axis >= ndim");
     }
-    // Check shapes of src and dst
-    if(dst.shape[0] != 2)
+
+    // check if axis consisted, 
+    // NB : maybe later change to two pointers, to avoid dst.shape copy?
+    // but shape sizes small
+    std::vector<Index> dst_shape_copy(dst.shape);
+    dst_shape_copy.insert(dst_shape_copy.begin() + axis,0);
+    for(Index i = 0; i < src.ndim; i++)
     {
-        throw std::runtime_error("dst.shape[0] != 2");
-    }
-    for(Index i = 0; i < axis; ++i)
-    {
-        if(src.shape[i] != dst.shape[i+1])
-        {
-            throw std::runtime_error("src.shape[i] != dst.shape[i+1]");
+        if (dst_shape_copy[i] == 0) {
+            continue;
         }
-    }
-    for(Index i = axis+1; i < src.ndim; ++i)
-    {
-        if(src.shape[i] != dst.shape[i])
+        if(src.shape[i] != dst_shape_copy[i])
         {
             throw std::runtime_error("src.shape[i] != dst.shape[i]");
         }
@@ -68,12 +66,12 @@ void sum_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
     if(axis == 0)
     {
         m = 1;
-        n = dst.nelems / 2;
+        n = dst.nelems; // dst.nelems / 2;
         k = src.shape[0];
     }
     else if(axis == ndim-1)
     {
-        m = dst.nelems / 2;
+        m = dst.nelems; // dst.nelems / 2;
         n = 1;
         k = src.shape[axis];
     }
