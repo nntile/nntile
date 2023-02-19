@@ -31,8 +31,8 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-gelutanh = {np.float32: nntile.tensor.gelutanh_fp32,
-        np.float64: nntile.tensor.gelutanh_fp64}
+gelutanh = {np.float32: nntile.nntile_core.tensor.gelutanh_fp32,
+        np.float64: nntile.nntile_core.tensor.gelutanh_fp64}
 
 
 def gelu_numpy(z, approximate=True):
@@ -67,7 +67,8 @@ def helper(dtype, approximate=True):
     A.unregister()
     # Get result in numpy
     src_A = gelu_numpy(src_A, approximate=approximate)
-    print(f'src_a {src_A} of {dtype}\ndst_A {dst_A} of {dtype}\n')
+    verbose = 'src_a {0} of {1}\ndst_A {2} of {1}\n'.format(src_A,dtype,dst_A)
+    print(verbose)
     return np.allclose(src_A, dst_A)
 
 

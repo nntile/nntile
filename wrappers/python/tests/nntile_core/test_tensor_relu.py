@@ -50,7 +50,8 @@ def helper(dtype):
     nntile.starpu.wait_for_all()
     A.unregister()
     src_A = np.maximum(0, src_A)
-    print(f'src_a {src_A} of {dtype}\ndst_A {dst_A} of {dtype}\n')
+    verbose = 'src_a {0} of {1}\ndst_A {2} of {1}\n'.format(src_A,dtype,dst_A)
+    print(verbose)
     return np.allclose(src_A, dst_A)
 
 

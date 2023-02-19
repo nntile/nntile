@@ -31,8 +31,8 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-dgelu = {np.float32: nntile.tensor.dgelu_fp32,
-        np.float64: nntile.tensor.dgelu_fp64}
+dgelu = {np.float32: nntile.nntile_core.tensor.dgelu_fp32,
+        np.float64: nntile.nntile_core.tensor.dgelu_fp64}
 
 
 def dgelu_numpy(x, approximate=True):
@@ -71,7 +71,8 @@ def helper(dtype, approximate=True):
     A.unregister()
     # Get result in numpy
     src_A = dgelu_numpy(src_A, approximate=approximate)
-    print(f'src_a {src_A} of {dtype}\ndst_A {dst_A} of {dtype}\n')
+    verbose = 'src_a {0} of {1}\ndst_A {2} of {1}\n'.format(src_A,dtype,dst_A)
+    print(verbose)
     return np.allclose(src_A, dst_A)
 
 
