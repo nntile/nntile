@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-02
+# @date 2023-02-15
 
 # All necesary imports
 import nntile
@@ -24,8 +24,8 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-gemm = {np.float32: nntile.tensor.gemm_fp32,
-        np.float64: nntile.tensor.gemm_fp64}
+gemm = {np.float32: nntile.nntile_core.tensor.gemm_fp32,
+        np.float64: nntile.nntile_core.tensor.gemm_fp64}
 
 # Helper function returns bool value true if test passes
 def helper(dtype):
@@ -60,7 +60,7 @@ def helper(dtype):
     # Get result in numpy
     src_C = beta*src_C + alpha*(src_A@(src_B.T))
     # Check if results are almost equal
-    return (dst_C == src_C).all()
+    return np.linalg.norm(dst_C-src_C)/np.linalg.norm(src_C) < 1e-4
 
 # Test runner for different precisions
 def test():

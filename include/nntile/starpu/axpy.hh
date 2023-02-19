@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-23
+ * @author Aleksandr Katrutsa
+ * @date 2023-02-14
  * */
 
 #pragma once
@@ -36,11 +37,11 @@ struct args2_t
 
 #ifdef NNTILE_USE_CBLAS
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void cpu_tensor_alpha(void *buffers[], void *cl_args)
     noexcept;
 
 template<typename T>
-void cpu2(void *buffers[], void *cl_args)
+void cpu_scalar_alpha(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CBLAS
 
@@ -54,44 +55,45 @@ void cuda2(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern Codelet codelet_fp32, codelet_fp64, codelet2_fp32, codelet2_fp64;
+extern Codelet codelet_tensor_alpha_fp64, codelet_scalar_alpha_fp64;
+extern Codelet codelet_tensor_alpha_fp32, codelet_scalar_alpha_fp32;
 
 template<typename T>
-constexpr Codelet *codelet()
+constexpr Codelet *codelet_tensor_alpha()
 {
     throw std::runtime_error("Non-supported type");
     return nullptr;
 }
 
 template<>
-constexpr Codelet *codelet<fp32_t>()
+constexpr Codelet *codelet_tensor_alpha<fp32_t>()
 {
-    return &codelet_fp32;
+    return &codelet_tensor_alpha_fp32;
 }
 
 template<>
-constexpr Codelet *codelet<fp64_t>()
+constexpr Codelet *codelet_tensor_alpha<fp64_t>()
 {
-    return &codelet_fp64;
+    return &codelet_tensor_alpha_fp64;
 }
 
 template<typename T>
-constexpr Codelet *codelet2()
+constexpr Codelet *codelet_scalar_alpha()
 {
     throw std::runtime_error("Non-supported type");
     return nullptr;
 }
 
 template<>
-constexpr Codelet *codelet2<fp32_t>()
+constexpr Codelet *codelet_scalar_alpha<fp32_t>()
 {
-    return &codelet2_fp32;
+    return &codelet_scalar_alpha_fp32;
 }
 
 template<>
-constexpr Codelet *codelet2<fp64_t>()
+constexpr Codelet *codelet_scalar_alpha<fp64_t>()
 {
-    return &codelet2_fp64;
+    return &codelet_scalar_alpha_fp64;
 }
 
 void init();
@@ -104,7 +106,7 @@ template<typename T>
 void submit(Handle alpha, Index nelems, Handle src, Handle dst);
 
 template<typename T>
-void submit2(T alpha, Index nelems, Handle src, Handle dst);
+void submit(T alpha, Index nelems, Handle src, Handle dst);
 
 } // namespace axpy
 } // namespace starpu

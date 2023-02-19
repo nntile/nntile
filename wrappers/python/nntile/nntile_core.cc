@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-02-02
+ * @author Aleksandr Katrutsa
+ * @date 2023-02-14
  * */
 
 #include <pybind11/pybind11.h>
@@ -289,11 +290,14 @@ void def_class_tensor(py::module_ &m, const char *name)
                 starpu_mpi_tag_t &>()).
         def_readonly("next_tag", &Tensor<T>::next_tag).
         def("unregister", &Tensor<T>::unregister).
+        def("invalidate_submit", &Tensor<T>::invalidate_submit).
+        def("wont_use", &Tensor<T>::wont_use).
         def("from_array", tensor_from_array<T>).
         def("to_array", tensor_to_array<T>).
         // Get tile
         def("get_tile", static_cast<tile::Tile<T>(Tensor<T>::*)(Index) const>(
-                    &Tensor<T>::get_tile));
+                    &Tensor<T>::get_tile)).
+        def_readonly("distribution", &Tensor<T>::tile_distr);
     m.def("tensor_to_array", tensor_to_array<T>);
     m.def("tensor_from_array", tensor_from_array<T>);
 }
@@ -320,6 +324,8 @@ void def_mod_tensor(py::module_ &m)
                 std::stringstream stream;
                 stream << data;
                 return stream.str();}).
+        // Get basetile shape
+        def_readonly("basetile_shape", &TensorTraits::basetile_shape).
         // Shape of corresponding tile
         def("get_tile_shape", &TensorTraits::get_tile_shape).
         // Shape of a grid
@@ -328,16 +334,16 @@ void def_mod_tensor(py::module_ &m)
         // Get grid (TileTraits)
         def_readonly("grid", &TensorTraits::grid);
     // Define wrappers for Tensor<T>
-    def_class_tensor<fp32_t>(m, "Tensor_fp32");
     def_class_tensor<fp64_t>(m, "Tensor_fp64");
+    def_class_tensor<fp32_t>(m, "Tensor_fp32");
     // Add tensor.distributions submodule
     auto distributions = m.def_submodule("distributions");
     def_tensor_distributions(distributions);
     // Add functions for Tensor<T>
-    m.def("gemm_async_fp32", &gemm_async<fp32_t>);
-    m.def("gemm_fp32", &gemm<fp32_t>);
     m.def("gemm_async_fp64", &gemm_async<fp64_t>);
+    m.def("gemm_async_fp32", &gemm_async<fp32_t>);
     m.def("gemm_fp64", &gemm<fp64_t>);
+    m.def("gemm_fp32", &gemm<fp32_t>);
     // Add activation functions for Tensor<T>
     m.def("relu_async_fp64", &relu_async<fp64_t>);
     m.def("relu_async_fp32", &relu_async<fp32_t>);
@@ -400,6 +406,30 @@ void def_mod_tensor(py::module_ &m)
     m.def("clear_async_fp32", &clear_async<fp32_t>);
     m.def("clear_fp64", &clear<fp64_t>);
     m.def("clear_fp32", &clear<fp32_t>);
+        
+    m.def("axpy_async_fp64", py::overload_cast<fp64_t, const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
+    m.def("axpy_async_fp32", py::overload_cast<fp32_t, const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
+    m.def("axpy_fp64", py::overload_cast<fp64_t, const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy<fp64_t>));
+    m.def("axpy_fp32", py::overload_cast<fp32_t, const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy<fp32_t>));
+
+    m.def("axpy_async_fp64", py::overload_cast<const Tensor<fp64_t>&, const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
+    m.def("axpy_async_fp32", py::overload_cast<const Tensor<fp32_t>&, const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
+    m.def("axpy_fp64", py::overload_cast<const Tensor<fp64_t>&, const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy<fp64_t>));
+    m.def("axpy_fp32", py::overload_cast<const Tensor<fp32_t>&, const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy<fp32_t>));
+
+    m.def("sqrt_async_fp64", &sqrt_async<fp64_t>);
+    m.def("sqrt_async_fp32", &sqrt_async<fp32_t>);
+    m.def("sqrt_fp64", &sqrt<fp64_t>);
+    m.def("sqrt_fp32", &sqrt<fp32_t>);
+    m.def("maximum_async_fp64", &maximum_async<fp64_t>);
+    m.def("maximum_async_fp32", &maximum_async<fp32_t>);
+    m.def("maximum_fp64", &maximum<fp64_t>);
+    m.def("maximum_fp32", &maximum<fp32_t>);
+
+    m.def("addcdiv_async_fp64", &addcdiv_async<fp64_t>);
+    m.def("addcdiv_async_fp32", &addcdiv_async<fp32_t>);
+    m.def("addcdiv_fp64", &addcdiv<fp64_t>);
+    m.def("addcdiv_fp32", &addcdiv<fp32_t>);
     
     // gelu and dgelu
     m.def("gelu_async_fp64", &gelu_async<fp64_t>);
@@ -418,20 +448,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("dgelutanh_async_fp64", &dgelutanh_async<fp64_t>);
     m.def("dgelutanh_async_fp32", &dgelutanh_async<fp32_t>);
     m.def("dgelutanh_fp64", &dgelutanh<fp64_t>);
-    m.def("dgelutanh_fp32", &dgelutanh<fp32_t>);
-    
-    
-    m.def("axpy_async_fp64", &axpy_async<fp64_t>);
-    m.def("axpy_async_fp32", &axpy_async<fp32_t>);
-    m.def("axpy_fp64", &axpy<fp64_t>);
-    m.def("axpy_fp32", &axpy<fp32_t>);
-
-    m.def("axpy2_async_fp64", &axpy2_async<fp64_t>);
-    m.def("axpy2_async_fp32", &axpy2_async<fp32_t>);
-    m.def("axpy2_fp64", &axpy2<fp64_t>);
-    m.def("axpy2_fp32", &axpy2<fp32_t>);
-    
-
+    m.def("dgelutanh_fp32", &dgelutanh<fp32_t>);   
 }
 
 // Main extension module with all wrappers
@@ -453,4 +470,3 @@ PYBIND11_MODULE(nntile_core, m)
     m.attr("notrans") = py::cast(new TransOp(TransOp::NoTrans));
     m.attr("trans") = py::cast(new TransOp(TransOp::Trans));
 }
-

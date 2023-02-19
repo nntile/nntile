@@ -40,13 +40,13 @@ RUN apt update && apt install -y --no-install-recommends \
 RUN git clone https://gitlab.inria.fr/starpu/starpu.git /starpu
 WORKDIR /starpu
 # Use the same version across different hardware
-RUN git checkout eccd488dbb9a42867d2e23bb1cbd6dc4272e2749
+RUN git checkout 51afa9119289d29076b563f264235abfcf7d24ff
 RUN ./autogen.sh
-RUN mkdir build && cd build && ../configure --disable-build-doc \
+RUN ./configure --disable-build-doc \
     --disable-build-examples --disable-build-tests --disable-opencl \
     --disable-socl --disable-starpufft --enable-blas-lib=none \
     --disable-fortran --with-fxt --enable-maxcudadev=8
-RUN cd build && make -j4 install
+RUN make -j 4 install
 # Remove build files of StarPU
 RUN rm -rf /starpu
 

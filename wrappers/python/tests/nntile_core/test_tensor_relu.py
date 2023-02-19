@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Konstantin Sozykin
-# @date 2023-02-02
+# @date 2023-02-09
 
 # All necesary imports
 import sys
@@ -27,8 +27,8 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-relu = {np.float32: nntile.tensor.relu_fp32,
-        np.float64: nntile.tensor.relu_fp64}
+relu = {np.float32: nntile.nntile_core.tensor.relu_fp32,
+        np.float64: nntile.nntile_core.tensor.relu_fp64}
 
 
 # Helper function returns bool value true if test passes

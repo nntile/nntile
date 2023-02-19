@@ -171,7 +171,7 @@ int main(int argc, char **argv)
             linear[i].forward_async(tmps[i], tmps[i+1]);
         }
         // Subtract input out of output for gradient
-        tensor::axpy2_async<T>(-1.0, mnist, tmps[n_linear]);
+        tensor::axpy_async<T>(-1.0, mnist, tmps[n_linear]);
         // Get loss
         tensor::nrm2_async<T>(tmps[n_linear], loss, tmp_loss);
         // Backward loop through layers
@@ -179,7 +179,7 @@ int main(int argc, char **argv)
         {
             linear[i].backward_async(tmps[i], tmps[i+1], tmps[i]);
             // Update parameters
-            tensor::axpy2_async<T>(-1e-12, grads[i], params[i]);
+            tensor::axpy_async<T>(-1e-12, grads[i], params[i]);
         }
         if(print_loss and mpi_rank == mpi_root)
         {

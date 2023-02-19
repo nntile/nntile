@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-01
+ * @author Aleksandr Katrutsa
+ * @date 2023-02-14
  * */
 
 #include "nntile/tensor/axpy.hh"
@@ -119,7 +120,7 @@ void axpy<fp64_t>(const Tensor<fp64_t> &alpha, const Tensor<fp64_t> &src,
  * @param[inout] dst: Input and output tensor for the axpy operation
  * */
 template<typename T>
-void axpy2_async(T alpha, const Tensor<T> &src, const Tensor<T> &dst)
+void axpy_async(T alpha, const Tensor<T> &src, const Tensor<T> &dst)
 {
     // Check shapes
     if(src.shape != dst.shape)
@@ -147,7 +148,7 @@ void axpy2_async(T alpha, const Tensor<T> &src, const Tensor<T> &dst)
         if(mpi_rank == dst_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::axpy::submit2<T>(alpha, traits.nelems,
+            starpu::axpy::submit<T>(alpha, traits.nelems,
                     src_tile_handle, dst_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -160,29 +161,29 @@ void axpy2_async(T alpha, const Tensor<T> &src, const Tensor<T> &dst)
  * @param[inout] dst: Input and output tensor for the axpy operation
  * */
 template<typename T>
-void axpy2(T alpha, const Tensor<T> &src, const Tensor<T> &dst)
+void axpy(T alpha, const Tensor<T> &src, const Tensor<T> &dst)
 {
-    axpy2_async<T>(alpha, src, dst);
+    axpy_async<T>(alpha, src, dst);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void axpy2_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
+void axpy_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
 
 template
-void axpy2_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
+void axpy_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst);
 
 // Explicit instantiation
 template
-void axpy2<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
+void axpy<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
 
 template
-void axpy2<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
+void axpy<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst);
 
 } // namespace tensor
