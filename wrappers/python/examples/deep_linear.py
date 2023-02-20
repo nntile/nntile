@@ -27,18 +27,18 @@ nntile.starpu.init()
 next_tag = 0
 
 # Define matrix A as a Hilbert matrix
-n_rows = 1024
-n_cols = 1024
-n_batches = 10 # Number of batches in a single epoch
-batch_size = 128
-n_cols_tile = 512
-n_rows_tile = 512
-batch_size_tile = 128
+n_rows = 1
+n_cols = 1
+n_batches = 2 # Number of batches in a single epoch
+batch_size = 1
+n_cols_tile = 1
+n_rows_tile = 1
+batch_size_tile = 1
 gemm_ndim = 1
-hidden_layer_dim = 128 # Rank of approximation
-hidden_layer_dim_tile = 128
+hidden_layer_dim = 1 # Rank of approximation
+hidden_layer_dim_tile = 1
 nlayers = 2 # U V^T
-n_epochs = 1000
+n_epochs = 2
 lr = 1e-7
 A = np.zeros((n_rows, n_cols), order='F', dtype=np.float32)
 for i in range(n_rows):
