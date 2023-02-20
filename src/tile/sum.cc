@@ -46,20 +46,17 @@ void sum_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
         throw std::runtime_error("axis >= ndim");
     }
 
-    // check if axis consisted, 
-    // NB : maybe later change to two pointers, to avoid dst.shape copy?
-    // but shape sizes small
-    std::vector<Index> dst_shape_copy(dst.shape);
-    dst_shape_copy.insert(dst_shape_copy.begin() + axis,0);
-    for(Index i = 0; i < src.ndim; i++)
+    // check if axis consisted, using two pointers
+    for(Index i = 0, j = 0; i < src.ndim; i++)
     {
-        if (dst_shape_copy[i] == 0) {
+        if (i == axis) {
             continue;
         }
-        if(src.shape[i] != dst_shape_copy[i])
+        if(src.shape[i] != dst.shape[j])
         {
-            throw std::runtime_error("src.shape[i] != dst.shape[i]");
+            throw std::runtime_error("src.shape[i] != dst.shape[js]");
         }
+        j++;
     }
     // Get sizes
     Index m, n, k;
