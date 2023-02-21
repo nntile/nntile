@@ -34,7 +34,7 @@ RUN apt clean && rm -rf /var/lib/apt/lists/*
 RUN git clone https://gitlab.inria.fr/starpu/starpu.git /starpu
 WORKDIR /starpu
 # Use the same version across different hardware
-RUN git checkout 51afa9119289d29076b563f264235abfcf7d24ff
+RUN git checkout 11cec178a3e48fc821fa6935f2538c387e45774f
 RUN ./autogen.sh
 RUN ./configure --disable-build-doc --disable-build-tests \
     --disable-build-examples --disable-fortran --disable-opencl
