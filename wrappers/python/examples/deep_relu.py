@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-17
+# @date 2023-02-21
 
 # Imports
 import nntile
@@ -38,7 +38,7 @@ hidden_layer_dim = 128 # Rank of approximation
 hidden_layer_dim_tile = 128
 nlayers = 2
 n_epochs = 100
-lr = 1e-3
+lr = 1e-7
 A = np.zeros((n_rows, n_cols), order='F', dtype=np.float32)
 for i in range(n_rows):
     for j in range(n_cols):
@@ -130,7 +130,6 @@ time0 += time.time()
 print("Finish random weights init in {} seconds".format(time0))
 
 # Start timer and run training
-nntile.starpu.pause()
 time0 = -time.time()
 pipeline.train_async()
 time0 += time.time()
@@ -138,7 +137,6 @@ print("Finish adding tasks in {} seconds".format(time0))
 
 # Wait for all computations to finish
 time0 = -time.time()
-nntile.starpu.resume()
 nntile.starpu.wait_for_all()
 time0 += time.time()
 print("Done in {} seconds".format(time0))
