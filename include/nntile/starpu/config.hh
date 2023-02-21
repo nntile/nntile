@@ -51,9 +51,7 @@ public:
         ncuda = 0;
 #endif // NNTILE_USE_CUDA
         // Set history-based scheduler to utilize performance models
-        // "dmda" leads to an "Assertion failed: (0 && "!worker->state_sched_op_pending")"
-        //sched_policy_name = "dmda";
-        sched_policy_name = "lws"; // Temporary choice until the bug is fixed
+        sched_policy_name = "dmda";
         // Save initial value
         cublas = cublas_;
         // Init MPI and StarPU
