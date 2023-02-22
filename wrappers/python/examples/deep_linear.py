@@ -22,7 +22,7 @@ import nntile.optimizer as opt
 time0 = -time.time()
 
 # Set up StarPU+MPI and init codelets
-config = nntile.starpu.Config(-1, 0, 0)
+config = nntile.starpu.Config(-1, -1, 1)
 nntile.starpu.init()
 next_tag = 0
 
@@ -39,6 +39,9 @@ hidden_layer_dim = 128 # Rank of approximation
 hidden_layer_dim_tile = 128
 nlayers = 2 # U V^T
 n_epochs = 1000
+# Number of FLOPs for 2 layers only
+n_flops = n_epochs * 2 * hidden_layer_dim * (3*n_rows+2*n_cols) * batch_size \
+        * n_batches
 lr = 1e-7
 A = np.zeros((n_rows, n_cols), order='F', dtype=np.float32)
 for i in range(n_rows):
@@ -70,8 +73,9 @@ y_distr = [0] * y_traits.grid.nelems
 # It shall move into DeepLinear generator in some future
 x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
 next_tag = x.next_tag
-x_grad = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
-next_tag = x_grad.next_tag
+#x_grad = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
+#next_tag = x_grad.next_tag
+x_grad = None
 x_grad_required = False
 x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
@@ -149,6 +153,7 @@ frob.val.to_array(np_val)
 nntile.starpu.wait_for_all()
 print("Loss is {}".format(np_val[0]))
 print("Norm is {}".format(np.linalg.norm(Y, 'fro')))
+print("Total GFLOP/s: {}".format(n_flops*1e-9/time0))
 
 # Unregister all tensors related to model
 m.unregister()
