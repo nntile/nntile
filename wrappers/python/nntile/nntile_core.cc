@@ -25,6 +25,8 @@
 using namespace nntile;
 namespace py = pybind11;
 
+constexpr auto _wait_for_all_sleep_time = std::chrono::milliseconds(1);
+
 // Extend (sub)module with nntile::starpu functionality
 void def_mod_starpu(py::module_ &m)
 {
@@ -47,7 +49,7 @@ void def_mod_starpu(py::module_ &m)
                 //{
                 //    std::cout << "======================\n";
                 //}
-                std::this_thread::sleep_for(1ms);
+                std::this_thread::sleep_for(_wait_for_all_sleep_time);
                 if(nsubmitted == 0)
                 {
                     break;
