@@ -10,6 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
+# @author K. Sozykin
 # @date 2023-02-10
 
 # All unit tests without arguments to test executable
