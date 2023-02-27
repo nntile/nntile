@@ -1,15 +1,16 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/sum/cpu.cc
- * Sum and Euclidian norm of a buffer on CPU
+ * Sum of a buffer on CPU
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev and K Sozykin
- * @date 2022-08-31
+ * @author Aleksandr Mikhalev
+ * @author K. Sozykin
+ * @date 2023-02-19
  * */
 
 #include "nntile/kernel/sum/cpu.hh"
@@ -26,26 +27,24 @@ template<typename T>
 void cpu(Index m, Index n, Index k, const T *src, T *sum_dst)
     noexcept
 //! Sum and Euclidian norm along middle axis
-/*! For a provided m-by-k-by-n input array src compute sums and norms of slices
- * along second axis with k elements, resulting in 2-by-m-by-n output array
- * sumnorm. Input value sumnorm[0, i, j] is increased by a sum of elements of a
- * slice src[i, :, j] on output, while output value of sumnorm[1, i, j] is a
- * square root of sum of squares of input sumnorm[1, i, j] and norm of a slice
- * src[i, :, j]. Values of array sumnorm are updated by this routine in
+/*! For a provided m-by-k-by-n input array src compute sums  of slices
+ * along second axis with k elements, resulting in m-by-n output array
+ * sum. Input value sum[i, j] is increased by a sum of elements of a
+ * slice src[i, :, j] on output. Values of array sum are updated by this routine in
  * read-write mode, therefore sumnorm must be initialized before use with zeros
  * (e.g., by clear() function).
  *
  * Mnemonically, the following operations are performed:
- *      sumnorm[0,i,j] = sumnorm[0,i,j] + sum(src[i,:,j])
- *      sumnorm[1,i,j] = sqrt(sumnorm[1,i,j] + norm(src[i,:,j])^2)
+ *      sum[i,j] = sum[i,j] + sum(src[i,:,j])
+ *      
  *
  * @param[in] m: Size of the first mode of src and the second mode of sumnorm
  *      arrays.
  * @param[in] n: Size of the last mode of src and sumnorm arrays
  * @param[in] k: Size of the middle mode of src array
  * @param[in] src: Input contiguous m-by-k-by-n array
- * @param[inout] sumnorm: Output contiguous 2-by-m-by-n array, that accumulates
- *      sums and norms of slices along middle axis.
+ * @param[inout] sum: Output contiguous m-by-n array, that accumulates
+ *      sums along middle axis.
  * */
 {
     const Index mk = m * k;
@@ -59,7 +58,7 @@ void cpu(Index m, Index n, Index k, const T *src, T *sum_dst)
         {
             // Get sum and norm of a corresponding slice
             const T *src_slice = src + i2*mk + i1;
-            // Init sum and norm
+            // Init sum 
             // Norm is computed with help of scaled sum of squares
             T sum = sum_dst[dst_offset];
             // Cycle over slice of input buffer
@@ -67,13 +66,9 @@ void cpu(Index m, Index n, Index k, const T *src, T *sum_dst)
             {
                 // Read value from source
                 T val = src_slice[i0*m];
-                // Nothing to update in case of 0
-                // Update sum, scale and scaled sum of squares
                 sum += val;
             }
-            // Save result. Due to roundings an average value may become larger
-            // than a root-mean-square value, which is impossible for precise
-            // numbers
+            // Save result. 
             sum_dst[dst_offset] = sum;
             dst_offset += 1;
         }

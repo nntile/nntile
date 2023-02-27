@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author  K. Sozykin
- * @date 2022-09-27
+ * @date 2023-02-27
  * */
 
 #include "nntile/starpu/sum.hh"
@@ -39,7 +39,7 @@ void cpu(void *buffers[], void *cl_args)
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Sum and along middle axis of StarPU buffer on CUDA
+//! Sum along middle axis of StarPU buffer on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
