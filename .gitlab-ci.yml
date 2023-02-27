@@ -12,7 +12,7 @@ image-builder:
   stage: image
   script:
     - echo $CI_REGISTRY_PASSWORD | docker -D login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
-    - docker build -f ci/Dockerfile -t $CI_REGISTRY_IMAGE/builder --no-cache ci
+    - docker build -f ci/Dockerfile -t $CI_REGISTRY_IMAGE/builder ci
     - docker push $CI_REGISTRY_IMAGE/builder
 
 build-clang:
