@@ -130,6 +130,7 @@ set(TENSOR_SRC
     "tensor/relu.cc"
     "tensor/scatter.cc"
     "tensor/sumnorm.cc"
+    "tensor/sum.cc"
     "tensor/maxsumexp.cc"
     "tensor/softmax.cc"
     "tensor/sqrt.cc"
