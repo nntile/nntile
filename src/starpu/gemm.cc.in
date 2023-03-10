@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-01-31
+ * @date 2023-03-10
  * */
 
 #include "nntile/starpu/gemm.hh"
@@ -100,8 +100,16 @@ void cpu(void *buffers[], void *cl_args)
             ldB = N;
     }
     // Call corresponding CBLAS routine
-    cblas(transA_, transB_, M, N, K, args->alpha, A, ldA, B, ldB,
-            args->beta, C, ldC);
+    Index A_offset = args->m * args->k, B_offset = args->n * args->k,
+            C_offset = args->m * args->n;
+    for(Index i = 0; i < args->batch; ++i)
+    {
+        cblas(transA_, transB_, M, N, K, args->alpha, A, ldA, B, ldB,
+                args->beta, C, ldC);
+        A += A_offset;
+        B += B_offset;
+        C += C_offset;
+    }
 }
 #endif // NNTILE_USE_CBLAS
 
@@ -178,8 +186,14 @@ void cuda(void *buffers[], void *cl_args)
     // alpha and beta parameters of GEMM operation are on CPU host
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
     // Call corresponding cuBLAS routine
-    cublas(handle, transA_, transB_, M, N, K, args->alpha, A, ldA, B, ldB,
-            args->beta, C, M);
+    for(Index i = 0; i < args->batch; ++i)
+    {
+        cublas(handle, transA_, transB_, M, N, K, args->alpha, A, ldA, B, ldB,
+                args->beta, C, M);
+        A += A_offset;
+        B += B_offset;
+        C += C_offset;
+    }
 }
 #endif //NNTILE_USE_CUDA
 
@@ -199,6 +213,7 @@ uint32_t footprint(struct starpu_task *task)
     hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
     hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
     hash = starpu_hash_crc32c_be_n(&args->k, sizeof(args->k), hash);
+    hash = starpu_hash_crc32c_be_n(&args->batch, sizeof(args->batch), hash);
     return hash;
 }
 
@@ -339,7 +354,7 @@ void restore_where()
 
 template<typename T>
 void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
-        Index k, T alpha, Handle A, Handle B, T beta, Handle C)
+        Index k, Index batch, T alpha, Handle A, Handle B, T beta, Handle C)
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
 #ifdef NNTILE_USE_CBLAS
@@ -393,6 +408,7 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
         .m = m,
         .n = n,
         .k = k,
+        .batch = batch,
         .alpha = alpha,
         .beta = beta
     };
@@ -415,13 +431,13 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
 // Explicit instantiation
 template
 void submit<fp32_t>(const TransOp &transA, const TransOp &transB, Index m,
-        Index n, Index k, fp32_t alpha, Handle A, Handle B, fp32_t beta,
-        Handle C);
+        Index n, Index k, Index batch, fp32_t alpha, Handle A, Handle B,
+        fp32_t beta, Handle C);
 
 template
 void submit<fp64_t>(const TransOp &transA, const TransOp &transB, Index m,
-        Index n, Index k, fp64_t alpha, Handle A, Handle B, fp64_t beta,
-        Handle C);
+        Index n, Index k, Index batch, fp64_t alpha, Handle A, Handle B,
+        fp64_t beta, Handle C);
 
 } // namespace gemm
 } // namespace starpu

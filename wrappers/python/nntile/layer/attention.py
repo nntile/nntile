@@ -4,12 +4,12 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/layer/linear.py
-# Linear layer of NNTile Python package
+# @file wrappers/python/nntile/layer/attention.py
+# Attention layer of NNTile Python package
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-03-10
+# @date 2023-03-09
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, copy_async, gemm_async, randn_async
@@ -17,21 +17,22 @@ from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
 
-class Linear(BaseLayer):
+# Single-head attention
+class Attention(BaseLayer):
     side: str
-    trans_x: TransOp
     x: TensorMoments
     y: TensorMoments
-    w: TensorMoments
+    q: TensorMoments
+    k: TensorMoments
+    v: TensorMoments
     ndim: int
     #b: TensorMoments
     #b_axis: int
     x_copy: TensorOrNone
 
-    # Construct linear layer with all the provided data
+    # Construct attention layer with all the provided data
     def __init__(self, side: str, trans_x: TransOp, x: TensorMoments,
             y: TensorMoments, w: TensorMoments, ndim: int,
-            #b: TensorMoments, b_axis: int, # No bias as of now
             x_copy: TensorOrNone):
         # Check parameter side
         if side != 'L' and side != 'R':
@@ -130,10 +131,10 @@ class Linear(BaseLayer):
         # Perform actual gemm
         if self.side == 'L':
             gemm_async(1.0, self.trans_x, self.x.value, notrans, self.w.value,
-                    0.0, self.y.value, self.ndim, 0)
+                    0.0, self.y.value, self.ndim)
         else:
             gemm_async(1.0, notrans, self.w.value, self.trans_x, self.x.value,
-                    0.0, self.y.value, self.ndim, 0)
+                    0.0, self.y.value, self.ndim)
         # Hint for StarPU that W tensor will
         # not be used soon and it is advised to offload data from GPU
         self.w.value.wont_use()
@@ -146,17 +147,17 @@ class Linear(BaseLayer):
             if self.side == 'L':
                 if self.trans_x == notrans:
                     gemm_async(1.0, trans, self.x_copy, notrans, self.y.grad,
-                            0.0, self.w.grad, gemm_ndim, 0)
+                            0.0, self.w.grad, gemm_ndim)
                 else:
                     gemm_async(1.0, notrans, self.x_copy, notrans, self.y.grad,
-                            0.0, self.w.grad, gemm_ndim, 0)
+                            0.0, self.w.grad, gemm_ndim)
             else:
                 if self.trans_x == notrans:
                     gemm_async(1.0, notrans, self.y.grad, trans, self.x_copy,
-                            0.0, self.w.grad, gemm_ndim, 0)
+                            0.0, self.w.grad, gemm_ndim)
                 else:
                     gemm_async(1.0, notrans, self.y.grad, notrans, self.x_copy,
-                            0.0, self.w.grad, gemm_ndim, 0)
+                            0.0, self.w.grad, gemm_ndim)
             # Hint StarPU to delete x_copy buffer
             self.x_copy.invalidate_submit()
             # Hint StarPU to offload gradient over W if needed
@@ -167,17 +168,17 @@ class Linear(BaseLayer):
                 gemm_ndim = len(self.w.value.shape) - self.ndim
                 if self.trans_x == notrans:
                     gemm_async(1.0, notrans, self.y.grad, trans, self.w.value,
-                            0.0, self.x.grad, gemm_ndim, 0)
+                            0.0, self.x.grad, gemm_ndim)
                 else:
                     gemm_async(1.0, notrans, self.w.value, trans, self.y.grad,
-                            0.0, self.x.grad, gemm_ndim, 0)
+                            0.0, self.x.grad, gemm_ndim)
             else:
                 if self.trans_x == notrans:
                     gemm_async(1.0, trans, self.w.value, notrans, self.y.grad,
-                            0.0, self.x.grad, gemm_ndim, 0)
+                            0.0, self.x.grad, gemm_ndim)
                 else:
                     gemm_async(1.0, trans, self.y.grad, notrans, self.w.value,
-                            0.0, self.x.grad, gemm_ndim, 0)
+                            0.0, self.x.grad, gemm_ndim)
             # Hint StarPU to offload certain buffers
             self.w.value.wont_use()
 
@@ -186,4 +187,5 @@ class Linear(BaseLayer):
         self.w.unregister()
         if self.x_copy is not None:
             self.x_copy.unregister()
+
 

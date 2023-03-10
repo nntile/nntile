@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-02-18
+# @date 2023-03-10
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64
@@ -47,16 +47,17 @@ class TensorMoments(object):
 
 
 # Wrapper for multiprecision gemm
-def gemm_async(alpha: float, trans_A: TransOp, A: Tensor, trans_B: TransOp,
-        B: Tensor, beta: float, C: Tensor, ndim: int) -> None:
+def gemm_async(alpha: float, trans_A: TransOp, A: Tensor, trans_B: TransOp, \
+               B: Tensor, beta: float, C: Tensor, ndim: int, batch_ndim: int) \
+               -> None:
     if type(A) is not type(B) or type(A) is not type(C):
         raise TypeError
     if type(A) is core_tensor.Tensor_fp32:
         core_tensor.gemm_async_fp32(alpha, trans_A, A, trans_B, B, beta, C,
-                ndim)
+                ndim, batch_ndim)
     else:
         core_tensor.gemm_async_fp64(alpha, trans_A, A, trans_B, B, beta, C,
-                ndim)
+                ndim, batch_ndim)
 
 # Wrapper for multiprecision ReLU
 def relu_async(x: Tensor) -> None:

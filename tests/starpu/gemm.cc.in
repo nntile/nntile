@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-26
+ * @date 2023-03-10
  * */
 
 #include "nntile/starpu/gemm.hh"
@@ -59,19 +59,19 @@ void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
 
 template<typename T>
 void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
-        T alpha, T beta)
+        Index batch, T alpha, T beta)
 {
     // Init all the data
-    std::vector<T> A(m*k), B(n*k), C(m*n);
-    for(Index i = 0; i < m*k; ++i)
+    std::vector<T> A(m*k*batch), B(n*k*batch), C(m*n*batch);
+    for(Index i = 0; i < A.size(); ++i)
     {
         A[i] = T(i+1);
     }
-    for(Index i = 0; i < n*k; ++i)
+    for(Index i = 0; i < B.size(); ++i)
     {
         B[i] = T(-i-1);
     }
-    for(Index i = 0; i < m*n; ++i)
+    for(Index i = 0; i < C.size(); ++i)
     {
         C[i] = T(2*i+1);
     }
@@ -101,16 +101,19 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
             ldB = n;
     }
     std::cout << "Run cblas_gemm<T>\n";
-    cblas_gemm(transA_, transB_, m, n, k, alpha, &A[0], ldA, &B[0], ldB, beta,
-            &C[0], m);
+    for(Index b = 0; b < batch; ++b)
+    {
+        cblas_gemm(transA_, transB_, m, n, k, alpha, &A[b*m*k], ldA, &B[b*n*k],
+                ldB, beta, &C[b*m*n], m);
+    }
     // Check by actually submitting a task
-    VariableHandle A_handle(&A[0], sizeof(T)*m*k, STARPU_R),
-        B_handle(&B[0], sizeof(T)*n*k, STARPU_R),
-        C2_handle(&C2[0], sizeof(T)*m*n, STARPU_RW);
+    VariableHandle A_handle(&A[0], sizeof(T)*A.size(), STARPU_R),
+        B_handle(&B[0], sizeof(T)*B.size(), STARPU_R),
+        C2_handle(&C2[0], sizeof(T)*C.size(), STARPU_RW);
     gemm::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::gemm::submit<T> restricted to CPU\n";
-    gemm::submit<T>(transA, transB, m, n, k, alpha, A_handle, B_handle, beta,
-            C2_handle);
+    gemm::submit<T>(transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
+            beta, C2_handle);
     starpu_task_wait_for_all();
     C2_handle.unregister();
     // Check result
@@ -128,6 +131,7 @@ void validate_cpu_many()
     TransOp trans[2] = {opN, opT};
     T alpha[3] = {0, 1, -3};
     T beta[3] = {0, 1, 2};
+    Index batch[3] = {1, 2, 100};
     for(auto transA: trans)
     {
         for(auto transB: trans)
@@ -136,7 +140,10 @@ void validate_cpu_many()
             {
                 for(T b: beta)
                 {
-                    validate_cpu<T>(transA, transB, 10, 6, 3, a, b);
+                    for(auto nb: batch)
+                    {
+                        validate_cpu<T>(transA, transB, 10, 6, 3, nb, a, b);
+                    }
                 }
             }
         }
