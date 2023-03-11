@@ -63,12 +63,16 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     scatter<T>(src_single, src);
     // Define proper shape and basetile for the dest tensor
     std::vector<Index> dst_shape, dst_basetile;
-    
-    for(Index i = 1; i <= axis; ++i)
+    for(Index i = 0; i < shape.size(); ++i)
     {
-        dst_shape.push_back(shape[i-1]);
-        dst_basetile.push_back(basetile[i-1]);
+        if (i == axis) 
+        {
+            continue;
+        }
+        dst_shape.push_back(shape[i]);
+        dst_basetile.push_back(basetile[i]);
     }
+    
     // Generate single-tile and distributed dest tensors
     TensorTraits dst_single_traits(dst_shape, dst_shape);
     Tensor<T> dst_single(dst_single_traits, dist_root, last_tag);
@@ -86,6 +90,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         tile::clear(dst_single.get_tile(0));
         tile::sum<T>(src_single.get_tile(0), dst_single.get_tile(0), axis);
     }
+    
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
     gather<T>(dst, dst2_single);
@@ -111,10 +116,10 @@ void validate()
 {
     check<T>({11}, {5}, 0);
     check<T>({11, 12}, {5, 6}, 0);
-    //check<T>({11, 12}, {5, 6}, 1);
-    //check<T>({11, 12, 13}, {5, 6, 5}, 0);
-    //check<T>({11, 12, 13}, {5, 6, 5}, 1);
-    //check<T>({11, 12, 13}, {5, 6, 5}, 2);
+    check<T>({11, 12}, {5, 6}, 1);
+    check<T>({11, 12, 13}, {5, 6, 5}, 0);
+    check<T>({11, 12, 13}, {5, 6, 5}, 1);
+    check<T>({11, 12, 13}, {5, 6, 5}, 2);
     // Sync to guarantee old data tags are cleaned up and can be reused
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions
@@ -128,16 +133,16 @@ void validate()
         C(trC, dist0, last_tag), D(trD, dist00, last_tag),
         E(trE, dist0000, last_tag), F(trF, dist0, last_tag),
         G(trG, dist00, last_tag);
-    //TEST_THROW(sum<T>(A, C, 0));
-    //TEST_THROW(sum<T>(F, F, 0));
-    //TEST_THROW(sum<T>(A, B, -1));
-    //TEST_THROW(sum<T>(A, B, 2));
-    //TEST_THROW(sum<T>(A, D, 0));
-    //TEST_THROW(sum<T>(A, E, 0));
-    //TEST_THROW(sum<T>(A, B, 0));
-    //TEST_THROW(sum<T>(A, B, 1));
-    //TEST_THROW(sum<T>(A, G, 0));
-    //TEST_THROW(sum<T>(A, G, 1));
+    TEST_THROW(sum<T>(A, C, 0));
+    TEST_THROW(sum<T>(F, F, 0));
+    TEST_THROW(sum<T>(A, B, -1));
+    TEST_THROW(sum<T>(A, B, 2));
+    TEST_THROW(sum<T>(A, D, 0));
+    TEST_THROW(sum<T>(A, E, 0));
+    TEST_THROW(sum<T>(A, B, 0));
+    TEST_THROW(sum<T>(A, B, 1));
+    TEST_THROW(sum<T>(A, G, 0));
+    TEST_THROW(sum<T>(A, G, 1));
 }
 
 int main(int argc, char **argv)

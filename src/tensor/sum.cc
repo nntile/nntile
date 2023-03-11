@@ -26,8 +26,6 @@ namespace tensor
 template<typename T>
 void sum_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
 {
-    std::cout << "src dim " << src.ndim << std::endl;
-    std::cout << "dst.dim " << dst.ndim << std::endl;
     // Check dimensions
     if(src.ndim - 1 != dst.ndim)
     {
@@ -48,31 +46,26 @@ void sum_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
         throw std::runtime_error("axis >= src.ndim");
     }
     // Check shapes of src and dst
+    
+    
+     // check if axis consisted, using two pointers
+    for(Index i = 0, j = 0; i < src.ndim; ++i)
+    {
+        if (i == axis) {
+            continue;
+        }
+        if (src.shape[i] != dst.shape[j])
+        {
+            throw std::runtime_error("src.shape[i] != dst.shape[j]");
+        }
+        if (src.basetile_shape[i] != dst.basetile_shape[j])
+        {
+            throw std::runtime_error("src.basetile_shape[j] != "
+                    "dst.basetile_shape[j]");
+        }
+        ++j;
+    }
 
-    for(Index i = 0; i < axis; ++i)
-    {
-        if(src.shape[i] != dst.shape[i+1])
-        {
-            throw std::runtime_error("src.shape[i] != dst.shape[i+1]");
-        }
-        if(src.basetile_shape[i] != dst.basetile_shape[i+1])
-        {
-            throw std::runtime_error("src.basetile_shape[i] != "
-                    "dst.basetile_shape[i+1]");
-        }
-    }
-    for(Index i = axis+1; i < src.ndim; ++i)
-    {
-        if(src.shape[i] != dst.shape[i])
-        {
-            throw std::runtime_error("src.shape[i] != dst.shape[i]");
-        }
-        if(src.basetile_shape[i] != dst.basetile_shape[i])
-        {
-            throw std::runtime_error("src.basetile_shape[i] != "
-                    "dst.basetile_shape[i]");
-        }
-    }
     // Do actual calculations
     int mpi_rank = starpu_mpi_world_rank();
     int ret;
@@ -89,14 +82,14 @@ void sum_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
         // Obtain indices of applicable source tiles
         auto dst_tile_index = dst.grid.linear_to_index(i);
         std::vector<Index> src_tile_index(src.ndim);
-        for(Index j = 0; j < axis; ++j)
+        for(Index j = 0, k = 0; j < src.ndim; ++j)
         {
-            src_tile_index[j] = dst_tile_index[j+1];
-        }
-        src_tile_index[axis] = 0;
-        for(Index j = axis+1; j < src.ndim; ++j)
-        {
-            src_tile_index[j] = dst_tile_index[j];
+            if (j == axis) {
+                src_tile_index[axis] = 0;
+                continue;
+            }
+            src_tile_index[j] = dst_tile_index[k];
+            ++k;   
         }
         // Launch kernel for each appropriate source tile
         auto dst_tile_traits = dst.get_tile_traits(i);
