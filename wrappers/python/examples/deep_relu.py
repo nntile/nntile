@@ -4,12 +4,11 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/examples/deep_linear.py
-# Example of using Deep Linear network of NNTile Python package
+# @file wrappers/python/examples/deep_relu.py
+# Example of using Deep ReLU network of NNTile Python package
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @author Aleksandr Katrutsa
 # @date 2023-02-21
 
 # Imports
@@ -37,7 +36,7 @@ batch_size_tile = 128
 gemm_ndim = 1
 hidden_layer_dim = 128 # Rank of approximation
 hidden_layer_dim_tile = 128
-nlayers = 2 # U V^T
+nlayers = 2
 n_epochs = 1000
 # Number of FLOPs for 2 layers only
 n_flops = n_epochs * 2 * hidden_layer_dim * (3*n_rows+2*n_cols) * batch_size \
@@ -73,21 +72,20 @@ y_distr = [0] * y_traits.grid.nelems
 # It shall move into DeepLinear generator in some future
 x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
 next_tag = x.next_tag
-#x_grad = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
-#next_tag = x_grad.next_tag
-x_grad = None
+x_grad = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
+next_tag = x_grad.next_tag
 x_grad_required = False
 x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
-# Define deep linear network
-m = nntile.model.DeepLinear(x_moments, 'R', gemm_ndim, hidden_layer_dim,
+# Define deep ReLU network
+m = nntile.model.DeepReLU(x_moments, 'R', gemm_ndim, hidden_layer_dim,
         hidden_layer_dim_tile, nlayers, next_tag)
 next_tag = m.next_tag
 
 # Set up learning rate and optimizer for training
-optimizer = opt.SGD(m.get_parameters(), lr, next_tag, momentum=0.9,
-        nesterov=False, weight_decay=1e-6)
-# optimizer = opt.Adam(m.get_parameters(), lr, next_tag)
+#optimizer = opt.SGD(m.get_parameters(), lr, next_tag, momentum=0.9,
+#        nesterov=False, weight_decay=1e-6)
+optimizer = opt.Adam(m.get_parameters(), lr, next_tag)
 next_tag = optimizer.get_next_tag()
 
 # Set up Frobenius loss function for the model
@@ -116,16 +114,14 @@ for i in range(n_batches):
     nntile.nntile_core.tensor.scatter_fp32(y_full, y)
     batch_output.append(y)
 
-# Wait for all computations to finish
-nntile.starpu.wait_for_all()
-
 # Full tensors (stored as a single tile) are not needed anymore
 x_full.unregister()
 y_full.unregister()
-nntile.starpu.wait_for_all()
 
 time0 += time.time()
 print("Finish generating in {} seconds".format(time0))
+# Wait for all computations to finish
+nntile.starpu.wait_for_all()
 
 # Randomly init weights of deep linear network
 time0 = -time.time()

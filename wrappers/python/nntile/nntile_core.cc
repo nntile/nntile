@@ -12,6 +12,7 @@
  * @author Aleksandr Katrutsa
  * @author K. Sozykin
  * @date 2023-02-14
+=======
  * */
 
 #include <pybind11/pybind11.h>
@@ -21,14 +22,18 @@
 #include <nntile.hh>
 #include <sstream>
 #include <cstring>
+#include <thread>
 
 using namespace nntile;
 namespace py = pybind11;
+
+constexpr auto _wait_for_all_sleep_time = std::chrono::milliseconds(1);
 
 // Extend (sub)module with nntile::starpu functionality
 void def_mod_starpu(py::module_ &m)
 {
     using namespace nntile::starpu;
+    using namespace std::chrono_literals;
     py::class_<Config>(m, "Config").
         def(py::init<int, int, int>()).
         def("init", &Config::init).
@@ -36,7 +41,26 @@ void def_mod_starpu(py::module_ &m)
     m.def("init", init);
     m.def("pause", starpu_pause);
     m.def("resume", starpu_resume);
-    m.def("wait_for_all", [](){starpu_task_wait_for_all();
+    m.def("wait_for_all", [](){
+            while(true)
+            {
+                int nsubmitted = starpu_task_nsubmitted();
+                //int nready = starpu_task_nready();
+                //std::cout << "S=" << nsubmitted << " R=" << nready << "\n";
+                //if (nready > nsubmitted)
+                //{
+                //    std::cout << "======================\n";
+                //}
+                std::this_thread::sleep_for(_wait_for_all_sleep_time);
+                if(nsubmitted == 0)
+                {
+                    break;
+                }
+                if(PyErr_CheckSignals() != 0)
+                {
+                    throw py::error_already_set();
+                }
+            }
             starpu_mpi_wait_for_all(MPI_COMM_WORLD);});
 }
 
