@@ -232,3 +232,11 @@ def addcdiv_async(alpha: float, eps: float, nom: Tensor, denom: Tensor, src: Ten
         core_tensor.addcdiv_async_fp32(alpha, eps, nom, denom, src)
     else:
         core_tensor.addcdiv_async_fp64(alpha, eps, nom, denom, src)
+
+def logsumexp_async(maxsumexp: Tensor, logsumexp: Tensor) -> None:
+    if type(maxsumexp) is not type(logsumexp):
+        raise TypeError
+    if type(maxsumexp) is core_tensor.Tensor_fp32:
+        core_tensor.logsumexp_async_fp32(maxsumexp, logsumexp)
+    else:
+        core_tensor.logsumexp_async_fp64(maxsumexp, logsumexp)

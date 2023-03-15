@@ -453,6 +453,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("addcdiv_async_fp32", &addcdiv_async<fp32_t>);
     m.def("addcdiv_fp64", &addcdiv<fp64_t>);
     m.def("addcdiv_fp32", &addcdiv<fp32_t>);
+
+    m.def("logsumexp_async_fp64", &logsumexp_async<fp64_t>);
+    m.def("logsumexp_async_fp32", &logsumexp_async<fp32_t>);
+    m.def("logsumexp_fp64", &logsumexp<fp64_t>);
+    m.def("logsumexp_fp32", &logsumexp<fp32_t>);
 }
 
 // Main extension module with all wrappers

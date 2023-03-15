@@ -32,6 +32,7 @@ set(KERNEL_SRC
     "kernel/sqrt/cpu.cc"
     "kernel/maximum/cpu.cc"
     "kernel/addcdiv/cpu.cc"
+    "kernel/logsumexp/cpu.cc"
     )
 
 if(NNTILE_USE_CUDA)
@@ -71,6 +72,7 @@ set(STARPU_SRC
     "starpu/subcopy.cc"
     "starpu/sumnorm.cc"
     "starpu/maxsumexp.cc"
+    "starpu/logsumexp.cc"
     "starpu/softmax.cc"
     "starpu/sqrt.cc"
     "starpu/maximum.cc"
@@ -101,6 +103,7 @@ set(TILE_SRC
     "tile/sqrt.cc"
     "tile/maximum.cc"
     "tile/addcdiv.cc"
+    "tile/logsumexp.cc"
     )
 
 set(TENSOR_SRC
@@ -130,6 +133,7 @@ set(TENSOR_SRC
     "tensor/sqrt.cc"
     "tensor/maximum.cc"
     "tensor/addcdiv.cc"
+    "tensor/logsumexp.cc"
     )
 
 set(LAYER_SRC

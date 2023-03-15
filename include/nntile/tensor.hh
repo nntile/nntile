@@ -45,6 +45,7 @@
 #include <nntile/tensor/sqrt.hh>
 #include <nntile/tensor/maximum.hh>
 #include <nntile/tensor/addcdiv.hh>
+#include <nntile/tensor/logsumexp.hh>
 
 namespace nntile
 {

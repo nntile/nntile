@@ -33,6 +33,7 @@
 #include <nntile/kernel/sqrt.hh>
 #include <nntile/kernel/maximum.hh>
 #include <nntile/kernel/addcdiv.hh>
+#include <nntile/kernel/logsumexp.hh>
 
 namespace nntile
 {

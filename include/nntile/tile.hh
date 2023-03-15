@@ -41,6 +41,7 @@
 #include <nntile/tile/sqrt.hh>
 #include <nntile/tile/maximum.hh>
 #include <nntile/tile/addcdiv.hh>
+#include <nntile/tile/logsumexp.hh>
 
 namespace nntile
 {
