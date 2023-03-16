@@ -21,14 +21,14 @@ namespace nntile
 namespace tensor
 {
 
-//! Compute max and sum of exponents of slices along given axis
+//! Compute log of sum of exponents baased on maxsumexp result
 template<typename T>
 void logsumexp_async(const Tensor<T> &src, const Tensor<T> &dst)
 {
     // Check dimensions
     if(src.ndim-1 != dst.ndim)
     {
-        throw std::runtime_error("src.ndim != dst.ndim");
+        throw std::runtime_error("src.ndim - 1 != dst.ndim");
     }
     // Treat special case of src.ndim=0
     if(src.ndim == 0)
@@ -39,6 +39,10 @@ void logsumexp_async(const Tensor<T> &src, const Tensor<T> &dst)
     if(src.shape[0] != 2)
     {
         throw std::runtime_error("src.shape[0] != 2");
+    }
+    if(src.basetile_shape[0] != 2)
+    {
+        throw std::runtime_error("src.basetile_shape[0] != 2");
     }
     for(Index i = 0; i < src.ndim-1; ++i)
     {
@@ -59,17 +63,9 @@ void logsumexp_async(const Tensor<T> &src, const Tensor<T> &dst)
         // Clean up destination tile on dest node
         auto dst_tile_handle = dst.get_tile_handle(i);
         int dst_tile_rank = dst_tile_handle.mpi_get_rank();
-        if(mpi_rank == dst_tile_rank)
-        {
-            starpu::clear::submit(dst_tile_handle);
-        }
-        // Obtain indices of applicable source tiles
-        // auto dst_tile_index = dst.grid.linear_to_index(i);
-        // Launch kernel for each appropriate source tile
         auto dst_tile_traits = dst.get_tile_traits(i);
 
         auto src_tile_handle = src.get_tile_handle(i);
-        // int src_tile_rank = src_tile_handle.mpi_get_rank();
         // Transfer data
         src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
         // Execute on destination node
@@ -79,24 +75,6 @@ void logsumexp_async(const Tensor<T> &src, const Tensor<T> &dst)
             starpu::logsumexp::submit<T>(dst_tile_traits.nelems, src_tile_handle,
                     dst_tile_handle);
         }
-
-
-        // for(Index j = 0; j < src.grid.shape[axis]; ++j)
-        // {
-        //     src_tile_index[axis] = j;
-        //     Index src_tile_offset = src.grid.index_to_linear(src_tile_index);
-        //     auto src_tile_handle = src.get_tile_handle(src_tile_offset);
-        //     // int src_tile_rank = src_tile_handle.mpi_get_rank();
-        //     // Transfer data
-        //     src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
-        //     // Execute on destination node
-        //     if(mpi_rank == dst_tile_rank)
-        //     {
-        //         // Insert task
-        //         starpu::logsumexp::submit<T>(src_tile_handle,
-        //                 dst_tile_handle);
-        //     }
-        // }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
     }

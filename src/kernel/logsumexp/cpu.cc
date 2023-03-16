@@ -26,7 +26,8 @@ template<typename T>
 void cpu(Index m, const T *maxsumexp, T *logsumexp)
     noexcept
 {
-    for (Index i = 0; i < m; ++i) {
+    for (Index i = 0; i < m; ++i) 
+    {
         logsumexp[i] = maxsumexp[2*i] + std::log(maxsumexp[2*i+1]);
     }
 }

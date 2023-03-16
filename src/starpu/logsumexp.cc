@@ -103,11 +103,12 @@ void submit(Index m, Handle src, Handle dst)
  * */
 {
     Index *nelems_ = (Index*)malloc(sizeof(Index));
+    *nelems_ = m;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
-            Config::STARPU_RW_COMMUTE, static_cast<starpu_data_handle_t>(dst),
+            STARPU_W, static_cast<starpu_data_handle_t>(dst),
             //STARPU_FLOPS, nflops,
             0);
     // Check submission

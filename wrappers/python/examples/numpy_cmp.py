@@ -11,7 +11,6 @@ if __name__ == "__main__":
     batch_size = 10
     final_layer_output = np.array(np.random.randn(batch_size, nclasses), dtype=np.float32, order="F")
     np_res = spsp.logsumexp(final_layer_output, axis=1)
-    print(np_res)
     # print(np.max(final_layer_output, axis=1))
     config = nntile.starpu.Config(1, 0, 0)
     # Init all NNTile-StarPU codelets
