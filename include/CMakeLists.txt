@@ -59,7 +59,7 @@ set(KERNEL_HDR
     "nntile/kernel/addcdiv/cpu.hh"
     "nntile/kernel/logsumexp/cpu.hh"
     "nntile/kernel/logsumexp.hh"
-
+    "nntile/kernel/total_sum_accum.hh"
     )
 
 if(NNTILE_USE_CUDA)
@@ -134,6 +134,7 @@ set(TILE_HDR
     "nntile/tile/maximum.hh"
     "nntile/tile/addcdiv.hh"
     "nntile/tile/logsumexp.hh"
+    "nntile/tile/total_sum_accum.hh"
     )
 
 set(TENSOR_HDR
@@ -166,6 +167,7 @@ set(TENSOR_HDR
     "nntile/tensor/maximum.hh"
     "nntile/tensor/addcdiv.hh"
     "nntile/tensor/logsumexp.hh"
+    "nntile/tensor/total_sum_accum.hh"
     )
 
 set(LAYER_HDR

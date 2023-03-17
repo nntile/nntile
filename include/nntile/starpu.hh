@@ -42,6 +42,7 @@
 #include <nntile/starpu/maximum.hh>
 #include <nntile/starpu/addcdiv.hh>
 #include <nntile/starpu/logsumexp.hh>
+#include <nntile/starpu/total_sum_accum.hh>
 
 
 namespace nntile
@@ -78,6 +79,7 @@ void init()
     maximum::init();
     addcdiv::init();
     logsumexp::init();
+    total_sum_accum::init();
 }
 
 // Restrict StarPU codelets to certain computational units
@@ -106,6 +108,7 @@ void restrict_where(uint32_t where)
     maximum::restrict_where(where);
     addcdiv::restrict_where(where);
     logsumexp::restrict_where(where);
+    total_sum_accum::restrict_where(where);
 }
 
 // Restore computational units for StarPU codelets
@@ -134,6 +137,7 @@ void restore_where()
     maximum::restore_where();
     addcdiv::restore_where();
     logsumexp::restore_where();
+    total_sum_accum::restore_where();
 }
 
 } // namespace starpu

@@ -359,6 +359,7 @@ void def_mod_tensor(py::module_ &m)
     // Define wrappers for Tensor<T>
     def_class_tensor<fp64_t>(m, "Tensor_fp64");
     def_class_tensor<fp32_t>(m, "Tensor_fp32");
+    def_class_tensor<Index>(m, "Tensor_int64");
     // Add tensor.distributions submodule
     auto distributions = m.def_submodule("distributions");
     def_tensor_distributions(distributions);
@@ -458,6 +459,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("logsumexp_async_fp32", &logsumexp_async<fp32_t>);
     m.def("logsumexp_fp64", &logsumexp<fp64_t>);
     m.def("logsumexp_fp32", &logsumexp<fp32_t>);
+
+    m.def("total_sum_accum_async_fp64", &total_sum_accum_async<fp64_t>);
+    m.def("total_sum_accum_async_fp32", &total_sum_accum_async<fp32_t>);
+    m.def("total_sum_accum_fp64", &total_sum_accum<fp64_t>);
+    m.def("total_sum_accum_fp32", &total_sum_accum<fp32_t>);
 }
 
 // Main extension module with all wrappers

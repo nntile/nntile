@@ -46,6 +46,7 @@
 #include <nntile/tensor/maximum.hh>
 #include <nntile/tensor/addcdiv.hh>
 #include <nntile/tensor/logsumexp.hh>
+#include <nntile/tensor/total_sum_accum.hh>
 
 namespace nntile
 {

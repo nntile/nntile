@@ -10,10 +10,10 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-02-18
+# @date 2023-03-15
 
 from .nntile_core import tensor as core_tensor
-from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64
+from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor_int64
 from .nntile_core import TransOp, notrans, trans
 from typing import Union, List
 
@@ -240,3 +240,10 @@ def logsumexp_async(maxsumexp: Tensor, logsumexp: Tensor) -> None:
         core_tensor.logsumexp_async_fp32(maxsumexp, logsumexp)
     else:
         core_tensor.logsumexp_async_fp64(maxsumexp, logsumexp)
+
+def total_sum_accum_async(logsumexp: Tensor, src: Tensor, class_labels: Tensor_int64,
+                          val: Tensor):
+    if type(logsumexp) is core_tensor.Tensor_fp32:
+        core_tensor.total_sum_accum_async_fp32(logsumexp, src, class_labels, val)
+    else:
+        core_tensor.total_sum_accum_async_fp64(logsumexp, src, class_labels, val)
