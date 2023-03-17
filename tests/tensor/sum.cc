@@ -9,8 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @author K. Sozykin
- * @date 2022-11-03
+ * @author Konstantin Sozykin
+ * @date 2023-03-11
  * */
 
 #include "nntile/tensor/sum.hh"

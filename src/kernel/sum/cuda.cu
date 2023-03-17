@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @author K. Sozykin
+ * @author Konstantin Sozykin
  * @date 2023-02-27
  * */
 
@@ -63,7 +63,7 @@ template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
         T *sum_dst)
     noexcept
-//! Sum and Euclidian norm along middle axis
+//! Sum norm along middle axis
 /*! For a provided m-by-k-by-n input array src compute sums  of slices
  * along second axis with k elements, resulting in m-by-n output array
  * sum. Input value sum[i, j] is increased by a sum of elements of a

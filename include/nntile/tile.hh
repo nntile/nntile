@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @author K. Sozykin
+ * @author Konstantin Sozykin
  * @date 2023-02-14
  * */
 

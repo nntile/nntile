@@ -4,12 +4,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/sumnorm/cpu.hh
- * Sum and Euclidian norm of a buffer on CPU
+ * @file include/nntile/kernel/sum/cpu.hh
+ * Sum of a buffer on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @author K. Sozykin
+ * @author Konstantin Sozykin
  * @date 2023-02-20
  * */
 

@@ -10,9 +10,8 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @author K. Sozykin
+ * @author Konstantin Sozykin
  * @date 2023-02-14
-=======
  * */
 
 #include <pybind11/pybind11.h>

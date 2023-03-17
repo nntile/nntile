@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @author K. Sozykin
+# @author Konstantin Sozykin
 # @date 2023-02-19
 
 # Set list of headers
@@ -161,6 +161,7 @@ set(TENSOR_HDR
     "nntile/tensor/relu.hh"
     "nntile/tensor/scatter.hh"
     "nntile/tensor/sumnorm.hh"
+    "nntile/tensor/sum.hh"
     "nntile/tensor/maxsumexp.hh"
     "nntile/tensor/softmax.hh"
     "nntile/tensor/sqrt.hh"

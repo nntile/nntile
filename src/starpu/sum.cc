@@ -55,7 +55,7 @@ void cuda(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::sum::cuda<T>(stream, args->m, args->n, args->k, src, dst);
 }
-#endif // NNTIEL_USE_CUDA
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for sum tasks that depends only on m, n and k
 static
