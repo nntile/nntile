@@ -9,9 +9,10 @@
 #
 # @version 1.0.0
 # @author Aleksandr Katrutsa
-# @date 2023-02-26
+# @author Aleksandr Mikhalev
+# @date 2023-03-17
 
-from nntile.tensor import softmax_async, clear_async, nrm2_async, prod_async, \
+from nntile.tensor import softmax_async, clear_async, copy_async, nrm2_async, prod_async, \
                           logsumexp_async, maxsumexp_async, total_sum_accum_async
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, Tensor_int64
 import numpy as np
@@ -72,7 +73,7 @@ class CrossEntropy:
     def calc_async(self):
 
         maxsumexp_async(self.final_layer_output.value, self.maxsumexp, 1)
-        clear_async(self.final_layer_output.grad)
+        copy_async(self.final_layer_output.value, self.final_layer_output.grad)
         softmax_async(self.maxsumexp, self.final_layer_output.grad, 1)
 
         logsumexp_async(self.maxsumexp, self.logsumexp)
