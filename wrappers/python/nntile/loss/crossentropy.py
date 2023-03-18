@@ -12,7 +12,7 @@
 # @author Aleksandr Mikhalev
 # @date 2023-03-17
 
-from nntile.tensor import softmax_async, clear_async, copy_async, nrm2_async, prod_async, \
+from nntile.tensor import softmax_async, clear_async, copy_async, subtract_indexed_column_async, \
                           logsumexp_async, maxsumexp_async, total_sum_accum_async
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, Tensor_int64
 import numpy as np
@@ -33,12 +33,11 @@ class CrossEntropy:
         self.logsumexp = logsumexp
         self.maxsumexp = maxsumexp
 
-    # Simple geenrator
+    # Simple generator
     @staticmethod
     def generate_simple(final_layer_output: TensorMoments,
                         class_labels: Tensor_int64, next_tag: int) -> tuple:
         
-        # ndim = len(x.value.grid.shape)
         maxsumexp_traits = TensorTraits((2, class_labels.shape[0]),
                                         (2, class_labels.basetile_shape[0]))
         maxsumexp = type(final_layer_output.value)(maxsumexp_traits,
@@ -75,27 +74,14 @@ class CrossEntropy:
         maxsumexp_async(self.final_layer_output.value, self.maxsumexp, 1)
         copy_async(self.final_layer_output.value, self.final_layer_output.grad)
         softmax_async(self.maxsumexp, self.final_layer_output.grad, 1)
-
+        subtract_indexed_column_async(1., self.class_labels, self.final_layer_output.grad)
         logsumexp_async(self.maxsumexp, self.logsumexp)
 
         clear_async(self.val)
 
         total_sum_accum_async(self.logsumexp, self.final_layer_output.value,
                               self.class_labels, self.val)
-
-        # Put X into gradient grad X
-        # copy_async(self.x.value, self.x.grad)
-        # Define gradient dX as X-Y
-        # axpy_async(-1, self.y, self.x.grad)
-        # Values Y are not needed anymore
-        #self.y.invalidate_submit()
-        # Get value ||grad X||
-        # nrm2_async(self.x.grad, self.val, self.tmp)
-        # Ignore temporary values
-        #self.tmp.invalidate_submit()
+        
         # Invalidate gradient if it is unnecessary
-        #if self.x.grad_required is False:
-        #    self.x.grad.invalidate_submit()
-        # Compute loss as 0.5*||dX||^2
-        # prod_async(self.val, self.val)
-        # axpy_async(-0.5, self.val, self.val)
+        if self.final_layer_output.grad_required is False:
+           self.final_layer_output.grad.invalidate_submit()

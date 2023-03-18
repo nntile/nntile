@@ -464,6 +464,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("total_sum_accum_async_fp32", &total_sum_accum_async<fp32_t>);
     m.def("total_sum_accum_fp64", &total_sum_accum<fp64_t>);
     m.def("total_sum_accum_fp32", &total_sum_accum<fp32_t>);
+
+    m.def("subtract_indexed_column_async_fp64", &subtract_indexed_column_async<fp64_t>);
+    m.def("subtract_indexed_column_async_fp32", &subtract_indexed_column_async<fp32_t>);
+    m.def("subtract_indexed_column_fp64", &subtract_indexed_column<fp64_t>);
+    m.def("subtract_indexed_column_fp32", &subtract_indexed_column<fp32_t>);
 }
 
 // Main extension module with all wrappers

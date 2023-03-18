@@ -247,3 +247,10 @@ def total_sum_accum_async(logsumexp: Tensor, src: Tensor, class_labels: Tensor_i
         core_tensor.total_sum_accum_async_fp32(logsumexp, src, class_labels, val)
     else:
         core_tensor.total_sum_accum_async_fp64(logsumexp, src, class_labels, val)
+
+def subtract_indexed_column_async(val: float, class_labels: Tensor_int64,
+                          dst: Tensor):
+    if type(dst) is core_tensor.Tensor_fp32:
+        core_tensor.subtract_indexed_column_async_fp32(val, class_labels, dst)
+    else:
+        core_tensor.subtract_indexed_column_async_fp64(val, class_labels, dst)
