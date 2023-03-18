@@ -34,6 +34,7 @@ set(KERNEL_SRC
     "kernel/addcdiv/cpu.cc"
     "kernel/logsumexp/cpu.cc"
     "kernel/total_sum_accum/cpu.cc"
+    "kernel/subtract_indexed_column/cpu.cc"
     )
 
 if(NNTILE_USE_CUDA)
@@ -79,6 +80,7 @@ set(STARPU_SRC
     "starpu/addcdiv.cc"
     "starpu/logsumexp.cc"
     "starpu/total_sum_accum.cc"
+    "starpu/subtract_indexed_column.cc"
     )
 
 set(TILE_SRC
@@ -107,6 +109,7 @@ set(TILE_SRC
     "tile/addcdiv.cc"
     "tile/logsumexp.cc"
     "tile/total_sum_accum.cc"
+    "tile/subtract_indexed_column.cc"
     )
 
 set(TENSOR_SRC
@@ -138,6 +141,7 @@ set(TENSOR_SRC
     "tensor/addcdiv.cc"
     "tensor/logsumexp.cc"
     "tensor/total_sum_accum.cc"
+    "tensor/subtract_indexed_column.cc"
     )
 
 set(LAYER_SRC

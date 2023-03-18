@@ -34,6 +34,8 @@
 #include <nntile/kernel/maximum.hh>
 #include <nntile/kernel/addcdiv.hh>
 #include <nntile/kernel/logsumexp.hh>
+#include <nntile/kernel/total_sum_accum.hh>
+#include <nntile/kernel/subtract_indexed_column.hh>
 
 namespace nntile
 {
