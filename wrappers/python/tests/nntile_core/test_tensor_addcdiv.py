@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Katrutsa
 # @author Aleksandr Mikhalev
-# @date 2023-02-16
+# @date 2023-03-18
 
 # All necesary imports
 import nntile

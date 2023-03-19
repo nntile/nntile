@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -41,7 +41,7 @@ void cpu(void *buffers[], void *cl_args)
 
 #ifdef NNTILE_USE_CUDA
 
-#endif // NNTIEL_USE_CUDA
+#endif // NNTILE_USE_CUDA
 
 Codelet codelet_fp32, codelet_fp64;
 

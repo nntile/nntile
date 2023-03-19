@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-02-21
+ * @date 2023-03-18
  * */
 
 #include <pybind11/pybind11.h>

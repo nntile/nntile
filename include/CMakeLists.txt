@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-02-10
+# @date 2023-03-18
 
 # Set list of headers
 set(BASE_HDR
@@ -57,8 +57,8 @@ set(KERNEL_HDR
     "nntile/kernel/maximum/cpu.hh"
     "nntile/kernel/addcdiv.hh"
     "nntile/kernel/addcdiv/cpu.hh"
-    "nntile/kernel/logsumexp/cpu.hh"
     "nntile/kernel/logsumexp.hh"
+    "nntile/kernel/logsumexp/cpu.hh"
     "nntile/kernel/total_sum_accum.hh"
     "nntile/kernel/total_sum_accum/cpu.hh"
     "nntile/kernel/subtract_indexed_column.hh"
