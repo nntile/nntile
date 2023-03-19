@@ -4,12 +4,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tile/maxsumexp.hh
- * Sum and Euclidian norm of Tile<T>
+ * @file include/nntile/tile/logsumexp.hh
+ * Logsumexp operation of Tile<T> based on the result of maxsumexp operation
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 20223-03-15
+ * @date 2023-03-15
  * */
 
 #pragma once
