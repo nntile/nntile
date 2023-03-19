@@ -72,16 +72,11 @@ class CrossEntropy:
     def calc_async(self):
 
         maxsumexp_async(self.final_layer_output.value, self.maxsumexp, 1)
-        copy_async(self.final_layer_output.value, self.final_layer_output.grad)
-        softmax_async(self.maxsumexp, self.final_layer_output.grad, 1)
-        subtract_indexed_column_async(1., self.class_labels, self.final_layer_output.grad)
         logsumexp_async(self.maxsumexp, self.logsumexp)
-
         clear_async(self.val)
-
         total_sum_accum_async(self.logsumexp, self.final_layer_output.value,
                               self.class_labels, self.val)
-        
-        # Invalidate gradient if it is unnecessary
-        if self.final_layer_output.grad_required is False:
-           self.final_layer_output.grad.invalidate_submit()
+        if self.final_layer_output.grad_required is True:
+            copy_async(self.final_layer_output.value, self.final_layer_output.grad)
+            softmax_async(self.maxsumexp, self.final_layer_output.grad, 1)
+            subtract_indexed_column_async(1., self.class_labels, self.final_layer_output.grad)
