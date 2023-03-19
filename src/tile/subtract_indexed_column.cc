@@ -23,6 +23,18 @@ namespace tile
 template<typename T>
 void subtract_indexed_column_async(T val, const Tile<Index> &class_labels, const Tile<T> &dst)
 {
+    if(class_labels.matrix_shape[0] != dst.matrix_shape[0])
+    {
+        throw std::runtime_error("class_labels.matrix_shape[0] != dst.matrix_shape[0]");
+    }
+    if(class_labels.ndim != 1)
+    {
+        throw std::runtime_error("class_labels.ndim != 1");
+    }
+    if(dst.ndim != 2)
+    {
+        throw std::runtime_error("dst.ndim != 2");
+    }
     // Insert task
     starpu::subtract_indexed_column::submit<T>(class_labels.shape[0], val, 
                                        class_labels, dst);

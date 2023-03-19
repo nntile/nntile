@@ -45,54 +45,44 @@ void total_sum_accum_async(const Tensor<T> &logsumexp,
     {
         throw std::runtime_error("val.ndim != 0");
     }
-    // if(src.basetile_shape[0] != 2)
-    // {
-    //     throw std::runtime_error("src.basetile_shape[0] != 2");
-    // }
-    // for(Index i = 0; i < src.ndim-1; ++i)
-    // {
-    //     if(src.shape[i+1] != dst.shape[i])
-    //     {
-    //         throw std::runtime_error("src.shape[i+1] != dst.shape[i]");
-    //     }
-    //     if(src.basetile_shape[i+1] != dst.basetile_shape[i])
-    //     {
-    //         throw std::runtime_error("src.basetile_shape[i+1] != "
-    //                 "dst.basetile_shape[i]");
-    //     }
-    // }
+    if(class_labels.shape[0] != src.shape[0])
+    {
+        throw std::runtime_error("class_labels.shape[0] != src.shape[0]");
+    }
+    if(src.basetile_shape[0] != logsumexp.basetile_shape[0])
+    {
+        throw std::runtime_error("src.basetile_shape[0] != logsumexp.basetile_shape[0]");
+    }
+    if(src.basetile_shape[0] != class_labels.basetile_shape[0])
+    {
+        throw std::runtime_error("src.basetile_shape[0] != class_labels.basetile_shape[0]");
+    }
     // Do actual calculations
     int mpi_rank = starpu_mpi_world_rank();
     auto val_tile_handle = val.get_tile_handle(0);
-    auto val_tile_rank = val_tile_handle.mpi_get_rank();
     starpu::clear::submit(val_tile_handle);
     for(Index i = 0; i < class_labels.grid.nelems; ++i)
     {
         // Clean up destination tile on dest node
         auto logsumexp_tile_handle = logsumexp.get_tile_handle(i);
-        int logsumexp_tile_rank = logsumexp_tile_handle.mpi_get_rank();
         auto logsumexp_tile_traits = logsumexp.get_tile_traits(i);
-
         auto class_labels_tile_handle = class_labels.get_tile_handle(i);
         auto src_tile_handle = src.get_tile_handle(i);
-
-        // Transfer data
-        src_tile_handle.mpi_transfer(val_tile_rank, mpi_rank);
-        logsumexp_tile_handle.mpi_transfer(val_tile_rank, mpi_rank);
-        class_labels_tile_handle.mpi_transfer(val_tile_rank, mpi_rank);
+        auto src_tile_rank = src_tile_handle.mpi_get_rank();
+        // Transfer data to node for src_tile since it is the largest anong others
+        val_tile_handle.mpi_transfer(src_tile_rank, mpi_rank);
+        logsumexp_tile_handle.mpi_transfer(src_tile_rank, mpi_rank);
+        class_labels_tile_handle.mpi_transfer(src_tile_rank, mpi_rank);
 
         // Execute on destination node
-        if (mpi_rank == val_tile_rank)
+        if (mpi_rank == src_tile_rank)
         {
             // Insert task
             starpu::total_sum_accum::submit<T>(logsumexp_tile_traits.nelems, logsumexp_tile_handle, 
                                                src_tile_handle, class_labels_tile_handle, val_tile_handle);
         }
-        // Flush cache for the output tile on every node
-        src_tile_handle.mpi_flush();
-        logsumexp_tile_handle.mpi_flush();
-        class_labels_tile_handle.mpi_flush();
     }
+    val_tile_handle.mpi_flush();
 }
 
 

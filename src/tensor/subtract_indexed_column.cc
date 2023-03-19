@@ -26,47 +26,43 @@ void subtract_indexed_column_async(T val,
                                    const Tensor<Index> &class_labels,
                                    const Tensor<T> &dst)
 {
-    
-    // if(src.basetile_shape[0] != 2)
-    // {
-    //     throw std::runtime_error("src.basetile_shape[0] != 2");
-    // }
-    // for(Index i = 0; i < src.ndim-1; ++i)
-    // {
-    //     if(src.shape[i+1] != dst.shape[i])
-    //     {
-    //         throw std::runtime_error("src.shape[i+1] != dst.shape[i]");
-    //     }
-    //     if(src.basetile_shape[i+1] != dst.basetile_shape[i])
-    //     {
-    //         throw std::runtime_error("src.basetile_shape[i+1] != "
-    //                 "dst.basetile_shape[i]");
-    //     }
-    // }
+    if(class_labels.shape[0] != dst.shape[0])
+    {
+        throw std::runtime_error("class_labels.shape[0] != dst.shape[0]");
+    }
+    if(class_labels.basetile_shape[0] != dst.basetile_shape[0])
+    {
+        throw std::runtime_error("class_labels.basetile_shape[0] != dst.basetile_shape[0]");
+    }
+    Index n_classes = dst.shape[1];
+    for (Index i = 0; i < dst.grid.nelems; ++i)
+    {
+        auto dst_tile_traits = dst.get_tile_traits(i);
+        if (dst_tile_traits.shape[1] != n_classes)
+        {
+            throw std::runtime_error("dst_tile_traits.shape[1] != n_classes");
+        }
+    }
     // Do actual calculations
     int mpi_rank = starpu_mpi_world_rank();
-    for(Index i = 0; i < class_labels.grid.nelems; ++i)
+    for(Index i = 0; i < dst.grid.nelems; ++i)
     {
-        // Clean up destination tile on dest node
-
         auto class_labels_tile_handle = class_labels.get_tile_handle(i);
         auto class_labels_traits = class_labels.get_tile_traits(i);
         auto dst_tile_handle = dst.get_tile_handle(i);
 
-        int class_labels_tile_rank = class_labels_tile_handle.mpi_get_rank();
+        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
 
         // Transfer data
-        dst_tile_handle.mpi_transfer(class_labels_tile_rank, mpi_rank);
+        class_labels_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
 
         // Execute on destination node
-        if (mpi_rank == class_labels_tile_rank)
+        if (mpi_rank == dst_tile_rank)
         {
             // Insert task
             starpu::subtract_indexed_column::submit<T>(class_labels_traits.nelems, val, 
                                                class_labels_tile_handle, dst_tile_handle);
         }
-        // Flush cache for the output tile on every node
-        dst_tile_handle.mpi_flush();
     }
 }
 

@@ -24,6 +24,26 @@ template<typename T>
 void total_sum_accum_async(const Tile<T> &logsumexp, const Tile<T> &src,
                            const Tile<Index> &class_labels, const Tile<T> &val)
 {
+    if(logsumexp.matrix_shape[0] != class_labels.matrix_shape[0])
+    {
+        throw std::runtime_error("logsumexp.matrix_shape[0] != class_labels.matrix_shape[0]");
+    }
+    if(src.matrix_shape[0] != class_labels.matrix_shape[0])
+    {
+        throw std::runtime_error("src.matrix_shape[0] != class_labels.matrix_shape[0]");
+    }
+    if(val.ndim != 0)
+    {
+        throw std::runtime_error("val.ndim != 0");
+    }
+    if(logsumexp.ndim != class_labels.ndim)
+    {
+        throw std::runtime_error("logsumexp.ndim != class_labels.ndim");
+    }
+    if(src.ndim != 2)
+    {
+        throw std::runtime_error("src.ndim != 2");
+    }
     // Insert task
     starpu::total_sum_accum::submit<T>(class_labels.shape[0], logsumexp, 
                                        src, class_labels, val);
