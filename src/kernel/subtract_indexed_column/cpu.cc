@@ -25,6 +25,19 @@ namespace subtract_indexed_column
 template<typename T>
 void cpu(Index n_row, T val, const Index* class_labels, T *dst)
     noexcept
+//! Subtraction of given val from indexed column of dst
+/*! Mnemonically, the following operations are performed:
+ *      dst[i, class_labels[i]] -= val
+ * for every i in [0, n_row)
+ *
+ * @param[in] n_row: Size of the class_labels and numner of rows stored in dst.
+ * @param[in] val: Value that is subtracted from the matrix elements
+ * @param[in] class_labels: Index array of size n_row, where indices of columns 
+ * from the dst matrix are stored 
+ * @param[inout] dst: Matrix of size n_row by n_classes continuously stored in Fortran order
+ * which is updated inplace with subtraction val from columns indexed by class_labels and 
+ * sequential row indices
+ * */
 {
     for (Index i = 0; i < n_row; ++i)
     {

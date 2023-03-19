@@ -25,6 +25,17 @@ namespace total_sum_accum
 template<typename T>
 void cpu(Index n_row, const T* logsumexp, const T* src, const Index* class_labels, T *val)
     noexcept
+//! Total sum accimulating from logsumexp and corrected by elements from src
+/*! Mnemonically, the following operations are performed:
+ *      val += logsumexp[i] - src[i, class_labels[i]];
+ * for every i in [0, n_row)
+ *
+ * @param[in] n_row: Size of the class_labels and numner of rows stored in dst.
+ * @param[in] logsumexp: Array with logsumexp values of size n_row
+ * @param[in] src: Matrix of size n_row times n_classes stored continuously in Fortran order
+ * @param[in] class_labels: Array of size n_row with indices of columns of matrix stored in src
+ * @param[inout] val: Scalar that accumulates the total sum
+ * */
 {
     for (Index i = 0; i < n_row; ++i)
     {

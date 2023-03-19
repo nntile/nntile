@@ -17,7 +17,7 @@
 #include <nntile/kernel/total_sum_accum/cpu.hh>
 #include <nntile/defs.h>
 #ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/sumnorm/cuda.hh>
+// #include <nntile/kernel/total_sum_accum/cuda.hh>
 #endif // NNTILE_USE_CUDA
 
 namespace nntile

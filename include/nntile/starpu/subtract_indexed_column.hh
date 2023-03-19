@@ -37,7 +37,7 @@ void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
-// Sum and Euclidian norm along middle axis of StarPU buffer on CUDA
+// Subtraction of a given value from the indexed column of StarPU buffer on CUDA
 // template<typename T>
 // void cuda(void *buffers[], void *cl_args)
 //     noexcept;
