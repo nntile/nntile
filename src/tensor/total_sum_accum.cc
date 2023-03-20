@@ -41,6 +41,10 @@ void total_sum_accum_async(const Tensor<T> &logsumexp,
     {
         throw std::runtime_error("val.ndim != 0");
     }
+    if(src.ndim != 2)
+    {
+        throw std::runtime_error("src.ndim != 2");
+    }
     if(logsumexp.shape[0] != class_labels.shape[0])
     {
         throw std::runtime_error("logsumexp.shape[0] != class_labels.shape[0]");
