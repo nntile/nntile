@@ -20,9 +20,9 @@ namespace nntile
 namespace tile
 {
 
-//! Tile-wise max and sum of exponents along single given axis
 template<typename T>
 void logsumexp_async(const Tile<T> &src, const Tile<T> &dst)
+// TODO - add description
 {
     // Check dimensions
     if(src.ndim - 1 != dst.ndim)
@@ -34,6 +34,10 @@ void logsumexp_async(const Tile<T> &src, const Tile<T> &dst)
     if(ndim == 0)
     {
         throw std::runtime_error("Scalar input makes no sense");
+    }
+    if(src.shape[0] != 2)
+    {
+        throw std::runtime_error("src.shape[0] != 2");
     }
     for(Index i = 0; i < ndim - 1; ++i)
     {

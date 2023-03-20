@@ -5,7 +5,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/tensor/subtract_indexed_column.cc
- * Total sum accumulating of Tensor<T>
+ * Subtraction of value from the indexed column in Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
@@ -34,15 +34,11 @@ void subtract_indexed_column_async(T val,
     {
         throw std::runtime_error("class_labels.basetile_shape[0] != dst.basetile_shape[0]");
     }
-    Index n_classes = dst.shape[1];
-    for (Index i = 0; i < dst.grid.nelems; ++i)
+    if(dst.shape[1] != dst.basetile_shape[1])
     {
-        auto dst_tile_traits = dst.get_tile_traits(i);
-        if (dst_tile_traits.shape[1] != n_classes)
-        {
-            throw std::runtime_error("dst_tile_traits.shape[1] != n_classes");
-        }
+        throw std::runtime_error("dst.shape[1] != dst.basetile_shape[1]");
     }
+
     // Do actual calculations
     int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < dst.grid.nelems; ++i)
@@ -63,6 +59,7 @@ void subtract_indexed_column_async(T val,
             starpu::subtract_indexed_column::submit<T>(class_labels_traits.nelems, val, 
                                                class_labels_tile_handle, dst_tile_handle);
         }
+        dst_tile_handle.mpi_flush();
     }
 }
 
