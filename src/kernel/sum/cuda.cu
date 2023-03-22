@@ -42,7 +42,7 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, const T *src,
             // Get sum of a corresponding slice
             const T *src_slice = src + i2*mk + i1;
             Index dst_offset = (i1+i2*m);
-            // Init sum 
+            // Init sum
             T sum = sum_dst[dst_offset];
             // Cycle over slice of input buffer
             for(Index i0 = 0; i0 < k; ++i0)
@@ -51,7 +51,6 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, const T *src,
                 T val = src_slice[i0*m];
                 // Update sum
                 sum += val;
-                
             }
             // Save result
             sum_dst[dst_offset] = sum;
@@ -63,7 +62,7 @@ template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
         T *sum_dst)
     noexcept
-//! Sum norm along middle axis
+//! Sum along middle axis
 /*! For a provided m-by-k-by-n input array src compute sums  of slices
  * along second axis with k elements, resulting in m-by-n output array
  * sum. Input value sum[i, j] is increased by a sum of elements of a
