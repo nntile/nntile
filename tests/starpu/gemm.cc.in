@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-10
+ * @date 2023-03-22
  * */
 
 #include "nntile/starpu/gemm.hh"
@@ -117,7 +117,7 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
     starpu_task_wait_for_all();
     C2_handle.unregister();
     // Check result
-    for(Index i = 0; i < m*n; ++i)
+    for(Index i = 0; i < C.size(); ++i)
     {
         TEST_ASSERT(C[i] == C2[i]);
     }
@@ -178,7 +178,7 @@ void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
 
 template<typename T>
 void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
-        T alpha, T beta)
+        Index batch, T alpha, T beta)
 {
     // Get a StarPU CUDA worker (to perform computations on the same device)
     int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
@@ -197,16 +197,16 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
     cublas_err = cublasSetStream(cublas, stream);
     TEST_ASSERT(cublas_err == CUBLAS_STATUS_SUCCESS);
     // Init all the data
-    std::vector<T> A(m*k), B(n*k), C(m*n);
-    for(Index i = 0; i < m*k; ++i)
+    std::vector<T> A(m*k*batch), B(n*k*batch), C(m*n*batch);
+    for(Index i = 0; i < A.size(); ++i)
     {
         A[i] = T(i+1);
     }
-    for(Index i = 0; i < n*k; ++i)
+    for(Index i = 0; i < B.size(); ++i)
     {
         B[i] = T(-i-1);
     }
-    for(Index i = 0; i < m*n; ++i)
+    for(Index i = 0; i < C.size(); ++i)
     {
         C[i] = T(2*i+1);
     }
@@ -249,8 +249,11 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
     cuda_err = cudaMemcpy(dev_C, &C[0], sizeof(T)*m*n, cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
     std::cout << "Run cublas_gemm<T>\n";
-    cublas_gemm(cublas, transA_, transB_, m, n, k, alpha, dev_A, ldA, dev_B,
-            ldB, beta, dev_C, m);
+    for(Index b = 0; b < batch; ++b)
+    {
+        cublas_gemm(cublas, transA_, transB_, m, n, k, alpha, &dev_A[b*m*k], ldA,
+                &dev_B[b*n*k], ldB, beta, &dev_C[b*m*n], m);
+    }
     // Wait for result and destroy cublas handle and stream
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
@@ -259,7 +262,8 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
     cuda_err = cudaStreamDestroy(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result back to CPU
-    cuda_err = cudaMemcpy(&C[0], dev_C, sizeof(T)*m*n, cudaMemcpyDeviceToHost);
+    cuda_err = cudaMemcpy(&C[0], dev_C, sizeof(T)*C.size(),
+            cudaMemcpyDeviceToHost);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Deallocate CUDA memory
     cuda_err = cudaFree(dev_A);
@@ -269,17 +273,17 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
     cuda_err = cudaFree(dev_C);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
-    VariableHandle A_handle(&A[0], sizeof(T)*m*k, STARPU_R),
-        B_handle(&B[0], sizeof(T)*n*k, STARPU_R),
-        C2_handle(&C2[0], sizeof(T)*m*n, STARPU_RW);
+    VariableHandle A_handle(&A[0], sizeof(T)*A.size(), STARPU_R),
+        B_handle(&B[0], sizeof(T)*B.size(), STARPU_R),
+        C2_handle(&C2[0], sizeof(T)*C.size(), STARPU_RW);
     gemm::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::gemm::submit<T> restricted to CUDA\n";
-    gemm::submit<T>(transA, transB, m, n, k, alpha, A_handle, B_handle, beta,
-            C2_handle);
+    gemm::submit<T>(transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
+            beta, C2_handle);
     starpu_task_wait_for_all();
     C2_handle.unregister();
     // Check result
-    for(Index i = 0; i < m*n; ++i)
+    for(Index i = 0; i < C.size(); ++i)
     {
         TEST_ASSERT(C[i] == C2[i]);
     }
@@ -293,6 +297,7 @@ void validate_cuda_many()
     TransOp trans[2] = {opN, opT};
     T alpha[3] = {0, 1, -3};
     T beta[3] = {0, 1, 3};
+    Index batch[3] = {1, 2, 100};
     for(auto transA: trans)
     {
         for(auto transB: trans)
@@ -301,7 +306,10 @@ void validate_cuda_many()
             {
                 for(T b: beta)
                 {
-                    validate_cuda<T>(transA, transB, 10, 6, 3, a, b);
+                    for(auto nb: batch)
+                    {
+                        validate_cuda<T>(transA, transB, 10, 6, 3, nb, a, b);
+                    }
                 }
             }
         }

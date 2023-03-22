@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-10
+ * @date 2023-03-22
  * */
 
 #include "nntile/tile/gemm.hh"
@@ -25,7 +25,7 @@ void check()
     // Check all parameters are properly passed to the underlying gemm
     TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
     T one = 1, zero = 0;
-    Tile<T> A({2, 2, 2, 2}), B(A.shape), C(A.shape), D(A.shape);
+    Tile<T> A({2, 2, 2, 2, 2}), B(A.shape), C(A.shape), D(A.shape);
     auto A_local = A.acquire(STARPU_W), B_local = B.acquire(STARPU_W),
          C_local = C.acquire(STARPU_W), D_local = D.acquire(STARPU_W);
     for(Index i = 0; i < A.nelems; ++i)
@@ -40,8 +40,8 @@ void check()
     C_local.release();
     D_local.release();
     // Check default parameters
-    starpu::gemm::submit<T>(opN, opN, 4, 4, 4, 1, one, A, B, zero, C);
-    gemm<T>(one, opN, A, opN, B, zero, D, 2, 0);
+    starpu::gemm::submit<T>(opN, opN, 4, 4, 4, 2, one, A, B, zero, C);
+    gemm<T>(one, opN, A, opN, B, zero, D, 2, 1);
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
@@ -51,8 +51,8 @@ void check()
     C_local.release();
     D_local.release();
     // Check transA=opT
-    starpu::gemm::submit<T>(opT, opN, 4, 4, 4, 1, one, A, B, zero, C);
-    gemm<T>(one, opT, A, opN, B, zero, D, 2, 0);
+    starpu::gemm::submit<T>(opT, opN, 4, 4, 4, 2, one, A, B, zero, C);
+    gemm<T>(one, opT, A, opN, B, zero, D, 2, 1);
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
@@ -62,8 +62,8 @@ void check()
     C_local.release();
     D_local.release();
     // Check transB=opT
-    starpu::gemm::submit<T>(opN, opT, 4, 4, 4, 1, one, A, B, zero, C);
-    gemm<T>(one, opN, A, opT, B, zero, D, 2, 0);
+    starpu::gemm::submit<T>(opN, opT, 4, 4, 4, 2, one, A, B, zero, C);
+    gemm<T>(one, opN, A, opT, B, zero, D, 2, 1);
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
@@ -73,8 +73,8 @@ void check()
     C_local.release();
     D_local.release();
     // Check transA=transB=opT
-    starpu::gemm::submit<T>(opT, opT, 4, 4, 4, 1, one, A, B, zero, C);
-    gemm<T>(one, opT, A, opT, B, zero, D, 2, 0);
+    starpu::gemm::submit<T>(opT, opT, 4, 4, 4, 2, one, A, B, zero, C);
+    gemm<T>(one, opT, A, opT, B, zero, D, 2, 1);
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
@@ -85,8 +85,8 @@ void check()
     D_local.release();
     // Check alpha=2
     T two = 2;
-    starpu::gemm::submit<T>(opN, opN, 4, 4, 4, 1, two, A, B, zero, C);
-    gemm<T>(two, opN, A, opN, B, zero, D, 2, 0);
+    starpu::gemm::submit<T>(opN, opN, 4, 4, 4, 2, two, A, B, zero, C);
+    gemm<T>(two, opN, A, opN, B, zero, D, 2, 1);
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
@@ -96,8 +96,8 @@ void check()
     C_local.release();
     D_local.release();
     // Check beta=1
-    starpu::gemm::submit<T>(opN, opN, 4, 4, 4, 1, one, A, B, one, C);
-    gemm<T>(one, opN, A, opN, B, one, D, 2, 0);
+    starpu::gemm::submit<T>(opN, opN, 4, 4, 4, 2, one, A, B, one, C);
+    gemm<T>(one, opN, A, opN, B, one, D, 2, 1);
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
@@ -108,8 +108,8 @@ void check()
     D_local.release();
     // Check beta=-1
     T mone = -1;
-    starpu::gemm::submit<T>(opN, opN, 4, 4, 4, 1, one, A, B, mone, C);
-    gemm<T>(one, opN, A, opN, B, mone, D, 2, 0);
+    starpu::gemm::submit<T>(opN, opN, 4, 4, 4, 2, one, A, B, mone, C);
+    gemm<T>(one, opN, A, opN, B, mone, D, 2, 1);
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
@@ -137,6 +137,12 @@ void validate()
     TEST_THROW(gemm<T>(one, opT, mat11, opT, mat333, one, mat11, 3, 0));
     TEST_THROW(gemm<T>(one, opT, mat333, opT, mat11, one, mat11, 3, 0));
     TEST_THROW(gemm<T>(one, opT, mat11, opT, mat11, one, mat11, 2, 0));
+    // Check batch_ndim
+    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat11, one, mat11, 1, 1));
+    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat11, one, mat11, 1, -1));
+    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat333, one, mat11, 2, 0));
+    TEST_THROW(gemm<T>(one, opT, mat333, opT, mat11, one, mat11, 1, 2));
+    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat11, one, mat11, 2, -1));
     // Check incorrect transpositions
     TEST_THROW(gemm<T>(one, opF, mat11, opN, mat11, one, mat11, 1, 0));
     TEST_THROW(gemm<T>(one, opF, mat11, opT, mat11, one, mat11, 1, 0));
