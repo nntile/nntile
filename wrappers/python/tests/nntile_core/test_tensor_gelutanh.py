@@ -5,7 +5,7 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file wrappers/python/tests/nntile_core/test_tensor_gelutanh.py
-# Test for tensor::gelu<T> Python wrapper
+# Test for tensor::gelutanh<T> Python wrapper
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
