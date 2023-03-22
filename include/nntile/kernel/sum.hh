@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2022-02-20
+ * @date 2023-02-20
  * */
 
 #pragma once
