@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/starpu/sum.cc
- * Sum and Euclidian norm for StarPU buffer
+ * Sum for StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @author Konstantin Sozykin 
+ * @author Konstantin Sozykin
  * @date 2023-03-14
  * */
 
