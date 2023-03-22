@@ -26,7 +26,7 @@ namespace sum
 template<typename T>
 void cpu(Index m, Index n, Index k, const T *src, T *sum_dst)
     noexcept
-//! Sum and Euclidian norm along middle axis
+//! Sum along middle axis
 /*! For a provided m-by-k-by-n input array src compute sums  of slices
  * along second axis with k elements, resulting in m-by-n output array
  * sum. Input value sum[i, j] is increased by a sum of elements of a
