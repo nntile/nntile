@@ -26,7 +26,7 @@ namespace nntile
 namespace kernel
 {
 //! @namespace nntile::kernel::sum
-/*! Low-level implementations of computing sum and norm operation
+/*! Low-level implementations of computing sum operation
  * */
 namespace sum
 {
