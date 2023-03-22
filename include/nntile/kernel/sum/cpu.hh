@@ -24,7 +24,7 @@ namespace kernel
 namespace sum
 {
 
-// Compute sum and along middle axis
+// Compute sum along middle axis
 template<typename T>
 void cpu(Index m, Index n, Index k, const T *src, T *sum_dst)
     noexcept;
