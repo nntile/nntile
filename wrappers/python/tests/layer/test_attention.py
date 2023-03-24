@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-03-23
+# @date 2023-03-24
 
 # All necesary imports
 import nntile
@@ -34,27 +34,49 @@ torch_dtype = {np.float32: torch.float32,
 # Helper function returns bool value true if test passes
 def helper(dtype: np.dtype):
     n_emb = 128
+    n_emb_k = 112
+    n_emb_v = 96
     n_seq = 256
     n_batch = 48
     n_head = 8
     # Describe single-tile tensor, located at node 0
-    A_shape = [n_emb, n_seq, n_batch]
-    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
+    X_Q_shape = [n_emb, n_seq, n_batch]
+    X_K_shape = [n_emb_k, n_seq, n_batch]
+    X_V_shape = [n_emb_v, n_seq, n_batch]
+    X_Q_traits = nntile.tensor.TensorTraits(X_Q_shape, X_Q_shape)
+    X_K_traits = nntile.tensor.TensorTraits(X_K_shape, X_K_shape)
+    X_V_traits = nntile.tensor.TensorTraits(X_V_shape, X_V_shape)
     mpi_distr = [0]
     next_tag = 0
     # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A_grad.next_tag
+    X_Q_value = Tensor[dtype](X_Q_traits, mpi_distr, next_tag)
+    next_tag = X_Q_value.next_tag
+    X_Q_grad = Tensor[dtype](X_Q_traits, mpi_distr, next_tag)
+    next_tag = X_Q_grad.next_tag
+    X_K_value = Tensor[dtype](X_K_traits, mpi_distr, next_tag)
+    next_tag = X_K_value.next_tag
+    X_K_grad = Tensor[dtype](X_K_traits, mpi_distr, next_tag)
+    next_tag = X_K_grad.next_tag
+    X_V_value = Tensor[dtype](X_V_traits, mpi_distr, next_tag)
+    next_tag = X_V_value.next_tag
+    X_V_grad = Tensor[dtype](X_V_traits, mpi_distr, next_tag)
+    next_tag = X_V_grad.next_tag
     # Set initial value for input
-    rand_A = np.random.randn(*A_shape)
-    np_A = np.array(rand_A, dtype=dtype, order='F')
-    A.from_array(np_A)
-    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
+    rand_X_Q = np.random.randn(*X_Q_shape)
+    np_X_Q = np.array(rand_X_Q, dtype=dtype, order='F')
+    X_Q_value.from_array(np_X_Q)
+    X_Q = nntile.tensor.TensorMoments(X_Q_value, X_Q_grad, True)
+    rand_X_K = np.random.randn(*X_K_shape)
+    np_X_K = np.array(rand_X_K, dtype=dtype, order='F')
+    X_K_value.from_array(np_X_K)
+    X_K = nntile.tensor.TensorMoments(X_K_value, X_K_grad, True)
+    rand_X_V = np.random.randn(*X_V_shape)
+    np_X_V = np.array(rand_X_V, dtype=dtype, order='F')
+    X_V_value.from_array(np_X_V)
+    X_V = nntile.tensor.TensorMoments(X_V_value, X_V_grad, True)
     # Define attention layer
-    layer, next_tag = Attention.generate_simple_mpiroot(A_moments, n_head, \
-            next_tag)
+    layer, next_tag = Attention.generate_simple_mpiroot(X_Q, X_K, X_V, \
+            n_head, next_tag)
     # Define numpy arrays and nntile tensors
     np_W_Q = []
     np_W_K = []
@@ -78,22 +100,26 @@ def helper(dtype: np.dtype):
     np_Y2 = np.zeros(layer.y.value.shape, dtype=dtype, order='F')
     layer.y.value.to_array(np_Y2)
     # Define Torch tensors and layer
-    A_tensor = torch.tensor(np_A.T)
-    torch_layer = MultiheadAttention(n_emb, n_head, batch_first=True, \
-            bias=False)
+    X_Q_tensor = torch.tensor(np_X_Q.T)
+    X_K_tensor = torch.tensor(np_X_K.T)
+    X_V_tensor = torch.tensor(np_X_V.T)
+    torch_layer = MultiheadAttention(n_emb, n_head, kdim=n_emb_k, \
+            vdim=n_emb_v, batch_first=True, bias=False)
     W_Q = np.vstack(np_W_Q)
     W_K = np.vstack(np_W_K)
     W_V = np.vstack(np_W_V)
-    W = np.vstack([W_Q, W_K, W_V])
-    W_tensor = torch.tensor(W)
-    torch_layer.in_proj_weight.data = W_tensor
+    torch_layer.q_proj_weight.data = torch.tensor(W_Q)
+    torch_layer.k_proj_weight.data = torch.tensor(W_K)
+    torch_layer.v_proj_weight.data = torch.tensor(W_V)
     W_out = np.hstack(np_W)
     W_out_tensor = torch.tensor(W_out)
     torch_layer.out_proj.weight.data = W_out_tensor
-    attn_output, attn_weights = torch_layer(A_tensor, A_tensor, A_tensor, \
-            average_attn_weights=False)
+    attn_output, attn_weights = torch_layer(X_Q_tensor, X_K_tensor, \
+            X_V_tensor, average_attn_weights=False)
     np_Y = attn_output.detach().numpy().T
-    A_moments.unregister()
+    X_Q.unregister()
+    X_K.unregister()
+    X_V.unregister()
     layer.unregister()
     # Compare
     norm = np.linalg.norm(np_Y)
