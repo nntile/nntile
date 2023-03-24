@@ -23,6 +23,7 @@ Tensor = Union[core_tensor.Tensor_fp32, core_tensor.Tensor_fp64]
 TensorOrNone = Union[Tensor, None]
 # Union of multiprecision tensor and float
 TensorOrFloat = Union[Tensor, float]
+TensorFloatOrInt = Union[Tensor, core_tensor.Tensor_int64]
 
 # Struct meant for tensor, its gradient and a flag if gradient is required
 class TensorMoments(object):
@@ -163,23 +164,27 @@ def gather_async(x: Tensor, y: Tensor) -> None:
         core_tensor.gather_async_fp64(x, y)
 
 # Wrapper for multiprecision copy_intersection
-def copy_intersection_async(x: Tensor, x_offset: List[int], y: Tensor,
+def copy_intersection_async(x: TensorFloatOrInt, x_offset: List[int], y: TensorFloatOrInt,
         y_offset: List[int]) -> None:
     if type(x) is not type(y):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.copy_intersection_async_fp32(x, x_offset, y, y_offset)
-    else:
+    elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.copy_intersection_async_fp64(x, x_offset, y, y_offset)
+    elif type(x) is core_tensor.Tensor_int64:
+        core_tensor.copy_intersection_async_int64(x, x_offset, y, y_offset)
 
 # Wrapper for multiprecision copy
-def copy_async(x: Tensor, y: Tensor) -> None:
+def copy_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:
     if type(x) is not type(y):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.copy_async_fp32(x, y)
-    else:
+    elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.copy_async_fp64(x, y)
+    elif type(x) is core_tensor.Tensor_int64:
+        core_tensor.copy_async_int64(x, y)
 
 # Wrapper for multiprecision clear
 def clear_async(x: Tensor) -> None:

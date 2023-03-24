@@ -418,14 +418,23 @@ void def_mod_tensor(py::module_ &m)
     m.def("gather_async_fp32", &gather_async<fp32_t>);
     m.def("gather_fp64", &gather<fp64_t>);
     m.def("gather_fp32", &gather<fp32_t>);
+
     m.def("copy_intersection_async_fp64", &copy_intersection_async<fp64_t>);
     m.def("copy_intersection_async_fp32", &copy_intersection_async<fp32_t>);
+    m.def("copy_intersection_async_int64", &copy_intersection_async<Index>);
+
     m.def("copy_intersection_fp64", &copy_intersection<fp64_t>);
     m.def("copy_intersection_fp32", &copy_intersection<fp32_t>);
+    m.def("copy_intersection_int64", &copy_intersection<Index>);
+    
     m.def("copy_async_fp64", &copy_async<fp64_t>);
     m.def("copy_async_fp32", &copy_async<fp32_t>);
+    m.def("copy_async_int64", &copy_async<Index>);
+
     m.def("copy_fp64", &copy<fp64_t>);
     m.def("copy_fp32", &copy<fp32_t>);
+    m.def("copy_int64", &copy<Index>);
+
     m.def("clear_async_fp64", &clear_async<fp64_t>);
     m.def("clear_async_fp32", &clear_async<fp32_t>);
     m.def("clear_fp64", &clear<fp64_t>);

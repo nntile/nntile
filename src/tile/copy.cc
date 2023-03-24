@@ -64,12 +64,18 @@ void copy_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 template
 void copy_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
+template
+void copy_async<Index>(const Tile<Index> &src, const Tile<Index> &dst);
+
 // Explicit instantiation
 template
 void copy<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
 void copy<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+
+template
+void copy<Index>(const Tile<Index> &src, const Tile<Index> &dst);
 
 } // namespace tile
 } // namespace nntile
