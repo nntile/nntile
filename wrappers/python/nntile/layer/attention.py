@@ -9,183 +9,216 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-03-09
+# @date 2023-03-23
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        TransOp, trans, notrans, copy_async, gemm_async, randn_async
+        TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
+        maxsumexp_async, softmax_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
 
-# Single-head attention
+# Multi-head attention
+# Input is (N_emb, N_seq, N_batch) tensor
+# Output is of the same shape
 class Attention(BaseLayer):
-    side: str
     x: TensorMoments
     y: TensorMoments
-    q: TensorMoments
-    k: TensorMoments
-    v: TensorMoments
-    ndim: int
-    #b: TensorMoments
-    #b_axis: int
-    x_copy: TensorOrNone
+    w_q: List[TensorMoments]
+    w_k: List[TensorMoments]
+    w_v: List[TensorMoments]
+    w: List[TensorMoments]
+    q: List[Tensor]
+    k: List[Tensor]
+    v: List[Tensor]
+    a: List[Tensor]
+    a_maxsumexp: List[Tensor]
+    b: List[Tensor]
+    n_head: int
+    head_size: int
 
     # Construct attention layer with all the provided data
-    def __init__(self, side: str, trans_x: TransOp, x: TensorMoments,
-            y: TensorMoments, w: TensorMoments, ndim: int,
-            x_copy: TensorOrNone):
-        # Check parameter side
-        if side != 'L' and side != 'R':
-            raise ValueError("side must be either 'L' or 'R'")
-        # Check parameter ndim
-        if ndim <= 0:
-            raise ValueError("ndim must be positive integer")
+    def __init__(self, x: TensorMoments, y: TensorMoments, \
+            w_q: List[TensorMoments], w_k: List[TensorMoments], \
+            w_v: List[TensorMoments], w: List[TensorMoments], \
+            q: List[Tensor], k: List[Tensor], v: List[Tensor], \
+            a: List[Tensor], a_maxsumexp: List[Tensor], b: List[Tensor]):
         # Redirect to BaseClass initialization
-        super().__init__([x], [y], [w])
-        # Set up local named parameters
-        self.side = side
-        self.trans_x = trans_x
-        self.ndim = ndim
+        super().__init__([x], [y], [*w_q, *w_k, *w_v, *w])
         self.x = x
         self.y = y
+        self.w_q = w_q
+        self.w_k = w_k
+        self.w_v = w_v
         self.w = w
-        #self.b = b
-        #self.b_axis = b_axis
-        self.x_copy = x_copy
+        self.q = q
+        self.k = k
+        self.v = v
+        self.a = a
+        self.a_maxsumexp = a_maxsumexp
+        self.b = b
+        self.n_head = len(w_q)
+        n_emb = x.value.shape[0]
+        head_size = n_emb // self.n_head
+        # Stupid check, that is not necessary, as the code shall work
+        if n_emb != head_size * self.n_head:
+            raise RuntimeError
+        self.head_size = head_size
 
     # Simple generator for the linear layer
     @staticmethod
-    def generate_simple_mpiroot(x: TensorMoments, side: str, trans_x: TransOp,
-            ndim: int, add_shape: List[int], add_basetile_shape: List[int],
-            next_tag: int):
-        # Define shapes
-        if side == 'L':
-            if trans_x == notrans:
-                w_shape = x.value.shape[-ndim:] + add_shape
-                w_tile = x.value.basetile_shape[-ndim:] + add_basetile_shape
-                y_shape = x.value.shape[:-ndim] + add_shape
-                y_tile = x.value.basetile_shape[:-ndim] + add_basetile_shape
-            else:
-                w_shape = x.value.shape[:ndim] + add_shape
-                w_tile = x.value.basetile_shape[:ndim] + add_basetile_shape
-                y_shape = x.value.shape[ndim:] + add_shape
-                y_tile = x.value.basetile_shape[ndim:] + add_basetile_shape
-        else:
-            if trans_x == notrans:
-                w_shape = add_shape + x.value.shape[:ndim]
-                w_tile = add_basetile_shape + x.value.basetile_shape[:ndim]
-                y_shape = add_shape + x.value.shape[ndim:]
-                y_tile = add_basetile_shape + x.value.basetile_shape[ndim:]
-            else:
-                w_shape = add_shape + x.value.shape[-ndim:]
-                w_tile = add_basetile_shape + x.value.basetile_shape[-ndim:]
-                y_shape = add_shape + x.value.shape[:-ndim]
-                y_tile = add_basetile_shape + x.value.basetile_shape[:-ndim]
-        # Define W
-        w_traits = TensorTraits(w_shape, w_tile)
+    def generate_simple_mpiroot(x: TensorMoments, n_head: int, next_tag: int):
+        # Get sizes
+        n_emb, n_seq, n_batch = x.value.shape
+        n_emb_tile, n_seq_tile, n_batch_tile = x.value.basetile_shape
+        head_size = n_emb // n_head
+        # Stupid check, that is not necessary, as the code shall work
+        if n_emb != head_size * n_head:
+            raise RuntimeError
+        # TODO: the following tile size is a hyperparameter
+        head_size_tile = x.value.basetile_shape[0]
+        # Define shape of each tensor
+        w_q_shape = [head_size, n_emb]
+        q_shape = [head_size, n_seq, n_batch]
+        a_shape = [n_seq, n_seq, n_batch]
+        a_maxsumexp_shape = [2, n_seq, n_batch]
+        w_shape = [n_emb, head_size]
+        # Define tile shapes of each tensor
+        w_q_basetile = [head_size_tile, n_emb_tile]
+        q_basetile = [head_size_tile, n_seq_tile, n_batch_tile]
+        a_basetile = [n_seq_tile, n_seq_tile, n_batch_tile]
+        a_maxsumexp_basetile = [2, n_seq_tile, n_batch_tile]
+        w_basetile = [n_emb_tile, head_size_tile]
+        # Define traits
+        w_q_traits = TensorTraits(w_q_shape, w_q_basetile)
+        w_traits = TensorTraits(w_shape, w_basetile)
+        q_traits = TensorTraits(q_shape, q_basetile)
+        a_traits = TensorTraits(a_shape, a_basetile)
+        a_maxsumexp_traits = TensorTraits(a_maxsumexp_shape,
+                a_maxsumexp_basetile)
+        w_traits = TensorTraits(w_shape, w_basetile)
         # TODO change distribution
+        w_q_distr = [0] * w_q_traits.grid.nelems
+        q_distr = [0] * q_traits.grid.nelems
+        a_distr = [0] * a_traits.grid.nelems
+        a_maxsumexp_distr = [0] * a_maxsumexp_traits.grid.nelems
         w_distr = [0] * w_traits.grid.nelems
-        w_value = type(x.value)(w_traits, w_distr, next_tag)
-        next_tag = w_value.next_tag
-        # Create gradient of W with the same traits and distribution as W
-        w_grad = type(x.value)(w_traits, w_distr, next_tag)
-        next_tag = w_grad.next_tag
-        # Define W as TensorMoments
-        w = TensorMoments(w_value, w_grad, True)
-        # Define Y
-        y_traits = TensorTraits(y_shape, y_tile)
-        # TODO change distribution
-        y_distr = [0] * y_traits.grid.nelems
-        y_value = type(x.value)(y_traits, y_distr, next_tag)
-        next_tag = y_value.next_tag
-        # Create gradient of Y with the same traits and distribution as Y
-        y_grad = type(x.value)(y_traits, y_distr, next_tag)
-        next_tag = y_grad.next_tag
-        # Define Y as TensorMoments
-        y = TensorMoments(y_value, y_grad, True)
-        # Bias is ignored for now
-        #b = TensorMoments(None, None, False)
-        # Copy of input for backward
+        # Define all the lists
+        w_q = []
+        w_k = []
+        w_v = []
+        q = []
+        k = []
+        v = []
+        a = []
+        a_maxsumexp = []
+        b = []
+        w = []
+        for i in range(n_head):
+            # w_q
+            w_q_value = type(x.value)(w_q_traits, w_q_distr, next_tag)
+            next_tag = w_q_value.next_tag
+            w_q_grad = type(x.value)(w_q_traits, w_q_distr, next_tag)
+            next_tag = w_q_grad.next_tag
+            w_q.append(TensorMoments(w_q_value, w_q_grad, True))
+            # w_k
+            w_k_value = type(x.value)(w_q_traits, w_q_distr, next_tag)
+            next_tag = w_k_value.next_tag
+            w_k_grad = type(x.value)(w_q_traits, w_q_distr, next_tag)
+            next_tag = w_k_grad.next_tag
+            w_k.append(TensorMoments(w_k_value, w_k_grad, True))
+            # w_v
+            w_v_value = type(x.value)(w_q_traits, w_q_distr, next_tag)
+            next_tag = w_v_value.next_tag
+            w_v_grad = type(x.value)(w_q_traits, w_q_distr, next_tag)
+            next_tag = w_v_grad.next_tag
+            w_v.append(TensorMoments(w_v_value, w_v_grad, True))
+            # q
+            q_value = type(x.value)(q_traits, q_distr, next_tag)
+            next_tag = q_value.next_tag
+            q.append(q_value)
+            # k
+            k_value = type(x.value)(q_traits, q_distr, next_tag)
+            next_tag = k_value.next_tag
+            k.append(k_value)
+            # v
+            v_value = type(x.value)(q_traits, q_distr, next_tag)
+            next_tag = v_value.next_tag
+            v.append(v_value)
+            # a
+            a_value = type(x.value)(a_traits, a_distr, next_tag)
+            next_tag = a_value.next_tag
+            a.append(a_value)
+            # a_maxsumexp
+            a_maxsumexp_value = type(x.value)(a_maxsumexp_traits,
+                    a_maxsumexp_distr, next_tag)
+            next_tag = a_maxsumexp_value.next_tag
+            a_maxsumexp.append(a_maxsumexp_value)
+            # b
+            b_value = type(x.value)(q_traits, q_distr, next_tag)
+            next_tag = b_value.next_tag
+            b.append(b_value)
+            # w
+            w_value = type(x.value)(w_traits, w_distr, next_tag)
+            next_tag = w_value.next_tag
+            w_grad = type(x.value)(w_traits, w_distr, next_tag)
+            next_tag = w_grad.next_tag
+            w.append(TensorMoments(w_value, w_grad, True))
+        # Allocate tensor for output y
         x_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
-        x_copy = type(x.value)(x_traits, x.value.distribution, next_tag)
-        next_tag = x_copy.next_tag
-        # Create linear layer with all the provided data
-        layer = Linear(side, trans_x, x, y, w, ndim, x_copy)
+        y_value = type(x.value)(x_traits, x.value.distribution, next_tag)
+        next_tag = y_value.next_tag
+        y_grad = type(x.value)(x_traits, x.value.distribution, next_tag)
+        next_tag = y_grad.next_tag
+        y = TensorMoments(y_value, y_grad, True)
+        # Create attention layer with all the provided data
+        layer = Attention(x, y, w_q, w_k, w_v, w, q, k, v, a, a_maxsumexp, b)
         # Return layer and next tag to be used
         return (layer, next_tag)
 
     # Random initialization of weights
     def init_randn_async(self):
-        seed = 100
-        randn_async(self.w.value, [0]*len(self.w.value.shape),
-                self.w.value.shape, seed, 0.0, 1.0)
+        pass
 
-    # Forward propagation of the linear layer
+    # Forward propagation of the attention layer
     def forward_async(self):
-        # Copy input X for backward if needed
-        if self.w.grad_required:
-            copy_async(self.x.value, self.x_copy)
-            # Hint for StarPU that X_copy tensor will
-            # not be used soon and it is advised to offload data from GPU
-            self.x_copy.wont_use()
-        # Perform actual gemm
-        if self.side == 'L':
-            gemm_async(1.0, self.trans_x, self.x.value, notrans, self.w.value,
-                    0.0, self.y.value, self.ndim)
-        else:
-            gemm_async(1.0, notrans, self.w.value, self.trans_x, self.x.value,
-                    0.0, self.y.value, self.ndim)
-        # Hint for StarPU that W tensor will
-        # not be used soon and it is advised to offload data from GPU
-        self.w.value.wont_use()
+        # Clear output
+        # Y = 0
+        clear_async(self.y.value)
+        # Workout each head separately
+        for i in range(self.n_head):
+            # Compute query, key and value tensors
+            # Q[i] = W_Q[i] * X
+            gemm_async(1.0, notrans, self.w_q[i].value, notrans, self.x.value,
+                       0.0, self.q[i], 1, 0)
+            # K[i] = W_K[i] * X
+            gemm_async(1.0, notrans, self.w_k[i].value, notrans, self.x.value,
+                       0.0, self.k[i], 1, 0)
+            # V[i] = W_V[i] * X
+            gemm_async(1.0, notrans, self.w_v[i].value, notrans, self.x.value,
+                       0.0, self.v[i], 1, 0)
+            # Get tensor for softmax
+            # A[i] = 1.0/sqrt(head_size) * batch(K[i][j].T * Q[i][j])
+            gemm_async(1.0/self.head_size**0.5, trans, self.k[i], notrans, \
+                    self.q[i], 0.0, self.a[i], 1, 1)
+            # Calculate softmax inplace
+            # A[i] = softmax(A[i], axis=0)
+            maxsumexp_async(self.a[i], self.a_maxsumexp[i], 0)
+            softmax_async(self.a_maxsumexp[i], self.a[i], 0)
+            # Apply value tensor
+            # B[i] = batch(V[i][j] * A[i][j])
+            gemm_async(1.0, notrans, self.v[i], notrans, self.a[i],
+                       0.0, self.b[i], 1, 1)
+            # Accumulate result from the current head into output
+            # Y += W[i] * B[i]
+            gemm_async(1.0, notrans, self.w[i].value, notrans, self.b[i],
+                       1.0, self.y.value, 1, 0)
 
     # Backward propagation of the linear layer
     def backward_async(self):
-        # Gradient over W (weights)
-        if self.w.grad_required:
-            gemm_ndim = len(self.x.value.shape) - self.ndim
-            if self.side == 'L':
-                if self.trans_x == notrans:
-                    gemm_async(1.0, trans, self.x_copy, notrans, self.y.grad,
-                            0.0, self.w.grad, gemm_ndim)
-                else:
-                    gemm_async(1.0, notrans, self.x_copy, notrans, self.y.grad,
-                            0.0, self.w.grad, gemm_ndim)
-            else:
-                if self.trans_x == notrans:
-                    gemm_async(1.0, notrans, self.y.grad, trans, self.x_copy,
-                            0.0, self.w.grad, gemm_ndim)
-                else:
-                    gemm_async(1.0, notrans, self.y.grad, notrans, self.x_copy,
-                            0.0, self.w.grad, gemm_ndim)
-            # Hint StarPU to delete x_copy buffer
-            self.x_copy.invalidate_submit()
-            # Hint StarPU to offload gradient over W if needed
-            self.w.grad.wont_use()
-        # Gradient over X (input)
-        if self.x.grad_required:
-            if self.side == 'L':
-                gemm_ndim = len(self.w.value.shape) - self.ndim
-                if self.trans_x == notrans:
-                    gemm_async(1.0, notrans, self.y.grad, trans, self.w.value,
-                            0.0, self.x.grad, gemm_ndim)
-                else:
-                    gemm_async(1.0, notrans, self.w.value, trans, self.y.grad,
-                            0.0, self.x.grad, gemm_ndim)
-            else:
-                if self.trans_x == notrans:
-                    gemm_async(1.0, trans, self.w.value, notrans, self.y.grad,
-                            0.0, self.x.grad, gemm_ndim)
-                else:
-                    gemm_async(1.0, trans, self.y.grad, notrans, self.w.value,
-                            0.0, self.x.grad, gemm_ndim)
-            # Hint StarPU to offload certain buffers
-            self.w.value.wont_use()
+        pass
 
     # Unregister all internal tensors
     def unregister(self):
-        self.w.unregister()
-        if self.x_copy is not None:
-            self.x_copy.unregister()
-
+        pass
 
