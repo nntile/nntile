@@ -42,17 +42,32 @@ class Pipeline(object):
         for i_epoch in range(self.n_epochs):
             for x_batch, y_batch in zip(self.x, self.y):
                 # Copy input batch into activation[0] of the model
+                # print("Copy async")
                 copy_async(x_batch, self.model.activations[0].value)
                 # Perform forward pass
+                # print("Model forward")
                 self.model.forward_async()
                 # Copy true result into loss function
+                # print("Copy true labels in loss")
                 copy_async(y_batch, self.loss.y)
+
                 # Loss function shall be instatiated to read X from
                 # activations[-1].value of the model and write gradient into
                 # activations[-1].grad
+                # print("Compute loss")
                 self.loss.calc_async()
+                nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
+                self.loss.get_val(nntile_xentropy_np)
+                print("Loss in {} epoch = {}".format(i_epoch, nntile_xentropy_np[0]))
                 # Now do the backward pass
+                # print("backward")
                 self.model.backward_async()
                 # Apply optimizer here
+                # print("Optimizer step")
                 self.opt.step()
+                break
+            nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
+            self.loss.get_val(nntile_xentropy_np)
+            print("Last batch loss after in {} epoch = {}".format(i_epoch, nntile_xentropy_np[0]))
+            break
 

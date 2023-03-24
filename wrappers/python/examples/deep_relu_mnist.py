@@ -66,39 +66,41 @@ def read_labels(fname):
 # Read train and test images
 time0 = -time.time()
 print("Start reading data")
-data_train = read_images(mnist_images_train)
-data_test = read_images(mnist_images_test)
-labels_train = read_labels(mnist_labels_train)
+data_train = read_images(mnist_images_train).T[:10, :]
+print("Size of data train", data_train.shape)
+data_test = read_images(mnist_images_test).T
+labels_train = read_labels(mnist_labels_train)[:10]
 labels_test = read_labels(mnist_labels_test)
 time0 += time.time()
 print("Finish reading data in {} seconds".format(time0))
 time0 = -time.time()
 
 # Get sizes from data set
-n_images_train = data_train.shape[1]
+n_images_train = data_train.shape[0]
 assert(labels_train.shape[0] == n_images_train)
-n_images_test = data_test.shape[1]
+n_images_test = data_test.shape[0]
 assert(labels_test.shape[0] == n_images_test)
-n_pixels = data_train.shape[0]
-assert(data_test.shape[0] == n_pixels)
-n_images_batch = 10000
+n_pixels = data_train.shape[1]
+assert(data_test.shape[1] == n_pixels)
+n_images_batch = 1
 n_batches = n_images_train // n_images_batch
 if n_images_train != n_batches*n_images_batch:
     raise ValueError("Wrong batch size")
 n_labels = labels_train.max() + 1
 
 # Define tile sizes
-n_pixels_tile = 392
-n_images_train_tile = 1000
+n_pixels_tile = 784
+n_images_train_tile = 1
 n_images_test_tile = 1000
 
 # Describe neural network
 gemm_ndim = 1
-hidden_layer_dim = 1000
-hidden_layer_dim_tile = 500
-n_layers = 10
-n_epochs = 10
-lr = 1e-7
+hidden_layer_dim = 100
+hidden_layer_dim_tile = 50
+n_layers = 3
+n_epochs = 1
+lr = 1e-8
+n_classes = 10
 
 # Number of FLOPs for training
 n_flops_train_first_layer = 2 * 2 * n_pixels * n_images_batch \
@@ -108,6 +110,7 @@ n_flops_train_mid_layer = 3 * 2 * hidden_layer_dim * n_images_batch \
 n_flops_train_last_layer = 3 * 2 * n_labels * n_images_batch \
         * hidden_layer_dim # once for forward, twice for backward
 
+# print("Define tensors for batches of X and Y...")
 # Define tensors for batches of X and Y
 data_train_traits = nntile.tensor.TensorTraits(data_train.shape, \
         data_train.shape)
@@ -116,14 +119,15 @@ next_tag = data_train_tensor.next_tag
 data_train_tensor.from_array(data_train)
 labels_train_traits = nntile.tensor.TensorTraits(labels_train.shape, \
         labels_train.shape)
-labels_train_tensor = nntile.tensor.Tensor_fp32(labels_train_traits, [0], \
+labels_train_tensor = nntile.tensor.Tensor_int64(labels_train_traits, [0], \
         next_tag)
+print("Labels train shape", labels_train.shape)
 labels_train_tensor.from_array(labels_train)
 next_tag = labels_train_tensor.next_tag
 batch_data = []
 batch_labels = []
-x_traits = nntile.tensor.TensorTraits([n_pixels, n_images_batch], \
-        [n_pixels_tile, n_images_train_tile])
+x_traits = nntile.tensor.TensorTraits([n_images_batch, n_pixels], \
+        [n_images_train_tile, n_pixels_tile])
 x_distr = [0] * x_traits.grid.nelems
 y_traits = nntile.tensor.TensorTraits([n_images_batch], [n_images_train_tile])
 y_distr = [0] * y_traits.grid.nelems
@@ -131,9 +135,9 @@ for i in range(n_batches):
     x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
     next_tag = x.next_tag
     nntile.tensor.copy_intersection_async(data_train_tensor, [0, 0], x, \
-            [0, i*n_images_batch])
+            [i*n_images_batch, 0])
     batch_data.append(x)
-    y = nntile.tensor.Tensor_fp32(y_traits, y_distr, next_tag)
+    y = nntile.tensor.Tensor_int64(y_traits, y_distr, next_tag)
     next_tag = y.next_tag
     nntile.tensor.copy_intersection_async(labels_train_tensor, [0], y, \
             [i*n_images_batch])
@@ -153,22 +157,24 @@ x_grad_required = False
 x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
 # Define deep ReLU network
-m = nntile.model.DeepReLU(x_moments, 'R', gemm_ndim, hidden_layer_dim,
-        hidden_layer_dim_tile, n_layers, next_tag)
+m = nntile.model.DeepReLU(x_moments, 'L', gemm_ndim, hidden_layer_dim,
+        hidden_layer_dim_tile, n_layers, n_classes, next_tag)
 next_tag = m.next_tag
-
+print("Model is initialized!")
 # Set up learning rate and optimizer for training
-#optimizer = opt.SGD(m.get_parameters(), lr, next_tag, momentum=0.9,
-#        nesterov=False, weight_decay=1e-6)
-optimizer = nntile.optimizer.Adam(m.get_parameters(), lr, next_tag)
+optimizer = nntile.optimizer.SGD(m.get_parameters(), lr, next_tag, momentum=0.,
+       nesterov=False, weight_decay=0.)
+# optimizer = nntile.optimizer.Adam(m.get_parameters(), lr, next_tag)
 next_tag = optimizer.get_next_tag()
 
 # Set up Frobenius loss function for the model
-frob, next_tag = nntile.loss.Frob.generate_simple(m.activations[-1], next_tag)
+# frob, next_tag = nntile.loss.Frob.generate_simple(m.activations[-1], next_tag)
+loss, next_tag = nntile.loss.CrossEntropy.generate_simple(m.activations[-1],
+                                                          next_tag)
 
 # Set up training pipeline
 pipeline = nntile.pipeline.Pipeline(batch_data, batch_labels, m, optimizer,
-        frob, n_epochs, lr)
+        loss, n_epochs, lr)
 
 time0 += time.time()
 print("Finish generating in {} seconds".format(time0))
@@ -186,7 +192,7 @@ print("Finish random weights init in {} seconds".format(time0))
 
 ## Start timer and run training
 #time0 = -time.time()
-#pipeline.train_async()
+pipeline.train_async()
 #time0 += time.time()
 #print("Finish adding tasks in {} seconds".format(time0))
 #
@@ -202,6 +208,8 @@ print("Finish random weights init in {} seconds".format(time0))
 #print("Norm is {}".format(np.linalg.norm(Y, 'fro')))
 #print("Total GFLOP/s: {}".format(n_flops*1e-9/time0))
 
+import ipdb
+ipdb.set_trace()
 # Unregister all tensors related to model
 m.unregister()
 
@@ -209,9 +217,10 @@ m.unregister()
 optimizer.unregister()
 
 # Unregister loss function
-frob.y.unregister()
-frob.val.unregister()
-frob.tmp.unregister()
+loss.unregister()
+# frob.y.unregister()
+# frob.val.unregister()
+# frob.tmp.unregister()
 
 # Unregister input/output batches
 for x in batch_data:

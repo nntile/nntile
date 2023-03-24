@@ -117,7 +117,7 @@ class Linear(BaseLayer):
     def init_randn_async(self):
         seed = 100
         randn_async(self.w.value, [0]*len(self.w.value.shape),
-                self.w.value.shape, seed, 0.0, 1.0)
+                self.w.value.shape, seed, 0.0, 1.)
 
     # Forward propagation of the linear layer
     def forward_async(self):
@@ -129,9 +129,11 @@ class Linear(BaseLayer):
             self.x_copy.wont_use()
         # Perform actual gemm
         if self.side == 'L':
+            # y = op(x) * w
             gemm_async(1.0, self.trans_x, self.x.value, notrans, self.w.value,
                     0.0, self.y.value, self.ndim)
         else:
+            # y = w * op(x)
             gemm_async(1.0, notrans, self.w.value, self.trans_x, self.x.value,
                     0.0, self.y.value, self.ndim)
         # Hint for StarPU that W tensor will

@@ -28,32 +28,43 @@ class CrossEntropy:
     def __init__(self, final_layer_output: TensorMoments, class_labels: Tensor_int64, val: Tensor,
                  maxsumexp: Tensor, logsumexp: Tensor):
         self.final_layer_output = final_layer_output
-        self.class_labels = class_labels
         self.val = val
         self.logsumexp = logsumexp
         self.maxsumexp = maxsumexp
+        self.y = class_labels
+        
 
     # Simple generator
     @staticmethod
     def generate_simple(final_layer_output: TensorMoments,
-                        class_labels: Tensor_int64, next_tag: int) -> tuple:
+                        next_tag: int) -> tuple:
+        print(final_layer_output.value.shape)
+        class_labels_traits = TensorTraits((final_layer_output.value.shape[0], ),
+                                           (final_layer_output.value.basetile_shape[0], ))
+        # print(final_layer_output.value.basetile_shape, class_labels_traits.basetile_shape)
+        class_labels = Tensor_int64(class_labels_traits,
+                                    final_layer_output.value.distribution,
+                                    next_tag)
+        next_tag = class_labels.next_tag
         
-        maxsumexp_traits = TensorTraits((2, class_labels.shape[0]),
-                                        (2, class_labels.basetile_shape[0]))
+        maxsumexp_traits = TensorTraits((2, final_layer_output.value.shape[0]),
+                                        (2, final_layer_output.value.basetile_shape[0]))
         maxsumexp = type(final_layer_output.value)(maxsumexp_traits,
                                                    final_layer_output.value.distribution,
                                                    next_tag)
         next_tag = maxsumexp.next_tag
+
         val_traits = TensorTraits([], [])
         val = type(final_layer_output.value)(val_traits, [0], next_tag)
         next_tag = val.next_tag
 
-        logsumexp_traits = TensorTraits((class_labels.shape[0], ),
-                                        (class_labels.basetile_shape[0], ))
+        logsumexp_traits = TensorTraits((final_layer_output.value.shape[0], ),
+                                        (final_layer_output.value.basetile_shape[0], ))
         logsumexp = type(final_layer_output.value)(logsumexp_traits,
                                                    final_layer_output.value.distribution,
                                                    next_tag)
         next_tag = logsumexp.next_tag
+
         loss = CrossEntropy(final_layer_output, class_labels, val, maxsumexp, logsumexp)
         return loss, next_tag
     
@@ -61,6 +72,7 @@ class CrossEntropy:
         self.logsumexp.unregister()
         self.maxsumexp.unregister()
         self.val.unregister()
+        self.y.unregister()
 
     def get_val(self, val_np):
         self.val.to_array(val_np)
@@ -75,8 +87,8 @@ class CrossEntropy:
         logsumexp_async(self.maxsumexp, self.logsumexp)
         clear_async(self.val)
         total_sum_accum_async(self.logsumexp, self.final_layer_output.value,
-                              self.class_labels, self.val)
+                              self.y, self.val)
         if self.final_layer_output.grad_required is True:
             copy_async(self.final_layer_output.value, self.final_layer_output.grad)
             softmax_async(self.maxsumexp, self.final_layer_output.grad, 1)
-            subtract_indexed_column_async(1., self.class_labels, self.final_layer_output.grad)
+            subtract_indexed_column_async(1., self.y, self.final_layer_output.grad)
