@@ -183,15 +183,21 @@ class Attention(BaseLayer):
             # q
             q_value = type(x_q.value)(q_traits, q_distr, next_tag)
             next_tag = q_value.next_tag
-            q.append(q_value)
+            q_grad = type(x_q.value)(q_traits, q_distr, next_tag)
+            next_tag = q_grad.next_tag
+            q.append(TensorMoments(q_value, q_grad, True))
             # k
             k_value = type(x_q.value)(k_traits, k_distr, next_tag)
             next_tag = k_value.next_tag
-            k.append(k_value)
+            k_grad = type(x_q.value)(k_traits, k_distr, next_tag)
+            next_tag = k_grad.next_tag
+            k.append(TensorMoments(k_value, k_grad, True))
             # v
             v_value = type(x_q.value)(v_traits, v_distr, next_tag)
             next_tag = v_value.next_tag
-            v.append(v_value)
+            v_grad = type(x_q.value)(v_traits, v_distr, next_tag)
+            next_tag = v_grad.next_tag
+            v.append(TensorMoments(v_value, v_grad, True))
             # a
             a_value = type(x_q.value)(a_traits, a_distr, next_tag)
             next_tag = a_value.next_tag
@@ -204,7 +210,9 @@ class Attention(BaseLayer):
             # b
             b_value = type(x_q.value)(b_traits, b_distr, next_tag)
             next_tag = b_value.next_tag
-            b.append(b_value)
+            b_grad = type(x_q.value)(b_traits, b_distr, next_tag)
+            next_tag = b_grad.next_tag
+            b.append(TensorMoments(b_value, b_grad, True))
         # Allocate tensor for output y
         y_traits = TensorTraits(x_q.value.shape, x_q.value.basetile_shape)
         y_value = type(x_q.value)(y_traits, x_q.value.distribution, next_tag)
@@ -232,33 +240,40 @@ class Attention(BaseLayer):
             # Compute query, key and value tensors
             # Q[i] = W_Q[i] * X_Q
             gemm_async(1.0, notrans, self.w_q[i].value, notrans, \
-                    self.x_q.value, 0.0, self.q[i], 1, 0)
+                    self.x_q.value, 0.0, self.q[i].value, 1, 0)
             # K[i] = W_K[i] * X_K
             gemm_async(1.0, notrans, self.w_k[i].value, notrans, \
-                    self.x_k.value, 0.0, self.k[i], 1, 0)
+                    self.x_k.value, 0.0, self.k[i].value, 1, 0)
             # V[i] = W_V[i] * X_V
             gemm_async(1.0, notrans, self.w_v[i].value, notrans, \
-                    self.x_v.value, 0.0, self.v[i], 1, 0)
+                    self.x_v.value, 0.0, self.v[i].value, 1, 0)
             # Get tensor for softmax
-            # A[i] = 1.0/sqrt(head_size) * batch(K[i][j].T * Q[i][j])
-            gemm_async(1.0/self.head_size**0.5, trans, self.k[i], notrans, \
-                    self.q[i], 0.0, self.a[i], 1, 1)
+            # batch A[i][j] = 1.0/sqrt(head_size) * K[i][j].T * Q[i][j]
+            gemm_async(1.0/self.head_size**0.5, trans, self.k[i].value, \
+                    notrans, self.q[i].value, 0.0, self.a[i], 1, 1)
             # Calculate softmax inplace
             # A[i] = softmax(A[i], axis=0)
             maxsumexp_async(self.a[i], self.a_maxsumexp[i], 0)
             softmax_async(self.a_maxsumexp[i], self.a[i], 0)
             # Apply value tensor
-            # B[i] = batch(V[i][j] * A[i][j])
-            gemm_async(1.0, notrans, self.v[i], notrans, self.a[i],
-                       0.0, self.b[i], 1, 1)
+            # batch B[i][j] = V[i][j] * A[i][j]
+            gemm_async(1.0, notrans, self.v[i].value, notrans, self.a[i], \
+                    0.0, self.b[i].value, 1, 1)
             # Accumulate result from the current head into output
             # Y += W[i] * B[i]
-            gemm_async(1.0, notrans, self.w[i].value, notrans, self.b[i],
-                       1.0, self.y.value, 1, 0)
+            gemm_async(1.0, notrans, self.w[i].value, notrans, \
+                    self.b[i].value, 1.0, self.y.value, 1, 0)
 
     # Backward propagation of the linear layer
     def backward_async(self):
-        pass
+        for i in range(self.n_head):
+            # dW[i] = dY * B[i].T
+            gemm_async(1.0, notrans, self.y.grad, trans, self.b[i].value, \
+                    0.0, self.w[i].grad, 1, 0)
+            # dB[i] = W[i].T * dY
+            gemm_async(1.0, trans, self.w[i].value, notrans, self.y.grad, \
+                    0.0, self.b[i].grad, 1, 1)
+            # dV[i]
 
     # Unregister all internal tensors
     def unregister(self):

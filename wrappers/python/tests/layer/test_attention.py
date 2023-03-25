@@ -100,23 +100,25 @@ def helper(dtype: np.dtype):
     np_Y2 = np.zeros(layer.y.value.shape, dtype=dtype, order='F')
     layer.y.value.to_array(np_Y2)
     # Define Torch tensors and layer
-    X_Q_tensor = torch.tensor(np_X_Q.T)
-    X_K_tensor = torch.tensor(np_X_K.T)
-    X_V_tensor = torch.tensor(np_X_V.T)
+    X_Q_tensor = torch.tensor(np_X_Q.T, requires_grad=True)
+    X_K_tensor = torch.tensor(np_X_K.T, requires_grad=True)
+    X_V_tensor = torch.tensor(np_X_V.T, requires_grad=True)
     torch_layer = MultiheadAttention(n_emb, n_head, kdim=n_emb_k, \
             vdim=n_emb_v, batch_first=True, bias=False)
     W_Q = np.vstack(np_W_Q)
     W_K = np.vstack(np_W_K)
     W_V = np.vstack(np_W_V)
-    torch_layer.q_proj_weight.data = torch.tensor(W_Q)
-    torch_layer.k_proj_weight.data = torch.tensor(W_K)
-    torch_layer.v_proj_weight.data = torch.tensor(W_V)
+    torch_layer.q_proj_weight.data = torch.tensor(W_Q, requires_grad=True)
+    torch_layer.k_proj_weight.data = torch.tensor(W_K, requires_grad=True)
+    torch_layer.v_proj_weight.data = torch.tensor(W_V, requires_grad=True)
     W_out = np.hstack(np_W)
-    W_out_tensor = torch.tensor(W_out)
+    W_out_tensor = torch.tensor(W_out, requires_grad=True)
     torch_layer.out_proj.weight.data = W_out_tensor
-    attn_output, attn_weights = torch_layer(X_Q_tensor, X_K_tensor, \
-            X_V_tensor, average_attn_weights=False)
-    np_Y = attn_output.detach().numpy().T
+    attn_output = torch_layer(X_Q_tensor, X_K_tensor, X_V_tensor, \
+            need_weights=False)
+
+    res = attn_output[0].sum()
+    np_Y = attn_output[0].data.numpy().T
     X_Q.unregister()
     X_K.unregister()
     X_V.unregister()
