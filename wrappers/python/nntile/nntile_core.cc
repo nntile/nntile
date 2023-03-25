@@ -10,7 +10,8 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-02-21
+ * @author Konstantin Sozykin
+ * @date 2023-02-14
  * */
 
 #include <pybind11/pybind11.h>
@@ -453,6 +454,25 @@ void def_mod_tensor(py::module_ &m)
     m.def("addcdiv_async_fp32", &addcdiv_async<fp32_t>);
     m.def("addcdiv_fp64", &addcdiv<fp64_t>);
     m.def("addcdiv_fp32", &addcdiv<fp32_t>);
+    
+    // gelu and dgelu
+    m.def("gelu_async_fp64", &gelu_async<fp64_t>);
+    m.def("gelu_async_fp32", &gelu_async<fp32_t>);
+    m.def("gelu_fp64", &gelu<fp64_t>);
+    m.def("gelu_fp32", &gelu<fp32_t>);
+    m.def("gelutanh_async_fp64", &gelutanh_async<fp64_t>);
+    m.def("gelutanh_async_fp32", &gelutanh_async<fp32_t>);
+    m.def("gelutanh_fp64", &gelutanh<fp64_t>);
+    m.def("gelutanh_fp32", &gelutanh<fp32_t>);
+    
+    m.def("dgelu_async_fp64", &dgelu_async<fp64_t>);
+    m.def("dgelu_async_fp32", &dgelu_async<fp32_t>);
+    m.def("dgelu_fp64", &dgelu<fp64_t>);
+    m.def("dgelu_fp32", &dgelu<fp32_t>);
+    m.def("dgelutanh_async_fp64", &dgelutanh_async<fp64_t>);
+    m.def("dgelutanh_async_fp32", &dgelutanh_async<fp32_t>);
+    m.def("dgelutanh_fp64", &dgelutanh<fp64_t>);
+    m.def("dgelutanh_fp32", &dgelutanh<fp32_t>);   
 }
 
 // Main extension module with all wrappers
@@ -474,4 +494,3 @@ PYBIND11_MODULE(nntile_core, m)
     m.attr("notrans") = py::cast(new TransOp(TransOp::NoTrans));
     m.attr("trans") = py::cast(new TransOp(TransOp::Trans));
 }
-

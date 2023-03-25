@@ -10,7 +10,8 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-02-14
+ * @author Konstantin Sozykin
+ * @date 2023-03-22
  * */
 
 #pragma once
@@ -39,6 +40,7 @@
 #include <nntile/tensor/randn.hh>
 #include <nntile/tensor/relu.hh>
 #include <nntile/tensor/scatter.hh>
+#include <nntile/tensor/sum.hh>
 #include <nntile/tensor/sumnorm.hh>
 #include <nntile/tensor/maxsumexp.hh>
 #include <nntile/tensor/softmax.hh>

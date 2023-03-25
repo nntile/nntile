@@ -10,6 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
+ * @author Konstantin Sozykin
  * @date 2023-02-14
  * */
 
@@ -28,6 +29,7 @@
 #include <nntile/kernel/relu.hh>
 #include <nntile/kernel/subcopy.hh>
 #include <nntile/kernel/sumnorm.hh>
+#include <nntile/kernel/sum.hh>
 #include <nntile/kernel/maxsumexp.hh>
 #include <nntile/kernel/softmax.hh>
 #include <nntile/kernel/sqrt.hh>
