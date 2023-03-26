@@ -139,6 +139,7 @@ set(TILE_HDR
     "nntile/tile/sqrt.hh"
     "nntile/tile/maximum.hh"
     "nntile/tile/addcdiv.hh"
+    "nntile/tile/scalprod.hh"
     )
 
 set(TENSOR_HDR
@@ -171,6 +172,7 @@ set(TENSOR_HDR
     "nntile/tensor/sqrt.hh"
     "nntile/tensor/maximum.hh"
     "nntile/tensor/addcdiv.hh"
+    "nntile/tensor/scalprod.hh"
     )
 
 set(LAYER_HDR

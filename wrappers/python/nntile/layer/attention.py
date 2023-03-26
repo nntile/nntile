@@ -13,7 +13,7 @@
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
-        maxsumexp_async, softmax_async, prod_async, sum_async, bias_async
+        maxsumexp_async, softmax_async, scalprod_async, bias_async, prod_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -295,18 +295,29 @@ class Attention(BaseLayer):
             # batch dA[i][j] = V[i][j].T * dB[i][j]
             gemm_async(1.0, trans, self.v[i].value, notrans, self.b[i].grad, \
                     0.0, self.a[i].grad, 1, 1)
-            if self.x_v.grad_required or self.w_v[i].grad_required:
+            if self.v[i].grad_required:
                 # batch dV[i][j] = dB[i][j] * A[i][j].T
                 gemm_async(1.0, notrans, self.b[i].grad, trans, \
                         self.a[i].value, 0.0, self.v[i].grad, 1, 1)
             # Backward for A[i] = softmax(A[i], axis=0)
-            # dA[i] = prod(dA[i], A[i])
-            prod_async(self.a[i].value, self.a[i].grad)
-            # A_scalprod[i] = sum(dA[i], axis=0)
-            clear_async(self.a_scalprod[i])
-            sum_async(self.a[i].grad, self.a_scalprod[i], 0)
+            # A_scalprod[i] = scalprod(A[i], dA[i], axis=0)
+            scalprod_async(1.0, self.a[i].value, self.a[i].grad, 0.0, \
+                    self.a_scalprod[i], 0)
             # dA[i] = bias(dA[i], -A_scalprod[i], axis=0)
             bias_async(-1.0, self.a_scalprod[i], self.a[i].grad, 0)
+            # dA[i] = prod(dA[i], A[i])
+            prod_async(self.a[i].value, self.a[i].grad)
+            # Backward for:
+            #    batch A[i][j] = 1.0/sqrt(head_size) * K[i][j].T * Q[i][j]
+            if self.k[i].grad_required:
+                # batch dK[i][j] = 1.0/sqrt(head_size) * Q[i][j] * dA[i][j].T
+                gemm_async(1.0/self.head_size**0.5, notrans, self.q[i].value, \
+                        trans, self.a[i].grad, 0.0, self.k[i].grad, 1, 1)
+            if self.q[i].grad_required:
+                # batch dQ[i][j] = 1.0/sqrt(head_size) * K[i][j] * dA[i][j]
+                gemm_async(1.0/self.head_size**0.5, notrans, self.k[i].value, \
+                        notrans, self.a[i].grad, 0.0, self.q[i].grad, 1, 1)
+            # Backward for V[i] = W_V[i] * X_V
             if self.x_v.grad_required:
                 # dX_V += W_V[i].T * dV[i]
                 gemm_async(1.0, trans, self.w_v[i].value, notrans, \
@@ -315,6 +326,24 @@ class Attention(BaseLayer):
                 # dW_V[i] = dV[i] * X_V.T
                 gemm_async(1.0, notrans, self.v[i].grad, trans, \
                         self.x_v.value, 0.0, self.w_v[i].grad, 2, 0)
+            # Backward for K[i] = W_K[i] * X_K
+            if self.x_k.grad_required:
+                # dX_K += W_K[i].T * dK[i]
+                gemm_async(1.0, trans, self.w_k[i].value, notrans, \
+                        self.k[i].grad, 1.0, self.x_k.grad, 1, 0)
+            if self.w_k[i].grad_required:
+                # dW_K[i] = dK[i] * X_K.T
+                gemm_async(1.0, notrans, self.k[i].grad, trans, \
+                        self.x_k.value, 0.0, self.w_k[i].grad, 2, 0)
+            # Backward for Q[i] = W_Q[i] * X_Q
+            if self.x_q.grad_required:
+                # dX_Q += W_Q[i].T * dQ[i]
+                gemm_async(1.0, trans, self.w_q[i].value, notrans, \
+                        self.q[i].grad, 1.0, self.x_q.grad, 1, 0)
+            if self.w_q[i].grad_required:
+                # dW_Q[i] = dQ[i] * X_Q.T
+                gemm_async(1.0, notrans, self.q[i].grad, trans, \
+                        self.x_q.value, 0.0, self.w_q[i].grad, 2, 0)
 
     # Unregister all internal tensors
     def unregister(self):

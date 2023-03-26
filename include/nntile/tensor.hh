@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-03-22
+ * @date 2023-03-26
  * */
 
 #pragma once
@@ -47,6 +47,7 @@
 #include <nntile/tensor/sqrt.hh>
 #include <nntile/tensor/maximum.hh>
 #include <nntile/tensor/addcdiv.hh>
+#include <nntile/tensor/scalprod.hh>
 
 namespace nntile
 {

@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-02-10
+# @date 2023-03-26
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -40,6 +40,7 @@ set(TESTS
     "sqrt"
     "maximum"
     "addcdiv"
+    "scalprod"
     )
 
 # Add target for local coverage

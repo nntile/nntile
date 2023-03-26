@@ -242,3 +242,16 @@ def addcdiv_async(alpha: float, eps: float, nom: Tensor, denom: Tensor, src: Ten
         core_tensor.addcdiv_async_fp32(alpha, eps, nom, denom, src)
     else:
         core_tensor.addcdiv_async_fp64(alpha, eps, nom, denom, src)
+
+# Wrapper for multiprecision axpy
+def scalprod_async(alpha: float, src1: Tensor, src2: Tensor, beta: float, \
+        dst: Tensor, axis: int) -> None:
+    if type(src1) is not type(src2):
+        raise TypeError
+    if type(src1) is not type(dst):
+        raise TypeError
+    if type(src1) is core_tensor.Tensor_fp32:
+        core_tensor.scalprod_async_fp32(alpha, src1, src2, beta, dst, axis)
+    else:
+        core_tensor.scalprod_async_fp64(alpha, src1, src2, beta, dst, axis)
+

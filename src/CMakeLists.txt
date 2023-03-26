@@ -109,6 +109,7 @@ set(TILE_SRC
     "tile/sqrt.cc"
     "tile/maximum.cc"
     "tile/addcdiv.cc"
+    "tile/scalprod.cc"
     )
 
 set(TENSOR_SRC
@@ -139,6 +140,7 @@ set(TENSOR_SRC
     "tensor/sqrt.cc"
     "tensor/maximum.cc"
     "tensor/addcdiv.cc"
+    "tensor/scalprod.cc"
     )
 
 set(LAYER_SRC

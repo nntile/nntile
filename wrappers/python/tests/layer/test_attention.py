@@ -133,16 +133,16 @@ def helper(dtype: np.dtype):
         return False
     # Check backward
     layer.backward_async()
-    #layer.x_q.grad.to_array(np_X_Q)
-    #layer.x_k.grad.to_array(np_X_K)
+    layer.x_q.grad.to_array(np_X_Q)
+    layer.x_k.grad.to_array(np_X_K)
     layer.x_v.grad.to_array(np_X_V)
     for i in range(n_head):
-        #layer.w_q[i].grad.to_array(np_W_Q[i])
-        #layer.w_k[i].grad.to_array(np_W_K[i])
+        layer.w_q[i].grad.to_array(np_W_Q[i])
+        layer.w_k[i].grad.to_array(np_W_K[i])
         layer.w_v[i].grad.to_array(np_W_V[i])
         layer.w[i].grad.to_array(np_W[i])
-    #np_W_Q_nntile = np.vstack(np_W_Q)
-    #np_W_K_nntile = np.vstack(np_W_K)
+    np_W_Q_nntile = np.vstack(np_W_Q)
+    np_W_K_nntile = np.vstack(np_W_K)
     np_W_V_nntile = np.vstack(np_W_V)
     np_W_nntile = np.hstack(np_W)
     attn_grad = torch.tensor(np_Y_grad.T)
@@ -155,8 +155,28 @@ def helper(dtype: np.dtype):
     np_W_K_torch = np.array(torch_layer.k_proj_weight.grad)
     np_W_V_torch = np.array(torch_layer.v_proj_weight.grad)
     np_W_torch = np.array(torch_layer.out_proj.weight.grad)
+    norm = np.linalg.norm(np_X_Q_torch)
+    diff = np.linalg.norm(np_X_Q_torch - np_X_Q)
+    if diff > norm*1e-4:
+        import ipdb; ipdb.set_trace()
+        return False
+    norm = np.linalg.norm(np_X_K_torch)
+    diff = np.linalg.norm(np_X_K_torch - np_X_K)
+    if diff > norm*1e-4:
+        import ipdb; ipdb.set_trace()
+        return False
     norm = np.linalg.norm(np_X_V_torch)
     diff = np.linalg.norm(np_X_V_torch - np_X_V)
+    if diff > norm*1e-4:
+        import ipdb; ipdb.set_trace()
+        return False
+    norm = np.linalg.norm(np_W_Q_torch)
+    diff = np.linalg.norm(np_W_Q_torch - np_W_Q_nntile)
+    if diff > norm*1e-4:
+        import ipdb; ipdb.set_trace()
+        return False
+    norm = np.linalg.norm(np_W_K_torch)
+    diff = np.linalg.norm(np_W_K_torch - np_W_K_nntile)
     if diff > norm*1e-4:
         import ipdb; ipdb.set_trace()
         return False
@@ -170,7 +190,6 @@ def helper(dtype: np.dtype):
     if diff > norm*1e-4:
         import ipdb; ipdb.set_trace()
         return False
-    import ipdb; ipdb.set_trace()
     # Unregister
     X_Q.unregister()
     X_K.unregister()

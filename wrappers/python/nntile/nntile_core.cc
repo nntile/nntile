@@ -459,6 +459,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("addcdiv_fp64", &addcdiv<fp64_t>);
     m.def("addcdiv_fp32", &addcdiv<fp32_t>);
     
+    m.def("scalprod_async_fp64", &scalprod_async<fp64_t>);
+    m.def("scalprod_async_fp32", &scalprod_async<fp32_t>);
+    m.def("scalprod_fp64", &scalprod<fp64_t>);
+    m.def("scalprod_fp32", &scalprod<fp32_t>);
+    
     // gelu and dgelu
     m.def("gelu_async_fp64", &gelu_async<fp64_t>);
     m.def("gelu_async_fp32", &gelu_async<fp32_t>);
