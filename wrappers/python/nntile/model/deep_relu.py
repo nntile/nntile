@@ -12,7 +12,7 @@
 # @date 2023-02-17
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        notrans, trans
+        notrans, trans, Tensor_fp32
 from nntile.model.base_model import BaseModel
 from nntile.layer.linear import Linear
 from nntile.layer.act import Act
@@ -81,4 +81,38 @@ class DeepReLU(BaseModel):
         for l in self.layers:
             if type(l) is Linear:
                 l.init_randn_async()
+    @staticmethod
+    def from_torch(torch_mlp, batch_size: int, n_classes: int, nonlinearity: str, next_tag: int):
+        '''
+        torch_mlp is PyTorch MLP where all intermediate dimensions are the same and no biases in linear layers
+        '''
+        print("Call from torch static method")
+        gemm_ndim = 1
+        n_layers = len(list(torch_mlp.parameters()))
+        for i, p in enumerate(torch_mlp.parameters()):
+            if i == 0:
+                hidden_layer_dim = p.shape[0]
+                n_pixels = p.shape[1]
+            elif hidden_layer_dim != p.shape[1]:
+                print(p.shape, hidden_layer_dim)
+                raise ValueError("PyTorch model has different hidden dims")
+            if i == n_layers - 1 and p.shape[0] != n_classes:
+                raise ValueError("Last layer of PyTorch model does not correspond to the target number of classes")
+        hidden_layer_dim_tile = hidden_layer_dim
+
+        x_traits = TensorTraits([batch_size, n_pixels], \
+        [batch_size, n_pixels])
+        x_distr = [0] * x_traits.grid.nelems
+        x = Tensor_fp32(x_traits, x_distr, next_tag)
+        next_tag = x.next_tag
+        x_grad = None
+        x_grad_required = False
+        x_moments = TensorMoments(x, x_grad, x_grad_required)
+        if nonlinearity == "relu":
+            mlp_nntile = DeepReLU(x_moments, 'L', gemm_ndim, hidden_layer_dim,
+            hidden_layer_dim_tile, n_layers, n_classes, next_tag)
+            for p, p_torch in zip(mlp_nntile.parameters, torch_mlp.parameters()):
+                p.value.from_array(p_torch.detach().numpy().T)
+            return mlp_nntile, mlp_nntile.next_tag
+
 

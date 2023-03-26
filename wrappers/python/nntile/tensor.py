@@ -178,6 +178,7 @@ def copy_intersection_async(x: TensorFloatOrInt, x_offset: List[int], y: TensorF
 # Wrapper for multiprecision copy
 def copy_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:
     if type(x) is not type(y):
+        print(type(x), type(y))
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.copy_async_fp32(x, y)

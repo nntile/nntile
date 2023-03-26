@@ -147,7 +147,7 @@ class Linear(BaseLayer):
             gemm_ndim = len(self.x.value.shape) - self.ndim
             if self.side == 'L':
                 if self.trans_x == notrans:
-                    print("Compute grad w.r.t. w")
+                    # print("Compute grad w.r.t. w")
                     gemm_async(1.0, trans, self.x_copy, notrans, self.y.grad,
                             0.0, self.w.grad, gemm_ndim)
                 else:
@@ -169,7 +169,7 @@ class Linear(BaseLayer):
             if self.side == 'L':
                 gemm_ndim = len(self.w.value.shape) - self.ndim
                 if self.trans_x == notrans:
-                    print("Compute grad w.r.t. x")
+                    # print("Compute grad w.r.t. x")
                     gemm_async(1.0, notrans, self.y.grad, trans, self.w.value,
                             0.0, self.x.grad, gemm_ndim)
                 else:

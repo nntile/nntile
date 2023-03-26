@@ -38,7 +38,6 @@ class CrossEntropy:
     @staticmethod
     def generate_simple(final_layer_output: TensorMoments,
                         next_tag: int) -> tuple:
-        print(final_layer_output.value.shape)
         class_labels_traits = TensorTraits((final_layer_output.value.shape[0], ),
                                            (final_layer_output.value.basetile_shape[0], ))
         # print(final_layer_output.value.basetile_shape, class_labels_traits.basetile_shape)
