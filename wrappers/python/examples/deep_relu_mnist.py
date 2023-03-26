@@ -66,10 +66,10 @@ def read_labels(fname):
 # Read train and test images
 time0 = -time.time()
 print("Start reading data")
-data_train = read_images(mnist_images_train).T[:10, :]
+data_train = read_images(mnist_images_train).T
 print("Size of data train", data_train.shape)
 data_test = read_images(mnist_images_test).T
-labels_train = read_labels(mnist_labels_train)[:10]
+labels_train = read_labels(mnist_labels_train)
 labels_test = read_labels(mnist_labels_test)
 time0 += time.time()
 print("Finish reading data in {} seconds".format(time0))
@@ -82,7 +82,7 @@ n_images_test = data_test.shape[0]
 assert(labels_test.shape[0] == n_images_test)
 n_pixels = data_train.shape[1]
 assert(data_test.shape[1] == n_pixels)
-n_images_batch = 1
+n_images_batch = 1000
 n_batches = n_images_train // n_images_batch
 if n_images_train != n_batches*n_images_batch:
     raise ValueError("Wrong batch size")
@@ -90,16 +90,16 @@ n_labels = labels_train.max() + 1
 
 # Define tile sizes
 n_pixels_tile = 784
-n_images_train_tile = 1
+n_images_train_tile = 1000
 n_images_test_tile = 1000
 
 # Describe neural network
 gemm_ndim = 1
 hidden_layer_dim = 100
-hidden_layer_dim_tile = 50
+hidden_layer_dim_tile = 100
 n_layers = 3
-n_epochs = 1
-lr = 1e-8
+n_epochs = 4
+lr = 1e-3
 n_classes = 10
 
 # Number of FLOPs for training
@@ -161,10 +161,12 @@ m = nntile.model.DeepReLU(x_moments, 'L', gemm_ndim, hidden_layer_dim,
         hidden_layer_dim_tile, n_layers, n_classes, next_tag)
 next_tag = m.next_tag
 print("Model is initialized!")
+for p in m.get_parameters():
+    print(p.value.shape)
 # Set up learning rate and optimizer for training
-optimizer = nntile.optimizer.SGD(m.get_parameters(), lr, next_tag, momentum=0.,
-       nesterov=False, weight_decay=0.)
-# optimizer = nntile.optimizer.Adam(m.get_parameters(), lr, next_tag)
+# optimizer = nntile.optimizer.SGD(m.get_parameters(), lr, next_tag, momentum=0.0,
+#        nesterov=False, weight_decay=0.)
+optimizer = nntile.optimizer.Adam(m.get_parameters(), lr, next_tag)
 next_tag = optimizer.get_next_tag()
 
 # Set up Frobenius loss function for the model
@@ -174,7 +176,7 @@ loss, next_tag = nntile.loss.CrossEntropy.generate_simple(m.activations[-1],
 
 # Set up training pipeline
 pipeline = nntile.pipeline.Pipeline(batch_data, batch_labels, m, optimizer,
-        loss, n_epochs, lr)
+        loss, n_epochs)
 
 time0 += time.time()
 print("Finish generating in {} seconds".format(time0))
@@ -208,8 +210,8 @@ pipeline.train_async()
 #print("Norm is {}".format(np.linalg.norm(Y, 'fro')))
 #print("Total GFLOP/s: {}".format(n_flops*1e-9/time0))
 
-import ipdb
-ipdb.set_trace()
+# import ipdb
+# ipdb.set_trace()
 # Unregister all tensors related to model
 m.unregister()
 

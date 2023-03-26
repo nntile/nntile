@@ -117,7 +117,7 @@ class Linear(BaseLayer):
     def init_randn_async(self):
         seed = 100
         randn_async(self.w.value, [0]*len(self.w.value.shape),
-                self.w.value.shape, seed, 0.0, 1.)
+                self.w.value.shape, seed, 0.0, 1. / np.sqrt(self.w.value.shape[0] * self.w.value.shape[1]))
 
     # Forward propagation of the linear layer
     def forward_async(self):
@@ -147,6 +147,7 @@ class Linear(BaseLayer):
             gemm_ndim = len(self.x.value.shape) - self.ndim
             if self.side == 'L':
                 if self.trans_x == notrans:
+                    print("Compute grad w.r.t. w")
                     gemm_async(1.0, trans, self.x_copy, notrans, self.y.grad,
                             0.0, self.w.grad, gemm_ndim)
                 else:
@@ -168,6 +169,7 @@ class Linear(BaseLayer):
             if self.side == 'L':
                 gemm_ndim = len(self.w.value.shape) - self.ndim
                 if self.trans_x == notrans:
+                    print("Compute grad w.r.t. x")
                     gemm_async(1.0, notrans, self.y.grad, trans, self.w.value,
                             0.0, self.x.grad, gemm_ndim)
                 else:
