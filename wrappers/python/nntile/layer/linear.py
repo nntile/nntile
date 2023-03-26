@@ -166,8 +166,8 @@ class Linear(BaseLayer):
             self.w.grad.wont_use()
         # Gradient over X (input)
         if self.x.grad_required:
+            gemm_ndim = len(self.w.value.shape) - self.ndim
             if self.side == 'L':
-                gemm_ndim = len(self.w.value.shape) - self.ndim
                 if self.trans_x == notrans:
                     # print("Compute grad w.r.t. x")
                     gemm_async(1.0, notrans, self.y.grad, trans, self.w.value,
