@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/bias/cuda.hh
- * Bias operation on a buffer on CUDA
+ * @file include/nntile/kernel/sumnorm.hh
+ * Low-level kernels to compute scalar product of slices of two buffers
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -14,22 +14,23 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
-#include <cuda_runtime.h>
+#include <nntile/kernel/scalprod/cpu.hh>
+#include <nntile/defs.h>
+#ifdef NNTILE_USE_CUDA
+#include <nntile/kernel/scalprod/cuda.hh>
+#endif // NNTILE_USE_CUDA
 
 namespace nntile
 {
 namespace kernel
 {
-namespace bias
+//! @namespace nntile::kernel::scalprod
+/*! Low-level implementations of computing scalar product of slices
+ * */
+namespace scalprod
 {
 
-template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
-        const T *src, T *dst)
-    noexcept;
-
-} // namespace bias
+} // namespace scalprod
 } // namespace kernel
 } // namespace nntile
 

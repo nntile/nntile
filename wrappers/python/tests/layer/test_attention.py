@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-03-24
+# @date 2023-03-26
 
 # All necesary imports
 import nntile
@@ -65,14 +65,17 @@ def helper(dtype: np.dtype):
     rand_X_Q = np.random.randn(*X_Q_shape)
     np_X_Q = np.array(rand_X_Q, dtype=dtype, order='F')
     X_Q_value.from_array(np_X_Q)
+    nntile.tensor.clear_async(X_Q_grad)
     X_Q = nntile.tensor.TensorMoments(X_Q_value, X_Q_grad, True)
     rand_X_K = np.random.randn(*X_K_shape)
     np_X_K = np.array(rand_X_K, dtype=dtype, order='F')
     X_K_value.from_array(np_X_K)
+    nntile.tensor.clear_async(X_K_grad)
     X_K = nntile.tensor.TensorMoments(X_K_value, X_K_grad, True)
     rand_X_V = np.random.randn(*X_V_shape)
     np_X_V = np.array(rand_X_V, dtype=dtype, order='F')
     X_V_value.from_array(np_X_V)
+    nntile.tensor.clear_async(X_V_grad)
     X_V = nntile.tensor.TensorMoments(X_V_value, X_V_grad, True)
     # Define attention layer
     layer, next_tag = Attention.generate_simple_mpiroot(X_Q, X_K, X_V, \
@@ -95,10 +98,13 @@ def helper(dtype: np.dtype):
         rand_W = np.random.randn(*layer.w[i].value.shape)
         np_W.append(np.array(rand_W, dtype=dtype, order='F'))
         layer.w[i].value.from_array(np_W[i])
+    rand_Y_grad = np.random.randn(*X_Q_shape)
+    np_Y_grad = np.array(rand_Y_grad, dtype=dtype, order='F')
+    layer.y.grad.from_array(np_Y_grad)
     # Check result of forward pass layer.y.value
     layer.forward_async()
-    np_Y2 = np.zeros(layer.y.value.shape, dtype=dtype, order='F')
-    layer.y.value.to_array(np_Y2)
+    np_Y_nntile = np.zeros(layer.y.value.shape, dtype=dtype, order='F')
+    layer.y.value.to_array(np_Y_nntile)
     # Define Torch tensors and layer
     X_Q_tensor = torch.tensor(np_X_Q.T, requires_grad=True)
     X_K_tensor = torch.tensor(np_X_K.T, requires_grad=True)
@@ -108,25 +114,69 @@ def helper(dtype: np.dtype):
     W_Q = np.vstack(np_W_Q)
     W_K = np.vstack(np_W_K)
     W_V = np.vstack(np_W_V)
-    torch_layer.q_proj_weight.data = torch.tensor(W_Q, requires_grad=True)
-    torch_layer.k_proj_weight.data = torch.tensor(W_K, requires_grad=True)
-    torch_layer.v_proj_weight.data = torch.tensor(W_V, requires_grad=True)
+    W_Q_tensor = torch.tensor(W_Q, requires_grad=True)
+    W_K_tensor = torch.tensor(W_K, requires_grad=True)
+    W_V_tensor = torch.tensor(W_V, requires_grad=True)
+    torch_layer.q_proj_weight.data = W_Q_tensor
+    torch_layer.k_proj_weight.data = W_K_tensor
+    torch_layer.v_proj_weight.data = W_V_tensor
     W_out = np.hstack(np_W)
     W_out_tensor = torch.tensor(W_out, requires_grad=True)
     torch_layer.out_proj.weight.data = W_out_tensor
     attn_output = torch_layer(X_Q_tensor, X_K_tensor, X_V_tensor, \
             need_weights=False)
-
-    res = attn_output[0].sum()
-    np_Y = attn_output[0].data.numpy().T
+    np_Y_torch = attn_output[0].data.numpy().T
+    # Compare
+    norm = np.linalg.norm(np_Y_torch)
+    diff = np.linalg.norm(np_Y_torch - np_Y_nntile)
+    if diff > norm*1e-4:
+        return False
+    # Check backward
+    layer.backward_async()
+    #layer.x_q.grad.to_array(np_X_Q)
+    #layer.x_k.grad.to_array(np_X_K)
+    layer.x_v.grad.to_array(np_X_V)
+    for i in range(n_head):
+        #layer.w_q[i].grad.to_array(np_W_Q[i])
+        #layer.w_k[i].grad.to_array(np_W_K[i])
+        layer.w_v[i].grad.to_array(np_W_V[i])
+        layer.w[i].grad.to_array(np_W[i])
+    #np_W_Q_nntile = np.vstack(np_W_Q)
+    #np_W_K_nntile = np.vstack(np_W_K)
+    np_W_V_nntile = np.vstack(np_W_V)
+    np_W_nntile = np.hstack(np_W)
+    attn_grad = torch.tensor(np_Y_grad.T)
+    res = (attn_output[0]*attn_grad).sum()
+    res.backward()
+    np_X_Q_torch = np.array(X_Q_tensor.grad).T
+    np_X_K_torch = np.array(X_K_tensor.grad).T
+    np_X_V_torch = np.array(X_V_tensor.grad).T
+    np_W_Q_torch = np.array(torch_layer.q_proj_weight.grad)
+    np_W_K_torch = np.array(torch_layer.k_proj_weight.grad)
+    np_W_V_torch = np.array(torch_layer.v_proj_weight.grad)
+    np_W_torch = np.array(torch_layer.out_proj.weight.grad)
+    norm = np.linalg.norm(np_X_V_torch)
+    diff = np.linalg.norm(np_X_V_torch - np_X_V)
+    if diff > norm*1e-4:
+        import ipdb; ipdb.set_trace()
+        return False
+    norm = np.linalg.norm(np_W_V_torch)
+    diff = np.linalg.norm(np_W_V_torch - np_W_V_nntile)
+    if diff > norm*1e-4:
+        import ipdb; ipdb.set_trace()
+        return False
+    norm = np.linalg.norm(np_W_torch)
+    diff = np.linalg.norm(np_W_torch - np_W_nntile)
+    if diff > norm*1e-4:
+        import ipdb; ipdb.set_trace()
+        return False
+    import ipdb; ipdb.set_trace()
+    # Unregister
     X_Q.unregister()
     X_K.unregister()
     X_V.unregister()
     layer.unregister()
-    # Compare
-    norm = np.linalg.norm(np_Y)
-    diff = np.linalg.norm(np_Y-np_Y2)
-    return diff < norm * 1e-4
+    return True
 
 # Test runner for different precisions
 def test():

@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/bias.hh
- * Bias operation on a StarPU buffer
+ * @file include/nntile/starpu/scalprod.hh
+ * Scalar product of slices for two StarPU buffers
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -16,13 +16,12 @@
 
 #include <nntile/base_types.hh>
 #include <nntile/starpu/config.hh>
-#include <nntile/defs.h>
 
 namespace nntile
 {
 namespace starpu
 {
-namespace bias
+namespace scalprod
 {
 
 //! Structure for arguments
@@ -33,15 +32,16 @@ struct args_t
     Index n;
     Index k;
     T alpha;
+    T beta;
 };
 
-// Apply bias along middle axis of StarPU buffer on CPU
+// Scalar products along middle axis of StarPU buffer on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
-// Apply bias along middle axis of StarPU buffer on CUDA
+// Scalar products along middle axis of StarPU buffer on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept;
@@ -75,9 +75,10 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, T alpha, Handle src, Handle dst);
+void submit(Index m, Index n, Index k, T alpha, Handle src1, Handle src2,
+        T beta, Handle dst);
 
-} // namespace bias
+} // namespace scalprod
 } // namespace starpu
 } // namespace nntile
 

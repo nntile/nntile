@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-02-14
+ * @date 2023-03-26
  * */
 
 #pragma once
@@ -35,6 +35,7 @@
 #include <nntile/kernel/sqrt.hh>
 #include <nntile/kernel/maximum.hh>
 #include <nntile/kernel/addcdiv.hh>
+#include <nntile/kernel/scalprod.hh>
 
 namespace nntile
 {

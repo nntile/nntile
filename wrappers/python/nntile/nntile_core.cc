@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-02-14
+ * @date 2023-03-26
  * */
 
 #include <pybind11/pybind11.h>
@@ -378,6 +378,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("drelu_fp64", &drelu<fp64_t>);
     m.def("drelu_fp32", &drelu<fp32_t>);
     // Add other functions for Tensor<T>
+    m.def("sum_async_fp64", &sum_async<fp64_t>);
+    m.def("sum_async_fp32", &sum_async<fp32_t>);
+    m.def("sum_fp64", &sum<fp64_t>);
+    m.def("sum_fp32", &sum<fp32_t>);
     m.def("sumnorm_async_fp64", &sumnorm_async<fp64_t>);
     m.def("sumnorm_async_fp32", &sumnorm_async<fp32_t>);
     m.def("sumnorm_fp64", &sumnorm<fp64_t>);

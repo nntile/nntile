@@ -9,11 +9,11 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-03-24
+# @date 2023-03-26
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
-        maxsumexp_async, softmax_async
+        maxsumexp_async, softmax_async, prod_async, sum_async, bias_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -34,12 +34,13 @@ class Attention(BaseLayer):
     w_k: List[TensorMoments]
     w_v: List[TensorMoments]
     w: List[TensorMoments]
-    q: List[Tensor]
-    k: List[Tensor]
-    v: List[Tensor]
-    a: List[Tensor]
+    q: List[TensorMoments]
+    k: List[TensorMoments]
+    v: List[TensorMoments]
+    a: List[TensorMoments]
     a_maxsumexp: List[Tensor]
-    b: List[Tensor]
+    a_scalprod: List[Tensor]
+    b: List[TensorMoments]
     n_head: int
     head_size: int
 
@@ -48,8 +49,10 @@ class Attention(BaseLayer):
             x_v: TensorMoments, y: TensorMoments, \
             w_q: List[TensorMoments], w_k: List[TensorMoments], \
             w_v: List[TensorMoments], w: List[TensorMoments], \
-            q: List[Tensor], k: List[Tensor], v: List[Tensor], \
-            a: List[Tensor], a_maxsumexp: List[Tensor], b: List[Tensor]):
+            q: List[TensorMoments], k: List[TensorMoments], \
+            v: List[TensorMoments], a: List[TensorMoments], \
+            a_maxsumexp: List[Tensor], a_scalprod: List[Tensor], \
+            b: List[TensorMoments]):
         # Redirect to BaseClass initialization
         super().__init__([x_q, x_k, x_v], [y], [*w_q, *w_k, *w_v, *w])
         self.x_q = x_q
@@ -65,6 +68,7 @@ class Attention(BaseLayer):
         self.v = v
         self.a = a
         self.a_maxsumexp = a_maxsumexp
+        self.a_scalprod = a_scalprod
         self.b = b
         self.n_head = len(w_q)
         n_emb = x_q.value.shape[0]
@@ -88,15 +92,15 @@ class Attention(BaseLayer):
         n_emb_k = x_k.value.shape[0]
         n_emb_k_tile = x_k.value.basetile_shape[0]
         if [n_seq, n_batch] != x_k.value.shape[1:]:
-            raise ValueError("Inavlid shape of x_k")
+            raise ValueError("Invalid shape of x_k")
         if [n_seq_tile, n_batch_tile] != x_k.value.basetile_shape[1:]:
-            raise ValueError("Inavlid basetile shape of x_k")
+            raise ValueError("Invalid basetile shape of x_k")
         n_emb_v = x_v.value.shape[0]
         n_emb_v_tile = x_v.value.basetile_shape[0]
         if [n_seq, n_batch] != x_v.value.shape[1:]:
-            raise ValueError("Inavlid shape of x_v")
+            raise ValueError("Invalid shape of x_v")
         if [n_seq_tile, n_batch_tile] != x_v.value.basetile_shape[1:]:
-            raise ValueError("Inavlid basetile shape of x_v")
+            raise ValueError("Invalid basetile shape of x_v")
         # TODO: the following tile size is a hyperparameter
         head_size_tile = x_q.value.basetile_shape[0]
         # Define shape of each tensor
@@ -109,6 +113,7 @@ class Attention(BaseLayer):
         v_shape = [head_size, n_seq, n_batch]
         a_shape = [n_seq, n_seq, n_batch]
         a_maxsumexp_shape = [2, n_seq, n_batch]
+        a_scalprod_shape = [n_seq, n_batch]
         b_shape = [head_size, n_seq, n_batch]
         # Define tile shapes of each tensor
         w_q_basetile = [head_size_tile, n_emb_tile]
@@ -120,6 +125,7 @@ class Attention(BaseLayer):
         v_basetile = [head_size_tile, n_seq_tile, n_batch_tile]
         a_basetile = [n_seq_tile, n_seq_tile, n_batch_tile]
         a_maxsumexp_basetile = [2, n_seq_tile, n_batch_tile]
+        a_scalprod_basetile = [n_seq_tile, n_batch_tile]
         b_basetile = [head_size_tile, n_seq_tile, n_batch_tile]
         # Define traits
         w_q_traits = TensorTraits(w_q_shape, w_q_basetile)
@@ -132,6 +138,7 @@ class Attention(BaseLayer):
         a_traits = TensorTraits(a_shape, a_basetile)
         a_maxsumexp_traits = TensorTraits(a_maxsumexp_shape,
                 a_maxsumexp_basetile)
+        a_scalprod_traits = TensorTraits(a_scalprod_shape, a_scalprod_basetile)
         b_traits = TensorTraits(b_shape, b_basetile)
         # TODO change distribution
         w_q_distr = [0] * w_q_traits.grid.nelems
@@ -143,6 +150,7 @@ class Attention(BaseLayer):
         v_distr = [0] * v_traits.grid.nelems
         a_distr = [0] * a_traits.grid.nelems
         a_maxsumexp_distr = [0] * a_maxsumexp_traits.grid.nelems
+        a_scalprod_distr = [0] * a_scalprod_traits.grid.nelems
         b_distr = [0] * b_traits.grid.nelems
         # Define all the lists
         w_q = []
@@ -154,6 +162,7 @@ class Attention(BaseLayer):
         v = []
         a = []
         a_maxsumexp = []
+        a_scalprod = []
         b = []
         for i in range(n_head):
             # w_q
@@ -201,12 +210,19 @@ class Attention(BaseLayer):
             # a
             a_value = type(x_q.value)(a_traits, a_distr, next_tag)
             next_tag = a_value.next_tag
-            a.append(a_value)
+            a_grad = type(x_q.value)(a_traits, a_distr, next_tag)
+            next_tag = a_grad.next_tag
+            a.append(TensorMoments(a_value, a_grad, True))
             # a_maxsumexp
             a_maxsumexp_value = type(x_q.value)(a_maxsumexp_traits,
                     a_maxsumexp_distr, next_tag)
             next_tag = a_maxsumexp_value.next_tag
             a_maxsumexp.append(a_maxsumexp_value)
+            # a_scalprod
+            a_scalprod_value = type(x_q.value)(a_scalprod_traits, \
+                    a_scalprod_distr, next_tag)
+            next_tag = a_scalprod_value.next_tag
+            a_scalprod.append(a_scalprod_value)
             # b
             b_value = type(x_q.value)(b_traits, b_distr, next_tag)
             next_tag = b_value.next_tag
@@ -222,7 +238,7 @@ class Attention(BaseLayer):
         y = TensorMoments(y_value, y_grad, True)
         # Create attention layer with all the provided data
         layer = Attention(x_q, x_k, x_v, y, w_q, w_k, w_v, w, q, k, v, a, \
-                a_maxsumexp, b)
+                a_maxsumexp, a_scalprod, b)
         # Return layer and next tag to be used
         return (layer, next_tag)
 
@@ -250,15 +266,15 @@ class Attention(BaseLayer):
             # Get tensor for softmax
             # batch A[i][j] = 1.0/sqrt(head_size) * K[i][j].T * Q[i][j]
             gemm_async(1.0/self.head_size**0.5, trans, self.k[i].value, \
-                    notrans, self.q[i].value, 0.0, self.a[i], 1, 1)
+                    notrans, self.q[i].value, 0.0, self.a[i].value, 1, 1)
             # Calculate softmax inplace
             # A[i] = softmax(A[i], axis=0)
-            maxsumexp_async(self.a[i], self.a_maxsumexp[i], 0)
-            softmax_async(self.a_maxsumexp[i], self.a[i], 0)
+            maxsumexp_async(self.a[i].value, self.a_maxsumexp[i], 0)
+            softmax_async(self.a_maxsumexp[i], self.a[i].value, 0)
             # Apply value tensor
             # batch B[i][j] = V[i][j] * A[i][j]
-            gemm_async(1.0, notrans, self.v[i].value, notrans, self.a[i], \
-                    0.0, self.b[i].value, 1, 1)
+            gemm_async(1.0, notrans, self.v[i].value, notrans, \
+                    self.a[i].value, 0.0, self.b[i].value, 1, 1)
             # Accumulate result from the current head into output
             # Y += W[i] * B[i]
             gemm_async(1.0, notrans, self.w[i].value, notrans, \
@@ -267,13 +283,38 @@ class Attention(BaseLayer):
     # Backward propagation of the linear layer
     def backward_async(self):
         for i in range(self.n_head):
-            # dW[i] = dY * B[i].T
-            gemm_async(1.0, notrans, self.y.grad, trans, self.b[i].value, \
-                    0.0, self.w[i].grad, 1, 0)
+            # Backward for Y += W[i] * B[i]
+            if self.w[i].grad_required:
+                # dW[i] = dY * B[i].T
+                gemm_async(1.0, notrans, self.y.grad, trans, self.b[i].value, \
+                        0.0, self.w[i].grad, 2, 0)
             # dB[i] = W[i].T * dY
             gemm_async(1.0, trans, self.w[i].value, notrans, self.y.grad, \
-                    0.0, self.b[i].grad, 1, 1)
-            # dV[i]
+                    0.0, self.b[i].grad, 1, 0)
+            # Backward for batch B[i][j] = V[i][j] * A[i][j]
+            # batch dA[i][j] = V[i][j].T * dB[i][j]
+            gemm_async(1.0, trans, self.v[i].value, notrans, self.b[i].grad, \
+                    0.0, self.a[i].grad, 1, 1)
+            if self.x_v.grad_required or self.w_v[i].grad_required:
+                # batch dV[i][j] = dB[i][j] * A[i][j].T
+                gemm_async(1.0, notrans, self.b[i].grad, trans, \
+                        self.a[i].value, 0.0, self.v[i].grad, 1, 1)
+            # Backward for A[i] = softmax(A[i], axis=0)
+            # dA[i] = prod(dA[i], A[i])
+            prod_async(self.a[i].value, self.a[i].grad)
+            # A_scalprod[i] = sum(dA[i], axis=0)
+            clear_async(self.a_scalprod[i])
+            sum_async(self.a[i].grad, self.a_scalprod[i], 0)
+            # dA[i] = bias(dA[i], -A_scalprod[i], axis=0)
+            bias_async(-1.0, self.a_scalprod[i], self.a[i].grad, 0)
+            if self.x_v.grad_required:
+                # dX_V += W_V[i].T * dV[i]
+                gemm_async(1.0, trans, self.w_v[i].value, notrans, \
+                        self.v[i].grad, 1.0, self.x_v.grad, 1, 0)
+            if self.w_v[i].grad_required:
+                # dW_V[i] = dV[i] * X_V.T
+                gemm_async(1.0, notrans, self.v[i].grad, trans, \
+                        self.x_v.value, 0.0, self.w_v[i].grad, 2, 0)
 
     # Unregister all internal tensors
     def unregister(self):

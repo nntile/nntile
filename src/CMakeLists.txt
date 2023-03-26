@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-02-10
+# @date 2023-03-26
 
 # Set list of sources
 set(KERNEL_SRC
@@ -34,6 +34,7 @@ set(KERNEL_SRC
     "kernel/sqrt/cpu.cc"
     "kernel/maximum/cpu.cc"
     "kernel/addcdiv/cpu.cc"
+    "kernel/scalprod/cpu.cc"
     )
 
 if(NNTILE_USE_CUDA)
@@ -52,6 +53,7 @@ if(NNTILE_USE_CUDA)
         "kernel/sum/cuda.cu"
         "kernel/maxsumexp/cuda.cu"
         "kernel/softmax/cuda.cu"
+        "kernel/scalprod/cuda.cu"
         )
 endif()
 
@@ -79,6 +81,7 @@ set(STARPU_SRC
     "starpu/sqrt.cc"
     "starpu/maximum.cc"
     "starpu/addcdiv.cc"
+    "starpu/scalprod.cc"
     )
 
 set(TILE_SRC

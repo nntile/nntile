@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-03-10
+# @date 2023-03-26
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64
@@ -72,6 +72,15 @@ def drelu_async(x: Tensor) -> None:
         core_tensor.drelu_async_fp32(x)
     else:
         core_tensor.drelu_async_fp64(x)
+
+# Wrapper for multiprecision sum
+def sum_async(x: Tensor, sum: Tensor, axis: int) -> None:
+    if type(x) is not type(sum):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.sum_async_fp32(x, sum, axis)
+    else:
+        core_tensor.sum_async_fp64(x, sum, axis)
 
 # Wrapper for multiprecision sumnorm
 def sumnorm_async(x: Tensor, sumnorm: Tensor, axis: int) -> None:
@@ -146,13 +155,13 @@ def maxsumexp_async(x: Tensor, maxsumexp: Tensor, axis: int) -> None:
         core_tensor.maxsumexp_async_fp64(x, maxsumexp, axis)
 
 # Wrapper for multiprecision bias
-def bias_async(bias: Tensor, x: Tensor, axis: int) -> None:
+def bias_async(alpha:float, bias: Tensor, x: Tensor, axis: int) -> None:
     if type(bias) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.bias_async_fp32(bias, x, axis)
+        core_tensor.bias_async_fp32(alpha, bias, x, axis)
     else:
-        core_tensor.bias_async_fp64(bias, x, axis)
+        core_tensor.bias_async_fp64(alpha, bias, x, axis)
 
 # Wrapper for multiprecision gather
 def gather_async(x: Tensor, y: Tensor) -> None:

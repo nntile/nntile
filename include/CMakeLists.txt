@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-02-19
+# @date 2023-03-26
 
 # Set list of headers
 set(BASE_HDR
@@ -60,6 +60,8 @@ set(KERNEL_HDR
     "nntile/kernel/maximum/cpu.hh"
     "nntile/kernel/addcdiv.hh"
     "nntile/kernel/addcdiv/cpu.hh"
+    "nntile/kernel/scalprod.hh"
+    "nntile/kernel/scalprod/cpu.hh"
     )
 
 if(NNTILE_USE_CUDA)
@@ -78,6 +80,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/sum/cuda.hh"
         "nntile/kernel/maxsumexp/cuda.hh"
         "nntile/kernel/softmax/cuda.hh"
+        "nntile/kernel/scalprod/cuda.hh"
         )
 endif()
 
@@ -106,6 +109,7 @@ set(STARPU_HDR
     "nntile/starpu/sqrt.hh"
     "nntile/starpu/maximum.hh"
     "nntile/starpu/addcdiv.hh"
+    "nntile/starpu/scalprod.hh"
     )
 
 set(TILE_HDR
