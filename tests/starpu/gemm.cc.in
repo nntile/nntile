@@ -236,23 +236,26 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
             ldB = n;
     }
     T *dev_A, *dev_B, *dev_C;
-    cuda_err = cudaMalloc(&dev_A, sizeof(T)*m*k);
+    cuda_err = cudaMalloc(&dev_A, sizeof(T)*A.size());
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_B, sizeof(T)*n*k);
+    cuda_err = cudaMalloc(&dev_B, sizeof(T)*B.size());
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_C, sizeof(T)*m*n);
+    cuda_err = cudaMalloc(&dev_C, sizeof(T)*C.size());
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_A, &A[0], sizeof(T)*m*k, cudaMemcpyHostToDevice);
+    cuda_err = cudaMemcpy(dev_A, &A[0], sizeof(T)*A.size(),
+            cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_B, &B[0], sizeof(T)*n*k, cudaMemcpyHostToDevice);
+    cuda_err = cudaMemcpy(dev_B, &B[0], sizeof(T)*B.size(),
+            cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_C, &C[0], sizeof(T)*m*n, cudaMemcpyHostToDevice);
+    cuda_err = cudaMemcpy(dev_C, &C[0], sizeof(T)*C.size(),
+            cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
     std::cout << "Run cublas_gemm<T>\n";
     for(Index b = 0; b < batch; ++b)
     {
-        cublas_gemm(cublas, transA_, transB_, m, n, k, alpha, &dev_A[b*m*k], ldA,
-                &dev_B[b*n*k], ldB, beta, &dev_C[b*m*n], m);
+        cublas_gemm(cublas, transA_, transB_, m, n, k, alpha, &dev_A[b*m*k],
+                ldA, &dev_B[b*n*k], ldB, beta, &dev_C[b*m*n], m);
     }
     // Wait for result and destroy cublas handle and stream
     cuda_err = cudaStreamSynchronize(stream);

@@ -135,7 +135,7 @@ void validate_cuda(Index m, Index n, Index k, T alpha, T beta)
         dst2_handle(&dst2[0], sizeof(T)*m*n, STARPU_RW);
     scalprod::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::scalprod::submit<T> restricted to CUDA\n";
-    scaprod::submit<T>(m, n, k, alpha, src1_handle, src2_handle, beta,
+    scalprod::submit<T>(m, n, k, alpha, src1_handle, src2_handle, beta,
             dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
