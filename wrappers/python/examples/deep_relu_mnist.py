@@ -16,6 +16,17 @@ import nntile
 import numpy as np
 import time
 import sys
+import torchvision.datasets as dts
+import torchvision.transforms as trnsfrms
+import torch
+
+batch_size = 1000
+
+trnsform = trnsfrms.Compose([trnsfrms.ToTensor()])
+mnisttrainset = dts.MNIST(root='./data', train=True, download=True, transform=trnsform)
+trainldr = torch.utils.data.DataLoader(mnisttrainset, batch_size=batch_size, shuffle=True)
+mnist_test_set = dts.MNIST(root='./data', train=False, download=True, transform=trnsform)
+test_loader = torch.utils.data.DataLoader(mnist_test_set, batch_size=batch_size, shuffle=True)
 
 time0 = -time.time()
 
@@ -24,70 +35,7 @@ config = nntile.starpu.Config(-1, -1, 1)
 nntile.starpu.init()
 next_tag = 0
 
-# Describe MNIST dataset
-mnist_images_train = "train-images-idx3-ubyte"
-mnist_labels_train = "train-labels-idx1-ubyte"
-mnist_images_test = "t10k-images-idx3-ubyte"
-mnist_labels_test = "t10k-labels-idx1-ubyte"
-
-# Function to read images
-def read_images(fname):
-    print("Start reading ", fname)
-    with open(fname, "rb") as fd:
-        raw = fd.read()
-    print("Finish reading ", fname)
-    print("Start parsing ", fname)
-    magic_number = int(raw[:4].hex(), 16)
-    assert(magic_number == 2051)
-    n_images = int(raw[4:8].hex(), 16)
-    n_pixels_row = int(raw[8:12].hex(), 16)
-    n_pixels_column = int(raw[12:16].hex(), 16)
-    n_pixels = n_pixels_row * n_pixels_column
-    data_uint = np.frombuffer(raw, "B", offset=16).reshape(n_pixels, n_images)
-    data = np.array(data_uint, dtype=np.float32, order='F') / 255
-    print("Finish parsing ", fname)
-    return data
-
-# Function to read labels
-def read_labels(fname):
-    print("Start reading ", fname)
-    with open(fname, "rb") as fd:
-        raw = fd.read()
-    print("Finish reading ", fname)
-    print("Start parsing ", fname)
-    magic_number = int(raw[:4].hex(), 16)
-    assert(magic_number == 2049)
-    n_images = int(raw[4:8].hex(), 16)
-    data_uint = np.frombuffer(raw, "B", offset=8)
-    data = np.array(data_uint, dtype=np.int64, order='F')
-    print("Finish parsing ", fname)
-    return data
-
-# Read train and test images
-time0 = -time.time()
-print("Start reading data")
-data_train = read_images(mnist_images_train).T
-print("Size of data train", data_train.shape)
-data_test = read_images(mnist_images_test).T
-labels_train = read_labels(mnist_labels_train)
-labels_test = read_labels(mnist_labels_test)
-time0 += time.time()
-print("Finish reading data in {} seconds".format(time0))
-time0 = -time.time()
-
-# Get sizes from data set
-n_images_train = data_train.shape[0]
-assert(labels_train.shape[0] == n_images_train)
-n_images_test = data_test.shape[0]
-assert(labels_test.shape[0] == n_images_test)
-n_pixels = data_train.shape[1]
-assert(data_test.shape[1] == n_pixels)
-n_images_batch = 1000
-n_batches = n_images_train // n_images_batch
-if n_images_train != n_batches*n_images_batch:
-    raise ValueError("Wrong batch size")
-n_labels = labels_train.max() + 1
-
+n_pixels = 28 * 28
 # Define tile sizes
 n_pixels_tile = 784
 n_images_train_tile = 1000
@@ -96,57 +44,39 @@ n_images_test_tile = 1000
 # Describe neural network
 gemm_ndim = 1
 hidden_layer_dim = 100
-hidden_layer_dim_tile = 100
-n_layers = 3
-n_epochs = 4
-lr = 1e-3
+hidden_layer_dim_tile = 10
+n_layers = 5
+n_epochs = 6
+lr = 1e-2
 n_classes = 10
 
 # Number of FLOPs for training
-n_flops_train_first_layer = 2 * 2 * n_pixels * n_images_batch \
+n_flops_train_first_layer = 2 * 2 * n_pixels * batch_size \
         * hidden_layer_dim # once for forward, once for backward
-n_flops_train_mid_layer = 3 * 2 * hidden_layer_dim * n_images_batch \
+n_flops_train_mid_layer = 3 * 2 * hidden_layer_dim * batch_size \
         * hidden_layer_dim # once for forward, twice for backward
-n_flops_train_last_layer = 3 * 2 * n_labels * n_images_batch \
+n_flops_train_last_layer = 3 * 2 * n_classes * batch_size \
         * hidden_layer_dim # once for forward, twice for backward
 
-# print("Define tensors for batches of X and Y...")
-# Define tensors for batches of X and Y
-data_train_traits = nntile.tensor.TensorTraits(data_train.shape, \
-        data_train.shape)
-data_train_tensor = nntile.tensor.Tensor_fp32(data_train_traits, [0], next_tag)
-next_tag = data_train_tensor.next_tag
-data_train_tensor.from_array(data_train)
-labels_train_traits = nntile.tensor.TensorTraits(labels_train.shape, \
-        labels_train.shape)
-labels_train_tensor = nntile.tensor.Tensor_int64(labels_train_traits, [0], \
-        next_tag)
-print("Labels train shape", labels_train.shape)
-labels_train_tensor.from_array(labels_train)
-next_tag = labels_train_tensor.next_tag
 batch_data = []
 batch_labels = []
-x_traits = nntile.tensor.TensorTraits([n_images_batch, n_pixels], \
+x_traits = nntile.tensor.TensorTraits([batch_size, n_pixels], \
         [n_images_train_tile, n_pixels_tile])
 x_distr = [0] * x_traits.grid.nelems
-y_traits = nntile.tensor.TensorTraits([n_images_batch], [n_images_train_tile])
+y_traits = nntile.tensor.TensorTraits([batch_size], [n_images_train_tile])
 y_distr = [0] * y_traits.grid.nelems
-for i in range(n_batches):
+for train_batch, train_labels in trainldr:
     x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
     next_tag = x.next_tag
-    nntile.tensor.copy_intersection_async(data_train_tensor, [0, 0], x, \
-            [i*n_images_batch, 0])
+    x.from_array(train_batch.view(-1, n_pixels).numpy() / 255.)
     batch_data.append(x)
     y = nntile.tensor.Tensor_int64(y_traits, y_distr, next_tag)
     next_tag = y.next_tag
-    nntile.tensor.copy_intersection_async(labels_train_tensor, [0], y, \
-            [i*n_images_batch])
+    y.from_array(train_labels.numpy())
     batch_labels.append(y)
 
 # Unregister single-tile tensors
 nntile.starpu.wait_for_all()
-data_train_tensor.unregister()
-labels_train_tensor.unregister()
 
 # Define tensor X for input batches
 # It shall move into DeepLinear generator in some future
@@ -161,10 +91,8 @@ m = nntile.model.DeepReLU(x_moments, 'L', gemm_ndim, hidden_layer_dim,
         hidden_layer_dim_tile, n_layers, n_classes, next_tag)
 next_tag = m.next_tag
 print("Model is initialized!")
-for p in m.get_parameters():
-    print(p.value.shape)
 # Set up learning rate and optimizer for training
-# optimizer = nntile.optimizer.SGD(m.get_parameters(), lr, next_tag, momentum=0.0,
+# optimizer = nntile.optimizer.SGD(m.get_parameters(), lr, next_tag, momentum=0.9,
 #        nesterov=False, weight_decay=0.)
 optimizer = nntile.optimizer.Adam(m.get_parameters(), lr, next_tag)
 next_tag = optimizer.get_next_tag()
@@ -193,25 +121,36 @@ time0 += time.time()
 print("Finish random weights init in {} seconds".format(time0))
 
 ## Start timer and run training
-#time0 = -time.time()
+time0 = -time.time()
 pipeline.train_async()
-#time0 += time.time()
-#print("Finish adding tasks in {} seconds".format(time0))
+time0 += time.time()
+print("Finish adding tasks in {} seconds".format(time0))
 #
 ## Wait for all computations to finish
-#time0 = -time.time()
-#nntile.starpu.wait_for_all()
-#time0 += time.time()
-#print("Done in {} seconds".format(time0))
-#np_val = np.array([1], order='F', dtype=np.float32)
-#np_val[0] = 0
-#frob.val.to_array(np_val)
-#print("Loss is {}".format(np_val[0]))
-#print("Norm is {}".format(np.linalg.norm(Y, 'fro')))
+time0 = -time.time()
+nntile.starpu.wait_for_all()
+time0 += time.time()
+print("Done in {} seconds".format(time0))
+
+# Compute test accuracy of the trained model
+test_accuracy = 0
+total_num_samples = 0
+x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
+next_tag = x.next_tag
+for test_batch, test_label in test_loader:
+    x.from_array(test_batch.view(-1, n_pixels).numpy() / 255.)
+    nntile.tensor.copy_async(x, m.activations[0].value)
+    m.forward_async()
+    output = np.zeros(m.activations[-1].value.shape, order="F", dtype=np.float32)
+    m.activations[-1].value.to_array(output)
+    pred_labels = np.argmax(output, 1)
+    test_accuracy += np.sum(pred_labels == test_label.numpy())
+    total_num_samples += test_label.shape[0]
+test_accuracy /= total_num_samples
+print("Test accuracy of the trained Deep ReLU model =", test_accuracy)
+x.unregister()
 #print("Total GFLOP/s: {}".format(n_flops*1e-9/time0))
 
-# import ipdb
-# ipdb.set_trace()
 # Unregister all tensors related to model
 m.unregister()
 

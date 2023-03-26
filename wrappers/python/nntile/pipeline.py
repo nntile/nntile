@@ -38,10 +38,10 @@ class Pipeline(object):
         self.n_epochs = n_epochs
 
     def train_async(self):
-        output = np.zeros(self.model.activations[-1].value.shape, order="F", dtype=np.float32)
-        true_labels = np.zeros(self.model.activations[-1].value.shape[0], order="F", dtype=np.int64)
+        # output = np.zeros(self.model.activations[-1].value.shape, order="F", dtype=np.float32)
+        # true_labels = np.zeros(self.model.activations[-1].value.shape[0], order="F", dtype=np.int64)
         for i_epoch in range(self.n_epochs):
-            print("Epoch ", i_epoch)
+            # print("Epoch ", i_epoch)
             for x_batch, y_batch in zip(self.x, self.y):
                 # Copy input batch into activation[0] of the model
                 # print("Copy async")
@@ -49,12 +49,11 @@ class Pipeline(object):
                 # Perform forward pass
                 # print("Model forward")
                 self.model.forward_async()
-                self.model.activations[-1].value.to_array(output)
-                print(output)
-                y_batch.to_array(true_labels)
-                print("Accuracy in the current batch =", np.sum(true_labels == np.argmax(output, axis=1)) / true_labels.shape[0])
-                import ipdb
-                ipdb.set_trace()
+                # self.model.activations[-1].value.to_array(output)
+                # y_batch.to_array(true_labels)
+                # print("Accuracy in the current batch =", np.sum(true_labels == np.argmax(output, axis=1)) / true_labels.shape[0])
+                # import ipdb
+                # ipdb.set_trace()
                 # Copy true result into loss function
                 # print("Copy true labels in loss")
                 copy_async(y_batch, self.loss.y)
@@ -75,12 +74,12 @@ class Pipeline(object):
                 # print(output)
                 # Apply optimizer here
                 # print("Optimizer step")
-                print("Model parameters before opt step")
-                for i, p in enumerate(self.model.parameters):
-                    print("Parameter", i)
-                    p_np = np.zeros(p.value.shape, order="F", dtype=np.float32)
-                    p.grad.to_array(p_np)
-                    print(p_np.max(), p_np.min())
+                # print("Model parameters before opt step")
+                # for i, p in enumerate(self.model.parameters):
+                #     print("Parameter", i)
+                #     p_np = np.zeros(p.value.shape, order="F", dtype=np.float32)
+                #     p.grad.to_array(p_np)
+                #     print(p_np.max(), p_np.min())
                 self.opt.step()
                 # print("Model parameters after opt step")
                 # for i, p in enumerate(self.model.parameters):
@@ -88,7 +87,7 @@ class Pipeline(object):
                 #     p_np = np.zeros(p.value.shape, order="F", dtype=np.float32)
                 #     p.value.to_array(p_np)
                 #     print(p_np)
-            nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
-            self.loss.get_val(nntile_xentropy_np)
-            print("Last batch loss after in {} epoch = {}".format(i_epoch, nntile_xentropy_np[0]))
+            # nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
+            # self.loss.get_val(nntile_xentropy_np)
+            # print("Last batch loss after in {} epoch = {}".format(i_epoch, nntile_xentropy_np[0]))
 
