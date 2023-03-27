@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-03-18
+ * @date 2023-03-27
  * */
 
 #include <pybind11/pybind11.h>
@@ -388,8 +388,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("softmax_fp32", &softmax<fp32_t>);
     m.def("scatter_async_fp64", &scatter_async<fp64_t>);
     m.def("scatter_async_fp32", &scatter_async<fp32_t>);
+    m.def("scatter_async_int64", &scatter_async<Index>);
     m.def("scatter_fp64", &scatter<fp64_t>);
     m.def("scatter_fp32", &scatter<fp32_t>);
+    m.def("scatter_int64", &scatter<Index>);
     m.def("randn_async_fp64", &randn_async<fp64_t>);
     m.def("randn_async_fp32", &randn_async<fp32_t>);
     m.def("randn_fp64", &randn<fp64_t>);
@@ -416,8 +418,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("bias_fp32", &bias<fp32_t>);
     m.def("gather_async_fp64", &gather_async<fp64_t>);
     m.def("gather_async_fp32", &gather_async<fp32_t>);
+    m.def("gather_async_int64", &gather_async<Index>);
     m.def("gather_fp64", &gather<fp64_t>);
     m.def("gather_fp32", &gather<fp32_t>);
+    m.def("gather_int64", &gather<Index>);
 
     m.def("copy_intersection_async_fp64", &copy_intersection_async<fp64_t>);
     m.def("copy_intersection_async_fp32", &copy_intersection_async<fp32_t>);

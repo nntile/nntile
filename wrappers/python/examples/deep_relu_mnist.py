@@ -21,7 +21,7 @@ import torchvision.datasets as dts
 import torchvision.transforms as trnsfrms
 import torch
 
-batch_size = 1000
+batch_size = 10000
 
 trnsform = trnsfrms.Compose([trnsfrms.ToTensor()])
 mnist_train_set = dts.MNIST(root='./data', train=True, download=True, transform=trnsform)
@@ -39,7 +39,7 @@ next_tag = 0
 
 n_pixels = 28 * 28
 # Define tile sizes
-n_pixels_tile = 784
+n_pixels_tile = 392
 n_images_train_tile = 1000
 n_images_test_tile = 1000
 
@@ -52,17 +52,30 @@ n_epochs = 6
 lr = 1e-2
 n_classes = 10
 
-# Number of FLOPs for training
+# Number of FLOPs for training per batch
 n_flops_train_first_layer = 2 * 2 * n_pixels * batch_size \
         * hidden_layer_dim # once for forward, once for backward
 n_flops_train_mid_layer = 3 * 2 * hidden_layer_dim * batch_size \
         * hidden_layer_dim # once for forward, twice for backward
 n_flops_train_last_layer = 3 * 2 * n_classes * batch_size \
         * hidden_layer_dim # once for forward, twice for backward
+n_flops = n_flops_train_first_layer + (n_layers-2)*n_flops_train_mid_layer \
+        + n_flops_train_last_layer
+n_flops *= n_epochs
 
 time0 = -time.time()
 batch_data = []
 batch_labels = []
+x_single_traits = nntile.tensor.TensorTraits([batch_size, n_pixels], \
+        [batch_size, n_pixels])
+x_single_distr = [0]
+x_single = nntile.tensor.Tensor_fp32(x_single_traits, x_single_distr, next_tag)
+next_tag = x_single.next_tag
+y_single_traits = nntile.tensor.TensorTraits([batch_size], [batch_size])
+y_single_distr = [0]
+y_single = nntile.tensor.Tensor_int64(y_single_traits, y_single_distr, \
+        next_tag)
+next_tag = y_single.next_tag
 x_traits = nntile.tensor.TensorTraits([batch_size, n_pixels], \
         [n_images_train_tile, n_pixels_tile])
 x_distr = [0] * x_traits.grid.nelems
@@ -71,13 +84,18 @@ y_distr = [0] * y_traits.grid.nelems
 for train_batch_data, train_batch_labels in train_loader:
     x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
     next_tag = x.next_tag
-    x.from_array(train_batch_data.view(batch_size, n_pixels).numpy() / 255.)
+    x_single.from_array(train_batch_data.view(batch_size, n_pixels).numpy() \
+            / 255.)
+    nntile.tensor.scatter_async(x_single, x)
     batch_data.append(x)
     y = nntile.tensor.Tensor_int64(y_traits, y_distr, next_tag)
     next_tag = y.next_tag
-    y.from_array(train_batch_labels.numpy())
+    y_single.from_array(train_batch_labels.numpy())
+    nntile.tensor.scatter_async(y_single, y)
     batch_labels.append(y)
 
+# Wait for all scatters to finish
+nntile.starpu.wait_for_all()
 time0 += time.time()
 print("From PyTorch loader to NNTile batches in {} seconds".format(time0))
 
@@ -91,7 +109,7 @@ x_grad_required = False
 x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
 # Define deep ReLU network
-m = nntile.model.DeepReLU(x_moments, 'L', gemm_ndim, hidden_layer_dim,
+m = nntile.model.DeepReLU(x_moments, 'L', gemm_ndim, hidden_layer_dim, \
         hidden_layer_dim_tile, n_layers, n_classes, next_tag)
 next_tag = m.next_tag
 # Set up learning rate and optimizer for training
@@ -102,15 +120,16 @@ next_tag = optimizer.get_next_tag()
 
 # Set up Frobenius loss function for the model
 # frob, next_tag = nntile.loss.Frob.generate_simple(m.activations[-1], next_tag)
-loss, next_tag = nntile.loss.CrossEntropy.generate_simple(m.activations[-1],
-                                                          next_tag)
+loss, next_tag = nntile.loss.CrossEntropy.generate_simple(m.activations[-1], \
+        next_tag)
 
 # Set up training pipeline
-pipeline = nntile.pipeline.Pipeline(batch_data, batch_labels, m, optimizer,
+pipeline = nntile.pipeline.Pipeline(batch_data, batch_labels, m, optimizer, \
         loss, n_epochs)
 
 time0 += time.time()
-print("Finish generating pipeline (model, loss and optimizer) in {} seconds".format(time0))
+print("Finish generating pipeline (model, loss and optimizer) in {} seconds" \
+        .format(time0))
 
 # Randomly init weights of deep linear network
 time0 = -time.time()
@@ -125,33 +144,45 @@ print("Finish random weights init in {} seconds".format(time0))
 time0 = -time.time()
 pipeline.train_async()
 time0 += time.time()
-print("Finish adding tasks (computations are running) in {} seconds".format(time0))
+print("Finish adding tasks (computations are running) in {} seconds" \
+        .format(time0))
 #
 ## Wait for all computations to finish
 time1 = -time.time()
 nntile.starpu.wait_for_all()
 time1 += time.time()
-print("All computations done in {} + {} = {} seconds".format(time0, time1, time0 + time1))
+print("All computations done in {} + {} = {} seconds".format(time0, time1, \
+        time0 + time1))
 
 # Compute test accuracy of the trained model
 test_top1_accuracy = 0
 total_num_samples = 0
-x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
-next_tag = x.next_tag
+z_single_traits = nntile.tensor.TensorTraits([batch_size, n_classes], \
+        [batch_size, n_classes])
+z_single_distr = [0]
+z_single = nntile.tensor.Tensor_fp32(z_single_traits, z_single_distr, next_tag)
+next_tag = z_single.next_tag
 for test_batch_data, test_batch_label in test_loader:
-    x.from_array(test_batch_data.view(-1, n_pixels).numpy() / 255.)
-    nntile.tensor.copy_async(x, m.activations[0].value)
+    x_single.from_array(test_batch_data.view(-1, n_pixels).numpy() / 255.)
+    nntile.tensor.scatter_async(x_single, m.activations[0].value)
     m.forward_async()
-    output = np.zeros(m.activations[-1].value.shape, order="F", dtype=np.float32)
-    m.activations[-1].value.to_array(output)
+    nntile.tensor.gather_async(m.activations[-1].value, z_single)
+    output = np.zeros(z_single.shape, order="F", dtype=np.float32)
+    # to_array causes y_single to finish gather procedure
+    z_single.to_array(output)
     pred_labels = np.argmax(output, 1)
     test_top1_accuracy += np.sum(pred_labels == test_batch_label.numpy())
     total_num_samples += test_batch_label.shape[0]
 test_top1_accuracy /= total_num_samples
 
 print("Test accuracy of the trained Deep ReLU model =", test_top1_accuracy)
-x.unregister()
-#print("Total GFLOP/s: {}".format(n_flops*1e-9/time0))
+print("Total GFLOPs/s (based on gemms) during training: {}" \
+        .format(n_flops*1e-9/time0))
+
+# Unregister single-tile tensors for data scattering/gathering
+x_single.unregister()
+y_single.unregister()
+z_single.unregister()
 
 # Unregister all tensors related to model
 m.unregister()
