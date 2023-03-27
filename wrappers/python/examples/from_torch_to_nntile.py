@@ -16,9 +16,11 @@ import torch.nn as nn
 import torchvision.datasets as dts 
 import numpy as np
 import random
-import os
+import time
 import nntile
 import torchvision.transforms as trnsfrms
+
+torch.set_num_threads(10)
 
 def set_all_seeds(seed):
     random.seed(seed)
@@ -32,9 +34,9 @@ set_all_seeds(121)
 class MLP(nn.Module):
     def __init__(self):
         super(MLP, self).__init__()
-        self.linear1 = nn.Linear(28*28, 100, bias=False) 
-        self.linear2 = nn.Linear(100, 100, bias=False)
-        self.final = nn.Linear(100, 10, bias=False)
+        self.linear1 = nn.Linear(28*28, 4000, bias=False) 
+        self.linear2 = nn.Linear(4000, 4000, bias=False)
+        self.final = nn.Linear(4000, 10, bias=False)
         self.relu = nn.ReLU()
 
     def forward(self, image):
@@ -45,7 +47,7 @@ class MLP(nn.Module):
         return a
 
 n_classes = 10
-batch_size = 1000
+batch_size = 5000
 lr = 1e-3
 mlp_model = MLP()
 optim_torch = torch.optim.SGD(mlp_model.parameters(), lr=lr)
@@ -54,19 +56,13 @@ crit_torch = nn.CrossEntropyLoss(reduction="sum")
 trnsform = trnsfrms.Compose([trnsfrms.ToTensor()])
 
 mnisttrainset = dts.MNIST(root='./data', train=True, download=True, transform=trnsform)
-trainldr = torch.utils.data.DataLoader(mnisttrainset, batch_size=1000, shuffle=True)
+trainldr = torch.utils.data.DataLoader(mnisttrainset, batch_size=batch_size, shuffle=True)
 
 for train_batch_sample, true_labels in trainldr:
     # true_labels = torch.randint(0, n_classes, (batch_size, ))
     # train_batch_sample = torch.randn((batch_size, 28*28))
     train_batch_sample = train_batch_sample.view(-1, 28*28)
-    torch_output = mlp_model(train_batch_sample)
-    torch_loss = crit_torch(torch_output, true_labels)
-    print("PyTorch loss =", torch_loss.item())
     break
-
-mlp_model.zero_grad()
-torch_loss.backward()
 
 config = nntile.starpu.Config(-1, -1, 1)
 nntile.starpu.init()
@@ -84,9 +80,30 @@ data_train_tensor = nntile.tensor.Tensor_fp32(data_train_traits, [0], next_tag)
 next_tag = data_train_tensor.next_tag
 data_train_tensor.from_array(train_batch_sample)
 crit_nntile, next_tag = nntile.loss.CrossEntropy.generate_simple(mlp_nntile.activations[-1], next_tag)
-
 nntile.tensor.copy_async(data_train_tensor, mlp_nntile.activations[0].value)
+
+mlp_model.zero_grad()
+time_torch_forward = -time.time()
+torch_output = mlp_model(train_batch_sample)
+time_torch_forward += time.time()
+print("PyTorch model forward requires {} seconds".format(time_torch_forward))
+torch_loss = crit_torch(torch_output, true_labels)
+print("PyTorch loss =", torch_loss.item())
+
+time_torch_backward = -time.time()
+torch_loss.backward()
+time_torch_backward += time.time()
+print("PyTorch model backward requires {} seconds".format(time_torch_backward))
+
+time_nntile_forward = -time.time()
 mlp_nntile.forward_async()
+time_nntile_forward += time.time()
+
+time1 = -time.time()
+nntile.starpu.wait_for_all()
+time1 += time.time()
+print("NNTile model forward done in {} + {} = {} seconds".format(time_nntile_forward, time1, \
+        time_nntile_forward + time1))
 
 label_train_traits = nntile.tensor.TensorTraits(true_labels.shape, \
         true_labels.shape)
@@ -100,12 +117,22 @@ nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
 crit_nntile.get_val(nntile_xentropy_np)
 print("NNTile loss =", nntile_xentropy_np[0])
 
+time_nntile_backward = -time.time()
 mlp_nntile.backward_async()
+time_nntile_backward += time.time()
 
-for p_torch, p_nntile in zip(mlp_model.parameters(), mlp_nntile.parameters):
+time1 = -time.time()
+nntile.starpu.wait_for_all()
+time1 += time.time()
+print("NNTile model backward done in {} + {} = {} seconds".format(time_nntile_backward, time1, \
+        time_nntile_backward + time1))
+
+
+for i, (p_torch, p_nntile) in enumerate(zip(mlp_model.parameters(), mlp_nntile.parameters)):
     p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
     p_nntile.grad.to_array(p_nntile_grad_np)
-    print(np.linalg.norm(p_nntile_grad_np.T - p_torch.grad.numpy(), "fro"))
+    print("Relative error in gradient of layer {} = {}".format(i,
+        np.linalg.norm(p_nntile_grad_np.T - p_torch.grad.numpy(), "fro") / np.linalg.norm(p_nntile_grad_np.T, "fro")))
 
 
 # Make optimizer step and compare updated losses
