@@ -1,3 +1,16 @@
+# @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
+#                           (Skoltech). All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file wrappers/python/examples/from_torch_to_nntile.py
+# Example of comparison of Deep ReLU network of NNTile Python package and PyTorch
+#
+# @version 1.0.0
+# @author Aleksandr Katrutsa
+# @date 2023-03-27
+
 import torch
 import torch.nn as nn
 import torchvision.datasets as dts 

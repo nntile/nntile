@@ -5,7 +5,7 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file wrappers/python/examples/deep_relu.py
-# Deep ReLU network for digist classification of NNTile Python package
+# Deep ReLU network for image classification with NNTile Python package
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
@@ -21,13 +21,33 @@ import torchvision.datasets as dts
 import torchvision.transforms as trnsfrms
 import torch
 
-batch_size = 2000
+# dataset = "mnist"
+dataset = "cifar10"
 
-trnsform = trnsfrms.Compose([trnsfrms.ToTensor()])
-mnist_train_set = dts.MNIST(root='./data', train=True, download=True, transform=trnsform)
-train_loader = torch.utils.data.DataLoader(mnist_train_set, batch_size=batch_size, shuffle=True)
-mnist_test_set = dts.MNIST(root='./data', train=False, download=True, transform=trnsform)
-test_loader = torch.utils.data.DataLoader(mnist_test_set, batch_size=batch_size, shuffle=True)
+if dataset == "mnist":
+        batch_size = 2000
+        trnsform = trnsfrms.Compose([trnsfrms.ToTensor(), trnsfrms.Normalize((0,), (255,))])
+        mnist_train_set = dts.MNIST(root='./data', train=True, download=True, transform=trnsform)
+        train_loader = torch.utils.data.DataLoader(mnist_train_set, batch_size=batch_size, shuffle=True)
+        mnist_test_set = dts.MNIST(root='./data', train=False, download=True, transform=trnsform)
+        test_loader = torch.utils.data.DataLoader(mnist_test_set, batch_size=batch_size, shuffle=True)
+
+        n_pixels = 28 * 28
+        # Define tile sizes
+        n_pixels_tile = 392
+        n_classes = 10
+elif dataset == "cifar10":
+        batch_size = 2000
+        transform = trnsfrms.Compose([trnsfrms.ToTensor(), trnsfrms.Normalize((0.1307,), (0.3081,))])
+        cifar10_train_set = dts.CIFAR10(root='./data', train=True, download=True, transform=transform)
+        train_loader = torch.utils.data.DataLoader(cifar10_train_set, batch_size=batch_size, shuffle=True)
+        cifar10_test_set = dts.CIFAR10(root='./data', train=False, download=True, transform=transform)
+        test_loader = torch.utils.data.DataLoader(cifar10_test_set, batch_size=batch_size, shuffle=True)
+        n_pixels = 32 * 32 * 3
+        n_pixels_tile = n_pixels // 2
+        n_classes = 10
+else:
+     raise ValueError("{} dataset is not supported yet!".format(dataset))
 
 time0 = -time.time()
 # Set up StarPU+MPI and init codelets
@@ -37,20 +57,18 @@ time0 += time.time()
 print("StarPU + NNTile + MPI init in {} seconds".format(time0))
 next_tag = 0
 
-n_pixels = 28 * 28
-# Define tile sizes
-n_pixels_tile = 392
+
 n_images_train_tile = 500
 n_images_test_tile = 500
 
 # Describe neural network
 gemm_ndim = 1
-hidden_layer_dim = 1000
-hidden_layer_dim_tile = 500
+hidden_layer_dim = 5000
+hidden_layer_dim_tile = 1000
 n_layers = 5
-n_epochs = 6
+n_epochs = 10
 lr = 1e-2
-n_classes = 10
+
 
 # Number of FLOPs for training per batch
 n_flops_train_first_layer = 2 * 2 * n_pixels * batch_size \
@@ -85,8 +103,7 @@ y_distr = [0] * y_traits.grid.nelems
 for train_batch_data, train_batch_labels in train_loader:
     x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
     next_tag = x.next_tag
-    x_single.from_array(train_batch_data.view(batch_size, n_pixels).numpy() \
-            / 255.)
+    x_single.from_array(train_batch_data.view(batch_size, n_pixels).numpy())
     nntile.tensor.scatter_async(x_single, x)
     batch_data.append(x)
     y = nntile.tensor.Tensor_int64(y_traits, y_distr, next_tag)
@@ -187,7 +204,7 @@ z_single_distr = [0]
 z_single = nntile.tensor.Tensor_fp32(z_single_traits, z_single_distr, next_tag)
 next_tag = z_single.next_tag
 for test_batch_data, test_batch_label in test_loader:
-    x_single.from_array(test_batch_data.view(-1, n_pixels).numpy() / 255.)
+    x_single.from_array(test_batch_data.view(-1, n_pixels).numpy())
     nntile.tensor.scatter_async(x_single, m.activations[0].value)
     m.forward_async()
     nntile.tensor.gather_async(m.activations[-1].value, z_single)
