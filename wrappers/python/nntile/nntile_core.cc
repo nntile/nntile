@@ -10,6 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
+ * @author Konstantin Sozykin
  * @date 2023-03-27
  * */
 
@@ -444,15 +445,25 @@ void def_mod_tensor(py::module_ &m)
     m.def("clear_fp64", &clear<fp64_t>);
     m.def("clear_fp32", &clear<fp32_t>);
         
-    m.def("axpy_async_fp64", py::overload_cast<fp64_t, const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
-    m.def("axpy_async_fp32", py::overload_cast<fp32_t, const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
-    m.def("axpy_fp64", py::overload_cast<fp64_t, const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy<fp64_t>));
-    m.def("axpy_fp32", py::overload_cast<fp32_t, const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy<fp32_t>));
+    m.def("axpy_async_fp64", py::overload_cast<fp64_t, const Tensor<fp64_t>&,
+            const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
+    m.def("axpy_async_fp32", py::overload_cast<fp32_t, const Tensor<fp32_t>&,
+            const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
+    m.def("axpy_fp64", py::overload_cast<fp64_t, const Tensor<fp64_t>&,
+            const Tensor<fp64_t>&>(&axpy<fp64_t>));
+    m.def("axpy_fp32", py::overload_cast<fp32_t, const Tensor<fp32_t>&,
+            const Tensor<fp32_t>&>(&axpy<fp32_t>));
 
-    m.def("axpy_async_fp64", py::overload_cast<const Tensor<fp64_t>&, const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
-    m.def("axpy_async_fp32", py::overload_cast<const Tensor<fp32_t>&, const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
-    m.def("axpy_fp64", py::overload_cast<const Tensor<fp64_t>&, const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy<fp64_t>));
-    m.def("axpy_fp32", py::overload_cast<const Tensor<fp32_t>&, const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy<fp32_t>));
+    m.def("axpy_async_fp64", py::overload_cast<const Tensor<fp64_t>&,
+            const Tensor<fp64_t>&,
+            const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
+    m.def("axpy_async_fp32", py::overload_cast<const Tensor<fp32_t>&,
+            const Tensor<fp32_t>&,
+            const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
+    m.def("axpy_fp64", py::overload_cast<const Tensor<fp64_t>&,
+            const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy<fp64_t>));
+    m.def("axpy_fp32", py::overload_cast<const Tensor<fp32_t>&,
+            const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy<fp32_t>));
 
     m.def("sqrt_async_fp64", &sqrt_async<fp64_t>);
     m.def("sqrt_async_fp32", &sqrt_async<fp32_t>);
@@ -478,10 +489,31 @@ void def_mod_tensor(py::module_ &m)
     m.def("total_sum_accum_fp64", &total_sum_accum<fp64_t>);
     m.def("total_sum_accum_fp32", &total_sum_accum<fp32_t>);
 
-    m.def("subtract_indexed_column_async_fp64", &subtract_indexed_column_async<fp64_t>);
-    m.def("subtract_indexed_column_async_fp32", &subtract_indexed_column_async<fp32_t>);
+    m.def("subtract_indexed_column_async_fp64",
+            &subtract_indexed_column_async<fp64_t>);
+    m.def("subtract_indexed_column_async_fp32",
+            &subtract_indexed_column_async<fp32_t>);
     m.def("subtract_indexed_column_fp64", &subtract_indexed_column<fp64_t>);
     m.def("subtract_indexed_column_fp32", &subtract_indexed_column<fp32_t>);
+    
+    // gelu and dgelu
+    m.def("gelu_async_fp64", &gelu_async<fp64_t>);
+    m.def("gelu_async_fp32", &gelu_async<fp32_t>);
+    m.def("gelu_fp64", &gelu<fp64_t>);
+    m.def("gelu_fp32", &gelu<fp32_t>);
+    m.def("gelutanh_async_fp64", &gelutanh_async<fp64_t>);
+    m.def("gelutanh_async_fp32", &gelutanh_async<fp32_t>);
+    m.def("gelutanh_fp64", &gelutanh<fp64_t>);
+    m.def("gelutanh_fp32", &gelutanh<fp32_t>);
+    
+    m.def("dgelu_async_fp64", &dgelu_async<fp64_t>);
+    m.def("dgelu_async_fp32", &dgelu_async<fp32_t>);
+    m.def("dgelu_fp64", &dgelu<fp64_t>);
+    m.def("dgelu_fp32", &dgelu<fp32_t>);
+    m.def("dgelutanh_async_fp64", &dgelutanh_async<fp64_t>);
+    m.def("dgelutanh_async_fp32", &dgelutanh_async<fp32_t>);
+    m.def("dgelutanh_fp64", &dgelutanh<fp64_t>);
+    m.def("dgelutanh_fp32", &dgelutanh<fp32_t>);   
 }
 
 // Main extension module with all wrappers
@@ -503,4 +535,3 @@ PYBIND11_MODULE(nntile_core, m)
     m.attr("notrans") = py::cast(new TransOp(TransOp::NoTrans));
     m.attr("trans") = py::cast(new TransOp(TransOp::Trans));
 }
-

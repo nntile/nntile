@@ -9,7 +9,8 @@
 #
 # @version 1.0.0
 # @author Aleksandr Katrutsa
-# @date 2023-03-18
+# @author Aleksandr Mikhalev
+# @date 2023-03-27
 
 # All necesary imports
 import nntile
@@ -63,13 +64,10 @@ def helper(dtype: np.dtype):
     final_layer_output_tm = nntile.tensor.TensorMoments(final_layer_output_tensor,
                                                         final_layer_output_grad, True)
 
-    class_labels_traits = nntile.tensor.TensorTraits((batch_size,), (batch_size,))
-    tensor_class_labels = nntile.tensor.Tensor_int64(class_labels_traits, mpi_distr, next_tag)
-    tensor_class_labels.from_array(true_class_lables)
-    next_tag = tensor_class_labels.next_tag
     # Create crossentropy loss
-    xentropy_loss, next_tag = cross_entropy.generate_simple(final_layer_output_tm, 
-                                                           tensor_class_labels, next_tag)
+    xentropy_loss, next_tag = cross_entropy.generate_simple( \
+            final_layer_output_tm, next_tag)
+    xentropy_loss.y.from_array(true_class_lables)
     xentropy_loss.calc_async()
 
     nntile_xentropy_np = np.zeros((1,), dtype=dtype, order="F")
@@ -79,7 +77,6 @@ def helper(dtype: np.dtype):
     xentropy_loss.get_grad(nntile_xentropy_grad_np)
 
     xentropy_loss.unregister()
-    tensor_class_labels.unregister()
     final_layer_output_tensor.unregister()
     final_layer_output_grad.unregister()
     if dtype == np.float32:

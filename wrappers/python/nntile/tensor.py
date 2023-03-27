@@ -310,7 +310,7 @@ def subtract_indexed_column_async(val: float, class_labels: Tensor_int64, \
         dst: Tensor):
     if type(dst) is core_tensor.Tensor_fp32:
         core_tensor.subtract_indexed_column_async_fp32(val, class_labels, dst)
-    if type(dst) is core_tensor.Tensor_fp64:
+    elif type(dst) is core_tensor.Tensor_fp64:
         core_tensor.subtract_indexed_column_async_fp64(val, class_labels, dst)
     else:
         raise TypeError

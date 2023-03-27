@@ -1,28 +1,29 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/sumnorm.cc
- * Sum and Euclidian norm for StarPU buffer
+ * @file src/starpu/sum.cc
+ * Sum for StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @author  Konstantin Sozykin
+ * @date 2023-02-27
  * */
 
-#include "nntile/starpu/sumnorm.hh"
-#include "nntile/kernel/sumnorm.hh"
+#include "nntile/starpu/sum.hh"
+#include "nntile/kernel/sum.hh"
 
 namespace nntile
 {
 namespace starpu
 {
-namespace sumnorm
+namespace sum
 {
 
-//! Sum and Euclidian norm along middle axis of StarPU buffer on CPU
+//! Sum  along middle axis of StarPU buffer on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
@@ -34,11 +35,11 @@ void cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::sumnorm::cpu<T>(args->m, args->n, args->k, src, dst);
+    kernel::sum::cpu<T>(args->m, args->n, args->k, src, dst);
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Sum and Euclidian norm along middle axis of StarPU buffer on CUDA
+//! Sum along middle axis of StarPU buffer on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
@@ -52,11 +53,11 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::sumnorm::cuda<T>(stream, args->m, args->n, args->k, src, dst);
+    kernel::sum::cuda<T>(stream, args->m, args->n, args->k, src, dst);
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for sumnorm tasks that depends only on m, n and k
+//! Footprint for sum tasks that depends only on m, n and k
 static
 uint32_t footprint(struct starpu_task *task)
 {
@@ -76,7 +77,7 @@ Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
-    codelet_fp32.init("nntile_sumnorm_fp32",
+    codelet_fp32.init("nntile_sum_fp32",
             footprint,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -85,7 +86,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_fp64.init("nntile_sumnorm_fp64",
+    codelet_fp64.init("nntile_sum_fp64",
             footprint,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
@@ -110,7 +111,7 @@ void restore_where()
 
 template<typename T>
 void submit(Index m, Index n, Index k, Handle src, Handle dst)
-//! Insert sumnorm task into StarPU pool of tasks
+//! Insert sum task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
@@ -134,7 +135,7 @@ void submit(Index m, Index n, Index k, Handle src, Handle dst)
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in sumnorm task submission");
+        throw std::runtime_error("Error in sum task submission");
     }
 }
 
@@ -145,7 +146,7 @@ void submit<fp32_t>(Index m, Index n, Index k, Handle src, Handle dst);
 template
 void submit<fp64_t>(Index m, Index n, Index k, Handle src, Handle dst);
 
-} // namespace sumnorm
+} // namespace sum
 } // namespace starpu
 } // namespace nntile
 

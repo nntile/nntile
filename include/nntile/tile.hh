@@ -10,7 +10,8 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-03-18
+ * @author Konstantin Sozykin
+ * @date 2023-03-27
  * */
 
 #pragma once
@@ -36,6 +37,7 @@
 #include <nntile/tile/randn.hh>
 #include <nntile/tile/relu.hh>
 #include <nntile/tile/sumnorm.hh>
+#include <nntile/tile/sum.hh>
 #include <nntile/tile/maxsumexp.hh>
 #include <nntile/tile/softmax.hh>
 #include <nntile/tile/sqrt.hh>

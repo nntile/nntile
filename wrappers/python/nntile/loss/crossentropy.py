@@ -19,7 +19,7 @@ import numpy as np
 
 class CrossEntropy:
     final_layer_output: TensorMoments
-    class_labels: Tensor_int64
+    y: Tensor_int64 # class_labels
     val: Tensor
     tmp: Tensor
     maxsumexp: Tensor

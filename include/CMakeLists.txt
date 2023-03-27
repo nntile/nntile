@@ -10,7 +10,8 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-03-18
+# @author Konstantin Sozykin
+# @date 2023-03-27
 
 # Set list of headers
 set(BASE_HDR
@@ -47,6 +48,8 @@ set(KERNEL_HDR
     "nntile/kernel/subcopy/cpu.hh"
     "nntile/kernel/sumnorm.hh"
     "nntile/kernel/sumnorm/cpu.hh"
+    "nntile/kernel/sum.hh"
+    "nntile/kernel/sum/cpu.hh"
     "nntile/kernel/maxsumexp.hh"
     "nntile/kernel/maxsumexp/cpu.hh"
     "nntile/kernel/softmax.hh"
@@ -78,6 +81,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/prod/cuda.hh"
         "nntile/kernel/relu/cuda.hh"
         "nntile/kernel/sumnorm/cuda.hh"
+        "nntile/kernel/sum/cuda.hh"
         "nntile/kernel/maxsumexp/cuda.hh"
         "nntile/kernel/softmax/cuda.hh"
         )
@@ -102,6 +106,7 @@ set(STARPU_HDR
     "nntile/starpu/relu.hh"
     "nntile/starpu/subcopy.hh"
     "nntile/starpu/sumnorm.hh"
+    "nntile/starpu/sum.hh"
     "nntile/starpu/maxsumexp.hh"
     "nntile/starpu/softmax.hh"
     "nntile/starpu/sqrt.hh"
@@ -133,6 +138,7 @@ set(TILE_HDR
     "nntile/tile/randn.hh"
     "nntile/tile/relu.hh"
     "nntile/tile/sumnorm.hh"
+    "nntile/tile/sum.hh"
     "nntile/tile/maxsumexp.hh"
     "nntile/tile/softmax.hh"
     "nntile/tile/sqrt.hh"
@@ -167,6 +173,7 @@ set(TENSOR_HDR
     "nntile/tensor/relu.hh"
     "nntile/tensor/scatter.hh"
     "nntile/tensor/sumnorm.hh"
+    "nntile/tensor/sum.hh"
     "nntile/tensor/maxsumexp.hh"
     "nntile/tensor/softmax.hh"
     "nntile/tensor/sqrt.hh"

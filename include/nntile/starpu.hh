@@ -10,7 +10,8 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-03-18
+ * @author Konstantin Sozykin
+ * @date 2023-03-27
  * */
 
 #pragma once
@@ -36,6 +37,7 @@
 #include <nntile/starpu/relu.hh>
 #include <nntile/starpu/subcopy.hh>
 #include <nntile/starpu/sumnorm.hh>
+#include <nntile/starpu/sum.hh>
 #include <nntile/starpu/maxsumexp.hh>
 #include <nntile/starpu/softmax.hh>
 #include <nntile/starpu/sqrt.hh>
@@ -74,6 +76,7 @@ void init()
     prod::init();
     subcopy::init();
     sumnorm::init();
+    sum::init();
     softmax::init();
     maxsumexp::init();
     sqrt::init();
@@ -105,6 +108,7 @@ void restrict_where(uint32_t where)
     relu::restrict_where(where);
     subcopy::restrict_where(where);
     sumnorm::restrict_where(where);
+    sum::restrict_where(where);
     softmax::restrict_where(where);
     maxsumexp::restrict_where(where);
     sqrt::restrict_where(where);
@@ -135,6 +139,7 @@ void restore_where()
     relu::restore_where();
     subcopy::restore_where();
     sumnorm::restore_where();
+    sum::restore_where();
     softmax::restore_where();
     maxsumexp::restore_where();
     sqrt::restore_where();
