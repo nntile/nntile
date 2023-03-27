@@ -21,7 +21,7 @@ import torchvision.datasets as dts
 import torchvision.transforms as trnsfrms
 import torch
 
-batch_size = 10000
+batch_size = 2000
 
 trnsform = trnsfrms.Compose([trnsfrms.ToTensor()])
 mnist_train_set = dts.MNIST(root='./data', train=True, download=True, transform=trnsform)
@@ -40,13 +40,13 @@ next_tag = 0
 n_pixels = 28 * 28
 # Define tile sizes
 n_pixels_tile = 392
-n_images_train_tile = 1000
-n_images_test_tile = 1000
+n_images_train_tile = 500
+n_images_test_tile = 500
 
 # Describe neural network
 gemm_ndim = 1
-hidden_layer_dim = 100
-hidden_layer_dim_tile = 10
+hidden_layer_dim = 1000
+hidden_layer_dim_tile = 500
 n_layers = 5
 n_epochs = 6
 lr = 1e-2
@@ -61,7 +61,8 @@ n_flops_train_last_layer = 3 * 2 * n_classes * batch_size \
         * hidden_layer_dim # once for forward, twice for backward
 n_flops = n_flops_train_first_layer + (n_layers-2)*n_flops_train_mid_layer \
         + n_flops_train_last_layer
-n_flops *= n_epochs
+# Multiply by number of epochs and batches
+n_flops *= n_epochs * len(train_loader)
 
 time0 = -time.time()
 batch_data = []
@@ -153,6 +154,29 @@ nntile.starpu.wait_for_all()
 time1 += time.time()
 print("All computations done in {} + {} = {} seconds".format(time0, time1, \
         time0 + time1))
+print("Train GFLOPs/s (based on gemms): {}" \
+        .format(n_flops * 1e-9 / (time0+time1)))
+
+# Get inference rate based on train data
+time0 = -time.time()
+for x in batch_data:
+    nntile.tensor.copy_async(x, m.activations[0].value)
+    m.forward_async()
+nntile.starpu.wait_for_all()
+time0 += time.time()
+# FLOPS for inference over the first layer per batch
+n_flops_inference = 2 * n_pixels * batch_size * hidden_layer_dim
+# FLOPS for inference over each middle layer per batch
+n_flops_inference += (n_layers-2) * 2 * hidden_layer_dim * batch_size \
+        * hidden_layer_dim
+# FLOPS for inference over the last layer per batch
+n_flops_inference += 2 * n_classes * batch_size * hidden_layer_dim
+# Multiply FLOPS per number of batches
+n_flops_inference *= len(train_loader)
+print("Inference speed: {} samples/second".format(\
+        len(train_loader) * batch_size / time0))
+print("Inference GFLOPs/s (based on gemms): {}" \
+        .format(n_flops_inference * 1e-9 / time0))
 
 # Compute test accuracy of the trained model
 test_top1_accuracy = 0
@@ -176,8 +200,6 @@ for test_batch_data, test_batch_label in test_loader:
 test_top1_accuracy /= total_num_samples
 
 print("Test accuracy of the trained Deep ReLU model =", test_top1_accuracy)
-print("Total GFLOPs/s (based on gemms) during training: {}" \
-        .format(n_flops*1e-9/time0))
 
 # Unregister single-tile tensors for data scattering/gathering
 x_single.unregister()
