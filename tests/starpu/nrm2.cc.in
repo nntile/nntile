@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-08
+ * @date 2023-03-28
  * */
 
 #include "nntile/starpu/nrm2.hh"
@@ -182,8 +182,10 @@ int main(int argc, char **argv)
     // Init codelet
     nrm2::init();
     // Launch all tests
+#ifdef NNTILE_USE_CBLAS
     validate_cpu_many<fp32_t>();
     validate_cpu_many<fp64_t>();
+#endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
     validate_cuda_many<fp32_t>();
     validate_cuda_many<fp64_t>();
