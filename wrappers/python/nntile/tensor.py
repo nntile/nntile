@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-03-27
+# @date 2023-03-28
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -82,13 +82,13 @@ def drelu_async(x: Tensor) -> None:
         raise TypeError
 
 # Wrapper for multiprecision sum
-def sum_async(x: Tensor, sum: Tensor, axis: int) -> None:
-    if type(x) is not type(sum):
+def sum_async(x: Tensor, sum_out: Tensor, axis: int) -> None:
+    if type(x) is not type(sum_out):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.sum_async_fp32(x, sum, axis)
+        core_tensor.sum_async_fp32(x, sum_out, axis)
     else:
-        core_tensor.sum_async_fp64(x, sum, axis)
+        core_tensor.sum_async_fp64(x, sum_out, axis)
 
 # Wrapper for multiprecision sumnorm
 def sumnorm_async(x: Tensor, sumnorm: Tensor, axis: int) -> None:
@@ -293,7 +293,7 @@ def addcdiv_async(alpha: float, eps: float, nom: Tensor, denom: Tensor, \
     elif type(nom) is core_tensor.Tensor_fp64:
         core_tensor.addcdiv_async_fp64(alpha, eps, nom, denom, src)
 
-# Wrapper for multiprecision axpy
+# Wrapper for multiprecision scalprod
 def scalprod_async(alpha: float, src1: Tensor, src2: Tensor, beta: float, \
         dst: Tensor, axis: int) -> None:
     if type(src1) is not type(src2):

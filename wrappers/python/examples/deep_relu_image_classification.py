@@ -21,8 +21,8 @@ import torchvision.datasets as dts
 import torchvision.transforms as trnsfrms
 import torch
 
-# dataset = "mnist"
-dataset = "cifar10"
+dataset = "mnist"
+#dataset = "cifar10"
 
 if dataset == "mnist":
         batch_size = 2000
@@ -63,8 +63,8 @@ n_images_test_tile = 500
 
 # Describe neural network
 gemm_ndim = 1
-hidden_layer_dim = 5000
-hidden_layer_dim_tile = 1000
+hidden_layer_dim = 2000
+hidden_layer_dim_tile = 500
 n_layers = 5
 n_epochs = 10
 lr = 1e-2

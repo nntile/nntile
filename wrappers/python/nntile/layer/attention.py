@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-03-26
+# @date 2023-03-28
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
@@ -54,7 +54,8 @@ class Attention(BaseLayer):
             a_maxsumexp: List[Tensor], a_scalprod: List[Tensor], \
             b: List[TensorMoments]):
         # Redirect to BaseClass initialization
-        super().__init__([x_q, x_k, x_v], [y], [*w_q, *w_k, *w_v, *w])
+        super().__init__([x_q, x_k, x_v], [y], [*w_q, *w_k, *w_v, *w], \
+                [*q, *k, *v, *a, *a_maxsumexp, *a_scalprod, *b])
         self.x_q = x_q
         self.x_k = x_k
         self.x_v = x_v
@@ -242,10 +243,6 @@ class Attention(BaseLayer):
         # Return layer and next tag to be used
         return (layer, next_tag)
 
-    # Random initialization of weights
-    def init_randn_async(self):
-        pass
-
     # Forward propagation of the attention layer
     def forward_async(self):
         # Clear output
@@ -254,98 +251,161 @@ class Attention(BaseLayer):
         # Workout each head separately
         for i in range(self.n_head):
             # Compute query, key and value tensors
-            # Q[i] = W_Q[i] * X_Q
+            # Q[i] = einsum('jk,klm->jlm', W_Q[i], X_Q)
             gemm_async(1.0, notrans, self.w_q[i].value, notrans, \
                     self.x_q.value, 0.0, self.q[i].value, 1, 0)
-            # K[i] = W_K[i] * X_K
+            # X_Q can be offloaded from GPU
+            self.x_q.value.wont_use()
+            # W_Q[i] can be offloaded from GPU
+            self.w_q[i].value.wont_use()
+            # K[i] = einsum('jk,klm->jlm', W_K[i], X_K)
             gemm_async(1.0, notrans, self.w_k[i].value, notrans, \
                     self.x_k.value, 0.0, self.k[i].value, 1, 0)
-            # V[i] = W_V[i] * X_V
+            # X_K can be offloaded from GPU
+            self.x_k.value.wont_use()
+            # W_K[i] can be offloaded from GPU
+            self.w_k[i].value.wont_use()
+            # V[i] = einsum('jk,klm->jlm', W_V[i], X_V)
             gemm_async(1.0, notrans, self.w_v[i].value, notrans, \
                     self.x_v.value, 0.0, self.v[i].value, 1, 0)
+            # X_V can be offloaded from GPU
+            self.x_v.value.wont_use()
+            # W_V[i] can be offloaded from GPU
+            self.w_v[i].value.wont_use()
             # Get tensor for softmax
-            # batch A[i][j] = 1.0/sqrt(head_size) * K[i][j].T * Q[i][j]
+            # A[i] = 1.0/sqrt(head_size) * einsum('jkl,jml->kml', K[i], Q[i])
             gemm_async(1.0/self.head_size**0.5, trans, self.k[i].value, \
                     notrans, self.q[i].value, 0.0, self.a[i].value, 1, 1)
+            # Q[i] can be offloaded from GPU
+            self.q[i].value.wont_use()
+            # K[i] can be offloaded from GPU
+            self.k[i].value.wont_use()
             # Calculate softmax inplace
             # A[i] = softmax(A[i], axis=0)
             maxsumexp_async(self.a[i].value, self.a_maxsumexp[i], 0)
             softmax_async(self.a_maxsumexp[i], self.a[i].value, 0)
+            # A_maxsumexp[i] can be deleted
+            self.a_maxsumexp[i].invalidate_submit()
             # Apply value tensor
-            # batch B[i][j] = V[i][j] * A[i][j]
+            # B[i] = einsum('jkl,kml->jml', V[i], A[i])
             gemm_async(1.0, notrans, self.v[i].value, notrans, \
                     self.a[i].value, 0.0, self.b[i].value, 1, 1)
+            # V[i] can be offloaded from GPU
+            self.v[i].value.wont_use()
+            # A[i] can be offloaded from GPU
+            self.a[i].value.wont_use()
             # Accumulate result from the current head into output
-            # Y += W[i] * B[i]
+            # Y += einsum('jk,kml->jml', W[i], B[i])
             gemm_async(1.0, notrans, self.w[i].value, notrans, \
                     self.b[i].value, 1.0, self.y.value, 1, 0)
+            # W can be offloaded from GPU
+            self.w[i].value.wont_use()
+            # B[i] can be offloaded from GPU
+            self.b[i].value.wont_use()
 
     # Backward propagation of the linear layer
     def backward_async(self):
         for i in range(self.n_head):
-            # Backward for Y += W[i] * B[i]
+            # Backward for Y += einsum('jk,kml->jml', W[i], B[i])
             if self.w[i].grad_required:
-                # dW[i] = dY * B[i].T
+                # dW[i] = einsum('jml,kml->jk', dY, B[i])
                 gemm_async(1.0, notrans, self.y.grad, trans, self.b[i].value, \
                         0.0, self.w[i].grad, 2, 0)
-            # dB[i] = W[i].T * dY
-            gemm_async(1.0, trans, self.w[i].value, notrans, self.y.grad, \
-                    0.0, self.b[i].grad, 1, 0)
-            # Backward for batch B[i][j] = V[i][j] * A[i][j]
-            # batch dA[i][j] = V[i][j].T * dB[i][j]
-            gemm_async(1.0, trans, self.v[i].value, notrans, self.b[i].grad, \
-                    0.0, self.a[i].grad, 1, 1)
+            # B[i] can be deleted
+            self.b[i].value.invalidate_submit()
+            if self.b[i].grad_required:
+                # dB[i] = einsum('jk,jml->kml', W[i], dY)
+                gemm_async(1.0, trans, self.w[i].value, notrans, self.y.grad, \
+                        0.0, self.b[i].grad, 1, 0)
+            # W[i] can be offloaded from GPU
+            self.w[i].value.wont_use()
+            # Backward for B[i] = einsum('jkl,kml->jml', V[i], A[i])
+            if self.a[i].grad_required:
+                # dA[i] = einsum('jkl,jml->kml', V[i], dB[i])
+                gemm_async(1.0, trans, self.v[i].value, notrans, \
+                        self.b[i].grad, 0.0, self.a[i].grad, 1, 1)
+            # V[i] can be deleted
+            self.v[i].value.invalidate_submit()
             if self.v[i].grad_required:
-                # batch dV[i][j] = dB[i][j] * A[i][j].T
+                # dV[i] = einsum('jml,kml->jkl', dB[i], A[i])
                 gemm_async(1.0, notrans, self.b[i].grad, trans, \
                         self.a[i].value, 0.0, self.v[i].grad, 1, 1)
+            # dB[i] can be deleted
+            self.b[i].grad.invalidate_submit()
             # Backward for A[i] = softmax(A[i], axis=0)
-            # A_scalprod[i] = scalprod(A[i], dA[i], axis=0)
-            scalprod_async(1.0, self.a[i].value, self.a[i].grad, 0.0, \
-                    self.a_scalprod[i], 0)
-            # dA[i] = bias(dA[i], -A_scalprod[i], axis=0)
-            bias_async(-1.0, self.a_scalprod[i], self.a[i].grad, 0)
-            # dA[i] = prod(dA[i], A[i])
-            prod_async(self.a[i].value, self.a[i].grad)
+            if self.a[i].grad_required:
+                # A_scalprod[i] = einsum('kml,kml->ml', A[i], dA[i])
+                scalprod_async(1.0, self.a[i].value, self.a[i].grad, 0.0, \
+                        self.a_scalprod[i], 0)
+                # dA[i] += -bias('kml,ml->kml', dA[i], A_scalprod[i])
+                bias_async(-1.0, self.a_scalprod[i], self.a[i].grad, 0)
+                # A_scalprod[i] can be deleted
+                self.a_scalprod[i].invalidate_submit()
+                # dA[i] *= A[i]
+                prod_async(self.a[i].value, self.a[i].grad)
+            # A[i] can be deleted
+            self.a[i].value.invalidate_submit()
             # Backward for:
-            #    batch A[i][j] = 1.0/sqrt(head_size) * K[i][j].T * Q[i][j]
+            # A[i] = 1.0/sqrt(head_size) * einsum('jkl,jml->kml', K[i], Q[i])
             if self.k[i].grad_required:
-                # batch dK[i][j] = 1.0/sqrt(head_size) * Q[i][j] * dA[i][j].T
+                # dK[i] = 1.0/sqrt(head_size) * einsum('jml,kml->jkl', Q[i],
+                #       dA[i])
                 gemm_async(1.0/self.head_size**0.5, notrans, self.q[i].value, \
                         trans, self.a[i].grad, 0.0, self.k[i].grad, 1, 1)
+            # Q[i] can be deleted
+            self.q[i].value.invalidate_submit()
             if self.q[i].grad_required:
-                # batch dQ[i][j] = 1.0/sqrt(head_size) * K[i][j] * dA[i][j]
+                # dQ[i] = 1.0/sqrt(head_size) * einsum('jkl,kml->jml', K[i],
+                #       dA[i])
                 gemm_async(1.0/self.head_size**0.5, notrans, self.k[i].value, \
                         notrans, self.a[i].grad, 0.0, self.q[i].grad, 1, 1)
-            # Backward for V[i] = W_V[i] * X_V
+            # K[i] can be deleted
+            self.k[i].value.invalidate_submit()
+            # dA[i] can be deleted
+            self.a[i].grad.invalidate_submit()
+            # Backward for V[i] = einsum('jk,klm->jlm', W_V[i], X_V)
             if self.x_v.grad_required:
-                # dX_V += W_V[i].T * dV[i]
+                # dX_V += einsum('jk,jlm->klm', W_V[i], dV[i])
                 gemm_async(1.0, trans, self.w_v[i].value, notrans, \
                         self.v[i].grad, 1.0, self.x_v.grad, 1, 0)
+            # W_V[i] can be offloaded from GPU
+            self.w_v[i].value.wont_use()
             if self.w_v[i].grad_required:
-                # dW_V[i] = dV[i] * X_V.T
+                # dW_V[i] = einsum('jlm,klm->jk', dV[i], X_V)
                 gemm_async(1.0, notrans, self.v[i].grad, trans, \
                         self.x_v.value, 0.0, self.w_v[i].grad, 2, 0)
-            # Backward for K[i] = W_K[i] * X_K
+            # dW_V[i] can be offloaded from GPU
+            self.w_v[i].grad.wont_use()
+            # dV[i] can be deleted
+            self.v[i].grad.invalidate_submit()
+            # Backward for K[i] = einsum('jk,klm->jlm', W_K[i], X_K)
             if self.x_k.grad_required:
-                # dX_K += W_K[i].T * dK[i]
+                # dX_K += einsum('jk,jlm->klm', W_K[i], dK[i])
                 gemm_async(1.0, trans, self.w_k[i].value, notrans, \
                         self.k[i].grad, 1.0, self.x_k.grad, 1, 0)
+            # W_K[i] can be offloaded from GPU
+            self.w_k[i].value.wont_use()
             if self.w_k[i].grad_required:
-                # dW_K[i] = dK[i] * X_K.T
+                # dW_K[i] = einsum('jlm,klm->jk', dK[i], X_K)
                 gemm_async(1.0, notrans, self.k[i].grad, trans, \
                         self.x_k.value, 0.0, self.w_k[i].grad, 2, 0)
-            # Backward for Q[i] = W_Q[i] * X_Q
+            # dW_K[i] can be offloaded from GPU
+            self.w_k[i].grad.wont_use()
+            # dK[i] can be deleted
+            self.k[i].grad.invalidate_submit()
+            # Backward for Q[i] = einsum('jk,klm->jlm', W_Q[i], X_Q)
             if self.x_q.grad_required:
-                # dX_Q += W_Q[i].T * dQ[i]
+                # dX_Q += einsum('jk,jlm->klm', W_Q[i], dQ[i])
                 gemm_async(1.0, trans, self.w_q[i].value, notrans, \
                         self.q[i].grad, 1.0, self.x_q.grad, 1, 0)
+            # W_Q[i] can be offloaded from GPU
+            self.w_q[i].value.wont_use()
             if self.w_q[i].grad_required:
-                # dW_Q[i] = dQ[i] * X_Q.T
+                # dW_Q[i] = einsum('jlm,klm->jk', dQ[i], X_Q)
                 gemm_async(1.0, notrans, self.q[i].grad, trans, \
                         self.x_q.value, 0.0, self.w_q[i].grad, 2, 0)
-
-    # Unregister all internal tensors
-    def unregister(self):
-        pass
+            # dW_Q[i] can be offloaded from GPU
+            self.w_q[i].grad.wont_use()
+            # dQ[i] can be deleted
+            self.q[i].grad.invalidate_submit()
 
