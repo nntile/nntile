@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-03-26
+# @date 2023-03-27
 
 # Set list of headers
 set(BASE_HDR
@@ -62,6 +62,12 @@ set(KERNEL_HDR
     "nntile/kernel/addcdiv/cpu.hh"
     "nntile/kernel/scalprod.hh"
     "nntile/kernel/scalprod/cpu.hh"
+    "nntile/kernel/logsumexp.hh"
+    "nntile/kernel/logsumexp/cpu.hh"
+    "nntile/kernel/total_sum_accum.hh"
+    "nntile/kernel/total_sum_accum/cpu.hh"
+    "nntile/kernel/subtract_indexed_column.hh"
+    "nntile/kernel/subtract_indexed_column/cpu.hh"
     )
 
 if(NNTILE_USE_CUDA)
@@ -110,6 +116,9 @@ set(STARPU_HDR
     "nntile/starpu/maximum.hh"
     "nntile/starpu/addcdiv.hh"
     "nntile/starpu/scalprod.hh"
+    "nntile/starpu/logsumexp.hh"
+    "nntile/starpu/total_sum_accum.hh"
+    "nntile/starpu/subtract_indexed_column.hh"
     )
 
 set(TILE_HDR
@@ -140,6 +149,9 @@ set(TILE_HDR
     "nntile/tile/maximum.hh"
     "nntile/tile/addcdiv.hh"
     "nntile/tile/scalprod.hh"
+    "nntile/tile/logsumexp.hh"
+    "nntile/tile/total_sum_accum.hh"
+    "nntile/tile/subtract_indexed_column.hh"
     )
 
 set(TENSOR_HDR
@@ -173,32 +185,35 @@ set(TENSOR_HDR
     "nntile/tensor/maximum.hh"
     "nntile/tensor/addcdiv.hh"
     "nntile/tensor/scalprod.hh"
+    "nntile/tensor/logsumexp.hh"
+    "nntile/tensor/total_sum_accum.hh"
+    "nntile/tensor/subtract_indexed_column.hh"
     )
 
 set(LAYER_HDR
-    "nntile/layer.hh"
-    "nntile/layer/base.hh"
-    "nntile/layer/gelu.hh"
+    #"nntile/layer.hh"
+    #"nntile/layer/base.hh"
+    #"nntile/layer/gelu.hh"
     #"nntile/layer/gelutanh.hh"
-    "nntile/layer/linear.hh"
+    #"nntile/layer/linear.hh"
     #"nntile/layer/mlp.hh"
     )
 
 set(MODEL_HDR
-    "nntile/model.hh"
-    "nntile/model/base.hh"
-    "nntile/model/deep_linear.hh"
+    #"nntile/model.hh"
+    #"nntile/model/base.hh"
+    #"nntile/model/deep_linear.hh"
     )
 
 set(OPTIMIZER_HDR
-    # "nntile/optimizer.hh"
-    # "nntile/optimizer/base.hh"
-    # "nntile/optimizer/sgd.hh"
+    #"nntile/optimizer.hh"
+    #"nntile/optimizer/base.hh"
+    #"nntile/optimizer/sgd.hh"
     #"nntile/optimizer/deep_linear.hh"
     )
 
-set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR}
-    ${LAYER_HDR})# ${MODEL_HDR} ${OPTIMIZER_HDR})
+set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR})
+    #${LAYER_HDR})# ${MODEL_HDR} ${OPTIMIZER_HDR})
 
 target_sources(nntile PUBLIC ${HDR})
 

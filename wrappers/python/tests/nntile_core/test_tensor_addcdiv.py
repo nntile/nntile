@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Katrutsa
 # @author Aleksandr Mikhalev
-# @date 2023-02-16
+# @date 2023-03-18
 
 # All necesary imports
 import nntile
@@ -67,7 +67,10 @@ def helper(dtype):
     B.unregister()
     C.unregister()
     # Compare results
-    return np.allclose(np_D, rand_C + a * rand_A / (rand_B + eps))
+    if dtype == np.float32:
+        return np.allclose(np_D, rand_C + a * rand_A / (rand_B + eps), atol=1e-5)
+    elif dtype == np.float64:
+        return np.allclose(np_D, rand_C + a * rand_A / (rand_B + eps), atol=1e-10)
 
 # Test runner for different precisions
 def test():

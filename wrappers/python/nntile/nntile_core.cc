@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-03-26
+ * @date 2023-03-27
  * */
 
 #include <pybind11/pybind11.h>
@@ -360,6 +360,7 @@ void def_mod_tensor(py::module_ &m)
     // Define wrappers for Tensor<T>
     def_class_tensor<fp64_t>(m, "Tensor_fp64");
     def_class_tensor<fp32_t>(m, "Tensor_fp32");
+    def_class_tensor<Index>(m, "Tensor_int64");
     // Add tensor.distributions submodule
     auto distributions = m.def_submodule("distributions");
     def_tensor_distributions(distributions);
@@ -392,8 +393,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("softmax_fp32", &softmax<fp32_t>);
     m.def("scatter_async_fp64", &scatter_async<fp64_t>);
     m.def("scatter_async_fp32", &scatter_async<fp32_t>);
+    m.def("scatter_async_int64", &scatter_async<Index>);
     m.def("scatter_fp64", &scatter<fp64_t>);
     m.def("scatter_fp32", &scatter<fp32_t>);
+    m.def("scatter_int64", &scatter<Index>);
     m.def("randn_async_fp64", &randn_async<fp64_t>);
     m.def("randn_async_fp32", &randn_async<fp32_t>);
     m.def("randn_fp64", &randn<fp64_t>);
@@ -420,30 +423,51 @@ void def_mod_tensor(py::module_ &m)
     m.def("bias_fp32", &bias<fp32_t>);
     m.def("gather_async_fp64", &gather_async<fp64_t>);
     m.def("gather_async_fp32", &gather_async<fp32_t>);
+    m.def("gather_async_int64", &gather_async<Index>);
     m.def("gather_fp64", &gather<fp64_t>);
     m.def("gather_fp32", &gather<fp32_t>);
+    m.def("gather_int64", &gather<Index>);
+
     m.def("copy_intersection_async_fp64", &copy_intersection_async<fp64_t>);
     m.def("copy_intersection_async_fp32", &copy_intersection_async<fp32_t>);
+    m.def("copy_intersection_async_int64", &copy_intersection_async<Index>);
+
     m.def("copy_intersection_fp64", &copy_intersection<fp64_t>);
     m.def("copy_intersection_fp32", &copy_intersection<fp32_t>);
+    m.def("copy_intersection_int64", &copy_intersection<Index>);
+    
     m.def("copy_async_fp64", &copy_async<fp64_t>);
     m.def("copy_async_fp32", &copy_async<fp32_t>);
+    m.def("copy_async_int64", &copy_async<Index>);
+
     m.def("copy_fp64", &copy<fp64_t>);
     m.def("copy_fp32", &copy<fp32_t>);
+    m.def("copy_int64", &copy<Index>);
+
     m.def("clear_async_fp64", &clear_async<fp64_t>);
     m.def("clear_async_fp32", &clear_async<fp32_t>);
     m.def("clear_fp64", &clear<fp64_t>);
     m.def("clear_fp32", &clear<fp32_t>);
         
-    m.def("axpy_async_fp64", py::overload_cast<fp64_t, const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
-    m.def("axpy_async_fp32", py::overload_cast<fp32_t, const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
-    m.def("axpy_fp64", py::overload_cast<fp64_t, const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy<fp64_t>));
-    m.def("axpy_fp32", py::overload_cast<fp32_t, const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy<fp32_t>));
+    m.def("axpy_async_fp64", py::overload_cast<fp64_t, const Tensor<fp64_t>&,
+            const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
+    m.def("axpy_async_fp32", py::overload_cast<fp32_t, const Tensor<fp32_t>&,
+            const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
+    m.def("axpy_fp64", py::overload_cast<fp64_t, const Tensor<fp64_t>&,
+            const Tensor<fp64_t>&>(&axpy<fp64_t>));
+    m.def("axpy_fp32", py::overload_cast<fp32_t, const Tensor<fp32_t>&,
+            const Tensor<fp32_t>&>(&axpy<fp32_t>));
 
-    m.def("axpy_async_fp64", py::overload_cast<const Tensor<fp64_t>&, const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
-    m.def("axpy_async_fp32", py::overload_cast<const Tensor<fp32_t>&, const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
-    m.def("axpy_fp64", py::overload_cast<const Tensor<fp64_t>&, const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy<fp64_t>));
-    m.def("axpy_fp32", py::overload_cast<const Tensor<fp32_t>&, const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy<fp32_t>));
+    m.def("axpy_async_fp64", py::overload_cast<const Tensor<fp64_t>&,
+            const Tensor<fp64_t>&,
+            const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
+    m.def("axpy_async_fp32", py::overload_cast<const Tensor<fp32_t>&,
+            const Tensor<fp32_t>&,
+            const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
+    m.def("axpy_fp64", py::overload_cast<const Tensor<fp64_t>&,
+            const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy<fp64_t>));
+    m.def("axpy_fp32", py::overload_cast<const Tensor<fp32_t>&,
+            const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy<fp32_t>));
 
     m.def("sqrt_async_fp64", &sqrt_async<fp64_t>);
     m.def("sqrt_async_fp32", &sqrt_async<fp32_t>);
@@ -458,6 +482,23 @@ void def_mod_tensor(py::module_ &m)
     m.def("addcdiv_async_fp32", &addcdiv_async<fp32_t>);
     m.def("addcdiv_fp64", &addcdiv<fp64_t>);
     m.def("addcdiv_fp32", &addcdiv<fp32_t>);
+
+    m.def("logsumexp_async_fp64", &logsumexp_async<fp64_t>);
+    m.def("logsumexp_async_fp32", &logsumexp_async<fp32_t>);
+    m.def("logsumexp_fp64", &logsumexp<fp64_t>);
+    m.def("logsumexp_fp32", &logsumexp<fp32_t>);
+
+    m.def("total_sum_accum_async_fp64", &total_sum_accum_async<fp64_t>);
+    m.def("total_sum_accum_async_fp32", &total_sum_accum_async<fp32_t>);
+    m.def("total_sum_accum_fp64", &total_sum_accum<fp64_t>);
+    m.def("total_sum_accum_fp32", &total_sum_accum<fp32_t>);
+
+    m.def("subtract_indexed_column_async_fp64",
+            &subtract_indexed_column_async<fp64_t>);
+    m.def("subtract_indexed_column_async_fp32",
+            &subtract_indexed_column_async<fp32_t>);
+    m.def("subtract_indexed_column_fp64", &subtract_indexed_column<fp64_t>);
+    m.def("subtract_indexed_column_fp32", &subtract_indexed_column<fp32_t>);
     
     m.def("scalprod_async_fp64", &scalprod_async<fp64_t>);
     m.def("scalprod_async_fp32", &scalprod_async<fp32_t>);

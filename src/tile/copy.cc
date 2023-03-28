@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-02
+ * @author Aleksandr Katrutsa
+ * @date 2023-03-27
  * */
 
 #include "nntile/tile/copy.hh"
@@ -64,12 +65,18 @@ void copy_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 template
 void copy_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
+template
+void copy_async<Index>(const Tile<Index> &src, const Tile<Index> &dst);
+
 // Explicit instantiation
 template
 void copy<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
 void copy<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+
+template
+void copy<Index>(const Tile<Index> &src, const Tile<Index> &dst);
 
 } // namespace tile
 } // namespace nntile

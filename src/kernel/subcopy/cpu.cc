@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-12
+ * @author Aleksandr Katrutsa
+ * @date 2023-03-27
  * */
 
 #include "nntile/kernel/subcopy/cpu.hh"
@@ -117,6 +118,12 @@ template
 void cpu<fp64_t>(Index ndim, const Index *src_start, const Index *src_stride,
         const Index *copy_shape, const fp64_t *src, const Index *dst_start,
         const Index *dst_stride, fp64_t *dst, Index *tmp_index)
+    noexcept;
+
+template
+void cpu<Index>(Index ndim, const Index *src_start, const Index *src_stride,
+        const Index *copy_shape, const Index *src, const Index *dst_start,
+        const Index *dst_stride, Index *dst, Index *tmp_index)
     noexcept;
 
 } // namespace subcopy

@@ -9,6 +9,8 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-09
+# @author Aleksandr Katrutsa
+# @date 2023-03-16
 
 from .frob import Frob
+from .crossentropy import CrossEntropy

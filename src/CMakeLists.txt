@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-03-26
+# @date 2023-03-27
 
 # Set list of sources
 set(KERNEL_SRC
@@ -35,6 +35,9 @@ set(KERNEL_SRC
     "kernel/maximum/cpu.cc"
     "kernel/addcdiv/cpu.cc"
     "kernel/scalprod/cpu.cc"
+    "kernel/logsumexp/cpu.cc"
+    "kernel/total_sum_accum/cpu.cc"
+    "kernel/subtract_indexed_column/cpu.cc"
     )
 
 if(NNTILE_USE_CUDA)
@@ -82,6 +85,9 @@ set(STARPU_SRC
     "starpu/maximum.cc"
     "starpu/addcdiv.cc"
     "starpu/scalprod.cc"
+    "starpu/logsumexp.cc"
+    "starpu/total_sum_accum.cc"
+    "starpu/subtract_indexed_column.cc"
     )
 
 set(TILE_SRC
@@ -110,6 +116,9 @@ set(TILE_SRC
     "tile/maximum.cc"
     "tile/addcdiv.cc"
     "tile/scalprod.cc"
+    "tile/logsumexp.cc"
+    "tile/total_sum_accum.cc"
+    "tile/subtract_indexed_column.cc"
     )
 
 set(TENSOR_SRC
@@ -141,17 +150,20 @@ set(TENSOR_SRC
     "tensor/maximum.cc"
     "tensor/addcdiv.cc"
     "tensor/scalprod.cc"
+    "tensor/logsumexp.cc"
+    "tensor/total_sum_accum.cc"
+    "tensor/subtract_indexed_column.cc"
     )
 
 set(LAYER_SRC
-    "layer/gelu.cc"
+    #"layer/gelu.cc"
     #"layer/gelutanh.cc"
-    "layer/linear.cc"
+    #"layer/linear.cc"
     #"layer/mlp.cc"
     )
 
 set(MODEL_SRC
-    "model/deep_linear.cc"
+    #"model/deep_linear.cc"
     )
 
 set(OPTIMIZER_SRC
