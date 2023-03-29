@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/bias/cuda.hh
- * Bias operation on a buffer on CUDA
+ * @file include/nntile/tile/scalprod.hh
+ * Scalar product of slices of two Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -14,22 +14,21 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
-#include <cuda_runtime.h>
+#include <nntile/tile/tile.hh>
 
 namespace nntile
 {
-namespace kernel
-{
-namespace bias
+namespace tile
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
-        const T *src, T *dst)
-    noexcept;
+void scalprod_async(T alpha, const Tile<T> &src1, const Tile<T> &src2, T beta,
+        const Tile<T> &dst, Index axis);
 
-} // namespace bias
-} // namespace kernel
+template<typename T>
+void scalprod(T alpha, const Tile<T> &src1, const Tile<T> &src2, T beta,
+        const Tile<T> &dst, Index axis);
+
+} // namespace tile
 } // namespace nntile
 

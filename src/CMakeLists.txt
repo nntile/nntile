@@ -34,6 +34,7 @@ set(KERNEL_SRC
     "kernel/sqrt/cpu.cc"
     "kernel/maximum/cpu.cc"
     "kernel/addcdiv/cpu.cc"
+    "kernel/scalprod/cpu.cc"
     "kernel/logsumexp/cpu.cc"
     "kernel/total_sum_accum/cpu.cc"
     "kernel/subtract_indexed_column/cpu.cc"
@@ -55,6 +56,7 @@ if(NNTILE_USE_CUDA)
         "kernel/sum/cuda.cu"
         "kernel/maxsumexp/cuda.cu"
         "kernel/softmax/cuda.cu"
+        "kernel/scalprod/cuda.cu"
         )
 endif()
 
@@ -83,6 +85,7 @@ set(STARPU_SRC
     "starpu/sqrt.cc"
     "starpu/maximum.cc"
     "starpu/addcdiv.cc"
+    "starpu/scalprod.cc"
     "starpu/logsumexp.cc"
     "starpu/total_sum_accum.cc"
     "starpu/subtract_indexed_column.cc"
@@ -113,6 +116,7 @@ set(TILE_SRC
     "tile/sqrt.cc"
     "tile/maximum.cc"
     "tile/addcdiv.cc"
+    "tile/scalprod.cc"
     "tile/logsumexp.cc"
     "tile/total_sum_accum.cc"
     "tile/subtract_indexed_column.cc"
@@ -147,6 +151,7 @@ set(TENSOR_SRC
     "tensor/sqrt.cc"
     "tensor/maximum.cc"
     "tensor/addcdiv.cc"
+    "tensor/scalprod.cc"
     "tensor/logsumexp.cc"
     "tensor/total_sum_accum.cc"
     "tensor/subtract_indexed_column.cc"
@@ -154,21 +159,21 @@ set(TENSOR_SRC
     )
 
 set(LAYER_SRC
-    "layer/gelu.cc"
+    #"layer/gelu.cc"
     #"layer/gelutanh.cc"
-    "layer/linear.cc"
+    #"layer/linear.cc"
     #"layer/mlp.cc"
     )
 
 set(MODEL_SRC
-    "model/deep_linear.cc"
+    #"model/deep_linear.cc"
     )
 
 set(OPTIMIZER_SRC
     # "optimizer/sgd.cc"
     )
 
-set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC} ${LAYER_SRC})
+set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC})# ${LAYER_SRC})
     #${MODEL_SRC} ${OPTIMIZER_SRC})
 
 target_sources(nntile PRIVATE ${SRC})

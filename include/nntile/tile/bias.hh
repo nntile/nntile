@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-19
+ * @date 2023-03-26
  * */
 
 #pragma once
@@ -23,11 +23,11 @@ namespace tile
 
 // Tile-wise bias operation
 template<typename T>
-void bias_async(const Tile<T> &src, const Tile<T> &dst, Index axis);
+void bias_async(T alpha, const Tile<T> &src, const Tile<T> &dst, Index axis);
 
 // Tile-wise bias operation
 template<typename T>
-void bias(const Tile<T> &src, const Tile<T> &dst, Index axis);
+void bias(T alpha, const Tile<T> &src, const Tile<T> &dst, Index axis);
 
 } // namespace tile
 } // namespace nntile

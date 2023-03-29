@@ -41,6 +41,7 @@ set(TESTS
     "maximum"
     "addcdiv"
     "scal"
+    "scalprod"
     )
 
 # Add target for local coverage

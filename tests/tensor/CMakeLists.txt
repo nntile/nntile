@@ -47,6 +47,7 @@ set(TESTS_MPI
     "maximum"
     "addcdiv"
     "scal"
+    "scalprod"
     )
 
 # Add target for local coverage

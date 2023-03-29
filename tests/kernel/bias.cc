@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-25
+ * @date 2023-03-26
  * */
 
 #include "nntile/kernel/bias.hh"
@@ -24,7 +24,7 @@ using namespace nntile::kernel::bias;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void run_cuda(Index m, Index n, Index k, const std::vector<T> &src,
+void run_cuda(Index m, Index n, Index k, T alpha, const std::vector<T> &src,
         std::vector<T> &dst)
 {
     // Copy to device
@@ -44,7 +44,7 @@ void run_cuda(Index m, Index n, Index k, const std::vector<T> &src,
     cuda_err = cudaStreamCreate(&stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Launch low-level CUDA kernel
-    cuda<T>(stream, m, n, k, dev_src, dev_dst);
+    cuda<T>(stream, m, n, k, alpha, dev_src, dev_dst);
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result and deallocate device memory
@@ -81,14 +81,14 @@ void validate(Index m, Index n, Index k)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
-            src[i1*m+i0] = T(-i0-i1) / T{10};
+            src[i1*m+i0] = T(i0+i1) / T{20};
         }
     }
     // Save original dst
     std::vector<T> dst_save(dst);
     // Check low-level CPU kernel
     std::cout << "Run kernel::bias::cpu<T>\n";
-    cpu<T>(m, n, k, &src[0], &dst[0]);
+    cpu<T>(m, n, k, -2.0, &src[0], &dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
@@ -109,7 +109,7 @@ void validate(Index m, Index n, Index k)
     // Check low-level CUDA kernel
     dst = dst_save;
     std::cout << "Run kernel::bias::cuda<T>\n";
-    run_cuda<T>(m, n, k, src, dst);
+    run_cuda<T>(m, n, k, -2.0, src, dst);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)

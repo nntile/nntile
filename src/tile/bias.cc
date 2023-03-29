@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-02
+ * @date 2023-03-26
  * */
 
 #include "nntile/tile/bias.hh"
@@ -22,7 +22,7 @@ namespace tile
 
 //! Tile-wise bias operation
 template<typename T>
-void bias_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
+void bias_async(T alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
 {
     // Check dimensions
     if(dst.ndim != src.ndim+1)
@@ -53,6 +53,11 @@ void bias_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
             throw std::runtime_error("dst.shape[i] != src.shape[i-1]");
         }
     }
+    // Do nothing if alpha is zero
+    if(alpha == 0.0)
+    {
+        return;
+    }
     // Reshape inputs for simplicity: src -> (m,n), dst -> (m,k,n)
     Index m, n, k;
     if(axis == 0)
@@ -74,34 +79,34 @@ void bias_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
         k = dst.shape[axis];
     }
     // Insert corresponding task
-    starpu::bias::submit<T>(m, n, k, src, dst);
+    starpu::bias::submit<T>(m, n, k, alpha, src, dst);
 }
 
 //! Tile-wise bias operation
 template<typename T>
-void bias(const Tile<T> &src, const Tile<T> &dst, Index axis)
+void bias(T alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
 {
-    bias_async<T>(src, dst, axis);
+    bias_async<T>(alpha, src, dst, axis);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
-void bias_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst,
-        Index axis);
+void bias_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src,
+        const Tile<fp32_t> &dst, Index axis);
 
 template
-void bias_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst,
-        Index axis);
+void bias_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src,
+        const Tile<fp64_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void bias<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst,
-        Index axis);
+void bias<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src,
+        const Tile<fp32_t> &dst, Index axis);
 
 template
-void bias<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst,
-        Index axis);
+void bias<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src,
+        const Tile<fp64_t> &dst, Index axis);
 
 } // namespace tile
 } // namespace nntile

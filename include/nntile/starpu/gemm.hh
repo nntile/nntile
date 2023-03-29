@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2023-03-10
  * */
 
 #pragma once
@@ -30,11 +30,12 @@ namespace gemm
 template<typename T>
 struct args_t
 {
-    TransOp transA;
-    TransOp transB;
-    Index m;
-    Index n;
-    Index k;
+    TransOp transA; // op(A)
+    TransOp transB; // op(B)
+    Index m; // Number of rows of op(A) and C
+    Index n; // Number of columns of op(B) and C
+    Index k; // Number of columns of op(A) and number of rows of op(B)
+    Index batch; // Number of gemms in a batch
     T alpha;
     T beta;
 };
@@ -132,7 +133,7 @@ void restore_where();
 
 template<typename T>
 void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
-        Index k, T alpha, Handle A, Handle B, T beta, Handle C);
+        Index k, Index batch, T alpha, Handle A, Handle B, T beta, Handle C);
 
 } // namespace gemm
 } // namespace starpu
