@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-03-27
+# @date 2023-03-29
 
 # Set list of sources
 set(KERNEL_SRC
@@ -67,6 +67,7 @@ set(STARPU_SRC
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/axpy.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/nrm2.cc"
+    "${CMAKE_CURRENT_BINARY_DIR}/starpu/scal.cc"
     "starpu/gelu.cc"
     "starpu/gelutanh.cc"
     "starpu/hypot.cc"

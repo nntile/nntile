@@ -115,6 +115,7 @@ set(STARPU_HDR
     "nntile/starpu/logsumexp.hh"
     "nntile/starpu/total_sum_accum.hh"
     "nntile/starpu/subtract_indexed_column.hh"
+    "nntile/starpu/scal.hh"
     )
 
 set(TILE_HDR
