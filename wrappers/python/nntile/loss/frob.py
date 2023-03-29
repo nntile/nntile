@@ -23,11 +23,11 @@ class Frob:
 
     # Constructor of loss with all the provided data
     def __init__(self, x: TensorMoments, y: Tensor, val: Tensor, \
-            val2: Tensor, tmp: Tensor):
+            val_sqrt: Tensor, tmp: Tensor):
         self.x = x
         self.y = y
+        self.val_sqrt = val_sqrt
         self.val = val
-        self.val2 = val2
         self.tmp = tmp
 
     # Simple geenrator
@@ -57,14 +57,14 @@ class Frob:
         # Values Y are not needed anymore
         #self.y.invalidate_submit()
         # Get value ||grad X||
-        nrm2_async(self.x.grad, self.val, self.tmp)
+        nrm2_async(self.x.grad, self.val_sqrt, self.tmp)
         # Ignore temporary values
         #self.tmp.invalidate_submit()
         # Invalidate gradient if it is unnecessary
         #if self.x.grad_required is False:
         #    self.x.grad.invalidate_submit()
         # Compute loss as 0.5*||dX||^2
-        copy_async(self.val, self.val2)
-        prod_async(self.val, self.val2)
-        scal_async(0.5, self.val2)
+        copy_async(self.val_sqrt, self.val)
+        prod_async(self.val_sqrt, self.val)
+        scal_async(0.5, self.val)
 
