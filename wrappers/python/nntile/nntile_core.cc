@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-03-27
+ * @date 2023-03-29
  * */
 
 #include <pybind11/pybind11.h>
@@ -496,6 +496,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("subtract_indexed_column_fp64", &subtract_indexed_column<fp64_t>);
     m.def("subtract_indexed_column_fp32", &subtract_indexed_column<fp32_t>);
     
+    m.def("scal_async_fp64", &scal_async<fp64_t>);
+    m.def("scal_async_fp32", &scal_async<fp32_t>);
+    m.def("scal_fp64", &scal<fp64_t>);
+    m.def("scal_fp32", &scal<fp32_t>);
+
     // gelu and dgelu
     m.def("gelu_async_fp64", &gelu_async<fp64_t>);
     m.def("gelu_async_fp32", &gelu_async<fp32_t>);
