@@ -1,0 +1,73 @@
+FROM ubuntu:20.04
+
+# Set up default timezone
+ENV TZ=Europe/Moscow
+
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo $TZ > /etc/timezone
+
+# Install all the necessary dependencies both for StarPU installation and for
+# NNTile development
+RUN apt update && apt install -y --no-install-recommends \
+    build-essential libopenmpi3 libopenmpi-dev openmpi-bin \
+    lsb-release software-properties-common pkg-config \
+    fxt-tools libfxt-dev autoconf automake libtool-bin \
+    libhwloc-dev vim wget git gdb libopenblas-dev lcov \
+    python3 ninja-build python3-pip python3-dev
+
+## Add Kitware repo for the latest CMake package
+# Get Kitware's signing key
+RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc \
+    2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg \
+    >/dev/null
+# Add Kitware's repo to the list of sources
+RUN apt-add-repository \
+    "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main"
+# Get up-to-date Kitware keyring
+#RUN apt install kitware-archive-keyring
+# Remove GPG key
+#RUN rm /etc/apt/trusted.gpg.d/kitware.gpg
+# Copy public key
+#RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 6AF7F09730B3F0A4
+## Finally, install CMake
+RUN apt update && apt install -y --no-install-recommends \
+    cmake cmake-curses-gui
+
+# Get the latest StarPU, compile and install it
+RUN git clone https://gitlab.inria.fr/starpu/starpu.git /starpu
+WORKDIR /starpu
+# Use the same version across different hardware
+RUN git checkout starpu-1.4.0
+RUN ./autogen.sh
+RUN ./configure --disable-build-doc --disable-build-examples \
+    --disable-build-tests --disable-opencl --disable-socl \
+    --disable-starpufft --enable-blas-lib=none --disable-starpupy \
+    --disable-fortran --with-fxt
+RUN make -j 4 install
+# Remove build files of StarPU
+RUN rm -rf /starpu
+
+# Set up workspace for NNTile
+RUN mkdir -p /workspace
+RUN chmod 777 /workspace
+WORKDIR /workspace
+
+# Set path to libstarpumpi library
+ENV LD_LIBRARY_PATH=/usr/local/lib
+# Enable use of MPI with the root user
+ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+ENV OMPI_ALLOW_RUN_AS_ROOT=1
+
+# Set entrypoint
+ENTRYPOINT ["bash"]
+
+# Install required Python packages
+RUN pip install ipython pytest numpy scipy ipdb torch torchvision torchaudio
+# Remove PIP-installed CMake
+RUN pip uninstall cmake -y
+
+# Set OpenBLAS threads to 1 (sequential)
+RUN export OMP_NUM_THREADS=1
+RUN export OPENBLAS_NUM_THREADS=1
+RUN export OPENMP_NUM_THREADS=1
+

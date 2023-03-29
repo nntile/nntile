@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.0.3-devel-ubuntu20.04
+FROM nvidia/cuda:10.1-devel-ubuntu18.04
 
 RUN apt-key adv --fetch-keys \
     http://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
@@ -40,11 +40,11 @@ RUN apt update && apt install -y --no-install-recommends \
 RUN git clone https://gitlab.inria.fr/starpu/starpu.git /starpu
 WORKDIR /starpu
 # Use the same version across different hardware
-RUN git checkout 11cec178a3e48fc821fa6935f2538c387e45774f
+RUN git checkout starpu-1.4.0
 RUN ./autogen.sh
-RUN ./configure --disable-build-doc \
-    --disable-build-examples --disable-build-tests --disable-opencl \
-    --disable-socl --disable-starpufft --enable-blas-lib=none \
+RUN ./configure --disable-build-doc --disable-build-examples \
+    --disable-build-tests --disable-opencl --disable-socl \
+    --disable-starpufft --enable-blas-lib=none --disable-starpupy \
     --disable-fortran --with-fxt --enable-maxcudadev=8
 RUN make -j 4 install
 # Remove build files of StarPU
@@ -65,8 +65,12 @@ ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENTRYPOINT ["bash"]
 
 # Install required Python packages
-RUN pip install pytest numpy
+RUN pip install ipython pytest numpy scipy ipdb torch torchvision torchaudio
+# Remove PIP-installed CMake
+RUN pip uninstall cmake -y
 
 # Set OpenBLAS threads to 1 (sequential)
 RUN export OMP_NUM_THREADS=1
+RUN export OPENBLAS_NUM_THREADS=1
+RUN export OPENMP_NUM_THREADS=1
 

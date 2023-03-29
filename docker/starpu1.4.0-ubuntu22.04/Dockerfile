@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 # Set up default timezone
 ENV TZ=Europe/Moscow
@@ -37,10 +37,12 @@ RUN apt update && apt install -y --no-install-recommends \
 RUN git clone https://gitlab.inria.fr/starpu/starpu.git /starpu
 WORKDIR /starpu
 # Use the same version across different hardware
-RUN git checkout 11cec178a3e48fc821fa6935f2538c387e45774f
+RUN git checkout starpu-1.4.0
 RUN ./autogen.sh
-RUN ./configure --disable-build-doc --disable-build-tests \
-    --disable-build-examples --disable-fortran --disable-opencl
+RUN ./configure --disable-build-doc --disable-build-examples \
+    --disable-build-tests --disable-opencl --disable-socl \
+    --disable-starpufft --enable-blas-lib=none --disable-starpupy \
+    --disable-fortran --with-fxt
 RUN make -j 4 install
 # Remove build files of StarPU
 RUN rm -rf /starpu
@@ -60,8 +62,12 @@ ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENTRYPOINT ["bash"]
 
 # Install required Python packages
-RUN pip install pytest numpy
+RUN pip install ipython pytest numpy scipy ipdb torch torchvision torchaudio
+# Remove PIP-installed CMake
+RUN pip uninstall cmake -y
 
 # Set OpenBLAS threads to 1 (sequential)
 RUN export OMP_NUM_THREADS=1
+RUN export OPENBLAS_NUM_THREADS=1
+RUN export OPENMP_NUM_THREADS=1
 
