@@ -148,6 +148,7 @@ set(TILE_HDR
     "nntile/tile/logsumexp.hh"
     "nntile/tile/total_sum_accum.hh"
     "nntile/tile/subtract_indexed_column.hh"
+    "nntile/tile/scal.hh"
     )
 
 set(TENSOR_HDR
@@ -183,6 +184,7 @@ set(TENSOR_HDR
     "nntile/tensor/logsumexp.hh"
     "nntile/tensor/total_sum_accum.hh"
     "nntile/tensor/subtract_indexed_column.hh"
+    "nntile/tensor/scal.hh"
     )
 
 set(LAYER_HDR

@@ -116,6 +116,7 @@ set(TILE_SRC
     "tile/logsumexp.cc"
     "tile/total_sum_accum.cc"
     "tile/subtract_indexed_column.cc"
+    "tile/scal.cc"
     )
 
 set(TENSOR_SRC
@@ -149,6 +150,7 @@ set(TENSOR_SRC
     "tensor/logsumexp.cc"
     "tensor/total_sum_accum.cc"
     "tensor/subtract_indexed_column.cc"
+    "tensor/scal.cc"
     )
 
 set(LAYER_SRC
