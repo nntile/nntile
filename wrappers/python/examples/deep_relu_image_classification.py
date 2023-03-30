@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-03-27
+# @date 2023-03-30
 
 # Imports
 import nntile
@@ -21,8 +21,12 @@ import torchvision.datasets as dts
 import torchvision.transforms as trnsfrms
 import torch
 
-dataset = "mnist"
+#dataset = "mnist"
 #dataset = "cifar10"
+dataset = "cifar10_large"
+
+#model = "small"
+model = "large"
 
 if dataset == "mnist":
         batch_size = 2000
@@ -31,7 +35,6 @@ if dataset == "mnist":
         train_loader = torch.utils.data.DataLoader(mnist_train_set, batch_size=batch_size, shuffle=True)
         mnist_test_set = dts.MNIST(root='./data', train=False, download=True, transform=trnsform)
         test_loader = torch.utils.data.DataLoader(mnist_test_set, batch_size=batch_size, shuffle=True)
-
         n_pixels = 28 * 28
         # Define tile sizes
         n_pixels_tile = 392
@@ -46,6 +49,21 @@ elif dataset == "cifar10":
         n_pixels = 32 * 32 * 3
         n_pixels_tile = n_pixels // 2
         n_classes = 10
+        n_images_train_tile = 500
+        n_images_test_tile = 500
+elif dataset == "cifar10_large":
+        batch_size = 50000
+        transform = trnsfrms.Compose([trnsfrms.ToTensor(), trnsfrms.Normalize((0.1307,), (0.3081,))])
+        cifar10_train_set = dts.CIFAR10(root='./data', train=True, download=True, transform=transform)
+        train_loader = torch.utils.data.DataLoader(cifar10_train_set, batch_size=batch_size, shuffle=True)
+        #cifar10_test_set = dts.CIFAR10(root='./data', train=False, download=True, transform=transform)
+        #test_loader = torch.utils.data.DataLoader(cifar10_test_set, batch_size=batch_size, shuffle=True)
+        test_loader = None # No testing
+        n_pixels = 32 * 32 * 3
+        n_pixels_tile = n_pixels
+        n_classes = 10
+        n_images_train_tile = 5000
+        n_images_test_tile = 5000
 else:
      raise ValueError("{} dataset is not supported yet!".format(dataset))
 
@@ -57,18 +75,20 @@ time0 += time.time()
 print("StarPU + NNTile + MPI init in {} seconds".format(time0))
 next_tag = 0
 
-
-n_images_train_tile = 500
-n_images_test_tile = 500
-
 # Describe neural network
+if model == "small":
+    hidden_layer_dim = 2000
+    hidden_layer_dim_tile = 500
+    n_layers = 3
+    n_epochs = 10
+    lr = 1e-2
+elif model == "large":
+    hidden_layer_dim = 20000
+    hidden_layer_dim_tile = 5000
+    n_layers = 5
+    n_epochs = 10
+    lr = 1e-3
 gemm_ndim = 1
-hidden_layer_dim = 2000
-hidden_layer_dim_tile = 500
-n_layers = 5
-n_epochs = 10
-lr = 1e-2
-
 
 # Number of FLOPs for training per batch
 n_flops_train_first_layer = 2 * 2 * n_pixels * batch_size \
@@ -158,14 +178,25 @@ nntile.starpu.wait_for_all()
 time0 += time.time()
 print("Finish random weights init in {} seconds".format(time0))
 
-## Start timer and run training
+# Run a single epoch to let StarPU allocate temp buffers and pin them
+pipeline.n_epochs = 1
+time0 = -time.time()
+pipeline.train_async()
+nntile.starpu.wait_for_all()
+time0 += time.time()
+print("Finish the first epoch (StarPU allocates temp buffers) in {} seconds" \
+        .format(time0))
+
+# Start timer and run training
+pipeline.n_epochs = n_epochs - 1
+n_flops *= (n_epochs-1) / n_epochs
 time0 = -time.time()
 pipeline.train_async()
 time0 += time.time()
 print("Finish adding tasks (computations are running) in {} seconds" \
         .format(time0))
-#
-## Wait for all computations to finish
+
+# Wait for all computations to finish
 time1 = -time.time()
 nntile.starpu.wait_for_all()
 time1 += time.time()
@@ -179,6 +210,8 @@ time0 = -time.time()
 for x in batch_data:
     nntile.tensor.copy_async(x, m.activations[0].value)
     m.forward_async()
+    for t in m.activations:
+        t.value.invalidate_submit()
 nntile.starpu.wait_for_all()
 time0 += time.time()
 # FLOPS for inference over the first layer per batch
@@ -196,32 +229,34 @@ print("Inference GFLOPs/s (based on gemms): {}" \
         .format(n_flops_inference * 1e-9 / time0))
 
 # Compute test accuracy of the trained model
-test_top1_accuracy = 0
-total_num_samples = 0
-z_single_traits = nntile.tensor.TensorTraits([batch_size, n_classes], \
-        [batch_size, n_classes])
-z_single_distr = [0]
-z_single = nntile.tensor.Tensor_fp32(z_single_traits, z_single_distr, next_tag)
-next_tag = z_single.next_tag
-for test_batch_data, test_batch_label in test_loader:
-    x_single.from_array(test_batch_data.view(-1, n_pixels).numpy())
-    nntile.tensor.scatter_async(x_single, m.activations[0].value)
-    m.forward_async()
-    nntile.tensor.gather_async(m.activations[-1].value, z_single)
-    output = np.zeros(z_single.shape, order="F", dtype=np.float32)
-    # to_array causes y_single to finish gather procedure
-    z_single.to_array(output)
-    pred_labels = np.argmax(output, 1)
-    test_top1_accuracy += np.sum(pred_labels == test_batch_label.numpy())
-    total_num_samples += test_batch_label.shape[0]
-test_top1_accuracy /= total_num_samples
-
-print("Test accuracy of the trained Deep ReLU model =", test_top1_accuracy)
+if test_loader is not None:
+    test_top1_accuracy = 0
+    total_num_samples = 0
+    z_single_traits = nntile.tensor.TensorTraits([batch_size, n_classes], \
+            [batch_size, n_classes])
+    z_single_distr = [0]
+    z_single = nntile.tensor.Tensor_fp32(z_single_traits, z_single_distr, next_tag)
+    next_tag = z_single.next_tag
+    for test_batch_data, test_batch_label in test_loader:
+        x_single.from_array(test_batch_data.view(-1, n_pixels).numpy())
+        nntile.tensor.scatter_async(x_single, m.activations[0].value)
+        m.forward_async()
+        nntile.tensor.gather_async(m.activations[-1].value, z_single)
+        for t in m.activations:
+            t.value.invalidate_submit()
+        output = np.zeros(z_single.shape, order="F", dtype=np.float32)
+        # to_array causes y_single to finish gather procedure
+        z_single.to_array(output)
+        pred_labels = np.argmax(output, 1)
+        test_top1_accuracy += np.sum(pred_labels == test_batch_label.numpy())
+        total_num_samples += test_batch_label.shape[0]
+    test_top1_accuracy /= total_num_samples
+    print("Test accuracy of the trained Deep ReLU model =", test_top1_accuracy)
+    z_single.unregister()
 
 # Unregister single-tile tensors for data scattering/gathering
 x_single.unregister()
 y_single.unregister()
-z_single.unregister()
 
 # Unregister all tensors related to model
 m.unregister()
