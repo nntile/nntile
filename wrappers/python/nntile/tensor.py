@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-03-28
+# @date 2023-04-04
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -69,6 +69,15 @@ def relu_async(x: Tensor) -> None:
         core_tensor.relu_async_fp32(x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.relu_async_fp64(x)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision backward ReLU
+def relu_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.relu_backward_async_fp32(x, dy, dx)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.relu_backward_async_fp64(x, dy, dx)
     else:
         raise TypeError
 

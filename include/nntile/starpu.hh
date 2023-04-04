@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-03-27
+ * @date 2023-04-04
  * */
 
 #pragma once
@@ -35,6 +35,7 @@
 #include <nntile/starpu/prod.hh>
 #include <nntile/starpu/randn.hh>
 #include <nntile/starpu/relu.hh>
+#include <nntile/starpu/relu_backward.hh>
 #include <nntile/starpu/subcopy.hh>
 #include <nntile/starpu/sumnorm.hh>
 #include <nntile/starpu/sum.hh>
@@ -73,6 +74,7 @@ void init()
     normalize::init();
     randn::init();
     relu::init();
+    relu_backward::init();
     prod::init();
     subcopy::init();
     sumnorm::init();
@@ -106,6 +108,7 @@ void restrict_where(uint32_t where)
     prod::restrict_where(where);
     randn::restrict_where(where);
     relu::restrict_where(where);
+    relu_backward::restrict_where(where);
     subcopy::restrict_where(where);
     sumnorm::restrict_where(where);
     sum::restrict_where(where);
@@ -138,6 +141,7 @@ void restore_where()
     prod::restore_where();
     randn::restore_where();
     relu::restore_where();
+    relu_backward::restore_where();
     subcopy::restore_where();
     sumnorm::restore_where();
     sum::restore_where();

@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-03-27
+ * @date 2023-04-04
  * */
 
 #include <pybind11/pybind11.h>
@@ -374,6 +374,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("relu_async_fp32", &relu_async<fp32_t>);
     m.def("relu_fp64", &relu<fp64_t>);
     m.def("relu_fp32", &relu<fp32_t>);
+    m.def("relu_backward_async_fp64", &relu_backward_async<fp64_t>);
+    m.def("relu_backward_async_fp32", &relu_backward_async<fp32_t>);
+    m.def("relu_backward_fp64", &relu_backward<fp64_t>);
+    m.def("relu_backward_fp32", &relu_backward<fp32_t>);
     m.def("drelu_async_fp64", &drelu_async<fp64_t>);
     m.def("drelu_async_fp32", &drelu_async<fp32_t>);
     m.def("drelu_fp64", &drelu<fp64_t>);
