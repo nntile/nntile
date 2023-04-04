@@ -106,7 +106,7 @@ void nrm2_async(const Tensor<T> &src, const Tensor<T> &dst,
             starpu::hypot::submit<T>(tmp_tile_handle, dst_tile_handle);
         }
     }
-    tmp.invalidate_submit();
+    //tmp.invalidate_submit();
     // Flush cache for the output tile on every node
     dst_tile_handle.mpi_flush();
 }

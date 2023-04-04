@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-03-27
+# @date 2023-04-04
 
 # Imports
 import nntile
@@ -45,6 +45,8 @@ elif dataset == "cifar10":
         train_loader = torch.utils.data.DataLoader(cifar10_train_set, batch_size=batch_size, shuffle=True)
         cifar10_test_set = dts.CIFAR10(root='./data', train=False, download=True, transform=transform)
         test_loader = torch.utils.data.DataLoader(cifar10_test_set, batch_size=batch_size, shuffle=True)
+        n_images_train_tile = 1000
+        n_images_test_tile = 1000
         n_pixels = 32 * 32 * 3
         n_pixels_tile = n_pixels // 2
         n_classes = 10
@@ -73,8 +75,10 @@ elif dataset == "imagenet":
         
         train_loader = torch.utils.data.DataLoader(imnet_train_set, batch_size=batch_size, shuffle=True)
         test_loader = torch.utils.data.DataLoader(imnet_test_set, batch_size=batch_size, shuffle=True)
+        n_images_train_tile = 5000
+        n_images_test_tile = 5000
         n_pixels = 224 * 224 * 3
-        n_pixels_tile = n_pixels // 2
+        n_pixels_tile = 5000
         n_classes = 1000
 elif dataset == "tiny_imagenet":
         batch_size = 10000
@@ -82,26 +86,35 @@ elif dataset == "tiny_imagenet":
                                      std=[0.229, 0.224, 0.225])
 
         imnet_train_set = dts.ImageFolder(
-            "/raid/tiny-imagenet-200/train/",
+            "/raid/data/datasets/tiny-imagenet-200/train/",
             trnsfrms.Compose([
                 trnsfrms.ToTensor(),
                 normalize,
             ]))
 
         imnet_test_set = dts.ImageFolder(
-                        "/raid/tiny-imagenet-200/test/",
+                        "/raid/data/datasets/tiny-imagenet-200/test/",
                         trnsfrms.Compose([
                         trnsfrms.ToTensor(),
                         normalize])
                         )
         
-        train_loader = torch.utils.data.DataLoader(imnet_train_set, batch_size=batch_size, shuffle=True)
-        test_loader = torch.utils.data.DataLoader(imnet_test_set, batch_size=batch_size, shuffle=True)
+        train_loader = torch.utils.data.DataLoader(imnet_train_set, \
+                batch_size=batch_size, shuffle=True)
+        test_loader = torch.utils.data.DataLoader(imnet_test_set, \
+                batch_size=batch_size, shuffle=True)
+        n_images_train_tile = 5000
+        n_images_test_tile = 5000
         n_pixels = 64 * 64 * 3
-        n_pixels_tile = n_pixels // 2
+        n_pixels_tile = 4096
         n_classes = 200
 else:
         raise ValueError("{} dataset is not supported yet!".format(dataset))
+
+print("Number of train images: {}".format(len(train_loader) * batch_size))
+print("Number of train batches: {}".format(len(train_loader)))
+print("Number of test images: {}".format(len(test_loader) * batch_size))
+print("Number of test batches: {}".format(len(test_loader)))
 
 time0 = -time.time()
 # Set up StarPU+MPI and init codelets
@@ -112,13 +125,10 @@ print("StarPU + NNTile + MPI init in {} seconds".format(time0))
 next_tag = 0
 
 
-n_images_train_tile = 500
-n_images_test_tile = 500
-
 # Describe neural network
 gemm_ndim = 1
-hidden_layer_dim = 2000
-hidden_layer_dim_tile = 500
+hidden_layer_dim = 10000
+hidden_layer_dim_tile = 5000
 n_layers = 5
 n_epochs = 10
 lr = 1e-2
@@ -214,7 +224,19 @@ nntile.starpu.wait_for_all()
 time0 += time.time()
 print("Finish random weights init in {} seconds".format(time0))
 
+# Run a some heat-up epochs to let StarPU allocate temp buffers and pin them
+n_heat_epochs = 2
+pipeline.n_epochs = n_heat_epochs
+print("Start {} heat-up epochs to let StarPU allocate and pin buffer" \
+        .format(n_heat_epochs))
+time0 = -time.time()
+pipeline.train_async()
+nntile.starpu.wait_for_all()
+time0 += time.time()
+print("Finish {} heat-up epochs in {} seconds".format(n_heat_epochs, time0))
+
 ## Start timer and run training
+pipeline.n_epochs = n_epochs
 time0 = -time.time()
 pipeline.train_async()
 time0 += time.time()
