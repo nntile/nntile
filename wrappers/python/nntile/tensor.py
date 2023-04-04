@@ -90,6 +90,24 @@ def drelu_async(x: Tensor) -> None:
     else:
         raise TypeError
 
+# Wrapper for multiprecision GELU
+def gelu_async(x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.gelu_async_fp32(x)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.gelu_async_fp64(x)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision derivative of GELU
+def dgelu_async(x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.dgelu_async_fp32(x)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.dgelu_async_fp64(x)
+    else:
+        raise TypeError
+
 # Wrapper for multiprecision sum
 def sum_async(x: Tensor, sum_out: Tensor, axis: int) -> None:
     if type(x) is not type(sum_out):

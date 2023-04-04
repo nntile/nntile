@@ -12,7 +12,7 @@
 # @date 2023-03-28
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        copy_async, prod_async, relu_async, drelu_async
+        copy_async, prod_async, relu_async, drelu_async, gelu_async, dgelu_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List, Callable
@@ -21,6 +21,7 @@ class Act(BaseLayer):
     x: TensorMoments
     y: TensorMoments
     activations = {'relu': (relu_async, drelu_async),
+                   'gelu': (gelu_async, dgelu_async)
             }
     func: Callable[[Tensor], None]
     dfunc: Callable[[Tensor], None]
