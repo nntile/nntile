@@ -22,28 +22,36 @@ import torchvision.transforms as trnsfrms
 import torch
 
 # dataset = "mnist"
-#dataset = "cifar10"
+# dataset = "cifar10"
 # dataset = "imagenet"
 dataset = "tiny_imagenet"
 
 if dataset == "mnist":
         batch_size = 2000
         trnsform = trnsfrms.Compose([trnsfrms.ToTensor(), trnsfrms.Normalize((0,), (255,))])
-        mnist_train_set = dts.MNIST(root='./data', train=True, download=True, transform=trnsform)
-        train_loader = torch.utils.data.DataLoader(mnist_train_set, batch_size=batch_size, shuffle=True)
-        mnist_test_set = dts.MNIST(root='./data', train=False, download=True, transform=trnsform)
-        test_loader = torch.utils.data.DataLoader(mnist_test_set, batch_size=batch_size, shuffle=True)
+        mnist_train_set = dts.MNIST(root='/raid/data/datasets/MNIST/', 
+                                train=True, download=False, transform=trnsform)
+        train_loader = torch.utils.data.DataLoader(mnist_train_set, batch_size=batch_size, shuffle=False)
+        mnist_test_set = dts.MNIST(root="/raid/data/datasets/MNIST/", 
+                                train=False, download=False, transform=trnsform)
+        test_loader = torch.utils.data.DataLoader(mnist_test_set, batch_size=batch_size, shuffle=False)
 
         n_pixels = 28 * 28
+        n_images_train_tile = 1000
+        n_images_test_tile = 1000
         # Define tile sizes
         n_pixels_tile = 392
         n_classes = 10
 elif dataset == "cifar10":
         batch_size = 2000
         transform = trnsfrms.Compose([trnsfrms.ToTensor(), trnsfrms.Normalize((0.1307,), (0.3081,))])
-        cifar10_train_set = dts.CIFAR10(root='./data', train=True, download=True, transform=transform)
+        cifar10_train_set = dts.CIFAR10(root='/raid/data/datasets/cifar10/', 
+                                            train=True,
+                                            download=False,
+                                            transform=transform)
         train_loader = torch.utils.data.DataLoader(cifar10_train_set, batch_size=batch_size, shuffle=True)
-        cifar10_test_set = dts.CIFAR10(root='./data', train=False, download=True, transform=transform)
+        cifar10_test_set = dts.CIFAR10(root='/raid/data/datasets/cifar10/',
+                                train=False, download=False, transform=transform)
         test_loader = torch.utils.data.DataLoader(cifar10_test_set, batch_size=batch_size, shuffle=True)
         n_images_train_tile = 1000
         n_images_test_tile = 1000
@@ -127,8 +135,8 @@ next_tag = 0
 
 # Describe neural network
 gemm_ndim = 1
-hidden_layer_dim = 10000
-hidden_layer_dim_tile = 5000
+hidden_layer_dim = 1000
+hidden_layer_dim_tile = 500
 n_layers = 5
 n_epochs = 10
 lr = 1e-2
