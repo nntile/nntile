@@ -42,6 +42,7 @@ RUN apt update && apt install -y --no-install-recommends \
 RUN git clone https://gitlab.inria.fr/starpu/starpu.git /starpu
 WORKDIR /starpu
 # Use the same version across different hardware
+ARG StarPU
 RUN git checkout starpu-$StarPU
 RUN ./autogen.sh
 RUN ./configure --disable-build-doc --disable-build-examples \
