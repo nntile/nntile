@@ -81,7 +81,7 @@ elif dataset == "imagenet":
         n_pixels_tile = 5000
         n_classes = 1000
 elif dataset == "tiny_imagenet":
-        batch_size = 10000
+        batch_size = 50000
         normalize = trnsfrms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
 
@@ -100,9 +100,9 @@ elif dataset == "tiny_imagenet":
                         )
         
         train_loader = torch.utils.data.DataLoader(imnet_train_set, \
-                batch_size=batch_size, shuffle=True)
+                batch_size=batch_size, shuffle=False, drop_last=True)
         test_loader = torch.utils.data.DataLoader(imnet_test_set, \
-                batch_size=batch_size, shuffle=True)
+                batch_size=batch_size, shuffle=False, drop_last=True)
         n_images_train_tile = 5000
         n_images_test_tile = 5000
         n_pixels = 64 * 64 * 3
@@ -281,20 +281,20 @@ z_single_traits = nntile.tensor.TensorTraits([batch_size, n_classes], \
 z_single_distr = [0]
 z_single = nntile.tensor.Tensor_fp32(z_single_traits, z_single_distr, next_tag)
 next_tag = z_single.next_tag
-for test_batch_data, test_batch_label in test_loader:
-    x_single.from_array(test_batch_data.view(-1, n_pixels).numpy())
-    nntile.tensor.scatter_async(x_single, m.activations[0].value)
-    m.forward_async()
-    nntile.tensor.gather_async(m.activations[-1].value, z_single)
-    output = np.zeros(z_single.shape, order="F", dtype=np.float32)
-    # to_array causes y_single to finish gather procedure
-    z_single.to_array(output)
-    pred_labels = np.argmax(output, 1)
-    test_top1_accuracy += np.sum(pred_labels == test_batch_label.numpy())
-    total_num_samples += test_batch_label.shape[0]
-test_top1_accuracy /= total_num_samples
-
-print("Test accuracy of the trained Deep ReLU model =", test_top1_accuracy)
+#for test_batch_data, test_batch_label in test_loader:
+#    x_single.from_array(test_batch_data.view(-1, n_pixels).numpy())
+#    nntile.tensor.scatter_async(x_single, m.activations[0].value)
+#    m.forward_async()
+#    nntile.tensor.gather_async(m.activations[-1].value, z_single)
+#    output = np.zeros(z_single.shape, order="F", dtype=np.float32)
+#    # to_array causes y_single to finish gather procedure
+#    z_single.to_array(output)
+#    pred_labels = np.argmax(output, 1)
+#    test_top1_accuracy += np.sum(pred_labels == test_batch_label.numpy())
+#    total_num_samples += test_batch_label.shape[0]
+#test_top1_accuracy /= total_num_samples
+#
+#print("Test accuracy of the trained Deep ReLU model =", test_top1_accuracy)
 
 # Unregister single-tile tensors for data scattering/gathering
 x_single.unregister()
