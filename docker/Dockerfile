@@ -1,4 +1,9 @@
-FROM ubuntu:18.04
+ARG BaseImage=nvidia/cuda:11.7.0-devel-ubuntu22.04
+ARG StarPU=1.3.10
+FROM $BaseImage
+
+RUN apt-key adv --fetch-keys \
+    http://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
 
 # Set up default timezone
 ENV TZ=Europe/Moscow
@@ -37,20 +42,21 @@ RUN apt update && apt install -y --no-install-recommends \
 RUN git clone https://gitlab.inria.fr/starpu/starpu.git /starpu
 WORKDIR /starpu
 # Use the same version across different hardware
-RUN git checkout starpu-1.3-10
+RUN git checkout starpu-$StarPU
 RUN ./autogen.sh
 RUN ./configure --disable-build-doc --disable-build-examples \
     --disable-build-tests --disable-opencl --disable-socl \
     --disable-starpufft --enable-blas-lib=none --disable-starpupy \
-    --disable-fortran --with-fxt
+    --disable-fortran --with-fxt --enable-maxcudadev=8
 RUN make -j 4 install
-# Remove build files of StarPU
-RUN rm -rf /starpu
 
 # Set up workspace for NNTile
 RUN mkdir -p /workspace
 RUN chmod 777 /workspace
 WORKDIR /workspace
+
+# Remove build files of StarPU
+RUN rm -rf /starpu
 
 # Set path to libstarpumpi library
 ENV LD_LIBRARY_PATH=/usr/local/lib
@@ -62,7 +68,9 @@ ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENTRYPOINT ["bash"]
 
 # Install required Python packages
-RUN pip install ipython pytest numpy scipy ipdb torch torchvision torchaudio
+RUN pip install ipython pytest numpy scipy ipdb
+RUN pip install torch torchvision torchaudio --index-url \
+    https://download.pytorch.org/whl/cpu
 # Remove PIP-installed CMake
 RUN pip uninstall cmake -y
 
