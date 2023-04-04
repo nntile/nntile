@@ -21,8 +21,10 @@ import torchvision.datasets as dts
 import torchvision.transforms as trnsfrms
 import torch
 
-dataset = "mnist"
+# dataset = "mnist"
 #dataset = "cifar10"
+# dataset = "imagenet"
+dataset = "tiny_imagenet"
 
 if dataset == "mnist":
         batch_size = 2000
@@ -46,8 +48,60 @@ elif dataset == "cifar10":
         n_pixels = 32 * 32 * 3
         n_pixels_tile = n_pixels // 2
         n_classes = 10
+elif dataset == "imagenet":
+        batch_size = 10000
+        normalize = trnsfrms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+
+        imnet_train_set = dts.ImageFolder(
+            "/raid/imagenet/train/",
+            trnsfrms.Compose([
+                trnsfrms.RandomResizedCrop(224),
+                trnsfrms.RandomHorizontalFlip(),
+                trnsfrms.ToTensor(),
+                normalize,
+            ]))
+
+        imnet_test_set = dts.ImageFolder(
+                        "/raid/imagenet/val/",
+                        trnsfrms.Compose([
+                        trnsfrms.Resize(256),
+                        trnsfrms.CenterCrop(224),
+                        trnsfrms.ToTensor(),
+                        normalize])
+                        )
+        
+        train_loader = torch.utils.data.DataLoader(imnet_train_set, batch_size=batch_size, shuffle=True)
+        test_loader = torch.utils.data.DataLoader(imnet_test_set, batch_size=batch_size, shuffle=True)
+        n_pixels = 224 * 224 * 3
+        n_pixels_tile = n_pixels // 2
+        n_classes = 1000
+elif dataset == "tiny_imagenet":
+        batch_size = 10000
+        normalize = trnsfrms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+
+        imnet_train_set = dts.ImageFolder(
+            "/raid/tiny-imagenet-200/train/",
+            trnsfrms.Compose([
+                trnsfrms.ToTensor(),
+                normalize,
+            ]))
+
+        imnet_test_set = dts.ImageFolder(
+                        "/raid/tiny-imagenet-200/test/",
+                        trnsfrms.Compose([
+                        trnsfrms.ToTensor(),
+                        normalize])
+                        )
+        
+        train_loader = torch.utils.data.DataLoader(imnet_train_set, batch_size=batch_size, shuffle=True)
+        test_loader = torch.utils.data.DataLoader(imnet_test_set, batch_size=batch_size, shuffle=True)
+        n_pixels = 64 * 64 * 3
+        n_pixels_tile = n_pixels // 2
+        n_classes = 200
 else:
-     raise ValueError("{} dataset is not supported yet!".format(dataset))
+        raise ValueError("{} dataset is not supported yet!".format(dataset))
 
 time0 = -time.time()
 # Set up StarPU+MPI and init codelets
@@ -101,6 +155,8 @@ x_distr = [0] * x_traits.grid.nelems
 y_traits = nntile.tensor.TensorTraits([batch_size], [n_images_train_tile])
 y_distr = [0] * y_traits.grid.nelems
 for train_batch_data, train_batch_labels in train_loader:
+    if train_batch_data.shape[0] != batch_size:
+        break
     x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
     next_tag = x.next_tag
     x_single.from_array(train_batch_data.view(batch_size, n_pixels).numpy())
