@@ -9,6 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
+ * @author Aleksandr Mikhalev
  * @date 2023-04-05
  * */
 

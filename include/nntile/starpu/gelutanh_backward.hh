@@ -9,6 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
+ * @author Aleksandr Mikhalev
  * @date 2023-04-05
  * */
 
@@ -31,7 +32,7 @@ void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
-// Apply approximate GeLU along middle axis of StarPU buffer on CUDA
+// Apply approximate GeLU backward along middle axis of StarPU buffer on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept;

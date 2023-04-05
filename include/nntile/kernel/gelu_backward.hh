@@ -24,13 +24,13 @@ namespace nntile
 {
 namespace kernel
 {
-//! @namespace nntile::kernel::gelu
+//! @namespace nntile::kernel::gelu_backward
 /*! Low-level implementations of backward GeLU operation
  * */
 namespace gelu_backward
 {
 
-} // namespace gelu
+} // namespace gelu_backward
 } // namespace kernel
 } // namespace nntile
 
