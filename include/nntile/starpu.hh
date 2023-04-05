@@ -49,6 +49,7 @@
 #include <nntile/starpu/total_sum_accum.hh>
 #include <nntile/starpu/subtract_indexed_column.hh>
 #include <nntile/starpu/gelu_backward.hh>
+#include <nntile/starpu/gelutanh_backward.hh>
 
 namespace nntile
 {
@@ -90,6 +91,7 @@ void init()
     total_sum_accum::init();
     subtract_indexed_column::init();
     gelu_backward::init();
+    gelutanh_backward::init();
 }
 
 // Restrict StarPU codelets to certain computational units
@@ -124,6 +126,7 @@ void restrict_where(uint32_t where)
     total_sum_accum::restrict_where(where);
     subtract_indexed_column::restrict_where(where);
     gelu_backward::restrict_where(where);
+    gelutanh_backward::restrict_where(where);
 }
 
 // Restore computational units for StarPU codelets
@@ -158,6 +161,7 @@ void restore_where()
     total_sum_accum::restore_where();
     subtract_indexed_column::restore_where();
     gelu_backward::restore_where();
+    gelutanh_backward::restore_where();
 }
 
 } // namespace starpu

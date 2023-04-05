@@ -13,7 +13,7 @@
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         copy_async, prod_async, relu_async, relu_backward_async, gelu_async, \
-        gelu_backward_async, gelutanh_async, dgelutanh_async
+        gelu_backward_async, gelutanh_async, gelutanh_backward_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List, Callable
@@ -23,7 +23,7 @@ class Act(BaseLayer):
     y: TensorMoments
     activations = {'relu': (relu_async, relu_backward_async),
                    'gelu': (gelu_async, gelu_backward_async),
-                   'gelutanh': (gelutanh_async, dgelutanh_async)
+                   'gelutanh': (gelutanh_async, gelutanh_backward_async)
             }
     funcname: str
     func: Callable[[Tensor], None]
@@ -69,13 +69,5 @@ class Act(BaseLayer):
     def backward_async(self):
         # Gradient over X (input)
         if self.x.grad_required:
-            if self.funcname == "relu" or self.funcname == "gelu":
-                self.dfunc(self.x.value, self.y.grad, self.x.grad)
-            else:
-                # Copy X into gradient of X
-                copy_async(self.x.value, self.x.grad)
-                # Get derivative of activation functions at X inplace
-                self.dfunc(self.x.grad)
-                # Per-element product of gradient of Y and f'(X)
-                prod_async(self.y.grad, self.x.grad)
+            self.dfunc(self.x.value, self.y.grad, self.x.grad)
 

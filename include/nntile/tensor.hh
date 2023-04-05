@@ -53,6 +53,7 @@
 #include <nntile/tensor/total_sum_accum.hh>
 #include <nntile/tensor/subtract_indexed_column.hh>
 #include <nntile/tensor/gelu_backward.hh>
+#include <nntile/tensor/gelutanh_backward.hh>
 
 namespace nntile
 {

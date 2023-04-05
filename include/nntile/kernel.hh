@@ -41,6 +41,7 @@
 #include <nntile/kernel/total_sum_accum.hh>
 #include <nntile/kernel/subtract_indexed_column.hh>
 #include <nntile/kernel/gelu_backward.hh>
+#include <nntile/kernel/gelutanh_backward.hh>
 
 namespace nntile
 {

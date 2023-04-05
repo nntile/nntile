@@ -40,6 +40,7 @@ set(KERNEL_SRC
     "kernel/total_sum_accum/cpu.cc"
     "kernel/subtract_indexed_column/cpu.cc"
     "kernel/gelu_backward/cpu.cc"
+    "kernel/gelutanh_backward/cpu.cc"
     )
 
 if(NNTILE_USE_CUDA)
@@ -61,6 +62,7 @@ if(NNTILE_USE_CUDA)
         "kernel/softmax/cuda.cu"
         "kernel/scalprod/cuda.cu"
         "kernel/gelu_backward/cuda.cu"
+        "kernel/gelutanh_backward/cuda.cu"
         )
 endif()
 
@@ -94,6 +96,7 @@ set(STARPU_SRC
     "starpu/total_sum_accum.cc"
     "starpu/subtract_indexed_column.cc"
     "starpu/gelu_backward.cc"
+    "starpu/gelutanh_backward.cc"
     )
 
 set(TILE_SRC
@@ -127,6 +130,7 @@ set(TILE_SRC
     "tile/total_sum_accum.cc"
     "tile/subtract_indexed_column.cc"
     "tile/gelu_backward.cc"
+    "tile/gelutanh_backward.cc"
     )
 
 set(TENSOR_SRC
@@ -163,6 +167,7 @@ set(TENSOR_SRC
     "tensor/total_sum_accum.cc"
     "tensor/subtract_indexed_column.cc"
     "tensor/gelu_backward.cc"
+    "tensor/gelutanh_backward.cc"
     )
 
 set(LAYER_SRC

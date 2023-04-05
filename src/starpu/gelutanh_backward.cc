@@ -4,23 +4,23 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/gelu_backward.cc
- * Backward GeLU operation on a StarPU buffer
+ * @file src/starpu/gelutanh_backward.cc
+ * Backward approximate GeLU operation on a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @date 2023-04-05
  * */
 
-#include "nntile/starpu/gelu_backward.hh"
-#include "nntile/kernel/gelu_backward.hh"
+#include "nntile/starpu/gelutanh_backward.hh"
+#include "nntile/kernel/gelutanh_backward.hh"
 #include <cstdlib>
 
 namespace nntile
 {
 namespace starpu
 {
-namespace gelu_backward
+namespace gelutanh_backward
 {
 
 //! Apply backward GeLU
@@ -36,11 +36,11 @@ void cpu(void *buffers[], void *cl_args)
     const T *dy = interfaces[1]->get_ptr<T>();
     T *dx = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::gelu_backward::cpu<T>(nelems, x, dy, dx);
+    kernel::gelutanh_backward::cpu<T>(nelems, x, dy, dx);
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply GeLU backward on StarPU buffer on CUDA
+//! Apply approximate GeLU of StarPU buffer on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
@@ -55,7 +55,7 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::gelu_backward::cuda<T>(stream, nelems, x, dy, dx);
+    kernel::gelutanh_backward::cuda<T>(stream, nelems, x, dy, dx);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -63,7 +63,7 @@ Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
-    codelet_fp32.init("nntile_gelu_backward_fp32",
+    codelet_fp32.init("nntile_gelutanh_backward_fp32",
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -72,7 +72,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_fp64.init("nntile_gelu_backward_fp64",
+    codelet_fp64.init("nntile_gelutanh_backward_fp64",
             nullptr,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
@@ -109,7 +109,7 @@ void submit(Index nelems, Handle x, Handle dy, Handle dx)
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in gelu_backward task submission");
+        throw std::runtime_error("Error in gelutanh_backward task submission");
     }
 }
 
@@ -146,7 +146,7 @@ void submit_mpi(Index nelems, Handle x, Handle dy, Handle dx, int exec_rank)
         // Check submission
         if(ret != 0)
         {
-            throw std::runtime_error("Error in gelu_backward MPI task "
+            throw std::runtime_error("Error in gelutanh_backward MPI task "
                     "submission");
         }
     }
@@ -170,7 +170,7 @@ template
 void submit_mpi<fp64_t>(Index nelems, Handle x, Handle dy, Handle dx,
         int exec_rank);
 
-} // namespace gelu_backward
+} // namespace gelutanh_backward
 } // namespace starpu
 } // namespace nntile
 
