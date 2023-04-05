@@ -39,6 +39,7 @@ set(KERNEL_SRC
     "kernel/logsumexp/cpu.cc"
     "kernel/total_sum_accum/cpu.cc"
     "kernel/subtract_indexed_column/cpu.cc"
+    "kernel/gelu_backward/cpu.cc"
     )
 
 if(NNTILE_USE_CUDA)
@@ -59,6 +60,7 @@ if(NNTILE_USE_CUDA)
         "kernel/maxsumexp/cuda.cu"
         "kernel/softmax/cuda.cu"
         "kernel/scalprod/cuda.cu"
+        "kernel/gelu_backward/cuda.cu"
         )
 endif()
 
@@ -91,6 +93,7 @@ set(STARPU_SRC
     "starpu/logsumexp.cc"
     "starpu/total_sum_accum.cc"
     "starpu/subtract_indexed_column.cc"
+    "starpu/gelu_backward.cc"
     )
 
 set(TILE_SRC
@@ -123,6 +126,7 @@ set(TILE_SRC
     "tile/logsumexp.cc"
     "tile/total_sum_accum.cc"
     "tile/subtract_indexed_column.cc"
+    "tile/gelu_backward.cc"
     )
 
 set(TENSOR_SRC
@@ -158,6 +162,7 @@ set(TENSOR_SRC
     "tensor/logsumexp.cc"
     "tensor/total_sum_accum.cc"
     "tensor/subtract_indexed_column.cc"
+    "tensor/gelu_backward.cc"
     )
 
 set(LAYER_SRC

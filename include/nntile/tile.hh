@@ -48,6 +48,7 @@
 #include <nntile/tile/logsumexp.hh>
 #include <nntile/tile/total_sum_accum.hh>
 #include <nntile/tile/subtract_indexed_column.hh>
+#include <nntile/tile/gelu_backward.hh>
 
 namespace nntile
 {

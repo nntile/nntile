@@ -70,6 +70,8 @@ set(KERNEL_HDR
     "nntile/kernel/total_sum_accum/cpu.hh"
     "nntile/kernel/subtract_indexed_column.hh"
     "nntile/kernel/subtract_indexed_column/cpu.hh"
+    "nntile/kernel/gelu_backward.hh"
+    "nntile/kernel/gelu_backward/cpu.hh"
     )
 
 if(NNTILE_USE_CUDA)
@@ -123,6 +125,7 @@ set(STARPU_HDR
     "nntile/starpu/logsumexp.hh"
     "nntile/starpu/total_sum_accum.hh"
     "nntile/starpu/subtract_indexed_column.hh"
+    "nntile/starpu/gelu_backward.hh"
     )
 
 set(TILE_HDR
@@ -157,6 +160,7 @@ set(TILE_HDR
     "nntile/tile/logsumexp.hh"
     "nntile/tile/total_sum_accum.hh"
     "nntile/tile/subtract_indexed_column.hh"
+    "nntile/tile/gelu_backward.hh"
     )
 
 set(TENSOR_HDR

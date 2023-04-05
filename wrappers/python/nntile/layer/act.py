@@ -13,7 +13,7 @@
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         copy_async, prod_async, relu_async, relu_backward_async, gelu_async, \
-        dgelu_async, gelutanh_async, dgelutanh_async
+        gelu_backward_async, gelutanh_async, dgelutanh_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List, Callable
@@ -22,7 +22,7 @@ class Act(BaseLayer):
     x: TensorMoments
     y: TensorMoments
     activations = {'relu': (relu_async, relu_backward_async),
-                   'gelu': (gelu_async, dgelu_async),
+                   'gelu': (gelu_async, gelu_backward_async),
                    'gelutanh': (gelutanh_async, dgelutanh_async)
             }
     funcname: str
@@ -69,7 +69,7 @@ class Act(BaseLayer):
     def backward_async(self):
         # Gradient over X (input)
         if self.x.grad_required:
-            if self.funcname == "relu":
+            if self.funcname == "relu" or self.funcname == "gelu":
                 self.dfunc(self.x.value, self.y.grad, self.x.grad)
             else:
                 # Copy X into gradient of X

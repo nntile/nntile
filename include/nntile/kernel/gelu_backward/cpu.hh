@@ -4,12 +4,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/relu_backward/cpu.hh
- * Backward ReLU operation on CPU
+ * @file include/nntile/kernel/gelu_backward/cpu.hh
+ * Backward GeLU operation on CPU
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-04-04
+ * @author Aleksandr Katrutsa
+ * @date 2023-04-05
  * */
 
 #pragma once
@@ -20,15 +20,15 @@ namespace nntile
 {
 namespace kernel
 {
-namespace relu_backward
+namespace gelu_backward
 {
 
-// Backward ReLU operation on a buffer
+// GeLU backward operation on a buffer
 template<typename T>
 void cpu(Index nelems, const T *x, const T *dy, T *dx)
     noexcept;
 
-} // namespace relu_backward
+} // namespace gelu_backward
 } // namespace kernel
 } // namespace nntile
 

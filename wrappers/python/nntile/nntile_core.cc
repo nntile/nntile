@@ -514,6 +514,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("gelu_async_fp32", &gelu_async<fp32_t>);
     m.def("gelu_fp64", &gelu<fp64_t>);
     m.def("gelu_fp32", &gelu<fp32_t>);
+    m.def("gelu_backward_async_fp64", &gelu_backward_async<fp64_t>);
+    m.def("gelu_backward_async_fp32", &gelu_backward_async<fp32_t>);
+    m.def("gelu_backward_fp64", &gelu_backward<fp64_t>);
+    m.def("gelu_backward_fp32", &gelu_backward<fp32_t>);
+
     m.def("gelutanh_async_fp64", &gelutanh_async<fp64_t>);
     m.def("gelutanh_async_fp32", &gelutanh_async<fp32_t>);
     m.def("gelutanh_fp64", &gelutanh<fp64_t>);

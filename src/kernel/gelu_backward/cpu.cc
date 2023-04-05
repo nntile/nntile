@@ -4,48 +4,46 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/relu_backward/cpu.cc
- * Backward ReLU operation on CPU
+ * @file src/kernel/gelu_backward/cpu.cc
+ * Backward GeLU operation on CPU
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-04-04
+ * @author Aleksandr Katrutsa
+ * @date 2023-04-05
  * */
 
-#include "nntile/kernel/relu_backward/cpu.hh"
+#include "nntile/kernel/gelu_backward/cpu.hh"
 #include <cmath>
 
 namespace nntile
 {
 namespace kernel
 {
-namespace relu_backward
+namespace gelu_backward
 {
 
 template<typename T>
 void cpu(Index nelems, const T *x, const T *dy, T *dx)
     noexcept
-//! Backward ReLU operation on CPU
+//! Backward GeLU operation on CPU
 /*! Does the following per-element operation:
- * backward_ReLU(x, dy) = dy if x > 0 and 0 otherwise
+ * backward_GeLU(x, dy) = GeLU'(x) * dy elementwise
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[in] x: Input value for forward ReLU
- * @params[in] dy: Gradient over output of forward ReLU
- * @params[out] dx: Gradient over input of forward ReLU
+ * @params[in] x: Input value for forward GeLU
+ * @params[in] dy: Gradient over output of forward GeLU
+ * @params[out] dx: Gradient over input of forward GeLU
  * */
 {
-    constexpr T zero = 0;
+    constexpr T pi = 3.141592653589793238462643383279502884L,
+        one = 1, mone = -1, pt5 = 0.5;
+    const T f1 = mone / std::sqrt(T{2.0}), f2 = one / std::sqrt(2*pi);
     for(Index i = 0; i < nelems; ++i)
     {
-        if(x[i] > zero)
-        {
-            dx[i] = dy[i];
-        }
-        else
-        {
-            dx[i] = zero;
-        }
+        // T z = x[i];
+        T exp_x = std::exp(-pt5 * x[i] * x[i]);
+        T y = std::erfc(f1 * x[i]);
+        dx[i] = (x[i]*f2*exp_x + pt5*y) * dy[i];
     }
 }
 
@@ -58,7 +56,7 @@ template
 void cpu<fp64_t>(Index nelems, const fp64_t *x, const fp64_t *dy, fp64_t *dx)
     noexcept;
 
-} // namespace relu_backward
+} // namespace gelu_backward
 } // namespace kernel
 } // namespace nntile
 
