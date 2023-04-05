@@ -9,6 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
+# @author Aleksandr Katrutsa
 # @date 2023-04-04
 
 # All necesary imports
@@ -66,12 +67,13 @@ def helper(dtype: np.dtype):
             torch_output = F.relu(torch.from_numpy(np_A))
         elif funcname == "gelu":
             torch_output = F.gelu(torch.from_numpy(np_A))
+        elif funcname == "gelutanh":
+            torch_output = F.gelu(torch.from_numpy(np_A), approximate="tanh")
         np_C = np.array(torch_output.numpy(), order="F", dtype=dtype)
-        
         if np.linalg.norm(np_C - np_B) / np.linalg.norm(np_C) > tol:
             A_moments.unregister()
             layer.unregister()
-            return False
+            assert False
         # Do backward
         layer.y.grad.from_array(2*np_A)
         layer.backward_async()
@@ -80,27 +82,34 @@ def helper(dtype: np.dtype):
         layer.x.grad.to_array(np_B)
         # Check correctness
         if funcname == "relu":
-            torch_grad = torch.autograd.functional.jvp(F.relu, torch.from_numpy(np_A), torch.from_numpy(2 * np_A))[1]
+            torch_grad = torch.autograd.functional.jvp(F.relu, \
+                    torch.from_numpy(np_A), torch.from_numpy(2 * np_A))[1]
         elif funcname == "gelu":
-            torch_grad = torch.autograd.functional.jvp(F.gelu, torch.from_numpy(np_A), torch.from_numpy(2 * np_A))[1]
+            torch_grad = torch.autograd.functional.jvp(F.gelu, \
+                    torch.from_numpy(np_A), torch.from_numpy(2 * np_A))[1]
+        elif funcname == "gelutanh":
+            torch_grad = torch.autograd.functional.jvp( \
+                    lambda x: F.gelu(x, approximate="tanh"), \
+                    torch.from_numpy(np_A), torch.from_numpy(2 * np_A))[1]
         np_C = np.array(torch_grad.numpy(), order="F", dtype=dtype)
         if np.linalg.norm(np_C - np_B) / np.linalg.norm(np_C) > tol:
             A_moments.unregister()
             layer.unregister()
-            return False
+            assert False
     A_moments.unregister()
     layer.unregister()
-    return True
+    print("Finish checking {}".format(Act.activations.keys()))
+    assert True
 
 # Test runner for different precisions
 def test():
     for dtype in dtypes:
-        assert helper(dtype)
+        helper(dtype)
 
 # Repeat tests
 def test_repeat():
     for dtype in dtypes:
-        assert helper(dtype)
+        helper(dtype)
 
 if __name__ == "__main__":
     test()
