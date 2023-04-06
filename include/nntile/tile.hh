@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-03-29
+ * @date 2023-04-04
  * */
 
 #pragma once
@@ -36,6 +36,7 @@
 #include <nntile/tile/prod.hh>
 #include <nntile/tile/randn.hh>
 #include <nntile/tile/relu.hh>
+#include <nntile/tile/relu_backward.hh>
 #include <nntile/tile/sumnorm.hh>
 #include <nntile/tile/sum.hh>
 #include <nntile/tile/maxsumexp.hh>
@@ -48,6 +49,8 @@
 #include <nntile/tile/total_sum_accum.hh>
 #include <nntile/tile/subtract_indexed_column.hh>
 #include <nntile/tile/scal.hh>
+#include <nntile/tile/gelu_backward.hh>
+#include <nntile/tile/gelutanh_backward.hh>
 
 namespace nntile
 {

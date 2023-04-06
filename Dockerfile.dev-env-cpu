@@ -60,8 +60,9 @@ ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENTRYPOINT ["bash"]
 
 # Install required Python packages
-RUN pip install pytest numpy
+RUN pip install pytest numpy scipy
+RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
 # Set OpenBLAS threads to 1 (sequential)
 RUN export OMP_NUM_THREADS=1
-
+RUN export PYTHONPATH="/workspace/build/wrappers/python/"

@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-03-29
+# @date 2023-04-04
 
 # Set list of sources
 set(KERNEL_SRC
@@ -26,6 +26,7 @@ set(KERNEL_SRC
     "kernel/prod/cpu.cc"
     "kernel/randn/cpu.cc"
     "kernel/relu/cpu.cc"
+    "kernel/relu_backward/cpu.cc"
     "kernel/subcopy/cpu.cc"
     "kernel/sumnorm/cpu.cc"
     "kernel/sum/cpu.cc"
@@ -38,6 +39,8 @@ set(KERNEL_SRC
     "kernel/logsumexp/cpu.cc"
     "kernel/total_sum_accum/cpu.cc"
     "kernel/subtract_indexed_column/cpu.cc"
+    "kernel/gelu_backward/cpu.cc"
+    "kernel/gelutanh_backward/cpu.cc"
     )
 
 if(NNTILE_USE_CUDA)
@@ -52,11 +55,14 @@ if(NNTILE_USE_CUDA)
         "kernel/normalize/cuda.cu"
         "kernel/prod/cuda.cu"
         "kernel/relu/cuda.cu"
+        "kernel/relu_backward/cuda.cu"
         "kernel/sumnorm/cuda.cu"
         "kernel/sum/cuda.cu"
         "kernel/maxsumexp/cuda.cu"
         "kernel/softmax/cuda.cu"
         "kernel/scalprod/cuda.cu"
+        "kernel/gelu_backward/cuda.cu"
+        "kernel/gelutanh_backward/cuda.cu"
         )
 endif()
 
@@ -77,6 +83,7 @@ set(STARPU_SRC
     "starpu/prod.cc"
     "starpu/randn.cc"
     "starpu/relu.cc"
+    "starpu/relu_backward.cc"
     "starpu/subcopy.cc"
     "starpu/sumnorm.cc"
     "starpu/sum.cc"
@@ -89,6 +96,8 @@ set(STARPU_SRC
     "starpu/logsumexp.cc"
     "starpu/total_sum_accum.cc"
     "starpu/subtract_indexed_column.cc"
+    "starpu/gelu_backward.cc"
+    "starpu/gelutanh_backward.cc"
     )
 
 set(TILE_SRC
@@ -109,6 +118,7 @@ set(TILE_SRC
     "tile/prod.cc"
     "tile/randn.cc"
     "tile/relu.cc"
+    "tile/relu_backward.cc"
     "tile/sumnorm.cc"
     "tile/sum.cc"
     "tile/maxsumexp.cc"
@@ -121,6 +131,8 @@ set(TILE_SRC
     "tile/total_sum_accum.cc"
     "tile/subtract_indexed_column.cc"
     "tile/scal.cc"
+    "tile/gelu_backward.cc"
+    "tile/gelutanh_backward.cc"
     )
 
 set(TENSOR_SRC
@@ -143,6 +155,7 @@ set(TENSOR_SRC
     "tensor/prod.cc"
     "tensor/randn.cc"
     "tensor/relu.cc"
+    "tensor/relu_backward.cc"
     "tensor/scatter.cc"
     "tensor/sumnorm.cc"
     "tensor/sum.cc"
@@ -156,6 +169,8 @@ set(TENSOR_SRC
     "tensor/total_sum_accum.cc"
     "tensor/subtract_indexed_column.cc"
     "tensor/scal.cc"
+    "tensor/gelu_backward.cc"
+    "tensor/gelutanh_backward.cc"
     )
 
 set(LAYER_SRC

@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-03-29
+ * @date 2023-04-04
  * */
 
 #pragma once
@@ -39,6 +39,7 @@
 #include <nntile/tensor/prod.hh>
 #include <nntile/tensor/randn.hh>
 #include <nntile/tensor/relu.hh>
+#include <nntile/tensor/relu_backward.hh>
 #include <nntile/tensor/scatter.hh>
 #include <nntile/tensor/sum.hh>
 #include <nntile/tensor/sumnorm.hh>
@@ -52,6 +53,8 @@
 #include <nntile/tensor/total_sum_accum.hh>
 #include <nntile/tensor/subtract_indexed_column.hh>
 #include <nntile/tensor/scal.hh>
+#include <nntile/tensor/gelu_backward.hh>
+#include <nntile/tensor/gelutanh_backward.hh>
 
 namespace nntile
 {

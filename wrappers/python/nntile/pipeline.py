@@ -85,11 +85,15 @@ class Pipeline(object):
                 #     p_np = np.zeros(p.value.shape, order="F", dtype=np.float32)
                 #     p.grad.to_array(p_np)
                 #     print(p_np.max(), p_np.min())
+                # Invalidate values and gradients of activations
+                #for t in self.model.activations:
+                #    t.value.invalidate_submit()
+                #    if t.grad is not None:
+                #        t.grad.invalidate_submit()
                 self.opt.step()
                 # Invalidate gradients of parameters
-                for p in self.model.parameters:
-                    p.value.wont_use()
-                    p.grad.invalidate_submit()
+                #for p in self.model.parameters:
+                #    p.grad.invalidate_submit()
                 # print("Model parameters after opt step")
                 # for i, p in enumerate(self.model.parameters):
                 #     print("Parameter", i)

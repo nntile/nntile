@@ -9,11 +9,14 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-15
+# @author Aleksandr Katrutsa
+# @date 2023-04-04
 
 # All necesary imports
 import nntile
 import numpy as np
+import torch.nn.functional as F
+import torch
 # Set up StarPU configuration and init it
 config = nntile.starpu.Config(1, 0, 0)
 # Init all NNTile-StarPU codelets
@@ -28,6 +31,10 @@ Act = nntile.layer.Act
 
 # Helper function returns bool value true if test passes
 def helper(dtype: np.dtype):
+    if dtype == np.float32:
+        tol = 1e-5
+    elif dtype == np.float64:
+        tol = 1e-10
     # Describe single-tile tensor, located at node 0
     A_shape = [4, 5, 6]
     ndim = len(A_shape)
@@ -56,12 +63,17 @@ def helper(dtype: np.dtype):
         # Dump output
         layer.y.value.to_array(np_B)
         # Check output correctness
-        np_C = np.zeros_like(np_A)
-        np_C[np_A > 0] = np_A[np_A > 0]
-        if (np_C != np_B).any():
+        if funcname == "relu":
+            torch_output = F.relu(torch.from_numpy(np_A))
+        elif funcname == "gelu":
+            torch_output = F.gelu(torch.from_numpy(np_A))
+        elif funcname == "gelutanh":
+            torch_output = F.gelu(torch.from_numpy(np_A), approximate="tanh")
+        np_C = np.array(torch_output.numpy(), order="F", dtype=dtype)
+        if np.linalg.norm(np_C - np_B) / np.linalg.norm(np_C) > tol:
             A_moments.unregister()
             layer.unregister()
-            return False
+            assert False
         # Do backward
         layer.y.grad.from_array(2*np_A)
         layer.backward_async()
@@ -69,23 +81,35 @@ def helper(dtype: np.dtype):
         # Dump output
         layer.x.grad.to_array(np_B)
         # Check correctness
-        if (2*np_C != np_B).any():
+        if funcname == "relu":
+            torch_grad = torch.autograd.functional.jvp(F.relu, \
+                    torch.from_numpy(np_A), torch.from_numpy(2 * np_A))[1]
+        elif funcname == "gelu":
+            torch_grad = torch.autograd.functional.jvp(F.gelu, \
+                    torch.from_numpy(np_A), torch.from_numpy(2 * np_A))[1]
+        elif funcname == "gelutanh":
+            torch_grad = torch.autograd.functional.jvp( \
+                    lambda x: F.gelu(x, approximate="tanh"), \
+                    torch.from_numpy(np_A), torch.from_numpy(2 * np_A))[1]
+        np_C = np.array(torch_grad.numpy(), order="F", dtype=dtype)
+        if np.linalg.norm(np_C - np_B) / np.linalg.norm(np_C) > tol:
             A_moments.unregister()
             layer.unregister()
-            return False
+            assert False
     A_moments.unregister()
     layer.unregister()
-    return True
+    print("Finish checking {}".format(Act.activations.keys()))
+    assert True
 
 # Test runner for different precisions
 def test():
     for dtype in dtypes:
-        assert helper(dtype)
+        helper(dtype)
 
 # Repeat tests
 def test_repeat():
     for dtype in dtypes:
-        assert helper(dtype)
+        helper(dtype)
 
 if __name__ == "__main__":
     test()
