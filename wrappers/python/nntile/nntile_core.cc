@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-03-27
+ * @date 2023-04-04
  * */
 
 #include <pybind11/pybind11.h>
@@ -374,11 +374,19 @@ void def_mod_tensor(py::module_ &m)
     m.def("relu_async_fp32", &relu_async<fp32_t>);
     m.def("relu_fp64", &relu<fp64_t>);
     m.def("relu_fp32", &relu<fp32_t>);
+    m.def("relu_backward_async_fp64", &relu_backward_async<fp64_t>);
+    m.def("relu_backward_async_fp32", &relu_backward_async<fp32_t>);
+    m.def("relu_backward_fp64", &relu_backward<fp64_t>);
+    m.def("relu_backward_fp32", &relu_backward<fp32_t>);
     m.def("drelu_async_fp64", &drelu_async<fp64_t>);
     m.def("drelu_async_fp32", &drelu_async<fp32_t>);
     m.def("drelu_fp64", &drelu<fp64_t>);
     m.def("drelu_fp32", &drelu<fp32_t>);
     // Add other functions for Tensor<T>
+    m.def("sum_async_fp64", &sum_async<fp64_t>);
+    m.def("sum_async_fp32", &sum_async<fp32_t>);
+    m.def("sum_fp64", &sum<fp64_t>);
+    m.def("sum_fp32", &sum<fp32_t>);
     m.def("sumnorm_async_fp64", &sumnorm_async<fp64_t>);
     m.def("sumnorm_async_fp32", &sumnorm_async<fp32_t>);
     m.def("sumnorm_fp64", &sumnorm<fp64_t>);
@@ -496,15 +504,34 @@ void def_mod_tensor(py::module_ &m)
     m.def("subtract_indexed_column_fp64", &subtract_indexed_column<fp64_t>);
     m.def("subtract_indexed_column_fp32", &subtract_indexed_column<fp32_t>);
     
+    m.def("scal_async_fp64", &scal_async<fp64_t>);
+    m.def("scal_async_fp32", &scal_async<fp32_t>);
+    m.def("scal_fp64", &scal<fp64_t>);
+    m.def("scal_fp32", &scal<fp32_t>);
+
+    m.def("scalprod_async_fp64", &scalprod_async<fp64_t>);
+    m.def("scalprod_async_fp32", &scalprod_async<fp32_t>);
+    m.def("scalprod_fp64", &scalprod<fp64_t>);
+    m.def("scalprod_fp32", &scalprod<fp32_t>);
+    
     // gelu and dgelu
     m.def("gelu_async_fp64", &gelu_async<fp64_t>);
     m.def("gelu_async_fp32", &gelu_async<fp32_t>);
     m.def("gelu_fp64", &gelu<fp64_t>);
     m.def("gelu_fp32", &gelu<fp32_t>);
+    m.def("gelu_backward_async_fp64", &gelu_backward_async<fp64_t>);
+    m.def("gelu_backward_async_fp32", &gelu_backward_async<fp32_t>);
+    m.def("gelu_backward_fp64", &gelu_backward<fp64_t>);
+    m.def("gelu_backward_fp32", &gelu_backward<fp32_t>);
+
     m.def("gelutanh_async_fp64", &gelutanh_async<fp64_t>);
     m.def("gelutanh_async_fp32", &gelutanh_async<fp32_t>);
     m.def("gelutanh_fp64", &gelutanh<fp64_t>);
     m.def("gelutanh_fp32", &gelutanh<fp32_t>);
+    m.def("gelutanh_backward_async_fp64", &gelutanh_backward_async<fp64_t>);
+    m.def("gelutanh_backward_async_fp32", &gelutanh_backward_async<fp32_t>);
+    m.def("gelutanh_backward_fp64", &gelutanh_backward<fp64_t>);
+    m.def("gelutanh_backward_fp32", &gelutanh_backward<fp32_t>);
     
     m.def("dgelu_async_fp64", &dgelu_async<fp64_t>);
     m.def("dgelu_async_fp32", &dgelu_async<fp32_t>);

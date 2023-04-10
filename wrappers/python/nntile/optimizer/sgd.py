@@ -9,7 +9,8 @@
 #
 # @version 1.0.0
 # @author Aleksandr Katrutsa
-# @date 2023-02-17
+# @author Aleksandr Mikhalev
+# @date 2023-03-29
 
 import nntile
 import numpy as np
@@ -58,7 +59,7 @@ class SGD:
                 if self.num_iter == 0:
                     nntile.tensor.copy_async(p.grad, self.states[i])
                 else:
-                    nntile.tensor.axpy_async(self.momentum - 1, self.states[i], self.states[i])
+                    nntile.tensor.scal_async(self.momentum, self.states[i])
                     nntile.tensor.axpy_async(1 - self.damping, p.grad, self.states[i])
                 if self.nesterov:
                     nntile.tensor.axpy_async(self.momentum, self.states[i], p.grad)

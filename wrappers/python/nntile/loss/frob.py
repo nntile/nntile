@@ -9,10 +9,10 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-15
+# @date 2023-03-29
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        copy_async, axpy_async, nrm2_async, prod_async
+        copy_async, axpy_async, nrm2_async, prod_async, scal_async
 import numpy as np
 
 class Frob:
@@ -22,9 +22,11 @@ class Frob:
     tmp: Tensor
 
     # Constructor of loss with all the provided data
-    def __init__(self, x: TensorMoments, y: Tensor, val: Tensor, tmp: Tensor):
+    def __init__(self, x: TensorMoments, y: Tensor, val: Tensor, \
+            val_sqrt: Tensor, tmp: Tensor):
         self.x = x
         self.y = y
+        self.val_sqrt = val_sqrt
         self.val = val
         self.tmp = tmp
 
@@ -38,10 +40,12 @@ class Frob:
         val_traits = TensorTraits([], [])
         val = type(x.value)(val_traits, [0], next_tag)
         next_tag = val.next_tag
+        val2 = type(x.value)(val_traits, [0], next_tag)
+        next_tag = val2.next_tag
         tmp_traits = TensorTraits(x.value.grid.shape, [1]*ndim)
         tmp = type(x.value)(tmp_traits, x.value.distribution, next_tag)
         next_tag = tmp.next_tag
-        loss = Frob(x, y, val, tmp)
+        loss = Frob(x, y, val, val2, tmp)
         return loss, next_tag
 
     # Get value and gradient if needed
@@ -53,13 +57,14 @@ class Frob:
         # Values Y are not needed anymore
         #self.y.invalidate_submit()
         # Get value ||grad X||
-        nrm2_async(self.x.grad, self.val, self.tmp)
+        nrm2_async(self.x.grad, self.val_sqrt, self.tmp)
         # Ignore temporary values
         #self.tmp.invalidate_submit()
         # Invalidate gradient if it is unnecessary
         #if self.x.grad_required is False:
         #    self.x.grad.invalidate_submit()
         # Compute loss as 0.5*||dX||^2
-        prod_async(self.val, self.val)
-        axpy_async(-0.5, self.val, self.val)
+        copy_async(self.val_sqrt, self.val)
+        prod_async(self.val_sqrt, self.val)
+        scal_async(0.5, self.val)
 

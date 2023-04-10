@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-02-10
+# @date 2023-03-29
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -35,6 +35,7 @@ set(TESTS
     "maximum"
     "sum"
     "addcdiv"
+    "scalprod"
     )
 
 # Add target for local coverage
@@ -85,7 +86,7 @@ add_test_set(TARGET_NAME tests_starpu_axpy
 set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/nrm2.cc" PROPERTIES
     INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}")
 
-# Explicitly add axpy test since it was generated from axpy.cc.in
+# Explicitly add axpy test since it was generated from nrm2.cc.in
 add_test_set(TARGET_NAME tests_starpu_nrm2
     EXEC_NAME test_nrm2
     SOURCES "${CMAKE_CURRENT_BINARY_DIR}/nrm2.cc"
@@ -108,6 +109,21 @@ add_test_set(TARGET_NAME tests_starpu_gemm
     "$<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cublas;CUDA::cudart>"
     COV_ENABLE ${BUILD_COVERAGE}
     COV_NAME coverage_starpu_gemm
+    COV_GLOBAL coverage_starpu
+    )
+
+# Add include path for generated scal.cc
+set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/scal.cc" PROPERTIES
+    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}")
+
+# Explicitly add axpy test since it was generated from scal.cc.in
+add_test_set(TARGET_NAME tests_starpu_scal
+    EXEC_NAME test_scal
+    SOURCES "${CMAKE_CURRENT_BINARY_DIR}/scal.cc"
+    LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_USE_CBLAS}>:BLAS::BLAS>
+    "$<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cublas;CUDA::cudart>"
+    COV_ENABLE ${BUILD_COVERAGE}
+    COV_NAME coverage_starpu_scal
     COV_GLOBAL coverage_starpu
     )
 

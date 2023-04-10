@@ -30,9 +30,9 @@ class Norm(BaseLayer):
 
     # Construct normalization layer with all the provided data
     def __init__(self, x: TensorMoments, y: TensorMoments, gb: TensorMoments,
-            sumnorm: Tensor, y_last: TensorOrNone, axis: int, eps: float):
+            sumnorm: Tensor, y_last: Tensor, axis: int, eps: float):
         # Redirect to BaseLayer initialization
-        super().__init__([x], [y], [gb])
+        super().__init__([x], [y], [gb], [sumnorm, y_last])
         self.x = x
         self.y = y
         self.gb = gb

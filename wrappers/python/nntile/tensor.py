@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-03-27
+# @date 2023-04-04
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -49,16 +49,17 @@ class TensorMoments(object):
 
 
 # Wrapper for multiprecision gemm
-def gemm_async(alpha: float, trans_A: TransOp, A: Tensor, trans_B: TransOp,
-        B: Tensor, beta: float, C: Tensor, ndim: int) -> None:
+def gemm_async(alpha: float, trans_A: TransOp, A: Tensor, trans_B: TransOp, \
+               B: Tensor, beta: float, C: Tensor, ndim: int, batch_ndim: int) \
+               -> None:
     if type(A) is not type(B) or type(A) is not type(C):
         raise TypeError
     if type(A) is core_tensor.Tensor_fp32:
         core_tensor.gemm_async_fp32(alpha, trans_A, A, trans_B, B, beta, C,
-                ndim)
+                ndim, batch_ndim)
     elif type(A) is core_tensor.Tensor_fp64:
         core_tensor.gemm_async_fp64(alpha, trans_A, A, trans_B, B, beta, C,
-                ndim)
+                ndim, batch_ndim)
     else:
         raise TypeError
 
@@ -71,6 +72,15 @@ def relu_async(x: Tensor) -> None:
     else:
         raise TypeError
 
+# Wrapper for multiprecision backward ReLU
+def relu_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.relu_backward_async_fp32(x, dy, dx)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.relu_backward_async_fp64(x, dy, dx)
+    else:
+        raise TypeError
+
 # Wrapper for multiprecision derivative of ReLU
 def drelu_async(x: Tensor) -> None:
     if type(x) is core_tensor.Tensor_fp32:
@@ -79,6 +89,69 @@ def drelu_async(x: Tensor) -> None:
         core_tensor.drelu_async_fp64(x)
     else:
         raise TypeError
+
+# Wrapper for multiprecision GELU
+def gelu_async(x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.gelu_async_fp32(x)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.gelu_async_fp64(x)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision derivative of GELU
+def dgelu_async(x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.dgelu_async_fp32(x)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.dgelu_async_fp64(x)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision backward GeLU
+def gelu_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.gelu_backward_async_fp32(x, dy, dx)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.gelu_backward_async_fp64(x, dy, dx)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision approximated GELU
+def gelutanh_async(x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.gelutanh_async_fp32(x)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.gelutanh_async_fp64(x)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision derivative of approximate GELU
+def dgelutanh_async(x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.dgelutanh_async_fp32(x)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.dgelutanh_async_fp64(x)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision backward approximate GeLU
+def gelutanh_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.gelutanh_backward_async_fp32(x, dy, dx)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.gelutanh_backward_async_fp64(x, dy, dx)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision sum
+def sum_async(x: Tensor, sum_out: Tensor, axis: int) -> None:
+    if type(x) is not type(sum_out):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.sum_async_fp32(x, sum_out, axis)
+    else:
+        core_tensor.sum_async_fp64(x, sum_out, axis)
 
 # Wrapper for multiprecision sumnorm
 def sumnorm_async(x: Tensor, sumnorm: Tensor, axis: int) -> None:
@@ -171,13 +244,13 @@ def maxsumexp_async(x: Tensor, maxsumexp: Tensor, axis: int) -> None:
         raise TypeError
 
 # Wrapper for multiprecision bias
-def bias_async(bias: Tensor, x: Tensor, axis: int) -> None:
+def bias_async(alpha:float, bias: Tensor, x: Tensor, axis: int) -> None:
     if type(bias) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.bias_async_fp32(bias, x, axis)
+        core_tensor.bias_async_fp32(alpha, bias, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.bias_async_fp64(bias, x, axis)
+        core_tensor.bias_async_fp64(alpha, bias, x, axis)
     else:
         raise TypeError
 
@@ -282,6 +355,18 @@ def addcdiv_async(alpha: float, eps: float, nom: Tensor, denom: Tensor, \
         core_tensor.addcdiv_async_fp32(alpha, eps, nom, denom, src)
     elif type(nom) is core_tensor.Tensor_fp64:
         core_tensor.addcdiv_async_fp64(alpha, eps, nom, denom, src)
+
+# Wrapper for multiprecision scalprod
+def scalprod_async(alpha: float, src1: Tensor, src2: Tensor, beta: float, \
+        dst: Tensor, axis: int) -> None:
+    if type(src1) is not type(src2):
+        raise TypeError
+    if type(src1) is not type(dst):
+        raise TypeError
+    if type(src1) is core_tensor.Tensor_fp32:
+        core_tensor.scalprod_async_fp32(alpha, src1, src2, beta, dst, axis)
+    elif type(src1) is core_tensor.Tensor_fp64:
+        core_tensor.scalprod_async_fp64(alpha, src1, src2, beta, dst, axis)
     else:
         raise TypeError
 
@@ -312,6 +397,15 @@ def subtract_indexed_column_async(val: float, class_labels: Tensor_int64, \
         core_tensor.subtract_indexed_column_async_fp32(val, class_labels, dst)
     elif type(dst) is core_tensor.Tensor_fp64:
         core_tensor.subtract_indexed_column_async_fp64(val, class_labels, dst)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision scaling
+def scal_async(alpha: float, x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.scal_async_fp32(alpha, x)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.scal_async_fp64(alpha, x)
     else:
         raise TypeError
 

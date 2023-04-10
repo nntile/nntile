@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-03-27
+# @date 2023-04-04
 
 # Set list of headers
 set(BASE_HDR
@@ -44,6 +44,8 @@ set(KERNEL_HDR
     "nntile/kernel/randn/cpu.hh"
     "nntile/kernel/relu.hh"
     "nntile/kernel/relu/cpu.hh"
+    "nntile/kernel/relu_backward.hh"
+    "nntile/kernel/relu_backward/cpu.hh"
     "nntile/kernel/subcopy.hh"
     "nntile/kernel/subcopy/cpu.hh"
     "nntile/kernel/sumnorm.hh"
@@ -60,12 +62,18 @@ set(KERNEL_HDR
     "nntile/kernel/maximum/cpu.hh"
     "nntile/kernel/addcdiv.hh"
     "nntile/kernel/addcdiv/cpu.hh"
+    "nntile/kernel/scalprod.hh"
+    "nntile/kernel/scalprod/cpu.hh"
     "nntile/kernel/logsumexp.hh"
     "nntile/kernel/logsumexp/cpu.hh"
     "nntile/kernel/total_sum_accum.hh"
     "nntile/kernel/total_sum_accum/cpu.hh"
     "nntile/kernel/subtract_indexed_column.hh"
     "nntile/kernel/subtract_indexed_column/cpu.hh"
+    "nntile/kernel/gelu_backward.hh"
+    "nntile/kernel/gelu_backward/cpu.hh"
+    "nntile/kernel/gelutanh_backward.hh"
+    "nntile/kernel/gelutanh_backward/cpu.hh"
     )
 
 if(NNTILE_USE_CUDA)
@@ -76,14 +84,18 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/dgelutanh/cuda.hh"
         "nntile/kernel/drelu/cuda.hh"
         "nntile/kernel/gelu/cuda.hh"
+        "nntile/kernel/gelu_backward/cuda.hh"
         "nntile/kernel/gelutanh/cuda.hh"
+        "nntile/kernel/gelutanh_backward/cuda.hh"
         "nntile/kernel/normalize/cuda.hh"
         "nntile/kernel/prod/cuda.hh"
         "nntile/kernel/relu/cuda.hh"
+        "nntile/kernel/relu_backward/cuda.hh"
         "nntile/kernel/sumnorm/cuda.hh"
         "nntile/kernel/sum/cuda.hh"
         "nntile/kernel/maxsumexp/cuda.hh"
         "nntile/kernel/softmax/cuda.hh"
+        "nntile/kernel/scalprod/cuda.hh"
         )
 endif()
 
@@ -104,6 +116,7 @@ set(STARPU_HDR
     "nntile/starpu/prod.hh"
     "nntile/starpu/randn.hh"
     "nntile/starpu/relu.hh"
+    "nntile/starpu/relu_backward.hh"
     "nntile/starpu/subcopy.hh"
     "nntile/starpu/sumnorm.hh"
     "nntile/starpu/sum.hh"
@@ -112,9 +125,13 @@ set(STARPU_HDR
     "nntile/starpu/sqrt.hh"
     "nntile/starpu/maximum.hh"
     "nntile/starpu/addcdiv.hh"
+    "nntile/starpu/scalprod.hh"
     "nntile/starpu/logsumexp.hh"
     "nntile/starpu/total_sum_accum.hh"
     "nntile/starpu/subtract_indexed_column.hh"
+    "nntile/starpu/scal.hh"
+    "nntile/starpu/gelu_backward.hh"
+    "nntile/starpu/gelutanh_backward.hh"
     )
 
 set(TILE_HDR
@@ -137,6 +154,7 @@ set(TILE_HDR
     "nntile/tile/prod.hh"
     "nntile/tile/randn.hh"
     "nntile/tile/relu.hh"
+    "nntile/tile/relu_backward.hh"
     "nntile/tile/sumnorm.hh"
     "nntile/tile/sum.hh"
     "nntile/tile/maxsumexp.hh"
@@ -144,9 +162,13 @@ set(TILE_HDR
     "nntile/tile/sqrt.hh"
     "nntile/tile/maximum.hh"
     "nntile/tile/addcdiv.hh"
+    "nntile/tile/scalprod.hh"
     "nntile/tile/logsumexp.hh"
     "nntile/tile/total_sum_accum.hh"
     "nntile/tile/subtract_indexed_column.hh"
+    "nntile/tile/scal.hh"
+    "nntile/tile/gelu_backward.hh"
+    "nntile/tile/gelutanh_backward.hh"
     )
 
 set(TENSOR_HDR
@@ -171,6 +193,7 @@ set(TENSOR_HDR
     "nntile/tensor/prod.hh"
     "nntile/tensor/randn.hh"
     "nntile/tensor/relu.hh"
+    "nntile/tensor/relu_backward.hh"
     "nntile/tensor/scatter.hh"
     "nntile/tensor/sumnorm.hh"
     "nntile/tensor/sum.hh"
@@ -179,35 +202,39 @@ set(TENSOR_HDR
     "nntile/tensor/sqrt.hh"
     "nntile/tensor/maximum.hh"
     "nntile/tensor/addcdiv.hh"
+    "nntile/tensor/scalprod.hh"
     "nntile/tensor/logsumexp.hh"
     "nntile/tensor/total_sum_accum.hh"
     "nntile/tensor/subtract_indexed_column.hh"
+    "nntile/tensor/scal.hh"
+    "nntile/tensor/gelu_backward.hh"
+    "nntile/tensor/gelutanh_backward.hh"
     )
 
 set(LAYER_HDR
-    "nntile/layer.hh"
-    "nntile/layer/base.hh"
-    "nntile/layer/gelu.hh"
+    #"nntile/layer.hh"
+    #"nntile/layer/base.hh"
+    #"nntile/layer/gelu.hh"
     #"nntile/layer/gelutanh.hh"
-    "nntile/layer/linear.hh"
+    #"nntile/layer/linear.hh"
     #"nntile/layer/mlp.hh"
     )
 
 set(MODEL_HDR
-    "nntile/model.hh"
-    "nntile/model/base.hh"
-    "nntile/model/deep_linear.hh"
+    #"nntile/model.hh"
+    #"nntile/model/base.hh"
+    #"nntile/model/deep_linear.hh"
     )
 
 set(OPTIMIZER_HDR
-    # "nntile/optimizer.hh"
-    # "nntile/optimizer/base.hh"
-    # "nntile/optimizer/sgd.hh"
+    #"nntile/optimizer.hh"
+    #"nntile/optimizer/base.hh"
+    #"nntile/optimizer/sgd.hh"
     #"nntile/optimizer/deep_linear.hh"
     )
 
-set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR}
-    ${LAYER_HDR})# ${MODEL_HDR} ${OPTIMIZER_HDR})
+set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR})
+    #${LAYER_HDR})# ${MODEL_HDR} ${OPTIMIZER_HDR})
 
 target_sources(nntile PUBLIC ${HDR})
 

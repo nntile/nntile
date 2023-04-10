@@ -29,7 +29,7 @@ void cuda_kernel(Index nelems, T *data)
         step = blockDim.x * gridDim.x;
     // Constants
     constexpr T pi = 3.141592653589793238462643383279502884L,
-        zero = 0, one = 1, pt5 = 0.5, f1 = T{0.044715};
+        zero = 0, one = 1, f1 = T{0.044715};
     // Square root is not constexpr by standard, proceed with a static const
     const T sqrt_pi = sqrt(pi), sqrt_2 = sqrt(T{2}),
         f2 = sqrt_2/sqrt_pi, f3 = -T{2}*f2, f4 = f3*f1, f5 = T{3}*f4;

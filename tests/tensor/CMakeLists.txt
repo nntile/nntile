@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-02-10
+# @date 2023-03-29
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -46,6 +46,8 @@ set(TESTS_MPI
     "sqrt"
     "maximum"
     "addcdiv"
+    "scal"
+    "scalprod"
     )
 
 # Add target for local coverage

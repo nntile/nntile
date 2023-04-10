@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-07
+ * @date 2023-03-26
  * */
 
 #pragma once
@@ -23,11 +23,12 @@ namespace tensor
 
 // Tensor-wise bias operation
 template<typename T>
-void bias_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis);
+void bias_async(T alpha, const Tensor<T> &src, const Tensor<T> &dst,
+        Index axis);
 
 // Tensor-wise bias operation
 template<typename T>
-void bias(const Tensor<T> &src, const Tensor<T> &dst, Index axis);
+void bias(T alpha, const Tensor<T> &src, const Tensor<T> &dst, Index axis);
 
 } // namespace tensor
 } // namespace nntile

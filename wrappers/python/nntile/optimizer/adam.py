@@ -9,7 +9,8 @@
 #
 # @version 1.0.0
 # @author Aleksandr Katrutsa
-# @date 2023-02-17
+# @author Aleksandr Mikhalev
+# @date 2023-03-29
 
 import nntile
 import numpy as np
@@ -66,18 +67,18 @@ class Adam:
             # Update first moments
             if self.num_iter == 1:
                 nntile.tensor.copy_async(p.grad, self.first_moments[i])
-                nntile.tensor.axpy_async(-self.beta1, self.first_moments[i], self.first_moments[i])
+                nntile.tensor.scal_async(1-self.beta1, self.first_moments[i])
             else:
-                nntile.tensor.axpy_async(self.beta1 - 1, self.first_moments[i], self.first_moments[i])
+                nntile.tensor.scal_async(self.beta1, self.first_moments[i])
                 nntile.tensor.axpy_async(1 - self.beta1, p.grad, self.first_moments[i])
 
             # Update second moments
             nntile.tensor.prod_async(p.grad, p.grad)
             if self.num_iter == 1:
                 nntile.tensor.copy_async(p.grad, self.second_moments[i])
-                nntile.tensor.axpy_async(-self.beta2, self.second_moments[i], self.second_moments[i])
+                nntile.tensor.scal_async(1-self.beta2, self.second_moments[i])
             else:
-                nntile.tensor.axpy_async(self.beta2 - 1, self.second_moments[i], self.second_moments[i])
+                nntile.tensor.scal_async(self.beta2, self.second_moments[i])
                 nntile.tensor.axpy_async(1 - self.beta2, p.grad, self.second_moments[i])
             
             # Mult tensor by scalar
@@ -99,7 +100,7 @@ class Adam:
             elif self.dtype == np.float64:
                 scale_factor = np.float64(1. / np.sqrt(1 - np.power(self.beta2, self.num_iter),dtype=np.float64))
 
-            nntile.tensor.axpy_async(scale_factor, self.denoms[i], self.denoms[i])
+            nntile.tensor.scal_async(1+scale_factor, self.denoms[i])
 
             nntile.tensor.addcdiv_async(step_size, self.eps,
                                         self.first_moments[i], self.denoms[i], p.value)

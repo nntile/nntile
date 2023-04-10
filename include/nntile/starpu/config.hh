@@ -258,13 +258,17 @@ public:
     {
         if(mpi_rank == dst_rank or mpi_rank == mpi_get_rank())
         {
-            int ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
+            // This function shall be removed in near future, all data
+            // transfers shall be initiated by starpu_mpi_task_build and others
+            starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
                     handle.get(), dst_rank, nullptr, nullptr);
-            if(ret != 0)
-            {
-                throw std::runtime_error("Error in starpu_mpi_get_data_on_"
-                        "node_detached");
-            }
+            //int ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
+            //        handle.get(), dst_rank, nullptr, nullptr);
+            //if(ret != 0)
+            //{
+            //    throw std::runtime_error("Error in starpu_mpi_get_data_on_"
+            //            "node_detached");
+            //}
         }
     }
     //! Flush cached data

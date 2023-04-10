@@ -9,11 +9,11 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-15
+# @date 2023-03-28
 
-from nntile.tensor import TensorMoments
+from nntile.tensor import Tensor, TensorMoments, randn_async
 import numpy as np
-from typing import List
+from typing import List, Union
 
 class BaseLayer(object):
     # Input activations with moments
@@ -22,13 +22,26 @@ class BaseLayer(object):
     activations_output: List[TensorMoments]
     # Layer parameters with moments
     parameters: List[TensorMoments]
+    # Auxiliary tensors or tensors with moments
+    temporaries: List[Union[Tensor, TensorMoments]]
 
-    def __init__(self, activations_input: List[TensorMoments],
-            activations_output: List[TensorMoments],
-            parameters: List[TensorMoments]):
+    def __init__(self, activations_input: List[TensorMoments], \
+            activations_output: List[TensorMoments], \
+            parameters: List[TensorMoments], \
+            temporaries: List[Union[Tensor, TensorMoments]]):
         self.activations_input = activations_input
         self.activations_output = activations_output
         self.parameters = parameters
+        self.temporaries = temporaries
+
+    # Random initialization of parameters
+    def init_randn_async(self):
+        seed = 100
+        for p in self.parameters:
+            mean = 0.0
+            stddev = 1.0 / np.sqrt(p.value.nelems)
+            randn_async(p.value, [0]*len(p.value.shape), p.value.shape, \
+                    seed, mean, stddev)
 
     def forward_async(self):
         raise NotImplementedError
@@ -44,6 +57,10 @@ class BaseLayer(object):
         self.forward_async()
         starpu.wait_for_all()
 
+    # Unregister layer weights and temporary tensors
     def unregister(self):
-        raise NotImplementedError
+        for p in self.parameters:
+            p.unregister()
+        for t in self.temporaries:
+            t.unregister()
 

@@ -10,7 +10,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-01-23
+# @date 2023-04-04
 
 
 ###############################################################################
@@ -94,7 +94,7 @@ target_link_libraries(nntile PUBLIC MPI::MPI_CXX)
 find_package(PkgConfig REQUIRED)
 
 # Get the StarPU
-pkg_check_modules(StarPU REQUIRED starpumpi-1.4)
+pkg_check_modules(StarPU REQUIRED starpumpi-1.3)
 target_link_libraries(nntile PUBLIC ${StarPU_LDFLAGS})
 target_include_directories(nntile PUBLIC
     "${PROJECT_SOURCE_DIR}/include"
@@ -132,6 +132,14 @@ configure_file("${PROJECT_SOURCE_DIR}/src/starpu/nrm2.cc.in"
 # Configure tests/starpu/nrm2.cc that relies on cblas
 configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/nrm2.cc.in"
     "${PROJECT_BINARY_DIR}/tests/starpu/nrm2.cc" @ONLY)
+
+# Configure src/starpu/scal.cc that relies on cblas
+configure_file("${PROJECT_SOURCE_DIR}/src/starpu/scal.cc.in"
+    "${PROJECT_BINARY_DIR}/src/starpu/scal.cc" @ONLY)
+
+# Configure tests/starpu/nrm2.cc that relies on cblas
+configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/scal.cc.in"
+    "${PROJECT_BINARY_DIR}/tests/starpu/scal.cc" @ONLY)
 
 # Check if code coverage report is needed
 if(BUILD_COVERAGE)

@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-03-27
+ * @date 2023-04-04
  * */
 
 #pragma once
@@ -35,6 +35,7 @@
 #include <nntile/starpu/prod.hh>
 #include <nntile/starpu/randn.hh>
 #include <nntile/starpu/relu.hh>
+#include <nntile/starpu/relu_backward.hh>
 #include <nntile/starpu/subcopy.hh>
 #include <nntile/starpu/sumnorm.hh>
 #include <nntile/starpu/sum.hh>
@@ -43,10 +44,13 @@
 #include <nntile/starpu/sqrt.hh>
 #include <nntile/starpu/maximum.hh>
 #include <nntile/starpu/addcdiv.hh>
+#include <nntile/starpu/scalprod.hh>
 #include <nntile/starpu/logsumexp.hh>
 #include <nntile/starpu/total_sum_accum.hh>
 #include <nntile/starpu/subtract_indexed_column.hh>
-
+#include <nntile/starpu/scal.hh>
+#include <nntile/starpu/gelu_backward.hh>
+#include <nntile/starpu/gelutanh_backward.hh>
 
 namespace nntile
 {
@@ -73,6 +77,7 @@ void init()
     normalize::init();
     randn::init();
     relu::init();
+    relu_backward::init();
     prod::init();
     subcopy::init();
     sumnorm::init();
@@ -82,10 +87,13 @@ void init()
     sqrt::init();
     maximum::init();
     addcdiv::init();
+    scalprod::init();
     logsumexp::init();
     total_sum_accum::init();
     subtract_indexed_column::init();
-    
+    scal::init();
+    gelu_backward::init();
+    gelutanh_backward::init();
 }
 
 // Restrict StarPU codelets to certain computational units
@@ -106,6 +114,7 @@ void restrict_where(uint32_t where)
     prod::restrict_where(where);
     randn::restrict_where(where);
     relu::restrict_where(where);
+    relu_backward::restrict_where(where);
     subcopy::restrict_where(where);
     sumnorm::restrict_where(where);
     sum::restrict_where(where);
@@ -114,9 +123,13 @@ void restrict_where(uint32_t where)
     sqrt::restrict_where(where);
     maximum::restrict_where(where);
     addcdiv::restrict_where(where);
+    scalprod::restrict_where(where);
     logsumexp::restrict_where(where);
     total_sum_accum::restrict_where(where);
     subtract_indexed_column::restrict_where(where);
+    scal::restrict_where(where);
+    gelu_backward::restrict_where(where);
+    gelutanh_backward::restrict_where(where);
 }
 
 // Restore computational units for StarPU codelets
@@ -137,6 +150,7 @@ void restore_where()
     prod::restore_where();
     randn::restore_where();
     relu::restore_where();
+    relu_backward::restore_where();
     subcopy::restore_where();
     sumnorm::restore_where();
     sum::restore_where();
@@ -145,9 +159,13 @@ void restore_where()
     sqrt::restore_where();
     maximum::restore_where();
     addcdiv::restore_where();
+    scalprod::restore_where();
     logsumexp::restore_where();
     total_sum_accum::restore_where();
     subtract_indexed_column::restore_where();
+    scal::restore_where();
+    gelu_backward::restore_where();
+    gelutanh_backward::restore_where();
 }
 
 } // namespace starpu
