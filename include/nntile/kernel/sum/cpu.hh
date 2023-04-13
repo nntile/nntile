@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-02-20
+ * @date 2023-04-13
  * */
 
 #pragma once
@@ -26,7 +26,7 @@ namespace sum
 
 // Compute sum along middle axis
 template<typename T>
-void cpu(Index m, Index n, Index k, const T *src, T *sum_dst)
+void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *sum_dst)
     noexcept;
 
 } // namespace sum

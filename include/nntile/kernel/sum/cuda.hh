@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-03-22
+ * @date 2023-04-13
  * */
 
 #pragma once
@@ -26,8 +26,8 @@ namespace sum
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
-        T *sum_dst)
+void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
+        const T *src, T beta, T *sum_dst)
     noexcept;
 
 } // namespace sum

@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-02-19
+ * @date 2023-04-13
  * */
 
 #include "nntile/tile/sum.hh"
@@ -23,12 +23,13 @@ namespace tile
 
 //! Tile-wise sum  single given axis
 template<typename T>
-void sum_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
+void sum_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &sum_dst,
+        Index axis)
 {
     // Check dimensions
-    if(src.ndim - 1 != dst.ndim) // before was src.ndim != dst.ndim
+    if(src.ndim - 1 != sum_dst.ndim) // before was src.ndim != sum_dst.ndim
     {
-        throw std::runtime_error("src.ndim -1 != dst.ndim");
+        throw std::runtime_error("src.ndim -1 != sum_dst.ndim");
     }
     Index ndim = src.ndim;
     // Treat special case of ndim=0
@@ -52,9 +53,9 @@ void sum_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
         if (i == axis) {
             continue;
         }
-        if(src.shape[i] != dst.shape[j])
+        if(src.shape[i] != sum_dst.shape[j])
         {
-            throw std::runtime_error("src.shape[i] != dst.shape[js]");
+            throw std::runtime_error("src.shape[i] != sum_dst.shape[j]");
         }
         j++;
     }
@@ -63,12 +64,12 @@ void sum_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
     if(axis == 0)
     {
         m = 1;
-        n = dst.nelems; 
+        n = sum_dst.nelems; 
         k = src.shape[0];
     }
     else if(axis == ndim-1)
     {
-        m = dst.nelems;
+        m = sum_dst.nelems;
         n = 1;
         k = src.shape[axis];
     }
@@ -79,34 +80,35 @@ void sum_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
         k = src.shape[axis];
     }
     // Insert task
-    starpu::sum::submit<T>(m, n, k, src, dst);
+    starpu::sum::submit<T>(m, n, k, alpha, src, beta, sum_dst);
 }
 
 //! Tile-wise sum and scaled sum of squares along single given axis
 template<typename T>
-void sum(const Tile<T> &src, const Tile<T> &dst, Index axis)
+void sum(T alpha, const Tile<T> &src, T beta, const Tile<T> &sum_dst,
+        Index axis)
 {
-    sum_async<T>(src, dst, axis);
+    sum_async<T>(alpha, src, beta, sum_dst, axis);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void sum_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst,
-        Index axis);
+void sum_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src, fp32_t beta,
+        const Tile<fp32_t> &sum_dst, Index axis);
 
 template
-void sum_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst,
-        Index axis);
+void sum_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src, fp64_t beta,
+        const Tile<fp64_t> &sum_dst, Index axis);
 
 // Explicit instantiation
 template
-void sum<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst,
-        Index axis);
+void sum<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src, fp32_t beta,
+        const Tile<fp32_t> &sum_dst, Index axis);
 
 template
-void sum<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst,
-        Index axis);
+void sum<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src, fp64_t beta,
+        const Tile<fp64_t> &sum_dst, Index axis);
 
 } // namespace tile
 } // namespace nntile

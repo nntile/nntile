@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev 
  * @author Konstantin Sozykin
- * @date 2023-02-20
+ * @date 2023-04-13
  * */
 
 #pragma once
@@ -26,11 +26,14 @@ namespace sum
 {
 
 //! Structure for arguments
+template<typename T>
 struct args_t
 {
     Index m;
     Index n;
     Index k;
+    T alpha;
+    T beta;
 };
 
 // Sum along middle axis of StarPU buffer on CPU
@@ -73,7 +76,8 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, Handle src, Handle dst);
+void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
+        Handle sum_dst);
 
 } // namespace sum
 } // namespace starpu

@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-02-19
+ * @date 2023-04-13
  * */
 
 #include "nntile/kernel/sum/cpu.hh"
@@ -24,25 +24,20 @@ namespace sum
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, const T *src, T *sum_dst)
+void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *sum_dst)
     noexcept
 //! Sum along middle axis
-/*! For a provided m-by-k-by-n input array src compute sums  of slices
+/*! For a provided m-by-k-by-n input array src compute sums of slices
  * along second axis with k elements, resulting in m-by-n output array
- * sum. Input value sum[i, j] is increased by a sum of elements of a
- * slice src[i, :, j] on output. Values of array sum are updated by this routine in
- * read-write mode, therefore sumnorm must be initialized before use with zeros
- * (e.g., by clear() function).
+ * sum_dst. Mnemonically, the following operations are performed:
+ *      sum[i,j] = beta*sum[i,j] + alpha*sum(src[i,:,j])
  *
- * Mnemonically, the following operations are performed:
- *      sum[i,j] = sum[i,j] + sum(src[i,:,j])
- *      
- *
- * @param[in] m: Size of the first mode of src and the second mode of sumnorm
- *      arrays.
- * @param[in] n: Size of the last mode of src and sumnorm arrays
+ * @param[in] m: Size of the first mode of src and sum_dst arrays
+ * @param[in] n: Size of the last mode of src and sum_dst arrays
  * @param[in] k: Size of the middle mode of src array
+ * @param[in] alpha: Scaling factor for src
  * @param[in] src: Input contiguous m-by-k-by-n array
+ * @param[in] beta: Scaling factor for sum_dst
  * @param[inout] sum: Output contiguous m-by-n array, that accumulates
  *      sums along middle axis.
  * */
@@ -59,31 +54,39 @@ void cpu(Index m, Index n, Index k, const T *src, T *sum_dst)
             // Get sum and norm of a corresponding slice
             const T *src_slice = src + i2*mk + i1;
             // Init sum 
-            // Norm is computed with help of scaled sum of squares
-            T sum = sum_dst[dst_offset];
+            T sum = zero;
             // Cycle over slice of input buffer
             for(Index i0 = 0; i0 < k; ++i0)
             {
                 // Read value from source
                 T val = src_slice[i0*m];
+                // Update sum
                 sum += val;
             }
-            // Save result. 
+            // Save result
+            if(beta == zero)
+            {
+                sum *= alpha;
+            }
+            else
+            {
+                sum = beta*sum_dst[dst_offset] + alpha*sum;
+            }
             sum_dst[dst_offset] = sum;
-            dst_offset += 1;
+            ++dst_offset;
         }
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m, Index n, Index k, const fp32_t *src,
-        fp32_t *sum_dst)
+void cpu<fp32_t>(Index m, Index n, Index k, fp32_t alpha, const fp32_t *src,
+        fp32_t beta, fp32_t *sum_dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index m, Index n, Index k, const fp64_t *src,
-        fp64_t *sum_dst)
+void cpu<fp64_t>(Index m, Index n, Index k, fp64_t alpha, const fp64_t *src,
+        fp64_t beta, fp64_t *sum_dst)
     noexcept;
 
 } // namespace sum

@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-02-11
+ * @date 2023-04-13
  * */
 
 #pragma once
@@ -23,10 +23,12 @@ namespace tile
 {
 
 template<typename T>
-void sum_async(const Tile<T> &src, const Tile<T> &dst, Index axis);
+void sum_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &sum_dst,
+        Index axis);
 
 template<typename T>
-void sum(const Tile<T> &src, const Tile<T> &dst, Index axis);
+void sum(T alpha, const Tile<T> &src, T beta, const Tile<T> &sum_dst,
+        Index axis);
 
 } // namespace tile
 } // namespace nntile

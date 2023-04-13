@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-02-19
+ * @date 2023-04-13
  * */
 
 #include "nntile/tile/sum.hh"
@@ -30,6 +30,7 @@ void check()
     Tile<T> dst2[3] = {Tile<T>({4, 5}), Tile<T>({3, 5}),
         Tile<T>({3, 4})};
     auto src_local = src.acquire(STARPU_W);
+    T alpha = -1.0, beta = 0.5;
     for(Index i = 0; i < src.nelems; ++i)
     {
         src_local[i] = T(i+1);
@@ -50,8 +51,8 @@ void check()
     }
     // Check axis=0
     {
-        starpu::sum::submit<T>(1, 20, 3, src, dst[0]);
-        sum<T>(src, dst2[0], 0);
+        starpu::sum::submit<T>(1, 20, 3, alpha, src, beta, dst[0]);
+        sum<T>(alpha, src, beta, dst2[0], 0);
         auto dst_local = dst[0].acquire(STARPU_R);
         auto dst2_local = dst2[0].acquire(STARPU_R);
         for(Index i = 0; i < dst[0].nelems; ++i)
@@ -63,8 +64,8 @@ void check()
     }
     // Check axis=1
     {
-        starpu::sum::submit<T>(3, 5, 4, src, dst[1]);
-        sum<T>(src, dst2[1], 1);
+        starpu::sum::submit<T>(3, 5, 4, alpha, src, beta, dst[1]);
+        sum<T>(alpha, src, beta, dst2[1], 1);
         auto dst_local = dst[1].acquire(STARPU_R);
         auto dst2_local = dst2[1].acquire(STARPU_R);
         for(Index i = 0; i < dst[1].nelems; ++i)
@@ -76,8 +77,8 @@ void check()
     }
     // Check axis=2
     {
-        starpu::sum::submit<T>(12, 1, 5, src, dst[2]);
-        sum<T>(src, dst2[2], 2);
+        starpu::sum::submit<T>(12, 1, 5, alpha, src, beta, dst[2]);
+        sum<T>(alpha, src, beta, dst2[2], 2);
         auto dst_local = dst[2].acquire(STARPU_R);
         auto dst2_local = dst2[2].acquire(STARPU_R);
         for(Index i = 0; i < dst[2].nelems; ++i)
@@ -99,13 +100,13 @@ void validate()
     Tile<T> dst[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
         Tile<T>({2, 3, 4})};
     Tile<T> empty({});
-    TEST_THROW(sum<T>(src, empty, 0));
-    TEST_THROW(sum<T>(empty, empty, 0));
-    TEST_THROW(sum<T>(src, dst[0], -1));
-    TEST_THROW(sum<T>(src, dst[0], 3));
-    TEST_THROW(sum<T>(src, src, 0));
-    TEST_THROW(sum<T>(src, dst[0], 1));
-    TEST_THROW(sum<T>(src, dst[2], 1));
+    TEST_THROW(sum<T>(1.0, src, 1.0, empty, 0));
+    TEST_THROW(sum<T>(1.0, empty, 1.0, empty, 0));
+    TEST_THROW(sum<T>(1.0, src, 1.0, dst[0], -1));
+    TEST_THROW(sum<T>(1.0, src, 1.0, dst[0], 3));
+    TEST_THROW(sum<T>(1.0, src, 1.0, src, 0));
+    TEST_THROW(sum<T>(1.0, src, 1.0, dst[0], 1));
+    TEST_THROW(sum<T>(1.0, src, 1.0, dst[2], 1));
 }
 
 int main(int argc, char **argv)

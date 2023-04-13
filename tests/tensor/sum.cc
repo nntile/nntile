@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-03-11
+ * @date 2023-04-13
  * */
 
 #include "nntile/tensor/sum.hh"
@@ -31,6 +31,7 @@ template<typename T>
 void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         Index axis)
 {
+    T alpha = -1.0, beta = 0.5;
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
@@ -72,10 +73,19 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         dst_shape.push_back(shape[i]);
         dst_basetile.push_back(basetile[i]);
     }
-    
     // Generate single-tile and distributed dest tensors
     TensorTraits dst_single_traits(dst_shape, dst_shape);
     Tensor<T> dst_single(dst_single_traits, dist_root, last_tag);
+    if(mpi_rank == mpi_root)
+    {
+        auto tile = dst_single.get_tile(0);
+        auto tile_local = tile.acquire(STARPU_W);
+        for(Index i = 0; i < dst_single.nelems; ++i)
+        {
+            tile_local[i] = T{1.0};
+        }
+        tile_local.release();
+    }
     TensorTraits dst_traits(dst_shape, dst_basetile);
     std::vector<int> dst_distr(dst_traits.grid.nelems);
     for(Index i = 0; i < dst_traits.grid.nelems; ++i)
@@ -83,14 +93,14 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         dst_distr[i] = (i*i+1) % mpi_size;
     }
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
+    scatter<T>(dst_single, dst);
     // Perform tensor-wise and tile-wise sum operations
-    sum<T>(src, dst, axis);
+    sum<T>(alpha, src, beta, dst, axis);
     if(mpi_rank == mpi_root)
     {
-        tile::clear(dst_single.get_tile(0));
-        tile::sum<T>(src_single.get_tile(0), dst_single.get_tile(0), axis);
+        tile::sum<T>(alpha, src_single.get_tile(0), beta,
+                dst_single.get_tile(0), axis);
     }
-    
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
     gather<T>(dst, dst2_single);
@@ -133,16 +143,16 @@ void validate()
         C(trC, dist0, last_tag), D(trD, dist00, last_tag),
         E(trE, dist0000, last_tag), F(trF, dist0, last_tag),
         G(trG, dist00, last_tag);
-    TEST_THROW(sum<T>(A, C, 0));
-    TEST_THROW(sum<T>(F, F, 0));
-    TEST_THROW(sum<T>(A, B, -1));
-    TEST_THROW(sum<T>(A, B, 2));
-    TEST_THROW(sum<T>(A, D, 0));
-    TEST_THROW(sum<T>(A, E, 0));
-    TEST_THROW(sum<T>(A, B, 0));
-    TEST_THROW(sum<T>(A, B, 1));
-    TEST_THROW(sum<T>(A, G, 0));
-    TEST_THROW(sum<T>(A, G, 1));
+    TEST_THROW(sum<T>(1.0, A, 1.0, C, 0));
+    TEST_THROW(sum<T>(1.0, F, 1.0, F, 0));
+    TEST_THROW(sum<T>(1.0, A, 1.0, B, -1));
+    TEST_THROW(sum<T>(1.0, A, 1.0, B, 2));
+    TEST_THROW(sum<T>(1.0, A, 1.0, D, 0));
+    TEST_THROW(sum<T>(1.0, A, 1.0, E, 0));
+    TEST_THROW(sum<T>(1.0, A, 1.0, B, 0));
+    TEST_THROW(sum<T>(1.0, A, 1.0, B, 1));
+    TEST_THROW(sum<T>(1.0, A, 1.0, G, 0));
+    TEST_THROW(sum<T>(1.0, A, 1.0, G, 1));
 }
 
 int main(int argc, char **argv)

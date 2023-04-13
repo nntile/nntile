@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-03-09
+ * @date 2023-04-13
  * */
 
 #pragma once
@@ -23,10 +23,12 @@ namespace tensor
 {
 
 template<typename T>
-void sum_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis);
+void sum_async(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &sum_dst,
+        Index axis);
 
 template<typename T>
-void sum(const Tensor<T> &src, const Tensor<T> &dst, Index axis);
+void sum(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &sum_dst,
+        Index axis);
 
 } // namespace tensor
 } // namespace nntile
