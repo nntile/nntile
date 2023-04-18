@@ -24,7 +24,7 @@ namespace starpu
 namespace sum
 {
 
-//! Sum  along middle axis of StarPU buffer on CPU
+//! Sum along middle axis of StarPU buffer on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept

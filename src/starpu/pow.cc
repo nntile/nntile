@@ -93,7 +93,7 @@ void restore_where()
 
 template<typename T>
 void submit(Index nelems, T alpha, T exp, Handle data)
-//! Insert bias task into StarPU pool of tasks
+//! Insert pow task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.

@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-02
+ * @date 2023-04-18
  * */
 
 #pragma once
@@ -23,11 +23,12 @@ namespace tensor
 
 //! Compute Euclidian norm
 template<typename T>
-void nrm2_async(const Tensor<T> &src, const Tensor<T> &dst,
+void nrm2_async(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
         const Tensor<T> &tmp);
 
 template<typename T>
-void nrm2(const Tensor<T> &src, const Tensor<T> &dst, const Tensor<T> &tmp);
+void nrm2(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
+        const Tensor<T> &tmp);
 
 } // namespace tensor
 } // namespace nntile
