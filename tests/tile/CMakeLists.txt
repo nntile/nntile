@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-03-29
+# @date 2023-04-18
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -36,6 +36,7 @@ set(TESTS
     "prod"
     "maxsumexp"
     "sum"
+    "norm"
     "softmax"
     "sqrt"
     "maximum"
