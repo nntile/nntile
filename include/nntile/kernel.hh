@@ -30,6 +30,7 @@
 #include <nntile/kernel/relu_backward.hh>
 #include <nntile/kernel/subcopy.hh>
 #include <nntile/kernel/sumnorm.hh>
+#include <nntile/kernel/set.hh>
 #include <nntile/kernel/sum.hh>
 #include <nntile/kernel/norm.hh>
 #include <nntile/kernel/pow.hh>

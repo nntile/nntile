@@ -37,6 +37,7 @@ set(TESTS_MPI
     "drelu"
     "relu"
     "sumnorm"
+    "set"
     "sum"
     "norm"
     "nrm2"

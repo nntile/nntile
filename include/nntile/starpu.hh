@@ -38,6 +38,7 @@
 #include <nntile/starpu/relu_backward.hh>
 #include <nntile/starpu/subcopy.hh>
 #include <nntile/starpu/sumnorm.hh>
+#include <nntile/starpu/set.hh>
 #include <nntile/starpu/sum.hh>
 #include <nntile/starpu/norm.hh>
 #include <nntile/starpu/pow.hh>
@@ -83,6 +84,7 @@ void init()
     prod::init();
     subcopy::init();
     sumnorm::init();
+    set::init();
     sum::init();
     norm::init();
     pow::init();
@@ -121,6 +123,7 @@ void restrict_where(uint32_t where)
     relu_backward::restrict_where(where);
     subcopy::restrict_where(where);
     sumnorm::restrict_where(where);
+    set::restrict_where(where);
     sum::restrict_where(where);
     norm::restrict_where(where);
     pow::restrict_where(where);
@@ -159,6 +162,7 @@ void restore_where()
     relu_backward::restore_where();
     subcopy::restore_where();
     sumnorm::restore_where();
+    set::restore_where();
     sum::restore_where();
     norm::restore_where();
     pow::restore_where();

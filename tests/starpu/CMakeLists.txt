@@ -33,6 +33,7 @@ set(TESTS
     "softmax"
     "sqrt"
     "maximum"
+    "set"
     "sum"
     "norm"
     "addcdiv"

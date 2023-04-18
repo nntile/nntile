@@ -38,6 +38,7 @@
 #include <nntile/tile/relu.hh>
 #include <nntile/tile/relu_backward.hh>
 #include <nntile/tile/sumnorm.hh>
+#include <nntile/tile/set.hh>
 #include <nntile/tile/sum.hh>
 #include <nntile/tile/norm.hh>
 #include <nntile/tile/pow.hh>

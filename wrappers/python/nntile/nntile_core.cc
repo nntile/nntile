@@ -383,6 +383,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("drelu_fp64", &drelu<fp64_t>);
     m.def("drelu_fp32", &drelu<fp32_t>);
     // Add other functions for Tensor<T>
+    m.def("set_async_fp64", &set_async<fp64_t>);
+    m.def("set_async_fp32", &set_async<fp32_t>);
+    m.def("set_fp64", &set<fp64_t>);
+    m.def("set_fp32", &set<fp32_t>);
+
     m.def("sum_async_fp64", &sum_async<fp64_t>);
     m.def("sum_async_fp32", &sum_async<fp32_t>);
     m.def("sum_fp64", &sum<fp64_t>);
