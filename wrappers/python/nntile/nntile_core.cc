@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-04
+ * @date 2023-04-18
  * */
 
 #include <pybind11/pybind11.h>
@@ -541,6 +541,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("dgelutanh_async_fp32", &dgelutanh_async<fp32_t>);
     m.def("dgelutanh_fp64", &dgelutanh<fp64_t>);
     m.def("dgelutanh_fp32", &dgelutanh<fp32_t>);   
+
+    m.def("pow_async_fp64", &pow_async<fp64_t>);
+    m.def("pow_async_fp32", &pow_async<fp32_t>);
+    m.def("pow_fp64", &pow<fp64_t>);
+    m.def("pow_fp32", &pow<fp32_t>);
 }
 
 // Main extension module with all wrappers

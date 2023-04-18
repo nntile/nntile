@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-04-04
+# @date 2023-04-18
 
 # Set list of sources
 set(KERNEL_SRC
@@ -30,6 +30,7 @@ set(KERNEL_SRC
     "kernel/subcopy/cpu.cc"
     "kernel/sumnorm/cpu.cc"
     "kernel/sum/cpu.cc"
+    "kernel/pow/cpu.cc"
     "kernel/maxsumexp/cpu.cc"
     "kernel/softmax/cpu.cc"
     "kernel/sqrt/cpu.cc"
@@ -58,6 +59,7 @@ if(NNTILE_USE_CUDA)
         "kernel/relu_backward/cuda.cu"
         "kernel/sumnorm/cuda.cu"
         "kernel/sum/cuda.cu"
+        "kernel/pow/cuda.cu"
         "kernel/maxsumexp/cuda.cu"
         "kernel/softmax/cuda.cu"
         "kernel/scalprod/cuda.cu"
@@ -87,6 +89,7 @@ set(STARPU_SRC
     "starpu/subcopy.cc"
     "starpu/sumnorm.cc"
     "starpu/sum.cc"
+    "starpu/pow.cc"
     "starpu/maxsumexp.cc"
     "starpu/softmax.cc"
     "starpu/sqrt.cc"
@@ -121,6 +124,7 @@ set(TILE_SRC
     "tile/relu_backward.cc"
     "tile/sumnorm.cc"
     "tile/sum.cc"
+    "tile/pow.cc"
     "tile/maxsumexp.cc"
     "tile/softmax.cc"
     "tile/sqrt.cc"
@@ -159,6 +163,7 @@ set(TENSOR_SRC
     "tensor/scatter.cc"
     "tensor/sumnorm.cc"
     "tensor/sum.cc"
+    "tensor/pow.cc"
     "tensor/maxsumexp.cc"
     "tensor/softmax.cc"
     "tensor/sqrt.cc"

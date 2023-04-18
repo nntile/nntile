@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-04
+ * @date 2023-04-14
  * */
 
 #pragma once
@@ -42,6 +42,7 @@
 #include <nntile/tensor/relu_backward.hh>
 #include <nntile/tensor/scatter.hh>
 #include <nntile/tensor/sum.hh>
+#include <nntile/tensor/pow.hh>
 #include <nntile/tensor/sumnorm.hh>
 #include <nntile/tensor/maxsumexp.hh>
 #include <nntile/tensor/softmax.hh>

@@ -4,84 +4,63 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/bias.cc
- * Bias operation on a StarPU buffer
+ * @file src/starpu/pow.cc
+ * Power operation on a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @date 2023-04-18
  * */
 
-#include "nntile/starpu/bias.hh"
-#include "nntile/kernel/bias.hh"
+#include "nntile/starpu/pow.hh"
+#include "nntile/kernel/pow.hh"
 #include <cstdlib>
 
 namespace nntile
 {
 namespace starpu
 {
-//! StarPU wrappers for bias operation
-namespace bias
+namespace pow
 {
 
-//! Apply bias along middle axis of StarPU buffer in CPU
+//! Inplace power operation of StarPU buffer on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    args_t<T> *args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *src = interfaces[0]->get_ptr<T>();
-    T *dst = interfaces[1]->get_ptr<T>();
+    T *data = interfaces[0]->get_ptr<T>();
     // Launch kernel
-    kernel::bias::cpu<T>(args->m, args->n, args->k, args->alpha, src, dst);
+    kernel::pow::cpu<T>(args->nelems, args->alpha, args->exp, data);
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply bias along middle axis of StarPU buffer on CUDA
+// Inplace power operation of StarPU buffer on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    args_t<T> *args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *src = interfaces[0]->get_ptr<T>();
-    T *dst = interfaces[1]->get_ptr<T>();
+    T *data = interfaces[0]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::bias::cuda<T>(stream, args->m, args->n, args->k, args->alpha, src,
-            dst);
+    kernel::pow::cuda<T>(stream, args->nelems, args->alpha, args->exp, data);
 }
 #endif // NNTILE_USE_CUDA
-
-//! Footprint for bias tasks that depends only on m, n and k
-template<typename T>
-static
-uint32_t footprint(struct starpu_task *task)
-{
-    // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
-    // Apply hash over parameters m, n and k. This way if we swap values of m,
-    // n and k, then the total size of buffers will remain the same, but the
-    // footprint will be different
-    uint32_t hash = 0;
-    hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
-    hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
-    hash = starpu_hash_crc32c_be_n(&args->k, sizeof(args->k), hash);
-    return hash;
-}
 
 Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
-    codelet_fp32.init("nntile_bias_fp32",
-            footprint<fp32_t>,
+    codelet_fp32.init("nntile_pow_fp32",
+            nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_t>}
@@ -89,8 +68,8 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_fp64.init("nntile_bias_fp64",
-            footprint<fp64_t>,
+    codelet_fp64.init("nntile_pow_fp64",
+            nullptr,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp64_t>}
@@ -113,7 +92,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, T alpha, Handle src, Handle dst)
+void submit(Index nelems, T alpha, T exp, Handle data)
 //! Insert bias task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -122,35 +101,29 @@ void submit(Index m, Index n, Index k, T alpha, Handle src, Handle dst)
 {
     // Codelet arguments
     args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
-    args->m = m;
-    args->n = n;
-    args->k = k;
+    args->nelems = nelems;
     args->alpha = alpha;
-    fp64_t nflops = m * n * k;
+    args->exp = exp;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
+            STARPU_RW, static_cast<starpu_data_handle_t>(data),
             STARPU_CL_ARGS, args, sizeof(*args),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
-            STARPU_FLOPS, nflops,
             0);
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in bias task submission");
+        throw std::runtime_error("Error in pow task submission");
     }
 }
 
-// Explicit instantiation
+// Explicit instantiaion
 template
-void submit<fp32_t>(Index m, Index n, Index k, fp32_t alpha, Handle src,
-        Handle dst);
+void submit<fp32_t>(Index nelems, fp32_t alpha, fp32_t exp, Handle data);
 
 template
-void submit<fp64_t>(Index m, Index n, Index k, fp64_t alpha, Handle src,
-        Handle dst);
+void submit<fp64_t>(Index nelems, fp64_t alpha, fp64_t exp, Handle data);
 
-} // namespace bias
+} // namespace pow
 } // namespace starpu
 } // namespace nntile
 

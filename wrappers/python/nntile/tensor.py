@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-04-04
+# @date 2023-04-18
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -145,13 +145,21 @@ def gelutanh_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
         raise TypeError
 
 # Wrapper for multiprecision sum
-def sum_async(x: Tensor, sum_out: Tensor, axis: int) -> None:
+def sum_async(alpha: float, x: Tensor, beta: float, sum_out: Tensor, \
+        axis: int) -> None:
     if type(x) is not type(sum_out):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.sum_async_fp32(x, sum_out, axis)
+        core_tensor.sum_async_fp32(alpha, x, beta, sum_out, axis)
     else:
-        core_tensor.sum_async_fp64(x, sum_out, axis)
+        core_tensor.sum_async_fp64(alpha, x, beta, sum_out, axis)
+
+# Wrapper for multiprecision pow
+def pow_async(alpha: float, exp: float, x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.pow_async_fp32(alpha, exp, x)
+    else:
+        core_tensor.pow_async_fp64(alpha, exp, x)
 
 # Wrapper for multiprecision sumnorm
 def sumnorm_async(x: Tensor, sumnorm: Tensor, axis: int) -> None:

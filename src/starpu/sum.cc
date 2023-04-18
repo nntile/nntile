@@ -9,8 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @author  Konstantin Sozykin
- * @date 2023-04-13
+ * @author Konstantin Sozykin
+ * @date 2023-04-18
  * */
 
 #include "nntile/starpu/sum.hh"
@@ -122,6 +122,21 @@ void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
  * throws an std::runtime_error() exception.
  * */
 {
+    // Access mode for the sum_dst handle
+    constexpr T zero = 0, one = 1;
+    enum starpu_data_access_mode sum_dst_mode;
+    if(beta == zero)
+    {
+        sum_dst_mode = STARPU_W;
+    }
+    else if(beta == one)
+    {
+        sum_dst_mode = Config::STARPU_RW_COMMUTE;
+    }
+    else
+    {
+        sum_dst_mode = STARPU_RW;
+    }
     // Codelet arguments
     args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
     args->m = m;
@@ -133,9 +148,7 @@ void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_CL_ARGS, args, sizeof(*args),
-            //Config::STARPU_RW_COMMUTE,
-            STARPU_RW,
-            static_cast<starpu_data_handle_t>(sum_dst),
+            sum_dst_mode, static_cast<starpu_data_handle_t>(sum_dst),
             0);
     // Check submission
     if(ret != 0)
