@@ -11,12 +11,13 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-18
+ * @date 2023-04-19
  * */
 
 #pragma once
 
 #include <nntile/kernel/bias.hh>
+#include <nntile/kernel/biasprod.hh>
 #include <nntile/kernel/gelu.hh>
 #include <nntile/kernel/gelutanh.hh>
 #include <nntile/kernel/dgelu.hh>

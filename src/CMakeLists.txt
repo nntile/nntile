@@ -11,11 +11,12 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-04-18
+# @date 2023-04-19
 
 # Set list of sources
 set(KERNEL_SRC
     "kernel/bias/cpu.cc"
+    "kernel/biasprod/cpu.cc"
     "kernel/dgelu/cpu.cc"
     "kernel/dgelutanh/cpu.cc"
     "kernel/drelu/cpu.cc"
@@ -50,6 +51,7 @@ if(NNTILE_USE_CUDA)
     set(KERNEL_SRC
         ${KERNEL_SRC}
         "kernel/bias/cuda.cu"
+        "kernel/biasprod/cuda.cu"
         "kernel/dgelu/cuda.cu"
         "kernel/dgelutanh/cuda.cu"
         "kernel/drelu/cuda.cu"
@@ -74,6 +76,7 @@ endif()
 
 set(STARPU_SRC
     "starpu/bias.cc"
+    "starpu/biasprod.cc"
     "starpu/clear.cc"
     "starpu/dgelu.cc"
     "starpu/dgelutanh.cc"
@@ -113,6 +116,7 @@ set(TILE_SRC
     "tile/traits.cc"
     "tile/axpy.cc"
     "tile/bias.cc"
+    "tile/biasprod.cc"
     "tile/clear.cc"
     "tile/copy.cc"
     "tile/copy_intersection.cc"
@@ -152,6 +156,7 @@ set(TENSOR_SRC
     "tensor/distributions.cc"
     "tensor/axpy.cc"
     "tensor/bias.cc"
+    "tensor/biasprod.cc"
     "tensor/clear.cc"
     "tensor/copy.cc"
     "tensor/copy_intersection.cc"

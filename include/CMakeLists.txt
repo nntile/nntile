@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-04-18
+# @date 2023-04-19
 
 # Set list of headers
 set(BASE_HDR
@@ -24,6 +24,8 @@ set(BASE_HDR
 set(KERNEL_HDR
     "nntile/kernel/bias.hh"
     "nntile/kernel/bias/cpu.hh"
+    "nntile/kernel/biasprod.hh"
+    "nntile/kernel/biasprod/cpu.hh"
     "nntile/kernel/dgelu.hh"
     "nntile/kernel/dgelu/cpu.hh"
     "nntile/kernel/dgelutanh.hh"
@@ -86,6 +88,7 @@ if(NNTILE_USE_CUDA)
     set(KERNEL_HDR
         ${KERNEL_HDR}
         "nntile/kernel/bias/cuda.hh"
+        "nntile/kernel/biasprod/cuda.hh"
         "nntile/kernel/dgelu/cuda.hh"
         "nntile/kernel/dgelutanh/cuda.hh"
         "nntile/kernel/drelu/cuda.hh"
@@ -112,6 +115,7 @@ set(STARPU_HDR
     "nntile/starpu/config.hh"
     "nntile/starpu/axpy.hh"
     "nntile/starpu/bias.hh"
+    "nntile/starpu/biasprod.hh"
     "nntile/starpu/clear.hh"
     "nntile/starpu/dgelu.hh"
     "nntile/starpu/dgelutanh.hh"
@@ -152,6 +156,7 @@ set(TILE_HDR
     "nntile/tile/tile.hh"
     "nntile/tile/axpy.hh"
     "nntile/tile/bias.hh"
+    "nntile/tile/biasprod.hh"
     "nntile/tile/clear.hh"
     "nntile/tile/copy.hh"
     "nntile/tile/copy_intersection.hh"
@@ -193,6 +198,7 @@ set(TENSOR_HDR
     "nntile/tensor/tensor.hh"
     "nntile/tensor/axpy.hh"
     "nntile/tensor/bias.hh"
+    "nntile/tensor/biasprod.hh"
     "nntile/tensor/clear.hh"
     "nntile/tensor/copy.hh"
     "nntile/tensor/copy_intersection.hh"

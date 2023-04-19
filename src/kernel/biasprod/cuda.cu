@@ -5,20 +5,20 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/bias/cuda.cu
- * Bias-like product operation on a buffer on CUDA
+ * Bias operation on a buffer on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-19
+ * @date 2023-03-26
  * */
 
-#include "nntile/kernel/biasprod/cuda.hh"
+#include "nntile/kernel/bias/cuda.hh"
 
 namespace nntile
 {
 namespace kernel
 {
-namespace biasprod
+namespace bias
 {
 
 template<typename T>
@@ -40,7 +40,7 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src,
             {
                 // Read value from source
                 T &dst_val = dst_slice[i0*m];
-                dst_val = dst_val * src_val;
+                dst_val = dst_val + src_val;
             }
         }
     }
@@ -50,39 +50,26 @@ template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
         const T *src, T *dst)
     noexcept
-//! Bias-like product along middle axis on CUDA
-/*! For a provided m-by-k-by-n output tensor dst apply bias-like product along
- * second axis with k elements from m-by-n input tensor src:
- *      dst[i, l, j] = dst[i, l, j] * src[i, j]
- *
- * It is possible API will be extended some day to the following:
- *      dst[i, l, j] = dst[i, l, j]^beta * src[i, j]^alpha
- *
- * @param[in] m: Size of the first mode of src and dst tensors
- * @param[in] n: Size of the last mode of src and dst tensors
- * @param[in] k: Size of the middle mode of dst tensor
- * @param[in] src: Source of the bias
- * @param[inout] dst: Destination of the bias
- * */
 {
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
     // Both source and destination are Fortran-contiguous
     dim3 blocks(16, 16), threads(8, 4);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, src, dst);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha, src,
+            dst);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
+void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, fp32_t alpha,
         const fp32_t *src, fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
+void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, fp64_t alpha,
         const fp64_t *src, fp64_t *dst)
     noexcept;
 
-} // namespace biasprod
+} // namespace bias
 } // namespace kernel
 } // namespace nntile
 

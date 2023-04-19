@@ -28,8 +28,6 @@ Attention = nntile.layer.Attention
 # Get attention from PyTorch
 import torch
 from torch.nn import MultiheadAttention
-torch_dtype = {np.float32: torch.float32,
-               np.float64: torch.float64}
 
 # Helper function returns bool value true if test passes
 def helper(dtype: np.dtype):

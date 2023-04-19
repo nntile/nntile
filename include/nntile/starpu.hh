@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-18
+ * @date 2023-04-19
  * */
 
 #pragma once
@@ -22,6 +22,7 @@
 // StarPU wrappers for low-level kernels
 #include <nntile/starpu/axpy.hh>
 #include <nntile/starpu/bias.hh>
+#include <nntile/starpu/biasprod.hh>
 #include <nntile/starpu/clear.hh>
 #include <nntile/starpu/gelu.hh>
 #include <nntile/starpu/gelutanh.hh>
@@ -68,6 +69,7 @@ void init()
 {
     axpy::init();
     bias::init();
+    biasprod::init();
     clear::init();
     gelu::init();
     gelutanh::init();
@@ -107,6 +109,7 @@ void restrict_where(uint32_t where)
 {
     axpy::restrict_where(where);
     bias::restrict_where(where);
+    biasprod::restrict_where(where);
     clear::restrict_where(where);
     gelu::restrict_where(where);
     gelutanh::restrict_where(where);
@@ -146,6 +149,7 @@ void restore_where()
 {
     axpy::restore_where();
     bias::restore_where();
+    biasprod::restore_where();
     clear::restore_where();
     gelu::restore_where();
     gelutanh::restore_where();

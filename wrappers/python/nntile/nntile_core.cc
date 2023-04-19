@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-18
+ * @date 2023-04-19
  * */
 
 #include <pybind11/pybind11.h>
@@ -392,6 +392,17 @@ void def_mod_tensor(py::module_ &m)
     m.def("sum_async_fp32", &sum_async<fp32_t>);
     m.def("sum_fp64", &sum<fp64_t>);
     m.def("sum_fp32", &sum<fp32_t>);
+
+    m.def("norm_async_fp64", &norm_async<fp64_t>);
+    m.def("norm_async_fp32", &norm_async<fp32_t>);
+    m.def("norm_fp64", &norm<fp64_t>);
+    m.def("norm_fp32", &norm<fp32_t>);
+
+    m.def("pow_async_fp64", &pow_async<fp64_t>);
+    m.def("pow_async_fp32", &pow_async<fp32_t>);
+    m.def("pow_fp64", &pow<fp64_t>);
+    m.def("pow_fp32", &pow<fp32_t>);
+
     m.def("sumnorm_async_fp64", &sumnorm_async<fp64_t>);
     m.def("sumnorm_async_fp32", &sumnorm_async<fp32_t>);
     m.def("sumnorm_fp64", &sumnorm<fp64_t>);
@@ -426,10 +437,17 @@ void def_mod_tensor(py::module_ &m)
     m.def("maxsumexp_async_fp32", &maxsumexp_async<fp32_t>);
     m.def("maxsumexp_fp64", &maxsumexp<fp64_t>);
     m.def("maxsumexp_fp32", &maxsumexp<fp32_t>);
+
     m.def("bias_async_fp64", &bias_async<fp64_t>);
     m.def("bias_async_fp32", &bias_async<fp32_t>);
     m.def("bias_fp64", &bias<fp64_t>);
     m.def("bias_fp32", &bias<fp32_t>);
+
+    m.def("biasprod_async_fp64", &biasprod_async<fp64_t>);
+    m.def("biasprod_async_fp32", &biasprod_async<fp32_t>);
+    m.def("biasprod_fp64", &biasprod<fp64_t>);
+    m.def("biasprod_fp32", &biasprod<fp32_t>);
+
     m.def("gather_async_fp64", &gather_async<fp64_t>);
     m.def("gather_async_fp32", &gather_async<fp32_t>);
     m.def("gather_async_int64", &gather_async<Index>);

@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-18
+ * @date 2023-04-19
  * */
 
 #pragma once
@@ -22,6 +22,7 @@
 // Tile<T> operations
 #include <nntile/tile/axpy.hh>
 #include <nntile/tile/bias.hh>
+#include <nntile/tile/biasprod.hh>
 #include <nntile/tile/clear.hh>
 #include <nntile/tile/copy.hh>
 #include <nntile/tile/copy_intersection.hh>

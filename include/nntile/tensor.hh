@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-18
+ * @date 2023-04-19
  * */
 
 #pragma once
@@ -24,6 +24,7 @@
 // Tensor operations
 #include <nntile/tensor/axpy.hh>
 #include <nntile/tensor/bias.hh>
+#include <nntile/tensor/biasprod.hh>
 #include <nntile/tensor/clear.hh>
 #include <nntile/tensor/copy.hh>
 #include <nntile/tensor/copy_intersection.hh>

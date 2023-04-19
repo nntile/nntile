@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-04-18
+# @date 2023-04-19
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -161,6 +161,16 @@ def sum_async(alpha: float, x: Tensor, beta: float, sum_out: Tensor, \
     else:
         core_tensor.sum_async_fp64(alpha, x, beta, sum_out, axis)
 
+# Wrapper for multiprecision norm
+def norm_async(alpha: float, x: Tensor, beta: float, norm_out: Tensor, \
+        axis: int) -> None:
+    if type(x) is not type(norm_out):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.norm_async_fp32(alpha, x, beta, norm_out, axis)
+    else:
+        core_tensor.norm_async_fp64(alpha, x, beta, norm_out, axis)
+
 # Wrapper for multiprecision pow
 def pow_async(alpha: float, exp: float, x: Tensor) -> None:
     if type(x) is core_tensor.Tensor_fp32:
@@ -260,13 +270,24 @@ def maxsumexp_async(x: Tensor, maxsumexp: Tensor, axis: int) -> None:
         raise TypeError
 
 # Wrapper for multiprecision bias
-def bias_async(alpha:float, bias: Tensor, x: Tensor, axis: int) -> None:
+def bias_async(alpha: float, bias: Tensor, x: Tensor, axis: int) -> None:
     if type(bias) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.bias_async_fp32(alpha, bias, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.bias_async_fp64(alpha, bias, x, axis)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision biasprod
+def biasprod_async(prod: Tensor, x: Tensor, axis: int) -> None:
+    if type(prod) is not type(x):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.biasprod_async_fp32(prod, x, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.biasprod_async_fp64(prod, x, axis)
     else:
         raise TypeError
 
