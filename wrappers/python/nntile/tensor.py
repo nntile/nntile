@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-04-19
+# @date 2023-04-20
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -161,6 +161,16 @@ def sum_async(alpha: float, x: Tensor, beta: float, sum_out: Tensor, \
     else:
         core_tensor.sum_async_fp64(alpha, x, beta, sum_out, axis)
 
+# Wrapper for multiprecision sum_outer
+def sum_outer_async(alpha: float, x: Tensor, beta: float, sum_out: Tensor, \
+        axis: int) -> None:
+    if type(x) is not type(sum_out):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.sum_outer_async_fp32(alpha, x, beta, sum_out, axis)
+    else:
+        core_tensor.sum_outer_async_fp64(alpha, x, beta, sum_out, axis)
+
 # Wrapper for multiprecision norm
 def norm_async(alpha: float, x: Tensor, beta: float, norm_out: Tensor, \
         axis: int) -> None:
@@ -280,6 +290,17 @@ def bias_async(alpha: float, bias: Tensor, x: Tensor, axis: int) -> None:
     else:
         raise TypeError
 
+# Wrapper for multiprecision bias_outer
+def bias_outer_async(alpha: float, bias: Tensor, x: Tensor, axis: int) -> None:
+    if type(bias) is not type(x):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.bias_outer_async_fp32(alpha, bias, x, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.bias_outer_async_fp64(alpha, bias, x, axis)
+    else:
+        raise TypeError
+
 # Wrapper for multiprecision biasprod
 def biasprod_async(prod: Tensor, x: Tensor, axis: int) -> None:
     if type(prod) is not type(x):
@@ -288,6 +309,17 @@ def biasprod_async(prod: Tensor, x: Tensor, axis: int) -> None:
         core_tensor.biasprod_async_fp32(prod, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.biasprod_async_fp64(prod, x, axis)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision biasprod_outer
+def biasprod_outer_async(prod: Tensor, x: Tensor, axis: int) -> None:
+    if type(prod) is not type(x):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.biasprod_outer_async_fp32(prod, x, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.biasprod_outer_async_fp64(prod, x, axis)
     else:
         raise TypeError
 
@@ -404,6 +436,22 @@ def scalprod_async(alpha: float, src1: Tensor, src2: Tensor, beta: float, \
         core_tensor.scalprod_async_fp32(alpha, src1, src2, beta, dst, axis)
     elif type(src1) is core_tensor.Tensor_fp64:
         core_tensor.scalprod_async_fp64(alpha, src1, src2, beta, dst, axis)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision scalprod_outer
+def scalprod_outer_async(alpha: float, src1: Tensor, src2: Tensor, \
+        beta: float, dst: Tensor, axis: int) -> None:
+    if type(src1) is not type(src2):
+        raise TypeError
+    if type(src1) is not type(dst):
+        raise TypeError
+    if type(src1) is core_tensor.Tensor_fp32:
+        core_tensor.scalprod_outer_async_fp32(alpha, src1, src2, beta, dst, \
+                axis)
+    elif type(src1) is core_tensor.Tensor_fp64:
+        core_tensor.scalprod_outer_async_fp64(alpha, src1, src2, beta, dst, \
+                axis)
     else:
         raise TypeError
 

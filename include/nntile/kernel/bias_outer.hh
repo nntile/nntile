@@ -4,33 +4,33 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/scalprod.hh
- * Low-level kernels to compute scalar product of slices of two buffers
+ * @file include/nntile/kernel/bias_outer.hh
+ * Bias along outer axes low-level kernels
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-04-19
  * */
 
 #pragma once
 
-#include <nntile/kernel/scalprod/cpu.hh>
-#include <nntile/defs.h>
+#include <nntile/kernel/bias_outer/cpu.hh>
+//#include <nntile/defs.h>
 #ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/scalprod/cuda.hh>
+//#include <nntile/kernel/bias_outer/cuda.hh>
 #endif // NNTILE_USE_CUDA
 
 namespace nntile
 {
 namespace kernel
 {
-//! @namespace nntile::kernel::scalprod
-/*! Low-level implementations of computing scalar product of slices
+//! @namespace nntile::kernel::bias_outer
+/*! Low-level implementations of bias_outer operation
  * */
-namespace scalprod
+namespace bias_outer
 {
 
-} // namespace scalprod
+} // namespace bias_outer
 } // namespace kernel
 } // namespace nntile
 

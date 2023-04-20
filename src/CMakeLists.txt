@@ -11,12 +11,14 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-04-19
+# @date 2023-04-20
 
 # Set list of sources
 set(KERNEL_SRC
     "kernel/bias/cpu.cc"
+    "kernel/bias_outer/cpu.cc"
     "kernel/biasprod/cpu.cc"
+    "kernel/biasprod_outer/cpu.cc"
     "kernel/dgelu/cpu.cc"
     "kernel/dgelutanh/cpu.cc"
     "kernel/drelu/cpu.cc"
@@ -32,6 +34,7 @@ set(KERNEL_SRC
     "kernel/sumnorm/cpu.cc"
     "kernel/set/cpu.cc"
     "kernel/sum/cpu.cc"
+    "kernel/sum_outer/cpu.cc"
     "kernel/norm/cpu.cc"
     "kernel/pow/cpu.cc"
     "kernel/maxsumexp/cpu.cc"
@@ -40,6 +43,7 @@ set(KERNEL_SRC
     "kernel/maximum/cpu.cc"
     "kernel/addcdiv/cpu.cc"
     "kernel/scalprod/cpu.cc"
+    "kernel/scalprod_outer/cpu.cc"
     "kernel/logsumexp/cpu.cc"
     "kernel/total_sum_accum/cpu.cc"
     "kernel/subtract_indexed_column/cpu.cc"
@@ -76,7 +80,9 @@ endif()
 
 set(STARPU_SRC
     "starpu/bias.cc"
+    "starpu/bias_outer.cc"
     "starpu/biasprod.cc"
+    "starpu/biasprod_outer.cc"
     "starpu/clear.cc"
     "starpu/dgelu.cc"
     "starpu/dgelutanh.cc"
@@ -97,6 +103,7 @@ set(STARPU_SRC
     "starpu/sumnorm.cc"
     "starpu/set.cc"
     "starpu/sum.cc"
+    "starpu/sum_outer.cc"
     "starpu/norm.cc"
     "starpu/pow.cc"
     "starpu/maxsumexp.cc"
@@ -105,6 +112,7 @@ set(STARPU_SRC
     "starpu/maximum.cc"
     "starpu/addcdiv.cc"
     "starpu/scalprod.cc"
+    "starpu/scalprod_outer.cc"
     "starpu/logsumexp.cc"
     "starpu/total_sum_accum.cc"
     "starpu/subtract_indexed_column.cc"
@@ -116,7 +124,9 @@ set(TILE_SRC
     "tile/traits.cc"
     "tile/axpy.cc"
     "tile/bias.cc"
+    "tile/bias_outer.cc"
     "tile/biasprod.cc"
+    "tile/biasprod_outer.cc"
     "tile/clear.cc"
     "tile/copy.cc"
     "tile/copy_intersection.cc"
@@ -135,6 +145,7 @@ set(TILE_SRC
     "tile/sumnorm.cc"
     "tile/set.cc"
     "tile/sum.cc"
+    "tile/sum_outer.cc"
     "tile/norm.cc"
     "tile/pow.cc"
     "tile/maxsumexp.cc"
@@ -143,6 +154,7 @@ set(TILE_SRC
     "tile/maximum.cc"
     "tile/addcdiv.cc"
     "tile/scalprod.cc"
+    "tile/scalprod_outer.cc"
     "tile/logsumexp.cc"
     "tile/total_sum_accum.cc"
     "tile/subtract_indexed_column.cc"
@@ -156,7 +168,9 @@ set(TENSOR_SRC
     "tensor/distributions.cc"
     "tensor/axpy.cc"
     "tensor/bias.cc"
+    "tensor/bias_outer.cc"
     "tensor/biasprod.cc"
+    "tensor/biasprod_outer.cc"
     "tensor/clear.cc"
     "tensor/copy.cc"
     "tensor/copy_intersection.cc"
@@ -177,6 +191,7 @@ set(TENSOR_SRC
     "tensor/sumnorm.cc"
     "tensor/set.cc"
     "tensor/sum.cc"
+    "tensor/sum_outer.cc"
     "tensor/norm.cc"
     "tensor/pow.cc"
     "tensor/maxsumexp.cc"
@@ -185,6 +200,7 @@ set(TENSOR_SRC
     "tensor/maximum.cc"
     "tensor/addcdiv.cc"
     "tensor/scalprod.cc"
+    "tensor/scalprod_outer.cc"
     "tensor/logsumexp.cc"
     "tensor/total_sum_accum.cc"
     "tensor/subtract_indexed_column.cc"

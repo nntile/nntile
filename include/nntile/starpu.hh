@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-19
+ * @date 2023-04-20
  * */
 
 #pragma once
@@ -22,7 +22,9 @@
 // StarPU wrappers for low-level kernels
 #include <nntile/starpu/axpy.hh>
 #include <nntile/starpu/bias.hh>
+#include <nntile/starpu/bias_outer.hh>
 #include <nntile/starpu/biasprod.hh>
+#include <nntile/starpu/biasprod_outer.hh>
 #include <nntile/starpu/clear.hh>
 #include <nntile/starpu/gelu.hh>
 #include <nntile/starpu/gelutanh.hh>
@@ -41,6 +43,7 @@
 #include <nntile/starpu/sumnorm.hh>
 #include <nntile/starpu/set.hh>
 #include <nntile/starpu/sum.hh>
+#include <nntile/starpu/sum_outer.hh>
 #include <nntile/starpu/norm.hh>
 #include <nntile/starpu/pow.hh>
 #include <nntile/starpu/maxsumexp.hh>
@@ -49,6 +52,7 @@
 #include <nntile/starpu/maximum.hh>
 #include <nntile/starpu/addcdiv.hh>
 #include <nntile/starpu/scalprod.hh>
+#include <nntile/starpu/scalprod_outer.hh>
 #include <nntile/starpu/logsumexp.hh>
 #include <nntile/starpu/total_sum_accum.hh>
 #include <nntile/starpu/subtract_indexed_column.hh>
@@ -69,7 +73,9 @@ void init()
 {
     axpy::init();
     bias::init();
+    bias_outer::init();
     biasprod::init();
+    biasprod_outer::init();
     clear::init();
     gelu::init();
     gelutanh::init();
@@ -88,6 +94,7 @@ void init()
     sumnorm::init();
     set::init();
     sum::init();
+    sum_outer::init();
     norm::init();
     pow::init();
     softmax::init();
@@ -96,6 +103,7 @@ void init()
     maximum::init();
     addcdiv::init();
     scalprod::init();
+    scalprod_outer::init();
     logsumexp::init();
     total_sum_accum::init();
     subtract_indexed_column::init();
@@ -109,7 +117,9 @@ void restrict_where(uint32_t where)
 {
     axpy::restrict_where(where);
     bias::restrict_where(where);
+    bias_outer::restrict_where(where);
     biasprod::restrict_where(where);
+    biasprod_outer::restrict_where(where);
     clear::restrict_where(where);
     gelu::restrict_where(where);
     gelutanh::restrict_where(where);
@@ -128,6 +138,7 @@ void restrict_where(uint32_t where)
     sumnorm::restrict_where(where);
     set::restrict_where(where);
     sum::restrict_where(where);
+    sum_outer::restrict_where(where);
     norm::restrict_where(where);
     pow::restrict_where(where);
     softmax::restrict_where(where);
@@ -136,6 +147,7 @@ void restrict_where(uint32_t where)
     maximum::restrict_where(where);
     addcdiv::restrict_where(where);
     scalprod::restrict_where(where);
+    scalprod_outer::restrict_where(where);
     logsumexp::restrict_where(where);
     total_sum_accum::restrict_where(where);
     subtract_indexed_column::restrict_where(where);
@@ -149,7 +161,9 @@ void restore_where()
 {
     axpy::restore_where();
     bias::restore_where();
+    bias_outer::restore_where();
     biasprod::restore_where();
+    biasprod_outer::restore_where();
     clear::restore_where();
     gelu::restore_where();
     gelutanh::restore_where();
@@ -168,6 +182,7 @@ void restore_where()
     sumnorm::restore_where();
     set::restore_where();
     sum::restore_where();
+    sum_outer::restore_where();
     norm::restore_where();
     pow::restore_where();
     softmax::restore_where();
@@ -176,6 +191,7 @@ void restore_where()
     maximum::restore_where();
     addcdiv::restore_where();
     scalprod::restore_where();
+    scalprod_outer::restore_where();
     logsumexp::restore_where();
     total_sum_accum::restore_where();
     subtract_indexed_column::restore_where();

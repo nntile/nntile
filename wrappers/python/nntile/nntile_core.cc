@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-19
+ * @date 2023-04-20
  * */
 
 #include <pybind11/pybind11.h>
@@ -178,6 +178,8 @@ void def_mod_tile(py::module_ &m)
         def_readonly("ndim", &TileTraits::ndim).
         // Shape of a tile
         def_readonly("shape", &TileTraits::shape).
+        // Strides of a tile
+        def_readonly("stride", &TileTraits::stride).
         // Number of elements of a tile
         def_readonly("nelems", &TileTraits::nelems).
         // Linear to index
@@ -393,6 +395,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("sum_fp64", &sum<fp64_t>);
     m.def("sum_fp32", &sum<fp32_t>);
 
+    m.def("sum_outer_async_fp64", &sum_outer_async<fp64_t>);
+    m.def("sum_outer_async_fp32", &sum_outer_async<fp32_t>);
+    m.def("sum_outer_fp64", &sum_outer<fp64_t>);
+    m.def("sum_outer_fp32", &sum_outer<fp32_t>);
+
     m.def("norm_async_fp64", &norm_async<fp64_t>);
     m.def("norm_async_fp32", &norm_async<fp32_t>);
     m.def("norm_fp64", &norm<fp64_t>);
@@ -443,10 +450,20 @@ void def_mod_tensor(py::module_ &m)
     m.def("bias_fp64", &bias<fp64_t>);
     m.def("bias_fp32", &bias<fp32_t>);
 
+    m.def("bias_outer_async_fp64", &bias_outer_async<fp64_t>);
+    m.def("bias_outer_async_fp32", &bias_outer_async<fp32_t>);
+    m.def("bias_outer_fp64", &bias_outer<fp64_t>);
+    m.def("bias_outer_fp32", &bias_outer<fp32_t>);
+
     m.def("biasprod_async_fp64", &biasprod_async<fp64_t>);
     m.def("biasprod_async_fp32", &biasprod_async<fp32_t>);
     m.def("biasprod_fp64", &biasprod<fp64_t>);
     m.def("biasprod_fp32", &biasprod<fp32_t>);
+
+    m.def("biasprod_outer_async_fp64", &biasprod_outer_async<fp64_t>);
+    m.def("biasprod_outer_async_fp32", &biasprod_outer_async<fp32_t>);
+    m.def("biasprod_outer_fp64", &biasprod_outer<fp64_t>);
+    m.def("biasprod_outer_fp32", &biasprod_outer<fp32_t>);
 
     m.def("gather_async_fp64", &gather_async<fp64_t>);
     m.def("gather_async_fp32", &gather_async<fp32_t>);
@@ -536,6 +553,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("scalprod_async_fp32", &scalprod_async<fp32_t>);
     m.def("scalprod_fp64", &scalprod<fp64_t>);
     m.def("scalprod_fp32", &scalprod<fp32_t>);
+    
+    m.def("scalprod_outer_async_fp64", &scalprod_outer_async<fp64_t>);
+    m.def("scalprod_outer_async_fp32", &scalprod_outer_async<fp32_t>);
+    m.def("scalprod_outer_fp64", &scalprod_outer<fp64_t>);
+    m.def("scalprod_outer_fp32", &scalprod_outer<fp32_t>);
     
     // gelu and dgelu
     m.def("gelu_async_fp64", &gelu_async<fp64_t>);

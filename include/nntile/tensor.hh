@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-19
+ * @date 2023-04-20
  * */
 
 #pragma once
@@ -24,7 +24,9 @@
 // Tensor operations
 #include <nntile/tensor/axpy.hh>
 #include <nntile/tensor/bias.hh>
+#include <nntile/tensor/bias_outer.hh>
 #include <nntile/tensor/biasprod.hh>
+#include <nntile/tensor/biasprod_outer.hh>
 #include <nntile/tensor/clear.hh>
 #include <nntile/tensor/copy.hh>
 #include <nntile/tensor/copy_intersection.hh>
@@ -44,6 +46,7 @@
 #include <nntile/tensor/scatter.hh>
 #include <nntile/tensor/set.hh>
 #include <nntile/tensor/sum.hh>
+#include <nntile/tensor/sum_outer.hh>
 #include <nntile/tensor/norm.hh>
 #include <nntile/tensor/pow.hh>
 #include <nntile/tensor/sumnorm.hh>
@@ -53,6 +56,7 @@
 #include <nntile/tensor/maximum.hh>
 #include <nntile/tensor/addcdiv.hh>
 #include <nntile/tensor/scalprod.hh>
+#include <nntile/tensor/scalprod_outer.hh>
 #include <nntile/tensor/logsumexp.hh>
 #include <nntile/tensor/total_sum_accum.hh>
 #include <nntile/tensor/subtract_indexed_column.hh>

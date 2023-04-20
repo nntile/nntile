@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-19
+ * @date 2023-04-20
  * */
 
 #pragma once
@@ -22,7 +22,9 @@
 // Tile<T> operations
 #include <nntile/tile/axpy.hh>
 #include <nntile/tile/bias.hh>
+#include <nntile/tile/bias_outer.hh>
 #include <nntile/tile/biasprod.hh>
+#include <nntile/tile/biasprod_outer.hh>
 #include <nntile/tile/clear.hh>
 #include <nntile/tile/copy.hh>
 #include <nntile/tile/copy_intersection.hh>
@@ -41,6 +43,7 @@
 #include <nntile/tile/sumnorm.hh>
 #include <nntile/tile/set.hh>
 #include <nntile/tile/sum.hh>
+#include <nntile/tile/sum_outer.hh>
 #include <nntile/tile/norm.hh>
 #include <nntile/tile/pow.hh>
 #include <nntile/tile/maxsumexp.hh>
@@ -49,6 +52,7 @@
 #include <nntile/tile/maximum.hh>
 #include <nntile/tile/addcdiv.hh>
 #include <nntile/tile/scalprod.hh>
+#include <nntile/tile/scalprod_outer.hh>
 #include <nntile/tile/logsumexp.hh>
 #include <nntile/tile/total_sum_accum.hh>
 #include <nntile/tile/subtract_indexed_column.hh>

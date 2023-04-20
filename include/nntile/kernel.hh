@@ -11,13 +11,15 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-19
+ * @date 2023-04-20
  * */
 
 #pragma once
 
 #include <nntile/kernel/bias.hh>
+#include <nntile/kernel/bias_outer.hh>
 #include <nntile/kernel/biasprod.hh>
+#include <nntile/kernel/biasprod_outer.hh>
 #include <nntile/kernel/gelu.hh>
 #include <nntile/kernel/gelutanh.hh>
 #include <nntile/kernel/dgelu.hh>
@@ -33,6 +35,7 @@
 #include <nntile/kernel/sumnorm.hh>
 #include <nntile/kernel/set.hh>
 #include <nntile/kernel/sum.hh>
+#include <nntile/kernel/sum_outer.hh>
 #include <nntile/kernel/norm.hh>
 #include <nntile/kernel/pow.hh>
 #include <nntile/kernel/maxsumexp.hh>
@@ -41,6 +44,7 @@
 #include <nntile/kernel/maximum.hh>
 #include <nntile/kernel/addcdiv.hh>
 #include <nntile/kernel/scalprod.hh>
+#include <nntile/kernel/scalprod_outer.hh>
 #include <nntile/kernel/logsumexp.hh>
 #include <nntile/kernel/total_sum_accum.hh>
 #include <nntile/kernel/subtract_indexed_column.hh>
