@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-04-05
+ * @date 2023-04-20
  * */
 
 #include "nntile/kernel/gelu_backward/cpu.hh"
@@ -28,12 +28,12 @@ void cpu(Index nelems, const T *x, const T *dy, T *dx)
     noexcept
 //! Backward GeLU operation on CPU
 /*! Does the following per-element operation:
- * backward_GeLU(x, dy) = GeLU'(x) * dy elementwise
+ * dx[i] = dx[i] + dy[i]*GeLU'(x[i])
  *
  * @params[in] nelems: Number of elements in a buffer
  * @params[in] x: Input value for forward GeLU
  * @params[in] dy: Gradient over output of forward GeLU
- * @params[out] dx: Gradient over input of forward GeLU
+ * @params[inout] dx: Gradient over input of forward GeLU
  * */
 {
     constexpr T pi = 3.141592653589793238462643383279502884L,
@@ -44,7 +44,7 @@ void cpu(Index nelems, const T *x, const T *dy, T *dx)
         // T z = x[i];
         T exp_x = std::exp(-pt5 * x[i] * x[i]);
         T y = std::erfc(f1 * x[i]);
-        dx[i] = (x[i]*f2*exp_x + pt5*y) * dy[i];
+        dx[i] += (x[i]*f2*exp_x + pt5*y) * dy[i];
     }
 }
 

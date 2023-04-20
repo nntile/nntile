@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-04
+ * @date 2023-04-20
  * */
 
 #include "nntile/kernel/relu_backward/cuda.hh"
@@ -32,11 +32,7 @@ void cuda_kernel(Index nelems, const T *x, const T *dy, T *dx)
     {
         if(x[i] > zero)
         {
-            dx[i] = dy[i];
-        }
-        else
-        {
-            dx[i] = zero;
+            dx[i] += dy[i];
         }
     }
 }
@@ -46,12 +42,12 @@ void cuda(cudaStream_t stream, Index nelems, const T *x, const T *dy, T *dx)
     noexcept
 //! Backward ReLU operation on CUDA
 /*! Does the following per-element operation:
- * backward_ReLU(x, dy) = dy if x > 0 and 0 otherwise
+ * dx[i] = dx[i] + dy[i]*ReLU'(x[i])
  *
  * @params[in] nelems: Number of elements in a buffer
  * @params[in] x: Input value for forward ReLU
  * @params[in] dy: Gradient over output of forward ReLU
- * @params[out] dx: Gradient over input of forward ReLU
+ * @params[inout] dx: Gradient over input of forward ReLU
  * */
 {
     dim3 blocks(256), threads(32);
