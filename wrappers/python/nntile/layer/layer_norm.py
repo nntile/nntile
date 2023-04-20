@@ -144,10 +144,10 @@ class LayerNorm(BaseLayer):
         bias_outer_async(1.0, self.beta.value, self.y.value, self.axis)
 
     def backward_async(self):
-        # Define gradient over beta
-        sum_outer_async(1.0, self.y.grad, 0.0, self.beta.grad, self.axis)
-        # Define gradient over gamma
-        scalprod_outer_async(1.0, self.y.grad, self.tmp_y_value, 0.0, \
+        # Accumulate gradient over beta
+        sum_outer_async(1.0, self.y.grad, 1.0, self.beta.grad, self.axis)
+        # Accumulate gradient over gamma
+        scalprod_outer_async(1.0, self.y.grad, self.tmp_y_value, 1.0, \
                 self.gamma.grad, self.axis)
         # Define gradient over normalized input
         copy_async(self.y.grad, self.tmp_y_grad)
