@@ -28,6 +28,9 @@ set(TESTS_MPI
     "clear"
     "axpy"
     "bias"
+    "bias_outer"
+    "biasprod"
+    "biasprod_outer"
     "randn"
     "gemm"
     "gelu"
@@ -51,6 +54,7 @@ set(TESTS_MPI
     "addcdiv"
     "scal"
     "scalprod"
+    "scalprod_outer"
     )
 
 # Add target for local coverage

@@ -76,12 +76,12 @@ void scalprod_outer_async(T alpha, const Tensor<T> &src1,
         // Get destination tile
         Index j = src_tile_index[axis];
         auto dst_tile_handle = dst.get_tile_handle(j);
+        auto dst_tile_traits = dst.get_tile_traits(j);
         int dst_tile_rank = dst_tile_handle.mpi_get_rank();
         // Transfer data
         src1_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
         src2_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
         // Execute on destination node
-        auto dst_tile_traits = dst.get_tile_traits(i);
         if(mpi_rank == dst_tile_rank)
         {
             // Get sizes

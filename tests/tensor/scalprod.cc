@@ -50,7 +50,7 @@ void check(T alpha, T beta, const std::vector<Index> &shape,
         auto tile2_local = tile2.acquire(STARPU_W);
         for(Index i = 0; i < src1_single.nelems; ++i)
         {
-            tile1_local[i] = T((i+1)*i);
+            tile1_local[i] = T((i+1)*(i+2));
             tile2_local[i] = 1.0 / T(i+1);
         }
         tile1_local.release();
