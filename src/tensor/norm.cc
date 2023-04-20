@@ -107,24 +107,9 @@ void norm_async(T alpha, const Tensor<T> &src, T beta,
                 // Get sizes
                 auto src_tile_traits = src.get_tile_traits(src_tile_offset);
                 Index m, n, k;
-                if(axis == 0)
-                {
-                    m = 1;
-                    n = norm_dst_tile_traits.nelems;
-                    k = src_tile_traits.shape[0];
-                }
-                else if(axis == ndim-1)
-                {
-                    m = norm_dst_tile_traits.nelems;
-                    n = 1;
-                    k = src_tile_traits.shape[axis];
-                }
-                else
-                {
-                    m = src_tile_traits.stride[axis];
-                    n = src_tile_traits.matrix_shape[axis+1][1];
-                    k = src_tile_traits.shape[axis];
-                }
+                m = src_tile_traits.stride[axis];
+                n = src_tile_traits.matrix_shape[axis+1][1];
+                k = src_tile_traits.shape[axis];
                 // Insert initial task
                 if(j == 0)
                 {

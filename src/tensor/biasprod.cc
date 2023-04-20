@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-19
+ * @date 2023-04-20
  * */
 
 #include "nntile/tensor/biasprod.hh"
@@ -104,24 +104,9 @@ void biasprod_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
                 auto dst_tile_traits = dst.get_tile_traits(dst_tile_offset);
                 // Reshape inputs: src_tile -> (m,n), dst_tile -> (m,k,n)
                 Index m, n, k;
-                if(axis == 0)
-                {
-                    m = 1;
-                    n = src_tile_traits.nelems;
-                    k = dst_tile_traits.shape[0];
-                }
-                else if(axis == dst.ndim-1)
-                {
-                    m = src_tile_traits.nelems;
-                    n = 1;
-                    k = dst_tile_traits.shape[axis];
-                }
-                else
-                {
-                    m = dst_tile_traits.stride[axis];
-                    n = dst_tile_traits.matrix_shape[axis+1][1];
-                    k = dst_tile_traits.shape[axis];
-                }
+                m = dst_tile_traits.stride[axis];
+                n = dst_tile_traits.matrix_shape[axis+1][1];
+                k = dst_tile_traits.shape[axis];
                 // Insert corresponding task
                 starpu::biasprod::submit<T>(m, n, k, src_tile_handle,
                         dst_tile_handle);

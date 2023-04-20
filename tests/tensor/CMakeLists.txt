@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-04-18
+# @date 2023-04-20
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -39,6 +39,7 @@ set(TESTS_MPI
     "sumnorm"
     "set"
     "sum"
+    "sum_outer"
     "norm"
     "nrm2"
     "normalize"

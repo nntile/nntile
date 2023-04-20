@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-04-13
+ * @date 2023-04-20
  * */
 
 #include "nntile/tile/sum.hh"
@@ -61,24 +61,9 @@ void sum_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &sum_dst,
     }
     // Get sizes
     Index m, n, k;
-    if(axis == 0)
-    {
-        m = 1;
-        n = sum_dst.nelems; 
-        k = src.shape[0];
-    }
-    else if(axis == ndim-1)
-    {
-        m = sum_dst.nelems;
-        n = 1;
-        k = src.shape[axis];
-    }
-    else
-    {
-        m = src.stride[axis];
-        n = src.matrix_shape[axis+1][1];
-        k = src.shape[axis];
-    }
+    m = src.stride[axis];
+    n = src.matrix_shape[axis+1][1];
+    k = src.shape[axis];
     // Insert task
     starpu::sum::submit<T>(m, n, k, alpha, src, beta, sum_dst);
 }

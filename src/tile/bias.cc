@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-26
+ * @date 2023-04-20
  * */
 
 #include "nntile/tile/bias.hh"
@@ -60,24 +60,9 @@ void bias_async(T alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
     }
     // Reshape inputs for simplicity: src -> (m,n), dst -> (m,k,n)
     Index m, n, k;
-    if(axis == 0)
-    {
-        m = 1;
-        n = src.nelems;
-        k = dst.shape[0];
-    }
-    else if(axis == dst.ndim-1)
-    {
-        m = src.nelems;
-        n = 1;
-        k = dst.shape[axis];
-    }
-    else
-    {
-        m = dst.stride[axis];
-        n = dst.matrix_shape[axis+1][1];
-        k = dst.shape[axis];
-    }
+    m = dst.stride[axis];
+    n = dst.matrix_shape[axis+1][1];
+    k = dst.shape[axis];
     // Insert corresponding task
     starpu::bias::submit<T>(m, n, k, alpha, src, dst);
 }

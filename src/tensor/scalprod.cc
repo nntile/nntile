@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-26
+ * @date 2023-04-20
  * */
 
 #include "nntile/tensor/scalprod.hh"
@@ -112,24 +112,9 @@ void scalprod_async(T alpha, const Tensor<T> &src1, const Tensor<T> &src2,
             // Get sizes
             auto src_tile_traits = src1.get_tile_traits(src_tile_offset);
             Index m, n, k;
-            if(axis == 0)
-            {
-                m = 1;
-                n = dst_tile_traits.nelems;
-                k = src_tile_traits.shape[0];
-            }
-            else if(axis == ndim-1)
-            {
-                m = dst_tile_traits.nelems;
-                n = 1;
-                k = src_tile_traits.shape[axis];
-            }
-            else
-            {
-                m = src_tile_traits.stride[axis];
-                n = src_tile_traits.matrix_shape[axis+1][1];
-                k = src_tile_traits.shape[axis];
-            }
+            m = src_tile_traits.stride[axis];
+            n = src_tile_traits.matrix_shape[axis+1][1];
+            k = src_tile_traits.shape[axis];
             // Insert task
             starpu::scalprod::submit<T>(m, n, k, alpha, src1_tile_handle,
                     src2_tile_handle, beta, dst_tile_handle);

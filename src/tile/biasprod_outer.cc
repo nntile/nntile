@@ -45,24 +45,9 @@ void biasprod_outer_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
     }
     // Reshape inputs for simplicity: src -> (m,n), dst -> (m,k,n)
     Index m, n, k;
-    if(axis == 0)
-    {
-        m = 1;
-        n = src.nelems;
-        k = dst.shape[0];
-    }
-    else if(axis == dst.ndim-1)
-    {
-        m = src.nelems;
-        n = 1;
-        k = dst.shape[axis];
-    }
-    else
-    {
-        m = dst.stride[axis];
-        n = dst.matrix_shape[axis+1][1];
-        k = dst.shape[axis];
-    }
+    m = dst.stride[axis];
+    n = dst.matrix_shape[axis+1][1];
+    k = dst.shape[axis];
     // Insert corresponding task
     starpu::biasprod_outer::submit<T>(m, n, k, src, dst);
 }

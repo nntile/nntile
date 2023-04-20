@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-19
+ * @date 2023-04-20
  * */
 
 #include "nntile/tile/sum_outer.hh"
@@ -52,24 +52,9 @@ void sum_outer_async(T alpha, const Tile<T> &src, T beta,
     }
     // Get sizes
     Index m, n, k;
-    if(axis == 0)
-    {
-        m = 1;
-        n = sum_dst.nelems; 
-        k = src.shape[0];
-    }
-    else if(axis == ndim-1)
-    {
-        m = sum_dst.nelems;
-        n = 1;
-        k = src.shape[axis];
-    }
-    else
-    {
-        m = src.stride[axis];
-        n = src.matrix_shape[axis+1][1];
-        k = src.shape[axis];
-    }
+    m = src.stride[axis];
+    n = src.matrix_shape[axis+1][1];
+    k = src.shape[axis];
     // Insert task
     starpu::sum_outer::submit<T>(m, n, k, alpha, src, beta, sum_dst);
 }

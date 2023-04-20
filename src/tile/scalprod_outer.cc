@@ -57,24 +57,9 @@ void scalprod_outer_async(T alpha, const Tile<T> &src1, const Tile<T> &src2,
     }
     // Get sizes
     Index m, n, k;
-    if(axis == 0)
-    {
-        m = 1;
-        n = dst.nelems;
-        k = src1.shape[0];
-    }
-    else if(axis == ndim-1)
-    {
-        m = dst.nelems;
-        n = 1;
-        k = src1.shape[axis];
-    }
-    else
-    {
-        m = src1.stride[axis];
-        n = src1.matrix_shape[axis+1][1];
-        k = src1.shape[axis];
-    }
+    m = src1.stride[axis];
+    n = src1.matrix_shape[axis+1][1];
+    k = src1.shape[axis];
     // Insert task
     starpu::scalprod_outer::submit<T>(m, n, k, alpha, src1, src2, beta, dst);
 }
