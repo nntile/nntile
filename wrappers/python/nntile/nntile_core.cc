@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-04
+ * @date 2023-04-21
  * */
 
 #include <pybind11/pybind11.h>
@@ -541,6 +541,16 @@ void def_mod_tensor(py::module_ &m)
     m.def("dgelutanh_async_fp32", &dgelutanh_async<fp32_t>);
     m.def("dgelutanh_fp64", &dgelutanh<fp64_t>);
     m.def("dgelutanh_fp32", &dgelutanh<fp32_t>);   
+
+    m.def("embedding_async_fp64", &embedding_async<fp64_t>);
+    m.def("embedding_async_fp32", &embedding_async<fp32_t>);
+    m.def("embedding_fp64", &embedding<fp64_t>);
+    m.def("embedding_fp32", &embedding<fp32_t>);
+
+    m.def("embedding_backward_async_fp64", &embedding_backward_async<fp64_t>);
+    m.def("embedding_backward_async_fp32", &embedding_backward_async<fp32_t>);
+    m.def("embedding_backward_fp64", &embedding_backward<fp64_t>);
+    m.def("embedding_backward_fp32", &embedding_backward<fp32_t>);
 }
 
 // Main extension module with all wrappers

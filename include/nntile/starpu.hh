@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-04
+ * @date 2023-04-21
  * */
 
 #pragma once
@@ -51,6 +51,8 @@
 #include <nntile/starpu/scal.hh>
 #include <nntile/starpu/gelu_backward.hh>
 #include <nntile/starpu/gelutanh_backward.hh>
+#include <nntile/starpu/embedding.hh>
+#include <nntile/starpu/embedding_backward.hh>
 
 namespace nntile
 {
@@ -94,6 +96,8 @@ void init()
     scal::init();
     gelu_backward::init();
     gelutanh_backward::init();
+    embedding::init();
+    embedding_backward::init();
 }
 
 // Restrict StarPU codelets to certain computational units
@@ -130,6 +134,8 @@ void restrict_where(uint32_t where)
     scal::restrict_where(where);
     gelu_backward::restrict_where(where);
     gelutanh_backward::restrict_where(where);
+    embedding::restrict_where(where);
+    embedding_backward::restrict_where(where);
 }
 
 // Restore computational units for StarPU codelets
@@ -166,6 +172,8 @@ void restore_where()
     scal::restore_where();
     gelu_backward::restore_where();
     gelutanh_backward::restore_where();
+    embedding::restore_where();
+    embedding_backward::restore_where();
 }
 
 } // namespace starpu

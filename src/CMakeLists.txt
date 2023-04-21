@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-04-04
+# @date 2023-04-21
 
 # Set list of sources
 set(KERNEL_SRC
@@ -41,6 +41,8 @@ set(KERNEL_SRC
     "kernel/subtract_indexed_column/cpu.cc"
     "kernel/gelu_backward/cpu.cc"
     "kernel/gelutanh_backward/cpu.cc"
+    "kernel/embedding/cpu.cc"
+    "kernel/embedding_backward/cpu.cc"
     )
 
 if(NNTILE_USE_CUDA)
@@ -98,6 +100,8 @@ set(STARPU_SRC
     "starpu/subtract_indexed_column.cc"
     "starpu/gelu_backward.cc"
     "starpu/gelutanh_backward.cc"
+    "starpu/embedding.cc"
+    "starpu/embedding_backward.cc"
     )
 
 set(TILE_SRC
@@ -171,6 +175,8 @@ set(TENSOR_SRC
     "tensor/scal.cc"
     "tensor/gelu_backward.cc"
     "tensor/gelutanh_backward.cc"
+    "tensor/embedding.cc"
+    "tensor/embedding_backward.cc"
     )
 
 set(LAYER_SRC

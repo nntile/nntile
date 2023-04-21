@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-04-04
+# @date 2023-04-21
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -344,7 +344,7 @@ def maximum_async(x: Tensor, y: Tensor) -> None:
     else:
         raise TypeError
 
-# Wrapper for multiprecision axpy
+# Wrapper for multiprecision addcdiv
 def addcdiv_async(alpha: float, eps: float, nom: Tensor, denom: Tensor, \
         src: Tensor) -> None:
     if type(nom) is not type(denom):
@@ -355,6 +355,8 @@ def addcdiv_async(alpha: float, eps: float, nom: Tensor, denom: Tensor, \
         core_tensor.addcdiv_async_fp32(alpha, eps, nom, denom, src)
     elif type(nom) is core_tensor.Tensor_fp64:
         core_tensor.addcdiv_async_fp64(alpha, eps, nom, denom, src)
+    else:
+        raise TypeError
 
 # Wrapper for multiprecision scalprod
 def scalprod_async(alpha: float, src1: Tensor, src2: Tensor, beta: float, \
@@ -406,6 +408,30 @@ def scal_async(alpha: float, x: Tensor) -> None:
         core_tensor.scal_async_fp32(alpha, x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.scal_async_fp64(alpha, x)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision embedding
+def embedding_async(index: Tensor_int64, vocab: Tensor, embed: Tensor, \
+        axis: int) -> None:
+    if type(vocab) is not type(embed):
+        raise TypeError
+    if type(embed) is core_tensor.Tensor_fp32:
+        core_tensor.embedding_async_fp32(index, vocab, embed, axis)
+    elif type(embed) is core_tensor.Tensor_fp64:
+        core_tensor.embedding_async_fp64(index, vocab, embed, axis)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision embedding_backward
+def embedding_backward_async(index: Tensor_int64, embed: Tensor, \
+        vocab: Tensor, axis: int) -> None:
+    if type(vocab) is not type(embed):
+        raise TypeError
+    if type(embed) is core_tensor.Tensor_fp32:
+        core_tensor.embedding_backward_async_fp32(index, embed, vocab, axis)
+    elif type(embed) is core_tensor.Tensor_fp64:
+        core_tensor.embedding_backward_async_fp64(index, embed, vocab, axis)
     else:
         raise TypeError
 

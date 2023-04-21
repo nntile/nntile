@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-04
+ * @date 2023-04-21
  * */
 
 #pragma once
@@ -42,6 +42,8 @@
 #include <nntile/kernel/subtract_indexed_column.hh>
 #include <nntile/kernel/gelu_backward.hh>
 #include <nntile/kernel/gelutanh_backward.hh>
+#include <nntile/kernel/embedding.hh>
+#include <nntile/kernel/embedding_backward.hh>
 
 namespace nntile
 {
