@@ -13,10 +13,10 @@
 
 from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         TensorOrNone, TensorMoments, \
-        bias_async, copy_async, sum_async, norm_async, set_async, pow_async, \
+        bias_async, copy_async, sum_async, norm_async, fill_async, pow_async, \
         biasprod_async, scalprod_async, axpy_async, biasprod_outer_async, \
         bias_outer_async, sum_outer_async, scalprod_outer_async, \
-        clear_async, set_async
+        clear_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -116,7 +116,7 @@ class LayerNorm(BaseLayer):
                 inv_stddev, axis, eps)
         # Init gamma and beta
         clear_async(beta.value)
-        set_async(1.0, gamma.value)
+        fill_async(1.0, gamma.value)
         # Return layer and next tag to be used
         return (layer, next_tag)
 
@@ -129,7 +129,7 @@ class LayerNorm(BaseLayer):
         # Subtract mean from Y
         bias_async(-1.0, self.mean, self.y.value, self.axis)
         # Compute standard deviation of self.y.value
-        set_async(self.eps, self.inv_stddev)
+        fill_async(self.eps, self.inv_stddev)
         norm_async(1.0/self.l**0.5, self.y.value, 1.0, self.inv_stddev, \
                 self.axis)
         # Invert stddev (to multiply by it instead of dividing)

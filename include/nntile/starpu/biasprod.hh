@@ -5,7 +5,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/starpu/biasprod.hh
- * Bias-like prodcut operation on a StarPU buffer
+ * Bias-like product operation on a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev

@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-04-20
+# @date 2023-04-24
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -40,7 +40,7 @@ set(TESTS_MPI
     "drelu"
     "relu"
     "sumnorm"
-    "set"
+    "fill"
     "sum"
     "sum_outer"
     "norm"

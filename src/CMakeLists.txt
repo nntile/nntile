@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-04-20
+# @date 2023-04-24
 
 # Set list of sources
 set(KERNEL_SRC
@@ -32,7 +32,7 @@ set(KERNEL_SRC
     "kernel/relu_backward/cpu.cc"
     "kernel/subcopy/cpu.cc"
     "kernel/sumnorm/cpu.cc"
-    "kernel/set/cpu.cc"
+    "kernel/fill/cpu.cc"
     "kernel/sum/cpu.cc"
     "kernel/sum_outer/cpu.cc"
     "kernel/norm/cpu.cc"
@@ -66,7 +66,7 @@ if(NNTILE_USE_CUDA)
         "kernel/relu/cuda.cu"
         "kernel/relu_backward/cuda.cu"
         "kernel/sumnorm/cuda.cu"
-        "kernel/set/cuda.cu"
+        "kernel/fill/cuda.cu"
         "kernel/sum/cuda.cu"
         "kernel/norm/cuda.cu"
         "kernel/pow/cuda.cu"
@@ -101,7 +101,7 @@ set(STARPU_SRC
     "starpu/relu_backward.cc"
     "starpu/subcopy.cc"
     "starpu/sumnorm.cc"
-    "starpu/set.cc"
+    "starpu/fill.cc"
     "starpu/sum.cc"
     "starpu/sum_outer.cc"
     "starpu/norm.cc"
@@ -143,7 +143,7 @@ set(TILE_SRC
     "tile/relu.cc"
     "tile/relu_backward.cc"
     "tile/sumnorm.cc"
-    "tile/set.cc"
+    "tile/fill.cc"
     "tile/sum.cc"
     "tile/sum_outer.cc"
     "tile/norm.cc"
@@ -189,7 +189,7 @@ set(TENSOR_SRC
     "tensor/relu_backward.cc"
     "tensor/scatter.cc"
     "tensor/sumnorm.cc"
-    "tensor/set.cc"
+    "tensor/fill.cc"
     "tensor/sum.cc"
     "tensor/sum_outer.cc"
     "tensor/norm.cc"

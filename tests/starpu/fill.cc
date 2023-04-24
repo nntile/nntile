@@ -4,16 +4,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/starpu/set.cc
- * Set operation on a StarPU buffer
+ * @file tests/starpu/fill.cc
+ * Fill operation on a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @date 2023-04-18
  * */
 
-#include "nntile/starpu/set.hh"
-#include "nntile/kernel/set.hh"
+#include "nntile/starpu/fill.hh"
+#include "nntile/kernel/fill.hh"
 #include "../testing.hh"
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_runtime.h>
@@ -38,13 +38,13 @@ void validate_cpu(Index nelems)
     // Create copies of destination
     std::vector<T> data2(data);
     // Launch low-level kernel
-    std::cout << "Run kernel::set::cpu<T>\n";
-    kernel::set::cpu<T>(nelems, val, &data[0]);
+    std::cout << "Run kernel::fill::cpu<T>\n";
+    kernel::fill::cpu<T>(nelems, val, &data[0]);
     // Check by actually submitting a task
     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
-    set::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::set::submit<T> restricted to CPU\n";
-    set::submit<T>(nelems, val, data2_handle);
+    fill::restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::fill::submit<T> restricted to CPU\n";
+    fill::submit<T>(nelems, val, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result
@@ -52,7 +52,7 @@ void validate_cpu(Index nelems)
     {
         TEST_ASSERT(data[i] == data2[i]);
     }
-    std::cout << "OK: starpu::set::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::fill::submit<T> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -85,8 +85,8 @@ void validate_cuda(Index nelems)
     cuda_err = cudaMemcpy(dev_data, &data[0], sizeof(T)*nelems,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::set::cuda<T>\n";
-    kernel::set::cuda<T>(stream, nelems, val, dev_data);
+    std::cout << "Run kernel::fill::cuda<T>\n";
+    kernel::fill::cuda<T>(stream, nelems, val, dev_data);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
@@ -101,9 +101,9 @@ void validate_cuda(Index nelems)
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
-    set::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::set::submit<T> restricted to CUDA\n";
-    set::submit<T>(nelems, val, data2_handle);
+    fill::restrict_where(STARPU_CUDA);
+    std::cout << "Run starpu::fill::submit<T> restricted to CUDA\n";
+    fill::submit<T>(nelems, val, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result
@@ -111,7 +111,7 @@ void validate_cuda(Index nelems)
     {
         TEST_ASSERT(data[i] == data2[i]);
     }
-    std::cout << "OK: starpu::set::submit<T> restricted to CUDA\n";
+    std::cout << "OK: starpu::fill::submit<T> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 
@@ -120,7 +120,7 @@ int main(int argc, char **argv)
     // Init StarPU for testing
     Config starpu(1, 1, 0);
     // Init codelet
-    set::init();
+    fill::init();
     // Launch all tests
     validate_cpu<fp32_t>(1);
     validate_cpu<fp32_t>(10000);

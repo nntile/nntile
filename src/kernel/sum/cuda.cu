@@ -5,12 +5,12 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/sum/cuda.cc
- * Sum of a buffer on GPU
+ * Sum of slices of a buffer on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-04-13
+ * @date 2023-04-24
  * */
 
 

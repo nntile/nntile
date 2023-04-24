@@ -144,12 +144,12 @@ def gelutanh_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
     else:
         raise TypeError
 
-# Wrapper for multiprecision set
-def set_async(val: float, x: Tensor) -> None:
+# Wrapper for multiprecision fill
+def fill_async(val: float, x: Tensor) -> None:
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.set_async_fp32(val, x)
+        core_tensor.fill_async_fp32(val, x)
     else:
-        core_tensor.set_async_fp64(val, x)
+        core_tensor.fill_async_fp64(val, x)
 
 # Wrapper for multiprecision sum
 def sum_async(alpha: float, x: Tensor, beta: float, sum_out: Tensor, \

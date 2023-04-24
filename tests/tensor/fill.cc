@@ -4,17 +4,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/set.cc
- * set operation for Tensor<T>
+ * @file tests/tensor/fill.cc
+ * Fill operation for Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-18
+ * @date 2023-04-24
  * */
 
-#include "nntile/tensor/set.hh"
-#include "nntile/tile/set.hh"
-#include "nntile/starpu/set.hh"
+#include "nntile/tensor/fill.hh"
+#include "nntile/tile/fill.hh"
+#include "nntile/starpu/fill.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/starpu/subcopy.hh"
@@ -57,13 +57,13 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     }
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
     scatter(dst_single, dst);
-    // Get set
+    // Get fill
     if(mpi_rank == mpi_root)
     {
         auto tile = dst_single.get_tile(0);
-        tile::set<T>(val, tile);
+        tile::fill<T>(val, tile);
     }
-    set<T>(val, dst);
+    fill<T>(val, dst);
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
     gather<T>(dst, dst2_single);
@@ -99,9 +99,9 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    starpu::set::init();
+    starpu::fill::init();
     starpu::subcopy::init();
-    starpu::set::restrict_where(STARPU_CPU);
+    starpu::fill::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();

@@ -5,12 +5,12 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/tensor/sum.cc
- * Sum of Tensor<T> along axis
+ * Sum of slices of a Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-04-20
+ * @date 2023-04-24
  * */
 
 #include "nntile/tensor/sum.hh"

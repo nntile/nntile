@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/kernel/sum_outer.hh
- * Low-level kernels to compute sum along outer axes
+ * Low-level kernels to compute sum of slices of a buffer (outer version)
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-19
+ * @date 2023-04-24
  * */
 
 #pragma once

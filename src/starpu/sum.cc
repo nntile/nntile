@@ -5,12 +5,12 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/starpu/sum.cc
- * Sum for StarPU buffer
+ * Sum of slices of a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-04-18
+ * @date 2023-04-24
  * */
 
 #include "nntile/starpu/sum.hh"

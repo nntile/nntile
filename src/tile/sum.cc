@@ -5,12 +5,12 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/tile/sum.cc
- * Sum of Tile<T>
+ * Sum of slices of a Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-04-20
+ * @date 2023-04-24
  * */
 
 #include "nntile/tile/sum.hh"

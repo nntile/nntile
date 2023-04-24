@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/tensor/norm.hh
- * Norm of Tensor<T> along axis
+ * Euclidian norm of slices of a Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-18
+ * @date 2023-04-24
  * */
 
 #pragma once

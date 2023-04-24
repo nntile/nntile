@@ -5,12 +5,12 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/kernel/sum.hh
- * Low-level kernels to compute sum along axis
+ * Low-level kernels to compute sum of slices of a buffer on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-02-20
+ * @date 2023-04-24
  * */
 
 #pragma once

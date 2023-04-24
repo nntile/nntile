@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-04-20
+# @date 2023-04-24
 
 # Set list of headers
 set(BASE_HDR
@@ -56,8 +56,8 @@ set(KERNEL_HDR
     "nntile/kernel/subcopy/cpu.hh"
     "nntile/kernel/sumnorm.hh"
     "nntile/kernel/sumnorm/cpu.hh"
-    "nntile/kernel/set.hh"
-    "nntile/kernel/set/cpu.hh"
+    "nntile/kernel/fill.hh"
+    "nntile/kernel/fill/cpu.hh"
     "nntile/kernel/sum.hh"
     "nntile/kernel/sum/cpu.hh"
     "nntile/kernel/sum_outer.hh"
@@ -109,7 +109,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/relu/cuda.hh"
         "nntile/kernel/relu_backward/cuda.hh"
         "nntile/kernel/sumnorm/cuda.hh"
-        "nntile/kernel/set/cuda.hh"
+        "nntile/kernel/fill/cuda.hh"
         "nntile/kernel/sum/cuda.hh"
         "nntile/kernel/norm/cuda.hh"
         "nntile/kernel/pow/cuda.hh"
@@ -142,7 +142,7 @@ set(STARPU_HDR
     "nntile/starpu/relu_backward.hh"
     "nntile/starpu/subcopy.hh"
     "nntile/starpu/sumnorm.hh"
-    "nntile/starpu/set.hh"
+    "nntile/starpu/fill.hh"
     "nntile/starpu/sum.hh"
     "nntile/starpu/sum_outer.hh"
     "nntile/starpu/norm.hh"
@@ -187,7 +187,7 @@ set(TILE_HDR
     "nntile/tile/relu.hh"
     "nntile/tile/relu_backward.hh"
     "nntile/tile/sumnorm.hh"
-    "nntile/tile/set.hh"
+    "nntile/tile/fill.hh"
     "nntile/tile/sum.hh"
     "nntile/tile/sum_outer.hh"
     "nntile/tile/norm.hh"
@@ -235,7 +235,7 @@ set(TENSOR_HDR
     "nntile/tensor/relu_backward.hh"
     "nntile/tensor/scatter.hh"
     "nntile/tensor/sumnorm.hh"
-    "nntile/tensor/set.hh"
+    "nntile/tensor/fill.hh"
     "nntile/tensor/sum.hh"
     "nntile/tensor/sum_outer.hh"
     "nntile/tensor/norm.hh"

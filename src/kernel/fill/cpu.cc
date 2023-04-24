@@ -4,27 +4,27 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/set/cpu.cc
- * Set operation on CPU
+ * @file src/kernel/fill/cpu.cc
+ * Fill operation on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-18
+ * @date 2023-04-24
  * */
 
-#include "nntile/kernel/set/cpu.hh"
+#include "nntile/kernel/fill/cpu.hh"
 
 namespace nntile
 {
 namespace kernel
 {
-namespace set
+namespace fill
 {
 
 template<typename T>
 void cpu(Index nelems, T val, T *data)
     noexcept
-//! Set operation on CPU
+//! Fill operation on CPU
 /*! Sets all elements to the provided value
  * @params[in] nelems: Number of elements in a buffer
  * @param[in] val: Input value
@@ -46,7 +46,7 @@ template
 void cpu<fp64_t>(Index nelems, fp64_t val, fp64_t *data)
     noexcept;
 
-} // namespace set
+} // namespace fill
 } // namespace kernel
 } // namespace nntile
 

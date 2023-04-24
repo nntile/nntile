@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/tile/norm.cc
- * Norm of Tile<T>
+ * Euclidian norm of slices of a Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-04-24
  * */
 
 #include "nntile/tile/norm.hh"

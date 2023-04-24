@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/set.hh
- * Set operation on a StarPU buffer
+ * @file include/nntile/starpu/fill.hh
+ * Fill operation on a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -22,7 +22,7 @@ namespace nntile
 {
 namespace starpu
 {
-namespace set
+namespace fill
 {
 
 //! Structure for arguments
@@ -33,13 +33,13 @@ struct args_t
     T val;
 };
 
-// Set StarPU buffer on CPU
+// fill StarPU buffer on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
-// Set StarPU buffer on CUDA
+// fill StarPU buffer on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept;
@@ -75,7 +75,7 @@ void restore_where();
 template<typename T>
 void submit(Index nelems, T val, Handle data);
 
-} // namespace set
+} // namespace fill
 } // namespace starpu
 } // namespace nntile
 

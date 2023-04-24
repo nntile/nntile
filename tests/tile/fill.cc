@@ -4,16 +4,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tile/set.cc
- * Set operation on Tile<T>
+ * @file tests/tile/fill.cc
+ * Fill operation on Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-18
+ * @date 2023-04-24
  * */
 
-#include "nntile/tile/set.hh"
-#include "nntile/starpu/set.hh"
+#include "nntile/tile/fill.hh"
+#include "nntile/starpu/fill.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -39,15 +39,15 @@ void validate()
     }
     tile2_local.release();
     tile2_copy_local.release();
-    starpu::set::submit<T>(1, val, tile1);
-    set<T>(val, tile1_copy);
+    starpu::fill::submit<T>(1, val, tile1);
+    fill<T>(val, tile1_copy);
     tile1_local.acquire(STARPU_R);
     tile1_copy_local.acquire(STARPU_R);
     TEST_ASSERT(tile1_local[0] == tile1_copy_local[0]);
     tile1_local.release();
     tile1_copy_local.release();
-    starpu::set::submit<T>(tile2.nelems, val, tile2);
-    set<T>(val, tile2_copy);
+    starpu::fill::submit<T>(tile2.nelems, val, tile2);
+    fill<T>(val, tile2_copy);
     tile2_local.acquire(STARPU_R);
     tile2_copy_local.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)
@@ -63,8 +63,8 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    starpu::set::init();
-    starpu::set::restrict_where(STARPU_CPU);
+    starpu::fill::init();
+    starpu::fill::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

@@ -5,12 +5,12 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/sum/cpu.cc
- * Sum of a buffer on CPU
+ * Sum of slices of a buffer on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-04-13
+ * @date 2023-04-24
  * */
 
 #include "nntile/kernel/sum/cpu.hh"

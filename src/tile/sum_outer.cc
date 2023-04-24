@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/tile/sum_outer.cc
- * Sum of Tile<T> over outer axes
+ * Sum of slices of a Tile<T> (outer version)
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-04-24
  * */
 
 #include "nntile/tile/sum_outer.hh"

@@ -4,15 +4,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/set.cc
- * Set operation on a buffer
+ * @file tests/kernel/fill.cc
+ * Fill operation on a buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-18
+ * @date 2023-04-24
  * */
 
-#include "nntile/kernel/set.hh"
+#include "nntile/kernel/fill.hh"
 #include "../testing.hh"
 #include <vector>
 #include <stdexcept>
@@ -20,7 +20,7 @@
 #include <iostream>
 
 using namespace nntile;
-using namespace nntile::kernel::set;
+using namespace nntile::kernel::fill;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
@@ -66,23 +66,23 @@ void validate(Index nelems)
     }
     std::vector<T> data_save(data);
     // Check low-level kernel
-    std::cout << "Run kernel::set::cpu<T>\n";
+    std::cout << "Run kernel::fill::cpu<T>\n";
     cpu<T>(nelems, val, &data[0]);
     for(Index i = 0; i < nelems; ++i)
     {
         TEST_ASSERT(data[i] == val);
     }
-    std::cout << "OK: kernel::set::cpu<T>\n";
+    std::cout << "OK: kernel::fill::cpu<T>\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     data = data_save;
-    std::cout << "Run kernel::set::cuda<T>\n";
+    std::cout << "Run kernel::fill::cuda<T>\n";
     run_cuda<T>(nelems, data);
     for(Index i = 0; i < nelems; ++i)
     {
         TEST_ASSERT(data[i] == val);
     }
-    std::cout << "OK: kernel::set::cuda<T>\n";
+    std::cout << "OK: kernel::fill::cuda<T>\n";
 #endif // NNTILE_USE_CUDA
 }
 

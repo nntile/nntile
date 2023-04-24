@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-20
+ * @date 2023-04-24
  * */
 
 #pragma once
@@ -41,7 +41,7 @@
 #include <nntile/tile/relu.hh>
 #include <nntile/tile/relu_backward.hh>
 #include <nntile/tile/sumnorm.hh>
-#include <nntile/tile/set.hh>
+#include <nntile/tile/fill.hh>
 #include <nntile/tile/sum.hh>
 #include <nntile/tile/sum_outer.hh>
 #include <nntile/tile/norm.hh>

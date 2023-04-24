@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/tensor/sum_outer.hh
- * Sum of Tensor<T> along outer axes
+ * Sum of slices of a Tensor<T> (outer version)
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-19
+ * @date 2023-04-24
  * */
 
 #pragma once

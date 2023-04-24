@@ -4,21 +4,21 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/set/cuda.cu
- * Set operation on CUDA
+ * @file src/kernel/fill/cuda.cu
+ * Fill operation on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-18
+ * @date 2023-04-24
  * */
 
-#include "nntile/kernel/set/cuda.hh"
+#include "nntile/kernel/fill/cuda.hh"
 
 namespace nntile
 {
 namespace kernel
 {
-namespace set
+namespace fill
 {
 
 template<typename T>
@@ -37,7 +37,7 @@ void cuda_kernel(Index nelems, T val, T *data)
 template<typename T>
 void cuda(cudaStream_t stream, Index nelems, T val, T *data)
     noexcept
-//! Set operation on CUDA
+//! Fill operation on CUDA
 /*! Sets all elements to the provided value
  * @params[in] nelems: Number of elements in a buffer
  * @param[in] val: Input value
@@ -57,7 +57,7 @@ template
 void cuda<fp64_t>(cudaStream_t stream, Index nelems, fp64_t val, fp64_t *data)
     noexcept;
 
-} // namespace set
+} // namespace fill
 } // namespace kernel
 } // namespace nntile
 

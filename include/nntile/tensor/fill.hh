@@ -4,31 +4,29 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/set/cpu.hh
- * Set operation on CPU
+ * @file include/nntile/tensor/fill.hh
+ * Fill operation for Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-18
+ * @date 2023-04-24
  * */
 
 #pragma once
 
-#include <nntile/base_types.hh>
+#include <nntile/tensor/tensor.hh>
 
 namespace nntile
 {
-namespace kernel
-{
-namespace set
+namespace tensor
 {
 
-// Set operation on a buffer
 template<typename T>
-void cpu(Index nelems, T val, T *data)
-    noexcept;
+void fill_async(T val, const Tensor<T> &A);
 
-} // namespace set
-} // namespace kernel
+template<typename T>
+void fill(T val, const Tensor<T> &A);
+
+} // namespace tensor
 } // namespace nntile
 
