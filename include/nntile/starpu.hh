@@ -42,7 +42,7 @@
 #include <nntile/starpu/subcopy.hh>
 #include <nntile/starpu/sumnorm.hh>
 #include <nntile/starpu/fill.hh>
-#include <nntile/starpu/sum.hh>
+#include <nntile/starpu/sum_slice.hh>
 #include <nntile/starpu/sum_outer.hh>
 #include <nntile/starpu/norm.hh>
 #include <nntile/starpu/pow.hh>
@@ -93,7 +93,7 @@ void init()
     subcopy::init();
     sumnorm::init();
     fill::init();
-    sum::init();
+    sum_slice::init();
     sum_outer::init();
     norm::init();
     pow::init();
@@ -137,7 +137,7 @@ void restrict_where(uint32_t where)
     subcopy::restrict_where(where);
     sumnorm::restrict_where(where);
     fill::restrict_where(where);
-    sum::restrict_where(where);
+    sum_slice::restrict_where(where);
     sum_outer::restrict_where(where);
     norm::restrict_where(where);
     pow::restrict_where(where);
@@ -181,7 +181,7 @@ void restore_where()
     subcopy::restore_where();
     sumnorm::restore_where();
     fill::restore_where();
-    sum::restore_where();
+    sum_slice::restore_where();
     sum_outer::restore_where();
     norm::restore_where();
     pow::restore_where();

@@ -4,16 +4,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/sum.cc
- * Sum of a buffer on CPU
+ * @file tests/kernel/sum_slice.cc
+ * Sums over fibers into a slice of a buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-04-13
+ * @date 2023-04-24
  * */
 
-#include "nntile/kernel/sum.hh"
+#include "nntile/kernel/sum_slice.hh"
 #include "../testing.hh"
 #include <vector>
 #include <stdexcept>
@@ -22,7 +22,7 @@
 #include <iostream>
 
 using namespace nntile;
-using namespace nntile::kernel::sum;
+using namespace nntile::kernel::sum_slice;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
@@ -82,7 +82,7 @@ void validate(Index m, Index n, Index k, T alpha, T beta)
     } 
     std::vector<T> sum_copy(sum_dst);
     // Check low-level kernel
-    std::cout << "Run kernel::sum::cpu<T>\n";
+    std::cout << "Run kernel::sum_slice::cpu<T>\n";
     cpu<T>(m, n, k, alpha, &src[0], beta, &sum_dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -103,11 +103,11 @@ void validate(Index m, Index n, Index k, T alpha, T beta)
             
         }
     }
-    std::cout << "OK: kernel::sum::cpu<T>\n";
+    std::cout << "OK: kernel::sum_slice::cpu<T>\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     std::vector<T> sum_cuda(sum_copy);
-    std::cout << "Run kernel::sum::cuda<T>\n";
+    std::cout << "Run kernel::sum_slice::cuda<T>\n";
     run_cuda<T>(m, n, k, alpha, src, beta, sum_cuda);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -125,7 +125,7 @@ void validate(Index m, Index n, Index k, T alpha, T beta)
             
         }
     }
-    std::cout << "OK: kernel::sum::cuda<T>\n";
+    std::cout << "OK: kernel::sum_slice::cuda<T>\n";
 #endif // NNTILE_USE_CUDA
 }
 

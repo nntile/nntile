@@ -41,7 +41,7 @@ set(TESTS_MPI
     "relu"
     "sumnorm"
     "fill"
-    "sum"
+    "sum_slice"
     "sum_outer"
     "norm"
     "nrm2"

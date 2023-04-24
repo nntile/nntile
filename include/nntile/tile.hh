@@ -42,7 +42,7 @@
 #include <nntile/tile/relu_backward.hh>
 #include <nntile/tile/sumnorm.hh>
 #include <nntile/tile/fill.hh>
-#include <nntile/tile/sum.hh>
+#include <nntile/tile/sum_slice.hh>
 #include <nntile/tile/sum_outer.hh>
 #include <nntile/tile/norm.hh>
 #include <nntile/tile/pow.hh>

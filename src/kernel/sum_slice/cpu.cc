@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/sum/cpu.cc
- * Sum of slices of a buffer on CPU
+ * @file src/kernel/sum_slice/cpu.cc
+ * Sums over fibers into a slice of a buffer on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -13,24 +13,24 @@
  * @date 2023-04-24
  * */
 
-#include "nntile/kernel/sum/cpu.hh"
+#include "nntile/kernel/sum_slice/cpu.hh"
 #include <cmath>
 
 namespace nntile
 {
 namespace kernel
 {
-namespace sum
+namespace sum_slice
 {
 
 template<typename T>
 void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *sum_dst)
     noexcept
-//! Sum along middle axis
-/*! For a provided m-by-k-by-n input array src compute sums of slices
- * along second axis with k elements, resulting in m-by-n output array
- * sum_dst. Mnemonically, the following operations are performed:
- *      sum[i,j] = beta*sum[i,j] + alpha*sum(src[i,:,j])
+//! Sums over fibers along middle axis into a slice of a tensor
+/*! For a provided m-by-k-by-n input array computes sums over fibers
+ * along second axis with k elements, resulting in m-by-n output slice.
+ * Mnemonically, the following operations are performed:
+ *      sum_dst[i,j] = beta*sum_dst[i,j] + alpha*sum(src[i,:,j])
  *
  * @param[in] m: Size of the first mode of src and sum_dst arrays
  * @param[in] n: Size of the last mode of src and sum_dst arrays
@@ -39,41 +39,38 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *sum_dst)
  * @param[in] src: Input contiguous m-by-k-by-n array
  * @param[in] beta: Scaling factor for sum_dst
  * @param[inout] sum: Output contiguous m-by-n array, that accumulates
- *      sums along middle axis.
+ *      sums over fibers along middle axis.
  * */
 {
     const Index mk = m * k;
     Index dst_offset = 0;
     constexpr T zero = 0;
-    // Cycle over row of output buffer
+    // Cycle over column of the output buffer sum_dst
     for(Index i2 = 0; i2 < n; ++i2)
     {
-        // Cycle over column of output buffer
+        // Cycle over row of the output buffer sum_dst
         for(Index i1 = 0; i1 < m; ++i1)
         {
-            // Get sum and norm of a corresponding slice
-            const T *src_slice = src + i2*mk + i1;
-            // Init sum 
+            // Pointer to a corresponding fiber of the source array src
+            const T *src_fiber = src + i2*mk + i1;
+            // Init sum over the fiber
             T sum = zero;
-            // Cycle over slice of input buffer
+            // Output value
+            T &result = sum_dst[i2*m+i1];
+            // Cycle over fiber elements and accumulate the sum
             for(Index i0 = 0; i0 < k; ++i0)
             {
-                // Read value from source
-                T val = src_slice[i0*m];
-                // Update sum
-                sum += val;
+                sum += src_fiber[i0*m];
             }
-            // Save result
+            // Update output value
             if(beta == zero)
             {
-                sum *= alpha;
+                result = alpha * sum;
             }
             else
             {
-                sum = beta*sum_dst[dst_offset] + alpha*sum;
+                result = beta*result + alpha*sum;
             }
-            sum_dst[dst_offset] = sum;
-            ++dst_offset;
         }
     }
 }
@@ -89,7 +86,7 @@ void cpu<fp64_t>(Index m, Index n, Index k, fp64_t alpha, const fp64_t *src,
         fp64_t beta, fp64_t *sum_dst)
     noexcept;
 
-} // namespace sum
+} // namespace sum_slice
 } // namespace kernel
 } // namespace nntile
 

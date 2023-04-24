@@ -4,23 +4,21 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/sum.cc
- * Sum operation for Tensor<T>
+ * @file tests/tensor/sum_slice.cc
+ * Sums over fibers into a slice of a Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-04-13
+ * @date 2023-04-24
  * */
 
-#include "nntile/tensor/sum.hh"
-#include "nntile/tile/sum.hh"
-#include "nntile/tile/clear.hh"
-#include "nntile/starpu/sum.hh"
+#include "nntile/tensor/sum_slice.hh"
+#include "nntile/tile/sum_slice.hh"
+#include "nntile/starpu/sum_slice.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
-#include "nntile/starpu/clear.hh"
 #include "../testing.hh"
 #include <limits>
 
@@ -94,11 +92,11 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     }
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
     scatter<T>(dst_single, dst);
-    // Perform tensor-wise and tile-wise sum operations
-    sum<T>(alpha, src, beta, dst, axis);
+    // Perform tensor-wise and tile-wise sum_slice operations
+    sum_slice<T>(alpha, src, beta, dst, axis);
     if(mpi_rank == mpi_root)
     {
-        tile::sum<T>(alpha, src_single.get_tile(0), beta,
+        tile::sum_slice<T>(alpha, src_single.get_tile(0), beta,
                 dst_single.get_tile(0), axis);
     }
     // Compare results
@@ -143,16 +141,16 @@ void validate()
         C(trC, dist0, last_tag), D(trD, dist00, last_tag),
         E(trE, dist0000, last_tag), F(trF, dist0, last_tag),
         G(trG, dist00, last_tag);
-    TEST_THROW(sum<T>(1.0, A, 1.0, C, 0));
-    TEST_THROW(sum<T>(1.0, F, 1.0, F, 0));
-    TEST_THROW(sum<T>(1.0, A, 1.0, B, -1));
-    TEST_THROW(sum<T>(1.0, A, 1.0, B, 2));
-    TEST_THROW(sum<T>(1.0, A, 1.0, D, 0));
-    TEST_THROW(sum<T>(1.0, A, 1.0, E, 0));
-    TEST_THROW(sum<T>(1.0, A, 1.0, B, 0));
-    TEST_THROW(sum<T>(1.0, A, 1.0, B, 1));
-    TEST_THROW(sum<T>(1.0, A, 1.0, G, 0));
-    TEST_THROW(sum<T>(1.0, A, 1.0, G, 1));
+    TEST_THROW(sum_slice<T>(1.0, A, 1.0, C, 0));
+    TEST_THROW(sum_slice<T>(1.0, F, 1.0, F, 0));
+    TEST_THROW(sum_slice<T>(1.0, A, 1.0, B, -1));
+    TEST_THROW(sum_slice<T>(1.0, A, 1.0, B, 2));
+    TEST_THROW(sum_slice<T>(1.0, A, 1.0, D, 0));
+    TEST_THROW(sum_slice<T>(1.0, A, 1.0, E, 0));
+    TEST_THROW(sum_slice<T>(1.0, A, 1.0, B, 0));
+    TEST_THROW(sum_slice<T>(1.0, A, 1.0, B, 1));
+    TEST_THROW(sum_slice<T>(1.0, A, 1.0, G, 0));
+    TEST_THROW(sum_slice<T>(1.0, A, 1.0, G, 1));
 }
 
 int main(int argc, char **argv)
@@ -160,12 +158,10 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    starpu::sum::init();
+    starpu::sum_slice::init();
     starpu::subcopy::init();
-    starpu::clear::init();
-    starpu::sum::restrict_where(STARPU_CPU);
+    starpu::sum_slice::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
-    starpu::clear::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

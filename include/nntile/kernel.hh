@@ -34,7 +34,7 @@
 #include <nntile/kernel/subcopy.hh>
 #include <nntile/kernel/sumnorm.hh>
 #include <nntile/kernel/fill.hh>
-#include <nntile/kernel/sum.hh>
+#include <nntile/kernel/sum_slice.hh>
 #include <nntile/kernel/sum_outer.hh>
 #include <nntile/kernel/norm.hh>
 #include <nntile/kernel/pow.hh>

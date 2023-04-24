@@ -148,18 +148,22 @@ def gelutanh_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
 def fill_async(val: float, x: Tensor) -> None:
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.fill_async_fp32(val, x)
-    else:
+    elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.fill_async_fp64(val, x)
+    else:
+        raise TypeError
 
-# Wrapper for multiprecision sum
-def sum_async(alpha: float, x: Tensor, beta: float, sum_out: Tensor, \
+# Wrapper for multiprecision sum_slice
+def sum_slice_async(alpha: float, x: Tensor, beta: float, sum_out: Tensor, \
         axis: int) -> None:
     if type(x) is not type(sum_out):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.sum_async_fp32(alpha, x, beta, sum_out, axis)
+        core_tensor.sum_slice_async_fp32(alpha, x, beta, sum_out, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.sum_slice_async_fp64(alpha, x, beta, sum_out, axis)
     else:
-        core_tensor.sum_async_fp64(alpha, x, beta, sum_out, axis)
+        raise TypeError
 
 # Wrapper for multiprecision sum_outer
 def sum_outer_async(alpha: float, x: Tensor, beta: float, sum_out: Tensor, \
@@ -168,8 +172,10 @@ def sum_outer_async(alpha: float, x: Tensor, beta: float, sum_out: Tensor, \
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.sum_outer_async_fp32(alpha, x, beta, sum_out, axis)
-    else:
+    elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.sum_outer_async_fp64(alpha, x, beta, sum_out, axis)
+    else:
+        raise TypeError
 
 # Wrapper for multiprecision norm
 def norm_async(alpha: float, x: Tensor, beta: float, norm_out: Tensor, \

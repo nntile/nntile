@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/sum.cc
- * Sum of slices of a StarPU buffer
+ * @file src/starpu/sum_slice.cc
+ * Sum over fibers into a slice of a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -13,18 +13,18 @@
  * @date 2023-04-24
  * */
 
-#include "nntile/starpu/sum.hh"
-#include "nntile/kernel/sum.hh"
+#include "nntile/starpu/sum_slice.hh"
+#include "nntile/kernel/sum_slice.hh"
 #include <cstdlib>
 
 namespace nntile
 {
 namespace starpu
 {
-namespace sum
+namespace sum_slice
 {
 
-//! Sum along middle axis of StarPU buffer on CPU
+//! StarPU wrapper for kernel::sum_slice::cpu<T>
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
@@ -36,12 +36,12 @@ void cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *sum_dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::sum::cpu<T>(args->m, args->n, args->k, args->alpha, src,
+    kernel::sum_slice::cpu<T>(args->m, args->n, args->k, args->alpha, src,
             args->beta, sum_dst);
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Sum along middle axis of StarPU buffer on CUDA
+//! StarPU wrapper for kernel::sum_slice::cuda<T>
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
@@ -55,21 +55,19 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::sum::cuda<T>(stream, args->m, args->n, args->k, args->alpha, src,
-            args->beta, sum_dst);
+    kernel::sum_slice::cuda<T>(stream, args->m, args->n, args->k, args->alpha,
+            src, args->beta, sum_dst);
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for sum tasks that depends only on m, n and k
+//! Footprint for sum_slice tasks
 template<typename T>
 static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
-    // Apply hash over parameters m, n and k. This way if we swap values of m,
-    // n and k, then the total size of buffers will remain the same, but the
-    // footprint will be different
+    // Apply hash over parameters m, n and k
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
     hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
@@ -81,7 +79,7 @@ Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
-    codelet_fp32.init("nntile_sum_fp32",
+    codelet_fp32.init("nntile_sum_slice_fp32",
             footprint<fp32_t>,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -90,7 +88,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_fp64.init("nntile_sum_fp64",
+    codelet_fp64.init("nntile_sum_slice_fp64",
             footprint<fp64_t>,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
@@ -116,7 +114,7 @@ void restore_where()
 template<typename T>
 void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
         Handle sum_dst)
-//! Insert sum task into StarPU pool of tasks
+//! Insert sum_slice task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
@@ -153,7 +151,7 @@ void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in sum task submission");
+        throw std::runtime_error("Error in sum_slice task submission");
     }
 }
 
@@ -166,7 +164,7 @@ template
 void submit<fp64_t>(Index m, Index n, Index k, fp64_t alpha, Handle src,
         fp64_t beta, Handle sum_dst);
 
-} // namespace sum
+} // namespace sum_slice
 } // namespace starpu
 } // namespace nntile
 

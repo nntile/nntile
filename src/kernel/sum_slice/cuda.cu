@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/sum/cuda.cc
- * Sum of slices of a buffer on CUDA
+ * @file src/kernel/sum_slice/cuda.cc
+ * Sums over fibers into a slice of a buffer on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -14,13 +14,13 @@
  * */
 
 
-#include "nntile/kernel/sum/cuda.hh"
+#include "nntile/kernel/sum_slice/cuda.hh"
 
 namespace nntile
 {
 namespace kernel
 {
-namespace sum
+namespace sum_slice
 {
 
 template<typename T>
@@ -33,35 +33,32 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src,
           i2_step = blockDim.x * gridDim.x,
           i1_step = blockDim.y * gridDim.y;
     constexpr T zero = 0;
-    // Cycle over row of output buffer
+    // Cycle over column of output buffer
     for(Index i2 = i2_start; i2 < n; i2 += i2_step)
     {
-        // Cycle over column of output buffer
+        // Cycle over row of output buffer
         for(Index i1 = i1_start; i1 < m; i1 += i1_step)
         {
-            // Get sum of a corresponding slice
-            const T *src_slice = src + i2*mk + i1;
-            Index dst_offset = i1 + i2*m;
-            // Init sum
+            // Pointer to a corresponding fiber of the source array src
+            const T *src_fiber = src + i2*mk + i1;
+            // Init sum over the fiber
             T sum = zero;
-            // Cycle over slice of input buffer
+            // Output value
+            T &result = sum_dst[i2*m+i1];
+            // Cycle over fiber elements and accumulate the sum
             for(Index i0 = 0; i0 < k; ++i0)
             {
-                // Read value from source
-                T val = src_slice[i0*m];
-                // Update sum
-                sum += val;
+                sum += src_fiber[i0*m];
             }
-            // Save result
+            // Update output value
             if(beta == zero)
             {
-                sum *= alpha;
+                result = alpha * sum;
             }
             else
             {
-                sum = beta*sum_dst[dst_offset] + alpha*sum;
+                result = beta*result + alpha*sum;
             }
-            sum_dst[dst_offset] = sum;
         }
     }
 }
@@ -70,11 +67,11 @@ template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
         const T *src, T beta, T *sum_dst)
     noexcept
-//! Sum along middle axis
-/*! For a provided m-by-k-by-n input array src compute sums of slices
- * along second axis with k elements, resulting in m-by-n output array
- * sum_dst. Mnemonically, the following operations are performed:
- *      sum[i,j] = beta*sum[i,j] + alpha*sum(src[i,:,j])
+//! Sums over fibers along middle axis into a slice of a tensor
+/*! For a provided m-by-k-by-n input array computes sums over fibers
+ * along second axis with k elements, resulting in m-by-n output slice.
+ * Mnemonically, the following operations are performed:
+ *      sum_dst[i,j] = beta*sum_dst[i,j] + alpha*sum(src[i,:,j])
  *
  * @param[in] m: Size of the first mode of src and sum_dst arrays
  * @param[in] n: Size of the last mode of src and sum_dst arrays
@@ -83,10 +80,9 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * @param[in] src: Input contiguous m-by-k-by-n array
  * @param[in] beta: Scaling factor for sum_dst
  * @param[inout] sum: Output contiguous m-by-n array, that accumulates
- *      sums along middle axis.
+ *      sums over fibers along middle axis.
  * */
 {
-    // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
     // Both source and destination are Fortran-contiguous
     dim3 blocks(16, 16), threads(8, 4);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha, src,
@@ -104,7 +100,7 @@ void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, fp64_t alpha,
         const fp64_t *src, fp64_t beta, fp64_t *sum_dst)
     noexcept;
 
-} // namespace sum
+} // namespace sum_slice
 } // namespace kernel
 } // namespace nntile
 

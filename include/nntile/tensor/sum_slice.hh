@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/sum.hh
- * Sum of slices of a Tensor<T>
+ * @file include/nntile/tensor/sum_slice.hh
+ * Sum over fibers into a slice of a Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -23,11 +23,11 @@ namespace tensor
 {
 
 template<typename T>
-void sum_async(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &sum_dst,
-        Index axis);
+void sum_slice_async(T alpha, const Tensor<T> &src, T beta,
+        const Tensor<T> &sum_dst, Index axis);
 
 template<typename T>
-void sum(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &sum_dst,
+void sum_slice(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &sum_dst,
         Index axis);
 
 } // namespace tensor

@@ -31,7 +31,7 @@ set(TESTS
     "maxsumexp"
     "softmax"
     "fill"
-    "sum"
+    "sum_slice"
     "norm"
     "sqrt"
     "maximum"

@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/sum.hh
- * Sum of slices of a StarPU buffer
+ * @file include/nntile/starpu/sum_slice.hh
+ * Sum over fibers into a slice of a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev 
@@ -22,7 +22,7 @@ namespace nntile
 {
 namespace starpu
 {
-namespace sum
+namespace sum_slice
 {
 
 //! Structure for arguments
@@ -36,13 +36,13 @@ struct args_t
     T beta;
 };
 
-// Sum along middle axis of StarPU buffer on CPU
+// StarPU wrapper for kernel::sum_slice::cpu<T>
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
-// Sum along middle axis of StarPU buffer on CUDA
+// StarPU wrapper for kernel::sum_slice::cuda<T>
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept;
@@ -79,7 +79,7 @@ template<typename T>
 void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
         Handle sum_dst);
 
-} // namespace sum
+} // namespace sum_slice
 } // namespace starpu
 } // namespace nntile
 

@@ -4,17 +4,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/starpu/sum.cc
- * Sum for StarPU buffer
+ * @file tests/starpu/sum_slice.cc
+ * Sums over fibers into a slice of a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-04-13
+ * @date 2023-04-24
  * */
 
-#include "nntile/starpu/sum.hh"
-#include "nntile/kernel/sum.hh"
+#include "nntile/starpu/sum_slice.hh"
+#include "nntile/kernel/sum_slice.hh"
 #include "../testing.hh"
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_runtime.h>
@@ -39,19 +39,19 @@ void validate_cpu(Index m, Index n, Index k, T alpha, T beta)
     std::vector<T> sum_dst(m*n);
     for(Index i = 0; i < m*n; i += 1)
     {
-        sum_dst[i] = T(-i-1); // Sum
+        sum_dst[i] = T(-i-1);
     }
     // Create copies of destination
     std::vector<T> sum_dst2(sum_dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::sum::cpu<T>\n";
-    kernel::sum::cpu<T>(m, n, k, alpha, &src[0], beta, &sum_dst[0]);
+    std::cout << "Run kernel::sumi_slice::cpu<T>\n";
+    kernel::sum_slice::cpu<T>(m, n, k, alpha, &src[0], beta, &sum_dst[0]);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*m*n*k, STARPU_R),
         sum_dst2_handle(&sum_dst2[0], sizeof(T)*m*n, STARPU_RW);
-    sum::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::sum::submit<T> restricted to CPU\n";
-    sum::submit<T>(m, n, k, alpha, src_handle, beta, sum_dst2_handle);
+    sum_slice::restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::sum_slice::submit<T> restricted to CPU\n";
+    sum_slice::submit<T>(m, n, k, alpha, src_handle, beta, sum_dst2_handle);
     starpu_task_wait_for_all();
     sum_dst2_handle.unregister();
     // Check result
@@ -59,7 +59,7 @@ void validate_cpu(Index m, Index n, Index k, T alpha, T beta)
     {
         TEST_ASSERT(sum_dst[i] == sum_dst2[i]);
     }
-    std::cout << "OK: starpu::sum::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::sum_slice::submit<T> restricted to CPU\n";
 }
 
 int main(int argc, char **argv)
@@ -67,7 +67,7 @@ int main(int argc, char **argv)
     // Init StarPU for testing
     Config starpu(1, 1, 0);
     // Init codelet
-    sum::init();
+    sum_slice::init();
     // Launch all tests
     validate_cpu<fp32_t>(3, 5, 7, 1.0, -1.0);
     validate_cpu<fp32_t>(3, 5, 7, 2.0, 0.0);

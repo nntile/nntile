@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/sum/cpu.hh
- * Sum of slices of a buffer on CPU
+ * @file include/nntile/tile/sum_slice.hh
+ * Sum over fibers into a slice of a Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -15,21 +15,21 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
+#include <nntile/tile/tile.hh>
 
 namespace nntile
 {
-namespace kernel
-{
-namespace sum
+namespace tile
 {
 
-// Compute sum along middle axis
 template<typename T>
-void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *sum_dst)
-    noexcept;
+void sum_slice_async(T alpha, const Tile<T> &src, T beta,
+        const Tile<T> &sum_dst, Index axis);
 
-} // namespace sum
-} // namespace kernel
+template<typename T>
+void sum_slice(T alpha, const Tile<T> &src, T beta, const Tile<T> &sum_dst,
+        Index axis);
+
+} // namespace tile
 } // namespace nntile
 

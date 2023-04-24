@@ -45,7 +45,7 @@
 #include <nntile/tensor/relu_backward.hh>
 #include <nntile/tensor/scatter.hh>
 #include <nntile/tensor/fill.hh>
-#include <nntile/tensor/sum.hh>
+#include <nntile/tensor/sum_slice.hh>
 #include <nntile/tensor/sum_outer.hh>
 #include <nntile/tensor/norm.hh>
 #include <nntile/tensor/pow.hh>

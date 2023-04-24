@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/sum.hh
- * Low-level kernels to compute sum of slices of a buffer on CPU
+ * @file include/nntile/kernel/sum_slice.hh
+ * Sums over fibers into a slice of a buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -15,23 +15,23 @@
 
 #pragma once
 
-#include <nntile/kernel/sum/cpu.hh>
+#include <nntile/kernel/sum_slice/cpu.hh>
 #include <nntile/defs.h>
 #ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/sum/cuda.hh>
+#include <nntile/kernel/sum_slice/cuda.hh>
 #endif // NNTILE_USE_CUDA
 
 namespace nntile
 {
 namespace kernel
 {
-//! @namespace nntile::kernel::sum
-/*! Low-level implementations of computing sum operation
+//! @namespace nntile::kernel::sum_slice
+/*! Low-level implementations of sum_slice operation
  * */
-namespace sum
+namespace sum_slice
 {
 
-} // namespace sum
+} // namespace sum_slice
 } // namespace kernel
 } // namespace nntile
 

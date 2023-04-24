@@ -390,10 +390,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("fill_fp64", &fill<fp64_t>);
     m.def("fill_fp32", &fill<fp32_t>);
 
-    m.def("sum_async_fp64", &sum_async<fp64_t>);
-    m.def("sum_async_fp32", &sum_async<fp32_t>);
-    m.def("sum_fp64", &sum<fp64_t>);
-    m.def("sum_fp32", &sum<fp32_t>);
+    m.def("sum_slice_async_fp64", &sum_slice_async<fp64_t>);
+    m.def("sum_slice_async_fp32", &sum_slice_async<fp32_t>);
+    m.def("sum_slice_fp64", &sum_slice<fp64_t>);
+    m.def("sum_slice_fp32", &sum_slice<fp32_t>);
 
     m.def("sum_outer_async_fp64", &sum_outer_async<fp64_t>);
     m.def("sum_outer_async_fp32", &sum_outer_async<fp32_t>);

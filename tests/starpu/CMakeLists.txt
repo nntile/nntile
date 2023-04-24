@@ -34,7 +34,7 @@ set(TESTS
     "sqrt"
     "maximum"
     "fill"
-    "sum"
+    "sum_slice"
     "norm"
     "addcdiv"
     "scalprod"

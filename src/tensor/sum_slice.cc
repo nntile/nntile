@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tensor/sum.cc
- * Sum of slices of a Tensor<T>
+ * @file src/tensor/sum_slice.cc
+ * Sum over fibers into a slice of a Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -13,8 +13,8 @@
  * @date 2023-04-24
  * */
 
-#include "nntile/tensor/sum.hh"
-#include "nntile/starpu/sum.hh"
+#include "nntile/tensor/sum_slice.hh"
+#include "nntile/starpu/sum_slice.hh"
 #include "nntile/starpu/clear.hh"
 
 namespace nntile
@@ -22,10 +22,10 @@ namespace nntile
 namespace tensor
 {
 
-//! Compute sum of elements of slices along given axis
+//! Tensor-wise sum_slice
 template<typename T>
-void sum_async(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &sum_dst,
-        Index axis)
+void sum_slice_async(T alpha, const Tensor<T> &src, T beta,
+        const Tensor<T> &sum_dst, Index axis)
 {
     // Check dimensions
     if(src.ndim - 1 != sum_dst.ndim)
@@ -104,8 +104,8 @@ void sum_async(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &sum_dst,
                 n = src_tile_traits.matrix_shape[axis+1][1];
                 k = src_tile_traits.shape[axis];
                 // Insert task
-                starpu::sum::submit<T>(m, n, k, alpha, src_tile_handle, beta,
-                        sum_dst_tile_handle);
+                starpu::sum_slice::submit<T>(m, n, k, alpha, src_tile_handle,
+                        beta, sum_dst_tile_handle);
             }
         }
         // Launch kernel for each appropriate source tile
@@ -123,28 +123,13 @@ void sum_async(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &sum_dst,
                 // Get sizes
                 auto src_tile_traits = src.get_tile_traits(src_tile_offset);
                 Index m, n, k;
-                if(axis == 0)
-                {
-                    m = 1;
-                    n = sum_dst_tile_traits.nelems;
-                    k = src_tile_traits.shape[0];
-                }
-                else if(axis == ndim-1)
-                {
-                    m = sum_dst_tile_traits.nelems;
-                    n = 1;
-                    k = src_tile_traits.shape[axis];
-                }
-                else
-                {
-                    m = src_tile_traits.stride[axis];
-                    n = src_tile_traits.matrix_shape[axis+1][1];
-                    k = src_tile_traits.shape[axis];
-                }
+                m = src_tile_traits.stride[axis];
+                n = src_tile_traits.matrix_shape[axis+1][1];
+                k = src_tile_traits.shape[axis];
                 // Insert task
                 constexpr T one = 1.0;
-                starpu::sum::submit<T>(m, n, k, alpha, src_tile_handle, one,
-                        sum_dst_tile_handle);
+                starpu::sum_slice::submit<T>(m, n, k, alpha, src_tile_handle,
+                        one, sum_dst_tile_handle);
             }
         }
         // Flush cache for the output tile on every node
@@ -154,30 +139,30 @@ void sum_async(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &sum_dst,
 
 
 template<typename T>
-void sum(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &sum_dst,
+void sum_slice(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &sum_dst,
         Index axis)
 {
-    sum_async<T>(alpha, src, beta, sum_dst, axis);
+    sum_slice_async<T>(alpha, src, beta, sum_dst, axis);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void sum_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src, fp32_t beta,
-        const Tensor<fp32_t> &sum_dst, Index axis);
+void sum_slice_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
+        fp32_t beta, const Tensor<fp32_t> &sum_dst, Index axis);
 
 template
-void sum_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src, fp64_t beta,
-        const Tensor<fp64_t> &sum_dst, Index axis);
+void sum_slice_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
+        fp64_t beta, const Tensor<fp64_t> &sum_dst, Index axis);
 
 // Explicit instantiation
 template
-void sum<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src, fp32_t beta,
+void sum_slice<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src, fp32_t beta,
         const Tensor<fp32_t> &sum_dst, Index axis);
 
 template
-void sum<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src, fp64_t beta,
+void sum_slice<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src, fp64_t beta,
         const Tensor<fp64_t> &sum_dst, Index axis);
 
 } // namespace tensor
