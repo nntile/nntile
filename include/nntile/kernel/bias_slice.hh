@@ -5,7 +5,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/kernel/bias_slice.hh
- * Bias_slice low-level kernels
+ * Bias operation over fibers from a slice of a buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev

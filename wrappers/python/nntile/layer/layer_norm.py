@@ -16,7 +16,7 @@ from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         bias_slice_async, copy_async, sum_slice_async, norm_async, \
         fill_async, pow_async, \
         biasprod_async, scalprod_async, axpy_async, biasprod_outer_async, \
-        bias_outer_async, sum_fiber_async, scalprod_outer_async, \
+        bias_fiber_async, sum_fiber_async, scalprod_outer_async, \
         clear_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
@@ -142,7 +142,7 @@ class LayerNorm(BaseLayer):
         # Scale output
         biasprod_outer_async(self.gamma.value, self.y.value, self.axis)
         # Shift output
-        bias_outer_async(1.0, self.beta.value, self.y.value, self.axis)
+        bias_fiber_async(1.0, self.beta.value, 1.0, self.y.value, self.axis)
 
     def backward_async(self):
         # Accumulate gradient over beta

@@ -4,25 +4,25 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tile/bias_outer.cc
- * Bias along outer axes operation for Tile<T>
+ * @file src/tile/bias_fiber.cc
+ * Bias operation over fibers from a slice of a Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-04-26
  * */
 
-#include "nntile/tile/bias_outer.hh"
-#include "nntile/starpu/bias_outer.hh"
+#include "nntile/tile/bias_fiber.hh"
+#include "nntile/starpu/bias_fiber.hh"
 
 namespace nntile
 {
 namespace tile
 {
 
-//! Tile-wise bias_outer operation
+//! Tile-wise bias_fiber operation
 template<typename T>
-void bias_outer_async(T alpha, const Tile<T> &src, const Tile<T> &dst,
+void bias_fiber_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
         Index axis)
 {
     // Check dimensions
@@ -55,33 +55,34 @@ void bias_outer_async(T alpha, const Tile<T> &src, const Tile<T> &dst,
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
     // Insert corresponding task
-    starpu::bias_outer::submit<T>(m, n, k, alpha, src, dst);
+    starpu::bias_fiber::submit<T>(m, n, k, alpha, src, beta, dst);
 }
 
-//! Tile-wise bias_outer operation
+//! Tile-wise bias_fiber operation
 template<typename T>
-void bias_outer(T alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
+void bias_fiber(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
+        Index axis)
 {
-    bias_outer_async<T>(alpha, src, dst, axis);
+    bias_fiber_async<T>(alpha, src, beta, dst, axis);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
-void bias_outer_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src,
-        const Tile<fp32_t> &dst, Index axis);
+void bias_fiber_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src,
+        fp32_t beta, const Tile<fp32_t> &dst, Index axis);
 
 template
-void bias_outer_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src,
-        const Tile<fp64_t> &dst, Index axis);
+void bias_fiber_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src,
+        fp64_t beta, const Tile<fp64_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void bias_outer<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src,
+void bias_fiber<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src, fp32_t beta,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void bias_outer<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src,
+void bias_fiber<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src, fp64_t beta,
         const Tile<fp64_t> &dst, Index axis);
 
 } // namespace tile

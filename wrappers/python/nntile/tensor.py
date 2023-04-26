@@ -297,14 +297,15 @@ def bias_slice_async(alpha: float, bias_slice: Tensor, beta, x: Tensor, \
     else:
         raise TypeError
 
-# Wrapper for multiprecision bias_outer
-def bias_outer_async(alpha: float, bias: Tensor, x: Tensor, axis: int) -> None:
-    if type(bias) is not type(x):
+# Wrapper for multiprecision bias_fiber
+def bias_fiber_async(alpha: float, bias_fiber: Tensor, beta, x: Tensor, \
+        axis: int) -> None:
+    if type(bias_fiber) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.bias_outer_async_fp32(alpha, bias, x, axis)
+        core_tensor.bias_fiber_async_fp32(alpha, bias_fiber, beta, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.bias_outer_async_fp64(alpha, bias, x, axis)
+        core_tensor.bias_fiber_async_fp64(alpha, bias_fiber, beta, x, axis)
     else:
         raise TypeError
 

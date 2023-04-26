@@ -22,7 +22,7 @@
 // Tile<T> operations
 #include <nntile/tile/axpy.hh>
 #include <nntile/tile/bias_slice.hh>
-#include <nntile/tile/bias_outer.hh>
+#include <nntile/tile/bias_fiber.hh>
 #include <nntile/tile/biasprod.hh>
 #include <nntile/tile/biasprod_outer.hh>
 #include <nntile/tile/clear.hh>

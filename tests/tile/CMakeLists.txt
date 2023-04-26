@@ -19,6 +19,7 @@ set(TESTS
     "tile"
     "axpy"
     "bias_slice"
+    "bias_fiber"
     "clear"
     "copy"
     "copy_intersection"

@@ -16,6 +16,7 @@
 # All unit tests without arguments to test executable
 set(TESTS
     "bias_slice"
+    "bias_fiber"
     "subcopy"
     "gelu"
     "gelutanh"

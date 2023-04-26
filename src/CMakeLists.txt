@@ -16,7 +16,7 @@
 # Set list of sources
 set(KERNEL_SRC
     "kernel/bias_slice/cpu.cc"
-    "kernel/bias_outer/cpu.cc"
+    "kernel/bias_fiber/cpu.cc"
     "kernel/biasprod/cpu.cc"
     "kernel/biasprod_outer/cpu.cc"
     "kernel/dgelu/cpu.cc"
@@ -80,7 +80,7 @@ endif()
 
 set(STARPU_SRC
     "starpu/bias_slice.cc"
-    "starpu/bias_outer.cc"
+    "starpu/bias_fiber.cc"
     "starpu/biasprod.cc"
     "starpu/biasprod_outer.cc"
     "starpu/clear.cc"
@@ -124,7 +124,7 @@ set(TILE_SRC
     "tile/traits.cc"
     "tile/axpy.cc"
     "tile/bias_slice.cc"
-    "tile/bias_outer.cc"
+    "tile/bias_fiber.cc"
     "tile/biasprod.cc"
     "tile/biasprod_outer.cc"
     "tile/clear.cc"
@@ -168,7 +168,7 @@ set(TENSOR_SRC
     "tensor/distributions.cc"
     "tensor/axpy.cc"
     "tensor/bias_slice.cc"
-    "tensor/bias_outer.cc"
+    "tensor/bias_fiber.cc"
     "tensor/biasprod.cc"
     "tensor/biasprod_outer.cc"
     "tensor/clear.cc"

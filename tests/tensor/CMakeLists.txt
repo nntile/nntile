@@ -28,7 +28,7 @@ set(TESTS_MPI
     "clear"
     "axpy"
     "bias_slice"
-    "bias_outer"
+    "bias_fiber"
     "biasprod"
     "biasprod_outer"
     "randn"

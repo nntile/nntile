@@ -4,27 +4,27 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/bias_outer.cc
- * Bias over outer axes operation on a StarPU buffer
+ * @file src/starpu/bias_fiber.cc
+ * Bias operation over slices from a fiber of a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-19
+ * @date 2023-04-26
  * */
 
-#include "nntile/starpu/bias_outer.hh"
-#include "nntile/kernel/bias_outer.hh"
+#include "nntile/starpu/bias_fiber.hh"
+#include "nntile/kernel/bias_fiber.hh"
 #include <cstdlib>
 
 namespace nntile
 {
 namespace starpu
 {
-//! StarPU wrappers for bias_outer operation
-namespace bias_outer
+//! StarPU wrappers for bias_fiber operation
+namespace bias_fiber
 {
 
-//! Apply bias along outer axes of StarPU buffer in CPU
+//! StarPU wrapper for kernel::bias_fiber::cpu<T>
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
@@ -36,20 +36,18 @@ void cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::bias_outer::cpu<T>(args->m, args->n, args->k, args->alpha, src,
-            dst);
+    kernel::bias_fiber::cpu<T>(args->m, args->n, args->k, args->alpha, src,
+            args->beta, dst);
 }
 
-//! Footprint for bias tasks that depends only on m, n and k
+//! Footprint for bias_fiber tasks
 template<typename T>
 static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
-    // Apply hash over parameters m, n and k. This way if we swap values of m,
-    // n and k, then the total size of buffers will remain the same, but the
-    // footprint will be different
+    // Apply hash over parameters m, n and k
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
     hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
@@ -61,7 +59,7 @@ Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
-    codelet_fp32.init("nntile_bias_outer_fp32",
+    codelet_fp32.init("nntile_bias_fiber_fp32",
             footprint<fp32_t>,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -70,7 +68,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_fp64.init("nntile_bias_outer_fp64",
+    codelet_fp64.init("nntile_bias_fiber_fp64",
             footprint<fp64_t>,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
@@ -94,44 +92,60 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, T alpha, Handle src, Handle dst)
-//! Insert bias_outer task into StarPU pool of tasks
+void submit(Index m, Index n, Index k, T alpha, Handle src, T beta, Handle dst)
+//! Insert bias_fiber task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
+    // Access mode for the dst handle
+    constexpr T zero = 0, one = 1;
+    enum starpu_data_access_mode dst_mode;
+    if(beta == zero)
+    {
+        dst_mode = STARPU_W;
+    }
+    else if(beta == one)
+    {
+        dst_mode = Config::STARPU_RW_COMMUTE;
+    }
+    else
+    {
+        dst_mode = STARPU_RW;
+    }
     // Codelet arguments
     args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
     args->m = m;
     args->n = n;
     args->k = k;
     args->alpha = alpha;
-    fp64_t nflops = m * n * k;
+    args->beta = beta;
+    fp64_t nflops = k * (2*m*n+1);
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_CL_ARGS, args, sizeof(*args),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
+            dst_mode, static_cast<starpu_data_handle_t>(dst),
             STARPU_FLOPS, nflops,
             0);
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in bias_outer task submission");
+        throw std::runtime_error("Error in bias_fiber task submission");
     }
 }
 
 // Explicit instantiation
 template
 void submit<fp32_t>(Index m, Index n, Index k, fp32_t alpha, Handle src,
-        Handle dst);
+        fp32_t beta, Handle dst);
 
 template
 void submit<fp64_t>(Index m, Index n, Index k, fp64_t alpha, Handle src,
-        Handle dst);
+        fp64_t beta, Handle dst);
 
-} // namespace bias_outer
+} // namespace bias_fiber
 } // namespace starpu
 } // namespace nntile
 

@@ -4,31 +4,33 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/bias_outer/cpu.hh
- * Bias along outer axes operation on a buffer on CPU
+ * @file include/nntile/kernel/bias_fiber.hh
+ * Bias operation over slices from a fiber of a buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-04-26
  * */
 
 #pragma once
 
-#include <nntile/base_types.hh>
+#include <nntile/kernel/bias_fiber/cpu.hh>
+//#include <nntile/defs.h>
+#ifdef NNTILE_USE_CUDA
+//#include <nntile/kernel/bias_fiber/cuda.hh>
+#endif // NNTILE_USE_CUDA
 
 namespace nntile
 {
 namespace kernel
 {
-namespace bias_outer
+//! @namespace nntile::kernel::bias_fiber
+/*! Low-level implementations of bias_fiber operation
+ * */
+namespace bias_fiber
 {
 
-// Apply bias_outer along outer axes on CPU
-template<typename T>
-void cpu(Index m, Index n, Index k, T alpha, const T *src, T *dst)
-    noexcept;
-
-} // namespace bias_outer
+} // namespace bias_fiber
 } // namespace kernel
 } // namespace nntile
 

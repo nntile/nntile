@@ -17,7 +17,7 @@
 #pragma once
 
 #include <nntile/kernel/bias_slice.hh>
-#include <nntile/kernel/bias_outer.hh>
+#include <nntile/kernel/bias_fiber.hh>
 #include <nntile/kernel/biasprod.hh>
 #include <nntile/kernel/biasprod_outer.hh>
 #include <nntile/kernel/gelu.hh>

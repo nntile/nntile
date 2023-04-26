@@ -22,7 +22,7 @@
 // StarPU wrappers for low-level kernels
 #include <nntile/starpu/axpy.hh>
 #include <nntile/starpu/bias_slice.hh>
-#include <nntile/starpu/bias_outer.hh>
+#include <nntile/starpu/bias_fiber.hh>
 #include <nntile/starpu/biasprod.hh>
 #include <nntile/starpu/biasprod_outer.hh>
 #include <nntile/starpu/clear.hh>
@@ -73,7 +73,7 @@ void init()
 {
     axpy::init();
     bias_slice::init();
-    bias_outer::init();
+    bias_fiber::init();
     biasprod::init();
     biasprod_outer::init();
     clear::init();
@@ -117,7 +117,7 @@ void restrict_where(uint32_t where)
 {
     axpy::restrict_where(where);
     bias_slice::restrict_where(where);
-    bias_outer::restrict_where(where);
+    bias_fiber::restrict_where(where);
     biasprod::restrict_where(where);
     biasprod_outer::restrict_where(where);
     clear::restrict_where(where);
@@ -161,7 +161,7 @@ void restore_where()
 {
     axpy::restore_where();
     bias_slice::restore_where();
-    bias_outer::restore_where();
+    bias_fiber::restore_where();
     biasprod::restore_where();
     biasprod_outer::restore_where();
     clear::restore_where();

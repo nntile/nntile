@@ -4,12 +4,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tile/bias_outer.hh
- * Bias along outer axes operation for Tile<T>
+ * @file include/nntile/tile/bias_fiber.hh
+ * Bias operation over slices from a fiber of a Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-19
+ * @date 2023-04-26
  * */
 
 #pragma once
@@ -21,14 +21,15 @@ namespace nntile
 namespace tile
 {
 
-// Tile-wise bias_outer operation
+// Tile-wise bias_fiber operation
 template<typename T>
-void bias_outer_async(T alpha, const Tile<T> &src, const Tile<T> &dst,
+void bias_fiber_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
         Index axis);
 
-// Tile-wise bias_outer operation
+// Tile-wise bias_fiber operation
 template<typename T>
-void bias_outer(T alpha, const Tile<T> &src, const Tile<T> &dst, Index axis);
+void bias_fiber(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
+        Index axis);
 
 } // namespace tile
 } // namespace nntile

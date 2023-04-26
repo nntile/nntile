@@ -24,7 +24,7 @@
 // Tensor operations
 #include <nntile/tensor/axpy.hh>
 #include <nntile/tensor/bias_slice.hh>
-#include <nntile/tensor/bias_outer.hh>
+#include <nntile/tensor/bias_fiber.hh>
 #include <nntile/tensor/biasprod.hh>
 #include <nntile/tensor/biasprod_outer.hh>
 #include <nntile/tensor/clear.hh>
