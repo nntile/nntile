@@ -4,12 +4,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/sum_outer/cpu.hh
- * Sum of slices of a buffer on CPU (outer version)
+ * @file include/nntile/kernel/sum_fiber/cpu.hh
+ * Sums over slices into a fiber of a buffer on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-24
+ * @date 2023-04-25
  * */
 
 #pragma once
@@ -20,15 +20,15 @@ namespace nntile
 {
 namespace kernel
 {
-namespace sum_outer
+namespace sum_fiber
 {
 
-// Compute sum along outer axis
+// Sums over slices along the first and last axes into a fiber of a tensor
 template<typename T>
 void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *sum_dst)
     noexcept;
 
-} // namespace sum_outer
+} // namespace sum_fiber
 } // namespace kernel
 } // namespace nntile
 

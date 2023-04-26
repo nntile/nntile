@@ -42,7 +42,7 @@ set(TESTS_MPI
     "sumnorm"
     "fill"
     "sum_slice"
-    "sum_outer"
+    "sum_fiber"
     "norm"
     "nrm2"
     "normalize"

@@ -37,6 +37,7 @@ set(TESTS
     "maxsumexp"
     "fill"
     "sum_slice"
+    "sum_fiber"
     "norm"
     "softmax"
     "sqrt"

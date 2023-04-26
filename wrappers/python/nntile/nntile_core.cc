@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-24
+ * @date 2023-04-26
  * */
 
 #include <pybind11/pybind11.h>
@@ -395,10 +395,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("sum_slice_fp64", &sum_slice<fp64_t>);
     m.def("sum_slice_fp32", &sum_slice<fp32_t>);
 
-    m.def("sum_outer_async_fp64", &sum_outer_async<fp64_t>);
-    m.def("sum_outer_async_fp32", &sum_outer_async<fp32_t>);
-    m.def("sum_outer_fp64", &sum_outer<fp64_t>);
-    m.def("sum_outer_fp32", &sum_outer<fp32_t>);
+    m.def("sum_fiber_async_fp64", &sum_fiber_async<fp64_t>);
+    m.def("sum_fiber_async_fp32", &sum_fiber_async<fp32_t>);
+    m.def("sum_fiber_fp64", &sum_fiber<fp64_t>);
+    m.def("sum_fiber_fp32", &sum_fiber<fp32_t>);
 
     m.def("norm_async_fp64", &norm_async<fp64_t>);
     m.def("norm_async_fp32", &norm_async<fp32_t>);

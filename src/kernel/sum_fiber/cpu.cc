@@ -4,43 +4,43 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/sum_outer/cpu.cc
- * Sum of slices of a buffer on CPU (outer version)
+ * @file src/kernel/sum_fiber/cpu.cc
+ * Sums over slices into a fiber of a buffer on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-24
+ * @date 2023-04-25
  * */
 
-#include "nntile/kernel/sum_outer/cpu.hh"
+#include "nntile/kernel/sum_fiber/cpu.hh"
 #include <cmath>
 
 namespace nntile
 {
 namespace kernel
 {
-namespace sum_outer
+namespace sum_fiber
 {
 
 template<typename T>
 void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *sum_dst)
     noexcept
-//! Sum along the first and last axes
-/*! For a provided m-by-k-by-n input array src compute sums of slices
- * along the first and the thirs axes with m and n elements respectively,
- * resulting in output array sum_dst of shape (k). Mnemonically, the following
- * operations are performed:
- *      sum_dst[i] = beta*sum_dst[i] + alpha*sum(src[:,i,:])
+//! Sums over slices along the first and last axes into a fiber of a tensor
+/*! For a provided m-by-k-by-n input array computes sums over slices
+ * along the first axis with m elements and the last axis with n elements,
+ * resulting in output fiber of shape (k).
+ * Mnemonically, the following operations are performed:
+ *      sum_dst[k] = beta*sum_dst[k] + alpha*sum(src[:,k,:])
  *
  * @param[in] m: Size of the first mode of src array
  * @param[in] n: Size of the last mode of src array
  * @param[in] k: Size of the middle mode of src array and the only mode of
- *      dst_sum array
+ *      sum_dst array
  * @param[in] alpha: Scaling factor for src
  * @param[in] src: Input contiguous m-by-k-by-n array
  * @param[in] beta: Scaling factor for sum_dst
- * @param[inout] dst_sum: Output contiguous array of shape (k), that
- *      accumulates sums along outer axes.
+ * @param[inout] sum: Output contiguous vector with k elements, that accumulate
+ *      sums over slices along the first and the last axes.
  * */
 {
     constexpr T zero = 0;
@@ -87,7 +87,7 @@ void cpu<fp64_t>(Index m, Index n, Index k, fp64_t alpha, const fp64_t *src,
         fp64_t beta, fp64_t *sum_dst)
     noexcept;
 
-} // namespace sum_outer
+} // namespace sum_fiber
 } // namespace kernel
 } // namespace nntile
 

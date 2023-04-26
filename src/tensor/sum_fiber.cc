@@ -4,25 +4,25 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tensor/sum_outer.cc
- * Sum of slices of a Tensor<T> (outer version)
+ * @file src/tensor/sum_fiber.cc
+ * Sum over fibers into a slice of a Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-24
+ * @date 2023-04-26
  * */
 
-#include "nntile/tensor/sum_outer.hh"
-#include "nntile/starpu/sum_outer.hh"
+#include "nntile/tensor/sum_fiber.hh"
+#include "nntile/starpu/sum_fiber.hh"
 
 namespace nntile
 {
 namespace tensor
 {
 
-//! Compute sum of elements of slices along outer axes
+//! Tensor-wise sum_fiber
 template<typename T>
-void sum_outer_async(T alpha, const Tensor<T> &src, T beta,
+void sum_fiber_async(T alpha, const Tensor<T> &src, T beta,
         const Tensor<T> &sum_dst, Index axis)
 {
     // Check dimensions
@@ -92,12 +92,12 @@ void sum_outer_async(T alpha, const Tensor<T> &src, T beta,
             // Insert task
             if(init_first)
             {
-                starpu::sum_outer::submit<T>(m, n, k, alpha, src_tile_handle,
+                starpu::sum_fiber::submit<T>(m, n, k, alpha, src_tile_handle,
                         beta, sum_dst_tile_handle);
             }
             else
             {
-                starpu::sum_outer::submit<T>(m, n, k, alpha, src_tile_handle,
+                starpu::sum_fiber::submit<T>(m, n, k, alpha, src_tile_handle,
                         one, sum_dst_tile_handle);
             }
         }
@@ -109,32 +109,32 @@ void sum_outer_async(T alpha, const Tensor<T> &src, T beta,
     }
 }
 
-
+//! Tensor-wise sum_fiber
 template<typename T>
-void sum_outer(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &sum_dst,
+void sum_fiber(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &sum_dst,
         Index axis)
 {
-    sum_outer_async<T>(alpha, src, beta, sum_dst, axis);
+    sum_fiber_async<T>(alpha, src, beta, sum_dst, axis);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void sum_outer_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
+void sum_fiber_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
         fp32_t beta, const Tensor<fp32_t> &sum_dst, Index axis);
 
 template
-void sum_outer_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
+void sum_fiber_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
         fp64_t beta, const Tensor<fp64_t> &sum_dst, Index axis);
 
 // Explicit instantiation
 template
-void sum_outer<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src, fp32_t beta,
+void sum_fiber<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src, fp32_t beta,
         const Tensor<fp32_t> &sum_dst, Index axis);
 
 template
-void sum_outer<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src, fp64_t beta,
+void sum_fiber<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src, fp64_t beta,
         const Tensor<fp64_t> &sum_dst, Index axis);
 
 } // namespace tensor

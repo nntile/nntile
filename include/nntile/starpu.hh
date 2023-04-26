@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-24
+ * @date 2023-04-26
  * */
 
 #pragma once
@@ -43,7 +43,7 @@
 #include <nntile/starpu/sumnorm.hh>
 #include <nntile/starpu/fill.hh>
 #include <nntile/starpu/sum_slice.hh>
-#include <nntile/starpu/sum_outer.hh>
+#include <nntile/starpu/sum_fiber.hh>
 #include <nntile/starpu/norm.hh>
 #include <nntile/starpu/pow.hh>
 #include <nntile/starpu/maxsumexp.hh>
@@ -94,7 +94,7 @@ void init()
     sumnorm::init();
     fill::init();
     sum_slice::init();
-    sum_outer::init();
+    sum_fiber::init();
     norm::init();
     pow::init();
     softmax::init();
@@ -138,7 +138,7 @@ void restrict_where(uint32_t where)
     sumnorm::restrict_where(where);
     fill::restrict_where(where);
     sum_slice::restrict_where(where);
-    sum_outer::restrict_where(where);
+    sum_fiber::restrict_where(where);
     norm::restrict_where(where);
     pow::restrict_where(where);
     softmax::restrict_where(where);
@@ -182,7 +182,7 @@ void restore_where()
     sumnorm::restore_where();
     fill::restore_where();
     sum_slice::restore_where();
-    sum_outer::restore_where();
+    sum_fiber::restore_where();
     norm::restore_where();
     pow::restore_where();
     softmax::restore_where();

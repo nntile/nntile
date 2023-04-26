@@ -35,6 +35,7 @@ set(TESTS
     "maximum"
     "fill"
     "sum_slice"
+    "sum_fiber"
     "norm"
     "addcdiv"
     "scalprod"

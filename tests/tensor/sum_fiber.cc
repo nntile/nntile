@@ -4,22 +4,20 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/sum_outer.cc
- * Sum along outer axes operation for Tensor<T>
+ * @file tests/tensor/sum_fiber.cc
+ * Sums over slices into a fiber of a Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-04-24
  * */
 
-#include "nntile/tensor/sum_outer.hh"
-#include "nntile/tile/sum_outer.hh"
-#include "nntile/tile/clear.hh"
-#include "nntile/starpu/sum_outer.hh"
+#include "nntile/tensor/sum_fiber.hh"
+#include "nntile/tile/sum_fiber.hh"
+#include "nntile/starpu/sum_fiber.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
-#include "nntile/starpu/clear.hh"
 #include "../testing.hh"
 #include <limits>
 
@@ -84,11 +82,11 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     }
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
     scatter<T>(dst_single, dst);
-    // Perform tensor-wise and tile-wise sum_outer operations
-    sum_outer<T>(alpha, src, beta, dst, axis);
+    // Perform tensor-wise and tile-wise sum_fiber operations
+    sum_fiber<T>(alpha, src, beta, dst, axis);
     if(mpi_rank == mpi_root)
     {
-        tile::sum_outer<T>(alpha, src_single.get_tile(0), beta,
+        tile::sum_fiber<T>(alpha, src_single.get_tile(0), beta,
                 dst_single.get_tile(0), axis);
     }
     // Compare results
@@ -133,16 +131,16 @@ void validate()
         C(trC, dist0, last_tag), D(trD, dist00, last_tag),
         E(trE, dist0000, last_tag), F(trF, dist0, last_tag),
         G(trG, dist00, last_tag);
-    TEST_THROW(sum_outer<T>(1.0, A, 1.0, C, 0));
-    TEST_THROW(sum_outer<T>(1.0, F, 1.0, F, 0));
-    TEST_THROW(sum_outer<T>(1.0, A, 1.0, B, -1));
-    TEST_THROW(sum_outer<T>(1.0, A, 1.0, B, 2));
-    TEST_THROW(sum_outer<T>(1.0, A, 1.0, D, 0));
-    TEST_THROW(sum_outer<T>(1.0, A, 1.0, E, 0));
-    TEST_THROW(sum_outer<T>(1.0, A, 1.0, B, 0));
-    TEST_THROW(sum_outer<T>(1.0, A, 1.0, B, 1));
-    TEST_THROW(sum_outer<T>(1.0, A, 1.0, G, 0));
-    TEST_THROW(sum_outer<T>(1.0, A, 1.0, G, 1));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, C, 0));
+    TEST_THROW(sum_fiber<T>(1.0, F, 1.0, F, 0));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, B, -1));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, B, 2));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, D, 0));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, E, 0));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, B, 0));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, B, 1));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, G, 0));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, G, 1));
 }
 
 int main(int argc, char **argv)
@@ -150,12 +148,10 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    starpu::sum_outer::init();
+    starpu::sum_fiber::init();
     starpu::subcopy::init();
-    starpu::clear::init();
-    starpu::sum_outer::restrict_where(STARPU_CPU);
+    starpu::sum_fiber::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
-    starpu::clear::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

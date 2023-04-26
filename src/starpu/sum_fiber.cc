@@ -4,26 +4,26 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/sum.cc
- * Sum of slices of a StarPU buffer (outer version)
+ * @file src/starpu/sum_fiber.cc
+ * Sums over slices into a fiber of a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-24
+ * @date 2023-04-25
  * */
 
-#include "nntile/starpu/sum_outer.hh"
-#include "nntile/kernel/sum_outer.hh"
+#include "nntile/starpu/sum_fiber.hh"
+#include "nntile/kernel/sum_fiber.hh"
 #include <cstdlib>
 
 namespace nntile
 {
 namespace starpu
 {
-namespace sum_outer
+namespace sum_fiber
 {
 
-//! Sum along outer axes of StarPU buffer on CPU
+//! StarPU wrapper for kernel::sum_fiber::cpu<T>
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
@@ -35,20 +35,18 @@ void cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *sum_dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::sum_outer::cpu<T>(args->m, args->n, args->k, args->alpha, src,
+    kernel::sum_fiber::cpu<T>(args->m, args->n, args->k, args->alpha, src,
             args->beta, sum_dst);
 }
 
-//! Footprint for sum tasks that depends only on m, n and k
+//! Footprint for sum_fiber tasks
 template<typename T>
 static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
-    // Apply hash over parameters m, n and k. This way if we swap values of m,
-    // n and k, then the total size of buffers will remain the same, but the
-    // footprint will be different
+    // Apply hash over parameters m, n and k
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
     hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
@@ -60,7 +58,7 @@ Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
-    codelet_fp32.init("nntile_sum_outer_fp32",
+    codelet_fp32.init("nntile_sum_fiber_fp32",
             footprint<fp32_t>,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -69,7 +67,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_fp64.init("nntile_sum_outer_fp64",
+    codelet_fp64.init("nntile_sum_fiber_fp64",
             footprint<fp64_t>,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
@@ -95,7 +93,7 @@ void restore_where()
 template<typename T>
 void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
         Handle sum_dst)
-//! Insert sum_outer task into StarPU pool of tasks
+//! Insert sum_fiber task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
@@ -132,7 +130,7 @@ void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in sum_outer task submission");
+        throw std::runtime_error("Error in sum_fiber task submission");
     }
 }
 
@@ -145,7 +143,7 @@ template
 void submit<fp64_t>(Index m, Index n, Index k, fp64_t alpha, Handle src,
         fp64_t beta, Handle sum_dst);
 
-} // namespace sum_outer
+} // namespace sum_fiber
 } // namespace starpu
 } // namespace nntile
 

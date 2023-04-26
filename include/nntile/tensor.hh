@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-24
+ * @date 2023-04-26
  * */
 
 #pragma once
@@ -46,7 +46,7 @@
 #include <nntile/tensor/scatter.hh>
 #include <nntile/tensor/fill.hh>
 #include <nntile/tensor/sum_slice.hh>
-#include <nntile/tensor/sum_outer.hh>
+#include <nntile/tensor/sum_fiber.hh>
 #include <nntile/tensor/norm.hh>
 #include <nntile/tensor/pow.hh>
 #include <nntile/tensor/sumnorm.hh>

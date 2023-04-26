@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-24
+ * @date 2023-04-26
  * */
 
 #pragma once
@@ -43,7 +43,7 @@
 #include <nntile/tile/sumnorm.hh>
 #include <nntile/tile/fill.hh>
 #include <nntile/tile/sum_slice.hh>
-#include <nntile/tile/sum_outer.hh>
+#include <nntile/tile/sum_fiber.hh>
 #include <nntile/tile/norm.hh>
 #include <nntile/tile/pow.hh>
 #include <nntile/tile/maxsumexp.hh>
