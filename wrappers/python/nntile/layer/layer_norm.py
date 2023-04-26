@@ -13,10 +13,10 @@
 
 from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         TensorOrNone, TensorMoments, \
-        bias_slice_async, copy_async, sum_slice_async, norm_async, \
+        add_slice_async, copy_async, sum_slice_async, norm_async, \
         fill_async, pow_async, biasprod_async, sumprod_slice_async, \
         axpy_async, biasprod_outer_async, \
-        bias_fiber_async, sum_fiber_async, scalprod_outer_async, \
+        add_fiber_async, sum_fiber_async, scalprod_outer_async, \
         clear_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
@@ -128,7 +128,7 @@ class LayerNorm(BaseLayer):
         # Init Y as a copy of X
         copy_async(self.x.value, self.y.value)
         # Subtract mean from Y
-        bias_slice_async(-1.0, self.mean, 1.0, self.y.value, self.axis)
+        add_slice_async(-1.0, self.mean, 1.0, self.y.value, self.axis)
         # Compute standard deviation of self.y.value
         fill_async(self.eps, self.inv_stddev)
         norm_async(1.0/self.l**0.5, self.y.value, 1.0, self.inv_stddev, \
@@ -142,7 +142,7 @@ class LayerNorm(BaseLayer):
         # Scale output
         biasprod_outer_async(self.gamma.value, self.y.value, self.axis)
         # Shift output
-        bias_fiber_async(1.0, self.beta.value, 1.0, self.y.value, self.axis)
+        add_fiber_async(1.0, self.beta.value, 1.0, self.y.value, self.axis)
 
     def backward_async(self):
         # Accumulate gradient over beta
@@ -163,7 +163,7 @@ class LayerNorm(BaseLayer):
         # Get mean value of tmp_Y_grad over the given axis
         sum_slice_async(1.0/self.l, self.tmp_y_grad, 0.0, self.mean, self.axis)
         # Subtract mean from tmp_Y_value
-        bias_slice_async(-1.0, self.mean, 1.0, self.tmp_y_value, self.axis)
+        add_slice_async(-1.0, self.mean, 1.0, self.tmp_y_value, self.axis)
         # Multiply tmp_Y_value by the inverse stddev
         biasprod_async(self.inv_stddev, self.tmp_y_value, self.axis)
         # Accumulate gradient from tmp_Y_value

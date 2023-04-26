@@ -285,27 +285,27 @@ def maxsumexp_async(x: Tensor, maxsumexp: Tensor, axis: int) -> None:
     else:
         raise TypeError
 
-# Wrapper for multiprecision bias_slice
-def bias_slice_async(alpha: float, bias_slice: Tensor, beta, x: Tensor, \
+# Wrapper for multiprecision add_slice
+def add_slice_async(alpha: float, add_slice: Tensor, beta, x: Tensor, \
         axis: int) -> None:
-    if type(bias_slice) is not type(x):
+    if type(add_slice) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.bias_slice_async_fp32(alpha, bias_slice, beta, x, axis)
+        core_tensor.add_slice_async_fp32(alpha, add_slice, beta, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.bias_slice_async_fp64(alpha, bias_slice, beta, x, axis)
+        core_tensor.add_slice_async_fp64(alpha, add_slice, beta, x, axis)
     else:
         raise TypeError
 
-# Wrapper for multiprecision bias_fiber
-def bias_fiber_async(alpha: float, bias_fiber: Tensor, beta, x: Tensor, \
+# Wrapper for multiprecision add_fiber
+def add_fiber_async(alpha: float, add_fiber: Tensor, beta, x: Tensor, \
         axis: int) -> None:
-    if type(bias_fiber) is not type(x):
+    if type(add_fiber) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.bias_fiber_async_fp32(alpha, bias_fiber, beta, x, axis)
+        core_tensor.add_fiber_async_fp32(alpha, add_fiber, beta, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.bias_fiber_async_fp64(alpha, bias_fiber, beta, x, axis)
+        core_tensor.add_fiber_async_fp64(alpha, add_fiber, beta, x, axis)
     else:
         raise TypeError
 

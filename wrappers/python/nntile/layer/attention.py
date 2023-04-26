@@ -14,7 +14,7 @@
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
         maxsumexp_async, softmax_async, sumprod_slice_async, \
-        bias_slice_async, prod_async
+        add_slice_async, prod_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -340,7 +340,7 @@ class Attention(BaseLayer):
                 sumprod_slice_async(1.0, self.a[i].value, self.a[i].grad, \
                         0.0, self.a_sumprod_slice[i], 0)
                 # dA[i] += -bias('kml,ml->kml', dA[i], A_sumprod_slice[i])
-                bias_slice_async(-1.0, self.a_sumprod_slice[i], 1.0, \
+                add_slice_async(-1.0, self.a_sumprod_slice[i], 1.0, \
                         self.a[i].grad, 0)
                 # A_sumprod_slice[i] can be deleted
                 self.a_sumprod_slice[i].invalidate_submit()

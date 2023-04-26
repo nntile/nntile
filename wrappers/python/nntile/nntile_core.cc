@@ -445,15 +445,15 @@ void def_mod_tensor(py::module_ &m)
     m.def("maxsumexp_fp64", &maxsumexp<fp64_t>);
     m.def("maxsumexp_fp32", &maxsumexp<fp32_t>);
 
-    m.def("bias_slice_async_fp64", &bias_slice_async<fp64_t>);
-    m.def("bias_slice_async_fp32", &bias_slice_async<fp32_t>);
-    m.def("bias_slice_fp64", &bias_slice<fp64_t>);
-    m.def("bias_slice_fp32", &bias_slice<fp32_t>);
+    m.def("add_slice_async_fp64", &add_slice_async<fp64_t>);
+    m.def("add_slice_async_fp32", &add_slice_async<fp32_t>);
+    m.def("add_slice_fp64", &add_slice<fp64_t>);
+    m.def("add_slice_fp32", &add_slice<fp32_t>);
 
-    m.def("bias_fiber_async_fp64", &bias_fiber_async<fp64_t>);
-    m.def("bias_fiber_async_fp32", &bias_fiber_async<fp32_t>);
-    m.def("bias_fiber_fp64", &bias_fiber<fp64_t>);
-    m.def("bias_fiber_fp32", &bias_fiber<fp32_t>);
+    m.def("add_fiber_async_fp64", &add_fiber_async<fp64_t>);
+    m.def("add_fiber_async_fp32", &add_fiber_async<fp32_t>);
+    m.def("add_fiber_fp64", &add_fiber<fp64_t>);
+    m.def("add_fiber_fp32", &add_fiber<fp32_t>);
 
     m.def("biasprod_async_fp64", &biasprod_async<fp64_t>);
     m.def("biasprod_async_fp32", &biasprod_async<fp32_t>);

@@ -9,12 +9,15 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-24
+ * @date 2023-04-26
  * */
+
+#include <iostream>
 
 int main(int argc, char **argv)
 {
     // Not implemented
+    std::cout << "This test is not yet implemented\n";
     return -1;
 }
 

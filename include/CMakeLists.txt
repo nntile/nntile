@@ -22,10 +22,10 @@ set(BASE_HDR
     )
 
 set(KERNEL_HDR
-    "nntile/kernel/bias_slice.hh"
-    "nntile/kernel/bias_slice/cpu.hh"
-    "nntile/kernel/bias_fiber.hh"
-    "nntile/kernel/bias_fiber/cpu.hh"
+    "nntile/kernel/add_slice.hh"
+    "nntile/kernel/add_slice/cpu.hh"
+    "nntile/kernel/add_fiber.hh"
+    "nntile/kernel/add_fiber/cpu.hh"
     "nntile/kernel/biasprod.hh"
     "nntile/kernel/biasprod/cpu.hh"
     "nntile/kernel/biasprod_outer.hh"
@@ -95,7 +95,7 @@ set(KERNEL_HDR
 if(NNTILE_USE_CUDA)
     set(KERNEL_HDR
         ${KERNEL_HDR}
-        "nntile/kernel/bias_slice/cuda.hh"
+        "nntile/kernel/add_slice/cuda.hh"
         "nntile/kernel/biasprod/cuda.hh"
         "nntile/kernel/dgelu/cuda.hh"
         "nntile/kernel/dgelutanh/cuda.hh"
@@ -122,8 +122,8 @@ endif()
 set(STARPU_HDR
     "nntile/starpu/config.hh"
     "nntile/starpu/axpy.hh"
-    "nntile/starpu/bias_slice.hh"
-    "nntile/starpu/bias_fiber.hh"
+    "nntile/starpu/add_slice.hh"
+    "nntile/starpu/add_fiber.hh"
     "nntile/starpu/biasprod.hh"
     "nntile/starpu/biasprod_outer.hh"
     "nntile/starpu/clear.hh"
@@ -167,8 +167,8 @@ set(TILE_HDR
     "nntile/tile/traits.hh"
     "nntile/tile/tile.hh"
     "nntile/tile/axpy.hh"
-    "nntile/tile/bias_slice.hh"
-    "nntile/tile/bias_fiber.hh"
+    "nntile/tile/add_slice.hh"
+    "nntile/tile/add_fiber.hh"
     "nntile/tile/biasprod.hh"
     "nntile/tile/biasprod_outer.hh"
     "nntile/tile/clear.hh"
@@ -213,8 +213,8 @@ set(TENSOR_HDR
     "nntile/tensor/distributions.hh"
     "nntile/tensor/tensor.hh"
     "nntile/tensor/axpy.hh"
-    "nntile/tensor/bias_slice.hh"
-    "nntile/tensor/bias_fiber.hh"
+    "nntile/tensor/add_slice.hh"
+    "nntile/tensor/add_fiber.hh"
     "nntile/tensor/biasprod.hh"
     "nntile/tensor/biasprod_outer.hh"
     "nntile/tensor/clear.hh"
