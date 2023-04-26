@@ -549,10 +549,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("scal_fp64", &scal<fp64_t>);
     m.def("scal_fp32", &scal<fp32_t>);
 
-    m.def("scalprod_async_fp64", &scalprod_async<fp64_t>);
-    m.def("scalprod_async_fp32", &scalprod_async<fp32_t>);
-    m.def("scalprod_fp64", &scalprod<fp64_t>);
-    m.def("scalprod_fp32", &scalprod<fp32_t>);
+    m.def("sumprod_slice_async_fp64", &sumprod_slice_async<fp64_t>);
+    m.def("sumprod_slice_async_fp32", &sumprod_slice_async<fp32_t>);
+    m.def("sumprod_slice_fp64", &sumprod_slice<fp64_t>);
+    m.def("sumprod_slice_fp32", &sumprod_slice<fp32_t>);
     
     m.def("scalprod_outer_async_fp64", &scalprod_outer_async<fp64_t>);
     m.def("scalprod_outer_async_fp32", &scalprod_outer_async<fp32_t>);

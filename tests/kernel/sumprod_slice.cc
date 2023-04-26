@@ -4,15 +4,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/scalprod.cc
+ * @file tests/kernel/sumprod_slice.cc
  * Scalar product of two buffers
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-26
+ * @date 2023-04-26
  * */
 
-#include "nntile/kernel/scalprod.hh"
+#include "nntile/kernel/sumprod_slice.hh"
 #include "../testing.hh"
 #include <vector>
 #include <stdexcept>
@@ -21,7 +21,7 @@
 #include <iostream>
 
 using namespace nntile;
-using namespace nntile::kernel::scalprod;
+using namespace nntile::kernel::sumprod_slice;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
@@ -89,7 +89,7 @@ void validate(Index m, Index n, Index k, T alpha, T beta)
     }
     std::vector<T> dst_copy(dst);
     // Check low-level kernel
-    std::cout << "Run kernel::scalprod::cpu<T>\n";
+    std::cout << "Run kernel::sumprod_slice::cpu<T>\n";
     cpu<T>(m, n, k, alpha, &src1[0], &src2[0], beta, &dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -109,11 +109,11 @@ void validate(Index m, Index n, Index k, T alpha, T beta)
             }
         }
     }
-    std::cout << "OK: kernel::scalprod::cpu<T>\n";
+    std::cout << "OK: kernel::sumprod_slice::cpu<T>\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_copy;
-    std::cout << "Run kernel::scalprod::cuda<T>\n";
+    std::cout << "Run kernel::sumprod_slice::cuda<T>\n";
     run_cuda<T>(m, n, k, alpha, src1, src2, beta, dst);
     for(Index i0 = 0; i0 < m; ++i0)
     {

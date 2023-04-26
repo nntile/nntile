@@ -45,7 +45,7 @@ set(TESTS
     "maximum"
     "addcdiv"
     "scal"
-    "scalprod"
+    "sumprod_slice"
     )
 
 # Add target for local coverage

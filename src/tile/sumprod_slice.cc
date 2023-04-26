@@ -4,26 +4,26 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tile/scalprod.cc
- * Scalar product of slices of two Tile<T>
+ * @file src/tile/sumprod_slice.cc
+ * Sums over fibers into a slice of a product of two Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-04-26
  * */
 
-#include "nntile/tile/scalprod.hh"
-#include "nntile/starpu/scalprod.hh"
+#include "nntile/tile/sumprod_slice.hh"
+#include "nntile/starpu/sumprod_slice.hh"
 
 namespace nntile
 {
 namespace tile
 {
 
-//! Tile-wise scalar products along single given axis
+//! Tile-wise sumprod_slice operation
 template<typename T>
-void scalprod_async(T alpha, const Tile<T> &src1, const Tile<T> &src2, T beta,
-        const Tile<T> &dst, Index axis)
+void sumprod_slice_async(T alpha, const Tile<T> &src1, const Tile<T> &src2,
+        T beta, const Tile<T> &dst, Index axis)
 {
     // Check shapes of src1 and src2
     if(src1.shape != src2.shape)
@@ -71,37 +71,37 @@ void scalprod_async(T alpha, const Tile<T> &src1, const Tile<T> &src2, T beta,
     n = src1.matrix_shape[axis+1][1];
     k = src1.shape[axis];
     // Insert task
-    starpu::scalprod::submit<T>(m, n, k, alpha, src1, src2, beta, dst);
+    starpu::sumprod_slice::submit<T>(m, n, k, alpha, src1, src2, beta, dst);
 }
 
-//! Tile-wise scalar products along single given axis
+//! Tile-wise sumprod_slice operation
 template<typename T>
-void scalprod(T alpha, const Tile<T> &src1, const Tile<T> &src2, T beta,
+void sumprod_slice(T alpha, const Tile<T> &src1, const Tile<T> &src2, T beta,
         const Tile<T> &dst, Index axis)
 {
-    scalprod_async<T>(alpha, src1, src2, beta, dst, axis);
+    sumprod_slice_async<T>(alpha, src1, src2, beta, dst, axis);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void scalprod_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src1,
+void sumprod_slice_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src1,
         const Tile<fp32_t> &src2, fp32_t beta, const Tile<fp32_t> &dst,
         Index axis);
 
 template
-void scalprod_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src1,
+void sumprod_slice_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src1,
         const Tile<fp64_t> &src2, fp64_t beta, const Tile<fp64_t> &dst,
         Index axis);
 
 // Explicit instantiation
 template
-void scalprod<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src1,
+void sumprod_slice<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src1,
         const Tile<fp32_t> &src2, fp32_t beta, const Tile<fp32_t> &dst,
         Index axis);
 
 template
-void scalprod<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src1,
+void sumprod_slice<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src1,
         const Tile<fp64_t> &src2, fp64_t beta, const Tile<fp64_t> &dst,
         Index axis);
 

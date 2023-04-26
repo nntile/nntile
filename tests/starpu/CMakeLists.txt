@@ -39,7 +39,7 @@ set(TESTS
     "sum_fiber"
     "norm"
     "addcdiv"
-    "scalprod"
+    "sumprod_slice"
     )
 
 # Add target for local coverage

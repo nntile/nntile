@@ -4,33 +4,32 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/scalprod.hh
- * Low-level kernels to compute scalar product of slices of two buffers
+ * @file include/nntile/kernel/sumprod_slice/cuda.hh
+ * Sums over fibers into a slice of a product of buffers on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-04-26
  * */
 
 #pragma once
 
-#include <nntile/kernel/scalprod/cpu.hh>
-#include <nntile/defs.h>
-#ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/scalprod/cuda.hh>
-#endif // NNTILE_USE_CUDA
+#include <nntile/base_types.hh>
+#include <cuda_runtime.h>
 
 namespace nntile
 {
 namespace kernel
 {
-//! @namespace nntile::kernel::scalprod
-/*! Low-level implementations of computing scalar product of slices
- * */
-namespace scalprod
+namespace sumprod_slice
 {
 
-} // namespace scalprod
+template<typename T>
+void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
+        const T *src1, const T *src2, T beta, T *dst)
+    noexcept;
+
+} // namespace sumprod_slice
 } // namespace kernel
 } // namespace nntile
 

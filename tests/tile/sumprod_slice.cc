@@ -4,16 +4,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tile/scalprod.cc
- * Scalprod operation on Tile<T>
+ * @file tests/tile/sumprod_slice.cc
+ * sumprod_slice operation on Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-26
+ * @date 2023-04-26
  * */
 
-#include "nntile/tile/scalprod.hh"
-#include "nntile/starpu/scalprod.hh"
+#include "nntile/tile/sumprod_slice.hh"
+#include "nntile/starpu/sumprod_slice.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -50,8 +50,9 @@ void check(T alpha, T beta)
     }
     // Check axis=0
     {
-        starpu::scalprod::submit<T>(1, 20, 3, alpha, src1, src2, beta, dst[0]);
-        scalprod<T>(alpha, src1, src2, beta, dst2[0], 0);
+        starpu::sumprod_slice::submit<T>(1, 20, 3, alpha, src1, src2, beta,
+                dst[0]);
+        sumprod_slice<T>(alpha, src1, src2, beta, dst2[0], 0);
         auto dst_local = dst[0].acquire(STARPU_R);
         auto dst2_local = dst2[0].acquire(STARPU_R);
         for(Index i = 0; i < dst[0].nelems; ++i)
@@ -63,8 +64,9 @@ void check(T alpha, T beta)
     }
     // Check axis=1
     {
-        starpu::scalprod::submit<T>(3, 5, 4, alpha, src1, src2, beta, dst[1]);
-        scalprod<T>(alpha, src1, src2, beta, dst2[1], 1);
+        starpu::sumprod_slice::submit<T>(3, 5, 4, alpha, src1, src2, beta,
+                dst[1]);
+        sumprod_slice<T>(alpha, src1, src2, beta, dst2[1], 1);
         auto dst_local = dst[1].acquire(STARPU_R);
         auto dst2_local = dst2[1].acquire(STARPU_R);
         for(Index i = 0; i < dst[1].nelems; ++i)
@@ -76,8 +78,9 @@ void check(T alpha, T beta)
     }
     // Check axis=2
     {
-        starpu::scalprod::submit<T>(12, 1, 5, alpha, src1, src2, beta, dst[2]);
-        scalprod<T>(alpha, src1, src2, beta, dst2[2], 2);
+        starpu::sumprod_slice::submit<T>(12, 1, 5, alpha, src1, src2, beta,
+                dst[2]);
+        sumprod_slice<T>(alpha, src1, src2, beta, dst2[2], 2);
         auto dst_local = dst[2].acquire(STARPU_R);
         auto dst2_local = dst2[2].acquire(STARPU_R);
         for(Index i = 0; i < dst[2].nelems; ++i)
@@ -100,13 +103,13 @@ void validate()
     Tile<T> dst[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
         Tile<T>({2, 3, 4})};
     Tile<T> empty({});
-    TEST_THROW(scalprod<T>(1.0, src1, src2, 0.0, empty, 0));
-    TEST_THROW(scalprod<T>(1.0, empty, empty, 0.0, empty, 0));
-    TEST_THROW(scalprod<T>(1.0, src1, src2, 0.0, dst[0], -1));
-    TEST_THROW(scalprod<T>(1.0, src1, src2, 0.0, dst[0], 3));
-    TEST_THROW(scalprod<T>(1.0, src1, src2, 0.0, src1, 0));
-    TEST_THROW(scalprod<T>(1.0, src1, src2, 0.0, dst[0], 1));
-    TEST_THROW(scalprod<T>(1.0, src1, src2, 0.0, dst[2], 1));
+    TEST_THROW(sumprod_slice<T>(1.0, src1, src2, 0.0, empty, 0));
+    TEST_THROW(sumprod_slice<T>(1.0, empty, empty, 0.0, empty, 0));
+    TEST_THROW(sumprod_slice<T>(1.0, src1, src2, 0.0, dst[0], -1));
+    TEST_THROW(sumprod_slice<T>(1.0, src1, src2, 0.0, dst[0], 3));
+    TEST_THROW(sumprod_slice<T>(1.0, src1, src2, 0.0, src1, 0));
+    TEST_THROW(sumprod_slice<T>(1.0, src1, src2, 0.0, dst[0], 1));
+    TEST_THROW(sumprod_slice<T>(1.0, src1, src2, 0.0, dst[2], 1));
 }
 
 int main(int argc, char **argv)
@@ -114,8 +117,8 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    starpu::scalprod::init();
-    starpu::scalprod::restrict_where(STARPU_CPU);
+    starpu::sumprod_slice::init();
+    starpu::sumprod_slice::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

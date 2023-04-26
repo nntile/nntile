@@ -38,7 +38,7 @@ set(TESTS
     "sqrt"
     "maximum"
     "addcdiv"
-    "scalprod"
+    "sumprod_slice"
     )
 
 # Setup a target for coverage of kernels

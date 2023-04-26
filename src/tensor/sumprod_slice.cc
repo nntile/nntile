@@ -4,26 +4,25 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tensor/scalprod.cc
- * Scalar products of two Tensor<T> along axis
+ * @file src/tensor/sumprod_slice.cc
+ * Sums over fibers into a slice of a product of two Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-04-26
  * */
 
-#include "nntile/tensor/scalprod.hh"
-#include "nntile/starpu/scalprod.hh"
-#include "nntile/starpu/clear.hh"
+#include "nntile/tensor/sumprod_slice.hh"
+#include "nntile/starpu/sumprod_slice.hh"
 
 namespace nntile
 {
 namespace tensor
 {
 
-//! Compute scalar products of slices along given axis
+//! Tensor-wise sumprod_slice operation
 template<typename T>
-void scalprod_async(T alpha, const Tensor<T> &src1, const Tensor<T> &src2,
+void sumprod_slice_async(T alpha, const Tensor<T> &src1, const Tensor<T> &src2,
         T beta, const Tensor<T> &dst, Index axis)
 {
     // Check shapes of src1 and src2
@@ -116,7 +115,7 @@ void scalprod_async(T alpha, const Tensor<T> &src1, const Tensor<T> &src2,
             n = src_tile_traits.matrix_shape[axis+1][1];
             k = src_tile_traits.shape[axis];
             // Insert task
-            starpu::scalprod::submit<T>(m, n, k, alpha, src1_tile_handle,
+            starpu::sumprod_slice::submit<T>(m, n, k, alpha, src1_tile_handle,
                     src2_tile_handle, beta, dst_tile_handle);
         }
         // Launch kernel for all other appropriate source tiles with beta=1
@@ -137,27 +136,13 @@ void scalprod_async(T alpha, const Tensor<T> &src1, const Tensor<T> &src2,
                 // Get sizes
                 auto src_tile_traits = src1.get_tile_traits(src_tile_offset);
                 Index m, n, k;
-                if(axis == 0)
-                {
-                    m = 1;
-                    n = dst_tile_traits.nelems;
-                    k = src_tile_traits.shape[0];
-                }
-                else if(axis == ndim-1)
-                {
-                    m = dst_tile_traits.nelems;
-                    n = 1;
-                    k = src_tile_traits.shape[axis];
-                }
-                else
-                {
-                    m = src_tile_traits.stride[axis];
-                    n = src_tile_traits.matrix_shape[axis+1][1];
-                    k = src_tile_traits.shape[axis];
-                }
+                m = src_tile_traits.stride[axis];
+                n = src_tile_traits.matrix_shape[axis+1][1];
+                k = src_tile_traits.shape[axis];
                 // Insert task
-                starpu::scalprod::submit<T>(m, n, k, alpha, src1_tile_handle,
-                        src2_tile_handle, 1.0, dst_tile_handle);
+                starpu::sumprod_slice::submit<T>(m, n, k, alpha,
+                        src1_tile_handle, src2_tile_handle, 1.0,
+                        dst_tile_handle);
             }
         }
         // Flush cache for the output tile on every node
@@ -165,35 +150,35 @@ void scalprod_async(T alpha, const Tensor<T> &src1, const Tensor<T> &src2,
     }
 }
 
-
+//! Tensor-wise sumprod_slice operation
 template<typename T>
-void scalprod(T alpha, const Tensor<T> &src1, const Tensor<T> &src2, T beta,
-        const Tensor<T> &dst, Index axis)
+void sumprod_slice(T alpha, const Tensor<T> &src1, const Tensor<T> &src2,
+        T beta, const Tensor<T> &dst, Index axis)
 {
-    scalprod_async<T>(alpha, src1, src2, beta, dst, axis);
+    sumprod_slice_async<T>(alpha, src1, src2, beta, dst, axis);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void scalprod_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src1,
+void sumprod_slice_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src1,
         const Tensor<fp32_t> &src2, fp32_t beta, const Tensor<fp32_t> &dst,
         Index axis);
 
 template
-void scalprod_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src1,
+void sumprod_slice_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src1,
         const Tensor<fp64_t> &src2, fp64_t beta, const Tensor<fp64_t> &dst,
         Index axis);
 
 // Explicit instantiation
 template
-void scalprod<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src1,
+void sumprod_slice<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src1,
         const Tensor<fp32_t> &src2, fp32_t beta, const Tensor<fp32_t> &dst,
         Index axis);
 
 template
-void scalprod<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src1,
+void sumprod_slice<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src1,
         const Tensor<fp64_t> &src2, fp64_t beta, const Tensor<fp64_t> &dst,
         Index axis);
 

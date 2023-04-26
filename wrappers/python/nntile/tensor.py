@@ -433,17 +433,19 @@ def addcdiv_async(alpha: float, eps: float, nom: Tensor, denom: Tensor, \
     elif type(nom) is core_tensor.Tensor_fp64:
         core_tensor.addcdiv_async_fp64(alpha, eps, nom, denom, src)
 
-# Wrapper for multiprecision scalprod
-def scalprod_async(alpha: float, src1: Tensor, src2: Tensor, beta: float, \
-        dst: Tensor, axis: int) -> None:
+# Wrapper for multiprecision sumprod_slice
+def sumprod_slice_async(alpha: float, src1: Tensor, src2: Tensor, \
+        beta: float, dst: Tensor, axis: int) -> None:
     if type(src1) is not type(src2):
         raise TypeError
     if type(src1) is not type(dst):
         raise TypeError
     if type(src1) is core_tensor.Tensor_fp32:
-        core_tensor.scalprod_async_fp32(alpha, src1, src2, beta, dst, axis)
+        core_tensor.sumprod_slice_async_fp32(alpha, src1, src2, beta, dst, \
+                axis)
     elif type(src1) is core_tensor.Tensor_fp64:
-        core_tensor.scalprod_async_fp64(alpha, src1, src2, beta, dst, axis)
+        core_tensor.sumprod_slice_async_fp64(alpha, src1, src2, beta, dst, \
+                axis)
     else:
         raise TypeError
 

@@ -43,7 +43,7 @@
 #include <nntile/kernel/sqrt.hh>
 #include <nntile/kernel/maximum.hh>
 #include <nntile/kernel/addcdiv.hh>
-#include <nntile/kernel/scalprod.hh>
+#include <nntile/kernel/sumprod_slice.hh>
 #include <nntile/kernel/scalprod_outer.hh>
 #include <nntile/kernel/logsumexp.hh>
 #include <nntile/kernel/total_sum_accum.hh>

@@ -51,7 +51,7 @@
 #include <nntile/tile/sqrt.hh>
 #include <nntile/tile/maximum.hh>
 #include <nntile/tile/addcdiv.hh>
-#include <nntile/tile/scalprod.hh>
+#include <nntile/tile/sumprod_slice.hh>
 #include <nntile/tile/scalprod_outer.hh>
 #include <nntile/tile/logsumexp.hh>
 #include <nntile/tile/total_sum_accum.hh>

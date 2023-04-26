@@ -55,7 +55,7 @@
 #include <nntile/tensor/sqrt.hh>
 #include <nntile/tensor/maximum.hh>
 #include <nntile/tensor/addcdiv.hh>
-#include <nntile/tensor/scalprod.hh>
+#include <nntile/tensor/sumprod_slice.hh>
 #include <nntile/tensor/scalprod_outer.hh>
 #include <nntile/tensor/logsumexp.hh>
 #include <nntile/tensor/total_sum_accum.hh>

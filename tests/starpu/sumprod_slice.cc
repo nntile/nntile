@@ -4,16 +4,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/starpu/scalprod.cc
+ * @file tests/starpu/sumprod_slice.cc
  * Scalar products of slices for two StarPU buffers
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-26
+ * @date 2023-04-26
  * */
 
-#include "nntile/starpu/scalprod.hh"
-#include "nntile/kernel/scalprod.hh"
+#include "nntile/starpu/sumprod_slice.hh"
+#include "nntile/kernel/sumprod_slice.hh"
 #include "../testing.hh"
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_runtime.h>
@@ -44,16 +44,16 @@ void validate_cpu(Index m, Index n, Index k, T alpha, T beta)
     // Create copies of destination
     std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::scalprod::cpu<T>\n";
-    kernel::scalprod::cpu<T>(m, n, k, alpha, &src1[0], &src2[0], beta,
+    std::cout << "Run kernel::sumprod_slice::cpu<T>\n";
+    kernel::sumprod_slice::cpu<T>(m, n, k, alpha, &src1[0], &src2[0], beta,
             &dst[0]);
     // Check by actually submitting a task
     VariableHandle src1_handle(&src1[0], sizeof(T)*m*n*k, STARPU_R),
         src2_handle(&src2[0], sizeof(T)*m*n*k, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n, STARPU_RW);
-    scalprod::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::scalprod::submit<T> restricted to CPU\n";
-    scalprod::submit<T>(m, n, k, alpha, src1_handle, src2_handle, beta,
+    sumprod_slice::restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::sumprod_slice::submit<T> restricted to CPU\n";
+    sumprod_slice::submit<T>(m, n, k, alpha, src1_handle, src2_handle, beta,
             dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
@@ -62,7 +62,7 @@ void validate_cpu(Index m, Index n, Index k, T alpha, T beta)
     {
         TEST_ASSERT(dst[i] == dst2[i]);
     }
-    std::cout << "OK: starpu::scalprod::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::sumprod_slice::submit<T> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -110,8 +110,8 @@ void validate_cuda(Index m, Index n, Index k, T alpha, T beta)
     cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*m*n,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::scalprod::cuda<T>\n";
-    kernel::scalprod::cuda<T>(stream, m, n, k, alpha, dev_src1, dev_src2,
+    std::cout << "Run kernel::sumprod_slice::cuda<T>\n";
+    kernel::sumprod_slice::cuda<T>(stream, m, n, k, alpha, dev_src1, dev_src2,
             beta, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
@@ -133,9 +133,9 @@ void validate_cuda(Index m, Index n, Index k, T alpha, T beta)
     VariableHandle src1_handle(&src1[0], sizeof(T)*m*n*k, STARPU_R),
         src2_handle(&src2[0], sizeof(T)*m*n*k, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n, STARPU_RW);
-    scalprod::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::scalprod::submit<T> restricted to CUDA\n";
-    scalprod::submit<T>(m, n, k, alpha, src1_handle, src2_handle, beta,
+    sumprod_slice::restrict_where(STARPU_CUDA);
+    std::cout << "Run starpu::sumprod_slice::submit<T> restricted to CUDA\n";
+    sumprod_slice::submit<T>(m, n, k, alpha, src1_handle, src2_handle, beta,
             dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
@@ -144,7 +144,7 @@ void validate_cuda(Index m, Index n, Index k, T alpha, T beta)
     {
         TEST_ASSERT(dst[i] == dst2[i]);
     }
-    std::cout << "OK: starpu::scalprod::submit<T> restricted to CUDA\n";
+    std::cout << "OK: starpu::sumprod_slice::submit<T> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 
@@ -153,7 +153,7 @@ int main(int argc, char **argv)
     // Init StarPU for testing
     Config starpu(1, 1, 0);
     // Init codelet
-    scalprod::init();
+    sumprod_slice::init();
     // Launch all tests
     validate_cpu<fp32_t>(3, 5, 7, 2.0, -1.0);
     validate_cpu<fp32_t>(3, 5, 7, -1.0, 0.0);

@@ -51,7 +51,7 @@
 #include <nntile/starpu/sqrt.hh>
 #include <nntile/starpu/maximum.hh>
 #include <nntile/starpu/addcdiv.hh>
-#include <nntile/starpu/scalprod.hh>
+#include <nntile/starpu/sumprod_slice.hh>
 #include <nntile/starpu/scalprod_outer.hh>
 #include <nntile/starpu/logsumexp.hh>
 #include <nntile/starpu/total_sum_accum.hh>
@@ -102,7 +102,7 @@ void init()
     sqrt::init();
     maximum::init();
     addcdiv::init();
-    scalprod::init();
+    sumprod_slice::init();
     scalprod_outer::init();
     logsumexp::init();
     total_sum_accum::init();
@@ -146,7 +146,7 @@ void restrict_where(uint32_t where)
     sqrt::restrict_where(where);
     maximum::restrict_where(where);
     addcdiv::restrict_where(where);
-    scalprod::restrict_where(where);
+    sumprod_slice::restrict_where(where);
     scalprod_outer::restrict_where(where);
     logsumexp::restrict_where(where);
     total_sum_accum::restrict_where(where);
@@ -190,7 +190,7 @@ void restore_where()
     sqrt::restore_where();
     maximum::restore_where();
     addcdiv::restore_where();
-    scalprod::restore_where();
+    sumprod_slice::restore_where();
     scalprod_outer::restore_where();
     logsumexp::restore_where();
     total_sum_accum::restore_where();

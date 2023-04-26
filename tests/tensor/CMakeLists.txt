@@ -53,7 +53,7 @@ set(TESTS_MPI
     "maximum"
     "addcdiv"
     "scal"
-    "scalprod"
+    "sumprod_slice"
     "scalprod_outer"
     )
 
