@@ -4,12 +4,12 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_bias.py
-# Test for tensor::bias<T> Python wrapper
+# @file wrappers/python/tests/nntile_core/test_tensor_bias_slice.py
+# Test for tensor::bias_slice<T> Python wrapper
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-03-26
+# @date 2023-04-26
 
 # All necesary imports
 import nntile
@@ -24,8 +24,8 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-bias = {np.float32: nntile.nntile_core.tensor.bias_fp32,
-        np.float64: nntile.nntile_core.tensor.bias_fp64}
+bias_slice = {np.float32: nntile.nntile_core.tensor.bias_slice_fp32, \
+        np.float64: nntile.nntile_core.tensor.bias_slice_fp64}
 
 # Helper function returns bool value true if test passes
 def helper(dtype):
@@ -59,15 +59,16 @@ def helper(dtype):
         B[i].from_array(np_B[-1])
     # Check result along each axis
     alpha = -0.5
+    beta = 0.5
     for i in range(ndim):
         A.from_array(np_A)
-        bias[dtype](alpha, B[i], A, i)
+        bias_slice[dtype](alpha, B[i], beta, A, i)
         A.to_array(np_A2)
         nntile.starpu.wait_for_all()
         B[i].unregister()
         np_C = alpha * np.expand_dims(np_B[i], axis=i)
         np_C = np.repeat(np_C, A_shape[i], axis=i)
-        np_C += np_A
+        np_C += beta * np_A
         nntile.starpu.wait_for_all()
         if not np.allclose(np_C, np_A2):
             return False

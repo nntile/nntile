@@ -13,8 +13,8 @@
 
 from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         TensorOrNone, TensorMoments, \
-        bias_async, copy_async, sum_slice_async, norm_async, fill_async, \
-        pow_async, \
+        bias_slice_async, copy_async, sum_slice_async, norm_async, \
+        fill_async, pow_async, \
         biasprod_async, scalprod_async, axpy_async, biasprod_outer_async, \
         bias_outer_async, sum_fiber_async, scalprod_outer_async, \
         clear_async
@@ -128,7 +128,7 @@ class LayerNorm(BaseLayer):
         # Init Y as a copy of X
         copy_async(self.x.value, self.y.value)
         # Subtract mean from Y
-        bias_async(-1.0, self.mean, self.y.value, self.axis)
+        bias_slice_async(-1.0, self.mean, 1.0, self.y.value, self.axis)
         # Compute standard deviation of self.y.value
         fill_async(self.eps, self.inv_stddev)
         norm_async(1.0/self.l**0.5, self.y.value, 1.0, self.inv_stddev, \
@@ -163,7 +163,7 @@ class LayerNorm(BaseLayer):
         # Get mean value of tmp_Y_grad over the given axis
         sum_slice_async(1.0/self.l, self.tmp_y_grad, 0.0, self.mean, self.axis)
         # Subtract mean from tmp_Y_value
-        bias_async(-1.0, self.mean, self.tmp_y_value, self.axis)
+        bias_slice_async(-1.0, self.mean, 1.0, self.tmp_y_value, self.axis)
         # Multiply tmp_Y_value by the inverse stddev
         biasprod_async(self.inv_stddev, self.tmp_y_value, self.axis)
         # Accumulate gradient from tmp_Y_value

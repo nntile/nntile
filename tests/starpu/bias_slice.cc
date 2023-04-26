@@ -4,16 +4,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/starpu/bias.cc
- * Bias operation on a StarPU buffer
+ * @file tests/starpu/bias_slice.cc
+ * Bias operation over fibers from a slice of a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-26
+ * @date 2023-04-26
  * */
 
-#include "nntile/starpu/bias.hh"
-#include "nntile/kernel/bias.hh"
+#include "nntile/starpu/bias_slice.hh"
+#include "nntile/kernel/bias_slice.hh"
 #include "../testing.hh"
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_runtime.h>
@@ -42,14 +42,14 @@ void validate_cpu(Index m, Index n, Index k)
     // Create copies of destination
     std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::bias::cpu<T>\n";
-    kernel::bias::cpu<T>(m, n, k, 0.5, &src[0], &dst[0]);
+    std::cout << "Run kernel::bias_slice::cpu<T>\n";
+    kernel::bias_slice::cpu<T>(m, n, k, 0.5, &src[0], -0.5, &dst[0]);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
-    bias::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::bias::submit<T> restricted to CPU\n";
-    bias::submit<T>(m, n, k, 0.5, src_handle, dst2_handle);
+    bias_slice::restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::bias_slice::submit<T> restricted to CPU\n";
+    bias_slice::submit<T>(m, n, k, 0.5, src_handle, -0.5, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -57,7 +57,7 @@ void validate_cpu(Index m, Index n, Index k)
     {
         TEST_ASSERT(dst[i] == dst2[i]);
     }
-    std::cout << "OK: starpu::bias::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::bias_slice::submit<T> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -99,8 +99,8 @@ void validate_cuda(Index m, Index n, Index k)
     cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*m*n*k,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::bias::cuda<T>\n";
-    kernel::bias::cuda<T>(stream, m, n, k, 0.5, dev_src, dev_dst);
+    std::cout << "Run kernel::bias_slice::cuda<T>\n";
+    kernel::bias_slice::cuda<T>(stream, m, n, k, 0.5, dev_src, -0.5, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
@@ -118,9 +118,9 @@ void validate_cuda(Index m, Index n, Index k)
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
-    bias::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::bias::submit<T> restricted to CUDA\n";
-    bias::submit<T>(m, n, k, 0.5, src_handle, dst2_handle);
+    bias_slice::restrict_where(STARPU_CUDA);
+    std::cout << "Run starpu::bias_slice::submit<T> restricted to CUDA\n";
+    bias_slice::submit<T>(m, n, k, 0.5, src_handle, -0.5, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -128,7 +128,7 @@ void validate_cuda(Index m, Index n, Index k)
     {
         TEST_ASSERT(dst[i] == dst2[i]);
     }
-    std::cout << "OK: starpu::bias::submit<T> restricted to CUDA\n";
+    std::cout << "OK: starpu::bias_slice::submit<T> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 
@@ -137,7 +137,7 @@ int main(int argc, char **argv)
     // Init StarPU for testing
     Config starpu(1, 1, 0);
     // Init codelet
-    bias::init();
+    bias_slice::init();
     // Launch all tests
     validate_cpu<fp32_t>(3, 5, 7);
     validate_cpu<fp64_t>(3, 5, 7);

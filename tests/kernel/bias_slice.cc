@@ -4,15 +4,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/cpu/bias.cc
- * Bias operation on a buffer on CPU
+ * @file tests/kernel/bias_slice.cc
+ * Bias operation over fibers from a slice of a buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-26
+ * @date 2023-04-26
  * */
 
-#include "nntile/kernel/bias.hh"
+#include "nntile/kernel/bias_slice.hh"
 #include "../testing.hh"
 #include <vector>
 #include <stdexcept>
@@ -20,12 +20,12 @@
 #include <iostream>
 
 using namespace nntile;
-using namespace nntile::kernel::bias;
+using namespace nntile::kernel::bias_slice;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
 void run_cuda(Index m, Index n, Index k, T alpha, const std::vector<T> &src,
-        std::vector<T> &dst)
+        T beta, std::vector<T> &dst)
 {
     // Copy to device
     T *dev_src, *dev_dst;
@@ -44,7 +44,7 @@ void run_cuda(Index m, Index n, Index k, T alpha, const std::vector<T> &src,
     cuda_err = cudaStreamCreate(&stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Launch low-level CUDA kernel
-    cuda<T>(stream, m, n, k, alpha, dev_src, dev_dst);
+    cuda<T>(stream, m, n, k, alpha, dev_src, beta, dev_dst);
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result and deallocate device memory
@@ -73,7 +73,7 @@ void validate(Index m, Index n, Index k)
         {
             for(Index i2 = 0; i2 < k; ++i2)
             {
-                dst[(i1*k+i2)*m+i0] = T(i0+i1+i2) / T{10};
+                dst[(i1*k+i2)*m+i0] = T(i0+i1+i2) / T{30};
             }
         }
     }
@@ -87,8 +87,8 @@ void validate(Index m, Index n, Index k)
     // Save original dst
     std::vector<T> dst_save(dst);
     // Check low-level CPU kernel
-    std::cout << "Run kernel::bias::cpu<T>\n";
-    cpu<T>(m, n, k, -2.0, &src[0], &dst[0]);
+    std::cout << "Run kernel::bias_slice::cpu<T>\n";
+    cpu<T>(m, n, k, -2.0, &src[0], 3.0, &dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
@@ -104,12 +104,12 @@ void validate(Index m, Index n, Index k)
             }
         }
     }
-    std::cout << "OK: kernel::bias::cpu<T>\n";
+    std::cout << "OK: kernel::bias_slice::cpu<T>\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
-    std::cout << "Run kernel::bias::cuda<T>\n";
-    run_cuda<T>(m, n, k, -2.0, src, dst);
+    std::cout << "Run kernel::bias_slice::cuda<T>\n";
+    run_cuda<T>(m, n, k, -2.0, src, 3.0, dst);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
@@ -125,7 +125,7 @@ void validate(Index m, Index n, Index k)
             }
         }
     }
-    std::cout << "OK: kernel::bias::cuda<T>\n";
+    std::cout << "OK: kernel::bias_slice::cuda<T>\n";
 #endif // NNTILE_USE_CUDA
 }
 

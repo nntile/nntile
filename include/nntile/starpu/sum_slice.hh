@@ -77,7 +77,7 @@ void restore_where();
 
 template<typename T>
 void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
-        Handle sum_dst);
+        Handle dst);
 
 } // namespace sum_slice
 } // namespace starpu

@@ -4,25 +4,26 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tile/bias.cc
- * Bias operation for Tile<T>
+ * @file src/tile/bias_slice.cc
+ * Bias operation over fibers from a slice of a Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-04-26
  * */
 
-#include "nntile/tile/bias.hh"
-#include "nntile/starpu/bias.hh"
+#include "nntile/tile/bias_slice.hh"
+#include "nntile/starpu/bias_slice.hh"
 
 namespace nntile
 {
 namespace tile
 {
 
-//! Tile-wise bias operation
+//! Tile-wise bias_slice operation
 template<typename T>
-void bias_async(T alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
+void bias_slice_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
+        Index axis)
 {
     // Check dimensions
     if(dst.ndim != src.ndim+1)
@@ -53,44 +54,40 @@ void bias_async(T alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
             throw std::runtime_error("dst.shape[i] != src.shape[i-1]");
         }
     }
-    // Do nothing if alpha is zero
-    if(alpha == 0.0)
-    {
-        return;
-    }
     // Reshape inputs for simplicity: src -> (m,n), dst -> (m,k,n)
     Index m, n, k;
     m = dst.stride[axis];
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
     // Insert corresponding task
-    starpu::bias::submit<T>(m, n, k, alpha, src, dst);
+    starpu::bias_slice::submit<T>(m, n, k, alpha, src, beta, dst);
 }
 
-//! Tile-wise bias operation
+//! Tile-wise bias_slice operation
 template<typename T>
-void bias(T alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
+void bias_slice(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
+        Index axis)
 {
-    bias_async<T>(alpha, src, dst, axis);
+    bias_slice_async<T>(alpha, src, beta, dst, axis);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
-void bias_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src,
-        const Tile<fp32_t> &dst, Index axis);
+void bias_slice_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src,
+        fp32_t beta, const Tile<fp32_t> &dst, Index axis);
 
 template
-void bias_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src,
-        const Tile<fp64_t> &dst, Index axis);
+void bias_slice_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src,
+        fp64_t beta, const Tile<fp64_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void bias<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src,
+void bias_slice<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src, fp32_t beta,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void bias<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src,
+void bias_slice<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src, fp64_t beta,
         const Tile<fp64_t> &dst, Index axis);
 
 } // namespace tile

@@ -24,11 +24,11 @@ namespace tensor
 // Tensor-wise sum_fiber
 template<typename T>
 void sum_fiber_async(T alpha, const Tensor<T> &src, T beta,
-        const Tensor<T> &sum_dst, Index axis);
+        const Tensor<T> &dst, Index axis);
 
 // Tensor-wise sum_fiber
 template<typename T>
-void sum_fiber(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &sum_dst,
+void sum_fiber(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
         Index axis);
 
 } // namespace tensor

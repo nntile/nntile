@@ -4,32 +4,33 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/sum_slice.hh
- * Sum over fibers into a slice of a Tensor<T>
+ * @file include/nntile/kernel/bias_slice/cuda.hh
+ * Bias operation over fibers from a slice of a buffer on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @author Konstantin Sozykin
  * @date 2023-04-26
  * */
 
 #pragma once
 
-#include <nntile/tensor/tensor.hh>
+#include <nntile/base_types.hh>
+#include <cuda_runtime.h>
 
 namespace nntile
 {
-namespace tensor
+namespace kernel
+{
+namespace bias_slice
 {
 
+// Bias over fibers along middle axis from a slice of a tensor
 template<typename T>
-void sum_slice_async(T alpha, const Tensor<T> &src, T beta,
-        const Tensor<T> &dst, Index axis);
+void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
+        const T *src, T beta, T *dst)
+    noexcept;
 
-template<typename T>
-void sum_slice(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
-        Index axis);
-
-} // namespace tensor
+} // namespace bias_slice
+} // namespace kernel
 } // namespace nntile
 

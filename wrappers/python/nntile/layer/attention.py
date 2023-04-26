@@ -9,11 +9,12 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-03-28
+# @date 2023-04-26
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
-        maxsumexp_async, softmax_async, scalprod_async, bias_async, prod_async
+        maxsumexp_async, softmax_async, scalprod_async, bias_slice_async, \
+        prod_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -338,7 +339,8 @@ class Attention(BaseLayer):
                 scalprod_async(1.0, self.a[i].value, self.a[i].grad, 0.0, \
                         self.a_scalprod[i], 0)
                 # dA[i] += -bias('kml,ml->kml', dA[i], A_scalprod[i])
-                bias_async(-1.0, self.a_scalprod[i], self.a[i].grad, 0)
+                bias_slice_async(-1.0, self.a_scalprod[i], 1.0, \
+                        self.a[i].grad, 0)
                 # A_scalprod[i] can be deleted
                 self.a_scalprod[i].invalidate_submit()
                 # dA[i] *= A[i]

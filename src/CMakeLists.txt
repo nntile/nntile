@@ -11,11 +11,11 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-04-24
+# @date 2023-04-26
 
 # Set list of sources
 set(KERNEL_SRC
-    "kernel/bias/cpu.cc"
+    "kernel/bias_slice/cpu.cc"
     "kernel/bias_outer/cpu.cc"
     "kernel/biasprod/cpu.cc"
     "kernel/biasprod_outer/cpu.cc"
@@ -54,7 +54,7 @@ set(KERNEL_SRC
 if(NNTILE_USE_CUDA)
     set(KERNEL_SRC
         ${KERNEL_SRC}
-        "kernel/bias/cuda.cu"
+        "kernel/bias_slice/cuda.cu"
         "kernel/biasprod/cuda.cu"
         "kernel/dgelu/cuda.cu"
         "kernel/dgelutanh/cuda.cu"
@@ -79,7 +79,7 @@ if(NNTILE_USE_CUDA)
 endif()
 
 set(STARPU_SRC
-    "starpu/bias.cc"
+    "starpu/bias_slice.cc"
     "starpu/bias_outer.cc"
     "starpu/biasprod.cc"
     "starpu/biasprod_outer.cc"
@@ -123,7 +123,7 @@ set(STARPU_SRC
 set(TILE_SRC
     "tile/traits.cc"
     "tile/axpy.cc"
-    "tile/bias.cc"
+    "tile/bias_slice.cc"
     "tile/bias_outer.cc"
     "tile/biasprod.cc"
     "tile/biasprod_outer.cc"
@@ -167,7 +167,7 @@ set(TENSOR_SRC
     "tensor/traits.cc"
     "tensor/distributions.cc"
     "tensor/axpy.cc"
-    "tensor/bias.cc"
+    "tensor/bias_slice.cc"
     "tensor/bias_outer.cc"
     "tensor/biasprod.cc"
     "tensor/biasprod_outer.cc"

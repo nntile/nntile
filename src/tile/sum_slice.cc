@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-04-24
+ * @date 2023-04-26
  * */
 
 #include "nntile/tile/sum_slice.hh"
@@ -24,12 +24,12 @@ namespace tile
 //! Tile-wise sum_slice
 template<typename T>
 void sum_slice_async(T alpha, const Tile<T> &src, T beta,
-        const Tile<T> &sum_dst, Index axis)
+        const Tile<T> &dst, Index axis)
 {
     // Check dimensions
-    if(src.ndim - 1 != sum_dst.ndim) // before was src.ndim != sum_dst.ndim
+    if(src.ndim - 1 != dst.ndim) // before was src.ndim != dst.ndim
     {
-        throw std::runtime_error("src.ndim -1 != sum_dst.ndim");
+        throw std::runtime_error("src.ndim -1 != dst.ndim");
     }
     Index ndim = src.ndim;
     // Treat special case of ndim=0
@@ -53,9 +53,9 @@ void sum_slice_async(T alpha, const Tile<T> &src, T beta,
         if (i == axis) {
             continue;
         }
-        if(src.shape[i] != sum_dst.shape[j])
+        if(src.shape[i] != dst.shape[j])
         {
-            throw std::runtime_error("src.shape[i] != sum_dst.shape[j]");
+            throw std::runtime_error("src.shape[i] != dst.shape[j]");
         }
         j++;
     }
@@ -65,35 +65,35 @@ void sum_slice_async(T alpha, const Tile<T> &src, T beta,
     n = src.matrix_shape[axis+1][1];
     k = src.shape[axis];
     // Insert task
-    starpu::sum_slice::submit<T>(m, n, k, alpha, src, beta, sum_dst);
+    starpu::sum_slice::submit<T>(m, n, k, alpha, src, beta, dst);
 }
 
 //! Tile-wise sum_slice
 template<typename T>
-void sum_slice(T alpha, const Tile<T> &src, T beta, const Tile<T> &sum_dst,
+void sum_slice(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
         Index axis)
 {
-    sum_slice_async<T>(alpha, src, beta, sum_dst, axis);
+    sum_slice_async<T>(alpha, src, beta, dst, axis);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
 void sum_slice_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src,
-        fp32_t beta, const Tile<fp32_t> &sum_dst, Index axis);
+        fp32_t beta, const Tile<fp32_t> &dst, Index axis);
 
 template
 void sum_slice_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src,
-        fp64_t beta, const Tile<fp64_t> &sum_dst, Index axis);
+        fp64_t beta, const Tile<fp64_t> &dst, Index axis);
 
 // Explicit instantiation
 template
 void sum_slice<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src, fp32_t beta,
-        const Tile<fp32_t> &sum_dst, Index axis);
+        const Tile<fp32_t> &dst, Index axis);
 
 template
 void sum_slice<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src, fp64_t beta,
-        const Tile<fp64_t> &sum_dst, Index axis);
+        const Tile<fp64_t> &dst, Index axis);
 
 } // namespace tile
 } // namespace nntile

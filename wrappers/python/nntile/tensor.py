@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-04-206
+# @date 2023-04-26
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -285,14 +285,15 @@ def maxsumexp_async(x: Tensor, maxsumexp: Tensor, axis: int) -> None:
     else:
         raise TypeError
 
-# Wrapper for multiprecision bias
-def bias_async(alpha: float, bias: Tensor, x: Tensor, axis: int) -> None:
-    if type(bias) is not type(x):
+# Wrapper for multiprecision bias_slice
+def bias_slice_async(alpha: float, bias_slice: Tensor, beta, x: Tensor, \
+        axis: int) -> None:
+    if type(bias_slice) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.bias_async_fp32(alpha, bias, x, axis)
+        core_tensor.bias_slice_async_fp32(alpha, bias_slice, beta, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.bias_async_fp64(alpha, bias, x, axis)
+        core_tensor.bias_slice_async_fp64(alpha, bias_slice, beta, x, axis)
     else:
         raise TypeError
 

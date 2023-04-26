@@ -11,14 +11,14 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-04-24
+# @date 2023-04-26
 
 # All unit tests without arguments to test executable
 set(TESTS
     "traits"
     "tile"
     "axpy"
-    "bias"
+    "bias_slice"
     "clear"
     "copy"
     "copy_intersection"

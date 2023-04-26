@@ -4,7 +4,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/bias/cuda.cu
+ * @file src/kernel/biasprod/cuda.cu
  * Bias operation on a buffer on CUDA
  *
  * @version 1.0.0
@@ -12,7 +12,7 @@
  * @date 2023-03-26
  * */
 
-#include "nntile/kernel/bias/cuda.hh"
+#include "nntile/kernel/biasprod/cuda.hh"
 
 namespace nntile
 {
@@ -40,7 +40,7 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src,
             {
                 // Read value from source
                 T &dst_val = dst_slice[i0*m];
-                dst_val = dst_val + src_val;
+                dst_val = dst_val * src_val;
             }
         }
     }
@@ -69,7 +69,7 @@ void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, fp64_t alpha,
         const fp64_t *src, fp64_t *dst)
     noexcept;
 
-} // namespace bias
+} // namespace biasprod
 } // namespace kernel
 } // namespace nntile
 

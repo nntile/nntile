@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-04-24
+# @date 2023-04-26
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -27,7 +27,7 @@ set(TESTS_MPI
     "gather"
     "clear"
     "axpy"
-    "bias"
+    "bias_slice"
     "bias_outer"
     "biasprod"
     "biasprod_outer"

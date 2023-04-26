@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-25
+ * @date 2023-04-26
  * */
 
 #include "nntile/kernel/sum_fiber/cpu.hh"
@@ -23,22 +23,22 @@ namespace sum_fiber
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *sum_dst)
+void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
     noexcept
 //! Sums over slices along the first and last axes into a fiber of a tensor
 /*! For a provided m-by-k-by-n input array computes sums over slices
  * along the first axis with m elements and the last axis with n elements,
  * resulting in output fiber of shape (k).
  * Mnemonically, the following operations are performed:
- *      sum_dst[k] = beta*sum_dst[k] + alpha*sum(src[:,k,:])
+ *      dst[k] = beta*dst[k] + alpha*sum(src[:,k,:])
  *
  * @param[in] m: Size of the first mode of src array
  * @param[in] n: Size of the last mode of src array
  * @param[in] k: Size of the middle mode of src array and the only mode of
- *      sum_dst array
+ *      dst array
  * @param[in] alpha: Scaling factor for src
  * @param[in] src: Input contiguous m-by-k-by-n array
- * @param[in] beta: Scaling factor for sum_dst
+ * @param[in] beta: Scaling factor for dst
  * @param[inout] sum: Output contiguous vector with k elements, that accumulate
  *      sums over slices along the first and the last axes.
  * */
@@ -70,21 +70,21 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *sum_dst)
         }
         else
         {
-            sum = beta*sum_dst[i2] + alpha*sum;
+            sum = beta*dst[i2] + alpha*sum;
         }
-        sum_dst[i2] = sum;
+        dst[i2] = sum;
     }
 }
 
 // Explicit instantiation
 template
 void cpu<fp32_t>(Index m, Index n, Index k, fp32_t alpha, const fp32_t *src,
-        fp32_t beta, fp32_t *sum_dst)
+        fp32_t beta, fp32_t *dst)
     noexcept;
 
 template
 void cpu<fp64_t>(Index m, Index n, Index k, fp64_t alpha, const fp64_t *src,
-        fp64_t beta, fp64_t *sum_dst)
+        fp64_t beta, fp64_t *dst)
     noexcept;
 
 } // namespace sum_fiber

@@ -4,23 +4,23 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tile/bias.cc
- * Bias operation on Tile<T>
+ * @file tests/tile/bias_slice.cc
+ * Bias operation over fibers from a slice of a Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-26
+ * @date 2023-04-26
  * */
 
-#include "nntile/tile/bias.hh"
-#include "nntile/starpu/bias.hh"
+#include "nntile/tile/bias_slice.hh"
+#include "nntile/starpu/bias_slice.hh"
 #include "../testing.hh"
 
 using namespace nntile;
 using namespace nntile::tile;
 
 template<typename T>
-void check(T alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
+void check(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst, Index axis)
 {
     std::vector<T> dst2_data(dst.nelems);
     auto dst_local = dst.acquire(STARPU_R);
@@ -30,7 +30,7 @@ void check(T alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
     }
     dst_local.release();
     Tile<T> dst2(dst, &dst2_data[0], dst.nelems);
-    bias<T>(alpha, src, dst, axis);
+    bias_slice<T>(alpha, src, beta, dst, axis);
     Index m = 1;
     for(Index i = 0; i < axis; ++i)
     {
@@ -42,7 +42,7 @@ void check(T alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
         n *= dst.shape[i];
     }
     Index k = dst.shape[axis];
-    starpu::bias::submit<T>(m, n, k, alpha, src, dst2);
+    starpu::bias_slice::submit<T>(m, n, k, alpha, src, beta, dst2);
     starpu_task_wait_for_all();
     auto dst2_local = dst.acquire(STARPU_R);
     dst_local.acquire(STARPU_R);
@@ -87,17 +87,17 @@ void validate()
         b1(b1_traits, &b1_data[0], b1_traits.nelems),
         b2(b2_traits, &b2_data[0], b2_traits.nelems),
         b3(b3_traits, &b3_data[0], b3_traits.nelems);
-    // Compare results of tile::bias and starpu::bias::submit
-    check<T>(-1.0, b0, A, 0);
-    check<T>(1.0, b1, A, 1);
-    check<T>(2.0, b2, A, 2);
-    check<T>(-2.0, b3, A, 3);
+    // Compare results of tile::bias_slice and starpu::bias_slice::submit
+    check<T>(-1.0, b0, 1.0, A, 0);
+    check<T>(1.0, b1, -1.0, A, 1);
+    check<T>(2.0, b2, 0.5, A, 2);
+    check<T>(-2.0, b3, 0.0, A, 3);
     // Checking throwing exceptions
-    TEST_THROW(bias<T>(1.0, A, A, 0));
-    TEST_THROW(bias<T>(1.0, b0, A, -1));
-    TEST_THROW(bias<T>(1.0, b0, A, 1));
-    TEST_THROW(bias<T>(1.0, b3, A, 2));
-    TEST_THROW(bias<T>(1.0, b3, A, 4));
+    TEST_THROW(bias_slice<T>(1.0, A, 0.0, A, 0));
+    TEST_THROW(bias_slice<T>(1.0, b0, 0.0, A, -1));
+    TEST_THROW(bias_slice<T>(1.0, b0, 0.0, A, 1));
+    TEST_THROW(bias_slice<T>(1.0, b3, 0.0, A, 2));
+    TEST_THROW(bias_slice<T>(1.0, b3, 0.0, A, 4));
 }
 
 int main(int argc, char **argv)
@@ -105,8 +105,8 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    starpu::bias::init();
-    starpu::bias::restrict_where(STARPU_CPU);
+    starpu::bias_slice::init();
+    starpu::bias_slice::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

@@ -445,10 +445,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("maxsumexp_fp64", &maxsumexp<fp64_t>);
     m.def("maxsumexp_fp32", &maxsumexp<fp32_t>);
 
-    m.def("bias_async_fp64", &bias_async<fp64_t>);
-    m.def("bias_async_fp32", &bias_async<fp32_t>);
-    m.def("bias_fp64", &bias<fp64_t>);
-    m.def("bias_fp32", &bias<fp32_t>);
+    m.def("bias_slice_async_fp64", &bias_slice_async<fp64_t>);
+    m.def("bias_slice_async_fp32", &bias_slice_async<fp32_t>);
+    m.def("bias_slice_fp64", &bias_slice<fp64_t>);
+    m.def("bias_slice_fp32", &bias_slice<fp32_t>);
 
     m.def("bias_outer_async_fp64", &bias_outer_async<fp64_t>);
     m.def("bias_outer_async_fp32", &bias_outer_async<fp32_t>);

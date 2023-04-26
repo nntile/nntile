@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-25
+ * @date 2023-04-26
  * */
 
 #include "nntile/starpu/sum_fiber.hh"
@@ -33,10 +33,10 @@ void cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
-    T *sum_dst = interfaces[1]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
     kernel::sum_fiber::cpu<T>(args->m, args->n, args->k, args->alpha, src,
-            args->beta, sum_dst);
+            args->beta, dst);
 }
 
 //! Footprint for sum_fiber tasks
@@ -92,27 +92,27 @@ void restore_where()
 
 template<typename T>
 void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
-        Handle sum_dst)
+        Handle dst)
 //! Insert sum_fiber task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
-    // Access mode for the sum_dst handle
+    // Access mode for the dst handle
     constexpr T zero = 0, one = 1;
-    enum starpu_data_access_mode sum_dst_mode;
+    enum starpu_data_access_mode dst_mode;
     if(beta == zero)
     {
-        sum_dst_mode = STARPU_W;
+        dst_mode = STARPU_W;
     }
     else if(beta == one)
     {
-        sum_dst_mode = Config::STARPU_RW_COMMUTE;
+        dst_mode = Config::STARPU_RW_COMMUTE;
     }
     else
     {
-        sum_dst_mode = STARPU_RW;
+        dst_mode = STARPU_RW;
     }
     // Codelet arguments
     args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
@@ -125,7 +125,7 @@ void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_CL_ARGS, args, sizeof(*args),
-            sum_dst_mode, static_cast<starpu_data_handle_t>(sum_dst),
+            dst_mode, static_cast<starpu_data_handle_t>(dst),
             0);
     // Check submission
     if(ret != 0)
@@ -137,11 +137,11 @@ void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
 // Explicit instantiation
 template
 void submit<fp32_t>(Index m, Index n, Index k, fp32_t alpha, Handle src,
-        fp32_t beta, Handle sum_dst);
+        fp32_t beta, Handle dst);
 
 template
 void submit<fp64_t>(Index m, Index n, Index k, fp64_t alpha, Handle src,
-        fp64_t beta, Handle sum_dst);
+        fp64_t beta, Handle dst);
 
 } // namespace sum_fiber
 } // namespace starpu

@@ -23,12 +23,12 @@ namespace tile
 
 // Tile-wise sum_fiber
 template<typename T>
-void sum_fiber_async(T alpha, const Tile<T> &src, T beta,
-        const Tile<T> &sum_dst, Index axis);
+void sum_fiber_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
+        Index axis);
 
 // Tile-wise sum_fiber
 template<typename T>
-void sum_fiber(T alpha, const Tile<T> &src, T beta, const Tile<T> &sum_dst,
+void sum_fiber(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
         Index axis);
 
 } // namespace tile
