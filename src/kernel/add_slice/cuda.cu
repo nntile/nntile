@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/add_slice/cuda.cu
- * Bias operation over fibers from a slice of a buffer on CUDA
+ * Per-element addition of a tensor and a broadcasted slice on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-04-28
  * */
 
 #include "nntile/kernel/add_slice/cuda.hh"
@@ -25,6 +25,19 @@ template<typename T>
 static __global__
 void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src,
         T *dst)
+    noexcept
+//! Per-element addition of a tensor and a broadcasted slice on CUDA
+/*! This is a global function that does the following operations:
+ *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[i,j]
+ *
+ * @param[in] m: Size of the first mode of src and dst tensors
+ * @param[in] n: Size of the last mode of src and dst tensors
+ * @param[in] k: Size of the middle mode of dst tensor
+ * @param[in] alpha: Scalar factor for src
+ * @param[in] src: Input contiguous m-by-n array
+ * @param[in] beta: Scaling factor for dst
+ * @param[inout] dst: Input and output contiguous m-by-k-by-n array
+ * */
 {
     Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
           i1_start = threadIdx.y + blockIdx.y*blockDim.y,
@@ -70,20 +83,17 @@ template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
         const T *src, T beta, T *dst)
     noexcept
-//! Bias over fibers along middle axis from a slice of a tensor
-/*! For a provided m-by-k-by-n output tensor apply bias along second axis
- * with k elements from m-by-n input tensor.
- * Mnemonically, the following operations are performed:
- *      dst[i,k,j] = beta*dst[i,k,j] + alpha*src[i,j]
+//! Per-element addition of a tensor and a broadcasted slice on CUDA
+/*! This is a host function that does the following operations:
+ *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[i,j]
  *
  * @param[in] m: Size of the first mode of src and dst tensors
  * @param[in] n: Size of the last mode of src and dst tensors
  * @param[in] k: Size of the middle mode of dst tensor
- * @param[in] alpha: Scalar factor for the src
+ * @param[in] alpha: Scalar factor for src
  * @param[in] src: Input contiguous m-by-n array
  * @param[in] beta: Scaling factor for dst
- * @param[inout] dst: Output contiguous m-by-k-by-n array, that accumulates
- *      bias over fibers along middle axis
+ * @param[inout] dst: Input and output contiguous m-by-k-by-n array
  * */
 {
     // Both source and destination are Fortran-contiguous

@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/tensor/add_slice.cc
- * Bias operation over fibers from a slice of a Tile<T>
+ * Tensor wrappers for addition of a tensor and a broadcasted slice
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-04-28
  * */
 
 #include "nntile/tensor/add_slice.hh"
@@ -20,10 +20,19 @@ namespace nntile
 namespace tensor
 {
 
-//! Tensor-wise add_slice operation
 template<typename T>
 void add_slice_async(T alpha, const Tensor<T> &src, T beta,
         const Tensor<T> &dst, Index axis)
+//! Tensor<T> addition of a tensor and a broadcasted slice
+/*! Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
+ * and performs the following operations:
+ *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[i,j]
+ *
+ * @param[in] alpha: Scalar factor for src
+ * @param[in] src: Input slice, that is reshaped into 2D array
+ * @param[in] beta: Scaling factor for dst
+ * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
+ * */
 {
     // Check dimensions
     if(dst.ndim != src.ndim+1)
@@ -118,7 +127,17 @@ void add_slice_async(T alpha, const Tensor<T> &src, T beta,
     }
 }
 
-//! Tensor-wise add_slice operation
+//! Tensor<T> addition of a tensor and a broadcasted slice
+/*! Blocking version of add_slice_async<T>.
+ * Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
+ * and performs the following operations:
+ *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[i,j]
+ *
+ * @param[in] alpha: Scalar factor for src
+ * @param[in] src: Input slice, that is reshaped into 2D array
+ * @param[in] beta: Scaling factor for dst
+ * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
+ * */
 template<typename T>
 void add_slice(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
         Index axis)

@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/tensor/add_slice.hh
- * Bias operation over fibers from a slice of a Tensor<T>
+ * Tensor wrappers for addition of a tensor and a broadcasted slice
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-04-28
  * */
 
 #pragma once
@@ -21,12 +21,12 @@ namespace nntile
 namespace tensor
 {
 
-// Tensor-wise add_slice operation
+// Tensor<T> addition of a tensor and a broadcasted slice
 template<typename T>
 void add_slice_async(T alpha, const Tensor<T> &src, T beta,
         const Tensor<T> &dst, Index axis);
 
-// Tensor-wise add_slice operation
+// Tensor<T> addition of a tensor and a broadcasted slice
 template<typename T>
 void add_slice(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
         Index axis);
