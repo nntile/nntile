@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/tile/add_fiber.hh
- * Bias operation over slices from a fiber of a Tile<T>
+ * Tile wrappers for addition of a tensor and a broadcasted fiber
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-04-28
  * */
 
 #pragma once
@@ -21,12 +21,12 @@ namespace nntile
 namespace tile
 {
 
-// Tile-wise add_fiber operation
+// Tile<T> addition of a tensor and a broadcasted fiber
 template<typename T>
 void add_fiber_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
         Index axis);
 
-// Tile-wise add_fiber operation
+// Tile<T> addition of a tensor and a broadcasted fiber
 template<typename T>
 void add_fiber(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
         Index axis);

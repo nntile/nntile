@@ -127,6 +127,9 @@ void add_slice_async(T alpha, const Tensor<T> &src, T beta,
     }
 }
 
+template<typename T>
+void add_slice(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
+        Index axis)
 //! Tensor<T> addition of a tensor and a broadcasted slice
 /*! Blocking version of add_slice_async<T>.
  * Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
@@ -138,9 +141,6 @@ void add_slice_async(T alpha, const Tensor<T> &src, T beta,
  * @param[in] beta: Scaling factor for dst
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
-template<typename T>
-void add_slice(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
-        Index axis)
 {
     add_slice_async<T>(alpha, src, beta, dst, axis);
     starpu_task_wait_for_all();

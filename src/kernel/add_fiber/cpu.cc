@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/add_fiber/cpu.cc
- * Bias operation over slices from a fiber of a buffer on CPU
+ * Per-element addition of a tensor and a broadcasted fiber on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-04-28
  * */
 
 #include "nntile/kernel/add_fiber/cpu.hh"
@@ -24,21 +24,18 @@ namespace add_fiber
 template<typename T>
 void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
     noexcept
-//! Bias over slices along the first and the last axes from a fiber of a tensor
-/*! For a provided m-by-k-by-n output tensor apply bias along the first and the
- * last axes with m and n elements respectively from a fiber with k elements.
- * Mnemonically, the following operations are performed:
- *      dst[i,k,j] = beta*dst[i,k,j] + alpha*src[k]
+//! Per-element addition of a tensor and a broadcasted fiber on CPU
+/*! Performs the following operations:
+ *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[l]
  *
  * @param[in] m: Size of the first mode of dst tensor
  * @param[in] n: Size of the last mode of dst tensor
- * @param[in] k: Size of the middle mode of src tensor and the only mode of dst
- *      tensor
- * @param[in] alpha: Scalar factor for the src
+ * @param[in] k: Size of the middle mode of dst tensor and the only mode of src
+ *      tensors
+ * @param[in] alpha: Scalar factor for src
  * @param[in] src: Input contiguous vector with k elements
  * @param[in] beta: Scaling factor for dst
- * @param[inout] dst: Output contiguous m-by-k-by-n array, that accumulates
- *      bias over slices along the first and the last axes
+ * @param[inout] dst: Input and output contiguous m-by-k-by-n array
  * */
 {
     constexpr T zero = 0.0;

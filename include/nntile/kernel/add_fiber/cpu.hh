@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/kernel/add_fiber/cpu.hh
- * Bias operation over slices from a fiber of a buffer on CPU
+ * Per-element addition of a tensor and a broadcasted fiber on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-04-28
  * */
 
 #pragma once
@@ -23,7 +23,7 @@ namespace kernel
 namespace add_fiber
 {
 
-// Bias over slices along the first and the last axes from a fiber of a tensor
+// Per-element addition of a tensor and a broadcasted fiber on CPU
 template<typename T>
 void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
     noexcept;

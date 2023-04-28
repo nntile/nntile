@@ -20,6 +20,9 @@ namespace nntile
 namespace tile
 {
 
+template<typename T>
+void add_slice_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
+        Index axis)
 //! Tile<T> addition of a tensor and a broadcasted slice
 /*! Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
  * and performs the following operations:
@@ -30,9 +33,6 @@ namespace tile
  * @param[in] beta: Scaling factor for dst
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
-template<typename T>
-void add_slice_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
-        Index axis)
 {
     // Check dimensions
     if(dst.ndim != src.ndim+1)
@@ -72,6 +72,9 @@ void add_slice_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
     starpu::add_slice::submit<T>(m, n, k, alpha, src, beta, dst);
 }
 
+template<typename T>
+void add_slice(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
+        Index axis)
 //! Tile<T> addition of a tensor and a broadcasted slice
 /*! Blocking version of add_slice_async<T>.
  * Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
@@ -83,9 +86,6 @@ void add_slice_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
  * @param[in] beta: Scaling factor for dst
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
-template<typename T>
-void add_slice(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
-        Index axis)
 {
     add_slice_async<T>(alpha, src, beta, dst, axis);
     starpu_task_wait_for_all();

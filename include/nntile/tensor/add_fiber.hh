@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/tensor/add_fiber.hh
- * Bias operation over slices from a fiber of a Tensor<T>
+ * Tensor wrappers for addition of a tensor and a broadcasted fiber
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-04-28
  * */
 
 #pragma once
@@ -21,12 +21,12 @@ namespace nntile
 namespace tensor
 {
 
-// Tensor-wise add_fiber operation
+// Tensor<T> addition of a tensor and a broadcasted fiber
 template<typename T>
 void add_fiber_async(T alpha, const Tensor<T> &src, T beta,
         const Tensor<T> &dst, Index axis);
 
-// Tensor-wise add_fiber operation
+// Tensor<T> addition of a tensor and a broadcasted fiber
 template<typename T>
 void add_fiber(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
         Index axis);
