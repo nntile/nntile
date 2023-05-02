@@ -101,7 +101,7 @@ function(add_test_set)
         message(STATUS "Adding 1 test ${_args_TARGET_NAME}")
         add_test(NAME ${_args_TARGET_NAME} COMMAND ${exec_cmd})
         # Add labels to test if they are actually provided
-        if(_args_LABELS)
+        if(DEFINED _args_LABELS)
             set_tests_properties(${_args_TARGET_NAME} PROPERTIES LABELS
                 "${_args_LABELS}")
         endif()
@@ -114,7 +114,7 @@ function(add_test_set)
         add_test(NAME ${_args_TARGET_NAME} COMMAND ${exec_cmd}
             ${_args_ARGS})
         # Add labels to test if they are actually provided
-        if(_args_LABELS)
+        if(DEFINED _args_LABELS)
             set_tests_properties(${_args_TARGET_NAME} PROPERTIES LABELS
                 "${_args_LABELS}")
         endif()
@@ -130,7 +130,7 @@ function(add_test_set)
             add_test(NAME ${_args_TARGET_NAME}_${i} COMMAND ${exec_cmd}
                 ${current_ARGS})
             # Add labels to test if they are actually provided
-            if(_args_LABELS)
+            if(DEFINED _args_LABELS)
                 set_tests_properties(${_args_TARGET_NAME}_${i} PROPERTIES
                     LABELS "${_args_LABELS}")
             endif()

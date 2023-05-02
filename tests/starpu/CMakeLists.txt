@@ -31,7 +31,7 @@ set(TESTS
     "logsumexp"
     "maximum"
     "maxsumexp"
-    "norm"
+    "norm_slice"
     "normalize"
     "pow"
     "prod"

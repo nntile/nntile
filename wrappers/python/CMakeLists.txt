@@ -59,7 +59,7 @@ set(TESTS_NOT_IMPLEMENTED
     "nntile_core/test_tensor_gelutanh_backward.py"
     "nntile_core/test_tensor_relu_backward.py"
     "nntile_core/test_tensor_logsumexp.py"
-    "nntile_core/test_tensor_norm.py"
+    "nntile_core/test_tensor_norm_slice.py"
     "nntile_core/test_tensor_pow.py"
     "nntile_core/test_tensor_prod_fiber.py"
     "nntile_core/test_tensor_prod_slice.py"

@@ -4,62 +4,64 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/norm/cpu.cc
- * Euclidian norm of slices of a buffer on CPU
+ * @file src/kernel/norm_slice/cpu.cc
+ * Euclidian norms of fibers into a slice of a buffer on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-24
+ * @date 2023-05-02
  * */
 
-#include "nntile/kernel/norm/cpu.hh"
+#include "nntile/kernel/norm_slice/cpu.hh"
 #include <cmath>
 
 namespace nntile
 {
 namespace kernel
 {
-namespace norm
+namespace norm_slice
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *norm_dst)
+void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
     noexcept
-//! Norm along middle axis
-/*! For a provided m-by-k-by-n input array src compute norms of slices
- * along second axis with k elements, resulting in m-by-n output array
- * norm_dst. Mnemonically, the following operations are performed:
- *      norm_dst[i,j] = hypot(beta*norm_dst[i,j], alpha*norm(src[i,:,j]))
+//! Euclidian norms over fibers along middle axis into a slice of a tensor
+/*! For a provided m-by-k-by-n input array src compute norms of fibers
+ * along second axis with k elements, resulting in m-by-n output array-slice
+ * dst.
+ * Mnemonically, the following operations are performed:
+ *      dst[i,j] = hypot(beta*dst[i,j], alpha*norm(src[i,:,j]))
  *
- * @param[in] m: Size of the first mode of src and norm_dst arrays
- * @param[in] n: Size of the last mode of src and norm_dst arrays
+ * @param[in] m: Size of the first mode of src and dst arrays
+ * @param[in] n: Size of the last mode of src and dst arrays
  * @param[in] k: Size of the middle mode of src array
  * @param[in] alpha: Scaling factor for src
  * @param[in] src: Input contiguous m-by-k-by-n array
- * @param[in] beta: Scaling factor for norm_dst
- * @param[inout] norm_dst: Output contiguous m-by-n array, that accumulates
- *      norms along middle axis.
+ * @param[in] beta: Scaling factor for dst
+ * @param[inout] dst: Input and output contiguous m-by-n array, that
+ *      accumulates norms along middle axis.
  * */
 {
     const Index mk = m * k;
-    Index dst_offset = 0;
     constexpr T zero = 0.0, one = 1.0;
     alpha = std::abs(alpha);
-    // Cycle over row of output buffer
+    // Cycle over column of the output buffer dst
     for(Index i2 = 0; i2 < n; ++i2)
     {
-        // Cycle over column of output buffer
+        // Cycle over row of the output buffer dst
         for(Index i1 = 0; i1 < m; ++i1)
         {
-            // Get norm of a corresponding slice
-            const T *src_slice = src + i2*mk + i1;
-            // Init norm 
+            // Pointer to a corresponding fiber of the source array src
+            const T *src_fiber = src + i2*mk + i1;
+            // Init norm of the fiber
             T norm_max = zero, norm_ssq = zero;
-            // Cycle over slice of input buffer
+            // Output value
+            T &result = dst[i2*m+i1];
+            // Cycle over fiber elements and accumulate the norm
             for(Index i0 = 0; i0 < k; ++i0)
             {
                 // Read value from source
-                T val = std::abs(src_slice[i0*m]);
+                T val = std::abs(src_fiber[i0*m]);
                 // Update norm only if new value is non-zero
                 if(val > 0)
                 {
@@ -77,19 +79,18 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *norm_dst)
                     }
                 }
             }
+            // Get the scaled norm
             norm_max *= alpha;
             T norm = norm_max * std::sqrt(norm_ssq);
-            // Save result
+            // Update output value
             if(beta == zero)
             {
-                norm_dst[dst_offset] = norm;
+                result = norm;
             }
             else
             {
-                norm_dst[dst_offset] = std::hypot(beta*norm_dst[dst_offset],
-                        norm);
+                result = std::hypot(beta*result, norm);
             }
-            ++dst_offset;
         }
     }
 }
@@ -105,7 +106,7 @@ void cpu<fp64_t>(Index m, Index n, Index k, fp64_t alpha, const fp64_t *src,
         fp64_t beta, fp64_t *norm_dst)
     noexcept;
 
-} // namespace norm
+} // namespace norm_slice
 } // namespace kernel
 } // namespace nntile
 

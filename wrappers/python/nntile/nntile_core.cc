@@ -404,10 +404,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("sum_fiber_fp64", &sum_fiber<fp64_t>);
     m.def("sum_fiber_fp32", &sum_fiber<fp32_t>);
 
-    m.def("norm_async_fp64", &norm_async<fp64_t>);
-    m.def("norm_async_fp32", &norm_async<fp32_t>);
-    m.def("norm_fp64", &norm<fp64_t>);
-    m.def("norm_fp32", &norm<fp32_t>);
+    m.def("norm_slice_async_fp64", &norm_slice_async<fp64_t>);
+    m.def("norm_slice_async_fp32", &norm_slice_async<fp32_t>);
+    m.def("norm_slice_fp64", &norm_slice<fp64_t>);
+    m.def("norm_slice_fp32", &norm_slice<fp32_t>);
 
     m.def("pow_async_fp64", &pow_async<fp64_t>);
     m.def("pow_async_fp32", &pow_async<fp32_t>);

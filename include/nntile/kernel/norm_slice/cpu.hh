@@ -4,33 +4,32 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/norm.hh
- * Low-level kernels to compute Euclidian norm of slices
+ * @file include/nntile/kernel/norm_slice/cpu.hh
+ * Euclidian norms of fibers into a slice of a buffer on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-24
+ * @date 2023-05-02
  * */
 
 #pragma once
 
-#include <nntile/kernel/norm/cpu.hh>
-#include <nntile/defs.h>
-#ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/norm/cuda.hh>
-#endif // NNTILE_USE_CUDA
+#include <nntile/base_types.hh>
 
 namespace nntile
 {
 namespace kernel
 {
-//! @namespace nntile::kernel::norm
-/*! Low-level implementations of computing norm operation
- * */
-namespace norm
+namespace norm_slice
 {
 
-} // namespace norm
+// Euclidian norms over fibers along middle axis into a slice of a tensor
+template<typename T>
+void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta,
+        T *dst)
+    noexcept;
+
+} // namespace norm_slice
 } // namespace kernel
 } // namespace nntile
 

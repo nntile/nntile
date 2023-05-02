@@ -40,7 +40,7 @@ set(TESTS_MPI
     "logsumexp"
     "maximum"
     "maxsumexp"
-    "norm"
+    "norm_slice"
     "normalize"
     "nrm2"
     "pow"
@@ -99,15 +99,26 @@ foreach(test IN LISTS TESTS_MPI)
     if(test IN_LIST TESTS_NOT_IMPLEMENTED)
         set(labels "NotImplemented")
     endif()
+    # Add non-mpirun test
     add_test_set(TARGET_NAME tests_tensor_${test}
         EXEC_NAME test_${test}
+        SOURCES ${test}.cc
+        LINK_LIBRARIES nntile
+        COV_ENABLE ${BUILD_COVERAGE}
+        COV_NAME coverage_tensor_${test}
+        COV_GLOBAL coverage_tensor coverage
+        LABELS ${labels}
+        )
+    # Add mpirun test (the same source, but different output executable)
+    add_test_set(TARGET_NAME tests_tensor_${test}_mpi
+        EXEC_NAME test_${test}_mpi
         SOURCES ${test}.cc
         LINK_LIBRARIES nntile
         MPI_NUMPROC 4
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_tensor_${test}
         COV_GLOBAL coverage_tensor coverage
-        LABELS ${labels}
+        LABELS ${labels} MPI
         )
 endforeach()
 

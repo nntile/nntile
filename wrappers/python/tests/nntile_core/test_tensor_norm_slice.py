@@ -4,8 +4,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_norm.py
-# Test for tensor::norm<T> Python wrapper
+# @file wrappers/python/tests/nntile_core/test_tensor_norm_slice.py
+# Test for tensor::norm_slice<T> Python wrapper
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
