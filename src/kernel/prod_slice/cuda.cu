@@ -25,7 +25,6 @@ template<typename T>
 static __global__
 void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src,
         T *dst)
-    noexcept
 //! Per-element product of a tensor and a broadcasted slice on CUDA
 /*! This is a global function that does the following operations:
  *      dst[i,l,j] = alpha * dst[i,l,j] * src[i,j]

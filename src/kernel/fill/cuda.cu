@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-24
+ * @date 2023-05-02
  * */
 
 #include "nntile/kernel/fill/cuda.hh"
@@ -27,7 +27,6 @@ void cuda_kernel(Index nelems, T val, T *data)
 {
     int start = threadIdx.x + blockIdx.x*blockDim.x,
         step = blockDim.x * gridDim.x;
-    constexpr T zero = 0;
     for(Index i = start; i < nelems; i += step)
     {
         data[i] = val;

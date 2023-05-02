@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-24
+ * @date 2023-05-02
  * */
 
 #include "nntile/kernel/fill.hh"
@@ -77,7 +77,7 @@ void validate(Index nelems)
     // Check low-level CUDA kernel
     data = data_save;
     std::cout << "Run kernel::fill::cuda<T>\n";
-    run_cuda<T>(nelems, data);
+    run_cuda<T>(nelems, val, data);
     for(Index i = 0; i < nelems; ++i)
     {
         TEST_ASSERT(data[i] == val);

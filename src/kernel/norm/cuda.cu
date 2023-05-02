@@ -31,7 +31,7 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src,
           i1_start = threadIdx.y + blockIdx.y*blockDim.y,
           i2_step = blockDim.x * gridDim.x,
           i1_step = blockDim.y * gridDim.y;
-    constexpr T zero = 0;
+    constexpr T zero = 0, one = 1.0;
     // Cycle over row of output buffer
     for(Index i2 = i2_start; i2 < n; i2 += i2_step)
     {

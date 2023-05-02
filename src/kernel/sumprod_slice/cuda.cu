@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-05-02
  * */
 
 #include "nntile/kernel/sumprod_slice/cuda.hh"
@@ -38,8 +38,8 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src1,
         for(Index i1 = i1_start; i1 < m; i1 += i1_step)
         {
             // Get corresponding fibers of both sources
-            const T *src1_slice = src1 + i2*mk + i1;
-            const T *src2_slice = src2 + i2*mk + i1;
+            const T *src1_fiber = src1 + i2*mk + i1;
+            const T *src2_fiber = src2 + i2*mk + i1;
             // Init sum of product of the fibers
             T sum = zero;
             // Output value

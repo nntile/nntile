@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-18
+ * @date 2023-05-02
  * */
 
 #include "nntile/kernel/pow/cuda.hh"
@@ -23,7 +23,7 @@ namespace pow
 
 template<typename T>
 static __global__
-void cuda_kernel(Index nelems, T *data)
+void cuda_kernel(Index nelems, T alpha, T exp, T *data)
 {
     int start = threadIdx.x + blockIdx.x*blockDim.x,
         step = blockDim.x * gridDim.x;
