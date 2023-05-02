@@ -4,25 +4,34 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tensor/biasprod.cc
- * Bias-like product operation for Tensor<T>
+ * @file src/tensor/prod_slice.cc
+ * Tensor wrappers for per-element product of a tensor and a broadcasted slice
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-05-02
  * */
 
-#include "nntile/tensor/biasprod.hh"
-#include "nntile/starpu/biasprod.hh"
+#include "nntile/tensor/prod_slice.hh"
+#include "nntile/starpu/prod_slice.hh"
 
 namespace nntile
 {
 namespace tensor
 {
 
-//! Tensor-wise biasprod operation
 template<typename T>
-void biasprod_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
+void prod_slice_async(const Tensor<T> &src, T alpha, const Tensor<T> &dst,
+        Index axis)
+//! Tensor<T> per-element multiplication of a tensor and a broadcasted slice
+/*! Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
+ * and performs the following operations:
+ *      dst[i,l,j] = alpha * dst[i,l,j] * src[i,j]
+ *
+ * @param[in] src: Input slice, that is reshaped into 2D array
+ * @param[in] alpha: Scalar factor
+ * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
+ * */
 {
     // Check dimensions
     if(dst.ndim != src.ndim+1)
@@ -63,7 +72,7 @@ void biasprod_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
                     "src.basetile_shape[i-1]");
         }
     }
-    // Apply per-tile biasprod asynchronously as needed
+    // Apply per-tile prod_slice asynchronously as needed
     int mpi_rank = starpu_mpi_world_rank();
     int ret;
     for(Index i = 0; i < src.grid.nelems; ++i)
@@ -108,7 +117,7 @@ void biasprod_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
                 n = dst_tile_traits.matrix_shape[axis+1][1];
                 k = dst_tile_traits.shape[axis];
                 // Insert corresponding task
-                starpu::biasprod::submit<T>(m, n, k, src_tile_handle,
+                starpu::prod_slice::submit<T>(m, n, k, alpha, src_tile_handle,
                         dst_tile_handle);
             }
             // Flush cache for the output tile on every node
@@ -117,32 +126,42 @@ void biasprod_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
     }
 }
 
-//! Tensor-wise biasprod operation
 template<typename T>
-void biasprod(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
+void prod_slice(const Tensor<T> &src, T alpha, const Tensor<T> &dst,
+        Index axis)
+//! Tensor<T> per-element multiplication of a tensor and a broadcasted slice
+/*! Blocking version of prod_slice_async<T>.
+ * Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
+ * and performs the following operations:
+ *      dst[i,l,j] = alpha * dst[i,l,j] * src[i,j]
+ *
+ * @param[in] src: Input slice, that is reshaped into 2D array
+ * @param[in] alpha: Scalar factor
+ * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
+ * */
 {
-    biasprod_async<T>(src, dst, axis);
+    prod_slice_async<T>(src, alpha, dst, axis);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation of template
 template
-void biasprod_async<fp32_t>(const Tensor<fp32_t> &src,
+void prod_slice_async<fp32_t>(const Tensor<fp32_t> &src, fp32_t alpha,
         const Tensor<fp32_t> &dst, Index axis);
 
 template
-void biasprod_async<fp64_t>(const Tensor<fp64_t> &src,
+void prod_slice_async<fp64_t>(const Tensor<fp64_t> &src, fp64_t alpha,
         const Tensor<fp64_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void biasprod<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst,
-        Index axis);
+void prod_slice<fp32_t>(const Tensor<fp32_t> &src, fp32_t alpha,
+        const Tensor<fp32_t> &dst, Index axis);
 
 template
-void biasprod<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst,
-        Index axis);
+void prod_slice<fp64_t>(const Tensor<fp64_t> &src, fp64_t alpha,
+        const Tensor<fp64_t> &dst, Index axis);
 
 } // namespace tensor
 } // namespace nntile

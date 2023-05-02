@@ -4,33 +4,31 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/biasprod.hh
- * Bias-like product low-level kernels
+ * @file include/nntile/kernel/prod_slice/cpu.hh
+ * Per-element multiplication of a tensor by a broadcasted slice on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-19
+ * @date 2023-04-28
  * */
 
 #pragma once
 
-#include <nntile/kernel/biasprod/cpu.hh>
-#include <nntile/defs.h>
-#ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/biasprod/cuda.hh>
-#endif // NNTILE_USE_CUDA
+#include <nntile/base_types.hh>
 
 namespace nntile
 {
 namespace kernel
 {
-//! @namespace nntile::kernel::biasprod
-/*! Low-level implementations of bias-like product operation
- * */
-namespace biasprod
+namespace prod_slice
 {
 
-} // namespace biasprod
+// Per-element product of a tensor and a broadcasted slice on CPU
+template<typename T>
+void cpu(Index m, Index n, Index k, T alpha, const T *src, T *dst)
+    noexcept;
+
+} // namespace prod_slice
 } // namespace kernel
 } // namespace nntile
 

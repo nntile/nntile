@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/starpu/add_fiber.cc
- * StarPU wrappers for addition of a tensor and a broadcasted fiber
+ * @file tests/tile/prod_slice.cc
+ * Tile wrappers for per-element product of a tensor and a broadcasted slice
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev

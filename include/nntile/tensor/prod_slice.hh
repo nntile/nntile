@@ -4,12 +4,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/biasprod.hh
+ * @file include/nntile/tensor/prod_slice.hh
  * Bias-like product operation for Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-19
+ * @date 2023-05-02
  * */
 
 #pragma once
@@ -21,13 +21,15 @@ namespace nntile
 namespace tensor
 {
 
-// Tensor-wise biasprod operation
+// Tensor-wise prod_slice operation
 template<typename T>
-void biasprod_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis);
+void prod_slice_async(const Tensor<T> &src, T alpha, const Tensor<T> &dst,
+        Index axis);
 
-// Tensor-wise biasprod operation
+// Tensor-wise prod_slice operation
 template<typename T>
-void biasprod(const Tensor<T> &src, const Tensor<T> &dst, Index axis);
+void prod_slice(const Tensor<T> &src, T alpha, const Tensor<T> &dst,
+        Index axis);
 
 } // namespace tensor
 } // namespace nntile

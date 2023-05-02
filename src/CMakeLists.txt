@@ -11,13 +11,13 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-04-26
+# @date 2023-05-02
 
 # Set list of sources
 set(KERNEL_SRC
     "kernel/add_slice/cpu.cc"
     "kernel/add_fiber/cpu.cc"
-    "kernel/biasprod/cpu.cc"
+    "kernel/prod_slice/cpu.cc"
     "kernel/biasprod_outer/cpu.cc"
     "kernel/dgelu/cpu.cc"
     "kernel/dgelutanh/cpu.cc"
@@ -55,7 +55,7 @@ if(NNTILE_USE_CUDA)
     set(KERNEL_SRC
         ${KERNEL_SRC}
         "kernel/add_slice/cuda.cu"
-        "kernel/biasprod/cuda.cu"
+        "kernel/prod_slice/cuda.cu"
         "kernel/dgelu/cuda.cu"
         "kernel/dgelutanh/cuda.cu"
         "kernel/drelu/cuda.cu"
@@ -81,7 +81,7 @@ endif()
 set(STARPU_SRC
     "starpu/add_slice.cc"
     "starpu/add_fiber.cc"
-    "starpu/biasprod.cc"
+    "starpu/prod_slice.cc"
     "starpu/biasprod_outer.cc"
     "starpu/clear.cc"
     "starpu/dgelu.cc"
@@ -125,7 +125,7 @@ set(TILE_SRC
     "tile/axpy.cc"
     "tile/add_slice.cc"
     "tile/add_fiber.cc"
-    "tile/biasprod.cc"
+    "tile/prod_slice.cc"
     "tile/biasprod_outer.cc"
     "tile/clear.cc"
     "tile/copy.cc"
@@ -169,7 +169,7 @@ set(TENSOR_SRC
     "tensor/axpy.cc"
     "tensor/add_slice.cc"
     "tensor/add_fiber.cc"
-    "tensor/biasprod.cc"
+    "tensor/prod_slice.cc"
     "tensor/biasprod_outer.cc"
     "tensor/clear.cc"
     "tensor/copy.cc"

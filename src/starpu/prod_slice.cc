@@ -4,27 +4,27 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/biasprod.cc
- * Bias-like product operation on a StarPU buffer
+ * @file src/starpu/prod_slice.cc
+ * StarPU wrappers for per-element product of a tensor and a broadcasted slice
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-19
+ * @date 2023-05-02
  * */
 
-#include "nntile/starpu/biasprod.hh"
-#include "nntile/kernel/biasprod.hh"
+#include "nntile/starpu/prod_slice.hh"
+#include "nntile/kernel/prod_slice.hh"
 #include <cstdlib>
 
 namespace nntile
 {
 namespace starpu
 {
-//! StarPU wrappers for bias-like product operation
-namespace biasprod
+//! StarPU wrappers for prod_slice operation
+namespace prod_slice
 {
 
-//! Apply bias-like product along middle axis of StarPU buffer in CPU
+//! StarPU wrapper for kernel::prod_slice::cpu<T>
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
@@ -36,11 +36,12 @@ void cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::biasprod::cpu<T>(args->m, args->n, args->k, src, dst);
+    kernel::prod_slice::cpu<T>(args->m, args->n, args->k, args->alpha, src,
+            dst);
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply bias-like product along middle axis of StarPU buffer on CUDA
+//! StarPU wrapper for kernel::prod_slice::cuda<T>
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
@@ -54,20 +55,19 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::biasprod::cuda<T>(stream, args->m, args->n, args->k, src, dst);
+    kernel::prod_slice::cuda<T>(stream, args->m, args->n, args->k, args->alpha,
+            src, dst);
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for bias tasks that depends only on m, n and k
+//! Footprint for prod_slice tasks
 template<typename T>
 static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
-    // Apply hash over parameters m, n and k. This way if we swap values of m,
-    // n and k, then the total size of buffers will remain the same, but the
-    // footprint will be different
+    // Apply hash over parameters m, n and k
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
     hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
@@ -79,7 +79,7 @@ Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
-    codelet_fp32.init("nntile_biasprod_fp32",
+    codelet_fp32.init("nntile_prod_slice_fp32",
             footprint<fp32_t>,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -88,7 +88,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_fp64.init("nntile_biasprod_fp64",
+    codelet_fp64.init("nntile_prod_slice_fp64",
             footprint<fp64_t>,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
@@ -112,8 +112,8 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, Handle src, Handle dst)
-//! Insert biasprod task into StarPU pool of tasks
+void submit(Index m, Index n, Index k, T alpha, Handle src, Handle dst)
+//! Insert prod_slice task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
@@ -124,6 +124,7 @@ void submit(Index m, Index n, Index k, Handle src, Handle dst)
     args->m = m;
     args->n = n;
     args->k = k;
+    args->alpha = alpha;
     fp64_t nflops = m * n * k;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
@@ -135,18 +136,20 @@ void submit(Index m, Index n, Index k, Handle src, Handle dst)
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in biasprod task submission");
+        throw std::runtime_error("Error in prod_slice task submission");
     }
 }
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index m, Index n, Index k, Handle src, Handle dst);
+void submit<fp32_t>(Index m, Index n, Index k, fp32_t alpha, Handle src,
+        Handle dst);
 
 template
-void submit<fp64_t>(Index m, Index n, Index k, Handle src, Handle dst);
+void submit<fp64_t>(Index m, Index n, Index k, fp64_t alpha, Handle src,
+        Handle dst);
 
-} // namespace biasprod
+} // namespace prod_slice
 } // namespace starpu
 } // namespace nntile
 

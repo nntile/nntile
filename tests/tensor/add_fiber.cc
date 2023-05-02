@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/tensor/add_fiber.cc
- * Bias over slices from a fiber of a Tensor<T>
+ * Tensor wrappers for addition of a tensor and a broadcasted fiber
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-05-02
  * */
 
 #include "nntile/tensor/add_fiber.hh"

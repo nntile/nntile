@@ -4,12 +4,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/biasprod.hh
- * Bias-like product operation on a StarPU buffer
+ * @file include/nntile/starpu/prod_slice.hh
+ * StarPU wrappers for multiplication of a tensor and a broadcasted slice
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-19
+ * @date 2023-05-02
  * */
 
 #pragma once
@@ -22,7 +22,7 @@ namespace nntile
 {
 namespace starpu
 {
-namespace biasprod
+namespace prod_slice
 {
 
 //! Structure for arguments
@@ -32,15 +32,16 @@ struct args_t
     Index m;
     Index n;
     Index k;
+    T alpha;
 };
 
-// Apply bias-like product along middle axis of StarPU buffer on CPU
+// StarPU wrapper for kernel::prod_slice::cpu<T>
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
-// Apply bias-like product along middle axis of StarPU buffer on CUDA
+// StarPU wrapper for kernel::prod_slice::cuda<T>
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept;
@@ -74,9 +75,9 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, Handle src, Handle dst);
+void submit(Index m, Index n, Index k, T alpha, Handle src, Handle dst);
 
-} // namespace biasprod
+} // namespace prod_slice
 } // namespace starpu
 } // namespace nntile
 

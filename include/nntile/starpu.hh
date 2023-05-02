@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-26
+ * @date 2023-05-02
  * */
 
 #pragma once
@@ -23,7 +23,7 @@
 #include <nntile/starpu/axpy.hh>
 #include <nntile/starpu/add_slice.hh>
 #include <nntile/starpu/add_fiber.hh>
-#include <nntile/starpu/biasprod.hh>
+#include <nntile/starpu/prod_slice.hh>
 #include <nntile/starpu/biasprod_outer.hh>
 #include <nntile/starpu/clear.hh>
 #include <nntile/starpu/gelu.hh>
@@ -74,7 +74,7 @@ void init()
     axpy::init();
     add_slice::init();
     add_fiber::init();
-    biasprod::init();
+    prod_slice::init();
     biasprod_outer::init();
     clear::init();
     gelu::init();
@@ -118,7 +118,7 @@ void restrict_where(uint32_t where)
     axpy::restrict_where(where);
     add_slice::restrict_where(where);
     add_fiber::restrict_where(where);
-    biasprod::restrict_where(where);
+    prod_slice::restrict_where(where);
     biasprod_outer::restrict_where(where);
     clear::restrict_where(where);
     gelu::restrict_where(where);
@@ -162,7 +162,7 @@ void restore_where()
     axpy::restore_where();
     add_slice::restore_where();
     add_fiber::restore_where();
-    biasprod::restore_where();
+    prod_slice::restore_where();
     biasprod_outer::restore_where();
     clear::restore_where();
     gelu::restore_where();

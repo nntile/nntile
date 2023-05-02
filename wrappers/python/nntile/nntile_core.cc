@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-26
+ * @date 2023-05-02
  * */
 
 #include <pybind11/pybind11.h>
@@ -455,10 +455,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_fiber_fp64", &add_fiber<fp64_t>);
     m.def("add_fiber_fp32", &add_fiber<fp32_t>);
 
-    m.def("biasprod_async_fp64", &biasprod_async<fp64_t>);
-    m.def("biasprod_async_fp32", &biasprod_async<fp32_t>);
-    m.def("biasprod_fp64", &biasprod<fp64_t>);
-    m.def("biasprod_fp32", &biasprod<fp32_t>);
+    m.def("prod_slice_async_fp64", &prod_slice_async<fp64_t>);
+    m.def("prod_slice_async_fp32", &prod_slice_async<fp32_t>);
+    m.def("prod_slice_fp64", &prod_slice<fp64_t>);
+    m.def("prod_slice_fp32", &prod_slice<fp32_t>);
 
     m.def("biasprod_outer_async_fp64", &biasprod_outer_async<fp64_t>);
     m.def("biasprod_outer_async_fp32", &biasprod_outer_async<fp32_t>);

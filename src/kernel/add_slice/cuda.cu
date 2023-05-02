@@ -24,7 +24,7 @@ namespace add_slice
 template<typename T>
 static __global__
 void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src,
-        T *dst)
+        T beta, T *dst)
     noexcept
 //! Per-element addition of a tensor and a broadcasted slice on CUDA
 /*! This is a global function that does the following operations:
@@ -33,6 +33,7 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src,
  * @param[in] m: Size of the first mode of src and dst tensors
  * @param[in] n: Size of the last mode of src and dst tensors
  * @param[in] k: Size of the middle mode of dst tensor
+ * @param[in] mk: Product of m and k
  * @param[in] alpha: Scalar factor for src
  * @param[in] src: Input contiguous m-by-n array
  * @param[in] beta: Scaling factor for dst

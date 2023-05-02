@@ -4,17 +4,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/biasprod.cc
- * Bias-like product operation for Tensor<T>
+ * @file tests/tensor/prod_slice.cc
+ * Tensor wrappers for per-element product of a tensor and a broadcasted slice
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-05-02
  * */
 
-#include "nntile/tensor/biasprod.hh"
-#include "nntile/tile/biasprod.hh"
-#include "nntile/starpu/biasprod.hh"
+#include "nntile/tensor/prod_slice.hh"
+#include "nntile/tile/prod_slice.hh"
+#include "nntile/starpu/prod_slice.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
@@ -34,6 +34,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_root = 0;
+    T alpha = 2.0;
     // Generate single-tile destination tensor and init it
     TensorTraits dst_single_traits(shape, shape);
     std::vector<int> dist_root = {mpi_root};
@@ -92,12 +93,12 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     }
     Tensor<T> src(src_traits, src_distr, last_tag);
     scatter<T>(src_single, src);
-    // Perform tensor-wise and tile-wise biasprod operations
-    biasprod<T>(src, dst, axis);
+    // Perform tensor-wise and tile-wise prod_slice operations
+    prod_slice<T>(src, alpha, dst, axis);
     if(mpi_rank == mpi_root)
     {
-        tile::biasprod<T>(src_single.get_tile(0), dst_single.get_tile(0),
-                axis);
+        tile::prod_slice<T>(src_single.get_tile(0), alpha,
+                dst_single.get_tile(0), axis);
     }
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
@@ -137,13 +138,13 @@ void validate()
     std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0};
     Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
         C(trC, dist0, last_tag);
-    TEST_THROW(biasprod<T>(A, A, 0));
-    TEST_THROW(biasprod<T>(B, A, -1));
-    TEST_THROW(biasprod<T>(B, A, 2));
-    TEST_THROW(biasprod<T>(B, A, 0));
-    TEST_THROW(biasprod<T>(B, A, 1));
-    TEST_THROW(biasprod<T>(C, A, 0));
-    TEST_THROW(biasprod<T>(C, A, 1));
+    TEST_THROW(prod_slice<T>(A, 1.0, A, 0));
+    TEST_THROW(prod_slice<T>(B, 1.0, A, -1));
+    TEST_THROW(prod_slice<T>(B, 1.0, A, 2));
+    TEST_THROW(prod_slice<T>(B, 1.0, A, 0));
+    TEST_THROW(prod_slice<T>(B, 1.0, A, 1));
+    TEST_THROW(prod_slice<T>(C, 1.0, A, 0));
+    TEST_THROW(prod_slice<T>(C, 1.0, A, 1));
 }
 
 int main(int argc, char **argv)
@@ -151,9 +152,9 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    starpu::biasprod::init();
+    starpu::prod_slice::init();
     starpu::subcopy::init();
-    starpu::biasprod::restrict_where(STARPU_CPU);
+    starpu::prod_slice::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();

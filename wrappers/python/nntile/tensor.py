@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-04-26
+# @date 2023-05-02
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -309,14 +309,15 @@ def add_fiber_async(alpha: float, add_fiber: Tensor, beta, x: Tensor, \
     else:
         raise TypeError
 
-# Wrapper for multiprecision biasprod
-def biasprod_async(prod: Tensor, x: Tensor, axis: int) -> None:
-    if type(prod) is not type(x):
+# Wrapper for multiprecision prod_slice
+def prod_slice_async(prod_slice: Tensor, alpha: float, x: Tensor, \
+        axis: int) -> None:
+    if type(prod_slice) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.biasprod_async_fp32(prod, x, axis)
+        core_tensor.prod_slice_async_fp32(prod_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.biasprod_async_fp64(prod, x, axis)
+        core_tensor.prod_slice_async_fp64(prod_slice, alpha, x, axis)
     else:
         raise TypeError
 

@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-04-26
+# @date 2023-05-02
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -35,6 +35,7 @@ set(TESTS
     "relu"
     "sumnorm"
     "prod"
+    "prod_slice"
     "maxsumexp"
     "fill"
     "sum_slice"

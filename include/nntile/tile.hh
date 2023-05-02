@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-26
+ * @date 2023-05-02
  * */
 
 #pragma once
@@ -23,7 +23,7 @@
 #include <nntile/tile/axpy.hh>
 #include <nntile/tile/add_slice.hh>
 #include <nntile/tile/add_fiber.hh>
-#include <nntile/tile/biasprod.hh>
+#include <nntile/tile/prod_slice.hh>
 #include <nntile/tile/biasprod_outer.hh>
 #include <nntile/tile/clear.hh>
 #include <nntile/tile/copy.hh>

@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/kernel/add_slice.cc
- * Bias operation over fibers from a slice of a buffer
+ * Per-element addition of a tensor and a broadcasted slice
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-05-02
  * */
 
 #include "nntile/kernel/add_slice.hh"

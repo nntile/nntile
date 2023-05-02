@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-04-26
+# @date 2023-05-02
 
 # Set list of headers
 set(BASE_HDR
@@ -26,8 +26,8 @@ set(KERNEL_HDR
     "nntile/kernel/add_slice/cpu.hh"
     "nntile/kernel/add_fiber.hh"
     "nntile/kernel/add_fiber/cpu.hh"
-    "nntile/kernel/biasprod.hh"
-    "nntile/kernel/biasprod/cpu.hh"
+    "nntile/kernel/prod_slice.hh"
+    "nntile/kernel/prod_slice/cpu.hh"
     "nntile/kernel/biasprod_outer.hh"
     "nntile/kernel/biasprod_outer/cpu.hh"
     "nntile/kernel/dgelu.hh"
@@ -96,7 +96,7 @@ if(NNTILE_USE_CUDA)
     set(KERNEL_HDR
         ${KERNEL_HDR}
         "nntile/kernel/add_slice/cuda.hh"
-        "nntile/kernel/biasprod/cuda.hh"
+        "nntile/kernel/prod_slice/cuda.hh"
         "nntile/kernel/dgelu/cuda.hh"
         "nntile/kernel/dgelutanh/cuda.hh"
         "nntile/kernel/drelu/cuda.hh"
@@ -124,7 +124,7 @@ set(STARPU_HDR
     "nntile/starpu/axpy.hh"
     "nntile/starpu/add_slice.hh"
     "nntile/starpu/add_fiber.hh"
-    "nntile/starpu/biasprod.hh"
+    "nntile/starpu/prod_slice.hh"
     "nntile/starpu/biasprod_outer.hh"
     "nntile/starpu/clear.hh"
     "nntile/starpu/dgelu.hh"
@@ -169,7 +169,7 @@ set(TILE_HDR
     "nntile/tile/axpy.hh"
     "nntile/tile/add_slice.hh"
     "nntile/tile/add_fiber.hh"
-    "nntile/tile/biasprod.hh"
+    "nntile/tile/prod_slice.hh"
     "nntile/tile/biasprod_outer.hh"
     "nntile/tile/clear.hh"
     "nntile/tile/copy.hh"
@@ -215,7 +215,7 @@ set(TENSOR_HDR
     "nntile/tensor/axpy.hh"
     "nntile/tensor/add_slice.hh"
     "nntile/tensor/add_fiber.hh"
-    "nntile/tensor/biasprod.hh"
+    "nntile/tensor/prod_slice.hh"
     "nntile/tensor/biasprod_outer.hh"
     "nntile/tensor/clear.hh"
     "nntile/tensor/copy.hh"

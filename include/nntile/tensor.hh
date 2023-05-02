@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-26
+ * @date 2023-05-02
  * */
 
 #pragma once
@@ -25,7 +25,7 @@
 #include <nntile/tensor/axpy.hh>
 #include <nntile/tensor/add_slice.hh>
 #include <nntile/tensor/add_fiber.hh>
-#include <nntile/tensor/biasprod.hh>
+#include <nntile/tensor/prod_slice.hh>
 #include <nntile/tensor/biasprod_outer.hh>
 #include <nntile/tensor/clear.hh>
 #include <nntile/tensor/copy.hh>

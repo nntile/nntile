@@ -9,12 +9,12 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-04-26
+# @date 2023-05-02
 
 from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         TensorOrNone, TensorMoments, \
         add_slice_async, copy_async, sum_slice_async, norm_async, \
-        fill_async, pow_async, biasprod_async, sumprod_slice_async, \
+        fill_async, pow_async, prod_slice_async, sumprod_slice_async, \
         axpy_async, biasprod_outer_async, \
         add_fiber_async, sum_fiber_async, scalprod_outer_async, \
         clear_async
@@ -136,7 +136,7 @@ class LayerNorm(BaseLayer):
         # Invert stddev (to multiply by it instead of dividing)
         pow_async(1.0, -1.0, self.inv_stddev)
         # Finally, normalize input
-        biasprod_async(self.inv_stddev, self.y.value, self.axis)
+        prod_slice_async(self.inv_stddev, 1.0, self.y.value, self.axis)
         # Copy normalized input for the backward phase
         copy_async(self.y.value, self.tmp_y_value)
         # Scale output
@@ -157,7 +157,7 @@ class LayerNorm(BaseLayer):
         sumprod_slice_async(-1.0/self.l, self.tmp_y_grad, self.tmp_y_value, \
                 0.0, self.mean, self.axis)
         # Multiply tmp_Y_value by the mean
-        biasprod_async(self.mean, self.tmp_y_value, self.axis)
+        prod_slice_async(self.mean, 1.0, self.tmp_y_value, self.axis)
         # Add tmp_Y_grad to tmp_Y_value
         axpy_async(1.0, self.tmp_y_grad, self.tmp_y_value)
         # Get mean value of tmp_Y_grad over the given axis
@@ -165,7 +165,7 @@ class LayerNorm(BaseLayer):
         # Subtract mean from tmp_Y_value
         add_slice_async(-1.0, self.mean, 1.0, self.tmp_y_value, self.axis)
         # Multiply tmp_Y_value by the inverse stddev
-        biasprod_async(self.inv_stddev, self.tmp_y_value, self.axis)
+        prod_slice_async(self.inv_stddev, 1.0, self.tmp_y_value, self.axis)
         # Accumulate gradient from tmp_Y_value
         axpy_async(1.0, self.tmp_y_value, self.x.grad)
 
