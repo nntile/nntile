@@ -366,20 +366,24 @@ void def_mod_tensor(py::module_ &m)
     // Add tensor.distributions submodule
     auto distributions = m.def_submodule("distributions");
     def_tensor_distributions(distributions);
+
     // Add functions for Tensor<T>
     m.def("gemm_async_fp64", &gemm_async<fp64_t>);
     m.def("gemm_async_fp32", &gemm_async<fp32_t>);
     m.def("gemm_fp64", &gemm<fp64_t>);
     m.def("gemm_fp32", &gemm<fp32_t>);
+
     // Add activation functions for Tensor<T>
     m.def("relu_async_fp64", &relu_async<fp64_t>);
     m.def("relu_async_fp32", &relu_async<fp32_t>);
     m.def("relu_fp64", &relu<fp64_t>);
     m.def("relu_fp32", &relu<fp32_t>);
+
     m.def("relu_backward_async_fp64", &relu_backward_async<fp64_t>);
     m.def("relu_backward_async_fp32", &relu_backward_async<fp32_t>);
     m.def("relu_backward_fp64", &relu_backward<fp64_t>);
     m.def("relu_backward_fp32", &relu_backward<fp32_t>);
+
     m.def("drelu_async_fp64", &drelu_async<fp64_t>);
     m.def("drelu_async_fp32", &drelu_async<fp32_t>);
     m.def("drelu_fp64", &drelu<fp64_t>);
@@ -586,11 +590,6 @@ void def_mod_tensor(py::module_ &m)
     m.def("dgelutanh_async_fp32", &dgelutanh_async<fp32_t>);
     m.def("dgelutanh_fp64", &dgelutanh<fp64_t>);
     m.def("dgelutanh_fp32", &dgelutanh<fp32_t>);   
-
-    m.def("pow_async_fp64", &pow_async<fp64_t>);
-    m.def("pow_async_fp32", &pow_async<fp32_t>);
-    m.def("pow_fp64", &pow<fp64_t>);
-    m.def("pow_fp32", &pow<fp32_t>);
 }
 
 // Main extension module with all wrappers
