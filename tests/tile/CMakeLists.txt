@@ -15,39 +15,60 @@
 
 # All unit tests without arguments to test executable
 set(TESTS
-    "traits"
-    "tile"
-    "axpy"
-    "add_slice"
     "add_fiber"
+    "add_slice"
+    "addcdiv"
+    "axpy"
     "clear"
     "copy"
     "copy_intersection"
-    "gelu"
-    "gelutanh"
     "dgelu"
     "dgelutanh"
     "drelu"
+    "fill"
+    "gelu"
+    "gelu_backward"
+    "gelutanh"
+    "gelutanh_backward"
     "gemm"
-    "nrm2"
+    "logsumexp"
+    "maximum"
+    "maxsumexp"
+    "norm"
     "normalize"
-    "randn"
-    "relu"
-    "sumnorm"
+    "nrm2"
+    "pow"
     "prod"
     "prod_slice"
-    "maxsumexp"
-    "fill"
-    "sum_slice"
-    "sum_fiber"
-    "norm"
+    "randn"
+    "relu"
+    "relu_backward"
+    "scal"
     "softmax"
     "sqrt"
-    "maximum"
-    "addcdiv"
-    "scal"
+    "subtract_indexed_column"
+    "sum_fiber"
+    "sum_slice"
+    "sumnorm"
     "sumprod_slice"
+    "tile"
+    "total_sum_accum"
+    "traits"
     )
+
+# Describe all tests that are not yet implemented
+set(TESTS_NOT_IMPLEMENTED
+    "add_fiber"
+    "gelu_backward"
+    "gelutanh_backward"
+    "logsumexp"
+    "pow"
+    "prod_slice"
+    "relu_backward"
+    "subtract_indexed_column"
+    "sum_fiber"
+    "total_sum_accum"
+)
 
 # Add target for local coverage
 if(BUILD_COVERAGE)
@@ -58,6 +79,10 @@ if(BUILD_COVERAGE)
 endif()
 
 foreach(test IN LISTS TESTS)
+    set(labels)
+    if(test IN_LIST TESTS_NOT_IMPLEMENTED)
+        set(labels "NotImplemented")
+    endif()
     add_test_set(TARGET_NAME tests_tile_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
@@ -65,6 +90,7 @@ foreach(test IN LISTS TESTS)
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_tile_${test}
         COV_GLOBAL coverage_tile coverage
+        LABELS ${labels}
         )
 endforeach()
 
