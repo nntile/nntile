@@ -24,7 +24,7 @@
 #include <nntile/starpu/add_slice.hh>
 #include <nntile/starpu/add_fiber.hh>
 #include <nntile/starpu/prod_slice.hh>
-#include <nntile/starpu/biasprod_outer.hh>
+#include <nntile/starpu/prod_fiber.hh>
 #include <nntile/starpu/clear.hh>
 #include <nntile/starpu/gelu.hh>
 #include <nntile/starpu/gelutanh.hh>
@@ -75,7 +75,7 @@ void init()
     add_slice::init();
     add_fiber::init();
     prod_slice::init();
-    biasprod_outer::init();
+    prod_fiber::init();
     clear::init();
     gelu::init();
     gelutanh::init();
@@ -119,7 +119,7 @@ void restrict_where(uint32_t where)
     add_slice::restrict_where(where);
     add_fiber::restrict_where(where);
     prod_slice::restrict_where(where);
-    biasprod_outer::restrict_where(where);
+    prod_fiber::restrict_where(where);
     clear::restrict_where(where);
     gelu::restrict_where(where);
     gelutanh::restrict_where(where);
@@ -163,7 +163,7 @@ void restore_where()
     add_slice::restore_where();
     add_fiber::restore_where();
     prod_slice::restore_where();
-    biasprod_outer::restore_where();
+    prod_fiber::restore_where();
     clear::restore_where();
     gelu::restore_where();
     gelutanh::restore_where();

@@ -460,10 +460,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("prod_slice_fp64", &prod_slice<fp64_t>);
     m.def("prod_slice_fp32", &prod_slice<fp32_t>);
 
-    m.def("biasprod_outer_async_fp64", &biasprod_outer_async<fp64_t>);
-    m.def("biasprod_outer_async_fp32", &biasprod_outer_async<fp32_t>);
-    m.def("biasprod_outer_fp64", &biasprod_outer<fp64_t>);
-    m.def("biasprod_outer_fp32", &biasprod_outer<fp32_t>);
+    m.def("prod_fiber_async_fp64", &prod_fiber_async<fp64_t>);
+    m.def("prod_fiber_async_fp32", &prod_fiber_async<fp32_t>);
+    m.def("prod_fiber_fp64", &prod_fiber<fp64_t>);
+    m.def("prod_fiber_fp32", &prod_fiber<fp32_t>);
 
     m.def("gather_async_fp64", &gather_async<fp64_t>);
     m.def("gather_async_fp32", &gather_async<fp32_t>);

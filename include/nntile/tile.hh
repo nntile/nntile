@@ -24,7 +24,7 @@
 #include <nntile/tile/add_slice.hh>
 #include <nntile/tile/add_fiber.hh>
 #include <nntile/tile/prod_slice.hh>
-#include <nntile/tile/biasprod_outer.hh>
+#include <nntile/tile/prod_fiber.hh>
 #include <nntile/tile/clear.hh>
 #include <nntile/tile/copy.hh>
 #include <nntile/tile/copy_intersection.hh>

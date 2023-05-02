@@ -19,7 +19,7 @@
 #include <nntile/kernel/add_slice.hh>
 #include <nntile/kernel/add_fiber.hh>
 #include <nntile/kernel/prod_slice.hh>
-#include <nntile/kernel/biasprod_outer.hh>
+#include <nntile/kernel/prod_fiber.hh>
 #include <nntile/kernel/gelu.hh>
 #include <nntile/kernel/gelutanh.hh>
 #include <nntile/kernel/dgelu.hh>

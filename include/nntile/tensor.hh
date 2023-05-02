@@ -26,7 +26,7 @@
 #include <nntile/tensor/add_slice.hh>
 #include <nntile/tensor/add_fiber.hh>
 #include <nntile/tensor/prod_slice.hh>
-#include <nntile/tensor/biasprod_outer.hh>
+#include <nntile/tensor/prod_fiber.hh>
 #include <nntile/tensor/clear.hh>
 #include <nntile/tensor/copy.hh>
 #include <nntile/tensor/copy_intersection.hh>

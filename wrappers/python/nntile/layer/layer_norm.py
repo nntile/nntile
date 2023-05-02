@@ -15,7 +15,7 @@ from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         TensorOrNone, TensorMoments, \
         add_slice_async, copy_async, sum_slice_async, norm_async, \
         fill_async, pow_async, prod_slice_async, sumprod_slice_async, \
-        axpy_async, biasprod_outer_async, \
+        axpy_async, prod_fiber_async, \
         add_fiber_async, sum_fiber_async, scalprod_outer_async, \
         clear_async
 from nntile.layer.base_layer import BaseLayer
@@ -140,7 +140,7 @@ class LayerNorm(BaseLayer):
         # Copy normalized input for the backward phase
         copy_async(self.y.value, self.tmp_y_value)
         # Scale output
-        biasprod_outer_async(self.gamma.value, self.y.value, self.axis)
+        prod_fiber_async(self.gamma.value, 1.0, self.y.value, self.axis)
         # Shift output
         add_fiber_async(1.0, self.beta.value, 1.0, self.y.value, self.axis)
 
@@ -152,7 +152,7 @@ class LayerNorm(BaseLayer):
                 self.gamma.grad, self.axis)
         # Define gradient over normalized input
         copy_async(self.y.grad, self.tmp_y_grad)
-        biasprod_outer_async(self.gamma.value, self.tmp_y_grad, self.axis)
+        prod_fiber_async(self.gamma.value, 1.0, self.tmp_y_grad, self.axis)
         # Get mean of product of tmp_Y_grad and tmp_Y_value over the given axis
         sumprod_slice_async(-1.0/self.l, self.tmp_y_grad, self.tmp_y_value, \
                 0.0, self.mean, self.axis)
