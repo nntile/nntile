@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-03
+ * @date 2023-05-02
  * */
 
 #include "nntile/tensor/gather.hh"
@@ -29,6 +29,7 @@ void check(const std::vector<Index> &shape,
     starpu_mpi_tag_t last_tag = 0;
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
+    mpi_root = mpi_root % mpi_size;
     // Traits of source and destination tensors
     TensorTraits src_traits(shape, src_basetile),
                  dst_traits(shape, shape);

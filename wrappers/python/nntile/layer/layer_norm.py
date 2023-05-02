@@ -13,7 +13,7 @@
 
 from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         TensorOrNone, TensorMoments, \
-        add_slice_async, copy_async, sum_slice_async, norm_async, \
+        add_slice_async, copy_async, sum_slice_async, norm_slice_async, \
         fill_async, pow_async, prod_slice_async, sumprod_slice_async, \
         axpy_async, prod_fiber_async, \
         add_fiber_async, sum_fiber_async, sumprod_fiber_async, \
@@ -131,7 +131,7 @@ class LayerNorm(BaseLayer):
         add_slice_async(-1.0, self.mean, 1.0, self.y.value, self.axis)
         # Compute standard deviation of self.y.value
         fill_async(self.eps, self.inv_stddev)
-        norm_async(1.0/self.l**0.5, self.y.value, 1.0, self.inv_stddev, \
+        norm_slice_async(1.0/self.l**0.5, self.y.value, 1.0, self.inv_stddev, \
                 self.axis)
         # Invert stddev (to multiply by it instead of dividing)
         pow_async(1.0, -1.0, self.inv_stddev)

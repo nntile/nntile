@@ -154,38 +154,38 @@ def fill_async(val: float, x: Tensor) -> None:
         raise TypeError
 
 # Wrapper for multiprecision sum_slice
-def sum_slice_async(alpha: float, x: Tensor, beta: float, sum_out: Tensor, \
+def sum_slice_async(alpha: float, x: Tensor, beta: float, sum_slice: Tensor, \
         axis: int) -> None:
-    if type(x) is not type(sum_out):
+    if type(x) is not type(sum_slice):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.sum_slice_async_fp32(alpha, x, beta, sum_out, axis)
+        core_tensor.sum_slice_async_fp32(alpha, x, beta, sum_slice, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.sum_slice_async_fp64(alpha, x, beta, sum_out, axis)
+        core_tensor.sum_slice_async_fp64(alpha, x, beta, sum_slice, axis)
     else:
         raise TypeError
 
 # Wrapper for multiprecision sum_fiber
-def sum_fiber_async(alpha: float, x: Tensor, beta: float, sum_out: Tensor, \
+def sum_fiber_async(alpha: float, x: Tensor, beta: float, sum_fiber: Tensor, \
         axis: int) -> None:
-    if type(x) is not type(sum_out):
+    if type(x) is not type(sum_fiber):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.sum_fiber_async_fp32(alpha, x, beta, sum_out, axis)
+        core_tensor.sum_fiber_async_fp32(alpha, x, beta, sum_fiber, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.sum_fiber_async_fp64(alpha, x, beta, sum_out, axis)
+        core_tensor.sum_fiber_async_fp64(alpha, x, beta, sum_fiber, axis)
     else:
         raise TypeError
 
-# Wrapper for multiprecision norm
-def norm_async(alpha: float, x: Tensor, beta: float, norm_out: Tensor, \
-        axis: int) -> None:
-    if type(x) is not type(norm_out):
+# Wrapper for multiprecision norm_slice
+def norm_slice_async(alpha: float, x: Tensor, beta: float, \
+        norm_slice: Tensor, axis: int) -> None:
+    if type(x) is not type(norm_slice):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.norm_async_fp32(alpha, x, beta, norm_out, axis)
+        core_tensor.norm_slice_async_fp32(alpha, x, beta, norm_slice, axis)
     else:
-        core_tensor.norm_async_fp64(alpha, x, beta, norm_out, axis)
+        core_tensor.norm_slice_async_fp64(alpha, x, beta, norm_slice, axis)
 
 # Wrapper for multiprecision pow
 def pow_async(alpha: float, exp: float, x: Tensor) -> None:
