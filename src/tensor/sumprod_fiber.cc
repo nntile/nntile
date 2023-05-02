@@ -4,25 +4,24 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tensor/scalprod_outer.cc
- * Scalar products along outer axes of two Tensor<T>
+ * @file src/tensor/sumprod_fiber.cc
+ * Sums over fibers into a slice of a product of two Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-05-02
  * */
 
-#include "nntile/tensor/scalprod_outer.hh"
-#include "nntile/starpu/scalprod_outer.hh"
+#include "nntile/tensor/sumprod_fiber.hh"
+#include "nntile/starpu/sumprod_fiber.hh"
 
 namespace nntile
 {
 namespace tensor
 {
 
-//! Compute scalar products of slices along outer axes
 template<typename T>
-void scalprod_outer_async(T alpha, const Tensor<T> &src1,
+void sumprod_fiber_async(T alpha, const Tensor<T> &src1,
         const Tensor<T> &src2, T beta, const Tensor<T> &dst, Index axis)
 {
     // Check shapes of src1 and src2
@@ -102,13 +101,13 @@ void scalprod_outer_async(T alpha, const Tensor<T> &src1,
             // Insert task
             if(init_first)
             {
-                starpu::scalprod_outer::submit<T>(m, n, k, alpha,
+                starpu::sumprod_fiber::submit<T>(m, n, k, alpha,
                         src1_tile_handle, src2_tile_handle, beta,
                         dst_tile_handle);
             }
             else
             {
-                starpu::scalprod_outer::submit<T>(m, n, k, alpha,
+                starpu::sumprod_fiber::submit<T>(m, n, k, alpha,
                         src1_tile_handle, src2_tile_handle, one,
                         dst_tile_handle);
             }
@@ -121,35 +120,34 @@ void scalprod_outer_async(T alpha, const Tensor<T> &src1,
     }
 }
 
-
 template<typename T>
-void scalprod_outer(T alpha, const Tensor<T> &src1, const Tensor<T> &src2,
+void sumprod_fiber(T alpha, const Tensor<T> &src1, const Tensor<T> &src2,
         T beta, const Tensor<T> &dst, Index axis)
 {
-    scalprod_outer_async<T>(alpha, src1, src2, beta, dst, axis);
+    sumprod_fiber_async<T>(alpha, src1, src2, beta, dst, axis);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void scalprod_outer_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src1,
+void sumprod_fiber_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src1,
         const Tensor<fp32_t> &src2, fp32_t beta, const Tensor<fp32_t> &dst,
         Index axis);
 
 template
-void scalprod_outer_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src1,
+void sumprod_fiber_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src1,
         const Tensor<fp64_t> &src2, fp64_t beta, const Tensor<fp64_t> &dst,
         Index axis);
 
 // Explicit instantiation
 template
-void scalprod_outer<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src1,
+void sumprod_fiber<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src1,
         const Tensor<fp32_t> &src2, fp32_t beta, const Tensor<fp32_t> &dst,
         Index axis);
 
 template
-void scalprod_outer<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src1,
+void sumprod_fiber<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src1,
         const Tensor<fp64_t> &src2, fp64_t beta, const Tensor<fp64_t> &dst,
         Index axis);
 

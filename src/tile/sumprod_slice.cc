@@ -20,7 +20,6 @@ namespace nntile
 namespace tile
 {
 
-//! Tile-wise sumprod_slice operation
 template<typename T>
 void sumprod_slice_async(T alpha, const Tile<T> &src1, const Tile<T> &src2,
         T beta, const Tile<T> &dst, Index axis)
@@ -74,7 +73,6 @@ void sumprod_slice_async(T alpha, const Tile<T> &src1, const Tile<T> &src2,
     starpu::sumprod_slice::submit<T>(m, n, k, alpha, src1, src2, beta, dst);
 }
 
-//! Tile-wise sumprod_slice operation
 template<typename T>
 void sumprod_slice(T alpha, const Tile<T> &src1, const Tile<T> &src2, T beta,
         const Tile<T> &dst, Index axis)

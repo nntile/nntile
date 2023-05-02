@@ -4,26 +4,26 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/scalprod_outer.cc
- * Scalar product along outer axes of two StarPU buffers
+ * @file src/starpu/sumprod_fiber.cc
+ * Sums over slices into a fiber of a product of two StarPU buffers
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-05-02
  * */
 
-#include "nntile/starpu/scalprod_outer.hh"
-#include "nntile/kernel/scalprod_outer.hh"
+#include "nntile/starpu/sumprod_fiber.hh"
+#include "nntile/kernel/sumprod_fiber.hh"
 #include <cstdlib>
 
 namespace nntile
 {
 namespace starpu
 {
-namespace scalprod_outer
+namespace sumprod_fiber
 {
 
-//! Scalar products along outer axes of StarPU buffers on CPU
+//! StarPU wrapper for kernel::sumprod_fiber::cpu<T>
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
@@ -36,24 +36,20 @@ void cpu(void *buffers[], void *cl_args)
     const T *src2 = interfaces[1]->get_ptr<T>();
     T *dst = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::scalprod_outer::cpu<T>(args->m, args->n, args->k, args->alpha,
+    kernel::sumprod_fiber::cpu<T>(args->m, args->n, args->k, args->alpha,
             src1, src2, args->beta, dst);
 }
 
-//! Footprint for SCALPROD tasks that depends only on M, N, K and alpha
+//! Footprint for sumprod_fiber tasks
 template<typename T>
 static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
-    // In case alpha is zero, entire scalprod is unnecessary so it is better to
-    // give it a different footprint since scalprod time will be totally
-    // different
+    // Hash over alpha
     uint32_t hash = args->alpha == T{0} ? -1 : 0;
-    // Apply hash over parameters M, N and K. This way if we swap values of M,
-    // N and K total size of buffers will remain the same, but the footprint
-    // will be different
+    // Apply hash over parameters m, n and k
     hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
     hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
     hash = starpu_hash_crc32c_be_n(&args->k, sizeof(args->k), hash);
@@ -64,7 +60,7 @@ Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
-    codelet_fp32.init("nntile_scalprod_outer_fp32",
+    codelet_fp32.init("nntile_sumprod_fiber_fp32",
             footprint<fp32_t>,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -73,7 +69,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_fp64.init("nntile_scalprod_outer_fp64",
+    codelet_fp64.init("nntile_sumprod_fiber_fp64",
             footprint<fp64_t>,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
@@ -99,12 +95,27 @@ void restore_where()
 template<typename T>
 void submit(Index m, Index n, Index k, T alpha, Handle src1, Handle src2,
         T beta, Handle dst)
-//! Insert scalprod_outer task into StarPU pool of tasks
+//! Insert sumprod_fiber task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
+    // Access mode for the dst handle
+    constexpr T zero = 0, one = 1;
+    enum starpu_data_access_mode dst_mode;
+    if(beta == zero)
+    {
+        dst_mode = STARPU_W;
+    }
+    else if(beta == one)
+    {
+        dst_mode = Config::STARPU_RW_COMMUTE;
+    }
+    else
+    {
+        dst_mode = STARPU_RW;
+    }
     // Codelet arguments
     args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
     args->m = m;
@@ -112,35 +123,19 @@ void submit(Index m, Index n, Index k, T alpha, Handle src1, Handle src2,
     args->k = k;
     args->alpha = alpha;
     args->beta = beta;
-    //fp64_t nflops = m * n * k;
+    fp64_t nflops = k * (2*m*n);
     // Submit task
-    int ret;
-    // dst is initialized by the codelet if beta is zero
-    if(beta == 0.0)
-    {
-        ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src1),
-            STARPU_R, static_cast<starpu_data_handle_t>(src2),
-            STARPU_CL_ARGS, args, sizeof(*args),
-            STARPU_W, static_cast<starpu_data_handle_t>(dst),
-            //STARPU_FLOPS, nflops,
-            0);
-    }
-    // dst must be initialized before the codelet if beta is non-zero
-    else
-    {
-        ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src1),
-            STARPU_R, static_cast<starpu_data_handle_t>(src2),
-            STARPU_CL_ARGS, args, sizeof(*args),
-            Config::STARPU_RW_COMMUTE, static_cast<starpu_data_handle_t>(dst),
-            //STARPU_FLOPS, nflops,
-            0);
-    }
+    int ret = starpu_task_insert(codelet<T>(),
+        STARPU_R, static_cast<starpu_data_handle_t>(src1),
+        STARPU_R, static_cast<starpu_data_handle_t>(src2),
+        STARPU_CL_ARGS, args, sizeof(*args),
+        dst_mode, static_cast<starpu_data_handle_t>(dst),
+        STARPU_FLOPS, nflops,
+        0);
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in scalprodi_outer task submission");
+        throw std::runtime_error("Error in sumprod_fiber task submission");
     }
 }
 
@@ -153,7 +148,7 @@ template
 void submit<fp64_t>(Index m, Index n, Index k, fp64_t alpha, Handle src1,
         Handle src2, fp64_t beta, Handle dst);
 
-} // namespace scalprod_outer
+} // namespace sumprod_fiber
 } // namespace starpu
 } // namespace nntile
 

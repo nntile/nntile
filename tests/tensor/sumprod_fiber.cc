@@ -4,18 +4,18 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/scalprod.cc
- * Scalprod along outer axes operation for Tensor<T>
+ * @file tests/tensor/sumprod_fiber.cc
+ * Sums over fibers into a slice of a product of two Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-05-02
  * */
 
-#include "nntile/tensor/scalprod_outer.hh"
-#include "nntile/tile/scalprod_outer.hh"
+#include "nntile/tensor/sumprod_fiber.hh"
+#include "nntile/tile/sumprod_fiber.hh"
 #include "nntile/tile/clear.hh"
-#include "nntile/starpu/scalprod_outer.hh"
+#include "nntile/starpu/sumprod_fiber.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
@@ -91,11 +91,11 @@ void check(T alpha, T beta, const std::vector<Index> &shape,
     }
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
     scatter<T>(dst_single, dst);
-    // Perform tensor-wise and tile-wise scalprod operations
-    scalprod_outer<T>(alpha, src1, src2, beta, dst, axis);
+    // Perform tensor-wise and tile-wise sumprod_fiber operations
+    sumprod_fiber<T>(alpha, src1, src2, beta, dst, axis);
     if(mpi_rank == mpi_root)
     {
-        tile::scalprod_outer<T>(alpha, src1_single.get_tile(0),
+        tile::sumprod_fiber<T>(alpha, src1_single.get_tile(0),
                 src2_single.get_tile(0), beta, dst_single.get_tile(0), axis);
     }
     // Compare results
@@ -140,16 +140,16 @@ void validate()
         C(trC, dist0, last_tag), D(trD, dist00, last_tag),
         E(trE, dist0000, last_tag), F(trF, dist0, last_tag),
         G(trG, dist00, last_tag);
-    TEST_THROW(scalprod_outer<T>(1.0, A, A, 1.0, C, 0));
-    TEST_THROW(scalprod_outer<T>(1.0, F, F, 1.0, F, 0));
-    TEST_THROW(scalprod_outer<T>(1.0, A, A, 1.0, B, -1));
-    TEST_THROW(scalprod_outer<T>(1.0, A, A, 1.0, B, 2));
-    TEST_THROW(scalprod_outer<T>(1.0, A, A, 1.0, D, 0));
-    TEST_THROW(scalprod_outer<T>(1.0, A, A, 1.0, E, 0));
-    TEST_THROW(scalprod_outer<T>(1.0, A, A, 1.0, B, 0));
-    TEST_THROW(scalprod_outer<T>(1.0, A, A, 1.0, B, 1));
-    TEST_THROW(scalprod_outer<T>(1.0, A, A, 1.0, G, 0));
-    TEST_THROW(scalprod_outer<T>(1.0, A, A, 1.0, G, 1));
+    TEST_THROW(sumprod_fiber<T>(1.0, A, A, 1.0, C, 0));
+    TEST_THROW(sumprod_fiber<T>(1.0, F, F, 1.0, F, 0));
+    TEST_THROW(sumprod_fiber<T>(1.0, A, A, 1.0, B, -1));
+    TEST_THROW(sumprod_fiber<T>(1.0, A, A, 1.0, B, 2));
+    TEST_THROW(sumprod_fiber<T>(1.0, A, A, 1.0, D, 0));
+    TEST_THROW(sumprod_fiber<T>(1.0, A, A, 1.0, E, 0));
+    TEST_THROW(sumprod_fiber<T>(1.0, A, A, 1.0, B, 0));
+    TEST_THROW(sumprod_fiber<T>(1.0, A, A, 1.0, B, 1));
+    TEST_THROW(sumprod_fiber<T>(1.0, A, A, 1.0, G, 0));
+    TEST_THROW(sumprod_fiber<T>(1.0, A, A, 1.0, G, 1));
 }
 
 int main(int argc, char **argv)
@@ -157,10 +157,10 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    starpu::scalprod_outer::init();
+    starpu::sumprod_fiber::init();
     starpu::subcopy::init();
     starpu::clear::init();
-    starpu::scalprod_outer::restrict_where(STARPU_CPU);
+    starpu::sumprod_fiber::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
     starpu::clear::restrict_where(STARPU_CPU);
     // Launch all tests

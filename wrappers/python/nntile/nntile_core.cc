@@ -554,10 +554,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("sumprod_slice_fp64", &sumprod_slice<fp64_t>);
     m.def("sumprod_slice_fp32", &sumprod_slice<fp32_t>);
     
-    m.def("scalprod_outer_async_fp64", &scalprod_outer_async<fp64_t>);
-    m.def("scalprod_outer_async_fp32", &scalprod_outer_async<fp32_t>);
-    m.def("scalprod_outer_fp64", &scalprod_outer<fp64_t>);
-    m.def("scalprod_outer_fp32", &scalprod_outer<fp32_t>);
+    m.def("sumprod_fiber_async_fp64", &sumprod_fiber_async<fp64_t>);
+    m.def("sumprod_fiber_async_fp32", &sumprod_fiber_async<fp32_t>);
+    m.def("sumprod_fiber_fp64", &sumprod_fiber<fp64_t>);
+    m.def("sumprod_fiber_fp32", &sumprod_fiber<fp32_t>);
     
     // gelu and dgelu
     m.def("gelu_async_fp64", &gelu_async<fp64_t>);

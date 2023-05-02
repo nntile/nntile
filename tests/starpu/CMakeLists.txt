@@ -47,6 +47,7 @@ set(TESTS
     "sum_fiber"
     "sum_slice"
     "sumnorm"
+    "sumprod_fiber"
     "sumprod_slice"
     "total_sum_accum"
     )
@@ -63,6 +64,7 @@ set(TESTS_NOT_IMPLEMENTED
     "relu_backward"
     "subtract_indexed_column"
     "sum_fiber"
+    "sumprod_fiber"
     "total_sum_accum"
 )
 

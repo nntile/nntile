@@ -52,7 +52,7 @@
 #include <nntile/tile/maximum.hh>
 #include <nntile/tile/addcdiv.hh>
 #include <nntile/tile/sumprod_slice.hh>
-#include <nntile/tile/scalprod_outer.hh>
+#include <nntile/tile/sumprod_fiber.hh>
 #include <nntile/tile/logsumexp.hh>
 #include <nntile/tile/total_sum_accum.hh>
 #include <nntile/tile/subtract_indexed_column.hh>

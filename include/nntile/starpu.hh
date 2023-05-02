@@ -52,7 +52,7 @@
 #include <nntile/starpu/maximum.hh>
 #include <nntile/starpu/addcdiv.hh>
 #include <nntile/starpu/sumprod_slice.hh>
-#include <nntile/starpu/scalprod_outer.hh>
+#include <nntile/starpu/sumprod_fiber.hh>
 #include <nntile/starpu/logsumexp.hh>
 #include <nntile/starpu/total_sum_accum.hh>
 #include <nntile/starpu/subtract_indexed_column.hh>
@@ -103,7 +103,7 @@ void init()
     maximum::init();
     addcdiv::init();
     sumprod_slice::init();
-    scalprod_outer::init();
+    sumprod_fiber::init();
     logsumexp::init();
     total_sum_accum::init();
     subtract_indexed_column::init();
@@ -147,7 +147,7 @@ void restrict_where(uint32_t where)
     maximum::restrict_where(where);
     addcdiv::restrict_where(where);
     sumprod_slice::restrict_where(where);
-    scalprod_outer::restrict_where(where);
+    sumprod_fiber::restrict_where(where);
     logsumexp::restrict_where(where);
     total_sum_accum::restrict_where(where);
     subtract_indexed_column::restrict_where(where);
@@ -191,7 +191,7 @@ void restore_where()
     maximum::restore_where();
     addcdiv::restore_where();
     sumprod_slice::restore_where();
-    scalprod_outer::restore_where();
+    sumprod_fiber::restore_where();
     logsumexp::restore_where();
     total_sum_accum::restore_where();
     subtract_indexed_column::restore_where();

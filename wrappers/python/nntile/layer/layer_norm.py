@@ -16,7 +16,7 @@ from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         add_slice_async, copy_async, sum_slice_async, norm_async, \
         fill_async, pow_async, prod_slice_async, sumprod_slice_async, \
         axpy_async, prod_fiber_async, \
-        add_fiber_async, sum_fiber_async, scalprod_outer_async, \
+        add_fiber_async, sum_fiber_async, sumprod_fiber_async, \
         clear_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
@@ -148,7 +148,7 @@ class LayerNorm(BaseLayer):
         # Accumulate gradient over beta
         sum_fiber_async(1.0, self.y.grad, 1.0, self.beta.grad, self.axis)
         # Accumulate gradient over gamma
-        scalprod_outer_async(1.0, self.y.grad, self.tmp_y_value, 1.0, \
+        sumprod_fiber_async(1.0, self.y.grad, self.tmp_y_value, 1.0, \
                 self.gamma.grad, self.axis)
         # Define gradient over normalized input
         copy_async(self.y.grad, self.tmp_y_grad)

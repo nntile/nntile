@@ -451,18 +451,18 @@ def sumprod_slice_async(alpha: float, src1: Tensor, src2: Tensor, \
     else:
         raise TypeError
 
-# Wrapper for multiprecision scalprod_outer
-def scalprod_outer_async(alpha: float, src1: Tensor, src2: Tensor, \
+# Wrapper for multiprecision sumprod_fiber
+def sumprod_fiber_async(alpha: float, src1: Tensor, src2: Tensor, \
         beta: float, dst: Tensor, axis: int) -> None:
     if type(src1) is not type(src2):
         raise TypeError
     if type(src1) is not type(dst):
         raise TypeError
     if type(src1) is core_tensor.Tensor_fp32:
-        core_tensor.scalprod_outer_async_fp32(alpha, src1, src2, beta, dst, \
+        core_tensor.sumprod_fiber_async_fp32(alpha, src1, src2, beta, dst, \
                 axis)
     elif type(src1) is core_tensor.Tensor_fp64:
-        core_tensor.scalprod_outer_async_fp64(alpha, src1, src2, beta, dst, \
+        core_tensor.sumprod_fiber_async_fp64(alpha, src1, src2, beta, dst, \
                 axis)
     else:
         raise TypeError
