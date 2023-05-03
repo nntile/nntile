@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-04
+ * @date 2023-05-03
  * */
 
 #pragma once
@@ -34,6 +34,7 @@
 #include <nntile/tensor/dgelutanh.hh>
 #include <nntile/tensor/drelu.hh>
 #include <nntile/tensor/gemm.hh>
+#include <nntile/tensor/gemm_ex.hh>
 #include <nntile/tensor/nrm2.hh>
 #include <nntile/tensor/normalize.hh>
 #include <nntile/tensor/prod.hh>

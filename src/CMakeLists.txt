@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-04-04
+# @date 2023-05-03
 
 # Set list of sources
 set(KERNEL_SRC
@@ -74,6 +74,7 @@ set(STARPU_SRC
     "starpu/drelu.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/axpy.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"
+    "starpu/gemm_ex.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/nrm2.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/scal.cc"
     "starpu/gelu.cc"
@@ -111,6 +112,7 @@ set(TILE_SRC
     "tile/dgelutanh.cc"
     "tile/drelu.cc"
     "tile/gemm.cc"
+    "tile/gemm_ex.cc"
     "tile/gelu.cc"
     "tile/gelutanh.cc"
     "tile/nrm2.cc"
@@ -148,6 +150,7 @@ set(TENSOR_SRC
     "tensor/drelu.cc"
     "tensor/gather.cc"
     "tensor/gemm.cc"
+    "tensor/gemm_ex.cc"
     "tensor/gelu.cc"
     "tensor/gelutanh.cc"
     "tensor/nrm2.cc"

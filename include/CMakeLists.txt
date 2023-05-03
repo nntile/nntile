@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-04-04
+# @date 2023-05-03
 
 # Set list of headers
 set(BASE_HDR
@@ -108,6 +108,7 @@ set(STARPU_HDR
     "nntile/starpu/dgelutanh.hh"
     "nntile/starpu/drelu.hh"
     "nntile/starpu/gemm.hh"
+    "nntile/starpu/gemm_ex.hh"
     "nntile/starpu/gelu.hh"
     "nntile/starpu/gelutanh.hh"
     "nntile/starpu/hypot.hh"
@@ -147,6 +148,7 @@ set(TILE_HDR
     "nntile/tile/dgelutanh.hh"
     "nntile/tile/drelu.hh"
     "nntile/tile/gemm.hh"
+    "nntile/tile/gemm_ex.hh"
     "nntile/tile/gelu.hh"
     "nntile/tile/gelutanh.hh"
     "nntile/tile/nrm2.hh"
@@ -186,6 +188,7 @@ set(TENSOR_HDR
     "nntile/tensor/drelu.hh"
     "nntile/tensor/gather.hh"
     "nntile/tensor/gemm.hh"
+    "nntile/tensor/gemm_ex.hh"
     "nntile/tensor/gelu.hh"
     "nntile/tensor/gelutanh.hh"
     "nntile/tensor/nrm2.hh"

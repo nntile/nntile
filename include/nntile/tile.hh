@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-04
+ * @date 2023-05-03
  * */
 
 #pragma once
@@ -31,6 +31,7 @@
 #include <nntile/tile/dgelutanh.hh>
 #include <nntile/tile/drelu.hh>
 #include <nntile/tile/gemm.hh>
+#include <nntile/tile/gemm_ex.hh>
 #include <nntile/tile/nrm2.hh>
 #include <nntile/tile/normalize.hh>
 #include <nntile/tile/prod.hh>

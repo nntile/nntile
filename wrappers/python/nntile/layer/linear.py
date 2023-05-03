@@ -9,10 +9,12 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-03-28
+# @date 2023-05-03
 
+import nntile
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        TransOp, trans, notrans, copy_async, gemm_async, randn_async
+        TransOp, trans, notrans, copy_async, gemm_async, gemm_ex_async, \
+        randn_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -26,11 +28,13 @@ class Linear(BaseLayer):
     ndim: int
     #b: TensorMoments
     #b_axis: int
+    fp32_fast_fp16: bool
 
     # Construct linear layer with all the provided data
     def __init__(self, side: str, trans_x: TransOp, x: TensorMoments, \
             y: TensorMoments, w: TensorMoments, ndim: int, \
-            #b: TensorMoments, b_axis: int, # No bias as of now
+            #b: TensorMoments, b_axis: int, # No bias as of now \
+            fp32_fast_fp16: bool = False
             ):
         # Check parameter side
         if side != 'L' and side != 'R':
@@ -49,12 +53,14 @@ class Linear(BaseLayer):
         self.w = w
         #self.b = b
         #self.b_axis = b_axis
+        self.fp32_fast_fp16 = fp32_fast_fp16
 
     # Simple generator for the linear layer
     @staticmethod
-    def generate_simple_mpiroot(x: TensorMoments, side: str, trans_x: TransOp,
-            ndim: int, add_shape: List[int], add_basetile_shape: List[int],
-            next_tag: int):
+    def generate_simple_mpiroot(x: TensorMoments, side: str, \
+            trans_x: TransOp, ndim: int, add_shape: List[int], \
+            add_basetile_shape: List[int], next_tag: int, \
+            fp32_fast_fp16: bool = False):
         # Define shapes
         if side == 'L':
             if trans_x == notrans:
@@ -103,7 +109,9 @@ class Linear(BaseLayer):
         # Bias is ignored for now
         #b = TensorMoments(None, None, False)
         # Create linear layer with all the provided data
-        layer = Linear(side, trans_x, x, y, w, ndim)
+        if type(x.value) is not nntile.tensor.Tensor_fp32:
+            fp32_fast_fp16 = False
+        layer = Linear(side, trans_x, x, y, w, ndim, fp32_fast_fp16)
         # Return layer and next tag to be used
         return (layer, next_tag)
 
@@ -115,15 +123,23 @@ class Linear(BaseLayer):
             # 'i' is a multi-index of dimension X.ndim-ndim
             # 'j' is a multi-index of dimension ndim
             # 'k' is a multi-index of dimension W.ndim-ndim
-            gemm_async(1.0, self.trans_x, self.x.value, notrans, self.w.value,
-                    0.0, self.y.value, self.ndim, 0)
+            if self.fp32_fast_fp16:
+                gemm_ex_async(1.0, self.trans_x, self.x.value, notrans, \
+                        self.w.value, 0.0, self.y.value, self.ndim, 0)
+            else:
+                gemm_async(1.0, self.trans_x, self.x.value, notrans, \
+                        self.w.value, 0.0, self.y.value, self.ndim, 0)
         else:
             # Y = einsum('ij,jk->ik', W, op(X))
             # 'i' is a multi-index of dimension W.ndim-ndim
             # 'j' is a multi-index of dimension ndim
             # 'k' is a multi-index of dimension X.ndim-ndim
-            gemm_async(1.0, notrans, self.w.value, self.trans_x, self.x.value,
-                    0.0, self.y.value, self.ndim, 0)
+            if self.fp32_fast_fp16:
+                gemm_ex_async(1.0, notrans, self.w.value, self.trans_x, \
+                        self.x.value, 0.0, self.y.value, self.ndim, 0)
+            else:
+                gemm_async(1.0, notrans, self.w.value, self.trans_x, \
+                        self.x.value, 0.0, self.y.value, self.ndim, 0)
         # Hint for StarPU that W tensor will
         # not be used soon and it is advised to offload data from GPU
         self.w.value.wont_use()
@@ -140,11 +156,19 @@ class Linear(BaseLayer):
                 # 'j' is a multi-index of dimension ndim
                 # 'k' is a multi-index of dimension W.ndim-ndim
                 if self.trans_x == notrans:
-                    gemm_async(1.0, trans, self.x.value, notrans, \
-                            self.y.grad, 0.0, self.w.grad, gemm_ndim, 0)
+                    if self.fp32_fast_fp16:
+                        gemm_ex_async(1.0, trans, self.x.value, notrans, \
+                                self.y.grad, 0.0, self.w.grad, gemm_ndim, 0)
+                    else:
+                        gemm_async(1.0, trans, self.x.value, notrans, \
+                                self.y.grad, 0.0, self.w.grad, gemm_ndim, 0)
                 else:
-                    gemm_async(1.0, notrans, self.x.value, notrans, \
-                            self.y.grad, 0.0, self.w.grad, gemm_ndim, 0)
+                    if self.fp32_fast_fp16:
+                        gemm_ex_async(1.0, notrans, self.x.value, notrans, \
+                                self.y.grad, 0.0, self.w.grad, gemm_ndim, 0)
+                    else:
+                        gemm_async(1.0, notrans, self.x.value, notrans, \
+                                self.y.grad, 0.0, self.w.grad, gemm_ndim, 0)
             else:
                 # Backward for Y = einsum('ij,jk->ik', W, op(X))
                 # dW = einsum('ik,jk->ij', dY, op(X))
@@ -152,11 +176,19 @@ class Linear(BaseLayer):
                 # 'j' is a multi-index of dimension ndim
                 # 'k' is a multi-index of dimension X.ndim-ndim
                 if self.trans_x == notrans:
-                    gemm_async(1.0, notrans, self.y.grad, trans, \
-                            self.x.value, 0.0, self.w.grad, gemm_ndim, 0)
+                    if self.fp32_fast_fp16:
+                        gemm_ex_async(1.0, notrans, self.y.grad, trans, \
+                                self.x.value, 0.0, self.w.grad, gemm_ndim, 0)
+                    else:
+                        gemm_async(1.0, notrans, self.y.grad, trans, \
+                                self.x.value, 0.0, self.w.grad, gemm_ndim, 0)
                 else:
-                    gemm_async(1.0, notrans, self.y.grad, notrans, \
-                            self.x.value, 0.0, self.w.grad, gemm_ndim, 0)
+                    if self.fp32_fast_fp16:
+                        gemm_ex_async(1.0, notrans, self.y.grad, notrans, \
+                                self.x.value, 0.0, self.w.grad, gemm_ndim, 0)
+                    else:
+                        gemm_async(1.0, notrans, self.y.grad, notrans, \
+                                self.x.value, 0.0, self.w.grad, gemm_ndim, 0)
             # Hint StarPU to offload gradient over W if needed
             self.w.grad.wont_use()
         # Gradient over X (input)
@@ -170,12 +202,20 @@ class Linear(BaseLayer):
                 # 'k' is a multi-index of dimension W.ndim-ndim
                 if self.trans_x == notrans:
                     # dX = einsum('ik,jk->ij', dY, W)
-                    gemm_async(1.0, notrans, self.y.grad, trans, self.w.value,
-                            0.0, self.x.grad, gemm_ndim, 0)
+                    if self.fp32_fast_fp16:
+                        gemm_ex_async(1.0, notrans, self.y.grad, trans, \
+                                self.w.value, 0.0, self.x.grad, gemm_ndim, 0)
+                    else:
+                        gemm_async(1.0, notrans, self.y.grad, trans, \
+                                self.w.value, 0.0, self.x.grad, gemm_ndim, 0)
                 else:
                     # dX = einsum('ik,jk->ij', W, dY)
-                    gemm_async(1.0, notrans, self.w.value, trans, self.y.grad,
-                            0.0, self.x.grad, gemm_ndim, 0)
+                    if self.fp32_fast_fp16:
+                        gemm_ex_async(1.0, notrans, self.w.value, trans, \
+                                self.y.grad, 0.0, self.x.grad, gemm_ndim, 0)
+                    else:
+                        gemm_async(1.0, notrans, self.w.value, trans, \
+                                self.y.grad, 0.0, self.x.grad, gemm_ndim, 0)
             else:
                 # Backward for Y = einsum('ij,jk->ik', W, op(X))
                 # d op(X) = einsum('ij,ik->jk', W, dY)
@@ -184,12 +224,20 @@ class Linear(BaseLayer):
                 # 'k' is a multi-index of dimension X.ndim-ndim
                 if self.trans_x == notrans:
                     # dX = einsum('ij,ik->jk', W, dY)
-                    gemm_async(1.0, trans, self.w.value, notrans, self.y.grad,
-                            0.0, self.x.grad, gemm_ndim, 0)
+                    if self.fp32_fast_fp16:
+                        gemm_ex_async(1.0, trans, self.w.value, notrans, \
+                                self.y.grad, 0.0, self.x.grad, gemm_ndim, 0)
+                    else:
+                        gemm_async(1.0, trans, self.w.value, notrans, \
+                                self.y.grad, 0.0, self.x.grad, gemm_ndim, 0)
                 else:
                     # dX = einsum('ij,ik->jk', dY, W)
-                    gemm_async(1.0, trans, self.y.grad, notrans, self.w.value,
-                            0.0, self.x.grad, gemm_ndim, 0)
+                    if self.fp32_fast_fp16:
+                        gemm_ex_async(1.0, trans, self.y.grad, notrans, \
+                                self.w.value, 0.0, self.x.grad, gemm_ndim, 0)
+                    else:
+                        gemm_async(1.0, trans, self.y.grad, notrans, \
+                                self.w.value, 0.0, self.x.grad, gemm_ndim, 0)
             # Hint StarPU to offload certain buffers
             self.w.value.wont_use()
 
