@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-04-04
+# @date 2023-05-03
 
 # Imports
 import nntile
@@ -21,10 +21,11 @@ import torchvision.datasets as dts
 import torchvision.transforms as trnsfrms
 import torch
 
-# dataset = "mnist"
-# dataset = "cifar10"
-# dataset = "imagenet"
+#dataset = "mnist"
+#dataset = "cifar10"
+#dataset = "imagenet"
 dataset = "tiny_imagenet"
+fp32_fast_fp16 = True
 
 if dataset == "mnist":
         batch_size = 2000
@@ -43,7 +44,7 @@ if dataset == "mnist":
         n_pixels_tile = 392
         n_classes = 10
 elif dataset == "cifar10":
-        batch_size = 2000
+        batch_size = 10000
         transform = trnsfrms.Compose([trnsfrms.ToTensor(), trnsfrms.Normalize((0.1307,), (0.3081,))])
         cifar10_train_set = dts.CIFAR10(root='/raid/data/datasets/cifar10/', 
                                             train=True,
@@ -53,10 +54,10 @@ elif dataset == "cifar10":
         cifar10_test_set = dts.CIFAR10(root='/raid/data/datasets/cifar10/',
                                 train=False, download=False, transform=transform)
         test_loader = torch.utils.data.DataLoader(cifar10_test_set, batch_size=batch_size, shuffle=True)
-        n_images_train_tile = 1000
-        n_images_test_tile = 1000
+        n_images_train_tile = 10000
+        n_images_test_tile = 10000
         n_pixels = 32 * 32 * 3
-        n_pixels_tile = n_pixels // 2
+        n_pixels_tile = n_pixels
         n_classes = 10
 elif dataset == "imagenet":
         batch_size = 10000
@@ -134,11 +135,11 @@ next_tag = 0
 
 # Describe neural network
 gemm_ndim = 1
-hidden_layer_dim = 1000
-hidden_layer_dim_tile = 500
+hidden_layer_dim = 10000
+hidden_layer_dim_tile = 5000
 n_layers = 5
-n_epochs = 10
-lr = 1e-2
+n_epochs = 2
+lr = 1e-10
 
 # Number of FLOPs for training per batch
 n_flops_train_first_layer = 2 * 2 * n_pixels * batch_size \
@@ -200,12 +201,15 @@ x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
 # Define deep ReLU network
 m = nntile.model.DeepReLU(x_moments, 'L', gemm_ndim, hidden_layer_dim, \
-        hidden_layer_dim_tile, n_layers, n_classes, next_tag)
+        hidden_layer_dim_tile, n_layers, n_classes, next_tag, fp32_fast_fp16)
+print("GEMM FP32_FAST_FP16: {}".format(m.fp32_fast_fp16))
 next_tag = m.next_tag
 # Set up learning rate and optimizer for training
+optimizer = nntile.optimizer.SGD(m.get_parameters(), lr, next_tag, \
+        momentum=0.0, nesterov=False, weight_decay=0.0)
 # optimizer = nntile.optimizer.SGD(m.get_parameters(), lr, next_tag, momentum=0.9,
 #        nesterov=False, weight_decay=0.)
-optimizer = nntile.optimizer.Adam(m.get_parameters(), lr, next_tag)
+#optimizer = nntile.optimizer.Adam(m.get_parameters(), lr, next_tag)
 next_tag = optimizer.get_next_tag()
 
 # Set up Frobenius loss function for the model
@@ -263,8 +267,8 @@ time0 = -time.time()
 for x in batch_data:
     nntile.tensor.copy_async(x, m.activations[0].value)
     m.forward_async()
-    for t in m.activations:
-        t.value.invalidate_submit()
+    #for t in m.activations:
+    #    t.value.invalidate_submit()
 nntile.starpu.wait_for_all()
 time0 += time.time()
 # FLOPS for inference over the first layer per batch
@@ -282,27 +286,31 @@ print("Inference GFLOPs/s (based on gemms): {}" \
         .format(n_flops_inference * 1e-9 / time0))
 
 # Compute test accuracy of the trained model
-test_top1_accuracy = 0
-total_num_samples = 0
-z_single_traits = nntile.tensor.TensorTraits([batch_size, n_classes], \
-        [batch_size, n_classes])
-z_single_distr = [0]
-z_single = nntile.tensor.Tensor_fp32(z_single_traits, z_single_distr, next_tag)
-next_tag = z_single.next_tag
-for test_batch_data, test_batch_label in test_loader:
-    x_single.from_array(test_batch_data.view(-1, n_pixels).numpy())
-    nntile.tensor.scatter_async(x_single, m.activations[0].value)
-    m.forward_async()
-    nntile.tensor.gather_async(m.activations[-1].value, z_single)
-    output = np.zeros(z_single.shape, order="F", dtype=np.float32)
-    # to_array causes y_single to finish gather procedure
-    z_single.to_array(output)
-    pred_labels = np.argmax(output, 1)
-    test_top1_accuracy += np.sum(pred_labels == test_batch_label.numpy())
-    total_num_samples += test_batch_label.shape[0]
-test_top1_accuracy /= total_num_samples
+if len(test_loader) > 0:
+    test_top1_accuracy = 0
+    total_num_samples = 0
+    z_single_traits = nntile.tensor.TensorTraits([batch_size, n_classes], \
+            [batch_size, n_classes])
+    z_single_distr = [0]
+    z_single = nntile.tensor.Tensor_fp32(z_single_traits, z_single_distr, next_tag)
+    next_tag = z_single.next_tag
+    for test_batch_data, test_batch_label in test_loader:
+        x_single.from_array(test_batch_data.view(-1, n_pixels).numpy())
+        nntile.tensor.scatter_async(x_single, m.activations[0].value)
+        m.forward_async()
+        nntile.tensor.gather_async(m.activations[-1].value, z_single)
+        output = np.zeros(z_single.shape, order="F", dtype=np.float32)
+        # to_array causes y_single to finish gather procedure
+        z_single.to_array(output)
+        pred_labels = np.argmax(output, 1)
+        test_top1_accuracy += np.sum(pred_labels == test_batch_label.numpy())
+        total_num_samples += test_batch_label.shape[0]
+    test_top1_accuracy /= total_num_samples
+    z_single.unregister()
+    print("Test accuracy of the trained Deep ReLU model =", test_top1_accuracy)
 
-print("Test accuracy of the trained Deep ReLU model =", test_top1_accuracy)
+# Wait for all computations to finish
+nntile.starpu.wait_for_all()
 
 # Unregister single-tile tensors for data scattering/gathering
 x_single.unregister()

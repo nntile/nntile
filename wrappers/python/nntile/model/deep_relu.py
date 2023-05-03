@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-17
+# @date 2023-05-03
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         notrans, trans, Tensor_fp32
@@ -21,10 +21,12 @@ from typing import List
 
 class DeepReLU(BaseModel):
     next_tag: int
+    fp32_fast_fp16: bool
 
     # Construct model with all the provided data
-    def __init__(self, x: TensorMoments, side: str, ndim: int, add_shape: int,
-            add_basetile_shape: int, nlayers: int, n_classes:int, next_tag: int):
+    def __init__(self, x: TensorMoments, side: str, ndim: int, \
+            add_shape: int, add_basetile_shape: int, nlayers: int, \
+            n_classes:int, next_tag: int, fp32_fast_fp16: bool = False):
         # Check parameter side
         if side != 'L' and side != 'R':
             raise ValueError("side must be either 'L' or 'R'")
@@ -38,8 +40,10 @@ class DeepReLU(BaseModel):
         activations = [x]
         layers = []
         # Initial linear layer that converts input to internal shape
-        new_layer, next_tag = Linear.generate_simple_mpiroot(x, side, notrans,
-                ndim, [add_shape], [add_basetile_shape], next_tag)
+        new_layer, next_tag = Linear.generate_simple_mpiroot(x, side, \
+                notrans, ndim, [add_shape], [add_basetile_shape], next_tag, \
+                fp32_fast_fp16)
+        self.fp32_fast_fp16 = new_layer.fp32_fast_fp16
         print("Layer 0 shape", new_layer.w.value.shape, new_layer.y.value.shape)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
@@ -49,9 +53,9 @@ class DeepReLU(BaseModel):
         activations.extend(new_layer.activations_output)
         # Internal linear layers with the same internal shape
         for i in range(1, nlayers-1):
-            new_layer, next_tag = Linear.generate_simple_mpiroot(
-                    activations[-1], side, notrans, 1, [add_shape],
-                    [add_basetile_shape], next_tag)
+            new_layer, next_tag = Linear.generate_simple_mpiroot( \
+                    activations[-1], side, notrans, 1, [add_shape], \
+                    [add_basetile_shape], next_tag, fp32_fast_fp16)
             print("Layer {} shape".format(i), new_layer.w.value.shape, new_layer.y.value.shape)
             layers.append(new_layer)
             activations.extend(new_layer.activations_output)
@@ -67,8 +71,9 @@ class DeepReLU(BaseModel):
         #     new_shape = x.value.shape[:ndim]
         #     new_base = x.value.basetile_shape[:ndim]
 
-        new_layer, next_tag = Linear.generate_simple_mpiroot(activations[-1],
-                side, notrans, 1, [n_classes], [n_classes], next_tag)
+        new_layer, next_tag = Linear.generate_simple_mpiroot(activations[-1], \
+                side, notrans, 1, [n_classes], [n_classes], next_tag, \
+                fp32_fast_fp16)
         print("Last layer shape", new_layer.w.value.shape, new_layer.y.value.shape)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)

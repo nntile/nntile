@@ -44,7 +44,7 @@ void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
  * @param[inout] dst: Input buffers that contains output in the end
  * */
 {
-    dim3 blocks(256), threads(32);
+    dim3 blocks(32), threads(256);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
 }
 

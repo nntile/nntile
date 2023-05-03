@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-08
+ * @date 2023-05-03
  * */
 
 #include "nntile/kernel/maxsumexp/cuda.hh"
@@ -26,19 +26,17 @@ static __global__
 void cuda_kernel(Index m, Index n, Index k, Index mk, const T *src,
         T *maxsumexp)
 {
-    Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
-          i1_start = threadIdx.y + blockIdx.y*blockDim.y,
-          i2_step = blockDim.x * gridDim.x,
-          i1_step = blockDim.y * gridDim.y;
+    Index i1 = threadIdx.x + blockIdx.x*blockDim.x,
+          i2 = threadIdx.y + blockIdx.y*blockDim.y;
     constexpr T zero = 0, one = 1;
-    // Cycle over row of output buffer
-    for(Index i2 = i2_start; i2 < n; i2 += i2_step)
+    // Check column index of output buffer
+    if(i2 < n)
     {
-        // Cycle over column of output buffer
-        for(Index i1 = i1_start; i1 < m; i1 += i1_step)
+        // Check row index of output buffer
+        if(i1 < m)
         {
-            // Get max and sum of exponents of a corresponding slice
-            const T *src_slice = src + i2*mk + i1;
+            // Get max and sum of exponents of a corresponding fiber
+            const T *src_fiber = src + i2*mk + i1;
             // Init max and sum
             Index dst_offset = 2 * (i1+i2*m);
             T max = maxsumexp[dst_offset];
@@ -47,13 +45,13 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, const T *src,
             // initialized. Just initialize maximum value in this case.
             if(sum == zero)
             {
-                max = src_slice[0];
+                max = src_fiber[0];
             }
-            // Cycle over slice of input buffer
+            // Cycle over fiber of input buffer
             for(Index i0 = 0; i0 < k; ++i0)
             {
                 // Read value from source
-                T val = src_slice[i0*m];
+                T val = src_fiber[i0*m];
                 // Update max and sum of exponents
                 if(max < val)
                 {
@@ -96,9 +94,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
  *      sums and norms of slices along middle axis.
  * */
 {
-    // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
     // Both source and destination are Fortran-contiguous
-    dim3 blocks(16, 16), threads(8, 4);
+    dim3 blocks((m+15)/16, (n+15)/16), threads(16, 16);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, src,
             maxsumexp);
 }
