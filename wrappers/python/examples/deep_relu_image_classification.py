@@ -24,101 +24,121 @@ import torch
 #dataset = "mnist"
 #dataset = "cifar10"
 #dataset = "imagenet"
-dataset = "tiny_imagenet"
-fp32_fast_fp16 = True
+#dataset = "tiny_imagenet"
+dataset = "random"
+fp32_fast_fp16 = False
 
 if dataset == "mnist":
-        batch_size = 2000
-        trnsform = trnsfrms.Compose([trnsfrms.ToTensor(), trnsfrms.Normalize((0,), (255,))])
-        mnist_train_set = dts.MNIST(root='/raid/data/datasets/MNIST/', 
+    batch_size = 2000
+    trnsform = trnsfrms.Compose([trnsfrms.ToTensor(), trnsfrms.Normalize((0,), (255,))])
+    mnist_train_set = dts.MNIST(root='/raid/data/datasets/MNIST/', 
                                 train=True, download=False, transform=trnsform)
-        train_loader = torch.utils.data.DataLoader(mnist_train_set, batch_size=batch_size, shuffle=False)
-        mnist_test_set = dts.MNIST(root="/raid/data/datasets/MNIST/", 
-                                train=False, download=False, transform=trnsform)
-        test_loader = torch.utils.data.DataLoader(mnist_test_set, batch_size=batch_size, shuffle=False)
+    train_loader = torch.utils.data.DataLoader(mnist_train_set, batch_size=batch_size, shuffle=False)
+    mnist_test_set = dts.MNIST(root="/raid/data/datasets/MNIST/", 
+                               train=False, download=False, transform=trnsform)
+    test_loader = torch.utils.data.DataLoader(mnist_test_set, batch_size=batch_size, shuffle=False)
 
-        n_pixels = 28 * 28
-        n_images_train_tile = 1000
-        n_images_test_tile = 1000
-        # Define tile sizes
-        n_pixels_tile = 392
-        n_classes = 10
+    n_pixels = 28 * 28
+    n_images_train_tile = 1000
+    n_images_test_tile = 1000
+    # Define tile sizes
+    n_pixels_tile = 392
+    n_classes = 10
 elif dataset == "cifar10":
-        batch_size = 10000
-        transform = trnsfrms.Compose([trnsfrms.ToTensor(), trnsfrms.Normalize((0.1307,), (0.3081,))])
-        cifar10_train_set = dts.CIFAR10(root='/raid/data/datasets/cifar10/', 
-                                            train=True,
-                                            download=False,
-                                            transform=transform)
-        train_loader = torch.utils.data.DataLoader(cifar10_train_set, batch_size=batch_size, shuffle=True)
-        cifar10_test_set = dts.CIFAR10(root='/raid/data/datasets/cifar10/',
-                                train=False, download=False, transform=transform)
-        test_loader = torch.utils.data.DataLoader(cifar10_test_set, batch_size=batch_size, shuffle=True)
-        n_images_train_tile = 10000
-        n_images_test_tile = 10000
-        n_pixels = 32 * 32 * 3
-        n_pixels_tile = n_pixels
-        n_classes = 10
+    batch_size = 10000
+    transform = trnsfrms.Compose([trnsfrms.ToTensor(), trnsfrms.Normalize((0.1307,), (0.3081,))])
+    cifar10_train_set = dts.CIFAR10(root='/raid/data/datasets/cifar10/', 
+                                    train=True,
+                                    download=False,
+                                    transform=transform)
+    train_loader = torch.utils.data.DataLoader(cifar10_train_set, batch_size=batch_size, shuffle=True)
+    cifar10_test_set = dts.CIFAR10(root='/raid/data/datasets/cifar10/',
+                                   train=False, download=False, transform=transform)
+    test_loader = torch.utils.data.DataLoader(cifar10_test_set, batch_size=batch_size, shuffle=True)
+    n_images_train_tile = 10000
+    n_images_test_tile = 10000
+    n_pixels = 32 * 32 * 3
+    n_pixels_tile = n_pixels
+    n_classes = 10
 elif dataset == "imagenet":
-        batch_size = 10000
-        normalize = trnsfrms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
+    batch_size = 10000
+    normalize = trnsfrms.Normalize(mean=[0.485, 0.456, 0.406],
+                                   std=[0.229, 0.224, 0.225])
 
-        imnet_train_set = dts.ImageFolder(
+    imnet_train_set = dts.ImageFolder(
             "/raid/imagenet/train/",
             trnsfrms.Compose([
                 trnsfrms.RandomResizedCrop(224),
                 trnsfrms.RandomHorizontalFlip(),
                 trnsfrms.ToTensor(),
                 normalize,
-            ]))
+                ]))
 
-        imnet_test_set = dts.ImageFolder(
-                        "/raid/imagenet/val/",
-                        trnsfrms.Compose([
-                        trnsfrms.Resize(256),
-                        trnsfrms.CenterCrop(224),
-                        trnsfrms.ToTensor(),
-                        normalize])
-                        )
-        
-        train_loader = torch.utils.data.DataLoader(imnet_train_set, batch_size=batch_size, shuffle=True)
-        test_loader = torch.utils.data.DataLoader(imnet_test_set, batch_size=batch_size, shuffle=True)
-        n_images_train_tile = 5000
-        n_images_test_tile = 5000
-        n_pixels = 224 * 224 * 3
-        n_pixels_tile = 5000
-        n_classes = 1000
+    imnet_test_set = dts.ImageFolder(
+            "/raid/imagenet/val/",
+            trnsfrms.Compose([
+                trnsfrms.Resize(256),
+                trnsfrms.CenterCrop(224),
+                trnsfrms.ToTensor(),
+                normalize])
+            )
+
+    train_loader = torch.utils.data.DataLoader(imnet_train_set, batch_size=batch_size, shuffle=True)
+    test_loader = torch.utils.data.DataLoader(imnet_test_set, batch_size=batch_size, shuffle=True)
+    n_images_train_tile = 5000
+    n_images_test_tile = 5000
+    n_pixels = 224 * 224 * 3
+    n_pixels_tile = 5000
+    n_classes = 1000
 elif dataset == "tiny_imagenet":
-        batch_size = 50000
-        normalize = trnsfrms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
+    batch_size = 50000
+    normalize = trnsfrms.Normalize(mean=[0.485, 0.456, 0.406],
+                                   std=[0.229, 0.224, 0.225])
 
-        imnet_train_set = dts.ImageFolder(
+    imnet_train_set = dts.ImageFolder(
             "/raid/data/datasets/tiny-imagenet-200/train/",
             trnsfrms.Compose([
                 trnsfrms.ToTensor(),
                 normalize,
-            ]))
+                ]))
 
-        imnet_test_set = dts.ImageFolder(
-                        "/raid/data/datasets/tiny-imagenet-200/test/",
-                        trnsfrms.Compose([
-                        trnsfrms.ToTensor(),
-                        normalize])
-                        )
-        
-        train_loader = torch.utils.data.DataLoader(imnet_train_set, \
-                batch_size=batch_size, shuffle=False, drop_last=True)
-        test_loader = torch.utils.data.DataLoader(imnet_test_set, \
-                batch_size=batch_size, shuffle=False, drop_last=True)
-        n_images_train_tile = 5000
-        n_images_test_tile = 5000
-        n_pixels = 64 * 64 * 3
-        n_pixels_tile = 4096
-        n_classes = 200
+    imnet_test_set = dts.ImageFolder(
+            "/raid/data/datasets/tiny-imagenet-200/test/",
+            trnsfrms.Compose([
+                trnsfrms.ToTensor(),
+                normalize])
+            )
+
+    train_loader = torch.utils.data.DataLoader(imnet_train_set, \
+            batch_size=batch_size, shuffle=False, drop_last=True)
+    test_loader = torch.utils.data.DataLoader(imnet_test_set, \
+            batch_size=batch_size, shuffle=False, drop_last=True)
+    n_images_train_tile = 5000
+    n_images_test_tile = 5000
+    n_pixels = 64 * 64 * 3
+    n_pixels_tile = 4096
+    n_classes = 200
+elif dataset == "random":
+    n_pixels = 64 * 64 * 3
+    train_size = 100000
+    test_size = 10000
+    batch_size = 50000
+    n_classes = 200
+    train_dataset = torch.utils.data.TensorDataset( \
+            torch.randn(train_size, n_pixels), \
+            torch.randint(n_classes, (train_size,)))
+    train_loader = torch.utils.data.DataLoader(train_dataset, \
+            batch_size=batch_size, shuffle=False, drop_last=True)
+    test_dataset = torch.utils.data.TensorDataset( \
+            torch.randn(test_size, n_pixels), \
+            torch.randint(n_classes, (test_size,)))
+    test_loader = torch.utils.data.DataLoader(test_dataset, \
+            batch_size=batch_size, shuffle=False, drop_last=True)
+    n_images_train_tile = 5000
+    n_images_test_tile = 5000
+    n_pixels_tile = 4096
 else:
-        raise ValueError("{} dataset is not supported yet!".format(dataset))
+    raise ValueError("{} dataset is not supported yet!".format(dataset))
 
 print("Number of train images: {}".format(len(train_loader) * batch_size))
 print("Number of train batches: {}".format(len(train_loader)))
