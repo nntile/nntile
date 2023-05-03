@@ -13,20 +13,20 @@
 # @date 2023-05-03
 
 # Imports
+import torch
 import nntile
 import numpy as np
 import time
 import sys
 import torchvision.datasets as dts
 import torchvision.transforms as trnsfrms
-import torch
 
 #dataset = "mnist"
 #dataset = "cifar10"
 #dataset = "imagenet"
 #dataset = "tiny_imagenet"
 dataset = "random"
-fp32_fast_fp16 = False
+fp32_fast_fp16 = True
 
 if dataset == "mnist":
     batch_size = 2000
@@ -120,10 +120,10 @@ elif dataset == "tiny_imagenet":
     n_classes = 200
 elif dataset == "random":
     n_pixels = 64 * 64 * 3
-    train_size = 100000
-    test_size = 10000
-    batch_size = 50000
-    n_classes = 200
+    train_size = 40960 * 2
+    test_size = 4096 * 2
+    batch_size = 40960
+    n_classes = 4096
     train_dataset = torch.utils.data.TensorDataset( \
             torch.randn(train_size, n_pixels), \
             torch.randint(n_classes, (train_size,)))
@@ -134,8 +134,8 @@ elif dataset == "random":
             torch.randint(n_classes, (test_size,)))
     test_loader = torch.utils.data.DataLoader(test_dataset, \
             batch_size=batch_size, shuffle=False, drop_last=True)
-    n_images_train_tile = 5000
-    n_images_test_tile = 5000
+    n_images_train_tile = 4096
+    n_images_test_tile = 4096
     n_pixels_tile = 4096
 else:
     raise ValueError("{} dataset is not supported yet!".format(dataset))
@@ -155,10 +155,10 @@ next_tag = 0
 
 # Describe neural network
 gemm_ndim = 1
-hidden_layer_dim = 10000
-hidden_layer_dim_tile = 5000
+hidden_layer_dim = 4096 * 2
+hidden_layer_dim_tile = 4096
 n_layers = 5
-n_epochs = 2
+n_epochs = 10
 lr = 1e-10
 
 # Number of FLOPs for training per batch
