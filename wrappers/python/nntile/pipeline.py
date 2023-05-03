@@ -72,11 +72,6 @@ class Pipeline(object):
                 # print("Gradient of last activation")
                 # self.model.activations[-1].grad.to_array(output)
                 # print(output)
-                # Invalidate values and gradients of activations
-                #for t in self.model.activations:
-                #    t.value.invalidate_submit()
-                #    if t.grad is not None:
-                #        t.grad.invalidate_submit()
                 # Apply optimizer here
                 # print("Optimizer step")
                 # print("Model parameters before opt step")
@@ -86,14 +81,15 @@ class Pipeline(object):
                 #     p.grad.to_array(p_np)
                 #     print(p_np.max(), p_np.min())
                 # Invalidate values and gradients of activations
-                #for t in self.model.activations:
-                #    t.value.invalidate_submit()
-                #    if t.grad is not None:
-                #        t.grad.invalidate_submit()
+                for t in self.model.activations:
+                    t.value.wont_use()
+                    if t.grad is not None:
+                        t.grad.wont_use()
                 self.opt.step()
                 # Invalidate gradients of parameters
-                #for p in self.model.parameters:
-                #    p.grad.invalidate_submit()
+                for p in self.model.parameters:
+                    p.value.wont_use()
+                    p.grad.wont_use()
                 # print("Model parameters after opt step")
                 # for i, p in enumerate(self.model.parameters):
                 #     print("Parameter", i)

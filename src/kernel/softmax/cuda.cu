@@ -37,7 +37,7 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, const T *maxsumexp,
             // Output fiber
             T *dst_fiber = dst + i2*mk + i1;
             // Max and sum of exponents
-            Index src_offset = 2 * m * i2;
+            Index src_offset = 2 * (i1+i2*m);
             T max = maxsumexp[src_offset];
             T sum = maxsumexp[src_offset+1];
             // Cycle over output fiber
