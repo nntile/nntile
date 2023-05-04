@@ -285,10 +285,12 @@ print("Train GFLOPs/s (based on gemms): {}" \
 # Get inference rate based on train data
 time0 = -time.time()
 for x in batch_data:
-    nntile.tensor.copy_async(x, m.activations[0].value)
+    #nntile.tensor.copy_async(x, m.activations[0].value)
     m.forward_async()
-    for t in m.activations:
-        t.value.wont_use()
+    #for t in m.activations:
+    #    t.value.wont_use()
+    #for p in m.parameters:
+    #    p.value.wont_use()
 nntile.starpu.wait_for_all()
 time0 += time.time()
 # FLOPS for inference over the first layer per batch

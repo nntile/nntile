@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-05-03
+# @date 2023-05-04
 
 # Set list of sources
 set(KERNEL_SRC
@@ -69,6 +69,7 @@ endif()
 set(STARPU_SRC
     "starpu/bias.cc"
     "starpu/clear.cc"
+    "starpu/copy.cc"
     "starpu/dgelu.cc"
     "starpu/dgelutanh.cc"
     "starpu/drelu.cc"

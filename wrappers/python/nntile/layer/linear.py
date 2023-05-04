@@ -142,7 +142,7 @@ class Linear(BaseLayer):
                         self.x.value, 0.0, self.y.value, self.ndim, 0)
         # Hint for StarPU that W tensor will
         # not be used soon and it is advised to offload data from GPU
-        self.w.value.wont_use()
+        #self.w.value.wont_use()
 
     # Backward propagation of the linear layer
     def backward_async(self):
@@ -190,7 +190,7 @@ class Linear(BaseLayer):
                         gemm_async(1.0, notrans, self.y.grad, notrans, \
                                 self.x.value, 0.0, self.w.grad, gemm_ndim, 0)
             # Hint StarPU to offload gradient over W if needed
-            self.w.grad.wont_use()
+            #self.w.grad.wont_use()
         # Gradient over X (input)
         if self.x.grad_required:
             gemm_ndim = self.w.value.ndim - self.ndim
@@ -239,5 +239,5 @@ class Linear(BaseLayer):
                         gemm_async(1.0, trans, self.y.grad, notrans, \
                                 self.w.value, 0.0, self.x.grad, gemm_ndim, 0)
             # Hint StarPU to offload certain buffers
-            self.w.value.wont_use()
+            #self.w.value.wont_use()
 

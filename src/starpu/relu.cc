@@ -60,7 +60,8 @@ void init()
 {
     codelet_fp32.init("nntile_relu_fp32",
             nullptr,
-            {cpu<fp32_t>},
+            //{cpu<fp32_t>}, // Disabled to enforce ReLU on GPU
+            {},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
@@ -69,7 +70,8 @@ void init()
             );
     codelet_fp64.init("nntile_relu_fp64",
             nullptr,
-            {cpu<fp64_t>},
+            //{cpu<fp64_t>}, // Disabled to enforce ReLU on GPU
+            {},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp64_t>}
 #else // NNTILE_USE_CUDA

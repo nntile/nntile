@@ -172,9 +172,9 @@ class Norm(BaseLayer):
         copy_async(self.y.value, self.y_last)
         # Hint for StarPU that gamma-and-beta, sumnorm and y_last tensors will
         # not be used soon and it is advised to offload data from GPU 
-        self.gb.value.wont_use()
-        self.sumnorm.wont_use()
-        self.y_last.wont_use()
+        #self.gb.value.wont_use()
+        #self.sumnorm.wont_use()
+        #self.y_last.wont_use()
 
     def backward_async(self):
         raise NotImplementedError

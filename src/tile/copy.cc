@@ -10,10 +10,11 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-03-27
+ * @date 2023-05-04
  * */
 
 #include "nntile/tile/copy.hh"
+#include "nntile/starpu/copy.hh"
 #include <starpu.h>
 
 namespace nntile
@@ -35,14 +36,14 @@ void copy_async(const Tile<T> &src, const Tile<T> &dst)
     {
         throw std::runtime_error("src.shape != dst.shape");
     }
-    Index ndim = src.ndim;
     // Submit copy procedure
-    int ret = starpu_data_cpy(static_cast<starpu_data_handle_t>(dst),
-            static_cast<starpu_data_handle_t>(src), 1, nullptr, nullptr);
-    if(ret != 0)
-    {
-        throw std::runtime_error("Error in starpu_data_cpy");
-    }
+    starpu::copy::submit(src, dst);
+    //int ret = starpu_data_cpy(static_cast<starpu_data_handle_t>(dst),
+    //        static_cast<starpu_data_handle_t>(src), 1, nullptr, nullptr);
+    //if(ret != 0)
+    //{
+    //    throw std::runtime_error("Error in starpu_data_cpy");
+    //}
 }
 
 //! Blocking version of tile-wise copy operation

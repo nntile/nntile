@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-05-03
+ * @date 2023-05-04
  * */
 
 #pragma once
@@ -23,6 +23,7 @@
 #include <nntile/starpu/axpy.hh>
 #include <nntile/starpu/bias.hh>
 #include <nntile/starpu/clear.hh>
+#include <nntile/starpu/copy.hh>
 #include <nntile/starpu/gelu.hh>
 #include <nntile/starpu/gelutanh.hh>
 #include <nntile/starpu/dgelu.hh>
@@ -67,6 +68,7 @@ void init()
     axpy::init();
     bias::init();
     clear::init();
+    copy::init();
     gelu::init();
     gelutanh::init();
     dgelu::init();
@@ -104,6 +106,7 @@ void restrict_where(uint32_t where)
     axpy::restrict_where(where);
     bias::restrict_where(where);
     clear::restrict_where(where);
+    copy::restrict_where(where);
     gelu::restrict_where(where);
     gelutanh::restrict_where(where);
     dgelu::restrict_where(where);
@@ -141,6 +144,7 @@ void restore_where()
     axpy::restore_where();
     bias::restore_where();
     clear::restore_where();
+    copy::restore_where();
     gelu::restore_where();
     gelutanh::restore_where();
     dgelu::restore_where();

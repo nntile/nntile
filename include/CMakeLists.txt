@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-05-03
+# @date 2023-05-04
 
 # Set list of headers
 set(BASE_HDR
@@ -104,6 +104,7 @@ set(STARPU_HDR
     "nntile/starpu/axpy.hh"
     "nntile/starpu/bias.hh"
     "nntile/starpu/clear.hh"
+    "nntile/starpu/copy.hh"
     "nntile/starpu/dgelu.hh"
     "nntile/starpu/dgelutanh.hh"
     "nntile/starpu/drelu.hh"
