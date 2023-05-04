@@ -47,11 +47,11 @@ class GPT2MLP(BaseModel):
     @staticmethod
     def from_torch(torch_mlp, x: TensorMoments, batch_size: int, config: Dict, next_tag: int):
         '''
-        torch_mlp is PyTorch MLP where all intermediate dimensions are the same and no biases in linear layers
+        torch_mlp is PyTorch MLP where no biases in linear layers
         '''
         print("Call from torch static method")
         gpt2mlp_nntile = GPT2MLP(x, config, next_tag)
         torch_params = list(torch_mlp.parameters())
         for i, p in enumerate(gpt2mlp_nntile.parameters):
-            p.value.from_array(torch_params[2*i].detach().cpu().numpy())
+            p.value.from_array(torch_params[i].detach().cpu().numpy())
         return gpt2mlp_nntile, gpt2mlp_nntile.next_tag
