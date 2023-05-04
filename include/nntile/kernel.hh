@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-04
+ * @date 2023-05-04
  * */
 
 #pragma once
@@ -27,6 +27,7 @@
 #include <nntile/kernel/prod.hh>
 #include <nntile/kernel/randn.hh>
 #include <nntile/kernel/relu.hh>
+#include <nntile/kernel/relu_forward.hh>
 #include <nntile/kernel/relu_backward.hh>
 #include <nntile/kernel/subcopy.hh>
 #include <nntile/kernel/sumnorm.hh>

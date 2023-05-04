@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-05-03
+ * @date 2023-05-04
  * */
 
 #pragma once
@@ -40,6 +40,7 @@
 #include <nntile/tensor/prod.hh>
 #include <nntile/tensor/randn.hh>
 #include <nntile/tensor/relu.hh>
+#include <nntile/tensor/relu_forward.hh>
 #include <nntile/tensor/relu_backward.hh>
 #include <nntile/tensor/scatter.hh>
 #include <nntile/tensor/sum.hh>
