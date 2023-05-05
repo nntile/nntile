@@ -4,12 +4,12 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_gelutanh.py
+# @file wrappers/python/tests/nntile_core/test_tensor_gelutanh_backward.py
 # Test for tensor::gelutanh_backward<T> Python wrapper
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-05-02
+# @date 2023-05-05
 
 # Test is not yet implemented
 raise NotImplementedError

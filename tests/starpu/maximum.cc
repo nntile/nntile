@@ -4,7 +4,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tile/maximum.cc
+ * @file tests/starpu/maximum.cc
  * Elementwise maximum operation on Tile<T>
  *
  * @version 1.0.0

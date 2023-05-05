@@ -4,7 +4,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu.hh
+ * @file include/nntile/starpu/config.hh
  * StarPU initialization/finalization and smart data handles
  *
  * @version 1.0.0

@@ -4,13 +4,13 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/gelu_backward.hh
+ * @file include/nntile/starpu/gelutanh_backward.hh
  * Backward approximate GeLU operation on a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-04-05
+ * @date 2023-05-05
  * */
 
 #pragma once

@@ -4,7 +4,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/norm_slice/cuda.cc
+ * @file src/kernel/norm_slice/cuda.cu
  * Euclidean norms of fibers into a slice of a buffer on CUDA
  *
  * @version 1.0.0

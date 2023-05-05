@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file misc_scripts/update_date_today.sh
-# Hook to update date of all new and modified files to today
+# @file misc_scripts/check_file_path.sh
+# Hook to check if @file-paths of all files match their actual paths
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
@@ -15,20 +15,29 @@
 
 # Change directory to the root of the repository
 cd $(git rev-parse --show-toplevel)
-# Get all A(dded), C(opied), M(odified) or R(enamed) files
-mod_files=$(git diff --cached --name-only --diff-filter=ACMR)
+# Get all files
+all_files=$(git ls-files)
 # List of excludes
 exclude="external/random.hh external/pybind11"
-# Date in proper format
-today=$(date "+%Y-%m-%d")
-# Pattern
-pattern="@date 20..-..-.."
-# Change only the first occurance
-for file in ${mod_files}
+# Collect all the incorrect files
+files_wrong_path=""
+# Walk through files
+for file in ${all_files}
 do
     if echo ${exclude} | grep "${file}" -qv
     then
-        gsed "0,/${pattern}/{s/${pattern}/@date ${today}/}" -i ${file}
+        tmp_val=$(grep "@file" -m 1 -H ${file} | grep "@file ${file}" -v)
+        if ! [ -z "${tmp_val}" ]
+        then
+            files_wrong_path="${files_wrong_path}\n${tmp_val}"
+        fi
     fi
 done
+
+if ! [ -z "${files_wrong_path}" ]
+then
+    echo "Files that need a proper @file"
+    echo ${files_wrong_path}
+    exit 1
+fi
 
