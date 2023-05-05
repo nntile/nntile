@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/tensor/sumnorm.cc
- * Sum and Euclidian norm of Tensor<T> along axis
+ * Sum and Euclidean norm of Tensor<T> along axis
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-05-05
  * */
 
 #include "nntile/tensor/sumnorm.hh"
@@ -21,7 +21,7 @@ namespace nntile
 namespace tensor
 {
 
-//! Compute sum of elements and Euclidian norm of slices along given axis
+//! Compute sum of elements and Euclidean norm of slices along given axis
 template<typename T>
 void sumnorm_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
 {

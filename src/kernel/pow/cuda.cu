@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-02
+ * @date 2023-05-05
  * */
 
 #include "nntile/kernel/pow/cuda.hh"
@@ -37,7 +37,7 @@ void cuda_kernel(Index nelems, T alpha, T exp, T *data)
 template<typename T>
 void cuda(cudaStream_t stream, Index nelems, T alpha, T exp, T *data)
     noexcept
-//! Inplace power operation on CPU
+//! Inplace power operation on CUDA
 /*! Does the following per-element operation:
  * pow(z) = alpha * z^exp
  *

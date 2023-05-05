@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-14
+ * @date 2023-05-05
  * */
 
 #pragma once
@@ -23,7 +23,7 @@ namespace kernel
 namespace pow
 {
 
-// Power operation on a buffer
+// Power operation on a CPU buffer
 template<typename T>
 void cpu(Index nelems, T alpha, T exp, T *data)
     noexcept;

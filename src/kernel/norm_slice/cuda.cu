@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/norm_slice/cuda.cc
- * Euclidian norms of fibers into a slice of a buffer on CUDA
+ * Euclidean norms of fibers into a slice of a buffer on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-02
+ * @date 2023-05-05
  * */
 
 #include "nntile/kernel/norm_slice/cuda.hh"
@@ -85,7 +85,7 @@ template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
         const T *src, T beta, T *dst)
     noexcept
-//! Euclidian norms over fibers along middle axis into a slice of a tensor
+//! Euclidean norms over fibers along middle axis into a slice of a tensor
 /*! For a provided m-by-k-by-n input array src compute norms of fibers
  * along second axis with k elements, resulting in m-by-n output array-slice
  * dst.

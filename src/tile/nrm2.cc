@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/tile/nrm2.cc
- * Euclidian norm of Tile<T>
+ * Euclidean norm of Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-18
+ * @date 2023-05-05
  * */
 
 #include "nntile/tile/nrm2.hh"
@@ -23,7 +23,7 @@ namespace nntile
 namespace tile
 {
 
-//! Tile-wise Euclidian norm
+//! Tile-wise Euclidean norm
 template<typename T>
 void nrm2_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
         const Tile<T> &tmp)
@@ -60,7 +60,7 @@ void nrm2_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
     }
 }
 
-//! Tile-wise Euclidian norm
+//! Tile-wise Euclidean norm
 template<typename T>
 void nrm2(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
         const Tile<T> &tmp)

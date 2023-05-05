@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/norm_slice/cpu.cc
- * Euclidian norms of fibers into a slice of a buffer on CPU
+ * Euclidean norms of fibers into a slice of a buffer on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-02
+ * @date 2023-05-05
  * */
 
 #include "nntile/kernel/norm_slice/cpu.hh"
@@ -25,7 +25,7 @@ namespace norm_slice
 template<typename T>
 void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
     noexcept
-//! Euclidian norms over fibers along middle axis into a slice of a tensor
+//! Euclidean norms over fibers along middle axis into a slice of a tensor
 /*! For a provided m-by-k-by-n input array src compute norms of fibers
  * along second axis with k elements, resulting in m-by-n output array-slice
  * dst.

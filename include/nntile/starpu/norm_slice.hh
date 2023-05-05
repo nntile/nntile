@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/starpu/norm_slice.hh
- * Euclidian norms of fibers into a slice of a StarPU buffer
+ * Euclidean norms of fibers into a slice of a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev 
- * @date 2023-04-24
+ * @date 2023-05-05
  * */
 
 #pragma once

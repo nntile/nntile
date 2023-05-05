@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/tensor/nrm2.cc
- * Euclidian norm of Tensor<T>
+ * Euclidean norm of Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-18
+ * @date 2023-05-05
  * */
 
 #include "nntile/tensor/nrm2.hh"
@@ -22,7 +22,7 @@ namespace nntile
 namespace tensor
 {
 
-//! Compute Euclidian norm
+//! Compute Euclidean norm
 template<typename T>
 void nrm2_async(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
         const Tensor<T> &tmp)

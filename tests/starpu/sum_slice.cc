@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-04-24
+ * @date 2023-05-05
  * */
 
 #include "nntile/starpu/sum_slice.hh"
@@ -44,7 +44,7 @@ void validate_cpu(Index m, Index n, Index k, T alpha, T beta)
     // Create copies of destination
     std::vector<T> sum_dst2(sum_dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::sumi_slice::cpu<T>\n";
+    std::cout << "Run kernel::sum_slice::cpu<T>\n";
     kernel::sum_slice::cpu<T>(m, n, k, alpha, &src[0], beta, &sum_dst[0]);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*m*n*k, STARPU_R),

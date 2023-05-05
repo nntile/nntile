@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/tile/norm_slice.cc
- * Euclidian norms of fibers into a slice of a Tile<T>
+ * Euclidean norms of fibers into a slice of a Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-02
+ * @date 2023-05-05
  * */
 
 #include "nntile/tile/norm_slice.hh"
