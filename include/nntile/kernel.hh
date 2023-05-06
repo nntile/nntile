@@ -43,6 +43,8 @@
 #include <nntile/kernel/subtract_indexed_column.hh>
 #include <nntile/kernel/gelu_backward.hh>
 #include <nntile/kernel/gelutanh_backward.hh>
+#include <nntile/kernel/fp32_to_fp16.hh>
+#include <nntile/kernel/fp16_to_fp32.hh>
 
 namespace nntile
 {

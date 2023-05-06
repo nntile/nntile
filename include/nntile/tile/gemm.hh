@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-10
+ * @date 2023-05-04
  * */
 
 #pragma once
@@ -28,15 +28,15 @@ void gemm_check(const TransOp &transA, const TileTraits &A,
         Index ndim, Index batch_ndim);
 
 // Asynchronous tile-wise gemm operation
-template<typename T>
-void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
-        const TransOp &transB, const Tile<T> &B, T beta, const Tile<T> &C,
+template<typename T, typename T_scal>
+void gemm_async(T_scal alpha, const TransOp &transA, const Tile<T> &A,
+        const TransOp &transB, const Tile<T> &B, T_scal beta, const Tile<T> &C,
         Index ndim, Index batch_ndim);
 
 // Blocking version of tile-wise gemm operation
-template<typename T>
-void gemm(T alpha, const TransOp &transA, const Tile<T> &A,
-        const TransOp &transB, const Tile<T> &B, T beta, const Tile<T> &C,
+template<typename T, typename T_scal>
+void gemm(T_scal alpha, const TransOp &transA, const Tile<T> &A,
+        const TransOp &transB, const Tile<T> &B, T_scal beta, const Tile<T> &C,
         Index ndim, Index batch_ndim);
 
 } // namespace tile

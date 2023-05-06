@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-10
+ * @date 2023-05-04
  * */
 
 #pragma once
@@ -26,14 +26,16 @@ void gemm_check(const TransOp &transA, const TensorTraits &A,
         const TransOp &transB, const TensorTraits &B, const TensorTraits &C,
         Index ndim, Index batch_ndim);
 
-template<typename T>
-void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
-        const TransOp &transB, const Tensor<T> &B, T beta, const Tensor<T> &C,
+template<typename T, typename T_scal>
+void gemm_async(T_scal alpha, const TransOp &transA, const Tensor<T> &A,
+        const TransOp &transB, const Tensor<T> &B, T_scal beta,
+        const Tensor<T> &C,
         Index ndim, Index batch_ndim);
 
-template<typename T>
-void gemm(T alpha, const TransOp &transA, const Tensor<T> &A,
-        const TransOp &transB, const Tensor<T> &B, T beta, const Tensor<T> &C,
+template<typename T, typename T_scal>
+void gemm(T_scal alpha, const TransOp &transA, const Tensor<T> &A,
+        const TransOp &transB, const Tensor<T> &B, T_scal beta,
+        const Tensor<T> &C,
         Index ndim, Index batch_ndim);
 
 } // namespace tensor

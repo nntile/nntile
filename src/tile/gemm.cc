@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-10
+ * @date 2023-05-04
  * */
 
 #include "nntile/tile/gemm.hh"
@@ -278,9 +278,9 @@ void gemm_check(const TransOp &transA, const TileTraits &A,
  * @param[in] ndim: Number of dimensions used in gemm contraction
  * @param[in] batch_ndim: Number of last dimensions used for batching of gemms
  * */
-template<typename T>
-void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
-        const TransOp &transB, const Tile<T> &B, T beta, const Tile<T> &C,
+template<typename T, typename T_scal>
+void gemm_async(T_scal alpha, const TransOp &transA, const Tile<T> &A,
+        const TransOp &transB, const Tile<T> &B, T_scal beta, const Tile<T> &C,
         Index ndim, Index batch_ndim)
 {
     // Check inputs (throw exception in case of an error)
@@ -302,8 +302,8 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
             break;
     }
     // Insert task
-    starpu::gemm::submit<T>(transA, transB, m, n, k, batch, alpha, A, B, beta,
-            C);
+    starpu::gemm::submit<T, T_scal>(transA, transB, m, n, k, batch, alpha, A,
+            B, beta, C);
 }
 
 //! Blocking version of tile-wise gemm operation
@@ -317,9 +317,9 @@ void gemm_async(T alpha, const TransOp &transA, const Tile<T> &A,
  * @param[in] ndim: Number of dimensions used in gemm contraction
  * @param[in] batch_ndim: Number of last dimensions used for batching of gemms
  * */
-template<typename T>
-void gemm(T alpha, const TransOp &transA, const Tile<T> &A,
-        const TransOp &transB, const Tile<T> &B, T beta, const Tile<T> &C,
+template<typename T, typename T_scal>
+void gemm(T_scal alpha, const TransOp &transA, const Tile<T> &A,
+        const TransOp &transB, const Tile<T> &B, T_scal beta, const Tile<T> &C,
         Index ndim, Index batch_ndim)
 {
     gemm_async<T>(alpha, transA, A, transB, B, beta, C, ndim, batch_ndim);
@@ -328,27 +328,41 @@ void gemm(T alpha, const TransOp &transA, const Tile<T> &A,
 
 // Explicit instantiation
 template
-void gemm_async<fp32_t>(fp32_t alpha, const TransOp &transA,
+void gemm_async<fp32_t, fp32_t>(fp32_t alpha, const TransOp &transA,
         const Tile<fp32_t> &A,
         const TransOp &transB, const Tile<fp32_t> &B, fp32_t beta,
         const Tile<fp32_t> &C, Index ndim, Index batch_ndim);
 
 template
-void gemm_async<fp64_t>(fp64_t alpha, const TransOp &transA,
+void gemm_async<fp64_t, fp64_t>(fp64_t alpha, const TransOp &transA,
         const Tile<fp64_t> &A,
         const TransOp &transB, const Tile<fp64_t> &B, fp64_t beta,
         const Tile<fp64_t> &C, Index ndim, Index batch_ndim);
 
+template
+void gemm_async<fp16_t, fp32_t>(fp32_t alpha, const TransOp &transA,
+        const Tile<fp16_t> &A,
+        const TransOp &transB, const Tile<fp16_t> &B, fp32_t beta,
+        const Tile<fp16_t> &C, Index ndim, Index batch_ndim);
+
 // Explicit instantiation
 template
-void gemm<fp32_t>(fp32_t alpha, const TransOp &transA, const Tile<fp32_t> &A,
+void gemm<fp32_t, fp32_t>(fp32_t alpha, const TransOp &transA,
+        const Tile<fp32_t> &A,
         const TransOp &transB, const Tile<fp32_t> &B, fp32_t beta,
         const Tile<fp32_t> &C, Index ndim, Index batch_ndim);
 
 template
-void gemm<fp64_t>(fp64_t alpha, const TransOp &transA, const Tile<fp64_t> &A,
+void gemm<fp64_t, fp64_t>(fp64_t alpha, const TransOp &transA,
+        const Tile<fp64_t> &A,
         const TransOp &transB, const Tile<fp64_t> &B, fp64_t beta,
         const Tile<fp64_t> &C, Index ndim, Index batch_ndim);
+
+template
+void gemm<fp16_t, fp32_t>(fp32_t alpha, const TransOp &transA,
+        const Tile<fp16_t> &A,
+        const TransOp &transB, const Tile<fp16_t> &B, fp32_t beta,
+        const Tile<fp16_t> &C, Index ndim, Index batch_ndim);
 
 } // namespace tile
 } // namespace nntile

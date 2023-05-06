@@ -65,6 +65,8 @@ if(NNTILE_USE_CUDA)
         "kernel/scalprod/cuda.cu"
         "kernel/gelu_backward/cuda.cu"
         "kernel/gelutanh_backward/cuda.cu"
+        "kernel/fp32_to_fp16/cuda.cu"
+        "kernel/fp16_to_fp32/cuda.cu"
         )
 endif()
 
@@ -103,6 +105,8 @@ set(STARPU_SRC
     "starpu/subtract_indexed_column.cc"
     "starpu/gelu_backward.cc"
     "starpu/gelutanh_backward.cc"
+    "starpu/fp32_to_fp16.cc"
+    "starpu/fp16_to_fp32.cc"
     )
 
 set(TILE_SRC
@@ -140,6 +144,8 @@ set(TILE_SRC
     "tile/scal.cc"
     "tile/gelu_backward.cc"
     "tile/gelutanh_backward.cc"
+    "tile/fp32_to_fp16.cc"
+    "tile/fp16_to_fp32.cc"
     )
 
 set(TENSOR_SRC
@@ -180,6 +186,8 @@ set(TENSOR_SRC
     "tensor/scal.cc"
     "tensor/gelu_backward.cc"
     "tensor/gelutanh_backward.cc"
+    "tensor/fp32_to_fp16.cc"
+    "tensor/fp16_to_fp32.cc"
     )
 
 set(LAYER_SRC

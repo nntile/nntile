@@ -360,15 +360,18 @@ void def_mod_tensor(py::module_ &m)
     // Define wrappers for Tensor<T>
     def_class_tensor<fp64_t>(m, "Tensor_fp64");
     def_class_tensor<fp32_t>(m, "Tensor_fp32");
+    def_class_tensor<fp16_t>(m, "Tensor_fp16");
     def_class_tensor<Index>(m, "Tensor_int64");
     // Add tensor.distributions submodule
     auto distributions = m.def_submodule("distributions");
     def_tensor_distributions(distributions);
     // Add functions for Tensor<T>
-    m.def("gemm_async_fp64", &gemm_async<fp64_t>);
-    m.def("gemm_async_fp32", &gemm_async<fp32_t>);
-    m.def("gemm_fp64", &gemm<fp64_t>);
-    m.def("gemm_fp32", &gemm<fp32_t>);
+    m.def("gemm_async_fp64", &gemm_async<fp64_t, fp64_t>);
+    m.def("gemm_async_fp32", &gemm_async<fp32_t, fp32_t>);
+    m.def("gemm_async_fp16", &gemm_async<fp16_t, fp32_t>);
+    m.def("gemm_fp64", &gemm<fp64_t, fp64_t>);
+    m.def("gemm_fp32", &gemm<fp32_t, fp32_t>);
+    m.def("gemm_fp16", &gemm<fp16_t, fp32_t>);
     // Mixed precision gemm (FP32_FAST_FP16)
     m.def("gemm_ex_async_fp32", &gemm_ex_async<fp32_t>);
     m.def("gemm_ex_fp32", &gemm_ex<fp32_t>);
@@ -548,6 +551,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("dgelutanh_async_fp32", &dgelutanh_async<fp32_t>);
     m.def("dgelutanh_fp64", &dgelutanh<fp64_t>);
     m.def("dgelutanh_fp32", &dgelutanh<fp32_t>);   
+
+    // FP32 <-> FP16
+    m.def("fp32_to_fp16_async", &fp32_to_fp16_async);
+    m.def("fp16_to_fp32_async", &fp16_to_fp32_async);
 }
 
 // Main extension module with all wrappers

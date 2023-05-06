@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-05-03
+# @date 2023-05-04
 
 import nntile
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \

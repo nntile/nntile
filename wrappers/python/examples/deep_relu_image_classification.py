@@ -27,6 +27,7 @@ import torchvision.transforms as trnsfrms
 #dataset = "tiny_imagenet"
 dataset = "random"
 fp32_fast_fp16 = True
+deep_relu_mp = False # Do not enable it, under construction
 
 if dataset == "mnist":
     batch_size = 2000
@@ -155,7 +156,7 @@ next_tag = 0
 
 # Describe neural network
 gemm_ndim = 1
-hidden_layer_dim = 4096 * 2
+hidden_layer_dim = 4096 * 4
 hidden_layer_dim_tile = 4096
 n_layers = 5
 n_epochs = 10
@@ -220,9 +221,14 @@ x_grad_required = False
 x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
 # Define deep ReLU network
-m = nntile.model.DeepReLU(x_moments, 'L', gemm_ndim, hidden_layer_dim, \
-        hidden_layer_dim_tile, n_layers, n_classes, next_tag, fp32_fast_fp16)
-print("GEMM FP32_FAST_FP16: {}".format(m.fp32_fast_fp16))
+if deep_relu_mp:
+    m = nntile.model.DeepReLU_mp(x_moments, 'L', gemm_ndim, hidden_layer_dim, \
+            hidden_layer_dim_tile, n_layers, n_classes, next_tag)
+    print("GEMM FP16")
+else:
+    m = nntile.model.DeepReLU(x_moments, 'L', gemm_ndim, hidden_layer_dim, \
+            hidden_layer_dim_tile, n_layers, n_classes, next_tag, fp32_fast_fp16)
+    print("GEMM FP32_FAST_FP16: {}".format(m.fp32_fast_fp16))
 next_tag = m.next_tag
 # Set up learning rate and optimizer for training
 optimizer = nntile.optimizer.SGD(m.get_parameters(), lr, next_tag, \

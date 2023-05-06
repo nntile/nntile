@@ -53,6 +53,8 @@
 #include <nntile/tile/scal.hh>
 #include <nntile/tile/gelu_backward.hh>
 #include <nntile/tile/gelutanh_backward.hh>
+#include <nntile/tile/fp32_to_fp16.hh>
+#include <nntile/tile/fp16_to_fp32.hh>
 
 namespace nntile
 {

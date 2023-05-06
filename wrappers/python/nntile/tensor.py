@@ -14,7 +14,7 @@
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
-        Tensor_int64
+        Tensor_int64, Tensor_fp16
 from .nntile_core import TransOp, notrans, trans
 from typing import Union, List
 
@@ -60,6 +60,9 @@ def gemm_async(alpha: float, trans_A: TransOp, A: Tensor, trans_B: TransOp, \
     elif type(A) is core_tensor.Tensor_fp64:
         core_tensor.gemm_async_fp64(alpha, trans_A, A, trans_B, B, beta, C,
                 ndim, batch_ndim)
+    elif type(A) is core_tensor.Tensor_fp16:
+        core_tensor.gemm_async_fp16(alpha, trans_A, A, trans_B, B, beta, C,
+                ndim, batch_ndim)
     else:
         raise TypeError
 
@@ -81,6 +84,15 @@ def relu_async(x: Tensor) -> None:
         core_tensor.relu_async_fp32(x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.relu_async_fp64(x)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision forward ReLU
+def relu_forward_async(x: Tensor, y: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.relu_forward_async_fp32(x, y)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.relu_forward_async_fp64(x, y)
     else:
         raise TypeError
 

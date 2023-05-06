@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-10
+ * @date 2023-05-04
  * */
 
 #pragma once
@@ -27,7 +27,7 @@ namespace gemm
 {
 
 //! Structure for arguments
-template<typename T>
+template<typename T_scal>
 struct args_t
 {
     TransOp transA; // op(A)
@@ -36,8 +36,8 @@ struct args_t
     Index n; // Number of columns of op(B) and C
     Index k; // Number of columns of op(A) and number of rows of op(B)
     Index batch; // Number of gemms in a batch
-    T alpha;
-    T beta;
+    T_scal alpha;
+    T_scal beta;
 };
 
 #ifdef NNTILE_USE_CBLAS
@@ -47,7 +47,7 @@ void cpu(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CBLAS
 
 #ifdef NNTILE_USE_CUDA
-template<typename T>
+template<typename T, typename T_scal>
 void cuda(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CUDA
@@ -56,6 +56,9 @@ extern Codelet codelet_NN_fp32, codelet_NN_fp64,
        codelet_NT_fp32, codelet_NT_fp64,
        codelet_TN_fp32, codelet_TN_fp64,
        codelet_TT_fp32, codelet_TT_fp64;
+
+extern Codelet codelet_NN_fp16, codelet_NT_fp16,
+       codelet_TN_fp16, codelet_TT_fp16;
 
 template<typename T>
 static
@@ -125,15 +128,46 @@ Codelet *codelet<fp64_t>(TransOp transA, TransOp transB)
     }
 }
 
+template<>
+Codelet *codelet<fp16_t>(TransOp transA, TransOp transB)
+{
+    switch(transA.value)
+    {
+        case TransOp::NoTrans:
+            switch(transB.value)
+            {
+                case TransOp::NoTrans:
+                    return &codelet_NN_fp16;
+                default:
+                // This parameter was already checked in gemm_check_opA_opB
+                //case TransOp::Trans:
+                    return &codelet_NT_fp16;
+            }
+        // This parameter was already checked in gemm_check_opA_opB
+        //case TransOp::Trans:
+        default:
+            switch(transB.value)
+            {
+                case TransOp::NoTrans:
+                    return &codelet_TN_fp16;
+                // This parameter was already checked in gemm_check_opA_opB
+                //case TransOp::Trans:
+                default:
+                    return &codelet_TT_fp16;
+            }
+    }
+}
+
 void init();
 
 void restrict_where(uint32_t where);
 
 void restore_where();
 
-template<typename T>
+template<typename T, typename T_scal>
 void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
-        Index k, Index batch, T alpha, Handle A, Handle B, T beta, Handle C);
+        Index k, Index batch, T_scal alpha, Handle A, Handle B, T_scal beta,
+        Handle C);
 
 } // namespace gemm
 } // namespace starpu

@@ -12,7 +12,8 @@
 # @date 2023-04-05
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        copy_async, prod_async, relu_async, relu_backward_async, gelu_async, \
+        copy_async, prod_async, relu_forward_async, relu_backward_async, \
+        relu_async, gelu_async, \
         gelu_backward_async, gelutanh_async, gelutanh_backward_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
@@ -60,10 +61,13 @@ class Act(BaseLayer):
 
     # Forward propagation of the activation layer
     def forward_async(self):
-        # Init Y as a copy of X
-        copy_async(self.x.value, self.y.value)
-        # Non-linear activation of Y inplace
-        self.func(self.y.value)
+        if self.funcname == "relu":
+            relu_forward_async(self.x.value, self.y.value)
+        else:
+            # Init Y as a copy of X
+            copy_async(self.x.value, self.y.value)
+            # Non-linear activation of Y inplace
+            self.func(self.y.value)
 
     # Backward propagation of the activation layer
     def backward_async(self):

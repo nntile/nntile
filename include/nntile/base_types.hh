@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2023-05-04
  * */
 
 #pragma once
@@ -27,6 +27,8 @@ using Index = int64_t;
 using fp64_t = double;
 //! Single precision alias
 using fp32_t = float;
+//! Half precision (forward declaration without definition)
+using fp16_t = std::bitset<16>;
 
 // Add more types like fp16_t, bf16_t and tf32_t in the future
 

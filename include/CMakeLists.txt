@@ -76,6 +76,8 @@ set(KERNEL_HDR
     "nntile/kernel/gelu_backward/cpu.hh"
     "nntile/kernel/gelutanh_backward.hh"
     "nntile/kernel/gelutanh_backward/cpu.hh"
+    "nntile/kernel/fp32_to_fp16.hh"
+    "nntile/kernel/fp16_to_fp32.hh"
     )
 
 if(NNTILE_USE_CUDA)
@@ -99,6 +101,8 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/maxsumexp/cuda.hh"
         "nntile/kernel/softmax/cuda.hh"
         "nntile/kernel/scalprod/cuda.hh"
+        "nntile/kernel/fp32_to_fp16/cuda.hh"
+        "nntile/kernel/fp16_to_fp32/cuda.hh"
         )
 endif()
 
@@ -138,6 +142,8 @@ set(STARPU_HDR
     "nntile/starpu/scal.hh"
     "nntile/starpu/gelu_backward.hh"
     "nntile/starpu/gelutanh_backward.hh"
+    "nntile/starpu/fp32_to_fp16.hh"
+    "nntile/starpu/fp16_to_fp32.hh"
     )
 
 set(TILE_HDR
@@ -177,6 +183,8 @@ set(TILE_HDR
     "nntile/tile/scal.hh"
     "nntile/tile/gelu_backward.hh"
     "nntile/tile/gelutanh_backward.hh"
+    "nntile/tile/fp32_to_fp16.hh"
+    "nntile/tile/fp16_to_fp32.hh"
     )
 
 set(TENSOR_HDR
@@ -219,6 +227,8 @@ set(TENSOR_HDR
     "nntile/tensor/scal.hh"
     "nntile/tensor/gelu_backward.hh"
     "nntile/tensor/gelutanh_backward.hh"
+    "nntile/tensor/fp32_to_fp16.hh"
+    "nntile/tensor/fp16_to_fp32.hh"
     )
 
 set(LAYER_HDR
