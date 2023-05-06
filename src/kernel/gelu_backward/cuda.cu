@@ -35,7 +35,7 @@ void cuda_kernel(Index nelems, const T *x, const T *dy, T *dx)
         // T z = x[i];
         T exp_x = std::exp(-pt5 * x[i] * x[i]);
         T y = erfc(f1 * x[i]);
-        dx[i] = (x[i]*f2*exp_x + pt5*y) * dy[i];
+        dx[i] += (x[i]*f2*exp_x + pt5*y) * dy[i];
     }
 }
 
@@ -44,7 +44,7 @@ void cuda(cudaStream_t stream, Index nelems, const T *x, const T *dy, T *dx)
     noexcept
 //! Backward GeLU operation on CUDA
 /*! Does the following per-element operation:
- * backward_GeLU(x, dy) = GeLU'(x) * dy elementwise
+ * dx[i] = dx[i] + dy[i]*GeLU'(x[i])
  *
  * @params[in] nelems: Number of elements in a buffer
  * @params[in] x: Input value for forward GeLU

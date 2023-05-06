@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-03-28
+# @date 2023-04-20
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
@@ -308,9 +308,9 @@ class Attention(BaseLayer):
         for i in range(self.n_head):
             # Backward for Y += einsum('jk,kml->jml', W[i], B[i])
             if self.w[i].grad_required:
-                # dW[i] = einsum('jml,kml->jk', dY, B[i])
+                # dW[i] += einsum('jml,kml->jk', dY, B[i])
                 gemm_async(1.0, notrans, self.y.grad, trans, self.b[i].value, \
-                        0.0, self.w[i].grad, 2, 0)
+                        1.0, self.w[i].grad, 2, 0)
             # B[i] can be deleted
             self.b[i].value.invalidate_submit()
             if self.b[i].grad_required:
@@ -327,9 +327,9 @@ class Attention(BaseLayer):
             # V[i] can be deleted
             self.v[i].value.invalidate_submit()
             if self.v[i].grad_required:
-                # dV[i] = einsum('jml,kml->jkl', dB[i], A[i])
+                # dV[i] += einsum('jml,kml->jkl', dB[i], A[i])
                 gemm_async(1.0, notrans, self.b[i].grad, trans, \
-                        self.a[i].value, 0.0, self.v[i].grad, 1, 1)
+                        self.a[i].value, 1.0, self.v[i].grad, 1, 1)
             # dB[i] can be deleted
             self.b[i].grad.invalidate_submit()
             # Backward for A[i] = softmax(A[i], axis=0)
@@ -371,9 +371,9 @@ class Attention(BaseLayer):
             # W_V[i] can be offloaded from GPU
             self.w_v[i].value.wont_use()
             if self.w_v[i].grad_required:
-                # dW_V[i] = einsum('jlm,klm->jk', dV[i], X_V)
+                # dW_V[i] += einsum('jlm,klm->jk', dV[i], X_V)
                 gemm_async(1.0, notrans, self.v[i].grad, trans, \
-                        self.x_v.value, 0.0, self.w_v[i].grad, 2, 0)
+                        self.x_v.value, 1.0, self.w_v[i].grad, 2, 0)
             # dW_V[i] can be offloaded from GPU
             self.w_v[i].grad.wont_use()
             # dV[i] can be deleted
@@ -386,9 +386,9 @@ class Attention(BaseLayer):
             # W_K[i] can be offloaded from GPU
             self.w_k[i].value.wont_use()
             if self.w_k[i].grad_required:
-                # dW_K[i] = einsum('jlm,klm->jk', dK[i], X_K)
+                # dW_K[i] += einsum('jlm,klm->jk', dK[i], X_K)
                 gemm_async(1.0, notrans, self.k[i].grad, trans, \
-                        self.x_k.value, 0.0, self.w_k[i].grad, 2, 0)
+                        self.x_k.value, 1.0, self.w_k[i].grad, 2, 0)
             # dW_K[i] can be offloaded from GPU
             self.w_k[i].grad.wont_use()
             # dK[i] can be deleted
@@ -401,9 +401,9 @@ class Attention(BaseLayer):
             # W_Q[i] can be offloaded from GPU
             self.w_q[i].value.wont_use()
             if self.w_q[i].grad_required:
-                # dW_Q[i] = einsum('jlm,klm->jk', dQ[i], X_Q)
+                # dW_Q[i] += einsum('jlm,klm->jk', dQ[i], X_Q)
                 gemm_async(1.0, notrans, self.q[i].grad, trans, \
-                        self.x_q.value, 0.0, self.w_q[i].grad, 2, 0)
+                        self.x_q.value, 1.0, self.w_q[i].grad, 2, 0)
             # dW_Q[i] can be offloaded from GPU
             self.w_q[i].grad.wont_use()
             # dQ[i] can be deleted

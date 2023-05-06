@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-04
+ * @date 2023-04-20
  * */
 
 #include "nntile/starpu/relu_backward.hh"
@@ -105,7 +105,7 @@ void submit(Index nelems, Handle x, Handle dy, Handle dx)
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(x),
             STARPU_R, static_cast<starpu_data_handle_t>(dy),
-            STARPU_W, static_cast<starpu_data_handle_t>(dx),
+            STARPU_RW, static_cast<starpu_data_handle_t>(dx),
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
             0);
     // Check submission
@@ -130,7 +130,7 @@ void submit_mpi(Index nelems, Handle x, Handle dy, Handle dx, int exec_rank)
             codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(x),
             STARPU_R, static_cast<starpu_data_handle_t>(dy),
-            STARPU_W, static_cast<starpu_data_handle_t>(dx),
+            STARPU_RW, static_cast<starpu_data_handle_t>(dx),
             STARPU_EXECUTE_ON_NODE, exec_rank,
             0);
     // Only execution node will have non-nullptr task
@@ -157,7 +157,7 @@ void submit_mpi(Index nelems, Handle x, Handle dy, Handle dx, int exec_rank)
             codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(x),
             STARPU_R, static_cast<starpu_data_handle_t>(dy),
-            STARPU_W, static_cast<starpu_data_handle_t>(dx),
+            STARPU_RW, static_cast<starpu_data_handle_t>(dx),
             STARPU_EXECUTE_ON_NODE, exec_rank,
             0);
 
