@@ -1,5 +1,5 @@
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        notrans, trans, Tensor_fp32
+        notrans, trans, Tensor_fp32, clear_async
 from nntile.model.base_model import BaseModel
 from nntile.layer.linear import Linear
 from nntile.layer.act import Act
@@ -43,6 +43,11 @@ class GPT2MLP(BaseModel):
         for l in self.layers:
             if type(l) is Linear:
                 l.init_randn_async()
+
+    def zero_grad(self):
+        for p in self.parameters:
+            if p.grad_required:
+                clear_async(p.grad)
 
     @staticmethod
     def from_torch(torch_mlp, x: TensorMoments, batch_size: int, config: Dict, next_tag: int):
