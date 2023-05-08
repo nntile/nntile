@@ -67,6 +67,10 @@ test_input = torch.from_numpy(test_input_np).to(device)
 hug_result = gpt2mlp_hug(test_input)
 print("Norm of the output of PyTorch GPT2MLP", torch.norm(hug_result, "fro").item())
 
+torch_val = torch.square(torch.norm(hug_result, "fro")) * 0.5
+torch_val.backward()
+
+
 time0 = -time.time()
 # Set up StarPU+MPI and init codelets
 config = nntile.starpu.Config(-1, -1, 1)
@@ -98,12 +102,16 @@ print("Create model...")
 gpt2mlp_nntile, next_tag = GPT2MLP_nntile.from_torch(gpt2mlp_hug, x_moments,
                                                      batch_size, nntile_config, next_tag)
 print("Create model...done")
-# print("Init model...")
-# gpt2mlp_nntile.init_randn_async()
-# print("Init model...done")
 print("Forward model...")
 gpt2mlp_nntile.forward_async()
 print("Forward model...done")
+gpt2mlp_nntile.zero_grad()
+
+fro_loss, next_tag = nntile.loss.Frob.generate_simple(gpt2mlp_nntile.activations[-1], next_tag)
+np_zero = np.zeros(gpt2mlp_nntile.activations[-1].value.shape, dtype=np.float32, order="F")
+fro_loss.y.from_array(np_zero)
+fro_loss.calc_async()
+gpt2mlp_nntile.backward_async()
 
 
 output_traits = nntile.tensor.TensorTraits([batch_size, input_dim], \
@@ -117,8 +125,18 @@ output = np.zeros(output_single.shape, order="F", dtype=np.float32)
 # to_array causes y_single to finish gather procedure
 output_single.to_array(output)
 print("Norm of the output of Nntile GPT2MLP", np.linalg.norm(output, "fro"))
+print("Norm of difference =", np.linalg.norm(output - hug_result.cpu().detach().numpy(), "fro"))
+
+
+for i, (p_nntile, p_torch) in enumerate(zip(gpt2mlp_nntile.parameters, gpt2mlp_hug.parameters())):
+    p_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
+    p_nntile.grad.to_array(p_np)
+    p_torch_np = p_torch.grad.detach().cpu().numpy()
+    rel_error = np.linalg.norm(p_np - p_torch_np, "fro") / np.linalg.norm(p_torch_np, "fro")
+    print("Relative error in layer {} gradient = {}".format(i, rel_error))
 
 x_single.unregister()
 output_single.unregister()
 gpt2mlp_nntile.unregister()
+fro_loss.unregister()
 
