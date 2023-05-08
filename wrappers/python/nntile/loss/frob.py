@@ -68,3 +68,10 @@ class Frob:
         prod_async(self.val_sqrt, self.val)
         scal_async(0.5, self.val)
 
+    def unregister(self):
+        self.tmp.unregister()
+        self.val.unregister()
+        self.val_sqrt.unregister()
+        self.y.unregister()
+
+
