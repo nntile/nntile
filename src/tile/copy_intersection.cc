@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-02
+ * @author Aleksandr Katrutsa
+ * @date 2023-03-27
  * */
 
 #include "nntile/tile/copy_intersection.hh"
@@ -152,6 +153,11 @@ void copy_intersection_async<fp64_t>(const Tile<fp64_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp64_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<Index> &scratch);
 
+template
+void copy_intersection_async<Index>(const Tile<Index> &src,
+        const std::vector<Index> &src_offset, const Tile<Index> &dst,
+        const std::vector<Index> &dst_offset, const Tile<Index> &scratch);
+
 // Explicit instantiation
 template
 void copy_intersection<fp32_t>(const Tile<fp32_t> &src,
@@ -161,6 +167,11 @@ void copy_intersection<fp32_t>(const Tile<fp32_t> &src,
 template
 void copy_intersection<fp64_t>(const Tile<fp64_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp64_t> &dst,
+        const std::vector<Index> &dst_offset, const Tile<Index> &scratch);
+
+template
+void copy_intersection<Index>(const Tile<Index> &src,
+        const std::vector<Index> &src_offset, const Tile<Index> &dst,
         const std::vector<Index> &dst_offset, const Tile<Index> &scratch);
 
 } // namespace tile

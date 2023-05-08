@@ -10,7 +10,8 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @author Konstantin Sozykin
+ * @date 2023-04-04
  * */
 
 #pragma once
@@ -26,12 +27,21 @@
 #include <nntile/kernel/prod.hh>
 #include <nntile/kernel/randn.hh>
 #include <nntile/kernel/relu.hh>
+#include <nntile/kernel/relu_backward.hh>
 #include <nntile/kernel/subcopy.hh>
 #include <nntile/kernel/sumnorm.hh>
+#include <nntile/kernel/sum.hh>
 #include <nntile/kernel/maxsumexp.hh>
 #include <nntile/kernel/softmax.hh>
 #include <nntile/kernel/sqrt.hh>
 #include <nntile/kernel/maximum.hh>
+#include <nntile/kernel/addcdiv.hh>
+#include <nntile/kernel/scalprod.hh>
+#include <nntile/kernel/logsumexp.hh>
+#include <nntile/kernel/total_sum_accum.hh>
+#include <nntile/kernel/subtract_indexed_column.hh>
+#include <nntile/kernel/gelu_backward.hh>
+#include <nntile/kernel/gelutanh_backward.hh>
 
 namespace nntile
 {

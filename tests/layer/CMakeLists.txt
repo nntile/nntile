@@ -13,7 +13,7 @@
 
 # All unit tests for layers
 set(TESTS
-    "linear"
+    #"linear"
     #"gelu"
     #"gelutanh"
     #"mlp"

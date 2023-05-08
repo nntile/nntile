@@ -9,10 +9,10 @@
 #
 # @version 1.0.0
 # @author Aleksandr katrutsa
-# @date 2023-02-10
+# @author Aleksandr Mikhalev
+# @date 2023-02-14
 
 # All necesary imports
-import sys
 import nntile
 import numpy as np
 
@@ -26,8 +26,8 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-sqrt = {np.float32: nntile.tensor.sqrt_fp32,
-        np.float64: nntile.tensor.sqrt_fp64}
+sqrt = {np.float32: nntile.nntile_core.tensor.sqrt_fp32,
+        np.float64: nntile.nntile_core.tensor.sqrt_fp64}
 
 
 # Helper function returns bool value true if test passes

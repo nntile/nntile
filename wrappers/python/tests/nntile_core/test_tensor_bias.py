@@ -9,8 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @author Aleksandr Katrutsa
-# @date 2023-02-11
+# @date 2023-03-26
 
 # All necesary imports
 import nntile
@@ -25,8 +24,8 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-bias = {np.float32: nntile.tensor.bias_fp32,
-        np.float64: nntile.tensor.bias_fp64}
+bias = {np.float32: nntile.nntile_core.tensor.bias_fp32,
+        np.float64: nntile.nntile_core.tensor.bias_fp64}
 
 # Helper function returns bool value true if test passes
 def helper_axis(dtype):
@@ -59,13 +58,14 @@ def helper_axis(dtype):
         np_B.append(np.array(rand_B, dtype=dtype, order='F'))
         B[i].from_array(np_B[-1])
     # Check result along each axis
+    alpha = -0.5
     for i in range(ndim):
         A.from_array(np_A)
-        bias[dtype](B[i], A, i)
+        bias[dtype](alpha, B[i], A, i)
         A.to_array(np_A2)
         nntile.starpu.wait_for_all()
         B[i].unregister()
-        np_C = np.expand_dims(np_B[i], axis=i)
+        np_C = alpha * np.expand_dims(np_B[i], axis=i)
         np_C = np.repeat(np_C, A_shape[i], axis=i)
         np_C += np_A
         nntile.starpu.wait_for_all()

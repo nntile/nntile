@@ -9,8 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @author Aleksandr Katrutsa
- * @date 2023-02-11
+ * @date 2023-03-26
  * */
 
 #pragma once
@@ -32,12 +31,14 @@ struct argc_t {
 };
 
 //! Structure for arguments
-struct args_t : argc_t
+template<typename T>
+struct args_t
 {
     args_t(Index nargc, Index m_, Index n_, Index k_) : argc_t(nargc), m(m_), n(n_), k(k_) {}
     Index m;
     Index n;
     Index k;
+    T alpha;
 };
 
 //! Structure for arguments
@@ -89,7 +90,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, Handle src, Handle dst);
+void submit(Index m, Index n, Index k, T alpha, Handle src, Handle dst);
 
 template<typename T>
 void submit(T val, Index num_elements, Handle src);

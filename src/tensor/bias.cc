@@ -9,8 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @author Aleksandr Katrutsa
- * @date 2023-02-11
+ * @date 2023-03-26
  * */
 
 #include "nntile/tensor/bias.hh"
@@ -23,7 +22,8 @@ namespace tensor
 
 //! Tensor-wise bias operation
 template<typename T>
-void bias_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
+void bias_async(T alpha, const Tensor<T> &src, const Tensor<T> &dst,
+        Index axis)
 {
     // Check dimensions
     if(dst.ndim != src.ndim+1)
@@ -63,6 +63,11 @@ void bias_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
             throw std::runtime_error("dst.basetile_shape[i] != "
                     "src.basetile_shape[i-1]");
         }
+    }
+    // Do nothing if alpha is zero
+    if(alpha == 0.0)
+    {
+        return;
     }
     // Apply per-tile bias asynchronously as needed
     int mpi_rank = starpu_mpi_world_rank();
@@ -124,7 +129,7 @@ void bias_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
                     k = dst_tile_traits.shape[axis];
                 }
                 // Insert corresponding task
-                starpu::bias::submit<T>(m, n, k, src_tile_handle,
+                starpu::bias::submit<T>(m, n, k, alpha, src_tile_handle,
                         dst_tile_handle);
             }
             // Flush cache for the output tile on every node
@@ -135,30 +140,30 @@ void bias_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
 
 //! Tensor-wise bias operation
 template<typename T>
-void bias(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
+void bias(T alpha, const Tensor<T> &src, const Tensor<T> &dst, Index axis)
 {
-    bias_async<T>(src, dst, axis);
+    bias_async<T>(alpha, src, dst, axis);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation of template
 template
-void bias_async<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst,
-        Index axis);
+void bias_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
+        const Tensor<fp32_t> &dst, Index axis);
 
 template
-void bias_async<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst,
-        Index axis);
+void bias_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
+        const Tensor<fp64_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void bias<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst,
-        Index axis);
+void bias<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
+        const Tensor<fp32_t> &dst, Index axis);
 
 template
-void bias<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst,
-        Index axis);
+void bias<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
+        const Tensor<fp64_t> &dst, Index axis);
 
 
 //! Asynchronous tensor-wise add scalar operation

@@ -10,7 +10,8 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @author Konstantin Sozykin
+ * @date 2023-04-04
  * */
 
 #pragma once
@@ -38,12 +39,22 @@
 #include <nntile/tensor/prod.hh>
 #include <nntile/tensor/randn.hh>
 #include <nntile/tensor/relu.hh>
+#include <nntile/tensor/relu_backward.hh>
 #include <nntile/tensor/scatter.hh>
+#include <nntile/tensor/sum.hh>
 #include <nntile/tensor/sumnorm.hh>
 #include <nntile/tensor/maxsumexp.hh>
 #include <nntile/tensor/softmax.hh>
 #include <nntile/tensor/sqrt.hh>
 #include <nntile/tensor/maximum.hh>
+#include <nntile/tensor/addcdiv.hh>
+#include <nntile/tensor/scalprod.hh>
+#include <nntile/tensor/logsumexp.hh>
+#include <nntile/tensor/total_sum_accum.hh>
+#include <nntile/tensor/subtract_indexed_column.hh>
+#include <nntile/tensor/scal.hh>
+#include <nntile/tensor/gelu_backward.hh>
+#include <nntile/tensor/gelutanh_backward.hh>
 
 namespace nntile
 {

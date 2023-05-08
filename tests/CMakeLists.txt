@@ -136,6 +136,6 @@ add_subdirectory("kernel")
 add_subdirectory("starpu")
 add_subdirectory("tile")
 add_subdirectory("tensor")
-add_subdirectory("layer")
-add_subdirectory("model")
+#add_subdirectory("layer")
+#add_subdirectory("model")
 

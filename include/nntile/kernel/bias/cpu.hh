@@ -9,8 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @author Aleksandr Katrutsa
- * @date 2023-02-11
+ * @date 2023-03-26
  * */
 
 #pragma once
@@ -26,11 +25,7 @@ namespace bias
 
 // Apply bias along middle axis on CPU
 template<typename T>
-void cpu(Index m, Index n, Index k, const T *src, T *dst)
-    noexcept;
-
-template<typename T>
-void cpu(T x, Index num_elements, T *y)
+void cpu(Index m, Index n, Index k, T alpha, const T *src, T *dst)
     noexcept;
 
 } // namespace bias

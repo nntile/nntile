@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-02
+# @date 2023-03-23
 
 # All necesary imports
 import nntile
@@ -24,15 +24,17 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-gemm = {np.float32: nntile.tensor.gemm_fp32,
-        np.float64: nntile.tensor.gemm_fp64}
+gemm = {np.float32: nntile.nntile_core.tensor.gemm_fp32,
+        np.float64: nntile.nntile_core.tensor.gemm_fp64}
 
 # Helper function returns bool value true if test passes
 def helper(dtype):
     # Describe single-tile tensor, located at node 0
-    shape = [2, 2]
+    matrix_shape = [2, 2]
+    batch = 3
     mpi_distr = [0]
     next_tag = 0
+    shape = [*matrix_shape, batch]
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
     A = Tensor[dtype](traits, mpi_distr, next_tag)
@@ -51,16 +53,22 @@ def helper(dtype):
     # Get results by means of nntile and convert to numpy
     alpha = 1
     beta = -1
-    gemm[dtype](alpha, nntile.notrans, A, nntile.trans, B, beta, C, 1)
+    gemm[dtype](alpha, nntile.notrans, A, nntile.trans, B, beta, C, 1, 1)
     C.to_array(dst_C)
     nntile.starpu.wait_for_all()
     A.unregister()
     B.unregister()
     C.unregister()
-    # Get result in numpy
-    src_C = beta*src_C + alpha*(src_A@(src_B.T))
-    # Check if results are almost equal
-    return (dst_C == src_C).all()
+    # Check results
+    for i in range(batch):
+        # Get result in numpy
+        src_C[:, :, i] = beta*src_C[:, :, i] + \
+                alpha*(src_A[:, :, i]@(src_B[:, :, i].T))
+        # Check if results are almost equal
+        if np.linalg.norm(dst_C[:, :, i]-src_C[:, :, i]) \
+                / np.linalg.norm(src_C[:, :, i]) > 1e-4:
+            return False
+    return True
 
 # Test runner for different precisions
 def test():

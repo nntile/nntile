@@ -9,8 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @author Aleksandr Katrutsa
- * @date 2023-02-11
+ * @date 2023-03-26
  * */
 
 #include "nntile/tensor/bias.hh"
@@ -94,10 +93,11 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     Tensor<T> src(src_traits, src_distr, last_tag);
     scatter<T>(src_single, src);
     // Perform tensor-wise and tile-wise bias operations
-    bias<T>(src, dst, axis);
+    bias<T>(-1.0, src, dst, axis);
     if(mpi_rank == mpi_root)
     {
-        tile::bias<T>(src_single.get_tile(0), dst_single.get_tile(0), axis);
+        tile::bias<T>(-1.0, src_single.get_tile(0), dst_single.get_tile(0),
+                axis);
     }
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
@@ -211,13 +211,13 @@ void validate()
     std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0};
     Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
         C(trC, dist0, last_tag);
-    TEST_THROW(bias<T>(A, A, 0));
-    TEST_THROW(bias<T>(B, A, -1));
-    TEST_THROW(bias<T>(B, A, 2));
-    TEST_THROW(bias<T>(B, A, 0));
-    TEST_THROW(bias<T>(B, A, 1));
-    TEST_THROW(bias<T>(C, A, 0));
-    TEST_THROW(bias<T>(C, A, 1));
+    TEST_THROW(bias<T>(1.0, A, A, 0));
+    TEST_THROW(bias<T>(1.0, B, A, -1));
+    TEST_THROW(bias<T>(1.0, B, A, 2));
+    TEST_THROW(bias<T>(1.0, B, A, 0));
+    TEST_THROW(bias<T>(1.0, B, A, 1));
+    TEST_THROW(bias<T>(1.0, C, A, 0));
+    TEST_THROW(bias<T>(1.0, C, A, 1));
 }
 
 int main(int argc, char **argv)
