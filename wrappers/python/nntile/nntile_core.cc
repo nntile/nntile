@@ -10,7 +10,8 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-02-11
+ * @author Konstantin Sozykin
+ * @date 2023-04-04
  * */
 
 #include <pybind11/pybind11.h>
@@ -20,14 +21,18 @@
 #include <nntile.hh>
 #include <sstream>
 #include <cstring>
+#include <thread>
 
 using namespace nntile;
 namespace py = pybind11;
+
+constexpr auto _wait_for_all_sleep_time = std::chrono::milliseconds(1);
 
 // Extend (sub)module with nntile::starpu functionality
 void def_mod_starpu(py::module_ &m)
 {
     using namespace nntile::starpu;
+    using namespace std::chrono_literals;
     py::class_<Config>(m, "Config").
         def(py::init<int, int, int>()).
         def("init", &Config::init).
@@ -35,7 +40,26 @@ void def_mod_starpu(py::module_ &m)
     m.def("init", init);
     m.def("pause", starpu_pause);
     m.def("resume", starpu_resume);
-    m.def("wait_for_all", [](){starpu_task_wait_for_all();
+    m.def("wait_for_all", [](){
+            while(true)
+            {
+                int nsubmitted = starpu_task_nsubmitted();
+                //int nready = starpu_task_nready();
+                //std::cout << "S=" << nsubmitted << " R=" << nready << "\n";
+                //if (nready > nsubmitted)
+                //{
+                //    std::cout << "======================\n";
+                //}
+                std::this_thread::sleep_for(_wait_for_all_sleep_time);
+                if(nsubmitted == 0)
+                {
+                    break;
+                }
+                if(PyErr_CheckSignals() != 0)
+                {
+                    throw py::error_already_set();
+                }
+            }
             starpu_mpi_wait_for_all(MPI_COMM_WORLD);});
 }
 
@@ -290,11 +314,14 @@ void def_class_tensor(py::module_ &m, const char *name)
                 starpu_mpi_tag_t &>()).
         def_readonly("next_tag", &Tensor<T>::next_tag).
         def("unregister", &Tensor<T>::unregister).
+        def("invalidate_submit", &Tensor<T>::invalidate_submit).
+        def("wont_use", &Tensor<T>::wont_use).
         def("from_array", tensor_from_array<T>).
         def("to_array", tensor_to_array<T>).
         // Get tile
         def("get_tile", static_cast<tile::Tile<T>(Tensor<T>::*)(Index) const>(
-                    &Tensor<T>::get_tile));
+                    &Tensor<T>::get_tile)).
+        def_readonly("distribution", &Tensor<T>::tile_distr);
     m.def("tensor_to_array", tensor_to_array<T>);
     m.def("tensor_from_array", tensor_from_array<T>);
 }
@@ -321,6 +348,8 @@ void def_mod_tensor(py::module_ &m)
                 std::stringstream stream;
                 stream << data;
                 return stream.str();}).
+        // Get basetile shape
+        def_readonly("basetile_shape", &TensorTraits::basetile_shape).
         // Shape of corresponding tile
         def("get_tile_shape", &TensorTraits::get_tile_shape).
         // Shape of a grid
@@ -329,26 +358,35 @@ void def_mod_tensor(py::module_ &m)
         // Get grid (TileTraits)
         def_readonly("grid", &TensorTraits::grid);
     // Define wrappers for Tensor<T>
-    def_class_tensor<fp32_t>(m, "Tensor_fp32");
     def_class_tensor<fp64_t>(m, "Tensor_fp64");
+    def_class_tensor<fp32_t>(m, "Tensor_fp32");
+    def_class_tensor<Index>(m, "Tensor_int64");
     // Add tensor.distributions submodule
     auto distributions = m.def_submodule("distributions");
     def_tensor_distributions(distributions);
     // Add functions for Tensor<T>
-    m.def("gemm_async_fp32", &gemm_async<fp32_t>);
-    m.def("gemm_fp32", &gemm<fp32_t>);
     m.def("gemm_async_fp64", &gemm_async<fp64_t>);
+    m.def("gemm_async_fp32", &gemm_async<fp32_t>);
     m.def("gemm_fp64", &gemm<fp64_t>);
+    m.def("gemm_fp32", &gemm<fp32_t>);
     // Add activation functions for Tensor<T>
     m.def("relu_async_fp64", &relu_async<fp64_t>);
     m.def("relu_async_fp32", &relu_async<fp32_t>);
     m.def("relu_fp64", &relu<fp64_t>);
     m.def("relu_fp32", &relu<fp32_t>);
+    m.def("relu_backward_async_fp64", &relu_backward_async<fp64_t>);
+    m.def("relu_backward_async_fp32", &relu_backward_async<fp32_t>);
+    m.def("relu_backward_fp64", &relu_backward<fp64_t>);
+    m.def("relu_backward_fp32", &relu_backward<fp32_t>);
     m.def("drelu_async_fp64", &drelu_async<fp64_t>);
     m.def("drelu_async_fp32", &drelu_async<fp32_t>);
     m.def("drelu_fp64", &drelu<fp64_t>);
     m.def("drelu_fp32", &drelu<fp32_t>);
     // Add other functions for Tensor<T>
+    m.def("sum_async_fp64", &sum_async<fp64_t>);
+    m.def("sum_async_fp32", &sum_async<fp32_t>);
+    m.def("sum_fp64", &sum<fp64_t>);
+    m.def("sum_fp32", &sum<fp32_t>);
     m.def("sumnorm_async_fp64", &sumnorm_async<fp64_t>);
     m.def("sumnorm_async_fp32", &sumnorm_async<fp32_t>);
     m.def("sumnorm_fp64", &sumnorm<fp64_t>);
@@ -359,8 +397,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("softmax_fp32", &softmax<fp32_t>);
     m.def("scatter_async_fp64", &scatter_async<fp64_t>);
     m.def("scatter_async_fp32", &scatter_async<fp32_t>);
+    m.def("scatter_async_int64", &scatter_async<Index>);
     m.def("scatter_fp64", &scatter<fp64_t>);
     m.def("scatter_fp32", &scatter<fp32_t>);
+    m.def("scatter_int64", &scatter<Index>);
     m.def("randn_async_fp64", &randn_async<fp64_t>);
     m.def("randn_async_fp32", &randn_async<fp32_t>);
     m.def("randn_fp64", &randn<fp64_t>);
@@ -382,52 +422,58 @@ void def_mod_tensor(py::module_ &m)
     m.def("maxsumexp_fp64", &maxsumexp<fp64_t>);
     m.def("maxsumexp_fp32", &maxsumexp<fp32_t>);
 
-    m.def("bias_async_fp64",
-          py::overload_cast<const Tensor<fp64_t> &, const Tensor<fp64_t> &,
-          Index>(&bias_async<fp64_t>));
-    m.def("bias_async_fp64",
-          py::overload_cast<fp64_t, const Tensor<fp64_t> &>(&bias_async<fp64_t>));
-    m.def("bias_async_fp32",
-          py::overload_cast<const Tensor<fp32_t> &, const Tensor<fp32_t> &,
-          Index>(&bias_async<fp32_t>));
-    m.def("bias_async_fp32",
-          py::overload_cast<fp32_t, const Tensor<fp32_t> &>(&bias_async<fp32_t>));
-    m.def("bias_fp64",
-          py::overload_cast<const Tensor<fp64_t> &, const Tensor<fp64_t> &, Index>(&bias<fp64_t>));
-    m.def("bias_fp64",
-          py::overload_cast<fp64_t, const Tensor<fp64_t> &>(&bias<fp64_t>));
-    m.def("bias_fp32",
-          py::overload_cast<const Tensor<fp32_t> &, const Tensor<fp32_t> &,
-          Index>(&bias<fp32_t>));
-    m.def("bias_fp32",
-          py::overload_cast<fp32_t, const Tensor<fp32_t> &>(&bias<fp32_t>));
+    m.def("bias_async_fp64", &bias_async<fp64_t>);
+    m.def("bias_async_fp32", &bias_async<fp32_t>);
+    m.def("bias_fp64", &bias<fp64_t>);
+    m.def("bias_fp32", &bias<fp32_t>);
 
     m.def("gather_async_fp64", &gather_async<fp64_t>);
     m.def("gather_async_fp32", &gather_async<fp32_t>);
+    m.def("gather_async_int64", &gather_async<Index>);
     m.def("gather_fp64", &gather<fp64_t>);
     m.def("gather_fp32", &gather<fp32_t>);
+    m.def("gather_int64", &gather<Index>);
+
     m.def("copy_intersection_async_fp64", &copy_intersection_async<fp64_t>);
     m.def("copy_intersection_async_fp32", &copy_intersection_async<fp32_t>);
+    m.def("copy_intersection_async_int64", &copy_intersection_async<Index>);
+
     m.def("copy_intersection_fp64", &copy_intersection<fp64_t>);
     m.def("copy_intersection_fp32", &copy_intersection<fp32_t>);
+    m.def("copy_intersection_int64", &copy_intersection<Index>);
+    
     m.def("copy_async_fp64", &copy_async<fp64_t>);
     m.def("copy_async_fp32", &copy_async<fp32_t>);
+    m.def("copy_async_int64", &copy_async<Index>);
+
     m.def("copy_fp64", &copy<fp64_t>);
     m.def("copy_fp32", &copy<fp32_t>);
+    m.def("copy_int64", &copy<Index>);
+
     m.def("clear_async_fp64", &clear_async<fp64_t>);
     m.def("clear_async_fp32", &clear_async<fp32_t>);
     m.def("clear_fp64", &clear<fp64_t>);
     m.def("clear_fp32", &clear<fp32_t>);
         
-    m.def("axpy_async_fp64", &axpy_async<fp64_t>);
-    m.def("axpy_async_fp32", &axpy_async<fp32_t>);
-    m.def("axpy_fp64", &axpy<fp64_t>);
-    m.def("axpy_fp32", &axpy<fp32_t>);
+    m.def("axpy_async_fp64", py::overload_cast<fp64_t, const Tensor<fp64_t>&,
+            const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
+    m.def("axpy_async_fp32", py::overload_cast<fp32_t, const Tensor<fp32_t>&,
+            const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
+    m.def("axpy_fp64", py::overload_cast<fp64_t, const Tensor<fp64_t>&,
+            const Tensor<fp64_t>&>(&axpy<fp64_t>));
+    m.def("axpy_fp32", py::overload_cast<fp32_t, const Tensor<fp32_t>&,
+            const Tensor<fp32_t>&>(&axpy<fp32_t>));
 
-    m.def("axpy2_async_fp64", &axpy2_async<fp64_t>);
-    m.def("axpy2_async_fp32", &axpy2_async<fp32_t>);
-    m.def("axpy2_fp64", &axpy2<fp64_t>);
-    m.def("axpy2_fp32", &axpy2<fp32_t>);
+    m.def("axpy_async_fp64", py::overload_cast<const Tensor<fp64_t>&,
+            const Tensor<fp64_t>&,
+            const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
+    m.def("axpy_async_fp32", py::overload_cast<const Tensor<fp32_t>&,
+            const Tensor<fp32_t>&,
+            const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
+    m.def("axpy_fp64", py::overload_cast<const Tensor<fp64_t>&,
+            const Tensor<fp64_t>&, const Tensor<fp64_t>&>(&axpy<fp64_t>));
+    m.def("axpy_fp32", py::overload_cast<const Tensor<fp32_t>&,
+            const Tensor<fp32_t>&, const Tensor<fp32_t>&>(&axpy<fp32_t>));
 
     m.def("sqrt_async_fp64", &sqrt_async<fp64_t>);
     m.def("sqrt_async_fp32", &sqrt_async<fp32_t>);
@@ -437,6 +483,66 @@ void def_mod_tensor(py::module_ &m)
     m.def("maximum_async_fp32", &maximum_async<fp32_t>);
     m.def("maximum_fp64", &maximum<fp64_t>);
     m.def("maximum_fp32", &maximum<fp32_t>);
+
+    m.def("addcdiv_async_fp64", &addcdiv_async<fp64_t>);
+    m.def("addcdiv_async_fp32", &addcdiv_async<fp32_t>);
+    m.def("addcdiv_fp64", &addcdiv<fp64_t>);
+    m.def("addcdiv_fp32", &addcdiv<fp32_t>);
+
+    m.def("logsumexp_async_fp64", &logsumexp_async<fp64_t>);
+    m.def("logsumexp_async_fp32", &logsumexp_async<fp32_t>);
+    m.def("logsumexp_fp64", &logsumexp<fp64_t>);
+    m.def("logsumexp_fp32", &logsumexp<fp32_t>);
+
+    m.def("total_sum_accum_async_fp64", &total_sum_accum_async<fp64_t>);
+    m.def("total_sum_accum_async_fp32", &total_sum_accum_async<fp32_t>);
+    m.def("total_sum_accum_fp64", &total_sum_accum<fp64_t>);
+    m.def("total_sum_accum_fp32", &total_sum_accum<fp32_t>);
+
+    m.def("subtract_indexed_column_async_fp64",
+            &subtract_indexed_column_async<fp64_t>);
+    m.def("subtract_indexed_column_async_fp32",
+            &subtract_indexed_column_async<fp32_t>);
+    m.def("subtract_indexed_column_fp64", &subtract_indexed_column<fp64_t>);
+    m.def("subtract_indexed_column_fp32", &subtract_indexed_column<fp32_t>);
+    
+    m.def("scal_async_fp64", &scal_async<fp64_t>);
+    m.def("scal_async_fp32", &scal_async<fp32_t>);
+    m.def("scal_fp64", &scal<fp64_t>);
+    m.def("scal_fp32", &scal<fp32_t>);
+
+    m.def("scalprod_async_fp64", &scalprod_async<fp64_t>);
+    m.def("scalprod_async_fp32", &scalprod_async<fp32_t>);
+    m.def("scalprod_fp64", &scalprod<fp64_t>);
+    m.def("scalprod_fp32", &scalprod<fp32_t>);
+    
+    // gelu and dgelu
+    m.def("gelu_async_fp64", &gelu_async<fp64_t>);
+    m.def("gelu_async_fp32", &gelu_async<fp32_t>);
+    m.def("gelu_fp64", &gelu<fp64_t>);
+    m.def("gelu_fp32", &gelu<fp32_t>);
+    m.def("gelu_backward_async_fp64", &gelu_backward_async<fp64_t>);
+    m.def("gelu_backward_async_fp32", &gelu_backward_async<fp32_t>);
+    m.def("gelu_backward_fp64", &gelu_backward<fp64_t>);
+    m.def("gelu_backward_fp32", &gelu_backward<fp32_t>);
+
+    m.def("gelutanh_async_fp64", &gelutanh_async<fp64_t>);
+    m.def("gelutanh_async_fp32", &gelutanh_async<fp32_t>);
+    m.def("gelutanh_fp64", &gelutanh<fp64_t>);
+    m.def("gelutanh_fp32", &gelutanh<fp32_t>);
+    m.def("gelutanh_backward_async_fp64", &gelutanh_backward_async<fp64_t>);
+    m.def("gelutanh_backward_async_fp32", &gelutanh_backward_async<fp32_t>);
+    m.def("gelutanh_backward_fp64", &gelutanh_backward<fp64_t>);
+    m.def("gelutanh_backward_fp32", &gelutanh_backward<fp32_t>);
+    
+    m.def("dgelu_async_fp64", &dgelu_async<fp64_t>);
+    m.def("dgelu_async_fp32", &dgelu_async<fp32_t>);
+    m.def("dgelu_fp64", &dgelu<fp64_t>);
+    m.def("dgelu_fp32", &dgelu<fp32_t>);
+    m.def("dgelutanh_async_fp64", &dgelutanh_async<fp64_t>);
+    m.def("dgelutanh_async_fp32", &dgelutanh_async<fp32_t>);
+    m.def("dgelutanh_fp64", &dgelutanh<fp64_t>);
+    m.def("dgelutanh_fp32", &dgelutanh<fp32_t>);   
 }
 
 // Main extension module with all wrappers
@@ -458,4 +564,3 @@ PYBIND11_MODULE(nntile_core, m)
     m.attr("notrans") = py::cast(new TransOp(TransOp::NoTrans));
     m.attr("trans") = py::cast(new TransOp(TransOp::Trans));
 }
-

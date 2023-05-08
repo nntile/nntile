@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-03
+ * @date 2023-03-22
  * */
 
 #include "nntile/tensor/gemm.hh"
@@ -35,7 +35,7 @@ void check()
     TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
     T one = 1, zero = 0;
     // Init single-tiled tensors
-    std::vector<Index> sh2222 = {2, 2, 2, 2};
+    std::vector<Index> sh2222 = {2, 2, 2, 2, 2};
     TensorTraits tr2222(sh2222, sh2222);
     std::vector<int> dist0 = {mpi_root};
     Tensor<T> A_single(tr2222, dist0, last_tag),
@@ -65,12 +65,12 @@ void check()
         D_single_local.release();
     }
     // Scatter A, B and C
-    std::vector<int> distr(16);
-    for(Index i = 0; i < 16; ++i)
+    std::vector<int> distr(32);
+    for(Index i = 0; i < distr.size(); ++i)
     {
         distr[i] = (i+1) % mpi_size;
     }
-    std::vector<Index> sh1111 = {1, 1, 1, 1};
+    std::vector<Index> sh1111 = {1, 1, 1, 1, 1};
     TensorTraits tr1111(sh2222, sh1111);
     Tensor<T> A(tr1111, distr, last_tag),
         B(tr1111, distr, last_tag),
@@ -82,9 +82,9 @@ void check()
     if(mpi_rank == mpi_root)
     {
         tile::gemm<T>(one, opN, A_single_tile, opN, B_single_tile, zero,
-                C_single_tile, 2);
+                C_single_tile, 2, 1);
     }
-    tensor::gemm<T>(one, opN, A, opN, B, zero, D, 2);
+    tensor::gemm<T>(one, opN, A, opN, B, zero, D, 2, 1);
     gather<T>(D, D_single);
     if(mpi_rank == mpi_root)
     {
@@ -101,9 +101,9 @@ void check()
     if(mpi_rank == mpi_root)
     {
         tile::gemm<T>(one, opT, A_single_tile, opN, B_single_tile, zero,
-                C_single_tile, 2);
+                C_single_tile, 2, 1);
     }
-    tensor::gemm<T>(one, opT, A, opN, B, zero, D, 2);
+    tensor::gemm<T>(one, opT, A, opN, B, zero, D, 2, 1);
     gather<T>(D, D_single);
     if(mpi_rank == mpi_root)
     {
@@ -120,9 +120,9 @@ void check()
     if(mpi_rank == mpi_root)
     {
         tile::gemm<T>(one, opN, A_single_tile, opT, B_single_tile, zero,
-                C_single_tile, 2);
+                C_single_tile, 2, 1);
     }
-    tensor::gemm<T>(one, opN, A, opT, B, zero, D, 2);
+    tensor::gemm<T>(one, opN, A, opT, B, zero, D, 2, 1);
     gather<T>(D, D_single);
     if(mpi_rank == mpi_root)
     {
@@ -139,9 +139,9 @@ void check()
     if(mpi_rank == mpi_root)
     {
         tile::gemm<T>(one, opT, A_single_tile, opT, B_single_tile, zero,
-                C_single_tile, 2);
+                C_single_tile, 2, 1);
     }
-    tensor::gemm<T>(one, opT, A, opT, B, zero, D, 2);
+    tensor::gemm<T>(one, opT, A, opT, B, zero, D, 2, 1);
     gather<T>(D, D_single);
     if(mpi_rank == mpi_root)
     {
@@ -159,9 +159,9 @@ void check()
     if(mpi_rank == mpi_root)
     {
         tile::gemm<T>(two, opN, A_single_tile, opN, B_single_tile, zero,
-                C_single_tile, 2);
+                C_single_tile, 2, 1);
     }
-    tensor::gemm<T>(two, opN, A, opN, B, zero, D, 2);
+    tensor::gemm<T>(two, opN, A, opN, B, zero, D, 2, 1);
     gather<T>(D, D_single);
     if(mpi_rank == mpi_root)
     {
@@ -178,9 +178,9 @@ void check()
     if(mpi_rank == mpi_root)
     {
         tile::gemm<T>(one, opN, A_single_tile, opN, B_single_tile, one,
-                C_single_tile, 2);
+                C_single_tile, 2, 1);
     }
-    tensor::gemm<T>(one, opN, A, opN, B, one, D, 2);
+    tensor::gemm<T>(one, opN, A, opN, B, one, D, 2, 1);
     gather<T>(D, D_single);
     if(mpi_rank == mpi_root)
     {
@@ -198,9 +198,9 @@ void check()
     if(mpi_rank == mpi_root)
     {
         tile::gemm<T>(one, opN, A_single_tile, opN, B_single_tile, mone,
-                C_single_tile, 2);
+                C_single_tile, 2, 1);
     }
-    tensor::gemm<T>(one, opN, A, opN, B, mone, D, 2);
+    tensor::gemm<T>(one, opN, A, opN, B, mone, D, 2, 1);
     gather<T>(D, D_single);
     if(mpi_rank == mpi_root)
     {
@@ -242,34 +242,39 @@ void validate()
     auto fail_trans_val = static_cast<TransOp::Value>(-1);
     auto opF = *reinterpret_cast<TransOp *>(&fail_trans_val);
     // Check ndim
-    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat11, one, mat11, -1));
-    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat333, one, mat11, 3));
-    TEST_THROW(gemm<T>(one, opT, mat333, opT, mat11, one, mat11, 3));
-    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat11, one, mat11, 2));
+    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat11, one, mat11, -1, 0));
+    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat333, one, mat11, 3, 0));
+    TEST_THROW(gemm<T>(one, opT, mat333, opT, mat11, one, mat11, 3, 0));
+    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat11, one, mat11, 2, 0));
+    // Check batch_ndim
+    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat11, one, mat11, 1, 1));
+    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat333, one, mat11, 1, 0));
+    TEST_THROW(gemm<T>(one, opT, mat333, opT, mat11, one, mat11, 2, 0));
+    TEST_THROW(gemm<T>(one, opT, mat11, opT, mat11, one, mat11, 1, -1));
     // Check incorrect transpositions
-    TEST_THROW(gemm<T>(one, opF, mat11, opN, mat11, one, mat11, 1));
-    TEST_THROW(gemm<T>(one, opF, mat11, opT, mat11, one, mat11, 1));
-    TEST_THROW(gemm<T>(one, opN, mat11, opF, mat11, one, mat11, 1));
-    TEST_THROW(gemm<T>(one, opT, mat11, opF, mat11, one, mat11, 1));
+    TEST_THROW(gemm<T>(one, opF, mat11, opN, mat11, one, mat11, 1, 0));
+    TEST_THROW(gemm<T>(one, opF, mat11, opT, mat11, one, mat11, 1, 0));
+    TEST_THROW(gemm<T>(one, opN, mat11, opF, mat11, one, mat11, 1, 0));
+    TEST_THROW(gemm<T>(one, opT, mat11, opF, mat11, one, mat11, 1, 0));
     // Check A and B compatibility
-    TEST_THROW(gemm<T>(one, opN, mat12, opN, mat12, one, mat11, 1));
-    TEST_THROW(gemm<T>(one, opN, mat12, opN, mat21_, one, mat11, 1));
-    TEST_THROW(gemm<T>(one, opN, mat12, opT, mat21, one, mat11, 1));
-    TEST_THROW(gemm<T>(one, opN, mat12, opT, mat12_, one, mat11, 1));
-    TEST_THROW(gemm<T>(one, opT, mat21, opN, mat12, one, mat11, 1));
-    TEST_THROW(gemm<T>(one, opT, mat21_, opN, mat21, one, mat11, 1));
-    TEST_THROW(gemm<T>(one, opT, mat21, opT, mat21, one, mat11, 1));
-    TEST_THROW(gemm<T>(one, opT, mat21_, opT, mat12, one, mat11, 1));
+    TEST_THROW(gemm<T>(one, opN, mat12, opN, mat12, one, mat11, 1, 0));
+    TEST_THROW(gemm<T>(one, opN, mat12, opN, mat21_, one, mat11, 1, 0));
+    TEST_THROW(gemm<T>(one, opN, mat12, opT, mat21, one, mat11, 1, 0));
+    TEST_THROW(gemm<T>(one, opN, mat12, opT, mat12_, one, mat11, 1, 0));
+    TEST_THROW(gemm<T>(one, opT, mat21, opN, mat12, one, mat11, 1, 0));
+    TEST_THROW(gemm<T>(one, opT, mat21_, opN, mat21, one, mat11, 1, 0));
+    TEST_THROW(gemm<T>(one, opT, mat21, opT, mat21, one, mat11, 1, 0));
+    TEST_THROW(gemm<T>(one, opT, mat21_, opT, mat12, one, mat11, 1, 0));
     // Check A and C compatibility
-    TEST_THROW(gemm<T>(one, opN, mat21, opN, mat12, one, mat12, 1));
-    TEST_THROW(gemm<T>(one, opN, mat21_, opN, mat12_, one, mat22, 1));
-    TEST_THROW(gemm<T>(one, opT, mat12, opN, mat12, one, mat12, 1));
-    TEST_THROW(gemm<T>(one, opT, mat12_, opN, mat12_, one, mat22, 1));
+    TEST_THROW(gemm<T>(one, opN, mat21, opN, mat12, one, mat12, 1, 0));
+    TEST_THROW(gemm<T>(one, opN, mat21_, opN, mat12_, one, mat22, 1, 0));
+    TEST_THROW(gemm<T>(one, opT, mat12, opN, mat12, one, mat12, 1, 0));
+    TEST_THROW(gemm<T>(one, opT, mat12_, opN, mat12_, one, mat22, 1, 0));
     // Check B and C compatibility
-    TEST_THROW(gemm<T>(one, opN, mat11, opN, mat12, one, mat11, 1));
-    TEST_THROW(gemm<T>(one, opN, mat11, opN, mat12_, one, mat12, 1));
-    TEST_THROW(gemm<T>(one, opN, mat11, opT, mat21, one, mat11, 1));
-    TEST_THROW(gemm<T>(one, opN, mat11, opT, mat21_, one, mat12, 1));
+    TEST_THROW(gemm<T>(one, opN, mat11, opN, mat12, one, mat11, 1, 0));
+    TEST_THROW(gemm<T>(one, opN, mat11, opN, mat12_, one, mat12, 1, 0));
+    TEST_THROW(gemm<T>(one, opN, mat11, opT, mat21, one, mat11, 1, 0));
+    TEST_THROW(gemm<T>(one, opN, mat11, opT, mat21_, one, mat12, 1, 0));
 }
 
 int main(int argc, char **argv)

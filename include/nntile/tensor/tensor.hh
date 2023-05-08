@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2023-02-06
  * */
 
 #pragma once
@@ -35,13 +35,16 @@ public:
     std::vector<tile::TileTraits> tile_traits;
     //! StarPU handles of all tiles
     std::vector<starpu::VariableHandle> tile_handles;
+    //! Distribution of tiles
+    std::vector<int> tile_distr;
     //! Next tag to be used
     starpu_mpi_tag_t next_tag;
     //! Constructor
     explicit Tensor(const TensorTraits &traits,
             const std::vector<int> &distribution,
             starpu_mpi_tag_t &last_tag):
-        TensorTraits(traits)
+        TensorTraits(traits),
+        tile_distr(distribution)
     {
         // Check distribution
         if(distribution.size() != grid.nelems)

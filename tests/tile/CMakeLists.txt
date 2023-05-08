@@ -10,7 +10,8 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-02-10
+# @author Konstantin Sozykin
+# @date 2023-03-29
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -34,9 +35,13 @@ set(TESTS
     "sumnorm"
     "prod"
     "maxsumexp"
+    "sum"
     "softmax"
     "sqrt"
     "maximum"
+    "addcdiv"
+    "scal"
+    "scalprod"
     )
 
 # Add target for local coverage

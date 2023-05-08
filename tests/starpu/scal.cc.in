@@ -1,0 +1,200 @@
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
+ *                           (Skoltech). All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file tests/starpu/scal.cc.in
+ * SCAL operation for StarPU buffers
+ *
+ * @version 1.0.0
+ * @author Aleksandr Mikhalev
+ * @date 2023-03-29
+ * */
+
+#include "nntile/starpu/scal.hh"
+#include "../testing.hh"
+#include <vector>
+#include <stdexcept>
+#include <iostream>
+
+#ifdef NNTILE_USE_CBLAS
+#   include <@CBLAS_H_NAME@>
+#   ifndef CBLAS_INT
+#       define CBLAS_INT @CBLAS_INT_TYPE@
+#   endif // CBLAS_INT
+#endif // NNTILE_USE_CBLAS
+
+#ifdef NNTILE_USE_CUDA
+#   include <cublas_v2.h>
+#endif // NNTILE_USE_CUDA
+
+using namespace nntile;
+using namespace nntile::starpu;
+
+#ifdef NNTILE_USE_CBLAS
+// Overloaded call to CBLAS SCAL
+static inline
+void cblas_scal(CBLAS_INT N, fp32_t alpha, fp32_t *X, CBLAS_INT incX)
+    noexcept
+{
+    cblas_sscal(N, alpha, X, incX);
+}
+
+// Overloaded call to CBLAS SCAL
+static inline
+void cblas_scal(CBLAS_INT N, fp64_t alpha, fp64_t *X, CBLAS_INT incX)
+    noexcept
+{
+    cblas_dscal(N, alpha, X, incX);
+}
+
+template<typename T>
+void validate_cpu(T alpha, Index nelems)
+{
+    // Init all the data
+    std::vector<T> src(nelems);
+    for(Index i = 0; i < nelems; ++i)
+    {
+        src[i] = T(i+1);
+    }
+    std::vector<T> src2(src);
+    // Launch low-level kernel
+    std::cout << "Run cblas_scal<T>\n";
+    cblas_scal(nelems, alpha, &src[0], 1);
+    // Check by actually submitting a task
+    VariableHandle src2_handle(&src2[0], sizeof(T)*nelems, STARPU_RW);
+    scal::restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::scal::submit<T> restricted to CPU\n";
+    scal::submit<T>(alpha, nelems, src2_handle);
+    starpu_task_wait_for_all();
+    src2_handle.unregister();
+    // Check result
+    for(Index i = 0; i < nelems; ++i)
+    {
+        TEST_ASSERT(src[i] == src2[i]);
+    }
+    std::cout << "OK: starpu::scal::submit<T> restricted to CPU\n";
+}
+
+template<typename T>
+void validate_cpu_many()
+{
+    validate_cpu<T>(1.0, 1);
+    validate_cpu<T>(2.0, 100);
+    validate_cpu<T>(-1.0, 10000);
+    validate_cpu<T>(0.5, 1000000);
+}
+#endif // NNTILE_USE_CBLAS
+
+#ifdef NNTILE_USE_CUDA
+// Overloaded call to cuBLAS SCAL
+static inline
+void cublas_scal(cublasHandle_t handle, int N, fp32_t alpha, fp32_t *X,
+        int incX)
+    noexcept
+{
+    cublasSscal(handle, N, &alpha, X, incX);
+}
+
+// Overloaded call to cuBLAS SCAL
+static inline
+void cublas_scal(cublasHandle_t handle, int N, fp64_t alpha, fp64_t *X,
+        int incX)
+    noexcept
+{
+    cublasDscal(handle, N, &alpha, X, incX);
+}
+
+template<typename T>
+void validate_cuda(T alpha, Index nelems)
+{
+    // Get a StarPU CUDA worker (to perform computations on the same device)
+    int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
+    // Choose worker CUDA device
+    int dev_id = starpu_worker_get_devid(cuda_worker_id);
+    cudaError_t cuda_err = cudaSetDevice(dev_id);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    // cuBLAS handle
+    cublasHandle_t cublas;
+    cublasStatus_t cublas_err = cublasCreate(&cublas);
+    TEST_ASSERT(cublas_err == CUBLAS_STATUS_SUCCESS);
+    // Create CUDA stream and make cuBLAS use it
+    cudaStream_t stream;
+    cuda_err = cudaStreamCreate(&stream);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    cublas_err = cublasSetStream(cublas, stream);
+    TEST_ASSERT(cublas_err == CUBLAS_STATUS_SUCCESS);
+    // Init all the data
+    std::vector<T> src(nelems);
+    for(Index i = 0; i < nelems; ++i)
+    {
+        src[i] = T(i+1);
+    }
+    std::vector<T> src2(src);
+    // Launch low-level kernel
+    T *dev_src;
+    cuda_err = cudaMalloc(&dev_src, sizeof(T)*nelems);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*nelems,
+            cudaMemcpyHostToDevice);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    std::cout << "Run cublas_scal<T>\n";
+    cublasSetPointerMode(cublas, CUBLAS_POINTER_MODE_HOST);
+    cublas_scal(cublas, nelems, alpha, dev_src, 1);
+    // Wait for result and destroy cublas handle and stream
+    cuda_err = cudaStreamSynchronize(stream);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    cuda_err = cudaMemcpy(&src[0], dev_src, sizeof(T)*nelems,
+            cudaMemcpyDeviceToHost);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    cublas_err = cublasDestroy(cublas);
+    TEST_ASSERT(cublas_err == CUBLAS_STATUS_SUCCESS)
+    cuda_err = cudaStreamDestroy(stream);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    // Deallocate CUDA memory
+    cuda_err = cudaFree(dev_src);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    // Check by actually submitting a task
+    VariableHandle src2_handle(&src2[0], sizeof(T)*nelems, STARPU_RW);
+    scal::restrict_where(STARPU_CUDA);
+    std::cout << "Run starpu::scal::submit<T> restricted to CUDA\n";
+    scal::submit<T>(alpha, nelems, src2_handle);
+    starpu_task_wait_for_all();
+    src2_handle.unregister();
+    // Check result
+    for(Index i = 0; i < nelems; ++i)
+    {
+        TEST_ASSERT(src[0] == src2[0]);
+    }
+    std::cout << "OK: starpu::scal::submit<T> restricted to CUDA\n";
+}
+
+template<typename T>
+void validate_cuda_many()
+{
+    validate_cuda<T>(1.0, 1);
+    validate_cuda<T>(2.0, 100);
+    validate_cuda<T>(-1.0, 10000);
+    validate_cuda<T>(3.0, 1000000);
+}
+#endif // NNTILE_USE_CBLAS
+
+int main(int argc, char **argv)
+{
+    // Init StarPU for testing
+    Config starpu(1, 1, 1);
+    // Init codelet
+    scal::init();
+    // Launch all tests
+#ifdef NNTILE_USE_CBLAS
+    validate_cpu_many<fp32_t>();
+    validate_cpu_many<fp64_t>();
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+    validate_cuda_many<fp32_t>();
+    validate_cuda_many<fp64_t>();
+#endif // NNTILE_USE_CUDA
+    return 0;
+}
+

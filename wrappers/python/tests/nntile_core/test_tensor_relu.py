@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Konstantin Sozykin
-# @date 2023-02-02
+# @date 2023-02-09
 
 # All necesary imports
 import sys
@@ -25,10 +25,10 @@ nntile.starpu.init()
 dtypes = [np.float32, np.float64]
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
-        np.float64: nntile.tensor.Tensor_fp64}
+          np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-relu = {np.float32: nntile.tensor.relu_fp32,
-        np.float64: nntile.tensor.relu_fp64}
+relu = {np.float32: nntile.nntile_core.tensor.relu_fp32,
+        np.float64: nntile.nntile_core.tensor.relu_fp64}
 
 
 # Helper function returns bool value true if test passes
@@ -39,7 +39,7 @@ def helper(dtype):
     next_tag = 0
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr, next_tag)  
+    A = Tensor[dtype](traits, mpi_distr, next_tag)
     # Set initial values of tensors
     rand = np.random.randn(*shape)
     src_A = np.array(rand, dtype=dtype, order='F')
@@ -49,14 +49,17 @@ def helper(dtype):
     A.to_array(dst_A)
     nntile.starpu.wait_for_all()
     A.unregister()
-    src_A = np.maximum(0,src_A)
-    print(f'src_a {src_A} of {dtype}\ndst_A {dst_A} of {dtype}\n') 
-    return np.allclose(src_A,dst_A)
+    src_A = np.maximum(0, src_A)
+    verbose = 'src_a {0} of {1}\ndst_A {2} of {1}\n'.format(src_A,dtype,dst_A)
+    print(verbose)
+    return np.allclose(src_A, dst_A)
+
 
 # Test runner for different precisions
 def test():
     for dtype in dtypes:
         assert helper(dtype)
+
 
 # Repeat tests
 def test_repeat():
@@ -66,4 +69,3 @@ def test_repeat():
 if __name__ == "__main__":
     test()
     test_repeat()
-

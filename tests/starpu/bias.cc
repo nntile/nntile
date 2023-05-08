@@ -9,8 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @author Aleksandr Katrutsa
- * @date 2023-02-11
+ * @date 2023-03-26
  * */
 
 #include "nntile/starpu/bias.hh"
@@ -33,7 +32,7 @@ void validate_cpu(Index m, Index n, Index k)
     std::vector<T> src(m*n);
     for(Index i = 0; i < m*n; ++i)
     {
-        src[i] = T(i+1);
+        src[i] = T(2*i+2);
     }
     std::vector<T> dst(m*n*k);
     for(Index i = 0; i < m*n*k; ++i)
@@ -44,13 +43,13 @@ void validate_cpu(Index m, Index n, Index k)
     std::vector<T> dst2(dst);
     // Launch low-level kernel
     std::cout << "Run kernel::bias::cpu<T>\n";
-    kernel::bias::cpu<T>(m, n, k, &src[0], &dst[0]);
+    kernel::bias::cpu<T>(m, n, k, 0.5, &src[0], &dst[0]);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
     bias::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::bias::submit<T> restricted to CPU\n";
-    bias::submit<T>(m, n, k, src_handle, dst2_handle);
+    bias::submit<T>(m, n, k, 0.5, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -79,7 +78,7 @@ void validate_cuda(Index m, Index n, Index k)
     std::vector<T> src(m*n);
     for(Index i = 0; i < m*n; ++i)
     {
-        src[i] = T(i+1);
+        src[i] = T(2*i+2);
     }
     std::vector<T> dst(m*n*k);
     for(Index i = 0; i < m*n*k; ++i)
@@ -101,7 +100,7 @@ void validate_cuda(Index m, Index n, Index k)
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
     std::cout << "Run kernel::bias::cuda<T>\n";
-    kernel::bias::cuda<T>(stream, m, n, k, dev_src, dev_dst);
+    kernel::bias::cuda<T>(stream, m, n, k, 0.5, dev_src, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
@@ -121,7 +120,7 @@ void validate_cuda(Index m, Index n, Index k)
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
     bias::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::bias::submit<T> restricted to CUDA\n";
-    bias::submit<T>(m, n, k, src_handle, dst2_handle);
+    bias::submit<T>(m, n, k, 0.5, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -132,27 +131,6 @@ void validate_cuda(Index m, Index n, Index k)
     std::cout << "OK: starpu::bias::submit<T> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
-
-template<typename T>
-void validate_cpu(T val, Index num_elements)
-{
-    // Init all the data
-    std::vector<T> src(num_elements);
-    for (Index i = 0; i < num_elements; ++i)
-        src[i] = T(i + 1);
-    std::vector<T> src_copy(src);
-    // Check by actually submitting a task
-    VariableHandle src_handle(&src[0], sizeof(T) * num_elements, STARPU_RW);
-    bias::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::bias::submit<T> restricted to CPU\n";
-    bias::submit<T>(val, num_elements, src_handle);
-    starpu_task_wait_for_all();
-    src_handle.unregister();
-    // Check result
-    for (Index i = 0; i < num_elements; ++i)
-        TEST_ASSERT(src_copy[i] + val == src[i]);
-    std::cout << "OK: starpu::bias::submit<T> restricted to CPU\n";
-}
 
 int main(int argc, char **argv)
 {
@@ -165,11 +143,6 @@ int main(int argc, char **argv)
     validate_cpu<fp32_t>(3, 5, 7);
     validate_cpu<fp64_t>(3, 5, 7);
 
-    // Bias to all tensor elements
-    validate_cpu<fp32_t>(10, 1000);
-    validate_cpu<fp32_t>(-10.34, 10);
-    validate_cpu<fp64_t>(10, 1000);
-    validate_cpu<fp64_t>(-10.34, 10);
 #ifdef NNTILE_USE_CUDA
     validate_cuda<fp32_t>(3, 5, 7);
     validate_cuda<fp64_t>(3, 5, 7);

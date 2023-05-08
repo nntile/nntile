@@ -71,8 +71,8 @@ endfunction()
 #    SOURCES "mlp_mnist.cc"
 #    LINK_LIBRARIES nntile)
 
-add_example(TARGET_NAME examples_deeplinear_mnist
-    EXEC_NAME "deeplinear_mnist"
-    SOURCES "deeplinear_mnist.cc"
-    LINK_LIBRARIES nntile)
+#add_example(TARGET_NAME examples_deeplinear_mnist
+#    EXEC_NAME "deeplinear_mnist"
+#    SOURCES "deeplinear_mnist.cc"
+#    LINK_LIBRARIES nntile)
 

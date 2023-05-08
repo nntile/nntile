@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-01
+ * @author Aleksandr Katrutsa
+ * @date 2023-03-27
  * */
 
 #include "nntile/tensor/copy_intersection.hh"
@@ -431,6 +432,11 @@ void copy_intersection_async<fp64_t>(const Tensor<fp64_t> &src,
         const std::vector<Index> &src_offset, const Tensor<fp64_t> &dst,
         const std::vector<Index> &dst_offset);
 
+template
+void copy_intersection_async<Index>(const Tensor<Index> &src,
+        const std::vector<Index> &src_offset, const Tensor<Index> &dst,
+        const std::vector<Index> &dst_offset);
+
 // Explicit instantiation
 template
 void copy_intersection<fp32_t>(const Tensor<fp32_t> &src,
@@ -440,6 +446,11 @@ void copy_intersection<fp32_t>(const Tensor<fp32_t> &src,
 template
 void copy_intersection<fp64_t>(const Tensor<fp64_t> &src,
         const std::vector<Index> &src_offset, const Tensor<fp64_t> &dst,
+        const std::vector<Index> &dst_offset);
+
+template
+void copy_intersection<Index>(const Tensor<Index> &src,
+        const std::vector<Index> &src_offset, const Tensor<Index> &dst,
         const std::vector<Index> &dst_offset);
 
 } // namespace tensor

@@ -9,8 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @date 2023-03-26
  * */
 
 #include "nntile/tile/bias.hh"
@@ -21,7 +20,7 @@ using namespace nntile;
 using namespace nntile::tile;
 
 template<typename T>
-void check(const Tile<T> &src, const Tile<T> &dst, Index axis)
+void check(T alpha, const Tile<T> &src, const Tile<T> &dst, Index axis)
 {
     std::vector<T> dst2_data(dst.nelems);
     auto dst_local = dst.acquire(STARPU_R);
@@ -31,7 +30,7 @@ void check(const Tile<T> &src, const Tile<T> &dst, Index axis)
     }
     dst_local.release();
     Tile<T> dst2(dst, &dst2_data[0], dst.nelems);
-    bias<T>(src, dst, axis);
+    bias<T>(alpha, src, dst, axis);
     Index m = 1;
     for(Index i = 0; i < axis; ++i)
     {
@@ -43,7 +42,7 @@ void check(const Tile<T> &src, const Tile<T> &dst, Index axis)
         n *= dst.shape[i];
     }
     Index k = dst.shape[axis];
-    starpu::bias::submit<T>(m, n, k, src, dst2);
+    starpu::bias::submit<T>(m, n, k, alpha, src, dst2);
     starpu_task_wait_for_all();
     auto dst2_local = dst.acquire(STARPU_R);
     dst_local.acquire(STARPU_R);
@@ -89,45 +88,16 @@ void validate()
         b2(b2_traits, &b2_data[0], b2_traits.nelems),
         b3(b3_traits, &b3_data[0], b3_traits.nelems);
     // Compare results of tile::bias and starpu::bias::submit
-    check<T>(b0, A, 0);
-    check<T>(b1, A, 1);
-    check<T>(b2, A, 2);
-    check<T>(b3, A, 3);
+    check<T>(-1.0, b0, A, 0);
+    check<T>(1.0, b1, A, 1);
+    check<T>(2.0, b2, A, 2);
+    check<T>(-2.0, b3, A, 3);
     // Checking throwing exceptions
-    TEST_THROW(bias(A, A, 0));
-    TEST_THROW(bias(b0, A, -1));
-    TEST_THROW(bias(b0, A, 1));
-    TEST_THROW(bias(b3, A, 2));
-    TEST_THROW(bias(b3, A, 4));
-}
-
-template<typename T>
-void validate(T val, const std::vector<Index>& n_elements)
-{
-    Tile<T> src1(n_elements);
-    Tile<T> src1_copy(n_elements);
-    auto src1_local = src1.acquire(STARPU_W);
-    auto src1_copy_local = src1_copy.acquire(STARPU_W);
-    for(Index i = 0; i < src1.nelems; ++i)
-    {
-        src1_local[i] = T(i+1);
-        src1_copy_local[i] = T(i+ 1);
-    }
-    src1_local.release();
-    src1_copy_local.release();
-    
-    
-    starpu::bias::submit<T>(val, src1.nelems, src1);
-    bias<T>(val, src1_copy);
-
-    src1_local.acquire(STARPU_R);
-    src1_copy_local.acquire(STARPU_R);
-    for(Index i = 0; i < src1.nelems; ++i)
-    {
-        TEST_ASSERT(src1_local[i] == src1_copy_local[i]);
-    }
-    src1_local.release();
-    src1_copy_local.release();
+    TEST_THROW(bias<T>(1.0, A, A, 0));
+    TEST_THROW(bias<T>(1.0, b0, A, -1));
+    TEST_THROW(bias<T>(1.0, b0, A, 1));
+    TEST_THROW(bias<T>(1.0, b3, A, 2));
+    TEST_THROW(bias<T>(1.0, b3, A, 4));
 }
 
 int main(int argc, char **argv)
@@ -140,9 +110,6 @@ int main(int argc, char **argv)
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
-    // Check adding scalar to all element in Tile
-    validate<fp32_t>(10, {2});
-    validate<fp64_t>(10, {2});
     return 0;
 }
 

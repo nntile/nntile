@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-02
+# @date 2023-02-09
 
 # All necesary imports
 import nntile
@@ -24,8 +24,9 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-copy_intersection = {np.float32: nntile.tensor.copy_intersection_fp32,
-        np.float64: nntile.tensor.copy_intersection_fp64}
+copy_intersection = {
+        np.float32: nntile.nntile_core.tensor.copy_intersection_fp32,
+        np.float64: nntile.nntile_core.tensor.copy_intersection_fp64}
 
 # Helper function returns bool value true if test passes
 def helper(dtype):

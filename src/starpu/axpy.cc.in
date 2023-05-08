@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-08
+ * @author Aleksandr Katrutsa
+ * @date 2023-02-14
  * */
 
 #include "nntile/starpu/axpy.hh"
@@ -54,7 +55,7 @@ void cblas(CBLAS_INT N, fp64_t alpha, const fp64_t *X, CBLAS_INT incX,
 
 //! AXPY for contiguous matrices without padding through StarPU buffers
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void cpu_tensor_alpha(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
@@ -70,7 +71,7 @@ void cpu(void *buffers[], void *cl_args)
 
 //! AXPY for contiguous matrices without padding through StarPU buffers
 template<typename T>
-void cpu2(void *buffers[], void *cl_args)
+void cpu_scalar_alpha(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
@@ -145,14 +146,15 @@ void cuda2(void *buffers[], void *cl_args)
 }
 #endif //NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64, codelet2_fp32, codelet2_fp64;
+Codelet codelet_tensor_alpha_fp32, codelet_tensor_alpha_fp64;
+Codelet codelet_scalar_alpha_fp32, codelet_scalar_alpha_fp64;
 
 void init()
 {
-    codelet_fp32.init("nntile_axpy_fp32",
+    codelet_tensor_alpha_fp32.init("nntile_axpy_tensor_alpha_fp32",
             nullptr,
 #ifdef NNTILE_USE_CBLAS
-            {cpu<fp32_t>},
+            {cpu_tensor_alpha<fp32_t>},
 #else // NNTILE_USE_CBLAS
             {},
 #endif // NNTILE_USE_CBLAS
@@ -162,10 +164,10 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_fp64.init("nntile_axpy_fp64",
+    codelet_tensor_alpha_fp64.init("nntile_axpy_tensor_alpha_fp64",
             nullptr,
 #ifdef NNTILE_USE_CBLAS
-            {cpu<fp64_t>},
+            {cpu_tensor_alpha<fp64_t>},
 #else // NNTILE_USE_CBLAS
             {},
 #endif // NNTILE_USE_CBLAS
@@ -175,10 +177,10 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet2_fp32.init("nntile_axpy2_fp32",
+    codelet_scalar_alpha_fp32.init("nntile_axpy_scalar_alpha_fp32",
             nullptr,
 #ifdef NNTILE_USE_CBLAS
-            {cpu2<fp32_t>},
+            {cpu_scalar_alpha<fp32_t>},
 #else // NNTILE_USE_CBLAS
             {},
 #endif // NNTILE_USE_CBLAS
@@ -188,10 +190,10 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet2_fp64.init("nntile_axpy2_fp64",
+    codelet_scalar_alpha_fp64.init("nntile_axpy_scalar_alpha_fp64",
             nullptr,
 #ifdef NNTILE_USE_CBLAS
-            {cpu2<fp64_t>},
+            {cpu_scalar_alpha<fp64_t>},
 #else // NNTILE_USE_CBLAS
             {},
 #endif // NNTILE_USE_CBLAS
@@ -205,18 +207,18 @@ void init()
 
 void restrict_where(uint32_t where)
 {
-    codelet_fp32.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-    codelet2_fp32.restrict_where(where);
-    codelet2_fp64.restrict_where(where);
+    codelet_tensor_alpha_fp32.restrict_where(where);
+    codelet_tensor_alpha_fp64.restrict_where(where);
+    codelet_scalar_alpha_fp32.restrict_where(where);
+    codelet_scalar_alpha_fp64.restrict_where(where);
 }
 
 void restore_where()
 {
-    codelet_fp32.restore_where();
-    codelet_fp64.restore_where();
-    codelet2_fp32.restore_where();
-    codelet2_fp64.restore_where();
+    codelet_tensor_alpha_fp32.restore_where();
+    codelet_tensor_alpha_fp64.restore_where();
+    codelet_scalar_alpha_fp32.restore_where();
+    codelet_scalar_alpha_fp64.restore_where();
 }
 
 template<typename T>
@@ -239,7 +241,7 @@ void submit(Handle alpha, Index nelems, Handle src, Handle dst)
     // Codelet arguments
     Index *nelems_ = new Index{nelems};
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
+    int ret = starpu_task_insert(codelet_tensor_alpha<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(alpha),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_RW, static_cast<starpu_data_handle_t>(dst),
@@ -261,7 +263,7 @@ template
 void submit<fp64_t>(Handle alpha, Index nelems, Handle src, Handle dst);
 
 template<typename T>
-void submit2(T alpha, Index nelems, Handle src, Handle dst)
+void submit(T alpha, Index nelems, Handle src, Handle dst)
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
 #ifdef NNTILE_USE_CBLAS
@@ -280,7 +282,7 @@ void submit2(T alpha, Index nelems, Handle src, Handle dst)
     // Codelet arguments
     auto cl_args = new args2_t<T>{nelems, alpha};
     // Submit task
-    int ret = starpu_task_insert(codelet2<T>(),
+    int ret = starpu_task_insert(codelet_scalar_alpha<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_RW, static_cast<starpu_data_handle_t>(dst),
             STARPU_CL_ARGS, cl_args, sizeof(*cl_args),
@@ -295,10 +297,10 @@ void submit2(T alpha, Index nelems, Handle src, Handle dst)
 
 // Explicit instantiation
 template
-void submit2<fp32_t>(fp32_t alpha, Index nelems, Handle src, Handle dst);
+void submit<fp32_t>(fp32_t alpha, Index nelems, Handle src, Handle dst);
 
 template
-void submit2<fp64_t>(fp64_t alpha, Index nelems, Handle src, Handle dst);
+void submit<fp64_t>(fp64_t alpha, Index nelems, Handle src, Handle dst);
 
 } // namespace axpy
 } // namespace starpu

@@ -10,7 +10,8 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-02-10
+# @author Konstantin Sozykin
+# @date 2023-03-26
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -29,8 +30,11 @@ set(TESTS
     "prod"
     "maxsumexp"
     "softmax"
+    "sum"
     "sqrt"
     "maximum"
+    "addcdiv"
+    "scalprod"
     )
 
 # Setup a target for coverage of kernels
