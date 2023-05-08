@@ -55,6 +55,7 @@
 #include <nntile/tensor/scal.hh>
 #include <nntile/tensor/gelu_backward.hh>
 #include <nntile/tensor/gelutanh_backward.hh>
+#include <nntile/tensor/add.hh>
 
 namespace nntile
 {

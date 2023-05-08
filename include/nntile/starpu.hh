@@ -51,6 +51,7 @@
 #include <nntile/starpu/scal.hh>
 #include <nntile/starpu/gelu_backward.hh>
 #include <nntile/starpu/gelutanh_backward.hh>
+#include <nntile/starpu/add.hh>
 
 namespace nntile
 {
@@ -94,6 +95,7 @@ void init()
     scal::init();
     gelu_backward::init();
     gelutanh_backward::init();
+    add::init();
 }
 
 // Restrict StarPU codelets to certain computational units
@@ -130,6 +132,7 @@ void restrict_where(uint32_t where)
     scal::restrict_where(where);
     gelu_backward::restrict_where(where);
     gelutanh_backward::restrict_where(where);
+    add::restrict_where(where);
 }
 
 // Restore computational units for StarPU codelets
@@ -166,6 +169,7 @@ void restore_where()
     scal::restore_where();
     gelu_backward::restore_where();
     gelutanh_backward::restore_where();
+    add::restore_where();
 }
 
 } // namespace starpu

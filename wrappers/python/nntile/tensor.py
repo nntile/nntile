@@ -208,6 +208,17 @@ def prod_async(x: Tensor, y: Tensor) -> None:
         core_tensor.prod_async_fp64(x, y)
     else:
         raise TypeError
+    
+# Wrapper for multiprecision add
+def add_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.add_async_fp32(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.add_async_fp64(alpha, x, beta, y)
+    else:
+        raise TypeError
 
 # Wrapper for multiprecision nrm2
 def nrm2_async(x: Tensor, y: Tensor, tmp: Tensor) -> None:

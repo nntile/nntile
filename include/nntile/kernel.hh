@@ -42,6 +42,7 @@
 #include <nntile/kernel/subtract_indexed_column.hh>
 #include <nntile/kernel/gelu_backward.hh>
 #include <nntile/kernel/gelutanh_backward.hh>
+#include <nntile/kernel/add.hh>
 
 namespace nntile
 {

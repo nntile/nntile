@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-04
+ * @date 2023-05-08
  * */
 
 #include <pybind11/pybind11.h>
@@ -426,6 +426,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("bias_async_fp32", &bias_async<fp32_t>);
     m.def("bias_fp64", &bias<fp64_t>);
     m.def("bias_fp32", &bias<fp32_t>);
+
+    m.def("add_async_fp64", &add_async<fp64_t>);
+    m.def("add_async_fp32", &add_async<fp32_t>);
+    m.def("add_fp64", &add<fp64_t>);
+    m.def("add_fp32", &add<fp32_t>);
 
     m.def("gather_async_fp64", &gather_async<fp64_t>);
     m.def("gather_async_fp32", &gather_async<fp32_t>);
