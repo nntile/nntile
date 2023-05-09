@@ -21,7 +21,7 @@ namespace nntile
 namespace tensor
 {
 
-//! Tensor-wise bias operation
+//! Tensor-wise add operation
 template<typename T>
 void add_async(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst)
 {
@@ -48,7 +48,7 @@ void add_async(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst)
     {
         return;
     }
-    // Apply per-tile bias asynchronously as needed
+    // Apply per-tile add asynchronously as needed
     int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < src.grid.nelems; ++i)
     {

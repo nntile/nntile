@@ -47,7 +47,7 @@ void add_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst)
     starpu::add::submit<T>(src.nelems, alpha, src, beta, dst);
 }
 
-//! Tile-wise bias operation
+//! Tile-wise add operation
 template<typename T>
 void add(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst)
 {

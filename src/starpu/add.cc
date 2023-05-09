@@ -4,7 +4,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/bias.cc
+ * @file src/starpu/add.cc
  * Add operation on a StarPU buffers
  *
  * @version 1.0.0
@@ -21,11 +21,11 @@ namespace nntile
 {
 namespace starpu
 {
-//! StarPU wrappers for bias operation
+//! StarPU wrappers for add operation
 namespace add
 {
 
-//! Apply bias along middle axis of StarPU buffer in CPU
+//! Apply add operation for StarPU buffers in CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
@@ -64,7 +64,7 @@ Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
-    codelet_fp32.init("nntile_bias_fp32",
+    codelet_fp32.init("nntile_add_fp32",
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -73,7 +73,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_fp64.init("nntile_bias_fp64",
+    codelet_fp64.init("nntile_add_fp64",
             nullptr,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
@@ -118,7 +118,7 @@ void submit(Index num_elements, T alpha, Handle src, T beta, Handle dst)
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in bias task submission");
+        throw std::runtime_error("Error in add task submission");
     }
 }
 
