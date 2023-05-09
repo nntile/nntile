@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-04
+ * @date 2023-05-08
  * */
 
 #pragma once
@@ -43,6 +43,7 @@
 #include <nntile/kernel/gelu_backward.hh>
 #include <nntile/kernel/gelutanh_backward.hh>
 #include <nntile/kernel/add.hh>
+#include <nntile/kernel/add_scalar.hh>
 
 namespace nntile
 {

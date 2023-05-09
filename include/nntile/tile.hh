@@ -52,6 +52,7 @@
 #include <nntile/tile/gelu_backward.hh>
 #include <nntile/tile/gelutanh_backward.hh>
 #include <nntile/tile/add.hh>
+#include <nntile/tile/add_scalar.hh>
 
 namespace nntile
 {

@@ -432,6 +432,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_fp64", &add<fp64_t>);
     m.def("add_fp32", &add<fp32_t>);
 
+    m.def("add_scalar_async_fp64", &add_scalar_async<fp64_t>);
+    m.def("add_scalar_async_fp32", &add_scalar_async<fp32_t>);
+    m.def("add_scalar_fp64", &add_scalar<fp64_t>);
+    m.def("add_scalar_fp32", &add_scalar<fp32_t>);
+
     m.def("gather_async_fp64", &gather_async<fp64_t>);
     m.def("gather_async_fp32", &gather_async<fp32_t>);
     m.def("gather_async_int64", &gather_async<Index>);

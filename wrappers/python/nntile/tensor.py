@@ -264,6 +264,15 @@ def bias_async(alpha:float, bias: Tensor, x: Tensor, axis: int) -> None:
         core_tensor.bias_async_fp64(alpha, bias, x, axis)
     else:
         raise TypeError
+    
+# Wrapper for multiprecision add_scalar
+def add_scalar_async(alpha:float, beta: float, x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.add_scalar_async_fp32(alpha, beta, x)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.add_scalar_async_fp64(alpha, beta, x)
+    else:
+        raise TypeError
 
 # Wrapper for multiprecision gather
 def gather_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:

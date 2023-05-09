@@ -42,6 +42,7 @@ set(KERNEL_SRC
     "kernel/gelu_backward/cpu.cc"
     "kernel/gelutanh_backward/cpu.cc"
     "kernel/add/cpu.cc"
+    "kernel/add_scalar/cpu.cc"
     )
 
 if(NNTILE_USE_CUDA)
@@ -100,6 +101,7 @@ set(STARPU_SRC
     "starpu/gelu_backward.cc"
     "starpu/gelutanh_backward.cc"
     "starpu/add.cc"
+    "starpu/add_scalar.cc"
     )
 
 set(TILE_SRC
@@ -136,6 +138,7 @@ set(TILE_SRC
     "tile/gelu_backward.cc"
     "tile/gelutanh_backward.cc"
     "tile/add.cc"
+    "tile/add_scalar.cc"
     )
 
 set(TENSOR_SRC
@@ -175,6 +178,7 @@ set(TENSOR_SRC
     "tensor/gelu_backward.cc"
     "tensor/gelutanh_backward.cc"
     "tensor/add.cc"
+    "tensor/add_scalar.cc"
     )
 
 set(LAYER_SRC

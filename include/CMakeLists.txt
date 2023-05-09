@@ -76,6 +76,8 @@ set(KERNEL_HDR
     "nntile/kernel/gelutanh_backward/cpu.hh"
     "nntile/kernel/add.hh"
     "nntile/kernel/add/cpu.hh"
+    "nntile/kernel/add_scalar.hh"
+    "nntile/kernel/add_scalar/cpu.hh"
     )
 
 if(NNTILE_USE_CUDA)
@@ -135,6 +137,7 @@ set(STARPU_HDR
     "nntile/starpu/gelu_backward.hh"
     "nntile/starpu/gelutanh_backward.hh"
     "nntile/starpu/add.hh"
+    "nntile/starpu/add_scalar.hh"
     )
 
 set(TILE_HDR
@@ -173,6 +176,7 @@ set(TILE_HDR
     "nntile/tile/gelu_backward.hh"
     "nntile/tile/gelutanh_backward.hh"
     "nntile/tile/add.hh"
+    "nntile/tile/add_scalar.hh"
     )
 
 set(TENSOR_HDR
@@ -214,6 +218,7 @@ set(TENSOR_HDR
     "nntile/tensor/gelu_backward.hh"
     "nntile/tensor/gelutanh_backward.hh"
     "nntile/tensor/add.hh"
+    "nntile/tensor/add_scalar.hh"
     )
 
 set(LAYER_HDR
