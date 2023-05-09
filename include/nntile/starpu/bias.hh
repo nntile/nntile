@@ -25,29 +25,14 @@ namespace starpu
 namespace bias
 {
 
-struct argc_t {
-    argc_t(Index nargc) : num_arguments(nargc) {}
-    Index num_arguments;
-};
-
 //! Structure for arguments
 template<typename T>
 struct args_t
 {
-    args_t(Index nargc, Index m_, Index n_, Index k_) : argc_t(nargc), m(m_), n(n_), k(k_) {}
     Index m;
     Index n;
     Index k;
     T alpha;
-};
-
-//! Structure for arguments
-template<typename T>
-struct val_size_t : argc_t
-{
-    val_size_t(Index nargc, T val_, Index nelems_) : argc_t(nargc), val(val_), nelems(nelems_) {}
-    T val;
-    Index nelems;
 };
 
 // Apply bias along middle axis of StarPU buffer on CPU
