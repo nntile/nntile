@@ -28,7 +28,7 @@ void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
-// Apply bias along middle axis of StarPU buffer on CUDA
+// Clear StarPU buffer on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept;

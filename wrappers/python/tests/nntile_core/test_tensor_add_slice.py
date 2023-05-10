@@ -75,40 +75,15 @@ def helper_axis(dtype):
     A.unregister()
     return True
 
-# Helper function returns bool value true if test passes
-def helper_all(dtype):
-    # Describe single-tile tensor, located at node 0
-    shape = [2, 3, 4]
-    mpi_distr = [0]
-    next_tag = 0
-    traits = nntile.tensor.TensorTraits(shape, shape)
-    # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    # Set initial values of tensors
-    rand_A = np.random.randn(*shape)
-    np_A = np.array(rand_A, dtype=dtype, order='F')
-    A.from_array(np_A)
-    a = np.random.randn(1)
-    alpha_np = np.array(a, dtype=dtype, order='F')
-    bias[dtype](alpha_np[0], A)
-    A.to_array(np_A)
-    nntile.starpu.wait_for_all()
-    A.unregister()
-    # Compare results
-    return np.allclose(np_A, alpha_np + rand_A)
-
 # Test runner for different precisions
 def test():
     for dtype in dtypes:
         assert helper_axis(dtype)
-        assert helper_all(dtype)
 
 # Repeat tests
 def test_repeat():
     for dtype in dtypes:
         assert helper_axis(dtype)
-        assert helper_all(dtype)
 
 if __name__ == "__main__":
     test()
