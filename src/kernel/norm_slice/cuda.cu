@@ -66,16 +66,16 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src,
                 }
             }
             // Get the scaled norm
-            norm_slice_max *= alpha;
-            T norm_slice = norm_slice_max * std::sqrt(norm_slice_ssq);
+            norm_max *= alpha;
+            T norm_slice = norm_max * std::sqrt(norm_ssq);
             // Update output value
             if(beta == zero)
             {
-                result = norm;
+                result = norm_slice;
             }
             else
             {
-                result = std::hypot(beta*result, norm);
+                result = std::hypot(beta*result, norm_slice);
             }
         }
     }
