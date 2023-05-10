@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-01
+ * @date 2023-04-20
  * */
 
 #include "nntile/tensor/normalize.hh"
@@ -164,24 +164,9 @@ void normalize_async(const Tensor<T> &gamma_beta, const Tensor<T> &src,
                 // Reshape inputs for simplicity: src -> (2,m,n), dst -> (m,k,n)
                 // dst is a part of (m,l,n) tensor
                 Index m, n, k;
-                if(axis == 0)
-                {
-                    m = 1;
-                    n = src_tile_traits.nelems / 2; // 2 elements per single n
-                    k = dst_tile_traits.shape[0];
-                }
-                else if(axis == dst.ndim-1)
-                {
-                    m = src_tile_traits.nelems / 2; // 2 elements per single m
-                    n = 1;
-                    k = dst_tile_traits.shape[axis];
-                }
-                else
-                {
-                    m = dst_tile_traits.stride[axis];
-                    n = dst_tile_traits.matrix_shape[axis+1][1];
-                    k = dst_tile_traits.shape[axis];
-                }
+                m = dst_tile_traits.stride[axis];
+                n = dst_tile_traits.matrix_shape[axis+1][1];
+                k = dst_tile_traits.shape[axis];
                 // Insert corresponding task
                 starpu::normalize::submit<T>(m, n, k, l, eps,
                         gamma_beta_handle, src_tile_handle, dst_tile_handle);

@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-04
+ * @date 2023-05-02
  * */
 
 #pragma once
@@ -21,7 +21,10 @@
 
 // StarPU wrappers for low-level kernels
 #include <nntile/starpu/axpy.hh>
-#include <nntile/starpu/bias.hh>
+#include <nntile/starpu/add_slice.hh>
+#include <nntile/starpu/add_fiber.hh>
+#include <nntile/starpu/prod_slice.hh>
+#include <nntile/starpu/prod_fiber.hh>
 #include <nntile/starpu/clear.hh>
 #include <nntile/starpu/gelu.hh>
 #include <nntile/starpu/gelutanh.hh>
@@ -38,19 +41,26 @@
 #include <nntile/starpu/relu_backward.hh>
 #include <nntile/starpu/subcopy.hh>
 #include <nntile/starpu/sumnorm.hh>
-#include <nntile/starpu/sum.hh>
+#include <nntile/starpu/fill.hh>
+#include <nntile/starpu/sum_slice.hh>
+#include <nntile/starpu/sum_fiber.hh>
+#include <nntile/starpu/norm_slice.hh>
+#include <nntile/starpu/pow.hh>
 #include <nntile/starpu/maxsumexp.hh>
 #include <nntile/starpu/softmax.hh>
 #include <nntile/starpu/sqrt.hh>
 #include <nntile/starpu/maximum.hh>
 #include <nntile/starpu/addcdiv.hh>
-#include <nntile/starpu/scalprod.hh>
+#include <nntile/starpu/sumprod_slice.hh>
+#include <nntile/starpu/sumprod_fiber.hh>
 #include <nntile/starpu/logsumexp.hh>
 #include <nntile/starpu/total_sum_accum.hh>
 #include <nntile/starpu/subtract_indexed_column.hh>
 #include <nntile/starpu/scal.hh>
 #include <nntile/starpu/gelu_backward.hh>
 #include <nntile/starpu/gelutanh_backward.hh>
+#include <nntile/starpu/embedding.hh>
+#include <nntile/starpu/embedding_backward.hh>
 
 namespace nntile
 {
@@ -64,7 +74,10 @@ namespace starpu
 void init()
 {
     axpy::init();
-    bias::init();
+    add_slice::init();
+    add_fiber::init();
+    prod_slice::init();
+    prod_fiber::init();
     clear::init();
     gelu::init();
     gelutanh::init();
@@ -81,26 +94,36 @@ void init()
     prod::init();
     subcopy::init();
     sumnorm::init();
-    sum::init();
+    fill::init();
+    sum_slice::init();
+    sum_fiber::init();
+    norm_slice::init();
+    pow::init();
     softmax::init();
     maxsumexp::init();
     sqrt::init();
     maximum::init();
     addcdiv::init();
-    scalprod::init();
+    sumprod_slice::init();
+    sumprod_fiber::init();
     logsumexp::init();
     total_sum_accum::init();
     subtract_indexed_column::init();
     scal::init();
     gelu_backward::init();
     gelutanh_backward::init();
+    embedding::init();
+    embedding_backward::init();
 }
 
 // Restrict StarPU codelets to certain computational units
 void restrict_where(uint32_t where)
 {
     axpy::restrict_where(where);
-    bias::restrict_where(where);
+    add_slice::restrict_where(where);
+    add_fiber::restrict_where(where);
+    prod_slice::restrict_where(where);
+    prod_fiber::restrict_where(where);
     clear::restrict_where(where);
     gelu::restrict_where(where);
     gelutanh::restrict_where(where);
@@ -117,26 +140,36 @@ void restrict_where(uint32_t where)
     relu_backward::restrict_where(where);
     subcopy::restrict_where(where);
     sumnorm::restrict_where(where);
-    sum::restrict_where(where);
+    fill::restrict_where(where);
+    sum_slice::restrict_where(where);
+    sum_fiber::restrict_where(where);
+    norm_slice::restrict_where(where);
+    pow::restrict_where(where);
     softmax::restrict_where(where);
     maxsumexp::restrict_where(where);
     sqrt::restrict_where(where);
     maximum::restrict_where(where);
     addcdiv::restrict_where(where);
-    scalprod::restrict_where(where);
+    sumprod_slice::restrict_where(where);
+    sumprod_fiber::restrict_where(where);
     logsumexp::restrict_where(where);
     total_sum_accum::restrict_where(where);
     subtract_indexed_column::restrict_where(where);
     scal::restrict_where(where);
     gelu_backward::restrict_where(where);
     gelutanh_backward::restrict_where(where);
+    embedding::restrict_where(where);
+    embedding_backward::restrict_where(where);
 }
 
 // Restore computational units for StarPU codelets
 void restore_where()
 {
     axpy::restore_where();
-    bias::restore_where();
+    add_slice::restore_where();
+    add_fiber::restore_where();
+    prod_slice::restore_where();
+    prod_fiber::restore_where();
     clear::restore_where();
     gelu::restore_where();
     gelutanh::restore_where();
@@ -153,19 +186,26 @@ void restore_where()
     relu_backward::restore_where();
     subcopy::restore_where();
     sumnorm::restore_where();
-    sum::restore_where();
+    fill::restore_where();
+    sum_slice::restore_where();
+    sum_fiber::restore_where();
+    norm_slice::restore_where();
+    pow::restore_where();
     softmax::restore_where();
     maxsumexp::restore_where();
     sqrt::restore_where();
     maximum::restore_where();
     addcdiv::restore_where();
-    scalprod::restore_where();
+    sumprod_slice::restore_where();
+    sumprod_fiber::restore_where();
     logsumexp::restore_where();
     total_sum_accum::restore_where();
     subtract_indexed_column::restore_where();
     scal::restore_where();
     gelu_backward::restore_where();
     gelutanh_backward::restore_where();
+    embedding::restore_where();
+    embedding_backward::restore_where();
 }
 
 } // namespace starpu

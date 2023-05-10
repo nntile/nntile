@@ -1,15 +1,15 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tile/maximum.cc
+ * @file tests/starpu/maximum.cc
  * Elementwise maximum operation on Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @date 2023-05-05
  * */
 
 #include "nntile/tile/maximum.hh"

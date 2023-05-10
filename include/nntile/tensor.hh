@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-04
+ * @date 2023-05-02
  * */
 
 #pragma once
@@ -23,7 +23,10 @@
 
 // Tensor operations
 #include <nntile/tensor/axpy.hh>
-#include <nntile/tensor/bias.hh>
+#include <nntile/tensor/add_slice.hh>
+#include <nntile/tensor/add_fiber.hh>
+#include <nntile/tensor/prod_slice.hh>
+#include <nntile/tensor/prod_fiber.hh>
 #include <nntile/tensor/clear.hh>
 #include <nntile/tensor/copy.hh>
 #include <nntile/tensor/copy_intersection.hh>
@@ -41,20 +44,27 @@
 #include <nntile/tensor/relu.hh>
 #include <nntile/tensor/relu_backward.hh>
 #include <nntile/tensor/scatter.hh>
-#include <nntile/tensor/sum.hh>
+#include <nntile/tensor/fill.hh>
+#include <nntile/tensor/sum_slice.hh>
+#include <nntile/tensor/sum_fiber.hh>
+#include <nntile/tensor/norm_slice.hh>
+#include <nntile/tensor/pow.hh>
 #include <nntile/tensor/sumnorm.hh>
 #include <nntile/tensor/maxsumexp.hh>
 #include <nntile/tensor/softmax.hh>
 #include <nntile/tensor/sqrt.hh>
 #include <nntile/tensor/maximum.hh>
 #include <nntile/tensor/addcdiv.hh>
-#include <nntile/tensor/scalprod.hh>
+#include <nntile/tensor/sumprod_slice.hh>
+#include <nntile/tensor/sumprod_fiber.hh>
 #include <nntile/tensor/logsumexp.hh>
 #include <nntile/tensor/total_sum_accum.hh>
 #include <nntile/tensor/subtract_indexed_column.hh>
 #include <nntile/tensor/scal.hh>
 #include <nntile/tensor/gelu_backward.hh>
 #include <nntile/tensor/gelutanh_backward.hh>
+#include <nntile/tensor/embedding.hh>
+#include <nntile/tensor/embedding_backward.hh>
 
 namespace nntile
 {
