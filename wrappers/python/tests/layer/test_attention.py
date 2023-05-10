@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-05-05
+# @date 2023-05-10
 
 # All necesary imports
 import nntile
@@ -87,15 +87,19 @@ def helper(dtype: np.dtype):
         rand_W_Q = np.random.randn(*layer.w_q[i].value.shape)
         np_W_Q.append(np.array(rand_W_Q, dtype=dtype, order='F'))
         layer.w_q[i].value.from_array(np_W_Q[i])
+        nntile.tensor.clear_async(layer.w_q[i].grad)
         rand_W_K = np.random.randn(*layer.w_k[i].value.shape)
         np_W_K.append(np.array(rand_W_K, dtype=dtype, order='F'))
         layer.w_k[i].value.from_array(np_W_K[i])
+        nntile.tensor.clear_async(layer.w_k[i].grad)
         rand_W_V = np.random.randn(*layer.w_v[i].value.shape)
         np_W_V.append(np.array(rand_W_V, dtype=dtype, order='F'))
         layer.w_v[i].value.from_array(np_W_V[i])
+        nntile.tensor.clear_async(layer.w_v[i].grad)
         rand_W = np.random.randn(*layer.w[i].value.shape)
         np_W.append(np.array(rand_W, dtype=dtype, order='F'))
         layer.w[i].value.from_array(np_W[i])
+        nntile.tensor.clear_async(layer.w[i].grad)
     rand_Y_grad = np.random.randn(*X_Q_shape)
     np_Y_grad = np.array(rand_Y_grad, dtype=dtype, order='F')
     layer.y.grad.from_array(np_Y_grad)

@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-04-20
+# @date 2023-05-10
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         copy_async, axpy_async, clear_async
@@ -58,10 +58,7 @@ class Pipeline(object):
                 # print("Copy true labels in loss")
                 copy_async(y_batch, self.loss.y)
                 # Zero out gradients of all weights and activations
-                for t in self.model.activations:
-                    clear_async(t.grad)
-                for t in self.model.parameters:
-                    clear_async(t.grad)
+                self.model.clear_gradients()
                 # Loss function shall be instatiated to read X from
                 # activations[-1].value of the model and write gradient into
                 # activations[-1].grad

@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-04-26
+# @date 2023-05-10
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
@@ -329,9 +329,9 @@ class Attention(BaseLayer):
             # V[i] can be deleted
             self.v[i].value.invalidate_submit()
             if self.v[i].grad_required:
-                # dV[i] += einsum('jml,kml->jkl', dB[i], A[i])
+                # dV[i] = einsum('jml,kml->jkl', dB[i], A[i])
                 gemm_async(1.0, notrans, self.b[i].grad, trans, \
-                        self.a[i].value, 1.0, self.v[i].grad, 1, 1)
+                        self.a[i].value, 0.0, self.v[i].grad, 1, 1)
             # dB[i] can be deleted
             self.b[i].grad.invalidate_submit()
             # Backward for A[i] = softmax(A[i], axis=0)

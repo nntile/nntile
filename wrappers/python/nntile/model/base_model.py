@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-15
+# @date 2023-05-10
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments
 from nntile.layer.base_layer import BaseLayer
@@ -45,6 +45,15 @@ class BaseModel:
     def backward_async(self):
         for l in reversed(self.layers):
             l.backward_async()
+
+    # Clear gradients of activations and parameters
+    def clear_gradients(self):
+        for t in self.activations:
+            if t.grad is not None and t.requires_grad:
+                clear_async(t.grad)
+        for t in self.parameters:
+            if t.grad is not None and t.requires_grad:
+                clear_async(t.grad)
 
     # Unregister all tensors related to this model
     def unregister(self):

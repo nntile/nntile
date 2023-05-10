@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-05-05
+# @date 2023-05-10
 
 # All necesary imports
 import nntile
@@ -49,8 +49,10 @@ def helper_l(dtype: np.dtype):
     rand_W = np.random.randn(*layer.w.value.shape)
     np_W = np.array(rand_W, dtype=dtype, order='F')
     layer.w.value.from_array(np_W)
+    nntile.tensor.clear_async(layer.w.grad)
     # Check result of forward pass layer.y.value
     A.from_array(np_A)
+    nntile.tensor.clear_async(A_grad)
     layer.forward_async()
     np_Y = np.tensordot(np_A, np_W, 2)
     np_Y2 = np.zeros_like(np_Y, order='F')
@@ -103,8 +105,10 @@ def helper_r(dtype: np.dtype):
     rand_W = np.random.randn(*layer.w.value.shape)
     np_W = np.array(rand_W, dtype=dtype, order='F')
     layer.w.value.from_array(np_W)
+    nntile.tensor.clear_async(layer.w.grad)
     # Check result of forward pass layer.y.value
     A.from_array(np_A)
+    nntile.tensor.clear_async(A_grad)
     layer.forward_async()
     np_Y = np.tensordot(np_W, np_A, 2)
     np_Y2 = np.zeros_like(np_Y, order='F')

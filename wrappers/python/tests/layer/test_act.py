@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-05-05
+# @date 2023-05-10
 
 # All necesary imports
 import nntile
@@ -55,6 +55,7 @@ def helper(dtype: np.dtype):
     for funcname in Act.activations:
         # A is invalidated after each forward_async
         A.from_array(np_A)
+        nntile.tensor.clear_async(A_grad)
         # Set up activation layer
         layer, next_tag = Act.generate_simple(A_moments, funcname, next_tag)
         # Do forward pass and wait until it is finished
