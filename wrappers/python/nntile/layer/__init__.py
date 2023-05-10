@@ -9,12 +9,12 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-04-21
+# @date 2023-05-10
 
 from .base_layer import BaseLayer
-from .norm import Norm
 from .act import Act
 from .linear import Linear
 from .attention import Attention
 from .embedding import Embedding
+from .layer_norm import LayerNorm
 

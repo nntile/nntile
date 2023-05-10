@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-01
+ * @date 2023-04-18
  * */
 
 #include "nntile/kernel/hypot/cpu.hh"
@@ -23,38 +23,40 @@ namespace kernel
 namespace hypot
 {
 
-//! y:=sqrt(y*y+x*x)
+//! y := hypot(alpha*x, beta*y)
 template<typename T>
-void cpu(const T *x, T *y)
+void cpu(T alpha, const T *x, T beta, T *y)
     noexcept
 {
-    // Do nothing fancy if x is zero
-    if(*x == 0)
+    constexpr T zero = 0.0;
+    if(beta == zero)
     {
-        *y = std::abs(*y);
-        return;
+        if(alpha == zero)
+        {
+            y[0] = zero;
+        }
+        else
+        {
+            y[0] = std::abs(alpha*x[0]);
+        }
     }
-    T absx = std::abs(*x), absy = std::abs(*y);
-    constexpr T one = 1.0;
-    if(absx >= absy)
+    else if(alpha == zero)
     {
-        T tmp = absy / absx;
-        *y = absx * std::sqrt(one+tmp*tmp);
+        y[0] = std::abs(y[0]*beta);
     }
     else
     {
-        T tmp = absx / absy;
-        *y = absy * std::sqrt(one+tmp*tmp);
+        y[0] = std::hypot(alpha*x[0], beta*y[0]);
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(const fp32_t *x, fp32_t *y)
+void cpu<fp32_t>(fp32_t alpha, const fp32_t *x, fp32_t beta, fp32_t *y)
     noexcept;
 
 template
-void cpu<fp64_t>(const fp64_t *x, fp64_t *y)
+void cpu<fp64_t>(fp64_t alpha, const fp64_t *x, fp64_t beta, fp64_t *y)
     noexcept;
 
 } // namespace hypot

@@ -1,16 +1,16 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/gelutanh_backward/cpu.cc
- * Derivative of approximate GeLU operation on CPU based on tanh function
+ * Backward of approximate GeLU operation on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-04-05
+ * @date 2023-05-05
  * */
 
 #include "nntile/kernel/gelutanh_backward/cpu.hh"
@@ -26,7 +26,7 @@ namespace gelutanh_backward
 template<typename T>
 void cpu(Index nelems, const T *x, const T *dy, T *dx)
     noexcept
-//! Derivative of approximate GeLU backward operation on CPU
+//! Backward of approximate GeLU operation on CPU
 /*! Applies the following derivative of approximation of the GeLU function:
  * GeLU(z) \approx AGeLU(z)
  * f(z) = -2 sqrt(2/pi) z (1+0.044715z^2)
@@ -78,3 +78,4 @@ void cpu<fp64_t>(Index nelems, const fp64_t *x, const fp64_t *dy, fp64_t *dx)
 } // namespace gelutanh_backward
 } // namespace kernel
 } // namespace nntile
+

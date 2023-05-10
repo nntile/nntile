@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-03-29
+# @date 2023-04-18
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         copy_async, axpy_async, nrm2_async, prod_async, scal_async
@@ -57,7 +57,7 @@ class Frob:
         # Values Y are not needed anymore
         #self.y.invalidate_submit()
         # Get value ||grad X||
-        nrm2_async(self.x.grad, self.val_sqrt, self.tmp)
+        nrm2_async(1.0, self.x.grad, 0.0, self.val_sqrt, self.tmp)
         # Ignore temporary values
         #self.tmp.invalidate_submit()
         # Invalidate gradient if it is unnecessary

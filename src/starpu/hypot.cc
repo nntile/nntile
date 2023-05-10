@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-02
+ * @date 2023-04-18
  * */
 
 #include "nntile/starpu/hypot.hh"
@@ -22,18 +22,19 @@ namespace starpu
 namespace hypot
 {
 
-//! Complex copying through StarPU buffers is available only on CPU
+//! Hypothenus calculation
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
-    // No arguments
+    // Get arguments
+    auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *src = interfaces[0]->get_ptr<T>();
-    T *dst = interfaces[1]->get_ptr<T>();
+    const T *x = interfaces[0]->get_ptr<T>();
+    T *y = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::hypot::cpu<T>(src, dst);
+    kernel::hypot::cpu<T>(args->alpha, x, args->beta, y);
 }
 
 Codelet codelet_fp32, codelet_fp64;
@@ -65,12 +66,37 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Handle src, Handle dst)
+void submit(T alpha, Handle src, T beta, Handle dst)
+//! Insert hypot task into StarPU pool of tasks
+/*! No argument checking is performed. All the inputs are packed and passed to
+ * starpu_task_insert() function. If task submission fails, this routines
+ * throws an std::runtime_error() exception.
+ * */
 {
+    // Access mode for the dst handle
+    constexpr T zero = 0, one = 1;
+    enum starpu_data_access_mode dst_mode;
+    if(beta == zero)
+    {
+        dst_mode = STARPU_W;
+    }
+    else if(beta == one)
+    {
+        dst_mode = Config::STARPU_RW_COMMUTE;
+    }
+    else
+    {
+        dst_mode = STARPU_RW;
+    }
+    // Codelet arguments
+    args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
+    args->alpha = alpha;
+    args->beta = beta;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
+            STARPU_CL_ARGS, args, sizeof(*args),
+            dst_mode, static_cast<starpu_data_handle_t>(dst),
             0);
     // Check submission
     if(ret != 0)
@@ -81,10 +107,10 @@ void submit(Handle src, Handle dst)
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Handle src, Handle dst);
+void submit<fp32_t>(fp32_t alpha, Handle src, fp32_t beta, Handle dst);
 
 template
-void submit<fp64_t>(Handle src, Handle dst);
+void submit<fp64_t>(fp64_t alpha, Handle src, fp64_t beta, Handle dst);
 
 } // namespace hypot
 } // namespace starpu

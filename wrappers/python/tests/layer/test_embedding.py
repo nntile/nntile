@@ -4,7 +4,7 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/layer/test_embedding.py
+# @file wrappers/python/tests/layer/test_embedding.py
 # Test for nntile.layer.embedding
 #
 # @version 1.0.0

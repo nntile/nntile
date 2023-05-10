@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-04-21
+# @date 2023-05-02
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -144,14 +144,55 @@ def gelutanh_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
     else:
         raise TypeError
 
-# Wrapper for multiprecision sum
-def sum_async(x: Tensor, sum_out: Tensor, axis: int) -> None:
-    if type(x) is not type(sum_out):
+# Wrapper for multiprecision fill
+def fill_async(val: float, x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.fill_async_fp32(val, x)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.fill_async_fp64(val, x)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision sum_slice
+def sum_slice_async(alpha: float, x: Tensor, beta: float, sum_slice: Tensor, \
+        axis: int) -> None:
+    if type(x) is not type(sum_slice):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.sum_async_fp32(x, sum_out, axis)
+        core_tensor.sum_slice_async_fp32(alpha, x, beta, sum_slice, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.sum_slice_async_fp64(alpha, x, beta, sum_slice, axis)
     else:
-        core_tensor.sum_async_fp64(x, sum_out, axis)
+        raise TypeError
+
+# Wrapper for multiprecision sum_fiber
+def sum_fiber_async(alpha: float, x: Tensor, beta: float, sum_fiber: Tensor, \
+        axis: int) -> None:
+    if type(x) is not type(sum_fiber):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.sum_fiber_async_fp32(alpha, x, beta, sum_fiber, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.sum_fiber_async_fp64(alpha, x, beta, sum_fiber, axis)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision norm_slice
+def norm_slice_async(alpha: float, x: Tensor, beta: float, \
+        norm_slice: Tensor, axis: int) -> None:
+    if type(x) is not type(norm_slice):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.norm_slice_async_fp32(alpha, x, beta, norm_slice, axis)
+    else:
+        core_tensor.norm_slice_async_fp64(alpha, x, beta, norm_slice, axis)
+
+# Wrapper for multiprecision pow
+def pow_async(alpha: float, exp: float, x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.pow_async_fp32(alpha, exp, x)
+    else:
+        core_tensor.pow_async_fp64(alpha, exp, x)
 
 # Wrapper for multiprecision sumnorm
 def sumnorm_async(x: Tensor, sumnorm: Tensor, axis: int) -> None:
@@ -210,13 +251,14 @@ def prod_async(x: Tensor, y: Tensor) -> None:
         raise TypeError
 
 # Wrapper for multiprecision nrm2
-def nrm2_async(x: Tensor, y: Tensor, tmp: Tensor) -> None:
+def nrm2_async(alpha:float, x: Tensor, beta: float, y: Tensor,
+               tmp: Tensor) -> None:
     if type(x) is not type(y) or type(x) is not type(tmp):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.nrm2_async_fp32(x, y, tmp)
+        core_tensor.nrm2_async_fp32(alpha, x, beta, y, tmp)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.nrm2_async_fp64(x, y, tmp)
+        core_tensor.nrm2_async_fp64(alpha, x, beta, y, tmp)
     else:
         raise TypeError
 
@@ -243,14 +285,51 @@ def maxsumexp_async(x: Tensor, maxsumexp: Tensor, axis: int) -> None:
     else:
         raise TypeError
 
-# Wrapper for multiprecision bias
-def bias_async(alpha:float, bias: Tensor, x: Tensor, axis: int) -> None:
-    if type(bias) is not type(x):
+# Wrapper for multiprecision add_slice
+def add_slice_async(alpha: float, add_slice: Tensor, beta, x: Tensor, \
+        axis: int) -> None:
+    if type(add_slice) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.bias_async_fp32(alpha, bias, x, axis)
+        core_tensor.add_slice_async_fp32(alpha, add_slice, beta, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.bias_async_fp64(alpha, bias, x, axis)
+        core_tensor.add_slice_async_fp64(alpha, add_slice, beta, x, axis)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision add_fiber
+def add_fiber_async(alpha: float, add_fiber: Tensor, beta, x: Tensor, \
+        axis: int) -> None:
+    if type(add_fiber) is not type(x):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.add_fiber_async_fp32(alpha, add_fiber, beta, x, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.add_fiber_async_fp64(alpha, add_fiber, beta, x, axis)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision prod_slice
+def prod_slice_async(prod_slice: Tensor, alpha: float, x: Tensor, \
+        axis: int) -> None:
+    if type(prod_slice) is not type(x):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.prod_slice_async_fp32(prod_slice, alpha, x, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.prod_slice_async_fp64(prod_slice, alpha, x, axis)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision prod_fiber
+def prod_fiber_async(prod_fiber: Tensor, alpha: float, x: Tensor, \
+        axis: int) -> None:
+    if type(prod_fiber) is not type(x):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.prod_fiber_async_fp32(prod_fiber, alpha, x, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.prod_fiber_async_fp64(prod_fiber, alpha, x, axis)
     else:
         raise TypeError
 
@@ -358,17 +437,35 @@ def addcdiv_async(alpha: float, eps: float, nom: Tensor, denom: Tensor, \
     else:
         raise TypeError
 
-# Wrapper for multiprecision scalprod
-def scalprod_async(alpha: float, src1: Tensor, src2: Tensor, beta: float, \
-        dst: Tensor, axis: int) -> None:
+# Wrapper for multiprecision sumprod_slice
+def sumprod_slice_async(alpha: float, src1: Tensor, src2: Tensor, \
+        beta: float, dst: Tensor, axis: int) -> None:
     if type(src1) is not type(src2):
         raise TypeError
     if type(src1) is not type(dst):
         raise TypeError
     if type(src1) is core_tensor.Tensor_fp32:
-        core_tensor.scalprod_async_fp32(alpha, src1, src2, beta, dst, axis)
+        core_tensor.sumprod_slice_async_fp32(alpha, src1, src2, beta, dst, \
+                axis)
     elif type(src1) is core_tensor.Tensor_fp64:
-        core_tensor.scalprod_async_fp64(alpha, src1, src2, beta, dst, axis)
+        core_tensor.sumprod_slice_async_fp64(alpha, src1, src2, beta, dst, \
+                axis)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision sumprod_fiber
+def sumprod_fiber_async(alpha: float, src1: Tensor, src2: Tensor, \
+        beta: float, dst: Tensor, axis: int) -> None:
+    if type(src1) is not type(src2):
+        raise TypeError
+    if type(src1) is not type(dst):
+        raise TypeError
+    if type(src1) is core_tensor.Tensor_fp32:
+        core_tensor.sumprod_fiber_async_fp32(alpha, src1, src2, beta, dst, \
+                axis)
+    elif type(src1) is core_tensor.Tensor_fp64:
+        core_tensor.sumprod_fiber_async_fp64(alpha, src1, src2, beta, dst, \
+                axis)
     else:
         raise TypeError
 

@@ -4,13 +4,13 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/layer/test_act.py
+# @file wrappers/python/tests/layer/test_act.py
 # Test for nntile.layer.act
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-04-04
+# @date 2023-05-05
 
 # All necesary imports
 import nntile

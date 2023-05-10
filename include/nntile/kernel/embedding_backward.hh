@@ -4,12 +4,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/embeddingi_backward.hh
+ * @file include/nntile/kernel/embedding_backward.hh
  * Backward of embeddings from vocabulary within buffers
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-21
+ * @date 2023-05-10
  * */
 
 #pragma once
