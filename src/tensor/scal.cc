@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/tensor/scal.cc
- * Euclidian norm of Tensor<T>
+ * Euclidean norm of Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-29
+ * @date 2023-05-05
  * */
 
 #include "nntile/tensor/scal.hh"

@@ -1,4 +1,4 @@
-# @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+# @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
 #                          (Skoltech). All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2022-11-17
+# @date 2023-05-02
 
 # Extend set of ctest-controlled tests and enable code coverage if required.
 # All of the tests shall be launched by the same executable but with different
@@ -51,7 +51,7 @@ function(add_test_set)
     # List of single-value arguments
     set(one_value_args TARGET_NAME EXEC_NAME MPI_NUMPROC COV_ENABLE COV_NAME)
     # List of multi-value arguments
-    set(multi_value_args SOURCES LINK_LIBRARIES ARGS COV_GLOBAL)
+    set(multi_value_args SOURCES LINK_LIBRARIES ARGS COV_GLOBAL LABELS)
     # Parse arguments
     cmake_parse_arguments(_args "${options}" "${one_value_args}"
         "${multi_value_args}" ${ARGN})
@@ -100,6 +100,11 @@ function(add_test_set)
         # Test without arguments
         message(STATUS "Adding 1 test ${_args_TARGET_NAME}")
         add_test(NAME ${_args_TARGET_NAME} COMMAND ${exec_cmd})
+        # Add labels to test if they are actually provided
+        if(DEFINED _args_LABELS)
+            set_tests_properties(${_args_TARGET_NAME} PROPERTIES LABELS
+                "${_args_LABELS}")
+        endif()
     elseif(ntests EQUAL 1)
         # Test with a single set of arguments
         message(STATUS "Adding 1 test ${_args_TARGET_NAME}")
@@ -108,6 +113,11 @@ function(add_test_set)
         # Test with properly parsed arguments
         add_test(NAME ${_args_TARGET_NAME} COMMAND ${exec_cmd}
             ${_args_ARGS})
+        # Add labels to test if they are actually provided
+        if(DEFINED _args_LABELS)
+            set_tests_properties(${_args_TARGET_NAME} PROPERTIES LABELS
+                "${_args_LABELS}")
+        endif()
     else()
         # Multiple sets of arguments
         message(STATUS "Adding ${ntests} tests ${_args_TARGET_NAME}")
@@ -119,6 +129,11 @@ function(add_test_set)
             # Test with properly parsed arguments
             add_test(NAME ${_args_TARGET_NAME}_${i} COMMAND ${exec_cmd}
                 ${current_ARGS})
+            # Add labels to test if they are actually provided
+            if(DEFINED _args_LABELS)
+                set_tests_properties(${_args_TARGET_NAME}_${i} PROPERTIES
+                    LABELS "${_args_LABELS}")
+            endif()
         endforeach()
     endif()
 endfunction()

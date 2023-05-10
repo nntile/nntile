@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-04-05
+# @date 2023-04-19
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         copy_async, prod_async, relu_forward_async, relu_backward_async, \
@@ -22,9 +22,9 @@ from typing import List, Callable
 class Act(BaseLayer):
     x: TensorMoments
     y: TensorMoments
-    activations = {'relu': (relu_async, relu_backward_async),
-                   'gelu': (gelu_async, gelu_backward_async),
-                   'gelutanh': (gelutanh_async, gelutanh_backward_async)
+    activations = {'relu': (relu_async, relu_backward_async), \
+            'gelu': (gelu_async, gelu_backward_async), \
+            'gelutanh': (gelutanh_async, gelutanh_backward_async) \
             }
     funcname: str
     func: Callable[[Tensor], None]

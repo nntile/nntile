@@ -1,4 +1,4 @@
-# @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+# @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
 #                          (Skoltech). All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-15
+# @date 2023-05-05
 
 # Get pybind11 library and set up binary directory pybind11
 add_subdirectory("../../external/pybind11" "pybind11")
@@ -47,8 +47,29 @@ file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/examples DESTINATION
 # Collect all the tests and add them to ctest
 file(GLOB_RECURSE PY_TESTS FOLLOW_SYMLINKS LIST_DIRECTORIES FALSE
     RELATIVE ${CMAKE_CURRENT_BINARY_DIR}/tests
-    ${CMAKE_CURRENT_BINARY_DIR}/tests/test_*.py)
-foreach(py_test ${PY_TESTS})
+    ${CMAKE_CURRENT_BINARY_DIR}/tests/*/test_*.py)
+
+# Describe all tests that are not yet implemented
+set(TESTS_NOT_IMPLEMENTED
+    "nntile_core/test_tensor_add_fiber.py"
+    "nntile_core/test_tensor_sum_fiber.py"
+    "nntile_core/test_tensor_sum_slice.py"
+    "nntile_core/test_tensor_fill.py"
+    "nntile_core/test_tensor_gelu_backward.py"
+    "nntile_core/test_tensor_gelutanh_backward.py"
+    "nntile_core/test_tensor_relu_backward.py"
+    "nntile_core/test_tensor_logsumexp.py"
+    "nntile_core/test_tensor_norm_slice.py"
+    "nntile_core/test_tensor_pow.py"
+    "nntile_core/test_tensor_prod_fiber.py"
+    "nntile_core/test_tensor_prod_slice.py"
+    "nntile_core/test_tensor_sumprod_fiber.py"
+    "nntile_core/test_tensor_sumprod_slice.py"
+    "nntile_core/test_tensor_subtract_indexed_column.py"
+    "nntile_core/test_tensor_total_sum_accum.py"
+    )
+
+foreach(py_test IN LISTS PY_TESTS)
     get_filename_component(py_dir ${py_test} DIRECTORY)
     get_filename_component(py_name ${py_test} NAME_WE)
     string(SUBSTRING ${py_name} 5 -1 py_name)
@@ -57,6 +78,9 @@ foreach(py_test ${PY_TESTS})
     message(STATUS "Adding 1 test ${test_name}")
     add_test(NAME ${test_name} COMMAND ${PYTHON_EXECUTABLE} -m pytest -rx
         ${CMAKE_CURRENT_BINARY_DIR}/tests/${py_test})
+    if(py_test IN_LIST TESTS_NOT_IMPLEMENTED)
+        set_tests_properties(${test_name} PROPERTIES LABELS "NotImplemented")
+    endif()
 endforeach()
 
 # Install Python module

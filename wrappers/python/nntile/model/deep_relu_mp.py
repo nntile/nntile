@@ -4,8 +4,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/model/deep_relu.py
-# Deep ReLU model of NNTile Python package
+# @file wrappers/python/nntile/model/deep_relu_mp.py
+# Deep ReLU model of NNTile Python package (NOT YET READY)
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev

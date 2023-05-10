@@ -4,12 +4,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/gelutanh/cuda.cu
+ * @file src/kernel/dgelutanh/cuda.cu
  * Derivative of approximate GeLU operation on CUDA based on tanh function
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-03
+ * @date 2023-05-05
  * */
 
 #include "nntile/kernel/dgelutanh/cuda.hh"

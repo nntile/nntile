@@ -4,7 +4,7 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/examples/deep_relu.py
+# @file wrappers/python/examples/deep_relu_image_classification.py
 # Deep ReLU network for image classification with NNTile Python package
 #
 # @version 1.0.0

@@ -4,7 +4,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/fp32_to_fp16/cuda.cu
+ * @file src/kernel/fp32_to_fp16/cpu.cc
  * Convert fp32_t array into fp16_t array on CPU
  *
  * @version 1.0.0
