@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-01
+ * @date 2023-04-18
  * */
 
 #include "nntile/kernel/hypot.hh"
@@ -35,8 +35,17 @@ void validate()
     y[0] = 0.4;
     // Check low-level kernel
     std::cout << "Run kernel::hypot::cpu<T>\n";
-    cpu<T>(&x[0], &y[0]);
-    TEST_ASSERT(std::abs(y[0]-0.5) <= 10*eps);
+    cpu<T>(-2.0, &x[0], 0.0, &y[0]);
+    TEST_ASSERT(std::abs(y[0]-0.6) <= 10*eps);
+    std::cout << "OK: kernel::hypot::cpu<T>\n";
+    std::cout << "Run kernel::hypot::cpu<T>\n";
+    cpu<T>(0.0, &x[0], -2.0, &y[0]);
+    TEST_ASSERT(std::abs(y[0]-1.2) <= 10*eps);
+    std::cout << "OK: kernel::hypot::cpu<T>\n";
+    x[0] = 0.9;
+    std::cout << "Run kernel::hypot::cpu<T>\n";
+    cpu<T>(-1.0, &x[0], 1.0, &y[0]);
+    TEST_ASSERT(std::abs(y[0]-1.5) <= 10*eps);
     std::cout << "OK: kernel::hypot::cpu<T>\n";
 }
 

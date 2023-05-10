@@ -11,32 +11,62 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-03-26
+# @date 2023-05-02
 
 # All unit tests without arguments to test executable
 set(TESTS
-    "bias"
-    "subcopy"
-    "gelu"
-    "gelutanh"
+    "add_fiber"
+    "add_slice"
+    "addcdiv"
     "dgelu"
     "dgelutanh"
     "drelu"
-    "randn"
-    "sumnorm"
-    "relu"
+    "fill"
+    "gelu"
+    "gelu_backward"
+    "gelutanh"
+    "gelutanh_backward"
     "hypot"
-    "normalize"
-    "prod"
-    "maxsumexp"
-    "softmax"
-    "sum"
-    "sqrt"
+    "logsumexp"
     "maximum"
-    "addcdiv"
-    "scalprod"
+    "maxsumexp"
+    "norm_slice"
+    "normalize"
+    "pow"
+    "prod"
+    "prod_fiber"
+    "prod_slice"
+    "randn"
+    "relu"
+    "relu_backward"
+    "softmax"
+    "sqrt"
+    "subcopy"
+    "subtract_indexed_column"
+    "sum_fiber"
+    "sum_slice"
+    "sumnorm"
+    "sumprod_fiber"
+    "sumprod_slice"
+    "total_sum_accum"
     )
 
+# Describe all tests that are not yet implemented
+set(TESTS_NOT_IMPLEMENTED
+    "add_fiber"
+    "gelu_backward"
+    "gelutanh_backward"
+    "logsumexp"
+    "pow"
+    "prod_fiber"
+    "prod_slice"
+    "relu_backward"
+    "subtract_indexed_column"
+    "sum_fiber"
+    "sumprod_fiber"
+    "total_sum_accum"
+)
+         
 # Setup a target for coverage of kernels
 if(BUILD_COVERAGE)
     setup_target_for_coverage_lcov(NAME coverage_kernel
@@ -46,6 +76,10 @@ if(BUILD_COVERAGE)
 endif()
 
 foreach(test IN LISTS TESTS)
+    set(labels)
+    if(test IN_LIST TESTS_NOT_IMPLEMENTED)
+        set(labels "NotImplemented")
+    endif()
     add_test_set(TARGET_NAME tests_kernel_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
@@ -53,6 +87,7 @@ foreach(test IN LISTS TESTS)
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_kernel_${test}
         COV_GLOBAL coverage_kernel coverage
+        LABELS ${labels}
         )
 endforeach()
 

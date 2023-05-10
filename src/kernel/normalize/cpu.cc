@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-03
+ * @date 2023-05-05
  * */
 
 #include "nntile/kernel/normalize/cpu.hh"
@@ -38,7 +38,7 @@ void cpu(Index m, Index n, Index k, Index l, T eps, const T *gamma,
  * @param[in] m: Size of the first mode of dst and sumnorm arrays
  * @param[in] n: Size of the last mode of dst and sumnorm arrays
  * @param[in] k: Size of the middle mode of dst array
- * @param[in] l: Number of elements used to calculate sum and Euclidian norm
+ * @param[in] l: Number of elements used to calculate sum and Euclidean norm
  * @param[in] eps: Regularization parameter for variance. eps > 0
  * @param[in] gamma: Deviation for the renormalized output
  * @param[in] beta: Mean value for the renormalized output

@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-02
+ * @date 2023-04-18
  * */
 
 #include "nntile/starpu/hypot.hh"
@@ -31,16 +31,17 @@ void validate_cpu()
     std::vector<T> src(1), dst(1);
     src[0] = T{1};
     dst[0] = T{2};
+    T alpha = 0.5, beta = -1.5;
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T), STARPU_R),
         dst_handle(&dst[0], sizeof(T), STARPU_RW);
     hypot::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::hypot::submit<T> restricted to CPU\n";
-    hypot::submit<T>(src_handle, dst_handle);
+    hypot::submit<T>(alpha, src_handle, beta, dst_handle);
     starpu_task_wait_for_all();
     dst_handle.unregister();
     // Check result
-    TEST_ASSERT(std::abs(dst[0]*dst[0]-T{5}) <= 10*eps);
+    TEST_ASSERT(std::abs(dst[0]*dst[0]-T{9.25}) <= 10*eps);
     std::cout << "OK: starpu::hypot::submit<T> restricted to CPU\n";
 }
 

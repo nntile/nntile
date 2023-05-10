@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-09
+# @date 2023-04-18
 
 # All necesary imports
 import nntile
@@ -47,7 +47,7 @@ def helper(dtype):
     rand_A = np.random.randn(*shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A.from_array(np_A)
-    nrm2[dtype](A, B, tmp)
+    nrm2[dtype](1.0, A, 0.0, B, tmp)
     np_B = np.zeros([1], dtype=dtype, order='F')
     B.to_array(np_B)
     nntile.starpu.wait_for_all()

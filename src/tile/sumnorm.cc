@@ -1,15 +1,15 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/tile/sumnorm.cc
- * Sum and Euclidian norm of Tile<T>
+ * Sum and Euclidean norm of Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-02
+ * @date 2023-05-05
  * */
 
 #include "nntile/tile/sumnorm.hh"
@@ -65,24 +65,9 @@ void sumnorm_async(const Tile<T> &src, const Tile<T> &dst, Index axis)
     }
     // Get sizes
     Index m, n, k;
-    if(axis == 0)
-    {
-        m = 1;
-        n = dst.nelems / 2;
-        k = src.shape[0];
-    }
-    else if(axis == ndim-1)
-    {
-        m = dst.nelems / 2;
-        n = 1;
-        k = src.shape[axis];
-    }
-    else
-    {
-        m = src.stride[axis];
-        n = src.matrix_shape[axis+1][1];
-        k = src.shape[axis];
-    }
+    m = src.stride[axis];
+    n = src.matrix_shape[axis+1][1];
+    k = src.shape[axis];
     // Insert task
     starpu::sumnorm::submit<T>(m, n, k, src, dst);
 }

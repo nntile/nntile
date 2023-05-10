@@ -178,6 +178,8 @@ void def_mod_tile(py::module_ &m)
         def_readonly("ndim", &TileTraits::ndim).
         // Shape of a tile
         def_readonly("shape", &TileTraits::shape).
+        // Strides of a tile
+        def_readonly("stride", &TileTraits::stride).
         // Number of elements of a tile
         def_readonly("nelems", &TileTraits::nelems).
         // Linear to index
@@ -364,29 +366,54 @@ void def_mod_tensor(py::module_ &m)
     // Add tensor.distributions submodule
     auto distributions = m.def_submodule("distributions");
     def_tensor_distributions(distributions);
+
     // Add functions for Tensor<T>
     m.def("gemm_async_fp64", &gemm_async<fp64_t>);
     m.def("gemm_async_fp32", &gemm_async<fp32_t>);
     m.def("gemm_fp64", &gemm<fp64_t>);
     m.def("gemm_fp32", &gemm<fp32_t>);
+
     // Add activation functions for Tensor<T>
     m.def("relu_async_fp64", &relu_async<fp64_t>);
     m.def("relu_async_fp32", &relu_async<fp32_t>);
     m.def("relu_fp64", &relu<fp64_t>);
     m.def("relu_fp32", &relu<fp32_t>);
+
     m.def("relu_backward_async_fp64", &relu_backward_async<fp64_t>);
     m.def("relu_backward_async_fp32", &relu_backward_async<fp32_t>);
     m.def("relu_backward_fp64", &relu_backward<fp64_t>);
     m.def("relu_backward_fp32", &relu_backward<fp32_t>);
+
     m.def("drelu_async_fp64", &drelu_async<fp64_t>);
     m.def("drelu_async_fp32", &drelu_async<fp32_t>);
     m.def("drelu_fp64", &drelu<fp64_t>);
     m.def("drelu_fp32", &drelu<fp32_t>);
     // Add other functions for Tensor<T>
-    m.def("sum_async_fp64", &sum_async<fp64_t>);
-    m.def("sum_async_fp32", &sum_async<fp32_t>);
-    m.def("sum_fp64", &sum<fp64_t>);
-    m.def("sum_fp32", &sum<fp32_t>);
+    m.def("fill_async_fp64", &fill_async<fp64_t>);
+    m.def("fill_async_fp32", &fill_async<fp32_t>);
+    m.def("fill_fp64", &fill<fp64_t>);
+    m.def("fill_fp32", &fill<fp32_t>);
+
+    m.def("sum_slice_async_fp64", &sum_slice_async<fp64_t>);
+    m.def("sum_slice_async_fp32", &sum_slice_async<fp32_t>);
+    m.def("sum_slice_fp64", &sum_slice<fp64_t>);
+    m.def("sum_slice_fp32", &sum_slice<fp32_t>);
+
+    m.def("sum_fiber_async_fp64", &sum_fiber_async<fp64_t>);
+    m.def("sum_fiber_async_fp32", &sum_fiber_async<fp32_t>);
+    m.def("sum_fiber_fp64", &sum_fiber<fp64_t>);
+    m.def("sum_fiber_fp32", &sum_fiber<fp32_t>);
+
+    m.def("norm_slice_async_fp64", &norm_slice_async<fp64_t>);
+    m.def("norm_slice_async_fp32", &norm_slice_async<fp32_t>);
+    m.def("norm_slice_fp64", &norm_slice<fp64_t>);
+    m.def("norm_slice_fp32", &norm_slice<fp32_t>);
+
+    m.def("pow_async_fp64", &pow_async<fp64_t>);
+    m.def("pow_async_fp32", &pow_async<fp32_t>);
+    m.def("pow_fp64", &pow<fp64_t>);
+    m.def("pow_fp32", &pow<fp32_t>);
+
     m.def("sumnorm_async_fp64", &sumnorm_async<fp64_t>);
     m.def("sumnorm_async_fp32", &sumnorm_async<fp32_t>);
     m.def("sumnorm_fp64", &sumnorm<fp64_t>);
@@ -422,20 +449,25 @@ void def_mod_tensor(py::module_ &m)
     m.def("maxsumexp_fp64", &maxsumexp<fp64_t>);
     m.def("maxsumexp_fp32", &maxsumexp<fp32_t>);
 
-    m.def("bias_async_fp64", &bias_async<fp64_t>);
-    m.def("bias_async_fp32", &bias_async<fp32_t>);
-    m.def("bias_fp64", &bias<fp64_t>);
-    m.def("bias_fp32", &bias<fp32_t>);
+    m.def("add_slice_async_fp64", &add_slice_async<fp64_t>);
+    m.def("add_slice_async_fp32", &add_slice_async<fp32_t>);
+    m.def("add_slice_fp64", &add_slice<fp64_t>);
+    m.def("add_slice_fp32", &add_slice<fp32_t>);
 
-    m.def("add_async_fp64", &add_async<fp64_t>);
-    m.def("add_async_fp32", &add_async<fp32_t>);
-    m.def("add_fp64", &add<fp64_t>);
-    m.def("add_fp32", &add<fp32_t>);
+    m.def("add_fiber_async_fp64", &add_fiber_async<fp64_t>);
+    m.def("add_fiber_async_fp32", &add_fiber_async<fp32_t>);
+    m.def("add_fiber_fp64", &add_fiber<fp64_t>);
+    m.def("add_fiber_fp32", &add_fiber<fp32_t>);
 
-    m.def("add_scalar_async_fp64", &add_scalar_async<fp64_t>);
-    m.def("add_scalar_async_fp32", &add_scalar_async<fp32_t>);
-    m.def("add_scalar_fp64", &add_scalar<fp64_t>);
-    m.def("add_scalar_fp32", &add_scalar<fp32_t>);
+    m.def("prod_slice_async_fp64", &prod_slice_async<fp64_t>);
+    m.def("prod_slice_async_fp32", &prod_slice_async<fp32_t>);
+    m.def("prod_slice_fp64", &prod_slice<fp64_t>);
+    m.def("prod_slice_fp32", &prod_slice<fp32_t>);
+
+    m.def("prod_fiber_async_fp64", &prod_fiber_async<fp64_t>);
+    m.def("prod_fiber_async_fp32", &prod_fiber_async<fp32_t>);
+    m.def("prod_fiber_fp64", &prod_fiber<fp64_t>);
+    m.def("prod_fiber_fp32", &prod_fiber<fp32_t>);
 
     m.def("gather_async_fp64", &gather_async<fp64_t>);
     m.def("gather_async_fp32", &gather_async<fp32_t>);
@@ -521,10 +553,15 @@ void def_mod_tensor(py::module_ &m)
     m.def("scal_fp64", &scal<fp64_t>);
     m.def("scal_fp32", &scal<fp32_t>);
 
-    m.def("scalprod_async_fp64", &scalprod_async<fp64_t>);
-    m.def("scalprod_async_fp32", &scalprod_async<fp32_t>);
-    m.def("scalprod_fp64", &scalprod<fp64_t>);
-    m.def("scalprod_fp32", &scalprod<fp32_t>);
+    m.def("sumprod_slice_async_fp64", &sumprod_slice_async<fp64_t>);
+    m.def("sumprod_slice_async_fp32", &sumprod_slice_async<fp32_t>);
+    m.def("sumprod_slice_fp64", &sumprod_slice<fp64_t>);
+    m.def("sumprod_slice_fp32", &sumprod_slice<fp32_t>);
+    
+    m.def("sumprod_fiber_async_fp64", &sumprod_fiber_async<fp64_t>);
+    m.def("sumprod_fiber_async_fp32", &sumprod_fiber_async<fp32_t>);
+    m.def("sumprod_fiber_fp64", &sumprod_fiber<fp64_t>);
+    m.def("sumprod_fiber_fp32", &sumprod_fiber<fp32_t>);
     
     // gelu and dgelu
     m.def("gelu_async_fp64", &gelu_async<fp64_t>);
@@ -553,6 +590,16 @@ void def_mod_tensor(py::module_ &m)
     m.def("dgelutanh_async_fp32", &dgelutanh_async<fp32_t>);
     m.def("dgelutanh_fp64", &dgelutanh<fp64_t>);
     m.def("dgelutanh_fp32", &dgelutanh<fp32_t>);   
+
+    m.def("embedding_async_fp64", &embedding_async<fp64_t>);
+    m.def("embedding_async_fp32", &embedding_async<fp32_t>);
+    m.def("embedding_fp64", &embedding<fp64_t>);
+    m.def("embedding_fp32", &embedding<fp32_t>);
+
+    m.def("embedding_backward_async_fp64", &embedding_backward_async<fp64_t>);
+    m.def("embedding_backward_async_fp32", &embedding_backward_async<fp32_t>);
+    m.def("embedding_backward_fp64", &embedding_backward<fp64_t>);
+    m.def("embedding_backward_fp32", &embedding_backward<fp32_t>);
 }
 
 // Main extension module with all wrappers

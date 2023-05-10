@@ -9,11 +9,12 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-03-28
+# @date 2023-05-10
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
-        maxsumexp_async, softmax_async, scalprod_async, bias_async, prod_async
+        maxsumexp_async, softmax_async, sumprod_slice_async, \
+        add_slice_async, prod_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -39,7 +40,7 @@ class Attention(BaseLayer):
     v: List[TensorMoments]
     a: List[TensorMoments]
     a_maxsumexp: List[Tensor]
-    a_scalprod: List[Tensor]
+    a_sumprod_slice: List[Tensor]
     b: List[TensorMoments]
     n_head: int
     head_size: int
@@ -51,11 +52,11 @@ class Attention(BaseLayer):
             w_v: List[TensorMoments], w: List[TensorMoments], \
             q: List[TensorMoments], k: List[TensorMoments], \
             v: List[TensorMoments], a: List[TensorMoments], \
-            a_maxsumexp: List[Tensor], a_scalprod: List[Tensor], \
+            a_maxsumexp: List[Tensor], a_sumprod_slice: List[Tensor], \
             b: List[TensorMoments]):
         # Redirect to BaseClass initialization
         super().__init__([x_q, x_k, x_v], [y], [*w_q, *w_k, *w_v, *w], \
-                [*q, *k, *v, *a, *a_maxsumexp, *a_scalprod, *b])
+                [*q, *k, *v, *a, *a_maxsumexp, *a_sumprod_slice, *b])
         self.x_q = x_q
         self.x_k = x_k
         self.x_v = x_v
@@ -69,7 +70,7 @@ class Attention(BaseLayer):
         self.v = v
         self.a = a
         self.a_maxsumexp = a_maxsumexp
-        self.a_scalprod = a_scalprod
+        self.a_sumprod_slice = a_sumprod_slice
         self.b = b
         self.n_head = len(w_q)
         n_emb = x_q.value.shape[0]
@@ -114,7 +115,7 @@ class Attention(BaseLayer):
         v_shape = [head_size, n_seq, n_batch]
         a_shape = [n_seq, n_seq, n_batch]
         a_maxsumexp_shape = [2, n_seq, n_batch]
-        a_scalprod_shape = [n_seq, n_batch]
+        a_sumprod_slice_shape = [n_seq, n_batch]
         b_shape = [head_size, n_seq, n_batch]
         # Define tile shapes of each tensor
         w_q_basetile = [head_size_tile, n_emb_tile]
@@ -126,7 +127,7 @@ class Attention(BaseLayer):
         v_basetile = [head_size_tile, n_seq_tile, n_batch_tile]
         a_basetile = [n_seq_tile, n_seq_tile, n_batch_tile]
         a_maxsumexp_basetile = [2, n_seq_tile, n_batch_tile]
-        a_scalprod_basetile = [n_seq_tile, n_batch_tile]
+        a_sumprod_slice_basetile = [n_seq_tile, n_batch_tile]
         b_basetile = [head_size_tile, n_seq_tile, n_batch_tile]
         # Define traits
         w_q_traits = TensorTraits(w_q_shape, w_q_basetile)
@@ -139,7 +140,8 @@ class Attention(BaseLayer):
         a_traits = TensorTraits(a_shape, a_basetile)
         a_maxsumexp_traits = TensorTraits(a_maxsumexp_shape,
                 a_maxsumexp_basetile)
-        a_scalprod_traits = TensorTraits(a_scalprod_shape, a_scalprod_basetile)
+        a_sumprod_slice_traits = TensorTraits(a_sumprod_slice_shape, \
+                a_sumprod_slice_basetile)
         b_traits = TensorTraits(b_shape, b_basetile)
         # TODO change distribution
         w_q_distr = [0] * w_q_traits.grid.nelems
@@ -151,7 +153,7 @@ class Attention(BaseLayer):
         v_distr = [0] * v_traits.grid.nelems
         a_distr = [0] * a_traits.grid.nelems
         a_maxsumexp_distr = [0] * a_maxsumexp_traits.grid.nelems
-        a_scalprod_distr = [0] * a_scalprod_traits.grid.nelems
+        a_sumprod_slice_distr = [0] * a_sumprod_slice_traits.grid.nelems
         b_distr = [0] * b_traits.grid.nelems
         # Define all the lists
         w_q = []
@@ -163,7 +165,7 @@ class Attention(BaseLayer):
         v = []
         a = []
         a_maxsumexp = []
-        a_scalprod = []
+        a_sumprod_slice = []
         b = []
         for i in range(n_head):
             # w_q
@@ -219,11 +221,11 @@ class Attention(BaseLayer):
                     a_maxsumexp_distr, next_tag)
             next_tag = a_maxsumexp_value.next_tag
             a_maxsumexp.append(a_maxsumexp_value)
-            # a_scalprod
-            a_scalprod_value = type(x_q.value)(a_scalprod_traits, \
-                    a_scalprod_distr, next_tag)
-            next_tag = a_scalprod_value.next_tag
-            a_scalprod.append(a_scalprod_value)
+            # a_sumprod_slice
+            a_sumprod_slice_value = type(x_q.value)(a_sumprod_slice_traits, \
+                    a_sumprod_slice_distr, next_tag)
+            next_tag = a_sumprod_slice_value.next_tag
+            a_sumprod_slice.append(a_sumprod_slice_value)
             # b
             b_value = type(x_q.value)(b_traits, b_distr, next_tag)
             next_tag = b_value.next_tag
@@ -239,7 +241,7 @@ class Attention(BaseLayer):
         y = TensorMoments(y_value, y_grad, True)
         # Create attention layer with all the provided data
         layer = Attention(x_q, x_k, x_v, y, w_q, w_k, w_v, w, q, k, v, a, \
-                a_maxsumexp, a_scalprod, b)
+                a_maxsumexp, a_sumprod_slice, b)
         # Return layer and next tag to be used
         return (layer, next_tag)
 
@@ -308,9 +310,9 @@ class Attention(BaseLayer):
         for i in range(self.n_head):
             # Backward for Y += einsum('jk,kml->jml', W[i], B[i])
             if self.w[i].grad_required:
-                # dW[i] = einsum('jml,kml->jk', dY, B[i])
+                # dW[i] += einsum('jml,kml->jk', dY, B[i])
                 gemm_async(1.0, notrans, self.y.grad, trans, self.b[i].value, \
-                        0.0, self.w[i].grad, 2, 0)
+                        1.0, self.w[i].grad, 2, 0)
             # B[i] can be deleted
             self.b[i].value.invalidate_submit()
             if self.b[i].grad_required:
@@ -334,13 +336,14 @@ class Attention(BaseLayer):
             self.b[i].grad.invalidate_submit()
             # Backward for A[i] = softmax(A[i], axis=0)
             if self.a[i].grad_required:
-                # A_scalprod[i] = einsum('kml,kml->ml', A[i], dA[i])
-                scalprod_async(1.0, self.a[i].value, self.a[i].grad, 0.0, \
-                        self.a_scalprod[i], 0)
-                # dA[i] += -bias('kml,ml->kml', dA[i], A_scalprod[i])
-                bias_async(-1.0, self.a_scalprod[i], self.a[i].grad, 0)
-                # A_scalprod[i] can be deleted
-                self.a_scalprod[i].invalidate_submit()
+                # A_sumprod_slice[i] = einsum('kml,kml->ml', A[i], dA[i])
+                sumprod_slice_async(1.0, self.a[i].value, self.a[i].grad, \
+                        0.0, self.a_sumprod_slice[i], 0)
+                # dA[i] += -bias('kml,ml->kml', dA[i], A_sumprod_slice[i])
+                add_slice_async(-1.0, self.a_sumprod_slice[i], 1.0, \
+                        self.a[i].grad, 0)
+                # A_sumprod_slice[i] can be deleted
+                self.a_sumprod_slice[i].invalidate_submit()
                 # dA[i] *= A[i]
                 prod_async(self.a[i].value, self.a[i].grad)
             # A[i] can be deleted
@@ -371,9 +374,9 @@ class Attention(BaseLayer):
             # W_V[i] can be offloaded from GPU
             self.w_v[i].value.wont_use()
             if self.w_v[i].grad_required:
-                # dW_V[i] = einsum('jlm,klm->jk', dV[i], X_V)
+                # dW_V[i] += einsum('jlm,klm->jk', dV[i], X_V)
                 gemm_async(1.0, notrans, self.v[i].grad, trans, \
-                        self.x_v.value, 0.0, self.w_v[i].grad, 2, 0)
+                        self.x_v.value, 1.0, self.w_v[i].grad, 2, 0)
             # dW_V[i] can be offloaded from GPU
             self.w_v[i].grad.wont_use()
             # dV[i] can be deleted
@@ -386,9 +389,9 @@ class Attention(BaseLayer):
             # W_K[i] can be offloaded from GPU
             self.w_k[i].value.wont_use()
             if self.w_k[i].grad_required:
-                # dW_K[i] = einsum('jlm,klm->jk', dK[i], X_K)
+                # dW_K[i] += einsum('jlm,klm->jk', dK[i], X_K)
                 gemm_async(1.0, notrans, self.k[i].grad, trans, \
-                        self.x_k.value, 0.0, self.w_k[i].grad, 2, 0)
+                        self.x_k.value, 1.0, self.w_k[i].grad, 2, 0)
             # dW_K[i] can be offloaded from GPU
             self.w_k[i].grad.wont_use()
             # dK[i] can be deleted
@@ -401,9 +404,9 @@ class Attention(BaseLayer):
             # W_Q[i] can be offloaded from GPU
             self.w_q[i].value.wont_use()
             if self.w_q[i].grad_required:
-                # dW_Q[i] = einsum('jlm,klm->jk', dQ[i], X_Q)
+                # dW_Q[i] += einsum('jlm,klm->jk', dQ[i], X_Q)
                 gemm_async(1.0, notrans, self.q[i].grad, trans, \
-                        self.x_q.value, 0.0, self.w_q[i].grad, 2, 0)
+                        self.x_q.value, 1.0, self.w_q[i].grad, 2, 0)
             # dW_Q[i] can be offloaded from GPU
             self.w_q[i].grad.wont_use()
             # dQ[i] can be deleted
