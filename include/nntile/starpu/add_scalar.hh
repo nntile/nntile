@@ -30,7 +30,12 @@ namespace add_scalar
 template<typename T>
 struct args_t
 {
-    args_t(Index num_elements_, T alpha_, T beta_) : num_elements(num_elements_), alpha(alpha_), beta(beta_) {}
+    args_t(Index num_elements_, T alpha_, T beta_) :
+        num_elements(num_elements_),
+        alpha(alpha_),
+        beta(beta_) 
+        {
+        }
     Index num_elements;
     T alpha;
     T beta;

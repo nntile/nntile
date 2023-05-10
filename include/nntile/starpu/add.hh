@@ -30,7 +30,12 @@ namespace add
 template<typename T>
 struct args_t
 {
-    args_t(Index num_elements_, T alpha_, T beta_) : num_elements(num_elements_), alpha(alpha_), beta(beta_) {}
+    args_t(Index num_elements_, T alpha_, T beta_) :
+        num_elements(num_elements_),
+        alpha(alpha_),
+        beta(beta_) 
+        {
+        }
     Index num_elements;
     T alpha;
     T beta;
@@ -42,7 +47,7 @@ void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
-// Apply bias along middle axis of StarPU buffer on CUDA
+// Apply add of StarPU buffers on CUDA
 // template<typename T>
 // void cuda(void *buffers[], void *cl_args)
 //     noexcept;
