@@ -65,7 +65,9 @@ if(NNTILE_USE_CUDA)
         "kernel/scalprod/cuda.cu"
         "kernel/gelu_backward/cuda.cu"
         "kernel/gelutanh_backward/cuda.cu"
+        "kernel/fp32_to_fp16/cpu.cc"
         "kernel/fp32_to_fp16/cuda.cu"
+        "kernel/fp16_to_fp32/cpu.cc"
         "kernel/fp16_to_fp32/cuda.cu"
         )
 endif()

@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-05-04
+# @date 2023-05-09
 
 # Set list of headers
 set(BASE_HDR
@@ -101,7 +101,9 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/maxsumexp/cuda.hh"
         "nntile/kernel/softmax/cuda.hh"
         "nntile/kernel/scalprod/cuda.hh"
+        "nntile/kernel/fp32_to_fp16/cpu.hh"
         "nntile/kernel/fp32_to_fp16/cuda.hh"
+        "nntile/kernel/fp16_to_fp32/cpu.hh"
         "nntile/kernel/fp16_to_fp32/cuda.hh"
         )
 endif()

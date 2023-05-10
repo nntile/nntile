@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-05-04
+ * @date 2023-05-06
  * */
 
 #include <pybind11/pybind11.h>
@@ -460,8 +460,10 @@ void def_mod_tensor(py::module_ &m)
 
     m.def("clear_async_fp64", &clear_async<fp64_t>);
     m.def("clear_async_fp32", &clear_async<fp32_t>);
+    m.def("clear_async_fp16", &clear_async<fp16_t>);
     m.def("clear_fp64", &clear<fp64_t>);
     m.def("clear_fp32", &clear<fp32_t>);
+    m.def("clear_fp16", &clear<fp16_t>);
         
     m.def("axpy_async_fp64", py::overload_cast<fp64_t, const Tensor<fp64_t>&,
             const Tensor<fp64_t>&>(&axpy_async<fp64_t>));

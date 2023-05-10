@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-04
+ * @date 2023-05-09
  * */
 
 #include "nntile/starpu/fp32_to_fp16.hh"
@@ -22,23 +22,22 @@ namespace starpu
 namespace fp32_to_fp16
 {
 
-//! StarPU wrapper for kernel::fp32_to_fp16::cpu<T>
-//template<typename T>
-//void cpu(void *buffers[], void *cl_args)
-//    noexcept
-//{
-//    // Get arguments
-//    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
-//    // Get interfaces
-//    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-//    const T *src = interfaces[0]->get_ptr<T>();
-//    T *dst = interfaces[1]->get_ptr<T>();
-//    // Launch kernel
-//    kernel::fp32_to_fp16::cpu<T>(nelems, src, dst);
-//}
-
 #ifdef NNTILE_USE_CUDA
 //! StarPU wrapper for kernel::fp32_to_fp16::cpu<T>
+void cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const fp32_t *src = interfaces[0]->get_ptr<fp32_t>();
+    fp16_t *dst = interfaces[1]->get_ptr<fp16_t>();
+    // Launch kernel
+    kernel::fp32_to_fp16::cpu(nelems, src, dst);
+}
+
+//! StarPU wrapper for kernel::fp32_to_fp16::cuda<T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
@@ -61,10 +60,11 @@ void init()
 {
     codelet.init("nntile_fp32_to_fp16",
             nullptr,
-            {},
 #ifdef NNTILE_USE_CUDA
+            {cpu},
             {cuda}
 #else // NNTILE_USE_CUDA
+            {},
             {}
 #endif // NNTILE_USE_CUDA
             );

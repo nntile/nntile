@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-05-03
+# @date 2023-05-06
 
 # Imports
 import torch
@@ -26,7 +26,8 @@ import torchvision.transforms as trnsfrms
 #dataset = "imagenet"
 #dataset = "tiny_imagenet"
 dataset = "random"
-fp32_fast_fp16 = True
+fp32_fast_fp16 = False
+fp32_convert_fp16 = True
 deep_relu_mp = False # Do not enable it, under construction
 
 if dataset == "mnist":
@@ -120,8 +121,8 @@ elif dataset == "tiny_imagenet":
     n_pixels_tile = 4096
     n_classes = 200
 elif dataset == "random":
-    n_pixels = 64 * 64 * 3
-    train_size = 40960 * 2
+    n_pixels = 4096 * 3
+    train_size = 40960 * 3
     test_size = 4096 * 2
     batch_size = 40960
     n_classes = 4096
@@ -135,9 +136,9 @@ elif dataset == "random":
             torch.randint(n_classes, (test_size,)))
     test_loader = torch.utils.data.DataLoader(test_dataset, \
             batch_size=batch_size, shuffle=False, drop_last=True)
-    n_images_train_tile = 4096
-    n_images_test_tile = 4096
-    n_pixels_tile = 4096
+    n_images_train_tile = 4096 * 3
+    n_images_test_tile = 4096 * 3
+    n_pixels_tile = 4096 * 3
 else:
     raise ValueError("{} dataset is not supported yet!".format(dataset))
 
@@ -156,11 +157,12 @@ next_tag = 0
 
 # Describe neural network
 gemm_ndim = 1
-hidden_layer_dim = 4096 * 4
-hidden_layer_dim_tile = 4096
+hidden_layer_dim = 4096 * 6
+hidden_layer_dim_tile = 4096 * 6
 n_layers = 5
-n_epochs = 10
+n_epochs = 5
 lr = 1e-10
+n_heat_epochs = 4
 
 # Number of FLOPs for training per batch
 n_flops_train_first_layer = 2 * 2 * n_pixels * batch_size \
@@ -227,8 +229,10 @@ if deep_relu_mp:
     print("GEMM FP16")
 else:
     m = nntile.model.DeepReLU(x_moments, 'L', gemm_ndim, hidden_layer_dim, \
-            hidden_layer_dim_tile, n_layers, n_classes, next_tag, fp32_fast_fp16)
+            hidden_layer_dim_tile, n_layers, n_classes, next_tag, \
+            fp32_fast_fp16, fp32_convert_fp16)
     print("GEMM FP32_FAST_FP16: {}".format(m.fp32_fast_fp16))
+    print("GEMM FP32_CONVERT_FP16: {}".format(m.fp32_convert_fp16))
 next_tag = m.next_tag
 # Set up learning rate and optimizer for training
 optimizer = nntile.optimizer.SGD(m.get_parameters(), lr, next_tag, \
@@ -261,12 +265,13 @@ time0 += time.time()
 print("Finish random weights init in {} seconds".format(time0))
 
 # Run a some heat-up epochs to let StarPU allocate temp buffers and pin them
-n_heat_epochs = 2
 pipeline.n_epochs = n_heat_epochs
 print("Start {} heat-up epochs to let StarPU allocate and pin buffer" \
         .format(n_heat_epochs))
 time0 = -time.time()
+nntile.starpu.pause()
 pipeline.train_async()
+nntile.starpu.resume()
 nntile.starpu.wait_for_all()
 time0 += time.time()
 print("Finish {} heat-up epochs in {} seconds".format(n_heat_epochs, time0))
@@ -274,7 +279,9 @@ print("Finish {} heat-up epochs in {} seconds".format(n_heat_epochs, time0))
 ## Start timer and run training
 pipeline.n_epochs = n_epochs
 time0 = -time.time()
+nntile.starpu.pause()
 pipeline.train_async()
+nntile.starpu.resume()
 time0 += time.time()
 print("Finish adding tasks (computations are running) in {} seconds" \
         .format(time0))

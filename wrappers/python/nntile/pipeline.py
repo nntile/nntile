@@ -59,9 +59,13 @@ class Pipeline(object):
                 copy_async(y_batch, self.loss.y)
                 # Zero out gradients of all weights and activations
                 for t in self.model.activations:
-                    clear_async(t.grad)
+                    if t.grad is not None:
+                        clear_async(t.grad)
+                        t.grad.wont_use()
                 for t in self.model.parameters:
-                    clear_async(t.grad)
+                    if t.grad is not None:
+                        clear_async(t.grad)
+                        t.grad.wont_use()
                 # Loss function shall be instatiated to read X from
                 # activations[-1].value of the model and write gradient into
                 # activations[-1].grad

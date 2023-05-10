@@ -9,12 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-04
+ * @date 2023-05-06
  * */
 
 #pragma once
 
-#include <bitset>
+#include <cstdint>
 
 namespace nntile
 {
@@ -27,8 +27,12 @@ using Index = int64_t;
 using fp64_t = double;
 //! Single precision alias
 using fp32_t = float;
-//! Half precision (forward declaration without definition)
-using fp16_t = std::bitset<16>;
+//! Half precision FP16 mock type
+class fp16_t
+{
+private:
+    int16_t _;
+};
 
 // Add more types like fp16_t, bf16_t and tf32_t in the future
 

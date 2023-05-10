@@ -63,7 +63,8 @@ void init()
 {
     codelet.init("nntile_clear",
             nullptr,
-            {cpu},
+            //{cpu},
+            {},
 #ifdef NNTILE_USE_CUDA
             {cuda}
 #else // NNTILE_USE_CUDA

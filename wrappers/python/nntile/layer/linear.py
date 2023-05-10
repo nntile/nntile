@@ -13,8 +13,9 @@
 
 import nntile
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        TransOp, trans, notrans, copy_async, gemm_async, gemm_ex_async, \
-        randn_async
+        TransOp, trans, notrans, Tensor_fp16, copy_async, gemm_async, \
+        gemm_ex_async, randn_async
+from nntile.nntile_core.tensor import fp32_to_fp16_async, fp16_to_fp32_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List, Optional
@@ -40,9 +41,9 @@ class Linear(BaseLayer):
             #b: TensorMoments, b_axis: int, # No bias as of now \
             fp32_fast_fp16: bool = False, \
             fp32_convert_fp16: bool = False, \
-            x_fp16: Optional[TensorMoments], \
-            w_fp16: Optional[TensorMoments], \
-            y_fp16: Optional[TensorMoments]):
+            x_fp16: Optional[TensorMoments] = None, \
+            w_fp16: Optional[TensorMoments] = None, \
+            y_fp16: Optional[TensorMoments] = None):
         # Check parameter side
         if side != 'L' and side != 'R':
             raise ValueError("side must be either 'L' or 'R'")
@@ -126,8 +127,10 @@ class Linear(BaseLayer):
         if fp32_fast_fp16:
             fp32_convert_fp16 = False
         if fp32_convert_fp16:
+            x_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
+            x_distr = x.value.distribution
             x_fp16_value = Tensor_fp16(x_traits, x_distr, next_tag)
-            next_tag = w_fp16_value.next_tag
+            next_tag = x_fp16_value.next_tag
             x_fp16_grad = Tensor_fp16(x_traits, x_distr, next_tag)
             next_tag = x_fp16_grad.next_tag
             x_fp16 = TensorMoments(x_fp16_value, x_fp16_grad, True)
@@ -185,12 +188,17 @@ class Linear(BaseLayer):
             else:
                 gemm_async(1.0, notrans, self.w.value, self.trans_x, \
                         self.x.value, 0.0, self.y.value, self.ndim, 0)
-        # Convert fp16 to fp32 if needed
+        # Convert fp16 to fp32 if needed and offload data
         if self.fp32_convert_fp16:
-            fp16_to_fp32(self.y_fp16.value, self.y.value)
+            fp16_to_fp32_async(self.y_fp16.value, self.y.value)
+            self.x_fp16.value.wont_use()
+            self.w_fp16.value.wont_use()
+            self.y_fp16.value.wont_use()
         # Hint for StarPU that W tensor will
         # not be used soon and it is advised to offload data from GPU
-        #self.w.value.wont_use()
+        self.w.value.wont_use()
+        self.x.value.wont_use()
+        self.y.value.wont_use()
 
     # Backward propagation of the linear layer
     def backward_async(self):
@@ -259,11 +267,13 @@ class Linear(BaseLayer):
                     else:
                         gemm_async(1.0, notrans, self.y.grad, notrans, \
                                 self.x.value, 1.0, self.w.grad, gemm_ndim, 0)
-            # Convert fp16 to fp32 if needed
+            # Convert fp16 to fp32 if needed and offload data
             if self.fp32_convert_fp16:
                 fp16_to_fp32_async(self.w_fp16.grad, self.w.grad)
+                self.x_fp16.value.wont_use()
+                self.w_fp16.grad.wont_use()
             # Hint StarPU to offload gradient over W if needed
-            #self.w.grad.wont_use()
+            self.w.grad.wont_use()
         # Gradient over X (input)
         if self.x.grad_required:
             # Convert fp32 to fp16 if needed
@@ -330,9 +340,15 @@ class Linear(BaseLayer):
                     else:
                         gemm_async(1.0, trans, self.y.grad, notrans, \
                                 self.w.value, 1.0, self.x.grad, gemm_ndim, 0)
-            # Convert fp16 to fp32 if needed
+            # Convert fp16 to fp32 if needed and offload data
             if self.fp32_convert_fp16:
                 fp16_to_fp32_async(self.x_fp16.grad, self.x.grad)
+                self.x_fp16.grad.wont_use()
+                self.w_fp16.value.wont_use()
             # Hint StarPU to offload certain buffers
-            #self.w.value.wont_use()
+            self.x.grad.wont_use()
+        self.x.value.wont_use()
+        self.y.value.wont_use()
+        self.y.grad.wont_use()
+        self.w.value.wont_use()
 

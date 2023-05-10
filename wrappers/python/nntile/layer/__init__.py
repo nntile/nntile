@@ -9,10 +9,9 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-05-04
+# @date 2023-05-07
 
 from .base_layer import BaseLayer
-from .norm import Norm
 from .act import Act
 from .linear import Linear
 from .attention import Attention

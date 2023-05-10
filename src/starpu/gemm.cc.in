@@ -350,7 +350,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
     codelet_NN_fp16.init("nntile_gemm_NN_fp16",
-            footprint<fp32_t>, // Scalara are fp32_t
+            footprint<fp32_t>, // Scalars are fp32_t
             {},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp16_t, fp32_t>}
@@ -358,8 +358,8 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_NN_fp16.init("nntile_gemm_NT_fp16",
-            footprint<fp32_t>, // Scalara are fp32_t
+    codelet_NT_fp16.init("nntile_gemm_NT_fp16",
+            footprint<fp32_t>, // Scalars are fp32_t
             {},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp16_t, fp32_t>}
@@ -367,8 +367,8 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_NN_fp16.init("nntile_gemm_TN_fp16",
-            footprint<fp32_t>, // Scalara are fp32_t
+    codelet_TN_fp16.init("nntile_gemm_TN_fp16",
+            footprint<fp32_t>, // Scalars are fp32_t
             {},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp16_t, fp32_t>}
@@ -376,8 +376,8 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_NN_fp16.init("nntile_gemm_TT_fp16",
-            footprint<fp32_t>, // Scalara are fp32_t
+    codelet_TT_fp16.init("nntile_gemm_TT_fp16",
+            footprint<fp32_t>, // Scalars are fp32_t
             {},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp16_t, fp32_t>}
