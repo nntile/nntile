@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-04-18
+# @date 2023-05-11
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         copy_async, axpy_async, nrm2_async, prod_async, scal_async
@@ -29,6 +29,12 @@ class Frob:
         self.val_sqrt = val_sqrt
         self.val = val
         self.tmp = tmp
+
+    def unregister(self):
+        self.y.unregister()
+        self.val_sqrt.unregister()
+        self.val.unregister()
+        self.tmp.unregister()
 
     # Simple geenrator
     @staticmethod

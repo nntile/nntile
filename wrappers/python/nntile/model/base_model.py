@@ -9,9 +9,10 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-05-10
+# @date 2023-05-11
 
-from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments
+from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
+        clear_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -49,10 +50,10 @@ class BaseModel:
     # Clear gradients of activations and parameters
     def clear_gradients(self):
         for t in self.activations:
-            if t.grad is not None and t.requires_grad:
+            if t.grad is not None and t.grad_required:
                 clear_async(t.grad)
         for t in self.parameters:
-            if t.grad is not None and t.requires_grad:
+            if t.grad is not None and t.grad_required:
                 clear_async(t.grad)
 
     # Unregister all tensors related to this model

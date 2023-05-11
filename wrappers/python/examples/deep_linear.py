@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-02-21
+# @date 2023-05-11
 
 # Imports
 import nntile
@@ -38,7 +38,7 @@ gemm_ndim = 1
 hidden_layer_dim = 128 # Rank of approximation
 hidden_layer_dim_tile = 128
 nlayers = 2 # U V^T
-n_epochs = 1000
+n_epochs = 10
 # Number of FLOPs for 2 layers only
 n_flops = n_epochs * 2 * hidden_layer_dim * (3*n_rows+2*n_cols) * batch_size \
         * n_batches
@@ -85,9 +85,9 @@ m = nntile.model.DeepLinear(x_moments, 'R', gemm_ndim, hidden_layer_dim,
 next_tag = m.next_tag
 
 # Set up learning rate and optimizer for training
-optimizer = opt.SGD(m.get_parameters(), lr, next_tag, momentum=0.9,
-        nesterov=False, weight_decay=1e-6)
-# optimizer = opt.Adam(m.get_parameters(), lr, next_tag)
+#optimizer = opt.SGD(m.get_parameters(), lr, next_tag, momentum=0.9,
+#        nesterov=False, weight_decay=1e-6)
+optimizer = opt.Adam(m.get_parameters(), lr, next_tag)
 next_tag = optimizer.get_next_tag()
 
 # Set up Frobenius loss function for the model
@@ -95,7 +95,7 @@ frob, next_tag = nntile.loss.Frob.generate_simple(m.activations[-1], next_tag)
 
 # Set up training pipeline
 pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, m, optimizer,
-        frob, n_epochs, lr)
+        frob, n_epochs)
 
 for i in range(n_batches):
     # Generate input and output batches
@@ -162,9 +162,7 @@ m.unregister()
 optimizer.unregister()
 
 # Unregister loss function
-frob.y.unregister()
-frob.val.unregister()
-frob.tmp.unregister()
+frob.unregister()
 
 # Unregister input/output batches
 for x in batch_input:
