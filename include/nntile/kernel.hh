@@ -11,12 +11,15 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-04-04
+ * @date 2023-05-08
  * */
 
 #pragma once
 
-#include <nntile/kernel/bias.hh>
+#include <nntile/kernel/add_slice.hh>
+#include <nntile/kernel/add_fiber.hh>
+#include <nntile/kernel/prod_slice.hh>
+#include <nntile/kernel/prod_fiber.hh>
 #include <nntile/kernel/gelu.hh>
 #include <nntile/kernel/gelutanh.hh>
 #include <nntile/kernel/dgelu.hh>
@@ -30,18 +33,27 @@
 #include <nntile/kernel/relu_backward.hh>
 #include <nntile/kernel/subcopy.hh>
 #include <nntile/kernel/sumnorm.hh>
-#include <nntile/kernel/sum.hh>
+#include <nntile/kernel/fill.hh>
+#include <nntile/kernel/sum_slice.hh>
+#include <nntile/kernel/sum_fiber.hh>
+#include <nntile/kernel/norm_slice.hh>
+#include <nntile/kernel/pow.hh>
 #include <nntile/kernel/maxsumexp.hh>
 #include <nntile/kernel/softmax.hh>
 #include <nntile/kernel/sqrt.hh>
 #include <nntile/kernel/maximum.hh>
 #include <nntile/kernel/addcdiv.hh>
-#include <nntile/kernel/scalprod.hh>
+#include <nntile/kernel/sumprod_slice.hh>
+#include <nntile/kernel/sumprod_fiber.hh>
 #include <nntile/kernel/logsumexp.hh>
 #include <nntile/kernel/total_sum_accum.hh>
 #include <nntile/kernel/subtract_indexed_column.hh>
 #include <nntile/kernel/gelu_backward.hh>
 #include <nntile/kernel/gelutanh_backward.hh>
+#include <nntile/kernel/add.hh>
+#include <nntile/kernel/add_scalar.hh>
+#include <nntile/kernel/embedding.hh>
+#include <nntile/kernel/embedding_backward.hh>
 
 namespace nntile
 {

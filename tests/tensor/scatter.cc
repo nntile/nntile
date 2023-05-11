@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-03
+ * @date 2023-05-02
  * */
 
 #include "nntile/tensor/scatter.hh"
@@ -34,7 +34,7 @@ void check(const std::vector<Index> &shape,
                  dst_traits(shape, dst_basetile);
     // Distributions for source and destination tiles
     Index dst_ntiles = dst_traits.grid.nelems;
-    std::vector<int> src_distr(1), dst_distr(dst_ntiles);
+    std::vector<int> src_distr{0}, dst_distr(dst_ntiles);
     for(Index i = 0; i < dst_ntiles; ++i)
     {
         dst_distr[i] = (i+1) % mpi_size;

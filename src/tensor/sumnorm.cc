@@ -1,15 +1,15 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/tensor/sumnorm.cc
- * Sum and Euclidian norm of Tensor<T> along axis
+ * Sum and Euclidean norm of Tensor<T> along axis
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-01
+ * @date 2023-05-05
  * */
 
 #include "nntile/tensor/sumnorm.hh"
@@ -21,7 +21,7 @@ namespace nntile
 namespace tensor
 {
 
-//! Compute sum of elements and Euclidian norm of slices along given axis
+//! Compute sum of elements and Euclidean norm of slices along given axis
 template<typename T>
 void sumnorm_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
 {
@@ -118,24 +118,9 @@ void sumnorm_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
                 // Get sizes
                 auto src_tile_traits = src.get_tile_traits(src_tile_offset);
                 Index m, n, k;
-                if(axis == 0)
-                {
-                    m = 1;
-                    n = dst_tile_traits.nelems / 2;
-                    k = src_tile_traits.shape[0];
-                }
-                else if(axis == ndim-1)
-                {
-                    m = dst_tile_traits.nelems / 2;
-                    n = 1;
-                    k = src_tile_traits.shape[axis];
-                }
-                else
-                {
-                    m = src_tile_traits.stride[axis];
-                    n = src_tile_traits.matrix_shape[axis+1][1];
-                    k = src_tile_traits.shape[axis];
-                }
+                m = src_tile_traits.stride[axis];
+                n = src_tile_traits.matrix_shape[axis+1][1];
+                k = src_tile_traits.shape[axis];
                 // Insert task
                 starpu::sumnorm::submit<T>(m, n, k, src_tile_handle,
                         dst_tile_handle);

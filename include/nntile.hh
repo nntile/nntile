@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-04-22
+ * @date 2023-04-14
  * */
 
 #pragma once
@@ -19,6 +19,9 @@
 
 // Constants (e.g., transposition for gemm)
 #include <nntile/constants.hh>
+
+// Kernel-level operations
+#include <nntile/kernel.hh>
 
 // StarPU init/deinit and data handles
 #include <nntile/starpu.hh>
@@ -30,5 +33,5 @@
 #include <nntile/tensor.hh>
 
 // Layers
-#include <nntile/layer.hh>
+//#include <nntile/layer.hh>
 

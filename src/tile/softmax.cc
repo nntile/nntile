@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-12
+ * @date 2023-04-20
  * */
 
 #include "nntile/tile/softmax.hh"
@@ -64,24 +64,9 @@ void softmax_async(const Tile<T> &maxsumexp, const Tile<T> &dst, Index axis)
     // Reshape inputs for simplicity: maxsumexp -> (2,m,n), dst -> (m,k,n)
     // dst is a part of (m,l,n) tensor
     Index m, n, k;
-    if(axis == 0)
-    {
-        m = 1;
-        n = maxsumexp.nelems / 2; // 2 elements per single n
-        k = dst.shape[0];
-    }
-    else if(axis == dst.ndim-1)
-    {
-        m = maxsumexp.nelems / 2; // 2 elements per single m
-        n = 1;
-        k = dst.shape[axis];
-    }
-    else
-    {
-        m = dst.stride[axis];
-        n = dst.matrix_shape[axis+1][1];
-        k = dst.shape[axis];
-    }
+    m = dst.stride[axis];
+    n = dst.matrix_shape[axis+1][1];
+    k = dst.shape[axis];
     // Insert task
     starpu::softmax::submit<T>(m, n, k, maxsumexp, dst);
 }

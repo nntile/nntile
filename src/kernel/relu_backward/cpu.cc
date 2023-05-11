@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-04
+ * @date 2023-04-20
  * */
 
 #include "nntile/kernel/relu_backward/cpu.hh"
@@ -27,12 +27,12 @@ void cpu(Index nelems, const T *x, const T *dy, T *dx)
     noexcept
 //! Backward ReLU operation on CPU
 /*! Does the following per-element operation:
- * backward_ReLU(x, dy) = dy if x > 0 and 0 otherwise
+ * dx[i] = dx[i] + dy[i]*ReLU'(x[i])
  *
  * @params[in] nelems: Number of elements in a buffer
  * @params[in] x: Input value for forward ReLU
  * @params[in] dy: Gradient over output of forward ReLU
- * @params[out] dx: Gradient over input of forward ReLU
+ * @params[inout] dx: Gradient over input of forward ReLU
  * */
 {
     constexpr T zero = 0;
@@ -40,11 +40,7 @@ void cpu(Index nelems, const T *x, const T *dy, T *dx)
     {
         if(x[i] > zero)
         {
-            dx[i] = dy[i];
-        }
-        else
-        {
-            dx[i] = zero;
+            dx[i] += dy[i];
         }
     }
 }

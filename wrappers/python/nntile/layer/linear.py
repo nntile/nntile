@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-03-28
+# @date 2023-04-20
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, copy_async, gemm_async, randn_async
@@ -141,10 +141,10 @@ class Linear(BaseLayer):
                 # 'k' is a multi-index of dimension W.ndim-ndim
                 if self.trans_x == notrans:
                     gemm_async(1.0, trans, self.x.value, notrans, \
-                            self.y.grad, 0.0, self.w.grad, gemm_ndim, 0)
+                            self.y.grad, 1.0, self.w.grad, gemm_ndim, 0)
                 else:
                     gemm_async(1.0, notrans, self.x.value, notrans, \
-                            self.y.grad, 0.0, self.w.grad, gemm_ndim, 0)
+                            self.y.grad, 1.0, self.w.grad, gemm_ndim, 0)
             else:
                 # Backward for Y = einsum('ij,jk->ik', W, op(X))
                 # dW = einsum('ik,jk->ij', dY, op(X))
@@ -153,10 +153,10 @@ class Linear(BaseLayer):
                 # 'k' is a multi-index of dimension X.ndim-ndim
                 if self.trans_x == notrans:
                     gemm_async(1.0, notrans, self.y.grad, trans, \
-                            self.x.value, 0.0, self.w.grad, gemm_ndim, 0)
+                            self.x.value, 1.0, self.w.grad, gemm_ndim, 0)
                 else:
                     gemm_async(1.0, notrans, self.y.grad, notrans, \
-                            self.x.value, 0.0, self.w.grad, gemm_ndim, 0)
+                            self.x.value, 1.0, self.w.grad, gemm_ndim, 0)
             # Hint StarPU to offload gradient over W if needed
             self.w.grad.wont_use()
         # Gradient over X (input)
@@ -171,11 +171,11 @@ class Linear(BaseLayer):
                 if self.trans_x == notrans:
                     # dX = einsum('ik,jk->ij', dY, W)
                     gemm_async(1.0, notrans, self.y.grad, trans, self.w.value,
-                            0.0, self.x.grad, gemm_ndim, 0)
+                            1.0, self.x.grad, gemm_ndim, 0)
                 else:
                     # dX = einsum('ik,jk->ij', W, dY)
                     gemm_async(1.0, notrans, self.w.value, trans, self.y.grad,
-                            0.0, self.x.grad, gemm_ndim, 0)
+                            1.0, self.x.grad, gemm_ndim, 0)
             else:
                 # Backward for Y = einsum('ij,jk->ik', W, op(X))
                 # d op(X) = einsum('ij,ik->jk', W, dY)
@@ -185,11 +185,11 @@ class Linear(BaseLayer):
                 if self.trans_x == notrans:
                     # dX = einsum('ij,ik->jk', W, dY)
                     gemm_async(1.0, trans, self.w.value, notrans, self.y.grad,
-                            0.0, self.x.grad, gemm_ndim, 0)
+                            1.0, self.x.grad, gemm_ndim, 0)
                 else:
                     # dX = einsum('ij,ik->jk', dY, W)
                     gemm_async(1.0, trans, self.y.grad, notrans, self.w.value,
-                            0.0, self.x.grad, gemm_ndim, 0)
+                            1.0, self.x.grad, gemm_ndim, 0)
             # Hint StarPU to offload certain buffers
             self.w.value.wont_use()
 

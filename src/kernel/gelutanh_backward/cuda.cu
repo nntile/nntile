@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-04-05
+ * @date 2023-04-20
  * */
 
 #include "nntile/kernel/gelutanh_backward/cuda.hh"
@@ -41,14 +41,10 @@ void cuda_kernel(Index nelems, const T *x, const T *dy, T *dx)
         T y1 = z * (f3 + f4*z2);
         T y2 = z * (f3 + f5*z2);
         T expy1 = exp(y1);
-        if(isinf(expy1))
-        {
-            dx[i] = zero;
-        }
-        else
+        if(not isinf(expy1))
         {
             T inv_expy1p1 = one / (expy1 + one);
-            dx[i] = (one-y2*(one-inv_expy1p1)) * inv_expy1p1 * dy[i];
+            dx[i] += (one-y2*(one-inv_expy1p1)) * inv_expy1p1 * dy[i];
         }
     }
 }
@@ -58,12 +54,13 @@ void cuda(cudaStream_t stream, Index nelems, const T *x, const T *dy, T *dx)
     noexcept
 //! Backward approximate GeLU operation on CUDA
 /*! Does the following per-element operation:
- * backward_GeLU(x, dy) = GeLU'(x) * dy elementwise
+ * dx[i] = dx[i] + dy[i]*GeLUtanh'(x[i])
+ * GeLUtanh'(z) = (1-(zf'(z)-1)exp(f(z))) / (1+exp(f(z)))^2
  *
  * @params[in] nelems: Number of elements in a buffer
  * @params[in] x: Input value for forward GeLU
  * @params[in] dy: Gradient over output of forward GeLU
- * @params[out] dx: Gradient over input of forward GeLU
+ * @params[inout] dx: Gradient over input of forward GeLU
  * */
 {
     dim3 blocks(256), threads(32);

@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-02
+ * @date 2023-04-18
  * */
 
 #include "nntile/tensor/nrm2.hh"
@@ -21,6 +21,7 @@
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/starpu/clear.hh"
+#include "nntile/starpu/scal.hh"
 #include "../testing.hh"
 #include <limits>
 
@@ -72,11 +73,24 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     TensorTraits dst_traits({}, {});
     Tensor<T> dst(dst_traits, dist_root, last_tag);
     Tensor<T> dst2(dst_traits, dist_root, last_tag);
-    // Perform tensor-wise and tile-wise nrm2 operations
-    nrm2<T>(src, dst, tmp);
     if(mpi_rank == mpi_root)
     {
-        tile::nrm2<T>(src_single.get_tile(0), dst2.get_tile(0));
+        T dst_init = 1.54;
+        auto dst_tile = dst.get_tile(0).acquire(STARPU_W);
+        auto dst2_tile = dst2.get_tile(0).acquire(STARPU_W);
+        dst_tile[0] = dst_init;
+        dst2_tile[0] = dst_init;
+        dst_tile.release();
+        dst2_tile.release();
+    }
+    // Perform tensor-wise and tile-wise nrm2 operations
+    T alpha = -3.1, beta = 0.67;
+    nrm2<T>(alpha, src, beta, dst, tmp);
+    if(mpi_rank == mpi_root)
+    {
+        tile::Tile<T> tmp_single({});
+        tile::nrm2<T>(alpha, src_single.get_tile(0), beta, dst2.get_tile(0),
+                tmp_single);
     }
     // Compare results
     if(mpi_rank == mpi_root)
@@ -113,10 +127,12 @@ int main(int argc, char **argv)
     starpu::hypot::init();
     starpu::subcopy::init();
     starpu::clear::init();
+    starpu::scal::init();
     starpu::nrm2::restrict_where(STARPU_CPU);
     starpu::hypot::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
     starpu::clear::restrict_where(STARPU_CPU);
+    starpu::scal::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
