@@ -139,8 +139,10 @@ int main(int argc, char **argv)
     // Init codelet
     add_slice::init();
     // Launch all tests
+    // Bias for middle axis
     validate_cpu<fp32_t>(3, 5, 7);
     validate_cpu<fp64_t>(3, 5, 7);
+
 #ifdef NNTILE_USE_CUDA
     validate_cuda<fp32_t>(3, 5, 7);
     validate_cuda<fp64_t>(3, 5, 7);

@@ -120,6 +120,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
 template<typename T>
 void validate()
 {
+    // Bias along the given axis
     check<T>({11}, {5}, 0);
     check<T>({11, 12}, {5, 6}, 0);
     check<T>({11, 12}, {5, 6}, 1);
@@ -128,6 +129,7 @@ void validate()
     check<T>({11, 12, 13}, {5, 6, 5}, 2);
     check<T>({1000, 1000}, {450, 450}, 0);
     check<T>({1000, 1000}, {450, 450}, 1);
+
     // Sync to guarantee old data tags are cleaned up and can be reused
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions

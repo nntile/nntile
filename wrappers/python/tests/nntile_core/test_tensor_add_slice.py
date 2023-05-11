@@ -28,7 +28,7 @@ add_slice = {np.float32: nntile.nntile_core.tensor.add_slice_fp32, \
         np.float64: nntile.nntile_core.tensor.add_slice_fp64}
 
 # Helper function returns bool value true if test passes
-def helper(dtype):
+def helper_axis(dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [2, 3, 4]
     B_shape = []
@@ -78,12 +78,12 @@ def helper(dtype):
 # Test runner for different precisions
 def test():
     for dtype in dtypes:
-        assert helper(dtype)
+        assert helper_axis(dtype)
 
 # Repeat tests
 def test_repeat():
     for dtype in dtypes:
-        assert helper(dtype)
+        assert helper_axis(dtype)
 
 if __name__ == "__main__":
     test()

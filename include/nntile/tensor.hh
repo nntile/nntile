@@ -65,6 +65,8 @@
 #include <nntile/tensor/scal.hh>
 #include <nntile/tensor/gelu_backward.hh>
 #include <nntile/tensor/gelutanh_backward.hh>
+#include <nntile/tensor/add.hh>
+#include <nntile/tensor/add_scalar.hh>
 #include <nntile/tensor/embedding.hh>
 #include <nntile/tensor/embedding_backward.hh>
 #include <nntile/tensor/fp32_to_fp16.hh>

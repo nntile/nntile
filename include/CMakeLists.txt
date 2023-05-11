@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-05-10
+# @date 2023-05-11
 
 # Set list of headers
 set(BASE_HDR
@@ -92,6 +92,10 @@ set(KERNEL_HDR
     "nntile/kernel/gelu_backward/cpu.hh"
     "nntile/kernel/gelutanh_backward.hh"
     "nntile/kernel/gelutanh_backward/cpu.hh"
+    "nntile/kernel/add.hh"
+    "nntile/kernel/add/cpu.hh"
+    "nntile/kernel/add_scalar.hh"
+    "nntile/kernel/add_scalar/cpu.hh"
     "nntile/kernel/embedding.hh"
     "nntile/kernel/embedding/cpu.hh"
     "nntile/kernel/embedding_backward.hh"
@@ -176,6 +180,8 @@ set(STARPU_HDR
     "nntile/starpu/scal.hh"
     "nntile/starpu/gelu_backward.hh"
     "nntile/starpu/gelutanh_backward.hh"
+    "nntile/starpu/add.hh"
+    "nntile/starpu/add_scalar.hh"
     "nntile/starpu/embedding.hh"
     "nntile/starpu/embedding_backward.hh"
     "nntile/starpu/fp32_to_fp16.hh"
@@ -227,6 +233,8 @@ set(TILE_HDR
     "nntile/tile/scal.hh"
     "nntile/tile/gelu_backward.hh"
     "nntile/tile/gelutanh_backward.hh"
+    "nntile/tile/add.hh"
+    "nntile/tile/add_scalar.hh"
     "nntile/tile/fp32_to_fp16.hh"
     "nntile/tile/fp16_to_fp32.hh"
     )
@@ -279,6 +287,8 @@ set(TENSOR_HDR
     "nntile/tensor/scal.hh"
     "nntile/tensor/gelu_backward.hh"
     "nntile/tensor/gelutanh_backward.hh"
+    "nntile/tensor/add.hh"
+    "nntile/tensor/add_scalar.hh"
     "nntile/tensor/embedding.hh"
     "nntile/tensor/embedding_backward.hh"
     "nntile/tensor/fp32_to_fp16.hh"

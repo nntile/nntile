@@ -139,6 +139,7 @@ int main(int argc, char **argv)
     validate<fp64_t>(8, 9, 1);
     validate<fp64_t>(8, 1, 10);
     validate<fp64_t>(4, 7, 8);
+
     return 0;
 }
 

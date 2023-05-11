@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-05-10
+ * @date 2023-05-11
  * */
 
 #include <pybind11/pybind11.h>
@@ -464,6 +464,16 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_slice_async_fp32", &add_slice_async<fp32_t>);
     m.def("add_slice_fp64", &add_slice<fp64_t>);
     m.def("add_slice_fp32", &add_slice<fp32_t>);
+
+    m.def("add_async_fp64", &add_async<fp64_t>);
+    m.def("add_async_fp32", &add_async<fp32_t>);
+    m.def("add_fp64", &add<fp64_t>);
+    m.def("add_fp32", &add<fp32_t>);
+
+    m.def("add_scalar_async_fp64", &add_scalar_async<fp64_t>);
+    m.def("add_scalar_async_fp32", &add_scalar_async<fp32_t>);
+    m.def("add_scalar_fp64", &add_scalar<fp64_t>);
+    m.def("add_scalar_fp32", &add_scalar<fp32_t>);
 
     m.def("add_fiber_async_fp64", &add_fiber_async<fp64_t>);
     m.def("add_fiber_async_fp32", &add_fiber_async<fp32_t>);

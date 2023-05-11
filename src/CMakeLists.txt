@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-05-04
+# @date 2023-05-11
 
 # Set list of sources
 set(KERNEL_SRC
@@ -50,6 +50,8 @@ set(KERNEL_SRC
     "kernel/subtract_indexed_column/cpu.cc"
     "kernel/gelu_backward/cpu.cc"
     "kernel/gelutanh_backward/cpu.cc"
+    "kernel/add/cpu.cc"
+    "kernel/add_scalar/cpu.cc"
     "kernel/embedding/cpu.cc"
     "kernel/embedding_backward/cpu.cc"
     )
@@ -129,6 +131,8 @@ set(STARPU_SRC
     "starpu/subtract_indexed_column.cc"
     "starpu/gelu_backward.cc"
     "starpu/gelutanh_backward.cc"
+    "starpu/add.cc"
+    "starpu/add_scalar.cc"
     "starpu/embedding.cc"
     "starpu/embedding_backward.cc"
     "starpu/fp32_to_fp16.cc"
@@ -178,6 +182,8 @@ set(TILE_SRC
     "tile/scal.cc"
     "tile/gelu_backward.cc"
     "tile/gelutanh_backward.cc"
+    "tile/add.cc"
+    "tile/add_scalar.cc"
     "tile/fp32_to_fp16.cc"
     "tile/fp16_to_fp32.cc"
     )
@@ -228,6 +234,8 @@ set(TENSOR_SRC
     "tensor/scal.cc"
     "tensor/gelu_backward.cc"
     "tensor/gelutanh_backward.cc"
+    "tensor/add.cc"
+    "tensor/add_scalar.cc"
     "tensor/embedding.cc"
     "tensor/embedding_backward.cc"
     "tensor/fp32_to_fp16.cc"
