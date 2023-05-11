@@ -94,7 +94,6 @@ set(STARPU_SRC
     "starpu/prod_slice.cc"
     "starpu/prod_fiber.cc"
     "starpu/clear.cc"
-    "starpu/copy.cc"
     "starpu/dgelu.cc"
     "starpu/dgelutanh.cc"
     "starpu/drelu.cc"

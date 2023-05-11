@@ -144,7 +144,6 @@ set(STARPU_HDR
     "nntile/starpu/prod_slice.hh"
     "nntile/starpu/prod_fiber.hh"
     "nntile/starpu/clear.hh"
-    "nntile/starpu/copy.hh"
     "nntile/starpu/dgelu.hh"
     "nntile/starpu/dgelutanh.hh"
     "nntile/starpu/drelu.hh"

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-05-11
  * */
 
 #include "nntile/starpu/relu_backward.hh"
@@ -65,8 +65,7 @@ void init()
 {
     codelet_fp32.init("nntile_relu_backward_fp32",
             nullptr,
-            //{cpu<fp32_t>}, // Disabled to enforce ReLU on GPU
-            {},
+            {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
@@ -75,8 +74,7 @@ void init()
             );
     codelet_fp64.init("nntile_relu_backward_fp64",
             nullptr,
-            //{cpu<fp64_t>}, // Disabled to enforce ReLU on GPU
-            {},
+            {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp64_t>}
 #else // NNTILE_USE_CUDA
