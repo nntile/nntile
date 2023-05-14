@@ -20,12 +20,12 @@ os.environ["CUDA_VISIBLE_DEVICES"]="5" # change 0  with whatever card is availab
 
 
 class ToyFC_SkipConnectionTorch(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, input_dim, hidden_dim):
         super().__init__()
-        self.lin1 = nn.Linear(dim, dim, bias=False)
+        self.lin1 = nn.Linear(input_dim, hidden_dim, bias=False)
         self.act = nn.ReLU()
-        self.lin2 = nn.Linear(dim, dim, bias=False)
-        self.lin3 = nn.Linear(dim, dim, bias=False)
+        self.lin2 = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        self.lin3 = nn.Linear(hidden_dim, input_dim, bias=False)
 
     def forward(self, x):
         x = self.lin1(x)
@@ -37,10 +37,11 @@ class ToyFC_SkipConnectionTorch(nn.Module):
         return u
     
 
-n = 10
+n = 100
+hidden_dim = 50
 num_samples = 1000
 torch_input = torch.randn(num_samples, n)
-torch_model = ToyFC_SkipConnectionTorch(n)
+torch_model = ToyFC_SkipConnectionTorch(n, hidden_dim)
 torch_output = torch_model(torch_input)
 torch_loss = 0.5 * torch.sum(torch.square(torch_output))
 torch_loss.backward()
@@ -80,7 +81,7 @@ class ToyFC_SkipConnection(BaseModel):
         activations.extend(new_layer.activations_output)
 
         new_layer, next_tag = Linear.generate_simple_mpiroot(activations[-1], "L", notrans,
-                1, [hidden_dim], [hidden_dim], next_tag)
+                1, [x.value.shape[1]], [x.value.shape[1]], next_tag)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         self.next_tag = next_tag
@@ -88,12 +89,12 @@ class ToyFC_SkipConnection(BaseModel):
         super().__init__(activations, layers)
 
     @staticmethod
-    def from_torch(torch_model, input_moment, next_tag: int):
+    def from_torch(torch_model, input_moment, hidden_dim, next_tag: int):
         '''
         torch_mlp is PyTorch MLP where all intermediate dimensions are the same and no biases in linear layers
         '''
         print("Call from torch static method")
-        nntile_model = ToyFC_SkipConnection(input_moment, input_moment.value.shape[1], next_tag)
+        nntile_model = ToyFC_SkipConnection(input_moment, hidden_dim, next_tag)
         for p, p_torch in zip(nntile_model.parameters, torch_model.parameters()):
             p.value.from_array(p_torch.detach().numpy().T)
         return nntile_model, nntile_model.next_tag
@@ -112,7 +113,8 @@ nntile_input = Tensor_fp32(x_traits, x_distr, next_tag)
 nntile_input.from_array(torch_input.numpy())
 next_tag = nntile_input.next_tag
 nntile_input_moment = TensorMoments(nntile_input, None, False)
-nntile_model, next_tag = ToyFC_SkipConnection.from_torch(torch_model, nntile_input_moment, next_tag)
+nntile_model, next_tag = ToyFC_SkipConnection.from_torch(torch_model, nntile_input_moment,
+                                                         hidden_dim, next_tag)
 nntile_model.clear_gradients()
 nntile_model.forward_async()
 fro_loss, next_tag = nntile.loss.Frob.generate_simple(nntile_model.activations[-1], next_tag)
