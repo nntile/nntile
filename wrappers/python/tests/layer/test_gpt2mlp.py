@@ -10,6 +10,10 @@ from typing import Optional, Tuple
 from huggingface_activations import ACT2FN
 from gpt2_config import GPT2Config
 
+import os
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"  
+os.environ["CUDA_VISIBLE_DEVICES"]="5" # change 0  with whatever card is available
+
 batch_size = 100
 
 
@@ -102,6 +106,7 @@ print("Create model...")
 gpt2mlp_nntile, next_tag = GPT2MLP_nntile.from_torch(gpt2mlp_hug, x_moments,
                                                      batch_size, nntile_config, next_tag)
 print("Create model...done")
+gpt2mlp_nntile.clear_gradients()
 print("Forward model...")
 gpt2mlp_nntile.forward_async()
 print("Forward model...done")
@@ -111,6 +116,7 @@ fro_loss, next_tag = nntile.loss.Frob.generate_simple(gpt2mlp_nntile.activations
 np_zero = np.zeros(gpt2mlp_nntile.activations[-1].value.shape, dtype=np.float32, order="F")
 fro_loss.y.from_array(np_zero)
 fro_loss.calc_async()
+
 gpt2mlp_nntile.backward_async()
 
 

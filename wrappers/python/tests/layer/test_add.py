@@ -113,18 +113,27 @@ nntile_input.from_array(torch_input.numpy())
 next_tag = nntile_input.next_tag
 nntile_input_moment = TensorMoments(nntile_input, None, False)
 nntile_model, next_tag = ToyFC_SkipConnection.from_torch(torch_model, nntile_input_moment, next_tag)
+nntile_model.clear_gradients()
 nntile_model.forward_async()
 fro_loss, next_tag = nntile.loss.Frob.generate_simple(nntile_model.activations[-1], next_tag)
 np_zero = np.zeros(nntile_model.activations[-1].value.shape, dtype=np.float32, order="F")
 fro_loss.y.from_array(np_zero)
 fro_loss.calc_async()
-nntile_model.clear_gradients()
 nntile_model.backward_async()
 
 
 np_loss_nntile = np.zeros((1,), dtype=np.float32, order="F")
 fro_loss.val.to_array(np_loss_nntile)
 print("NNTile loss = {}".format(np_loss_nntile[0]))
+print("Relative error in the loss for torch and nntile models = {}".format(
+    abs(torch_loss.item() - np_loss_nntile[0]) / torch_loss.item()))
+
+for i, (p_nntile, p_torch) in enumerate(zip(nntile_model.parameters, torch_model.parameters())):
+    p_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
+    p_nntile.grad.to_array(p_np)
+    p_torch_np = p_torch.grad.detach().cpu().numpy()
+    rel_error = np.linalg.norm(p_np - p_torch_np.T, "fro") / np.linalg.norm(p_torch_np, "fro")
+    print("Relative error in layer {} gradient = {}".format(i, rel_error))
 
 nntile_model.unregister()
 fro_loss.unregister()
