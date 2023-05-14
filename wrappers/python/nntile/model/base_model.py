@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @date 2023-05-10
 
-from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments
+from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, clear_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
