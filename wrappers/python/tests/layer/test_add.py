@@ -118,6 +118,7 @@ fro_loss, next_tag = nntile.loss.Frob.generate_simple(nntile_model.activations[-
 np_zero = np.zeros(nntile_model.activations[-1].value.shape, dtype=np.float32, order="F")
 fro_loss.y.from_array(np_zero)
 fro_loss.calc_async()
+nntile_model.clear_gradients()
 nntile_model.backward_async()
 
 
