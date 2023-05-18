@@ -9,7 +9,8 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-05-10
+# @author Gleb Karpov
+# @date 2023-05-22
 
 from .base_layer import BaseLayer
 from .act import Act
@@ -19,3 +20,5 @@ from .embedding import Embedding
 from .layer_norm import LayerNorm
 from .add_slice import AddSlice
 
+from .mlp_mixer import MlpMixer
+from .mixer import Mixer
