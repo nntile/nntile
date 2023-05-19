@@ -24,11 +24,11 @@ dtypes = [np.float32, np.float64]
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
-# Get mlp-mixer layer
-MlpMixer = nntile.layer.MlpMixer
+# Get mixer layer
+Mixer = nntile.layer.Mixer
 
 # Helper function returns bool value true if test passes
-def helper_l(dtype: np.dtype):
+def helper(dtype: np.dtype):
     if dtype == np.float32:
         tol = 1e-5
     elif dtype == np.float64:
@@ -51,73 +51,24 @@ def helper_l(dtype: np.dtype):
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
 
-    # Define mlp_mixer layer
-    layer, next_tag = MlpMixer.generate_simple_mpiroot(A_moments, 'L',
-            nntile.tensor.notrans, 1, [16], [16], next_tag)
+    # Define mixer layer
+    layer, next_tag = Mixer.generate_simple_mpiroot(A_moments, nntile.tensor.notrans, 1, next_tag)
     
-    rand_W1 = np.random.randn(*layer.w1.value.shape)
+    rand_W1 = np.random.randn(*layer.block_mlp_1.w1.value.shape)
     np_W1 = np.array(rand_W1, dtype=dtype, order='F')
-    layer.w1.value.from_array(np_W1)
+    layer.block_mlp_1.w1.value.from_array(np_W1)
 
-    rand_W2 = np.random.randn(*layer.w2.value.shape)
+    rand_W2 = np.random.randn(*layer.block_mlp_1.w2.value.shape)
     np_W2 = np.array(rand_W2, dtype=dtype, order='F')
-    layer.w2.value.from_array(np_W2)
+    layer.block_mlp_1.w2.value.from_array(np_W2)
 
-    A.from_array(np_A)
-    layer.forward_async()
+    rand_W3 = np.random.randn(*layer.block_mlp_2.w1.value.shape)
+    np_W3 = np.array(rand_W3, dtype=dtype, order='F')
+    layer.block_mlp_2.w1.value.from_array(np_W3)
 
-    np_Y_interm = np.tensordot(np_A, np_W1, 1)
-    torch_output = F.gelu(torch.from_numpy(np_Y_interm))
-    np_Y_interm2 = np.array(torch_output.numpy(), order="F", dtype=dtype)
-    np_Y = np.tensordot(np_Y_interm2, np_W2, 1)
-
-    np_Y2 = np.zeros_like(np_Y, order='F')
-    layer.y.value.to_array(np_Y2)
-    if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > 1e-5:
-        A_moments.unregister()
-        layer.unregister()
-        return False 
-
-    A_moments.unregister()
-    layer.unregister()
-    print("Finish checking")
-    assert True
-
-
-def helper_r(dtype: np.dtype):
-    if dtype == np.float32:
-        tol = 1e-5
-    elif dtype == np.float64:
-        tol = 1e-10
-    # Describe single-tile tensor, located at node 0
-    A_shape = [8, 1, 4]
-    ndim = len(A_shape)
-    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
-    mpi_distr = [0]
-    next_tag = 0
-    
-    # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A_grad.next_tag
-
-    # Set initial values of tensors
-    rand_A = np.random.randn(*A_shape)
-    np_A = np.array(rand_A, dtype=dtype, order='F')
-    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
-
-    # Define mlp_mixer layer
-    layer, next_tag = MlpMixer.generate_simple_mpiroot(A_moments, 'R',
-            nntile.tensor.notrans, 1, [16], [16], next_tag)
-    
-    rand_W1 = np.random.randn(*layer.w1.value.shape)
-    np_W1 = np.array(rand_W1, dtype=dtype, order='F')
-    layer.w1.value.from_array(np_W1)
-
-    rand_W2 = np.random.randn(*layer.w2.value.shape)
-    np_W2 = np.array(rand_W2, dtype=dtype, order='F')
-    layer.w2.value.from_array(np_W2)
+    rand_W4 = np.random.randn(*layer.block_mlp_2.w2.value.shape)
+    np_W4 = np.array(rand_W4, dtype=dtype, order='F')
+    layer.block_mlp_2.w2.value.from_array(np_W4)
 
     A.from_array(np_A)
     layer.forward_async()
@@ -125,7 +76,12 @@ def helper_r(dtype: np.dtype):
     np_Y_interm = np.tensordot(np_W1, np_A, 1)
     torch_output = F.gelu(torch.from_numpy(np_Y_interm))
     np_Y_interm2 = np.array(torch_output.numpy(), order="F", dtype=dtype)
-    np_Y = np.tensordot(np_W2, np_Y_interm2, 1)
+    np_mlp1_result = np.tensordot(np_W2, np_Y_interm2, 1)
+
+    np_Y_interm = np.tensordot(np_mlp1_result, np_W3, 1)
+    torch_output = F.gelu(torch.from_numpy(np_Y_interm))
+    np_Y_interm2 = np.array(torch_output.numpy(), order="F", dtype=dtype)
+    np_Y = np.tensordot(np_Y_interm2, np_W4, 1)
 
     np_Y2 = np.zeros_like(np_Y, order='F')
     layer.y.value.to_array(np_Y2)
@@ -139,19 +95,17 @@ def helper_r(dtype: np.dtype):
     print("Finish checking")
     assert True
 
+
 # Test runner for different precisions
 def test():
     for dtype in dtypes:
-        helper_l(dtype)
-        helper_r(dtype)
+        helper(dtype)
 
 # Repeat tests
 def test_repeat():
     for dtype in dtypes:
-        helper_l(dtype)
-        helper_r(dtype)
+        helper(dtype)
 
 if __name__ == "__main__":
     test()
     # test_repeat()
-

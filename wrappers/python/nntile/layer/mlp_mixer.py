@@ -11,6 +11,7 @@ class MlpMixer(BaseLayer):
     trans_x: TransOp
     x: TensorMoments
     interm_1: TensorMoments
+    interm_2: TensorMoments
     y: TensorMoments
     w1: TensorMoments
     w2: TensorMoments
@@ -21,13 +22,16 @@ class MlpMixer(BaseLayer):
             y: TensorMoments, w1: TensorMoments, w2: TensorMoments, 
             interm_1: TensorMoments, interm_2: TensorMoments, ndim: int):
         # Check parameter side
-        # if side != 'L' and side != 'R':
-        #     raise ValueError("side must be either 'L' or 'R'")
+        if side != 'L' and side != 'R':
+            raise ValueError("side must be either 'L' or 'R'")
+        
         # Check parameter ndim
         if ndim <= 0:
             raise ValueError("ndim must be positive integer")
+        
         # Redirect to BaseClass initialization
         super().__init__([x], [y], [w1, w2], [interm_1, interm_2])
+        
         # Set up local named parameters
         self.side = side
         self.trans_x = trans_x
@@ -45,36 +49,53 @@ class MlpMixer(BaseLayer):
     def generate_simple_mpiroot(x: TensorMoments, side: str, trans_x: TransOp,
             ndim: int, add_shape: List[int], add_basetile_shape: List[int],
             next_tag: int):
-        # Define shapes, TO DO FURTHER !!!
-        # if side == 'L':
-        #     if trans_x == notrans:
-        #         w_shape = x.value.shape[-ndim:] + add_shape
-        #         w_tile = x.value.basetile_shape[-ndim:] + add_basetile_shape
-        #         y_shape = x.value.shape[:-ndim] + add_shape
-        #         y_tile = x.value.basetile_shape[:-ndim] + add_basetile_shape
-        #     else:
-        #         w_shape = x.value.shape[:ndim] + add_shape
-        #         w_tile = x.value.basetile_shape[:ndim] + add_basetile_shape
-        #         y_shape = x.value.shape[ndim:] + add_shape
-        #         y_tile = x.value.basetile_shape[ndim:] + add_basetile_shape
-        # else:
-        # if trans_x == notrans:
-        print("ndim= {}".format(ndim))
-        w1_shape = x.value.shape[-ndim:] + add_shape
-        print("w1  shape = {}".format(w1_shape))
-        w1_tile = x.value.basetile_shape[-ndim:] + add_basetile_shape 
+        # Define shapes
+        if side == 'L':
+            if trans_x == notrans:
+                w1_shape = x.value.shape[-ndim:] + add_shape
+                w1_tile = x.value.basetile_shape[-ndim:] + add_basetile_shape
 
-        w2_shape = add_shape + x.value.shape[-ndim:]
-        print("w2  shape = {}".format(w2_shape))
-        w2_tile = add_basetile_shape + x.value.basetile_shape[-ndim:]
+                interm_shape = x.value.shape[:-ndim] + add_shape
+                interm_tile = x.value.basetile_shape[:-ndim] + add_basetile_shape
 
-        interm1_shape = x.value.shape[:-ndim] + add_shape
-        print("interm1 shape = {}".format(interm1_shape))
-        interm1_tile = x.value.basetile_shape[:-ndim] + add_basetile_shape
+                w2_shape = add_shape + x.value.shape[-ndim:]
+                w2_tile = add_basetile_shape + x.value.basetile_shape[-ndim:]
 
-        y_shape = x.value.shape
-        print("y shape = {}".format(y_shape))
-        y_tile = x.value.basetile_shape
+                y_shape = x.value.shape
+                y_tile = x.value.basetile_shape
+                # print("x shape: {}, w1 shape: {}, interm shape: {}, w2 shape: {}, y shape: {}".format(x.value.shape, w1_shape, interm_shape, w2_shape, y_shape))
+            else:
+                w1_shape = x.value.shape[:ndim] + add_shape
+                w1_tile = x.value.basetile_shape[:ndim] + add_basetile_shape
+
+                w2_shape = add_shape + x.value.shape[-ndim:]
+                w2_tile = add_basetile_shape + x.value.basetile_shape[-ndim:]
+
+                interm_shape = x.value.shape[:-ndim] + add_shape
+                interm_tile = x.value.basetile_shape[:-ndim] + add_basetile_shape
+
+                y_shape = x.value.shape
+                y_tile = x.value.basetile_shape
+                # print("x shape: {}, w1 shape: {}, interm shape: {}, w2 shape: {}, y shape: {}".format(x.value.shape, w1_shape, interm_shape, w2_shape, y_shape))
+
+         
+        if side == 'R':
+            if trans_x == notrans:
+                w1_shape = add_shape + x.value.shape[:ndim]
+                w1_tile = add_basetile_shape + x.value.basetile_shape[:ndim] 
+
+                interm_shape = add_shape + x.value.shape[ndim:]
+                interm_tile = add_basetile_shape + x.value.basetile_shape[ndim:]
+
+                w2_shape = x.value.shape[:ndim] + add_shape
+                w2_tile = x.value.basetile_shape[:ndim] + add_basetile_shape
+
+                y_shape = x.value.shape
+                y_tile = x.value.basetile_shape
+                # print("x shape: {}, w1 shape: {}, interm shape: {}, w2 shape: {}, y shape: {}".format(x.value.shape, w1_shape, interm_shape, w2_shape, y_shape))
+            else:
+                pass
+        
 
         # Define W1
         w1_traits = TensorTraits(w1_shape, w1_tile)
@@ -83,8 +104,8 @@ class MlpMixer(BaseLayer):
         w2_traits = TensorTraits(w2_shape, w2_tile)
 
         # Define y_interm
-        interm1_traits = TensorTraits(interm1_shape, interm1_tile)
-        interm2_traits = TensorTraits(interm1_shape, interm1_tile)
+        interm1_traits = TensorTraits(interm_shape, interm_tile)
+        interm2_traits = TensorTraits(interm_shape, interm_tile)
 
         # Define Y
         y_traits = TensorTraits(y_shape, y_tile)
@@ -158,24 +179,20 @@ class MlpMixer(BaseLayer):
     # Forward propagation of the mlp_mixer layer
     def forward_async(self):
         # Perform actual gemm
-        # if self.side == 'L':
-        #     # Y = einsum('ij,jk->ik', op(X), W)
-        #     # 'i' is a multi-index of dimension X.ndim-ndim
-        #     # 'j' is a multi-index of dimension ndim
-        #     # 'k' is a multi-index of dimension W.ndim-ndim
-        gemm_async(1.0, self.trans_x, self.x.value, notrans, self.w1.value,
-                0.0, self.interm_1.value, self.ndim, 0)
-        copy_async(self.interm_1.value, self.interm_2.value)
-        gelu_async(self.interm_2.value)
-        gemm_async(1.0, self.trans_x, self.interm_2.value, notrans, self.w2.value,
-                0.0, self.y.value, self.ndim, 0)
-        # else:
-            # Y = einsum('ij,jk->ik', W, op(X))
-            # 'i' is a multi-index of dimension W.ndim-ndim
-            # 'j' is a multi-index of dimension ndim
-            # 'k' is a multi-index of dimension X.ndim-ndim
-        # gemm_async(1.0, notrans, self.w_channel.value, self.trans_x, self.x.value,
-        #         0.0, self.y.value, self.ndim, 0)
+        if self.side == 'L':
+            gemm_async(1.0, self.trans_x, self.x.value, notrans, self.w1.value,
+                    0.0, self.interm_1.value, self.ndim, 0)
+            copy_async(self.interm_1.value, self.interm_2.value)
+            gelu_async(self.interm_2.value)
+            gemm_async(1.0, self.trans_x, self.interm_2.value, notrans, self.w2.value,
+                    0.0, self.y.value, self.ndim, 0)
+        else:
+            gemm_async(1.0, notrans, self.w1.value, self.trans_x, self.x.value,
+                    0.0, self.interm_1.value, self.ndim, 0)
+            copy_async(self.interm_1.value, self.interm_2.value)
+            gelu_async(self.interm_2.value)
+            gemm_async(1.0, notrans, self.w2.value, self.trans_x, self.interm_2.value,
+                    0.0, self.y.value, self.ndim, 0)
         # Hint for StarPU that W tensor will
         # not be used soon and it is advised to offload data from GPU
         self.w1.value.wont_use()
