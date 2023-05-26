@@ -1,21 +1,8 @@
-# @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
-#                           (Skoltech). All rights reserved.
-#
-# NNTile is software framework for fast training of big neural networks on
-# distributed-memory heterogeneous systems based on StarPU runtime system.
-#
-# Test for nntile.layer.mlp_mixer
-#
-# @version 1.0.0
-# @author Gleb Karpov
-# @date 2023-04-23
-
-# All necessary imports
 import nntile
 import numpy as np
 import torch.nn.functional as F
 import torch
-from nntile.torch_models.mlp_mixer import MlpMixer
+from nntile.torch_models.mlp_mixer import MlpMixer as torch_MLP
 
 
 # Set up StarPU configuration and init it
@@ -69,10 +56,10 @@ def helper_l(dtype: np.dtype):
     A.from_array(np_A)
     layer.forward_async()
 
-    np_Y_interm = np.tensordot(np_A, np_W1, 1)
-    torch_output = F.gelu(torch.from_numpy(np_Y_interm))
-    np_Y_interm2 = np.array(torch_output.numpy(), order="F", dtype=dtype)
-    np_Y = np.tensordot(np_Y_interm2, np_W2, 1)
+    torch_mlp = torch_MLP('L', 4, np_W1.T, np_W2.T)
+    torch_mlp.zero_grad()
+    torch_output = torch_mlp.forward(torch.from_numpy(np_A).float())
+    np_Y = np.array(torch_output.detach().numpy(), order="F", dtype=dtype)
 
     np_Y2 = np.zeros_like(np_Y, order='F')
     layer.y.value.to_array(np_Y2)
@@ -83,7 +70,7 @@ def helper_l(dtype: np.dtype):
 
     A_moments.unregister()
     layer.unregister()
-    print("Finish checking")
+    print("helper_l test done")
     assert True
 
 
@@ -112,7 +99,7 @@ def helper_r(dtype: np.dtype):
 
     # Define mlp_mixer layer
     layer, next_tag = MlpMixer.generate_simple_mpiroot(A_moments, 'R',
-            nntile.tensor.notrans, 1, [16], [16], next_tag)
+            nntile.tensor.notrans, 1, [32], [32], next_tag)
     
     rand_W1 = np.random.randn(*layer.w1.value.shape)
     np_W1 = np.array(rand_W1, dtype=dtype, order='F')
@@ -125,10 +112,10 @@ def helper_r(dtype: np.dtype):
     A.from_array(np_A)
     layer.forward_async()
 
-    np_Y_interm = np.tensordot(np_W1, np_A, 1)
-    torch_output = F.gelu(torch.from_numpy(np_Y_interm))
-    np_Y_interm2 = np.array(torch_output.numpy(), order="F", dtype=dtype)
-    np_Y = np.tensordot(np_W2, np_Y_interm2, 1)
+    torch_mlp = torch_MLP('R', 8, np_W1, np_W2)
+    torch_mlp.zero_grad()
+    torch_output = torch_mlp.forward(torch.from_numpy(np_A).float())
+    np_Y = np.array(torch_output.detach().numpy(), order="F", dtype=dtype)
 
     np_Y2 = np.zeros_like(np_Y, order='F')
     layer.y.value.to_array(np_Y2)
@@ -139,7 +126,7 @@ def helper_r(dtype: np.dtype):
 
     A_moments.unregister()
     layer.unregister()
-    print("Finish checking")
+    print("helper_r test done")
     assert True
 
 # Test runner for different precisions
@@ -148,13 +135,12 @@ def test():
         helper_l(dtype)
         helper_r(dtype)
 
+
 # Repeat tests
 def test_repeat():
     for dtype in dtypes:
         helper_l(dtype)
-        helper_r(dtype)
+
 
 if __name__ == "__main__":
     test()
-    # test_repeat()
-

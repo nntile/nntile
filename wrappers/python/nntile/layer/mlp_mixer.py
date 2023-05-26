@@ -17,7 +17,7 @@ class MlpMixer(BaseLayer):
     w2: TensorMoments
     ndim: int
 
-    # Construct linear layer with all the provided data
+    # Construct mlp_mixer layer with all the provided data
     def __init__(self, side: str, trans_x: TransOp, x: TensorMoments, \
             y: TensorMoments, w1: TensorMoments, w2: TensorMoments, 
             interm_1: TensorMoments, interm_2: TensorMoments, ndim: int):

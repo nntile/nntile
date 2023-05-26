@@ -4,17 +4,20 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# Test for nntile.layer.mlp_mixer
+# Test for nntile.layer.mixer
 #
 # @version 1.0.0
 # @author Gleb Karpov
-# @date 2023-05-23
+# @date 2023-05-26
 
 # All necesary imports
 import nntile
 import numpy as np
 import torch.nn.functional as F
 import torch
+from nntile.torch_models.mixer import Mixer as torch_Mixer
+
+
 # Set up StarPU configuration and init it
 config = nntile.starpu.Config(1, 0, 0)
 # Init all NNTile-StarPU codelets
@@ -73,15 +76,10 @@ def helper(dtype: np.dtype):
     A.from_array(np_A)
     layer.forward_async()
 
-    np_Y_interm = np.tensordot(np_W1, np_A, 1)
-    torch_output = F.gelu(torch.from_numpy(np_Y_interm))
-    np_Y_interm2 = np.array(torch_output.numpy(), order="F", dtype=dtype)
-    np_mlp1_result = np.tensordot(np_W2, np_Y_interm2, 1) + np_A
-
-    np_Y_interm = np.tensordot(np_mlp1_result, np_W3, 1)
-    torch_output = F.gelu(torch.from_numpy(np_Y_interm))
-    np_Y_interm2 = np.array(torch_output.numpy(), order="F", dtype=dtype)
-    np_Y = np.tensordot(np_Y_interm2, np_W4, 1) + np_mlp1_result
+    torch_mlp = torch_Mixer(np_W1, np_W2, np_W3.T, np_W4.T)
+    torch_mlp.zero_grad()
+    torch_output = torch_mlp.forward(torch.from_numpy(np_A).float())
+    np_Y = np.array(torch_output.detach().numpy(), order="F", dtype=dtype)
 
     np_Y2 = np.zeros_like(np_Y, order='F')
     layer.y.value.to_array(np_Y2)
