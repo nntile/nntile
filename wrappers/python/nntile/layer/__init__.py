@@ -20,5 +20,4 @@ from .embedding import Embedding
 from .layer_norm import LayerNorm
 from .add_slice import AddSlice
 
-from .mlp_mixer import MlpMixer
-from .mixer import Mixer
+from .mixer import Mixer, MixerMlp

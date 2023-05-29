@@ -57,33 +57,33 @@ def helper(dtype: np.dtype):
     # Define mixer layer
     layer, next_tag = Mixer.generate_simple_mpiroot(A_moments, nntile.tensor.notrans, 1, next_tag)
     
-    rand_W1 = np.random.randn(*layer.block_mlp_1.w1.value.shape)
+    rand_W1 = np.random.randn(*layer.mlp_1.w1.value.shape)
     np_W1 = np.array(rand_W1, dtype=dtype, order='F')
-    layer.block_mlp_1.w1.value.from_array(np_W1)
+    layer.mlp_1.w1.value.from_array(np_W1)
 
-    rand_W2 = np.random.randn(*layer.block_mlp_1.w2.value.shape)
+    rand_W2 = np.random.randn(*layer.mlp_1.w2.value.shape)
     np_W2 = np.array(rand_W2, dtype=dtype, order='F')
-    layer.block_mlp_1.w2.value.from_array(np_W2)
+    layer.mlp_1.w2.value.from_array(np_W2)
 
-    rand_W3 = np.random.randn(*layer.block_mlp_2.w1.value.shape)
+    rand_W3 = np.random.randn(*layer.mlp_2.w1.value.shape)
     np_W3 = np.array(rand_W3, dtype=dtype, order='F')
-    layer.block_mlp_2.w1.value.from_array(np_W3)
+    layer.mlp_2.w1.value.from_array(np_W3)
 
-    rand_W4 = np.random.randn(*layer.block_mlp_2.w2.value.shape)
+    rand_W4 = np.random.randn(*layer.mlp_2.w2.value.shape)
     np_W4 = np.array(rand_W4, dtype=dtype, order='F')
-    layer.block_mlp_2.w2.value.from_array(np_W4)
+    layer.mlp_2.w2.value.from_array(np_W4)
 
     A.from_array(np_A)
     layer.forward_async()
 
-    torch_mlp = torch_Mixer(np_W1, np_W2, np_W3.T, np_W4.T)
+    torch_mlp = torch_Mixer(np_W1, np_W2, np_W3, np_W4)
     torch_mlp.zero_grad()
-    torch_output = torch_mlp.forward(torch.from_numpy(np_A).float())
+    torch_output = torch_mlp.forward(torch.from_numpy(np_A))
     np_Y = np.array(torch_output.detach().numpy(), order="F", dtype=dtype)
 
     np_Y2 = np.zeros_like(np_Y, order='F')
     layer.y.value.to_array(np_Y2)
-    if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > 1e-5:
+    if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > tol:
         A_moments.unregister()
         layer.unregister()
         return False 
@@ -106,4 +106,4 @@ def test_repeat():
 
 if __name__ == "__main__":
     test()
-    # test_repeat()
+    test_repeat()
