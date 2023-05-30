@@ -19,7 +19,11 @@ import time
 import sys
 import torch
 from transformers import GPT2Tokenizer, TextDataset, GPT2LMHeadModel
+from transformers import GPT2Model, GPT2Config
+# pip3 install datasets
 from datasets import load_dataset
+from nntile.model.gpt2 import GPT2
+import pdb 
 
 # Describe dataset
 dataset_path = "./data"
@@ -57,12 +61,27 @@ print("Number of train sequences: {}".format(num_batches * batch_size))
 print("Number of train batches: {}".format(num_batches))
 
 # PyTorch model
-model_torch = GPT2LMHeadModel.from_pretrained("gpt2")
-model_torch.config.attn_pdrop = 0
-model_torch.config.embd_pdrop = 0
-model_torch.config.resid_pdrop = 0
+# model_torch = GPT2LMHeadModel.from_pretrained("gpt2")
+config = GPT2Config()
+config.attn_pdrop = 0
+config.embd_pdrop = 0
+config.resid_pdrop = 0
+config.n_head=1
+config.num_hidden_layers = 0
+model_torch = GPT2Model(config)
+
 vocab_size = model_torch.config.vocab_size
 print(model_torch)
+# input_ids = tokenizer('I enjoy walking with my cute dog', return_tensors='pt')
+# print(input_ids, input_ids["input_ids"].shape)
+print(tokens.shape, tokens.dtype)
+# pdb.set_trace()
+output = model_torch(torch.from_numpy(tokens[0, :, :-1]))
+print(output.last_hidden_state.shape, torch.sum(torch.square(output.last_hidden_state)).item())
+# print(output.logits.shape)
+
+
+
 
 time0 = -time.time()
 # Set up StarPU+MPI and init codelets
@@ -100,6 +119,8 @@ for i in range(num_batches):
     nntile.tensor.scatter_async(y_single, y)
     batch_output.append(y)
 
+nntile_model, next_tag = GPT2.from_torch(model_torch, batch_input[0], next_tag)
+nntile_model.forward_async()
 # Wait for all scatters to finish
 nntile.starpu.wait_for_all()
 time0 += time.time()
@@ -116,7 +137,7 @@ x_single.unregister()
 y_single.unregister()
 
 # Unregister all tensors related to model
-#m.unregister()
+nntile_model.unregister()
 
 # Unregister optimizer states
 #optimizer.unregister()
