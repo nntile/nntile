@@ -48,9 +48,9 @@ class Embedding(BaseLayer):
         w_distr = [0] * w_traits.grid.nelems
         w_value = TensorType(w_traits, w_distr, next_tag)
         next_tag = w_value.next_tag
-        w_grid = TensorType(w_traits, w_distr, next_tag)
-        next_tag = w_grid.next_tag
-        w = TensorMoments(w_value, w_grid, True)
+        w_grad = TensorType(w_traits, w_distr, next_tag)
+        next_tag = w_grad.next_tag
+        w = TensorMoments(w_value, w_grad, True)
         # Output embeddings
         y_shape = x.shape.copy()
         y_shape.insert(axis, emb_size)
