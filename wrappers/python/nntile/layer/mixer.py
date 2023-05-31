@@ -190,7 +190,6 @@ class Mixer(BaseLayer):
     side: str
     trans_x: TransOp
     x: TensorMoments
-    y_intermediate: TensorMoments
     y: TensorMoments
     ndim: int
     norm_1: LayerNorm
@@ -225,61 +224,17 @@ class Mixer(BaseLayer):
     @staticmethod
     def generate_simple_mpiroot(x: TensorMoments, trans_x: TransOp, ndim: int, next_tag: int):
         eps = 1e-5
-        norm_1_layer, next_tag = LayerNorm.generate_simple(x, 0, eps, next_tag)
+        norm_1_layer, next_tag = LayerNorm.generate_simple(x, 2, eps, next_tag)
 
-        # Define X_norm
-        x_norm_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
-
-        x_norm_distr = [0] * x_norm_traits.grid.nelems
-        x_norm_value = type(x.value)(x_norm_traits, x_norm_distr, next_tag)
-        next_tag = x_norm_value.next_tag
-        # Create gradient of Y with the same traits and distribution as Y
-        x_norm_grad = type(x.value)(x_norm_traits, x_norm_distr, next_tag)
-        next_tag = x_norm_grad.next_tag
-
-        # Define X_norm as TensorMoments
-        x_norm = TensorMoments(x_norm_value, x_norm_grad, True)
-
-        # Define mixer_mlp layers
         mlp_1_add_shape = x.value.shape[0] * 4
-        mlp_layer1, next_tag = MixerMlp.generate_simple_mpiroot(x_norm, 'R', trans_x, 1, [mlp_1_add_shape], [mlp_1_add_shape], next_tag)
+        mlp_layer1, next_tag = MixerMlp.generate_simple_mpiroot(norm_1_layer.y, 'R', trans_x, 1, [mlp_1_add_shape], [mlp_1_add_shape], next_tag)
         
-        y_shape = x.value.shape
-        y_tile = x.value.basetile_shape
-
-        # Define Y_tmp
-        y_tmp_traits = TensorTraits(y_shape, y_tile)
-
-        y_tmp_distr = [0] * y_tmp_traits.grid.nelems
-        y_tmp_value = type(x.value)(y_tmp_traits, y_tmp_distr, next_tag)
-        next_tag = y_tmp_value.next_tag
-        # Create gradient of Y with the same traits and distribution as Y
-        y_tmp_grad = type(x.value)(y_tmp_traits, y_tmp_distr, next_tag)
-        next_tag = y_tmp_grad.next_tag
-
-        # Define Y as TensorMoments
-        y_tmp = TensorMoments(y_tmp_value, y_tmp_grad, True)
-
-        norm_2_layer, next_tag = LayerNorm.generate_simple(y_tmp, 2, eps, next_tag)
+        norm_2_layer, next_tag = LayerNorm.generate_simple(mlp_layer1.y, 2, eps, next_tag)
 
         mlp_2_add_shape = x.value.shape[-1] * 4
         mlp_layer2, next_tag = MixerMlp.generate_simple_mpiroot(norm_2_layer.y, 'L', trans_x, 1, [mlp_2_add_shape], [mlp_2_add_shape], next_tag)
 
-
-        # Define Y
-        y_traits = TensorTraits(y_shape, y_tile)
-
-        y_distr = [0] * y_traits.grid.nelems
-        y_value = type(x.value)(y_traits, y_distr, next_tag)
-        next_tag = y_value.next_tag
-        # Create gradient of Y with the same traits and distribution as Y
-        y_grad = type(x.value)(y_traits, y_distr, next_tag)
-        next_tag = y_grad.next_tag
-
-        # Define Y as TensorMoments
-        y = TensorMoments(y_value, y_grad, True)
-
-        layer = Mixer(trans_x, x, y, norm_1_layer, norm_2_layer, mlp_layer1, mlp_layer2, ndim)
+        layer = Mixer(trans_x, x, mlp_layer2.y, norm_1_layer, norm_2_layer, mlp_layer1, mlp_layer2, ndim)
 
         return layer, next_tag
     
@@ -287,12 +242,8 @@ class Mixer(BaseLayer):
     # Forward propagation of the mixer layer
     def forward_async(self):
         self.norm_1.forward_async()
-        copy_async(self.norm_1.y.value, self.mlp_1.x.value)
         self.mlp_1.forward_async()
         add_async(1.0, self.x.value, 1.0, self.mlp_1.y.value)
-        copy_async(self.mlp_1.y.value, self.norm_2.x.value)
         self.norm_2.forward_async()
-        copy_async(self.norm_2.y.value, self.mlp_2.x.value)
         self.mlp_2.forward_async()
         add_async(1.0, self.norm_2.x.value, 1.0, self.mlp_2.y.value)
-        copy_async(self.mlp_2.y.value, self.y.value)

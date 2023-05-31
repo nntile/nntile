@@ -33,10 +33,9 @@ class MixerMlp(nn.Module):
 class Mixer(nn.Module):
     def __init__(self, mlp1_w1, mlp1_w2, mlp2_w1, mlp2_w2):       
         super().__init__()
-        dim_1 = mlp1_w1.shape[1]
-        dim_2 = mlp2_w1.shape[0]
-        self.norm_1 = nn.LayerNorm(dim_1)
-        self.norm_2 = nn.LayerNorm(dim_2)
+        norm_dim = mlp2_w1.shape[0]
+        self.norm_1 = nn.LayerNorm(norm_dim)
+        self.norm_2 = nn.LayerNorm(norm_dim)
         self.mlp_1 = MixerMlp('R', mlp1_w1, mlp1_w2)
         self.mlp_2 = MixerMlp('L', mlp2_w1, mlp2_w2)
 
@@ -48,9 +47,7 @@ class Mixer(nn.Module):
         self.norm_2.bias.data = torch.from_numpy(norm_2_beta)
 
 
-    def forward(self, x: torch.Tensor):      
-        xT_norm = self.norm_1(torch.transpose(x, 0, 2)) 
-        x_norm = torch.transpose(xT_norm, 0, 2)   
-        y_tmp = self.mlp_1.forward(x_norm) + x
+    def forward(self, x: torch.Tensor):       
+        y_tmp = self.mlp_1.forward(self.norm_1(x)) + x
         return self.mlp_2.forward(self.norm_2(y_tmp)) + y_tmp
     

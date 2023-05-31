@@ -73,27 +73,22 @@ def helper(dtype: np.dtype):
     np_W4 = np.array(rand_W4, dtype=dtype, order='F')
     mixer_layer.mlp_2.w2.value.from_array(np_W4)
 
-    rand_gamma = np.random.randn((A_shape[0]))
-    np_gamma1 = np.array(rand_gamma, dtype=dtype, order='F')
-    rand_beta = np.random.randn((A_shape[0]))
-    np_beta1 = np.array(rand_beta, dtype=dtype, order='F')
-
     rand_gamma = np.random.randn((A_shape[2]))
-    np_gamma2 = np.array(rand_gamma, dtype=dtype, order='F')
+    np_gamma = np.array(rand_gamma, dtype=dtype, order='F')
     rand_beta = np.random.randn((A_shape[2]))
-    np_beta2 = np.array(rand_beta, dtype=dtype, order='F')
+    np_beta = np.array(rand_beta, dtype=dtype, order='F')
 
-    mixer_layer.norm_1.gamma.value.from_array(np_gamma1)
-    mixer_layer.norm_1.beta.value.from_array(np_beta1)
+    mixer_layer.norm_1.gamma.value.from_array(np_gamma)
+    mixer_layer.norm_1.beta.value.from_array(np_beta)
 
-    mixer_layer.norm_2.gamma.value.from_array(np_gamma2)
-    mixer_layer.norm_2.beta.value.from_array(np_beta2)
+    mixer_layer.norm_2.gamma.value.from_array(np_gamma)
+    mixer_layer.norm_2.beta.value.from_array(np_beta)
 
     A.from_array(np_A)
     mixer_layer.forward_async()
 
     torch_mixer_layer = torch_Mixer(np_W1, np_W2, np_W3, np_W4)
-    torch_mixer_layer.set_normalization_parameters(np_gamma1, np_beta1, np_gamma2, np_beta2)
+    torch_mixer_layer.set_normalization_parameters(np_gamma, np_beta, np_gamma, np_beta)
     torch_mixer_layer.zero_grad()
     torch_output = torch_mixer_layer.forward(torch.from_numpy(np_A))
     np_Y = np.array(torch_output.detach().numpy(), order="F", dtype=dtype)
