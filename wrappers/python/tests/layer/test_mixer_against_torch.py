@@ -55,41 +55,58 @@ def helper(dtype: np.dtype):
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
 
     # Define mixer layer
-    layer, next_tag = Mixer.generate_simple_mpiroot(A_moments, nntile.tensor.notrans, 1, next_tag)
+    mixer_layer, next_tag = Mixer.generate_simple_mpiroot(A_moments, nntile.tensor.notrans, 1, next_tag)
     
-    rand_W1 = np.random.randn(*layer.mlp_1.w1.value.shape)
+    rand_W1 = np.random.randn(*mixer_layer.mlp_1.w1.value.shape)
     np_W1 = np.array(rand_W1, dtype=dtype, order='F')
-    layer.mlp_1.w1.value.from_array(np_W1)
+    mixer_layer.mlp_1.w1.value.from_array(np_W1)
 
-    rand_W2 = np.random.randn(*layer.mlp_1.w2.value.shape)
+    rand_W2 = np.random.randn(*mixer_layer.mlp_1.w2.value.shape)
     np_W2 = np.array(rand_W2, dtype=dtype, order='F')
-    layer.mlp_1.w2.value.from_array(np_W2)
+    mixer_layer.mlp_1.w2.value.from_array(np_W2)
 
-    rand_W3 = np.random.randn(*layer.mlp_2.w1.value.shape)
+    rand_W3 = np.random.randn(*mixer_layer.mlp_2.w1.value.shape)
     np_W3 = np.array(rand_W3, dtype=dtype, order='F')
-    layer.mlp_2.w1.value.from_array(np_W3)
+    mixer_layer.mlp_2.w1.value.from_array(np_W3)
 
-    rand_W4 = np.random.randn(*layer.mlp_2.w2.value.shape)
+    rand_W4 = np.random.randn(*mixer_layer.mlp_2.w2.value.shape)
     np_W4 = np.array(rand_W4, dtype=dtype, order='F')
-    layer.mlp_2.w2.value.from_array(np_W4)
+    mixer_layer.mlp_2.w2.value.from_array(np_W4)
+
+    rand_gamma = np.random.randn((A_shape[0]))
+    np_gamma1 = np.array(rand_gamma, dtype=dtype, order='F')
+    rand_beta = np.random.randn((A_shape[0]))
+    np_beta1 = np.array(rand_beta, dtype=dtype, order='F')
+
+    rand_gamma = np.random.randn((A_shape[2]))
+    np_gamma2 = np.array(rand_gamma, dtype=dtype, order='F')
+    rand_beta = np.random.randn((A_shape[2]))
+    np_beta2 = np.array(rand_beta, dtype=dtype, order='F')
+
+    mixer_layer.norm_1.gamma.value.from_array(np_gamma1)
+    mixer_layer.norm_1.beta.value.from_array(np_beta1)
+
+    mixer_layer.norm_2.gamma.value.from_array(np_gamma2)
+    mixer_layer.norm_2.beta.value.from_array(np_beta2)
 
     A.from_array(np_A)
-    layer.forward_async()
+    mixer_layer.forward_async()
 
-    torch_mlp = torch_Mixer(np_W1, np_W2, np_W3, np_W4)
-    torch_mlp.zero_grad()
-    torch_output = torch_mlp.forward(torch.from_numpy(np_A))
+    torch_mixer_layer = torch_Mixer(np_W1, np_W2, np_W3, np_W4)
+    torch_mixer_layer.set_normalization_parameters(np_gamma1, np_beta1, np_gamma2, np_beta2)
+    torch_mixer_layer.zero_grad()
+    torch_output = torch_mixer_layer.forward(torch.from_numpy(np_A))
     np_Y = np.array(torch_output.detach().numpy(), order="F", dtype=dtype)
 
     np_Y2 = np.zeros_like(np_Y, order='F')
-    layer.y.value.to_array(np_Y2)
+    mixer_layer.y.value.to_array(np_Y2)
     if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > tol:
         A_moments.unregister()
-        layer.unregister()
+        mixer_layer.unregister()
         return False 
 
     A_moments.unregister()
-    layer.unregister()
+    mixer_layer.unregister()
     print("Finish checking")
     assert True
 
