@@ -24,57 +24,56 @@ class GPT2(BaseModel):
     next_tag: int
 
     # Construct model with all the provided data
-    def __init__(self, input_ids: Tensor_int64, positional_ids: Tensor_int64, config, next_tag: int):
+    def __init__(self, input_ids: TensorMoments, positional_ids: TensorMoments, config, next_tag: int):
         # Check parameter side
         vocab_size = config["vocab_size"]
         embed_dim = config["embed_dim"]
         max_position_embeddings = config["max_position_embeddings"]
         activations = [input_ids, positional_ids]
-        self.positional_ids = positional_ids
         layers = []
-        wte_layer, next_tag = Embedding.generate_simple(input_ids, Tensor_fp32, 1, 
+        wte_layer, next_tag = Embedding.generate_simple(input_ids.value, Tensor_fp32, 2, 
                                                         vocab_size, embed_dim, embed_dim,
                                                         embed_dim, next_tag) # config.vocab_size, self.embed_dim
         layers.append(wte_layer)
-        activations.append(wte_layer.y.value)
+        activations.append(wte_layer.y)
         
-        wpe_layer, next_tag = Embedding.generate_simple(positional_ids, Tensor_fp32, 1,
+        wpe_layer, next_tag = Embedding.generate_simple(positional_ids.value, Tensor_fp32, 1,
                                                         max_position_embeddings, embed_dim,
                                                         embed_dim, embed_dim, next_tag) # config.max_position_embeddings, self.embed_dim
         layers.append(wpe_layer)
-        activations.append(wpe_layer.y.value)
+        activations.append(wpe_layer.y)
 
         
         self.next_tag = next_tag
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
 
-    # Randomly init all linear layers
-    # def init_randn_async(self):
-    #     for l in self.layers:
-    #         if type(l) is Linear:
-    #             l.init_randn_async()
-
     @staticmethod
-    def from_torch(torch_gpt2, input_ids, next_tag: int):
+    def from_torch(torch_gpt2, batch_size: int, seq_len: int, next_tag: int):
         config = {
             "vocab_size": torch_gpt2.wte.weight.shape[0],
             "embed_dim": torch_gpt2.wte.weight.shape[1],
             "max_position_embeddings": torch_gpt2.wpe.weight.shape[0]
         }
-        positional_ids_traits = TensorTraits([input_ids.shape[-1]], [input_ids.shape[-1]])
+        positional_ids_traits = TensorTraits([seq_len], [seq_len])
         positional_ids_distr = [0] * positional_ids_traits.grid.nelems
-        positional_ids = Tensor_int64(positional_ids_traits, positional_ids_distr, next_tag)
-        next_tag = positional_ids.next_tag
-        positional_ids.from_array(np.array(np.arange(input_ids.shape[-1]), order="F", dtype=np.int64))
-        gpt2_nntile = GPT2(input_ids, positional_ids, config, next_tag)
+        positional_ids_value = Tensor_int64(positional_ids_traits, positional_ids_distr, next_tag)
+        next_tag = positional_ids_value.next_tag
+        positional_ids_value.from_array(np.array(np.arange(seq_len), order="F", dtype=np.int64))
+        positional_ids = TensorMoments(positional_ids_value, None, False)
+        
+        x_traits = TensorTraits([batch_size, seq_len], \
+        [batch_size, seq_len])
+        x_distr = [0] * x_traits.grid.nelems
+        x = Tensor_int64(x_traits, x_distr, next_tag)
+        next_tag = x.next_tag
+        x_grad = None
+        x_grad_required = False
+        x_moments = TensorMoments(x, x_grad, x_grad_required)
+
+        gpt2_nntile = GPT2(x_moments, positional_ids, config, next_tag)
         for p_nntile, p_torch in zip(gpt2_nntile.parameters[:2], list(torch_gpt2.parameters())[:2]):
             print(p_torch.shape)
             p_nntile.value.from_array(p_torch.detach().numpy().T)
 
         return gpt2_nntile, gpt2_nntile.next_tag
-    
-    def unregister(self):
-        self.positional_ids.unregister()
-        for l in self.layers:
-            l.unregister()

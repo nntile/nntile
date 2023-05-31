@@ -23,6 +23,7 @@ from transformers import GPT2Model, GPT2Config
 # pip3 install datasets
 from datasets import load_dataset
 from nntile.model.gpt2 import GPT2
+from nntile.tensor import copy_async
 import pdb 
 
 # Describe dataset
@@ -119,7 +120,9 @@ for i in range(num_batches):
     nntile.tensor.scatter_async(y_single, y)
     batch_output.append(y)
 
-nntile_model, next_tag = GPT2.from_torch(model_torch, batch_input[0], next_tag)
+
+nntile_model, next_tag = GPT2.from_torch(model_torch, batch_size, seq_len, next_tag)
+copy_async(batch_input[0], nntile_model.activations[0].value) 
 nntile_model.forward_async()
 # Wait for all scatters to finish
 nntile.starpu.wait_for_all()
