@@ -26,9 +26,9 @@ static inline void gemm_check_ndim(const TensorTraits &A,
         Index batch_ndim)
 {
     // Check if ndim is negative since it will be converted to Index
-    if(ndim <= 0)
+    if(ndim < 0)
     {
-        throw std::runtime_error("ndim <= 0");
+        throw std::runtime_error("ndim < 0");
     }
     if(batch_ndim < 0)
     {

@@ -17,4 +17,5 @@ from .linear import Linear
 from .attention import Attention
 from .embedding import Embedding
 from .layer_norm import LayerNorm
+from .add_slice import AddSlice
 
