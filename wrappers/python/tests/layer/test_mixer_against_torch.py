@@ -37,8 +37,7 @@ def helper(dtype: np.dtype):
     elif dtype == np.float64:
         tol = 1e-10
     # Describe single-tile tensor, located at node 0
-    A_shape = [8, 1, 4]
-    ndim = len(A_shape)
+    A_shape = [8, 2, 4]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
     next_tag = 0
@@ -55,23 +54,23 @@ def helper(dtype: np.dtype):
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
 
     # Define mixer layer
-    mixer_layer, next_tag = Mixer.generate_simple_mpiroot(A_moments, nntile.tensor.notrans, 1, next_tag)
+    mixer_layer, next_tag = Mixer.generate_simple_mpiroot(A_moments, next_tag)
     
-    rand_W1 = np.random.randn(*mixer_layer.mlp_1.w1.value.shape)
+    rand_W1 = np.random.randn(*mixer_layer.mlp_1.linear_1.w.value.shape)
     np_W1 = np.array(rand_W1, dtype=dtype, order='F')
-    mixer_layer.mlp_1.w1.value.from_array(np_W1)
+    mixer_layer.mlp_1.linear_1.w.value.from_array(np_W1)
 
-    rand_W2 = np.random.randn(*mixer_layer.mlp_1.w2.value.shape)
+    rand_W2 = np.random.randn(*mixer_layer.mlp_1.linear_2.w.value.shape)
     np_W2 = np.array(rand_W2, dtype=dtype, order='F')
-    mixer_layer.mlp_1.w2.value.from_array(np_W2)
+    mixer_layer.mlp_1.linear_2.w.value.from_array(np_W2)
 
-    rand_W3 = np.random.randn(*mixer_layer.mlp_2.w1.value.shape)
+    rand_W3 = np.random.randn(*mixer_layer.mlp_2.linear_1.w.value.shape)
     np_W3 = np.array(rand_W3, dtype=dtype, order='F')
-    mixer_layer.mlp_2.w1.value.from_array(np_W3)
+    mixer_layer.mlp_2.linear_1.w.value.from_array(np_W3)
 
-    rand_W4 = np.random.randn(*mixer_layer.mlp_2.w2.value.shape)
+    rand_W4 = np.random.randn(*mixer_layer.mlp_2.linear_2.w.value.shape)
     np_W4 = np.array(rand_W4, dtype=dtype, order='F')
-    mixer_layer.mlp_2.w2.value.from_array(np_W4)
+    mixer_layer.mlp_2.linear_2.w.value.from_array(np_W4)
 
     rand_gamma = np.random.randn((A_shape[2]))
     np_gamma = np.array(rand_gamma, dtype=dtype, order='F')

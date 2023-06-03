@@ -42,16 +42,15 @@ def helper_l(dtype: np.dtype):
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
 
     # Define mlp_mixer layer
-    layer, next_tag = MixerMlp.generate_simple_mpiroot(A_moments, 'L',
-            nntile.tensor.notrans, 1, [16], [16], next_tag)
+    layer, next_tag = MixerMlp.generate_simple_mpiroot(A_moments, 'L', next_tag)
     
-    rand_W1 = np.random.randn(*layer.w1.value.shape)
+    rand_W1 = np.random.randn(*layer.linear_1.w.value.shape)
     np_W1 = np.array(rand_W1, dtype=dtype, order='F')
-    layer.w1.value.from_array(np_W1)
+    layer.linear_1.w.value.from_array(np_W1)
 
-    rand_W2 = np.random.randn(*layer.w2.value.shape)
+    rand_W2 = np.random.randn(*layer.linear_2.w.value.shape)
     np_W2 = np.array(rand_W2, dtype=dtype, order='F')
-    layer.w2.value.from_array(np_W2)
+    layer.linear_2.w.value.from_array(np_W2)
 
     A.from_array(np_A)
     layer.forward_async()
@@ -98,16 +97,15 @@ def helper_r(dtype: np.dtype):
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
 
     # Define mlp_mixer layer
-    layer, next_tag = MixerMlp.generate_simple_mpiroot(A_moments, 'R',
-            nntile.tensor.notrans, 1, [32], [32], next_tag)
+    layer, next_tag = MixerMlp.generate_simple_mpiroot(A_moments, 'R', next_tag)
     
-    rand_W1 = np.random.randn(*layer.w1.value.shape)
+    rand_W1 = np.random.randn(*layer.linear_1.w.value.shape)
     np_W1 = np.array(rand_W1, dtype=dtype, order='F')
-    layer.w1.value.from_array(np_W1)
+    layer.linear_1.w.value.from_array(np_W1)
 
-    rand_W2 = np.random.randn(*layer.w2.value.shape)
+    rand_W2 = np.random.randn(*layer.linear_2.w.value.shape)
     np_W2 = np.array(rand_W2, dtype=dtype, order='F')
-    layer.w2.value.from_array(np_W2)
+    layer.linear_2.w.value.from_array(np_W2)
 
     A.from_array(np_A)
     layer.forward_async()

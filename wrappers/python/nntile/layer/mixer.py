@@ -1,217 +1,82 @@
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        TransOp, trans, notrans, add_async, copy_async, gelu_async, gemm_async, randn_async
+        TransOp, trans, notrans, add_async, copy_async, gelu_async, gemm_async
 from nntile.layer.base_layer import BaseLayer
 from nntile.layer.layer_norm import LayerNorm
+from nntile.layer.linear import Linear
+from nntile.layer.act import Act
 import numpy as np
 from typing import List
 
 
 class MixerMlp(BaseLayer):
     side: str
-    trans_x: TransOp
     x: TensorMoments
-    interm_1: TensorMoments
-    interm_2: TensorMoments
     y: TensorMoments
-    w1: TensorMoments
-    w2: TensorMoments
-    ndim: int
+    linear_1: Linear
+    linear_2: Linear
+    act: Act
 
-    # Construct mlp_mixer layer with all the provided data
-    def __init__(self, side: str, trans_x: TransOp, x: TensorMoments, \
-            y: TensorMoments, w1: TensorMoments, w2: TensorMoments, 
-            interm_1: TensorMoments, interm_2: TensorMoments, ndim: int):
+
+    # Construct MixerMlp layer with all the provided data
+    def __init__(self, side: str, x: TensorMoments, y: TensorMoments, 
+                 linear_1: Linear, linear_2: Linear, act: Act):
         # Check parameter side
         if side != 'L' and side != 'R':
             raise ValueError("side must be either 'L' or 'R'")
-        
-        # Check parameter ndim
-        if ndim <= 0:
-            raise ValueError("ndim must be positive integer")
-        
         # Redirect to BaseClass initialization
-        super().__init__([x], [y], [w1, w2], [interm_1, interm_2])
+        super().__init__([x], [y], [], [])
         
         # Set up local named parameters
         self.side = side
-        self.trans_x = trans_x
-        self.ndim = ndim
         self.x = x
         self.y = y
-        self.interm_1 = interm_1
-        self.interm_2 = interm_2
-        self.w1 = w1
-        self.w2 = w2
+        self.linear_1 = linear_1
+        self.linear_2 = linear_2
+        self.act = act
 
 
-    # Simple generator for the mlp_mixer layer
     @staticmethod
-    def generate_simple_mpiroot(x: TensorMoments, side: str, trans_x: TransOp,
-            ndim: int, add_shape: List[int], add_basetile_shape: List[int],
-            next_tag: int):
-        # Define shapes
-        if side == 'L':
-            if trans_x == notrans:
-                w1_shape = x.value.shape[-ndim:] + add_shape
-                w1_tile = x.value.basetile_shape[-ndim:] + add_basetile_shape
-
-                interm_shape = x.value.shape[:-ndim] + add_shape
-                interm_tile = x.value.basetile_shape[:-ndim] + add_basetile_shape
-
-                w2_shape = add_shape + x.value.shape[-ndim:]
-                w2_tile = add_basetile_shape + x.value.basetile_shape[-ndim:]
-
-                y_shape = x.value.shape
-                y_tile = x.value.basetile_shape
-                # print("x shape: {}, w1 shape: {}, interm shape: {}, w2 shape: {}, y shape: {}".format(x.value.shape, w1_shape, interm_shape, w2_shape, y_shape))
-            else:
-                pass
-
-         
+    def generate_simple_mpiroot(x: TensorMoments, side: str, next_tag: int):
         if side == 'R':
-            if trans_x == notrans:
-                w1_shape = add_shape + x.value.shape[:ndim]
-                w1_tile = add_basetile_shape + x.value.basetile_shape[:ndim] 
+            add_shape = x.value.shape[0] * 4
+            add_basetile_shape = x.value.shape[0] * 4
+            init_shape = x.value.shape[0]
+        if side == 'L':
+            add_shape = x.value.shape[-1] * 4
+            add_basetile_shape = x.value.shape[-1] * 4
+            init_shape = x.value.shape[-1]
+        linear_1_layer, next_tag = Linear.generate_simple_mpiroot(x, side, notrans, 1, [add_shape], [add_basetile_shape], next_tag)
+        act_layer, next_tag = Act.generate_simple(linear_1_layer.y, 'gelu', next_tag)
+        linear_2_layer, next_tag = Linear.generate_simple_mpiroot(act_layer.y, side, notrans, 1, [init_shape], [init_shape], next_tag)
+        layer = MixerMlp(side, x, linear_2_layer.y, linear_1_layer, linear_2_layer, act_layer)
 
-                interm_shape = add_shape + x.value.shape[ndim:]
-                interm_tile = add_basetile_shape + x.value.basetile_shape[ndim:]
-
-                w2_shape = x.value.shape[:ndim] + add_shape
-                w2_tile = x.value.basetile_shape[:ndim] + add_basetile_shape
-
-                y_shape = x.value.shape
-                y_tile = x.value.basetile_shape
-                # print("x shape: {}, w1 shape: {}, interm shape: {}, w2 shape: {}, y shape: {}".format(x.value.shape, w1_shape, interm_shape, w2_shape, y_shape))
-            else:
-                pass
-        
-
-        # Define W1
-        w1_traits = TensorTraits(w1_shape, w1_tile)
-
-        # Define W2
-        w2_traits = TensorTraits(w2_shape, w2_tile)
-
-        # Define y_interm
-        interm1_traits = TensorTraits(interm_shape, interm_tile)
-        interm2_traits = TensorTraits(interm_shape, interm_tile)
-
-        # Define Y
-        y_traits = TensorTraits(y_shape, y_tile)
-
-        # TODO change distribution
-        w1_distr = [0] * w1_traits.grid.nelems
-        w1_value = type(x.value)(w1_traits, w1_distr, next_tag)
-        next_tag = w1_value.next_tag
-
-        # Create gradient of W1 with the same traits and distribution as W1
-        w1_grad = type(x.value)(w1_traits, w1_distr, next_tag)
-        next_tag = w1_grad.next_tag
-
-        # TODO change distribution
-        w2_distr = [0] * w2_traits.grid.nelems
-        w2_value = type(x.value)(w2_traits, w2_distr, next_tag)
-        next_tag = w2_value.next_tag
-
-        # Create gradient of W2 with the same traits and distribution as W2
-        w2_grad = type(x.value)(w2_traits, w2_distr, next_tag)
-        next_tag = w2_grad.next_tag
-        
-
-        # TODO change distribution
-        interm1_distr = [0] * interm1_traits.grid.nelems
-        interm1_value = type(x.value)(interm1_traits, interm1_distr, next_tag)
-        next_tag = interm1_value.next_tag
-
-        # Create gradient of y_interm with the same traits and distribution as y_interm
-        interm1_grad = type(x.value)(interm1_traits, interm1_distr, next_tag)
-        next_tag = interm1_grad.next_tag
-
-        # TODO change distribution
-        interm2_distr = [0] * interm2_traits.grid.nelems
-        interm2_value = type(x.value)(interm2_traits, interm2_distr, next_tag)
-        next_tag = interm2_value.next_tag
-
-        # Create gradient of y_interm with the same traits and distribution as y_interm
-        interm2_grad = type(x.value)(interm2_traits, interm2_distr, next_tag)
-        next_tag = interm2_grad.next_tag
-
-        # Define W1 as TensorMoments
-        w1 = TensorMoments(w1_value, w1_grad, True)
-
-        # Define W2 as TensorMoments
-        w2 = TensorMoments(w2_value, w2_grad, True)
-
-        # Define y_interm as TensorMoments
-        y_interm1 = TensorMoments(interm1_value, interm1_grad, True)
-        y_interm2 = TensorMoments(interm2_value, interm2_grad, True)
-
-        # TODO change distribution
-        y_distr = [0] * y_traits.grid.nelems
-        y_value = type(x.value)(y_traits, y_distr, next_tag)
-        next_tag = y_value.next_tag
-        # Create gradient of Y with the same traits and distribution as Y
-        y_grad = type(x.value)(y_traits, y_distr, next_tag)
-        next_tag = y_grad.next_tag
-
-        # Define Y as TensorMoments
-        y = TensorMoments(y_value, y_grad, True)
-
-        # Create linear layer with all the provided data
-        layer = MixerMlp(side, trans_x, x, y, w1, w2, y_interm1, y_interm2, ndim)
         # Return layer and next tag to be used
         return (layer, next_tag)
+    
 
-
-    # Forward propagation of the mlp_mixer layer
     def forward_async(self):
-        # Perform actual gemm
-        if self.side == 'L':
-            gemm_async(1.0, self.trans_x, self.x.value, notrans, self.w1.value,
-                    0.0, self.interm_1.value, self.ndim, 0)
-            copy_async(self.interm_1.value, self.interm_2.value)
-            gelu_async(self.interm_2.value)
-            gemm_async(1.0, self.trans_x, self.interm_2.value, notrans, self.w2.value,
-                    0.0, self.y.value, self.ndim, 0)
-        else:
-            gemm_async(1.0, notrans, self.w1.value, self.trans_x, self.x.value,
-                    0.0, self.interm_1.value, self.ndim, 0)
-            copy_async(self.interm_1.value, self.interm_2.value)
-            gelu_async(self.interm_2.value)
-            gemm_async(1.0, notrans, self.w2.value, self.trans_x, self.interm_2.value,
-                    0.0, self.y.value, self.ndim, 0)
-        # Hint for StarPU that W tensor will
-        # not be used soon and it is advised to offload data from GPU
-        self.w1.value.wont_use()
-        self.w2.value.wont_use()
+        self.linear_1.forward_async()
+        self.act.forward_async()
+        self.linear_2.forward_async()
 
 
 class Mixer(BaseLayer):
-    side: str
-    trans_x: TransOp
     x: TensorMoments
     y: TensorMoments
-    ndim: int
     norm_1: LayerNorm
     norm_2: LayerNorm
     mlp_1: MixerMlp
     mlp_2: MixerMlp
 
     # Construct mixer layer with all the provided data
-    def __init__(self, trans_x: TransOp, x: TensorMoments, y: TensorMoments, 
+    def __init__(self, x: TensorMoments, y: TensorMoments, 
                  norm_1: LayerNorm, norm_2: LayerNorm,
-                 mlp_1: MixerMlp, mlp_2: MixerMlp, ndim: int):
-
-        # Check parameter ndim
-        if ndim <= 0:
-            raise ValueError("ndim must be positive integer")
+                 mlp_1: MixerMlp, mlp_2: MixerMlp):
         
         # Redirect to BaseClass initialization
         super().__init__([x], [y], [], [])
 
         # Set up local named parameters
-        self.trans_x = trans_x
-        self.ndim = ndim
         self.x = x
         self.y = y
         self.norm_1 = norm_1
@@ -222,19 +87,17 @@ class Mixer(BaseLayer):
 
     # Simple generator for the mixer layer
     @staticmethod
-    def generate_simple_mpiroot(x: TensorMoments, trans_x: TransOp, ndim: int, next_tag: int):
+    def generate_simple_mpiroot(x: TensorMoments, next_tag: int):
         eps = 1e-5
         norm_1_layer, next_tag = LayerNorm.generate_simple(x, 2, eps, next_tag)
 
-        mlp_1_add_shape = x.value.shape[0] * 4
-        mlp_layer1, next_tag = MixerMlp.generate_simple_mpiroot(norm_1_layer.y, 'R', trans_x, 1, [mlp_1_add_shape], [mlp_1_add_shape], next_tag)
+        mlp_layer1, next_tag = MixerMlp.generate_simple_mpiroot(norm_1_layer.y, 'R', next_tag)
         
         norm_2_layer, next_tag = LayerNorm.generate_simple(mlp_layer1.y, 2, eps, next_tag)
 
-        mlp_2_add_shape = x.value.shape[-1] * 4
-        mlp_layer2, next_tag = MixerMlp.generate_simple_mpiroot(norm_2_layer.y, 'L', trans_x, 1, [mlp_2_add_shape], [mlp_2_add_shape], next_tag)
+        mlp_layer2, next_tag = MixerMlp.generate_simple_mpiroot(norm_2_layer.y, 'L', next_tag)
 
-        layer = Mixer(trans_x, x, mlp_layer2.y, norm_1_layer, norm_2_layer, mlp_layer1, mlp_layer2, ndim)
+        layer = Mixer(x, mlp_layer2.y, norm_1_layer, norm_2_layer, mlp_layer1, mlp_layer2)
 
         return layer, next_tag
     
