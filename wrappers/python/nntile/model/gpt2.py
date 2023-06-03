@@ -17,6 +17,8 @@ from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
 from nntile.model.base_model import BaseModel
 from nntile.layer.linear import Linear
 from nntile.layer.embedding import Embedding
+from nntile.layer.add_slice import AddSlice
+from nntile.layer.layer_norm import LayerNorm
 import numpy as np
 from typing import List
 
@@ -29,31 +31,42 @@ class GPT2(BaseModel):
         vocab_size = config["vocab_size"]
         embed_dim = config["embed_dim"]
         max_position_embeddings = config["max_position_embeddings"]
+        layer_norm_epsilon = config["layer_norm_epsilon"]
         activations = [input_ids, positional_ids]
         layers = []
         wte_layer, next_tag = Embedding.generate_simple(input_ids.value, Tensor_fp32, 2, 
                                                         vocab_size, embed_dim, embed_dim,
                                                         embed_dim, next_tag) # config.vocab_size, self.embed_dim
         layers.append(wte_layer)
-        activations.append(wte_layer.y)
+        activations.extend(wte_layer.activations_output)
         
         wpe_layer, next_tag = Embedding.generate_simple(positional_ids.value, Tensor_fp32, 1,
                                                         max_position_embeddings, embed_dim,
                                                         embed_dim, embed_dim, next_tag) # config.max_position_embeddings, self.embed_dim
         layers.append(wpe_layer)
-        activations.append(wpe_layer.y)
+        activations.extend(wpe_layer.activations_output)
 
+        add_slice_layer, next_tag = AddSlice.generate_simple(activations[-2], activations[-1], 0, next_tag)
+        
+        layers.append(add_slice_layer)
+        activations.extend(add_slice_layer.activations_output)
+
+        l_norm, next_tag = LayerNorm.generate_simple(activations[-1], 2, layer_norm_epsilon, next_tag)
+
+        layers.append(l_norm)
+        activations.extend(l_norm.activations_output)
         
         self.next_tag = next_tag
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
 
     @staticmethod
-    def from_torch(torch_gpt2, batch_size: int, seq_len: int, next_tag: int):
+    def from_torch(torch_gpt2, batch_size: int, seq_len: int, layer_norm_eps: float, next_tag: int):
         config = {
             "vocab_size": torch_gpt2.wte.weight.shape[0],
             "embed_dim": torch_gpt2.wte.weight.shape[1],
-            "max_position_embeddings": torch_gpt2.wpe.weight.shape[0]
+            "max_position_embeddings": torch_gpt2.wpe.weight.shape[0],
+            "layer_norm_epsilon": layer_norm_eps
         }
         positional_ids_traits = TensorTraits([seq_len], [seq_len])
         positional_ids_distr = [0] * positional_ids_traits.grid.nelems
@@ -72,8 +85,7 @@ class GPT2(BaseModel):
         x_moments = TensorMoments(x, x_grad, x_grad_required)
 
         gpt2_nntile = GPT2(x_moments, positional_ids, config, next_tag)
-        for p_nntile, p_torch in zip(gpt2_nntile.parameters[:2], list(torch_gpt2.parameters())[:2]):
-            print(p_torch.shape)
+        for p_nntile, p_torch in zip(gpt2_nntile.parameters[:3], list(torch_gpt2.parameters())[:3]):
             p_nntile.value.from_array(p_torch.detach().numpy().T)
 
         return gpt2_nntile, gpt2_nntile.next_tag

@@ -24,6 +24,7 @@ from transformers import GPT2Model, GPT2Config
 from datasets import load_dataset
 from nntile.model.gpt2 import GPT2
 from nntile.tensor import copy_async
+from nntile.loss import Frob
 import pdb 
 
 # Describe dataset
@@ -78,7 +79,9 @@ print(model_torch)
 print(tokens.shape, tokens.dtype)
 # pdb.set_trace()
 output = model_torch(torch.from_numpy(tokens[0, :, :-1]))
-print(output.last_hidden_state.shape, torch.sum(torch.square(output.last_hidden_state)).item())
+torch_loss = 0.5 * torch.sum(torch.square(output.last_hidden_state))
+torch_loss.backward()
+print(output.last_hidden_state.shape, torch_loss.item())
 # print(output.logits.shape)
 
 
@@ -86,7 +89,7 @@ print(output.last_hidden_state.shape, torch.sum(torch.square(output.last_hidden_
 
 time0 = -time.time()
 # Set up StarPU+MPI and init codelets
-config = nntile.starpu.Config(-1, -1, 1)
+nntile_config = nntile.starpu.Config(-1, -1, 1)
 nntile.starpu.init()
 time0 += time.time()
 print("StarPU + NNTile + MPI init in {} seconds".format(time0))
@@ -121,9 +124,37 @@ for i in range(num_batches):
     batch_output.append(y)
 
 
-nntile_model, next_tag = GPT2.from_torch(model_torch, batch_size, seq_len, next_tag)
+nntile_model, next_tag = GPT2.from_torch(model_torch, batch_size, seq_len, 
+                                         config.layer_norm_epsilon, next_tag)
 copy_async(batch_input[0], nntile_model.activations[0].value) 
 nntile_model.forward_async()
+
+nntile_model.clear_gradients()
+
+fro_loss, next_tag = Frob.generate_simple(nntile_model.activations[-1], next_tag)
+fro_loss.y.from_array(np.zeros((1, seq_len, config.n_embd), order="F", dtype=np.float32))
+
+fro_loss.calc_async()
+
+nntile_model.backward_async()
+
+val_np = np.zeros((1,), order="F", dtype=np.float32)
+fro_loss.val.to_array(val_np)
+print("NNTile loss = {}".format(val_np[0]))
+print("Relative difference between PyTorch and NNTile losses = {}".format(
+    abs(val_np[0] - torch_loss.item()) / torch_loss.item()))
+
+for i, (p_nntile, p_torch) in enumerate(zip(nntile_model.parameters, model_torch.parameters())):
+    p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
+    p_nntile.grad.to_array(p_nntile_grad_np)
+    if len(p_nntile.grad.shape) == 1:
+        rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np)) / torch.norm(p_torch.grad)
+    elif len(p_nntile.grad.shape) == 2:
+        rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np).T) / torch.norm(p_torch.grad)
+    print("Relative error in gradient in layer {} = {}".format(i, rel_error.item()))
+
+
+
 # Wait for all scatters to finish
 nntile.starpu.wait_for_all()
 time0 += time.time()
@@ -146,7 +177,7 @@ nntile_model.unregister()
 #optimizer.unregister()
 
 # Unregister loss function
-#loss.unregister()
+fro_loss.unregister()
 
 # Unregister input/output batches
 for x in batch_input:
