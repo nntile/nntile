@@ -42,7 +42,7 @@ print("Torch loss = {}".format(torch_loss_val))
 class NNTileToyModel(BaseModel):
     next_tag: int
 
-    def __init__(self, x: TensorMoments, y: TensorMoments, next_tag: int):
+    def __init__(self, x: TensorMoments, y: TensorMoments, axis: int, next_tag: int):
         activations = [x, y]
         layers = []
         new_layer, next_tag = Linear.generate_simple_mpiroot(x, "L", notrans,
@@ -62,7 +62,7 @@ class NNTileToyModel(BaseModel):
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = AddSlice.generate_simple(activations[3], activations[-1],
+        new_layer, next_tag = AddSlice.generate_simple(activations[3], activations[-1], axis,
                                                       next_tag)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
@@ -78,7 +78,7 @@ class NNTileToyModel(BaseModel):
         
     
     @staticmethod
-    def from_torch(torch_model, batch_size, input_dim, next_tag):
+    def from_torch(torch_model, batch_size, input_dim, axis, next_tag):
 
         x_traits = TensorTraits([batch_size, input_dim], \
         [batch_size, input_dim])
@@ -97,7 +97,7 @@ class NNTileToyModel(BaseModel):
         y_grad_required = False
         y = TensorMoments(y, y_grad, y_grad_required)
 
-        nntile_model = NNTileToyModel(x, y, next_tag)
+        nntile_model = NNTileToyModel(x, y, axis, next_tag)
 
         for p_nntile, p_torch in zip(nntile_model.parameters, torch_model.parameters()):
             p_nntile.value.from_array(p_torch.detach().numpy().T)
@@ -108,7 +108,8 @@ class NNTileToyModel(BaseModel):
 config = nntile.starpu.Config(-1, -1, 1)
 nntile.starpu.init()
 next_tag = 0
-nntile_model, next_tag = NNTileToyModel.from_torch(torch_model, batch_size, input_dim, next_tag)
+axis = 0
+nntile_model, next_tag = NNTileToyModel.from_torch(torch_model, batch_size, input_dim, axis, next_tag)
 
 nntile_model.activations[0].value.from_array(x_input_torch.numpy())
 nntile_model.activations[1].value.from_array(y_input_torch.numpy())

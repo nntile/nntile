@@ -18,27 +18,28 @@ from nntile.tensor import TensorTraits, Tensor_fp32, TensorMoments
 
 class AddSlice(BaseLayer):
 
-    def __init__(self, x: TensorMoments, y: TensorMoments, u: TensorMoments):
+    def __init__(self, x: TensorMoments, y: TensorMoments, u: TensorMoments, axis: int):
         super().__init__([x, y], [u], [], [])
         # Set up local named parameters
         self.x = x
         self.y = y
         self.u = u
+        self.axis = axis
 
     # Forward propagation of the add_slice layer
     def forward_async(self):
         # Init Y as a copy of X
         copy_async(self.x.value, self.u.value)
         # Add slice operation
-        add_slice_async(1, self.y.value, 1, self.u.value, 0)
+        add_slice_async(1, self.y.value, 1, self.u.value, self.axis)
 
     def backward_async(self):
         add_async(1, self.u.grad, 1, self.x.grad)
-        sum_slice_async(1, self.u.grad, 1, self.y.grad, 0)
+        sum_slice_async(1, self.u.grad, 1, self.y.grad, self.axis)
         
     # Simple generator for the add_slice layer
     @staticmethod
-    def generate_simple(x: TensorMoments, y: TensorMoments, next_tag: int):
+    def generate_simple(x: TensorMoments, y: TensorMoments, axis: int,  next_tag: int):
         # Get traits of X
         u_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
         # Create Y with the same traits and distribution as X
@@ -48,7 +49,7 @@ class AddSlice(BaseLayer):
         next_tag = u_grad.next_tag
         u = TensorMoments(u_value, u_grad, True)
         # Create activation layer with all the provided tensors
-        layer = AddSlice(x, y, u)
+        layer = AddSlice(x, y, u, axis)
         # Return layer and next tag to be used
         return (layer, next_tag)
 
