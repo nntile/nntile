@@ -42,6 +42,8 @@ def helper(dtype: np.dtype):
     mpi_distr = [0]
     next_tag = 0
     
+    n_patches, n_channels = A_shape[0], A_shape[2]
+
     # Tensor objects
     A = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = A.next_tag
@@ -72,9 +74,9 @@ def helper(dtype: np.dtype):
     np_W4 = np.array(rand_W4, dtype=dtype, order='F')
     mixer_layer.mlp_2.linear_2.w.value.from_array(np_W4)
 
-    rand_gamma = np.random.randn((A_shape[2]))
+    rand_gamma = np.random.randn(n_channels)
     np_gamma = np.array(rand_gamma, dtype=dtype, order='F')
-    rand_beta = np.random.randn((A_shape[2]))
+    rand_beta = np.random.randn(n_channels)
     np_beta = np.array(rand_beta, dtype=dtype, order='F')
 
     mixer_layer.norm_1.gamma.value.from_array(np_gamma)
@@ -82,11 +84,11 @@ def helper(dtype: np.dtype):
 
     mixer_layer.norm_2.gamma.value.from_array(np_gamma)
     mixer_layer.norm_2.beta.value.from_array(np_beta)
-
     A.from_array(np_A)
     mixer_layer.forward_async()
-
-    torch_mixer_layer = torch_Mixer(np_W1, np_W2, np_W3, np_W4)
+    
+    torch_mixer_layer = torch_Mixer(n_patches, n_channels)
+    torch_mixer_layer.set_weight_parameters(np_W1, np_W2, np_W3, np_W4)
     torch_mixer_layer.set_normalization_parameters(np_gamma, np_beta, np_gamma, np_beta)
     torch_mixer_layer.zero_grad()
     torch_output = torch_mixer_layer.forward(torch.from_numpy(np_A))

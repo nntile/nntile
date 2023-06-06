@@ -24,12 +24,13 @@ def helper_l(dtype: np.dtype):
     elif dtype == np.float64:
         tol = 1e-10
     # Describe single-tile tensor, located at node 0
-    A_shape = [8, 1, 4]
-    ndim = len(A_shape)
+    A_shape = [8, 2, 4]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
     next_tag = 0
     
+    n_channels = A_shape[2]
+
     # Tensor objects
     A = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = A.next_tag
@@ -55,7 +56,8 @@ def helper_l(dtype: np.dtype):
     A.from_array(np_A)
     layer.forward_async()
 
-    torch_mlp = torch_MLP('L', np_W1, np_W2)
+    torch_mlp = torch_MLP('L', n_channels)
+    torch_mlp.set_weight(np_W1, np_W2)
     torch_mlp.zero_grad()
     torch_output = torch_mlp.forward(torch.from_numpy(np_A))
     np_Y = np.array(torch_output.detach().numpy(), order="F", dtype=dtype)
@@ -79,11 +81,12 @@ def helper_r(dtype: np.dtype):
     elif dtype == np.float64:
         tol = 1e-10
     # Describe single-tile tensor, located at node 0
-    A_shape = [8, 1, 4]
-    ndim = len(A_shape)
+    A_shape = [8, 2, 4]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
     next_tag = 0
+
+    n_patches = A_shape[0]
     
     # Tensor objects
     A = Tensor[dtype](A_traits, mpi_distr, next_tag)
@@ -110,7 +113,8 @@ def helper_r(dtype: np.dtype):
     A.from_array(np_A)
     layer.forward_async()
 
-    torch_mlp = torch_MLP('R', np_W1, np_W2)
+    torch_mlp = torch_MLP('R', n_patches)
+    torch_mlp.set_weight(np_W1, np_W2)
     torch_mlp.zero_grad()
     torch_output = torch_mlp.forward(torch.from_numpy(np_A))
     np_Y = np.array(torch_output.detach().numpy(), order="F", dtype=dtype)
