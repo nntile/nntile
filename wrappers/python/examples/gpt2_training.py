@@ -18,8 +18,9 @@ import numpy as np
 import time
 import sys
 import torch
+import torch.nn as nn
 from transformers import GPT2Tokenizer, TextDataset, GPT2LMHeadModel
-from transformers import GPT2Model, GPT2Config
+from transformers import GPT2Model, GPT2Config, GPT2LMHeadModel
 # pip3 install datasets
 from datasets import load_dataset
 from nntile.model.gpt2 import GPT2
@@ -63,14 +64,20 @@ print("Number of train sequences: {}".format(num_batches * batch_size))
 print("Number of train batches: {}".format(num_batches))
 
 # PyTorch model
-# model_torch = GPT2LMHeadModel.from_pretrained("gpt2")
+pretrained_model_torch = GPT2LMHeadModel.from_pretrained("gpt2")
 config = GPT2Config()
 config.attn_pdrop = 0
 config.embd_pdrop = 0
 config.resid_pdrop = 0
 config.n_head=1
 config.num_hidden_layers = 0
-model_torch = GPT2Model(config)
+model_torch = GPT2LMHeadModel(config)
+# Current version splits lm_head and wte parameters, shared parameters will be supported soon
+model_torch.lm_head.weight = nn.Parameter(pretrained_model_torch.lm_head.weight.detach().clone())
+model_torch.transformer.wte.weight = pretrained_model_torch.transformer.wte.weight
+model_torch.transformer.wpe.weight = pretrained_model_torch.transformer.wpe.weight
+model_torch.transformer.ln_f.weight = pretrained_model_torch.transformer.ln_f.weight
+model_torch.transformer.ln_f.bias = pretrained_model_torch.transformer.ln_f.bias
 
 vocab_size = model_torch.config.vocab_size
 print(model_torch)
@@ -78,12 +85,13 @@ print(model_torch)
 # print(input_ids, input_ids["input_ids"].shape)
 print(tokens.shape, tokens.dtype)
 # pdb.set_trace()
-output = model_torch(torch.from_numpy(tokens[0, :, :-1]))
-torch_loss = 0.5 * torch.sum(torch.square(output.last_hidden_state))
+output = model_torch(torch.from_numpy(tokens[10, :, :-1]))
+# output_logits = output.logits.detach().clone()
+# trial_true_output = output_logits + torch.randn(output.logits.shape)
+torch_loss = 0.5 * torch.sum(torch.square(output.logits))
 torch_loss.backward()
-print(output.last_hidden_state.shape, torch_loss.item())
+print(output.logits.shape, torch_loss.item())
 # print(output.logits.shape)
-
 
 
 
@@ -125,15 +133,15 @@ for i in range(num_batches):
 
 
 nntile_model, next_tag = GPT2.from_torch(model_torch, batch_size, seq_len, 
-                                         config.layer_norm_epsilon, next_tag)
-copy_async(batch_input[0], nntile_model.activations[0].value) 
+                                         config, next_tag)
+copy_async(batch_input[10], nntile_model.activations[0].value) 
 nntile_model.forward_async()
 
 nntile_model.clear_gradients()
 
 fro_loss, next_tag = Frob.generate_simple(nntile_model.activations[-1], next_tag)
-fro_loss.y.from_array(np.zeros((1, seq_len, config.n_embd), order="F", dtype=np.float32))
-
+fro_loss.y.from_array(np.zeros((1, seq_len, config.vocab_size), order="F", dtype=np.float32))
+# fro_loss.y.from_array(np.array(trial_true_output.detach().numpy(), order="F", dtype=np.float32))
 fro_loss.calc_async()
 
 nntile_model.backward_async()
@@ -144,16 +152,19 @@ print("NNTile loss = {}".format(val_np[0]))
 print("Relative difference between PyTorch and NNTile losses = {}".format(
     abs(val_np[0] - torch_loss.item()) / torch_loss.item()))
 
-for i, (p_nntile, p_torch) in enumerate(zip(nntile_model.parameters, model_torch.parameters())):
+for i, (p_nntile, p_torch) in enumerate(zip(nntile_model.parameters[:4], list(model_torch.parameters())[:4])):
     p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
     p_nntile.grad.to_array(p_nntile_grad_np)
     if len(p_nntile.grad.shape) == 1:
         rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np)) / torch.norm(p_torch.grad)
     elif len(p_nntile.grad.shape) == 2:
         rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np).T) / torch.norm(p_torch.grad)
-    print("Relative error in gradient in layer {} = {}".format(i, rel_error.item()))
+    print("Relative error in gradient in parameter {} = {}".format(i, rel_error.item()))
 
-
+p_nntile_grad_np = np.zeros(nntile_model.parameters[-1].grad.shape, order="F", dtype=np.float32)
+nntile_model.parameters[-1].grad.to_array(p_nntile_grad_np)
+rel_error = torch.norm(model_torch.lm_head.weight.grad - torch.from_numpy(p_nntile_grad_np).T) / torch.norm(model_torch.lm_head.weight.grad)
+print("Relative error in gradient in lm_head = {}".format(rel_error.item()))
 
 # Wait for all scatters to finish
 nntile.starpu.wait_for_all()

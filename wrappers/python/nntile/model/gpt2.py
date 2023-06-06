@@ -55,18 +55,29 @@ class GPT2(BaseModel):
 
         layers.append(l_norm)
         activations.extend(l_norm.activations_output)
-        
+
+        lm_head_layer, next_tag = Linear.generate_simple_mpiroot(activations[-1], "L", notrans, 1, [vocab_size], [vocab_size], next_tag)
+
+        layers.append(lm_head_layer)
+        activations.extend(lm_head_layer.activations_output)
+
         self.next_tag = next_tag
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
 
     @staticmethod
-    def from_torch(torch_gpt2, batch_size: int, seq_len: int, layer_norm_eps: float, next_tag: int):
+    def from_torch(torch_gpt2, batch_size: int, seq_len: int, config, next_tag: int):
+        # config = {
+        #     "vocab_size": torch_gpt2.transformer.wte.weight.shape[0],
+        #     "embed_dim": torch_gpt2.transformer.wte.weight.shape[1],
+        #     "max_position_embeddings": torch_gpt2.transformer.wpe.weight.shape[0],
+        #     "layer_norm_epsilon": layer_norm_eps
+        # }
         config = {
-            "vocab_size": torch_gpt2.wte.weight.shape[0],
-            "embed_dim": torch_gpt2.wte.weight.shape[1],
-            "max_position_embeddings": torch_gpt2.wpe.weight.shape[0],
-            "layer_norm_epsilon": layer_norm_eps
+            "vocab_size": config.vocab_size,
+            "embed_dim": config.n_embd,
+            "max_position_embeddings": config.max_position_embeddings,
+            "layer_norm_epsilon": config.layer_norm_epsilon
         }
         positional_ids_traits = TensorTraits([seq_len], [seq_len])
         positional_ids_distr = [0] * positional_ids_traits.grid.nelems
@@ -85,7 +96,8 @@ class GPT2(BaseModel):
         x_moments = TensorMoments(x, x_grad, x_grad_required)
 
         gpt2_nntile = GPT2(x_moments, positional_ids, config, next_tag)
-        for p_nntile, p_torch in zip(gpt2_nntile.parameters[:3], list(torch_gpt2.parameters())[:3]):
+        for p_nntile, p_torch in zip(gpt2_nntile.parameters[:4], list(torch_gpt2.parameters())[:4]):
             p_nntile.value.from_array(p_torch.detach().numpy().T)
+        gpt2_nntile.parameters[-1].value.from_array(torch_gpt2.lm_head.weight.data.detach().numpy().T)
 
         return gpt2_nntile, gpt2_nntile.next_tag
