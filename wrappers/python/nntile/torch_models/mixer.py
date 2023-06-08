@@ -40,12 +40,14 @@ class MixerMlp(nn.Module):
         
 
 class Mixer(nn.Module):
-    def __init__(self, patch_dim :int, channel_dim: int):       
+    # channel dim - dimensionality of each channel - number of rows in a matrix [n_patches x n_channels]
+    # patch dim - dimensionality of each patch vector - number of columns in a matrix [n_patches x n_channels]
+    def __init__(self, channel_dim: int, patch_dim :int):       
         super().__init__()
-        self.norm_1 = nn.LayerNorm(channel_dim)
-        self.norm_2 = nn.LayerNorm(channel_dim)
-        self.mlp_1 = MixerMlp('R', patch_dim)
-        self.mlp_2 = MixerMlp('L', channel_dim)
+        self.norm_1 = nn.LayerNorm(patch_dim)
+        self.norm_2 = nn.LayerNorm(patch_dim)
+        self.mlp_1 = MixerMlp('R', channel_dim)
+        self.mlp_2 = MixerMlp('L', patch_dim)
 
 
     def set_normalization_parameters(self, norm_1_gamma, norm_1_beta, norm_2_gamma, norm_2_beta):
