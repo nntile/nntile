@@ -69,8 +69,8 @@ config = GPT2Config()
 config.attn_pdrop = 0
 config.embd_pdrop = 0
 config.resid_pdrop = 0
-config.n_head=1
-config.num_hidden_layers = 0
+config.n_head=2
+config.num_hidden_layers = 1
 model_torch = GPT2LMHeadModel(config)
 # Current version splits lm_head and wte parameters, shared parameters will be supported soon
 model_torch.lm_head.weight = nn.Parameter(pretrained_model_torch.lm_head.weight.detach().clone())
@@ -78,6 +78,20 @@ model_torch.transformer.wte.weight = pretrained_model_torch.transformer.wte.weig
 model_torch.transformer.wpe.weight = pretrained_model_torch.transformer.wpe.weight
 model_torch.transformer.ln_f.weight = pretrained_model_torch.transformer.ln_f.weight
 model_torch.transformer.ln_f.bias = pretrained_model_torch.transformer.ln_f.bias
+
+class IdentityModule(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x, layer_past=None,
+            attention_mask=None,
+            head_mask=None,
+            use_cache=None,
+            output_attentions=None,):
+        return x, None, None
+    
+identity = IdentityModule()
+model_torch.transformer.h[0].attn = identity
 
 vocab_size = model_torch.config.vocab_size
 print(model_torch)
