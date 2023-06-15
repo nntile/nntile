@@ -2,7 +2,7 @@ import nntile
 import numpy as np
 import torch.nn.functional as F
 import torch
-from nntile.torch_models.mixer import MixerMlp as torch_MLP
+from nntile.torch_models.mlp_mixer import MixerMlp as TorchMixerMlp
 
 
 # Set up StarPU configuration and init it
@@ -57,7 +57,7 @@ def helper_l(dtype: np.dtype):
     A.from_array(np_A)
     layer.forward_async()
 
-    torch_mlp = torch_MLP('L', n_channels)
+    torch_mlp = TorchMixerMlp('L', n_channels)
     torch_mlp.set_weight(np_W1, np_W2)
     torch_mlp.zero_grad()
     torch_output = torch_mlp.forward(torch.from_numpy(np_A))
@@ -114,7 +114,7 @@ def helper_r(dtype: np.dtype):
     A.from_array(np_A)
     layer.forward_async()
 
-    torch_mlp = torch_MLP('R', n_patches)
+    torch_mlp = TorchMixerMlp('R', n_patches)
     torch_mlp.set_weight(np_W1, np_W2)
     torch_mlp.zero_grad()
     torch_output = torch_mlp.forward(torch.from_numpy(np_A))

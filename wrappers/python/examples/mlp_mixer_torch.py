@@ -15,8 +15,6 @@ import torch
 import torch.nn as nn
 import torchvision.datasets as dts 
 import numpy as np
-import random
-import time
 import torchvision.transforms as trnsfrms
 from nntile.torch_models.mlp_mixer import MlpMixer, image_patching
 
