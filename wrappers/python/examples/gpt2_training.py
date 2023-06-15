@@ -14,10 +14,12 @@
 
 # Imports
 import nntile
+import math
 import numpy as np
 import time
 import sys
 import torch
+from torch import Tensor
 import torch.nn as nn
 from transformers import GPT2Tokenizer, TextDataset, GPT2LMHeadModel
 from transformers import GPT2Model, GPT2Config, GPT2LMHeadModel
@@ -27,6 +29,8 @@ from nntile.model.gpt2 import GPT2
 from nntile.tensor import copy_async
 from nntile.loss import Frob
 import pdb 
+from typing import Optional, Tuple, List
+from packaging import version
 
 # Describe dataset
 dataset_path = "./data"
@@ -70,7 +74,7 @@ config.attn_pdrop = 0
 config.embd_pdrop = 0
 config.resid_pdrop = 0
 config.n_head=2
-config.num_hidden_layers = 1
+config.num_hidden_layers = 2
 model_torch = GPT2LMHeadModel(config)
 # Current version splits lm_head and wte parameters, shared parameters will be supported soon
 model_torch.lm_head.weight = nn.Parameter(pretrained_model_torch.lm_head.weight.detach().clone())
@@ -89,9 +93,81 @@ class IdentityModule(nn.Module):
             use_cache=None,
             output_attentions=None,):
         return x, None, None
+
+class Conv1D(nn.Module):
+    """
+    1D-convolutional layer as defined by Radford et al. for OpenAI GPT (and also used in GPT-2).
+    Basically works like a linear layer but the weights are transposed.
+    Args:
+        nf (`int`): The number of output features.
+        nx (`int`): The number of input features.
+    """
+
+    def __init__(self, nf, nx):
+        super().__init__()
+        self.nf = nf
+        self.weight = nn.Parameter(torch.empty(nx, nf))
+        # self.bias = nn.Parameter(torch.zeros(nf))
+        self.bias = torch.zeros(nf)
+        nn.init.normal_(self.weight, std=0.02)
+
+    def forward(self, x):
+        size_out = x.size()[:-1] + (self.nf,)
+        x = torch.addmm(self.bias, x.view(-1, x.size(-1)), self.weight)
+        x = x.view(size_out)
+        return x
+
+class NewGELUActivation(nn.Module):
+    """
+    Implementation of the GELU activation function currently in Google BERT repo (identical to OpenAI GPT). Also see
+    the Gaussian Error Linear Units paper: https://arxiv.org/abs/1606.08415
+    """
+
+    def forward(self, input: Tensor) -> Tensor:
+        return 0.5 * input * (1.0 + torch.tanh(math.sqrt(2.0 / math.pi) * (input + 0.044715 * torch.pow(input, 3.0))))
+
+class PytorchGELUTanh(nn.Module):
+    """
+    A fast C implementation of the tanh approximation of the GeLU activation function. See
+    https://arxiv.org/abs/1606.08415.
+
+    This implementation is equivalent to NewGELU and FastGELU but much faster. However, it is not an exact numerical
+    match due to rounding errors.
+    """
+
+    def __init__(self):
+        super().__init__()
+        if version.parse(torch.__version__) < version.parse("1.12.0"):
+            raise ImportError(
+                f"You are using torch=={torch.__version__}, but torch>=1.12.0 is required to use "
+                "PytorchGELUTanh. Please upgrade torch."
+            )
+
+    def forward(self, input: Tensor) -> Tensor:
+        return nn.functional.gelu(input, approximate="tanh")
+    
+class GPT2MLP(nn.Module):
+    def __init__(self, intermediate_size, config):
+        super().__init__()
+        embed_dim = config.n_embd
+        self.c_fc = Conv1D(intermediate_size, embed_dim)
+        self.c_proj = Conv1D(embed_dim, intermediate_size)
+        # self.act = NewGELUActivation()
+        self.act = PytorchGELUTanh()
+        self.dropout = nn.Dropout(config.resid_pdrop)
+
+    def forward(self, hidden_states: Optional[Tuple[torch.FloatTensor]]) -> torch.FloatTensor:
+        hidden_states = self.c_fc(hidden_states)
+        hidden_states = self.act(hidden_states)
+        hidden_states = self.c_proj(hidden_states)
+        hidden_states = self.dropout(hidden_states)
+        return hidden_states
     
 identity = IdentityModule()
-model_torch.transformer.h[0].attn = identity
+inner_dim = config.n_inner if config.n_inner is not None else 4 * config.hidden_size
+for h_idx in range(config.num_hidden_layers):
+    model_torch.transformer.h[h_idx].attn = identity
+    model_torch.transformer.h[h_idx].mlp = GPT2MLP(inner_dim, config)
 
 vocab_size = model_torch.config.vocab_size
 print(model_torch)
@@ -166,10 +242,11 @@ print("NNTile loss = {}".format(val_np[0]))
 print("Relative difference between PyTorch and NNTile losses = {}".format(
     abs(val_np[0] - torch_loss.item()) / torch_loss.item()))
 
-for i, (p_nntile, p_torch) in enumerate(zip(nntile_model.parameters[:4], list(model_torch.parameters())[:4])):
+for i, (p_nntile, (name, p_torch)) in enumerate(zip(nntile_model.parameters, model_torch.named_parameters())):
     p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
     p_nntile.grad.to_array(p_nntile_grad_np)
-    if len(p_nntile.grad.shape) == 1:
+    layer_type = name.split(".")[-2]
+    if len(p_nntile.grad.shape) == 1 or layer_type in ("c_proj", "c_fc"):
         rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np)) / torch.norm(p_torch.grad)
     elif len(p_nntile.grad.shape) == 2:
         rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np).T) / torch.norm(p_torch.grad)

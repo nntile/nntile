@@ -21,6 +21,8 @@ from nntile.layer.add_slice import AddSlice
 from nntile.layer.layer_norm import LayerNorm
 import numpy as np
 from typing import List
+from nntile.model.gpt2mlp import GPT2MLP
+from nntile.layer.add import Add
 
 class GPT2(BaseModel):
     next_tag: int
@@ -32,6 +34,7 @@ class GPT2(BaseModel):
         embed_dim = config["embed_dim"]
         max_position_embeddings = config["max_position_embeddings"]
         layer_norm_epsilon = config["layer_norm_epsilon"]
+        hidden_size = config["hidden_size"]
         activations = [input_ids, positional_ids]
         layers = []
         wte_layer, next_tag = Embedding.generate_simple(input_ids.value, Tensor_fp32, 2, 
@@ -50,6 +53,36 @@ class GPT2(BaseModel):
         
         layers.append(add_slice_layer)
         activations.extend(add_slice_layer.activations_output)
+
+        for h_idx in range(config["num_hidden_layers"]):
+            l_norm, next_tag = LayerNorm.generate_simple(activations[-1], 2, layer_norm_epsilon, next_tag)
+            layers.append(l_norm)
+            activations.extend(l_norm.activations_output)
+
+            new_layer, next_tag = Add.generate_simple(activations[-2], activations[-1],
+                                                  next_tag)
+            layers.append(new_layer)
+            activations.extend(new_layer.activations_output)
+
+            l_norm, next_tag = LayerNorm.generate_simple(activations[-1], 2, layer_norm_epsilon, next_tag)
+            layers.append(l_norm)
+            activations.extend(l_norm.activations_output)
+
+            inner_dim = config["n_inner"] if config["n_inner"] is not None else 4 * hidden_size
+            config["interm_size"] = inner_dim
+            gpt_block = GPT2MLP(activations[-1], config, next_tag)
+            next_tag = gpt_block.next_tag
+
+            activations.extend(gpt_block.activations[1:])
+            layers.extend(gpt_block.layers)
+            
+
+            new_layer, next_tag = Add.generate_simple(activations[-5], activations[-1],
+                                                  next_tag)
+            layers.append(new_layer)
+            activations.extend(new_layer.activations_output)
+
+
 
         l_norm, next_tag = LayerNorm.generate_simple(activations[-1], 2, layer_norm_epsilon, next_tag)
 
@@ -77,7 +110,11 @@ class GPT2(BaseModel):
             "vocab_size": config.vocab_size,
             "embed_dim": config.n_embd,
             "max_position_embeddings": config.max_position_embeddings,
-            "layer_norm_epsilon": config.layer_norm_epsilon
+            "layer_norm_epsilon": config.layer_norm_epsilon,
+            "num_hidden_layers": config.num_hidden_layers,
+            "hidden_size": config.hidden_size,
+            "n_inner": config.n_inner,
+            "activation_function": "gelutanh",
         }
         positional_ids_traits = TensorTraits([seq_len], [seq_len])
         positional_ids_distr = [0] * positional_ids_traits.grid.nelems
@@ -96,8 +133,12 @@ class GPT2(BaseModel):
         x_moments = TensorMoments(x, x_grad, x_grad_required)
 
         gpt2_nntile = GPT2(x_moments, positional_ids, config, next_tag)
-        for p_nntile, p_torch in zip(gpt2_nntile.parameters[:4], list(torch_gpt2.parameters())[:4]):
-            p_nntile.value.from_array(p_torch.detach().numpy().T)
+        for p_nntile, (name, p_torch) in zip(gpt2_nntile.parameters, list(torch_gpt2.named_parameters())):
+            # print(p_nntile.value.shape, p_torch.shape, name)
+            if name.split(".")[-2] == "c_fc" or name.split(".")[-2] == "c_proj":
+                p_nntile.value.from_array(p_torch.detach().numpy())
+            else:
+                p_nntile.value.from_array(p_torch.detach().numpy().T)
         gpt2_nntile.parameters[-1].value.from_array(torch_gpt2.lm_head.weight.data.detach().numpy().T)
 
         return gpt2_nntile, gpt2_nntile.next_tag
