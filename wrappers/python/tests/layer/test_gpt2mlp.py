@@ -84,7 +84,7 @@ print("StarPU + NNTile + MPI init in {} seconds".format(time0))
 next_tag = 0
 
 nntile_config = {
-    "hidden_size": gpt2_config.n_embd,
+    "embed_dim": gpt2_config.n_embd,
     "interm_size": interm_size,
     "activation_function": gpt2_config.activation_function
 }

@@ -1,3 +1,17 @@
+# @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
+#                           (Skoltech). All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file wrappers/python/nntile/model/gpt2mlp.py
+# GPT2MLP block for GPT2 model of NNTile Python package
+#
+# @version 1.0.0
+# @author Aleksandr Mikhalev
+# @author Aleksandr Katrutsa
+# @date 2023-06-15
+
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         notrans, trans, Tensor_fp32, clear_async
 from nntile.model.base_model import BaseModel
@@ -14,7 +28,7 @@ class GPT2MLP(BaseModel):
         # Init activations and list of layers
         activations = [x]
         layers = []
-        embed_dim = config["hidden_size"]
+        embed_dim = config["embed_dim"]
         interm_size = config["interm_size"]
         gemm_ndim = 1
         # Initial linear layer that converts input to internal shape
