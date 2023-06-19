@@ -126,25 +126,6 @@ class NewGELUActivation(nn.Module):
     def forward(self, input: Tensor) -> Tensor:
         return 0.5 * input * (1.0 + torch.tanh(math.sqrt(2.0 / math.pi) * (input + 0.044715 * torch.pow(input, 3.0))))
 
-class PytorchGELUTanh(nn.Module):
-    """
-    A fast C implementation of the tanh approximation of the GeLU activation function. See
-    https://arxiv.org/abs/1606.08415.
-
-    This implementation is equivalent to NewGELU and FastGELU but much faster. However, it is not an exact numerical
-    match due to rounding errors.
-    """
-
-    def __init__(self):
-        super().__init__()
-        if version.parse(torch.__version__) < version.parse("1.12.0"):
-            raise ImportError(
-                f"You are using torch=={torch.__version__}, but torch>=1.12.0 is required to use "
-                "PytorchGELUTanh. Please upgrade torch."
-            )
-
-    def forward(self, input: Tensor) -> Tensor:
-        return nn.functional.gelu(input, approximate="tanh")
     
 class GPT2MLP(nn.Module):
     def __init__(self, intermediate_size, config):
@@ -152,8 +133,7 @@ class GPT2MLP(nn.Module):
         embed_dim = config.n_embd
         self.c_fc = Conv1D(intermediate_size, embed_dim)
         self.c_proj = Conv1D(embed_dim, intermediate_size)
-        # self.act = NewGELUActivation()
-        self.act = PytorchGELUTanh()
+        self.act = NewGELUActivation()
         self.dropout = nn.Dropout(config.resid_pdrop)
 
     def forward(self, hidden_states: Optional[Tuple[torch.FloatTensor]]) -> torch.FloatTensor:
