@@ -19,6 +19,7 @@ from nntile.layer.linear import Linear
 from nntile.layer.embedding import Embedding
 from nntile.layer.add_slice import AddSlice
 from nntile.layer.layer_norm import LayerNorm
+from nntile.layer.attention import Attention
 import numpy as np
 from typing import List
 from nntile.model.gpt2mlp import GPT2MLP
@@ -58,6 +59,13 @@ class GPT2(BaseModel):
             l_norm, next_tag = LayerNorm.generate_simple(activations[-1], 2, layer_norm_epsilon, next_tag)
             layers.append(l_norm)
             activations.extend(l_norm.activations_output)
+
+            attn_layer, next_tag = Attention.generate_simple_mpiroot(activations[-1],
+                                                                     activations[-1],
+                                                                     activations[-1],
+                                                                     config["n_head"], next_tag)
+            layers.append(attn_layer)
+            activations.extend(attn_layer.activations_output)
 
             new_layer, next_tag = Add.generate_simple(activations[-2], activations[-1],
                                                   next_tag)
@@ -115,6 +123,7 @@ class GPT2(BaseModel):
             "hidden_size": config.hidden_size,
             "n_inner": config.n_inner,
             "activation_function": "gelutanh",
+            "n_head": config.n_head,
         }
         positional_ids_traits = TensorTraits([seq_len], [seq_len])
         positional_ids_distr = [0] * positional_ids_traits.grid.nelems
@@ -134,7 +143,7 @@ class GPT2(BaseModel):
 
         gpt2_nntile = GPT2(x_moments, positional_ids, config, next_tag)
         for p_nntile, (name, p_torch) in zip(gpt2_nntile.parameters, list(torch_gpt2.named_parameters())):
-            # print(p_nntile.value.shape, p_torch.shape, name)
+            print(p_nntile.value.shape, p_torch.shape, name)
             if name.split(".")[-2] == "c_fc" or name.split(".")[-2] == "c_proj":
                 p_nntile.value.from_array(p_torch.detach().numpy())
             else:
