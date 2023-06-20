@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/prod_fiber.hh
- * Bias-like product along outer axes low-level kernels
+ * @file include/nntile/kernel/sum_fiber/cuda.hh
+ * Sums over slices into a fiber of a buffer on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -14,23 +14,23 @@
 
 #pragma once
 
-#include <nntile/kernel/prod_fiber/cpu.hh>
-//#include <nntile/defs.h>
-#ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/prod_fiber/cuda.hh>
-#endif // NNTILE_USE_CUDA
+#include <nntile/base_types.hh>
+#include <cuda_runtime.h>
 
 namespace nntile
 {
 namespace kernel
 {
-//! @namespace nntile::kernel::prod_fiber
-/*! Low-level implementations of prod_fiber operation
- * */
-namespace prod_fiber
+namespace sum_fiber
 {
 
-} // namespace prod_fiber
+// Sums over slices along the first and last axes into a fiber of a tensor
+template<typename T>
+void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
+        const T *src, T beta, T *dst)
+    noexcept;
+
+} // namespace sum_fiber
 } // namespace kernel
 } // namespace nntile
 

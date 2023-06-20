@@ -221,13 +221,20 @@ time1 = time.time() - time0
 print("NNTile forward throughput (sequence/sec): ", \
         args.nforward * args.batch_size / time1)
 
-nntile_model.activations[-1].grad.from_array(output_grad.cpu().numpy())
+nntile_output_shape = nntile_model.activations[-1].shape
+nntile_output_traits = nntile.TensorTraits(nntile_output_shape, \
+        nntile_output_shape)
+nntile_output = nntile.Tensor_fp32(nntile_output_traits, [0], next_tag)
+next_tag = nntile_output.next_tag
+nntile_output.from_array(output_grad.cpu().numpy())
 nntile_model.clear_gradients()
+nntile.tensor.copy_async(nntile_output, nntile_model.activations[-1].grad)
 nntile_model.backward_async()
 nntile.starpu.wait_for_all()
 time0 = time.time()
 for i in range(args.nbackward):
     nntile_model.clear_gradients()
+    nntile.tensor.copy_async(nntile_output, nntile_model.activations[-1].grad)
     nntile_model.backward_async()
 nntile.starpu.wait_for_all()
 time1 = time.time() - time0

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-02
+ * @date 2023-06-20
  * */
 
 #include "nntile/kernel/prod_slice/cuda.hh"
@@ -80,6 +80,16 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
 {
     // Both source and destination are Fortran-contiguous
     dim3 blocks(16, 16), threads(8, 4);
+    if(m == 1)
+    {
+        blocks = 256;
+        threads = 32;
+    }
+    else if(n == 1)
+    {
+        blocks = dim3(1, 256);
+        threads = dim3(1, 32);
+    }
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha, src,
             dst);
 }

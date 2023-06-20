@@ -4,38 +4,36 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/add_fiber/cuda.cu
- * Per-element addition of a tensor and a broadcasted fiber on CUDA
+ * @file src/kernel/prod_fiber/cuda.cu
+ * Per-element multiplication of a tensor by a broadcasted fiber on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @date 2023-06-20
  * */
 
-#include "nntile/kernel/add_fiber/cuda.hh"
+#include "nntile/kernel/prod_fiber/cuda.hh"
 
 namespace nntile
 {
 namespace kernel
 {
-namespace add_fiber
+namespace prod_fiber
 {
 
 template<typename T>
 static __global__
-void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src, T beta,
-        T *dst)
-//! Per-element addition of a tensor and a broadcasted fiber on CPU
+void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src, T *dst)
+//! Per-element product of a tensor and a broadcasted fiber on CPU
 /*! Performs the following operations:
- *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[l]
+ *      dst[i,l,j] = alpha * dst[i,l,j] * src[l]
  *
  * @param[in] m: Size of the first mode of dst tensor
  * @param[in] n: Size of the last mode of dst tensor
  * @param[in] k: Size of the middle mode of dst tensor and the only mode of src
- *      tensors
- * @param[in] alpha: Scalar factor for src
+ *      tensor
+ * @param[in] alpha: Scalar factor
  * @param[in] src: Input contiguous vector with k elements
- * @param[in] beta: Scaling factor for dst
  * @param[inout] dst: Input and output contiguous m-by-k-by-n array
  * */
 {
@@ -43,37 +41,20 @@ void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src, T beta,
           i0_start = threadIdx.y + blockIdx.y*blockDim.y,
           i2_step = blockDim.x * gridDim.x,
           i0_step = blockDim.y * gridDim.y;
-    constexpr T zero = 0;
-    // Cycle over input fiber src
+    // Cycle over input src vector
     for(Index i2 = i2_start; i2 < k; i2 += i2_step)
     {
-        // Value to add to the output slice
         const T src_val = alpha * src[i2];
-        // Cycle over the third axis of output buffer dst
+        // Cycle over the third axis of output buffer
         for(Index i1 = 0; i1 < n; ++i1)
         {
             // Output fiber to be updated
             T *dst_fiber = dst + (i1*k+i2)*m;
-            // Overwrite or update output depending on beta
-            if(beta == zero)
+            // Cycle over the output fiber
+            for(Index i0 = i0_start; i0 < m; i0 += i0_step)
             {
-                // Cycle over output fiber elements
-                for(Index i0 = i0_start; i0 < m; i0 += i0_step)
-                {
-                    // Set output value
-                    dst_fiber[i0] = src_val;
-                }
-            }
-            else
-            {
-                // Cycle over output fiber elements
-                for(Index i0 = i0_start; i0 < m; i0 += i0_step)
-                {
-                    // Read value from the output
-                    T &dst_val = dst_fiber[i0];
-                    // And update it
-                    dst_val = beta*dst_val + src_val;
-                }
+                // Update output value
+                dst_fiber[i0] *= src_val;
             }
         }
     }
@@ -81,40 +62,38 @@ void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src, T beta,
 
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
-        const T *src, T beta, T *dst)
+        const T *src, T *dst)
     noexcept
-//! Per-element addition of a tensor and a broadcasted fiber on CPU
+//! Per-element product of a tensor and a broadcasted fiber on CPU
 /*! Performs the following operations:
- *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[l]
+ *      dst[i,l,j] = alpha * dst[i,l,j] * src[l]
  *
  * @param[in] m: Size of the first mode of dst tensor
  * @param[in] n: Size of the last mode of dst tensor
  * @param[in] k: Size of the middle mode of dst tensor and the only mode of src
- *      tensors
- * @param[in] alpha: Scalar factor for src
+ *      tensor
+ * @param[in] alpha: Scalar factor
  * @param[in] src: Input contiguous vector with k elements
- * @param[in] beta: Scaling factor for dst
  * @param[inout] dst: Input and output contiguous m-by-k-by-n array
  * */
 {
     // Both source and destination are Fortran-contiguous
     dim3 blocks(16, 16), threads(8, 4);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, alpha, src, beta,
-            dst);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, alpha, src, dst);
 }
 
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, fp32_t alpha,
-        const fp32_t *src, fp32_t beta, fp32_t *dst)
+        const fp32_t *src, fp32_t *dst)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, fp64_t alpha,
-        const fp64_t *src, fp64_t beta, fp64_t *dst)
+        const fp64_t *src, fp64_t *dst)
     noexcept;
 
-} // namespace add_fiber
+} // namespace prod_fiber
 } // namespace kernel
 } // namespace nntile
 
