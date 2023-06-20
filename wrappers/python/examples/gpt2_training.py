@@ -369,11 +369,11 @@ class GPT2Attention(nn.Module):
 
         return outputs  # a, present, (attentions)
     
-# identity = IdentityModule()
+identity = IdentityModule()
 # torch_attn = TorchMHAttention(config.n_embd, config.n_head)
 inner_dim = config.n_inner if config.n_inner is not None else 4 * config.hidden_size
 for h_idx in range(config.num_hidden_layers):
-    model_torch.transformer.h[h_idx].attn = GPT2Attention(config)
+    model_torch.transformer.h[h_idx].attn = identity # GPT2Attention(config)
     model_torch.transformer.h[h_idx].mlp = GPT2MLP(inner_dim, config)
 
 vocab_size = model_torch.config.vocab_size
@@ -407,8 +407,8 @@ next_tag = 0
 time0 = -time.time()
 batch_input = []
 batch_output = []
-x_single_traits = nntile.tensor.TensorTraits([batch_size, seq_len], \
-        [batch_size, seq_len])
+x_single_traits = nntile.tensor.TensorTraits([seq_len, batch_size], \
+        [seq_len, batch_size])
 x_single_distr = [0]
 x_single = nntile.tensor.Tensor_int64(x_single_traits, x_single_distr, \
         next_tag)
@@ -416,18 +416,18 @@ next_tag = x_single.next_tag
 y_single = nntile.tensor.Tensor_int64(x_single_traits, x_single_distr, \
         next_tag)
 next_tag = y_single.next_tag
-x_traits = nntile.tensor.TensorTraits([batch_size, seq_len], \
-        [batch_size_tile, seq_len_tile])
+x_traits = nntile.tensor.TensorTraits([seq_len, batch_size], \
+        [seq_len_tile, batch_size_tile])
 x_distr = [0] * x_traits.grid.nelems
 for i in range(num_batches):
     x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
     next_tag = x.next_tag
-    x_single.from_array(tokens[i, :, :-1])
+    x_single.from_array(tokens[i, :, :-1].T)
     nntile.tensor.scatter_async(x_single, x)
     batch_input.append(x)
     y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
     next_tag = y.next_tag
-    y_single.from_array(tokens[i, :, 1:])
+    y_single.from_array(tokens[i, :, 1:].T)
     nntile.tensor.scatter_async(y_single, y)
     batch_output.append(y)
 
@@ -440,7 +440,7 @@ nntile_model.forward_async()
 nntile_model.clear_gradients()
 
 fro_loss, next_tag = Frob.generate_simple(nntile_model.activations[-1], next_tag)
-fro_loss.y.from_array(np.zeros((1, seq_len, config.vocab_size), order="F", dtype=np.float32))
+fro_loss.y.from_array(np.zeros((config.vocab_size, seq_len, 1), order="F", dtype=np.float32))
 # fro_loss.y.from_array(np.array(trial_true_output.detach().numpy(), order="F", dtype=np.float32))
 fro_loss.calc_async()
 
@@ -456,16 +456,16 @@ for i, (p_nntile, (name, p_torch)) in enumerate(zip(nntile_model.parameters, mod
     p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
     p_nntile.grad.to_array(p_nntile_grad_np)
     layer_type = name.split(".")[-2]
-    if len(p_nntile.grad.shape) == 1 or layer_type in ("c_proj", "c_fc"):
+    if len(p_nntile.grad.shape) == 1 or layer_type in ("lm_head",):
         rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np)) / torch.norm(p_torch.grad)
     elif len(p_nntile.grad.shape) == 2:
         rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np).T) / torch.norm(p_torch.grad)
     print("Relative error in gradient in parameter {} = {}".format(i, rel_error.item()))
 
-p_nntile_grad_np = np.zeros(nntile_model.parameters[-1].grad.shape, order="F", dtype=np.float32)
-nntile_model.parameters[-1].grad.to_array(p_nntile_grad_np)
-rel_error = torch.norm(model_torch.lm_head.weight.grad - torch.from_numpy(p_nntile_grad_np).T) / torch.norm(model_torch.lm_head.weight.grad)
-print("Relative error in gradient in lm_head = {}".format(rel_error.item()))
+# p_nntile_grad_np = np.zeros(nntile_model.parameters[-1].grad.shape, order="F", dtype=np.float32)
+# nntile_model.parameters[-1].grad.to_array(p_nntile_grad_np)
+# rel_error = torch.norm(model_torch.lm_head.weight.grad - torch.from_numpy(p_nntile_grad_np).T) / torch.norm(model_torch.lm_head.weight.grad)
+# print("Relative error in gradient in lm_head = {}".format(rel_error.item()))
 
 # Wait for all scatters to finish
 nntile.starpu.wait_for_all()
