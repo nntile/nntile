@@ -4,34 +4,33 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/add.hh
- * Add low-level kernel
+ * @file include/nntile/kernel/embedding_backward/cuda.hh
+ * Backward of embeddings from vocabulary within buffers
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @author Aleksandr Katrutsa
  * @date 2023-06-20
  * */
 
 #pragma once
 
-#include <nntile/kernel/add/cpu.hh>
-#include <nntile/defs.h>
-#ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/add/cuda.hh>
-#endif // NNTILE_USE_CUDA
+#include <nntile/base_types.hh>
+#include <cuda_runtime.h>
 
 namespace nntile
 {
 namespace kernel
 {
-//! @namespace nntile::kernel::add
-/*! Low-level implementations of add operation
- * */
-namespace add
+namespace embedding_backward
 {
 
-} // namespace add
+// Accumulate gradients of embeddings into vocabulary
+template<typename T>
+void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
+        Index k_size, const Index *index, const T *embed, T *vocab)
+    noexcept;
+
+} // namespace embedding_backward
 } // namespace kernel
 } // namespace nntile
 

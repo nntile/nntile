@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-05-10
+# @date 2023-06-20
 
 # Set list of sources
 set(KERNEL_SRC
@@ -58,7 +58,9 @@ set(KERNEL_SRC
 if(NNTILE_USE_CUDA)
     set(KERNEL_SRC
         ${KERNEL_SRC}
+        "kernel/add/cuda.cu"
         "kernel/add_slice/cuda.cu"
+        "kernel/add_fiber/cuda.cu"
         "kernel/prod_slice/cuda.cu"
         "kernel/dgelu/cuda.cu"
         "kernel/dgelutanh/cuda.cu"
@@ -79,6 +81,8 @@ if(NNTILE_USE_CUDA)
         "kernel/sumprod_slice/cuda.cu"
         "kernel/gelu_backward/cuda.cu"
         "kernel/gelutanh_backward/cuda.cu"
+        "kernel/embedding/cuda.cu"
+        "kernel/embedding_backward/cuda.cu"
         )
 endif()
 

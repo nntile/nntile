@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-05
+ * @date 2023-06-20
  * */
 
 #include "nntile/kernel/pow/cuda.hh"
@@ -30,7 +30,7 @@ void cuda_kernel(Index nelems, T alpha, T exp, T *data)
     for(Index i = start; i < nelems; i += step)
     {
         T z = data[i];
-        data[i] = alpha * std::pow(z, exp);
+        data[i] = alpha * ::pow(z, exp);
     }
 }
 
@@ -45,7 +45,7 @@ void cuda(cudaStream_t stream, Index nelems, T alpha, T exp, T *data)
  * @params[inout] data: Buffer to apply power function
  * */
 {
-    dim3 blocks(256), threads(32);
+    dim3 blocks(256), threads(256);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, alpha, exp, data);
 }
 

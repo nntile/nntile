@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/add.hh
- * Add low-level kernel
+ * @file include/nntile/kernel/add/cuda.hh
+ * Add operation on buffers on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -15,21 +15,21 @@
 
 #pragma once
 
-#include <nntile/kernel/add/cpu.hh>
-#include <nntile/defs.h>
-#ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/add/cuda.hh>
-#endif // NNTILE_USE_CUDA
+#include <nntile/base_types.hh>
+#include <cuda_runtime.h>
 
 namespace nntile
 {
 namespace kernel
 {
-//! @namespace nntile::kernel::add
-/*! Low-level implementations of add operation
- * */
 namespace add
 {
+
+// Apply add for buffers on CUDA
+template<typename T>
+void cuda(cudaStream_t stream, Index nelems, T alpha, const T* src, T beta,
+        T* dst)
+    noexcept;
 
 } // namespace add
 } // namespace kernel

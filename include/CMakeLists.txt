@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-05-10
+# @date 2023-06-20
 
 # Set list of headers
 set(BASE_HDR
@@ -103,7 +103,9 @@ set(KERNEL_HDR
 if(NNTILE_USE_CUDA)
     set(KERNEL_HDR
         ${KERNEL_HDR}
+        "nntile/kernel/add/cuda.hh"
         "nntile/kernel/add_slice/cuda.hh"
+        "nntile/kernel/add_fiber/cuda.hh"
         "nntile/kernel/prod_slice/cuda.hh"
         "nntile/kernel/dgelu/cuda.hh"
         "nntile/kernel/dgelutanh/cuda.hh"
@@ -124,6 +126,8 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/maxsumexp/cuda.hh"
         "nntile/kernel/softmax/cuda.hh"
         "nntile/kernel/sumprod_slice/cuda.hh"
+        "nntile/kernel/embedding/cuda.hh"
+        "nntile/kernel/embedding_backward/cuda.hh"
         )
 endif()
 

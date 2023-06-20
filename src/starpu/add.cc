@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-05-08
+ * @date 2023-06-20
  * */
 
 #include "nntile/starpu/add.hh"
@@ -42,22 +42,22 @@ void cpu(void *buffers[], void *cl_args)
 
 #ifdef NNTILE_USE_CUDA
 //! Apply add for StarPU buffers on CUDA
-// template<typename T>
-// void cuda(void *buffers[], void *cl_args)
-//     noexcept
-// {
-//     // Get arguments
-//     auto args = reinterpret_cast<args_t<T> *>(cl_args);
-//     // Get interfaces
-//     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-//     const T *src = interfaces[0]->get_ptr<T>();
-//     T *dst = interfaces[1]->get_ptr<T>();
-//     // Get CUDA stream
-//     cudaStream_t stream = starpu_cuda_get_local_stream();
-//     // Launch kernel
-//     kernel::add::cuda<T>(stream, args->m, args->n, args->k, args->alpha, src,
-//             dst);
-// }
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Launch kernel
+    kernel::add::cuda<T>(stream, args->num_elements, args->alpha, src,
+            args->beta, dst);
+}
 #endif // NNTILE_USE_CUDA
 
 Codelet codelet_fp32, codelet_fp64;
@@ -68,7 +68,7 @@ void init()
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
-            {}
+            {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -77,7 +77,7 @@ void init()
             nullptr,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
-            {}
+            {cuda<fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
