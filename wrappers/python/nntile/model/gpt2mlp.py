@@ -32,9 +32,9 @@ class GPT2MLP(BaseModel):
         interm_size = config["interm_size"]
         gemm_ndim = 1
         # Initial linear layer that converts input to internal shape
-        new_layer, next_tag = Linear.generate_simple_mpiroot(x, "L", notrans,
+        new_layer, next_tag = Linear.generate_simple_mpiroot(x, "R", notrans,
                 gemm_ndim, [interm_size], [interm_size], next_tag)
-        print("Layer 0 shape", new_layer.w.value.shape, new_layer.y.value.shape)
+        # print("Layer 0 shape", new_layer.w.value.shape, new_layer.y.value.shape)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         
@@ -43,9 +43,9 @@ class GPT2MLP(BaseModel):
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = Linear.generate_simple_mpiroot(activations[-1], "L", notrans,
+        new_layer, next_tag = Linear.generate_simple_mpiroot(activations[-1], "R", notrans,
                 gemm_ndim, [embed_dim], [embed_dim], next_tag)
-        print("Layer 1 shape", new_layer.w.value.shape, new_layer.y.value.shape)
+        # print("Layer 1 shape", new_layer.w.value.shape, new_layer.y.value.shape)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         self.next_tag = next_tag

@@ -287,7 +287,7 @@ class Attention(BaseLayer):
             maxsumexp_async(self.a[i].value, self.a_maxsumexp[i], 0)
             softmax_async(self.a_maxsumexp[i], self.a[i].value, 0)
             # A_maxsumexp[i] can be deleted
-            self.a_maxsumexp[i].invalidate_submit()
+            #self.a_maxsumexp[i].invalidate_submit()
             # Apply value tensor
             # B[i] = einsum('jkl,kml->jml', V[i], A[i])
             gemm_async(1.0, notrans, self.v[i].value, notrans, \
@@ -314,7 +314,7 @@ class Attention(BaseLayer):
                 gemm_async(1.0, notrans, self.y.grad, trans, self.b[i].value, \
                         1.0, self.w[i].grad, 2, 0)
             # B[i] can be deleted
-            self.b[i].value.invalidate_submit()
+            #self.b[i].value.invalidate_submit()
             if self.b[i].grad_required:
                 # dB[i] = einsum('jk,jml->kml', W[i], dY)
                 gemm_async(1.0, trans, self.w[i].value, notrans, self.y.grad, \
@@ -327,13 +327,13 @@ class Attention(BaseLayer):
                 gemm_async(1.0, trans, self.v[i].value, notrans, \
                         self.b[i].grad, 0.0, self.a[i].grad, 1, 1)
             # V[i] can be deleted
-            self.v[i].value.invalidate_submit()
+            #self.v[i].value.invalidate_submit()
             if self.v[i].grad_required:
                 # dV[i] = einsum('jml,kml->jkl', dB[i], A[i])
                 gemm_async(1.0, notrans, self.b[i].grad, trans, \
                         self.a[i].value, 0.0, self.v[i].grad, 1, 1)
             # dB[i] can be deleted
-            self.b[i].grad.invalidate_submit()
+            #self.b[i].grad.invalidate_submit()
             # Backward for A[i] = softmax(A[i], axis=0)
             if self.a[i].grad_required:
                 # A_sumprod_slice[i] = einsum('kml,kml->ml', A[i], dA[i])
@@ -343,11 +343,11 @@ class Attention(BaseLayer):
                 add_slice_async(-1.0, self.a_sumprod_slice[i], 1.0, \
                         self.a[i].grad, 0)
                 # A_sumprod_slice[i] can be deleted
-                self.a_sumprod_slice[i].invalidate_submit()
+                #self.a_sumprod_slice[i].invalidate_submit()
                 # dA[i] *= A[i]
                 prod_async(self.a[i].value, self.a[i].grad)
             # A[i] can be deleted
-            self.a[i].value.invalidate_submit()
+            #self.a[i].value.invalidate_submit()
             # Backward for:
             # A[i] = 1.0/sqrt(head_size) * einsum('jkl,jml->kml', K[i], Q[i])
             if self.k[i].grad_required:
@@ -356,16 +356,16 @@ class Attention(BaseLayer):
                 gemm_async(1.0/self.head_size**0.5, notrans, self.q[i].value, \
                         trans, self.a[i].grad, 0.0, self.k[i].grad, 1, 1)
             # Q[i] can be deleted
-            self.q[i].value.invalidate_submit()
+            #self.q[i].value.invalidate_submit()
             if self.q[i].grad_required:
                 # dQ[i] = 1.0/sqrt(head_size) * einsum('jkl,kml->jml', K[i],
                 #       dA[i])
                 gemm_async(1.0/self.head_size**0.5, notrans, self.k[i].value, \
                         notrans, self.a[i].grad, 0.0, self.q[i].grad, 1, 1)
             # K[i] can be deleted
-            self.k[i].value.invalidate_submit()
+            #self.k[i].value.invalidate_submit()
             # dA[i] can be deleted
-            self.a[i].grad.invalidate_submit()
+            #self.a[i].grad.invalidate_submit()
             # Backward for V[i] = einsum('jk,klm->jlm', W_V[i], X_V)
             if self.x_v.grad_required:
                 # dX_V += einsum('jk,jlm->klm', W_V[i], dV[i])
@@ -380,7 +380,7 @@ class Attention(BaseLayer):
             # dW_V[i] can be offloaded from GPU
             self.w_v[i].grad.wont_use()
             # dV[i] can be deleted
-            self.v[i].grad.invalidate_submit()
+            #self.v[i].grad.invalidate_submit()
             # Backward for K[i] = einsum('jk,klm->jlm', W_K[i], X_K)
             if self.x_k.grad_required:
                 # dX_K += einsum('jk,jlm->klm', W_K[i], dK[i])
@@ -395,7 +395,7 @@ class Attention(BaseLayer):
             # dW_K[i] can be offloaded from GPU
             self.w_k[i].grad.wont_use()
             # dK[i] can be deleted
-            self.k[i].grad.invalidate_submit()
+            #self.k[i].grad.invalidate_submit()
             # Backward for Q[i] = einsum('jk,klm->jlm', W_Q[i], X_Q)
             if self.x_q.grad_required:
                 # dX_Q += einsum('jk,jlm->klm', W_Q[i], dQ[i])
@@ -410,5 +410,5 @@ class Attention(BaseLayer):
             # dW_Q[i] can be offloaded from GPU
             self.w_q[i].grad.wont_use()
             # dQ[i] can be deleted
-            self.q[i].grad.invalidate_submit()
+            #self.q[i].grad.invalidate_submit()
 
