@@ -37,26 +37,16 @@ void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src, T *dst)
  * @param[inout] dst: Input and output contiguous m-by-k-by-n array
  * */
 {
-    Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
-          i0_start = threadIdx.y + blockIdx.y*blockDim.y,
-          i2_step = blockDim.x * gridDim.x,
-          i0_step = blockDim.y * gridDim.y;
-    // Cycle over input src vector
-    for(Index i2 = i2_start; i2 < k; i2 += i2_step)
+    Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
+          i1 = threadIdx.y + blockIdx.y*blockDim.y,
+          i2 = threadIdx.z + blockIdx.z*blockDim.z;
+    if(i0 < m and i1 < n and i2 < k)
     {
         const T src_val = alpha * src[i2];
-        // Cycle over the third axis of output buffer
-        for(Index i1 = 0; i1 < n; ++i1)
-        {
-            // Output fiber to be updated
-            T *dst_fiber = dst + (i1*k+i2)*m;
-            // Cycle over the output fiber
-            for(Index i0 = i0_start; i0 < m; i0 += i0_step)
-            {
-                // Update output value
-                dst_fiber[i0] *= src_val;
-            }
-        }
+        // Output fiber to be updated
+        T *dst_fiber = dst + (i1*k+i2)*m;
+        // Update output value
+        dst_fiber[i0] *= src_val;
     }
 }
 
@@ -78,7 +68,10 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 blocks(16, 16), threads(8, 4);
+    dim3 threads(std::min(int(m), 8), std::min(int(n), 8),
+            std::min(int(k), 16));
+    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y,
+            (k+threads.z-1)/threads.z);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, alpha, src, dst);
 }
 

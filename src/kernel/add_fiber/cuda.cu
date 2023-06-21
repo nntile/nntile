@@ -39,42 +39,28 @@ void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src, T beta,
  * @param[inout] dst: Input and output contiguous m-by-k-by-n array
  * */
 {
-    Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
-          i0_start = threadIdx.y + blockIdx.y*blockDim.y,
-          i2_step = blockDim.x * gridDim.x,
-          i0_step = blockDim.y * gridDim.y;
+    Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
+          i1 = threadIdx.y + blockIdx.y*blockDim.y,
+          i2 = threadIdx.z + blockIdx.z*blockDim.z;
     constexpr T zero = 0;
-    // Cycle over input fiber src
-    for(Index i2 = i2_start; i2 < k; i2 += i2_step)
+    if(i2 < k and i1 < n and i0 < m)
     {
         // Value to add to the output slice
         const T src_val = alpha * src[i2];
-        // Cycle over the third axis of output buffer dst
-        for(Index i1 = 0; i1 < n; ++i1)
+        // Output fiber to be updated
+        T *dst_fiber = dst + (i1*k+i2)*m;
+        // Overwrite or update output depending on beta
+        if(beta == zero)
         {
-            // Output fiber to be updated
-            T *dst_fiber = dst + (i1*k+i2)*m;
-            // Overwrite or update output depending on beta
-            if(beta == zero)
-            {
-                // Cycle over output fiber elements
-                for(Index i0 = i0_start; i0 < m; i0 += i0_step)
-                {
-                    // Set output value
-                    dst_fiber[i0] = src_val;
-                }
-            }
-            else
-            {
-                // Cycle over output fiber elements
-                for(Index i0 = i0_start; i0 < m; i0 += i0_step)
-                {
-                    // Read value from the output
-                    T &dst_val = dst_fiber[i0];
-                    // And update it
-                    dst_val = beta*dst_val + src_val;
-                }
-            }
+                // Set output value
+                dst_fiber[i0] = src_val;
+        }
+        else
+        {
+                // Read value from the output
+                T &dst_val = dst_fiber[i0];
+                // And update it
+                dst_val = beta*dst_val + src_val;
         }
     }
 }
@@ -98,7 +84,10 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 blocks(16, 16), threads(8, 4);
+    dim3 threads(std::min(int(m), 8), std::min(int(n), 8),
+            std::min(int(k), 16));
+    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y,
+            (k+threads.z-1)/threads.z);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, alpha, src, beta,
             dst);
 }

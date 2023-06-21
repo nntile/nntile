@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-28
+ * @date 2023-06-20
  * */
 
 #include "nntile/kernel/add_slice/cuda.hh"
@@ -39,42 +39,28 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src,
  * @param[inout] dst: Input and output contiguous m-by-k-by-n array
  * */
 {
-    Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
-          i1_start = threadIdx.y + blockIdx.y*blockDim.y,
-          i2_step = blockDim.x * gridDim.x,
-          i1_step = blockDim.y * gridDim.y;
+    Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
+          i1 = threadIdx.y + blockIdx.y*blockDim.y,
+          i2 = threadIdx.z + blockIdx.z*blockDim.z;
     constexpr T zero = 0;
-    // Cycle over column of output buffer
-    for(Index i2 = i2_start; i2 < n; i2 += i2_step)
+    if(i2 < k and i1 < n and i0 < m)
     {
-        // Cycle over row of output buffer
-        for(Index i1 = i1_start; i1 < m; i1 += i1_step)
+        // Pointer to a corresponding fiber of the output array dst
+        T *dst_fiber = dst + i1*mk + i0;
+        // Value to add to the output fiber
+        const T src_val = alpha * src[i1*m+i0];
+        // Overwrite or update output depending on beta
+        if(beta == zero)
         {
-            // Pointer to a corresponding fiber of the output array dst
-            T *dst_fiber = dst + i2*mk + i1;
-            // Value to add to the output fiber
-            const T src_val = alpha * src[i2*m+i1];
-            // Overwrite or update output depending on beta
-            if(beta == zero)
-            {
-                // Cycle over output fiber elements
-                for(Index i0 = 0; i0 < k; ++i0)
-                {
-                    // Set output value
-                    dst_fiber[i0*m] = src_val;
-                }
-            }
-            else
-            {
-                // Cycle over output fiber elements
-                for(Index i0 = 0; i0 < k; ++i0)
-                {
-                    // Read value from the output
-                    T &dst_val = dst_fiber[i0*m];
-                    // And update it
-                    dst_val = beta*dst_val + src_val;
-                }
-            }
+            // Set output value
+            dst_fiber[i2*m] = src_val;
+        }
+        else
+        {
+            // Read value from the output
+            T &dst_val = dst_fiber[i2*m];
+            // And update it
+            dst_val = beta*dst_val + src_val;
         }
     }
 }
@@ -97,17 +83,10 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 blocks(16, 16), threads(8, 4);
-    if(m == 1)
-    {
-        threads = 32;
-        blocks = 256;
-    }
-    else if(n == 1)
-    {
-        threads = dim3(1, 32);
-        blocks = dim3(1, 256);
-    }
+    dim3 threads(std::min(int(m), 8), std::min(int(n), 8),
+            std::min(int(k), 16));
+    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y,
+            (k+threads.z-1)/threads.z);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha, src,
             beta, dst);
 }

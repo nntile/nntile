@@ -35,11 +35,10 @@ void cuda_kernel(Index nelems, T alpha, const T* src, T beta, T* dst)
  * @param[inout] dst: Destination of the add operation
  * */
 {
-    int start = threadIdx.x + blockIdx.x*blockDim.x,
-        step = blockDim.x * gridDim.x;
-    for (Index i = start; i < nelems; i += step)
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    if(i < nelems)
     {
-        dst[i] = alpha * src[i] + beta * dst[i];
+        dst[i] = alpha*src[i] + beta*dst[i];
     }
 }
 
@@ -57,7 +56,7 @@ void cuda(cudaStream_t stream, Index nelems, T alpha, const T *src, T beta,
  * @param[inout] dst: Destination of the add operation
  * */
 {
-    dim3 blocks(256), threads(32);
+    dim3 blocks((nelems+255)/256), threads(256);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, alpha, src, beta,
             dst);
 }

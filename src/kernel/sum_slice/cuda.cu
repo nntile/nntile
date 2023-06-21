@@ -27,37 +27,30 @@ static __global__
 void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src,
         T beta, T *dst)
 {
-    Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
-          i1_start = threadIdx.y + blockIdx.y*blockDim.y,
-          i2_step = blockDim.x * gridDim.x,
-          i1_step = blockDim.y * gridDim.y;
+    Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
+          i1 = threadIdx.y + blockIdx.y*blockDim.y;
     constexpr T zero = 0;
-    // Cycle over column of output buffer
-    for(Index i2 = i2_start; i2 < n; i2 += i2_step)
+    if(i0 < m and i1 < n)
     {
-        // Cycle over row of output buffer
-        for(Index i1 = i1_start; i1 < m; i1 += i1_step)
+        // Pointer to a corresponding fiber of the source array src
+        const T *src_fiber = src + i1*mk + i0;
+        // Init sum over the fiber
+        T sum = zero;
+        // Output value
+        T &result = dst[i1*m+i0];
+        // Cycle over fiber elements and accumulate the sum
+        for(Index i2 = 0; i2 < k; ++i2)
         {
-            // Pointer to a corresponding fiber of the source array src
-            const T *src_fiber = src + i2*mk + i1;
-            // Init sum over the fiber
-            T sum = zero;
-            // Output value
-            T &result = dst[i2*m+i1];
-            // Cycle over fiber elements and accumulate the sum
-            for(Index i0 = 0; i0 < k; ++i0)
-            {
-                sum += src_fiber[i0*m];
-            }
-            // Update output value
-            if(beta == zero)
-            {
-                result = alpha * sum;
-            }
-            else
-            {
-                result = beta*result + alpha*sum;
-            }
+            sum += src_fiber[i2*m];
+        }
+        // Update output value
+        if(beta == zero)
+        {
+            result = alpha * sum;
+        }
+        else
+        {
+            result = beta*result + alpha*sum;
         }
     }
 }
@@ -83,17 +76,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 blocks(16, 16), threads(8, 4);
-    if(m == 1)
-    {
-        blocks = 256;
-        threads = 32;
-    }
-    else if(n == 1)
-    {
-        blocks = dim3(1, 256);
-        threads = dim3(1, 32);
-    }
+    dim3 threads(std::min(int(m), 16), std::min(int(n), 16));
+    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha, src,
             beta, dst);
 }

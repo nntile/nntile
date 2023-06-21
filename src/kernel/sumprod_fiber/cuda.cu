@@ -46,11 +46,9 @@ void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src1,
  *      products of src1 and src2.
  * */
 {
-    Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
-          i2_step = blockDim.x * gridDim.x;
+    Index i2 = threadIdx.x + blockIdx.x*blockDim.x;
     constexpr T zero = 0;
-    // Cycle over output vector
-    for(Index i2 = i2_start; i2 < k; i2 += i2_step)
+    if(i2 < k)
     {
         // Init sum of product of the slices
         T sum = zero;
@@ -107,7 +105,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 blocks(256), threads(32);
+    dim3 threads(std::min(int(k), 32));
+    dim3 blocks((k+threads.x-1)/threads.x);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, alpha, src1,
             src2, beta, dst);
 }

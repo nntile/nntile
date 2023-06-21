@@ -166,34 +166,34 @@ for h_idx in range(config.num_hidden_layers):
 print("PyTorch model:")
 print(model_torch)
 
-# Run forward pass with random input once as a warmup and then measure
-# throughput
-input_value = torch.randint(config.vocab_size, \
-        (args.batch_size, args.seq_len), dtype=torch.int64, device=args.device)
-model_torch = model_torch.to(args.device)
-output_value = model_torch(input_value)
-time0 = time.time()
-for i in range(args.nforward):
-    output_value = model_torch(input_value)
-if args.device == "cuda":
-    torch.cuda.synchronize()
-time1 = time.time() - time0
-print("Torch forward throughput (sequence/sec): ", \
-        args.nforward * args.batch_size / time1)
-
-# Run backward pass with random gradient of output once as a warmup and then
-# measure throughput while retaining the backward graph
-output_grad = torch.randn_like(output_value.logits, device=args.device)
-loss = (output_value.logits * output_grad).sum()
-loss.backward(retain_graph=True)
-time0 = time.time()
-for i in range(args.nbackward):
-    loss.backward(retain_graph=True)
-if args.device == "cuda":
-    torch.cuda.synchronize()
-time1 = time.time() - time0
-print("Torch backward throughput (sequence/sec): ", \
-        args.nbackward * args.batch_size / time1)
+## Run forward pass with random input once as a warmup and then measure
+## throughput
+#input_value = torch.randint(config.vocab_size, \
+#        (args.batch_size, args.seq_len), dtype=torch.int64, device=args.device)
+#model_torch = model_torch.to(args.device)
+#output_value = model_torch(input_value)
+#time0 = time.time()
+#for i in range(args.nforward):
+#    output_value = model_torch(input_value)
+#if args.device == "cuda":
+#    torch.cuda.synchronize()
+#time1 = time.time() - time0
+#print("Torch forward throughput (sequence/sec): ", \
+#        args.nforward * args.batch_size / time1)
+#
+## Run backward pass with random gradient of output once as a warmup and then
+## measure throughput while retaining the backward graph
+#output_grad = torch.randn_like(output_value.logits, device=args.device)
+#loss = (output_value.logits * output_grad).sum()
+#loss.backward(retain_graph=True)
+#time0 = time.time()
+#for i in range(args.nbackward):
+#    loss.backward(retain_graph=True)
+#if args.device == "cuda":
+#    torch.cuda.synchronize()
+#time1 = time.time() - time0
+#print("Torch backward throughput (sequence/sec): ", \
+#        args.nbackward * args.batch_size / time1)
 
 # Initialize NNTile and StarPU
 time0 = time.time()
@@ -210,6 +210,8 @@ nntile_model, next_tag = GPT2.from_torch(model_torch, args.batch_size, \
 
 # Measure throughput of the forward pass by NNTile with a single run as a
 # warmup
+input_value = torch.randint(config.vocab_size, \
+        (args.batch_size, args.seq_len), dtype=torch.int64)
 nntile_model.activations[0].value.from_array(input_value.cpu().numpy())
 nntile_model.forward_async()
 nntile.starpu.wait_for_all()
@@ -221,12 +223,14 @@ time1 = time.time() - time0
 print("NNTile forward throughput (sequence/sec): ", \
         args.nforward * args.batch_size / time1)
 
-nntile_output_shape = nntile_model.activations[-1].shape
-nntile_output_traits = nntile.TensorTraits(nntile_output_shape, \
+nntile_output_shape = nntile_model.activations[-1].value.shape
+nntile_output_traits = nntile.tensor.TensorTraits(nntile_output_shape, \
         nntile_output_shape)
-nntile_output = nntile.Tensor_fp32(nntile_output_traits, [0], next_tag)
+nntile_output = nntile.tensor.Tensor_fp32(nntile_output_traits, [0], next_tag)
 next_tag = nntile_output.next_tag
-nntile_output.from_array(output_grad.cpu().numpy())
+#nntile_output.from_array(output_grad.cpu().numpy())
+nntile.tensor.randn_async(nntile_output, [0, 0, 0], nntile_output_shape, 0, 0,
+        1.0)
 nntile_model.clear_gradients()
 nntile.tensor.copy_async(nntile_output, nntile_model.activations[-1].grad)
 nntile_model.backward_async()
@@ -240,6 +244,8 @@ nntile.starpu.wait_for_all()
 time1 = time.time() - time0
 print("NNTile backward throughput (sequence/sec): ", \
         args.nbackward * args.batch_size / time1)
+
+nntile_output.unregister()
 
 # Check backward via Frob (MSE) loss
 #nntile_model.clear_gradients()

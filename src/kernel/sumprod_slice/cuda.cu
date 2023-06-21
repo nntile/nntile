@@ -26,39 +26,32 @@ static __global__
 void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src1,
         const T *src2, T beta, T *dst)
 {
-    Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
-          i1_start = threadIdx.y + blockIdx.y*blockDim.y,
-          i2_step = blockDim.x * gridDim.x,
-          i1_step = blockDim.y * gridDim.y;
+    Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
+          i1 = threadIdx.y + blockIdx.y*blockDim.y;
     constexpr T zero = 0;
-    // Cycle over column of output buffer
-    for(Index i2 = i2_start; i2 < n; i2 += i2_step)
+    if(i0 < m and i1 < n)
     {
-        // Cycle over row of output buffer
-        for(Index i1 = i1_start; i1 < m; i1 += i1_step)
+        // Get corresponding fibers of both sources
+        const T *src1_fiber = src1 + i1*mk + i0;
+        const T *src2_fiber = src2 + i1*mk + i0;
+        // Init sum of product of the fibers
+        T sum = zero;
+        // Output value
+        T &result = dst[i1*m+i0];
+        // Cycle over fibers of inputs
+        for(Index i2 = 0; i2 < k; ++i2)
         {
-            // Get corresponding fibers of both sources
-            const T *src1_fiber = src1 + i2*mk + i1;
-            const T *src2_fiber = src2 + i2*mk + i1;
-            // Init sum of product of the fibers
-            T sum = zero;
-            // Output value
-            T &result = dst[i2*m+i1];
-            // Cycle over fibers of inputs
-            for(Index i0 = 0; i0 < k; ++i0)
-            {
-                // Update sum
-                sum += src1_fiber[i0*m] * src2_fiber[i0*m];
-            }
-            // Update output value
-            if(beta == zero)
-            {
-                result = alpha * sum;
-            }
-            else
-            {
-                result = beta*result + alpha*sum;
-            }
+            // Update sum
+            sum += src1_fiber[i2*m] * src2_fiber[i2*m];
+        }
+        // Update output value
+        if(beta == zero)
+        {
+            result = alpha * sum;
+        }
+        else
+        {
+            result = beta*result + alpha*sum;
         }
     }
 }

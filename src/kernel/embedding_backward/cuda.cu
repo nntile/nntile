@@ -40,28 +40,15 @@ void cuda_kernel(Index m, Index n, Index k, Index k_start, Index k_size,
  *      shape (k_size, vocab_size) but vocab_size is not passed as a parameter.
  * */
 {
-    Index i0_start = threadIdx.x + blockIdx.x*blockDim.x,
-          i1_start = threadIdx.y + blockIdx.y*blockDim.y,
-          i2_start = threadIdx.z + blockIdx.z*blockDim.z,
-          i0_step = blockDim.x * gridDim.x,
-          i1_step = blockDim.y * gridDim.y,
-          i2_step = blockDim.z * gridDim.z;
-    // Cycle over column of embed buffer
-    for(Index i2 = i2_start; i2 < n; i2 += i2_step)
+    Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
+          i1 = threadIdx.y + blockIdx.y*blockDim.y,
+          i2 = threadIdx.z + blockIdx.z*blockDim.z;
+    if(i2 < k_size and i1 < n and i0 < m)
     {
-        // Cycle over row of embed buffer
-        for(Index i1 = i1_start; i1 < m; i1 += i1_step)
-        {
-            // Output slice of vocabulary
-            T *vocab_slice = vocab + k_size*index[i2*m+i1];
-            // Input slice of embedding
-            const T *embed_slice = embed + (i2*k+k_start)*m + i1;
-            // Cycle over slice of output vocab
-            for(Index i0 = i0_start; i0 < k_size; i0 += i0_step)
-            {
-                vocab_slice[i0] += embed_slice[i0*m];
-            }
-        }
+        // Output slice of vocabulary
+        T *vocab_slice = vocab + k_size*index[i1*m+i0];
+        // Update value of embedding
+        vocab_slice[i2] += embed[(i1*k+k_start+i2)*m + i0];
     }
 }
 
@@ -85,17 +72,10 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 blocks(8, 8, 8), threads(4, 2, 4);
-    if(m == 1)
-    {
-        blocks = dim3(16, 1, 16);
-        threads = dim3(8, 1, 4);
-    }
-    else if(n == 1)
-    {
-        blocks = dim3(16, 16);
-        threads = dim3(8, 4);
-    }
+    dim3 threads(std::min(int(m), 8), std::min(int(n), 8),
+            std::min(int(k_size), 16));
+    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y,
+            (k_size+threads.z-1)/threads.z);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, k_start, k_size,
             index, embed, vocab);
 }
