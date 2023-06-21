@@ -72,7 +72,7 @@ config = GPT2Config()
 config.attn_pdrop = 0
 config.embd_pdrop = 0
 config.resid_pdrop = 0
-config.n_head=1
+#config.n_head = 2
 config.num_hidden_layers = 5
 model_torch = GPT2LMHeadModel(config)
 # Current version splits lm_head and wte parameters, shared parameters will be supported soon
