@@ -72,7 +72,7 @@ config = GPT2Config()
 config.attn_pdrop = 0
 config.embd_pdrop = 0
 config.resid_pdrop = 0
-#config.n_head = 2
+config.n_head = 2
 config.num_hidden_layers = 5
 model_torch = GPT2LMHeadModel(config)
 # Current version splits lm_head and wte parameters, shared parameters will be supported soon
@@ -398,10 +398,6 @@ torch_loss.backward()
 print(output.logits.shape, torch_loss.item())
 # print(output.logits.shape)
 
-# for p in model_torch.parameters():
-#     print(p.shape)
-
-
 
 time0 = -time.time()
 # Set up StarPU+MPI and init codelets
@@ -460,20 +456,66 @@ print("NNTile loss = {}".format(val_np[0]))
 print("Relative difference between PyTorch and NNTile losses = {}".format(
     abs(val_np[0] - torch_loss.item()) / torch_loss.item()))
 
-# for i, (p_nntile, (name, p_torch)) in enumerate(zip(nntile_model.parameters, model_torch.named_parameters())):
-#     p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
-#     p_nntile.grad.to_array(p_nntile_grad_np)
-#     layer_type = name.split(".")[-2]
-#     if len(p_nntile.grad.shape) == 1 or layer_type in ("lm_head",):
-#         rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np)) / torch.norm(p_torch.grad)
-#     elif len(p_nntile.grad.shape) == 2:
-#         rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np).T) / torch.norm(p_torch.grad)
-#     print("Relative error in gradient in parameter {} = {}".format(i, rel_error.item()))
-
-# p_nntile_grad_np = np.zeros(nntile_model.parameters[-1].grad.shape, order="F", dtype=np.float32)
-# nntile_model.parameters[-1].grad.to_array(p_nntile_grad_np)
-# rel_error = torch.norm(model_torch.lm_head.weight.grad - torch.from_numpy(p_nntile_grad_np).T) / torch.norm(model_torch.lm_head.weight.grad)
-# print("Relative error in gradient in lm_head = {}".format(rel_error.item()))
+nntile_par_idx = 0
+for name, p_torch in model_torch.named_parameters():
+    layer_name = name.split(".")[-2]
+    print(name)
+    if len(p_torch.shape) == 1 or layer_name in ("lm_head",):
+        p_nntile = nntile_model.parameters[nntile_par_idx]
+        p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
+        p_nntile.grad.to_array(p_nntile_grad_np)
+        rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np)) / \
+                    torch.norm(p_torch.grad)
+        nntile_par_idx += 1
+    elif layer_name == "c_attn":
+        p_torch_np = p_torch.grad.detach()
+        n_embd = config.n_embd
+        n_head = config.n_head
+        attn_head_size = n_embd // n_head
+        rel_error = 0
+        for i_head in range(n_head):
+            p_nntile = nntile_model.parameters[nntile_par_idx]
+            p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
+            p_nntile.grad.to_array(p_nntile_grad_np)
+            current_grad_block = p_torch_np[:, i_head*attn_head_size:(i_head+1)*attn_head_size]
+            rel_error += torch.norm(current_grad_block.T - torch.from_numpy(p_nntile_grad_np)) / \
+                         torch.norm(current_grad_block)
+            nntile_par_idx += 1
+        for i_head in range(n_head):
+            p_nntile = nntile_model.parameters[nntile_par_idx]
+            p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
+            p_nntile.grad.to_array(p_nntile_grad_np)
+            current_grad_block = p_torch_np[:, n_embd+i_head*attn_head_size:n_embd+(i_head+1)*attn_head_size]
+            rel_error += torch.norm(current_grad_block.T - torch.from_numpy(p_nntile_grad_np)) / \
+                         torch.norm(current_grad_block)
+            nntile_par_idx += 1
+        for i_head in range(n_head):
+            p_nntile = nntile_model.parameters[nntile_par_idx]
+            p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
+            p_nntile.grad.to_array(p_nntile_grad_np)
+            current_grad_block = p_torch_np[:, 2*n_embd+i_head*attn_head_size: \
+                                            2*n_embd+(i_head+1)*attn_head_size]
+            rel_error += torch.norm(current_grad_block.T - torch.from_numpy(p_nntile_grad_np)) / \
+                         torch.norm(current_grad_block)
+            nntile_par_idx += 1
+    elif layer_name == "c_proj" and name.split(".")[-3] == "attn":
+        p_torch_np = p_torch.grad.detach()
+        rel_error = 0
+        for i_head in range(config.n_head):
+            p_nntile = nntile_model.parameters[nntile_par_idx]
+            p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
+            p_nntile.grad.to_array(p_nntile_grad_np)
+            current_grad_block = p_torch_np[i_head*attn_head_size:(i_head+1)*attn_head_size, :]
+            rel_error += torch.norm(current_grad_block.T - torch.from_numpy(p_nntile_grad_np)) / \
+                         torch.norm(current_grad_block)
+            nntile_par_idx += 1
+    elif len(p_torch.shape) == 2:
+        p_nntile = nntile_model.parameters[nntile_par_idx]
+        p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
+        p_nntile.grad.to_array(p_nntile_grad_np)
+        rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np).T) / torch.norm(p_torch.grad)
+        nntile_par_idx += 1
+    print("Relative error in gradient in {} = {}".format(name, rel_error.item()))
 
 # Wait for all scatters to finish
 nntile.starpu.wait_for_all()
