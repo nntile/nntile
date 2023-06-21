@@ -60,12 +60,12 @@ class GPT2(BaseModel):
             layers.append(l_norm)
             activations.extend(l_norm.activations_output)
 
-            # attn_layer, next_tag = Attention.generate_simple_mpiroot(activations[-1],
-            #                                                          activations[-1],
-            #                                                          activations[-1],
-            #                                                          config["n_head"], next_tag)
-            # layers.append(attn_layer)
-            # activations.extend(attn_layer.activations_output)
+            attn_layer, next_tag = Attention.generate_simple_mpiroot(activations[-1],
+                                                                     activations[-1],
+                                                                     activations[-1],
+                                                                     config["n_head"], next_tag)
+            layers.append(attn_layer)
+            activations.extend(attn_layer.activations_output)
 
             new_layer, next_tag = Add.generate_simple(activations[-2], activations[-1],
                                                   next_tag)
@@ -107,7 +107,7 @@ class GPT2(BaseModel):
         super().__init__(activations, layers)
 
     @staticmethod
-    def from_torch(torch_gpt2, batch_size: int, seq_len: int, config, next_tag: int):
+    def from_torch(torch_gpt2, batch_size: int, seq_len: int, config_, next_tag: int):
         # config = {
         #     "vocab_size": torch_gpt2.transformer.wte.weight.shape[0],
         #     "embed_dim": torch_gpt2.transformer.wte.weight.shape[1],
@@ -115,15 +115,15 @@ class GPT2(BaseModel):
         #     "layer_norm_epsilon": layer_norm_eps
         # }
         config = {
-            "vocab_size": config.vocab_size,
-            "embed_dim": config.n_embd,
-            "max_position_embeddings": config.max_position_embeddings,
-            "layer_norm_epsilon": config.layer_norm_epsilon,
-            "num_hidden_layers": config.num_hidden_layers,
-            "hidden_size": config.hidden_size,
-            "n_inner": config.n_inner,
+            "vocab_size": config_.vocab_size,
+            "embed_dim": config_.n_embd,
+            "max_position_embeddings": config_.max_position_embeddings,
+            "layer_norm_epsilon": config_.layer_norm_epsilon,
+            "num_hidden_layers": config_.num_hidden_layers,
+            "hidden_size": config_.hidden_size,
+            "n_inner": config_.n_inner,
             "activation_function": "gelutanh",
-            "n_head": config.n_head,
+            "n_head": config_.n_head,
         }
         positional_ids_traits = TensorTraits([seq_len], [seq_len])
         positional_ids_distr = [0] * positional_ids_traits.grid.nelems
@@ -142,13 +142,26 @@ class GPT2(BaseModel):
         x_moments = TensorMoments(x, x_grad, x_grad_required)
 
         gpt2_nntile = GPT2(x_moments, positional_ids, config, next_tag)
-        for p_nntile, (name, p_torch) in zip(gpt2_nntile.parameters, list(torch_gpt2.named_parameters())):
+        nntile_p_idx = 0
+        for name, p_torch in torch_gpt2.named_parameters():
+            p_nntile = gpt2_nntile.parameters[nntile_p_idx]
             print(p_nntile.value.shape, p_torch.shape, name)
             layer_name = name.split(".")[-2]
             if layer_name in ("lm_head",):
                 p_nntile.value.from_array(p_torch.detach().numpy())
+            elif layer_name == "c_attn":
+                p_torch_np = p_torch.detach().numpy()
+                p_nntile.value.from_array(p_torch_np[:, :config["embed_dim"]])
+                nntile_p_idx += 1
+                p_nntile = gpt2_nntile.parameters[nntile_p_idx]
+                p_nntile.value.from_array(p_torch_np[:, config["embed_dim"]:2*config["embed_dim"]])
+                nntile_p_idx += 1
+                p_nntile = gpt2_nntile.parameters[nntile_p_idx]
+                p_nntile.value.from_array(p_torch_np[:, 2*config["embed_dim"]:3*config["embed_dim"]])
+            elif layer_name == "c_proj" and name.split(".")[-3] == "attn":
+                p_nntile.value.from_array(p_torch.detach().numpy())
             else:
                 p_nntile.value.from_array(p_torch.detach().numpy().T)
-        # gpt2_nntile.parameters[-1].value.from_array(torch_gpt2.lm_head.weight.data.detach().numpy())
+            nntile_p_idx += 1
 
         return gpt2_nntile, gpt2_nntile.next_tag

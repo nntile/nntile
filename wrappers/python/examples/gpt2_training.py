@@ -77,10 +77,11 @@ config.num_hidden_layers = 1
 model_torch = GPT2LMHeadModel(config)
 # Current version splits lm_head and wte parameters, shared parameters will be supported soon
 model_torch.lm_head.weight = nn.Parameter(pretrained_model_torch.lm_head.weight.detach().clone())
-model_torch.transformer.wte.weight = pretrained_model_torch.transformer.wte.weight
-model_torch.transformer.wpe.weight = pretrained_model_torch.transformer.wpe.weight
-model_torch.transformer.ln_f.weight = pretrained_model_torch.transformer.ln_f.weight
-model_torch.transformer.ln_f.bias = pretrained_model_torch.transformer.ln_f.bias
+model_torch.transformer.wte.weight = nn.Parameter(pretrained_model_torch.transformer.wte.weight.detach().clone())
+model_torch.transformer.wpe.weight = nn.Parameter(pretrained_model_torch.transformer.wpe.weight.detach().clone())
+model_torch.transformer.ln_f.weight = nn.Parameter(pretrained_model_torch.transformer.ln_f.weight.detach().clone())
+model_torch.transformer.ln_f.bias = nn.Parameter(pretrained_model_torch.transformer.ln_f.bias.detach().clone())
+
 
 class IdentityModule(nn.Module):
     def __init__(self):
@@ -154,14 +155,14 @@ class GPT2Attention(nn.Module):
         #     ),
         #     persistent=False,
         # )
-        self.register_buffer(
-            "bias",
-            torch.ones((max_positions, max_positions), dtype=torch.bool).view(
-                1, 1, max_positions, max_positions
-            ),
-            persistent=False,
-        )
-        self.register_buffer("masked_bias", torch.tensor(-1e4), persistent=False)
+        # self.register_buffer(
+        #     "bias",
+        #     torch.ones((max_positions, max_positions), dtype=torch.bool).view(
+        #         1, 1, max_positions, max_positions
+        #     ),
+        #     persistent=False,
+        # )
+        # self.register_buffer("masked_bias", torch.tensor(-1e4), persistent=False)
 
         self.embed_dim = config.hidden_size
         self.num_heads = config.num_attention_heads
@@ -172,7 +173,7 @@ class GPT2Attention(nn.Module):
                 f"`embed_dim` must be divisible by num_heads (got `embed_dim`: {self.embed_dim} and `num_heads`:"
                 f" {self.num_heads})."
             )
-
+        # print('Scale attn weights',  config.scale_attn_weights)
         self.scale_attn_weights = config.scale_attn_weights
         self.is_cross_attention = is_cross_attention
 
@@ -187,7 +188,6 @@ class GPT2Attention(nn.Module):
         else:
             self.c_attn = Conv1D(3 * self.embed_dim, self.embed_dim)
         self.c_proj = Conv1D(self.embed_dim, self.embed_dim)
-
         self.attn_dropout = nn.Dropout(config.attn_pdrop)
         self.resid_dropout = nn.Dropout(config.resid_pdrop)
 
@@ -217,32 +217,32 @@ class GPT2Attention(nn.Module):
             )
 
         # Layer-wise attention scaling
-        if self.scale_attn_by_inverse_layer_idx:
-            attn_weights = attn_weights / float(self.layer_idx + 1)
+        # if self.scale_attn_by_inverse_layer_idx:
+        #     attn_weights = attn_weights / float(self.layer_idx + 1)
 
-        if not self.is_cross_attention:
-            # if only "normal" attention layer implements causal mask
-            query_length, key_length = query.size(-2), key.size(-2)
-            causal_mask = self.bias[:, :, key_length - query_length : key_length, :key_length]
-            mask_value = torch.finfo(attn_weights.dtype).min
-            # Need to be a tensor, otherwise we get error: `RuntimeError: expected scalar type float but found double`.
-            # Need to be on the same device, otherwise `RuntimeError: ..., x and y to be on the same device`
-            mask_value = torch.full([], mask_value, dtype=attn_weights.dtype).to(attn_weights.device)
-            attn_weights = torch.where(causal_mask, attn_weights.to(attn_weights.dtype), mask_value)
+        # if not self.is_cross_attention:
+        #     # if only "normal" attention layer implements causal mask
+        #     query_length, key_length = query.size(-2), key.size(-2)
+        #     causal_mask = self.bias[:, :, key_length - query_length : key_length, :key_length]
+        #     mask_value = torch.finfo(attn_weights.dtype).min
+        #     # Need to be a tensor, otherwise we get error: `RuntimeError: expected scalar type float but found double`.
+        #     # Need to be on the same device, otherwise `RuntimeError: ..., x and y to be on the same device`
+        #     mask_value = torch.full([], mask_value, dtype=attn_weights.dtype).to(attn_weights.device)
+        #     attn_weights = torch.where(causal_mask, attn_weights.to(attn_weights.dtype), mask_value)
 
-        if attention_mask is not None:
-            # Apply the attention mask
-            attn_weights = attn_weights + attention_mask
+        # if attention_mask is not None:
+        #     # Apply the attention mask
+        #     attn_weights = attn_weights + attention_mask
 
         attn_weights = nn.functional.softmax(attn_weights, dim=-1)
 
         # Downcast (if necessary) back to V's dtype (if in mixed-precision) -- No-Op otherwise
         attn_weights = attn_weights.type(value.dtype)
-        attn_weights = self.attn_dropout(attn_weights)
+        # attn_weights = self.attn_dropout(attn_weights)
 
         # Mask heads if we want to
-        if head_mask is not None:
-            attn_weights = attn_weights * head_mask
+        # if head_mask is not None:
+        #     attn_weights = attn_weights * head_mask
 
         attn_output = torch.matmul(attn_weights, value)
 
@@ -373,8 +373,16 @@ identity = IdentityModule()
 # torch_attn = TorchMHAttention(config.n_embd, config.n_head)
 inner_dim = config.n_inner if config.n_inner is not None else 4 * config.hidden_size
 for h_idx in range(config.num_hidden_layers):
-    model_torch.transformer.h[h_idx].attn = identity # GPT2Attention(config)
+    model_torch.transformer.h[h_idx].ln_1.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].ln_1.weight.detach().clone())
+    model_torch.transformer.h[h_idx].ln_1.bias = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].ln_1.bias.detach().clone())
+    model_torch.transformer.h[h_idx].ln_2.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].ln_2.weight.detach().clone())
+    model_torch.transformer.h[h_idx].ln_2.bias = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].ln_2.bias.detach().clone())
+    model_torch.transformer.h[h_idx].attn = GPT2Attention(config)
+    model_torch.transformer.h[h_idx].attn.c_attn.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].attn.c_attn.weight.detach().clone())
+    model_torch.transformer.h[h_idx].attn.c_proj.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].attn.c_proj.weight.detach().clone())
     model_torch.transformer.h[h_idx].mlp = GPT2MLP(inner_dim, config)
+    model_torch.transformer.h[h_idx].mlp.c_fc.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].mlp.c_fc.weight.detach().clone())
+    model_torch.transformer.h[h_idx].mlp.c_proj.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].mlp.c_proj.weight.detach().clone())
 
 vocab_size = model_torch.config.vocab_size
 print(model_torch)
@@ -390,8 +398,8 @@ torch_loss.backward()
 print(output.logits.shape, torch_loss.item())
 # print(output.logits.shape)
 
-for p in model_torch.parameters():
-    print(p.shape)
+# for p in model_torch.parameters():
+#     print(p.shape)
 
 
 
@@ -452,15 +460,15 @@ print("NNTile loss = {}".format(val_np[0]))
 print("Relative difference between PyTorch and NNTile losses = {}".format(
     abs(val_np[0] - torch_loss.item()) / torch_loss.item()))
 
-for i, (p_nntile, (name, p_torch)) in enumerate(zip(nntile_model.parameters, model_torch.named_parameters())):
-    p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
-    p_nntile.grad.to_array(p_nntile_grad_np)
-    layer_type = name.split(".")[-2]
-    if len(p_nntile.grad.shape) == 1 or layer_type in ("lm_head",):
-        rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np)) / torch.norm(p_torch.grad)
-    elif len(p_nntile.grad.shape) == 2:
-        rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np).T) / torch.norm(p_torch.grad)
-    print("Relative error in gradient in parameter {} = {}".format(i, rel_error.item()))
+# for i, (p_nntile, (name, p_torch)) in enumerate(zip(nntile_model.parameters, model_torch.named_parameters())):
+#     p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
+#     p_nntile.grad.to_array(p_nntile_grad_np)
+#     layer_type = name.split(".")[-2]
+#     if len(p_nntile.grad.shape) == 1 or layer_type in ("lm_head",):
+#         rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np)) / torch.norm(p_torch.grad)
+#     elif len(p_nntile.grad.shape) == 2:
+#         rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np).T) / torch.norm(p_torch.grad)
+#     print("Relative error in gradient in parameter {} = {}".format(i, rel_error.item()))
 
 # p_nntile_grad_np = np.zeros(nntile_model.parameters[-1].grad.shape, order="F", dtype=np.float32)
 # nntile_model.parameters[-1].grad.to_array(p_nntile_grad_np)
