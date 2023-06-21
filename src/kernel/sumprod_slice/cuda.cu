@@ -79,17 +79,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 blocks(16, 16), threads(8, 4);
-    if(m == 1)
-    {
-        blocks = 256;
-        threads = 32;
-    }
-    else if(n == 1)
-    {
-        blocks = dim3(1, 256);
-        threads = dim3(1, 32);
-    }
+    dim3 threads(std::min(int(m), 16), std::min(int(n), 16));
+    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha, src1,
             src2, beta, dst);
 }
