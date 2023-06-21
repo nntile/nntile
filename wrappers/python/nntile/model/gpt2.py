@@ -67,7 +67,7 @@ class GPT2(BaseModel):
             layers.append(attn_layer)
             activations.extend(attn_layer.activations_output)
 
-            new_layer, next_tag = Add.generate_simple(activations[-2], activations[-1],
+            new_layer, next_tag = Add.generate_simple(activations[-3], activations[-1],
                                                   next_tag)
             layers.append(new_layer)
             activations.extend(new_layer.activations_output)
@@ -151,15 +151,15 @@ class GPT2(BaseModel):
                 p_nntile.value.from_array(p_torch.detach().numpy())
             elif layer_name == "c_attn":
                 p_torch_np = p_torch.detach().numpy()
-                p_nntile.value.from_array(p_torch_np[:, :config["embed_dim"]])
+                p_nntile.value.from_array(p_torch_np[:, :config["embed_dim"]].T)
                 nntile_p_idx += 1
                 p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                p_nntile.value.from_array(p_torch_np[:, config["embed_dim"]:2*config["embed_dim"]])
+                p_nntile.value.from_array(p_torch_np[:, config["embed_dim"]:2*config["embed_dim"]].T)
                 nntile_p_idx += 1
                 p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                p_nntile.value.from_array(p_torch_np[:, 2*config["embed_dim"]:3*config["embed_dim"]])
+                p_nntile.value.from_array(p_torch_np[:, 2*config["embed_dim"]:3*config["embed_dim"]].T)
             elif layer_name == "c_proj" and name.split(".")[-3] == "attn":
-                p_nntile.value.from_array(p_torch.detach().numpy())
+                p_nntile.value.from_array(p_torch.detach().numpy().T)
             else:
                 p_nntile.value.from_array(p_torch.detach().numpy().T)
             nntile_p_idx += 1
