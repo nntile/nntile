@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-06-20
+ * @date 2023-06-21
  * */
 
 #include "nntile/kernel/embedding_backward/cuda.hh"
@@ -48,7 +48,7 @@ void cuda_kernel(Index m, Index n, Index k, Index k_start, Index k_size,
         // Output slice of vocabulary
         T *vocab_slice = vocab + k_size*index[i1*m+i0];
         // Update value of embedding
-        vocab_slice[i2] += embed[(i1*k+k_start+i2)*m + i0];
+        atomicAdd(&vocab_slice[i2], embed[(i1*k+k_start+i2)*m + i0]);
     }
 }
 

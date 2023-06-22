@@ -85,8 +85,8 @@ config = copy.deepcopy(pretrained_model_torch.config)
 config.attn_pdrop = 0
 config.embd_pdrop = 0
 config.resid_pdrop = 0
-#config.n_head = 2
-#config.num_hidden_layers = 3
+#config.n_head = 1
+#config.num_hidden_layers = 1
 model_torch = GPT2LMHeadModel(config)
 # Current version splits lm_head and wte parameters, shared parameters will be
 # supported soon
@@ -390,16 +390,20 @@ print("PyTorch model:")
 print(model_torch)
 
 # Get output from a random input through the forward pass
-input_value = torch.randint(config.vocab_size, \
+input_value = torch.randint(config.vocab_size-1, \
         (args.batch_size, args.seq_len), dtype=torch.int64, device=args.device)
 model_torch = model_torch.to(args.device)
 output_value = model_torch(input_value)
+if args.device.startswith("cuda"):
+    torch.cuda.synchronize()
 output_value_np = output_value.logits.detach().cpu().numpy()
 
 # Get gradients of parameters through the backward pass
-output_grad = torch.ones_like(output_value.logits, device=args.device)
+output_grad = torch.randn_like(output_value.logits, device=args.device)
 loss = (output_value.logits * output_grad).sum()
 loss.backward(retain_graph=True)
+if args.device.startswith("cuda"):
+    torch.cuda.synchronize()
 
 # Initialize NNTile and StarPU
 time0 = time.time()
@@ -441,7 +445,6 @@ nntile.starpu.wait_for_all()
 nntile_par_idx = 0
 for name, p_torch in model_torch.named_parameters():
     p_torch_grad_np = p_torch.grad.detach().cpu().numpy()
-    torch.cuda.synchronize()
     layer_name = name.split(".")[-2]
     if len(p_torch.shape) == 1 or layer_name in ("lm_head",):
         p_nntile = nntile_model.parameters[nntile_par_idx]
@@ -490,20 +493,24 @@ for name, p_torch in model_torch.named_parameters():
     print("Relative error of gradient of {} = {}".format(name, diff/norm))
 
 # Measure throughput of Torch forward pass
+if args.device.startswith("cuda"):
+    torch.cuda.synchronize()
 time0 = time.time()
 for i in range(args.nforward):
     output_value = model_torch(input_value)
-if args.device == "cuda":
+if args.device.startswith("cuda"):
     torch.cuda.synchronize()
 time1 = time.time() - time0
 print("Torch forward throughput (sequence/sec): ", \
         args.nforward * args.batch_size / time1)
 
 # Measure throughput of Torch backward pass
+if args.device.startswith("cuda"):
+    torch.cuda.synchronize()
 time0 = time.time()
 for i in range(args.nbackward):
     loss.backward(retain_graph=True)
-if args.device == "cuda":
+if args.device.startswith("cuda"):
     torch.cuda.synchronize()
 time1 = time.time() - time0
 print("Torch backward throughput (sequence/sec): ", \
