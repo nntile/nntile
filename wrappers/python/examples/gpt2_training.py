@@ -406,6 +406,7 @@ input_value = torch.randint(config.vocab_size, \
         (args.batch_size, args.seq_len), dtype=torch.int64, device=args.device)
 model_torch = model_torch.to(args.device)
 output_value = model_torch(input_value)
+output_value_np = output_value.logits.detach().cpu().numpy()
 time0 = time.time()
 for i in range(args.nforward):
     output_value = model_torch(input_value)
@@ -442,11 +443,17 @@ next_tag = 0
 nntile_model, next_tag = GPT2.from_torch(model_torch, args.batch_size, \
         args.seq_len, config, next_tag)
 
-# Measure throughput of the forward pass by NNTile with a single run as a
-# warmup
+# Check accuracy of the forward pass by the output activation
 nntile_model.activations[0].value.from_array(input_value.cpu().numpy().T)
 nntile_model.forward_async()
 nntile.starpu.wait_for_all()
+nntile_output_np = np.zeros_like(output_value_np.T, order='F')
+nntile_model.activations[-1].value.to_array(nntile_output_np)
+diff = np.linalg.norm(nntile_output_np.T - output_value_np)
+norm = np.linalg.norm(output_value_np)
+print("NNTile forward pass relative accuracy: {}".format(diff/norm))
+
+# Measure throughput of the forward pass by NNTile
 time0 = time.time()
 for i in range(args.nforward):
     nntile_model.forward_async()
