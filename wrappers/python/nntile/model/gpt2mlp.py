@@ -72,5 +72,5 @@ class GPT2MLP(BaseModel):
         gpt2mlp_nntile = GPT2MLP(x, config, next_tag)
         torch_params = list(torch_mlp.parameters())
         for i, p in enumerate(gpt2mlp_nntile.parameters):
-            p.value.from_array(torch_params[i].detach().cpu().numpy())
+            p.value.from_array(torch_params[i].cpu().detach().numpy())
         return gpt2mlp_nntile, gpt2mlp_nntile.next_tag

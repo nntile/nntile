@@ -137,7 +137,7 @@ print("Norm of difference =", np.linalg.norm(output - hug_result.cpu().detach().
 for i, (p_nntile, p_torch) in enumerate(zip(gpt2mlp_nntile.parameters, gpt2mlp_hug.parameters())):
     p_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
     p_nntile.grad.to_array(p_np)
-    p_torch_np = p_torch.grad.detach().cpu().numpy()
+    p_torch_np = p_torch.grad.cpu().detach().numpy()
     rel_error = np.linalg.norm(p_np - p_torch_np, "fro") / np.linalg.norm(p_torch_np, "fro")
     print("Relative error in layer {} gradient = {}".format(i, rel_error))
 

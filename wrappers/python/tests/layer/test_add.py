@@ -133,7 +133,7 @@ print("Relative error in the loss for torch and nntile models = {}".format(
 for i, (p_nntile, p_torch) in enumerate(zip(nntile_model.parameters, torch_model.parameters())):
     p_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
     p_nntile.grad.to_array(p_np)
-    p_torch_np = p_torch.grad.detach().cpu().numpy()
+    p_torch_np = p_torch.grad.cpu().detach().numpy()
     rel_error = np.linalg.norm(p_np - p_torch_np.T, "fro") / np.linalg.norm(p_torch_np, "fro")
     print("Relative error in layer {} gradient = {}".format(i, rel_error))
 

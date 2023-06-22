@@ -85,7 +85,7 @@ config = copy.deepcopy(pretrained_model_torch.config)
 config.attn_pdrop = 0
 config.embd_pdrop = 0
 config.resid_pdrop = 0
-#config.n_head = 1
+config.n_head = 1
 #config.num_hidden_layers = 1
 model_torch = GPT2LMHeadModel(config)
 # Current version splits lm_head and wte parameters, shared parameters will be
@@ -396,7 +396,7 @@ model_torch = model_torch.to(args.device)
 output_value = model_torch(input_value)
 if args.device.startswith("cuda"):
     torch.cuda.synchronize()
-output_value_np = output_value.logits.detach().cpu().numpy()
+output_value_np = output_value.logits.cpu().detach().numpy()
 
 # Get gradients of parameters through the backward pass
 output_grad = torch.randn_like(output_value.logits, device=args.device)
@@ -434,7 +434,7 @@ nntile_output_traits = nntile.tensor.TensorTraits(nntile_output_shape, \
         nntile_output_shape)
 nntile_output = nntile.tensor.Tensor_fp32(nntile_output_traits, [0], next_tag)
 next_tag = nntile_output.next_tag
-output_grad_np = output_grad.detach().cpu().numpy().T
+output_grad_np = output_grad.cpu().detach().numpy().T
 nntile_output.from_array(output_grad_np)
 nntile_model.clear_gradients()
 nntile.tensor.copy_async(nntile_output, nntile_model.activations[-1].grad)
@@ -444,7 +444,7 @@ nntile.starpu.wait_for_all()
 # Now compare gradients
 nntile_par_idx = 0
 for name, p_torch in model_torch.named_parameters():
-    p_torch_grad_np = p_torch.grad.detach().cpu().numpy()
+    p_torch_grad_np = p_torch.grad.cpu().detach().numpy()
     layer_name = name.split(".")[-2]
     if len(p_torch.shape) == 1 or layer_name in ("lm_head",):
         p_nntile = nntile_model.parameters[nntile_par_idx]

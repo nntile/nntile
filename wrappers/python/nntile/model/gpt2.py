@@ -155,10 +155,10 @@ class GPT2(BaseModel):
             layer_name = name.split(".")[-2]
             if layer_name in ("lm_head",):
                 p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                p_nntile.value.from_array(p_torch.detach().cpu().numpy())
+                p_nntile.value.from_array(p_torch.cpu().detach().numpy())
                 nntile_p_idx += 1
             elif layer_name == "c_attn":
-                p_torch_np = p_torch.detach().cpu().numpy()
+                p_torch_np = p_torch.cpu().detach().numpy()
                 for i_head in range(attn_nheads):
                     p_nntile = gpt2_nntile.parameters[nntile_p_idx]
                     p_nntile.value.from_array(p_torch_np[:, \
@@ -180,7 +180,7 @@ class GPT2(BaseModel):
                     nntile_p_idx += 1
 
             elif layer_name == "c_proj" and name.split(".")[-3] == "attn":
-                p_torch_np = p_torch.detach().cpu().numpy()
+                p_torch_np = p_torch.cpu().detach().numpy()
                 for i_head in range(attn_nheads):
                     p_nntile = gpt2_nntile.parameters[nntile_p_idx]
                     p_nntile.value.from_array(p_torch_np[\
@@ -189,7 +189,7 @@ class GPT2(BaseModel):
                     nntile_p_idx += 1
             else:
                 p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                p_nntile.value.from_array(p_torch.detach().cpu().numpy().T)
+                p_nntile.value.from_array(p_torch.cpu().detach().numpy().T)
                 nntile_p_idx += 1
 
         return gpt2_nntile, gpt2_nntile.next_tag
