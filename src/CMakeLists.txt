@@ -53,6 +53,7 @@ set(KERNEL_SRC
     "kernel/add_scalar/cpu.cc"
     "kernel/embedding/cpu.cc"
     "kernel/embedding_backward/cpu.cc"
+    "kernel/mask_scalar/cpu.cc"
     )
 
 if(NNTILE_USE_CUDA)
@@ -86,6 +87,7 @@ if(NNTILE_USE_CUDA)
         "kernel/gelutanh_backward/cuda.cu"
         "kernel/embedding/cuda.cu"
         "kernel/embedding_backward/cuda.cu"
+        "kernel/mask_scalar/cuda.cu"
         )
 endif()
 
@@ -133,6 +135,7 @@ set(STARPU_SRC
     "starpu/add_scalar.cc"
     "starpu/embedding.cc"
     "starpu/embedding_backward.cc"
+    "starpu/mask_scalar.cc"
     )
 
 set(TILE_SRC
@@ -178,6 +181,7 @@ set(TILE_SRC
     "tile/gelutanh_backward.cc"
     "tile/add.cc"
     "tile/add_scalar.cc"
+    "tile/mask_scalar.cc"
     )
 
 set(TENSOR_SRC
@@ -228,6 +232,7 @@ set(TENSOR_SRC
     "tensor/add_scalar.cc"
     "tensor/embedding.cc"
     "tensor/embedding_backward.cc"
+    "tensor/mask_scalar.cc"
     )
 
 set(LAYER_SRC

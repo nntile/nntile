@@ -363,6 +363,7 @@ void def_mod_tensor(py::module_ &m)
     def_class_tensor<fp64_t>(m, "Tensor_fp64");
     def_class_tensor<fp32_t>(m, "Tensor_fp32");
     def_class_tensor<Index>(m, "Tensor_int64");
+    def_class_tensor<bool_t>(m, "Tensor_bool");
     // Add tensor.distributions submodule
     auto distributions = m.def_submodule("distributions");
     def_tensor_distributions(distributions);
@@ -610,6 +611,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("embedding_backward_async_fp32", &embedding_backward_async<fp32_t>);
     m.def("embedding_backward_fp64", &embedding_backward<fp64_t>);
     m.def("embedding_backward_fp32", &embedding_backward<fp32_t>);
+
+    m.def("mask_scalar_async_fp64", &mask_scalar_async<fp64_t>);
+    m.def("mask_scalar_async_fp32", &mask_scalar_async<fp32_t>);
+    m.def("mask_scalar_fp64", &mask_scalar<fp64_t>);
+    m.def("mask_scalar_fp32", &mask_scalar<fp32_t>);
 }
 
 // Main extension module with all wrappers
