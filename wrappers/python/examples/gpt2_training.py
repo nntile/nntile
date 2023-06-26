@@ -149,20 +149,20 @@ class GPT2Attention(nn.Module):
         super().__init__()
 
         max_positions = config.max_position_embeddings
-        # self.register_buffer(
-        #     "bias",
-        #     torch.tril(torch.ones((max_positions, max_positions), dtype=torch.bool)).view(
-        #         1, 1, max_positions, max_positions
-        #     ),
-        #     persistent=False,
-        # )
         self.register_buffer(
             "bias",
-            torch.ones((max_positions, max_positions), dtype=torch.bool).view(
+            torch.tril(torch.ones((max_positions, max_positions), dtype=torch.bool)).view(
                 1, 1, max_positions, max_positions
             ),
             persistent=False,
         )
+        # self.register_buffer(
+        #     "bias",
+        #     torch.ones((max_positions, max_positions), dtype=torch.bool).view(
+        #         1, 1, max_positions, max_positions
+        #     ),
+        #     persistent=False,
+        # )
         self.register_buffer("masked_bias", torch.tensor(-1e4), persistent=False)
 
         self.embed_dim = config.hidden_size
@@ -229,6 +229,7 @@ class GPT2Attention(nn.Module):
             # Need to be a tensor, otherwise we get error: `RuntimeError: expected scalar type float but found double`.
             # Need to be on the same device, otherwise `RuntimeError: ..., x and y to be on the same device`
             mask_value = torch.full([], mask_value, dtype=attn_weights.dtype).to(attn_weights.device)
+            # print(attn_weights.shape)
             attn_weights = torch.where(causal_mask, attn_weights.to(attn_weights.dtype), mask_value)
 
         if attention_mask is not None:

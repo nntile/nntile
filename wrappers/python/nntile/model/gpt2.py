@@ -13,7 +13,7 @@
 # @date 2023-06-21
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        notrans, trans, Tensor_fp32, Tensor_int64
+        notrans, trans, Tensor_fp32, Tensor_int64, Tensor_bool
 from nntile.model.base_model import BaseModel
 from nntile.layer.linear import Linear
 from nntile.layer.embedding import Embedding
@@ -37,8 +37,14 @@ class GPT2(BaseModel):
         max_position_embeddings = config["max_position_embeddings"]
         layer_norm_epsilon = config["layer_norm_epsilon"]
         hidden_size = config["hidden_size"]
+        seq_len = config["seq_len"]
         activations = [input_ids, positional_ids]
         layers = []
+        traits = TensorTraits((seq_len, seq_len), (seq_len, seq_len))
+        self.mask = Tensor_bool(traits, [0], next_tag)
+        next_tag = self.mask.next_tag
+        mask_np = np.array(np.tril(np.ones((seq_len, seq_len))), dtype=bool, order="F")
+        self.mask.from_array(mask_np)
         wte_layer, next_tag = Embedding.generate_simple(input_ids.value, Tensor_fp32, 0, 
                                                         vocab_size, embed_dim, embed_dim,
                                                         embed_dim, next_tag) # config.vocab_size, self.embed_dim
@@ -64,7 +70,7 @@ class GPT2(BaseModel):
             attn_layer, next_tag = Attention.generate_simple_mpiroot(activations[-1],
                                                                      activations[-1],
                                                                      activations[-1],
-                                                                     config["n_head"], next_tag)
+                                                                     config["n_head"], next_tag, self.mask)
             layers.append(attn_layer)
             activations.extend(attn_layer.activations_output)
 
@@ -126,6 +132,7 @@ class GPT2(BaseModel):
             "n_inner": config_.n_inner,
             "activation_function": "gelutanh",
             "n_head": config_.n_head,
+            "seq_len": seq_len,
         }
         positional_ids_traits = TensorTraits([seq_len], [seq_len])
         positional_ids_distr = [0] * positional_ids_traits.grid.nelems
@@ -193,3 +200,8 @@ class GPT2(BaseModel):
                 nntile_p_idx += 1
 
         return gpt2_nntile, gpt2_nntile.next_tag
+    
+    def unregister(self):
+        super().unregister()
+        if self.mask:
+            self.mask.unregister()
