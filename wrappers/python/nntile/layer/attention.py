@@ -81,7 +81,7 @@ class Attention(BaseLayer):
         self.head_size = head_size
         self.mask = mask
         if mask:
-            self.val = np.float32(-np.inf)
+            self.val = np.finfo(np.float32).min
 
     # Simple generator for the linear layer
     @staticmethod
