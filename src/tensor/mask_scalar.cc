@@ -29,7 +29,15 @@ void mask_scalar_async(const Tensor<bool_t> &mask, T val, const Tensor<T> &A)
 {
     // Check shapes and tiles
     if(A.shape != mask.shape)
-    {
+    {   
+        std::cout << "A shape = ";
+        for (auto& s : A.shape)
+            std::cout << s << " ";
+        std::cout << std::endl;
+        std::cout << "mask shape = ";
+        for (auto& s : mask.shape)
+            std::cout << s << " ";
+        std::cout << std::endl;
         throw std::runtime_error("A.shape != mask.shape");
     }
     if(A.basetile_shape != mask.basetile_shape)
