@@ -352,6 +352,8 @@ class Attention(BaseLayer):
                 #self.a_sumprod_slice[i].invalidate_submit()
                 # dA[i] *= A[i]
                 prod_async(self.a[i].value, self.a[i].grad)
+            if self.mask:
+                mask_scalar_async(self.mask, 0, self.a[i].grad)
             # A[i] can be deleted
             #self.a[i].value.invalidate_submit()
             # Backward for:
