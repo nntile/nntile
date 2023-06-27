@@ -45,7 +45,6 @@ parser = argparse.ArgumentParser(prog="GPT2-based neural networks", \
 parser.add_argument("--model", choices=["gpt2", "gpt2-small", "gpt2-medium", \
         "gpt2-large", "gpt2-xl"], default="gpt2")
 parser.add_argument("--model-path")
-parser.add_argument("--seq-len", type=int, default=1024)
 parser.add_argument("--seq-len-tile", type=int, default=1024)
 parser.add_argument("--batch-size", type=int, default=1)
 parser.add_argument("--batch-size-tile", type=int, default=1)
@@ -76,9 +75,7 @@ args = parser.parse_args()
 print(args)
 
 # Check arguments
-assert args.seq_len > 0
 assert args.seq_len_tile > 0
-assert args.seq_len % args.seq_len_tile == 0
 assert args.batch_size > 0
 assert args.batch_size_tile > 0
 assert args.batch_size % args.batch_size_tile == 0
@@ -100,6 +97,7 @@ pretrained_model_torch = GPT2LMHeadModel.from_pretrained(args.model, \
 # pending in NNTile implementation (bias in Linear layers and entire Attention
 # layers).
 config = copy.deepcopy(pretrained_model_torch.config)
+assert config.n_positions % args.seq_len_tile == 0
 config.attn_pdrop = 0
 config.embd_pdrop = 0
 config.resid_pdrop = 0
@@ -422,7 +420,7 @@ nntile_model_config = GPT2Config_nntile(config.vocab_size, args.n_embd_tile, \
         config.num_hidden_layers, config.n_head, "gelutanh")
 nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
         args.batch_size, \
-        args.batch_size_tile, args.seq_len, args.seq_len_tile, \
+        args.batch_size_tile, config.n_positions, args.seq_len_tile, \
         nntile_model_config, next_tag)
 
 # Move model to the designated device
@@ -433,7 +431,7 @@ model_torch = torch.compile(model_torch)
 if args.check:
     # Get output from a random input through the forward pass
     input_value = torch.randint(config.vocab_size, \
-            (args.batch_size, args.seq_len), dtype=torch.int64, \
+            (args.batch_size, config.n_positions), dtype=torch.int64, \
             device=args.torch_device)
     output_value = model_torch(input_value)
     if args.torch_device.startswith("cuda"):
@@ -513,7 +511,7 @@ if args.check:
 # Measure throughput of Torch forward pass
 if args.torch_nforward > 0:
     input_value = torch.randint(config.vocab_size, \
-            (args.batch_size, args.seq_len), dtype=torch.int64, \
+            (args.batch_size, config.n_positions), dtype=torch.int64, \
             device=args.torch_device)
     for i in range(args.torch_nforward_warmup):
         output_value = model_torch(input_value)
@@ -531,7 +529,7 @@ if args.torch_nforward > 0:
 # Measure throughput of Torch backward pass
 if args.torch_nbackward > 0:
     input_value = torch.randint(config.vocab_size, \
-            (args.batch_size, args.seq_len), dtype=torch.int64, \
+            (args.batch_size, config.n_positions), dtype=torch.int64, \
             device=args.torch_device)
     output_value = model_torch(input_value)
     loss = (output_value.logits * output_value.logits).sum()
@@ -555,7 +553,7 @@ if args.torch_nepochs > 0:
 # Measure throughput of the forward pass by NNTile
 if args.nntile_nforward > 0:
     input_value = torch.randint(config.vocab_size, \
-            (args.batch_size, args.seq_len), dtype=torch.int64)
+            (args.batch_size, config.n_positions), dtype=torch.int64)
     nntile_model.activations[0].value.from_array(input_value.T)
     for i in range(args.nntile_nforward_warmup):
         nntile_model.forward_async()
@@ -571,7 +569,7 @@ if args.nntile_nforward > 0:
 # Measure throughput of the forward pass by NNTile
 if args.nntile_nbackward > 0:
     input_value = torch.randint(config.vocab_size, \
-            (args.batch_size, args.seq_len), dtype=torch.int64)
+            (args.batch_size, config.n_positions), dtype=torch.int64)
     nntile_model.activations[0].value.from_array(input_value.T)
     nntile_model.forward_async()
     for i in range(args.nntile_nbackward_warmup):
