@@ -28,22 +28,33 @@ template<typename T>
 void mask_scalar_async(const Tensor<bool_t> &mask, T val, const Tensor<T> &A)
 {
     // Check shapes and tiles
-    if(A.shape != mask.shape)
-    {   
-        std::cout << "A shape = ";
-        for (auto& s : A.shape)
-            std::cout << s << " ";
-        std::cout << std::endl;
-        std::cout << "mask shape = ";
-        for (auto& s : mask.shape)
-            std::cout << s << " ";
-        std::cout << std::endl;
-        throw std::runtime_error("A.shape != mask.shape");
-    }
-    if(A.basetile_shape != mask.basetile_shape)
+    for (size_t i = 0; i < A.ndim-1; ++i)
     {
-        throw std::runtime_error("A.basetile_shape != mask.basetile_shape");
+        if (A.shape[i] != mask.shape[i])
+        {
+            throw std::runtime_error("A.shape[i] != mask.shape[i]");
+        }
+        if (A.basetile_shape[i] != mask.basetile_shape[i])
+        {
+            throw std::runtime_error("A.basetile_shape[i] != mask.basetile_shape[i]");
+        }
     }
+    // if(A.shape != mask.shape)
+    // {   
+    //     std::cout << "A shape = ";
+    //     for (auto& s : A.shape)
+    //         std::cout << s << " ";
+    //     std::cout << std::endl;
+    //     std::cout << "mask shape = ";
+    //     for (auto& s : mask.shape)
+    //         std::cout << s << " ";
+    //     std::cout << std::endl;
+    //     throw std::runtime_error("A.shape != mask.shape");
+    // }
+    // if(A.basetile_shape != mask.basetile_shape)
+    // {
+    //     throw std::runtime_error("A.basetile_shape != mask.basetile_shape");
+    // }
     int mpi_rank = starpu_mpi_world_rank();
 
     for(Index i = 0; i < A.grid.nelems; ++i)
@@ -57,7 +68,7 @@ void mask_scalar_async(const Tensor<bool_t> &mask, T val, const Tensor<T> &A)
         if(mpi_rank == A_tile_rank)
         {
             auto tile_traits = A.get_tile_traits(i);
-            starpu::mask_scalar::submit<T>(tile_traits.nelems, mask_tile_handle, val, A_tile_handle);
+            starpu::mask_scalar::submit<T>(tile_traits.nelems, tile_traits.shape[2], mask_tile_handle, val, A_tile_handle);
         }
         // Flush cache for the output tile on every node
         A_tile_handle.mpi_flush();

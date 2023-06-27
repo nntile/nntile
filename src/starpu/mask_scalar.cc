@@ -35,7 +35,7 @@ void cpu(void *buffers[], void *cl_args)
     T *data = interfaces[0]->get_ptr<T>();
     bool_t* mask = interfaces[1]->get_ptr<bool_t>();
     // Launch kernel
-    kernel::mask_scalar::cpu<T>(args->nelems, mask, args->val, data);
+    kernel::mask_scalar::cpu<T>(args->nelems, args->batch_ndim, mask, args->val, data);
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -94,7 +94,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index nelems, Handle mask, T val, Handle data)
+void submit(Index nelems, Index batch_ndim, Handle mask, T val, Handle data)
 //! Insert mask_scalar task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -105,6 +105,7 @@ void submit(Index nelems, Handle mask, T val, Handle data)
     args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     args->val = val;
+    args->batch_ndim = batch_ndim;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_RW, static_cast<starpu_data_handle_t>(data),
@@ -120,10 +121,10 @@ void submit(Index nelems, Handle mask, T val, Handle data)
 
 // Explicit instantiaion
 template
-void submit<fp32_t>(Index nelems, Handle mask, fp32_t val, Handle data);
+void submit<fp32_t>(Index nelems, Index batch_ndim, Handle mask, fp32_t val, Handle data);
 
 template
-void submit<fp64_t>(Index nelems, Handle mask, fp64_t val, Handle data);
+void submit<fp64_t>(Index nelems, Index batch_ndim, Handle mask, fp64_t val, Handle data);
 
 } // namespace mask_scalar
 } // namespace starpu

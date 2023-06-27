@@ -32,6 +32,7 @@ struct args_t
 {
     Index nelems;
     T val;
+    Index batch_ndim;
 };
 
 // Mask StarPU buffer with given value on CPU
@@ -74,7 +75,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nelems, Handle mask, T val, Handle data);
+void submit(Index nelems, Index batch_ndim, Handle mask, T val, Handle data);
 
 } // namespace mask_scalar
 } // namespace starpu

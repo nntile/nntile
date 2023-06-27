@@ -40,11 +40,12 @@ class GPT2(BaseModel):
         seq_len = config["seq_len"]
         activations = [input_ids, positional_ids]
         layers = []
-        traits = TensorTraits((seq_len, seq_len, 1), (seq_len, seq_len, 1))
-        self.mask = Tensor_bool(traits, [0], next_tag)
+        
+        mask_traits = TensorTraits((seq_len, seq_len), (seq_len, seq_len))
+        self.mask = Tensor_bool(mask_traits, [0], next_tag)
         next_tag = self.mask.next_tag
         mask_np = np.array(np.triu(np.ones((seq_len, seq_len))), dtype=bool, order="F")
-        self.mask.from_array(mask_np[:, :, np.newaxis])
+        self.mask.from_array(mask_np)
         wte_layer, next_tag = Embedding.generate_simple(input_ids.value, Tensor_fp32, 0, 
                                                         vocab_size, embed_dim, embed_dim,
                                                         embed_dim, next_tag) # config.vocab_size, self.embed_dim

@@ -23,7 +23,7 @@ namespace mask_scalar
 {
 
 template<typename T>
-void cpu(Index nelems, bool_t* mask, T val, T *data)
+void cpu(Index nelems, Index batch_ndim, bool_t* mask, T val, T *data)
     noexcept
 //! Mask operation with sclar on CPU
 /*! Sets all elements to the provided value if the mask value is 0
@@ -33,22 +33,26 @@ void cpu(Index nelems, bool_t* mask, T val, T *data)
  * @params[in,out] data: Input data and result of mask transformation
  * */
 {
-    for(Index i = 0; i < nelems; ++i)
+    Index nelems_per_batch = nelems / batch_ndim;
+    for (Index j = 0; j < batch_ndim; ++j)
+    {
+        for(Index i = 0; i < nelems_per_batch; ++i)
     {
         if (!mask[i])
         {
-            data[i] = val;
+            data[nelems_per_batch*j+i] = val;
         }
+    }
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index nelems, bool_t* mask, fp32_t val, fp32_t *data)
+void cpu<fp32_t>(Index nelems, Index batch_ndim, bool_t* mask, fp32_t val, fp32_t *data)
     noexcept;
 
 template
-void cpu<fp64_t>(Index nelems, bool_t* mask, fp64_t val, fp64_t *data)
+void cpu<fp64_t>(Index nelems, Index batch_ndim, bool_t* mask, fp64_t val, fp64_t *data)
     noexcept;
 
 } // namespace mask_scalar

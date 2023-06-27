@@ -26,7 +26,7 @@ namespace mask_scalar
 
 // Mask scalar operation on a CPU buffer
 template<typename T>
-void cpu(Index nelems, bool_t* mask, T val, T *data)
+void cpu(Index nelems, Index batch_ndim, bool_t* mask, T val, T *data)
     noexcept;
 
 } // namespace mask_scalar

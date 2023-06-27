@@ -33,18 +33,19 @@ mask_scalar_func = {np.float32: nntile.nntile_core.tensor.mask_scalar_fp32,
 # Helper function returns bool value true if test passes
 def helper(dtype):
     # Describe single-tile tensor, located at node 0
-    shape = [3, 3]
+    shape = [3, 3, 1]
     mpi_distr = [0]
     next_tag = 0
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
     A = Tensor[dtype](traits, mpi_distr, next_tag)
     next_tag = A.next_tag
-    mask = Tensor[bool](traits, mpi_distr, next_tag)
+    mask_traits = nntile.tensor.TensorTraits(shape[:2], shape[:2])
+    mask = Tensor[bool](mask_traits, mpi_distr, next_tag)
     # Set initial values of tensors
     rand_A = np.random.randn(*shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
-    print(np_A)
+    print(np_A[:, :, 0])
     A.from_array(np_A)
     
     causal_mask = torch.tril(torch.ones((3, 3), dtype=torch.bool))
@@ -53,7 +54,7 @@ def helper(dtype):
     # Need to be on the same device, otherwise `RuntimeError: ..., x and y to be on the same device`
     if dtype == np.float32:
         mask_value_t = torch.full([], mask_value, dtype=torch.float32)
-        torch_res = torch.where(causal_mask, torch.tensor(rand_A, dtype=torch.float32), mask_value_t)
+        torch_res = torch.where(causal_mask, torch.tensor(rand_A, dtype=torch.float32).permute(2,1,0), mask_value_t).permute(2,1,0)
     elif dtype == np.float64:
         mask_value_t = torch.full([], mask_value, dtype=torch.float64)
         torch_res = torch.where(causal_mask, torch.tensor(rand_A, dtype=torch.float64), mask_value_t)
@@ -66,7 +67,7 @@ def helper(dtype):
     A.unregister()
     mask.unregister()
     # Compare results
-    print(np_A, torch_res)
+    print(np_A[:, :, 0], torch_res[:, :, 0])
     return (torch_res.numpy() == np_A).all()
 
 # Test runner for different precisions
