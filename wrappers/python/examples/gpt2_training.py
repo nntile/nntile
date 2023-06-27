@@ -24,7 +24,8 @@ import torch.nn as nn
 from transformers import GPT2Tokenizer, TextDataset, GPT2LMHeadModel
 from transformers import GPT2Model, GPT2Config, GPT2LMHeadModel
 from datasets import load_dataset
-from nntile.model.gpt2 import GPT2
+from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
+        GPT2Model as GPT2Model_nntile
 from nntile.tensor import copy_async
 from nntile.loss import Frob
 import pdb 
@@ -48,7 +49,6 @@ parser.add_argument("--seq-len", type=int, default=1024)
 parser.add_argument("--seq-len-tile", type=int, default=1024)
 parser.add_argument("--batch-size", type=int, default=1)
 parser.add_argument("--batch-size-tile", type=int, default=1)
-parser.add_argument("--vocab-size-tile", type=int, default=1024)
 parser.add_argument("--n-embd-tile", type=int, default=384)
 parser.add_argument("--n-inner-tile", type=int, default=1536)
 parser.add_argument("--torch-device", choices=["cpu", "cuda", "cuda:0", \
@@ -82,7 +82,6 @@ assert args.seq_len % args.seq_len_tile == 0
 assert args.batch_size > 0
 assert args.batch_size_tile > 0
 assert args.batch_size % args.batch_size_tile == 0
-assert args.vocab_size_tile > 0
 assert args.n_embd_tile > 0
 assert args.n_inner_tile > 0
 assert args.torch_nforward >= 0
@@ -389,6 +388,7 @@ class GPT2Attention(nn.Module):
     
 inner_dim = config.n_inner if config.n_inner is not None \
         else 4 * config.hidden_size
+config.n_inner = inner_dim
 
 for h_idx in range(config.num_hidden_layers):
     model_torch.transformer.h[h_idx].ln_1.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].ln_1.weight.detach().clone())
@@ -416,9 +416,14 @@ print("StarPU + NNTile + MPI init in {} seconds".format(time1))
 next_tag = 0
 
 # Prepare GPT2 model based on the NNTile backend
-nntile_model, next_tag = GPT2.from_torch(model_torch, args.batch_size, \
-        args.batch_size_tile, args.seq_len, args.seq_len_tile, config, \
-        next_tag)
+nntile_model_config = GPT2Config_nntile(config.vocab_size, args.n_embd_tile, \
+        config.n_embd, args.n_embd_tile, config.max_position_embeddings, \
+        config.n_inner, args.n_inner_tile, config.layer_norm_epsilon, \
+        config.num_hidden_layers, config.n_head, "gelutanh")
+nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
+        args.batch_size, \
+        args.batch_size_tile, args.seq_len, args.seq_len_tile, \
+        nntile_model_config, next_tag)
 
 # Move model to the designated device
 model_torch = model_torch.to(args.torch_device)

@@ -15,42 +15,113 @@
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         notrans, trans, Tensor_fp32, Tensor_int64
 from nntile.model.base_model import BaseModel
-from nntile.layer.linear import Linear
-from nntile.layer.embedding import Embedding
-from nntile.layer.add_slice import AddSlice
-from nntile.layer.layer_norm import LayerNorm
-from nntile.layer.attention import Attention
+from nntile.layer import Linear, Embedding, AddSlice, LayerNorm, Attention, Act
 import numpy as np
-from typing import List
-from nntile.model.gpt2mlp import GPT2MLP
+from typing import List, Dict
 from nntile.layer.add import Add
 
-class GPT2(BaseModel):
+class GPT2Config(Dict):
+    def __init__(self, vocab_size: int, vocab_embed_dim_tile: int, \
+            embed_dim: int, embed_dim_tile: int, \
+            max_position_embeddings: int, \
+            inner_dim: int, inner_dim_tile: int, \
+            layer_norm_epsilon: float, num_hidden_layers: int, n_head: int, \
+            activation_function: str):
+        self["vocab_size"] = vocab_size
+        self["vocab_embed_dim_tile"] = vocab_embed_dim_tile
+        self["embed_dim"] = embed_dim
+        self["embed_dim_tile"] = embed_dim_tile
+        self["max_position_embeddings"] = max_position_embeddings
+        self["inner_dim"] = inner_dim
+        self["inner_dim_tile"] = inner_dim_tile
+        self["layer_norm_epsilon"] = layer_norm_epsilon
+        self["num_hidden_layers"] = num_hidden_layers
+        self["n_head"] = n_head
+        self["activation_function"] = activation_function
+
+    def __getattr__(self, attr):
+        return self[attr]
+
+class GPT2MLP(BaseModel):
     next_tag: int
 
     # Construct model with all the provided data
-    def __init__(self, input_ids: TensorMoments,\
-            positional_ids: TensorMoments, config, next_tag: int):
-        # Check parameter side
-        vocab_size = config["vocab_size"]
+    def __init__(self, x: TensorMoments, config: GPT2Config, next_tag: int):
+        # Init activations and list of layers
+        activations = [x]
+        layers = []
         embed_dim = config["embed_dim"]
         embed_dim_tile = config["embed_dim_tile"]
-        embedding_w_emb_dim_tile = config["embedding_w_emb_dim_tile"]
+        inner_dim = config["inner_dim"]
+        inner_dim_tile = config["inner_dim_tile"]
+        activation_function = config["activation_function"]
+        gemm_ndim = 1
+        # Initial linear layer that converts input to internal shape
+        new_layer, next_tag = Linear.generate_simple_mpiroot(x, "R", notrans,
+                gemm_ndim, [inner_dim], [inner_dim_tile], next_tag)
+        layers.append(new_layer)
+        activations.extend(new_layer.activations_output)
+        
+        new_layer, next_tag = Act.generate_simple(activations[-1], \
+                config["activation_function"], next_tag)
+        layers.append(new_layer)
+        activations.extend(new_layer.activations_output)
+
+        new_layer, next_tag = Linear.generate_simple_mpiroot(activations[-1], \
+                "R", notrans, gemm_ndim, [embed_dim], [embed_dim_tile], \
+                next_tag)
+        layers.append(new_layer)
+        activations.extend(new_layer.activations_output)
+        self.next_tag = next_tag
+        # Fill Base Model with the generated data
+        super().__init__(activations, layers)
+
+    # Randomly init all linear layers
+    def init_randn_async(self):
+        for l in self.layers:
+            if type(l) is Linear:
+                l.init_randn_async()
+
+    @staticmethod
+    def from_torch(torch_mlp, x: TensorMoments, config: GPT2Config, \
+            next_tag: int):
+        '''
+        torch_mlp is PyTorch MLP where no biases in linear layers
+        '''
+        gpt2mlp_nntile = GPT2MLP(x, config, next_tag)
+        torch_params = list(torch_mlp.parameters())
+        for i, p in enumerate(gpt2mlp_nntile.parameters):
+            p.value.from_array(torch_params[i].cpu().detach().numpy().T)
+        return gpt2mlp_nntile, gpt2mlp_nntile.next_tag
+
+class GPT2Model(BaseModel):
+    next_tag: int
+
+    # Construct model with all the provided data
+    def __init__(self, input_ids: TensorMoments, \
+            positional_ids: TensorMoments, config: GPT2Config, next_tag: int):
+        # Check parameter side
+        vocab_size = config["vocab_size"]
+        vocab_embed_dim_tile = config["vocab_embed_dim_tile"]
+        embed_dim = config["embed_dim"]
+        embed_dim_tile = config["embed_dim_tile"]
         max_position_embeddings = config["max_position_embeddings"]
+        inner_dim = config["inner_dim"]
+        inner_dim_tile = config["inner_dim_tile"]
         layer_norm_epsilon = config["layer_norm_epsilon"]
-        hidden_size = config["hidden_size"]
-        hidden_size_tile = config["hidden_size_tile"]
+        num_hidden_layers = config["num_hidden_layers"]
+        n_head = config["n_head"]
         activations = [input_ids, positional_ids]
         layers = []
         wte_layer, next_tag = Embedding.generate_simple(input_ids.value, \
                 Tensor_fp32, 0, vocab_size, embed_dim, embed_dim_tile, \
-                embedding_w_emd_dim_tile, next_tag)
+                vocab_embed_dim_tile, next_tag)
         layers.append(wte_layer)
         activations.extend(wte_layer.activations_output)
         
         wpe_layer, next_tag = Embedding.generate_simple(positional_ids.value, \
                 Tensor_fp32, 0, max_position_embeddings, embed_dim, \
-                embed_dim_tile, embedding_w_emb_dim_tile, next_tag)
+                embed_dim_tile, vocab_embed_dim_tile, next_tag)
         layers.append(wpe_layer)
         activations.extend(wpe_layer.activations_output)
 
@@ -60,7 +131,7 @@ class GPT2(BaseModel):
         layers.append(add_slice_layer)
         activations.extend(add_slice_layer.activations_output)
 
-        for h_idx in range(config["num_hidden_layers"]):
+        for h_idx in range(num_hidden_layers):
             l_norm, next_tag = LayerNorm.generate_simple(activations[-1], 0, \
                     layer_norm_epsilon, next_tag)
             layers.append(l_norm)
@@ -68,7 +139,7 @@ class GPT2(BaseModel):
 
             attn_layer, next_tag = Attention.generate_simple_mpiroot( \
                     activations[-1], activations[-1], activations[-1], \
-                    config["n_head"], next_tag)
+                    n_head, next_tag)
             layers.append(attn_layer)
             activations.extend(attn_layer.activations_output)
 
@@ -82,11 +153,6 @@ class GPT2(BaseModel):
             layers.append(l_norm)
             activations.extend(l_norm.activations_output)
 
-            inner_dim = config["n_inner"] if config["n_inner"] is not None \
-                    else 4 * hidden_size
-            inner_dim_tile = config["n_inner_tile"] if config["n_inner_tile"] \
-                    is not None else 4 * hidden_size_tile
-            config["interm_size"] = inner_dim
             gpt_block = GPT2MLP(activations[-1], config, next_tag)
             next_tag = gpt_block.next_tag
 
@@ -117,22 +183,8 @@ class GPT2(BaseModel):
 
     @staticmethod
     def from_torch(torch_gpt2, batch_size: int, batch_size_tile: int, \
-            seq_len: int, seq_len_tile: int, config_, next_tag: int):
-        config = {
-            "vocab_size": config_.vocab_size,
-            "vocab_size_tile": config_.vocab_size_tile,
-            "embed_dim": config_.n_embd,
-            "embed_dim_tile": config_.n_embd_tile,
-            "max_position_embeddings": config_.max_position_embeddings,
-            "layer_norm_epsilon": config_.layer_norm_epsilon,
-            "num_hidden_layers": config_.num_hidden_layers,
-            "hidden_size": config_.hidden_size,
-            "hidden_size_tile": config_.hidden_size_tile,
-            "n_inner": config_.n_inner,
-            "n_inner_tile": config_.n_inner_tile,
-            "activation_function": "gelutanh",
-            "n_head": config_.n_head,
-        }
+            seq_len: int, seq_len_tile: int, config: GPT2Config, \
+            next_tag: int):
         positional_ids_traits = TensorTraits([seq_len], [seq_len_tile])
         positional_ids_distr = [0] * positional_ids_traits.grid.nelems
         positional_ids_value = Tensor_int64(positional_ids_traits, \
@@ -151,7 +203,7 @@ class GPT2(BaseModel):
         x_grad_required = False
         x_moments = TensorMoments(x, x_grad, x_grad_required)
 
-        gpt2_nntile = GPT2(x_moments, positional_ids, config, next_tag)
+        gpt2_nntile = GPT2Model(x_moments, positional_ids, config, next_tag)
         nntile_p_idx = 0
         attn_embed_dim = config["embed_dim"]
         attn_nheads = config["n_head"]

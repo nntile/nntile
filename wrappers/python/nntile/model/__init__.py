@@ -14,4 +14,5 @@
 from .base_model import BaseModel
 from .deep_linear import DeepLinear
 from .deep_relu import DeepReLU
-from .gpt2mlp import GPT2MLP
+from .gpt2 import GPT2Config, GPT2Model
+
