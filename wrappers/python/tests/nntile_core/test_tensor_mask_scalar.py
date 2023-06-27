@@ -10,12 +10,11 @@
 # @version 1.0.0
 # @author Aleksandr Katrutsa
 # @author Aleksandr Mikhalev
-# @date 2023-06-22
+# @date 2023-06-27
 
 # All necesary imports
 import nntile
 import numpy as np
-import torch
 # Set up StarPU configuration and init it
 config = nntile.starpu.Config(1, 0, 0)
 # Init all NNTile-StarPU codelets
@@ -33,7 +32,7 @@ mask_scalar_func = {np.float32: nntile.nntile_core.tensor.mask_scalar_fp32,
 # Helper function returns bool value true if test passes
 def helper(dtype):
     # Describe single-tile tensor, located at node 0
-    shape = [3, 3, 1]
+    shape = [3, 3, 10]
     mpi_distr = [0]
     next_tag = 0
     traits = nntile.tensor.TensorTraits(shape, shape)
@@ -45,30 +44,20 @@ def helper(dtype):
     # Set initial values of tensors
     rand_A = np.random.randn(*shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
-    print(np_A[:, :, 0])
     A.from_array(np_A)
     
-    causal_mask = torch.tril(torch.ones((3, 3), dtype=torch.bool))
+    causal_mask = np.tril(np.ones((3, 3), dtype=bool))
     mask_value = -1000.
-    # Need to be a tensor, otherwise we get error: `RuntimeError: expected scalar type float but found double`.
-    # Need to be on the same device, otherwise `RuntimeError: ..., x and y to be on the same device`
-    if dtype == np.float32:
-        mask_value_t = torch.full([], mask_value, dtype=torch.float32)
-        torch_res = torch.where(causal_mask, torch.tensor(rand_A, dtype=torch.float32).permute(2,1,0), mask_value_t).permute(2,1,0)
-    elif dtype == np.float64:
-        mask_value_t = torch.full([], mask_value, dtype=torch.float64)
-        torch_res = torch.where(causal_mask, torch.tensor(rand_A, dtype=torch.float64), mask_value_t)
+    np_res = np.where(causal_mask[:, :, np.newaxis], np_A, mask_value)
 
-    mask.from_array(np.array(causal_mask.numpy(), dtype=bool, order="F"))
-    print(np.array(causal_mask.numpy(), dtype=bool, order="F"))
+    mask.from_array(np.array(causal_mask, dtype=bool, order="F"))
     mask_scalar_func[dtype](mask, dtype(mask_value), A)
     A.to_array(np_A)
     nntile.starpu.wait_for_all()
     A.unregister()
     mask.unregister()
     # Compare results
-    print(np_A[:, :, 0], torch_res[:, :, 0])
-    return (torch_res.numpy() == np_A).all()
+    return (np_res == np_A).all()
 
 # Test runner for different precisions
 def test():
