@@ -39,10 +39,10 @@ template<typename T>
 void cuda(cudaStream_t stream, Index nelems, bool_t* mask,  T val, T *data)
     noexcept
 //! Mask operation with given value on CUDA
-/*! Seta all elements to the provided value if mask value is 0
+/*! Set all elements to the provided value if mask value is 0
  * @params[in] nelems: Number of elements in a buffer
  * @params[in] mask: mask buffer
- * @param[in] val: Input value
+ * @paramы[in] val: Input value
  * @params[in,out] data: Output buffer
  * */
 {

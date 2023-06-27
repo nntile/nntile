@@ -126,6 +126,12 @@ void cpu<Index>(Index ndim, const Index *src_start, const Index *src_stride,
         const Index *dst_stride, Index *dst, Index *tmp_index)
     noexcept;
 
+template
+void cpu<bool_t>(Index ndim, const Index *src_start, const Index *src_stride,
+        const Index *copy_shape, const bool_t *src, const Index *dst_start,
+        const Index *dst_stride, bool_t *dst, Index *tmp_index)
+    noexcept;
+
 } // namespace subcopy
 } // namespace kernel
 } // namespace nntile
