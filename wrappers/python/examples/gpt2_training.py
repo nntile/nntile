@@ -48,15 +48,24 @@ parser.add_argument("--seq-len", type=int, default=1024)
 parser.add_argument("--seq-len-tile", type=int, default=1024)
 parser.add_argument("--batch-size", type=int, default=1)
 parser.add_argument("--batch-size-tile", type=int, default=1)
-parser.add_argument("--device", choices=["cpu", "cuda", "cuda:0", "cuda:1"], \
-        default="cpu")
-parser.add_argument("--nforward", type=int, default=10)
-parser.add_argument("--nbackward", type=int, default=10)
+parser.add_argument("--torch-device", choices=["cpu", "cuda", "cuda:0", \
+        "cuda:1"], default="cpu")
+parser.add_argument("--check", action="store_true")
+parser.add_argument("--torch-nforward", type=int, default=0)
+parser.add_argument("--torch-nforward-warmup", type=int, default=0)
+parser.add_argument("--torch-nbackward", type=int, default=0)
+parser.add_argument("--torch-nbackward-warmup", type=int, default=0)
+parser.add_argument("--torch-nepochs", type=int, default=0)
+parser.add_argument("--torch-nepochs-warmup", type=int, default=0)
+parser.add_argument("--nntile-nforward", type=int, default=0)
+parser.add_argument("--nntile-nforward-warmup", type=int, default=0)
+parser.add_argument("--nntile-nbackward", type=int, default=0)
+parser.add_argument("--nntile-nbackward-warmup", type=int, default=0)
+parser.add_argument("--nntile-nepochs", type=int, default=0)
+parser.add_argument("--nntile-nepochs-warmup", type=int, default=0)
 #parser.add_argument("--dataset", choices=["WikiText-103"], \
 #        default="WikiText-103")
 #parser.add_argument("--dataset_path")
-#parser.add_argument("--epoch", type=int)
-#parser.add_argument("--epoch_warmup", type=int)
 #parser.add_argument("--lr", type=float)
 
 # Parse arguments
@@ -70,8 +79,12 @@ assert args.seq_len % args.seq_len_tile == 0
 assert args.batch_size > 0
 assert args.batch_size_tile > 0
 assert args.batch_size % args.batch_size_tile == 0
-assert args.nforward > 0
-assert args.nbackward > 0
+assert args.torch_nforward >= 0
+assert args.torch_nbackward >= 0
+assert args.torch_nepochs >= 0
+assert args.nntile_nforward >= 0
+assert args.nntile_nbackward >= 0
+assert args.nntile_nepochs >= 0
 
 # Load named pretrained PyTorch model
 pretrained_model_torch = GPT2LMHeadModel.from_pretrained(args.model, \
@@ -116,7 +129,7 @@ class Conv1D(nn.Module):
         super().__init__()
         self.nf = nf
         self.weight = nn.Parameter(torch.empty(nx, nf))
-        self.bias = torch.zeros((), device=args.device)
+        self.bias = torch.zeros((), device=args.torch_device)
         nn.init.normal_(self.weight, std=0.02)
 
     def forward(self, x):
@@ -389,22 +402,6 @@ for h_idx in range(config.num_hidden_layers):
 print("PyTorch model:")
 print(model_torch)
 
-# Get output from a random input through the forward pass
-input_value = torch.randint(config.vocab_size-1, \
-        (args.batch_size, args.seq_len), dtype=torch.int64, device=args.device)
-model_torch = model_torch.to(args.device)
-output_value = model_torch(input_value)
-if args.device.startswith("cuda"):
-    torch.cuda.synchronize()
-output_value_np = output_value.logits.cpu().detach().numpy()
-
-# Get gradients of parameters through the backward pass
-output_grad = torch.randn_like(output_value.logits, device=args.device)
-loss = (output_value.logits * output_grad).sum()
-loss.backward(retain_graph=True)
-if args.device.startswith("cuda"):
-    torch.cuda.synchronize()
-
 # Initialize NNTile and StarPU
 time0 = time.time()
 # Set up StarPU+MPI and init codelets
@@ -418,124 +415,179 @@ next_tag = 0
 nntile_model, next_tag = GPT2.from_torch(model_torch, args.batch_size, \
         args.seq_len, config, next_tag)
 
-# Check accuracy of the forward pass by the output activation
-nntile_model.activations[0].value.from_array(input_value.cpu().numpy().T)
-nntile_model.forward_async()
-nntile.starpu.wait_for_all()
-nntile_output_np = np.zeros_like(output_value_np.T, order='F')
-nntile_model.activations[-1].value.to_array(nntile_output_np)
-diff = np.linalg.norm(nntile_output_np.T - output_value_np)
-norm = np.linalg.norm(output_value_np)
-print("NNTile forward pass relative accuracy: {}".format(diff/norm))
+# Move model to the designated device
+model_torch = model_torch.to(args.torch_device)
+model_torch = torch.compile(model_torch)
 
-# Run backward pass by the NNTile to get gradients of parameters
-nntile_output_shape = nntile_model.activations[-1].value.shape
-nntile_output_traits = nntile.tensor.TensorTraits(nntile_output_shape, \
-        nntile_output_shape)
-nntile_output = nntile.tensor.Tensor_fp32(nntile_output_traits, [0], next_tag)
-next_tag = nntile_output.next_tag
-output_grad_np = output_grad.cpu().detach().numpy().T
-nntile_output.from_array(output_grad_np)
-nntile_model.clear_gradients()
-nntile.tensor.copy_async(nntile_output, nntile_model.activations[-1].grad)
-nntile_model.backward_async()
-nntile.starpu.wait_for_all()
-
-# Now compare gradients
-nntile_par_idx = 0
-for name, p_torch in model_torch.named_parameters():
-    p_torch_grad_np = p_torch.grad.cpu().detach().numpy()
-    layer_name = name.split(".")[-2]
-    if len(p_torch.shape) == 1 or layer_name in ("lm_head",):
-        p_nntile = nntile_model.parameters[nntile_par_idx]
-        p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
-                dtype=np.float32)
-        p_nntile.grad.to_array(p_nntile_grad_np)
-        diff = np.linalg.norm(p_torch_grad_np - p_nntile_grad_np)
-        norm = np.linalg.norm(p_torch_grad_np)
-        nntile_par_idx += 1
-    elif layer_name == "c_attn":
-        attn_head_size = config.n_embd // config.n_head
-        diff = 0
-        norm = np.linalg.norm(p_torch_grad_np)
-        for i_head in range(3*config.n_head):
-            p_nntile = nntile_model.parameters[nntile_par_idx]
-            p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
-                    dtype=np.float32)
-            p_nntile.grad.to_array(p_nntile_grad_np)
-            current_grad_block = p_torch_grad_np[:, \
-                    i_head*attn_head_size:(i_head+1)*attn_head_size]
-            diff += np.linalg.norm(current_grad_block.T-p_nntile_grad_np) ** 2
-            nntile_par_idx += 1
-        diff = diff ** 0.5
-    elif layer_name == "c_proj" and name.split(".")[-3] == "attn":
-        attn_head_size = config.n_embd // config.n_head
-        diff = 0
-        norm = np.linalg.norm(p_torch_grad_np)
-        for i_head in range(config.n_head):
-            p_nntile = nntile_model.parameters[nntile_par_idx]
-            p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
-                    dtype=np.float32)
-            p_nntile.grad.to_array(p_nntile_grad_np)
-            current_grad_block = p_torch_grad_np[i_head*attn_head_size: \
-                    (i_head+1)*attn_head_size, :]
-            diff += np.linalg.norm(current_grad_block.T-p_nntile_grad_np) ** 2
-            nntile_par_idx += 1
-        diff = diff ** 0.5
-    elif len(p_torch.shape) == 2:
-        p_nntile = nntile_model.parameters[nntile_par_idx]
-        p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
-                dtype=np.float32)
-        p_nntile.grad.to_array(p_nntile_grad_np)
-        diff = np.linalg.norm(p_torch_grad_np - p_nntile_grad_np.T)
-        norm = np.linalg.norm(p_torch_grad_np)
-        nntile_par_idx += 1
-    print("Relative error of gradient of {} = {}".format(name, diff/norm))
-
-# Measure throughput of Torch forward pass
-if args.device.startswith("cuda"):
-    torch.cuda.synchronize()
-time0 = time.time()
-for i in range(args.nforward):
+# Check accuracy of output and gradients of parmeters if required
+if args.check:
+    # Get output from a random input through the forward pass
+    input_value = torch.randint(config.vocab_size, \
+            (args.batch_size, args.seq_len), dtype=torch.int64, \
+            device=args.device)
     output_value = model_torch(input_value)
-if args.device.startswith("cuda"):
-    torch.cuda.synchronize()
-time1 = time.time() - time0
-print("Torch forward throughput (sequence/sec): ", \
-        args.nforward * args.batch_size / time1)
-
-# Measure throughput of Torch backward pass
-if args.device.startswith("cuda"):
-    torch.cuda.synchronize()
-time0 = time.time()
-for i in range(args.nbackward):
+    if args.device.startswith("cuda"):
+        torch.cuda.synchronize()
+    output_value_np = output_value.logits.cpu().detach().numpy()
+    # Get gradients of parameters through the backward pass
+    loss = (output_value.logits * output_value.logits).sum()
     loss.backward(retain_graph=True)
-if args.device.startswith("cuda"):
-    torch.cuda.synchronize()
-time1 = time.time() - time0
-print("Torch backward throughput (sequence/sec): ", \
-        args.nbackward * args.batch_size / time1)
-
-# Measure throughput of the forward pass by NNTile
-time0 = time.time()
-for i in range(args.nforward):
+    if args.device.startswith("cuda"):
+        torch.cuda.synchronize()
+    # Check accuracy of the forward pass by the output activation
+    nntile_model.activations[0].value.from_array(input_value.cpu().numpy().T)
     nntile_model.forward_async()
-nntile.starpu.wait_for_all()
-time1 = time.time() - time0
-print("NNTile forward throughput (sequence/sec): ", \
-        args.nforward * args.batch_size / time1)
-
-time0 = time.time()
-for i in range(args.nbackward):
+    nntile.starpu.wait_for_all()
+    nntile_input_value_single.unregister()
+    nntile_output_value_traits_single = nntile.tensor.TensorTraits( \
+            output_value.logits.T.shape, output_value.logits.T.shape)
+    nntile_output_value_single = nntile.tensor.Tensor_fp32( \
+            nntile_output_value_traits_single, [0], next_tag)
+    next_tag = nntile_output_value_single.next_tag
+    nntile.tensor.gather_async(nntile_model.activations[-1].value, \
+            nntile_output_value_single)
+    nntile_output_np = np.zeros_like(output_value_np.T, order='F')
+    nntile_output_value_single.to_array(nntile_output_np)
+    nntile_output_value_single.unregister()
+    diff = np.linalg.norm(nntile_output_np.T - output_value_np)
+    norm = np.linalg.norm(output_value_np)
+    print("NNTile forward pass relative accuracy: {}".format(diff/norm))
+    # Run backward pass by the NNTile to get gradients of parameters
     nntile_model.clear_gradients()
     nntile.tensor.copy_async(nntile_output, nntile_model.activations[-1].grad)
     nntile_model.backward_async()
-nntile.starpu.wait_for_all()
-time1 = time.time() - time0
-print("NNTile backward throughput (sequence/sec): ", \
-        args.nbackward * args.batch_size / time1)
+    nntile.starpu.wait_for_all()
+    # Now compare gradients
+    nntile_par_idx = 0
+    for name, p_torch in model_torch.named_parameters():
+        p_torch_grad_np = p_torch.grad.cpu().detach().numpy()
+        layer_name = name.split(".")[-2]
+        if len(p_torch.shape) == 1 or layer_name in ("lm_head",):
+            p_nntile = nntile_model.parameters[nntile_par_idx]
+            p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
+                    dtype=np.float32)
+            p_nntile.grad.to_array(p_nntile_grad_np)
+            diff = np.linalg.norm(p_torch_grad_np - p_nntile_grad_np)
+            norm = np.linalg.norm(p_torch_grad_np)
+            nntile_par_idx += 1
+        elif layer_name == "c_attn":
+            attn_head_size = config.n_embd // config.n_head
+            diff = 0
+            norm = np.linalg.norm(p_torch_grad_np)
+            for i_head in range(3*config.n_head):
+                p_nntile = nntile_model.parameters[nntile_par_idx]
+                p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
+                        dtype=np.float32)
+                p_nntile.grad.to_array(p_nntile_grad_np)
+                current_grad_block = p_torch_grad_np[:, \
+                        i_head*attn_head_size:(i_head+1)*attn_head_size]
+                diff += np.linalg.norm(current_grad_block.T-p_nntile_grad_np) ** 2
+                nntile_par_idx += 1
+            diff = diff ** 0.5
+        elif layer_name == "c_proj" and name.split(".")[-3] == "attn":
+            attn_head_size = config.n_embd // config.n_head
+            diff = 0
+            norm = np.linalg.norm(p_torch_grad_np)
+            for i_head in range(config.n_head):
+                p_nntile = nntile_model.parameters[nntile_par_idx]
+                p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
+                        dtype=np.float32)
+                p_nntile.grad.to_array(p_nntile_grad_np)
+                current_grad_block = p_torch_grad_np[i_head*attn_head_size: \
+                        (i_head+1)*attn_head_size, :]
+                diff += np.linalg.norm(current_grad_block.T-p_nntile_grad_np) ** 2
+                nntile_par_idx += 1
+            diff = diff ** 0.5
+        elif len(p_torch.shape) == 2:
+            p_nntile = nntile_model.parameters[nntile_par_idx]
+            p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
+                    dtype=np.float32)
+            p_nntile.grad.to_array(p_nntile_grad_np)
+            diff = np.linalg.norm(p_torch_grad_np - p_nntile_grad_np.T)
+            norm = np.linalg.norm(p_torch_grad_np)
+            nntile_par_idx += 1
+        print("Relative error of gradient of {} = {}".format(name, diff/norm))
 
-nntile_output.unregister()
+# Measure throughput of Torch forward pass
+if args.torch_nforward > 0:
+    input_value = torch.randint(config.vocab_size, \
+            (args.batch_size, args.seq_len), dtype=torch.int64, \
+            device=args.torch_device)
+    for i in range(args.torch_nforward_warmup):
+        output_value = model_torch(input_value)
+    if args.torch_device.startswith("cuda"):
+        torch.cuda.synchronize()
+    time0 = time.time()
+    for i in range(args.torch_nforward):
+        output_value = model_torch(input_value)
+    if args.torch_device.startswith("cuda"):
+        torch.cuda.synchronize()
+    time1 = time.time() - time0
+    print("Torch forward throughput (sequence/sec): ", \
+            args.torch_nforward * args.batch_size / time1)
+
+# Measure throughput of Torch backward pass
+if args.torch_nbackward > 0:
+    input_value = torch.randint(config.vocab_size, \
+            (args.batch_size, args.seq_len), dtype=torch.int64, \
+            device=args.torch_device)
+    output_value = model_torch(input_value)
+    loss = (output_value.logits * output_value.logits).sum()
+    for i in range(args.torch_nbackward_warmup):
+        loss.backward(retain_graph=True)
+    if args.torch_device.startswith("cuda"):
+        torch.cuda.synchronize()
+    time0 = time.time()
+    for i in range(args.torch_nbackward):
+        loss.backward(retain_graph=True)
+    if args.torch_device.startswith("cuda"):
+        torch.cuda.synchronize()
+    time1 = time.time() - time0
+    print("Torch backward throughput (sequence/sec): ", \
+            args.torch_nbackward * args.batch_size / time1)
+
+# Measure throughput of Torch training
+if args.torch_nepochs > 0:
+    pass
+
+# Measure throughput of the forward pass by NNTile
+if args.nntile_nforward > 0:
+    input_value = torch.randint(config.vocab_size, \
+            (args.batch_size, args.seq_len), dtype=torch.int64)
+    nntile_model.activations[0].value.from_array(input_value.T)
+    for i in range(args.nntile_nforward_warmup):
+        nntile_model.forward_async()
+    nntile.starpu.wait_for_all()
+    time0 = time.time()
+    for i in range(args.nntile_nforward):
+        nntile_model.forward_async()
+    nntile.starpu.wait_for_all()
+    time1 = time.time() - time0
+    print("NNTile forward throughput (sequence/sec): ", \
+            args.nntile_nforward * args.batch_size / time1)
+
+# Measure throughput of the forward pass by NNTile
+if args.nntile_nbackward > 0:
+    input_value = torch.randint(config.vocab_size, \
+            (args.batch_size, args.seq_len), dtype=torch.int64)
+    nntile_model.activations[0].value.from_array(input_value.T)
+    nntile_model.forward_async()
+    for i in range(args.nntile_nbackward_warmup):
+        nntile_model.clear_gradients()
+        nntile.tensor.copy_async(nntile_model.activations[-1].value, \
+                nntile_model.activations[-1].grad)
+        nntile_model.backward_async()
+    nntile.starpu.wait_for_all()
+    time0 = time.time()
+    for i in range(args.nntile_nbackward):
+        nntile_model.clear_gradients()
+        nntile.tensor.copy_async(nntile_model.activations[-1].value, \
+                nntile_model.activations[-1].grad)
+        nntile_model.backward_async()
+    nntile.starpu.wait_for_all()
+    time1 = time.time() - time0
+    print("NNTile backward throughput (sequence/sec): ", \
+            args.nntile_nbackward * args.batch_size / time1)
 
 # Check backward via Frob (MSE) loss
 #nntile_model.clear_gradients()

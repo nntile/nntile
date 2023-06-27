@@ -232,13 +232,17 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
             throw std::runtime_error("array.shape()[i] != tensor.shape[i]");
         }
     }
-    if(tensor.grid.nelems != 1)
-    {
-        throw std::runtime_error("tensor.grid.nelems != 1");
-    }
+    // Create temporary single-tile tensor
+    tensor::TensorTraits tmp_traits(tensor.shape, tensor.shape);
+    int64_t tmp_tag;
+    int flag;
+    starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
+            &flag);
+    std::vector<int> tmp_distr{0};
+    tensor::Tensor<T> tmp(tmp_traits, tmp_distr, tmp_tag);
     // Acquire tile and copy data
     int mpi_rank = starpu_mpi_world_rank();
-    auto tile = tensor.get_tile(0);
+    auto tile = tmp.get_tile(0);
     if(mpi_rank == tile.mpi_get_rank())
     {
         auto tile_local = tile.acquire(STARPU_W);
@@ -246,7 +250,9 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
                 tile.nelems*sizeof(T));
         tile_local.release();
     }
-    tile.mpi_flush();
+    tensor::scatter<T>(tmp, tensor);
+    tmp.unregister();
+    tensor.mpi_flush();
 }
 
 // Tensor -> numpy.ndarray
