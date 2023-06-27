@@ -50,6 +50,7 @@ set(TESTS
     "sumprod_fiber"
     "sumprod_slice"
     "total_sum_accum"
+    "mask_scalar"
     )
 
 # Describe all tests that are not yet implemented
