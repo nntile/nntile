@@ -48,6 +48,9 @@ parser.add_argument("--seq-len", type=int, default=1024)
 parser.add_argument("--seq-len-tile", type=int, default=1024)
 parser.add_argument("--batch-size", type=int, default=1)
 parser.add_argument("--batch-size-tile", type=int, default=1)
+parser.add_argument("--vocab-size-tile", type=int, default=1024)
+parser.add_argument("--n-embd-tile", type=int, default=384)
+parser.add_argument("--n-inner-tile", type=int, default=1536)
 parser.add_argument("--torch-device", choices=["cpu", "cuda", "cuda:0", \
         "cuda:1"], default="cpu")
 parser.add_argument("--check", action="store_true")
@@ -79,6 +82,9 @@ assert args.seq_len % args.seq_len_tile == 0
 assert args.batch_size > 0
 assert args.batch_size_tile > 0
 assert args.batch_size % args.batch_size_tile == 0
+assert args.vocab_size_tile > 0
+assert args.n_embd_tile > 0
+assert args.n_inner_tile > 0
 assert args.torch_nforward >= 0
 assert args.torch_nbackward >= 0
 assert args.torch_nepochs >= 0
@@ -98,8 +104,6 @@ config = copy.deepcopy(pretrained_model_torch.config)
 config.attn_pdrop = 0
 config.embd_pdrop = 0
 config.resid_pdrop = 0
-config.n_head = 1
-#config.num_hidden_layers = 1
 model_torch = GPT2LMHeadModel(config)
 # Current version splits lm_head and wte parameters, shared parameters will be
 # supported soon
@@ -413,7 +417,8 @@ next_tag = 0
 
 # Prepare GPT2 model based on the NNTile backend
 nntile_model, next_tag = GPT2.from_torch(model_torch, args.batch_size, \
-        args.seq_len, config, next_tag)
+        args.batch_size_tile, args.seq_len, args.seq_len_tile, config, \
+        next_tag)
 
 # Move model to the designated device
 model_torch = model_torch.to(args.torch_device)
@@ -424,37 +429,29 @@ if args.check:
     # Get output from a random input through the forward pass
     input_value = torch.randint(config.vocab_size, \
             (args.batch_size, args.seq_len), dtype=torch.int64, \
-            device=args.device)
+            device=args.torch_device)
     output_value = model_torch(input_value)
-    if args.device.startswith("cuda"):
+    if args.torch_device.startswith("cuda"):
         torch.cuda.synchronize()
     output_value_np = output_value.logits.cpu().detach().numpy()
     # Get gradients of parameters through the backward pass
-    loss = (output_value.logits * output_value.logits).sum()
-    loss.backward(retain_graph=True)
-    if args.device.startswith("cuda"):
+    loss = 0.5 * (output_value.logits * output_value.logits).sum()
+    loss.backward()
+    if args.torch_device.startswith("cuda"):
         torch.cuda.synchronize()
     # Check accuracy of the forward pass by the output activation
     nntile_model.activations[0].value.from_array(input_value.cpu().numpy().T)
     nntile_model.forward_async()
     nntile.starpu.wait_for_all()
-    nntile_input_value_single.unregister()
-    nntile_output_value_traits_single = nntile.tensor.TensorTraits( \
-            output_value.logits.T.shape, output_value.logits.T.shape)
-    nntile_output_value_single = nntile.tensor.Tensor_fp32( \
-            nntile_output_value_traits_single, [0], next_tag)
-    next_tag = nntile_output_value_single.next_tag
-    nntile.tensor.gather_async(nntile_model.activations[-1].value, \
-            nntile_output_value_single)
     nntile_output_np = np.zeros_like(output_value_np.T, order='F')
-    nntile_output_value_single.to_array(nntile_output_np)
-    nntile_output_value_single.unregister()
+    nntile_model.activations[-1].value.to_array(nntile_output_np)
     diff = np.linalg.norm(nntile_output_np.T - output_value_np)
     norm = np.linalg.norm(output_value_np)
     print("NNTile forward pass relative accuracy: {}".format(diff/norm))
     # Run backward pass by the NNTile to get gradients of parameters
     nntile_model.clear_gradients()
-    nntile.tensor.copy_async(nntile_output, nntile_model.activations[-1].grad)
+    nntile.tensor.copy_async(nntile_model.activations[-1].value, \
+            nntile_model.activations[-1].grad)
     nntile_model.backward_async()
     nntile.starpu.wait_for_all()
     # Now compare gradients

@@ -29,23 +29,24 @@ class GPT2MLP(BaseModel):
         activations = [x]
         layers = []
         embed_dim = config["embed_dim"]
+        embed_dim_tile = config["embed_dim_tile"]
         interm_size = config["interm_size"]
+        interm_size_tile = config["interm_size_tile"]
         gemm_ndim = 1
         # Initial linear layer that converts input to internal shape
         new_layer, next_tag = Linear.generate_simple_mpiroot(x, "R", notrans,
-                gemm_ndim, [interm_size], [interm_size], next_tag)
-        # print("Layer 0 shape", new_layer.w.value.shape, new_layer.y.value.shape)
+                gemm_ndim, [interm_size], [interm_size_tile], next_tag)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         
-        new_layer, next_tag = Act.generate_simple(activations[-1], config["activation_function"],
-                                                  next_tag)
+        new_layer, next_tag = Act.generate_simple(activations[-1], \
+                config["activation_function"], next_tag)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = Linear.generate_simple_mpiroot(activations[-1], "R", notrans,
-                gemm_ndim, [embed_dim], [embed_dim], next_tag)
-        # print("Layer 1 shape", new_layer.w.value.shape, new_layer.y.value.shape)
+        new_layer, next_tag = Linear.generate_simple_mpiroot(activations[-1], \
+                "R", notrans, gemm_ndim, [embed_dim], [embed_dim_tile], \
+                next_tag)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         self.next_tag = next_tag
@@ -58,19 +59,14 @@ class GPT2MLP(BaseModel):
             if type(l) is Linear:
                 l.init_randn_async()
 
-    def zero_grad(self):
-        for p in self.parameters:
-            if p.grad_required:
-                clear_async(p.grad)
-
     @staticmethod
-    def from_torch(torch_mlp, x: TensorMoments, batch_size: int, config: Dict, next_tag: int):
+    def from_torch(torch_mlp, x: TensorMoments, config: Dict, next_tag: int):
         '''
         torch_mlp is PyTorch MLP where no biases in linear layers
         '''
-        print("Call from torch static method")
         gpt2mlp_nntile = GPT2MLP(x, config, next_tag)
         torch_params = list(torch_mlp.parameters())
         for i, p in enumerate(gpt2mlp_nntile.parameters):
-            p.value.from_array(torch_params[i].cpu().detach().numpy())
+            p.value.from_array(torch_params[i].cpu().detach().numpy().T)
         return gpt2mlp_nntile, gpt2mlp_nntile.next_tag
+
