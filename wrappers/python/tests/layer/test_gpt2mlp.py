@@ -2,7 +2,7 @@
 
 import torch
 import torch.nn as nn
-from nntile.model.gpt2mlp import GPT2MLP as GPT2MLP_nntile
+from nntile.model.gpt2 import GPT2MLP as GPT2MLP_nntile
 import time
 import nntile
 import numpy as np

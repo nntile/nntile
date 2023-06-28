@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Katrutsa
 # @author Aleksandr Mikhalev
-# @date 2023-03-27
+# @date 2023-06-28
 
 # All necesary imports
 import nntile
@@ -53,11 +53,12 @@ def helper(dtype: np.dtype):
     np_xentropy_grad = grad_crossentropy_np(final_layer_output, true_class_lables)
 
     next_tag = 0
-    final_layer_output_traits = nntile.tensor.TensorTraits(final_layer_output.shape, final_layer_output.shape)
+    final_layer_output_traits = nntile.tensor.TensorTraits( \
+            [nclasses, batch_size], [nclasses, batch_size])
     mpi_distr = [0]
     final_layer_output_tensor = Tensor[dtype](final_layer_output_traits, mpi_distr, next_tag)
     next_tag = final_layer_output_tensor.next_tag
-    final_layer_output_tensor.from_array(final_layer_output)
+    final_layer_output_tensor.from_array(final_layer_output.T)
 
     final_layer_output_grad = Tensor[dtype](final_layer_output_traits, mpi_distr, next_tag)
     next_tag = final_layer_output_grad.next_tag
@@ -73,7 +74,7 @@ def helper(dtype: np.dtype):
     nntile_xentropy_np = np.zeros((1,), dtype=dtype, order="F")
     xentropy_loss.get_val(nntile_xentropy_np)
 
-    nntile_xentropy_grad_np = np.zeros((batch_size, nclasses), dtype=dtype, order="F")
+    nntile_xentropy_grad_np = np.zeros((nclasses, batch_size), dtype=dtype, order="F")
     xentropy_loss.get_grad(nntile_xentropy_grad_np)
 
     xentropy_loss.unregister()
@@ -83,17 +84,13 @@ def helper(dtype: np.dtype):
         tol = 1e-5
     elif dtype == np.float64:
         tol = 1e-10
-    
-    if np.max(np.abs(np_xentropy_grad - nntile_xentropy_grad_np)) > tol:
+    if np.max(np.abs(np_xentropy_grad - nntile_xentropy_grad_np.T)) > tol:
         return False
     
     if np.abs(nntile_xentropy_np[0] - np_xentropy) > tol:
         return False
     
     return True
-        
-    
-    
 
 # Test runner for different precisions
 def test():

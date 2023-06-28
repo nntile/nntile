@@ -13,7 +13,7 @@
 # @date 2023-06-28
 
 from nntile.tensor import softmax_async, clear_async, copy_async, \
-        subtract_indexed_column_async, logsumexp_async, maxsumexp_async, \
+        subtract_indexed_outputs_async, logsumexp_async, maxsumexp_async, \
         total_sum_accum_async
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         Tensor_int64
@@ -41,10 +41,10 @@ class CrossEntropy:
         shape = model_output.value.shape[1:]
         basetile = model_output.value.basetile_shape[1:]
         labels_traits = TensorTraits(shape, basetile)
-        labels = Tensor_int64(class_labels_traits, \
-                model_output.value.distribution, next_tag)
+        labels = Tensor_int64(labels_traits, model_output.value.distribution, \
+                next_tag)
         next_tag = labels.next_tag 
-        maxsumexp_traits = TensorTraits([2]+shape, [2]+basetile))
+        maxsumexp_traits = TensorTraits([2]+shape, [2]+basetile)
         maxsumexp = type(model_output.value)(maxsumexp_traits, \
                 model_output.value.distribution, next_tag)
         next_tag = maxsumexp.next_tag
@@ -77,7 +77,7 @@ class CrossEntropy:
         total_sum_accum_async(self.logsumexp, self.model_output.value, \
                 self.y, self.val)
         if self.model_output.grad_required is True:
-            copy_async(self.mode_output.value, self.model_output.grad)
+            copy_async(self.model_output.value, self.model_output.grad)
             softmax_async(self.maxsumexp, self.model_output.grad, 0)
-            subtract_indexed_column_async(1., self.y, self.model_output.grad)
+            subtract_indexed_outputs_async(1., self.y, self.model_output.grad)
 

@@ -89,7 +89,7 @@ void total_sum_accum_async(const Tensor<T> &logsumexp, const Tensor<T> &src,
         if(mpi_rank == val_tile_rank)
         {
             // Insert task
-            starpu::total_sum_accum::submit<T>(labels.shape[0],
+            starpu::total_sum_accum::submit<T>(src.shape[0],
                     logsumexp_tile_traits.nelems, logsumexp_tile_handle,
                     src_tile_handle, labels_tile_handle, val_tile_handle);
         }
