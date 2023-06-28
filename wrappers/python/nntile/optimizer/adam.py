@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Katrutsa
 # @author Aleksandr Mikhalev
-# @date 2023-03-29
+# @date 2023-06-28
 
 import nntile
 import numpy as np
@@ -19,7 +19,7 @@ from nntile.tensor import TensorTraits
 class Adam:
     def __init__(self, params, lr, next_tag,
                  beta1=0.9, beta2=0.999, amsgrad=False,
-                 weight_decay=0., eps=1e-10, dtype=np.float32):
+                 weight_decay=0., eps=1e-8, dtype=np.float32):
         self.params = params
         self.next_tag = next_tag
         self.amsgrad = amsgrad

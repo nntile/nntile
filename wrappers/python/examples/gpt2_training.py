@@ -21,8 +21,9 @@ import sys
 import torch
 from torch import Tensor
 import torch.nn as nn
-from transformers import GPT2TokenizerFast, TextDataset, GPT2LMHeadModel
-from transformers import GPT2Model, GPT2Config, GPT2LMHeadModel
+from transformers import GPT2TokenizerFast, GPT2LMHeadModel, GPT2Model, \
+        GPT2Config
+from torch.optim import Adam
 from datasets import load_dataset
 from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
         GPT2Model as GPT2Model_nntile
@@ -67,10 +68,6 @@ parser.add_argument("--torch-nepochs", type=int, default=0)
 parser.add_argument("--torch-nepochs-warmup", type=int, default=0)
 parser.add_argument("--nntile-nepochs", type=int, default=0)
 parser.add_argument("--nntile-nepochs-warmup", type=int, default=0)
-#parser.add_argument("--dataset", choices=["WikiText-103"], \
-#        default="WikiText-103")
-#parser.add_argument("--dataset_path")
-#parser.add_argument("--lr", type=float)
 
 # Parse arguments
 args = parser.parse_args()
@@ -659,49 +656,55 @@ if args.nntile_nepochs > 0:
     time0 = time.time()
     pipeline.train_async()
     nntile.starpu.wait_for_all()
-    time = time.time() - time0
+    time1 = time.time() - time0
     print("NNTile training throughput epochs/sec: {}".format( \
             args.nntile_nepochs/time1))
-
-## Compute test accuracy of the pretrained model using the test dataset
-#test_top1_accuracy = 0
-#total_num_samples = 0
-#z_single_distr = [0]
-#z_single = nntile.tensor.Tensor_fp32(x_single_traits, z_single_distr, next_tag)
-#next_tag = z_single.next_tag
-#for test_batch_data, test_batch_label in test_loader:
-#    x_single.from_array(test_batch_data.view(-1, n_pixels).numpy())
-#    nntile.tensor.scatter_async(x_single, m.activations[0].value)
-#    m.forward_async()
-#    nntile.tensor.gather_async(m.activations[-1].value, z_single)
-#    output = np.zeros(z_single.shape, order="F", dtype=np.float32)
-#    # to_array causes y_single to finish gather procedure
-#    z_single.to_array(output)
-#    pred_labels = np.argmax(output, 1)
-#    test_top1_accuracy += np.sum(pred_labels == test_batch_label.numpy())
-#    total_num_samples += test_batch_label.shape[0]
-#test_top1_accuracy /= total_num_samples
-#
-#print("Test accuracy of the pretrained GPT model =", test_top1_accuracy)
-#
-#
-## Unregister single-tile tensors for data scattering/gathering
-#x_single.unregister()
-#y_single.unregister()
+    loss_np = np.zeros((1), dtype=np.float32)
+    loss.val.to_array(loss_np)
+    print("NNTile loss on the last batch: {}".format(loss_np[0]))
+    loss.unregister()
+    optimizer.unregister()
+    for x in batch_input:
+        x.unregister()
+    for x in batch_output:
+        x.unregister()
 
 # Unregister all tensors related to model
 nntile_model.unregister()
 
-## Unregister optimizer states
-#optimizer.unregister()
-#
-## Unregister loss function
-#fro_loss.unregister()
-#loss.unregister()
-#
-## Unregister input/output batches
-#for x in batch_input:
-#    x.unregister()
-#for x in batch_output:
-#    x.unregister()
-#
+if args.torch_nepochs > 0:
+    torch_input = []
+    torch_output = []
+    for i in range(num_train_batches):
+        torch_input.append(torch.tensor(train_tokens[i, :, :-1]))
+        torch_output.append(torch.tensor(train_tokens[i, :, 1:]))
+    optim = Adam(model_torch.parameters(), lr=args.lr)
+    loss_func = nn.CrossEntropyLoss(reduction="sum")
+    # Warmup training
+    for i in range(args.torch_nepochs_warmup):
+        for j in range(num_train_batches):
+            train_input = torch_input[j].to(args.torch_device)
+            train_labels = torch_output[j].to(args.torch_device).reshape(-1)
+            optim.zero_grad()
+            train_output = model_torch(train_input)
+            train_logits = train_output.logits.reshape(-1, config.vocab_size)
+            loss = loss_func(train_logits, train_labels)
+            loss.backward()
+            optim.step()
+    # Actual training
+    time0 = time.time()
+    for i in range(args.torch_nepochs):
+        for j in range(num_train_batches):
+            train_input = torch_input[j].to(args.torch_device)
+            train_labels = torch_output[j].to(args.torch_device).reshape(-1)
+            optim.zero_grad()
+            train_output = model_torch(train_input)
+            train_logits = train_output.logits.reshape(-1, config.vocab_size)
+            loss = loss_func(train_logits, train_labels)
+            loss.backward()
+            optim.step()
+    time1 = time.time() - time0
+    print("Torch training throughput epochs/sec: {}".format( \
+            args.torch_nepochs/time1))
+    print("Torch loss on the last batch: {}".format(loss))
+
