@@ -4,39 +4,41 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/subtract_indexed_column.cc
- * Subtract a given value from the indexed column of a matrix for StarPU buffer
+ * @file src/starpu/subtract_indexed_outputs.cc
+ * Subtract a given value from certain matrix elements for StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-03-18
+ * @author Aleksandr Mikhalev
+ * @date 2023-06-28
  * */
 
-#include "nntile/starpu/subtract_indexed_column.hh"
-#include "nntile/kernel/subtract_indexed_column.hh"
+#include "nntile/starpu/subtract_indexed_outputs.hh"
+#include "nntile/kernel/subtract_indexed_outputs.hh"
 
 namespace nntile
 {
 namespace starpu
 {
-namespace subtract_indexed_column
+namespace subtract_indexed_outputs
 {
 
-//! Subtract given value from the indexed column in matrix stored in StarPU buffer on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto arg = reinterpret_cast<args_t<T>*>(cl_args);
-    Index n_row = arg->n_row;
-    T value = arg->value;
+    auto args = reinterpret_cast<args_t<T>*>(cl_args);
+    Index n_labels = args->n_labels;
+    Index n_outputs = args->n_outputs;
+    T value = args->value;
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const Index* class_labels = interfaces[0]->get_ptr<Index>();
+    const Index* labels = interfaces[0]->get_ptr<Index>();
     T* dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::subtract_indexed_column::cpu<T>(n_row, value, class_labels, dst);
+    kernel::subtract_indexed_outputs::cpu<T>(n_labels, n_outputs, value,
+            labels, dst);
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -82,31 +84,37 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index n_row, T val, Handle class_labels, Handle dst)
+void submit(Index n_labels, Index n_outputs, T val, Handle labels, Handle dst)
 {
-    args_t<T>* arg = (args_t<T>*)malloc(sizeof(args_t<T>));
-    arg->n_row = n_row;
-    arg->value = val;
+    // Codelet arguments
+    args_t<T>* args = (args_t<T>*)malloc(sizeof(args_t<T>));
+    args->n_labels = n_labels;
+    args->n_outputs = n_outputs;
+    args->value = val;
+    // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(class_labels),
-            STARPU_CL_ARGS, arg, sizeof(*arg),
+            STARPU_R, static_cast<starpu_data_handle_t>(labels),
+            STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_RW, static_cast<starpu_data_handle_t>(dst),
             //STARPU_FLOPS, nflops,
             0);
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in subtract_indexed_column task submission");
+        throw std::runtime_error("Error in subtract_indexed_outputs task "
+                "submission");
     }
 }
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index n_row, fp32_t val, Handle class_labels, Handle dst);
+void submit<fp32_t>(Index n_labels, Index n_outputs, fp32_t val, Handle labels,
+        Handle dst);
 
 template
-void submit<fp64_t>(Index n_row, fp64_t val, Handle class_labels, Handle dst);
+void submit<fp64_t>(Index n_labels, Index n_outputs, fp64_t val, Handle labels,
+        Handle dst);
 
-} // namespace subtract_indexed_column
+} // namespace subtract_indexed_outputs
 } // namespace starpu
 } // namespace nntile

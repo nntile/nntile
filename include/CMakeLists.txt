@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-06-20
+# @date 2023-06-28
 
 # Set list of headers
 set(BASE_HDR
@@ -84,8 +84,8 @@ set(KERNEL_HDR
     "nntile/kernel/logsumexp/cpu.hh"
     "nntile/kernel/total_sum_accum.hh"
     "nntile/kernel/total_sum_accum/cpu.hh"
-    "nntile/kernel/subtract_indexed_column.hh"
-    "nntile/kernel/subtract_indexed_column/cpu.hh"
+    "nntile/kernel/subtract_indexed_outputs.hh"
+    "nntile/kernel/subtract_indexed_outputs/cpu.hh"
     "nntile/kernel/gelu_backward.hh"
     "nntile/kernel/gelu_backward/cpu.hh"
     "nntile/kernel/gelutanh_backward.hh"
@@ -171,7 +171,7 @@ set(STARPU_HDR
     "nntile/starpu/sumprod_fiber.hh"
     "nntile/starpu/logsumexp.hh"
     "nntile/starpu/total_sum_accum.hh"
-    "nntile/starpu/subtract_indexed_column.hh"
+    "nntile/starpu/subtract_indexed_outputs.hh"
     "nntile/starpu/scal.hh"
     "nntile/starpu/gelu_backward.hh"
     "nntile/starpu/gelutanh_backward.hh"
@@ -220,7 +220,7 @@ set(TILE_HDR
     "nntile/tile/sumprod_fiber.hh"
     "nntile/tile/logsumexp.hh"
     "nntile/tile/total_sum_accum.hh"
-    "nntile/tile/subtract_indexed_column.hh"
+    "nntile/tile/subtract_indexed_outputs.hh"
     "nntile/tile/scal.hh"
     "nntile/tile/gelu_backward.hh"
     "nntile/tile/gelutanh_backward.hh"
@@ -270,7 +270,7 @@ set(TENSOR_HDR
     "nntile/tensor/sumprod_fiber.hh"
     "nntile/tensor/logsumexp.hh"
     "nntile/tensor/total_sum_accum.hh"
-    "nntile/tensor/subtract_indexed_column.hh"
+    "nntile/tensor/subtract_indexed_outputs.hh"
     "nntile/tensor/scal.hh"
     "nntile/tensor/gelu_backward.hh"
     "nntile/tensor/gelutanh_backward.hh"

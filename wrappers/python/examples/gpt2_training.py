@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-06-21
+# @date 2023-06-28
 
 # Imports
 import nntile
@@ -21,7 +21,7 @@ import sys
 import torch
 from torch import Tensor
 import torch.nn as nn
-from transformers import GPT2Tokenizer, TextDataset, GPT2LMHeadModel
+from transformers import GPT2TokenizerFast, TextDataset, GPT2LMHeadModel
 from transformers import GPT2Model, GPT2Config, GPT2LMHeadModel
 from datasets import load_dataset
 from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
@@ -42,9 +42,8 @@ parser = argparse.ArgumentParser(prog="GPT2-based neural networks", \
         "activations) and backward pass (gradients of parameters and " \
         "activations) and a throughput of inference and training. It can " \
         "also fine-tune a pretrained NNTile model on a chosen dataset.")
-parser.add_argument("--model", choices=["gpt2", "gpt2-small", "gpt2-medium", \
-        "gpt2-large", "gpt2-xl"], default="gpt2")
-parser.add_argument("--model-path")
+parser.add_argument("--model", default="gpt2")
+parser.add_argument("--model-path", default=".model")
 parser.add_argument("--seq-len-tile", type=int, default=1024)
 parser.add_argument("--batch-size", type=int, default=1)
 parser.add_argument("--batch-size-tile", type=int, default=1)
@@ -57,12 +56,15 @@ parser.add_argument("--torch-nforward", type=int, default=0)
 parser.add_argument("--torch-nforward-warmup", type=int, default=0)
 parser.add_argument("--torch-nbackward", type=int, default=0)
 parser.add_argument("--torch-nbackward-warmup", type=int, default=0)
-parser.add_argument("--torch-nepochs", type=int, default=0)
-parser.add_argument("--torch-nepochs-warmup", type=int, default=0)
 parser.add_argument("--nntile-nforward", type=int, default=0)
 parser.add_argument("--nntile-nforward-warmup", type=int, default=0)
 parser.add_argument("--nntile-nbackward", type=int, default=0)
 parser.add_argument("--nntile-nbackward-warmup", type=int, default=0)
+parser.add_argument("--dataset", default="WikiText-103")
+parser.add_argument("--dataset-path", default=".data")
+parser.add_argument("--lr", type=float, default=0.0)
+parser.add_argument("--torch-nepochs", type=int, default=0)
+parser.add_argument("--torch-nepochs-warmup", type=int, default=0)
 parser.add_argument("--nntile-nepochs", type=int, default=0)
 parser.add_argument("--nntile-nepochs-warmup", type=int, default=0)
 #parser.add_argument("--dataset", choices=["WikiText-103"], \
@@ -101,6 +103,7 @@ assert config.n_positions % args.seq_len_tile == 0
 config.attn_pdrop = 0
 config.embd_pdrop = 0
 config.resid_pdrop = 0
+config.n_head = 1
 model_torch = GPT2LMHeadModel(config)
 # Current version splits lm_head and wte parameters, shared parameters will be
 # supported soon
@@ -419,9 +422,8 @@ nntile_model_config = GPT2Config_nntile(config.vocab_size, args.n_embd_tile, \
         config.n_inner, args.n_inner_tile, config.layer_norm_epsilon, \
         config.num_hidden_layers, config.n_head, "gelutanh")
 nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
-        args.batch_size, \
-        args.batch_size_tile, config.n_positions, args.seq_len_tile, \
-        nntile_model_config, next_tag)
+        args.batch_size, args.batch_size_tile, config.n_positions, \
+        args.seq_len_tile, nntile_model_config, next_tag)
 
 # Move model to the designated device
 model_torch = model_torch.to(args.torch_device)
@@ -546,10 +548,6 @@ if args.torch_nbackward > 0:
     print("Torch backward throughput (sequence/sec): ", \
             args.torch_nbackward * args.batch_size / time1)
 
-# Measure throughput of Torch training
-if args.torch_nepochs > 0:
-    pass
-
 # Measure throughput of the forward pass by NNTile
 if args.nntile_nforward > 0:
     input_value = torch.randint(config.vocab_size, \
@@ -589,99 +587,82 @@ if args.nntile_nbackward > 0:
     print("NNTile backward throughput (sequence/sec): ", \
             args.nntile_nbackward * args.batch_size / time1)
 
-# Check backward via Frob (MSE) loss
-#nntile_model.clear_gradients()
-#
-#fro_loss, next_tag = Frob.generate_simple(nntile_model.activations[-1], \
-#        next_tag)
-#fro_loss.y.from_array(np.zeros((1, seq_len, config.vocab_size), order="F", \
-#        dtype=np.float32))
-## fro_loss.y.from_array(np.array(trial_true_output.detach().numpy(), \
-##        order="F", dtype=np.float32))
-#fro_loss.calc_async()
-#
-#nntile_model.backward_async()
-#
-## Describe GPT2 neural network
-#tokenizer = GPT2Tokenizer.from_pretrained(args.model)
-#
-## Read dataset
-#if dataset == "WikiText-103":
-#    train_dataset = load_dataset("wikitext", "wikitext-103-v1", \
-#            split='train', cache_dir=dataset_path).select(subdataset)
-#    test_dataset = load_dataset("wikitext", "wikitext-103-v1", \
-#            split='test', cache_dir=dataset_path).select(subdataset)
-#else:
-#    raise ValueError("{} dataset is not supported yet!".format(dataset))
-#
-## Tokenize and store as a single numpy array
-#map_train_tokens = map(lambda x: tokenizer(x["text"])["input_ids"], \
-#        train_dataset)
-#list_train_tokens = []
-#for seq in map_train_tokens:
-#    list_train_tokens.extend(seq)
-#num_train_tokens = len(list_train_tokens)
-#num_train_seq = num_train_tokens // (seq_len+1)
-#num_train_batches = num_train_seq // batch_size
-#num_train_tokens_truncated = num_train_batches * batch_size * (seq_len+1)
-#train_tokens = np.array(list_train_tokens[:num_train_tokens_truncated], \
-#        order='F', dtype=np.int64)
-#train_tokens = train_tokens.reshape(num_train_batches, batch_size, seq_len+1)
-#print("Number of train sequences: {}".format(num_train_batches * batch_size))
-#print("Number of train batches: {}".format(num_train_batches))
+# Prepare input and output batches if real training is required
+if args.torch_nepochs > 0 or args.nntile_nepochs > 0:
+    # Read dataset
+    if args.dataset == "WikiText-103":
+        train_dataset = load_dataset("wikitext", "wikitext-103-v1", \
+                split='train', cache_dir=args.dataset_path) \
+                .select(np.arange(100, dtype=np.int64))
+        test_dataset = load_dataset("wikitext", "wikitext-103-v1", \
+                split='test', cache_dir=args.dataset_path)
+    else:
+        raise ValueError("{} dataset is not supported yet!".format( \
+                args.dataset))
+    # Tokenize and store as a single numpy array
+    tokenizer = GPT2TokenizerFast.from_pretrained(args.model, \
+            cache_dir=args.model_path)
+    map_train_tokens = map(lambda x: tokenizer(x["text"])["input_ids"], \
+            train_dataset)
+    list_train_tokens = []
+    for seq in map_train_tokens:
+        list_train_tokens.extend(seq)
+    num_train_tokens = len(list_train_tokens)
+    num_train_seq = num_train_tokens // (config.n_positions+1)
+    num_train_batches = num_train_seq // args.batch_size
+    num_train_tokens_truncated = num_train_batches * args.batch_size \
+            * (config.n_positions+1)
+    train_tokens = np.array(list_train_tokens[:num_train_tokens_truncated], \
+            order='F', dtype=np.int64)
+    train_tokens = train_tokens.reshape(num_train_batches, args.batch_size, \
+            config.n_positions+1)
+    print("Number of train sequences: {}".format(num_train_batches \
+            * args.batch_size))
+    print("Number of train batches: {}".format(num_train_batches))
 
-#
-#
-#val_np = np.zeros((1,), order="F", dtype=np.float32)
-#fro_loss.val.to_array(val_np)
-#print("NNTile loss = {}".format(val_np[0]))
-#print("Relative difference between PyTorch and NNTile losses = {}".format(
-#    abs(val_np[0] - torch_loss.item()) / torch_loss.item()))
-#
-#for i, (p_nntile, (name, p_torch)) in enumerate(zip(nntile_model.parameters, \
-#        model_torch.named_parameters())):
-#    p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
-#            dtype=np.float32)
-#    p_nntile.grad.to_array(p_nntile_grad_np)
-#    layer_type = name.split(".")[-2]
-#    if len(p_nntile.grad.shape) == 1 or layer_type in ("c_proj", "c_fc"):
-#        rel_error = torch.norm(p_torch.grad \
-#                - torch.from_numpy(p_nntile_grad_np)) \
-#                / torch.norm(p_torch.grad)
-#    elif len(p_nntile.grad.shape) == 2:
-#        rel_error = torch.norm(p_torch.grad \
-#                - torch.from_numpy(p_nntile_grad_np).T) \
-#                / torch.norm(p_torch.grad)
-#    print("Relative error in gradient in parameter {} = {}".format(i, \
-#            rel_error.item()))
-#
-#p_nntile_grad_np = np.zeros(nntile_model.parameters[-1].grad.shape, \
-#        order="F", dtype=np.float32)
-#nntile_model.parameters[-1].grad.to_array(p_nntile_grad_np)
-#rel_error = torch.norm(model_torch.lm_head.weight.grad \
-#        - torch.from_numpy(p_nntile_grad_np).T) \
-#        / torch.norm(model_torch.lm_head.weight.grad)
-#print("Relative error in gradient in lm_head = {}".format(rel_error.item()))
-#
-## Wait for all scatters to finish
-#nntile.starpu.wait_for_all()
-#time0 += time.time()
-#print("From PyTorch loader to NNTile batches in {} seconds".format(time0))
-#
-## Set up learning rate and optimizer for training
-## optimizer = nntile.optimizer.SGD(nntile_model.get_parameters(), lr, \
-##        next_tag, momentum=0.9, nesterov=False, weight_decay=0.)
-#optimizer = nntile.optimizer.Adam(nntile_model.get_parameters(), lr, next_tag)
-#next_tag = optimizer.get_next_tag()
-#
-## Define Cross Entropy loss function
-#loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
-#        nntile_model.activations[-1], next_tag)
-#
-## Set up training pipeline
-#pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, nntile_model, \
-#        optimizer, loss, n_epochs)
-#
+# Train neural network by the NNTile
+if args.nntile_nepochs > 0:
+    # Prepare input and output batches for training by NNTile
+    time0 = time.time()
+    batch_input = []
+    batch_output = []
+    x_traits = nntile.tensor.TensorTraits( \
+            [config.n_positions, args.batch_size], \
+            [args.seq_len_tile, args.batch_size_tile])
+    x_distr = [0] * x_traits.grid.nelems
+    for i in range(num_train_batches):
+        x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
+        next_tag = x.next_tag
+        x.from_array(train_tokens[i, :, :-1].T)
+        batch_input.append(x)
+        y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
+        next_tag = y.next_tag
+        y.from_array(train_tokens[i, :, 1:].T)
+        batch_output.append(y)
+    time1 = time.time() - time0
+    print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
+    # Set up learning rate and optimizer for training
+    optimizer = nntile.optimizer.Adam(nntile_model.get_parameters(), args.lr, \
+            next_tag)
+    next_tag = optimizer.get_next_tag()
+    # Define Cross Entropy loss function
+    loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
+            nntile_model.activations[-1], next_tag)
+    # Set up training pipeline
+    pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, \
+            nntile_model, optimizer, loss, args.nntile_nepochs_warmup)
+    # Warmup training
+    pipeline.train_async()
+    nntile.starpu.wait_for_all()
+    # Actual training
+    pipeline.n_epochs = args.nntile_nepochs
+    time0 = time.time()
+    pipeline.train_async()
+    nntile.starpu.wait_for_all()
+    time = time.time() - time0
+    print("NNTile training throughput epochs/sec: {}".format( \
+            args.nntile_nepochs/time1))
+
 ## Compute test accuracy of the pretrained model using the test dataset
 #test_top1_accuracy = 0
 #total_num_samples = 0
@@ -703,33 +684,6 @@ if args.nntile_nbackward > 0:
 #
 #print("Test accuracy of the pretrained GPT model =", test_top1_accuracy)
 #
-## Prepare input and output batches for training by NNTile
-#time0 = -time.time()
-#batch_input = []
-#batch_output = []
-#x_single_traits = nntile.tensor.TensorTraits([batch_size, seq_len], \
-#        [batch_size, seq_len])
-#x_single_distr = [0]
-#x_single = nntile.tensor.Tensor_int64(x_single_traits, x_single_distr, \
-#        next_tag)
-#next_tag = x_single.next_tag
-#y_single = nntile.tensor.Tensor_int64(x_single_traits, x_single_distr, \
-#        next_tag)
-#next_tag = y_single.next_tag
-#x_traits = nntile.tensor.TensorTraits([batch_size, seq_len], \
-#        [batch_size_tile, seq_len_tile])
-#x_distr = [0] * x_traits.grid.nelems
-#for i in range(num_batches):
-#    x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-#    next_tag = x.next_tag
-#    x_single.from_array(tokens[i, :, :-1])
-#    nntile.tensor.scatter_async(x_single, x)
-#    batch_input.append(x)
-#    y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-#    next_tag = y.next_tag
-#    y_single.from_array(tokens[i, :, 1:])
-#    nntile.tensor.scatter_async(y_single, y)
-#    batch_output.append(y)
 #
 ## Unregister single-tile tensors for data scattering/gathering
 #x_single.unregister()

@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-03-16
+ * @author Aleksandr Mikhalev
+ * @date 2023-06-28
  * */
 
 #pragma once
@@ -25,7 +26,8 @@ namespace total_sum_accum
 
 // Compute total sum accumulating from buffers
 template<typename T>
-void cpu(Index n_row, const T* logsumexp, const T* src, const Index* class_labels, T *val)
+void cpu(Index n_labels, Index n_outputs, const T* logsumexp, const T* src,
+        const Index* labels, T *val)
     noexcept;
 
 } // namespace total_sum_accum

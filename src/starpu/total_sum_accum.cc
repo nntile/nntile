@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-03-16
+ * @author Aleksandr Mikhalev
+ * @date 2023-06-28
  * */
 
 #include "nntile/starpu/total_sum_accum.hh"
@@ -28,15 +29,18 @@ void cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto n_row = reinterpret_cast<Index*>(cl_args)[0];
+    auto args = reinterpret_cast<args_t *>(cl_args);
+    Index n_labels = args->n_labels;
+    Index n_outputs = args->n_outputs;
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *logsumexp = interfaces[0]->get_ptr<T>();
     const T *src = interfaces[1]->get_ptr<T>();
-    const Index* class_labels = interfaces[2]->get_ptr<Index>();
+    const Index* labels = interfaces[2]->get_ptr<Index>();
     T* val = interfaces[3]->get_ptr<T>();
     // Launch kernel
-    kernel::total_sum_accum::cpu<T>(n_row, logsumexp, src, class_labels, val);
+    kernel::total_sum_accum::cpu<T>(n_labels, n_outputs, logsumexp, src,
+            labels, val);
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -82,15 +86,19 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index n_row, Handle logsumexp, Handle src, Handle class_labels, Handle val)
+void submit(Index n_labels, Index n_outputs, Handle logsumexp, Handle src,
+        Handle class_labels, Handle val)
 {
-    Index *nrow_ = (Index*)malloc(sizeof(Index));
-    *nrow_ = n_row;
+    // Codelet arguments
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    args->n_labels = n_labels;
+    args->n_outputs = n_outputs;
+    // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(logsumexp),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_R, static_cast<starpu_data_handle_t>(class_labels),
-            STARPU_CL_ARGS, nrow_, sizeof(*nrow_),
+            STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_RW, static_cast<starpu_data_handle_t>(val),
             //STARPU_FLOPS, nflops,
             0);
@@ -103,10 +111,12 @@ void submit(Index n_row, Handle logsumexp, Handle src, Handle class_labels, Hand
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index n_row, Handle logsumexp, Handle src, Handle class_labels, Handle val);
+void submit<fp32_t>(Index n_labels, Index n_outputs, Handle logsumexp,
+        Handle src, Handle class_labels, Handle val);
 
 template
-void submit<fp64_t>(Index n_row, Handle logsumexp, Handle src, Handle class_labels, Handle val);
+void submit<fp64_t>(Index n_labels, Index n_outputs, Handle logsumexp,
+        Handle src, Handle class_labels, Handle val);
 
 } // namespace total_sum_accum
 } // namespace starpu

@@ -4,13 +4,13 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/layer/act.py
+# @file wrappers/python/nntile/layer/add_slice.py
 # Activation layer of NNTile Python package
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-05-31
+# @date 2023-06-28
 
 from .base_layer import BaseLayer
 from nntile.tensor import add_async, copy_async, add_slice_async, sum_slice_async

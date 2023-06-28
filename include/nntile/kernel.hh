@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-05-08
+ * @date 2023-06-28
  * */
 
 #pragma once
@@ -47,7 +47,7 @@
 #include <nntile/kernel/sumprod_fiber.hh>
 #include <nntile/kernel/logsumexp.hh>
 #include <nntile/kernel/total_sum_accum.hh>
-#include <nntile/kernel/subtract_indexed_column.hh>
+#include <nntile/kernel/subtract_indexed_outputs.hh>
 #include <nntile/kernel/gelu_backward.hh>
 #include <nntile/kernel/gelutanh_backward.hh>
 #include <nntile/kernel/add.hh>

@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-05-08
+ * @date 2023-06-28
  * */
 
 #include <pybind11/pybind11.h>
@@ -563,12 +563,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("total_sum_accum_fp64", &total_sum_accum<fp64_t>);
     m.def("total_sum_accum_fp32", &total_sum_accum<fp32_t>);
 
-    m.def("subtract_indexed_column_async_fp64",
-            &subtract_indexed_column_async<fp64_t>);
-    m.def("subtract_indexed_column_async_fp32",
-            &subtract_indexed_column_async<fp32_t>);
-    m.def("subtract_indexed_column_fp64", &subtract_indexed_column<fp64_t>);
-    m.def("subtract_indexed_column_fp32", &subtract_indexed_column<fp32_t>);
+    m.def("subtract_indexed_outputs_async_fp64",
+            &subtract_indexed_outputs_async<fp64_t>);
+    m.def("subtract_indexed_outputs_async_fp32",
+            &subtract_indexed_outputs_async<fp32_t>);
+    m.def("subtract_indexed_outputs_fp64", &subtract_indexed_outputs<fp64_t>);
+    m.def("subtract_indexed_outputs_fp32", &subtract_indexed_outputs<fp32_t>);
     
     m.def("scal_async_fp64", &scal_async<fp64_t>);
     m.def("scal_async_fp32", &scal_async<fp32_t>);

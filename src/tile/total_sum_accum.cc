@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-03-15
+ * @author Aleksandr Mikhalev
+ * @date 2023-06-28
  * */
 
 #include "nntile/tile/total_sum_accum.hh"
@@ -22,36 +23,37 @@ namespace tile
 
 template<typename T>
 void total_sum_accum_async(const Tile<T> &logsumexp, const Tile<T> &src,
-                           const Tile<Index> &class_labels, const Tile<T> &val)
+        const Tile<Index> &labels, const Tile<T> &val)
 // TODO - add description
 {
+    // Check dimensions
+    if(logsumexp.ndim != labels.ndim)
+    {
+        throw std::runtime_error("logsumexp.ndim != labels.ndim");
+    }
+    if(logsumexp.ndim != src.ndim-1)
+    {
+        throw std::runtime_error("logsumexp.ndim != src.ndim-1");
+    }
     if(val.ndim != 0)
     {
         throw std::runtime_error("val.ndim != 0");
     }
-    if(logsumexp.ndim != 1)
+    // Check shapes
+    for(Index i = 0; i < labels.ndim; ++i)
     {
-        throw std::runtime_error("logsumexp.ndim != 1");
-    }
-    if(class_labels.ndim != 1)
-    {
-        throw std::runtime_error("class_labels.ndim != 1");
-    }
-    if(src.ndim != 2)
-    {
-        throw std::runtime_error("src.ndim != 2");
-    }
-    if(logsumexp.shape[0] != class_labels.shape[0])
-    {
-        throw std::runtime_error("logsumexp.shape[0] != class_labels.shape[0]");
-    }
-    if(src.shape[0] != class_labels.shape[0])
-    {
-        throw std::runtime_error("src.shape[0] != class_labels.shape[0]");
+        if(logsumexp.shape[i] != labels.shape[i])
+        {
+            throw std::runtime_error("logsumexp.shape[i] != labels.shape[i]");
+        }
+        if(labels.shape[i] != src.shape[i+1])
+        {
+            throw std::runtime_error("labels.shape[i] != src.shape[i+1]");
+        }
     }
     // Insert task
-    starpu::total_sum_accum::submit<T>(class_labels.shape[0], logsumexp, 
-                                       src, class_labels, val);
+    starpu::total_sum_accum::submit<T>(src.shape[0], logsumexp.nelems,
+            logsumexp, src, labels, val);
 }
 
 //! Tile-wise max and sum of exponents along single given axis

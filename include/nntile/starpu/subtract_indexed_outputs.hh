@@ -4,12 +4,13 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/subtract_indexed_column.hh
- * Subtraction of a given value from indexed column for StarPU buffer
+ * @file include/nntile/starpu/subtract_indexed_outputs.hh
+ * Subtraction of a given value from certain matrix elements for StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-03-18
+ * @author Aleksandr Mikhalev
+ * @date 2023-06-28
  * */
 
 #pragma once
@@ -21,23 +22,22 @@ namespace nntile
 {
 namespace starpu
 {
-namespace subtract_indexed_column
+namespace subtract_indexed_outputs
 {
     
 template<typename T>
 struct args_t
 {
-    Index n_row;
+    Index n_labels;
+    Index n_outputs;
     T value;
 };
 
-// Subtraction of a given value from the indexed column of StarPU buffer on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
-// Subtraction of a given value from the indexed column of StarPU buffer on CUDA
 // template<typename T>
 // void cuda(void *buffers[], void *cl_args)
 //     noexcept;
@@ -71,7 +71,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index n_row, T val, Handle class_labels, Handle dst);
+void submit(Index n_labels, Index n_outputs, T val, Handle labels, Handle dst);
 
 } // namespace subtract_indexed_column
 } // namespace starpu

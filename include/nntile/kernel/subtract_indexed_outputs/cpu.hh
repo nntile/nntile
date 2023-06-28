@@ -4,12 +4,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/subtract_indexed_column/cpu.hh
- * Subtract value from indexed column of matrix stored in CPU buffer
+ * @file include/nntile/kernel/subtract_indexed_outputs/cpu.hh
+ * Subtract a value from certain elements of a matrix on CPU
  *
  * @version 1.0.0
- * @author Aleksandr Katrutsa
- * @date 2023-03-18
+ * @author Aleksandr Mikhalev
+ * @date 2023-06-28
  * */
 
 #pragma once
@@ -20,14 +20,13 @@ namespace nntile
 {
 namespace kernel
 {
-namespace subtract_indexed_column
+namespace subtract_indexed_outputs
 {
 
-// Compute total sum accumulating from buffers
 template<typename T>
-void cpu(Index n_row, T val, const Index* class_labels, T *dst)
+void cpu(Index n_labels, Index n_outputs, T val, const Index* labels, T *dst)
     noexcept;
 
-} // namespace subtract_indexed_column
+} // namespace subtract_indexed_outputs
 } // namespace kernel
 } // namespace nntile
