@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-06-02
+# @date 2023-06-28
 
 # Imports
 import nntile
@@ -95,18 +95,8 @@ n_flops *= args.epoch * len(train_loader)
 time0 = -time.time()
 batch_data = []
 batch_labels = []
-x_single_traits = nntile.tensor.TensorTraits([args.batch, n_pixels], \
-        [args.batch, n_pixels])
-x_single_distr = [0]
-x_single = nntile.tensor.Tensor_fp32(x_single_traits, x_single_distr, next_tag)
-next_tag = x_single.next_tag
-y_single_traits = nntile.tensor.TensorTraits([args.batch], [args.batch])
-y_single_distr = [0]
-y_single = nntile.tensor.Tensor_int64(y_single_traits, y_single_distr, \
-        next_tag)
-next_tag = y_single.next_tag
-x_traits = nntile.tensor.TensorTraits([args.batch, n_pixels], \
-        [args.batch_tile, args.pixels_tile])
+x_traits = nntile.tensor.TensorTraits([n_pixels, args.batch], \
+        [args.pixels_tile, args.batch_tile])
 x_distr = [0] * x_traits.grid.nelems
 y_traits = nntile.tensor.TensorTraits([args.batch], [args.batch_tile])
 y_distr = [0] * y_traits.grid.nelems
@@ -115,13 +105,11 @@ for train_batch_data, train_batch_labels in train_loader:
         break
     x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
     next_tag = x.next_tag
-    x_single.from_array(train_batch_data.view(args.batch, n_pixels).numpy())
-    nntile.tensor.scatter_async(x_single, x)
+    x.from_array(train_batch_data.view(args.batch, n_pixels).numpy().T)
     batch_data.append(x)
     y = nntile.tensor.Tensor_int64(y_traits, y_distr, next_tag)
     next_tag = y.next_tag
-    y_single.from_array(train_batch_labels.numpy())
-    nntile.tensor.scatter_async(y_single, y)
+    y.from_array(train_batch_labels.numpy())
     batch_labels.append(y)
 
 # Wait for all scatters to finish
@@ -139,7 +127,7 @@ x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
 # Define deep ReLU network
 gemm_ndim = 1
-m = nntile.model.DeepReLU(x_moments, 'L', gemm_ndim, args.hidden_dim, \
+m = nntile.model.DeepReLU(x_moments, 'R', gemm_ndim, args.hidden_dim, \
         args.hidden_dim_tile, args.depth, n_classes, next_tag)
 next_tag = m.next_tag
 
@@ -171,23 +159,16 @@ print("Finish random weights init in {} seconds".format(time0))
 # Compute test accuracy of the untrained model
 test_top1_accuracy = 0
 total_num_samples = 0
-z_single_traits = nntile.tensor.TensorTraits([args.batch, n_classes], \
-        [args.batch, n_classes])
-z_single_distr = [0]
-z_single = nntile.tensor.Tensor_fp32(z_single_traits, z_single_distr, next_tag)
-next_tag = z_single.next_tag
 for test_batch_data, test_batch_label in test_loader:
-    x_single.from_array(test_batch_data.view(-1, n_pixels).numpy())
-    nntile.tensor.scatter_async(x_single, m.activations[0].value)
+    m.activations[0].value.from_array( \
+            test_batch_data.view(-1, n_pixels).numpy().T)
     m.forward_async()
-    nntile.tensor.gather_async(m.activations[-1].value, z_single)
-    output = np.zeros(z_single.shape, order="F", dtype=np.float32)
-    # to_array causes y_single to finish gather procedure
-    z_single.to_array(output)
-    pred_labels = np.argmax(output, 1)
+    output = np.zeros(m.activations[-1].value.shape, order="F", \
+            dtype=np.float32)
+    m.activations[-1].value.to_array(output)
+    pred_labels = np.argmax(output, 0)
     test_top1_accuracy += np.sum(pred_labels == test_batch_label.numpy())
     total_num_samples += test_batch_label.shape[0]
-z_single.unregister()
 # Report the accuracy if it was computed
 if total_num_samples > 0:
     test_top1_accuracy /= total_num_samples
@@ -248,31 +229,20 @@ print("Inference GFLOPs/s (based on gemms): {}" \
 # Compute test accuracy of the trained model
 test_top1_accuracy = 0
 total_num_samples = 0
-z_single_traits = nntile.tensor.TensorTraits([args.batch, n_classes], \
-        [args.batch, n_classes])
-z_single_distr = [0]
-z_single = nntile.tensor.Tensor_fp32(z_single_traits, z_single_distr, next_tag)
-next_tag = z_single.next_tag
 for test_batch_data, test_batch_label in test_loader:
-    x_single.from_array(test_batch_data.view(-1, n_pixels).numpy())
-    nntile.tensor.scatter_async(x_single, m.activations[0].value)
+    m.activations[0].value.from_array( \
+            test_batch_data.view(-1, n_pixels).numpy().T)
     m.forward_async()
-    nntile.tensor.gather_async(m.activations[-1].value, z_single)
-    output = np.zeros(z_single.shape, order="F", dtype=np.float32)
-    # to_array causes y_single to finish gather procedure
-    z_single.to_array(output)
-    pred_labels = np.argmax(output, 1)
+    output = np.zeros(m.activations[-1].value.shape, order="F", \
+            dtype=np.float32)
+    m.activations[-1].value.to_array(output)
+    pred_labels = np.argmax(output, 0)
     test_top1_accuracy += np.sum(pred_labels == test_batch_label.numpy())
     total_num_samples += test_batch_label.shape[0]
-z_single.unregister()
 # Report the accuracy if it was computed
 if total_num_samples > 0:
     test_top1_accuracy /= total_num_samples
     print("Test accuracy of the trained Deep ReLU model =", test_top1_accuracy)
-
-# Unregister single-tile tensors for data scattering/gathering
-x_single.unregister()
-y_single.unregister()
 
 # Unregister all tensors related to model
 m.unregister()
