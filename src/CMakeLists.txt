@@ -72,6 +72,7 @@ if(NNTILE_USE_CUDA)
         "kernel/prod/cuda.cu"
         "kernel/relu/cuda.cu"
         "kernel/sqrt/cuda.cu"
+        "kernel/addcdiv/cuda.cu"
         "kernel/relu_backward/cuda.cu"
         "kernel/sumnorm/cuda.cu"
         "kernel/fill/cuda.cu"
