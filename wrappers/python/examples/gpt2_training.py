@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-06-28
+# @date 2023-06-29
 
 # Imports
 import nntile
@@ -23,7 +23,7 @@ from torch import Tensor
 import torch.nn as nn
 from transformers import GPT2TokenizerFast, GPT2LMHeadModel, GPT2Model, \
         GPT2Config
-from torch.optim import Adam
+from torch.optim import SGD
 from datasets import load_dataset
 from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
         GPT2Model as GPT2Model_nntile
@@ -63,6 +63,7 @@ parser.add_argument("--nntile-nbackward", type=int, default=0)
 parser.add_argument("--nntile-nbackward-warmup", type=int, default=0)
 parser.add_argument("--dataset", default="WikiText-103")
 parser.add_argument("--dataset-path", default=".data")
+parser.add_argument("--dataset-select", type=int, default=100)
 parser.add_argument("--lr", type=float, default=0.0)
 parser.add_argument("--torch-nepochs", type=int, default=0)
 parser.add_argument("--torch-nepochs-warmup", type=int, default=0)
@@ -404,6 +405,14 @@ for h_idx in range(config.num_hidden_layers):
 print("PyTorch model:")
 print(model_torch)
 
+# Forward FLOPs of matrix products per input sequence per GPT block
+nflops_seq_block = 2*config.n_positions*config.n_embd*(3+1)*config.n_embd \
+        + 4*config.n_positions*config.n_positions*config.n_embd \
+        + 4*config.n_positions*config.n_embd*config.n_inner
+# Forward FLOPs of matrix products per input sequence per GPT model
+nflops_seq = config.num_hidden_layers*nflops_seq_block \
+        + 2*config.n_positions*config.n_embd*config.vocab_size
+
 # Initialize NNTile and StarPU
 time0 = time.time()
 # Set up StarPU+MPI and init codelets
@@ -450,6 +459,7 @@ if args.check:
     diff = np.linalg.norm(nntile_output_np.T - output_value_np)
     norm = np.linalg.norm(output_value_np)
     print("NNTile forward pass relative accuracy: {}".format(diff/norm))
+    print("Model output norm: {}".format(norm))
     # Run backward pass by the NNTile to get gradients of parameters
     nntile_model.clear_gradients()
     nntile.tensor.copy_async(nntile_model.activations[-1].value, \
@@ -505,7 +515,8 @@ if args.check:
             diff = np.linalg.norm(p_torch_grad_np - p_nntile_grad_np.T)
             norm = np.linalg.norm(p_torch_grad_np)
             nntile_par_idx += 1
-        print("Relative error of gradient of {} = {}".format(name, diff/norm))
+        print("Gradient of {}: norm={} rel_err={}".format(name, norm, \
+                diff/norm))
 
 # Measure throughput of Torch forward pass
 if args.torch_nforward > 0:
@@ -590,7 +601,7 @@ if args.torch_nepochs > 0 or args.nntile_nepochs > 0:
     if args.dataset == "WikiText-103":
         train_dataset = load_dataset("wikitext", "wikitext-103-v1", \
                 split='train', cache_dir=args.dataset_path) \
-                .select(np.arange(100, dtype=np.int64))
+                .select(np.arange(args.dataset_select, dtype=np.int64))
         test_dataset = load_dataset("wikitext", "wikitext-103-v1", \
                 split='test', cache_dir=args.dataset_path)
     else:
@@ -630,16 +641,16 @@ if args.nntile_nepochs > 0:
     for i in range(num_train_batches):
         x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
         next_tag = x.next_tag
-        x.from_array(train_tokens[i, :, :-1].T)
+        x.from_array(np.asfortranarray(train_tokens[i, :, :-1].T))
         batch_input.append(x)
         y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
         next_tag = y.next_tag
-        y.from_array(train_tokens[i, :, 1:].T)
+        y.from_array(np.asfortranarray(train_tokens[i, :, 1:].T))
         batch_output.append(y)
     time1 = time.time() - time0
     print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
     # Set up learning rate and optimizer for training
-    optimizer = nntile.optimizer.Adam(nntile_model.get_parameters(), args.lr, \
+    optimizer = nntile.optimizer.SGD(nntile_model.get_parameters(), args.lr, \
             next_tag)
     next_tag = optimizer.get_next_tag()
     # Define Cross Entropy loss function
@@ -657,8 +668,12 @@ if args.nntile_nepochs > 0:
     pipeline.train_async()
     nntile.starpu.wait_for_all()
     time1 = time.time() - time0
-    print("NNTile training throughput epochs/sec: {}".format( \
-            args.nntile_nepochs/time1))
+    print("NNTile training throughput tokens/sec: {}".format( \
+            args.nntile_nepochs * num_train_batches * args.batch_size \
+            * config.n_positions / time1))
+    print("NNTile performance: {} Tflops/s".format(3 * nflops_seq \
+            * args.nntile_nepochs * num_train_batches * args.batch_size \
+            / time1 * 1e-12))
     loss_np = np.zeros((1), dtype=np.float32)
     loss.val.to_array(loss_np)
     print("NNTile loss on the last batch: {}".format(loss_np[0]))
@@ -676,10 +691,12 @@ if args.torch_nepochs > 0:
     torch_input = []
     torch_output = []
     for i in range(num_train_batches):
-        torch_input.append(torch.tensor(train_tokens[i, :, :-1]))
-        torch_output.append(torch.tensor(train_tokens[i, :, 1:]))
-    optim = Adam(model_torch.parameters(), lr=args.lr)
-    loss_func = nn.CrossEntropyLoss(reduction="sum")
+        torch_input.append(torch.tensor(train_tokens[i, :, :-1],
+            requires_grad=False).contiguous())
+        torch_output.append(torch.tensor(train_tokens[i, :, 1:],
+            requires_grad=False).contiguous())
+    optim = SGD(model_torch.parameters(), lr=args.lr)
+    loss_func = nn.CrossEntropyLoss(reduction="sum", ignore_index=-1)
     # Warmup training
     for i in range(args.torch_nepochs_warmup):
         for j in range(num_train_batches):
@@ -692,6 +709,8 @@ if args.torch_nepochs > 0:
             loss.backward()
             optim.step()
     # Actual training
+    if args.torch_device.startswith("cuda"):
+        torch.cuda.synchronize()
     time0 = time.time()
     for i in range(args.torch_nepochs):
         for j in range(num_train_batches):
@@ -703,8 +722,14 @@ if args.torch_nepochs > 0:
             loss = loss_func(train_logits, train_labels)
             loss.backward()
             optim.step()
+    if args.torch_device.startswith("cuda"):
+        torch.cuda.synchronize()
     time1 = time.time() - time0
-    print("Torch training throughput epochs/sec: {}".format( \
-            args.torch_nepochs/time1))
+    print("Torch training throughput tokens/sec: {}".format( \
+            args.torch_nepochs * num_train_batches * args.batch_size \
+            * config.n_positions/time1))
+    print("Torch performance: {} Tflops/s".format(3 * nflops_seq \
+            * args.torch_nepochs * num_train_batches * args.batch_size \
+            / time1 * 1e-12))
     print("Torch loss on the last batch: {}".format(loss))
 
