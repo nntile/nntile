@@ -10,11 +10,11 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-06-28
+# @date 2023-06-29
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
-        Tensor_int64
+        Tensor_int64, Tensor_bool
 from .nntile_core import TransOp, notrans, trans
 from typing import Union, List
 
@@ -226,6 +226,8 @@ def scatter_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:
         core_tensor.scatter_async_fp64(x, y)
     elif type(x) is core_tensor.Tensor_int64:
         core_tensor.scatter_async_int64(x, y)
+    elif type(x) is core_tensor.Tensor_bool:
+        core_tensor.scatter_async_bool(x, y)
     else:
         raise TypeError
 
@@ -363,6 +365,8 @@ def gather_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:
         core_tensor.gather_async_fp64(x, y)
     elif type(x) is core_tensor.Tensor_int64:
         core_tensor.gather_async_int64(x, y)
+    elif type(x) is core_tensor.Tensor_bool:
+        core_tensor.gather_async_bool(x, y)
     else:
         raise TypeError
 
@@ -525,6 +529,15 @@ def scal_async(alpha: float, x: Tensor) -> None:
         core_tensor.scal_async_fp32(alpha, x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.scal_async_fp64(alpha, x)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision scaling
+def mask_scalar_async(mask: Tensor_bool, alpha: float, x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.mask_scalar_async_fp32(mask, alpha, x)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.mask_scalar_async_fp64(mask, alpha, x)
     else:
         raise TypeError
 

@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-06-28
+# @date 2023-06-29
 
 # Set list of headers
 set(BASE_HDR
@@ -98,6 +98,8 @@ set(KERNEL_HDR
     "nntile/kernel/embedding/cpu.hh"
     "nntile/kernel/embedding_backward.hh"
     "nntile/kernel/embedding_backward/cpu.hh"
+    "nntile/kernel/mask_scalar.hh"
+    "nntile/kernel/mask_scalar/cpu.hh"
     )
 
 if(NNTILE_USE_CUDA)
@@ -131,6 +133,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/sumprod_fiber/cuda.hh"
         "nntile/kernel/embedding/cuda.hh"
         "nntile/kernel/embedding_backward/cuda.hh"
+        "nntile/kernel/mask_scalar/cuda.hh"
         )
 endif()
 
@@ -179,6 +182,7 @@ set(STARPU_HDR
     "nntile/starpu/add_scalar.hh"
     "nntile/starpu/embedding.hh"
     "nntile/starpu/embedding_backward.hh"
+    "nntile/starpu/mask_scalar.hh"
     )
 
 set(TILE_HDR
@@ -226,6 +230,7 @@ set(TILE_HDR
     "nntile/tile/gelutanh_backward.hh"
     "nntile/tile/add.hh"
     "nntile/tile/add_scalar.hh"
+    "nntile/tile/mask_scalar.hh"
     )
 
 set(TENSOR_HDR
@@ -278,6 +283,7 @@ set(TENSOR_HDR
     "nntile/tensor/add_scalar.hh"
     "nntile/tensor/embedding.hh"
     "nntile/tensor/embedding_backward.hh"
+    "nntile/tensor/mask_scalar.hh"
     )
 
 set(LAYER_HDR

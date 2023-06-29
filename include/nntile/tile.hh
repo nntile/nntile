@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-06-28
+ * @date 2023-06-29
  * */
 
 #pragma once
@@ -61,6 +61,7 @@
 #include <nntile/tile/gelutanh_backward.hh>
 #include <nntile/tile/add.hh>
 #include <nntile/tile/add_scalar.hh>
+#include <nntile/tile/mask_scalar.hh>
 
 namespace nntile
 {

@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-06-28
+ * @date 2023-06-29
  * */
 
 #pragma once
@@ -63,6 +63,7 @@
 #include <nntile/starpu/add_scalar.hh>
 #include <nntile/starpu/embedding.hh>
 #include <nntile/starpu/embedding_backward.hh>
+#include <nntile/starpu/mask_scalar.hh>
 
 namespace nntile
 {
@@ -118,6 +119,7 @@ void init()
     add_scalar::init();
     embedding::init();
     embedding_backward::init();
+    mask_scalar::init();
 }
 
 // Restrict StarPU codelets to certain computational units
@@ -166,6 +168,7 @@ void restrict_where(uint32_t where)
     add_scalar::restrict_where(where);
     embedding::restrict_where(where);
     embedding_backward::restrict_where(where);
+    mask_scalar::restrict_where(where);
 }
 
 // Restore computational units for StarPU codelets
@@ -214,6 +217,7 @@ void restore_where()
     add_scalar::restore_where();
     embedding::restore_where();
     embedding_backward::restore_where();
+    mask_scalar::restore_where();
 }
 
 } // namespace starpu

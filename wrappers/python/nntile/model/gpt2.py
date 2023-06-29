@@ -10,10 +10,10 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-06-21
+# @date 2023-06-29
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        notrans, trans, Tensor_fp32, Tensor_int64
+        notrans, trans, Tensor_fp32, Tensor_int64, Tensor_bool
 from nntile.model.base_model import BaseModel
 from nntile.layer import Linear, Embedding, AddSlice, LayerNorm, Attention, Act
 import numpy as np
@@ -111,8 +111,19 @@ class GPT2Model(BaseModel):
         layer_norm_epsilon = config["layer_norm_epsilon"]
         num_hidden_layers = config["num_hidden_layers"]
         n_head = config["n_head"]
+        seq_len = input_ids.value.shape[0]
+        seq_len_tile = input_ids.value.basetile_shape[0]
         activations = [input_ids, positional_ids]
         layers = []
+        mask_traits = TensorTraits((seq_len, seq_len), \
+                (seq_len_tile, seq_len_tile))
+        mask_distr = [0] * mask_traits.grid.nelems
+        self.mask = Tensor_bool(mask_traits, mask_distr, next_tag)
+        next_tag = self.mask.next_tag
+        mask_np = np.array(np.triu(np.ones((seq_len, seq_len))), dtype=bool, \
+                order="F")
+        self.mask.from_array(mask_np)
+
         wte_layer, next_tag = Embedding.generate_simple(input_ids.value, \
                 Tensor_fp32, 0, vocab_size, embed_dim, embed_dim_tile, \
                 vocab_embed_dim_tile, next_tag)
@@ -139,7 +150,7 @@ class GPT2Model(BaseModel):
 
             attn_layer, next_tag = Attention.generate_simple_mpiroot( \
                     activations[-1], activations[-1], activations[-1], \
-                    n_head, next_tag)
+                    n_head, next_tag, self.mask)
             layers.append(attn_layer)
             activations.extend(attn_layer.activations_output)
 
@@ -251,3 +262,9 @@ class GPT2Model(BaseModel):
                 nntile_p_idx += 1
 
         return gpt2_nntile, gpt2_nntile.next_tag
+    
+    def unregister(self):
+        super().unregister()
+        if self.mask:
+            self.mask.unregister()
+
