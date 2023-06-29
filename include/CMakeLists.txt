@@ -117,6 +117,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/gelutanh_backward/cuda.hh"
         "nntile/kernel/normalize/cuda.hh"
         "nntile/kernel/prod/cuda.hh"
+        "nntile/kernel/sqrt/cuda.hh"
         "nntile/kernel/relu/cuda.hh"
         "nntile/kernel/relu_backward/cuda.hh"
         "nntile/kernel/sumnorm/cuda.hh"
