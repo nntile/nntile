@@ -23,7 +23,7 @@ from torch import Tensor
 import torch.nn as nn
 from transformers import GPT2TokenizerFast, GPT2LMHeadModel, GPT2Model, \
         GPT2Config
-from torch.optim import SGD
+from torch.optim import Adam
 from datasets import load_dataset
 from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
         GPT2Model as GPT2Model_nntile
@@ -651,7 +651,7 @@ if args.nntile_nepochs > 0:
     time1 = time.time() - time0
     print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
     # Set up learning rate and optimizer for training
-    optimizer = nntile.optimizer.SGD(nntile_model.get_parameters(), args.lr, \
+    optimizer = nntile.optimizer.Adam(nntile_model.get_parameters(), args.lr, \
             next_tag)
     next_tag = optimizer.get_next_tag()
     # Define Cross Entropy loss function
@@ -696,7 +696,7 @@ if args.torch_nepochs > 0:
             requires_grad=False).contiguous())
         torch_output.append(torch.tensor(train_tokens[i, :, 1:],
             requires_grad=False).contiguous())
-    optim = SGD(model_torch.parameters(), lr=args.lr)
+    optim = Adam(model_torch.parameters(), lr=args.lr)
     loss_func = nn.CrossEntropyLoss(reduction="sum", ignore_index=-1)
     # Warmup training
     for i in range(args.torch_nepochs_warmup):

@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-06-28
+ * @date 2023-06-29
  * */
 
 #include "nntile/starpu/subtract_indexed_outputs.hh"
@@ -49,7 +49,7 @@ Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
-    codelet_fp32.init("nntile_subtract_indexed_column_fp32",
+    codelet_fp32.init("nntile_subtract_indexed_outputs_fp32",
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -59,7 +59,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_fp64.init("nntile_subtract_indexed_column_fp64",
+    codelet_fp64.init("nntile_subtract_indexed_outputs_fp64",
             nullptr,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
