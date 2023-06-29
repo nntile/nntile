@@ -4,12 +4,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/subcopy.hh
- * Copy subarray based on contiguous indices
+ * @file include/nntile/starpu/mask_scalar.hh
+ * Mask scalar operation on a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @author Aleksandr Katrutsa
+ * @author Aleksandr Mikhalev
  * @date 2023-06-29
  * */
 
@@ -17,20 +17,37 @@
 
 #include <nntile/base_types.hh>
 #include <nntile/starpu/config.hh>
+#include <nntile/defs.h>
 
 namespace nntile
 {
 namespace starpu
 {
-namespace subcopy
+namespace mask_scalar
 {
 
-// Complex copying through StarPU buffers is available only on CPU
+//! Structure for arguments
+template<typename T>
+struct args_t
+{
+    Index nrows;
+    Index ncols;
+    T val;
+};
+
+// Mask StarPU buffer with given value on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
 
-extern Codelet codelet_fp32, codelet_fp64, codelet_int64, codelet_bool_t;
+#ifdef NNTILE_USE_CUDA
+// Mask StarPU buffer with given value on CUDA
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept;
+#endif // NNTILE_USE_CUDA
+
+extern Codelet codelet_fp32, codelet_fp64;
 
 template<typename T>
 constexpr Codelet *codelet()
@@ -51,18 +68,6 @@ constexpr Codelet *codelet<fp64_t>()
     return &codelet_fp64;
 }
 
-template<>
-constexpr Codelet *codelet<Index>()
-{
-    return &codelet_int64;
-}
-
-template<>
-constexpr Codelet *codelet<bool_t>()
-{
-    return &codelet_bool_t;
-}
-
 void init();
 
 void restrict_where(uint32_t where);
@@ -70,14 +75,9 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index ndim, const std::vector<Index> &src_start,
-        const std::vector<Index> &src_stride,
-        const std::vector<Index> &dst_start,
-        const std::vector<Index> &dst_stride,
-        const std::vector<Index> &copy_shape, Handle src, Handle dst,
-        Handle tmp_index, starpu_data_access_mode mode);
+void submit(Index nrows, Index ncols, Handle mask, T val, Handle data);
 
-} // namespace subcopy
+} // namespace mask_scalar
 } // namespace starpu
 } // namespace nntile
 

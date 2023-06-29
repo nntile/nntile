@@ -9,12 +9,12 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-05-10
+# @date 2023-06-29
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
         maxsumexp_async, softmax_async, sumprod_slice_async, \
-        add_slice_async, prod_async
+        add_slice_async, prod_async, mask_scalar_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -53,7 +53,7 @@ class Attention(BaseLayer):
             q: List[TensorMoments], k: List[TensorMoments], \
             v: List[TensorMoments], a: List[TensorMoments], \
             a_maxsumexp: List[Tensor], a_sumprod_slice: List[Tensor], \
-            b: List[TensorMoments]):
+            b: List[TensorMoments], mask=None):
         # Redirect to BaseClass initialization
         super().__init__([x_q, x_k, x_v], [y], [*w_q, *w_k, *w_v, *w], \
                 [*q, *k, *v, *a, *a_maxsumexp, *a_sumprod_slice, *b])
@@ -79,11 +79,14 @@ class Attention(BaseLayer):
         if n_emb != head_size * self.n_head:
             raise RuntimeError
         self.head_size = head_size
+        self.mask = mask
+        if mask:
+            self.val = -np.float32(np.inf)
 
     # Simple generator for the linear layer
     @staticmethod
     def generate_simple_mpiroot(x_q: TensorMoments, x_k: TensorMoments, \
-            x_v: TensorMoments, n_head: int, next_tag: int):
+            x_v: TensorMoments, n_head: int, next_tag: int, mask=None):
         # Get sizes
         n_emb, n_seq, n_batch = x_q.value.shape
         n_emb_tile, n_seq_tile, n_batch_tile = x_q.value.basetile_shape
@@ -241,7 +244,7 @@ class Attention(BaseLayer):
         y = TensorMoments(y_value, y_grad, True)
         # Create attention layer with all the provided data
         layer = Attention(x_q, x_k, x_v, y, w_q, w_k, w_v, w, q, k, v, a, \
-                a_maxsumexp, a_sumprod_slice, b)
+                a_maxsumexp, a_sumprod_slice, b, mask)
         # Return layer and next tag to be used
         return (layer, next_tag)
 
@@ -284,6 +287,8 @@ class Attention(BaseLayer):
             self.k[i].value.wont_use()
             # Calculate softmax inplace
             # A[i] = softmax(A[i], axis=0)
+            if self.mask:
+                mask_scalar_async(self.mask, self.val, self.a[i].value)
             maxsumexp_async(self.a[i].value, self.a_maxsumexp[i], 0)
             softmax_async(self.a_maxsumexp[i], self.a[i].value, 0)
             # A_maxsumexp[i] can be deleted
@@ -346,6 +351,8 @@ class Attention(BaseLayer):
                 #self.a_sumprod_slice[i].invalidate_submit()
                 # dA[i] *= A[i]
                 prod_async(self.a[i].value, self.a[i].grad)
+            if self.mask:
+                mask_scalar_async(self.mask, 0, self.a[i].grad)
             # A[i] can be deleted
             #self.a[i].value.invalidate_submit()
             # Backward for:

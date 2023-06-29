@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-05-02
+# @date 2023-06-29
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -50,6 +50,7 @@ set(TESTS
     "sumprod_fiber"
     "sumprod_slice"
     "total_sum_accum"
+    "mask_scalar"
     )
 
 # Describe all tests that are not yet implemented

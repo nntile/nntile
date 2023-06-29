@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-06-28
+ * @date 2023-06-29
  * */
 
 #include <pybind11/pybind11.h>
@@ -375,6 +375,7 @@ void def_mod_tensor(py::module_ &m)
     def_class_tensor<fp64_t>(m, "Tensor_fp64");
     def_class_tensor<fp32_t>(m, "Tensor_fp32");
     def_class_tensor<Index>(m, "Tensor_int64");
+    def_class_tensor<bool_t>(m, "Tensor_bool");
     // Add tensor.distributions submodule
     auto distributions = m.def_submodule("distributions");
     def_tensor_distributions(distributions);
@@ -437,9 +438,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("scatter_async_fp64", &scatter_async<fp64_t>);
     m.def("scatter_async_fp32", &scatter_async<fp32_t>);
     m.def("scatter_async_int64", &scatter_async<Index>);
+    m.def("scatter_async_bool", &scatter_async<bool_t>);
     m.def("scatter_fp64", &scatter<fp64_t>);
     m.def("scatter_fp32", &scatter<fp32_t>);
     m.def("scatter_int64", &scatter<Index>);
+    m.def("scatter_bool", &scatter<bool_t>);
     m.def("randn_async_fp64", &randn_async<fp64_t>);
     m.def("randn_async_fp32", &randn_async<fp32_t>);
     m.def("randn_fp64", &randn<fp64_t>);
@@ -494,9 +497,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("gather_async_fp64", &gather_async<fp64_t>);
     m.def("gather_async_fp32", &gather_async<fp32_t>);
     m.def("gather_async_int64", &gather_async<Index>);
+    m.def("gather_async_bool", &gather_async<bool_t>);
     m.def("gather_fp64", &gather<fp64_t>);
     m.def("gather_fp32", &gather<fp32_t>);
     m.def("gather_int64", &gather<Index>);
+    m.def("gather_bool", &gather<bool_t>);
 
     m.def("copy_intersection_async_fp64", &copy_intersection_async<fp64_t>);
     m.def("copy_intersection_async_fp32", &copy_intersection_async<fp32_t>);
@@ -622,6 +627,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("embedding_backward_async_fp32", &embedding_backward_async<fp32_t>);
     m.def("embedding_backward_fp64", &embedding_backward<fp64_t>);
     m.def("embedding_backward_fp32", &embedding_backward<fp32_t>);
+
+    m.def("mask_scalar_async_fp64", &mask_scalar_async<fp64_t>);
+    m.def("mask_scalar_async_fp32", &mask_scalar_async<fp32_t>);
+    m.def("mask_scalar_fp64", &mask_scalar<fp64_t>);
+    m.def("mask_scalar_fp32", &mask_scalar<fp32_t>);
 }
 
 // Main extension module with all wrappers

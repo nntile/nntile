@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-05
+ * @author Aleksandr Katrutsa
+ * @date 2023-06-29
  * */
 
 #pragma once
@@ -27,6 +28,9 @@ using Index = int64_t;
 using fp64_t = double;
 //! Single precision alias
 using fp32_t = float;
+
+// Boolean type for mask
+using bool_t = bool;
 
 // Add more types like fp16_t, bf16_t and tf32_t in the future
 
