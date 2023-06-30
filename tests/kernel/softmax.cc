@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-09
+ * @date 2023-06-30
  * */
 
 #include "nntile/kernel/softmax.hh"
@@ -75,7 +75,7 @@ void validate(Index m, Index n, Index k)
         {
             for(Index i2 = 0; i2 < k; ++i2)
             {
-                dst[(i1*k+i2)*m+i0] = T(i0+i1+i2) / T{10};
+                dst[(i1*k+i2)*m+i0] = T(i0+i1+i2) / T{100};
             }
         }
     }
@@ -83,9 +83,9 @@ void validate(Index m, Index n, Index k)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
-            T max = T(i0+i1+k-1) / T{10};
+            T max = T(i0+i1+k-1) / T{100};
             maxsumexp[2*(i1*m+i0)] = max;
-            maxsumexp[2*(i1*m+i0)+1] = T(i0+i1+1) / T{10};
+            maxsumexp[2*(i1*m+i0)+1] = T(i0+i1+1) / T{100};
         }
     }
     std::vector<T> dst_save(dst);
@@ -99,7 +99,7 @@ void validate(Index m, Index n, Index k)
             for(Index i2 = 0; i2 < k; ++i2)
             {
                 T val = dst[(i1*k+i2)*m+i0];
-                T val_ref = std::exp(T(i2-k+1) / T{10}) * T{10} / T(i0+i1+1);
+                T val_ref = std::exp(T(i2-k+1) / T{100}) * T{100} / T(i0+i1+1);
                 T tmp = std::abs(val - val_ref);
                 TEST_ASSERT(tmp/val_ref < 100*epsilon);
             }
@@ -118,7 +118,7 @@ void validate(Index m, Index n, Index k)
             for(Index i2 = 0; i2 < k; ++i2)
             {
                 T val = dst[(i1*k+i2)*m+i0];
-                T val_ref = std::exp(T(i2-k+1) / T{10}) * T{10} / T(i0+i1+1);
+                T val_ref = std::exp(T(i2-k+1) / T{100}) * T{100} / T(i0+i1+1);
                 T tmp = std::abs(val - val_ref);
                 TEST_ASSERT(tmp/val_ref < 100*epsilon);
             }
