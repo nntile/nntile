@@ -23,51 +23,78 @@ namespace maxsumexp
 
 template<typename T>
 static __global__
-void cuda_kernel(Index m, Index n, Index k, Index mk, const T *src,
-        T *maxsumexp)
+void cuda_kernel(Index m, Index n, Index k, Index mk,
+        const T * __restrict__ src, T * __restrict__ maxsumexp)
 {
-    Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
-          i1_start = threadIdx.y + blockIdx.y*blockDim.y,
-          i2_step = blockDim.x * gridDim.x,
-          i1_step = blockDim.y * gridDim.y;
+    Index i1 = threadIdx.x + blockIdx.x*blockDim.x,
+          i2 = threadIdx.y + blockIdx.y*blockDim.y,
+          i0_start = threadIdx.z, i0_step = blockDim.z;
     constexpr T zero = 0, one = 1;
-    // Cycle over row of output buffer
-    for(Index i2 = i2_start; i2 < n; i2 += i2_step)
+    if(i2 < n and i1 < m)
     {
-        // Cycle over column of output buffer
-        for(Index i1 = i1_start; i1 < m; i1 += i1_step)
+        // Get max and sum of exponents of a corresponding slice
+        const T *src_slice = src + i2*mk + i1;
+        // Init max and sum
+        T max_val = src_slice[0];
+        T sum_val = zero;
+        // Cycle over slice of input buffer
+        for(Index i0 = i0_start; i0 < k; i0 += i0_step)
         {
-            // Get max and sum of exponents of a corresponding slice
-            const T *src_slice = src + i2*mk + i1;
-            // Init max and sum
-            Index dst_offset = 2 * (i1+i2*m);
-            T max = maxsumexp[dst_offset];
-            T sum = maxsumexp[dst_offset+1];
-            // Check if sum is zero, which means values were not yet
-            // initialized. Just initialize maximum value in this case.
-            if(sum == zero)
+            // Read value from source
+            T val = src_slice[i0*m];
+            // Update max and sum of exponents
+            if(max_val < val)
             {
-                max = src_slice[0];
+                sum_val = sum_val*(::exp(max_val-val)) + one;
+                max_val = val;
             }
-            // Cycle over slice of input buffer
-            for(Index i0 = 0; i0 < k; ++i0)
+            else
             {
-                // Read value from source
-                T val = src_slice[i0*m];
-                // Update max and sum of exponents
-                if(max < val)
+                sum_val += ::exp(val-max_val);
+            }
+        }
+        // Reduce max
+        volatile __shared__ T block_max_val;
+        __shared__ T block_sum_val;
+        if(i0_start == 0)
+        {
+            block_max_val = max_val;
+            block_sum_val = zero;
+        }
+        __syncthreads();
+        while(block_max_val < max_val)
+        {
+            block_max_val = max_val;
+        }
+        __syncthreads();
+        // Update own sum
+        sum_val *= ::exp(max_val-block_max_val);
+        atomicAdd(&block_sum_val, sum_val);
+        // Save result
+        __syncthreads();
+        if(i0_start == 0)
+        {
+            Index dst_offset = i1 + i2*m;
+            T &max_output = maxsumexp[2*dst_offset];
+            T &sum_output = maxsumexp[2*dst_offset+1];
+            if(sum_output == zero)
+            {
+                max_output = block_max_val;
+                sum_output = block_sum_val;
+            }
+            else
+            {
+                if(block_max_val < max_output)
                 {
-                    sum = sum*exp(max-val) + one;
-                    max = val;
+                    block_sum_val *= ::exp(block_max_val-max_output);
                 }
                 else
                 {
-                    sum += exp(val-max);
+                    sum_output *= ::exp(max_output-block_max_val);
+                    max_output = block_max_val;
                 }
+                sum_output += block_sum_val;
             }
-            // Save result
-            maxsumexp[dst_offset] = max;
-            maxsumexp[dst_offset+1] = sum;
         }
     }
 }
@@ -98,7 +125,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
 {
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
     // Both source and destination are Fortran-contiguous
-    dim3 blocks(16, 16), threads(8, 4);
+    dim3 threads(std::min(int(m), 1), std::min(int(n), 1), 64);
+    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y, 1);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, src,
             maxsumexp);
 }

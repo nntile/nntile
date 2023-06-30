@@ -34,19 +34,6 @@ void cuda_kernel(Index nelems, const T * __restrict__ maxsumexp,
     }
 }
 
-template<>
-__global__
-void cuda_kernel<fp32_t>(Index nelems, const fp32_t * __restrict__ maxsumexp,
-        fp32_t * __restrict__ logsumexp)
-{
-    int i = threadIdx.x + blockIdx.x*blockDim.x;
-    float2 *ptr = (float2 *)maxsumexp;
-    if(i < nelems)
-    {
-        logsumexp[i] = ptr[i].x + (ptr[i].y);
-    }
-}
-
 template<typename T>
 void cuda(cudaStream_t stream, Index nelems, const T *maxsumexp, T *logsumexp)
     noexcept
@@ -58,7 +45,7 @@ void cuda(cudaStream_t stream, Index nelems, const T *maxsumexp, T *logsumexp)
  * @param[out] logsumexp: Output buffers that contains output in the end
  * */
 {
-    dim3 blocks((nelems+255)/256), threads(256);
+    dim3 blocks((nelems+31)/32), threads(32);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, maxsumexp,
             logsumexp);
 }
