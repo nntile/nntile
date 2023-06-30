@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-06-29
+# @date 2023-06-30
 
 # Set list of headers
 set(BASE_HDR
@@ -120,6 +120,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/normalize/cuda.hh"
         "nntile/kernel/prod/cuda.hh"
         "nntile/kernel/sqrt/cuda.hh"
+        "nntile/kernel/addcdiv/cuda.hh"
         "nntile/kernel/relu/cuda.hh"
         "nntile/kernel/relu_backward/cuda.hh"
         "nntile/kernel/sumnorm/cuda.hh"

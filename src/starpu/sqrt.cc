@@ -9,11 +9,13 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @author Aleksandr Mikhalev
+ * @date 2023-06-30
  * */
 
 #include "nntile/starpu/sqrt.hh"
 #include "nntile/kernel/sqrt.hh"
+#include <cstdlib>
 
 namespace nntile
 {
@@ -38,20 +40,20 @@ void cpu(void *buffers[], void *cl_args)
 
 #ifdef NNTILE_USE_CUDA
 //! Apply sqrt operation over elements of StarPU buffer on CUDA
-// template<typename T>
-// void cuda(void *buffers[], void *cl_args)
-//     noexcept
-// {
-    // // Get arguments
-    // Index nelems = reinterpret_cast<Index *>(cl_args)[0];
-    // // Get interfaces
-    // auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    // T *data = interfaces[0]->get_ptr<T>();
-    // // Get CUDA stream
-    // cudaStream_t stream = starpu_cuda_get_local_stream();
-    // // Launch kernel
-    // kernel::sqrt::cuda<T>(stream, nelems, data);
-// }
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    T *data = interfaces[0]->get_ptr<T>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Launch kernel
+    kernel::sqrt::cuda<T>(stream, nelems, data);
+}
 #endif // NNTILE_USE_CUDA
 
 Codelet codelet_fp32, codelet_fp64;
@@ -62,8 +64,7 @@ void init()
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
-            {}
-            // {cuda<fp32_t>}
+            {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -72,8 +73,7 @@ void init()
             nullptr,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
-            // {cuda<fp64_t>}
-            {}
+            {cuda<fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -95,8 +95,11 @@ void restore_where()
 template<typename T>
 void submit(Index nelems, Handle data)
 {
-    Index *nelems_ = new Index{nelems};
+    // Codelet arguments
+    Index *nelems_ = (Index *)std::malloc(sizeof(*nelems_));
+    *nelems_ = nelems;
     //fp64_t nflops = 5 * nelems;
+    // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_RW, static_cast<starpu_data_handle_t>(data),
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),

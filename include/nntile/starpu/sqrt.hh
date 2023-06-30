@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @author Aleksandr Mikhalev
+ * @date 2023-06-30
  * */
 
 #pragma once
@@ -32,9 +33,9 @@ void cpu(void *buffers[], void *cl_args)
 
 #ifdef NNTILE_USE_CUDA
 // Apply sqrt elementwise of StarPU buffer on CUDA
-// template<typename T>
-// void cuda(void *buffers[], void *cl_args)
-//     noexcept;
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept;
 #endif // NNTILE_USE_CUDA
 
 extern Codelet codelet_fp32, codelet_fp64;

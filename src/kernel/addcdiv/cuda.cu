@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-06-29
+ * @date 2023-06-30
  * */
 
 #include "nntile/kernel/addcdiv/cuda.hh"
@@ -24,7 +24,8 @@ namespace addcdiv
 
 template<typename T>
 static __global__
-void cuda_kernel(T val, T eps, Index nelems, const T *nom, const T* denom, T *res)
+void cuda_kernel(T val, T eps, Index nelems, const T *nom, const T* denom,
+        T *res)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     if(i < nelems)
@@ -34,7 +35,8 @@ void cuda_kernel(T val, T eps, Index nelems, const T *nom, const T* denom, T *re
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, T val, T eps, Index nelems, const T *nom, const T* denom, T *res)
+void cuda(cudaStream_t stream, T val, T eps, Index nelems, const T *nom,
+        const T* denom, T *res)
     noexcept
 //! Addcdiv operation of buffers
 /*! One of the buffers serves as output
@@ -45,20 +47,22 @@ void cuda(cudaStream_t stream, T val, T eps, Index nelems, const T *nom, const T
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(val, eps, nelems, nom, denom, res);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(val, eps, nelems, nom,
+            denom, res);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, fp32_t val, fp32_t eps, Index nelems, const fp32_t *nom,
-                  const fp32_t* denom, fp32_t *res)
+void cuda<fp32_t>(cudaStream_t stream, fp32_t val, fp32_t eps, Index nelems,
+        const fp32_t *nom, const fp32_t* denom, fp32_t *res)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, fp64_t val, fp64_t eps, Index nelems, const fp64_t *nom,
-                  const fp64_t* denom, fp64_t *res)
+void cuda<fp64_t>(cudaStream_t stream, fp64_t val, fp64_t eps, Index nelems,
+        const fp64_t *nom, const fp64_t* denom, fp64_t *res)
     noexcept;
 
 } // namespace addcdiv
 } // namespace kernel
 } // namespace nntile
+
