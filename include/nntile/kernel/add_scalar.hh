@@ -18,7 +18,7 @@
 #include <nntile/kernel/add_scalar/cpu.hh>
 #include <nntile/defs.h>
 #ifdef NNTILE_USE_CUDA
-// #include <nntile/kernel/add_scalar/cuda.hh>
+#include <nntile/kernel/add_scalar/cuda.hh>
 #endif // NNTILE_USE_CUDA
 
 namespace nntile

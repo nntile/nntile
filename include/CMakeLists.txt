@@ -140,6 +140,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/total_sum_accum/cuda.hh"
         "nntile/kernel/subtract_indexed_outputs/cuda.hh"
         "nntile/kernel/logsumexp/cuda.hh"
+        "nntile/kernel/add_scalar/cuda.hh"
         )
 endif()
 
