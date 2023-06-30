@@ -42,7 +42,26 @@ void cpu(void *buffers[], void *cl_args)
 }
 
 #ifdef NNTILE_USE_CUDA
-
+//! Apply subtract_indexed_outputs operation on StarPU buffer on CUDA
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t<T>*>(cl_args);
+    Index n_labels = args->n_labels;
+    Index n_outputs = args->n_outputs;
+    T value = args->value;
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const Index* labels = interfaces[0]->get_ptr<Index>();
+    T* dst = interfaces[1]->get_ptr<T>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Launch kernel
+    kernel::subtract_indexed_outputs::cuda<T>(stream, n_labels, n_outputs, value,
+            labels, dst);
+}
 #endif // NNTILE_USE_CUDA
 
 Codelet codelet_fp32, codelet_fp64;
@@ -53,8 +72,7 @@ void init()
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
-            // {cuda<fp32_t>}
-            {}
+            {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -63,8 +81,7 @@ void init()
             nullptr,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
-            // {cuda<fp64_t>}
-            {}
+            {cuda<fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA

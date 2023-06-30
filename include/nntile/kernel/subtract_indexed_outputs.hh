@@ -18,7 +18,7 @@
 #include <nntile/kernel/subtract_indexed_outputs/cpu.hh>
 #include <nntile/defs.h>
 #ifdef NNTILE_USE_CUDA
-// #include <nntile/kernel/subtract_indexed_outputs/cuda.hh>
+#include <nntile/kernel/subtract_indexed_outputs/cuda.hh>
 #endif // NNTILE_USE_CUDA
 
 namespace nntile
