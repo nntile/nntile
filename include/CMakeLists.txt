@@ -138,6 +138,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/mask_scalar/cuda.hh"
         "nntile/kernel/maximum/cuda.hh"
         "nntile/kernel/total_sum_accum/cuda.hh"
+        "nntile/kernel/subtract_indexed_outputs/cuda.hh"
         )
 endif()
 

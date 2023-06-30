@@ -92,6 +92,7 @@ if(NNTILE_USE_CUDA)
         "kernel/mask_scalar/cuda.cu"
         "kernel/maximum/cuda.cu"
         "kernel/total_sum_accum/cuda.cu"
+        "kernel/subtract_indexed_outputs/cuda.cu"
         )
 endif()
 
