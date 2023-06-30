@@ -41,9 +41,12 @@ void cuda(cudaStream_t stream, T val, T eps, Index nelems, const T *nom,
 //! Addcdiv operation of buffers
 /*! One of the buffers serves as output
  *
+ * @param[in] val: scalar multiplicator
+ * @param[in] eps: small value to avoid division by zero
  * @param[in] nelems: Number of elements in both buffers
- * @param[in] src: Input buffer
- * @param[inout] dst: Input buffers that contains output in the end
+ * @param[in] nom: buffer to store the elements from nominator of ratio
+ * @param[in] denom: buffer to store the elements from denominator of ratio
+ * @param[inout] res: Input buffers that contains output in the end
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
