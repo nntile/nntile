@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-03-15
+ * @author Aleksandr Mikhalev
+ * @date 2023-06-30
  * */
 
 #pragma once
@@ -24,16 +25,14 @@ namespace starpu
 namespace logsumexp
 {
 
-// Max and sum of exponents along middle axis of StarPU buffer on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
-// Max and sum of exponents along middle axis of StarPU buffer on CUDA
-// template<typename T>
-// void cuda(void *buffers[], void *cl_args)
-//     noexcept;
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept;
 #endif // NNTILE_USE_CUDA
 
 extern Codelet codelet_fp32, codelet_fp64;
@@ -64,7 +63,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Handle src, Handle dst);
+void submit(Index nelems, Handle maxsumexp, Handle logsumexp);
 
 } // namespace logsumexp
 } // namespace starpu

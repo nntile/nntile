@@ -127,6 +127,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/fill/cuda.hh"
         "nntile/kernel/sum_slice/cuda.hh"
         "nntile/kernel/sum_fiber/cuda.hh"
+        "nntile/kernel/logsumexp/cuda.hh"
         "nntile/kernel/norm_slice/cuda.hh"
         "nntile/kernel/pow/cuda.hh"
         "nntile/kernel/maxsumexp/cuda.hh"

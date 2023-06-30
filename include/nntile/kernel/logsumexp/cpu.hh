@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-03-15
+ * @author Aleksandr Mikhalev
+ * @date 2023-06-30
  * */
 
 #pragma once
@@ -25,7 +26,7 @@ namespace logsumexp
 
 // Compute logsumexp based on the resut of maxsumexp operation 
 template<typename T>
-void cpu(Index m, const T *src, T *logsumexp)
+void cpu(Index nelems, const T *maxsumexp, T *logsumexp)
     noexcept;
 
 } // namespace logsumexp

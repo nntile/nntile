@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-06-29
+# @date 2023-06-30
 
 # Set list of sources
 set(KERNEL_SRC
@@ -79,6 +79,7 @@ if(NNTILE_USE_CUDA)
         "kernel/fill/cuda.cu"
         "kernel/sum_slice/cuda.cu"
         "kernel/sum_fiber/cuda.cu"
+        "kernel/logsumexp/cuda.cu"
         "kernel/norm_slice/cuda.cu"
         "kernel/pow/cuda.cu"
         "kernel/maxsumexp/cuda.cu"
