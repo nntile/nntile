@@ -91,6 +91,7 @@ if(NNTILE_USE_CUDA)
         "kernel/embedding_backward/cuda.cu"
         "kernel/mask_scalar/cuda.cu"
         "kernel/maximum/cuda.cu"
+        "kernel/total_sum_accum/cuda.cu"
         )
 endif()
 
