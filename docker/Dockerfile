@@ -70,8 +70,7 @@ ENTRYPOINT ["bash"]
 
 # Install required Python packages
 RUN pip install ipython pytest numpy scipy ipdb
-RUN pip install torch torchvision torchaudio --index-url \
-    https://download.pytorch.org/whl/cpu
+RUN pip install torch torchvision torchaudio transformers datasets
 # Remove PIP-installed CMake
 RUN pip uninstall cmake -y
 
