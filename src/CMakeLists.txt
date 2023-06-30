@@ -93,6 +93,7 @@ if(NNTILE_USE_CUDA)
         "kernel/maximum/cuda.cu"
         "kernel/total_sum_accum/cuda.cu"
         "kernel/subtract_indexed_outputs/cuda.cu"
+        "kernel/logsumexp/cuda.cu"
         )
 endif()
 

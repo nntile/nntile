@@ -17,7 +17,7 @@
 #include <nntile/kernel/logsumexp/cpu.hh>
 #include <nntile/defs.h>
 #ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/maxsumexp/cuda.hh>
+#include <nntile/kernel/logsumexp/cuda.hh>
 #endif // NNTILE_USE_CUDA
 
 namespace nntile
