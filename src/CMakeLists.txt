@@ -90,6 +90,7 @@ if(NNTILE_USE_CUDA)
         "kernel/embedding/cuda.cu"
         "kernel/embedding_backward/cuda.cu"
         "kernel/mask_scalar/cuda.cu"
+        "kernel/maximum/cuda.cu"
         )
 endif()
 

@@ -39,22 +39,22 @@ void cpu(void *buffers[], void *cl_args)
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply gelu on StarPU buffer on CUDA
-// template<typename T>
-// void cuda(void *buffers[], void *cl_args)
-//     noexcept
-// {
-//     // // Get arguments
-//     // Index nelems = reinterpret_cast<Index *>(cl_args)[0];
-//     // // Get interfaces
-//     // auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-//     // const T *src = interfaces[0]->get_ptr<T>();
-//     // T *dst = interfaces[1]->get_ptr<T>();
-//     // // Get CUDA stream
-//     // cudaStream_t stream = starpu_cuda_get_local_stream();
-//     // // Launch kernel
-//     // kernel::prod::cuda<T>(stream, nelems, src, dst);
-// }
+//! Apply per element maximum on StarPU buffer on CUDA
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    Index nelems = reinterpret_cast<Index *>(cl_args)[0];
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Launch kernel
+    kernel::maximum::cuda<T>(stream, nelems, src, dst);
+}
 #endif // NNTILE_USE_CUDA
 
 Codelet codelet_fp32, codelet_fp64;
@@ -65,7 +65,7 @@ void init()
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
-            {}
+            {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -74,7 +74,7 @@ void init()
             nullptr,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
-            {}
+            {cuda<fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
