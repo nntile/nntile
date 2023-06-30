@@ -155,12 +155,12 @@ void validate()
 int main(int argc, char **argv)
 {
     // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
+    starpu::Config starpu(1, 1, 0);
     // Init codelet
     starpu::sumprod_fiber::init();
     starpu::subcopy::init();
     starpu::clear::init();
-    starpu::sumprod_fiber::restrict_where(STARPU_CPU);
+    starpu::sumprod_fiber::restrict_where(STARPU_CUDA);
     starpu::subcopy::restrict_where(STARPU_CPU);
     starpu::clear::restrict_where(STARPU_CPU);
     // Launch all tests
