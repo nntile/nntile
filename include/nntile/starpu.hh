@@ -28,6 +28,7 @@
 #include <nntile/starpu/clear.hh>
 #include <nntile/starpu/gelu.hh>
 #include <nntile/starpu/gelutanh.hh>
+#include <nntile/starpu/gelutanh_inplace.hh>
 #include <nntile/starpu/dgelu.hh>
 #include <nntile/starpu/dgelutanh.hh>
 #include <nntile/starpu/drelu.hh>
@@ -85,6 +86,7 @@ void init()
     clear::init();
     gelu::init();
     gelutanh::init();
+    gelutanh_inplace::init();
     dgelu::init();
     dgelutanh::init();
     drelu::init();
@@ -135,6 +137,7 @@ void restrict_where(uint32_t where)
     clear::restrict_where(where);
     gelu::restrict_where(where);
     gelutanh::restrict_where(where);
+    gelutanh_inplace::restrict_where(where);
     dgelu::restrict_where(where);
     dgelutanh::restrict_where(where);
     drelu::restrict_where(where);
@@ -185,6 +188,7 @@ void restore_where()
     clear::restore_where();
     gelu::restore_where();
     gelutanh::restore_where();
+    gelutanh_inplace::restore_where();
     dgelu::restore_where();
     dgelutanh::restore_where();
     drelu::restore_where();

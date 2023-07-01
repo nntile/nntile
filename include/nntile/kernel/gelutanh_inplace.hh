@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/gelutanh/cpu.hh
- * Approximate GeLU operation on CPU based on tanh function
+ * @file include/nntile/kernel/gelutanh_inplace.hh
+ * Approximate GeLU low-level kernels
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -14,21 +14,23 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
+#include <nntile/kernel/gelutanh_inplace/cpu.hh>
+#include <nntile/defs.h>
+#ifdef NNTILE_USE_CUDA
+#include <nntile/kernel/gelutanh_inplace/cuda.hh>
+#endif // NNTILE_USE_CUDA
 
 namespace nntile
 {
 namespace kernel
 {
-namespace gelutanh
+//! @namespace nntile::kernel::gelutanh_inplace
+/*! Low-level implementations of Approximate GeLU operation
+ * */
+namespace gelutanh_inplace
 {
 
-// Approximate GeLU operation on a buffer on CPU
-template<typename T>
-void cpu(Index nelems, const T *src, T *dst)
-    noexcept;
-
-} // namespace gelutanh
+} // namespace gelutanh_inplace
 } // namespace kernel
 } // namespace nntile
 

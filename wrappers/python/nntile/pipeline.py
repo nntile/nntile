@@ -101,6 +101,14 @@ class Pipeline(object):
                 #     p_np = np.zeros(p.value.shape, order="F", dtype=np.float32)
                 #     p.value.to_array(p_np)
                 #     print(p_np)
+                for p in self.model.parameters:
+                    p.value.wont_use()
+                    if p.grad_required:
+                        p.grad.wont_use()
+                for t in self.model.activations:
+                    t.value.wont_use()
+                    if t.grad_required:
+                        t.grad.wont_use()
             # nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
             # self.loss.get_val(nntile_xentropy_np)
             # print("Last batch loss after in {} epoch = {}".format(i_epoch, nntile_xentropy_np[0]))

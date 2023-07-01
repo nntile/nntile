@@ -4,7 +4,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/gelutanh/cpu.cc
+ * @file src/kernel/gelutanh_inplace/cpu.cc
  * Approximate GeLU operation on CPU based on tanh function
  *
  * @version 1.0.0
@@ -12,18 +12,18 @@
  * @date 2023-07-01
  * */
 
-#include "nntile/kernel/gelutanh/cpu.hh"
+#include "nntile/kernel/gelutanh_inplace/cpu.hh"
 #include <cmath>
 
 namespace nntile
 {
 namespace kernel
 {
-namespace gelutanh
+namespace gelutanh_inplace
 {
 
 template<typename T>
-void cpu(Index nelems, const T *src, T *dst)
+void cpu(Index nelems, T *data)
     noexcept
 //! Approximate GeLU operation on CPU
 /*! Applies the following approximation of the GeLU function:
@@ -34,8 +34,7 @@ void cpu(Index nelems, const T *src, T *dst)
  * AGeLU(z) = z / (1+exp(f(z))
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[in] src: Input buffer to apply GeLU
- * @params[out] dst: Output buffer to apply GeLU
+ * @params[inout] data: Buffer to apply GeLU
  * */
 {
     // Constants
@@ -46,22 +45,22 @@ void cpu(Index nelems, const T *src, T *dst)
         f2 = sqrt_2/sqrt_pi, f3 = -T{2}*f2, f4 = f3*f1;
     for(Index i = 0; i < nelems; ++i)
     {
-        T z = src[i];
+        T z = data[i];
         T y = z * (f3 + f4*z*z);
-        dst[i] = z / (one+::exp(y));
+        data[i] = z / (one+std::exp(y));
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index nelems, const fp32_t *src, fp32_t *dst)
+void cpu<fp32_t>(Index nelems, fp32_t *data)
     noexcept;
 
 template
-void cpu<fp64_t>(Index nelems, const fp64_t *src, fp64_t *dst)
+void cpu<fp64_t>(Index nelems, fp64_t *data)
     noexcept;
 
-} // namespace gelutanh
+} // namespace gelutanh_inplace
 } // namespace kernel
 } // namespace nntile
 

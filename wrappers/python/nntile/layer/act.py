@@ -9,11 +9,12 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-04-19
+# @date 2023-07-01
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         copy_async, prod_async, relu_async, relu_backward_async, gelu_async, \
-        gelu_backward_async, gelutanh_async, gelutanh_backward_async
+        gelu_backward_async, gelutanh_async, gelutanh_backward_async, \
+        gelutanh_inplace_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List, Callable
@@ -23,7 +24,7 @@ class Act(BaseLayer):
     y: TensorMoments
     activations = {'relu': (relu_async, relu_backward_async), \
             'gelu': (gelu_async, gelu_backward_async), \
-            'gelutanh': (gelutanh_async, gelutanh_backward_async) \
+            'gelutanh': (gelutanh_inplace_async, gelutanh_backward_async) \
             }
     funcname: str
     func: Callable[[Tensor], None]
@@ -60,10 +61,13 @@ class Act(BaseLayer):
 
     # Forward propagation of the activation layer
     def forward_async(self):
-        # Init Y as a copy of X
-        copy_async(self.x.value, self.y.value)
-        # Non-linear activation of Y inplace
-        self.func(self.y.value)
+        if self.funcname == "gelutanh":
+            gelutanh_async(self.x.value, self.y.value)
+        else:
+            # Init Y as a copy of X
+            copy_async(self.x.value, self.y.value)
+            # Non-linear activation of Y inplace
+            self.func(self.y.value)
 
     # Backward propagation of the activation layer
     def backward_async(self):

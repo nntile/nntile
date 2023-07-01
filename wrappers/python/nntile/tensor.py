@@ -118,11 +118,22 @@ def gelu_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
         raise TypeError
 
 # Wrapper for multiprecision approximated GELU
-def gelutanh_async(x: Tensor) -> None:
+def gelutanh_async(x: Tensor, y: Tensor) -> None:
+    if type(x) is not type(y):
+        raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.gelutanh_async_fp32(x)
+        core_tensor.gelutanh_async_fp32(x, y)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.gelutanh_async_fp64(x)
+        core_tensor.gelutanh_async_fp64(x, y)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision approximated GELU
+def gelutanh_inplace_async(x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.gelutanh_inplace_async_fp32(x)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.gelutanh_inplace_async_fp64(x)
     else:
         raise TypeError
 

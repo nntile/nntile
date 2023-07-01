@@ -33,6 +33,7 @@
 #include <nntile/tensor/gather.hh>
 #include <nntile/tensor/gelu.hh>
 #include <nntile/tensor/gelutanh.hh>
+#include <nntile/tensor/gelutanh_inplace.hh>
 #include <nntile/tensor/dgelu.hh>
 #include <nntile/tensor/dgelutanh.hh>
 #include <nntile/tensor/drelu.hh>

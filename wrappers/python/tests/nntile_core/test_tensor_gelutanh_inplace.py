@@ -4,13 +4,13 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_gelutanh.py
-# Test for tensor::gelutanh<T> Python wrapper
+# @file wrappers/python/tests/nntile_core/test_tensor_gelutanh_inplace.py
+# Test for tensor::gelutanh_inplace<T> Python wrapper
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Konstantin Sozykin
-# @date 2023-02-02
+# @date 2023-07-01
 
 # All necesary imports
 import sys
@@ -31,8 +31,8 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-gelutanh = {np.float32: nntile.nntile_core.tensor.gelutanh_fp32,
-        np.float64: nntile.nntile_core.tensor.gelutanh_fp64}
+gelutanh_inplace = {np.float32: nntile.nntile_core.tensor.gelutanh_inplace_fp32,
+        np.float64: nntile.nntile_core.tensor.gelutanh_inplace_fp64}
 
 
 def gelu_numpy(z, approximate=True):
@@ -61,7 +61,7 @@ def helper(dtype, approximate=True):
     src_A = np.array(rand, dtype=dtype, order='F')
     dst_A = np.zeros_like(src_A)
     A.from_array(src_A)
-    gelutanh[dtype](A)
+    gelutanh_inplace[dtype](A)
     A.to_array(dst_A)
     nntile.starpu.wait_for_all()
     A.unregister()

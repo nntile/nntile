@@ -29,6 +29,7 @@ set(TESTS
     "gelu"
     "gelu_backward"
     "gelutanh"
+    "gelutanh_inplace"
     "gelutanh_backward"
     "gemm"
     "logsumexp"
@@ -63,6 +64,7 @@ set(TESTS
 set(TESTS_NOT_IMPLEMENTED
     "add_fiber"
     "gelu_backward"
+    "gelutanh"
     "gelutanh_backward"
     "logsumexp"
     "pow"

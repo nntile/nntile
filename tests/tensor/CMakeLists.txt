@@ -35,6 +35,7 @@ set(TESTS_MPI
     "gelu"
     "gelu_backward"
     "gelutanh"
+    "gelutanh_inplace"
     "gelutanh_backward"
     "gemm"
     "logsumexp"
@@ -69,6 +70,7 @@ set(TESTS_MPI
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
     "gelu_backward"
+    "gelutanh"
     "gelutanh_backward"
     "logsumexp"
     "pow"

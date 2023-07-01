@@ -4,7 +4,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/gelutanh.hh
+ * @file include/nntile/starpu/gelutanh_inplace.hh
  * Approximate GeLU operation on a StarPU buffer
  *
  * @version 1.0.0
@@ -21,7 +21,7 @@ namespace nntile
 {
 namespace starpu
 {
-namespace gelutanh
+namespace gelutanh_inplace
 {
 
 // Apply approximate gelu along middle axis of StarPU buffer on CPU
@@ -64,9 +64,9 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nelems, Handle src, Handle dst);
+void submit(Index nelems, Handle data);
 
-} // namespace gelutanh
+} // namespace gelutanh_inplace
 } // namespace starpu
 } // namespace nntile
 
