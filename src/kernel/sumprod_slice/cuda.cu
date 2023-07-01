@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-06-20
+ * @date 2023-07-01
  * */
 
 #include "nntile/kernel/sumprod_slice/cuda.hh"
@@ -28,6 +28,7 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src1,
 {
     Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
           i1 = threadIdx.y + blockIdx.y*blockDim.y;
+    Index i2_start = threadIdx.z, i2_step = blockDim.z;
     constexpr T zero = 0;
     if(i0 < m and i1 < n)
     {
@@ -36,22 +37,34 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src1,
         const T *src2_fiber = src2 + i1*mk + i0;
         // Init sum of product of the fibers
         T sum = zero;
-        // Output value
-        T &result = dst[i1*m+i0];
         // Cycle over fibers of inputs
-        for(Index i2 = 0; i2 < k; ++i2)
+        for(Index i2 = i2_start; i2 < k; i2 += i2_step)
         {
             // Update sum
             sum += src1_fiber[i2*m] * src2_fiber[i2*m];
         }
-        // Update output value
-        if(beta == zero)
+        __shared__ T block_sum[64];
+        if(i2_start == 0)
         {
-            result = alpha * sum;
+            block_sum[threadIdx.x+blockDim.x*threadIdx.y] = zero;
         }
-        else
+        __syncthreads();
+        atomicAdd(&block_sum[threadIdx.x+blockDim.x*threadIdx.y], sum);
+        __syncthreads();
+        // Update output value
+        if(i2_start == 0)
         {
-            result = beta*result + alpha*sum;
+            // Output value
+            T &result = dst[i1*m+i0];
+            sum = block_sum[threadIdx.x+blockDim.x*threadIdx.y];
+            if(beta == zero)
+            {
+                result = alpha * sum;
+            }
+            else
+            {
+                result = beta*result + alpha*sum;
+            }
         }
     }
 }
@@ -79,8 +92,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 threads(std::min(int(m), 16), std::min(int(n), 16));
-    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y);
+    dim3 threads(std::min(int(m), 8), std::min(int(n), 8), 16);
+    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y, 1);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha, src1,
             src2, beta, dst);
 }

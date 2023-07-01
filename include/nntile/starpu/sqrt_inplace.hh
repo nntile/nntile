@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/sqrt.hh
- * Sqrt operation on a StarPU buffer
+ * @file include/nntile/starpu/sqrt_inplace.hh
+ * Inplace sqrt operation on a StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
@@ -23,7 +23,7 @@ namespace nntile
 {
 namespace starpu
 {
-namespace sqrt
+namespace sqrt_inplace
 {
 
 // Apply sqrt elementwise of StarPU buffer on CPU
@@ -66,9 +66,9 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nelems, Handle src, Handle dst);
+void submit(Index nelems, Handle data);
 
-} // namespace sqrt
+} // namespace sqrt_inplace
 } // namespace starpu
 } // namespace nntile
 

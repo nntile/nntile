@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/sqrt/cpu.cc
- * Sqrt operation on CPU
+ * @file src/kernel/sqrt_inplace/cpu.cc
+ * Inplace sqrt operation on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
@@ -13,42 +13,41 @@
  * @date 2023-07-01
  * */
 
-#include "nntile/kernel/sqrt/cpu.hh"
+#include "nntile/kernel/sqrt_inplace/cpu.hh"
 #include <cmath>
 
 namespace nntile
 {
 namespace kernel
 {
-namespace sqrt
+namespace sqrt_inplace
 {
 
 template<typename T>
-void cpu(Index nelems, const T *src, T *dst)
+void cpu(Index nelems, T *data)
     noexcept
-//! Sqrt operation on CPU
+//! Inplace sqrt operation on CPU
 /*
  * @params[in] nelems: Number of elements in a buffer
- * @params[in] src: Input buffer to apply sqrt
- * @params[out] dst: Output buffer to apply sqrt
+ * @params[inout] data: Buffer to apply sqrt
  * */
 {
     for(Index i = 0; i < nelems; ++i)
     {
-        dst[i] = std::sqrt(src[i]);
+        data[i] = std::sqrt(data[i]);
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index nelems, const fp32_t *src, fp32_t *dst)
+void cpu<fp32_t>(Index nelems, fp32_t *data)
     noexcept;
 
 template
-void cpu<fp64_t>(Index nelems, const fp64_t *src, fp64_t *dst)
+void cpu<fp64_t>(Index nelems, fp64_t *data)
     noexcept;
 
-} // namespace sqrt
+} // namespace sqrt_inplace
 } // namespace kernel
 } // namespace nntile
 

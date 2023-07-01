@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-06-29
+ * @date 2023-07-01
  * */
 
 #pragma once
@@ -49,6 +49,7 @@
 #include <nntile/tile/maxsumexp.hh>
 #include <nntile/tile/softmax.hh>
 #include <nntile/tile/sqrt.hh>
+#include <nntile/tile/sqrt_inplace.hh>
 #include <nntile/tile/maximum.hh>
 #include <nntile/tile/addcdiv.hh>
 #include <nntile/tile/sumprod_slice.hh>

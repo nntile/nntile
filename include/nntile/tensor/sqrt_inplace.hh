@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/sqrt.hh
- * Sqrt operation for Tensor<T>
+ * @file include/nntile/tensor/sqrt_inplace.hh
+ * Inplace sqrt operation for Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
@@ -23,10 +23,10 @@ namespace tensor
 {
 
 template<typename T>
-void sqrt_async(const Tensor<T> &src, const Tensor<T> &dst);
+void sqrt_inplace_async(const Tensor<T> &A);
 
 template<typename T>
-void sqrt(const Tensor<T> &src, const Tensor<T> &dst);
+void sqrt_inplace(const Tensor<T> &A);
 
 } // namespace tensor
 } // namespace nntile

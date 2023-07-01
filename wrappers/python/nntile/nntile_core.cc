@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-06-29
+ * @date 2023-07-01
  * */
 
 #include <pybind11/pybind11.h>
@@ -548,6 +548,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("sqrt_async_fp32", &sqrt_async<fp32_t>);
     m.def("sqrt_fp64", &sqrt<fp64_t>);
     m.def("sqrt_fp32", &sqrt<fp32_t>);
+    m.def("sqrt_inplace_async_fp64", &sqrt_inplace_async<fp64_t>);
+    m.def("sqrt_inplace_async_fp32", &sqrt_inplace_async<fp32_t>);
+    m.def("sqrt_inplace_fp64", &sqrt_inplace<fp64_t>);
+    m.def("sqrt_inplace_fp32", &sqrt_inplace<fp32_t>);
     m.def("maximum_async_fp64", &maximum_async<fp64_t>);
     m.def("maximum_async_fp32", &maximum_async<fp32_t>);
     m.def("maximum_fp64", &maximum<fp64_t>);

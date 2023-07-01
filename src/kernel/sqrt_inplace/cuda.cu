@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/sqrt/cuda.cu
- * Sqrt of buffer on CUDA
+ * @file src/kernel/sqrt_inplace/cuda.cu
+ * Inplace sqrt of buffer on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
@@ -13,52 +13,50 @@
  * @date 2023-07-01
  * */
 
-#include "nntile/kernel/sqrt/cuda.hh"
+#include "nntile/kernel/sqrt_inplace/cuda.hh"
 
 namespace nntile
 {
 namespace kernel
 {
-namespace sqrt
+namespace sqrt_inplace
 {
 
 template<typename T>
 static __global__
-void cuda_kernel(Index nelems, const T *src, T *dst)
+void cuda_kernel(Index nelems, T *data)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     if(i < nelems)
     {
-        dst[i] = ::sqrt(src[i]);
+        data[i] = ::sqrt(data[i]);
     }
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
+void cuda(cudaStream_t stream, Index nelems, T *data)
     noexcept
-//! Sqrt operation on CUDA
-/*
- * @params[in] nelems: Number of elements in a buffer
- * @params[in] src: Input buffer to apply sqrt
- * @params[out] dst: Output buffer to apply sqrt
+//! Inplace sqrt of buffer
+/*! One of the buffers serves as output
+ *
+ * @param[in] nelems: Number of elements in both buffers
+ * @param[inout] data: Input buffers that contains output in the end
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, data);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index nelems, const fp32_t *src,
-        fp32_t *dst)
+void cuda<fp32_t>(cudaStream_t stream, Index nelems, fp32_t *data)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index nelems, const fp64_t *src,
-        fp64_t *dst)
+void cuda<fp64_t>(cudaStream_t stream, Index nelems, fp64_t *data)
     noexcept;
 
-} // namespace sqrt
+} // namespace sqrt_inplace
 } // namespace kernel
 } // namespace nntile
 

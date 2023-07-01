@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @author Aleksandr Mikhalev
+ * @date 2023-07-01
  * */
 
 #pragma once
@@ -23,11 +24,11 @@ namespace tile
 
 // Asynchronous tile-wise sqrt operation
 template<typename T>
-void sqrt_async(const Tile<T> &A);
+void sqrt_async(const Tile<T> &src, const Tile<T> &dst);
 
 // Blocking version of tile-wise sqrt operation
 template<typename T>
-void sqrt(const Tile<T> &A);
+void sqrt(const Tile<T> &src, const Tile<T> &dst);
 
 } // namespace tile
 } // namespace nntile

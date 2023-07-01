@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-05-02
+# @date 2023-07-01
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -47,6 +47,7 @@ set(TESTS
     "scal"
     "softmax"
     "sqrt"
+    "sqrt_inplace"
     "subtract_indexed_column"
     "sum_fiber"
     "sum_slice"
@@ -72,6 +73,7 @@ set(TESTS_NOT_IMPLEMENTED
     "sum_fiber"
     "sumprod_fiber"
     "total_sum_accum"
+    "sqrt"
 )
 
 # Add target for local coverage

@@ -91,12 +91,16 @@ class Adam:
             if self.amsgrad:
                 nntile.tensor.maximum_async(self.second_moments[i], \
                         self.max_second_moments[i])
-                nntile.tensor.copy_async(self.max_second_moments[i], \
+                nntile.tensor.sqrt_async(self.max_second_moments[i], \
                         self.denoms[i])
+                #nntile.tensor.copy_async(self.max_second_moments[i], \
+                #        self.denoms[i])
             else:
-                nntile.tensor.copy_async(self.second_moments[i], \
+                nntile.tensor.sqrt_async(self.second_moments[i], \
                         self.denoms[i])
-            nntile.tensor.sqrt_async(self.denoms[i])
+                #nntile.tensor.copy_async(self.second_moments[i], \
+                #        self.denoms[i])
+            #nntile.tensor.sqrt_inplace_async(self.denoms[i])
             if self.dtype == np.float32:
                 scale_factor = 1. / (1 - np.power(self.beta2, self.num_iter))
                 scale_factor = np.sqrt(scale_factor, dtype=np.float32)

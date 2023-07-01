@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-24
+ * @date 2023-07-01
  * */
 
 #include "nntile/tensor/sum_fiber.hh"
@@ -146,11 +146,11 @@ void validate()
 int main(int argc, char **argv)
 {
     // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
+    starpu::Config starpu(1, 1, 0);
     // Init codelet
     starpu::sum_fiber::init();
     starpu::subcopy::init();
-    starpu::sum_fiber::restrict_where(STARPU_CPU);
+    starpu::sum_fiber::restrict_where(STARPU_CUDA);
     starpu::subcopy::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();

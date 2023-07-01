@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-06-20
+ * @date 2023-07-01
  * */
 
 #include "nntile/kernel/sum_fiber/cuda.hh"
@@ -45,18 +45,20 @@ void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src, T beta,
  * */
 {
     Index i2 = threadIdx.x + blockIdx.x*blockDim.x;
+    Index i0_start = threadIdx.y, i0_step = blockDim.y;
+    Index i1_start = threadIdx.z, i1_step = blockDim.z;
     constexpr T zero = 0;
+    // Init sum 
+    T sum = zero;
     if(i2 < k)
     {
-        // Init sum 
-        T sum = zero;
         // Cycle over the third axis of input buffer
-        for(Index i1 = 0; i1 < n; ++i1)
+        for(Index i1 = i1_start; i1 < n; i1 += i1_step)
         {
             // Get sum of a corresponding slice
             const T *src_slice = src + (i1*k+i2)*m;
             // Cycle over the first axis of input buffer
-            for(Index i0 = 0; i0 < m; ++i0)
+            for(Index i0 = i0_start; i0 < m; i0 += i0_step)
             {
                 // Read value from source
                 T val = src_slice[i0];
@@ -64,7 +66,20 @@ void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src, T beta,
                 sum += val;
             }
         }
+    }
+    __shared__ T block_sum[2];
+    if(i1_start == 0 and i0_start == 0)
+    {
+        block_sum[threadIdx.x] = zero;
+    }
+    __syncthreads();
+    atomicAdd(&block_sum[threadIdx.x], sum);
+    __syncthreads();
+    // Update output value
+    if(i1_start == 0 and i0_start == 0 and i2 < k)
+    {
         // Save result
+        sum = block_sum[threadIdx.x];
         if(beta == zero)
         {
             sum *= alpha;
@@ -100,8 +115,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 threads(std::min(int(k), 32));
-    dim3 blocks((k+threads.x-1)/threads.x);
+    dim3 threads(2, std::min(int(m), 32), std::min(int(n), 32));
+    dim3 blocks((k+threads.x-1)/threads.x, 1, 1);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, alpha, src, beta,
             dst);
 }

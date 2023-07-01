@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @author Aleksandr Mikhalev
+ * @date 2023-07-01
  * */
 
 #include "nntile/tensor/sqrt.hh"
@@ -24,21 +25,46 @@ namespace tensor
 //
 // @param[inout] A: Tensor for the element-wise sqrt operation
 template<typename T>
-void sqrt_async(const Tensor<T> &A)
+void sqrt_async(const Tensor<T> &src, const Tensor<T> &dst)
 {
-    int mpi_rank = starpu_mpi_world_rank();
-    for(Index i = 0; i < A.grid.nelems; ++i)
+    // Check dimensions
+    if(dst.ndim != src.ndim)
     {
-        auto tile_handle = A.get_tile_handle(i);
-        int tile_rank = tile_handle.mpi_get_rank();
-        // Execute only on node-owner
-        if(mpi_rank == tile_rank)
+        throw std::runtime_error("dst.ndim != src.ndim");
+    }
+    // Check shapes of tensors
+    for(Index i = 0; i < dst.ndim; ++i)
+    {
+        if(dst.shape[i] != src.shape[i])
         {
-            auto tile_traits = A.get_tile_traits(i);
-            starpu::sqrt::submit<T>(tile_traits.nelems, tile_handle);
+            throw std::runtime_error("dst.shape[i] != src.shape[i]");
+        }
+        if(dst.basetile_shape[i] != src.basetile_shape[i])
+        {
+            throw std::runtime_error("dst.basetile_shape[i] != "
+                    "src.basetile_shape[i]");
+        }
+    }
+    // Apply per-tile sqrt asynchronously as needed
+    int mpi_rank = starpu_mpi_world_rank();
+    for(Index i = 0; i < src.grid.nelems; ++i)
+    {
+        // Get handle for corresponding tiles of src and dst
+        auto src_tile_handle = src.get_tile_handle(i);
+        auto dst_tile_handle = dst.get_tile_handle(i);
+        // MPI rank of the destination tile
+        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
+        // Transfer data
+        src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
+        // Execute only on destination node
+        if(mpi_rank == dst_tile_rank)
+        {
+            auto tile_traits = src.get_tile_traits(i);
+            starpu::sqrt::submit<T>(tile_traits.nelems, src_tile_handle,
+                    dst_tile_handle);
         }
         // Flush cache for the output tile on every node
-        tile_handle.mpi_flush();
+        dst_tile_handle.mpi_flush();
     }
 }
 
@@ -46,26 +72,27 @@ void sqrt_async(const Tensor<T> &A)
 //
 // @param[inout] A: Tensor for the element-wise sqrt operation
 template<typename T>
-void sqrt(const Tensor<T> &A)
+void sqrt(const Tensor<T> &src, const Tensor<T> &dst)
 {
-    sqrt_async<T>(A);
+    sqrt_async<T>(src, dst);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void sqrt_async<fp32_t>(const Tensor<fp32_t> &A);
+void sqrt_async<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 
 template
-void sqrt_async<fp64_t>(const Tensor<fp64_t> &A);
+void sqrt_async<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
 // Explicit instantiation
 template
-void sqrt<fp32_t>(const Tensor<fp32_t> &A);
+void sqrt<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 
 template
-void sqrt<fp64_t>(const Tensor<fp64_t> &A);
+void sqrt<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
 } // namespace tensor
 } // namespace nntile
+

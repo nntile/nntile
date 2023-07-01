@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-06-29
+# @date 2023-07-01
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -54,6 +54,7 @@ set(TESTS_MPI
     "scatter"
     "softmax"
     "sqrt"
+    "sqrt_inplace"
     "subtract_indexed_column"
     "sum_fiber"
     "sum_slice"
@@ -74,6 +75,7 @@ set(TESTS_NOT_IMPLEMENTED
     "relu_backward"
     "subtract_indexed_column"
     "total_sum_accum"
+    "sqrt"
 )
 
 # Add target for local coverage

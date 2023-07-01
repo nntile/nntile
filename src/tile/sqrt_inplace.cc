@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tile/sqrt.cc
- * Sqrt operation for Tile<T>
+ * @file src/tile/sqrt_inplace.cc
+ * Inplace sqrt operation for Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
@@ -13,8 +13,8 @@
  * @date 2023-07-01
  * */
 
-#include "nntile/tile/sqrt.hh"
-#include "nntile/starpu/sqrt.hh"
+#include "nntile/tile/sqrt_inplace.hh"
+#include "nntile/starpu/sqrt_inplace.hh"
 
 namespace nntile
 {
@@ -25,35 +25,35 @@ namespace tile
 /*! @param[inout] A: Tile for the element-wise sqrt operation
  * */
 template<typename T>
-void sqrt_async(const Tile<T> &src, const Tile<T> &dst)
+void sqrt_inplace_async(const Tile<T> &A)
 {
     // Submit task without any arguments checked
-    starpu::sqrt::submit<T>(src.nelems, src, dst);
+    starpu::sqrt_inplace::submit<T>(A.nelems, A);
 }
 
 //! Blocking version of tile-wise sqrt operation
 /*! @param[inout] A: Tile for the element-wise sqrt operation
  * */
 template<typename T>
-void sqrt(const Tile<T> &src, const Tile<T> &dst)
+void sqrt_inplace(const Tile<T> &A)
 {
-    sqrt_async<T>(src, dst);
+    sqrt_inplace_async<T>(A);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void sqrt_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
+void sqrt_inplace_async<fp32_t>(const Tile<fp32_t> &A);
 
 template
-void sqrt_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+void sqrt_inplace_async<fp64_t>(const Tile<fp64_t> &A);
 
 // Explicit instantiation
 template
-void sqrt<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
+void sqrt_inplace<fp32_t>(const Tile<fp32_t> &A);
 
 template
-void sqrt<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+void sqrt_inplace<fp64_t>(const Tile<fp64_t> &A);
 
 } // namespace tile
 } // namespace nntile

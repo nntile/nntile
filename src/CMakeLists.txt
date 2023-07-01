@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-06-30
+# @date 2023-07-01
 
 # Set list of sources
 set(KERNEL_SRC
@@ -40,6 +40,7 @@ set(KERNEL_SRC
     "kernel/maxsumexp/cpu.cc"
     "kernel/softmax/cpu.cc"
     "kernel/sqrt/cpu.cc"
+    "kernel/sqrt_inplace/cpu.cc"
     "kernel/maximum/cpu.cc"
     "kernel/addcdiv/cpu.cc"
     "kernel/sumprod_slice/cpu.cc"
@@ -73,6 +74,7 @@ if(NNTILE_USE_CUDA)
         "kernel/prod/cuda.cu"
         "kernel/relu/cuda.cu"
         "kernel/sqrt/cuda.cu"
+        "kernel/sqrt_inplace/cuda.cu"
         "kernel/addcdiv/cuda.cu"
         "kernel/relu_backward/cuda.cu"
         "kernel/sumnorm/cuda.cu"
@@ -130,6 +132,7 @@ set(STARPU_SRC
     "starpu/maxsumexp.cc"
     "starpu/softmax.cc"
     "starpu/sqrt.cc"
+    "starpu/sqrt_inplace.cc"
     "starpu/maximum.cc"
     "starpu/addcdiv.cc"
     "starpu/sumprod_slice.cc"
@@ -177,6 +180,7 @@ set(TILE_SRC
     "tile/maxsumexp.cc"
     "tile/softmax.cc"
     "tile/sqrt.cc"
+    "tile/sqrt_inplace.cc"
     "tile/maximum.cc"
     "tile/addcdiv.cc"
     "tile/sumprod_slice.cc"
@@ -226,6 +230,7 @@ set(TENSOR_SRC
     "tensor/maxsumexp.cc"
     "tensor/softmax.cc"
     "tensor/sqrt.cc"
+    "tensor/sqrt_inplace.cc"
     "tensor/maximum.cc"
     "tensor/addcdiv.cc"
     "tensor/sumprod_slice.cc"

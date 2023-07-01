@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-06-29
+ * @date 2023-07-01
  * */
 
 #pragma once
@@ -49,6 +49,7 @@
 #include <nntile/starpu/maxsumexp.hh>
 #include <nntile/starpu/softmax.hh>
 #include <nntile/starpu/sqrt.hh>
+#include <nntile/starpu/sqrt_inplace.hh>
 #include <nntile/starpu/maximum.hh>
 #include <nntile/starpu/addcdiv.hh>
 #include <nntile/starpu/sumprod_slice.hh>
@@ -105,6 +106,7 @@ void init()
     softmax::init();
     maxsumexp::init();
     sqrt::init();
+    sqrt_inplace::init();
     maximum::init();
     addcdiv::init();
     sumprod_slice::init();
@@ -154,6 +156,7 @@ void restrict_where(uint32_t where)
     softmax::restrict_where(where);
     maxsumexp::restrict_where(where);
     sqrt::restrict_where(where);
+    sqrt_inplace::restrict_where(where);
     maximum::restrict_where(where);
     addcdiv::restrict_where(where);
     sumprod_slice::restrict_where(where);
@@ -203,6 +206,7 @@ void restore_where()
     softmax::restore_where();
     maxsumexp::restore_where();
     sqrt::restore_where();
+    sqrt_inplace::restore_where();
     maximum::restore_where();
     addcdiv::restore_where();
     sumprod_slice::restore_where();

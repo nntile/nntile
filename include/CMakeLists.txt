@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-06-30
+# @date 2023-07-01
 
 # Set list of headers
 set(BASE_HDR
@@ -72,6 +72,8 @@ set(KERNEL_HDR
     "nntile/kernel/softmax/cpu.hh"
     "nntile/kernel/sqrt.hh"
     "nntile/kernel/sqrt/cpu.hh"
+    "nntile/kernel/sqrt_inplace.hh"
+    "nntile/kernel/sqrt_inplace/cpu.hh"
     "nntile/kernel/maximum.hh"
     "nntile/kernel/maximum/cpu.hh"
     "nntile/kernel/addcdiv.hh"
@@ -120,6 +122,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/normalize/cuda.hh"
         "nntile/kernel/prod/cuda.hh"
         "nntile/kernel/sqrt/cuda.hh"
+        "nntile/kernel/sqrt_inplace/cuda.hh"
         "nntile/kernel/addcdiv/cuda.hh"
         "nntile/kernel/relu/cuda.hh"
         "nntile/kernel/relu_backward/cuda.hh"
@@ -176,6 +179,7 @@ set(STARPU_HDR
     "nntile/starpu/maxsumexp.hh"
     "nntile/starpu/softmax.hh"
     "nntile/starpu/sqrt.hh"
+    "nntile/starpu/sqrt_inplace.hh"
     "nntile/starpu/maximum.hh"
     "nntile/starpu/addcdiv.hh"
     "nntile/starpu/sumprod_slice.hh"
@@ -226,6 +230,7 @@ set(TILE_HDR
     "nntile/tile/maxsumexp.hh"
     "nntile/tile/softmax.hh"
     "nntile/tile/sqrt.hh"
+    "nntile/tile/sqrt_inplace.hh"
     "nntile/tile/maximum.hh"
     "nntile/tile/addcdiv.hh"
     "nntile/tile/sumprod_slice.hh"
@@ -277,6 +282,7 @@ set(TENSOR_HDR
     "nntile/tensor/maxsumexp.hh"
     "nntile/tensor/softmax.hh"
     "nntile/tensor/sqrt.hh"
+    "nntile/tensor/sqrt_inplace.hh"
     "nntile/tensor/maximum.hh"
     "nntile/tensor/addcdiv.hh"
     "nntile/tensor/sumprod_slice.hh"

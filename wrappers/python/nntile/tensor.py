@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-06-29
+# @date 2023-07-01
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -428,11 +428,22 @@ def axpy_async(alpha: TensorOrFloat, x: Tensor, y: Tensor) -> None:
             raise TypeError
 
 # Wrapper for multiprecision square root
-def sqrt_async(x: Tensor) -> None:
+def sqrt_async(x: Tensor, y: Tensor) -> None:
+    if type(x) is not type(y):
+        raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.sqrt_async_fp32(x)
+        core_tensor.sqrt_async_fp32(x, y)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.sqrt_async_fp64(x)
+        core_tensor.sqrt_async_fp64(x, y)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision inplace square root
+def sqrt_inplace_async(x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.sqrt_inplace_async_fp32(x)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.sqrt_inplace_async_fp64(x)
     else:
         raise TypeError
 

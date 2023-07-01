@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-06-29
+# @date 2023-07-01
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -41,6 +41,7 @@ set(TESTS
     "relu_backward"
     "softmax"
     "sqrt"
+    "sqrt_inplace"
     "subcopy"
     "subtract_indexed_column"
     "sum_fiber"
@@ -66,6 +67,7 @@ set(TESTS_NOT_IMPLEMENTED
     "sum_fiber"
     "sumprod_fiber"
     "total_sum_accum"
+    "sqrt"
 )
          
 # Setup a target for coverage of kernels
