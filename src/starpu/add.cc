@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-06-20
+ * @date 2023-07-21
  * */
 
 #include "nntile/starpu/add.hh"
@@ -104,6 +104,21 @@ void submit(Index num_elements, T alpha, Handle src, T beta, Handle dst)
  * throws an std::runtime_error() exception.
  * */
 {
+    // Access mode for the dst handle
+    constexpr T zero = 0, one = 1;
+    enum starpu_data_access_mode dst_mode;
+    if(beta == zero)
+    {
+        dst_mode = STARPU_W;
+    }
+    else if(beta == one)
+    {
+        dst_mode = Config::STARPU_RW_COMMUTE;
+    }
+    else
+    {
+        dst_mode = STARPU_RW;
+    }
     // Codelet arguments
     args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
     args->num_elements = num_elements;
@@ -113,7 +128,7 @@ void submit(Index num_elements, T alpha, Handle src, T beta, Handle dst)
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_CL_ARGS, args, sizeof(*args),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dst), 0);
+            dst_mode, static_cast<starpu_data_handle_t>(dst), 0);
             // STARPU_FLOPS, nflops);
     // Check submission
     if(ret != 0)
@@ -124,10 +139,12 @@ void submit(Index num_elements, T alpha, Handle src, T beta, Handle dst)
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index num_elements, fp32_t alpha, Handle src, fp32_t beta, Handle dst);
+void submit<fp32_t>(Index num_elements, fp32_t alpha, Handle src, fp32_t beta,
+        Handle dst);
 
 template
-void submit<fp64_t>(Index num_elements, fp64_t alpha, Handle src, fp64_t beta, Handle dst);
+void submit<fp64_t>(Index num_elements, fp64_t alpha, Handle src, fp64_t beta,
+        Handle dst);
 
 } // namespace add
 } // namespace starpu

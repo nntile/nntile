@@ -66,20 +66,18 @@ class Adam:
                 nntile.tensor.axpy_async(self.weight_decay, p.value, p.grad)
             # Update first moments
             if self.num_iter == 1:
-                nntile.tensor.copy_async(p.grad, self.first_moments[i])
-                nntile.tensor.scal_async(1-self.beta1, self.first_moments[i])
+                nntile.tensor.add_async(1-self.beta1, p.grad, 0.0, \
+                        self.first_moments[i])
             else:
-                nntile.tensor.scal_async(self.beta1, self.first_moments[i])
-                nntile.tensor.axpy_async(1 - self.beta1, p.grad, \
+                nntile.tensor.add_async(1-self.beta1, p.grad, self.beta1, \
                         self.first_moments[i])
             # Update second moments
-            nntile.tensor.prod_async(p.grad, p.grad)
+            nntile.tensor.pow_async(1.0, 2.0, p.grad)
             if self.num_iter == 1:
-                nntile.tensor.copy_async(p.grad, self.second_moments[i])
-                nntile.tensor.scal_async(1-self.beta2, self.second_moments[i])
+                nntile.tensor.add_async(1-self.beta2, p.grad, 0.0, \
+                        self.second_moments[i])
             else:
-                nntile.tensor.scal_async(self.beta2, self.second_moments[i])
-                nntile.tensor.axpy_async(1 - self.beta2, p.grad, \
+                nntile.tensor.add_async(1-self.beta2, p.grad, self.beta2, \
                         self.second_moments[i])
             # Mult tensor by scalar
             if self.dtype == np.float32:
@@ -93,14 +91,9 @@ class Adam:
                         self.max_second_moments[i])
                 nntile.tensor.sqrt_async(self.max_second_moments[i], \
                         self.denoms[i])
-                #nntile.tensor.copy_async(self.max_second_moments[i], \
-                #        self.denoms[i])
             else:
                 nntile.tensor.sqrt_async(self.second_moments[i], \
                         self.denoms[i])
-                #nntile.tensor.copy_async(self.second_moments[i], \
-                #        self.denoms[i])
-            #nntile.tensor.sqrt_inplace_async(self.denoms[i])
             if self.dtype == np.float32:
                 scale_factor = 1. / (1 - np.power(self.beta2, self.num_iter))
                 scale_factor = np.sqrt(scale_factor, dtype=np.float32)
