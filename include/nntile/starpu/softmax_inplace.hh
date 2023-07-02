@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/softmax.hh
- * Softmax operation for StarPU buffer
+ * @file include/nntile/starpu/softmax_inplace.hh
+ * softmax_inplace operation for StarPU buffer
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -22,7 +22,7 @@ namespace nntile
 {
 namespace starpu
 {
-namespace softmax
+namespace softmax_inplace
 {
 
 //! Structure for arguments
@@ -33,13 +33,13 @@ struct args_t
     Index k;
 };
 
-// Apply softmax along middle axis of StarPU buffer on CPU
+// Apply softmax_inplace along middle axis of StarPU buffer on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
-// Apply softmax along middle axis of StarPU buffer on CUDA
+// Apply softmax_inplace along middle axis of StarPU buffer on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept;
@@ -73,10 +73,9 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, Handle maxsumnorm, Handle src,
-        Handle dst);
+void submit(Index m, Index n, Index k, Handle maxsumnorm, Handle dst);
 
-} // namespace softmax
+} // namespace softmax_inplace
 } // namespace starpu
 } // namespace nntile
 

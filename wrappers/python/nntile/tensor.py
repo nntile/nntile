@@ -217,13 +217,26 @@ def sumnorm_async(x: Tensor, sumnorm: Tensor, axis: int) -> None:
         raise TypeError
 
 # Wrapper for multiprecision softmax
-def softmax_async(maxsumexp: Tensor, x: Tensor, axis: int) -> None:
+def softmax_async(maxsumexp: Tensor, x: Tensor, y: Tensor, axis: int) -> None:
+    if type(x) is not type(y):
+        raise TypeError
     if type(maxsumexp) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.softmax_async_fp32(maxsumexp, x, axis)
+        core_tensor.softmax_async_fp32(maxsumexp, x, y, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.softmax_async_fp64(maxsumexp, x, axis)
+        core_tensor.softmax_async_fp64(maxsumexp, x, y, axis)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision softmax
+def softmax_inplace_async(maxsumexp: Tensor, x: Tensor, axis: int) -> None:
+    if type(maxsumexp) is not type(x):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.softmax_inplace_async_fp32(maxsumexp, x, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.softmax_inplace_async_fp64(maxsumexp, x, axis)
     else:
         raise TypeError
 

@@ -4,16 +4,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tile/softmax.cc
- * Softmax operation for Tile<T>
+ * @file src/tile/softmax_inplace.cc
+ * softmax_inplace operation for Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @date 2023-07-02
  * */
 
-#include "nntile/tile/softmax.hh"
-#include "nntile/starpu/softmax.hh"
+#include "nntile/tile/softmax_inplace.hh"
+#include "nntile/starpu/softmax_inplace.hh"
 
 namespace nntile
 {
@@ -21,17 +21,12 @@ namespace tile
 {
 
 template<typename T>
-void softmax_async(const Tile<T> &maxsumexp, const Tile<T> &src,
-        const Tile<T> &dst, Index axis)
+void softmax_inplace_async(const Tile<T> &maxsumexp, const Tile<T> &dst, Index axis)
 {
     // Check dimensions
     if(maxsumexp.ndim != dst.ndim)
     {
         throw std::runtime_error("maxsumexp.ndim != dst.ndim");
-    }
-    if(src.ndim != dst.ndim)
-    {
-        throw std::runtime_error("src.ndim != dst.ndim");
     }
     // Input shape dimension shall be at least 1
     if(maxsumexp.ndim == 0)
@@ -66,10 +61,6 @@ void softmax_async(const Tile<T> &maxsumexp, const Tile<T> &src,
             throw std::runtime_error("dst.shape[i] != maxsumexp.shape[i]");
         }
     }
-    if(src.shape != dst.shape)
-    {
-        throw std::runtime_error("src.shape != dst.shape");
-    }
     // Reshape inputs for simplicity: maxsumexp -> (2,m,n), dst -> (m,k,n)
     // dst is a part of (m,l,n) tensor
     Index m, n, k;
@@ -77,35 +68,34 @@ void softmax_async(const Tile<T> &maxsumexp, const Tile<T> &src,
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
     // Insert task
-    starpu::softmax::submit<T>(m, n, k, maxsumexp, src, dst);
+    starpu::softmax_inplace::submit<T>(m, n, k, maxsumexp, dst);
 }
 
 //! Tile-wise average and deviation from sum and scaled sum of squares
 template<typename T>
-void softmax(const Tile<T> &maxsumexp, const Tile<T> &src, const Tile<T> &dst,
-        Index axis)
+void softmax_inplace(const Tile<T> &maxsumexp, const Tile<T> &dst, Index axis)
 {
-    softmax_async<T>(maxsumexp, src, dst, axis);
+    softmax_inplace_async<T>(maxsumexp, dst, axis);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void softmax_async<fp32_t>(const Tile<fp32_t> &maxsumexp,
-        const Tile<fp32_t> &src, const Tile<fp32_t> &dst, Index axis);
-
-template
-void softmax_async<fp64_t>(const Tile<fp64_t> &maxsumexp,
-        const Tile<fp64_t> &src, const Tile<fp64_t> &dst, Index axis);
-
-// Explicit instantiation
-template
-void softmax<fp32_t>(const Tile<fp32_t> &maxsumexp, const Tile<fp32_t> &src,
+void softmax_inplace_async<fp32_t>(const Tile<fp32_t> &maxsumexp,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void softmax<fp64_t>(const Tile<fp64_t> &maxsumexp, const Tile<fp64_t> &src,
+void softmax_inplace_async<fp64_t>(const Tile<fp64_t> &maxsumexp,
         const Tile<fp64_t> &dst, Index axis);
+
+// Explicit instantiation
+template
+void softmax_inplace<fp32_t>(const Tile<fp32_t> &maxsumexp, const Tile<fp32_t> &dst,
+        Index axis);
+
+template
+void softmax_inplace<fp64_t>(const Tile<fp64_t> &maxsumexp, const Tile<fp64_t> &dst,
+        Index axis);
 
 } // namespace tile
 } // namespace nntile

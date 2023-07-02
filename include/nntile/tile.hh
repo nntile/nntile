@@ -49,6 +49,7 @@
 #include <nntile/tile/pow.hh>
 #include <nntile/tile/maxsumexp.hh>
 #include <nntile/tile/softmax.hh>
+#include <nntile/tile/softmax_inplace.hh>
 #include <nntile/tile/sqrt.hh>
 #include <nntile/tile/sqrt_inplace.hh>
 #include <nntile/tile/maximum.hh>

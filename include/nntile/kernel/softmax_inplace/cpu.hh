@@ -4,20 +4,30 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tile/softmax.cc
- * Softmax
+ * @file include/nntile/kernel/softmax_inplace/cpu.hh
+ * softmax_inplace operation on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @date 2023-07-02
  * */
 
-#include <iostream>
+#pragma once
 
-int main(int argc, char **argv)
+#include <nntile/base_types.hh>
+
+namespace nntile
 {
-    // Not implemented
-    std::cout << "This test is not yet implemented\n";
-    return -1;
-}
+namespace kernel
+{
+namespace softmax_inplace
+{
+
+template<typename T>
+void cpu(Index m, Index n, Index k, const T *maxsumexp, T *dst)
+    noexcept;
+
+} // namespace softmax_inplace
+} // namespace kernel
+} // namespace nntile
 

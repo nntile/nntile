@@ -431,10 +431,17 @@ void def_mod_tensor(py::module_ &m)
     m.def("sumnorm_async_fp32", &sumnorm_async<fp32_t>);
     m.def("sumnorm_fp64", &sumnorm<fp64_t>);
     m.def("sumnorm_fp32", &sumnorm<fp32_t>);
+
     m.def("softmax_async_fp64", &softmax_async<fp64_t>);
     m.def("softmax_async_fp32", &softmax_async<fp32_t>);
     m.def("softmax_fp64", &softmax<fp64_t>);
     m.def("softmax_fp32", &softmax<fp32_t>);
+
+    m.def("softmax_inplace_async_fp64", &softmax_inplace_async<fp64_t>);
+    m.def("softmax_inplace_async_fp32", &softmax_inplace_async<fp32_t>);
+    m.def("softmax_inplace_fp64", &softmax_inplace<fp64_t>);
+    m.def("softmax_inplace_fp32", &softmax_inplace<fp32_t>);
+
     m.def("scatter_async_fp64", &scatter_async<fp64_t>);
     m.def("scatter_async_fp32", &scatter_async<fp32_t>);
     m.def("scatter_async_int64", &scatter_async<Index>);

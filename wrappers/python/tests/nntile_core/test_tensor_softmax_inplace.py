@@ -4,12 +4,12 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_softmax.py
-# Test for tensor::softmax<T> Python wrapper
+# @file wrappers/python/tests/nntile_core/test_tensor_softmax_inplace.py
+# Test for tensor::softmax_inplace<T> Python wrapper
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-09
+# @date 2023-07-02
 
 # All necesary imports
 import nntile
@@ -25,8 +25,8 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-softmax = {np.float32: nntile.nntile_core.tensor.softmax_fp32,
-        np.float64: nntile.nntile_core.tensor.softmax_fp64}
+softmax_inplace = {np.float32: nntile.nntile_core.tensor.softmax_inplace_fp32,
+        np.float64: nntile.nntile_core.tensor.softmax_inplace_fp64}
 
 # Helper function returns bool value true if test passes
 def helper(dtype):
@@ -61,7 +61,7 @@ def helper(dtype):
     # Check result along each axis
     for i in range(ndim):
         A.from_array(np_A)
-        softmax[dtype](B[i], A, i)
+        softmax_inplace[dtype](B[i], A, i)
         B[i].unregister()
         A.to_array(np_A2)
         np_B_max = np.expand_dims(np_B[i][0, ...], axis=i)

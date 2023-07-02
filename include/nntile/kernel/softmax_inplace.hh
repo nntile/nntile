@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/softmax/cuda.hh
- * Softmax operation on CUDA
+ * @file include/nntile/kernel/softmax_inplace.hh
+ * Low-level kernels to softmax_inplace along axis
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -14,22 +14,23 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
-#include <cuda_runtime.h>
+#include <nntile/kernel/softmax_inplace/cpu.hh>
+#include <nntile/defs.h>
+#ifdef NNTILE_USE_CUDA
+#include <nntile/kernel/softmax_inplace/cuda.hh>
+#endif // NNTILE_USE_CUDA
 
 namespace nntile
 {
 namespace kernel
 {
-namespace softmax
+//! @namespace nntile::kernel::softmax_inplace
+/*! Low-level implementations of softmax_inplace operation
+ * */
+namespace softmax_inplace
 {
 
-template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
-        const T *src, T *dst)
-    noexcept;
-
-} // namespace softmax
+} // namespace softmax_inplace
 } // namespace kernel
 } // namespace nntile
 

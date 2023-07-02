@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tile/softmax.hh
- * Softmax operation for Tile<T>
+ * @file include/nntile/kernel/softmax_inplace/cuda.hh
+ * softmax_inplace operation on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -14,21 +14,22 @@
 
 #pragma once
 
-#include <nntile/tile/tile.hh>
+#include <nntile/base_types.hh>
+#include <cuda_runtime.h>
 
 namespace nntile
 {
-namespace tile
+namespace kernel
+{
+namespace softmax_inplace
 {
 
 template<typename T>
-void softmax_async(const Tile<T> &maxsumexp, const Tile<T> &src,
-        const Tile<T> &dst, Index axis);
+void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
+        T *dst)
+    noexcept;
 
-template<typename T>
-void softmax(const Tile<T> &maxsumexp, const Tile<T> &src, const Tile<T> &dst,
-        Index axis);
-
-} // namespace tile
+} // namespace softmax_inplace
+} // namespace kernel
 } // namespace nntile
 

@@ -49,6 +49,7 @@
 #include <nntile/starpu/pow.hh>
 #include <nntile/starpu/maxsumexp.hh>
 #include <nntile/starpu/softmax.hh>
+#include <nntile/starpu/softmax_inplace.hh>
 #include <nntile/starpu/sqrt.hh>
 #include <nntile/starpu/sqrt_inplace.hh>
 #include <nntile/starpu/maximum.hh>
@@ -107,6 +108,7 @@ void init()
     norm_slice::init();
     pow::init();
     softmax::init();
+    softmax_inplace::init();
     maxsumexp::init();
     sqrt::init();
     sqrt_inplace::init();
@@ -159,6 +161,7 @@ void restrict_where(uint32_t where)
     norm_slice::restrict_where(where);
     pow::restrict_where(where);
     softmax::restrict_where(where);
+    softmax_inplace::restrict_where(where);
     maxsumexp::restrict_where(where);
     sqrt::restrict_where(where);
     sqrt_inplace::restrict_where(where);
@@ -211,6 +214,7 @@ void restore_where()
     norm_slice::restore_where();
     pow::restore_where();
     softmax::restore_where();
+    softmax_inplace::restore_where();
     maxsumexp::restore_where();
     sqrt::restore_where();
     sqrt_inplace::restore_where();

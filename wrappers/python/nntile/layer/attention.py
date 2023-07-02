@@ -9,11 +9,11 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-06-29
+# @date 2023-07-02
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
-        maxsumexp_async, softmax_async, sumprod_slice_async, \
+        maxsumexp_async, softmax_inplace_async, sumprod_slice_async, \
         add_slice_async, prod_async, mask_scalar_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
@@ -290,7 +290,7 @@ class Attention(BaseLayer):
             if self.mask:
                 mask_scalar_async(self.mask, self.val, self.a[i].value)
             maxsumexp_async(self.a[i].value, self.a_maxsumexp[i], 0)
-            softmax_async(self.a_maxsumexp[i], self.a[i].value, 0)
+            softmax_inplace_async(self.a_maxsumexp[i], self.a[i].value, 0)
             # A_maxsumexp[i] can be deleted
             #self.a_maxsumexp[i].invalidate_submit()
             # Apply value tensor

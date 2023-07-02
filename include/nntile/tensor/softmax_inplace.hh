@@ -1,11 +1,11 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/softmax.hh
- * Softmax operation for Tensor<T>
+ * @file include/nntile/tensor/softmax_inplace.hh
+ * softmax_inplace operation for Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -22,12 +22,11 @@ namespace tensor
 {
 
 template<typename T>
-void softmax_async(const Tensor<T> &maxsumexp, const Tensor<T> &src,
-        const Tensor<T> &dst, Index axis);
+void softmax_inplace_async(const Tensor<T> &maxsumexp, const Tensor<T> &dst,
+        Index axis);
 
 template<typename T>
-void softmax(const Tensor<T> &maxsumexp, const Tensor<T> &src,
-        const Tensor<T> &dst, Index axis);
+void softmax_inplace(const Tensor<T> &maxsumexp, const Tensor<T> &dst, Index axis);
 
 } // namespace tensor
 } // namespace nntile

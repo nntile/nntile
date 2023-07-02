@@ -48,6 +48,7 @@ set(TESTS
     "relu_backward"
     "scal_inplace"
     "softmax"
+    "softmax_inplace"
     "sqrt"
     "sqrt_inplace"
     "subtract_indexed_column"
@@ -80,6 +81,7 @@ set(TESTS_NOT_IMPLEMENTED
     "total_sum_accum"
     "sqrt"
     "scal"
+    "softmax"
     )
 
 # Add target for local coverage

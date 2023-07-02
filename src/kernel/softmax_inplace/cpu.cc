@@ -4,26 +4,26 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/softmax/cpu.cc
- * Softmax operation for a buffer on CPU
+ * @file src/kernel/softmax_inplace/cpu.cc
+ * Inplace softmax operation for a buffer on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @date 2023-07-02
  * */
 
-#include "nntile/kernel/softmax/cpu.hh"
+#include "nntile/kernel/softmax_inplace/cpu.hh"
 #include <cmath>
 
 namespace nntile
 {
 namespace kernel
 {
-namespace softmax
+namespace softmax_inplace
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, const T *maxsumexp, const T *src, T *dst)
+void cpu(Index m, Index n, Index k, const T *maxsumexp, T *dst)
     noexcept
 //! Compute softmax on a buffer along middle axis
 /*! 
@@ -32,31 +32,30 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, const T *src, T *dst)
  * @param[in] n: Size of the last mode of dst and sumnorm arrays
  * @param[in] k: Size of the middle mode of dst array
  * @param[in] maxsumexp: Maximums and sums of exponents of slices
- * @param[in] src: Contiguous input array
- * @param[out] dst: Contiguous output array
+ * @param[in] dst: Contiguous output array
  * */
 {
-    Index src_dst_offset = 0;
+    Index dst_offset = 0;
     // Outer loop by the last mode of dst and sumnorm arrays
     for(Index i2 = 0; i2 < n; ++i2)
     {
         // Middle loop by the middle mode of dst array
         for(Index i1 = 0; i1 < k; ++i1)
         {
-            Index maxsumexp_offset = 2 * m * i2;
+            Index src_offset = 2 * m * i2;
             // Inner loop by the first mode of dst and sumnorm arrays
             for(Index i0 = 0; i0 < m; ++i0)
             {
                 // Value-to-update
-                T val = src[src_dst_offset];
+                T &val = dst[dst_offset];
                 // Max and sum of exponents
-                const T max = maxsumexp[maxsumexp_offset];
-                const T sum = maxsumexp[maxsumexp_offset+1];
+                const T max = maxsumexp[src_offset];
+                const T sum = maxsumexp[src_offset+1];
                 // Update value
-                dst[src_dst_offset] = std::exp(val-max) / sum;
+                val = std::exp(val-max) / sum;
                 // Update pointers
-                ++src_dst_offset;
-                maxsumexp_offset += 2;
+                ++dst_offset;
+                src_offset += 2;
             }
         }
     }
@@ -65,15 +64,15 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, const T *src, T *dst)
 // Explicit instantiation
 template
 void cpu<fp32_t>(Index m, Index n, Index k, const fp32_t *maxsumexp,
-        const fp32_t *src, fp32_t *dst)
+        fp32_t *dst)
     noexcept;
 
 template
 void cpu<fp64_t>(Index m, Index n, Index k, const fp64_t *maxsumexp,
-        const fp64_t *src, fp64_t *dst)
+        fp64_t *dst)
     noexcept;
 
-} // namespace softmax
+} // namespace softmax_inplace
 } // namespace kernel
 } // namespace nntile
 

@@ -42,6 +42,7 @@ set(TESTS
     "relu"
     "relu_backward"
     "softmax"
+    "softmax_inplace"
     "sqrt"
     "sqrt_inplace"
     "subcopy"
@@ -74,6 +75,7 @@ set(TESTS_NOT_IMPLEMENTED
     "total_sum_accum"
     "sqrt"
     "scal"
+    "softmax"
     )
          
 # Setup a target for coverage of kernels
