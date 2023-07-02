@@ -422,8 +422,8 @@ def test_repeat():
                           n_contracted_dim=1)
 
 
-    # assert helper_torch_linear(x_shape=[64, 100], w_shape=[100, 10])
-    # assert helper_torch_linear(x_shape=[64, 128, 100], w_shape=[100, 20])
+    assert helper_torch_linear(x_shape=[64, 100], w_shape=[100, 10])
+    assert helper_torch_linear(x_shape=[64, 128, 100], w_shape=[100, 20])
 
 if __name__ == "__main__":
     test()
