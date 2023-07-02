@@ -25,9 +25,9 @@ template<typename T>
 static __global__
 void cuda_kernel(Index m, Index n, Index k, const T *maxsumexp, T *dst)
 {
-    Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
-          i1 = threadIdx.y + blockIdx.y*blockDim.y,
-          i2_start = threadIdx.z, i2_step = blockDim.z;
+    Index i0 = threadIdx.y + blockIdx.y*blockDim.y,
+          i1 = threadIdx.z + blockIdx.z*blockDim.z,
+          i2_start = threadIdx.x, i2_step = blockDim.x;
     if(i0 < m and i1 < n)
     {
         Index dst_offset = i1*k*m + i0;
@@ -67,8 +67,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
 {
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
     // Both source and destination are Fortran-contiguous
-    dim3 threads(1, 1, 64);
-    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y, 1);
+    dim3 threads(256, 1, 1);
+    dim3 blocks(1, m, n);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, maxsumexp, dst);
 }
 
