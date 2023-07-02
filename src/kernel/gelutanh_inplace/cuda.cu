@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-01
+ * @date 2023-07-02
  * */
 
 #include "nntile/kernel/gelutanh_inplace/cuda.hh"
@@ -36,7 +36,7 @@ void cuda_kernel(Index nelems, T *data)
     {
         T z = data[i];
         T y = z * (f3 + f4*z*z);
-        data[i] = z / (one+exp(y));
+        data[i] = z / (one+::exp(y));
     }
 }
 

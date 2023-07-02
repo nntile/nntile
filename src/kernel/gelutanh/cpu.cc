@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-01
+ * @date 2023-07-02
  * */
 
 #include "nntile/kernel/gelutanh/cpu.hh"
@@ -48,7 +48,7 @@ void cpu(Index nelems, const T *src, T *dst)
     {
         T z = src[i];
         T y = z * (f3 + f4*z*z);
-        dst[i] = z / (one+::exp(y));
+        dst[i] = z / (one+std::exp(y));
     }
 }
 
