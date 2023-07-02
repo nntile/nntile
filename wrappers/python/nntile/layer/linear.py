@@ -12,7 +12,8 @@
 # @date 2023-04-20
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        TransOp, trans, notrans, copy_async, gemm_async, randn_async, add_fiber_async, sum_slice_async
+        TransOp, trans, notrans, copy_async, gemm_async, randn_async, \
+        add_slice_async, add_fiber_async, sum_slice_async, sum_fiber_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -58,7 +59,7 @@ class Linear(BaseLayer):
     # Simple generator for the linear layer
     @staticmethod
     def generate_simple_mpiroot(x: TensorMoments, side: str, trans_x: TransOp,
-            ndim: int, add_shape: List[int], add_basetile_shape: List[int], next_tag: int, bias_dim=-1):
+            ndim: int, add_shape: List[int], add_basetile_shape: List[int], next_tag: int, bias=False):
         # Define shapes
         if side == 'L':
             if trans_x == notrans:
@@ -71,6 +72,12 @@ class Linear(BaseLayer):
                 w_tile = x.value.basetile_shape[:ndim] + add_basetile_shape
                 y_shape = x.value.shape[ndim:] + add_shape
                 y_tile = x.value.basetile_shape[ndim:] + add_basetile_shape
+            if bias:
+                shape_diff = len(y_shape) - len(add_shape)
+                if shape_diff == 1:
+                    b_axis = 0
+                elif shape_diff == 2:
+                    b_axis = len(y_shape) - 1
         else:
             if trans_x == notrans:
                 w_shape = add_shape + x.value.shape[:ndim]
@@ -82,11 +89,19 @@ class Linear(BaseLayer):
                 w_tile = add_basetile_shape + x.value.basetile_shape[-ndim:]
                 y_shape = add_shape + x.value.shape[:-ndim]
                 y_tile = add_basetile_shape + x.value.basetile_shape[:-ndim]
-        if bias_dim >= 0:
-            if len(y_shape) > 2:
-                raise ValueError("Bias is supported only for matrix output")
-            b_shape = [y_shape[bias_dim]]
-            b_tile = [y_tile[bias_dim]]
+            if bias:
+                shape_diff = len(y_shape) - len(add_shape)
+                if shape_diff == 1:
+                    b_axis = len(y_shape) - 1
+                elif shape_diff == 2:
+                    b_axis = 0
+        if bias:
+            # if len(y_shape) > 2:
+            #     raise ValueError("Bias is supported only for matrix output")
+            b_shape = add_shape
+            b_tile = add_basetile_shape
+        else:
+            b_axis = -1
         # Define W
         w_traits = TensorTraits(w_shape, w_tile)
         # TODO change distribution
@@ -98,7 +113,7 @@ class Linear(BaseLayer):
         next_tag = w_grad.next_tag
         # Define W as TensorMoments
         w = TensorMoments(w_value, w_grad, True)
-        if bias_dim >= 0:
+        if bias:
             b_traits = TensorTraits(b_shape, b_tile)
             # TODO change distribution
             b_distr = [0] * b_traits.grid.nelems
@@ -125,7 +140,7 @@ class Linear(BaseLayer):
         # Bias is ignored for now
         #b = TensorMoments(None, None, False)
         # Create linear layer with all the provided data
-        layer = Linear(side, trans_x, x, y, w, ndim, b, bias_dim)
+        layer = Linear(side, trans_x, x, y, w, ndim, b, b_axis)
         # Return layer and next tag to be used
         return (layer, next_tag)
 
@@ -147,7 +162,10 @@ class Linear(BaseLayer):
             gemm_async(1.0, notrans, self.w.value, self.trans_x, self.x.value,
                     0.0, self.y.value, self.ndim, 0)
         if self.b_axis >= 0:
-            add_fiber_async(1, self.b.value, 1, self.y.value, self.b_axis)
+            if len(self.y.value.shape) - len(self.b.value.shape) == 1:
+                add_slice_async(1, self.b.value, 1, self.y.value, self.b_axis)
+            elif len(self.y.value.shape) - len(self.b.value.shape) == 2:
+                add_fiber_async(1, self.b.value, 1, self.y.value, self.b_axis)
         # Hint for StarPU that W tensor will
         # not be used soon and it is advised to offload data from GPU
         self.w.value.wont_use()
@@ -184,7 +202,11 @@ class Linear(BaseLayer):
             # Hint StarPU to offload gradient over W if needed
             self.w.grad.wont_use()
         if self.b_axis >= 0 and self.b.grad_required:
-            sum_slice_async(1, self.y.grad, 1, self.b.grad, 1 - self.b_axis)
+            shape_diff = len(self.y.value.shape) - len(self.b.value.shape)
+            if shape_diff == 1:
+                sum_slice_async(1, self.y.grad, 1, self.b.grad, self.b_axis)
+            elif shape_diff == 2:
+                sum_fiber_async(1, self.y.grad, 1, self.b.grad, self.b_axis)
         # Gradient over X (input)
         if self.x.grad_required:
             gemm_ndim = self.w.value.ndim - self.ndim

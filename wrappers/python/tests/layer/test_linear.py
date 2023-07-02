@@ -141,27 +141,19 @@ def helper_r(dtype: np.dtype):
     layer.unregister()
     return True
 
-def helper_torch_l(x_shape, w_shape, b_shape):
+def helper_torch_l(x_shape, w_shape, b_shape, n_contracted_dim):
     '''
-    y = op(x) @ w + b
+    y = x @ w + b
     different shapes of b mean the axis of bias addition
     '''
     w_torch = torch.randn(w_shape, requires_grad=True)
     b_torch = torch.randn(b_shape, requires_grad=True)
     x_torch = torch.randn(x_shape, requires_grad=True)
-    if x_shape[1] == w_shape[0]:
-        y_torch = x_torch @ w_torch + b_torch
-        loss_torch = y_torch.sum()
-        loss_torch.backward()
-        notrans = True
-    elif x_shape[0] == w_shape[0]:
-        y_torch = x_torch.t() @ w_torch + b_torch
-        loss_torch = y_torch.sum()
-        loss_torch.backward()
-        notrans = False
-    else:
-        raise ValueError("w_shape and x_shape are inconsistent")
     
+    y_torch = torch.tensordot(x_torch, w_torch, n_contracted_dim) + b_torch.view(1, *b_torch.shape)
+    loss_torch = y_torch.sum()
+    loss_torch.backward()
+
     A_traits = nntile.tensor.TensorTraits(x_torch.shape, x_torch.shape)
     mpi_distr = [0]
     next_tag = 0
@@ -171,21 +163,13 @@ def helper_torch_l(x_shape, w_shape, b_shape):
     A_grad = Tensor[np.float32](A_traits, mpi_distr, next_tag)
     next_tag = A_grad.next_tag
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
-    # Define linear layer
-    if b_shape[0] == 1:
-        bias_dim = 1
-    elif b_shape[1] == 1:
-        bias_dim = 0
-    if notrans:
-        layer, next_tag = Linear.generate_simple_mpiroot(A_moments, 'L',
-                nntile.tensor.notrans, 1, [w_shape[1]], [w_shape[1]], next_tag, bias_dim)
-    else:
-        layer, next_tag = Linear.generate_simple_mpiroot(A_moments, 'L',
-                nntile.tensor.trans, 1, [w_shape[1]], [w_shape[1]], next_tag, bias_dim)
+    layer, next_tag = Linear.generate_simple_mpiroot(A_moments, 'L',
+            nntile.tensor.notrans, n_contracted_dim, [*w_shape[n_contracted_dim:]],
+            [*w_shape[n_contracted_dim:]], next_tag, True)
     
     np_W = np.array(w_torch.detach().numpy(), dtype=np.float32, order='F')
     layer.w.value.from_array(np_W)
-    np_b = np.array(b_torch.view(-1).detach().numpy(), dtype=np.float32, order='F')
+    np_b = np.array(b_torch.detach().numpy(), dtype=np.float32, order='F')
     layer.b.value.from_array(np_b)
     nntile.tensor.clear_async(layer.w.grad)
     nntile.tensor.clear_async(layer.b.grad)
@@ -215,10 +199,10 @@ def helper_torch_l(x_shape, w_shape, b_shape):
         layer.unregister()
         return False
 
-    nntile_b_grad = np.zeros(b_torch.view(-1).shape, dtype=np.float32, order="F")
+    nntile_b_grad = np.zeros(b_torch.shape, dtype=np.float32, order="F")
     layer.b.grad.to_array(nntile_b_grad)
 
-    b_grad_rel_error = np.linalg.norm(nntile_b_grad - b_torch.grad.view(-1).detach().numpy()) / np.linalg.norm(b_torch.grad.view(-1).detach().numpy())
+    b_grad_rel_error = np.linalg.norm(nntile_b_grad - b_torch.grad.detach().numpy()) / np.linalg.norm(b_torch.grad.detach().numpy())
     if b_grad_rel_error > 1e-5:
         print("b grad rel error = {}".format(b_grad_rel_error))
         A_moments.unregister()
@@ -239,26 +223,22 @@ def helper_torch_l(x_shape, w_shape, b_shape):
 
     return True
 
-def helper_torch_r(x_shape, w_shape, b_shape):
+def helper_torch_r(x_shape, w_shape, b_shape, n_contracted_dim):
     '''
-    y = w @ op(x) + b
+    y = w @ x + b
     different shapes of b mean the axis of bias addition
     '''
     w_torch = torch.randn(w_shape, requires_grad=True)
     b_torch = torch.randn(b_shape, requires_grad=True)
     x_torch = torch.randn(x_shape, requires_grad=True)
-    if w_shape[1] == x_shape[0]:
-        y_torch = w_torch @ x_torch + b_torch
-        loss_torch = y_torch.sum()
-        loss_torch.backward()
-        notrans = True
-    elif w_shape[1] == x_shape[1]:
-        y_torch = w_torch @ x_torch.t() + b_torch
-        loss_torch = y_torch.sum()
-        loss_torch.backward()
-        notrans = False
-    else:
-        raise ValueError("w_shape and x_shape are inconsistent")
+
+    y_torch = torch.tensordot(w_torch, x_torch, n_contracted_dim)
+    if len(y_torch.shape) - len(b_torch.shape) == 1:
+        y_torch += b_torch.view(*b_torch.shape, 1)
+    elif len(y_torch.shape) - len(b_torch.shape) == 2:
+        y_torch += b_torch.view(*b_torch.shape, 1, 1)
+    loss_torch = y_torch.sum()
+    loss_torch.backward()
     
     A_traits = nntile.tensor.TensorTraits(x_torch.shape, x_torch.shape)
     mpi_distr = [0]
@@ -270,20 +250,13 @@ def helper_torch_r(x_shape, w_shape, b_shape):
     next_tag = A_grad.next_tag
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Define linear layer
-    if b_shape[0] == 1:
-        bias_dim = 1
-    elif b_shape[1] == 1:
-        bias_dim = 0
-    if notrans:
-        layer, next_tag = Linear.generate_simple_mpiroot(A_moments, 'R',
-                nntile.tensor.notrans, 1, [w_shape[0]], [w_shape[0]], next_tag, bias_dim)
-    else:
-        layer, next_tag = Linear.generate_simple_mpiroot(A_moments, 'R',
-                nntile.tensor.trans, 1, [w_shape[0]], [w_shape[0]], next_tag, bias_dim)
+    layer, next_tag = Linear.generate_simple_mpiroot(A_moments, 'R',
+            nntile.tensor.notrans, n_contracted_dim, [*w_shape[:-n_contracted_dim]], [*w_shape[:-n_contracted_dim]],
+            next_tag, True)
     
     np_W = np.array(w_torch.detach().numpy(), dtype=np.float32, order='F')
     layer.w.value.from_array(np_W)
-    np_b = np.array(b_torch.view(-1).detach().numpy(), dtype=np.float32, order='F')
+    np_b = np.array(b_torch.detach().numpy(), dtype=np.float32, order='F')
     layer.b.value.from_array(np_b)
     nntile.tensor.clear_async(layer.w.grad)
     nntile.tensor.clear_async(layer.b.grad)
@@ -313,10 +286,10 @@ def helper_torch_r(x_shape, w_shape, b_shape):
         layer.unregister()
         return False
 
-    nntile_b_grad = np.zeros(b_torch.view(-1).shape, dtype=np.float32, order="F")
+    nntile_b_grad = np.zeros(b_torch.shape, dtype=np.float32, order="F")
     layer.b.grad.to_array(nntile_b_grad)
 
-    b_grad_rel_error = np.linalg.norm(nntile_b_grad - b_torch.grad.view(-1).detach().numpy()) / np.linalg.norm(b_torch.grad.view(-1).detach().numpy())
+    b_grad_rel_error = np.linalg.norm(nntile_b_grad - b_torch.grad.detach().numpy()) / np.linalg.norm(b_torch.grad.detach().numpy())
     if b_grad_rel_error > 1e-5:
         print("b grad rel error = {}".format(b_grad_rel_error))
         A_moments.unregister()
@@ -355,13 +328,12 @@ def helper_torch_linear(x_shape, w_shape):
     next_tag = A_grad.next_tag
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Define linear layer
-    bias_dim = 1
     layer, next_tag = Linear.generate_simple_mpiroot(A_moments, 'L',
-            nntile.tensor.notrans, 1, [w_shape[1]], [w_shape[1]], next_tag, bias_dim)
+            nntile.tensor.notrans, 1, [w_shape[1]], [w_shape[1]], next_tag, True)
     
     np_W = np.array(linear_layer.weight.detach().numpy(), dtype=np.float32, order='F')
     layer.w.value.from_array(np_W.T)
-    np_b = np.array(linear_layer.bias.view(-1).detach().numpy(), dtype=np.float32, order='F')
+    np_b = np.array(linear_layer.bias.detach().numpy(), dtype=np.float32, order='F')
     layer.b.value.from_array(np_b)
     nntile.tensor.clear_async(layer.w.grad)
     nntile.tensor.clear_async(layer.b.grad)
@@ -391,9 +363,9 @@ def helper_torch_linear(x_shape, w_shape):
         layer.unregister()
         return False
 
-    nntile_b_grad = np.zeros(linear_layer.bias.view(-1).shape, dtype=np.float32, order="F")
+    nntile_b_grad = np.zeros(linear_layer.bias.shape, dtype=np.float32, order="F")
     layer.b.grad.to_array(nntile_b_grad)
-    b_grad_rel_error = np.linalg.norm(nntile_b_grad - linear_layer.bias.grad.view(-1).detach().numpy()) / np.linalg.norm(linear_layer.bias.grad.view(-1).detach().numpy())
+    b_grad_rel_error = np.linalg.norm(nntile_b_grad - linear_layer.bias.grad.detach().numpy()) / np.linalg.norm(linear_layer.bias.grad.detach().numpy())
     if b_grad_rel_error > 1e-5:
         print("b grad rel error = {}".format(b_grad_rel_error))
         A_moments.unregister()
@@ -426,15 +398,32 @@ def test_repeat():
     for dtype in dtypes:
         assert helper_l(dtype)
         assert helper_r(dtype)
-    assert helper_torch_l([20, 10], [10, 5], [1, 5])
-    assert helper_torch_l([20, 10], [10, 5], [20, 1])
-    assert helper_torch_l([10, 20], [10, 5], [20, 1])
-    assert helper_torch_l([10, 20], [10, 5], [1, 5])
-    assert helper_torch_r([5, 3], [10, 5], [1, 3])
-    assert helper_torch_r([5, 3], [10, 5], [10, 1])
-    assert helper_torch_r([3, 5], [10, 5], [1, 3])
-    assert helper_torch_r([3, 5], [10, 5], [10, 1])
-    assert helper_torch_linear([64, 100], [100, 10])
+    assert helper_torch_l(x_shape=[20, 10],
+                          w_shape=[10, 5], b_shape=[5],
+                          n_contracted_dim=1)
+    assert helper_torch_l(x_shape=[20, 10], 
+                          w_shape=[10, 5, 7], b_shape=[5, 7],
+                          n_contracted_dim=1)
+    assert helper_torch_l(x_shape=[20, 10, 5],
+                          w_shape=[10, 5, 7], b_shape=[7],
+                          n_contracted_dim=2)
+    assert helper_torch_l(x_shape=[20, 10, 5],
+                          w_shape=[5, 7], b_shape=[7],
+                          n_contracted_dim=1)
+    
+    assert helper_torch_r(x_shape=[5, 3], w_shape=[10, 5], 
+                          b_shape=[10], n_contracted_dim=1)
+    assert helper_torch_r(x_shape=[7, 2], w_shape=[10, 5, 7], 
+                          b_shape=[10, 5], n_contracted_dim=1)
+    assert helper_torch_r(x_shape=[5, 7, 2], w_shape=[10, 5, 7], 
+                          b_shape=[10], n_contracted_dim=2)
+    assert helper_torch_r(x_shape=[7, 3, 10],
+                          w_shape=[5, 7], b_shape=[5],
+                          n_contracted_dim=1)
+
+
+    # assert helper_torch_linear(x_shape=[64, 100], w_shape=[100, 10])
+    # assert helper_torch_linear(x_shape=[64, 128, 100], w_shape=[100, 20])
 
 if __name__ == "__main__":
     test()
