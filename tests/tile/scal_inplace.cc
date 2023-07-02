@@ -4,16 +4,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tile/scal.cc
- * SCAL operation on Tile<T>
+ * @file tests/tile/scal_inplace.cc
+ * Inplace scal operation on Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-29
+ * @date 2023-07-02
  * */
 
-#include "nntile/tile/scal.hh"
-#include "nntile/starpu/scal.hh"
+#include "nntile/tile/scal_inplace.hh"
+#include "nntile/starpu/scal_inplace.hh"
 #include "../testing.hh"
 #include <cmath>
 #include <limits>
@@ -35,8 +35,8 @@ void check(T alpha)
     }
     data_local.release();
     data2_local.release();
-    starpu::scal::submit<T>(alpha, data.nelems, data);
-    scal<T>(alpha, data2);
+    starpu::scal_inplace::submit<T>(alpha, data.nelems, data);
+    scal_inplace<T>(alpha, data2);
     data_local.acquire(STARPU_R);
     data2_local.acquire(STARPU_R);
     for(Index i = 0; i < data.nelems; ++i)
@@ -61,8 +61,8 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    starpu::scal::init();
-    starpu::scal::restrict_where(STARPU_CPU);
+    starpu::scal_inplace::init();
+    starpu::scal_inplace::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

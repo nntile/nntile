@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-01
+ * @date 2023-07-02
  * */
 
 #pragma once
@@ -58,7 +58,7 @@
 #include <nntile/starpu/logsumexp.hh>
 #include <nntile/starpu/total_sum_accum.hh>
 #include <nntile/starpu/subtract_indexed_outputs.hh>
-#include <nntile/starpu/scal.hh>
+#include <nntile/starpu/scal_inplace.hh>
 #include <nntile/starpu/gelu_backward.hh>
 #include <nntile/starpu/gelutanh_backward.hh>
 #include <nntile/starpu/add.hh>
@@ -116,7 +116,7 @@ void init()
     logsumexp::init();
     total_sum_accum::init();
     subtract_indexed_outputs::init();
-    scal::init();
+    scal_inplace::init();
     gelu_backward::init();
     gelutanh_backward::init();
     add::init();
@@ -167,7 +167,7 @@ void restrict_where(uint32_t where)
     logsumexp::restrict_where(where);
     total_sum_accum::restrict_where(where);
     subtract_indexed_outputs::restrict_where(where);
-    scal::restrict_where(where);
+    scal_inplace::restrict_where(where);
     gelu_backward::restrict_where(where);
     gelutanh_backward::restrict_where(where);
     add::restrict_where(where);
@@ -218,7 +218,7 @@ void restore_where()
     logsumexp::restore_where();
     total_sum_accum::restore_where();
     subtract_indexed_outputs::restore_where();
-    scal::restore_where();
+    scal_inplace::restore_where();
     gelu_backward::restore_where();
     gelutanh_backward::restore_where();
     add::restore_where();

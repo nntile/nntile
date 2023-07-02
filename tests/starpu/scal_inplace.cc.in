@@ -4,15 +4,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/starpu/scal.cc.in
- * SCAL operation for StarPU buffers
+ * @file tests/starpu/scal_inplace.cc.in
+ * Inplace scal operation for StarPU buffers
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-29
+ * @date 2023-07-02
  * */
 
-#include "nntile/starpu/scal.hh"
+#include "nntile/starpu/scal_inplace.hh"
 #include "../testing.hh"
 #include <vector>
 #include <stdexcept>
@@ -33,7 +33,7 @@ using namespace nntile;
 using namespace nntile::starpu;
 
 #ifdef NNTILE_USE_CBLAS
-// Overloaded call to CBLAS SCAL
+// Overloaded call to CBLAS scal
 static inline
 void cblas_scal(CBLAS_INT N, fp32_t alpha, fp32_t *X, CBLAS_INT incX)
     noexcept
@@ -41,7 +41,7 @@ void cblas_scal(CBLAS_INT N, fp32_t alpha, fp32_t *X, CBLAS_INT incX)
     cblas_sscal(N, alpha, X, incX);
 }
 
-// Overloaded call to CBLAS SCAL
+// Overloaded call to CBLAS scal
 static inline
 void cblas_scal(CBLAS_INT N, fp64_t alpha, fp64_t *X, CBLAS_INT incX)
     noexcept
@@ -64,9 +64,9 @@ void validate_cpu(T alpha, Index nelems)
     cblas_scal(nelems, alpha, &src[0], 1);
     // Check by actually submitting a task
     VariableHandle src2_handle(&src2[0], sizeof(T)*nelems, STARPU_RW);
-    scal::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::scal::submit<T> restricted to CPU\n";
-    scal::submit<T>(alpha, nelems, src2_handle);
+    scal_inplace::restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::scal_inplace::submit<T> restricted to CPU\n";
+    scal_inplace::submit<T>(alpha, nelems, src2_handle);
     starpu_task_wait_for_all();
     src2_handle.unregister();
     // Check result
@@ -74,7 +74,7 @@ void validate_cpu(T alpha, Index nelems)
     {
         TEST_ASSERT(src[i] == src2[i]);
     }
-    std::cout << "OK: starpu::scal::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::scal_inplace::submit<T> restricted to CPU\n";
 }
 
 template<typename T>
@@ -88,7 +88,7 @@ void validate_cpu_many()
 #endif // NNTILE_USE_CBLAS
 
 #ifdef NNTILE_USE_CUDA
-// Overloaded call to cuBLAS SCAL
+// Overloaded call to cuBLAS scal
 static inline
 void cublas_scal(cublasHandle_t handle, int N, fp32_t alpha, fp32_t *X,
         int incX)
@@ -97,7 +97,7 @@ void cublas_scal(cublasHandle_t handle, int N, fp32_t alpha, fp32_t *X,
     cublasSscal(handle, N, &alpha, X, incX);
 }
 
-// Overloaded call to cuBLAS SCAL
+// Overloaded call to cuBLAS scal
 static inline
 void cublas_scal(cublasHandle_t handle, int N, fp64_t alpha, fp64_t *X,
         int incX)
@@ -157,9 +157,9 @@ void validate_cuda(T alpha, Index nelems)
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
     VariableHandle src2_handle(&src2[0], sizeof(T)*nelems, STARPU_RW);
-    scal::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::scal::submit<T> restricted to CUDA\n";
-    scal::submit<T>(alpha, nelems, src2_handle);
+    scal_inplace::restrict_where(STARPU_CUDA);
+    std::cout << "Run starpu::scal_inplace::submit<T> restricted to CUDA\n";
+    scal_inplace::submit<T>(alpha, nelems, src2_handle);
     starpu_task_wait_for_all();
     src2_handle.unregister();
     // Check result
@@ -167,7 +167,7 @@ void validate_cuda(T alpha, Index nelems)
     {
         TEST_ASSERT(src[0] == src2[0]);
     }
-    std::cout << "OK: starpu::scal::submit<T> restricted to CUDA\n";
+    std::cout << "OK: starpu::scal_inplace::submit<T> restricted to CUDA\n";
 }
 
 template<typename T>
@@ -185,7 +185,7 @@ int main(int argc, char **argv)
     // Init StarPU for testing
     Config starpu(1, 1, 1);
     // Init codelet
-    scal::init();
+    scal_inplace::init();
     // Launch all tests
 #ifdef NNTILE_USE_CBLAS
     validate_cpu_many<fp32_t>();

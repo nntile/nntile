@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-18
+ * @date 2023-07-02
  * */
 
 #include "nntile/tensor/nrm2.hh"
@@ -21,7 +21,7 @@
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/starpu/clear.hh"
-#include "nntile/starpu/scal.hh"
+#include "nntile/starpu/scal_inplace.hh"
 #include "../testing.hh"
 #include <limits>
 
@@ -127,12 +127,12 @@ int main(int argc, char **argv)
     starpu::hypot::init();
     starpu::subcopy::init();
     starpu::clear::init();
-    starpu::scal::init();
+    starpu::scal_inplace::init();
     starpu::nrm2::restrict_where(STARPU_CPU);
     starpu::hypot::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
     starpu::clear::restrict_where(STARPU_CPU);
-    starpu::scal::restrict_where(STARPU_CPU);
+    starpu::scal_inplace::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

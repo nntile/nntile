@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-01
+# @date 2023-07-02
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -546,11 +546,11 @@ def subtract_indexed_outputs_async(val: float, class_labels: Tensor_int64, \
         raise TypeError
 
 # Wrapper for multiprecision scaling
-def scal_async(alpha: float, x: Tensor) -> None:
+def scal_inplace_async(alpha: float, x: Tensor) -> None:
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.scal_async_fp32(alpha, x)
+        core_tensor.scal_inplace_async_fp32(alpha, x)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.scal_async_fp64(alpha, x)
+        core_tensor.scal_inplace_async_fp64(alpha, x)
     else:
         raise TypeError
 

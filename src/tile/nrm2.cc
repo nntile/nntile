@@ -15,7 +15,7 @@
 #include "nntile/tile/nrm2.hh"
 #include "nntile/starpu/nrm2.hh"
 #include "nntile/starpu/clear.hh"
-#include "nntile/starpu/scal.hh"
+#include "nntile/starpu/scal_inplace.hh"
 #include "nntile/starpu/hypot.hh"
 
 namespace nntile
@@ -49,7 +49,8 @@ void nrm2_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
             starpu::nrm2::submit<T>(src.nelems, src, dst);
             if(alpha != 1.0)
             {
-                starpu::scal::submit<T>(std::abs(alpha), dst.nelems, dst);
+                starpu::scal_inplace::submit<T>(std::abs(alpha), dst.nelems,
+                        dst);
             }
         }
     }

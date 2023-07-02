@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-01
+ * @date 2023-07-02
  * */
 
 #include <pybind11/pybind11.h>
@@ -579,10 +579,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("subtract_indexed_outputs_fp64", &subtract_indexed_outputs<fp64_t>);
     m.def("subtract_indexed_outputs_fp32", &subtract_indexed_outputs<fp32_t>);
     
-    m.def("scal_async_fp64", &scal_async<fp64_t>);
-    m.def("scal_async_fp32", &scal_async<fp32_t>);
-    m.def("scal_fp64", &scal<fp64_t>);
-    m.def("scal_fp32", &scal<fp32_t>);
+    m.def("scal_inplace_async_fp64", &scal_inplace_async<fp64_t>);
+    m.def("scal_inplace_async_fp32", &scal_inplace_async<fp32_t>);
+    m.def("scal_inplace_fp64", &scal_inplace<fp64_t>);
+    m.def("scal_inplace_fp32", &scal_inplace<fp32_t>);
 
     m.def("sumprod_slice_async_fp64", &sumprod_slice_async<fp64_t>);
     m.def("sumprod_slice_async_fp32", &sumprod_slice_async<fp32_t>);

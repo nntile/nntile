@@ -9,10 +9,10 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-05-11
+# @date 2023-07-02
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        copy_async, axpy_async, nrm2_async, prod_async, scal_async
+        copy_async, axpy_async, nrm2_async, prod_async, scal_inplace_async
 import numpy as np
 
 class Frob:
@@ -72,7 +72,7 @@ class Frob:
         # Compute loss as 0.5*||dX||^2
         copy_async(self.val_sqrt, self.val)
         prod_async(self.val_sqrt, self.val)
-        scal_async(0.5, self.val)
+        scal_inplace_async(0.5, self.val)
 
     def unregister(self):
         self.tmp.unregister()

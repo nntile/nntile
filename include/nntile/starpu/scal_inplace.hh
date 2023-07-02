@@ -4,12 +4,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/scal.hh
- * SCAL operation for StarPU buffers
+ * @file include/nntile/starpu/scal_inplace.hh
+ * Inplace scal operation for StarPU buffers
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-29
+ * @date 2023-07-02
  * */
 
 #pragma once
@@ -23,7 +23,7 @@ namespace nntile
 {
 namespace starpu
 {
-namespace scal
+namespace scal_inplace
 {
 
 //! Structure for arguments
@@ -76,7 +76,7 @@ void restore_where();
 template<typename T>
 void submit(T alpha, Index nelems, Handle data);
 
-} // namespace scal
+} // namespace scal_inplace
 } // namespace starpu
 } // namespace nntile
 

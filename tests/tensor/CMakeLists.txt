@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-07-01
+# @date 2023-07-02
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -51,7 +51,7 @@ set(TESTS_MPI
     "randn"
     "relu"
     "relu_backward"
-    "scal"
+    "scal_inplace"
     "scatter"
     "softmax"
     "sqrt"

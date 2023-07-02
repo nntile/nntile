@@ -100,7 +100,7 @@ class Adam:
             elif self.dtype == np.float64:
                 scale_factor = np.float64(1. / np.sqrt(1 - \
                         np.power(self.beta2, self.num_iter),dtype=np.float64))
-            nntile.tensor.scal_async(scale_factor, self.denoms[i])
+            nntile.tensor.scal_inplace_async(scale_factor, self.denoms[i])
             nntile.tensor.addcdiv_async(step_size, self.eps, \
                     self.first_moments[i], self.denoms[i], p.value)
         self.num_iter += 1

@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-07-01
+# @date 2023-07-02
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -152,18 +152,18 @@ add_test_set(TARGET_NAME tests_starpu_gemm
     COV_GLOBAL coverage_starpu
     )
 
-# Add include path for generated scal.cc
-set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/scal.cc" PROPERTIES
-    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}")
+# Add include path for generated scal_inplace.cc
+set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/scal_inplace.cc"
+    PROPERTIES INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}")
 
-# Explicitly add axpy test since it was generated from scal.cc.in
-add_test_set(TARGET_NAME tests_starpu_scal
-    EXEC_NAME test_scal
-    SOURCES "${CMAKE_CURRENT_BINARY_DIR}/scal.cc"
+# Explicitly add axpy test since it was generated from scal_inplace.cc.in
+add_test_set(TARGET_NAME tests_starpu_scal_inplace
+    EXEC_NAME test_scal_inplace
+    SOURCES "${CMAKE_CURRENT_BINARY_DIR}/scal_inplace.cc"
     LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_USE_CBLAS}>:BLAS::BLAS>
     "$<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cublas;CUDA::cudart>"
     COV_ENABLE ${BUILD_COVERAGE}
-    COV_NAME coverage_starpu_scal
+    COV_NAME coverage_starpu_scal_inplace
     COV_GLOBAL coverage_starpu
     )
 

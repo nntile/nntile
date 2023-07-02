@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-07-01
+# @date 2023-07-02
 
 # Set list of headers
 set(BASE_HDR
@@ -191,7 +191,7 @@ set(STARPU_HDR
     "nntile/starpu/logsumexp.hh"
     "nntile/starpu/total_sum_accum.hh"
     "nntile/starpu/subtract_indexed_outputs.hh"
-    "nntile/starpu/scal.hh"
+    "nntile/starpu/scal_inplace.hh"
     "nntile/starpu/gelu_backward.hh"
     "nntile/starpu/gelutanh_backward.hh"
     "nntile/starpu/add.hh"
@@ -243,7 +243,7 @@ set(TILE_HDR
     "nntile/tile/logsumexp.hh"
     "nntile/tile/total_sum_accum.hh"
     "nntile/tile/subtract_indexed_outputs.hh"
-    "nntile/tile/scal.hh"
+    "nntile/tile/scal_inplace.hh"
     "nntile/tile/gelu_backward.hh"
     "nntile/tile/gelutanh_backward.hh"
     "nntile/tile/add.hh"
@@ -296,7 +296,7 @@ set(TENSOR_HDR
     "nntile/tensor/logsumexp.hh"
     "nntile/tensor/total_sum_accum.hh"
     "nntile/tensor/subtract_indexed_outputs.hh"
-    "nntile/tensor/scal.hh"
+    "nntile/tensor/scal_inplace.hh"
     "nntile/tensor/gelu_backward.hh"
     "nntile/tensor/gelutanh_backward.hh"
     "nntile/tensor/add.hh"

@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-01
+ * @date 2023-07-02
  * */
 
 #pragma once
@@ -58,7 +58,7 @@
 #include <nntile/tile/logsumexp.hh>
 #include <nntile/tile/total_sum_accum.hh>
 #include <nntile/tile/subtract_indexed_outputs.hh>
-#include <nntile/tile/scal.hh>
+#include <nntile/tile/scal_inplace.hh>
 #include <nntile/tile/gelu_backward.hh>
 #include <nntile/tile/gelutanh_backward.hh>
 #include <nntile/tile/add.hh>

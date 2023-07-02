@@ -4,25 +4,25 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tensor/scal.cc
- * Euclidean norm of Tensor<T>
+ * @file src/tensor/scal_inplace.cc
+ * Inplace scal of Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-05
+ * @date 2023-07-02
  * */
 
-#include "nntile/tensor/scal.hh"
-#include "nntile/starpu/scal.hh"
+#include "nntile/tensor/scal_inplace.hh"
+#include "nntile/starpu/scal_inplace.hh"
 
 namespace nntile
 {
 namespace tensor
 {
 
-//! Scale tensor
+//! scal_inplacee tensor
 template<typename T>
-void scal_async(T alpha, const Tensor<T> &data)
+void scal_inplace_async(T alpha, const Tensor<T> &data)
 {
     // Do actual calculations
     int mpi_rank = starpu_mpi_world_rank();
@@ -34,7 +34,7 @@ void scal_async(T alpha, const Tensor<T> &data)
         // Execute on source tile
         if(mpi_rank == data_tile_rank)
         {
-            starpu::scal::submit<T>(alpha, data_tile_traits.nelems,
+            starpu::scal_inplace::submit<T>(alpha, data_tile_traits.nelems,
                     data_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -43,26 +43,26 @@ void scal_async(T alpha, const Tensor<T> &data)
 }
 
 template<typename T>
-void scal(T alpha, const Tensor<T> &data)
+void scal_inplace(T alpha, const Tensor<T> &data)
 {
-    scal_async<T>(alpha, data);
+    scal_inplace_async<T>(alpha, data);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void scal_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &data);
+void scal_inplace_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &data);
 
 template
-void scal_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &data);
+void scal_inplace_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &data);
 
 // Explicit instantiation
 template
-void scal<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &data);
+void scal_inplace<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &data);
 
 template
-void scal<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &data);
+void scal_inplace<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &data);
 
 } // namespace tensor
 } // namespace nntile

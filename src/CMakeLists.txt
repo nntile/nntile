@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-07-01
+# @date 2023-07-02
 
 # Set list of sources
 set(KERNEL_SRC
@@ -115,7 +115,7 @@ set(STARPU_SRC
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/axpy.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/nrm2.cc"
-    "${CMAKE_CURRENT_BINARY_DIR}/starpu/scal.cc"
+    "${CMAKE_CURRENT_BINARY_DIR}/starpu/scal_inplace.cc"
     "starpu/gelu.cc"
     "starpu/gelutanh.cc"
     "starpu/gelutanh_inplace.cc"
@@ -192,7 +192,7 @@ set(TILE_SRC
     "tile/logsumexp.cc"
     "tile/total_sum_accum.cc"
     "tile/subtract_indexed_outputs.cc"
-    "tile/scal.cc"
+    "tile/scal_inplace.cc"
     "tile/gelu_backward.cc"
     "tile/gelutanh_backward.cc"
     "tile/add.cc"
@@ -243,7 +243,7 @@ set(TENSOR_SRC
     "tensor/logsumexp.cc"
     "tensor/total_sum_accum.cc"
     "tensor/subtract_indexed_outputs.cc"
-    "tensor/scal.cc"
+    "tensor/scal_inplace.cc"
     "tensor/gelu_backward.cc"
     "tensor/gelutanh_backward.cc"
     "tensor/add.cc"
