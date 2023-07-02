@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-06-21
+ * @date 2023-07-02
  * */
 
 #include "nntile/kernel/embedding_backward/cuda.hh"
@@ -40,10 +40,9 @@ void cuda_kernel(Index m, Index n, Index k, Index k_start, Index k_size,
  *      shape (k_size, vocab_size) but vocab_size is not passed as a parameter.
  * */
 {
-    Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
-          i1 = threadIdx.y + blockIdx.y*blockDim.y,
-          i2 = threadIdx.z + blockIdx.z*blockDim.z;
-    if(i2 < k_size and i1 < n and i0 < m)
+    Index i2 = threadIdx.x + blockIdx.x*blockDim.x;
+    Index i0 = blockIdx.y, i1 = blockIdx.z;
+    if(i2 < k_size)
     {
         // Output slice of vocabulary
         T *vocab_slice = vocab + k_size*index[i1*m+i0];
@@ -72,10 +71,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 threads(std::min(int(m), 8), std::min(int(n), 8),
-            std::min(int(k_size), 16));
-    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y,
-            (k_size+threads.z-1)/threads.z);
+    dim3 threads(256, 1, 1);
+    dim3 blocks((k_size+255)/256, m, n);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, k_start, k_size,
             index, embed, vocab);
 }
