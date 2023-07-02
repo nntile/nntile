@@ -86,6 +86,12 @@ class Adam:
             elif self.dtype == np.float64:
                 step_size = np.float64(-self.lr / (1 - np.power(self.beta1, \
                         self.num_iter)))
+            if self.dtype == np.float32:
+                scale_factor = 1. / (1 - np.power(self.beta2, self.num_iter))
+                scale_factor = np.sqrt(scale_factor, dtype=np.float32)
+            elif self.dtype == np.float64:
+                scale_factor = np.float64(1. / np.sqrt(1 - \
+                        np.power(self.beta2, self.num_iter),dtype=np.float64))
             if self.amsgrad:
                 nntile.tensor.maximum_async(self.second_moments[i], \
                         self.max_second_moments[i])
@@ -94,12 +100,6 @@ class Adam:
             else:
                 nntile.tensor.sqrt_async(self.second_moments[i], \
                         self.denoms[i])
-            if self.dtype == np.float32:
-                scale_factor = 1. / (1 - np.power(self.beta2, self.num_iter))
-                scale_factor = np.sqrt(scale_factor, dtype=np.float32)
-            elif self.dtype == np.float64:
-                scale_factor = np.float64(1. / np.sqrt(1 - \
-                        np.power(self.beta2, self.num_iter),dtype=np.float64))
             nntile.tensor.scal_inplace_async(scale_factor, self.denoms[i])
             nntile.tensor.addcdiv_async(step_size, self.eps, \
                     self.first_moments[i], self.denoms[i], p.value)

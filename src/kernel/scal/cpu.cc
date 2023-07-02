@@ -4,57 +4,53 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/add/cpu.cc
- * Add operation on buffers on CPU
+ * @file src/kernel/scal/cpu.cc
+ * Scal operation on buffers on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @author Aleksandr Katrutsa
  * @date 2023-07-02
  * */
 
-#include "nntile/kernel/add/cpu.hh"
+#include "nntile/kernel/scal/cpu.hh"
 
 namespace nntile
 {
 namespace kernel
 {
-namespace add
+namespace scal
 {
 
 template<typename T>
-void cpu(Index nelems, T alpha, const T* src, T beta, T* dst)
+void cpu(Index nelems, T alpha, const T* src, T* dst)
     noexcept
-//! Add of two buffers on CPU
-/*! Performs the following operation:
- *      dst[i] = alpha*src[i] + beta*dst[i],
- * where alpha and beta are non-zero scalars.
+//! Set one buffer as a scaled version of another
+/*! Performs the followin operation:
+ *      dst[i] = alpha * src[i]
  *
  * @param[in] nelems: Size of the src and dst tensors
  * @param[in] alpha: Scalar multiplier for the src tensor
  * @param[in] src: Source tensor
- * @param[in] beta: Scalar multiplier for the dst tensor
- * @param[inout] dst: Destination of the add operation
+ * @param[out] dst: Destination of the scal operation. Input values are
+ *      ignored, its content is overwritten on exit.
  * */
 {
     for(Index i = 0; i < nelems; ++i)
     {
-        dst[i] = alpha*src[i] + beta*dst[i];
+        dst[i] = alpha * src[i];
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index nelems, fp32_t alpha, const fp32_t* src, fp32_t beta,
-        fp32_t* dst)
+void cpu<fp32_t>(Index nelems, fp32_t alpha, const fp32_t* src, fp32_t* dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index nelems, fp64_t alpha, const fp64_t* src, fp64_t beta,
-        fp64_t* dst)
+void cpu<fp64_t>(Index nelems, fp64_t alpha, const fp64_t* src, fp64_t* dst)
     noexcept;
 
-} // namespace add
+} // namespace scal
 } // namespace kernel
 } // namespace nntile
 

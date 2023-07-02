@@ -56,6 +56,7 @@ set(KERNEL_SRC
     "kernel/embedding/cpu.cc"
     "kernel/embedding_backward/cpu.cc"
     "kernel/mask_scalar/cpu.cc"
+    "kernel/scal/cpu.cc"
     )
 
 if(NNTILE_USE_CUDA)
@@ -100,6 +101,7 @@ if(NNTILE_USE_CUDA)
         "kernel/subtract_indexed_outputs/cuda.cu"
         "kernel/logsumexp/cuda.cu"
         "kernel/add_scalar/cuda.cu"
+        "kernel/scal/cuda.cu"
         )
 endif()
 
@@ -150,6 +152,7 @@ set(STARPU_SRC
     "starpu/embedding.cc"
     "starpu/embedding_backward.cc"
     "starpu/mask_scalar.cc"
+    "starpu/scal.cc"
     )
 
 set(TILE_SRC
@@ -192,6 +195,7 @@ set(TILE_SRC
     "tile/logsumexp.cc"
     "tile/total_sum_accum.cc"
     "tile/subtract_indexed_outputs.cc"
+    "tile/scal.cc"
     "tile/scal_inplace.cc"
     "tile/gelu_backward.cc"
     "tile/gelutanh_backward.cc"
@@ -243,6 +247,7 @@ set(TENSOR_SRC
     "tensor/logsumexp.cc"
     "tensor/total_sum_accum.cc"
     "tensor/subtract_indexed_outputs.cc"
+    "tensor/scal.cc"
     "tensor/scal_inplace.cc"
     "tensor/gelu_backward.cc"
     "tensor/gelutanh_backward.cc"

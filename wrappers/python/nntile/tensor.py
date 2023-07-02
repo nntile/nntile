@@ -546,6 +546,17 @@ def subtract_indexed_outputs_async(val: float, class_labels: Tensor_int64, \
         raise TypeError
 
 # Wrapper for multiprecision scaling
+def scal_async(alpha: float, x: Tensor, y: Tensor) -> None:
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.scal_async_fp32(alpha, x, y)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.scal_async_fp64(alpha, x, y)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision scaling
 def scal_inplace_async(alpha: float, x: Tensor) -> None:
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.scal_inplace_async_fp32(alpha, x)

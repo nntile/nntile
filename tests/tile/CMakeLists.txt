@@ -15,6 +15,7 @@
 
 # All unit tests without arguments to test executable
 set(TESTS
+    "add"
     "add_fiber"
     "add_slice"
     "addcdiv"
@@ -58,10 +59,12 @@ set(TESTS
     "tile"
     "total_sum_accum"
     "traits"
+    "scal"
     )
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
+    "add"
     "add_fiber"
     "gelu_backward"
     "gelutanh"
@@ -76,7 +79,8 @@ set(TESTS_NOT_IMPLEMENTED
     "sumprod_fiber"
     "total_sum_accum"
     "sqrt"
-)
+    "scal"
+    )
 
 # Add target for local coverage
 if(BUILD_COVERAGE)

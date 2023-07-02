@@ -104,6 +104,8 @@ set(KERNEL_HDR
     "nntile/kernel/embedding_backward/cpu.hh"
     "nntile/kernel/mask_scalar.hh"
     "nntile/kernel/mask_scalar/cpu.hh"
+    "nntile/kernel/scal.hh"
+    "nntile/kernel/scal/cpu.hh"
     )
 
 if(NNTILE_USE_CUDA)
@@ -148,6 +150,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/subtract_indexed_outputs/cuda.hh"
         "nntile/kernel/logsumexp/cuda.hh"
         "nntile/kernel/add_scalar/cuda.hh"
+        "nntile/kernel/scal/cuda.hh"
         )
 endif()
 
@@ -191,6 +194,7 @@ set(STARPU_HDR
     "nntile/starpu/logsumexp.hh"
     "nntile/starpu/total_sum_accum.hh"
     "nntile/starpu/subtract_indexed_outputs.hh"
+    "nntile/starpu/scal.hh"
     "nntile/starpu/scal_inplace.hh"
     "nntile/starpu/gelu_backward.hh"
     "nntile/starpu/gelutanh_backward.hh"
@@ -243,6 +247,7 @@ set(TILE_HDR
     "nntile/tile/logsumexp.hh"
     "nntile/tile/total_sum_accum.hh"
     "nntile/tile/subtract_indexed_outputs.hh"
+    "nntile/tile/scal.hh"
     "nntile/tile/scal_inplace.hh"
     "nntile/tile/gelu_backward.hh"
     "nntile/tile/gelutanh_backward.hh"
@@ -296,6 +301,7 @@ set(TENSOR_HDR
     "nntile/tensor/logsumexp.hh"
     "nntile/tensor/total_sum_accum.hh"
     "nntile/tensor/subtract_indexed_outputs.hh"
+    "nntile/tensor/scal.hh"
     "nntile/tensor/scal_inplace.hh"
     "nntile/tensor/gelu_backward.hh"
     "nntile/tensor/gelutanh_backward.hh"

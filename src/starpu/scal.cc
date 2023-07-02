@@ -4,31 +4,28 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/add.cc
- * Add operation on a StarPU buffers
+ * @file src/starpu/scal.cc
+ * Scal operation on a StarPU buffers
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @author Aleksandr Katrutsa
  * @date 2023-07-02
  * */
 
-#include "nntile/starpu/add.hh"
-#include "nntile/kernel/add.hh"
 #include "nntile/starpu/scal.hh"
+#include "nntile/kernel/scal.hh"
 #include "nntile/starpu/clear.hh"
-#include "nntile/starpu/scal_inplace.hh"
 #include <cstdlib>
 
 namespace nntile
 {
 namespace starpu
 {
-//! StarPU wrappers for add operation
-namespace add
+//! StarPU wrappers for scal operation
+namespace scal
 {
 
-//! Apply add operation for StarPU buffers in CPU
+//! Apply scal operation for StarPU buffers in CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
@@ -40,11 +37,11 @@ void cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::add::cpu<T>(args->nelems, args->alpha, src, args->beta, dst);
+    kernel::scal::cpu<T>(args->nelems, args->alpha, src, dst);
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply add for StarPU buffers on CUDA
+//! Apply scal for StarPU buffers on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
@@ -58,8 +55,7 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::add::cuda<T>(stream, args->nelems, args->alpha, src,
-            args->beta, dst);
+    kernel::scal::cuda<T>(stream, args->nelems, args->alpha, src, dst);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -67,7 +63,7 @@ Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
-    codelet_fp32.init("nntile_add_fp32",
+    codelet_fp32.init("nntile_scal_fp32",
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -76,7 +72,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_fp64.init("nntile_add_fp64",
+    codelet_fp64.init("nntile_scal_fp64",
             nullptr,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
@@ -100,64 +96,46 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index nelems, T alpha, Handle src, T beta, Handle dst)
-//! Insert add task into StarPU pool of tasks
+void submit(Index nelems, T alpha, Handle src, Handle dst)
+//! Insert scal task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
-    constexpr T zero = 0, one = 1;
-    // If beta is zero this function reduces to scal
-    if(beta == zero)
-    {
-        scal::submit<T>(nelems, alpha, src, dst);
-        return;
-    }
-    // If beta is non-zero and alpha is zero then reduce to scal_inplace
+    constexpr T zero = 0.0;
+    // if alpha is zero,sfunction reduces to clear
     if(alpha == zero)
     {
-        scal_inplace::submit<T>(nelems, beta, dst);
+        clear::submit(dst);
         return;
-    }
-    // Access mode for the dst handle
-    enum starpu_data_access_mode dst_mode;
-    if(beta == one)
-    {
-        dst_mode = Config::STARPU_RW_COMMUTE;
-    }
-    else
-    {
-        dst_mode = STARPU_RW;
     }
     // Codelet arguments
     args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     args->alpha = alpha;
-    args->beta = beta;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
+            STARPU_W, static_cast<starpu_data_handle_t>(dst),
             STARPU_CL_ARGS, args, sizeof(*args),
-            dst_mode, static_cast<starpu_data_handle_t>(dst), 0);
-            // STARPU_FLOPS, nflops);
+            // STARPU_FLOPS, nflops,
+            0);
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in add task submission");
+        throw std::runtime_error("Error in scal task submission");
     }
 }
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index nelems, fp32_t alpha, Handle src, fp32_t beta,
-        Handle dst);
+void submit<fp32_t>(Index nelems, fp32_t alpha, Handle src, Handle dst);
 
 template
-void submit<fp64_t>(Index nelems, fp64_t alpha, Handle src, fp64_t beta,
-        Handle dst);
+void submit<fp64_t>(Index nelems, fp64_t alpha, Handle src, Handle dst);
 
-} // namespace add
+} // namespace scal
 } // namespace starpu
 } // namespace nntile
 

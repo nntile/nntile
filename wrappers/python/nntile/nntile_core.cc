@@ -579,6 +579,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("subtract_indexed_outputs_fp64", &subtract_indexed_outputs<fp64_t>);
     m.def("subtract_indexed_outputs_fp32", &subtract_indexed_outputs<fp32_t>);
     
+    m.def("scal_async_fp64", &scal_async<fp64_t>);
+    m.def("scal_async_fp32", &scal_async<fp32_t>);
+    m.def("scal_fp64", &scal<fp64_t>);
+    m.def("scal_fp32", &scal<fp32_t>);
+
     m.def("scal_inplace_async_fp64", &scal_inplace_async<fp64_t>);
     m.def("scal_inplace_async_fp32", &scal_inplace_async<fp32_t>);
     m.def("scal_inplace_fp64", &scal_inplace<fp64_t>);

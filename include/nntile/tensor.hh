@@ -62,6 +62,7 @@
 #include <nntile/tensor/logsumexp.hh>
 #include <nntile/tensor/total_sum_accum.hh>
 #include <nntile/tensor/subtract_indexed_outputs.hh>
+#include <nntile/tensor/scal.hh>
 #include <nntile/tensor/scal_inplace.hh>
 #include <nntile/tensor/gelu_backward.hh>
 #include <nntile/tensor/gelutanh_backward.hh>

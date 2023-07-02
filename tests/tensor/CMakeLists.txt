@@ -20,6 +20,7 @@ set(TESTS
     )
 
 set(TESTS_MPI
+    "add"
     "add_fiber"
     "add_slice"
     "addcdiv"
@@ -65,10 +66,12 @@ set(TESTS_MPI
     "tensor"
     "total_sum_accum"
     "mask_scalar"
+    "scal"
     )
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
+    "add"
     "gelu_backward"
     "gelutanh"
     "gelutanh_backward"
@@ -78,7 +81,8 @@ set(TESTS_NOT_IMPLEMENTED
     "subtract_indexed_column"
     "total_sum_accum"
     "sqrt"
-)
+    "scal"
+    )
 
 # Add target for local coverage
 if(BUILD_COVERAGE)
@@ -126,4 +130,5 @@ foreach(test IN LISTS TESTS_MPI)
         LABELS ${labels} MPI
         )
 endforeach()
+
 

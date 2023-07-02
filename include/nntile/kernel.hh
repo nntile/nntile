@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-01
+ * @date 2023-07-02
  * */
 
 #pragma once
@@ -57,6 +57,7 @@
 #include <nntile/kernel/embedding.hh>
 #include <nntile/kernel/embedding_backward.hh>
 #include <nntile/kernel/mask_scalar.hh>
+#include <nntile/kernel/scal.hh>
 
 namespace nntile
 {
