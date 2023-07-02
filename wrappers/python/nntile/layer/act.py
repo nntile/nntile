@@ -61,7 +61,7 @@ class Act(BaseLayer):
 
     # Forward propagation of the activation layer
     def forward_async(self):
-        if self.funcname == "gelutanhxxx":
+        if self.funcname == "gelutanh":
             gelutanh_async(self.x.value, self.y.value)
         else:
             # Init Y as a copy of X

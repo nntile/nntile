@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Katrutsa
 # @author Aleksandr Mikhalev
-# @date 2023-06-29
+# @date 2023-07-02
 
 import nntile
 import numpy as np
@@ -72,7 +72,7 @@ class Adam:
                 nntile.tensor.add_async(1-self.beta1, p.grad, self.beta1, \
                         self.first_moments[i])
             # Update second moments
-            nntile.tensor.pow_async(1.0, 2.0, p.grad)
+            nntile.tensor.prod_async(p.grad, p.grad)
             if self.num_iter == 1:
                 nntile.tensor.add_async(1-self.beta2, p.grad, 0.0, \
                         self.second_moments[i])
