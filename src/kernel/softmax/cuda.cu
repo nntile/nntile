@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-02
+ * @date 2023-07-03
  * */
 
 #include "nntile/kernel/softmax/cuda.hh"
@@ -23,8 +23,8 @@ namespace softmax
 
 template<typename T>
 static __global__
-void cuda_kernel(Index m, Index n, Index k, const T *maxsumexp, const T *src,
-        T *dst)
+void cuda_kernel(Index m, Index n, Index k, const T * __restrict__ maxsumexp,
+        const T * __restrict__ src, T * __restrict__ dst)
 {
     Index i0 = threadIdx.y + blockIdx.y*blockDim.y,
           i1 = threadIdx.z + blockIdx.z*blockDim.z,
@@ -32,8 +32,8 @@ void cuda_kernel(Index m, Index n, Index k, const T *maxsumexp, const T *src,
     if(i0 < m and i1 < n)
     {
         Index src_dst_offset = i1*k*m + i0;
-        const T *src_slice = src + src_dst_offset;
-        T *dst_slice = dst + src_dst_offset;
+        //const T *src_slice = src + src_dst_offset;
+        //T *dst_slice = dst + src_dst_offset;
         // Max and sum of exponents
         __shared__ T max, sum;
         if(i2_start == 0)
@@ -46,9 +46,9 @@ void cuda_kernel(Index m, Index n, Index k, const T *maxsumexp, const T *src,
         for(Index i2 = i2_start; i2 < k; i2 += i2_step)
         {
             // Value-to-update
-            T val = src_slice[i2*m];
+            T val = src[src_dst_offset+i2*m];
             // Update value
-            dst_slice[i2*m] = ::exp(val-max) / sum;
+            dst[src_dst_offset+i2*m] = ::exp(val-max) / sum;
         }
     }
 }
@@ -69,7 +69,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
 {
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
     // Both source and destination are Fortran-contiguous
-    dim3 threads(256, 1, 1);
+    dim3 threads(32, 1, 1);
     dim3 blocks(1, m, n);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, maxsumexp, src,
             dst);

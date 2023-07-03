@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Katrutsa
 # @author Aleksandr Mikhalev
-# @date 2023-07-02
+# @date 2023-07-03
 
 import nntile
 import numpy as np
