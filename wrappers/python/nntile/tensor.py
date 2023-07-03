@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-02
+# @date 2023-07-03
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -608,6 +608,17 @@ def embedding_backward_async(index: Tensor_int64, embed: Tensor, \
         core_tensor.embedding_backward_async_fp32(index, embed, vocab, axis)
     elif type(embed) is core_tensor.Tensor_fp64:
         core_tensor.embedding_backward_async_fp64(index, embed, vocab, axis)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision hypot
+def hypot_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.hypot_async_fp32(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.hypot_async_fp64(alpha, x, beta, y)
     else:
         raise TypeError
 

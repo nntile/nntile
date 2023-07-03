@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-05
+ * @date 2023-07-03
  * */
 
 #include "nntile/tensor/nrm2.hh"
@@ -105,13 +105,13 @@ void nrm2_async(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
             // Init dst_tile_handle
             if(i == 0)
             {
-                starpu::hypot::submit<T>(alpha, tmp_tile_handle, beta,
+                starpu::hypot::submit<T>(1.0, alpha, tmp_tile_handle, beta,
                         dst_tile_handle);
             }
             // Accumulate dst_tile_handle
             else
             {
-                starpu::hypot::submit<T>(alpha, tmp_tile_handle, 1.0,
+                starpu::hypot::submit<T>(1.0, alpha, tmp_tile_handle, 1.0,
                         dst_tile_handle);
             }
         }

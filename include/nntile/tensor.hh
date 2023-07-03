@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-02
+ * @date 2023-07-03
  * */
 
 #pragma once
@@ -72,6 +72,7 @@
 #include <nntile/tensor/embedding.hh>
 #include <nntile/tensor/embedding_backward.hh>
 #include <nntile/tensor/mask_scalar.hh>
+#include <nntile/tensor/hypot.hh>
 
 namespace nntile
 {

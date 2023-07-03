@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-07-02
+# @date 2023-07-03
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -77,6 +77,7 @@ set(TESTS_NOT_IMPLEMENTED
     "sqrt"
     "scal"
     "softmax"
+    "hypot"
     )
 
 # Add target for local coverage

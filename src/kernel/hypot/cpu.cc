@@ -5,15 +5,14 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/kernel/hypot/cpu.cc
- * Hypot of 2 inputs
+ * hypot operation on buffers on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-18
+ * @date 2023-07-03
  * */
 
 #include "nntile/kernel/hypot/cpu.hh"
-#include "nntile/base_types.hh"
 #include <cmath>
 
 namespace nntile
@@ -23,40 +22,36 @@ namespace kernel
 namespace hypot
 {
 
-//! y := hypot(alpha*x, beta*y)
 template<typename T>
-void cpu(T alpha, const T *x, T beta, T *y)
+void cpu(Index nelems, T alpha, const T* src, T beta, T* dst)
     noexcept
+//! hypot of two buffers on CPU
+/*! Performs the following operation:
+ *      dst[i] = hypot(alpha*src[i], beta*dst[i]),
+ * where alpha and beta are non-zero scalars.
+ *
+ * @param[in] nelems: Size of the src and dst tensors
+ * @param[in] alpha: Scalar multiplier for the src tensor
+ * @param[in] src: Source tensor
+ * @param[in] beta: Scalar multiplier for the dst tensor
+ * @param[inout] dst: Destination of the hypot operation
+ * */
 {
-    constexpr T zero = 0.0;
-    if(beta == zero)
+    for(Index i = 0; i < nelems; ++i)
     {
-        if(alpha == zero)
-        {
-            y[0] = zero;
-        }
-        else
-        {
-            y[0] = std::abs(alpha*x[0]);
-        }
-    }
-    else if(alpha == zero)
-    {
-        y[0] = std::abs(y[0]*beta);
-    }
-    else
-    {
-        y[0] = std::hypot(alpha*x[0], beta*y[0]);
+        dst[i] = std::hypot(alpha*src[i], beta*dst[i]);
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(fp32_t alpha, const fp32_t *x, fp32_t beta, fp32_t *y)
+void cpu<fp32_t>(Index nelems, fp32_t alpha, const fp32_t* src, fp32_t beta,
+        fp32_t* dst)
     noexcept;
 
 template
-void cpu<fp64_t>(fp64_t alpha, const fp64_t *x, fp64_t beta, fp64_t *y)
+void cpu<fp64_t>(Index nelems, fp64_t alpha, const fp64_t* src, fp64_t beta,
+        fp64_t* dst)
     noexcept;
 
 } // namespace hypot

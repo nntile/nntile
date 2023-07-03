@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-07-02
+# @date 2023-07-03
 
 # Set list of headers
 set(BASE_HDR
@@ -154,6 +154,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/logsumexp/cuda.hh"
         "nntile/kernel/add_scalar/cuda.hh"
         "nntile/kernel/scal/cuda.hh"
+        "nntile/kernel/hypot/cuda.hh"
         )
 endif()
 
@@ -259,6 +260,7 @@ set(TILE_HDR
     "nntile/tile/add.hh"
     "nntile/tile/add_scalar.hh"
     "nntile/tile/mask_scalar.hh"
+    "nntile/tile/hypot.hh"
     )
 
 set(TENSOR_HDR
@@ -316,6 +318,7 @@ set(TENSOR_HDR
     "nntile/tensor/embedding.hh"
     "nntile/tensor/embedding_backward.hh"
     "nntile/tensor/mask_scalar.hh"
+    "nntile/tensor/hypot.hh"
     )
 
 set(LAYER_HDR

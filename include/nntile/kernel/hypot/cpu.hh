@@ -5,14 +5,16 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/kernel/hypot/cpu.hh
- * Hypot of 2 inputs
+ * hypot operation on buffers on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-18
+ * @date 2023-07-03
  * */
 
 #pragma once
+
+#include <nntile/base_types.hh>
 
 namespace nntile
 {
@@ -21,8 +23,9 @@ namespace kernel
 namespace hypot
 {
 
+// Apply hypot for buffers on CPU
 template<typename T>
-void cpu(T alpha, const T *x, T beta, T *y)
+void cpu(Index nelems, T alpha, const T* src, T beta, T* dst)
     noexcept;
 
 } // namespace hypot

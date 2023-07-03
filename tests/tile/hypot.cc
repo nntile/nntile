@@ -4,7 +4,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/hypot.cc
+ * @file tests/tile/hypot.cc
  * Per-element hypot function of tensors
  *
  * @version 1.0.0

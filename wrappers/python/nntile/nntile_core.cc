@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-02
+ * @date 2023-07-03
  * */
 
 #include <pybind11/pybind11.h>
@@ -652,6 +652,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("mask_scalar_async_fp32", &mask_scalar_async<fp32_t>);
     m.def("mask_scalar_fp64", &mask_scalar<fp64_t>);
     m.def("mask_scalar_fp32", &mask_scalar<fp32_t>);
+
+    m.def("hypot_async_fp64", &hypot_async<fp64_t>);
+    m.def("hypot_async_fp32", &hypot_async<fp32_t>);
+    m.def("hypot_fp64", &hypot<fp64_t>);
+    m.def("hypot_fp32", &hypot<fp32_t>);
 }
 
 // Main extension module with all wrappers

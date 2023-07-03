@@ -72,13 +72,12 @@ class Adam:
                 nntile.tensor.add_async(1-self.beta1, p.grad, self.beta1, \
                         self.first_moments[i])
             # Update second moments
-            nntile.tensor.prod_async(p.grad, p.grad)
             if self.num_iter == 1:
-                nntile.tensor.add_async(1-self.beta2, p.grad, 0.0, \
-                        self.second_moments[i])
-            else:
-                nntile.tensor.add_async(1-self.beta2, p.grad, self.beta2, \
-                        self.second_moments[i])
+                nntile.tensor.clear_async(self.second_moments[i])
+                if self.amsgrad:
+                    nntile.tensor.clear_async(self.max_second_moments[i])
+            nntile.tensor.hypot_async(np.sqrt(1-self.beta2), p.grad, \
+                    np.sqrt(self.beta2), self.second_moments[i])
             # Mult tensor by scalar
             if self.dtype == np.float32:
                 step_size = np.float32(-self.lr / (1 - np.power(self.beta1, \
@@ -95,13 +94,12 @@ class Adam:
             if self.amsgrad:
                 nntile.tensor.maximum_async(self.second_moments[i], \
                         self.max_second_moments[i])
-                nntile.tensor.sqrt_async(self.max_second_moments[i], \
-                        self.denoms[i])
+                nntile.tensor.addcdiv_async(step_size/scale_factor, self.eps, \
+                        self.first_moments[i], self.max_second_moments[i], \
+                        p.value)
             else:
-                nntile.tensor.sqrt_async(self.second_moments[i], \
-                        self.denoms[i])
-            nntile.tensor.scal_inplace_async(scale_factor, self.denoms[i])
-            nntile.tensor.addcdiv_async(step_size, self.eps, \
-                    self.first_moments[i], self.denoms[i], p.value)
+                nntile.tensor.addcdiv_async(step_size/scale_factor, self.eps, \
+                        self.first_moments[i], self.second_moments[i], \
+                        p.value)
         self.num_iter += 1
 

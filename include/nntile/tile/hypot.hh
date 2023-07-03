@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/hypot.hh
- * hypot low-level kernel
+ * @file include/nntile/tile/hypot.hh
+ * hypot operation for Tile<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -14,23 +14,21 @@
 
 #pragma once
 
-#include <nntile/kernel/hypot/cpu.hh>
-#include <nntile/defs.h>
-#ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/hypot/cuda.hh>
-#endif // NNTILE_USE_CUDA
+#include <nntile/tile/tile.hh>
 
 namespace nntile
 {
-namespace kernel
-{
-//! @namespace nntile::kernel::hypot
-/*! Low-level implementations of hypot operation
- * */
-namespace hypot
+namespace tile
 {
 
-} // namespace hypot
-} // namespace kernel
+// Tile-wise hypot operation
+template<typename T>
+void hypot_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst);
+
+// Tile-wise hypot operation
+template<typename T>
+void hypot(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst);
+
+} // namespace tile
 } // namespace nntile
 

@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-07-02
+# @date 2023-07-03
 
 # Set list of sources
 set(KERNEL_SRC
@@ -104,6 +104,7 @@ if(NNTILE_USE_CUDA)
         "kernel/logsumexp/cuda.cu"
         "kernel/add_scalar/cuda.cu"
         "kernel/scal/cuda.cu"
+        "kernel/hypot/cuda.cu"
         )
 endif()
 
@@ -206,6 +207,7 @@ set(TILE_SRC
     "tile/add.cc"
     "tile/add_scalar.cc"
     "tile/mask_scalar.cc"
+    "tile/hypot.cc"
     )
 
 set(TENSOR_SRC
@@ -261,6 +263,7 @@ set(TENSOR_SRC
     "tensor/embedding.cc"
     "tensor/embedding_backward.cc"
     "tensor/mask_scalar.cc"
+    "tensor/hypot.cc"
     )
 
 set(LAYER_SRC
