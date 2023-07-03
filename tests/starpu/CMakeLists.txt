@@ -39,6 +39,7 @@ set(TESTS
     "pow"
     "prod"
     "prod_fiber"
+    "prod_fiber3"
     "prod_slice"
     "randn"
     "relu"
@@ -80,6 +81,7 @@ set(TESTS_NOT_IMPLEMENTED
     "softmax"
     "hypot"
     "add_slice3"
+    "prod_fiber3"
     )
 
 # Add target for local coverage

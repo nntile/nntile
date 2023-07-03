@@ -506,6 +506,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("prod_fiber_fp64", &prod_fiber<fp64_t>);
     m.def("prod_fiber_fp32", &prod_fiber<fp32_t>);
 
+    m.def("prod_fiber3_async_fp64", &prod_fiber3_async<fp64_t>);
+    m.def("prod_fiber3_async_fp32", &prod_fiber3_async<fp32_t>);
+    m.def("prod_fiber3_fp64", &prod_fiber3<fp64_t>);
+    m.def("prod_fiber3_fp32", &prod_fiber3<fp32_t>);
+
     m.def("gather_async_fp64", &gather_async<fp64_t>);
     m.def("gather_async_fp32", &gather_async<fp32_t>);
     m.def("gather_async_int64", &gather_async<Index>);

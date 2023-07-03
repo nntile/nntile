@@ -384,6 +384,20 @@ def prod_fiber_async(prod_fiber: Tensor, alpha: float, x: Tensor, \
     else:
         raise TypeError
     
+# Wrapper for multiprecision prod_fiber3
+def prod_fiber3_async(prod_fiber: Tensor, alpha: float, x: Tensor, \
+        y: Tensor, axis: int) -> None:
+    if type(prod_fiber) is not type(x):
+        raise TypeError
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.prod_fiber3_async_fp32(prod_fiber, alpha, x, y, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.prod_fiber3_async_fp64(prod_fiber, alpha, x, y, axis)
+    else:
+        raise TypeError
+    
 # Wrapper for multiprecision add_scalar
 def add_scalar_async(alpha:float, beta: float, x: Tensor) -> None:
     if type(x) is core_tensor.Tensor_fp32:
