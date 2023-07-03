@@ -24,6 +24,7 @@
 // Tensor operations
 #include <nntile/tensor/axpy.hh>
 #include <nntile/tensor/add_slice.hh>
+#include <nntile/tensor/add_slice3.hh>
 #include <nntile/tensor/add_fiber.hh>
 #include <nntile/tensor/prod_slice.hh>
 #include <nntile/tensor/prod_fiber.hh>

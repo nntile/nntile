@@ -22,6 +22,7 @@
 // Tile<T> operations
 #include <nntile/tile/axpy.hh>
 #include <nntile/tile/add_slice.hh>
+#include <nntile/tile/add_slice3.hh>
 #include <nntile/tile/add_fiber.hh>
 #include <nntile/tile/prod_slice.hh>
 #include <nntile/tile/prod_fiber.hh>

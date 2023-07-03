@@ -11,12 +11,13 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-02
+ * @date 2023-07-03
  * */
 
 #pragma once
 
 #include <nntile/kernel/add_slice.hh>
+#include <nntile/kernel/add_slice3.hh>
 #include <nntile/kernel/add_fiber.hh>
 #include <nntile/kernel/prod_slice.hh>
 #include <nntile/kernel/prod_fiber.hh>

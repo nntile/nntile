@@ -18,6 +18,7 @@ set(TESTS
     "add"
     "add_fiber"
     "add_slice"
+    "add_slice3"
     "addcdiv"
     "dgelu"
     "dgelutanh"
@@ -77,6 +78,7 @@ set(TESTS_NOT_IMPLEMENTED
     "scal"
     "softmax"
     "hypot"
+    "add_slice3"
     )
          
 # Setup a target for coverage of kernels

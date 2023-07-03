@@ -334,6 +334,20 @@ def add_slice_async(alpha: float, add_slice: Tensor, beta, x: Tensor, \
     else:
         raise TypeError
 
+# Wrapper for multiprecision add_slice3
+def add_slice3_async(alpha: float, add_slice: Tensor, beta, x: Tensor, \
+        y: Tensor, axis: int) -> None:
+    if type(add_slice) is not type(x):
+        raise TypeError
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.add_slice3_async_fp32(alpha, add_slice, beta, x, y, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.add_slice3_async_fp64(alpha, add_slice, beta, x, y, axis)
+    else:
+        raise TypeError
+
 # Wrapper for multiprecision add_fiber
 def add_fiber_async(alpha: float, add_fiber: Tensor, beta, x: Tensor, \
         axis: int) -> None:

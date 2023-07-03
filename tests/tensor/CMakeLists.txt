@@ -23,6 +23,7 @@ set(TESTS_MPI
     "add"
     "add_fiber"
     "add_slice"
+    "add_slice3"
     "addcdiv"
     "axpy"
     "clear"
@@ -86,6 +87,7 @@ set(TESTS_NOT_IMPLEMENTED
     "scal"
     "softmax"
     "hypot"
+    "add_slice3"
     )
 
 # Add target for local coverage

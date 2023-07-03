@@ -16,6 +16,7 @@
 # Set list of sources
 set(KERNEL_SRC
     "kernel/add_slice/cpu.cc"
+    "kernel/add_slice3/cpu.cc"
     "kernel/add_fiber/cpu.cc"
     "kernel/prod_slice/cpu.cc"
     "kernel/prod_fiber/cpu.cc"
@@ -65,6 +66,7 @@ if(NNTILE_USE_CUDA)
         ${KERNEL_SRC}
         "kernel/add/cuda.cu"
         "kernel/add_slice/cuda.cu"
+        "kernel/add_slice3/cuda.cu"
         "kernel/add_fiber/cuda.cu"
         "kernel/prod_slice/cuda.cu"
         "kernel/prod_fiber/cuda.cu"
@@ -110,6 +112,7 @@ endif()
 
 set(STARPU_SRC
     "starpu/add_slice.cc"
+    "starpu/add_slice3.cc"
     "starpu/add_fiber.cc"
     "starpu/prod_slice.cc"
     "starpu/prod_fiber.cc"
@@ -163,6 +166,7 @@ set(TILE_SRC
     "tile/traits.cc"
     "tile/axpy.cc"
     "tile/add_slice.cc"
+    "tile/add_slice3.cc"
     "tile/add_fiber.cc"
     "tile/prod_slice.cc"
     "tile/prod_fiber.cc"
@@ -215,6 +219,7 @@ set(TENSOR_SRC
     "tensor/distributions.cc"
     "tensor/axpy.cc"
     "tensor/add_slice.cc"
+    "tensor/add_slice3.cc"
     "tensor/add_fiber.cc"
     "tensor/prod_slice.cc"
     "tensor/prod_fiber.cc"
