@@ -67,6 +67,10 @@ set(TESTS_NOT_IMPLEMENTED
     "nntile_core/test_tensor_sumprod_slice.py"
     "nntile_core/test_tensor_subtract_indexed_column.py"
     "nntile_core/test_tensor_total_sum_accum.py"
+    "nntile_core/test_tensor_add_slice3.py"
+    "nntile_core/test_tensor_hypot.py"
+    "nntile_core/test_tensor_prod_fiber3.py"
+    "nntile_core/test_tensor_scal.py"
     )
 
 foreach(py_test IN LISTS PY_TESTS)

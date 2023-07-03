@@ -37,9 +37,31 @@ void cuda_kernel(Index nelems, T alpha, const T* src, T beta, T* dst)
  * */
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
+    constexpr T zero = 0.0;
     if(i < nelems)
     {
-        dst[i] = ::hypot(alpha*src[i], beta*dst[i]);
+        if(alpha == zero)
+        {
+            if(beta == zero)
+            {
+                dst[i] = zero;
+            }
+            else
+            {
+                dst[i] = ::abs(beta * dst[i]);
+            }
+        }
+        else
+        {
+            if(beta == zero)
+            {
+                dst[i] = ::abs(alpha * src[i]);
+            }
+            else
+            {
+                dst[i] = ::hypot(alpha*src[i], beta*dst[i]);
+            }
+        }
     }
 }
 

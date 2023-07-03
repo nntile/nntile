@@ -4,8 +4,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_sqrt.py
-# Test for tensor::sqrt<T> Python wrapper
+# @file wrappers/python/tests/nntile_core/test_tensor_sqrt_inplace.py
+# Test for tensor::sqrt_inplace<T> Python wrapper
 #
 # @version 1.0.0
 # @author Aleksandr katrutsa
@@ -26,8 +26,8 @@ dtypes = [np.float32, np.float64]
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 # Define mapping between tested function and numpy type
-sqrt = {np.float32: nntile.nntile_core.tensor.sqrt_fp32,
-        np.float64: nntile.nntile_core.tensor.sqrt_fp64}
+sqrt_inplace = {np.float32: nntile.nntile_core.tensor.sqrt_inplace_fp32,
+        np.float64: nntile.nntile_core.tensor.sqrt_inplace_fp64}
 
 
 # Helper function returns bool value true if test passes
@@ -44,7 +44,7 @@ def helper(dtype):
     src_A = np.array(rand, dtype=dtype, order='F')
     dst_A = np.zeros_like(src_A)
     A.from_array(src_A)
-    sqrt[dtype](A)
+    sqrt_inplace[dtype](A)
     A.to_array(dst_A)
     nntile.starpu.wait_for_all()
     A.unregister()

@@ -41,27 +41,39 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src,
         {
             sum = ::hypot(sum, src_fiber[i2*m]);
         }
+        volatile __shared__ T block_max[64];
         __shared__ T block_sum[64];
         if(i2_start == 0)
         {
+            block_max[threadIdx.x+blockDim.x*threadIdx.y] = sum;
             block_sum[threadIdx.x+blockDim.x*threadIdx.y] = zero;
         }
         __syncthreads();
-        atomicAdd(&block_sum[threadIdx.x+blockDim.x*threadIdx.y], sum*sum);
-        __syncthreads();
-        // Update output value
-        if(i2_start == 0)
+        while(block_max[threadIdx.x+blockDim.x*threadIdx.y] < sum)
         {
-            // Output value
-            T &result = dst[i1*m+i0];
-            sum = block_sum[threadIdx.x+blockDim.x*threadIdx.y];
-            if(beta == zero)
+            block_max[threadIdx.x+blockDim.x*threadIdx.y] = sum;
+        }
+        __syncthreads();
+        if(block_max[threadIdx.x+blockDim.x*threadIdx.y] > 0)
+        {
+            sum /= block_max[threadIdx.x+blockDim.x*threadIdx.y];
+            atomicAdd(&block_sum[threadIdx.x+blockDim.x*threadIdx.y], sum*sum);
+            __syncthreads();
+            // Update output value
+            if(i2_start == 0)
             {
-                result = sqrt(alpha*alpha*sum);
-            }
-            else
-            {
-                result = sqrt(beta*beta*result*result + alpha*alpha*sum);
+                // Output value
+                T &result = dst[i1*m+i0];
+                sum = block_max[threadIdx.x+blockDim.x*threadIdx.y];
+                sum *= ::sqrt(block_sum[threadIdx.x+blockDim.x*threadIdx.y]);
+                if(beta == zero)
+                {
+                    result = ::abs(alpha) * sum;
+                }
+                else
+                {
+                    result = ::hypot(beta*result, alpha*sum);
+                }
             }
         }
     }

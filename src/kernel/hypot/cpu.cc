@@ -37,9 +37,40 @@ void cpu(Index nelems, T alpha, const T* src, T beta, T* dst)
  * @param[inout] dst: Destination of the hypot operation
  * */
 {
-    for(Index i = 0; i < nelems; ++i)
+    constexpr T zero = 0.0;
+    if(alpha == zero)
     {
-        dst[i] = std::hypot(alpha*src[i], beta*dst[i]);
+        if(beta == zero)
+        {
+            for(Index i = 0; i < nelems; ++i)
+            {
+                dst[i] = zero;
+            }
+        }
+        else
+        {
+            for(Index i = 0; i < nelems; ++i)
+            {
+                dst[i] = std::abs(beta * dst[i]);
+            }
+        }
+    }
+    else
+    {
+        if(beta == zero)
+        {
+            for(Index i = 0; i < nelems; ++i)
+            {
+                dst[i] = std::abs(alpha * src[i]);
+            }
+        }
+        else
+        {
+            for(Index i = 0; i < nelems; ++i)
+            {
+                dst[i] = std::hypot(alpha*src[i], beta*dst[i]);
+            }
+        }
     }
 }
 

@@ -132,7 +132,7 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
-            //starpu_data_wont_use(tmp);
+            starpu_data_wont_use(tmp);
         }
     }
     //! Flush tensor from MPI caches

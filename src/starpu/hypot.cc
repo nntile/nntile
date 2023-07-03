@@ -108,25 +108,29 @@ void submit(Index nelems, T alpha, Handle src, T beta, Handle dst)
 {
     constexpr T zero = 0, one = 1;
     // If beta is zero this function reduces to scal
-    if(beta == zero)
-    {
-        throw std::runtime_error("modulus(apha*src) is not yet implemented");
-        //scal::submit<T>(nelems, alpha, src, dst);
-        return;
-    }
+    //if(beta == zero)
+    //{
+    //    throw std::runtime_error("modulus(apha*src) is not yet implemented");
+    //    //scal::submit<T>(nelems, alpha, src, dst);
+    //    return;
+    //}
     // If beta is non-zero and alpha is zero then reduce to scal_inplace
-    if(alpha == zero)
-    {
-        throw std::runtime_error("modulus_inplace(beta*dst) is not yet "
-                "implemented");
-        //scal_inplace::submit<T>(nelems, beta, dst);
-        return;
-    }
+    //if(alpha == zero)
+    //{
+    //    throw std::runtime_error("modulus_inplace(beta*dst) is not yet "
+    //            "implemented");
+    //    //scal_inplace::submit<T>(nelems, beta, dst);
+    //    return;
+    //}
     // Access mode for the dst handle
     enum starpu_data_access_mode dst_mode;
     if(beta == one)
     {
         dst_mode = Config::STARPU_RW_COMMUTE;
+    }
+    else if(beta == zero)
+    {
+        dst_mode = STARPU_W;
     }
     else
     {
