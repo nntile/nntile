@@ -452,7 +452,7 @@ public:
         }
         else
         {
-            throw std::runtime_error("Provided where is not supported");
+            //throw std::runtime_error("Provided where is not supported");
         }
     }
     void restore_where()

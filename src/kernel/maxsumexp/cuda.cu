@@ -9,10 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-06-30
+ * @date 2023-07-04
  * */
 
 #include "nntile/kernel/maxsumexp/cuda.hh"
+#include <cstdio>
 
 namespace nntile
 {
@@ -29,31 +30,40 @@ void cuda_kernel(Index m, Index n, Index k, Index mk,
     Index i1 = threadIdx.y + blockIdx.y*blockDim.y,
           i2 = threadIdx.z + blockIdx.z*blockDim.z,
           i0_start = threadIdx.x, i0_step = blockDim.x;
-    constexpr T zero = 0, one = 1;
-    if(i2 < n and i1 < m)
+    constexpr T zero = 0.0, one = 1.0;
+    if(i2 < n and i1 < m and i0_start < k)
     {
         // Get max and sum of exponents of a corresponding slice
         const T *src_slice = src + i2*mk + i1;
         // Init max and sum
-        T max_val = src_slice[0];
-        T sum_val = zero;
+        T max_val = src_slice[i0_start*m];
+        T sum_val = one;
         // Cycle over slice of input buffer
-        for(Index i0 = i0_start; i0 < k; i0 += i0_step)
+        for(Index i0 = i0_start+i0_step; i0 < k; i0 += i0_step)
         {
             // Read value from source
             T val = src_slice[i0*m];
             // Update max and sum of exponents
             if(max_val < val)
             {
+                // Due to strict ineqality situations with max_val=val=-inf
+                // is impossible. Only max_val can be -inf at this point, so
+                // max_val-val is not a NaN, but possibly -inf
                 sum_val = sum_val*(::exp(max_val-val)) + one;
                 max_val = val;
             }
             else
             {
-                sum_val += ::exp(val-max_val);
+                // Do nothing if the value is -inf (masked), as
+                // (-inf)-(-inf)=NaN. +inf is also ignored, as this shall not
+                // appear here
+                if(not ::isinf(val))
+                {
+                    sum_val += ::exp(val-max_val);
+                }
             }
         }
-        // Reduce max
+        // Reduce max and sum of exponents
         volatile __shared__ T block_max_val;
         __shared__ T block_sum_val;
         if(i0_start == 0)
@@ -61,40 +71,51 @@ void cuda_kernel(Index m, Index n, Index k, Index mk,
             block_max_val = max_val;
             block_sum_val = zero;
         }
+        // Finish early if max_val is -inf (masked out)
+        if(::isinf(max_val))
+        {
+            return;
+        }
+        // From this point max_val and sum_val contain only finite numbers
         __syncthreads();
+        // Update max at first
         while(block_max_val < max_val)
         {
             block_max_val = max_val;
         }
         __syncthreads();
-        // Update own sum
+        // Update sum then
         sum_val *= ::exp(max_val-block_max_val);
         atomicAdd(&block_sum_val, sum_val);
         // Save result
         __syncthreads();
         if(i0_start == 0)
         {
+            max_val = block_max_val;
+            sum_val = block_sum_val;
             Index dst_offset = i1 + i2*m;
-            T &max_output = maxsumexp[2*dst_offset];
-            T &sum_output = maxsumexp[2*dst_offset+1];
+            T max_output = maxsumexp[2*dst_offset];
+            T sum_output = maxsumexp[2*dst_offset+1];
             if(sum_output == zero)
             {
-                max_output = block_max_val;
-                sum_output = block_sum_val;
+                max_output = max_val;
+                sum_output = sum_val;
             }
             else
             {
-                if(block_max_val < max_output)
+                if(max_val < max_output)
                 {
-                    block_sum_val *= ::exp(block_max_val-max_output);
+                    sum_val *= ::exp(max_val-max_output);
                 }
                 else
                 {
-                    sum_output *= ::exp(max_output-block_max_val);
-                    max_output = block_max_val;
+                    sum_output *= ::exp(max_output-max_val);
+                    max_output = max_val;
                 }
-                sum_output += block_sum_val;
+                sum_output += sum_val;
             }
+            maxsumexp[2*dst_offset] = max_output;
+            maxsumexp[2*dst_offset+1] = sum_output;
         }
     }
 }
