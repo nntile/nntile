@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-03
+ * @date 2023-07-06
  * */
 
 #include "nntile/kernel/softmax/cuda.hh"
@@ -29,11 +29,14 @@ void cuda_kernel(Index m, Index n, Index k, const T * __restrict__ maxsumexp,
     Index i0 = threadIdx.y + blockIdx.y*blockDim.y,
           i1 = threadIdx.z + blockIdx.z*blockDim.z,
           i2_start = threadIdx.x, i2_step = blockDim.x;
+    constexpr T zero = 0.0;
     if(i0 < m and i1 < n)
     {
+        // Offset in memory for src and dst
         Index src_dst_offset = i1*k*m + i0;
-        //const T *src_slice = src + src_dst_offset;
-        //T *dst_slice = dst + src_dst_offset;
+        // Input and output fiber/slice
+        const T *src_slice = src + src_dst_offset;
+        T *dst_slice = dst + src_dst_offset;
         // Max and sum of exponents
         __shared__ T max, sum;
         if(i2_start == 0)
@@ -46,9 +49,16 @@ void cuda_kernel(Index m, Index n, Index k, const T * __restrict__ maxsumexp,
         for(Index i2 = i2_start; i2 < k; i2 += i2_step)
         {
             // Value-to-update
-            T val = src[src_dst_offset+i2*m];
+            T val = src_slice[i2*m];
             // Update value
-            dst[src_dst_offset+i2*m] = ::exp(val-max) / sum;
+            if(not ::isinf(val))
+            {
+                dst_slice[i2*m] = ::exp(val-max) / sum;
+            }
+            else
+            {
+                dst_slice[i2*m] = zero;
+            }
         }
     }
 }

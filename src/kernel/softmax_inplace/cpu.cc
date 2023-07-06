@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-02
+ * @date 2023-07-06
  * */
 
 #include "nntile/kernel/softmax_inplace/cpu.hh"
@@ -36,6 +36,7 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, T *dst)
  * */
 {
     Index dst_offset = 0;
+    constexpr T zero = 0.0;
     // Outer loop by the last mode of dst and sumnorm arrays
     for(Index i2 = 0; i2 < n; ++i2)
     {
@@ -52,7 +53,14 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, T *dst)
                 const T max = maxsumexp[src_offset];
                 const T sum = maxsumexp[src_offset+1];
                 // Update value
-                val = std::exp(val-max) / sum;
+                if(not std::isinf(val))
+                {
+                    val = std::exp(val-max) / sum;
+                }
+                else
+                {
+                    val = zero;
+                }
                 // Update pointers
                 ++dst_offset;
                 src_offset += 2;

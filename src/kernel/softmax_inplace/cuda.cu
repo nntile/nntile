@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-02
+ * @date 2023-07-05
  * */
 
 #include "nntile/kernel/softmax_inplace/cuda.hh"
@@ -28,6 +28,7 @@ void cuda_kernel(Index m, Index n, Index k, const T *maxsumexp, T *dst)
     Index i0 = threadIdx.y + blockIdx.y*blockDim.y,
           i1 = threadIdx.z + blockIdx.z*blockDim.z,
           i2_start = threadIdx.x, i2_step = blockDim.x;
+    constexpr T zero = 0.0;
     if(i0 < m and i1 < n)
     {
         Index dst_offset = i1*k*m + i0;
@@ -46,7 +47,14 @@ void cuda_kernel(Index m, Index n, Index k, const T *maxsumexp, T *dst)
             // Value-to-update
             T &val = dst_slice[i2*m];
             // Update value
-            val = ::exp(val-max) / sum;
+            if(not ::isinf(val))
+            {
+                val = ::exp(val-max) / sum;
+            }
+            else
+            {
+                val = zero;
+            }
         }
     }
 }
@@ -67,7 +75,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
 {
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
     // Both source and destination are Fortran-contiguous
-    dim3 threads(256, 1, 1);
+    dim3 threads(32, 1, 1);
     dim3 blocks(1, m, n);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, maxsumexp, dst);
 }

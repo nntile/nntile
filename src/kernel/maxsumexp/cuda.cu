@@ -9,11 +9,10 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-04
+ * @date 2023-07-06
  * */
 
 #include "nntile/kernel/maxsumexp/cuda.hh"
-#include <cstdio>
 
 namespace nntile
 {
@@ -43,64 +42,87 @@ void cuda_kernel(Index m, Index n, Index k, Index mk,
         {
             // Read value from source
             T val = src_slice[i0*m];
+            // Ignore -inf value, which comes from mask
+            if(::isinf(val))
+            {
+                continue;
+            }
             // Update max and sum of exponents
             if(max_val < val)
             {
-                // Due to strict ineqality situations with max_val=val=-inf
-                // is impossible. Only max_val can be -inf at this point, so
-                // max_val-val is not a NaN, but possibly -inf
                 sum_val = sum_val*(::exp(max_val-val)) + one;
                 max_val = val;
             }
             else
             {
-                // Do nothing if the value is -inf (masked), as
-                // (-inf)-(-inf)=NaN. +inf is also ignored, as this shall not
-                // appear here
-                if(not ::isinf(val))
-                {
-                    sum_val += ::exp(val-max_val);
-                }
+                sum_val += ::exp(val-max_val);
             }
         }
-        // Reduce max and sum of exponents
+        // Per-block of threads max and sum of exponents
         volatile __shared__ T block_max_val;
         __shared__ T block_sum_val;
-        if(i0_start == 0)
+        // Accumulate result into a global sum. Different branches for
+        // i0_start==0 thread and others
+        if(i0_start > 0)
+        {
+            // Finish early if max_val is -inf (masked out)
+            if(::isinf(max_val))
+            {
+                return;
+            }
+            // Wait until i0_start==0 threads initializes block_max_val
+            __synthreads();
+            // Update max at first, max_val is finite here
+            while(block_max_val < max_val)
+            {
+                block_max_val = max_val;
+            }
+            // Sync with all other threads, including i0_start==0, to get
+            // per-block maximum value
+            __syncthreads();
+            // This thread has a finite max_val and sum_val, so no NaN shall
+            // appear here
+            sum_val *= ::exp(max_val - block_max_val);
+            // Accumulate into global sum
+            atomicAdd(&block_sum_val, sum_val);
+            __syncthreads();
+        }
+        else
         {
             block_max_val = max_val;
             block_sum_val = zero;
-        }
-        // Finish early if max_val is -inf (masked out)
-        if(::isinf(max_val))
-        {
-            return;
-        }
-        // From this point max_val and sum_val contain only finite numbers
-        __syncthreads();
-        // Update max at first
-        while(block_max_val < max_val)
-        {
-            block_max_val = max_val;
-        }
-        __syncthreads();
-        // Update sum then
-        sum_val *= ::exp(max_val-block_max_val);
-        atomicAdd(&block_sum_val, sum_val);
-        // Save result
-        __syncthreads();
-        if(i0_start == 0)
-        {
+            // Other threads wait until shared data is initialised
+            __syncthreads();
+            // Wait for other alive threads to acquire per-block max value
+            __syncthreads();
+            // Finally, wait other threads to accumulate sum of exponents
+            __syncthreads();
+            // Do not update accumulated result if local max is -inf
+            if(not ::isinf(max_val))
+            {
+                block_sum_val += sum_val * ::exp(max_val-block_max_val);
+            }
+            // Get per-block max value and sum of exponents, finally
             max_val = block_max_val;
             sum_val = block_sum_val;
             Index dst_offset = i1 + i2*m;
+            // Special case of max_val equal -inf (all elements are masked out)
+            // Do not update data in global memory in this case
+            if(::isinf(max_val))
+            {
+                return;
+            }
+            // Now max_val is finite, we need to accumulate sum of exponents
+            // with the data in global memory
             T max_output = maxsumexp[2*dst_offset];
             T sum_output = maxsumexp[2*dst_offset+1];
+            // If data was not yet initialised, just overwrite it
             if(sum_output == zero)
             {
                 max_output = max_val;
                 sum_output = sum_val;
             }
+            // Accumulate otherwise
             else
             {
                 if(max_val < max_output)
