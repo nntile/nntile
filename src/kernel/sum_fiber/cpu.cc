@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-07-07
  * */
 
 #include "nntile/kernel/sum_fiber/cpu.hh"
@@ -48,7 +48,7 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
     for(Index i2 = 0; i2 < k; ++i2)
     {
         // Init sum 
-        T sum = zero;
+        T sum = zero, c = zero, y, t;
         // Cycle over the third axis of input buffer
         for(Index i1 = 0; i1 < n; ++i1)
         {
@@ -60,7 +60,11 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
                 // Read value from source
                 T val = src_slice[i0];
                 // Update sum
-                sum += val;
+                //sum += val;
+                y = val - c;
+                t = sum + y;
+                c = (t-sum) - y;
+                sum = t;
             }
         }
         // Save result
@@ -70,7 +74,7 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
         }
         else
         {
-            sum = beta*dst[i2] + alpha*sum;
+            sum = (beta*dst[i2]-alpha*c) + alpha*sum;
         }
         dst[i2] = sum;
     }

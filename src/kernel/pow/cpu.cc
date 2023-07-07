@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-18
+ * @date 2023-07-07
  * */
 
 #include "nntile/kernel/pow/cpu.hh"
@@ -36,7 +36,14 @@ void cpu(Index nelems, T alpha, T exp, T *data)
     for(Index i = 0; i < nelems; ++i)
     {
         T z = data[i];
-        data[i] = alpha * std::pow(z, exp);
+        if(exp == -1)
+        {
+            data[i] = alpha / z;
+        }
+        else
+        {
+            data[i] = alpha * std::pow(z, exp);
+        }
     }
 }
 

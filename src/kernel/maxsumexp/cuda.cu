@@ -61,60 +61,38 @@ void cuda_kernel(Index m, Index n, Index k, Index mk,
         // Per-block of threads max and sum of exponents
         volatile __shared__ T block_max_val;
         __shared__ T block_sum_val;
-        // Accumulate result into a global sum. Different branches for
-        // i0_start==0 thread and others
-        if(i0_start > 0)
-        {
-            // Finish early if max_val is -inf (masked out)
-            if(::isinf(max_val))
-            {
-                return;
-            }
-            // Wait until i0_start==0 threads initializes block_max_val
-            __synthreads();
-            // Update max at first, max_val is finite here
-            while(block_max_val < max_val)
-            {
-                block_max_val = max_val;
-            }
-            // Sync with all other threads, including i0_start==0, to get
-            // per-block maximum value
-            __syncthreads();
-            // This thread has a finite max_val and sum_val, so no NaN shall
-            // appear here
-            sum_val *= ::exp(max_val - block_max_val);
-            // Accumulate into global sum
-            atomicAdd(&block_sum_val, sum_val);
-            __syncthreads();
-        }
-        else
+        // Init shared values in the i0_start==0 thread
+        if(i0_start == 0)
         {
             block_max_val = max_val;
             block_sum_val = zero;
-            // Other threads wait until shared data is initialised
-            __syncthreads();
-            // Wait for other alive threads to acquire per-block max value
-            __syncthreads();
-            // Finally, wait other threads to accumulate sum of exponents
-            __syncthreads();
-            // Do not update accumulated result if local max is -inf
-            if(not ::isinf(max_val))
-            {
-                block_sum_val += sum_val * ::exp(max_val-block_max_val);
-            }
-            // Get per-block max value and sum of exponents, finally
+        }
+        // Other threads wait until initialization is done
+        __syncthreads();
+        // Update max at first
+        while(block_max_val < max_val)
+        {
+            block_max_val = max_val;
+        }
+        // Sync with all other threads to get per-block max finally
+        __syncthreads();
+        // Accumulate per-block sum of finite values
+        if(not ::isinf(max_val))
+        {
+            sum_val *= ::exp(max_val - block_max_val);
+            atomicAdd(&block_sum_val, sum_val);
+        }
+        __syncthreads();
+        // Update output iff per-block sum is not zero
+        if(i0_start == 0 and block_sum_val > 0)
+        {
+            // Get per-block max and sum of exponents into local variables
             max_val = block_max_val;
             sum_val = block_sum_val;
             Index dst_offset = i1 + i2*m;
-            // Special case of max_val equal -inf (all elements are masked out)
-            // Do not update data in global memory in this case
-            if(::isinf(max_val))
-            {
-                return;
-            }
             // Now max_val is finite, we need to accumulate sum of exponents
             // with the data in global memory
-            T max_output = maxsumexp[2*dst_offset];
+            T max_output;
             T sum_output = maxsumexp[2*dst_offset+1];
             // If data was not yet initialised, just overwrite it
             if(sum_output == zero)
@@ -125,13 +103,14 @@ void cuda_kernel(Index m, Index n, Index k, Index mk,
             // Accumulate otherwise
             else
             {
+                max_output = maxsumexp[2*dst_offset];
                 if(max_val < max_output)
                 {
-                    sum_val *= ::exp(max_val-max_output);
+                    sum_val *= ::exp(max_val - max_output);
                 }
                 else
                 {
-                    sum_output *= ::exp(max_output-max_val);
+                    sum_output *= ::exp(max_output - max_val);
                     max_output = max_val;
                 }
                 sum_output += sum_val;

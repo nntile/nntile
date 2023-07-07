@@ -94,12 +94,12 @@ class Adam:
             if self.amsgrad:
                 nntile.tensor.maximum_async(self.second_moments[i], \
                         self.max_second_moments[i])
-                nntile.tensor.addcdiv_async(step_size/scale_factor, self.eps, \
-                        self.first_moments[i], self.max_second_moments[i], \
-                        p.value)
+                nntile.tensor.addcdiv_async(step_size/scale_factor, \
+                        self.eps*scale_factor, self.first_moments[i], \
+                        self.max_second_moments[i], p.value)
             else:
-                nntile.tensor.addcdiv_async(step_size/scale_factor, self.eps, \
-                        self.first_moments[i], self.second_moments[i], \
-                        p.value)
+                nntile.tensor.addcdiv_async(step_size/scale_factor, \
+                        self.eps*scale_factor, self.first_moments[i], \
+                        self.second_moments[i], p.value)
         self.num_iter += 1
 

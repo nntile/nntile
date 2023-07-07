@@ -52,6 +52,8 @@ parser.add_argument("--n-embd-tile", type=int, default=384)
 parser.add_argument("--n-inner-tile", type=int, default=1536)
 parser.add_argument("--torch-device", choices=["cpu", "cuda", "cuda:0", \
         "cuda:1"], default="cpu")
+parser.add_argument("--torch-dtype", choices=["fp32, fp64"], default="fp32")
+parser.add_argument("--nntile-dtype", choices=["fp32, fp64"], default="fp32")
 parser.add_argument("--check", action="store_true")
 parser.add_argument("--torch-nforward", type=int, default=0)
 parser.add_argument("--torch-nforward-warmup", type=int, default=0)
@@ -434,10 +436,10 @@ nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
 
 # Move model to the designated device
 model_torch = model_torch.to(args.torch_device)
-model_torch = torch.compile(model_torch)
+model_torch = torch.compile(model_torch).to(torch.float64)
 
 # Check accuracy of output and gradients of parmeters if required
-if args.check:
+if args.check and False:
     # Get output from a random input through the forward pass
     input_value = torch.randint(config.vocab_size, \
             (args.batch_size, config.n_positions), dtype=torch.int64, \
@@ -597,7 +599,7 @@ if args.nntile_nbackward > 0:
             args.nntile_nbackward * args.batch_size / time1)
 
 # Prepare input and output batches if real training is required
-if args.torch_nepochs > 0 or args.nntile_nepochs > 0:
+if args.torch_nepochs > 0 or args.nntile_nepochs > 0 or True:
     # Read dataset
     if args.dataset == "WikiText-103":
         train_dataset = load_dataset("wikitext", "wikitext-103-v1", \
@@ -628,6 +630,98 @@ if args.torch_nepochs > 0 or args.nntile_nepochs > 0:
     print("Number of train sequences: {}".format(num_train_batches \
             * args.batch_size))
     print("Number of train batches: {}".format(num_train_batches))
+
+# Check accuracy of output and gradients of parmeters if required
+if args.check:
+    # Get output from a random input through the forward pass
+    #input_value = torch.randint(config.vocab_size, \
+    #        (args.batch_size, config.n_positions), dtype=torch.int64, \
+    #        device=args.torch_device)
+    input_value = torch.tensor(train_tokens[5, :, :-1]).to(args.torch_device)
+    output_label = torch.tensor(train_tokens[5, :, 1:]).to(args.torch_device)
+    output_value = model_torch(input_value)
+    if args.torch_device.startswith("cuda"):
+        torch.cuda.synchronize()
+    output_value_np = output_value.logits.cpu().detach().numpy()
+    # Get gradients of parameters through the backward pass
+    #loss = 0.5 * (output_value.logits * output_value.logits).sum()
+    #loss.backward()
+    loss_func = nn.CrossEntropyLoss(reduction="sum", ignore_index=-1)
+    output_logits = output_value.logits.reshape(-1, config.vocab_size)
+    loss = loss_func(output_logits, output_label.reshape(-1))
+    loss.backward()
+    if args.torch_device.startswith("cuda"):
+        torch.cuda.synchronize()
+    # Check accuracy of the forward pass by the output activation
+    nntile_model.activations[0].value.from_array(input_value.cpu().numpy().T)
+    nntile_model.forward_async()
+    nntile.starpu.wait_for_all()
+    nntile_output_np = np.zeros_like(output_value_np.T, order='F', \
+            dtype=np.float64)
+    nntile_model.activations[-1].value.to_array(nntile_output_np)
+    diff = np.linalg.norm(nntile_output_np.T - output_value_np)
+    norm = np.linalg.norm(output_value_np)
+    print("NNTile forward pass relative accuracy: {}".format(diff/norm))
+    print("Model output norm: {}".format(norm))
+    # Run backward pass by the NNTile to get gradients of parameters
+    loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
+            nntile_model.activations[-1], next_tag)
+    loss.y.from_array(train_tokens[5, :, 1:].T)
+    nntile_model.clear_gradients()
+    loss.calc_async()
+    nntile_model.backward_async()
+    nntile.starpu.wait_for_all()
+    # Now compare gradients
+    nntile_par_idx = 0
+    for name, p_torch in model_torch.named_parameters():
+        p_torch_grad_np = p_torch.grad.cpu().detach().numpy()
+        layer_name = name.split(".")[-2]
+        if len(p_torch.shape) == 1 or layer_name in ("lm_head",):
+            p_nntile = nntile_model.parameters[nntile_par_idx]
+            p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
+                    dtype=np.float64)
+            p_nntile.grad.to_array(p_nntile_grad_np)
+            diff = np.linalg.norm(p_torch_grad_np - p_nntile_grad_np)
+            norm = np.linalg.norm(p_torch_grad_np)
+            nntile_par_idx += 1
+        elif layer_name == "c_attn":
+            attn_head_size = config.n_embd // config.n_head
+            diff = 0
+            norm = np.linalg.norm(p_torch_grad_np)
+            for i_head in range(3*config.n_head):
+                p_nntile = nntile_model.parameters[nntile_par_idx]
+                p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
+                        dtype=np.float64)
+                p_nntile.grad.to_array(p_nntile_grad_np)
+                current_grad_block = p_torch_grad_np[:, \
+                        i_head*attn_head_size:(i_head+1)*attn_head_size]
+                diff += np.linalg.norm(current_grad_block.T-p_nntile_grad_np) ** 2
+                nntile_par_idx += 1
+            diff = diff ** 0.5
+        elif layer_name == "c_proj" and name.split(".")[-3] == "attn":
+            attn_head_size = config.n_embd // config.n_head
+            diff = 0
+            norm = np.linalg.norm(p_torch_grad_np)
+            for i_head in range(config.n_head):
+                p_nntile = nntile_model.parameters[nntile_par_idx]
+                p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
+                        dtype=np.float64)
+                p_nntile.grad.to_array(p_nntile_grad_np)
+                current_grad_block = p_torch_grad_np[i_head*attn_head_size: \
+                        (i_head+1)*attn_head_size, :]
+                diff += np.linalg.norm(current_grad_block.T-p_nntile_grad_np) ** 2
+                nntile_par_idx += 1
+            diff = diff ** 0.5
+        elif len(p_torch.shape) == 2:
+            p_nntile = nntile_model.parameters[nntile_par_idx]
+            p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
+                    dtype=np.float64)
+            p_nntile.grad.to_array(p_nntile_grad_np)
+            diff = np.linalg.norm(p_torch_grad_np - p_nntile_grad_np.T)
+            norm = np.linalg.norm(p_torch_grad_np)
+            nntile_par_idx += 1
+        print("Gradient of {}: norm={} rel_err={}".format(name, norm, \
+                diff/norm))
 
 # Train neural network by the NNTile
 if args.nntile_nepochs > 0:
@@ -721,6 +815,7 @@ if args.torch_nepochs > 0:
             train_output = model_torch(train_input)
             train_logits = train_output.logits.reshape(-1, config.vocab_size)
             loss = loss_func(train_logits, train_labels)
+            print("loss={}".format(loss))
             loss.backward()
             optim.step()
     if args.torch_device.startswith("cuda"):

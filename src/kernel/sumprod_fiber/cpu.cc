@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-02
+ * @date 2023-07-07
  * */
 
 #include "nntile/kernel/sumprod_fiber/cpu.hh"
@@ -51,7 +51,7 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src1, const T *src2,
     for(Index i2 = 0; i2 < k; ++i2)
     {
         // Init sum of product of the slices
-        T sum = zero;
+        T sum = zero, c = zero, y, t;
         // Output value
         T &result = dst[i2];
         // Cycle over column of src1 and src2
@@ -64,7 +64,11 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src1, const T *src2,
             for(Index i0 = 0; i0 < m; ++i0)
             {
                 // Update sum
-                sum += src1_fiber[i0] * src2_fiber[i0];
+                //sum += src1_fiber[i0] * src2_fiber[i0];
+                y = src1_fiber[i0*m]*src2_fiber[i0*m] - c;
+                t = sum + y;
+                c = (t-sum) - y;
+                sum = t;
             }
         }
         // Update output value
@@ -74,7 +78,7 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src1, const T *src2,
         }
         else
         {
-            result = beta*result + alpha*sum;
+            result = (beta*result-alpha*c) + alpha*sum;
         }
     }
 }

@@ -15,6 +15,7 @@
 
 #include "nntile/kernel/total_sum_accum/cpu.hh"
 #include <cmath>
+#include <iostream>
 
 namespace nntile
 {
@@ -45,6 +46,7 @@ void cpu(Index n_labels, Index n_outputs, const T* logsumexp, const T* src,
     {
         *val += logsumexp[i] - src[labels[i] + i*n_labels];
     }
+    std::cout << "loss=" << *val << "\n";
 }
 
 // Explicit instantiation

@@ -10,11 +10,11 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-06-28
+# @date 2023-07-06
 
 from .base_layer import BaseLayer
 from nntile.tensor import add_async, copy_async, add_slice_async, sum_slice_async
-from nntile.tensor import TensorTraits, Tensor_fp32, TensorMoments
+from nntile.tensor import TensorTraits, TensorMoments
 
 class AddSlice(BaseLayer):
 
@@ -43,9 +43,9 @@ class AddSlice(BaseLayer):
         # Get traits of X
         u_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
         # Create Y with the same traits and distribution as X
-        u_value = Tensor_fp32(u_traits, x.value.distribution, next_tag)
+        u_value = type(x.value)(u_traits, x.value.distribution, next_tag)
         next_tag = u_value.next_tag
-        u_grad = Tensor_fp32(u_traits, x.value.distribution, next_tag)
+        u_grad = type(x.value)(u_traits, x.value.distribution, next_tag)
         next_tag = u_grad.next_tag
         u = TensorMoments(u_value, u_grad, True)
         # Create activation layer with all the provided tensors

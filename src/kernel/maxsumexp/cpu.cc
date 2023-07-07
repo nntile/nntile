@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-06
+ * @date 2023-07-07
  * */
 
 #include "nntile/kernel/maxsumexp/cpu.hh"
@@ -59,7 +59,7 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
             const T *src_slice = src + i2*mk + i1;
             // Init max and sum with the first value
             T max = src_slice[0];
-            T sum = one;
+            T sum = one, c = zero, y, t;
             // Cycle over slice of input buffer
             for(Index i0 = 1; i0 < k; ++i0)
             {
@@ -73,12 +73,22 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
                 // Update max and sum of exponents
                 if(max < val)
                 {
-                    sum = sum*std::exp(max-val) + one;
+                    //sum = sum*std::exp(max-val) + one;
+                    T tmp = std::exp(max-val);
+                    y = one - c*tmp;
+                    sum *= tmp;
+                    t = sum + y;
+                    c = (t-sum) - y;
+                    sum = t;
                     max = val;
                 }
                 else
                 {
-                    sum += std::exp(val-max);
+                    //sum += std::exp(val-max);
+                    y = std::exp(val-max) - c;
+                    t = sum + y;
+                    c = (t-sum) - y;
+                    sum = t;
                 }
             }
             // Save result, do nothing if all elements are masked out
@@ -100,11 +110,17 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
                         maxsumexp[dst_offset] = max;
                         maxsumexp[dst_offset+1] = sum_old*std::exp(max_old-max)
                             + sum;
+                        y = sum_old*std::exp(max_old-max) - c;
+                        maxsumexp[dst_offset+1] = sum + y;
                     }
                     else
                     {
                         maxsumexp[dst_offset+1] = sum*std::exp(max-max_old)
                             + sum_old;
+                        T tmp = std::exp(max-max_old);
+                        y = sum_old - c*tmp;
+                        sum *= tmp;
+                        maxsumexp[dst_offset+1] = sum + y;
                     }
                 }
             }
