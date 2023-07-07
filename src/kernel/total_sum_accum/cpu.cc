@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-06-28
+ * @date 2023-07-07
  * */
 
 #include "nntile/kernel/total_sum_accum/cpu.hh"
@@ -42,10 +42,21 @@ void cpu(Index n_labels, Index n_outputs, const T* logsumexp, const T* src,
  * @param[inout] val: Scalar that accumulates the total sum
  * */
 {
+    constexpr T zero = 0.0;
+    T sum = zero, c = zero, y, t;
     for(Index i = 0; i < n_outputs; ++i)
     {
-        *val += logsumexp[i] - src[labels[i] + i*n_labels];
+        //*val += logsumexp[i] - src[labels[i] + i*n_labels];
+        y = logsumexp[i] - c;
+        t = sum + y;
+        c = (t-sum) - y;
+        sum = t;
+        y = - src[labels[i] + i*n_labels] - c;
+        t = sum + y;
+        c = (t-sum) - y;
+        sum = t;
     }
+    *val = (*val-c) + sum;
     std::cout << "loss=" << *val << "\n";
 }
 
