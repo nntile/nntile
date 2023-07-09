@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-07-07
+ * @date 2023-07-09
  * */
 
 #include "nntile/kernel/total_sum_accum/cpu.hh"
@@ -57,7 +57,7 @@ void cpu(Index n_labels, Index n_outputs, const T* logsumexp, const T* src,
         sum = t;
     }
     *val = (*val-c) + sum;
-    std::cout << "loss=" << *val << "\n";
+    //std::cout << "loss=" << *val << "\n";
 }
 
 // Explicit instantiation

@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-03
+ * @date 2023-07-09
  * */
 
 #pragma once
@@ -137,7 +137,7 @@ void init()
 
     //restrict_where(STARPU_CUDA);
     //maxsumexp::restrict_where(STARPU_CPU);
-    total_sum_accum::restrict_where(STARPU_CPU);
+    //total_sum_accum::restrict_where(STARPU_CPU);
 }
 
 // Restrict StarPU codelets to certain computational units
