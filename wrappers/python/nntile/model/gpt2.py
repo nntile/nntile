@@ -13,7 +13,7 @@
 # @date 2023-06-29
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        notrans, trans, Tensor_fp64 as Tensor_fp32, Tensor_int64, Tensor_bool
+        notrans, trans, Tensor_fp32, Tensor_int64, Tensor_bool
 from nntile.model.base_model import BaseModel
 from nntile.layer import Linear, Embedding, AddSlice, LayerNorm, Attention, Act
 import numpy as np
