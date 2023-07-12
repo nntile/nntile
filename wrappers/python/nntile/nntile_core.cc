@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-03
+ * @date 2023-07-12
  * */
 
 #include <pybind11/pybind11.h>
@@ -61,6 +61,9 @@ void def_mod_starpu(py::module_ &m)
                 }
             }
             starpu_mpi_wait_for_all(MPI_COMM_WORLD);});
+    m.def("restrict_cuda", [](){restrict_where(STARPU_CUDA);});
+    m.def("restrict_cpu", [](){restrict_where(STARPU_CPU);});
+    m.def("restrict_restore", [](){restore_where();});
 }
 
 // numpy.ndarray -> Tile

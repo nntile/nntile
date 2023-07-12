@@ -91,6 +91,9 @@ assert args.nntile_nforward >= 0
 assert args.nntile_nbackward >= 0
 assert args.nntile_nepochs >= 0
 
+# Set Torch default device to cpu
+torch.set_default_device("cpu")
+
 # Load named pretrained PyTorch model
 pretrained_model_torch = GPT2LMHeadModel.from_pretrained(args.model, \
         cache_dir=args.model_path)
@@ -422,6 +425,8 @@ time0 = time.time()
 # Set up StarPU+MPI and init codelets
 nntile_config = nntile.starpu.Config(-1, -1, 1)
 nntile.starpu.init()
+# Restrict computations to CUDA if possible
+nntile.starpu.restrict_cuda()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
 next_tag = 0
