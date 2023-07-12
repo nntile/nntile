@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-09
+ * @date 2023-07-03
  * */
 
 #pragma once
@@ -79,8 +79,6 @@ namespace nntile
 namespace starpu
 {
 
-void restrict_where(uint32_t where);
-
 // Init all codelets
 void init()
 {
@@ -134,10 +132,6 @@ void init()
     embedding::init();
     embedding_backward::init();
     mask_scalar::init();
-
-    //restrict_where(STARPU_CUDA);
-    //maxsumexp::restrict_where(STARPU_CPU);
-    //total_sum_accum::restrict_where(STARPU_CPU);
 }
 
 // Restrict StarPU codelets to certain computational units

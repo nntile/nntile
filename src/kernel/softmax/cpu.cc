@@ -9,12 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-06
+ * @date 2023-07-09
  * */
 
 #include "nntile/kernel/softmax/cpu.hh"
 #include <cmath>
-#include <iostream>
 
 namespace nntile
 {
@@ -39,7 +38,6 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, const T *src, T *dst)
 {
     Index src_dst_offset = 0;
     constexpr T zero = 0.0;
-    bool nan_met = false;
     // Outer loop by the last mode of dst and sumnorm arrays
     for(Index i2 = 0; i2 < n; ++i2)
     {
@@ -56,10 +54,6 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, const T *src, T *dst)
                 const T max = maxsumexp[maxsumexp_offset];
                 const T sum = maxsumexp[maxsumexp_offset+1];
                 // Update value
-                if(std::isnan(val))
-                {
-                    nan_met = true;
-                }
                 if(not std::isinf(val))
                 {
                     dst[src_dst_offset] = std::exp(val-max) / sum;
@@ -73,10 +67,6 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, const T *src, T *dst)
                 maxsumexp_offset += 2;
             }
         }
-    }
-    if(nan_met)
-    {
-        std::cout << "NaN before softmax/cpu\n";
     }
 }
 

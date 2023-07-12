@@ -114,6 +114,11 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
                     result = tmp_res * std::sqrt((one-c)+norm_ssq);
                 }
             }
+            // norm_max==0
+            else
+            {
+                result = std::abs(beta * result);
+            }
         }
     }
 }
