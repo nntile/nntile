@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-06-29
+# @date 2023-07-13
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         notrans, trans, Tensor_fp32, Tensor_int64, Tensor_bool
@@ -57,7 +57,7 @@ class GPT2MLP(BaseModel):
         activation_function = config["activation_function"]
         gemm_ndim = 1
         # Initial linear layer that converts input to internal shape
-        new_layer, next_tag = Linear.generate_simple_mpiroot(x, "R", notrans,
+        new_layer, next_tag = Linear.generate_simple(x, "R", notrans,
                 gemm_ndim, [inner_dim], [inner_dim_tile], next_tag)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
@@ -67,7 +67,7 @@ class GPT2MLP(BaseModel):
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = Linear.generate_simple_mpiroot(activations[-1], \
+        new_layer, next_tag = Linear.generate_simple(activations[-1], \
                 "R", notrans, gemm_ndim, [embed_dim], [embed_dim_tile], \
                 next_tag)
         layers.append(new_layer)
@@ -148,7 +148,7 @@ class GPT2Model(BaseModel):
             layers.append(l_norm)
             activations.extend(l_norm.activations_output)
 
-            attn_layer, next_tag = Attention.generate_simple_mpiroot( \
+            attn_layer, next_tag = Attention.generate_simple( \
                     activations[-1], activations[-1], activations[-1], \
                     n_head, next_tag, self.mask)
             layers.append(attn_layer)
@@ -181,7 +181,7 @@ class GPT2Model(BaseModel):
         layers.append(l_norm)
         activations.extend(l_norm.activations_output)
 
-        lm_head_layer, next_tag = Linear.generate_simple_mpiroot( \
+        lm_head_layer, next_tag = Linear.generate_simple( \
                 activations[-1], "R", notrans, 1, [vocab_size], [vocab_size], \
                 next_tag)
 

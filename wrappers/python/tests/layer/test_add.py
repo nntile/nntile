@@ -54,7 +54,7 @@ class ToyFC_SkipConnection(BaseModel):
         activations = [x]
         layers = []
         # Initial linear layer that converts input to internal shape
-        new_layer, next_tag = Linear.generate_simple_mpiroot(x, "L", notrans,
+        new_layer, next_tag = Linear.generate_simple(x, "L", notrans,
                 1, [hidden_dim], [hidden_dim], next_tag)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
@@ -64,7 +64,7 @@ class ToyFC_SkipConnection(BaseModel):
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         # Linear layer
-        new_layer, next_tag = Linear.generate_simple_mpiroot(
+        new_layer, next_tag = Linear.generate_simple(
                     activations[-1], "L", notrans, 1, [hidden_dim],
                     [hidden_dim], next_tag)
         layers.append(new_layer)
@@ -80,7 +80,7 @@ class ToyFC_SkipConnection(BaseModel):
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = Linear.generate_simple_mpiroot(activations[-1], "L", notrans,
+        new_layer, next_tag = Linear.generate_simple(activations[-1], "L", notrans,
                 1, [x.value.shape[1]], [x.value.shape[1]], next_tag)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)

@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-05-10
+# @date 2023-07-13
 
 # All necesary imports
 import nntile
@@ -76,7 +76,7 @@ def helper(dtype: np.dtype):
     nntile.tensor.clear_async(X_V_grad)
     X_V = nntile.tensor.TensorMoments(X_V_value, X_V_grad, True)
     # Define attention layer
-    layer, next_tag = Attention.generate_simple_mpiroot(X_Q, X_K, X_V, \
+    layer, next_tag = Attention.generate_simple(X_Q, X_K, X_V, \
             n_head, next_tag, True)
     # Define numpy arrays and nntile tensors
     np_W_Q = []

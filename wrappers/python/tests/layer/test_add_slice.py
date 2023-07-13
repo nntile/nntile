@@ -45,7 +45,7 @@ class NNTileToyModel(BaseModel):
     def __init__(self, x: TensorMoments, y: TensorMoments, axis: int, next_tag: int):
         activations = [x, y]
         layers = []
-        new_layer, next_tag = Linear.generate_simple_mpiroot(x, "L", notrans,
+        new_layer, next_tag = Linear.generate_simple(x, "L", notrans,
                 1, [20], [20], next_tag)
         
         layers.append(new_layer)
@@ -56,7 +56,7 @@ class NNTileToyModel(BaseModel):
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = Linear.generate_simple_mpiroot(activations[1], "L", notrans,
+        new_layer, next_tag = Linear.generate_simple(activations[1], "L", notrans,
                 1, [20], [20], next_tag)
         
         layers.append(new_layer)
@@ -67,7 +67,7 @@ class NNTileToyModel(BaseModel):
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = Linear.generate_simple_mpiroot(activations[-1], "L", notrans,
+        new_layer, next_tag = Linear.generate_simple(activations[-1], "L", notrans,
                 1, [10], [10], next_tag)
         
         layers.append(new_layer)

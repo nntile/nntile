@@ -103,7 +103,7 @@ class Attention(BaseLayer):
 
     # Simple generator for the linear layer
     @staticmethod
-    def generate_simple_mpiroot(x_q: TensorMoments, x_k: TensorMoments, \
+    def generate_simple(x_q: TensorMoments, x_k: TensorMoments, \
             x_v: TensorMoments, n_head: int, next_tag: int, bias=False, \
             mask=None):
         # Get sizes
