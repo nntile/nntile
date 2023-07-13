@@ -9,12 +9,14 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-07-02
+# @author Aleksandr Katrutsa
+# @date 2023-07-13
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
         maxsumexp_async, softmax_inplace_async, sumprod_slice_async, \
-        add_slice_async, prod_async, mask_scalar_async
+        add_slice_async, prod_async, mask_scalar_async, add_fiber_async, \
+        sum_fiber_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -53,9 +55,21 @@ class Attention(BaseLayer):
             q: List[TensorMoments], k: List[TensorMoments], \
             v: List[TensorMoments], a: List[TensorMoments], \
             a_maxsumexp: List[Tensor], a_sumprod_slice: List[Tensor], \
-            b: List[TensorMoments], mask=None):
+            b: List[TensorMoments],
+            in_proj_bias_q, in_proj_bias_k, in_proj_bias_v,
+            out_proj_bias, mask=None):
         # Redirect to BaseClass initialization
-        super().__init__([x_q, x_k, x_v], [y], [*w_q, *w_k, *w_v, *w], \
+        bias_list = []
+        if in_proj_bias_q:
+            bias_list.extend(in_proj_bias_q)
+        if in_proj_bias_k:
+            bias_list.extend(in_proj_bias_k)
+        if in_proj_bias_v:
+            bias_list.extend(in_proj_bias_v)
+        if out_proj_bias:
+            bias_list.append(out_proj_bias)
+
+        super().__init__([x_q, x_k, x_v], [y], [*w_q, *w_k, *w_v, *w] + bias_list, \
                 [*q, *k, *v, *a, *a_maxsumexp, *a_sumprod_slice, *b])
         self.x_q = x_q
         self.x_k = x_k
@@ -72,6 +86,10 @@ class Attention(BaseLayer):
         self.a_maxsumexp = a_maxsumexp
         self.a_sumprod_slice = a_sumprod_slice
         self.b = b
+        self.in_proj_bias_q = in_proj_bias_q
+        self.in_proj_bias_k = in_proj_bias_k
+        self.in_proj_bias_v = in_proj_bias_v
+        self.out_proj_bias = out_proj_bias
         self.n_head = len(w_q)
         n_emb = x_q.value.shape[0]
         head_size = n_emb // self.n_head
@@ -86,7 +104,8 @@ class Attention(BaseLayer):
     # Simple generator for the linear layer
     @staticmethod
     def generate_simple_mpiroot(x_q: TensorMoments, x_k: TensorMoments, \
-            x_v: TensorMoments, n_head: int, next_tag: int, mask=None):
+            x_v: TensorMoments, n_head: int, next_tag: int, bias=False, \
+            mask=None):
         # Get sizes
         n_emb, n_seq, n_batch = x_q.value.shape
         n_emb_tile, n_seq_tile, n_batch_tile = x_q.value.basetile_shape
@@ -162,6 +181,10 @@ class Attention(BaseLayer):
         w_q = []
         w_k = []
         w_v = []
+        if bias:
+            bias_inproj_q = []
+            bias_inproj_k = []
+            bias_inproj_v = []
         w = []
         q = []
         k = []
@@ -177,18 +200,46 @@ class Attention(BaseLayer):
             w_q_grad = type(x_q.value)(w_q_traits, w_q_distr, next_tag)
             next_tag = w_q_grad.next_tag
             w_q.append(TensorMoments(w_q_value, w_q_grad, True))
+            if bias:
+                in_proj_bias_q_traits = TensorTraits([head_size], [head_size_tile])
+                in_proj_bias_q_value = type(x_q.value)(in_proj_bias_q_traits, q_distr, next_tag)
+                next_tag = in_proj_bias_q_value.next_tag
+                in_proj_bias_q_grad = type(x_q.value)(in_proj_bias_q_traits, q_distr, next_tag)
+                next_tag = in_proj_bias_q_grad.next_tag
+                bias_inproj_q.append(TensorMoments(in_proj_bias_q_value, in_proj_bias_q_grad, True))
+            else:
+                bias_inproj_q = None
+
             # w_k
             w_k_value = type(x_q.value)(w_k_traits, w_k_distr, next_tag)
             next_tag = w_k_value.next_tag
             w_k_grad = type(x_q.value)(w_k_traits, w_k_distr, next_tag)
             next_tag = w_k_grad.next_tag
             w_k.append(TensorMoments(w_k_value, w_k_grad, True))
+            if bias:
+                in_proj_bias_k_traits = TensorTraits([head_size], [head_size_tile])
+                in_proj_bias_k_value = type(x_q.value)(in_proj_bias_k_traits, k_distr, next_tag)
+                next_tag = in_proj_bias_k_value.next_tag
+                in_proj_bias_k_grad = type(x_q.value)(in_proj_bias_k_traits, k_distr, next_tag)
+                next_tag = in_proj_bias_k_grad.next_tag
+                bias_inproj_k.append(TensorMoments(in_proj_bias_k_value, in_proj_bias_k_grad, True))
+            else:
+                bias_inproj_k = None
             # w_v
             w_v_value = type(x_q.value)(w_v_traits, w_v_distr, next_tag)
             next_tag = w_v_value.next_tag
             w_v_grad = type(x_q.value)(w_v_traits, w_v_distr, next_tag)
             next_tag = w_v_grad.next_tag
             w_v.append(TensorMoments(w_v_value, w_v_grad, True))
+            if bias:
+                in_proj_bias_v_traits = TensorTraits([head_size], [head_size_tile])
+                in_proj_bias_v_value = type(x_q.value)(in_proj_bias_v_traits, v_distr, next_tag)
+                next_tag = in_proj_bias_v_value.next_tag
+                in_proj_bias_v_grad = type(x_q.value)(in_proj_bias_v_traits, v_distr, next_tag)
+                next_tag = in_proj_bias_v_grad.next_tag
+                bias_inproj_v.append(TensorMoments(in_proj_bias_v_value, in_proj_bias_v_grad, True))
+            else:
+                bias_inproj_v = None
             # w
             w_value = type(x_q.value)(w_traits, w_distr, next_tag)
             next_tag = w_value.next_tag
@@ -235,6 +286,17 @@ class Attention(BaseLayer):
             b_grad = type(x_q.value)(b_traits, b_distr, next_tag)
             next_tag = b_grad.next_tag
             b.append(TensorMoments(b_value, b_grad, True))
+        # Allocate tensors for bias for q, k, v and output projection
+        if bias:
+            out_proj_bias_traits = TensorTraits([n_emb], [n_emb_tile])
+            out_proj_bias_value = type(x_q.value)(out_proj_bias_traits, x_q.value.distribution, next_tag)
+            next_tag = out_proj_bias_value.next_tag
+            out_proj_bias_grad = type(x_q.value)(out_proj_bias_traits, x_q.value.distribution, next_tag)
+            next_tag = out_proj_bias_grad.next_tag
+            out_proj_bias = TensorMoments(out_proj_bias_value, out_proj_bias_grad, True)
+        else:
+            out_proj_bias = None
+
         # Allocate tensor for output y
         y_traits = TensorTraits(x_q.value.shape, x_q.value.basetile_shape)
         y_value = type(x_q.value)(y_traits, x_q.value.distribution, next_tag)
@@ -244,7 +306,8 @@ class Attention(BaseLayer):
         y = TensorMoments(y_value, y_grad, True)
         # Create attention layer with all the provided data
         layer = Attention(x_q, x_k, x_v, y, w_q, w_k, w_v, w, q, k, v, a, \
-                a_maxsumexp, a_sumprod_slice, b, mask)
+                a_maxsumexp, a_sumprod_slice, b, bias_inproj_q, \
+                bias_inproj_k, bias_inproj_v, out_proj_bias, mask)
         # Return layer and next tag to be used
         return (layer, next_tag)
 
@@ -259,6 +322,9 @@ class Attention(BaseLayer):
             # Q[i] = einsum('jk,klm->jlm', W_Q[i], X_Q)
             gemm_async(1.0, notrans, self.w_q[i].value, notrans, \
                     self.x_q.value, 0.0, self.q[i].value, 1, 0)
+            if self.in_proj_bias_q:
+                add_fiber_async(1, self.in_proj_bias_q[i].value, 1, \
+                        self.q[i].value, 0)
             # X_Q can be offloaded from GPU
             self.x_q.value.wont_use()
             # W_Q[i] can be offloaded from GPU
@@ -266,6 +332,9 @@ class Attention(BaseLayer):
             # K[i] = einsum('jk,klm->jlm', W_K[i], X_K)
             gemm_async(1.0, notrans, self.w_k[i].value, notrans, \
                     self.x_k.value, 0.0, self.k[i].value, 1, 0)
+            if self.in_proj_bias_k:
+                add_fiber_async(1, self.in_proj_bias_k[i].value, 1, \
+                        self.k[i].value, 0)
             # X_K can be offloaded from GPU
             self.x_k.value.wont_use()
             # W_K[i] can be offloaded from GPU
@@ -273,6 +342,9 @@ class Attention(BaseLayer):
             # V[i] = einsum('jk,klm->jlm', W_V[i], X_V)
             gemm_async(1.0, notrans, self.w_v[i].value, notrans, \
                     self.x_v.value, 0.0, self.v[i].value, 1, 0)
+            if self.in_proj_bias_v:
+                add_fiber_async(1, self.in_proj_bias_v[i].value, 1, \
+                        self.v[i].value, 0)
             # X_V can be offloaded from GPU
             self.x_v.value.wont_use()
             # W_V[i] can be offloaded from GPU
@@ -309,9 +381,13 @@ class Attention(BaseLayer):
             self.w[i].value.wont_use()
             # B[i] can be offloaded from GPU
             self.b[i].value.wont_use()
+        if self.out_proj_bias:
+            add_fiber_async(1, self.out_proj_bias.value, 1, self.y.value, 0)
 
     # Backward propagation of the linear layer
     def backward_async(self):
+        if self.out_proj_bias and self.out_proj_bias.grad_required:
+            sum_fiber_async(1, self.y.grad, 1, self.out_proj_bias.grad, 0)
         for i in range(self.n_head):
             # Backward for Y += einsum('jk,kml->jml', W[i], B[i])
             if self.w[i].grad_required:
@@ -380,6 +456,9 @@ class Attention(BaseLayer):
                         self.v[i].grad, 1.0, self.x_v.grad, 1, 0)
             # W_V[i] can be offloaded from GPU
             self.w_v[i].value.wont_use()
+            if self.in_proj_bias_v[i] and self.in_proj_bias_v[i].grad_required:
+                sum_fiber_async(1, self.v[i].grad, 1, \
+                        self.in_proj_bias_v[i].grad, 0)
             if self.w_v[i].grad_required:
                 # dW_V[i] += einsum('jlm,klm->jk', dV[i], X_V)
                 gemm_async(1.0, notrans, self.v[i].grad, trans, \
@@ -395,6 +474,9 @@ class Attention(BaseLayer):
                         self.k[i].grad, 1.0, self.x_k.grad, 1, 0)
             # W_K[i] can be offloaded from GPU
             self.w_k[i].value.wont_use()
+            if self.in_proj_bias_k[i] and self.in_proj_bias_k[i].grad_required:
+                sum_fiber_async(1, self.k[i].grad, 1, \
+                        self.in_proj_bias_k[i].grad, 0)
             if self.w_k[i].grad_required:
                 # dW_K[i] += einsum('jlm,klm->jk', dK[i], X_K)
                 gemm_async(1.0, notrans, self.k[i].grad, trans, \
@@ -410,6 +492,9 @@ class Attention(BaseLayer):
                         self.q[i].grad, 1.0, self.x_q.grad, 1, 0)
             # W_Q[i] can be offloaded from GPU
             self.w_q[i].value.wont_use()
+            if self.in_proj_bias_q[i] and self.in_proj_bias_q[i].grad_required:
+                sum_fiber_async(1, self.q[i].grad, 1, \
+                        self.in_proj_bias_q[i].grad, 0)
             if self.w_q[i].grad_required:
                 # dW_Q[i] += einsum('jlm,klm->jk', dQ[i], X_Q)
                 gemm_async(1.0, notrans, self.q[i].grad, trans, \

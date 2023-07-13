@@ -9,13 +9,15 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-04-20
+# @author Aleksandr Katrutsa
+# @date 2023-07-03
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        TransOp, trans, notrans, copy_async, gemm_async, randn_async
+        TransOp, trans, notrans, copy_async, gemm_async, randn_async, \
+        add_slice_async, add_fiber_async, sum_slice_async, sum_fiber_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
-from typing import List
+from typing import List, Union
 
 class Linear(BaseLayer):
     side: str
@@ -24,14 +26,12 @@ class Linear(BaseLayer):
     y: TensorMoments
     w: TensorMoments
     ndim: int
-    #b: TensorMoments
-    #b_axis: int
+    b: Union[TensorMoments, None]
 
     # Construct linear layer with all the provided data
     def __init__(self, side: str, trans_x: TransOp, x: TensorMoments, \
             y: TensorMoments, w: TensorMoments, ndim: int, \
-            #b: TensorMoments, b_axis: int, # No bias as of now
-            ):
+            b: Union[TensorMoments, None]):
         # Check parameter side
         if side != 'L' and side != 'R':
             raise ValueError("side must be either 'L' or 'R'")
@@ -39,23 +39,29 @@ class Linear(BaseLayer):
         if ndim <= 0:
             raise ValueError("ndim must be positive integer")
         # Redirect to BaseClass initialization
-        super().__init__([x], [y], [w], [])
+        if b is None:
+            super().__init__([x], [y], [w], [])
+            self.b = None
+        else:
+            super().__init__([x], [y], [w, b], [])
+            self.b = b
         # Set up local named parameters
         self.side = side
         self.trans_x = trans_x
         self.ndim = ndim
         self.x = x
         self.y = y
-        self.w = w
-        #self.b = b
-        #self.b_axis = b_axis
+        self.w = w 
 
     # Simple generator for the linear layer
     @staticmethod
-    def generate_simple_mpiroot(x: TensorMoments, side: str, trans_x: TransOp,
-            ndim: int, add_shape: List[int], add_basetile_shape: List[int],
-            next_tag: int):
+    def generate_simple(x: TensorMoments, side: str, trans_x: TransOp, \
+            in_features_ndim: int, out_features_shape: List[int], \
+            out_features_basetile_shape: List[int], next_tag: int, bias=True):
         # Define shapes
+        ndim = in_features_ndim
+        add_shape = out_features_shape
+        add_basetile_shape = out_features_basetile_shape
         if side == 'L':
             if trans_x == notrans:
                 w_shape = x.value.shape[-ndim:] + add_shape
@@ -89,6 +95,22 @@ class Linear(BaseLayer):
         next_tag = w_grad.next_tag
         # Define W as TensorMoments
         w = TensorMoments(w_value, w_grad, True)
+        if bias:
+            if len(add_shape) > 1:
+                raise ValueError("Bias is not yet supported for " \
+                        "len(add_shape) > 1")
+            b_traits = TensorTraits(add_shape, add_basetile_shape)
+            # TODO change distribution
+            b_distr = [0] * b_traits.grid.nelems
+            b_value = type(x.value)(b_traits, b_distr, next_tag)
+            next_tag = b_value.next_tag
+            # Create gradient of b with the same traits and distribution as b
+            b_grad = type(x.value)(b_traits, b_distr, next_tag)
+            next_tag = b_grad.next_tag
+            # Define b as TensorMoments
+            b = TensorMoments(b_value, b_grad, True)
+        else:
+            b = None
         # Define Y
         y_traits = TensorTraits(y_shape, y_tile)
         # TODO change distribution
@@ -100,10 +122,8 @@ class Linear(BaseLayer):
         next_tag = y_grad.next_tag
         # Define Y as TensorMoments
         y = TensorMoments(y_value, y_grad, True)
-        # Bias is ignored for now
-        #b = TensorMoments(None, None, False)
         # Create linear layer with all the provided data
-        layer = Linear(side, trans_x, x, y, w, ndim)
+        layer = Linear(side, trans_x, x, y, w, ndim, b)
         # Return layer and next tag to be used
         return (layer, next_tag)
 
@@ -117,6 +137,9 @@ class Linear(BaseLayer):
             # 'k' is a multi-index of dimension W.ndim-ndim
             gemm_async(1.0, self.trans_x, self.x.value, notrans, self.w.value,
                     0.0, self.y.value, self.ndim, 0)
+            if self.b is not None:
+                add_fiber_async(1.0, self.b.value, 1.0, self.y.value,
+                        self.y.value.ndim-1)
         else:
             # Y = einsum('ij,jk->ik', W, op(X))
             # 'i' is a multi-index of dimension W.ndim-ndim
@@ -124,6 +147,8 @@ class Linear(BaseLayer):
             # 'k' is a multi-index of dimension X.ndim-ndim
             gemm_async(1.0, notrans, self.w.value, self.trans_x, self.x.value,
                     0.0, self.y.value, self.ndim, 0)
+            if self.b is not None:
+                add_fiber_async(1.0, self.b.value, 1.0, self.y.value, 0)
         # Hint for StarPU that W tensor will
         # not be used soon and it is advised to offload data from GPU
         self.w.value.wont_use()
@@ -159,6 +184,13 @@ class Linear(BaseLayer):
                             self.x.value, 1.0, self.w.grad, gemm_ndim, 0)
             # Hint StarPU to offload gradient over W if needed
             self.w.grad.wont_use()
+        if self.b is not None:
+            if self.b.grad_required:
+                if self.side == 'L':
+                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, \
+                            self.y.value.ndim-1)
+                else:
+                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, 0)
         # Gradient over X (input)
         if self.x.grad_required:
             gemm_ndim = self.w.value.ndim - self.ndim
