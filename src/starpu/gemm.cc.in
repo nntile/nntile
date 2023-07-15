@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-26
+ * @date 2023-07-15
  * */
 
 #include "nntile/starpu/gemm.hh"
@@ -138,6 +138,32 @@ void cublas(cublasHandle_t handle, cublasOperation_t transA,
             C, ldC);
 }
 
+// Overloaded call to batched cuBLAS gemm
+static inline
+void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
+        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
+        const fp32_t *A, int ldA, long long int strideA, const fp32_t *B,
+        int ldB, long long int strideB, fp32_t beta, fp32_t *C, int ldC,
+        long long int strideC, int batchCount)
+    noexcept
+{
+    cublasSgemmStridedBatched(handle, transA, transB, M, N, K, &alpha, A, ldA,
+            strideA, B, ldB, strideB, &beta, C, ldC, strideC, batchCount);
+}
+
+// Overloaded call to batched cuBLAS gemm
+static inline
+void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
+        cublasOperation_t transB, int M, int N, int K, fp64_t alpha,
+        const fp64_t *A, int ldA, long long int strideA, const fp64_t *B,
+        int ldB, long long int strideB, fp64_t beta, fp64_t *C, int ldC,
+        long long int strideC, int batchCount)
+    noexcept
+{
+    cublasDgemmStridedBatched(handle, transA, transB, M, N, K, &alpha, A, ldA,
+            strideA, B, ldB, strideB, &beta, C, ldC, strideC, batchCount);
+}
+
 //! GEMM for contiguous matrices without padding through StarPU buffers
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
@@ -186,15 +212,18 @@ void cuda(void *buffers[], void *cl_args)
     // alpha and beta parameters of GEMM operation are on CPU host
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
     // Call corresponding cuBLAS routine
-    Index A_offset = args->m * args->k, B_offset = args->n * args->k,
-            C_offset = args->m * args->n;
-    for(Index i = 0; i < args->batch; ++i)
+    if(args->batch == 1)
     {
         cublas(handle, transA_, transB_, M, N, K, args->alpha, A, ldA, B, ldB,
                 args->beta, C, M);
-        A += A_offset;
-        B += B_offset;
-        C += C_offset;
+    }
+    else
+    {
+        Index A_offset = args->m * args->k, B_offset = args->n * args->k,
+                C_offset = args->m * args->n;
+        cublas_batch(handle, transA_, transB_, M, N, K, args->alpha, A, ldA,
+                A_offset, B, ldB, B_offset, args->beta, C, M, C_offset,
+                args->batch);
     }
 }
 #endif //NNTILE_USE_CUDA

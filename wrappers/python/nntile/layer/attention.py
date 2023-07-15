@@ -185,6 +185,9 @@ class Attention(BaseLayer):
         w_k = []
         w_v = []
         if bias:
+            in_proj_bias_qkv_traits = TensorTraits([head_size], \
+                    [head_size_tile])
+            in_proj_bias_qkv_distr = [0] * in_proj_bias_qkv_traits.grid.nelems
             bias_inproj_q = []
             bias_inproj_k = []
             bias_inproj_v = []
@@ -204,12 +207,16 @@ class Attention(BaseLayer):
             next_tag = w_q_grad.next_tag
             w_q.append(TensorMoments(w_q_value, w_q_grad, True))
             if bias:
-                in_proj_bias_q_traits = TensorTraits([head_size], [head_size_tile])
-                in_proj_bias_q_value = type(x_q.value)(in_proj_bias_q_traits, q_distr, next_tag)
+                in_proj_bias_q_value = type(x_q.value)( \
+                        in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
+                        next_tag)
                 next_tag = in_proj_bias_q_value.next_tag
-                in_proj_bias_q_grad = type(x_q.value)(in_proj_bias_q_traits, q_distr, next_tag)
+                in_proj_bias_q_grad = type(x_q.value)( \
+                        in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
+                        next_tag)
                 next_tag = in_proj_bias_q_grad.next_tag
-                bias_inproj_q.append(TensorMoments(in_proj_bias_q_value, in_proj_bias_q_grad, True))
+                bias_inproj_q.append(TensorMoments(in_proj_bias_q_value, \
+                        in_proj_bias_q_grad, True))
             else:
                 bias_inproj_q = None
 
@@ -220,12 +227,16 @@ class Attention(BaseLayer):
             next_tag = w_k_grad.next_tag
             w_k.append(TensorMoments(w_k_value, w_k_grad, True))
             if bias:
-                in_proj_bias_k_traits = TensorTraits([head_size], [head_size_tile])
-                in_proj_bias_k_value = type(x_q.value)(in_proj_bias_k_traits, k_distr, next_tag)
+                in_proj_bias_k_value = type(x_q.value)( \
+                        in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
+                        next_tag)
                 next_tag = in_proj_bias_k_value.next_tag
-                in_proj_bias_k_grad = type(x_q.value)(in_proj_bias_k_traits, k_distr, next_tag)
+                in_proj_bias_k_grad = type(x_q.value)( \
+                        in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
+                        next_tag)
                 next_tag = in_proj_bias_k_grad.next_tag
-                bias_inproj_k.append(TensorMoments(in_proj_bias_k_value, in_proj_bias_k_grad, True))
+                bias_inproj_k.append(TensorMoments(in_proj_bias_k_value, \
+                        in_proj_bias_k_grad, True))
             else:
                 bias_inproj_k = None
             # w_v
@@ -235,12 +246,16 @@ class Attention(BaseLayer):
             next_tag = w_v_grad.next_tag
             w_v.append(TensorMoments(w_v_value, w_v_grad, True))
             if bias:
-                in_proj_bias_v_traits = TensorTraits([head_size], [head_size_tile])
-                in_proj_bias_v_value = type(x_q.value)(in_proj_bias_v_traits, v_distr, next_tag)
+                in_proj_bias_v_value = type(x_q.value)( \
+                        in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
+                        next_tag)
                 next_tag = in_proj_bias_v_value.next_tag
-                in_proj_bias_v_grad = type(x_q.value)(in_proj_bias_v_traits, v_distr, next_tag)
+                in_proj_bias_v_grad = type(x_q.value)( \
+                        in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
+                        next_tag)
                 next_tag = in_proj_bias_v_grad.next_tag
-                bias_inproj_v.append(TensorMoments(in_proj_bias_v_value, in_proj_bias_v_grad, True))
+                bias_inproj_v.append(TensorMoments(in_proj_bias_v_value, \
+                        in_proj_bias_v_grad, True))
             else:
                 bias_inproj_v = None
             # w
@@ -292,11 +307,15 @@ class Attention(BaseLayer):
         # Allocate tensors for bias for q, k, v and output projection
         if bias:
             out_proj_bias_traits = TensorTraits([n_emb], [n_emb_tile])
-            out_proj_bias_value = type(x_q.value)(out_proj_bias_traits, x_q.value.distribution, next_tag)
+            out_proj_bias_distr = [0] * out_proj_bias_traits.grid.nelems
+            out_proj_bias_value = type(x_q.value)(out_proj_bias_traits, \
+                    out_proj_bias_distr, next_tag)
             next_tag = out_proj_bias_value.next_tag
-            out_proj_bias_grad = type(x_q.value)(out_proj_bias_traits, x_q.value.distribution, next_tag)
+            out_proj_bias_grad = type(x_q.value)(out_proj_bias_traits, \
+                    out_proj_bias_distr, next_tag)
             next_tag = out_proj_bias_grad.next_tag
-            out_proj_bias = TensorMoments(out_proj_bias_value, out_proj_bias_grad, True)
+            out_proj_bias = TensorMoments(out_proj_bias_value, \
+                    out_proj_bias_grad, True)
         else:
             out_proj_bias = None
 
