@@ -98,6 +98,8 @@ torch.set_default_device("cpu")
 pretrained_model_torch = GPT2LMHeadModel.from_pretrained(args.model, \
         cache_dir=args.model_path)
 
+# print(pretrained_model_torch)
+
 # Create a new PyTorch model with adjusted config and load weights from the
 # pretrained one. This step is requried as some operations of GPT2 are still
 # pending in NNTile implementation (bias in Linear layers and entire Attention
@@ -107,20 +109,22 @@ assert config.n_positions % args.seq_len_tile == 0
 config.attn_pdrop = 0
 config.embd_pdrop = 0
 config.resid_pdrop = 0
-config.n_head = 1
-model_torch = GPT2LMHeadModel(config)
+# config.n_head = 8
+# config.num_hidden_layers = 2
+model_torch = copy.deepcopy(pretrained_model_torch)
+# model_torch = GPT2LMHeadModel(config)
 # Current version splits lm_head and wte parameters, shared parameters will be
 # supported soon
 model_torch.lm_head.weight = nn.Parameter(pretrained_model_torch.lm_head \
         .weight.detach().clone())
-model_torch.transformer.wte.weight = nn.Parameter(pretrained_model_torch \
-        .transformer.wte.weight.detach().clone())
-model_torch.transformer.wpe.weight = nn.Parameter(pretrained_model_torch \
-        .transformer.wpe.weight.detach().clone())
-model_torch.transformer.ln_f.weight = nn.Parameter(pretrained_model_torch \
-        .transformer.ln_f.weight.detach().clone())
-model_torch.transformer.ln_f.bias = nn.Parameter(pretrained_model_torch \
-        .transformer.ln_f.bias.detach().clone())
+# model_torch.transformer.wte.weight = nn.Parameter(pretrained_model_torch \
+#         .transformer.wte.weight.detach().clone())
+# model_torch.transformer.wpe.weight = nn.Parameter(pretrained_model_torch \
+#         .transformer.wpe.weight.detach().clone())
+# model_torch.transformer.ln_f.weight = nn.Parameter(pretrained_model_torch \
+#         .transformer.ln_f.weight.detach().clone())
+# model_torch.transformer.ln_f.bias = nn.Parameter(pretrained_model_torch \
+#         .transformer.ln_f.bias.detach().clone())
 
 # Linear layer without bias
 class Conv1D(nn.Module):
@@ -137,7 +141,8 @@ class Conv1D(nn.Module):
         super().__init__()
         self.nf = nf
         self.weight = nn.Parameter(torch.empty(nx, nf))
-        self.bias = torch.zeros((), device=args.torch_device)
+        # self.bias = torch.zeros((), device=args.torch_device)
+        self.bias = nn.Parameter(torch.zeros(nf))
         nn.init.normal_(self.weight, std=0.02)
 
     def forward(self, x):
@@ -163,6 +168,23 @@ class GPT2MLP(nn.Module):
         hidden_states = self.c_proj(hidden_states)
         hidden_states = self.dropout(hidden_states)
         return hidden_states
+    
+class Identity(nn.Module):
+    def __init__(self):
+        super().__init__()
+       
+
+    def forward(self,
+        hidden_states: Optional[Tuple[torch.FloatTensor]],
+        layer_past: Optional[Tuple[torch.Tensor]] = None,
+        attention_mask: Optional[torch.FloatTensor] = None,
+        head_mask: Optional[torch.FloatTensor] = None,
+        encoder_hidden_states: Optional[torch.Tensor] = None,
+        encoder_attention_mask: Optional[torch.FloatTensor] = None,
+        use_cache: Optional[bool] = False,
+        output_attentions: Optional[bool] = False,) \
+            -> torch.FloatTensor:
+        return (hidden_states, None, None)
 
 # Prepare PyTorch model: use MLP without bias and unmasked attention
 class GPT2Attention(nn.Module):
@@ -396,17 +418,23 @@ inner_dim = config.n_inner if config.n_inner is not None \
         else 4 * config.hidden_size
 config.n_inner = inner_dim
 
-for h_idx in range(config.num_hidden_layers):
-    model_torch.transformer.h[h_idx].ln_1.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].ln_1.weight.detach().clone())
-    model_torch.transformer.h[h_idx].ln_1.bias = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].ln_1.bias.detach().clone())
-    model_torch.transformer.h[h_idx].ln_2.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].ln_2.weight.detach().clone())
-    model_torch.transformer.h[h_idx].ln_2.bias = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].ln_2.bias.detach().clone())
-    model_torch.transformer.h[h_idx].attn = GPT2Attention(config)
-    model_torch.transformer.h[h_idx].attn.c_attn.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].attn.c_attn.weight.detach().clone())
-    model_torch.transformer.h[h_idx].attn.c_proj.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].attn.c_proj.weight.detach().clone())
-    model_torch.transformer.h[h_idx].mlp = GPT2MLP(inner_dim, config)
-    model_torch.transformer.h[h_idx].mlp.c_fc.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].mlp.c_fc.weight.detach().clone())
-    model_torch.transformer.h[h_idx].mlp.c_proj.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].mlp.c_proj.weight.detach().clone())
+# for h_idx in range(config.num_hidden_layers):
+#     model_torch.transformer.h[h_idx].ln_1.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].ln_1.weight.detach().clone())
+#     model_torch.transformer.h[h_idx].ln_1.bias = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].ln_1.bias.detach().clone())
+#     model_torch.transformer.h[h_idx].ln_2.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].ln_2.weight.detach().clone())
+#     model_torch.transformer.h[h_idx].ln_2.bias = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].ln_2.bias.detach().clone())
+#     model_torch.transformer.h[h_idx].attn = GPT2Attention(config)
+#     # model_torch.transformer.h[h_idx].attn = Identity()
+#     model_torch.transformer.h[h_idx].attn.c_attn.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].attn.c_attn.weight.detach().clone())
+#     model_torch.transformer.h[h_idx].attn.c_attn.bias = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].attn.c_attn.bias.detach().clone())
+#     model_torch.transformer.h[h_idx].attn.c_proj.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].attn.c_proj.weight.detach().clone())
+#     model_torch.transformer.h[h_idx].attn.c_proj.bias = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].attn.c_proj.bias.detach().clone())
+
+#     model_torch.transformer.h[h_idx].mlp = GPT2MLP(inner_dim, config)
+#     model_torch.transformer.h[h_idx].mlp.c_fc.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].mlp.c_fc.weight.detach().clone())
+#     model_torch.transformer.h[h_idx].mlp.c_fc.bias = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].mlp.c_fc.bias.detach().clone())
+#     model_torch.transformer.h[h_idx].mlp.c_proj.weight = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].mlp.c_proj.weight.detach().clone())
+#     model_torch.transformer.h[h_idx].mlp.c_proj.bias = nn.Parameter(pretrained_model_torch.transformer.h[h_idx].mlp.c_proj.bias.detach().clone())
 
 # Print altered PyTorch model to be tested
 print("PyTorch model:")
@@ -480,7 +508,7 @@ if args.check:
     for name, p_torch in model_torch.named_parameters():
         p_torch_grad_np = p_torch.grad.cpu().detach().numpy()
         layer_name = name.split(".")[-2]
-        if len(p_torch.shape) == 1 or layer_name in ("lm_head",):
+        if layer_name == "lm_head":
             p_nntile = nntile_model.parameters[nntile_par_idx]
             p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
                     dtype=np.float32)
@@ -488,7 +516,7 @@ if args.check:
             diff = np.linalg.norm(p_torch_grad_np - p_nntile_grad_np)
             norm = np.linalg.norm(p_torch_grad_np)
             nntile_par_idx += 1
-        elif layer_name == "c_attn":
+        elif layer_name == "c_attn" and name.split(".")[-1] == "weight":
             attn_head_size = config.n_embd // config.n_head
             diff = 0
             norm = np.linalg.norm(p_torch_grad_np)
@@ -502,26 +530,56 @@ if args.check:
                 diff += np.linalg.norm(current_grad_block.T-p_nntile_grad_np) ** 2
                 nntile_par_idx += 1
             diff = diff ** 0.5
-        elif layer_name == "c_proj" and name.split(".")[-3] == "attn":
+        elif layer_name == "c_attn" and name.split(".")[-1] == "bias":
             attn_head_size = config.n_embd // config.n_head
             diff = 0
             norm = np.linalg.norm(p_torch_grad_np)
-            for i_head in range(config.n_head):
+            for i_head in range(3*config.n_head):
                 p_nntile = nntile_model.parameters[nntile_par_idx]
                 p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
                         dtype=np.float32)
                 p_nntile.grad.to_array(p_nntile_grad_np)
-                current_grad_block = p_torch_grad_np[i_head*attn_head_size: \
-                        (i_head+1)*attn_head_size, :]
-                diff += np.linalg.norm(current_grad_block.T-p_nntile_grad_np) ** 2
+                current_grad_block = p_torch_grad_np[i_head*attn_head_size:(i_head+1)*attn_head_size]
+                diff += np.linalg.norm(current_grad_block-p_nntile_grad_np) ** 2
                 nntile_par_idx += 1
             diff = diff ** 0.5
+        elif layer_name == "c_proj" and name.split(".")[-3] == "attn":
+            if name.split(".")[-1] == "weight":
+                attn_head_size = config.n_embd // config.n_head
+                diff = 0
+                norm = np.linalg.norm(p_torch_grad_np)
+                for i_head in range(config.n_head):
+                    p_nntile = nntile_model.parameters[nntile_par_idx]
+                    p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
+                            dtype=np.float32)
+                    p_nntile.grad.to_array(p_nntile_grad_np)
+                    current_grad_block = p_torch_grad_np[i_head*attn_head_size: \
+                            (i_head+1)*attn_head_size, :]
+                    diff += np.linalg.norm(current_grad_block.T-p_nntile_grad_np) ** 2
+                    nntile_par_idx += 1
+                diff = diff ** 0.5
+            elif name.split(".")[-1] == "bias":
+                norm = np.linalg.norm(p_torch_grad_np)
+                p_nntile = nntile_model.parameters[nntile_par_idx]
+                p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
+                        dtype=np.float32)
+                p_nntile.grad.to_array(p_nntile_grad_np)
+                diff = np.linalg.norm(p_torch_grad_np - p_nntile_grad_np)
+                nntile_par_idx += 1
         elif len(p_torch.shape) == 2:
             p_nntile = nntile_model.parameters[nntile_par_idx]
             p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
                     dtype=np.float32)
             p_nntile.grad.to_array(p_nntile_grad_np)
             diff = np.linalg.norm(p_torch_grad_np - p_nntile_grad_np.T)
+            norm = np.linalg.norm(p_torch_grad_np)
+            nntile_par_idx += 1
+        elif len(p_torch.shape) == 1:
+            p_nntile = nntile_model.parameters[nntile_par_idx]
+            p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
+                    dtype=np.float32)
+            p_nntile.grad.to_array(p_nntile_grad_np)
+            diff = np.linalg.norm(p_torch_grad_np - p_nntile_grad_np)
             norm = np.linalg.norm(p_torch_grad_np)
             nntile_par_idx += 1
         print("Gradient of {}: norm={} rel_err={}".format(name, norm, \

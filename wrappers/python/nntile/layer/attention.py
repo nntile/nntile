@@ -59,17 +59,20 @@ class Attention(BaseLayer):
             in_proj_bias_q, in_proj_bias_k, in_proj_bias_v,
             out_proj_bias, mask=None):
         # Redirect to BaseClass initialization
-        bias_list = []
+        qkv_bias_list = []
         if in_proj_bias_q:
-            bias_list.extend(in_proj_bias_q)
+            qkv_bias_list.extend(in_proj_bias_q)
         if in_proj_bias_k:
-            bias_list.extend(in_proj_bias_k)
+            qkv_bias_list.extend(in_proj_bias_k)
         if in_proj_bias_v:
-            bias_list.extend(in_proj_bias_v)
+            qkv_bias_list.extend(in_proj_bias_v)
         if out_proj_bias:
-            bias_list.append(out_proj_bias)
+            bias_list_out_proj = [out_proj_bias]
+        else:
+            bias_list_out_proj = []
 
-        super().__init__([x_q, x_k, x_v], [y], [*w_q, *w_k, *w_v, *w] + bias_list, \
+
+        super().__init__([x_q, x_k, x_v], [y], [*w_q, *w_k, *w_v] + qkv_bias_list + [*w] + bias_list_out_proj, \
                 [*q, *k, *v, *a, *a_maxsumexp, *a_sumprod_slice, *b])
         self.x_q = x_q
         self.x_k = x_k
