@@ -1,4 +1,6 @@
-FROM ubuntu:22.04 AS devbase
+ARG BASE_IMAGE=nvidia/cuda:11.7.0-devel-ubuntu22.04
+
+FROM $BASE_IMAGE AS devbase
 
 ADD ci/add-repo-kitware.sh .
 
@@ -23,13 +25,18 @@ FROM devbase AS sandbox
 
 ARG MAKE_JOBS=1
 
-ENV STARPU_COMMIT=73a184851025319ca5ae7ddaadab92d5d302f10b
+ENV STARPU_SILENT=1
+
+ENV OMP_NUM_THREADS=1
+
+ENV STARPU_VERSION=1.3.11
 
 RUN set -xe && \
     mkdir -p /usr/src && \
-    curl -SL https://gitlab.inria.fr/starpu/starpu/-/archive/$STARPU_COMMIT/starpu-$STARPU_COMMIT.tar.gz | \
+    STARPU_LABEL=starpu-$STARPU_VERSION && \
+    curl -SL https://gitlab.inria.fr/starpu/starpu/-/archive/$STARPU_LABEL/starpu-$STARPU_LABEL.tar.gz | \
     tar -xzC /usr/src && \
-    ln -s /usr/src/starpu-$STARPU_COMMIT /usr/src/starpu && \
+    ln -s /usr/src/starpu-$STARPU_LABEL /usr/src/starpu && \
     cd /usr/src/starpu && \
     ./autogen.sh && \
     ./configure \
@@ -58,4 +65,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install tomli && \
     GIST_PEDS=https://gist.githubusercontent.com/daskol/5513ff9c5b8a2d6b2a0e78f522dd2800 && \
     curl -SL $GIST_PEDS/raw/4e7b80e5f9d49c2e39cf8aa4e6b6b8b951724730/peds.py | \
-    python - -i -e dev -e test --extra-index-url https://download.pytorch.org/whl/cpu wrappers/python
+    python - -i -e dev -e test \
+        --extra-index-url https://download.pytorch.org/whl/cpu \
+        wrappers/python

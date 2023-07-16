@@ -12,8 +12,9 @@ all dependencies required for development and testing.
 ```shell
 docker build . \
     -f ci/Dockerfile \
-    -t doge.skoltech.ru/green-ai/nntile/sandbox \
+    -t doge.skoltech.ru/green-ai/nntile/sandbox:cuda \
     --build-arg MAKE_JOBS=4 \
+    --build-arg BASE_IMAGE=nvidia/cuda:12.1.0-devel-ubuntu22.04 \
     --target sandbox
 ```
 
