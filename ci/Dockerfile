@@ -1,61 +1,61 @@
-FROM ubuntu:22.04
+FROM ubuntu:22.04 AS devbase
 
-# Install all the necessary dependencies both for StarPU installation and for
-# NNTile development
-RUN apt update && apt install -y --no-install-recommends \
-    build-essential libopenmpi3 libopenmpi-dev openmpi-bin \
-    lsb-release software-properties-common pkg-config \
-    fxt-tools libfxt-dev autoconf automake libtool-bin \
-    libhwloc-dev vim wget git gdb libopenblas-dev lcov \
-    python3 ninja-build binutils clang python3-pip python3-dev
+ADD ci/add-repo-kitware.sh .
 
-## Add Kitware repo for the latest CMake package
-# Get Kitware's signing key
-RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc \
-    2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg \
-    >/dev/null
-# Add Kitware's repo to the list of sources
-RUN apt-add-repository \
-    "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main"
-# Get up-to-date Kitware keyring
-#RUN apt install kitware-archive-keyring
-# Remove GPG key
-#RUN rm /etc/apt/trusted.gpg.d/kitware.gpg
-# Copy public key
-#RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 6AF7F09730B3F0A4
-## Finally, install CMake
-RUN apt update && apt install -y --no-install-recommends \
-    cmake cmake-curses-gui
+RUN set -xe && \
+    DEBIAN_FRONTEND=noninteractive && \
+    apt update && \
+    ./add-repo-kitware.sh && \
+    apt update && \
+    apt-get install -y kitware-archive-keyring && \
+    find /var/lib/apt/lists -type f -print -delete && \
+    rm -rf ./add-repo-kitware.sh
 
-# Clear apt cache
-RUN apt clean && rm -rf /var/lib/apt/lists/*
+RUN apt update && \
+    apt install -y --no-install-recommends \
+        autoconf automake binutils build-essential clang cmake cmake-curses-gui \
+        fxt-tools gdb lcov libfxt-dev libhwloc-dev libopenblas-dev \
+        libopenmpi-dev libopenmpi3 libtool-bin ninja-build openmpi-bin \
+        pkg-config python3 python3-dev python-is-python3 python3-pip vim && \
+    find /var/lib/apt/lists -type f -print -delete
 
-# Get the latest StarPU, compile and install it
-RUN git clone https://gitlab.inria.fr/starpu/starpu.git /starpu
-WORKDIR /starpu
-# Use the same version across different hardware
-RUN git checkout 11cec178a3e48fc821fa6935f2538c387e45774f
-RUN ./autogen.sh
-RUN ./configure --disable-build-doc --disable-build-tests \
-    --disable-build-examples --disable-fortran --disable-opencl
-RUN make -j 4 install
-# Remove build files of StarPU
-RUN rm -rf /starpu
+FROM devbase AS sandbox
 
-# Set up workspace for NNTile
-RUN mkdir -p /workspace
-RUN chmod 777 /workspace
-WORKDIR /workspace
+ARG MAKE_JOBS=1
 
-# Set path to libstarpumpi library
-ENV LD_LIBRARY_PATH=/usr/local/lib
-# Enable use of MPI with the root user
-ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
-ENV OMPI_ALLOW_RUN_AS_ROOT=1
+ENV STARPU_COMMIT=73a184851025319ca5ae7ddaadab92d5d302f10b
 
-# Set entrypoint (disabled for CI/CD)
-#ENTRYPOINT ["bash"]
+RUN set -xe && \
+    mkdir -p /usr/src && \
+    curl -SL https://gitlab.inria.fr/starpu/starpu/-/archive/$STARPU_COMMIT/starpu-$STARPU_COMMIT.tar.gz | \
+    tar -xzC /usr/src && \
+    ln -s /usr/src/starpu-$STARPU_COMMIT /usr/src/starpu && \
+    cd /usr/src/starpu && \
+    ./autogen.sh && \
+    ./configure \
+        --disable-build-doc \
+        --disable-build-examples \
+        --disable-build-tests \
+        --disable-fortran \
+        --disable-opencl \
+        --disable-socl \
+        --disable-starpufft \
+        --disable-starpupy \
+        --enable-blas-lib=none \
+        --enable-maxcudadev=8 \
+        --with-fxt && \
+    make -j $MAKE_JOBS install && \
+    rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_COMMIT && \
+    echo '/usr/local/lib' > /etc/ld.so.conf.d/nntile.conf && \
+    ldconfig
 
-# Install required Python packages
-RUN pip install pytest numpy
+WORKDIR /workspace/nntile
 
+ADD wrappers/python/pyproject.toml wrappers/python/
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    set -xe && \
+    pip install tomli && \
+    GIST_PEDS=https://gist.githubusercontent.com/daskol/5513ff9c5b8a2d6b2a0e78f522dd2800 && \
+    curl -SL $GIST_PEDS/raw/4e7b80e5f9d49c2e39cf8aa4e6b6b8b951724730/peds.py | \
+    python - -i -e dev -e test --extra-index-url https://download.pytorch.org/whl/cpu wrappers/python
