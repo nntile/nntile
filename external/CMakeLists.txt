@@ -11,10 +11,10 @@
 # @author Aleksandr Mikhalev
 # @date 2022-08-09
 
-# Set list of external sources and headers
-set(EXTERNAL
-    "random.h"
-    )
+include(FetchContent)
+add_subdirectory(pybind11)
 
-target_sources(nntile PRIVATE ${EXTERNAL})
+FetchContent_MakeAvailable(pybind11)
 
+# Append external sources and headers.
+target_sources(nntile PRIVATE "random.h")
