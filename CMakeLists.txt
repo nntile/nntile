@@ -74,6 +74,14 @@ if(USE_CUDA)
 	target_link_libraries(nntile PUBLIC CUDA::cublas)
         set(NNTILE_USE_CUDA ON)
     endif()
+
+    set(CMAKE_FIND_PACKAGE_RESOLVE_SYMLINKS ON)
+    message(STATUS "\
+Update CMAKE_PREFIX_PATH with CUDAToolkit_TARGET_DIR to find thrust: \
+${CUDAToolkit_TARGET_DIR}")
+    list(APPEND CMAKE_PREFIX_PATH "${CUDAToolkit_TARGET_DIR}/lib64/cmake")
+    find_package(Thrust REQUIRED CONFIG)
+    thrust_create_target(Thrust)
 endif()
 
 # Get CBLAS
