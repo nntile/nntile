@@ -16,7 +16,7 @@ RUN set -xe && \
 RUN apt update && \
     apt install -y --no-install-recommends \
         autoconf automake binutils build-essential clang cmake cmake-curses-gui \
-        fxt-tools gdb lcov libfxt-dev libhwloc-dev libopenblas-dev \
+        fxt-tools gdb git lcov libfxt-dev libhwloc-dev libopenblas-dev \
         libopenmpi-dev libopenmpi3 libtool-bin ninja-build openmpi-bin \
         pkg-config python3 python3-dev python-is-python3 python3-pip vim && \
     find /var/lib/apt/lists -type f -print -delete

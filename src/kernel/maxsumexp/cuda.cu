@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-08
+ * @date 2023-07-06
  * */
 
 #include "nntile/kernel/maxsumexp/cuda.hh"
@@ -21,53 +21,105 @@ namespace kernel
 namespace maxsumexp
 {
 
+/**
+ * This implementation is taken from 3c4a8ee08f66732d67789f851c6bff788e41fd38.
+ */
 template<typename T>
 static __global__
-void cuda_kernel(Index m, Index n, Index k, Index mk, const T *src,
-        T *maxsumexp)
+void cuda_kernel(Index m, Index n, Index k, Index mk,
+        const T * __restrict__ src, T * __restrict__ maxsumexp)
 {
-    Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
-          i1_start = threadIdx.y + blockIdx.y*blockDim.y,
-          i2_step = blockDim.x * gridDim.x,
-          i1_step = blockDim.y * gridDim.y;
-    constexpr T zero = 0, one = 1;
-    // Cycle over row of output buffer
-    for(Index i2 = i2_start; i2 < n; i2 += i2_step)
+    Index i1 = threadIdx.y + blockIdx.y*blockDim.y,
+          i2 = threadIdx.z + blockIdx.z*blockDim.z,
+          i0_start = threadIdx.x, i0_step = blockDim.x;
+    constexpr T zero = 0.0, one = 1.0;
+    if(i2 < n and i1 < m and i0_start < k)
     {
-        // Cycle over column of output buffer
-        for(Index i1 = i1_start; i1 < m; i1 += i1_step)
+        // Get max and sum of exponents of a corresponding slice
+        const T *src_slice = src + i2*mk + i1;
+        // Init max and sum
+        T max_val = src_slice[i0_start*m];
+        T sum_val = one;
+        // Cycle over slice of input buffer
+        for(Index i0 = i0_start+i0_step; i0 < k; i0 += i0_step)
         {
-            // Get max and sum of exponents of a corresponding slice
-            const T *src_slice = src + i2*mk + i1;
-            // Init max and sum
-            Index dst_offset = 2 * (i1+i2*m);
-            T max = maxsumexp[dst_offset];
-            T sum = maxsumexp[dst_offset+1];
-            // Check if sum is zero, which means values were not yet
-            // initialized. Just initialize maximum value in this case.
-            if(sum == zero)
+            // Read value from source
+            T val = src_slice[i0*m];
+            // Ignore -inf value, which comes from mask
+            if(::isinf(val))
             {
-                max = src_slice[0];
+                continue;
             }
-            // Cycle over slice of input buffer
-            for(Index i0 = 0; i0 < k; ++i0)
+            // Update max and sum of exponents
+            if(max_val < val)
             {
-                // Read value from source
-                T val = src_slice[i0*m];
-                // Update max and sum of exponents
-                if(max < val)
+                sum_val = sum_val*(::exp(max_val-val)) + one;
+                max_val = val;
+            }
+            else
+            {
+                sum_val += ::exp(val-max_val);
+            }
+        }
+        // Per-block of threads max and sum of exponents
+        volatile __shared__ T block_max_val;
+        __shared__ T block_sum_val;
+        // Init shared values in the i0_start==0 thread
+        if(i0_start == 0)
+        {
+            block_max_val = max_val;
+            block_sum_val = zero;
+        }
+        // Other threads wait until initialization is done
+        __syncthreads();
+        // Update max at first
+        while(block_max_val < max_val)
+        {
+            block_max_val = max_val;
+        }
+        // Sync with all other threads to get per-block max finally
+        __syncthreads();
+        // Accumulate per-block sum of finite values
+        if(not ::isinf(max_val))
+        {
+            sum_val *= ::exp(max_val - block_max_val);
+            atomicAdd(&block_sum_val, sum_val);
+        }
+        __syncthreads();
+        // Update output iff per-block sum is not zero
+        if(i0_start == 0 and block_sum_val > 0)
+        {
+            // Get per-block max and sum of exponents into local variables
+            max_val = block_max_val;
+            sum_val = block_sum_val;
+            Index dst_offset = i1 + i2*m;
+            // Now max_val is finite, we need to accumulate sum of exponents
+            // with the data in global memory
+            T max_output;
+            T sum_output = maxsumexp[2*dst_offset+1];
+            // If data was not yet initialised, just overwrite it
+            if(sum_output == zero)
+            {
+                max_output = max_val;
+                sum_output = sum_val;
+            }
+            // Accumulate otherwise
+            else
+            {
+                max_output = maxsumexp[2*dst_offset];
+                if(max_val < max_output)
                 {
-                    sum = sum*exp(max-val) + one;
-                    max = val;
+                    sum_val *= ::exp(max_val - max_output);
                 }
                 else
                 {
-                    sum += exp(val-max);
+                    sum_output *= ::exp(max_output - max_val);
+                    max_output = max_val;
                 }
+                sum_output += sum_val;
             }
-            // Save result
-            maxsumexp[dst_offset] = max;
-            maxsumexp[dst_offset+1] = sum;
+            maxsumexp[2*dst_offset] = max_output;
+            maxsumexp[2*dst_offset+1] = sum_output;
         }
     }
 }
@@ -98,7 +150,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
 {
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
     // Both source and destination are Fortran-contiguous
-    dim3 blocks(16, 16), threads(8, 4);
+    dim3 threads(256, 1, 1);
+    dim3 blocks(1, m, n);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, src,
             maxsumexp);
 }
