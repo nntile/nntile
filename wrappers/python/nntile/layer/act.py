@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-07-01
+# @date 2023-07-16
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         copy_async, prod_async, relu_async, relu_backward_async, gelu_async, \
@@ -68,10 +68,15 @@ class Act(BaseLayer):
             copy_async(self.x.value, self.y.value)
             # Non-linear activation of Y inplace
             self.func(self.y.value)
+        self.x.value.wont_use()
+        self.y.value.wont_use()
 
     # Backward propagation of the activation layer
     def backward_async(self):
         # Gradient over X (input)
         if self.x.grad_required:
             self.dfunc(self.x.value, self.y.grad, self.x.grad)
+            self.x.value.wont_use()
+            self.x.grad.wont_use()
+            self.y.grad.wont_use()
 

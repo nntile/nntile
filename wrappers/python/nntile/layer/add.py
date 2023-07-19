@@ -10,7 +10,8 @@
 #
 # @version 1.0.0
 # @author Aleksandr Katrutsa
-# @date 2023-05-11
+# @author Aleksandr Mikhalev
+# @date 2023-07-16
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, copy_async, gemm_async, randn_async, add_async
@@ -24,7 +25,6 @@ class Add(BaseLayer):
         self.y = y
         self.res = res
         super().__init__([x, y], [res], [], [])
-        
 
     @staticmethod
     def generate_simple(x: TensorMoments, y: TensorMoments, next_tag: int):
@@ -40,10 +40,17 @@ class Add(BaseLayer):
     def forward_async(self):
         copy_async(self.x.value, self.res.value)
         add_async(1, self.y.value, 1, self.res.value)
+        self.x.value.wont_use()
+        self.y.value.wont_use()
+        self.res.value.wont_use()
     
     def backward_async(self):
         add_async(1, self.res.grad, 1, self.x.grad)
         add_async(1, self.res.grad, 1, self.y.grad)
+        self.x.grad.wont_use()
+        self.y.grad.wont_use()
+        self.res.grad.wont_use()
 
     def unregister(self):
         self.res.unregister()
+

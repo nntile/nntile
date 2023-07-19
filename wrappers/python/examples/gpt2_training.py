@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-06-29
+# @date 2023-07-16
 
 # Imports
 import nntile
@@ -109,7 +109,7 @@ assert config.n_positions % args.seq_len_tile == 0
 config.attn_pdrop = 0
 config.embd_pdrop = 0
 config.resid_pdrop = 0
-#config.n_head = 8
+#config.n_head = 1
 #config.num_hidden_layers = 2
 model_torch = copy.deepcopy(pretrained_model_torch)
 # Current version splits lm_head and wte parameters, shared parameters will be
@@ -472,6 +472,7 @@ if args.nntile_nepochs > 0:
     pipeline.train_async()
     nntile.starpu.wait_for_all()
     time1 = time.time() - time0
+    print("NNTile training time: {} seconds".format(time1))
     print("NNTile training throughput tokens/sec: {}".format( \
             args.nntile_nepochs * num_train_batches * args.batch_size \
             * config.n_positions / time1))
@@ -524,12 +525,13 @@ if args.torch_nepochs > 0:
             train_output = model_torch(train_input)
             train_logits = train_output.logits.reshape(-1, config.vocab_size)
             loss = loss_func(train_logits, train_labels)
-            #print("loss={}".format(loss))
+            print("loss={}".format(loss))
             loss.backward()
             optim.step()
     if args.torch_device.startswith("cuda"):
         torch.cuda.synchronize()
     time1 = time.time() - time0
+    print("Torch training time: {} seconds".format(time1))
     print("Torch training throughput tokens/sec: {}".format( \
             args.torch_nepochs * num_train_batches * args.batch_size \
             * config.n_positions/time1))

@@ -5,12 +5,12 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file wrappers/python/nntile/layer/add_slice.py
-# Activation layer of NNTile Python package
+# Add slice layer of NNTile Python package
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-06
+# @date 2023-07-16
 
 from .base_layer import BaseLayer
 from nntile.tensor import add_async, copy_async, add_slice_async, sum_slice_async
@@ -32,10 +32,16 @@ class AddSlice(BaseLayer):
         copy_async(self.x.value, self.u.value)
         # Add slice operation
         add_slice_async(1, self.y.value, 1, self.u.value, self.axis)
+        self.x.value.wont_use()
+        self.y.value.wont_use()
+        self.u.value.wont_use()
 
     def backward_async(self):
         add_async(1, self.u.grad, 1, self.x.grad)
         sum_slice_async(1, self.u.grad, 1, self.y.grad, self.axis)
+        self.x.grad.wont_use()
+        self.y.grad.wont_use()
+        self.u.grad.wont_use()
         
     # Simple generator for the add_slice layer
     @staticmethod

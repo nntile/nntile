@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-13
+# @date 2023-07-16
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
@@ -344,33 +344,36 @@ class Attention(BaseLayer):
             # Q[i] = einsum('jk,klm->jlm', W_Q[i], X_Q)
             gemm_async(1.0, notrans, self.w_q[i].value, notrans, \
                     self.x_q.value, 0.0, self.q[i].value, 1, 0)
-            if self.in_proj_bias_q:
-                add_fiber_async(1, self.in_proj_bias_q[i].value, 1, \
-                        self.q[i].value, 0)
             # X_Q can be offloaded from GPU
             self.x_q.value.wont_use()
             # W_Q[i] can be offloaded from GPU
             self.w_q[i].value.wont_use()
+            if self.in_proj_bias_q:
+                add_fiber_async(1, self.in_proj_bias_q[i].value, 1, \
+                        self.q[i].value, 0)
+                self.in_proj_bias_q[i].value.wont_use()
             # K[i] = einsum('jk,klm->jlm', W_K[i], X_K)
             gemm_async(1.0, notrans, self.w_k[i].value, notrans, \
                     self.x_k.value, 0.0, self.k[i].value, 1, 0)
-            if self.in_proj_bias_k:
-                add_fiber_async(1, self.in_proj_bias_k[i].value, 1, \
-                        self.k[i].value, 0)
             # X_K can be offloaded from GPU
             self.x_k.value.wont_use()
             # W_K[i] can be offloaded from GPU
             self.w_k[i].value.wont_use()
+            if self.in_proj_bias_k:
+                add_fiber_async(1, self.in_proj_bias_k[i].value, 1, \
+                        self.k[i].value, 0)
+                self.in_proj_bias_k[i].value.wont_use()
             # V[i] = einsum('jk,klm->jlm', W_V[i], X_V)
             gemm_async(1.0, notrans, self.w_v[i].value, notrans, \
                     self.x_v.value, 0.0, self.v[i].value, 1, 0)
-            if self.in_proj_bias_v:
-                add_fiber_async(1, self.in_proj_bias_v[i].value, 1, \
-                        self.v[i].value, 0)
             # X_V can be offloaded from GPU
             self.x_v.value.wont_use()
             # W_V[i] can be offloaded from GPU
             self.w_v[i].value.wont_use()
+            if self.in_proj_bias_v:
+                add_fiber_async(1, self.in_proj_bias_v[i].value, 1, \
+                        self.v[i].value, 0)
+                self.in_proj_bias_v[i].value.wont_use()
             # Get tensor for softmax
             # A[i] = 1.0/sqrt(head_size) * einsum('jkl,jml->kml', K[i], Q[i])
             gemm_async(1.0/self.head_size**0.5, trans, self.k[i].value, \
@@ -383,10 +386,12 @@ class Attention(BaseLayer):
             # A[i] = softmax(A[i], axis=0)
             if self.mask:
                 mask_scalar_async(self.mask, self.val, self.a[i].value)
+                self.mask.wont_use()
             maxsumexp_async(self.a[i].value, self.a_maxsumexp[i], 0)
             softmax_inplace_async(self.a_maxsumexp[i], self.a[i].value, 0)
             # A_maxsumexp[i] can be deleted
             #self.a_maxsumexp[i].invalidate_submit()
+            self.a_maxsumexp[i].wont_use()
             # Apply value tensor
             # B[i] = einsum('jkl,kml->jml', V[i], A[i])
             gemm_async(1.0, notrans, self.v[i].value, notrans, \
@@ -405,11 +410,14 @@ class Attention(BaseLayer):
             self.b[i].value.wont_use()
         if self.out_proj_bias:
             add_fiber_async(1, self.out_proj_bias.value, 1, self.y.value, 0)
+            self.out_proj_bias.value.wont_use()
 
     # Backward propagation of the linear layer
     def backward_async(self):
-        if self.out_proj_bias and self.out_proj_bias.grad_required:
-            sum_fiber_async(1, self.y.grad, 1, self.out_proj_bias.grad, 0)
+        if self.out_proj_bias is not None:
+            if self.out_proj_bias.grad_required:
+                sum_fiber_async(1, self.y.grad, 1, self.out_proj_bias.grad, 0)
+                self.out_proj_bias.grad.wont_use()
         for i in range(self.n_head):
             # Backward for Y += einsum('jk,kml->jml', W[i], B[i])
             if self.w[i].grad_required:
@@ -418,6 +426,7 @@ class Attention(BaseLayer):
                         1.0, self.w[i].grad, 2, 0)
             # B[i] can be deleted
             #self.b[i].value.invalidate_submit()
+            self.b[i].value.wont_use()
             if self.b[i].grad_required:
                 # dB[i] = einsum('jk,jml->kml', W[i], dY)
                 gemm_async(1.0, trans, self.w[i].value, notrans, self.y.grad, \
@@ -431,12 +440,14 @@ class Attention(BaseLayer):
                         self.b[i].grad, 0.0, self.a[i].grad, 1, 1)
             # V[i] can be deleted
             #self.v[i].value.invalidate_submit()
+            self.v[i].value.wont_use()
             if self.v[i].grad_required:
                 # dV[i] = einsum('jml,kml->jkl', dB[i], A[i])
                 gemm_async(1.0, notrans, self.b[i].grad, trans, \
                         self.a[i].value, 0.0, self.v[i].grad, 1, 1)
             # dB[i] can be deleted
             #self.b[i].grad.invalidate_submit()
+            self.b[i].grad.wont_use()
             # Backward for A[i] = softmax(A[i], axis=0)
             if self.a[i].grad_required:
                 # A_sumprod_slice[i] = einsum('kml,kml->ml', A[i], dA[i])
@@ -447,12 +458,15 @@ class Attention(BaseLayer):
                         self.a[i].grad, 0)
                 # A_sumprod_slice[i] can be deleted
                 #self.a_sumprod_slice[i].invalidate_submit()
+                self.a_sumprod_slice[i].wont_use()
                 # dA[i] *= A[i]
                 prod_async(self.a[i].value, self.a[i].grad)
             if self.mask:
                 mask_scalar_async(self.mask, 0, self.a[i].grad)
+                self.mask.wont_use()
             # A[i] can be deleted
             #self.a[i].value.invalidate_submit()
+            self.a[i].value.wont_use()
             # Backward for:
             # A[i] = 1.0/sqrt(head_size) * einsum('jkl,jml->kml', K[i], Q[i])
             if self.k[i].grad_required:
@@ -462,6 +476,7 @@ class Attention(BaseLayer):
                         trans, self.a[i].grad, 0.0, self.k[i].grad, 1, 1)
             # Q[i] can be deleted
             #self.q[i].value.invalidate_submit()
+            self.q[i].value.wont_use()
             if self.q[i].grad_required:
                 # dQ[i] = 1.0/sqrt(head_size) * einsum('jkl,kml->jml', K[i],
                 #       dA[i])
@@ -469,8 +484,10 @@ class Attention(BaseLayer):
                         notrans, self.a[i].grad, 0.0, self.q[i].grad, 1, 1)
             # K[i] can be deleted
             #self.k[i].value.invalidate_submit()
+            self.k[i].value.wont_use()
             # dA[i] can be deleted
             #self.a[i].grad.invalidate_submit()
+            self.a[i].grad.wont_use()
             # Backward for V[i] = einsum('jk,klm->jlm', W_V[i], X_V)
             if self.x_v.grad_required:
                 # dX_V += einsum('jk,jlm->klm', W_V[i], dV[i])
@@ -478,9 +495,11 @@ class Attention(BaseLayer):
                         self.v[i].grad, 1.0, self.x_v.grad, 1, 0)
             # W_V[i] can be offloaded from GPU
             self.w_v[i].value.wont_use()
-            if self.in_proj_bias_v[i] and self.in_proj_bias_v[i].grad_required:
-                sum_fiber_async(1, self.v[i].grad, 1, \
-                        self.in_proj_bias_v[i].grad, 0)
+            if self.in_proj_bias_v[i] is not None:
+                if self.in_proj_bias_v[i].grad_required:
+                    sum_fiber_async(1, self.v[i].grad, 1, \
+                            self.in_proj_bias_v[i].grad, 0)
+                    self.in_proj_bias_v[i].grad.wont_use()
             if self.w_v[i].grad_required:
                 # dW_V[i] += einsum('jlm,klm->jk', dV[i], X_V)
                 gemm_async(1.0, notrans, self.v[i].grad, trans, \
@@ -489,6 +508,7 @@ class Attention(BaseLayer):
             self.w_v[i].grad.wont_use()
             # dV[i] can be deleted
             #self.v[i].grad.invalidate_submit()
+            self.v[i].grad.wont_use()
             # Backward for K[i] = einsum('jk,klm->jlm', W_K[i], X_K)
             if self.x_k.grad_required:
                 # dX_K += einsum('jk,jlm->klm', W_K[i], dK[i])
@@ -496,9 +516,11 @@ class Attention(BaseLayer):
                         self.k[i].grad, 1.0, self.x_k.grad, 1, 0)
             # W_K[i] can be offloaded from GPU
             self.w_k[i].value.wont_use()
-            if self.in_proj_bias_k[i] and self.in_proj_bias_k[i].grad_required:
-                sum_fiber_async(1, self.k[i].grad, 1, \
-                        self.in_proj_bias_k[i].grad, 0)
+            if self.in_proj_bias_k[i] is not None:
+                if self.in_proj_bias_k[i].grad_required:
+                    sum_fiber_async(1, self.k[i].grad, 1, \
+                            self.in_proj_bias_k[i].grad, 0)
+                    self.in_proj_bias_k[i].grad.wont_use()
             if self.w_k[i].grad_required:
                 # dW_K[i] += einsum('jlm,klm->jk', dK[i], X_K)
                 gemm_async(1.0, notrans, self.k[i].grad, trans, \
@@ -507,6 +529,7 @@ class Attention(BaseLayer):
             self.w_k[i].grad.wont_use()
             # dK[i] can be deleted
             #self.k[i].grad.invalidate_submit()
+            self.k[i].grad.wont_use()
             # Backward for Q[i] = einsum('jk,klm->jlm', W_Q[i], X_Q)
             if self.x_q.grad_required:
                 # dX_Q += einsum('jk,jlm->klm', W_Q[i], dQ[i])
@@ -514,9 +537,11 @@ class Attention(BaseLayer):
                         self.q[i].grad, 1.0, self.x_q.grad, 1, 0)
             # W_Q[i] can be offloaded from GPU
             self.w_q[i].value.wont_use()
-            if self.in_proj_bias_q[i] and self.in_proj_bias_q[i].grad_required:
-                sum_fiber_async(1, self.q[i].grad, 1, \
-                        self.in_proj_bias_q[i].grad, 0)
+            if self.in_proj_bias_q[i] is not None:
+                if self.in_proj_bias_q[i].grad_required:
+                    sum_fiber_async(1, self.q[i].grad, 1, \
+                            self.in_proj_bias_q[i].grad, 0)
+                    self.in_proj_bias_q[i].grad.wont_use()
             if self.w_q[i].grad_required:
                 # dW_Q[i] += einsum('jlm,klm->jk', dQ[i], X_Q)
                 gemm_async(1.0, notrans, self.q[i].grad, trans, \
@@ -525,4 +550,5 @@ class Attention(BaseLayer):
             self.w_q[i].grad.wont_use()
             # dQ[i] can be deleted
             #self.q[i].grad.invalidate_submit()
+            self.q[i].grad.wont_use()
 

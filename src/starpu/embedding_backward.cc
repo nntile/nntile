@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-06-20
+ * @date 2023-07-16
  * */
 
 #include "nntile/starpu/embedding_backward.hh"
@@ -133,6 +133,7 @@ void submit(Index m, Index n, Index k, Index k_start, Index k_size,
             STARPU_R, static_cast<starpu_data_handle_t>(index),
             STARPU_R, static_cast<starpu_data_handle_t>(embed),
             STARPU_RW, static_cast<starpu_data_handle_t>(vocab),
+            //Config::STARPU_RW_COMMUTE, static_cast<starpu_data_handle_t>(vocab),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
             0);
