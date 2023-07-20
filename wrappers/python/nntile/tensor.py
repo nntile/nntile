@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-03
+# @date 2023-07-20
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -647,6 +647,17 @@ def hypot_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
         core_tensor.hypot_async_fp32(alpha, x, beta, y)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.hypot_async_fp64(alpha, x, beta, y)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision transpose
+def transpose_async(alpha: float, src: Tensor, dst: Tensor, ndim: int) -> None:
+    if type(src) is not type(dst):
+        raise TypeError
+    if type(src) is core_tensor.Tensor_fp32:
+        core_tensor.transpose_async_fp32(alpha, src, dst, ndim)
+    elif type(src) is core_tensor.Tensor_fp64:
+        core_tensor.transpose_async_fp64(alpha, src, dst, ndim)
     else:
         raise TypeError
 

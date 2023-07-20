@@ -4,13 +4,13 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/pow/cuda.cu
+ * @file src/kernel/total_sum_accum/cuda.cu
  * total_sum_accum operation on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-06-30
+ * @date 2023-07-20
  * */
 
 #include "nntile/kernel/total_sum_accum/cuda.hh"

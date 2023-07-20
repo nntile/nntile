@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-07-03
+# @date 2023-07-20
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -71,6 +71,7 @@ set(TESTS_MPI
     "mask_scalar"
     "scal"
     "hypot"
+    "transpose"
     )
 
 # Describe all tests that are not yet implemented
