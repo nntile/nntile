@@ -12,10 +12,14 @@
 # @date 2022-08-09
 
 include(FetchContent)
+
+add_subdirectory(googletest)
 add_subdirectory(nvbench)
 add_subdirectory(pybind11)
 
-FetchContent_MakeAvailable(nvbench pybind11)
+FetchContent_MakeAvailable(googletest nvbench pybind11)
+
+include(GoogleTest)
 
 # Append external sources and headers.
 target_sources(nntile PRIVATE "random.h")
