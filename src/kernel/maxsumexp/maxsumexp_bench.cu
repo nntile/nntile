@@ -1,5 +1,6 @@
 #include <cstddef>
 #include <iterator>
+#include <stdexcept>
 
 #include <cuda.h>
 #include <nvbench/launch.cuh>
@@ -108,7 +109,7 @@ void BenchMaxSumExp(nvbench::state &state) {
 
 NVBENCH_BENCH(BenchMaxSumExp)
     .add_int64_axis("batch_size", {2, 8, 32})
-    .add_int64_axis("seq_len", {64, 256});
+    .add_int64_axis("seq_len", {64, 256, 1024});
 
 template <typename T, typename Distance = std::intptr_t, typename Pointer = T *,
           typename Reference = T &>
@@ -207,8 +208,8 @@ __global__ void MaxSumExp2(Index m, Index n, Index k, Index mk,
 }
 
 using T = float;
-void LaunchMaxSumExp(cudaStream_t stream, Index m, Index n, Index k,
-                     T const *src, T *dst) noexcept {
+void LaunchMaxSumExp2(cudaStream_t stream, Index m, Index n, Index k,
+                      T const *src, T *dst) noexcept {
     dim3 threads(m, 1, n);
     dim3 blocks(1);
     MaxSumExp2<T><<<blocks, threads, 0, stream>>>(m, n, k, m * k, src, dst);
@@ -225,12 +226,112 @@ void BenchMaxSumExp2(nvbench::state &state) {
     state.add_global_memory_reads<float>(src.size);
     state.add_global_memory_writes<float>(dst.size);
     state.exec(nvbench::exec_tag::sync, [&](nvbench::launch &launch) {
-        LaunchMaxSumExp(launch.get_stream(), batch_size, seq_len, seq_len,
-                        src.as<float>(), dst.as<float>());
+        LaunchMaxSumExp2(launch.get_stream(), batch_size, seq_len, seq_len,
+                         src.as<float>(), dst.as<float>());
         cudaStreamSynchronize(launch.get_stream());
     });
 }
 
 NVBENCH_BENCH(BenchMaxSumExp2)
     .add_int64_axis("batch_size", {2, 8, 32})
-    .add_int64_axis("seq_len", {64, 256});
+    .add_int64_axis("seq_len", {64, 256, 1024});
+
+extern __shared__ float extent[]; // User-managed cache on device.
+
+template <typename T>
+__global__ void MaxSumExp3(Index m, Index n, Index k, Index mk,
+                           T const *__restrict__ src, T *__restrict__ dst) {
+    // Memory model of user-maneged cache in shared memory.
+    size_t const data_size = blockDim.x * blockDim.y * blockDim.z;
+    T *cache = reinterpret_cast<T *>(extent); // Mirror of global memory.
+    // Accumulator for max-reduction and sum-reduction.
+    T *acc = reinterpret_cast<T *>(cache) + data_size;
+
+    auto ix = threadIdx.x + blockDim.x * blockIdx.x;
+    auto jx = threadIdx.y + blockDim.y * blockIdx.y;
+    auto kx = threadIdx.z + blockDim.z * blockIdx.z;
+    if (ix >= m || jx >= k || kx >= n) {
+        return;
+    }
+
+    // Load data from global memory to user-managed cache in shared memory.
+    auto tid = threadIdx.x + blockDim.x * threadIdx.y +
+               blockDim.x * blockDim.y * threadIdx.z; // Thread ID in block.
+    cache[tid] = src[ix + m * jx + mk * kx];
+    __syncthreads();
+
+    // Per-block max-reduction in shared memory.
+    auto fid = threadIdx.y; // Thread ID along fiber-axis (y).
+    auto offset_local = threadIdx.x + blockDim.x * blockDim.y * threadIdx.z;
+    acc[tid] = cache[tid]; // TODO: max + 2 x load from cache.
+    __syncthreads();
+    for (auto stride = 1; stride < blockDim.y; stride *= 2) {
+        if (fid % (2 * stride) == 0) {
+            acc[offset_local + fid] =
+                max(acc[offset_local + blockDim.x * fid],
+                    acc[offset_local + blockDim.x * (fid + stride)]);
+        }
+        __syncthreads();
+    }
+
+    // Per-block sumexp-reduction in shared memory.
+    auto max = acc[offset_local];
+    acc[tid] = std::exp(cache[tid] - max); // TODO: The same.
+    __syncthreads();
+    for (auto stride = 1; stride < blockDim.y; stride *= 2) {
+        if (fid % (2 * stride) == 0) {
+            acc[offset_local + fid] +=
+                acc[offset_local + blockDim.x * (fid + stride)];
+        }
+        __syncthreads();
+    }
+
+    // Store in global memory (output buffer) in theads from X-Z plane.
+    if (fid == 0) {
+        // Contingues tuple of (max, sum). Update accumulants in-place.
+        auto out = dst + 2 * (ix + m * kx);
+        if (auto diff = max - out[0]; diff > 0) {
+            out[0] = max;
+            out[1] = out[1] * std::exp(-diff) + acc[offset_local];
+        } else {
+            out[1] = out[1] + std::exp(diff) * acc[offset_local];
+        }
+    }
+}
+
+template <typename T>
+void LaunchMaxSumExp3(cudaStream_t stream, Index m, Index n, Index k,
+                      T const *src, T *dst) noexcept {
+    dim3 threads(1, 1024, 1);
+    dim3 blocks(m, 1, n);
+    size_t smem = 2 * threads.x * threads.y * threads.z * sizeof(T);
+    MaxSumExp3<T><<<blocks, threads, smem, stream>>>(m, n, k, m * k, src, dst);
+}
+
+void BenchMaxSumExp3(nvbench::state &state) {
+    auto batch_size = static_cast<int>(state.get_int64("batch_size"));
+    auto seq_len = static_cast<int>(state.get_int64("seq_len"));
+    auto src = Array<float, Device::kCUDA>(batch_size * seq_len * seq_len);
+    auto dst = Array<float, Device::kCUDA>(batch_size * seq_len * 2);
+
+    // Request throughput stats.
+    state.add_element_count(src.size);
+    state.add_global_memory_reads<float>(src.size);
+    state.add_global_memory_writes<float>(dst.size);
+    state.exec(nvbench::exec_tag::sync, [&](nvbench::launch &launch) {
+        LaunchMaxSumExp3(launch.get_stream(), batch_size, seq_len, seq_len,
+                         src.as<float>(), dst.as<float>());
+        // cudaStreamSynchronize(launch.get_stream());
+        cudaDeviceSynchronize();
+        cudaError_t status = cudaGetLastError();
+        if (status != cudaSuccess) {
+            std::cout << status << " " << cudaGetErrorName(status) << " "
+                      << cudaGetErrorString(status) << std::endl;
+            throw std::runtime_error("CUDA error");
+        }
+    });
+}
+
+NVBENCH_BENCH(BenchMaxSumExp3)
+    .add_int64_axis("batch_size", {2, 8, 32})
+    .add_int64_axis("seq_len", {64, 256, 1024});
