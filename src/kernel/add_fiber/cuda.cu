@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-06-20
+ * @date 2023-07-21
  * */
 
 #include "nntile/kernel/add_fiber/cuda.hh"
@@ -23,16 +23,17 @@ namespace add_fiber
 
 template<typename T>
 static __global__
-void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src, T beta,
-        T *dst)
+void cuda_kernel(Index m, Index n, Index k, Index batch, T alpha, const T *src,
+        T beta, T *dst)
 //! Per-element addition of a tensor and a broadcasted fiber on CPU
 /*! Performs the following operations:
- *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[l]
+ *      dst[i,l,j,b] = beta*dst[i,l,j,b] + alpha*src[l,b]
  *
  * @param[in] m: Size of the first mode of dst tensor
  * @param[in] n: Size of the last mode of dst tensor
  * @param[in] k: Size of the middle mode of dst tensor and the only mode of src
  *      tensors
+ * @param[in] batch: Size of the batch dimension
  * @param[in] alpha: Scalar factor for src
  * @param[in] src: Input contiguous vector with k elements
  * @param[in] beta: Scaling factor for dst
@@ -45,18 +46,12 @@ void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src, T beta,
     constexpr T zero = 0;
     if(i2 < k and i1 < n and i0 < m)
     {
-        // Value to add to the output slice
-        const T src_val = alpha * src[i2];
-        // Output fiber to be updated
-        T *dst_fiber = dst + (i1*k+i2)*m;
-        // Overwrite or update output depending on beta
-//        if(beta == zero)
-//        {
-//            // Set output value
-//            dst_fiber[i0] = src_val;
-//        }
-//        else
+        for(Index b = 0; b < batch; ++b)
         {
+            // Value to add to the output slice
+            const T src_val = alpha * src[i2+b*k];
+            // Output fiber to be updated
+            T *dst_fiber = dst + ((i1+b*n)*k+i2)*m;
             // Read value from the output
             T &dst_val = dst_fiber[i0];
             // And update it
@@ -66,7 +61,7 @@ void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src, T beta,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
+void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, T alpha,
         const T *src, T beta, T *dst)
     noexcept
 //! Per-element addition of a tensor and a broadcasted fiber on CPU
@@ -77,6 +72,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * @param[in] n: Size of the last mode of dst tensor
  * @param[in] k: Size of the middle mode of dst tensor and the only mode of src
  *      tensors
+ * @param[in] batch: Size of the batch dimension
  * @param[in] alpha: Scalar factor for src
  * @param[in] src: Input contiguous vector with k elements
  * @param[in] beta: Scaling factor for dst
@@ -88,19 +84,19 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
             std::min(int(n), 1));
     dim3 blocks((k+threads.x-1)/threads.x, (m+threads.y-1)/threads.y,
             (n+threads.z-1)/threads.z);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, alpha, src, beta,
-            dst);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, batch, alpha,
+            src, beta, dst);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, fp32_t alpha,
-        const fp32_t *src, fp32_t beta, fp32_t *dst)
+void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
+        fp32_t alpha, const fp32_t *src, fp32_t beta, fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, fp64_t alpha,
-        const fp64_t *src, fp64_t beta, fp64_t *dst)
+void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
+        fp64_t alpha, const fp64_t *src, fp64_t beta, fp64_t *dst)
     noexcept;
 
 } // namespace add_fiber

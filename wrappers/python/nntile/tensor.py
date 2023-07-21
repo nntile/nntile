@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-20
+# @date 2023-07-21
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -350,13 +350,15 @@ def add_slice3_async(alpha: float, add_slice: Tensor, beta, x: Tensor, \
 
 # Wrapper for multiprecision add_fiber
 def add_fiber_async(alpha: float, add_fiber: Tensor, beta, x: Tensor, \
-        axis: int) -> None:
+        axis: int, batch_ndim: int) -> None:
     if type(add_fiber) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.add_fiber_async_fp32(alpha, add_fiber, beta, x, axis)
+        core_tensor.add_fiber_async_fp32(alpha, add_fiber, beta, x, axis, \
+                batch_ndim)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.add_fiber_async_fp64(alpha, add_fiber, beta, x, axis)
+        core_tensor.add_fiber_async_fp64(alpha, add_fiber, beta, x, axis, \
+                batch_ndim)
     else:
         raise TypeError
 

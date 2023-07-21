@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-28
+ * @date 2023-07-21
  * */
 
 #include "nntile/tile/add_fiber.hh"
@@ -22,11 +22,11 @@ namespace tile
 
 template<typename T>
 void add_fiber_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
-        Index axis)
+        Index axis, Index batch_ndim)
 //! Tile<T> addition of a tensor and a broadcasted fiber
 /*! Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
  * and performs the following operations:
- *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[l]
+ *      dst[i,l,j,b] = beta*dst[i,l,j,b] + alpha*src[l,b]
  *
  * @param[in] alpha: Scalar factor for src
  * @param[in] src: Input fiber, that is reshaped into 1D array
@@ -35,46 +35,55 @@ void add_fiber_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
  * */
 {
     // Check dimensions
-    if(src.ndim != 1)
+    if(src.ndim != batch_ndim+1)
     {
-        throw std::runtime_error("src.ndim != 1");
+        throw std::runtime_error("src.ndim != batch_ndim+1");
     }
     // Check axis
     if(axis < 0)
     {
         throw std::runtime_error("axis < 0");
     }
-    if(axis >= dst.ndim)
+    if(axis >= dst.ndim-batch_ndim)
     {
-        throw std::runtime_error("axis >= dst.ndim");
+        throw std::runtime_error("axis >= dst.ndim-batch_ndim");
     }
     // Check shapes of tiles
     if(src.shape[0] != dst.shape[axis])
     {
         throw std::runtime_error("src.shape[0] != dst.shape[axis]");
     }
+    for(Index i = 0; i < batch_ndim; ++i)
+    {
+        if(src.shape[i+1] != dst.shape[dst.ndim-batch_ndim+i])
+        {
+            throw std::runtime_error("src.shape[i+1] != "
+                    "dst.shape[dst.ndim-batch_ndim+i]");
+        }
+    }
     // Do nothing if alpha is zero
     if(alpha == 0.0)
     {
         return;
     }
-    // Reshape inputs for simplicity: src -> (m,n), dst -> (m,k,n)
-    Index m, n, k;
+    // Reshape inputs for simplicity: src -> (k,batch), dst -> (m,k,n,batch)
+    Index m, n, k, batch;
+    batch = src.matrix_shape[1][1];
     m = dst.stride[axis];
-    n = dst.matrix_shape[axis+1][1];
+    n = dst.matrix_shape[axis+1][1] / batch;
     k = dst.shape[axis];
     // Insert corresponding task
-    starpu::add_fiber::submit<T>(m, n, k, alpha, src, beta, dst);
+    starpu::add_fiber::submit<T>(m, n, k, batch, alpha, src, beta, dst);
 }
 
 template<typename T>
 void add_fiber(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
-        Index axis)
+        Index axis, Index batch_ndim)
 //! Tile<T> addition of a tensor and a broadcasted fiber
 /*! Blocking version of add_fiber_async<T>.
  * Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
  * and performs the following operations:
- *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[l]
+ *      dst[i,l,j,b] = beta*dst[i,l,j,b] + alpha*src[l,b]
  *
  * @param[in] alpha: Scalar factor for src
  * @param[in] src: Input fiber, that is reshaped into 1D array
@@ -82,27 +91,27 @@ void add_fiber(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
-    add_fiber_async<T>(alpha, src, beta, dst, axis);
+    add_fiber_async<T>(alpha, src, beta, dst, axis, batch_ndim);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
 void add_fiber_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src,
-        fp32_t beta, const Tile<fp32_t> &dst, Index axis);
+        fp32_t beta, const Tile<fp32_t> &dst, Index axis, Index batch_ndim);
 
 template
 void add_fiber_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src,
-        fp64_t beta, const Tile<fp64_t> &dst, Index axis);
+        fp64_t beta, const Tile<fp64_t> &dst, Index axis, Index batch_ndim);
 
 // Explicit instantiation of template
 template
 void add_fiber<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src, fp32_t beta,
-        const Tile<fp32_t> &dst, Index axis);
+        const Tile<fp32_t> &dst, Index axis, Index batch_ndim);
 
 template
 void add_fiber<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src, fp64_t beta,
-        const Tile<fp64_t> &dst, Index axis);
+        const Tile<fp64_t> &dst, Index axis, Index batch_ndim);
 
 } // namespace tile
 } // namespace nntile

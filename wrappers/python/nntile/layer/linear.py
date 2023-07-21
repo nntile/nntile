@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-16
+# @date 2023-07-21
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, copy_async, gemm_async, randn_async, \
@@ -139,7 +139,7 @@ class Linear(BaseLayer):
                     0.0, self.y.value, self.ndim, 0)
             if self.b is not None:
                 add_fiber_async(1.0, self.b.value, 1.0, self.y.value,
-                        self.y.value.ndim-1)
+                        self.y.value.ndim-1, 0)
         else:
             # Y = einsum('ij,jk->ik', W, op(X))
             # 'i' is a multi-index of dimension W.ndim-ndim
@@ -148,7 +148,7 @@ class Linear(BaseLayer):
             gemm_async(1.0, notrans, self.w.value, self.trans_x, self.x.value,
                     0.0, self.y.value, self.ndim, 0)
             if self.b is not None:
-                add_fiber_async(1.0, self.b.value, 1.0, self.y.value, 0)
+                add_fiber_async(1.0, self.b.value, 1.0, self.y.value, 0, 0)
         # Hint for StarPU that W tensor will
         # not be used soon and it is advised to offload data from GPU
         self.w.value.wont_use()

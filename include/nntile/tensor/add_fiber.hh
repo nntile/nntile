@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-28
+ * @date 2023-07-21
  * */
 
 #pragma once
@@ -24,12 +24,12 @@ namespace tensor
 // Tensor<T> addition of a tensor and a broadcasted fiber
 template<typename T>
 void add_fiber_async(T alpha, const Tensor<T> &src, T beta,
-        const Tensor<T> &dst, Index axis);
+        const Tensor<T> &dst, Index axis, Index batch_ndim);
 
 // Tensor<T> addition of a tensor and a broadcasted fiber
 template<typename T>
 void add_fiber(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
-        Index axis);
+        Index axis, Index batch_ndim);
 
 } // namespace tensor
 } // namespace nntile

@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-07-03
+# @date 2023-07-21
 
 from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         TensorOrNone, TensorMoments, \
@@ -145,7 +145,7 @@ class LayerNorm(BaseLayer):
         self.tmp_y_value.wont_use()
         self.gamma.value.wont_use()
         # Shift output
-        add_fiber_async(1.0, self.beta.value, 1.0, self.y.value, self.axis)
+        add_fiber_async(1.0, self.beta.value, 1.0, self.y.value, self.axis, 0)
         self.beta.value.wont_use()
         self.y.value.wont_use()
 

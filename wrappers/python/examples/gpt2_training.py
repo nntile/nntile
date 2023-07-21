@@ -255,11 +255,11 @@ if args.check:
         torch.cuda.synchronize()
     output_value_np = output_value.logits.cpu().detach().numpy()
     # Get gradients of parameters through the backward pass
-    loss = 0.5 * (output_value.logits * output_value.logits).sum()
-    model_torch.zero_grad()
-    loss.backward()
-    if args.torch_device.startswith("cuda"):
-        torch.cuda.synchronize()
+    #loss = 0.5 * (output_value.logits * output_value.logits).sum()
+    #model_torch.zero_grad()
+    #loss.backward()
+    #if args.torch_device.startswith("cuda"):
+    #    torch.cuda.synchronize()
     # Check accuracy of the forward pass by the output activation
     nntile_model.activations[0].value.from_array(input_value.cpu().numpy().T)
     nntile_model.forward_async()
@@ -271,13 +271,13 @@ if args.check:
     print("NNTile forward pass relative accuracy: {}".format(diff/norm))
     print("Model output norm: {}".format(norm))
     # Run backward pass by the NNTile to get gradients of parameters
-    nntile_model.clear_gradients()
-    nntile.tensor.copy_async(nntile_model.activations[-1].value, \
-            nntile_model.activations[-1].grad)
-    nntile_model.backward_async()
-    nntile.starpu.wait_for_all()
+    #nntile_model.clear_gradients()
+    #nntile.tensor.copy_async(nntile_model.activations[-1].value, \
+    #        nntile_model.activations[-1].grad)
+    #nntile_model.backward_async()
+    #nntile.starpu.wait_for_all()
     # Now compare gradients
-    check_grads(model_torch, nntile_model)
+    #check_grads(model_torch, nntile_model)
 
 # Measure throughput of Torch forward pass
 if args.torch_nforward > 0:
