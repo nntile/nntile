@@ -456,6 +456,8 @@ if args.nntile_nepochs > 0:
     # Set up learning rate and optimizer for training
     optimizer = nntile.optimizer.Adam(nntile_model.get_parameters(), args.lr, \
             next_tag)
+#     optimizer = nntile.optimizer.FuseAdam(nntile_model.get_parameters(), args.lr, \
+#             next_tag)
     next_tag = optimizer.get_next_tag()
     # Define Cross Entropy loss function
     loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \

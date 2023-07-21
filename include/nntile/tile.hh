@@ -69,6 +69,7 @@
 #include <nntile/tile/add_scalar.hh>
 #include <nntile/tile/mask_scalar.hh>
 #include <nntile/tile/hypot.hh>
+#include <nntile/tile/adam_step.hh>
 
 namespace nntile
 {

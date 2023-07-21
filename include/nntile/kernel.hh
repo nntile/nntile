@@ -61,6 +61,7 @@
 #include <nntile/kernel/embedding_backward.hh>
 #include <nntile/kernel/mask_scalar.hh>
 #include <nntile/kernel/scal.hh>
+#include <nntile/kernel/adam_step.hh>
 
 namespace nntile
 {

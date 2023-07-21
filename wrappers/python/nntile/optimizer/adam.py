@@ -103,3 +103,53 @@ class Adam:
                         self.second_moments[i], p.value)
         self.num_iter += 1
 
+class FuseAdam:
+    def __init__(self, params, lr, next_tag, beta1=0.9, beta2=0.999, \
+            amsgrad=False, weight_decay=0., eps=1e-8, dtype=np.float32):
+        self.params = params
+        self.next_tag = next_tag
+        self.amsgrad = amsgrad
+        self.num_iter = 1
+        self.dtype=dtype
+        self.first_moments = []
+        self.second_moments = []
+        self.max_second_moments = []
+        self.denoms = []
+        for p in self.params:
+            p_traits = TensorTraits(p.value.shape, p.value.basetile_shape)
+            self.first_moments.append(type(p.value)(p_traits, \
+                    p.value.distribution, self.next_tag))
+            self.next_tag = self.first_moments[-1].next_tag
+            self.second_moments.append(type(p.value)(p_traits, \
+                    p.value.distribution, self.next_tag))
+            self.next_tag = self.second_moments[-1].next_tag
+            self.denoms.append(type(p.value)(p_traits, p.value.distribution, \
+                    self.next_tag))
+            self.next_tag = self.denoms[-1].next_tag
+            if self.amsgrad:
+                self.max_second_moments.append(type(p.value)(p_traits, \
+                        p.value.distribution, self.next_tag))
+                self.next_tag = self.max_second_moments[-1].next_tag
+        self.lr = lr
+        self.beta1 = beta1
+        self.beta2 = beta2
+        self.weight_decay = weight_decay
+        self.eps = eps
+
+    def get_next_tag(self):
+        return self.next_tag
+    
+    def unregister(self):
+        for i in range(len(self.first_moments)):
+            self.first_moments[i].unregister()
+            self.second_moments[i].unregister()
+            self.denoms[i].unregister()
+            if self.amsgrad:
+                self.max_second_moments[i].unregister()
+
+    def step(self):
+        for i, p in enumerate(self.params):
+            nntile.tensor.fuse_adam_step(p.value, p.grad, self.first_moments[i], self.second_moments[i],
+                                         self.lr, self.eps, self.beta1, self.beta2, self.num_iter)
+        self.num_iter += 1
+

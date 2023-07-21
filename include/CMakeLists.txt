@@ -112,6 +112,8 @@ set(KERNEL_HDR
     "nntile/kernel/mask_scalar/cpu.hh"
     "nntile/kernel/scal.hh"
     "nntile/kernel/scal/cpu.hh"
+    "nntile/kernel/adam_step.hh"
+    "nntile/kernel/adam_step/cpu.hh"
     )
 
 if(NNTILE_USE_CUDA)
@@ -161,6 +163,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/add_scalar/cuda.hh"
         "nntile/kernel/scal/cuda.hh"
         "nntile/kernel/hypot/cuda.hh"
+        "nntile/kernel/adam_step/cuda.hh"
         )
 endif()
 
@@ -216,6 +219,7 @@ set(STARPU_HDR
     "nntile/starpu/embedding.hh"
     "nntile/starpu/embedding_backward.hh"
     "nntile/starpu/mask_scalar.hh"
+    "nntile/starpu/adam_step.hh"
     )
 
 set(TILE_HDR
@@ -271,6 +275,7 @@ set(TILE_HDR
     "nntile/tile/add_scalar.hh"
     "nntile/tile/mask_scalar.hh"
     "nntile/tile/hypot.hh"
+    "nntile/tile/adam_step.hh"
     )
 
 set(TENSOR_HDR
@@ -331,6 +336,7 @@ set(TENSOR_HDR
     "nntile/tensor/embedding_backward.hh"
     "nntile/tensor/mask_scalar.hh"
     "nntile/tensor/hypot.hh"
+    "nntile/tensor/adam_step.hh"
     )
 
 set(LAYER_HDR

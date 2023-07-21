@@ -604,6 +604,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("scal_fp64", &scal<fp64_t>);
     m.def("scal_fp32", &scal<fp32_t>);
 
+    m.def("adam_step_async_fp64", &adam_step_async<fp64_t>);
+    m.def("adam_step_async_fp32", &adam_step_async<fp32_t>);
+    m.def("adam_step_fp64", &adam_step<fp64_t>);
+    m.def("adam_step_fp32", &adam_step<fp32_t>);
+
     m.def("scal_inplace_async_fp64", &scal_inplace_async<fp64_t>);
     m.def("scal_inplace_async_fp32", &scal_inplace_async<fp32_t>);
     m.def("scal_inplace_fp64", &scal_inplace<fp64_t>);
