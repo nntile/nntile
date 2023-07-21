@@ -238,7 +238,116 @@ NVBENCH_BENCH(BenchMaxSumExp2)
 
 extern __shared__ float extent[]; // User-managed cache on device.
 
-template <typename T>
+size_t constexpr kMaxBlockSize = 512;
+
+template <typename T, uint32_t kBlockSize>
+__device__ void BlockMaxReduce(volatile T *acc, uint32_t tid) {
+    if constexpr (kBlockSize >= 1024) {
+        if (tid < 512) {
+            acc[tid] = std::max(acc[tid], acc[tid + 512]);
+        }
+        __syncthreads();
+    }
+    if constexpr (kBlockSize >= 512) {
+        if (tid < 256) {
+            acc[tid] = std::max(acc[tid], acc[tid + 256]);
+        }
+        __syncthreads();
+    }
+    if constexpr (kBlockSize >= 256) {
+        if (tid < 128) {
+            acc[tid] = std::max(acc[tid], acc[tid + 128]);
+        }
+        __syncthreads();
+    }
+    if constexpr (kBlockSize >= 128) {
+        if (tid < 64) {
+            acc[tid] = std::max(acc[tid], acc[tid + 64]);
+        }
+        __syncthreads();
+    }
+}
+
+template <typename T, uint32_t kBlockSize, uint32_t kStride>
+__device__ void WarpMaxReduceRound(volatile T *acc, uint32_t tid) {
+    if constexpr (kBlockSize >= 2 * kStride) {
+        acc[tid] = std::max(acc[tid], acc[tid + kStride]);
+    }
+}
+
+template <typename T, uint32_t kBlockSize>
+__device__ void WarpMaxReduce(volatile T *acc, uint32_t tid) {
+    if constexpr (kBlockSize >= 64) {
+        acc[tid] = std::max(acc[tid], acc[tid + 32]);
+    }
+    if constexpr (kBlockSize >= 32) {
+        acc[tid] = std::max(acc[tid], acc[tid + 16]);
+    }
+    if constexpr (kBlockSize >= 16) {
+        acc[tid] = std::max(acc[tid], acc[tid + 8]);
+    }
+    if constexpr (kBlockSize >= 8) {
+        acc[tid] = std::max(acc[tid], acc[tid + 4]);
+    }
+    if constexpr (kBlockSize >= 4) {
+        acc[tid] = std::max(acc[tid], acc[tid + 2]);
+    }
+    if constexpr (kBlockSize >= 2) {
+        acc[tid] = std::max(acc[tid], acc[tid + 1]);
+    }
+}
+
+template <typename T, uint32_t kBlockSize>
+__device__ void BlockSumExpReduce(volatile T *acc, uint32_t tid) {
+    if constexpr (kBlockSize >= 1024) {
+        if (tid < 512) {
+            acc[tid] = acc[tid] + acc[tid + 512];
+        }
+        __syncthreads();
+    }
+    if constexpr (kBlockSize >= 512) {
+        if (tid < 256) {
+            acc[tid] = acc[tid] + acc[tid + 256];
+        }
+        __syncthreads();
+    }
+    if constexpr (kBlockSize >= 256) {
+        if (tid < 128) {
+            acc[tid] = acc[tid] + acc[tid + 128];
+        }
+        __syncthreads();
+    }
+    if constexpr (kBlockSize >= 128) {
+        if (tid < 64) {
+            acc[tid] = acc[tid] + acc[tid + 64];
+        }
+        __syncthreads();
+    }
+}
+
+template <typename T, uint32_t kBlockSize>
+__device__ void WarpSumExpReduce(volatile T *acc, uint32_t tid) {
+    if constexpr (kBlockSize >= 64) {
+        acc[tid] = acc[tid] + acc[tid + 32];
+    }
+    if constexpr (kBlockSize >= 32) {
+        acc[tid] = acc[tid] + acc[tid + 16];
+    }
+    if constexpr (kBlockSize >= 16) {
+        acc[tid] = acc[tid] + acc[tid + 8];
+    }
+    if constexpr (kBlockSize >= 8) {
+        acc[tid] = acc[tid] + acc[tid + 4];
+    }
+    if constexpr (kBlockSize >= 4) {
+        acc[tid] = acc[tid] + acc[tid + 2];
+    }
+    if constexpr (kBlockSize >= 2) {
+        acc[tid] = acc[tid] + acc[tid + 1];
+    }
+}
+
+template <typename T, uint32_t kBlockSize>
 __global__ void MaxSumExp3(Index m, Index n, Index k, Index mk,
                            T const *__restrict__ src, T *__restrict__ dst) {
     // Memory model of user-maneged cache in shared memory.
@@ -247,65 +356,148 @@ __global__ void MaxSumExp3(Index m, Index n, Index k, Index mk,
     // Accumulator for max-reduction and sum-reduction.
     T *acc = reinterpret_cast<T *>(cache) + data_size;
 
+    // Obtain global and local position of the current thread.
+    auto tid = threadIdx.y;
     auto ix = threadIdx.x + blockDim.x * blockIdx.x;
     auto jx = threadIdx.y + blockDim.y * blockIdx.y;
     auto kx = threadIdx.z + blockDim.z * blockIdx.z;
-    if (ix >= m || jx >= k || kx >= n) {
-        return;
-    }
+    bool out_of_scope = ix >= m || jx >= k || kx >= n;
+
+    // auto it = (2 * kBlockSize) * blockIdx.y + tid;
+    // auto grid_size = (2 * kBlockSize) * gridDim.y;
+    // auto data = src + (ix + mk * kx);
 
     // Load data from global memory to user-managed cache in shared memory.
-    auto tid = threadIdx.x + blockDim.x * threadIdx.y +
-               blockDim.x * blockDim.y * threadIdx.z; // Thread ID in block.
-    cache[tid] = src[ix + m * jx + mk * kx];
+    if (out_of_scope) {
+        cache[tid] = -std::numeric_limits<T>::infinity();
+        acc[tid] = -std::numeric_limits<T>::infinity();
+    } else {
+        cache[tid] = src[ix + m * jx + mk * kx];
+        acc[tid] = cache[tid];
+    }
     __syncthreads();
 
     // Per-block max-reduction in shared memory.
-    auto fid = threadIdx.y; // Thread ID along fiber-axis (y).
-    auto offset_local = threadIdx.x + blockDim.x * blockDim.y * threadIdx.z;
-    acc[tid] = cache[tid]; // TODO: max + 2 x load from cache.
-    __syncthreads();
-    for (auto stride = 1; stride < blockDim.y; stride *= 2) {
-        if (fid % (2 * stride) == 0) {
-            acc[offset_local + fid] =
-                max(acc[offset_local + blockDim.x * fid],
-                    acc[offset_local + blockDim.x * (fid + stride)]);
-        }
-        __syncthreads();
+    BlockMaxReduce<T, kBlockSize>(acc, tid);
+    if (tid < 32) {
+        WarpMaxReduce<T, kBlockSize>(acc, tid);
     }
 
     // Per-block sumexp-reduction in shared memory.
-    auto max = acc[offset_local];
-    acc[tid] = std::exp(cache[tid] - max); // TODO: The same.
+    T const max = acc[0];
+    acc[tid] = std::exp(cache[tid] - max);
     __syncthreads();
-    for (auto stride = 1; stride < blockDim.y; stride *= 2) {
-        if (fid % (2 * stride) == 0) {
-            acc[offset_local + fid] +=
-                acc[offset_local + blockDim.x * (fid + stride)];
-        }
-        __syncthreads();
+
+    BlockSumExpReduce<T, kBlockSize>(acc, tid);
+    if (tid < 32) {
+        WarpSumExpReduce<T, kBlockSize>(acc, tid);
     }
 
     // Store in global memory (output buffer) in theads from X-Z plane.
-    if (fid == 0) {
+    if (tid == 0) {
         // Contingues tuple of (max, sum). Update accumulants in-place.
         auto out = dst + 2 * (ix + m * kx);
         if (auto diff = max - out[0]; diff > 0) {
             out[0] = max;
-            out[1] = out[1] * std::exp(-diff) + acc[offset_local];
+            out[1] = out[1] * std::exp(-diff) + acc[tid];
         } else {
-            out[1] = out[1] + std::exp(diff) * acc[offset_local];
+            out[1] = out[1] + std::exp(diff) * acc[tid];
         }
     }
+}
+
+template <typename T> constexpr T ceil2(T value) {
+    static_assert(std::is_integral<T>::value, "integral type expected");
+    value--;
+    // Divide by 2^k for consecutive doublings of k up to 256,
+    // and then or the results.
+    value |= value >> 1;
+    value |= value >> 2;
+    value |= value >> 4;
+    if constexpr (sizeof(value) >= 2) {
+        value |= value >> 8;
+    }
+    if constexpr (sizeof(value) >= 4) {
+        value |= value >> 16;
+    }
+    if constexpr (sizeof(value) >= 8) {
+        value |= value >> 32;
+    }
+    if constexpr (sizeof(value) >= 16) {
+        value |= value >> 64;
+    }
+    if constexpr (sizeof(value) >= 32) {
+        value |= value >> 128;
+    }
+    // The result is a number of 1 bits equal to the number
+    // of bits in the original number, plus 1. That's the
+    // next highest power of 2.
+    return ++value;
 }
 
 template <typename T>
 void LaunchMaxSumExp3(cudaStream_t stream, Index m, Index n, Index k,
                       T const *src, T *dst) noexcept {
-    dim3 threads(1, 1024, 1);
-    dim3 blocks(m, 1, n);
+    size_t block_size = ceil2(k);
+    if (block_size > kMaxBlockSize) {
+        block_size = kMaxBlockSize;
+    }
+
+    dim3 threads(1, block_size, 1);
+    auto noblocks = (k - 1) / threads.y + 1;
+    dim3 blocks(m, noblocks, n);
     size_t smem = 2 * threads.x * threads.y * threads.z * sizeof(T);
-    MaxSumExp3<T><<<blocks, threads, smem, stream>>>(m, n, k, m * k, src, dst);
+
+    if (blocks.y > 1) {
+        std::cerr << "unsupported thread block size" << std::endl;
+        std::terminate();
+    }
+
+    switch (threads.y) {
+    case 1024:
+        MaxSumExp3<T, 1024>
+            <<<blocks, threads, smem, stream>>>(m, n, k, m * k, src, dst);
+        break;
+    case 512:
+        MaxSumExp3<T, 512>
+            <<<blocks, threads, smem, stream>>>(m, n, k, m * k, src, dst);
+        break;
+    case 256:
+        MaxSumExp3<T, 256>
+            <<<blocks, threads, smem, stream>>>(m, n, k, m * k, src, dst);
+        break;
+    case 64:
+        MaxSumExp3<T, 64>
+            <<<blocks, threads, smem, stream>>>(m, n, k, m * k, src, dst);
+        break;
+    case 32:
+        MaxSumExp3<T, 32>
+            <<<blocks, threads, smem, stream>>>(m, n, k, m * k, src, dst);
+        break;
+    case 16:
+        MaxSumExp3<T, 16>
+            <<<blocks, threads, smem, stream>>>(m, n, k, m * k, src, dst);
+        break;
+    case 8:
+        MaxSumExp3<T, 8>
+            <<<blocks, threads, smem, stream>>>(m, n, k, m * k, src, dst);
+        break;
+    case 4:
+        MaxSumExp3<T, 4>
+            <<<blocks, threads, smem, stream>>>(m, n, k, m * k, src, dst);
+        break;
+    case 2:
+        MaxSumExp3<T, 2>
+            <<<blocks, threads, smem, stream>>>(m, n, k, m * k, src, dst);
+        break;
+    case 1:
+        MaxSumExp3<T, 1>
+            <<<blocks, threads, smem, stream>>>(m, n, k, m * k, src, dst);
+        break;
+    default:
+        std::cerr << "unsupported thread block size" << std::endl;
+        break;
+    }
 }
 
 void BenchMaxSumExp3(nvbench::state &state) {

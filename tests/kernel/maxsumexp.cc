@@ -60,7 +60,8 @@ protected:
                 Index a = i0 + i1;
                 T max_ref = T(a + k - 1) / T{10};
                 T max = maxsumexp[2 * (i1 * m + i0)];
-                ASSERT_EQ(max, max_ref);
+                ASSERT_EQ(max, max_ref) << max << " vs " << max_ref << " at ("
+                                        << i0 << ", " << i1 << ")";
                 T sum_ref = 0;
                 for (Index i2 = 0; i2 < k; ++i2) {
                     sum_ref += std::exp(T(i2 - k + 1) / T{10});
