@@ -9,12 +9,13 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-20
+ * @date 2023-07-21
  * */
 
 #pragma once
 
 #include <nntile/base_types.hh>
+#include <cuda_runtime.h>
 
 namespace nntile
 {
