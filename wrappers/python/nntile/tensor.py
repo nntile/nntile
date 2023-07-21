@@ -609,11 +609,12 @@ def scal_inplace_async(alpha: float, x: Tensor) -> None:
         raise TypeError
 
 # Wrapper for multiprecision scaling
-def mask_scalar_async(mask: Tensor_bool, alpha: float, x: Tensor) -> None:
+def mask_scalar_async(mask: Tensor_bool, alpha: float, x: Tensor, \
+        batch_ndim: int) -> None:
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.mask_scalar_async_fp32(mask, alpha, x)
+        core_tensor.mask_scalar_async_fp32(mask, alpha, x, batch_ndim)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.mask_scalar_async_fp64(mask, alpha, x)
+        core_tensor.mask_scalar_async_fp64(mask, alpha, x, batch_ndim)
     else:
         raise TypeError
 

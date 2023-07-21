@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-13
+# @date 2023-07-21
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         notrans, trans, Tensor_fp32, Tensor_int64, Tensor_bool
@@ -227,58 +227,37 @@ class GPT2Model(BaseModel):
                 nntile_p_idx += 1
             elif layer_name == "c_attn" and name.split(".")[-1] == "weight":
                 p_torch_np = p_torch.cpu().detach().numpy()
-                for i_head in range(attn_nheads):
+                # Read Q, K and V weights
+                for i_tensor in range(3):
                     p_nntile = gpt2_nntile.parameters[nntile_p_idx]
                     p_nntile.value.from_array(p_torch_np[:, \
-                            i_head*attn_head_size:(i_head+1)*attn_head_size].T)
-                    nntile_p_idx += 1
-                    p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                for i_head in range(attn_nheads):
-                    p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                    p_nntile.value.from_array(p_torch_np[:, \
-                            config["embed_dim"]+i_head*attn_head_size: \
-                            config["embed_dim"]+(i_head+1)*attn_head_size].T)
-                    nntile_p_idx += 1
-                    p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                for i_head in range(attn_nheads):
-                    p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                    p_nntile.value.from_array(p_torch_np[:, \
-                            2*config["embed_dim"]+i_head*attn_head_size: \
-                            2*config["embed_dim"]+(i_head+1)*attn_head_size].T)
+                            i_tensor*attn_embed_dim: \
+                            (i_tensor+1)*attn_embed_dim].T \
+                            .reshape(attn_nheads, attn_head_size, \
+                            attn_embed_dim))
                     nntile_p_idx += 1
             elif layer_name == "c_attn" and name.split(".")[-1] == "bias":
                 p_torch_np = p_torch.cpu().detach().numpy()
-                for i_head in range(attn_nheads):
+                # Read Q, K and V biases
+                for i_tensor in range(3):
                     p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                    p_nntile.value.from_array(p_torch_np[i_head*attn_head_size:(i_head+1)*attn_head_size])
+                    p_nntile.value.from_array(p_torch_np[ \
+                            i_tensor*attn_embed_dim: \
+                            (i_tensor+1)*attn_embed_dim] \
+                            .reshape(attn_nheads, attn_head_size).T)
                     nntile_p_idx += 1
-                    p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                for i_head in range(attn_nheads):
-                    p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                    p_nntile.value.from_array(p_torch_np[config["embed_dim"]+i_head*attn_head_size: \
-                            config["embed_dim"]+(i_head+1)*attn_head_size])
-                    nntile_p_idx += 1
-                    p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                for i_head in range(attn_nheads):
-                    p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                    p_nntile.value.from_array(p_torch_np[2*config["embed_dim"]+i_head*attn_head_size: \
-                            2*config["embed_dim"]+(i_head+1)*attn_head_size])
-                    nntile_p_idx += 1
-
             elif layer_name == "c_proj" and name.split(".")[-3] == "attn":
                 p_torch_np = p_torch.cpu().detach().numpy()
                 if name.split(".")[-1] == "weight":
-                    for i_head in range(attn_nheads):
-                        p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                        p_nntile.value.from_array(p_torch_np[\
-                                i_head*attn_head_size:(i_head+1)*attn_head_size, \
-                                :].T)
-                        nntile_p_idx += 1
+                    p_nntile = gpt2_nntile.parameters[nntile_p_idx]
+                    p_nntile.value.from_array(p_torch_np.T \
+                            .reshape(attn_embed_dim, attn_nheads, \
+                            attn_head_size))
+                    nntile_p_idx += 1
                 elif name.split(".")[-1] == "bias":
                     p_nntile = gpt2_nntile.parameters[nntile_p_idx]
                     p_nntile.value.from_array(p_torch_np)
                     nntile_p_idx += 1
-                    
             else:
                 p_nntile = gpt2_nntile.parameters[nntile_p_idx]
                 p_nntile.value.from_array(p_torch.cpu().detach().numpy().T)
