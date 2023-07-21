@@ -344,11 +344,17 @@ class Attention(BaseLayer):
             # Q[i] = einsum('jk,klm->jlm', W_Q[i], X_Q)
             gemm_async(1.0, notrans, self.w_q[i].value, notrans, \
                     self.x_q.value, 0.0, self.q[i].value, 1, 0)
+            # TODO: single gemm (n_head, head_size, n_emb) by
+            #       (n_emb, n_seq, n_batch) into
+            #       (n_head, head_size, n_seq, n_batch)
+            #       then rotate axes into (head_size, n_seq, n_batch, n_head)
             # X_Q can be offloaded from GPU
             self.x_q.value.wont_use()
             # W_Q[i] can be offloaded from GPU
             self.w_q[i].value.wont_use()
             if self.in_proj_bias_q:
+                # TODO: single batched add_fiber (head_size, batch=n_head) into
+                #       (head_size, n_seq, n_batch, batch=n_head)
                 add_fiber_async(1, self.in_proj_bias_q[i].value, 1, \
                         self.q[i].value, 0)
                 self.in_proj_bias_q[i].value.wont_use()
@@ -378,6 +384,10 @@ class Attention(BaseLayer):
             # A[i] = 1.0/sqrt(head_size) * einsum('jkl,jml->kml', K[i], Q[i])
             gemm_async(1.0/self.head_size**0.5, trans, self.k[i].value, \
                     notrans, self.q[i].value, 0.0, self.a[i].value, 1, 1)
+            # TODO: single batched gemm (head_size, n_seq, batch=n_batch,
+            #       batch=n_head) by (head_size, n_seq, batch=n_batch,
+            #       batch=n_head) into (n_seq, n_seq, batch=n_batch,
+            #       batch=n_head)
             # Q[i] can be offloaded from GPU
             self.q[i].value.wont_use()
             # K[i] can be offloaded from GPU
@@ -386,6 +396,7 @@ class Attention(BaseLayer):
             # A[i] = softmax(A[i], axis=0)
             if self.mask:
                 mask_scalar_async(self.mask, self.val, self.a[i].value)
+                # TODO: variable number of batch dimensions mask
                 self.mask.wont_use()
             maxsumexp_async(self.a[i].value, self.a_maxsumexp[i], 0)
             softmax_inplace_async(self.a_maxsumexp[i], self.a[i].value, 0)
@@ -396,6 +407,10 @@ class Attention(BaseLayer):
             # B[i] = einsum('jkl,kml->jml', V[i], A[i])
             gemm_async(1.0, notrans, self.v[i].value, notrans, \
                     self.a[i].value, 0.0, self.b[i].value, 1, 1)
+            # TODO: single batched gemm (head_size, n_seq, batch=n_batch,
+            #       batch=n_head) by (n_seq, n_seq, batch=n_batch,
+            #       batch=n_head) into (head_size, n_seq, batch=n_batch,
+            #       batch=n_head)
             # V[i] can be offloaded from GPU
             self.v[i].value.wont_use()
             # A[i] can be offloaded from GPU
@@ -404,6 +419,11 @@ class Attention(BaseLayer):
             # Y += einsum('jk,kml->jml', W[i], B[i])
             gemm_async(1.0, notrans, self.w[i].value, notrans, \
                     self.b[i].value, 1.0, self.y.value, 1, 0)
+            # TODO: rotate axes (head_size, n_seq, n_batch, n_head) into
+            #       (n_head, head_size, n_seq, n_batch) and then
+            #       single gemm (n_emb, n_head, head_size) by
+            #       (n_head, head_size, n_seq, n_batch) into (n_emb,
+            #       n_seq, n_batch)
             # W can be offloaded from GPU
             self.w[i].value.wont_use()
             # B[i] can be offloaded from GPU

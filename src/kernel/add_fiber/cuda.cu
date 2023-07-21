@@ -39,9 +39,9 @@ void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src, T beta,
  * @param[inout] dst: Input and output contiguous m-by-k-by-n array
  * */
 {
-    Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
-          i1 = threadIdx.y + blockIdx.y*blockDim.y,
-          i2 = threadIdx.z + blockIdx.z*blockDim.z;
+    Index i2 = threadIdx.x + blockIdx.x*blockDim.x,
+          i0 = threadIdx.y + blockIdx.y*blockDim.y,
+          i1 = threadIdx.z + blockIdx.z*blockDim.z;
     constexpr T zero = 0;
     if(i2 < k and i1 < n and i0 < m)
     {
@@ -50,17 +50,17 @@ void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src, T beta,
         // Output fiber to be updated
         T *dst_fiber = dst + (i1*k+i2)*m;
         // Overwrite or update output depending on beta
-        if(beta == zero)
+//        if(beta == zero)
+//        {
+//            // Set output value
+//            dst_fiber[i0] = src_val;
+//        }
+//        else
         {
-                // Set output value
-                dst_fiber[i0] = src_val;
-        }
-        else
-        {
-                // Read value from the output
-                T &dst_val = dst_fiber[i0];
-                // And update it
-                dst_val = beta*dst_val + src_val;
+            // Read value from the output
+            T &dst_val = dst_fiber[i0];
+            // And update it
+            dst_val = beta*dst_val + src_val;
         }
     }
 }
@@ -84,10 +84,10 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 threads(std::min(int(m), 8), std::min(int(n), 8),
-            std::min(int(k), 16));
-    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y,
-            (k+threads.z-1)/threads.z);
+    dim3 threads(std::min(int(k), 1024), std::min(int(m), 1),
+            std::min(int(n), 1));
+    dim3 blocks((k+threads.x-1)/threads.x, (m+threads.y-1)/threads.y,
+            (n+threads.z-1)/threads.z);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, alpha, src, beta,
             dst);
 }
