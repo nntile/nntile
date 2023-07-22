@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-03
+ * @date 2023-07-20
  * */
 
 #pragma once
@@ -62,6 +62,7 @@
 #include <nntile/kernel/mask_scalar.hh>
 #include <nntile/kernel/scal.hh>
 #include <nntile/kernel/adam_step.hh>
+#include <nntile/kernel/transpose.hh>
 
 namespace nntile
 {

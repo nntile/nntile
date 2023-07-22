@@ -443,7 +443,7 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
         .alpha = alpha,
         .beta = beta
     };
-    fp64_t nflops = 2 * m * n * k;
+    fp64_t nflops = 2 * m * n * k * batch;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(transA, transB),
             STARPU_R, static_cast<starpu_data_handle_t>(A),

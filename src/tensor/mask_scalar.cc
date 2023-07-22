@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-06-29
+ * @date 2023-07-21
  * */
 
 #include "nntile/tensor/mask_scalar.hh"
@@ -25,14 +25,15 @@ namespace tensor
 //
 // @param[inout] A: Tensor for the element-wise fill operation
 template<typename T>
-void mask_scalar_async(const Tensor<bool_t> &mask, T val, const Tensor<T> &A)
+void mask_scalar_async(const Tensor<bool_t> &mask, T val, const Tensor<T> &A,
+        Index batch_ndim)
 {
-    if(mask.ndim != A.ndim-1)
+    if(mask.ndim != A.ndim-batch_ndim)
     {
-        throw std::runtime_error("mask.ndim != A.ndim-1");
+        throw std::runtime_error("mask.ndim != A.ndim-batch_ndim");
     }
     // Check shapes and tiles
-    for(Index i = 0; i < A.ndim-1; ++i)
+    for(Index i = 0; i < A.ndim-batch_ndim; ++i)
     {
         if(A.shape[i] != mask.shape[i])
         {
@@ -64,9 +65,9 @@ void mask_scalar_async(const Tensor<bool_t> &mask, T val, const Tensor<T> &A)
         {
             auto tile_traits = A.get_tile_traits(i);
             starpu::mask_scalar::submit<T>(
-                    tile_traits.matrix_shape[A.ndim-1][0], \
-                    tile_traits.shape[A.ndim-1], mask_tile_handle, val,
-                    A_tile_handle);
+                    tile_traits.matrix_shape[A.ndim-batch_ndim][0], \
+                    tile_traits.matrix_shape[A.ndim-batch_ndim][1], \
+                    mask_tile_handle, val, A_tile_handle);
         }
         // Flush cache for the output tile on every node
         A_tile_handle.mpi_flush();
@@ -77,9 +78,10 @@ void mask_scalar_async(const Tensor<bool_t> &mask, T val, const Tensor<T> &A)
 //
 // @param[inout] A: Tensor for the element-wise mask scalar operation
 template<typename T>
-void mask_scalar(const Tensor<bool_t> &mask, T val, const Tensor<T> &A)
+void mask_scalar(const Tensor<bool_t> &mask, T val, const Tensor<T> &A,
+        Index batch_ndim)
 {
-    mask_scalar_async<T>(mask, val, A);
+    mask_scalar_async<T>(mask, val, A, batch_ndim);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -87,20 +89,20 @@ void mask_scalar(const Tensor<bool_t> &mask, T val, const Tensor<T> &A)
 // Explicit instantiation
 template
 void mask_scalar_async<fp32_t>(const Tensor<bool_t> &mask, fp32_t val,
-        const Tensor<fp32_t> &A);
+        const Tensor<fp32_t> &A, Index batch_ndim);
 
 template
 void mask_scalar_async<fp64_t>(const Tensor<bool_t> &mask, fp64_t val,
-        const Tensor<fp64_t> &A);
+        const Tensor<fp64_t> &A, Index batch_ndim);
 
 // Explicit instantiation
 template
 void mask_scalar<fp32_t>(const Tensor<bool_t> &mask, fp32_t val,
-        const Tensor<fp32_t> &A);
+        const Tensor<fp32_t> &A, Index batch_ndim);
 
 template
 void mask_scalar<fp64_t>(const Tensor<bool_t> &mask, fp64_t val,
-        const Tensor<fp64_t> &A);
+        const Tensor<fp64_t> &A, Index batch_ndim);
 
 } // namespace tensor
 } // namespace nntile

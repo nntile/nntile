@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-07-02
+ * @date 2023-07-22
  * */
 
 #include "nntile/starpu/add.hh"
@@ -63,12 +63,25 @@ void cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
+//! Footprint for add tasks that depends only on cl_arg
+template<typename T>
+static
+uint32_t footprint(struct starpu_task *task)
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
+    // Apply hash over parameters m, n, k and k_size.
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->nelems, sizeof(args->nelems), hash);
+    return hash;
+}
+
 Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
     codelet_fp32.init("nntile_add_fp32",
-            nullptr,
+            footprint<fp32_t>,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_t>}
@@ -77,7 +90,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
     codelet_fp64.init("nntile_add_fp64",
-            nullptr,
+            footprint<fp64_t>,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp64_t>}

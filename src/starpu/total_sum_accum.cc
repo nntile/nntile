@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-06-28
+ * @date 2023-07-22
  * */
 
 #include "nntile/starpu/total_sum_accum.hh"
@@ -67,12 +67,26 @@ void cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
+//! Footprint for total_sum_accum tasks
+static
+uint32_t footprint(struct starpu_task *task)
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->n_labels, sizeof(args->n_labels),
+            hash);
+    hash = starpu_hash_crc32c_be_n(&args->n_outputs, sizeof(args->n_outputs),
+            hash);
+    return hash;
+}
+
 Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
     codelet_fp32.init("nntile_total_sum_accum_fp32",
-            nullptr,
+            footprint,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_t>}
@@ -81,7 +95,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
     codelet_fp64.init("nntile_total_sum_accum_fp64",
-            nullptr,
+            footprint,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp64_t>}
@@ -118,6 +132,7 @@ void submit(Index n_labels, Index n_outputs, Handle logsumexp, Handle src,
             STARPU_R, static_cast<starpu_data_handle_t>(class_labels),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_RW, static_cast<starpu_data_handle_t>(val),
+            //Config::STARPU_RW_COMMUTE, static_cast<starpu_data_handle_t>(val),
             //STARPU_FLOPS, nflops,
             0);
     // Check submission

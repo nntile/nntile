@@ -10,15 +10,15 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-06-29
+# @date 2023-07-22
 
 # Imports
+import torch
 import nntile
 import math
 import numpy as np
 import time
 import sys
-import torch
 from torch import Tensor
 import torch.nn as nn
 from transformers import GPT2TokenizerFast, GPT2LMHeadModel, GPT2Model, \
@@ -109,9 +109,13 @@ assert config.n_positions % args.seq_len_tile == 0
 config.attn_pdrop = 0
 config.embd_pdrop = 0
 config.resid_pdrop = 0
-#config.n_head = 8
+#config.n_head = 1
 #config.num_hidden_layers = 2
 model_torch = copy.deepcopy(pretrained_model_torch)
+#model_torch.config.n_head = 1
+#for h in model_torch.transformer.h:
+#    h.attn.num_heads = 1
+#    h.attn.head_dim = h.attn.embed_dim
 # Current version splits lm_head and wte parameters, shared parameters will be
 # supported soon
 model_torch.lm_head.weight = nn.Parameter(pretrained_model_torch.lm_head \
@@ -175,13 +179,14 @@ def check_grads(model_torch, nntile_model):
             attn_head_size = config.n_embd // config.n_head
             diff = 0
             norm = np.linalg.norm(p_torch_grad_np)
-            for i_head in range(3*config.n_head):
+            for i_tensor in range(3):
                 p_nntile = nntile_model.parameters[nntile_par_idx]
                 p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
                         dtype=np.float32)
                 p_nntile.grad.to_array(p_nntile_grad_np)
+                p_nntile_grad_np = p_nntile_grad_np.reshape(-1, config.n_embd)
                 current_grad_block = p_torch_grad_np[:, \
-                        i_head*attn_head_size:(i_head+1)*attn_head_size]
+                        i_tensor*config.n_embd:(i_tensor+1)*config.n_embd]
                 diff += np.linalg.norm(current_grad_block.T-p_nntile_grad_np) ** 2
                 nntile_par_idx += 1
             diff = diff ** 0.5
@@ -189,12 +194,14 @@ def check_grads(model_torch, nntile_model):
             attn_head_size = config.n_embd // config.n_head
             diff = 0
             norm = np.linalg.norm(p_torch_grad_np)
-            for i_head in range(3*config.n_head):
+            for i_tensor in range(3):
                 p_nntile = nntile_model.parameters[nntile_par_idx]
                 p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
                         dtype=np.float32)
                 p_nntile.grad.to_array(p_nntile_grad_np)
-                current_grad_block = p_torch_grad_np[i_head*attn_head_size:(i_head+1)*attn_head_size]
+                p_nntile_grad_np = p_nntile_grad_np.transpose().reshape(-1)
+                current_grad_block = p_torch_grad_np[i_tensor*config.n_embd:\
+                        (i_tensor+1)*config.n_embd]
                 diff += np.linalg.norm(current_grad_block-p_nntile_grad_np) ** 2
                 nntile_par_idx += 1
             diff = diff ** 0.5
@@ -203,16 +210,13 @@ def check_grads(model_torch, nntile_model):
                 attn_head_size = config.n_embd // config.n_head
                 diff = 0
                 norm = np.linalg.norm(p_torch_grad_np)
-                for i_head in range(config.n_head):
-                    p_nntile = nntile_model.parameters[nntile_par_idx]
-                    p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
-                            dtype=np.float32)
-                    p_nntile.grad.to_array(p_nntile_grad_np)
-                    current_grad_block = p_torch_grad_np[i_head*attn_head_size: \
-                            (i_head+1)*attn_head_size, :]
-                    diff += np.linalg.norm(current_grad_block.T-p_nntile_grad_np) ** 2
-                    nntile_par_idx += 1
-                diff = diff ** 0.5
+                p_nntile = nntile_model.parameters[nntile_par_idx]
+                p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
+                        dtype=np.float32)
+                p_nntile.grad.to_array(p_nntile_grad_np)
+                p_nntile_grad_np = p_nntile_grad_np.reshape(config.n_embd, -1)
+                diff = np.linalg.norm(p_torch_grad_np.T-p_nntile_grad_np)
+                nntile_par_idx += 1
             elif name.split(".")[-1] == "bias":
                 norm = np.linalg.norm(p_torch_grad_np)
                 p_nntile = nntile_model.parameters[nntile_par_idx]
@@ -454,10 +458,8 @@ if args.nntile_nepochs > 0:
     time1 = time.time() - time0
     print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
     # Set up learning rate and optimizer for training
-#     optimizer = nntile.optimizer.Adam(nntile_model.get_parameters(), args.lr, \
-#             next_tag)
-    optimizer = nntile.optimizer.FusedAdam(nntile_model.get_parameters(), args.lr, \
-            next_tag)
+    optimizer = nntile.optimizer.FusedAdam(nntile_model.get_parameters(), \
+            args.lr, next_tag)
     next_tag = optimizer.get_next_tag()
     # Define Cross Entropy loss function
     loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
@@ -474,6 +476,7 @@ if args.nntile_nepochs > 0:
     pipeline.train_async()
     nntile.starpu.wait_for_all()
     time1 = time.time() - time0
+    print("NNTile training time: {} seconds".format(time1))
     print("NNTile training throughput tokens/sec: {}".format( \
             args.nntile_nepochs * num_train_batches * args.batch_size \
             * config.n_positions / time1))
@@ -501,7 +504,7 @@ if args.torch_nepochs > 0:
             requires_grad=False).contiguous())
         torch_output.append(torch.tensor(train_tokens[i, :, 1:],
             requires_grad=False).contiguous())
-    optim = Adam(model_torch.parameters(), lr=args.lr)
+    optim = Adam(model_torch.parameters(), lr=args.lr, fused=True)
     loss_func = nn.CrossEntropyLoss(reduction="sum", ignore_index=-1)
     # Warmup training
     for i in range(args.torch_nepochs_warmup):
@@ -532,6 +535,7 @@ if args.torch_nepochs > 0:
     if args.torch_device.startswith("cuda"):
         torch.cuda.synchronize()
     time1 = time.time() - time0
+    print("Torch training time: {} seconds".format(time1))
     print("Torch training throughput tokens/sec: {}".format( \
             args.torch_nepochs * num_train_batches * args.batch_size \
             * config.n_positions/time1))

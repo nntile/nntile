@@ -4,13 +4,13 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/pow/cuda.cu
- * Power operation on CUDA
+ * @file src/kernel/maximum/cuda.cu
+ * Maximum operation on CUDA
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-06-30
+ * @date 2023-07-20
  * */
 
 #include "nntile/kernel/maximum/cuda.hh"

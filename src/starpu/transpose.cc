@@ -4,28 +4,27 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/add_scalar.cc
- * Add_scalar operation on a StarPU buffer
+ * @file src/starpu/transpose.cc
+ * Transpose operation on a StarPU buffers
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @author Aleksandr Katrutsa
  * @date 2023-07-22
  * */
 
-#include "nntile/starpu/add_scalar.hh"
-#include "nntile/kernel/add_scalar.hh"
+#include "nntile/starpu/transpose.hh"
+#include "nntile/kernel/transpose.hh"
 #include <cstdlib>
 
 namespace nntile
 {
 namespace starpu
 {
-//! StarPU wrappers for add_scalar operation
-namespace add_scalar
+//! StarPU wrappers for transpose operation
+namespace transpose
 {
 
-//! Apply add_scalar for StarPU buffer in CPU
+//! Apply transpose operation for StarPU buffers in CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
@@ -34,13 +33,14 @@ void cpu(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    T *dst = interfaces[0]->get_ptr<T>();
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::add_scalar::cpu<T>(args->num_elements, args->alpha, args->beta, dst);
+    kernel::transpose::cpu<T>(args->m, args->n, args->alpha, src, dst);
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply add_scalar for StarPU buffers on CUDA
+//! Apply transpose for StarPU buffers on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
@@ -49,25 +49,26 @@ void cuda(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    T *dst = interfaces[0]->get_ptr<T>();
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::add_scalar::cuda<T>(stream, args->num_elements, args->alpha, args->beta, dst);
+    kernel::transpose::cuda<T>(stream, args->m, args->n, args->alpha, src,
+            dst);
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for add_fiber tasks
+//! Footprint for transpose tasks
 template<typename T>
 static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
-    // Apply hash over parameters m, n and k
     uint32_t hash = 0;
-    hash = starpu_hash_crc32c_be_n(&args->num_elements,
-            sizeof(args->num_elements), hash);
+    hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
+    hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
     return hash;
 }
 
@@ -75,7 +76,7 @@ Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
-    codelet_fp32.init("nntile_add_scalar_fp32",
+    codelet_fp32.init("nntile_transpose_fp32",
             footprint<fp32_t>,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -84,7 +85,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_fp64.init("nntile_add_scalar_fp64",
+    codelet_fp64.init("nntile_transpose_fp64",
             footprint<fp64_t>,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
@@ -108,8 +109,8 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index num_elements, T alpha, T beta, Handle dst)
-//! Insert add_scalar task into StarPU pool of tasks
+void submit(Index m, Index n, T alpha, Handle src, Handle dst)
+//! Insert transpose task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
@@ -117,29 +118,31 @@ void submit(Index num_elements, T alpha, T beta, Handle dst)
 {
     // Codelet arguments
     args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
-    args->num_elements = num_elements;
+    args->m = m;
+    args->n = n;
     args->alpha = alpha;
-    args->beta = beta;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
+            STARPU_R, static_cast<starpu_data_handle_t>(src),
+            STARPU_W, static_cast<starpu_data_handle_t>(dst),
             STARPU_CL_ARGS, args, sizeof(*args),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dst), 0);
             // STARPU_FLOPS, nflops);
+            0);
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in add_scalar task submission");
+        throw std::runtime_error("Error in transpose task submission");
     }
 }
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index num_elements, fp32_t alpha, fp32_t beta, Handle dst);
+void submit<fp32_t>(Index m, Index n, fp32_t alpha, Handle src, Handle dst);
 
 template
-void submit<fp64_t>(Index num_elements, fp64_t alpha, fp64_t beta, Handle dst);
+void submit<fp64_t>(Index m, Index n, fp64_t alpha, Handle src, Handle dst);
 
-} // namespace add_scalar
+} // namespace transpose
 } // namespace starpu
 } // namespace nntile
 

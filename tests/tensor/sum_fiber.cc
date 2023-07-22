@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-01
+ * @date 2023-07-22
  * */
 
 #include "nntile/tensor/sum_fiber.hh"
@@ -83,11 +83,11 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
     scatter<T>(dst_single, dst);
     // Perform tensor-wise and tile-wise sum_fiber operations
-    sum_fiber<T>(alpha, src, beta, dst, axis);
+    sum_fiber<T>(alpha, src, beta, dst, axis, 0);
     if(mpi_rank == mpi_root)
     {
         tile::sum_fiber<T>(alpha, src_single.get_tile(0), beta,
-                dst_single.get_tile(0), axis);
+                dst_single.get_tile(0), axis, 0);
     }
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
@@ -131,16 +131,16 @@ void validate()
         C(trC, dist0, last_tag), D(trD, dist00, last_tag),
         E(trE, dist0000, last_tag), F(trF, dist0, last_tag),
         G(trG, dist00, last_tag);
-    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, C, 0));
-    TEST_THROW(sum_fiber<T>(1.0, F, 1.0, F, 0));
-    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, B, -1));
-    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, B, 2));
-    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, D, 0));
-    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, E, 0));
-    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, B, 0));
-    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, B, 1));
-    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, G, 0));
-    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, G, 1));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, C, 0, 0));
+    TEST_THROW(sum_fiber<T>(1.0, F, 1.0, F, 0, 0));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, B, -1, 0));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, B, 2, 0));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, D, 0, 0));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, E, 0, 0));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, B, 0, 0));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, B, 1, 0));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, G, 0, 0));
+    TEST_THROW(sum_fiber<T>(1.0, A, 1.0, G, 1, 0));
 }
 
 int main(int argc, char **argv)

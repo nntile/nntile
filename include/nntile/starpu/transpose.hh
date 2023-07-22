@@ -4,12 +4,12 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/add_fiber.hh
- * StarPU wrappers for addition of a tensor and a broadcasted fiber
+ * @file include/nntile/starpu/transpose.hh
+ * Transpose operation on StarPU buffers
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-21
+ * @date 2023-07-20
  * */
 
 #pragma once
@@ -22,7 +22,7 @@ namespace nntile
 {
 namespace starpu
 {
-namespace add_fiber
+namespace transpose
 {
 
 //! Structure for arguments
@@ -31,16 +31,20 @@ struct args_t
 {
     Index m;
     Index n;
-    Index k;
-    Index batch;
     T alpha;
-    T beta;
 };
 
-// StarPU wrapper for kernel::add_fiber::cpu<T>
+// Apply transpose for StarPU buffers on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
+
+#ifdef NNTILE_USE_CUDA
+// Apply transpose of StarPU buffers on CUDA
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept;
+#endif // NNTILE_USE_CUDA
 
 extern Codelet codelet_fp32, codelet_fp64;
 
@@ -70,10 +74,9 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, Index batch, T alpha, Handle src,
-        T beta, Handle dst);
+void submit(Index m, Index n, T alpha, Handle src, Handle dst);
 
-} // namespace add_fiber
+} // namespace transpose
 } // namespace starpu
 } // namespace nntile
 

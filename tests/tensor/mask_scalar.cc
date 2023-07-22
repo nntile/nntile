@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-06-29
+ * @date 2023-07-21
  * */
 
 #include "nntile/tensor/mask_scalar.hh"
@@ -95,7 +95,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     scatter<bool_t>(mask_single, mask);
     std::cout << "Scatter mask is done" << std::endl;
     // Get result of mask scalar operation
-    mask_scalar<T>(mask, val, dst);
+    mask_scalar<T>(mask, val, dst, 1);
     std::cout << "Mask scalar is done" << std::endl;
     // Compare results
     Tensor<T> dst2_single(data_single_traits, dist_root, last_tag);

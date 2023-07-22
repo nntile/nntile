@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-28
+ * @date 2023-07-21
  * */
 
 #include "nntile/tensor/add_fiber.hh"
@@ -22,11 +22,11 @@ namespace tensor
 
 template<typename T>
 void add_fiber_async(T alpha, const Tensor<T> &src, T beta,
-        const Tensor<T> &dst, Index axis)
+        const Tensor<T> &dst, Index axis, Index batch_ndim)
 //! Tensor<T> addition of a tensor and a broadcasted fiber
 /*! Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
  * and performs the following operations:
- *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[l]
+ *      dst[i,l,j,b] = beta*dst[i,l,j,b] + alpha*src[l,b]
  *
  * @param[in] alpha: Scalar factor for src
  * @param[in] src: Input fiber, that is reshaped into 1D array
@@ -35,18 +35,18 @@ void add_fiber_async(T alpha, const Tensor<T> &src, T beta,
  * */
 {
     // Check dimensions
-    if(src.ndim != 1)
+    if(src.ndim != batch_ndim+1)
     {
-        throw std::runtime_error("src.ndim != 1");
+        throw std::runtime_error("src.ndim != batch_ndim+1");
     }
     // Check axis
     if(axis < 0)
     {
         throw std::runtime_error("axis < 0");
     }
-    if(axis >= dst.ndim)
+    if(axis >= dst.ndim-batch_ndim)
     {
-        throw std::runtime_error("axis >= dst.ndim");
+        throw std::runtime_error("axis >= dst.ndim-batch_ndim");
     }
     // Check shapes of tensors
     if(src.shape[0] != dst.shape[axis])
@@ -57,6 +57,19 @@ void add_fiber_async(T alpha, const Tensor<T> &src, T beta,
     {
         throw std::runtime_error("src.basetile_shape[0] != "
                 "dst.basetile_shape[axis]");
+    }
+    for(Index i = 0; i < batch_ndim; ++i)
+    {
+        if(src.shape[i+1] != dst.shape[dst.ndim-batch_ndim+i])
+        {
+            throw std::runtime_error("src.shape[i+1] != "
+                    "dst.shape[dst.ndim-batch_ndim+i]");
+        }
+        if(src.basetile_shape[i+1] != dst.basetile_shape[dst.ndim-batch_ndim+i])
+        {
+            throw std::runtime_error("src.basetile_shape[i+1] != "
+                    "dst.basetile_shape[dst.ndim-batch_ndim+i]");
+        }
     }
     // Do nothing if alpha is zero
     if(alpha == 0.0)
@@ -73,22 +86,28 @@ void add_fiber_async(T alpha, const Tensor<T> &src, T beta,
         auto dst_tile_handle = dst.get_tile_handle(i);
         int dst_tile_rank = dst_tile_handle.mpi_get_rank();
         // Get corresponding src tile
-        Index j = dst_tile_index[axis];
-        auto src_tile_handle = src.get_tile_handle(j);
+        std::vector<Index> src_tile_index(src.ndim);
+        src_tile_index[0] = dst_tile_index[axis];
+        for(Index j = 0; j < batch_ndim; ++j)
+        {
+            src_tile_index[j+1] = dst_tile_index[dst.ndim-batch_ndim+j];
+        }
+        auto src_tile_handle = src.get_tile_handle(src_tile_index);
         int src_tile_rank = src_tile_handle.mpi_get_rank();
         // Transfer data
         src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
         // Execute on destination node
         if(mpi_rank == dst_tile_rank)
         {
-            // Reshape inputs: src_tile -> (m,n), dst_tile -> (m,k,n)
-            Index m, n, k;
+            // Reshape inputs: src_tile -> (k,batch), dst_tile -> (m,k,n,batch)
+            Index m, n, k, batch;
+            batch = src.matrix_shape[1][1];
             m = dst_tile_traits.stride[axis];
-            n = dst_tile_traits.matrix_shape[axis+1][1];
+            n = dst_tile_traits.matrix_shape[axis+1][1] / batch;
             k = dst_tile_traits.shape[axis];
             // Insert corresponding task
-            starpu::add_fiber::submit<T>(m, n, k, alpha, src_tile_handle,
-                    beta, dst_tile_handle);
+            starpu::add_fiber::submit<T>(m, n, k, batch, alpha,
+                    src_tile_handle, beta, dst_tile_handle);
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
@@ -97,7 +116,7 @@ void add_fiber_async(T alpha, const Tensor<T> &src, T beta,
 
 template<typename T>
 void add_fiber(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
-        Index axis)
+        Index axis, Index batch_ndim)
 //! Tensor<T> addition of a tensor and a broadcasted fiber
 /*! Blocking version of add_fiber_async<T>.
  * Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
@@ -110,7 +129,7 @@ void add_fiber(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
-    add_fiber_async<T>(alpha, src, beta, dst, axis);
+    add_fiber_async<T>(alpha, src, beta, dst, axis, batch_ndim);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -118,20 +137,20 @@ void add_fiber(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
 // Explicit instantiation of template
 template
 void add_fiber_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
-        fp32_t beta, const Tensor<fp32_t> &dst, Index axis);
+        fp32_t beta, const Tensor<fp32_t> &dst, Index axis, Index batch_ndim);
 
 template
 void add_fiber_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
-        fp64_t beta, const Tensor<fp64_t> &dst, Index axis);
+        fp64_t beta, const Tensor<fp64_t> &dst, Index axis, Index batch_ndim);
 
 // Explicit instantiation of template
 template
 void add_fiber<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src, fp32_t beta,
-        const Tensor<fp32_t> &dst, Index axis);
+        const Tensor<fp32_t> &dst, Index axis, Index batch_ndim);
 
 template
 void add_fiber<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src, fp64_t beta,
-        const Tensor<fp64_t> &dst, Index axis);
+        const Tensor<fp64_t> &dst, Index axis, Index batch_ndim);
 
 } // namespace tensor
 } // namespace nntile

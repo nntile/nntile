@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-03
+# @date 2023-07-22
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, copy_async, gemm_async, randn_async, \
@@ -139,7 +139,7 @@ class Linear(BaseLayer):
                     0.0, self.y.value, self.ndim, 0)
             if self.b is not None:
                 add_fiber_async(1.0, self.b.value, 1.0, self.y.value,
-                        self.y.value.ndim-1)
+                        self.y.value.ndim-1, 0)
         else:
             # Y = einsum('ij,jk->ik', W, op(X))
             # 'i' is a multi-index of dimension W.ndim-ndim
@@ -148,10 +148,14 @@ class Linear(BaseLayer):
             gemm_async(1.0, notrans, self.w.value, self.trans_x, self.x.value,
                     0.0, self.y.value, self.ndim, 0)
             if self.b is not None:
-                add_fiber_async(1.0, self.b.value, 1.0, self.y.value, 0)
+                add_fiber_async(1.0, self.b.value, 1.0, self.y.value, 0, 0)
         # Hint for StarPU that W tensor will
         # not be used soon and it is advised to offload data from GPU
         self.w.value.wont_use()
+        self.x.value.wont_use()
+        self.y.value.wont_use()
+        if self.b is not None:
+            self.b.value.wont_use()
 
     # Backward propagation of the linear layer
     def backward_async(self):
@@ -184,13 +188,17 @@ class Linear(BaseLayer):
                             self.x.value, 1.0, self.w.grad, gemm_ndim, 0)
             # Hint StarPU to offload gradient over W if needed
             self.w.grad.wont_use()
+            self.x.value.wont_use()
+            self.y.grad.wont_use()
         if self.b is not None:
             if self.b.grad_required:
                 if self.side == 'L':
                     sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, \
-                            self.y.value.ndim-1)
+                            self.y.value.ndim-1, 0)
                 else:
-                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, 0)
+                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, 0, 0)
+                self.b.grad.wont_use()
+                self.y.grad.wont_use()
         # Gradient over X (input)
         if self.x.grad_required:
             gemm_ndim = self.w.value.ndim - self.ndim
@@ -224,4 +232,6 @@ class Linear(BaseLayer):
                             1.0, self.x.grad, gemm_ndim, 0)
             # Hint StarPU to offload certain buffers
             self.w.value.wont_use()
+            self.x.grad.wont_use()
+            self.y.grad.wont_use()
 

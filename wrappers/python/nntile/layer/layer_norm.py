@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-07-03
+# @date 2023-07-22
 
 from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         TensorOrNone, TensorMoments, \
@@ -128,6 +128,8 @@ class LayerNorm(BaseLayer):
         # Y = X - mean
         add_slice3_async(-1.0, self.mean, 1.0, self.x.value, \
                 self.tmp_y_value, self.axis)
+        self.mean.wont_use()
+        self.x.value.wont_use()
         # Compute standard deviation of self.y.value
         fill_async(self.eps, self.inv_stddev)
         norm_slice_async(1.0/self.l**0.5, self.tmp_y_value, 1.0, \
@@ -136,15 +138,20 @@ class LayerNorm(BaseLayer):
         pow_async(1.0, -1.0, self.inv_stddev)
         # Finally, normalize input
         prod_slice_async(self.inv_stddev, 1.0, self.tmp_y_value, self.axis)
+        self.inv_stddev.wont_use()
         # Scale normalized input for the backward phase
         prod_fiber3_async(self.gamma.value, 1.0, self.tmp_y_value, \
                 self.y.value, self.axis)
+        self.tmp_y_value.wont_use()
+        self.gamma.value.wont_use()
         # Shift output
-        add_fiber_async(1.0, self.beta.value, 1.0, self.y.value, self.axis)
+        add_fiber_async(1.0, self.beta.value, 1.0, self.y.value, self.axis, 0)
+        self.beta.value.wont_use()
+        self.y.value.wont_use()
 
     def backward_async(self):
         # Accumulate gradient over beta
-        sum_fiber_async(1.0, self.y.grad, 1.0, self.beta.grad, self.axis)
+        sum_fiber_async(1.0, self.y.grad, 1.0, self.beta.grad, self.axis, 0)
         self.beta.grad.wont_use()
         # Accumulate gradient over gamma
         sumprod_fiber_async(1.0, self.y.grad, self.tmp_y_value, 1.0, \

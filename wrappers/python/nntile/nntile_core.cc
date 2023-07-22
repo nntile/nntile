@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-12
+ * @date 2023-07-20
  * */
 
 #include <pybind11/pybind11.h>
@@ -675,6 +675,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("hypot_async_fp32", &hypot_async<fp32_t>);
     m.def("hypot_fp64", &hypot<fp64_t>);
     m.def("hypot_fp32", &hypot<fp32_t>);
+
+    m.def("transpose_async_fp64", &transpose_async<fp64_t>);
+    m.def("transpose_async_fp32", &transpose_async<fp32_t>);
+    m.def("transpose_fp64", &transpose<fp64_t>);
+    m.def("transpose_fp32", &transpose<fp32_t>);
 }
 
 // Main extension module with all wrappers

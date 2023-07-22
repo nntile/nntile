@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-07-13
+# @date 2023-07-22
 
 # All necesary imports
 import nntile
@@ -79,50 +79,42 @@ def helper(dtype: np.dtype):
     layer, next_tag = Attention.generate_simple(X_Q, X_K, X_V, \
             n_head, next_tag, True)
     # Define numpy arrays and nntile tensors
-    np_W_Q = []
-    np_W_K = []
-    np_W_V = []
-    np_inproj_bias_Q = []
-    np_inproj_bias_K = []
-    np_inproj_bias_V = []
-    np_W = []
-    for i in range(n_head):
-        rand_W_Q = np.random.randn(*layer.w_q[i].value.shape)
-        np_W_Q.append(np.array(rand_W_Q, dtype=dtype, order='F'))
-        layer.w_q[i].value.from_array(np_W_Q[i])
-        nntile.tensor.clear_async(layer.w_q[i].grad)
+    rand_W_Q = np.random.randn(*layer.w_q.value.shape)
+    np_W_Q = np.array(rand_W_Q, dtype=dtype, order='F')
+    layer.w_q.value.from_array(np_W_Q)
+    nntile.tensor.clear_async(layer.w_q.grad)
 
-        rand_bias_Q = np.random.randn(*layer.in_proj_bias_q[i].value.shape)
-        np_inproj_bias_Q.append(np.array(rand_bias_Q, dtype=dtype, order='F'))
-        layer.in_proj_bias_q[i].value.from_array(np_inproj_bias_Q[i])
-        nntile.tensor.clear_async(layer.in_proj_bias_q[i].grad)
+    rand_bias_Q = np.random.randn(*layer.in_proj_bias_q.value.shape)
+    np_inproj_bias_Q = np.array(rand_bias_Q, dtype=dtype, order='F')
+    layer.in_proj_bias_q.value.from_array(np_inproj_bias_Q)
+    nntile.tensor.clear_async(layer.in_proj_bias_q.grad)
 
-        rand_W_K = np.random.randn(*layer.w_k[i].value.shape)
-        np_W_K.append(np.array(rand_W_K, dtype=dtype, order='F'))
-        layer.w_k[i].value.from_array(np_W_K[i])
-        nntile.tensor.clear_async(layer.w_k[i].grad)
+    rand_W_K = np.random.randn(*layer.w_k.value.shape)
+    np_W_K = np.array(rand_W_K, dtype=dtype, order='F')
+    layer.w_k.value.from_array(np_W_K)
+    nntile.tensor.clear_async(layer.w_k.grad)
 
-        rand_bias_K = np.random.randn(*layer.in_proj_bias_k[i].value.shape)
-        np_inproj_bias_K.append(np.array(rand_bias_K, dtype=dtype, order='F'))
-        layer.in_proj_bias_k[i].value.from_array(np_inproj_bias_K[i])
-        nntile.tensor.clear_async(layer.in_proj_bias_k[i].grad)
+    rand_bias_K = np.random.randn(*layer.in_proj_bias_k.value.shape)
+    np_inproj_bias_K = np.array(rand_bias_K, dtype=dtype, order='F')
+    layer.in_proj_bias_k.value.from_array(np_inproj_bias_K)
+    nntile.tensor.clear_async(layer.in_proj_bias_k.grad)
         
-        rand_W_V = np.random.randn(*layer.w_v[i].value.shape)
-        np_W_V.append(np.array(rand_W_V, dtype=dtype, order='F'))
-        layer.w_v[i].value.from_array(np_W_V[i])
-        nntile.tensor.clear_async(layer.w_v[i].grad)
+    rand_W_V = np.random.randn(*layer.w_v.value.shape)
+    np_W_V = np.array(rand_W_V, dtype=dtype, order='F')
+    layer.w_v.value.from_array(np_W_V)
+    nntile.tensor.clear_async(layer.w_v.grad)
 
-        rand_bias_V = np.random.randn(*layer.in_proj_bias_v[i].value.shape)
-        np_inproj_bias_V.append(np.array(rand_bias_V, dtype=dtype, order='F'))
-        layer.in_proj_bias_v[i].value.from_array(np_inproj_bias_V[i])
-        nntile.tensor.clear_async(layer.in_proj_bias_v[i].grad)
+    rand_bias_V = np.random.randn(*layer.in_proj_bias_v.value.shape)
+    np_inproj_bias_V = np.array(rand_bias_V, dtype=dtype, order='F')
+    layer.in_proj_bias_v.value.from_array(np_inproj_bias_V)
+    nntile.tensor.clear_async(layer.in_proj_bias_v.grad)
         
-        rand_W = np.random.randn(*layer.w[i].value.shape)
-        np_W.append(np.array(rand_W, dtype=dtype, order='F'))
-        layer.w[i].value.from_array(np_W[i])
-        nntile.tensor.clear_async(layer.w[i].grad)
+    rand_W = np.random.randn(*layer.w.value.shape)
+    np_W = np.array(rand_W, dtype=dtype, order='F')
+    layer.w.value.from_array(np_W)
+    nntile.tensor.clear_async(layer.w.grad)
 
-    np_out_proj_bias = np.array(np.random.randn(n_emb), dtype=dtype)
+    np_out_proj_bias = np.array(np.random.randn(n_emb), dtype=dtype, order='F')
     layer.out_proj_bias.value.from_array(np_out_proj_bias)
     nntile.tensor.clear_async(layer.out_proj_bias.grad)
 
@@ -139,25 +131,22 @@ def helper(dtype: np.dtype):
     X_V_tensor = torch.tensor(np_X_V.T, requires_grad=True)
     torch_layer = MultiheadAttention(n_emb, n_head, kdim=n_emb_k, \
             vdim=n_emb_v, batch_first=True, bias=True)
-    W_Q = np.vstack(np_W_Q)
-    W_K = np.vstack(np_W_K)
-    W_V = np.vstack(np_W_V)
-    W_Q_tensor = torch.tensor(W_Q, requires_grad=True)
-    W_K_tensor = torch.tensor(W_K, requires_grad=True)
-    W_V_tensor = torch.tensor(W_V, requires_grad=True)
+    W_Q_tensor = torch.tensor(np_W_Q.reshape(n_emb, n_emb), requires_grad=True)
+    W_K_tensor = torch.tensor(np_W_K.reshape(n_emb, n_emb_k), requires_grad=True)
+    W_V_tensor = torch.tensor(np_W_V.reshape(n_emb, n_emb_v), requires_grad=True)
     torch_layer.q_proj_weight.data = W_Q_tensor
     torch_layer.k_proj_weight.data = W_K_tensor
     torch_layer.v_proj_weight.data = W_V_tensor
-    W_out = np.hstack(np_W)
-    W_out_tensor = torch.tensor(W_out, requires_grad=True)
+    W_out_tensor = torch.tensor(np_W.reshape(n_emb, n_emb), requires_grad=True)
     torch_layer.out_proj.weight.data = W_out_tensor
-    out_proj_bias = torch.tensor(np_out_proj_bias, requires_grad=True)
+    out_proj_bias = torch.tensor(np_out_proj_bias.reshape(-1), requires_grad=True)
     torch_layer.out_proj.bias.data = out_proj_bias
     # print(torch.norm(torch_layer.in_proj_bias).item())
-    inproj_bias_Q = np.hstack(np_inproj_bias_Q)
-    inproj_bias_K = np.hstack(np_inproj_bias_K)
-    inproj_bias_V = np.hstack(np_inproj_bias_V)
-    in_proj_bias = torch.tensor(np.hstack([inproj_bias_Q, inproj_bias_K, inproj_bias_V]), requires_grad=True)
+    in_proj_bias = torch.tensor(np.hstack([ \
+            np_inproj_bias_Q.transpose().reshape(-1), \
+            np_inproj_bias_K.transpose().reshape(-1), \
+            np_inproj_bias_V.transpose().reshape(-1)]), \
+            requires_grad=True)
     torch_layer.in_proj_bias.data = in_proj_bias
 
     attn_output = torch_layer(X_Q_tensor, X_K_tensor, X_V_tensor, \
@@ -168,6 +157,7 @@ def helper(dtype: np.dtype):
     diff = np.linalg.norm(np_Y_torch - np_Y_nntile)
     # print("Forward diff = {}".format(diff/norm))
     if diff > norm*1e-4:
+        import ipdb; ipdb.set_trace()
         return False
     # Check backward
     layer.backward_async()
@@ -176,27 +166,26 @@ def helper(dtype: np.dtype):
     layer.x_v.grad.to_array(np_X_V)
     layer.out_proj_bias.grad.to_array(np_out_proj_bias)
 
-    for i in range(n_head):
-        layer.w_q[i].grad.to_array(np_W_Q[i])
-        layer.w_k[i].grad.to_array(np_W_K[i])
-        layer.w_v[i].grad.to_array(np_W_V[i])
-        layer.w[i].grad.to_array(np_W[i])
-        layer.in_proj_bias_v[i].grad.to_array(np_inproj_bias_V[i])
-        layer.in_proj_bias_k[i].grad.to_array(np_inproj_bias_K[i])
-        layer.in_proj_bias_q[i].grad.to_array(np_inproj_bias_Q[i])
+    layer.w_q.grad.to_array(np_W_Q)
+    layer.w_k.grad.to_array(np_W_K)
+    layer.w_v.grad.to_array(np_W_V)
+    layer.w.grad.to_array(np_W)
+    layer.in_proj_bias_q.grad.to_array(np_inproj_bias_Q)
+    layer.in_proj_bias_k.grad.to_array(np_inproj_bias_K)
+    layer.in_proj_bias_v.grad.to_array(np_inproj_bias_V)
         
-    np_W_Q_nntile = np.vstack(np_W_Q)
-    np_W_K_nntile = np.vstack(np_W_K)
-    np_W_V_nntile = np.vstack(np_W_V)
-    np_W_nntile = np.hstack(np_W)
+    np_W_Q_nntile = np_W_Q
+    np_W_K_nntile = np_W_K
+    np_W_V_nntile = np_W_V
+    np_W_nntile = np_W
 
-    np_inproj_bias_Q_nntile = np.hstack(np_inproj_bias_Q)
-    np_inproj_bias_K_nntile = np.hstack(np_inproj_bias_K)
-    np_inproj_bias_V_nntile = np.hstack(np_inproj_bias_V)
+    np_inproj_bias_Q_nntile = np_inproj_bias_Q
+    np_inproj_bias_K_nntile = np_inproj_bias_K
+    np_inproj_bias_V_nntile = np_inproj_bias_V
 
-    np_inproj_nntile = np.hstack([np_inproj_bias_Q_nntile,
-                                  np_inproj_bias_K_nntile,
-                                  np_inproj_bias_V_nntile])
+    np_inproj_nntile = np.hstack([np_inproj_bias_Q_nntile, \
+            np_inproj_bias_K_nntile, np_inproj_bias_V_nntile]).transpose()\
+            .reshape(-1)
 
     attn_grad = torch.tensor(np_Y_grad.T)
     res = (attn_output[0]*attn_grad).sum()
@@ -241,22 +230,22 @@ def helper(dtype: np.dtype):
         import ipdb; ipdb.set_trace()
         return False
     norm = np.linalg.norm(np_W_Q_torch)
-    diff = np.linalg.norm(np_W_Q_torch - np_W_Q_nntile)
+    diff = np.linalg.norm(np_W_Q_torch - np_W_Q_nntile.reshape(n_emb, n_emb))
     if diff > norm*1e-4:
         import ipdb; ipdb.set_trace()
         return False
     norm = np.linalg.norm(np_W_K_torch)
-    diff = np.linalg.norm(np_W_K_torch - np_W_K_nntile)
+    diff = np.linalg.norm(np_W_K_torch - np_W_K_nntile.reshape(n_emb, n_emb_k))
     if diff > norm*1e-4:
         import ipdb; ipdb.set_trace()
         return False
     norm = np.linalg.norm(np_W_V_torch)
-    diff = np.linalg.norm(np_W_V_torch - np_W_V_nntile)
+    diff = np.linalg.norm(np_W_V_torch - np_W_V_nntile.reshape(n_emb, n_emb_v))
     if diff > norm*1e-4:
         import ipdb; ipdb.set_trace()
         return False
     norm = np.linalg.norm(np_W_torch)
-    diff = np.linalg.norm(np_W_torch - np_W_nntile)
+    diff = np.linalg.norm(np_W_torch - np_W_nntile.reshape(n_emb, n_emb))
     if diff > norm*1e-4:
         import ipdb; ipdb.set_trace()
         return False

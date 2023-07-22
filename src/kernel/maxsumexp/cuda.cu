@@ -147,7 +147,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
 {
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
     // Both source and destination are Fortran-contiguous
-    dim3 threads(256, 1, 1);
+    dim3 threads(32, 1, 1);
     dim3 blocks(1, m, n);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, src,
             maxsumexp);

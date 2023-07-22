@@ -4,33 +4,33 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tile/sum_fiber.hh
- * Sum over fibers into a slice of a Tile<T>
+ * @file include/nntile/tensor/transpose.hh
+ * Transpose operation for Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-22
+ * @date 2023-07-20
  * */
 
 #pragma once
 
-#include <nntile/tile/tile.hh>
+#include <nntile/tensor/tensor.hh>
 
 namespace nntile
 {
-namespace tile
+namespace tensor
 {
 
-// Tile-wise sum_fiber
+// Tensor-wise transpose operation
 template<typename T>
-void sum_fiber_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
-        Index axis, Index batch_ndim);
+void transpose_async(T alpha, const Tensor<T> &src, const Tensor<T> &dst,
+        Index ndim);
 
-// Tile-wise sum_fiber
+// Tensor-wise transpose operation
 template<typename T>
-void sum_fiber(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
-        Index axis, Index batch_ndim);
+void transpose(T alpha, const Tensor<T> &src, const Tensor<T> &dst,
+        Index ndim);
 
-} // namespace tile
+} // namespace tensor
 } // namespace nntile
 

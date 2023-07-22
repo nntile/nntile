@@ -4,17 +4,16 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/add_fiber.cc
- * Tensor wrappers for addition of a tensor and a broadcasted fiber
+ * @file tests/tensor/transpose.cc
+ * Transpose operation
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-21
+ * @date 2023-07-20
  * */
 
-#include "nntile/tensor/add_fiber.hh"
-#include "nntile/tile/add_fiber.hh"
-#include "nntile/starpu/add_fiber.hh"
+#include "nntile/tensor/transpose.hh"
+#include "nntile/starpu/transpose.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
@@ -25,7 +24,7 @@ using namespace nntile::tensor;
 
 template<typename T>
 void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
-        Index axis)
+        Index ndim)
 {
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
@@ -44,7 +43,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         auto tile_local = tile.acquire(STARPU_W);
         for(Index i = 0; i < dst_single.nelems; ++i)
         {
-            tile_local[i] = T(i);
+            tile_local[i] = T{-1};
         }
         tile_local.release();
     }
@@ -58,8 +57,12 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
     scatter<T>(dst_single, dst);
     // Define proper shape and basetile for the source tensor
-    std::vector<Index> src_shape{shape[axis]},
-        src_basetile{basetile[axis]};
+    std::vector<Index> src_shape(shape.size()), src_basetile(shape.size());
+    for(Index i = 0; i < shape.size(); ++i)
+    {
+        src_shape[(i+ndim) % shape.size()] = shape[i];
+        src_basetile[(i+ndim) % shape.size()] = basetile[i];
+    }
     // Generate single-tile source tensor and init it
     TensorTraits src_single_traits(src_shape, src_shape);
     Tensor<T> src_single(src_single_traits, dist_root, last_tag);
@@ -69,7 +72,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         auto tile_local = tile.acquire(STARPU_W);
         for(Index i = 0; i < src_single.nelems; ++i)
         {
-            tile_local[i] = T(-i);
+            tile_local[i] = T(i);
         }
         tile_local.release();
     }
@@ -82,13 +85,9 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     }
     Tensor<T> src(src_traits, src_distr, last_tag);
     scatter<T>(src_single, src);
-    // Perform tensor-wise and tile-wise add_fiber operations
-    add_fiber<T>(-1.0, src, 0.5, dst, axis, 0);
-    if(mpi_rank == mpi_root)
-    {
-        tile::add_fiber<T>(-1.0, src_single.get_tile(0), 0.5,
-                dst_single.get_tile(0), axis, 0);
-    }
+    // Perform multi-tile and single-tile
+    transpose<T>(-1.0, src, dst, ndim);
+    transpose<T>(-1.0, src_single, dst_single, ndim);
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
     gather<T>(dst, dst2_single);
@@ -110,30 +109,27 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
 template<typename T>
 void validate()
 {
-    check<T>({11}, {5}, 0);
-    check<T>({11, 12}, {5, 6}, 0);
+    // Bias along the given axis
     check<T>({11, 12}, {5, 6}, 1);
-    check<T>({11, 12, 13}, {5, 6, 5}, 0);
     check<T>({11, 12, 13}, {5, 6, 5}, 1);
     check<T>({11, 12, 13}, {5, 6, 5}, 2);
-    check<T>({1000, 1000}, {450, 450}, 0);
     check<T>({1000, 1000}, {450, 450}, 1);
     // Sync to guarantee old data tags are cleaned up and can be reused
     starpu_mpi_barrier(MPI_COMM_WORLD);
-    // Check throwing exceptions
-    starpu_mpi_tag_t last_tag = 0;
-    std::vector<Index> sh34 = {3, 4}, sh23 = {2, 3}, sh3 = {3}, sh4 = {4};
-    TensorTraits trA(sh34, sh23), trB(sh3, sh3), trC(sh4, sh4);
-    std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0};
-    Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
-        C(trC, dist0, last_tag);
-    TEST_THROW(add_fiber<T>(1.0, A, 0.0, A, 0, 0));
-    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, -1, 0));
-    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, 2, 0));
-    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, 0, 0));
-    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, 1, 0));
-    TEST_THROW(add_fiber<T>(1.0, C, 0.0, A, 0, 0));
-    TEST_THROW(add_fiber<T>(1.0, C, 0.0, A, 1, 0));
+//    // Check throwing exceptions
+//    starpu_mpi_tag_t last_tag = 0;
+//    std::vector<Index> sh34 = {3, 4}, sh23 = {2, 3}, sh3 = {3}, sh4 = {4};
+//    TensorTraits trA(sh34, sh23), trB(sh3, sh3), trC(sh4, sh4);
+//    std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0};
+//    Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
+//        C(trC, dist0, last_tag);
+//    TEST_THROW(transpose<T>(1.0, A, 0.0, A, 0));
+//    TEST_THROW(transpose<T>(1.0, B, 0.0, A, -1));
+//    TEST_THROW(transpose<T>(1.0, B, 0.0, A, 2));
+//    TEST_THROW(transpose<T>(1.0, B, 0.0, A, 0));
+//    TEST_THROW(transpose<T>(1.0, B, 0.0, A, 1));
+//    TEST_THROW(transpose<T>(1.0, C, 0.0, A, 0));
+//    TEST_THROW(transpose<T>(1.0, C, 0.0, A, 1));
 }
 
 int main(int argc, char **argv)
@@ -141,9 +137,9 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    starpu::add_fiber::init();
+    starpu::transpose::init();
     starpu::subcopy::init();
-    starpu::add_fiber::restrict_where(STARPU_CPU);
+    starpu::transpose::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();

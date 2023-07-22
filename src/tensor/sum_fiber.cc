@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-07-22
  * */
 
 #include "nntile/tensor/sum_fiber.hh"
@@ -23,12 +23,12 @@ namespace tensor
 //! Tensor-wise sum_fiber
 template<typename T>
 void sum_fiber_async(T alpha, const Tensor<T> &src, T beta,
-        const Tensor<T> &dst, Index axis)
+        const Tensor<T> &dst, Index axis, Index batch_ndim)
 {
     // Check dimensions
-    if(dst.ndim != 1)
+    if(dst.ndim != batch_ndim+1)
     {
-        throw std::runtime_error("dst.ndim != 1");
+        throw std::runtime_error("dst.ndim != batch_ndim+1");
     }
     // Treat special case of src.ndim=0
     if(src.ndim == 0)
@@ -40,9 +40,9 @@ void sum_fiber_async(T alpha, const Tensor<T> &src, T beta,
     {
         throw std::runtime_error("axis < 0");
     }
-    if(axis >= src.ndim)
+    if(axis >= src.ndim-batch_ndim)
     {
-        throw std::runtime_error("axis >= src.ndim");
+        throw std::runtime_error("axis >= src.ndim-batch_ndim");
     }
     // Check shapes
     if(dst.shape[0] != src.shape[axis])
@@ -53,6 +53,19 @@ void sum_fiber_async(T alpha, const Tensor<T> &src, T beta,
     {
         throw std::runtime_error("dst.basetile_shape[0] != "
                 "src.basetile_shape[axis]");
+    }
+    for(Index i = 0; i < batch_ndim; ++i)
+    {
+        if(dst.shape[i+1] != src.shape[src.ndim-batch_ndim+i])
+        {
+            throw std::runtime_error("dst.shape[i+1] != "
+                    "src.shape[src.ndim-batch_ndim+i]");
+        }
+        if(dst.basetile_shape[i+1] != src.basetile_shape[src.ndim-batch_ndim+i])
+        {
+            throw std::runtime_error("dst.basetile_shape[i+1] != "
+                    "src.basetile_shape[src.ndim-batch_ndim+i]");
+        }
     }
     // Do actual calculations
     int mpi_rank = starpu_mpi_world_rank();
@@ -66,8 +79,13 @@ void sum_fiber_async(T alpha, const Tensor<T> &src, T beta,
         int src_tile_rank = src_tile_handle.mpi_get_rank();
         auto src_tile_index = src.grid.linear_to_index(i);
         // Get corresponding dst tile
-        Index j = src_tile_index[axis];
-        auto dst_tile_handle = dst.get_tile_handle(j);
+        std::vector<Index> dst_tile_index(dst.ndim);
+        dst_tile_index[0] = src_tile_index[axis];
+        for(Index j = 0; j < batch_ndim; ++j)
+        {
+            dst_tile_index[j+1] = src_tile_index[src.ndim-batch_ndim+j];
+        }
+        auto dst_tile_handle = dst.get_tile_handle(dst_tile_index);
         int dst_tile_rank = dst_tile_handle.mpi_get_rank();
         // Transfer data
         src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
@@ -75,13 +93,14 @@ void sum_fiber_async(T alpha, const Tensor<T> &src, T beta,
         if(mpi_rank == dst_tile_rank)
         {
             // Get sizes
-            Index m, n, k;
+            Index m, n, k, batch;
+            batch = dst.matrix_shape[1][1];
             m = src_tile_traits.stride[axis];
-            n = src_tile_traits.matrix_shape[axis+1][1];
+            n = src_tile_traits.matrix_shape[axis+1][1] / batch;
             k = src_tile_traits.shape[axis];
             // Check if it is the first task for the output tile
             bool init_first = true;
-            for(Index j = 0; j < src.ndim; ++j)
+            for(Index j = 0; j < src.ndim-batch_ndim; ++j)
             {
                 if(j != axis and src_tile_index[j] != 0)
                 {
@@ -92,13 +111,13 @@ void sum_fiber_async(T alpha, const Tensor<T> &src, T beta,
             // Insert task
             if(init_first)
             {
-                starpu::sum_fiber::submit<T>(m, n, k, alpha, src_tile_handle,
-                        beta, dst_tile_handle);
+                starpu::sum_fiber::submit<T>(m, n, k, batch, alpha,
+                        src_tile_handle, beta, dst_tile_handle);
             }
             else
             {
-                starpu::sum_fiber::submit<T>(m, n, k, alpha, src_tile_handle,
-                        one, dst_tile_handle);
+                starpu::sum_fiber::submit<T>(m, n, k, batch, alpha,
+                        src_tile_handle, one, dst_tile_handle);
             }
         }
     }
@@ -112,9 +131,9 @@ void sum_fiber_async(T alpha, const Tensor<T> &src, T beta,
 //! Tensor-wise sum_fiber
 template<typename T>
 void sum_fiber(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
-        Index axis)
+        Index axis, Index batch_ndim)
 {
-    sum_fiber_async<T>(alpha, src, beta, dst, axis);
+    sum_fiber_async<T>(alpha, src, beta, dst, axis, batch_ndim);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -122,20 +141,20 @@ void sum_fiber(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
 // Explicit instantiation
 template
 void sum_fiber_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
-        fp32_t beta, const Tensor<fp32_t> &dst, Index axis);
+        fp32_t beta, const Tensor<fp32_t> &dst, Index axis, Index batch_ndim);
 
 template
 void sum_fiber_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
-        fp64_t beta, const Tensor<fp64_t> &dst, Index axis);
+        fp64_t beta, const Tensor<fp64_t> &dst, Index axis, Index batch_ndim);
 
 // Explicit instantiation
 template
 void sum_fiber<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src, fp32_t beta,
-        const Tensor<fp32_t> &dst, Index axis);
+        const Tensor<fp32_t> &dst, Index axis, Index batch_ndim);
 
 template
 void sum_fiber<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src, fp64_t beta,
-        const Tensor<fp64_t> &dst, Index axis);
+        const Tensor<fp64_t> &dst, Index axis, Index batch_ndim);
 
 } // namespace tensor
 } // namespace nntile

@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-04-21
+# @date 2023-07-16
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         Tensor_int64, clear_async, embedding_async, embedding_backward_async
@@ -72,8 +72,14 @@ class Embedding(BaseLayer):
     def forward_async(self):
         clear_async(self.y.value)
         embedding_async(self.x, self.w.value, self.y.value, self.axis)
+        self.x.wont_use()
+        self.w.value.wont_use()
+        self.y.value.wont_use()
 
     # Backward propagation of the linear layer
     def backward_async(self):
         embedding_backward_async(self.x, self.y.grad, self.w.grad, self.axis)
+        self.x.wont_use()
+        self.y.grad.wont_use()
+        self.w.grad.wont_use()
 

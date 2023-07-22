@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-03
+# @date 2023-07-22
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -178,13 +178,15 @@ def sum_slice_async(alpha: float, x: Tensor, beta: float, sum_slice: Tensor, \
 
 # Wrapper for multiprecision sum_fiber
 def sum_fiber_async(alpha: float, x: Tensor, beta: float, sum_fiber: Tensor, \
-        axis: int) -> None:
+        axis: int, batch_ndim: int) -> None:
     if type(x) is not type(sum_fiber):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.sum_fiber_async_fp32(alpha, x, beta, sum_fiber, axis)
+        core_tensor.sum_fiber_async_fp32(alpha, x, beta, sum_fiber, axis, \
+                batch_ndim)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.sum_fiber_async_fp64(alpha, x, beta, sum_fiber, axis)
+        core_tensor.sum_fiber_async_fp64(alpha, x, beta, sum_fiber, axis, \
+                batch_ndim)
     else:
         raise TypeError
 
@@ -350,13 +352,15 @@ def add_slice3_async(alpha: float, add_slice: Tensor, beta, x: Tensor, \
 
 # Wrapper for multiprecision add_fiber
 def add_fiber_async(alpha: float, add_fiber: Tensor, beta, x: Tensor, \
-        axis: int) -> None:
+        axis: int, batch_ndim: int) -> None:
     if type(add_fiber) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.add_fiber_async_fp32(alpha, add_fiber, beta, x, axis)
+        core_tensor.add_fiber_async_fp32(alpha, add_fiber, beta, x, axis, \
+                batch_ndim)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.add_fiber_async_fp64(alpha, add_fiber, beta, x, axis)
+        core_tensor.add_fiber_async_fp64(alpha, add_fiber, beta, x, axis, \
+                batch_ndim)
     else:
         raise TypeError
 
@@ -607,11 +611,12 @@ def scal_inplace_async(alpha: float, x: Tensor) -> None:
         raise TypeError
 
 # Wrapper for multiprecision scaling
-def mask_scalar_async(mask: Tensor_bool, alpha: float, x: Tensor) -> None:
+def mask_scalar_async(mask: Tensor_bool, alpha: float, x: Tensor, \
+        batch_ndim: int) -> None:
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.mask_scalar_async_fp32(mask, alpha, x)
+        core_tensor.mask_scalar_async_fp32(mask, alpha, x, batch_ndim)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.mask_scalar_async_fp64(mask, alpha, x)
+        core_tensor.mask_scalar_async_fp64(mask, alpha, x, batch_ndim)
     else:
         raise TypeError
 
@@ -666,3 +671,15 @@ def fused_adam_step(p: Tensor, grad: Tensor, first_moment: Tensor, second_moment
                                          grad, first_moment, second_moment, p)
     else:
         raise TypeError
+
+# Wrapper for multiprecision transpose
+def transpose_async(alpha: float, src: Tensor, dst: Tensor, ndim: int) -> None:
+    if type(src) is not type(dst):
+        raise TypeError
+    if type(src) is core_tensor.Tensor_fp32:
+        core_tensor.transpose_async_fp32(alpha, src, dst, ndim)
+    elif type(src) is core_tensor.Tensor_fp64:
+        core_tensor.transpose_async_fp64(alpha, src, dst, ndim)
+    else:
+        raise TypeError
+
