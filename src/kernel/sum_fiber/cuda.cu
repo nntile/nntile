@@ -45,32 +45,31 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, T alpha, const T *src,
  *      sums over slices along the first and the last axes.
  * */
 {
-    Index i2 = threadIdx.x + blockIdx.x*blockDim.x;
+    Index i2_batched = threadIdx.x + blockIdx.x*blockDim.x;
+    Index i2 = i2_batched % k;
+    Index b = i2_batched / k;
     Index i0_start = threadIdx.y, i0_step = blockDim.y;
     Index i1_start = threadIdx.z, i1_step = blockDim.z;
     constexpr T zero = 0;
-    for(Index b = 0; b < batch; ++b)
+    // Init sum 
+    T sum = zero;
+    if(b < batch)
     {
-        // Init sum 
-        T sum = zero;
-        if(i2 < k)
+        // Cycle over the third axis of input buffer
+        for(Index i1 = i1_start; i1 < n; i1 += i1_step)
         {
-            // Cycle over the third axis of input buffer
-            for(Index i1 = i1_start; i1 < n; i1 += i1_step)
+            // Get sum of a corresponding slice
+            const T *src_slice = src + ((i1+b*n)*k+i2)*m;
+            // Cycle over the first axis of input buffer
+            for(Index i0 = i0_start; i0 < m; i0 += i0_step)
             {
-                // Get sum of a corresponding slice
-                const T *src_slice = src + ((i1+b*n)*k+i2)*m;
-                // Cycle over the first axis of input buffer
-                for(Index i0 = i0_start; i0 < m; i0 += i0_step)
-                {
-                    // Read value from source
-                    T val = src_slice[i0];
-                    // Update sum
-                    sum += val;
-                }
+                // Read value from source
+                T val = src_slice[i0];
+                // Update sum
+                sum += val;
             }
         }
-        __shared__ T block_sum[2];
+        __shared__ T block_sum[1];
         if(i1_start == 0 and i0_start == 0)
         {
             block_sum[threadIdx.x] = zero;
@@ -79,7 +78,7 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, T alpha, const T *src,
         atomicAdd(&block_sum[threadIdx.x], sum);
         __syncthreads();
         // Update output value
-        if(i1_start == 0 and i0_start == 0 and i2 < k)
+        if(i1_start == 0 and i0_start == 0)
         {
             // Save result
             sum = block_sum[threadIdx.x];
@@ -89,9 +88,9 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, T alpha, const T *src,
             }
             else
             {
-                sum = beta*dst[i2+b*k] + alpha*sum;
+                sum = beta*dst[i2_batched] + alpha*sum;
             }
-            dst[i2+b*k] = sum;
+            dst[i2_batched] = sum;
         }
     }
 }
@@ -120,8 +119,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, T alpha,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 threads(2, std::min(int(m), 32), std::min(int(n), 32));
-    dim3 blocks((k+threads.x-1)/threads.x, 1, 1);
+    dim3 threads(1, std::min(int(m), 32), std::min(int(n), 32));
+    dim3 blocks((k*batch+threads.x-1)/threads.x, 1, 1);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, batch, alpha,
             src, beta, dst);
 }
