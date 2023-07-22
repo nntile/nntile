@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-07-21
+# @date 2023-07-22
 
 from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         TensorOrNone, TensorMoments, \
@@ -151,7 +151,7 @@ class LayerNorm(BaseLayer):
 
     def backward_async(self):
         # Accumulate gradient over beta
-        sum_fiber_async(1.0, self.y.grad, 1.0, self.beta.grad, self.axis)
+        sum_fiber_async(1.0, self.y.grad, 1.0, self.beta.grad, self.axis, 0)
         self.beta.grad.wont_use()
         # Accumulate gradient over gamma
         sumprod_fiber_async(1.0, self.y.grad, self.tmp_y_value, 1.0, \

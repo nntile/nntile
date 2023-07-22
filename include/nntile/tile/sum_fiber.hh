@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-07-22
  * */
 
 #pragma once
@@ -24,12 +24,12 @@ namespace tile
 // Tile-wise sum_fiber
 template<typename T>
 void sum_fiber_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
-        Index axis);
+        Index axis, Index batch_ndim);
 
 // Tile-wise sum_fiber
 template<typename T>
 void sum_fiber(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
-        Index axis);
+        Index axis, Index batch_ndim);
 
 } // namespace tile
 } // namespace nntile

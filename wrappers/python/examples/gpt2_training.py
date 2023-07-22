@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-16
+# @date 2023-07-22
 
 # Imports
 import nntile
@@ -179,13 +179,14 @@ def check_grads(model_torch, nntile_model):
             attn_head_size = config.n_embd // config.n_head
             diff = 0
             norm = np.linalg.norm(p_torch_grad_np)
-            for i_head in range(3*config.n_head):
+            for i_tensor in range(3):
                 p_nntile = nntile_model.parameters[nntile_par_idx]
                 p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
                         dtype=np.float32)
                 p_nntile.grad.to_array(p_nntile_grad_np)
+                p_nntile_grad_np = p_nntile_grad_np.reshape(-1, config.n_embd)
                 current_grad_block = p_torch_grad_np[:, \
-                        i_head*attn_head_size:(i_head+1)*attn_head_size]
+                        i_tensor*config.n_embd:(i_tensor+1)*config.n_embd]
                 diff += np.linalg.norm(current_grad_block.T-p_nntile_grad_np) ** 2
                 nntile_par_idx += 1
             diff = diff ** 0.5
@@ -193,12 +194,14 @@ def check_grads(model_torch, nntile_model):
             attn_head_size = config.n_embd // config.n_head
             diff = 0
             norm = np.linalg.norm(p_torch_grad_np)
-            for i_head in range(3*config.n_head):
+            for i_tensor in range(3):
                 p_nntile = nntile_model.parameters[nntile_par_idx]
                 p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
                         dtype=np.float32)
                 p_nntile.grad.to_array(p_nntile_grad_np)
-                current_grad_block = p_torch_grad_np[i_head*attn_head_size:(i_head+1)*attn_head_size]
+                p_nntile_grad_np = p_nntile_grad_np.transpose().reshape(-1)
+                current_grad_block = p_torch_grad_np[i_tensor*config.n_embd:\
+                        (i_tensor+1)*config.n_embd]
                 diff += np.linalg.norm(current_grad_block-p_nntile_grad_np) ** 2
                 nntile_par_idx += 1
             diff = diff ** 0.5
@@ -207,16 +210,13 @@ def check_grads(model_torch, nntile_model):
                 attn_head_size = config.n_embd // config.n_head
                 diff = 0
                 norm = np.linalg.norm(p_torch_grad_np)
-                for i_head in range(config.n_head):
-                    p_nntile = nntile_model.parameters[nntile_par_idx]
-                    p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
-                            dtype=np.float32)
-                    p_nntile.grad.to_array(p_nntile_grad_np)
-                    current_grad_block = p_torch_grad_np[i_head*attn_head_size: \
-                            (i_head+1)*attn_head_size, :]
-                    diff += np.linalg.norm(current_grad_block.T-p_nntile_grad_np) ** 2
-                    nntile_par_idx += 1
-                diff = diff ** 0.5
+                p_nntile = nntile_model.parameters[nntile_par_idx]
+                p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", \
+                        dtype=np.float32)
+                p_nntile.grad.to_array(p_nntile_grad_np)
+                p_nntile_grad_np = p_nntile_grad_np.reshape(config.n_embd, -1)
+                diff = np.linalg.norm(p_torch_grad_np.T-p_nntile_grad_np)
+                nntile_par_idx += 1
             elif name.split(".")[-1] == "bias":
                 norm = np.linalg.norm(p_torch_grad_np)
                 p_nntile = nntile_model.parameters[nntile_par_idx]
@@ -255,11 +255,11 @@ if args.check:
         torch.cuda.synchronize()
     output_value_np = output_value.logits.cpu().detach().numpy()
     # Get gradients of parameters through the backward pass
-    #loss = 0.5 * (output_value.logits * output_value.logits).sum()
-    #model_torch.zero_grad()
-    #loss.backward()
-    #if args.torch_device.startswith("cuda"):
-    #    torch.cuda.synchronize()
+    loss = 0.5 * (output_value.logits * output_value.logits).sum()
+    model_torch.zero_grad()
+    loss.backward()
+    if args.torch_device.startswith("cuda"):
+        torch.cuda.synchronize()
     # Check accuracy of the forward pass by the output activation
     nntile_model.activations[0].value.from_array(input_value.cpu().numpy().T)
     nntile_model.forward_async()
@@ -271,13 +271,13 @@ if args.check:
     print("NNTile forward pass relative accuracy: {}".format(diff/norm))
     print("Model output norm: {}".format(norm))
     # Run backward pass by the NNTile to get gradients of parameters
-    #nntile_model.clear_gradients()
-    #nntile.tensor.copy_async(nntile_model.activations[-1].value, \
-    #        nntile_model.activations[-1].grad)
-    #nntile_model.backward_async()
-    #nntile.starpu.wait_for_all()
+    nntile_model.clear_gradients()
+    nntile.tensor.copy_async(nntile_model.activations[-1].value, \
+            nntile_model.activations[-1].grad)
+    nntile_model.backward_async()
+    nntile.starpu.wait_for_all()
     # Now compare gradients
-    #check_grads(model_torch, nntile_model)
+    check_grads(model_torch, nntile_model)
 
 # Measure throughput of Torch forward pass
 if args.torch_nforward > 0:

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev 
- * @date 2023-04-26
+ * @date 2023-07-22
  * */
 
 #pragma once
@@ -31,6 +31,7 @@ struct args_t
     Index m;
     Index n;
     Index k;
+    Index batch;
     T alpha;
     T beta;
 };
@@ -68,8 +69,8 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
-        Handle dst);
+void submit(Index m, Index n, Index k, Index batch, T alpha, Handle src,
+        T beta, Handle dst);
 
 } // namespace sum_fiber
 } // namespace starpu

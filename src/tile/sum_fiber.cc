@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-07-22
  * */
 
 #include "nntile/tile/sum_fiber.hh"
@@ -22,12 +22,12 @@ namespace tile
 
 template<typename T>
 void sum_fiber_async(T alpha, const Tile<T> &src, T beta,
-        const Tile<T> &dst, Index axis)
+        const Tile<T> &dst, Index axis, Index batch_ndim)
 {
     // Check dimensions
-    if(dst.ndim != 1)
+    if(dst.ndim != batch_ndim+1)
     {
-        throw std::runtime_error("dst.ndim != 1");
+        throw std::runtime_error("dst.ndim != batch_ndim+1");
     }
     Index ndim = src.ndim;
     // Treat special case of ndim=0
@@ -40,49 +40,58 @@ void sum_fiber_async(T alpha, const Tile<T> &src, T beta,
     {
         throw std::runtime_error("axis < 0");
     }
-    if(axis >= ndim)
+    if(axis >= ndim-batch_ndim)
     {
-        throw std::runtime_error("axis >= ndim");
+        throw std::runtime_error("axis >= ndim-batch_ndim");
     }
     // Check shapes
     if(dst.shape[0] != src.shape[axis])
     {
         throw std::runtime_error("dst.shape[0] != src.shape[axis]");
     }
+    for(Index i = 0; i < batch_ndim; ++i)
+    {
+        if(dst.shape[i+1] != src.shape[src.ndim-batch_ndim+i])
+        {
+            throw std::runtime_error("dst.shape[i+1] != "
+                    "src.shape[src.ndim-batch_ndim+i]");
+        }
+    }
     // Get sizes
-    Index m, n, k;
+    Index m, n, k, batch;
+    batch = dst.matrix_shape[1][1];
     m = src.stride[axis];
-    n = src.matrix_shape[axis+1][1];
+    n = src.matrix_shape[axis+1][1] / batch;
     k = src.shape[axis];
     // Insert task
-    starpu::sum_fiber::submit<T>(m, n, k, alpha, src, beta, dst);
+    starpu::sum_fiber::submit<T>(m, n, k, batch, alpha, src, beta, dst);
 }
 
 template<typename T>
 void sum_fiber(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
-        Index axis)
+        Index axis, Index batch_ndim)
 {
-    sum_fiber_async<T>(alpha, src, beta, dst, axis);
+    sum_fiber_async<T>(alpha, src, beta, dst, axis, batch_ndim);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
 void sum_fiber_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src,
-        fp32_t beta, const Tile<fp32_t> &dst, Index axis);
+        fp32_t beta, const Tile<fp32_t> &dst, Index axis, Index batch_ndim);
 
 template
 void sum_fiber_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src,
-        fp64_t beta, const Tile<fp64_t> &dst, Index axis);
+        fp64_t beta, const Tile<fp64_t> &dst, Index axis, Index batch_ndim);
 
 // Explicit instantiation
 template
 void sum_fiber<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src, fp32_t beta,
-        const Tile<fp32_t> &dst, Index axis);
+        const Tile<fp32_t> &dst, Index axis, Index batch_ndim);
 
 template
 void sum_fiber<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src, fp64_t beta,
-        const Tile<fp64_t> &dst, Index axis);
+        const Tile<fp64_t> &dst, Index axis, Index batch_ndim);
 
 } // namespace tile
 } // namespace nntile

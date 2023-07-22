@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-21
+# @date 2023-07-22
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -178,13 +178,15 @@ def sum_slice_async(alpha: float, x: Tensor, beta: float, sum_slice: Tensor, \
 
 # Wrapper for multiprecision sum_fiber
 def sum_fiber_async(alpha: float, x: Tensor, beta: float, sum_fiber: Tensor, \
-        axis: int) -> None:
+        axis: int, batch_ndim: int) -> None:
     if type(x) is not type(sum_fiber):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.sum_fiber_async_fp32(alpha, x, beta, sum_fiber, axis)
+        core_tensor.sum_fiber_async_fp32(alpha, x, beta, sum_fiber, axis, \
+                batch_ndim)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.sum_fiber_async_fp64(alpha, x, beta, sum_fiber, axis)
+        core_tensor.sum_fiber_async_fp64(alpha, x, beta, sum_fiber, axis, \
+                batch_ndim)
     else:
         raise TypeError
 

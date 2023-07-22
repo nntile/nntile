@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-21
+# @date 2023-07-22
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, copy_async, gemm_async, randn_async, \
@@ -194,9 +194,9 @@ class Linear(BaseLayer):
             if self.b.grad_required:
                 if self.side == 'L':
                     sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, \
-                            self.y.value.ndim-1)
+                            self.y.value.ndim-1, 0)
                 else:
-                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, 0)
+                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, 0, 0)
                 self.b.grad.wont_use()
                 self.y.grad.wont_use()
         # Gradient over X (input)

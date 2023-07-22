@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-07-13
+# @date 2023-07-22
 
 # All necesary imports
 import nntile
@@ -159,7 +159,6 @@ def helper(dtype: np.dtype):
     if diff > norm*1e-4:
         import ipdb; ipdb.set_trace()
         return False
-    return True
     # Check backward
     layer.backward_async()
     layer.x_q.grad.to_array(np_X_Q)
@@ -167,27 +166,26 @@ def helper(dtype: np.dtype):
     layer.x_v.grad.to_array(np_X_V)
     layer.out_proj_bias.grad.to_array(np_out_proj_bias)
 
-    for i in range(n_head):
-        layer.w_q[i].grad.to_array(np_W_Q[i])
-        layer.w_k[i].grad.to_array(np_W_K[i])
-        layer.w_v[i].grad.to_array(np_W_V[i])
-        layer.w[i].grad.to_array(np_W[i])
-        layer.in_proj_bias_v[i].grad.to_array(np_inproj_bias_V[i])
-        layer.in_proj_bias_k[i].grad.to_array(np_inproj_bias_K[i])
-        layer.in_proj_bias_q[i].grad.to_array(np_inproj_bias_Q[i])
+    layer.w_q.grad.to_array(np_W_Q)
+    layer.w_k.grad.to_array(np_W_K)
+    layer.w_v.grad.to_array(np_W_V)
+    layer.w.grad.to_array(np_W)
+    layer.in_proj_bias_q.grad.to_array(np_inproj_bias_Q)
+    layer.in_proj_bias_k.grad.to_array(np_inproj_bias_K)
+    layer.in_proj_bias_v.grad.to_array(np_inproj_bias_V)
         
-    np_W_Q_nntile = np.vstack(np_W_Q)
-    np_W_K_nntile = np.vstack(np_W_K)
-    np_W_V_nntile = np.vstack(np_W_V)
-    np_W_nntile = np.hstack(np_W)
+    np_W_Q_nntile = np_W_Q
+    np_W_K_nntile = np_W_K
+    np_W_V_nntile = np_W_V
+    np_W_nntile = np_W
 
-    np_inproj_bias_Q_nntile = np.hstack(np_inproj_bias_Q)
-    np_inproj_bias_K_nntile = np.hstack(np_inproj_bias_K)
-    np_inproj_bias_V_nntile = np.hstack(np_inproj_bias_V)
+    np_inproj_bias_Q_nntile = np_inproj_bias_Q
+    np_inproj_bias_K_nntile = np_inproj_bias_K
+    np_inproj_bias_V_nntile = np_inproj_bias_V
 
-    np_inproj_nntile = np.hstack([np_inproj_bias_Q_nntile,
-                                  np_inproj_bias_K_nntile,
-                                  np_inproj_bias_V_nntile])
+    np_inproj_nntile = np.hstack([np_inproj_bias_Q_nntile, \
+            np_inproj_bias_K_nntile, np_inproj_bias_V_nntile]).transpose()\
+            .reshape(-1)
 
     attn_grad = torch.tensor(np_Y_grad.T)
     res = (attn_output[0]*attn_grad).sum()
@@ -232,22 +230,22 @@ def helper(dtype: np.dtype):
         import ipdb; ipdb.set_trace()
         return False
     norm = np.linalg.norm(np_W_Q_torch)
-    diff = np.linalg.norm(np_W_Q_torch - np_W_Q_nntile)
+    diff = np.linalg.norm(np_W_Q_torch - np_W_Q_nntile.reshape(n_emb, n_emb))
     if diff > norm*1e-4:
         import ipdb; ipdb.set_trace()
         return False
     norm = np.linalg.norm(np_W_K_torch)
-    diff = np.linalg.norm(np_W_K_torch - np_W_K_nntile)
+    diff = np.linalg.norm(np_W_K_torch - np_W_K_nntile.reshape(n_emb, n_emb_k))
     if diff > norm*1e-4:
         import ipdb; ipdb.set_trace()
         return False
     norm = np.linalg.norm(np_W_V_torch)
-    diff = np.linalg.norm(np_W_V_torch - np_W_V_nntile)
+    diff = np.linalg.norm(np_W_V_torch - np_W_V_nntile.reshape(n_emb, n_emb_v))
     if diff > norm*1e-4:
         import ipdb; ipdb.set_trace()
         return False
     norm = np.linalg.norm(np_W_torch)
-    diff = np.linalg.norm(np_W_torch - np_W_nntile)
+    diff = np.linalg.norm(np_W_torch - np_W_nntile.reshape(n_emb, n_emb))
     if diff > norm*1e-4:
         import ipdb; ipdb.set_trace()
         return False
