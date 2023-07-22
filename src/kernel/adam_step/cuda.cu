@@ -37,14 +37,14 @@ void cuda_kernel(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T l
         if (num_iter == 1)
         {
             first_moment[i] = (1 - beta_1) * grad[i];
-            second_moment[i] = (1 - beta_2) * grad[i] * grad[i];
+            second_moment[i] = ::sqrt(1 - beta_2) * grad[i];
         }
         else
         {
             first_moment[i] = beta_1 * first_moment[i] + (1 - beta_1) * grad[i];
-            second_moment[i] = beta_2 * second_moment[i] + (1 - beta_2) * grad[i] * grad[i];
+            second_moment[i] = ::hypot(::sqrt(beta_2) * second_moment[i], ::sqrt(1 - beta_2) * grad[i]);
         }
-        p[i] -= lr / (1 - ::pow(beta_1, num_iter)) * first_moment[i] / (::sqrt(second_moment[i] / (1 - ::pow(beta_2, num_iter))) + eps);
+        p[i] -= lr / (1 - ::pow(beta_1, num_iter)) * first_moment[i] / (second_moment[i] / ::sqrt(1 - ::pow(beta_2, num_iter)) + eps);
     }
 }
 

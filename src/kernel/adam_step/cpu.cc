@@ -38,7 +38,7 @@ void cpu(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T wei
  * @param[in] weight_decay: coefficient for l2 regularizer
  * @param[in] grad: Input buffer stored gradient, can be updated if weight_decay > 0
  * @param[in] first_moment: Input buffer stored first moments
- * @param[in] second_moment: Input buffer stored second moments
+ * @param[in] second_moment: Input buffer stored square root of second moments for stability
  * @param[inout] p: Input buffers with parameter that are updated in the end
  * */
 {
@@ -52,14 +52,14 @@ void cpu(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T wei
         if (num_iter == 1)
         {
             first_moment[i] = (1 - beta_1) * grad[i];
-            second_moment[i] = (1 - beta_2) * grad[i] * grad[i];
+            second_moment[i] = std::sqrt(1 - beta_2) * grad[i];
         }
         else
         {
             first_moment[i] = beta_1 * first_moment[i] + (1 - beta_1) * grad[i];
-            second_moment[i] = beta_2 * second_moment[i] + (1 - beta_2) * grad[i] * grad[i];
+            second_moment[i] = std::hypot(std::sqrt(beta_2) * second_moment[i], std::sqrt(1 - beta_2) * grad[i]);
         }
-        p[i] -= lr / (1 - std::pow(beta_1, num_iter)) * first_moment[i] / (std::sqrt(second_moment[i] / (1 - std::pow(beta_2, num_iter))) + eps);
+        p[i] -= lr / (1 - std::pow(beta_1, num_iter)) * first_moment[i] / (second_moment[i] / std::sqrt(1 - std::pow(beta_2, num_iter)) + eps);
     }
 }
 

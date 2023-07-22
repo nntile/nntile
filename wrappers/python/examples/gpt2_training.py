@@ -139,7 +139,7 @@ time0 = time.time()
 nntile_config = nntile.starpu.Config(-1, -1, 1)
 nntile.starpu.init()
 # Restrict computations to CUDA if possible
-nntile.starpu.restrict_cuda()
+# nntile.starpu.restrict_cuda()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
 next_tag = 0
