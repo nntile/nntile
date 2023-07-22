@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-07-16
+ * @date 2023-07-22
  * */
 
 #include "nntile/starpu/subtract_indexed_outputs.hh"
@@ -64,12 +64,28 @@ void cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
+//! Footprint for subtract_indexed_outputs tasks
+template<typename T>
+static
+uint32_t footprint(struct starpu_task *task)
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
+    // Apply hash over parameters m, n and k
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->n_labels, sizeof(args->n_labels),
+            hash);
+    hash = starpu_hash_crc32c_be_n(&args->n_outputs, sizeof(args->n_outputs),
+            hash);
+    return hash;
+}
+
 Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
     codelet_fp32.init("nntile_subtract_indexed_outputs_fp32",
-            nullptr,
+            footprint<fp32_t>,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_t>}
@@ -78,7 +94,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
     codelet_fp64.init("nntile_subtract_indexed_outputs_fp64",
-            nullptr,
+            footprint<fp64_t>,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp64_t>}

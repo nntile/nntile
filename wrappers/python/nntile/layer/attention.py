@@ -473,6 +473,7 @@ class Attention(BaseLayer):
             add_fiber_async(1.0, self.out_proj_bias.value, 1.0, self.y.value, \
                     0, 0)
             self.out_proj_bias.value.wont_use()
+        self.y.value.wont_use()
 
     # Backward propagation of the linear layer
     def backward_async(self):
@@ -497,6 +498,8 @@ class Attention(BaseLayer):
                     0.0, self.b_transposed.grad, 1, 0)
         # W can be offloaded from GPU
         self.w.value.wont_use()
+        # dY can be offloaded from GPU
+        self.y.grad.wont_use()
         # Backward for axes rotation
         if self.b.grad_required:
             # rotate axes (n_head, head_size, n_seq, n_batch) into
@@ -575,12 +578,16 @@ class Attention(BaseLayer):
                     self.v_transposed.grad, 1.0, self.x_v.grad, 2, 0)
         # W_V can be offloaded from GPU
         self.w_v.value.wont_use()
+        # dX_V can be offloaded from GPU
+        self.x_v.grad.wont_use()
         if self.w_v.grad_required:
             # dW_V += einsum('jkmn,lmn->jkl', dV_transposed, X_V)
             gemm_async(1.0, notrans, self.v_transposed.grad, trans, \
                     self.x_v.value, 1.0, self.w_v.grad, 2, 0)
         # dW_V can be offloaded from GPU
         self.w_v.grad.wont_use()
+        # X_V can be offloaded from GPU
+        self.x_v.value.wont_use()
         # dV_transposed can be deleted
         #self.v_transposed.grad.invalidate_submit()
         self.v_transposed.grad.wont_use()
@@ -603,12 +610,16 @@ class Attention(BaseLayer):
                     self.k_transposed.grad, 1.0, self.x_k.grad, 2, 0)
         # W_K can be offloaded from GPU
         self.w_k.value.wont_use()
+        # dX_K can be offloaded from GPU
+        self.x_k.grad.wont_use()
         if self.w_k.grad_required:
             # dW_K += einsum('jkmn,lmn->jkl', dK_transposed, X_K)
             gemm_async(1.0, notrans, self.k_transposed.grad, trans, \
                     self.x_k.value, 1.0, self.w_k.grad, 2, 0)
         # dW_K can be offloaded from GPU
         self.w_k.grad.wont_use()
+        # X_K can be offloaded from GPU
+        self.x_k.value.wont_use()
         # dK_transposed can be deleted
         #self.k_transposed.grad.invalidate_submit()
         self.k_transposed.grad.wont_use()
@@ -629,14 +640,19 @@ class Attention(BaseLayer):
             # dX_Q += einsum('jkl,jkmn->lmn', W_Q, dQ_transposed)
             gemm_async(1.0, trans, self.w_q.value, notrans, \
                     self.q_transposed.grad, 1.0, self.x_q.grad, 2, 0)
+            self.x_q.grad.wont_use()
         # W_Q can be offloaded from GPU
         self.w_q.value.wont_use()
+        # dX_Q can be offloaded from GPU
+        self.x_q.grad.wont_use()
         if self.w_q.grad_required:
             # dW_Q += einsum('jkmn,lmn->jkl', dQ_transposed, X_Q)
             gemm_async(1.0, notrans, self.q_transposed.grad, trans, \
                     self.x_q.value, 1.0, self.w_q.grad, 2, 0)
         # dW_Q can be offloaded from GPU
         self.w_q.grad.wont_use()
+        # X_Q can be offloaded from GPU
+        self.x_q.value.wont_use()
         # dQ_transposed can be deleted
         #self.q_transposed.grad.invalidate_submit()
         self.q_transposed.grad.wont_use()
