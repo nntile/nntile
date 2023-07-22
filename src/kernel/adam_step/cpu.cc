@@ -52,7 +52,7 @@ void cpu(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T wei
         if (num_iter == 1)
         {
             first_moment[i] = (1 - beta_1) * grad[i];
-            second_moment[i] = std::sqrt(1 - beta_2) * grad[i];
+            second_moment[i] = std::sqrt(1 - beta_2) * std::abs(grad[i]);
         }
         else
         {
