@@ -109,13 +109,7 @@ assert config.n_positions % args.seq_len_tile == 0
 config.attn_pdrop = 0
 config.embd_pdrop = 0
 config.resid_pdrop = 0
-#config.n_head = 1
-#config.num_hidden_layers = 2
 model_torch = copy.deepcopy(pretrained_model_torch)
-#model_torch.config.n_head = 1
-#for h in model_torch.transformer.h:
-#    h.attn.num_heads = 1
-#    h.attn.head_dim = h.attn.embed_dim
 # Current version splits lm_head and wte parameters, shared parameters will be
 # supported soon
 model_torch.lm_head.weight = nn.Parameter(pretrained_model_torch.lm_head \
@@ -504,7 +498,7 @@ if args.torch_nepochs > 0:
             requires_grad=False).contiguous())
         torch_output.append(torch.tensor(train_tokens[i, :, 1:],
             requires_grad=False).contiguous())
-    optim = Adam(model_torch.parameters(), lr=args.lr, fused=True)
+    optim = Adam(model_torch.parameters(), lr=args.lr)
     loss_func = nn.CrossEntropyLoss(reduction="sum", ignore_index=-1)
     # Warmup training
     for i in range(args.torch_nepochs_warmup):
