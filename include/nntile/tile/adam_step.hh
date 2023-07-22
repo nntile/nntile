@@ -23,13 +23,13 @@ namespace tile
 
 // Asynchronous tile-wise Adam step operation
 template<typename T>
-void adam_step_async(Index num_iter, T beta_1, T beta_2, T eps, T lr,
+void adam_step_async(Index num_iter, T beta_1, T beta_2, T eps, T lr, T weight_decay,
                      const Tile<T> &grad, const Tile<T> &first_moment, const Tile<T> &second_moment,
                      const Tile<T> &p);
 
 // Blocking version of tile-wise Adam step operation
 template<typename T>
-void adam_step(Index num_iter, T beta_1, T beta_2, T eps, T lr,
+void adam_step(Index num_iter, T beta_1, T beta_2, T eps, T lr, T weight_decay,
                const Tile<T> &grad, const Tile<T> &first_moment, const Tile<T> &second_moment,
                const Tile<T> &p);
 

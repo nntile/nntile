@@ -24,12 +24,16 @@ namespace adam_step
 
 template<typename T>
 static __global__
-void cuda_kernel(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr,
-         const T* grad, T* first_moment, T* second_moment, T* p)
+void cuda_kernel(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T weight_decay,
+         T* grad, T* first_moment, T* second_moment, T* p)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     if(i < num_elems)
     {
+        if (weight_decay != 0)
+        {
+            grad[i] += weight_decay * p[i];
+        }
         if (num_iter == 1)
         {
             first_moment[i] = (1 - beta_1) * grad[i];
@@ -45,8 +49,8 @@ void cuda_kernel(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T l
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr,
-         const T* grad, T* first_moment, T* second_moment, T* p)
+void cuda(cudaStream_t stream, Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T weight_decay,
+          T* grad, T* first_moment, T* second_moment, T* p)
     noexcept
 //! Fused Adam step operation of buffers
 /*! 
@@ -64,20 +68,20 @@ void cuda(cudaStream_t stream, Index num_iter, Index num_elems, T beta_1, T beta
  * */
 {
     dim3 blocks((num_elems+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(num_iter, num_elems, beta_1, beta_2, eps, lr,
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(num_iter, num_elems, beta_1, beta_2, eps, lr, weight_decay,
                                                      grad, first_moment, second_moment, p);
 }
 
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index num_iter, Index num_elems, fp32_t beta_1, fp32_t beta_2,
-                  fp32_t eps, fp32_t lr, const fp32_t* grad, fp32_t* first_moment,
+                  fp32_t eps, fp32_t lr, fp32_t weight_decay, fp32_t* grad, fp32_t* first_moment,
                   fp32_t* second_moment, fp32_t* p)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index num_iter, Index num_elems, fp64_t beta_1, fp64_t beta_2,
-                  fp64_t eps, fp64_t lr, const fp64_t* grad, fp64_t* first_moment, 
+                  fp64_t eps, fp64_t lr, fp64_t weight_decay, fp64_t* grad, fp64_t* first_moment, 
                   fp64_t* second_moment, fp64_t* p)
     noexcept;
 

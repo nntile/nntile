@@ -23,8 +23,8 @@ namespace adam_step
 {
 
 template<typename T>
-void cpu(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr,
-         const T* grad, T* first_moment, T* second_moment, T* p)
+void cpu(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T weight_decay,
+         T* grad, T* first_moment, T* second_moment, T* p)
     noexcept
 //! Fused Adam step on buffers
 /*!
@@ -35,7 +35,8 @@ void cpu(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr,
  * @param[in] beta_2: parameter for moving average of second moments
  * @param[in] eps: small scalar to avoid division by zero
  * @param[in] lr: learning rate
- * @param[in] grad: Input buffer stored gradient
+ * @param[in] weight_decay: coefficient for l2 regularizer
+ * @param[in] grad: Input buffer stored gradient, can be updated if weight_decay > 0
  * @param[in] first_moment: Input buffer stored first moments
  * @param[in] second_moment: Input buffer stored second moments
  * @param[inout] p: Input buffers with parameter that are updated in the end
@@ -44,6 +45,10 @@ void cpu(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr,
     // Cycle over buffers
     for(Index i = 0; i < num_elems; ++i)
     {
+        if (weight_decay != 0)
+        {
+            grad[i] += weight_decay * p[i];
+        }
         if (num_iter == 1)
         {
             first_moment[i] = (1 - beta_1) * grad[i];
@@ -60,13 +65,15 @@ void cpu(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr,
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index num_iter, Index num_elems, fp32_t beta_1, fp32_t beta_2, fp32_t eps, fp32_t lr,
-         const fp32_t* grad, fp32_t* first_moment, fp32_t* second_moment, fp32_t* p)
+void cpu<fp32_t>(Index num_iter, Index num_elems, fp32_t beta_1, fp32_t beta_2, fp32_t eps,
+         fp32_t lr, fp32_t weight_decay,
+         fp32_t* grad, fp32_t* first_moment, fp32_t* second_moment, fp32_t* p)
     noexcept;
 
 template
-void cpu<fp64_t>(Index num_iter, Index num_elems, fp64_t beta_1, fp64_t beta_2, fp64_t eps, fp64_t lr,
-         const fp64_t* grad, fp64_t* first_moment, fp64_t* second_moment, fp64_t* p)
+void cpu<fp64_t>(Index num_iter, Index num_elems, fp64_t beta_1, fp64_t beta_2, fp64_t eps,
+         fp64_t lr, fp64_t weight_decay,
+         fp64_t* grad, fp64_t* first_moment, fp64_t* second_moment, fp64_t* p)
     noexcept;
 
 } // namespace adam_step

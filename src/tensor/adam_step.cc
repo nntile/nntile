@@ -22,9 +22,9 @@ namespace tensor
 
 //! Asynchronous tensor-wise fuse Adam step
 template<typename T>
-void adam_step_async(Index num_iter, T beta_1, T beta_2, T eps, T lr,
-    const Tensor<T> &grad, const Tensor<T> &first_moment, const Tensor<T> &second_moment,
-                   const Tensor<T> &p)
+void adam_step_async(Index num_iter, T beta_1, T beta_2, T eps, T lr, T weight_decay,
+                    const Tensor<T> &grad, const Tensor<T> &first_moment, const Tensor<T> &second_moment,
+                    const Tensor<T> &p)
 {
     if (p.matrix_shape != grad.matrix_shape)
     {
@@ -64,9 +64,9 @@ void adam_step_async(Index num_iter, T beta_1, T beta_2, T eps, T lr,
         if(mpi_rank == p_tile_rank)
         {
             auto traits = p.get_tile_traits(i);
-            starpu::adam_step::submit<T>(num_iter, traits.nelems, beta_1, beta_2, eps, lr,
-                                grad_tile_handle, first_moment_tile_handle,
-                                second_moment_tile_handle, p_tile_handle);
+            starpu::adam_step::submit<T>(num_iter, traits.nelems, beta_1, beta_2, eps, lr, weight_decay,
+                                         grad_tile_handle, first_moment_tile_handle,
+                                         second_moment_tile_handle, p_tile_handle);
         }
         // Flush cache for the output tile on every node
         p_tile_handle.mpi_flush();
@@ -75,34 +75,34 @@ void adam_step_async(Index num_iter, T beta_1, T beta_2, T eps, T lr,
 
 //! Blocking version of tensor-wise addcdiv operation
 template<typename T>
-void adam_step(Index num_iter, T beta_1, T beta_2, T eps, T lr,
+void adam_step(Index num_iter, T beta_1, T beta_2, T eps, T lr, T weight_decay,
                const Tensor<T> &grad, const Tensor<T> &first_moment, const Tensor<T> &second_moment,
                const Tensor<T> &p)
 {
-    adam_step_async<T>(num_iter, beta_1, beta_2, eps, lr, grad, first_moment, second_moment, p);
+    adam_step_async<T>(num_iter, beta_1, beta_2, eps, lr, weight_decay, grad, first_moment, second_moment, p);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void adam_step_async<fp32_t>(Index num_iter, fp32_t beta_1, fp32_t beta_2, fp32_t eps, fp32_t lr,
+void adam_step_async<fp32_t>(Index num_iter, fp32_t beta_1, fp32_t beta_2, fp32_t eps, fp32_t lr, fp32_t weight_decay,
     const Tensor<fp32_t> &grad, const Tensor<fp32_t> &first_moment, const Tensor<fp32_t> &second_moment,
                    const Tensor<fp32_t> &p);
 
 template
-void adam_step_async<fp64_t>(Index num_iter, fp64_t beta_1, fp64_t beta_2, fp64_t eps, fp64_t lr,
+void adam_step_async<fp64_t>(Index num_iter, fp64_t beta_1, fp64_t beta_2, fp64_t eps, fp64_t lr, fp64_t weight_decay,
     const Tensor<fp64_t> &grad, const Tensor<fp64_t> &first_moment, const Tensor<fp64_t> &second_moment,
                    const Tensor<fp64_t> &p);
 
 // Explicit instantiation
 template
-void adam_step<fp32_t>(Index num_iter, fp32_t beta_1, fp32_t beta_2, fp32_t eps, fp32_t lr,
+void adam_step<fp32_t>(Index num_iter, fp32_t beta_1, fp32_t beta_2, fp32_t eps, fp32_t lr, fp32_t weight_decay,
     const Tensor<fp32_t> &grad, const Tensor<fp32_t> &first_moment, const Tensor<fp32_t> &second_moment,
                    const Tensor<fp32_t> &p);
 
 template
-void adam_step<fp64_t>(Index num_iter, fp64_t beta_1, fp64_t beta_2, fp64_t eps, fp64_t lr,
+void adam_step<fp64_t>(Index num_iter, fp64_t beta_1, fp64_t beta_2, fp64_t eps, fp64_t lr, fp64_t weight_decay,
     const Tensor<fp64_t> &grad, const Tensor<fp64_t> &first_moment, const Tensor<fp64_t> &second_moment,
                    const Tensor<fp64_t> &p);
 

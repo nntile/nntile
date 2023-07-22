@@ -25,8 +25,8 @@ namespace adam_step
 
 
 template<typename T>
-void cpu(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr,
-         const T* grad, T* first_moment, T* second_moment, T* p)
+void cpu(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T weight_decay,
+         T* grad, T* first_moment, T* second_moment, T* p)
     noexcept;
 
 } // namespace adam_step

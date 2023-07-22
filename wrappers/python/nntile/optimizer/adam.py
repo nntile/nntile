@@ -138,6 +138,7 @@ class FusedAdam:
     def step(self):
         for i, p in enumerate(self.params):
             nntile.tensor.fused_adam_step(p.value, p.grad, self.first_moments[i], self.second_moments[i],
-                                         self.lr, self.eps, self.beta1, self.beta2, self.num_iter)
+                                         self.lr, self.eps, self.beta1, self.beta2, self.weight_decay,
+                                         self.num_iter)
         self.num_iter += 1
 

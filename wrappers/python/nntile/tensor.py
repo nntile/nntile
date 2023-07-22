@@ -651,7 +651,7 @@ def hypot_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
         raise TypeError
 
 def fused_adam_step(p: Tensor, grad: Tensor, first_moment: Tensor, second_moment: Tensor,
-                   lr: float, eps: float, beta1: float, beta2: float, num_iter: int):
+                   lr: float, eps: float, beta1: float, beta2: float, weight_decay: float, num_iter: int):
     if type(p) is not type(grad):
         raise TypeError
     if type(p) is not type(first_moment):
@@ -659,8 +659,10 @@ def fused_adam_step(p: Tensor, grad: Tensor, first_moment: Tensor, second_moment
     if type(p) is not type(second_moment):
         raise TypeError
     if type(p) is core_tensor.Tensor_fp32:
-        core_tensor.adam_step_async_fp32(num_iter, beta1, beta2, eps, lr, grad, first_moment, second_moment, p)
+        core_tensor.adam_step_async_fp32(num_iter, beta1, beta2, eps, lr, weight_decay,
+                                         grad, first_moment, second_moment, p)
     elif type(p) is core_tensor.Tensor_fp64:
-        core_tensor.adam_step_async_fp64(num_iter, beta1, beta2, eps, lr, grad, first_moment, second_moment, p)
+        core_tensor.adam_step_async_fp64(num_iter, beta1, beta2, eps, lr, weight_decay,
+                                         grad, first_moment, second_moment, p)
     else:
         raise TypeError

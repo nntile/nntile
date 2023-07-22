@@ -35,6 +35,7 @@ struct args_t
     T beta_2;
     T eps;
     T lr;
+    T weight_decay;
 };
 
 // Apply Adam step to StarPU buffers on CPU
@@ -77,7 +78,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr,
+void submit(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T weight_decay,
             Handle grad, Handle first_moment, Handle second_moment, Handle p);
 
 } // namespace adam_step

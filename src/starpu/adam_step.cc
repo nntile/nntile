@@ -34,13 +34,13 @@ void cpu(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *grad = interfaces[0]->get_ptr<T>();
+    T *grad = interfaces[0]->get_ptr<T>();
     T *first_moments = interfaces[1]->get_ptr<T>();
     T *second_moments = interfaces[2]->get_ptr<T>();
     T* p = interfaces[3]->get_ptr<T>();
     // Launch kernel
     kernel::adam_step::cpu<T>(args->num_iter, args->num_elems, args->beta_1, args->beta_2,
-                              args->eps, args->lr, grad, first_moments, second_moments, p);
+                              args->eps, args->lr, args->weight_decay, grad, first_moments, second_moments, p);
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -53,7 +53,7 @@ void cuda(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *grad = interfaces[0]->get_ptr<T>();
+    T *grad = interfaces[0]->get_ptr<T>();
     T *first_moments = interfaces[1]->get_ptr<T>();
     T *second_moments = interfaces[2]->get_ptr<T>();
     T* p = interfaces[3]->get_ptr<T>();
@@ -61,7 +61,7 @@ void cuda(void *buffers[], void *cl_args)
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     kernel::adam_step::cuda<T>(stream, args->num_iter, args->num_elems, args->beta_1, args->beta_2,
-                              args->eps, args->lr, grad, first_moments, second_moments, p);
+                              args->eps, args->lr, args->weight_decay, grad, first_moments, second_moments, p);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -102,7 +102,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr,
+void submit(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T weight_decay,
             Handle grad, Handle first_moment, Handle second_moment, Handle p)
 {
     // Codelet arguments
@@ -113,6 +113,7 @@ void submit(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr,
     args->beta_2 = beta_2;
     args->eps = eps;
     args->lr = lr;
+    args->weight_decay = weight_decay;
     //fp64_t nflops = 5 * nelems;
     // Submit task
     enum starpu_data_access_mode moments_mode;
@@ -125,7 +126,7 @@ void submit(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr,
         moments_mode = STARPU_RW;
     }
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(grad),
+            STARPU_RW, static_cast<starpu_data_handle_t>(grad),
             moments_mode, static_cast<starpu_data_handle_t>(first_moment),
             moments_mode, static_cast<starpu_data_handle_t>(second_moment),
             STARPU_RW, static_cast<starpu_data_handle_t>(p),
@@ -140,11 +141,13 @@ void submit(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr,
 
 // Explicit instantiaion
 template
-void submit<fp32_t>(Index num_iter, Index num_elems, fp32_t beta_1, fp32_t beta_2, fp32_t eps, fp32_t lr,
+void submit<fp32_t>(Index num_iter, Index num_elems, fp32_t beta_1, fp32_t beta_2,
+            fp32_t eps, fp32_t lr, fp32_t weight_decay,
             Handle grad, Handle first_moment, Handle second_moment, Handle p);
 
 template
-void submit<fp64_t>(Index num_iter, Index num_elems, fp64_t beta_1, fp64_t beta_2, fp64_t eps, fp64_t lr,
+void submit<fp64_t>(Index num_iter, Index num_elems, fp64_t beta_1, fp64_t beta_2,
+            fp64_t eps, fp64_t lr, fp64_t weight_decay,
             Handle grad, Handle first_moment, Handle second_moment, Handle p);
 
 } // namespace adam_step

@@ -32,7 +32,7 @@ namespace tile
  * @param[inout] p: Input buffers with parameter that are updated in the end
  * */
 template<typename T>
-void adam_step_async(Index num_iter, T beta_1, T beta_2, T eps, T lr,
+void adam_step_async(Index num_iter, T beta_1, T beta_2, T eps, T lr, T weight_decay,
                      const Tile<T> &grad, const Tile<T> &first_moment, const Tile<T> &second_moment,
                      const Tile<T> &p)
 {
@@ -50,7 +50,7 @@ void adam_step_async(Index num_iter, T beta_1, T beta_2, T eps, T lr,
         throw std::runtime_error("Shapes of first_moment and parameters are not equal");
     }
     // Submit task
-    starpu::adam_step::submit<T>(num_iter, p.nelems, beta_1, beta_2, eps, lr,
+    starpu::adam_step::submit<T>(num_iter, p.nelems, beta_1, beta_2, eps, lr, weight_decay,
                                  grad, first_moment, second_moment, p);
 }
 
@@ -66,33 +66,33 @@ void adam_step_async(Index num_iter, T beta_1, T beta_2, T eps, T lr,
  * @param[inout] p: Input buffers with parameter that are updated in the end
  * */
 template<typename T>
-void adam_step(Index num_iter, T beta_1, T beta_2, T eps, T lr,
+void adam_step(Index num_iter, T beta_1, T beta_2, T eps, T lr, T weight_decay,
                const Tile<T> &grad, const Tile<T> &first_moment, const Tile<T> &second_moment,
                const Tile<T> &p)
 {
-    adam_step_async<T>(num_iter, beta_1, beta_2, eps, lr, grad, first_moment, second_moment, p);
+    adam_step_async<T>(num_iter, beta_1, beta_2, eps, lr, weight_decay, grad, first_moment, second_moment, p);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void adam_step_async<fp32_t>(Index num_iter, fp32_t beta_1, fp32_t beta_2, fp32_t eps, fp32_t lr,
+void adam_step_async<fp32_t>(Index num_iter, fp32_t beta_1, fp32_t beta_2, fp32_t eps, fp32_t lr, fp32_t weight_decay,
                      const Tile<fp32_t> &grad, const Tile<fp32_t> &first_moment, const Tile<fp32_t> &second_moment,
                      const Tile<fp32_t> &p);
 
 template
-void adam_step_async<fp64_t>(Index num_iter, fp64_t beta_1, fp64_t beta_2, fp64_t eps, fp64_t lr,
+void adam_step_async<fp64_t>(Index num_iter, fp64_t beta_1, fp64_t beta_2, fp64_t eps, fp64_t lr, fp64_t weight_decay,
                      const Tile<fp64_t> &grad, const Tile<fp64_t> &first_moment, const Tile<fp64_t> &second_moment,
                      const Tile<fp64_t> &p);
 
 // Explicit instantiation
 template
-void adam_step<fp32_t>(Index num_iter, fp32_t beta_1, fp32_t beta_2, fp32_t eps, fp32_t lr,
+void adam_step<fp32_t>(Index num_iter, fp32_t beta_1, fp32_t beta_2, fp32_t eps, fp32_t lr, fp32_t weight_decay,
                const Tile<fp32_t> &grad, const Tile<fp32_t> &first_moment, const Tile<fp32_t> &second_moment,
                const Tile<fp32_t> &p);
 
 template
-void adam_step<fp64_t>(Index num_iter, fp64_t beta_1, fp64_t beta_2, fp64_t eps, fp64_t lr,
+void adam_step<fp64_t>(Index num_iter, fp64_t beta_1, fp64_t beta_2, fp64_t eps, fp64_t lr, fp64_t weight_decay,
                const Tile<fp64_t> &grad, const Tile<fp64_t> &first_moment, const Tile<fp64_t> &second_moment,
                const Tile<fp64_t> &p);
 
