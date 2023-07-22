@@ -9,6 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
+ * @author Aleksandr Mikhalev
  * @date 2023-07-21
  * */
 
@@ -42,24 +43,40 @@ void cpu(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T wei
  * @param[inout] p: Input buffers with parameter that are updated in the end
  * */
 {
+    T alpha = lr / (1-::pow(beta_1, num_iter));
+    T beta = 1 / ::sqrt(1 - ::pow(beta_2, num_iter));
     // Cycle over buffers
     for(Index i = 0; i < num_elems; ++i)
     {
+        // Read values (param+grad) from RAM only once
+        T p_val = p[i], grad_val = grad[i];
         if (weight_decay != 0)
         {
-            grad[i] += weight_decay * p[i];
+            grad_val += weight_decay * p_val;
+            grad[i] = grad_val;
         }
-        if (num_iter == 1)
+        // Read values (first+second moments) from RAM no more than once and
+        // update them in the RAM immediately
+        T f_val, s_val;
+        if(num_iter == 1)
         {
-            first_moment[i] = (1 - beta_1) * grad[i];
-            second_moment[i] = std::sqrt(1 - beta_2) * std::abs(grad[i]);
+            f_val = (1-beta_1) * grad_val;
+            first_moment[i] = f_val;
+            s_val = ::sqrt(1-beta_2) * ::abs(grad_val);
+            second_moment[i] = s_val;
         }
         else
         {
-            first_moment[i] = beta_1 * first_moment[i] + (1 - beta_1) * grad[i];
-            second_moment[i] = std::hypot(std::sqrt(beta_2) * second_moment[i], std::sqrt(1 - beta_2) * grad[i]);
+            f_val = first_moment[i];
+            s_val = second_moment[i];
+            f_val = beta_1*f_val + (1-beta_1)*grad_val;
+            first_moment[i] = f_val;
+            s_val = ::hypot(::sqrt(beta_2)*s_val, ::sqrt(1-beta_2)*grad_val);
+            second_moment[i] = s_val;
         }
-        p[i] -= lr / (1 - std::pow(beta_1, num_iter)) * first_moment[i] / (second_moment[i] / std::sqrt(1 - std::pow(beta_2, num_iter)) + eps);
+        // Update parameters using only data in registers
+        T denom = s_val*beta + eps;
+        p[i] = p_val - alpha*f_val/denom;
     }
 }
 

@@ -5,7 +5,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/kernel/adam_step/cuda.hh
- * Fused Adam step on CPU buffers
+ * Fused Adam step on CUDA buffers
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa

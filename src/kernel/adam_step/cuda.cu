@@ -24,27 +24,42 @@ namespace adam_step
 
 template<typename T>
 static __global__
-void cuda_kernel(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T weight_decay,
-         T* grad, T* first_moment, T* second_moment, T* p)
+void cuda_kernel(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps,
+        T lr, T weight_decay, T* grad, T* first_moment, T* second_moment,
+        T* p, T alpha, T beta)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     if(i < num_elems)
     {
+        // Read values (param+grad) from RAM only once
+        T p_val = p[i], grad_val = grad[i];
         if (weight_decay != 0)
         {
-            grad[i] += weight_decay * p[i];
+            grad_val += weight_decay * p_val;
+            grad[i] = grad_val;
         }
-        if (num_iter == 1)
+        // Read values (first+second moments) from RAM no more than once and
+        // update them in the RAM immediately
+        T f_val, s_val;
+        if(num_iter == 1)
         {
-            first_moment[i] = (1 - beta_1) * grad[i];
-            second_moment[i] = ::sqrt(1 - beta_2) * ::abs(grad[i]);
+            f_val = (1-beta_1) * grad_val;
+            first_moment[i] = f_val;
+            s_val = ::sqrt(1-beta_2) * ::abs(grad_val);
+            second_moment[i] = s_val;
         }
         else
         {
-            first_moment[i] = beta_1 * first_moment[i] + (1 - beta_1) * grad[i];
-            second_moment[i] = ::hypot(::sqrt(beta_2) * second_moment[i], ::sqrt(1 - beta_2) * grad[i]);
+            f_val = first_moment[i];
+            s_val = second_moment[i];
+            f_val = beta_1*f_val + (1-beta_1)*grad_val;
+            first_moment[i] = f_val;
+            s_val = ::hypot(::sqrt(beta_2)*s_val, ::sqrt(1-beta_2)*grad_val);
+            second_moment[i] = s_val;
         }
-        p[i] -= lr / (1 - ::pow(beta_1, num_iter)) * first_moment[i] / (second_moment[i] / ::sqrt(1 - ::pow(beta_2, num_iter)) + eps);
+        // Update parameters using only data in registers
+        T denom = s_val*beta + eps;
+        p[i] = p_val - alpha*f_val/denom;
     }
 }
 
@@ -68,8 +83,11 @@ void cuda(cudaStream_t stream, Index num_iter, Index num_elems, T beta_1, T beta
  * */
 {
     dim3 blocks((num_elems+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(num_iter, num_elems, beta_1, beta_2, eps, lr, weight_decay,
-                                                     grad, first_moment, second_moment, p);
+    T alpha = lr / (1-::pow(beta_1, num_iter));
+    T beta = 1 / ::sqrt(1 - ::pow(beta_2, num_iter));
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(num_iter, num_elems,
+            beta_1, beta_2, eps, lr, weight_decay, grad, first_moment,
+            second_moment, p, alpha, beta);
 }
 
 // Explicit instantiation
