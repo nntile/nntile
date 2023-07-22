@@ -12,4 +12,4 @@
 # @date 2023-02-18
 
 from .sgd import SGD
-from .adam import Adam, FuseAdam
+from .adam import Adam, FusedAdam

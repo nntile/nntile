@@ -115,10 +115,19 @@ void submit(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr,
     args->lr = lr;
     //fp64_t nflops = 5 * nelems;
     // Submit task
+    enum starpu_data_access_mode moments_mode;
+    if (num_iter == 1)
+    {
+        moments_mode = STARPU_W;
+    }
+    else
+    {
+        moments_mode = STARPU_RW;
+    }
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(grad),
-            STARPU_W, static_cast<starpu_data_handle_t>(first_moment),
-            STARPU_W, static_cast<starpu_data_handle_t>(second_moment),
+            moments_mode, static_cast<starpu_data_handle_t>(first_moment),
+            moments_mode, static_cast<starpu_data_handle_t>(second_moment),
             STARPU_RW, static_cast<starpu_data_handle_t>(p),
             STARPU_CL_ARGS, args, sizeof(*args),
             0);
