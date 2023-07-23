@@ -120,8 +120,8 @@ inner_dim = config.n_inner if config.n_inner is not None \
 config.n_inner = inner_dim
 
 # Print altered PyTorch model to be tested
-print("PyTorch model:")
-print(model_torch)
+#print("PyTorch model:")
+#print(model_torch)
 
 # Forward FLOPs of matrix products per input sequence per GPT block
 nflops_seq_block = 2*config.n_positions*config.n_embd*(3+1)*config.n_embd \
@@ -135,6 +135,8 @@ nflops_seq = config.num_hidden_layers*nflops_seq_block \
 time0 = time.time()
 # Set up StarPU+MPI and init codelets
 nntile_config = nntile.starpu.Config(-1, -1, 1)
+nntile.starpu.profiling_init()
+nntile.starpu.profiling_disable()
 nntile.starpu.init()
 # Restrict computations to CUDA if possible
 nntile.starpu.restrict_cuda()
@@ -462,13 +464,19 @@ if args.nntile_nepochs > 0:
     pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, \
             nntile_model, optimizer, loss, args.nntile_nepochs_warmup)
     # Warmup training
+    nntile.starpu.pause()
     pipeline.train_async()
+    nntile.starpu.resume()
     nntile.starpu.wait_for_all()
     # Actual training
     pipeline.n_epochs = args.nntile_nepochs
+    #nntile.starpu.profiling_enable()
+    nntile.starpu.pause()
     time0 = time.time()
     pipeline.train_async()
+    nntile.starpu.resume()
     nntile.starpu.wait_for_all()
+    #nntile.starpu.profiling_disable()
     time1 = time.time() - time0
     print("NNTile training time: {} seconds".format(time1))
     print("NNTile training throughput tokens/sec: {}".format( \

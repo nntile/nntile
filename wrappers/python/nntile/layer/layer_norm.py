@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-07-22
+# @date 2023-07-23
 
 from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         TensorOrNone, TensorMoments, \
@@ -181,4 +181,5 @@ class LayerNorm(BaseLayer):
         # Accumulate gradient from tmp_Y_value
         axpy_async(1.0, self.tmp_y_value, self.x.grad)
         self.tmp_y_value.wont_use()
+        self.x.grad.wont_use()
 

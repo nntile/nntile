@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Katrutsa
 # @author Aleksandr Mikhalev
-# @date 2023-07-03
+# @date 2023-07-23
 
 from nntile.tensor import softmax_async, clear_async, copy_async, \
         subtract_indexed_outputs_async, logsumexp_async, maxsumexp_async, \
@@ -81,6 +81,7 @@ class CrossEntropy:
                     self.model_output.grad, 0)
             subtract_indexed_outputs_async(1., self.y, self.model_output.grad)
         self.model_output.value.wont_use()
+        self.model_output.grad.wont_use()
         self.maxsumexp.wont_use()
         self.logsumexp.wont_use()
         self.val.wont_use()

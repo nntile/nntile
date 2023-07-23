@@ -37,6 +37,7 @@ public:
     explicit Config(int ncpus_=-1, int ncuda_=-1, int cublas_=-1)
     {
         initialized = 0;
+        starpu_fxt_autostart_profiling(0);
         // Init StarPU configuration with default values at first
         int ret = starpu_conf_init(this);
         if(ret != 0)

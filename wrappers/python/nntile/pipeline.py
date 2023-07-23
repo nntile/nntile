@@ -64,9 +64,6 @@ class Pipeline(object):
                 # activations[-1].grad
                 # print("Compute loss")
                 self.loss.calc_async()
-                #loss_np = np.zeros((1,), dtype=np.float32, order="F")
-                #self.loss.get_val(loss_np)
-                #print("Loss in {} epoch = {}".format(i_epoch, loss_np[0]))
                 # Now do the backward pass
                 # print("backward")
                 self.model.backward_async()
@@ -109,6 +106,10 @@ class Pipeline(object):
                     t.value.wont_use()
                     if t.grad_required:
                         t.grad.wont_use()
+                # Limit parallelism through value of loss
+                #loss_np = np.zeros((1,), dtype=np.float32, order="F")
+                #self.loss.get_val(loss_np)
+                #print("Loss in {} epoch = {}".format(i_epoch, loss_np[0]))
             # nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
             # self.loss.get_val(nntile_xentropy_np)
             # print("Last batch loss after in {} epoch = {}".format(i_epoch, nntile_xentropy_np[0]))

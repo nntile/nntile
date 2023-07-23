@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-20
+ * @date 2023-07-23
  * */
 
 #include <pybind11/pybind11.h>
@@ -64,6 +64,15 @@ void def_mod_starpu(py::module_ &m)
     m.def("restrict_cuda", [](){restrict_where(STARPU_CUDA);});
     m.def("restrict_cpu", [](){restrict_where(STARPU_CPU);});
     m.def("restrict_restore", [](){restore_where();});
+    m.def("profiling_init", [](){
+            //starpu_profiling_init();
+            });
+    m.def("profiling_enable", [](){
+            //starpu_profiling_status_set(STARPU_PROFILING_ENABLE);
+            starpu_fxt_start_profiling();});
+    m.def("profiling_disable", [](){
+            //starpu_profiling_status_set(STARPU_PROFILING_DISABLE);
+            starpu_fxt_stop_profiling();});
 }
 
 // numpy.ndarray -> Tile
