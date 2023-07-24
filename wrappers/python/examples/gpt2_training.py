@@ -292,6 +292,8 @@ if args.torch_nforward > 0:
     time1 = time.time() - time0
     print("Torch forward throughput (sequence/sec): ", \
             args.torch_nforward * args.batch_size / time1)
+    print("Torch forward performance: {} Tflops/s".format(nflops_seq \
+            * args.torch_nforward * args.batch_size / time1 * 1e-12))
 
 # Measure throughput of Torch backward pass
 if args.torch_nbackward > 0:
@@ -312,6 +314,8 @@ if args.torch_nbackward > 0:
     time1 = time.time() - time0
     print("Torch backward throughput (sequence/sec): ", \
             args.torch_nbackward * args.batch_size / time1)
+    print("Torch backward performance: {} Tflops/s".format(2 * nflops_seq \
+            * args.torch_nbackward * args.batch_size / time1 * 1e-12))
 
 # Measure throughput of the forward pass by NNTile
 if args.nntile_nforward > 0:
@@ -328,6 +332,8 @@ if args.nntile_nforward > 0:
     time1 = time.time() - time0
     print("NNTile forward throughput (sequence/sec): ", \
             args.nntile_nforward * args.batch_size / time1)
+    print("NNTile forward performance: {} Tflops/s".format(nflops_seq \
+            * args.nntile_nforward * args.batch_size / time1 * 1e-12))
 
 # Measure throughput of the forward pass by NNTile
 if args.nntile_nbackward > 0:
@@ -351,6 +357,8 @@ if args.nntile_nbackward > 0:
     time1 = time.time() - time0
     print("NNTile backward throughput (sequence/sec): ", \
             args.nntile_nbackward * args.batch_size / time1)
+    print("NNTile backward performance: {} Tflops/s".format(2 * nflops_seq \
+            * args.nntile_nbackward * args.batch_size / time1 * 1e-12))
 
 # Prepare input and output batches if real training is required
 if args.torch_nepochs > 0 or args.nntile_nepochs > 0 or args.check_fp64:
@@ -464,17 +472,17 @@ if args.nntile_nepochs > 0:
     pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, \
             nntile_model, optimizer, loss, args.nntile_nepochs_warmup)
     # Warmup training
-    nntile.starpu.pause()
+    #nntile.starpu.pause()
     pipeline.train_async()
-    nntile.starpu.resume()
+    #nntile.starpu.resume()
     nntile.starpu.wait_for_all()
     # Actual training
     pipeline.n_epochs = args.nntile_nepochs
     #nntile.starpu.profiling_enable()
-    nntile.starpu.pause()
+    #nntile.starpu.pause()
     time0 = time.time()
     pipeline.train_async()
-    nntile.starpu.resume()
+    #nntile.starpu.resume()
     nntile.starpu.wait_for_all()
     #nntile.starpu.profiling_disable()
     time1 = time.time() - time0
