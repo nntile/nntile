@@ -25,7 +25,9 @@
 #include "nntile/kernel/maxsumexp.hh"
 
 using namespace nntile;
-using namespace nntile::kernel::maxsumexp;
+using nntile::kernel::maxsumexp::cpu;
+using nntile::kernel::maxsumexp::LaunchMaxSumExp1;
+using nntile::kernel::maxsumexp::LaunchMaxSumExp3;
 
 // TileShape (aka batch size, reduced size, seq len) represents a shape of tile
 // which is reduced along the middle (seq len) axis.
@@ -163,7 +165,7 @@ protected:
     template <typename T>
     void LaunchKernel(Index m, Index n, Index k, T const *input, T *output,
                       std::vector<T> &result) {
-        cuda<T>(stream_, m, n, k, input, output);
+        LaunchKernel<T>(stream_, m, n, k, input, output);
         ASSERT_EQ(cudaStreamSynchronize(stream_), cudaSuccess);
         ASSERT_EQ(cudaGetLastError(), cudaSuccess);
         cudaMemcpy(result.data(), output, result.size() * sizeof(T),
@@ -188,6 +190,13 @@ protected:
         LaunchKernel(m, n, k, source_.get(), target_.get(), maxsumexp);
         AssertDetailed<T>(maxsumexp, maxsumexp_copy);
     }
+
+protected:
+    template <typename T>
+    void LaunchKernel(cudaStream_t stream_, Index m, Index n, Index k,
+                      T const *input, T *output) {
+        LaunchMaxSumExp1<T>(stream_, m, n, k, input, output);
+    }
 };
 
 TEST_P(MaxSumExpCUDA, FP64) {
@@ -198,9 +207,29 @@ TEST_P(MaxSumExpCUDA, FP32) {
     RunTest<float>();
 }
 
-INSTANTIATE_TEST_SUITE_P(Kernel, MaxSumExpCUDA,
-                         ::testing::Values(std::make_tuple(1, 9, 10),
-                                           std::make_tuple(8, 9, 1),
-                                           std::make_tuple(8, 1, 10),
-                                           std::make_tuple(4, 7, 8),
-                                           std::make_tuple(32, 1024, 1024)));
+// Test parameters for CUDA tile operations.
+static auto const kTestParams =
+    ::testing::Values(std::make_tuple(1, 9, 10), std::make_tuple(8, 9, 1),
+                      std::make_tuple(8, 1, 10), std::make_tuple(4, 7, 8),
+                      std::make_tuple(32, 1024, 1024));
+
+INSTANTIATE_TEST_SUITE_P(Kernel, MaxSumExpCUDA, kTestParams);
+
+class MaxSumExp3CUDA : public MaxSumExpCPU {
+protected:
+    template <typename T>
+    void LaunchKernel(cudaStream_t stream_, Index m, Index n, Index k,
+                      T const *input, T *output) {
+        LaunchMaxSumExp3<T>(stream_, m, n, k, input, output);
+    }
+};
+
+TEST_P(MaxSumExp3CUDA, FP64) {
+    RunTest<double>();
+}
+
+TEST_P(MaxSumExp3CUDA, FP32) {
+    RunTest<float>();
+}
+
+INSTANTIATE_TEST_SUITE_P(Kernel, MaxSumExp3CUDA, kTestParams);
