@@ -13,6 +13,8 @@
 # @author Konstantin Sozykin
 # @date 2023-07-20
 
+add_subdirectory(kernel)
+
 # Set list of sources
 set(KERNEL_SRC
     "kernel/add_slice/cpu.cc"
