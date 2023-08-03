@@ -1,31 +1,82 @@
 stages:
   - image
+  - pre-check
   - build
   - check
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'push'
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_STRATEGY: clone
 
-image-builder:
+image-sandbox:
   image: docker:20.10.16
   stage: image
   script:
     - echo $CI_REGISTRY_PASSWORD | docker -D login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
-    - docker build -f ci/Dockerfile -t $CI_REGISTRY_IMAGE/builder ci
-    - docker push $CI_REGISTRY_IMAGE/builder
+    - >
+        docker build . \
+          -f ci/Dockerfile \
+          -t $CI_REGISTRY_IMAGE/sandbox:cuda \
+          --build-arg MAKE_JOBS=16 \
+          --build-arg BASE_IMAGE=ubuntu:22.04 \
+          --target sandbox
+    - docker push $CI_REGISTRY_IMAGE/sandbox:cuda
+  variables:
+    DOCKER_BUILDKIT: '1'
+
+pre-check-style:
+  image: $CI_REGISTRY_IMAGE/sandbox:cuda
+  stage: pre-check
+  needs: ['image-sandbox']
+  script:
+    - cd wrappers/python
+      #    - flake8 nntile examples tests
+      #    - isort -c nntile examples tests
 
 build-clang:
-  image: $CI_REGISTRY_IMAGE/builder
+  image: $CI_REGISTRY_IMAGE/sandbox:cuda
   stage: build
+  needs: ['image-sandbox', 'pre-check-style']
   script:
     - export MPICH_CXX=clang++
-    - cmake -B build/debug -S . -G Ninja -DCMAKE_CXX_COMPILER=clang++
-    - cmake --build build/debug
+    - >
+        cmake -B build/relwithdebinfo -S . -G Ninja \
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+          -DCMAKE_CXX_COMPILER=clang++
+    - cmake --build build/relwithdebinfo
 
 build-gcc:
-  image: $CI_REGISTRY_IMAGE/builder
+  image: $CI_REGISTRY_IMAGE/sandbox:cuda
   stage: build
+  needs: ['image-sandbox', 'pre-check-style']
   script:
-    - cmake -B build/debug -S . -G Ninja -DCMAKE_CXX_COMPILER=g++
-    - cmake --build build/debug
+    - >
+        cmake -B build/relwithdebinfo -S . -G Ninja \
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+          -DCMAKE_CXX_COMPILER=g++
+    - cmake --build build/relwithdebinfo
+    - >-
+        find build/relwithdebinfo \
+          -type f \
+          -not \( \
+            -executable -or -iname '*.so' -or -name 'CTestTestfile.cmake' \
+          \) \
+          -delete \
+  artifacts:
+    paths:
+      - build/relwithdebinfo
+    expire_in: 1 week
+
+
+test-gcc-cc:
+  image: $CI_REGISTRY_IMAGE/sandbox:cuda
+  stage: check
+  needs:
+    - job: build-gcc
+      artifacts: true
+  script:
+    - ctest --test-dir build/relwithdebinfo

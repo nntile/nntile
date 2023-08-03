@@ -21,9 +21,13 @@
 ###############################################################################
 
 # Set minimum CMake version to avoid configuration problems
-cmake_minimum_required(VERSION 3.18.6)
+cmake_minimum_required(VERSION 3.18)
 message(STATUS "Using CMake ${CMAKE_VERSION}")
 # BLAS::BLAS target is added in version 3.18
+
+if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+    cmake_policy(SET CMP0135 NEW)
+endif()
 
 # Define the project
 project(NNTile VERSION 1.0.0 LANGUAGES CXX)
@@ -42,16 +46,18 @@ option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
 option(BUILD_PYTHON_WRAPPERS "Generate Python wrappers" ON)
 
-# Provide options for certain cache variables
-set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "None" "Debug" "Release"
-    "RelWithDebInfo" "MinSizeRel")
+# For easier code navigation and interaction in editors.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Specify the library
 add_library(nntile)
 
 # Set C++-17 standard publicly
-target_compile_features(nntile PUBLIC cxx_std_17)
-target_compile_options(nntile PRIVATE -fPIC)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Add certain compilation flags for warnings etc
 #add_compile_options(-Wall -Wextra)# -Wpedantic-errors)
