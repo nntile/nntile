@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-03-06
+ * @author Aleksandr Mikhalev
+ * @date 2023-06-30
  * */
 
 #include "nntile/kernel/logsumexp/cpu.hh"
@@ -23,10 +24,10 @@ namespace logsumexp
 {
 
 template<typename T>
-void cpu(Index m, const T *maxsumexp, T *logsumexp)
+void cpu(Index nelems, const T *maxsumexp, T *logsumexp)
     noexcept
 {
-    for (Index i = 0; i < m; ++i) 
+    for(Index i = 0; i < nelems; ++i) 
     {
         logsumexp[i] = maxsumexp[2*i] + std::log(maxsumexp[2*i+1]);
     }
@@ -34,13 +35,14 @@ void cpu(Index m, const T *maxsumexp, T *logsumexp)
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m, const fp32_t *src, fp32_t *maxsumexp)
+void cpu<fp32_t>(Index nelems, const fp32_t *maxsumexp, fp32_t *logsumexp)
     noexcept;
 
 template
-void cpu<fp64_t>(Index m, const fp64_t *src, fp64_t *maxsumexp)
+void cpu<fp64_t>(Index nelems, const fp64_t *maxsumexp, fp64_t *logsumexp)
     noexcept;
 
 } // namespace logsumexp
 } // namespace kernel
 } // namespace nntile
+

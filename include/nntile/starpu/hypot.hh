@@ -5,19 +5,18 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/starpu/hypot.hh
- * Hypot on two StarPU buffers
+ * hypot operation on StarPU buffers
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-18
+ * @date 2023-07-03
  * */
 
 #pragma once
 
 #include <nntile/base_types.hh>
-#include <nntile/constants.hh>
-// This also includes all definitions
 #include <nntile/starpu/config.hh>
+#include <nntile/defs.h>
 
 namespace nntile
 {
@@ -30,14 +29,22 @@ namespace hypot
 template<typename T>
 struct args_t
 {
+    Index nelems;
     T alpha;
     T beta;
 };
 
-//! Complex copying through StarPU buffers is available only on CPU
+// Apply hypot for StarPU buffers on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
+
+#ifdef NNTILE_USE_CUDA
+// Apply hypot for StarPU buffers on CUDA
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept;
+#endif // NNTILE_USE_CUDA
 
 extern Codelet codelet_fp32, codelet_fp64;
 
@@ -67,7 +74,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(T alpha, Handle src, T beta, Handle dst);
+void submit(Index nelems, T alpha, Handle src, T beta, Handle dst);
 
 } // namespace hypot
 } // namespace starpu

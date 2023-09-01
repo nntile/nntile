@@ -1,0 +1,84 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nntile"
+version = "0.0.0"
+description = """
+Framework for training large neural network in heterogeneous distributed-memory
+systems."""
+license = {text = "MIT"}
+authors = [
+    {name = "Aleksandr Mikhalev", email = "al.mikhalev@skoltech.ru"},
+    {name = "Alexandr Katrutsa", email = "aleksandr.katrutsa@phystech.edu"},
+    {name = "Daniel Bershatsky", email = "d.bershatsky@skoltech.ru"},
+    {name = "Ivan Oseledets", email = "i.oseledets@skoltech.ru"},
+]
+maintainers = [
+    {name = "Daniel Bershatsky", email = "d.bershatsky@skoltech.ru"},
+    {name = "Aleksandr Mikhalev", email = "al.mikhalev@skoltech.ru"},
+]
+readme = {file = "README.md", content-type = "text/markdown"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: GPU",
+    "Environment :: GPU :: NVIDIA CUDA",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Science/Research",
+    "License :: Other/Proprietary License",
+    "Natural Language :: English",
+    "Operating System :: POSIX",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Unix",
+    "Operating System :: MacOS",
+    "Programming Language :: C",
+    "Programming Language :: C++",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Typing :: Typed",
+]
+dependencies = ["numpy"]
+requires-python = ">=3.8,<4"
+
+[project.optional-dependencies]
+dev = ["ipdb", "ipython", "isort", "flake8", "mypy"]
+test = ["torch", "torchvision", "pytest", "scipy"]
+
+[project.urls]
+Homepage = "https://doge.skoltech.ru/green-ai/nntile"
+Repository = "https://doge.skoltech.ru/green-ai/nntile.git"
+
+[tool.isort]
+
+[tool.mypy]
+ignore_missing_imports = true
+plugins = "numpy.typing.mypy_plugin"
+show_column_numbers = true
+show_error_codes = true
+show_error_context = false
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q -m 'not slow'"
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.setuptools]
+include-package-data = false
+platforms = ["Linux"]
+zip-safe = false
+
+[tool.setuptools.packages.find]
+include = ["nntile*"]

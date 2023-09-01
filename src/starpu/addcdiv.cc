@@ -9,11 +9,13 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-02-14
+ * @author Aleksandr Mikhalev
+ * @date 2023-06-30
  * */
 
 #include "nntile/starpu/addcdiv.hh"
 #include "nntile/kernel/addcdiv.hh"
+#include <cstdlib>
 
 namespace nntile
 {
@@ -36,26 +38,29 @@ void cpu(void *buffers[], void *cl_args)
     const T *denom = interfaces[1]->get_ptr<T>();
     T *src = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::addcdiv::cpu<T>(args->val, args->eps, args->nelems, nom, denom, src);
+    kernel::addcdiv::cpu<T>(args->val, args->eps, args->nelems, nom, denom,
+            src);
 }
 
 #ifdef NNTILE_USE_CUDA
 //! Apply addcdiv on StarPU buffer on CUDA
-// template<typename T>
-// void cuda(void *buffers[], void *cl_args)
-//     noexcept
-// {
-//     // // Get arguments
-//     // Index nelems = reinterpret_cast<Index *>(cl_args)[0];
-//     // // Get interfaces
-//     // auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-//     // const T *src = interfaces[0]->get_ptr<T>();
-//     // T *dst = interfaces[1]->get_ptr<T>();
-//     // // Get CUDA stream
-//     // cudaStream_t stream = starpu_cuda_get_local_stream();
-//     // // Launch kernel
-//     // kernel::prod::cuda<T>(stream, nelems, src, dst);
-// }
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const T *nom = interfaces[0]->get_ptr<T>();
+    const T *denom = interfaces[1]->get_ptr<T>();
+    T *src = interfaces[2]->get_ptr<T>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Launch kernel
+    kernel::addcdiv::cuda<T>(stream, args->val, args->eps, args->nelems, nom,
+            denom, src);
+}
 #endif // NNTILE_USE_CUDA
 
 Codelet codelet_fp32, codelet_fp64;
@@ -66,7 +71,7 @@ void init()
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
-            {}
+            {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -75,7 +80,7 @@ void init()
             nullptr,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
-            {}
+            {cuda<fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -97,11 +102,13 @@ void restore_where()
 template<typename T>
 void submit(T val, T eps, Index nelems, Handle nom, Handle denom, Handle src)
 {
-    args_t<T>* args = (args_t<T>*)malloc(sizeof(args_t<T>));
+    // Codelet arguments
+    args_t<T>* args = (args_t<T>*)std::malloc(sizeof(*args));
     args->val = val;
     args->eps = eps;
     args->nelems = nelems;
     //fp64_t nflops = 5 * nelems;
+    // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(nom),
             STARPU_R, static_cast<starpu_data_handle_t>(denom),
@@ -118,11 +125,14 @@ void submit(T val, T eps, Index nelems, Handle nom, Handle denom, Handle src)
 
 // Explicit instantiaion
 template
-void submit<fp32_t>(fp32_t val, fp32_t eps, Index nelems, Handle nom, Handle denom, Handle src);
+void submit<fp32_t>(fp32_t val, fp32_t eps, Index nelems, Handle nom,
+        Handle denom, Handle src);
 
 template
-void submit<fp64_t>(fp64_t val, fp64_t eps, Index nelems, Handle nom, Handle denom, Handle src);
+void submit<fp64_t>(fp64_t val, fp64_t eps, Index nelems, Handle nom,
+        Handle denom, Handle src);
 
 } // namespace addcdiv
 } // namespace starpu
 } // namespace nntile
+

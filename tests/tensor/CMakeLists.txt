@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-05-02
+# @date 2023-07-20
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -20,8 +20,10 @@ set(TESTS
     )
 
 set(TESTS_MPI
+    "add"
     "add_fiber"
     "add_slice"
+    "add_slice3"
     "addcdiv"
     "axpy"
     "clear"
@@ -35,6 +37,7 @@ set(TESTS_MPI
     "gelu"
     "gelu_backward"
     "gelutanh"
+    "gelutanh_inplace"
     "gelutanh_backward"
     "gemm"
     "logsumexp"
@@ -46,14 +49,17 @@ set(TESTS_MPI
     "pow"
     "prod"
     "prod_fiber"
+    "prod_fiber3"
     "prod_slice"
     "randn"
     "relu"
     "relu_backward"
-    "scal"
+    "scal_inplace"
     "scatter"
     "softmax"
+    "softmax_inplace"
     "sqrt"
+    "sqrt_inplace"
     "subtract_indexed_column"
     "sum_fiber"
     "sum_slice"
@@ -62,18 +68,30 @@ set(TESTS_MPI
     "sumprod_slice"
     "tensor"
     "total_sum_accum"
+    "mask_scalar"
+    "scal"
+    "hypot"
+    "transpose"
     )
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
+    "add"
     "gelu_backward"
+    "gelutanh"
     "gelutanh_backward"
     "logsumexp"
     "pow"
     "relu_backward"
     "subtract_indexed_column"
     "total_sum_accum"
-)
+    "sqrt"
+    "scal"
+    "softmax"
+    "hypot"
+    "add_slice3"
+    "prod_fiber3"
+    )
 
 # Add target for local coverage
 if(BUILD_COVERAGE)
@@ -121,4 +139,5 @@ foreach(test IN LISTS TESTS_MPI)
         LABELS ${labels} MPI
         )
 endforeach()
+
 

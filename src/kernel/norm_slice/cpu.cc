@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-05
+ * @date 2023-07-07
  * */
 
 #include "nntile/kernel/norm_slice/cpu.hh"
@@ -54,7 +54,7 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
             // Pointer to a corresponding fiber of the source array src
             const T *src_fiber = src + i2*mk + i1;
             // Init norm of the fiber
-            T norm_max = zero, norm_ssq = zero;
+            T norm_max = zero, norm_ssq = zero, c = zero, y, t;
             // Output value
             T &result = dst[i2*m+i1];
             // Cycle over fiber elements and accumulate the norm
@@ -68,28 +68,56 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
                     if(norm_max >= val)
                     {
                         T tmp1 = val / norm_max;
-                        norm_ssq += tmp1 * tmp1;
+                        //norm_ssq += tmp1 * tmp1;
+                        y = tmp1*tmp1 - c;
+                        t = norm_ssq + y;
+                        c = (t-norm_ssq) - y;
+                        norm_ssq = t;
                     }
                     else
                     {
                         T tmp1 = norm_max / val;
                         T tmp2 = tmp1 * tmp1;
-                        norm_ssq = one + norm_ssq*tmp2;
+                        y = one - c*tmp2;
+                        norm_ssq *= tmp2;
+                        t = norm_ssq + y;
+                        c = (t-norm_ssq) - y;
+                        norm_ssq = t;
                         norm_max = val;
                     }
                 }
             }
             // Get the scaled norm
             norm_max *= alpha;
-            T norm = norm_max * std::sqrt(norm_ssq);
+            //T norm = norm_max * std::sqrt(norm_ssq);
             // Update output value
             if(beta == zero)
             {
-                result = norm;
+                //result = norm;
+                result = norm_max * std::sqrt(norm_ssq);
             }
+            else if(norm_max > 0)
+            {
+                //result = std::hypot(beta*result, norm);
+                T tmp_res = std::abs(beta * result);
+                if(norm_max >= tmp_res)
+                {
+                    T tmp1 = tmp_res / norm_max;
+                    result = norm_max * std::sqrt((tmp1*tmp1-c)+norm_ssq);
+                }
+                else
+                {
+                    T tmp1 = norm_max / tmp_res;
+                    T tmp2 = tmp1 * tmp1;
+                    c *= tmp2;
+                    norm_ssq *= tmp2;
+                    result = tmp_res * std::sqrt((one-c)+norm_ssq);
+                }
+            }
+            // norm_max==0
             else
             {
-                result = std::hypot(beta*result, norm);
+                result = std::abs(beta * result);
             }
         }
     }

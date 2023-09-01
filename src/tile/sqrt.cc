@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @author Aleksandr Mikhalev
+ * @date 2023-07-01
  * */
 
 #include "nntile/tile/sqrt.hh"
@@ -24,35 +25,36 @@ namespace tile
 /*! @param[inout] A: Tile for the element-wise sqrt operation
  * */
 template<typename T>
-void sqrt_async(const Tile<T> &A)
+void sqrt_async(const Tile<T> &src, const Tile<T> &dst)
 {
     // Submit task without any arguments checked
-    starpu::sqrt::submit<T>(A.nelems, A);
+    starpu::sqrt::submit<T>(src.nelems, src, dst);
 }
 
 //! Blocking version of tile-wise sqrt operation
 /*! @param[inout] A: Tile for the element-wise sqrt operation
  * */
 template<typename T>
-void sqrt(const Tile<T> &A)
+void sqrt(const Tile<T> &src, const Tile<T> &dst)
 {
-    sqrt_async<T>(A);
+    sqrt_async<T>(src, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void sqrt_async<fp32_t>(const Tile<fp32_t> &A);
+void sqrt_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void sqrt_async<fp64_t>(const Tile<fp64_t> &A);
+void sqrt_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 // Explicit instantiation
 template
-void sqrt<fp32_t>(const Tile<fp32_t> &A);
+void sqrt<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void sqrt<fp64_t>(const Tile<fp64_t> &A);
+void sqrt<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 } // namespace tile
 } // namespace nntile
+

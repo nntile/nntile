@@ -9,12 +9,16 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-10
+ * @date 2023-06-20
  * */
 
 #pragma once
 
 #include <nntile/kernel/embedding_backward/cpu.hh>
+#include <nntile/defs.h>
+#ifdef NNTILE_USE_CUDA
+#include <nntile/kernel/embedding_backward/cuda.hh>
+#endif // NNTILE_USE_CUDA
 
 namespace nntile
 {

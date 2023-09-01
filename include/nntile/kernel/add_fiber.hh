@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-28
+ * @date 2023-06-20
  * */
 
 #pragma once
@@ -17,7 +17,7 @@
 #include <nntile/kernel/add_fiber/cpu.hh>
 //#include <nntile/defs.h>
 #ifdef NNTILE_USE_CUDA
-//#include <nntile/kernel/add_fiber/cuda.hh>
+#include <nntile/kernel/add_fiber/cuda.hh>
 #endif // NNTILE_USE_CUDA
 
 namespace nntile

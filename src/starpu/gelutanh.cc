@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,11 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-25
+ * @date 2023-07-01
  * */
 
 #include "nntile/starpu/gelutanh.hh"
 #include "nntile/kernel/gelutanh.hh"
+#include <cstdlib>
 
 namespace nntile
 {
@@ -31,9 +32,10 @@ void cpu(void *buffers[], void *cl_args)
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    T *data = interfaces[0]->get_ptr<T>();
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::gelutanh::cpu<T>(nelems, data);
+    kernel::gelutanh::cpu<T>(nelems, src, dst);
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -46,11 +48,12 @@ void cuda(void *buffers[], void *cl_args)
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    T *data = interfaces[0]->get_ptr<T>();
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::gelutanh::cuda<T>(stream, nelems, data);
+    kernel::gelutanh::cuda<T>(stream, nelems, src, dst);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -91,12 +94,15 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index nelems, Handle data)
+void submit(Index nelems, Handle src, Handle dst)
 {
-    Index *nelems_ = new Index{nelems};
+    // Codelet arguments
+    Index *nelems_ = (Index *)std::malloc(sizeof(*nelems_));
+    *nelems_ = nelems;
     //fp64_t nflops = 5 * nelems;
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_RW, static_cast<starpu_data_handle_t>(data),
+            STARPU_R, static_cast<starpu_data_handle_t>(src),
+            STARPU_W, static_cast<starpu_data_handle_t>(dst),
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
             //STARPU_FLOPS, nflops,
             0);
@@ -109,10 +115,10 @@ void submit(Index nelems, Handle data)
 
 // Explicit instantiaion
 template
-void submit<fp32_t>(Index nelems, Handle data);
+void submit<fp32_t>(Index nelems, Handle src, Handle dst);
 
 template
-void submit<fp64_t>(Index nelems, Handle data);
+void submit<fp64_t>(Index nelems, Handle src, Handle dst);
 
 } // namespace gelutanh
 } // namespace starpu

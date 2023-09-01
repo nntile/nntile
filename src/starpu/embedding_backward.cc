@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-21
+ * @date 2023-07-16
  * */
 
 #include "nntile/starpu/embedding_backward.hh"
@@ -39,6 +39,27 @@ void cpu(void *buffers[], void *cl_args)
             args->k_start, args->k_size, index, embed, vocab);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! Copy embedding from vocabulary within StarPU buffers on CUDA
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const Index *index = interfaces[0]->get_ptr<Index>();
+    const T *embed = interfaces[1]->get_ptr<T>();
+    T *vocab = interfaces[2]->get_ptr<T>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Accumulate vocab gradients
+    kernel::embedding_backward::cuda<T>(stream, args->m, args->n, args->k,
+            args->k_start, args->k_size, index, embed, vocab);
+}
+#endif // NNTILE_USE_CUDA
+
 //! Footprint for embedding tasks that depends only on cl_arg
 static
 uint32_t footprint(struct starpu_task *task)
@@ -61,12 +82,20 @@ void init()
     codelet_fp32.init("nntile_embedding_backward_fp32",
             footprint,
             {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
             {}
+#endif // NNTILE_USE_CUDA
             );
     codelet_fp64.init("nntile_embedding_backward_fp64",
             footprint,
             {cpu<fp64_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
             {}
+#endif // NNTILE_USE_CUDA
             );
 }
 
@@ -104,6 +133,7 @@ void submit(Index m, Index n, Index k, Index k_start, Index k_size,
             STARPU_R, static_cast<starpu_data_handle_t>(index),
             STARPU_R, static_cast<starpu_data_handle_t>(embed),
             STARPU_RW, static_cast<starpu_data_handle_t>(vocab),
+            //Config::STARPU_RW_COMMUTE, static_cast<starpu_data_handle_t>(vocab),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
             0);

@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,11 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-09
+ * @date 2023-07-02
  * */
 
 #include "nntile/starpu/softmax.hh"
 #include "nntile/kernel/softmax.hh"
+#include <cstdlib>
 
 namespace nntile
 {
@@ -32,9 +33,10 @@ void cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *maxsumexp = interfaces[0]->get_ptr<T>();
-    T *dst = interfaces[1]->get_ptr<T>();
+    const T *src = interfaces[1]->get_ptr<T>();
+    T *dst = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::softmax::cpu<T>(args->m, args->n, args->k, maxsumexp, dst);
+    kernel::softmax::cpu<T>(args->m, args->n, args->k, maxsumexp, src, dst);
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -48,12 +50,13 @@ void cuda(void *buffers[], void *cl_args)
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *maxsumexp = interfaces[0]->get_ptr<T>();
-    T *dst = interfaces[1]->get_ptr<T>();
+    const T *src = interfaces[1]->get_ptr<T>();
+    T *dst = interfaces[2]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     kernel::softmax::cuda<T>(stream, args->m, args->n, args->k, maxsumexp,
-            dst);
+            src, dst);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -111,7 +114,8 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, Handle maxsumexp, Handle dst)
+void submit(Index m, Index n, Index k, Handle maxsumexp, Handle src,
+        Handle dst)
 //! Insert softmax task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -119,16 +123,15 @@ void submit(Index m, Index n, Index k, Handle maxsumexp, Handle dst)
  * */
 {
     // Codelet arguments
-    auto args = new args_t
-    {
-        .m = m,
-        .n = n,
-        .k = k
-    };
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    args->m = m;
+    args->n = n;
+    args->k = k;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(maxsumexp),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
+            STARPU_R, static_cast<starpu_data_handle_t>(src),
+            STARPU_W, static_cast<starpu_data_handle_t>(dst),
             STARPU_CL_ARGS, args, sizeof(*args),
             //STARPU_FLOPS, nflops,
             0);
@@ -141,10 +144,12 @@ void submit(Index m, Index n, Index k, Handle maxsumexp, Handle dst)
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index m, Index n, Index k, Handle maxsumexp, Handle dst);
+void submit<fp32_t>(Index m, Index n, Index k, Handle maxsumexp, Handle src,
+        Handle dst);
 
 template
-void submit<fp64_t>(Index m, Index n, Index k, Handle maxsumexp, Handle dst);
+void submit<fp64_t>(Index m, Index n, Index k, Handle maxsumexp, Handle src,
+        Handle dst);
 
 } // namespace softmax
 } // namespace starpu

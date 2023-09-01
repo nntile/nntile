@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2023-07-09
  * */
 
 #include "nntile/kernel/gelutanh/cpu.hh"
@@ -23,7 +23,7 @@ namespace gelutanh
 {
 
 template<typename T>
-void cpu(Index nelems, T *data)
+void cpu(Index nelems, const T *src, T *dst)
     noexcept
 //! Approximate GeLU operation on CPU
 /*! Applies the following approximation of the GeLU function:
@@ -34,7 +34,8 @@ void cpu(Index nelems, T *data)
  * AGeLU(z) = z / (1+exp(f(z))
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data: Buffer to apply GeLU
+ * @params[in] src: Input buffer to apply GeLU
+ * @params[out] dst: Output buffer to apply GeLU
  * */
 {
     // Constants
@@ -45,19 +46,26 @@ void cpu(Index nelems, T *data)
         f2 = sqrt_2/sqrt_pi, f3 = -T{2}*f2, f4 = f3*f1;
     for(Index i = 0; i < nelems; ++i)
     {
-        T z = data[i];
-        T y = z * (f3 + f4*z*z);
-        data[i] = z / (one+std::exp(y));
+        T z = src[i];
+        //T y = z * (f3 + f4*z*z);
+        //dst[i] = z / (one+std::exp(y));
+        T y1 = f4 * z * z;
+        T y2 = f3 + y1;
+        T c = y1 - (y2-f3);
+        y2 *= z;
+        c *= z;
+        T y3 = one + std::exp(c)*std::exp(y2);
+        dst[i] = z / y3;
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index nelems, fp32_t *data)
+void cpu<fp32_t>(Index nelems, const fp32_t *src, fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index nelems, fp64_t *data)
+void cpu<fp64_t>(Index nelems, const fp64_t *src, fp64_t *dst)
     noexcept;
 
 } // namespace gelutanh

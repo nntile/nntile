@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-07
+ * @date 2023-07-07
  * */
 
 #include "nntile/kernel/maxsumexp/cpu.hh"
@@ -42,8 +42,8 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
  * @param[in] n: Size of the last mode of src and sumnorm arrays
  * @param[in] k: Size of the middle mode of src array
  * @param[in] src: Input contiguous m-by-k-by-n array
- * @param[inout] maxsumexp: Output contiguous 2-by-m-by-n array, that accumulates
- *      maximums and sums of exponents of slices along middle axis.
+ * @param[inout] maxsumexp: Output contiguous 2-by-m-by-n array, that
+ *      accumulates maximums and sums of exponents of slices along middle axis.
  * */
 {
     const Index mk = m * k;
@@ -57,34 +57,73 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
         {
             // Get max and sum of exponents of a corresponding slice
             const T *src_slice = src + i2*mk + i1;
-            // Init max and sum
-            T max = maxsumexp[dst_offset];
-            T sum = maxsumexp[dst_offset+1];
-            // Check if sum is zero, which means values were not yet
-            // initialized. Just initialize maximum value in this case.
-            if(sum == zero)
-            {
-                max = src_slice[0];
-            }
+            // Init max and sum with the first value
+            T max = src_slice[0];
+            T sum = one, c = zero, y, t;
             // Cycle over slice of input buffer
-            for(Index i0 = 0; i0 < k; ++i0)
+            for(Index i0 = 1; i0 < k; ++i0)
             {
                 // Read value from source
                 T val = src_slice[i0*m];
+                // Ignore -inf value, which comes from mask
+                if(std::isinf(val))
+                {
+                    continue;
+                }
                 // Update max and sum of exponents
                 if(max < val)
                 {
-                    sum = sum*std::exp(max-val) + one;
+                    //sum = sum*std::exp(max-val) + one;
+                    T tmp = std::exp(max-val);
+                    y = one - c*tmp;
+                    sum *= tmp;
+                    t = sum + y;
+                    c = (t-sum) - y;
+                    sum = t;
                     max = val;
                 }
                 else
                 {
-                    sum += std::exp(val-max);
+                    //sum += std::exp(val-max);
+                    y = std::exp(val-max) - c;
+                    t = sum + y;
+                    c = (t-sum) - y;
+                    sum = t;
                 }
             }
-            // Save result
-            maxsumexp[dst_offset] = max;
-            maxsumexp[dst_offset+1] = sum;
+            // Save result, do nothing if all elements are masked out
+            if(not std::isinf(max))
+            {
+                T sum_old = maxsumexp[dst_offset+1];
+                // If old sum is zero then just overwrite it with current sum
+                if(sum_old == zero)
+                {
+                    maxsumexp[dst_offset] = max;
+                    maxsumexp[dst_offset+1] = sum;
+                }
+                // Update non-zero initial sum
+                else
+                {
+                    T max_old = maxsumexp[dst_offset];
+                    if(max_old < max)
+                    {
+                        maxsumexp[dst_offset] = max;
+                        maxsumexp[dst_offset+1] = sum_old*std::exp(max_old-max)
+                            + sum;
+                        y = sum_old*std::exp(max_old-max) - c;
+                        maxsumexp[dst_offset+1] = sum + y;
+                    }
+                    else
+                    {
+                        maxsumexp[dst_offset+1] = sum*std::exp(max-max_old)
+                            + sum_old;
+                        T tmp = std::exp(max-max_old);
+                        y = sum_old - c*tmp;
+                        sum *= tmp;
+                        maxsumexp[dst_offset+1] = sum + y;
+                    }
+                }
+            }
             dst_offset += 2;
         }
     }

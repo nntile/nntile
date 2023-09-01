@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,11 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-10-25
+ * @date 2023-07-01
  * */
 
 #include "nntile/kernel/dgelutanh.hh"
-#include "nntile/kernel/gelutanh.hh"
+#include "nntile/kernel/gelutanh_inplace.hh"
 #include "../testing.hh"
 #include <vector>
 #include <stdexcept>
@@ -154,8 +154,8 @@ void validate(Index nelems)
         data2[i] += h/2;
         data3[i] -= h/2;
     }
-    gelutanh::cpu<T>(nelems, &data2[0]);
-    gelutanh::cpu<T>(nelems, &data3[0]);
+    gelutanh_inplace::cpu<T>(nelems, &data2[0]);
+    gelutanh_inplace::cpu<T>(nelems, &data3[0]);
     for(Index i = 0; i < nelems; ++i)
     {
         T num_x = inv_h * (data2[i]-data3[i]);

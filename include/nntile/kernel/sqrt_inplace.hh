@@ -1,0 +1,37 @@
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
+ *                           (Skoltech). All rights reserved.
+ *
+ * NNTile is software framework for fast training of big neural networks on
+ * distributed-memory heterogeneous systems based on StarPU runtime system.
+ *
+ * @file include/nntile/kernel/sqrt_inplace.hh
+ * Inplace sqrt low-level kernel
+ *
+ * @version 1.0.0
+ * @author Aleksandr Katrutsa
+ * @author Aleksandr Mikhalev
+ * @date 2023-07-01
+ * */
+
+#pragma once
+
+#include <nntile/kernel/sqrt_inplace/cpu.hh>
+#include <nntile/defs.h>
+#ifdef NNTILE_USE_CUDA
+#include <nntile/kernel/sqrt_inplace/cuda.hh>
+#endif // NNTILE_USE_CUDA
+
+namespace nntile
+{
+namespace kernel
+{
+//! @namespace nntile::kernel::sqrt_inplace
+/*! Low-level implementations of inplace sqrt operation
+ * */
+namespace sqrt_inplace
+{
+
+} // namespace sqrt_inplace
+} // namespace kernel
+} // namespace nntile
+

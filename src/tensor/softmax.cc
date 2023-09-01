@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-12
+ * @date 2023-07-02
  * */
 
 #include "nntile/tensor/softmax.hh"
@@ -21,13 +21,17 @@ namespace tensor
 {
 
 template<typename T>
-void softmax_async(const Tensor<T> &maxsumexp, const Tensor<T> &dst,
-        Index axis)
+void softmax_async(const Tensor<T> &maxsumexp, const Tensor<T> &src,
+        const Tensor<T> &dst, Index axis)
 {
     // Check inputs
     if(maxsumexp.ndim != dst.ndim)
     {
         throw std::runtime_error("maxsumexp.ndim != dst.ndim");
+    }
+    if(src.ndim != dst.ndim)
+    {
+        throw std::runtime_error("src.ndim != dst.ndim");
     }
     // Input shape dimension shall be at least 1
     if(maxsumexp.ndim == 0)
@@ -76,6 +80,14 @@ void softmax_async(const Tensor<T> &maxsumexp, const Tensor<T> &dst,
                     "maxsumexp.basetile_shape[i]");
         }
     }
+    if(src.shape != dst.shape)
+    {
+        throw std::runtime_error("src.shape != dst.shape");
+    }
+    if(src.basetile_shape != dst.basetile_shape)
+    {
+        throw std::runtime_error("src.basetile_shape != dst.basetile_shape");
+    }
     // Prepare
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_size = starpu_mpi_world_size();
@@ -108,10 +120,13 @@ void softmax_async(const Tensor<T> &maxsumexp, const Tensor<T> &dst,
             Index dst_tile_offset = dst.grid.index_to_linear(dst_tile_index);
             // Get destination tile handle
             auto dst_tile_handle = dst.get_tile_handle(dst_tile_offset);
+            // Get source tile handle
+            auto src_tile_handle = src.get_tile_handle(dst_tile_offset);
             // MPI rank of the destination tile
             int dst_tile_rank = dst_tile_handle.mpi_get_rank();
             // Transfer data
             maxsumexp_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
+            src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
             // Execute on destination node
             if(mpi_rank == dst_tile_rank)
             {
@@ -142,7 +157,7 @@ void softmax_async(const Tensor<T> &maxsumexp, const Tensor<T> &dst,
                 }
                 // Insert corresponding task
                 starpu::softmax::submit<T>(m, n, k, maxsumexp_tile_handle,
-                        dst_tile_handle);
+                        src_tile_handle, dst_tile_handle);
             }
             // Flush cache for the output tile on every node
             dst_tile_handle.mpi_flush();
@@ -151,9 +166,10 @@ void softmax_async(const Tensor<T> &maxsumexp, const Tensor<T> &dst,
 }
 
 template<typename T>
-void softmax(const Tensor<T> &maxsumexp, const Tensor<T> &dst, Index axis)
+void softmax(const Tensor<T> &maxsumexp, const Tensor<T> &src,
+        const Tensor<T> &dst, Index axis)
 {
-    softmax_async<T>(maxsumexp, dst, axis);
+    softmax_async<T>(maxsumexp, src, dst, axis);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -161,20 +177,20 @@ void softmax(const Tensor<T> &maxsumexp, const Tensor<T> &dst, Index axis)
 // Explicit instantiation
 template
 void softmax_async<fp32_t>(const Tensor<fp32_t> &maxsumexp,
-        const Tensor<fp32_t> &dst, Index axis);
+        const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst, Index axis);
 
 template
 void softmax_async<fp64_t>(const Tensor<fp64_t> &maxsumexp,
-        const Tensor<fp64_t> &dst, Index axis);
+        const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst, Index axis);
 
 // Explicit instantiation
 template
 void softmax<fp32_t>(const Tensor<fp32_t> &maxsumexp,
-        const Tensor<fp32_t> &dst, Index axis);
+        const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst, Index axis);
 
 template
 void softmax<fp64_t>(const Tensor<fp64_t> &maxsumexp,
-        const Tensor<fp64_t> &dst, Index axis);
+        const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst, Index axis);
 
 } // namespace tensor
 } // namespace nntile

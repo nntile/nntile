@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-02
+ * @date 2023-07-21
  * */
 
 #include "nntile/tensor/add_fiber.hh"
@@ -83,11 +83,11 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     Tensor<T> src(src_traits, src_distr, last_tag);
     scatter<T>(src_single, src);
     // Perform tensor-wise and tile-wise add_fiber operations
-    add_fiber<T>(-1.0, src, 0.5, dst, axis);
+    add_fiber<T>(-1.0, src, 0.5, dst, axis, 0);
     if(mpi_rank == mpi_root)
     {
         tile::add_fiber<T>(-1.0, src_single.get_tile(0), 0.5,
-                dst_single.get_tile(0), axis);
+                dst_single.get_tile(0), axis, 0);
     }
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
@@ -127,13 +127,13 @@ void validate()
     std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0};
     Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
         C(trC, dist0, last_tag);
-    TEST_THROW(add_fiber<T>(1.0, A, 0.0, A, 0));
-    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, -1));
-    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, 2));
-    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, 0));
-    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, 1));
-    TEST_THROW(add_fiber<T>(1.0, C, 0.0, A, 0));
-    TEST_THROW(add_fiber<T>(1.0, C, 0.0, A, 1));
+    TEST_THROW(add_fiber<T>(1.0, A, 0.0, A, 0, 0));
+    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, -1, 0));
+    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, 2, 0));
+    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, 0, 0));
+    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, 1, 0));
+    TEST_THROW(add_fiber<T>(1.0, C, 0.0, A, 0, 0));
+    TEST_THROW(add_fiber<T>(1.0, C, 0.0, A, 1, 0));
 }
 
 int main(int argc, char **argv)

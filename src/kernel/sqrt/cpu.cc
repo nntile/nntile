@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @author Aleksandr Mikhalev
+ * @date 2023-07-01
  * */
 
 #include "nntile/kernel/sqrt/cpu.hh"
@@ -23,27 +24,28 @@ namespace sqrt
 {
 
 template<typename T>
-void cpu(Index nelems, T *data)
+void cpu(Index nelems, const T *src, T *dst)
     noexcept
-//! Inplace sqrt operation on CPU
+//! Sqrt operation on CPU
 /*
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data: Buffer to apply sqrt
+ * @params[in] src: Input buffer to apply sqrt
+ * @params[out] dst: Output buffer to apply sqrt
  * */
 {
     for(Index i = 0; i < nelems; ++i)
     {
-        data[i] = std::sqrt(data[i]);
+        dst[i] = std::sqrt(src[i]);
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index nelems, fp32_t *data)
+void cpu<fp32_t>(Index nelems, const fp32_t *src, fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index nelems, fp64_t *data)
+void cpu<fp64_t>(Index nelems, const fp64_t *src, fp64_t *dst)
     noexcept;
 
 } // namespace sqrt

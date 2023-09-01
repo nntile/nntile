@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-06
+ * @author Aleksandr Katrutsa
+ * @date 2023-06-29
  * */
 
 #pragma once
@@ -33,6 +34,9 @@ class fp16_t
 private:
     int16_t _;
 };
+
+// Boolean type for mask
+using bool_t = bool;
 
 // Add more types like fp16_t, bf16_t and tf32_t in the future
 

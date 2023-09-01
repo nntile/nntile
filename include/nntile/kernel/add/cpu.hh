@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-05-08
+ * @date 2023-07-01
  * */
 
 #pragma once
@@ -26,7 +26,7 @@ namespace add
 
 // Apply add for buffers on CPU
 template<typename T>
-void cpu(Index num_elements, T alpha, const T* src, T beta, T* dst)
+void cpu(Index nelems, T alpha, const T* src, T beta, T* dst)
     noexcept;
 
 } // namespace add

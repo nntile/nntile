@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-28
+ * @date 2023-07-21
  * */
 
 #pragma once
@@ -25,7 +25,8 @@ namespace add_fiber
 
 // Per-element addition of a tensor and a broadcasted fiber on CPU
 template<typename T>
-void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
+void cpu(Index m, Index n, Index k, Index batch, T alpha, const T *src, T beta,
+        T *dst)
     noexcept;
 
 } // namespace add_fiber

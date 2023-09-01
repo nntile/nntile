@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-03
+ * @date 2023-07-06
  * */
 
 #include "nntile/kernel/softmax/cuda.hh"
@@ -23,30 +23,41 @@ namespace softmax
 
 template<typename T>
 static __global__
-void cuda_kernel(Index m, Index n, Index k, Index mk, const T *maxsumexp,
-        T *dst)
+void cuda_kernel(Index m, Index n, Index k, const T * __restrict__ maxsumexp,
+        const T * __restrict__ src, T * __restrict__ dst)
 {
-    int i1 = threadIdx.x + blockIdx.x*blockDim.x,
-        i2 = threadIdx.y + blockIdx.y*blockDim.y;
-    // Check column index of output buffer
-    if(i2 < n)
+    Index i0 = threadIdx.y + blockIdx.y*blockDim.y,
+          i1 = threadIdx.z + blockIdx.z*blockDim.z,
+          i2_start = threadIdx.x, i2_step = blockDim.x;
+    constexpr T zero = 0.0;
+    if(i0 < m and i1 < n)
     {
-        // Check row index of output buffer
-        if(i1 < m)
+        // Offset in memory for src and dst
+        Index src_dst_offset = i1*k*m + i0;
+        // Input and output fiber/slice
+        const T *src_slice = src + src_dst_offset;
+        T *dst_slice = dst + src_dst_offset;
+        // Max and sum of exponents
+        __shared__ T max, sum;
+        if(i2_start == 0)
         {
-            // Output fiber
-            T *dst_fiber = dst + i2*mk + i1;
-            // Max and sum of exponents
-            Index src_offset = 2 * (i1+i2*m);
-            T max = maxsumexp[src_offset];
-            T sum = maxsumexp[src_offset+1];
-            // Cycle over output fiber
-            for(Index i0 = 0; i0 < k; ++i0)
+            Index maxsumexp_offset = m*i1 + i0;
+            max = maxsumexp[2*maxsumexp_offset];
+            sum = maxsumexp[2*maxsumexp_offset+1];
+        }
+        __syncthreads();
+        for(Index i2 = i2_start; i2 < k; i2 += i2_step)
+        {
+            // Value-to-update
+            T val = src_slice[i2*m];
+            // Update value
+            if(not ::isinf(val))
             {
-                // Value-to-update
-                T &val = dst_fiber[i0*m];
-                // Update value
-                val = exp(val-max) / sum;
+                dst_slice[i2*m] = ::exp(val-max) / sum;
+            }
+            else
+            {
+                dst_slice[i2*m] = zero;
             }
         }
     }
@@ -54,7 +65,7 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, const T *maxsumexp,
 
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
-        T *dst)
+        const T *src, T *dst)
     noexcept
 //! Softmax of a buffer along middle axis
 /*!
@@ -67,20 +78,21 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 blocks((m+15)/16, (n+15)/16), threads(16, 16);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, maxsumexp,
+    dim3 threads(32, 1, 1);
+    dim3 blocks(1, m, n);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, maxsumexp, src,
             dst);
 }
 
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
-        const fp32_t *maxsumexp, fp32_t *dst)
+        const fp32_t *maxsumexp, const fp32_t *src, fp32_t *dst)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
-        const fp64_t *maxsumexp, fp64_t *dst)
+        const fp64_t *maxsumexp, const fp64_t *src, fp64_t *dst)
     noexcept;
 
 } // namespace softmax

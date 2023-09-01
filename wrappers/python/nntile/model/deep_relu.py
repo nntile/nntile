@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-05-06
+# @date 2023-07-13
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         notrans, trans, Tensor_fp32
@@ -42,46 +42,33 @@ class DeepReLU(BaseModel):
         activations = [x]
         layers = []
         # Initial linear layer that converts input to internal shape
-        new_layer, next_tag = Linear.generate_simple_mpiroot(x, side, \
-                notrans, ndim, [add_shape], [add_basetile_shape], next_tag, \
+        new_layer, next_tag = Linear.generate_simple(x, side, notrans, ndim, \
+                [add_shape], [add_basetile_shape], next_tag, \
                 fp32_fast_fp16, fp32_convert_fp16)
         self.fp32_fast_fp16 = new_layer.fp32_fast_fp16
         self.fp32_convert_fp16 = new_layer.fp32_convert_fp16
-        print("Layer 0 shape", new_layer.w.value.shape, \
-                new_layer.y.value.shape)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
-        #new_layer, next_tag = Act.generate_simple(activations[-1], "relu", \
-        #        next_tag)
-        #layers.append(new_layer)
-        #activations.extend(new_layer.activations_output)
+        new_layer, next_tag = Act.generate_simple(activations[-1], "relu", \
+                next_tag)
+        layers.append(new_layer)
+        activations.extend(new_layer.activations_output)
         # Internal linear layers with the same internal shape
         for i in range(1, nlayers-1):
-            new_layer, next_tag = Linear.generate_simple_mpiroot( \
+            new_layer, next_tag = Linear.generate_simple( \
                     activations[-1], side, notrans, 1, [add_shape], \
                     [add_basetile_shape], next_tag, fp32_fast_fp16, \
                     fp32_convert_fp16)
-            print("Layer {} shape".format(i), new_layer.w.value.shape, \
-                    new_layer.y.value.shape)
             layers.append(new_layer)
             activations.extend(new_layer.activations_output)
-            #new_layer, next_tag = Act.generate_simple(activations[-1], \
-            #        "relu", next_tag)
-            #layers.append(new_layer)
-            #activations.extend(new_layer.activations_output)
+            new_layer, next_tag = Act.generate_simple(activations[-1], \
+                    "relu", next_tag)
+            layers.append(new_layer)
+            activations.extend(new_layer.activations_output)
         # Finalizing linear layer that converts result back to proper shape
-        # if side == 'L':
-        #     new_shape = x.value.shape[-ndim:]
-        #     new_base = x.value.basetile_shape[-ndim:]
-        # else:
-        #     new_shape = x.value.shape[:ndim]
-        #     new_base = x.value.basetile_shape[:ndim]
-
-        new_layer, next_tag = Linear.generate_simple_mpiroot(activations[-1], \
+        new_layer, next_tag = Linear.generate_simple(activations[-1], \
                 side, notrans, 1, [n_classes], [n_classes], next_tag, \
                 fp32_fast_fp16, fp32_convert_fp16)
-        print("Last layer shape", new_layer.w.value.shape, \
-                new_layer.y.value.shape)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         self.next_tag = next_tag
@@ -93,12 +80,14 @@ class DeepReLU(BaseModel):
         for l in self.layers:
             if type(l) is Linear:
                 l.init_randn_async()
+
     @staticmethod
-    def from_torch(torch_mlp, batch_size: int, n_classes: int, nonlinearity: str, next_tag: int):
+    def from_torch(torch_mlp, batch_size: int, n_classes: int, \
+            nonlinearity: str, next_tag: int):
         '''
-        torch_mlp is PyTorch MLP where all intermediate dimensions are the same and no biases in linear layers
+        torch_mlp is PyTorch MLP where all intermediate dimensions are the \
+                same and no biases in linear layers
         '''
-        print("Call from torch static method")
         gemm_ndim = 1
         n_layers = len(list(torch_mlp.parameters()))
         for i, p in enumerate(torch_mlp.parameters()):
@@ -109,11 +98,10 @@ class DeepReLU(BaseModel):
                 print(p.shape, hidden_layer_dim)
                 raise ValueError("PyTorch model has different hidden dims")
             if i == n_layers - 1 and p.shape[0] != n_classes:
-                raise ValueError("Last layer of PyTorch model does not correspond to the target number of classes")
+                raise ValueError("Last layer of PyTorch model does not " \
+                        "correspond to the target number of classes")
         hidden_layer_dim_tile = hidden_layer_dim
-
-        x_traits = TensorTraits([batch_size, n_pixels], \
-        [batch_size, n_pixels])
+        x_traits = TensorTraits([batch_size, n_pixels], [batch_size, n_pixels])
         x_distr = [0] * x_traits.grid.nelems
         x = Tensor_fp32(x_traits, x_distr, next_tag)
         next_tag = x.next_tag
@@ -121,10 +109,11 @@ class DeepReLU(BaseModel):
         x_grad_required = False
         x_moments = TensorMoments(x, x_grad, x_grad_required)
         if nonlinearity == "relu":
-            mlp_nntile = DeepReLU(x_moments, 'L', gemm_ndim, hidden_layer_dim,
-            hidden_layer_dim_tile, n_layers, n_classes, next_tag)
-            for p, p_torch in zip(mlp_nntile.parameters, torch_mlp.parameters()):
+            mlp_nntile = DeepReLU(x_moments, 'L', gemm_ndim, \
+                    hidden_layer_dim, hidden_layer_dim_tile, n_layers, \
+                    n_classes, next_tag)
+            for p, p_torch in \
+                    zip(mlp_nntile.parameters, torch_mlp.parameters()):
                 p.value.from_array(p_torch.detach().numpy().T)
             return mlp_nntile, mlp_nntile.next_tag
-
 

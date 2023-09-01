@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-02
+ * @date 2023-06-20
  * */
 
 #include "nntile/starpu/sumprod_fiber.hh"
@@ -40,6 +40,27 @@ void cpu(void *buffers[], void *cl_args)
             src1, src2, args->beta, dst);
 }
 
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::sumprod_fiber::cuda<T>
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const T *src1 = interfaces[0]->get_ptr<T>();
+    const T *src2 = interfaces[1]->get_ptr<T>();
+    T *dst = interfaces[2]->get_ptr<T>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Launch kernel
+    kernel::sumprod_fiber::cuda<T>(stream, args->m, args->n, args->k,
+            args->alpha, src1, src2, args->beta, dst);
+}
+#endif // NNTILE_USE_CUDA
+
 //! Footprint for sumprod_fiber tasks
 template<typename T>
 static
@@ -64,7 +85,7 @@ void init()
             footprint<fp32_t>,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
-            {}
+            {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -73,7 +94,7 @@ void init()
             footprint<fp64_t>,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
-            {}
+            {cuda<fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA

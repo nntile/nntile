@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/kernel/prod_fiber.cc
- * Per-element multiplication of a tensor by a broadcasted fiber on CPU
+ * Per-element multiplication of a tensor by a broadcasted fiber
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-02
+ * @date 2023-07-03
  * */
 
 #include <iostream>

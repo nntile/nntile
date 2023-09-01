@@ -5,11 +5,12 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/kernel/sqrt/cpu.hh
- * sqrt operation on CPU
+ * Sqrt operation on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @author Aleksandr Mikhalev
+ * @date 2023-07-01
  * */
 
 #pragma once
@@ -23,9 +24,9 @@ namespace kernel
 namespace sqrt
 {
 
-// ReLU operation on a buffer
+// Sqrt operation on a buffer
 template<typename T>
-void cpu(Index nelems, T *data)
+void cpu(Index nelems, const T *src, T *dst)
     noexcept;
 
 } // namespace sqrt

@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-05-09
+ * @date 2023-07-22
  * */
 
 #include "nntile/starpu/add_scalar.hh"
@@ -41,42 +41,54 @@ void cpu(void *buffers[], void *cl_args)
 
 #ifdef NNTILE_USE_CUDA
 //! Apply add_scalar for StarPU buffers on CUDA
-// template<typename T>
-// void cuda(void *buffers[], void *cl_args)
-//     noexcept
-// {
-//     // Get arguments
-//     auto args = reinterpret_cast<args_t<T> *>(cl_args);
-//     // Get interfaces
-//     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-//     const T *src = interfaces[0]->get_ptr<T>();
-//     T *dst = interfaces[1]->get_ptr<T>();
-//     // Get CUDA stream
-//     cudaStream_t stream = starpu_cuda_get_local_stream();
-//     // Launch kernel
-//     kernel::add_scalar::cuda<T>(stream, args->m, args->n, args->k, args->alpha, src,
-//             dst);
-// }
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    T *dst = interfaces[0]->get_ptr<T>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Launch kernel
+    kernel::add_scalar::cuda<T>(stream, args->num_elements, args->alpha, args->beta, dst);
+}
 #endif // NNTILE_USE_CUDA
+
+//! Footprint for add_fiber tasks
+template<typename T>
+static
+uint32_t footprint(struct starpu_task *task)
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
+    // Apply hash over parameters m, n and k
+    uint32_t hash = 0;
+    hash = starpu_hash_crc32c_be_n(&args->num_elements,
+            sizeof(args->num_elements), hash);
+    return hash;
+}
 
 Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
     codelet_fp32.init("nntile_add_scalar_fp32",
-            nullptr,
+            footprint<fp32_t>,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
-            {}
+            {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
     codelet_fp64.init("nntile_add_scalar_fp64",
-            nullptr,
+            footprint<fp64_t>,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
-            {}
+            {cuda<fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA

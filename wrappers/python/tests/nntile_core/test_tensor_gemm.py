@@ -38,9 +38,9 @@ def helper(dtype):
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
     A = Tensor[dtype](traits, mpi_distr, next_tag)
-    next_tag = A.next_tag;
+    next_tag = A.next_tag
     B = Tensor[dtype](traits, mpi_distr, next_tag)
-    next_tag = B.next_tag;
+    next_tag = B.next_tag
     C = Tensor[dtype](traits, mpi_distr, next_tag)
     # Set initial values of tensors
     src_A = np.array(np.random.randn(*shape), dtype=dtype, order='F')

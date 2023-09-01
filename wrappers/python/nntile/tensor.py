@@ -10,11 +10,11 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-05-03
+# @date 2023-07-22
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
-        Tensor_int64, Tensor_fp16
+        Tensor_int64, Tensor_fp16, Tensor_bool
 from .nntile_core import TransOp, notrans, trans
 from typing import Union, List
 
@@ -142,11 +142,22 @@ def gelu_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
         raise TypeError
 
 # Wrapper for multiprecision approximated GELU
-def gelutanh_async(x: Tensor) -> None:
+def gelutanh_async(x: Tensor, y: Tensor) -> None:
+    if type(x) is not type(y):
+        raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.gelutanh_async_fp32(x)
+        core_tensor.gelutanh_async_fp32(x, y)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.gelutanh_async_fp64(x)
+        core_tensor.gelutanh_async_fp64(x, y)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision approximated GELU
+def gelutanh_inplace_async(x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.gelutanh_inplace_async_fp32(x)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.gelutanh_inplace_async_fp64(x)
     else:
         raise TypeError
 
@@ -191,13 +202,15 @@ def sum_slice_async(alpha: float, x: Tensor, beta: float, sum_slice: Tensor, \
 
 # Wrapper for multiprecision sum_fiber
 def sum_fiber_async(alpha: float, x: Tensor, beta: float, sum_fiber: Tensor, \
-        axis: int) -> None:
+        axis: int, batch_ndim: int) -> None:
     if type(x) is not type(sum_fiber):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.sum_fiber_async_fp32(alpha, x, beta, sum_fiber, axis)
+        core_tensor.sum_fiber_async_fp32(alpha, x, beta, sum_fiber, axis, \
+                batch_ndim)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.sum_fiber_async_fp64(alpha, x, beta, sum_fiber, axis)
+        core_tensor.sum_fiber_async_fp64(alpha, x, beta, sum_fiber, axis, \
+                batch_ndim)
     else:
         raise TypeError
 
@@ -230,13 +243,26 @@ def sumnorm_async(x: Tensor, sumnorm: Tensor, axis: int) -> None:
         raise TypeError
 
 # Wrapper for multiprecision softmax
-def softmax_async(maxsumexp: Tensor, x: Tensor, axis: int) -> None:
+def softmax_async(maxsumexp: Tensor, x: Tensor, y: Tensor, axis: int) -> None:
+    if type(x) is not type(y):
+        raise TypeError
     if type(maxsumexp) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.softmax_async_fp32(maxsumexp, x, axis)
+        core_tensor.softmax_async_fp32(maxsumexp, x, y, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.softmax_async_fp64(maxsumexp, x, axis)
+        core_tensor.softmax_async_fp64(maxsumexp, x, y, axis)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision softmax
+def softmax_inplace_async(maxsumexp: Tensor, x: Tensor, axis: int) -> None:
+    if type(maxsumexp) is not type(x):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.softmax_inplace_async_fp32(maxsumexp, x, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.softmax_inplace_async_fp64(maxsumexp, x, axis)
     else:
         raise TypeError
 
@@ -250,6 +276,8 @@ def scatter_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:
         core_tensor.scatter_async_fp64(x, y)
     elif type(x) is core_tensor.Tensor_int64:
         core_tensor.scatter_async_int64(x, y)
+    elif type(x) is core_tensor.Tensor_bool:
+        core_tensor.scatter_async_bool(x, y)
     else:
         raise TypeError
 
@@ -332,15 +360,31 @@ def add_slice_async(alpha: float, add_slice: Tensor, beta, x: Tensor, \
     else:
         raise TypeError
 
+# Wrapper for multiprecision add_slice3
+def add_slice3_async(alpha: float, add_slice: Tensor, beta, x: Tensor, \
+        y: Tensor, axis: int) -> None:
+    if type(add_slice) is not type(x):
+        raise TypeError
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.add_slice3_async_fp32(alpha, add_slice, beta, x, y, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.add_slice3_async_fp64(alpha, add_slice, beta, x, y, axis)
+    else:
+        raise TypeError
+
 # Wrapper for multiprecision add_fiber
 def add_fiber_async(alpha: float, add_fiber: Tensor, beta, x: Tensor, \
-        axis: int) -> None:
+        axis: int, batch_ndim: int) -> None:
     if type(add_fiber) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.add_fiber_async_fp32(alpha, add_fiber, beta, x, axis)
+        core_tensor.add_fiber_async_fp32(alpha, add_fiber, beta, x, axis, \
+                batch_ndim)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.add_fiber_async_fp64(alpha, add_fiber, beta, x, axis)
+        core_tensor.add_fiber_async_fp64(alpha, add_fiber, beta, x, axis, \
+                batch_ndim)
     else:
         raise TypeError
 
@@ -368,6 +412,20 @@ def prod_fiber_async(prod_fiber: Tensor, alpha: float, x: Tensor, \
     else:
         raise TypeError
     
+# Wrapper for multiprecision prod_fiber3
+def prod_fiber3_async(prod_fiber: Tensor, alpha: float, x: Tensor, \
+        y: Tensor, axis: int) -> None:
+    if type(prod_fiber) is not type(x):
+        raise TypeError
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.prod_fiber3_async_fp32(prod_fiber, alpha, x, y, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.prod_fiber3_async_fp64(prod_fiber, alpha, x, y, axis)
+    else:
+        raise TypeError
+    
 # Wrapper for multiprecision add_scalar
 def add_scalar_async(alpha:float, beta: float, x: Tensor) -> None:
     if type(x) is core_tensor.Tensor_fp32:
@@ -387,6 +445,8 @@ def gather_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:
         core_tensor.gather_async_fp64(x, y)
     elif type(x) is core_tensor.Tensor_int64:
         core_tensor.gather_async_int64(x, y)
+    elif type(x) is core_tensor.Tensor_bool:
+        core_tensor.gather_async_bool(x, y)
     else:
         raise TypeError
 
@@ -448,11 +508,22 @@ def axpy_async(alpha: TensorOrFloat, x: Tensor, y: Tensor) -> None:
             raise TypeError
 
 # Wrapper for multiprecision square root
-def sqrt_async(x: Tensor) -> None:
+def sqrt_async(x: Tensor, y: Tensor) -> None:
+    if type(x) is not type(y):
+        raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.sqrt_async_fp32(x)
+        core_tensor.sqrt_async_fp32(x, y)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.sqrt_async_fp64(x)
+        core_tensor.sqrt_async_fp64(x, y)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision inplace square root
+def sqrt_inplace_async(x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.sqrt_inplace_async_fp32(x)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.sqrt_inplace_async_fp64(x)
     else:
         raise TypeError
 
@@ -534,21 +605,42 @@ def total_sum_accum_async(logsumexp: Tensor, src: Tensor, \
     else:
         raise TypeError
 
-def subtract_indexed_column_async(val: float, class_labels: Tensor_int64, \
+def subtract_indexed_outputs_async(val: float, class_labels: Tensor_int64, \
         dst: Tensor):
     if type(dst) is core_tensor.Tensor_fp32:
-        core_tensor.subtract_indexed_column_async_fp32(val, class_labels, dst)
+        core_tensor.subtract_indexed_outputs_async_fp32(val, class_labels, dst)
     elif type(dst) is core_tensor.Tensor_fp64:
-        core_tensor.subtract_indexed_column_async_fp64(val, class_labels, dst)
+        core_tensor.subtract_indexed_outputs_async_fp64(val, class_labels, dst)
     else:
         raise TypeError
 
 # Wrapper for multiprecision scaling
-def scal_async(alpha: float, x: Tensor) -> None:
+def scal_async(alpha: float, x: Tensor, y: Tensor) -> None:
+    if type(x) is not type(y):
+        raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.scal_async_fp32(alpha, x)
+        core_tensor.scal_async_fp32(alpha, x, y)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.scal_async_fp64(alpha, x)
+        core_tensor.scal_async_fp64(alpha, x, y)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision scaling
+def scal_inplace_async(alpha: float, x: Tensor) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.scal_inplace_async_fp32(alpha, x)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.scal_inplace_async_fp64(alpha, x)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision scaling
+def mask_scalar_async(mask: Tensor_bool, alpha: float, x: Tensor, \
+        batch_ndim: int) -> None:
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.mask_scalar_async_fp32(mask, alpha, x, batch_ndim)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.mask_scalar_async_fp64(mask, alpha, x, batch_ndim)
     else:
         raise TypeError
 
@@ -573,6 +665,45 @@ def embedding_backward_async(index: Tensor_int64, embed: Tensor, \
         core_tensor.embedding_backward_async_fp32(index, embed, vocab, axis)
     elif type(embed) is core_tensor.Tensor_fp64:
         core_tensor.embedding_backward_async_fp64(index, embed, vocab, axis)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision hypot
+def hypot_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.hypot_async_fp32(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.hypot_async_fp64(alpha, x, beta, y)
+    else:
+        raise TypeError
+
+def fused_adam_step(p: Tensor, grad: Tensor, first_moment: Tensor, second_moment: Tensor,
+                   lr: float, eps: float, beta1: float, beta2: float, weight_decay: float, num_iter: int):
+    if type(p) is not type(grad):
+        raise TypeError
+    if type(p) is not type(first_moment):
+        raise TypeError
+    if type(p) is not type(second_moment):
+        raise TypeError
+    if type(p) is core_tensor.Tensor_fp32:
+        core_tensor.adam_step_async_fp32(num_iter, beta1, beta2, eps, lr, weight_decay,
+                                         grad, first_moment, second_moment, p)
+    elif type(p) is core_tensor.Tensor_fp64:
+        core_tensor.adam_step_async_fp64(num_iter, beta1, beta2, eps, lr, weight_decay,
+                                         grad, first_moment, second_moment, p)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision transpose
+def transpose_async(alpha: float, src: Tensor, dst: Tensor, ndim: int) -> None:
+    if type(src) is not type(dst):
+        raise TypeError
+    if type(src) is core_tensor.Tensor_fp32:
+        core_tensor.transpose_async_fp32(alpha, src, dst, ndim)
+    elif type(src) is core_tensor.Tensor_fp64:
+        core_tensor.transpose_async_fp64(alpha, src, dst, ndim)
     else:
         raise TypeError
 

@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-05-08
+ * @date 2023-06-20
  * */
 
 #pragma once
@@ -18,7 +18,7 @@
 #include <nntile/kernel/add/cpu.hh>
 #include <nntile/defs.h>
 #ifdef NNTILE_USE_CUDA
-// #include <nntile/kernel/add/cuda.hh>
+#include <nntile/kernel/add/cuda.hh>
 #endif // NNTILE_USE_CUDA
 
 namespace nntile

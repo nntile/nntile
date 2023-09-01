@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-05
+ * @date 2023-07-01
  * */
 
 #include "nntile/kernel/sumprod_slice/cuda.hh"
@@ -26,31 +26,37 @@ static __global__
 void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src1,
         const T *src2, T beta, T *dst)
 {
-    Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
-          i1_start = threadIdx.y + blockIdx.y*blockDim.y,
-          i2_step = blockDim.x * gridDim.x,
-          i1_step = blockDim.y * gridDim.y;
+    Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
+          i1 = threadIdx.y + blockIdx.y*blockDim.y;
+    Index i2_start = threadIdx.z, i2_step = blockDim.z;
     constexpr T zero = 0;
-    // Cycle over column of output buffer
-    for(Index i2 = i2_start; i2 < n; i2 += i2_step)
+    if(i0 < m and i1 < n)
     {
-        // Cycle over row of output buffer
-        for(Index i1 = i1_start; i1 < m; i1 += i1_step)
+        // Get corresponding fibers of both sources
+        const T *src1_fiber = src1 + i1*mk + i0;
+        const T *src2_fiber = src2 + i1*mk + i0;
+        // Init sum of product of the fibers
+        T sum = zero;
+        // Cycle over fibers of inputs
+        for(Index i2 = i2_start; i2 < k; i2 += i2_step)
         {
-            // Get corresponding fibers of both sources
-            const T *src1_fiber = src1 + i2*mk + i1;
-            const T *src2_fiber = src2 + i2*mk + i1;
-            // Init sum of product of the fibers
-            T sum = zero;
+            // Update sum
+            sum += src1_fiber[i2*m] * src2_fiber[i2*m];
+        }
+        __shared__ T block_sum[64];
+        if(i2_start == 0)
+        {
+            block_sum[threadIdx.x+blockDim.x*threadIdx.y] = zero;
+        }
+        __syncthreads();
+        atomicAdd(&block_sum[threadIdx.x+blockDim.x*threadIdx.y], sum);
+        __syncthreads();
+        // Update output value
+        if(i2_start == 0)
+        {
             // Output value
-            T &result = dst[i2*m+i1];
-            // Cycle over fibers of inputs
-            for(Index i0 = 0; i0 < k; ++i0)
-            {
-                // Update sum
-                sum += src1_fiber[i0*m] * src2_fiber[i0*m];
-            }
-            // Update output value
+            T &result = dst[i1*m+i0];
+            sum = block_sum[threadIdx.x+blockDim.x*threadIdx.y];
             if(beta == zero)
             {
                 result = alpha * sum;
@@ -86,7 +92,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 blocks(16, 16), threads(8, 4);
+    dim3 threads(std::min(int(m), 8), std::min(int(n), 8), 16);
+    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y, 1);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha, src1,
             src2, beta, dst);
 }

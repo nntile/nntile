@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-12
+ * @date 2023-07-02
  * */
 
 #pragma once
@@ -22,11 +22,12 @@ namespace tensor
 {
 
 template<typename T>
-void softmax_async(const Tensor<T> &maxsumexp, const Tensor<T> &dst,
-        Index axis);
+void softmax_async(const Tensor<T> &maxsumexp, const Tensor<T> &src,
+        const Tensor<T> &dst, Index axis);
 
 template<typename T>
-void softmax(const Tensor<T> &maxsumexp, const Tensor<T> &dst, Index axis);
+void softmax(const Tensor<T> &maxsumexp, const Tensor<T> &src,
+        const Tensor<T> &dst, Index axis);
 
 } // namespace tensor
 } // namespace nntile

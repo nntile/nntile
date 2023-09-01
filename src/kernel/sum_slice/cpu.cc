@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-04-26
+ * @date 2023-07-07
  * */
 
 #include "nntile/kernel/sum_slice/cpu.hh"
@@ -53,13 +53,17 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
             // Pointer to a corresponding fiber of the source array src
             const T *src_fiber = src + i2*mk + i1;
             // Init sum over the fiber
-            T sum = zero;
+            T sum = zero, c = zero, y, t;
             // Output value
             T &result = dst[i2*m+i1];
             // Cycle over fiber elements and accumulate the sum
             for(Index i0 = 0; i0 < k; ++i0)
             {
-                sum += src_fiber[i0*m];
+                //sum += src_fiber[i0*m];
+                y = src_fiber[i0*m] - c;
+                t = sum + y;
+                c = (t-sum) - y;
+                sum = t;
             }
             // Update output value
             if(beta == zero)
@@ -68,7 +72,7 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
             }
             else
             {
-                result = beta*result + alpha*sum;
+                result = (beta*result-alpha*c) + alpha*sum;
             }
         }
     }

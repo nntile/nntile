@@ -5,19 +5,18 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/starpu/scal.hh
- * SCAL operation for StarPU buffers
+ * Scal operation on StarPU buffers
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-29
+ * @date 2023-07-02
  * */
 
 #pragma once
 
 #include <nntile/base_types.hh>
-#include <nntile/constants.hh>
-// This also includes all definitions
 #include <nntile/starpu/config.hh>
+#include <nntile/defs.h>
 
 namespace nntile
 {
@@ -34,13 +33,13 @@ struct args_t
     T alpha;
 };
 
-#ifdef NNTILE_USE_CBLAS
+// Apply scal for StarPU buffers on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
-#endif // NNTILE_USE_CBLAS
 
 #ifdef NNTILE_USE_CUDA
+// Apply scal of StarPU buffers on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept;
@@ -74,7 +73,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(T alpha, Index nelems, Handle data);
+void submit(Index nelems, T alpha, Handle src, Handle dst);
 
 } // namespace scal
 } // namespace starpu

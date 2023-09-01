@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/tensor/scal.cc
- * Euclidean norm of Tensor<T>
+ * Scal operation for Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-05
+ * @date 2023-07-02
  * */
 
 #include "nntile/tensor/scal.hh"
@@ -20,50 +20,77 @@ namespace nntile
 namespace tensor
 {
 
-//! Scale tensor
+//! Tensor-wise scal operation
 template<typename T>
-void scal_async(T alpha, const Tensor<T> &data)
+void scal_async(T alpha, const Tensor<T> &src, const Tensor<T> &dst)
 {
-    // Do actual calculations
-    int mpi_rank = starpu_mpi_world_rank();
-    for(Index i = 0; i < data.grid.nelems; ++i)
+    // Check dimensions
+    if(dst.ndim != src.ndim)
     {
-        auto data_tile_handle = data.get_tile_handle(i);
-        auto data_tile_traits = data.get_tile_traits(i);
-        int data_tile_rank = data_tile_handle.mpi_get_rank();
-        // Execute on source tile
-        if(mpi_rank == data_tile_rank)
+        throw std::runtime_error("dst.ndim != src.ndim");
+    }
+    // Check shapes of tensors
+    for(Index i = 0; i < dst.ndim; ++i)
+    {
+        if(dst.shape[i] != src.shape[i])
         {
-            starpu::scal::submit<T>(alpha, data_tile_traits.nelems,
-                    data_tile_handle);
+            throw std::runtime_error("dst.shape[i] != src.shape[i]");
+        }
+        if(dst.basetile_shape[i] != src.basetile_shape[i])
+        {
+            throw std::runtime_error("dst.basetile_shape[i] != "
+                    "src.basetile_shape[i]");
+        }
+    }
+    // Apply per-tile scal asynchronously as needed
+    int mpi_rank = starpu_mpi_world_rank();
+    for(Index i = 0; i < src.grid.nelems; ++i)
+    {
+        // Get handle for corresponding tiles of src and dst
+        auto src_tile_handle = src.get_tile_handle(i);
+        auto dst_tile_handle = dst.get_tile_handle(i);
+        // MPI rank of the destination tile
+        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
+        // Transfer data
+        src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
+        // Execute only on destination node
+        if(mpi_rank == dst_tile_rank)
+        {
+            auto traits = src.get_tile_traits(i);
+            starpu::scal::submit<T>(traits.nelems, alpha, src_tile_handle,
+                    dst_tile_handle);
         }
         // Flush cache for the output tile on every node
-        data_tile_handle.mpi_flush();
+        dst_tile_handle.mpi_flush();
     }
 }
 
+//! Tensor-wise scal operation
 template<typename T>
-void scal(T alpha, const Tensor<T> &data)
+void scal(T alpha, const Tensor<T> &src, const Tensor<T> &dst)
 {
-    scal_async<T>(alpha, data);
+    scal_async<T>(alpha, src, dst);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
-// Explicit instantiation
+// Explicit instantiation of template
 template
-void scal_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &data);
+void scal_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
+        const Tensor<fp32_t> &dst);
 
 template
-void scal_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &data);
+void scal_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
+        const Tensor<fp64_t> &dst);
 
-// Explicit instantiation
+// Explicit instantiation of template
 template
-void scal<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &data);
+void scal<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
+        const Tensor<fp32_t> &dst);
 
 template
-void scal<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &data);
+void scal<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
+        const Tensor<fp64_t> &dst);
 
 } // namespace tensor
 } // namespace nntile
-

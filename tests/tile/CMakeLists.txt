@@ -11,12 +11,14 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-05-02
+# @date 2023-07-03
 
 # All unit tests without arguments to test executable
 set(TESTS
+    "add"
     "add_fiber"
     "add_slice"
+    "add_slice3"
     "addcdiv"
     "axpy"
     "clear"
@@ -29,6 +31,7 @@ set(TESTS
     "gelu"
     "gelu_backward"
     "gelutanh"
+    "gelutanh_inplace"
     "gelutanh_backward"
     "gemm"
     "logsumexp"
@@ -40,13 +43,16 @@ set(TESTS
     "pow"
     "prod"
     "prod_fiber"
+    "prod_fiber3"
     "prod_slice"
     "randn"
     "relu"
     "relu_backward"
-    "scal"
+    "scal_inplace"
     "softmax"
+    "softmax_inplace"
     "sqrt"
+    "sqrt_inplace"
     "subtract_indexed_column"
     "sum_fiber"
     "sum_slice"
@@ -56,12 +62,16 @@ set(TESTS
     "tile"
     "total_sum_accum"
     "traits"
+    "scal"
+    "hypot"
     )
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
+    "add"
     "add_fiber"
     "gelu_backward"
+    "gelutanh"
     "gelutanh_backward"
     "logsumexp"
     "pow"
@@ -72,7 +82,13 @@ set(TESTS_NOT_IMPLEMENTED
     "sum_fiber"
     "sumprod_fiber"
     "total_sum_accum"
-)
+    "sqrt"
+    "scal"
+    "softmax"
+    "hypot"
+    "add_slice3"
+    "prod_fiber3"
+    )
 
 # Add target for local coverage
 if(BUILD_COVERAGE)

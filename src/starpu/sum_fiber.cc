@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-07-22
  * */
 
 #include "nntile/starpu/sum_fiber.hh"
@@ -35,9 +35,29 @@ void cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::sum_fiber::cpu<T>(args->m, args->n, args->k, args->alpha, src,
-            args->beta, dst);
+    kernel::sum_fiber::cpu<T>(args->m, args->n, args->k, args->batch,
+            args->alpha, src, args->beta, dst);
 }
+
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::sum_fiber::cuda<T>
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+    // Get arguments
+    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Launch kernel
+    kernel::sum_fiber::cuda<T>(stream, args->m, args->n, args->k, args->batch,
+            args->alpha, src, args->beta, dst);
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for sum_fiber tasks
 template<typename T>
@@ -51,6 +71,7 @@ uint32_t footprint(struct starpu_task *task)
     hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
     hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
     hash = starpu_hash_crc32c_be_n(&args->k, sizeof(args->k), hash);
+    hash = starpu_hash_crc32c_be_n(&args->batch, sizeof(args->batch), hash);
     return hash;
 }
 
@@ -62,7 +83,7 @@ void init()
             footprint<fp32_t>,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
-            {}
+            {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -71,7 +92,7 @@ void init()
             footprint<fp64_t>,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
-            {}
+            {cuda<fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -91,8 +112,8 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
-        Handle dst)
+void submit(Index m, Index n, Index k, Index batch, T alpha, Handle src,
+        T beta, Handle dst)
 //! Insert sum_fiber task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -119,6 +140,7 @@ void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
     args->m = m;
     args->n = n;
     args->k = k;
+    args->batch = batch;
     args->alpha = alpha;
     args->beta = beta;
     // Submit task
@@ -136,12 +158,12 @@ void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index m, Index n, Index k, fp32_t alpha, Handle src,
-        fp32_t beta, Handle dst);
+void submit<fp32_t>(Index m, Index n, Index k, Index batch, fp32_t alpha,
+        Handle src, fp32_t beta, Handle dst);
 
 template
-void submit<fp64_t>(Index m, Index n, Index k, fp64_t alpha, Handle src,
-        fp64_t beta, Handle dst);
+void submit<fp64_t>(Index m, Index n, Index k, Index batch, fp64_t alpha,
+        Handle src, fp64_t beta, Handle dst);
 
 } // namespace sum_fiber
 } // namespace starpu

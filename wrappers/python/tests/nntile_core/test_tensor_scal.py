@@ -9,58 +9,8 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-03-29
+# @date 2023-07-02
 
-# All necesary imports
-import nntile
-import numpy as np
-# Set up StarPU configuration and init it
-config = nntile.starpu.Config(1, 0, 0)
-# Init all NNTile-StarPU codelets
-nntile.starpu.init()
-# Define list of tested types
-dtypes = [np.float32, np.float64]
-# Define mapping between numpy and nntile types
-Tensor = {np.float32: nntile.tensor.Tensor_fp32,
-        np.float64: nntile.tensor.Tensor_fp64}
-# Define mapping between tested function and numpy type
-scal = {np.float32: nntile.nntile_core.tensor.scal_fp32,
-        np.float64: nntile.nntile_core.tensor.scal_fp64}
+# Test is not yet implemented
+raise NotImplementedError
 
-
-# Helper function returns bool value true if test passes
-def helper(dtype):
-    # Describe single-tile tensor, located at node 0
-    shape = [2, 3, 4]
-    alpha = -2.5
-    mpi_distr = [0]
-    next_tag = 0
-    traits = nntile.tensor.TensorTraits(shape, shape)
-    # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    # Set initial values of tensors
-    rand_A = np.random.randn(*shape)
-    np_A = np.array(rand_A, dtype=dtype, order='F')
-    A.from_array(np_A)
-    scal[dtype](alpha, A)
-    np_A2 = np.zeros(shape, dtype=dtype, order='F')
-    A.to_array(np_A2)
-    nntile.starpu.wait_for_all()
-    A.unregister()
-    # Compare results
-    return (alpha*np_A == np_A2).all()
-
-# Test runner for different precisions
-def test():
-    for dtype in dtypes:
-        assert helper(dtype)
-
-# Repeat tests
-def test_repeat():
-    for dtype in dtypes:
-        assert helper(dtype)
-
-if __name__ == "__main__":
-    test()
-    test_repeat()

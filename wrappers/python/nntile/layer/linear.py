@@ -9,16 +9,16 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-05-06
+# @author Aleksandr Katrutsa
+# @date 2023-07-22
 
 import nntile
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        TransOp, trans, notrans, Tensor_fp16, copy_async, gemm_async, \
-        gemm_ex_async, randn_async
-from nntile.nntile_core.tensor import fp32_to_fp16_async, fp16_to_fp32_async
+        TransOp, trans, notrans, copy_async, gemm_async, randn_async, \
+        add_slice_async, add_fiber_async, sum_slice_async, sum_fiber_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
-from typing import List, Optional
+from typing import List, Union
 
 class Linear(BaseLayer):
     side: str
@@ -34,11 +34,12 @@ class Linear(BaseLayer):
     x_fp16: TensorMoments
     y_fp16: TensorMoments
     w_fp16: TensorMoments
+    b: Union[TensorMoments, None]
 
     # Construct linear layer with all the provided data
     def __init__(self, side: str, trans_x: TransOp, x: TensorMoments, \
             y: TensorMoments, w: TensorMoments, ndim: int, \
-            #b: TensorMoments, b_axis: int, # No bias as of now \
+            b: Union[TensorMoments, None], \
             fp32_fast_fp16: bool = False, \
             fp32_convert_fp16: bool = False, \
             x_fp16: Optional[TensorMoments] = None, \
@@ -51,7 +52,12 @@ class Linear(BaseLayer):
         if ndim <= 0:
             raise ValueError("ndim must be positive integer")
         # Redirect to BaseClass initialization
-        super().__init__([x], [y], [w], [x_fp16, w_fp16, y_fp16])
+        if b is None:
+            super().__init__([x], [y], [w], [x_fp16, w_fp16, y_fp16])
+            self.b = None
+        else:
+            super().__init__([x], [y], [w, b], [x_fp16, w_fp16, y_fp16])
+            self.b = b
         # Set up local named parameters
         self.side = side
         self.trans_x = trans_x
@@ -62,18 +68,19 @@ class Linear(BaseLayer):
         self.x_fp16 = x_fp16
         self.w_fp16 = w_fp16
         self.y_fp16 = y_fp16
-        #self.b = b
-        #self.b_axis = b_axis
         self.fp32_fast_fp16 = fp32_fast_fp16
         self.fp32_convert_fp16 = fp32_convert_fp16
 
     # Simple generator for the linear layer
     @staticmethod
-    def generate_simple_mpiroot(x: TensorMoments, side: str, \
-            trans_x: TransOp, ndim: int, add_shape: List[int], \
-            add_basetile_shape: List[int], next_tag: int, \
+    def generate_simple(x: TensorMoments, side: str, trans_x: TransOp, \
+            in_features_ndim: int, out_features_shape: List[int], \
+            out_features_basetile_shape: List[int], next_tag: int, bias=True, \
             fp32_fast_fp16: bool = False, fp32_convert_fp16: bool = False):
         # Define shapes
+        ndim = in_features_ndim
+        add_shape = out_features_shape
+        add_basetile_shape = out_features_basetile_shape
         if side == 'L':
             if trans_x == notrans:
                 w_shape = x.value.shape[-ndim:] + add_shape
@@ -107,6 +114,22 @@ class Linear(BaseLayer):
         next_tag = w_grad.next_tag
         # Define W as TensorMoments
         w = TensorMoments(w_value, w_grad, True)
+        if bias:
+            if len(add_shape) > 1:
+                raise ValueError("Bias is not yet supported for " \
+                        "len(add_shape) > 1")
+            b_traits = TensorTraits(add_shape, add_basetile_shape)
+            # TODO change distribution
+            b_distr = [0] * b_traits.grid.nelems
+            b_value = type(x.value)(b_traits, b_distr, next_tag)
+            next_tag = b_value.next_tag
+            # Create gradient of b with the same traits and distribution as b
+            b_grad = type(x.value)(b_traits, b_distr, next_tag)
+            next_tag = b_grad.next_tag
+            # Define b as TensorMoments
+            b = TensorMoments(b_value, b_grad, True)
+        else:
+            b = None
         # Define Y
         y_traits = TensorTraits(y_shape, y_tile)
         # TODO change distribution
@@ -118,8 +141,6 @@ class Linear(BaseLayer):
         next_tag = y_grad.next_tag
         # Define Y as TensorMoments
         y = TensorMoments(y_value, y_grad, True)
-        # Bias is ignored for now
-        #b = TensorMoments(None, None, False)
         # Create linear layer with all the provided data
         if type(x.value) is not nntile.tensor.Tensor_fp32:
             fp32_fast_fp16 = False
@@ -173,6 +194,9 @@ class Linear(BaseLayer):
             else:
                 gemm_async(1.0, self.trans_x, self.x.value, notrans, \
                         self.w.value, 0.0, self.y.value, self.ndim, 0)
+            if self.b is not None:
+                add_fiber_async(1.0, self.b.value, 1.0, self.y.value,
+                        self.y.value.ndim-1, 0)
         else:
             # Y = einsum('ij,jk->ik', W, op(X))
             # 'i' is a multi-index of dimension W.ndim-ndim
@@ -194,11 +218,15 @@ class Linear(BaseLayer):
             self.x_fp16.value.wont_use()
             self.w_fp16.value.wont_use()
             self.y_fp16.value.wont_use()
+            if self.b is not None:
+                add_fiber_async(1.0, self.b.value, 1.0, self.y.value, 0, 0)
         # Hint for StarPU that W tensor will
         # not be used soon and it is advised to offload data from GPU
         self.w.value.wont_use()
         self.x.value.wont_use()
         self.y.value.wont_use()
+        if self.b is not None:
+            self.b.value.wont_use()
 
     # Backward propagation of the linear layer
     def backward_async(self):
@@ -274,6 +302,17 @@ class Linear(BaseLayer):
                 self.w_fp16.grad.wont_use()
             # Hint StarPU to offload gradient over W if needed
             self.w.grad.wont_use()
+            self.x.value.wont_use()
+            self.y.grad.wont_use()
+        if self.b is not None:
+            if self.b.grad_required:
+                if self.side == 'L':
+                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, \
+                            self.y.value.ndim-1, 0)
+                else:
+                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, 0, 0)
+                self.b.grad.wont_use()
+                self.y.grad.wont_use()
         # Gradient over X (input)
         if self.x.grad_required:
             # Convert fp32 to fp16 if needed

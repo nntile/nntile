@@ -17,7 +17,7 @@
 #include <nntile/kernel/addcdiv/cpu.hh>
 #include <nntile/defs.h>
 #ifdef NNTILE_USE_CUDA
-// #include <nntile/kernel/addcdiv/cuda.hh>
+#include <nntile/kernel/addcdiv/cuda.hh>
 #endif // NNTILE_USE_CUDA
 
 namespace nntile

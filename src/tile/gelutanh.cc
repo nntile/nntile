@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-02
+ * @date 2023-07-01
  * */
 
 #include "nntile/tile/gelutanh.hh"
@@ -24,35 +24,35 @@ namespace tile
 /*! @param[inout] A: Tile for the element-wise GeLU operation
  * */
 template<typename T>
-void gelutanh_async(const Tile<T> &A)
+void gelutanh_async(const Tile<T> &src, const Tile<T> &dst)
 {
     // Submit task without any arguments checked
-    starpu::gelutanh::submit<T>(A.nelems, A);
+    starpu::gelutanh::submit<T>(src.nelems, src, dst);
 }
 
 //! Blocking version of tile-wise approximate GeLU operation
 /*! @param[inout] A: Tile for the element-wise GeLU operation
  * */
 template<typename T>
-void gelutanh(const Tile<T> &A)
+void gelutanh(const Tile<T> &src, const Tile<T> &dst)
 {
-    gelutanh_async<T>(A);
+    gelutanh_async<T>(src, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void gelutanh_async<fp32_t>(const Tile<fp32_t> &A);
+void gelutanh_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void gelutanh_async<fp64_t>(const Tile<fp64_t> &A);
+void gelutanh_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 // Explicit instantiation
 template
-void gelutanh<fp32_t>(const Tile<fp32_t> &A);
+void gelutanh<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void gelutanh<fp64_t>(const Tile<fp64_t> &A);
+void gelutanh<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 } // namespace tile
 } // namespace nntile

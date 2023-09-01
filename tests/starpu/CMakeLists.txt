@@ -11,12 +11,14 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-05-02
+# @date 2023-07-20
 
 # All unit tests without arguments to test executable
 set(TESTS
+    "add"
     "add_fiber"
     "add_slice"
+    "add_slice3"
     "addcdiv"
     "clear"
     "dgelu"
@@ -26,6 +28,7 @@ set(TESTS
     "gelu"
     "gelu_backward"
     "gelutanh"
+    "gelutanh_inplace"
     "gelutanh_backward"
     "hypot"
     "logsumexp"
@@ -36,12 +39,15 @@ set(TESTS
     "pow"
     "prod"
     "prod_fiber"
+    "prod_fiber3"
     "prod_slice"
     "randn"
     "relu"
     "relu_backward"
     "softmax"
+    "softmax_inplace"
     "sqrt"
+    "sqrt_inplace"
     "subcopy"
     "subtract_indexed_column"
     "sum_fiber"
@@ -50,12 +56,17 @@ set(TESTS
     "sumprod_fiber"
     "sumprod_slice"
     "total_sum_accum"
+    "mask_scalar"
+    "scal"
+    "transpose"
     )
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
+    "add"
     "add_fiber"
     "gelu_backward"
+    "gelutanh"
     "gelutanh_backward"
     "logsumexp"
     "pow"
@@ -66,7 +77,13 @@ set(TESTS_NOT_IMPLEMENTED
     "sum_fiber"
     "sumprod_fiber"
     "total_sum_accum"
-)
+    "sqrt"
+    "scal"
+    "softmax"
+    "hypot"
+    "add_slice3"
+    "prod_fiber3"
+    )
 
 # Add target for local coverage
 if(BUILD_COVERAGE)
@@ -147,18 +164,18 @@ add_test_set(TARGET_NAME tests_starpu_gemm
     COV_GLOBAL coverage_starpu
     )
 
-# Add include path for generated scal.cc
-set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/scal.cc" PROPERTIES
-    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}")
+# Add include path for generated scal_inplace.cc
+set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/scal_inplace.cc"
+    PROPERTIES INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}")
 
-# Explicitly add axpy test since it was generated from scal.cc.in
-add_test_set(TARGET_NAME tests_starpu_scal
-    EXEC_NAME test_scal
-    SOURCES "${CMAKE_CURRENT_BINARY_DIR}/scal.cc"
+# Explicitly add axpy test since it was generated from scal_inplace.cc.in
+add_test_set(TARGET_NAME tests_starpu_scal_inplace
+    EXEC_NAME test_scal_inplace
+    SOURCES "${CMAKE_CURRENT_BINARY_DIR}/scal_inplace.cc"
     LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_USE_CBLAS}>:BLAS::BLAS>
     "$<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cublas;CUDA::cudart>"
     COV_ENABLE ${BUILD_COVERAGE}
-    COV_NAME coverage_starpu_scal
+    COV_NAME coverage_starpu_scal_inplace
     COV_GLOBAL coverage_starpu
     )
 

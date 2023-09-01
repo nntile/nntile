@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-05-11
+ * @date 2023-07-23
  * */
 
 #include <pybind11/pybind11.h>
@@ -61,6 +61,18 @@ void def_mod_starpu(py::module_ &m)
                 }
             }
             starpu_mpi_wait_for_all(MPI_COMM_WORLD);});
+    m.def("restrict_cuda", [](){restrict_where(STARPU_CUDA);});
+    m.def("restrict_cpu", [](){restrict_where(STARPU_CPU);});
+    m.def("restrict_restore", [](){restore_where();});
+    m.def("profiling_init", [](){
+            //starpu_profiling_init();
+            });
+    m.def("profiling_enable", [](){
+            //starpu_profiling_status_set(STARPU_PROFILING_ENABLE);
+            starpu_fxt_start_profiling();});
+    m.def("profiling_disable", [](){
+            //starpu_profiling_status_set(STARPU_PROFILING_DISABLE);
+            starpu_fxt_stop_profiling();});
 }
 
 // numpy.ndarray -> Tile
@@ -232,13 +244,17 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
             throw std::runtime_error("array.shape()[i] != tensor.shape[i]");
         }
     }
-    if(tensor.grid.nelems != 1)
-    {
-        throw std::runtime_error("tensor.grid.nelems != 1");
-    }
+    // Create temporary single-tile tensor
+    tensor::TensorTraits tmp_traits(tensor.shape, tensor.shape);
+    int64_t tmp_tag;
+    int flag;
+    starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
+            &flag);
+    std::vector<int> tmp_distr{0};
+    tensor::Tensor<T> tmp(tmp_traits, tmp_distr, tmp_tag);
     // Acquire tile and copy data
     int mpi_rank = starpu_mpi_world_rank();
-    auto tile = tensor.get_tile(0);
+    auto tile = tmp.get_tile(0);
     if(mpi_rank == tile.mpi_get_rank())
     {
         auto tile_local = tile.acquire(STARPU_W);
@@ -246,7 +262,9 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
                 tile.nelems*sizeof(T));
         tile_local.release();
     }
-    tile.mpi_flush();
+    tensor::scatter<T>(tmp, tensor);
+    tmp.unregister();
+    tensor.mpi_flush();
 }
 
 // Tensor -> numpy.ndarray
@@ -290,13 +308,18 @@ void tensor_to_array(const tensor::Tensor<T> &tensor,
             throw std::runtime_error("array.shape()[i] != tensor.shape[i]");
         }
     }
-    if(tensor.grid.nelems != 1)
-    {
-        throw std::runtime_error("tensor.grid.nelems != 1");
-    }
+    // Create temporary single-tile tensor
+    tensor::TensorTraits tmp_traits(tensor.shape, tensor.shape);
+    int64_t tmp_tag;
+    int flag;
+    starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
+            &flag);
+    std::vector<int> tmp_distr{0};
+    tensor::Tensor<T> tmp(tmp_traits, tmp_distr, tmp_tag);
+    tensor::gather<T>(tensor, tmp);
     // Acquire tile and copy data
     int mpi_rank = starpu_mpi_world_rank();
-    auto tile = tensor.get_tile(0);
+    auto tile = tmp.get_tile(0);
     if(mpi_rank == tile.mpi_get_rank())
     {
         auto tile_local = tile.acquire(STARPU_R);
@@ -304,6 +327,7 @@ void tensor_to_array(const tensor::Tensor<T> &tensor,
                 tile.nelems*sizeof(T));
         tile_local.release();
     }
+    tmp.unregister();
 }
 
 // Extend (sub)module with nntile::tensor::Tensor<T>
@@ -364,6 +388,7 @@ void def_mod_tensor(py::module_ &m)
     def_class_tensor<fp32_t>(m, "Tensor_fp32");
     def_class_tensor<fp16_t>(m, "Tensor_fp16");
     def_class_tensor<Index>(m, "Tensor_int64");
+    def_class_tensor<bool_t>(m, "Tensor_bool");
     // Add tensor.distributions submodule
     auto distributions = m.def_submodule("distributions");
     def_tensor_distributions(distributions);
@@ -429,16 +454,25 @@ void def_mod_tensor(py::module_ &m)
     m.def("sumnorm_async_fp32", &sumnorm_async<fp32_t>);
     m.def("sumnorm_fp64", &sumnorm<fp64_t>);
     m.def("sumnorm_fp32", &sumnorm<fp32_t>);
+
     m.def("softmax_async_fp64", &softmax_async<fp64_t>);
     m.def("softmax_async_fp32", &softmax_async<fp32_t>);
     m.def("softmax_fp64", &softmax<fp64_t>);
     m.def("softmax_fp32", &softmax<fp32_t>);
+
+    m.def("softmax_inplace_async_fp64", &softmax_inplace_async<fp64_t>);
+    m.def("softmax_inplace_async_fp32", &softmax_inplace_async<fp32_t>);
+    m.def("softmax_inplace_fp64", &softmax_inplace<fp64_t>);
+    m.def("softmax_inplace_fp32", &softmax_inplace<fp32_t>);
+
     m.def("scatter_async_fp64", &scatter_async<fp64_t>);
     m.def("scatter_async_fp32", &scatter_async<fp32_t>);
     m.def("scatter_async_int64", &scatter_async<Index>);
+    m.def("scatter_async_bool", &scatter_async<bool_t>);
     m.def("scatter_fp64", &scatter<fp64_t>);
     m.def("scatter_fp32", &scatter<fp32_t>);
     m.def("scatter_int64", &scatter<Index>);
+    m.def("scatter_bool", &scatter<bool_t>);
     m.def("randn_async_fp64", &randn_async<fp64_t>);
     m.def("randn_async_fp32", &randn_async<fp32_t>);
     m.def("randn_fp64", &randn<fp64_t>);
@@ -465,6 +499,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_slice_fp64", &add_slice<fp64_t>);
     m.def("add_slice_fp32", &add_slice<fp32_t>);
 
+    m.def("add_slice3_async_fp64", &add_slice3_async<fp64_t>);
+    m.def("add_slice3_async_fp32", &add_slice3_async<fp32_t>);
+    m.def("add_slice3_fp64", &add_slice3<fp64_t>);
+    m.def("add_slice3_fp32", &add_slice3<fp32_t>);
+
     m.def("add_async_fp64", &add_async<fp64_t>);
     m.def("add_async_fp32", &add_async<fp32_t>);
     m.def("add_fp64", &add<fp64_t>);
@@ -490,12 +529,19 @@ void def_mod_tensor(py::module_ &m)
     m.def("prod_fiber_fp64", &prod_fiber<fp64_t>);
     m.def("prod_fiber_fp32", &prod_fiber<fp32_t>);
 
+    m.def("prod_fiber3_async_fp64", &prod_fiber3_async<fp64_t>);
+    m.def("prod_fiber3_async_fp32", &prod_fiber3_async<fp32_t>);
+    m.def("prod_fiber3_fp64", &prod_fiber3<fp64_t>);
+    m.def("prod_fiber3_fp32", &prod_fiber3<fp32_t>);
+
     m.def("gather_async_fp64", &gather_async<fp64_t>);
     m.def("gather_async_fp32", &gather_async<fp32_t>);
     m.def("gather_async_int64", &gather_async<Index>);
+    m.def("gather_async_bool", &gather_async<bool_t>);
     m.def("gather_fp64", &gather<fp64_t>);
     m.def("gather_fp32", &gather<fp32_t>);
     m.def("gather_int64", &gather<Index>);
+    m.def("gather_bool", &gather<bool_t>);
 
     m.def("copy_intersection_async_fp64", &copy_intersection_async<fp64_t>);
     m.def("copy_intersection_async_fp32", &copy_intersection_async<fp32_t>);
@@ -544,6 +590,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("sqrt_async_fp32", &sqrt_async<fp32_t>);
     m.def("sqrt_fp64", &sqrt<fp64_t>);
     m.def("sqrt_fp32", &sqrt<fp32_t>);
+    m.def("sqrt_inplace_async_fp64", &sqrt_inplace_async<fp64_t>);
+    m.def("sqrt_inplace_async_fp32", &sqrt_inplace_async<fp32_t>);
+    m.def("sqrt_inplace_fp64", &sqrt_inplace<fp64_t>);
+    m.def("sqrt_inplace_fp32", &sqrt_inplace<fp32_t>);
     m.def("maximum_async_fp64", &maximum_async<fp64_t>);
     m.def("maximum_async_fp32", &maximum_async<fp32_t>);
     m.def("maximum_fp64", &maximum<fp64_t>);
@@ -564,17 +614,27 @@ void def_mod_tensor(py::module_ &m)
     m.def("total_sum_accum_fp64", &total_sum_accum<fp64_t>);
     m.def("total_sum_accum_fp32", &total_sum_accum<fp32_t>);
 
-    m.def("subtract_indexed_column_async_fp64",
-            &subtract_indexed_column_async<fp64_t>);
-    m.def("subtract_indexed_column_async_fp32",
-            &subtract_indexed_column_async<fp32_t>);
-    m.def("subtract_indexed_column_fp64", &subtract_indexed_column<fp64_t>);
-    m.def("subtract_indexed_column_fp32", &subtract_indexed_column<fp32_t>);
+    m.def("subtract_indexed_outputs_async_fp64",
+            &subtract_indexed_outputs_async<fp64_t>);
+    m.def("subtract_indexed_outputs_async_fp32",
+            &subtract_indexed_outputs_async<fp32_t>);
+    m.def("subtract_indexed_outputs_fp64", &subtract_indexed_outputs<fp64_t>);
+    m.def("subtract_indexed_outputs_fp32", &subtract_indexed_outputs<fp32_t>);
     
     m.def("scal_async_fp64", &scal_async<fp64_t>);
     m.def("scal_async_fp32", &scal_async<fp32_t>);
     m.def("scal_fp64", &scal<fp64_t>);
     m.def("scal_fp32", &scal<fp32_t>);
+
+    m.def("adam_step_async_fp64", &adam_step_async<fp64_t>);
+    m.def("adam_step_async_fp32", &adam_step_async<fp32_t>);
+    m.def("adam_step_fp64", &adam_step<fp64_t>);
+    m.def("adam_step_fp32", &adam_step<fp32_t>);
+
+    m.def("scal_inplace_async_fp64", &scal_inplace_async<fp64_t>);
+    m.def("scal_inplace_async_fp32", &scal_inplace_async<fp32_t>);
+    m.def("scal_inplace_fp64", &scal_inplace<fp64_t>);
+    m.def("scal_inplace_fp32", &scal_inplace<fp32_t>);
 
     m.def("sumprod_slice_async_fp64", &sumprod_slice_async<fp64_t>);
     m.def("sumprod_slice_async_fp32", &sumprod_slice_async<fp32_t>);
@@ -600,6 +660,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("gelutanh_async_fp32", &gelutanh_async<fp32_t>);
     m.def("gelutanh_fp64", &gelutanh<fp64_t>);
     m.def("gelutanh_fp32", &gelutanh<fp32_t>);
+    m.def("gelutanh_inplace_async_fp64", &gelutanh_inplace_async<fp64_t>);
+    m.def("gelutanh_inplace_async_fp32", &gelutanh_inplace_async<fp32_t>);
+    m.def("gelutanh_inplace_fp64", &gelutanh_inplace<fp64_t>);
+    m.def("gelutanh_inplace_fp32", &gelutanh_inplace<fp32_t>);
     m.def("gelutanh_backward_async_fp64", &gelutanh_backward_async<fp64_t>);
     m.def("gelutanh_backward_async_fp32", &gelutanh_backward_async<fp32_t>);
     m.def("gelutanh_backward_fp64", &gelutanh_backward<fp64_t>);
@@ -629,6 +693,21 @@ void def_mod_tensor(py::module_ &m)
     // FP32 <-> FP16
     m.def("fp32_to_fp16_async", &fp32_to_fp16_async);
     m.def("fp16_to_fp32_async", &fp16_to_fp32_async);
+
+    m.def("mask_scalar_async_fp64", &mask_scalar_async<fp64_t>);
+    m.def("mask_scalar_async_fp32", &mask_scalar_async<fp32_t>);
+    m.def("mask_scalar_fp64", &mask_scalar<fp64_t>);
+    m.def("mask_scalar_fp32", &mask_scalar<fp32_t>);
+
+    m.def("hypot_async_fp64", &hypot_async<fp64_t>);
+    m.def("hypot_async_fp32", &hypot_async<fp32_t>);
+    m.def("hypot_fp64", &hypot<fp64_t>);
+    m.def("hypot_fp32", &hypot<fp32_t>);
+
+    m.def("transpose_async_fp64", &transpose_async<fp64_t>);
+    m.def("transpose_async_fp32", &transpose_async<fp32_t>);
+    m.def("transpose_fp64", &transpose<fp64_t>);
+    m.def("transpose_fp32", &transpose<fp32_t>);
 }
 
 // Main extension module with all wrappers

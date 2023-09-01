@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-05-11
+ * @date 2023-07-03
  * */
 
 #pragma once
@@ -22,14 +22,17 @@
 // Tile<T> operations
 #include <nntile/tile/axpy.hh>
 #include <nntile/tile/add_slice.hh>
+#include <nntile/tile/add_slice3.hh>
 #include <nntile/tile/add_fiber.hh>
 #include <nntile/tile/prod_slice.hh>
 #include <nntile/tile/prod_fiber.hh>
+#include <nntile/tile/prod_fiber3.hh>
 #include <nntile/tile/clear.hh>
 #include <nntile/tile/copy.hh>
 #include <nntile/tile/copy_intersection.hh>
 #include <nntile/tile/gelu.hh>
 #include <nntile/tile/gelutanh.hh>
+#include <nntile/tile/gelutanh_inplace.hh>
 #include <nntile/tile/dgelu.hh>
 #include <nntile/tile/dgelutanh.hh>
 #include <nntile/tile/drelu.hh>
@@ -50,21 +53,27 @@
 #include <nntile/tile/pow.hh>
 #include <nntile/tile/maxsumexp.hh>
 #include <nntile/tile/softmax.hh>
+#include <nntile/tile/softmax_inplace.hh>
 #include <nntile/tile/sqrt.hh>
+#include <nntile/tile/sqrt_inplace.hh>
 #include <nntile/tile/maximum.hh>
 #include <nntile/tile/addcdiv.hh>
 #include <nntile/tile/sumprod_slice.hh>
 #include <nntile/tile/sumprod_fiber.hh>
 #include <nntile/tile/logsumexp.hh>
 #include <nntile/tile/total_sum_accum.hh>
-#include <nntile/tile/subtract_indexed_column.hh>
+#include <nntile/tile/subtract_indexed_outputs.hh>
 #include <nntile/tile/scal.hh>
+#include <nntile/tile/scal_inplace.hh>
 #include <nntile/tile/gelu_backward.hh>
 #include <nntile/tile/gelutanh_backward.hh>
 #include <nntile/tile/add.hh>
 #include <nntile/tile/add_scalar.hh>
 #include <nntile/tile/fp32_to_fp16.hh>
 #include <nntile/tile/fp16_to_fp32.hh>
+#include <nntile/tile/mask_scalar.hh>
+#include <nntile/tile/hypot.hh>
+#include <nntile/tile/adam_step.hh>
 
 namespace nntile
 {

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-05
+ * @date 2023-07-02
  * */
 
 #include "nntile/kernel/norm_slice/cuda.hh"
@@ -26,56 +26,54 @@ static __global__
 void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src,
         T beta, T *dst)
 {
-    Index i2_start = threadIdx.x + blockIdx.x*blockDim.x,
-          i1_start = threadIdx.y + blockIdx.y*blockDim.y,
-          i2_step = blockDim.x * gridDim.x,
-          i1_step = blockDim.y * gridDim.y;
-    constexpr T zero = 0, one = 1.0;
-    // Cycle over column of the output buffer dst
-    for(Index i2 = i2_start; i2 < n; i2 += i2_step)
+    Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
+          i1 = threadIdx.y + blockIdx.y*blockDim.y;
+    Index i2_start = threadIdx.z, i2_step = blockDim.z;
+    constexpr T zero = 0;
+    if(i0 < m and i1 < n)
     {
-        // Cycle over row of the output buffer dst
-        for(Index i1 = i1_start; i1 < m; i1 += i1_step)
+        // Pointer to a corresponding fiber of the source array src
+        const T *src_fiber = src + i1*mk + i0;
+        // Init sum over the fiber
+        T sum = zero;
+        // Cycle over fiber elements and accumulate the sum
+        for(Index i2 = i2_start; i2 < k; i2 += i2_step)
         {
-            // Pointer to a corresponding fiber of the source array src
-            const T *src_fiber = src + i2*mk + i1;
-            // Init norm of the fiber
-            T norm_max = zero, norm_ssq = zero;
-            // Output value
-            T &result = dst[i2*m+i1];
-            // Cycle over fiber elements and accumulate the norm
-            for(Index i0 = 0; i0 < k; ++i0)
-            {
-                // Read value from source
-                T val = abs(src_fiber[i0*m]);
-                // Update norm only if new value is non-zero
-                if(val > 0)
-                {
-                    if(norm_max >= val)
-                    {
-                        T tmp1 = val / norm_max;
-                        norm_ssq += tmp1 * tmp1;
-                    }
-                    else
-                    {
-                        T tmp1 = norm_max / val;
-                        T tmp2 = tmp1 * tmp1;
-                        norm_ssq = one + norm_ssq*tmp2;
-                        norm_max = val;
-                    }
-                }
-            }
-            // Get the scaled norm
-            norm_max *= alpha;
-            T norm_slice = norm_max * std::sqrt(norm_ssq);
+            sum = ::hypot(sum, src_fiber[i2*m]);
+        }
+        volatile __shared__ T block_max[64];
+        __shared__ T block_sum[64];
+        if(i2_start == 0)
+        {
+            block_max[threadIdx.x+blockDim.x*threadIdx.y] = sum;
+            block_sum[threadIdx.x+blockDim.x*threadIdx.y] = zero;
+        }
+        __syncthreads();
+        while(block_max[threadIdx.x+blockDim.x*threadIdx.y] < sum)
+        {
+            block_max[threadIdx.x+blockDim.x*threadIdx.y] = sum;
+        }
+        __syncthreads();
+        if(block_max[threadIdx.x+blockDim.x*threadIdx.y] > 0)
+        {
+            sum /= block_max[threadIdx.x+blockDim.x*threadIdx.y];
+            atomicAdd(&block_sum[threadIdx.x+blockDim.x*threadIdx.y], sum*sum);
+            __syncthreads();
             // Update output value
-            if(beta == zero)
+            if(i2_start == 0)
             {
-                result = norm_slice;
-            }
-            else
-            {
-                result = std::hypot(beta*result, norm_slice);
+                // Output value
+                T &result = dst[i1*m+i0];
+                sum = block_max[threadIdx.x+blockDim.x*threadIdx.y];
+                sum *= ::sqrt(block_sum[threadIdx.x+blockDim.x*threadIdx.y]);
+                if(beta == zero)
+                {
+                    result = ::abs(alpha) * sum;
+                }
+                else
+                {
+                    result = ::hypot(beta*result, alpha*sum);
+                }
             }
         }
     }
@@ -103,7 +101,9 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 blocks(16, 16), threads(8, 4);
+    dim3 threads(std::min(int(m), 8), std::min(int(n), 8),
+            std::min(int(k), 16));
+    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y, 1);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha, src,
             beta, dst);
 }

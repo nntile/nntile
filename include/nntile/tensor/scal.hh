@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/tensor/scal.hh
- * Scaling of Tensor<T>
+ * Scal operation for Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-29
+ * @date 2023-07-02
  * */
 
 #pragma once
@@ -21,12 +21,13 @@ namespace nntile
 namespace tensor
 {
 
-//! Scale tensor
+// Tensor-wise scal operation
 template<typename T>
-void scal_async(T alpha, const Tensor<T> &data);
+void scal_async(T alpha, const Tensor<T> &src, const Tensor<T> &dst);
 
+// Tensor-wise scal operation
 template<typename T>
-void scal(T alpha, const Tensor<T> &data);
+void scal(T alpha, const Tensor<T> &src, const Tensor<T> &dst);
 
 } // namespace tensor
 } // namespace nntile

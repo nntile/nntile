@@ -9,13 +9,13 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-05-02
+# @date 2023-07-23
 
 from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         TensorOrNone, TensorMoments, \
-        add_slice_async, copy_async, sum_slice_async, norm_slice_async, \
+        add_slice_async, sum_slice_async, norm_slice_async, \
         fill_async, pow_async, prod_slice_async, sumprod_slice_async, \
-        axpy_async, prod_fiber_async, \
+        axpy_async, prod_fiber_async, prod_fiber3_async, add_slice3_async, \
         add_fiber_async, sum_fiber_async, sumprod_fiber_async, \
         clear_async
 from nntile.layer.base_layer import BaseLayer
@@ -125,34 +125,43 @@ class LayerNorm(BaseLayer):
     def forward_async(self):
         # Get means over given axis
         sum_slice_async(1.0/self.l, self.x.value, 0.0, self.mean, self.axis)
-        # Init Y as a copy of X
-        copy_async(self.x.value, self.y.value)
-        # Subtract mean from Y
-        add_slice_async(-1.0, self.mean, 1.0, self.y.value, self.axis)
+        # Y = X - mean
+        add_slice3_async(-1.0, self.mean, 1.0, self.x.value, \
+                self.tmp_y_value, self.axis)
+        self.mean.wont_use()
+        self.x.value.wont_use()
         # Compute standard deviation of self.y.value
         fill_async(self.eps, self.inv_stddev)
-        norm_slice_async(1.0/self.l**0.5, self.y.value, 1.0, self.inv_stddev, \
-                self.axis)
+        norm_slice_async(1.0/self.l**0.5, self.tmp_y_value, 1.0, \
+                self.inv_stddev, self.axis)
         # Invert stddev (to multiply by it instead of dividing)
         pow_async(1.0, -1.0, self.inv_stddev)
         # Finally, normalize input
-        prod_slice_async(self.inv_stddev, 1.0, self.y.value, self.axis)
-        # Copy normalized input for the backward phase
-        copy_async(self.y.value, self.tmp_y_value)
-        # Scale output
-        prod_fiber_async(self.gamma.value, 1.0, self.y.value, self.axis)
+        prod_slice_async(self.inv_stddev, 1.0, self.tmp_y_value, self.axis)
+        self.inv_stddev.wont_use()
+        # Scale normalized input for the backward phase
+        prod_fiber3_async(self.gamma.value, 1.0, self.tmp_y_value, \
+                self.y.value, self.axis)
+        self.tmp_y_value.wont_use()
+        self.gamma.value.wont_use()
         # Shift output
-        add_fiber_async(1.0, self.beta.value, 1.0, self.y.value, self.axis)
+        add_fiber_async(1.0, self.beta.value, 1.0, self.y.value, self.axis, 0)
+        self.beta.value.wont_use()
+        self.y.value.wont_use()
 
     def backward_async(self):
         # Accumulate gradient over beta
-        sum_fiber_async(1.0, self.y.grad, 1.0, self.beta.grad, self.axis)
+        sum_fiber_async(1.0, self.y.grad, 1.0, self.beta.grad, self.axis, 0)
+        self.beta.grad.wont_use()
         # Accumulate gradient over gamma
         sumprod_fiber_async(1.0, self.y.grad, self.tmp_y_value, 1.0, \
                 self.gamma.grad, self.axis)
+        self.gamma.grad.wont_use()
         # Define gradient over normalized input
-        copy_async(self.y.grad, self.tmp_y_grad)
-        prod_fiber_async(self.gamma.value, 1.0, self.tmp_y_grad, self.axis)
+        prod_fiber3_async(self.gamma.value, 1.0, self.y.grad, \
+                self.tmp_y_grad, self.axis)
+        self.y.grad.wont_use()
+        self.gamma.value.wont_use()
         # Get mean of product of tmp_Y_grad and tmp_Y_value over the given axis
         sumprod_slice_async(-1.0/self.l, self.tmp_y_grad, self.tmp_y_value, \
                 0.0, self.mean, self.axis)
@@ -162,10 +171,15 @@ class LayerNorm(BaseLayer):
         axpy_async(1.0, self.tmp_y_grad, self.tmp_y_value)
         # Get mean value of tmp_Y_grad over the given axis
         sum_slice_async(1.0/self.l, self.tmp_y_grad, 0.0, self.mean, self.axis)
+        self.tmp_y_grad.wont_use()
         # Subtract mean from tmp_Y_value
         add_slice_async(-1.0, self.mean, 1.0, self.tmp_y_value, self.axis)
+        self.mean.wont_use()
         # Multiply tmp_Y_value by the inverse stddev
         prod_slice_async(self.inv_stddev, 1.0, self.tmp_y_value, self.axis)
+        self.inv_stddev.wont_use()
         # Accumulate gradient from tmp_Y_value
         axpy_async(1.0, self.tmp_y_value, self.x.grad)
+        self.tmp_y_value.wont_use()
+        self.x.grad.wont_use()
 

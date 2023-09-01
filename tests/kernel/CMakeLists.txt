@@ -11,12 +11,14 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-05-02
+# @date 2023-07-20
 
 # All unit tests without arguments to test executable
 set(TESTS
+    "add"
     "add_fiber"
     "add_slice"
+    "add_slice3"
     "addcdiv"
     "dgelu"
     "dgelutanh"
@@ -25,22 +27,25 @@ set(TESTS
     "gelu"
     "gelu_backward"
     "gelutanh"
+    "gelutanh_inplace"
     "gelutanh_backward"
     "hypot"
     "logsumexp"
     "maximum"
-    "maxsumexp"
     "norm_slice"
     "normalize"
     "pow"
     "prod"
     "prod_fiber"
+    "prod_fiber3"
     "prod_slice"
     "randn"
     "relu"
     "relu_backward"
     "softmax"
+    "softmax_inplace"
     "sqrt"
+    "sqrt_inplace"
     "subcopy"
     "subtract_indexed_column"
     "sum_fiber"
@@ -49,12 +54,17 @@ set(TESTS
     "sumprod_fiber"
     "sumprod_slice"
     "total_sum_accum"
+    "mask_scalar"
+    "scal"
+    "transpose"
     )
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
+    "add"
     "add_fiber"
     "gelu_backward"
+    "gelutanh"
     "gelutanh_backward"
     "logsumexp"
     "pow"
@@ -65,7 +75,13 @@ set(TESTS_NOT_IMPLEMENTED
     "sum_fiber"
     "sumprod_fiber"
     "total_sum_accum"
-)
+    "sqrt"
+    "scal"
+    "softmax"
+    "hypot"
+    "add_slice3"
+    "prod_fiber3"
+    )
          
 # Setup a target for coverage of kernels
 if(BUILD_COVERAGE)
@@ -91,3 +107,9 @@ foreach(test IN LISTS TESTS)
         )
 endforeach()
 
+add_executable("tests_kernel_maxsumexp" maxsumexp.cc)
+target_link_libraries("tests_kernel_maxsumexp" PRIVATE
+    GTest::gtest_main
+    nntile
+    $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>)
+gtest_discover_tests("tests_kernel_maxsumexp")

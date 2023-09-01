@@ -135,6 +135,15 @@ public:
             starpu_data_wont_use(tmp);
         }
     }
+    //! Flush tensor from MPI caches
+    void mpi_flush() const
+    {
+        for(Index i = 0; i < grid.nelems; ++i)
+        {
+            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            starpu_mpi_cache_flush(MPI_COMM_WORLD, tmp);
+        }
+    }
 };
 
 } // namespace tensor

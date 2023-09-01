@@ -9,13 +9,13 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-18
+ * @date 2023-07-02
  * */
 
 #include "nntile/tile/nrm2.hh"
 #include "nntile/starpu/nrm2.hh"
 #include "nntile/starpu/clear.hh"
-#include "nntile/starpu/scal.hh"
+#include "nntile/starpu/scal_inplace.hh"
 #include "nntile/starpu/hypot.hh"
 #include "../testing.hh"
 #include <cmath>
@@ -68,11 +68,11 @@ int main(int argc, char **argv)
     // Init codelet
     starpu::nrm2::init();
     starpu::clear::init();
-    starpu::scal::init();
+    starpu::scal_inplace::init();
     starpu::hypot::init();
     starpu::nrm2::restrict_where(STARPU_CPU);
     starpu::clear::restrict_where(STARPU_CPU);
-    starpu::scal::restrict_where(STARPU_CPU);
+    starpu::scal_inplace::restrict_where(STARPU_CPU);
     starpu::hypot::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();

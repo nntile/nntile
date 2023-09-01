@@ -11,10 +11,15 @@
 # @author Aleksandr Mikhalev
 # @date 2022-08-09
 
-# Set list of external sources and headers
-set(EXTERNAL
-    "random.h"
-    )
+include(FetchContent)
 
-target_sources(nntile PRIVATE ${EXTERNAL})
+add_subdirectory(googletest)
+add_subdirectory(nvbench)
+add_subdirectory(pybind11)
 
+FetchContent_MakeAvailable(googletest nvbench pybind11)
+
+include(GoogleTest)
+
+# Append external sources and headers.
+target_sources(nntile PRIVATE "random.h")

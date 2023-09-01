@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-05-08
+ * @date 2023-07-02
  * */
 
 #pragma once
@@ -30,13 +30,13 @@ namespace add
 template<typename T>
 struct args_t
 {
-    args_t(Index num_elements_, T alpha_, T beta_) :
-        num_elements(num_elements_),
+    args_t(Index nelems_, T alpha_, T beta_) :
+        nelems(nelems_),
         alpha(alpha_),
         beta(beta_) 
         {
         }
-    Index num_elements;
+    Index nelems;
     T alpha;
     T beta;
 };
@@ -47,10 +47,10 @@ void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
-// Apply add of StarPU buffers on CUDA
-// template<typename T>
-// void cuda(void *buffers[], void *cl_args)
-//     noexcept;
+// Apply add for StarPU buffers on CUDA
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept;
 #endif // NNTILE_USE_CUDA
 
 extern Codelet codelet_fp32, codelet_fp64;
@@ -81,7 +81,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index num_elements, T alpha, Handle src, T beta, Handle dst);
+void submit(Index nelems, T alpha, Handle src, T beta, Handle dst);
 
 } // namespace add
 } // namespace starpu

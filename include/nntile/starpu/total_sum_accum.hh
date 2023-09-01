@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-03-16
+ * @author Aleksandr Mikhalev
+ * @date 2023-06-28
  * */
 
 #pragma once
@@ -23,6 +24,13 @@ namespace starpu
 {
 namespace total_sum_accum
 {
+
+//! Structure for arguments
+struct args_t
+{
+    Index n_labels;
+    Index n_outputs;
+};
 
 // Total sum accumulating of StarPU buffer on CPU
 template<typename T>
@@ -64,7 +72,8 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index n_row, Handle logsumexp, Handle src, Handle class_labels, Handle val);
+void submit(Index n_labels, Index n_outputs, Handle logsumexp, Handle src,
+        Handle class_labels, Handle val);
 
 } // namespace total_sum_accum
 } // namespace starpu

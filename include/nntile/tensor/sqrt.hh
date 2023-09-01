@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @author Aleksandr Mikhalev
+ * @date 2023-07-01
  * */
 
 #pragma once
@@ -22,10 +23,10 @@ namespace tensor
 {
 
 template<typename T>
-void sqrt_async(const Tensor<T> &A);
+void sqrt_async(const Tensor<T> &src, const Tensor<T> &dst);
 
 template<typename T>
-void sqrt(const Tensor<T> &A);
+void sqrt(const Tensor<T> &src, const Tensor<T> &dst);
 
 } // namespace tensor
 } // namespace nntile

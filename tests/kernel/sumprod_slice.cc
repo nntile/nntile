@@ -133,7 +133,7 @@ void validate(Index m, Index n, Index k, T alpha, T beta)
             }
         }
     }
-    std::cout << "OK: kernel::sumnorm::cuda<T>\n";
+    std::cout << "OK: kernel::sumprod_slice::cuda<T>\n";
 #endif // NNTILE_USE_CUDA
 }
 
