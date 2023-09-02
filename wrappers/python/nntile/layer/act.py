@@ -9,12 +9,12 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-07-16
+# @date 2023-09-01
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         copy_async, prod_async, relu_async, relu_backward_async, gelu_async, \
         gelu_backward_async, gelutanh_async, gelutanh_backward_async, \
-        gelutanh_inplace_async
+        gelutanh_inplace_async, relu_forward_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List, Callable
@@ -65,6 +65,9 @@ class Act(BaseLayer):
             relu_forward_async(self.x.value, self.y.value)
         if self.funcname == "gelutanh":
             gelutanh_async(self.x.value, self.y.value)
+        if self.funcname == "gelu":
+            copy_async(self.x.value, self.y.value)
+            gelu_async(self.y.value)
         self.x.value.wont_use()
         self.y.value.wont_use()
 

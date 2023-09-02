@@ -10,10 +10,6 @@ from typing import Optional, Tuple
 from huggingface_activations import ACT2FN
 from gpt2_config import GPT2Config
 
-import os
-#os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"  
-#os.environ["CUDA_VISIBLE_DEVICES"]="5" # change 0  with whatever card is available
-
 batch_size = 100
 batch_size_tile = 10
 

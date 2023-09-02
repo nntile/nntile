@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-03
+# @date 2023-09-02
 
 # All necesary imports
 import nntile
@@ -49,7 +49,7 @@ def helper_l(dtype: np.dtype):
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Define linear layer
     layer, next_tag = Linear.generate_simple(A_moments, 'L',
-            nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag, False)
+            nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag, bias=False)
     rand_W = np.random.randn(*layer.w.value.shape)
     np_W = np.array(rand_W, dtype=dtype, order='F')
     layer.w.value.from_array(np_W)
@@ -105,7 +105,7 @@ def helper_r(dtype: np.dtype):
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Define linear layer
     layer, next_tag = Linear.generate_simple(A_moments, 'R',
-            nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag, False)
+            nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag, bias=False)
     rand_W = np.random.randn(*layer.w.value.shape)
     np_W = np.array(rand_W, dtype=dtype, order='F')
     layer.w.value.from_array(np_W)
@@ -161,8 +161,9 @@ def helper_l_fp32_fast_fp16():
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Define linear layer
-    layer, next_tag = Linear.generate_simple_mpiroot(A_moments, 'L',
-            nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag, True)
+    layer, next_tag = Linear.generate_simple(A_moments, 'L',
+            nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag, \
+            fp32_fast_fp16=True, bias=False)
     rand_W = np.random.randn(*layer.w.value.shape)
     np_W = np.array(rand_W, dtype=dtype, order='F')
     layer.w.value.from_array(np_W)
@@ -223,7 +224,7 @@ def helper_torch_l(x_shape, w_shape, b_shape, n_contracted_dim):
     layer, next_tag = Linear.generate_simple(A_moments, 'L', \
             nntile.tensor.notrans, n_contracted_dim, \
             [*w_shape[n_contracted_dim:]], \
-            [*w_shape[n_contracted_dim:]], next_tag, True)
+            [*w_shape[n_contracted_dim:]], next_tag, bias=True)
     
     np_W = np.array(w_torch.detach().numpy(), dtype=np.float32, order='F')
     layer.w.value.from_array(np_W)
@@ -319,7 +320,7 @@ def helper_torch_r(x_shape, w_shape, b_shape, n_contracted_dim):
     layer, next_tag = Linear.generate_simple(A_moments, 'R', \
             nntile.tensor.notrans, n_contracted_dim, \
             [*w_shape[:-n_contracted_dim]], \
-            [*w_shape[:-n_contracted_dim]], next_tag, True)
+            [*w_shape[:-n_contracted_dim]], next_tag, bias=True)
     
     np_W = np.array(w_torch.detach().numpy(), dtype=np.float32, order='F')
     layer.w.value.from_array(np_W)
@@ -405,7 +406,7 @@ def helper_torch_linear(x_shape, w_shape):
     # Define linear layer
     layer, next_tag = Linear.generate_simple(A_moments, 'L', \
             nntile.tensor.notrans, 1, [w_shape[1]], [w_shape[1]], next_tag, \
-            True)
+            bias=True)
     
     np_W = np.array(linear_layer.weight.detach().numpy(), dtype=np.float32, \
             order='F')

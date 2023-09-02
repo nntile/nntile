@@ -161,6 +161,23 @@ void cublas(cublasHandle_t handle, cublasOperation_t transA,
 static inline
 void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
         cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
+        const fp16_t *A, int ldA, long long int strideA, const fp16_t *B,
+        int ldB, long long int strideB, fp32_t beta, fp16_t *C, int ldC,
+        long long int strideC, int batchCount)
+    noexcept
+{
+    const __half alpha_half = __float2half(alpha),
+          beta_half = __float2half(beta);
+    cublasHgemmStridedBatched(handle, transA, transB, M, N, K, &alpha_half,
+            reinterpret_cast<const __half *>(A), ldA, strideA,
+            reinterpret_cast<const __half *>(B), ldB, strideB, &beta_half,
+            reinterpret_cast<__half *>(C), ldC, strideC, batchCount);
+}
+
+// Overloaded call to batched cuBLAS gemm
+static inline
+void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
+        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
         const fp32_t *A, int ldA, long long int strideA, const fp32_t *B,
         int ldB, long long int strideB, fp32_t beta, fp32_t *C, int ldC,
         long long int strideC, int batchCount)

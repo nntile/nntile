@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-06-29
+ * @date 2023-09-01
  * */
 
 #include "nntile/tensor/gather.hh"
@@ -138,6 +138,10 @@ void gather(const Tensor<T> &src, const Tensor<T> &dst)
 
 // Explicit instantiation
 template
+void gather_async<fp16_t>(const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst);
+
+template
 void gather_async<fp32_t>(const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
 
@@ -154,6 +158,9 @@ void gather_async<bool_t>(const Tensor<bool_t> &src,
         const Tensor<bool_t> &dst);
 
 // Explicit instantiation
+template
+void gather<fp16_t>(const Tensor<fp16_t> &src, const Tensor<fp16_t> &dst);
+
 template
 void gather<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 

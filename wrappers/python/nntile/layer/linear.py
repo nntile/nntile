@@ -10,15 +10,16 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-22
+# @date 2023-09-02
 
 import nntile
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, copy_async, gemm_async, randn_async, \
-        add_slice_async, add_fiber_async, sum_slice_async, sum_fiber_async
+        add_slice_async, add_fiber_async, sum_slice_async, sum_fiber_async, \
+        gemm_ex_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
-from typing import List, Union
+from typing import List, Union, Optional
 
 class Linear(BaseLayer):
     side: str
@@ -52,7 +53,7 @@ class Linear(BaseLayer):
         if ndim <= 0:
             raise ValueError("ndim must be positive integer")
         # Redirect to BaseClass initialization
-        if b is None:
+        if not b:
             super().__init__([x], [y], [w], [x_fp16, w_fp16, y_fp16])
             self.b = None
         else:
@@ -165,10 +166,10 @@ class Linear(BaseLayer):
             y_fp16_grad = Tensor_fp16(y_traits, y_distr, next_tag)
             next_tag = y_fp16_grad.next_tag
             y_fp16 = TensorMoments(y_fp16_value, y_fp16_grad, True)
-            layer = Linear(side, trans_x, x, y, w, ndim, fp32_fast_fp16, \
+            layer = Linear(side, trans_x, x, y, w, ndim, b, fp32_fast_fp16, \
                     fp32_convert_fp16, x_fp16, w_fp16, y_fp16)
         else:
-            layer = Linear(side, trans_x, x, y, w, ndim, fp32_fast_fp16)
+            layer = Linear(side, trans_x, x, y, w, ndim, b, fp32_fast_fp16)
         # Return layer and next tag to be used
         return (layer, next_tag)
 

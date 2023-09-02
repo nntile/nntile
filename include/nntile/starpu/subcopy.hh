@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-06-29
+ * @date 2023-09-01
  * */
 
 #pragma once
@@ -30,13 +30,20 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
 
-extern Codelet codelet_fp32, codelet_fp64, codelet_int64, codelet_bool_t;
+extern Codelet codelet_fp16, codelet_fp32, codelet_fp64, codelet_int64,
+       codelet_bool;
 
 template<typename T>
 constexpr Codelet *codelet()
 {
     throw std::runtime_error("Non-supported type");
     return nullptr;
+}
+
+template<>
+constexpr Codelet *codelet<fp16_t>()
+{
+    return &codelet_fp16;
 }
 
 template<>
@@ -60,7 +67,7 @@ constexpr Codelet *codelet<Index>()
 template<>
 constexpr Codelet *codelet<bool_t>()
 {
-    return &codelet_bool_t;
+    return &codelet_bool;
 }
 
 void init();
