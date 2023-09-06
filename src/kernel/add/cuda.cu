@@ -81,16 +81,21 @@ void cuda<fp64_t>(cudaStream_t stream, Index nelems, fp64_t alpha,
     noexcept;
 
 // Explicit instantiation of cuda function for fp16 type
+template<typename T> // spefic template for fp16_t
+void cuda(cudaStream_t stream, Index nelems, fp32_t alpha, const T *src, fp32_t beta,
+        T *dst)
+    noexcept;
+
 template<>
-void cuda<fp16_t>(cudaStream_t stream, Index nelems, fp16_t alpha, const fp16_t *src, fp16_t beta,
+void cuda<fp16_t>(cudaStream_t stream, Index nelems, fp32_t alpha, const fp16_t *src, fp32_t beta,
         fp16_t *dst)
     noexcept
 //! Add two buffers on CUDA in half precission, see in destiction in original template
 {
 
     dim3 blocks((nelems+255)/256), threads(256);
-    __half alpha_half = __half(1.0); //bypass to comile
-    __half beta_half = __half(1.0); // bypass to compile
+    __half alpha_half = __float2half(alpha);
+    __half beta_half = __float2half(beta); 
     const __half *src_half = reinterpret_cast<const __half *>(src);
     __half *dst_half = reinterpret_cast<__half *>(dst);
     (cuda_kernel<__half>)<<<blocks, threads, 0, stream>>>(nelems, alpha_half, src_half, beta_half,

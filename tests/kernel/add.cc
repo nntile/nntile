@@ -21,7 +21,7 @@
 #include <iostream>
 
 using namespace nntile;
-using namespace nntile::kernel::add;
+using namespace nntile::kernel;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
@@ -44,7 +44,7 @@ void run_cuda(Index nelems, T alpha, const std::vector<T> &src, T beta, std::vec
     cuda_err = cudaStreamCreate(&stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Launch low-level CUDA kernel
-    cuda<T>(stream, nelems, alpha, dev_src, beta, dev_dst);
+    add::cuda<T>(stream, nelems, alpha, dev_src, beta, dev_dst);
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result and deallocate device memory
@@ -58,6 +58,13 @@ void run_cuda(Index nelems, T alpha, const std::vector<T> &src, T beta, std::vec
     cuda_err = cudaStreamDestroy(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
 }
+
+//template<>
+//void run_cuda<fp16_t>(Index nelems, fp32_t alpha, const std::vector<fp16_t> &src, fp32_t beta, std::vector<fp16_t> &dst)
+//{
+//    
+//}
+
 #endif // NNTILE_USE_CUDA
 
 // Templated validation
@@ -77,7 +84,7 @@ void validate(Index nelems, Index test_index)
     std::vector<T> dst_save(dst);
     // Check low-level CPU kernel
     std::cout << "Run kernel::add::cpu<T>\n";
-    cpu<T>(nelems, alpha, &src[0], beta, &dst[0]);
+    add::cpu<T>(nelems, alpha, &src[0], beta, &dst[0]);
     for(Index i = 0; i < nelems; ++i)
     {
         T val_ref = alpha*T(2*i+1-nelems) + beta*T(2*nelems-i);
@@ -98,6 +105,34 @@ void validate(Index nelems, Index test_index)
 #endif // NNTILE_USE_CUDA
 }
 
+template<>
+void validate<fp16_t>(Index nelems, Index test_index)
+{
+     constexpr fp32_t eps = 2 * std::numeric_limits<fp32_t>::epsilon();
+    // Init test input
+    fp32_t alpha = (1.0)/fp32_t(test_index); 
+    fp32_t beta = (1.0)/fp32_t(test_index);
+    std::vector<fp32_t> src(nelems), dst(nelems);
+    for(Index i = 0; i < nelems; ++i)
+    {
+        src[i] = fp32_t(2*i+1-nelems);
+        dst[i] = fp32_t(2*nelems-i);
+    }
+#ifdef NNTILE_USE_CUDA
+    fp16_t * src16;
+    fp16_t * dst16;
+    // Check low-level CUDA kernel
+    std::cout << "Run kernel::add::cuda<fp16_t>\n";
+    //run_cuda<fp16_t>(nelems, alpha, src, beta, dst);
+    for(Index i = 0; i < nelems; ++i)
+    {
+        fp32_t val_ref = alpha*fp32_t(2*i+1-nelems) + beta*fp32_t(2*nelems-i);
+        TEST_ASSERT(std::abs(dst[i]-val_ref) <= eps);
+    }
+    std::cout << "OK: kernel::add::cuda<fp16_t>\n";
+#endif // NNTILE_USE_CUDA
+}
+
 int main(int argc, char **argv)
 {
     const Index test_nelems[] = { 0, 3, 8888 };
@@ -114,6 +149,8 @@ int main(int argc, char **argv)
         
         validate<fp32_t>(test_nelems[i],-i);
         validate<fp64_t>(test_nelems[i],-i);
+
+        //validate<fp16_t>(test_nelems[i],i);
     }
 }
 
