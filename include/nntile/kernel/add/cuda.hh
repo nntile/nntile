@@ -10,7 +10,8 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-06-20
+ * @author Konstantin Sozykin
+ * @date 2023-09-10
  * */
 
 #pragma once
@@ -29,6 +30,11 @@ namespace add
 template<typename T>
 void cuda(cudaStream_t stream, Index nelems, T alpha, const T* src, T beta,
         T* dst)
+    noexcept;
+
+// specific specialization for fp16_t, temporary solution
+void cuda16(cudaStream_t stream, Index nelems, fp32_t alpha, const fp16_t *src, fp32_t beta,
+        fp16_t *dst)
     noexcept;
 
 } // namespace add

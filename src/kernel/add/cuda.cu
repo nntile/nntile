@@ -17,8 +17,6 @@
 #include "nntile/kernel/add/cuda.hh"
 #include <cuda_fp16.h>
 
-
-
 namespace nntile
 {
 namespace kernel
@@ -81,13 +79,7 @@ void cuda<fp64_t>(cudaStream_t stream, Index nelems, fp64_t alpha,
     noexcept;
 
 // Explicit instantiation of cuda function for fp16 type
-template<typename T> // spefic template for fp16_t
-void cuda(cudaStream_t stream, Index nelems, fp32_t alpha, const T *src, fp32_t beta,
-        T *dst)
-    noexcept;
-
-template<>
-void cuda<fp16_t>(cudaStream_t stream, Index nelems, fp32_t alpha, const fp16_t *src, fp32_t beta,
+void cuda16(cudaStream_t stream, Index nelems, fp32_t alpha, const fp16_t *src, fp32_t beta,
         fp16_t *dst)
     noexcept
 //! Add two buffers on CUDA in half precission, see in destiction in original template
