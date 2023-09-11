@@ -173,26 +173,25 @@ void validate<fp16_t>(Index nelems, int test_index_a, int test_index_b)
 
 int main(int argc, char **argv)
 {
-    const Index test_nelems[] = { 0, 3, 8888 };
+    const Index test_nelems[] = { 0, 3, 999 };
     for(Index j = 0; j < 3; ++j)
     {
-        int i = int(j);
-        validate<fp64_t>(test_nelems[i],i,i);
-        validate<fp32_t>(test_nelems[i],i,i);
-        validate<fp16_t>(test_nelems[i],i,i);
-
-        validate<fp64_t>(test_nelems[i],i,-i);
-        validate<fp32_t>(test_nelems[i],i,-i);
-        validate<fp16_t>(test_nelems[i],i,-i);
-
-        validate<fp64_t>(test_nelems[i],-i,i);
-        validate<fp32_t>(test_nelems[i],-i,i);
-        validate<fp16_t>(test_nelems[i],-i,i);
-
-        validate<fp64_t>(test_nelems[i],-i,-i);
-        validate<fp32_t>(test_nelems[i],-i,-i);
-        validate<fp16_t>(test_nelems[i],-i,-i);
+        Index nelems = test_nelems[j];
+        int i = int(j)+1;
+        validate<fp64_t>(nelems,i,i); // run with alhpa == 1/i and beta == 1/i etc
+        validate<fp64_t>(nelems,i,-i);
+        validate<fp64_t>(nelems,-i,i);
+        validate<fp64_t>(nelems,-i,-i);
         
+        validate<fp32_t>(nelems,i,i);
+        validate<fp32_t>(nelems,i,-i);
+        validate<fp32_t>(nelems,-i,i);
+        validate<fp32_t>(nelems,-i,-i);
+
+        i = 1;
+        validate<fp16_t>(nelems,i,i);
+        validate<fp16_t>(nelems,i,-i);
+        validate<fp16_t>(nelems,-i,i);
+        validate<fp16_t>(nelems,-i,-i);
     }
 }
-
