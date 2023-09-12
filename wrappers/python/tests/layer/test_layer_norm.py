@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-05-05
+# @date 2023-09-12
 
 # All necesary imports
 import nntile
@@ -91,16 +91,16 @@ def helper(dtype: np.dtype):
     res.backward()
     np_A_grad_torch = torch_A.grad.numpy()
     np_gamma_grad_torch = torch_layer.weight.grad.numpy()
-    np_bias_grad_torch = torch_layer.bias.grad.numpy()
+    np_beta_grad_torch = torch_layer.bias.grad.numpy()
     # Check backward
     if np.linalg.norm(np_A_grad_torch-np_A_grad_nntile) \
             / np.linalg.norm(np_A_grad_torch) >= 1e-5:
         assert False
-    if np.linalg.norm(np_A_grad_torch-np_A_grad_nntile) \
-            / np.linalg.norm(np_A_grad_torch) >= 1e-5:
+    if np.linalg.norm(np_gamma_grad_torch-np_gamma_grad_nntile) \
+            / np.linalg.norm(np_gamma_grad_torch) >= 1e-5:
         assert False
-    if np.linalg.norm(np_A_grad_torch-np_A_grad_nntile) \
-            / np.linalg.norm(np_A_grad_torch) >= 1e-5:
+    if np.linalg.norm(np_beta_grad_torch-np_beta_grad_nntile) \
+            / np.linalg.norm(np_beta_grad_torch) >= 1e-5:
         assert False
     # Unregister tensors
     A.unregister()

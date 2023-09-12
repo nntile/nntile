@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-09-01
+ * @date 2023-09-12
  * */
 
 #include "nntile/tensor/scatter.hh"
@@ -102,15 +102,15 @@ void scatter_async(const Tensor<T> &src, const Tensor<T> &dst)
             if(mpi_rank != dst_tile_rank)
             {
                 // No need to check for cached send, as output was just updated
-                ret = starpu_mpi_isend_detached(
-                        static_cast<starpu_data_handle_t>(dst_tile_handle),
-                        dst_tile_rank, tile_tag, MPI_COMM_WORLD, nullptr,
-                        nullptr);
-                if(ret != 0)
-                {
-                    throw std::runtime_error("Error in starpu_mpi_isend_"
-                            "detached");
-                }
+                //ret = starpu_mpi_isend_detached(
+                //        static_cast<starpu_data_handle_t>(dst_tile_handle),
+                //        dst_tile_rank, tile_tag, MPI_COMM_WORLD, nullptr,
+                //        nullptr);
+                //if(ret != 0)
+                //{
+                //    throw std::runtime_error("Error in starpu_mpi_isend_"
+                //            "detached");
+                //}
             }
         }
         // Init receive of source tile for owner of destination tile
@@ -118,15 +118,15 @@ void scatter_async(const Tensor<T> &src, const Tensor<T> &dst)
         {
             auto tile_tag = dst_tile_handle.mpi_get_tag();
             // No need to check for cached recv, as output was just updated
-            ret = starpu_mpi_irecv_detached(
-                    static_cast<starpu_data_handle_t>(dst_tile_handle),
-                    src_tile_rank, tile_tag, MPI_COMM_WORLD, nullptr,
-                    nullptr);
-            if(ret != 0)
-            {
-                throw std::runtime_error("Error in starpu_mpi_irecv_"
-                        "detached");
-            }
+            //ret = starpu_mpi_irecv_detached(
+            //        static_cast<starpu_data_handle_t>(dst_tile_handle),
+            //        src_tile_rank, tile_tag, MPI_COMM_WORLD, nullptr,
+            //        nullptr);
+            //if(ret != 0)
+            //{
+            //    throw std::runtime_error("Error in starpu_mpi_irecv_"
+            //            "detached");
+            //}
         }
         // Get out if it was the last tile
         if(i == dst.grid.nelems-1)

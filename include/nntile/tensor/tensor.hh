@@ -9,14 +9,17 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-02-06
+ * @date 2023-09-12
  * */
 
 #pragma once
 
 #include <nntile/tensor/traits.hh>
 #include <nntile/tile/tile.hh>
-#include <starpu_mpi.h>
+//#include <starpu_mpi.h>
+#include <starpu.h>
+
+#define starpu_mpi_tag_t int64_t
 
 namespace nntile
 {
@@ -67,10 +70,10 @@ public:
             tile_handles.emplace_back(sizeof(T)*tile_traits[i].nelems,
                     STARPU_R);
             // Register tile with MPI
-            starpu_mpi_data_register(
-                    static_cast<starpu_data_handle_t>(tile_handles[i]),
-                    last_tag, distribution[i]);
-            ++last_tag;
+            //starpu_mpi_data_register(
+            //        static_cast<starpu_data_handle_t>(tile_handles[i]),
+            //        last_tag, distribution[i]);
+            //++last_tag;
         }
         next_tag = last_tag;
     }
@@ -141,7 +144,7 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
-            starpu_mpi_cache_flush(MPI_COMM_WORLD, tmp);
+            //starpu_mpi_cache_flush(MPI_COMM_WORLD, tmp);
         }
     }
 };

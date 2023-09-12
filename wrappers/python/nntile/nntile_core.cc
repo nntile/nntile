@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-23
+ * @date 2023-09-12
  * */
 
 #include <pybind11/pybind11.h>
@@ -35,7 +35,6 @@ void def_mod_starpu(py::module_ &m)
     using namespace std::chrono_literals;
     py::class_<Config>(m, "Config").
         def(py::init<int, int, int>()).
-        def("init", &Config::init).
         def("shutdown", &Config::shutdown);
     m.def("init", init);
     m.def("pause", starpu_pause);
@@ -246,10 +245,10 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
     }
     // Create temporary single-tile tensor
     tensor::TensorTraits tmp_traits(tensor.shape, tensor.shape);
-    int64_t tmp_tag;
+    int64_t tmp_tag = 0;
     int flag;
-    starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
-            &flag);
+    //starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
+    //        &flag);
     std::vector<int> tmp_distr{0};
     tensor::Tensor<T> tmp(tmp_traits, tmp_distr, tmp_tag);
     // Acquire tile and copy data
@@ -310,9 +309,9 @@ void tensor_to_array(const tensor::Tensor<T> &tensor,
     }
     // Create temporary single-tile tensor
     tensor::TensorTraits tmp_traits(tensor.shape, tensor.shape);
-    int64_t tmp_tag;
+    int64_t tmp_tag = 0;
     int flag;
-    starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
+    //starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
             &flag);
     std::vector<int> tmp_distr{0};
     tensor::Tensor<T> tmp(tmp_traits, tmp_distr, tmp_tag);

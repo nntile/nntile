@@ -11,7 +11,8 @@ systems."""
 license = {text = "MIT"}
 authors = [
     {name = "Aleksandr Mikhalev", email = "al.mikhalev@skoltech.ru"},
-    {name = "Alexandr Katrutsa", email = "aleksandr.katrutsa@phystech.edu"},
+    {name = "Aleksandr Katrutsa", email = "a.katrutsa@skoltech.ru"},
+    {name = "Konstantin Sozykin", email = "ko.sozykin@skoltech.ru"},
     {name = "Daniel Bershatsky", email = "d.bershatsky@skoltech.ru"},
     {name = "Ivan Oseledets", email = "i.oseledets@skoltech.ru"},
 ]
@@ -51,7 +52,7 @@ requires-python = ">=3.8,<4"
 
 [project.optional-dependencies]
 dev = ["ipdb", "ipython", "isort", "flake8", "mypy"]
-test = ["torch", "torchvision", "pytest", "scipy"]
+test = ["torch", "torchvision", "pytest", "scipy", "transformers", "datasets"]
 
 [project.urls]
 Homepage = "https://doge.skoltech.ru/green-ai/nntile"

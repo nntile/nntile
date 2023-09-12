@@ -64,11 +64,11 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src1, const T *src2,
             for(Index i0 = 0; i0 < m; ++i0)
             {
                 // Update sum
-                //sum += src1_fiber[i0] * src2_fiber[i0];
-                y = src1_fiber[i0*m]*src2_fiber[i0*m] - c;
-                t = sum + y;
-                c = (t-sum) - y;
-                sum = t;
+                sum += src1_fiber[i0] * src2_fiber[i0];
+                //y = src1_fiber[i0*m]*src2_fiber[i0*m] - c;
+                //t = sum + y;
+                //c = (t-sum) - y;
+                //sum = t;
             }
         }
         // Update output value

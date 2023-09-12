@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-06-28
+# @date 2023-09-12
 
 # Imports
 import torch
@@ -38,12 +38,12 @@ parser.add_argument("--pixels_tile", type=int)
 parser.add_argument("--epoch", type=int)
 parser.add_argument("--epoch_warmup", type=int)
 parser.add_argument("--lr", type=float)
+parser.add_argument("--fp32_fast_fp16", action="store_true")
+parser.add_argument("--fp32_convert_fp16", action="store_true")
 
 # Parse arguments
 args = parser.parse_args()
 print(args)
-fp32_fast_fp16 = False
-fp32_convert_fp16 = True
 deep_relu_mp = False # Do not enable it, under construction
 
 if args.dataset == "mnist":
@@ -137,15 +137,15 @@ if deep_relu_mp:
     print("GEMM FP16")
 else:
     m = nntile.model.DeepReLU(x_moments, 'R', gemm_ndim, args.hidden_dim, \
-            args.hidden_dim_tile, args.depth, n_classes, next_tag, \
-            fp32_fast_fp16, fp32_convert_fp16)
+            args.hidden_dim_tile, args.depth, n_classes, next_tag, False, \
+            args.fp32_fast_fp16, args.fp32_convert_fp16)
     print("GEMM FP32_FAST_FP16: {}".format(m.fp32_fast_fp16))
     print("GEMM FP32_CONVERT_FP16: {}".format(m.fp32_convert_fp16))
 next_tag = m.next_tag
 # Set up learning rate and optimizer for training
-optimizer = nntile.optimizer.SGD(m.get_parameters(), lr, next_tag, \
-        momentum=0.0, nesterov=False, weight_decay=0.0)
-#optimizer = nntile.optimizer.Adam(m.get_parameters(), lr, next_tag)
+#optimizer = nntile.optimizer.SGD(m.get_parameters(), args.lr, next_tag, \
+#        momentum=0.0, nesterov=False, weight_decay=0.0)
+optimizer = nntile.optimizer.Adam(m.get_parameters(), args.lr, next_tag)
 
 # Set up Cross Entropy loss function for the model
 loss, next_tag = nntile.loss.CrossEntropy.generate_simple(m.activations[-1], \
@@ -192,9 +192,7 @@ pipeline.n_epochs = args.epoch_warmup
 print("Start {} warmup epochs to let StarPU allocate and pin buffer" \
         .format(args.epoch_warmup))
 time0 = -time.time()
-nntile.starpu.pause()
 pipeline.train_async()
-nntile.starpu.resume()
 nntile.starpu.wait_for_all()
 time0 += time.time()
 print("Finish {} warmup epochs in {} seconds".format(args.epoch_warmup, time0))
@@ -202,9 +200,7 @@ print("Finish {} warmup epochs in {} seconds".format(args.epoch_warmup, time0))
 # Start timer and run training
 pipeline.n_epochs = args.epoch
 time0 = -time.time()
-nntile.starpu.pause()
 pipeline.train_async()
-nntile.starpu.resume()
 time0 += time.time()
 print("Finish adding tasks (computations are running) in {} seconds" \
         .format(time0))

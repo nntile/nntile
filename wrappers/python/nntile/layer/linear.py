@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-02
+# @date 2023-09-12
 
 import nntile
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
@@ -53,7 +53,7 @@ class Linear(BaseLayer):
         if ndim <= 0:
             raise ValueError("ndim must be positive integer")
         # Redirect to BaseClass initialization
-        if not b:
+        if b is None:
             super().__init__([x], [y], [w], [x_fp16, w_fp16, y_fp16])
             self.b = None
         else:
@@ -76,8 +76,9 @@ class Linear(BaseLayer):
     @staticmethod
     def generate_simple(x: TensorMoments, side: str, trans_x: TransOp, \
             in_features_ndim: int, out_features_shape: List[int], \
-            out_features_basetile_shape: List[int], next_tag: int, bias=True, \
-            fp32_fast_fp16: bool = False, fp32_convert_fp16: bool = False):
+            out_features_basetile_shape: List[int], next_tag: int, \
+            bias: bool=True, fp32_fast_fp16: bool=False, \
+            fp32_convert_fp16: bool=False):
         # Define shapes
         ndim = in_features_ndim
         add_shape = out_features_shape
@@ -192,6 +193,10 @@ class Linear(BaseLayer):
                 gemm_async(1.0, self.trans_x, self.x_fp16.value, notrans, \
                         self.w_fp16.value, 0.0, self.y_fp16.value, \
                         self.ndim, 0)
+                fp16_to_fp32_async(self.y_fp16.value, self.y.value)
+                self.x_fp16.value.wont_use()
+                self.w_fp16.value.wont_use()
+                self.y_fp16.value.wont_use()
             else:
                 gemm_async(1.0, self.trans_x, self.x.value, notrans, \
                         self.w.value, 0.0, self.y.value, self.ndim, 0)
@@ -210,15 +215,13 @@ class Linear(BaseLayer):
                 gemm_async(1.0, notrans, self.w_fp16.value, self.trans_x, \
                         self.x_fp16.value, 0.0, self.y_fp16.value, \
                         self.ndim, 0)
+                fp16_to_fp32_async(self.y_fp16.value, self.y.value)
+                self.x_fp16.value.wont_use()
+                self.w_fp16.value.wont_use()
+                self.y_fp16.value.wont_use()
             else:
                 gemm_async(1.0, notrans, self.w.value, self.trans_x, \
                         self.x.value, 0.0, self.y.value, self.ndim, 0)
-        # Convert fp16 to fp32 if needed and offload data
-        if self.fp32_convert_fp16:
-            fp16_to_fp32_async(self.y_fp16.value, self.y.value)
-            self.x_fp16.value.wont_use()
-            self.w_fp16.value.wont_use()
-            self.y_fp16.value.wont_use()
             if self.b is not None:
                 add_fiber_async(1.0, self.b.value, 1.0, self.y.value, 0, 0)
         # Hint for StarPU that W tensor will

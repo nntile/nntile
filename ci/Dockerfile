@@ -66,5 +66,4 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     GIST_PEDS=https://gist.githubusercontent.com/daskol/5513ff9c5b8a2d6b2a0e78f522dd2800 && \
     curl -SL $GIST_PEDS/raw/4e7b80e5f9d49c2e39cf8aa4e6b6b8b951724730/peds.py | \
     python - -i -e dev -e test \
-        --extra-index-url https://download.pytorch.org/whl/cpu \
         wrappers/python

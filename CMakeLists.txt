@@ -92,15 +92,15 @@ if(USE_CBLAS)
     endif()
 endif()
 
-# Get MPI
-find_package(MPI REQUIRED)
-target_link_libraries(nntile PUBLIC MPI::MPI_CXX)
+# Get MPI, disabled for StarPU master-slave option
+#find_package(MPI REQUIRED)
+#target_link_libraries(nntile PUBLIC MPI::MPI_CXX)
 
 # Get the pkg-config
 find_package(PkgConfig REQUIRED)
 
 # Get the StarPU
-pkg_check_modules(StarPU REQUIRED starpumpi-1.3)
+pkg_check_modules(StarPU REQUIRED starpu-1.4)
 target_link_libraries(nntile PUBLIC ${StarPU_LDFLAGS})
 target_include_directories(nntile PUBLIC
     "${PROJECT_SOURCE_DIR}/include"
