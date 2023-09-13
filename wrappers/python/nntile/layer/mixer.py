@@ -1,11 +1,8 @@
-from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        TransOp, trans, notrans, add_async, copy_async, gelu_async, gemm_async
+from nntile.tensor import TensorMoments, notrans, add_async
 from nntile.layer.base_layer import BaseLayer
 from nntile.layer.layer_norm import LayerNorm
 from nntile.layer.linear import Linear
 from nntile.layer.act import Act
-import numpy as np
-from typing import List
 
 
 class MixerMlp(BaseLayer):
@@ -23,8 +20,6 @@ class MixerMlp(BaseLayer):
         # Check parameter side
         if side != 'L' and side != 'R':
             raise ValueError("side must be either 'L' or 'R'")
-        # Redirect to BaseClass initialization
-        super().__init__([x], [y], [], [])
         
         # Set up local named parameters
         self.side = side
@@ -34,9 +29,19 @@ class MixerMlp(BaseLayer):
         self.linear_2 = linear_2
         self.act = act
 
+        layer_temporaries = list(self.linear_1.activations_output + self.act.activations_output + self.linear_2.activations_output)
+        layer_parameters = list(self.linear_1.parameters + self.linear_2.parameters)
+        
+        # Redirect to BaseClass initialization
+        super().__init__([x], [y], layer_parameters, layer_temporaries)
+
+
+    def unregister(self):
+        super().unregister()
+
 
     @staticmethod
-    def generate_simple_mpiroot(x: TensorMoments, side: str, next_tag: int):
+    def generate_simple(x: TensorMoments, side: str, next_tag: int):
         if side == 'R':
             add_shape = x.value.shape[0] * 4
             add_basetile_shape = x.value.shape[0] * 4
@@ -45,9 +50,9 @@ class MixerMlp(BaseLayer):
             add_shape = x.value.shape[-1] * 4
             add_basetile_shape = x.value.shape[-1] * 4
             init_shape = x.value.shape[-1]
-        linear_1_layer, next_tag = Linear.generate_simple_mpiroot(x, side, notrans, 1, [add_shape], [add_basetile_shape], next_tag)
+        linear_1_layer, next_tag = Linear.generate_simple(x, side, notrans, 1, [add_shape], [add_basetile_shape], next_tag, bias=False)
         act_layer, next_tag = Act.generate_simple(linear_1_layer.y, 'gelu', next_tag)
-        linear_2_layer, next_tag = Linear.generate_simple_mpiroot(act_layer.y, side, notrans, 1, [init_shape], [init_shape], next_tag)
+        linear_2_layer, next_tag = Linear.generate_simple(act_layer.y, side, notrans, 1, [init_shape], [init_shape], next_tag, bias=False)
         layer = MixerMlp(side, x, linear_2_layer.y, linear_1_layer, linear_2_layer, act_layer)
 
         # Return layer and next tag to be used
@@ -72,9 +77,6 @@ class Mixer(BaseLayer):
     def __init__(self, x: TensorMoments, y: TensorMoments, 
                  norm_1: LayerNorm, norm_2: LayerNorm,
                  mlp_1: MixerMlp, mlp_2: MixerMlp):
-        
-        # Redirect to BaseClass initialization
-        super().__init__([x], [y], [], [])
 
         # Set up local named parameters
         self.x = x
@@ -83,19 +85,32 @@ class Mixer(BaseLayer):
         self.norm_2 = norm_2
         self.mlp_1 = mlp_1
         self.mlp_2 = mlp_2
+        layer_parameters = list(self.norm_1.parameters + self.mlp_1.parameters + self.norm_2.parameters + self.mlp_2.parameters)
+        layer_tmp = list(self.norm_1.activations_output + self.mlp_1.activations_output + self.norm_2.activations_output + self.mlp_2.activations_output)
 
+        # Redirect to BaseClass initialization
+        super().__init__([x], [y], layer_parameters, layer_tmp)
+
+
+    def unregister(self):
+        super().unregister()
+        self.norm_1.unregister()
+        self.norm_2.unregister()
+        self.mlp_1 .unregister()
+        self.mlp_2.unregister()
+        
 
     # Simple generator for the mixer layer
     @staticmethod
-    def generate_simple_mpiroot(x: TensorMoments, next_tag: int):
+    def generate_simple(x: TensorMoments, next_tag: int):
         eps = 1e-5
         norm_1_layer, next_tag = LayerNorm.generate_simple(x, 2, eps, next_tag)
 
-        mlp_layer1, next_tag = MixerMlp.generate_simple_mpiroot(norm_1_layer.y, 'R', next_tag)
+        mlp_layer1, next_tag = MixerMlp.generate_simple(norm_1_layer.y, 'R', next_tag)
         
         norm_2_layer, next_tag = LayerNorm.generate_simple(mlp_layer1.y, 2, eps, next_tag)
 
-        mlp_layer2, next_tag = MixerMlp.generate_simple_mpiroot(norm_2_layer.y, 'L', next_tag)
+        mlp_layer2, next_tag = MixerMlp.generate_simple(norm_2_layer.y, 'L', next_tag)
 
         layer = Mixer(x, mlp_layer2.y, norm_1_layer, norm_2_layer, mlp_layer1, mlp_layer2)
 

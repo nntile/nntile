@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-from nntile.torch_models.mixer import Mixer
 
 
 def image_patching(image_batch, patch_size):
@@ -62,8 +61,8 @@ class Mixer(nn.Module):
     def __init__(self, channel_dim: int, patch_dim :int):       
         super().__init__()
         self.norm_1 = nn.LayerNorm(patch_dim)
-        self.norm_2 = nn.LayerNorm(patch_dim)
         self.mlp_1 = MixerMlp('R', channel_dim)
+        self.norm_2 = nn.LayerNorm(patch_dim)
         self.mlp_2 = MixerMlp('L', patch_dim)
 
 

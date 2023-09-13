@@ -44,7 +44,7 @@ def helper_l(dtype: np.dtype):
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
 
     # Define mlp_mixer layer
-    layer, next_tag = MixerMlp.generate_simple_mpiroot(A_moments, 'L', next_tag)
+    layer, next_tag = MixerMlp.generate_simple(A_moments, 'L', next_tag)
     
     rand_W1 = np.random.randn(*layer.linear_1.w.value.shape)
     np_W1 = np.array(rand_W1, dtype=dtype, order='F')
@@ -101,7 +101,7 @@ def helper_r(dtype: np.dtype):
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
 
     # Define mlp_mixer layer
-    layer, next_tag = MixerMlp.generate_simple_mpiroot(A_moments, 'R', next_tag)
+    layer, next_tag = MixerMlp.generate_simple(A_moments, 'R', next_tag)
     
     rand_W1 = np.random.randn(*layer.linear_1.w.value.shape)
     np_W1 = np.array(rand_W1, dtype=dtype, order='F')

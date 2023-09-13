@@ -8,17 +8,22 @@
 #
 # @version 1.0.0
 # @author Gleb Karpov
-# @date 2023-06-09
+# @date 2023-09-13
 
 # All necesary imports
 import torch
 import torch.nn as nn
 import torchvision.datasets as dts 
-import numpy as np
 import torchvision.transforms as trnsfrms
+import nntile
 from nntile.torch_models.mlp_mixer import MlpMixer, image_patching
 from nntile.model.mlp_mixer import MlpMixer as MlpMixerTile
 
+
+# Set up StarPU configuration and init it
+config = nntile.starpu.Config(1, 0, 0)
+# Init all NNTile-StarPU codelets
+nntile.starpu.init()
 
 init_patch_size = 7
 batch_size = 1
@@ -55,3 +60,7 @@ for train_batch_sample, true_labels in trainldr:
         print("Intermediate PyTorch loss =", torch_loss.item())
     optim_torch.step()
     training_iteration += 1
+    break
+
+nntile_mixer_model, next_tag = MlpMixerTile.from_torch(mlp_mixer_model,1,num_classes, next_tag)
+nntile_mixer_model.unregister()

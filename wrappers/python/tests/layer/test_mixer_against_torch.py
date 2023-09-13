@@ -56,7 +56,7 @@ def helper(dtype: np.dtype):
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
 
     # Define mixer layer
-    mixer_layer, next_tag = Mixer.generate_simple_mpiroot(A_moments, next_tag)
+    mixer_layer, next_tag = Mixer.generate_simple(A_moments, next_tag)
     
     rand_W1 = np.random.randn(*mixer_layer.mlp_1.linear_1.w.value.shape)
     np_W1 = np.array(rand_W1, dtype=dtype, order='F')
