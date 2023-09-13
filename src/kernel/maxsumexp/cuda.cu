@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Daniel Bershatsky
- * @date 2023-08-03
+ * @date 2023-09-12
  * */
 
 #include <iostream>
@@ -128,8 +128,17 @@ void LaunchMaxSumExp1(cudaStream_t stream, Index m, Index n, Index k,
                       const T *src, T *maxsumexp) noexcept
 {
     // Both source and destination are Fortran-contiguous
-    dim3 threads(32, 1, 1);
-    dim3 blocks(1, m, n);
+    dim3 threads(32, 1, 1), blocks(1, m, n);
+    if(m > 65535)
+    {
+        threads.y = (m+65534) / 65535;
+        blocks.y = (m+threads.y-1) / threads.y;
+    }
+    if(n > 65535)
+    {
+        threads.z = (n+65534) / 65535;
+        blocks.z = (n+threads.z-1) / threads.z;
+    }
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, src,
             maxsumexp);
 }

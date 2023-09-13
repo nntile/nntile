@@ -80,7 +80,7 @@ void init()
             footprint,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
+            {}//{cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA

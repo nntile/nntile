@@ -9,10 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-05
+ * @date 2023-09-12
  * */
 
 #include "nntile/kernel/softmax_inplace/cuda.hh"
+#include <stdio.h>
 
 namespace nntile
 {
@@ -75,8 +76,18 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
 {
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
     // Both source and destination are Fortran-contiguous
-    dim3 threads(32, 1, 1);
-    dim3 blocks(1, m, n);
+    dim3 threads(32, 1, 1), blocks(1, m, n);
+    printf("SOFTMAX INPLACE: m=%d, n=%d, k=%d\n", m, n, k);
+    if(m > 65535)
+    {
+        threads.y = (m+65534) / 65535;
+        blocks.y = (m+threads.y-1) / threads.y;
+    }
+    if(n > 65535)
+    {
+        threads.z = (n+65534) / 65535;
+        blocks.z = (n+threads.z-1) / threads.z;
+    }
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, maxsumexp, dst);
 }
 

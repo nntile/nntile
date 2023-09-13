@@ -140,6 +140,7 @@ nntile.starpu.profiling_disable()
 nntile.starpu.init()
 # Restrict computations to CUDA if possible
 nntile.starpu.restrict_cuda()
+#nntile.starpu.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
 next_tag = 0
@@ -153,9 +154,14 @@ nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
         args.batch_size, args.batch_size_tile, config.n_positions, \
         args.seq_len_tile, nntile_model_config, next_tag)
 
-# Move model to the designated device
-model_torch = model_torch.to(args.torch_device)
-model_torch = torch.compile(model_torch)
+# Move model to the designated device or delete model if it will not be used
+# any more
+if args.check or args.check_fp64 or args.torch_nforward > 0 \
+        or args.torch_nbackward > 0 or args.torch_nepochs:
+    model_torch = model_torch.to(args.torch_device)
+    model_torch = torch.compile(model_torch)
+else:
+    del model_torch
 
 # Function to check correctness of gradients
 def check_grads(model_torch, nntile_model):
