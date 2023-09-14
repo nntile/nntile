@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-08-31
+ * @date 2023-09-14
  * */
 
 #include "nntile/kernel/relu/cpu.hh"
@@ -37,7 +37,7 @@ void cpu(Index nelems, T *data)
     for(Index i = 0; i < nelems; ++i)
     {
         T z = data[i];
-        data[i] = std::max(z, zero);
+        data[i] = std::fmax(z, zero);
     }
 }
 

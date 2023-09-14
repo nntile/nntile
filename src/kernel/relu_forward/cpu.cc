@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-04
+ * @date 2023-09-14
  * */
 
 #include "nntile/kernel/relu_forward/cpu.hh"
@@ -37,7 +37,7 @@ void cpu(Index nelems, const T *src, T *dst)
     constexpr T zero = 0;
     for(Index i = 0; i < nelems; ++i)
     {
-        dst[i] = std::max(src[i], zero);
+        dst[i] = std::fmax(src[i], zero);
     }
 }
 

@@ -44,15 +44,15 @@ option(BUILD_PYTHON_WRAPPERS "Generate Python wrappers" ON)
 # For easier code navigation and interaction in editors.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Specify the library
-add_library(nntile)
-
 # Set C++-17 standard publicly
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+# Specify the library
+add_library(nntile)
 
 # Add certain compilation flags for warnings etc
 #add_compile_options(-Wall -Wextra)# -Wpedantic-errors)

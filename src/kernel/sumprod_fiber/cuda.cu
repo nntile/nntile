@@ -9,10 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-01
+ * @date 2023-09-14
  * */
 
 #include "nntile/kernel/sumprod_fiber/cuda.hh"
+#include <algorithm>
 
 namespace nntile
 {
