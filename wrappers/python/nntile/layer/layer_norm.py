@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-07-23
+# @date 2023-09-14
 
 from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         TensorOrNone, TensorMoments, \
@@ -128,7 +128,9 @@ class LayerNorm(BaseLayer):
         # Y = X - mean
         add_slice3_async(-1.0, self.mean, 1.0, self.x.value, \
                 self.tmp_y_value, self.axis)
+        # mean can be offloaded from GPU
         self.mean.wont_use()
+        # X can be offloaded from GPU
         self.x.value.wont_use()
         # Compute standard deviation of self.y.value
         fill_async(self.eps, self.inv_stddev)
@@ -138,29 +140,38 @@ class LayerNorm(BaseLayer):
         pow_async(1.0, -1.0, self.inv_stddev)
         # Finally, normalize input
         prod_slice_async(self.inv_stddev, 1.0, self.tmp_y_value, self.axis)
+        # inv_stddev can be offloaded from GPU
         self.inv_stddev.wont_use()
         # Scale normalized input for the backward phase
         prod_fiber3_async(self.gamma.value, 1.0, self.tmp_y_value, \
                 self.y.value, self.axis)
+        # tmp_Y_value can be offloaded from GPU
         self.tmp_y_value.wont_use()
+        # gamma can be offloaded from GPU
         self.gamma.value.wont_use()
         # Shift output
         add_fiber_async(1.0, self.beta.value, 1.0, self.y.value, self.axis, 0)
+        # beta can be offloaded from GPU
         self.beta.value.wont_use()
+        # Y can be offloaded from GPU
         self.y.value.wont_use()
 
     def backward_async(self):
         # Accumulate gradient over beta
         sum_fiber_async(1.0, self.y.grad, 1.0, self.beta.grad, self.axis, 0)
+        # d_beta can be offloaded from GPU
         self.beta.grad.wont_use()
         # Accumulate gradient over gamma
         sumprod_fiber_async(1.0, self.y.grad, self.tmp_y_value, 1.0, \
                 self.gamma.grad, self.axis)
+        # d_gamma can be offloaded from GPU
         self.gamma.grad.wont_use()
         # Define gradient over normalized input
         prod_fiber3_async(self.gamma.value, 1.0, self.y.grad, \
                 self.tmp_y_grad, self.axis)
+        # dY can be offloaded from GPU
         self.y.grad.wont_use()
+        # gamma can be offloaded from GPU
         self.gamma.value.wont_use()
         # Get mean of product of tmp_Y_grad and tmp_Y_value over the given axis
         sumprod_slice_async(-1.0/self.l, self.tmp_y_grad, self.tmp_y_value, \
@@ -171,15 +182,24 @@ class LayerNorm(BaseLayer):
         axpy_async(1.0, self.tmp_y_grad, self.tmp_y_value)
         # Get mean value of tmp_Y_grad over the given axis
         sum_slice_async(1.0/self.l, self.tmp_y_grad, 0.0, self.mean, self.axis)
-        self.tmp_y_grad.wont_use()
+        # tmp_Y_grad can be deleted
+        #self.tmp_y_grad.wont_use()
+        self.tmp_y_grad.invalidate_submit()
         # Subtract mean from tmp_Y_value
         add_slice_async(-1.0, self.mean, 1.0, self.tmp_y_value, self.axis)
-        self.mean.wont_use()
+        # mean can be deleted
+        #self.mean.wont_use()
+        self.mean.invalidate_submit()
         # Multiply tmp_Y_value by the inverse stddev
         prod_slice_async(self.inv_stddev, 1.0, self.tmp_y_value, self.axis)
-        self.inv_stddev.wont_use()
+        # inv_stddev can be deleted
+        #self.inv_stddev.wont_use()
+        self.inv_stddev.invalidate_submit()
         # Accumulate gradient from tmp_Y_value
         axpy_async(1.0, self.tmp_y_value, self.x.grad)
-        self.tmp_y_value.wont_use()
+        # tmp_Y_value can be deleted
+        #self.tmp_y_value.wont_use()
+        self.tmp_y_value.invalidate_submit()
+        # dX can offloade from GPU
         self.x.grad.wont_use()
 

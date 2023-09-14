@@ -67,3 +67,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     curl -SL $GIST_PEDS/raw/4e7b80e5f9d49c2e39cf8aa4e6b6b8b951724730/peds.py | \
     python - -i -e dev -e test \
         wrappers/python
+
+RUN apt update && \
+    apt install -y --no-install-recommends \
+    time && \
+    find /var/lib/apt/lists -type f -print -delete

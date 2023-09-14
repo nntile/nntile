@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-22
+# @date 2023-09-12
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
@@ -139,7 +139,7 @@ class Attention(BaseLayer):
         if [n_seq_tile, n_batch_tile] != x_v.value.basetile_shape[1:]:
             raise ValueError("Invalid basetile shape of x_v")
         # TODO: the following tile size is a hyperparameter
-        head_size_tile = x_q.value.basetile_shape[0]
+        head_size_tile = n_emb_tile
         # Define shape of each tensor
         w_q_shape = [n_head, head_size, n_emb]
         w_k_shape = [n_head, head_size, n_emb_k]
@@ -377,7 +377,8 @@ class Attention(BaseLayer):
         transpose_async(1.0, self.q_transposed.value, self.q.value, 1)
         # X_Q, W_Q and Q_transposed can be offloaded from GPU
         self.x_q.value.wont_use()
-        self.q_transposed.value.wont_use()
+        #self.q_transposed.value.wont_use()
+        self.q_transposed.value.invalidate_submit()
         self.w_q.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_q is not None:
@@ -395,7 +396,8 @@ class Attention(BaseLayer):
         transpose_async(1.0, self.k_transposed.value, self.k.value, 1)
         # X_K, W_K and K_transposed can be offloaded from GPU
         self.x_k.value.wont_use()
-        self.k_transposed.value.wont_use()
+        #self.k_transposed.value.wont_use()
+        self.k_transposed.value.invalidate_submit()
         self.w_k.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_k is not None:
@@ -413,7 +415,8 @@ class Attention(BaseLayer):
         transpose_async(1.0, self.v_transposed.value, self.v.value, 1)
         # X_V, W_V and V_transposed can be offloaded from GPU
         self.x_v.value.wont_use()
-        self.v_transposed.value.wont_use()
+        #self.v_transposed.value.wont_use()
+        self.v_transposed.value.invalidate_submit()
         self.w_v.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_v is not None:
@@ -443,8 +446,8 @@ class Attention(BaseLayer):
         # Finally, get the inplace softmax
         softmax_inplace_async(self.a_maxsumexp, self.a.value, 0)
         # A_maxsumexp can be deleted
-        #self.a_maxsumexp.invalidate_submit()
-        self.a_maxsumexp.wont_use()
+        #self.a_maxsumexp.wont_use()
+        self.a_maxsumexp.invalidate_submit()
         # Apply value tensor
         # B = einsum('jklb,kmlb->jmlb', V, A)
         # batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
@@ -466,7 +469,8 @@ class Attention(BaseLayer):
                 self.b_transposed.value, 0.0, self.y.value, 2, 0)
         # W, B and B_transposed can be offloaded from GPU
         self.w.value.wont_use()
-        self.b.value.wont_use()
+        #self.b.value.wont_use()
+        self.b.value.invalidate_submit()
         self.b_transposed.value.wont_use()
         # Apply bias if needed
         if self.out_proj_bias is not None:
@@ -489,8 +493,8 @@ class Attention(BaseLayer):
             gemm_async(1.0, notrans, self.y.grad, trans, \
                     self.b_transposed.value, 1.0, self.w.grad, 2, 0)
         # B_transposed can be deleted
-        #self.b_transposed.value.invalidate_submit()
-        self.b_transposed.value.wont_use()
+        #self.b_transposed.value.wont_use()
+        self.b_transposed.value.invalidate_submit()
         self.w.grad.wont_use()
         if self.b_transposed.grad_required:
             # dB_transposed = einsum('jkl,jmn->klmn', W, dY)
@@ -505,22 +509,23 @@ class Attention(BaseLayer):
             # rotate axes (n_head, head_size, n_seq, n_batch) into
             # (head_size, n_seq, n_batch, n_head) and then
             transpose_async(1.0, self.b_transposed.grad, self.b.grad, 1)
-        self.b_transposed.grad.wont_use()
+        #self.b_transposed.grad.wont_use()
+        self.b_transposed.grad.invalidate_submit()
         # Backward for B = einsum('jklb,kmlb->jmlb', V, A)
         if self.a.grad_required:
             # dA = einsum('jklb,jmlb->kmlb', V, dB)
             gemm_async(1.0, trans, self.v.value, notrans, \
                     self.b.grad, 0.0, self.a.grad, 1, 2)
         # V can be deleted
-        #self.v.value.invalidate_submit()
-        self.v.value.wont_use()
+        #self.v.value.wont_use()
+        self.v.value.invalidate_submit()
         if self.v.grad_required:
             # dV = einsum('jmlb,kmlb->jklb', dB, A)
             gemm_async(1.0, notrans, self.b.grad, trans, \
                     self.a.value, 0.0, self.v.grad, 1, 2)
         # dB can be deleted
-        #self.b.grad.invalidate_submit()
-        self.b.grad.wont_use()
+        #self.b.grad.wont_use()
+        self.b.grad.invalidate_submit()
         # Backward for A = softmax(A, axis=0)
         if self.a.grad_required:
             # A_sumprod_slice = einsum('kmlb,kmlb->mlb', A, dA)
@@ -529,13 +534,13 @@ class Attention(BaseLayer):
             # dA += -bias('kmlb,mlb->kmlb', dA, A_sumprod_slice)
             add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
             # A_sumprod_slice can be deleted
-            #self.a_sumprod_slice.invalidate_submit()
-            self.a_sumprod_slice.wont_use()
+            #self.a_sumprod_slice.wont_use()
+            self.a_sumprod_slice.invalidate_submit()
             # dA *= A
             prod_async(self.a.value, self.a.grad)
         # A can be deleted
-        #self.a.value.invalidate_submit()
-        self.a.value.wont_use()
+        #self.a.value.wont_use()
+        self.a.value.invalidate_submit()
         # Backward for mask if needed
         if self.mask:
             mask_scalar_async(self.mask, 0, self.a.grad, 2)
@@ -547,18 +552,18 @@ class Attention(BaseLayer):
             gemm_async(1.0/self.head_size**0.5, notrans, self.q.value, \
                     trans, self.a.grad, 0.0, self.k.grad, 1, 2)
         # Q can be deleted
-        #self.q.value.invalidate_submit()
-        self.q.value.wont_use()
+        #self.q.value.wont_use()
+        self.q.value.invalidate_submit()
         if self.q.grad_required:
             # dQ = 1.0/sqrt(head_size) * einsum('jklb,kmlb->jmlb', K, dA)
             gemm_async(1.0/self.head_size**0.5, notrans, self.k.value, \
                     notrans, self.a.grad, 0.0, self.q.grad, 1, 2)
         # K can be deleted
-        #self.k.value.invalidate_submit()
-        self.k.value.wont_use()
+        #self.k.value.wont_use()
+        self.k.value.invalidate_submit()
         # dA can be deleted
-        #self.a.grad.invalidate_submit()
-        self.a.grad.wont_use()
+        #self.a.grad.wont_use()
+        self.a.grad.invalidate_submit()
         # Backward for bias of V
         if self.in_proj_bias_v is not None:
             if self.in_proj_bias_v.grad_required:
@@ -570,7 +575,9 @@ class Attention(BaseLayer):
             # Rotate axes (head_size, n_seq, n_batch, n_head) into
             # (n_head, head_size, n_seq, n_batch)
             transpose_async(1.0, self.v.grad, self.v_transposed.grad, 3)
-        self.v.grad.wont_use()
+        # dV can be deleted
+        #self.v.grad.wont_use()
+        self.v.grad.invalidate_submit()
         # Backward for V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V)
         if self.x_v.grad_required:
             # dX_V += einsum('jkl,jkmn->lmn', W_V, dV_transposed)
@@ -589,8 +596,8 @@ class Attention(BaseLayer):
         # X_V can be offloaded from GPU
         self.x_v.value.wont_use()
         # dV_transposed can be deleted
-        #self.v_transposed.grad.invalidate_submit()
-        self.v_transposed.grad.wont_use()
+        #self.v_transposed.grad.wont_use()
+        self.v_transposed.grad.invalidate_submit()
         # Backward for bias of K
         if self.in_proj_bias_k is not None:
             if self.in_proj_bias_k.grad_required:
@@ -602,7 +609,9 @@ class Attention(BaseLayer):
             # Rotate axes (head_size, n_seq, n_batch, n_head) into
             # (n_head, head_size, n_seq, n_batch)
             transpose_async(1.0, self.k.grad, self.k_transposed.grad, 3)
-        self.k.grad.wont_use()
+        # dK can be deleted
+        #self.k.grad.wont_use()
+        self.k.grad.invalidate_submit()
         # Backward for K_transposed = einsum('jkl,lmn->jkmn', W_K, X_K)
         if self.x_k.grad_required:
             # dX_K += einsum('jkl,jkmn->lmn', W_K, dK_transposed)
@@ -621,8 +630,8 @@ class Attention(BaseLayer):
         # X_K can be offloaded from GPU
         self.x_k.value.wont_use()
         # dK_transposed can be deleted
-        #self.k_transposed.grad.invalidate_submit()
-        self.k_transposed.grad.wont_use()
+        #self.k_transposed.grad.wont_use()
+        self.k_transposed.grad.invalidate_submit()
         # Backward for bias of Q
         if self.in_proj_bias_q is not None:
             if self.in_proj_bias_q.grad_required:
@@ -634,7 +643,9 @@ class Attention(BaseLayer):
             # Rotate axes (head_size, n_seq, n_batch, n_head) into
             # (n_head, head_size, n_seq, n_batch)
             transpose_async(1.0, self.q.grad, self.q_transposed.grad, 3)
-        self.q.grad.wont_use()
+        # dQ can be deleted
+        #self.q.grad.wont_use()
+        self.q.grad.invalidate_submit()
         # Backward for Q_transposed = einsum('jkl,lmn->jkmn', W_Q, X_Q)
         if self.x_q.grad_required:
             # dX_Q += einsum('jkl,jkmn->lmn', W_Q, dQ_transposed)
@@ -654,6 +665,6 @@ class Attention(BaseLayer):
         # X_Q can be offloaded from GPU
         self.x_q.value.wont_use()
         # dQ_transposed can be deleted
-        #self.q_transposed.grad.invalidate_submit()
-        self.q_transposed.grad.wont_use()
+        #self.q_transposed.grad.wont_use()
+        self.q_transposed.grad.invalidate_submit()
 
