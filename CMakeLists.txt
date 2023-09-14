@@ -10,7 +10,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-06-29
+# @date 2023-09-14
 
 
 ###############################################################################
@@ -21,13 +21,8 @@
 ###############################################################################
 
 # Set minimum CMake version to avoid configuration problems
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.24)
 message(STATUS "Using CMake ${CMAKE_VERSION}")
-# BLAS::BLAS target is added in version 3.18
-
-if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
-    cmake_policy(SET CMP0135 NEW)
-endif()
 
 # Define the project
 project(NNTile VERSION 1.0.0 LANGUAGES CXX)
