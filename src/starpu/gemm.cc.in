@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-15
+ * @date 2023-09-15
  * */
 
 #include "nntile/starpu/gemm.hh"
@@ -468,7 +468,7 @@ void restore_where()
 template<typename T, typename T_scal>
 void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
         Index k, Index batch, T_scal alpha, Handle A, Handle B, T_scal beta,
-        Handle C)
+        Handle C, int redux)
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
 #ifdef NNTILE_USE_CBLAS
@@ -508,7 +508,14 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
     }
     else if(beta == one)
     {
-        C_mode = Config::STARPU_RW_COMMUTE;
+        if(redux != 0)
+        {
+            C_mode = STARPU_REDUX;
+        }
+        else
+        {
+            C_mode = Config::STARPU_RW_COMMUTE;
+        }
     }
     else
     {
@@ -546,17 +553,17 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
 template
 void submit<fp16_t, fp32_t>(const TransOp &transA, const TransOp &transB,
         Index m, Index n, Index k, Index batch, fp32_t alpha, Handle A,
-        Handle B, fp32_t beta, Handle C);
+        Handle B, fp32_t beta, Handle C, int redux);
 
 template
 void submit<fp32_t, fp32_t>(const TransOp &transA, const TransOp &transB,
         Index m, Index n, Index k, Index batch, fp32_t alpha, Handle A,
-        Handle B, fp32_t beta, Handle C);
+        Handle B, fp32_t beta, Handle C, int redux);
 
 template
 void submit<fp64_t, fp64_t>(const TransOp &transA, const TransOp &transB,
         Index m, Index n, Index k, Index batch, fp64_t alpha, Handle A,
-        Handle B, fp64_t beta, Handle C);
+        Handle B, fp64_t beta, Handle C, int redux);
 
 } // namespace gemm
 } // namespace starpu

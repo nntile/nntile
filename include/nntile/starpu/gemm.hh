@@ -167,7 +167,7 @@ void restore_where();
 template<typename T, typename T_scal>
 void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
         Index k, Index batch, T_scal alpha, Handle A, Handle B, T_scal beta,
-        Handle C);
+        Handle C, int redux=0);
 
 } // namespace gemm
 } // namespace starpu

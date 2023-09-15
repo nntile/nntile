@@ -63,8 +63,8 @@ class Pipeline(object):
                 # Invalidate gradients of parameters
                 for p in self.model.parameters:
                     p.value.wont_use()
-                    if p.grad_required:
-                        p.grad.wont_use()
+                    #if p.grad_required:
+                    #    p.grad.wont_use()
                 # Invalidate gradients of activations
                 for t in self.model.activations:
                     t.value.wont_use()

@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-12
+# @date 2023-09-15
 
 import nntile
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
@@ -66,6 +66,8 @@ class Linear(BaseLayer):
         self.x = x
         self.y = y
         self.w = w
+        self.w.grad.set_reduction_add()
+        self.w.grad_redux = True
         self.x_fp16 = x_fp16
         self.w_fp16 = w_fp16
         self.y_fp16 = y_fp16
@@ -252,25 +254,29 @@ class Linear(BaseLayer):
                 if self.trans_x == notrans:
                     if self.fp32_fast_fp16:
                         gemm_ex_async(1.0, trans, self.x.value, notrans, \
-                                self.y.grad, 1.0, self.w.grad, gemm_ndim, 0)
+                                self.y.grad, 1.0, self.w.grad, gemm_ndim, 0, \
+                                redux=1)
                     elif self.fp32_convert_fp16:
                         gemm_async(1.0, trans, self.x_fp16.value, notrans, \
                                 self.y_fp16.grad, 1.0, self.w_fp16.grad, \
-                                gemm_ndim, 0)
+                                gemm_ndim, 0, redux=1)
                     else:
                         gemm_async(1.0, trans, self.x.value, notrans, \
-                                self.y.grad, 1.0, self.w.grad, gemm_ndim, 0)
+                                self.y.grad, 1.0, self.w.grad, gemm_ndim, 0, \
+                                redux=1)
                 else:
                     if self.fp32_fast_fp16:
                         gemm_ex_async(1.0, notrans, self.x.value, notrans, \
-                                self.y.grad, 1.0, self.w.grad, gemm_ndim, 0)
+                                self.y.grad, 1.0, self.w.grad, gemm_ndim, 0, \
+                                redux=1)
                     elif self.fp32_convert_fp16:
                         gemm_async(1.0, notrans, self.x_fp16.value, notrans, \
                                 self.y_fp16.grad, 1.0, self.w_fp16.grad, \
-                                gemm_ndim, 0)
+                                gemm_ndim, 0, redux=1)
                     else:
                         gemm_async(1.0, notrans, self.x.value, notrans, \
-                                self.y.grad, 1.0, self.w.grad, gemm_ndim, 0)
+                                self.y.grad, 1.0, self.w.grad, gemm_ndim, 0, \
+                                redux=1)
             else:
                 # Backward for Y = einsum('ij,jk->ik', W, op(X))
                 # dW = einsum('ik,jk->ij', dY, op(X))
@@ -280,32 +286,36 @@ class Linear(BaseLayer):
                 if self.trans_x == notrans:
                     if self.fp32_fast_fp16:
                         gemm_ex_async(1.0, notrans, self.y.grad, trans, \
-                                self.x.value, 1.0, self.w.grad, gemm_ndim, 0)
+                                self.x.value, 1.0, self.w.grad, gemm_ndim, 0, \
+                                redux=1)
                     elif self.fp32_convert_fp16:
                         gemm_async(1.0, notrans, self.y_fp16.grad, trans, \
                                 self.x_fp16.value, 1.0, self.w_fp16.grad, \
-                                gemm_ndim, 0)
+                                gemm_ndim, 0, redux=1)
                     else:
                         gemm_async(1.0, notrans, self.y.grad, trans, \
-                                self.x.value, 1.0, self.w.grad, gemm_ndim, 0)
+                                self.x.value, 1.0, self.w.grad, gemm_ndim, 0, \
+                                redux=1)
                 else:
                     if self.fp32_fast_fp16:
                         gemm_ex_async(1.0, notrans, self.y.grad, notrans, \
-                                self.x.value, 1.0, self.w.grad, gemm_ndim, 0)
+                                self.x.value, 1.0, self.w.grad, gemm_ndim, 0, \
+                                redux=1)
                     elif self.fp32_convert_fp16:
                         gemm_async(1.0, notrans, self.y_fp16.grad, notrans, \
                                 self.x_fp16.value, 1.0, self.w_fp16.grad, \
-                                gemm_ndim, 0)
+                                gemm_ndim, 0, redux=1)
                     else:
                         gemm_async(1.0, notrans, self.y.grad, notrans, \
-                                self.x.value, 1.0, self.w.grad, gemm_ndim, 0)
+                                self.x.value, 1.0, self.w.grad, gemm_ndim, 0, \
+                                redux=1)
             # Convert fp16 to fp32 if needed and offload data
             if self.fp32_convert_fp16:
                 fp16_to_fp32_async(self.w_fp16.grad, self.w.grad)
                 self.x_fp16.value.wont_use()
                 self.w_fp16.grad.wont_use()
             # Hint StarPU to offload gradient over W if needed
-            self.w.grad.wont_use()
+            #self.w.grad.wont_use() # Ignore wont_use to check interaction with STARPU_REDUX
             self.x.value.wont_use()
             self.y.grad.wont_use()
         if self.b is not None:

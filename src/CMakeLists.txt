@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-07-20
+# @date 2023-09-15
 
 add_subdirectory(kernel)
 
@@ -125,6 +125,7 @@ if(NNTILE_USE_CUDA)
 endif()
 
 set(STARPU_SRC
+    "starpu/accumulate.cc"
     "starpu/add_slice.cc"
     "starpu/add_slice3.cc"
     "starpu/add_fiber.cc"

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-09-12
+ * @date 2023-09-15
  * */
 
 #pragma once
@@ -18,6 +18,8 @@
 #include <nntile/tile/tile.hh>
 //#include <starpu_mpi.h>
 #include <starpu.h>
+#include <nntile/starpu/accumulate.hh>
+#include <nntile/starpu/clear.hh>
 
 #define starpu_mpi_tag_t int64_t
 
@@ -126,7 +128,8 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
-            starpu_data_invalidate_submit(tmp);
+            // Deactivate invalidate_submit
+            //starpu_data_invalidate_submit(tmp);
         }
     }
     //! Advice to evict data from GPU
@@ -135,7 +138,8 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
-            starpu_data_wont_use(tmp);
+            // Deactivate wont_use
+            //starpu_data_wont_use(tmp);
         }
     }
     //! Flush tensor from MPI caches
@@ -145,6 +149,17 @@ public:
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
             //starpu_mpi_cache_flush(MPI_COMM_WORLD, tmp);
+        }
+    }
+    //! Set reduction function for addition
+    void set_reduction_add() const
+    {
+        for(Index i = 0; i < grid.nelems; ++i)
+        {
+            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            starpu_data_set_reduction_methods(tmp,
+                    nntile::starpu::accumulate::codelet<T>(),
+                    &nntile::starpu::clear::codelet);
         }
     }
 };

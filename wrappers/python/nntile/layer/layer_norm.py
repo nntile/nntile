@@ -166,7 +166,7 @@ class LayerNorm(BaseLayer):
         copy_async(self.y.grad, self.x.grad)
         self.y.grad.wont_use()
 
-    def backward_async(self):
+    def backward_async_true(self):
         # Accumulate gradient over beta
         sum_fiber_async(1.0, self.y.grad, 1.0, self.beta.grad, self.axis, 0)
         # d_beta can be offloaded from GPU

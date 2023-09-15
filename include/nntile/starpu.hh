@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-20
+ * @date 2023-09-15
  * */
 
 #pragma once
@@ -20,6 +20,7 @@
 #include <nntile/starpu/config.hh>
 
 // StarPU wrappers for low-level kernels
+#include <nntile/starpu/accumulate.hh>
 #include <nntile/starpu/axpy.hh>
 #include <nntile/starpu/add_slice.hh>
 #include <nntile/starpu/add_slice3.hh>
@@ -88,6 +89,7 @@ namespace starpu
 // Init all codelets
 void init()
 {
+    accumulate::init();
     axpy::init();
     add_slice::init();
     add_slice3::init();
@@ -149,6 +151,7 @@ void init()
 // Restrict StarPU codelets to certain computational units
 void restrict_where(uint32_t where)
 {
+    accumulate::restrict_where(where);
     axpy::restrict_where(where);
     add_slice::restrict_where(where);
     add_slice3::restrict_where(where);
@@ -210,6 +213,7 @@ void restrict_where(uint32_t where)
 // Restore computational units for StarPU codelets
 void restore_where()
 {
+    accumulate::restore_where();
     axpy::restore_where();
     add_slice::restore_where();
     add_slice3::restore_where();

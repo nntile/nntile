@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-07-20
+# @date 2023-09-15
 
 # Set list of headers
 set(BASE_HDR
@@ -181,6 +181,7 @@ endif()
 
 set(STARPU_HDR
     "nntile/starpu/config.hh"
+    "nntile/starpu/accumulate.hh"
     "nntile/starpu/axpy.hh"
     "nntile/starpu/add_slice.hh"
     "nntile/starpu/add_slice3.hh"

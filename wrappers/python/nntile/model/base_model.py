@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-05-11
+# @date 2023-09-15
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         clear_async
@@ -54,6 +54,8 @@ class BaseModel:
                 clear_async(t.grad)
         for t in self.parameters:
             if t.grad is not None and t.grad_required:
+                #if not hasattr(t, "grad_redux"):
+                #    pass
                 clear_async(t.grad)
 
     # Unregister all tensors related to this model
