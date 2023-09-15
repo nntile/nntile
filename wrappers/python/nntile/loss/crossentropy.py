@@ -69,8 +69,16 @@ class CrossEntropy:
     def get_grad(self, grad_np):
         self.model_output.grad.to_array(grad_np)
 
-    # Get value and gradient if needed
+    # Fake cross entropy
     def calc_async(self):
+        clear_async(self.val)
+        self.val.wont_use()
+        self.y.wont_use()
+        self.model_output.value.wont_use()
+        self.model_output.grad.wont_use()
+
+    # Get value and gradient if needed
+    def calc_async_true(self):
         maxsumexp_async(self.model_output.value, self.maxsumexp, 0)
         logsumexp_async(self.maxsumexp, self.logsumexp)
         clear_async(self.val)

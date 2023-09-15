@@ -9,7 +9,9 @@
 #
 # @version 1.0.0
 # @author Aleksandr Katrutsa
-# @date 2023-02-18
+# @author Aleksandr Mikhalev
+# @date 2023-09-15
 
 from .sgd import SGD
 from .adam import Adam, FusedAdam
+from .empty import Empty

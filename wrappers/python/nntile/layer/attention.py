@@ -10,13 +10,14 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-12
+# @date 2023-09-15
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
         maxsumexp_async, softmax_inplace_async, sumprod_slice_async, \
         add_slice_async, prod_async, mask_scalar_async, add_fiber_async, \
-        sum_fiber_async, transpose_async
+        sum_fiber_async, transpose_async, copy_async
+# 
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -365,8 +366,13 @@ class Attention(BaseLayer):
         # Return layer and next tag to be used
         return (layer, next_tag)
 
-    # Forward propagation of the attention layer
+    # Fake forward that just copies input into output
     def forward_async(self):
+        copy_async(self.x_q.value, self.y.value)
+        self.x_q.value.wont_use()
+
+    # Forward propagation of the attention layer
+    def forward_async_true(self):
         # Compute query, key and value tensors
         # Q_transposed = einsum('jkl,lmn->jkmn', W_Q, X_Q)
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
@@ -479,8 +485,13 @@ class Attention(BaseLayer):
             self.out_proj_bias.value.wont_use()
         self.y.value.wont_use()
 
-    # Backward propagation of the linear layer
+    # Fake backward that just copies input into output
     def backward_async(self):
+        copy_async(self.y.grad, self.x_q.grad)
+        self.y.grad.wont_use()
+
+    # Backward propagation of the linear layer
+    def backward_async_true(self):
         # Apply backward of bias if needed
         if self.out_proj_bias is not None:
             if self.out_proj_bias.grad_required:

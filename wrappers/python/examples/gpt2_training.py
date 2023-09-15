@@ -47,7 +47,8 @@ parser.add_argument("--model", default="gpt2")
 parser.add_argument("--model-path", default=".model")
 parser.add_argument("--seq-len-tile", type=int, default=1024)
 parser.add_argument("--batch-size", type=int, default=1)
-parser.add_argument("--batch-size-tile", type=int, default=1)
+parser.add_argument("--minibatch-size", type=int, default=1)
+parser.add_argument("--minibatch-size-tile", type=int, default=1)
 parser.add_argument("--n-embd-tile", type=int, default=384)
 parser.add_argument("--n-inner-tile", type=int, default=1536)
 parser.add_argument("--torch-device", choices=["cpu", "cuda", "cuda:0", \
@@ -80,8 +81,11 @@ print(args)
 # Check arguments
 assert args.seq_len_tile > 0
 assert args.batch_size > 0
-assert args.batch_size_tile > 0
-assert args.batch_size % args.batch_size_tile == 0
+assert args.minibatch_size > 0
+assert args.minibatch_size_tile > 0
+assert args.batch_size % args.minibatch_size == 0
+num_minibatch = args.batch_size // args.minibatch_size
+assert args.minibatch_size % args.minibatch_size_tile == 0
 assert args.n_embd_tile > 0
 assert args.n_inner_tile > 0
 assert args.torch_nforward >= 0
@@ -151,7 +155,7 @@ nntile_model_config = GPT2Config_nntile(config.vocab_size, args.n_embd_tile, \
         config.n_inner, args.n_inner_tile, config.layer_norm_epsilon, \
         config.num_hidden_layers, config.n_head, "gelutanh")
 nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
-        args.batch_size, args.batch_size_tile, config.n_positions, \
+        args.minibatch_size, args.minibatch_size_tile, config.n_positions, \
         args.seq_len_tile, nntile_model_config, next_tag)
 
 # Move model to the designated device or delete model if it will not be used
@@ -250,7 +254,7 @@ def check_grads(model_torch, nntile_model):
 if args.check:
     # Get output from a random input through the forward pass
     input_value = torch.randint(config.vocab_size, \
-            (args.batch_size, config.n_positions), dtype=torch.int64, \
+            (args.minibatch_size, config.n_positions), dtype=torch.int64, \
             device=args.torch_device)
     output_value = model_torch(input_value)
     if args.torch_device.startswith("cuda"):
@@ -284,7 +288,7 @@ if args.check:
 # Measure throughput of Torch forward pass
 if args.torch_nforward > 0:
     input_value = torch.randint(config.vocab_size, \
-            (args.batch_size, config.n_positions), dtype=torch.int64, \
+            (args.minibatch_size, config.n_positions), dtype=torch.int64, \
             device=args.torch_device)
     for i in range(args.torch_nforward_warmup):
         output_value = model_torch(input_value)
@@ -297,14 +301,14 @@ if args.torch_nforward > 0:
         torch.cuda.synchronize()
     time1 = time.time() - time0
     print("Torch forward throughput (sequence/sec): ", \
-            args.torch_nforward * args.batch_size / time1)
+            args.torch_nforward * args.minibatch_size / time1)
     print("Torch forward performance: {} Tflops/s".format(nflops_seq \
-            * args.torch_nforward * args.batch_size / time1 * 1e-12))
+            * args.torch_nforward * args.minibatch_size / time1 * 1e-12))
 
 # Measure throughput of Torch backward pass
 if args.torch_nbackward > 0:
     input_value = torch.randint(config.vocab_size, \
-            (args.batch_size, config.n_positions), dtype=torch.int64, \
+            (args.minibatch_size, config.n_positions), dtype=torch.int64, \
             device=args.torch_device)
     output_value = model_torch(input_value)
     loss = (output_value.logits * output_value.logits).sum()
@@ -319,14 +323,14 @@ if args.torch_nbackward > 0:
         torch.cuda.synchronize()
     time1 = time.time() - time0
     print("Torch backward throughput (sequence/sec): ", \
-            args.torch_nbackward * args.batch_size / time1)
+            args.torch_nbackward * args.minibatch_size / time1)
     print("Torch backward performance: {} Tflops/s".format(2 * nflops_seq \
-            * args.torch_nbackward * args.batch_size / time1 * 1e-12))
+            * args.torch_nbackward * args.minibatch_size / time1 * 1e-12))
 
 # Measure throughput of the forward pass by NNTile
 if args.nntile_nforward > 0:
     input_value = torch.randint(config.vocab_size, \
-            (args.batch_size, config.n_positions), dtype=torch.int64)
+            (args.minibatch_size, config.n_positions), dtype=torch.int64)
     nntile_model.activations[0].value.from_array(input_value.T)
     for i in range(args.nntile_nforward_warmup):
         nntile_model.forward_async()
@@ -337,14 +341,14 @@ if args.nntile_nforward > 0:
     nntile.starpu.wait_for_all()
     time1 = time.time() - time0
     print("NNTile forward throughput (sequence/sec): ", \
-            args.nntile_nforward * args.batch_size / time1)
+            args.nntile_nforward * args.minibatch_size / time1)
     print("NNTile forward performance: {} Tflops/s".format(nflops_seq \
-            * args.nntile_nforward * args.batch_size / time1 * 1e-12))
+            * args.nntile_nforward * args.minibatch_size / time1 * 1e-12))
 
 # Measure throughput of the forward pass by NNTile
 if args.nntile_nbackward > 0:
     input_value = torch.randint(config.vocab_size, \
-            (args.batch_size, config.n_positions), dtype=torch.int64)
+            (args.minibatch_size, config.n_positions), dtype=torch.int64)
     nntile_model.activations[0].value.from_array(input_value.T)
     nntile_model.forward_async()
     for i in range(args.nntile_nbackward_warmup):
@@ -362,9 +366,9 @@ if args.nntile_nbackward > 0:
     nntile.starpu.wait_for_all()
     time1 = time.time() - time0
     print("NNTile backward throughput (sequence/sec): ", \
-            args.nntile_nbackward * args.batch_size / time1)
+            args.nntile_nbackward * args.minibatch_size / time1)
     print("NNTile backward performance: {} Tflops/s".format(2 * nflops_seq \
-            * args.nntile_nbackward * args.batch_size / time1 * 1e-12))
+            * args.nntile_nbackward * args.minibatch_size / time1 * 1e-12))
 
 # Prepare input and output batches if real training is required
 if args.torch_nepochs > 0 or args.nntile_nepochs > 0 or args.check_fp64:
@@ -393,8 +397,8 @@ if args.torch_nepochs > 0 or args.nntile_nepochs > 0 or args.check_fp64:
             * (config.n_positions+1)
     train_tokens = np.array(list_train_tokens[:num_train_tokens_truncated], \
             order='F', dtype=np.int64)
-    train_tokens = train_tokens.reshape(num_train_batches, args.batch_size, \
-            config.n_positions+1)
+    train_tokens = train_tokens.reshape(num_train_batches, \
+            num_minibatch, args.minibatch_size, config.n_positions+1)
     print("Number of train sequences: {}".format(num_train_batches \
             * args.batch_size))
     print("Number of train batches: {}".format(num_train_batches))
@@ -405,10 +409,10 @@ if args.check_fp64:
     model64_torch = model_torch.to(torch.float64)
     # Get output from a random input through the forward pass
     #input_value = torch.randint(config.vocab_size, \
-    #        (args.batch_size, config.n_positions), dtype=torch.int64, \
-    #        device=args.torch_device)
-    input_value = torch.tensor(train_tokens[5, :, :-1]).to(args.torch_device)
-    output_label = torch.tensor(train_tokens[5, :, 1:]).to(args.torch_device)
+    #        (num_minibatch, args.minibatch_size, config.n_positions), \
+    #        dtype=torch.int64, device=args.torch_device)
+    input_value = torch.tensor(train_tokens[5, 0, :, :-1]).to(args.torch_device)
+    output_label = torch.tensor(train_tokens[5, 0, :, 1:]).to(args.torch_device)
     output_value = model64_torch(input_value)
     if args.torch_device.startswith("cuda"):
         torch.cuda.synchronize()
@@ -437,7 +441,7 @@ if args.check_fp64:
     # Run backward pass by the NNTile to get gradients of parameters
     loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
             nntile_model.activations[-1], next_tag)
-    loss.y.from_array(train_tokens[5, :, 1:].T)
+    loss.y.from_array(train_tokens[5, 0, :, 1:].T)
     nntile_model.clear_gradients()
     loss.calc_async()
     nntile_model.backward_async()
@@ -453,23 +457,29 @@ if args.nntile_nepochs > 0:
     batch_input = []
     batch_output = []
     x_traits = nntile.tensor.TensorTraits( \
-            [config.n_positions, args.batch_size], \
-            [args.seq_len_tile, args.batch_size_tile])
+            [config.n_positions, args.minibatch_size], \
+            [args.seq_len_tile, args.minibatch_size_tile])
     x_distr = [0] * x_traits.grid.nelems
     for i in range(num_train_batches):
-        x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = x.next_tag
-        x.from_array(np.asfortranarray(train_tokens[i, :, :-1].T))
-        batch_input.append(x)
-        y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = y.next_tag
-        y.from_array(np.asfortranarray(train_tokens[i, :, 1:].T))
-        batch_output.append(y)
+        minibatch_input = []
+        minibatch_output = []
+        for j in range(num_minibatch):
+            x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
+            next_tag = x.next_tag
+            x.from_array(np.asfortranarray(train_tokens[i, j, :, :-1].T))
+            minibatch_input.append(x)
+            y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
+            next_tag = y.next_tag
+            y.from_array(np.asfortranarray(train_tokens[i, j, :, 1:].T))
+            minibatch_output.append(y)
+        batch_input.append(minibatch_input)
+        batch_output.append(minibatch_output)
     time1 = time.time() - time0
     print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
     # Set up learning rate and optimizer for training
-    optimizer = nntile.optimizer.FusedAdam(nntile_model.get_parameters(), \
-            args.lr, next_tag)
+    #optimizer = nntile.optimizer.FusedAdam(nntile_model.get_parameters(), \
+    #        args.lr, next_tag)
+    optimizer = nntile.optimizer.Empty(nntile_model.get_parameters(), next_tag)
     next_tag = optimizer.get_next_tag()
     # Define Cross Entropy loss function
     loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
@@ -504,10 +514,9 @@ if args.nntile_nepochs > 0:
     print("NNTile loss on the last batch: {}".format(loss_np[0]))
     loss.unregister()
     optimizer.unregister()
-    for x in batch_input:
-        x.unregister()
-    for x in batch_output:
-        x.unregister()
+    for batch in batch_input+batch_output:
+        for x in batch:
+            x.unregister()
 
 # Unregister all tensors related to model
 nntile_model.unregister()
@@ -516,21 +525,28 @@ if args.torch_nepochs > 0:
     torch_input = []
     torch_output = []
     for i in range(num_train_batches):
-        torch_input.append(torch.tensor(train_tokens[i, :, :-1],
-            requires_grad=False).contiguous())
-        torch_output.append(torch.tensor(train_tokens[i, :, 1:],
-            requires_grad=False).contiguous())
+        minibatch_input = []
+        minibatch_output = []
+        for j in range(num_minibatch):
+            minibatch_input.append(torch.tensor(train_tokens[i, j, :, :-1],
+                requires_grad=False).contiguous())
+            minibatch_output.append(torch.tensor(train_tokens[i, j, :, 1:],
+                requires_grad=False).contiguous())
+        torch_input.append(minibatch_input)
+        torch_output.append(minibatch_output)
     optim = Adam(model_torch.parameters(), lr=args.lr)
     loss_func = nn.CrossEntropyLoss(reduction="sum", ignore_index=-1)
     # Warmup training
     for i in range(args.torch_nepochs_warmup):
         for j in range(num_train_batches):
-            train_input = torch_input[j].to(args.torch_device)
-            train_labels = torch_output[j].to(args.torch_device).reshape(-1)
             optim.zero_grad()
-            train_output = model_torch(train_input)
-            train_logits = train_output.logits.reshape(-1, config.vocab_size)
-            loss = loss_func(train_logits, train_labels)
+            loss = torch.zeros(1, dtype=torch.float32)
+            for k in range(num_minibatch):
+                train_input = torch_input[j][k].to(args.torch_device)
+                train_labels = torch_output[j][k].to(args.torch_device).reshape(-1)
+                train_output = model_torch(train_input)
+                train_logits = train_output.logits.reshape(-1, config.vocab_size)
+                loss += loss_func(train_logits, train_labels)
             loss.backward()
             optim.step()
     # Actual training
@@ -539,12 +555,14 @@ if args.torch_nepochs > 0:
     time0 = time.time()
     for i in range(args.torch_nepochs):
         for j in range(num_train_batches):
-            train_input = torch_input[j].to(args.torch_device)
-            train_labels = torch_output[j].to(args.torch_device).reshape(-1)
             optim.zero_grad()
-            train_output = model_torch(train_input)
-            train_logits = train_output.logits.reshape(-1, config.vocab_size)
-            loss = loss_func(train_logits, train_labels)
+            loss = torch.zeros(1, dtype=torch.float32)
+            for k in range(num_minibatch):
+                train_input = torch_input[j].to(args.torch_device)
+                train_labels = torch_output[j].to(args.torch_device).reshape(-1)
+                train_output = model_torch(train_input)
+                train_logits = train_output.logits.reshape(-1, config.vocab_size)
+                loss += loss_func(train_logits, train_labels)
             #print("loss={}".format(loss))
             loss.backward()
             optim.step()
