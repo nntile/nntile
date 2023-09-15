@@ -139,7 +139,7 @@ class Attention(BaseLayer):
         if [n_seq_tile, n_batch_tile] != x_v.value.basetile_shape[1:]:
             raise ValueError("Invalid basetile shape of x_v")
         # TODO: the following tile size is a hyperparameter
-        head_size_tile = n_emb_tile
+        head_size_tile = head_size
         # Define shape of each tensor
         w_q_shape = [n_head, head_size, n_emb]
         w_k_shape = [n_head, head_size, n_emb_k]
