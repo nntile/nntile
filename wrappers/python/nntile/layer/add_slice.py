@@ -31,14 +31,15 @@ class AddSlice(BaseLayer):
         # Init Y as a copy of X
         copy_async(self.x.value, self.u.value)
         # Add slice operation
-        add_slice_async(1, self.y.value, 1, self.u.value, self.axis)
+        #add_slice_async(1, self.y.value, 1, self.u.value, self.axis)
         self.x.value.wont_use()
         self.y.value.wont_use()
         self.u.value.wont_use()
 
     def backward_async(self):
         add_async(1, self.u.grad, 1, self.x.grad)
-        sum_slice_async(1, self.u.grad, 1, self.y.grad, self.axis)
+        # Disabled this for testing
+        #sum_slice_async(1, self.u.grad, 1, self.y.grad, self.axis)
         self.x.grad.wont_use()
         self.y.grad.wont_use()
         self.u.grad.wont_use()

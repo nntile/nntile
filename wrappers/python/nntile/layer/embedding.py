@@ -68,16 +68,25 @@ class Embedding(BaseLayer):
         # Return layer and next tag to be used
         return (layer, next_tag)
 
-    # Forward propagation of the embedding layer
+    # Fake forward
     def forward_async(self):
+        clear_async(self.y.value)
+
+    # Forward propagation of the embedding layer
+    def forward_async_true(self):
         clear_async(self.y.value)
         embedding_async(self.x, self.w.value, self.y.value, self.axis)
         self.x.wont_use()
         self.w.value.wont_use()
         self.y.value.wont_use()
 
-    # Backward propagation of the linear layer
+    # Fake backward
     def backward_async(self):
+        #clear_async(self.w.grad)
+        pass
+
+    # Backward propagation of the linear layer
+    def backward_async_true(self):
         embedding_backward_async(self.x, self.y.grad, self.w.grad, self.axis)
         self.x.wont_use()
         self.y.grad.wont_use()

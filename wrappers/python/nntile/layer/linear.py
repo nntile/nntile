@@ -318,15 +318,15 @@ class Linear(BaseLayer):
             #self.w.grad.wont_use() # Ignore wont_use to check interaction with STARPU_REDUX
             self.x.value.wont_use()
             self.y.grad.wont_use()
-        if self.b is not None:
-            if self.b.grad_required:
-                if self.side == 'L':
-                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, \
-                            self.y.value.ndim-1, 0)
-                else:
-                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, 0, 0)
-                self.b.grad.wont_use()
-                self.y.grad.wont_use()
+#        if self.b is not None:
+#            if self.b.grad_required:
+#                if self.side == 'L':
+#                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, \
+#                            self.y.value.ndim-1, 0)
+#                else:
+#                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, 0, 0)
+#                self.b.grad.wont_use()
+#                self.y.grad.wont_use()
         # Gradient over X (input)
         if self.x.grad_required:
             # Convert fp32 to fp16 if needed

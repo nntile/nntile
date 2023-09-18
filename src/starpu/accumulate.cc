@@ -15,7 +15,6 @@
 #include "nntile/starpu/accumulate.hh"
 #include "nntile/kernel/add.hh"
 #include <cstdlib>
-#include <iostream>
 
 namespace nntile
 {
@@ -37,7 +36,6 @@ void cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[1]->get_ptr<T>();
     // Launch kernel
     kernel::add::cpu<T>(nelems, 1.0, src, 1.0, dst);
-    std::cout << "ACCUMULATE CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -55,7 +53,6 @@ void cuda(void *buffers[], void *cl_args)
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     kernel::add::cuda<T>(stream, nelems, 1.0, src, 1.0, dst);
-    std::cout << "ACCUMULATE CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 

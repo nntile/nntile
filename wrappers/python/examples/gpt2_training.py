@@ -143,7 +143,7 @@ nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
 nntile.starpu.init()
 # Restrict computations to CUDA if possible
-#nntile.starpu.restrict_cuda()
+nntile.starpu.restrict_cuda()
 #nntile.starpu.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
@@ -157,6 +157,8 @@ nntile_model_config = GPT2Config_nntile(config.vocab_size, args.n_embd_tile, \
 nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
         args.minibatch_size, args.minibatch_size_tile, config.n_positions, \
         args.seq_len_tile, nntile_model_config, next_tag)
+# Disabled gradient of lm_Head linear layer
+nntile_model.layers[-1].w.grad_required = False
 
 # Move model to the designated device or delete model if it will not be used
 # any more
@@ -494,13 +496,13 @@ if args.nntile_nepochs > 0:
     nntile.starpu.wait_for_all()
     # Actual training
     pipeline.n_epochs = args.nntile_nepochs
-    #nntile.starpu.profiling_enable()
+    nntile.starpu.profiling_enable()
     #nntile.starpu.pause()
     time0 = time.time()
     pipeline.train_async()
     #nntile.starpu.resume()
     nntile.starpu.wait_for_all()
-    #nntile.starpu.profiling_disable()
+    nntile.starpu.profiling_disable()
     time1 = time.time() - time0
     print("NNTile training time: {} seconds".format(time1))
     print("NNTile training throughput tokens/sec: {}".format( \
