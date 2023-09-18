@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-09-15
+ * @date 2023-09-18
  * */
 
 #pragma once
@@ -29,6 +29,7 @@
 #include <nntile/starpu/prod_fiber.hh>
 #include <nntile/starpu/prod_fiber3.hh>
 #include <nntile/starpu/clear.hh>
+#include <nntile/starpu/copy.hh>
 #include <nntile/starpu/gelu.hh>
 #include <nntile/starpu/gelutanh.hh>
 #include <nntile/starpu/gelutanh_inplace.hh>
@@ -98,6 +99,7 @@ void init()
     prod_fiber::init();
     prod_fiber3::init();
     clear::init();
+    copy::init();
     gelu::init();
     gelutanh::init();
     gelutanh_inplace::init();
@@ -160,6 +162,7 @@ void restrict_where(uint32_t where)
     prod_fiber::restrict_where(where);
     prod_fiber3::restrict_where(where);
     clear::restrict_where(where);
+    copy::restrict_where(where);
     gelu::restrict_where(where);
     gelutanh::restrict_where(where);
     gelutanh_inplace::restrict_where(where);
@@ -222,6 +225,7 @@ void restore_where()
     prod_fiber::restore_where();
     prod_fiber3::restore_where();
     clear::restore_where();
+    copy::restore_where();
     gelu::restore_where();
     gelutanh::restore_where();
     gelutanh_inplace::restore_where();

@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-09-15
+# @date 2023-09-18
 
 from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         TensorOrNone, TensorMoments, \
@@ -17,7 +17,7 @@ from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         fill_async, pow_async, prod_slice_async, sumprod_slice_async, \
         axpy_async, prod_fiber_async, prod_fiber3_async, add_slice3_async, \
         add_fiber_async, sum_fiber_async, sumprod_fiber_async, \
-        clear_async, copy_async
+        clear_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -121,13 +121,8 @@ class LayerNorm(BaseLayer):
         # Return layer and next tag to be used
         return (layer, next_tag)
 
-    # Fake forward
-    def forward_async(self):
-        copy_async(self.x.value, self.y.value)
-        self.x.value.wont_use()
-
     # Forward propagation of the normalization layer
-    def forward_async_true(self):
+    def forward_async(self):
         # Get means over given axis
         sum_slice_async(1.0/self.l, self.x.value, 0.0, self.mean, self.axis)
         # Y = X - mean
@@ -161,12 +156,7 @@ class LayerNorm(BaseLayer):
         # Y can be offloaded from GPU
         self.y.value.wont_use()
 
-    # Fake backward
     def backward_async(self):
-        copy_async(self.y.grad, self.x.grad)
-        self.y.grad.wont_use()
-
-    def backward_async_true(self):
         # Accumulate gradient over beta
         sum_fiber_async(1.0, self.y.grad, 1.0, self.beta.grad, self.axis, 0)
         # d_beta can be offloaded from GPU

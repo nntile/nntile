@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-09-15
+# @date 2023-09-18
 
 add_subdirectory(kernel)
 
@@ -133,6 +133,7 @@ set(STARPU_SRC
     "starpu/prod_fiber.cc"
     "starpu/prod_fiber3.cc"
     "starpu/clear.cc"
+    "starpu/copy.cc"
     "starpu/dgelu.cc"
     "starpu/dgelutanh.cc"
     "starpu/drelu.cc"

@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-09-15
+# @date 2023-09-18
 
 # Set list of headers
 set(BASE_HDR
@@ -190,6 +190,7 @@ set(STARPU_HDR
     "nntile/starpu/prod_fiber.hh"
     "nntile/starpu/prod_fiber3.hh"
     "nntile/starpu/clear.hh"
+    "nntile/starpu/copy.hh"
     "nntile/starpu/dgelu.hh"
     "nntile/starpu/dgelutanh.hh"
     "nntile/starpu/drelu.hh"
