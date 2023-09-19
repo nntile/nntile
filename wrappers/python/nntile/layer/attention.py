@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-15
+# @date 2023-09-19
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
@@ -68,12 +68,16 @@ class Attention(BaseLayer):
         qkv_bias_list = []
         if in_proj_bias_q:
             qkv_bias_list.append(in_proj_bias_q)
+            in_proj_bias_q.grad.set_reduction_add()
         if in_proj_bias_k:
             qkv_bias_list.append(in_proj_bias_k)
+            in_proj_bias_k.grad.set_reduction_add()
         if in_proj_bias_v:
             qkv_bias_list.append(in_proj_bias_v)
+            in_proj_bias_v.grad.set_reduction_add()
         if out_proj_bias:
             bias_list_out_proj = [out_proj_bias]
+            out_proj_bias.grad.set_reduction_add()
         else:
             bias_list_out_proj = []
         # Redirect to BaseClass initialization
@@ -86,9 +90,13 @@ class Attention(BaseLayer):
         self.x_v = x_v
         self.y = y
         self.w_q = w_q
+        self.w_q.grad.set_reduction_add()
         self.w_k = w_k
+        self.w_k.grad.set_reduction_add()
         self.w_v = w_v
+        self.w_v.grad.set_reduction_add()
         self.w = w
+        self.w.grad.set_reduction_add()
         self.q_transposed = q_transposed
         self.q = q
         self.k_transposed = k_transposed
@@ -366,13 +374,8 @@ class Attention(BaseLayer):
         # Return layer and next tag to be used
         return (layer, next_tag)
 
-    # Fake forward that just copies input into output
-    def forward_async(self):
-        copy_async(self.x_q.value, self.y.value)
-        self.x_q.value.wont_use()
-
     # Forward propagation of the attention layer
-    def forward_async_true(self):
+    def forward_async(self):
         # Compute query, key and value tensors
         # Q_transposed = einsum('jkl,lmn->jkmn', W_Q, X_Q)
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
@@ -485,24 +488,19 @@ class Attention(BaseLayer):
             self.out_proj_bias.value.wont_use()
         self.y.value.wont_use()
 
-    # Fake backward that just copies input into output
-    def backward_async(self):
-        copy_async(self.y.grad, self.x_q.grad)
-        self.y.grad.wont_use()
-
     # Backward propagation of the linear layer
-    def backward_async_true(self):
+    def backward_async(self):
         # Apply backward of bias if needed
         if self.out_proj_bias is not None:
             if self.out_proj_bias.grad_required:
                 sum_fiber_async(1.0, self.y.grad, 1.0, \
-                        self.out_proj_bias.grad, 0, 0)
+                        self.out_proj_bias.grad, 0, 0, redux=1)
                 self.out_proj_bias.grad.wont_use()
         # Backward for Y = einsum('jkl,klmn->jmn', W, B_transposed)
         if self.w.grad_required:
             # dW += einsum('jmn,klmn->jkl', dY, B_transposed)
             gemm_async(1.0, notrans, self.y.grad, trans, \
-                    self.b_transposed.value, 1.0, self.w.grad, 2, 0)
+                    self.b_transposed.value, 1.0, self.w.grad, 2, 0, redux=1)
         # B_transposed can be deleted
         #self.b_transposed.value.wont_use()
         self.b_transposed.value.invalidate_submit()
@@ -579,7 +577,7 @@ class Attention(BaseLayer):
         if self.in_proj_bias_v is not None:
             if self.in_proj_bias_v.grad_required:
                 sum_fiber_async(1, self.v.grad, 1, self.in_proj_bias_v.grad, \
-                        0, 1)
+                        0, 1, redux=1)
                 self.in_proj_bias_v.grad.wont_use()
         # Backward for axes rotation (V_transposed->V)
         if self.v_transposed.grad_required:
@@ -601,7 +599,7 @@ class Attention(BaseLayer):
         if self.w_v.grad_required:
             # dW_V += einsum('jkmn,lmn->jkl', dV_transposed, X_V)
             gemm_async(1.0, notrans, self.v_transposed.grad, trans, \
-                    self.x_v.value, 1.0, self.w_v.grad, 2, 0)
+                    self.x_v.value, 1.0, self.w_v.grad, 2, 0, redux=1)
         # dW_V can be offloaded from GPU
         self.w_v.grad.wont_use()
         # X_V can be offloaded from GPU
@@ -613,7 +611,7 @@ class Attention(BaseLayer):
         if self.in_proj_bias_k is not None:
             if self.in_proj_bias_k.grad_required:
                 sum_fiber_async(1, self.k.grad, 1, self.in_proj_bias_k.grad, \
-                        0, 1)
+                        0, 1, redux=1)
                 self.in_proj_bias_k.grad.wont_use()
         # Backward for axes rotation (K_transposed->K)
         if self.k_transposed.grad_required:
@@ -635,7 +633,7 @@ class Attention(BaseLayer):
         if self.w_k.grad_required:
             # dW_K += einsum('jkmn,lmn->jkl', dK_transposed, X_K)
             gemm_async(1.0, notrans, self.k_transposed.grad, trans, \
-                    self.x_k.value, 1.0, self.w_k.grad, 2, 0)
+                    self.x_k.value, 1.0, self.w_k.grad, 2, 0, redux=1)
         # dW_K can be offloaded from GPU
         self.w_k.grad.wont_use()
         # X_K can be offloaded from GPU
@@ -647,7 +645,7 @@ class Attention(BaseLayer):
         if self.in_proj_bias_q is not None:
             if self.in_proj_bias_q.grad_required:
                 sum_fiber_async(1, self.q.grad, 1, self.in_proj_bias_q.grad, \
-                        0, 1)
+                        0, 1, redux=1)
                 self.in_proj_bias_q.grad.wont_use()
         # Backward for axes rotation (Q_transposed->Q)
         if self.q_transposed.grad_required:
@@ -670,7 +668,7 @@ class Attention(BaseLayer):
         if self.w_q.grad_required:
             # dW_Q += einsum('jkmn,lmn->jkl', dQ_transposed, X_Q)
             gemm_async(1.0, notrans, self.q_transposed.grad, trans, \
-                    self.x_q.value, 1.0, self.w_q.grad, 2, 0)
+                    self.x_q.value, 1.0, self.w_q.grad, 2, 0, redux=1)
         # dW_Q can be offloaded from GPU
         self.w_q.grad.wont_use()
         # X_Q can be offloaded from GPU

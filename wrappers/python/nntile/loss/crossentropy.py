@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Katrutsa
 # @author Aleksandr Mikhalev
-# @date 2023-07-23
+# @date 2023-09-19
 
 from nntile.tensor import softmax_async, clear_async, copy_async, \
         subtract_indexed_outputs_async, logsumexp_async, maxsumexp_async, \
@@ -31,6 +31,7 @@ class CrossEntropy:
             val: Tensor, maxsumexp: Tensor, logsumexp: Tensor):
         self.model_output = model_output
         self.val = val
+        self.val.set_reduction_add()
         self.logsumexp = logsumexp
         self.maxsumexp = maxsumexp
         self.y = labels
@@ -69,16 +70,8 @@ class CrossEntropy:
     def get_grad(self, grad_np):
         self.model_output.grad.to_array(grad_np)
 
-    # Fake cross entropy
-    def calc_async(self):
-        clear_async(self.val)
-        self.val.wont_use()
-        self.y.wont_use()
-        self.model_output.value.wont_use()
-        self.model_output.grad.wont_use()
-
     # Get value and gradient if needed
-    def calc_async_true(self):
+    def calc_async(self):
         maxsumexp_async(self.model_output.value, self.maxsumexp, 0)
         logsumexp_async(self.maxsumexp, self.logsumexp)
         clear_async(self.val)

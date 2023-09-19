@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-15
+# @date 2023-09-19
 
 import nntile
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
@@ -59,6 +59,7 @@ class Linear(BaseLayer):
         else:
             super().__init__([x], [y], [w, b], [x_fp16, w_fp16, y_fp16])
             self.b = b
+            self.b.grad.set_reduction_add()
         # Set up local named parameters
         self.side = side
         self.trans_x = trans_x
@@ -67,7 +68,6 @@ class Linear(BaseLayer):
         self.y = y
         self.w = w
         self.w.grad.set_reduction_add()
-        self.w.grad_redux = True
         self.x_fp16 = x_fp16
         self.w_fp16 = w_fp16
         self.y_fp16 = y_fp16
@@ -318,15 +318,16 @@ class Linear(BaseLayer):
             #self.w.grad.wont_use() # Ignore wont_use to check interaction with STARPU_REDUX
             self.x.value.wont_use()
             self.y.grad.wont_use()
-#        if self.b is not None:
-#            if self.b.grad_required:
-#                if self.side == 'L':
-#                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, \
-#                            self.y.value.ndim-1, 0)
-#                else:
-#                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, 0, 0)
-#                self.b.grad.wont_use()
-#                self.y.grad.wont_use()
+        if self.b is not None:
+            if self.b.grad_required:
+                if self.side == 'L':
+                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, \
+                            self.y.value.ndim-1, 0, redux=1)
+                else:
+                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, 0, 0, \
+                            redux=1)
+                self.b.grad.wont_use()
+                self.y.grad.wont_use()
         # Gradient over X (input)
         if self.x.grad_required:
             # Convert fp32 to fp16 if needed

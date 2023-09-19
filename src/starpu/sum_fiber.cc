@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-22
+ * @date 2023-09-19
  * */
 
 #include "nntile/starpu/sum_fiber.hh"
@@ -113,7 +113,7 @@ void restore_where()
 
 template<typename T>
 void submit(Index m, Index n, Index k, Index batch, T alpha, Handle src,
-        T beta, Handle dst)
+        T beta, Handle dst, int redux)
 //! Insert sum_fiber task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -129,7 +129,14 @@ void submit(Index m, Index n, Index k, Index batch, T alpha, Handle src,
     }
     else if(beta == one)
     {
-        dst_mode = Config::STARPU_RW_COMMUTE;
+        if(redux != 0)
+        {
+            dst_mode = STARPU_REDUX;
+        }
+        else
+        {
+            dst_mode = Config::STARPU_RW_COMMUTE;
+        }
     }
     else
     {
@@ -159,11 +166,11 @@ void submit(Index m, Index n, Index k, Index batch, T alpha, Handle src,
 // Explicit instantiation
 template
 void submit<fp32_t>(Index m, Index n, Index k, Index batch, fp32_t alpha,
-        Handle src, fp32_t beta, Handle dst);
+        Handle src, fp32_t beta, Handle dst, int redux);
 
 template
 void submit<fp64_t>(Index m, Index n, Index k, Index batch, fp64_t alpha,
-        Handle src, fp64_t beta, Handle dst);
+        Handle src, fp64_t beta, Handle dst, int redux);
 
 } // namespace sum_fiber
 } // namespace starpu

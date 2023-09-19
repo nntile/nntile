@@ -157,8 +157,6 @@ nntile_model_config = GPT2Config_nntile(config.vocab_size, args.n_embd_tile, \
 nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
         args.minibatch_size, args.minibatch_size_tile, config.n_positions, \
         args.seq_len_tile, nntile_model_config, next_tag)
-# Disabled gradient of lm_Head linear layer
-nntile_model.layers[-1].w.grad_required = False
 
 # Move model to the designated device or delete model if it will not be used
 # any more

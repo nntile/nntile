@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-09-18
+# @date 2023-09-19
 
 from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         TensorOrNone, TensorMoments, \
@@ -17,7 +17,7 @@ from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         fill_async, pow_async, prod_slice_async, sumprod_slice_async, \
         axpy_async, prod_fiber_async, prod_fiber3_async, add_slice3_async, \
         add_fiber_async, sum_fiber_async, sumprod_fiber_async, \
-        clear_async
+        clear_async, copy_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -45,7 +45,9 @@ class LayerNorm(BaseLayer):
         self.x = x
         self.y = y
         self.gamma = gamma
+        self.gamma.grad.set_reduction_add()
         self.beta = beta
+        self.beta.grad.set_reduction_add()
         self.tmp_y_value = tmp_y_value
         self.tmp_y_grad = tmp_y_grad
         self.mean = mean
@@ -156,14 +158,16 @@ class LayerNorm(BaseLayer):
         # Y can be offloaded from GPU
         self.y.value.wont_use()
 
+    # Backward propagation of the normalization layer
     def backward_async(self):
         # Accumulate gradient over beta
-        sum_fiber_async(1.0, self.y.grad, 1.0, self.beta.grad, self.axis, 0)
+        sum_fiber_async(1.0, self.y.grad, 1.0, self.beta.grad, self.axis, 0,
+                redux=1)
         # d_beta can be offloaded from GPU
         self.beta.grad.wont_use()
         # Accumulate gradient over gamma
         sumprod_fiber_async(1.0, self.y.grad, self.tmp_y_value, 1.0, \
-                self.gamma.grad, self.axis)
+                self.gamma.grad, self.axis, redux=1)
         # d_gamma can be offloaded from GPU
         self.gamma.grad.wont_use()
         # Define gradient over normalized input

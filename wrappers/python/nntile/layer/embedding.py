@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-07-16
+# @date 2023-09-19
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         Tensor_int64, clear_async, embedding_async, embedding_backward_async
@@ -31,6 +31,7 @@ class Embedding(BaseLayer):
         self.x = x
         self.y = y
         self.w = w
+        self.w.grad.set_reduction_add()
         self.axis = axis
 
     # Simple generator for the embedding layer
@@ -68,26 +69,18 @@ class Embedding(BaseLayer):
         # Return layer and next tag to be used
         return (layer, next_tag)
 
-    # Fake forward
-    def forward_async(self):
-        clear_async(self.y.value)
-
     # Forward propagation of the embedding layer
-    def forward_async_true(self):
+    def forward_async(self):
         clear_async(self.y.value)
         embedding_async(self.x, self.w.value, self.y.value, self.axis)
         self.x.wont_use()
         self.w.value.wont_use()
         self.y.value.wont_use()
 
-    # Fake backward
+    # Backward propagation of the embedding layer
     def backward_async(self):
-        #clear_async(self.w.grad)
-        pass
-
-    # Backward propagation of the linear layer
-    def backward_async_true(self):
-        embedding_backward_async(self.x, self.y.grad, self.w.grad, self.axis)
+        embedding_backward_async(self.x, self.y.grad, self.w.grad, self.axis, \
+                redux=1)
         self.x.wont_use()
         self.y.grad.wont_use()
         self.w.grad.wont_use()

@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-22
+# @date 2023-09-19
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -202,15 +202,15 @@ def sum_slice_async(alpha: float, x: Tensor, beta: float, sum_slice: Tensor, \
 
 # Wrapper for multiprecision sum_fiber
 def sum_fiber_async(alpha: float, x: Tensor, beta: float, sum_fiber: Tensor, \
-        axis: int, batch_ndim: int) -> None:
+        axis: int, batch_ndim: int, redux: int=0) -> None:
     if type(x) is not type(sum_fiber):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.sum_fiber_async_fp32(alpha, x, beta, sum_fiber, axis, \
-                batch_ndim)
+                batch_ndim, redux)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.sum_fiber_async_fp64(alpha, x, beta, sum_fiber, axis, \
-                batch_ndim)
+                batch_ndim, redux)
     else:
         raise TypeError
 
@@ -570,17 +570,17 @@ def sumprod_slice_async(alpha: float, src1: Tensor, src2: Tensor, \
 
 # Wrapper for multiprecision sumprod_fiber
 def sumprod_fiber_async(alpha: float, src1: Tensor, src2: Tensor, \
-        beta: float, dst: Tensor, axis: int) -> None:
+        beta: float, dst: Tensor, axis: int, redux: int=0) -> None:
     if type(src1) is not type(src2):
         raise TypeError
     if type(src1) is not type(dst):
         raise TypeError
     if type(src1) is core_tensor.Tensor_fp32:
         core_tensor.sumprod_fiber_async_fp32(alpha, src1, src2, beta, dst, \
-                axis)
+                axis, redux)
     elif type(src1) is core_tensor.Tensor_fp64:
         core_tensor.sumprod_fiber_async_fp64(alpha, src1, src2, beta, dst, \
-                axis)
+                axis, redux)
     else:
         raise TypeError
 
@@ -658,13 +658,15 @@ def embedding_async(index: Tensor_int64, vocab: Tensor, embed: Tensor, \
 
 # Wrapper for multiprecision embedding_backward
 def embedding_backward_async(index: Tensor_int64, embed: Tensor, \
-        vocab: Tensor, axis: int) -> None:
+        vocab: Tensor, axis: int, redux: int=0) -> None:
     if type(vocab) is not type(embed):
         raise TypeError
     if type(embed) is core_tensor.Tensor_fp32:
-        core_tensor.embedding_backward_async_fp32(index, embed, vocab, axis)
+        core_tensor.embedding_backward_async_fp32(index, embed, vocab, axis, \
+                redux)
     elif type(embed) is core_tensor.Tensor_fp64:
-        core_tensor.embedding_backward_async_fp64(index, embed, vocab, axis)
+        core_tensor.embedding_backward_async_fp64(index, embed, vocab, axis, \
+                redux)
     else:
         raise TypeError
 
