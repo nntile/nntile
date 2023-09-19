@@ -51,7 +51,9 @@ class LayerNorm(BaseLayer):
         self.tmp_y_value = tmp_y_value
         self.tmp_y_grad = tmp_y_grad
         self.mean = mean
+        self.mean.set_reduction_add()
         self.inv_stddev = inv_stddev
+        self.inv_stddev.set_reduction_hypot()
         self.axis = axis
         self.l = self.x.value.shape[axis]
         self.eps = eps ** 0.5 # This value is used to init deviation
@@ -126,7 +128,8 @@ class LayerNorm(BaseLayer):
     # Forward propagation of the normalization layer
     def forward_async(self):
         # Get means over given axis
-        sum_slice_async(1.0/self.l, self.x.value, 0.0, self.mean, self.axis)
+        sum_slice_async(1.0/self.l, self.x.value, 0.0, self.mean, self.axis, \
+                redux=1)
         # Y = X - mean
         add_slice3_async(-1.0, self.mean, 1.0, self.x.value, \
                 self.tmp_y_value, self.axis)
@@ -137,7 +140,7 @@ class LayerNorm(BaseLayer):
         # Compute standard deviation of self.y.value
         fill_async(self.eps, self.inv_stddev)
         norm_slice_async(1.0/self.l**0.5, self.tmp_y_value, 1.0, \
-                self.inv_stddev, self.axis)
+                self.inv_stddev, self.axis, redux=1)
         # Invert stddev (to multiply by it instead of dividing)
         pow_async(1.0, -1.0, self.inv_stddev)
         # Finally, normalize input

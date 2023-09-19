@@ -4,11 +4,11 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/norm_slice.hh
- * Euclidean norms of fibers into a slice of a StarPU buffer
+ * @file include/nntile/starpu/accumulate_hypot.hh
+ * Accumulate one StarPU buffers into another as hypot
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev 
+ * @author Aleksandr Mikhalev
  * @date 2023-09-19
  * */
 
@@ -16,32 +16,22 @@
 
 #include <nntile/base_types.hh>
 #include <nntile/starpu/config.hh>
+#include <nntile/defs.h>
 
 namespace nntile
 {
 namespace starpu
 {
-namespace norm_slice
+namespace accumulate_hypot
 {
 
-//! Structure for arguments
-template<typename T>
-struct args_t
-{
-    Index m;
-    Index n;
-    Index k;
-    T alpha;
-    T beta;
-};
-
-// StarPU wrapper for kernel::norm_slice::cpu<T>
+// Apply accumulate_hypot for StarPU buffers on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
-// StarPU wrapper for kernel::norm_slice::cuda<T>
+// Apply accumulate_hypot for StarPU buffers on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept;
@@ -75,10 +65,9 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
-        Handle dst, int redux=0);
+void submit(Handle src, Handle dst);
 
-} // namespace norm_slice
+} // namespace accumulate_hypot
 } // namespace starpu
 } // namespace nntile
 

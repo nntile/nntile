@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-09-15
+ * @date 2023-09-19
  * */
 
 #pragma once
@@ -19,6 +19,7 @@
 //#include <starpu_mpi.h>
 #include <starpu.h>
 #include <nntile/starpu/accumulate.hh>
+#include <nntile/starpu/accumulate_hypot.hh>
 #include <nntile/starpu/clear.hh>
 
 #define starpu_mpi_tag_t int64_t
@@ -159,6 +160,17 @@ public:
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
             starpu_data_set_reduction_methods(tmp,
                     nntile::starpu::accumulate::codelet<T>(),
+                    &nntile::starpu::clear::codelet);
+        }
+    }
+    //! Set reduction function for hypot
+    void set_reduction_hypot() const
+    {
+        for(Index i = 0; i < grid.nelems; ++i)
+        {
+            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            starpu_data_set_reduction_methods(tmp,
+                    nntile::starpu::accumulate_hypot::codelet<T>(),
                     &nntile::starpu::clear::codelet);
         }
     }

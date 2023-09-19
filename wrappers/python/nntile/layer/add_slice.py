@@ -23,6 +23,7 @@ class AddSlice(BaseLayer):
         # Set up local named parameters
         self.x = x
         self.y = y
+        self.y.grad.set_reduction_add()
         self.u = u
         self.axis = axis
 
@@ -38,7 +39,7 @@ class AddSlice(BaseLayer):
 
     def backward_async(self):
         add_async(1, self.u.grad, 1, self.x.grad)
-        sum_slice_async(1, self.u.grad, 1, self.y.grad, self.axis)
+        sum_slice_async(1, self.u.grad, 1, self.y.grad, self.axis, redux=1)
         self.x.grad.wont_use()
         self.y.grad.wont_use()
         self.u.grad.wont_use()

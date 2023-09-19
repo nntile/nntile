@@ -346,6 +346,7 @@ void def_class_tensor(py::module_ &m, const char *name)
         def("from_array", tensor_from_array<T>).
         def("to_array", tensor_to_array<T>).
         def("set_reduction_add", &Tensor<T>::set_reduction_add).
+        def("set_reduction_hypot", &Tensor<T>::set_reduction_hypot).
         // Get tile
         def("get_tile", static_cast<tile::Tile<T>(Tensor<T>::*)(Index) const>(
                     &Tensor<T>::get_tile)).

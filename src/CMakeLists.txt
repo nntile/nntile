@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-09-18
+# @date 2023-09-19
 
 add_subdirectory(kernel)
 
@@ -126,6 +126,7 @@ endif()
 
 set(STARPU_SRC
     "starpu/accumulate.cc"
+    "starpu/accumulate_hypot.cc"
     "starpu/add_slice.cc"
     "starpu/add_slice3.cc"
     "starpu/add_fiber.cc"

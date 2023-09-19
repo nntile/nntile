@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-05
+ * @date 2023-09-19
  * */
 
 #include "nntile/tensor/norm_slice.hh"
@@ -22,7 +22,7 @@ namespace tensor
 
 template<typename T>
 void norm_slice_async(T alpha, const Tensor<T> &src, T beta,
-        const Tensor<T> &dst, Index axis)
+        const Tensor<T> &dst, Index axis, int redux)
 {
     // Check dimensions
     if(src.ndim-1 != dst.ndim)
@@ -113,13 +113,13 @@ void norm_slice_async(T alpha, const Tensor<T> &src, T beta,
                 if(j == 0)
                 {
                     starpu::norm_slice::submit<T>(m, n, k, alpha,
-                            src_tile_handle, beta, dst_tile_handle);
+                            src_tile_handle, beta, dst_tile_handle, redux);
                 }
                 // Insert all consequent tasks
                 else
                 {
                     starpu::norm_slice::submit<T>(m, n, k, alpha,
-                            src_tile_handle, one, dst_tile_handle);
+                            src_tile_handle, one, dst_tile_handle, redux);
                 }
             }
         }
@@ -130,9 +130,9 @@ void norm_slice_async(T alpha, const Tensor<T> &src, T beta,
 
 template<typename T>
 void norm_slice(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
-        Index axis)
+        Index axis, int redux)
 {
-    norm_slice_async<T>(alpha, src, beta, dst, axis);
+    norm_slice_async<T>(alpha, src, beta, dst, axis, redux);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -140,20 +140,20 @@ void norm_slice(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
 // Explicit instantiation
 template
 void norm_slice_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
-        fp32_t beta, const Tensor<fp32_t> &dst, Index axis);
+        fp32_t beta, const Tensor<fp32_t> &dst, Index axis, int redux);
 
 template
 void norm_slice_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
-        fp64_t beta, const Tensor<fp64_t> &dst, Index axis);
+        fp64_t beta, const Tensor<fp64_t> &dst, Index axis, int redux);
 
 // Explicit instantiation
 template
 void norm_slice<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src, fp32_t beta,
-        const Tensor<fp32_t> &dst, Index axis);
+        const Tensor<fp32_t> &dst, Index axis, int redux);
 
 template
 void norm_slice<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src, fp64_t beta,
-        const Tensor<fp64_t> &dst, Index axis);
+        const Tensor<fp64_t> &dst, Index axis, int redux);
 
 } // namespace tensor
 } // namespace nntile
