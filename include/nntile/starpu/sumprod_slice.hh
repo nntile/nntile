@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-09-19
  * */
 
 #pragma once
@@ -76,7 +76,7 @@ void restore_where();
 
 template<typename T>
 void submit(Index m, Index n, Index k, T alpha, Handle src1, Handle src2,
-        T beta, Handle dst);
+        T beta, Handle dst, int redux=0);
 
 } // namespace sumprod_slice
 } // namespace starpu

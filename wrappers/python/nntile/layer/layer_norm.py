@@ -182,13 +182,14 @@ class LayerNorm(BaseLayer):
         self.gamma.value.wont_use()
         # Get mean of product of tmp_Y_grad and tmp_Y_value over the given axis
         sumprod_slice_async(-1.0/self.l, self.tmp_y_grad, self.tmp_y_value, \
-                0.0, self.mean, self.axis)
+                0.0, self.mean, self.axis, redux=1)
         # Multiply tmp_Y_value by the mean
         prod_slice_async(self.mean, 1.0, self.tmp_y_value, self.axis)
         # Add tmp_Y_grad to tmp_Y_value
         axpy_async(1.0, self.tmp_y_grad, self.tmp_y_value)
         # Get mean value of tmp_Y_grad over the given axis
-        sum_slice_async(1.0/self.l, self.tmp_y_grad, 0.0, self.mean, self.axis)
+        sum_slice_async(1.0/self.l, self.tmp_y_grad, 0.0, self.mean, \
+                self.axis, redux=1)
         # tmp_Y_grad can be deleted
         #self.tmp_y_grad.wont_use()
         self.tmp_y_grad.invalidate_submit()

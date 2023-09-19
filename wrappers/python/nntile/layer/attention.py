@@ -86,9 +86,13 @@ class Attention(BaseLayer):
                 [q_transposed, q, k_transposed, k, v_transposed, v, a, \
                 a_maxsumexp, a_sumprod_slice, b, b_transposed])
         self.x_q = x_q
+        self.x_q.grad.set_reduction_add()
         self.x_k = x_k
+        self.x_k.grad.set_reduction_add()
         self.x_v = x_v
+        self.x_v.grad.set_reduction_add()
         self.y = y
+        self.y.value.set_reduction_add()
         self.w_q = w_q
         self.w_q.grad.set_reduction_add()
         self.w_k = w_k
@@ -98,16 +102,27 @@ class Attention(BaseLayer):
         self.w = w
         self.w.grad.set_reduction_add()
         self.q_transposed = q_transposed
+        self.q_transposed.value.set_reduction_add()
         self.q = q
+        self.q.grad.set_reduction_add()
         self.k_transposed = k_transposed
+        self.k_transposed.value.set_reduction_add()
         self.k = k
+        self.k.grad.set_reduction_add()
         self.v_transposed = v_transposed
+        self.v_transposed.value.set_reduction_add()
         self.v = v
+        self.v.grad.set_reduction_add()
         self.a = a
+        self.a.value.set_reduction_add()
+        self.a.grad.set_reduction_add()
         self.a_maxsumexp = a_maxsumexp
         self.a_sumprod_slice = a_sumprod_slice
+        self.a_sumprod_slice.set_reduction_add()
         self.b = b
+        self.b.value.set_reduction_add()
         self.b_transposed = b_transposed
+        self.b_transposed.grad.set_reduction_add()
         self.in_proj_bias_q = in_proj_bias_q
         self.in_proj_bias_k = in_proj_bias_k
         self.in_proj_bias_v = in_proj_bias_v
@@ -381,7 +396,7 @@ class Attention(BaseLayer):
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w_q.value, notrans, \
-                self.x_q.value, 0.0, self.q_transposed.value, 1, 0)
+                self.x_q.value, 0.0, self.q_transposed.value, 1, 0, redux=1)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.q_transposed.value, self.q.value, 1)
         # X_Q, W_Q and Q_transposed can be offloaded from GPU
@@ -400,7 +415,7 @@ class Attention(BaseLayer):
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w_k.value, notrans, \
-                self.x_k.value, 0.0, self.k_transposed.value, 1, 0)
+                self.x_k.value, 0.0, self.k_transposed.value, 1, 0, redux=1)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.k_transposed.value, self.k.value, 1)
         # X_K, W_K and K_transposed can be offloaded from GPU
@@ -419,7 +434,7 @@ class Attention(BaseLayer):
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w_v.value, notrans, \
-                self.x_v.value, 0.0, self.v_transposed.value, 1, 0)
+                self.x_v.value, 0.0, self.v_transposed.value, 1, 0, redux=1)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.v_transposed.value, self.v.value, 1)
         # X_V, W_V and V_transposed can be offloaded from GPU
@@ -440,7 +455,7 @@ class Attention(BaseLayer):
         # by (head_size, n_seq, batch=n_batch, batch=n_head) into
         # (n_seq, n_seq, batch=n_batch, batch=n_head)
         gemm_async(1.0/self.head_size**0.5, trans, self.k.value, \
-                notrans, self.q.value, 0.0, self.a.value, 1, 2)
+                notrans, self.q.value, 0.0, self.a.value, 1, 2, redux=1)
         # Q and K can be offloaded from GPU
         self.q.value.wont_use()
         self.k.value.wont_use()
@@ -463,7 +478,7 @@ class Attention(BaseLayer):
         # by (n_seq, n_seq, batch=n_batch, batch=n_head) into
         # (head_size, n_seq, batch=n_batch, batch=n_head)
         gemm_async(1.0, notrans, self.v.value, notrans, \
-                self.a.value, 0.0, self.b.value, 1, 2)
+                self.a.value, 0.0, self.b.value, 1, 2, redux=1)
         # V and A can be offloaded from GPU
         self.v.value.wont_use()
         self.a.value.wont_use()
@@ -475,7 +490,7 @@ class Attention(BaseLayer):
         # gemm (n_emb, n_head, head_size) by
         # (n_head, head_size, n_seq, n_batch) into (n_emb, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w.value, notrans, \
-                self.b_transposed.value, 0.0, self.y.value, 2, 0)
+                self.b_transposed.value, 0.0, self.y.value, 2, 0, redux=1)
         # W, B and B_transposed can be offloaded from GPU
         self.w.value.wont_use()
         #self.b.value.wont_use()
@@ -508,7 +523,7 @@ class Attention(BaseLayer):
         if self.b_transposed.grad_required:
             # dB_transposed = einsum('jkl,jmn->klmn', W, dY)
             gemm_async(1.0, trans, self.w.value, notrans, self.y.grad, \
-                    0.0, self.b_transposed.grad, 1, 0)
+                    0.0, self.b_transposed.grad, 1, 0, redux=1)
         # W can be offloaded from GPU
         self.w.value.wont_use()
         # dY can be offloaded from GPU
@@ -524,14 +539,14 @@ class Attention(BaseLayer):
         if self.a.grad_required:
             # dA = einsum('jklb,jmlb->kmlb', V, dB)
             gemm_async(1.0, trans, self.v.value, notrans, \
-                    self.b.grad, 0.0, self.a.grad, 1, 2)
+                    self.b.grad, 0.0, self.a.grad, 1, 2, redux=1)
         # V can be deleted
         #self.v.value.wont_use()
         self.v.value.invalidate_submit()
         if self.v.grad_required:
             # dV = einsum('jmlb,kmlb->jklb', dB, A)
             gemm_async(1.0, notrans, self.b.grad, trans, \
-                    self.a.value, 0.0, self.v.grad, 1, 2)
+                    self.a.value, 0.0, self.v.grad, 1, 2, redux=1)
         # dB can be deleted
         #self.b.grad.wont_use()
         self.b.grad.invalidate_submit()
@@ -539,7 +554,7 @@ class Attention(BaseLayer):
         if self.a.grad_required:
             # A_sumprod_slice = einsum('kmlb,kmlb->mlb', A, dA)
             sumprod_slice_async(1.0, self.a.value, self.a.grad, \
-                    0.0, self.a_sumprod_slice, 0)
+                    0.0, self.a_sumprod_slice, 0, redux=1)
             # dA += -bias('kmlb,mlb->kmlb', dA, A_sumprod_slice)
             add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
             # A_sumprod_slice can be deleted
@@ -559,14 +574,14 @@ class Attention(BaseLayer):
         if self.k.grad_required:
             # dK = 1.0/sqrt(head_size) * einsum('jmlb,kmlb->jklb', Q, dA)
             gemm_async(1.0/self.head_size**0.5, notrans, self.q.value, \
-                    trans, self.a.grad, 0.0, self.k.grad, 1, 2)
+                    trans, self.a.grad, 0.0, self.k.grad, 1, 2, redux=1)
         # Q can be deleted
         #self.q.value.wont_use()
         self.q.value.invalidate_submit()
         if self.q.grad_required:
             # dQ = 1.0/sqrt(head_size) * einsum('jklb,kmlb->jmlb', K, dA)
             gemm_async(1.0/self.head_size**0.5, notrans, self.k.value, \
-                    notrans, self.a.grad, 0.0, self.q.grad, 1, 2)
+                    notrans, self.a.grad, 0.0, self.q.grad, 1, 2, redux=1)
         # K can be deleted
         #self.k.value.wont_use()
         self.k.value.invalidate_submit()
@@ -591,7 +606,7 @@ class Attention(BaseLayer):
         if self.x_v.grad_required:
             # dX_V += einsum('jkl,jkmn->lmn', W_V, dV_transposed)
             gemm_async(1.0, trans, self.w_v.value, notrans, \
-                    self.v_transposed.grad, 1.0, self.x_v.grad, 2, 0)
+                    self.v_transposed.grad, 1.0, self.x_v.grad, 2, 0, redux=1)
         # W_V can be offloaded from GPU
         self.w_v.value.wont_use()
         # dX_V can be offloaded from GPU
@@ -625,7 +640,7 @@ class Attention(BaseLayer):
         if self.x_k.grad_required:
             # dX_K += einsum('jkl,jkmn->lmn', W_K, dK_transposed)
             gemm_async(1.0, trans, self.w_k.value, notrans, \
-                    self.k_transposed.grad, 1.0, self.x_k.grad, 2, 0)
+                    self.k_transposed.grad, 1.0, self.x_k.grad, 2, 0, redux=1)
         # W_K can be offloaded from GPU
         self.w_k.value.wont_use()
         # dX_K can be offloaded from GPU
@@ -659,7 +674,7 @@ class Attention(BaseLayer):
         if self.x_q.grad_required:
             # dX_Q += einsum('jkl,jkmn->lmn', W_Q, dQ_transposed)
             gemm_async(1.0, trans, self.w_q.value, notrans, \
-                    self.q_transposed.grad, 1.0, self.x_q.grad, 2, 0)
+                    self.q_transposed.grad, 1.0, self.x_q.grad, 2, 0, redux=1)
             self.x_q.grad.wont_use()
         # W_Q can be offloaded from GPU
         self.w_q.value.wont_use()

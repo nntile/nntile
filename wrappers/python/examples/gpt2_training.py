@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-22
+# @date 2023-09-19
 
 # Imports
 import torch
@@ -52,7 +52,7 @@ parser.add_argument("--minibatch-size-tile", type=int, default=1)
 parser.add_argument("--n-embd-tile", type=int, default=384)
 parser.add_argument("--n-inner-tile", type=int, default=1536)
 parser.add_argument("--torch-device", choices=["cpu", "cuda", "cuda:0", \
-        "cuda:1"], default="cpu")
+        "cuda:1", "cuda:2", "cuda:3", "cuda:4"], default="cpu")
 parser.add_argument("--torch-dtype", choices=["fp32, fp64"], default="fp32")
 parser.add_argument("--nntile-dtype", choices=["fp32, fp64"], default="fp32")
 parser.add_argument("--check", action="store_true")

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-09-19
  * */
 
 #include "nntile/starpu/sumprod_slice.hh"
@@ -114,7 +114,7 @@ void restore_where()
 
 template<typename T>
 void submit(Index m, Index n, Index k, T alpha, Handle src1, Handle src2,
-        T beta, Handle dst)
+        T beta, Handle dst, int redux)
 //! Insert sumprod_slice task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -130,7 +130,14 @@ void submit(Index m, Index n, Index k, T alpha, Handle src1, Handle src2,
     }
     else if(beta == one)
     {
-        dst_mode = Config::STARPU_RW_COMMUTE;
+        if(redux != 0)
+        {
+            dst_mode = STARPU_REDUX;
+        }
+        else
+        {
+            dst_mode = Config::STARPU_RW_COMMUTE;
+        }
     }
     else
     {
@@ -162,11 +169,11 @@ void submit(Index m, Index n, Index k, T alpha, Handle src1, Handle src2,
 // Explicit instantiation
 template
 void submit<fp32_t>(Index m, Index n, Index k, fp32_t alpha, Handle src1,
-        Handle src2, fp32_t beta, Handle dst);
+        Handle src2, fp32_t beta, Handle dst, int redux);
 
 template
 void submit<fp64_t>(Index m, Index n, Index k, fp64_t alpha, Handle src1,
-        Handle src2, fp64_t beta, Handle dst);
+        Handle src2, fp64_t beta, Handle dst, int redux);
 
 } // namespace sumprod_slice
 } // namespace starpu
