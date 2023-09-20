@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-09-15
+# @date 2023-09-20
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         clear_async
@@ -47,15 +47,21 @@ class BaseModel:
         for l in reversed(self.layers):
             l.backward_async()
 
-    # Clear gradients of activations and parameters
+    # Clear all gradients (parameters and inter-layer activations)
     def clear_gradients(self):
-        for t in self.activations:
-            if t.grad is not None and t.grad_required:
-                clear_async(t.grad)
+        self.clear_parameters_grads()
+        self.clear_activations_grads()
+
+    # Clear gradients of parameters
+    def clear_parameters_grads(self):
         for t in self.parameters:
             if t.grad is not None and t.grad_required:
-                #if not hasattr(t, "grad_redux"):
-                #    pass
+                clear_async(t.grad)
+
+    # Clear gradients of inter-layer activations
+    def clear_activations_grads(self):
+        for t in self.activations:
+            if t.grad is not None and t.grad_required:
                 clear_async(t.grad)
 
     # Unregister all tensors related to this model

@@ -131,7 +131,7 @@ void submit(Index n_labels, Index n_outputs, Handle logsumexp, Handle src,
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_R, static_cast<starpu_data_handle_t>(class_labels),
             STARPU_CL_ARGS, args, sizeof(*args),
-            STARPU_REDUX, static_cast<starpu_data_handle_t>(val),
+            STARPU_RW, static_cast<starpu_data_handle_t>(val),
             0);
     // Check submission
     if(ret != 0)

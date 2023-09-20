@@ -467,6 +467,7 @@ class Attention(BaseLayer):
             mask_scalar_async(self.mask, self.val, self.a.value, 2)
             self.mask.wont_use()
         # Calculate max and sumexp along axis
+        clear_async(self.a_maxsumexp)
         maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=1)
         # Finally, get the inplace softmax
         softmax_inplace_async(self.a_maxsumexp, self.a.value, 0)

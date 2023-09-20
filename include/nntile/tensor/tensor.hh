@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <cstdlib>
 #include <nntile/tensor/traits.hh>
 #include <nntile/tile/tile.hh>
 //#include <starpu_mpi.h>
@@ -29,6 +30,13 @@ namespace nntile
 {
 namespace tensor
 {
+
+// Overload for printing fp16_t
+static std::ostream &operator<<(std::ostream &cout, fp16_t val)
+{
+    cout << "FP16 is not yet printable";
+    return cout;
+}
 
 //! Many-dimensional tensor, presented by a set of subtensors (tiles)
 //
@@ -185,6 +193,34 @@ public:
                     nntile::starpu::accumulate_maxsumexp::codelet<T>(),
                     &nntile::starpu::clear::codelet);
         }
+    }
+    //! Print scalar tensor asynchronously
+    void print_scalar_async() const
+    {
+        if(ndim != 0)
+        {
+            throw std::runtime_error("Only scalar tensors can be printed");
+        }
+        auto handle = static_cast<starpu_data_handle_t>(get_tile_handle(0));
+        void **args = reinterpret_cast<void **>(std::malloc(sizeof(*args)));
+        *args = reinterpret_cast<void *>(handle);
+        int ret = starpu_data_acquire_cb(handle, STARPU_R,
+                reinterpret_cast<void (*)(void *)>(&_print_scalar_async_helper),
+                reinterpret_cast<void *>(args));
+        if(ret != 0)
+        {
+            throw std::runtime_error("Error in starpu_data_acquire_cb()");
+        }
+    }
+    //! Helper for async printing
+    static void _print_scalar_async_helper(void *args)
+    {
+        std::cerr << "IN CALLBACK args " << args << "\n";
+        auto handle = *reinterpret_cast<starpu_data_handle_t *>(args);
+        std::cerr << "IN CALLBACK handle " << handle << "\n";
+        T *data = reinterpret_cast<T *>(starpu_data_get_local_ptr(handle));
+        std::cout << "Value: " << *data << "\n";
+        starpu_data_release(handle);
     }
 };
 

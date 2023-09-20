@@ -23,7 +23,7 @@ namespace accumulate_maxsumexp
 
 template<typename T>
 static __global__
-void cuda_kernel(Index nelems, const T* src, T* dst)
+void cuda_kernel(Index nelems, const T *src, T *dst)
 //! Accumulate two maxsumexp buffers on CUDA
 /*! Performs the following operation:
  *      dst[2*i+1] = dst[2*i+1]*exp(dst[2*i]) + src[2*i+1]*exp(src[2*i]),
@@ -35,16 +35,28 @@ void cuda_kernel(Index nelems, const T* src, T* dst)
  * */
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
+    constexpr T zero = 0.0;
     if(i < nelems)
     {
-        if(dst[2*i] < src[2*i])
+        // Do nothing if sum of exponents of source is zero
+        if(src[2*i+1] != zero)
         {
-            dst[2*i+1] = src[2*i+1] + dst[2*i+1]*::exp(dst[2*i]-src[2*i]);
-            dst[2*i] = src[2*i];
-        }
-        else
-        {
-            dst[2*i+1] += src[2*i+1]*::exp(src[2*i]-dst[2*i]);
+            // Overwrite if old value of sum is zero
+            if(dst[2*i+1] == zero)
+            {
+                dst[2*i] = src[2*i];
+                dst[2*i+1] = src[2*i+1];
+            }
+            // Otherwise update based on maximum
+            else if(dst[2*i] < src[2*i])
+            {
+                dst[2*i+1] = src[2*i+1] + dst[2*i+1]*::exp(dst[2*i]-src[2*i]);
+                dst[2*i] = src[2*i];
+            }
+            else
+            {
+                dst[2*i+1] += src[2*i+1]*::exp(src[2*i]-dst[2*i]);
+            }
         }
     }
 }

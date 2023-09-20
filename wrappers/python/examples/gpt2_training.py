@@ -99,24 +99,23 @@ assert args.nntile_nepochs >= 0
 torch.set_default_device("cpu")
 
 # Load named pretrained PyTorch model
-pretrained_model_torch = GPT2LMHeadModel.from_pretrained(args.model, \
+model_torch = GPT2LMHeadModel.from_pretrained(args.model, \
         cache_dir=args.model_path)
 
-# print(pretrained_model_torch)
+# print(model_torch)
 
 # Create a new PyTorch model with adjusted config and load weights from the
 # pretrained one. This step is requried as some operations of GPT2 are still
 # pending in NNTile implementation (bias in Linear layers and entire Attention
 # layers).
-config = copy.deepcopy(pretrained_model_torch.config)
+config = model_torch.config
 assert config.n_positions % args.seq_len_tile == 0
 config.attn_pdrop = 0
 config.embd_pdrop = 0
 config.resid_pdrop = 0
-model_torch = copy.deepcopy(pretrained_model_torch)
 # Current version splits lm_head and wte parameters, shared parameters will be
 # supported soon
-model_torch.lm_head.weight = nn.Parameter(pretrained_model_torch.lm_head \
+model_torch.lm_head.weight = nn.Parameter(model_torch.lm_head \
         .weight.detach().clone())
     
 inner_dim = config.n_inner if config.n_inner is not None \
@@ -143,8 +142,8 @@ nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
 nntile.starpu.init()
 # Restrict computations to CUDA if possible
-#nntile.starpu.restrict_cuda()
-nntile.starpu.restrict_cpu()
+nntile.starpu.restrict_cuda()
+#nntile.starpu.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
 next_tag = 0
@@ -477,9 +476,8 @@ if args.nntile_nepochs > 0:
     time1 = time.time() - time0
     print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
     # Set up learning rate and optimizer for training
-    #optimizer = nntile.optimizer.FusedAdam(nntile_model.get_parameters(), \
-    #        args.lr, next_tag)
-    optimizer = nntile.optimizer.Empty(nntile_model.get_parameters(), next_tag)
+    optimizer = nntile.optimizer.FusedAdam(nntile_model.get_parameters(), \
+            args.lr, next_tag)
     next_tag = optimizer.get_next_tag()
     # Define Cross Entropy loss function
     loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
@@ -540,14 +538,16 @@ if args.torch_nepochs > 0:
     for i in range(args.torch_nepochs_warmup):
         for j in range(num_train_batches):
             optim.zero_grad()
-            loss = torch.zeros(1, dtype=torch.float32)
+            loss = torch.zeros(1, dtype=torch.float32, device=args.torch_device)
             for k in range(num_minibatch):
                 train_input = torch_input[j][k].to(args.torch_device)
                 train_labels = torch_output[j][k].to(args.torch_device).reshape(-1)
                 train_output = model_torch(train_input)
                 train_logits = train_output.logits.reshape(-1, config.vocab_size)
-                loss += loss_func(train_logits, train_labels)
-            loss.backward()
+                loss_local = loss_func(train_logits, train_labels)
+                loss_local.backward()
+                loss += loss_local
+            print("loss={}".format(loss))
             optim.step()
     # Actual training
     if args.torch_device.startswith("cuda"):
@@ -556,15 +556,16 @@ if args.torch_nepochs > 0:
     for i in range(args.torch_nepochs):
         for j in range(num_train_batches):
             optim.zero_grad()
-            loss = torch.zeros(1, dtype=torch.float32)
+            loss = torch.zeros(1, dtype=torch.float32, device=args.torch_device)
             for k in range(num_minibatch):
-                train_input = torch_input[j].to(args.torch_device)
-                train_labels = torch_output[j].to(args.torch_device).reshape(-1)
+                train_input = torch_input[j][k].to(args.torch_device)
+                train_labels = torch_output[j][k].to(args.torch_device).reshape(-1)
                 train_output = model_torch(train_input)
                 train_logits = train_output.logits.reshape(-1, config.vocab_size)
-                loss += loss_func(train_logits, train_labels)
-            #print("loss={}".format(loss))
-            loss.backward()
+                loss_local = loss_func(train_logits, train_labels)
+                loss_local.backward()
+                loss += loss_local
+            print("loss={}".format(loss))
             optim.step()
     if args.torch_device.startswith("cuda"):
         torch.cuda.synchronize()

@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-06-28
+ * @date 2023-09-20
  * */
 
 #include "nntile/tensor/total_sum_accum.hh"
@@ -70,10 +70,6 @@ void total_sum_accum_async(const Tensor<T> &logsumexp, const Tensor<T> &src,
     int mpi_rank = starpu_mpi_world_rank();
     auto val_tile_handle = val.get_tile_handle(0);
     int val_tile_rank = val_tile_handle.mpi_get_rank();
-    if(mpi_rank == val_tile_rank)
-    {
-        starpu::clear::submit(val_tile_handle);
-    }
     for(Index i = 0; i < labels.grid.nelems; ++i)
     {
         // Clean up destination tile on dest node

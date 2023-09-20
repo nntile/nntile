@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-15
+# @date 2023-09-20
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         copy_async, axpy_async, clear_async
@@ -40,21 +40,26 @@ class Pipeline(object):
     def train_async(self):
         for i_epoch in range(self.n_epochs):
             # print("Epoch ", i_epoch)
-            for x_batches, y_batches in zip(self.x, self.y):
+            for x_batch, y_batch in zip(self.x, self.y):
                 # Zero out gradients of all weights and activations
-                self.model.clear_gradients()
+                self.model.clear_parameters_grads()
+                clear_async(self.loss.val)
                 # Accumulate gradients from subbatches
-                for x_batch, y_batch in zip(x_batches, y_batches):
+                for x_minibatch, y_minibatch in zip(x_batch, y_batch):
+                    # Clear gradients of inter-layer activations
+                    self.model.clear_activations_grads()
                     # Copy input batch into activation[0] of the model
-                    copy_async(x_batch, self.model.activations[0].value)
+                    copy_async(x_minibatch, self.model.activations[0].value)
                     # Perform forward pass
                     self.model.forward_async()
                     # Copy true result into loss function
-                    copy_async(y_batch, self.loss.y)
+                    copy_async(y_minibatch, self.loss.y)
                     # Loss function shall be instatiated to read X from
                     # activations[-1].value of the model and write gradient
                     # into activations[-1].grad
                     self.loss.calc_async()
+                    # Print value asynchronously
+                    #self.loss.val.print_scalar_async()
                     # Now do the backward pass
                     self.model.backward_async()
                 # Apply optimizer after gradients for entire batch are
@@ -71,9 +76,9 @@ class Pipeline(object):
                     if t.grad_required:
                         t.grad.wont_use()
                 # Limit parallelism through value of loss
-                #loss_np = np.zeros((1,), dtype=np.float32, order="F")
-                #self.loss.get_val(loss_np)
-                #print("Loss in {} epoch = {}".format(i_epoch, loss_np[0]))
+                loss_np = np.zeros((1,), dtype=np.float32, order="F")
+                self.loss.get_val(loss_np)
+                print("Loss in {} epoch = {}".format(i_epoch, loss_np[0]))
             # nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
             # self.loss.get_val(nntile_xentropy_np)
             # print("Last batch loss after in {} epoch = {}".format(i_epoch, nntile_xentropy_np[0]))

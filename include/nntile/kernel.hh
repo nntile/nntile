@@ -11,11 +11,12 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-20
+ * @date 2023-09-20
  * */
 
 #pragma once
 
+#include <nntile/kernel/accumulate_maxsumexp.hh>
 #include <nntile/kernel/add_slice.hh>
 #include <nntile/kernel/add_slice3.hh>
 #include <nntile/kernel/add_fiber.hh>

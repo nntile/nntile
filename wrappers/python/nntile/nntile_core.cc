@@ -348,6 +348,7 @@ void def_class_tensor(py::module_ &m, const char *name)
         def("set_reduction_add", &Tensor<T>::set_reduction_add).
         def("set_reduction_hypot", &Tensor<T>::set_reduction_hypot).
         def("set_reduction_maxsumexp", &Tensor<T>::set_reduction_maxsumexp).
+        def("print_scalar_async", &Tensor<T>::print_scalar_async).
         // Get tile
         def("get_tile", static_cast<tile::Tile<T>(Tensor<T>::*)(Index) const>(
                     &Tensor<T>::get_tile)).

@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Katrutsa
 # @author Aleksandr Mikhalev
-# @date 2023-09-19
+# @date 2023-09-20
 
 from nntile.tensor import softmax_async, clear_async, copy_async, \
         subtract_indexed_outputs_async, logsumexp_async, maxsumexp_async, \
@@ -34,6 +34,7 @@ class CrossEntropy:
         self.val.set_reduction_add()
         self.logsumexp = logsumexp
         self.maxsumexp = maxsumexp
+        self.maxsumexp.set_reduction_maxsumexp()
         self.y = labels
 
     # Simple generator
@@ -72,9 +73,9 @@ class CrossEntropy:
 
     # Get value and gradient if needed
     def calc_async(self):
-        maxsumexp_async(self.model_output.value, self.maxsumexp, 0)
+        clear_async(self.maxsumexp)
+        maxsumexp_async(self.model_output.value, self.maxsumexp, 0, redux=1)
         logsumexp_async(self.maxsumexp, self.logsumexp)
-        clear_async(self.val)
         total_sum_accum_async(self.logsumexp, self.model_output.value, \
                 self.y, self.val)
         if self.model_output.grad_required is True:

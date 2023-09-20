@@ -35,16 +35,28 @@ void cpu(Index nelems, const T* src, T* dst)
  * @param[inout] dst: Destination of the maxsumexp accumulation
  * */
 {
+    constexpr T zero = 0.0;
     for(Index i = 0; i < nelems; ++i)
     {
-        if(dst[2*i] < src[2*i])
+        // Do nothing if sum of exponents of source is zero
+        if(src[2*i+1] != zero)
         {
-            dst[2*i+1] = src[2*i+1] + dst[2*i+1]*std::exp(dst[2*i]-src[2*i]);
-            dst[2*i] = src[2*i];
-        }
-        else
-        {
-            dst[2*i+1] += src[2*i+1]*std::exp(src[2*i]-dst[2*i]);
+            // Overwrite if old value of sum is zero
+            if(dst[2*i+1] == zero)
+            {
+                dst[2*i] = src[2*i];
+                dst[2*i+1] = src[2*i+1];
+            }
+            // Otherwise update based on maximum
+            else if(dst[2*i] < src[2*i])
+            {
+                dst[2*i+1] = src[2*i+1] + dst[2*i+1]*std::exp(dst[2*i]-src[2*i]);
+                dst[2*i] = src[2*i];
+            }
+            else
+            {
+                dst[2*i+1] += src[2*i+1]*std::exp(src[2*i]-dst[2*i]);
+            }
         }
     }
 }
