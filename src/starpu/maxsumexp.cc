@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,11 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-08
+ * @date 2023-09-20
  * */
 
 #include "nntile/starpu/maxsumexp.hh"
 #include "nntile/kernel/maxsumexp.hh"
+#include <cstdlib>
 
 namespace nntile
 {
@@ -109,7 +110,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, Handle src, Handle dst)
+void submit(Index m, Index n, Index k, Handle src, Handle dst, int redux)
 //! Insert maxsumexp task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -117,18 +118,26 @@ void submit(Index m, Index n, Index k, Handle src, Handle dst)
  * */
 {
     // Codelet arguments
-    auto args = new args_t
-    {
-        .m = m,
-        .n = n,
-        .k = k
-    };
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    args->m = m;
+    args->n = n;
+    args->k = k;
     //fp64_t nflops = m * n * k;
+    // Access mode for the dst handle
+    enum starpu_data_access_mode dst_mode;
+    if(redux != 0)
+    {
+        dst_mode = STARPU_REDUX;
+    }
+    else
+    {
+        dst_mode = Config::STARPU_RW_COMMUTE;
+    }
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_CL_ARGS, args, sizeof(*args),
-            Config::STARPU_RW_COMMUTE, static_cast<starpu_data_handle_t>(dst),
+            dst_mode, static_cast<starpu_data_handle_t>(dst),
             //STARPU_FLOPS, nflops,
             0);
     // Check submission
@@ -140,10 +149,12 @@ void submit(Index m, Index n, Index k, Handle src, Handle dst)
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index m, Index n, Index k, Handle src, Handle dst);
+void submit<fp32_t>(Index m, Index n, Index k, Handle src, Handle dst,
+        int redux);
 
 template
-void submit<fp64_t>(Index m, Index n, Index k, Handle src, Handle dst);
+void submit<fp64_t>(Index m, Index n, Index k, Handle src, Handle dsti,
+        int redux);
 
 } // namespace maxsumexp
 } // namespace starpu

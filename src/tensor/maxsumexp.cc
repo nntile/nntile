@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-09-20
  * */
 
 #include "nntile/tensor/maxsumexp.hh"
@@ -23,7 +23,8 @@ namespace tensor
 
 //! Compute max and sum of exponents of slices along given axis
 template<typename T>
-void maxsumexp_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
+void maxsumexp_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis,
+        int redux)
 {
     // Check dimensions
     if(src.ndim != dst.ndim)
@@ -123,7 +124,7 @@ void maxsumexp_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
                 k = src_tile_traits.shape[axis];
                 // Insert task
                 starpu::maxsumexp::submit<T>(m, n, k, src_tile_handle,
-                        dst_tile_handle);
+                        dst_tile_handle, redux);
             }
         }
         // Flush cache for the output tile on every node
@@ -133,9 +134,10 @@ void maxsumexp_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
 
 
 template<typename T>
-void maxsumexp(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
+void maxsumexp(const Tensor<T> &src, const Tensor<T> &dst, Index axis,
+        int redux)
 {
-    maxsumexp_async<T>(src, dst, axis);
+    maxsumexp_async<T>(src, dst, axis, redux);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -143,20 +145,20 @@ void maxsumexp(const Tensor<T> &src, const Tensor<T> &dst, Index axis)
 // Explicit instantiation
 template
 void maxsumexp_async<fp32_t>(const Tensor<fp32_t> &src,
-        const Tensor<fp32_t> &dst, Index axis);
+        const Tensor<fp32_t> &dst, Index axis, int redux);
 
 template
 void maxsumexp_async<fp64_t>(const Tensor<fp64_t> &src,
-        const Tensor<fp64_t> &dst, Index axis);
+        const Tensor<fp64_t> &dst, Index axis, int redux);
 
 // Explicit instantiation
 template
 void maxsumexp<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst,
-        Index axis);
+        Index axis, int redux);
 
 template
 void maxsumexp<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst,
-        Index axis);
+        Index axis, int redux);
 
 } // namespace tensor
 } // namespace nntile

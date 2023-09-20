@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-09-12
+ * @date 2023-09-20
  * */
 
 #include <pybind11/pybind11.h>
@@ -347,6 +347,7 @@ void def_class_tensor(py::module_ &m, const char *name)
         def("to_array", tensor_to_array<T>).
         def("set_reduction_add", &Tensor<T>::set_reduction_add).
         def("set_reduction_hypot", &Tensor<T>::set_reduction_hypot).
+        def("set_reduction_maxsumexp", &Tensor<T>::set_reduction_maxsumexp).
         // Get tile
         def("get_tile", static_cast<tile::Tile<T>(Tensor<T>::*)(Index) const>(
                     &Tensor<T>::get_tile)).

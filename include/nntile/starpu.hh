@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-09-19
+ * @date 2023-09-20
  * */
 
 #pragma once
@@ -22,6 +22,7 @@
 // StarPU wrappers for low-level kernels
 #include <nntile/starpu/accumulate.hh>
 #include <nntile/starpu/accumulate_hypot.hh>
+#include <nntile/starpu/accumulate_maxsumexp.hh>
 #include <nntile/starpu/axpy.hh>
 #include <nntile/starpu/add_slice.hh>
 #include <nntile/starpu/add_slice3.hh>
@@ -93,6 +94,7 @@ void init()
 {
     accumulate::init();
     accumulate_hypot::init();
+    accumulate_maxsumexp::init();
     axpy::init();
     add_slice::init();
     add_slice3::init();
@@ -157,6 +159,7 @@ void restrict_where(uint32_t where)
 {
     accumulate::restrict_where(where);
     accumulate_hypot::restrict_where(where);
+    accumulate_maxsumexp::restrict_where(where);
     axpy::restrict_where(where);
     add_slice::restrict_where(where);
     add_slice3::restrict_where(where);
@@ -221,6 +224,7 @@ void restore_where()
 {
     accumulate::restore_where();
     accumulate_hypot::restore_where();
+    accumulate_maxsumexp::restore_where();
     axpy::restore_where();
     add_slice::restore_where();
     add_slice3::restore_where();

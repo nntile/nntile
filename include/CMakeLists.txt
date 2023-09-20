@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-09-19
+# @date 2023-09-20
 
 # Set list of headers
 set(BASE_HDR
@@ -22,6 +22,8 @@ set(BASE_HDR
     )
 
 set(KERNEL_HDR
+    "nntile/kernel/accumulate_maxsumexp.hh"
+    "nntile/kernel/accumulate_maxsumexp/cpu.hh"
     "nntile/kernel/add_slice.hh"
     "nntile/kernel/add_slice/cpu.hh"
     "nntile/kernel/add_slice3.hh"
@@ -125,6 +127,7 @@ set(KERNEL_HDR
 if(NNTILE_USE_CUDA)
     set(KERNEL_HDR
         ${KERNEL_HDR}
+        "nntile/kernel/accumulate_maxsumexp/cuda.hh"
         "nntile/kernel/add/cuda.hh"
         "nntile/kernel/add_slice/cuda.hh"
         "nntile/kernel/add_slice3/cuda.hh"
@@ -183,6 +186,7 @@ set(STARPU_HDR
     "nntile/starpu/config.hh"
     "nntile/starpu/accumulate.hh"
     "nntile/starpu/accumulate_hypot.hh"
+    "nntile/starpu/accumulate_maxsumexp.hh"
     "nntile/starpu/axpy.hh"
     "nntile/starpu/add_slice.hh"
     "nntile/starpu/add_slice3.hh"

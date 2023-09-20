@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/maxsumexp.hh
- * Max and sum of exponents for StarPU buffer
+ * @file include/nntile/starpu/accumulate_maxsumexp.hh
+ * Accumulate one StarPU maxsumexp buffer into another
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -16,29 +16,22 @@
 
 #include <nntile/base_types.hh>
 #include <nntile/starpu/config.hh>
+#include <nntile/defs.h>
 
 namespace nntile
 {
 namespace starpu
 {
-namespace maxsumexp
+namespace accumulate_maxsumexp
 {
 
-//! Structure for arguments
-struct args_t
-{
-    Index m;
-    Index n;
-    Index k;
-};
-
-// Max and sum of exponents along middle axis of StarPU buffer on CPU
+// Apply accumulate_maxsumexp for StarPU buffers on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
-// Max and sum of exponents along middle axis of StarPU buffer on CUDA
+// Apply accumulate_maxsumexp for StarPU buffers on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept;
@@ -72,9 +65,9 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, Handle src, Handle dst, int redux=0);
+void submit(Handle src, Handle dst);
 
-} // namespace maxsumexp
+} // namespace accumulate_maxsumexp
 } // namespace starpu
 } // namespace nntile
 

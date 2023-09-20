@@ -11,12 +11,13 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-09-19
+# @date 2023-09-20
 
 add_subdirectory(kernel)
 
 # Set list of sources
 set(KERNEL_SRC
+    "kernel/accumulate_maxsumexp/cpu.cc"
     "kernel/add_slice/cpu.cc"
     "kernel/add_slice3/cpu.cc"
     "kernel/add_fiber/cpu.cc"
@@ -70,6 +71,7 @@ set(KERNEL_SRC
 if(NNTILE_USE_CUDA)
     set(KERNEL_SRC
         ${KERNEL_SRC}
+        "kernel/accumulate_maxsumexp/cuda.cu"
         "kernel/add/cuda.cu"
         "kernel/add_slice/cuda.cu"
         "kernel/add_slice3/cuda.cu"
@@ -127,6 +129,7 @@ endif()
 set(STARPU_SRC
     "starpu/accumulate.cc"
     "starpu/accumulate_hypot.cc"
+    "starpu/accumulate_maxsumexp.cc"
     "starpu/add_slice.cc"
     "starpu/add_slice3.cc"
     "starpu/add_fiber.cc"

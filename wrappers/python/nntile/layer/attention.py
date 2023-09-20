@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-19
+# @date 2023-09-20
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
@@ -117,6 +117,7 @@ class Attention(BaseLayer):
         self.a.value.set_reduction_add()
         self.a.grad.set_reduction_add()
         self.a_maxsumexp = a_maxsumexp
+        self.a_maxsumexp.set_reduction_maxsumexp()
         self.a_sumprod_slice = a_sumprod_slice
         self.a_sumprod_slice.set_reduction_add()
         self.b = b
@@ -466,7 +467,7 @@ class Attention(BaseLayer):
             mask_scalar_async(self.mask, self.val, self.a.value, 2)
             self.mask.wont_use()
         # Calculate max and sumexp along axis
-        maxsumexp_async(self.a.value, self.a_maxsumexp, 0)
+        maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=1)
         # Finally, get the inplace softmax
         softmax_inplace_async(self.a_maxsumexp, self.a.value, 0)
         # A_maxsumexp can be deleted

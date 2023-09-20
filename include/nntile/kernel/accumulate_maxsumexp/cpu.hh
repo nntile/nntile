@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/maxsumexp.hh
- * Max and sum of exponents of Tensor<T> along axis
+ * @file include/nntile/kernel/accumulate_maxsumexp/cpu.hh
+ * Accumulate maxsumexp buffers on CPU
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -14,21 +14,21 @@
 
 #pragma once
 
-#include <nntile/tensor/tensor.hh>
+#include <nntile/base_types.hh>
 
 namespace nntile
 {
-namespace tensor
+namespace kernel
+{
+namespace accumulate_maxsumexp
 {
 
+// Accumulate maxsumexp buffers on CPU
 template<typename T>
-void maxsumexp_async(const Tensor<T> &src, const Tensor<T> &dst, Index axis,
-        int redux=0);
+void cpu(Index nelems, const T* src, T* dst)
+    noexcept;
 
-template<typename T>
-void maxsumexp(const Tensor<T> &src, const Tensor<T> &dst, Index axis,
-        int redux=0);
-
-} // namespace tensor
+} // namespace accumulate_maxsumexp
+} // namespace kernel
 } // namespace nntile
 

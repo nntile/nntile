@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-19
+# @date 2023-09-20
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -342,13 +342,14 @@ def normalize_async(gb: Tensor, x: Tensor, y: Tensor, l: int, eps: float,
         raise TypeError
 
 # Wrapper for multiprecision maxsumexp
-def maxsumexp_async(x: Tensor, maxsumexp: Tensor, axis: int) -> None:
+def maxsumexp_async(x: Tensor, maxsumexp: Tensor, axis: int, \
+        redux: int=0) -> None:
     if type(x) is not type(maxsumexp):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.maxsumexp_async_fp32(x, maxsumexp, axis)
+        core_tensor.maxsumexp_async_fp32(x, maxsumexp, axis, redux)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.maxsumexp_async_fp64(x, maxsumexp, axis)
+        core_tensor.maxsumexp_async_fp64(x, maxsumexp, axis, redux)
     else:
         raise TypeError
 

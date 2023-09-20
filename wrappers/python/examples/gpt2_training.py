@@ -143,8 +143,8 @@ nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
 nntile.starpu.init()
 # Restrict computations to CUDA if possible
-nntile.starpu.restrict_cuda()
-#nntile.starpu.restrict_cpu()
+#nntile.starpu.restrict_cuda()
+nntile.starpu.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
 next_tag = 0
