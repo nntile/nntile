@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-09-20
+ * @date 2023-09-23
  * */
 
 #include <pybind11/pybind11.h>
@@ -494,6 +494,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("normalize_async_fp32", &normalize_async<fp32_t>);
     m.def("normalize_fp64", &normalize<fp64_t>);
     m.def("normalize_fp32", &normalize<fp32_t>);
+
+    m.def("flash_maxsumexp_async_fp64", &flash_maxsumexp_async<fp64_t>);
+    m.def("flash_maxsumexp_async_fp32", &flash_maxsumexp_async<fp32_t>);
+    m.def("flash_maxsumexp_fp64", &flash_maxsumexp<fp64_t>);
+    m.def("flash_maxsumexp_fp32", &flash_maxsumexp<fp32_t>);
+
     m.def("maxsumexp_async_fp64", &maxsumexp_async<fp64_t>);
     m.def("maxsumexp_async_fp32", &maxsumexp_async<fp32_t>);
     m.def("maxsumexp_fp64", &maxsumexp<fp64_t>);

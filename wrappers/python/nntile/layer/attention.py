@@ -10,13 +10,13 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-20
+# @date 2023-09-23
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
         maxsumexp_async, softmax_inplace_async, sumprod_slice_async, \
         add_slice_async, prod_async, mask_scalar_async, add_fiber_async, \
-        sum_fiber_async, transpose_async, copy_async
+        sum_fiber_async, transpose_async, copy_async, flash_maxsumexp_async
 # 
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
@@ -455,17 +455,19 @@ class Attention(BaseLayer):
         # single batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
         # by (head_size, n_seq, batch=n_batch, batch=n_head) into
         # (n_seq, n_seq, batch=n_batch, batch=n_head)
-        gemm_async(1.0/self.head_size**0.5, trans, self.k.value, \
-                notrans, self.q.value, 0.0, self.a.value, 1, 2, redux=0)
+        #gemm_async(1.0/self.head_size**0.5, trans, self.k.value, \
+        #        notrans, self.q.value, 0.0, self.a.value, 1, 2, redux=0)
+        flash_maxsumexp_async(self.q.value, self.k.value, self.mask, \
+                self.a_maxsumexp, self.a.value, redux=0)
         # Q and K can be offloaded from GPU
         self.q.value.wont_use()
         self.k.value.wont_use()
         # Calculate softmax inplace
         # A = softmax(A, axis=0)
         # Apply mask if needed
-        if self.mask:
-            mask_scalar_async(self.mask, self.val, self.a.value, 2)
-            self.mask.wont_use()
+        #if self.mask:
+        #    mask_scalar_async(self.mask, self.val, self.a.value, 2)
+        #    self.mask.wont_use()
         # Calculate max and sumexp along axis
         clear_async(self.a_maxsumexp)
         # Temporary disable maxsumexp for testing

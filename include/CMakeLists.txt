@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-09-20
+# @date 2023-09-23
 
 # Set list of headers
 set(BASE_HDR
@@ -344,6 +344,7 @@ set(TENSOR_HDR
     "nntile/tensor/sum_fiber.hh"
     "nntile/tensor/norm_slice.hh"
     "nntile/tensor/pow.hh"
+    "nntile/tensor/flash_maxsumexp.hh"
     "nntile/tensor/maxsumexp.hh"
     "nntile/tensor/softmax.hh"
     "nntile/tensor/softmax_inplace.hh"

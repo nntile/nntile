@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-09-20
+# @date 2023-09-23
 
 add_subdirectory(kernel)
 
@@ -283,6 +283,7 @@ set(TENSOR_SRC
     "tensor/sum_fiber.cc"
     "tensor/norm_slice.cc"
     "tensor/pow.cc"
+    "tensor/flash_maxsumexp.cc"
     "tensor/maxsumexp.cc"
     "tensor/softmax.cc"
     "tensor/softmax_inplace.cc"
