@@ -80,7 +80,7 @@ class Embedding(BaseLayer):
     # Backward propagation of the embedding layer
     def backward_async(self):
         embedding_backward_async(self.x, self.y.grad, self.w.grad, self.axis, \
-                redux=1)
+                redux=0)
         self.x.wont_use()
         self.y.grad.wont_use()
         self.w.grad.wont_use()

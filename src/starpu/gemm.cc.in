@@ -511,6 +511,7 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
         if(redux != 0)
         {
             C_mode = STARPU_REDUX;
+            //C_mode = Config::STARPU_RW_COMMUTE;
         }
         else
         {

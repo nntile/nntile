@@ -127,7 +127,8 @@ void submit(Index m, Index n, Index k, Handle src, Handle dst, int redux)
     enum starpu_data_access_mode dst_mode;
     if(redux != 0)
     {
-        dst_mode = STARPU_REDUX;
+        //dst_mode = STARPU_REDUX;
+        dst_mode = Config::STARPU_RW_COMMUTE;
     }
     else
     {
@@ -153,7 +154,7 @@ void submit<fp32_t>(Index m, Index n, Index k, Handle src, Handle dst,
         int redux);
 
 template
-void submit<fp64_t>(Index m, Index n, Index k, Handle src, Handle dsti,
+void submit<fp64_t>(Index m, Index n, Index k, Handle src, Handle dst,
         int redux);
 
 } // namespace maxsumexp

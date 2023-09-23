@@ -132,7 +132,8 @@ void submit(Index m, Index n, Index k, Index k_start, Index k_size,
     enum starpu_data_access_mode vocab_mode;
     if(redux != 0)
     {
-        vocab_mode = STARPU_REDUX;
+        //vocab_mode = STARPU_REDUX;
+        vocab_mode = Config::STARPU_RW_COMMUTE;
     }
     else
     {

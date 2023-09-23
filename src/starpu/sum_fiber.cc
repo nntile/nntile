@@ -131,7 +131,8 @@ void submit(Index m, Index n, Index k, Index batch, T alpha, Handle src,
     {
         if(redux != 0)
         {
-            dst_mode = STARPU_REDUX;
+            //dst_mode = STARPU_REDUX;
+            dst_mode = Config::STARPU_RW_COMMUTE;
         }
         else
         {
