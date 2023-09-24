@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-20
+ * @date 2023-09-24
  * */
 
 #pragma once
@@ -55,7 +55,9 @@
 #include <nntile/tensor/norm_slice.hh>
 #include <nntile/tensor/pow.hh>
 #include <nntile/tensor/sumnorm.hh>
+#include <nntile/tensor/flash_maxsumexp.hh>
 #include <nntile/tensor/maxsumexp.hh>
+#include <nntile/tensor/flash_softmax_gemm.hh>
 #include <nntile/tensor/softmax.hh>
 #include <nntile/tensor/softmax_inplace.hh>
 #include <nntile/tensor/sqrt.hh>

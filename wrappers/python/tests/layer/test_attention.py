@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-07-22
+# @date 2023-09-23
 
 # All necesary imports
 import nntile
@@ -37,6 +37,7 @@ def helper(dtype: np.dtype):
     n_seq = 256
     n_batch = 48
     n_head = 8
+    n_head_tile = 4
     # Describe single-tile tensor, located at node 0
     X_Q_shape = [n_emb, n_seq, n_batch]
     X_K_shape = [n_emb_k, n_seq, n_batch]
@@ -77,7 +78,7 @@ def helper(dtype: np.dtype):
     X_V = nntile.tensor.TensorMoments(X_V_value, X_V_grad, True)
     # Define attention layer
     layer, next_tag = Attention.generate_simple(X_Q, X_K, X_V, \
-            n_head, next_tag, True)
+            n_head, n_head_tile, next_tag, True)
     # Define numpy arrays and nntile tensors
     rand_W_Q = np.random.randn(*layer.w_q.value.shape)
     np_W_Q = np.array(rand_W_Q, dtype=dtype, order='F')

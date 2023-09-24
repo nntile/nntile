@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-23
+# @date 2023-09-24
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -246,6 +246,29 @@ def sumnorm_async(x: Tensor, sumnorm: Tensor, axis: int) -> None:
     else:
         raise TypeError
 
+# Wrapper for multiprecision fast fused softmax+gemm
+def flash_softmax_gemm_async(Q: Tensor, K: Tensor, V: Tensor, \
+        mask: Tensor_bool, maxsumexp: Tensor, dst: Tensor, tmp: Tensor, \
+        redux: int=0) -> None:
+    if type(Q) is not type(K):
+        raise TypeError
+    if type(Q) is not type(V):
+        raise TypeError
+    if type(Q) is not type(maxsumexp):
+        raise TypeError
+    if type(Q) is not type(dst):
+        raise TypeError
+    if type(Q) is not type(tmp):
+        raise TypeError
+    if type(Q) is core_tensor.Tensor_fp32:
+        core_tensor.flash_softmax_gemm_async_fp32(Q, K, V, mask, maxsumexp, \
+                dst, tmp, redux)
+    elif type(Q) is core_tensor.Tensor_fp64:
+        core_tensor.flash_softmax_gemm_async_fp64(Q, K, V, mask, maxsumexp, \
+                dst, tmp, redux)
+    else:
+        raise TypeError
+
 # Wrapper for multiprecision softmax
 def softmax_async(maxsumexp: Tensor, x: Tensor, y: Tensor, axis: int) -> None:
     if type(x) is not type(y):
@@ -344,12 +367,16 @@ def normalize_async(gb: Tensor, x: Tensor, y: Tensor, l: int, eps: float,
 # Wrapper for multiprecision fast maxsumexp
 def flash_maxsumexp_async(Q: Tensor, K: Tensor, mask: Tensor_bool, \
         maxsumexp: Tensor, tmp: Tensor, redux: int=0) -> None:
-    if type(x) is not type(maxsumexp):
+    if type(Q) is not type(K):
         raise TypeError
-    if type(x) is core_tensor.Tensor_fp32:
+    if type(Q) is not type(maxsumexp):
+        raise TypeError
+    if type(Q) is not type(tmp):
+        raise TypeError
+    if type(Q) is core_tensor.Tensor_fp32:
         core_tensor.flash_maxsumexp_async_fp32(Q, K, mask, maxsumexp, tmp, \
                 redux)
-    elif type(x) is core_tensor.Tensor_fp64:
+    elif type(Q) is core_tensor.Tensor_fp64:
         core_tensor.flash_maxsumexp_async_fp64(Q, K, mask, maxsumexp, tmp, \
                 redux)
     else:

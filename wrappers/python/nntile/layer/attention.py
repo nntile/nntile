@@ -10,14 +10,15 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-23
+# @date 2023-09-24
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
         maxsumexp_async, softmax_inplace_async, sumprod_slice_async, \
         add_slice_async, prod_async, mask_scalar_async, add_fiber_async, \
-        sum_fiber_async, transpose_async, copy_async, flash_maxsumexp_async
-# 
+        sum_fiber_async, transpose_async, copy_async, flash_maxsumexp_async, \
+        flash_softmax_gemm_async
+
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -142,8 +143,8 @@ class Attention(BaseLayer):
     # Simple generator for the linear layer
     @staticmethod
     def generate_simple(x_q: TensorMoments, x_k: TensorMoments, \
-            x_v: TensorMoments, n_head: int, next_tag: int, bias=False, \
-            mask=None):
+            x_v: TensorMoments, n_head: int, n_head_tile: int, next_tag: int, \
+            bias=False, mask=None):
         # Get sizes
         n_emb, n_seq, n_batch = x_q.value.shape
         n_emb_tile, n_seq_tile, n_batch_tile = x_q.value.basetile_shape
@@ -163,7 +164,8 @@ class Attention(BaseLayer):
             raise ValueError("Invalid shape of x_v")
         if [n_seq_tile, n_batch_tile] != x_v.value.basetile_shape[1:]:
             raise ValueError("Invalid basetile shape of x_v")
-        # TODO: the following tile size is a hyperparameter
+        # Head size dimension is never divided into tiles to make Flash
+        # Attention work properly without temporarily saved buffers
         head_size_tile = head_size
         # Define shape of each tensor
         w_q_shape = [n_head, head_size, n_emb]
@@ -182,21 +184,21 @@ class Attention(BaseLayer):
         b_shape = [head_size, n_seq, n_batch, n_head]
         b_transposed_shape = [n_head, head_size, n_seq, n_batch]
         # Define tile shapes of each tensor
-        w_q_basetile = [n_head, head_size_tile, n_emb_tile]
-        w_k_basetile = [n_head, head_size_tile, n_emb_k_tile]
-        w_v_basetile = [n_head, head_size_tile, n_emb_v_tile]
-        w_basetile = [n_emb_tile, n_head, head_size_tile]
-        q_transposed_basetile = [n_head, head_size_tile, n_seq_tile, n_batch_tile]
-        q_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head]
-        k_transposed_basetile = [n_head, head_size_tile, n_seq_tile, n_batch_tile]
-        k_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head]
-        v_transposed_basetile = [n_head, head_size_tile, n_seq_tile, n_batch_tile]
-        v_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head]
-        a_basetile = [n_seq_tile, n_seq_tile, n_batch_tile, n_head]
-        a_maxsumexp_basetile = [2, n_seq_tile, n_batch_tile, n_head]
-        a_sumprod_slice_basetile = [n_seq_tile, n_batch_tile, n_head]
-        b_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head]
-        b_transposed_basetile = [n_head, head_size_tile, n_seq_tile, n_batch_tile]
+        w_q_basetile = [n_head_tile, head_size_tile, n_emb_tile]
+        w_k_basetile = [n_head_tile, head_size_tile, n_emb_k_tile]
+        w_v_basetile = [n_head_tile, head_size_tile, n_emb_v_tile]
+        w_basetile = [n_emb_tile, n_head_tile, head_size_tile]
+        q_transposed_basetile = [n_head_tile, head_size_tile, n_seq_tile, n_batch_tile]
+        q_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head_tile]
+        k_transposed_basetile = [n_head_tile, head_size_tile, n_seq_tile, n_batch_tile]
+        k_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head_tile]
+        v_transposed_basetile = [n_head_tile, head_size_tile, n_seq_tile, n_batch_tile]
+        v_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head_tile]
+        a_basetile = [n_seq_tile, n_seq_tile, n_batch_tile, n_head_tile]
+        a_maxsumexp_basetile = [2, n_seq_tile, n_batch_tile, n_head_tile]
+        a_sumprod_slice_basetile = [n_seq_tile, n_batch_tile, n_head_tile]
+        b_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head_tile]
+        b_transposed_basetile = [n_head_tile, head_size_tile, n_seq_tile, n_batch_tile]
         # Define traits
         w_q_traits = TensorTraits(w_q_shape, w_q_basetile)
         w_k_traits = TensorTraits(w_k_shape, w_k_basetile)
@@ -233,7 +235,7 @@ class Attention(BaseLayer):
         b_transposed_distr = [0] * b_transposed_traits.grid.nelems
         if bias:
             in_proj_bias_qkv_traits = TensorTraits([head_size, n_head], \
-                    [head_size_tile, n_head])
+                    [head_size_tile, n_head_tile])
             in_proj_bias_qkv_distr = [0] * in_proj_bias_qkv_traits.grid.nelems
         # Define all the lists
         # w_q
@@ -457,6 +459,8 @@ class Attention(BaseLayer):
         # (n_seq, n_seq, batch=n_batch, batch=n_head)
         #gemm_async(1.0/self.head_size**0.5, trans, self.k.value, \
         #        notrans, self.q.value, 0.0, self.a.value, 1, 2, redux=0)
+        clear_async(self.a_maxsumexp)
+        # Use flash-like maxsumexp
         flash_maxsumexp_async(self.q.value, self.k.value, self.mask, \
                 self.a_maxsumexp, self.a.value, redux=0)
         # Q and K can be offloaded from GPU
@@ -469,11 +473,14 @@ class Attention(BaseLayer):
         #    mask_scalar_async(self.mask, self.val, self.a.value, 2)
         #    self.mask.wont_use()
         # Calculate max and sumexp along axis
-        clear_async(self.a_maxsumexp)
         # Temporary disable maxsumexp for testing
-        #maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=1)
+        #maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=0)
+        # Use flash-like softmax+gemm
+        flash_softmax_gemm_async(self.q.value, self.k.value, self.v.value, \
+                self.mask, self.a_maxsumexp, self.b.value, self.a.value, \
+                redux=0)
         # Finally, get the inplace softmax
-        softmax_inplace_async(self.a_maxsumexp, self.a.value, 0)
+        #softmax_inplace_async(self.a_maxsumexp, self.a.value, 0)
         # A_maxsumexp can be deleted
         #self.a_maxsumexp.wont_use()
         self.a_maxsumexp.invalidate_submit()
@@ -482,8 +489,8 @@ class Attention(BaseLayer):
         # batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
         # by (n_seq, n_seq, batch=n_batch, batch=n_head) into
         # (head_size, n_seq, batch=n_batch, batch=n_head)
-        gemm_async(1.0, notrans, self.v.value, notrans, \
-                self.a.value, 0.0, self.b.value, 1, 2, redux=0)
+        #gemm_async(1.0, notrans, self.v.value, notrans, \
+        #        self.a.value, 0.0, self.b.value, 1, 2, redux=0)
         # V and A can be offloaded from GPU
         self.v.value.wont_use()
         self.a.value.wont_use()

@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-19
+# @date 2023-09-23
 
 # Imports
 import torch
@@ -51,6 +51,7 @@ parser.add_argument("--minibatch-size", type=int, default=1)
 parser.add_argument("--minibatch-size-tile", type=int, default=1)
 parser.add_argument("--n-embd-tile", type=int, default=384)
 parser.add_argument("--n-inner-tile", type=int, default=1536)
+parser.add_argument("--n-head-tile", type=int, default=12)
 parser.add_argument("--torch-device", choices=["cpu", "cuda", "cuda:0", \
         "cuda:1", "cuda:2", "cuda:3", "cuda:4"], default="cpu")
 parser.add_argument("--torch-dtype", choices=["fp32, fp64"], default="fp32")
@@ -152,7 +153,7 @@ next_tag = 0
 nntile_model_config = GPT2Config_nntile(config.vocab_size, args.n_embd_tile, \
         config.n_embd, args.n_embd_tile, config.max_position_embeddings, \
         config.n_inner, args.n_inner_tile, config.layer_norm_epsilon, \
-        config.num_hidden_layers, config.n_head, "gelutanh")
+        config.num_hidden_layers, config.n_head, args.n_head_tile, "gelutanh")
 nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
         args.minibatch_size, args.minibatch_size_tile, config.n_positions, \
         args.seq_len_tile, nntile_model_config, next_tag)
