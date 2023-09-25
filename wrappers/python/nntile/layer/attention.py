@@ -10,14 +10,14 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-24
+# @date 2023-09-25
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
         maxsumexp_async, softmax_inplace_async, sumprod_slice_async, \
         add_slice_async, prod_async, mask_scalar_async, add_fiber_async, \
         sum_fiber_async, transpose_async, copy_async, flash_maxsumexp_async, \
-        flash_softmax_gemm_async
+        flash_softmax_gemm_async, flash_softmax_gemm_backward_async
 
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
@@ -555,10 +555,14 @@ class Attention(BaseLayer):
         # V can be deleted
         #self.v.value.wont_use()
         self.v.value.invalidate_submit()
-        if self.v.grad_required:
-            # dV = einsum('jmlb,kmlb->jklb', dB, A)
-            gemm_async(1.0, notrans, self.b.grad, trans, \
-                    self.a.value, 0.0, self.v.grad, 1, 2, redux=1)
+        #if self.v.grad_required:
+        #    # dV = einsum('jmlb,kmlb->jklb', dB, A)
+        #    gemm_async(1.0, notrans, self.b.grad, trans, \
+        #            self.a.value, 0.0, self.v.grad, 1, 2, redux=1)
+        flash_softmax_gemm_backward_async(self.q.value, self.q.grad, \
+                self.k.value, self.k.grad, self.v.value, self.v.grad, \
+                self.mask, self.a_maxsumexp, self.b.grad, self.a.value, \
+                redux=0)
         # dB can be deleted
         #self.b.grad.wont_use()
         self.b.grad.invalidate_submit()

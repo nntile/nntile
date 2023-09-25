@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-09-24
+# @date 2023-09-25
 
 add_subdirectory(kernel)
 
@@ -286,6 +286,7 @@ set(TENSOR_SRC
     "tensor/flash_maxsumexp.cc"
     "tensor/maxsumexp.cc"
     "tensor/flash_softmax_gemm.cc"
+    "tensor/flash_softmax_gemm_backward.cc"
     "tensor/softmax.cc"
     "tensor/softmax_inplace.cc"
     "tensor/sqrt.cc"

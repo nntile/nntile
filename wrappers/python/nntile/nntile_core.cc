@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-09-24
+ * @date 2023-09-25
  * */
 
 #include <pybind11/pybind11.h>
@@ -464,6 +464,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("flash_softmax_gemm_async_fp32", &flash_softmax_gemm_async<fp32_t>);
     m.def("flash_softmax_gemm_fp64", &flash_softmax_gemm<fp64_t>);
     m.def("flash_softmax_gemm_fp32", &flash_softmax_gemm<fp32_t>);
+
+    m.def("flash_softmax_gemm_backward_async_fp64", &flash_softmax_gemm_backward_async<fp64_t>);
+    m.def("flash_softmax_gemm_backward_async_fp32", &flash_softmax_gemm_backward_async<fp32_t>);
+    m.def("flash_softmax_gemm_backward_fp64", &flash_softmax_gemm_backward<fp64_t>);
+    m.def("flash_softmax_gemm_backward_fp32", &flash_softmax_gemm_backward<fp32_t>);
 
     m.def("softmax_async_fp64", &softmax_async<fp64_t>);
     m.def("softmax_async_fp32", &softmax_async<fp32_t>);

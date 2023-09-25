@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-24
+# @date 2023-09-25
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -266,6 +266,36 @@ def flash_softmax_gemm_async(Q: Tensor, K: Tensor, V: Tensor, \
     elif type(Q) is core_tensor.Tensor_fp64:
         core_tensor.flash_softmax_gemm_async_fp64(Q, K, V, mask, maxsumexp, \
                 dst, tmp, redux)
+    else:
+        raise TypeError
+
+# Wrapper for multiprecision fast fused softmax+gemm
+def flash_softmax_gemm_backward_async(Q: Tensor, dQ: Tensor, K: Tensor, \
+        dK: Tensor, V: Tensor, dV: Tensor, mask: Tensor_bool, \
+        maxsumexp: Tensor, dst_grad: Tensor, tmp: Tensor, \
+        redux: int=0) -> None:
+    if type(Q) is not type(dQ):
+        raise TypeError
+    if type(Q) is not type(K):
+        raise TypeError
+    if type(Q) is not type(dK):
+        raise TypeError
+    if type(Q) is not type(V):
+        raise TypeError
+    if type(Q) is not type(dV):
+        raise TypeError
+    if type(Q) is not type(maxsumexp):
+        raise TypeError
+    if type(Q) is not type(dst_grad):
+        raise TypeError
+    if type(Q) is not type(tmp):
+        raise TypeError
+    if type(Q) is core_tensor.Tensor_fp32:
+        core_tensor.flash_softmax_gemm_async_fp32(Q, dQ, K, dK, V, dV, mask, \
+                maxsumexp, dst_grad, tmp, redux)
+    elif type(Q) is core_tensor.Tensor_fp64:
+        core_tensor.flash_softmax_gemm_async_fp64(Q, dQ, K, dK, V, dV, mask, \
+                maxsumexp, dst_grad, tmp, redux)
     else:
         raise TypeError
 
