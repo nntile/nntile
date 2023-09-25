@@ -100,7 +100,8 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
             v_tile_index(dV_tile_index), dst_grad_tile_index(dV_tile_index),
             mask_tile_index(2), maxsumexp_tile_index(dV_tile_index);
         auto k_tile_handle = K.get_tile_handle(k_tile_index);
-        mask_tile_index[0] = dV_tile_index[0];
+        tmp_tile_index[0] = dV_tile_index[1];
+        mask_tile_index[0] = dV_tile_index[1];
         // Clear destination buffer at first
         starpu::clear::submit(dV_tile_handle);
         // Launch kernel for each appropriate tile of K and V to accumulate
@@ -130,7 +131,7 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
                     -std::numeric_limits<T>::infinity(), tmp_tile_handle);
             starpu::softmax_inplace::submit<T>(1,
                     n_seq_tile*n_batch_tile*n_head_tile, n_seq_tile,
-                    maxsumexp_tile_handle, tmp_tile_handle);
+            maxsumexp_tile_handle, tmp_tile_handle);
             starpu::gemm::submit<T, T>(opN, opT,
                     head_size, n_seq_tile, n_seq_tile,
                     n_batch_tile*n_head_tile, 1.0,
