@@ -66,6 +66,7 @@ class FlashAttention(BaseLayer):
             in_proj_bias_q: TensorMoments, in_proj_bias_k: TensorMoments, \
             in_proj_bias_v: TensorMoments, out_proj_bias: TensorMoments, \
             mask=None):
+        assert w_q.value.shape[0] % w_q.value.basetile_shape[0] == 0
         qkv_bias_list = []
         if in_proj_bias_q:
             qkv_bias_list.append(in_proj_bias_q)
