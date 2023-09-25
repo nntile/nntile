@@ -548,15 +548,16 @@ class Attention(BaseLayer):
         #self.b_transposed.grad.wont_use()
         self.b_transposed.grad.invalidate_submit()
         # Flash-like backward of softmax+gemm
+        clear_async(self.a_sumprod_slice)
         flash_softmax_gemm_backward_async(self.q.value, self.q.grad, \
                 self.k.value, self.k.grad, self.v.value, self.v.grad, \
                 self.mask, self.a_maxsumexp, self.b.grad, self.a.value, \
-                redux=0)
+                self.a.grad, self.a_sumprod_slice, redux=0)
         # Backward for B = einsum('jklb,kmlb->jmlb', V, A)
-        if self.a.grad_required:
-            # dA = einsum('jklb,jmlb->kmlb', V, dB)
-            gemm_async(1.0, trans, self.v.value, notrans, \
-                    self.b.grad, 0.0, self.a.grad, 1, 2, redux=1)
+        #if self.a.grad_required:
+        #    # dA = einsum('jklb,jmlb->kmlb', V, dB)
+        #    gemm_async(1.0, trans, self.v.value, notrans, \
+        #            self.b.grad, 0.0, self.a.grad, 1, 2, redux=1)
         # V can be deleted
         #self.v.value.wont_use()
         self.v.value.invalidate_submit()
@@ -570,8 +571,8 @@ class Attention(BaseLayer):
         # Backward for A = softmax(A, axis=0)
         if self.a.grad_required:
             # A_sumprod_slice = einsum('kmlb,kmlb->mlb', A, dA)
-            sumprod_slice_async(1.0, self.a.value, self.a.grad, \
-                    0.0, self.a_sumprod_slice, 0, redux=1)
+            #sumprod_slice_async(1.0, self.a.value, self.a.grad, \
+            #        0.0, self.a_sumprod_slice, 0, redux=1)
             # dA += -bias('kmlb,mlb->kmlb', dA, A_sumprod_slice)
             add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
             # A_sumprod_slice can be deleted

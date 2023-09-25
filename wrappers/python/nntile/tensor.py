@@ -272,8 +272,8 @@ def flash_softmax_gemm_async(Q: Tensor, K: Tensor, V: Tensor, \
 # Wrapper for multiprecision fast fused softmax+gemm
 def flash_softmax_gemm_backward_async(Q: Tensor, dQ: Tensor, K: Tensor, \
         dK: Tensor, V: Tensor, dV: Tensor, mask: Tensor_bool, \
-        maxsumexp: Tensor, dst_grad: Tensor, tmp: Tensor, \
-        redux: int=0) -> None:
+        maxsumexp: Tensor, dst_grad: Tensor, tmp: Tensor, tmp_grad: Tensor, \
+        tmp_sumprod_slice: Tensor, redux: int=0) -> None:
     if type(Q) is not type(dQ):
         raise TypeError
     if type(Q) is not type(K):
@@ -290,12 +290,18 @@ def flash_softmax_gemm_backward_async(Q: Tensor, dQ: Tensor, K: Tensor, \
         raise TypeError
     if type(Q) is not type(tmp):
         raise TypeError
+    if type(Q) is not type(tmp_grad):
+        raise TypeError
+    if type(Q) is not type(tmp_sumprod_slice):
+        raise TypeError
     if type(Q) is core_tensor.Tensor_fp32:
         core_tensor.flash_softmax_gemm_backward_async_fp32(Q, dQ, K, dK, V, \
-                dV, mask, maxsumexp, dst_grad, tmp, redux)
+                dV, mask, maxsumexp, dst_grad, tmp, tmp_grad, \
+                tmp_sumprod_slice, redux)
     elif type(Q) is core_tensor.Tensor_fp64:
         core_tensor.flash_softmax_gemm_backward_async_fp64(Q, dQ, K, dK, V, \
-                dV, mask, maxsumexp, dst_grad, tmp, redux)
+                dV, mask, maxsumexp, dst_grad, tmp, tmp_grad, \
+                tmp_sumprod_slice, redux)
     else:
         raise TypeError
 
