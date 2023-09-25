@@ -98,7 +98,7 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
             q_tile_index(dV_tile_index), dq_tile_index(dV_tile_index),
             k_tile_index(dV_tile_index), dk_tile_index(dV_tile_index),
             v_tile_index(dV_tile_index), dst_grad_tile_index(dV_tile_index),
-            mask_tile_index(2);
+            mask_tile_index(2), maxsumexp_tile_index(dV_tile_index);
         auto k_tile_handle = K.get_tile_handle(k_tile_index);
         mask_tile_index[0] = dV_tile_index[0];
         // Clear destination buffer at first
@@ -111,11 +111,14 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
             q_tile_index[1] = j;
             dst_grad_tile_index[1] = j;
             mask_tile_index[1] = j;
+            maxsumexp_tile_index[1] = j;
             auto tmp_tile_handle = tmp.get_tile_handle(tmp_tile_index);
             auto q_tile_handle = Q.get_tile_handle(q_tile_index);
             auto dst_grad_tile_handle = dst_grad.get_tile_handle(
                     dst_grad_tile_index);
             auto mask_tile_handle = mask.get_tile_handle(mask_tile_index);
+            auto maxsumexp_tile_handle = maxsumexp.get_tile_handle(
+                    maxsumexp_tile_index);
             // Insert tasks
             starpu::gemm::submit<T, T>(opT, opN,
                     n_seq_tile, n_seq_tile, head_size,
@@ -137,14 +140,15 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
     }
 }
 
+template<typename T>
 void flash_softmax_gemm_backward(const Tensor<T> &Q, const Tensor<T> &dQ,
         const Tensor<T> &K, const Tensor<T> &dK, const Tensor<T> &V,
         const Tensor<T> &dV, const Tensor<bool_t> &mask,
         const Tensor<T> &maxsumexp, const Tensor<T> &dst_grad,
         const Tensor<T> &tmp, int redux)
-template<typename T>
 {
-    flash_softmax_gemm_async<T>(Q, K, V, mask, maxsumexp, dst, tmp, redux);
+    flash_softmax_gemm_backward_async<T>(Q, dQ, K, dK, V, dV, mask, maxsumexp,
+            dst_grad, tmp, redux);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }

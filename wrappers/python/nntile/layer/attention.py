@@ -547,6 +547,11 @@ class Attention(BaseLayer):
             transpose_async(1.0, self.b_transposed.grad, self.b.grad, 1)
         #self.b_transposed.grad.wont_use()
         self.b_transposed.grad.invalidate_submit()
+        # Flash-like backward of softmax+gemm
+        flash_softmax_gemm_backward_async(self.q.value, self.q.grad, \
+                self.k.value, self.k.grad, self.v.value, self.v.grad, \
+                self.mask, self.a_maxsumexp, self.b.grad, self.a.value, \
+                redux=0)
         # Backward for B = einsum('jklb,kmlb->jmlb', V, A)
         if self.a.grad_required:
             # dA = einsum('jklb,jmlb->kmlb', V, dB)
@@ -559,10 +564,6 @@ class Attention(BaseLayer):
         #    # dV = einsum('jmlb,kmlb->jklb', dB, A)
         #    gemm_async(1.0, notrans, self.b.grad, trans, \
         #            self.a.value, 0.0, self.v.grad, 1, 2, redux=1)
-        flash_softmax_gemm_backward_async(self.q.value, self.q.grad, \
-                self.k.value, self.k.grad, self.v.value, self.v.grad, \
-                self.mask, self.a_maxsumexp, self.b.grad, self.a.value, \
-                redux=0)
         # dB can be deleted
         #self.b.grad.wont_use()
         self.b.grad.invalidate_submit()

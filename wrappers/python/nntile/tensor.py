@@ -291,11 +291,11 @@ def flash_softmax_gemm_backward_async(Q: Tensor, dQ: Tensor, K: Tensor, \
     if type(Q) is not type(tmp):
         raise TypeError
     if type(Q) is core_tensor.Tensor_fp32:
-        core_tensor.flash_softmax_gemm_async_fp32(Q, dQ, K, dK, V, dV, mask, \
-                maxsumexp, dst_grad, tmp, redux)
+        core_tensor.flash_softmax_gemm_backward_async_fp32(Q, dQ, K, dK, V, \
+                dV, mask, maxsumexp, dst_grad, tmp, redux)
     elif type(Q) is core_tensor.Tensor_fp64:
-        core_tensor.flash_softmax_gemm_async_fp64(Q, dQ, K, dK, V, dV, mask, \
-                maxsumexp, dst_grad, tmp, redux)
+        core_tensor.flash_softmax_gemm_backward_async_fp64(Q, dQ, K, dK, V, \
+                dV, mask, maxsumexp, dst_grad, tmp, redux)
     else:
         raise TypeError
 
