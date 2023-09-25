@@ -4,8 +4,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/layer/attention.py
-# Attention layer of NNTile Python package
+# @file wrappers/python/nntile/layer/flash_attention.py
+# Flash Attention layer of NNTile Python package
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
@@ -16,7 +16,8 @@ from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
         maxsumexp_async, softmax_inplace_async, sumprod_slice_async, \
         add_slice_async, prod_async, mask_scalar_async, add_fiber_async, \
-        sum_fiber_async, transpose_async, copy_async
+        sum_fiber_async, transpose_async, copy_async, flash_maxsumexp_async, \
+        flash_softmax_gemm_async, flash_softmax_gemm_backward_async
 
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
@@ -29,7 +30,7 @@ from typing import List
 #  x_v: (n_emb_v, n_seq, n_batch) tensor
 # Output:
 #  y: (n_emb, n_seq, n_batch) tensor
-class Attention(BaseLayer):
+class FlashAttention(BaseLayer):
     x_q: TensorMoments
     x_k: TensorMoments
     x_v: TensorMoments
@@ -163,7 +164,8 @@ class Attention(BaseLayer):
             raise ValueError("Invalid shape of x_v")
         if [n_seq_tile, n_batch_tile] != x_v.value.basetile_shape[1:]:
             raise ValueError("Invalid basetile shape of x_v")
-        # Fixed for now
+        # Head size dimension is never divided into tiles to make Flash
+        # Attention work properly without temporarily saved buffers
         head_size_tile = head_size
         # Define shape of each tensor
         w_q_shape = [n_head, head_size, n_emb]
@@ -383,7 +385,8 @@ class Attention(BaseLayer):
         next_tag = y_grad.next_tag
         y = TensorMoments(y_value, y_grad, True)
         # Create attention layer with all the provided data
-        layer = Attention(x_q, x_k, x_v, y, w_q, w_k, w_v, w, q_transposed, \
+        layer = FlashAttention(x_q, x_k, x_v, y, w_q, w_k, w_v, w, \
+                q_transposed, \
                 q, k_transposed, k, v_transposed, v, a, a_maxsumexp, \
                 a_sumprod_slice, b, b_transposed, bias_inproj_q, \
                 bias_inproj_k, bias_inproj_v, out_proj_bias, mask)
@@ -455,22 +458,30 @@ class Attention(BaseLayer):
         # single batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
         # by (head_size, n_seq, batch=n_batch, batch=n_head) into
         # (n_seq, n_seq, batch=n_batch, batch=n_head)
-        gemm_async(1.0/self.head_size**0.5, trans, self.k.value, \
-                notrans, self.q.value, 0.0, self.a.value, 1, 2, redux=0)
+        #gemm_async(1.0/self.head_size**0.5, trans, self.k.value, \
+        #        notrans, self.q.value, 0.0, self.a.value, 1, 2, redux=0)
         clear_async(self.a_maxsumexp)
+        # Use flash-like maxsumexp
+        flash_maxsumexp_async(self.q.value, self.k.value, self.mask, \
+                self.a_maxsumexp, self.a.value, redux=0)
         # Q and K can be offloaded from GPU
         self.q.value.wont_use()
         self.k.value.wont_use()
         # Calculate softmax inplace
         # A = softmax(A, axis=0)
         # Apply mask if needed
-        if self.mask:
-            mask_scalar_async(self.mask, self.val, self.a.value, 2)
-            self.mask.wont_use()
+        #if self.mask:
+        #    mask_scalar_async(self.mask, self.val, self.a.value, 2)
+        #    self.mask.wont_use()
         # Calculate max and sumexp along axis
-        maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=0)
+        # Temporary disable maxsumexp for testing
+        #maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=0)
+        # Use flash-like softmax+gemm
+        flash_softmax_gemm_async(self.q.value, self.k.value, self.v.value, \
+                self.mask, self.a_maxsumexp, self.b.value, self.a.value, \
+                redux=0)
         # Finally, get the inplace softmax
-        softmax_inplace_async(self.a_maxsumexp, self.a.value, 0)
+        #softmax_inplace_async(self.a_maxsumexp, self.a.value, 0)
         # A_maxsumexp can be deleted
         #self.a_maxsumexp.wont_use()
         self.a_maxsumexp.invalidate_submit()
@@ -479,8 +490,8 @@ class Attention(BaseLayer):
         # batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
         # by (n_seq, n_seq, batch=n_batch, batch=n_head) into
         # (head_size, n_seq, batch=n_batch, batch=n_head)
-        gemm_async(1.0, notrans, self.v.value, notrans, \
-                self.a.value, 0.0, self.b.value, 1, 2, redux=0)
+        #gemm_async(1.0, notrans, self.v.value, notrans, \
+        #        self.a.value, 0.0, self.b.value, 1, 2, redux=0)
         # V and A can be offloaded from GPU
         self.v.value.wont_use()
         self.a.value.wont_use()
@@ -537,53 +548,59 @@ class Attention(BaseLayer):
             transpose_async(1.0, self.b_transposed.grad, self.b.grad, 1)
         #self.b_transposed.grad.wont_use()
         self.b_transposed.grad.invalidate_submit()
+        # Flash-like backward of softmax+gemm
+        clear_async(self.a_sumprod_slice)
+        flash_softmax_gemm_backward_async(self.q.value, self.q.grad, \
+                self.k.value, self.k.grad, self.v.value, self.v.grad, \
+                self.mask, self.a_maxsumexp, self.b.grad, self.a.value, \
+                self.a.grad, self.a_sumprod_slice, redux=0)
         # Backward for B = einsum('jklb,kmlb->jmlb', V, A)
-        if self.a.grad_required:
-            # dA = einsum('jklb,jmlb->kmlb', V, dB)
-            gemm_async(1.0, trans, self.v.value, notrans, \
-                    self.b.grad, 0.0, self.a.grad, 1, 2, redux=1)
+        #if self.a.grad_required:
+        #    # dA = einsum('jklb,jmlb->kmlb', V, dB)
+        #    gemm_async(1.0, trans, self.v.value, notrans, \
+        #            self.b.grad, 0.0, self.a.grad, 1, 2, redux=1)
         # V can be deleted
         #self.v.value.wont_use()
         self.v.value.invalidate_submit()
-        if self.v.grad_required:
-            # dV = einsum('jmlb,kmlb->jklb', dB, A)
-            gemm_async(1.0, notrans, self.b.grad, trans, \
-                    self.a.value, 0.0, self.v.grad, 1, 2, redux=1)
+        #if self.v.grad_required:
+        #    # dV = einsum('jmlb,kmlb->jklb', dB, A)
+        #    gemm_async(1.0, notrans, self.b.grad, trans, \
+        #            self.a.value, 0.0, self.v.grad, 1, 2, redux=1)
         # dB can be deleted
         #self.b.grad.wont_use()
         self.b.grad.invalidate_submit()
         # Backward for A = softmax(A, axis=0)
-        if self.a.grad_required:
-            # A_sumprod_slice = einsum('kmlb,kmlb->mlb', A, dA)
-            sumprod_slice_async(1.0, self.a.value, self.a.grad, \
-                    0.0, self.a_sumprod_slice, 0, redux=1)
-            # dA += -bias('kmlb,mlb->kmlb', dA, A_sumprod_slice)
-            add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
-            # A_sumprod_slice can be deleted
-            #self.a_sumprod_slice.wont_use()
-            self.a_sumprod_slice.invalidate_submit()
-            # dA *= A
-            prod_async(self.a.value, self.a.grad)
+        #if self.a.grad_required:
+        #    # A_sumprod_slice = einsum('kmlb,kmlb->mlb', A, dA)
+        #    #sumprod_slice_async(1.0, self.a.value, self.a.grad, \
+        #    #        0.0, self.a_sumprod_slice, 0, redux=1)
+        #    # dA += -bias('kmlb,mlb->kmlb', dA, A_sumprod_slice)
+        #    #add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
+        #    # A_sumprod_slice can be deleted
+        #    #self.a_sumprod_slice.wont_use()
+        #    #self.a_sumprod_slice.invalidate_submit()
+        #    # dA *= A
+        #    #prod_async(self.a.value, self.a.grad)
         # A can be deleted
         #self.a.value.wont_use()
-        self.a.value.invalidate_submit()
+        #self.a.value.invalidate_submit()
         # Backward for mask if needed
-        if self.mask:
-            mask_scalar_async(self.mask, 0, self.a.grad, 2)
-            self.mask.wont_use()
+        #if self.mask:
+        #    mask_scalar_async(self.mask, 0, self.a.grad, 2)
+        #    self.mask.wont_use()
         # Backward for:
         # A = 1.0/sqrt(head_size) * einsum('jklb,jmlb->kmlb', K, Q)
-        if self.k.grad_required:
-            # dK = 1.0/sqrt(head_size) * einsum('jmlb,kmlb->jklb', Q, dA)
-            gemm_async(1.0/self.head_size**0.5, notrans, self.q.value, \
-                    trans, self.a.grad, 0.0, self.k.grad, 1, 2, redux=1)
+        #if self.k.grad_required:
+        #    # dK = 1.0/sqrt(head_size) * einsum('jmlb,kmlb->jklb', Q, dA)
+        #    gemm_async(1.0/self.head_size**0.5, notrans, self.q.value, \
+        #            trans, self.a.grad, 0.0, self.k.grad, 1, 2, redux=1)
         # Q can be deleted
         #self.q.value.wont_use()
         self.q.value.invalidate_submit()
-        if self.q.grad_required:
-            # dQ = 1.0/sqrt(head_size) * einsum('jklb,kmlb->jmlb', K, dA)
-            gemm_async(1.0/self.head_size**0.5, notrans, self.k.value, \
-                    notrans, self.a.grad, 0.0, self.q.grad, 1, 2, redux=1)
+        #if self.q.grad_required:
+        #    # dQ = 1.0/sqrt(head_size) * einsum('jklb,kmlb->jmlb', K, dA)
+        #    gemm_async(1.0/self.head_size**0.5, notrans, self.k.value, \
+        #            notrans, self.a.grad, 0.0, self.q.grad, 1, 2, redux=1)
         # K can be deleted
         #self.k.value.wont_use()
         self.k.value.invalidate_submit()

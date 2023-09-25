@@ -10,12 +10,13 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-23
+# @date 2023-09-25
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         notrans, trans, Tensor_fp32, Tensor_int64, Tensor_bool
 from nntile.model.base_model import BaseModel
-from nntile.layer import Linear, Embedding, AddSlice, LayerNorm, Attention, Act
+from nntile.layer import Linear, Embedding, AddSlice, LayerNorm, Attention, \
+        FlashAttention, Act
 import numpy as np
 from typing import List, Dict
 from nntile.layer.add import Add
@@ -150,7 +151,7 @@ class GPT2Model(BaseModel):
             layers.append(l_norm)
             activations.extend(l_norm.activations_output)
 
-            attn_layer, next_tag = Attention.generate_simple( \
+            attn_layer, next_tag = FlashAttention.generate_simple( \
                     activations[-1], activations[-1], activations[-1], \
                     n_head, n_head_tile, next_tag, True, self.mask)
             layers.append(attn_layer)

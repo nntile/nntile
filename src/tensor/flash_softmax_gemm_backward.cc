@@ -17,6 +17,8 @@
 #include "nntile/starpu/mask_scalar.hh"
 #include "nntile/starpu/softmax_inplace.hh"
 #include "nntile/starpu/sumprod_slice.hh"
+#include "nntile/starpu/add_slice.hh"
+#include "nntile/starpu/prod.hh"
 
 namespace nntile
 {
@@ -93,6 +95,8 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
     // Cycle for all tiles of dV tensor
     for(Index i = 0; i < dV.grid.nelems; ++i)
     {
+        auto dQ_tile_handle = dQ.get_tile_handle(i);
+        auto dK_tile_handle = dK.get_tile_handle(i);
         auto dV_tile_handle = dV.get_tile_handle(i);
         auto dV_tile_index = dV.grid.linear_to_index(i);
         // Indices of all required tensors
@@ -110,7 +114,9 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
         tmp_sumprod_slice_tile_index[1] = dV_tile_index[2];
         tmp_sumprod_slice_tile_index[2] = dV_tile_index[3];
         mask_tile_index[0] = dV_tile_index[1];
-        // Clear destination buffer at first
+        // Clear destination buffers at first
+        starpu::clear::submit(dQ_tile_handle);
+        starpu::clear::submit(dK_tile_handle);
         starpu::clear::submit(dV_tile_handle);
         // Launch kernel for each appropriate tile of K and V to accumulate
         // result into destination tensor
@@ -161,6 +167,87 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
                     n_seq_tile*n_batch_tile*n_head_tile, n_seq_tile,
                     1.0, tmp_grad_tile_handle, tmp_tile_handle,
                     1.0, tmp_sumprod_slice_tile_handle, redux=0);
+        }
+    }
+    // Cycle for all tiles of dK/dV tensor
+    for(Index i = 0; i < dV.grid.nelems; ++i)
+    {
+        auto dK_tile_handle = dK.get_tile_handle(i);
+        auto dV_tile_index = dV.grid.linear_to_index(i);
+        // Indices of all required tensors
+        std::vector<Index> tmp_tile_index(dV_tile_index),
+            q_tile_index(dV_tile_index), dq_tile_index(dV_tile_index),
+            k_tile_index(dV_tile_index), dk_tile_index(dV_tile_index),
+            v_tile_index(dV_tile_index), dst_grad_tile_index(dV_tile_index),
+            mask_tile_index(2), maxsumexp_tile_index(dV_tile_index),
+            tmp_grad_tile_index(dV_tile_index),
+            tmp_sumprod_slice_tile_index(3);
+        auto k_tile_handle = K.get_tile_handle(k_tile_index);
+        auto v_tile_handle = V.get_tile_handle(v_tile_index);
+        tmp_tile_index[0] = dV_tile_index[1];
+        tmp_grad_tile_index[0] = dV_tile_index[1];
+        tmp_sumprod_slice_tile_index[1] = dV_tile_index[2];
+        tmp_sumprod_slice_tile_index[2] = dV_tile_index[3];
+        mask_tile_index[0] = dV_tile_index[1];
+        for(Index j = 0; j < dQ.grid.shape[1]; ++j)
+        {
+            tmp_tile_index[1] = j;
+            tmp_grad_tile_index[1] = j;
+            q_tile_index[1] = j;
+            dst_grad_tile_index[1] = j;
+            mask_tile_index[1] = j;
+            maxsumexp_tile_index[1] = j;
+            tmp_sumprod_slice_tile_index[0] = j;
+            dq_tile_index[1] = j;
+            auto tmp_tile_handle = tmp.get_tile_handle(tmp_tile_index);
+            auto tmp_grad_tile_handle = tmp_grad.get_tile_handle(
+                    tmp_grad_tile_index);
+            auto tmp_sumprod_slice_tile_handle = tmp_sumprod_slice
+                .get_tile_handle(tmp_sumprod_slice_tile_index);
+            auto q_tile_handle = Q.get_tile_handle(q_tile_index);
+            auto dst_grad_tile_handle = dst_grad.get_tile_handle(
+                    dst_grad_tile_index);
+            auto mask_tile_handle = mask.get_tile_handle(mask_tile_index);
+            auto maxsumexp_tile_handle = maxsumexp.get_tile_handle(
+                    maxsumexp_tile_index);
+            auto dQ_tile_handle = dQ.get_tile_handle(dq_tile_index);
+            // Insert tasks
+            starpu::gemm::submit<T, T>(opT, opN,
+                    n_seq_tile, n_seq_tile, head_size,
+                    n_batch_tile*n_head_tile, 1.0,
+                    v_tile_handle, dst_grad_tile_handle, 0.0,
+                    tmp_grad_tile_handle, redux=0);
+            starpu::add_slice::submit<T>(1,
+                    n_seq_tile*n_batch_tile*n_head_tile, n_seq_tile,
+                    -1.0, tmp_sumprod_slice_tile_handle,
+                    1.0, tmp_grad_tile_handle);
+            starpu::gemm::submit<T, T>(opT, opN,
+                    n_seq_tile, n_seq_tile, head_size,
+                    n_batch_tile*n_head_tile, 1.0/std::sqrt(head_size),
+                    k_tile_handle, q_tile_handle, 0.0, tmp_tile_handle,
+                    redux=0);
+            starpu::mask_scalar::submit<T>(n_seq_tile*n_seq_tile,
+                    n_batch_tile*n_head_tile, mask_tile_handle,
+                    -std::numeric_limits<T>::infinity(), tmp_tile_handle);
+            starpu::softmax_inplace::submit<T>(1,
+                    n_seq_tile*n_batch_tile*n_head_tile, n_seq_tile,
+                    maxsumexp_tile_handle, tmp_tile_handle);
+            starpu::prod::submit<T>(
+                    n_seq_tile*n_seq_tile*n_batch_tile*n_head_tile,
+                    tmp_tile_handle, tmp_grad_tile_handle);
+            starpu::mask_scalar::submit<T>(n_seq_tile*n_seq_tile,
+                    n_batch_tile*n_head_tile, mask_tile_handle,
+                    0.0, tmp_grad_tile_handle);
+            starpu::gemm::submit<T, T>(opN, opN,
+                    head_size, n_seq_tile, n_seq_tile,
+                    n_batch_tile*n_head_tile, 1.0/std::sqrt(head_size),
+                    k_tile_handle, tmp_grad_tile_handle, 1.0, dQ_tile_handle,
+                    redux=0);
+            starpu::gemm::submit<T, T>(opN, opT,
+                    head_size, n_seq_tile, n_seq_tile,
+                    n_batch_tile*n_head_tile, 1.0/std::sqrt(head_size),
+                    q_tile_handle, tmp_grad_tile_handle, 1.0, dK_tile_handle,
+                    redux=0);
         }
     }
 }
