@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-09-25
+# @date 2023-09-26
 
 # Set list of headers
 set(BASE_HDR
@@ -219,6 +219,7 @@ set(STARPU_HDR
     "nntile/starpu/sum_fiber.hh"
     "nntile/starpu/norm_slice.hh"
     "nntile/starpu/pow.hh"
+    "nntile/starpu/flash_maxsumexp.hh"
     "nntile/starpu/maxsumexp.hh"
     "nntile/starpu/softmax.hh"
     "nntile/starpu/softmax_inplace.hh"

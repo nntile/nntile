@@ -163,7 +163,7 @@ nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
 if args.check or args.check_fp64 or args.torch_nforward > 0 \
         or args.torch_nbackward > 0 or args.torch_nepochs:
     model_torch = model_torch.to(args.torch_device)
-    model_torch = torch.compile(model_torch)
+    #model_torch = torch.compile(model_torch)
 else:
     del model_torch
 
@@ -252,6 +252,7 @@ def check_grads(model_torch, nntile_model):
 
 # Check accuracy of output and gradients of parmeters if required
 if args.check:
+    nntile.starpu.pause()
     # Get output from a random input through the forward pass
     input_value = torch.randint(config.vocab_size, \
             (args.minibatch_size, config.n_positions), dtype=torch.int64, \
@@ -267,6 +268,7 @@ if args.check:
     if args.torch_device.startswith("cuda"):
         torch.cuda.synchronize()
     # Check accuracy of the forward pass by the output activation
+    nntile.starpu.resume()
     nntile_model.activations[0].value.from_array(input_value.cpu().numpy().T)
     nntile_model.forward_async()
     nntile.starpu.wait_for_all()

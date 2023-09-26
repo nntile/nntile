@@ -19,6 +19,8 @@
 #include "nntile/starpu/sumprod_slice.hh"
 #include "nntile/starpu/add_slice.hh"
 #include "nntile/starpu/prod.hh"
+#include <cmath>
+#include <limits>
 
 namespace nntile
 {

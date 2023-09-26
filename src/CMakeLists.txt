@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-09-25
+# @date 2023-09-26
 
 add_subdirectory(kernel)
 
@@ -164,6 +164,7 @@ set(STARPU_SRC
     "starpu/norm_slice.cc"
     "starpu/pow.cc"
     "starpu/maxsumexp.cc"
+    "${CMAKE_CURRENT_BINARY_DIR}/starpu/flash_maxsumexp.cc"
     "starpu/softmax.cc"
     "starpu/softmax_inplace.cc"
     "starpu/sqrt.cc"

@@ -16,6 +16,8 @@
 #include "nntile/starpu/gemm.hh"
 #include "nntile/starpu/mask_scalar.hh"
 #include "nntile/starpu/softmax_inplace.hh"
+#include <cmath>
+#include <limits>
 
 namespace nntile
 {
