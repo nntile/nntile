@@ -106,7 +106,7 @@ void cpu(void *buffers[], void *cl_args)
     tmp_local = tmp;
     for(Index i = 0; i < args->batch; ++i)
     {
-        cblas(CblasNoTrans, CblasNoTrans, args->seq, args->seq, args->head,
+        cblas(CblasNoTrans, CblasNoTrans, args->head, args->seq, args->seq,
                 1.0, V_local, args->head, tmp_local, args->seq, 1.0,
                 A_local, args->head);
         V_local += V_offset;

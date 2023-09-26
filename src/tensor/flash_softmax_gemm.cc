@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/tensor/flash_softmax_gemm.hh"
+#include "nntile/starpu/flash_softmax_gemm.hh"
 #include "nntile/starpu/gemm.hh"
 #include "nntile/starpu/mask_scalar.hh"
 #include "nntile/starpu/softmax_inplace.hh"
@@ -88,7 +89,6 @@ void flash_softmax_gemm_async(const Tensor<T> &Q, const Tensor<T> &K,
     Index n_seq_tile = Q.basetile_shape[1];
     Index n_batch_tile = Q.basetile_shape[2];
     Index n_head_tile = Q.basetile_shape[3];
-    const TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
     for(Index i = 0; i < maxsumexp.grid.nelems; ++i)
     {
         // Destination tile on dest node must be already prepared (cleared)
@@ -118,23 +118,29 @@ void flash_softmax_gemm_async(const Tensor<T> &Q, const Tensor<T> &K,
             auto k_tile_handle = K.get_tile_handle(k_tile_index);
             auto v_tile_handle = V.get_tile_handle(v_tile_index);
             auto mask_tile_handle = mask.get_tile_handle(mask_tile_index);
+            // Insert a fused task
+            starpu::flash_softmax_gemm::submit<T>(
+                    n_seq_tile, head_size, n_batch_tile*n_head_tile,
+                    k_tile_handle, q_tile_handle, mask_tile_handle,
+                    maxsumexp_tile_handle, v_tile_handle, dst_tile_handle,
+                    tmp_tile_handle, redux=0);
             // Insert tasks
-            starpu::gemm::submit<T, T>(opT, opN,
-                    n_seq_tile, n_seq_tile, head_size,
-                    n_batch_tile*n_head_tile, 1.0/std::sqrt(head_size),
-                    k_tile_handle, q_tile_handle, 0.0, tmp_tile_handle,
-                    redux=0);
-            starpu::mask_scalar::submit<T>(n_seq_tile*n_seq_tile,
-                    n_batch_tile*n_head_tile, mask_tile_handle,
-                    -std::numeric_limits<T>::infinity(), tmp_tile_handle);
-            starpu::softmax_inplace::submit<T>(1,
-                    n_seq_tile*n_batch_tile*n_head_tile, n_seq_tile,
-                    maxsumexp_tile_handle, tmp_tile_handle);
-            starpu::gemm::submit<T, T>(opN, opN,
-                    head_size, n_seq_tile, n_seq_tile,
-                    n_batch_tile*n_head_tile, 1.0,
-                    v_tile_handle, tmp_tile_handle, 1.0, dst_tile_handle,
-                    redux=0);
+//            starpu::gemm::submit<T, T>(opT, opN,
+//                    n_seq_tile, n_seq_tile, head_size,
+//                    n_batch_tile*n_head_tile, 1.0/std::sqrt(head_size),
+//                    k_tile_handle, q_tile_handle, 0.0, tmp_tile_handle,
+//                    redux=0);
+//            starpu::mask_scalar::submit<T>(n_seq_tile*n_seq_tile,
+//                    n_batch_tile*n_head_tile, mask_tile_handle,
+//                    -std::numeric_limits<T>::infinity(), tmp_tile_handle);
+//            starpu::softmax_inplace::submit<T>(1,
+//                    n_seq_tile*n_batch_tile*n_head_tile, n_seq_tile,
+//                    maxsumexp_tile_handle, tmp_tile_handle);
+//            starpu::gemm::submit<T, T>(opN, opN,
+//                    head_size, n_seq_tile, n_seq_tile,
+//                    n_batch_tile*n_head_tile, 1.0,
+//                    v_tile_handle, tmp_tile_handle, 1.0, dst_tile_handle,
+//                    redux=0);
         }
     }
 }

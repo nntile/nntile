@@ -15,12 +15,6 @@
 #include "nntile/tensor/flash_softmax_gemm_backward.hh"
 #include "nntile/starpu/flash_softmax_gemm_backward_sumprod_slice.hh"
 #include "nntile/starpu/flash_softmax_gemm_backward_dq_dk.hh"
-#include "nntile/starpu/gemm.hh"
-#include "nntile/starpu/mask_scalar.hh"
-#include "nntile/starpu/softmax_inplace.hh"
-#include "nntile/starpu/sumprod_slice.hh"
-#include "nntile/starpu/add_slice.hh"
-#include "nntile/starpu/prod.hh"
 #include <cmath>
 #include <limits>
 
@@ -95,7 +89,6 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
     Index n_seq_tile = Q.basetile_shape[1];
     Index n_batch_tile = Q.basetile_shape[2];
     Index n_head_tile = Q.basetile_shape[3];
-    const TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
     // Cycle for all tiles of dV tensor
     for(Index i = 0; i < dV.grid.nelems; ++i)
     {

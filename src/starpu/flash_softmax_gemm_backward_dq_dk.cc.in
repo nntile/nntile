@@ -255,7 +255,7 @@ Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
-    codelet_fp32.init("nntile_flash_softmax_gemm_backward_dk_dq_fp32",
+    codelet_fp32.init("nntile_flash_softmax_gemm_backward_dq_dk_fp32",
             footprint,
 #ifdef NNTILE_USE_CBLAS
             {cpu<fp32_t>},
@@ -268,7 +268,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_fp64.init("nntile_flash_softmax_gemm_backward_dk_dq_fp64",
+    codelet_fp64.init("nntile_flash_softmax_gemm_backward_dq_dk_fp64",
             footprint,
 #ifdef NNTILE_USE_CBLAS
             {cpu<fp64_t>},
