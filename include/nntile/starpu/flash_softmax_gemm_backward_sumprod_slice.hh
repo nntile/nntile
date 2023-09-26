@@ -4,8 +4,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/flash_maxsumexp.hh
- * Fused materialization and maxsumexp for StarPU buffer
+ * @file include/nntile/starpu/flash_softmax_gemm_backward_sumprod_slice.hh
+ * Flash Attention backward to get sumprod_slice result
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
@@ -21,7 +21,7 @@ namespace nntile
 {
 namespace starpu
 {
-namespace flash_maxsumexp
+namespace flash_softmax_gemm_backward_sumprod_slice
 {
 
 //! Structure for arguments
@@ -73,9 +73,10 @@ void restore_where();
 
 template<typename T>
 void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
-        Handle mask, Handle maxsumexp, Handle tmp, int redux=0);
+        Handle mask, Handle maxsumexp, Handle dA, Handle V, Handle dV,
+        Handle sumprod_slice, Handle tmp, Handle tmp_grad, int redux=0);
 
-} // namespace flash_maxsumexp
+} // namespace flash_softmax_gemm_backward_sumprod_slice
 } // namespace starpu
 } // namespace nntile
 

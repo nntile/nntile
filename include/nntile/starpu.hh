@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-09-20
+ * @date 2023-09-26
  * */
 
 #pragma once
@@ -55,8 +55,12 @@
 #include <nntile/starpu/sum_fiber.hh>
 #include <nntile/starpu/norm_slice.hh>
 #include <nntile/starpu/pow.hh>
+#include <nntile/starpu/flash_maxsumexp.hh>
 #include <nntile/starpu/maxsumexp.hh>
 #include <nntile/starpu/softmax.hh>
+#include <nntile/starpu/flash_softmax_gemm.hh>
+#include <nntile/starpu/flash_softmax_gemm_backward_sumprod_slice.hh>
+#include <nntile/starpu/flash_softmax_gemm_backward_dq_dk.hh>
 #include <nntile/starpu/softmax_inplace.hh>
 #include <nntile/starpu/sqrt.hh>
 #include <nntile/starpu/sqrt_inplace.hh>
@@ -129,6 +133,10 @@ void init()
     pow::init();
     softmax::init();
     softmax_inplace::init();
+    flash_softmax_gemm::init();
+    flash_softmax_gemm_backward_sumprod_slice::init();
+    flash_softmax_gemm_backward_dq_dk::init();
+    flash_maxsumexp::init();
     maxsumexp::init();
     sqrt::init();
     sqrt_inplace::init();
@@ -194,6 +202,10 @@ void restrict_where(uint32_t where)
     pow::restrict_where(where);
     softmax::restrict_where(where);
     softmax_inplace::restrict_where(where);
+    flash_softmax_gemm::restrict_where(where);
+    flash_softmax_gemm_backward_sumprod_slice::restrict_where(where);
+    flash_softmax_gemm_backward_dq_dk::restrict_where(where);
+    flash_maxsumexp::restrict_where(where);
     maxsumexp::restrict_where(where);
     sqrt::restrict_where(where);
     sqrt_inplace::restrict_where(where);
@@ -259,6 +271,10 @@ void restore_where()
     pow::restore_where();
     softmax::restore_where();
     softmax_inplace::restore_where();
+    flash_softmax_gemm::restore_where();
+    flash_softmax_gemm_backward_sumprod_slice::restore_where();
+    flash_softmax_gemm_backward_dq_dk::restore_where();
+    flash_maxsumexp::restore_where();
     maxsumexp::restore_where();
     sqrt::restore_where();
     sqrt_inplace::restore_where();

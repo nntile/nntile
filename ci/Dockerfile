@@ -50,6 +50,7 @@ RUN set -xe && \
         --disable-starpupy \
         --enable-blas-lib=none \
         --enable-maxcudadev=8 \
+        --enable-maxbuffers=16 \
         --with-fxt && \
     make -j $MAKE_JOBS install && \
     rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_COMMIT && \
