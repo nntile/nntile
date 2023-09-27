@@ -51,7 +51,7 @@ parser.add_argument("--minibatch-size", type=int, default=1)
 parser.add_argument("--minibatch-size-tile", type=int, default=1)
 parser.add_argument("--n-embd-tile", type=int, default=384)
 parser.add_argument("--n-inner-tile", type=int, default=1536)
-parser.add_argument("--n-head-tile", type=int, default=12)
+parser.add_argument("--n-head-tile", type=int, default=-1)
 parser.add_argument("--torch-device", choices=["cpu", "cuda", "cuda:0", \
         "cuda:1", "cuda:2", "cuda:3", "cuda:4"], default="cpu")
 parser.add_argument("--torch-dtype", choices=["fp32, fp64"], default="fp32")
@@ -110,6 +110,9 @@ model_torch = GPT2LMHeadModel.from_pretrained(args.model, \
 # pending in NNTile implementation (bias in Linear layers and entire Attention
 # layers).
 config = model_torch.config
+if args.n_head_tile == -1:
+    args.n_head_tile = config.n_head
+assert config.n_head % args.n_head_tile == 0
 assert config.n_positions % args.seq_len_tile == 0
 config.attn_pdrop = 0
 config.embd_pdrop = 0
