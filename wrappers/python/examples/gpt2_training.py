@@ -52,9 +52,11 @@ parser.add_argument("--minibatch-size-tile", type=int, default=1)
 parser.add_argument("--n-embd-tile", type=int, default=384)
 parser.add_argument("--n-inner-tile", type=int, default=1536)
 parser.add_argument("--n-head-tile", type=int, default=-1)
+parser.add_argument("--restrict", choices=["cpu", "cuda", None], default=None)
 parser.add_argument("--torch-device", choices=["cpu", "cuda", "cuda:0", \
         "cuda:1", "cuda:2", "cuda:3", "cuda:4"], default="cpu")
 parser.add_argument("--torch-dtype", choices=["fp32, fp64"], default="fp32")
+parser.add_argument("--torch-compile", action="store_true")
 parser.add_argument("--nntile-dtype", choices=["fp32, fp64"], default="fp32")
 parser.add_argument("--check", action="store_true")
 parser.add_argument("--check-fp64", action="store_true")
@@ -146,8 +148,10 @@ nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
 nntile.starpu.init()
 # Restrict computations to CUDA if possible
-nntile.starpu.restrict_cuda()
-#nntile.starpu.restrict_cpu()
+if args.restrict == "cuda":
+    nntile.starpu.restrict_cuda()
+elif args.restrict == "cpu":
+    nntile.starpu.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
 next_tag = 0
@@ -166,7 +170,8 @@ nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
 if args.check or args.check_fp64 or args.torch_nforward > 0 \
         or args.torch_nbackward > 0 or args.torch_nepochs:
     model_torch = model_torch.to(args.torch_device)
-    model_torch = torch.compile(model_torch)
+    if args.torch_compile:
+        model_torch = torch.compile(model_torch)
 else:
     del model_torch
 
