@@ -166,7 +166,7 @@ nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
 if args.check or args.check_fp64 or args.torch_nforward > 0 \
         or args.torch_nbackward > 0 or args.torch_nepochs:
     model_torch = model_torch.to(args.torch_device)
-    #model_torch = torch.compile(model_torch)
+    model_torch = torch.compile(model_torch)
 else:
     del model_torch
 
