@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-09-20
+ * @date 2023-09-28
  * */
 
 #include "nntile/starpu/maxsumexp.hh"
@@ -127,8 +127,8 @@ void submit(Index m, Index n, Index k, Handle src, Handle dst, int redux)
     enum starpu_data_access_mode dst_mode;
     if(redux != 0)
     {
-        //dst_mode = STARPU_REDUX;
-        dst_mode = Config::STARPU_RW_COMMUTE;
+        dst_mode = STARPU_REDUX;
+        //dst_mode = Config::STARPU_RW_COMMUTE;
     }
     else
     {

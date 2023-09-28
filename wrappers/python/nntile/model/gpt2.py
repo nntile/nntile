@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-25
+# @date 2023-09-28
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         notrans, trans, Tensor_fp32, Tensor_int64, Tensor_bool
@@ -27,7 +27,8 @@ class GPT2Config(Dict):
             max_position_embeddings: int, \
             inner_dim: int, inner_dim_tile: int, \
             layer_norm_epsilon: float, num_hidden_layers: int, n_head: int, \
-            n_head_tile: int, activation_function: str):
+            n_head_tile: int, activation_function: str, \
+            flashattention: bool=True):
         self["vocab_size"] = vocab_size
         self["vocab_embed_dim_tile"] = vocab_embed_dim_tile
         self["embed_dim"] = embed_dim
@@ -40,6 +41,7 @@ class GPT2Config(Dict):
         self["n_head"] = n_head
         self["n_head_tile"] = n_head_tile
         self["activation_function"] = activation_function
+        self["flashattention"] = flashattention
 
     def __getattr__(self, attr):
         return self[attr]
@@ -114,6 +116,11 @@ class GPT2Model(BaseModel):
         num_hidden_layers = config["num_hidden_layers"]
         n_head = config["n_head"]
         n_head_tile = config["n_head_tile"]
+        flashattention = config["flashattention"]
+        if flashattention:
+            AttLayer = FlashAttention
+        else:
+            AttLayer = Attention
         seq_len = input_ids.value.shape[0]
         seq_len_tile = input_ids.value.basetile_shape[0]
         activations = [input_ids, positional_ids]
@@ -151,7 +158,7 @@ class GPT2Model(BaseModel):
             layers.append(l_norm)
             activations.extend(l_norm.activations_output)
 
-            attn_layer, next_tag = FlashAttention.generate_simple( \
+            attn_layer, next_tag = AttLayer.generate_simple( \
                     activations[-1], activations[-1], activations[-1], \
                     n_head, n_head_tile, next_tag, True, self.mask)
             layers.append(attn_layer)

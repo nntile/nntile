@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-23
+# @date 2023-09-28
 
 # Imports
 import torch
@@ -52,7 +52,6 @@ parser.add_argument("--minibatch-size-tile", type=int, default=1)
 parser.add_argument("--n-embd-tile", type=int, default=384)
 parser.add_argument("--n-inner-tile", type=int, default=1536)
 parser.add_argument("--n-head-tile", type=int, default=-1)
-parser.add_argument("--restrict", choices=["cpu", "cuda", None], default=None)
 parser.add_argument("--torch-device", choices=["cpu", "cuda", "cuda:0", \
         "cuda:1", "cuda:2", "cuda:3", "cuda:4"], default="cpu")
 parser.add_argument("--torch-dtype", choices=["fp32, fp64"], default="fp32")
@@ -64,6 +63,9 @@ parser.add_argument("--torch-nforward", type=int, default=0)
 parser.add_argument("--torch-nforward-warmup", type=int, default=0)
 parser.add_argument("--torch-nbackward", type=int, default=0)
 parser.add_argument("--torch-nbackward-warmup", type=int, default=0)
+parser.add_argument("--nntile-restrict", choices=["cpu", "cuda", None], \
+        default=None)
+parser.add_argument("--nntile-flashattention", action="store_true")
 parser.add_argument("--nntile-nforward", type=int, default=0)
 parser.add_argument("--nntile-nforward-warmup", type=int, default=0)
 parser.add_argument("--nntile-nbackward", type=int, default=0)
@@ -148,9 +150,9 @@ nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
 nntile.starpu.init()
 # Restrict computations to CUDA if possible
-if args.restrict == "cuda":
+if args.nntile_restrict == "cuda":
     nntile.starpu.restrict_cuda()
-elif args.restrict == "cpu":
+elif args.nntile_restrict == "cpu":
     nntile.starpu.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
@@ -160,7 +162,8 @@ next_tag = 0
 nntile_model_config = GPT2Config_nntile(config.vocab_size, args.n_embd_tile, \
         config.n_embd, args.n_embd_tile, config.max_position_embeddings, \
         config.n_inner, args.n_inner_tile, config.layer_norm_epsilon, \
-        config.num_hidden_layers, config.n_head, args.n_head_tile, "gelutanh")
+        config.num_hidden_layers, config.n_head, args.n_head_tile, \
+        "gelutanh", args.nntile_flashattention)
 nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
         args.minibatch_size, args.minibatch_size_tile, config.n_positions, \
         args.seq_len_tile, nntile_model_config, next_tag)

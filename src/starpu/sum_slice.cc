@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-09-19
+ * @date 2023-09-28
  * */
 
 #include "nntile/starpu/sum_slice.hh"
@@ -131,8 +131,8 @@ void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
     {
         if(redux != 0)
         {
-            //dst_mode = STARPU_REDUX;
-            dst_mode = Config::STARPU_RW_COMMUTE;
+            dst_mode = STARPU_REDUX;
+            //dst_mode = Config::STARPU_RW_COMMUTE;
         }
         else
         {

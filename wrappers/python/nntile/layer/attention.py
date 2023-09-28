@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-25
+# @date 2023-09-28
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
@@ -397,7 +397,7 @@ class Attention(BaseLayer):
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w_q.value, notrans, \
-                self.x_q.value, 0.0, self.q_transposed.value, 1, 0, redux=0)
+                self.x_q.value, 0.0, self.q_transposed.value, 1, 0, redux=1)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.q_transposed.value, self.q.value, 1)
         # X_Q, W_Q and Q_transposed can be offloaded from GPU
@@ -416,7 +416,7 @@ class Attention(BaseLayer):
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w_k.value, notrans, \
-                self.x_k.value, 0.0, self.k_transposed.value, 1, 0, redux=0)
+                self.x_k.value, 0.0, self.k_transposed.value, 1, 0, redux=1)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.k_transposed.value, self.k.value, 1)
         # X_K, W_K and K_transposed can be offloaded from GPU
@@ -435,7 +435,7 @@ class Attention(BaseLayer):
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w_v.value, notrans, \
-                self.x_v.value, 0.0, self.v_transposed.value, 1, 0, redux=0)
+                self.x_v.value, 0.0, self.v_transposed.value, 1, 0, redux=1)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.v_transposed.value, self.v.value, 1)
         # X_V, W_V and V_transposed can be offloaded from GPU
@@ -456,7 +456,7 @@ class Attention(BaseLayer):
         # by (head_size, n_seq, batch=n_batch, batch=n_head) into
         # (n_seq, n_seq, batch=n_batch, batch=n_head)
         gemm_async(1.0/self.head_size**0.5, trans, self.k.value, \
-                notrans, self.q.value, 0.0, self.a.value, 1, 2, redux=0)
+                notrans, self.q.value, 0.0, self.a.value, 1, 2, redux=1)
         clear_async(self.a_maxsumexp)
         # Q and K can be offloaded from GPU
         self.q.value.wont_use()
@@ -468,7 +468,7 @@ class Attention(BaseLayer):
             mask_scalar_async(self.mask, self.val, self.a.value, 2)
             self.mask.wont_use()
         # Calculate max and sumexp along axis
-        maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=0)
+        maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=1)
         # Finally, get the inplace softmax
         softmax_inplace_async(self.a_maxsumexp, self.a.value, 0)
         # A_maxsumexp can be deleted
@@ -480,7 +480,7 @@ class Attention(BaseLayer):
         # by (n_seq, n_seq, batch=n_batch, batch=n_head) into
         # (head_size, n_seq, batch=n_batch, batch=n_head)
         gemm_async(1.0, notrans, self.v.value, notrans, \
-                self.a.value, 0.0, self.b.value, 1, 2, redux=0)
+                self.a.value, 0.0, self.b.value, 1, 2, redux=1)
         # V and A can be offloaded from GPU
         self.v.value.wont_use()
         self.a.value.wont_use()
@@ -492,7 +492,7 @@ class Attention(BaseLayer):
         # gemm (n_emb, n_head, head_size) by
         # (n_head, head_size, n_seq, n_batch) into (n_emb, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w.value, notrans, \
-                self.b_transposed.value, 0.0, self.y.value, 2, 0, redux=0)
+                self.b_transposed.value, 0.0, self.y.value, 2, 0, redux=1)
         # W, B and B_transposed can be offloaded from GPU
         self.w.value.wont_use()
         #self.b.value.wont_use()

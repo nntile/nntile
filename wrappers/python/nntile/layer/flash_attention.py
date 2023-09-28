@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-25
+# @date 2023-09-28
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
@@ -401,7 +401,7 @@ class FlashAttention(BaseLayer):
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w_q.value, notrans, \
-                self.x_q.value, 0.0, self.q_transposed.value, 1, 0, redux=0)
+                self.x_q.value, 0.0, self.q_transposed.value, 1, 0, redux=1)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.q_transposed.value, self.q.value, 1)
         # X_Q, W_Q and Q_transposed can be offloaded from GPU
@@ -420,7 +420,7 @@ class FlashAttention(BaseLayer):
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w_k.value, notrans, \
-                self.x_k.value, 0.0, self.k_transposed.value, 1, 0, redux=0)
+                self.x_k.value, 0.0, self.k_transposed.value, 1, 0, redux=1)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.k_transposed.value, self.k.value, 1)
         # X_K, W_K and K_transposed can be offloaded from GPU
@@ -439,7 +439,7 @@ class FlashAttention(BaseLayer):
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w_v.value, notrans, \
-                self.x_v.value, 0.0, self.v_transposed.value, 1, 0, redux=0)
+                self.x_v.value, 0.0, self.v_transposed.value, 1, 0, redux=1)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.v_transposed.value, self.v.value, 1)
         # X_V, W_V and V_transposed can be offloaded from GPU
@@ -464,7 +464,7 @@ class FlashAttention(BaseLayer):
         clear_async(self.a_maxsumexp)
         # Use flash-like maxsumexp
         flash_maxsumexp_async(self.q.value, self.k.value, self.mask, \
-                self.a_maxsumexp, self.a.value, redux=0)
+                self.a_maxsumexp, self.a.value, redux=1)
         # Q and K can be offloaded from GPU
         self.q.value.wont_use()
         self.k.value.wont_use()
@@ -480,7 +480,7 @@ class FlashAttention(BaseLayer):
         # Use flash-like softmax+gemm
         flash_softmax_gemm_async(self.q.value, self.k.value, self.v.value, \
                 self.mask, self.a_maxsumexp, self.b.value, self.a.value, \
-                redux=0)
+                redux=1)
         # Finally, get the inplace softmax
         #softmax_inplace_async(self.a_maxsumexp, self.a.value, 0)
         # A_maxsumexp can be deleted
@@ -504,7 +504,7 @@ class FlashAttention(BaseLayer):
         # gemm (n_emb, n_head, head_size) by
         # (n_head, head_size, n_seq, n_batch) into (n_emb, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w.value, notrans, \
-                self.b_transposed.value, 0.0, self.y.value, 2, 0, redux=0)
+                self.b_transposed.value, 0.0, self.y.value, 2, 0, redux=1)
         # W, B and B_transposed can be offloaded from GPU
         self.w.value.wont_use()
         #self.b.value.wont_use()
@@ -554,7 +554,7 @@ class FlashAttention(BaseLayer):
         flash_softmax_gemm_backward_async(self.q.value, self.q.grad, \
                 self.k.value, self.k.grad, self.v.value, self.v.grad, \
                 self.mask, self.a_maxsumexp, self.b.grad, self.a.value, \
-                self.a.grad, self.a_sumprod_slice, redux=0)
+                self.a.grad, self.a_sumprod_slice, redux=1)
         # Backward for B = einsum('jklb,kmlb->jmlb', V, A)
         #if self.a.grad_required:
         #    # dA = einsum('jklb,jmlb->kmlb', V, dB)

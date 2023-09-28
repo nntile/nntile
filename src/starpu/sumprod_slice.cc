@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-09-19
+ * @date 2023-09-28
  * */
 
 #include "nntile/starpu/sumprod_slice.hh"
@@ -132,8 +132,8 @@ void submit(Index m, Index n, Index k, T alpha, Handle src1, Handle src2,
     {
         if(redux != 0)
         {
-            //dst_mode = STARPU_REDUX;
-            dst_mode = Config::STARPU_RW_COMMUTE;
+            dst_mode = STARPU_REDUX;
+            //dst_mode = Config::STARPU_RW_COMMUTE;
         }
         else
         {

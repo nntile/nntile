@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-09-26
+ * @date 2023-09-28
  * */
 
 #include "nntile/starpu/flash_softmax_gemm_backward_sumprod_slice.hh"
@@ -294,8 +294,8 @@ void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
     enum starpu_data_access_mode rw_mode;
     if(redux != 0)
     {
-        //rw_mode = STARPU_REDUX;
-        rw_mode = Config::STARPU_RW_COMMUTE;
+        rw_mode = STARPU_REDUX;
+        //rw_mode = Config::STARPU_RW_COMMUTE;
     }
     else
     {
