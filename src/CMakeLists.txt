@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-09-26
+# @date 2023-09-28
 
 add_subdirectory(kernel)
 
@@ -31,6 +31,7 @@ set(KERNEL_SRC
     "kernel/gelutanh/cpu.cc"
     "kernel/gelutanh_inplace/cpu.cc"
     "kernel/hypot/cpu.cc"
+    "kernel/hypot_scalar_inverse/cpu.cc"
     "kernel/normalize/cpu.cc"
     "kernel/prod/cpu.cc"
     "kernel/randn/cpu.cc"
@@ -121,6 +122,7 @@ if(NNTILE_USE_CUDA)
         "kernel/add_scalar/cuda.cu"
         "kernel/scal/cuda.cu"
         "kernel/hypot/cuda.cu"
+        "kernel/hypot_scalar_inverse/cuda.cu"
         "kernel/adam_step/cuda.cu"
         "kernel/transpose/cuda.cu"
         )
@@ -150,6 +152,7 @@ set(STARPU_SRC
     "starpu/gelutanh.cc"
     "starpu/gelutanh_inplace.cc"
     "starpu/hypot.cc"
+    "starpu/hypot_scalar_inverse.cc"
     "starpu/normalize.cc"
     "starpu/prod.cc"
     "starpu/randn.cc"

@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-09-26
+ * @date 2023-09-28
  * */
 
 #pragma once
@@ -41,6 +41,7 @@
 #include <nntile/starpu/gemm.hh>
 #include <nntile/starpu/gemm_ex.hh>
 #include <nntile/starpu/hypot.hh>
+#include <nntile/starpu/hypot_scalar_inverse.hh>
 #include <nntile/starpu/nrm2.hh>
 #include <nntile/starpu/normalize.hh>
 #include <nntile/starpu/prod.hh>
@@ -117,6 +118,7 @@ void init()
     gemm::init();
     gemm_ex::init();
     hypot::init();
+    hypot_scalar_inverse::init();
     nrm2::init();
     normalize::init();
     randn::init();
@@ -186,6 +188,7 @@ void restrict_where(uint32_t where)
     gemm::restrict_where(where);
     gemm_ex::restrict_where(where);
     hypot::restrict_where(where);
+    hypot_scalar_inverse::restrict_where(where);
     nrm2::restrict_where(where);
     normalize::restrict_where(where);
     prod::restrict_where(where);
@@ -255,6 +258,7 @@ void restore_where()
     gemm::restore_where();
     gemm_ex::restore_where();
     hypot::restore_where();
+    hypot_scalar_inverse::restore_where();
     nrm2::restore_where();
     normalize::restore_where();
     prod::restore_where();

@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-09-26
+# @date 2023-09-28
 
 # Set list of headers
 set(BASE_HDR
@@ -50,6 +50,8 @@ set(KERNEL_HDR
     "nntile/kernel/gelutanh_inplace/cpu.hh"
     "nntile/kernel/hypot.hh"
     "nntile/kernel/hypot/cpu.hh"
+    "nntile/kernel/hypot_scalar_inverse.hh"
+    "nntile/kernel/hypot_scalar_inverse/cpu.hh"
     "nntile/kernel/normalize.hh"
     "nntile/kernel/normalize/cpu.hh"
     "nntile/kernel/prod.hh"
@@ -177,6 +179,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/add_scalar/cuda.hh"
         "nntile/kernel/scal/cuda.hh"
         "nntile/kernel/hypot/cuda.hh"
+        "nntile/kernel/hypot_scalar_inverse/cuda.hh"
         "nntile/kernel/adam_step/cuda.hh"
         "nntile/kernel/transpose/cuda.hh"
         )
@@ -205,6 +208,7 @@ set(STARPU_HDR
     "nntile/starpu/gelutanh.hh"
     "nntile/starpu/gelutanh_inplace.hh"
     "nntile/starpu/hypot.hh"
+    "nntile/starpu/hypot_scalar_inverse.hh"
     "nntile/starpu/nrm2.hh"
     "nntile/starpu/normalize.hh"
     "nntile/starpu/prod.hh"
