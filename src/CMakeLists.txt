@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-09-28
+# @date 2023-09-29
 
 add_subdirectory(kernel)
 
@@ -317,6 +317,7 @@ set(TENSOR_SRC
     "tensor/fp16_to_fp32.cc"
     "tensor/mask_scalar.cc"
     "tensor/hypot.cc"
+    "tensor/hypot_scalar_inverse.cc"
     "tensor/adam_step.cc"
     "tensor/transpose.cc"
     )

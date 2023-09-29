@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-09-28
+# @date 2023-09-29
 
 # Set list of headers
 set(BASE_HDR
@@ -379,6 +379,7 @@ set(TENSOR_HDR
     "nntile/tensor/fp16_to_fp32.hh"
     "nntile/tensor/mask_scalar.hh"
     "nntile/tensor/hypot.hh"
+    "nntile/tensor/hypot_scalar_inverse.hh"
     "nntile/tensor/adam_step.hh"
     "nntile/tensor/transpose.hh"
     )

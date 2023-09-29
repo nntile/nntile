@@ -5,11 +5,11 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/tensor/hypot_scalar_inverse.cc
- * hypot_scalar_inverse operation for Tensor<T>'s
+ * hypot_scalar_inverse operation for Tensor<T>
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-09-28
+ * @date 2023-09-29
  * */
 
 #include "nntile/tensor/hypot_scalar_inverse.hh"

@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-09-19
+# @date 2023-09-29
 
 from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         TensorOrNone, TensorMoments, \
@@ -17,7 +17,7 @@ from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
         fill_async, pow_async, prod_slice_async, sumprod_slice_async, \
         axpy_async, prod_fiber_async, prod_fiber3_async, add_slice3_async, \
         add_fiber_async, sum_fiber_async, sumprod_fiber_async, \
-        clear_async, copy_async
+        clear_async, copy_async, hypot_scalar_inverse_async
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -138,11 +138,12 @@ class LayerNorm(BaseLayer):
         # X can be offloaded from GPU
         self.x.value.wont_use()
         # Compute standard deviation of self.y.value
-        fill_async(self.eps, self.inv_stddev)
-        norm_slice_async(1.0/self.l**0.5, self.tmp_y_value, 1.0, \
+        #fill_async(self.eps, self.inv_stddev)
+        norm_slice_async(1.0/self.l**0.5, self.tmp_y_value, 0.0, \
                 self.inv_stddev, self.axis, redux=1)
+        hypot_scalar_inverse_async(self.eps, 1.0, self.inv_stddev)
         # Invert stddev (to multiply by it instead of dividing)
-        pow_async(1.0, -1.0, self.inv_stddev)
+        #pow_async(1.0, -1.0, self.inv_stddev)
         # Finally, normalize input
         prod_slice_async(self.inv_stddev, 1.0, self.tmp_y_value, self.axis)
         # inv_stddev can be offloaded from GPU
