@@ -38,7 +38,7 @@ class LayerNorm(BaseLayer):
     def __init__(self, x: TensorMoments, y: TensorMoments, \
             gamma: TensorMoments, beta: TensorMoments, tmp_y_value: Tensor, \
             tmp_y_grad: Tensor, mean: Tensor, inv_stddev: Tensor, axis: int, \
-            eps: float):
+            eps: float, redux: bool=False):
         # Redirect to BaseLayer initialization
         super().__init__([x], [y], [gamma, beta], [tmp_y_value, tmp_y_grad, \
                 mean, inv_stddev])
@@ -57,11 +57,15 @@ class LayerNorm(BaseLayer):
         self.axis = axis
         self.l = self.x.value.shape[axis]
         self.eps = eps ** 0.5 # This value is used to init deviation
+        if redux:
+            self.redux = 1
+        else:
+            self.redux = 0
 
     # Simple generator for the normalization layer
     @staticmethod
     def generate_simple(x: TensorMoments, axis: int, eps: float,
-            next_tag: int):
+            next_tag: int, redux: bool=False):
         # Get traits of X
         x_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
         # Create Y with the same traits and distribution as X
@@ -118,7 +122,7 @@ class LayerNorm(BaseLayer):
         next_tag = inv_stddev.next_tag
         # Create LayerNorm object with all the provided tensors
         layer = LayerNorm(x, y, gamma, beta, tmp_y_value, tmp_y_grad, mean, \
-                inv_stddev, axis, eps)
+                inv_stddev, axis, eps, redux=redux)
         # Init gamma and beta
         clear_async(beta.value)
         fill_async(1.0, gamma.value)
@@ -129,7 +133,7 @@ class LayerNorm(BaseLayer):
     def forward_async(self):
         # Get means over given axis
         sum_slice_async(1.0/self.l, self.x.value, 0.0, self.mean, self.axis, \
-                redux=1)
+                redux=self.redux)
         # Y = X - mean
         add_slice3_async(-1.0, self.mean, 1.0, self.x.value, \
                 self.tmp_y_value, self.axis)
@@ -140,7 +144,7 @@ class LayerNorm(BaseLayer):
         # Compute standard deviation of self.y.value
         #fill_async(self.eps, self.inv_stddev)
         norm_slice_async(1.0/self.l**0.5, self.tmp_y_value, 0.0, \
-                self.inv_stddev, self.axis, redux=1)
+                self.inv_stddev, self.axis, redux=self.redux)
         hypot_scalar_inverse_async(self.eps, 1.0, self.inv_stddev)
         # Invert stddev (to multiply by it instead of dividing)
         #pow_async(1.0, -1.0, self.inv_stddev)
@@ -166,12 +170,12 @@ class LayerNorm(BaseLayer):
     def backward_async(self):
         # Accumulate gradient over beta
         sum_fiber_async(1.0, self.y.grad, 1.0, self.beta.grad, self.axis, 0,
-                redux=1)
+                redux=self.redux)
         # d_beta can be offloaded from GPU
         self.beta.grad.wont_use()
         # Accumulate gradient over gamma
         sumprod_fiber_async(1.0, self.y.grad, self.tmp_y_value, 1.0, \
-                self.gamma.grad, self.axis, redux=1)
+                self.gamma.grad, self.axis, redux=self.redux)
         # d_gamma can be offloaded from GPU
         self.gamma.grad.wont_use()
         # Define gradient over normalized input
@@ -183,14 +187,14 @@ class LayerNorm(BaseLayer):
         self.gamma.value.wont_use()
         # Get mean of product of tmp_Y_grad and tmp_Y_value over the given axis
         sumprod_slice_async(-1.0/self.l, self.tmp_y_grad, self.tmp_y_value, \
-                0.0, self.mean, self.axis, redux=1)
+                0.0, self.mean, self.axis, redux=self.redux)
         # Multiply tmp_Y_value by the mean
         prod_slice_async(self.mean, 1.0, self.tmp_y_value, self.axis)
         # Add tmp_Y_grad to tmp_Y_value
         axpy_async(1.0, self.tmp_y_grad, self.tmp_y_value)
         # Get mean value of tmp_Y_grad over the given axis
         sum_slice_async(1.0/self.l, self.tmp_y_grad, 0.0, self.mean, \
-                self.axis, redux=1)
+                self.axis, redux=self.redux)
         # tmp_Y_grad can be deleted
         #self.tmp_y_grad.wont_use()
         self.tmp_y_grad.invalidate_submit()

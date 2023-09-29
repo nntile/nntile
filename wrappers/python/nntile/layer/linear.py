@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-28
+# @date 2023-09-29
 
 import nntile
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
@@ -45,7 +45,8 @@ class Linear(BaseLayer):
             fp32_convert_fp16: bool = False, \
             x_fp16: Optional[TensorMoments] = None, \
             w_fp16: Optional[TensorMoments] = None, \
-            y_fp16: Optional[TensorMoments] = None):
+            y_fp16: Optional[TensorMoments] = None, \
+            redux: bool = False):
         # Check parameter side
         if side != 'L' and side != 'R':
             raise ValueError("side must be either 'L' or 'R'")
@@ -75,6 +76,10 @@ class Linear(BaseLayer):
         self.y_fp16 = y_fp16
         self.fp32_fast_fp16 = fp32_fast_fp16
         self.fp32_convert_fp16 = fp32_convert_fp16
+        if redux:
+            self.redux = 1
+        else:
+            self.redux = 0
 
     # Simple generator for the linear layer
     @staticmethod
@@ -82,7 +87,7 @@ class Linear(BaseLayer):
             in_features_ndim: int, out_features_shape: List[int], \
             out_features_basetile_shape: List[int], next_tag: int, \
             bias: bool=True, fp32_fast_fp16: bool=False, \
-            fp32_convert_fp16: bool=False):
+            fp32_convert_fp16: bool=False, redux: bool=False):
         # Define shapes
         ndim = in_features_ndim
         add_shape = out_features_shape
@@ -174,7 +179,8 @@ class Linear(BaseLayer):
             layer = Linear(side, trans_x, x, y, w, ndim, b, fp32_fast_fp16, \
                     fp32_convert_fp16, x_fp16, w_fp16, y_fp16)
         else:
-            layer = Linear(side, trans_x, x, y, w, ndim, b, fp32_fast_fp16)
+            layer = Linear(side, trans_x, x, y, w, ndim, b, fp32_fast_fp16, \
+                    redux=redux)
         # Return layer and next tag to be used
         return (layer, next_tag)
 
@@ -192,18 +198,19 @@ class Linear(BaseLayer):
             # 'k' is a multi-index of dimension W.ndim-ndim
             if self.fp32_fast_fp16:
                 gemm_ex_async(1.0, self.trans_x, self.x.value, notrans, \
-                        self.w.value, 0.0, self.y.value, self.ndim, 0, redux=1)
+                        self.w.value, 0.0, self.y.value, self.ndim, 0, \
+                        redux=self.redux)
             elif self.fp32_convert_fp16:
                 gemm_async(1.0, self.trans_x, self.x_fp16.value, notrans, \
                         self.w_fp16.value, 0.0, self.y_fp16.value, \
-                        self.ndim, 0, redux=1)
+                        self.ndim, 0, redux=self.redux)
                 fp16_to_fp32_async(self.y_fp16.value, self.y.value)
                 self.x_fp16.value.wont_use()
                 self.w_fp16.value.wont_use()
                 self.y_fp16.value.wont_use()
             else:
                 gemm_async(1.0, self.trans_x, self.x.value, notrans, \
-                        self.w.value, 0.0, self.y.value, self.ndim, 0, redux=1)
+                        self.w.value, 0.0, self.y.value, self.ndim, 0, redux=self.redux)
             if self.b is not None:
                 add_fiber_async(1.0, self.b.value, 1.0, self.y.value,
                         self.y.value.ndim-1, 0)
@@ -214,18 +221,18 @@ class Linear(BaseLayer):
             # 'k' is a multi-index of dimension X.ndim-ndim
             if self.fp32_fast_fp16:
                 gemm_ex_async(1.0, notrans, self.w.value, self.trans_x, \
-                        self.x.value, 0.0, self.y.value, self.ndim, 0, redux=1)
+                        self.x.value, 0.0, self.y.value, self.ndim, 0, redux=self.redux)
             elif self.fp32_convert_fp16:
                 gemm_async(1.0, notrans, self.w_fp16.value, self.trans_x, \
                         self.x_fp16.value, 0.0, self.y_fp16.value, \
-                        self.ndim, 0, redux=1)
+                        self.ndim, 0, redux=self.redux)
                 fp16_to_fp32_async(self.y_fp16.value, self.y.value)
                 self.x_fp16.value.wont_use()
                 self.w_fp16.value.wont_use()
                 self.y_fp16.value.wont_use()
             else:
                 gemm_async(1.0, notrans, self.w.value, self.trans_x, \
-                        self.x.value, 0.0, self.y.value, self.ndim, 0, redux=1)
+                        self.x.value, 0.0, self.y.value, self.ndim, 0, redux=self.redux)
             if self.b is not None:
                 add_fiber_async(1.0, self.b.value, 1.0, self.y.value, 0, 0)
         # Hint for StarPU that W tensor will
@@ -257,28 +264,28 @@ class Linear(BaseLayer):
                     if self.fp32_fast_fp16:
                         gemm_ex_async(1.0, trans, self.x.value, notrans, \
                                 self.y.grad, 1.0, self.w.grad, gemm_ndim, 0, \
-                                redux=1)
+                                redux=self.redux)
                     elif self.fp32_convert_fp16:
                         gemm_async(1.0, trans, self.x_fp16.value, notrans, \
                                 self.y_fp16.grad, 1.0, self.w_fp16.grad, \
-                                gemm_ndim, 0, redux=1)
+                                gemm_ndim, 0, redux=self.redux)
                     else:
                         gemm_async(1.0, trans, self.x.value, notrans, \
                                 self.y.grad, 1.0, self.w.grad, gemm_ndim, 0, \
-                                redux=1)
+                                redux=self.redux)
                 else:
                     if self.fp32_fast_fp16:
                         gemm_ex_async(1.0, notrans, self.x.value, notrans, \
                                 self.y.grad, 1.0, self.w.grad, gemm_ndim, 0, \
-                                redux=1)
+                                redux=self.redux)
                     elif self.fp32_convert_fp16:
                         gemm_async(1.0, notrans, self.x_fp16.value, notrans, \
                                 self.y_fp16.grad, 1.0, self.w_fp16.grad, \
-                                gemm_ndim, 0, redux=1)
+                                gemm_ndim, 0, redux=self.redux)
                     else:
                         gemm_async(1.0, notrans, self.x.value, notrans, \
                                 self.y.grad, 1.0, self.w.grad, gemm_ndim, 0, \
-                                redux=1)
+                                redux=self.redux)
             else:
                 # Backward for Y = einsum('ij,jk->ik', W, op(X))
                 # dW += einsum('ik,jk->ij', dY, op(X))
@@ -289,28 +296,28 @@ class Linear(BaseLayer):
                     if self.fp32_fast_fp16:
                         gemm_ex_async(1.0, notrans, self.y.grad, trans, \
                                 self.x.value, 1.0, self.w.grad, gemm_ndim, 0, \
-                                redux=1)
+                                redux=self.redux)
                     elif self.fp32_convert_fp16:
                         gemm_async(1.0, notrans, self.y_fp16.grad, trans, \
                                 self.x_fp16.value, 1.0, self.w_fp16.grad, \
-                                gemm_ndim, 0, redux=1)
+                                gemm_ndim, 0, redux=self.redux)
                     else:
                         gemm_async(1.0, notrans, self.y.grad, trans, \
                                 self.x.value, 1.0, self.w.grad, gemm_ndim, 0, \
-                                redux=1)
+                                redux=self.redux)
                 else:
                     if self.fp32_fast_fp16:
                         gemm_ex_async(1.0, notrans, self.y.grad, notrans, \
                                 self.x.value, 1.0, self.w.grad, gemm_ndim, 0, \
-                                redux=1)
+                                redux=self.redux)
                     elif self.fp32_convert_fp16:
                         gemm_async(1.0, notrans, self.y_fp16.grad, notrans, \
                                 self.x_fp16.value, 1.0, self.w_fp16.grad, \
-                                gemm_ndim, 0, redux=1)
+                                gemm_ndim, 0, redux=self.redux)
                     else:
                         gemm_async(1.0, notrans, self.y.grad, notrans, \
                                 self.x.value, 1.0, self.w.grad, gemm_ndim, 0, \
-                                redux=1)
+                                redux=self.redux)
             # Convert fp16 to fp32 if needed and offload data
             if self.fp32_convert_fp16:
                 fp16_to_fp32_async(self.w_fp16.grad, self.w.grad)
@@ -324,10 +331,10 @@ class Linear(BaseLayer):
             if self.b.grad_required:
                 if self.side == 'L':
                     sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, \
-                            self.y.value.ndim-1, 0, redux=1)
+                            self.y.value.ndim-1, 0, redux=self.redux)
                 else:
                     sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, 0, 0, \
-                            redux=1)
+                            redux=self.redux)
                 self.b.grad.wont_use()
                 self.y.grad.wont_use()
         # Gradient over X (input)
@@ -347,29 +354,29 @@ class Linear(BaseLayer):
                     if self.fp32_fast_fp16:
                         gemm_ex_async(1.0, notrans, self.y.grad, trans, \
                                 self.w.value, 1.0, self.x.grad, gemm_ndim, 0, \
-                                redux=1)
+                                redux=self.redux)
                     elif self.fp32_convert_fp16:
                         gemm_async(1.0, notrans, self.y_fp16.grad, trans, \
                                 self.w_fp16.value, 1.0, self.x_fp16.grad, \
-                                gemm_ndim, 0, redux=1)
+                                gemm_ndim, 0, redux=self.redux)
                     else:
                         gemm_async(1.0, notrans, self.y.grad, trans, \
                                 self.w.value, 1.0, self.x.grad, gemm_ndim, 0, \
-                                redux=1)
+                                redux=self.redux)
                 else:
                     # dX += einsum('ik,jk->ij', W, dY)
                     if self.fp32_fast_fp16:
                         gemm_ex_async(1.0, notrans, self.w.value, trans, \
                                 self.y.grad, 1.0, self.x.grad, gemm_ndim, 0, \
-                                redux=1)
+                                redux=self.redux)
                     elif self.fp32_convert_fp16:
                         gemm_async(1.0, notrans, self.w_fp16.value, trans, \
                                 self.y_fp16.grad, 1.0, self.x_fp16.grad, \
-                                gemm_ndim, 0, redux=1)
+                                gemm_ndim, 0, redux=self.redux)
                     else:
                         gemm_async(1.0, notrans, self.w.value, trans, \
                                 self.y.grad, 1.0, self.x.grad, gemm_ndim, 0, \
-                                redux=1)
+                                redux=self.redux)
             else:
                 # Backward for Y = einsum('ij,jk->ik', W, op(X))
                 # d op(X) = einsum('ij,ik->jk', W, dY)
@@ -381,29 +388,29 @@ class Linear(BaseLayer):
                     if self.fp32_fast_fp16:
                         gemm_ex_async(1.0, trans, self.w.value, notrans, \
                                 self.y.grad, 1.0, self.x.grad, gemm_ndim, 0, \
-                                redux=1)
+                                redux=self.redux)
                     elif self.fp32_convert_fp16:
                         gemm_async(1.0, trans, self.w_fp16.value, notrans, \
                                 self.y_fp16.grad, 1.0, self.x_fp16.grad, \
-                                gemm_ndim, 0, redux=1)
+                                gemm_ndim, 0, redux=self.redux)
                     else:
                         gemm_async(1.0, trans, self.w.value, notrans, \
                                 self.y.grad, 1.0, self.x.grad, gemm_ndim, 0, \
-                                redux=1)
+                                redux=self.redux)
                 else:
                     # dX = einsum('ij,ik->jk', dY, W)
                     if self.fp32_fast_fp16:
                         gemm_ex_async(1.0, trans, self.y.grad, notrans, \
                                 self.w.value, 1.0, self.x.grad, gemm_ndim, 0, \
-                                redux=1)
+                                redux=self.redux)
                     elif self.fp32_convert_fp16:
                         gemm_async(1.0, trans, self.y_fp16.grad, notrans, \
                                 self.w_fp16.value, 1.0, self.x_fp16.grad, \
-                                gemm_ndim, 0, redux=1)
+                                gemm_ndim, 0, redux=self.redux)
                     else:
                         gemm_async(1.0, trans, self.y.grad, notrans, \
                                 self.w.value, 1.0, self.x.grad, gemm_ndim, 0, \
-                                redux=1)
+                                redux=self.redux)
             # Convert fp16 to fp32 if needed and offload data
             if self.fp32_convert_fp16:
                 fp16_to_fp32_async(self.x_fp16.grad, self.x.grad)

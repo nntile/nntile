@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-28
+# @date 2023-09-29
 
 # Imports
 import torch
@@ -66,6 +66,7 @@ parser.add_argument("--torch-nbackward-warmup", type=int, default=0)
 parser.add_argument("--nntile-restrict", choices=["cpu", "cuda", None], \
         default=None)
 parser.add_argument("--nntile-flashattention", action="store_true")
+parser.add_argument("--nntile-use-redux", action="store_true")
 parser.add_argument("--nntile-nforward", type=int, default=0)
 parser.add_argument("--nntile-nforward-warmup", type=int, default=0)
 parser.add_argument("--nntile-nbackward", type=int, default=0)
@@ -163,7 +164,7 @@ nntile_model_config = GPT2Config_nntile(config.vocab_size, args.n_embd_tile, \
         config.n_embd, args.n_embd_tile, config.max_position_embeddings, \
         config.n_inner, args.n_inner_tile, config.layer_norm_epsilon, \
         config.num_hidden_layers, config.n_head, args.n_head_tile, \
-        "gelutanh", args.nntile_flashattention)
+        "gelutanh", args.nntile_flashattention, args.nntile_use_redux)
 nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
         args.minibatch_size, args.minibatch_size_tile, config.n_positions, \
         args.seq_len_tile, nntile_model_config, next_tag)

@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-09-19
+# @date 2023-09-29
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         Tensor_int64, clear_async, embedding_async, embedding_backward_async
@@ -79,6 +79,8 @@ class Embedding(BaseLayer):
 
     # Backward propagation of the embedding layer
     def backward_async(self):
+        # redux=1 leads to performance loss, as each embedding_backward is a
+        # sparse operation, but reduction plays with a full dense vocabulary
         embedding_backward_async(self.x, self.y.grad, self.w.grad, self.axis, \
                 redux=0)
         self.x.wont_use()

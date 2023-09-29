@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-28
+# @date 2023-09-29
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
@@ -65,7 +65,7 @@ class FlashAttention(BaseLayer):
             b: TensorMoments, b_transposed: TensorMoments, \
             in_proj_bias_q: TensorMoments, in_proj_bias_k: TensorMoments, \
             in_proj_bias_v: TensorMoments, out_proj_bias: TensorMoments, \
-            mask=None):
+            mask=None, redux: bool=False):
         assert w_q.value.shape[0] % w_q.value.basetile_shape[0] == 0
         qkv_bias_list = []
         if in_proj_bias_q:
@@ -140,12 +140,16 @@ class FlashAttention(BaseLayer):
         self.mask = mask
         if mask:
             self.val = -np.float32(np.inf)
+        if redux:
+            self.redux = 1
+        else:
+            self.redux = 0
 
     # Simple generator for the linear layer
     @staticmethod
     def generate_simple(x_q: TensorMoments, x_k: TensorMoments, \
             x_v: TensorMoments, n_head: int, n_head_tile: int, next_tag: int, \
-            bias=False, mask=None):
+            bias=False, mask=None, redux: bool=False):
         # Get sizes
         n_emb, n_seq, n_batch = x_q.value.shape
         n_emb_tile, n_seq_tile, n_batch_tile = x_q.value.basetile_shape
@@ -390,7 +394,7 @@ class FlashAttention(BaseLayer):
                 q_transposed, \
                 q, k_transposed, k, v_transposed, v, a, a_maxsumexp, \
                 a_sumprod_slice, b, b_transposed, bias_inproj_q, \
-                bias_inproj_k, bias_inproj_v, out_proj_bias, mask)
+                bias_inproj_k, bias_inproj_v, out_proj_bias, mask, redux=redux)
         # Return layer and next tag to be used
         return (layer, next_tag)
 
@@ -401,7 +405,7 @@ class FlashAttention(BaseLayer):
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w_q.value, notrans, \
-                self.x_q.value, 0.0, self.q_transposed.value, 1, 0, redux=1)
+                self.x_q.value, 0.0, self.q_transposed.value, 1, 0, redux=self.redux)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.q_transposed.value, self.q.value, 1)
         # X_Q, W_Q and Q_transposed can be offloaded from GPU
@@ -420,7 +424,7 @@ class FlashAttention(BaseLayer):
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w_k.value, notrans, \
-                self.x_k.value, 0.0, self.k_transposed.value, 1, 0, redux=1)
+                self.x_k.value, 0.0, self.k_transposed.value, 1, 0, redux=self.redux)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.k_transposed.value, self.k.value, 1)
         # X_K, W_K and K_transposed can be offloaded from GPU
@@ -439,7 +443,7 @@ class FlashAttention(BaseLayer):
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w_v.value, notrans, \
-                self.x_v.value, 0.0, self.v_transposed.value, 1, 0, redux=1)
+                self.x_v.value, 0.0, self.v_transposed.value, 1, 0, redux=self.redux)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.v_transposed.value, self.v.value, 1)
         # X_V, W_V and V_transposed can be offloaded from GPU
@@ -460,11 +464,11 @@ class FlashAttention(BaseLayer):
         # by (head_size, n_seq, batch=n_batch, batch=n_head) into
         # (n_seq, n_seq, batch=n_batch, batch=n_head)
         #gemm_async(1.0/self.head_size**0.5, trans, self.k.value, \
-        #        notrans, self.q.value, 0.0, self.a.value, 1, 2, redux=0)
+        #        notrans, self.q.value, 0.0, self.a.value, 1, 2, redux=self.redux)
         clear_async(self.a_maxsumexp)
         # Use flash-like maxsumexp
         flash_maxsumexp_async(self.q.value, self.k.value, self.mask, \
-                self.a_maxsumexp, self.a.value, redux=1)
+                self.a_maxsumexp, self.a.value, redux=self.redux)
         # Q and K can be offloaded from GPU
         self.q.value.wont_use()
         self.k.value.wont_use()
@@ -476,11 +480,11 @@ class FlashAttention(BaseLayer):
         #    self.mask.wont_use()
         # Calculate max and sumexp along axis
         # Temporary disable maxsumexp for testing
-        #maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=0)
+        #maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=self.redux)
         # Use flash-like softmax+gemm
         flash_softmax_gemm_async(self.q.value, self.k.value, self.v.value, \
                 self.mask, self.a_maxsumexp, self.b.value, self.a.value, \
-                redux=1)
+                redux=self.redux)
         # Finally, get the inplace softmax
         #softmax_inplace_async(self.a_maxsumexp, self.a.value, 0)
         # A_maxsumexp can be deleted
@@ -492,7 +496,7 @@ class FlashAttention(BaseLayer):
         # by (n_seq, n_seq, batch=n_batch, batch=n_head) into
         # (head_size, n_seq, batch=n_batch, batch=n_head)
         #gemm_async(1.0, notrans, self.v.value, notrans, \
-        #        self.a.value, 0.0, self.b.value, 1, 2, redux=0)
+        #        self.a.value, 0.0, self.b.value, 1, 2, redux=self.redux)
         # V and A can be offloaded from GPU
         self.v.value.wont_use()
         self.a.value.wont_use()
@@ -504,7 +508,7 @@ class FlashAttention(BaseLayer):
         # gemm (n_emb, n_head, head_size) by
         # (n_head, head_size, n_seq, n_batch) into (n_emb, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w.value, notrans, \
-                self.b_transposed.value, 0.0, self.y.value, 2, 0, redux=1)
+                self.b_transposed.value, 0.0, self.y.value, 2, 0, redux=self.redux)
         # W, B and B_transposed can be offloaded from GPU
         self.w.value.wont_use()
         #self.b.value.wont_use()
@@ -523,13 +527,13 @@ class FlashAttention(BaseLayer):
         if self.out_proj_bias is not None:
             if self.out_proj_bias.grad_required:
                 sum_fiber_async(1.0, self.y.grad, 1.0, \
-                        self.out_proj_bias.grad, 0, 0, redux=1)
+                        self.out_proj_bias.grad, 0, 0, redux=self.redux)
                 self.out_proj_bias.grad.wont_use()
         # Backward for Y = einsum('jkl,klmn->jmn', W, B_transposed)
         if self.w.grad_required:
             # dW += einsum('jmn,klmn->jkl', dY, B_transposed)
             gemm_async(1.0, notrans, self.y.grad, trans, \
-                    self.b_transposed.value, 1.0, self.w.grad, 2, 0, redux=1)
+                    self.b_transposed.value, 1.0, self.w.grad, 2, 0, redux=self.redux)
         # B_transposed can be deleted
         #self.b_transposed.value.wont_use()
         self.b_transposed.value.invalidate_submit()
@@ -537,7 +541,7 @@ class FlashAttention(BaseLayer):
         if self.b_transposed.grad_required:
             # dB_transposed = einsum('jkl,jmn->klmn', W, dY)
             gemm_async(1.0, trans, self.w.value, notrans, self.y.grad, \
-                    0.0, self.b_transposed.grad, 1, 0, redux=1)
+                    0.0, self.b_transposed.grad, 1, 0, redux=self.redux)
         # W can be offloaded from GPU
         self.w.value.wont_use()
         # dY can be offloaded from GPU
@@ -554,19 +558,19 @@ class FlashAttention(BaseLayer):
         flash_softmax_gemm_backward_async(self.q.value, self.q.grad, \
                 self.k.value, self.k.grad, self.v.value, self.v.grad, \
                 self.mask, self.a_maxsumexp, self.b.grad, self.a.value, \
-                self.a.grad, self.a_sumprod_slice, redux=1)
+                self.a.grad, self.a_sumprod_slice, redux=self.redux)
         # Backward for B = einsum('jklb,kmlb->jmlb', V, A)
         #if self.a.grad_required:
         #    # dA = einsum('jklb,jmlb->kmlb', V, dB)
         #    gemm_async(1.0, trans, self.v.value, notrans, \
-        #            self.b.grad, 0.0, self.a.grad, 1, 2, redux=1)
+        #            self.b.grad, 0.0, self.a.grad, 1, 2, redux=self.redux)
         # V can be deleted
         #self.v.value.wont_use()
         self.v.value.invalidate_submit()
         #if self.v.grad_required:
         #    # dV = einsum('jmlb,kmlb->jklb', dB, A)
         #    gemm_async(1.0, notrans, self.b.grad, trans, \
-        #            self.a.value, 0.0, self.v.grad, 1, 2, redux=1)
+        #            self.a.value, 0.0, self.v.grad, 1, 2, redux=self.redux)
         # dB can be deleted
         #self.b.grad.wont_use()
         self.b.grad.invalidate_submit()
@@ -574,7 +578,7 @@ class FlashAttention(BaseLayer):
         #if self.a.grad_required:
         #    # A_sumprod_slice = einsum('kmlb,kmlb->mlb', A, dA)
         #    #sumprod_slice_async(1.0, self.a.value, self.a.grad, \
-        #    #        0.0, self.a_sumprod_slice, 0, redux=1)
+        #    #        0.0, self.a_sumprod_slice, 0, redux=self.redux)
         #    # dA += -bias('kmlb,mlb->kmlb', dA, A_sumprod_slice)
         #    #add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
         #    # A_sumprod_slice can be deleted
@@ -594,14 +598,14 @@ class FlashAttention(BaseLayer):
         #if self.k.grad_required:
         #    # dK = 1.0/sqrt(head_size) * einsum('jmlb,kmlb->jklb', Q, dA)
         #    gemm_async(1.0/self.head_size**0.5, notrans, self.q.value, \
-        #            trans, self.a.grad, 0.0, self.k.grad, 1, 2, redux=1)
+        #            trans, self.a.grad, 0.0, self.k.grad, 1, 2, redux=self.redux)
         # Q can be deleted
         #self.q.value.wont_use()
         self.q.value.invalidate_submit()
         #if self.q.grad_required:
         #    # dQ = 1.0/sqrt(head_size) * einsum('jklb,kmlb->jmlb', K, dA)
         #    gemm_async(1.0/self.head_size**0.5, notrans, self.k.value, \
-        #            notrans, self.a.grad, 0.0, self.q.grad, 1, 2, redux=1)
+        #            notrans, self.a.grad, 0.0, self.q.grad, 1, 2, redux=self.redux)
         # K can be deleted
         #self.k.value.wont_use()
         self.k.value.invalidate_submit()
@@ -612,7 +616,7 @@ class FlashAttention(BaseLayer):
         if self.in_proj_bias_v is not None:
             if self.in_proj_bias_v.grad_required:
                 sum_fiber_async(1, self.v.grad, 1, self.in_proj_bias_v.grad, \
-                        0, 1, redux=1)
+                        0, 1, redux=self.redux)
                 self.in_proj_bias_v.grad.wont_use()
         # Backward for axes rotation (V_transposed->V)
         if self.v_transposed.grad_required:
@@ -626,7 +630,7 @@ class FlashAttention(BaseLayer):
         if self.x_v.grad_required:
             # dX_V += einsum('jkl,jkmn->lmn', W_V, dV_transposed)
             gemm_async(1.0, trans, self.w_v.value, notrans, \
-                    self.v_transposed.grad, 1.0, self.x_v.grad, 2, 0, redux=1)
+                    self.v_transposed.grad, 1.0, self.x_v.grad, 2, 0, redux=self.redux)
         # W_V can be offloaded from GPU
         self.w_v.value.wont_use()
         # dX_V can be offloaded from GPU
@@ -634,7 +638,7 @@ class FlashAttention(BaseLayer):
         if self.w_v.grad_required:
             # dW_V += einsum('jkmn,lmn->jkl', dV_transposed, X_V)
             gemm_async(1.0, notrans, self.v_transposed.grad, trans, \
-                    self.x_v.value, 1.0, self.w_v.grad, 2, 0, redux=1)
+                    self.x_v.value, 1.0, self.w_v.grad, 2, 0, redux=self.redux)
         # dW_V can be offloaded from GPU
         self.w_v.grad.wont_use()
         # X_V can be offloaded from GPU
@@ -646,7 +650,7 @@ class FlashAttention(BaseLayer):
         if self.in_proj_bias_k is not None:
             if self.in_proj_bias_k.grad_required:
                 sum_fiber_async(1, self.k.grad, 1, self.in_proj_bias_k.grad, \
-                        0, 1, redux=1)
+                        0, 1, redux=self.redux)
                 self.in_proj_bias_k.grad.wont_use()
         # Backward for axes rotation (K_transposed->K)
         if self.k_transposed.grad_required:
@@ -660,7 +664,7 @@ class FlashAttention(BaseLayer):
         if self.x_k.grad_required:
             # dX_K += einsum('jkl,jkmn->lmn', W_K, dK_transposed)
             gemm_async(1.0, trans, self.w_k.value, notrans, \
-                    self.k_transposed.grad, 1.0, self.x_k.grad, 2, 0, redux=1)
+                    self.k_transposed.grad, 1.0, self.x_k.grad, 2, 0, redux=self.redux)
         # W_K can be offloaded from GPU
         self.w_k.value.wont_use()
         # dX_K can be offloaded from GPU
@@ -668,7 +672,7 @@ class FlashAttention(BaseLayer):
         if self.w_k.grad_required:
             # dW_K += einsum('jkmn,lmn->jkl', dK_transposed, X_K)
             gemm_async(1.0, notrans, self.k_transposed.grad, trans, \
-                    self.x_k.value, 1.0, self.w_k.grad, 2, 0, redux=1)
+                    self.x_k.value, 1.0, self.w_k.grad, 2, 0, redux=self.redux)
         # dW_K can be offloaded from GPU
         self.w_k.grad.wont_use()
         # X_K can be offloaded from GPU
@@ -680,7 +684,7 @@ class FlashAttention(BaseLayer):
         if self.in_proj_bias_q is not None:
             if self.in_proj_bias_q.grad_required:
                 sum_fiber_async(1, self.q.grad, 1, self.in_proj_bias_q.grad, \
-                        0, 1, redux=1)
+                        0, 1, redux=self.redux)
                 self.in_proj_bias_q.grad.wont_use()
         # Backward for axes rotation (Q_transposed->Q)
         if self.q_transposed.grad_required:
@@ -694,7 +698,7 @@ class FlashAttention(BaseLayer):
         if self.x_q.grad_required:
             # dX_Q += einsum('jkl,jkmn->lmn', W_Q, dQ_transposed)
             gemm_async(1.0, trans, self.w_q.value, notrans, \
-                    self.q_transposed.grad, 1.0, self.x_q.grad, 2, 0, redux=1)
+                    self.q_transposed.grad, 1.0, self.x_q.grad, 2, 0, redux=self.redux)
             self.x_q.grad.wont_use()
         # W_Q can be offloaded from GPU
         self.w_q.value.wont_use()
@@ -703,7 +707,7 @@ class FlashAttention(BaseLayer):
         if self.w_q.grad_required:
             # dW_Q += einsum('jkmn,lmn->jkl', dQ_transposed, X_Q)
             gemm_async(1.0, notrans, self.q_transposed.grad, trans, \
-                    self.x_q.value, 1.0, self.w_q.grad, 2, 0, redux=1)
+                    self.x_q.value, 1.0, self.w_q.grad, 2, 0, redux=self.redux)
         # dW_Q can be offloaded from GPU
         self.w_q.grad.wont_use()
         # X_Q can be offloaded from GPU
