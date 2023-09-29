@@ -61,7 +61,6 @@ class GPT2MLP(BaseModel):
         inner_dim_tile = config["inner_dim_tile"]
         activation_function = config["activation_function"]
         redux = config["redux"]
-        print("REDUX=", redux)
         gemm_ndim = 1
         # Initial linear layer that converts input to internal shape
         new_layer, next_tag = Linear.generate_simple(x, "R", notrans, \
