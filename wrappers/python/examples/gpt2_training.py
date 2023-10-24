@@ -24,6 +24,7 @@ import torch.nn as nn
 from transformers import GPT2TokenizerFast, GPT2LMHeadModel, GPT2Model, \
         GPT2Config
 from torch.optim import Adam
+from torch.optim import SGD
 from datasets import load_dataset
 from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
         GPT2Model as GPT2Model_nntile
@@ -34,6 +35,7 @@ from typing import Union, Optional, Tuple, List
 from packaging import version
 import copy
 import argparse
+import json
 
 # Create argument parser
 parser = argparse.ArgumentParser(prog="GPT2-based neural networks", \
@@ -44,6 +46,14 @@ parser = argparse.ArgumentParser(prog="GPT2-based neural networks", \
         "activations) and a throughput of inference and training. It can " \
         "also fine-tune a pretrained NNTile model on a chosen dataset.")
 parser.add_argument("--model", default="gpt2")
+
+parser.add_argument("--pretrained", choices=["local", "remote"], default="remote")
+parser.add_argument("--checkpoint_path", type=str, default="")
+parser.add_argument("--config_path", type=str, default="")
+parser.add_argument("--save_checkpoint_path", type=str, default=".model")
+parser.add_argument("--optimizer", choices=["sgd, adam"], default="sgd")
+
+
 parser.add_argument("--model-path", default=".model")
 parser.add_argument("--seq-len-tile", type=int, default=1024)
 parser.add_argument("--batch-size", type=int, default=1)
@@ -100,13 +110,34 @@ assert args.torch_nepochs >= 0
 assert args.nntile_nforward >= 0
 assert args.nntile_nbackward >= 0
 assert args.nntile_nepochs >= 0
+# assert args.pretrained == "local" and (args)
 
 # Set Torch default device to cpu
 torch.set_default_device("cpu")
 
 # Load named pretrained PyTorch model
-model_torch = GPT2LMHeadModel.from_pretrained(args.model, \
-        cache_dir=args.model_path)
+if args.pretrained == "remote":
+        model_torch = GPT2LMHeadModel.from_pretrained(args.model, \
+                cache_dir=args.model_path)
+elif args.pretrained == "local":
+        if args.config_path:
+                f = open(args.config_path)
+                # returns JSON object as 
+                # a dictionary
+                conf_dict = json.load(f)
+                f.close()
+                print(conf_dict)
+                config = GPT2Config(**conf_dict)
+                print(config)
+                model_torch = GPT2LMHeadModel(config)
+                if args.optimizer == "adam":
+                        optimizer = Adam(model_torch.parameters(), args.lr)
+                elif args.optimizer == "sgd":
+                        optimizer = SGD(model_torch.parameters(), args.lr)
+                if args.checkpoint_path:
+                        checkpoint = torch.load(checkpoint_path)
+                        torch_model.load_state_dict(checkpoint['model_state_dict'])
+                        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
 # print(model_torch)
 
