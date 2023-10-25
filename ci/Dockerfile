@@ -1,11 +1,11 @@
-ARG BASE_IMAGE=nvidia/cuda:11.7.0-devel-ubuntu22.04
+ARG BASE_IMAGE=nvidia/cuda:12.2.2-devel-ubuntu20.04
 
 FROM $BASE_IMAGE AS devbase
 
 ADD ci/add-repo-kitware.sh .
 
 RUN set -xe && \
-    DEBIAN_FRONTEND=noninteractive && \
+    DEBIAN_FRONTEND=noninteractive \
     apt update && \
     ./add-repo-kitware.sh && \
     apt update && \
@@ -14,7 +14,7 @@ RUN set -xe && \
     rm -rf ./add-repo-kitware.sh
 
 RUN apt update && \
-    apt install -y --no-install-recommends \
+    DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \
         autoconf automake binutils build-essential clang cmake cmake-curses-gui \
         fxt-tools gdb git lcov libfxt-dev libhwloc-dev libopenblas-dev \
         libopenmpi-dev libopenmpi3 libtool-bin ninja-build openmpi-bin \
