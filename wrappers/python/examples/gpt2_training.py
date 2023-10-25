@@ -51,7 +51,7 @@ parser.add_argument("--pretrained", choices=["local", "remote"], default="remote
 parser.add_argument("--checkpoint_path", type=str, default="")
 parser.add_argument("--config_path", type=str, default="")
 parser.add_argument("--save_checkpoint_path", type=str, default=".model")
-parser.add_argument("--optimizer", choices=["sgd, adam"], default="sgd")
+parser.add_argument("--optimizer", choices=["sgd", "adam"], default="adam")
 
 
 parser.add_argument("--model-path", default=".model")
@@ -64,9 +64,9 @@ parser.add_argument("--n-inner-tile", type=int, default=1536)
 parser.add_argument("--n-head-tile", type=int, default=-1)
 parser.add_argument("--torch-device", choices=["cpu", "cuda", "cuda:0", \
         "cuda:1", "cuda:2", "cuda:3", "cuda:4"], default="cpu")
-parser.add_argument("--torch-dtype", choices=["fp32, fp64"], default="fp32")
+parser.add_argument("--torch-dtype", choices=["fp32", "fp64"], default="fp32")
 parser.add_argument("--torch-compile", action="store_true")
-parser.add_argument("--nntile-dtype", choices=["fp32, fp64"], default="fp32")
+parser.add_argument("--nntile-dtype", choices=["fp32", "fp64"], default="fp32")
 parser.add_argument("--check", action="store_true")
 parser.add_argument("--check-fp64", action="store_true")
 parser.add_argument("--torch-nforward", type=int, default=0)
@@ -110,7 +110,7 @@ assert args.torch_nepochs >= 0
 assert args.nntile_nforward >= 0
 assert args.nntile_nbackward >= 0
 assert args.nntile_nepochs >= 0
-# assert args.pretrained == "local" and (args)
+assert args.pretrained == "local" and len(args.config_path) > 0
 
 # Set Torch default device to cpu
 torch.set_default_device("cpu")
@@ -122,13 +122,9 @@ if args.pretrained == "remote":
 elif args.pretrained == "local":
         if args.config_path:
                 f = open(args.config_path)
-                # returns JSON object as 
-                # a dictionary
                 conf_dict = json.load(f)
                 f.close()
-                print(conf_dict)
                 config = GPT2Config(**conf_dict)
-                print(config)
                 model_torch = GPT2LMHeadModel(config)
                 if args.optimizer == "adam":
                         optimizer = Adam(model_torch.parameters(), args.lr)
@@ -199,6 +195,17 @@ nntile_model_config = GPT2Config_nntile(config.vocab_size, args.n_embd_tile, \
 nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
         args.minibatch_size, args.minibatch_size_tile, config.n_positions, \
         args.seq_len_tile, nntile_model_config, next_tag)
+
+# Check that to_torch method works
+base_model_torch = GPT2LMHeadModel(config)
+nntile_model.to_torch(base_model_torch)
+
+total_diff = 0
+for p1, p2 in zip(model_torch.parameters(), base_model_torch.parameters()):
+        print(torch.sum(torch.square(p1 - p2)).item())
+        total_diff += torch.sum(torch.square(p1 - p2)).item()
+print(total_diff)
+
 
 # Move model to the designated device or delete model if it will not be used
 # any more

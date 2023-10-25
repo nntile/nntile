@@ -20,6 +20,7 @@ from nntile.layer import Linear, Embedding, AddSlice, LayerNorm, Attention, \
 import numpy as np
 from typing import List, Dict
 from nntile.layer.add import Add
+import torch
 
 class GPT2Config(Dict):
     def __init__(self, vocab_size: int, vocab_embed_dim_tile: int, \
@@ -110,14 +111,14 @@ class GPT2Model(BaseModel):
         # Check parameter side
         vocab_size = config["vocab_size"]
         vocab_embed_dim_tile = config["vocab_embed_dim_tile"]
-        embed_dim = config["embed_dim"]
+        self.embed_dim = config["embed_dim"]
         embed_dim_tile = config["embed_dim_tile"]
         max_position_embeddings = config["max_position_embeddings"]
         inner_dim = config["inner_dim"]
         inner_dim_tile = config["inner_dim_tile"]
         layer_norm_epsilon = config["layer_norm_epsilon"]
         num_hidden_layers = config["num_hidden_layers"]
-        n_head = config["n_head"]
+        self.n_head = config["n_head"]
         n_head_tile = config["n_head_tile"]
         flashattention = config["flashattention"]
         redux = config["redux"]
@@ -139,13 +140,13 @@ class GPT2Model(BaseModel):
         self.mask.from_array(mask_np)
 
         wte_layer, next_tag = Embedding.generate_simple(input_ids.value, \
-                Tensor_fp32, 0, vocab_size, embed_dim, embed_dim_tile, \
+                Tensor_fp32, 0, vocab_size, self.embed_dim, embed_dim_tile, \
                 vocab_embed_dim_tile, next_tag)
         layers.append(wte_layer)
         activations.extend(wte_layer.activations_output)
         
         wpe_layer, next_tag = Embedding.generate_simple(positional_ids.value, \
-                Tensor_fp32, 0, max_position_embeddings, embed_dim, \
+                Tensor_fp32, 0, max_position_embeddings, self.embed_dim, \
                 embed_dim_tile, vocab_embed_dim_tile, next_tag)
         layers.append(wpe_layer)
         activations.extend(wpe_layer.activations_output)
@@ -164,7 +165,7 @@ class GPT2Model(BaseModel):
 
             attn_layer, next_tag = AttLayer.generate_simple( \
                     activations[-1], activations[-1], activations[-1], \
-                    n_head, n_head_tile, next_tag, True, self.mask, \
+                    self.n_head, n_head_tile, next_tag, True, self.mask, \
                     redux=redux)
             layers.append(attn_layer)
             activations.extend(attn_layer.activations_output)
@@ -206,6 +207,71 @@ class GPT2Model(BaseModel):
         self.next_tag = next_tag
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
+
+    def to_torch(self, base_torch_model):
+        nntile_p_idx = 0
+        attn_embed_dim = self.embed_dim
+        attn_nheads = self.n_head
+        attn_head_size = attn_embed_dim // attn_nheads
+        for name, p in base_torch_model.named_parameters():
+            print(name)
+            layer_name = name.split(".")[-2]
+            if layer_name in ("lm_head",):
+                p_np = np.zeros(p.shape, dtype=np.float32)
+                self.parameters[nntile_p_idx].value.to_array(p_np)
+                p.data = torch.from_numpy(p_np)
+                nntile_p_idx += 1
+            elif layer_name == "c_attn" and name.split(".")[-1] == "weight":
+                # p_torch_np = p_torch.cpu().detach().numpy()
+                # Read Q, K and V weights
+                for i_tensor in range(3):
+                    p_nntile_np = np.zeros(self.parameters[nntile_p_idx].value.shape, dtype=np.float32)
+                    self.parameters[nntile_p_idx].value.to_array(p_nntile_np)
+                    cur_tensor = torch.from_numpy(p_nntile_np)
+                    cur_tensor2 = p[:, i_tensor*attn_embed_dim: (i_tensor+1)*attn_embed_dim].T \
+                            .reshape(attn_nheads, attn_head_size, attn_embed_dim)
+                    cur_tensor2 = cur_tensor
+                    nntile_p_idx += 1
+            elif layer_name == "c_attn" and name.split(".")[-1] == "bias":
+                # p_torch_np = p_torch.cpu().detach().numpy()
+                # Read Q, K and V biases
+                for i_tensor in range(3):
+                    p_nntile_np = np.zeros(self.parameters[nntile_p_idx].value.shape, dtype=np.float32)
+                    self.parameters[nntile_p_idx].value.to_array(p_nntile_np)
+                    cur_tensor = torch.from_numpy(p_nntile_np)
+                    cur_tensor2 = p[i_tensor*attn_embed_dim: \
+                            (i_tensor+1)*attn_embed_dim] \
+                            .reshape(attn_nheads, attn_head_size).T
+                    cur_tensor2 = cur_tensor
+                    nntile_p_idx += 1
+            elif layer_name == "c_proj" and name.split(".")[-3] == "attn":
+                # p_torch_np = p_torch.cpu().detach().numpy()
+                p_nntile = self.parameters[nntile_p_idx].value
+                p_nntile_np = np.zeros(p_nntile.shape, dtype=np.float32)
+                p_nntile.to_array(p_nntile_np)
+                if name.split(".")[-1] == "weight":
+                    init_shape = p.T.shape
+                    print(init_shape, p_nntile_np.shape)
+                    cur_tensor = torch.from_numpy(p_nntile_np)
+                    p.data = cur_tensor.reshape(init_shape,).T
+
+                #     cur_tensor = p.T.reshape(attn_embed_dim, attn_nheads, \
+                #             attn_head_size)
+                #     cur_tensor.data = torch.from_numpy(p_nntile_np)
+                #     p_nntile.value.from_array(p_torch_np.T \
+                #             .reshape(attn_embed_dim, attn_nheads, \
+                #             attn_head_size))
+                    nntile_p_idx += 1
+                elif name.split(".")[-1] == "bias":
+                #     p_nntile = gpt2_nntile.parameters[nntile_p_idx]
+                #     p_nntile.value.from_array(p_torch_np)
+                    p.data = torch.from_numpy(p_nntile_np)
+                    nntile_p_idx += 1
+            else:
+                p_np = np.zeros(p.shape, dtype=np.float32)
+                self.parameters[nntile_p_idx].value.to_array(p_np.T)
+                p.data = torch.from_numpy(p_np)
+                nntile_p_idx += 1
 
     @staticmethod
     def from_torch(torch_gpt2, batch_size: int, batch_size_tile: int, \
