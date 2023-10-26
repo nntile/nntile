@@ -214,10 +214,9 @@ class GPT2Model(BaseModel):
         attn_nheads = self.n_head
         attn_head_size = attn_embed_dim // attn_nheads
         for name, p in base_torch_model.named_parameters():
-            print(name)
             layer_name = name.split(".")[-2]
             if layer_name in ("lm_head",):
-                p_np = np.zeros(p.shape, dtype=np.float32)
+                p_np = np.array(np.zeros(p.shape, dtype=np.float32), order="F")
                 self.parameters[nntile_p_idx].value.to_array(p_np)
                 p.data = torch.from_numpy(p_np)
                 nntile_p_idx += 1
@@ -225,35 +224,31 @@ class GPT2Model(BaseModel):
                 # p_torch_np = p_torch.cpu().detach().numpy()
                 # Read Q, K and V weights
                 for i_tensor in range(3):
-                    p_nntile_np = np.zeros(self.parameters[nntile_p_idx].value.shape, dtype=np.float32)
+                    p_nntile_np = np.array(np.zeros(self.parameters[nntile_p_idx].value.shape, dtype=np.float32), order="F")
                     self.parameters[nntile_p_idx].value.to_array(p_nntile_np)
-                    cur_tensor = torch.from_numpy(p_nntile_np)
-                    cur_tensor2 = p[:, i_tensor*attn_embed_dim: (i_tensor+1)*attn_embed_dim].T \
-                            .reshape(attn_nheads, attn_head_size, attn_embed_dim)
-                    cur_tensor2 = cur_tensor
+                    init_shape = p[:, i_tensor*attn_embed_dim: (i_tensor+1)*attn_embed_dim].T.shape
+                    cur_tensor = torch.from_numpy(p_nntile_np).reshape(init_shape)
+                    
+                    p.data[:, i_tensor*attn_embed_dim: (i_tensor+1)*attn_embed_dim] = cur_tensor.T
                     nntile_p_idx += 1
             elif layer_name == "c_attn" and name.split(".")[-1] == "bias":
                 # p_torch_np = p_torch.cpu().detach().numpy()
                 # Read Q, K and V biases
                 for i_tensor in range(3):
-                    p_nntile_np = np.zeros(self.parameters[nntile_p_idx].value.shape, dtype=np.float32)
+                    p_nntile_np = np.array(np.zeros(self.parameters[nntile_p_idx].value.shape, dtype=np.float32), order="F")
                     self.parameters[nntile_p_idx].value.to_array(p_nntile_np)
                     cur_tensor = torch.from_numpy(p_nntile_np)
-                    cur_tensor2 = p[i_tensor*attn_embed_dim: \
-                            (i_tensor+1)*attn_embed_dim] \
-                            .reshape(attn_nheads, attn_head_size).T
-                    cur_tensor2 = cur_tensor
+                    p.data[i_tensor*attn_embed_dim: (i_tensor+1)*attn_embed_dim] = cur_tensor.T.reshape(-1)
                     nntile_p_idx += 1
             elif layer_name == "c_proj" and name.split(".")[-3] == "attn":
                 # p_torch_np = p_torch.cpu().detach().numpy()
                 p_nntile = self.parameters[nntile_p_idx].value
-                p_nntile_np = np.zeros(p_nntile.shape, dtype=np.float32)
+                p_nntile_np = np.array(np.zeros(p_nntile.shape, dtype=np.float32), order="F")
                 p_nntile.to_array(p_nntile_np)
                 if name.split(".")[-1] == "weight":
                     init_shape = p.T.shape
-                    print(init_shape, p_nntile_np.shape)
                     cur_tensor = torch.from_numpy(p_nntile_np)
-                    p.data = cur_tensor.reshape(init_shape,).T
+                    p.data = cur_tensor.reshape(init_shape).T
 
                 #     cur_tensor = p.T.reshape(attn_embed_dim, attn_nheads, \
                 #             attn_head_size)
@@ -268,9 +263,9 @@ class GPT2Model(BaseModel):
                     p.data = torch.from_numpy(p_nntile_np)
                     nntile_p_idx += 1
             else:
-                p_np = np.zeros(p.shape, dtype=np.float32)
-                self.parameters[nntile_p_idx].value.to_array(p_np.T)
-                p.data = torch.from_numpy(p_np)
+                p_np = np.array(np.zeros(self.parameters[nntile_p_idx].value.shape, dtype=np.float32), order="F")
+                self.parameters[nntile_p_idx].value.to_array(p_np)
+                p.data = torch.from_numpy(p_np.T)
                 nntile_p_idx += 1
 
     @staticmethod
@@ -317,6 +312,7 @@ class GPT2Model(BaseModel):
                             .reshape(attn_nheads, attn_head_size, \
                             attn_embed_dim))
                     nntile_p_idx += 1
+
             elif layer_name == "c_attn" and name.split(".")[-1] == "bias":
                 p_torch_np = p_torch.cpu().detach().numpy()
                 # Read Q, K and V biases

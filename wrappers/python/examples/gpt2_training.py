@@ -186,6 +186,16 @@ time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
 next_tag = 0
 
+optim = torch.optim.SGD(model_torch.parameters(), lr=1e-1)
+input_value = torch.randint(config.vocab_size, \
+            (args.minibatch_size, config.n_positions), dtype=torch.int64, \
+            device=args.torch_device)
+output = model_torch(input_value)
+val = torch.mean(output.logits)
+val.backward()
+optim.step()
+
+
 # Prepare GPT2 model based on the NNTile backend
 nntile_model_config = GPT2Config_nntile(config.vocab_size, args.n_embd_tile, \
         config.n_embd, args.n_embd_tile, config.max_position_embeddings, \
@@ -198,13 +208,15 @@ nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
 
 # Check that to_torch method works
 base_model_torch = GPT2LMHeadModel(config)
+base_model_torch.lm_head.weight = nn.Parameter(base_model_torch.lm_head \
+        .weight.detach().clone())
 nntile_model.to_torch(base_model_torch)
 
 total_diff = 0
 for p1, p2 in zip(model_torch.parameters(), base_model_torch.parameters()):
-        print(torch.sum(torch.square(p1 - p2)).item())
+        # print(torch.sum(torch.square(p1 - p2)).item(), torch.norm(p1).item())
         total_diff += torch.sum(torch.square(p1 - p2)).item()
-print(total_diff)
+print("Diff in nntile model and pytorch model after to_torch call =", total_diff)
 
 
 # Move model to the designated device or delete model if it will not be used
