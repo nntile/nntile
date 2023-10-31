@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-22
+ * @date 2023-09-19
  * */
 
 #pragma once
@@ -24,12 +24,12 @@ namespace tensor
 // Tensor-wise sum_fiber
 template<typename T>
 void sum_fiber_async(T alpha, const Tensor<T> &src, T beta,
-        const Tensor<T> &dst, Index axis, Index batch_ndim);
+        const Tensor<T> &dst, Index axis, Index batch_ndim, int redux=0);
 
 // Tensor-wise sum_fiber
 template<typename T>
 void sum_fiber(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
-        Index axis, Index batch_ndim);
+        Index axis, Index batch_ndim, int redux=0);
 
 } // namespace tensor
 } // namespace nntile

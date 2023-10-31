@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-26
+ * @date 2023-09-19
  * */
 
 #pragma once
@@ -23,11 +23,11 @@ namespace tensor
 
 template<typename T>
 void sumprod_slice_async(T alpha, const Tensor<T> &src1, const Tensor<T> &src2,
-        T beta, const Tensor<T> &dst, Index axis);
+        T beta, const Tensor<T> &dst, Index axis, int redux=0);
 
 template<typename T>
 void sumprod_slice(T alpha, const Tensor<T> &src1, const Tensor<T> &src2,
-        T beta, const Tensor<T> &dst, Index axis);
+        T beta, const Tensor<T> &dst, Index axis, int redux=0);
 
 } // namespace tensor
 } // namespace nntile

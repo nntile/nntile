@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-01
+ * @date 2023-05-06
  * */
 
 #include "nntile/tensor/clear.hh"
@@ -52,12 +52,18 @@ void clear_async<fp32_t>(const Tensor<fp32_t> &dst);
 template
 void clear_async<fp64_t>(const Tensor<fp64_t> &dst);
 
+template
+void clear_async<fp16_t>(const Tensor<fp16_t> &dst);
+
 // Explicit instantiation
 template
 void clear<fp32_t>(const Tensor<fp32_t> &dst);
 
 template
 void clear<fp64_t>(const Tensor<fp64_t> &dst);
+
+template
+void clear<fp16_t>(const Tensor<fp16_t> &dst);
 
 } // namespace tensor
 } // namespace nntile

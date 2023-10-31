@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-21
+ * @date 2023-09-19
  * */
 
 #include "nntile/tensor/embedding_backward.hh"
@@ -22,7 +22,7 @@ namespace tensor
 
 template<typename T>
 void embedding_backward_async(const Tensor<Index> &index,
-        const Tensor<T> &embed, const Tensor<T> &vocab, Index axis)
+        const Tensor<T> &embed, const Tensor<T> &vocab, Index axis, int redux)
 {
     // Check dimensions
     if(index.ndim+1 != embed.ndim)
@@ -103,7 +103,8 @@ void embedding_backward_async(const Tensor<Index> &index,
             k_start = (j-vocab_start) * vocab.basetile_shape[0];
             k_size = vocab.basetile_shape[0];
             starpu::embedding_backward::submit<T>(m, n, k, k_start, k_size,
-                    index_tile_handle, embed_tile_handle, vocab_tile_handle);
+                    index_tile_handle, embed_tile_handle, vocab_tile_handle,
+                    redux);
         }
     }
     // Flush cache for the output tile on every node
@@ -115,9 +116,9 @@ void embedding_backward_async(const Tensor<Index> &index,
 
 template<typename T>
 void embedding_backward(const Tensor<Index> &index, const Tensor<T> &embed,
-        const Tensor<T> &vocab, Index axis)
+        const Tensor<T> &vocab, Index axis, int redux)
 {
-    embedding_backward_async<T>(index, embed, vocab, axis);
+    embedding_backward_async<T>(index, embed, vocab, axis, redux);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -125,20 +126,24 @@ void embedding_backward(const Tensor<Index> &index, const Tensor<T> &embed,
 // Explicit instantiation
 template
 void embedding_backward_async<fp32_t>(const Tensor<Index> &index,
-        const Tensor<fp32_t> &embed, const Tensor<fp32_t> &vocab, Index axis);
+        const Tensor<fp32_t> &embed, const Tensor<fp32_t> &vocab, Index axis,
+        int redux);
 
 template
 void embedding_backward_async<fp64_t>(const Tensor<Index> &index,
-        const Tensor<fp64_t> &embed, const Tensor<fp64_t> &vocab, Index axis);
+        const Tensor<fp64_t> &embed, const Tensor<fp64_t> &vocab, Index axis,
+        int redux);
 
 // Explicit instantiation
 template
 void embedding_backward<fp32_t>(const Tensor<Index> &index,
-        const Tensor<fp32_t> &embed, const Tensor<fp32_t> &vocab, Index axis);
+        const Tensor<fp32_t> &embed, const Tensor<fp32_t> &vocab, Index axis,
+        int redux);
 
 template
 void embedding_backward<fp64_t>(const Tensor<Index> &index,
-        const Tensor<fp64_t> &embed, const Tensor<fp64_t> &vocab, Index axis);
+        const Tensor<fp64_t> &embed, const Tensor<fp64_t> &vocab, Index axis,
+        int redux);
 
 } // namespace tensor
 } // namespace nntile

@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Katrutsa
 # @author Aleksandr Mikhalev
-# @date 2023-07-22
+# @date 2023-09-14
 
 import nntile
 import numpy as np
@@ -142,11 +142,14 @@ class FusedAdam:
 
     def step(self):
         for i, p in enumerate(self.params):
-            nntile.tensor.fused_adam_step(p.value, p.grad, self.first_moments[i], self.second_moments[i],
-                                         self.lr, self.eps, self.beta1, self.beta2, self.weight_decay,
-                                         self.num_iter)
+            nntile.tensor.fused_adam_step(p.value, p.grad, \
+                    self.first_moments[i], self.second_moments[i], self.lr, \
+                    self.eps, self.beta1, self.beta2, self.weight_decay, \
+                    self.num_iter)
             p.value.wont_use()
-            p.grad.wont_use()
+            # dP can be deleted
+            #p.grad.wont_use()
+            p.grad.invalidate_submit()
             self.first_moments[i].wont_use()
             self.second_moments[i].wont_use()
         self.num_iter += 1

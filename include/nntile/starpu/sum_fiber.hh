@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev 
- * @date 2023-07-22
+ * @date 2023-09-19
  * */
 
 #pragma once
@@ -70,7 +70,7 @@ void restore_where();
 
 template<typename T>
 void submit(Index m, Index n, Index k, Index batch, T alpha, Handle src,
-        T beta, Handle dst);
+        T beta, Handle dst, int redux=0);
 
 } // namespace sum_fiber
 } // namespace starpu

@@ -9,10 +9,11 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-17
+# @date 2023-05-04
 
 from .base_model import BaseModel
 from .deep_linear import DeepLinear
 from .deep_relu import DeepReLU
+from .deep_relu_mp import DeepReLU_mp
 from .gpt2 import GPT2Config, GPT2Model
 from .mlp_mixer import MlpMixer

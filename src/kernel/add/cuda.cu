@@ -10,10 +10,12 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-07-02
+ * @author Konstantin Sozykin
+ * @date 2023-09-06
  * */
 
 #include "nntile/kernel/add/cuda.hh"
+#include <cuda_fp16.h>
 
 namespace nntile
 {
@@ -75,6 +77,23 @@ template
 void cuda<fp64_t>(cudaStream_t stream, Index nelems, fp64_t alpha,
         const fp64_t *src, fp64_t beta, fp64_t *dst)
     noexcept;
+
+// Explicit instantiation of cuda function for fp16 type
+void cuda16(cudaStream_t stream, Index nelems, fp32_t alpha, const fp16_t *src, fp32_t beta,
+        fp16_t *dst)
+    noexcept
+//! Add two buffers on CUDA in half precission, see in destiction in original template
+{
+
+    dim3 blocks((nelems+255)/256), threads(256);
+    __half alpha_half = __float2half(alpha);
+    __half beta_half = __float2half(beta); 
+    const __half *src_half = reinterpret_cast<const __half *>(src);
+    __half *dst_half = reinterpret_cast<__half *>(dst);
+    (cuda_kernel<__half>)<<<blocks, threads, 0, stream>>>(nelems, alpha_half, src_half, beta_half,
+            dst_half);
+}
+
 
 } // namespace add
 } // namespace kernel

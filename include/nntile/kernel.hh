@@ -11,11 +11,12 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-20
+ * @date 2023-09-20
  * */
 
 #pragma once
 
+#include <nntile/kernel/accumulate_maxsumexp.hh>
 #include <nntile/kernel/add_slice.hh>
 #include <nntile/kernel/add_slice3.hh>
 #include <nntile/kernel/add_fiber.hh>
@@ -33,6 +34,7 @@
 #include <nntile/kernel/prod.hh>
 #include <nntile/kernel/randn.hh>
 #include <nntile/kernel/relu.hh>
+#include <nntile/kernel/relu_forward.hh>
 #include <nntile/kernel/relu_backward.hh>
 #include <nntile/kernel/subcopy.hh>
 #include <nntile/kernel/sumnorm.hh>
@@ -59,6 +61,8 @@
 #include <nntile/kernel/add_scalar.hh>
 #include <nntile/kernel/embedding.hh>
 #include <nntile/kernel/embedding_backward.hh>
+#include <nntile/kernel/fp32_to_fp16.hh>
+#include <nntile/kernel/fp16_to_fp32.hh>
 #include <nntile/kernel/mask_scalar.hh>
 #include <nntile/kernel/scal.hh>
 #include <nntile/kernel/adam_step.hh>

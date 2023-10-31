@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-10
+ * @date 2023-09-15
  * */
 
 #include "nntile/tensor/gemm.hh"
@@ -339,18 +339,19 @@ void gemm_check(const TransOp &transA, const TensorTraits &A,
  * @param[inout] C: Output tensor C
  * @param[in] ndim: Number of dimensions used in gemm contraction
  * @param[in] batch_ndim: Number of last dimensions used for batching of gemms
+ * @param[in] redux: Whether or not to use STARPU_REDUX
  * */
-template<typename T>
-void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
-        const TransOp &transB, const Tensor<T> &B, T beta, const Tensor<T> &C,
-        Index ndim, Index batch_ndim)
+template<typename T, typename T_scal>
+void gemm_async(T_scal alpha, const TransOp &transA, const Tensor<T> &A,
+        const TransOp &transB, const Tensor<T> &B, T_scal beta,
+        const Tensor<T> &C, Index ndim, Index batch_ndim, int redux)
 {
     // Check inputs (throw exception in case of an error)
     gemm_check(transA, A, transB, B, C, ndim, batch_ndim);
     // Sizes of A, B and C as simple matrices (grids of tiles) for gemm
     int mpi_rank = starpu_mpi_world_rank();
     int ret;
-    constexpr T one = 1;
+    constexpr T_scal one = 1;
     Index m = C.grid.matrix_shape[A.ndim-batch_ndim-ndim][0];
     Index batch = C.grid.matrix_shape[C.ndim-batch_ndim][1];
     Index n = C.grid.matrix_shape[A.ndim-batch_ndim-ndim][1] / batch;
@@ -422,9 +423,10 @@ void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
                             tile_k = A_first_tile_traits.matrix_shape[ndim][0];
                             break;
                     }
-                    starpu::gemm::submit<T>(transA, transB, tile_m, tile_n,
+                    starpu::gemm::submit<T, T_scal>(transA, transB, tile_m,
+                            tile_n,
                             tile_k, tile_batch, alpha, A_first_tile_handle,
-                            B_first_tile_handle, beta, C_tile_handle);
+                            B_first_tile_handle, beta, C_tile_handle, redux);
                 }
                 // all other l>0
                 for(Index l = 1; l < k; ++l)
@@ -457,9 +459,10 @@ void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
                                 tile_k = A_tile_traits.matrix_shape[ndim][0];
                                 break;
                         }
-                        starpu::gemm::submit<T>(transA, transB, tile_m, tile_n,
+                        starpu::gemm::submit<T, T_scal>(transA, transB, tile_m,
+                                tile_n,
                                 tile_k, tile_batch, alpha, A_tile_handle,
-                                B_tile_handle, one, C_tile_handle);
+                                B_tile_handle, one, C_tile_handle, redux);
                     }
                 }
                 // Flush cache for the output tile on every node
@@ -482,39 +485,54 @@ void gemm_async(T alpha, const TransOp &transA, const Tensor<T> &A,
  * @param[in] ndim: Number of dimensions used in gemm contraction
  * @param[in] batch_ndim: Number of last dimensions used for batching of gemms
  * */
-template<typename T>
-void gemm(T alpha, const TransOp &transA, const Tensor<T> &A,
-        const TransOp &transB, const Tensor<T> &B, T beta, const Tensor<T> &C,
-        Index ndim, Index batch_ndim)
+template<typename T, typename T_scal>
+void gemm(T_scal alpha, const TransOp &transA, const Tensor<T> &A,
+        const TransOp &transB, const Tensor<T> &B, T_scal beta,
+        const Tensor<T> &C, Index ndim, Index batch_ndim, int redux)
 {
-    gemm_async<T>(alpha, transA, A, transB, B, beta, C, ndim, batch_ndim);
+    gemm_async<T, T_scal>(alpha, transA, A, transB, B, beta, C, ndim,
+            batch_ndim, redux);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void gemm_async<fp32_t>(fp32_t alpha, const TransOp &transA,
+void gemm_async<fp32_t, fp32_t>(fp32_t alpha, const TransOp &transA,
         const Tensor<fp32_t> &A,
         const TransOp &transB, const Tensor<fp32_t> &B, fp32_t beta,
-        const Tensor<fp32_t> &C, Index ndim, Index batch_ndim);
+        const Tensor<fp32_t> &C, Index ndim, Index batch_ndim, int redux);
 
 template
-void gemm_async<fp64_t>(fp64_t alpha, const TransOp &transA,
+void gemm_async<fp64_t, fp64_t>(fp64_t alpha, const TransOp &transA,
         const Tensor<fp64_t> &A,
         const TransOp &transB, const Tensor<fp64_t> &B, fp64_t beta,
-        const Tensor<fp64_t> &C, Index ndim, Index batch_ndim);
+        const Tensor<fp64_t> &C, Index ndim, Index batch_ndim, int redux);
+
+template
+void gemm_async<fp16_t, fp32_t>(fp32_t alpha, const TransOp &transA,
+        const Tensor<fp16_t> &A,
+        const TransOp &transB, const Tensor<fp16_t> &B, fp32_t beta,
+        const Tensor<fp16_t> &C, Index ndim, Index batch_ndim, int redux);
 
 // Explicit instantiation
 template
-void gemm<fp32_t>(fp32_t alpha, const TransOp &transA, const Tensor<fp32_t> &A,
+void gemm<fp32_t, fp32_t>(fp32_t alpha, const TransOp &transA,
+        const Tensor<fp32_t> &A,
         const TransOp &transB, const Tensor<fp32_t> &B, fp32_t beta,
-        const Tensor<fp32_t> &C, Index ndim, Index batch_ndim);
+        const Tensor<fp32_t> &C, Index ndim, Index batch_ndim, int redux);
 
 template
-void gemm<fp64_t>(fp64_t alpha, const TransOp &transA, const Tensor<fp64_t> &A,
+void gemm<fp64_t, fp64_t>(fp64_t alpha, const TransOp &transA,
+        const Tensor<fp64_t> &A,
         const TransOp &transB, const Tensor<fp64_t> &B, fp64_t beta,
-        const Tensor<fp64_t> &C, Index ndim, Index batch_ndim);
+        const Tensor<fp64_t> &C, Index ndim, Index batch_ndim, int redux);
+
+template
+void gemm<fp16_t, fp32_t>(fp32_t alpha, const TransOp &transA,
+        const Tensor<fp16_t> &A,
+        const TransOp &transB, const Tensor<fp16_t> &B, fp32_t beta,
+        const Tensor<fp16_t> &C, Index ndim, Index batch_ndim, int redux);
 
 } // namespace tensor
 } // namespace nntile

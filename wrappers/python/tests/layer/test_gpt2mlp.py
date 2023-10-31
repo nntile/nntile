@@ -10,10 +10,6 @@ from typing import Optional, Tuple
 from huggingface_activations import ACT2FN
 from gpt2_config import GPT2Config
 
-import os
-#os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"  
-#os.environ["CUDA_VISIBLE_DEVICES"]="5" # change 0  with whatever card is available
-
 batch_size = 100
 batch_size_tile = 10
 
@@ -30,8 +26,7 @@ class Conv1D(nn.Module):
         super().__init__()
         self.nf = nf
         self.weight = nn.Parameter(torch.empty(nx, nf))
-        # self.bias = nn.Parameter(torch.zeros(nf))
-        self.bias = torch.zeros(nf, device=device)
+        self.bias = nn.Parameter(torch.zeros(nf))
         nn.init.normal_(self.weight, std=0.02)
 
     def forward(self, x):
@@ -73,9 +68,9 @@ test_input_np = np.array(np.random.randn(input_dim, batch_size), \
 test_input = torch.from_numpy(test_input_np.T).to(device)
 hug_result = gpt2mlp_hug(test_input)
 print("Norm of the output of PyTorch GPT2MLP", \
-        torch.norm(hug_result, "fro").item())
+        torch.norm(hug_result).item())
 
-torch_val = torch.square(torch.norm(hug_result, "fro")) * 0.5
+torch_val = torch.square(torch.norm(hug_result)) * 0.5
 torch_val.backward()
 
 time0 = -time.time()
@@ -89,6 +84,8 @@ next_tag = 0
 nntile_config = {
     "embed_dim": input_dim,
     "embed_dim_tile": input_dim_tile,
+    "inner_dim": interm_size,
+    "inner_dim_tile": interm_size_tile,
     "interm_size": interm_size,
     "interm_size_tile": interm_size_tile,
     "activation_function": gpt2_config.activation_function
@@ -119,17 +116,18 @@ gpt2mlp_nntile.backward_async()
 output = np.zeros(gpt2mlp_nntile.activations[-1].value.shape, order="F", \
         dtype=np.float32)
 gpt2mlp_nntile.activations[-1].value.to_array(output)
-print("Norm of the output of Nntile GPT2MLP", np.linalg.norm(output, "fro"))
+print("Norm of the output of NNtile GPT2MLP", np.linalg.norm(output))
 print("Norm of difference =", np.linalg.norm(output.T - \
-        hug_result.cpu().detach().numpy(), "fro"))
+        hug_result.cpu().detach().numpy()))
 
 for i, (p_nntile, p_torch) in enumerate(zip(gpt2mlp_nntile.parameters, gpt2mlp_hug.parameters())):
     p_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
     p_nntile.grad.to_array(p_np)
     p_torch_np = p_torch.grad.cpu().detach().numpy().T
-    rel_error = np.linalg.norm(p_np - p_torch_np, "fro") \
-            / np.linalg.norm(p_torch_np, "fro")
+    rel_error = np.linalg.norm(p_np - p_torch_np) \
+            / np.linalg.norm(p_torch_np)
     print("Relative error in layer {} gradient = {}".format(i, rel_error))
 
 gpt2mlp_nntile.unregister()
+x.unregister()
 

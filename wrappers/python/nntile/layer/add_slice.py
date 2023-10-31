@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-16
+# @date 2023-09-29
 
 from .base_layer import BaseLayer
 from nntile.tensor import add_async, copy_async, add_slice_async, sum_slice_async
@@ -18,13 +18,19 @@ from nntile.tensor import TensorTraits, TensorMoments
 
 class AddSlice(BaseLayer):
 
-    def __init__(self, x: TensorMoments, y: TensorMoments, u: TensorMoments, axis: int):
+    def __init__(self, x: TensorMoments, y: TensorMoments, u: TensorMoments, \
+            axis: int, redux: bool=False):
         super().__init__([x, y], [u], [], [])
         # Set up local named parameters
         self.x = x
         self.y = y
+        self.y.grad.set_reduction_add()
         self.u = u
         self.axis = axis
+        if redux:
+            self.redux = 1
+        else:
+            self.redux = 0
 
     # Forward propagation of the add_slice layer
     def forward_async(self):
@@ -38,14 +44,16 @@ class AddSlice(BaseLayer):
 
     def backward_async(self):
         add_async(1, self.u.grad, 1, self.x.grad)
-        sum_slice_async(1, self.u.grad, 1, self.y.grad, self.axis)
+        sum_slice_async(1, self.u.grad, 1, self.y.grad, self.axis, \
+                redux=self.redux)
         self.x.grad.wont_use()
         self.y.grad.wont_use()
         self.u.grad.wont_use()
         
     # Simple generator for the add_slice layer
     @staticmethod
-    def generate_simple(x: TensorMoments, y: TensorMoments, axis: int,  next_tag: int):
+    def generate_simple(x: TensorMoments, y: TensorMoments, axis: int, \
+            next_tag: int, redux: bool=False):
         # Get traits of X
         u_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
         # Create Y with the same traits and distribution as X
@@ -55,7 +63,7 @@ class AddSlice(BaseLayer):
         next_tag = u_grad.next_tag
         u = TensorMoments(u_value, u_grad, True)
         # Create activation layer with all the provided tensors
-        layer = AddSlice(x, y, u, axis)
+        layer = AddSlice(x, y, u, axis, redux)
         # Return layer and next tag to be used
         return (layer, next_tag)
 

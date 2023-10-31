@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-21
+ * @date 2023-09-19
  * */
 
 #pragma once
@@ -24,12 +24,13 @@ namespace tensor
 // Tensor-wise embedding_backward operation
 template<typename T>
 void embedding_backward_async(const Tensor<Index> &index,
-        const Tensor<T> &vocab, const Tensor<T> &embed, Index axis);
+        const Tensor<T> &vocab, const Tensor<T> &embed, Index axis,
+        int redux=0);
 
 // Tensor-wise embedding_backward operation
 template<typename T>
 void embedding_backward(const Tensor<Index> &index, const Tensor<T> &vocab,
-        const Tensor<T> &embed, Index axis);
+        const Tensor<T> &embed, Index axis, int redux=0);
 
 } // namespace tensor
 } // namespace nntile

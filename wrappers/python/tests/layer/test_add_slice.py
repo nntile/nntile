@@ -46,7 +46,7 @@ class NNTileToyModel(BaseModel):
         activations = [x, y]
         layers = []
         new_layer, next_tag = Linear.generate_simple(x, "L", notrans,
-                1, [20], [20], next_tag)
+                1, [20], [20], next_tag, bias=False)
         
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
@@ -57,7 +57,7 @@ class NNTileToyModel(BaseModel):
         activations.extend(new_layer.activations_output)
 
         new_layer, next_tag = Linear.generate_simple(activations[1], "L", notrans,
-                1, [20], [20], next_tag)
+                1, [20], [20], next_tag, bias=False)
         
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
@@ -68,7 +68,7 @@ class NNTileToyModel(BaseModel):
         activations.extend(new_layer.activations_output)
 
         new_layer, next_tag = Linear.generate_simple(activations[-1], "L", notrans,
-                1, [10], [10], next_tag)
+                1, [10], [10], next_tag, bias=False)
         
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
@@ -105,7 +105,7 @@ class NNTileToyModel(BaseModel):
         return nntile_model, nntile_model.next_tag
 
 
-config = nntile.starpu.Config(-1, -1, 1)
+config = nntile.starpu.Config(1, -1, 1)
 nntile.starpu.init()
 next_tag = 0
 axis = 0

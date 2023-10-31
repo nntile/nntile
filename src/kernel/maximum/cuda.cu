@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-07-20
+ * @date 2023-09-12
  * */
 
 #include "nntile/kernel/maximum/cuda.hh"
@@ -45,7 +45,7 @@ void cuda(cudaStream_t stream, Index nelems, const T* src, T* dst)
  * @params[inout] dst: buffer for comparison and store maximum
  * */
 {
-    dim3 blocks(256), threads(256);
+    dim3 blocks((nelems+255)/256), threads(256);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
 }
 

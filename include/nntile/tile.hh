@@ -37,11 +37,13 @@
 #include <nntile/tile/dgelutanh.hh>
 #include <nntile/tile/drelu.hh>
 #include <nntile/tile/gemm.hh>
+#include <nntile/tile/gemm_ex.hh>
 #include <nntile/tile/nrm2.hh>
 #include <nntile/tile/normalize.hh>
 #include <nntile/tile/prod.hh>
 #include <nntile/tile/randn.hh>
 #include <nntile/tile/relu.hh>
+#include <nntile/tile/relu_forward.hh>
 #include <nntile/tile/relu_backward.hh>
 #include <nntile/tile/sumnorm.hh>
 #include <nntile/tile/fill.hh>
@@ -67,6 +69,8 @@
 #include <nntile/tile/gelutanh_backward.hh>
 #include <nntile/tile/add.hh>
 #include <nntile/tile/add_scalar.hh>
+#include <nntile/tile/fp32_to_fp16.hh>
+#include <nntile/tile/fp16_to_fp32.hh>
 #include <nntile/tile/mask_scalar.hh>
 #include <nntile/tile/hypot.hh>
 #include <nntile/tile/adam_step.hh>

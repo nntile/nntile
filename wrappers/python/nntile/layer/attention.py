@@ -10,13 +10,14 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-22
+# @date 2023-09-29
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
         maxsumexp_async, softmax_inplace_async, sumprod_slice_async, \
         add_slice_async, prod_async, mask_scalar_async, add_fiber_async, \
-        sum_fiber_async, transpose_async
+        sum_fiber_async, transpose_async, copy_async
+
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
@@ -63,16 +64,20 @@ class Attention(BaseLayer):
             b: TensorMoments, b_transposed: TensorMoments, \
             in_proj_bias_q: TensorMoments, in_proj_bias_k: TensorMoments, \
             in_proj_bias_v: TensorMoments, out_proj_bias: TensorMoments, \
-            mask=None):
+            mask=None, redux: bool=False):
         qkv_bias_list = []
         if in_proj_bias_q:
             qkv_bias_list.append(in_proj_bias_q)
+            in_proj_bias_q.grad.set_reduction_add()
         if in_proj_bias_k:
             qkv_bias_list.append(in_proj_bias_k)
+            in_proj_bias_k.grad.set_reduction_add()
         if in_proj_bias_v:
             qkv_bias_list.append(in_proj_bias_v)
+            in_proj_bias_v.grad.set_reduction_add()
         if out_proj_bias:
             bias_list_out_proj = [out_proj_bias]
+            out_proj_bias.grad.set_reduction_add()
         else:
             bias_list_out_proj = []
         # Redirect to BaseClass initialization
@@ -81,24 +86,44 @@ class Attention(BaseLayer):
                 [q_transposed, q, k_transposed, k, v_transposed, v, a, \
                 a_maxsumexp, a_sumprod_slice, b, b_transposed])
         self.x_q = x_q
+        self.x_q.grad.set_reduction_add()
         self.x_k = x_k
+        self.x_k.grad.set_reduction_add()
         self.x_v = x_v
+        self.x_v.grad.set_reduction_add()
         self.y = y
+        self.y.value.set_reduction_add()
         self.w_q = w_q
+        self.w_q.grad.set_reduction_add()
         self.w_k = w_k
+        self.w_k.grad.set_reduction_add()
         self.w_v = w_v
+        self.w_v.grad.set_reduction_add()
         self.w = w
+        self.w.grad.set_reduction_add()
         self.q_transposed = q_transposed
+        self.q_transposed.value.set_reduction_add()
         self.q = q
+        self.q.grad.set_reduction_add()
         self.k_transposed = k_transposed
+        self.k_transposed.value.set_reduction_add()
         self.k = k
+        self.k.grad.set_reduction_add()
         self.v_transposed = v_transposed
+        self.v_transposed.value.set_reduction_add()
         self.v = v
+        self.v.grad.set_reduction_add()
         self.a = a
+        self.a.value.set_reduction_add()
+        self.a.grad.set_reduction_add()
         self.a_maxsumexp = a_maxsumexp
+        self.a_maxsumexp.set_reduction_maxsumexp()
         self.a_sumprod_slice = a_sumprod_slice
+        self.a_sumprod_slice.set_reduction_add()
         self.b = b
+        self.b.value.set_reduction_add()
         self.b_transposed = b_transposed
+        self.b_transposed.grad.set_reduction_add()
         self.in_proj_bias_q = in_proj_bias_q
         self.in_proj_bias_k = in_proj_bias_k
         self.in_proj_bias_v = in_proj_bias_v
@@ -113,12 +138,16 @@ class Attention(BaseLayer):
         self.mask = mask
         if mask:
             self.val = -np.float32(np.inf)
+        if redux:
+            self.redux = 1
+        else:
+            self.redux = 0
 
     # Simple generator for the linear layer
     @staticmethod
     def generate_simple(x_q: TensorMoments, x_k: TensorMoments, \
-            x_v: TensorMoments, n_head: int, next_tag: int, bias=False, \
-            mask=None):
+            x_v: TensorMoments, n_head: int, n_head_tile: int, next_tag: int, \
+            bias=False, mask=None, redux: bool=False):
         # Get sizes
         n_emb, n_seq, n_batch = x_q.value.shape
         n_emb_tile, n_seq_tile, n_batch_tile = x_q.value.basetile_shape
@@ -138,8 +167,8 @@ class Attention(BaseLayer):
             raise ValueError("Invalid shape of x_v")
         if [n_seq_tile, n_batch_tile] != x_v.value.basetile_shape[1:]:
             raise ValueError("Invalid basetile shape of x_v")
-        # TODO: the following tile size is a hyperparameter
-        head_size_tile = x_q.value.basetile_shape[0]
+        # Fixed for now
+        head_size_tile = head_size
         # Define shape of each tensor
         w_q_shape = [n_head, head_size, n_emb]
         w_k_shape = [n_head, head_size, n_emb_k]
@@ -157,21 +186,21 @@ class Attention(BaseLayer):
         b_shape = [head_size, n_seq, n_batch, n_head]
         b_transposed_shape = [n_head, head_size, n_seq, n_batch]
         # Define tile shapes of each tensor
-        w_q_basetile = [n_head, head_size_tile, n_emb_tile]
-        w_k_basetile = [n_head, head_size_tile, n_emb_k_tile]
-        w_v_basetile = [n_head, head_size_tile, n_emb_v_tile]
-        w_basetile = [n_emb_tile, n_head, head_size_tile]
-        q_transposed_basetile = [n_head, head_size_tile, n_seq_tile, n_batch_tile]
-        q_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head]
-        k_transposed_basetile = [n_head, head_size_tile, n_seq_tile, n_batch_tile]
-        k_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head]
-        v_transposed_basetile = [n_head, head_size_tile, n_seq_tile, n_batch_tile]
-        v_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head]
-        a_basetile = [n_seq_tile, n_seq_tile, n_batch_tile, n_head]
-        a_maxsumexp_basetile = [2, n_seq_tile, n_batch_tile, n_head]
-        a_sumprod_slice_basetile = [n_seq_tile, n_batch_tile, n_head]
-        b_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head]
-        b_transposed_basetile = [n_head, head_size_tile, n_seq_tile, n_batch_tile]
+        w_q_basetile = [n_head_tile, head_size_tile, n_emb_tile]
+        w_k_basetile = [n_head_tile, head_size_tile, n_emb_k_tile]
+        w_v_basetile = [n_head_tile, head_size_tile, n_emb_v_tile]
+        w_basetile = [n_emb_tile, n_head_tile, head_size_tile]
+        q_transposed_basetile = [n_head_tile, head_size_tile, n_seq_tile, n_batch_tile]
+        q_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head_tile]
+        k_transposed_basetile = [n_head_tile, head_size_tile, n_seq_tile, n_batch_tile]
+        k_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head_tile]
+        v_transposed_basetile = [n_head_tile, head_size_tile, n_seq_tile, n_batch_tile]
+        v_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head_tile]
+        a_basetile = [n_seq_tile, n_seq_tile, n_batch_tile, n_head_tile]
+        a_maxsumexp_basetile = [2, n_seq_tile, n_batch_tile, n_head_tile]
+        a_sumprod_slice_basetile = [n_seq_tile, n_batch_tile, n_head_tile]
+        b_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head_tile]
+        b_transposed_basetile = [n_head_tile, head_size_tile, n_seq_tile, n_batch_tile]
         # Define traits
         w_q_traits = TensorTraits(w_q_shape, w_q_basetile)
         w_k_traits = TensorTraits(w_k_shape, w_k_basetile)
@@ -208,7 +237,7 @@ class Attention(BaseLayer):
         b_transposed_distr = [0] * b_transposed_traits.grid.nelems
         if bias:
             in_proj_bias_qkv_traits = TensorTraits([head_size, n_head], \
-                    [head_size_tile, n_head])
+                    [head_size_tile, n_head_tile])
             in_proj_bias_qkv_distr = [0] * in_proj_bias_qkv_traits.grid.nelems
         # Define all the lists
         # w_q
@@ -361,7 +390,7 @@ class Attention(BaseLayer):
         layer = Attention(x_q, x_k, x_v, y, w_q, w_k, w_v, w, q_transposed, \
                 q, k_transposed, k, v_transposed, v, a, a_maxsumexp, \
                 a_sumprod_slice, b, b_transposed, bias_inproj_q, \
-                bias_inproj_k, bias_inproj_v, out_proj_bias, mask)
+                bias_inproj_k, bias_inproj_v, out_proj_bias, mask, redux=redux)
         # Return layer and next tag to be used
         return (layer, next_tag)
 
@@ -372,12 +401,13 @@ class Attention(BaseLayer):
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w_q.value, notrans, \
-                self.x_q.value, 0.0, self.q_transposed.value, 1, 0)
+                self.x_q.value, 0.0, self.q_transposed.value, 1, 0, redux=self.redux)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.q_transposed.value, self.q.value, 1)
         # X_Q, W_Q and Q_transposed can be offloaded from GPU
         self.x_q.value.wont_use()
-        self.q_transposed.value.wont_use()
+        #self.q_transposed.value.wont_use()
+        self.q_transposed.value.invalidate_submit()
         self.w_q.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_q is not None:
@@ -390,12 +420,13 @@ class Attention(BaseLayer):
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w_k.value, notrans, \
-                self.x_k.value, 0.0, self.k_transposed.value, 1, 0)
+                self.x_k.value, 0.0, self.k_transposed.value, 1, 0, redux=self.redux)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.k_transposed.value, self.k.value, 1)
         # X_K, W_K and K_transposed can be offloaded from GPU
         self.x_k.value.wont_use()
-        self.k_transposed.value.wont_use()
+        #self.k_transposed.value.wont_use()
+        self.k_transposed.value.invalidate_submit()
         self.w_k.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_k is not None:
@@ -408,12 +439,13 @@ class Attention(BaseLayer):
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w_v.value, notrans, \
-                self.x_v.value, 0.0, self.v_transposed.value, 1, 0)
+                self.x_v.value, 0.0, self.v_transposed.value, 1, 0, redux=self.redux)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.v_transposed.value, self.v.value, 1)
         # X_V, W_V and V_transposed can be offloaded from GPU
         self.x_v.value.wont_use()
-        self.v_transposed.value.wont_use()
+        #self.v_transposed.value.wont_use()
+        self.v_transposed.value.invalidate_submit()
         self.w_v.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_v is not None:
@@ -428,7 +460,8 @@ class Attention(BaseLayer):
         # by (head_size, n_seq, batch=n_batch, batch=n_head) into
         # (n_seq, n_seq, batch=n_batch, batch=n_head)
         gemm_async(1.0/self.head_size**0.5, trans, self.k.value, \
-                notrans, self.q.value, 0.0, self.a.value, 1, 2)
+                notrans, self.q.value, 0.0, self.a.value, 1, 2, redux=self.redux)
+        clear_async(self.a_maxsumexp)
         # Q and K can be offloaded from GPU
         self.q.value.wont_use()
         self.k.value.wont_use()
@@ -439,19 +472,19 @@ class Attention(BaseLayer):
             mask_scalar_async(self.mask, self.val, self.a.value, 2)
             self.mask.wont_use()
         # Calculate max and sumexp along axis
-        maxsumexp_async(self.a.value, self.a_maxsumexp, 0)
+        maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=self.redux)
         # Finally, get the inplace softmax
         softmax_inplace_async(self.a_maxsumexp, self.a.value, 0)
         # A_maxsumexp can be deleted
-        #self.a_maxsumexp.invalidate_submit()
-        self.a_maxsumexp.wont_use()
+        #self.a_maxsumexp.wont_use()
+        self.a_maxsumexp.invalidate_submit()
         # Apply value tensor
         # B = einsum('jklb,kmlb->jmlb', V, A)
         # batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
         # by (n_seq, n_seq, batch=n_batch, batch=n_head) into
         # (head_size, n_seq, batch=n_batch, batch=n_head)
         gemm_async(1.0, notrans, self.v.value, notrans, \
-                self.a.value, 0.0, self.b.value, 1, 2)
+                self.a.value, 0.0, self.b.value, 1, 2, redux=self.redux)
         # V and A can be offloaded from GPU
         self.v.value.wont_use()
         self.a.value.wont_use()
@@ -463,10 +496,11 @@ class Attention(BaseLayer):
         # gemm (n_emb, n_head, head_size) by
         # (n_head, head_size, n_seq, n_batch) into (n_emb, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w.value, notrans, \
-                self.b_transposed.value, 0.0, self.y.value, 2, 0)
+                self.b_transposed.value, 0.0, self.y.value, 2, 0, redux=self.redux)
         # W, B and B_transposed can be offloaded from GPU
         self.w.value.wont_use()
-        self.b.value.wont_use()
+        #self.b.value.wont_use()
+        self.b.value.invalidate_submit()
         self.b_transposed.value.wont_use()
         # Apply bias if needed
         if self.out_proj_bias is not None:
@@ -481,21 +515,21 @@ class Attention(BaseLayer):
         if self.out_proj_bias is not None:
             if self.out_proj_bias.grad_required:
                 sum_fiber_async(1.0, self.y.grad, 1.0, \
-                        self.out_proj_bias.grad, 0, 0)
+                        self.out_proj_bias.grad, 0, 0, redux=self.redux)
                 self.out_proj_bias.grad.wont_use()
         # Backward for Y = einsum('jkl,klmn->jmn', W, B_transposed)
         if self.w.grad_required:
             # dW += einsum('jmn,klmn->jkl', dY, B_transposed)
             gemm_async(1.0, notrans, self.y.grad, trans, \
-                    self.b_transposed.value, 1.0, self.w.grad, 2, 0)
+                    self.b_transposed.value, 1.0, self.w.grad, 2, 0, redux=self.redux)
         # B_transposed can be deleted
-        #self.b_transposed.value.invalidate_submit()
-        self.b_transposed.value.wont_use()
+        #self.b_transposed.value.wont_use()
+        self.b_transposed.value.invalidate_submit()
         self.w.grad.wont_use()
         if self.b_transposed.grad_required:
             # dB_transposed = einsum('jkl,jmn->klmn', W, dY)
             gemm_async(1.0, trans, self.w.value, notrans, self.y.grad, \
-                    0.0, self.b_transposed.grad, 1, 0)
+                    0.0, self.b_transposed.grad, 1, 0, redux=self.redux)
         # W can be offloaded from GPU
         self.w.value.wont_use()
         # dY can be offloaded from GPU
@@ -505,37 +539,38 @@ class Attention(BaseLayer):
             # rotate axes (n_head, head_size, n_seq, n_batch) into
             # (head_size, n_seq, n_batch, n_head) and then
             transpose_async(1.0, self.b_transposed.grad, self.b.grad, 1)
-        self.b_transposed.grad.wont_use()
+        #self.b_transposed.grad.wont_use()
+        self.b_transposed.grad.invalidate_submit()
         # Backward for B = einsum('jklb,kmlb->jmlb', V, A)
         if self.a.grad_required:
             # dA = einsum('jklb,jmlb->kmlb', V, dB)
             gemm_async(1.0, trans, self.v.value, notrans, \
-                    self.b.grad, 0.0, self.a.grad, 1, 2)
+                    self.b.grad, 0.0, self.a.grad, 1, 2, redux=self.redux)
         # V can be deleted
-        #self.v.value.invalidate_submit()
-        self.v.value.wont_use()
+        #self.v.value.wont_use()
+        self.v.value.invalidate_submit()
         if self.v.grad_required:
             # dV = einsum('jmlb,kmlb->jklb', dB, A)
             gemm_async(1.0, notrans, self.b.grad, trans, \
-                    self.a.value, 0.0, self.v.grad, 1, 2)
+                    self.a.value, 0.0, self.v.grad, 1, 2, redux=self.redux)
         # dB can be deleted
-        #self.b.grad.invalidate_submit()
-        self.b.grad.wont_use()
+        #self.b.grad.wont_use()
+        self.b.grad.invalidate_submit()
         # Backward for A = softmax(A, axis=0)
         if self.a.grad_required:
             # A_sumprod_slice = einsum('kmlb,kmlb->mlb', A, dA)
             sumprod_slice_async(1.0, self.a.value, self.a.grad, \
-                    0.0, self.a_sumprod_slice, 0)
+                    0.0, self.a_sumprod_slice, 0, redux=self.redux)
             # dA += -bias('kmlb,mlb->kmlb', dA, A_sumprod_slice)
             add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
             # A_sumprod_slice can be deleted
-            #self.a_sumprod_slice.invalidate_submit()
-            self.a_sumprod_slice.wont_use()
+            #self.a_sumprod_slice.wont_use()
+            self.a_sumprod_slice.invalidate_submit()
             # dA *= A
             prod_async(self.a.value, self.a.grad)
         # A can be deleted
-        #self.a.value.invalidate_submit()
-        self.a.value.wont_use()
+        #self.a.value.wont_use()
+        self.a.value.invalidate_submit()
         # Backward for mask if needed
         if self.mask:
             mask_scalar_async(self.mask, 0, self.a.grad, 2)
@@ -545,37 +580,39 @@ class Attention(BaseLayer):
         if self.k.grad_required:
             # dK = 1.0/sqrt(head_size) * einsum('jmlb,kmlb->jklb', Q, dA)
             gemm_async(1.0/self.head_size**0.5, notrans, self.q.value, \
-                    trans, self.a.grad, 0.0, self.k.grad, 1, 2)
+                    trans, self.a.grad, 0.0, self.k.grad, 1, 2, redux=self.redux)
         # Q can be deleted
-        #self.q.value.invalidate_submit()
-        self.q.value.wont_use()
+        #self.q.value.wont_use()
+        self.q.value.invalidate_submit()
         if self.q.grad_required:
             # dQ = 1.0/sqrt(head_size) * einsum('jklb,kmlb->jmlb', K, dA)
             gemm_async(1.0/self.head_size**0.5, notrans, self.k.value, \
-                    notrans, self.a.grad, 0.0, self.q.grad, 1, 2)
+                    notrans, self.a.grad, 0.0, self.q.grad, 1, 2, redux=self.redux)
         # K can be deleted
-        #self.k.value.invalidate_submit()
-        self.k.value.wont_use()
+        #self.k.value.wont_use()
+        self.k.value.invalidate_submit()
         # dA can be deleted
-        #self.a.grad.invalidate_submit()
-        self.a.grad.wont_use()
+        #self.a.grad.wont_use()
+        self.a.grad.invalidate_submit()
         # Backward for bias of V
         if self.in_proj_bias_v is not None:
             if self.in_proj_bias_v.grad_required:
                 sum_fiber_async(1, self.v.grad, 1, self.in_proj_bias_v.grad, \
-                        0, 1)
+                        0, 1, redux=self.redux)
                 self.in_proj_bias_v.grad.wont_use()
         # Backward for axes rotation (V_transposed->V)
         if self.v_transposed.grad_required:
             # Rotate axes (head_size, n_seq, n_batch, n_head) into
             # (n_head, head_size, n_seq, n_batch)
             transpose_async(1.0, self.v.grad, self.v_transposed.grad, 3)
-        self.v.grad.wont_use()
+        # dV can be deleted
+        #self.v.grad.wont_use()
+        self.v.grad.invalidate_submit()
         # Backward for V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V)
         if self.x_v.grad_required:
             # dX_V += einsum('jkl,jkmn->lmn', W_V, dV_transposed)
             gemm_async(1.0, trans, self.w_v.value, notrans, \
-                    self.v_transposed.grad, 1.0, self.x_v.grad, 2, 0)
+                    self.v_transposed.grad, 1.0, self.x_v.grad, 2, 0, redux=self.redux)
         # W_V can be offloaded from GPU
         self.w_v.value.wont_use()
         # dX_V can be offloaded from GPU
@@ -583,31 +620,33 @@ class Attention(BaseLayer):
         if self.w_v.grad_required:
             # dW_V += einsum('jkmn,lmn->jkl', dV_transposed, X_V)
             gemm_async(1.0, notrans, self.v_transposed.grad, trans, \
-                    self.x_v.value, 1.0, self.w_v.grad, 2, 0)
+                    self.x_v.value, 1.0, self.w_v.grad, 2, 0, redux=self.redux)
         # dW_V can be offloaded from GPU
         self.w_v.grad.wont_use()
         # X_V can be offloaded from GPU
         self.x_v.value.wont_use()
         # dV_transposed can be deleted
-        #self.v_transposed.grad.invalidate_submit()
-        self.v_transposed.grad.wont_use()
+        #self.v_transposed.grad.wont_use()
+        self.v_transposed.grad.invalidate_submit()
         # Backward for bias of K
         if self.in_proj_bias_k is not None:
             if self.in_proj_bias_k.grad_required:
                 sum_fiber_async(1, self.k.grad, 1, self.in_proj_bias_k.grad, \
-                        0, 1)
+                        0, 1, redux=self.redux)
                 self.in_proj_bias_k.grad.wont_use()
         # Backward for axes rotation (K_transposed->K)
         if self.k_transposed.grad_required:
             # Rotate axes (head_size, n_seq, n_batch, n_head) into
             # (n_head, head_size, n_seq, n_batch)
             transpose_async(1.0, self.k.grad, self.k_transposed.grad, 3)
-        self.k.grad.wont_use()
+        # dK can be deleted
+        #self.k.grad.wont_use()
+        self.k.grad.invalidate_submit()
         # Backward for K_transposed = einsum('jkl,lmn->jkmn', W_K, X_K)
         if self.x_k.grad_required:
             # dX_K += einsum('jkl,jkmn->lmn', W_K, dK_transposed)
             gemm_async(1.0, trans, self.w_k.value, notrans, \
-                    self.k_transposed.grad, 1.0, self.x_k.grad, 2, 0)
+                    self.k_transposed.grad, 1.0, self.x_k.grad, 2, 0, redux=self.redux)
         # W_K can be offloaded from GPU
         self.w_k.value.wont_use()
         # dX_K can be offloaded from GPU
@@ -615,31 +654,33 @@ class Attention(BaseLayer):
         if self.w_k.grad_required:
             # dW_K += einsum('jkmn,lmn->jkl', dK_transposed, X_K)
             gemm_async(1.0, notrans, self.k_transposed.grad, trans, \
-                    self.x_k.value, 1.0, self.w_k.grad, 2, 0)
+                    self.x_k.value, 1.0, self.w_k.grad, 2, 0, redux=self.redux)
         # dW_K can be offloaded from GPU
         self.w_k.grad.wont_use()
         # X_K can be offloaded from GPU
         self.x_k.value.wont_use()
         # dK_transposed can be deleted
-        #self.k_transposed.grad.invalidate_submit()
-        self.k_transposed.grad.wont_use()
+        #self.k_transposed.grad.wont_use()
+        self.k_transposed.grad.invalidate_submit()
         # Backward for bias of Q
         if self.in_proj_bias_q is not None:
             if self.in_proj_bias_q.grad_required:
                 sum_fiber_async(1, self.q.grad, 1, self.in_proj_bias_q.grad, \
-                        0, 1)
+                        0, 1, redux=self.redux)
                 self.in_proj_bias_q.grad.wont_use()
         # Backward for axes rotation (Q_transposed->Q)
         if self.q_transposed.grad_required:
             # Rotate axes (head_size, n_seq, n_batch, n_head) into
             # (n_head, head_size, n_seq, n_batch)
             transpose_async(1.0, self.q.grad, self.q_transposed.grad, 3)
-        self.q.grad.wont_use()
+        # dQ can be deleted
+        #self.q.grad.wont_use()
+        self.q.grad.invalidate_submit()
         # Backward for Q_transposed = einsum('jkl,lmn->jkmn', W_Q, X_Q)
         if self.x_q.grad_required:
             # dX_Q += einsum('jkl,jkmn->lmn', W_Q, dQ_transposed)
             gemm_async(1.0, trans, self.w_q.value, notrans, \
-                    self.q_transposed.grad, 1.0, self.x_q.grad, 2, 0)
+                    self.q_transposed.grad, 1.0, self.x_q.grad, 2, 0, redux=self.redux)
             self.x_q.grad.wont_use()
         # W_Q can be offloaded from GPU
         self.w_q.value.wont_use()
@@ -648,12 +689,12 @@ class Attention(BaseLayer):
         if self.w_q.grad_required:
             # dW_Q += einsum('jkmn,lmn->jkl', dQ_transposed, X_Q)
             gemm_async(1.0, notrans, self.q_transposed.grad, trans, \
-                    self.x_q.value, 1.0, self.w_q.grad, 2, 0)
+                    self.x_q.value, 1.0, self.w_q.grad, 2, 0, redux=self.redux)
         # dW_Q can be offloaded from GPU
         self.w_q.grad.wont_use()
         # X_Q can be offloaded from GPU
         self.x_q.value.wont_use()
         # dQ_transposed can be deleted
-        #self.q_transposed.grad.invalidate_submit()
-        self.q_transposed.grad.wont_use()
+        #self.q_transposed.grad.wont_use()
+        self.q_transposed.grad.invalidate_submit()
 

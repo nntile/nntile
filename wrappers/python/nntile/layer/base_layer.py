@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-03-28
+# @date 2023-05-06
 
 from nntile.tensor import Tensor, TensorMoments, randn_async
 import numpy as np
@@ -62,5 +62,6 @@ class BaseLayer(object):
         for p in self.parameters:
             p.unregister()
         for t in self.temporaries:
-            t.unregister()
+            if t is not None:
+                t.unregister()
 

@@ -13,10 +13,6 @@ from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
 import time
 import nntile
 
-import os
-os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"  
-os.environ["CUDA_VISIBLE_DEVICES"]="5" # change 0  with whatever card is available
-
 
 
 class ToyFC_SkipConnectionTorch(nn.Module):
@@ -55,7 +51,7 @@ class ToyFC_SkipConnection(BaseModel):
         layers = []
         # Initial linear layer that converts input to internal shape
         new_layer, next_tag = Linear.generate_simple(x, "L", notrans,
-                1, [hidden_dim], [hidden_dim], next_tag)
+                1, [hidden_dim], [hidden_dim], next_tag, bias=False)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         # ReLU activation
@@ -66,7 +62,7 @@ class ToyFC_SkipConnection(BaseModel):
         # Linear layer
         new_layer, next_tag = Linear.generate_simple(
                     activations[-1], "L", notrans, 1, [hidden_dim],
-                    [hidden_dim], next_tag)
+                    [hidden_dim], next_tag, bias=False)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         # Add operation
@@ -81,7 +77,7 @@ class ToyFC_SkipConnection(BaseModel):
         activations.extend(new_layer.activations_output)
 
         new_layer, next_tag = Linear.generate_simple(activations[-1], "L", notrans,
-                1, [x.value.shape[1]], [x.value.shape[1]], next_tag)
+                1, [x.value.shape[1]], [x.value.shape[1]], next_tag, bias=False)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         self.next_tag = next_tag
@@ -101,7 +97,7 @@ class ToyFC_SkipConnection(BaseModel):
 
 time0 = -time.time()
 # Set up StarPU+MPI and init codelets
-config = nntile.starpu.Config(-1, -1, 1)
+config = nntile.starpu.Config(1, -1, 1)
 nntile.starpu.init()
 time0 += time.time()
 print("StarPU + NNTile + MPI init in {} seconds".format(time0))

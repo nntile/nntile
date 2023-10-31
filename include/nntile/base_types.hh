@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include <bitset>
+#include <cstdint>
 
 namespace nntile
 {
@@ -28,6 +28,12 @@ using Index = int64_t;
 using fp64_t = double;
 //! Single precision alias
 using fp32_t = float;
+//! Half precision FP16 mock type
+class fp16_t
+{
+private:
+    int16_t _;
+};
 
 // Boolean type for mask
 using bool_t = bool;

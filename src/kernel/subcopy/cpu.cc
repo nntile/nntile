@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-06-29
+ * @date 2023-09-01
  * */
 
 #include "nntile/kernel/subcopy/cpu.hh"
@@ -108,6 +108,12 @@ void cpu(Index ndim, const Index *src_start, const Index *src_stride,
 }
 
 // Explicit instantiation
+template
+void cpu<fp16_t>(Index ndim, const Index *src_start, const Index *src_stride,
+        const Index *copy_shape, const fp16_t *src, const Index *dst_start,
+        const Index *dst_stride, fp16_t *dst, Index *tmp_index)
+    noexcept;
+
 template
 void cpu<fp32_t>(Index ndim, const Index *src_start, const Index *src_stride,
         const Index *copy_shape, const fp32_t *src, const Index *dst_start,

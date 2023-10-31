@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-05
+ * @date 2023-09-12
  * */
 
 #pragma once
@@ -20,11 +20,36 @@
 #include <cstring>
 #include <iostream>
 #include <starpu.h>
-#include <starpu_mpi.h>
+// Disabled MPI for now
+//#include <starpu_mpi.h>
 #include <nntile/defs.h>
 
 namespace nntile
 {
+
+// Fake STARPU functions
+#define MPI_COMM_WORLD 0
+
+static int starpu_mpi_world_size()
+{
+    return 1;
+}
+
+static int starpu_mpi_world_rank()
+{
+    return 0;
+}
+
+static int starpu_mpi_wait_for_all(int comm)
+{
+    return 0;
+}
+
+static int starpu_mpi_barrier(int comm)
+{
+    return 0;
+}
+
 namespace starpu
 {
 
@@ -32,11 +57,9 @@ namespace starpu
 class Config: public starpu_conf
 {
     int cublas;
-    int initialized;
 public:
     explicit Config(int ncpus_=-1, int ncuda_=-1, int cublas_=-1)
     {
-        initialized = 0;
         starpu_fxt_autostart_profiling(0);
         // Init StarPU configuration with default values at first
         int ret = starpu_conf_init(this);
@@ -55,36 +78,26 @@ public:
         sched_policy_name = "dmda";
         // Save initial value
         cublas = cublas_;
-        // Init MPI and StarPU
-        init();
-    }
-    void init()
-    {
-        if(initialized == 0)
+        // Init StarPU (master-slave)
+        ret = starpu_init(this);
+        if(ret != 0)
         {
-            // Init StarPU+MPI and reserve a core for MPI thread
-            int ret = starpu_mpi_init_conf(nullptr, nullptr, 1, MPI_COMM_WORLD,
-                    this);
-            if(ret != 0)
-            {
-                throw std::runtime_error("Error in starpu_mpi_init_conf()");
-            }
-            else
-            {
-                int ncpus_ = starpu_worker_get_count_by_type(STARPU_CPU_WORKER);
-                int ncuda_ = starpu_worker_get_count_by_type(STARPU_CUDA_WORKER);
-                std::cout << "Initialized NCPU=" << ncpus_ << " NCUDA=" << ncuda_
-                    << "\n";
-            }
-#ifdef NNTILE_USE_CUDA
-            if(cublas != 0)
-            {
-                starpu_cublas_init();
-                std::cout << "Initialized cuBLAS\n";
-            }
-#endif // NNTILE_USE_CUDA
-            initialized = 1;
+            throw std::runtime_error("Error in starpu_initialize()");
         }
+        else
+        {
+            int ncpus_ = starpu_worker_get_count_by_type(STARPU_CPU_WORKER);
+            int ncuda_ = starpu_worker_get_count_by_type(STARPU_CUDA_WORKER);
+            std::cout << "Initialized NCPU=" << ncpus_ << " NCUDA=" << ncuda_
+                << "\n";
+        }
+#ifdef NNTILE_USE_CUDA
+        if(cublas != 0)
+        {
+            starpu_cublas_init();
+            std::cout << "Initialized cuBLAS\n";
+        }
+#endif // NNTILE_USE_CUDA
     }
     ~Config()
     {
@@ -92,19 +105,15 @@ public:
     }
     void shutdown()
     {
-        if(initialized)
-        {
 #ifdef NNTILE_USE_CUDA
-            if(cublas != 0)
-            {
-                starpu_cublas_shutdown();
-                std::cout << "Shutdown cuBLAS\n";
-            }
-#endif // NNTILE_USE_CUDA
-            starpu_mpi_shutdown();
-            initialized = 0;
-            std::cout << "Shutdown StarPU-MPI\n";
+        if(cublas != 0)
+        {
+            starpu_cublas_shutdown();
+            std::cout << "Shutdown cuBLAS\n";
         }
+#endif // NNTILE_USE_CUDA
+        starpu_shutdown();
+        std::cout << "Shutdown StarPU\n";
     }
     //! StarPU commute data access mode
     static constexpr starpu_data_access_mode STARPU_RW_COMMUTE
@@ -247,35 +256,37 @@ public:
     //! Get rank of the MPI node owning the data handle
     int mpi_get_rank() const
     {
-        return starpu_mpi_data_get_rank(handle.get());
+        return 0;
+        //return starpu_mpi_data_get_rank(handle.get());
     }
     //! Get tag of the data handle
     int mpi_get_tag() const
     {
-        return starpu_mpi_data_get_tag(handle.get());
+        return 0;
+        //return starpu_mpi_data_get_tag(handle.get());
     }
     //! Transfer data to a provided node rank
     void mpi_transfer(int dst_rank, int mpi_rank) const
     {
-        if(mpi_rank == dst_rank or mpi_rank == mpi_get_rank())
-        {
-            // This function shall be removed in near future, all data
-            // transfers shall be initiated by starpu_mpi_task_build and others
-            starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
-                    handle.get(), dst_rank, nullptr, nullptr);
-            //int ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
-            //        handle.get(), dst_rank, nullptr, nullptr);
-            //if(ret != 0)
-            //{
-            //    throw std::runtime_error("Error in starpu_mpi_get_data_on_"
-            //            "node_detached");
-            //}
-        }
+        //if(mpi_rank == dst_rank or mpi_rank == mpi_get_rank())
+        //{
+        //    // This function shall be removed in near future, all data
+        //    // transfers shall be initiated by starpu_mpi_task_build and others
+        //    starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
+        //            handle.get(), dst_rank, nullptr, nullptr);
+        //    //int ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
+        //    //        handle.get(), dst_rank, nullptr, nullptr);
+        //    //if(ret != 0)
+        //    //{
+        //    //    throw std::runtime_error("Error in starpu_mpi_get_data_on_"
+        //    //            "node_detached");
+        //    //}
+        //}
     }
     //! Flush cached data
     void mpi_flush() const
     {
-        starpu_mpi_cache_flush(MPI_COMM_WORLD, handle.get());
+        //starpu_mpi_cache_flush(MPI_COMM_WORLD, handle.get());
     }
 };
 

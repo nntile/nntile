@@ -30,7 +30,7 @@ void cuda_kernel(Index nelems, const T *src, T *dst)
     constexpr T pi = 3.141592653589793238462643383279502884L,
         one = 1, f1 = T{0.044715};
     // Square root is not constexpr by standard, proceed with a static const
-    const T sqrt_pi = sqrt(pi), sqrt_2 = sqrt(T{2}),
+    const T sqrt_pi = sqrt(pi), sqrt_2 = sqrt(T{2.0}),
         f2 = sqrt_2/sqrt_pi, f3 = -T{2}*f2, f4 = f3*f1;
     if(i < nelems)
     {

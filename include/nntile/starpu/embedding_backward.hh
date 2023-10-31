@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-21
+ * @date 2023-09-19
  * */
 
 #pragma once
@@ -68,7 +68,7 @@ void restore_where();
 
 template<typename T>
 void submit(Index m, Index n, Index k, Index k_start, Index k_size,
-        Handle index, Handle embed, Handle vocab);
+        Handle index, Handle embed, Handle vocab, int redux=0);
 
 } // namespace embedding_backward
 } // namespace starpu

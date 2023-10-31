@@ -10,7 +10,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-06-29
+# @date 2023-09-26
 
 
 ###############################################################################
@@ -21,13 +21,8 @@
 ###############################################################################
 
 # Set minimum CMake version to avoid configuration problems
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.24)
 message(STATUS "Using CMake ${CMAKE_VERSION}")
-# BLAS::BLAS target is added in version 3.18
-
-if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
-    cmake_policy(SET CMP0135 NEW)
-endif()
 
 # Define the project
 project(NNTile VERSION 1.0.0 LANGUAGES CXX)
@@ -49,15 +44,15 @@ option(BUILD_PYTHON_WRAPPERS "Generate Python wrappers" ON)
 # For easier code navigation and interaction in editors.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Specify the library
-add_library(nntile)
-
 # Set C++-17 standard publicly
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+# Specify the library
+add_library(nntile)
 
 # Add certain compilation flags for warnings etc
 #add_compile_options(-Wall -Wextra)# -Wpedantic-errors)
@@ -92,15 +87,15 @@ if(USE_CBLAS)
     endif()
 endif()
 
-# Get MPI
-find_package(MPI REQUIRED)
-target_link_libraries(nntile PUBLIC MPI::MPI_CXX)
+# Get MPI, disabled for StarPU master-slave option
+#find_package(MPI REQUIRED)
+#target_link_libraries(nntile PUBLIC MPI::MPI_CXX)
 
 # Get the pkg-config
 find_package(PkgConfig REQUIRED)
 
 # Get the StarPU
-pkg_check_modules(StarPU REQUIRED starpumpi-1.3)
+pkg_check_modules(StarPU REQUIRED starpu-1.4)
 target_link_libraries(nntile PUBLIC ${StarPU_LDFLAGS})
 target_include_directories(nntile PUBLIC
     "${PROJECT_SOURCE_DIR}/include"
@@ -130,6 +125,22 @@ configure_file("${PROJECT_SOURCE_DIR}/src/starpu/gemm.cc.in"
 # Configure tests/starpu/gemm.cc that relies on cblas
 configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/gemm.cc.in"
     "${PROJECT_BINARY_DIR}/tests/starpu/gemm.cc" @ONLY)
+
+# Configure src/starpu/flash_maxsumexp.cc that relies on cblas
+configure_file("${PROJECT_SOURCE_DIR}/src/starpu/flash_maxsumexp.cc.in"
+    "${PROJECT_BINARY_DIR}/src/starpu/flash_maxsumexp.cc" @ONLY)
+
+# Configure src/starpu/flash_softmax_gemm.cc that relies on cblas
+configure_file("${PROJECT_SOURCE_DIR}/src/starpu/flash_softmax_gemm.cc.in"
+    "${PROJECT_BINARY_DIR}/src/starpu/flash_softmax_gemm.cc" @ONLY)
+
+# Configure src/starpu/flash_softmax_gemm_backward_sumprod_slice.cc that relies on cblas
+configure_file("${PROJECT_SOURCE_DIR}/src/starpu/flash_softmax_gemm_backward_sumprod_slice.cc.in"
+    "${PROJECT_BINARY_DIR}/src/starpu/flash_softmax_gemm_backward_sumprod_slice.cc" @ONLY)
+
+# Configure src/starpu/flash_softmax_gemm_backward_dq_dk.cc that relies on cblas
+configure_file("${PROJECT_SOURCE_DIR}/src/starpu/flash_softmax_gemm_backward_dq_dk.cc.in"
+    "${PROJECT_BINARY_DIR}/src/starpu/flash_softmax_gemm_backward_dq_dk.cc" @ONLY)
 
 # Configure src/starpu/nrm2.cc that relies on cblas
 configure_file("${PROJECT_SOURCE_DIR}/src/starpu/nrm2.cc.in"

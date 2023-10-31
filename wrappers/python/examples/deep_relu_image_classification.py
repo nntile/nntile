@@ -10,9 +10,10 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-06-28
+# @date 2023-09-12
 
 # Imports
+import torch
 import nntile
 import numpy as np
 import time
@@ -37,10 +38,13 @@ parser.add_argument("--pixels_tile", type=int)
 parser.add_argument("--epoch", type=int)
 parser.add_argument("--epoch_warmup", type=int)
 parser.add_argument("--lr", type=float)
+parser.add_argument("--fp32_fast_fp16", action="store_true")
+parser.add_argument("--fp32_convert_fp16", action="store_true")
 
 # Parse arguments
 args = parser.parse_args()
 print(args)
+deep_relu_mp = False # Do not enable it, under construction
 
 if args.dataset == "mnist":
     dataset_transforms = transforms.Compose([transforms.ToTensor(), \
@@ -127,13 +131,21 @@ x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
 # Define deep ReLU network
 gemm_ndim = 1
-m = nntile.model.DeepReLU(x_moments, 'R', gemm_ndim, args.hidden_dim, \
-        args.hidden_dim_tile, args.depth, n_classes, next_tag)
+if deep_relu_mp:
+    m = nntile.model.DeepReLU_mp(x_moments, 'R', gemm_ndim, args.hidden_dim, \
+            args.hidden_dim_tile, args.depth, n_classes, next_tag)
+    print("GEMM FP16")
+else:
+    m = nntile.model.DeepReLU(x_moments, 'R', gemm_ndim, args.hidden_dim, \
+            args.hidden_dim_tile, args.depth, n_classes, next_tag, False, \
+            args.fp32_fast_fp16, args.fp32_convert_fp16)
+    print("GEMM FP32_FAST_FP16: {}".format(m.fp32_fast_fp16))
+    print("GEMM FP32_CONVERT_FP16: {}".format(m.fp32_convert_fp16))
 next_tag = m.next_tag
-
-# Set up Adam optimizer for training
+# Set up learning rate and optimizer for training
+#optimizer = nntile.optimizer.SGD(m.get_parameters(), args.lr, next_tag, \
+#        momentum=0.0, nesterov=False, weight_decay=0.0)
 optimizer = nntile.optimizer.Adam(m.get_parameters(), args.lr, next_tag)
-next_tag = optimizer.get_next_tag()
 
 # Set up Cross Entropy loss function for the model
 loss, next_tag = nntile.loss.CrossEntropy.generate_simple(m.activations[-1], \
@@ -205,10 +217,12 @@ print("Train GFLOPs/s (based on gemms): {}" \
 # Get inference rate based on train data
 time0 = -time.time()
 for x in batch_data:
-    nntile.tensor.copy_async(x, m.activations[0].value)
+    #nntile.tensor.copy_async(x, m.activations[0].value)
     m.forward_async()
-    for t in m.activations:
-        t.value.invalidate_submit()
+    #for t in m.activations:
+    #    t.value.wont_use()
+    #for p in m.parameters:
+    #    p.value.wont_use()
 nntile.starpu.wait_for_all()
 time0 += time.time()
 

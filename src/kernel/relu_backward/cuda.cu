@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-05-03
  * */
 
 #include "nntile/kernel/relu_backward/cuda.hh"
@@ -25,10 +25,9 @@ template<typename T>
 static __global__
 void cuda_kernel(Index nelems, const T *x, const T *dy, T *dx)
 {
-    int start = threadIdx.x + blockIdx.x*blockDim.x,
-        step = blockDim.x * gridDim.x;
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
     constexpr T zero = 0;
-    for(Index i = start; i < nelems; i += step)
+    if(i < nelems)
     {
         if(x[i] > zero)
         {
@@ -50,7 +49,7 @@ void cuda(cudaStream_t stream, Index nelems, const T *x, const T *dy, T *dx)
  * @params[inout] dx: Gradient over input of forward ReLU
  * */
 {
-    dim3 blocks(256), threads(32);
+    dim3 blocks((nelems+255)/256), threads(256);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, x, dy, dx);
 }
 

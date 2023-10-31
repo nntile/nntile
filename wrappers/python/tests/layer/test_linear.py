@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-03
+# @date 2023-09-02
 
 # All necesary imports
 import nntile
@@ -49,7 +49,7 @@ def helper_l(dtype: np.dtype):
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Define linear layer
     layer, next_tag = Linear.generate_simple(A_moments, 'L',
-            nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag, False)
+            nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag, bias=False)
     rand_W = np.random.randn(*layer.w.value.shape)
     np_W = np.array(rand_W, dtype=dtype, order='F')
     layer.w.value.from_array(np_W)
@@ -105,7 +105,7 @@ def helper_r(dtype: np.dtype):
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Define linear layer
     layer, next_tag = Linear.generate_simple(A_moments, 'R',
-            nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag, False)
+            nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag, bias=False)
     rand_W = np.random.randn(*layer.w.value.shape)
     np_W = np.array(rand_W, dtype=dtype, order='F')
     layer.w.value.from_array(np_W)
@@ -142,6 +142,62 @@ def helper_r(dtype: np.dtype):
     layer.unregister()
     return True
 
+# Helper function returns bool value true if test passes
+def helper_l_fp32_fast_fp16():
+    dtype = np.float32
+    # Describe single-tile tensor, located at node 0
+    A_shape = [4, 5, 6]
+    ndim = len(A_shape)
+    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
+    mpi_distr = [0]
+    next_tag = 0
+    # Tensor objects
+    A = Tensor[dtype](A_traits, mpi_distr, next_tag)
+    next_tag = A.next_tag
+    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
+    next_tag = A_grad.next_tag
+    # Set initial values of tensors
+    rand_A = np.random.randn(*A_shape)
+    np_A = np.array(rand_A, dtype=dtype, order='F')
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
+    # Define linear layer
+    layer, next_tag = Linear.generate_simple(A_moments, 'L',
+            nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag, \
+            fp32_fast_fp16=True, bias=False)
+    rand_W = np.random.randn(*layer.w.value.shape)
+    np_W = np.array(rand_W, dtype=dtype, order='F')
+    layer.w.value.from_array(np_W)
+    # Check result of forward pass layer.y.value
+    A.from_array(np_A)
+    layer.forward_async()
+    np_Y = np.tensordot(np_A, np_W, 2)
+    np_Y2 = np.zeros_like(np_Y, order='F')
+    layer.y.value.to_array(np_Y2)
+    if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > 1e-5:
+        A_moments.unregister()
+        layer.unregister()
+        return False
+    # Check results of backward pass layer.w.grad and layer.x.grad
+    layer.y.grad.from_array(np_Y)
+    layer.backward_async()
+    np_Z = np.einsum("ijk,ilm->jklm", np_A, np_Y2)
+    np_Z2 = np.zeros_like(np_Z, order='F')
+    layer.w.grad.to_array(np_Z2)
+    if np.linalg.norm(np_Z-np_Z2)/np.linalg.norm(np_Z) > 1e-5:
+        A_moments.unregister()
+        layer.unregister()
+        return False
+    np_Z3 = np.einsum("ijk,lmjk->ilm", np_Y2, np_W)
+    np_Z4 = np.zeros_like(np_Z3, order='F')
+    layer.x.grad.to_array(np_Z4)
+    if np.linalg.norm(np_Z3-np_Z4)/np.linalg.norm(np_Z3) > 1e-5:
+        A_moments.unregister()
+        layer.unregister()
+        return False
+    A_moments.unregister()
+    layer.unregister()
+    return True
+
 def helper_torch_l(x_shape, w_shape, b_shape, n_contracted_dim):
     '''
     y = x @ w + b
@@ -168,7 +224,7 @@ def helper_torch_l(x_shape, w_shape, b_shape, n_contracted_dim):
     layer, next_tag = Linear.generate_simple(A_moments, 'L', \
             nntile.tensor.notrans, n_contracted_dim, \
             [*w_shape[n_contracted_dim:]], \
-            [*w_shape[n_contracted_dim:]], next_tag, True)
+            [*w_shape[n_contracted_dim:]], next_tag, bias=True)
     
     np_W = np.array(w_torch.detach().numpy(), dtype=np.float32, order='F')
     layer.w.value.from_array(np_W)
@@ -193,7 +249,7 @@ def helper_torch_l(x_shape, w_shape, b_shape, n_contracted_dim):
         print("Output rel error = {}".format(output_rel_error))
         A_moments.unregister()
         layer.unregister()
-        return False
+        assert False
     
     nntile_w_grad = np.zeros(w_torch.shape, dtype=np.float32, order="F")
     layer.w.grad.to_array(nntile_w_grad)
@@ -204,7 +260,7 @@ def helper_torch_l(x_shape, w_shape, b_shape, n_contracted_dim):
         print("W grad rel error = {}".format(w_grad_rel_error))
         A_moments.unregister()
         layer.unregister()
-        return False
+        assert False
 
     nntile_b_grad = np.zeros(b_torch.shape, dtype=np.float32, order="F")
     layer.b.grad.to_array(nntile_b_grad)
@@ -216,7 +272,7 @@ def helper_torch_l(x_shape, w_shape, b_shape, n_contracted_dim):
         print("b grad rel error = {}".format(b_grad_rel_error))
         A_moments.unregister()
         layer.unregister()
-        return False
+        assert False
     
     nntile_x_grad = np.zeros(x_torch.shape, dtype=np.float32, order="F")
     A_moments.grad.to_array(nntile_x_grad)
@@ -227,7 +283,7 @@ def helper_torch_l(x_shape, w_shape, b_shape, n_contracted_dim):
         print("x grad rel error = {}".format(x_grad_rel_error))
         A_moments.unregister()
         layer.unregister()
-        return False
+        assert False
 
     A_moments.unregister()
     layer.unregister()
@@ -264,7 +320,7 @@ def helper_torch_r(x_shape, w_shape, b_shape, n_contracted_dim):
     layer, next_tag = Linear.generate_simple(A_moments, 'R', \
             nntile.tensor.notrans, n_contracted_dim, \
             [*w_shape[:-n_contracted_dim]], \
-            [*w_shape[:-n_contracted_dim]], next_tag, True)
+            [*w_shape[:-n_contracted_dim]], next_tag, bias=True)
     
     np_W = np.array(w_torch.detach().numpy(), dtype=np.float32, order='F')
     layer.w.value.from_array(np_W)
@@ -289,7 +345,7 @@ def helper_torch_r(x_shape, w_shape, b_shape, n_contracted_dim):
         print("Output rel error = {}".format(output_rel_error))
         A_moments.unregister()
         layer.unregister()
-        return False
+        assert False
     
     nntile_w_grad = np.zeros(w_torch.shape, dtype=np.float32, order="F")
     layer.w.grad.to_array(nntile_w_grad)
@@ -300,7 +356,7 @@ def helper_torch_r(x_shape, w_shape, b_shape, n_contracted_dim):
         print("W grad rel error = {}".format(w_grad_rel_error))
         A_moments.unregister()
         layer.unregister()
-        return False
+        assert False
 
     nntile_b_grad = np.zeros(b_torch.shape, dtype=np.float32, order="F")
     layer.b.grad.to_array(nntile_b_grad)
@@ -312,7 +368,7 @@ def helper_torch_r(x_shape, w_shape, b_shape, n_contracted_dim):
         print("b grad rel error = {}".format(b_grad_rel_error))
         A_moments.unregister()
         layer.unregister()
-        return False
+        assert False
     
     nntile_x_grad = np.zeros(x_torch.shape, dtype=np.float32, order="F")
     A_moments.grad.to_array(nntile_x_grad)
@@ -323,7 +379,7 @@ def helper_torch_r(x_shape, w_shape, b_shape, n_contracted_dim):
         print("x grad rel error = {}".format(x_grad_rel_error))
         A_moments.unregister()
         layer.unregister()
-        return False
+        assert False
 
     A_moments.unregister()
     layer.unregister()
@@ -350,7 +406,7 @@ def helper_torch_linear(x_shape, w_shape):
     # Define linear layer
     layer, next_tag = Linear.generate_simple(A_moments, 'L', \
             nntile.tensor.notrans, 1, [w_shape[1]], [w_shape[1]], next_tag, \
-            True)
+            bias=True)
     
     np_W = np.array(linear_layer.weight.detach().numpy(), dtype=np.float32, \
             order='F')
@@ -426,12 +482,14 @@ def test():
     for dtype in dtypes:
         assert helper_l(dtype)
         assert helper_r(dtype)
+    #assert helper_l_fp32_fast_fp16()
 
 # Repeat tests
 def test_repeat():
     for dtype in dtypes:
         assert helper_l(dtype)
         assert helper_r(dtype)
+    #assert helper_l_fp32_fast_fp16()
     assert helper_torch_l(x_shape=[20, 10],
                           w_shape=[10, 5], b_shape=[5],
                           n_contracted_dim=1)

@@ -10,12 +10,13 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-07-21
+# @date 2023-09-29
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         notrans, trans, Tensor_fp32, Tensor_int64, Tensor_bool
 from nntile.model.base_model import BaseModel
-from nntile.layer import Linear, Embedding, AddSlice, LayerNorm, Attention, Act
+from nntile.layer import Linear, Embedding, AddSlice, LayerNorm, Attention, \
+        FlashAttention, Act
 import numpy as np
 from typing import List, Dict
 from nntile.layer.add import Add
@@ -26,7 +27,8 @@ class GPT2Config(Dict):
             max_position_embeddings: int, \
             inner_dim: int, inner_dim_tile: int, \
             layer_norm_epsilon: float, num_hidden_layers: int, n_head: int, \
-            activation_function: str):
+            n_head_tile: int, activation_function: str, \
+            flashattention: bool=True, use_redux: bool=False):
         self["vocab_size"] = vocab_size
         self["vocab_embed_dim_tile"] = vocab_embed_dim_tile
         self["embed_dim"] = embed_dim
@@ -37,7 +39,10 @@ class GPT2Config(Dict):
         self["layer_norm_epsilon"] = layer_norm_epsilon
         self["num_hidden_layers"] = num_hidden_layers
         self["n_head"] = n_head
+        self["n_head_tile"] = n_head_tile
         self["activation_function"] = activation_function
+        self["flashattention"] = flashattention
+        self["redux"] = use_redux
 
     def __getattr__(self, attr):
         return self[attr]
@@ -55,10 +60,12 @@ class GPT2MLP(BaseModel):
         inner_dim = config["inner_dim"]
         inner_dim_tile = config["inner_dim_tile"]
         activation_function = config["activation_function"]
+        redux = config["redux"]
         gemm_ndim = 1
         # Initial linear layer that converts input to internal shape
-        new_layer, next_tag = Linear.generate_simple(x, "R", notrans,
-                gemm_ndim, [inner_dim], [inner_dim_tile], next_tag)
+        new_layer, next_tag = Linear.generate_simple(x, "R", notrans, \
+                gemm_ndim, [inner_dim], [inner_dim_tile], next_tag, \
+                redux=redux)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         
@@ -69,7 +76,7 @@ class GPT2MLP(BaseModel):
 
         new_layer, next_tag = Linear.generate_simple(activations[-1], \
                 "R", notrans, gemm_ndim, [embed_dim], [embed_dim_tile], \
-                next_tag)
+                next_tag, redux=redux)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         self.next_tag = next_tag
@@ -111,6 +118,13 @@ class GPT2Model(BaseModel):
         layer_norm_epsilon = config["layer_norm_epsilon"]
         num_hidden_layers = config["num_hidden_layers"]
         n_head = config["n_head"]
+        n_head_tile = config["n_head_tile"]
+        flashattention = config["flashattention"]
+        redux = config["redux"]
+        if flashattention:
+            AttLayer = FlashAttention
+        else:
+            AttLayer = Attention
         seq_len = input_ids.value.shape[0]
         seq_len_tile = input_ids.value.basetile_shape[0]
         activations = [input_ids, positional_ids]
@@ -137,20 +151,21 @@ class GPT2Model(BaseModel):
         activations.extend(wpe_layer.activations_output)
 
         add_slice_layer, next_tag = AddSlice.generate_simple(activations[-2], \
-                activations[-1], 2, next_tag)
+                activations[-1], 2, next_tag, redux=redux)
 
         layers.append(add_slice_layer)
         activations.extend(add_slice_layer.activations_output)
 
         for h_idx in range(num_hidden_layers):
             l_norm, next_tag = LayerNorm.generate_simple(activations[-1], 0, \
-                    layer_norm_epsilon, next_tag)
+                    layer_norm_epsilon, next_tag, redux=redux)
             layers.append(l_norm)
             activations.extend(l_norm.activations_output)
 
-            attn_layer, next_tag = Attention.generate_simple( \
+            attn_layer, next_tag = AttLayer.generate_simple( \
                     activations[-1], activations[-1], activations[-1], \
-                    n_head, next_tag, True, self.mask)
+                    n_head, n_head_tile, next_tag, True, self.mask, \
+                    redux=redux)
             layers.append(attn_layer)
             activations.extend(attn_layer.activations_output)
 
@@ -160,7 +175,7 @@ class GPT2Model(BaseModel):
             activations.extend(new_layer.activations_output)
 
             l_norm, next_tag = LayerNorm.generate_simple(activations[-1], 0, \
-                    layer_norm_epsilon, next_tag)
+                    layer_norm_epsilon, next_tag, redux=redux)
             layers.append(l_norm)
             activations.extend(l_norm.activations_output)
 
@@ -176,14 +191,14 @@ class GPT2Model(BaseModel):
             activations.extend(new_layer.activations_output)
 
         l_norm, next_tag = LayerNorm.generate_simple(activations[-1], 0, \
-                layer_norm_epsilon, next_tag)
+                layer_norm_epsilon, next_tag, redux=redux)
 
         layers.append(l_norm)
         activations.extend(l_norm.activations_output)
 
         lm_head_layer, next_tag = Linear.generate_simple( \
                 activations[-1], "R", notrans, 1, [vocab_size], [vocab_size], \
-                next_tag, False)
+                next_tag, False, redux=redux)
 
         layers.append(lm_head_layer)
         activations.extend(lm_head_layer.activations_output)

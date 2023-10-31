@@ -29,7 +29,7 @@ ENV STARPU_SILENT=1
 
 ENV OMP_NUM_THREADS=1
 
-ENV STARPU_VERSION=1.3.11
+ARG STARPU_VERSION=1.3.11
 
 RUN set -xe && \
     mkdir -p /usr/src && \
@@ -50,6 +50,7 @@ RUN set -xe && \
         --disable-starpupy \
         --enable-blas-lib=none \
         --enable-maxcudadev=8 \
+        --enable-maxbuffers=16 \
         --with-fxt && \
     make -j $MAKE_JOBS install && \
     rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_COMMIT && \
@@ -66,5 +67,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     GIST_PEDS=https://gist.githubusercontent.com/daskol/5513ff9c5b8a2d6b2a0e78f522dd2800 && \
     curl -SL $GIST_PEDS/raw/4e7b80e5f9d49c2e39cf8aa4e6b6b8b951724730/peds.py | \
     python - -i -e dev -e test \
-        --extra-index-url https://download.pytorch.org/whl/cpu \
         wrappers/python
+
+RUN apt update && \
+    apt install -y --no-install-recommends \
+    time && \
+    find /var/lib/apt/lists -type f -print -delete

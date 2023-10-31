@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-20
+ * @date 2023-09-28
  * */
 
 #pragma once
@@ -20,6 +20,9 @@
 #include <nntile/starpu/config.hh>
 
 // StarPU wrappers for low-level kernels
+#include <nntile/starpu/accumulate.hh>
+#include <nntile/starpu/accumulate_hypot.hh>
+#include <nntile/starpu/accumulate_maxsumexp.hh>
 #include <nntile/starpu/axpy.hh>
 #include <nntile/starpu/add_slice.hh>
 #include <nntile/starpu/add_slice3.hh>
@@ -28,6 +31,7 @@
 #include <nntile/starpu/prod_fiber.hh>
 #include <nntile/starpu/prod_fiber3.hh>
 #include <nntile/starpu/clear.hh>
+#include <nntile/starpu/copy.hh>
 #include <nntile/starpu/gelu.hh>
 #include <nntile/starpu/gelutanh.hh>
 #include <nntile/starpu/gelutanh_inplace.hh>
@@ -35,12 +39,15 @@
 #include <nntile/starpu/dgelutanh.hh>
 #include <nntile/starpu/drelu.hh>
 #include <nntile/starpu/gemm.hh>
+#include <nntile/starpu/gemm_ex.hh>
 #include <nntile/starpu/hypot.hh>
+#include <nntile/starpu/hypot_scalar_inverse.hh>
 #include <nntile/starpu/nrm2.hh>
 #include <nntile/starpu/normalize.hh>
 #include <nntile/starpu/prod.hh>
 #include <nntile/starpu/randn.hh>
 #include <nntile/starpu/relu.hh>
+#include <nntile/starpu/relu_forward.hh>
 #include <nntile/starpu/relu_backward.hh>
 #include <nntile/starpu/subcopy.hh>
 #include <nntile/starpu/sumnorm.hh>
@@ -49,8 +56,12 @@
 #include <nntile/starpu/sum_fiber.hh>
 #include <nntile/starpu/norm_slice.hh>
 #include <nntile/starpu/pow.hh>
+#include <nntile/starpu/flash_maxsumexp.hh>
 #include <nntile/starpu/maxsumexp.hh>
 #include <nntile/starpu/softmax.hh>
+#include <nntile/starpu/flash_softmax_gemm.hh>
+#include <nntile/starpu/flash_softmax_gemm_backward_sumprod_slice.hh>
+#include <nntile/starpu/flash_softmax_gemm_backward_dq_dk.hh>
 #include <nntile/starpu/softmax_inplace.hh>
 #include <nntile/starpu/sqrt.hh>
 #include <nntile/starpu/sqrt_inplace.hh>
@@ -69,6 +80,8 @@
 #include <nntile/starpu/add_scalar.hh>
 #include <nntile/starpu/embedding.hh>
 #include <nntile/starpu/embedding_backward.hh>
+#include <nntile/starpu/fp32_to_fp16.hh>
+#include <nntile/starpu/fp16_to_fp32.hh>
 #include <nntile/starpu/mask_scalar.hh>
 #include <nntile/starpu/adam_step.hh>
 #include <nntile/starpu/transpose.hh>
@@ -84,6 +97,9 @@ namespace starpu
 // Init all codelets
 void init()
 {
+    accumulate::init();
+    accumulate_hypot::init();
+    accumulate_maxsumexp::init();
     axpy::init();
     add_slice::init();
     add_slice3::init();
@@ -92,6 +108,7 @@ void init()
     prod_fiber::init();
     prod_fiber3::init();
     clear::init();
+    copy::init();
     gelu::init();
     gelutanh::init();
     gelutanh_inplace::init();
@@ -99,11 +116,14 @@ void init()
     dgelutanh::init();
     drelu::init();
     gemm::init();
+    gemm_ex::init();
     hypot::init();
+    hypot_scalar_inverse::init();
     nrm2::init();
     normalize::init();
     randn::init();
     relu::init();
+    relu_forward::init();
     relu_backward::init();
     prod::init();
     subcopy::init();
@@ -115,6 +135,10 @@ void init()
     pow::init();
     softmax::init();
     softmax_inplace::init();
+    flash_softmax_gemm::init();
+    flash_softmax_gemm_backward_sumprod_slice::init();
+    flash_softmax_gemm_backward_dq_dk::init();
+    flash_maxsumexp::init();
     maxsumexp::init();
     sqrt::init();
     sqrt_inplace::init();
@@ -133,6 +157,8 @@ void init()
     add_scalar::init();
     embedding::init();
     embedding_backward::init();
+    fp32_to_fp16::init();
+    fp16_to_fp32::init();
     mask_scalar::init();
     adam_step::init();
     transpose::init();
@@ -141,6 +167,9 @@ void init()
 // Restrict StarPU codelets to certain computational units
 void restrict_where(uint32_t where)
 {
+    accumulate::restrict_where(where);
+    accumulate_hypot::restrict_where(where);
+    accumulate_maxsumexp::restrict_where(where);
     axpy::restrict_where(where);
     add_slice::restrict_where(where);
     add_slice3::restrict_where(where);
@@ -149,6 +178,7 @@ void restrict_where(uint32_t where)
     prod_fiber::restrict_where(where);
     prod_fiber3::restrict_where(where);
     clear::restrict_where(where);
+    copy::restrict_where(where);
     gelu::restrict_where(where);
     gelutanh::restrict_where(where);
     gelutanh_inplace::restrict_where(where);
@@ -156,12 +186,15 @@ void restrict_where(uint32_t where)
     dgelutanh::restrict_where(where);
     drelu::restrict_where(where);
     gemm::restrict_where(where);
+    gemm_ex::restrict_where(where);
     hypot::restrict_where(where);
+    hypot_scalar_inverse::restrict_where(where);
     nrm2::restrict_where(where);
     normalize::restrict_where(where);
     prod::restrict_where(where);
     randn::restrict_where(where);
     relu::restrict_where(where);
+    relu_forward::restrict_where(where);
     relu_backward::restrict_where(where);
     subcopy::restrict_where(where);
     sumnorm::restrict_where(where);
@@ -172,6 +205,10 @@ void restrict_where(uint32_t where)
     pow::restrict_where(where);
     softmax::restrict_where(where);
     softmax_inplace::restrict_where(where);
+    flash_softmax_gemm::restrict_where(where);
+    flash_softmax_gemm_backward_sumprod_slice::restrict_where(where);
+    flash_softmax_gemm_backward_dq_dk::restrict_where(where);
+    flash_maxsumexp::restrict_where(where);
     maxsumexp::restrict_where(where);
     sqrt::restrict_where(where);
     sqrt_inplace::restrict_where(where);
@@ -190,6 +227,8 @@ void restrict_where(uint32_t where)
     add_scalar::restrict_where(where);
     embedding::restrict_where(where);
     embedding_backward::restrict_where(where);
+    fp32_to_fp16::restrict_where(where);
+    fp16_to_fp32::restrict_where(where);
     mask_scalar::restrict_where(where);
     adam_step::restrict_where(where);
     transpose::restrict_where(where);
@@ -198,6 +237,9 @@ void restrict_where(uint32_t where)
 // Restore computational units for StarPU codelets
 void restore_where()
 {
+    accumulate::restore_where();
+    accumulate_hypot::restore_where();
+    accumulate_maxsumexp::restore_where();
     axpy::restore_where();
     add_slice::restore_where();
     add_slice3::restore_where();
@@ -206,6 +248,7 @@ void restore_where()
     prod_fiber::restore_where();
     prod_fiber3::restore_where();
     clear::restore_where();
+    copy::restore_where();
     gelu::restore_where();
     gelutanh::restore_where();
     gelutanh_inplace::restore_where();
@@ -213,12 +256,15 @@ void restore_where()
     dgelutanh::restore_where();
     drelu::restore_where();
     gemm::restore_where();
+    gemm_ex::restore_where();
     hypot::restore_where();
+    hypot_scalar_inverse::restore_where();
     nrm2::restore_where();
     normalize::restore_where();
     prod::restore_where();
     randn::restore_where();
     relu::restore_where();
+    relu_forward::restore_where();
     relu_backward::restore_where();
     subcopy::restore_where();
     sumnorm::restore_where();
@@ -229,6 +275,10 @@ void restore_where()
     pow::restore_where();
     softmax::restore_where();
     softmax_inplace::restore_where();
+    flash_softmax_gemm::restore_where();
+    flash_softmax_gemm_backward_sumprod_slice::restore_where();
+    flash_softmax_gemm_backward_dq_dk::restore_where();
+    flash_maxsumexp::restore_where();
     maxsumexp::restore_where();
     sqrt::restore_where();
     sqrt_inplace::restore_where();
@@ -247,6 +297,8 @@ void restore_where()
     add_scalar::restore_where();
     embedding::restore_where();
     embedding_backward::restore_where();
+    fp32_to_fp16::restore_where();
+    fp16_to_fp32::restore_where();
     mask_scalar::restore_where();
     adam_step::restore_where();
     transpose::restore_where();

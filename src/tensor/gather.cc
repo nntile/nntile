@@ -9,11 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-06-29
+ * @date 2023-09-18
  * */
 
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
+#include "nntile/starpu/copy.hh"
 
 namespace nntile
 {
@@ -54,14 +55,7 @@ void gather_async(const Tensor<T> &src, const Tensor<T> &dst)
         // Execute on destination node
         if(mpi_rank == dst_tile_rank)
         {
-            ret = starpu_data_cpy(
-                    static_cast<starpu_data_handle_t>(dst_tile_handle),
-                    static_cast<starpu_data_handle_t>(src_tile_handle),
-                    1, nullptr, nullptr);
-            if(ret != 0)
-            {
-                throw std::runtime_error("Error in starpu_data_cpy");
-            }
+            starpu::copy::submit(src_tile_handle, dst_tile_handle);
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
@@ -138,6 +132,10 @@ void gather(const Tensor<T> &src, const Tensor<T> &dst)
 
 // Explicit instantiation
 template
+void gather_async<fp16_t>(const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst);
+
+template
 void gather_async<fp32_t>(const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
 
@@ -154,6 +152,9 @@ void gather_async<bool_t>(const Tensor<bool_t> &src,
         const Tensor<bool_t> &dst);
 
 // Explicit instantiation
+template
+void gather<fp16_t>(const Tensor<fp16_t> &src, const Tensor<fp16_t> &dst);
+
 template
 void gather<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 

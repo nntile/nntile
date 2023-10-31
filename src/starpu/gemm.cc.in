@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-15
+ * @date 2023-09-15
  * */
 
 #include "nntile/starpu/gemm.hh"
@@ -24,6 +24,7 @@
 #ifdef NNTILE_USE_CUDA
 #   include <cublas_v2.h>
 #   include <starpu_cublas_v2.h>
+#   include <cuda_fp16.h>
 #endif // NNTILE_USE_CUDA
 
 namespace nntile
@@ -118,6 +119,24 @@ void cpu(void *buffers[], void *cl_args)
 static inline
 void cublas(cublasHandle_t handle, cublasOperation_t transA,
         cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
+        const fp16_t *A, int ldA, const fp16_t *B, int ldB, fp32_t beta,
+        fp16_t *C, int ldC)
+    noexcept
+{
+    const __half alpha_half = __float2half(alpha),
+          beta_half = __float2half(beta);
+    cublasHgemm(handle, transA, transB, M, N, K,
+            &alpha_half,
+            reinterpret_cast<const __half *>(A), ldA,
+            reinterpret_cast<const __half *>(B), ldB,
+            &beta_half,
+            reinterpret_cast<__half *>(C), ldC);
+}
+
+// Overloaded call to cuBLAS GEMM
+static inline
+void cublas(cublasHandle_t handle, cublasOperation_t transA,
+        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
         const fp32_t *A, int ldA, const fp32_t *B, int ldB, fp32_t beta,
         fp32_t *C, int ldC)
     noexcept
@@ -136,6 +155,23 @@ void cublas(cublasHandle_t handle, cublasOperation_t transA,
 {
     cublasDgemm(handle, transA, transB, M, N, K, &alpha, A, ldA, B, ldB, &beta,
             C, ldC);
+}
+
+// Overloaded call to batched cuBLAS gemm
+static inline
+void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
+        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
+        const fp16_t *A, int ldA, long long int strideA, const fp16_t *B,
+        int ldB, long long int strideB, fp32_t beta, fp16_t *C, int ldC,
+        long long int strideC, int batchCount)
+    noexcept
+{
+    const __half alpha_half = __float2half(alpha),
+          beta_half = __float2half(beta);
+    cublasHgemmStridedBatched(handle, transA, transB, M, N, K, &alpha_half,
+            reinterpret_cast<const __half *>(A), ldA, strideA,
+            reinterpret_cast<const __half *>(B), ldB, strideB, &beta_half,
+            reinterpret_cast<__half *>(C), ldC, strideC, batchCount);
 }
 
 // Overloaded call to batched cuBLAS gemm
@@ -165,12 +201,12 @@ void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
 }
 
 //! GEMM for contiguous matrices without padding through StarPU buffers
-template<typename T>
+template<typename T, typename T_scal>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t<T_scal> *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     // Launch kernel
@@ -229,15 +265,15 @@ void cuda(void *buffers[], void *cl_args)
 #endif //NNTILE_USE_CUDA
 
 //! Footprint for GEMM tasks that depends only on M, N, K and alpha
-template<typename T>
+template<typename T_scal>
 static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
+    auto args = reinterpret_cast<args_t<T_scal> *>(task->cl_arg);
     // In case alpha is zero, entire gemm is unnecessary so it is better to
     // give it a different footprint since gemm time will be totally different
-    uint32_t hash = args->alpha == T{0} ? -1 : 0;
+    uint32_t hash = args->alpha == T_scal{0} ? -1 : 0;
     // Apply hash over parameters M, N and K. This way if we swap values of M,
     // N and K total size of buffers will remain the same, but the footprint
     // will be different
@@ -251,6 +287,8 @@ uint32_t footprint(struct starpu_task *task)
 Codelet codelet_NN_fp32, codelet_NN_fp64, codelet_NT_fp32, codelet_NT_fp64,
         codelet_TN_fp32, codelet_TN_fp64, codelet_TT_fp32, codelet_TT_fp64;
 
+Codelet codelet_NN_fp16, codelet_NT_fp16, codelet_TN_fp16, codelet_TT_fp16;
+
 void init()
 {
     codelet_NN_fp32.init("nntile_gemm_NN_fp32",
@@ -261,7 +299,7 @@ void init()
             {},
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
+            {cuda<fp32_t, fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -274,7 +312,7 @@ void init()
             {},
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
+            {cuda<fp64_t, fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -287,7 +325,7 @@ void init()
             {},
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
+            {cuda<fp32_t, fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -300,7 +338,7 @@ void init()
             {},
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
+            {cuda<fp64_t, fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -313,7 +351,7 @@ void init()
             {},
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
+            {cuda<fp32_t, fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -326,7 +364,7 @@ void init()
             {},
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
+            {cuda<fp64_t, fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -339,7 +377,7 @@ void init()
             {},
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
+            {cuda<fp32_t, fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -352,7 +390,43 @@ void init()
             {},
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
+            {cuda<fp64_t, fp64_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_NN_fp16.init("nntile_gemm_NN_fp16",
+            footprint<fp32_t>, // Scalars are fp32_t
+            {},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp16_t, fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_NT_fp16.init("nntile_gemm_NT_fp16",
+            footprint<fp32_t>, // Scalars are fp32_t
+            {},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp16_t, fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_TN_fp16.init("nntile_gemm_TN_fp16",
+            footprint<fp32_t>, // Scalars are fp32_t
+            {},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp16_t, fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_TT_fp16.init("nntile_gemm_TT_fp16",
+            footprint<fp32_t>, // Scalars are fp32_t
+            {},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp16_t, fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -369,6 +443,10 @@ void restrict_where(uint32_t where)
     codelet_TN_fp64.restrict_where(where);
     codelet_TT_fp32.restrict_where(where);
     codelet_TT_fp64.restrict_where(where);
+    codelet_NN_fp16.restrict_where(where);
+    codelet_NT_fp16.restrict_where(where);
+    codelet_TN_fp16.restrict_where(where);
+    codelet_TT_fp16.restrict_where(where);
 }
 
 void restore_where()
@@ -381,11 +459,16 @@ void restore_where()
     codelet_TN_fp64.restore_where();
     codelet_TT_fp32.restore_where();
     codelet_TT_fp64.restore_where();
+    codelet_NN_fp16.restore_where();
+    codelet_NT_fp16.restore_where();
+    codelet_TN_fp16.restore_where();
+    codelet_TT_fp16.restore_where();
 }
 
-template<typename T>
+template<typename T, typename T_scal>
 void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
-        Index k, Index batch, T alpha, Handle A, Handle B, T beta, Handle C)
+        Index k, Index batch, T_scal alpha, Handle A, Handle B, T_scal beta,
+        Handle C, int redux)
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
 #ifdef NNTILE_USE_CBLAS
@@ -417,7 +500,7 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
         throw std::runtime_error("GEMM size K does not fit int");
     }
 #endif // NNTILE_USE_CUDA
-    constexpr T zero = 0, one = 1;
+    constexpr T_scal zero = 0, one = 1;
     enum starpu_data_access_mode C_mode;
     if(beta == zero)
     {
@@ -425,14 +508,22 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
     }
     else if(beta == one)
     {
-        C_mode = Config::STARPU_RW_COMMUTE;
+        if(redux != 0)
+        {
+            C_mode = STARPU_REDUX;
+            //C_mode = Config::STARPU_RW_COMMUTE;
+        }
+        else
+        {
+            C_mode = Config::STARPU_RW_COMMUTE;
+        }
     }
     else
     {
         C_mode = STARPU_RW;
     }
     // Codelet arguments
-    auto args = new args_t<T>
+    auto args = new args_t<T_scal>
     {
         .transA = transA,
         .transB = transB,
@@ -461,14 +552,19 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
 
 // Explicit instantiation
 template
-void submit<fp32_t>(const TransOp &transA, const TransOp &transB, Index m,
-        Index n, Index k, Index batch, fp32_t alpha, Handle A, Handle B,
-        fp32_t beta, Handle C);
+void submit<fp16_t, fp32_t>(const TransOp &transA, const TransOp &transB,
+        Index m, Index n, Index k, Index batch, fp32_t alpha, Handle A,
+        Handle B, fp32_t beta, Handle C, int redux);
 
 template
-void submit<fp64_t>(const TransOp &transA, const TransOp &transB, Index m,
-        Index n, Index k, Index batch, fp64_t alpha, Handle A, Handle B,
-        fp64_t beta, Handle C);
+void submit<fp32_t, fp32_t>(const TransOp &transA, const TransOp &transB,
+        Index m, Index n, Index k, Index batch, fp32_t alpha, Handle A,
+        Handle B, fp32_t beta, Handle C, int redux);
+
+template
+void submit<fp64_t, fp64_t>(const TransOp &transA, const TransOp &transB,
+        Index m, Index n, Index k, Index batch, fp64_t alpha, Handle A,
+        Handle B, fp64_t beta, Handle C, int redux);
 
 } // namespace gemm
 } // namespace starpu

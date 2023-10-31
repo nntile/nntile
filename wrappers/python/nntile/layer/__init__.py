@@ -9,15 +9,17 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @author Gleb Karpov
-# @date 2023-05-22
+# @date 2023-09-25
 
 from .base_layer import BaseLayer
 from .act import Act
 from .linear import Linear
 from .attention import Attention
+from .flash_attention import FlashAttention
 from .embedding import Embedding
 from .layer_norm import LayerNorm
+from .fp32_to_fp16 import FP32_to_FP16
+from .fp16_to_fp32 import FP16_to_FP32
 from .add_slice import AddSlice
 
 from .mixer import Mixer, MixerMlp, GAP

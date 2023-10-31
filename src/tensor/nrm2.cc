@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-03
+ * @date 2023-09-12
  * */
 
 #include "nntile/tensor/nrm2.hh"
@@ -73,30 +73,30 @@ void nrm2_async(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
             if(mpi_rank != tmp_tile_rank)
             {
                 // No need to check for cached send, as output was just updated
-                ret = starpu_mpi_isend_detached(
-                        static_cast<starpu_data_handle_t>(tmp_tile_handle),
-                        tmp_tile_rank, tmp_tile_tag, MPI_COMM_WORLD, nullptr,
-                        nullptr);
-                if(ret != 0)
-                {
-                    throw std::runtime_error("Error in starpu_mpi_isend_"
-                            "detached");
-                }
+                //ret = starpu_mpi_isend_detached(
+                //        static_cast<starpu_data_handle_t>(tmp_tile_handle),
+                //        tmp_tile_rank, tmp_tile_tag, MPI_COMM_WORLD, nullptr,
+                //        nullptr);
+                //if(ret != 0)
+                //{
+                //    throw std::runtime_error("Error in starpu_mpi_isend_"
+                //            "detached");
+                //}
             }
         }
         // Init receive of tmp tile
         else if(mpi_rank == tmp_tile_rank)
         {
             // No need to check for cached recv, as output was just updated
-            ret = starpu_mpi_irecv_detached(
-                    static_cast<starpu_data_handle_t>(tmp_tile_handle),
-                    src_tile_rank, tmp_tile_tag, MPI_COMM_WORLD, nullptr,
-                    nullptr);
-            if(ret != 0)
-            {
-                throw std::runtime_error("Error in starpu_mpi_irecv_"
-                        "detached");
-            }
+            //ret = starpu_mpi_irecv_detached(
+            //        static_cast<starpu_data_handle_t>(tmp_tile_handle),
+            //        src_tile_rank, tmp_tile_tag, MPI_COMM_WORLD, nullptr,
+            //        nullptr);
+            //if(ret != 0)
+            //{
+            //    throw std::runtime_error("Error in starpu_mpi_irecv_"
+            //            "detached");
+            //}
         }
         // Update total norm
         tmp_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-16
+ * @date 2023-09-29
  * */
 
 #include "nntile/starpu/embedding_backward.hh"
@@ -113,7 +113,7 @@ void restore_where()
 
 template<typename T>
 void submit(Index m, Index n, Index k, Index k_start, Index k_size,
-        Handle index, Handle embed, Handle vocab)
+        Handle index, Handle embed, Handle vocab, int redux)
 //! Insert embedding_backward task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -128,12 +128,22 @@ void submit(Index m, Index n, Index k, Index k_start, Index k_size,
     args->k_start = k_start;
     args->k_size = k_size;
     fp64_t nflops = m * n * k_size;
+    // Access mode for the output vocab handle
+    enum starpu_data_access_mode vocab_mode;
+    if(redux != 0)
+    {
+        vocab_mode = STARPU_REDUX;
+        //vocab_mode = Config::STARPU_RW_COMMUTE;
+    }
+    else
+    {
+        vocab_mode = Config::STARPU_RW_COMMUTE;
+    }
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(index),
             STARPU_R, static_cast<starpu_data_handle_t>(embed),
-            STARPU_RW, static_cast<starpu_data_handle_t>(vocab),
-            //Config::STARPU_RW_COMMUTE, static_cast<starpu_data_handle_t>(vocab),
+            vocab_mode, static_cast<starpu_data_handle_t>(vocab),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
             0);
@@ -148,11 +158,11 @@ void submit(Index m, Index n, Index k, Index k_start, Index k_size,
 // Explicit instantiation
 template
 void submit<fp32_t>(Index m, Index n, Index k, Index k_start, Index k_size,
-        Handle index, Handle embed, Handle vocab);
+        Handle index, Handle embed, Handle vocab, int redux);
 
 template
 void submit<fp64_t>(Index m, Index n, Index k, Index k_start, Index k_size,
-        Handle index, Handle embed, Handle vocab);
+        Handle index, Handle embed, Handle vocab, int redux);
 
 } // namespace embedding_backward
 } // namespace starpu

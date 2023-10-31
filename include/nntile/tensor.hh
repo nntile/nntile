@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-07-20
+ * @date 2023-09-29
  * */
 
 #pragma once
@@ -40,11 +40,13 @@
 #include <nntile/tensor/dgelutanh.hh>
 #include <nntile/tensor/drelu.hh>
 #include <nntile/tensor/gemm.hh>
+#include <nntile/tensor/gemm_ex.hh>
 #include <nntile/tensor/nrm2.hh>
 #include <nntile/tensor/normalize.hh>
 #include <nntile/tensor/prod.hh>
 #include <nntile/tensor/randn.hh>
 #include <nntile/tensor/relu.hh>
+#include <nntile/tensor/relu_forward.hh>
 #include <nntile/tensor/relu_backward.hh>
 #include <nntile/tensor/scatter.hh>
 #include <nntile/tensor/fill.hh>
@@ -53,7 +55,10 @@
 #include <nntile/tensor/norm_slice.hh>
 #include <nntile/tensor/pow.hh>
 #include <nntile/tensor/sumnorm.hh>
+#include <nntile/tensor/flash_maxsumexp.hh>
 #include <nntile/tensor/maxsumexp.hh>
+#include <nntile/tensor/flash_softmax_gemm.hh>
+#include <nntile/tensor/flash_softmax_gemm_backward.hh>
 #include <nntile/tensor/softmax.hh>
 #include <nntile/tensor/softmax_inplace.hh>
 #include <nntile/tensor/sqrt.hh>
@@ -73,8 +78,11 @@
 #include <nntile/tensor/add_scalar.hh>
 #include <nntile/tensor/embedding.hh>
 #include <nntile/tensor/embedding_backward.hh>
+#include <nntile/tensor/fp32_to_fp16.hh>
+#include <nntile/tensor/fp16_to_fp32.hh>
 #include <nntile/tensor/mask_scalar.hh>
 #include <nntile/tensor/hypot.hh>
+#include <nntile/tensor/hypot_scalar_inverse.hh>
 #include <nntile/tensor/adam_step.hh>
 #include <nntile/tensor/transpose.hh>
 

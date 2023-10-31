@@ -93,6 +93,7 @@ void add_fiber_async(T alpha, const Tensor<T> &src, T beta,
             src_tile_index[j+1] = dst_tile_index[dst.ndim-batch_ndim+j];
         }
         auto src_tile_handle = src.get_tile_handle(src_tile_index);
+        auto src_tile_traits = src.get_tile_traits(src_tile_index);
         int src_tile_rank = src_tile_handle.mpi_get_rank();
         // Transfer data
         src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
@@ -101,7 +102,7 @@ void add_fiber_async(T alpha, const Tensor<T> &src, T beta,
         {
             // Reshape inputs: src_tile -> (k,batch), dst_tile -> (m,k,n,batch)
             Index m, n, k, batch;
-            batch = src.matrix_shape[1][1];
+            batch = src_tile_traits.matrix_shape[1][1];
             m = dst_tile_traits.stride[axis];
             n = dst_tile_traits.matrix_shape[axis+1][1] / batch;
             k = dst_tile_traits.shape[axis];

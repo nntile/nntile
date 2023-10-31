@@ -9,19 +9,34 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-02-06
+ * @date 2023-09-20
  * */
 
 #pragma once
 
+#include <cstdlib>
 #include <nntile/tensor/traits.hh>
 #include <nntile/tile/tile.hh>
-#include <starpu_mpi.h>
+//#include <starpu_mpi.h>
+#include <starpu.h>
+#include <nntile/starpu/accumulate.hh>
+#include <nntile/starpu/accumulate_hypot.hh>
+#include <nntile/starpu/accumulate_maxsumexp.hh>
+#include <nntile/starpu/clear.hh>
+
+#define starpu_mpi_tag_t int64_t
 
 namespace nntile
 {
 namespace tensor
 {
+
+// Overload for printing fp16_t
+static std::ostream &operator<<(std::ostream &cout, fp16_t val)
+{
+    cout << "FP16 is not yet printable";
+    return cout;
+}
 
 //! Many-dimensional tensor, presented by a set of subtensors (tiles)
 //
@@ -67,10 +82,10 @@ public:
             tile_handles.emplace_back(sizeof(T)*tile_traits[i].nelems,
                     STARPU_R);
             // Register tile with MPI
-            starpu_mpi_data_register(
-                    static_cast<starpu_data_handle_t>(tile_handles[i]),
-                    last_tag, distribution[i]);
-            ++last_tag;
+            //starpu_mpi_data_register(
+            //        static_cast<starpu_data_handle_t>(tile_handles[i]),
+            //        last_tag, distribution[i]);
+            //++last_tag;
         }
         next_tag = last_tag;
     }
@@ -123,7 +138,8 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
-            starpu_data_invalidate_submit(tmp);
+            // Deactivate invalidate_submit
+            //starpu_data_invalidate_submit(tmp);
         }
     }
     //! Advice to evict data from GPU
@@ -132,7 +148,8 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
-            starpu_data_wont_use(tmp);
+            // Deactivate wont_use
+            //starpu_data_wont_use(tmp);
         }
     }
     //! Flush tensor from MPI caches
@@ -141,8 +158,69 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
-            starpu_mpi_cache_flush(MPI_COMM_WORLD, tmp);
+            //starpu_mpi_cache_flush(MPI_COMM_WORLD, tmp);
         }
+    }
+    //! Set reduction function for addition
+    void set_reduction_add() const
+    {
+        for(Index i = 0; i < grid.nelems; ++i)
+        {
+            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            starpu_data_set_reduction_methods(tmp,
+                    nntile::starpu::accumulate::codelet<T>(),
+                    &nntile::starpu::clear::codelet);
+        }
+    }
+    //! Set reduction function for hypot
+    void set_reduction_hypot() const
+    {
+        for(Index i = 0; i < grid.nelems; ++i)
+        {
+            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            starpu_data_set_reduction_methods(tmp,
+                    nntile::starpu::accumulate_hypot::codelet<T>(),
+                    &nntile::starpu::clear::codelet);
+        }
+    }
+    //! Set reduction function for maxsumexp
+    void set_reduction_maxsumexp() const
+    {
+        for(Index i = 0; i < grid.nelems; ++i)
+        {
+            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            starpu_data_set_reduction_methods(tmp,
+                    nntile::starpu::accumulate_maxsumexp::codelet<T>(),
+                    &nntile::starpu::clear::codelet);
+        }
+    }
+    //! Print scalar tensor asynchronously
+    void print_scalar_async() const
+    {
+        if(ndim != 0)
+        {
+            throw std::runtime_error("Only scalar tensors can be printed");
+        }
+        auto handle = static_cast<starpu_data_handle_t>(get_tile_handle(0));
+        void **args = reinterpret_cast<void **>(std::malloc(sizeof(*args)));
+        *args = reinterpret_cast<void *>(handle);
+        int ret = starpu_data_acquire_cb(handle, STARPU_R,
+                reinterpret_cast<void (*)(void *)>(&_print_scalar_async_helper),
+                reinterpret_cast<void *>(args));
+        if(ret != 0)
+        {
+            throw std::runtime_error("Error in starpu_data_acquire_cb()");
+        }
+    }
+    //! Helper for async printing
+    static void _print_scalar_async_helper(void *args)
+    {
+        std::cerr << "IN CALLBACK args " << args << "\n";
+        auto handle = *reinterpret_cast<starpu_data_handle_t *>(args);
+        std::cerr << "IN CALLBACK handle " << handle << "\n";
+        T *data = reinterpret_cast<T *>(starpu_data_get_local_ptr(handle));
+        std::cout << "Value: " << *data << "\n";
+        starpu_data_release(handle);
     }
 };
 

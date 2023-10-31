@@ -9,10 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-03
+ * @date 2023-09-14
  * */
 
 #include "nntile/kernel/prod_fiber3/cuda.hh"
+#include <algorithm>
 
 namespace nntile
 {

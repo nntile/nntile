@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-07-22
+ * @date 2023-09-22
  * */
 
 #include "nntile/starpu/total_sum_accum.hh"
@@ -132,8 +132,6 @@ void submit(Index n_labels, Index n_outputs, Handle logsumexp, Handle src,
             STARPU_R, static_cast<starpu_data_handle_t>(class_labels),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_RW, static_cast<starpu_data_handle_t>(val),
-            //Config::STARPU_RW_COMMUTE, static_cast<starpu_data_handle_t>(val),
-            //STARPU_FLOPS, nflops,
             0);
     // Check submission
     if(ret != 0)

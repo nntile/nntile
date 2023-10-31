@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-05
+ * @date 2023-09-28
  * */
 
 #include "nntile/starpu/norm_slice.hh"
@@ -113,7 +113,7 @@ void restore_where()
 
 template<typename T>
 void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
-        Handle dst)
+        Handle dst, int redux)
 //! Insert norm_slice task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -129,7 +129,15 @@ void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
     }
     else if(beta == one)
     {
-        dst_mode = Config::STARPU_RW_COMMUTE;
+        if(redux != 0)
+        {
+            dst_mode = STARPU_REDUX;
+            //dst_mode = Config::STARPU_RW_COMMUTE;
+        }
+        else
+        {
+            dst_mode = Config::STARPU_RW_COMMUTE;
+        }
     }
     else
     {
@@ -158,11 +166,11 @@ void submit(Index m, Index n, Index k, T alpha, Handle src, T beta,
 // Explicit instantiation
 template
 void submit<fp32_t>(Index m, Index n, Index k, fp32_t alpha, Handle src,
-        fp32_t beta, Handle dst);
+        fp32_t beta, Handle dst, int redux);
 
 template
 void submit<fp64_t>(Index m, Index n, Index k, fp64_t alpha, Handle src,
-        fp64_t beta, Handle dst);
+        fp64_t beta, Handle dst, int redux);
 
 } // namespace norm_slice
 } // namespace starpu

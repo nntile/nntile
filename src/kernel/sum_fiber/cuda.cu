@@ -9,11 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-22
+ * @date 2023-09-14
  * */
 
 #include "nntile/kernel/sum_fiber/cuda.hh"
 #include <cmath>
+#include <algorithm>
 
 namespace nntile
 {

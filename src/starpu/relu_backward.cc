@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-04-20
+ * @date 2023-09-12
  * */
 
 #include "nntile/starpu/relu_backward.hh"
@@ -124,12 +124,18 @@ template<typename T>
 void submit_mpi(Index nelems, Handle x, Handle dy, Handle dx, int exec_rank)
 {
     // Build a task with initializing data transfers
-    struct starpu_task *task = starpu_mpi_task_build(MPI_COMM_WORLD,
+//    struct starpu_task *task = starpu_mpi_task_build(MPI_COMM_WORLD,
+//            codelet<T>(),
+//            STARPU_R, static_cast<starpu_data_handle_t>(x),
+//            STARPU_R, static_cast<starpu_data_handle_t>(dy),
+//            STARPU_RW, static_cast<starpu_data_handle_t>(dx),
+//            STARPU_EXECUTE_ON_NODE, exec_rank,
+//            0);
+    struct starpu_task *task = starpu_task_build(
             codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(x),
             STARPU_R, static_cast<starpu_data_handle_t>(dy),
             STARPU_RW, static_cast<starpu_data_handle_t>(dx),
-            STARPU_EXECUTE_ON_NODE, exec_rank,
             0);
     // Only execution node will have non-nullptr task
     if(task)
@@ -151,13 +157,13 @@ void submit_mpi(Index nelems, Handle x, Handle dy, Handle dx, int exec_rank)
         }
     }
     // Data transfers after the task
-    starpu_mpi_task_post_build(MPI_COMM_WORLD,
-            codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(x),
-            STARPU_R, static_cast<starpu_data_handle_t>(dy),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dx),
-            STARPU_EXECUTE_ON_NODE, exec_rank,
-            0);
+//    starpu_mpi_task_post_build(MPI_COMM_WORLD,
+//            codelet<T>(),
+//            STARPU_R, static_cast<starpu_data_handle_t>(x),
+//            STARPU_R, static_cast<starpu_data_handle_t>(dy),
+//            STARPU_RW, static_cast<starpu_data_handle_t>(dx),
+//            STARPU_EXECUTE_ON_NODE, exec_rank,
+//            0);
 
 }
 

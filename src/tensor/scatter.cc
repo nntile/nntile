@@ -10,11 +10,12 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-06-29
+ * @date 2023-09-18
  * */
 
 #include "nntile/tensor/scatter.hh"
 #include "nntile/starpu/subcopy.hh"
+#include "nntile/starpu/copy.hh"
 
 namespace nntile
 {
@@ -56,14 +57,7 @@ void scatter_async(const Tensor<T> &src, const Tensor<T> &dst)
         // Execute on destination node
         if(mpi_rank == dst_tile_rank)
         {
-            ret = starpu_data_cpy(
-                    static_cast<starpu_data_handle_t>(dst_tile_handle),
-                    static_cast<starpu_data_handle_t>(src_tile_handle),
-                    1, nullptr, nullptr);
-            if(ret != 0)
-            {
-                throw std::runtime_error("Error in starpu_data_cpy");
-            }
+            starpu::copy::submit(src_tile_handle, dst_tile_handle);
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
@@ -102,15 +96,15 @@ void scatter_async(const Tensor<T> &src, const Tensor<T> &dst)
             if(mpi_rank != dst_tile_rank)
             {
                 // No need to check for cached send, as output was just updated
-                ret = starpu_mpi_isend_detached(
-                        static_cast<starpu_data_handle_t>(dst_tile_handle),
-                        dst_tile_rank, tile_tag, MPI_COMM_WORLD, nullptr,
-                        nullptr);
-                if(ret != 0)
-                {
-                    throw std::runtime_error("Error in starpu_mpi_isend_"
-                            "detached");
-                }
+                //ret = starpu_mpi_isend_detached(
+                //        static_cast<starpu_data_handle_t>(dst_tile_handle),
+                //        dst_tile_rank, tile_tag, MPI_COMM_WORLD, nullptr,
+                //        nullptr);
+                //if(ret != 0)
+                //{
+                //    throw std::runtime_error("Error in starpu_mpi_isend_"
+                //            "detached");
+                //}
             }
         }
         // Init receive of source tile for owner of destination tile
@@ -118,15 +112,15 @@ void scatter_async(const Tensor<T> &src, const Tensor<T> &dst)
         {
             auto tile_tag = dst_tile_handle.mpi_get_tag();
             // No need to check for cached recv, as output was just updated
-            ret = starpu_mpi_irecv_detached(
-                    static_cast<starpu_data_handle_t>(dst_tile_handle),
-                    src_tile_rank, tile_tag, MPI_COMM_WORLD, nullptr,
-                    nullptr);
-            if(ret != 0)
-            {
-                throw std::runtime_error("Error in starpu_mpi_irecv_"
-                        "detached");
-            }
+            //ret = starpu_mpi_irecv_detached(
+            //        static_cast<starpu_data_handle_t>(dst_tile_handle),
+            //        src_tile_rank, tile_tag, MPI_COMM_WORLD, nullptr,
+            //        nullptr);
+            //if(ret != 0)
+            //{
+            //    throw std::runtime_error("Error in starpu_mpi_irecv_"
+            //            "detached");
+            //}
         }
         // Get out if it was the last tile
         if(i == dst.grid.nelems-1)
@@ -162,6 +156,10 @@ void scatter(const Tensor<T> &src, const Tensor<T> &dst)
 
 // Explicit instantiation
 template
+void scatter_async<fp16_t>(const Tensor<fp16_t> &src,
+        const Tensor<fp16_t> &dst);
+
+template
 void scatter_async<fp32_t>(const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
 
@@ -178,6 +176,9 @@ void scatter_async<bool_t>(const Tensor<bool_t> &src,
         const Tensor<bool_t> &dst);
 
 // Explicit instantiation
+template
+void scatter<fp16_t>(const Tensor<fp16_t> &src, const Tensor<fp16_t> &dst);
+
 template
 void scatter<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 

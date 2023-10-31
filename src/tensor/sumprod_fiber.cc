@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-02
+ * @date 2023-09-19
  * */
 
 #include "nntile/tensor/sumprod_fiber.hh"
@@ -22,7 +22,8 @@ namespace tensor
 
 template<typename T>
 void sumprod_fiber_async(T alpha, const Tensor<T> &src1,
-        const Tensor<T> &src2, T beta, const Tensor<T> &dst, Index axis)
+        const Tensor<T> &src2, T beta, const Tensor<T> &dst, Index axis,
+        int redux)
 {
     // Check shapes of src1 and src2
     if(src1.shape != src2.shape)
@@ -109,7 +110,7 @@ void sumprod_fiber_async(T alpha, const Tensor<T> &src1,
             {
                 starpu::sumprod_fiber::submit<T>(m, n, k, alpha,
                         src1_tile_handle, src2_tile_handle, one,
-                        dst_tile_handle);
+                        dst_tile_handle, redux);
             }
         }
     }
@@ -122,9 +123,9 @@ void sumprod_fiber_async(T alpha, const Tensor<T> &src1,
 
 template<typename T>
 void sumprod_fiber(T alpha, const Tensor<T> &src1, const Tensor<T> &src2,
-        T beta, const Tensor<T> &dst, Index axis)
+        T beta, const Tensor<T> &dst, Index axis, int redux)
 {
-    sumprod_fiber_async<T>(alpha, src1, src2, beta, dst, axis);
+    sumprod_fiber_async<T>(alpha, src1, src2, beta, dst, axis, redux);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -133,23 +134,23 @@ void sumprod_fiber(T alpha, const Tensor<T> &src1, const Tensor<T> &src2,
 template
 void sumprod_fiber_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src1,
         const Tensor<fp32_t> &src2, fp32_t beta, const Tensor<fp32_t> &dst,
-        Index axis);
+        Index axis, int redux);
 
 template
 void sumprod_fiber_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src1,
         const Tensor<fp64_t> &src2, fp64_t beta, const Tensor<fp64_t> &dst,
-        Index axis);
+        Index axis, int redux);
 
 // Explicit instantiation
 template
 void sumprod_fiber<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src1,
         const Tensor<fp32_t> &src2, fp32_t beta, const Tensor<fp32_t> &dst,
-        Index axis);
+        Index axis, int redux);
 
 template
 void sumprod_fiber<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src1,
         const Tensor<fp64_t> &src2, fp64_t beta, const Tensor<fp64_t> &dst,
-        Index axis);
+        Index axis, int redux);
 
 } // namespace tensor
 } // namespace nntile

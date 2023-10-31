@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-06-29
+ * @date 2023-09-01
  * */
 
 #include "nntile/starpu/subcopy.hh"
@@ -57,10 +57,16 @@ uint32_t footprint(struct starpu_task *task)
     return starpu_hash_crc32c_be_n(copy_shape, copy_shape_size, 0);
 }
 
-Codelet codelet_fp32, codelet_fp64, codelet_int64, codelet_bool_t;
+Codelet codelet_fp16, codelet_fp32, codelet_fp64, codelet_int64,
+        codelet_bool;
 
 void init()
 {
+    codelet_fp16.init("nntile_subcopy_fp16",
+            footprint,
+            {cpu<fp32_t>},
+            {}
+            );
     codelet_fp32.init("nntile_subcopy_fp32",
             footprint,
             {cpu<fp32_t>},
@@ -76,7 +82,7 @@ void init()
             {cpu<Index>},
             {}
             );
-    codelet_bool_t.init("nntile_subcopy_bool_t",
+    codelet_bool.init("nntile_subcopy_bool",
             footprint,
             {cpu<bool_t>},
             {}
@@ -85,18 +91,20 @@ void init()
 
 void restrict_where(uint32_t where)
 {
+    codelet_fp16.restrict_where(where);
     codelet_fp32.restrict_where(where);
     codelet_fp64.restrict_where(where);
     codelet_int64.restrict_where(where);
-    codelet_bool_t.restrict_where(where);
+    codelet_bool.restrict_where(where);
 }
 
 void restore_where()
 {
+    codelet_fp16.restore_where();
     codelet_fp32.restore_where();
     codelet_fp64.restore_where();
     codelet_int64.restore_where();
-    codelet_bool_t.restore_where();
+    codelet_bool.restore_where();
 }
 
 template<typename T>
@@ -129,6 +137,14 @@ void submit(Index ndim, const std::vector<Index> &src_start,
 }
 
 // Explicit instantiation
+template
+void submit<fp16_t>(Index ndim, const std::vector<Index> &src_start,
+        const std::vector<Index> &src_stride,
+        const std::vector<Index> &dst_start,
+        const std::vector<Index> &dst_stride,
+        const std::vector<Index> &copy_shape, Handle src, Handle dst,
+        Handle tmp_index, starpu_data_access_mode mode);
+
 template
 void submit<fp32_t>(Index ndim, const std::vector<Index> &src_start,
         const std::vector<Index> &src_stride,

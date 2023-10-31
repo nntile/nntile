@@ -11,7 +11,8 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-07-20
+# @author Daniel Bershatsky
+# @date 2023-09-25
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -61,7 +62,6 @@ set(TESTS
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
-    "add"
     "add_fiber"
     "gelu_backward"
     "gelutanh"
@@ -107,9 +107,9 @@ foreach(test IN LISTS TESTS)
         )
 endforeach()
 
-add_executable("tests_kernel_maxsumexp" maxsumexp.cc)
-target_link_libraries("tests_kernel_maxsumexp" PRIVATE
-    GTest::gtest_main
-    nntile
-    $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>)
-gtest_discover_tests("tests_kernel_maxsumexp")
+#add_executable("tests_kernel_maxsumexp" maxsumexp.cc)
+#target_link_libraries("tests_kernel_maxsumexp" PRIVATE
+#    GTest::gtest_main
+#    nntile
+#    $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>)
+#gtest_discover_tests("tests_kernel_maxsumexp")

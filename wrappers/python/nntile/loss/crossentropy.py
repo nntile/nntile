@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Katrutsa
 # @author Aleksandr Mikhalev
-# @date 2023-07-23
+# @date 2023-09-29
 
 from nntile.tensor import softmax_async, clear_async, copy_async, \
         subtract_indexed_outputs_async, logsumexp_async, maxsumexp_async, \
@@ -28,16 +28,24 @@ class CrossEntropy:
 
     # Constructor of loss with all the provided data
     def __init__(self, model_output: TensorMoments, labels: Tensor_int64, \
-            val: Tensor, maxsumexp: Tensor, logsumexp: Tensor):
+            val: Tensor, maxsumexp: Tensor, logsumexp: Tensor, \
+            redux: bool=False):
         self.model_output = model_output
         self.val = val
+        self.val.set_reduction_add()
         self.logsumexp = logsumexp
         self.maxsumexp = maxsumexp
+        self.maxsumexp.set_reduction_maxsumexp()
         self.y = labels
+        if redux:
+            self.redux = 1
+        else:
+            self.redux = 0
 
     # Simple generator
     @staticmethod
-    def generate_simple(model_output: TensorMoments, next_tag: int) -> tuple:
+    def generate_simple(model_output: TensorMoments, next_tag: int, \
+            redux: bool=False) -> tuple:
         shape = model_output.value.shape[1:]
         basetile = model_output.value.basetile_shape[1:]
         labels_traits = TensorTraits(shape, basetile)
@@ -54,7 +62,8 @@ class CrossEntropy:
         logsumexp = type(model_output.value)(labels_traits, \
                 model_output.value.distribution, next_tag)
         next_tag = logsumexp.next_tag
-        loss = CrossEntropy(model_output, labels, val, maxsumexp, logsumexp)
+        loss = CrossEntropy(model_output, labels, val, maxsumexp, logsumexp, \
+                redux=redux)
         return loss, next_tag
     
     def unregister(self):
@@ -71,9 +80,10 @@ class CrossEntropy:
 
     # Get value and gradient if needed
     def calc_async(self):
-        maxsumexp_async(self.model_output.value, self.maxsumexp, 0)
+        clear_async(self.maxsumexp)
+        maxsumexp_async(self.model_output.value, self.maxsumexp, 0, \
+                redux=self.redux)
         logsumexp_async(self.maxsumexp, self.logsumexp)
-        clear_async(self.val)
         total_sum_accum_async(self.logsumexp, self.model_output.value, \
                 self.y, self.val)
         if self.model_output.grad_required is True:
