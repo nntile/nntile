@@ -14,7 +14,7 @@
 from nntile.tensor import TensorTraits, Tensor_fp32, TensorMoments, notrans
 from nntile.model.base_model import BaseModel
 from nntile.layer.linear import Linear
-from nntile.layer.mixer import Mixer
+from nntile.layer.mixer import Mixer, GAP
 
 
 class MlpMixer(BaseModel):
@@ -45,6 +45,11 @@ class MlpMixer(BaseModel):
             new_layer, next_tag = Mixer.generate_simple(activations[-1], next_tag)
             layers.append(new_layer)
             activations.extend(new_layer.activations_output)
+
+        # Global Average Pooling Layer
+        new_layer, next_tag = GAP.generate_simple(activations[-1], next_tag)
+        layers.append(new_layer)
+        activations.extend(new_layer.activations_output)
 
         # Final classification fully connected layer
         new_layer, next_tag = Linear.generate_simple(activations[-1], 'L', notrans, 1, [n_classes], [n_classes], next_tag,bias=False)
@@ -91,3 +96,4 @@ class MlpMixer(BaseModel):
             else:
                 p.value.from_array(p_torch.detach().numpy())
         return mlp_mixer_nntile, mlp_mixer_nntile.next_tag
+    

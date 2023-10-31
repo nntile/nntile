@@ -1,8 +1,50 @@
-from nntile.tensor import TensorMoments, notrans, add_async
+from nntile.tensor import TensorMoments, TensorTraits, notrans, add_async, sum_slice_async, clear_async
 from nntile.layer.base_layer import BaseLayer
 from nntile.layer.layer_norm import LayerNorm
 from nntile.layer.linear import Linear
 from nntile.layer.act import Act
+
+
+class GAP(BaseLayer):
+    x: TensorMoments
+    y: TensorMoments
+
+    # Construct GAP layer with all the provided data
+    def __init__(self, x: TensorMoments, y: TensorMoments):
+        self.x = x
+        self.y = y
+        
+        # Redirect to BaseClass initialization
+        super().__init__([x], [y], [], [])
+
+
+    def unregister(self):
+        super().unregister()
+
+
+    @staticmethod
+    def generate_simple(x: TensorMoments, next_tag: int):
+        y_shape = x.value.shape[1:]
+        y_basetile_shape = x.value.basetile_shape[1:]
+        y_traits = TensorTraits(y_shape, y_basetile_shape)
+        y_distr = [0] * y_traits.grid.nelems
+        y_value = type(x.value)(y_traits, y_distr, next_tag)
+        next_tag = y_value.next_tag
+
+        # Create gradient of Y with the same traits and distribution as Y
+        y_grad = type(x.value)(y_traits, y_distr, next_tag)
+        next_tag = y_grad.next_tag
+        # Define Y as TensorMoments
+        y = TensorMoments(y_value, y_grad, True)
+        # Create GAP layer with all the provided data
+        layer = GAP(x, y)
+        # Return layer and next tag to be used
+        return (layer, next_tag)
+    
+
+    def forward_async(self):
+        alpha = 1 / (self.x.value.shape[0])
+        return sum_slice_async(alpha, self.x.value, 0.0, self.y.value, 0)
 
 
 class MixerMlp(BaseLayer):
@@ -40,6 +82,16 @@ class MixerMlp(BaseLayer):
         super().unregister()
 
 
+    # Clear gradients of activations and parameters
+    def clear_gradients(self):
+        for t in (self.activations_input + self.activations_output):
+            if t.grad is not None and t.grad_required:
+                clear_async(t.grad)
+        for t in self.parameters:
+            if t.grad is not None and t.grad_required:
+                clear_async(t.grad)
+
+
     @staticmethod
     def generate_simple(x: TensorMoments, side: str, next_tag: int):
         if side == 'R':
@@ -63,6 +115,12 @@ class MixerMlp(BaseLayer):
         self.linear_1.forward_async()
         self.act.forward_async()
         self.linear_2.forward_async()
+
+
+    def backward_async(self):
+        self.linear_2.backward_async()
+        self.act.backward_async()
+        self.linear_1.backward_async()
 
 
 class Mixer(BaseLayer):

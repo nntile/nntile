@@ -11,6 +11,7 @@
 # @date 2023-09-13
 
 # All necesary imports
+import numpy as np
 import torch
 import torch.nn as nn
 import torchvision.datasets as dts 
@@ -35,7 +36,9 @@ num_classes = 10
 lr = 1e-2
 next_tag = 0
 
-X_shape = [channel_size, batch_size, init_patch_size]
+stop_train_iter = 1000
+
+X_shape = [channel_size, batch_size, init_patch_size ** 2]
 
 mlp_mixer_model = MlpMixer(channel_size, init_patch_size ** 2, hidden_dim, num_mixer_layers, num_classes)
 optim_torch = torch.optim.SGD(mlp_mixer_model.parameters(), lr=lr)
@@ -59,8 +62,33 @@ for train_batch_sample, true_labels in trainldr:
     if (training_iteration % 100) == 99:
         print("Intermediate PyTorch loss =", torch_loss.item())
     optim_torch.step()
+    if training_iteration == stop_train_iter:
+        break
     training_iteration += 1
-    break
 
 nntile_mixer_model, next_tag = MlpMixerTile.from_torch(mlp_mixer_model,1,num_classes, next_tag)
+
+data_train_traits = nntile.tensor.TensorTraits(X_shape, X_shape)
+data_train_tensor = nntile.tensor.Tensor_fp32(data_train_traits, [0], next_tag)
+next_tag = data_train_tensor.next_tag
+data_train_tensor.from_array(patched_train_sample)
+
+nntile.tensor.copy_async(data_train_tensor, nntile_mixer_model.activations[0].value)
+
+mlp_mixer_model.zero_grad()
+torch_output = mlp_mixer_model(patched_train_sample)
+_, pred_labels_torch = torch.max(torch_output, 1)
+
+np_torch_output = np.array(torch_output.detach().numpy(), order="F", dtype=np.float32)
+
+nntile_mixer_model.forward_async()
+
+nntile_last_layer_output = np.zeros(nntile_mixer_model.activations[-1].value.shape, order="F", dtype=np.float32)
+nntile_mixer_model.activations[-1].value.to_array(nntile_last_layer_output)
+pred_labels_nntile = np.argmax(nntile_last_layer_output, 1)
+print("PyTorch predicted label: {}".format(pred_labels_torch))
+print("NNTile predicted label: {}".format(pred_labels_nntile))
+print("Norm of inference difference: {}".format(np.linalg.norm(nntile_last_layer_output - np_torch_output, 'fro')))
+
+data_train_tensor.unregister()
 nntile_mixer_model.unregister()
