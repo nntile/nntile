@@ -55,20 +55,44 @@ def helper_l(dtype: np.dtype):
     layer.linear_2.w.value.from_array(np_W2)
 
     A.from_array(np_A)
+    
+    layer.clear_gradients()
     layer.forward_async()
+    nntile.starpu.wait_for_all()
+
+    np_Y2 = np.zeros(layer.y.value.shape, dtype=dtype, order="F")
+    layer.y.value.to_array(np_Y2)
+    fro_loss, next_tag = nntile.loss.Frob.generate_simple(layer.y, next_tag)
+    np_zero = np.zeros(layer.y.value.shape, dtype=dtype, order="F")
+    fro_loss.y.from_array(np_zero)
+    fro_loss.calc_async()
+
+    layer.backward_async()
+    nntile.starpu.wait_for_all()
 
     torch_mlp = TorchMixerMlp('L', n_channels)
     torch_mlp.set_weight(np_W1, np_W2)
     torch_mlp.zero_grad()
     torch_output = torch_mlp.forward(torch.from_numpy(np_A))
+
+    torch_loss = 0.5 * torch.sum(torch.square(torch_output))
+    torch_loss.backward()
+
     np_Y = np.array(torch_output.detach().numpy(), order="F", dtype=dtype)
 
-    np_Y2 = np.zeros_like(np_Y, order='F')
-    layer.y.value.to_array(np_Y2)
+    # np_Y2 = np.zeros_like(np_Y, order='F')
+    # layer.y.value.to_array(np_Y2)
     if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > tol:
         A_moments.unregister()
         layer.unregister()
         return False 
+
+    for i, (p_nntile, p_torch) in enumerate(zip(layer.parameters, torch_mlp.parameters())):
+        p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=dtype)
+        p_nntile.grad.to_array(p_nntile_grad_np)
+        # print(p_nntile_grad_np)
+        rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np).T) / torch.norm(p_torch.grad)
+        print("Relative error in gradient in layer {} = {}".format(i, rel_error.item()))
 
     A_moments.unregister()
     layer.unregister()
@@ -112,21 +136,45 @@ def helper_r(dtype: np.dtype):
     layer.linear_2.w.value.from_array(np_W2)
 
     A.from_array(np_A)
+    
+    layer.clear_gradients()
     layer.forward_async()
+    nntile.starpu.wait_for_all()
+
+    np_Y2 = np.zeros(layer.y.value.shape, dtype=dtype, order="F")
+    layer.y.value.to_array(np_Y2)
+    fro_loss, next_tag = nntile.loss.Frob.generate_simple(layer.y, next_tag)
+    np_zero = np.zeros(layer.y.value.shape, dtype=dtype, order="F")
+    fro_loss.y.from_array(np_zero)
+    fro_loss.calc_async()
+
+    layer.backward_async()
+    nntile.starpu.wait_for_all()
 
     torch_mlp = TorchMixerMlp('R', n_patches)
     torch_mlp.set_weight(np_W1, np_W2)
     torch_mlp.zero_grad()
     torch_output = torch_mlp.forward(torch.from_numpy(np_A))
+
+    torch_loss = 0.5 * torch.sum(torch.square(torch_output))
+    torch_loss.backward()
+
     np_Y = np.array(torch_output.detach().numpy(), order="F", dtype=dtype)
 
-    np_Y2 = np.zeros_like(np_Y, order='F')
-    layer.y.value.to_array(np_Y2)
+    # np_Y2 = np.zeros_like(np_Y, order='F')
+    # layer.y.value.to_array(np_Y2)
     if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > tol:
         A_moments.unregister()
         layer.unregister()
         return False 
 
+    for i, (p_nntile, p_torch) in enumerate(zip(layer.parameters, torch_mlp.parameters())):
+        p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=dtype)
+        p_nntile.grad.to_array(p_nntile_grad_np)
+        # print(p_nntile_grad_np)
+        rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np)) / torch.norm(p_torch.grad)
+        print("Relative error in gradient in layer {} = {}".format(i, rel_error.item()))
+    
     A_moments.unregister()
     layer.unregister()
     print("helper_r test done")

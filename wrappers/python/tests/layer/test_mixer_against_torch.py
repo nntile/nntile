@@ -85,24 +85,49 @@ def helper(dtype: np.dtype):
     mixer_layer.norm_2.gamma.value.from_array(np_gamma)
     mixer_layer.norm_2.beta.value.from_array(np_beta)
     A.from_array(np_A)
+    
+    mixer_layer.clear_gradients()
     mixer_layer.forward_async()
+    nntile.starpu.wait_for_all()
+
+    np_Y2 = np.zeros(mixer_layer.y.value.shape, dtype=dtype, order="F")
+    mixer_layer.y.value.to_array(np_Y2)
+    fro_loss, next_tag = nntile.loss.Frob.generate_simple(mixer_layer.y, next_tag)
+    np_zero = np.zeros(mixer_layer.y.value.shape, dtype=dtype, order="F")
+    fro_loss.y.from_array(np_zero)
+    fro_loss.calc_async()
+
+    mixer_layer.backward_async()
+    nntile.starpu.wait_for_all()
     
     torch_mixer_layer = TorchMixerLayer(n_patches, n_channels)
     torch_mixer_layer.set_weight_parameters(np_W1, np_W2, np_W3, np_W4)
     torch_mixer_layer.set_normalization_parameters(np_gamma, np_beta, np_gamma, np_beta)
     torch_mixer_layer.zero_grad()
     torch_output = torch_mixer_layer.forward(torch.from_numpy(np_A))
+
+    torch_loss = 0.5 * torch.sum(torch.square(torch_output))
+    torch_loss.backward()
+
     np_Y = np.array(torch_output.detach().numpy(), order="F", dtype=dtype)
 
-    np_Y2 = np.zeros_like(np_Y, order='F')
-    mixer_layer.y.value.to_array(np_Y2)
     if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > tol:
         A_moments.unregister()
         mixer_layer.unregister()
+        fro_loss.unregister()
         return False 
+
+    for i, (p_nntile, p_torch) in enumerate(zip(mixer_layer.parameters, torch_mixer_layer.parameters())):
+        p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=dtype)
+        p_nntile.grad.to_array(p_nntile_grad_np)
+        if p_torch.grad.shape[0] != p_nntile_grad_np.shape[0]:
+            p_nntile_grad_np = np.transpose(p_nntile_grad_np)
+        rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np)) / torch.norm(p_torch.grad)
+        print("Relative error in gradient in layer {} = {}".format(i, rel_error.item()))
 
     A_moments.unregister()
     mixer_layer.unregister()
+    fro_loss.unregister()
     print("Finish checking")
     assert True
 

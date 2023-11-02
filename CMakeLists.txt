@@ -95,7 +95,7 @@ endif()
 find_package(PkgConfig REQUIRED)
 
 # Get the StarPU
-pkg_check_modules(StarPU REQUIRED starpu-1.4)
+pkg_check_modules(StarPU REQUIRED starpu-1.3)
 target_link_libraries(nntile PUBLIC ${StarPU_LDFLAGS})
 target_include_directories(nntile PUBLIC
     "${PROJECT_SOURCE_DIR}/include"

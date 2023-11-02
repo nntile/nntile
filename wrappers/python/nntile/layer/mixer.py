@@ -84,7 +84,7 @@ class MixerMlp(BaseLayer):
 
     # Clear gradients of activations and parameters
     def clear_gradients(self):
-        for t in (self.activations_input + self.activations_output):
+        for t in (self.activations_input + self.activations_output + self.temporaries):
             if t.grad is not None and t.grad_required:
                 clear_async(t.grad)
         for t in self.parameters:
@@ -144,7 +144,7 @@ class Mixer(BaseLayer):
         self.mlp_1 = mlp_1
         self.mlp_2 = mlp_2
         layer_parameters = list(self.norm_1.parameters + self.mlp_1.parameters + self.norm_2.parameters + self.mlp_2.parameters)
-        layer_tmp = list(self.norm_1.activations_output + self.mlp_1.activations_output + self.norm_2.activations_output + self.mlp_2.activations_output)
+        layer_tmp = list(self.norm_1.activations_output + self.mlp_1.temporaries + self.norm_2.activations_output + self.mlp_2.temporaries)
 
         # Redirect to BaseClass initialization
         super().__init__([x], [y], layer_parameters, layer_tmp)
@@ -156,7 +156,17 @@ class Mixer(BaseLayer):
         self.norm_2.unregister()
         self.mlp_1 .unregister()
         self.mlp_2.unregister()
-        
+
+
+    # Clear gradients of activations and parameters
+    def clear_gradients(self):
+        for t in (self.activations_input + self.activations_output + self.temporaries):
+            if t.grad is not None and t.grad_required:
+                clear_async(t.grad)
+        for t in self.parameters:
+            if t.grad is not None and t.grad_required:
+                clear_async(t.grad)
+    
 
     # Simple generator for the mixer layer
     @staticmethod
@@ -183,3 +193,12 @@ class Mixer(BaseLayer):
         self.norm_2.forward_async()
         self.mlp_2.forward_async()
         add_async(1.0, self.norm_2.x.value, 1.0, self.mlp_2.y.value)
+
+
+    def backward_async(self):
+        self.mlp_2.backward_async()
+        self.norm_2.backward_async()
+        add_async(1.0, self.mlp_2.linear_2.y.grad, 1.0, self.mlp_1.y.grad)
+        self.mlp_1.backward_async()
+        self.norm_1.backward_async()
+        add_async(1.0, self.mlp_1.linear_2.y.grad, 1.0, self.x.grad)
