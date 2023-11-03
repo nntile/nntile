@@ -130,7 +130,7 @@ class FusedAdam:
         self.beta1 = beta1
         self.beta2 = beta2
         self.weight_decay = weight_decay
-        self.eps = eps
+        self.eps = np.sqrt(eps)
 
     def get_next_tag(self):
         return self.next_tag
