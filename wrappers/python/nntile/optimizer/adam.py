@@ -15,6 +15,7 @@
 import nntile
 import numpy as np
 from nntile.tensor import TensorTraits
+import pickle
 
 class Adam:
     def __init__(self, params, lr, next_tag, beta1=0.9, beta2=0.999, \
@@ -108,6 +109,61 @@ class Adam:
             self.second_moments[i].wont_use()
         self.num_iter += 1
 
+    def save_state(self, path):
+        first_moments = []
+        second_moments = []
+        max_second_moments = []
+        for i in range(len(self.first_moments)):
+            f_m = np.array(np.zeros(self.first_moments[i].shape, dtype=self.dtype), order="F")
+            self.first_moments[i].to_array(f_m)
+            first_moments.append(f_m.copy())
+
+            s_m = np.array(np.zeros(self.second_moments[i].shape, dtype=self.dtype), order="F")
+            self.second_moments[i].to_array(s_m)
+            second_moments.append(s_m.copy())
+        
+        for m_s_m_nntile in self.max_second_moments:
+            m_s_m = np.array(np.zeros(self.max_second_moments[i].shape, dtype=self.dtype), order="F")
+            self.max_second_moments[i].to_array(m_s_m)
+            max_second_moments.append(m_s_m.copy())
+        
+        stored_data = {
+            "first_moments": first_moments,
+            "second_moments": second_moments,
+            "max_second_moments": max_second_moments,
+            "num_iter": self.num_iter, 
+            "beta1": self.beta1,
+            "beta2": self.beta2,
+            "lr": self.lr,
+            "eps": self.eps,
+            "weight_decay": self.weight_decay
+        }
+        with open(path, 'wb') as fp:
+            pickle.dump(stored_data, fp)
+
+    def load_state(self, path):
+        with open(path, 'rb') as fp:
+            stored_states = pickle.load(fp)
+            
+        self.lr = stored_states["lr"]
+        self.beta1 = stored_states["beta1"]
+        self.beta2 = stored_states["beta2"]
+        self.eps = stored_states["eps"]
+        self.num_iter = stored_states["num_iter"]
+        self.weight_decay = stored_states["weight_decay"]
+        
+        first_moments = stored_states["first_moments"]
+        second_moments = stored_states["second_moments"]
+        max_second_moments = stored_states["max_second_moments"]
+        for i in range(len(first_moments)):
+            self.first_moments[i].from_array(first_moments[i])
+            self.second_moments[i].from_array(second_moments[i])
+
+        for i in range(len(max_second_moments)):
+            self.max_second_moments[i].from_array(max_second_moments[i])
+
+
+
 class FusedAdam:
     def __init__(self, params, lr, next_tag, beta1=0.9, beta2=0.999, \
             weight_decay=0., eps=1e-8, dtype=np.float32):
@@ -153,4 +209,57 @@ class FusedAdam:
             self.first_moments[i].wont_use()
             self.second_moments[i].wont_use()
         self.num_iter += 1
+
+    def save_state(self, path):
+        first_moments = []
+        second_moments = []
+        max_second_moments = []
+        for i in range(len(self.first_moments)):
+            f_m = np.array(np.zeros(self.first_moments[i].shape, dtype=self.dtype), order="F")
+            self.first_moments[i].to_array(f_m)
+            first_moments.append(f_m.copy())
+
+            s_m = np.array(np.zeros(self.second_moments[i].shape, dtype=self.dtype), order="F")
+            self.second_moments[i].to_array(s_m)
+            second_moments.append(s_m.copy())
+        
+        for m_s_m_nntile in self.max_second_moments:
+            m_s_m = np.array(np.zeros(self.max_second_moments[i].shape, dtype=self.dtype), order="F")
+            self.max_second_moments[i].to_array(m_s_m)
+            max_second_moments.append(m_s_m.copy())
+        
+        stored_data = {
+            "first_moments": first_moments,
+            "second_moments": second_moments,
+            "max_second_moments": max_second_moments,
+            "num_iter": self.num_iter,
+            "beta1": self.beta1,
+            "beta2": self.beta2,
+            "lr": self.lr,
+            "eps": self.eps,
+            "weight_decay": self.weight_decay
+        }
+        with open(path, 'wb') as fp:
+            pickle.dump(stored_data, fp)
+
+    def load_state(self, path):
+        with open(path, 'rb') as fp:
+            stored_states = pickle.load(fp)
+
+        self.lr = stored_states["lr"]
+        self.beta1 = stored_states["beta1"]
+        self.beta2 = stored_states["beta2"]
+        self.eps = stored_states["eps"]
+        self.num_iter = stored_states["num_iter"]
+        self.weight_decay = stored_states["weight_decay"]
+        
+        first_moments = stored_states["first_moments"]
+        second_moments = stored_states["second_moments"]
+        for i in range(len(first_moments)):
+            self.first_moments[i].from_array(first_moments[i])
+            self.second_moments[i].from_array(second_moments[i])
+
+        max_second_moments = stored_states["max_second_moments"]
+        for i in range(len(max_second_moments)):
+            self.max_second_moments[i].from_array(max_second_moments[i])
 
