@@ -28,7 +28,7 @@ input_dim = 5
 hidden_dim = 100
 n_classes = 10
 n_layers = 5
-device = "cpu"
+device = "cuda"
 
 torch_mlp = MLP(input_dim, hidden_dim, n_layers, n_classes).to(device)
 
@@ -38,15 +38,17 @@ minibatch_size = 8
 num_batches = n_samples // batch_size
 num_minibatches = num_batches // minibatch_size
 X_torch = torch.randn(num_batches, num_minibatches, minibatch_size, input_dim, device=device, dtype=torch.float32)
-
+print(X_torch.shape)
 y_torch = torch.randint(n_classes, (num_batches, num_minibatches, minibatch_size), device=device, dtype=torch.int64)
 torch_loss = nn.CrossEntropyLoss(reduction="sum")
 torch_loss_history = []
+torch_output_hist = []
 
 for i_batch in range(num_batches):
     loss_val = 0
     for i_minibatch in range(num_minibatches):
         output = torch_mlp(X_torch[i_batch][i_minibatch])
+        torch_output_hist.append(output.cpu().detach().numpy().copy())
         loss_val += torch_loss(output, y_torch[i_batch][i_minibatch])
     torch_loss_history.append(loss_val.item())
 
@@ -54,7 +56,7 @@ for i_batch in range(num_batches):
 time0 = -time.time()
 config = nntile.starpu.Config(-1, -1, 1)
 nntile.starpu.init()
-nntile.starpu.restrict_cpu()
+nntile.starpu.restrict_cuda()
 time0 += time.time()
 print("StarPU + NNTile + MPI init in {} seconds".format(time0))
 next_tag = 0
@@ -108,6 +110,7 @@ nntile_model, next_tag = nntile.model.DeepReLU.from_torch(torch_mlp, minibatch_s
 loss, next_tag = nntile.loss.CrossEntropy.generate_simple(nntile_model.activations[-1], \
         next_tag)
 nntile_loss_hist = []
+nntile_output_hist = []
 
 for x_batch, y_batch in zip(batch_data, batch_labels):
     clear_async(loss.val)
@@ -122,14 +125,22 @@ for x_batch, y_batch in zip(batch_data, batch_labels):
         # activations[-1].value of the model and write gradient
         # into activations[-1].grad
         loss.calc_async()
+        nntile_output_np = np.array(np.zeros(nntile_model.activations[-1].value.shape, dtype=np.float32), \
+                             order="F")
+        nntile_model.activations[-1].value.to_array(nntile_output_np)
+        nntile_output_hist.append(nntile_output_np.copy())
     loss_np = np.zeros((1,), dtype=np.float32, order="F")
     loss.get_val(loss_np)
     nntile_loss_hist.append(loss_np[0])
 
 nntile.starpu.wait_for_all()
-
+print("Relative error in xentripy loss per batch")
 for i in range(len(torch_loss_history)):
     print(abs(torch_loss_history[i] - nntile_loss_hist[i]) / torch_loss_history[i])
+
+print("Relative error in model output per minibatch")
+for i in range(len(torch_output_hist)):
+    print(np.linalg.norm(torch_output_hist[i] - nntile_output_hist[i].T) / np.linalg.norm(torch_output_hist[i]))
 
 loss.unregister()
 for batch in batch_data + batch_labels:
