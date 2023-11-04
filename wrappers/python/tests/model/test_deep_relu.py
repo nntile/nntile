@@ -111,7 +111,7 @@ loss, next_tag = nntile.loss.CrossEntropy.generate_simple(nntile_model.activatio
                                                           next_tag)
 nntile_loss_hist = []
 
-nntile_optimizer = nntile.optimizer.Adam(nntile_model.get_parameters(), lr, next_tag)
+nntile_optimizer = nntile.optimizer.FusedAdam(nntile_model.get_parameters(), lr, next_tag)
 next_tag = nntile_optimizer.get_next_tag()
 
 pipeline = nntile.pipeline.Pipeline(batch_data, batch_labels, nntile_model, nntile_optimizer,
