@@ -28,7 +28,6 @@ class Adam:
         self.first_moments = []
         self.second_moments = []
         self.max_second_moments = []
-        self.denoms = []
         for p in self.params:
             p_traits = TensorTraits(p.value.shape, p.value.basetile_shape)
             self.first_moments.append(type(p.value)(p_traits, \
@@ -37,9 +36,6 @@ class Adam:
             self.second_moments.append(type(p.value)(p_traits, \
                     p.value.distribution, self.next_tag))
             self.next_tag = self.second_moments[-1].next_tag
-            self.denoms.append(type(p.value)(p_traits, p.value.distribution, \
-                    self.next_tag))
-            self.next_tag = self.denoms[-1].next_tag
             if self.amsgrad:
                 self.max_second_moments.append(type(p.value)(p_traits, \
                         p.value.distribution, self.next_tag))
@@ -57,7 +53,6 @@ class Adam:
         for i in range(len(self.first_moments)):
             self.first_moments[i].unregister()
             self.second_moments[i].unregister()
-            self.denoms[i].unregister()
             if self.amsgrad:
                 self.max_second_moments[i].unregister()
 
@@ -67,6 +62,7 @@ class Adam:
                 nntile.tensor.axpy_async(self.weight_decay, p.value, p.grad)
             # Update first moments
             if self.num_iter == 1:
+                nntile.tensor.clear_async(self.first_moments[i])
                 nntile.tensor.add_async(1-self.beta1, p.grad, 0.0, \
                         self.first_moments[i])
             else:
@@ -80,18 +76,10 @@ class Adam:
             nntile.tensor.hypot_async(np.sqrt(1-self.beta2), p.grad, \
                     np.sqrt(self.beta2), self.second_moments[i])
             # Mult tensor by scalar
-            if self.dtype == np.float32:
-                step_size = np.float32(-self.lr / (1 - np.power(self.beta1, \
-                        self.num_iter)))
-            elif self.dtype == np.float64:
-                step_size = np.float64(-self.lr / (1 - np.power(self.beta1, \
-                        self.num_iter)))
-            if self.dtype == np.float32:
-                scale_factor = 1. / (1 - np.power(self.beta2, self.num_iter))
-                scale_factor = np.sqrt(scale_factor, dtype=np.float32)
-            elif self.dtype == np.float64:
-                scale_factor = np.float64(1. / np.sqrt(1 - \
-                        np.power(self.beta2, self.num_iter),dtype=np.float64))
+            step_size = -self.lr / (1 - np.power(self.beta1, \
+                    self.num_iter))
+            scale_factor = 1 - np.power(self.beta2, self.num_iter)
+            scale_factor = np.sqrt(scale_factor)
             if self.amsgrad:
                 nntile.tensor.maximum_async(self.second_moments[i], \
                         self.max_second_moments[i])
@@ -100,7 +88,7 @@ class Adam:
                         self.max_second_moments[i], p.value)
                 self.max_second_moments[i].wont_use()
             else:
-                nntile.tensor.addcdiv_async(step_size/scale_factor, \
+                nntile.tensor.addcdiv_async(step_size*scale_factor, \
                         self.eps*scale_factor, self.first_moments[i], \
                         self.second_moments[i], p.value)
             p.value.wont_use()
@@ -186,7 +174,7 @@ class FusedAdam:
         self.beta1 = beta1
         self.beta2 = beta2
         self.weight_decay = weight_decay
-        self.eps = np.sqrt(eps)
+        self.eps = eps
 
     def get_next_tag(self):
         return self.next_tag
