@@ -88,32 +88,32 @@ class DeepReLU(BaseModel):
         torch_mlp is PyTorch MLP where all intermediate dimensions are the \
                 same and no biases in linear layers
         '''
-        gemm_ndim = 1
-        n_layers = len(list(torch_mlp.parameters()))
-        for i, p in enumerate(torch_mlp.parameters()):
-            if i == 0:
-                hidden_layer_dim = p.shape[0]
-                n_pixels = p.shape[1]
-            elif hidden_layer_dim != p.shape[1]:
-                print(p.shape, hidden_layer_dim)
-                raise ValueError("PyTorch model has different hidden dims")
-            if i == n_layers - 1 and p.shape[0] != n_classes:
-                raise ValueError("Last layer of PyTorch model does not " \
-                        "correspond to the target number of classes")
-        hidden_layer_dim_tile = hidden_layer_dim
-        x_traits = TensorTraits([batch_size, n_pixels], [batch_size, n_pixels])
+        torch_parameters = list(torch_mlp.parameters())
+        
+        if len(torch_parameters[1].shape) == 2:
+            bias = False
+            n_layers = len(torch_parameters)
+        elif len(torch_parameters[1].shape) == 1:
+            bias = True
+            n_layers = len(torch_parameters) // 2
+
+        input_dim = torch_parameters[0].shape[1]
+        hidden_layer_dim = torch_parameters[0].shape[0]
+        x_traits = TensorTraits([input_dim, batch_size], [input_dim, batch_size])
         x_distr = [0] * x_traits.grid.nelems
         x = Tensor_fp32(x_traits, x_distr, next_tag)
         next_tag = x.next_tag
         x_grad = None
         x_grad_required = False
         x_moments = TensorMoments(x, x_grad, x_grad_required)
+        hidden_layer_dim_tile = hidden_layer_dim
+        gemm_ndim = 1
         if nonlinearity == "relu":
-            mlp_nntile = DeepReLU(x_moments, 'L', gemm_ndim, \
+            mlp_nntile = DeepReLU(x_moments, 'R', gemm_ndim, \
                     hidden_layer_dim, hidden_layer_dim_tile, n_layers, \
-                    n_classes, next_tag, bias=False)
+                    n_classes, next_tag, bias=bias)
             for p, p_torch in \
-                    zip(mlp_nntile.parameters, torch_mlp.parameters()):
-                p.value.from_array(p_torch.detach().numpy().T)
+                    zip(mlp_nntile.parameters, torch_parameters):
+                p.value.from_array(p_torch.detach().cpu().numpy())
             return mlp_nntile, mlp_nntile.next_tag
 
