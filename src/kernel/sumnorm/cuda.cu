@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-05
+ * @date 2023-11-06
  * */
 
 #include "nntile/kernel/sumnorm/cuda.hh"
@@ -57,7 +57,7 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, const T *src,
                 }
                 // Update sum, scale and scaled sum of squares
                 sum += val;
-                T absval = abs(val);
+                T absval = ::fabs(val);
                 if(absval > scale)
                 {
                     T tmp = scale / absval;

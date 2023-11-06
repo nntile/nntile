@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-09-12
+ * @date 2023-11-06
  * */
 
 #include "nntile/kernel/maximum/cuda.hh"
@@ -29,7 +29,7 @@ void cuda_kernel(Index nelems, const T* src, T* dst)
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     if(i < nelems)
     {
-        dst[i] = ::max(dst[i], src[i]);
+        dst[i] = ::fmax(dst[i], src[i]);
     }
 }
 

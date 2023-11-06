@@ -9,11 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-02-10
+ * @author Aleksandr Mikhalev
+ * @date 2023-11-06
  * */
 
 #include "nntile/kernel/maximum/cpu.hh"
-#include <algorithm>
+#include <cmath>
 
 namespace nntile
 {
@@ -36,7 +37,7 @@ void cpu(Index nelems, const T *src, T *dst)
     // Cycle over buffers
     for(Index i = 0; i < nelems; ++i)
     {
-        dst[i] = std::max(src[i], dst[i]);
+        dst[i] = std::fmax(src[i], dst[i]);
     }
 }
 

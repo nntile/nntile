@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-03
+ * @date 2023-11-06
  * */
 
 #include "nntile/kernel/hypot/cuda.hh"
@@ -48,14 +48,14 @@ void cuda_kernel(Index nelems, T alpha, const T* src, T beta, T* dst)
             }
             else
             {
-                dst[i] = ::abs(beta * dst[i]);
+                dst[i] = ::fabs(beta * dst[i]);
             }
         }
         else
         {
             if(beta == zero)
             {
-                dst[i] = ::abs(alpha * src[i]);
+                dst[i] = ::fabs(alpha * src[i]);
             }
             else
             {

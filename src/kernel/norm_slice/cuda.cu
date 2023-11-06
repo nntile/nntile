@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-09-14
+ * @date 2023-11-06
  * */
 
 #include "nntile/kernel/norm_slice/cuda.hh"
@@ -69,7 +69,7 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src,
                 sum *= ::sqrt(block_sum[threadIdx.x+blockDim.x*threadIdx.y]);
                 if(beta == zero)
                 {
-                    result = ::abs(alpha) * sum;
+                    result = ::fabs(alpha) * sum;
                 }
                 else
                 {

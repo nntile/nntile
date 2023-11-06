@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-05
+ * @date 2023-11-06
  * */
 
 #include "nntile/kernel/sumnorm/cpu.hh"
@@ -76,7 +76,7 @@ void cpu(Index m, Index n, Index k, const T *src, T *sumnorm)
                 }
                 // Update sum, scale and scaled sum of squares
                 sum += val;
-                T absval = std::abs(val);
+                T absval = std::fabs(val);
                 if(absval > scale)
                 {
                     T tmp = scale / absval;

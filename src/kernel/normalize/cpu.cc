@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-05
+ * @date 2023-11-06
  * */
 
 #include "nntile/kernel/normalize/cpu.hh"
@@ -72,7 +72,7 @@ void cpu(Index m, Index n, Index k, Index l, T eps, const T *gamma,
                 T dev;
                 // Although in theory tmp<=1 it is not always true in practice
                 // due presence of rounding errors
-                T tmp = std::abs(mean) / rms;
+                T tmp = std::fabs(mean) / rms;
                 // Check if rounding errors broke theoretical invariant
                 if(tmp >= one)
                 {

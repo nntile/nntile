@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-03
+ * @date 2023-11-06
  * */
 
 #include "nntile/kernel/hypot/cpu.hh"
@@ -51,7 +51,7 @@ void cpu(Index nelems, T alpha, const T* src, T beta, T* dst)
         {
             for(Index i = 0; i < nelems; ++i)
             {
-                dst[i] = std::abs(beta * dst[i]);
+                dst[i] = std::fabs(beta * dst[i]);
             }
         }
     }
@@ -61,7 +61,7 @@ void cpu(Index nelems, T alpha, const T* src, T beta, T* dst)
         {
             for(Index i = 0; i < nelems; ++i)
             {
-                dst[i] = std::abs(alpha * src[i]);
+                dst[i] = std::fabs(alpha * src[i]);
             }
         }
         else

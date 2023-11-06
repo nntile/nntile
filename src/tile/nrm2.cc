@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-03
+ * @date 2023-11-06
  * */
 
 #include "nntile/tile/nrm2.hh"
@@ -49,7 +49,7 @@ void nrm2_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
             starpu::nrm2::submit<T>(src.nelems, src, dst);
             if(alpha != 1.0)
             {
-                starpu::scal_inplace::submit<T>(std::abs(alpha), dst.nelems,
+                starpu::scal_inplace::submit<T>(std::fabs(alpha), dst.nelems,
                         dst);
             }
         }

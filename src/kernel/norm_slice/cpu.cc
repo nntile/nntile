@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-07
+ * @date 2023-11-06
  * */
 
 #include "nntile/kernel/norm_slice/cpu.hh"
@@ -44,7 +44,7 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
 {
     const Index mk = m * k;
     constexpr T zero = 0.0, one = 1.0;
-    alpha = std::abs(alpha);
+    alpha = std::fabs(alpha);
     // Cycle over column of the output buffer dst
     for(Index i2 = 0; i2 < n; ++i2)
     {
@@ -61,7 +61,7 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
             for(Index i0 = 0; i0 < k; ++i0)
             {
                 // Read value from source
-                T val = std::abs(src_fiber[i0*m]);
+                T val = std::fabs(src_fiber[i0*m]);
                 // Update norm only if new value is non-zero
                 if(val > 0)
                 {
@@ -99,7 +99,7 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
             else if(norm_max > 0)
             {
                 //result = std::hypot(beta*result, norm);
-                T tmp_res = std::abs(beta * result);
+                T tmp_res = std::fabs(beta * result);
                 if(norm_max >= tmp_res)
                 {
                     T tmp1 = tmp_res / norm_max;
@@ -117,7 +117,7 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
             // norm_max==0
             else
             {
-                result = std::abs(beta * result);
+                result = std::fabs(beta * result);
             }
         }
     }

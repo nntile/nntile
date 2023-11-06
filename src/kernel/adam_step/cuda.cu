@@ -45,7 +45,7 @@ void cuda_kernel(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps,
         {
             f_val = (1-beta_1) * grad_val;
             first_moment[i] = f_val;
-            s_val = ::sqrt(1-beta_2) * ::abs(grad_val);
+            s_val = ::sqrt(1-beta_2) * ::fabs(grad_val);
             second_moment[i] = s_val;
         }
         else

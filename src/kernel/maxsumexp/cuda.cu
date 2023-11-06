@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Daniel Bershatsky
- * @date 2023-09-12
+ * @date 2023-11-06
  * */
 
 #include <iostream>
@@ -169,25 +169,25 @@ template <typename T, uint32_t kBlockSize>
 __device__ void BlockMaxReduce(volatile T *acc, uint32_t tid) {
     if constexpr (kBlockSize >= 1024) {
         if (tid < 512) {
-            acc[tid] = max(acc[tid], acc[tid + 512]);
+            acc[tid] = ::fmax(acc[tid], acc[tid + 512]);
         }
         __syncthreads();
     }
     if constexpr (kBlockSize >= 512) {
         if (tid < 256) {
-            acc[tid] = max(acc[tid], acc[tid + 256]);
+            acc[tid] = ::fmax(acc[tid], acc[tid + 256]);
         }
         __syncthreads();
     }
     if constexpr (kBlockSize >= 256) {
         if (tid < 128) {
-            acc[tid] = max(acc[tid], acc[tid + 128]);
+            acc[tid] = ::fmax(acc[tid], acc[tid + 128]);
         }
         __syncthreads();
     }
     if constexpr (kBlockSize >= 128) {
         if (tid < 64) {
-            acc[tid] = max(acc[tid], acc[tid + 64]);
+            acc[tid] = ::fmax(acc[tid], acc[tid + 64]);
         }
         __syncthreads();
     }
@@ -196,29 +196,29 @@ __device__ void BlockMaxReduce(volatile T *acc, uint32_t tid) {
 template <typename T, uint32_t kBlockSize, uint32_t kStride>
 __device__ void WarpMaxReduceRound(volatile T *acc, uint32_t tid) {
     if constexpr (kBlockSize >= 2 * kStride) {
-        acc[tid] = max(acc[tid], acc[tid + kStride]);
+        acc[tid] = ::fmax(acc[tid], acc[tid + kStride]);
     }
 }
 
 template <typename T, uint32_t kBlockSize>
 __device__ void WarpMaxReduce(volatile T *acc, uint32_t tid) {
     if constexpr (kBlockSize >= 64) {
-        acc[tid] = max(acc[tid], acc[tid + 32]);
+        acc[tid] = ::fmax(acc[tid], acc[tid + 32]);
     }
     if constexpr (kBlockSize >= 32) {
-        acc[tid] = max(acc[tid], acc[tid + 16]);
+        acc[tid] = ::fmax(acc[tid], acc[tid + 16]);
     }
     if constexpr (kBlockSize >= 16) {
-        acc[tid] = max(acc[tid], acc[tid + 8]);
+        acc[tid] = ::fmax(acc[tid], acc[tid + 8]);
     }
     if constexpr (kBlockSize >= 8) {
-        acc[tid] = max(acc[tid], acc[tid + 4]);
+        acc[tid] = ::fmax(acc[tid], acc[tid + 4]);
     }
     if constexpr (kBlockSize >= 4) {
-        acc[tid] = max(acc[tid], acc[tid + 2]);
+        acc[tid] = ::fmax(acc[tid], acc[tid + 2]);
     }
     if constexpr (kBlockSize >= 2) {
-        acc[tid] = max(acc[tid], acc[tid + 1]);
+        acc[tid] = ::fmax(acc[tid], acc[tid + 1]);
     }
 }
 

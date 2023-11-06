@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-05
+ * @date 2023-11-06
  * */
 
 #include "nntile/kernel/normalize/cuda.hh"
@@ -56,7 +56,7 @@ void cuda_kernel(Index m, Index n, Index k, Index l, T eps,
                 T dev;
                 // Although in theory tmp<=1 it is not always true in practice
                 // due presence of rounding errors
-                T tmp = std::abs(mean) / rms;
+                T tmp = ::fabs(mean) / rms;
                 // Check if rounding errors broke theoretical invariant
                 if(tmp >= one)
                 {
@@ -67,7 +67,7 @@ void cuda_kernel(Index m, Index n, Index k, Index l, T eps,
                     T ssq = one - tmp*tmp;
                     T tmp2 = reps / rms;
                     ssq += tmp2*tmp2;
-                    dev = rms * std::sqrt(ssq);
+                    dev = rms * ::sqrt(ssq);
                 }
                 else
                 {
@@ -75,7 +75,7 @@ void cuda_kernel(Index m, Index n, Index k, Index l, T eps,
                     T tmp2 = rms / reps;
                     ssq *= tmp2 * tmp2;
                     ssq += one;
-                    dev = reps * std::sqrt(ssq);
+                    dev = reps * ::sqrt(ssq);
                 }
                 // Normalization
                 val = (val-mean) / dev;

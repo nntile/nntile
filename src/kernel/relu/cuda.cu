@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-03
+ * @date 2023-11-06
  * */
 
 #include "nntile/kernel/relu/cuda.hh"
@@ -29,7 +29,7 @@ void cuda_kernel(Index nelems, T *data)
     constexpr T zero = 0;
     if(i < nelems)
     {
-        data[i] = max(data[i], zero);
+        data[i] = ::fmax(data[i], zero);
     }
 }
 
