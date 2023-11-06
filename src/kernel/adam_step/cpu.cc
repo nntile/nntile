@@ -43,8 +43,9 @@ void cpu(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T wei
  * @param[inout] p: Input buffers with parameter that are updated in the end
  * */
 {
-    T alpha = lr / (1-::pow(beta_1, num_iter));
-    T beta = 1 / ::sqrt(1 - ::pow(beta_2, num_iter));
+    T alpha = lr / (1 - ::pow(beta_1, num_iter));
+    T beta = 1. / (1 - ::pow(beta_2, num_iter));
+    // T beta = 1. / ::sqrt(1 - ::pow(beta_2, num_iter));
     // Cycle over buffers
     for(Index i = 0; i < num_elems; ++i)
     {
@@ -60,23 +61,26 @@ void cpu(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T wei
         T f_val, s_val;
         if(num_iter == 1)
         {
-            f_val = (1-beta_1) * grad_val;
+            f_val = (1. - beta_1) * grad_val;
             first_moment[i] = f_val;
-            s_val = ::sqrt(1-beta_2) * ::abs(grad_val);
+            // s_val = ::sqrt(1-beta_2) * ::abs(grad_val);
+            s_val = (1. - beta_2) * grad_val * grad_val;
             second_moment[i] = s_val;
         }
         else
         {
             f_val = first_moment[i];
             s_val = second_moment[i];
-            f_val = beta_1*f_val + (1-beta_1)*grad_val;
+            f_val = beta_1 * f_val + (1-beta_1) * grad_val;
             first_moment[i] = f_val;
-            s_val = ::hypot(::sqrt(beta_2)*s_val, ::sqrt(1-beta_2)*grad_val);
+            // s_val = ::hypot(::sqrt(beta_2)*s_val, ::sqrt(1-beta_2)*grad_val);
+            s_val = beta_2 * s_val + (1 - beta_2) * grad_val * grad_val;
             second_moment[i] = s_val;
         }
         // Update parameters using only data in registers
-        T denom = s_val*beta + eps;
-        p[i] = p_val - alpha*f_val/denom;
+        // T denom = s_val * beta + eps;
+        T denom = ::sqrt(s_val * beta) + eps;
+        p[i] = p_val - alpha * f_val / denom;
     }
 }
 
