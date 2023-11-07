@@ -161,7 +161,6 @@ class FusedAdam:
         self.dtype=dtype
         self.first_moments = []
         self.second_moments = []
-        self.max_second_moments = []
         for p in self.params:
             p_traits = TensorTraits(p.value.shape, p.value.basetile_shape)
             self.first_moments.append(type(p.value)(p_traits, \
@@ -201,7 +200,6 @@ class FusedAdam:
     def save_state(self, path):
         first_moments = []
         second_moments = []
-        max_second_moments = []
         for i in range(len(self.first_moments)):
             f_m = np.array(np.zeros(self.first_moments[i].shape, dtype=self.dtype), order="F")
             self.first_moments[i].to_array(f_m)
@@ -211,15 +209,9 @@ class FusedAdam:
             self.second_moments[i].to_array(s_m)
             second_moments.append(s_m.copy())
         
-        for m_s_m_nntile in self.max_second_moments:
-            m_s_m = np.array(np.zeros(self.max_second_moments[i].shape, dtype=self.dtype), order="F")
-            self.max_second_moments[i].to_array(m_s_m)
-            max_second_moments.append(m_s_m.copy())
-        
         stored_data = {
             "first_moments": first_moments,
             "second_moments": second_moments,
-            "max_second_moments": max_second_moments,
             "num_iter": self.num_iter,
             "beta1": self.beta1,
             "beta2": self.beta2,
@@ -246,8 +238,4 @@ class FusedAdam:
         for i in range(len(first_moments)):
             self.first_moments[i].from_array(first_moments[i])
             self.second_moments[i].from_array(second_moments[i])
-
-        max_second_moments = stored_states["max_second_moments"]
-        for i in range(len(max_second_moments)):
-            self.max_second_moments[i].from_array(max_second_moments[i])
 
