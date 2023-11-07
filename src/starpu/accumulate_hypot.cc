@@ -71,7 +71,8 @@ void init()
             );
     codelet_fp32.nbuffers = 2;
     codelet_fp32.modes[0] = static_cast<starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
+            //STARPU_RW | STARPU_COMMUTE);
+            STARPU_RW);
     codelet_fp32.modes[1] = STARPU_R;
     codelet_fp64.init("nntile_accumulate_hypot_fp64",
             nullptr,
@@ -84,7 +85,8 @@ void init()
             );
     codelet_fp64.nbuffers = 2;
     codelet_fp64.modes[0] = static_cast<starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
+            //STARPU_RW | STARPU_COMMUTE);
+            STARPU_RW);
     codelet_fp64.modes[1] = STARPU_R;
 }
 
@@ -110,7 +112,8 @@ void submit(Handle src, Handle dst)
 {
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_RW|STARPU_COMMUTE, static_cast<starpu_data_handle_t>(dst),
+            //STARPU_RW|STARPU_COMMUTE, static_cast<starpu_data_handle_t>(dst),
+            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             // STARPU_FLOPS, nflops,
             0);

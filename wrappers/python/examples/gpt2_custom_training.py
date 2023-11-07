@@ -66,13 +66,15 @@ parser.add_argument("--nbackward-warmup", type=int, default=0)
 parser.add_argument("--dataset", default="WikiText-103")
 parser.add_argument("--dataset-path", default=".data")
 parser.add_argument("--dataset-select", type=int, default=100)
+parser.add_argument("--optimizer", choices=["sgd", "adam", "fusedadam"], \
+        default="fusedadam")
 parser.add_argument("--lr", type=float, default=0.0)
 parser.add_argument("--nepochs", type=int, default=0)
 parser.add_argument("--nepochs-warmup", type=int, default=0)
 
 # Parse arguments
 args = parser.parse_args()
-print(args)
+print(args, flush=True)
 
 # Set Torch default device to cpu
 torch.set_default_device("cpu")
@@ -87,6 +89,7 @@ model_torch.lm_head.weight = nn.Parameter(model_torch.lm_head \
     .weight.detach().clone())
 
 # Disable dropout, as it is not supported by NNTile yet
+config.pdrop = 0
 config.attn_pdrop = 0
 config.embd_pdrop = 0
 config.resid_pdrop = 0
@@ -95,6 +98,7 @@ config.resid_pdrop = 0
 if args.load_checkpoint is not None:
     checkpoint = torch.load(args.load_checkpoint, map_location="cpu")
     model_torch.load_state_dict(checkpoint["model_state_dict"])
+    del checkpoint
 
 # Check sizes
 assert args.batch > 0
@@ -129,7 +133,7 @@ assert args.nepochs_warmup >= 0
 
 # Print altered PyTorch model to be tested
 print("PyTorch model:")
-print(model_torch)
+print(model_torch, flush=True)
 
 # Forward FLOPs of matrix products per input sequence per GPT block
 nflops_seq_block = 2*config.n_positions*config.n_embd*(3+1)*config.n_embd \
@@ -152,7 +156,7 @@ if args.restrict == "cuda":
 elif args.restrict == "cpu":
     nntile.starpu.restrict_cpu()
 time1 = time.time() - time0
-print("StarPU + NNTile + MPI init in {} seconds".format(time1))
+print("StarPU + NNTile + MPI init in {} seconds".format(time1), flush=True)
 next_tag = 0
 
 # Prepare GPT2 model based on the NNTile backend
@@ -164,25 +168,45 @@ model_nntile_config = GPT2Config_nntile(config.vocab_size, args.embd_tile, \
 model_nntile, next_tag = GPT2Model_nntile.from_torch(model_torch, \
         args.minibatch, args.minibatch_tile, config.n_positions, \
         args.seq_tile, model_nntile_config, next_tag)
+del model_torch
 
 # Measure throughput of the forward pass by NNTile
 if args.nforward > 0:
     input_value = torch.randint(config.vocab_size, \
             (args.minibatch, config.n_positions), dtype=torch.int64)
     model_nntile.activations[0].value.from_array(input_value.T)
+#    for i in range(args.nforward_warmup):
+#        model_nntile.forward_async()
+#    nntile.starpu.wait_for_all()
+#    time0 = time.time()
+#    for i in range(args.nforward):
+#        model_nntile.forward_async()
+#    nntile.starpu.wait_for_all()
+#    time1 = time.time() - time0
+#    print("NNTile forward time: {} seconds".format(time1))
+#    print("NNTile forward throughput (tokens/sec): ", \
+#            config.n_positions * args.nforward * args.minibatch / time1)
+#    print("NNTile forward performance: {} Tflops/s".format(nflops_seq \
+#            * args.nforward * args.minibatch / time1 * 1e-12), flush=True)
+    model_nntile.forward_async()
+    nntile.starpu.wait_for_all()
     for i in range(args.nforward_warmup):
-        model_nntile.forward_async()
+        for l in model_nntile.layers[2:-1]:
+            l.forward_async()
     nntile.starpu.wait_for_all()
     time0 = time.time()
-    for i in range(args.nforward):
-        model_nntile.forward_async()
+    for i in range(args.nforward_warmup):
+        for l in model_nntile.layers[2:-1]:
+            l.forward_async()
     nntile.starpu.wait_for_all()
     time1 = time.time() - time0
-    print("NNTile forward time: {} seconds".format(time1))
-    print("NNTile forward throughput (tokens/sec): ", \
+    nflops = nflops_seq_block+2*config.n_positions*config.n_positions*config.n_embd
+    nflops *= config.num_hidden_layers * args.nforward * args.minibatch
+    print("NNTile forward w/o embeddings and lm_head time: {} seconds".format(time1))
+    print("NNTile forward w/o embeddings and lm_head throughput (tokens/sec): ", \
             config.n_positions * args.nforward * args.minibatch / time1)
-    print("NNTile forward performance: {} Tflops/s".format(nflops_seq \
-            * args.nforward * args.minibatch / time1 * 1e-12))
+    print("NNTile forward w/o embeddings and lm_head performance: {} Tflops/s".format(nflops \
+            / time1 * 1e-12), flush=True)
 
 # Measure throughput of the forward pass by NNTile
 if args.nbackward > 0:
@@ -208,14 +232,16 @@ if args.nbackward > 0:
     print("NNTile backward throughput (tokens/sec): ", \
             config.n_positions *args.nbackward * args.minibatch / time1)
     print("NNTile backward performance: {} Tflops/s".format(2 * nflops_seq \
-            * args.nbackward * args.minibatch / time1 * 1e-12))
+            * args.nbackward * args.minibatch / time1 * 1e-12), flush=True)
 
 # Prepare input and output batches if real training is required
 # Read dataset
 if args.dataset == "WikiText-103":
     train_dataset = load_dataset("wikitext", "wikitext-103-v1", \
-            split='train', cache_dir=args.dataset_path) \
-            .select(np.arange(args.dataset_select, dtype=np.int64))
+            split='train', cache_dir=args.dataset_path)
+    if args.dataset_select != -1:
+        train_dataset = train_dataset.select(np.arange(args.dataset_select, \
+                dtype=np.int64))
     test_dataset = load_dataset("wikitext", "wikitext-103-v1", \
             split='test', cache_dir=args.dataset_path)
 else:
@@ -242,7 +268,7 @@ print("Total train batches: {}".format(num_train_batches))
 print("Total train sequences: {}".format(num_train_batches \
         * args.batch))
 print("Total train tokens: {}".format(num_train_batches * args.batch \
-        * config.n_positions))
+        * config.n_positions), flush=True)
 
 # Train neural network by the NNTile
 # Prepare input and output batches for training by NNTile
@@ -268,10 +294,18 @@ for i in range(num_train_batches):
     batch_input.append(minibatch_input)
     batch_output.append(minibatch_output)
 time1 = time.time() - time0
-print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
+print("From PyTorch loader to NNTile batches in {} seconds".format(time1), \
+        flush=True)
 # Set up learning rate and optimizer for training
-optimizer = nntile.optimizer.FusedAdam(model_nntile.get_parameters(), \
-        args.lr, next_tag)
+if args.optimizer == "fusedadam":
+    optimizer = nntile.optimizer.FusedAdam(model_nntile.get_parameters(), \
+            args.lr, next_tag)
+elif args.optimizer == "adam":
+    optimizer = nntile.optimizer.Adam(model_nntile.get_parameters(), \
+            args.lr, next_tag)
+elif args.optimizer == "sgd":
+    optimizer = nntile.optimizer.SGD(model_nntile.get_parameters(), \
+            args.lr, next_tag)
 next_tag = optimizer.get_next_tag()
 # Define Cross Entropy loss function
 loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
@@ -301,7 +335,22 @@ print("Training performance: {} Tflops/s".format(3 * nflops_seq \
         / time1 * 1e-12))
 loss_np = np.zeros((1), dtype=np.float32)
 loss.val.to_array(loss_np)
-print("Loss on the last batch: {}".format(loss_np[0]))
+print("Loss on the last batch: {}".format(loss_np[0]), flush=True)
+
+# Unregister intermediate activations to free some space
+for t in model_nntile.activations:
+    t.unregister()
+
+# Unregister gradients of parameters to free some space
+for t in model_nntile.parameters:
+    if t.grad is not None and t.grad_required:
+        t.grad.unregister()
+
+# Unregister temporaries of each layer to free some space
+for l in model_nntile.layers:
+    for t in l.temporaries:
+        if t is not None:
+            t.unregister()
 
 # Save model from checkpoint if needed
 if args.save_checkpoint is not None:
@@ -311,6 +360,7 @@ if args.save_checkpoint is not None:
     model_nntile.to_torch(model_torch)
     torch.save({"model_state_dict": model_torch.state_dict()}, \
             args.save_checkpoint)
+    del model_torch
 
 # Unregister all StarPU buffers
 loss.unregister()
@@ -319,6 +369,6 @@ for batch in batch_input+batch_output:
     for x in batch:
         x.unregister()
 
-# Unregister all tensors related to model
+# Unregister all tensors related to model, that are still registered
 model_nntile.unregister()
 

@@ -85,7 +85,7 @@ class Pipeline(object):
                 # print("Loss in {} epoch = {}".format(i_epoch, loss_np[0]))
                 print("Batch={}/{} Epoch={}/{} Loss={}".format( \
                         i_batch, num_batches, i_epoch, self.n_epochs, \
-                        loss_np[0]))
+                        loss_np[0]), flush=True)
                 i_batch += 1
             # nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
             # self.loss.get_val(nntile_xentropy_np)
