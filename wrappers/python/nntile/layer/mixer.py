@@ -1,4 +1,4 @@
-from nntile.tensor import TensorMoments, TensorTraits, notrans, add_async, sum_slice_async, clear_async
+from nntile.tensor import TensorMoments, TensorTraits, notrans, add_async, add_slice_async, sum_slice_async, clear_async
 from nntile.layer.base_layer import BaseLayer
 from nntile.layer.layer_norm import LayerNorm
 from nntile.layer.linear import Linear
@@ -44,8 +44,12 @@ class GAP(BaseLayer):
 
     def forward_async(self):
         alpha = 1 / (self.x.value.shape[0])
-        return sum_slice_async(alpha, self.x.value, 0.0, self.y.value, 0)
+        sum_slice_async(alpha, self.x.value, 0.0, self.y.value, 0)
 
+
+    def backward_async(self):
+        alpha = 1 / (self.x.value.shape[0])
+        add_slice_async(alpha, self.y.grad, 0.0, self.x.grad, 0)
 
 class MixerMlp(BaseLayer):
     side: str

@@ -11,7 +11,7 @@
 # @author Gleb Karpov
 # @date 2023-09-07
 
-from nntile.tensor import TensorTraits, Tensor_fp32, TensorMoments, notrans
+from nntile.tensor import TensorTraits, Tensor_fp32, TensorMoments, notrans, clear_async
 from nntile.model.base_model import BaseModel
 from nntile.layer.linear import Linear
 from nntile.layer.mixer import Mixer, GAP
@@ -67,7 +67,22 @@ class MlpMixer(BaseModel):
             l.unregister()
         for x in self.activations:
             x.unregister()
-            
+
+
+    # Clear gradients of inter-layer activations
+    def clear_tmp_grads(self):
+        for l in self.layers:
+            for t in l.temporaries:
+                if t is not None and t.grad is not None and t.grad_required:
+                    clear_async(t.grad)
+
+
+    # Clear all gradients (parameters and inter-layer activations)
+    def clear_gradients(self):
+        self.clear_parameters_grads()
+        self.clear_activations_grads()
+        self.clear_tmp_grads()        
+
 
     @staticmethod
     def from_torch(torch_mlp_mixer, batch_size: int, n_classes: int, next_tag: int):
