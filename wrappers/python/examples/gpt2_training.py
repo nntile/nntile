@@ -115,6 +115,11 @@ assert args.pretrained == "local" and len(args.config_path) > 0
 # Set Torch default device to cpu
 torch.set_default_device("cpu")
 
+if args.torch_dtype == "fp32":
+    torch_dtype = torch.float32
+elif args.torch_dtype == "fp64":
+    torch_dtype = torch.float64
+
 # Load named pretrained PyTorch model
 if args.pretrained == "remote":
         model_torch = GPT2LMHeadModel.from_pretrained(args.model, \
@@ -125,7 +130,7 @@ elif args.pretrained == "local":
                 conf_dict = json.load(f)
                 f.close()
                 config = GPT2Config(**conf_dict)
-                model_torch = GPT2LMHeadModel(config)
+                model_torch = GPT2LMHeadModel(config).to(torch_dtype)
                 if args.optimizer == "adam":
                         optimizer = Adam(model_torch.parameters(), args.lr)
                 elif args.optimizer == "sgd":
@@ -186,14 +191,13 @@ time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
 next_tag = 0
 
-optim = torch.optim.SGD(model_torch.parameters(), lr=1e-1)
-input_value = torch.randint(config.vocab_size, \
-            (args.minibatch_size, config.n_positions), dtype=torch.int64, \
-            device=args.torch_device)
-output = model_torch(input_value)
-val = torch.mean(output.logits)
-val.backward()
-optim.step()
+# optim = torch.optim.SGD(model_torch.parameters(), lr=1e-1)
+# input_value = torch.randint(config.vocab_size, \
+#             (args.minibatch_size, config.n_positions), dtype=torch.int64)
+# output = model_torch(input_value)
+# val = torch.mean(output.logits)
+# val.backward()
+# optim.step()
 
 
 # Prepare GPT2 model based on the NNTile backend
@@ -207,16 +211,16 @@ nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
         args.seq_len_tile, nntile_model_config, next_tag)
 
 # Check that to_torch method works
-base_model_torch = GPT2LMHeadModel(config)
-base_model_torch.lm_head.weight = nn.Parameter(base_model_torch.lm_head \
-        .weight.detach().clone())
-nntile_model.to_torch(base_model_torch)
+# base_model_torch = GPT2LMHeadModel(config)
+# base_model_torch.lm_head.weight = nn.Parameter(base_model_torch.lm_head \
+#         .weight.detach().clone())
+# nntile_model.to_torch(base_model_torch)
 
-total_diff = 0
-for p1, p2 in zip(model_torch.parameters(), base_model_torch.parameters()):
-        # print(torch.sum(torch.square(p1 - p2)).item(), torch.norm(p1).item())
-        total_diff += torch.sum(torch.square(p1 - p2)).item()
-print("Diff in nntile model and pytorch model after to_torch call =", total_diff)
+# total_diff = 0
+# for p1, p2 in zip(model_torch.parameters(), base_model_torch.parameters()):
+#         # print(torch.sum(torch.square(p1 - p2)).item(), torch.norm(p1).item())
+#         total_diff += torch.sum(torch.square(p1 - p2)).item()
+# print("Diff in nntile model and pytorch model after to_torch call =", total_diff)
 
 
 # Move model to the designated device or delete model if it will not be used
@@ -484,7 +488,7 @@ if args.check_fp64:
     # Get gradients of parameters through the backward pass
     #loss = 0.5 * (output_value.logits * output_value.logits).sum()
     #loss.backward()
-    loss_func = nn.CrossEntropyLoss(reduction="sum", ignore_index=-1)
+    loss_func = nn.CrossEntropyLoss(reduction="sum")
     output_logits = output_value.logits.reshape(-1, config.vocab_size)
     loss = loss_func(output_logits, output_label.reshape(-1))
     model_torch.zero_grad()
@@ -598,12 +602,12 @@ if args.torch_nepochs > 0:
         torch_input.append(minibatch_input)
         torch_output.append(minibatch_output)
     optim = Adam(model_torch.parameters(), lr=args.lr)
-    loss_func = nn.CrossEntropyLoss(reduction="sum", ignore_index=-1)
+    loss_func = nn.CrossEntropyLoss(reduction="sum")
     # Warmup training
     for i in range(args.torch_nepochs_warmup):
         for j in range(num_train_batches):
             optim.zero_grad()
-            loss = torch.zeros(1, dtype=torch.float32, device=args.torch_device)
+            loss = torch.zeros(1, dtype=torch_dtype, device=args.torch_device)
             for k in range(num_minibatch):
                 train_input = torch_input[j][k].to(args.torch_device)
                 train_labels = torch_output[j][k].to(args.torch_device).reshape(-1)
@@ -612,7 +616,7 @@ if args.torch_nepochs > 0:
                 loss_local = loss_func(train_logits, train_labels)
                 loss_local.backward()
                 loss += loss_local
-            print("loss={}".format(loss))
+            print("loss={}".format(loss.item()), flush=True)
             optim.step()
     # Actual training
     if args.torch_device.startswith("cuda"):
@@ -621,7 +625,7 @@ if args.torch_nepochs > 0:
     for i in range(args.torch_nepochs):
         for j in range(num_train_batches):
             optim.zero_grad()
-            loss = torch.zeros(1, dtype=torch.float32, device=args.torch_device)
+            loss = torch.zeros(1, dtype=torch_dtype, device=args.torch_device)
             for k in range(num_minibatch):
                 train_input = torch_input[j][k].to(args.torch_device)
                 train_labels = torch_output[j][k].to(args.torch_device).reshape(-1)
@@ -630,17 +634,19 @@ if args.torch_nepochs > 0:
                 loss_local = loss_func(train_logits, train_labels)
                 loss_local.backward()
                 loss += loss_local
-            print("loss={}".format(loss))
+            print("Batch={}/{} Epoch={}/{} Loss={}".format(j+1, num_train_batches,
+                                                           i+1, args.torch_nepochs,
+                                                           loss.item()), flush=True)
             optim.step()
     if args.torch_device.startswith("cuda"):
         torch.cuda.synchronize()
     time1 = time.time() - time0
-    print("Torch training time: {} seconds".format(time1))
+    print("Torch training time: {} seconds".format(time1), flush=True)
     print("Torch training throughput tokens/sec: {}".format( \
             args.torch_nepochs * num_train_batches * args.batch_size \
-            * config.n_positions/time1))
+            * config.n_positions/time1), flush=True)
     print("Torch performance: {} Tflops/s".format(3 * nflops_seq \
             * args.torch_nepochs * num_train_batches * args.batch_size \
-            / time1 * 1e-12))
-    print("Torch loss on the last batch: {}".format(loss))
+            / time1 * 1e-12), flush=True)
+    print("Torch loss on the last batch: {}".format(loss.item()), flush=True)
 
