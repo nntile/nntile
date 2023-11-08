@@ -41,9 +41,8 @@ class Pipeline(object):
     def train_async(self):
         for i_epoch in range(self.n_epochs):
             # print("Epoch ", i_epoch)
-            i_batch = 0
             num_batches = len(self.x)
-            for x_batch, y_batch in zip(self.x, self.y):
+            for i_batch, (x_batch, y_batch) in enumerate(zip(self.x, self.y)):
                 # Zero out gradients of all weights and activations
                 self.model.clear_parameters_grads()
                 clear_async(self.loss.val)
@@ -84,9 +83,8 @@ class Pipeline(object):
                 self.loss_hist.append(loss_np[0])
                 # print("Loss in {} epoch = {}".format(i_epoch, loss_np[0]))
                 print("Batch={}/{} Epoch={}/{} Loss={}".format( \
-                        i_batch, num_batches, i_epoch, self.n_epochs, \
+                        i_batch+1, num_batches, i_epoch+1, self.n_epochs, \
                         loss_np[0]), flush=True)
-                i_batch += 1
             # nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
             # self.loss.get_val(nntile_xentropy_np)
             # print("Last batch loss after in {} epoch = {}".format(i_epoch, nntile_xentropy_np[0]))
