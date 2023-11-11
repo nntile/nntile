@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-03-15
+ * @author Aleksandr Mikhalev
+ * @date 2023-11-11
  * */
 
 #pragma once
@@ -22,11 +23,11 @@ namespace tile
 {
 
 template<typename T>
-void total_sum_accum_async(const Tile<T> &logsumexp, const Tile<T> &src,
+void total_sum_accum_async(T alpha, const Tile<T> &logsumexp, const Tile<T> &src,
                            const Tile<Index> &class_labels, const Tile<T> &val);
 
 template<typename T>
-void total_sum_accum(const Tile<T> &logsumexp, const Tile<T> &src,
+void total_sum_accum(T alpha, const Tile<T> &logsumexp, const Tile<T> &src,
                      const Tile<Index> &class_labels, const Tile<T> &val);
 
 } // namespace tile

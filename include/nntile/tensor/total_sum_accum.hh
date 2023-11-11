@@ -9,7 +9,8 @@
  *
  * @version 1.0.0
  * @author Aleksandr Katrutsa
- * @date 2023-03-16
+ * @author Aleksandr Mikhalev
+ * @date 2023-11-11
  * */
 
 #pragma once
@@ -22,12 +23,12 @@ namespace tensor
 {
 
 template<typename T>
-void total_sum_accum_async(const Tensor<T> &logsumexp,
+void total_sum_accum_async(T alpha, const Tensor<T> &logsumexp,
                            const Tensor<T> &src, const Tensor<Index> &class_labels,
                            const Tensor<T> &val);
 
 template<typename T>
-void total_sum_accum(const Tensor<T> &logsumexp,
+void total_sum_accum(T alpha, const Tensor<T> &logsumexp,
                            const Tensor<T> &src, const Tensor<Index> &class_labels,
                            const Tensor<T> &val);
 

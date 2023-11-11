@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-09-20
+ * @date 2023-11-11
  * */
 
 #include "nntile/tensor/total_sum_accum.hh"
@@ -24,7 +24,7 @@ namespace tensor
 
 //! Compute total_sum_accum
 template<typename T>
-void total_sum_accum_async(const Tensor<T> &logsumexp, const Tensor<T> &src,
+void total_sum_accum_async(T alpha, const Tensor<T> &logsumexp, const Tensor<T> &src,
         const Tensor<Index> &labels, const Tensor<T> &val)
 {
     // Check dimensions
@@ -85,7 +85,7 @@ void total_sum_accum_async(const Tensor<T> &logsumexp, const Tensor<T> &src,
         if(mpi_rank == val_tile_rank)
         {
             // Insert task
-            starpu::total_sum_accum::submit<T>(src.shape[0],
+            starpu::total_sum_accum::submit<T>(alpha, src.shape[0],
                     logsumexp_tile_traits.nelems, logsumexp_tile_handle,
                     src_tile_handle, labels_tile_handle, val_tile_handle);
         }
@@ -94,33 +94,33 @@ void total_sum_accum_async(const Tensor<T> &logsumexp, const Tensor<T> &src,
 }
 
 template<typename T>
-void total_sum_accum(const Tensor<T> &logsumexp, const Tensor<T> &src,
+void total_sum_accum(T alpha, const Tensor<T> &logsumexp, const Tensor<T> &src,
         const Tensor<Index> &labels, const Tensor<T> &val)
 {
-    total_sum_accum_async<T>(logsumexp, src, labels, val);
+    total_sum_accum_async<T>(alpha, logsumexp, src, labels, val);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void total_sum_accum_async<fp32_t>(const Tensor<fp32_t> &logsumexp,
+void total_sum_accum_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &logsumexp,
         const Tensor<fp32_t> &src, const Tensor<Index> &class_labels,
         const Tensor<fp32_t> &val);
 
 template
-void total_sum_accum_async<fp64_t>(const Tensor<fp64_t> &logsumexp,
+void total_sum_accum_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &logsumexp,
         const Tensor<fp64_t> &src, const Tensor<Index> &class_labels,
         const Tensor<fp64_t> &val);
 
 // Explicit instantiation
 template
-void total_sum_accum<fp32_t>(const Tensor<fp32_t> &logsumexp,
+void total_sum_accum<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &logsumexp,
         const Tensor<fp32_t> &src, const Tensor<Index> &class_labels,
         const Tensor<fp32_t> &val);
 
 template
-void total_sum_accum<fp64_t>(const Tensor<fp64_t> &logsumexp,
+void total_sum_accum<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &logsumexp,
         const Tensor<fp64_t> &src, const Tensor<Index> &class_labels,
         const Tensor<fp64_t> &val);
 

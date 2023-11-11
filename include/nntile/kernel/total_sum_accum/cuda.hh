@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-06-30
+ * @date 2023-11-11
  * */
 
 #pragma once
@@ -26,7 +26,7 @@ namespace total_sum_accum
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, Index n_labels, Index n_outputs, const T* logsumexp, const T* src,
+void cuda(cudaStream_t stream, T alpha, Index n_labels, Index n_outputs, const T* logsumexp, const T* src,
         const Index* labels, T *val)
     noexcept;
 

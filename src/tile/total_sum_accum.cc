@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-06-28
+ * @date 2023-11-11
  * */
 
 #include "nntile/tile/total_sum_accum.hh"
@@ -22,7 +22,7 @@ namespace tile
 {
 
 template<typename T>
-void total_sum_accum_async(const Tile<T> &logsumexp, const Tile<T> &src,
+void total_sum_accum_async(T alpha, const Tile<T> &logsumexp, const Tile<T> &src,
         const Tile<Index> &labels, const Tile<T> &val)
 // TODO - add description
 {
@@ -52,35 +52,35 @@ void total_sum_accum_async(const Tile<T> &logsumexp, const Tile<T> &src,
         }
     }
     // Insert task
-    starpu::total_sum_accum::submit<T>(src.shape[0], logsumexp.nelems,
+    starpu::total_sum_accum::submit<T>(alpha, src.shape[0], logsumexp.nelems,
             logsumexp, src, labels, val);
 }
 
 //! Tile-wise max and sum of exponents along single given axis
 template<typename T>
-void total_sum_accum(const Tile<T> &logsumexp, const Tile<T> &src,
+void total_sum_accum(T alpha, const Tile<T> &logsumexp, const Tile<T> &src,
                            const Tile<Index> &class_labels, const Tile<T> &val)
 {
-    total_sum_accum_async<T>(logsumexp, src, class_labels, val);
+    total_sum_accum_async<T>(alpha, logsumexp, src, class_labels, val);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void total_sum_accum_async<fp32_t>(const Tile<fp32_t> &logsumexp, const Tile<fp32_t> &src,
+void total_sum_accum_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &logsumexp, const Tile<fp32_t> &src,
                            const Tile<Index> &class_labels, const Tile<fp32_t> &val);
 
 template
-void total_sum_accum_async<fp64_t>(const Tile<fp64_t> &logsumexp, const Tile<fp64_t> &src,
+void total_sum_accum_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &logsumexp, const Tile<fp64_t> &src,
                            const Tile<Index> &class_labels, const Tile<fp64_t> &val);
 
 // Explicit instantiation
 template
-void total_sum_accum<fp32_t>(const Tile<fp32_t> &logsumexp, const Tile<fp32_t> &src,
+void total_sum_accum<fp32_t>(fp32_t alpha, const Tile<fp32_t> &logsumexp, const Tile<fp32_t> &src,
                            const Tile<Index> &class_labels, const Tile<fp32_t> &val);
 
 template
-void total_sum_accum<fp64_t>(const Tile<fp64_t> &logsumexp, const Tile<fp64_t> &src,
+void total_sum_accum<fp64_t>(fp64_t alpha, const Tile<fp64_t> &logsumexp, const Tile<fp64_t> &src,
                            const Tile<Index> &class_labels, const Tile<fp64_t> &val);
 
 } // namespace tile

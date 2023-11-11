@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-29
+# @date 2023-11-11
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -676,13 +676,13 @@ def logsumexp_async(maxsumexp: Tensor, logsumexp: Tensor) -> None:
     else:
         raise TypeError
 
-def total_sum_accum_async(logsumexp: Tensor, src: Tensor, \
+def total_sum_accum_async(alpha: float, logsumexp: Tensor, src: Tensor, \
         class_labels: Tensor_int64, val: Tensor):
     if type(logsumexp) is core_tensor.Tensor_fp32:
-        core_tensor.total_sum_accum_async_fp32(logsumexp, src, class_labels, \
+        core_tensor.total_sum_accum_async_fp32(alpha, logsumexp, src, class_labels, \
                 val)
     elif type(logsumexp) is core_tensor.Tensor_fp64:
-        core_tensor.total_sum_accum_async_fp64(logsumexp, src, class_labels, \
+        core_tensor.total_sum_accum_async_fp64(alpha, logsumexp, src, class_labels, \
                 val)
     else:
         raise TypeError

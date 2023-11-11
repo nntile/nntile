@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-07-09
+ * @date 2023-11-11
  * */
 
 #include "nntile/kernel/total_sum_accum/cpu.hh"
@@ -25,14 +25,15 @@ namespace total_sum_accum
 {
 
 template<typename T>
-void cpu(Index n_labels, Index n_outputs, const T* logsumexp, const T* src,
+void cpu(T alpha, Index n_labels, Index n_outputs, const T* logsumexp, const T* src,
         const Index* labels, T *val)
     noexcept
 //! Total sum accumulating from logsumexp and corrected by elements from src
 /*! Mnemonically, the following operations are performed:
- *      val += logsumexp[i] - src[labels[i], i];
  * for every i in [0, n_outputs)
+ *      val += alpha * (logsumexp[i]-src[labels[i], i]);
  *
+ * @param[in] alpha: Scalar multiplier
  * @param[in] n_labels: Number of possible labels
  * @param[in] n_outputs: Number of elements to sum up.
  * @param[in] logsumexp: Array with logsumexp values of size n_outputs.
@@ -56,18 +57,18 @@ void cpu(Index n_labels, Index n_outputs, const T* logsumexp, const T* src,
         c = (t-sum) - y;
         sum = t;
     }
-    *val = (*val-c) + sum;
+    *val = (*val-alpha*c) + alpha*sum;
     //std::cout << "loss=" << *val << "\n";
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index n_labels, Index n_outputs, const fp32_t* logsumexp,
+void cpu<fp32_t>(fp32_t alpha, Index n_labels, Index n_outputs, const fp32_t* logsumexp,
         const fp32_t* src, const Index* class_labels, fp32_t* val)
     noexcept;
 
 template
-void cpu<fp64_t>(Index n_labels, Index n_outputs, const fp64_t* logsumexp,
+void cpu<fp64_t>(fp64_t alpha, Index n_labels, Index n_outputs, const fp64_t* logsumexp,
         const fp64_t* src, const Index* class_labels, fp64_t *val)
     noexcept;
 

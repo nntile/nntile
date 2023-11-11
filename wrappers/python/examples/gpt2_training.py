@@ -110,7 +110,6 @@ assert args.torch_nepochs >= 0
 assert args.nntile_nforward >= 0
 assert args.nntile_nbackward >= 0
 assert args.nntile_nepochs >= 0
-assert args.pretrained == "local" and len(args.config_path) > 0
 
 # Set Torch default device to cpu
 torch.set_default_device("cpu")
@@ -488,7 +487,7 @@ if args.check_fp64:
     # Get gradients of parameters through the backward pass
     #loss = 0.5 * (output_value.logits * output_value.logits).sum()
     #loss.backward()
-    loss_func = nn.CrossEntropyLoss(reduction="sum")
+    loss_func = nn.CrossEntropyLoss(reduction="mean")
     output_logits = output_value.logits.reshape(-1, config.vocab_size)
     loss = loss_func(output_logits, output_label.reshape(-1))
     model_torch.zero_grad()
@@ -508,7 +507,8 @@ if args.check_fp64:
     print("Model output norm: {}".format(norm))
     # Run backward pass by the NNTile to get gradients of parameters
     loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
-            nntile_model.activations[-1], next_tag)
+            nntile_model.activations[-1], next_tag, \
+            scale=1.0/(args.batch_size*config.n_positions))
     loss.y.from_array(train_tokens[5, 0, :, 1:].T)
     nntile_model.clear_gradients()
     loss.calc_async()
@@ -550,7 +550,8 @@ if args.nntile_nepochs > 0:
     next_tag = optimizer.get_next_tag()
     # Define Cross Entropy loss function
     loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
-            nntile_model.activations[-1], next_tag)
+            nntile_model.activations[-1], next_tag, \
+            scale=1.0/(args.batch_size*config.n_positions))
     # Set up training pipeline
     pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, \
             nntile_model, optimizer, loss, args.nntile_nepochs_warmup)
@@ -602,7 +603,7 @@ if args.torch_nepochs > 0:
         torch_input.append(minibatch_input)
         torch_output.append(minibatch_output)
     optim = Adam(model_torch.parameters(), lr=args.lr)
-    loss_func = nn.CrossEntropyLoss(reduction="sum")
+    loss_func = nn.CrossEntropyLoss(reduction="mean")
     # Warmup training
     for i in range(args.torch_nepochs_warmup):
         for j in range(num_train_batches):

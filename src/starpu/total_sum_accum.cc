@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-09-22
+ * @date 2023-11-11
  * */
 
 #include "nntile/starpu/total_sum_accum.hh"
@@ -29,7 +29,8 @@ void cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t *>(cl_args);
+    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    T alpha = args->alpha;
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
     // Get interfaces
@@ -39,7 +40,7 @@ void cpu(void *buffers[], void *cl_args)
     const Index* labels = interfaces[2]->get_ptr<Index>();
     T* val = interfaces[3]->get_ptr<T>();
     // Launch kernel
-    kernel::total_sum_accum::cpu<T>(n_labels, n_outputs, logsumexp, src,
+    kernel::total_sum_accum::cpu<T>(alpha, n_labels, n_outputs, logsumexp, src,
             labels, val);
 }
 
@@ -50,7 +51,8 @@ void cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t *>(cl_args);
+    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    T alpha = args->alpha;
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
     // Get interfaces
@@ -62,17 +64,18 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::total_sum_accum::cuda<T>(stream, n_labels, n_outputs, logsumexp, src,
+    kernel::total_sum_accum::cuda<T>(stream, alpha, n_labels, n_outputs, logsumexp, src,
             labels, val);
 }
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for total_sum_accum tasks
+template<typename T>
 static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t *>(task->cl_arg);
+    auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->n_labels, sizeof(args->n_labels),
             hash);
@@ -86,7 +89,7 @@ Codelet codelet_fp32, codelet_fp64;
 void init()
 {
     codelet_fp32.init("nntile_total_sum_accum_fp32",
-            footprint,
+            footprint<fp32_t>,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_t>}
@@ -95,7 +98,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
     codelet_fp64.init("nntile_total_sum_accum_fp64",
-            footprint,
+            footprint<fp64_t>,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp64_t>}
@@ -118,11 +121,12 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index n_labels, Index n_outputs, Handle logsumexp, Handle src,
+void submit(T alpha, Index n_labels, Index n_outputs, Handle logsumexp, Handle src,
         Handle class_labels, Handle val)
 {
     // Codelet arguments
-    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
+    args->alpha = alpha;
     args->n_labels = n_labels;
     args->n_outputs = n_outputs;
     // Submit task
@@ -142,11 +146,11 @@ void submit(Index n_labels, Index n_outputs, Handle logsumexp, Handle src,
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index n_labels, Index n_outputs, Handle logsumexp,
+void submit<fp32_t>(fp32_t alpha, Index n_labels, Index n_outputs, Handle logsumexp,
         Handle src, Handle class_labels, Handle val);
 
 template
-void submit<fp64_t>(Index n_labels, Index n_outputs, Handle logsumexp,
+void submit<fp64_t>(fp64_t alpha, Index n_labels, Index n_outputs, Handle logsumexp,
         Handle src, Handle class_labels, Handle val);
 
 } // namespace total_sum_accum

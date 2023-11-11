@@ -10,11 +10,11 @@
 # @version 1.0.0
 # @author Aleksandr Katrutsa
 # @author Aleksandr Mikhalev
-# @date 2023-09-29
+# @date 2023-11-11
 
 from nntile.tensor import softmax_async, clear_async, copy_async, \
         subtract_indexed_outputs_async, logsumexp_async, maxsumexp_async, \
-        total_sum_accum_async
+        total_sum_accum_async, scal_inplace_async
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         Tensor_int64
 import numpy as np
@@ -29,7 +29,7 @@ class CrossEntropy:
     # Constructor of loss with all the provided data
     def __init__(self, model_output: TensorMoments, labels: Tensor_int64, \
             val: Tensor, maxsumexp: Tensor, logsumexp: Tensor, \
-            redux: bool=False):
+            redux: bool=False, scale: float=1.0):
         self.model_output = model_output
         self.val = val
         self.val.set_reduction_add()
@@ -41,11 +41,12 @@ class CrossEntropy:
             self.redux = 1
         else:
             self.redux = 0
+        self.scale = scale
 
     # Simple generator
     @staticmethod
     def generate_simple(model_output: TensorMoments, next_tag: int, \
-            redux: bool=False) -> tuple:
+            redux: bool=False, scale: float=1.0) -> tuple:
         shape = model_output.value.shape[1:]
         basetile = model_output.value.basetile_shape[1:]
         labels_traits = TensorTraits(shape, basetile)
@@ -63,7 +64,7 @@ class CrossEntropy:
                 model_output.value.distribution, next_tag)
         next_tag = logsumexp.next_tag
         loss = CrossEntropy(model_output, labels, val, maxsumexp, logsumexp, \
-                redux=redux)
+                redux=redux, scale=scale)
         return loss, next_tag
     
     def unregister(self):
@@ -84,12 +85,14 @@ class CrossEntropy:
         maxsumexp_async(self.model_output.value, self.maxsumexp, 0, \
                 redux=self.redux)
         logsumexp_async(self.maxsumexp, self.logsumexp)
-        total_sum_accum_async(self.logsumexp, self.model_output.value, \
+        total_sum_accum_async(self.scale, self.logsumexp, self.model_output.value, \
                 self.y, self.val)
         if self.model_output.grad_required is True:
             softmax_async(self.maxsumexp, self.model_output.value, \
                     self.model_output.grad, 0)
             subtract_indexed_outputs_async(1., self.y, self.model_output.grad)
+        if self.scale != 1.0:
+            scal_inplace_async(self.scale, self.model_output.grad)
         self.model_output.value.wont_use()
         self.model_output.grad.wont_use()
         self.maxsumexp.wont_use()
