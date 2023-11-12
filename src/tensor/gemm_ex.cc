@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-03
+ * @date 2023-11-12
  * */
 
 #include "nntile/tensor/gemm_ex.hh"
@@ -24,7 +24,7 @@ namespace tensor
 template<typename T>
 void gemm_ex_async(T alpha, const TransOp &transA, const Tensor<T> &A,
         const TransOp &transB, const Tensor<T> &B, T beta, const Tensor<T> &C,
-        Index ndim, Index batch_ndim)
+        Index ndim, Index batch_ndim, int redux)
 //! Asynchronous version of tensor-wise gemm operation
 /*! Matrix multiplication for tensors, which are virtually reshaped
  *
@@ -37,6 +37,7 @@ void gemm_ex_async(T alpha, const TransOp &transA, const Tensor<T> &A,
  * @param[inout] C: Output tensor C
  * @param[in] ndim: Number of dimensions used in gemm contraction
  * @param[in] batch_ndim: Number of last dimensions used for batching of gemms
+ * @param[in] redux: Whether or not to use STARPU_REDUX
  * */
 {
     // Check inputs (throw exception in case of an error)
@@ -118,7 +119,7 @@ void gemm_ex_async(T alpha, const TransOp &transA, const Tensor<T> &A,
                     }
                     starpu::gemm_ex::submit<T>(transA, transB, tile_m, tile_n,
                             tile_k, tile_batch, alpha, A_first_tile_handle,
-                            B_first_tile_handle, beta, C_tile_handle);
+                            B_first_tile_handle, beta, C_tile_handle, redux);
                 }
                 // all other l>0
                 for(Index l = 1; l < k; ++l)
@@ -154,7 +155,7 @@ void gemm_ex_async(T alpha, const TransOp &transA, const Tensor<T> &A,
                         starpu::gemm_ex::submit<T>(transA, transB, tile_m,
                                 tile_n, tile_k, tile_batch, alpha,
                                 A_tile_handle, B_tile_handle, one,
-                                C_tile_handle);
+                                C_tile_handle, redux);
                     }
                 }
                 // Flush cache for the output tile on every node
@@ -167,7 +168,7 @@ void gemm_ex_async(T alpha, const TransOp &transA, const Tensor<T> &A,
 template<typename T>
 void gemm_ex(T alpha, const TransOp &transA, const Tensor<T> &A,
         const TransOp &transB, const Tensor<T> &B, T beta, const Tensor<T> &C,
-        Index ndim, Index batch_ndim)
+        Index ndim, Index batch_ndim, int redux)
 //! Blocking version of tensor-wise gemm operation
 /*! Matrix multiplication for tensors, which are virtually reshaped
  *
@@ -180,9 +181,11 @@ void gemm_ex(T alpha, const TransOp &transA, const Tensor<T> &A,
  * @param[inout] C: Output tensor C
  * @param[in] ndim: Number of dimensions used in gemm contraction
  * @param[in] batch_ndim: Number of last dimensions used for batching of gemms
+ * @param[in] redux: Whether or not to use STARPU_REDUX
  * */
 {
-    gemm_ex_async<T>(alpha, transA, A, transB, B, beta, C, ndim, batch_ndim);
+    gemm_ex_async<T>(alpha, transA, A, transB, B, beta, C, ndim, batch_ndim,
+            redux);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -192,13 +195,13 @@ template
 void gemm_ex_async<fp32_t>(fp32_t alpha, const TransOp &transA,
         const Tensor<fp32_t> &A,
         const TransOp &transB, const Tensor<fp32_t> &B, fp32_t beta,
-        const Tensor<fp32_t> &C, Index ndim, Index batch_ndim);
+        const Tensor<fp32_t> &C, Index ndim, Index batch_ndim, int redux);
 
 // Explicit instantiation
 template
 void gemm_ex<fp32_t>(fp32_t alpha, const TransOp &transA, const Tensor<fp32_t> &A,
         const TransOp &transB, const Tensor<fp32_t> &B, fp32_t beta,
-        const Tensor<fp32_t> &C, Index ndim, Index batch_ndim);
+        const Tensor<fp32_t> &C, Index ndim, Index batch_ndim, int redux);
 
 } // namespace tensor
 } // namespace nntile

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-09-25
+ * @date 2023-11-12
  * */
 
 #pragma once
@@ -27,7 +27,7 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
         const Tensor<T> &dV, const Tensor<bool_t> &mask,
         const Tensor<T> &maxsumexp, const Tensor<T> &dst_grad,
         const Tensor<T> &tmp, const Tensor<T> &tmp_grad,
-        const Tensor<T> &tmp_sumprod_slice, int redux);
+        const Tensor<T> &tmp_sumprod_slice, int redux=0, int fp32_fast_tf32=0);
 
 template<typename T>
 void flash_softmax_gemm_backward(const Tensor<T> &Q, const Tensor<T> &dQ,
@@ -35,7 +35,7 @@ void flash_softmax_gemm_backward(const Tensor<T> &Q, const Tensor<T> &dQ,
         const Tensor<T> &dV, const Tensor<bool_t> &mask,
         const Tensor<T> &maxsumexp, const Tensor<T> &dst_grad,
         const Tensor<T> &tmp, const Tensor<T> &tmp_grad,
-        const Tensor<T> &tmp_sumprod_slice, int redux);
+        const Tensor<T> &tmp_sumprod_slice, int redux=0, int fp32_fast_tf32=0);
 
 } // namespace tensor
 } // namespace nntile

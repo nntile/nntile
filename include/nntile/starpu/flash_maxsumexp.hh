@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-09-26
+ * @date 2023-11-12
  * */
 
 #pragma once
@@ -73,7 +73,8 @@ void restore_where();
 
 template<typename T>
 void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
-        Handle mask, Handle maxsumexp, Handle tmp, int redux=0);
+        Handle mask, Handle maxsumexp, Handle tmp, int redux=0,
+        int fp32_fast_tf32=0);
 
 } // namespace flash_maxsumexp
 } // namespace starpu

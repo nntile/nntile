@@ -30,7 +30,7 @@ class Linear(BaseLayer):
     ndim: int
     #b: TensorMoments
     #b_axis: int
-    fp32_fast_fp16: bool
+    fp32_fast_tf32: bool
     fp32_convert_fp16: bool
     x_fp16: TensorMoments
     y_fp16: TensorMoments
@@ -41,7 +41,7 @@ class Linear(BaseLayer):
     def __init__(self, side: str, trans_x: TransOp, x: TensorMoments, \
             y: TensorMoments, w: TensorMoments, ndim: int, \
             b: Union[TensorMoments, None], \
-            fp32_fast_fp16: bool = False, \
+            fp32_fast_tf32: bool = False, \
             fp32_convert_fp16: bool = False, \
             x_fp16: Optional[TensorMoments] = None, \
             w_fp16: Optional[TensorMoments] = None, \
@@ -75,7 +75,7 @@ class Linear(BaseLayer):
         self.x_fp16 = x_fp16
         self.w_fp16 = w_fp16
         self.y_fp16 = y_fp16
-        self.fp32_fast_fp16 = fp32_fast_fp16
+        self.fp32_fast_tf32 = fp32_fast_tf32
         self.fp32_convert_fp16 = fp32_convert_fp16
         if redux:
             self.redux = 1
@@ -87,7 +87,7 @@ class Linear(BaseLayer):
     def generate_simple(x: TensorMoments, side: str, trans_x: TransOp, \
             in_features_ndim: int, out_features_shape: List[int], \
             out_features_basetile_shape: List[int], next_tag: int, \
-            bias: bool=True, fp32_fast_fp16: bool=False, \
+            bias: bool=True, fp32_fast_tf32: bool=False, \
             fp32_convert_fp16: bool=False, redux: bool=False):
         # Define shapes
         ndim = in_features_ndim
@@ -155,9 +155,9 @@ class Linear(BaseLayer):
         y = TensorMoments(y_value, y_grad, True)
         # Create linear layer with all the provided data
         if type(x.value) is not nntile.tensor.Tensor_fp32:
-            fp32_fast_fp16 = False
+            fp32_fast_tf32 = False
             fp32_convert_fp16 = False
-        if fp32_fast_fp16:
+        if fp32_fast_tf32:
             fp32_convert_fp16 = False
         if fp32_convert_fp16:
             x_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
@@ -177,10 +177,10 @@ class Linear(BaseLayer):
             y_fp16_grad = Tensor_fp16(y_traits, y_distr, next_tag)
             next_tag = y_fp16_grad.next_tag
             y_fp16 = TensorMoments(y_fp16_value, y_fp16_grad, True)
-            layer = Linear(side, trans_x, x, y, w, ndim, b, fp32_fast_fp16, \
+            layer = Linear(side, trans_x, x, y, w, ndim, b, fp32_fast_tf32, \
                     fp32_convert_fp16, x_fp16, w_fp16, y_fp16)
         else:
-            layer = Linear(side, trans_x, x, y, w, ndim, b, fp32_fast_fp16, \
+            layer = Linear(side, trans_x, x, y, w, ndim, b, fp32_fast_tf32, \
                     redux=redux)
         # Return layer and next tag to be used
         return (layer, next_tag)
@@ -197,7 +197,7 @@ class Linear(BaseLayer):
             # 'i' is a multi-index of dimension X.ndim-ndim
             # 'j' is a multi-index of dimension ndim
             # 'k' is a multi-index of dimension W.ndim-ndim
-            if self.fp32_fast_fp16:
+            if self.fp32_fast_tf32:
                 gemm_ex_async(1.0, self.trans_x, self.x.value, notrans, \
                         self.w.value, 0.0, self.y.value, self.ndim, 0, \
                         redux=self.redux)
@@ -211,7 +211,8 @@ class Linear(BaseLayer):
                 self.y_fp16.value.wont_use()
             else:
                 gemm_async(1.0, self.trans_x, self.x.value, notrans, \
-                        self.w.value, 0.0, self.y.value, self.ndim, 0, redux=self.redux)
+                        self.w.value, 0.0, self.y.value, self.ndim, 0, \
+                        redux=self.redux)
             if self.b is not None:
                 add_fiber_async(1.0, self.b.value, 1.0, self.y.value,
                         self.y.value.ndim-1, 0)
@@ -220,9 +221,10 @@ class Linear(BaseLayer):
             # 'i' is a multi-index of dimension W.ndim-ndim
             # 'j' is a multi-index of dimension ndim
             # 'k' is a multi-index of dimension X.ndim-ndim
-            if self.fp32_fast_fp16:
+            if self.fp32_fast_tf32:
                 gemm_ex_async(1.0, notrans, self.w.value, self.trans_x, \
-                        self.x.value, 0.0, self.y.value, self.ndim, 0, redux=self.redux)
+                        self.x.value, 0.0, self.y.value, self.ndim, 0, \
+                        redux=self.redux)
             elif self.fp32_convert_fp16:
                 gemm_async(1.0, notrans, self.w_fp16.value, self.trans_x, \
                         self.x_fp16.value, 0.0, self.y_fp16.value, \
@@ -233,7 +235,8 @@ class Linear(BaseLayer):
                 self.y_fp16.value.wont_use()
             else:
                 gemm_async(1.0, notrans, self.w.value, self.trans_x, \
-                        self.x.value, 0.0, self.y.value, self.ndim, 0, redux=self.redux)
+                        self.x.value, 0.0, self.y.value, self.ndim, 0, \
+                        redux=self.redux)
             if self.b is not None:
                 add_fiber_async(1.0, self.b.value, 1.0, self.y.value, 0, 0)
         # Hint for StarPU that W tensor will
@@ -262,7 +265,7 @@ class Linear(BaseLayer):
                 # 'j' is a multi-index of dimension ndim
                 # 'k' is a multi-index of dimension W.ndim-ndim
                 if self.trans_x == notrans:
-                    if self.fp32_fast_fp16:
+                    if self.fp32_fast_tf32:
                         gemm_ex_async(1.0, trans, self.x.value, notrans, \
                                 self.y.grad, 1.0, self.w.grad, gemm_ndim, 0, \
                                 redux=self.redux)
@@ -275,7 +278,7 @@ class Linear(BaseLayer):
                                 self.y.grad, 1.0, self.w.grad, gemm_ndim, 0, \
                                 redux=self.redux)
                 else:
-                    if self.fp32_fast_fp16:
+                    if self.fp32_fast_tf32:
                         gemm_ex_async(1.0, notrans, self.x.value, notrans, \
                                 self.y.grad, 1.0, self.w.grad, gemm_ndim, 0, \
                                 redux=self.redux)
@@ -294,7 +297,7 @@ class Linear(BaseLayer):
                 # 'j' is a multi-index of dimension ndim
                 # 'k' is a multi-index of dimension X.ndim-ndim
                 if self.trans_x == notrans:
-                    if self.fp32_fast_fp16:
+                    if self.fp32_fast_tf32:
                         gemm_ex_async(1.0, notrans, self.y.grad, trans, \
                                 self.x.value, 1.0, self.w.grad, gemm_ndim, 0, \
                                 redux=self.redux)
@@ -307,7 +310,7 @@ class Linear(BaseLayer):
                                 self.x.value, 1.0, self.w.grad, gemm_ndim, 0, \
                                 redux=self.redux)
                 else:
-                    if self.fp32_fast_fp16:
+                    if self.fp32_fast_tf32:
                         gemm_ex_async(1.0, notrans, self.y.grad, notrans, \
                                 self.x.value, 1.0, self.w.grad, gemm_ndim, 0, \
                                 redux=self.redux)
@@ -352,7 +355,7 @@ class Linear(BaseLayer):
                 # 'k' is a multi-index of dimension W.ndim-ndim
                 if self.trans_x == notrans:
                     # dX += einsum('ik,jk->ij', dY, W)
-                    if self.fp32_fast_fp16:
+                    if self.fp32_fast_tf32:
                         gemm_ex_async(1.0, notrans, self.y.grad, trans, \
                                 self.w.value, 1.0, self.x.grad, gemm_ndim, 0, \
                                 redux=self.redux)
@@ -366,7 +369,7 @@ class Linear(BaseLayer):
                                 redux=self.redux)
                 else:
                     # dX += einsum('ik,jk->ij', W, dY)
-                    if self.fp32_fast_fp16:
+                    if self.fp32_fast_tf32:
                         gemm_ex_async(1.0, notrans, self.w.value, trans, \
                                 self.y.grad, 1.0, self.x.grad, gemm_ndim, 0, \
                                 redux=self.redux)
@@ -386,7 +389,7 @@ class Linear(BaseLayer):
                 # 'k' is a multi-index of dimension X.ndim-ndim
                 if self.trans_x == notrans:
                     # dX += einsum('ij,ik->jk', W, dY)
-                    if self.fp32_fast_fp16:
+                    if self.fp32_fast_tf32:
                         gemm_ex_async(1.0, trans, self.w.value, notrans, \
                                 self.y.grad, 1.0, self.x.grad, gemm_ndim, 0, \
                                 redux=self.redux)
@@ -400,7 +403,7 @@ class Linear(BaseLayer):
                                 redux=self.redux)
                 else:
                     # dX = einsum('ij,ik->jk', dY, W)
-                    if self.fp32_fast_fp16:
+                    if self.fp32_fast_tf32:
                         gemm_ex_async(1.0, trans, self.y.grad, notrans, \
                                 self.w.value, 1.0, self.x.grad, gemm_ndim, 0, \
                                 redux=self.redux)

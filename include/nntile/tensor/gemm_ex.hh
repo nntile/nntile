@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-03
+ * @date 2023-11-12
  * */
 
 #pragma once
@@ -25,12 +25,12 @@ namespace tensor
 template<typename T>
 void gemm_ex_async(T alpha, const TransOp &transA, const Tensor<T> &A,
         const TransOp &transB, const Tensor<T> &B, T beta, const Tensor<T> &C,
-        Index ndim, Index batch_ndim);
+        Index ndim, Index batch_ndim, int redux=0);
 
 template<typename T>
 void gemm_ex(T alpha, const TransOp &transA, const Tensor<T> &A,
         const TransOp &transB, const Tensor<T> &B, T beta, const Tensor<T> &C,
-        Index ndim, Index batch_ndim);
+        Index ndim, Index batch_ndim, int redux=0);
 
 } // namespace tensor
 } // namespace nntile

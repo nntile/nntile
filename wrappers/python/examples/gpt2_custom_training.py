@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-09-29
+# @date 2023-11-12
 
 # Imports
 import torch
@@ -59,6 +59,7 @@ parser.add_argument("--restrict", choices=["cpu", "cuda", None], \
         default=None)
 parser.add_argument("--flashattention", action="store_true")
 parser.add_argument("--redux", action="store_true")
+parser.add_argument("--fp32-fast-tf32", action="store_true")
 parser.add_argument("--nforward", type=int, default=0)
 parser.add_argument("--nforward-warmup", type=int, default=0)
 parser.add_argument("--nbackward", type=int, default=0)
@@ -68,6 +69,7 @@ parser.add_argument("--dataset-path", default=".data")
 parser.add_argument("--dataset-select", type=int, default=100)
 parser.add_argument("--optimizer", choices=["sgd", "adam", "fusedadam"], \
         default="fusedadam")
+parser.add_argument("--optimizer-eps", type=float, default=1e-8)
 parser.add_argument("--lr", type=float, default=0.0)
 parser.add_argument("--nepochs", type=int, default=0)
 parser.add_argument("--nepochs-warmup", type=int, default=0)
@@ -167,7 +169,7 @@ model_nntile_config = GPT2Config_nntile(config.vocab_size, args.embd_tile, \
         "gelutanh", args.flashattention, args.redux)
 model_nntile, next_tag = GPT2Model_nntile.from_torch(model_torch, \
         args.minibatch, args.minibatch_tile, config.n_positions, \
-        args.seq_tile, model_nntile_config, next_tag)
+        args.seq_tile, model_nntile_config, next_tag, args.fp32_fast_tf32)
 del model_torch
 
 # Measure throughput of the forward pass by NNTile
@@ -299,10 +301,10 @@ print("From PyTorch loader to NNTile batches in {} seconds".format(time1), \
 # Set up learning rate and optimizer for training
 if args.optimizer == "fusedadam":
     optimizer = nntile.optimizer.FusedAdam(model_nntile.get_parameters(), \
-            args.lr, next_tag)
+            args.lr, next_tag, eps=args.optimizer_eps)
 elif args.optimizer == "adam":
     optimizer = nntile.optimizer.Adam(model_nntile.get_parameters(), \
-            args.lr, next_tag)
+            args.lr, next_tag, eps=args.optimizer_eps)
 elif args.optimizer == "sgd":
     optimizer = nntile.optimizer.SGD(model_nntile.get_parameters(), \
             args.lr, next_tag)

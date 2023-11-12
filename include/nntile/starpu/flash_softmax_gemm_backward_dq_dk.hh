@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-09-26
+ * @date 2023-11-12
  * */
 
 #pragma once
@@ -44,7 +44,7 @@ void cuda(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern Codelet codelet_fp32, codelet_fp64;
+extern Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
 
 template<typename T>
 constexpr Codelet *codelet()
@@ -75,7 +75,7 @@ template<typename T>
 void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle mask, Handle maxsumexp, Handle dA, Handle V,
         Handle sumprod_slice, Handle dQ, Handle dK, Handle tmp,
-        Handle tmp_grad, int redux=0);
+        Handle tmp_grad, int redux=0, int fp32_fast_tf32=0);
 
 } // namespace flash_softmax_gemm_backward_dq_dk
 } // namespace starpu

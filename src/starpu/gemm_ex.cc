@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-02
+ * @date 2023-11-12
  * */
 
 #include "nntile/starpu/gemm_ex.hh"
@@ -37,7 +37,22 @@ void cublas(cublasHandle_t handle, cublasOperation_t transA,
 {
     cublasGemmEx(handle, transA, transB, M, N, K, &alpha, A, CUDA_R_32F, ldA,
             B, CUDA_R_32F, ldB, &beta, C, CUDA_R_32F, ldC,
-            CUBLAS_COMPUTE_32F_FAST_16F, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+            CUBLAS_COMPUTE_32F_FAST_TF32, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+}
+
+// Overloaded call to batched cuBLAS gemm
+static inline
+void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
+        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
+        const fp32_t *A, int ldA, long long int strideA, const fp32_t *B,
+        int ldB, long long int strideB, fp32_t beta, fp32_t *C, int ldC,
+        long long int strideC, int batchCount)
+    noexcept
+{
+    cublasGemmStridedBatchedEx(handle, transA, transB, M, N, K, &alpha, A,
+            CUDA_R_32F, ldA, strideA, B, CUDA_R_32F, ldB, strideB, &beta, C,
+            CUDA_R_32F, ldC, strideC, batchCount, CUBLAS_COMPUTE_32F_FAST_TF32,
+            CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
 
 //! GEMM for contiguous matrices without padding through StarPU buffers
@@ -88,15 +103,18 @@ void cuda(void *buffers[], void *cl_args)
     // alpha and beta parameters of GEMM operation are on CPU host
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
     // Call corresponding cuBLAS routine
-    Index A_offset = args->m * args->k, B_offset = args->n * args->k,
-            C_offset = args->m * args->n;
-    for(Index i = 0; i < args->batch; ++i)
+    if(args->batch == 1)
     {
         cublas(handle, transA_, transB_, M, N, K, args->alpha, A, ldA, B, ldB,
                 args->beta, C, M);
-        A += A_offset;
-        B += B_offset;
-        C += C_offset;
+    }
+    else
+    {
+        Index A_offset = args->m * args->k, B_offset = args->n * args->k,
+                C_offset = args->m * args->n;
+        cublas_batch(handle, transA_, transB_, M, N, K, args->alpha, A, ldA,
+                A_offset, B, ldB, B_offset, args->beta, C, M, C_offset,
+                args->batch);
     }
 }
 #endif //NNTILE_USE_CUDA
@@ -125,7 +143,7 @@ Codelet codelet_NN_fp32, codelet_NT_fp32, codelet_TN_fp32, codelet_TT_fp32;
 
 void init()
 {
-    codelet_NN_fp32.init("nntile_gemm_ex_NN_fp32_fast_fp16",
+    codelet_NN_fp32.init("nntile_gemm_ex_NN_fp32_fast_tf32",
             footprint<fp32_t>,
             {},
 #ifdef NNTILE_USE_CUDA
@@ -134,7 +152,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_NT_fp32.init("nntile_gemm_ex_NT_fp32_fast_fp16",
+    codelet_NT_fp32.init("nntile_gemm_ex_NT_fp32_fast_tf32",
             footprint<fp32_t>,
             {},
 #ifdef NNTILE_USE_CUDA
@@ -143,7 +161,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_TN_fp32.init("nntile_gemm_ex_TN_fp32_fast_fp16",
+    codelet_TN_fp32.init("nntile_gemm_ex_TN_fp32_fast_tf32",
             footprint<fp32_t>,
             {},
 #ifdef NNTILE_USE_CUDA
@@ -152,7 +170,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_TT_fp32.init("nntile_gemm_ex_TT_fp32_fast_fp16",
+    codelet_TT_fp32.init("nntile_gemm_ex_TT_fp32_fast_tf32",
             footprint<fp32_t>,
             {},
 #ifdef NNTILE_USE_CUDA
@@ -181,7 +199,8 @@ void restore_where()
 
 template<typename T>
 void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
-        Index k, Index batch, T alpha, Handle A, Handle B, T beta, Handle C)
+        Index k, Index batch, T alpha, Handle A, Handle B, T beta, Handle C,
+        int redux)
 {
     // Check that matrix sizes fit proper types for underlying CUBLAS
 #ifdef NNTILE_USE_CUDA
@@ -206,7 +225,15 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
     }
     else if(beta == one)
     {
-        C_mode = Config::STARPU_RW_COMMUTE;
+        if(redux != 0)
+        {
+            C_mode = STARPU_REDUX;
+            //C_mode = Config::STARPU_RW_COMMUTE;
+        }
+        else
+        {
+            C_mode = Config::STARPU_RW_COMMUTE;
+        }
     }
     else
     {
@@ -244,7 +271,7 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
 template
 void submit<fp32_t>(const TransOp &transA, const TransOp &transB, Index m,
         Index n, Index k, Index batch, fp32_t alpha, Handle A, Handle B,
-        fp32_t beta, Handle C);
+        fp32_t beta, Handle C, int redux);
 
 } // namespace gemm_ex
 } // namespace starpu

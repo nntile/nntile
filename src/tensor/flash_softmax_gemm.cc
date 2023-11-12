@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-09-24
+ * @date 2023-11-12
  * */
 
 #include "nntile/tensor/flash_softmax_gemm.hh"
@@ -29,7 +29,7 @@ template<typename T>
 void flash_softmax_gemm_async(const Tensor<T> &Q, const Tensor<T> &K,
         const Tensor<T> &V, const Tensor<bool_t> &mask,
         const Tensor<T> &maxsumexp, const Tensor<T> &dst,
-        const Tensor<T> &tmp, int redux)
+        const Tensor<T> &tmp, int redux, int fp32_fast_tf32)
 {
 //    // Check dimensions
 //    if(src.ndim != dst.ndim)
@@ -123,24 +123,7 @@ void flash_softmax_gemm_async(const Tensor<T> &Q, const Tensor<T> &K,
                     n_seq_tile, head_size, n_batch_tile*n_head_tile,
                     k_tile_handle, q_tile_handle, mask_tile_handle,
                     maxsumexp_tile_handle, v_tile_handle, dst_tile_handle,
-                    tmp_tile_handle, redux=0);
-            // Insert tasks
-//            starpu::gemm::submit<T, T>(opT, opN,
-//                    n_seq_tile, n_seq_tile, head_size,
-//                    n_batch_tile*n_head_tile, 1.0/std::sqrt(head_size),
-//                    k_tile_handle, q_tile_handle, 0.0, tmp_tile_handle,
-//                    redux=0);
-//            starpu::mask_scalar::submit<T>(n_seq_tile*n_seq_tile,
-//                    n_batch_tile*n_head_tile, mask_tile_handle,
-//                    -std::numeric_limits<T>::infinity(), tmp_tile_handle);
-//            starpu::softmax_inplace::submit<T>(1,
-//                    n_seq_tile*n_batch_tile*n_head_tile, n_seq_tile,
-//                    maxsumexp_tile_handle, tmp_tile_handle);
-//            starpu::gemm::submit<T, T>(opN, opN,
-//                    head_size, n_seq_tile, n_seq_tile,
-//                    n_batch_tile*n_head_tile, 1.0,
-//                    v_tile_handle, tmp_tile_handle, 1.0, dst_tile_handle,
-//                    redux=0);
+                    tmp_tile_handle, redux=0, fp32_fast_tf32=fp32_fast_tf32);
         }
     }
 }
@@ -149,9 +132,10 @@ template<typename T>
 void flash_softmax_gemm(const Tensor<T> &Q, const Tensor<T> &K,
         const Tensor<T> &V, const Tensor<bool_t> &mask,
         const Tensor<T> &maxsumexp, const Tensor<T> &dst,
-        const Tensor<T> &tmp, int redux)
+        const Tensor<T> &tmp, int redux, int fp32_fast_tf32)
 {
-    flash_softmax_gemm_async<T>(Q, K, V, mask, maxsumexp, dst, tmp, redux);
+    flash_softmax_gemm_async<T>(Q, K, V, mask, maxsumexp, dst, tmp, redux,
+            fp32_fast_tf32);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -161,27 +145,26 @@ template
 void flash_softmax_gemm_async(const Tensor<fp32_t> &Q, const Tensor<fp32_t> &K,
         const Tensor<fp32_t> &V, const Tensor<bool_t> &mask,
         const Tensor<fp32_t> &maxsumexp, const Tensor<fp32_t> &dst,
-        const Tensor<fp32_t> &tmp, int redux);
+        const Tensor<fp32_t> &tmp, int redux, int fp32_fast_tf32);
 
 template
 void flash_softmax_gemm_async(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &K,
         const Tensor<fp64_t> &V, const Tensor<bool_t> &mask,
         const Tensor<fp64_t> &maxsumexp, const Tensor<fp64_t> &dst,
-        const Tensor<fp64_t> &tmp, int redux);
-
+        const Tensor<fp64_t> &tmp, int redux, int fp32_fast_tf32);
 
 // Explicit instantiation
 template
 void flash_softmax_gemm(const Tensor<fp32_t> &Q, const Tensor<fp32_t> &K,
         const Tensor<fp32_t> &V, const Tensor<bool_t> &mask,
         const Tensor<fp32_t> &maxsumexp, const Tensor<fp32_t> &dst,
-        const Tensor<fp32_t> &tmp, int redux);
+        const Tensor<fp32_t> &tmp, int redux, int fp32_fast_tf32);
 
 template
 void flash_softmax_gemm(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &K,
         const Tensor<fp64_t> &V, const Tensor<bool_t> &mask,
         const Tensor<fp64_t> &maxsumexp, const Tensor<fp64_t> &dst,
-        const Tensor<fp64_t> &tmp, int redux);
+        const Tensor<fp64_t> &tmp, int redux, int fp32_fast_tf32);
 
 } // namespace tensor
 } // namespace nntile

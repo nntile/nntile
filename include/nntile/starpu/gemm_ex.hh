@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-02
+ * @date 2023-11-12
  * */
 
 #pragma once
@@ -95,7 +95,8 @@ void restore_where();
 
 template<typename T>
 void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
-        Index k, Index batch, T alpha, Handle A, Handle B, T beta, Handle C);
+        Index k, Index batch, T alpha, Handle A, Handle B, T beta, Handle C,
+        int redux=0);
 
 } // namespace gemm_ex
 } // namespace starpu

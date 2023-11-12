@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-11-11
+# @date 2023-11-12
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -69,12 +69,12 @@ def gemm_async(alpha: float, trans_A: TransOp, A: Tensor, trans_B: TransOp, \
 # Wrapper for multiprecision gemm_ex
 def gemm_ex_async(alpha: float, trans_A: TransOp, A: Tensor, \
         trans_B: TransOp, B: Tensor, beta: float, C: Tensor, ndim: int, \
-        batch_ndim: int) -> None:
+        batch_ndim: int, redux: int=0) -> None:
     if type(A) is not type(B) or type(A) is not type(C):
         raise TypeError
     if type(A) is core_tensor.Tensor_fp32:
         core_tensor.gemm_ex_async_fp32(alpha, trans_A, A, trans_B, B, beta, C,
-                ndim, batch_ndim)
+                ndim, batch_ndim, redux)
     else:
         raise TypeError
 
@@ -249,7 +249,7 @@ def sumnorm_async(x: Tensor, sumnorm: Tensor, axis: int) -> None:
 # Wrapper for multiprecision fast fused softmax+gemm
 def flash_softmax_gemm_async(Q: Tensor, K: Tensor, V: Tensor, \
         mask: Tensor_bool, maxsumexp: Tensor, dst: Tensor, tmp: Tensor, \
-        redux: int=0) -> None:
+        redux: int=0, fp32_fast_tf32: int=0) -> None:
     if type(Q) is not type(K):
         raise TypeError
     if type(Q) is not type(V):
@@ -262,10 +262,10 @@ def flash_softmax_gemm_async(Q: Tensor, K: Tensor, V: Tensor, \
         raise TypeError
     if type(Q) is core_tensor.Tensor_fp32:
         core_tensor.flash_softmax_gemm_async_fp32(Q, K, V, mask, maxsumexp, \
-                dst, tmp, redux)
+                dst, tmp, redux, fp32_fast_tf32)
     elif type(Q) is core_tensor.Tensor_fp64:
         core_tensor.flash_softmax_gemm_async_fp64(Q, K, V, mask, maxsumexp, \
-                dst, tmp, redux)
+                dst, tmp, redux, 0)
     else:
         raise TypeError
 
@@ -273,7 +273,7 @@ def flash_softmax_gemm_async(Q: Tensor, K: Tensor, V: Tensor, \
 def flash_softmax_gemm_backward_async(Q: Tensor, dQ: Tensor, K: Tensor, \
         dK: Tensor, V: Tensor, dV: Tensor, mask: Tensor_bool, \
         maxsumexp: Tensor, dst_grad: Tensor, tmp: Tensor, tmp_grad: Tensor, \
-        tmp_sumprod_slice: Tensor, redux: int=0) -> None:
+        tmp_sumprod_slice: Tensor, redux: int=0, fp32_fast_tf32: int=0) -> None:
     if type(Q) is not type(dQ):
         raise TypeError
     if type(Q) is not type(K):
@@ -297,11 +297,11 @@ def flash_softmax_gemm_backward_async(Q: Tensor, dQ: Tensor, K: Tensor, \
     if type(Q) is core_tensor.Tensor_fp32:
         core_tensor.flash_softmax_gemm_backward_async_fp32(Q, dQ, K, dK, V, \
                 dV, mask, maxsumexp, dst_grad, tmp, tmp_grad, \
-                tmp_sumprod_slice, redux)
+                tmp_sumprod_slice, redux, fp32_fast_tf32)
     elif type(Q) is core_tensor.Tensor_fp64:
         core_tensor.flash_softmax_gemm_backward_async_fp64(Q, dQ, K, dK, V, \
                 dV, mask, maxsumexp, dst_grad, tmp, tmp_grad, \
-                tmp_sumprod_slice, redux)
+                tmp_sumprod_slice, redux, 0)
     else:
         raise TypeError
 
@@ -402,7 +402,8 @@ def normalize_async(gb: Tensor, x: Tensor, y: Tensor, l: int, eps: float,
 
 # Wrapper for multiprecision fast maxsumexp
 def flash_maxsumexp_async(Q: Tensor, K: Tensor, mask: Tensor_bool, \
-        maxsumexp: Tensor, tmp: Tensor, redux: int=0) -> None:
+        maxsumexp: Tensor, tmp: Tensor, redux: int=0, \
+        fp32_fast_tf32: int=0) -> None:
     if type(Q) is not type(K):
         raise TypeError
     if type(Q) is not type(maxsumexp):
@@ -411,10 +412,10 @@ def flash_maxsumexp_async(Q: Tensor, K: Tensor, mask: Tensor_bool, \
         raise TypeError
     if type(Q) is core_tensor.Tensor_fp32:
         core_tensor.flash_maxsumexp_async_fp32(Q, K, mask, maxsumexp, tmp, \
-                redux)
+                redux, fp32_fast_tf32)
     elif type(Q) is core_tensor.Tensor_fp64:
         core_tensor.flash_maxsumexp_async_fp64(Q, K, mask, maxsumexp, tmp, \
-                redux)
+                redux, 0)
     else:
         raise TypeError
 
