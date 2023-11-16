@@ -16,7 +16,7 @@ import numpy as np
 import torch.nn.functional as F
 import torch
 from nntile.torch_models.mlp_mixer import Mixer as TorchMixerLayer
-
+from nntile.torch_models.mlp_mixer import image_patching_rgb
 
 # Set up StarPU configuration and init it
 config = nntile.starpu.Config(1, 0, 0)
@@ -36,8 +36,19 @@ def helper(dtype: np.dtype):
         tol = 1e-5
     elif dtype == np.float64:
         tol = 1e-10
+    
+    batch_size = 8
+    clr_space_size = 3
+    h, w = 8, 8
+    patch_size = 4
+
+    # Set initial values of tensors
+    rand_A = torch.rand(batch_size, clr_space_size, h, w)
+    patched_batch = image_patching_rgb(rand_A, patch_size)
+    np_A = np.array(patched_batch, dtype=dtype, order='F')
+
     # Describe single-tile tensor, located at node 0
-    A_shape = [8, 2, 4]
+    A_shape = patched_batch.shape
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
     next_tag = 0
@@ -49,10 +60,7 @@ def helper(dtype: np.dtype):
     next_tag = A.next_tag
     A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = A_grad.next_tag
-
-    # Set initial values of tensors
-    rand_A = np.random.randn(*A_shape)
-    np_A = np.array(rand_A, dtype=dtype, order='F')
+   
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
 
     # Define mixer layer

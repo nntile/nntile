@@ -4,11 +4,11 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# Example for torch version of MLP-Mixer model
+# Test for comparison of torch and NNTile versions of MLP-Mixer model
 #
 # @version 1.0.0
 # @author Gleb Karpov
-# @date 2023-09-13
+# @date 2023-11-16
 
 # All necesary imports
 import numpy as np
@@ -17,7 +17,7 @@ import torch.nn as nn
 import torchvision.datasets as dts 
 import torchvision.transforms as trnsfrms
 import nntile
-from nntile.torch_models.mlp_mixer import MlpMixer, image_patching
+from nntile.torch_models.mlp_mixer import MlpMixer, image_patching_rgb
 from nntile.model.mlp_mixer import MlpMixer as MlpMixerTile
 
 
@@ -28,9 +28,9 @@ nntile.starpu.init()
 
 
 def helper():
-    init_patch_size = 7
+    patch_size = 7
     batch_size = 1
-    channel_size = int(28 * 28 / init_patch_size ** 2)
+    channel_size = int(28 * 28 / patch_size ** 2)
     hidden_dim = 100
     num_mixer_layers = 10
     num_classes = 10
@@ -42,9 +42,9 @@ def helper():
 
     tol = 1e-5
 
-    X_shape = [channel_size, batch_size, init_patch_size ** 2]
+    X_shape = [channel_size, batch_size, patch_size ** 2]
 
-    torch_mixer_model = MlpMixer(channel_size, init_patch_size ** 2, hidden_dim, num_mixer_layers, num_classes)
+    torch_mixer_model = MlpMixer(channel_size, patch_size ** 2, hidden_dim, num_mixer_layers, num_classes)
     optim_torch = torch.optim.SGD(torch_mixer_model.parameters(), lr=lr)
     crit_torch = nn.CrossEntropyLoss(reduction="sum")
 
@@ -55,9 +55,7 @@ def helper():
 
     training_iteration = 0
     for train_batch_sample, true_labels in trainldr:
-        train_batch_sample = train_batch_sample.view(-1, 28, 28)
-        train_batch_sample = torch.swapaxes(train_batch_sample, 0, 1)
-        patched_train_sample = image_patching(train_batch_sample, init_patch_size)
+        patched_train_sample = image_patching_rgb(train_batch_sample, patch_size)
         
         torch_mixer_model.zero_grad()
         torch_output = torch_mixer_model(patched_train_sample)
@@ -137,7 +135,7 @@ def helper():
     assert True
 
 
-# Test runner for different precisions
+# Test runner
 def test():
     helper()
 
