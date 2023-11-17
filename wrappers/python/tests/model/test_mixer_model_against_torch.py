@@ -50,7 +50,7 @@ def helper():
 
     trnsform = trnsfrms.Compose([trnsfrms.ToTensor()])
 
-    mnisttrainset = dts.MNIST(root='./data', train=True, download=True, transform=trnsform)
+    mnisttrainset = dts.MNIST(root='/datasets', train=True, download=False, transform=trnsform)
     trainldr = torch.utils.data.DataLoader(mnisttrainset, batch_size=batch_size, shuffle=True)
 
     training_iteration = 0
