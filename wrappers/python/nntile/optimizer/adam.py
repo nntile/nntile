@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Katrutsa
 # @author Aleksandr Mikhalev
-# @date 2023-09-14
+# @date 2023-11-15
 
 import nntile
 import numpy as np
@@ -154,7 +154,8 @@ class Adam:
 
 class FusedAdam:
     def __init__(self, params, lr, next_tag, beta1=0.9, beta2=0.999, \
-            weight_decay=0., eps=1e-8, dtype=np.float32):
+            weight_decay=0., eps=1e-8, dtype=np.float32, start_lr=None, \
+            full_lr_iter=None):
         self.params = params
         self.next_tag = next_tag
         self.num_iter = 1
@@ -170,6 +171,8 @@ class FusedAdam:
                     p.value.distribution, self.next_tag))
             self.next_tag = self.second_moments[-1].next_tag
         self.lr = lr
+        self.start_lr = start_lr
+        self.full_lr_iter = full_lr_iter
         self.beta1 = beta1
         self.beta2 = beta2
         self.weight_decay = weight_decay
@@ -184,9 +187,14 @@ class FusedAdam:
             self.second_moments[i].unregister()
 
     def step(self):
+        cur_lr = self.lr
+        if self.start_lr is not None and self.full_lr_iter is not None:
+            if self.num_iter < self.full_lr_iter and self.full_lr_iter > 1:
+                cur_lr = (self.lr-self.start_lr) / (self.full_lr_iter-1)
+                cur_lr = cur_lr*(self.num_iter-1) + self.start_lr
         for i, p in enumerate(self.params):
             nntile.tensor.fused_adam_step(p.value, p.grad, \
-                    self.first_moments[i], self.second_moments[i], self.lr, \
+                    self.first_moments[i], self.second_moments[i], cur_lr, \
                     self.eps, self.beta1, self.beta2, self.weight_decay, \
                     self.num_iter)
             p.value.wont_use()
@@ -216,6 +224,8 @@ class FusedAdam:
             "beta1": self.beta1,
             "beta2": self.beta2,
             "lr": self.lr,
+            "start_lr": self.start_lr,
+            "full_lr_iter": self.full_lr_iter,
             "eps": self.eps,
             "weight_decay": self.weight_decay
         }
@@ -227,6 +237,8 @@ class FusedAdam:
             stored_states = pickle.load(fp)
 
         self.lr = stored_states["lr"]
+        self.start_lr = stored_states["start_lr"]
+        self.full_lr_iter = stored_states["full_lr_iter"]
         self.beta1 = stored_states["beta1"]
         self.beta2 = stored_states["beta2"]
         self.eps = stored_states["eps"]

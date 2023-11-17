@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-11-12
+# @date 2023-11-15
 
 # Imports
 import torch
@@ -64,13 +64,16 @@ parser.add_argument("--nforward", type=int, default=0)
 parser.add_argument("--nforward-warmup", type=int, default=0)
 parser.add_argument("--nbackward", type=int, default=0)
 parser.add_argument("--nbackward-warmup", type=int, default=0)
-parser.add_argument("--dataset", default="WikiText-103")
+parser.add_argument("--dataset", choices=["WikiText-103", "train.bin"], \
+        default="WikiText-103")
 parser.add_argument("--dataset-path", default=".data")
 parser.add_argument("--dataset-select", type=int, default=100)
 parser.add_argument("--optimizer", choices=["sgd", "adam", "fusedadam"], \
         default="fusedadam")
 parser.add_argument("--optimizer-eps", type=float, default=1e-8)
 parser.add_argument("--lr", type=float, default=0.0)
+parser.add_argument("--start-lr", type=float, default=0.0)
+parser.add_argument("--full-lr-iter", type=int, default=1)
 parser.add_argument("--nepochs", type=int, default=0)
 parser.add_argument("--nepochs-warmup", type=int, default=0)
 
@@ -246,23 +249,32 @@ if args.dataset == "WikiText-103":
                 dtype=np.int64))
     test_dataset = load_dataset("wikitext", "wikitext-103-v1", \
             split='test', cache_dir=args.dataset_path)
+    tokenized = False
+elif args.dataset == "train.bin":
+    train_data = np.memmap(args.dataset_path, dtype=np.uint16, mode='r')
+    train_tokens = np.array(train_data, order='F', dtype=np.int64)
+    tokenized = True
+    del train_data
 else:
     raise ValueError("{} dataset is not supported yet!".format( \
             args.dataset))
 # Tokenize and store as a single numpy array
-tokenizer = GPT2TokenizerFast.from_pretrained(args.tokenizer, \
-        cache_dir=args.tokenizer_path)
-map_train_tokens = map(lambda x: tokenizer(x["text"])["input_ids"], \
-        train_dataset)
-list_train_tokens = []
-for seq in map_train_tokens:
-    list_train_tokens.extend(seq)
-num_train_tokens = len(list_train_tokens)
+if not tokenized:
+    tokenizer = GPT2TokenizerFast.from_pretrained(args.tokenizer, \
+            cache_dir=args.tokenizer_path)
+    map_train_tokens = map(lambda x: tokenizer(x["text"])["input_ids"], \
+            train_dataset)
+    list_train_tokens = []
+    for seq in map_train_tokens:
+        list_train_tokens.extend(seq)
+    train_tokens = np.array(list_train_tokens, dtype=np.int64)
+
+num_train_tokens = train_tokens.shape[0]
 num_train_seq = num_train_tokens // (config.n_positions+1)
 num_train_batches = num_train_seq // args.batch
 num_train_tokens_truncated = num_train_batches * args.batch \
         * (config.n_positions+1)
-train_tokens = np.array(list_train_tokens[:num_train_tokens_truncated], \
+train_tokens = np.array(train_tokens[:num_train_tokens_truncated], \
         order='F', dtype=np.int64)
 train_tokens = train_tokens.reshape(num_train_batches, \
         num_minibatch, args.minibatch, config.n_positions+1)
@@ -301,7 +313,8 @@ print("From PyTorch loader to NNTile batches in {} seconds".format(time1), \
 # Set up learning rate and optimizer for training
 if args.optimizer == "fusedadam":
     optimizer = nntile.optimizer.FusedAdam(model_nntile.get_parameters(), \
-            args.lr, next_tag, eps=args.optimizer_eps)
+            args.lr, next_tag, eps=args.optimizer_eps, \
+            start_lr=args.start_lr, full_lr_iter=args.full_lr_iter)
 elif args.optimizer == "adam":
     optimizer = nntile.optimizer.Adam(model_nntile.get_parameters(), \
             args.lr, next_tag, eps=args.optimizer_eps)
