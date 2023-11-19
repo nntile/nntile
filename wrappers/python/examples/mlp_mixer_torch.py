@@ -31,8 +31,8 @@ batch_size = 512
 accumulation_steps = int(batch_size / minibatch_size)
 
 channel_size = int(32 * 32 / patch_size ** 2)
-hidden_dim = 1024
-num_mixer_layers = 8
+hidden_dim = 768
+num_mixer_layers = 12
 num_classes = 10
 num_clr_channels = 3
 
@@ -74,7 +74,8 @@ for epoch_counter in range(num_epochs):
         torch_loss.backward()
         if (train_iter + 1) % accumulation_steps == 0 or (train_iter + 1) == total_train_samples:
             optim_torch.step()
-            mlp_mixer_model.zero_grad() 
+            mlp_mixer_model.zero_grad()
+            print('Epoch: {}, Processing minibatch {} out of {}'.format(epoch_counter, train_iter, total_train_samples))
         
 torch.save({
             'epoch': num_epochs,
