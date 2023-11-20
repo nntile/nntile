@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-02
+ * @date 2023-11-20
  * */
 
 #include "nntile/starpu/softmax.hh"
@@ -29,14 +29,15 @@ void cpu(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t *>(cl_args);
+    auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *maxsumexp = interfaces[0]->get_ptr<T>();
     const T *src = interfaces[1]->get_ptr<T>();
     T *dst = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::softmax::cpu<T>(args->m, args->n, args->k, maxsumexp, src, dst);
+    kernel::softmax::cpu<T>(args->m, args->n, args->k, maxsumexp, src,
+            args->alpha, dst);
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -46,7 +47,7 @@ void cuda(void *buffers[], void *cl_args)
     noexcept
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t *>(cl_args);
+    auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *maxsumexp = interfaces[0]->get_ptr<T>();
@@ -56,7 +57,7 @@ void cuda(void *buffers[], void *cl_args)
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     kernel::softmax::cuda<T>(stream, args->m, args->n, args->k, maxsumexp,
-            src, dst);
+            src, args->alpha, dst);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -66,7 +67,7 @@ static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t *>(task->cl_arg);
+    auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
     // Apply hash over parameters m, n and k. This way if we swap values of m,
     // n and k, then the total size of buffers will remain the same, but the
     // footprint will be different
@@ -114,7 +115,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, Handle maxsumexp, Handle src,
+void submit(Index m, Index n, Index k, Handle maxsumexp, Handle src, T alpha,
         Handle dst)
 //! Insert softmax task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -123,10 +124,11 @@ void submit(Index m, Index n, Index k, Handle maxsumexp, Handle src,
  * */
 {
     // Codelet arguments
-    args_t *args = (args_t *)std::malloc(sizeof(*args));
+    args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
     args->m = m;
     args->n = n;
     args->k = k;
+    args->alpha = alpha;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(maxsumexp),
@@ -145,11 +147,11 @@ void submit(Index m, Index n, Index k, Handle maxsumexp, Handle src,
 // Explicit instantiation
 template
 void submit<fp32_t>(Index m, Index n, Index k, Handle maxsumexp, Handle src,
-        Handle dst);
+        fp32_t alpha, Handle dst);
 
 template
 void submit<fp64_t>(Index m, Index n, Index k, Handle maxsumexp, Handle src,
-        Handle dst);
+        fp64_t alpha, Handle dst);
 
 } // namespace softmax
 } // namespace starpu

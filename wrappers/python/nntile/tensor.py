@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-11-12
+# @date 2023-11-20
 
 from .nntile_core import tensor as core_tensor
 from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
@@ -306,26 +306,28 @@ def flash_softmax_gemm_backward_async(Q: Tensor, dQ: Tensor, K: Tensor, \
         raise TypeError
 
 # Wrapper for multiprecision softmax
-def softmax_async(maxsumexp: Tensor, x: Tensor, y: Tensor, axis: int) -> None:
+def softmax_async(maxsumexp: Tensor, x: Tensor, alpha: float, y: Tensor, \
+        axis: int) -> None:
     if type(x) is not type(y):
         raise TypeError
     if type(maxsumexp) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.softmax_async_fp32(maxsumexp, x, y, axis)
+        core_tensor.softmax_async_fp32(maxsumexp, x, alpha, y, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.softmax_async_fp64(maxsumexp, x, y, axis)
+        core_tensor.softmax_async_fp64(maxsumexp, x, alpha, y, axis)
     else:
         raise TypeError
 
 # Wrapper for multiprecision softmax
-def softmax_inplace_async(maxsumexp: Tensor, x: Tensor, axis: int) -> None:
+def softmax_inplace_async(maxsumexp: Tensor, alpha, x: Tensor, \
+        axis: int) -> None:
     if type(maxsumexp) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.softmax_inplace_async_fp32(maxsumexp, x, axis)
+        core_tensor.softmax_inplace_async_fp32(maxsumexp, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.softmax_inplace_async_fp64(maxsumexp, x, axis)
+        core_tensor.softmax_inplace_async_fp64(maxsumexp, alpha, x, axis)
     else:
         raise TypeError
 

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-11-17
+ * @date 2023-11-20
  * */
 
 #include "nntile/starpu/flash_softmax_gemm.hh"
@@ -98,7 +98,7 @@ void cpu(void *buffers[], void *cl_args)
     kernel::mask_scalar::cpu<T>(args->seq*args->seq, args->batch, mask,
             -std::numeric_limits<T>::infinity(), tmp);
     kernel::softmax_inplace::cpu<T>(1, args->seq*args->batch, args->seq,
-            maxsumexp, tmp);
+            maxsumexp, 1.0, tmp);
     Index V_offset = K_offset;
     Index A_offset = K_offset;
     const T *V_local = V;
@@ -174,7 +174,7 @@ void cuda(void *buffers[], void *cl_args)
     kernel::mask_scalar::cuda<T>(stream, args->seq*args->seq, args->batch,
             mask, -std::numeric_limits<T>::infinity(), tmp);
     kernel::softmax_inplace::cuda<T>(stream, 1, args->seq*args->batch,
-            args->seq, maxsumexp, tmp);
+            args->seq, maxsumexp, 1.0, tmp);
     Index V_offset = K_offset;
     Index A_offset = K_offset;
     cublas_batch(handle, CUBLAS_OP_N, CUBLAS_OP_N,
@@ -227,7 +227,7 @@ void cuda_fp32_fast_tf32(void *buffers[], void *cl_args)
     kernel::mask_scalar::cuda<T>(stream, args->seq*args->seq, args->batch,
             mask, -std::numeric_limits<T>::infinity(), tmp);
     kernel::softmax_inplace::cuda<T>(stream, 1, args->seq*args->batch,
-            args->seq, maxsumexp, tmp);
+            args->seq, maxsumexp, 1.0, tmp);
     Index V_offset = K_offset;
     Index A_offset = K_offset;
     cublas_ex_batch(handle, CUBLAS_OP_N, CUBLAS_OP_N,

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-02
+ * @date 2023-11-20
  * */
 
 #include "nntile/tile/softmax_inplace.hh"
@@ -21,7 +21,8 @@ namespace tile
 {
 
 template<typename T>
-void softmax_inplace_async(const Tile<T> &maxsumexp, const Tile<T> &dst, Index axis)
+void softmax_inplace_async(const Tile<T> &maxsumexp, T alpha,
+        const Tile<T> &dst, Index axis)
 {
     // Check dimensions
     if(maxsumexp.ndim != dst.ndim)
@@ -68,34 +69,35 @@ void softmax_inplace_async(const Tile<T> &maxsumexp, const Tile<T> &dst, Index a
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
     // Insert task
-    starpu::softmax_inplace::submit<T>(m, n, k, maxsumexp, dst);
+    starpu::softmax_inplace::submit<T>(m, n, k, maxsumexp, alpha, dst);
 }
 
 //! Tile-wise average and deviation from sum and scaled sum of squares
 template<typename T>
-void softmax_inplace(const Tile<T> &maxsumexp, const Tile<T> &dst, Index axis)
+void softmax_inplace(const Tile<T> &maxsumexp, T alpha, const Tile<T> &dst,
+        Index axis)
 {
-    softmax_inplace_async<T>(maxsumexp, dst, axis);
+    softmax_inplace_async<T>(maxsumexp, alpha, dst, axis);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void softmax_inplace_async<fp32_t>(const Tile<fp32_t> &maxsumexp,
+void softmax_inplace_async<fp32_t>(const Tile<fp32_t> &maxsumexp, fp32_t alpha,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void softmax_inplace_async<fp64_t>(const Tile<fp64_t> &maxsumexp,
+void softmax_inplace_async<fp64_t>(const Tile<fp64_t> &maxsumexp, fp64_t alpha,
         const Tile<fp64_t> &dst, Index axis);
 
 // Explicit instantiation
 template
-void softmax_inplace<fp32_t>(const Tile<fp32_t> &maxsumexp, const Tile<fp32_t> &dst,
-        Index axis);
+void softmax_inplace<fp32_t>(const Tile<fp32_t> &maxsumexp, fp32_t alpha,
+        const Tile<fp32_t> &dst, Index axis);
 
 template
-void softmax_inplace<fp64_t>(const Tile<fp64_t> &maxsumexp, const Tile<fp64_t> &dst,
-        Index axis);
+void softmax_inplace<fp64_t>(const Tile<fp64_t> &maxsumexp, fp64_t alpha,
+        const Tile<fp64_t> &dst, Index axis);
 
 } // namespace tile
 } // namespace nntile

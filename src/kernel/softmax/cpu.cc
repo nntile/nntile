@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-09
+ * @date 2023-11-20
  * */
 
 #include "nntile/kernel/softmax/cpu.hh"
@@ -23,7 +23,8 @@ namespace softmax
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, const T *maxsumexp, const T *src, T *dst)
+void cpu(Index m, Index n, Index k, const T *maxsumexp, const T *src, T alpha,
+        T *dst)
     noexcept
 //! Compute softmax on a buffer along middle axis
 /*! 
@@ -33,6 +34,7 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, const T *src, T *dst)
  * @param[in] k: Size of the middle mode of dst array
  * @param[in] maxsumexp: Maximums and sums of exponents of slices
  * @param[in] src: Contiguous input array
+ * @param[in] alpha: Scalar multiplier for the output
  * @param[out] dst: Contiguous output array
  * */
 {
@@ -56,7 +58,7 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, const T *src, T *dst)
                 // Update value
                 if(not std::isinf(val))
                 {
-                    dst[src_dst_offset] = std::exp(val-max) / sum;
+                    dst[src_dst_offset] = alpha * std::exp(val-max) / sum;
                 }
                 else
                 {
@@ -73,12 +75,12 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, const T *src, T *dst)
 // Explicit instantiation
 template
 void cpu<fp32_t>(Index m, Index n, Index k, const fp32_t *maxsumexp,
-        const fp32_t *src, fp32_t *dst)
+        const fp32_t *src, fp32_t alpha, fp32_t *dst)
     noexcept;
 
 template
 void cpu<fp64_t>(Index m, Index n, Index k, const fp64_t *maxsumexp,
-        const fp64_t *src, fp64_t *dst)
+        const fp64_t *src, fp64_t alpha, fp64_t *dst)
     noexcept;
 
 } // namespace softmax

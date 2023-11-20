@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-02
+ * @date 2023-11-20
  * */
 
 #pragma once
@@ -22,11 +22,12 @@ namespace tensor
 {
 
 template<typename T>
-void softmax_inplace_async(const Tensor<T> &maxsumexp, const Tensor<T> &dst,
-        Index axis);
+void softmax_inplace_async(const Tensor<T> &maxsumexp, T alpha,
+        const Tensor<T> &dst, Index axis);
 
 template<typename T>
-void softmax_inplace(const Tensor<T> &maxsumexp, const Tensor<T> &dst, Index axis);
+void softmax_inplace(const Tensor<T> &maxsumexp, T alpha, const Tensor<T> &dst,
+        Index axis);
 
 } // namespace tensor
 } // namespace nntile

@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-12-12
+ * @date 2023-11-20
  * */
 
 #include "nntile/tensor/softmax_inplace.hh"
@@ -21,8 +21,8 @@ namespace tensor
 {
 
 template<typename T>
-void softmax_inplace_async(const Tensor<T> &maxsumexp, const Tensor<T> &dst,
-        Index axis)
+void softmax_inplace_async(const Tensor<T> &maxsumexp, T alpha,
+        const Tensor<T> &dst, Index axis)
 {
     // Check inputs
     if(maxsumexp.ndim != dst.ndim)
@@ -141,8 +141,8 @@ void softmax_inplace_async(const Tensor<T> &maxsumexp, const Tensor<T> &dst,
                     k = dst_tile_traits.shape[axis];
                 }
                 // Insert corresponding task
-                starpu::softmax_inplace::submit<T>(m, n, k, maxsumexp_tile_handle,
-                        dst_tile_handle);
+                starpu::softmax_inplace::submit<T>(m, n, k,
+                        maxsumexp_tile_handle, alpha, dst_tile_handle);
             }
             // Flush cache for the output tile on every node
             dst_tile_handle.mpi_flush();
@@ -151,9 +151,10 @@ void softmax_inplace_async(const Tensor<T> &maxsumexp, const Tensor<T> &dst,
 }
 
 template<typename T>
-void softmax_inplace(const Tensor<T> &maxsumexp, const Tensor<T> &dst, Index axis)
+void softmax_inplace(const Tensor<T> &maxsumexp, T alpha, const Tensor<T> &dst,
+        Index axis)
 {
-    softmax_inplace_async<T>(maxsumexp, dst, axis);
+    softmax_inplace_async<T>(maxsumexp, alpha, dst, axis);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -161,19 +162,19 @@ void softmax_inplace(const Tensor<T> &maxsumexp, const Tensor<T> &dst, Index axi
 // Explicit instantiation
 template
 void softmax_inplace_async<fp32_t>(const Tensor<fp32_t> &maxsumexp,
-        const Tensor<fp32_t> &dst, Index axis);
+        fp32_t alpha, const Tensor<fp32_t> &dst, Index axis);
 
 template
 void softmax_inplace_async<fp64_t>(const Tensor<fp64_t> &maxsumexp,
-        const Tensor<fp64_t> &dst, Index axis);
+        fp64_t alpha, const Tensor<fp64_t> &dst, Index axis);
 
 // Explicit instantiation
 template
-void softmax_inplace<fp32_t>(const Tensor<fp32_t> &maxsumexp,
+void softmax_inplace<fp32_t>(const Tensor<fp32_t> &maxsumexp, fp32_t alpha,
         const Tensor<fp32_t> &dst, Index axis);
 
 template
-void softmax_inplace<fp64_t>(const Tensor<fp64_t> &maxsumexp,
+void softmax_inplace<fp64_t>(const Tensor<fp64_t> &maxsumexp, fp64_t alpha,
         const Tensor<fp64_t> &dst, Index axis);
 
 } // namespace tensor

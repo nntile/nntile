@@ -71,6 +71,7 @@ parser.add_argument("--dataset-select", type=int, default=100)
 parser.add_argument("--optimizer", choices=["sgd", "adam", "fusedadam"], \
         default="fusedadam")
 parser.add_argument("--optimizer-eps", type=float, default=1e-8)
+parser.add_argument("--loss-reduction", choices=["sum", "mean"], default="sum")
 parser.add_argument("--lr", type=float, default=0.0)
 parser.add_argument("--start-lr", type=float, default=0.0)
 parser.add_argument("--full-lr-iter", type=int, default=1)
@@ -325,8 +326,13 @@ elif args.optimizer == "sgd":
             args.lr, next_tag)
 next_tag = optimizer.get_next_tag()
 # Define Cross Entropy loss function
-loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
-        model_nntile.activations[-1], next_tag)
+if args.loss_reduction == "sum":
+    loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
+            model_nntile.activations[-1], next_tag)
+elif args.loss_reduction == "mean":
+    loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
+            model_nntile.activations[-1], next_tag, \
+            scale=1.0/(args.batch_size*config.n_positions))
 # Set up training pipeline
 pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, \
         model_nntile, optimizer, loss, args.nepochs_warmup)

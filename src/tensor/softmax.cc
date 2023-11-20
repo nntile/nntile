@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-02
+ * @date 2023-11-20
  * */
 
 #include "nntile/tensor/softmax.hh"
@@ -22,7 +22,7 @@ namespace tensor
 
 template<typename T>
 void softmax_async(const Tensor<T> &maxsumexp, const Tensor<T> &src,
-        const Tensor<T> &dst, Index axis)
+        T alpha, const Tensor<T> &dst, Index axis)
 {
     // Check inputs
     if(maxsumexp.ndim != dst.ndim)
@@ -157,7 +157,7 @@ void softmax_async(const Tensor<T> &maxsumexp, const Tensor<T> &src,
                 }
                 // Insert corresponding task
                 starpu::softmax::submit<T>(m, n, k, maxsumexp_tile_handle,
-                        src_tile_handle, dst_tile_handle);
+                        src_tile_handle, alpha, dst_tile_handle);
             }
             // Flush cache for the output tile on every node
             dst_tile_handle.mpi_flush();
@@ -167,9 +167,9 @@ void softmax_async(const Tensor<T> &maxsumexp, const Tensor<T> &src,
 
 template<typename T>
 void softmax(const Tensor<T> &maxsumexp, const Tensor<T> &src,
-        const Tensor<T> &dst, Index axis)
+        T alpha, const Tensor<T> &dst, Index axis)
 {
-    softmax_async<T>(maxsumexp, src, dst, axis);
+    softmax_async<T>(maxsumexp, src, alpha, dst, axis);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -177,20 +177,24 @@ void softmax(const Tensor<T> &maxsumexp, const Tensor<T> &src,
 // Explicit instantiation
 template
 void softmax_async<fp32_t>(const Tensor<fp32_t> &maxsumexp,
-        const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst, Index axis);
+        const Tensor<fp32_t> &src, fp32_t alpha, const Tensor<fp32_t> &dst,
+        Index axis);
 
 template
 void softmax_async<fp64_t>(const Tensor<fp64_t> &maxsumexp,
-        const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst, Index axis);
+        const Tensor<fp64_t> &src, fp64_t alpha, const Tensor<fp64_t> &dst,
+        Index axis);
 
 // Explicit instantiation
 template
 void softmax<fp32_t>(const Tensor<fp32_t> &maxsumexp,
-        const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst, Index axis);
+        const Tensor<fp32_t> &src, fp32_t alpha, const Tensor<fp32_t> &dst,
+        Index axis);
 
 template
 void softmax<fp64_t>(const Tensor<fp64_t> &maxsumexp,
-        const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst, Index axis);
+        const Tensor<fp64_t> &src, fp64_t alpha, const Tensor<fp64_t> &dst,
+        Index axis);
 
 } // namespace tensor
 } // namespace nntile

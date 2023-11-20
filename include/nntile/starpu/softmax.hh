@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-02
+ * @date 2023-11-20
  * */
 
 #pragma once
@@ -26,11 +26,13 @@ namespace softmax
 {
 
 //! Structure for arguments
+template<typename T>
 struct args_t
 {
     Index m;
     Index n;
     Index k;
+    T alpha;
 };
 
 // Apply softmax along middle axis of StarPU buffer on CPU
@@ -73,7 +75,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, Handle maxsumnorm, Handle src,
+void submit(Index m, Index n, Index k, Handle maxsumnorm, Handle src, T alpha,
         Handle dst);
 
 } // namespace softmax

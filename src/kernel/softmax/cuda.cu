@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-09-12
+ * @date 2023-11-20
  * */
 
 #include "nntile/kernel/softmax/cuda.hh"
@@ -25,7 +25,7 @@ template<typename T>
 static __global__
 void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
         Index k, const T * __restrict__ maxsumexp,
-        const T * __restrict__ src, T * __restrict__ dst)
+        const T * __restrict__ src, T alpha, T * __restrict__ dst)
 {
     Index i0_block = blockIdx.y, i1_block = blockIdx.z,
           i2_start = threadIdx.x, i2_step = blockDim.x;
@@ -57,7 +57,7 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
                 // Update value
                 if(not ::isinf(val))
                 {
-                    dst_slice[i2*m] = ::exp(val-max) / sum;
+                    dst_slice[i2*m] = alpha * ::exp(val-max) / sum;
                 }
                 else
                 {
@@ -70,7 +70,7 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
 
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
-        const T *src, T *dst)
+        const T *src, T alpha, T *dst)
     noexcept
 //! Softmax of a buffer along middle axis
 /*!
@@ -79,6 +79,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
  * @param[in] n: Size of the last mode of dst and sumnorm arrays
  * @param[in] k: Size of the middle mode of dst array
  * @param[in] maxsumexp: Maximums and sums of exponents of slices
+ * @param[in] alpha: Scalar multipler for the output
  * @param[in] dst: Contiguous output array
  * */
 {
@@ -97,18 +98,18 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
         blocks.z = (n+n_per_block-1) / n_per_block;
     }
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, m_per_block, n,
-            n_per_block, k, maxsumexp, src, dst);
+            n_per_block, k, maxsumexp, src, alpha, dst);
 }
 
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
-        const fp32_t *maxsumexp, const fp32_t *src, fp32_t *dst)
+        const fp32_t *maxsumexp, const fp32_t *src, fp32_t alpha, fp32_t *dst)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
-        const fp64_t *maxsumexp, const fp64_t *src, fp64_t *dst)
+        const fp64_t *maxsumexp, const fp64_t *src, fp64_t alpha, fp64_t *dst)
     noexcept;
 
 } // namespace softmax

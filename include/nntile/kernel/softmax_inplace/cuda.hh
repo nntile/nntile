@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-02
+ * @date 2023-11-20
  * */
 
 #pragma once
@@ -26,7 +26,7 @@ namespace softmax_inplace
 
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
-        T *dst)
+        T alpha, T *dst)
     noexcept;
 
 } // namespace softmax_inplace
