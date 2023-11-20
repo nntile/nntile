@@ -332,7 +332,7 @@ if args.loss_reduction == "sum":
 elif args.loss_reduction == "mean":
     loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
             model_nntile.activations[-1], next_tag, \
-            scale=1.0/(args.batch_size*config.n_positions))
+            scale=1.0/(args.batch*config.n_positions))
 # Set up training pipeline
 pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, \
         model_nntile, optimizer, loss, args.nepochs_warmup)

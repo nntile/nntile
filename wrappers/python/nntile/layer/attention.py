@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-11-12
+# @date 2023-11-20
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
@@ -501,7 +501,7 @@ class Attention(BaseLayer):
         # Calculate max and sumexp along axis
         maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=self.redux)
         # Finally, get the inplace softmax
-        softmax_inplace_async(self.a_maxsumexp, self.a.value, 0)
+        softmax_inplace_async(self.a_maxsumexp, 1.0, self.a.value, 0)
         # A_maxsumexp can be deleted
         #self.a_maxsumexp.wont_use()
         self.a_maxsumexp.invalidate_submit()
