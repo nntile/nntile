@@ -148,6 +148,27 @@ nflops_seq_block = 2*config.n_positions*config.n_embd*(3+1)*config.n_embd \
 nflops_seq = config.num_hidden_layers*nflops_seq_block \
         + 2*config.n_positions*config.n_embd*config.vocab_size
 
+# FLOPs counting
+# MLP
+nflops_seq_block_fwd = 4 * config.n_positions * config.n_embd * config.n_inner
+nflops_seq_block_bwd = 8 * config.n_positions * config.n_embd * config.n_inner
+# Attention Q, K, V
+nflops_seq_block_fwd += 8 * config.n_positions * config.n_embd**2
+nflops_seq_block_fwd += 16 * config.n_positions * config.n_embd**2
+# Attention softmax(Q'@K)@V
+if args.flashattention:
+    nflops_seq_block_fwd += 6 * config.n_positions**2 * config.n_embd
+    nflops_seq_block_bwd += 14 * config.n_positions**2 * config.n_embd
+else:
+    nflops_seq_block_fwd += 4 * config.n_positions**2 * config.n_embd
+    nflops_seq_block_bwd += 8 * config.n_positions**2 * config.n_embd
+# Total flops with LM_head
+nflops_seq_fwd = config.num_hidden_layers*nflops_seq_block_fwd \
+        + 2*config.n_positions*config.n_embd*config.vocab_size
+nflops_seq_bwd = config.num_hidden_layers*nflops_seq_block_bwd \
+        + 4*config.n_positions*config.n_embd*config.vocab_size
+nflops_seq = nflops_seq_fwd + nflops_seq_bwd
+
 # Initialize NNTile and StarPU
 time0 = time.time()
 # Set up StarPU+MPI and init codelets
@@ -180,38 +201,19 @@ if args.nforward > 0:
     input_value = torch.randint(config.vocab_size, \
             (args.minibatch, config.n_positions), dtype=torch.int64)
     model_nntile.activations[0].value.from_array(input_value.T)
-#    for i in range(args.nforward_warmup):
-#        model_nntile.forward_async()
-#    nntile.starpu.wait_for_all()
-#    time0 = time.time()
-#    for i in range(args.nforward):
-#        model_nntile.forward_async()
-#    nntile.starpu.wait_for_all()
-#    time1 = time.time() - time0
-#    print("NNTile forward time: {} seconds".format(time1))
-#    print("NNTile forward throughput (tokens/sec): ", \
-#            config.n_positions * args.nforward * args.minibatch / time1)
-#    print("NNTile forward performance: {} Tflops/s".format(nflops_seq \
-#            * args.nforward * args.minibatch / time1 * 1e-12), flush=True)
-    model_nntile.forward_async()
-    nntile.starpu.wait_for_all()
     for i in range(args.nforward_warmup):
-        for l in model_nntile.layers[2:-1]:
-            l.forward_async()
+        model_nntile.forward_async()
     nntile.starpu.wait_for_all()
     time0 = time.time()
-    for i in range(args.nforward_warmup):
-        for l in model_nntile.layers[2:-1]:
-            l.forward_async()
+    for i in range(args.nforward):
+        model_nntile.forward_async()
     nntile.starpu.wait_for_all()
     time1 = time.time() - time0
-    nflops = nflops_seq_block+2*config.n_positions*config.n_positions*config.n_embd
-    nflops *= config.num_hidden_layers * args.nforward * args.minibatch
-    print("NNTile forward w/o embeddings and lm_head time: {} seconds".format(time1))
-    print("NNTile forward w/o embeddings and lm_head throughput (tokens/sec): ", \
+    print("NNTile forward time: {} seconds".format(time1))
+    print("NNTile forward throughput (tokens/sec): ", \
             config.n_positions * args.nforward * args.minibatch / time1)
-    print("NNTile forward w/o embeddings and lm_head performance: {} Tflops/s".format(nflops \
-            / time1 * 1e-12), flush=True)
+    print("NNTile forward performance: {} Tflops/s".format(nflops_seq_fwd \
+            * args.nforward * args.minibatch / time1 * 1e-12), flush=True)
 
 # Measure throughput of the forward pass by NNTile
 if args.nbackward > 0:
@@ -235,8 +237,8 @@ if args.nbackward > 0:
     time1 = time.time() - time0
     print("NNTile backward time: {} seconds".format(time1))
     print("NNTile backward throughput (tokens/sec): ", \
-            config.n_positions *args.nbackward * args.minibatch / time1)
-    print("NNTile backward performance: {} Tflops/s".format(2 * nflops_seq \
+            config.n_positions * args.nbackward * args.minibatch / time1)
+    print("NNTile backward performance: {} Tflops/s".format(nflops_seq_bwd \
             * args.nbackward * args.minibatch / time1 * 1e-12), flush=True)
 
 # Prepare input and output batches if real training is required
@@ -345,7 +347,7 @@ print("Training time: {} seconds".format(time1))
 print("Training throughput tokens/sec: {}".format( \
         args.nepochs * num_train_batches * args.batch \
         * config.n_positions / time1))
-print("Training performance: {} Tflops/s".format(3 * nflops_seq \
+print("Training performance: {} Tflops/s".format(nflops_seq \
         * args.nepochs * num_train_batches * args.batch \
         / time1 * 1e-12))
 loss_np = np.zeros((1), dtype=np.float32)

@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-11-12
+ * @date 2023-11-17
  * */
 
 #include "nntile/starpu/flash_maxsumexp.hh"
@@ -312,6 +312,7 @@ void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
     {
         chosen_codelet = &codelet_fp32_fast_tf32;
     }
+    fp64_t nflops = 2 * seq * seq * head * batch;
     int ret = starpu_task_insert(chosen_codelet,
             STARPU_R, static_cast<starpu_data_handle_t>(K),
             STARPU_R, static_cast<starpu_data_handle_t>(Q),
@@ -319,6 +320,7 @@ void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
             maxsumexp_mode, static_cast<starpu_data_handle_t>(maxsumexp),
             STARPU_SCRATCH, static_cast<starpu_data_handle_t>(tmp),
             STARPU_CL_ARGS, args, sizeof(*args),
+            STARPU_FLOPS, nflops,
             0);
     // Check submission
     if(ret != 0)
