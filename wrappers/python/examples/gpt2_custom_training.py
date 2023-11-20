@@ -155,7 +155,7 @@ nflops_seq_block_fwd = 4 * config.n_positions * config.n_embd * config.n_inner
 nflops_seq_block_bwd = 8 * config.n_positions * config.n_embd * config.n_inner
 # Attention Q, K, V
 nflops_seq_block_fwd += 8 * config.n_positions * config.n_embd**2
-nflops_seq_block_fwd += 16 * config.n_positions * config.n_embd**2
+nflops_seq_block_bwd += 16 * config.n_positions * config.n_embd**2
 # Attention softmax(Q'@K)@V
 if args.flashattention:
     nflops_seq_block_fwd += 6 * config.n_positions**2 * config.n_embd
