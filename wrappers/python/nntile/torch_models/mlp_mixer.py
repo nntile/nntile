@@ -3,7 +3,7 @@ from torch import nn
 
 
 def image_patching_rgb(image_batch, patch_size):
-    b, c, h, w = image_batch.shape
+    b, h, w, c = image_batch.shape
     if h % patch_size != 0 or w % patch_size != 0:
             raise ValueError("patch size should be divisor of both image height and width")
     n_patches = int(h * w / (patch_size ** 2))
@@ -17,9 +17,9 @@ def image_patching_rgb(image_batch, patch_size):
             y = i % n_y
 
             for clr in range(c):
-                vect_patch = image_batch[batch_iter, clr, x * patch_size: (x+1) * patch_size , y * patch_size: (y+1) * patch_size].flatten()
+                vect_patch = image_batch[batch_iter, x * patch_size: (x+1) * patch_size , y * patch_size: (y+1) * patch_size, clr].flatten()
                 patched_batch[i, batch_iter, clr * (patch_size ** 2) : (clr+1) * (patch_size ** 2)] = vect_patch
-    return patched_batch
+    return patched_batch, n_patches, n_channels
 
 
 def image_patching(image_batch, patch_size):
