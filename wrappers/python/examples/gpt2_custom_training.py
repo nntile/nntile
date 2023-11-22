@@ -4,13 +4,13 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/examples/gpt2_training.py
-# GPT2 training example
+# @file wrappers/python/examples/gpt2_custom_training.py
+# Custom GPT2 training example
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-11-15
+# @date 2023-11-22
 
 # Imports
 import torch
@@ -71,6 +71,7 @@ parser.add_argument("--dataset-select", type=int, default=100)
 parser.add_argument("--optimizer", choices=["sgd", "adam", "fusedadam"], \
         default="fusedadam")
 parser.add_argument("--optimizer-eps", type=float, default=1e-8)
+parser.add_argument("--weight-decay", type=float, default=0.0)
 parser.add_argument("--loss-reduction", choices=["sum", "mean"], default="sum")
 parser.add_argument("--lr", type=float, default=0.0)
 parser.add_argument("--start-lr", type=float, default=0.0)
@@ -136,18 +137,11 @@ assert args.nbackward >= 0
 assert args.nbackward_warmup >= 0
 assert args.nepochs >= 0
 assert args.nepochs_warmup >= 0
+assert args.weight_decay >= 0
 
 # Print altered PyTorch model to be tested
 print("PyTorch model:")
 print(model_torch, flush=True)
-
-# Forward FLOPs of matrix products per input sequence per GPT block
-nflops_seq_block = 2*config.n_positions*config.n_embd*(3+1)*config.n_embd \
-        + 4*config.n_positions*config.n_positions*config.n_embd \
-        + 4*config.n_positions*config.n_embd*config.n_inner
-# Forward FLOPs of matrix products per input sequence per GPT model
-nflops_seq = config.num_hidden_layers*nflops_seq_block \
-        + 2*config.n_positions*config.n_embd*config.vocab_size
 
 # FLOPs counting
 # MLP
@@ -317,22 +311,23 @@ print("From PyTorch loader to NNTile batches in {} seconds".format(time1), \
 if args.optimizer == "fusedadam":
     optimizer = nntile.optimizer.FusedAdam(model_nntile.get_parameters(), \
             args.lr, next_tag, eps=args.optimizer_eps, \
-            start_lr=args.start_lr, full_lr_iter=args.full_lr_iter)
+            start_lr=args.start_lr, full_lr_iter=args.full_lr_iter, \
+            weight_decay=args.weight_decay)
 elif args.optimizer == "adam":
     optimizer = nntile.optimizer.Adam(model_nntile.get_parameters(), \
-            args.lr, next_tag, eps=args.optimizer_eps)
+            args.lr, next_tag, eps=args.optimizer_eps, \
+            weight_decay=args.weight_decay)
 elif args.optimizer == "sgd":
     optimizer = nntile.optimizer.SGD(model_nntile.get_parameters(), \
-            args.lr, next_tag)
+            args.lr, next_tag, weight_decay=args.weight_decay)
 next_tag = optimizer.get_next_tag()
 # Define Cross Entropy loss function
 if args.loss_reduction == "sum":
-    loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
-            model_nntile.activations[-1], next_tag)
+    loss_scale = 1.0
 elif args.loss_reduction == "mean":
-    loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
-            model_nntile.activations[-1], next_tag, \
-            scale=1.0/(args.batch*config.n_positions))
+    loss_scale = 1.0 / (args.batch*config.n_positions)
+loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
+        model_nntile.activations[-1], next_tag, scale=loss_scale)
 # Set up training pipeline
 pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, \
         model_nntile, optimizer, loss, args.nepochs_warmup)
