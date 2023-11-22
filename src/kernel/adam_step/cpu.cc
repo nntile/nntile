@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-07-21
+ * @date 2023-11-22
  * */
 
 #include "nntile/kernel/adam_step/cpu.hh"
@@ -53,7 +53,6 @@ void cpu(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T wei
         if (weight_decay != 0)
         {
             grad_val += weight_decay * p_val;
-            grad[i] = grad_val;
         }
         // Read values (first+second moments) from RAM no more than once and
         // update them in the RAM immediately

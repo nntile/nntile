@@ -35,8 +35,9 @@ void cuda_kernel(Index m, Index n, T alpha, const T* src, T* dst)
  * @param[out] dst: Destination of the add operation
  * */
 {
-    Index i = threadIdx.x + blockIdx.x*blockDim.x,
-          j = threadIdx.y + blockIdx.y*blockDim.y;
+    Index i = threadIdx.x + blockIdx.x*blockDim.x;
+    Index j = i / m;
+    i = i - j*m;
     if(i < m and j < n)
     {
         dst[i*n+j] = alpha * src[i+j*m];
@@ -57,8 +58,8 @@ void cuda(cudaStream_t stream, Index m, Index n, T alpha, const T* src, T* dst)
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 threads(std::min(int(m), 32), std::min(int(n), 32));
-    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y);
+    dim3 threads(32);
+    dim3 blocks((m*n+threads.x-1)/threads.x);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, alpha, src, dst);
 }
 
