@@ -322,6 +322,7 @@ if args.check:
     input_value = torch.randint(config.vocab_size, \
             (args.minibatch_size, config.n_positions), dtype=torch.int64, \
             device=args.torch_device)
+    input_value[10:] = config.eos_token_id
     output_value = model_torch(input_value)
     if args.torch_device.startswith("cuda"):
         torch.cuda.synchronize()
