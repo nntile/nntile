@@ -47,7 +47,11 @@ parser.add_argument("--config-path")
 parser.add_argument("--tokenizer", default="gpt2")
 parser.add_argument("--tokenizer-path")
 parser.add_argument("--load-checkpoint")
+parser.add_argument("--load-optimizer")
 parser.add_argument("--save-checkpoint")
+parser.add_argument("--save-checkpoint-quantize", action="store_true")
+parser.add_argument("--save-optimizer")
+parser.add_argument("--save-optimizer-quantize", action="store_true")
 parser.add_argument("--batch", type=int, default=1)
 parser.add_argument("--minibatch", type=int, default=-1)
 parser.add_argument("--minibatch-tile", type=int, default=-1)
@@ -104,6 +108,11 @@ config.resid_pdrop = 0
 # Load model from checkpoint if needed
 if args.load_checkpoint is not None:
     checkpoint = torch.load(args.load_checkpoint, map_location="cpu")
+    # Dequantize tensor into FP32
+    for key in checkpoint["model_state_dict"]:
+        checkpoint["model_state_dict"][key].dtype is not torch.float32:
+            checkpoint["model_state_dict"][key] = \
+                    checkpoint["model_state_dict"][key].dequantize()
     model_torch.load_state_dict(checkpoint["model_state_dict"])
     del checkpoint
 
@@ -376,9 +385,15 @@ if args.save_checkpoint is not None:
     model_torch.lm_head.weight = nn.Parameter(model_torch.lm_head \
             .weight.detach().clone())
     model_nntile.to_torch(model_torch)
+    state_dict = model_torch.state_dict()
+    # Quantize if needed
+    if args.save_checkpoint_quantize:
+        for key in state_dict:
+            state_dict[key] = torch.quantize(state_dict[key], \
+                    abs(state_dict[key]).max(), 0, torch.qint8)
     torch.save({"model_state_dict": model_torch.state_dict()}, \
             args.save_checkpoint)
-    del model_torch
+    del model_torch, state_dict
 
 # Unregister all StarPU buffers
 loss.unregister()
