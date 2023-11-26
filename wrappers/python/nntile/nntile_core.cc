@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-09-29
+ * @date 2023-11-26
  * */
 
 #include <pybind11/pybind11.h>
@@ -651,6 +651,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("adam_step_async_fp32", &adam_step_async<fp32_t>);
     m.def("adam_step_fp64", &adam_step<fp64_t>);
     m.def("adam_step_fp32", &adam_step<fp32_t>);
+
+    m.def("adamw_step_async_fp64", &adamw_step_async<fp64_t>);
+    m.def("adamw_step_async_fp32", &adamw_step_async<fp32_t>);
+    m.def("adamw_step_fp64", &adamw_step<fp64_t>);
+    m.def("adamw_step_fp32", &adamw_step<fp32_t>);
 
     m.def("scal_inplace_async_fp64", &scal_inplace_async<fp64_t>);
     m.def("scal_inplace_async_fp32", &scal_inplace_async<fp32_t>);

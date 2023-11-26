@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-09-29
+# @date 2023-11-26
 
 add_subdirectory(kernel)
 
@@ -66,6 +66,7 @@ set(KERNEL_SRC
     "kernel/mask_scalar/cpu.cc"
     "kernel/scal/cpu.cc"
     "kernel/adam_step/cpu.cc"
+    "kernel/adamw_step/cpu.cc"
     "kernel/transpose/cpu.cc"
     )
 
@@ -124,6 +125,7 @@ if(NNTILE_USE_CUDA)
         "kernel/hypot/cuda.cu"
         "kernel/hypot_scalar_inverse/cuda.cu"
         "kernel/adam_step/cuda.cu"
+        "kernel/adamw_step/cuda.cu"
         "kernel/transpose/cuda.cu"
         )
 endif()
@@ -193,6 +195,7 @@ set(STARPU_SRC
     "starpu/mask_scalar.cc"
     "starpu/scal.cc"
     "starpu/adam_step.cc"
+    "starpu/adamw_step.cc"
     "starpu/transpose.cc"
     )
 
@@ -252,6 +255,7 @@ set(TILE_SRC
     "tile/mask_scalar.cc"
     "tile/hypot.cc"
     "tile/adam_step.cc"
+    "tile/adamw_step.cc"
     )
 
 set(TENSOR_SRC
@@ -319,6 +323,7 @@ set(TENSOR_SRC
     "tensor/hypot.cc"
     "tensor/hypot_scalar_inverse.cc"
     "tensor/adam_step.cc"
+    "tensor/adamw_step.cc"
     "tensor/transpose.cc"
     )
 

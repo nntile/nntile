@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-09-29
+# @date 2023-11-26
 
 # Set list of headers
 set(BASE_HDR
@@ -122,6 +122,8 @@ set(KERNEL_HDR
     "nntile/kernel/scal/cpu.hh"
     "nntile/kernel/adam_step.hh"
     "nntile/kernel/adam_step/cpu.hh"
+    "nntile/kernel/adamw_step.hh"
+    "nntile/kernel/adamw_step/cpu.hh"
     "nntile/kernel/transpose.hh"
     "nntile/kernel/transpose/cpu.hh"
     )
@@ -181,6 +183,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/hypot/cuda.hh"
         "nntile/kernel/hypot_scalar_inverse/cuda.hh"
         "nntile/kernel/adam_step/cuda.hh"
+        "nntile/kernel/adamw_step/cuda.hh"
         "nntile/kernel/transpose/cuda.hh"
         )
 endif()
@@ -251,6 +254,7 @@ set(STARPU_HDR
     "nntile/starpu/fp16_to_fp32.hh"
     "nntile/starpu/mask_scalar.hh"
     "nntile/starpu/adam_step.hh"
+    "nntile/starpu/adamw_step.hh"
     "nntile/starpu/transpose.hh"
     )
 
@@ -312,6 +316,7 @@ set(TILE_HDR
     "nntile/tile/mask_scalar.hh"
     "nntile/tile/hypot.hh"
     "nntile/tile/adam_step.hh"
+    "nntile/tile/adamw_step.hh"
     )
 
 set(TENSOR_HDR
@@ -381,6 +386,7 @@ set(TENSOR_HDR
     "nntile/tensor/hypot.hh"
     "nntile/tensor/hypot_scalar_inverse.hh"
     "nntile/tensor/adam_step.hh"
+    "nntile/tensor/adamw_step.hh"
     "nntile/tensor/transpose.hh"
     )
 

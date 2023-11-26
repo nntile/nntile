@@ -10,12 +10,13 @@
 # @version 1.0.0
 # @author Aleksandr Katrutsa
 # @author Aleksandr Mikhalev
-# @date 2023-11-15
+# @date 2023-11-26
 
 import nntile
 import numpy as np
 from nntile.tensor import TensorTraits
 import pickle
+import torch
 
 class Adam:
     def __init__(self, params, lr, next_tag, beta1=0.9, beta2=0.999, \
@@ -205,17 +206,23 @@ class FusedAdam:
             self.second_moments[i].wont_use()
         self.num_iter += 1
 
-    def save_state(self, path):
+    def save_state(self, path, dtype="fp32"):
         first_moments = []
         second_moments = []
         for i in range(len(self.first_moments)):
             f_m = np.array(np.zeros(self.first_moments[i].shape, dtype=self.dtype), order="F")
             self.first_moments[i].to_array(f_m)
-            first_moments.append(f_m.copy())
-
             s_m = np.array(np.zeros(self.second_moments[i].shape, dtype=self.dtype), order="F")
             self.second_moments[i].to_array(s_m)
-            second_moments.append(s_m.copy())
+            if dtype == "fp32":
+                first_moments.append(f_m.copy())
+                second_moments.append(s_m.copy())
+            elif dtype == "fp16":
+                first_moments.append(torch.tensor(f_m, dtype=torch.float16))
+                second_moments.append(torch.tensor(s_m, dtype=torch.float16))
+            elif dtype == "bf16":
+                first_moments.append(torch.tensor(f_m, dtype=torch.bfloat16))
+                second_moments.append(torch.tensor(s_m, dtype=torch.bfloat16))
         
         stored_data = {
             "first_moments": first_moments,
@@ -248,6 +255,6 @@ class FusedAdam:
         first_moments = stored_states["first_moments"]
         second_moments = stored_states["second_moments"]
         for i in range(len(first_moments)):
-            self.first_moments[i].from_array(first_moments[i])
-            self.second_moments[i].from_array(second_moments[i])
+            self.first_moments[i].from_array(first_moments[i].to(torch.float32))
+            self.second_moments[i].from_array(second_moments[i].to(torch.float32))
 

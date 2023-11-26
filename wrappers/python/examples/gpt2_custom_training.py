@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
-# @date 2023-11-22
+# @date 2023-11-26
 
 # Imports
 import torch
@@ -49,9 +49,11 @@ parser.add_argument("--tokenizer-path")
 parser.add_argument("--load-checkpoint")
 parser.add_argument("--load-optimizer")
 parser.add_argument("--save-checkpoint")
-parser.add_argument("--save-checkpoint-quantize", action="store_true")
+parser.add_argument("--save-checkpoint-dtype", choices=["fp32", "fp16", \
+        "bf16"], default="fp32")
 parser.add_argument("--save-optimizer")
-parser.add_argument("--save-optimizer-quantize", action="store_true")
+parser.add_argument("--save-optimizer-dtype", choices=["fp32", "fp16", \
+        "bf16"], default="fp32")
 parser.add_argument("--batch", type=int, default=1)
 parser.add_argument("--minibatch", type=int, default=-1)
 parser.add_argument("--minibatch-tile", type=int, default=-1)
@@ -72,8 +74,8 @@ parser.add_argument("--dataset", choices=["WikiText-103", "train.bin"], \
         default="WikiText-103")
 parser.add_argument("--dataset-path", default=".data")
 parser.add_argument("--dataset-select", type=int, default=100)
-parser.add_argument("--optimizer", choices=["sgd", "adam", "fusedadam"], \
-        default="fusedadam")
+parser.add_argument("--optimizer", choices=["sgd", "adam", "fusedadamw"], \
+        default="fusedadamw")
 parser.add_argument("--optimizer-eps", type=float, default=1e-8)
 parser.add_argument("--weight-decay", type=float, default=0.0)
 parser.add_argument("--loss-reduction", choices=["sum", "mean"], default="sum")
@@ -108,11 +110,9 @@ config.resid_pdrop = 0
 # Load model from checkpoint if needed
 if args.load_checkpoint is not None:
     checkpoint = torch.load(args.load_checkpoint, map_location="cpu")
-    # Dequantize tensor into FP32
     for key in checkpoint["model_state_dict"]:
-        checkpoint["model_state_dict"][key].dtype is not torch.float32:
-            checkpoint["model_state_dict"][key] = \
-                    checkpoint["model_state_dict"][key].dequantize()
+        checkpoint["model_state_dict"][key] = \
+                checkpoint["model_state_dict"][key].to(torch.float32)
     model_torch.load_state_dict(checkpoint["model_state_dict"])
     del checkpoint
 
@@ -317,8 +317,8 @@ time1 = time.time() - time0
 print("From PyTorch loader to NNTile batches in {} seconds".format(time1), \
         flush=True)
 # Set up learning rate and optimizer for training
-if args.optimizer == "fusedadam":
-    optimizer = nntile.optimizer.FusedAdam(model_nntile.get_parameters(), \
+if args.optimizer == "fusedadamw":
+    optimizer = nntile.optimizer.FusedAdamW(model_nntile.get_parameters(), \
             args.lr, next_tag, eps=args.optimizer_eps, \
             start_lr=args.start_lr, full_lr_iter=args.full_lr_iter, \
             weight_decay=args.weight_decay)
@@ -330,6 +330,9 @@ elif args.optimizer == "sgd":
     optimizer = nntile.optimizer.SGD(model_nntile.get_parameters(), \
             args.lr, next_tag, weight_decay=args.weight_decay)
 next_tag = optimizer.get_next_tag()
+# Load optimizer state if needed
+if args.load_optimizer is not None:
+    optimizer.load_state(args.load_optimizer)
 # Define Cross Entropy loss function
 if args.loss_reduction == "sum":
     loss_scale = 1.0
@@ -379,7 +382,7 @@ for l in model_nntile.layers:
         if t is not None:
             t.unregister()
 
-# Save model from checkpoint if needed
+# Save model into checkpoint if needed
 if args.save_checkpoint is not None:
     model_torch = GPT2LMHeadModel(config)
     model_torch.lm_head.weight = nn.Parameter(model_torch.lm_head \
@@ -387,13 +390,18 @@ if args.save_checkpoint is not None:
     model_nntile.to_torch(model_torch)
     state_dict = model_torch.state_dict()
     # Quantize if needed
-    if args.save_checkpoint_quantize:
+    if args.save_checkpoint_dtype == "fp16":
         for key in state_dict:
-            state_dict[key] = torch.quantize(state_dict[key], \
-                    abs(state_dict[key]).max(), 0, torch.qint8)
-    torch.save({"model_state_dict": model_torch.state_dict()}, \
-            args.save_checkpoint)
+            state_dict[key] = state_dict[key].to(torch.float16)
+    elif args.save_checkpoint_dtype == "bf16":
+        for key in state_dict:
+            state_dict[key] = state_dict[key].to(torch.bfloat16)
+    torch.save({"model_state_dict": state_dict}, args.save_checkpoint)
     del model_torch, state_dict
+
+# Save optimizer state if needed
+if args.save_optimizer is not None:
+    optimizer.save_state(args.save_optimizer, dtype=args.save_optimizer_dtype)
 
 # Unregister all StarPU buffers
 loss.unregister()

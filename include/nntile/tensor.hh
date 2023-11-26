@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-09-29
+ * @date 2023-11-26
  * */
 
 #pragma once
@@ -84,6 +84,7 @@
 #include <nntile/tensor/hypot.hh>
 #include <nntile/tensor/hypot_scalar_inverse.hh>
 #include <nntile/tensor/adam_step.hh>
+#include <nntile/tensor/adamw_step.hh>
 #include <nntile/tensor/transpose.hh>
 
 namespace nntile

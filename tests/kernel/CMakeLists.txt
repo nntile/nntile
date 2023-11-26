@@ -12,10 +12,12 @@
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
 # @author Daniel Bershatsky
-# @date 2023-09-25
+# @date 2023-11-26
 
 # All unit tests without arguments to test executable
 set(TESTS
+    "adam_step"
+    "adamw_step"
     "add"
     "add_fiber"
     "add_slice"
@@ -62,6 +64,8 @@ set(TESTS
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
+    "adam_step"
+    "adamw_step"
     "add_fiber"
     "gelu_backward"
     "gelutanh"

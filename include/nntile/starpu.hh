@@ -11,7 +11,7 @@
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
  * @author Konstantin Sozykin
- * @date 2023-09-28
+ * @date 2023-11-26
  * */
 
 #pragma once
@@ -84,6 +84,7 @@
 #include <nntile/starpu/fp16_to_fp32.hh>
 #include <nntile/starpu/mask_scalar.hh>
 #include <nntile/starpu/adam_step.hh>
+#include <nntile/starpu/adamw_step.hh>
 #include <nntile/starpu/transpose.hh>
 
 namespace nntile
@@ -161,6 +162,7 @@ void init()
     fp16_to_fp32::init();
     mask_scalar::init();
     adam_step::init();
+    adamw_step::init();
     transpose::init();
 }
 
@@ -231,6 +233,7 @@ void restrict_where(uint32_t where)
     fp16_to_fp32::restrict_where(where);
     mask_scalar::restrict_where(where);
     adam_step::restrict_where(where);
+    adamw_step::restrict_where(where);
     transpose::restrict_where(where);
 }
 
@@ -301,6 +304,7 @@ void restore_where()
     fp16_to_fp32::restore_where();
     mask_scalar::restore_where();
     adam_step::restore_where();
+    adamw_step::restore_where();
     transpose::restore_where();
 }
 
