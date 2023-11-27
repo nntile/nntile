@@ -126,7 +126,7 @@ void submit(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T 
         moments_mode = STARPU_RW;
     }
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_RW, static_cast<starpu_data_handle_t>(grad),
+            STARPU_R, static_cast<starpu_data_handle_t>(grad),
             moments_mode, static_cast<starpu_data_handle_t>(first_moment),
             moments_mode, static_cast<starpu_data_handle_t>(second_moment),
             STARPU_RW, static_cast<starpu_data_handle_t>(p),
