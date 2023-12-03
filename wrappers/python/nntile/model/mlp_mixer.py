@@ -52,7 +52,7 @@ class MlpMixer(BaseModel):
         activations.extend(new_layer.activations_output)
 
         # Final classification fully connected layer
-        new_layer, next_tag = Linear.generate_simple(activations[-1], 'L', notrans, 1, [n_classes], [n_classes], next_tag,bias=False)
+        new_layer, next_tag = Linear.generate_simple(activations[-1], 'R', notrans, 1, [n_classes], [n_classes], next_tag,bias=False)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         

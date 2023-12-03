@@ -1,4 +1,4 @@
-from nntile.tensor import TensorMoments, TensorTraits, notrans, add_async, add_slice_async, sum_slice_async, clear_async
+from nntile.tensor import TensorMoments, TensorTraits, notrans, add_async, add_slice_async, sum_slice_async, clear_async, transpose_async
 from nntile.layer.base_layer import BaseLayer
 from nntile.layer.layer_norm import LayerNorm
 from nntile.layer.linear import Linear
@@ -10,12 +10,13 @@ class GAP(BaseLayer):
     y: TensorMoments
 
     # Construct GAP layer with all the provided data
-    def __init__(self, x: TensorMoments, y: TensorMoments):
+    def __init__(self, x: TensorMoments, y: TensorMoments, yT: TensorMoments):
         self.x = x
         self.y = y
+        self.yT = yT
         
         # Redirect to BaseClass initialization
-        super().__init__([x], [y], [], [])
+        super().__init__([x], [y], [], [yT])
 
 
     def unregister(self):
@@ -24,8 +25,22 @@ class GAP(BaseLayer):
 
     @staticmethod
     def generate_simple(x: TensorMoments, next_tag: int):
-        y_shape = x.value.shape[1:]
-        y_basetile_shape = x.value.basetile_shape[1:]
+        yT_shape = x.value.shape[1:]
+        yT_basetile_shape = x.value.basetile_shape[1:]
+        yT_traits = TensorTraits(yT_shape, yT_basetile_shape)
+        yT_distr = [0] * yT_traits.grid.nelems
+        yT_value = type(x.value)(yT_traits, yT_distr, next_tag)
+        next_tag = yT_value.next_tag
+
+        # Create gradient of Y with the same traits and distribution as Y
+        yT_grad = type(x.value)(yT_traits, yT_distr, next_tag)
+        next_tag = yT_grad.next_tag
+        # Define Y as TensorMoments
+        yT = TensorMoments(yT_value, yT_grad, True)
+
+
+        y_shape = yT_shape[::-1]
+        y_basetile_shape = yT_basetile_shape[::-1]
         y_traits = TensorTraits(y_shape, y_basetile_shape)
         y_distr = [0] * y_traits.grid.nelems
         y_value = type(x.value)(y_traits, y_distr, next_tag)
@@ -36,20 +51,24 @@ class GAP(BaseLayer):
         next_tag = y_grad.next_tag
         # Define Y as TensorMoments
         y = TensorMoments(y_value, y_grad, True)
+
         # Create GAP layer with all the provided data
-        layer = GAP(x, y)
+        layer = GAP(x, y, yT)
         # Return layer and next tag to be used
         return (layer, next_tag)
     
 
     def forward_async(self):
         alpha = 1 / (self.x.value.shape[0])
-        sum_slice_async(alpha, self.x.value, 0.0, self.y.value, 0)
+        sum_slice_async(alpha, self.x.value, 0.0, self.yT.value, 0)
+        transpose_async(1.0, self.yT.value, self.y.value, 1)
 
 
     def backward_async(self):
         alpha = 1 / (self.x.value.shape[0])
-        add_slice_async(alpha, self.y.grad, 0.0, self.x.grad, 0)
+        transpose_async(1.0, self.y.grad, self.yT.grad, 1)
+        add_slice_async(alpha, self.yT.grad, 0.0, self.x.grad, 0)
+
 
 class MixerMlp(BaseLayer):
     side: str
