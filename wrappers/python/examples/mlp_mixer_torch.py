@@ -101,9 +101,10 @@ device = (
 print(f"Using {device} device")
 
 cur_pos = str(pathlib.Path(__file__).parent.absolute())
-experiment_name = "mlp_mixer.pt"
+experiment_folder = "mlp_mixer_data"
 
-full_path = os.path.join(cur_pos, experiment_name)
+init_state_path = os.path.join(cur_pos, experiment_folder, "mlp_mixer_init_state.pt")
+final_state_path = os.path.join(cur_pos, experiment_folder, "mlp_mixer_final_state.pt")
 
 # Parse arguments
 args = parser.parse_args()
@@ -146,9 +147,9 @@ else:
     raise ValueError("{} dataset is not supported yet!".format(args.dataset))
 
 mlp_mixer_model = MlpMixer(channel_size, num_clr_channels * patch_size ** 2, hidden_dim, num_mixer_layers, n_classes)
-# optim_torch = torch.optim.Adam(mlp_mixer_model.parameters(), lr=lr)
-optim_torch = torch.optim.SGD(mlp_mixer_model.parameters(), lr=lr, momentum=0.9)
-crit_torch = nn.CrossEntropyLoss()
+optim_torch = torch.optim.Adam(mlp_mixer_model.parameters(), lr=lr)
+# optim_torch = torch.optim.SGD(mlp_mixer_model.parameters(), lr=lr, momentum=0.9)
+crit_torch = nn.CrossEntropyLoss(reduction="sum")
 
 
 classes = ('plane', 'car', 'bird', 'cat',
@@ -163,39 +164,33 @@ test_data_tensor, test_labels = data_loader_to_tensor_rgb(test_set.data, test_se
 test_labels = test_labels.type(torch.LongTensor)
 num_batch_test, num_minibatch_test = test_data_tensor.shape[0], test_data_tensor.shape[1]
 
-interm_train_loss = []
-interm_test_loss = []
-
 mlp_mixer_model.zero_grad()
 
 torch.save({
             'model_state_dict': mlp_mixer_model.state_dict(),
             'optimizer_state_dict': optim_torch.state_dict(),
-            }, os.path.join(cur_pos, 'init_state.pt'))
+            }, init_state_path)
 
 mlp_mixer_model = mlp_mixer_model.to(device)
 for epoch_counter in range(num_epochs):  
     for batch_iter in range(num_batch_train):
+        torch_train_loss = torch.zeros(1, dtype=torch.float32).to(device)
         for minibatch_iter in range(num_minibatch_train):
             patched_train_sample = train_data_tensor[batch_iter,minibatch_iter,:,:,:]
             patched_train_sample = patched_train_sample.to(device)
             true_labels = train_labels[batch_iter, minibatch_iter, :].to(device)
             torch_output = mlp_mixer_model(patched_train_sample)
-            torch_loss = crit_torch(torch_output, true_labels)
-            # print(torch_loss)
-            # normalize loss to account for batch accumulation
-            # torch_loss = torch_loss / train_data_tensor.shape[1]
-            # interm_train_loss.append(torch_loss.to('cpu').detach().numpy())
-            torch_loss.backward()
-            
-            optim_torch.step()
-            mlp_mixer_model.zero_grad()
+            loss_local = crit_torch(torch_output, true_labels)
+            loss_local.backward()
+            torch_train_loss += loss_local
+        optim_torch.step()
+        mlp_mixer_model.zero_grad()
 
         # prepare to count predictions for each class
         correct_pred = {classname: 0 for classname in classes}
         total_pred = {classname: 0 for classname in classes}
         with torch.no_grad():
-            test_loss = 0 
+            torch_test_loss = torch.zeros(1, dtype=torch.float32).to(device)
             for test_batch_iter in range(num_batch_test):
                 for test_minibatch_iter in range(num_minibatch_test):
                     patched_test_sample = test_data_tensor[test_batch_iter,test_minibatch_iter,:,:,:]
@@ -211,10 +206,10 @@ for epoch_counter in range(num_epochs):
                             correct_pred[classes[label]] += 1
                         total_pred[classes[label]] += 1
 
-                    test_loss += crit_torch(torch_output, true_test_labels)
-            test_loss = test_loss / (num_batch_test * num_minibatch_test)
-            interm_test_loss.append(test_loss.to('cpu').detach().numpy())
-        print('Epoch: {}, Batch {} out of {}, Last train loss: {}, Avg test loss: {}'.format(epoch_counter, batch_iter, train_data_tensor.shape[0], torch_loss, interm_test_loss[-1]))
+                    loss_local = crit_torch(torch_output, true_labels)
+                    torch_test_loss += loss_local
+            test_loss = torch_test_loss.item() / (num_batch_test * num_minibatch_test)
+        print('Epoch: {}, Batch {} out of {}, Last train loss: {}, Avg test loss: {}'.format(epoch_counter, batch_iter, train_data_tensor.shape[0], torch_train_loss.item(), test_loss))
         # print accuracy for each class
         for classname, correct_count in correct_pred.items():
             accuracy = 100 * float(correct_count) / total_pred[classname]
@@ -224,7 +219,7 @@ torch.save({
             'epoch': num_epochs,
             'model_state_dict': mlp_mixer_model.state_dict(),
             'optimizer_state_dict': optim_torch.state_dict(),
-            }, full_path)
+            }, final_state_path)
 # np.savez('test_loss_cifar10', test_loss = interm_test_loss)
 
 
