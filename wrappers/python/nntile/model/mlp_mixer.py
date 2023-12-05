@@ -15,6 +15,8 @@ from nntile.tensor import TensorTraits, Tensor_fp32, TensorMoments, notrans, cle
 from nntile.model.base_model import BaseModel
 from nntile.layer.linear import Linear
 from nntile.layer.mixer import Mixer, GAP
+import numpy as np
+import torch
 
 
 class MlpMixer(BaseModel):
@@ -70,6 +72,17 @@ class MlpMixer(BaseModel):
 
 
     # Clear gradients of inter-layer activations
+    def clear_activations_grads(self):
+        for t in self.activations:
+            if t.grad is not None and t.grad_required:
+                clear_async(t.grad)
+        for l in self.layers:
+            for t in l.temporaries:
+                if t is not None and t.grad is not None and t.grad_required:
+                    clear_async(t.grad)
+                    
+
+    # Clear gradients of inter-layer activations
     def clear_tmp_grads(self):
         for l in self.layers:
             for t in l.temporaries:
@@ -111,4 +124,17 @@ class MlpMixer(BaseModel):
             else:
                 p.value.from_array(p_torch.detach().numpy())
         return mlp_mixer_nntile, mlp_mixer_nntile.next_tag
+
+
+    def to_torch(self, torch_mlp_mixer):
+        for p, p_torch in zip(self.parameters, torch_mlp_mixer.parameters()):
+            if p.value.shape[0] != p_torch.shape[0]:
+                nntile_np = np.zeros(p.value.shape, dtype=np.float32, order="F")
+                p.value.to_array(nntile_np)
+                p_torch = torch.from_numpy(nntile_np.T)
+            else:
+                nntile_np = np.zeros(p.value.shape, dtype=np.float32, order="F")
+                p.value.to_array(nntile_np)
+                p_torch = torch.from_numpy(nntile_np)
+
     

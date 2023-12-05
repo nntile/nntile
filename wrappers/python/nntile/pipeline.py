@@ -38,8 +38,11 @@ class Pipeline(object):
         self.n_epochs = n_epochs
 
     def train_async(self):
+        batch_counter = 0
+        total_batch_num = len(self.x)
         for i_epoch in range(self.n_epochs):
             # print("Epoch ", i_epoch)
+            batch_counter = 0
             for x_batch, y_batch in zip(self.x, self.y):
                 # Zero out gradients of all weights and activations
                 self.model.clear_parameters_grads()
@@ -76,9 +79,10 @@ class Pipeline(object):
                     if t.grad_required:
                         t.grad.wont_use()
                 # Limit parallelism through value of loss
-                #loss_np = np.zeros((1,), dtype=np.float32, order="F")
-                #self.loss.get_val(loss_np)
-                #print("Loss in {} epoch = {}".format(i_epoch, loss_np[0]))
+                loss_np = np.zeros((1,), dtype=np.float32, order="F")
+                self.loss.get_val(loss_np)
+                print("Epoch: {}, Batch {} out of {}, Last train loss: {}".format(i_epoch, batch_counter, total_batch_num, loss_np[0]))
+                batch_counter += 1
             # nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
             # self.loss.get_val(nntile_xentropy_np)
             # print("Last batch loss after in {} epoch = {}".format(i_epoch, nntile_xentropy_np[0]))
