@@ -127,14 +127,15 @@ class MlpMixer(BaseModel):
 
 
     def to_torch(self, torch_mlp_mixer):
-        for p, p_torch in zip(self.parameters, torch_mlp_mixer.parameters()):
-            if p.value.shape[0] != p_torch.shape[0]:
-                nntile_np = np.zeros(p.value.shape, dtype=np.float32, order="F")
-                p.value.to_array(nntile_np)
-                p_torch = torch.from_numpy(nntile_np.T)
-            else:
-                nntile_np = np.zeros(p.value.shape, dtype=np.float32, order="F")
-                p.value.to_array(nntile_np)
-                p_torch = torch.from_numpy(nntile_np)
+        with torch.no_grad():
+            for (p, p_torch) in zip(self.parameters, torch_mlp_mixer.parameters()):
+                if p.value.shape[0] != p_torch.shape[0]:
+                    nntile_np = np.zeros(p.value.shape, dtype=np.float32, order="F")
+                    p.value.to_array(nntile_np)
+                    p_torch.copy_(torch.from_numpy(nntile_np.T))
+                else:
+                    nntile_np = np.zeros(p.value.shape, dtype=np.float32, order="F")
+                    p.value.to_array(nntile_np)
+                    p_torch.copy_(torch.from_numpy(nntile_np))
 
     
