@@ -180,8 +180,8 @@ if args.input == "text":
             dtype=np.int64)
     input_tokens = np.array(list(map(lambda x: tokenizer(x)["input_ids"], \
             lines)))
-    input_tokens_start = input_tokens.shape[1]
-    input_numpy[0, 0:input_tokens_start] = input_tokens
+    input_tokens_start = input_tokens.shape[1]-1
+    input_numpy[0, 0:input_tokens_start] = input_tokens[0, :-1]
 
 # Run forward 50 times autoregressively
 output_numpy = np.zeros((config.vocab_size, config.n_positions, 1), \
@@ -195,7 +195,7 @@ for i in range(args.ntokens):
     #print(np.linalg.norm(torch_output_numpy-output_numpy) /
     #        np.linalg.norm(torch_output_numpy))
     #print(output_numpy[input_numpy[0, 0], 0, 0], output_numpy[:, 0, 0].max())
-    new_id = output_numpy[:, input_tokens_start+i-1, 0].argmax()
+    new_id = output_numpy[:50257, input_tokens_start+i-1, 0].argmax()
     #print(new_id, output_numpy[new_id, input_tokens_start+i, 0])
     input_numpy[0, input_tokens_start+i] = new_id
     print(tokenizer.decode(input_numpy[0, 0:input_tokens_start+i+1]))

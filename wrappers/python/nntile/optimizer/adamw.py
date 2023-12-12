@@ -80,8 +80,8 @@ class FusedAdamW:
             s_m = np.array(np.zeros(self.second_moments[i].shape, dtype=self.dtype), order="F")
             self.second_moments[i].to_array(s_m)
             if dtype == "fp32":
-                first_moments.append(f_m.copy())
-                second_moments.append(s_m.copy())
+                first_moments.append(torch.tensor(f_m))
+                second_moments.append(torch.tensor(s_m))
             elif dtype == "fp16":
                 first_moments.append(torch.tensor(f_m, dtype=torch.float16))
                 second_moments.append(torch.tensor(s_m, dtype=torch.float16))
