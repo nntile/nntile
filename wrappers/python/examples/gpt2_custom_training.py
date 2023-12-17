@@ -333,6 +333,9 @@ next_tag = optimizer.get_next_tag()
 # Load optimizer state if needed
 if args.load_optimizer is not None:
     optimizer.load_state(args.load_optimizer)
+    optimizer.lr = args.lr
+    optimizer.start_lr = args.start_lr
+    optimizer.full_lr_iter = args.full_lr_iter
 # Define Cross Entropy loss function
 if args.loss_reduction == "sum":
     loss_scale = 1.0

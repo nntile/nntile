@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Katrutsa
 # @author Aleksandr Mikhalev
-# @date 2023-11-26
+# @date 2023-11-29
 
 import nntile
 import numpy as np
@@ -120,6 +120,11 @@ class FusedAdamW:
         first_moments = stored_states["first_moments"]
         second_moments = stored_states["second_moments"]
         for i in range(len(first_moments)):
-            self.first_moments[i].from_array(first_moments[i].to(torch.float32))
-            self.second_moments[i].from_array(second_moments[i].to(torch.float32))
+            f = first_moments[i].to(torch.float32)
+            self.first_moments[i].from_array(f)
+            del f
+            s = second_moments[i].to(torch.float32)
+            self.second_moments[i].from_array(s)
+            del s
+        del stored_states, first_moments, second_moments
 
