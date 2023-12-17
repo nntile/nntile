@@ -9,12 +9,13 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-09-25
+# @date 2023-12-17
 
 from .base_layer import BaseLayer
 from .act import Act
 from .linear import Linear
 from .attention import Attention
+from .attention_single_head import AttentionSingleHead
 from .flash_attention import FlashAttention
 from .embedding import Embedding
 from .layer_norm import LayerNorm
