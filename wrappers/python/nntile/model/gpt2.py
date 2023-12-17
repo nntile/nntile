@@ -16,7 +16,7 @@ from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         notrans, trans, Tensor_fp32, Tensor_int64, Tensor_bool
 from nntile.model.base_model import BaseModel
 from nntile.layer import Linear, Embedding, AddSlice, LayerNorm, Attention, \
-        FlashAttention, Act
+        FlashAttention, Act, AttentionSingleHead
 import numpy as np
 from typing import List, Dict
 from nntile.layer.add import Add
@@ -127,7 +127,9 @@ class GPT2Model(BaseModel):
         flashattention = config["flashattention"]
         redux = config["redux"]
         self.fp32_fast_tf32 = fp32_fast_tf32
-        if flashattention:
+        if self.n_head == 1:
+            AttLayer = AttentionSingleHead
+        elif flashattention:
             AttLayer = FlashAttention
         else:
             AttLayer = Attention
@@ -167,10 +169,16 @@ class GPT2Model(BaseModel):
             layers.append(l_norm)
             activations.extend(l_norm.activations_output)
 
-            attn_layer, next_tag = AttLayer.generate_simple( \
-                    activations[-1], activations[-1], activations[-1], \
-                    self.n_head, n_head_tile, next_tag, True, self.mask, \
-                    redux=redux, fp32_fast_tf32=fp32_fast_tf32)
+            if self.n_head == 1:
+                attn_layer, next_tag = AttLayer.generate_simple( \
+                        activations[-1], activations[-1], activations[-1], \
+                        next_tag, True, self.mask, \
+                        redux=redux, fp32_fast_tf32=fp32_fast_tf32)
+            else:
+                attn_layer, next_tag = AttLayer.generate_simple( \
+                        activations[-1], activations[-1], activations[-1], \
+                        self.n_head, n_head_tile, next_tag, True, self.mask, \
+                        redux=redux, fp32_fast_tf32=fp32_fast_tf32)
             layers.append(attn_layer)
             activations.extend(attn_layer.activations_output)
 
