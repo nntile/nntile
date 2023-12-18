@@ -101,10 +101,10 @@ def evaluate(torch_model, test_data_tensor, test_label_tensor):
                         correct_pred[classes[label]] += 1
                     total_pred[classes[label]] += 1
 
-                loss_local = crit_torch(torch_output, true_labels)
+                loss_local = crit_torch(torch_output, true_test_labels)
                 torch_test_loss += loss_local
         test_loss = torch_test_loss.item() / (num_batch_test * num_minibatch_test)
-    print('Epoch: {}, Avg test loss: {}'.format(epoch_counter, test_loss))
+    print('Avg test loss: {}'.format(test_loss))
     # print accuracy for each class
     for classname, correct_count in correct_pred.items():
         accuracy = 100 * float(correct_count) / total_pred[classname]
@@ -125,6 +125,7 @@ parser.add_argument("--epoch", type=int)
 parser.add_argument("--lr", type=float)
 parser.add_argument("--test_each_batch", action=argparse.BooleanOptionalAction)
 parser.add_argument("--test_each_epoch", action=argparse.BooleanOptionalAction)
+parser.add_argument('--no_save', action='store_true', default=False)
 
 
 args = parser.parse_args()
@@ -141,7 +142,7 @@ experiment_folder = "mlp_mixer_data"
 
 init_state_path = os.path.join(cur_pos, experiment_folder, "torch_init_state.pt")
 final_state_path = os.path.join(cur_pos, experiment_folder, "torch_final_state.pt")
-
+final_nntile_path = os.path.join(cur_pos, experiment_folder, "nntile_final_state.pt")
 # Parse arguments
 args = parser.parse_args()
 print(args)
@@ -192,15 +193,17 @@ num_batch_train, num_minibatch_train = train_data_tensor.shape[0], train_data_te
     
 test_data_tensor, test_labels = data_loader_to_tensor_rgb(test_set.data, test_set.targets, trnsform, batch_size, minibatch_size, patch_size)
 test_labels = test_labels.type(torch.LongTensor)
+# checkpoint = torch.load(final_nntile_path)
+# mlp_mixer_model.load_state_dict(checkpoint['model_state_dict'])
+# evaluate(mlp_mixer_model, test_data_tensor, test_labels)
 
-mlp_mixer_model.zero_grad()
-
-torch.save({
-            'model_state_dict': mlp_mixer_model.state_dict(),
-            'optimizer_state_dict': optim_torch.state_dict(),
-            }, init_state_path)
-
+if args.no_save == False:
+    torch.save({
+                'model_state_dict': mlp_mixer_model.state_dict(),
+                'optimizer_state_dict': optim_torch.state_dict(),
+                }, init_state_path)
 mlp_mixer_model = mlp_mixer_model.to(device)
+mlp_mixer_model.zero_grad()
 for epoch_counter in range(num_epochs):  
     for batch_iter in range(num_batch_train):
         torch_train_loss = torch.zeros(1, dtype=torch.float32).to(device)
@@ -221,11 +224,9 @@ for epoch_counter in range(num_epochs):
     
     if args.test_each_epoch:
         evaluate(mlp_mixer_model, test_data_tensor, test_labels)
-torch.save({
-            'epoch': num_epochs,
-            'model_state_dict': mlp_mixer_model.state_dict(),
-            'optimizer_state_dict': optim_torch.state_dict(),
-            }, final_state_path)
-# np.savez('test_loss_cifar10', test_loss = interm_test_loss)
-
-
+if args.no_save == False:
+    torch.save({
+                'epoch': num_epochs,
+                'model_state_dict': mlp_mixer_model.state_dict(),
+                'optimizer_state_dict': optim_torch.state_dict(),
+                }, final_state_path)
