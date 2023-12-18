@@ -39,6 +39,8 @@ class Pipeline(object):
         self.loss_hist = []
 
     def train_async(self):
+        batch_counter = 0
+        total_batch_num = len(self.x)
         for i_epoch in range(self.n_epochs):
             # print("Epoch ", i_epoch)
             num_batches = len(self.x)

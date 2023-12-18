@@ -66,7 +66,7 @@ class Linear(BaseLayer):
         self.trans_x = trans_x
         self.ndim = ndim
         self.x = x
-        if self.x.grad:
+        if self.x.grad is not None:
             self.x.grad.set_reduction_add()
         self.y = y
         self.y.value.set_reduction_add()
