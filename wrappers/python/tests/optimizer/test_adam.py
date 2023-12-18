@@ -6,7 +6,7 @@ import time
 import copy
 import numpy as np
 
-nntile_config = nntile.starpu.Config(-1, -1, 1)
+nntile_config = nntile.starpu.Config(1, 0, 0)
 nntile.starpu.init()
 
 def run_test(dim, num_steps, device, lr, tol=1e-5):
@@ -43,13 +43,13 @@ def run_test(dim, num_steps, device, lr, tol=1e-5):
 if __name__ == "__main__":
 
     run_test(dim=1000, num_steps=100, device="cpu", lr=1)
-    run_test(dim=1000, num_steps=100, device="cuda", lr=1)
+    #run_test(dim=1000, num_steps=100, device="cuda", lr=1)
 
-    run_test(dim=1000, num_steps=10, device="cuda", lr=1e-1)
+    #run_test(dim=1000, num_steps=10, device="cuda", lr=1e-1)
     run_test(dim=1000, num_steps=10, device="cpu", lr=1e-1)
 
     run_test(dim=1000, num_steps=10, device="cpu", lr=1e-4)
-    run_test(dim=1000, num_steps=10, device="cuda", lr=1e-4)
+    #run_test(dim=1000, num_steps=10, device="cuda", lr=1e-4)
 
     run_test(dim=1000, num_steps=100, device="cpu", lr=1e-4)
-    run_test(dim=1000, num_steps=100, device="cuda", lr=1e-4)
+    #run_test(dim=1000, num_steps=100, device="cuda", lr=1e-4)

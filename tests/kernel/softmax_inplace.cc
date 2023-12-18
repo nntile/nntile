@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-02
+ * @date 2023-12-18
  * */
 
 #include "nntile/kernel/softmax_inplace.hh"
@@ -28,6 +28,7 @@ template<typename T>
 void run_cuda(Index m, Index n, Index k, const std::vector<T> &maxsumexp,
         std::vector<T> &dst)
 {
+    constexpr T alpha = 1.0;
     // Copy to device
     T *dev_maxsumexp, *dev_dst;
     cudaError_t cuda_err = cudaMalloc(&dev_maxsumexp, sizeof(T)*2*m*n);
@@ -45,7 +46,7 @@ void run_cuda(Index m, Index n, Index k, const std::vector<T> &maxsumexp,
     cuda_err = cudaStreamCreate(&stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Launch low-level kernel
-    cuda<T>(stream, m, n, k, dev_maxsumexp, dev_dst);
+    cuda<T>(stream, m, n, k, dev_maxsumexp, alpha, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
@@ -67,6 +68,7 @@ template<typename T>
 void validate(Index m, Index n, Index k)
 {
     constexpr T epsilon = std::numeric_limits<T>::epsilon();
+    constexpr T alpha = 1.0;
     // Init test input
     std::vector<T> maxsumexp(2*m*n), dst(m*n*k);
     for(Index i0 = 0; i0 < m; ++i0)
@@ -91,7 +93,7 @@ void validate(Index m, Index n, Index k)
     std::vector<T> dst_save(dst);
     // Check low-level kernel
     std::cout << "Run kernel::softmax_inplace::cpu<T>\n";
-    cpu<T>(m, n, k, &maxsumexp[0], &dst[0]);
+    cpu<T>(m, n, k, &maxsumexp[0], alpha, &dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)

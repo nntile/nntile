@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-02
+ * @date 2023-12-18
  * */
 
 #include "nntile/tile/softmax_inplace.hh"
@@ -23,6 +23,7 @@ using namespace nntile::tile;
 template<typename T>
 void check()
 {
+    constexpr T alpha = 1.0;
     // Init data for checking
     Tile<T> dst({3, 4, 5}), dst2({3, 4, 5});
     Tile<T> maxsumexp[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
@@ -48,8 +49,8 @@ void check()
     }
     // Check axis=0
     {
-        starpu::softmax_inplace::submit<T>(1, 20, 3, maxsumexp[0], dst);
-        softmax_inplace<T>(maxsumexp[0], dst2, 0);
+        starpu::softmax_inplace::submit<T>(1, 20, 3, maxsumexp[0], alpha, dst);
+        softmax_inplace<T>(maxsumexp[0], alpha, dst2, 0);
         dst_local.acquire(STARPU_R);
         dst2_local.acquire(STARPU_R);
         for(Index i = 0; i < dst.nelems; ++i)
@@ -61,8 +62,8 @@ void check()
     }
     // Check axis=1
     {
-        starpu::softmax_inplace::submit<T>(3, 5, 4, maxsumexp[1], dst);
-        softmax_inplace<T>(maxsumexp[1], dst2, 1);
+        starpu::softmax_inplace::submit<T>(3, 5, 4, maxsumexp[1], alpha, dst);
+        softmax_inplace<T>(maxsumexp[1], alpha, dst2, 1);
         dst_local.acquire(STARPU_R);
         dst2_local.acquire(STARPU_R);
         for(Index i = 0; i < dst.nelems; ++i)
@@ -74,8 +75,8 @@ void check()
     }
     // Check axis=2
     {
-        starpu::softmax_inplace::submit<T>(12, 1, 5, maxsumexp[2], dst);
-        softmax_inplace<T>(maxsumexp[2], dst2, 2);
+        starpu::softmax_inplace::submit<T>(12, 1, 5, maxsumexp[2], alpha, dst);
+        softmax_inplace<T>(maxsumexp[2], alpha, dst2, 2);
         dst_local.acquire(STARPU_R);
         dst2_local.acquire(STARPU_R);
         for(Index i = 0; i < dst.nelems; ++i)
@@ -90,6 +91,7 @@ void check()
 template<typename T>
 void validate()
 {
+    constexpr T alpha = 1.0;
     // Check normal execution
     check<T>();
     // Check throwing exceptions
@@ -97,14 +99,14 @@ void validate()
     Tile<T> dst({3, 4, 5});
     Tile<T> maxsumexp[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
         Tile<T>({2, 3, 4})};
-    TEST_THROW(softmax_inplace<T>(empty, empty, 0));
-    TEST_THROW(softmax_inplace<T>(maxsumexp[0], dst, 1));
-    TEST_THROW(softmax_inplace<T>(maxsumexp[0], dst, 2));
-    TEST_THROW(softmax_inplace<T>(dst, dst, 0));
-    TEST_THROW(softmax_inplace<T>(maxsumexp[2], dst, 0));
-    TEST_THROW(softmax_inplace<T>(maxsumexp[1], dst, 2));
-    TEST_THROW(softmax_inplace<T>(maxsumexp[0], dst, -1));
-    TEST_THROW(softmax_inplace<T>(maxsumexp[0], dst, 3));
+    TEST_THROW(softmax_inplace<T>(empty, alpha, empty, 0));
+    TEST_THROW(softmax_inplace<T>(maxsumexp[0], alpha, dst, 1));
+    TEST_THROW(softmax_inplace<T>(maxsumexp[0], alpha, dst, 2));
+    TEST_THROW(softmax_inplace<T>(dst, alpha, dst, 0));
+    TEST_THROW(softmax_inplace<T>(maxsumexp[2], alpha, dst, 0));
+    TEST_THROW(softmax_inplace<T>(maxsumexp[1], alpha, dst, 2));
+    TEST_THROW(softmax_inplace<T>(maxsumexp[0], alpha, dst, -1));
+    TEST_THROW(softmax_inplace<T>(maxsumexp[0], alpha, dst, 3));
 }
 
 int main(int argc, char **argv)

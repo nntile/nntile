@@ -10,7 +10,7 @@
 # @version 1.0.0
 # @author Aleksandr Katrutsa
 # @author Aleksandr Mikhalev
-# @date 2023-06-29
+# @date 2023-12-18
 
 # All necesary imports
 import nntile
@@ -51,7 +51,7 @@ def helper(dtype):
     np_res = np.where(causal_mask[:, :, np.newaxis], np_A, mask_value)
 
     mask.from_array(np.array(causal_mask, dtype=bool, order="F"))
-    mask_scalar_func[dtype](mask, dtype(mask_value), A)
+    mask_scalar_func[dtype](mask, dtype(mask_value), A, 1)
     A.to_array(np_A)
     nntile.starpu.wait_for_all()
     A.unregister()

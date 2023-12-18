@@ -9,13 +9,15 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-02-02
+# @date 2023-12-18
 
 # All necesary imports
 import nntile
 import numpy as np
 # Set up StarPU configuration and init it
 config = nntile.starpu.Config(1, 0, 0)
+# Init all NNTile-StarPU codelets
+nntile.starpu.init()
 # Define list of tested types
 dtypes = [np.float32, np.float64]
 # Define mapping between numpy and nntile types

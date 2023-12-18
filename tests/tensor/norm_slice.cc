@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-05
+ * @date 2023-12-18
  * */
 
 #include "nntile/tensor/norm_slice.hh"
@@ -19,6 +19,7 @@
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
+#include "nntile/starpu/copy.hh"
 #include "nntile/starpu/clear.hh"
 #include "../testing.hh"
 #include <limits>
@@ -161,9 +162,11 @@ int main(int argc, char **argv)
     // Init codelet
     starpu::norm_slice::init();
     starpu::subcopy::init();
+    starpu::copy::init();
     starpu::clear::init();
     starpu::norm_slice::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
+    starpu::copy::restrict_where(STARPU_CPU);
     starpu::clear::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();

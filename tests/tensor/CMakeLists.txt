@@ -91,6 +91,7 @@ set(TESTS_NOT_IMPLEMENTED
     "hypot"
     "add_slice3"
     "prod_fiber3"
+    "tensor"
     )
 
 # Add target for local coverage

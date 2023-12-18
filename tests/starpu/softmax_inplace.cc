@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-02
+ * @date 2023-12-18
  * */
 
 #include "nntile/starpu/softmax_inplace.hh"
@@ -29,6 +29,7 @@ using namespace nntile::starpu;
 template<typename T>
 void validate_cpu(Index m, Index n, Index k)
 {
+    constexpr T alpha = 1.0;
     // Init all the data
     std::vector<T> maxsumexp(2*m*n);
     for(Index i = 0; i < 2*m*n; i += 2)
@@ -45,14 +46,14 @@ void validate_cpu(Index m, Index n, Index k)
     std::vector<T> dst2(dst);
     // Launch low-level kernel
     std::cout << "Run kernel::softmax_inplace::cpu<T>\n";
-    kernel::softmax_inplace::cpu<T>(m, n, k, &maxsumexp[0], &dst[0]);
+    kernel::softmax_inplace::cpu<T>(m, n, k, &maxsumexp[0], alpha, &dst[0]);
     // Check by actually submitting a task
     VariableHandle maxsumexp_handle(&maxsumexp[0], sizeof(T)*2*m*n,
             STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
     softmax_inplace::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::softmax_inplace::submit<T> restricted to CPU\n";
-    softmax_inplace::submit<T>(m, n, k, maxsumexp_handle, dst2_handle);
+    softmax_inplace::submit<T>(m, n, k, maxsumexp_handle, alpha, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -67,6 +68,7 @@ void validate_cpu(Index m, Index n, Index k)
 template<typename T>
 void validate_cuda(Index m, Index n, Index k)
 {
+    constexpr T alpha = 1.0;
     // Get a StarPU CUDA worker (to perform computations on the same device)
     int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
     // Choose worker CUDA device
@@ -104,7 +106,8 @@ void validate_cuda(Index m, Index n, Index k)
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
     std::cout << "Run kernel::softmax_inplace::cuda<T>\n";
-    kernel::softmax_inplace::cuda<T>(stream, m, n, k, dev_maxsumexp, dev_dst);
+    kernel::softmax_inplace::cuda<T>(stream, m, n, k, dev_maxsumexp, alpha,
+            dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
@@ -125,7 +128,7 @@ void validate_cuda(Index m, Index n, Index k)
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
     softmax_inplace::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::softmax_inplace::submit<T> restricted to CUDA\n";
-    softmax_inplace::submit<T>(m, n, k, maxsumexp_handle, dst2_handle);
+    softmax_inplace::submit<T>(m, n, k, maxsumexp_handle, alpha, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result

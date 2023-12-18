@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-07-02
+# @date 2023-12-18
 
 # All necesary imports
 import nntile
@@ -61,7 +61,7 @@ def helper(dtype):
     # Check result along each axis
     for i in range(ndim):
         A.from_array(np_A)
-        softmax_inplace[dtype](B[i], A, i)
+        softmax_inplace[dtype](B[i], 1.0, A, i)
         B[i].unregister()
         A.to_array(np_A2)
         np_B_max = np.expand_dims(np_B[i][0, ...], axis=i)

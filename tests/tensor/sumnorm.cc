@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-11-03
+ * @date 2023-12-18
  * */
 
 #include "nntile/tensor/sumnorm.hh"
@@ -19,6 +19,7 @@
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
+#include "nntile/starpu/copy.hh"
 #include "nntile/starpu/clear.hh"
 #include "../testing.hh"
 #include <limits>
@@ -147,9 +148,11 @@ int main(int argc, char **argv)
     // Init codelet
     starpu::sumnorm::init();
     starpu::subcopy::init();
+    starpu::copy::init();
     starpu::clear::init();
     starpu::sumnorm::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
+    starpu::copy::restrict_where(STARPU_CPU);
     starpu::clear::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();

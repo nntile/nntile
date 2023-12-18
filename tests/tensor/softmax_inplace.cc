@@ -9,18 +9,20 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-07-02
+ * @date 2023-12-18
  * */
 
 #include "nntile/tensor/softmax_inplace.hh"
 #include "nntile/tile/softmax_inplace.hh"
 #include "nntile/starpu/softmax_inplace.hh"
+#include "nntile/tensor/clear.hh"
 #include "nntile/tensor/maxsumexp.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/clear.hh"
 #include "nntile/starpu/maxsumexp.hh"
 #include "nntile/starpu/subcopy.hh"
+#include "nntile/starpu/copy.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -30,6 +32,7 @@ template<typename T>
 void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         Index axis)
 {
+    constexpr T alpha = 1.0;
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
@@ -83,16 +86,17 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         src_distr[i] = (i*i+1) % mpi_size;
     }
     Tensor<T> src(src_traits, src_distr, last_tag);
+    clear<T>(src);
     maxsumexp<T>(dst, src, axis);
     // Collect source in a single-tile tensor
     TensorTraits src_single_traits(src_shape, src_shape);
     Tensor<T> src_single(src_single_traits, dist_root, last_tag);
     gather<T>(src, src_single);
     // Perform tensor-wise and tile-wise softmax_inplace operations
-    softmax_inplace<T>(src, dst, axis);
+    softmax_inplace<T>(src, alpha, dst, axis);
     if(mpi_rank == mpi_root)
     {
-        tile::softmax_inplace<T>(src_single.get_tile(0),
+        tile::softmax_inplace<T>(src_single.get_tile(0), alpha,
                 dst_single.get_tile(0), axis);
     }
     // Compare results
@@ -116,6 +120,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
 template<typename T>
 void validate()
 {
+    constexpr T alpha = 1.0;
     check<T>({11}, {5}, 0);
     check<T>({11, 12}, {5, 6}, 0);
     check<T>({11, 12}, {5, 6}, 1);
@@ -137,16 +142,16 @@ void validate()
         C(trC, dist00, last_tag), D(trD, dist0, last_tag),
         E(trE, dist00, last_tag), F(trF, dist00, last_tag),
         G(trG, dist0, last_tag);
-    TEST_THROW(softmax_inplace<T>(B, A, 0));
-    TEST_THROW(softmax_inplace<T>(D, D, 0));
-    TEST_THROW(softmax_inplace<T>(C, A, 0));
-    TEST_THROW(softmax_inplace<T>(C, A, -1));
-    TEST_THROW(softmax_inplace<T>(C, A, 2));
-    TEST_THROW(softmax_inplace<T>(E, A, 0));
-    TEST_THROW(softmax_inplace<T>(F, A, 0));
-    TEST_THROW(softmax_inplace<T>(C, A, 1));
-    TEST_THROW(softmax_inplace<T>(G, A, 0));
-    TEST_THROW(softmax_inplace<T>(G, A, 1));
+    TEST_THROW(softmax_inplace<T>(B, alpha, A, 0));
+    TEST_THROW(softmax_inplace<T>(D, alpha, D, 0));
+    TEST_THROW(softmax_inplace<T>(C, alpha, A, 0));
+    TEST_THROW(softmax_inplace<T>(C, alpha, A, -1));
+    TEST_THROW(softmax_inplace<T>(C, alpha, A, 2));
+    TEST_THROW(softmax_inplace<T>(E, alpha, A, 0));
+    TEST_THROW(softmax_inplace<T>(F, alpha, A, 0));
+    TEST_THROW(softmax_inplace<T>(C, alpha, A, 1));
+    TEST_THROW(softmax_inplace<T>(G, alpha, A, 0));
+    TEST_THROW(softmax_inplace<T>(G, alpha, A, 1));
 }
 
 int main(int argc, char **argv)
@@ -158,10 +163,12 @@ int main(int argc, char **argv)
     starpu::maxsumexp::init();
     starpu::clear::init();
     starpu::subcopy::init();
+    starpu::copy::init();
     starpu::softmax_inplace::restrict_where(STARPU_CPU);
     starpu::maxsumexp::restrict_where(STARPU_CPU);
     starpu::clear::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
+    starpu::copy::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

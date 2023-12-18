@@ -9,11 +9,12 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-05-02
+ * @date 2023-12-18
  * */
 
 #include "nntile/tensor/scatter.hh"
 #include "nntile/starpu/subcopy.hh"
+#include "nntile/starpu/copy.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -116,7 +117,9 @@ int main(int argc, char **argv)
     starpu::Config starpu(1, 0, 0);
     // Init codelet
     starpu::subcopy::init();
+    starpu::copy::init();
     starpu::subcopy::restrict_where(STARPU_CPU);
+    starpu::copy::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

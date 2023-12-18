@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-09-20
+# @date 2023-12-18
 
 # All necesary imports
 import nntile
@@ -59,8 +59,8 @@ def helper(dtype):
         B[i].from_array(np_B[-1])
     # Check result along each axis
     for i in range(ndim):
-        nntile.tensor.clear(B[i])
-        maxsumexp[dtype](A, B[i], i)
+        nntile.tensor.clear_async(B[i])
+        maxsumexp[dtype](A, B[i], i, 0)
         B[i].to_array(np_B[i])
         nntile.starpu.wait_for_all()
         B[i].unregister()

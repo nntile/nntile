@@ -9,10 +9,11 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-03-27
+ * @date 2023-12-18
  * */
 
 #include "nntile/tensor/copy.hh"
+#include "nntile/starpu/copy.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -125,6 +126,8 @@ int main(int argc, char **argv)
 {
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
+    // Init codelet
+    starpu::copy::init();
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

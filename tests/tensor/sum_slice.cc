@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-04-24
+ * @date 2023-12-18
  * */
 
 #include "nntile/tensor/sum_slice.hh"
@@ -19,6 +19,7 @@
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
+#include "nntile/starpu/copy.hh"
 #include "../testing.hh"
 #include <limits>
 
@@ -160,8 +161,10 @@ int main(int argc, char **argv)
     // Init codelet
     starpu::sum_slice::init();
     starpu::subcopy::init();
+    starpu::copy::init();
     starpu::sum_slice::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
+    starpu::copy::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

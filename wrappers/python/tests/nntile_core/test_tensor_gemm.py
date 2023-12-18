@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-03-23
+# @date 2023-12-18
 
 # All necesary imports
 import nntile
@@ -53,7 +53,7 @@ def helper(dtype):
     # Get results by means of nntile and convert to numpy
     alpha = 1
     beta = -1
-    gemm[dtype](alpha, nntile.notrans, A, nntile.trans, B, beta, C, 1, 1)
+    gemm[dtype](alpha, nntile.notrans, A, nntile.trans, B, beta, C, 1, 1, 0)
     C.to_array(dst_C)
     nntile.starpu.wait_for_all()
     A.unregister()

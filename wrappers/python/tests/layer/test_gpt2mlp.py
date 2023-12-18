@@ -3,6 +3,7 @@
 import torch
 import torch.nn as nn
 from nntile.model.gpt2 import GPT2MLP as GPT2MLP_nntile
+from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile
 import time
 import nntile
 import numpy as np
@@ -75,7 +76,7 @@ torch_val.backward()
 
 time0 = -time.time()
 # Set up StarPU+MPI and init codelets
-config = nntile.starpu.Config(-1, -1, 1)
+config = nntile.starpu.Config(1, 1, 1)
 nntile.starpu.init()
 time0 += time.time()
 print("StarPU + NNTile + MPI init in {} seconds".format(time0))

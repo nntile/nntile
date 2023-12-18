@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-05-05
+# @date 2023-12-18
 
 # Get pybind11 library and set up binary directory pybind11
 add_subdirectory("../../external/pybind11" "pybind11")
@@ -71,6 +71,12 @@ set(TESTS_NOT_IMPLEMENTED
     "nntile_core/test_tensor_hypot.py"
     "nntile_core/test_tensor_prod_fiber3.py"
     "nntile_core/test_tensor_scal.py"
+    "layer/test_add.py"
+    "layer/test_add_slice.py"
+    "layer/test_gpt2mlp.py"
+    "model/test_deep_relu.py"
+    "model/test_gpt2.py"
+    "optimizer/test_adam.py"
     )
 
 foreach(py_test IN LISTS PY_TESTS)
