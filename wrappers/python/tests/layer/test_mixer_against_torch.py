@@ -16,7 +16,26 @@ import numpy as np
 import torch.nn.functional as F
 import torch
 from nntile.torch_models.mlp_mixer import Mixer as TorchMixerLayer
-from nntile.torch_models.mlp_mixer import image_patching_rgb
+
+
+def image_patching(image, patch_size):
+    c, h, w = image.shape
+    if h % patch_size != 0 or w % patch_size != 0:
+            raise ValueError("patch size should be divisor of both image height and width")
+    n_patches = int(h * w / (patch_size ** 2))
+    n_channels = c * (patch_size ** 2)
+    patched_batch = torch.empty((n_patches, n_channels), dtype=image.dtype)
+
+    n_y = int(w / patch_size)
+
+    for i in range(n_patches):
+        x = i // n_y
+        y = i % n_y
+
+        for clr in range(c):
+            vect_patch = image[clr, x * patch_size: (x+1) * patch_size , y * patch_size: (y+1) * patch_size].flatten()
+            patched_batch[i, clr * (patch_size ** 2) : (clr+1) * (patch_size ** 2)] = vect_patch
+    return patched_batch
 
 # Set up StarPU configuration and init it
 config = nntile.starpu.Config(1, 0, 0)
@@ -37,14 +56,19 @@ def helper(dtype: np.dtype):
     elif dtype == np.float64:
         tol = 1e-10
     
-    batch_size = 8
+    minibatch_size = 8
     clr_space_size = 3
     h, w = 8, 8
     patch_size = 4
 
+    n_patches = int(h * w / (patch_size ** 2))
+    n_channels = clr_space_size * (patch_size ** 2)
+
     # Set initial values of tensors
-    rand_A = torch.rand(batch_size, clr_space_size, h, w)
-    patched_batch = image_patching_rgb(rand_A, patch_size)
+    patched_batch = torch.empty((n_patches, minibatch_size, n_channels), dtype=torch.float32)
+    rand_A = torch.rand(minibatch_size, clr_space_size, h, w)
+    for k in range(minibatch_size):
+        patched_batch[:, k, :] = image_patching(rand_A[k, :, :, :], patch_size)
     np_A = np.array(patched_batch, dtype=dtype, order='F')
 
     # Describe single-tile tensor, located at node 0
@@ -52,8 +76,6 @@ def helper(dtype: np.dtype):
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
     next_tag = 0
-    
-    n_patches, n_channels = A_shape[0], A_shape[2]
 
     # Tensor objects
     A = Tensor[dtype](A_traits, mpi_distr, next_tag)
@@ -125,18 +147,23 @@ def helper(dtype: np.dtype):
         fro_loss.unregister()
         return False 
 
-    for i, (p_nntile, p_torch) in enumerate(zip(mixer_layer.parameters, torch_mixer_layer.parameters())):
+    for p_nntile, p_torch in zip(mixer_layer.parameters, torch_mixer_layer.parameters()):
         p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=dtype)
         p_nntile.grad.to_array(p_nntile_grad_np)
         if p_torch.grad.shape[0] != p_nntile_grad_np.shape[0]:
             p_nntile_grad_np = np.transpose(p_nntile_grad_np)
         rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np)) / torch.norm(p_torch.grad)
-        print("Relative error in gradient in layer {} = {}".format(i, rel_error.item()))
+        # print("Relative error in gradient in layer {} = {}".format(i, rel_error.item()))
+        if rel_error > tol:
+            A_moments.unregister()
+            mixer_layer.unregister()
+            fro_loss.unregister()
+            return False
 
     A_moments.unregister()
     mixer_layer.unregister()
     fro_loss.unregister()
-    print("Finish checking")
+    print("Test successful")
     assert True
 
 

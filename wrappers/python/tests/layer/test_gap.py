@@ -30,8 +30,6 @@ def helper(dtype: np.dtype):
     mpi_distr = [0]
     next_tag = 0
     
-    n_channels = A_shape[2]
-
     # Tensor objects
     A = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = A.next_tag
@@ -52,6 +50,7 @@ def helper(dtype: np.dtype):
     torch_data = torch.from_numpy(np_A)
     torch_output = torch_data.mean(dim=(0))
     np_Y = np.array(torch_output.detach().numpy(), order="F", dtype=dtype)
+    np_Y = np_Y.transpose()
 
     np_Y2 = np.zeros_like(np_Y, order='F')
     layer.y.value.to_array(np_Y2)

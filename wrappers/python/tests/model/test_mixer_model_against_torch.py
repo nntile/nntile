@@ -77,14 +77,15 @@ def helper():
     num_classes = 10
     num_clr_channels = 3
 
-    lr = 1e-2
+    lr = 1e-4 
     next_tag = 0
     tol = 1e-4
 
+    num_batch_to_go = 10
+
     cur_pos = str(pathlib.Path(__file__).parent.absolute())
 
-    init_state_path = os.path.join(cur_pos, "mlp_mixer_init_state.pt")
-    final_state_path = os.path.join(cur_pos, "mlp_mixer_final_state.pt")
+    final_state_path = os.path.join(cur_pos, "torch_test_state.pt")
 
     X_shape = [channel_size, minibatch_size, num_clr_channels * patch_size ** 2]
     Y_shape = [minibatch_size]
@@ -104,40 +105,33 @@ def helper():
 
     test_data_tensor, test_labels = data_loader_to_tensor(test_set.data, test_set.targets, trnsform, batch_size, minibatch_size, patch_size)
     test_labels = test_labels.type(torch.LongTensor) 
-    num_batch_train, num_minibatch_train = train_data_tensor.shape[0], train_data_tensor.shape[1]
+    num_minibatch_train = train_data_tensor.shape[1]
 
     torch_mixer_model.zero_grad()
+
+    for batch_iter in range(num_batch_to_go):
+        torch_train_loss = torch.zeros(1, dtype=torch.float32)
+        for minibatch_iter in range(num_minibatch_train):
+            patched_train_sample = train_data_tensor[batch_iter,minibatch_iter,:,:,:]
+            true_labels = train_labels[batch_iter, minibatch_iter, :]
+            torch_output = torch_mixer_model(patched_train_sample)
+            loss_local = crit_torch(torch_output, true_labels)
+            loss_local.backward()
+            torch_train_loss += loss_local            
+        optim_torch.step()
+        torch_mixer_model.zero_grad()
 
     torch.save({
             'model_state_dict': torch_mixer_model.state_dict(),
             'optimizer_state_dict': optim_torch.state_dict(),
-            }, init_state_path)
-
-    # num_batch_to_go = 3
-    # for batch_iter in range(num_batch_to_go):
-    #     torch_train_loss = torch.zeros(1, dtype=torch.float32)
-    #     for minibatch_iter in range(num_minibatch_train):
-    #         patched_train_sample = train_data_tensor[batch_iter,minibatch_iter,:,:,:]
-    #         true_labels = train_labels[batch_iter, minibatch_iter, :]
-    #         torch_output = torch_mixer_model(patched_train_sample)
-    #         loss_local = crit_torch(torch_output, true_labels)
-    #         loss_local.backward()
-    #         torch_train_loss += loss_local            
-    #     optim_torch.step()
-    #     torch_mixer_model.zero_grad()
-
-
-    # torch.save({
-    #         'model_state_dict': torch_mixer_model.state_dict(),
-    #         'optimizer_state_dict': optim_torch.state_dict(),
-    #         }, final_state_path)
+            }, final_state_path)
     
 
     patched_test_sample = test_data_tensor[1,1,:,:,:]
     true_labels = train_labels[1, 1, :]
 
     torch_mixer_model_loaded = MlpMixer(channel_size, num_clr_channels * patch_size ** 2, hidden_dim, num_mixer_layers, num_classes)
-    checkpoint = torch.load(init_state_path)
+    checkpoint = torch.load(final_state_path)
     torch_mixer_model_loaded.load_state_dict(checkpoint['model_state_dict'])
 
     nntile_mixer_model, next_tag = MlpMixerTile.from_torch(torch_mixer_model_loaded,minibatch_size,num_classes, next_tag)
@@ -145,7 +139,7 @@ def helper():
 
     torch_mixer_model_loaded.zero_grad()
     torch_output = torch_mixer_model_loaded(patched_test_sample)
-    _, pred_labels_torch = torch.max(torch_output, 1)
+    # _, pred_labels_torch = torch.max(torch_output, 1)
 
     np_torch_output = np.array(torch_output.detach().numpy(), order="F", dtype=np.float32)
     loss_local = crit_torch(torch_output, true_labels)
@@ -175,7 +169,7 @@ def helper():
 
     nntile_last_layer_output = np.zeros(nntile_mixer_model.activations[-1].value.shape, order="F", dtype=np.float32)
     nntile_mixer_model.activations[-1].value.to_array(nntile_last_layer_output)
-    pred_labels_nntile = np.argmax(nntile_last_layer_output, axis=0)
+    # pred_labels_nntile = np.argmax(nntile_last_layer_output, axis=0)
 
     print("PyTorch loss: {}, NNTile loss: {}".format(loss_local.item(), nntile_xentropy_np[0]))
     # print("PyTorch predicted label: {}".format(pred_labels_torch))
