@@ -83,20 +83,38 @@ def data_loader_to_nntile(data_set, label_set, batch_input, batch_output, trns, 
         batch_output.append(minibatch_output)   
 
 
+def data_loader_to_tensor(data_set, label_set, trns, batch_size, minibatch_size, patch_size):
+    total_len, h, w, c = data_set.shape
+    n_batches = total_len // batch_size
+    n_minibatches = int(batch_size / minibatch_size)
+
+    n_patches = int(h * w / (patch_size ** 2))
+    n_channels = c * (patch_size ** 2)
+
+    train_tensor = torch.empty((n_batches, n_minibatches, n_patches, minibatch_size, n_channels), dtype=torch.float32)
+    label_tensor = torch.empty((n_batches, n_minibatches, minibatch_size), dtype=torch.float32)
+    for i in range(n_batches):
+        for j in range(n_minibatches):
+            for k in range(minibatch_size):
+                train_tensor[i, j, :, k, :] = image_patching(trns(data_set[i * batch_size + j * minibatch_size + k, :, :, :]), patch_size)
+                label_tensor[i, j, k] = label_set[i * batch_size + j * minibatch_size + k]
+    return train_tensor, label_tensor
+
+
 # Instantiate the parser
-parser = argparse.ArgumentParser(prog="DeepReLU neural network", \
+parser = argparse.ArgumentParser(prog="MlpMixer neural network", \
         description="This example trains PyTorch version of MlpMixer neural "\
         "network from a scratch for an image classification task")
 parser.add_argument("--dataset", choices=["mnist", "cifar10"], default="mnist")
 parser.add_argument("--batch", type=int)
-parser.add_argument("--batch_tile", type=int)
-parser.add_argument("--minibatch", type=int)
+parser.add_argument("--minibatch", type=int )
 parser.add_argument("--depth", type=int)
 parser.add_argument("--patch_size", type=int)
 parser.add_argument("--hidden_dim", type=int)
 parser.add_argument("--epoch", type=int)
-parser.add_argument("--nepochs_warmup", type=int)
 parser.add_argument("--lr", type=float)
+parser.add_argument('--check', action='store_true', default=False)
+parser.add_argument('--save_final_state', action='store_true', default=False)
 
 args = parser.parse_args()
 
@@ -110,17 +128,21 @@ args = parser.parse_args()
 print(args)
 
 batch_size = args.batch
-batch_tile_size = args.batch_tile
 minibatch_size = args.minibatch
 patch_size = args.patch_size
 num_mixer_layers = args.depth
 hidden_dim = args.hidden_dim
 lr = args.lr
 num_epochs = args.epoch
-num_warmup_epochs = args.nepochs_warmup
 
 trnsform = trnsfrms.Compose([trnsfrms.ToTensor()])
-device = 'gpu'
+# For PyTorch testing
+device = (
+    "cuda"
+    if torch.cuda.is_available()
+    else "cpu"
+)
+
 # Check consistency of batch and minibatch sizes
 if batch_size % minibatch_size != 0:
     raise ValueError("Batch must consist of integer number of minibatches")
@@ -161,11 +183,16 @@ batch_output = []
 
 data_loader_to_nntile(train_set.data, train_set.targets, batch_input, batch_output, trnsform, batch_size, minibatch_size, patch_size, next_tag)
 
+test_data_tensor, test_labels = data_loader_to_tensor(test_set.data, test_set.targets, trnsform, batch_size, minibatch_size, patch_size)
+test_labels = test_labels.type(torch.LongTensor)
 torch_mixer_model = TorchMlpMixer(channel_size, num_clr_channels * patch_size ** 2, hidden_dim, num_mixer_layers, n_classes)
 optim_torch = torch.optim.Adam(torch_mixer_model.parameters(), lr=lr)
 crit_torch = nn.CrossEntropyLoss(reduction="sum")
-checkpoint = torch.load(init_state_path)
-torch_mixer_model.load_state_dict(checkpoint['model_state_dict'])
+# checkpoint = torch.load(init_state_path)
+# torch_mixer_model.load_state_dict(checkpoint['model_state_dict'])
+
+print("Accuracy before training:")
+torch_mixer_model.evaluate(test_data_tensor, test_labels)
 
 nntile_mixer_model, next_tag = MlpMixer.from_torch(torch_mixer_model,minibatch_size,n_classes, next_tag)
 loss, next_tag = nntile.loss.CrossEntropy.generate_simple(nntile_mixer_model.activations[-1], next_tag)
@@ -173,29 +200,76 @@ optimizer = nntile.optimizer.Adam(nntile_mixer_model.get_parameters(), \
             args.lr, next_tag)
 next_tag = optimizer.get_next_tag()
 
+# Check accuracy of output and gradients of parmeters if required
+if args.check:
+    torch_mixer_model.zero_grad()
+    patched_test_sample = test_data_tensor[1,1,:,:,:]
+    test_labels = test_labels[1, 1, :]
+
+    torch_mixer_model.zero_grad()
+    torch_output = torch_mixer_model(patched_test_sample)
+
+    np_torch_output = np.array(torch_output.detach().numpy(), order="F", dtype=np.float32)
+    loss_local = crit_torch(torch_output, test_labels)
+    loss_local.backward()
+
+    data_train_traits = nntile.tensor.TensorTraits(X_shape, X_shape)
+    test_tensor = nntile.tensor.Tensor_fp32(data_train_traits, [0], next_tag)
+    next_tag = test_tensor.next_tag
+    test_tensor.from_array(patched_test_sample.numpy())
+    nntile.tensor.copy_async(test_tensor, nntile_mixer_model.activations[0].value)
+
+    label_train_traits = nntile.tensor.TensorTraits(Y_shape, Y_shape)
+    label_train_tensor = nntile.tensor.Tensor_int64(label_train_traits, [0], next_tag)
+    next_tag = label_train_tensor.next_tag
+    label_train_tensor.from_array(test_labels.numpy())
+    nntile.tensor.copy_async(label_train_tensor, loss.y)    
+
+    nntile_mixer_model.clear_gradients()
+    nntile_mixer_model.forward_async()
+    loss.calc_async()
+
+    nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
+    loss.get_val(nntile_xentropy_np)
+    nntile_xentropy_np = nntile_xentropy_np.reshape(-1)
+    
+    nntile_last_layer_output = np.zeros(nntile_mixer_model.activations[-1].value.shape, order="F", dtype=np.float32)
+    nntile_mixer_model.activations[-1].value.to_array(nntile_last_layer_output)
+
+    print("PyTorch loss: {}, NNTile loss: {}".format(loss_local.item(), nntile_xentropy_np[0]))
+    print("Norm of inference difference: {}".format(np.linalg.norm(nntile_last_layer_output - np_torch_output.T, 'fro')))
+
+    nntile_mixer_model.backward_async()
+
+    for i, (p_torch, p_nntile) in enumerate(zip(torch_mixer_model.parameters(), nntile_mixer_model.parameters)):
+        p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
+        p_nntile.grad.to_array(p_nntile_grad_np)
+        if p_torch.grad.shape[0] != p_nntile_grad_np.shape[0]:
+            p_nntile_grad_np = np.transpose(p_nntile_grad_np)
+        
+        rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np)) / torch.norm(p_torch.grad)
+        norm = torch.norm(p_torch.grad)
+        print("Gradient of {} parameter: norm={} rel_err={}".format(i, norm, \
+                rel_error))
+
+
 # Set up training pipeline
 pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, \
-        nntile_mixer_model, optimizer, loss, num_warmup_epochs)
+        nntile_mixer_model, optimizer, loss, num_epochs)
 nntile_mixer_model.clear_gradients()
-pipeline.train_async()
-#nntile.starpu.resume()
-nntile.starpu.wait_for_all()
-# Actual training
-pipeline.n_epochs = num_epochs
-# nntile.starpu.profiling_enable()
-#nntile.starpu.pause()
 
+#Actual training
 pipeline.train_async()
 #nntile.starpu.resume()
 nntile.starpu.wait_for_all()
-# nntile.starpu.profiling_disable()
 
 nntile_mixer_model.to_torch(torch_mixer_model)
 
-torch.save({
-            'model_state_dict': torch_mixer_model.state_dict(),
-            'optimizer_state_dict': optim_torch.state_dict(),
-            }, final_state_path)
+if args.save_final_state:
+    torch.save({
+                'model_state_dict': torch_mixer_model.state_dict(),
+                'optimizer_state_dict': optim_torch.state_dict(),
+                }, final_state_path)
 
 loss.unregister()
 optimizer.unregister()
@@ -205,3 +279,9 @@ for batch in batch_input+batch_output:
 
 # Unregister all tensors related to model
 nntile_mixer_model.unregister()
+
+#   Evaluate accuracy of nntile model by uploading trained weights to the torch model
+print("Accuracy after training:")
+torch_mixer_model.evaluate(test_data_tensor, test_labels)
+
+

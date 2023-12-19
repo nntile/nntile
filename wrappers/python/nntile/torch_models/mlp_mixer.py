@@ -119,3 +119,30 @@ class MlpMixer(nn.Module):
     def forward(self, x: torch.Tensor):
         mixer_output = self.mixer_sequence(x)
         return self.classification(mixer_output.mean(dim=(0)))
+    
+
+    def evaluate(self, test_data_tensor, test_label_tensor):
+        device = (
+        "cuda"
+        if torch.cuda.is_available()
+        else "cpu")
+        num_batch_test, num_minibatch_test = test_data_tensor.shape[0], test_data_tensor.shape[1]
+        correct_pred = 0
+        total_pred = 0
+        with torch.no_grad():
+            for test_batch_iter in range(num_batch_test):
+                for test_minibatch_iter in range(num_minibatch_test):
+                    patched_test_sample = test_data_tensor[test_batch_iter,test_minibatch_iter,:,:,:]
+                    patched_test_sample = patched_test_sample.to(device)
+                    true_test_labels = test_label_tensor[test_batch_iter, test_minibatch_iter, :].to(device)
+                
+                    torch_output = self.forward(patched_test_sample)
+
+                    _, predictions = torch.max(torch_output, 1)
+                    # collect the correct predictions for each class
+                    for label, prediction in zip(true_test_labels, predictions):
+                        if label == prediction:
+                            correct_pred += 1
+                        total_pred += 1
+        # print accuracy
+        print('Total accuracy = {}'.format(float(correct_pred /total_pred)))
