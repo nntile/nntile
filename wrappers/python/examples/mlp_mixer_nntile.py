@@ -137,12 +137,12 @@ num_epochs = args.epoch
 
 trnsform = trnsfrms.Compose([trnsfrms.ToTensor()])
 # For PyTorch testing
-device = (
-    "cuda"
-    if torch.cuda.is_available()
-    else "cpu"
-)
-
+# device_for_pytorch = (
+#     "cuda"
+#     if torch.cuda.is_available()
+#     else "cpu"
+# )
+device_for_pytorch="cpu"
 # Check consistency of batch and minibatch sizes
 if batch_size % minibatch_size != 0:
     raise ValueError("Batch must consist of integer number of minibatches")
@@ -157,8 +157,8 @@ if args.dataset == "mnist":
         raise ValueError("Image size must be divisible by patch size without remainder")
     channel_size = int(28 * 28 / patch_size ** 2)
 elif args.dataset == "cifar10":
-    train_set = dts.CIFAR10(root='./', train=True, download=True, transform=trnsform)
-    test_set = dts.CIFAR10(root='./', train=False, download=True)
+    train_set = dts.CIFAR10(root='./', train=True, download=False, transform=trnsform)
+    test_set = dts.CIFAR10(root='./', train=False, download=False)
     n_classes = 10
     num_clr_channels = 3
     # Check consistency of image and patch sizes
@@ -183,8 +183,8 @@ batch_output = []
 
 data_loader_to_nntile(train_set.data, train_set.targets, batch_input, batch_output, trnsform, batch_size, minibatch_size, patch_size, next_tag)
 
-test_data_tensor, test_labels = data_loader_to_tensor(test_set.data, test_set.targets, trnsform, batch_size, minibatch_size, patch_size)
-test_labels = test_labels.type(torch.LongTensor)
+test_data_tensor, test_labels_tensor = data_loader_to_tensor(test_set.data, test_set.targets, trnsform, batch_size, minibatch_size, patch_size)
+test_labels_tensor = test_labels_tensor.type(torch.LongTensor)
 torch_mixer_model = TorchMlpMixer(channel_size, num_clr_channels * patch_size ** 2, hidden_dim, num_mixer_layers, n_classes)
 optim_torch = torch.optim.Adam(torch_mixer_model.parameters(), lr=lr)
 crit_torch = nn.CrossEntropyLoss(reduction="sum")
@@ -192,7 +192,7 @@ crit_torch = nn.CrossEntropyLoss(reduction="sum")
 # torch_mixer_model.load_state_dict(checkpoint['model_state_dict'])
 
 print("Accuracy before training:")
-torch_mixer_model.evaluate(test_data_tensor, test_labels)
+torch_mixer_model.evaluate(test_data_tensor, test_labels_tensor, device_for_pytorch)
 
 nntile_mixer_model, next_tag = MlpMixer.from_torch(torch_mixer_model,minibatch_size,n_classes, next_tag)
 loss, next_tag = nntile.loss.CrossEntropy.generate_simple(nntile_mixer_model.activations[-1], next_tag)
@@ -204,7 +204,7 @@ next_tag = optimizer.get_next_tag()
 if args.check:
     torch_mixer_model.zero_grad()
     patched_test_sample = test_data_tensor[1,1,:,:,:]
-    test_labels = test_labels[1, 1, :]
+    test_labels = test_labels_tensor[1, 1, :]
 
     torch_mixer_model.zero_grad()
     torch_output = torch_mixer_model(patched_test_sample)
@@ -282,6 +282,4 @@ nntile_mixer_model.unregister()
 
 #   Evaluate accuracy of nntile model by uploading trained weights to the torch model
 print("Accuracy after training:")
-torch_mixer_model.evaluate(test_data_tensor, test_labels)
-
-
+torch_mixer_model.evaluate(test_data_tensor, test_labels_tensor, device_for_pytorch)

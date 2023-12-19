@@ -121,11 +121,7 @@ class MlpMixer(nn.Module):
         return self.classification(mixer_output.mean(dim=(0)))
     
 
-    def evaluate(self, test_data_tensor, test_label_tensor):
-        device = (
-        "cuda"
-        if torch.cuda.is_available()
-        else "cpu")
+    def evaluate(self, test_data_tensor, test_label_tensor, device):
         num_batch_test, num_minibatch_test = test_data_tensor.shape[0], test_data_tensor.shape[1]
         correct_pred = 0
         total_pred = 0
