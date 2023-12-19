@@ -157,8 +157,8 @@ if args.dataset == "mnist":
         raise ValueError("Image size must be divisible by patch size without remainder")
     channel_size = int(28 * 28 / patch_size ** 2)
 elif args.dataset == "cifar10":
-    train_set = dts.CIFAR10(root='./', train=True, download=False, transform=trnsform)
-    test_set = dts.CIFAR10(root='./', train=False, download=False)
+    train_set = dts.CIFAR10(root='./', train=True, download=True, transform=trnsform)
+    test_set = dts.CIFAR10(root='./', train=False, download=True)
     n_classes = 10
     num_clr_channels = 3
     # Check consistency of image and patch sizes
