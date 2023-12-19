@@ -1,11 +1,12 @@
-ARG BASE_IMAGE=nvidia/cuda:12.2.2-devel-ubuntu20.04
+ARG BASE_IMAGE=nvidia/cuda:12.2.0-devel-ubuntu22.04
 
 FROM $BASE_IMAGE AS devbase
 
 ADD ci/add-repo-kitware.sh .
 
+ARG DEBIAN_FRONTEND=noninteractive
+
 RUN set -xe && \
-    DEBIAN_FRONTEND=noninteractive \
     apt update && \
     ./add-repo-kitware.sh && \
     apt update && \
@@ -14,7 +15,7 @@ RUN set -xe && \
     rm -rf ./add-repo-kitware.sh
 
 RUN apt update && \
-    DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \
+    apt install -y --no-install-recommends \
         autoconf automake binutils build-essential clang cmake cmake-curses-gui \
         fxt-tools gdb git lcov libfxt-dev libhwloc-dev libopenblas-dev \
         libopenmpi-dev libopenmpi3 libtool-bin ninja-build openmpi-bin \
@@ -73,3 +74,21 @@ RUN apt update && \
     apt install -y --no-install-recommends \
     time && \
     find /var/lib/apt/lists -type f -print -delete
+
+FROM sandbox AS nntile
+
+ADD . /workspace/nntile
+
+ARG CUDA_ARCHS=80;86
+
+RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHS} -GNinja
+
+RUN cmake --build build -j $MAKE_JOBS
+
+ENV PYTHONPATH=/workspace/nntile/build/wrappers/python
+
+ENV STARPU_SILENT=1
+
+ENV STARPU_FXT_TRACE=0
+

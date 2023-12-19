@@ -218,12 +218,14 @@ if args.check:
     next_tag = test_tensor.next_tag
     test_tensor.from_array(patched_test_sample.numpy())
     nntile.tensor.copy_async(test_tensor, nntile_mixer_model.activations[0].value)
+    test_tensor.unregister()
 
     label_train_traits = nntile.tensor.TensorTraits(Y_shape, Y_shape)
     label_train_tensor = nntile.tensor.Tensor_int64(label_train_traits, [0], next_tag)
     next_tag = label_train_tensor.next_tag
     label_train_tensor.from_array(test_labels.numpy())
     nntile.tensor.copy_async(label_train_tensor, loss.y)    
+    label_train_tensor.unregister()
 
     nntile_mixer_model.clear_gradients()
     nntile_mixer_model.forward_async()
