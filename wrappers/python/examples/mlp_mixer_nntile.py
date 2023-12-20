@@ -22,83 +22,9 @@ import argparse
 import nntile
 from nntile.model.mlp_mixer import MlpMixer
 from nntile.torch_models.mlp_mixer import MlpMixer as TorchMlpMixer
+from mlp_mixer_data_preparation import *
 
 
-def image_patching(image, patch_size):
-    c, h, w = image.shape
-    if h % patch_size != 0 or w % patch_size != 0:
-            raise ValueError("patch size should be divisor of both image height and width")
-    n_patches = int(h * w / (patch_size ** 2))
-    n_channels = c * (patch_size ** 2)
-    patched_batch = torch.empty((n_patches, n_channels), dtype=image.dtype)
-
-    n_y = int(w / patch_size)
-
-    for i in range(n_patches):
-        x = i // n_y
-        y = i % n_y
-
-        for clr in range(c):
-            vect_patch = image[clr, x * patch_size: (x+1) * patch_size , y * patch_size: (y+1) * patch_size].flatten()
-            patched_batch[i, clr * (patch_size ** 2) : (clr+1) * (patch_size ** 2)] = vect_patch
-    return patched_batch
-
-
-def data_loader_to_nntile(data_set, label_set, batch_input, batch_output, trns, batch_size, minibatch_size, patch_size, next_tag):
-    total_len, h, w, c = data_set.shape
-    n_batches = total_len // batch_size
-    n_minibatches = int(batch_size / minibatch_size)
-
-    n_patches = int(h * w / (patch_size ** 2))
-    n_channels = c * (patch_size ** 2)
-
-    X_shape = [channel_size, minibatch_size, num_clr_channels * patch_size ** 2]
-    Y_shape = [minibatch_size]
-
-    tmp_data_tensor = torch.empty((n_patches, minibatch_size, n_channels), dtype=torch.float32)
-    tmp_label_tensor = torch.empty(minibatch_size, dtype=torch.float32)
-
-    x_traits = nntile.tensor.TensorTraits(X_shape, X_shape)
-    x_distr = [0] * x_traits.grid.nelems
-
-    y_traits = nntile.tensor.TensorTraits(Y_shape, Y_shape)
-    y_distr = [0] * y_traits.grid.nelems
-
-    for i in range(n_batches):
-        minibatch_input = []
-        minibatch_output = []
-        for j in range(n_minibatches):
-            for k in range(minibatch_size):
-                tmp_data_tensor[:, k, :] = image_patching(trns(data_set[i * batch_size + j * minibatch_size + k, :, :, :]), patch_size)
-                tmp_label_tensor[k] = label_set[i * batch_size + j * minibatch_size + k]
-            x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
-            next_tag = x.next_tag
-            x.from_array(np.asfortranarray(tmp_data_tensor.numpy()))
-            minibatch_input.append(x)
-            y = nntile.tensor.Tensor_int64(y_traits, y_distr, next_tag)
-            next_tag = y.next_tag
-            y.from_array(np.asfortranarray(tmp_label_tensor.numpy().reshape(-1)))
-            minibatch_output.append(y)
-        batch_input.append(minibatch_input)
-        batch_output.append(minibatch_output)   
-
-
-def data_loader_to_tensor(data_set, label_set, trns, batch_size, minibatch_size, patch_size):
-    total_len, h, w, c = data_set.shape
-    n_batches = total_len // batch_size
-    n_minibatches = int(batch_size / minibatch_size)
-
-    n_patches = int(h * w / (patch_size ** 2))
-    n_channels = c * (patch_size ** 2)
-
-    train_tensor = torch.empty((n_batches, n_minibatches, n_patches, minibatch_size, n_channels), dtype=torch.float32)
-    label_tensor = torch.empty((n_batches, n_minibatches, minibatch_size), dtype=torch.float32)
-    for i in range(n_batches):
-        for j in range(n_minibatches):
-            for k in range(minibatch_size):
-                train_tensor[i, j, :, k, :] = image_patching(trns(data_set[i * batch_size + j * minibatch_size + k, :, :, :]), patch_size)
-                label_tensor[i, j, k] = label_set[i * batch_size + j * minibatch_size + k]
-    return train_tensor, label_tensor
 
 
 # Instantiate the parser
@@ -147,6 +73,16 @@ device_for_pytorch="cpu"
 if batch_size % minibatch_size != 0:
     raise ValueError("Batch must consist of integer number of minibatches")
 
+# Set up StarPU configuration and init it
+config = nntile.starpu.Config(-1, -1, 1)
+# Init all NNTile-StarPU codelets
+nntile.starpu.init()
+next_tag = 0
+
+# Prepare data for NNTile training
+batch_input = []
+batch_output = []
+
 if args.dataset == "mnist":
     train_set = dts.MNIST(root='./', train=True, download=True, transform=trnsform)
     test_set = dts.MNIST(root='./', train=False, download=True, transform=trnsform)
@@ -156,6 +92,8 @@ if args.dataset == "mnist":
     if 28 % patch_size != 0:
         raise ValueError("Image size must be divisible by patch size without remainder")
     channel_size = int(28 * 28 / patch_size ** 2)
+    mnist_data_loader_to_nntile(train_set.data, train_set.targets, batch_input, batch_output, trnsform, batch_size, minibatch_size, patch_size, next_tag)
+    test_data_tensor, test_labels_tensor = mnist_data_loader_to_tensor(test_set.data, test_set.targets, trnsform, batch_size, minibatch_size, patch_size)
 elif args.dataset == "cifar10":
     train_set = dts.CIFAR10(root='./', train=True, download=True, transform=trnsform)
     test_set = dts.CIFAR10(root='./', train=False, download=True)
@@ -165,25 +103,11 @@ elif args.dataset == "cifar10":
     if 32 % patch_size != 0:
         raise ValueError("Image size must be divisible by patch size without remainder")
     channel_size = int(32 * 32 / patch_size ** 2)
+    cifar_data_loader_to_nntile(train_set.data, train_set.targets, batch_input, batch_output, trnsform, batch_size, minibatch_size, patch_size, next_tag)
+    test_data_tensor, test_labels_tensor = cifar_data_loader_to_tensor(test_set.data, test_set.targets, trnsform, batch_size, minibatch_size, patch_size)
 else:
     raise ValueError("{} dataset is not supported yet!".format(args.dataset))
 
-# Set up StarPU configuration and init it
-config = nntile.starpu.Config(-1, -1, 1)
-# Init all NNTile-StarPU codelets
-nntile.starpu.init()
-
-X_shape = [channel_size, minibatch_size, num_clr_channels * patch_size ** 2]
-Y_shape = [minibatch_size]
-next_tag = 0
-
-# Prepare data for NNTile training
-batch_input = []
-batch_output = []
-
-data_loader_to_nntile(train_set.data, train_set.targets, batch_input, batch_output, trnsform, batch_size, minibatch_size, patch_size, next_tag)
-
-test_data_tensor, test_labels_tensor = data_loader_to_tensor(test_set.data, test_set.targets, trnsform, batch_size, minibatch_size, patch_size)
 test_labels_tensor = test_labels_tensor.type(torch.LongTensor)
 torch_mixer_model = TorchMlpMixer(channel_size, num_clr_channels * patch_size ** 2, hidden_dim, num_mixer_layers, n_classes)
 optim_torch = torch.optim.Adam(torch_mixer_model.parameters(), lr=lr)
@@ -196,8 +120,7 @@ torch_mixer_model.evaluate(test_data_tensor, test_labels_tensor, device_for_pyto
 
 nntile_mixer_model, next_tag = MlpMixer.from_torch(torch_mixer_model,minibatch_size,n_classes, next_tag)
 loss, next_tag = nntile.loss.CrossEntropy.generate_simple(nntile_mixer_model.activations[-1], next_tag)
-optimizer = nntile.optimizer.Adam(nntile_mixer_model.get_parameters(), \
-            args.lr, next_tag)
+optimizer = nntile.optimizer.Adam(nntile_mixer_model.get_parameters(), args.lr, next_tag)
 next_tag = optimizer.get_next_tag()
 
 # Check accuracy of output and gradients of parmeters if required
@@ -213,6 +136,8 @@ if args.check:
     loss_local = crit_torch(torch_output, test_labels)
     loss_local.backward()
 
+    X_shape = [channel_size, minibatch_size, num_clr_channels * patch_size ** 2]
+    Y_shape = [minibatch_size]
     data_train_traits = nntile.tensor.TensorTraits(X_shape, X_shape)
     test_tensor = nntile.tensor.Tensor_fp32(data_train_traits, [0], next_tag)
     next_tag = test_tensor.next_tag
