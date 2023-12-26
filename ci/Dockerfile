@@ -30,11 +30,11 @@ ENV STARPU_SILENT=1
 
 ENV OMP_NUM_THREADS=1
 
-ARG STARPU_VERSION=1.3.11
+ARG STARPU_VERSION=starpu-1.3.11
 
 RUN set -xe && \
     mkdir -p /usr/src && \
-    STARPU_LABEL=starpu-$STARPU_VERSION && \
+    STARPU_LABEL=$STARPU_VERSION && \
     curl -SL https://gitlab.inria.fr/starpu/starpu/-/archive/$STARPU_LABEL/starpu-$STARPU_LABEL.tar.gz | \
     tar -xzC /usr/src && \
     ln -s /usr/src/starpu-$STARPU_LABEL /usr/src/starpu && \
