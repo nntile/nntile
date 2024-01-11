@@ -45,8 +45,8 @@ class DeepReLU(BaseModel):
         new_layer, next_tag = Linear.generate_simple(x, side, notrans, ndim, \
                 [add_shape], [add_basetile_shape], next_tag, bias, \
                 fp32_fast_fp16, fp32_convert_fp16)
-        self.fp32_fast_fp16 = new_layer.fp32_fast_fp16
-        self.fp32_convert_fp16 = new_layer.fp32_convert_fp16
+        # self.fp32_fast_fp16 = new_layer.fp32_fast_fp16
+        # self.fp32_convert_fp16 = new_layer.fp32_convert_fp16
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         new_layer, next_tag = Act.generate_simple(activations[-1], "relu", \

@@ -25,7 +25,7 @@ class Pipeline(object):
     model: BaseModel
     opt: Any
     loss: Any
-    n_epoch: int
+    n_epochs: int
     lr: float
 
     def __init__(self, x: List[List[Tensor]], y: List[List[Tensor]], \

@@ -30,7 +30,8 @@ parser = argparse.ArgumentParser(prog="DeepReLU neural network", \
 parser.add_argument("--dataset", choices=["mnist", "cifar10"], default="mnist")
 parser.add_argument("--dataset_dir")
 parser.add_argument("--batch", type=int)
-parser.add_argument("--batch_tile", type=int)
+parser.add_argument("--minibatch", type=int)
+parser.add_argument("--minibatch_tile", type=int)
 parser.add_argument("--depth", type=int)
 parser.add_argument("--hidden_dim", type=int)
 parser.add_argument("--hidden_dim_tile", type=int)
@@ -38,14 +39,16 @@ parser.add_argument("--pixels_tile", type=int)
 parser.add_argument("--epoch", type=int)
 parser.add_argument("--epoch_warmup", type=int)
 parser.add_argument("--lr", type=float)
-parser.add_argument("--fp32_fast_fp16", action="store_true")
-parser.add_argument("--fp32_convert_fp16", action="store_true")
+# parser.add_argument("--fp32_fast_fp16", action="store_true")
+# parser.add_argument("--fp32_convert_fp16", action="store_true")
+parser.add_argument("--fp32_fast_tf32", action="store_true")
+
 
 # Parse arguments
 args = parser.parse_args()
 print(args)
-deep_relu_mp = False # Do not enable it, under construction
-
+# deep_relu_mp = False # Do not enable it, under construction
+assert args.batch % args.minibatch == 0
 if args.dataset == "mnist":
     dataset_transforms = transforms.Compose([transforms.ToTensor(), \
             transforms.Normalize((0,), (255,))])
@@ -99,22 +102,32 @@ n_flops *= args.epoch * len(train_loader)
 time0 = -time.time()
 batch_data = []
 batch_labels = []
-x_traits = nntile.tensor.TensorTraits([n_pixels, args.batch], \
-        [args.pixels_tile, args.batch_tile])
+x_traits = nntile.tensor.TensorTraits([n_pixels, args.minibatch], \
+        [args.pixels_tile, args.minibatch_tile])
 x_distr = [0] * x_traits.grid.nelems
-y_traits = nntile.tensor.TensorTraits([args.batch], [args.batch_tile])
+y_traits = nntile.tensor.TensorTraits([args.minibatch], [args.minibatch_tile])
 y_distr = [0] * y_traits.grid.nelems
 for train_batch_data, train_batch_labels in train_loader:
     if train_batch_data.shape[0] != args.batch:
         break
-    x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
-    next_tag = x.next_tag
-    x.from_array(train_batch_data.view(args.batch, n_pixels).numpy().T)
-    batch_data.append(x)
-    y = nntile.tensor.Tensor_int64(y_traits, y_distr, next_tag)
-    next_tag = y.next_tag
-    y.from_array(train_batch_labels.numpy())
-    batch_labels.append(y)
+    current_minibatch_data = []
+    current_minibatch_label = []
+    current_data = train_batch_data.view(args.batch, n_pixels).numpy()
+    current_labels = train_batch_labels.numpy()
+    for idx in range(args.batch // args.minibatch):
+
+        x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
+        next_tag = x.next_tag
+        x.from_array(current_data[idx*args.minibatch:(idx+1)*args.minibatch, :].T)
+        current_minibatch_data.append(x)
+
+        y = nntile.tensor.Tensor_int64(y_traits, y_distr, next_tag)
+        next_tag = y.next_tag
+        y.from_array(current_labels[idx*args.minibatch:(idx+1)*args.minibatch])
+        current_minibatch_label.append(y)
+
+    batch_labels.append(current_minibatch_label)
+    batch_data.append(current_minibatch_data)
 
 # Wait for all scatters to finish
 nntile.starpu.wait_for_all()
@@ -131,16 +144,16 @@ x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
 # Define deep ReLU network
 gemm_ndim = 1
-if deep_relu_mp:
+if args.fp32_fast_tf32:
     m = nntile.model.DeepReLU_mp(x_moments, 'R', gemm_ndim, args.hidden_dim, \
-            args.hidden_dim_tile, args.depth, n_classes, next_tag)
-    print("GEMM FP16")
+            args.hidden_dim_tile, args.depth, n_classes, next_tag, args.fp32_fast_tf32)
+    print("GEMM TF32")
 else:
     m = nntile.model.DeepReLU(x_moments, 'R', gemm_ndim, args.hidden_dim, \
-            args.hidden_dim_tile, args.depth, n_classes, next_tag, False, \
-            args.fp32_fast_fp16, args.fp32_convert_fp16)
-    print("GEMM FP32_FAST_FP16: {}".format(m.fp32_fast_fp16))
-    print("GEMM FP32_CONVERT_FP16: {}".format(m.fp32_convert_fp16))
+            args.hidden_dim_tile, args.depth, n_classes, next_tag, bias=False)
+#     print("GEMM FP32_FAST_FP16: {}".format(m.fp32_fast_fp16))
+#     print("GEMM FP32_CONVERT_FP16: {}".format(m.fp32_convert_fp16))
+
 next_tag = m.next_tag
 # Set up learning rate and optimizer for training
 #optimizer = nntile.optimizer.SGD(m.get_parameters(), args.lr, next_tag, \
@@ -172,14 +185,15 @@ print("Finish random weights init in {} seconds".format(time0))
 test_top1_accuracy = 0
 total_num_samples = 0
 for test_batch_data, test_batch_label in test_loader:
-    m.activations[0].value.from_array( \
-            test_batch_data.view(-1, n_pixels).numpy().T)
-    m.forward_async()
-    output = np.zeros(m.activations[-1].value.shape, order="F", \
+    current_test_data = test_batch_data.view(-1, n_pixels).numpy()
+    for idx in range(args.batch // args.minibatch):
+        m.activations[0].value.from_array(current_test_data[idx*args.minibatch:(idx+1)*args.minibatch, :].T)
+        m.forward_async()
+        output = np.zeros(m.activations[-1].value.shape, order="F", \
             dtype=np.float32)
-    m.activations[-1].value.to_array(output)
-    pred_labels = np.argmax(output, 0)
-    test_top1_accuracy += np.sum(pred_labels == test_batch_label.numpy())
+        m.activations[-1].value.to_array(output)
+        pred_labels = np.argmax(output, 0)
+        test_top1_accuracy += np.sum(pred_labels == test_batch_label[idx*args.minibatch:(idx+1)*args.minibatch].numpy())
     total_num_samples += test_batch_label.shape[0]
 # Report the accuracy if it was computed
 if total_num_samples > 0:
@@ -244,14 +258,15 @@ print("Inference GFLOPs/s (based on gemms): {}" \
 test_top1_accuracy = 0
 total_num_samples = 0
 for test_batch_data, test_batch_label in test_loader:
-    m.activations[0].value.from_array( \
-            test_batch_data.view(-1, n_pixels).numpy().T)
-    m.forward_async()
-    output = np.zeros(m.activations[-1].value.shape, order="F", \
+    current_test_data = test_batch_data.view(-1, n_pixels).numpy()
+    for idx in range(args.batch // args.minibatch):
+        m.activations[0].value.from_array(current_test_data[idx*args.minibatch:(idx+1)*args.minibatch, :].T)
+        m.forward_async()
+        output = np.zeros(m.activations[-1].value.shape, order="F", \
             dtype=np.float32)
-    m.activations[-1].value.to_array(output)
-    pred_labels = np.argmax(output, 0)
-    test_top1_accuracy += np.sum(pred_labels == test_batch_label.numpy())
+        m.activations[-1].value.to_array(output)
+        pred_labels = np.argmax(output, 0)
+        test_top1_accuracy += np.sum(pred_labels == test_batch_label[idx*args.minibatch:(idx+1)*args.minibatch].numpy())
     total_num_samples += test_batch_label.shape[0]
 # Report the accuracy if it was computed
 if total_num_samples > 0:
@@ -268,8 +283,10 @@ optimizer.unregister()
 loss.unregister()
 
 # Unregister input/output batches
-for x in batch_data:
-    x.unregister()
-for x in batch_labels:
-    x.unregister()
+for minibatch in batch_data:
+    for x in minibatch:
+        x.unregister()
+for minibatch in batch_labels:
+    for y in minibatch:
+        y.unregister()
 
