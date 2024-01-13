@@ -139,6 +139,7 @@ elif args.pretrained == "local":
                         torch_model.load_state_dict(checkpoint['model_state_dict'])
                         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
+model_torch.eval()
 # print(model_torch)
 
 # Create a new PyTorch model with adjusted config and load weights from the

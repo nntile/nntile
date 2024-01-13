@@ -128,6 +128,7 @@ class GPT2Model(BaseModel):
         redux = config["redux"]
         self.fp32_fast_tf32 = fp32_fast_tf32
         if self.n_head == 1:
+            print("Set 1 head")
             AttLayer = AttentionSingleHead
         elif flashattention:
             AttLayer = FlashAttention
@@ -320,11 +321,16 @@ class GPT2Model(BaseModel):
                 # Read Q, K and V weights
                 for i_tensor in range(3):
                     p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                    p_nntile.value.from_array(p_torch_np[:, \
-                            i_tensor*attn_embed_dim: \
-                            (i_tensor+1)*attn_embed_dim].T \
-                            .reshape(attn_nheads, attn_head_size, \
-                            attn_embed_dim))
+                    if attn_nheads == 1:
+                        p_nntile.value.from_array(p_torch_np[:, \
+                                i_tensor*attn_embed_dim: \
+                                (i_tensor+1)*attn_embed_dim].T)
+                    else:
+                        p_nntile.value.from_array(p_torch_np[:, \
+                                i_tensor*attn_embed_dim: \
+                                (i_tensor+1)*attn_embed_dim].T \
+                                .reshape(attn_nheads, attn_head_size, \
+                                attn_embed_dim))
                     nntile_p_idx += 1
 
             elif layer_name == "c_attn" and name.split(".")[-1] == "bias":
@@ -332,18 +338,26 @@ class GPT2Model(BaseModel):
                 # Read Q, K and V biases
                 for i_tensor in range(3):
                     p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                    p_nntile.value.from_array(p_torch_np[ \
-                            i_tensor*attn_embed_dim: \
-                            (i_tensor+1)*attn_embed_dim] \
-                            .reshape(attn_nheads, attn_head_size).T)
+                    if attn_nheads == 1:
+                        p_nntile.value.from_array(p_torch_np[ \
+                                i_tensor*attn_embed_dim: \
+                                (i_tensor+1)*attn_embed_dim])
+                    else:
+                        p_nntile.value.from_array(p_torch_np[ \
+                                i_tensor*attn_embed_dim: \
+                                (i_tensor+1)*attn_embed_dim] \
+                                .reshape(attn_nheads, attn_head_size).T)
                     nntile_p_idx += 1
             elif layer_name == "c_proj" and name.split(".")[-3] == "attn":
                 p_torch_np = p_torch.cpu().detach().numpy()
                 if name.split(".")[-1] == "weight":
                     p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                    p_nntile.value.from_array(p_torch_np.T \
-                            .reshape(attn_embed_dim, attn_nheads, \
-                            attn_head_size))
+                    if attn_nheads == 1:
+                        p_nntile.value.from_array(p_torch_np.T)
+                    else:
+                        p_nntile.value.from_array(p_torch_np.T \
+                                .reshape(attn_embed_dim, attn_nheads, \
+                                attn_head_size))
                     nntile_p_idx += 1
                 elif name.split(".")[-1] == "bias":
                     p_nntile = gpt2_nntile.parameters[nntile_p_idx]
