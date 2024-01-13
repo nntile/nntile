@@ -59,6 +59,7 @@ class AttentionSingleHead(BaseLayer):
             in_proj_bias_q: TensorMoments, in_proj_bias_k: TensorMoments, \
             in_proj_bias_v: TensorMoments, out_proj_bias: TensorMoments, \
             mask=None, redux: bool=False, fp32_fast_tf32: bool=False):
+        #print("SINGLE HEAD")
         qkv_bias_list = []
         if in_proj_bias_q:
             qkv_bias_list.append(in_proj_bias_q)
@@ -325,7 +326,7 @@ class AttentionSingleHead(BaseLayer):
         next_tag = y_grad.next_tag
         y = TensorMoments(y_value, y_grad, True)
         # Create attention layer with all the provided data
-        layer = Attention(x_q, x_k, x_v, y, w_q, w_k, w_v, w, q, k, v, a, \
+        layer = AttentionSingleHead(x_q, x_k, x_v, y, w_q, w_k, w_v, w, q, k, v, a, \
                 a_maxsumexp, a_sumprod_slice, b, bias_inproj_q, \
                 bias_inproj_k, bias_inproj_v, out_proj_bias, mask, \
                 redux=redux, fp32_fast_tf32=fp32_fast_tf32)
