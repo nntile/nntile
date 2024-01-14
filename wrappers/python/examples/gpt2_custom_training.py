@@ -13,6 +13,7 @@
 # @date 2023-11-26
 
 # Imports
+from datasets import load_dataset
 import torch
 import nntile
 import math
@@ -23,7 +24,6 @@ from torch import Tensor
 import torch.nn as nn
 from transformers import GPT2TokenizerFast, GPT2LMHeadModel, GPT2Model, \
         GPT2Config
-from datasets import load_dataset
 from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
         GPT2Model as GPT2Model_nntile
 from nntile.tensor import copy_async
