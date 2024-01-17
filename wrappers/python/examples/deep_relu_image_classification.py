@@ -144,13 +144,14 @@ x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
 # Define deep ReLU network
 gemm_ndim = 1
-if args.fp32_fast_tf32:
-    m = nntile.model.DeepReLU_mp(x_moments, 'R', gemm_ndim, args.hidden_dim, \
+m = nntile.model.DeepReLU(x_moments, 'R', gemm_ndim, args.hidden_dim, \
             args.hidden_dim_tile, args.depth, n_classes, next_tag, args.fp32_fast_tf32)
-    print("GEMM TF32")
-else:
-    m = nntile.model.DeepReLU(x_moments, 'R', gemm_ndim, args.hidden_dim, \
-            args.hidden_dim_tile, args.depth, n_classes, next_tag, bias=False)
+# if args.fp32_fast_tf32:
+    
+#     print("GEMM TF32")
+# else:
+#     m = nntile.model.DeepReLU(x_moments, 'R', gemm_ndim, args.hidden_dim, \
+#             args.hidden_dim_tile, args.depth, n_classes, next_tag, bias=False)
 #     print("GEMM FP32_FAST_FP16: {}".format(m.fp32_fast_fp16))
 #     print("GEMM FP32_CONVERT_FP16: {}".format(m.fp32_convert_fp16))
 

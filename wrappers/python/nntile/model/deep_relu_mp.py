@@ -27,7 +27,7 @@ class DeepReLU_mp(BaseModel):
     # Construct model with all the provided data
     def __init__(self, x: TensorMoments, side: str, ndim: int, \
             add_shape: int, add_basetile_shape: int, nlayers: int, \
-            n_classes:int, next_tag: int, fp32_fast_tf32: bool=False):
+            n_classes:int, next_tag: int):
         # Check parameter side
         if side != 'L' and side != 'R':
             raise ValueError("side must be either 'L' or 'R'")

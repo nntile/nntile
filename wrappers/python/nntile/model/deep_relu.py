@@ -28,7 +28,7 @@ class DeepReLU(BaseModel):
     def __init__(self, x: TensorMoments, side: str, ndim: int, \
             add_shape: int, add_basetile_shape: int, nlayers: int, \
             n_classes:int, next_tag: int, bias: bool=False, \
-            fp32_fast_fp16: bool=False, fp32_convert_fp16: bool=False):
+            fp32_fast_tf32: bool=False):
         # Check parameter side
         if side != 'L' and side != 'R':
             raise ValueError("side must be either 'L' or 'R'")
@@ -44,7 +44,7 @@ class DeepReLU(BaseModel):
         # Initial linear layer that converts input to internal shape
         new_layer, next_tag = Linear.generate_simple(x, side, notrans, ndim, \
                 [add_shape], [add_basetile_shape], next_tag, bias, \
-                fp32_fast_fp16, fp32_convert_fp16)
+                fp32_fast_tf32)
         # self.fp32_fast_fp16 = new_layer.fp32_fast_fp16
         # self.fp32_convert_fp16 = new_layer.fp32_convert_fp16
         layers.append(new_layer)
@@ -57,8 +57,7 @@ class DeepReLU(BaseModel):
         for i in range(1, nlayers-1):
             new_layer, next_tag = Linear.generate_simple( \
                     activations[-1], side, notrans, 1, [add_shape], \
-                    [add_basetile_shape], next_tag, bias, fp32_fast_fp16, \
-                    fp32_convert_fp16)
+                    [add_basetile_shape], next_tag, bias, fp32_fast_tf32)
             layers.append(new_layer)
             activations.extend(new_layer.activations_output)
             new_layer, next_tag = Act.generate_simple(activations[-1], \
@@ -68,7 +67,7 @@ class DeepReLU(BaseModel):
         # Finalizing linear layer that converts result back to proper shape
         new_layer, next_tag = Linear.generate_simple(activations[-1], \
                 side, notrans, 1, [n_classes], [n_classes], next_tag, bias, \
-                fp32_fast_fp16, fp32_convert_fp16)
+                fp32_fast_tf32)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         self.next_tag = next_tag
