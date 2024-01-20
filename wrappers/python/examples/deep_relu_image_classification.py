@@ -82,6 +82,7 @@ time0 = -time.time()
 # Set up StarPU+MPI and init codelets
 config = nntile.starpu.Config(-1, -1, 1)
 nntile.starpu.init()
+nntile.starpu.restrict_cuda()
 time0 += time.time()
 print("StarPU + NNTile + MPI init in {} seconds".format(time0))
 next_tag = 0
@@ -145,7 +146,8 @@ x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 # Define deep ReLU network
 gemm_ndim = 1
 m = nntile.model.DeepReLU(x_moments, 'R', gemm_ndim, args.hidden_dim, \
-            args.hidden_dim_tile, args.depth, n_classes, next_tag, args.fp32_fast_tf32)
+            args.hidden_dim_tile, args.depth, n_classes, next_tag, \
+            fp32_fast_tf32=args.fp32_fast_tf32)
 # if args.fp32_fast_tf32:
     
 #     print("GEMM TF32")
