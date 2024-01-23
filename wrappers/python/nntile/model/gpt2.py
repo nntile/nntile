@@ -158,7 +158,6 @@ class GPT2Model(BaseModel):
 
         add_slice_layer, next_tag = AddSlice.generate_simple(activations[-2], \
                 activations[-1], 2, next_tag, redux=redux)
-
         layers.append(add_slice_layer)
         activations.extend(add_slice_layer.activations_output)
 

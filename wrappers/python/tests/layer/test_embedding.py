@@ -33,6 +33,7 @@ def helper(dtype: np.dtype):
     index_shape = [4, 5, 6]
     vocab_size = 1000
     emb_size = 100
+    emb_size_tile = 60
     ndim = len(index_shape)
     axis = ndim
     index_traits = nntile.tensor.TensorTraits(index_shape, index_shape)
@@ -53,7 +54,7 @@ def helper(dtype: np.dtype):
     # Define NNTile embedding layer
     nntile_layer, next_tag = nntile.layer.Embedding.generate_simple( \
             nntile_index, Tensor[dtype], axis, vocab_size, emb_size, \
-            emb_size, emb_size, next_tag)
+            emb_size_tile, emb_size_tile, next_tag)
     nntile_layer.w.value.from_array(np_vocab)
     # Define PyTorch embedding layer
     torch_layer = Embedding(vocab_size, emb_size)

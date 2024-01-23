@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2024 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-09-19
+ * @date 2024-01-23
  * */
 
 #include "nntile/tensor/embedding_backward.hh"
@@ -67,8 +67,6 @@ void embedding_backward_async(const Tensor<Index> &index,
         throw std::runtime_error("embed.basetile_shape[axis] % "
                 "vocab.basetile_shape[0] != 0");
     }
-    // Number of vocab tiles per single embed tile
-    Index vocab_per_embed = embed.basetile_shape[axis] / vocab.basetile_shape[0];
     // Actual calculations
     int mpi_rank = starpu_mpi_world_rank();
     // Cycle over embedding tiles
@@ -90,18 +88,23 @@ void embedding_backward_async(const Tensor<Index> &index,
         }
         auto index_tile_handle = index.get_tile_handle(index_tile_index);
         int index_tile_rank = index_tile_handle.mpi_get_rank();
-        // Find corresponding vocab tiles
-        Index vocab_start = embed_tile_index[axis] * vocab_per_embed;
+        // Number of vocab tiles per single embed tile
+        Index vocab_per_embed = (embed_tile_traits.shape[axis]-1)
+            / vocab.basetile_shape[0] + 1;
+        // Find corresponding vocab tiles and copy embeddings
+        Index vocab_start = embed_tile_index[axis] * embed.basetile_shape[axis]
+            / vocab.basetile_shape[0];
         Index vocab_end = vocab_start + vocab_per_embed;
         for(Index j = vocab_start; j < vocab_end; ++j)
         {
             auto vocab_tile_handle = vocab.get_tile_handle(j);
+            auto vocab_tile_traits = vocab.get_tile_traits(j);
             Index m, n, k, k_start, k_size;
             m = embed_tile_traits.stride[axis];
             n = embed_tile_traits.matrix_shape[axis+1][1];
             k = embed_tile_traits.shape[axis];
             k_start = (j-vocab_start) * vocab.basetile_shape[0];
-            k_size = vocab.basetile_shape[0];
+            k_size = vocab_tile_traits.shape[0];
             starpu::embedding_backward::submit<T>(m, n, k, k_start, k_size,
                     index_tile_handle, embed_tile_handle, vocab_tile_handle,
                     redux);
