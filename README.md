@@ -9,18 +9,30 @@ across all avialable hardware resources dynamically and transmits data
 asynchronously. For this purpose **NNTile** utilizes
 [StarPU](https://starpu.gitlabpages.inria.fr) library.
 
+## Preliminary experimental results
+
+Experiments with custom 4-layer and 8-layer GPT models of sizes up to 50B
+showed both good performance and a possibility to train 4 times larger models
+compared to PyTorch FSDP on the same hardware (a single server with 8 x
+Nvidia A100 80GB SXM).
+
+Figures with results:
+ * [Custom 4-layer model on 4 GPUs](images/gpt_short_perf_4gpu.pdf)
+ * [Custom 4-layer model on 8 GPUs](images/gpt_short_perf_8gpu.pdf)
+ * [Custom 8-layer model on 8 GPUs](images/gpt_short8_perf.pdf)
+
 ## Authors
 
-**NNTile** is developed by specialists from Skolkovo Institute of Science and
-TEchnology [Skoltech](https://skoltech.ru) and Artifical Intelligence Research
-Institute [AIRI](https://airi.net)
+**NNTile** is developed by specialists from
+ * Skolkovo Institute of Science and Technology ([Skoltech](https://skoltech.ru))
+ * Artifical Intelligence Research Institute ([AIRI](https://airi.net))
 
 Main contributors are:
-Aleksandr Mikhalev
-Aleksandr Katrutsa
-Konstantin Sozykin
-Gleb Karpov
-Daniel Bershatsky
+ * Aleksandr Mikhalev
+ * Aleksandr Katrutsa
+ * Konstantin Sozykin
+ * Gleb Karpov
+ * Daniel Bershatsky
 
 ## Acknowledgement
 
@@ -54,4 +66,3 @@ possible that a default `nvidia/cuda:12.2.0-devel-ubuntu-22.04` is not
 available. In such a case, input name of an appropriate available image.
 Argument `CUDA_ARCHS` defines target CUDA architectures to be supported by
 **NNTile**.
-
