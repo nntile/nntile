@@ -16,7 +16,10 @@ showed both good performance and a possibility to train 4 times larger models
 compared to PyTorch FSDP on the same hardware (a single server with 8 x
 Nvidia A100 80GB SXM).
 
-Figures with results:
+![Custom 4-layer model on 4 GPUs](images/gpt_short_perf_4gpu.png)
+![Custom 4-layer model on 4 GPUs](images/gpt_short8_perf.png)
+
+The same figures in better quality:
  * [Custom 4-layer model on 4 GPUs](images/gpt_short_perf_4gpu.pdf)
  * [Custom 4-layer model on 8 GPUs](images/gpt_short_perf_8gpu.pdf)
  * [Custom 8-layer model on 8 GPUs](images/gpt_short8_perf.pdf)
@@ -46,17 +49,22 @@ Technology under Contract No. 70-2021-00145/10841 dated 02.11.2021 (items
 
 ## Assembly
 
-In order to prepare a development environment one is expected to have a Docker
-or Podman container manager. With the command below one can build an image with
-all dependencies required for development and testing.
+**NNTile** comes with a `ci/Dockerfile` to construct docker image with NNTile
+and all prerequisites. Ready image can be acquired from the GitHub container
+registry:
+```shell
+docker pull ghcr.io/skolai/nntile:1.0.0-starpu1.3.11-cuda12.2.0-ubuntu22.04
+```
 
+Alternatively, the docker image can be built on your own system with the following
+command:
 ```shell
 docker build . \
     -f ci/Dockerfile \
     -t nntile:latest \
     --build-arg MAKE_JOBS=4 \
     --build-arg BASE_IMAGE=nvidia/cuda:12.2.0-devel-ubuntu22.04 \
-    --build-arg CUDA_ARCHS=80;86
+    --build-arg CUDA_ARCHS="80;86;90"
 ```
 
 During image building `StarPU` is compiled with `make`. This process can be
@@ -66,3 +74,14 @@ possible that a default `nvidia/cuda:12.2.0-devel-ubuntu-22.04` is not
 available. In such a case, input name of an appropriate available image.
 Argument `CUDA_ARCHS` defines target CUDA architectures to be supported by
 **NNTile**.
+
+## Minimal working GPT example
+
+To make **NNTile** train your custom GPT model there is a minimal working example
+[gpt2_custom_training.py](./wrappers/python/examples/gpt2_custom_training.py).
+It works either with a
+WikiText-103 datasets or with a dataset stored in a train.bin format that contains
+a stream of uint16 values just like [NanoGPT](https://github.com/karpathy/nanogpt)
+does it with a help of its special script
+[prepare.py](https://github.com/karpathy/nanogpt/data/openwebtext/prepare.py)
+for the OpenWebText.
