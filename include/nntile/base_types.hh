@@ -34,6 +34,14 @@ private:
     int16_t _;
 };
 
+class fp32_fast_tf32_t
+{
+    private:
+        float _;
+};
+
+using scal_t = float;
+
 // Boolean type for mask
 using bool_t = bool;
 
