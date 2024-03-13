@@ -205,6 +205,7 @@ void def_mod_tile(py::module_ &m)
         def("index_to_linear", &TileTraits::index_to_linear);
     // Define wrappers for Tile<T>
     def_class_tile<fp32_t>(m, "Tile_fp32");
+    def_class_tile<fp32_fast_tf32_t>(m, "Tile_fp32_fast_tf32");
     def_class_tile<fp64_t>(m, "Tile_fp64");
 }
 
@@ -408,6 +409,7 @@ void def_mod_tensor(py::module_ &m)
     def_class_tensor<fp16_t>(m, "Tensor_fp16");
     def_class_tensor<Index>(m, "Tensor_int64");
     def_class_tensor<bool_t>(m, "Tensor_bool");
+    def_class_tensor<fp32_fast_tf32_t>(m, "Tensor_fp32_fast_tf32");
     // Add tensor.distributions submodule
     auto distributions = m.def_submodule("distributions");
     def_tensor_distributions(distributions);
@@ -531,8 +533,10 @@ void def_mod_tensor(py::module_ &m)
 
     m.def("add_slice_async_fp64", &add_slice_async<fp64_t>);
     m.def("add_slice_async_fp32", &add_slice_async<fp32_t>);
+    m.def("add_slice_async_fp32_fast_tf32", &add_slice_async<fp32_fast_tf32_t>);
     m.def("add_slice_fp64", &add_slice<fp64_t>);
     m.def("add_slice_fp32", &add_slice<fp32_t>);
+    m.def("add_slice_fp32_fast_tf32", &add_slice<fp32_fast_tf32_t>);
 
     m.def("add_slice3_async_fp64", &add_slice3_async<fp64_t>);
     m.def("add_slice3_async_fp32", &add_slice3_async<fp32_t>);

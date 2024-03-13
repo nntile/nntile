@@ -21,12 +21,12 @@ namespace nntile::tensor
 
 // Tensor<T> addition of a tensor and a broadcasted slice
 template<typename T>
-void add_slice_async(T alpha, const Tensor<T> &src, T beta,
+void add_slice_async(scal_t alpha, const Tensor<T> &src, scal_t beta,
         const Tensor<T> &dst, Index axis);
 
 // Tensor<T> addition of a tensor and a broadcasted slice
 template<typename T>
-void add_slice(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
+void add_slice(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> &dst,
         Index axis);
 
 } // namespace nntile::tensor
