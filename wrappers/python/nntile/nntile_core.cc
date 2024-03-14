@@ -427,19 +427,25 @@ void def_mod_tensor(py::module_ &m)
 
     // Add activation functions for Tensor<T>
     m.def("relu_async_fp64", &relu_async<fp64_t>);
+    m.def("relu_async_fp32_fast_tf32", &relu_async<fp32_fast_tf32_t>);
     m.def("relu_async_fp32", &relu_async<fp32_t>);
     m.def("relu_fp64", &relu<fp64_t>);
     m.def("relu_fp32", &relu<fp32_t>);
+    m.def("relu_fp32_fast_tf32", &relu<fp32_fast_tf32_t>);
 
     m.def("relu_forward_async_fp64", &relu_forward_async<fp64_t>);
     m.def("relu_forward_async_fp32", &relu_forward_async<fp32_t>);
+    m.def("relu_forward_async_fp32_fast_tf32", &relu_forward_async<fp32_fast_tf32_t>);
     m.def("relu_forward_fp64", &relu_forward<fp64_t>);
     m.def("relu_forward_fp32", &relu_forward<fp32_t>);
+    m.def("relu_forward_fp32_fast_tf32", &relu_forward<fp32_fast_tf32_t>);
 
     m.def("relu_backward_async_fp64", &relu_backward_async<fp64_t>);
     m.def("relu_backward_async_fp32", &relu_backward_async<fp32_t>);
+    m.def("relu_backward_async_fp32_fast_tf32", &relu_backward_async<fp32_fast_tf32_t>);
     m.def("relu_backward_fp64", &relu_backward<fp64_t>);
     m.def("relu_backward_fp32", &relu_backward<fp32_t>);
+    m.def("relu_backward_fp32_fast_tf32", &relu_backward<fp32_fast_tf32_t>);
 
     m.def("drelu_async_fp64", &drelu_async<fp64_t>);
     m.def("drelu_async_fp32", &drelu_async<fp32_t>);
