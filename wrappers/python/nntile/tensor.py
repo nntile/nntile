@@ -83,6 +83,8 @@ def relu_async(x: Tensor) -> None:
         core_tensor.relu_async_fp32(x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.relu_async_fp64(x)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.relu_async_fp32_fast_tf32(x)
     else:
         raise TypeError
 
@@ -92,6 +94,8 @@ def relu_forward_async(x: Tensor, y: Tensor) -> None:
         core_tensor.relu_forward_async_fp32(x, y)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.relu_forward_async_fp64(x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.relu_forward_async_fp32_fast_tf32(x, y)
     else:
         raise TypeError
 
@@ -101,6 +105,8 @@ def relu_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
         core_tensor.relu_backward_async_fp32(x, dy, dx)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.relu_backward_async_fp64(x, dy, dx)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.relu_backward_async_fp32_fast_tf32(x, dy, dx)
     else:
         raise TypeError
 
