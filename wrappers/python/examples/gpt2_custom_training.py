@@ -89,8 +89,9 @@ parser.add_argument("--nepochs-warmup", type=int, default=0)
 args = parser.parse_args()
 print(args, flush=True)
 
-# Set Torch default device to cpu
+# Set Torch default device to cpu and fix random seed
 torch.set_default_device("cpu")
+torch.manual_seed(0)
 
 # Create model from config and disconnect embedding and lm head
 with open(args.config_path, "r") as fd:
@@ -224,25 +225,27 @@ if args.nbackward > 0:
     input_value = torch.randint(config.vocab_size, \
             (args.minibatch, config.n_positions), dtype=torch.int64)
     model_nntile.activations[0].value.from_array(input_value.T)
-    model_nntile.forward_async()
+    model_nntile.clear_gradients()
     for i in range(args.nbackward_warmup):
-        model_nntile.clear_gradients()
+        model_nntile.forward_async()
         nntile.tensor.copy_async(model_nntile.activations[-1].value, \
                 model_nntile.activations[-1].grad)
         model_nntile.backward_async()
     nntile.starpu.wait_for_all()
     time0 = time.time()
+    model_nntile.clear_gradients()
     for i in range(args.nbackward):
-        model_nntile.clear_gradients()
+        model_nntile.forward_async()
         nntile.tensor.copy_async(model_nntile.activations[-1].value, \
                 model_nntile.activations[-1].grad)
         model_nntile.backward_async()
     nntile.starpu.wait_for_all()
     time1 = time.time() - time0
-    print("NNTile backward time: {} seconds".format(time1))
-    print("NNTile backward throughput (tokens/sec): ", \
+    print("NNTile forward+backward time: {} seconds".format(time1))
+    print("NNTile forward+backward throughput (tokens/sec): ", \
             config.n_positions * args.nbackward * args.minibatch / time1)
-    print("NNTile backward performance: {} Tflops/s".format(nflops_seq_bwd \
+    print("NNTile forward+backward performance: {} Tflops/s".format( \
+            (nflops_seq_fwd+nflops_seq_bwd) \
             * args.nbackward * args.minibatch / time1 * 1e-12), flush=True)
 
 # Prepare input and output batches if real training is required

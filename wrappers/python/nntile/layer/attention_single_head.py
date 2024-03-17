@@ -413,7 +413,6 @@ class AttentionSingleHead(BaseLayer):
             gemm_async(1.0/n_emb**0.5, trans, self.k.value, \
                     notrans, self.q.value, 0.0, self.a.value, 1, 1, \
                     redux=self.redux)
-        clear_async(self.a_maxsumexp)
         # Q and K can be offloaded from GPU
         self.q.value.wont_use()
         self.k.value.wont_use()
@@ -424,11 +423,11 @@ class AttentionSingleHead(BaseLayer):
             mask_scalar_async(self.mask, self.val, self.a.value, 1)
             self.mask.wont_use()
         # Calculate max and sumexp along axis
+        clear_async(self.a_maxsumexp)
         maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=self.redux)
         # Finally, get the inplace softmax
         softmax_inplace_async(self.a_maxsumexp, 1.0, self.a.value, 0)
         # A_maxsumexp can be deleted
-        #self.a_maxsumexp.wont_use()
         self.a_maxsumexp.invalidate_submit()
         # Apply value tensor
         # B = einsum('jkl,kml->jml', V, A)
@@ -456,10 +455,9 @@ class AttentionSingleHead(BaseLayer):
             gemm_async(1.0, notrans, self.w.value, notrans, \
                     self.b.value, 0.0, self.y.value, 1, 0, \
                     redux=self.redux)
-        # W, B and B_transposed can be offloaded from GPU
+        # W and B can be offloaded from GPU
         self.w.value.wont_use()
-        #self.b.value.wont_use()
-        self.b.value.invalidate_submit()
+        self.b.value.wont_use()
         # Apply bias if needed
         if self.out_proj_bias is not None:
             add_fiber_async(1.0, self.out_proj_bias.value, 1.0, self.y.value, \
@@ -509,7 +507,6 @@ class AttentionSingleHead(BaseLayer):
                 gemm_async(1.0, trans, self.v.value, notrans, \
                         self.b.grad, 0.0, self.a.grad, 1, 1, redux=self.redux)
         # V can be deleted
-        #self.v.value.wont_use()
         self.v.value.invalidate_submit()
         if self.v.grad_required:
             # dV = einsum('jml,kml->jkl', dB, A)
@@ -520,7 +517,6 @@ class AttentionSingleHead(BaseLayer):
                 gemm_async(1.0, notrans, self.b.grad, trans, \
                         self.a.value, 0.0, self.v.grad, 1, 1, redux=self.redux)
         # dB can be deleted
-        #self.b.grad.wont_use()
         self.b.grad.invalidate_submit()
         # Backward for A = softmax(A, axis=0)
         if self.a.grad_required:
@@ -530,12 +526,10 @@ class AttentionSingleHead(BaseLayer):
             # dA += -bias('kml,ml->kml', dA, A_sumprod_slice)
             add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
             # A_sumprod_slice can be deleted
-            #self.a_sumprod_slice.wont_use()
             self.a_sumprod_slice.invalidate_submit()
             # dA *= A
             prod_async(self.a.value, self.a.grad)
         # A can be deleted
-        #self.a.value.wont_use()
         self.a.value.invalidate_submit()
         # Backward for mask if needed
         if self.mask:
@@ -555,7 +549,6 @@ class AttentionSingleHead(BaseLayer):
                         trans, self.a.grad, 0.0, self.k.grad, 1, 1, \
                         redux=self.redux)
         # Q can be deleted
-        #self.q.value.wont_use()
         self.q.value.invalidate_submit()
         if self.q.grad_required:
             # dQ = 1.0/sqrt(n_emb) * einsum('jkl,kml->jml', K, dA)
@@ -568,10 +561,8 @@ class AttentionSingleHead(BaseLayer):
                         notrans, self.a.grad, 0.0, self.q.grad, 1, 1, \
                         redux=self.redux)
         # K can be deleted
-        #self.k.value.wont_use()
         self.k.value.invalidate_submit()
         # dA can be deleted
-        #self.a.grad.wont_use()
         self.a.grad.invalidate_submit()
         # Backward for bias of V
         if self.in_proj_bias_v is not None:
@@ -579,9 +570,6 @@ class AttentionSingleHead(BaseLayer):
                 sum_fiber_async(1, self.v.grad, 1, self.in_proj_bias_v.grad, \
                         0, 0, redux=self.redux)
                 self.in_proj_bias_v.grad.wont_use()
-        # dV can be deleted
-        #self.v.grad.wont_use()
-        self.v.grad.invalidate_submit()
         # Backward for V = einsum('jk,klm->jlm', W_V, X_V)
         if self.x_v.grad_required:
             # dX_V += einsum('jk,jlm->klm', W_V, dV)
@@ -607,6 +595,8 @@ class AttentionSingleHead(BaseLayer):
                 gemm_async(1.0, notrans, self.v.grad, trans, \
                         self.x_v.value, 1.0, self.w_v.grad, 2, 0, \
                         redux=self.redux)
+        # dV can be deleted
+        self.v.grad.invalidate_submit()
         # dW_V can be offloaded from GPU
         self.w_v.grad.wont_use()
         # X_V can be offloaded from GPU
@@ -617,9 +607,6 @@ class AttentionSingleHead(BaseLayer):
                 sum_fiber_async(1, self.k.grad, 1, self.in_proj_bias_k.grad, \
                         0, 0, redux=self.redux)
                 self.in_proj_bias_k.grad.wont_use()
-        # dK can be deleted
-        #self.k.grad.wont_use()
-        self.k.grad.invalidate_submit()
         # Backward for K = einsum('jk,klm->jlm', W_K, X_K)
         if self.x_k.grad_required:
             # dX_K += einsum('jk,jlm->klm', W_K, dK)
@@ -645,6 +632,8 @@ class AttentionSingleHead(BaseLayer):
                 gemm_async(1.0, notrans, self.k.grad, trans, \
                         self.x_k.value, 1.0, self.w_k.grad, 2, 0, \
                         redux=self.redux)
+        # dK can be deleted
+        self.k.grad.invalidate_submit()
         # dW_K can be offloaded from GPU
         self.w_k.grad.wont_use()
         # X_K can be offloaded from GPU
@@ -655,9 +644,6 @@ class AttentionSingleHead(BaseLayer):
                 sum_fiber_async(1, self.q.grad, 1, self.in_proj_bias_q.grad, \
                         0, 0, redux=self.redux)
                 self.in_proj_bias_q.grad.wont_use()
-        # dQ can be deleted
-        #self.q.grad.wont_use()
-        self.q.grad.invalidate_submit()
         # Backward for Q = einsum('jk,klm->jlm', W_Q, X_Q)
         if self.x_q.grad_required:
             # dX_Q += einsum('jk,jlm->klm', W_Q, dQ)
@@ -684,6 +670,8 @@ class AttentionSingleHead(BaseLayer):
                 gemm_async(1.0, notrans, self.q.grad, trans, \
                         self.x_q.value, 1.0, self.w_q.grad, 2, 0, \
                         redux=self.redux)
+        # dQ can be deleted
+        self.q.grad.invalidate_submit()
         # dW_Q can be offloaded from GPU
         self.w_q.grad.wont_use()
         # X_Q can be offloaded from GPU
