@@ -117,8 +117,8 @@ public:
     }
     //! StarPU commute data access mode
     static constexpr starpu_data_access_mode STARPU_RW_COMMUTE
-        = STARPU_RW; // Temporarily disabled commute mode
-    //    = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
+    //    = STARPU_RW; // Temporarily disabled commute mode
+        = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
     // Unpack args by pointers without copying actual data
     template<typename... Ts>
     static

@@ -340,8 +340,8 @@ void def_class_tensor(py::module_ &m, const char *name)
         def_readonly("next_tag", &Tensor<T>::next_tag).
         def("unregister", &Tensor<T>::unregister).
         // Temporary disable invalidate_submit and use wont_use instead
-        //def("invalidate_submit", &Tensor<T>::invalidate_submit).
-        def("invalidate_submit", &Tensor<T>::wont_use).
+        def("invalidate_submit", &Tensor<T>::invalidate_submit).
+        //def("invalidate_submit", &Tensor<T>::wont_use).
         def("wont_use", &Tensor<T>::wont_use).
         def("from_array", tensor_from_array<T>).
         def("to_array", tensor_to_array<T>).

@@ -63,10 +63,10 @@ class FusedAdamW:
                     self.first_moments[i], self.second_moments[i], cur_lr, \
                     self.eps, self.beta1, self.beta2, self.weight_decay, \
                     self.num_iter)
-            p.value.wont_use()
             # dP can be deleted
-            #p.grad.wont_use()
             p.grad.invalidate_submit()
+            # Parameters and states can be offloaded from GPU
+            p.value.wont_use()
             self.first_moments[i].wont_use()
             self.second_moments[i].wont_use()
         self.num_iter += 1

@@ -66,19 +66,23 @@ class Pipeline(object):
                     #self.loss.val.print_scalar_async()
                     # Now do the backward pass
                     self.model.backward_async()
+                    # Invalidate activations[2:]. We have to keep activations[1] as
+                    # it holds positional embedding indices, that are computed once
+                    for t in self.model.activations[2:]:
+                        t.value.invalidate_submit()
+                    # Invalidate gradients of activations
+                    for t in self.model.activations:
+                        if t.grad_required:
+                            t.grad.invalidate_submit()
                 # Apply optimizer after gradients for entire batch are
                 # accumulated
                 self.opt.step()
-                # Invalidate gradients of parameters
+                # Invalidate gradients of parameters and hint to offload
+                # parameters
                 for p in self.model.parameters:
                     p.value.wont_use()
-                    #if p.grad_required:
-                    #    p.grad.wont_use()
-                # Invalidate gradients of activations
-                for t in self.model.activations:
-                    t.value.wont_use()
-                    if t.grad_required:
-                        t.grad.wont_use()
+                    if p.grad_required:
+                        p.grad.invalidate_submit()
                 # Limit parallelism through value of loss
                 loss_np = np.zeros((1,), dtype=np.float32, order="F")
                 self.loss.get_val(loss_np)

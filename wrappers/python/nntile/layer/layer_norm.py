@@ -196,22 +196,18 @@ class LayerNorm(BaseLayer):
         sum_slice_async(1.0/self.l, self.tmp_y_grad, 0.0, self.mean, \
                 self.axis, redux=self.redux)
         # tmp_Y_grad can be deleted
-        #self.tmp_y_grad.wont_use()
         self.tmp_y_grad.invalidate_submit()
         # Subtract mean from tmp_Y_value
         add_slice_async(-1.0, self.mean, 1.0, self.tmp_y_value, self.axis)
         # mean can be deleted
-        #self.mean.wont_use()
         self.mean.invalidate_submit()
         # Multiply tmp_Y_value by the inverse stddev
         prod_slice_async(self.inv_stddev, 1.0, self.tmp_y_value, self.axis)
         # inv_stddev can be deleted
-        #self.inv_stddev.wont_use()
         self.inv_stddev.invalidate_submit()
         # Accumulate gradient from tmp_Y_value
         axpy_async(1.0, self.tmp_y_value, self.x.grad)
         # tmp_Y_value can be deleted
-        #self.tmp_y_value.wont_use()
         self.tmp_y_value.invalidate_submit()
         # dX can offloade from GPU
         self.x.grad.wont_use()
