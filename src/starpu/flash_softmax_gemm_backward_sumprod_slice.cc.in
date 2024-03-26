@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2024 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-11-20
+ * @date 2024-03-26
  * */
 
 #include "nntile/starpu/flash_softmax_gemm_backward_sumprod_slice.hh"
@@ -70,6 +70,7 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
@@ -133,6 +134,7 @@ void cpu(void *buffers[], void *cl_args)
     }
     kernel::sumprod_slice::cpu<T>(1, args->seq*args->batch, args->seq,
             1.0, tmp_grad, tmp, 1.0, sumprod_slice);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CBLAS
 
@@ -168,6 +170,7 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
@@ -212,6 +215,7 @@ void cuda(void *buffers[], void *cl_args)
             tmp_grad_offset, args->batch);
     kernel::sumprod_slice::cuda<T>(stream, 1, args->seq*args->batch, args->seq,
             1.0, tmp_grad, tmp, 1.0, sumprod_slice);
+#endif // STARPU_SIMGRID
 }
 
 static inline
@@ -231,6 +235,7 @@ void cublas_ex_batch(cublasHandle_t handle, cublasOperation_t transA,
 void cuda_fp32_fast_tf32(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     using T = fp32_t;
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
@@ -276,6 +281,7 @@ void cuda_fp32_fast_tf32(void *buffers[], void *cl_args)
             tmp_grad_offset, args->batch);
     kernel::sumprod_slice::cuda<T>(stream, 1, args->seq*args->batch, args->seq,
             1.0, tmp_grad, tmp, 1.0, sumprod_slice);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 

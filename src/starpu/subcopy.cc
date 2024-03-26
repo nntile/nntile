@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2024 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Aleksandr Katrutsa
- * @date 2023-09-01
+ * @date 2024-03-26
  * */
 
 #include "nntile/starpu/subcopy.hh"
@@ -28,6 +28,7 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     const Index *ndim_ptr, *src_start, *src_stride, *copy_shape, *dst_start,
           *dst_stride;
@@ -41,6 +42,7 @@ void cpu(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::subcopy::cpu<T>(*ndim_ptr, src_start, src_stride,
             copy_shape, src, dst_start, dst_stride, dst, tmp_index);
+#endif // STARPU_SIMGRID
 }
 
 //! Footprint for copy tasks that depend on copy shape

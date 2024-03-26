@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2024 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Mikhalev
  * @author Konstantin Sozykin
- * @date 2023-09-28
+ * @date 2024-03-26
  * */
 
 #include "nntile/starpu/sum_slice.hh"
@@ -29,6 +29,7 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
@@ -38,6 +39,7 @@ void cpu(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::sum_slice::cpu<T>(args->m, args->n, args->k, args->alpha, src,
             args->beta, dst);
+#endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -46,6 +48,7 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
@@ -57,6 +60,7 @@ void cuda(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::sum_slice::cuda<T>(stream, args->m, args->n, args->k, args->alpha,
             src, args->beta, dst);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 

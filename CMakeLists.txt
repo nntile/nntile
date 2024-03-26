@@ -10,7 +10,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-09-26
+# @date 2024-03-26
 
 
 ###############################################################################
@@ -25,7 +25,7 @@ cmake_minimum_required(VERSION 3.24)
 message(STATUS "Using CMake ${CMAKE_VERSION}")
 
 # Define the project
-project(NNTile VERSION 1.0.0 LANGUAGES CXX)
+project(NNTile VERSION 1.0.0 LANGUAGES CXX C)
 
 # Show a path to additional auxiliary CMake scripts
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake_modules")
@@ -102,6 +102,14 @@ target_include_directories(nntile PUBLIC
     "${PROJECT_BINARY_DIR}/include"
     ${StarPU_INCLUDE_DIRS}
     )
+include(CheckSymbolExists)
+set(CMAKE_REQUIRED_INCLUDES ${StarPU_INCLUDE_DIRS})
+check_symbol_exists(STARPU_SIMGRID "starpu_config.h" HAVE_STARPU_SIMGRID)
+if(HAVE_STARPU_SIMGRID)
+    message(STATUS "StarPU is compiled in SIMGRID mode")
+    target_compile_definitions(nntile PUBLIC STARPU_SIMGRID)
+endif()
+
 target_include_directories(nntile PRIVATE
     "${PROJECT_SOURCE_DIR}/external"
     )

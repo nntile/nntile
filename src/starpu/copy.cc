@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2024 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2023-09-18
+ * @date 2024-03-26
  * */
 
 #include "nntile/starpu/copy.hh"
@@ -27,6 +27,7 @@ namespace copy
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // No arguments
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
@@ -35,6 +36,7 @@ void cpu(void *buffers[], void *cl_args)
     void *dst = interfaces[1]->get_ptr<void>();
     // Launch kernel
     std::memcpy(dst, src, size);
+#endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -42,6 +44,7 @@ void cpu(void *buffers[], void *cl_args)
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // No arguments
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
@@ -52,6 +55,7 @@ void cuda(void *buffers[], void *cl_args)
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     cudaMemcpyAsync(dst, src, size, cudaMemcpyDeviceToDevice, stream);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 

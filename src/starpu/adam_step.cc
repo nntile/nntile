@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2024 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -10,7 +10,7 @@
  * @version 1.0.0
  * @author Aleksandr Katrutsa
  * @author Aleksandr Mikhalev
- * @date 2023-07-21
+ * @date 2024-03-26
  * */
 
 #include "nntile/starpu/adam_step.hh"
@@ -30,6 +30,7 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
@@ -41,6 +42,7 @@ void cpu(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::adam_step::cpu<T>(args->num_iter, args->num_elems, args->beta_1, args->beta_2,
                               args->eps, args->lr, args->weight_decay, grad, first_moments, second_moments, p);
+#endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -49,6 +51,7 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
@@ -62,6 +65,7 @@ void cuda(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::adam_step::cuda<T>(stream, args->num_iter, args->num_elems, args->beta_1, args->beta_2,
                               args->eps, args->lr, args->weight_decay, grad, first_moments, second_moments, p);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 

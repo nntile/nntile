@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-2024 Skolkovo Institute of Science and Technology
  *                           (Skoltech). All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
  *
  * @version 1.0.0
  * @author Aleksandr Mikhalev
- * @date 2022-09-27
+ * @date 2024-03-26
  * */
 
 #include "nntile/starpu/randn.hh"
@@ -27,6 +27,7 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     const Index *ndim_ptr, *nelems_ptr, *start, *shape, *stride,
           *underlying_shape;
@@ -43,6 +44,7 @@ void cpu(void *buffers[], void *cl_args)
     kernel::randn::cpu<T>(ndim, *nelems_ptr, *seed_ptr, *mean_ptr,
             *stddev_ptr, start, shape, underlying_shape, data, stride,
             tmp_index);
+#endif // STARPU_SIMGRID
 }
 
 //! Randn operation on StarPU buffers for ndim=0
@@ -50,6 +52,7 @@ template<typename T>
 void cpu_ndim0(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     const unsigned long long *seed_ptr;
     const T *mean_ptr, *stddev_ptr;
@@ -59,6 +62,7 @@ void cpu_ndim0(void *buffers[], void *cl_args)
     T *data = interfaces[0]->get_ptr<T>();
     // Launch kernel
     kernel::randn::cpu_ndim0<T>(*seed_ptr, *mean_ptr, *stddev_ptr, data);
+#endif // STARPU_SIMGRID
 }
 
 //! Footprint for randn tasks that depend on shape
