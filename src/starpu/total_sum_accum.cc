@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/total_sum_accum.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/total_sum_accum.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/total_sum_accum.hh"
 
 namespace nntile::starpu::total_sum_accum
 {

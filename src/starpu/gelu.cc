@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/gelu.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/gelu.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/gelu.hh"
 
 //! StarPU wrappers for GeLU operation
 namespace nntile::starpu::gelu

@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/gelutanh_backward.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/gelutanh_backward.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/gelutanh_backward.hh"
 #include <cstdlib>
 
 namespace nntile::starpu::gelutanh_backward

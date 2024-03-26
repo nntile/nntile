@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/sumprod_slice.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/sumprod_slice.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/sumprod_slice.hh"
 #include <cstdlib>
 
 namespace nntile::starpu::sumprod_slice

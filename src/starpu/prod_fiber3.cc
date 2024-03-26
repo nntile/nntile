@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/prod_fiber3.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/prod_fiber3.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/prod_fiber3.hh"
 #include <cstdlib>
 
 //! StarPU wrappers for prod_fiber3 operation

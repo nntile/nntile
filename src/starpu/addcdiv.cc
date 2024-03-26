@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/addcdiv.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/addcdiv.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/addcdiv.hh"
 #include <cstdlib>
 
 //! StarPU wrappers for addcdiv operation

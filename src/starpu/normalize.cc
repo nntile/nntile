@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/normalize.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/normalize.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/normalize.hh"
 
 namespace nntile::starpu::normalize
 {

@@ -147,7 +147,10 @@ add_test_set(TARGET_NAME tests_constants
     COV_GLOBAL coverage
     )
 
-add_subdirectory("kernel")
+# Kernels are not compiled in case of SimGrid mode
+if(NOT HAVE_STARPU_SIMGRID)
+    add_subdirectory("kernel")
+endif()
 add_subdirectory("starpu")
 add_subdirectory("tile")
 add_subdirectory("tensor")

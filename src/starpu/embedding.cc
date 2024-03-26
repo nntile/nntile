@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/embedding.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/embedding.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/embedding.hh"
 
 namespace nntile::starpu::embedding
 {

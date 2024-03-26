@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/transpose.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/transpose.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/transpose.hh"
 #include <cstdlib>
 
 //! StarPU wrappers for transpose operation

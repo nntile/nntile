@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/mask_scalar.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/mask_scalar.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/mask_scalar.hh"
 
 namespace nntile::starpu::mask_scalar
 {

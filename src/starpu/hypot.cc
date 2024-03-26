@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/hypot.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/hypot.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/hypot.hh"
 #include "nntile/starpu/scal.hh"
 #include "nntile/starpu/clear.hh"
 #include "nntile/starpu/scal_inplace.hh"

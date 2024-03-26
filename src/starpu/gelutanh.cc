@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/gelutanh.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/gelutanh.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/gelutanh.hh"
 #include <cstdlib>
 
 namespace nntile::starpu::gelutanh

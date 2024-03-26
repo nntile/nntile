@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/fp32_to_fp16.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/fp32_to_fp16.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/fp32_to_fp16.hh"
 
 namespace nntile::starpu::fp32_to_fp16
 {

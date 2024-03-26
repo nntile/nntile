@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/maxsumexp.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/maxsumexp.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/maxsumexp.hh"
 #include <cstdlib>
 
 namespace nntile::starpu::maxsumexp

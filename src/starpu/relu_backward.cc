@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/relu_backward.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/relu_backward.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/relu_backward.hh"
 #include <cstdlib>
 
 namespace nntile::starpu::relu_backward

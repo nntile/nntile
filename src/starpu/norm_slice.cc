@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/norm_slice.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/norm_slice.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/norm_slice.hh"
 #include <cstdlib>
 
 //! StarPU wrappers for norm_slice operation

@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/prod.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/prod.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/prod.hh"
 
 //! StarPU wrappers for prod operation
 namespace nntile::starpu::prod

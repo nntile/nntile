@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/accumulate.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/add.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/accumulate.hh"
 #include <cstdlib>
 
 //! StarPU wrappers for accumulate operation

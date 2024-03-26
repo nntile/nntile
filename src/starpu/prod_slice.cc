@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/prod_slice.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/prod_slice.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/prod_slice.hh"
 #include <cstdlib>
 
 //! StarPU wrappers for prod_slice operation

@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/relu_forward.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/relu_forward.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/relu_forward.hh"
 
 namespace nntile::starpu::relu_forward
 {

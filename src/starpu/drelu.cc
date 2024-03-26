@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/drelu.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/drelu.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/drelu.hh"
 
 //! StarPU wrappers for derivative of ReLU operation
 namespace nntile::starpu::drelu

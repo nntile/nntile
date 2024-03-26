@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/relu.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/relu.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/relu.hh"
 
 namespace nntile::starpu::relu
 {

@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/add_scalar.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/add_scalar.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/add_scalar.hh"
 #include <cstdlib>
 
 //! StarPU wrappers for add_scalar operation

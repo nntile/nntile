@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/randn.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/randn.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/randn.hh"
 
 namespace nntile::starpu::randn
 {

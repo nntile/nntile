@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/subtract_indexed_outputs.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/subtract_indexed_outputs.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/subtract_indexed_outputs.hh"
 
 namespace nntile::starpu::subtract_indexed_outputs
 {

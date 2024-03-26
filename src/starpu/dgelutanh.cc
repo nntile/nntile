@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/dgelutanh.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/dgelutanh.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/dgelutanh.hh"
 
 //! StarPU wrappers for derivative of approximate GeLU operation
 namespace nntile::starpu::dgelutanh

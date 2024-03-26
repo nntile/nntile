@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/sumnorm.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/sumnorm.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/sumnorm.hh"
 
 namespace nntile::starpu::sumnorm
 {

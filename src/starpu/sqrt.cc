@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/sqrt.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/sqrt.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/sqrt.hh"
 #include <cstdlib>
 
 namespace nntile::starpu::sqrt

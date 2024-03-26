@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/adamw_step.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/adamw_step.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/adamw_step.hh"
 #include <cstdlib>
 
 //! StarPU wrappers for one step of AdamW optimizer

@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/add_slice3.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/add_slice3.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/add_slice3.hh"
 #include <cstdlib>
 
 //! StarPU wrappers for add_slice3 operation

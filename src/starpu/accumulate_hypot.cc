@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/accumulate_hypot.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/hypot.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/accumulate_hypot.hh"
 #include <cstdlib>
 
 //! StarPU wrappers for accumulate_hypot operation

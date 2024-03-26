@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/fill.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/fill.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/fill.hh"
 
 namespace nntile::starpu::fill
 {

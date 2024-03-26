@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/gelutanh_inplace.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/gelutanh_inplace.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/gelutanh_inplace.hh"
 
 namespace nntile::starpu::gelutanh_inplace
 {

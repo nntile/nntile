@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/hypot_scalar_inverse.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/hypot_scalar_inverse.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/hypot_scalar_inverse.hh"
 #include <cstdlib>
 
 //! StarPU wrappers for hypot_scalar_inverse operation

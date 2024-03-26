@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/subcopy.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/subcopy.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/subcopy.hh"
 
 namespace nntile::starpu::subcopy
 {

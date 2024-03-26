@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/sum_slice.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/sum_slice.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/sum_slice.hh"
 #include <cstdlib>
 
 namespace nntile::starpu::sum_slice

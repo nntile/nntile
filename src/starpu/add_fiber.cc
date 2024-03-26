@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/add_fiber.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/add_fiber.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/add_fiber.hh"
 #include <cstdlib>
 
 //! StarPU wrappers for add_fiber operation

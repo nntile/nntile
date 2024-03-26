@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/embedding_backward.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/embedding_backward.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/embedding_backward.hh"
 
 namespace nntile::starpu::embedding_backward
 {

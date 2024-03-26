@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/maximum.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/maximum.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/maximum.hh"
 
 //! StarPU wrappers for maximum operation
 namespace nntile::starpu::maximum
