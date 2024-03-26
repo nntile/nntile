@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/gelutanh.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/gelutanh.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/gelutanh.hh"
 #include <cstdlib>
 
 namespace nntile

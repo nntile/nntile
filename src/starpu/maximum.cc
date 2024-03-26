@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/maximum.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/maximum.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/maximum.hh"
 
 namespace nntile
 {

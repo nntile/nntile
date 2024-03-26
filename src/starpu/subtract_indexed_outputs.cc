@@ -13,8 +13,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/subtract_indexed_outputs.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/subtract_indexed_outputs.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/subtract_indexed_outputs.hh"
 
 namespace nntile
 {

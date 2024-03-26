@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/embedding_backward.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/embedding_backward.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/embedding_backward.hh"
 
 namespace nntile
 {

@@ -13,8 +13,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/adamw_step.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/adamw_step.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/adamw_step.hh"
 #include <cstdlib>
 
 namespace nntile

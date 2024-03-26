@@ -93,7 +93,9 @@ void tile_from_array(const tile::Tile<T> &tile,
         }
         // Acquire tile and copy a single element
         auto tile_local = tile.acquire(STARPU_W);
+#ifndef STARPU_SIMGRID
         std::memcpy(tile_local.get_ptr(), array.data(), sizeof(T));
+#endif // STARPU_SIMGRID
         tile_local.release();
         return;
     }
@@ -111,8 +113,10 @@ void tile_from_array(const tile::Tile<T> &tile,
     }
     // Acquire tile and copy data
     auto tile_local = tile.acquire(STARPU_W);
+#ifndef STARPU_SIMGRID
     std::memcpy(tile_local.get_ptr(), array.data(),
             tile.nelems*sizeof(T));
+#endif // STARPU_SIMGRID
     tile_local.release();
 }
 
@@ -135,7 +139,9 @@ void tile_to_array(const tile::Tile<T> &tile,
         }
         // Acquire tile and copy a single element
         auto tile_local = tile.acquire(STARPU_R);
+#ifndef STARPU_SIMGRID
         std::memcpy(array.mutable_data(), tile_local.get_ptr(), sizeof(T));
+#endif // STARPU_SIMGRID
         tile_local.release();
         return;
     }
@@ -153,8 +159,10 @@ void tile_to_array(const tile::Tile<T> &tile,
     }
     // Acquire tile and copy data
     auto tile_local = tile.acquire(STARPU_R);
+#ifndef STARPU_SIMGRID
     std::memcpy(array.mutable_data(), tile_local.get_ptr(),
             tile.nelems*sizeof(T));
+#endif // STARPU_SIMGRID
     tile_local.release();
 }
 
@@ -225,7 +233,9 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
         if(mpi_rank == tile.mpi_get_rank())
         {
             auto tile_local = tile.acquire(STARPU_W);
+#ifndef STARPU_SIMGRID
             std::memcpy(tile_local.get_ptr(), array.data(), sizeof(T));
+#endif // STARPU_SIMGRID
             tile_local.release();
         }
         tile.mpi_flush();
@@ -257,8 +267,10 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
     if(mpi_rank == tile.mpi_get_rank())
     {
         auto tile_local = tile.acquire(STARPU_W);
+#ifndef STARPU_SIMGRID
         std::memcpy(tile_local.get_ptr(), array.data(),
                 tile.nelems*sizeof(T));
+#endif // STARPU_SIMGRID
         tile_local.release();
     }
     tensor::scatter<T>(tmp, tensor);
@@ -289,7 +301,9 @@ void tensor_to_array(const tensor::Tensor<T> &tensor,
         if(mpi_rank == tile.mpi_get_rank())
         {
             auto tile_local = tile.acquire(STARPU_R);
+#ifndef STARPU_SIMGRID
             std::memcpy(array.mutable_data(), tile_local.get_ptr(), sizeof(T));
+#endif // STARPU_SIMGRID
             tile_local.release();
         }
         tile.mpi_flush();
@@ -322,8 +336,10 @@ void tensor_to_array(const tensor::Tensor<T> &tensor,
     if(mpi_rank == tile.mpi_get_rank())
     {
         auto tile_local = tile.acquire(STARPU_R);
+#ifndef STARPU_SIMGRID
         std::memcpy(array.mutable_data(), tile_local.get_ptr(),
                 tile.nelems*sizeof(T));
+#endif // STARPU_SIMGRID
         tile_local.release();
     }
     tmp.unregister();

@@ -13,8 +13,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/mask_scalar.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/mask_scalar.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/mask_scalar.hh"
 
 namespace nntile
 {

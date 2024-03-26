@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/hypot.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/hypot.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/hypot.hh"
 #include "nntile/starpu/scal.hh"
 #include "nntile/starpu/clear.hh"
 #include "nntile/starpu/scal_inplace.hh"

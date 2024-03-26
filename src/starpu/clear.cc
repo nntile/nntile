@@ -14,9 +14,11 @@
 
 #include "nntile/starpu/clear.hh"
 #include <cstring>
-#ifdef NNTILE_USE_CUDA
-#   include <cuda_runtime.h>
-#endif // NNTILE_USE_CUDA
+#ifndef STARPU_SIMGRID
+#   ifdef NNTILE_USE_CUDA
+#       include <cuda_runtime.h>
+#   endif // NNTILE_USE_CUDA
+#endif // STARPU_SIMGRID
 
 #include <iostream>
 

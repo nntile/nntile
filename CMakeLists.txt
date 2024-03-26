@@ -1,4 +1,4 @@
-# @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
+# @copyright (c) 2022-2024 Skolkovo Institute of Science and Technology
 #                          (Skoltech). All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
@@ -54,12 +54,40 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # Specify the library
 add_library(nntile)
 
+# Get the pkg-config
+find_package(PkgConfig REQUIRED)
+
+# Get the StarPU as the first dependency. StarPU defines if we are in
+# simulation by SimGrid mode or not.
+pkg_check_modules(StarPU REQUIRED starpu-1.3)
+target_link_libraries(nntile PUBLIC ${StarPU_LDFLAGS})
+target_include_directories(nntile PUBLIC
+    "${PROJECT_SOURCE_DIR}/include"
+    "${PROJECT_BINARY_DIR}/include"
+    ${StarPU_INCLUDE_DIRS}
+    )
+# Check if StarPU uses SimGrid mode
+include(CheckSymbolExists)
+set(CMAKE_REQUIRED_INCLUDES ${StarPU_INCLUDE_DIRS})
+check_symbol_exists(STARPU_SIMGRID "starpu_config.h" HAVE_STARPU_SIMGRID)
+# If StarPU is in SimGrid mode then we have to "emulate" devices
+if(HAVE_STARPU_SIMGRID)
+    message(STATUS "StarPU is compiled in SIMGRID mode")
+    target_compile_definitions(nntile PUBLIC STARPU_SIMGRID)
+endif()
+
 # Add certain compilation flags for warnings etc
 #add_compile_options(-Wall -Wextra)# -Wpedantic-errors)
 
-# Check if CUDA is available
 set(NNTILE_USE_CUDA OFF)
-if(USE_CUDA)
+# Emulate CUDA in case of SimGrid mode
+if(HAVE_STARPU_SIMGRID)
+    if(USE_CUDA)
+        set(NNTILE_USE_CUDA ON)
+        set(NNTILE_LINK_CUDA OFF)
+    endif()
+# Check if CUDA is available only in normal mode (no SimGrid)
+elseif(USE_CUDA)
     include(CheckLanguage)
     check_language(CUDA)
     if(CMAKE_CUDA_COMPILER)
@@ -68,16 +96,25 @@ if(USE_CUDA)
         find_package(CUDAToolkit 10.1)
 	target_link_libraries(nntile PUBLIC CUDA::cublas)
         set(NNTILE_USE_CUDA ON)
+        set(NNTILE_LINK_CUDA ON)
     endif()
 endif()
 
 # Get CBLAS
 set(NNTILE_USE_CBLAS OFF)
-if(USE_CBLAS)
+# Emulate CBLAS in case of SimGrid mode
+if(HAVE_STARPU_SIMGRID)
+    if(USE_CBLAS)
+        set(NNTILE_USE_CBLAS ON)
+        set(NNTILE_LINK_CBLAS OFF)
+    endif()
+# Check if CBLAS is available only in normal mode (no SimGrid)
+elseif(USE_CBLAS)
     find_package(BLAS)
     if(BLAS_FOUND)
         target_link_libraries(nntile PRIVATE BLAS::BLAS)
         set(NNTILE_USE_CBLAS ON)
+        set(NNTILE_LINK_CBLAS ON)
         set(CBLAS_INT_TYPE "int" CACHE STRING
             "CBLAS integer type: int, int32_t or int64_t")
         set_property(CACHE CBLAS_INT_TYPE PROPERTY STRINGS "int" "int32_t"
@@ -90,25 +127,6 @@ endif()
 # Get MPI, disabled for StarPU master-slave option
 #find_package(MPI REQUIRED)
 #target_link_libraries(nntile PUBLIC MPI::MPI_CXX)
-
-# Get the pkg-config
-find_package(PkgConfig REQUIRED)
-
-# Get the StarPU
-pkg_check_modules(StarPU REQUIRED starpu-1.3)
-target_link_libraries(nntile PUBLIC ${StarPU_LDFLAGS})
-target_include_directories(nntile PUBLIC
-    "${PROJECT_SOURCE_DIR}/include"
-    "${PROJECT_BINARY_DIR}/include"
-    ${StarPU_INCLUDE_DIRS}
-    )
-include(CheckSymbolExists)
-set(CMAKE_REQUIRED_INCLUDES ${StarPU_INCLUDE_DIRS})
-check_symbol_exists(STARPU_SIMGRID "starpu_config.h" HAVE_STARPU_SIMGRID)
-if(HAVE_STARPU_SIMGRID)
-    message(STATUS "StarPU is compiled in SIMGRID mode")
-    target_compile_definitions(nntile PUBLIC STARPU_SIMGRID)
-endif()
 
 target_include_directories(nntile PRIVATE
     "${PROJECT_SOURCE_DIR}/external"

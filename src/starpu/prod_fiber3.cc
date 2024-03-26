@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/prod_fiber3.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/prod_fiber3.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/prod_fiber3.hh"
 #include <cstdlib>
 
 namespace nntile

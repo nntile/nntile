@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/dgelutanh.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/dgelutanh.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/dgelutanh.hh"
 
 namespace nntile
 {

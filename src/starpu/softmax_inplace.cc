@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/softmax_inplace.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/softmax_inplace.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/softmax_inplace.hh"
 
 namespace nntile
 {

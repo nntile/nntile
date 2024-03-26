@@ -1,4 +1,4 @@
-# @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
+# @copyright (c) 2022-2024 Skolkovo Institute of Science and Technology
 #                          (Skoltech). All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
@@ -11,7 +11,7 @@
 # @author Aleksandr Mikhalev
 # @author Aleksandr Katrutsa
 # @author Konstantin Sozykin
-# @date 2023-07-20
+# @date 2024-03-26
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -111,7 +111,7 @@ foreach(test IN LISTS TESTS)
     add_test_set(TARGET_NAME tests_starpu_${test}
         EXEC_NAME test_${test}
         SOURCES ${test}.cc
-        LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cudart>
+        LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_LINK_CUDA}>:CUDA::cudart>
         COV_ENABLE ${BUILD_COVERAGE}
         COV_NAME coverage_starpu_${test}
         COV_GLOBAL coverage_starpu coverage
@@ -127,8 +127,8 @@ set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/axpy.cc" PROPERTIES
 add_test_set(TARGET_NAME tests_starpu_axpy
     EXEC_NAME test_axpy
     SOURCES "${CMAKE_CURRENT_BINARY_DIR}/axpy.cc"
-    LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_USE_CBLAS}>:BLAS::BLAS>
-    "$<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cublas;CUDA::cudart>"
+    LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_LINK_CBLAS}>:BLAS::BLAS>
+    "$<$<BOOL:${NNTILE_LINK_CUDA}>:CUDA::cublas;CUDA::cudart>"
     COV_ENABLE ${BUILD_COVERAGE}
     COV_NAME coverage_starpu_axpy
     COV_GLOBAL coverage_starpu
@@ -142,8 +142,8 @@ set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/nrm2.cc" PROPERTIES
 add_test_set(TARGET_NAME tests_starpu_nrm2
     EXEC_NAME test_nrm2
     SOURCES "${CMAKE_CURRENT_BINARY_DIR}/nrm2.cc"
-    LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_USE_CBLAS}>:BLAS::BLAS>
-    "$<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cublas;CUDA::cudart>"
+    LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_LINK_CBLAS}>:BLAS::BLAS>
+    "$<$<BOOL:${NNTILE_LINK_CUDA}>:CUDA::cublas;CUDA::cudart>"
     COV_ENABLE ${BUILD_COVERAGE}
     COV_NAME coverage_starpu_nrm2
     COV_GLOBAL coverage_starpu
@@ -157,8 +157,8 @@ set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/gemm.cc" PROPERTIES
 add_test_set(TARGET_NAME tests_starpu_gemm
     EXEC_NAME test_gemm
     SOURCES "${CMAKE_CURRENT_BINARY_DIR}/gemm.cc"
-    LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_USE_CBLAS}>:BLAS::BLAS>
-    "$<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cublas;CUDA::cudart>"
+    LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_LINK_CBLAS}>:BLAS::BLAS>
+    "$<$<BOOL:${NNTILE_LINK_CUDA}>:CUDA::cublas;CUDA::cudart>"
     COV_ENABLE ${BUILD_COVERAGE}
     COV_NAME coverage_starpu_gemm
     COV_GLOBAL coverage_starpu
@@ -172,8 +172,8 @@ set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/scal_inplace.cc"
 add_test_set(TARGET_NAME tests_starpu_scal_inplace
     EXEC_NAME test_scal_inplace
     SOURCES "${CMAKE_CURRENT_BINARY_DIR}/scal_inplace.cc"
-    LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_USE_CBLAS}>:BLAS::BLAS>
-    "$<$<BOOL:${NNTILE_USE_CUDA}>:CUDA::cublas;CUDA::cudart>"
+    LINK_LIBRARIES nntile $<$<BOOL:${NNTILE_LINK_CBLAS}>:BLAS::BLAS>
+    "$<$<BOOL:${NNTILE_LINK_CUDA}>:CUDA::cublas;CUDA::cudart>"
     COV_ENABLE ${BUILD_COVERAGE}
     COV_NAME coverage_starpu_scal_inplace
     COV_GLOBAL coverage_starpu

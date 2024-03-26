@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/pow.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/pow.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/pow.hh"
 #include <cstdlib>
 
 namespace nntile

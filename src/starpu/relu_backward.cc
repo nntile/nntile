@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/relu_backward.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/relu_backward.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/relu_backward.hh"
 #include <cstdlib>
 
 namespace nntile

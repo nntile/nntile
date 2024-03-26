@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/accumulate_hypot.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/hypot.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/accumulate_hypot.hh"
 #include <cstdlib>
 
 namespace nntile

@@ -14,18 +14,20 @@
 
 #include "nntile/starpu/gemm.hh"
 
-#ifdef NNTILE_USE_CBLAS
-#   include <@CBLAS_H_NAME@>
-#   ifndef CBLAS_INT
-#       define CBLAS_INT @CBLAS_INT_TYPE@
-#   endif // CBLAS_INT
-#endif // NNTILE_USE_CBLAS
+#ifndef STARPU_SIMGRID
+#   ifdef NNTILE_USE_CBLAS
+#       include <@CBLAS_H_NAME@>
+#       ifndef CBLAS_INT
+#           define CBLAS_INT @CBLAS_INT_TYPE@
+#       endif // CBLAS_INT
+#   endif // NNTILE_USE_CBLAS
 
-#ifdef NNTILE_USE_CUDA
-#   include <cublas_v2.h>
-#   include <starpu_cublas_v2.h>
-#   include <cuda_fp16.h>
-#endif // NNTILE_USE_CUDA
+#   ifdef NNTILE_USE_CUDA
+#       include <cublas_v2.h>
+#       include <starpu_cublas_v2.h>
+#       include <cuda_fp16.h>
+#   endif // NNTILE_USE_CUDA
+#endif // STARPU_SIMGRID
 
 namespace nntile
 {
@@ -35,6 +37,7 @@ namespace gemm
 {
 
 #ifdef NNTILE_USE_CBLAS
+#ifndef STARPU_SIMGRID
 // Overloaded call to CBLAS GEMM
 static inline
 void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
@@ -58,6 +61,7 @@ void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
     cblas_dgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
             beta, C, ldC);
 }
+#endif // STARPU_SIMGRID
 
 //! GEMM for contiguous matrices without padding through StarPU buffers
 template<typename T>
@@ -117,6 +121,7 @@ void cpu(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CBLAS
 
 #ifdef NNTILE_USE_CUDA
+#ifndef STARPU_SIMGRID
 // Overloaded call to cuBLAS GEMM
 static inline
 void cublas(cublasHandle_t handle, cublasOperation_t transA,
@@ -201,6 +206,7 @@ void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
     cublasDgemmStridedBatched(handle, transA, transB, M, N, K, &alpha, A, ldA,
             strideA, B, ldB, strideB, &beta, C, ldC, strideC, batchCount);
 }
+#endif // STARPU_SIMGRID
 
 //! GEMM for contiguous matrices without padding through StarPU buffers
 template<typename T, typename T_scal>
@@ -476,6 +482,7 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
 #ifdef NNTILE_USE_CBLAS
+#ifndef STARPU_SIMGRID
     if(static_cast<CBLAS_INT>(m) != m)
     {
         throw std::runtime_error("GEMM size M does not fit CBLAS_INT");
@@ -488,9 +495,11 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
     {
         throw std::runtime_error("GEMM size K does not fit CBLAS_INT");
     }
+#endif // STARPU_SIMGRID
 #endif // NNTILE_USE_CBLAS
     // Check that matrix sizes fit proper types for underlying CUBLAS
 #ifdef NNTILE_USE_CUDA
+#ifndef STARPU_SIMGRID
     if(static_cast<int>(m) != m)
     {
         throw std::runtime_error("GEMM size M does not fit int");
@@ -503,6 +512,7 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
     {
         throw std::runtime_error("GEMM size K does not fit int");
     }
+#endif // STARPU_SIMGRID
 #endif // NNTILE_USE_CUDA
     constexpr T_scal zero = 0, one = 1;
     enum starpu_data_access_mode C_mode;

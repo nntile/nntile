@@ -14,10 +14,12 @@
 
 #include "nntile/starpu/gemm_ex.hh"
 
-#ifdef NNTILE_USE_CUDA
-#   include <cublas_v2.h>
-#   include <starpu_cublas_v2.h>
-#endif // NNTILE_USE_CUDA
+#ifndef STARPU_SIMGRID
+#   ifdef NNTILE_USE_CUDA
+#       include <cublas_v2.h>
+#       include <starpu_cublas_v2.h>
+#   endif // NNTILE_USE_CUDA
+#endif // STARPU_SIMGRID
 
 namespace nntile
 {
@@ -27,6 +29,7 @@ namespace gemm_ex
 {
 
 #ifdef NNTILE_USE_CUDA
+#ifndef STARPU_SIMGRID
 // Overloaded call to cuBLAS GEMM
 static inline
 void cublas(cublasHandle_t handle, cublasOperation_t transA,
@@ -54,6 +57,7 @@ void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
             CUDA_R_32F, ldC, strideC, batchCount, CUBLAS_COMPUTE_32F_FAST_TF32,
             CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
+#endif // STARPU_SIMGRID
 
 //! GEMM for contiguous matrices without padding through StarPU buffers
 template<typename T>

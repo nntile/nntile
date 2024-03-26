@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/normalize.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/normalize.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/normalize.hh"
 
 namespace nntile
 {

@@ -13,8 +13,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/addcdiv.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/addcdiv.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/addcdiv.hh"
 #include <cstdlib>
 
 namespace nntile

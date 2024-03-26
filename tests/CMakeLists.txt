@@ -1,4 +1,4 @@
-# @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
+# @copyright (c) 2022-2024 Skolkovo Institute of Science and Technology
 #                          (Skoltech). All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
@@ -9,7 +9,7 @@
 #
 # @version 1.0.0
 # @author Aleksandr Mikhalev
-# @date 2023-05-02
+# @date 2024-03-26
 
 # Extend set of ctest-controlled tests and enable code coverage if required.
 # All of the tests shall be launched by the same executable but with different
@@ -147,7 +147,10 @@ add_test_set(TARGET_NAME tests_constants
     COV_GLOBAL coverage
     )
 
-add_subdirectory("kernel")
+# Kernels are not compiled in case of SimGrid mode
+if(NOT HAVE_STARPU_SIMGRID)
+    add_subdirectory("kernel")
+endif()
 add_subdirectory("starpu")
 add_subdirectory("tile")
 add_subdirectory("tensor")

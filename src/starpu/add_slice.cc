@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/add_slice.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/add_slice.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/add_slice.hh"
 #include <cstdlib>
 
 namespace nntile

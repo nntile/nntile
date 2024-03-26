@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/fp16_to_fp32.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/fp16_to_fp32.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/fp16_to_fp32.hh"
 
 namespace nntile
 {

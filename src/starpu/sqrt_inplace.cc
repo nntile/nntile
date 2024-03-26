@@ -13,8 +13,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/sqrt_inplace.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/sqrt_inplace.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/sqrt_inplace.hh"
 #include <cstdlib>
 
 namespace nntile

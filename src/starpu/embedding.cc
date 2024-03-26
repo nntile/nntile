@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/embedding.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/embedding.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/embedding.hh"
 
 namespace nntile
 {

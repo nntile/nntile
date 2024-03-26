@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/sumprod_fiber.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/sumprod_fiber.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/sumprod_fiber.hh"
 #include <cstdlib>
 
 namespace nntile

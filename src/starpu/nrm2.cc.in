@@ -14,17 +14,19 @@
 
 #include "nntile/starpu/nrm2.hh"
 
-#ifdef NNTILE_USE_CBLAS
-#   include <@CBLAS_H_NAME@>
-#   ifndef CBLAS_INT
-#       define CBLAS_INT @CBLAS_INT_TYPE@
-#   endif // CBLAS_INT
-#endif // NNTILE_USE_CBLAS
+#ifndef STARPU_SIMGRID
+#   ifdef NNTILE_USE_CBLAS
+#       include <@CBLAS_H_NAME@>
+#       ifndef CBLAS_INT
+#           define CBLAS_INT @CBLAS_INT_TYPE@
+#       endif // CBLAS_INT
+#   endif // NNTILE_USE_CBLAS
 
-#ifdef NNTILE_USE_CUDA
-#   include <cublas_v2.h>
-#   include <starpu_cublas_v2.h>
-#endif // NNTILE_USE_CUDA
+#   ifdef NNTILE_USE_CUDA
+#       include <cublas_v2.h>
+#       include <starpu_cublas_v2.h>
+#   endif // NNTILE_USE_CUDA
+#endif // STARPU_SIMGRID
 
 namespace nntile
 {
@@ -34,6 +36,7 @@ namespace nrm2
 {
 
 #ifdef NNTILE_USE_CBLAS
+#ifndef STARPU_SIMGRID
 // Overloaded call to CBLAS NRM2
 static inline
 void cblas(CBLAS_INT N, const fp32_t *X, CBLAS_INT incX, fp32_t *Y)
@@ -49,6 +52,7 @@ void cblas(CBLAS_INT N, const fp64_t *X, CBLAS_INT incX, fp64_t *Y)
 {
     *Y = cblas_dnrm2(N, X, incX);
 }
+#endif // STARPU_SIMGRID
 
 //! NRM2 for contiguous matrices without padding through StarPU buffers
 template<typename T>
@@ -69,6 +73,7 @@ void cpu(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CBLAS
 
 #ifdef NNTILE_USE_CUDA
+#ifndef STARPU_SIMGRID
 // Overloaded call to cuBLAS NRM2
 static inline
 void cublas(cublasHandle_t handle, int N, const fp32_t *X, int incX, fp32_t *Y)
@@ -84,6 +89,7 @@ void cublas(cublasHandle_t handle, int N, const fp64_t *X, int incX, fp64_t *Y)
 {
     cublasDnrm2(handle, N, X, incX, Y);
 }
+#endif // STARPU_SIMGRID
 
 //! AXPY for contiguous matrices without padding through StarPU buffers
 template<typename T>
@@ -158,17 +164,21 @@ void submit(Index nelems, Handle src, Handle dst)
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
 #ifdef NNTILE_USE_CBLAS
+#ifndef STARPU_SIMGRID
     if(static_cast<CBLAS_INT>(nelems) != nelems)
     {
         throw std::runtime_error("NRM2 size N does not fit CBLAS_INT");
     }
+#endif // STARPU_SIMGRID
 #endif // NNTILE_USE_CBLAS
     // Check that matrix sizes fit proper types for underlying CUBLAS
 #ifdef NNTILE_USE_CUDA
+#ifndef STARPU_SIMGRID
     if(static_cast<int>(nelems) != nelems)
     {
         throw std::runtime_error("NRM2 size N does not fit int");
     }
+#endif // STARPU_SIMGRID
 #endif // NNTILE_USE_CUDA
     // Codelet arguments
     Index *nelems_ = new Index{nelems};

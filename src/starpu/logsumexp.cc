@@ -13,8 +13,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/logsumexp.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/logsumexp.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/logsumexp.hh"
 #include <cstdlib>
 
 namespace nntile

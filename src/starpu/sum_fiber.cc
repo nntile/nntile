@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/sum_fiber.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/sum_fiber.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/sum_fiber.hh"
 #include <cstdlib>
 
 namespace nntile

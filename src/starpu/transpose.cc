@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/transpose.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/transpose.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/transpose.hh"
 #include <cstdlib>
 
 namespace nntile

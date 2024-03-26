@@ -12,8 +12,10 @@
  * @date 2024-03-26
  * */
 
-#include "nntile/starpu/accumulate_maxsumexp.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/accumulate_maxsumexp.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/accumulate_maxsumexp.hh"
 #include <cstdlib>
 
 namespace nntile

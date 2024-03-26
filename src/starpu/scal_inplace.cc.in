@@ -15,17 +15,19 @@
 #include "nntile/starpu/scal_inplace.hh"
 #include <cstdlib>
 
-#ifdef NNTILE_USE_CBLAS
-#   include <@CBLAS_H_NAME@>
-#   ifndef CBLAS_INT
-#       define CBLAS_INT @CBLAS_INT_TYPE@
-#   endif // CBLAS_INT
-#endif // NNTILE_USE_CBLAS
+#ifndef STARPU_SIMGRID
+#   ifdef NNTILE_USE_CBLAS
+#       include <@CBLAS_H_NAME@>
+#       ifndef CBLAS_INT
+#           define CBLAS_INT @CBLAS_INT_TYPE@
+#       endif // CBLAS_INT
+#   endif // NNTILE_USE_CBLAS
 
-#ifdef NNTILE_USE_CUDA
-#   include <cublas_v2.h>
-#   include <starpu_cublas_v2.h>
-#endif // NNTILE_USE_CUDA
+#   ifdef NNTILE_USE_CUDA
+#       include <cublas_v2.h>
+#       include <starpu_cublas_v2.h>
+#   endif // NNTILE_USE_CUDA
+#endif // STARPU_SIMGRID
 
 namespace nntile
 {
@@ -35,6 +37,7 @@ namespace scal_inplace
 {
 
 #ifdef NNTILE_USE_CBLAS
+#ifndef STARPU_SIMGRID
 // Overloaded call to CBLAS scal
 static inline
 void cblas(CBLAS_INT N, fp32_t alpha, fp32_t *X, CBLAS_INT incX)
@@ -50,6 +53,7 @@ void cblas(CBLAS_INT N, fp64_t alpha, fp64_t *X, CBLAS_INT incX)
 {
     cblas_dscal(N, alpha, X, incX);
 }
+#endif // STARPU_SIMGRID
 
 //! scal_inplace for contiguous vector through StarPU buffers
 template<typename T>
@@ -69,6 +73,7 @@ void cpu(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CBLAS
 
 #ifdef NNTILE_USE_CUDA
+#ifndef STARPU_SIMGRID
 // Overloaded call to cuBLAS scal
 static inline
 void cublas(cublasHandle_t handle, int N, fp32_t alpha, fp32_t *X, int incX)
@@ -84,6 +89,7 @@ void cublas(cublasHandle_t handle, int N, fp64_t alpha, fp64_t *X, int incX)
 {
     cublasDscal(handle, N, &alpha, X, incX);
 }
+#endif // STARPU_SIMGRID
 
 //! scal_inplace for contiguous vector through StarPU buffers
 template<typename T>
@@ -157,17 +163,21 @@ void submit(T alpha, Index nelems, Handle data)
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
 #ifdef NNTILE_USE_CBLAS
+#ifndef STARPU_SIMGRID
     if(static_cast<CBLAS_INT>(nelems) != nelems)
     {
         throw std::runtime_error("scal_inplace size N does not fit CBLAS_INT");
     }
+#endif // STARPU_SIMGRID
 #endif // NNTILE_USE_CBLAS
     // Check that matrix sizes fit proper types for underlying CUBLAS
 #ifdef NNTILE_USE_CUDA
+#ifndef STARPU_SIMGRID
     if(static_cast<int>(nelems) != nelems)
     {
         throw std::runtime_error("CBLAS size N does not fit int");
     }
+#endif // STARPU_SIMGRID
 #endif // NNTILE_USE_CUDA
     // Codelet arguments
     args_t<T> *cl_args = (args_t<T> *)malloc(sizeof(*cl_args));
