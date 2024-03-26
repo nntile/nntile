@@ -19,6 +19,7 @@
 #include "nntile/starpu/clear.hh"
 #include "nntile/starpu/scal_inplace.hh"
 #include "nntile/starpu/hypot.hh"
+#include <cmath>
 
 namespace nntile::tile
 {

@@ -56,6 +56,7 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
@@ -112,6 +113,7 @@ void cuda(void *buffers[], void *cl_args)
                 A_offset, B, ldB, B_offset, args->beta, C, M, C_offset,
                 args->batch);
     }
+#endif // STARPU_SIMGRID
 }
 #endif //NNTILE_USE_CUDA
 

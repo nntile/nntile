@@ -23,6 +23,7 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     T alpha = args->alpha;
@@ -37,6 +38,7 @@ void cpu(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::total_sum_accum::cpu<T>(alpha, n_labels, n_outputs, logsumexp, src,
             labels, val);
+#endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -45,6 +47,7 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     T alpha = args->alpha;
@@ -61,6 +64,7 @@ void cuda(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::total_sum_accum::cuda<T>(stream, alpha, n_labels, n_outputs, logsumexp, src,
             labels, val);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 

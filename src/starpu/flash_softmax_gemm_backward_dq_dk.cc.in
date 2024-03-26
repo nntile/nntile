@@ -67,6 +67,7 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
@@ -140,6 +141,7 @@ void cpu(void *buffers[], void *cl_args)
         dQ_local += dQ_offset;
         dK_local += dK_offset;
     }
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CBLAS
 
@@ -175,6 +177,7 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
@@ -228,6 +231,7 @@ void cuda(void *buffers[], void *cl_args)
             args->head, args->seq, args->seq, 1.0/std::sqrt(T(args->head)),
             Q, args->head, Q_offset, tmp_grad, args->seq, tmp_grad_offset, 1.0,
             dK, args->head, dK_offset, args->batch);
+#endif // STARPU_SIMGRID
 }
 
 static inline
@@ -247,6 +251,7 @@ void cublas_ex_batch(cublasHandle_t handle, cublasOperation_t transA,
 void cuda_fp32_fast_tf32(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     using T = fp32_t;
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
@@ -301,6 +306,7 @@ void cuda_fp32_fast_tf32(void *buffers[], void *cl_args)
             args->head, args->seq, args->seq, 1.0/std::sqrt(T(args->head)),
             Q, args->head, Q_offset, tmp_grad, args->seq, tmp_grad_offset, 1.0,
             dK, args->head, dK_offset, args->batch);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 

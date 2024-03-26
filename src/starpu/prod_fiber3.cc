@@ -25,6 +25,7 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
@@ -35,6 +36,7 @@ void cpu(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::prod_fiber3::cpu<T>(args->m, args->n, args->k, args->alpha, src1,
             src2, dst);
+#endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -43,6 +45,7 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
@@ -55,6 +58,7 @@ void cuda(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::prod_fiber3::cuda<T>(stream, args->m, args->n, args->k,
             args->alpha, src1, src2, dst);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 

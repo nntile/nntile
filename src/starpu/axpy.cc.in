@@ -53,6 +53,7 @@ template<typename T>
 void cpu_tensor_alpha(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
@@ -62,6 +63,7 @@ void cpu_tensor_alpha(void *buffers[], void *cl_args)
     T *dst = interfaces[2]->get_ptr<T>();
     // Call corresponding CBLAS routine
     cblas(nelems, alpha[0], src, 1, dst, 1);
+#endif // STARPU_SIMGRID
 }
 
 //! AXPY for contiguous matrices without padding through StarPU buffers
@@ -69,6 +71,7 @@ template<typename T>
 void cpu_scalar_alpha(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args2_t<T> *>(cl_args);
     // Get interfaces
@@ -77,6 +80,7 @@ void cpu_scalar_alpha(void *buffers[], void *cl_args)
     T *dst = interfaces[1]->get_ptr<T>();
     // Call corresponding CBLAS routine
     cblas(args->nelems, args->alpha, src, 1, dst, 1);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CBLAS
 
@@ -104,6 +108,7 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
@@ -118,6 +123,7 @@ void cuda(void *buffers[], void *cl_args)
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_DEVICE);
     // Call corresponding cuBLAS routine
     cublas(handle, nelems, alpha, src, 1, dst, 1);
+#endif // STARPU_SIMGRID
 }
 
 //! AXPY for contiguous matrices without padding through StarPU buffers
@@ -125,6 +131,7 @@ template<typename T>
 void cuda2(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args2_t<T> *>(cl_args);
     // Get interfaces
@@ -138,6 +145,7 @@ void cuda2(void *buffers[], void *cl_args)
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
     // Call corresponding cuBLAS routine
     cublas(handle, args->nelems, &(args->alpha), src, 1, dst, 1);
+#endif // STARPU_SIMGRID
 }
 #endif //NNTILE_USE_CUDA
 
