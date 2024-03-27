@@ -431,11 +431,11 @@ public:
             {
                 if(*it)
                 {
-#ifdef STARPU_SIMGRID // Put fake function address in case of simulation
-                    starpu_codelet::cpu_funcs[i] = (starpu_cpu_func_t)0;
-#else // Put real function address
+//#ifdef STARPU_SIMGRID // Put fake function address in case of simulation
+//                    starpu_codelet::cpu_funcs[i] = (starpu_cpu_func_t)0;
+//#else // Put real function address
                     starpu_codelet::cpu_funcs[i] = *it;
-#endif
+//#endif
                     starpu_codelet::where = where_default = STARPU_CPU;
                 }
             }
@@ -452,11 +452,11 @@ public:
             {
                 if(*it)
                 {
-#ifdef STARPU_SIMGRID // Put fake function address in case of simulation
-                    starpu_codelet::cuda_funcs[i] = (starpu_cuda_func_t)0;
-#else // Put real function address
+//#ifdef STARPU_SIMGRID // Put fake function address in case of simulation
+//                    starpu_codelet::cuda_funcs[i] = (starpu_cuda_func_t)0;
+//#else // Put real function address
                     starpu_codelet::cuda_funcs[i] = *it;
-#endif
+//#endif
                     starpu_codelet::cuda_flags[i] = STARPU_CUDA_ASYNC;
                     where_default = where_default | STARPU_CUDA;
                     starpu_codelet::where = where_default;
