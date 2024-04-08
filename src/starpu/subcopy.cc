@@ -57,7 +57,7 @@ uint32_t footprint(struct starpu_task *task)
 }
 
 Codelet codelet_fp16, codelet_fp32, codelet_fp64, codelet_int64,
-        codelet_bool;
+        codelet_bool, codelet_fp32_fast_tf32;
 
 void init()
 {
@@ -86,6 +86,11 @@ void init()
             {cpu<bool_t>},
             {}
             );
+    codelet_fp32_fast_tf32.init("nntile_subcopy_fp32_fast_tf32",
+            footprint,
+            {cpu<fp32_t>},
+            {}
+            );
 }
 
 void restrict_where(uint32_t where)
@@ -95,6 +100,7 @@ void restrict_where(uint32_t where)
     codelet_fp64.restrict_where(where);
     codelet_int64.restrict_where(where);
     codelet_bool.restrict_where(where);
+    codelet_fp32_fast_tf32.restrict_where(where);
 }
 
 void restore_where()
@@ -104,6 +110,7 @@ void restore_where()
     codelet_fp64.restore_where();
     codelet_int64.restore_where();
     codelet_bool.restore_where();
+    codelet_fp32_fast_tf32.restore_where();
 }
 
 template<typename T>
@@ -153,6 +160,14 @@ void submit<fp32_t>(Index ndim, const std::vector<Index> &src_start,
         Handle tmp_index, starpu_data_access_mode mode);
 
 template
+void submit<fp32_fast_tf32_t>(Index ndim, const std::vector<Index> &src_start,
+        const std::vector<Index> &src_stride,
+        const std::vector<Index> &dst_start,
+        const std::vector<Index> &dst_stride,
+        const std::vector<Index> &copy_shape, Handle src, Handle dst,
+        Handle tmp_index, starpu_data_access_mode mode);
+
+template
 void submit<fp64_t>(Index ndim, const std::vector<Index> &src_start,
         const std::vector<Index> &src_stride,
         const std::vector<Index> &dst_start,
@@ -177,4 +192,3 @@ void submit<bool_t>(Index ndim, const std::vector<Index> &src_start,
         Handle tmp_index, starpu_data_access_mode mode);
 
 } // namespace nntile::starpu::subcopy
-
