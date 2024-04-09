@@ -59,7 +59,7 @@ void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
 
 template<typename T>
 void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
-        Index batch, T alpha, T beta)
+        Index batch, scal_t alpha, scal_t beta)
 {
     // Init all the data
     std::vector<T> A(m*k*batch), B(n*k*batch), C(m*n*batch);
@@ -112,7 +112,7 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
         C2_handle(&C2[0], sizeof(T)*C.size(), STARPU_RW);
     gemm::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::gemm::submit<T, T> restricted to CPU\n";
-    gemm::submit<T, T>(transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
+    gemm::submit<T>(transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
             beta, C2_handle);
     starpu_task_wait_for_all();
     C2_handle.unregister();
@@ -178,7 +178,7 @@ void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
 
 template<typename T>
 void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
-        Index batch, T alpha, T beta)
+        Index batch, scal_t alpha, scal_t beta)
 {
     // Get a StarPU CUDA worker (to perform computations on the same device)
     int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
@@ -281,7 +281,7 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
         C2_handle(&C2[0], sizeof(T)*C.size(), STARPU_RW);
     gemm::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::gemm::submit<T, T> restricted to CUDA\n";
-    gemm::submit<T, T>(transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
+    gemm::submit<T>(transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
             beta, C2_handle);
     starpu_task_wait_for_all();
     C2_handle.unregister();

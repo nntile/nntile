@@ -24,14 +24,14 @@ void gemm_check(const TransOp &transA, const TensorTraits &A,
         const TransOp &transB, const TensorTraits &B, const TensorTraits &C,
         Index ndim, Index batch_ndim);
 
-template<typename T, typename T_scal>
-void gemm_async(T_scal alpha, const TransOp &transA, const Tensor<T> &A,
-        const TransOp &transB, const Tensor<T> &B, T_scal beta,
+template<typename T>
+void gemm_async(scal_t alpha, const TransOp &transA, const Tensor<T> &A,
+        const TransOp &transB, const Tensor<T> &B, scal_t beta,
         const Tensor<T> &C, Index ndim, Index batch_ndim, int redux=0);
 
-template<typename T, typename T_scal>
-void gemm(T_scal alpha, const TransOp &transA, const Tensor<T> &A,
-        const TransOp &transB, const Tensor<T> &B, T_scal beta,
+template<typename T>
+void gemm(scal_t alpha, const TransOp &transA, const Tensor<T> &A,
+        const TransOp &transB, const Tensor<T> &B, scal_t beta,
         const Tensor<T> &C, Index ndim, Index batch_ndim, int redux=0);
 
 } // namespace nntile::tensor
