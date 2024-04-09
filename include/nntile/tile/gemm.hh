@@ -26,15 +26,15 @@ void gemm_check(const TransOp &transA, const TileTraits &A,
         Index ndim, Index batch_ndim);
 
 // Asynchronous tile-wise gemm operation
-template<typename T, typename T_scal>
-void gemm_async(T_scal alpha, const TransOp &transA, const Tile<T> &A,
-        const TransOp &transB, const Tile<T> &B, T_scal beta, const Tile<T> &C,
+template<typename T>
+void gemm_async(scal_t alpha, const TransOp &transA, const Tile<T> &A,
+        const TransOp &transB, const Tile<T> &B, scal_t beta, const Tile<T> &C,
         Index ndim, Index batch_ndim);
 
 // Blocking version of tile-wise gemm operation
-template<typename T, typename T_scal>
-void gemm(T_scal alpha, const TransOp &transA, const Tile<T> &A,
-        const TransOp &transB, const Tile<T> &B, T_scal beta, const Tile<T> &C,
+template<typename T>
+void gemm(scal_t alpha, const TransOp &transA, const Tile<T> &A,
+        const TransOp &transB, const Tile<T> &B, scal_t beta, const Tile<T> &C,
         Index ndim, Index batch_ndim);
 
 } // namespace nntile::tile

@@ -277,6 +277,68 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
     tensor.mpi_flush();
 }
 
+void tensor_from_array(const tensor::Tensor<fp32_fast_tf32_t> &tensor,
+        const py::array_t<fp32_t, py::array::f_style | py::array::forcecast> &array)
+{
+    // Treat special 0-dimensional case, where NNTile assumes 1 element in a
+    // tensor, while 0-dimensional numpy array assumes there no array elements
+    if(tensor.ndim == 0)
+    {
+        if(array.ndim() != 1)
+        {
+            throw std::runtime_error("array.ndim() != 1");
+        }
+        if(array.shape()[0] != 1)
+        {
+            throw std::runtime_error("array.shape()[0] != 1");
+        }
+        // Acquire tile and copy a single element
+        int mpi_rank = starpu_mpi_world_rank();
+        auto tile = tensor.get_tile(0);
+        if(mpi_rank == tile.mpi_get_rank())
+        {
+            auto tile_local = tile.acquire(STARPU_W);
+            std::memcpy(reinterpret_cast<fp32_t *>(tile_local.get_ptr()), array.data(), sizeof(fp32_t));
+            tile_local.release();
+        }
+        tile.mpi_flush();
+        return;
+    }
+    // Treat other cases
+    if(tensor.ndim != array.ndim())
+    {
+        throw std::runtime_error("tensor.ndim != array.ndim()");
+    }
+    for(Index i = 0; i < tensor.ndim; ++i)
+    {
+        if(array.shape()[i] != tensor.shape[i])
+        {
+            throw std::runtime_error("array.shape()[i] != tensor.shape[i]");
+        }
+    }
+    // Create temporary single-tile tensor
+    tensor::TensorTraits tmp_traits(tensor.shape, tensor.shape);
+    int64_t tmp_tag = 0;
+    int flag;
+    //starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
+    //        &flag);
+    std::vector<int> tmp_distr{0};
+    tensor::Tensor<fp32_fast_tf32_t> tmp(tmp_traits, tmp_distr, tmp_tag);
+    // Acquire tile and copy data
+    int mpi_rank = starpu_mpi_world_rank();
+    auto tile = tmp.get_tile(0);
+    if(mpi_rank == tile.mpi_get_rank())
+    {
+        auto tile_local = tile.acquire(STARPU_W);
+        std::memcpy(reinterpret_cast<fp32_t *>(tile_local.get_ptr()), array.data(),
+                tile.nelems*sizeof(fp32_t));
+        tile_local.release();
+    }
+    tensor::scatter<fp32_fast_tf32_t>(tmp, tensor);
+    tmp.unregister();
+    tensor.mpi_flush();
+}
+
 // Tensor -> numpy.ndarray
 template<typename T>
 void tensor_to_array(const tensor::Tensor<T> &tensor,
@@ -415,15 +477,18 @@ void def_mod_tensor(py::module_ &m)
     def_tensor_distributions(distributions);
 
     // Add functions for Tensor<T>
-    m.def("gemm_async_fp64", &gemm_async<fp64_t, fp64_t>);
-    m.def("gemm_async_fp32", &gemm_async<fp32_t, fp32_t>);
-    m.def("gemm_async_fp16", &gemm_async<fp16_t, fp32_t>);
-    m.def("gemm_fp64", &gemm<fp64_t, fp64_t>);
-    m.def("gemm_fp32", &gemm<fp32_t, fp32_t>);
-    m.def("gemm_fp16", &gemm<fp16_t, fp32_t>);
+    m.def("gemm_async_fp64", &gemm_async<fp64_t>);
+    m.def("gemm_async_fp32", &gemm_async<fp32_t>);
+    m.def("gemm_async_fp16", &gemm_async<fp16_t>);
+    m.def("gemm_async_fp32_fast_tf32", &gemm_async<fp32_fast_tf32_t>);
+
+    m.def("gemm_fp64", &gemm<fp64_t>);
+    m.def("gemm_fp32", &gemm<fp32_t>);
+    m.def("gemm_fp16", &gemm<fp16_t>);
+    m.def("gemm_fp32_fast_tf32", &gemm<fp32_fast_tf32_t>);
     // Mixed precision gemm (FP32_FAST_FP16)
-    m.def("gemm_ex_async_fp32", &gemm_ex_async<fp32_t>);
-    m.def("gemm_ex_fp32", &gemm_ex<fp32_t>);
+    // m.def("gemm_ex_async_fp32", &gemm_ex_async<fp32_t>);
+    // m.def("gemm_ex_fp32", &gemm_ex<fp32_t>);
 
     // Add activation functions for Tensor<T>
     m.def("relu_async_fp64", &relu_async<fp64_t>);
