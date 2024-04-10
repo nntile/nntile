@@ -160,6 +160,34 @@ void cublas(cublasHandle_t handle, cublasOperation_t transA,
             C, ldC);
 }
 
+// Overloaded call to cuBLAS GEMM for fp32_fast_tf32_t
+static inline
+void cublas(cublasHandle_t handle, cublasOperation_t transA,
+        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
+        const fp32_fast_tf32_t *A, int ldA, const fp32_fast_tf32_t *B, int ldB, fp32_t beta,
+        fp32_fast_tf32_t *C, int ldC)
+    noexcept
+{
+    cublasGemmEx(handle, transA, transB, M, N, K, &alpha, A, CUDA_R_32F, ldA,
+            B, CUDA_R_32F, ldB, &beta, C, CUDA_R_32F, ldC,
+            CUBLAS_COMPUTE_32F_FAST_TF32, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+}
+
+
+static inline
+void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
+        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
+        const fp32_fast_tf32_t *A, int ldA, long long int strideA, const fp32_fast_tf32_t *B,
+        int ldB, long long int strideB, fp32_t beta, fp32_fast_tf32_t *C, int ldC,
+        long long int strideC, int batchCount)
+    noexcept
+{
+    cublasGemmStridedBatchedEx(handle, transA, transB, M, N, K, &alpha, A,
+            CUDA_R_32F, ldA, strideA, B, CUDA_R_32F, ldB, strideB, &beta, C,
+            CUDA_R_32F, ldC, strideC, batchCount, CUBLAS_COMPUTE_32F_FAST_TF32,
+            CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+}
+
 // Overloaded call to batched cuBLAS gemm
 static inline
 void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
@@ -301,11 +329,7 @@ void init()
 {
     codelet_NN_fp32_fast_tf32.init("nntile_gemm_NN_fp32_fast_tf32",
             footprint,
-#ifdef NNTILE_USE_CBLAS
-            {cpu<fp32_fast_tf32_t>},
-#else // NNTILE_USE_CBLAS
             {},
-#endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_fast_tf32_t>}
 #else // NNTILE_USE_CUDA
@@ -315,11 +339,7 @@ void init()
 
     codelet_NT_fp32_fast_tf32.init("nntile_gemm_NT_fp32_fast_tf32",
             footprint,
-#ifdef NNTILE_USE_CBLAS
-            {cpu<fp32_fast_tf32_t>},
-#else // NNTILE_USE_CBLAS
             {},
-#endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_fast_tf32_t>}
 #else // NNTILE_USE_CUDA
@@ -329,11 +349,7 @@ void init()
 
     codelet_TN_fp32_fast_tf32.init("nntile_gemm_TN_fp32_fast_tf32",
             footprint,
-#ifdef NNTILE_USE_CBLAS
-            {cpu<fp32_fast_tf32_t>},
-#else // NNTILE_USE_CBLAS
             {},
-#endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_fast_tf32_t>}
 #else // NNTILE_USE_CUDA
@@ -343,11 +359,7 @@ void init()
 
 codelet_TT_fp32_fast_tf32.init("nntile_gemm_TT_fp32_fast_tf32",
             footprint,
-#ifdef NNTILE_USE_CBLAS
-            {cpu<fp32_fast_tf32_t>},
-#else // NNTILE_USE_CBLAS
             {},
-#endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_fast_tf32_t>}
 #else // NNTILE_USE_CUDA
