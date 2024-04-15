@@ -14,9 +14,8 @@
 from .base_layer import BaseLayer
 from .act import Act
 from .linear import Linear
-from .attention import Attention
-from .attention_single_head import AttentionSingleHead
-from .flash_attention import FlashAttention
+# from .attention import Attention
+# from .flash_attention import FlashAttention
 from .embedding import Embedding
 from .layer_norm import LayerNorm
 from .fp32_to_fp16 import FP32_to_FP16
