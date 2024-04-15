@@ -124,6 +124,7 @@ for train_batch_data, train_batch_labels in train_loader:
         elif args.dtype == "tf32":
             x = nntile.tensor.Tensor_fp32_fast_tf32(x_traits, x_distr, next_tag)
         next_tag = x.next_tag
+        print(current_data[idx*args.minibatch:(idx+1)*args.minibatch, :].T.dtype)
         x.from_array(current_data[idx*args.minibatch:(idx+1)*args.minibatch, :].T)
         current_minibatch_data.append(x)
 
