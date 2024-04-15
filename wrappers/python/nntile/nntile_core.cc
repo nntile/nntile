@@ -420,7 +420,8 @@ void def_class_tensor(py::module_ &m, const char *name)
         def("invalidate_submit", &Tensor<T>::invalidate_submit).
         //def("invalidate_submit", &Tensor<T>::wont_use).
         def("wont_use", &Tensor<T>::wont_use).
-        def("from_array", tensor_from_array<T>).
+        def("from_array", py::overload_cast<const tensor::Tensor<T> &, const py::array_t<T, py::array::f_style | py::array::forcecast> &>(&tensor_from_array<T>)).
+        def("from_array", py::overload_cast<const tensor::Tensor<fp32_fast_tf32_t> &, const py::array_t<fp32_t, py::array::f_style | py::array::forcecast> & >(&tensor_from_array)).
         def("to_array", tensor_to_array<T>).
         def("set_reduction_add", &Tensor<T>::set_reduction_add).
         def("set_reduction_hypot", &Tensor<T>::set_reduction_hypot).

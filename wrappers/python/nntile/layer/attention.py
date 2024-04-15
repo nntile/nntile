@@ -15,7 +15,7 @@ from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
         maxsumexp_async, softmax_inplace_async, sumprod_slice_async, \
         add_slice_async, prod_async, mask_scalar_async, add_fiber_async, \
-        sum_fiber_async, transpose_async, copy_async, gemm_ex_async
+        sum_fiber_async, transpose_async, copy_async
 
 from nntile.layer.base_layer import BaseLayer
 import numpy as np

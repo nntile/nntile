@@ -12,7 +12,7 @@
 # @version 1.0.0
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        notrans, trans, Tensor_fp32
+        notrans, trans, Tensor_fp32, Tensor_fp32_fast_tf32
 from nntile.model.base_model import BaseModel
 from nntile.layer.linear import Linear
 from nntile.layer.act import Act
@@ -28,7 +28,7 @@ class DeepReLU(BaseModel):
     def __init__(self, x: TensorMoments, side: str, ndim: int, \
             add_shape: int, add_basetile_shape: int, nlayers: int, \
             n_classes:int, next_tag: int, bias: bool=False, \
-            fp32_fast_tf32: bool=False):
+            dtype: bool = "fp32"):
         # Check parameter side
         if side != 'L' and side != 'R':
             raise ValueError("side must be either 'L' or 'R'")
@@ -43,8 +43,7 @@ class DeepReLU(BaseModel):
         layers = []
         # Initial linear layer that converts input to internal shape
         new_layer, next_tag = Linear.generate_simple(x, side, notrans, ndim, \
-                [add_shape], [add_basetile_shape], next_tag, bias, \
-                fp32_fast_tf32=fp32_fast_tf32)
+                [add_shape], [add_basetile_shape], next_tag, bias)
         # self.fp32_fast_fp16 = new_layer.fp32_fast_fp16
         # self.fp32_convert_fp16 = new_layer.fp32_convert_fp16
         layers.append(new_layer)
@@ -57,7 +56,7 @@ class DeepReLU(BaseModel):
         for i in range(1, nlayers-1):
             new_layer, next_tag = Linear.generate_simple( \
                     activations[-1], side, notrans, 1, [add_shape], \
-                    [add_basetile_shape], next_tag, bias, fp32_fast_tf32=fp32_fast_tf32)
+                    [add_basetile_shape], next_tag, bias)
             layers.append(new_layer)
             activations.extend(new_layer.activations_output)
             new_layer, next_tag = Act.generate_simple(activations[-1], \
@@ -66,8 +65,7 @@ class DeepReLU(BaseModel):
             activations.extend(new_layer.activations_output)
         # Finalizing linear layer that converts result back to proper shape
         new_layer, next_tag = Linear.generate_simple(activations[-1], \
-                side, notrans, 1, [n_classes], [n_classes], next_tag, bias, \
-                fp32_fast_tf32=fp32_fast_tf32)
+                side, notrans, 1, [n_classes], [n_classes], next_tag, bias)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         self.next_tag = next_tag
@@ -82,7 +80,7 @@ class DeepReLU(BaseModel):
 
     @staticmethod
     def from_torch(torch_mlp, batch_size: int, n_classes: int, \
-            nonlinearity: str, next_tag: int):
+            nonlinearity: str, dtype: str, next_tag: int):
         '''
         torch_mlp is PyTorch MLP where all intermediate dimensions are the \
                 same and no biases in linear layers
@@ -100,7 +98,10 @@ class DeepReLU(BaseModel):
         hidden_layer_dim = torch_parameters[0].shape[0]
         x_traits = TensorTraits([input_dim, batch_size], [input_dim, batch_size])
         x_distr = [0] * x_traits.grid.nelems
-        x = Tensor_fp32(x_traits, x_distr, next_tag)
+        if dtype == "fp32":
+            x = Tensor_fp32(x_traits, x_distr, next_tag)
+        elif dtype == "tf32":
+            x = Tensor_fp32_fast_tf32(x_traits, x_distr, next_tag)
         next_tag = x.next_tag
         x_grad = None
         x_grad_required = False
