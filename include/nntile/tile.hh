@@ -35,7 +35,6 @@
 #include <nntile/tile/dgelutanh.hh>
 #include <nntile/tile/drelu.hh>
 #include <nntile/tile/gemm.hh>
-#include <nntile/tile/gemm_ex.hh>
 #include <nntile/tile/nrm2.hh>
 #include <nntile/tile/normalize.hh>
 #include <nntile/tile/prod.hh>
