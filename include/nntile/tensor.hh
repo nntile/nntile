@@ -92,6 +92,7 @@
 #include <nntile/tensor/rope.hh>
 #include <nntile/tensor/rope_backward.hh>
 #include <nntile/tensor/norm_fiber.hh>
+#include <nntile/tensor/strassen.hh>
 
 //! @namespace nntile::tensor
 /*! This namespace holds high-level routines for Tensor<T>
