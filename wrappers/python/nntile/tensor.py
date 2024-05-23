@@ -820,3 +820,20 @@ def transpose_async(alpha: float, src: Tensor, dst: Tensor, ndim: int) -> None:
     else:
         raise TypeError
 
+# Wrapper for multiprecision strassen
+def gemm_async(alpha: float, trans_A: TransOp, A: Tensor, trans_B: TransOp, \
+        B: Tensor, beta: float, C: Tensor, ndim: int, \
+        batch_ndim: int, redux: int=0) -> None:
+    if type(A) is not type(B) or type(A) is not type(C):
+        raise TypeError
+    if type(A) is core_tensor.Tensor_fp32:
+        core_tensor.strassen_async_fp32(alpha, trans_A, A, trans_B, B, beta, C,
+                ndim, batch_ndim, redux)
+    elif type(A) is core_tensor.Tensor_fp64:
+        core_tensor.strassen_async_fp64(alpha, trans_A, A, trans_B, B, beta, C,
+                ndim, batch_ndim, redux)
+    elif type(A) is core_tensor.Tensor_fp16:
+        core_tensor.strassen_async_fp16(alpha, trans_A, A, trans_B, B, beta, C,
+                ndim, batch_ndim, redux)
+    else:
+        raise TypeError
