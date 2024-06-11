@@ -12,15 +12,17 @@
 # @author Aleksandr Katrutsa
 # @date 2023-11-12
 
-from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        notrans, trans, Tensor_fp32, Tensor_int64, Tensor_bool
-from nntile.model.base_model import BaseModel
-from nntile.layer import Linear, Embedding, AddSlice, LayerNorm, Attention, \
-        FlashAttention, Act, AttentionSingleHead
+from typing import Dict
+
 import numpy as np
-from typing import List, Dict
+
+from nntile.layer import (Act, AddSlice, Attention, AttentionSingleHead,
+                          Embedding, FlashAttention, LayerNorm, Linear)
 from nntile.layer.add import Add
-import torch
+from nntile.model.base_model import BaseModel
+from nntile.tensor import (Tensor_bool, Tensor_fp32, Tensor_int64,
+                           TensorMoments, TensorTraits, notrans)
+
 
 class GPT2Config(Dict):
     def __init__(self, vocab_size: int, vocab_embed_dim_tile: int, \
@@ -61,7 +63,6 @@ class GPT2MLP(BaseModel):
         embed_dim_tile = config["embed_dim_tile"]
         inner_dim = config["inner_dim"]
         inner_dim_tile = config["inner_dim_tile"]
-        activation_function = config["activation_function"]
         redux = config["redux"]
         gemm_ndim = 1
         self.fp32_fast_tf32 = fp32_fast_tf32
@@ -71,7 +72,7 @@ class GPT2MLP(BaseModel):
                 redux=redux, fp32_fast_tf32=fp32_fast_tf32)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
-        
+
         new_layer, next_tag = Act.generate_simple(activations[-1], \
                 config["activation_function"], next_tag)
         layers.append(new_layer)
@@ -88,9 +89,9 @@ class GPT2MLP(BaseModel):
 
     # Randomly init all linear layers
     def init_randn_async(self):
-        for l in self.layers:
-            if type(l) is Linear:
-                l.init_randn_async()
+        for layer in self.layers:
+            if isinstance(layer, Linear):
+                layer.init_randn_async()
 
     @staticmethod
     def from_torch(torch_mlp, x: TensorMoments, config: GPT2Config, \
@@ -118,8 +119,6 @@ class GPT2Model(BaseModel):
         self.embed_dim = config["embed_dim"]
         embed_dim_tile = config["embed_dim_tile"]
         max_position_embeddings = config["max_position_embeddings"]
-        inner_dim = config["inner_dim"]
-        inner_dim_tile = config["inner_dim_tile"]
         layer_norm_epsilon = config["layer_norm_epsilon"]
         num_hidden_layers = config["num_hidden_layers"]
         self.n_head = config["n_head"]
@@ -152,7 +151,7 @@ class GPT2Model(BaseModel):
                 vocab_embed_dim_tile, next_tag)
         layers.append(wte_layer)
         activations.extend(wte_layer.activations_output)
-        
+
         wpe_layer, next_tag = Embedding.generate_simple(positional_ids.value, \
                 Tensor_fp32, 0, max_position_embeddings, self.embed_dim, \
                 embed_dim_tile, vocab_embed_dim_tile, next_tag)
@@ -198,7 +197,7 @@ class GPT2Model(BaseModel):
             next_tag = gpt_block.next_tag
 
             activations.extend(gpt_block.activations[1:])
-            layers.extend(gpt_block.layers) 
+            layers.extend(gpt_block.layers)
 
             new_layer, next_tag = Add.generate_simple(activations[-5], \
                     activations[-1], next_tag)
@@ -223,10 +222,10 @@ class GPT2Model(BaseModel):
         super().__init__(activations, layers)
 
     def to_torch(self, base_torch_model):
+        import torch
+
         nntile_p_idx = 0
         attn_embed_dim = self.embed_dim
-        attn_nheads = self.n_head
-        attn_head_size = attn_embed_dim // attn_nheads
         for name, p in base_torch_model.named_parameters():
             layer_name = name.split(".")[-2]
             if layer_name in ("lm_head",):
@@ -242,7 +241,7 @@ class GPT2Model(BaseModel):
                     self.parameters[nntile_p_idx].value.to_array(p_nntile_np)
                     init_shape = p[:, i_tensor*attn_embed_dim: (i_tensor+1)*attn_embed_dim].T.shape
                     cur_tensor = torch.from_numpy(p_nntile_np).reshape(init_shape)
-                    
+
                     p.data[:, i_tensor*attn_embed_dim: (i_tensor+1)*attn_embed_dim] = cur_tensor.T
                     nntile_p_idx += 1
             elif layer_name == "c_attn" and name.split(".")[-1] == "bias":
@@ -264,16 +263,16 @@ class GPT2Model(BaseModel):
                     cur_tensor = torch.from_numpy(p_nntile_np)
                     p.data = cur_tensor.reshape(init_shape).T
 
-                #     cur_tensor = p.T.reshape(attn_embed_dim, attn_nheads, \
-                #             attn_head_size)
-                #     cur_tensor.data = torch.from_numpy(p_nntile_np)
-                #     p_nntile.value.from_array(p_torch_np.T \
-                #             .reshape(attn_embed_dim, attn_nheads, \
-                #             attn_head_size))
+                    # cur_tensor = p.T.reshape(attn_embed_dim, attn_nheads, \
+                    #         attn_head_size)
+                    # cur_tensor.data = torch.from_numpy(p_nntile_np)
+                    # p_nntile.value.from_array(p_torch_np.T \
+                    #         .reshape(attn_embed_dim, attn_nheads, \
+                    #         attn_head_size))
                     nntile_p_idx += 1
                 elif name.split(".")[-1] == "bias":
-                #     p_nntile = gpt2_nntile.parameters[nntile_p_idx]
-                #     p_nntile.value.from_array(p_torch_np)
+                    # p_nntile = gpt2_nntile.parameters[nntile_p_idx]
+                    # p_nntile.value.from_array(p_torch_np)
                     p.data = torch.from_numpy(p_nntile_np)
                     nntile_p_idx += 1
             else:
@@ -294,7 +293,7 @@ class GPT2Model(BaseModel):
         positional_ids_value.from_array(np.array(np.arange(seq_len), \
                 order="F", dtype=np.int64))
         positional_ids = TensorMoments(positional_ids_value, None, False)
-        
+
         x_traits = TensorTraits([seq_len, batch_size], \
                 [seq_len_tile, batch_size_tile])
         x_distr = [0] * x_traits.grid.nelems
@@ -369,9 +368,8 @@ class GPT2Model(BaseModel):
                 nntile_p_idx += 1
 
         return gpt2_nntile, gpt2_nntile.next_tag
-    
+
     def unregister(self):
         super().unregister()
         if self.mask:
             self.mask.unregister()
-
