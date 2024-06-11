@@ -337,6 +337,7 @@ set(TENSOR_SRC
     "tensor/transpose.cc"
     "tensor/silu_forward.cc"
     "tensor/silu_backward.cc"
+    "tensor/conv2d.cc"
     )
 
 set(LAYER_SRC

@@ -387,6 +387,7 @@ set(TENSOR_HDR
     "nntile/tensor/adam_step.hh"
     "nntile/tensor/adamw_step.hh"
     "nntile/tensor/transpose.hh"
+    "nntile/tensor/conv2d.hh"
     )
 
 set(LAYER_HDR
