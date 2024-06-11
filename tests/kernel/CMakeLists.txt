@@ -57,6 +57,7 @@ set(TESTS
     "mask_scalar"
     "scal"
     "transpose"
+    "conv2d"
     )
 
 # Describe all tests that are not yet implemented
