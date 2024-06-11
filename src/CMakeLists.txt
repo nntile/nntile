@@ -206,6 +206,7 @@ set(STARPU_SRC
     "starpu/transpose.cc"
     "starpu/silu_forward.cc"
     "starpu/silu_backward.cc"
+    "starpu/conv2d.cc"
     )
 
 set(TILE_SRC

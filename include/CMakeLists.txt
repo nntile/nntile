@@ -256,6 +256,7 @@ set(STARPU_HDR
     "nntile/starpu/adam_step.hh"
     "nntile/starpu/adamw_step.hh"
     "nntile/starpu/transpose.hh"
+    "nntile/starpu/conv2d.hh"
     )
 
 set(TILE_HDR
