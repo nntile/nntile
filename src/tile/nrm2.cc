@@ -12,6 +12,8 @@
  * @date 2023-11-06
  * */
 
+#include <cmath>
+
 #include "nntile/tile/nrm2.hh"
 #include "nntile/starpu/nrm2.hh"
 #include "nntile/starpu/clear.hh"
@@ -90,4 +92,3 @@ void nrm2<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src, fp64_t beta,
 
 } // namespace tile
 } // namespace nntile
-
