@@ -40,6 +40,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Information Analysis",
@@ -53,8 +54,8 @@ dev = ["ipython", "isort", "mypy"]
 test = ["torch", "torchvision", "pytest", "scipy", "transformers", "datasets"]
 
 [project.urls]
-Homepage = "https://doge.skoltech.ru/green-ai/nntile"
-Repository = "https://doge.skoltech.ru/green-ai/nntile.git"
+Homepage = "https://github.com/nntile/nntile"
+Repository = "https://github.com/nntile/nntile.git"
 
 [tool.isort]
 known_first_party = ["nntile"]

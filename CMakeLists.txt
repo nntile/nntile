@@ -41,6 +41,12 @@ option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
 option(BUILD_PYTHON_WRAPPERS "Generate Python wrappers" ON)
 
+# This variable is a way to inform CMake where to symlink or copy Python
+# extension library.
+set(NNTILE_CORE_SYMLINK_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/wrappers/python/nntile"
+    CACHE PATH "Where to symlink extension in Python" FORCE)
+
 # For easier code navigation and interaction in editors.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -204,4 +210,3 @@ endif()
 if(BUILD_PYTHON_WRAPPERS)
     add_subdirectory("wrappers/python")
 endif()
-
