@@ -1,15 +1,15 @@
-import torch.nn as nn
+import numpy as np
+import pytest
 import torch
+import torch.nn as nn
 
-from nntile.model.base_model import BaseModel
-from nntile.layer.linear import Linear
-from nntile.tensor import TensorMoments, TensorTraits, Tensor_int64, Tensor_fp32
-from nntile.tensor import notrans
+import nntile
 from nntile.layer.act import Act
 from nntile.layer.add_slice import AddSlice
-import nntile
+from nntile.layer.linear import Linear
 from nntile.loss.frob import Frob
-import numpy as np
+from nntile.model.base_model import BaseModel
+from nntile.tensor import Tensor_fp32, TensorMoments, TensorTraits, notrans
 
 
 class ToyModel(nn.Module):
@@ -28,16 +28,6 @@ class ToyModel(nn.Module):
         x = self.lin3(x)
         return x
 
-batch_size = 10
-input_dim= 15
-x_input_torch = torch.randn(batch_size, input_dim)
-y_input_torch = torch.randn(10)
-torch_model = ToyModel()
-torch_output = torch_model(x_input_torch, y_input_torch)
-torch_loss = torch.sum(torch.square(torch_output)) * 0.5
-torch_loss.backward()
-torch_loss_val = torch_loss.item()
-print("Torch loss = {}".format(torch_loss_val))
 
 class NNTileToyModel(BaseModel):
     next_tag: int
@@ -47,7 +37,7 @@ class NNTileToyModel(BaseModel):
         layers = []
         new_layer, next_tag = Linear.generate_simple(x, "L", notrans,
                 1, [20], [20], next_tag, bias=False)
-        
+
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
@@ -58,7 +48,7 @@ class NNTileToyModel(BaseModel):
 
         new_layer, next_tag = Linear.generate_simple(activations[1], "L", notrans,
                 1, [20], [20], next_tag, bias=False)
-        
+
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
@@ -69,14 +59,14 @@ class NNTileToyModel(BaseModel):
 
         new_layer, next_tag = Linear.generate_simple(activations[-1], "L", notrans,
                 1, [10], [10], next_tag, bias=False)
-        
+
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
         self.next_tag = next_tag
         super().__init__(activations, layers)
-        
-    
+
+
     @staticmethod
     def from_torch(torch_model, batch_size, input_dim, axis, next_tag):
 
@@ -105,38 +95,49 @@ class NNTileToyModel(BaseModel):
         return nntile_model, nntile_model.next_tag
 
 
-config = nntile.starpu.Config(1, -1, 1)
-nntile.starpu.init()
-next_tag = 0
-axis = 0
-nntile_model, next_tag = NNTileToyModel.from_torch(torch_model, batch_size, input_dim, axis, next_tag)
+@pytest.mark.xfail(reason='not implemented')
+def test_add_slice(batch_size = 10, input_dim= 15):
+    x_input_torch = torch.randn(batch_size, input_dim)
+    y_input_torch = torch.randn(10)
+    torch_model = ToyModel()
+    torch_output = torch_model(x_input_torch, y_input_torch)
+    torch_loss = torch.sum(torch.square(torch_output)) * 0.5
+    torch_loss.backward()
+    torch_loss_val = torch_loss.item()
+    print("Torch loss = {}".format(torch_loss_val))
 
-nntile_model.activations[0].value.from_array(x_input_torch.numpy())
-nntile_model.activations[1].value.from_array(y_input_torch.numpy())
+    _config = nntile.starpu.Config(1, -1, 1)
+    nntile.starpu.init()
+    next_tag = 0
+    axis = 0
+    nntile_model, next_tag = NNTileToyModel.from_torch(torch_model, batch_size, input_dim, axis, next_tag)
 
-nntile_model.forward_async()
-nntile_model.clear_gradients()
+    nntile_model.activations[0].value.from_array(x_input_torch.numpy())
+    nntile_model.activations[1].value.from_array(y_input_torch.numpy())
 
-nntile_loss_func, next_tag =  Frob.generate_simple(nntile_model.activations[-1], next_tag)
-nntile_loss_func.y.from_array(np.zeros((batch_size, 10), order="F", dtype=np.float32))
+    nntile_model.forward_async()
+    nntile_model.clear_gradients()
 
-nntile_loss_func.calc_async()
+    nntile_loss_func, next_tag =  Frob.generate_simple(nntile_model.activations[-1], next_tag)
+    nntile_loss_func.y.from_array(np.zeros((batch_size, 10), order="F", dtype=np.float32))
+
+    nntile_loss_func.calc_async()
 
 
-nntile_model.backward_async()
+    nntile_model.backward_async()
 
 
-val_np = np.zeros((1,), order="F", dtype=np.float32)
-nntile_loss_func.val.to_array(val_np)
-print("NNTile loss = {}".format(val_np[0]))
-print("Relative diff between Pytorch and NNTile models losses = {}".format(abs(val_np[0] - torch_loss_val) / torch_loss_val))
+    val_np = np.zeros((1,), order="F", dtype=np.float32)
+    nntile_loss_func.val.to_array(val_np)
+    print("NNTile loss = {}".format(val_np[0]))
+    print("Relative diff between Pytorch and NNTile models losses = {}".format(abs(val_np[0] - torch_loss_val) / torch_loss_val))
 
-for i, (p_nntile, p_torch) in enumerate(zip(nntile_model.parameters, torch_model.parameters())):
-    p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
-    p_nntile.grad.to_array(p_nntile_grad_np)
-    # print(p_nntile_grad_np)
-    rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np).T) / torch.norm(p_torch.grad)
-    print("Relative error in gradient in layer {} = {}".format(i, rel_error.item()))
+    for i, (p_nntile, p_torch) in enumerate(zip(nntile_model.parameters, torch_model.parameters())):
+        p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
+        p_nntile.grad.to_array(p_nntile_grad_np)
+        # print(p_nntile_grad_np)
+        rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np).T) / torch.norm(p_torch.grad)
+        print("Relative error in gradient in layer {} = {}".format(i, rel_error.item()))
 
-nntile_model.unregister()
-nntile_loss_func.unregister()
+    nntile_model.unregister()
+    nntile_loss_func.unregister()

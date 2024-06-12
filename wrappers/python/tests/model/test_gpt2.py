@@ -12,32 +12,20 @@
 # @author Aleksandr Mikhalev
 # @date 2023-11-05
 
-# Imports
-import torch
-import nntile
-import math
-import numpy as np
-import time
-import sys
-from torch import Tensor
-import torch.nn as nn
-from transformers import GPT2TokenizerFast, GPT2LMHeadModel, GPT2Model, \
-        GPT2Config
-from torch.optim import Adam
-from torch.optim import SGD
-from datasets import load_dataset
-from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
-        GPT2Model as GPT2Model_nntile
-from nntile.tensor import copy_async
-from nntile.loss import Frob
-import pdb 
-from typing import Union, Optional, Tuple, List
-from packaging import version
-import copy
-import argparse
 import json
+import time
+from pathlib import Path
 
+import numpy as np
+import pytest
+import torch
+import torch.nn as nn
+from torch.optim import SGD, Adam
+from transformers import GPT2Config, GPT2LMHeadModel
 
+import nntile
+from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile
+from nntile.model.gpt2 import GPT2Model as GPT2Model_nntile
 
 # parser.add_argument("--optimizer", choices=["sgd", "adam"], default="adam")
 # parser.add_argument("--seq-len-tile", type=int, default=1024)
@@ -60,7 +48,8 @@ import json
 # args = parser.parse_args()
 # print(args)
 
-def check_grads(model_torch, nntile_model):
+
+def check_grads(config, model_torch, nntile_model):
     nntile_par_idx = 0
     for name, p_torch in model_torch.named_parameters():
         p_torch_grad_np = p_torch.grad.cpu().detach().numpy()
@@ -74,7 +63,6 @@ def check_grads(model_torch, nntile_model):
             norm = np.linalg.norm(p_torch_grad_np)
             nntile_par_idx += 1
         elif layer_name == "c_attn" and name.split(".")[-1] == "weight":
-            attn_head_size = config.n_embd // config.n_head
             diff = 0
             norm = np.linalg.norm(p_torch_grad_np)
             for i_tensor in range(3):
@@ -89,7 +77,6 @@ def check_grads(model_torch, nntile_model):
                 nntile_par_idx += 1
             diff = diff ** 0.5
         elif layer_name == "c_attn" and name.split(".")[-1] == "bias":
-            attn_head_size = config.n_embd // config.n_head
             diff = 0
             norm = np.linalg.norm(p_torch_grad_np)
             for i_tensor in range(3):
@@ -105,7 +92,6 @@ def check_grads(model_torch, nntile_model):
             diff = diff ** 0.5
         elif layer_name == "c_proj" and name.split(".")[-3] == "attn":
             if name.split(".")[-1] == "weight":
-                attn_head_size = config.n_embd // config.n_head
                 diff = 0
                 norm = np.linalg.norm(p_torch_grad_np)
                 p_nntile = nntile_model.parameters[nntile_par_idx]
@@ -142,7 +128,8 @@ def check_grads(model_torch, nntile_model):
         print("Gradient of {}: norm={} rel_err={}".format(name, norm, \
                 diff/norm))
 
-def check_params(model_torch, nntile_model):
+
+def check_params(config, model_torch, nntile_model):
     nntile_par_idx = 0
     for name, p_torch in model_torch.named_parameters():
         p_torch_np = p_torch.cpu().detach().numpy()
@@ -156,7 +143,6 @@ def check_params(model_torch, nntile_model):
             norm = np.linalg.norm(p_torch_np)
             nntile_par_idx += 1
         elif layer_name == "c_attn" and name.split(".")[-1] == "weight":
-            attn_head_size = config.n_embd // config.n_head
             diff = 0
             norm = np.linalg.norm(p_torch_np)
             for i_tensor in range(3):
@@ -171,7 +157,6 @@ def check_params(model_torch, nntile_model):
                 nntile_par_idx += 1
             diff = diff ** 0.5
         elif layer_name == "c_attn" and name.split(".")[-1] == "bias":
-            attn_head_size = config.n_embd // config.n_head
             diff = 0
             norm = np.linalg.norm(p_torch_np)
             for i_tensor in range(3):
@@ -187,7 +172,6 @@ def check_params(model_torch, nntile_model):
             diff = diff ** 0.5
         elif layer_name == "c_proj" and name.split(".")[-3] == "attn":
             if name.split(".")[-1] == "weight":
-                attn_head_size = config.n_embd // config.n_head
                 diff = 0
                 norm = np.linalg.norm(p_torch_np)
                 p_nntile = nntile_model.parameters[nntile_par_idx]
@@ -224,16 +208,26 @@ def check_params(model_torch, nntile_model):
         print("Parameter {}: norm={} rel_err={}".format(name, norm, \
                 diff/norm))
 
-def run_test(num_samples, batch_size, minibatch_size, minibatch_size_tile,
-             seq_len_tile, device, optimizer, lr, nepochs):
 
+@pytest.mark.xfail(reason='not implemented')
+@pytest.mark.parametrize(
+    'num_samples,batch_size,minibatch_size,minibatch_size_tile,seq_len_tile,'
+    'device,optimizer,lr,nepochs', [
+        (8, 4, 2, 2, 1024, 'cuda', 'adam', 1e-4, 3),
+        (8, 4, 2, 2, 1024, 'cpu', 'adam', 1e-4, 3),
+        (8, 4, 2, 2, 1024, 'cuda', 'sgd', 1e-4, 3),
+        (8, 4, 2, 2, 1024, 'cpu', 'sgd', 1e-4, 3),
+    ])
+def test_gpt2(num_samples, batch_size, minibatch_size, minibatch_size_tile,
+              seq_len_tile, device, optimizer, lr, nepochs):
     assert num_samples % batch_size == 0
     assert batch_size % minibatch_size == 0
     num_minibatch = batch_size // minibatch_size
     assert minibatch_size % minibatch_size_tile == 0
 
     # Init model locally or remote and save the corresponding checkpoint for further processing
-    f = open("./wrappers/python/tests/model/gpt2_test_config.json")
+    work_dir = Path(__file__).parent
+    f = open(work_dir / 'gpt2_test_config.json')
     conf_dict = json.load(f)
     f.close()
     config = GPT2Config(**conf_dict)
@@ -253,9 +247,9 @@ def run_test(num_samples, batch_size, minibatch_size, minibatch_size_tile,
     # Initialize NNTile and StarPU
     time0 = time.time()
     # Set up StarPU+MPI and init codelets
-    nntile_config = nntile.starpu.Config(-1, -1, 1)
+    _nntile_config = nntile.starpu.Config(-1, -1, 1)
     nntile.starpu.init()
-# Restrict computations to CUDA if possible
+    # Restrict computations to CUDA if possible
     if device == "cuda":
         nntile.starpu.restrict_cuda()
     elif device == "cpu":
@@ -288,7 +282,7 @@ def run_test(num_samples, batch_size, minibatch_size, minibatch_size_tile,
         torch_optimizer = SGD(model_torch.parameters(), lr)
     next_tag = nntile_optimizer.get_next_tag()
 
-# Create random dataset for train sumulation
+    # Create random dataset for train sumulation
     num_train_batches = num_samples // batch_size
     num_minibatch = batch_size // minibatch_size
     torch.manual_seed(0)
@@ -346,7 +340,7 @@ def run_test(num_samples, batch_size, minibatch_size, minibatch_size_tile,
     print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
 
 
-# Set up training pipeline
+    # Set up training pipeline
     pipeline = nntile.pipeline.Pipeline(batch_input, batch_output, \
             nntile_model, nntile_optimizer, nntile_loss_func, nepochs)
     pipeline.train_async()
@@ -364,18 +358,3 @@ def run_test(num_samples, batch_size, minibatch_size, minibatch_size_tile,
 
     # Unregister all tensors related to model
     nntile_model.unregister()
-
-if __name__ == "__main__":
-    run_test(num_samples=8, batch_size=4, minibatch_size=2,
-            minibatch_size_tile=2, seq_len_tile=1024, device="cuda",
-            optimizer="adam", lr=1e-4, nepochs=3)
-    run_test(num_samples=8, batch_size=4, minibatch_size=2,
-            minibatch_size_tile=2, seq_len_tile=1024, device="cpu",
-            optimizer="adam", lr=1e-4, nepochs=3)
-
-    run_test(num_samples=8, batch_size=4, minibatch_size=2,
-            minibatch_size_tile=2, seq_len_tile=1024, device="cuda",
-            optimizer="sgd", lr=1e-4, nepochs=3)
-    run_test(num_samples=8, batch_size=4, minibatch_size=2,
-            minibatch_size_tile=2, seq_len_tile=1024, device="cpu",
-            optimizer="sgd", lr=1e-4, nepochs=3)

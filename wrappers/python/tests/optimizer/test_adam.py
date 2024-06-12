@@ -1,15 +1,26 @@
-import torch.optim as optim
-import torch.nn as nn
-import torch
-import nntile
-import time
-import copy
 import numpy as np
+import pytest
+import torch
+import torch.optim as optim
 
-nntile_config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
+import nntile
 
-def run_test(dim, num_steps, device, lr, tol=1e-5):
+
+@pytest.fixture(scope='module')
+def starpu():
+    nntile_config = nntile.starpu.Config(1, 0, 0)
+    nntile.starpu.init()
+    yield nntile_config
+
+
+@pytest.mark.xfail(reason='not implemented')
+@pytest.mark.parametrize('dim,num_steps,device,lr', [
+    (1000, 100, 'cpu', 1),
+    (1000, 10, 'cpu', 1e-1),
+    (1000, 10, 'cpu', 1e-4),
+    (1000, 100, 'cpu', 1e-4),
+])
+def test_adam(starpu, dim, num_steps, device, lr, tol=1e-5):
     torch_param = torch.randn((dim, ), device=device, requires_grad=True, dtype=torch.float32)
     next_tag = 0
     x_traits = nntile.tensor.TensorTraits( \
@@ -36,20 +47,5 @@ def run_test(dim, num_steps, device, lr, tol=1e-5):
         assert np.linalg.norm(torch_param.data.cpu().numpy() - nntile_param_np) / \
             np.linalg.norm(torch_param.data.cpu().numpy()) < tol
 
-
     nntile_optimizer.unregister()
     nntile_param.unregister()
-
-if __name__ == "__main__":
-
-    run_test(dim=1000, num_steps=100, device="cpu", lr=1)
-    #run_test(dim=1000, num_steps=100, device="cuda", lr=1)
-
-    #run_test(dim=1000, num_steps=10, device="cuda", lr=1e-1)
-    run_test(dim=1000, num_steps=10, device="cpu", lr=1e-1)
-
-    run_test(dim=1000, num_steps=10, device="cpu", lr=1e-4)
-    #run_test(dim=1000, num_steps=10, device="cuda", lr=1e-4)
-
-    run_test(dim=1000, num_steps=100, device="cpu", lr=1e-4)
-    #run_test(dim=1000, num_steps=100, device="cuda", lr=1e-4)

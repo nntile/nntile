@@ -11,5 +11,9 @@
 # @author Aleksandr Mikhalev
 # @date 2023-05-05
 
-# Test is not yet implemented
-raise NotImplementedError
+import pytest
+
+
+@pytest.mark.xfail(reason='not implemented')
+def test_sumprod_fiber_async():
+    pass

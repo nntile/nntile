@@ -11,5 +11,9 @@
 # @author Aleksandr Mikhalev
 # @date 2023-05-02
 
-# Test is not yet implemented
-raise NotImplementedError
+import pytest
+
+
+@pytest.mark.xfail(reason='not implemented')
+def test_subtract_indexed_column_async():
+    pass

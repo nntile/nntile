@@ -1,18 +1,18 @@
-# Here we use transformers-4.28.1 from https://github.com/huggingface/transformers 
+# Here we use transformers-4.28.1 from https://github.com/huggingface/transformers
 
+import time
+from typing import Optional, Tuple
+
+import numpy as np
+import pytest
 import torch
 import torch.nn as nn
-from nntile.model.gpt2 import GPT2MLP as GPT2MLP_nntile
-from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile
-import time
-import nntile
-import numpy as np
-from typing import Optional, Tuple
-from huggingface_activations import ACT2FN
 from gpt2_config import GPT2Config
+from huggingface_activations import ACT2FN
 
-batch_size = 100
-batch_size_tile = 10
+import nntile
+from nntile.model.gpt2 import GPT2MLP as GPT2MLP_nntile
+
 
 class Conv1D(nn.Module):
     """
@@ -54,81 +54,81 @@ class GPT2MLP(nn.Module):
         return hidden_states
 
 
-interm_size = 1000
-interm_size_tile = 100
-device = "cuda" if torch.cuda.is_available() else "cpu"
-gpt2_config = GPT2Config(activation_function="relu",
-                         resid_pdrop=0.)
+@pytest.mark.xfail(reason='not implemented')
+def test_gpt2mlp(batch_size=100, batch_size_tile=10, interm_size=1000,
+                 interm_size_tile=100):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    gpt2_config = GPT2Config(activation_function="relu",
+                             resid_pdrop=0.)
 
-input_dim = gpt2_config.n_embd
-input_dim_tile = input_dim // 4
-gpt2mlp_hug = GPT2MLP(interm_size, gpt2_config).to(device)
+    input_dim = gpt2_config.n_embd
+    input_dim_tile = input_dim // 4
+    gpt2mlp_hug = GPT2MLP(interm_size, gpt2_config).to(device)
 
-test_input_np = np.array(np.random.randn(input_dim, batch_size), \
-        dtype=np.float32, order="F")
-test_input = torch.from_numpy(test_input_np.T).to(device)
-hug_result = gpt2mlp_hug(test_input)
-print("Norm of the output of PyTorch GPT2MLP", \
-        torch.norm(hug_result).item())
+    test_input_np = np.array(np.random.randn(input_dim, batch_size), \
+            dtype=np.float32, order="F")
+    test_input = torch.from_numpy(test_input_np.T).to(device)
+    hug_result = gpt2mlp_hug(test_input)
+    print("Norm of the output of PyTorch GPT2MLP", \
+            torch.norm(hug_result).item())
 
-torch_val = torch.square(torch.norm(hug_result)) * 0.5
-torch_val.backward()
+    torch_val = torch.square(torch.norm(hug_result)) * 0.5
+    torch_val.backward()
 
-time0 = -time.time()
-# Set up StarPU+MPI and init codelets
-config = nntile.starpu.Config(1, 1, 1)
-nntile.starpu.init()
-time0 += time.time()
-print("StarPU + NNTile + MPI init in {} seconds".format(time0))
-next_tag = 0
+    time0 = -time.time()
+    # Set up StarPU+MPI and init codelets
+    _config = nntile.starpu.Config(1, 1, 1)
+    nntile.starpu.init()
+    time0 += time.time()
+    print("StarPU + NNTile + MPI init in {} seconds".format(time0))
+    next_tag = 0
 
-nntile_config = {
-    "embed_dim": input_dim,
-    "embed_dim_tile": input_dim_tile,
-    "inner_dim": interm_size,
-    "inner_dim_tile": interm_size_tile,
-    "interm_size": interm_size,
-    "interm_size_tile": interm_size_tile,
-    "activation_function": gpt2_config.activation_function
-}
+    nntile_config = {
+        "embed_dim": input_dim,
+        "embed_dim_tile": input_dim_tile,
+        "inner_dim": interm_size,
+        "inner_dim_tile": interm_size_tile,
+        "interm_size": interm_size,
+        "interm_size_tile": interm_size_tile,
+        "activation_function": gpt2_config.activation_function
+    }
 
-x_traits = nntile.tensor.TensorTraits([input_dim, batch_size], \
-        [input_dim_tile, batch_size_tile])
-x_distr = [0] * x_traits.grid.nelems
-x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
-x.from_array(test_input_np)
-next_tag = x.next_tag
-x_grad = None
-x_grad_required = False
-x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
+    x_traits = nntile.tensor.TensorTraits([input_dim, batch_size], \
+            [input_dim_tile, batch_size_tile])
+    x_distr = [0] * x_traits.grid.nelems
+    x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
+    x.from_array(test_input_np)
+    next_tag = x.next_tag
+    x_grad = None
+    x_grad_required = False
+    x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
-print("Create model...")
-gpt2mlp_nntile, next_tag = GPT2MLP_nntile.from_torch(gpt2mlp_hug, x_moments, \
-        nntile_config, next_tag)
-print("Create model...done")
-print("Forward model...")
-gpt2mlp_nntile.forward_async()
-print("Forward model...done")
-gpt2mlp_nntile.clear_gradients()
-nntile.tensor.copy_async(gpt2mlp_nntile.activations[-1].value, \
-        gpt2mlp_nntile.activations[-1].grad)
-gpt2mlp_nntile.backward_async()
+    print("Create model...")
+    gpt2mlp_nntile, next_tag = GPT2MLP_nntile.from_torch(gpt2mlp_hug, x_moments, \
+            nntile_config, next_tag)
+    print("Create model...done")
+    print("Forward model...")
+    gpt2mlp_nntile.forward_async()
+    print("Forward model...done")
+    gpt2mlp_nntile.clear_gradients()
+    nntile.tensor.copy_async(gpt2mlp_nntile.activations[-1].value, \
+            gpt2mlp_nntile.activations[-1].grad)
+    gpt2mlp_nntile.backward_async()
 
-output = np.zeros(gpt2mlp_nntile.activations[-1].value.shape, order="F", \
-        dtype=np.float32)
-gpt2mlp_nntile.activations[-1].value.to_array(output)
-print("Norm of the output of NNtile GPT2MLP", np.linalg.norm(output))
-print("Norm of difference =", np.linalg.norm(output.T - \
-        hug_result.cpu().detach().numpy()))
+    output = np.zeros(gpt2mlp_nntile.activations[-1].value.shape, order="F", \
+            dtype=np.float32)
+    gpt2mlp_nntile.activations[-1].value.to_array(output)
+    print("Norm of the output of NNtile GPT2MLP", np.linalg.norm(output))
+    print("Norm of difference =", np.linalg.norm(output.T - \
+            hug_result.cpu().detach().numpy()))
 
-for i, (p_nntile, p_torch) in enumerate(zip(gpt2mlp_nntile.parameters, gpt2mlp_hug.parameters())):
-    p_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
-    p_nntile.grad.to_array(p_np)
-    p_torch_np = p_torch.grad.cpu().detach().numpy().T
-    rel_error = np.linalg.norm(p_np - p_torch_np) \
-            / np.linalg.norm(p_torch_np)
-    print("Relative error in layer {} gradient = {}".format(i, rel_error))
+    for i, (p_nntile, p_torch) in enumerate(zip(gpt2mlp_nntile.parameters, gpt2mlp_hug.parameters())):
+        p_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
+        p_nntile.grad.to_array(p_np)
+        p_torch_np = p_torch.grad.cpu().detach().numpy().T
+        rel_error = np.linalg.norm(p_np - p_torch_np) \
+                / np.linalg.norm(p_torch_np)
+        print("Relative error in layer {} gradient = {}".format(i, rel_error))
 
-gpt2mlp_nntile.unregister()
-x.unregister()
-
+    gpt2mlp_nntile.unregister()
+    x.unregister()

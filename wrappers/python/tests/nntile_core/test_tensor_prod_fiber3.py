@@ -11,5 +11,9 @@
 # @author Aleksandr Mikhalev
 # @date 2023-07-03
 
-# Test is not yet implemented
-raise NotImplementedError
+import pytest
+
+
+@pytest.mark.xfail(reason='not implemented')
+def test_prod_fiber3_async():
+    pass
