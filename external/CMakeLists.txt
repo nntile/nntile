@@ -15,6 +15,7 @@
 include(FetchContent)
 
 add_subdirectory(fxt)
+add_subdirectory(starpu)
 #add_subdirectory(googletest)
 #add_subdirectory(nvbench)
 add_subdirectory(pybind11)
