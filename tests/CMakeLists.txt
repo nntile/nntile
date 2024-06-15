@@ -11,6 +11,8 @@
 # @author Aleksandr Mikhalev
 # @date 2023-05-02
 
+include(CTest)
+
 # Extend set of ctest-controlled tests and enable code coverage if required.
 # All of the tests shall be launched by the same executable but with different
 # arguments. All the arguments are passed by corresponding keyword ARGS. All
@@ -98,7 +100,7 @@ function(add_test_set)
     endif()
     if(ntests EQUAL 0)
         # Test without arguments
-        message(STATUS "Adding 1 test ${_args_TARGET_NAME}")
+        message(DEBUG "Adding 1 test ${_args_TARGET_NAME}")
         add_test(NAME ${_args_TARGET_NAME} COMMAND ${exec_cmd})
         # Add labels to test if they are actually provided
         if(DEFINED _args_LABELS)
@@ -107,7 +109,7 @@ function(add_test_set)
         endif()
     elseif(ntests EQUAL 1)
         # Test with a single set of arguments
-        message(STATUS "Adding 1 test ${_args_TARGET_NAME}")
+        message(DEBUG "Adding 1 test ${_args_TARGET_NAME}")
         # Convert string of arguments to a list
         string(REPLACE " " ";" _args_ARGS "${_args_ARGS}")
         # Test with properly parsed arguments
@@ -120,7 +122,7 @@ function(add_test_set)
         endif()
     else()
         # Multiple sets of arguments
-        message(STATUS "Adding ${ntests} tests ${_args_TARGET_NAME}")
+        message(DEBUG "Adding ${ntests} tests ${_args_TARGET_NAME}")
         foreach(i RANGE 1 ${ntests})
             # Read current set of arguments as a string
             list(POP_FRONT _args_ARGS current_ARGS)
@@ -153,4 +155,3 @@ add_subdirectory("tile")
 add_subdirectory("tensor")
 #add_subdirectory("layer")
 #add_subdirectory("model")
-

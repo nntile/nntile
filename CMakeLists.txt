@@ -40,6 +40,9 @@ option(BUILD_EXAMPLES "Build examples" OFF)
 option(BUILD_PYTHON_WRAPPERS "Generate Python wrappers" ON)
 option(BUILD_TESTS "Build tests" OFF)
 
+option(SYSTEM_FXT "Use system FxT library" OFF)
+option(SYSTEM_STARPU "Use system StarPU library" OFF)
+
 # Allowed values of NNTILE_BLAS_VENDOR corresponds to BLA_VENDOR of FindBLAS package
 # with the only exception: auxiliary case-sensitive value None in order to
 # not use BLAS/LAPACK routines at all.
@@ -107,24 +110,28 @@ if (NNTILE_USE_CBLAS)
         "Name of header file containing cblas routines")
 endif()
 
+if(BUILD_EXAMPLES)
+    add_subdirectory("examples")
+endif()
+
+add_subdirectory("external")
+add_subdirectory("include")
+add_subdirectory("src")
+
+if(BUILD_PYTHON_WRAPPERS)
+    add_subdirectory("wrappers/python")
+endif()
+
 # Get MPI, disabled for StarPU master-slave option
 #find_package(MPI REQUIRED)
 #target_link_libraries(nntile PUBLIC MPI::MPI_CXX)
 
-# Get the pkg-config
-find_package(PkgConfig REQUIRED)
-
-# Get the StarPU
-pkg_check_modules(StarPU REQUIRED starpu-1.3)
-target_link_libraries(nntile PUBLIC ${StarPU_LDFLAGS})
-target_include_directories(nntile PUBLIC
-    "${PROJECT_SOURCE_DIR}/include"
-    "${PROJECT_BINARY_DIR}/include"
-    ${StarPU_INCLUDE_DIRS}
-    )
-target_include_directories(nntile PRIVATE
-    "${PROJECT_SOURCE_DIR}/external"
-    )
+# TODO(@daskol): Can we replace PUBLIC with PRIVATE?
+target_link_libraries(nntile PUBLIC starpu::starpu)
+target_include_directories(nntile
+    PUBLIC "${PROJECT_SOURCE_DIR}/include"
+    PUBLIC "${PROJECT_BINARY_DIR}/include")
+target_include_directories(nntile PRIVATE "${PROJECT_SOURCE_DIR}/external")
 
 # Configure list of definitions
 configure_file("${PROJECT_SOURCE_DIR}/include/nntile/defs.h.in"
@@ -203,27 +210,6 @@ if(BUILD_COVERAGE)
         GENHTML_ARGS --prefix ${PROJECT_SOURCE_DIR})
 endif()
 
-# Add directory with the sources
-add_subdirectory("src")
-
-# Add sirectory with headers
-add_subdirectory("include")
-
-# Add external sources/headers
-add_subdirectory("external")
-
-# Add subdirectory with tests
 if(BUILD_TESTS)
-    include(CTest)
     add_subdirectory("tests")
-endif()
-
-# Add subdirectory with examples
-if(BUILD_EXAMPLES)
-    add_subdirectory("examples")
-endif()
-
-# Check if Python wrappers are requested
-if(BUILD_PYTHON_WRAPPERS)
-    add_subdirectory("wrappers/python")
 endif()
