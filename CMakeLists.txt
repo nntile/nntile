@@ -100,6 +100,10 @@ if (NNTILE_USE_CBLAS)
     find_package(LAPACK REQUIRED)
     target_link_libraries(nntile PRIVATE BLAS::BLAS LAPACK::LAPACK)
 
+    # TODO(@daskol): Since some distributions do not provide CBLAS interface,
+    # we assume that there is OpenBLAS if we specify BLAS vendor.
+    target_include_directories(nntile PRIVATE /usr/include/openblas)
+
     # TODO(@daskol): Configure integer types and static/shared linkage.
     # https://cmake.org/cmake/help/latest/module/FindBLAS.html#input-variables.
     set(CBLAS_INT_TYPE "int" CACHE STRING

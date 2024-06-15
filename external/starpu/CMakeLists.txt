@@ -13,7 +13,7 @@ else()
     if (DEFINED CMAKE_BUILD_PARALLEL_LEVEL)
         set(APPEND BUILD_COMMAND "-j${CMAKE_BUILD_PARALLEL_LEVEL}")
     else()
-        set(APPEND BUILD_COMMAND "-j8")
+        list(APPEND BUILD_COMMAND "-j8")
     endif()
 
     FetchContent_Declare(starpu

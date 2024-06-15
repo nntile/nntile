@@ -1,0 +1,23 @@
+.*_cache
+.dockerignore
+.git
+Dockerfile
+# Ignore files that trigger image rebuild.
+ci
+# Common directories.
+build
+data
+log
+model
+# Ignore static and shared libraries in case of in-tree build of Python
+# extension.
+**/*.a
+**/*.so
+**/*.so.*
+# Ignore Python bytecode and distributions.
+**/*.egg-info
+**/*.whl
+**/__pycache__/
+wrappers/python/build/
+wrappers/python/dist/
+wrappers/python/wheelhouse/
