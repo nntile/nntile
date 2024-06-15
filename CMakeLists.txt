@@ -33,13 +33,19 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake_modules")
 # List of options and cache variables
 # Build shared libraries instead of static
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static" ON)
-option(USE_CUDA "Use CUDA toolkit" ON)
-option(USE_CBLAS "Use CPU CBLAS" ON)
-option(BUILD_TESTS "Build tests" ON)
-option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
-option(BUILD_EXAMPLES "Build examples" ON)
+option(USE_CUDA "Use CUDA toolkit" OFF)
 option(BUILD_COVERAGE "Generate code coverage report" OFF)
+option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
+option(BUILD_EXAMPLES "Build examples" OFF)
 option(BUILD_PYTHON_WRAPPERS "Generate Python wrappers" ON)
+option(BUILD_TESTS "Build tests" OFF)
+
+# Allowed values of NNTILE_BLAS_VENDOR corresponds to BLA_VENDOR of FindBLAS package
+# with the only exception: auxiliary case-sensitive value None in order to
+# not use BLAS/LAPACK routines at all.
+#
+# https://cmake.org/cmake/help/latest/module/FindBLAS.html#blas-lapack-vendors
+set(NNTILE_BLAS_VENDOR "None" CACHE STRING "BLAS/LAPACK vendors to link against")
 
 # This variable is a way to inform CMake where to symlink or copy Python
 # extension library.
@@ -77,20 +83,28 @@ if(USE_CUDA)
     endif()
 endif()
 
-# Get CBLAS
-set(NNTILE_USE_CBLAS OFF)
-if(USE_CBLAS)
-    find_package(BLAS)
-    if(BLAS_FOUND)
-        target_link_libraries(nntile PRIVATE BLAS::BLAS)
-        set(NNTILE_USE_CBLAS ON)
-        set(CBLAS_INT_TYPE "int" CACHE STRING
-            "CBLAS integer type: int, int32_t or int64_t")
-        set_property(CACHE CBLAS_INT_TYPE PROPERTY STRINGS "int" "int32_t"
-            "int64_t")
-        set(CBLAS_H_NAME "cblas.h" CACHE STRING
-            "Name of header file containing cblas routines")
-    endif()
+if (NNTILE_BLAS_VENDOR STREQUAL "None")
+    set(NNTILE_USE_CBLAS OFF)
+else()
+    set(NNTILE_USE_CBLAS ON)
+endif()
+
+# TODO(@daskol): There is a CMake package to find BLAS/LAPACK with CBLAS
+# interface. Thus proper wording is required here.
+if (NNTILE_USE_CBLAS)
+    set(BLA_VENDOR "${NNTILE_BLAS_VENDOR}")
+    find_package(BLAS REQUIRED)
+    find_package(LAPACK REQUIRED)
+    target_link_libraries(nntile PRIVATE BLAS::BLAS LAPACK::LAPACK)
+
+    # TODO(@daskol): Configure integer types and static/shared linkage.
+    # https://cmake.org/cmake/help/latest/module/FindBLAS.html#input-variables.
+    set(CBLAS_INT_TYPE "int" CACHE STRING
+        "CBLAS integer type: int, int32_t or int64_t")
+    set_property(CACHE CBLAS_INT_TYPE PROPERTY STRINGS "int" "int32_t"
+        "int64_t")
+    set(CBLAS_H_NAME "cblas.h" CACHE STRING
+        "Name of header file containing cblas routines")
 endif()
 
 # Get MPI, disabled for StarPU master-slave option
@@ -115,6 +129,9 @@ target_include_directories(nntile PRIVATE
 # Configure list of definitions
 configure_file("${PROJECT_SOURCE_DIR}/include/nntile/defs.h.in"
     "${PROJECT_BINARY_DIR}/include/nntile/defs.h" @ONLY)
+
+# TODO(@daskol): Replace configuration file generation with proper compilation
+# definitions.
 
 # Configure src/starpu/axpy.cc that relies on cblas
 configure_file("${PROJECT_SOURCE_DIR}/src/starpu/axpy.cc.in"
