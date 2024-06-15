@@ -22,7 +22,7 @@
 
 # Set minimum CMake version to avoid configuration problems
 cmake_minimum_required(VERSION 3.24)
-message(STATUS "Using CMake ${CMAKE_VERSION}")
+cmake_policy(SET CMP0148 NEW)
 
 # Define the project
 project(NNTile VERSION 1.0.0 LANGUAGES CXX)
@@ -45,7 +45,7 @@ option(BUILD_PYTHON_WRAPPERS "Generate Python wrappers" ON)
 # extension library.
 set(NNTILE_CORE_SYMLINK_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/wrappers/python/nntile"
-    CACHE PATH "Where to symlink extension in Python" FORCE)
+    CACHE PATH "Where to symlink extension in Python")
 
 # For easier code navigation and interaction in editors.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

@@ -26,14 +26,14 @@ class build_ext(_build_ext):
             self.build_extension(ext)
 
     def build_extension(self, ext):
-        current_dir = Path.cwd()
         package_dir = Path(__file__).parent
-        root_dir = (package_dir / '../..').resolve().relative_to(current_dir)
+        root_dir = (package_dir / '../..').resolve()
 
         build_dir = Path(self.build_temp)
-        install_dir = Path(self.build_lib)
+        install_dir = Path(self.build_lib) / 'nntile'
         if self.inplace:
-            install_dir = (package_dir / 'nntile').relative_to(current_dir)
+            install_dir = package_dir / 'nntile'
+        install_dir = install_dir.resolve()
 
         # Reconfigure cmake with directory to "install" extension library.
         cmd = ('cmake', '-S', str(root_dir), '-B', str(build_dir),
@@ -50,6 +50,7 @@ class build_ext(_build_ext):
             command = ' '.join(cmd)
             print(f'build_ext: run command: ({command})')
         super().spawn(cmd, search_path, level)
+
 
 setup(ext_modules=[CMakeExtension('nntile.nntile_core')],
       cmdclass={'build_ext': build_ext})
