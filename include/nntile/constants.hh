@@ -19,7 +19,7 @@
 namespace nntile
 {
 
-//! Transposition operation class
+//! Transposition flag data type.
 //
 // Uses predefined constants TransOp::NoTrans and TransOp::Trans
 class TransOp
@@ -49,4 +49,3 @@ public:
 };
 
 } // namespace nntile
-

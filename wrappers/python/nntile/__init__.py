@@ -11,5 +11,8 @@
 # @author Aleksandr Mikhalev
 # @date 2023-02-22
 
-from .nntile_core import starpu, tile, TransOp, trans, notrans
-from . import layer, loss, model, tensor, pipeline, optimizer
+from . import layer, loss, model, optimizer, pipeline, tensor
+from .nntile_core import TransOp, notrans, starpu, tile, trans
+
+__all__ = ('TransOp', 'layer', 'loss', 'model', 'notrans', 'optimizer',
+           'pipeline', 'starpu', 'tensor', 'tile', 'trans')
