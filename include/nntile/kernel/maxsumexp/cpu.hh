@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,19 +10,13 @@
  * Max and sum of exponents of a buffer on CPU
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2022-12-07
  * */
 
 #pragma once
 
 #include <nntile/base_types.hh>
 
-namespace nntile
-{
-namespace kernel
-{
-namespace maxsumexp
+namespace nntile::kernel::maxsumexp
 {
 
 // Compute max and sums of exponents along middle axis
@@ -28,7 +24,5 @@ template<typename T>
 void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
     noexcept;
 
-} // namespace maxsumexp
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::maxsumexp
 

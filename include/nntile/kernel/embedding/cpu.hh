@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,19 +10,13 @@
  * Embeddings from vocabulary within buffers
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-04-21
  * */
 
 #pragma once
 
 #include <nntile/base_types.hh>
 
-namespace nntile
-{
-namespace kernel
-{
-namespace embedding
+namespace nntile::kernel::embedding
 {
 
 // Fill embedding from vocabulary
@@ -29,7 +25,5 @@ void cpu(Index m, Index n, Index k, Index k_start, Index k_size,
         const Index *index, const T *vocab, T *embed)
     noexcept;
 
-} // namespace embedding
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::embedding
 

@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,19 +10,13 @@
  * Per-element maximum of two buffers on CPU
  *
  * @version 1.0.0
- * @author Aleksandr Katrutsa
- * @date 2023-02-10
  * */
 
 #pragma once
 
 #include <nntile/base_types.hh>
 
-namespace nntile
-{
-namespace kernel
-{
-namespace maximum
+namespace nntile::kernel::maximum
 {
 
 // Per-element maximum of two buffers
@@ -28,7 +24,5 @@ template<typename T>
 void cpu(Index nelems, const T *src, T *dst)
     noexcept;
 
-} // namespace maximum
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::maximum
 
