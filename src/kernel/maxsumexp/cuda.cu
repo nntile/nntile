@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,16 +10,14 @@
  * Max and sum of exponents of a buffer on CUDA
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @author Daniel Bershatsky
- * @date 2023-11-06
  * */
 
 #include <iostream>
 
 #include "nntile/kernel/maxsumexp/cuda.hh"
 
-namespace nntile::kernel::maxsumexp {
+namespace nntile::kernel::maxsumexp
+{
 
 /**
  * This implementation is taken from 3c4a8ee08f66732d67789f851c6bff788e41fd38.

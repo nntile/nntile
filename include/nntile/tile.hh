@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,10 +10,6 @@
  * Header for Tile<T> class with corresponding operations
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @author Aleksandr Katrutsa
- * @author Konstantin Sozykin
- * @date 2023-11-23
  * */
 
 #pragma once
@@ -76,14 +74,11 @@
 #include <nntile/tile/adam_step.hh>
 #include <nntile/tile/adamw_step.hh>
 
-namespace nntile
-{
 //! @namespace nntile::tile
 /*! This namespace holds high-level routines for Tile<T>
  * */
-namespace tile
+namespace nntile::tile
 {
 
-} // namespace tile
-} // namespace nntile
+} // namespace nntile::tile
 

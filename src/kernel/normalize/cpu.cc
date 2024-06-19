@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,18 +10,12 @@
  * Normalize operation for a buffer on CPU
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-11-06
  * */
 
 #include "nntile/kernel/normalize/cpu.hh"
 #include <cmath>
 
-namespace nntile
-{
-namespace kernel
-{
-namespace normalize
+namespace nntile::kernel::normalize
 {
 
 template<typename T>
@@ -118,7 +114,5 @@ void cpu<fp64_t>(Index m, Index n, Index k, Index l, fp64_t eps,
         fp64_t *dst)
     noexcept;
 
-} // namespace normalize
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::normalize
 

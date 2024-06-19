@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,18 +10,12 @@
  * Inplace softmax operation on CUDA
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-11-20
  * */
 
 #include "nntile/kernel/softmax_inplace/cuda.hh"
 #include <stdio.h>
 
-namespace nntile
-{
-namespace kernel
-{
-namespace softmax_inplace
+namespace nntile::kernel::softmax_inplace
 {
 
 template<typename T>
@@ -109,7 +105,5 @@ void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
         const fp64_t *maxsumexp, fp64_t alpha, fp64_t *dst)
     noexcept;
 
-} // namespace softmax_inplace
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::softmax_inplace
 

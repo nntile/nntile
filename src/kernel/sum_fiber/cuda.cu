@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,19 +10,13 @@
  * Sums over slices into a fiber of a buffer on CUDA
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-09-14
  * */
 
 #include "nntile/kernel/sum_fiber/cuda.hh"
 #include <cmath>
 #include <algorithm>
 
-namespace nntile
-{
-namespace kernel
-{
-namespace sum_fiber
+namespace nntile::kernel::sum_fiber
 {
 
 template<typename T>
@@ -137,7 +133,5 @@ void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
         fp64_t alpha, const fp64_t *src, fp64_t beta, fp64_t *dst)
     noexcept;
 
-} // namespace sum_fiber
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::sum_fiber
 

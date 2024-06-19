@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,18 +10,12 @@
  * Inplace softmax operation for StarPU buffer
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-07-02
  * */
 
 #include "nntile/starpu/softmax_inplace.hh"
 #include "nntile/kernel/softmax_inplace.hh"
 
-namespace nntile
-{
-namespace starpu
-{
-namespace softmax_inplace
+namespace nntile::starpu::softmax_inplace
 {
 
 //! softmax buffer along middle axis of StarPU buffer
@@ -148,7 +144,5 @@ template
 void submit<fp64_t>(Index m, Index n, Index k, Handle maxsumexp, fp64_t alpha,
         Handle dst);
 
-} // namespace softmax_inplace
-} // namespace starpu
-} // namespace nntile
+} // namespace nntile::starpu::softmax_inplace
 

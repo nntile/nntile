@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,16 +10,12 @@
  * Fuse Adam step operation for Tensor<T>
  *
  * @version 1.0.0
- * @author Aleksandr Katrutsa
- * @date 2023-07-21
  * */
 
 #include "nntile/tensor/adam_step.hh"
 #include "nntile/starpu/adam_step.hh"
 
-namespace nntile
-{
-namespace tensor
+namespace nntile::tensor
 {
 
 //! Asynchronous tensor-wise fuse Adam step
@@ -106,6 +104,5 @@ void adam_step<fp64_t>(Index num_iter, fp64_t beta_1, fp64_t beta_2, fp64_t eps,
     const Tensor<fp64_t> &grad, const Tensor<fp64_t> &first_moment, const Tensor<fp64_t> &second_moment,
                    const Tensor<fp64_t> &p);
 
-} // namespace tensor
-} // namespace nntile
+} // namespace nntile::tensor
 

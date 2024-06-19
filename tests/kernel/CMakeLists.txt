@@ -1,5 +1,7 @@
-# @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
-#                          (Skoltech). All rights reserved.
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,11 +10,6 @@
 # Tests for nntile::kernel functions
 #
 # @version 1.0.0
-# @author Aleksandr Mikhalev
-# @author Aleksandr Katrutsa
-# @author Konstantin Sozykin
-# @author Daniel Bershatsky
-# @date 2023-11-26
 
 # All unit tests without arguments to test executable
 set(TESTS

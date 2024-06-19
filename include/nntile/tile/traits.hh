@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,8 +10,6 @@
  * Integer properties of the Tile<T> class
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2022-09-27
  * */
 
 #pragma once
@@ -20,9 +20,7 @@
 #include <stdexcept>
 #include <iostream>
 
-namespace nntile
-{
-namespace tile
+namespace nntile::tile
 {
 
 //! Integer arithmetics for tiles, that are arrays stored contiguously
@@ -196,6 +194,5 @@ public:
             const TileTraits &traits);
 };
 
-} // namespace tile
-} // namespace nntile
+} // namespace nntile::tile
 

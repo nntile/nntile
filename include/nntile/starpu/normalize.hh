@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,8 +10,6 @@
  * Normalize operation for StarPU buffer
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2022-12-09
  * */
 
 #pragma once
@@ -18,11 +18,7 @@
 #include <nntile/starpu/config.hh>
 #include <nntile/defs.h>
 
-namespace nntile
-{
-namespace starpu
-{
-namespace normalize
+namespace nntile::starpu::normalize
 {
 
 //! Structure for arguments
@@ -79,7 +75,5 @@ template<typename T>
 void submit(Index m, Index n, Index k, Index l, T eps, Handle gamma_beta,
         Handle sumnorm, Handle dst);
 
-} // namespace normalize
-} // namespace starpu
-} // namespace nntile
+} // namespace nntile::starpu::normalize
 

@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,17 +10,13 @@
  * Normalize operation for Tensor<T>
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2022-09-26
  * */
 
 #pragma once
 
 #include <nntile/tensor/tensor.hh>
 
-namespace nntile
-{
-namespace tensor
+namespace nntile::tensor
 {
 
 template<typename T>
@@ -29,6 +27,5 @@ template<typename T>
 void normalize(const Tensor<T> &gamma_beta, const Tensor<T> &src,
         const Tensor<T> &dst, Index l, T eps, Index axis);
 
-} // namespace tensor
-} // namespace nntile
+} // namespace nntile::tensor
 

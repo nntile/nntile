@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,18 +10,11 @@
  * Copy subarray based on contiguous indices
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @author Aleksandr Katrutsa
- * @date 2023-09-01
  * */
 
 #include "nntile/kernel/subcopy/cpu.hh"
 
-namespace nntile
-{
-namespace kernel
-{
-namespace subcopy
+namespace nntile::kernel::subcopy
 {
 
 template<typename T>
@@ -138,7 +133,5 @@ void cpu<bool_t>(Index ndim, const Index *src_start, const Index *src_stride,
         const Index *dst_stride, bool_t *dst, Index *tmp_index)
     noexcept;
 
-} // namespace subcopy
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::subcopy
 

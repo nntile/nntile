@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,18 +10,12 @@
  * Convert fp32_t array into fp16_t array
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-05-09
  * */
 
 #include "nntile/starpu/fp32_to_fp16.hh"
 #include "nntile/kernel/fp32_to_fp16.hh"
 
-namespace nntile
-{
-namespace starpu
-{
-namespace fp32_to_fp16
+namespace nntile::starpu::fp32_to_fp16
 {
 
 #ifdef NNTILE_USE_CUDA
@@ -97,7 +93,5 @@ void submit(Index nelems, Handle src, Handle dst)
     }
 }
 
-} // namespace fp32_to_fp16
-} // namespace starpu
-} // namespace nntile
+} // namespace nntile::starpu::fp32_to_fp16
 

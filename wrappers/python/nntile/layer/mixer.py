@@ -1,3 +1,16 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file wrappers/python/nntile/layer/mixer.py
+# Mixer layer of NNTile Python package
+#
+# @version 1.0.0
+
 from nntile.tensor import TensorMoments, TensorTraits, notrans, add_async, add_slice_async, sum_slice_async, clear_async, transpose_async
 from nntile.layer.base_layer import BaseLayer
 from nntile.layer.layer_norm import LayerNorm

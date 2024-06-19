@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,19 +10,13 @@
  * Per-element maximum of two StarPU buffers
  *
  * @version 1.0.0
- * @author Aleksandr Katrutsa
- * @date 2023-02-10
  * */
 
 #include "nntile/starpu/maximum.hh"
 #include "nntile/kernel/maximum.hh"
 
-namespace nntile
-{
-namespace starpu
-{
 //! StarPU wrappers for maximum operation
-namespace maximum
+namespace nntile::starpu::maximum
 {
 
 //! Apply maximum operation on StarPU buffers on CPU
@@ -118,6 +114,5 @@ void submit<fp32_t>(Index nelems, Handle src, Handle dst);
 template
 void submit<fp64_t>(Index nelems, Handle src, Handle dst);
 
-} // namespace maximum
-} // namespace starpu
-} // namespace nntile
+} // namespace nntile::starpu::maximum
+

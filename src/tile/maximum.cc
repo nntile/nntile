@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,16 +10,12 @@
  * Per-element maximum of two Tile<T>
  *
  * @version 1.0.0
- * @author Aleksandr Katrutsa
- * @date 2023-02-10
  * */
 
 #include "nntile/tile/maximum.hh"
 #include "nntile/starpu/maximum.hh"
 
-namespace nntile
-{
-namespace tile
+namespace nntile::tile
 {
 
 //! Asynchronous version of tile-wise maximum operation
@@ -61,5 +59,5 @@ void maximum<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 template
 void maximum<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
-} // namespace tile
-} // namespace nntile
+} // namespace nntile::tile
+

@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,17 +10,12 @@
  * Backward approximate GeLU operation for Tile<T>
  *
  * @version 1.0.0
- * @author Aleksandr Katrutsa
- * @author Aleksandr Mikhalev
- * @date 2023-04-05
  * */
 
 #include "nntile/tile/gelutanh_backward.hh"
 #include "nntile/starpu/gelutanh_backward.hh"
 
-namespace nntile
-{
-namespace tile
+namespace nntile::tile
 {
 
 //! Asynchronous tile-wise backward approximate GeLU operation
@@ -69,6 +66,5 @@ template
 void gelutanh_backward<fp64_t>(const Tile<fp64_t> &x, const Tile<fp64_t> &dy,
         const Tile<fp64_t> &dx);
 
-} // namespace tile
-} // namespace nntile
+} // namespace nntile::tile
 

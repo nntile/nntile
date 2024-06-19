@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,8 +10,6 @@
  * Flash Attention backward to get gradients of Q and K
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-11-12
  * */
 
 #pragma once
@@ -17,11 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/starpu/config.hh>
 
-namespace nntile
-{
-namespace starpu
-{
-namespace flash_softmax_gemm_backward_dq_dk
+namespace nntile::starpu::flash_softmax_gemm_backward_dq_dk
 {
 
 //! Structure for arguments
@@ -77,7 +73,5 @@ void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle sumprod_slice, Handle dQ, Handle dK, Handle tmp,
         Handle tmp_grad, int redux=0, int fp32_fast_tf32=0);
 
-} // namespace flash_softmax_gemm_backward_dq_dk
-} // namespace starpu
-} // namespace nntile
+} // namespace nntile::starpu::flash_softmax_gemm_backward_dq_dk
 

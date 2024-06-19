@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,8 +10,6 @@
  * Inverse of a hypot operation of a buffer and a scalar
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-09-28
  * */
 
 #pragma once
@@ -17,18 +17,12 @@
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
 
-namespace nntile
-{
-namespace kernel
-{
-namespace hypot_scalar_inverse
+namespace nntile::kernel::hypot_scalar_inverse
 {
 
 template<typename T>
 void cuda(cudaStream_t stream, Index nelems, T eps, T alpha, T* dst)
     noexcept;
 
-} // namespace hypot_scalar_inverse
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::hypot_scalar_inverse
 

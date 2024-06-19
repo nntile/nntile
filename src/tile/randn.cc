@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,16 +10,12 @@
  * Randn operation for Tile<T>
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2022-12-02
  * */
 
 #include "nntile/tile/randn.hh"
 #include "nntile/starpu/randn.hh"
 
-namespace nntile
-{
-namespace tile
+namespace nntile::tile
 {
 
 //! Asynchronous tile-wise random generation operation
@@ -125,6 +123,5 @@ void randn<fp64_t>(const Tile<fp64_t> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         fp64_t mean, fp64_t stddev);
 
-} // namespace tile
-} // namespace nntile
+} // namespace nntile::tile
 

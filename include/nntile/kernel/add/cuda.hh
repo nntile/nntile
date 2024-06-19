@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,10 +10,6 @@
  * Add operation on buffers on CUDA
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @author Aleksandr Katrutsa
- * @author Konstantin Sozykin
- * @date 2023-09-10
  * */
 
 #pragma once
@@ -19,11 +17,7 @@
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
 
-namespace nntile
-{
-namespace kernel
-{
-namespace add
+namespace nntile::kernel::add
 {
 
 // Apply add for buffers on CUDA
@@ -37,7 +31,5 @@ void cuda16(cudaStream_t stream, Index nelems, fp32_t alpha, const fp16_t *src, 
         fp16_t *dst)
     noexcept;
 
-} // namespace add
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::add
 

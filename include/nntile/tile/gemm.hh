@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,8 +10,6 @@
  * GEMM operation for Tile<T>
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-05-04
  * */
 
 #pragma once
@@ -17,9 +17,7 @@
 #include <nntile/tile/tile.hh>
 #include <nntile/constants.hh>
 
-namespace nntile
-{
-namespace tile
+namespace nntile::tile
 {
 
 // Check if tensors match gemm
@@ -39,6 +37,5 @@ void gemm(T_scal alpha, const TransOp &transA, const Tile<T> &A,
         const TransOp &transB, const Tile<T> &B, T_scal beta, const Tile<T> &C,
         Index ndim, Index batch_ndim);
 
-} // namespace tile
-} // namespace nntile
+} // namespace nntile::tile
 

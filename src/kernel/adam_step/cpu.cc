@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,19 +10,12 @@
  * Fused Adam step on buffers on CPU
  *
  * @version 1.0.0
- * @author Aleksandr Katrutsa
- * @author Aleksandr Mikhalev
- * @date 2023-11-22
  * */
 
 #include "nntile/kernel/adam_step/cpu.hh"
 #include <cmath>
 
-namespace nntile
-{
-namespace kernel
-{
-namespace adam_step
+namespace nntile::kernel::adam_step
 {
 
 template<typename T>
@@ -94,6 +89,5 @@ void cpu<fp64_t>(Index num_iter, Index num_elems, fp64_t beta_1, fp64_t beta_2, 
          fp64_t* grad, fp64_t* first_moment, fp64_t* second_moment, fp64_t* p)
     noexcept;
 
-} // namespace adam_step
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::adam_step
+

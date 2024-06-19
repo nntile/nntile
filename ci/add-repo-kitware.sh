@@ -1,4 +1,16 @@
 #!/bin/sh
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file ci/add-repo-kitware
+# A script to add source of CMake package to the APT system
+#
+# @version 1.0.0
 
 set -xe
 

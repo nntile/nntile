@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,17 +10,11 @@
  * Derivative of GeLU operation on a buffer on CUDA
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-05-03
  * */
 
 #include "nntile/kernel/dgelu/cuda.hh"
 
-namespace nntile
-{
-namespace kernel
-{
-namespace dgelu
+namespace nntile::kernel::dgelu
 {
 
 template<typename T>
@@ -65,7 +61,5 @@ template
 void cuda<fp64_t>(cudaStream_t stream, Index nelems, fp64_t *data)
     noexcept;
 
-} // namespace dgelu
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::dgelu
 

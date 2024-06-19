@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,8 +10,6 @@
  * Backward GeLU low-level kernels
  *
  * @version 1.0.0
- * @author Aleksandr Katrutsa
- * @date 2023-04-05
  * */
 
 #pragma once
@@ -20,17 +20,11 @@
 #include <nntile/kernel/gelu_backward/cuda.hh>
 #endif // NNTILE_USE_CUDA
 
-namespace nntile
-{
-namespace kernel
-{
 //! @namespace nntile::kernel::gelu_backward
 /*! Low-level implementations of backward GeLU operation
  * */
-namespace gelu_backward
+namespace nntile::kernel::gelu_backward
 {
 
-} // namespace gelu_backward
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::gelu_backward
 

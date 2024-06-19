@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,18 +10,13 @@
  * Add operation for two Tile<T>'s
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @author Aleksandr Katrutsa
- * @date 2023-05-08
  * */
 
 #pragma once
 
 #include <nntile/tile/tile.hh>
 
-namespace nntile
-{
-namespace tile
+namespace nntile::tile
 {
 
 // Tile-wise add operation
@@ -30,6 +27,5 @@ void add_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst);
 template<typename T>
 void add(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst);
 
-} // namespace tile
-} // namespace nntile
+} // namespace nntile::tile
 

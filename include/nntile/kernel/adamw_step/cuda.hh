@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,9 +10,6 @@
  * Fused AdamW step on CUDA buffers
  *
  * @version 1.0.0
- * @author Aleksandr Katrutsa
- * @author Aleksandr Mikhalev
- * @date 2023-11-26
  * */
 
 #pragma once
@@ -18,11 +17,7 @@
 #include <nntile/base_types.hh>
 #include <cuda_runtime.h>
 
-namespace nntile
-{
-namespace kernel
-{
-namespace adamw_step
+namespace nntile::kernel::adamw_step
 {
 
 template<typename T>
@@ -31,6 +26,5 @@ void cuda(cudaStream_t stream, Index num_iter, Index num_elems, T beta_1, T beta
          T* grad, T* first_moment, T* second_moment, T* p)
     noexcept;
 
-} // namespace adamw_step
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::adamw_step
+

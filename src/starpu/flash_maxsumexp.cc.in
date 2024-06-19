@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,8 +10,6 @@
  * Fused materialization and maxsumexp for StarPU buffer
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-11-17
  * */
 
 #include "nntile/starpu/flash_maxsumexp.hh"
@@ -32,11 +32,7 @@
 #   include <cuda_fp16.h>
 #endif // NNTILE_USE_CUDA
 
-namespace nntile
-{
-namespace starpu
-{
-namespace flash_maxsumexp
+namespace nntile::starpu::flash_maxsumexp
 {
 
 #ifdef NNTILE_USE_CBLAS
@@ -338,7 +334,5 @@ template
 void submit<fp64_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle mask, Handle maxsumexp, Handle tmp, int redux, int fp32_fast_tf32);
 
-} // namespace flash_maxsumexp
-} // namespace starpu
-} // namespace nntile
+} // namespace nntile::starpu::flash_maxsumexp
 

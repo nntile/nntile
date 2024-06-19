@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2024 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,16 +10,12 @@
  * Backward embeddings from vocabulary within Tensor<T>
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2024-01-23
  * */
 
 #include "nntile/tensor/embedding_backward.hh"
 #include "nntile/starpu/embedding_backward.hh"
 
-namespace nntile
-{
-namespace tensor
+namespace nntile::tensor
 {
 
 template<typename T>
@@ -148,6 +146,5 @@ void embedding_backward<fp64_t>(const Tensor<Index> &index,
         const Tensor<fp64_t> &embed, const Tensor<fp64_t> &vocab, Index axis,
         int redux);
 
-} // namespace tensor
-} // namespace nntile
+} // namespace nntile::tensor
 
