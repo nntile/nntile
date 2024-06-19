@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,17 +10,11 @@
  * Accumulate maxsumexp buffers on CUDA
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-09-20
  * */
 
 #include "nntile/kernel/accumulate_maxsumexp/cuda.hh"
 
-namespace nntile
-{
-namespace kernel
-{
-namespace accumulate_maxsumexp
+namespace nntile::kernel::accumulate_maxsumexp
 {
 
 template<typename T>
@@ -89,7 +85,5 @@ void cuda<fp64_t>(cudaStream_t stream, Index nelems, const fp64_t *src,
         fp64_t *dst)
     noexcept;
 
-} // namespace accumulate_maxsumexp
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::accumulate_maxsumexp
 

@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,18 +10,12 @@
  * Per-element addition of a tensor and a broadcasted slice on CUDA
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-09-14
  * */
 
 #include "nntile/kernel/add_slice/cuda.hh"
 #include <algorithm>
 
-namespace nntile
-{
-namespace kernel
-{
-namespace add_slice
+namespace nntile::kernel::add_slice
 {
 
 template<typename T>
@@ -103,7 +99,5 @@ void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, fp64_t alpha,
         const fp64_t *src, fp64_t beta, fp64_t *dst)
     noexcept;
 
-} // namespace add_slice
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::add_slice
 

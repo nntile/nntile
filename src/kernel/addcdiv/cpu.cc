@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,17 +10,11 @@
  * Per-element addcdiv operation for buffers on CPU
  *
  * @version 1.0.0
- * @author Aleksandr Katrutsa
- * @date 2023-02-14
  * */
 
 #include "nntile/kernel/addcdiv/cpu.hh"
 
-namespace nntile
-{
-namespace kernel
-{
-namespace addcdiv
+namespace nntile::kernel::addcdiv
 {
 
 template<typename T>
@@ -53,6 +49,5 @@ void cpu<fp64_t>(fp64_t val, fp64_t eps, Index nelems,
                  const fp64_t* nom, const fp64_t* denom, fp64_t* res)
     noexcept;
 
-} // namespace addcdiv
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::addcdiv
+

@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,18 +10,12 @@
  * GeLU operation on CPU
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2022-08-31
  * */
 
 #include "nntile/kernel/gelu/cpu.hh"
 #include <cmath>
 
-namespace nntile
-{
-namespace kernel
-{
-namespace gelu
+namespace nntile::kernel::gelu
 {
 
 template<typename T>
@@ -53,7 +49,5 @@ template
 void cpu<fp64_t>(Index nelems, fp64_t *data)
     noexcept;
 
-} // namespace gelu
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::gelu
 
