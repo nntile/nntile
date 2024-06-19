@@ -17,7 +17,7 @@
 #include <cstdlib>
 
 //! StarPU wrappers for one step of Adam optimizer
-namespace nntile::kernel::adam_step
+namespace nntile::starpu::adam_step
 {
 
 //! Apply Adam step on StarPU buffers on CPU
@@ -145,5 +145,5 @@ void submit<fp64_t>(Index num_iter, Index num_elems, fp64_t beta_1, fp64_t beta_
             fp64_t eps, fp64_t lr, fp64_t weight_decay,
             Handle grad, Handle first_moment, Handle second_moment, Handle p);
 
-} // namespace nntile::kernel::adam_step
+} // namespace nntile::starpu::adam_step
 

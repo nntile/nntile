@@ -17,7 +17,7 @@
 #include <cstdlib>
 
 //! StarPU wrappers for accumulate_maxsumexp operation
-namespace nntile::kernel::accumulate_maxsumexp
+namespace nntile::starpu::accumulate_maxsumexp
 {
 
 //! Apply accumulate_maxsumexp operation for StarPU buffers in CPU
@@ -127,5 +127,5 @@ void submit<fp32_t>(Handle src, Handle dst);
 template
 void submit<fp64_t>(Handle src, Handle dst);
 
-} // namespace nntile::kernel::accumulate_maxsumexp
+} // namespace nntile::starpu::accumulate_maxsumexp
 

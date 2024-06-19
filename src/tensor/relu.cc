@@ -65,6 +65,5 @@ void relu<fp32_t>(const Tensor<fp32_t> &A);
 template
 void relu<fp64_t>(const Tensor<fp64_t> &A);
 
-} // namespace tensor
-} // namespace nntile
+} // namespace nntile::tensor
 
