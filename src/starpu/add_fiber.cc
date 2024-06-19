@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,20 +10,14 @@
  * StarPU wrappers for addition of a tensor and a broadcasted fiber
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-07-21
  * */
 
 #include "nntile/starpu/add_fiber.hh"
 #include "nntile/kernel/add_fiber.hh"
 #include <cstdlib>
 
-namespace nntile
-{
-namespace starpu
-{
 //! StarPU wrappers for add_fiber operation
-namespace add_fiber
+namespace nntile::starpu::add_fiber
 {
 
 //! StarPU wrapper for kernel::add_fiber::cpu<T>
@@ -168,7 +164,5 @@ template
 void submit<fp64_t>(Index m, Index n, Index k, Index batch, fp64_t alpha,
         Handle src, fp64_t beta, Handle dst);
 
-} // namespace add_fiber
-} // namespace starpu
-} // namespace nntile
+} // namespace nntile::starpu::add_fiber
 

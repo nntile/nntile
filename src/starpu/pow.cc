@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,19 +10,13 @@
  * Power operation on a StarPU buffer
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-04-18
  * */
 
 #include "nntile/starpu/pow.hh"
 #include "nntile/kernel/pow.hh"
 #include <cstdlib>
 
-namespace nntile
-{
-namespace starpu
-{
-namespace pow
+namespace nntile::starpu::pow
 {
 
 //! Inplace power operation of StarPU buffer on CPU
@@ -123,7 +119,5 @@ void submit<fp32_t>(Index nelems, fp32_t alpha, fp32_t exp, Handle data);
 template
 void submit<fp64_t>(Index nelems, fp64_t alpha, fp64_t exp, Handle data);
 
-} // namespace pow
-} // namespace starpu
-} // namespace nntile
+} // namespace nntile::starpu::pow
 

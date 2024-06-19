@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,16 +10,12 @@
  * Derivative of ReLU operation for Tile<T>
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-01-31
  * */
 
 #include "nntile/tile/drelu.hh"
 #include "nntile/starpu/drelu.hh"
 
-namespace nntile
-{
-namespace tile
+namespace nntile::tile
 {
 
 //! Blocking version of tile-wise derivative of ReLU operation
@@ -54,6 +52,5 @@ void drelu<fp32_t>(const Tile<fp32_t> &A);
 template
 void drelu<fp64_t>(const Tile<fp64_t> &A);
 
-} // namespace tile
-} // namespace nntile
+} // namespace nntile::tile
 

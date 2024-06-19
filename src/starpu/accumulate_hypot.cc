@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,20 +10,14 @@
  * Accumulate one StarPU buffers into another as hypot
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-09-19
  * */
 
 #include "nntile/starpu/accumulate_hypot.hh"
 #include "nntile/kernel/hypot.hh"
 #include <cstdlib>
 
-namespace nntile
-{
-namespace starpu
-{
 //! StarPU wrappers for accumulate_hypot operation
-namespace accumulate_hypot
+namespace nntile::starpu::accumulate_hypot
 {
 
 //! Apply accumulate_hypot operation for StarPU buffers in CPU
@@ -131,7 +127,5 @@ void submit<fp32_t>(Handle src, Handle dst);
 template
 void submit<fp64_t>(Handle src, Handle dst);
 
-} // namespace accumulate_hypot
-} // namespace starpu
-} // namespace nntile
+} // namespace nntile::starpu::accumulate_hypot
 

@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2022 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,19 +10,13 @@
  * Derivative of approximate GeLU operation on a StarPU buffer
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2022-10-25
  * */
 
 #include "nntile/starpu/dgelutanh.hh"
 #include "nntile/kernel/dgelutanh.hh"
 
-namespace nntile
-{
-namespace starpu
-{
 //! StarPU wrappers for derivative of approximate GeLU operation
-namespace dgelutanh
+namespace nntile::starpu::dgelutanh
 {
 
 //! Apply dgelutanh on StarPU buffer on CPU
@@ -115,7 +111,5 @@ void submit<fp32_t>(Index nelems, Handle data);
 template
 void submit<fp64_t>(Index nelems, Handle data);
 
-} // namespace dgelutanh
-} // namespace starpu
-} // namespace nntile
+} // namespace nntile::starpu::dgelutanh
 

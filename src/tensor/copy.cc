@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,17 +10,12 @@
  * Copy one tensors into another matching tensor
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @author Aleksandr Katrutsa
- * @date 2023-09-18
  * */
 
 #include "nntile/tensor/copy.hh"
 #include "nntile/starpu/copy.hh"
 
-namespace nntile
-{
-namespace tensor
+namespace nntile::tensor
 {
 
 //! Asynchronous tensor-wise copy operation
@@ -93,6 +90,5 @@ void copy<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 template
 void copy<Index>(const Tensor<Index> &src, const Tensor<Index> &dst);
 
-} // namespace tensor
-} // namespace nntile
+} // namespace nntile::tensor
 

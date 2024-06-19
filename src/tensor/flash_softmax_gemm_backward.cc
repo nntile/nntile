@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,8 +10,6 @@
  * Fast backward of softmax and gemm operations
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-11-12
  * */
 
 #include "nntile/tensor/flash_softmax_gemm_backward.hh"
@@ -18,9 +18,7 @@
 #include <cmath>
 #include <limits>
 
-namespace nntile
-{
-namespace tensor
+namespace nntile::tensor
 {
 
 template<typename T>
@@ -249,6 +247,5 @@ void flash_softmax_gemm_backward(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &
         const Tensor<fp64_t> &tmp, const Tensor<fp64_t> &tmp_grad,
         const Tensor<fp64_t> &tmp_sumprod_slice, int redux, int fp32_fast_tf32);
 
-} // namespace tensor
-} // namespace nntile
+} // namespace nntile::tensor
 

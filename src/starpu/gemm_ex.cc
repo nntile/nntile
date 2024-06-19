@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,8 +10,6 @@
  * GEMM extended operations for StarPU buffers
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-11-12
  * */
 
 #include "nntile/starpu/gemm_ex.hh"
@@ -19,11 +19,7 @@
 #   include <starpu_cublas_v2.h>
 #endif // NNTILE_USE_CUDA
 
-namespace nntile
-{
-namespace starpu
-{
-namespace gemm_ex
+namespace nntile::starpu::gemm_ex
 {
 
 #ifdef NNTILE_USE_CUDA
@@ -273,7 +269,5 @@ void submit<fp32_t>(const TransOp &transA, const TransOp &transB, Index m,
         Index n, Index k, Index batch, fp32_t alpha, Handle A, Handle B,
         fp32_t beta, Handle C, int redux);
 
-} // namespace gemm_ex
-} // namespace starpu
-} // namespace nntile
+} // namespace nntile::starpu::gemm_ex
 

@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,16 +10,12 @@
  * Power operation for Tile<T>
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-04-18
  * */
 
 #include "nntile/tile/pow.hh"
 #include "nntile/starpu/pow.hh"
 
-namespace nntile
-{
-namespace tile
+namespace nntile::tile
 {
 
 //! Asynchronous tile-wise power operation
@@ -54,6 +52,5 @@ void pow<fp32_t>(fp32_t alpha, fp32_t exp, const Tile<fp32_t> &A);
 template
 void pow<fp64_t>(fp64_t alpha, fp64_t exp, const Tile<fp64_t> &A);
 
-} // namespace tile
-} // namespace nntile
+} // namespace nntile::tile
 
