@@ -1,5 +1,7 @@
-# @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
-#                           (Skoltech). All rights reserved.
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,8 +10,6 @@
 # Deep Linear model of NNTile Python package
 #
 # @version 1.0.0
-# @author Gleb Karpov
-# @date 2023-09-07
 
 from nntile.tensor import TensorTraits, Tensor_fp32, TensorMoments, notrans, clear_async
 from nntile.model.base_model import BaseModel
