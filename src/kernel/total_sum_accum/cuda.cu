@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,18 +10,11 @@
  * total_sum_accum operation on CUDA
  *
  * @version 1.0.0
- * @author Aleksandr Katrutsa
- * @author Aleksandr Mikhalev
- * @date 2023-11-11
  * */
 
 #include "nntile/kernel/total_sum_accum/cuda.hh"
 
-namespace nntile
-{
-namespace kernel
-{
-namespace total_sum_accum
+namespace nntile::kernel::total_sum_accum
 {
 
 template<typename T>
@@ -68,7 +63,5 @@ void cuda<fp64_t>(cudaStream_t stream, fp64_t alpha, Index n_labels, Index n_out
         const Index* labels, fp64_t *val)
     noexcept;
 
-} // namespace total_sum_accum
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::total_sum_accum
 

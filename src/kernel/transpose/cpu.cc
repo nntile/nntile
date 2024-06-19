@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,17 +10,11 @@
  * Transpose operation on buffers on CPU
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-07-20
  * */
 
 #include "nntile/kernel/transpose/cpu.hh"
 
-namespace nntile
-{
-namespace kernel
-{
-namespace transpose
+namespace nntile::kernel::transpose
 {
 
 template<typename T>
@@ -54,7 +50,5 @@ void cpu<fp64_t>(Index m, Index n, fp64_t alpha, const fp64_t* src,
         fp64_t* dst)
     noexcept;
 
-} // namespace tranpose
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::tranpose
 

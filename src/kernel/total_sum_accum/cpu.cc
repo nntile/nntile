@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,20 +10,13 @@
  * Total sum accumulated of a buffer on CPU
  *
  * @version 1.0.0
- * @author Aleksandr Katrutsa
- * @author Aleksandr Mikhalev
- * @date 2023-11-11
  * */
 
 #include "nntile/kernel/total_sum_accum/cpu.hh"
 #include <cmath>
 #include <iostream>
 
-namespace nntile
-{
-namespace kernel
-{
-namespace total_sum_accum
+namespace nntile::kernel::total_sum_accum
 {
 
 template<typename T>
@@ -72,6 +67,5 @@ void cpu<fp64_t>(fp64_t alpha, Index n_labels, Index n_outputs, const fp64_t* lo
         const fp64_t* src, const Index* class_labels, fp64_t *val)
     noexcept;
 
-} // namespace total_sum_accum
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::total_sum_accum
+

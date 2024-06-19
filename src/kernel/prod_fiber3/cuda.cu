@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,18 +10,12 @@
  * Per-element multiplication of a tensor by a broadcasted fiber on CUDA
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-09-14
  * */
 
 #include "nntile/kernel/prod_fiber3/cuda.hh"
 #include <algorithm>
 
-namespace nntile
-{
-namespace kernel
-{
-namespace prod_fiber3
+namespace nntile::kernel::prod_fiber3
 {
 
 template<typename T>
@@ -95,7 +91,5 @@ void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, fp64_t alpha,
         const fp64_t *src1, const fp64_t *src2, fp64_t *dst)
     noexcept;
 
-} // namespace prod_fiber3
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::prod_fiber3
 
