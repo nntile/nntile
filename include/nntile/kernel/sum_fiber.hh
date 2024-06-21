@@ -15,7 +15,7 @@
 #pragma once
 
 #include <nntile/kernel/sum_fiber/cpu.hh>
-//#include <nntile/defs.h>
+#include <nntile/defs.h>
 #ifdef NNTILE_USE_CUDA
 #include <nntile/kernel/sum_fiber/cuda.hh>
 #endif // NNTILE_USE_CUDA
