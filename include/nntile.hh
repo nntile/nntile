@@ -20,11 +20,13 @@
 // Constants (e.g., transposition for gemm)
 #include <nntile/constants.hh>
 
-// Kernel-level operations
-#include <nntile/kernel.hh>
-
 // StarPU init/deinit and data handles
 #include <nntile/starpu.hh>
+
+// Kernel-level operations
+#ifndef STARPU_SIMGRID
+#include <nntile/kernel.hh>
+#endif // STARPU_SIMGRID
 
 // Fortran-contiguous tile with its operations
 #include <nntile/tile.hh>

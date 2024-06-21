@@ -23,6 +23,7 @@ namespace nntile::starpu::copy
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // No arguments
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
@@ -31,6 +32,7 @@ void cpu(void *buffers[], void *cl_args)
     void *dst = interfaces[1]->get_ptr<void>();
     // Launch kernel
     std::memcpy(dst, src, size);
+#endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -38,6 +40,7 @@ void cpu(void *buffers[], void *cl_args)
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // No arguments
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
@@ -48,6 +51,7 @@ void cuda(void *buffers[], void *cl_args)
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     cudaMemcpyAsync(dst, src, size, cudaMemcpyDeviceToDevice, stream);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 

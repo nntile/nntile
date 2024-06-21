@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/pow.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/pow.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/pow.hh"
 #include <cstdlib>
 
 namespace nntile::starpu::pow
@@ -24,6 +26,7 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     args_t<T> *args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
@@ -31,6 +34,7 @@ void cpu(void *buffers[], void *cl_args)
     T *data = interfaces[0]->get_ptr<T>();
     // Launch kernel
     kernel::pow::cpu<T>(args->nelems, args->alpha, args->exp, data);
+#endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -39,6 +43,7 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     args_t<T> *args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
@@ -48,6 +53,7 @@ void cuda(void *buffers[], void *cl_args)
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     kernel::pow::cuda<T>(stream, args->nelems, args->alpha, args->exp, data);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 

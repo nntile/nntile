@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/sqrt_inplace.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/sqrt_inplace.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/sqrt_inplace.hh"
 #include <cstdlib>
 
 namespace nntile::starpu::sqrt_inplace
@@ -24,6 +26,7 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
@@ -31,6 +34,7 @@ void cpu(void *buffers[], void *cl_args)
     T *data = interfaces[0]->get_ptr<T>();
     // Launch kernel
     kernel::sqrt_inplace::cpu<T>(nelems, data);
+#endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -39,6 +43,7 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
@@ -48,6 +53,7 @@ void cuda(void *buffers[], void *cl_args)
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     kernel::sqrt_inplace::cuda<T>(stream, nelems, data);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 

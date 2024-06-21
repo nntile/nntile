@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/relu_forward.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/relu_forward.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/relu_forward.hh"
 
 namespace nntile::starpu::relu_forward
 {
@@ -23,6 +25,7 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
@@ -31,6 +34,7 @@ void cpu(void *buffers[], void *cl_args)
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
     kernel::relu_forward::cpu<T>(nelems, src, dst);
+#endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -39,6 +43,7 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
@@ -49,6 +54,7 @@ void cuda(void *buffers[], void *cl_args)
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     kernel::relu_forward::cuda<T>(stream, nelems, src, dst);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 

@@ -14,9 +14,11 @@
 
 #include "nntile/starpu/clear.hh"
 #include <cstring>
-#ifdef NNTILE_USE_CUDA
-#   include <cuda_runtime.h>
-#endif // NNTILE_USE_CUDA
+#ifndef STARPU_SIMGRID
+#   ifdef NNTILE_USE_CUDA
+#       include <cuda_runtime.h>
+#   endif // NNTILE_USE_CUDA
+#endif // STARPU_SIMGRID
 
 #include <iostream>
 
@@ -27,6 +29,7 @@ namespace nntile::starpu::clear
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // No arguments
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
@@ -34,6 +37,7 @@ void cpu(void *buffers[], void *cl_args)
     void *data = interfaces[0]->get_ptr<void>();
     // Clear buffer
     std::memset(data, 0, size);
+#endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -41,6 +45,7 @@ void cpu(void *buffers[], void *cl_args)
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // No arguments
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
@@ -50,6 +55,7 @@ void cuda(void *buffers[], void *cl_args)
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Clear buffer
     cudaMemsetAsync(data, 0, size, stream);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 

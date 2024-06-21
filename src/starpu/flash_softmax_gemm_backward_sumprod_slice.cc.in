@@ -12,31 +12,36 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/flash_softmax_gemm_backward_sumprod_slice.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/mask_scalar.hh"
 #include "nntile/kernel/softmax_inplace.hh"
 #include "nntile/kernel/sumprod_slice.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/flash_softmax_gemm_backward_sumprod_slice.hh"
 #include <cstdlib>
 #include <cmath>
 #include <limits>
 
-#ifdef NNTILE_USE_CBLAS
-#   include <@CBLAS_H_NAME@>
-#   ifndef CBLAS_INT
-#       define CBLAS_INT @CBLAS_INT_TYPE@
-#   endif // CBLAS_INT
-#endif // NNTILE_USE_CBLAS
+#ifndef STARPU_SIMGRID
+#   ifdef NNTILE_USE_CBLAS
+#       include <@CBLAS_H_NAME@>
+#       ifndef CBLAS_INT
+#           define CBLAS_INT @CBLAS_INT_TYPE@
+#       endif // CBLAS_INT
+#   endif // NNTILE_USE_CBLAS
 
-#ifdef NNTILE_USE_CUDA
-#   include <cublas_v2.h>
-#   include <starpu_cublas_v2.h>
-#   include <cuda_fp16.h>
-#endif // NNTILE_USE_CUDA
+#   ifdef NNTILE_USE_CUDA
+#       include <cublas_v2.h>
+#       include <starpu_cublas_v2.h>
+#       include <cuda_fp16.h>
+#   endif // NNTILE_USE_CUDA
+#endif // STARPU_SIMGRID
 
 namespace nntile::starpu::flash_softmax_gemm_backward_sumprod_slice
 {
 
 #ifdef NNTILE_USE_CBLAS
+#ifndef STARPU_SIMGRID
 // Overloaded call to CBLAS GEMM
 static inline
 void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
@@ -60,12 +65,14 @@ void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
     cblas_dgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
             beta, C, ldC);
 }
+#endif // STARPU_SIMGRID
 
 //! Rematerialize and compute maxsumexp along middle axis of StarPU buffer on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
@@ -129,10 +136,12 @@ void cpu(void *buffers[], void *cl_args)
     }
     kernel::sumprod_slice::cpu<T>(1, args->seq*args->batch, args->seq,
             1.0, tmp_grad, tmp, 1.0, sumprod_slice);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CBLAS
 
 #ifdef NNTILE_USE_CUDA
+#ifndef STARPU_SIMGRID
 // Overloaded call to batched cuBLAS gemm
 static inline
 void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
@@ -158,12 +167,14 @@ void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
     cublasDgemmStridedBatched(handle, transA, transB, M, N, K, &alpha, A, ldA,
             strideA, B, ldB, strideB, &beta, C, ldC, strideC, batchCount);
 }
+#endif // STARPU_SIMGRID
 
 //! Max and sum of exponents along middle axis of StarPU buffer on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
@@ -208,8 +219,10 @@ void cuda(void *buffers[], void *cl_args)
             tmp_grad_offset, args->batch);
     kernel::sumprod_slice::cuda<T>(stream, 1, args->seq*args->batch, args->seq,
             1.0, tmp_grad, tmp, 1.0, sumprod_slice);
+#endif // STARPU_SIMGRID
 }
 
+#ifndef STARPU_SIMGRID
 static inline
 void cublas_ex_batch(cublasHandle_t handle, cublasOperation_t transA,
         cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
@@ -223,10 +236,12 @@ void cublas_ex_batch(cublasHandle_t handle, cublasOperation_t transA,
             CUDA_R_32F, ldC, strideC, batchCount, CUBLAS_COMPUTE_32F_FAST_TF32,
             CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
+#endif // STARPU_SIMGRID
 
 void cuda_fp32_fast_tf32(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     using T = fp32_t;
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
@@ -272,6 +287,7 @@ void cuda_fp32_fast_tf32(void *buffers[], void *cl_args)
             tmp_grad_offset, args->batch);
     kernel::sumprod_slice::cuda<T>(stream, 1, args->seq*args->batch, args->seq,
             1.0, tmp_grad, tmp, 1.0, sumprod_slice);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 

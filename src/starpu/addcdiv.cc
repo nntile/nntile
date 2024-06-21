@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/addcdiv.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/addcdiv.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/addcdiv.hh"
 #include <cstdlib>
 
 //! StarPU wrappers for addcdiv operation
@@ -25,6 +27,7 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
@@ -35,6 +38,7 @@ void cpu(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::addcdiv::cpu<T>(args->val, args->eps, args->nelems, nom, denom,
             src);
+#endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -43,6 +47,7 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
@@ -55,6 +60,7 @@ void cuda(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::addcdiv::cuda<T>(stream, args->val, args->eps, args->nelems, nom,
             denom, src);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 

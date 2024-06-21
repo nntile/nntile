@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/relu_backward.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/relu_backward.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/relu_backward.hh"
 #include <cstdlib>
 
 namespace nntile::starpu::relu_backward
@@ -24,6 +26,7 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
@@ -33,6 +36,7 @@ void cpu(void *buffers[], void *cl_args)
     T *dx = interfaces[2]->get_ptr<T>();
     // Launch kernel
     kernel::relu_backward::cpu<T>(nelems, x, dy, dx);
+#endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -41,6 +45,7 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
@@ -52,6 +57,7 @@ void cuda(void *buffers[], void *cl_args)
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     kernel::relu_backward::cuda<T>(stream, nelems, x, dy, dx);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 

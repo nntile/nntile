@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/accumulate_maxsumexp.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/accumulate_maxsumexp.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/accumulate_maxsumexp.hh"
 #include <cstdlib>
 
 //! StarPU wrappers for accumulate_maxsumexp operation
@@ -25,6 +27,7 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     Index nelems = interfaces[0]->elemsize / sizeof(T) / 2;
@@ -32,6 +35,7 @@ void cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[1]->get_ptr<T>();
     // Launch kernel
     kernel::accumulate_maxsumexp::cpu<T>(nelems, src, dst);
+#endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -40,6 +44,7 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     Index nelems = interfaces[0]->elemsize / sizeof(T) / 2;
@@ -49,6 +54,7 @@ void cuda(void *buffers[], void *cl_args)
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     kernel::accumulate_maxsumexp::cuda<T>(stream, nelems, src, dst);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 
@@ -67,8 +73,7 @@ void init()
             );
     codelet_fp32.nbuffers = 2;
     codelet_fp32.modes[0] = static_cast<starpu_data_access_mode>(
-            //STARPU_RW | STARPU_COMMUTE);
-            STARPU_RW);
+            STARPU_RW | STARPU_COMMUTE);
     codelet_fp32.modes[1] = STARPU_R;
     codelet_fp64.init("nntile_accumulate_maxsumexp_fp64",
             nullptr,
@@ -81,8 +86,7 @@ void init()
             );
     codelet_fp64.nbuffers = 2;
     codelet_fp64.modes[0] = static_cast<starpu_data_access_mode>(
-            //STARPU_RW | STARPU_COMMUTE);
-            STARPU_RW);
+            STARPU_RW | STARPU_COMMUTE);
     codelet_fp64.modes[1] = STARPU_R;
 }
 
@@ -108,8 +112,7 @@ void submit(Handle src, Handle dst)
 {
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            //STARPU_RW|STARPU_COMMUTE, static_cast<starpu_data_handle_t>(dst),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
+            STARPU_RW|STARPU_COMMUTE, static_cast<starpu_data_handle_t>(dst),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             // STARPU_FLOPS, nflops,
             0);

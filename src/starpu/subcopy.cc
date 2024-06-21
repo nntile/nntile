@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/subcopy.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/subcopy.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/subcopy.hh"
 
 namespace nntile::starpu::subcopy
 {
@@ -23,6 +25,7 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     const Index *ndim_ptr, *src_start, *src_stride, *copy_shape, *dst_start,
           *dst_stride;
@@ -36,6 +39,7 @@ void cpu(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::subcopy::cpu<T>(*ndim_ptr, src_start, src_stride,
             copy_shape, src, dst_start, dst_stride, dst, tmp_index);
+#endif // STARPU_SIMGRID
 }
 
 //! Footprint for copy tasks that depend on copy shape

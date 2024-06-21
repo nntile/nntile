@@ -14,22 +14,25 @@
 
 #include "nntile/starpu/axpy.hh"
 
-#ifdef NNTILE_USE_CBLAS
-#   include <@CBLAS_H_NAME@>
-#   ifndef CBLAS_INT
-#       define CBLAS_INT @CBLAS_INT_TYPE@
-#   endif // CBLAS_INT
-#endif // NNTILE_USE_CBLAS
+#ifndef STARPU_SIMGRID
+#   ifdef NNTILE_USE_CBLAS
+#       include <@CBLAS_H_NAME@>
+#       ifndef CBLAS_INT
+#           define CBLAS_INT @CBLAS_INT_TYPE@
+#       endif // CBLAS_INT
+#   endif // NNTILE_USE_CBLAS
 
-#ifdef NNTILE_USE_CUDA
-#   include <cublas_v2.h>
-#   include <starpu_cublas_v2.h>
-#endif // NNTILE_USE_CUDA
+#   ifdef NNTILE_USE_CUDA
+#       include <cublas_v2.h>
+#       include <starpu_cublas_v2.h>
+#   endif // NNTILE_USE_CUDA
+#endif // STARPU_SIMGRID
 
 namespace nntile::starpu::axpy
 {
 
 #ifdef NNTILE_USE_CBLAS
+#ifndef STARPU_SIMGRID
 // Overloaded call to CBLAS GEMM
 static inline
 void cblas(CBLAS_INT N, fp32_t alpha, const fp32_t *X, CBLAS_INT incX,
@@ -47,12 +50,14 @@ void cblas(CBLAS_INT N, fp64_t alpha, const fp64_t *X, CBLAS_INT incX,
 {
     cblas_daxpy(N, alpha, X, incX, Y, incY);
 }
+#endif // STARPU_SIMGRID
 
 //! AXPY for contiguous matrices without padding through StarPU buffers
 template<typename T>
 void cpu_tensor_alpha(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
@@ -62,6 +67,7 @@ void cpu_tensor_alpha(void *buffers[], void *cl_args)
     T *dst = interfaces[2]->get_ptr<T>();
     // Call corresponding CBLAS routine
     cblas(nelems, alpha[0], src, 1, dst, 1);
+#endif // STARPU_SIMGRID
 }
 
 //! AXPY for contiguous matrices without padding through StarPU buffers
@@ -69,6 +75,7 @@ template<typename T>
 void cpu_scalar_alpha(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args2_t<T> *>(cl_args);
     // Get interfaces
@@ -77,10 +84,12 @@ void cpu_scalar_alpha(void *buffers[], void *cl_args)
     T *dst = interfaces[1]->get_ptr<T>();
     // Call corresponding CBLAS routine
     cblas(args->nelems, args->alpha, src, 1, dst, 1);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CBLAS
 
 #ifdef NNTILE_USE_CUDA
+#ifndef STARPU_SIMGRID
 // Overloaded call to cuBLAS AXPY
 static inline
 void cublas(cublasHandle_t handle, int N, const fp32_t *alpha, const fp32_t *X,
@@ -98,12 +107,14 @@ void cublas(cublasHandle_t handle, int N, const fp64_t *alpha, const fp64_t *X,
 {
     cublasDaxpy(handle, N, alpha, X, incX, Y, incY);
 }
+#endif // STARPU_SIMGRID
 
 //! AXPY for contiguous matrices without padding through StarPU buffers
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
@@ -118,6 +129,7 @@ void cuda(void *buffers[], void *cl_args)
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_DEVICE);
     // Call corresponding cuBLAS routine
     cublas(handle, nelems, alpha, src, 1, dst, 1);
+#endif // STARPU_SIMGRID
 }
 
 //! AXPY for contiguous matrices without padding through StarPU buffers
@@ -125,6 +137,7 @@ template<typename T>
 void cuda2(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args2_t<T> *>(cl_args);
     // Get interfaces
@@ -138,6 +151,7 @@ void cuda2(void *buffers[], void *cl_args)
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
     // Call corresponding cuBLAS routine
     cublas(handle, args->nelems, &(args->alpha), src, 1, dst, 1);
+#endif // STARPU_SIMGRID
 }
 #endif //NNTILE_USE_CUDA
 
@@ -221,17 +235,21 @@ void submit(Handle alpha, Index nelems, Handle src, Handle dst)
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
 #ifdef NNTILE_USE_CBLAS
+#ifndef STARPU_SIMGRID
     if(static_cast<CBLAS_INT>(nelems) != nelems)
     {
         throw std::runtime_error("AXPY size N does not fit CBLAS_INT");
     }
+#endif // STARPU_SIMGRID
 #endif // NNTILE_USE_CBLAS
     // Check that matrix sizes fit proper types for underlying CUBLAS
 #ifdef NNTILE_USE_CUDA
+#ifndef STARPU_SIMGRID
     if(static_cast<int>(nelems) != nelems)
     {
         throw std::runtime_error("AXPY size N does not fit int");
     }
+#endif // STARPU_SIMGRID
 #endif // NNTILE_USE_CUDA
     // Codelet arguments
     Index *nelems_ = new Index{nelems};
@@ -262,17 +280,21 @@ void submit(T alpha, Index nelems, Handle src, Handle dst)
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
 #ifdef NNTILE_USE_CBLAS
+#ifndef STARPU_SIMGRID
     if(static_cast<CBLAS_INT>(nelems) != nelems)
     {
         throw std::runtime_error("AXPY size N does not fit CBLAS_INT");
     }
+#endif // STARPU_SIMGRID
 #endif // NNTILE_USE_CBLAS
     // Check that matrix sizes fit proper types for underlying CUBLAS
 #ifdef NNTILE_USE_CUDA
+#ifndef STARPU_SIMGRID
     if(static_cast<int>(nelems) != nelems)
     {
         throw std::runtime_error("AXPY size N does not fit int");
     }
+#endif // STARPU_SIMGRID
 #endif // NNTILE_USE_CUDA
     // Codelet arguments
     auto cl_args = new args2_t<T>{nelems, alpha};

@@ -12,8 +12,10 @@
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/mask_scalar.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/mask_scalar.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/mask_scalar.hh"
 
 namespace nntile::starpu::mask_scalar
 {
@@ -23,6 +25,7 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
@@ -32,6 +35,7 @@ void cpu(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::mask_scalar::cpu<T>(args->nrows, args->ncols, mask, args->val,
             data);
+#endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -40,6 +44,7 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // Get interfaces
@@ -51,6 +56,7 @@ void cuda(void *buffers[], void *cl_args)
     // Launch kernel
     kernel::mask_scalar::cuda<T>(stream, args->nrows, args->ncols, mask,
             args->val, data);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 
