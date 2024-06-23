@@ -28,7 +28,7 @@ void cpu(void *buffers[], void *cl_args)
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
-    T alpha = args->alpha;
+    scal_t alpha = args->alpha;
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
     // Get interfaces
@@ -52,7 +52,7 @@ void cuda(void *buffers[], void *cl_args)
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t<T> *>(cl_args);
-    T alpha = args->alpha;
+    scal_t alpha = args->alpha;
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
     // Get interfaces
@@ -85,7 +85,7 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
 
 void init()
 {
@@ -98,6 +98,18 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
+
+    codelet_fp32_fast_tf32.init("nntile_total_sum_accum_fp32_fast_tf32",
+            footprint<fp32_t>,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
+
     codelet_fp64.init("nntile_total_sum_accum_fp64",
             footprint<fp64_t>,
             {cpu<fp64_t>},
@@ -112,17 +124,19 @@ void init()
 void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
+    codelet_fp32_fast_tf32.restrict_where(where);
     codelet_fp64.restrict_where(where);
 }
 
 void restore_where()
 {
     codelet_fp32.restore_where();
+    codelet_fp32_fast_tf32.restore_where();
     codelet_fp64.restore_where();
 }
 
 template<typename T>
-void submit(T alpha, Index n_labels, Index n_outputs, Handle logsumexp, Handle src,
+void submit(scal_t alpha, Index n_labels, Index n_outputs, Handle logsumexp, Handle src,
         Handle class_labels, Handle val)
 {
     // Codelet arguments
@@ -147,11 +161,15 @@ void submit(T alpha, Index n_labels, Index n_outputs, Handle logsumexp, Handle s
 
 // Explicit instantiation
 template
-void submit<fp32_t>(fp32_t alpha, Index n_labels, Index n_outputs, Handle logsumexp,
+void submit<fp32_t>(scal_t alpha, Index n_labels, Index n_outputs, Handle logsumexp,
         Handle src, Handle class_labels, Handle val);
 
 template
-void submit<fp64_t>(fp64_t alpha, Index n_labels, Index n_outputs, Handle logsumexp,
+void submit<fp32_fast_tf32_t>(scal_t alpha, Index n_labels, Index n_outputs, Handle logsumexp,
+        Handle src, Handle class_labels, Handle val);
+
+template
+void submit<fp64_t>(scal_t alpha, Index n_labels, Index n_outputs, Handle logsumexp,
         Handle src, Handle class_labels, Handle val);
 
 } // namespace nntile::starpu::total_sum_accum

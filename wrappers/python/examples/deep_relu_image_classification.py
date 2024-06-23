@@ -124,12 +124,12 @@ for train_batch_data, train_batch_labels in train_loader:
         elif args.dtype == "tf32":
             x = nntile.tensor.Tensor_fp32_fast_tf32(x_traits, x_distr, next_tag)
         next_tag = x.next_tag
-        print(current_data[idx*args.minibatch:(idx+1)*args.minibatch, :].T.dtype)
         x.from_array(current_data[idx*args.minibatch:(idx+1)*args.minibatch, :].T)
         current_minibatch_data.append(x)
 
         y = nntile.tensor.Tensor_int64(y_traits, y_distr, next_tag)
         next_tag = y.next_tag
+        
         y.from_array(current_labels[idx*args.minibatch:(idx+1)*args.minibatch])
         current_minibatch_label.append(y)
 
@@ -157,14 +157,9 @@ gemm_ndim = 1
 m = model.DeepReLU(x_moments, 'R', gemm_ndim, args.hidden_dim, \
             args.hidden_dim_tile, args.depth, n_classes, next_tag, \
             dtype=args.dtype)
-# if args.fp32_fast_tf32:
-    
-#     print("GEMM TF32")
-# else:
-#     m = nntile.model.DeepReLU(x_moments, 'R', gemm_ndim, args.hidden_dim, \
-#             args.hidden_dim_tile, args.depth, n_classes, next_tag, bias=False)
-#     print("GEMM FP32_FAST_FP16: {}".format(m.fp32_fast_fp16))
-#     print("GEMM FP32_CONVERT_FP16: {}".format(m.fp32_convert_fp16))
+
+print("Model is init")
+
 
 next_tag = m.next_tag
 # Set up learning rate and optimizer for training
@@ -180,6 +175,8 @@ loss, next_tag = loss.CrossEntropy.generate_simple(m.activations[-1], \
 pipeline = pipeline.Pipeline(batch_data, batch_labels, m, optimizer, \
         loss, args.epoch)
 
+print("Pipeline is init")
+
 time0 += time.time()
 print("Finish generating pipeline (model, loss and optimizer) in {} seconds" \
         .format(time0))
@@ -187,6 +184,8 @@ print("Finish generating pipeline (model, loss and optimizer) in {} seconds" \
 # Randomly init weights of the DeepReLU model
 time0 = -time.time()
 m.init_randn_async()
+
+print("Model is randomly init")
 
 # Wait for all parameters to initialize
 nntile.starpu.wait_for_all()
@@ -243,12 +242,14 @@ print("Train GFLOPs/s (based on gemms): {}" \
 # Get inference rate based on train data
 time0 = -time.time()
 for x in batch_data:
-    #nntile.tensor.copy_async(x, m.activations[0].value)
-    m.forward_async()
-    #for t in m.activations:
-    #    t.value.wont_use()
-    #for p in m.parameters:
-    #    p.value.wont_use()
+    for mini_x in x:
+#     print(x.dtype, m.activations[0].value.dtype)
+        nntile.tensor.copy_async(mini_x, m.activations[0].value)
+        m.forward_async()
+        for t in m.activations:
+            t.value.wont_use()
+        for p in m.parameters:
+            p.value.wont_use()
 nntile.starpu.wait_for_all()
 time0 += time.time()
 

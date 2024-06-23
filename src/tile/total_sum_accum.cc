@@ -19,7 +19,7 @@ namespace nntile::tile
 {
 
 template<typename T>
-void total_sum_accum_async(T alpha, const Tile<T> &logsumexp, const Tile<T> &src,
+void total_sum_accum_async(scal_t alpha, const Tile<T> &logsumexp, const Tile<T> &src,
         const Tile<Index> &labels, const Tile<T> &val)
 // TODO - add description
 {
@@ -55,7 +55,7 @@ void total_sum_accum_async(T alpha, const Tile<T> &logsumexp, const Tile<T> &src
 
 //! Tile-wise max and sum of exponents along single given axis
 template<typename T>
-void total_sum_accum(T alpha, const Tile<T> &logsumexp, const Tile<T> &src,
+void total_sum_accum(scal_t alpha, const Tile<T> &logsumexp, const Tile<T> &src,
                            const Tile<Index> &class_labels, const Tile<T> &val)
 {
     total_sum_accum_async<T>(alpha, logsumexp, src, class_labels, val);
@@ -64,20 +64,29 @@ void total_sum_accum(T alpha, const Tile<T> &logsumexp, const Tile<T> &src,
 
 // Explicit instantiation
 template
-void total_sum_accum_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &logsumexp, const Tile<fp32_t> &src,
+void total_sum_accum_async<fp32_t>(scal_t alpha, const Tile<fp32_t> &logsumexp, const Tile<fp32_t> &src,
                            const Tile<Index> &class_labels, const Tile<fp32_t> &val);
 
 template
-void total_sum_accum_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &logsumexp, const Tile<fp64_t> &src,
+void total_sum_accum_async<fp32_fast_tf32_t>(scal_t alpha, const Tile<fp32_fast_tf32_t> &logsumexp, const Tile<fp32_fast_tf32_t> &src,
+                           const Tile<Index> &class_labels, const Tile<fp32_fast_tf32_t> &val);
+
+template
+void total_sum_accum_async<fp64_t>(scal_t alpha, const Tile<fp64_t> &logsumexp, const Tile<fp64_t> &src,
                            const Tile<Index> &class_labels, const Tile<fp64_t> &val);
 
 // Explicit instantiation
 template
-void total_sum_accum<fp32_t>(fp32_t alpha, const Tile<fp32_t> &logsumexp, const Tile<fp32_t> &src,
+void total_sum_accum<fp32_t>(scal_t alpha, const Tile<fp32_t> &logsumexp, const Tile<fp32_t> &src,
                            const Tile<Index> &class_labels, const Tile<fp32_t> &val);
 
 template
-void total_sum_accum<fp64_t>(fp64_t alpha, const Tile<fp64_t> &logsumexp, const Tile<fp64_t> &src,
+void total_sum_accum<fp32_fast_tf32_t>(scal_t alpha, const Tile<fp32_fast_tf32_t> &logsumexp, const Tile<fp32_fast_tf32_t> &src,
+                           const Tile<Index> &class_labels, const Tile<fp32_fast_tf32_t> &val);
+
+
+template
+void total_sum_accum<fp64_t>(scal_t alpha, const Tile<fp64_t> &logsumexp, const Tile<fp64_t> &src,
                            const Tile<Index> &class_labels, const Tile<fp64_t> &val);
 
 } // namespace nntile::tile

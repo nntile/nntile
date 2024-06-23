@@ -21,11 +21,11 @@ namespace nntile::tile
 
 // Tile-wise scal operation
 template<typename T>
-void scal_async(T alpha, const Tile<T> &src, const Tile<T> &dst);
+void scal_async(scal_t alpha, const Tile<T> &src, const Tile<T> &dst);
 
 // Tile-wise scal operation
 template<typename T>
-void scal(T alpha, const Tile<T> &src, const Tile<T> &dst);
+void scal(scal_t alpha, const Tile<T> &src, const Tile<T> &dst);
 
 } // namespace nntile::tile
 

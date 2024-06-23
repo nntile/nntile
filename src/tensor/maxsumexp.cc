@@ -141,12 +141,20 @@ void maxsumexp_async<fp32_t>(const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst, Index axis, int redux);
 
 template
+void maxsumexp_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
+        const Tensor<fp32_fast_tf32_t> &dst, Index axis, int redux);
+
+template
 void maxsumexp_async<fp64_t>(const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst, Index axis, int redux);
 
 // Explicit instantiation
 template
 void maxsumexp<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst,
+        Index axis, int redux);
+
+template
+void maxsumexp<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src, const Tensor<fp32_fast_tf32_t> &dst,
         Index axis, int redux);
 
 template

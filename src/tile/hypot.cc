@@ -20,7 +20,7 @@ namespace nntile::tile
 
 //! Tile-wise hypot operation
 template<typename T>
-void hypot_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst)
+void hypot_async(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst)
 {
     // Check dimensions
     if(dst.ndim != src.ndim)
@@ -46,7 +46,7 @@ void hypot_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst)
 
 //! Tile-wise hypot operation
 template<typename T>
-void hypot(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst)
+void hypot(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst)
 {
     hypot_async<T>(alpha, src, beta, dst);
     starpu_task_wait_for_all();
@@ -54,20 +54,28 @@ void hypot(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst)
 
 // Explicit instantiation of template
 template
-void hypot_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src, fp32_t beta,
+void hypot_async<fp32_t>(scal_t alpha, const Tile<fp32_t> &src, scal_t beta,
         const Tile<fp32_t> &dst);
 
 template
-void hypot_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src, fp64_t beta,
+void hypot_async<fp32_fast_tf32_t>(scal_t alpha, const Tile<fp32_fast_tf32_t> &src, scal_t beta,
+        const Tile<fp32_fast_tf32_t> &dst);
+
+template
+void hypot_async<fp64_t>(scal_t alpha, const Tile<fp64_t> &src, scal_t beta,
         const Tile<fp64_t> &dst);
 
 // Explicit instantiation of template
 template
-void hypot<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src, fp32_t beta,
+void hypot<fp32_t>(scal_t alpha, const Tile<fp32_t> &src, scal_t beta,
         const Tile<fp32_t> &dst);
 
 template
-void hypot<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src, fp64_t beta,
+void hypot<fp32_fast_tf32_t>(scal_t alpha, const Tile<fp32_fast_tf32_t> &src, scal_t beta,
+        const Tile<fp32_fast_tf32_t> &dst);
+
+template
+void hypot<fp64_t>(scal_t alpha, const Tile<fp64_t> &src, scal_t beta,
         const Tile<fp64_t> &dst);
         
 } // namespace nntile::tile

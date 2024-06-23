@@ -81,7 +81,7 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
 
 void init()
 {
@@ -94,6 +94,17 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
+
+    codelet_fp32_fast_tf32.init("nntile_subtract_indexed_outputs_fp32_fast_tf32",
+            footprint<fp32_t>,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
     codelet_fp64.init("nntile_subtract_indexed_outputs_fp64",
             footprint<fp64_t>,
             {cpu<fp64_t>},
@@ -108,17 +119,19 @@ void init()
 void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
+    codelet_fp32_fast_tf32.restrict_where(where);
     codelet_fp64.restrict_where(where);
 }
 
 void restore_where()
 {
     codelet_fp32.restore_where();
+    codelet_fp32_fast_tf32.restore_where();
     codelet_fp64.restore_where();
 }
 
 template<typename T>
-void submit(Index n_labels, Index n_outputs, T val, Handle labels, Handle dst)
+void submit(Index n_labels, Index n_outputs, scal_t val, Handle labels, Handle dst)
 {
     // Codelet arguments
     args_t<T>* args = (args_t<T>*)malloc(sizeof(args_t<T>));
@@ -143,11 +156,15 @@ void submit(Index n_labels, Index n_outputs, T val, Handle labels, Handle dst)
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index n_labels, Index n_outputs, fp32_t val, Handle labels,
+void submit<fp32_t>(Index n_labels, Index n_outputs, scal_t val, Handle labels,
         Handle dst);
 
 template
-void submit<fp64_t>(Index n_labels, Index n_outputs, fp64_t val, Handle labels,
+void submit<fp32_fast_tf32_t>(Index n_labels, Index n_outputs, scal_t val, Handle labels,
+        Handle dst);
+
+template
+void submit<fp64_t>(Index n_labels, Index n_outputs, scal_t val, Handle labels,
         Handle dst);
 
 } // namespace nntile::starpu::subtract_indexed_outputs

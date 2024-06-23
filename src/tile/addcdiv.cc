@@ -26,7 +26,7 @@ namespace nntile::tile
  * @param[inout] src: Input and output tile for the addcdiv operation
  * */
 template<typename T>
-void addcdiv_async(T val, T eps, const Tile<T> &nom, const Tile<T> &denom, const Tile<T> &src)
+void addcdiv_async(scal_t val, scal_t eps, const Tile<T> &nom, const Tile<T> &denom, const Tile<T> &src)
 {
     // Check shapes
     if(nom.shape != denom.shape)
@@ -49,7 +49,7 @@ void addcdiv_async(T val, T eps, const Tile<T> &nom, const Tile<T> &denom, const
  * @param[inout] src: Input and output tile for the addcdiv operation
  * */
 template<typename T>
-void addcdiv(T val, T eps, const Tile<T> &nom, const Tile<T> &denom, const Tile<T> &src)
+void addcdiv(scal_t val, scal_t eps, const Tile<T> &nom, const Tile<T> &denom, const Tile<T> &src)
 {
     addcdiv_async<T>(val, eps, nom, denom, src);
     starpu_task_wait_for_all();
@@ -57,20 +57,28 @@ void addcdiv(T val, T eps, const Tile<T> &nom, const Tile<T> &denom, const Tile<
 
 // Explicit instantiation
 template
-void addcdiv_async<fp32_t>(fp32_t val, fp32_t eps, const Tile<fp32_t> &nom,
+void addcdiv_async<fp32_t>(scal_t val, scal_t eps, const Tile<fp32_t> &nom,
                         const Tile<fp32_t> &denom, const Tile<fp32_t> &src);
 
 template
-void addcdiv_async<fp64_t>(fp64_t val, fp64_t eps, const Tile<fp64_t> &nom,
+void addcdiv_async<fp32_fast_tf32_t>(scal_t val, scal_t eps, const Tile<fp32_fast_tf32_t> &nom,
+                        const Tile<fp32_fast_tf32_t> &denom, const Tile<fp32_fast_tf32_t> &src);
+
+template
+void addcdiv_async<fp64_t>(scal_t val, scal_t eps, const Tile<fp64_t> &nom,
                         const Tile<fp64_t> &denom, const Tile<fp64_t> &src);
 
 // Explicit instantiation
 template
-void addcdiv<fp32_t>(fp32_t val, fp32_t eps, const Tile<fp32_t> &nom,
+void addcdiv<fp32_t>(scal_t val, scal_t eps, const Tile<fp32_t> &nom,
                      const Tile<fp32_t> &denom, const Tile<fp32_t> &src);
 
 template
-void addcdiv<fp64_t>(fp64_t val, fp64_t eps, const Tile<fp64_t> &nom,
+void addcdiv<fp32_fast_tf32_t>(scal_t val, scal_t eps, const Tile<fp32_fast_tf32_t> &nom,
+                     const Tile<fp32_fast_tf32_t> &denom, const Tile<fp32_fast_tf32_t> &src);
+
+template
+void addcdiv<fp64_t>(scal_t val, scal_t eps, const Tile<fp64_t> &nom,
                      const Tile<fp64_t> &denom, const Tile<fp64_t> &src);
 
 } // namespace nntile::tile

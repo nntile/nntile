@@ -20,7 +20,7 @@ namespace nntile::tensor
 
 //! Tensor-wise scal operation
 template<typename T>
-void scal_async(T alpha, const Tensor<T> &src, const Tensor<T> &dst)
+void scal_async(scal_t alpha, const Tensor<T> &src, const Tensor<T> &dst)
 {
     // Check dimensions
     if(dst.ndim != src.ndim)
@@ -65,7 +65,7 @@ void scal_async(T alpha, const Tensor<T> &src, const Tensor<T> &dst)
 
 //! Tensor-wise scal operation
 template<typename T>
-void scal(T alpha, const Tensor<T> &src, const Tensor<T> &dst)
+void scal(scal_t alpha, const Tensor<T> &src, const Tensor<T> &dst)
 {
     scal_async<T>(alpha, src, dst);
     starpu_task_wait_for_all();
@@ -74,20 +74,28 @@ void scal(T alpha, const Tensor<T> &src, const Tensor<T> &dst)
 
 // Explicit instantiation of template
 template
-void scal_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
+void scal_async<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
 
 template
-void scal_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
+void scal_async<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src,
+        const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void scal_async<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst);
 
 // Explicit instantiation of template
 template
-void scal<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
+void scal<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
 
 template
-void scal<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
+void scal<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src,
+        const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void scal<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst);
 
 } // namespace nntile::tensor

@@ -29,7 +29,7 @@ void cpu(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *nom = interfaces[0]->get_ptr<T>();
@@ -49,7 +49,7 @@ void cuda(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *nom = interfaces[0]->get_ptr<T>();
@@ -64,7 +64,7 @@ void cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
 
 void init()
 {
@@ -77,6 +77,17 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
+
+    codelet_fp32_fast_tf32.init("nntile_addcdiv_fp32_fast_tf32",
+            nullptr,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
     codelet_fp64.init("nntile_addcdiv_fp64",
             nullptr,
             {cpu<fp64_t>},
@@ -91,20 +102,22 @@ void init()
 void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
+    codelet_fp32_fast_tf32.restrict_where(where);
     codelet_fp64.restrict_where(where);
 }
 
 void restore_where()
 {
     codelet_fp32.restore_where();
+    codelet_fp32_fast_tf32.restore_where();
     codelet_fp64.restore_where();
 }
 
 template<typename T>
-void submit(T val, T eps, Index nelems, Handle nom, Handle denom, Handle src)
+void submit(scal_t val, scal_t eps, Index nelems, Handle nom, Handle denom, Handle src)
 {
     // Codelet arguments
-    args_t<T>* args = (args_t<T>*)std::malloc(sizeof(*args));
+    args_t* args = (args_t*)std::malloc(sizeof(*args));
     args->val = val;
     args->eps = eps;
     args->nelems = nelems;
@@ -126,11 +139,15 @@ void submit(T val, T eps, Index nelems, Handle nom, Handle denom, Handle src)
 
 // Explicit instantiaion
 template
-void submit<fp32_t>(fp32_t val, fp32_t eps, Index nelems, Handle nom,
+void submit<fp32_t>(scal_t val, scal_t eps, Index nelems, Handle nom,
         Handle denom, Handle src);
 
 template
-void submit<fp64_t>(fp64_t val, fp64_t eps, Index nelems, Handle nom,
+void submit<fp32_fast_tf32_t>(scal_t val, scal_t eps, Index nelems, Handle nom,
+        Handle denom, Handle src);
+
+template
+void submit<fp64_t>(scal_t val, scal_t eps, Index nelems, Handle nom,
         Handle denom, Handle src);
 
 } // namespace nntile::starpu::addcdiv

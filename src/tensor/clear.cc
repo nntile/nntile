@@ -48,6 +48,9 @@ template
 void clear_async<fp32_t>(const Tensor<fp32_t> &dst);
 
 template
+void clear_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &dst);
+
+template
 void clear_async<fp64_t>(const Tensor<fp64_t> &dst);
 
 template
@@ -56,6 +59,9 @@ void clear_async<fp16_t>(const Tensor<fp16_t> &dst);
 // Explicit instantiation
 template
 void clear<fp32_t>(const Tensor<fp32_t> &dst);
+
+template
+void clear<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &dst);
 
 template
 void clear<fp64_t>(const Tensor<fp64_t> &dst);
