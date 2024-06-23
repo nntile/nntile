@@ -21,11 +21,11 @@ namespace nntile::tile
 
 // Tile-wise add operation
 template<typename T>
-void add_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst);
+void add_async(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst);
 
 // Tile-wise add operation
 template<typename T>
-void add(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst);
+void add(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst);
 
 } // namespace nntile::tile
 

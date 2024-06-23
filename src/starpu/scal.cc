@@ -30,7 +30,7 @@ void cpu(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
@@ -48,7 +48,7 @@ void cuda(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
@@ -61,7 +61,7 @@ void cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
 
 void init()
 {
@@ -74,6 +74,17 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
+
+    codelet_fp32_fast_tf32.init("nntile_scal_fp32_fast_tf32",
+            nullptr,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
     codelet_fp64.init("nntile_scal_fp64",
             nullptr,
             {cpu<fp64_t>},
@@ -88,24 +99,26 @@ void init()
 void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
+    codelet_fp32_fast_tf32.restrict_where(where);
     codelet_fp64.restrict_where(where);
 }
 
 void restore_where()
 {
     codelet_fp32.restore_where();
+    codelet_fp32_fast_tf32.restore_where();
     codelet_fp64.restore_where();
 }
 
 template<typename T>
-void submit(Index nelems, T alpha, Handle src, Handle dst)
+void submit(Index nelems, scal_t alpha, Handle src, Handle dst)
 //! Insert scal task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
-    constexpr T zero = 0.0;
+    constexpr scal_t zero = 0.0;
     // if alpha is zero,sfunction reduces to clear
     if(alpha == zero)
     {
@@ -113,7 +126,7 @@ void submit(Index nelems, T alpha, Handle src, Handle dst)
         return;
     }
     // Codelet arguments
-    args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     args->alpha = alpha;
     // Submit task
@@ -132,10 +145,13 @@ void submit(Index nelems, T alpha, Handle src, Handle dst)
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index nelems, fp32_t alpha, Handle src, Handle dst);
+void submit<fp32_t>(Index nelems, scal_t alpha, Handle src, Handle dst);
 
 template
-void submit<fp64_t>(Index nelems, fp64_t alpha, Handle src, Handle dst);
+void submit<fp32_fast_tf32_t>(Index nelems, scal_t alpha, Handle src, Handle dst);
+
+template
+void submit<fp64_t>(Index nelems, scal_t alpha, Handle src, Handle dst);
 
 } // namespace nntile::starpu::scal
 

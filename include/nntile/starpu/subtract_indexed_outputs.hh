@@ -25,7 +25,7 @@ struct args_t
 {
     Index n_labels;
     Index n_outputs;
-    T value;
+    scal_t value;
 };
 
 template<typename T>
@@ -38,7 +38,7 @@ void cpu(void *buffers[], void *cl_args)
 //     noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern Codelet codelet_fp32, codelet_fp64;
+extern Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
 
 template<typename T>
 constexpr Codelet *codelet()
@@ -54,6 +54,12 @@ constexpr Codelet *codelet<fp32_t>()
 }
 
 template<>
+constexpr Codelet *codelet<fp32_fast_tf32_t>()
+{
+    return &codelet_fp32_fast_tf32;
+}
+
+template<>
 constexpr Codelet *codelet<fp64_t>()
 {
     return &codelet_fp64;
@@ -66,7 +72,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index n_labels, Index n_outputs, T val, Handle labels, Handle dst);
+void submit(Index n_labels, Index n_outputs, scal_t val, Handle labels, Handle dst);
 
 } // namespace nntile::starpu::subtract_indexed_column
 

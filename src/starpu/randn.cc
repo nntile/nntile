@@ -81,6 +81,7 @@ uint32_t footprint(struct starpu_task *task)
 }
 
 Codelet codelet_fp32, codelet_fp64, codelet_fp32_ndim0, codelet_fp64_ndim0;
+Codelet codelet_fp32_fast_tf32, codelet_fp32_fast_tf32_ndim0;
 
 void init()
 {
@@ -88,11 +89,22 @@ void init()
             footprint<fp32_t>,
             {cpu<fp32_t>},
             {});
+
+    codelet_fp32_fast_tf32.init("nntile_randn_fp32_fast_tf32",
+            footprint<fp32_t>,
+            {cpu<fp32_t>},
+            {});
+
     codelet_fp64.init("nntile_randn_fp64",
             footprint<fp64_t>,
             {cpu<fp64_t>},
             {});
     codelet_fp32_ndim0.init("nntile_randn_fp32",
+            nullptr,
+            {cpu_ndim0<fp32_t>},
+            {});
+
+    codelet_fp32_fast_tf32_ndim0.init("nntile_randn_fp32_fats_tf32",
             nullptr,
             {cpu_ndim0<fp32_t>},
             {});
@@ -105,22 +117,26 @@ void init()
 void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
+    codelet_fp32_fast_tf32.restrict_where(where);
     codelet_fp64.restrict_where(where);
     codelet_fp32_ndim0.restrict_where(where);
+    codelet_fp32_fast_tf32_ndim0.restrict_where(where);
     codelet_fp64_ndim0.restrict_where(where);
 }
 
 void restore_where()
 {
     codelet_fp32.restore_where();
+    codelet_fp32_fast_tf32.restore_where();
     codelet_fp64.restore_where();
     codelet_fp32_ndim0.restore_where();
+    codelet_fp32_fast_tf32_ndim0.restore_where();
     codelet_fp64_ndim0.restore_where();
 }
 
 template<typename T>
 void submit(Index ndim, Index nelems, unsigned long long seed,
-        T mean, T stddev, const std::vector<Index> &start,
+        scal_t mean, scal_t stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
         const std::vector<Index> &underlying_shape, Handle data,
         Handle tmp_index)
@@ -166,14 +182,21 @@ void submit(Index ndim, Index nelems, unsigned long long seed,
 // Explicit instantiation
 template
 void submit<fp32_t>(Index ndim, Index nelems, unsigned long long seed,
-        fp32_t mean, fp32_t stddev, const std::vector<Index> &start,
+        scal_t mean, scal_t stddev, const std::vector<Index> &start,
+        const std::vector<Index> &shape, const std::vector<Index> &stride,
+        const std::vector<Index> &underlying_shape, Handle data,
+        Handle tmp_index);
+
+template
+void submit<fp32_fast_tf32_t>(Index ndim, Index nelems, unsigned long long seed,
+        scal_t mean, scal_t stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
         const std::vector<Index> &underlying_shape, Handle data,
         Handle tmp_index);
 
 template
 void submit<fp64_t>(Index ndim, Index nelems, unsigned long long seed,
-        fp64_t mean, fp64_t stddev, const std::vector<Index> &start,
+        scal_t mean, scal_t stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
         const std::vector<Index> &underlying_shape, Handle data,
         Handle tmp_index);

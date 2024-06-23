@@ -20,7 +20,7 @@ namespace nntile::tensor
 
 template<typename T>
 void softmax_async(const Tensor<T> &maxsumexp, const Tensor<T> &src,
-        T alpha, const Tensor<T> &dst, Index axis)
+        scal_t alpha, const Tensor<T> &dst, Index axis)
 {
     // Check inputs
     if(maxsumexp.ndim != dst.ndim)
@@ -165,7 +165,7 @@ void softmax_async(const Tensor<T> &maxsumexp, const Tensor<T> &src,
 
 template<typename T>
 void softmax(const Tensor<T> &maxsumexp, const Tensor<T> &src,
-        T alpha, const Tensor<T> &dst, Index axis)
+        scal_t alpha, const Tensor<T> &dst, Index axis)
 {
     softmax_async<T>(maxsumexp, src, alpha, dst, axis);
     starpu_task_wait_for_all();
@@ -175,23 +175,33 @@ void softmax(const Tensor<T> &maxsumexp, const Tensor<T> &src,
 // Explicit instantiation
 template
 void softmax_async<fp32_t>(const Tensor<fp32_t> &maxsumexp,
-        const Tensor<fp32_t> &src, fp32_t alpha, const Tensor<fp32_t> &dst,
+        const Tensor<fp32_t> &src, scal_t alpha, const Tensor<fp32_t> &dst,
+        Index axis);
+
+template
+void softmax_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &maxsumexp,
+        const Tensor<fp32_fast_tf32_t> &src, scal_t alpha, const Tensor<fp32_fast_tf32_t> &dst,
         Index axis);
 
 template
 void softmax_async<fp64_t>(const Tensor<fp64_t> &maxsumexp,
-        const Tensor<fp64_t> &src, fp64_t alpha, const Tensor<fp64_t> &dst,
+        const Tensor<fp64_t> &src, scal_t alpha, const Tensor<fp64_t> &dst,
         Index axis);
 
 // Explicit instantiation
 template
 void softmax<fp32_t>(const Tensor<fp32_t> &maxsumexp,
-        const Tensor<fp32_t> &src, fp32_t alpha, const Tensor<fp32_t> &dst,
+        const Tensor<fp32_t> &src, scal_t alpha, const Tensor<fp32_t> &dst,
+        Index axis);
+
+template
+void softmax<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &maxsumexp,
+        const Tensor<fp32_fast_tf32_t> &src, scal_t alpha, const Tensor<fp32_fast_tf32_t> &dst,
         Index axis);
 
 template
 void softmax<fp64_t>(const Tensor<fp64_t> &maxsumexp,
-        const Tensor<fp64_t> &src, fp64_t alpha, const Tensor<fp64_t> &dst,
+        const Tensor<fp64_t> &src, scal_t alpha, const Tensor<fp64_t> &dst,
         Index axis);
 
 } // namespace nntile::tensor
