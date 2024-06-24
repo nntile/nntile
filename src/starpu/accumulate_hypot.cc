@@ -87,8 +87,7 @@ void init()
             );
     codelet_fp32_fast_tf32.nbuffers = 2;
     codelet_fp32_fast_tf32.modes[0] = static_cast<starpu_data_access_mode>(
-            //STARPU_RW | STARPU_COMMUTE);
-            STARPU_RW);
+            STARPU_RW | STARPU_COMMUTE);
     codelet_fp32_fast_tf32.modes[1] = STARPU_R;
 
     codelet_fp64.init("nntile_accumulate_hypot_fp64",
