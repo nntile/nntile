@@ -22,7 +22,6 @@ namespace nntile::starpu::add_slice
 {
 
 //! Structure for arguments
-// template<typename T>
 struct args_t
 {
     Index m;

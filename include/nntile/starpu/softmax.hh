@@ -22,7 +22,6 @@ namespace nntile::starpu::softmax
 {
 
 //! Structure for arguments
-template<typename T>
 struct args_t
 {
     Index m;
