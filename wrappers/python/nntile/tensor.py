@@ -68,18 +68,6 @@ def gemm_async(alpha: float, trans_A: TransOp, A: Tensor, trans_B: TransOp, \
     else:
         raise TypeError
 
-# Wrapper for multiprecision gemm_ex
-# def gemm_ex_async(alpha: float, trans_A: TransOp, A: Tensor, \
-#         trans_B: TransOp, B: Tensor, beta: float, C: Tensor, ndim: int, \
-#         batch_ndim: int, redux: int=0) -> None:
-#     if type(A) is not type(B) or type(A) is not type(C):
-#         raise TypeError
-#     if type(A) is core_tensor.Tensor_fp32:
-#         core_tensor.gemm_ex_async_fp32(alpha, trans_A, A, trans_B, B, beta, C,
-#                 ndim, batch_ndim, redux)
-#     else:
-#         raise TypeError
-
 # Wrapper for multiprecision ReLU
 def relu_async(x: Tensor) -> None:
     if type(x) is core_tensor.Tensor_fp32:

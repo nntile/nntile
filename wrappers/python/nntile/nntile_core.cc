@@ -551,9 +551,6 @@ void def_mod_tensor(py::module_ &m)
     m.def("gemm_fp32", &gemm<fp32_t>);
     m.def("gemm_fp16", &gemm<fp16_t>);
     m.def("gemm_fp32_fast_tf32", &gemm<fp32_fast_tf32_t>);
-    // Mixed precision gemm (FP32_FAST_FP16)
-    // m.def("gemm_ex_async_fp32", &gemm_ex_async<fp32_t>);
-    // m.def("gemm_ex_fp32", &gemm_ex<fp32_t>);
 
     // Add activation functions for Tensor<T>
     m.def("relu_async_fp64", &relu_async<fp64_t>);

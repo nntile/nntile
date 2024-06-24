@@ -112,7 +112,6 @@ void init()
     dgelutanh::init();
     drelu::init();
     gemm::init();
-    // gemm_ex::init();
     hypot::init();
     hypot_scalar_inverse::init();
     nrm2::init();
@@ -183,7 +182,6 @@ void restrict_where(uint32_t where)
     dgelutanh::restrict_where(where);
     drelu::restrict_where(where);
     gemm::restrict_where(where);
-    // gemm_ex::restrict_where(where);
     hypot::restrict_where(where);
     hypot_scalar_inverse::restrict_where(where);
     nrm2::restrict_where(where);
@@ -254,7 +252,6 @@ void restore_where()
     dgelutanh::restore_where();
     drelu::restore_where();
     gemm::restore_where();
-    // gemm_ex::restore_where();
     hypot::restore_where();
     hypot_scalar_inverse::restore_where();
     nrm2::restore_where();
