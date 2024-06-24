@@ -71,7 +71,6 @@ void cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for total_sum_accum tasks
-template<typename T>
 static
 uint32_t footprint(struct starpu_task *task)
 {
@@ -90,7 +89,7 @@ Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
 void init()
 {
     codelet_fp32.init("nntile_total_sum_accum_fp32",
-            footprint<fp32_t>,
+            footprint,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_t>}
@@ -100,7 +99,7 @@ void init()
             );
 
     codelet_fp32_fast_tf32.init("nntile_total_sum_accum_fp32_fast_tf32",
-            footprint<fp32_t>,
+            footprint,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_t>}
@@ -111,7 +110,7 @@ void init()
 
 
     codelet_fp64.init("nntile_total_sum_accum_fp64",
-            footprint<fp64_t>,
+            footprint,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp64_t>}
