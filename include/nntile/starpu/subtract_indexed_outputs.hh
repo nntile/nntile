@@ -19,8 +19,7 @@
 
 namespace nntile::starpu::subtract_indexed_outputs
 {
-    
-template<typename T>
+
 struct args_t
 {
     Index n_labels;

@@ -22,10 +22,9 @@ namespace nntile::starpu::add
 {
 
 //! Structure for arguments
-template<typename T>
 struct args_t
 {
-    args_t(Index nelems_, T alpha_, T beta_) :
+    args_t(Index nelems_, scal_t alpha_, scal_t beta_) :
         nelems(nelems_),
         alpha(alpha_),
         beta(beta_) 

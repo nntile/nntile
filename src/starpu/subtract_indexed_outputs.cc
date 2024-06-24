@@ -26,7 +26,7 @@ void cpu(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T>*>(cl_args);
+    auto args = reinterpret_cast<args_t*>(cl_args);
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
     T value = args->value;
@@ -48,7 +48,7 @@ void cuda(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T>*>(cl_args);
+    auto args = reinterpret_cast<args_t*>(cl_args);
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
     T value = args->value;
@@ -71,7 +71,7 @@ static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
     // Apply hash over parameters m, n and k
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->n_labels, sizeof(args->n_labels),
@@ -134,7 +134,7 @@ template<typename T>
 void submit(Index n_labels, Index n_outputs, scal_t val, Handle labels, Handle dst)
 {
     // Codelet arguments
-    args_t<T>* args = (args_t<T>*)malloc(sizeof(args_t<T>));
+    args_t* args = (args_t*)malloc(sizeof(args_t));
     args->n_labels = n_labels;
     args->n_outputs = n_outputs;
     args->value = val;

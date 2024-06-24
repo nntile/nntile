@@ -28,7 +28,7 @@ void cpu(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *maxsumexp = interfaces[0]->get_ptr<T>();
@@ -48,7 +48,7 @@ void cuda(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *maxsumexp = interfaces[0]->get_ptr<T>();
@@ -69,7 +69,7 @@ static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
     // Apply hash over parameters m, n and k. This way if we swap values of m,
     // n and k, then the total size of buffers will remain the same, but the
     // footprint will be different
@@ -139,7 +139,7 @@ void submit(Index m, Index n, Index k, Handle maxsumexp, Handle src, scal_t alph
  * */
 {
     // Codelet arguments
-    args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->m = m;
     args->n = n;
     args->k = k;

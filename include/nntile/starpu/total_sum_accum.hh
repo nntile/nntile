@@ -21,7 +21,6 @@ namespace nntile::starpu::total_sum_accum
 {
 
 //! Structure for arguments
-template<typename T>
 struct args_t
 {
     scal_t alpha;
