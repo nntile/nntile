@@ -104,7 +104,7 @@ void init()
             {cpu_ndim0<fp32_t>},
             {});
 
-    codelet_fp32_fast_tf32_ndim0.init("nntile_randn_fp32_fats_tf32",
+    codelet_fp32_fast_tf32_ndim0.init("nntile_randn_fp32_fast_tf32",
             nullptr,
             {cpu_ndim0<fp32_t>},
             {});
