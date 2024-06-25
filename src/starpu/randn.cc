@@ -30,7 +30,7 @@ void cpu(void *buffers[], void *cl_args)
     const Index *ndim_ptr, *nelems_ptr, *start, *shape, *stride,
           *underlying_shape;
     const unsigned long long *seed_ptr;
-    const T *mean_ptr, *stddev_ptr;
+    const scal_t *mean_ptr, *stddev_ptr;
     Config::unpack_args_ptr(cl_args, ndim_ptr, nelems_ptr, seed_ptr, mean_ptr,
             stddev_ptr, start, shape, stride, underlying_shape);
     // Get interfaces
@@ -53,7 +53,7 @@ void cpu_ndim0(void *buffers[], void *cl_args)
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     const unsigned long long *seed_ptr;
-    const T *mean_ptr, *stddev_ptr;
+    const scal_t *mean_ptr, *stddev_ptr;
     Config::unpack_args_ptr(cl_args, seed_ptr, mean_ptr, stddev_ptr);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
@@ -64,7 +64,6 @@ void cpu_ndim0(void *buffers[], void *cl_args)
 }
 
 //! Footprint for randn tasks that depend on shape
-template<typename T>
 static
 uint32_t footprint(struct starpu_task *task)
 {
@@ -72,7 +71,7 @@ uint32_t footprint(struct starpu_task *task)
     const Index *ndim_ptr, *nelems_ptr, *start, *shape, *stride,
           *underlying_shape;
     const unsigned long long *seed_ptr;
-    const T *mean_ptr, *stddev_ptr;
+    const scal_t *mean_ptr, *stddev_ptr;
     Config::unpack_args_ptr(task->cl_arg, ndim_ptr, nelems_ptr, seed_ptr,
             mean_ptr, stddev_ptr, start, shape, stride, underlying_shape);
     std::size_t shape_size = *ndim_ptr * sizeof(*shape);
@@ -86,17 +85,17 @@ Codelet codelet_fp32_fast_tf32, codelet_fp32_fast_tf32_ndim0;
 void init()
 {
     codelet_fp32.init("nntile_randn_fp32",
-            footprint<fp32_t>,
+            footprint,
             {cpu<fp32_t>},
             {});
 
     codelet_fp32_fast_tf32.init("nntile_randn_fp32_fast_tf32",
-            footprint<fp32_t>,
+            footprint,
             {cpu<fp32_t>},
             {});
 
     codelet_fp64.init("nntile_randn_fp64",
-            footprint<fp64_t>,
+            footprint,
             {cpu<fp64_t>},
             {});
     codelet_fp32_ndim0.init("nntile_randn_fp32",
