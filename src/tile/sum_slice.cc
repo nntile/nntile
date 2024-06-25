@@ -20,7 +20,7 @@ namespace nntile::tile
 
 //! Tile-wise sum_slice
 template<typename T>
-void sum_slice_async(T alpha, const Tile<T> &src, T beta,
+void sum_slice_async(scal_t alpha, const Tile<T> &src, scal_t beta,
         const Tile<T> &dst, Index axis)
 {
     // Check dimensions
@@ -67,7 +67,7 @@ void sum_slice_async(T alpha, const Tile<T> &src, T beta,
 
 //! Tile-wise sum_slice
 template<typename T>
-void sum_slice(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
+void sum_slice(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst,
         Index axis)
 {
     sum_slice_async<T>(alpha, src, beta, dst, axis);
@@ -76,20 +76,28 @@ void sum_slice(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
 
 // Explicit instantiation
 template
-void sum_slice_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src,
-        fp32_t beta, const Tile<fp32_t> &dst, Index axis);
+void sum_slice_async<fp32_t>(scal_t alpha, const Tile<fp32_t> &src,
+        scal_t beta, const Tile<fp32_t> &dst, Index axis);
 
 template
-void sum_slice_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src,
-        fp64_t beta, const Tile<fp64_t> &dst, Index axis);
+void sum_slice_async<fp32_fast_tf32_t>(scal_t alpha, const Tile<fp32_fast_tf32_t> &src,
+        scal_t beta, const Tile<fp32_fast_tf32_t> &dst, Index axis);
+
+template
+void sum_slice_async<fp64_t>(scal_t alpha, const Tile<fp64_t> &src,
+        scal_t beta, const Tile<fp64_t> &dst, Index axis);
 
 // Explicit instantiation
 template
-void sum_slice<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src, fp32_t beta,
+void sum_slice<fp32_t>(scal_t alpha, const Tile<fp32_t> &src, scal_t beta,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void sum_slice<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src, fp64_t beta,
+void sum_slice<fp32_fast_tf32_t>(scal_t alpha, const Tile<fp32_fast_tf32_t> &src, scal_t beta,
+        const Tile<fp32_fast_tf32_t> &dst, Index axis);
+
+template
+void sum_slice<fp64_t>(scal_t alpha, const Tile<fp64_t> &src, scal_t beta,
         const Tile<fp64_t> &dst, Index axis);
 
 } // namespace nntile::tile

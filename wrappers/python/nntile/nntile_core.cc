@@ -360,6 +360,7 @@ void def_class_tensor(py::module_ &m, const char *name)
         // def("from_array", &tensor_from_array<T>).
         def("from_array", [](const tensor::Tensor<fp32_t> & t, const py::array_t<fp32_t, py::array::f_style | py::array::forcecast> & a) { return tensor_from_array<fp32_t>(t, a); } ).
         def("from_array", [](const tensor::Tensor<int64_t> & t, const py::array_t<int64_t, py::array::f_style | py::array::forcecast> & a) { return tensor_from_array<int64_t>(t, a); } ).
+        def("from_array", [](const tensor::Tensor<bool_t> & t, const py::array_t<bool_t, py::array::f_style | py::array::forcecast> & a) { return tensor_from_array<bool_t>(t, a); } ).
         def("from_array", [](const tensor::Tensor<fp32_fast_tf32_t> & t, const py::array_t<fp32_t, py::array::f_style | py::array::forcecast> & a) { auto t_fp32 = reinterpret_cast<const tensor::Tensor<fp32_t>* >(&t); return tensor_from_array<fp32_t>(*t_fp32, a); } ).
         
         def("to_array", [](const tensor::Tensor<fp32_t> & t, py::array_t<fp32_t, py::array::f_style> & a) { return tensor_to_array<fp32_t>(t, a); } ).
@@ -459,15 +460,19 @@ void def_mod_tensor(py::module_ &m)
     m.def("drelu_fp64", &drelu<fp64_t>);
     m.def("drelu_fp32", &drelu<fp32_t>);
     // Add other functions for Tensor<T>
-    m.def("fill_async_fp64", &fill_async<fp64_t>);
-    m.def("fill_async_fp32", &fill_async<fp32_t>);
-    m.def("fill_fp64", &fill<fp64_t>);
-    m.def("fill_fp32", &fill<fp32_t>);
+    m.def("fill_async_fp64", [](fp64_t val, const Tensor<fp64_t>& A) {return fill_async<fp64_t>(val, A); } );
+    m.def("fill_async_fp32", [](fp32_t val, const Tensor<fp32_t>& A) {return fill_async<fp32_t>(val, A); } );
+    m.def("fill_async_fp32_fast_tf32", [](fp32_t val, const Tensor<fp32_fast_tf32_t>& A) { auto t_fp32 = reinterpret_cast<const Tensor<fp32_t>* >(&A); return fill_async<fp32_t>(val, *t_fp32); });
+    m.def("fill_fp64", [](fp64_t val, const Tensor<fp64_t>& A) {return fill<fp64_t>(val, A); } );
+    m.def("fill_fp32", [](fp32_t val, const Tensor<fp32_t>& A) {return fill<fp32_t>(val, A); } );
+    m.def("fill_fp32_fast_tf32", [](fp32_t val, const Tensor<fp32_fast_tf32_t>& A) { auto t_fp32 = reinterpret_cast<const Tensor<fp32_t>* >(&A); return fill<fp32_t>(val, *t_fp32); });
 
     m.def("sum_slice_async_fp64", &sum_slice_async<fp64_t>);
     m.def("sum_slice_async_fp32", &sum_slice_async<fp32_t>);
+    m.def("sum_slice_async_fp32_fast_tf32", &sum_slice_async<fp32_fast_tf32_t>);
     m.def("sum_slice_fp64", &sum_slice<fp64_t>);
     m.def("sum_slice_fp32", &sum_slice<fp32_t>);
+    m.def("sum_slice_fp32_fast_tf32", &sum_slice<fp32_fast_tf32_t>);
 
     m.def("sum_fiber_async_fp64", &sum_fiber_async<fp64_t>);
     m.def("sum_fiber_async_fp32", &sum_fiber_async<fp32_t>);
@@ -476,8 +481,10 @@ void def_mod_tensor(py::module_ &m)
 
     m.def("norm_slice_async_fp64", &norm_slice_async<fp64_t>);
     m.def("norm_slice_async_fp32", &norm_slice_async<fp32_t>);
+    m.def("norm_slice_async_fp32_fast_tf32", &norm_slice_async<fp32_fast_tf32_t>);
     m.def("norm_slice_fp64", &norm_slice<fp64_t>);
     m.def("norm_slice_fp32", &norm_slice<fp32_t>);
+    m.def("norm_slice_fp32_fast_tf32", &norm_slice<fp32_fast_tf32_t>);
 
     m.def("pow_async_fp64", &pow_async<fp64_t>);
     m.def("pow_async_fp32", &pow_async<fp32_t>);
@@ -559,8 +566,10 @@ void def_mod_tensor(py::module_ &m)
 
     m.def("add_slice3_async_fp64", &add_slice3_async<fp64_t>);
     m.def("add_slice3_async_fp32", &add_slice3_async<fp32_t>);
+    m.def("add_slice3_async_fp32_fast_tf32", &add_slice3_async<fp32_fast_tf32_t>);
     m.def("add_slice3_fp64", &add_slice3<fp64_t>);
     m.def("add_slice3_fp32", &add_slice3<fp32_t>);
+    m.def("add_slice3_fp32_fast_tf32", &add_slice3<fp32_fast_tf32_t>);
 
     m.def("add_async_fp64", &add_async<fp64_t>);
     m.def("add_async_fp32", &add_async<fp32_t>);
@@ -765,8 +774,10 @@ void def_mod_tensor(py::module_ &m)
     // Embedding forward pass
     m.def("embedding_async_fp64", &embedding_async<fp64_t>);
     m.def("embedding_async_fp32", &embedding_async<fp32_t>);
+    m.def("embedding_async_fp32_fast_tf32", &embedding_async<fp32_fast_tf32_t>);
     m.def("embedding_fp64", &embedding<fp64_t>);
     m.def("embedding_fp32", &embedding<fp32_t>);
+    m.def("embedding_fp32_fast_tf32", &embedding<fp32_fast_tf32_t>);
 
     // Embedding backward pass
     m.def("embedding_backward_async_fp64", &embedding_backward_async<fp64_t>);

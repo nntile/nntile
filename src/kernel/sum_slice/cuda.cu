@@ -26,7 +26,7 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src,
     Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
           i1 = threadIdx.y + blockIdx.y*blockDim.y;
     Index i2_start = threadIdx.z, i2_step = blockDim.z;
-    constexpr T zero = 0;
+    constexpr scal_t zero = 0;
     if(i0 < m and i1 < n)
     {
         // Pointer to a corresponding fiber of the source array src
