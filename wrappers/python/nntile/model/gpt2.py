@@ -12,10 +12,10 @@
 # @version 1.0.0
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        notrans, trans, Tensor_fp32, Tensor_int64, Tensor_bool
+        notrans, trans, Tensor_fp32, Tensor_fp32_fast_tf32, Tensor_int64, Tensor_bool
 from nntile.model.base_model import BaseModel
-from nntile.layer import Linear, Embedding, AddSlice, LayerNorm, Attention, \
-        FlashAttention, Act, AttentionSingleHead
+from nntile.layer import Linear, Embedding, AddSlice, LayerNorm, Attention, Act
+# from nntile.layer import FlashAttention, AttentionSingleHead
 import numpy as np
 from typing import List, Dict
 from nntile.layer.add import Add
@@ -28,7 +28,7 @@ class GPT2Config(Dict):
             inner_dim: int, inner_dim_tile: int, \
             layer_norm_epsilon: float, num_hidden_layers: int, n_head: int, \
             n_head_tile: int, activation_function: str, \
-            flashattention: bool=True, use_redux: bool=False):
+            flashattention: bool=True, use_redux: bool=False, dtype: str="fp32"):
         self["vocab_size"] = vocab_size
         self["vocab_embed_dim_tile"] = vocab_embed_dim_tile
         self["embed_dim"] = embed_dim
@@ -43,6 +43,7 @@ class GPT2Config(Dict):
         self["activation_function"] = activation_function
         self["flashattention"] = flashattention
         self["redux"] = use_redux
+        self["dtype"] = dtype
 
     def __getattr__(self, attr):
         return self[attr]
@@ -51,8 +52,7 @@ class GPT2MLP(BaseModel):
     next_tag: int
 
     # Construct model with all the provided data
-    def __init__(self, x: TensorMoments, config: GPT2Config, next_tag: int, \
-            fp32_fast_tf32: bool=False):
+    def __init__(self, x: TensorMoments, config: GPT2Config, next_tag: int):
         # Init activations and list of layers
         activations = [x]
         layers = []
@@ -63,22 +63,21 @@ class GPT2MLP(BaseModel):
         activation_function = config["activation_function"]
         redux = config["redux"]
         gemm_ndim = 1
-        self.fp32_fast_tf32 = fp32_fast_tf32
         # Initial linear layer that converts input to internal shape
         new_layer, next_tag = Linear.generate_simple(x, "R", notrans, \
                 gemm_ndim, [inner_dim], [inner_dim_tile], next_tag, \
-                redux=redux, fp32_fast_tf32=fp32_fast_tf32)
+                redux=redux)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         
         new_layer, next_tag = Act.generate_simple(activations[-1], \
-                config["activation_function"], next_tag)
+                activation_function, next_tag)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
         new_layer, next_tag = Linear.generate_simple(activations[-1], \
                 "R", notrans, gemm_ndim, [embed_dim], [embed_dim_tile], \
-                next_tag, redux=redux, fp32_fast_tf32=fp32_fast_tf32)
+                next_tag, redux=redux)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         self.next_tag = next_tag
@@ -93,12 +92,11 @@ class GPT2MLP(BaseModel):
 
     @staticmethod
     def from_torch(torch_mlp, x: TensorMoments, config: GPT2Config, \
-            next_tag: int, fp32_fast_tf32: bool=False):
+            next_tag: int):
         '''
         torch_mlp is PyTorch MLP where no biases in linear layers
         '''
-        gpt2mlp_nntile = GPT2MLP(x, config, next_tag, \
-                fp32_fast_tf32=fp32_fast_tf32)
+        gpt2mlp_nntile = GPT2MLP(x, config, next_tag)
         torch_params = list(torch_mlp.parameters())
         for i, p in enumerate(gpt2mlp_nntile.parameters):
             p.value.from_array(torch_params[i].cpu().detach().numpy().T)
@@ -109,8 +107,7 @@ class GPT2Model(BaseModel):
 
     # Construct model with all the provided data
     def __init__(self, input_ids: TensorMoments, \
-            positional_ids: TensorMoments, config: GPT2Config, next_tag: int, \
-            fp32_fast_tf32: bool=False):
+            positional_ids: TensorMoments, config: GPT2Config, next_tag: int):
         # Check parameter side
         vocab_size = config["vocab_size"]
         vocab_embed_dim_tile = config["vocab_embed_dim_tile"]
@@ -125,7 +122,11 @@ class GPT2Model(BaseModel):
         n_head_tile = config["n_head_tile"]
         flashattention = config["flashattention"]
         redux = config["redux"]
-        self.fp32_fast_tf32 = fp32_fast_tf32
+        self.dtype = config["dtype"]
+        
+        if self.dtype not in ["fp32", "tf32"]:
+            raise TypeError("Only fp32 and tf32 are supported for weight type")
+
         if self.n_head == 1:
             print("Set 1 head")
             AttLayer = AttentionSingleHead
@@ -146,15 +147,28 @@ class GPT2Model(BaseModel):
                 order="F")
         self.mask.from_array(mask_np)
 
-        wte_layer, next_tag = Embedding.generate_simple(input_ids.value, \
-                Tensor_fp32, 0, vocab_size, self.embed_dim, embed_dim_tile, \
-                vocab_embed_dim_tile, next_tag)
+
+        if self.dtype == "fp32":
+            wte_layer, next_tag = Embedding.generate_simple(input_ids.value, \
+                        Tensor_fp32, 0, vocab_size, self.embed_dim, embed_dim_tile, \
+                        vocab_embed_dim_tile, next_tag)
+        elif self.dtype == "tf32":
+            wte_layer, next_tag = Embedding.generate_simple(input_ids.value, \
+                        Tensor_fp32_fast_tf32, 0, vocab_size, self.embed_dim, embed_dim_tile, \
+                        vocab_embed_dim_tile, next_tag)
+                
         layers.append(wte_layer)
         activations.extend(wte_layer.activations_output)
         
-        wpe_layer, next_tag = Embedding.generate_simple(positional_ids.value, \
-                Tensor_fp32, 0, max_position_embeddings, self.embed_dim, \
-                embed_dim_tile, vocab_embed_dim_tile, next_tag)
+        if self.dtype == "fp32":
+            wpe_layer, next_tag = Embedding.generate_simple(positional_ids.value, \
+                        Tensor_fp32, 0, max_position_embeddings, self.embed_dim, \
+                        embed_dim_tile, vocab_embed_dim_tile, next_tag)
+        elif self.dtype == "tf32":
+            wpe_layer, next_tag = Embedding.generate_simple(positional_ids.value, \
+                        Tensor_fp32_fast_tf32, 0, max_position_embeddings, self.embed_dim, \
+                        embed_dim_tile, vocab_embed_dim_tile, next_tag)
+        
         layers.append(wpe_layer)
         activations.extend(wpe_layer.activations_output)
 
@@ -173,12 +187,12 @@ class GPT2Model(BaseModel):
                 attn_layer, next_tag = AttLayer.generate_simple( \
                         activations[-1], activations[-1], activations[-1], \
                         next_tag, True, self.mask, \
-                        redux=redux, fp32_fast_tf32=fp32_fast_tf32)
+                        redux=redux)
             else:
                 attn_layer, next_tag = AttLayer.generate_simple( \
                         activations[-1], activations[-1], activations[-1], \
                         self.n_head, n_head_tile, next_tag, True, self.mask, \
-                        redux=redux, fp32_fast_tf32=fp32_fast_tf32)
+                        redux=redux)
             layers.append(attn_layer)
             activations.extend(attn_layer.activations_output)
 
@@ -192,8 +206,7 @@ class GPT2Model(BaseModel):
             layers.append(l_norm)
             activations.extend(l_norm.activations_output)
 
-            gpt_block = GPT2MLP(activations[-1], config, next_tag, \
-                    fp32_fast_tf32=fp32_fast_tf32)
+            gpt_block = GPT2MLP(activations[-1], config, next_tag)
             next_tag = gpt_block.next_tag
 
             activations.extend(gpt_block.activations[1:])
@@ -212,7 +225,7 @@ class GPT2Model(BaseModel):
 
         lm_head_layer, next_tag = Linear.generate_simple( \
                 activations[-1], "R", notrans, 1, [vocab_size], [vocab_size], \
-                next_tag, False, redux=redux, fp32_fast_tf32=fp32_fast_tf32)
+                next_tag, False, redux=redux)
 
         layers.append(lm_head_layer)
         activations.extend(lm_head_layer.activations_output)
@@ -284,7 +297,7 @@ class GPT2Model(BaseModel):
     @staticmethod
     def from_torch(torch_gpt2, batch_size: int, batch_size_tile: int, \
             seq_len: int, seq_len_tile: int, config: GPT2Config, \
-            next_tag: int, fp32_fast_tf32: bool=False):
+            next_tag: int):
         positional_ids_traits = TensorTraits([seq_len], [seq_len_tile])
         positional_ids_distr = [0] * positional_ids_traits.grid.nelems
         positional_ids_value = Tensor_int64(positional_ids_traits, \
@@ -303,8 +316,7 @@ class GPT2Model(BaseModel):
         x_grad_required = False
         x_moments = TensorMoments(x, x_grad, x_grad_required)
 
-        gpt2_nntile = GPT2Model(x_moments, positional_ids, config, next_tag, \
-                fp32_fast_tf32=fp32_fast_tf32)
+        gpt2_nntile = GPT2Model(x_moments, positional_ids, config, next_tag)
         nntile_p_idx = 0
         attn_embed_dim = config["embed_dim"]
         attn_nheads = config["n_head"]

@@ -179,6 +179,8 @@ def gelutanh_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
 def fill_async(val: float, x: Tensor) -> None:
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.fill_async_fp32(val, x)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.fill_async_fp32_fast_tf32(val, x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.fill_async_fp64(val, x)
     else:
@@ -191,6 +193,9 @@ def sum_slice_async(alpha: float, x: Tensor, beta: float, sum_slice: Tensor, \
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.sum_slice_async_fp32(alpha, x, beta, sum_slice, axis, \
+                redux)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.sum_slice_async_fp32_fast_tf32(alpha, x, beta, sum_slice, axis, \
                 redux)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.sum_slice_async_fp64(alpha, x, beta, sum_slice, axis, \
@@ -220,9 +225,14 @@ def norm_slice_async(alpha: float, x: Tensor, beta: float, \
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.norm_slice_async_fp32(alpha, x, beta, norm_slice, axis, \
                 redux)
-    else:
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.norm_slice_async_fp32_fast_tf32(alpha, x, beta, norm_slice, axis, \
+                redux)
+    elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.norm_slice_async_fp64(alpha, x, beta, norm_slice, axis, \
                 redux)
+    else:
+        raise TypeError
 
 # Wrapper for multiprecision pow
 def pow_async(alpha: float, exp: float, x: Tensor) -> None:
@@ -460,6 +470,8 @@ def add_slice3_async(alpha: float, add_slice: Tensor, beta, x: Tensor, \
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.add_slice3_async_fp32(alpha, add_slice, beta, x, y, axis)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.add_slice3_async_fp32_fast_tf32(alpha, add_slice, beta, x, y, axis)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.add_slice3_async_fp64(alpha, add_slice, beta, x, y, axis)
     else:
@@ -761,6 +773,8 @@ def embedding_async(index: Tensor_int64, vocab: Tensor, embed: Tensor, \
         raise TypeError
     if type(embed) is core_tensor.Tensor_fp32:
         core_tensor.embedding_async_fp32(index, vocab, embed, axis)
+    elif type(embed) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.embedding_async_fp32_fast_tf32(index, vocab, embed, axis)
     elif type(embed) is core_tensor.Tensor_fp64:
         core_tensor.embedding_async_fp64(index, vocab, embed, axis)
     else:

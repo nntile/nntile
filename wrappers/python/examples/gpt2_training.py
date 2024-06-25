@@ -65,7 +65,7 @@ parser.add_argument("--torch-device", choices=["cpu", "cuda", "cuda:0", \
         "cuda:1", "cuda:2", "cuda:3", "cuda:4"], default="cpu")
 parser.add_argument("--torch-dtype", choices=["fp32", "fp64"], default="fp32")
 parser.add_argument("--torch-compile", action="store_true")
-parser.add_argument("--nntile-dtype", choices=["fp32", "fp64"], default="fp32")
+parser.add_argument("--nntile-dtype", choices=["fp32", "fp64", "tf32"], default="fp32")
 parser.add_argument("--check", action="store_true")
 parser.add_argument("--check-fp64", action="store_true")
 parser.add_argument("--torch-nforward", type=int, default=0)
@@ -204,7 +204,7 @@ nntile_model_config = GPT2Config_nntile(config.vocab_size, args.n_embd_tile, \
         config.n_embd, args.n_embd_tile, config.max_position_embeddings, \
         config.n_inner, args.n_inner_tile, config.layer_norm_epsilon, \
         config.num_hidden_layers, config.n_head, args.n_head_tile, \
-        "gelutanh", args.nntile_flashattention, args.nntile_use_redux)
+        "gelutanh", args.nntile_flashattention, args.nntile_use_redux, args.nntile_dtype)
 nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
         args.minibatch_size, args.minibatch_size_tile, config.n_positions, \
         args.seq_len_tile, nntile_model_config, next_tag)

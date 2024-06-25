@@ -131,6 +131,11 @@ void embedding_backward_async<fp32_t>(const Tensor<Index> &index,
         int redux);
 
 template
+void embedding_backward_async<fp32_fast_tf32_t>(const Tensor<Index> &index,
+        const Tensor<fp32_fast_tf32_t> &embed, const Tensor<fp32_fast_tf32_t> &vocab, Index axis,
+        int redux);
+
+template
 void embedding_backward_async<fp64_t>(const Tensor<Index> &index,
         const Tensor<fp64_t> &embed, const Tensor<fp64_t> &vocab, Index axis,
         int redux);
@@ -139,6 +144,11 @@ void embedding_backward_async<fp64_t>(const Tensor<Index> &index,
 template
 void embedding_backward<fp32_t>(const Tensor<Index> &index,
         const Tensor<fp32_t> &embed, const Tensor<fp32_t> &vocab, Index axis,
+        int redux);
+
+template
+void embedding_backward<fp32_fast_tf32_t>(const Tensor<Index> &index,
+        const Tensor<fp32_fast_tf32_t> &embed, const Tensor<fp32_fast_tf32_t> &vocab, Index axis,
         int redux);
 
 template

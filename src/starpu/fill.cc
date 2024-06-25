@@ -51,7 +51,7 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::fill::cuda<T>(stream, args->nelems, args->val,data);
+    kernel::fill::cuda<T>(stream, args->nelems, args->val, data);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
