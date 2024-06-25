@@ -155,8 +155,7 @@ x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 # Define deep ReLU network
 gemm_ndim = 1
 m = model.DeepReLU(x_moments, 'R', gemm_ndim, args.hidden_dim, \
-            args.hidden_dim_tile, args.depth, n_classes, next_tag, \
-            dtype=args.dtype)
+            args.hidden_dim_tile, args.depth, n_classes, next_tag)
 
 print("Model is init")
 
@@ -243,7 +242,6 @@ print("Train GFLOPs/s (based on gemms): {}" \
 time0 = -time.time()
 for x in batch_data:
     for mini_x in x:
-#     print(x.dtype, m.activations[0].value.dtype)
         nntile.tensor.copy_async(mini_x, m.activations[0].value)
         m.forward_async()
         for t in m.activations:
