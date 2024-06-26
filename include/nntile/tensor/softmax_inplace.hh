@@ -20,11 +20,11 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void softmax_inplace_async(const Tensor<T> &maxsumexp, T alpha,
+void softmax_inplace_async(const Tensor<T> &maxsumexp, scal_t alpha,
         const Tensor<T> &dst, Index axis);
 
 template<typename T>
-void softmax_inplace(const Tensor<T> &maxsumexp, T alpha, const Tensor<T> &dst,
+void softmax_inplace(const Tensor<T> &maxsumexp, scal_t alpha, const Tensor<T> &dst,
         Index axis);
 
 } // namespace nntile::tensor

@@ -334,6 +334,8 @@ def softmax_inplace_async(maxsumexp: Tensor, alpha, x: Tensor, \
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.softmax_inplace_async_fp32(maxsumexp, alpha, x, axis)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.softmax_inplace_async_fp32_fast_tf32(maxsumexp, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.softmax_inplace_async_fp64(maxsumexp, alpha, x, axis)
     else:
@@ -764,6 +766,8 @@ def mask_scalar_async(mask: Tensor_bool, alpha: float, x: Tensor, \
         batch_ndim: int) -> None:
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.mask_scalar_async_fp32(mask, alpha, x, batch_ndim)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.mask_scalar_async_fp32_fast_tf32(mask, alpha, x, batch_ndim)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.mask_scalar_async_fp64(mask, alpha, x, batch_ndim)
     else:
@@ -861,6 +865,8 @@ def transpose_async(alpha: float, src: Tensor, dst: Tensor, ndim: int) -> None:
         raise TypeError
     if type(src) is core_tensor.Tensor_fp32:
         core_tensor.transpose_async_fp32(alpha, src, dst, ndim)
+    elif type(src) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.transpose_async_fp32_fast_tf32(alpha, src, dst, ndim)
     elif type(src) is core_tensor.Tensor_fp64:
         core_tensor.transpose_async_fp64(alpha, src, dst, ndim)
     else:
