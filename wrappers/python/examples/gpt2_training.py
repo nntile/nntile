@@ -22,7 +22,7 @@ from torch import Tensor
 import torch.nn as nn
 from transformers import GPT2TokenizerFast, GPT2LMHeadModel, GPT2Model, \
         GPT2Config
-from torch.optim import Adam
+from torch.optim import Adam, AdamW
 from torch.optim import SGD
 from datasets import load_dataset
 from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
@@ -50,7 +50,7 @@ parser.add_argument("--pretrained", choices=["local", "remote"], default="remote
 parser.add_argument("--checkpoint_path", type=str, default="")
 parser.add_argument("--config_path", type=str, default="")
 parser.add_argument("--save_checkpoint_path", type=str, default=".model")
-parser.add_argument("--optimizer", choices=["sgd", "adam"], default="adam")
+parser.add_argument("--optimizer", choices=["sgd", "adam", "adamw"], default="adam")
 
 
 parser.add_argument("--model-path", default=".model")
@@ -118,6 +118,9 @@ if args.torch_dtype == "fp32":
 elif args.torch_dtype == "fp64":
     torch_dtype = torch.float64
 
+if args.nntile_dtype == "tf32":
+    torch.backends.cuda.matmul.allow_tf32 = True
+
 # Load named pretrained PyTorch model
 if args.pretrained == "remote":
         model_torch = GPT2LMHeadModel.from_pretrained(args.model, \
@@ -130,9 +133,13 @@ elif args.pretrained == "local":
                 config = GPT2Config(**conf_dict)
                 model_torch = GPT2LMHeadModel(config).to(torch_dtype)
                 if args.optimizer == "adam":
-                        optimizer = Adam(model_torch.parameters(), args.lr)
+                    optimizer = Adam(model_torch.parameters(), args.lr)
                 elif args.optimizer == "sgd":
-                        optimizer = SGD(model_torch.parameters(), args.lr)
+                    optimizer = SGD(model_torch.parameters(), args.lr)
+                elif args.optimizer == "adamw":
+                    optimizer = AdamW(model_torch.parameters(), args.lr)
+                else:
+                    raise ValueError
                 if args.checkpoint_path:
                         checkpoint = torch.load(checkpoint_path)
                         torch_model.load_state_dict(checkpoint['model_state_dict'])
@@ -546,8 +553,15 @@ if args.nntile_nepochs > 0:
     time1 = time.time() - time0
     print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
     # Set up learning rate and optimizer for training
-    optimizer = nntile.optimizer.FusedAdam(nntile_model.get_parameters(), \
-            args.lr, next_tag)
+    if args.optimizer == "adam":
+        optimizer = nntile.optimizer.FusedAdam(nntile_model.get_parameters(), \
+                args.lr, next_tag)
+    elif args.optimizer == "adamw":
+        optimizer = nntile.optimizer.FusedAdamW(nntile_model.get_parameters(), \
+                args.lr, next_tag)
+    elif args.optimizer == "sgd":
+        optimizer = nntile.optimizer.SGD(nntile_model.get_parameters(), \
+                args.lr, next_tag)
     next_tag = optimizer.get_next_tag()
     # Define Cross Entropy loss function
     loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \

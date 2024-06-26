@@ -29,7 +29,7 @@ void cpu(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *grad = interfaces[0]->get_ptr<T>();
@@ -51,7 +51,7 @@ void cuda(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *grad = interfaces[0]->get_ptr<T>();
@@ -68,7 +68,7 @@ void cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
 
 void init()
 {
@@ -81,6 +81,17 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
+
+    codelet_fp32_fast_tf32.init("nntile_adamw_step_fp32_fast_tf32",
+            nullptr,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
     codelet_fp64.init("nntile_adamw_step_fp64",
             nullptr,
             {cpu<fp64_t>},
@@ -95,21 +106,23 @@ void init()
 void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
+    codelet_fp32_fast_tf32.restrict_where(where);
     codelet_fp64.restrict_where(where);
 }
 
 void restore_where()
 {
     codelet_fp32.restore_where();
+    codelet_fp32_fast_tf32.restore_where();
     codelet_fp64.restore_where();
 }
 
 template<typename T>
-void submit(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T weight_decay,
+void submit(Index num_iter, Index num_elems, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
             Handle grad, Handle first_moment, Handle second_moment, Handle p)
 {
     // Codelet arguments
-    args_t<T>* args = (args_t<T>*)std::malloc(sizeof(*args));
+    args_t* args = (args_t*)std::malloc(sizeof(*args));
     args->num_iter = num_iter;
     args->num_elems = num_elems;
     args->beta_1 = beta_1;
@@ -144,13 +157,18 @@ void submit(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T 
 
 // Explicit instantiaion
 template
-void submit<fp32_t>(Index num_iter, Index num_elems, fp32_t beta_1, fp32_t beta_2,
-            fp32_t eps, fp32_t lr, fp32_t weight_decay,
+void submit<fp32_t>(Index num_iter, Index num_elems, scal_t beta_1, scal_t beta_2,
+            scal_t eps, scal_t lr, scal_t weight_decay,
             Handle grad, Handle first_moment, Handle second_moment, Handle p);
 
 template
-void submit<fp64_t>(Index num_iter, Index num_elems, fp64_t beta_1, fp64_t beta_2,
-            fp64_t eps, fp64_t lr, fp64_t weight_decay,
+void submit<fp32_fast_tf32_t>(Index num_iter, Index num_elems, scal_t beta_1, scal_t beta_2,
+            scal_t eps, scal_t lr, scal_t weight_decay,
+            Handle grad, Handle first_moment, Handle second_moment, Handle p);
+
+template
+void submit<fp64_t>(Index num_iter, Index num_elems, scal_t beta_1, scal_t beta_2,
+            scal_t eps, scal_t lr, scal_t weight_decay,
             Handle grad, Handle first_moment, Handle second_moment, Handle p);
 
 } // namespace nntile::starpu::adamw_step

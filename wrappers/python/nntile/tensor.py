@@ -876,6 +876,9 @@ def fused_adamw_step(p: Tensor, grad: Tensor, first_moment: Tensor, second_momen
     if type(p) is core_tensor.Tensor_fp32:
         core_tensor.adamw_step_async_fp32(num_iter, beta1, beta2, eps, lr, weight_decay,
                                          grad, first_moment, second_moment, p)
+    elif type(p) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.adamw_step_async_fp32_fast_tf32(num_iter, beta1, beta2, eps, lr, weight_decay,
+                                         grad, first_moment, second_moment, p)
     elif type(p) is core_tensor.Tensor_fp64:
         core_tensor.adamw_step_async_fp64(num_iter, beta1, beta2, eps, lr, weight_decay,
                                          grad, first_moment, second_moment, p)
