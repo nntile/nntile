@@ -75,6 +75,6 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(scal_t alpha, Index nelems, Handle data);
+void submit(Index nelems, scal_t alpha, Handle data);
 
 } // namespace nntile::starpu::scal_inplace

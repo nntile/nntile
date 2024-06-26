@@ -172,7 +172,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(scal_t alpha, Index nelems, Handle data)
+void submit(Index nelems, scal_t alpha, Handle data)
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
 #ifdef NNTILE_USE_CBLAS
@@ -211,13 +211,12 @@ void submit(scal_t alpha, Index nelems, Handle data)
 
 // Explicit instantiation
 template
-void submit<fp32_t>(scal_t alpha, Index nelems, Handle data);
+void submit<fp32_t>(Index nelems, scal_t alpha, Handle data);
 
 template
-void submit<fp32_fast_tf32_t>(scal_t alpha, Index nelems, Handle data);
-
+void submit<fp32_fast_tf32_t>(Index nelems, scal_t alpha, Handle data);
 
 template
-void submit<fp64_t>(scal_t alpha, Index nelems, Handle data);
+void submit<fp64_t>(Index nelems, scal_t alpha, Handle data);
 
 } // namespace nntile::starpu::scal_inplace
