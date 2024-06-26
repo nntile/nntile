@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <assert.h>
+#include <iostream>
 
 namespace nntile
 {
@@ -40,22 +41,30 @@ enum class DTypeEnum
 
 using scal_t = float;
 
-template<typename T, enum DTypeEnum dtype_enum_, T scal2T(const scal_t &),
-    scal_t T2scal(const T &), size_t nbytes>
+template<typename T, typename Y>
+inline constexpr Y T2Y(const T &other)
+{
+    return static_cast<Y>(other);
+}
+
+template<typename T, size_t nbytes, enum DTypeEnum dtype_enum_,
+    typename T_compat, T compat2T(const T_compat &)=T2Y<T_compat, T>,
+    T_compat T2compat(const T &)=T2Y<T, T_compat>>
 class DTypeBase
 {
 public:
     T value;
+    using compat_t = T_compat;
     static constexpr enum DTypeEnum dtype_enum = dtype_enum_;
-    constexpr DTypeBase(const scal_t &other):
-        value(scal2T(other))
+    constexpr DTypeBase(const T_compat &other):
+        value(compat2T(other))
     {
         static_assert(sizeof(T) == nbytes);
         static_assert(sizeof(*this) == nbytes);
     }
-    constexpr DTypeBase &operator=(const scal_t &other)
+    constexpr DTypeBase &operator=(const T_compat &other)
     {
-        value = scal2T(other);
+        value = comapt2T(other);
         return *this;
     }
     constexpr DTypeBase &operator=(const DTypeBase &other)
@@ -63,57 +72,55 @@ public:
         value = other.value;
         return *this;
     }
-    constexpr bool operator==(const scal_t &other) const
+//    constexpr bool operator==(const scal_t &other) const
+//    {
+//        return (value == scal2T(other));
+//    }
+//    constexpr bool operator==(const DTypeBase &other) const
+//    {
+//        return (value == other.value);
+//    }
+//    constexpr bool operator!=(const scal_t &other) const
+//    {
+//        return (value != scal2T(other));
+//    }
+//    constexpr bool operator!=(const DTypeBase &other) const
+//    {
+//        return (value != other.value);
+//    }
+    constexpr T_compat get() const
     {
-        return (value == scal2T(other));
+        return T2compat(value);
     }
-    constexpr bool operator==(const DTypeBase &other) const
+    constexpr DTypeBase &set(const T_compat &other)
     {
-        return (value == other.value);
-    }
-    constexpr bool operator!=(const scal_t &other) const
-    {
-        return (value != scal2T(other));
-    }
-    constexpr bool operator!=(const DTypeBase &other) const
-    {
-        return (value != other.value);
-    }
-    constexpr scal_t get() const
-    {
-        return T2scal(value);
+        value = compat2T(other);
+        return *this;
     }
 };
 
-template<typename T, typename Y>
-inline constexpr Y T2Y(const T &other)
-{
-    return static_cast<Y>(other);
-}
+using fp64_t = DTypeBase<double, 8, DTypeEnum::FP64, double>;
 
-using fp64_t = DTypeBase<double, DTypeEnum::FP64, T2Y<scal_t, double>,
-      T2Y<double, scal_t>, 8>;
+using fp32_t = DTypeBase<float, 4, DTypeEnum::FP32, float>;
 
-using fp32_t = DTypeBase<float, DTypeEnum::FP32, T2Y<scal_t, float>,
-      T2Y<float, scal_t>, 4>;
+using fp32_fast_tf32_t = DTypeBase<float, 4, DTypeEnum::FP32_FAST_TF32, float>;
 
-using fp32_fast_tf32_t = DTypeBase<float, DTypeEnum::FP32_FAST_TF32,
-      T2Y<scal_t, float>, T2Y<float, scal_t>, 4>;
-
-inline constexpr int16_t scal2fp16(const scal_t &other)
+inline constexpr int16_t float2fp16(const float &other)
 {
     // Fake FP32 to FP16 convertor
-    return *reinterpret_cast<const int16_t *>(&other);
-}
-
-inline constexpr scal_t fp162scal(const int16_t &other)
-{
-    // Fake FP16 to FP32 convertor
-    scal_t res = 0;
+    int16_t res = 0;
     return res;
 }
 
-using fp16_t = DTypeBase<int16_t, DTypeEnum::FP16, scal2fp16, fp162scal, 2>;
+inline constexpr float fp162float(const int16_t &other)
+{
+    // Fake FP16 to FP32 convertor
+    float res = 0;
+    return res;
+}
+
+using fp16_t = DTypeBase<int16_t, 2, DTypeEnum::FP16, float, float2fp16,
+      fp162float>;
 
 //! Large enough signed integer for indexing purposes
 using Index = int64_t;
@@ -121,7 +128,36 @@ using Index = int64_t;
 // Boolean type for mask
 using bool_t = bool;
 
+// Overload for printing fp64_t
+static std::ostream &operator<<(std::ostream &cout, fp64_t val)
+{
+    // Convert value to scal_t and print it
+    cout << val.get();
+    return cout;
+}
 
-// Add more types like fp16_t, bf16_t and tf32_t in the future
+// Overload for printing fp32_t
+static std::ostream &operator<<(std::ostream &cout, fp32_t val)
+{
+    // Convert value to scal_t and print it
+    cout << val.get();
+    return cout;
+}
+
+// Overload for printing fp32_fast_tf32_t
+static std::ostream &operator<<(std::ostream &cout, fp32_fast_tf32_t val)
+{
+    // Convert value to scal_t and print it
+    cout << val.get();
+    return cout;
+}
+
+// Overload for printing fp16_t
+static std::ostream &operator<<(std::ostream &cout, fp16_t val)
+{
+    // Convert value to scal_t and print it
+    cout << "FP16 is not yet printable";
+    return cout;
+}
 
 } // namespace nntile

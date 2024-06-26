@@ -21,11 +21,11 @@ namespace nntile::tensor
 
 //! Compute Euclidean norm
 template<typename T>
-void nrm2_async(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
+void nrm2_async(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> &dst,
         const Tensor<T> &tmp);
 
 template<typename T>
-void nrm2(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
+void nrm2(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> &dst,
         const Tensor<T> &tmp);
 
 } // namespace nntile::tensor

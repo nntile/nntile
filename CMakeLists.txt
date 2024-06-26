@@ -216,7 +216,7 @@ add_subdirectory("include")
 add_subdirectory("external")
 
 # Add subdirectory with tests
-if(BUILD_TESTS)
+if(BUILD_TESTS AND NOT HAVE_STARPU_SIMGRID)
     include(CTest)
     add_subdirectory("tests")
 endif()
