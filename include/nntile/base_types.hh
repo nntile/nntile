@@ -97,6 +97,10 @@ public:
         value = compat2T(other);
         return *this;
     }
+    constexpr operator T_compat() const
+    {
+        return get();
+    }
 };
 
 using fp64_t = DTypeBase<double, 8, DTypeEnum::FP64, double>;
@@ -125,8 +129,11 @@ using fp16_t = DTypeBase<int16_t, 2, DTypeEnum::FP16, float, float2fp16,
 //! Large enough signed integer for indexing purposes
 using Index = int64_t;
 
+//Int64 type for indexing
+using nntile_int64_t = DTypeBase<int64_t, 8, DTypeEnum::INT64, int64_t>;
+
 // Boolean type for mask
-using bool_t = bool;
+using bool_t = DTypeBase<bool, 1, DTypeEnum::BOOL, bool>;
 
 // Overload for printing fp64_t
 static std::ostream &operator<<(std::ostream &cout, fp64_t val)
