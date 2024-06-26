@@ -20,10 +20,10 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void hypot_scalar_inverse_async(T eps, T alpha, const Tensor<T> &dst);
+void hypot_scalar_inverse_async(scal_t eps, scal_t alpha, const Tensor<T> &dst);
 
 template<typename T>
-void hypot_scalar_inverse(T eps, T alpha, const Tensor<T> &dst);
+void hypot_scalar_inverse(scal_t eps, scal_t alpha, const Tensor<T> &dst);
 
 } // namespace nntile::tensor
 

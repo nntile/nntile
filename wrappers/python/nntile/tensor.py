@@ -810,6 +810,8 @@ def hypot_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
 def hypot_scalar_inverse_async(eps: float, alpha: float, x: Tensor) -> None:
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.hypot_scalar_inverse_async_fp32(eps, alpha, x)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.hypot_scalar_inverse_async_fp32_fast_tf32(eps, alpha, x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.hypot_scalar_inverse_async_fp64(eps, alpha, x)
     else:

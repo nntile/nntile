@@ -29,7 +29,7 @@ void cpu(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *dst = interfaces[0]->get_ptr<T>();
@@ -47,7 +47,7 @@ void cuda(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *dst = interfaces[0]->get_ptr<T>();
@@ -60,7 +60,7 @@ void cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
 
 void init()
 {
@@ -73,6 +73,17 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
+
+    codelet_fp32_fast_tf32.init("nntile_hypot_scalar_inverse_fp32_fast_tf32",
+            nullptr,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
     codelet_fp64.init("nntile_hypot_scalar_inverse_fp64",
             nullptr,
             {cpu<fp64_t>},
@@ -87,17 +98,19 @@ void init()
 void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
+    codelet_fp32_fast_tf32.restrict_where(where);
     codelet_fp64.restrict_where(where);
 }
 
 void restore_where()
 {
     codelet_fp32.restore_where();
+    codelet_fp32_fast_tf32.restore_where();
     codelet_fp64.restore_where();
 }
 
 template<typename T>
-void submit(Index nelems, T eps, T alpha, Handle dst)
+void submit(Index nelems, scal_t eps, scal_t alpha, Handle dst)
 //! Insert hypot_scalar_inverse task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -105,7 +118,7 @@ void submit(Index nelems, T eps, T alpha, Handle dst)
  * */
 {
     // Codelet arguments
-    args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     args->eps = eps;
     args->alpha = alpha;
@@ -123,10 +136,13 @@ void submit(Index nelems, T eps, T alpha, Handle dst)
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index nelems, fp32_t eps, fp32_t alpha, Handle dst);
+void submit<fp32_t>(Index nelems, scal_t eps, scal_t alpha, Handle dst);
 
 template
-void submit<fp64_t>(Index nelems, fp64_t eps, fp64_t alpha, Handle dst);
+void submit<fp32_fast_tf32_t>(Index nelems, scal_t eps, scal_t alpha, Handle dst);
+
+template
+void submit<fp64_t>(Index nelems, scal_t eps, scal_t alpha, Handle dst);
 
 } // namespace nntile::starpu::hypot_scalar_inverse
 
