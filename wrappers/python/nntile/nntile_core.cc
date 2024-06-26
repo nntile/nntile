@@ -460,12 +460,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("drelu_fp64", &drelu<fp64_t>);
     m.def("drelu_fp32", &drelu<fp32_t>);
     // Add other functions for Tensor<T>
-    m.def("fill_async_fp64", [](fp64_t val, const Tensor<fp64_t>& A) {return fill_async<fp64_t>(val, A); } );
-    m.def("fill_async_fp32", [](fp32_t val, const Tensor<fp32_t>& A) {return fill_async<fp32_t>(val, A); } );
-    m.def("fill_async_fp32_fast_tf32", [](fp32_t val, const Tensor<fp32_fast_tf32_t>& A) { auto t_fp32 = reinterpret_cast<const Tensor<fp32_t>* >(&A); return fill_async<fp32_t>(val, *t_fp32); });
-    m.def("fill_fp64", [](fp64_t val, const Tensor<fp64_t>& A) {return fill<fp64_t>(val, A); } );
-    m.def("fill_fp32", [](fp32_t val, const Tensor<fp32_t>& A) {return fill<fp32_t>(val, A); } );
-    m.def("fill_fp32_fast_tf32", [](fp32_t val, const Tensor<fp32_fast_tf32_t>& A) { auto t_fp32 = reinterpret_cast<const Tensor<fp32_t>* >(&A); return fill<fp32_t>(val, *t_fp32); });
+    m.def("fill_async_fp64", &fill_async<fp64_t>);
+    m.def("fill_async_fp32", &fill_async<fp32_t>);
+    m.def("fill_async_fp32_fast_tf32", &fill_async<fp32_fast_tf32_t>);
+    m.def("fill_fp64", &fill<fp64_t>);
+    m.def("fill_fp32", &fill<fp32_t>);
+    m.def("fill_fp32_fast_tf32", &fill<fp32_fast_tf32_t>);
 
     m.def("sum_slice_async_fp64", &sum_slice_async<fp64_t>);
     m.def("sum_slice_async_fp32", &sum_slice_async<fp32_t>);

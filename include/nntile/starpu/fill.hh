@@ -22,11 +22,10 @@ namespace nntile::starpu::fill
 {
 
 //! Structure for arguments
-template<typename T>
 struct args_t
 {
     Index nelems;
-    T val;
+    scal_t val;
 };
 
 // fill StarPU buffer on CPU
@@ -41,7 +40,7 @@ void cuda(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern Codelet codelet_fp32, codelet_fp64;
+extern Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
 
 template<typename T>
 constexpr Codelet *codelet()
@@ -57,6 +56,12 @@ constexpr Codelet *codelet<fp32_t>()
 }
 
 template<>
+constexpr Codelet *codelet<fp32_fast_tf32_t>()
+{
+    return &codelet_fp32_fast_tf32;
+}
+
+template<>
 constexpr Codelet *codelet<fp64_t>()
 {
     return &codelet_fp64;
@@ -69,7 +74,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nelems, T val, Handle data);
+void submit(Index nelems, scal_t val, Handle data);
 
 } // namespace nntile::starpu::fill
 

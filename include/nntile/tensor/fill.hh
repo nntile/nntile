@@ -20,10 +20,10 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void fill_async(T val, const Tensor<T> &A);
+void fill_async(scal_t val, const Tensor<T> &A);
 
 template<typename T>
-void fill(T val, const Tensor<T> &A);
+void fill(scal_t val, const Tensor<T> &A);
 
 } // namespace nntile::tensor
 
