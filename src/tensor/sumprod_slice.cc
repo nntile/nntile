@@ -20,8 +20,8 @@ namespace nntile::tensor
 
 //! Tensor-wise sumprod_slice operation
 template<typename T>
-void sumprod_slice_async(T alpha, const Tensor<T> &src1, const Tensor<T> &src2,
-        T beta, const Tensor<T> &dst, Index axis, int redux)
+void sumprod_slice_async(scal_t alpha, const Tensor<T> &src1, const Tensor<T> &src2,
+        scal_t beta, const Tensor<T> &dst, Index axis, int redux)
 {
     // Check shapes of src1 and src2
     if(src1.shape != src2.shape)
@@ -150,8 +150,8 @@ void sumprod_slice_async(T alpha, const Tensor<T> &src1, const Tensor<T> &src2,
 
 //! Tensor-wise sumprod_slice operation
 template<typename T>
-void sumprod_slice(T alpha, const Tensor<T> &src1, const Tensor<T> &src2,
-        T beta, const Tensor<T> &dst, Index axis, int redux)
+void sumprod_slice(scal_t alpha, const Tensor<T> &src1, const Tensor<T> &src2,
+        scal_t beta, const Tensor<T> &dst, Index axis, int redux)
 {
     sumprod_slice_async<T>(alpha, src1, src2, beta, dst, axis, redux);
     starpu_task_wait_for_all();
@@ -160,24 +160,34 @@ void sumprod_slice(T alpha, const Tensor<T> &src1, const Tensor<T> &src2,
 
 // Explicit instantiation
 template
-void sumprod_slice_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src1,
-        const Tensor<fp32_t> &src2, fp32_t beta, const Tensor<fp32_t> &dst,
+void sumprod_slice_async<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src1,
+        const Tensor<fp32_t> &src2, scal_t beta, const Tensor<fp32_t> &dst,
         Index axis, int redux);
 
 template
-void sumprod_slice_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src1,
-        const Tensor<fp64_t> &src2, fp64_t beta, const Tensor<fp64_t> &dst,
+void sumprod_slice_async<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src1,
+        const Tensor<fp32_fast_tf32_t> &src2, scal_t beta, const Tensor<fp32_fast_tf32_t> &dst,
+        Index axis, int redux);
+
+template
+void sumprod_slice_async<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src1,
+        const Tensor<fp64_t> &src2, scal_t beta, const Tensor<fp64_t> &dst,
         Index axis, int redux);
 
 // Explicit instantiation
 template
-void sumprod_slice<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src1,
-        const Tensor<fp32_t> &src2, fp32_t beta, const Tensor<fp32_t> &dst,
+void sumprod_slice<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src1,
+        const Tensor<fp32_t> &src2, scal_t beta, const Tensor<fp32_t> &dst,
         Index axis, int redux);
 
 template
-void sumprod_slice<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src1,
-        const Tensor<fp64_t> &src2, fp64_t beta, const Tensor<fp64_t> &dst,
+void sumprod_slice<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src1,
+        const Tensor<fp32_fast_tf32_t> &src2, scal_t beta, const Tensor<fp32_fast_tf32_t> &dst,
+        Index axis, int redux);
+
+template
+void sumprod_slice<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src1,
+        const Tensor<fp64_t> &src2, scal_t beta, const Tensor<fp64_t> &dst,
         Index axis, int redux);
 
 } // namespace nntile::tensor

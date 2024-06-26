@@ -21,12 +21,12 @@ namespace nntile::tensor
 
 // Tensor-wise sum_fiber
 template<typename T>
-void sum_fiber_async(T alpha, const Tensor<T> &src, T beta,
+void sum_fiber_async(scal_t alpha, const Tensor<T> &src, scal_t beta,
         const Tensor<T> &dst, Index axis, Index batch_ndim, int redux=0);
 
 // Tensor-wise sum_fiber
 template<typename T>
-void sum_fiber(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
+void sum_fiber(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> &dst,
         Index axis, Index batch_ndim, int redux=0);
 
 } // namespace nntile::tensor
