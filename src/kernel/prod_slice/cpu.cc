@@ -18,7 +18,7 @@ namespace nntile::kernel::prod_slice
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, T alpha, const T *src, T *dst)
+void cpu(Index m, Index n, Index k, T alpha_T, const T *src_T, T *dst_T)
     noexcept
 //! Per-element product of a tensor and a broadcasted slice on CPU
 /*! Performs the following operations:
@@ -32,6 +32,10 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T *dst)
  * @param[inout] dst: Input and output contiguous m-by-k-by-n array
  * */
 {
+    using Y = typename T::internal_t;
+    auto src = reinterpret_cast<const Y *>(src_T);
+    auto dst = reinterpret_cast<Y *>(dst_T);
+    Y alpha = alpha_T;
     const Index mk = m * k;
     // Cycle over column of the output buffer dst
     for(Index i2 = 0; i2 < n; ++i2)
@@ -40,9 +44,9 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T *dst)
         for(Index i1 = 0; i1 < m; ++i1)
         {
             // Pointer to a corresponding fiber of the output array dst
-            T *dst_fiber = dst + i2*mk + i1;
+            Y *dst_fiber = dst + i2*mk + i1;
             // Value to multiply by the output fiber
-            const T src_val = alpha * src[i2*m+i1];
+            const Y src_val = alpha * src[i2*m+i1];
             // Cycle over output fiber elements
             for(Index i0 = 0; i0 < k; ++i0)
             {

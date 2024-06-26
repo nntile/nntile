@@ -13,20 +13,24 @@
  * */
 
 #include "nntile/kernel/fill/cpu.hh"
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::fill
 {
 
 template<typename T>
-void cpu(Index nelems, T val, T *data)
+void cpu(Index nelems, T val_, T *data_)
     noexcept
 //! Fill operation on CPU
 /*! Sets all elements to the provided value
  * @params[in] nelems: Number of elements in a buffer
- * @param[in] val: Input value
- * @params[out] data: Output buffer
+ * @param[in] val_: Input value
+ * @params[out] data_: Output buffer
  * */
 {
+    using Y = typename CPUComputeType<T>::value;
+    auto *data = reinterpret_cast<Y *>(data_);
+    const Y val{val_};
     for(Index i = 0; i < nelems; ++i)
     {
         data[i] = val;

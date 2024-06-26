@@ -13,13 +13,14 @@
  * */
 
 #include "nntile/kernel/add_slice3/cpu.hh"
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::add_slice3
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, T alpha, const T *src1, T beta,
-        const T *src2, T *dst)
+void cpu(Index m, Index n, Index k, T alpha_, const T *src1_, T beta_,
+        const T *src2_, T *dst_)
     noexcept
 //! Per-element addition of a tensor and a broadcasted slice on CPU
 /*! Performs the following operations:
@@ -28,15 +29,19 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src1, T beta,
  * @param[in] m: Size of the first mode of src1, src2 and dst tensors
  * @param[in] n: Size of the last mode of src1, src2 and dst tensors
  * @param[in] k: Size of the middle mode of src2 and dst tensor
- * @param[in] alpha: Scalar factor for src1
- * @param[in] src1: Input contiguous m-by-n array
- * @param[in] beta: Scaling factor for src1
- * @param[in] src2: Input contiguous m-by-k-by-n array
- * @param[out] dst: Output contiguous m-by-k-by-n array
+ * @param[in] alpha_: Scalar factor for src1
+ * @param[in] src1_: Input contiguous m-by-n array
+ * @param[in] beta_: Scaling factor for src1
+ * @param[in] src2_: Input contiguous m-by-k-by-n array
+ * @param[out] dst_: Output contiguous m-by-k-by-n array
  * */
 {
+    using Y = typename CPUComputeType<T>::value;
+    auto *src1 = reinterpret_cast<const Y *>(src1_);
+    auto *src2 = reinterpret_cast<const Y *>(src2_);
+    auto *dst = reinterpret_cast<Y *>(dst_);
+    const Y zero{0.0}, alpha{alpha_}, beta{beta_};
     const Index mk = m * k;
-    constexpr T zero = 0.0;
     // Cycle over column of the output buffer dst
     for(Index i2 = 0; i2 < n; ++i2)
     {
@@ -44,11 +49,11 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src1, T beta,
         for(Index i1 = 0; i1 < m; ++i1)
         {
             // Pointer to a corresponding fiber of the input array src2
-            const T *src2_fiber = src2 + i2*mk + i1;
+            const Y *src2_fiber = src2 + i2*mk + i1;
             // Pointer to a corresponding fiber of the output array dst
-            T *dst_fiber = dst + i2*mk + i1;
+            Y *dst_fiber = dst + i2*mk + i1;
             // Value to add to the output fiber
-            const T src1_val = alpha * src1[i2*m+i1];
+            const Y src1_val = alpha * src1[i2*m+i1];
             // Overwrite or update output depending on beta
             if(beta == zero)
             {

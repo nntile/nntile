@@ -14,12 +14,13 @@
 
 #include "nntile/kernel/gelu/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::gelu
 {
 
 template<typename T>
-void cpu(Index nelems, T *data)
+void cpu(Index nelems, T *data_)
     noexcept
 //! Inplace GeLU operation performed on CPU
 /*! Uses very slow std::erfc() function, so consider using approximated version
@@ -27,15 +28,17 @@ void cpu(Index nelems, T *data)
  * GeLU(z) = 0.5 z erfc(-z/sqrt(2))
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data: Buffer to apply GeLU
+ * @params[inout] data_: Buffer to apply GeLU
  * */
 {
-    constexpr T mone = -1, pt5 = 0.5;
-    const T f1 = mone / std::sqrt(T{2.0});
+    using Y = typename CPUComputeType<T>::value;
+    auto *data = reinterpret_cast<const Y *>(data_);
+    constexpr Y mone{-1.0}, pt5{0.5};
+    const Y f1 = mone / std::sqrt(Y{2.0});
     for(Index i = 0; i < nelems; ++i)
     {
-        T z = data[i];
-        T y = std::erfc(f1 * z);
+        Y z = data[i];
+        Y y = std::erfc(f1 * z);
         data[i] = (pt5 * z) * y;
     }
 }

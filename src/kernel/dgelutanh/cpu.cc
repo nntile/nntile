@@ -14,12 +14,13 @@
 
 #include "nntile/kernel/dgelutanh/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::dgelutanh
 {
 
 template<typename T>
-void cpu(Index nelems, T *data)
+void cpu(Index nelems, T *data_)
     noexcept
 //! Derivative of approximate GeLU operation on CPU
 /*! Applies the following derivative of approximation of the GeLU function:
@@ -31,29 +32,31 @@ void cpu(Index nelems, T *data)
  * zf'(z) = -2 sqrt(2/pi) z (1+3*0.044715z^2)
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data: Buffer to apply derivative of approximate GeLU
+ * @params[inout] data_: Buffer to apply derivative of approximate GeLU
  * */
 {
     // Constants
-    constexpr T pi = 3.141592653589793238462643383279502884L,
-        zero = 0, one = 1, pt5 = 0.5, f1 = T{0.044715};
+    using Y = typename CPUComputeType<T>::value;
+    auto data = reinterpret_cast<Y *>(data_);
+    constexpr Y pi{3.141592653589793238462643383279502884L},
+        zero{0.0}, one{1.0}, pt5{0.5}, f1 = Y{0.044715};
     // Square root is not constexpr by standard, proceed with a static const
-    static const T sqrt_pi = std::sqrt(pi), sqrt_2 = std::sqrt(T{2}),
-        f2 = sqrt_2/sqrt_pi, f3 = -T{2}*f2, f4 = f3*f1, f5 = T{3}*f4;
+    static const Y sqrt_pi = std::sqrt(pi), sqrt_2 = std::sqrt(Y{2.0}),
+        f2 = sqrt_2/sqrt_pi, f3 = -Y{2.0}*f2, f4 = f3*f1, f5 = Y{3.0}*f4;
     for(Index i = 0; i < nelems; ++i)
     {
-        T z = data[i];
-        T z2 = z * z;
-        T y1 = z * (f3 + f4*z2);
-        T y2 = z * (f3 + f5*z2);
-        T expy1 = std::exp(y1);
+        Y z = data[i];
+        Y z2 = z * z;
+        Y y1 = z * (f3 + f4*z2);
+        Y y2 = z * (f3 + f5*z2);
+        Y expy1 = std::exp(y1);
         if(std::isinf(expy1))
         {
             data[i] = zero;
         }
         else
         {
-            T inv_expy1p1 = one / (expy1 + one);
+            Y inv_expy1p1 = one / (expy1 + one);
             data[i] = (one-y2*(one-inv_expy1p1)) * inv_expy1p1;
         }
     }

@@ -58,7 +58,7 @@ void cuda_kernel(Index nelems, const T *src, T *dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
+void cuda(cudaStream_t stream, Index nelems, const T *src_T, T *dst_T)
     noexcept
 //! Accumulate two maxsumexp buffers on CUDA
 /*! Performs the following operation:
@@ -71,7 +71,10 @@ void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
+    using Y = typename T::internal_t;
+    auto *src = reinterpret_cast<const Y *>(src_T);
+    auto *dst = reinterpret_cast<Y *>(dst_T);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
 }
 
 // Explicit instantiation

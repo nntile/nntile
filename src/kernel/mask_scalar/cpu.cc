@@ -13,12 +13,13 @@
  * */
 
 #include "nntile/kernel/mask_scalar/cpu.hh"
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::mask_scalar
 {
 
 template<typename T>
-void cpu(Index nrows, Index ncols, const bool_t *mask, T val, T *data)
+void cpu(Index nrows, Index ncols, const bool_t *mask_, T val_, T *data_)
     noexcept
 //! Set certain matrix entries to a given value by mask on CPU
 /*! Does the following operation:
@@ -26,11 +27,15 @@ void cpu(Index nrows, Index ncols, const bool_t *mask, T val, T *data)
  *
  * @params[in] nrows: Number of rows of data
  * @params[in] ncols: Number of columns of data
- * @params[in] mask: buffer with mask values with nrows entries
- * @params[in] val: value to set if mask element is false
- * @params[in,out] data: nrows by ncols matrix, whose elements are updated
+ * @params[in] mask_: buffer with mask values with nrows entries
+ * @params[in] val_: value to set if mask element is false
+ * @params[in,out] data_: nrows by ncols matrix, whose elements are updated
  * */
 {
+    using Y = typename CPUComputeType<T>::value;
+    auto *mask = reinterpret_cast<const bool *>(mask_);
+    auto *data = reinterpret_cast<Y *>(data_);
+    const Y val{val_};
     for(Index i = 0; i < nrows; ++i)
     {
         if(!mask[i])

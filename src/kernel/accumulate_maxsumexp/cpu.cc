@@ -14,12 +14,13 @@
 
 #include "nntile/kernel/accumulate_maxsumexp/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::accumulate_maxsumexp
 {
 
 template<typename T>
-void cpu(Index nelems, const T* src, T* dst)
+void cpu(Index nelems, const T* src_, T* dst_)
     noexcept
 //! Accumulate two maxsumexp buffers on CPU
 /*! Performs the following operation:
@@ -27,11 +28,14 @@ void cpu(Index nelems, const T* src, T* dst)
  *      dst[2*i] = max(src[2*i], dst[2*i]).
  *
  * @param[in] nelems: Number of (max,sumexp) pairs of the src and dst tensors
- * @param[in] src: Source tensor
- * @param[inout] dst: Destination of the maxsumexp accumulation
+ * @param[in] src_: Source tensor
+ * @param[inout] dst_: Destination of the maxsumexp accumulation
  * */
 {
-    constexpr T zero = 0.0;
+    using Y = typename CPUComputeType<T>::value;
+    constexpr Y zero{0.0};
+    auto *src = reinterpret_cast<const Y *>(src_);
+    auto *dst = reinterpret_cast<Y *>(dst_);
     for(Index i = 0; i < nelems; ++i)
     {
         // Do nothing if sum of exponents of source is zero

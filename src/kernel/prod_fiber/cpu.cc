@@ -18,7 +18,7 @@ namespace nntile::kernel::prod_fiber
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, T alpha, const T *src, T *dst)
+void cpu(Index m, Index n, Index k, T alpha_T, const T *src_T, T *dst_T)
     noexcept
 //! Per-element product of a tensor and a broadcasted fiber on CPU
 /*! Performs the following operations:
@@ -33,15 +33,19 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T *dst)
  * @param[inout] dst: Input and output contiguous m-by-k-by-n array
  * */
 {
+    using Y = typename T::internal_t;
+    auto src = reinterpret_cast<const Y *>(src_T);
+    auto dst = reinterpret_cast<Y *>(dst_T);
+    Y alpha = alpha_T;
     // Cycle over input src vector
     for(Index i2 = 0; i2 < k; ++i2)
     {
-        const T src_val = alpha * src[i2];
+        const Y src_val = alpha * src[i2];
         // Cycle over the third axis of output buffer
         for(Index i1 = 0; i1 < n; ++i1)
         {
             // Output fiber to be updated
-            T *dst_fiber = dst + (i1*k+i2)*m;
+            Y *dst_fiber = dst + (i1*k+i2)*m;
             // Cycle over the output fiber
             for(Index i0 = 0; i0 < m; ++i0)
             {
