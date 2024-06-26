@@ -140,7 +140,7 @@ void cuda2(void *buffers[], void *cl_args)
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args2_t *>(cl_args);
-    const T* alpha = reinterpret_cast<const T*>(&args->alpha);
+    T alpha_T = args->alpha;
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
@@ -151,7 +151,7 @@ void cuda2(void *buffers[], void *cl_args)
     cublasSetStream(handle, stream);
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
     // Call corresponding cuBLAS routine
-    cublas(handle, args->nelems, alpha, src, 1, dst, 1);
+    cublas(handle, args->nelems, &alpha_T, src, 1, dst, 1);
 #endif // STARPU_SIMGRID
 }
 #endif //NNTILE_USE_CUDA

@@ -381,6 +381,8 @@ def prod_async(x: Tensor, y: Tensor) -> None:
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.prod_async_fp32(x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.prod_async_fp32_fast_tf32(x, y)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.prod_async_fp64(x, y)
     else:
@@ -810,6 +812,9 @@ def embedding_backward_async(index: Tensor_int64, embed: Tensor, \
     if type(embed) is core_tensor.Tensor_fp32:
         core_tensor.embedding_backward_async_fp32(index, embed, vocab, axis, \
                 redux)
+    elif type(embed) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.embedding_backward_async_fp32_fast_tf32(index, embed, vocab, axis, \
+                redux)
     elif type(embed) is core_tensor.Tensor_fp64:
         core_tensor.embedding_backward_async_fp64(index, embed, vocab, axis, \
                 redux)
@@ -850,6 +855,9 @@ def fused_adam_step(p: Tensor, grad: Tensor, first_moment: Tensor, second_moment
         raise TypeError
     if type(p) is core_tensor.Tensor_fp32:
         core_tensor.adam_step_async_fp32(num_iter, beta1, beta2, eps, lr, weight_decay,
+                                         grad, first_moment, second_moment, p)
+    elif type(p) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.adam_step_async_fp32_fast_tf32(num_iter, beta1, beta2, eps, lr, weight_decay,
                                          grad, first_moment, second_moment, p)
     elif type(p) is core_tensor.Tensor_fp64:
         core_tensor.adam_step_async_fp64(num_iter, beta1, beta2, eps, lr, weight_decay,

@@ -539,8 +539,10 @@ void def_mod_tensor(py::module_ &m)
 
     m.def("prod_async_fp64", &prod_async<fp64_t>);
     m.def("prod_async_fp32", &prod_async<fp32_t>);
+    m.def("prod_async_fp32_fast_tf32", &prod_async<fp32_fast_tf32_t>);
     m.def("prod_fp64", &prod<fp64_t>);
     m.def("prod_fp32", &prod<fp32_t>);
+    m.def("prod_fp32_fast_tf32", &prod<fp32_fast_tf32_t>);
 
     m.def("nrm2_async_fp64", &nrm2_async<fp64_t>);
     m.def("nrm2_async_fp32", &nrm2_async<fp32_t>);
@@ -728,8 +730,10 @@ void def_mod_tensor(py::module_ &m)
 
     m.def("adam_step_async_fp64", &adam_step_async<fp64_t>);
     m.def("adam_step_async_fp32", &adam_step_async<fp32_t>);
+    m.def("adam_step_async_fp32_fast_tf32", &adam_step_async<fp32_fast_tf32_t>);
     m.def("adam_step_fp64", &adam_step<fp64_t>);
     m.def("adam_step_fp32", &adam_step<fp32_t>);
+    m.def("adam_step_fp32_fast_tf32", &adam_step<fp32_fast_tf32_t>);
 
     m.def("adamw_step_async_fp64", &adamw_step_async<fp64_t>);
     m.def("adamw_step_async_fp32", &adamw_step_async<fp32_t>);
@@ -806,8 +810,10 @@ void def_mod_tensor(py::module_ &m)
     // Embedding backward pass
     m.def("embedding_backward_async_fp64", &embedding_backward_async<fp64_t>);
     m.def("embedding_backward_async_fp32", &embedding_backward_async<fp32_t>);
+    m.def("embedding_backward_async_fp32_fast_tf32", &embedding_backward_async<fp32_fast_tf32_t>);
     m.def("embedding_backward_fp64", &embedding_backward<fp64_t>);
     m.def("embedding_backward_fp32", &embedding_backward<fp32_t>);
+    m.def("embedding_backward_fp32_fast_tf32", &embedding_backward<fp32_fast_tf32_t>);
 
     // FP32 <-> FP16
     m.def("fp32_to_fp16_async", &fp32_to_fp16_async);
