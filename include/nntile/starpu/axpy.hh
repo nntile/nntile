@@ -23,11 +23,10 @@ namespace nntile::starpu::axpy
 {
 
 //! Structure for arguments
-template<typename T>
 struct args2_t
 {
     Index nelems;
-    T alpha;
+    scal_t alpha;
 };
 
 #ifdef NNTILE_USE_CBLAS
@@ -51,7 +50,7 @@ void cuda2(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 extern Codelet codelet_tensor_alpha_fp64, codelet_scalar_alpha_fp64;
-extern Codelet codelet_tensor_alpha_fp32, codelet_scalar_alpha_fp32;
+extern Codelet codelet_tensor_alpha_fp32, codelet_scalar_alpha_fp32, codelet_scalar_alpha_fp32_fast_tf32;
 
 template<typename T>
 constexpr Codelet *codelet_tensor_alpha()
@@ -86,6 +85,12 @@ constexpr Codelet *codelet_scalar_alpha<fp32_t>()
 }
 
 template<>
+constexpr Codelet *codelet_scalar_alpha<fp32_fast_tf32_t>()
+{
+    return &codelet_scalar_alpha_fp32_fast_tf32;
+}
+
+template<>
 constexpr Codelet *codelet_scalar_alpha<fp64_t>()
 {
     return &codelet_scalar_alpha_fp64;
@@ -101,7 +106,7 @@ template<typename T>
 void submit(Handle alpha, Index nelems, Handle src, Handle dst);
 
 template<typename T>
-void submit(T alpha, Index nelems, Handle src, Handle dst);
+void submit(scal_t alpha, Index nelems, Handle src, Handle dst);
 
 } // namespace nntile::starpu::axpy
 

@@ -143,6 +143,8 @@ def gelutanh_async(x: Tensor, y: Tensor) -> None:
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.gelutanh_async_fp32(x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.gelutanh_async_fp32_fast_tf32(x, y)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.gelutanh_async_fp64(x, y)
     else:
@@ -170,6 +172,8 @@ def dgelutanh_async(x: Tensor) -> None:
 def gelutanh_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.gelutanh_backward_async_fp32(x, dy, dx)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.gelutanh_backward_async_fp32_fast_tf32(x, dy, dx)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.gelutanh_backward_async_fp64(x, dy, dx)
     else:
@@ -210,6 +214,9 @@ def sum_fiber_async(alpha: float, x: Tensor, beta: float, sum_fiber: Tensor, \
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.sum_fiber_async_fp32(alpha, x, beta, sum_fiber, axis, \
+                batch_ndim, redux)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.sum_fiber_async_fp32_fast_tf32(alpha, x, beta, sum_fiber, axis, \
                 batch_ndim, redux)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.sum_fiber_async_fp64(alpha, x, beta, sum_fiber, axis, \
@@ -618,6 +625,8 @@ def axpy_async(alpha: TensorOrFloat, x: Tensor, y: Tensor) -> None:
     else:
         if type(x) is core_tensor.Tensor_fp32:
             core_tensor.axpy_async_fp32(alpha, x, y)
+        elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+            core_tensor.axpy_async_fp32_fast_tf32(alpha, x, y)
         elif type(x) is core_tensor.Tensor_fp64:
             core_tensor.axpy_async_fp64(alpha, x, y)
         else:
@@ -680,6 +689,9 @@ def sumprod_slice_async(alpha: float, src1: Tensor, src2: Tensor, \
     if type(src1) is core_tensor.Tensor_fp32:
         core_tensor.sumprod_slice_async_fp32(alpha, src1, src2, beta, dst, \
                 axis, redux)
+    elif type(src1) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.sumprod_slice_async_fp32_fast_tf32(alpha, src1, src2, beta, dst, \
+                axis, redux)
     elif type(src1) is core_tensor.Tensor_fp64:
         core_tensor.sumprod_slice_async_fp64(alpha, src1, src2, beta, dst, \
                 axis, redux)
@@ -695,6 +707,9 @@ def sumprod_fiber_async(alpha: float, src1: Tensor, src2: Tensor, \
         raise TypeError
     if type(src1) is core_tensor.Tensor_fp32:
         core_tensor.sumprod_fiber_async_fp32(alpha, src1, src2, beta, dst, \
+                axis, redux)
+    elif type(src1) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.sumprod_fiber_async_fp32_fast_tf32(alpha, src1, src2, beta, dst, \
                 axis, redux)
     elif type(src1) is core_tensor.Tensor_fp64:
         core_tensor.sumprod_fiber_async_fp64(alpha, src1, src2, beta, dst, \
