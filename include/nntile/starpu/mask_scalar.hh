@@ -22,12 +22,11 @@ namespace nntile::starpu::mask_scalar
 {
 
 //! Structure for arguments
-template<typename T>
 struct args_t
 {
     Index nrows;
     Index ncols;
-    T val;
+    scal_t val;
 };
 
 // Mask StarPU buffer with given value on CPU
@@ -42,7 +41,7 @@ void cuda(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern Codelet codelet_fp32, codelet_fp64;
+extern Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
 
 template<typename T>
 constexpr Codelet *codelet()
@@ -58,6 +57,12 @@ constexpr Codelet *codelet<fp32_t>()
 }
 
 template<>
+constexpr Codelet *codelet<fp32_fast_tf32_t>()
+{
+    return &codelet_fp32_fast_tf32;
+}
+
+template<>
 constexpr Codelet *codelet<fp64_t>()
 {
     return &codelet_fp64;
@@ -70,7 +75,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nrows, Index ncols, Handle mask, T val, Handle data);
+void submit(Index nrows, Index ncols, Handle mask, scal_t val, Handle data);
 
 } // namespace nntile::starpu::mask_scalar
 

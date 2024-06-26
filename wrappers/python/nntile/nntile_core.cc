@@ -515,8 +515,10 @@ void def_mod_tensor(py::module_ &m)
 
     m.def("softmax_inplace_async_fp64", &softmax_inplace_async<fp64_t>);
     m.def("softmax_inplace_async_fp32", &softmax_inplace_async<fp32_t>);
+    m.def("softmax_inplace_async_fp32_fast_tf32", &softmax_inplace_async<fp32_fast_tf32_t>);
     m.def("softmax_inplace_fp64", &softmax_inplace<fp64_t>);
     m.def("softmax_inplace_fp32", &softmax_inplace<fp32_t>);
+    m.def("softmax_inplace_fp32_fast_tf32", &softmax_inplace<fp32_fast_tf32_t>);
 
     m.def("scatter_async_fp64", &scatter_async<fp64_t>);
     m.def("scatter_async_fp32", &scatter_async<fp32_t>);
@@ -797,8 +799,10 @@ void def_mod_tensor(py::module_ &m)
 
     m.def("mask_scalar_async_fp64", &mask_scalar_async<fp64_t>);
     m.def("mask_scalar_async_fp32", &mask_scalar_async<fp32_t>);
+    m.def("mask_scalar_async_fp32_fast_tf32", &mask_scalar_async<fp32_fast_tf32_t>);
     m.def("mask_scalar_fp64", &mask_scalar<fp64_t>);
     m.def("mask_scalar_fp32", &mask_scalar<fp32_t>);
+    m.def("mask_scalar_fp32_fast_tf32", &mask_scalar<fp32_fast_tf32_t>);
 
     m.def("hypot_async_fp64", &hypot_async<fp64_t>);
     m.def("hypot_async_fp32", &hypot_async<fp32_t>);
@@ -816,8 +820,10 @@ void def_mod_tensor(py::module_ &m)
 
     m.def("transpose_async_fp64", &transpose_async<fp64_t>);
     m.def("transpose_async_fp32", &transpose_async<fp32_t>);
+    m.def("transpose_async_fp32_fast_tf32", &transpose_async<fp32_fast_tf32_t>);
     m.def("transpose_fp64", &transpose<fp64_t>);
     m.def("transpose_fp32", &transpose<fp32_t>);
+    m.def("transpose_fp32_fast_tf32", &transpose<fp32_fast_tf32_t>);
 }
 
 // Main extension module with all wrappers

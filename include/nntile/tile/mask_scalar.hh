@@ -21,11 +21,11 @@ namespace nntile::tile
 
 // Asynchronous tile-wise mask scalar operation
 template<typename T>
-void mask_scalar_async(const Tile<bool_t> &mask, T val, const Tile<T> &A);
+void mask_scalar_async(const Tile<bool_t> &mask, scal_t val, const Tile<T> &A);
 
 // Blocking version of tile-wise mask scalar operation
 template<typename T>
-void mask_scalar(const Tile<bool_t> &mask, T val, const Tile<T> &A);
+void mask_scalar(const Tile<bool_t> &mask, scal_t val, const Tile<T> &A);
 
 } // namespace nntile::tile
 

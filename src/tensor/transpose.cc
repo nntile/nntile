@@ -20,7 +20,7 @@ namespace nntile::tensor
 
 //! Tensor-wise transpose operation
 template<typename T>
-void transpose_async(T alpha, const Tensor<T> &src, const Tensor<T> &dst,
+void transpose_async(scal_t alpha, const Tensor<T> &src, const Tensor<T> &dst,
         Index ndim)
 {
     // Check dimensions
@@ -77,7 +77,7 @@ void transpose_async(T alpha, const Tensor<T> &src, const Tensor<T> &dst,
 
 //! Tensor-wise transpose operation
 template<typename T>
-void transpose(T alpha, const Tensor<T> &src, const Tensor<T> &dst, Index ndim)
+void transpose(scal_t alpha, const Tensor<T> &src, const Tensor<T> &dst, Index ndim)
 {
     transpose_async<T>(alpha, src, dst, ndim);
     starpu_task_wait_for_all();
@@ -86,20 +86,28 @@ void transpose(T alpha, const Tensor<T> &src, const Tensor<T> &dst, Index ndim)
 
 // Explicit instantiation of template
 template
-void transpose_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
+void transpose_async<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst, Index ndim);
 
 template
-void transpose_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
+void transpose_async<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src,
+        const Tensor<fp32_fast_tf32_t> &dst, Index ndim);
+
+template
+void transpose_async<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst, Index ndim);
 
 // Explicit instantiation of template
 template
-void transpose<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
+void transpose<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst, Index ndim);
 
 template
-void transpose<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
+void transpose<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src,
+        const Tensor<fp32_fast_tf32_t> &dst, Index ndim);
+
+template
+void transpose<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst, Index ndim);
 
 } // namespace nntile::tensor
