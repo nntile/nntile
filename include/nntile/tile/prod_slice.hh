@@ -21,12 +21,12 @@ namespace nntile::tile
 
 // Tile<T> per-element multiplication of a tensor and a broadcasted slice
 template<typename T>
-void prod_slice_async(const Tile<T> &src, T alpha, const Tile<T> &dst,
+void prod_slice_async(const Tile<T> &src, scal_t alpha, const Tile<T> &dst,
         Index axis);
 
 // Tile<T> per-element multiplication of a tensor and a broadcasted slice
 template<typename T>
-void prod_slice(const Tile<T> &src, T alpha, const Tile<T> &dst, Index axis);
+void prod_slice(const Tile<T> &src, scal_t alpha, const Tile<T> &dst, Index axis);
 
 } // namespace nntile::tile
 

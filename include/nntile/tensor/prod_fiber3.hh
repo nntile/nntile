@@ -21,12 +21,12 @@ namespace nntile::tensor
 
 // Tensor<T> per-element multiplication of a tensor and a broadcasted fiber
 template<typename T>
-void prod_fiber3_async(const Tensor<T> &src1, T alpha, const Tensor<T> &src2,
+void prod_fiber3_async(const Tensor<T> &src1, scal_t alpha, const Tensor<T> &src2,
         const Tensor<T> &dst, Index axis);
 
 // Tensor<T> per-element multiplication of a tensor and a broadcasted fiber
 template<typename T>
-void prod_fiber3(const Tensor<T> &src1, T alpha, const Tensor<T> &src2,
+void prod_fiber3(const Tensor<T> &src1, scal_t alpha, const Tensor<T> &src2,
         const Tensor<T> &dst, Index axis);
 
 } // namespace nntile::tensor

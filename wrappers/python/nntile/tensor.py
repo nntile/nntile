@@ -501,6 +501,8 @@ def prod_slice_async(prod_slice: Tensor, alpha: float, x: Tensor, \
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.prod_slice_async_fp32(prod_slice, alpha, x, axis)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.prod_slice_async_fp32_fast_tf32(prod_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.prod_slice_async_fp64(prod_slice, alpha, x, axis)
     else:
@@ -527,6 +529,8 @@ def prod_fiber3_async(prod_fiber: Tensor, alpha: float, x: Tensor, \
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.prod_fiber3_async_fp32(prod_fiber, alpha, x, y, axis)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.prod_fiber3_async_fp32_fast_tf32(prod_fiber, alpha, x, y, axis)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.prod_fiber3_async_fp64(prod_fiber, alpha, x, y, axis)
     else:

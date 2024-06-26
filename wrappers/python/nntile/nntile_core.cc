@@ -532,10 +532,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("randn_fp64", &randn<fp64_t>);
     m.def("randn_fp32", &randn<fp32_t>);
     m.def("randn_fp32_fast_tf32", &randn<fp32_fast_tf32_t>);
+
     m.def("prod_async_fp64", &prod_async<fp64_t>);
     m.def("prod_async_fp32", &prod_async<fp32_t>);
     m.def("prod_fp64", &prod<fp64_t>);
     m.def("prod_fp32", &prod<fp32_t>);
+
     m.def("nrm2_async_fp64", &nrm2_async<fp64_t>);
     m.def("nrm2_async_fp32", &nrm2_async<fp32_t>);
     m.def("nrm2_fp64", &nrm2<fp64_t>);
@@ -592,8 +594,10 @@ void def_mod_tensor(py::module_ &m)
 
     m.def("prod_slice_async_fp64", &prod_slice_async<fp64_t>);
     m.def("prod_slice_async_fp32", &prod_slice_async<fp32_t>);
+    m.def("prod_slice_async_fp32_fast_tf32", &prod_slice_async<fp32_fast_tf32_t>);
     m.def("prod_slice_fp64", &prod_slice<fp64_t>);
     m.def("prod_slice_fp32", &prod_slice<fp32_t>);
+    m.def("prod_slice_fp32_fast_tf32", &prod_slice<fp32_fast_tf32_t>);
 
     m.def("prod_fiber_async_fp64", &prod_fiber_async<fp64_t>);
     m.def("prod_fiber_async_fp32", &prod_fiber_async<fp32_t>);
@@ -602,8 +606,10 @@ void def_mod_tensor(py::module_ &m)
 
     m.def("prod_fiber3_async_fp64", &prod_fiber3_async<fp64_t>);
     m.def("prod_fiber3_async_fp32", &prod_fiber3_async<fp32_t>);
+    m.def("prod_fiber3_async_fp32_fast_tf32", &prod_fiber3_async<fp32_fast_tf32_t>);
     m.def("prod_fiber3_fp64", &prod_fiber3<fp64_t>);
     m.def("prod_fiber3_fp32", &prod_fiber3<fp32_t>);
+    m.def("prod_fiber3_fp32_fast_tf32", &prod_fiber3<fp32_fast_tf32_t>);
 
     m.def("gather_async_fp64", &gather_async<fp64_t>);
     m.def("gather_async_fp32", &gather_async<fp32_t>);
