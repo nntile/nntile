@@ -21,7 +21,7 @@ namespace nntile::tensor
 //! Tile-wise average and deviation from sum and scaled sum of squares
 template<typename T>
 void normalize_async(const Tensor<T> &gamma_beta, const Tensor<T> &src,
-        const Tensor<T> &dst, Index l, T eps, Index axis)
+        const Tensor<T> &dst, Index l, scal_t eps, Index axis)
 {
     // Check gamma_beta
     if(gamma_beta.shape.size() != 1)
@@ -178,7 +178,7 @@ void normalize_async(const Tensor<T> &gamma_beta, const Tensor<T> &src,
 //! Tile-wise average and deviation from sum and scaled sum of squares
 template<typename T>
 void normalize(const Tensor<T> &gamma_beta, const Tensor<T> &src,
-        const Tensor<T> &dst, Index l, T eps, Index axis)
+        const Tensor<T> &dst, Index l, scal_t eps, Index axis)
 {
     normalize_async<T>(gamma_beta, src, dst, l, eps, axis);
     starpu_task_wait_for_all();
@@ -189,22 +189,22 @@ void normalize(const Tensor<T> &gamma_beta, const Tensor<T> &src,
 template
 void normalize_async<fp32_t>(const Tensor<fp32_t> &gamma_beta,
         const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst, Index l,
-        fp32_t eps, Index axis);
+        scal_t eps, Index axis);
 
 template
 void normalize_async<fp64_t>(const Tensor<fp64_t> &gamma_beta,
         const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst, Index l,
-        fp64_t eps, Index axis);
+        scal_t eps, Index axis);
 
 // Explicit instantiation
 template
 void normalize<fp32_t>(const Tensor<fp32_t> &gamma_beta,
         const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst, Index l,
-        fp32_t eps, Index axis);
+        scal_t eps, Index axis);
 
 template
 void normalize<fp64_t>(const Tensor<fp64_t> &gamma_beta,
         const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst, Index l,
-        fp64_t eps, Index axis);
+        scal_t eps, Index axis);
 
 } // namespace nntile::tensor

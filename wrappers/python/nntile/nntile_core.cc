@@ -171,11 +171,11 @@ void def_class_tile(py::module_ &m, const char *name)
     using namespace nntile::tile;
     py::class_<Tile<T>, TileTraits>(m, name, py::multiple_inheritance()).
         def(py::init<const TileTraits &>()).
-        def("unregister", &Tile<T>::unregister).
-        def("from_array", tile_from_array<T>).
-        def("to_array", tile_to_array<T>);
-    m.def("tile_from_array", tile_from_array<T>);
-    m.def("tile_to_array", tile_to_array<T>);
+        def("unregister", &Tile<T>::unregister);//.
+        //def("from_array", tile_from_array<T>).
+        //def("to_array", tile_to_array<T>);
+    //m.def("tile_from_array", tile_from_array<T>);
+    //m.def("tile_to_array", tile_to_array<T>);
 }
 
 // Extend (sub)module with nntile::tile functionality

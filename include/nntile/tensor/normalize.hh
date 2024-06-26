@@ -21,10 +21,10 @@ namespace nntile::tensor
 
 template<typename T>
 void normalize_async(const Tensor<T> &gamma_beta, const Tensor<T> &src,
-        const Tensor<T> &dst, Index l, T eps, Index axis);
+        const Tensor<T> &dst, Index l, scal_t eps, Index axis);
 
 template<typename T>
 void normalize(const Tensor<T> &gamma_beta, const Tensor<T> &src,
-        const Tensor<T> &dst, Index l, T eps, Index axis);
+        const Tensor<T> &dst, Index l, scal_t eps, Index axis);
 
 } // namespace nntile::tensor
