@@ -38,7 +38,7 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
  * */
 {
     const Index mk = m * k;
-    constexpr scal_t zero = 0;
+    constexpr T zero = 0;
     // Cycle over column of the output buffer dst
     for(Index i2 = 0; i2 < n; ++i2)
     {
