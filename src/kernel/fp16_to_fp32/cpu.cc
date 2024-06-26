@@ -14,22 +14,24 @@
 
 #include "nntile/kernel/fp16_to_fp32/cpu.hh"
 #include <cuda_fp16.h>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::fp16_to_fp32
 {
 
-void cpu(Index nelems, const fp16_t *src, fp32_t *dst)
+void cpu(Index nelems, const fp16_t *src_, fp32_t *dst_)
     noexcept
 /*!
  * @params[in] nelems: Number of elements in a buffer
- * @params[in] src: Input array
- * @params[out] dst: Output array
+ * @params[in] src_: Input array
+ * @params[out] dst_: Output array
  * */
 {
-    const __half *src_half = reinterpret_cast<const __half *>(src);
+    auto *src = reinterpret_cast<const __half *>(src_);
+    auto *dst = reinterpret_cast<float *>(dst_);
     for(Index i = 0; i < nelems; ++i)
     {
-        dst[i] = __half2float(src_half[i]);
+        dst[i] = __half2float(src[i]);
     }
 }
 

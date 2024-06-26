@@ -14,12 +14,13 @@
 
 #include "nntile/kernel/dgelu/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::dgelu
 {
 
 template<typename T>
-void cpu(Index nelems, T *data)
+void cpu(Index nelems, T *data_)
     noexcept
 //! Inplace derivative of GeLU operation performed on CPU
 /*! Uses very slow std::erfc() function, so consider using approximated version
@@ -29,17 +30,19 @@ void cpu(Index nelems, T *data)
  * GeLU'(z) = 0.5 erfc(-z/sqrt(2)) + z 1/sqrt(2pi) e^(-z*z/2)
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data: Buffer to apply derivative of GeLU
+ * @params[inout] data_: Buffer to apply derivative of GeLU
  * */
 {
-    constexpr T pi = 3.141592653589793238462643383279502884L,
-        one = 1, mone = -1, pt5 = 0.5;
-    const T f1 = mone / std::sqrt(T{2.0}), f2 = one / std::sqrt(2*pi);
+    using Y = typename CPUComputeType<T>::value;
+    auto data = reinterpret_cast<Y *>(data_);
+    constexpr Y pi{3.141592653589793238462643383279502884L},
+        one{1.0}, mone{-1.0}, pt5{0.5};
+    const Y f1 = mone / std::sqrt(Y{2.0}), f2 = one / std::sqrt(2*pi);
     for(Index i = 0; i < nelems; ++i)
     {
-        T z = data[i];
-        T x = std::exp(-pt5 * z * z);
-        T y = std::erfc(f1 * z);
+        Y z = data[i];
+        Y x = std::exp(-pt5 * z * z);
+        Y y = std::erfc(f1 * z);
         data[i] = z*f2*x + pt5*y;
     }
 }

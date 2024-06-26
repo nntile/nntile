@@ -77,9 +77,14 @@ void cuda(cudaStream_t stream, Index num_iter, Index num_elems, T beta_1, T beta
  * */
 {
     dim3 blocks((num_elems+255)/256), threads(256);
-    T alpha = lr / (1-::pow(beta_1, num_iter));
-    T beta = 1 / ::sqrt(1 - ::pow(beta_2, num_iter));
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(num_iter, num_elems,
+    using Y = typename T::internal_t;
+    Y alpha = lr / (1 - ::pow(beta_1, num_iter));
+    Y beta = 1.0 / ::sqrt(1 - std::pow(beta_2, num_iter));
+    auto *grad = reinterpret_cast<const Y *>(grad_T);
+    auto *first_moment = reinterpret_cast<Y *>(first_moment_T);
+    auto *second_moment = reinterpret_cast<Y *>(second_moment_T);
+    auto *p = reinterpret_cast<Y *>(p_T);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(num_iter, num_elems,
             beta_1, beta_2, eps, lr, weight_decay, grad, first_moment,
             second_moment, p, alpha, beta);
 }

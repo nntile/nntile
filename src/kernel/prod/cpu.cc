@@ -18,7 +18,7 @@ namespace nntile::kernel::prod
 {
 
 template<typename T>
-void cpu(Index nelems, const T *src, T *dst)
+void cpu(Index nelems, const T *src_T, T *dst_T)
     noexcept
 //! Per-element product of two buffers
 /*! One of the buffers serves as output
@@ -28,6 +28,9 @@ void cpu(Index nelems, const T *src, T *dst)
  * @param[inout] dst: Input buffers that contains output in the end
  * */
 {
+    using Y = typename T::internal_t;
+    auto src = reinterpret_cast<const Y *>(src_T);
+    auto dst = reinterpret_cast<Y *>(dst_T);
     // Cycle over buffers
     for(Index i = 0; i < nelems; ++i)
     {
