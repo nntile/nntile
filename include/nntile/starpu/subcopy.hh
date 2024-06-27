@@ -25,7 +25,8 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
 
-extern Codelet codelet_fp16, codelet_fp32, codelet_fp64, codelet_int64,
+//extern Codelet codelet_fp16;
+extern Codelet codelet_fp32, codelet_fp64, codelet_int64,
        codelet_bool, codelet_fp32_fast_tf32;
 
 template<typename T>
@@ -35,11 +36,11 @@ constexpr Codelet *codelet()
     return nullptr;
 }
 
-template<>
-constexpr Codelet *codelet<fp16_t>()
-{
-    return &codelet_fp16;
-}
+//template<>
+//constexpr Codelet *codelet<fp16_t>()
+//{
+//    return &codelet_fp16;
+//}
 
 template<>
 constexpr Codelet *codelet<fp32_t>()

@@ -513,11 +513,11 @@ void gemm_async<fp64_t>(scal_t alpha, const TransOp &transA,
         const TransOp &transB, const Tensor<fp64_t> &B, scal_t beta,
         const Tensor<fp64_t> &C, Index ndim, Index batch_ndim, int redux);
 
-template
-void gemm_async<fp16_t>(scal_t alpha, const TransOp &transA,
-        const Tensor<fp16_t> &A,
-        const TransOp &transB, const Tensor<fp16_t> &B, scal_t beta,
-        const Tensor<fp16_t> &C, Index ndim, Index batch_ndim, int redux);
+//template
+//void gemm_async<fp16_t>(scal_t alpha, const TransOp &transA,
+//        const Tensor<fp16_t> &A,
+//        const TransOp &transB, const Tensor<fp16_t> &B, scal_t beta,
+//        const Tensor<fp16_t> &C, Index ndim, Index batch_ndim, int redux);
 
 // Explicit instantiation
 template
@@ -538,10 +538,10 @@ void gemm<fp64_t>(scal_t alpha, const TransOp &transA,
         const TransOp &transB, const Tensor<fp64_t> &B, scal_t beta,
         const Tensor<fp64_t> &C, Index ndim, Index batch_ndim, int redux);
 
-template
-void gemm<fp16_t>(scal_t alpha, const TransOp &transA,
-        const Tensor<fp16_t> &A,
-        const TransOp &transB, const Tensor<fp16_t> &B, scal_t beta,
-        const Tensor<fp16_t> &C, Index ndim, Index batch_ndim, int redux);
+//template
+//void gemm<fp16_t>(scal_t alpha, const TransOp &transA,
+//        const Tensor<fp16_t> &A,
+//        const TransOp &transB, const Tensor<fp16_t> &B, scal_t beta,
+//        const Tensor<fp16_t> &C, Index ndim, Index batch_ndim, int redux);
 
 } // namespace nntile::tensor

@@ -158,14 +158,14 @@ void LaunchMaxSumExp1(cudaStream_t stream, Index m, Index n, Index k,
 }
 // clang-format on
 
-//template void LaunchMaxSumExp1<fp32_t>(cudaStream_t stream, Index m, Index n,
-//                                       Index k, const fp32_t *src,
-//                                       fp32_t *maxsumexp) noexcept;
-//
-//template void LaunchMaxSumExp1<fp64_t>(cudaStream_t stream, Index m, Index n,
-//                                       Index k, const fp64_t *src,
-//                                       fp64_t *maxsumexp) noexcept;
-//
+template void LaunchMaxSumExp1<fp32_t>(cudaStream_t stream, Index m, Index n,
+                                       Index k, const fp32_t *src,
+                                       fp32_t *maxsumexp) noexcept;
+
+template void LaunchMaxSumExp1<fp64_t>(cudaStream_t stream, Index m, Index n,
+                                       Index k, const fp64_t *src,
+                                       fp64_t *maxsumexp) noexcept;
+
 //extern __shared__ float extent[]; // User-managed cache on device.
 //
 //size_t constexpr kMaxBlockSize = 512;
