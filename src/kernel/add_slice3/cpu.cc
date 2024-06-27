@@ -37,9 +37,9 @@ void cpu(Index m, Index n, Index k, T alpha_, const T *src1_, T beta_,
  * */
 {
     using Y = typename CPUComputeType<T>::value;
-    auto *src1 = reinterpret_cast<const Y *>(src1_);
-    auto *src2 = reinterpret_cast<const Y *>(src2_);
-    auto *dst = reinterpret_cast<Y *>(dst_);
+    auto src1 = reinterpret_cast<const Y *>(src1_);
+    auto src2 = reinterpret_cast<const Y *>(src2_);
+    auto dst = reinterpret_cast<Y *>(dst_);
     const Y zero{0.0}, alpha{alpha_}, beta{beta_};
     const Index mk = m * k;
     // Cycle over column of the output buffer dst

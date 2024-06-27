@@ -26,8 +26,8 @@ void cpu(Index nelems, const fp32_t *src_, fp16_t *dst_)
  * @params[out] dst: Output array
  * */
 {
-    auto *src = reinterpret_cast<const float *>(src_);
-    auto *dst = reinterpret_cast<__half *>(dst_);
+    auto src = reinterpret_cast<const float *>(src_);
+    auto dst = reinterpret_cast<__half *>(dst_);
     for(Index i = 0; i < nelems; ++i)
     {
         dst[i] = __float2half(src[i]);

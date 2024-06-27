@@ -14,19 +14,22 @@
 
 #include "nntile/kernel/sqrt_inplace/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::sqrt_inplace
 {
 
 template<typename T>
-void cpu(Index nelems, T *data)
+void cpu(Index nelems, T *data_)
     noexcept
 //! Inplace sqrt operation on CPU
 /*
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data: Buffer to apply sqrt
+ * @params[inout] data_: Buffer to apply sqrt
  * */
 {
+    using Y = typename CPUComputeType<T>::value;
+    auto data = reinterpret_cast<Y *>(data_);
     for(Index i = 0; i < nelems; ++i)
     {
         data[i] = std::sqrt(data[i]);

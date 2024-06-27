@@ -34,8 +34,8 @@ void cpu(Index nelems, const T* src_, T* dst_)
 {
     using Y = typename CPUComputeType<T>::value;
     constexpr Y zero{0.0};
-    auto *src = reinterpret_cast<const Y *>(src_);
-    auto *dst = reinterpret_cast<Y *>(dst_);
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
     for(Index i = 0; i < nelems; ++i)
     {
         // Do nothing if sum of exponents of source is zero

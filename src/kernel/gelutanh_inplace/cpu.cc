@@ -35,9 +35,9 @@ void cpu(Index nelems, T *data_)
  * */
 {
     using Y = typename CPUComputeType<T>::value;
-    auto *data = reinterpret_cast<const Y *>(data_);
+    auto data = reinterpret_cast<Y *>(data_);
     // Constants
-    constexpr T pi{3.141592653589793238462643383279502884L},
+    constexpr Y pi{3.141592653589793238462643383279502884L},
         one{1.0}, pt5{0.5}, f1{0.044715};
     // Square root is not constexpr by standard, proceed with a static const
     static const Y sqrt_pi = std::sqrt(pi), sqrt_2 = std::sqrt(Y{2.0}),

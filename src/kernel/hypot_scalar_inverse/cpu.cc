@@ -34,7 +34,7 @@ void cpu(Index nelems, T eps_, T alpha_, T* dst_)
  * */
 {
     using Y = typename CPUComputeType<T>::value;
-    auto *dst = reinterpret_cast<Y *>(dst_);
+    auto dst = reinterpret_cast<Y *>(dst_);
     const Y eps{eps_}, alpha{alpha_};
     for(Index i = 0; i < nelems; ++i)
     {

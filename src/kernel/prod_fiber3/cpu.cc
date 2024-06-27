@@ -13,13 +13,14 @@
  * */
 
 #include "nntile/kernel/prod_fiber3/cpu.hh"
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::prod_fiber3
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, T alpha_T, const T *src1_T,
-        const T *src2_T, T *dst_T)
+void cpu(Index m, Index n, Index k, T alpha_, const T *src1_,
+        const T *src2_, T *dst_)
     noexcept
 //! Per-element product of a tensor and a broadcasted fiber on CPU
 /*! Performs the following operations:
@@ -29,17 +30,17 @@ void cpu(Index m, Index n, Index k, T alpha_T, const T *src1_T,
  * @param[in] n: Size of the last mode of dst tensor
  * @param[in] k: Size of the middle mode of dst tensor and the only mode of src
  *      tensor
- * @param[in] alpha: Scalar factor
- * @param[in] src1: Input contiguous vector with k elements
- * @param[in] src2: Input contiguous m-by-k-by-n array
- * @param[out] dst: Output contiguous m-by-k-by-n array
+ * @param[in] alpha_: Scalar factor
+ * @param[in] src1_: Input contiguous vector with k elements
+ * @param[in] src2_: Input contiguous m-by-k-by-n array
+ * @param[out] dst_: Output contiguous m-by-k-by-n array
  * */
 {
-    using Y = typename T::internal_t;
-    auto src1 = reinterpret_cast<const Y *>(src1_T);
-    auto src2 = reinterpret_cast<const Y *>(src2_T);
-    auto dst = reinterpret_cast<Y *>(dst_T);
-    Y alpha = alpha_T;
+    using Y = typename CPUComputeType<T>::value;
+    auto src1 = reinterpret_cast<const Y *>(src1_);
+    auto src2 = reinterpret_cast<const Y *>(src2_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    const Y alpha{alpha_};
     // Cycle over input src vector
     for(Index i2 = 0; i2 < k; ++i2)
     {

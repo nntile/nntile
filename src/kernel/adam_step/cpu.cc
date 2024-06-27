@@ -20,9 +20,9 @@ namespace nntile::kernel::adam_step
 {
 
 template<typename T>
-void cpu(Index num_iter, Index num_elems, T beta_1_, T beta_2_, T eps_,
-        T lr_, T weight_decay_, const T *grad_, T *first_moment_,
-        T *second_moment_, T *p_)
+void cpu(Index num_iter, Index num_elems, scal_T beta_1_, scal_t beta_2_,
+        scal_t eps_, scal_t lr_, scal_t weight_decay_, const T *grad_,
+        T *first_moment_, T *second_moment_, T *p_)
     noexcept
 //! Fused Adam step on buffers
 /*!

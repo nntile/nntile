@@ -34,9 +34,9 @@ void cpu(T val_, T eps_, Index nelems, const T *nom_, const T* denom_,
  * */
 {
     using Y = typename CPUComputeType<T>::value;
-    auto *nom = reinterpret_cast<const Y *>(nom_);
-    auto *denom = reinterpret_cast<const Y *>(denom_);
-    auto *res = reinterpret_cast<Y *>(res_);
+    auto nom = reinterpret_cast<const Y *>(nom_);
+    auto denom = reinterpret_cast<const Y *>(denom_);
+    auto res = reinterpret_cast<Y *>(res_);
     const Y val{val_}, eps{eps_};
     // Cycle over buffers
     for(Index i = 0; i < nelems; ++i)

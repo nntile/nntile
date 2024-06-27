@@ -31,7 +31,7 @@ void cpu(Index num_elements, T alpha_, T beta_, T* dst_)
  * */
 {
     using Y = typename CPUComputeType<T>::value;
-    auto *dst = reinterpret_cast<Y *>(dst_);
+    auto dst = reinterpret_cast<Y *>(dst_);
     const Y alpha{alpha_}, beta{beta_};
     for(Index i = 0; i < num_elements; ++i)
     {

@@ -14,20 +14,24 @@
 
 #include "nntile/kernel/sqrt/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::sqrt
 {
 
 template<typename T>
-void cpu(Index nelems, const T *src, T *dst)
+void cpu(Index nelems, const T *src_, T *dst_)
     noexcept
 //! Sqrt operation on CPU
 /*
  * @params[in] nelems: Number of elements in a buffer
- * @params[in] src: Input buffer to apply sqrt
- * @params[out] dst: Output buffer to apply sqrt
+ * @params[in] src_: Input buffer to apply sqrt
+ * @params[out] dst_: Output buffer to apply sqrt
  * */
 {
+    using Y = typename CPUComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
     for(Index i = 0; i < nelems; ++i)
     {
         dst[i] = std::sqrt(src[i]);

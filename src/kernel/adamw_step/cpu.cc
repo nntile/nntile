@@ -20,9 +20,9 @@ namespace nntile::kernel::adamw_step
 {
 
 template<typename T>
-void cpu(Index num_iter, Index num_elems, T beta_1_, T beta_2_, T eps_,
-        T lr_, T weight_decay_, const T *grad_, T *first_moment_,
-        T *second_moment_, T *p_)
+void cpu(Index num_iter, Index num_elems, scal_t beta_1_, scal_t beta_2_,
+        scal_t eps_, scal_t lr_, scal_t weight_decay_, const T *grad_,
+        T *first_moment_, T *second_moment_, T *p_)
     noexcept
 //! Fused AdamW step on buffers
 /*!
@@ -65,7 +65,7 @@ void cpu(Index num_iter, Index num_elems, T beta_1_, T beta_2_, T eps_,
         {
             f_val = (Y{1.0}-beta_1) * grad_val;
             first_moment[i] = f_val;
-            s_val = std::sqrt(Y{.0}1-beta_2) * std::fabs(grad_val);
+            s_val = std::sqrt(Y{1.0}-beta_2) * std::fabs(grad_val);
             second_moment[i] = s_val;
         }
         else

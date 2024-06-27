@@ -63,7 +63,7 @@ void randn_async(const Tile<T> &dst, const std::vector<Index> &start,
     if(ndim != 0)
     {
         // Temporary index
-        starpu::VariableHandle tmp_index(sizeof(Index)*2*ndim, STARPU_R);
+        starpu::VariableHandle tmp_index(sizeof(int64_t)*2*ndim, STARPU_R);
         // Insert task
         starpu::randn::submit<T>(ndim, dst.nelems, seed, mean, stddev, start,
                 dst.shape, dst.stride, underlying_shape, dst, tmp_index);

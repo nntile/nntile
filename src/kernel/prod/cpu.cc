@@ -13,24 +13,25 @@
  * */
 
 #include "nntile/kernel/prod/cpu.hh"
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::prod
 {
 
 template<typename T>
-void cpu(Index nelems, const T *src_T, T *dst_T)
+void cpu(Index nelems, const T *src_, T *dst_)
     noexcept
 //! Per-element product of two buffers
 /*! One of the buffers serves as output
  *
  * @param[in] nelems: Number of elements in both buffers
- * @param[in] src: Input buffer
- * @param[inout] dst: Input buffers that contains output in the end
+ * @param[in] src_: Input buffer
+ * @param[inout] dst_: Input buffers that contains output in the end
  * */
 {
-    using Y = typename T::internal_t;
-    auto src = reinterpret_cast<const Y *>(src_T);
-    auto dst = reinterpret_cast<Y *>(dst_T);
+    using Y = typename CPUComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
     // Cycle over buffers
     for(Index i = 0; i < nelems; ++i)
     {

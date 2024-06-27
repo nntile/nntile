@@ -78,7 +78,7 @@ void randn_async(const Tensor<T> &dst, const std::vector<Index> &start,
         return;
     }
     // Temporary index
-    starpu::VariableHandle tmp_index(sizeof(Index)*2*ndim, STARPU_SCRATCH);
+    starpu::VariableHandle tmp_index(sizeof(int64_t)*2*ndim, STARPU_SCRATCH);
     // Now do the job
     std::vector<Index> tile_start(start), tile_index(dst.ndim);
     for(Index i = 0; i < dst.grid.nelems; ++i)
