@@ -254,7 +254,7 @@ void tensor_from_array_memcpy(const tensor::Tensor<T> &tensor,
     }
     // Create temporary single-tile tensor
     tensor::TensorTraits tmp_traits(tensor.shape, tensor.shape);
-    int64_t tmp_tag = 0;
+    std::int64_t tmp_tag = 0;
     int flag;
     //starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
     //        &flag);
@@ -322,7 +322,7 @@ void tensor_from_array_convert(const tensor::Tensor<T> &tensor,
     }
     // Create temporary single-tile tensor
     tensor::TensorTraits tmp_traits(tensor.shape, tensor.shape);
-    int64_t tmp_tag = 0;
+    std::int64_t tmp_tag = 0;
     int flag;
     //starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
     //        &flag);
@@ -394,7 +394,7 @@ void tensor_to_array_memcpy(const tensor::Tensor<T> &tensor,
     }
     // Create temporary single-tile tensor
     tensor::TensorTraits tmp_traits(tensor.shape, tensor.shape);
-    int64_t tmp_tag = 0;
+    std::int64_t tmp_tag = 0;
     int flag;
     //starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
             &flag);
@@ -461,7 +461,7 @@ void tensor_to_array_convert(const tensor::Tensor<T> &tensor,
     }
     // Create temporary single-tile tensor
     tensor::TensorTraits tmp_traits(tensor.shape, tensor.shape);
-    int64_t tmp_tag = 0;
+    std::int64_t tmp_tag = 0;
     int flag;
     //starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
             &flag);
@@ -507,7 +507,7 @@ void def_class_tensor(py::module_ &m, const char *name)
         def("from_array", [](const tensor::Tensor<fp32_fast_tf32_t> & t, const py::array_t<float, py::array::f_style | py::array::forcecast> & a) { return tensor_from_array_memcpy<fp32_fast_tf32_t>(t, a); } ).
         //def("from_array", [](const tensor::Tensor<fp32_fast_tf32_t> & t, const py::array_t<float, py::array::f_style | py::array::forcecast> & a) { auto t_fp32 = reinterpret_cast<const tensor::Tensor<fp32_t>* >(&t); return tensor_from_array_memcpy<fp32_t>(*t_fp32, a); } ).
 
-        def("from_array", [](const tensor::Tensor<nntile_int64_t> & t, const py::array_t<int64_t, py::array::f_style | py::array::forcecast> & a) { return tensor_from_array_memcpy<nntile_int64_t>(t, a); } ).
+        def("from_array", [](const tensor::Tensor<nntile::int64_t> & t, const py::array_t<std::int64_t, py::array::f_style | py::array::forcecast> & a) { return tensor_from_array_memcpy<nntile::int64_t>(t, a); } ).
         def("from_array", [](const tensor::Tensor<bool_t> & t, const py::array_t<bool, py::array::f_style | py::array::forcecast> & a) { return tensor_from_array_memcpy<bool_t>(t, a); } ).
         def("to_array", [](const tensor::Tensor<fp32_t> & t, py::array_t<float, py::array::f_style> & a) { return tensor_to_array_memcpy<fp32_t>(t, a); } ).
         def("to_array", [](const tensor::Tensor<fp32_fast_tf32_t> & t, py::array_t<float, py::array::f_style> & a) {  auto t_fp32 = reinterpret_cast<const tensor::Tensor<fp32_t>* >(&t); return tensor_to_array_memcpy<fp32_t>(*t_fp32, a); } ).

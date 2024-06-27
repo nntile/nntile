@@ -123,8 +123,8 @@ void cpu<fp64_t>(Index ndim, const Index *src_start, const Index *src_stride,
 
 template
 void cpu<int64_t>(Index ndim, const Index *src_start, const Index *src_stride,
-        const Index *copy_shape, const int64_t *src, const Index *dst_start,
-        const Index *dst_stride, int64_t *dst, int64_t *tmp_index)
+        const Index *copy_shape, const nntile::int64_t *src, const Index *dst_start,
+        const Index *dst_stride, nntile::int64_t *dst, int64_t *tmp_index)
     noexcept;
 
 template

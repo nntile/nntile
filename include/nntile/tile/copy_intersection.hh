@@ -22,11 +22,11 @@ namespace nntile::tile
 template<typename T>
 void copy_intersection_async(const Tile<T> &src,
         const std::vector<Index> &src_offset, const Tile<T> &dst,
-        const std::vector<Index> &dst_offset, const Tile<Index> &scratch);
+        const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 template<typename T>
 void copy_intersection(const Tile<T> &src,
         const std::vector<Index> &src_offset, const Tile<T> &dst,
-        const std::vector<Index> &dst_offset, const Tile<Index> &scratch);
+        const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 } // namespace nntile::tile

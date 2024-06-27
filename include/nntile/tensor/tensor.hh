@@ -24,7 +24,7 @@
 #include <nntile/starpu/accumulate_maxsumexp.hh>
 #include <nntile/starpu/clear.hh>
 
-#define starpu_mpi_tag_t int64_t
+#define starpu_mpi_tag_t std::int64_t
 
 namespace nntile::tensor
 {
