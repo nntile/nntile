@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/hypot/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::hypot
 {
@@ -62,8 +63,8 @@ void cuda_kernel(Index nelems, T alpha, const T* src, T beta, T* dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, T alpha, const T *src, T beta,
-        T *dst)
+void cuda(cudaStream_t stream, Index nelems, scal_t alpha, const T *src_,
+        scal_t beta, T *dst_)
     noexcept
 //! hypot two buffers on CUDA
 /*! Performs the following operation:
@@ -72,25 +73,28 @@ void cuda(cudaStream_t stream, Index nelems, T alpha, const T *src, T beta,
  *
  * @param[in] nelems: Size of the src and dst tensors
  * @param[in] alpha: Scalar multiplier for the src tensor
- * @param[in] src: Source tensor
+ * @param[in] src_: Source tensor
  * @param[in] beta: Scalar multiplier for the dst tensor
- * @param[inout] dst: Destination of the hypot operation
+ * @param[inout] dst_: Destination of the hypot operation
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, alpha, src, beta,
-            dst);
+    using Y = typename CUDAComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, Y{alpha}, src,
+            Y{beta}, dst);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index nelems, fp32_t alpha,
-        const fp32_t *src, fp32_t beta, fp32_t *dst)
+void cuda<fp32_t>(cudaStream_t stream, Index nelems, scal_t alpha,
+        const fp32_t *src, scal_t beta, fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index nelems, fp64_t alpha,
-        const fp64_t *src, fp64_t beta, fp64_t *dst)
+void cuda<fp64_t>(cudaStream_t stream, Index nelems, scal_t alpha,
+        const fp64_t *src, scal_t beta, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::hypot

@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/mask_scalar/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::mask_scalar
 {
@@ -33,8 +34,8 @@ void cuda_kernel(Index nrows, Index ncols, const bool_t *mask, T val, T *data)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask,
-        T val, T *data)
+void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask_,
+        scal_t val, T *data_)
     noexcept
 //! Set certain matrix entries to a given value by mask on CUDA
 /*! Does the following operation:
@@ -42,14 +43,18 @@ void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask,
  *
  * @params[in] nrows: Number of rows of data
  * @params[in] ncols: Number of columns of data
- * @params[in] mask: buffer with mask values with nrows entries
+ * @params[in] mask_: buffer with mask values with nrows entries
  * @params[in] val: value to set if mask element is false
- * @params[in,out] data: nrows by ncols matrix, whose elements are updated
+ * @params[inout] data_: nrows by ncols matrix, whose elements are updated
  * */
 {
     dim3 blocks((nrows+255)/256, ncols), threads(256, 1);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nrows, ncols, mask, val,
-            data);
+    using Y = typename CUDAComputeType<T>::value;
+    using B = typename CUDAComputeType<bool_t>::value;
+    auto mask = reinterpret_cast<const B *>(mask_);
+    auto data = reinterpret_cast<Y *>(data_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nrows, ncols, mask,
+            Y{val}, data);
 }
 
 // Explicit instantiation

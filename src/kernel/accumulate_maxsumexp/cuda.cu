@@ -58,7 +58,7 @@ void cuda_kernel(Index nelems, const T *src, T *dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, const T *src_T, T *dst_T)
+void cuda(cudaStream_t stream, Index nelems, const T *src_, T *dst_)
     noexcept
 //! Accumulate two maxsumexp buffers on CUDA
 /*! Performs the following operation:
@@ -66,14 +66,14 @@ void cuda(cudaStream_t stream, Index nelems, const T *src_T, T *dst_T)
  *      dst[2*i] = max(src[2*i], dst[2*i]).
  *
  * @param[in] nelems: Number of (max,sumexp) pairs of the src and dst tensors
- * @param[in] src: Source tensor
- * @param[inout] dst: Destination of the maxsumexp accumulation
+ * @param[in] src_: Source tensor
+ * @param[inout] dst_: Destination of the maxsumexp accumulation
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    using Y = typename T::internal_t;
-    auto *src = reinterpret_cast<const Y *>(src_T);
-    auto *dst = reinterpret_cast<Y *>(dst_T);
+    using Y = typename CUDAComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
     (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
 }
 

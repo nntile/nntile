@@ -68,6 +68,7 @@
 #include <nntile/kernel/transpose.hh>
 
 #include <nntile/kernel/cpu.hh>
+#include <nntile/kernel/cuda.hh>
 
 //! @namespace nntile::kernel
 /*! This namespace holds low-level routines for codelets

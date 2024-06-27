@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/gelutanh/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::gelutanh
 {
@@ -37,7 +38,7 @@ void cuda_kernel(Index nelems, const T *src, T *dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
+void cuda(cudaStream_t stream, Index nelems, const T *src_, T *dst_)
     noexcept
 //! Approximate GeLU operation on CUDA
 /*! Applies the following approximation of the GeLU function:
@@ -46,12 +47,15 @@ void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
  * GeLU(z) \approx z/(1+exp(-2sqrt(2/pi)z(1+0.044715z^2)))
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[in] src: Input buffer to apply GeLU
- * @params[out] dst: Output buffer to apply GeLU
+ * @params[in] src_: Input buffer to apply GeLU
+ * @params[out] dst_: Output buffer to apply GeLU
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
+    using Y = typename CUDAComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
 }
 
 // Explicit instantiation

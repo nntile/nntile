@@ -14,6 +14,7 @@
 
 #include "nntile/kernel/fp16_to_fp32/cuda.hh"
 #include <cuda_fp16.h>
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::fp16_to_fp32
 {
