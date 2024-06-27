@@ -39,8 +39,6 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept;
 
-void cuda_fp32_fast_tf32(void *buffers[], void *cl_args)
-    noexcept;
 #endif // NNTILE_USE_CUDA
 
 extern Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
@@ -59,6 +57,12 @@ constexpr Codelet *codelet<fp32_t>()
 }
 
 template<>
+constexpr Codelet *codelet<fp32_fast_tf32_t>()
+{
+    return &codelet_fp32_fast_tf32;
+}
+
+template<>
 constexpr Codelet *codelet<fp64_t>()
 {
     return &codelet_fp64;
@@ -73,7 +77,7 @@ void restore_where();
 template<typename T>
 void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle mask, Handle maxsumexp, Handle V, Handle A, Handle tmp,
-        int redux=0, int fp32_fast_tf32=0);
+        int redux=0);
 
 } // namespace nntile::starpu::flash_softmax_gemm
 
