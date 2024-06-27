@@ -22,7 +22,7 @@ namespace nntile::tensor
 //! Compute total_sum_accum
 template<typename T>
 void total_sum_accum_async(scal_t alpha, const Tensor<T> &logsumexp, const Tensor<T> &src,
-        const Tensor<Index> &labels, const Tensor<T> &val)
+        const Tensor<int64_t> &labels, const Tensor<T> &val)
 {
     // Check dimensions
     if(logsumexp.ndim != labels.ndim)
@@ -92,7 +92,7 @@ void total_sum_accum_async(scal_t alpha, const Tensor<T> &logsumexp, const Tenso
 
 template<typename T>
 void total_sum_accum(scal_t alpha, const Tensor<T> &logsumexp, const Tensor<T> &src,
-        const Tensor<Index> &labels, const Tensor<T> &val)
+        const Tensor<int64_t> &labels, const Tensor<T> &val)
 {
     total_sum_accum_async<T>(alpha, logsumexp, src, labels, val);
     starpu_task_wait_for_all();
@@ -102,33 +102,33 @@ void total_sum_accum(scal_t alpha, const Tensor<T> &logsumexp, const Tensor<T> &
 // Explicit instantiation
 template
 void total_sum_accum_async<fp32_t>(scal_t alpha, const Tensor<fp32_t> &logsumexp,
-        const Tensor<fp32_t> &src, const Tensor<Index> &class_labels,
+        const Tensor<fp32_t> &src, const Tensor<int64_t> &class_labels,
         const Tensor<fp32_t> &val);
 
 template
 void total_sum_accum_async<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &logsumexp,
-        const Tensor<fp32_fast_tf32_t> &src, const Tensor<Index> &class_labels,
+        const Tensor<fp32_fast_tf32_t> &src, const Tensor<int64_t> &class_labels,
         const Tensor<fp32_fast_tf32_t> &val);
 
 template
 void total_sum_accum_async<fp64_t>(scal_t alpha, const Tensor<fp64_t> &logsumexp,
-        const Tensor<fp64_t> &src, const Tensor<Index> &class_labels,
+        const Tensor<fp64_t> &src, const Tensor<int64_t> &class_labels,
         const Tensor<fp64_t> &val);
 
 // Explicit instantiation
 template
 void total_sum_accum<fp32_t>(scal_t alpha, const Tensor<fp32_t> &logsumexp,
-        const Tensor<fp32_t> &src, const Tensor<Index> &class_labels,
+        const Tensor<fp32_t> &src, const Tensor<int64_t> &class_labels,
         const Tensor<fp32_t> &val);
 
 template
 void total_sum_accum<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &logsumexp,
-        const Tensor<fp32_fast_tf32_t> &src, const Tensor<Index> &class_labels,
+        const Tensor<fp32_fast_tf32_t> &src, const Tensor<int64_t> &class_labels,
         const Tensor<fp32_fast_tf32_t> &val);
 
 template
 void total_sum_accum<fp64_t>(scal_t alpha, const Tensor<fp64_t> &logsumexp,
-        const Tensor<fp64_t> &src, const Tensor<Index> &class_labels,
+        const Tensor<fp64_t> &src, const Tensor<int64_t> &class_labels,
         const Tensor<fp64_t> &val);
 
 } // namespace nntile::tensor

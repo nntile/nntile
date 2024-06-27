@@ -38,8 +38,8 @@ void cpu(Index m, Index n, Index k, Index batch, T alpha_, const T *src_,
  * */
 {
     using Y = typename CPUComputeType<T>::value;
-    auto *src = reinterpret_cast<const Y *>(src_);
-    auto *dst = reinterpret_cast<Y *>(dst_);
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
     const Y zero{0.0}, alpha{alpha_}, beta{beta_};
     // Cycle over batch
     for(Index b = 0; b < batch; ++b)

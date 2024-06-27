@@ -33,12 +33,12 @@ void cpu(Index nelems, const T *x_, const T *dy_, T *dx_)
  * */
 {
     using Y = typename CPUComputeType<T>::value;
-    auto *x = reinterpret_cast<const Y *>(x_);
-    auto *dy = reinterpret_cast<const Y *>(dy_);
-    auto *dx = reinterpret_cast<Y *>(dx_);
+    auto x = reinterpret_cast<const Y *>(x_);
+    auto dy = reinterpret_cast<const Y *>(dy_);
+    auto dx = reinterpret_cast<Y *>(dx_);
     constexpr Y pi{3.141592653589793238462643383279502884L},
         one{1.0}, mone{-1.0}, pt5{0.5};
-    const T f1 = mone / std::sqrt(Y{2.0}), f2 = one / std::sqrt(2*pi);
+    const Y f1 = mone / std::sqrt(Y{2.0}), f2 = one / std::sqrt(2*pi);
     for(Index i = 0; i < nelems; ++i)
     {
         Y exp_x = std::exp(-pt5 * x[i] * x[i]);

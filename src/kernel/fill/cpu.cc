@@ -29,7 +29,7 @@ void cpu(Index nelems, T val_, T *data_)
  * */
 {
     using Y = typename CPUComputeType<T>::value;
-    auto *data = reinterpret_cast<Y *>(data_);
+    auto data = reinterpret_cast<Y *>(data_);
     const Y val{val_};
     for(Index i = 0; i < nelems; ++i)
     {

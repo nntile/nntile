@@ -14,24 +14,30 @@
 
 #include "nntile/kernel/pow/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::pow
 {
 
 template<typename T>
-void cpu(Index nelems, T alpha, T exp, T *data)
+void cpu(Index nelems, T alpha_, T exp_, T *data_)
     noexcept
 //! Inplace power operation on CPU
 /*! Does the following per-element operation:
  * pow(z) = alpha * z^exp
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data: Buffer to apply power function
+ * @params[in] alpha_: scalar multplier for output
+ * @params[in] exp_: exponent parameter
+ * @params[inout] data_: Buffer to apply power function
  * */
 {
+    using Y = typename CPUComputeType<T>::value;
+    auto data = reinterpret_cast<Y *>(data_);
+    const Y alpha{alpha_}, exp{exp_};
     for(Index i = 0; i < nelems; ++i)
     {
-        T z = data[i];
+        Y z = data[i];
         if(exp == -1)
         {
             data[i] = alpha / z;

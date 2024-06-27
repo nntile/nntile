@@ -34,9 +34,9 @@ void cpu(Index nelems, const T *x_, const T *dy_, T *dx_)
  * */
 {
     using Y = typename CPUComputeType<T>::value;
-    auto *x = reinterpret_cast<const Y *>(x_);
-    auto *dy = reinterpret_cast<const Y *>(dy_);
-    auto *dx = reinterpret_cast<Y *>(dx_);
+    auto x = reinterpret_cast<const Y *>(x_);
+    auto dy = reinterpret_cast<const Y *>(dy_);
+    auto dx = reinterpret_cast<Y *>(dx_);
     // Constants
     constexpr Y pi{3.141592653589793238462643383279502884L},
         zero{0.0}, one{1.0}, pt5{0.5}, f1{0.044715};

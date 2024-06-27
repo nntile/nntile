@@ -14,25 +14,28 @@
 
 #include "nntile/kernel/relu/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::relu
 {
 
 template<typename T>
-void cpu(Index nelems, T *data)
+void cpu(Index nelems, T *data_)
     noexcept
 //! Inplace ReLU operation on CPU
 /*! Does the following per-element operation:
  * ReLU(z) = max(z, 0)
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data: Buffer to apply ReLU
+ * @params[inout] data_: Buffer to apply ReLU
  * */
 {
-    constexpr T zero = 0;;
+    using Y = typename CPUComputeType<T>::value;
+    auto data = reinterpret_cast<Y *>(data_);
+    constexpr Y zero{0.0};
     for(Index i = 0; i < nelems; ++i)
     {
-        T z = data[i];
+        Y z = data[i];
         data[i] = std::fmax(z, zero);
     }
 }

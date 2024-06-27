@@ -32,7 +32,7 @@ void cpu(Index nelems, T *data_)
  * */
 {
     using Y = typename CPUComputeType<T>::value;
-    auto *data = reinterpret_cast<const Y *>(data_);
+    auto data = reinterpret_cast<Y *>(data_);
     constexpr Y mone{-1.0}, pt5{0.5};
     const Y f1 = mone / std::sqrt(Y{2.0});
     for(Index i = 0; i < nelems; ++i)

@@ -29,12 +29,13 @@ void cpu(Index nrows, Index ncols, const bool_t *mask_, T val_, T *data_)
  * @params[in] ncols: Number of columns of data
  * @params[in] mask_: buffer with mask values with nrows entries
  * @params[in] val_: value to set if mask element is false
- * @params[in,out] data_: nrows by ncols matrix, whose elements are updated
+ * @params[inout] data_: nrows by ncols matrix, whose elements are updated
  * */
 {
     using Y = typename CPUComputeType<T>::value;
-    auto *mask = reinterpret_cast<const bool *>(mask_);
-    auto *data = reinterpret_cast<Y *>(data_);
+    using B = typename CPUComputeType<bool_t>::value;
+    auto mask = reinterpret_cast<const B *>(mask_);
+    auto data = reinterpret_cast<Y *>(data_);
     const Y val{val_};
     for(Index i = 0; i < nrows; ++i)
     {

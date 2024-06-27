@@ -14,12 +14,13 @@
 
 #include "nntile/kernel/softmax_inplace/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::softmax_inplace
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, const T *maxsumexp, T alpha, T *dst)
+void cpu(Index m, Index n, Index k, const T *maxsumexp_, T alpha_, T *dst_)
     noexcept
 //! Compute softmax on a buffer along middle axis
 /*!
@@ -27,13 +28,17 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, T alpha, T *dst)
  * @param[in] m: Size of the first mode of dst and sumnorm arrays
  * @param[in] n: Size of the last mode of dst and sumnorm arrays
  * @param[in] k: Size of the middle mode of dst array
- * @param[in] maxsumexp: Maximums and sums of exponents of slices
- * @param[in] alpha: Scalar multiplier for the output
- * @param[in] dst: Contiguous output array
+ * @param[in] maxsumexp_: Maximums and sums of exponents of slices
+ * @param[in] alpha_: Scalar multiplier for the output
+ * @param[in] dst_: Contiguous output array
  * */
 {
+    using Y = typename CPUComputeType<T>::value;
+    auto maxsumexp = reinterpret_cast<const Y *>(maxsumexp_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    const Y alpha{alpha_};
     Index dst_offset = 0;
-    constexpr T zero = 0.0;
+    constexpr Y zero{0.0};
     // Outer loop by the last mode of dst and sumnorm arrays
     for(Index i2 = 0; i2 < n; ++i2)
     {
@@ -45,10 +50,10 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, T alpha, T *dst)
             for(Index i0 = 0; i0 < m; ++i0)
             {
                 // Value-to-update
-                T &val = dst[dst_offset];
+                Y &val = dst[dst_offset];
                 // Max and sum of exponents
-                const T max = maxsumexp[src_offset];
-                const T sum = maxsumexp[src_offset+1];
+                const Y max = maxsumexp[src_offset];
+                const Y sum = maxsumexp[src_offset+1];
                 // Update value
                 if(not std::isinf(val))
                 {

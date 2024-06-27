@@ -23,7 +23,7 @@ template<typename T>
 void cpu(Index ndim, Index nelems, unsigned long long seed,
         scal_t mean, scal_t stddev, const Index *start, const Index *shape,
         const Index *underlying_shape, T *data, const Index *stride,
-        Index *tmp_index)
+        int64_t *tmp_index)
     noexcept;
 
 template<typename T>

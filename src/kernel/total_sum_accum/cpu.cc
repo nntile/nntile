@@ -15,31 +15,39 @@
 #include "nntile/kernel/total_sum_accum/cpu.hh"
 #include <cmath>
 #include <iostream>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::total_sum_accum
 {
 
 template<typename T>
-void cpu(T alpha, Index n_labels, Index n_outputs, const T* logsumexp, const T* src,
-        const Index* labels, T *val)
+void cpu(T alpha_, Index n_labels, Index n_outputs, const T* logsumexp_,
+        const T* src_, const int64_t* labels_, T *val_)
     noexcept
 //! Total sum accumulating from logsumexp and corrected by elements from src
 /*! Mnemonically, the following operations are performed:
  * for every i in [0, n_outputs)
  *      val += alpha * (logsumexp[i]-src[labels[i], i]);
  *
- * @param[in] alpha: Scalar multiplier
+ * @param[in] alpha_: Scalar multiplier
  * @param[in] n_labels: Number of possible labels
  * @param[in] n_outputs: Number of elements to sum up.
- * @param[in] logsumexp: Array with logsumexp values of size n_outputs.
- * @param[in] src: Matrix of size n_labels times n_outputs stored continuously
+ * @param[in] logsumexp_: Array with logsumexp values of size n_outputs.
+ * @param[in] src_: Matrix of size n_labels times n_outputs stored continuously
  *      in Fortran order
- * @param[in] labels: Array of size n_outputs with correct labels
- * @param[inout] val: Scalar that accumulates the total sum
+ * @param[in] labels_: Array of size n_outputs with correct labels
+ * @param[inout] val_: Scalar that accumulates the total sum
  * */
 {
-    constexpr T zero = 0.0;
-    T sum = zero, c = zero, y, t;
+    using Y = typename CPUComputeType<T>::value;
+    auto logsumexp = reinterpret_cast<const Y *>(logsumexp_);
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto val = reinterpret_cast<Y *>(val_);
+    const Y alpha{alpha_};
+    using I = typename CPUComputeType<int64_t>::value;
+    auto labels = reinterpret_cast<const I *>(labels_);
+    constexpr Y zero{0.0};
+    Y sum = zero, c = zero, y, t;
     for(Index i = 0; i < n_outputs; ++i)
     {
         //*val += logsumexp[i] - src[labels[i] + i*n_labels];
@@ -59,12 +67,12 @@ void cpu(T alpha, Index n_labels, Index n_outputs, const T* logsumexp, const T* 
 // Explicit instantiation
 template
 void cpu<fp32_t>(fp32_t alpha, Index n_labels, Index n_outputs, const fp32_t* logsumexp,
-        const fp32_t* src, const Index* class_labels, fp32_t* val)
+        const fp32_t* src, const int64_t* labels, fp32_t* val)
     noexcept;
 
 template
 void cpu<fp64_t>(fp64_t alpha, Index n_labels, Index n_outputs, const fp64_t* logsumexp,
-        const fp64_t* src, const Index* class_labels, fp64_t *val)
+        const fp64_t* src, const int64_t* labels, fp64_t *val)
     noexcept;
 
 } // namespace nntile::kernel::total_sum_accum

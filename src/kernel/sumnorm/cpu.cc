@@ -14,12 +14,13 @@
 
 #include "nntile/kernel/sumnorm/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::sumnorm
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, const T *src, T *sumnorm)
+void cpu(Index m, Index n, Index k, const T *src_, T *sumnorm_)
     noexcept
 //! Sum and Euclidean norm along middle axis
 /*! For a provided m-by-k-by-n input array src compute sums and norms of slices
@@ -39,14 +40,17 @@ void cpu(Index m, Index n, Index k, const T *src, T *sumnorm)
  *      arrays.
  * @param[in] n: Size of the last mode of src and sumnorm arrays
  * @param[in] k: Size of the middle mode of src array
- * @param[in] src: Input contiguous m-by-k-by-n array
- * @param[inout] sumnorm: Output contiguous 2-by-m-by-n array, that accumulates
+ * @param[in] src_: Input contiguous m-by-k-by-n array
+ * @param[inout] sumnorm_: Output contiguous 2-by-m-by-n array, that accumulates
  *      sums and norms of slices along middle axis.
  * */
 {
+    using Y = typename CPUComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto sumnorm = reinterpret_cast<Y *>(sumnorm_);
+    constexpr Y zero{0.0}, one{1.0};
     const Index mk = m * k;
     Index dst_offset = 0;
-    constexpr T zero = 0, one = 1;
     // Cycle over row of output buffer
     for(Index i2 = 0; i2 < n; ++i2)
     {
@@ -54,17 +58,17 @@ void cpu(Index m, Index n, Index k, const T *src, T *sumnorm)
         for(Index i1 = 0; i1 < m; ++i1)
         {
             // Get sum and norm of a corresponding slice
-            const T *src_slice = src + i2*mk + i1;
+            const Y *src_slice = src + i2*mk + i1;
             // Init sum and norm
             // Norm is computed with help of scaled sum of squares
-            T sum = sumnorm[dst_offset];
-            T scale = sumnorm[dst_offset+1];
-            T ssq = one;
+            Y sum = sumnorm[dst_offset];
+            Y scale = sumnorm[dst_offset+1];
+            Y ssq = one;
             // Cycle over slice of input buffer
             for(Index i0 = 0; i0 < k; ++i0)
             {
                 // Read value from source
-                T val = src_slice[i0*m];
+                Y val = src_slice[i0*m];
                 // Nothing to update in case of 0
                 if(val == zero)
                 {
@@ -72,16 +76,16 @@ void cpu(Index m, Index n, Index k, const T *src, T *sumnorm)
                 }
                 // Update sum, scale and scaled sum of squares
                 sum += val;
-                T absval = std::fabs(val);
+                Y absval = std::fabs(val);
                 if(absval > scale)
                 {
-                    T tmp = scale / absval;
+                    Y tmp = scale / absval;
                     scale = absval;
                     ssq = ssq*tmp*tmp + one;
                 }
                 else
                 {
-                    T tmp = absval / scale;
+                    Y tmp = absval / scale;
                     ssq += tmp*tmp;
                 }
             }
