@@ -130,10 +130,6 @@ void gather(const Tensor<T> &src, const Tensor<T> &dst)
 
 // Explicit instantiation
 template
-void gather_async<fp16_t>(const Tensor<fp16_t> &src,
-        const Tensor<fp16_t> &dst);
-
-template
 void gather_async<fp32_t>(const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
 
@@ -154,9 +150,6 @@ void gather_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 // Explicit instantiation
-template
-void gather<fp16_t>(const Tensor<fp16_t> &src, const Tensor<fp16_t> &dst);
-
 template
 void gather<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 
