@@ -154,7 +154,7 @@ void submit(Index m, Index n, Index k, scal_t alpha, Handle src, scal_t beta, Ha
     args->k = k;
     args->alpha = alpha;
     args->beta = beta;
-    fp64_t nflops = m * n * (2*k+1);
+    double nflops = m * n * (2*k+1);
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),

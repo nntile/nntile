@@ -21,7 +21,7 @@ namespace nntile::kernel::add_scalar
 
 // Apply add_scalar for buffer on CPU
 template<typename T>
-void cpu(Index num_elements, T alpha, T beta, T* dst)
+void cpu(Index num_elements, scal_t alpha, scal_t beta, T* dst)
     noexcept;
 
 } // namespace nntile::kernel::add_scalar

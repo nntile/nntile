@@ -22,8 +22,8 @@ namespace nntile::kernel::sum_fiber
 
 // Sums over slices along the first and last axes into a fiber of a tensor
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, T alpha,
-        const T *src, T beta, T *dst)
+void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, scal_t alpha,
+        const T *src, scal_t beta, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::sum_fiber

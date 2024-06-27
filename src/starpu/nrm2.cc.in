@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/starpu/nrm2.hh"
+#include "nntile/kernel/cpu.hh"
 
 #ifndef STARPU_SIMGRID
 #   ifdef NNTILE_USE_CBLAS
@@ -35,7 +36,7 @@ namespace nntile::starpu::nrm2
 #ifndef STARPU_SIMGRID
 // Overloaded call to CBLAS NRM2
 static inline
-void cblas(CBLAS_INT N, const fp32_t *X, CBLAS_INT incX, fp32_t *Y)
+void cblas(CBLAS_INT N, const float *X, CBLAS_INT incX, float *Y)
     noexcept
 {
     *Y = cblas_snrm2(N, X, incX);
@@ -43,7 +44,7 @@ void cblas(CBLAS_INT N, const fp32_t *X, CBLAS_INT incX, fp32_t *Y)
 
 // Overloaded call to CBLAS NRM2
 static inline
-void cblas(CBLAS_INT N, const fp64_t *X, CBLAS_INT incX, fp64_t *Y)
+void cblas(CBLAS_INT N, const double *X, CBLAS_INT incX, double *Y)
     noexcept
 {
     *Y = cblas_dnrm2(N, X, incX);
@@ -60,8 +61,9 @@ void cpu(void *buffers[], void *cl_args)
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *src = interfaces[0]->get_ptr<T>();
-    T *dst = interfaces[1]->get_ptr<T>();
+    using Y = typename nntile::kernel::CPUComputeType<T>::value;
+    const Y *src = interfaces[0]->get_ptr<Y>();
+    Y *dst = interfaces[1]->get_ptr<Y>();
     // Call corresponding CBLAS routine
     cblas(nelems, src, 1, dst);
 #endif // STARPU_SIMGRID

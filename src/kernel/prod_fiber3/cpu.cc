@@ -19,7 +19,7 @@ namespace nntile::kernel::prod_fiber3
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, T alpha_, const T *src1_,
+void cpu(Index m, Index n, Index k, scal_t alpha_, const T *src1_,
         const T *src2_, T *dst_)
     noexcept
 //! Per-element product of a tensor and a broadcasted fiber on CPU
@@ -64,12 +64,12 @@ void cpu(Index m, Index n, Index k, T alpha_, const T *src1_,
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m, Index n, Index k, fp32_t alpha, const fp32_t *src1,
+void cpu<fp32_t>(Index m, Index n, Index k, scal_t alpha, const fp32_t *src1,
         const fp32_t *src2, fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index m, Index n, Index k, fp64_t alpha, const fp64_t *src1,
+void cpu<fp64_t>(Index m, Index n, Index k, scal_t alpha, const fp64_t *src1,
         const fp64_t *src2, fp64_t *dst)
     noexcept;
 

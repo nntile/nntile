@@ -19,8 +19,8 @@ namespace nntile::kernel::add_fiber
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, Index batch, T alpha_, const T *src_, 
-        T beta_, T *dst_)
+void cpu(Index m, Index n, Index k, Index batch, scal_t alpha_, const T *src_, 
+        scal_t beta_, T *dst_)
     noexcept
 //! Per-element addition of a tensor and a broadcasted fiber on CPU
 /*! Performs the following operations:
@@ -82,13 +82,13 @@ void cpu(Index m, Index n, Index k, Index batch, T alpha_, const T *src_,
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m, Index n, Index k, Index batch, fp32_t alpha,
-        const fp32_t *src, fp32_t beta, fp32_t *dst)
+void cpu<fp32_t>(Index m, Index n, Index k, Index batch, scal_t alpha,
+        const fp32_t *src, scal_t beta, fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index m, Index n, Index k, Index batch, fp64_t alpha,
-        const fp64_t *src, fp64_t beta, fp64_t *dst)
+void cpu<fp64_t>(Index m, Index n, Index k, Index batch, scal_t alpha,
+        const fp64_t *src, scal_t beta, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::add_fiber

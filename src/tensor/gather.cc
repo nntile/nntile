@@ -142,8 +142,8 @@ void gather_async<fp64_t>(const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst);
 
 template
-void gather_async<Index>(const Tensor<Index> &src,
-        const Tensor<Index> &dst);
+void gather_async<int64_t>(const Tensor<int64_t> &src,
+        const Tensor<int64_t> &dst);
 
 template
 void gather_async<bool_t>(const Tensor<bool_t> &src,
@@ -168,7 +168,7 @@ template
 void gather<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
 template
-void gather<Index>(const Tensor<Index> &src, const Tensor<Index> &dst);
+void gather<int64_t>(const Tensor<int64_t> &src, const Tensor<int64_t> &dst);
 
 template
 void gather<bool_t>(const Tensor<bool_t> &src, const Tensor<bool_t> &dst);

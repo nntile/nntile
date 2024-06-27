@@ -37,7 +37,7 @@ void cpu(void *buffers[], void *cl_args)
     Index ndim = *ndim_ptr;
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
-    Index *tmp_index = interfaces[1]->get_ptr<Index>();
+    int64_t *tmp_index = interfaces[1]->get_ptr<int64_t>();
     // Launch kernel
     kernel::randn::cpu<T>(ndim, *nelems_ptr, *seed_ptr, *mean_ptr,
             *stddev_ptr, start, shape, underlying_shape, data, stride,
@@ -140,7 +140,7 @@ void submit(Index ndim, Index nelems, unsigned long long seed,
         const std::vector<Index> &underlying_shape, Handle data,
         Handle tmp_index)
 {
-    fp64_t nflops = 2 * nelems;
+    double nflops = 2 * nelems;
     // Submit task
     int ret;
     if(ndim > 0)

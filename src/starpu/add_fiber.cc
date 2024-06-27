@@ -157,7 +157,7 @@ void submit(Index m, Index n, Index k, Index batch, scal_t alpha, Handle src,
     args->batch = batch;
     args->alpha = alpha;
     args->beta = beta;
-    fp64_t nflops = batch * k * (2*m*n+1);
+    double nflops = batch * k * (2*m*n+1);
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),

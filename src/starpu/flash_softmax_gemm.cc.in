@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <cmath>
 #include <limits>
+#include "nntile/kernel/cpu.hh"
 
 #ifndef STARPU_SIMGRID
 #   ifdef NNTILE_USE_CBLAS
@@ -44,8 +45,8 @@ namespace nntile::starpu::flash_softmax_gemm
 // Overloaded call to CBLAS GEMM
 static inline
 void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
-        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp32_t alpha, const fp32_t *A,
-        CBLAS_INT ldA, const fp32_t *B, CBLAS_INT ldB, fp32_t beta, fp32_t *C,
+        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, float alpha, const float *A,
+        CBLAS_INT ldA, const float *B, CBLAS_INT ldB, float beta, float *C,
         CBLAS_INT ldC)
     noexcept
 {
@@ -56,8 +57,8 @@ void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
 // Overloaded call to CBLAS GEMM
 static inline
 void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
-        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp64_t alpha, const fp64_t *A,
-        CBLAS_INT ldA, const fp64_t *B, CBLAS_INT ldB, fp64_t beta, fp64_t *C,
+        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, double alpha, const double *A,
+        CBLAS_INT ldA, const double *B, CBLAS_INT ldB, double beta, double *C,
         CBLAS_INT ldC)
     noexcept
 {
@@ -87,26 +88,28 @@ void cpu(void *buffers[], void *cl_args)
     Index K_offset = args->head * args->seq;
     Index Q_offset = K_offset;
     Index tmp_offset = args->seq * args->seq;
-    const T *K_local = K, *Q_local = Q;
-    T *tmp_local = tmp;
+    using Y = typename nntile::kernel::CPUComputeType<T>::value;
+    const Y *K_local = reinterpret_cast<const Y *>(K);
+    const Y *Q_local = reinterpret_cast<const Y *>(Q);
+    Y *tmp_local = reinterpret_cast<Y *>(tmp);
     for(Index i = 0; i < args->batch; ++i)
     {
         cblas(CblasTrans, CblasNoTrans, args->seq, args->seq, args->head,
-                1.0/std::sqrt(T(args->head)), K_local, args->head, Q_local,
+                1.0/std::sqrt(Y(args->head)), K_local, args->head, Q_local,
                 args->head, 0.0, tmp_local, args->seq);
         K_local += K_offset;
         Q_local += Q_offset;
         tmp_local += tmp_offset;
     }
     kernel::mask_scalar::cpu<T>(args->seq*args->seq, args->batch, mask,
-            -std::numeric_limits<T>::infinity(), tmp);
+            -std::numeric_limits<Y>::infinity(), tmp);
     kernel::softmax_inplace::cpu<T>(1, args->seq*args->batch, args->seq,
             maxsumexp, 1.0, tmp);
     Index V_offset = K_offset;
     Index A_offset = K_offset;
-    const T *V_local = V;
-    T *A_local = A;
-    tmp_local = tmp;
+    const Y *V_local = reinterpret_cast<const Y *>(V);
+    Y *A_local = reinterpret_cast<Y *>(A);
+    tmp_local = reinterpret_cast<Y *>(tmp);
     for(Index i = 0; i < args->batch; ++i)
     {
         cblas(CblasNoTrans, CblasNoTrans, args->head, args->seq, args->seq,
@@ -363,7 +366,7 @@ void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
         rw_mode = Config::STARPU_RW_COMMUTE;
     }
     // Submit task
-    fp64_t nflops = 4 * seq * seq * head * batch;
+    double nflops = 4 * seq * seq * head * batch;
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(K),
             STARPU_R, static_cast<starpu_data_handle_t>(Q),

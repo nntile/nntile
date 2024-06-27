@@ -121,7 +121,7 @@ void submit(scal_t val, scal_t eps, Index nelems, Handle nom, Handle denom, Hand
     args->val = val;
     args->eps = eps;
     args->nelems = nelems;
-    //fp64_t nflops = 5 * nelems;
+    //double nflops = 5 * nelems;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(nom),

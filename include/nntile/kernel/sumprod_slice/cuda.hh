@@ -21,8 +21,8 @@ namespace nntile::kernel::sumprod_slice
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
-        const T *src1, const T *src2, T beta, T *dst)
+void cuda(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
+        const T *src1, const T *src2, scal_t beta, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::sumprod_slice

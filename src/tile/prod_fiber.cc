@@ -19,7 +19,7 @@ namespace nntile::tile
 {
 
 template<typename T>
-void prod_fiber_async(const Tile<T> &src, T alpha, const Tile<T> &dst,
+void prod_fiber_async(const Tile<T> &src, scal_t alpha, const Tile<T> &dst,
         Index axis)
 //! Tile<T> per-element multiplication of a tensor and a broadcasted fiber
 /*! Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
@@ -60,7 +60,7 @@ void prod_fiber_async(const Tile<T> &src, T alpha, const Tile<T> &dst,
 }
 
 template<typename T>
-void prod_fiber(const Tile<T> &src, T alpha, const Tile<T> &dst, Index axis)
+void prod_fiber(const Tile<T> &src, scal_t alpha, const Tile<T> &dst, Index axis)
 //! Tile<T> per-element multiplication of a tensor and a broadcasted fiber
 /*! Blocking version of prod_fiber_async<T>.
  * Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
@@ -78,20 +78,20 @@ void prod_fiber(const Tile<T> &src, T alpha, const Tile<T> &dst, Index axis)
 
 // Explicit instantiation of template
 template
-void prod_fiber_async<fp32_t>(const Tile<fp32_t> &src, fp32_t alpha,
+void prod_fiber_async<fp32_t>(const Tile<fp32_t> &src, scal_t alpha,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void prod_fiber_async<fp64_t>(const Tile<fp64_t> &src, fp64_t alpha,
+void prod_fiber_async<fp64_t>(const Tile<fp64_t> &src, scal_t alpha,
         const Tile<fp64_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void prod_fiber<fp32_t>(const Tile<fp32_t> &src, fp32_t alpha,
+void prod_fiber<fp32_t>(const Tile<fp32_t> &src, scal_t alpha,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void prod_fiber<fp64_t>(const Tile<fp64_t> &src, fp64_t alpha,
+void prod_fiber<fp64_t>(const Tile<fp64_t> &src, scal_t alpha,
         const Tile<fp64_t> &dst, Index axis);
 
 } // namespace nntile::tile

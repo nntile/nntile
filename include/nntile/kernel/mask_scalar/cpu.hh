@@ -21,7 +21,7 @@ namespace nntile::kernel::mask_scalar
 
 // Mask scalar operation on a CPU buffer
 template<typename T>
-void cpu(Index nrows, Index ncols, const bool_t *mask, T val, T *data)
+void cpu(Index nrows, Index ncols, const bool_t *mask, scal_t val, T *data)
     noexcept;
 
 } // namespace nntile::kernel::mask_scalar

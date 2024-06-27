@@ -57,7 +57,7 @@ void subtract_indexed_outputs_async<fp32_fast_tf32_t>(scal_t val,
 
 template
 void subtract_indexed_outputs_async<fp64_t>(scal_t val,
-        const Tile<Index> &labels, const Tile<fp64_t> &dst);
+        const Tile<int64_t> &labels, const Tile<fp64_t> &dst);
 
 // Explicit instantiation
 template

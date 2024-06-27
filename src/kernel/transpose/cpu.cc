@@ -19,7 +19,7 @@ namespace nntile::kernel::transpose
 {
 
 template<typename T>
-void cpu(Index m, Index n, T alpha_, const T* src_, T* dst_)
+void cpu(Index m, Index n, scal_t alpha_, const T* src_, T* dst_)
     noexcept
 //! Transpose buffers on CPU
 /*! dst[i,j] = alpha * src[j,i]
@@ -46,12 +46,12 @@ void cpu(Index m, Index n, T alpha_, const T* src_, T* dst_)
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m, Index n, fp32_t alpha, const fp32_t* src,
+void cpu<fp32_t>(Index m, Index n, scal_t alpha, const fp32_t* src,
         fp32_t* dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index m, Index n, fp64_t alpha, const fp64_t* src,
+void cpu<fp64_t>(Index m, Index n, scal_t alpha, const fp64_t* src,
         fp64_t* dst)
     noexcept;
 

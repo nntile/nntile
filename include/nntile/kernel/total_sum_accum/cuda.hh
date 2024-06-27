@@ -21,7 +21,7 @@ namespace nntile::kernel::total_sum_accum
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, T alpha, Index n_labels, Index n_outputs, const T* logsumexp, const T* src,
+void cuda(cudaStream_t stream, scal_t alpha, Index n_labels, Index n_outputs, const T* logsumexp, const T* src,
         const Index* labels, T *val)
     noexcept;
 

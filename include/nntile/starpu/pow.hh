@@ -22,12 +22,11 @@ namespace nntile::starpu::pow
 {
 
 //! Structure for arguments
-template<typename T>
 struct args_t
 {
     Index nelems;
-    T alpha;
-    T exp;
+    scal_t alpha;
+    scal_t exp;
 };
 
 // Inplace power operation of StarPU buffer on CPU
@@ -70,6 +69,6 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nelems, T alpha, T exp, Handle data);
+void submit(Index nelems, scal_t alpha, scal_t exp, Handle data);
 
 } // namespace nntile::starpu::pow

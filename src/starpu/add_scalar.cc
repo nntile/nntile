@@ -29,7 +29,7 @@ void cpu(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *dst = interfaces[0]->get_ptr<T>();
@@ -46,7 +46,7 @@ void cuda(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *dst = interfaces[0]->get_ptr<T>();
@@ -59,12 +59,11 @@ void cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for add_fiber tasks
-template<typename T>
 static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
     // Apply hash over parameters m, n and k
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->num_elements,
@@ -77,7 +76,7 @@ Codelet codelet_fp32, codelet_fp64;
 void init()
 {
     codelet_fp32.init("nntile_add_scalar_fp32",
-            footprint<fp32_t>,
+            footprint,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_t>}
@@ -86,7 +85,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
     codelet_fp64.init("nntile_add_scalar_fp64",
-            footprint<fp64_t>,
+            footprint,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp64_t>}
@@ -109,7 +108,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index num_elements, T alpha, T beta, Handle dst)
+void submit(Index num_elements, scal_t alpha, scal_t beta, Handle dst)
 //! Insert add_scalar task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -117,7 +116,7 @@ void submit(Index num_elements, T alpha, T beta, Handle dst)
  * */
 {
     // Codelet arguments
-    args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->num_elements = num_elements;
     args->alpha = alpha;
     args->beta = beta;
@@ -135,9 +134,9 @@ void submit(Index num_elements, T alpha, T beta, Handle dst)
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index num_elements, fp32_t alpha, fp32_t beta, Handle dst);
+void submit<fp32_t>(Index num_elements, scal_t alpha, scal_t beta, Handle dst);
 
 template
-void submit<fp64_t>(Index num_elements, fp64_t alpha, fp64_t beta, Handle dst);
+void submit<fp64_t>(Index num_elements, scal_t alpha, scal_t beta, Handle dst);
 
 } // namespace nntile::starpu::add_scalar

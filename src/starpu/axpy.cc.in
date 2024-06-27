@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/starpu/axpy.hh"
+#include "nntile/kernel/cpu.hh"
 
 #ifndef STARPU_SIMGRID
 #   ifdef NNTILE_USE_CBLAS
@@ -35,8 +36,8 @@ namespace nntile::starpu::axpy
 #ifndef STARPU_SIMGRID
 // Overloaded call to CBLAS GEMM
 static inline
-void cblas(CBLAS_INT N, fp32_t alpha, const fp32_t *X, CBLAS_INT incX,
-        fp32_t *Y, CBLAS_INT incY)
+void cblas(CBLAS_INT N, float alpha, const float *X, CBLAS_INT incX,
+        float *Y, CBLAS_INT incY)
     noexcept
 {
     cblas_saxpy(N, alpha, X, incX, Y, incY);
@@ -44,8 +45,8 @@ void cblas(CBLAS_INT N, fp32_t alpha, const fp32_t *X, CBLAS_INT incX,
 
 // Overloaded call to CBLAS GEMM
 static inline
-void cblas(CBLAS_INT N, fp64_t alpha, const fp64_t *X, CBLAS_INT incX,
-        fp64_t *Y, CBLAS_INT incY)
+void cblas(CBLAS_INT N, double alpha, const double *X, CBLAS_INT incX,
+        double *Y, CBLAS_INT incY)
     noexcept
 {
     cblas_daxpy(N, alpha, X, incX, Y, incY);
@@ -62,9 +63,10 @@ void cpu_tensor_alpha(void *buffers[], void *cl_args)
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *alpha = interfaces[0]->get_ptr<T>();
-    const T *src = interfaces[1]->get_ptr<T>();
-    T *dst = interfaces[2]->get_ptr<T>();
+    using Y = typename nntile::kernel::CPUComputeType<T>::value;
+    const Y *alpha = interfaces[0]->get_ptr<Y>();
+    const Y *src = interfaces[1]->get_ptr<Y>();
+    Y *dst = interfaces[2]->get_ptr<Y>();
     // Call corresponding CBLAS routine
     cblas(nelems, alpha[0], src, 1, dst, 1);
 #endif // STARPU_SIMGRID
@@ -80,10 +82,11 @@ void cpu_scalar_alpha(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args2_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *src = interfaces[0]->get_ptr<T>();
-    T *dst = interfaces[1]->get_ptr<T>();
+    using Y = typename nntile::kernel::CPUComputeType<T>::value;
+    const Y *src = interfaces[0]->get_ptr<Y>();
+    Y *dst = interfaces[1]->get_ptr<Y>();
     // Call corresponding CBLAS routine
-    cblas(args->nelems, args->alpha, src, 1, dst, 1);
+    cblas(args->nelems, Y{args->alpha}, src, 1, dst, 1);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CBLAS
@@ -140,7 +143,8 @@ void cuda2(void *buffers[], void *cl_args)
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args2_t *>(cl_args);
-    T alpha_T = args->alpha;
+    using Y = typename 
+    Y alpha_{args->alpha};
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
@@ -151,7 +155,7 @@ void cuda2(void *buffers[], void *cl_args)
     cublasSetStream(handle, stream);
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
     // Call corresponding cuBLAS routine
-    cublas(handle, args->nelems, &alpha_T, src, 1, dst, 1);
+    cublas(handle, args->nelems, &alpha_, src, 1, dst, 1);
 #endif // STARPU_SIMGRID
 }
 #endif //NNTILE_USE_CUDA
