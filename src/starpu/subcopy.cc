@@ -78,7 +78,7 @@ void init()
             );
     codelet_int64.init("nntile_subcopy_int64",
             footprint,
-            {cpu<Index>},
+            {cpu<int64_t>},
             {}
             );
     codelet_bool.init("nntile_subcopy_bool",
@@ -192,3 +192,4 @@ void submit<bool_t>(Index ndim, const std::vector<Index> &src_start,
         Handle tmp_index, starpu_data_access_mode mode);
 
 } // namespace nntile::starpu::subcopy
+

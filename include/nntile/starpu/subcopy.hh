@@ -54,7 +54,7 @@ constexpr Codelet *codelet<fp64_t>()
 }
 
 template<>
-constexpr Codelet *codelet<Index>()
+constexpr Codelet *codelet<int64_t>()
 {
     return &codelet_int64;
 }

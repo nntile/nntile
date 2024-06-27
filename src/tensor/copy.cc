@@ -81,7 +81,7 @@ template
 void copy_async<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
 template
-void copy_async<Index>(const Tensor<Index> &src, const Tensor<Index> &dst);
+void copy_async<int64_t>(const Tensor<int64_t> &src, const Tensor<int64_t> &dst);
 
 // Explicit instantiation
 template
@@ -94,6 +94,6 @@ template
 void copy<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
 template
-void copy<Index>(const Tensor<Index> &src, const Tensor<Index> &dst);
+void copy<int64_t>(const Tensor<int64_t> &src, const Tensor<int64_t> &dst);
 
 } // namespace nntile::tensor
