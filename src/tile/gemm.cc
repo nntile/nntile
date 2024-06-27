@@ -343,11 +343,11 @@ void gemm_async<fp64_t>(scal_t alpha, const TransOp &transA,
         const TransOp &transB, const Tile<fp64_t> &B, scal_t beta,
         const Tile<fp64_t> &C, Index ndim, Index batch_ndim);
 
-template
-void gemm_async<fp16_t>(scal_t alpha, const TransOp &transA,
-        const Tile<fp16_t> &A,
-        const TransOp &transB, const Tile<fp16_t> &B, scal_t beta,
-        const Tile<fp16_t> &C, Index ndim, Index batch_ndim);
+//template
+//void gemm_async<fp16_t>(scal_t alpha, const TransOp &transA,
+//        const Tile<fp16_t> &A,
+//        const TransOp &transB, const Tile<fp16_t> &B, scal_t beta,
+//        const Tile<fp16_t> &C, Index ndim, Index batch_ndim);
 
 // Explicit instantiation
 template
@@ -368,10 +368,10 @@ void gemm<fp64_t>(scal_t alpha, const TransOp &transA,
         const TransOp &transB, const Tile<fp64_t> &B, scal_t beta,
         const Tile<fp64_t> &C, Index ndim, Index batch_ndim);
 
-template
-void gemm<fp16_t>(scal_t alpha, const TransOp &transA,
-        const Tile<fp16_t> &A,
-        const TransOp &transB, const Tile<fp16_t> &B, scal_t beta,
-        const Tile<fp16_t> &C, Index ndim, Index batch_ndim);
+//template
+//void gemm<fp16_t>(scal_t alpha, const TransOp &transA,
+//        const Tile<fp16_t> &A,
+//        const TransOp &transB, const Tile<fp16_t> &B, scal_t beta,
+//        const Tile<fp16_t> &C, Index ndim, Index batch_ndim);
 
 } // namespace nntile::tile

@@ -492,10 +492,10 @@ void restrict_where(uint32_t where)
     codelet_TN_fp64.restrict_where(where);
     codelet_TT_fp32.restrict_where(where);
     codelet_TT_fp64.restrict_where(where);
-    codelet_NN_fp16.restrict_where(where);
-    codelet_NT_fp16.restrict_where(where);
-    codelet_TN_fp16.restrict_where(where);
-    codelet_TT_fp16.restrict_where(where);
+//    codelet_NN_fp16.restrict_where(where);
+//    codelet_NT_fp16.restrict_where(where);
+//    codelet_TN_fp16.restrict_where(where);
+//    codelet_TT_fp16.restrict_where(where);
 
     codelet_NN_fp32_fast_tf32.restrict_where(where);
     codelet_NT_fp32_fast_tf32.restrict_where(where);
@@ -514,10 +514,10 @@ void restore_where()
     codelet_TN_fp64.restore_where();
     codelet_TT_fp32.restore_where();
     codelet_TT_fp64.restore_where();
-    codelet_NN_fp16.restore_where();
-    codelet_NT_fp16.restore_where();
-    codelet_TN_fp16.restore_where();
-    codelet_TT_fp16.restore_where();
+//    codelet_NN_fp16.restore_where();
+//    codelet_NT_fp16.restore_where();
+//    codelet_TN_fp16.restore_where();
+//    codelet_TT_fp16.restore_where();
 
     codelet_NN_fp32_fast_tf32.restore_where();
     codelet_NT_fp32_fast_tf32.restore_where();
