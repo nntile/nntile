@@ -15,6 +15,7 @@
 #include <iostream>
 
 #include "nntile/kernel/maxsumexp/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::maxsumexp
 {
@@ -148,7 +149,10 @@ void LaunchMaxSumExp1(cudaStream_t stream, Index m, Index n, Index k,
         n_per_block = (n+65534) / 65535;
         blocks.z = (n+n_per_block-1) / n_per_block;
     }
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, m_per_block, n,
+    using Y = typename CUDAComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto maxsumexp = reinterpret_cast<Y *>(maxsumexp_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, m_per_block, n,
             n_per_block, k, m*k, src, maxsumexp);
 }
 // clang-format on
@@ -435,18 +439,20 @@ template void LaunchMaxSumExp3<fp32_t>(cudaStream_t stream, Index m, Index n,
 
 template void LaunchMaxSumExp3<fp64_t>(cudaStream_t stream, Index m, Index n,
                                        Index k, const fp64_t *src,
-                                       fp64_t *dst) noexcept;
+                                       fp64_t *maxsumexp) noexcept;
 
 template <typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
-          T *maxsumexp) noexcept {
+          T *maxsumexp)
+    noexcept
+{
     LaunchMaxSumExp1(stream, m, n, k, src, maxsumexp);
 }
 
 template void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
-                           const fp32_t *src, fp32_t *maxsumexp) noexcept;
+        const fp32_t *src, fp32_t *maxsumexp) noexcept;
 
 template void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
-                           const fp64_t *src, fp64_t *maxsumexp) noexcept;
+        const fp64_t *src, fp64_t *maxsumexp) noexcept;
 
 } // namespace nntile::kernel::maxsumexp

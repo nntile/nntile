@@ -14,6 +14,7 @@
 
 #include "nntile/kernel/sumprod_slice/cuda.hh"
 #include <algorithm>
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::sumprod_slice
 {
@@ -67,8 +68,8 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src1,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
-        const T *src1, const T *src2, T beta, T *dst)
+void cuda(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
+        const T *src1_, const T *src2_, scal_t beta, T *dst_)
     noexcept
 //! Sums over fibers into a slice of a product of two tensors
 /*! For two provided m-by-k-by-n input arrays src1 and src2 compute sums of
@@ -81,29 +82,33 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * @param[in] n: Size of the last mode of src1, src2 and dst
  * @param[in] k: Size of the middle mode of src1 and src2 arrays
  * @param[in] alpha: Scaling factor for src1*src2
- * @param[in] src1: Input contiguous m-by-k-by-n array
- * @param[in] src2: Input contiguous m-by-k-by-n array
+ * @param[in] src1_: Input contiguous m-by-k-by-n array
+ * @param[in] src2_: Input contiguous m-by-k-by-n array
  * @param[in] beta: Scaling factor for dst
- * @param[inout] dst: Output contiguous m-by-n array, that accumulates
+ * @param[inout] dst_: Output contiguous m-by-n array, that accumulates
  *      sums along middle axis of per-element products of src1 and src2.
  * */
 {
     // Both source and destination are Fortran-contiguous
     dim3 threads(std::min(int(m), 8), std::min(int(n), 8), 16);
     dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y, 1);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha, src1,
-            src2, beta, dst);
+    using Y = typename CUDAComputeType<T>::value;
+    auto src1 = reinterpret_cast<const Y *>(src1_);
+    auto src2 = reinterpret_cast<const Y *>(src2_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, Y{alpha},
+            src1, src2, Y{beta}, dst);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, fp32_t alpha,
-        const fp32_t *src1, const fp32_t *src2, fp32_t beta, fp32_t *sum_dst)
+void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
+        const fp32_t *src1, const fp32_t *src2, scal_t beta, fp32_t *sum_dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, fp64_t alpha,
-        const fp64_t *src1, const fp64_t *src2, fp64_t beta, fp64_t *sum_dst)
+void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
+        const fp64_t *src1, const fp64_t *src2, scal_t beta, fp64_t *sum_dst)
     noexcept;
 
 } // namespace nntile::kernel::sumprod_slice

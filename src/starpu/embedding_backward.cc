@@ -50,7 +50,7 @@ void cuda(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const Index *index = interfaces[0]->get_ptr<Index>();
+    const int64_t *index = interfaces[0]->get_ptr<Index>();
     const T *embed = interfaces[1]->get_ptr<T>();
     T *vocab = interfaces[2]->get_ptr<T>();
     // Get CUDA stream

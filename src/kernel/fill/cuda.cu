@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/fill/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::fill
 {
@@ -29,26 +30,28 @@ void cuda_kernel(Index nelems, T val, T *data)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, T val, T *data)
+void cuda(cudaStream_t stream, Index nelems, scal_t val, T *data_)
     noexcept
 //! Fill operation on CUDA
 /*! Sets all elements to the provided value
  * @params[in] nelems: Number of elements in a buffer
  * @param[in] val: Input value
- * @params[out] data: Output buffer
+ * @params[out] data_: Output buffer
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, val, data);
+    using Y = typename CUDAComputeType<T>::value;
+    auto data = reinterpret_cast<Y *>(data_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, Y{val}, data);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index nelems, fp32_t val, fp32_t *data)
+void cuda<fp32_t>(cudaStream_t stream, Index nelems, scal_t val, fp32_t *data)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index nelems, fp64_t val, fp64_t *data)
+void cuda<fp64_t>(cudaStream_t stream, Index nelems, scal_t val, fp64_t *data)
     noexcept;
 
 } // namespace nntile::kernel::fill

@@ -14,13 +14,14 @@
 
 #include "nntile/kernel/transpose/cuda.hh"
 #include <algorithm>
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::transpose
 {
 
 template<typename T>
 static __global__
-void cuda_kernel(Index m, Index n, T alpha, const T* src, T* dst)
+void cuda_kernel(Index m, Index n, T alpha, const T *src, T *dst)
 //! Transpose buffers on CPU
 /*! dst[i,j] = alpha * src[j,i]
  *
@@ -41,7 +42,8 @@ void cuda_kernel(Index m, Index n, T alpha, const T* src, T* dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, T alpha, const T* src, T* dst)
+void cuda(cudaStream_t stream, Index m, Index n, scal_t alpha, const T *src_,
+        T *dst_)
     noexcept
 //! Transpose buffers on CPU
 /*! dst[i,j] = alpha * src[j,i]
@@ -56,17 +58,20 @@ void cuda(cudaStream_t stream, Index m, Index n, T alpha, const T* src, T* dst)
     // Both source and destination are Fortran-contiguous
     dim3 threads(32);
     dim3 blocks((m*n+threads.x-1)/threads.x);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, alpha, src, dst);
+    using Y = typename CUDAComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, n, Y{alpha}, src, dst);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, fp32_t alpha,
+void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, scal_t alpha,
         const fp32_t* src, fp32_t* dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, fp64_t alpha,
+void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, scal_t alpha,
         const fp64_t* src, fp64_t* dst)
     noexcept;
 

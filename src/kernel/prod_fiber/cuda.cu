@@ -14,6 +14,7 @@
 
 #include "nntile/kernel/prod_fiber/cuda.hh"
 #include <algorithm>
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::prod_fiber
 {
@@ -48,8 +49,8 @@ void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src, T *dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
-        const T *src, T *dst)
+void cuda(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
+        const T *src_, T *dst_)
     noexcept
 //! Per-element product of a tensor and a broadcasted fiber on CPU
 /*! Performs the following operations:
@@ -60,8 +61,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * @param[in] k: Size of the middle mode of dst tensor and the only mode of src
  *      tensor
  * @param[in] alpha: Scalar factor
- * @param[in] src: Input contiguous vector with k elements
- * @param[inout] dst: Input and output contiguous m-by-k-by-n array
+ * @param[in] src_: Input contiguous vector with k elements
+ * @param[inout] dst_: Input and output contiguous m-by-k-by-n array
  * */
 {
     // Both source and destination are Fortran-contiguous
@@ -69,17 +70,21 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
             std::min(int(k), 16));
     dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y,
             (k+threads.z-1)/threads.z);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, alpha, src, dst);
+    using Y = typename CUDAComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, n, k, Y{alpha}, src,
+            dst);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, fp32_t alpha,
+void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
         const fp32_t *src, fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, fp64_t alpha,
+void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
         const fp64_t *src, fp64_t *dst)
     noexcept;
 

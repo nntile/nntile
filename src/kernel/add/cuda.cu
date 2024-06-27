@@ -13,14 +13,14 @@
  * */
 
 #include "nntile/kernel/add/cuda.hh"
-#include <cuda_fp16.h>
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::add
 {
 
 template<typename T>
 static __global__
-void cuda_kernel(Index nelems, T alpha, const T* src, T beta, T* dst)
+void cuda_kernel(Index nelems, T alpha, const T *src, T beta, T *dst)
 //! Add two buffers on CUDA
 /*! Performs the following operation:
  *      dst[i] = alpha*src[i] + beta*dst[i],
@@ -41,8 +41,8 @@ void cuda_kernel(Index nelems, T alpha, const T* src, T beta, T* dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, T alpha, const T *src, T beta,
-        T *dst)
+void cuda(cudaStream_t stream, Index nelems, scal_t alpha, const T *src_,
+        scal_t beta, T *dst_)
     noexcept
 //! Add two buffers on CUDA
 /*! Performs the following operation:
@@ -51,42 +51,28 @@ void cuda(cudaStream_t stream, Index nelems, T alpha, const T *src, T beta,
  *
  * @param[in] nelems: Size of the src and dst tensors
  * @param[in] alpha: Scalar multiplier for the src tensor
- * @param[in] src: Source tensor
+ * @param[in] src_: Source tensor
  * @param[in] beta: Scalar multiplier for the dst tensor
- * @param[inout] dst: Destination of the add operation
+ * @param[inout] dst_: Destination of the add operation
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, alpha, src, beta,
-            dst);
+    using Y = typename CUDAComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, Y{alpha}, src,
+            Y{beta}, dst);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index nelems, fp32_t alpha,
-        const fp32_t *src, fp32_t beta, fp32_t *dst)
+void cuda<fp32_t>(cudaStream_t stream, Index nelems, scal_t alpha,
+        const fp32_t *src, scal_t beta, fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index nelems, fp64_t alpha,
-        const fp64_t *src, fp64_t beta, fp64_t *dst)
+void cuda<fp64_t>(cudaStream_t stream, Index nelems, scal_t alpha,
+        const fp64_t *src, scal_t beta, fp64_t *dst)
     noexcept;
-
-// Explicit instantiation of cuda function for fp16 type
-void cuda16(cudaStream_t stream, Index nelems, fp32_t alpha, const fp16_t *src, fp32_t beta,
-        fp16_t *dst)
-    noexcept
-//! Add two buffers on CUDA in half precission, see in destiction in original template
-{
-
-    dim3 blocks((nelems+255)/256), threads(256);
-    __half alpha_half = __float2half(alpha);
-    __half beta_half = __float2half(beta);
-    const __half *src_half = reinterpret_cast<const __half *>(src);
-    __half *dst_half = reinterpret_cast<__half *>(dst);
-    (cuda_kernel<__half>)<<<blocks, threads, 0, stream>>>(nelems, alpha_half, src_half, beta_half,
-            dst_half);
-}
-
 
 } // namespace nntile::kernel::add

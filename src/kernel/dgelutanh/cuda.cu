@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/dgelutanh/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::dgelutanh
 {
@@ -48,7 +49,7 @@ void cuda_kernel(Index nelems, T *data)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, T *data)
+void cuda(cudaStream_t stream, Index nelems, T *data_)
     noexcept
 //! Derivative of approximate GeLU operation on CUDA
 /*! Applies the following derivative of approximation of the GeLU function:
@@ -60,11 +61,13 @@ void cuda(cudaStream_t stream, Index nelems, T *data)
  * zf'(z) = -2 sqrt(2/pi) z (1+3*0.044715z^2)
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data: Buffer to apply derivative of approximate GeLU
+ * @params[inout] data_: Buffer to apply derivative of approximate GeLU
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, data);
+    using Y = typename CUDAComputeType<T>::value;
+    auto data = reinterpret_cast<Y *>(data_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, data);
 }
 
 // Explicit instantiation

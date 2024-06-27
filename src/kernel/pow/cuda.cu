@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/pow/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::pow
 {
@@ -31,28 +32,32 @@ void cuda_kernel(Index nelems, T alpha, T exp, T *data)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, T alpha, T exp, T *data)
+void cuda(cudaStream_t stream, Index nelems, scal_t alpha, scal_t exp,
+        T *data_)
     noexcept
 //! Inplace power operation on CUDA
 /*! Does the following per-element operation:
  * pow(z) = alpha * z^exp
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data: Buffer to apply power function
+ * @params[inout] data_: Buffer to apply power function
  * */
 {
     dim3 blocks(256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, alpha, exp, data);
+    using Y = typename CUDAComputeType<T>::value;
+    auto data = reinterpret_cast<Y *>(data_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, Y{alpha}, Y{exp},
+            data);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index nelems, fp32_t alpha, fp32_t exp,
+void cuda<fp32_t>(cudaStream_t stream, Index nelems, scal_t alpha, scal_t exp,
         fp32_t *data)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index nelems, fp64_t alpha, fp64_t exp,
+void cuda<fp64_t>(cudaStream_t stream, Index nelems, scal_t alpha, scal_t exp,
         fp64_t *data)
     noexcept;
 
