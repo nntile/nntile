@@ -15,6 +15,7 @@
 #include "nntile/starpu/scal_inplace.hh"
 #include <cstdlib>
 #include "nntile/kernel/cpu.hh"
+#include "nntile/kernel/cuda.hh"
 
 #ifndef STARPU_SIMGRID
 #   ifdef NNTILE_USE_CBLAS
@@ -74,7 +75,7 @@ void cpu(void *buffers[], void *cl_args)
 #ifndef STARPU_SIMGRID
 // Overloaded call to cuBLAS scal
 static inline
-void cublas(cublasHandle_t handle, int N, fp32_t alpha, fp32_t *X, int incX)
+void cublas(cublasHandle_t handle, int N, float alpha, float *X, int incX)
     noexcept
 {
     cublasSscal(handle, N, &alpha, X, incX);
@@ -82,7 +83,7 @@ void cublas(cublasHandle_t handle, int N, fp32_t alpha, fp32_t *X, int incX)
 
 // Overloaded call to cuBLAS scal
 static inline
-void cublas(cublasHandle_t handle, int N, fp64_t alpha, fp64_t *X, int incX)
+void cublas(cublasHandle_t handle, int N, double alpha, double *X, int incX)
     noexcept
 {
     cublasDscal(handle, N, &alpha, X, incX);

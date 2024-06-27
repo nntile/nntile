@@ -14,6 +14,7 @@
 
 #include "nntile/starpu/gemm.hh"
 #include "nntile/kernel/cpu.hh"
+#include "nntile/kernel/cuda.hh"
 
 #ifndef STARPU_SIMGRID
 #   ifdef NNTILE_USE_CBLAS
@@ -124,30 +125,13 @@ void cpu(void *buffers[], void *cl_args)
 static inline
 void cublas(cublasHandle_t handle, cublasOperation_t transA,
         cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
-        const fp16_t *A, int ldA, const fp16_t *B, int ldB, fp32_t beta,
-        fp16_t *C, int ldC)
-    noexcept
-{
-    const __half alpha_half = __float2half(alpha),
-          beta_half = __float2half(beta);
-    cublasHgemm(handle, transA, transB, M, N, K,
-            &alpha_half,
-            reinterpret_cast<const __half *>(A), ldA,
-            reinterpret_cast<const __half *>(B), ldB,
-            &beta_half,
-            reinterpret_cast<__half *>(C), ldC);
-}
-
-// Overloaded call to cuBLAS GEMM
-static inline
-void cublas(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
         const fp32_t *A, int ldA, const fp32_t *B, int ldB, fp32_t beta,
         fp32_t *C, int ldC)
     noexcept
 {
-    cublasSgemm(handle, transA, transB, M, N, K, &alpha, A, ldA, B, ldB, &beta,
-            C, ldC);
+    cublasSgemm(handle, transA, transB, M, N, K, (float *)(&alpha),
+            (const float *)A, ldA, (const float *)B, ldB, (float *)(&beta),
+            (double *)C, ldC);
 }
 
 // Overloaded call to cuBLAS GEMM
@@ -158,8 +142,9 @@ void cublas(cublasHandle_t handle, cublasOperation_t transA,
         fp64_t *C, int ldC)
     noexcept
 {
-    cublasDgemm(handle, transA, transB, M, N, K, &alpha, A, ldA, B, ldB, &beta,
-            C, ldC);
+    cublasDgemm(handle, transA, transB, M, N, K, (double *)(&alpha),
+            (const double *)A, ldA, (const double *)B, ldB, (double *)(&beta),
+            (double *)C, ldC);
 }
 
 // Overloaded call to cuBLAS GEMM for fp32_fast_tf32_t
@@ -170,12 +155,13 @@ void cublas(cublasHandle_t handle, cublasOperation_t transA,
         fp32_fast_tf32_t *C, int ldC)
     noexcept
 {
-    cublasGemmEx(handle, transA, transB, M, N, K, &alpha, A, CUDA_R_32F, ldA,
-            B, CUDA_R_32F, ldB, &beta, C, CUDA_R_32F, ldC,
+    cublasGemmEx(handle, transA, transB, M, N, K, (float *)(&alpha),
+            (const float *)A, CUDA_R_32F, ldA, (const float *)B, CUDA_R_32F,
+            ldB, (float *)(&beta), (float *)C, CUDA_R_32F, ldC,
             CUBLAS_COMPUTE_32F_FAST_TF32, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
 
-
+// Overloaded call to batched cuBLAS gemm
 static inline
 void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
         cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
@@ -184,27 +170,11 @@ void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
         long long int strideC, int batchCount)
     noexcept
 {
-    cublasGemmStridedBatchedEx(handle, transA, transB, M, N, K, &alpha, A,
-            CUDA_R_32F, ldA, strideA, B, CUDA_R_32F, ldB, strideB, &beta, C,
-            CUDA_R_32F, ldC, strideC, batchCount, CUBLAS_COMPUTE_32F_FAST_TF32,
-            CUBLAS_GEMM_DEFAULT_TENSOR_OP);
-}
-
-// Overloaded call to batched cuBLAS gemm
-static inline
-void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
-        const fp16_t *A, int ldA, long long int strideA, const fp16_t *B,
-        int ldB, long long int strideB, fp32_t beta, fp16_t *C, int ldC,
-        long long int strideC, int batchCount)
-    noexcept
-{
-    const __half alpha_half = __float2half(alpha),
-          beta_half = __float2half(beta);
-    cublasHgemmStridedBatched(handle, transA, transB, M, N, K, &alpha_half,
-            reinterpret_cast<const __half *>(A), ldA, strideA,
-            reinterpret_cast<const __half *>(B), ldB, strideB, &beta_half,
-            reinterpret_cast<__half *>(C), ldC, strideC, batchCount);
+    cublasGemmStridedBatchedEx(handle, transA, transB, M, N, K,
+            (float *)(&alpha), (const float *)A, CUDA_R_32F, ldA, strideA,
+            (const float *)B, CUDA_R_32F, ldB, strideB, (float *)(&beta),
+            (float *)C, CUDA_R_32F, ldC, strideC, batchCount,
+            CUBLAS_COMPUTE_32F_FAST_TF32, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
 
 // Overloaded call to batched cuBLAS gemm
@@ -216,8 +186,10 @@ void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
         long long int strideC, int batchCount)
     noexcept
 {
-    cublasSgemmStridedBatched(handle, transA, transB, M, N, K, &alpha, A, ldA,
-            strideA, B, ldB, strideB, &beta, C, ldC, strideC, batchCount);
+    cublasSgemmStridedBatched(handle, transA, transB, M, N, K,
+            (float *)(&alpha), (const float *)A, ldA, strideA,
+            (const float *)B, ldB, strideB, (float *)(&beta), (float *)C, ldC,
+            strideC, batchCount);
 }
 
 // Overloaded call to batched cuBLAS gemm
@@ -229,8 +201,10 @@ void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
         long long int strideC, int batchCount)
     noexcept
 {
-    cublasDgemmStridedBatched(handle, transA, transB, M, N, K, &alpha, A, ldA,
-            strideA, B, ldB, strideB, &beta, C, ldC, strideC, batchCount);
+    cublasDgemmStridedBatched(handle, transA, transB, M, N, K,
+            (double *)(&alpha), (const double *)A, ldA, strideA,
+            (const double *)B, ldB, strideB, (double *)(&beta), (double *)C,
+            ldC, strideC, batchCount);
 }
 #endif // STARPU_SIMGRID
 

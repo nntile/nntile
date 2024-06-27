@@ -64,13 +64,13 @@ void cuda(cudaStream_t stream, scal_t alpha, Index n_labels, Index n_outputs,
 template
 void cuda<fp32_t>(cudaStream_t stream, scal_t alpha, Index n_labels,
         Index n_outputs, const fp32_t* logsumexp, const fp32_t* src,
-        const Index* labels, fp32_t *val)
+        const int64_t* labels, fp32_t *val)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, scal_t alpha, Index n_labels,
         Index n_outputs, const fp64_t* logsumexp, const fp64_t* src,
-        const Index* labels, fp64_t *val)
+        const int64_t* labels, fp64_t *val)
     noexcept;
 
 } // namespace nntile::kernel::total_sum_accum

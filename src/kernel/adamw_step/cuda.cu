@@ -85,7 +85,7 @@ void cuda(cudaStream_t stream, Index num_iter, Index num_elems, scal_t beta_1,
     auto grad = reinterpret_cast<const Y *>(grad_);
     auto first_moment = reinterpret_cast<Y *>(first_moment_);
     auto second_moment = reinterpret_cast<Y *>(second_moment_);
-    auto p = reinterpret_cast<Y *>(p_T);
+    auto p = reinterpret_cast<Y *>(p_);
     (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(num_iter, num_elems,
             Y{beta_1}, Y{beta_2}, Y{eps}, Y{lr}, Y{weight_decay}, grad,
             first_moment, second_moment, p, alpha, beta);

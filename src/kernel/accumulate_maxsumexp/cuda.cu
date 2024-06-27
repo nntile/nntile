@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/accumulate_maxsumexp/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::accumulate_maxsumexp
 {
