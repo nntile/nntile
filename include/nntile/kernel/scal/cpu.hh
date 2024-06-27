@@ -21,7 +21,7 @@ namespace nntile::kernel::scal
 
 // Apply scal for buffers on CPU
 template<typename T>
-void cpu(Index nelems, T alpha, const T* src, T* dst)
+void cpu(Index nelems, scal_t alpha, const T* src, T* dst)
     noexcept;
 
 } // namespace nntile::kernel::scal

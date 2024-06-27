@@ -21,7 +21,7 @@ namespace nntile::kernel::sum_slice
 
 // Sums over fibers along the middle axis into a slice of a tensor
 template<typename T>
-void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
+void cpu(Index m, Index n, Index k, scal_t alpha, const T *src, scal_t beta, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::sum_slice

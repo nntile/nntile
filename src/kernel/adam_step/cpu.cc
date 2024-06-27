@@ -20,7 +20,7 @@ namespace nntile::kernel::adam_step
 {
 
 template<typename T>
-void cpu(Index num_iter, Index num_elems, scal_T beta_1_, scal_t beta_2_,
+void cpu(Index num_iter, Index num_elems, scal_t beta_1_, scal_t beta_2_,
         scal_t eps_, scal_t lr_, scal_t weight_decay_, const T *grad_,
         T *first_moment_, T *second_moment_, T *p_)
     noexcept
@@ -87,15 +87,15 @@ void cpu(Index num_iter, Index num_elems, scal_T beta_1_, scal_t beta_2_,
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index num_iter, Index num_elems, fp32_t beta_1, fp32_t beta_2,
-        fp32_t eps, fp32_t lr, fp32_t weight_decay, const fp32_t* grad,
-        fp32_t* first_moment, fp32_t* second_moment, fp32_t* p)
+void cpu<fp32_t>(Index num_iter, Index num_elems, scal_t beta_1, scal_t beta_2,
+        scal_t eps, scal_t lr, scal_t weight_decay, const fp32_t *grad,
+        fp32_t *first_moment, fp32_t *second_moment, fp32_t *p)
     noexcept;
 
 template
-void cpu<fp64_t>(Index num_iter, Index num_elems, fp64_t beta_1, fp64_t beta_2,
-        fp64_t eps, fp64_t lr, fp64_t weight_decay, const fp64_t* grad,
-        fp64_t* first_moment, fp64_t* second_moment, fp64_t* p)
+void cpu<fp64_t>(Index num_iter, Index num_elems, scal_t beta_1, scal_t beta_2,
+        scal_t eps, scal_t lr, scal_t weight_decay, const fp64_t *grad,
+        fp64_t *first_moment, fp64_t *second_moment, fp64_t *p)
     noexcept;
 
 } // namespace nntile::kernel::adam_step

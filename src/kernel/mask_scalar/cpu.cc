@@ -19,7 +19,7 @@ namespace nntile::kernel::mask_scalar
 {
 
 template<typename T>
-void cpu(Index nrows, Index ncols, const bool_t *mask_, T val_, T *data_)
+void cpu(Index nrows, Index ncols, const bool_t *mask_, scal_t val_, T *data_)
     noexcept
 //! Set certain matrix entries to a given value by mask on CPU
 /*! Does the following operation:
@@ -51,12 +51,12 @@ void cpu(Index nrows, Index ncols, const bool_t *mask_, T val_, T *data_)
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index nrows, Index ncols, const bool_t *mask, fp32_t val,
+void cpu<fp32_t>(Index nrows, Index ncols, const bool_t *mask, scal_t val,
         fp32_t *data)
     noexcept;
 
 template
-void cpu<fp64_t>(Index nrows, Index ncols, const bool_t *mask, fp64_t val,
+void cpu<fp64_t>(Index nrows, Index ncols, const bool_t *mask, scal_t val,
         fp64_t *data)
     noexcept;
 

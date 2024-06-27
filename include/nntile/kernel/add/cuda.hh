@@ -22,13 +22,8 @@ namespace nntile::kernel::add
 
 // Apply add for buffers on CUDA
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, T alpha, const T* src, T beta,
-        T* dst)
-    noexcept;
-
-// specific specialization for fp16_t, temporary solution
-void cuda16(cudaStream_t stream, Index nelems, fp32_t alpha, const fp16_t *src, fp32_t beta,
-        fp16_t *dst)
+void cuda(cudaStream_t stream, Index nelems, scal_t alpha, const T* src,
+        scal_t beta, T* dst)
     noexcept;
 
 } // namespace nntile::kernel::add

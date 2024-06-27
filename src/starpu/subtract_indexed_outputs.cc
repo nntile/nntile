@@ -29,13 +29,12 @@ void cpu(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t*>(cl_args);
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
-    T value = args->value;
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const Index* labels = interfaces[0]->get_ptr<Index>();
-    T* dst = interfaces[1]->get_ptr<T>();
+    const int64_t *labels = interfaces[0]->get_ptr<int64_t>();
+    T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::subtract_indexed_outputs::cpu<T>(n_labels, n_outputs, value,
+    kernel::subtract_indexed_outputs::cpu<T>(n_labels, n_outputs, args->value,
             labels, dst);
 #endif // STARPU_SIMGRID
 }
@@ -54,8 +53,8 @@ void cuda(void *buffers[], void *cl_args)
     T value = args->value;
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const Index* labels = interfaces[0]->get_ptr<Index>();
-    T* dst = interfaces[1]->get_ptr<T>();
+    const int64_t *labels = interfaces[0]->get_ptr<int64_t>();
+    T *dst = interfaces[1]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel

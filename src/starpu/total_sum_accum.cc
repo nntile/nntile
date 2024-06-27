@@ -35,7 +35,7 @@ void cpu(void *buffers[], void *cl_args)
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *logsumexp = interfaces[0]->get_ptr<T>();
     const T *src = interfaces[1]->get_ptr<T>();
-    const Index* labels = interfaces[2]->get_ptr<Index>();
+    const int64_t* labels = interfaces[2]->get_ptr<int64_t>();
     T* val = interfaces[3]->get_ptr<T>();
     // Launch kernel
     kernel::total_sum_accum::cpu<T>(alpha, n_labels, n_outputs, logsumexp, src,
@@ -59,7 +59,7 @@ void cuda(void *buffers[], void *cl_args)
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *logsumexp = interfaces[0]->get_ptr<T>();
     const T *src = interfaces[1]->get_ptr<T>();
-    const Index* labels = interfaces[2]->get_ptr<Index>();
+    const int64_t* labels = interfaces[2]->get_ptr<int64_t>();
     T* val = interfaces[3]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();

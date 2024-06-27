@@ -128,6 +128,7 @@ void submit(Handle src, Handle dst)
  * throws an std::runtime_error() exception.
  * */
 {
+    //double nflops;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_RW|STARPU_COMMUTE, static_cast<starpu_data_handle_t>(dst),

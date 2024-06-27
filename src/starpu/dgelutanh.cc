@@ -97,7 +97,7 @@ template<typename T>
 void submit(Index nelems, Handle data)
 {
     Index *nelems_ = new Index{nelems};
-    //fp64_t nflops = 5 * nelems;
+    //double nflops = 5 * nelems;
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_RW, static_cast<starpu_data_handle_t>(data),
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),

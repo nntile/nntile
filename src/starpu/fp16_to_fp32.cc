@@ -85,7 +85,7 @@ void restore_where()
 void submit(Index nelems, Handle src, Handle dst)
 {
     Index *nelems_ = new Index{nelems};
-    //fp64_t nflops = 5 * nelems;
+    //double nflops = 5 * nelems;
     int ret = starpu_task_insert(&codelet,
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_W, static_cast<starpu_data_handle_t>(dst),

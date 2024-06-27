@@ -129,7 +129,7 @@ void submit(Index num_iter, Index num_elems, scal_t beta_1, scal_t beta_2, scal_
     args->eps = eps;
     args->lr = lr;
     args->weight_decay = weight_decay;
-    //fp64_t nflops = 5 * nelems;
+    //double nflops = 5 * nelems;
     // Submit task
     enum starpu_data_access_mode moments_mode;
     if (num_iter == 1)

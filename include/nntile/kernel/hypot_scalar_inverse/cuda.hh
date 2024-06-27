@@ -21,7 +21,7 @@ namespace nntile::kernel::hypot_scalar_inverse
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, T eps, T alpha, T* dst)
+void cuda(cudaStream_t stream, Index nelems, scal_t eps, scal_t alpha, T* dst)
     noexcept;
 
 } // namespace nntile::kernel::hypot_scalar_inverse

@@ -20,7 +20,7 @@ namespace nntile::tensor
 
 //! Tensor-wise add_scalar operation
 template<typename T>
-void add_scalar_async(T alpha, T beta, const Tensor<T> &dst)
+void add_scalar_async(scal_t alpha, scal_t beta, const Tensor<T> &dst)
 {
     // Do nothing if alpha is zero
     if(alpha == 0.0 && beta == 1.)
@@ -49,7 +49,7 @@ void add_scalar_async(T alpha, T beta, const Tensor<T> &dst)
 
 //! Tensor-wise add_scalar operation
 template<typename T>
-void add_scalar(T alpha, T beta, const Tensor<T> &dst)
+void add_scalar(scal_t alpha, scal_t beta, const Tensor<T> &dst)
 {
     add_scalar_async<T>(alpha, beta, dst);
     starpu_task_wait_for_all();
@@ -58,20 +58,20 @@ void add_scalar(T alpha, T beta, const Tensor<T> &dst)
 
 // Explicit instantiation of template
 template
-void add_scalar_async<fp32_t>(fp32_t alpha, fp32_t beta,
+void add_scalar_async<fp32_t>(scal_t alpha, scal_t beta,
         const Tensor<fp32_t> &dst);
 
 template
-void add_scalar_async<fp64_t>(fp64_t alpha, fp64_t beta,
+void add_scalar_async<fp64_t>(scal_t alpha, scal_t beta,
         const Tensor<fp64_t> &dst);
 
 // Explicit instantiation of template
 template
-void add_scalar<fp32_t>(fp32_t alpha, fp32_t beta,
+void add_scalar<fp32_t>(scal_t alpha, scal_t beta,
         const Tensor<fp32_t> &dst);
 
 template
-void add_scalar<fp64_t>(fp64_t alpha, fp64_t beta,
+void add_scalar<fp64_t>(scal_t alpha, scal_t beta,
         const Tensor<fp64_t> &dst);
 
 } // namespace nntile::tensor

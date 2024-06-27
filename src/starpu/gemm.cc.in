@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/starpu/gemm.hh"
+#include "nntile/kernel/cpu.hh"
 
 #ifndef STARPU_SIMGRID
 #   ifdef NNTILE_USE_CBLAS
@@ -37,8 +38,8 @@ namespace nntile::starpu::gemm
 // Overloaded call to CBLAS GEMM
 static inline
 void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
-        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp32_t alpha, const fp32_t *A,
-        CBLAS_INT ldA, const fp32_t *B, CBLAS_INT ldB, fp32_t beta, fp32_t *C,
+        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, float alpha, const float *A,
+        CBLAS_INT ldA, const float *B, CBLAS_INT ldB, float beta, float *C,
         CBLAS_INT ldC)
     noexcept
 {
@@ -49,8 +50,8 @@ void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
 // Overloaded call to CBLAS GEMM
 static inline
 void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
-        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp64_t alpha, const fp64_t *A,
-        CBLAS_INT ldA, const fp64_t *B, CBLAS_INT ldB, fp64_t beta, fp64_t *C,
+        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, double alpha, const double *A,
+        CBLAS_INT ldA, const double *B, CBLAS_INT ldB, double beta, double *C,
         CBLAS_INT ldC)
     noexcept
 {
@@ -70,9 +71,10 @@ void cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     // Launch kernel
-    const T *A = interfaces[0]->get_ptr<T>();
-    const T *B = interfaces[1]->get_ptr<T>();
-    T *C = interfaces[2]->get_ptr<T>();
+    using Y = typename nntile::kernel::CPUComputeType<T>::value;
+    const Y *A = interfaces[0]->get_ptr<Y>();
+    const Y *B = interfaces[1]->get_ptr<Y>();
+    Y *C = interfaces[2]->get_ptr<Y>();
     // It is OK to convert values as it was checked during task submission
     CBLAS_INT M=args->m, N=args->n, K=args->k, ldA, ldB, ldC=M;
     CBLAS_TRANSPOSE transA_, transB_;
@@ -626,7 +628,7 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
         .alpha = alpha,
         .beta = beta
     };
-    fp64_t nflops = 2 * m * n * k * batch;
+    double nflops = 2 * m * n * k * batch;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(transA, transB),
             STARPU_R, static_cast<starpu_data_handle_t>(A),

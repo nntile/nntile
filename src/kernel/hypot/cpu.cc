@@ -20,7 +20,7 @@ namespace nntile::kernel::hypot
 {
 
 template<typename T>
-void cpu(Index nelems, T alpha_, const T* src_, T beta_, T* dst_)
+void cpu(Index nelems, scal_t alpha_, const T* src_, scal_t beta_, T* dst_)
     noexcept
 //! hypot of two buffers on CPU
 /*! Performs the following operation:
@@ -76,12 +76,12 @@ void cpu(Index nelems, T alpha_, const T* src_, T beta_, T* dst_)
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index nelems, fp32_t alpha, const fp32_t* src, fp32_t beta,
+void cpu<fp32_t>(Index nelems, scal_t alpha, const fp32_t* src, scal_t beta,
         fp32_t* dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index nelems, fp64_t alpha, const fp64_t* src, fp64_t beta,
+void cpu<fp64_t>(Index nelems, scal_t alpha, const fp64_t* src, scal_t beta,
         fp64_t* dst)
     noexcept;
 

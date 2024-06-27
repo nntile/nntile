@@ -21,9 +21,9 @@ namespace nntile::kernel::adamw_step
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, Index num_iter, Index num_elems, T beta_1, T beta_2,
-         T eps, T lr, T weight_decay,
-         T* grad, T* first_moment, T* second_moment, T* p)
+void cuda(cudaStream_t stream, Index num_iter, Index num_elems, scal_t beta_1,
+        scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
+        const T* grad, T* first_moment, T* second_moment, T* p)
     noexcept;
 
 } // namespace nntile::kernel::adamw_step

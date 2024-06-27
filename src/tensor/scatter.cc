@@ -165,8 +165,8 @@ void scatter_async<fp64_t>(const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst);
 
 template
-void scatter_async<Index>(const Tensor<Index> &src,
-        const Tensor<Index> &dst);
+void scatter_async<int64_t>(const Tensor<int64_t> &src,
+        const Tensor<int64_t> &dst);
 
 template
 void scatter_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
@@ -191,7 +191,7 @@ template
 void scatter<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
 template
-void scatter<Index>(const Tensor<Index> &src, const Tensor<Index> &dst);
+void scatter<int64_t>(const Tensor<int64_t> &src, const Tensor<int64_t> &dst);
 
 template
 void scatter<bool_t>(const Tensor<bool_t> &src, const Tensor<bool_t> &dst);

@@ -22,7 +22,7 @@ namespace nntile::kernel::pow
 
 // Power operation on a CUDA buffer
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, T alpha, T exp, T *data)
+void cuda(cudaStream_t stream, Index nelems, scal_t alpha, scal_t exp, T *data)
     noexcept;
 
 } // namespace nntile::kernel::pow

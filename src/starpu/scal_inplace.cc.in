@@ -14,6 +14,7 @@
 
 #include "nntile/starpu/scal_inplace.hh"
 #include <cstdlib>
+#include "nntile/kernel/cpu.hh"
 
 #ifndef STARPU_SIMGRID
 #   ifdef NNTILE_USE_CBLAS
@@ -36,7 +37,7 @@ namespace nntile::starpu::scal_inplace
 #ifndef STARPU_SIMGRID
 // Overloaded call to CBLAS scal
 static inline
-void cblas(CBLAS_INT N, fp32_t alpha, fp32_t *X, CBLAS_INT incX)
+void cblas(CBLAS_INT N, float alpha, float *X, CBLAS_INT incX)
     noexcept
 {
     cblas_sscal(N, alpha, X, incX);
@@ -44,7 +45,7 @@ void cblas(CBLAS_INT N, fp32_t alpha, fp32_t *X, CBLAS_INT incX)
 
 // Overloaded call to CBLAS scal
 static inline
-void cblas(CBLAS_INT N, fp64_t alpha, fp64_t *X, CBLAS_INT incX)
+void cblas(CBLAS_INT N, double alpha, double *X, CBLAS_INT incX)
     noexcept
 {
     cblas_dscal(N, alpha, X, incX);
@@ -61,7 +62,8 @@ void cpu(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    T *X = interfaces[0]->get_ptr<T>();
+    using Y = typename nntile::kernel::CPUComputeType<T>::value;
+    Y *X = interfaces[0]->get_ptr<Y>();
     // Call corresponding CBLAS routine
     cblas(args->nelems, args->alpha, X, 1);
 #endif // STARPU_SIMGRID

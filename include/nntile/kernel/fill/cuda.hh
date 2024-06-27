@@ -21,7 +21,7 @@ namespace nntile::kernel::fill
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, T val, T *data)
+void cuda(cudaStream_t stream, Index nelems, scal_t val, T *data)
     noexcept;
 
 } // namespace nntile::kernel::fill

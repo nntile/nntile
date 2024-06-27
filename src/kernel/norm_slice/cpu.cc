@@ -20,7 +20,7 @@ namespace nntile::kernel::norm_slice
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, T alpha_, const T *src_, T beta_, T *dst_)
+void cpu(Index m, Index n, Index k, scal_t alpha_, const T *src_, scal_t beta_, T *dst_)
     noexcept
 //! Euclidean norms over fibers along middle axis into a slice of a tensor
 /*! For a provided m-by-k-by-n input array src compute norms of fibers
@@ -126,13 +126,13 @@ void cpu(Index m, Index n, Index k, T alpha_, const T *src_, T beta_, T *dst_)
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m, Index n, Index k, fp32_t alpha, const fp32_t *src,
-        fp32_t beta, fp32_t *norm_dst)
+void cpu<fp32_t>(Index m, Index n, Index k, scal_t alpha, const fp32_t *src,
+        scal_t beta, fp32_t *norm_dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index m, Index n, Index k, fp64_t alpha, const fp64_t *src,
-        fp64_t beta, fp64_t *norm_dst)
+void cpu<fp64_t>(Index m, Index n, Index k, scal_t alpha, const fp64_t *src,
+        scal_t beta, fp64_t *norm_dst)
     noexcept;
 
 } // namespace nntile::kernel::norm_slice
