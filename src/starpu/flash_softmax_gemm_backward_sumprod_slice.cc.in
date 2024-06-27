@@ -22,6 +22,7 @@
 #include <cmath>
 #include <limits>
 #include "nntile/kernel/cpu.hh"
+#include "nntile/kernel/cuda.hh"
 
 #ifndef STARPU_SIMGRID
 #   ifdef NNTILE_USE_CBLAS
@@ -46,25 +47,27 @@ namespace nntile::starpu::flash_softmax_gemm_backward_sumprod_slice
 // Overloaded call to CBLAS GEMM
 static inline
 void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
-        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, float alpha, const float *A,
-        CBLAS_INT ldA, const float *B, CBLAS_INT ldB, float beta, float *C,
+        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, float alpha, const fp32_t *A,
+        CBLAS_INT ldA, const fp32_t *B, CBLAS_INT ldB, float beta, fp32_t *C,
         CBLAS_INT ldC)
     noexcept
 {
-    cblas_sgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
-            beta, C, ldC);
+    cblas_sgemm(CblasColMajor, transA, transB, M, N, K, alpha,
+            (const float *)A, ldA, (const float *)B, ldB, beta, (float *)C,
+            ldC);
 }
 
 // Overloaded call to CBLAS GEMM
 static inline
 void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
-        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, double alpha, const double *A,
-        CBLAS_INT ldA, const double *B, CBLAS_INT ldB, double beta, double *C,
+        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, double alpha, const fp64_t *A,
+        CBLAS_INT ldA, const fp64_t *B, CBLAS_INT ldB, double beta, fp64_t *C,
         CBLAS_INT ldC)
     noexcept
 {
-    cblas_dgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
-            beta, C, ldC);
+    cblas_dgemm(CblasColMajor, transA, transB, M, N, K, alpha,
+            (const double *)A, ldA, (const double *)B, ldB, beta, (double *)C,
+            ldC);
 }
 #endif // STARPU_SIMGRID
 
@@ -93,13 +96,13 @@ void cpu(void *buffers[], void *cl_args)
     Index Q_offset = K_offset;
     Index tmp_offset = args->seq * args->seq;
     using Y = typename nntile::kernel::CPUComputeType<T>::value;
-    const Y *K_local = reinterpret_cast<const Y *>(K);
-    const Y *Q_local = reinterpret_cast<const Y *>(Q);
-    Y *tmp_local = reinterpret_cast<Y *>(tmp);
+    const T *K_local = K;
+    const T *Q_local = Q;
+    T *tmp_local = tmp;
     for(Index i = 0; i < args->batch; ++i)
     {
         cblas(CblasTrans, CblasNoTrans, args->seq, args->seq, args->head,
-                1.0/std::sqrt(Y(args->head)), K_local, args->head, Q_local,
+                1.0/std::sqrt(args->head), K_local, args->head, Q_local,
                 args->head, 0.0, tmp_local, args->seq);
         K_local += K_offset;
         Q_local += Q_offset;
@@ -111,9 +114,9 @@ void cpu(void *buffers[], void *cl_args)
             maxsumexp, 1.0, tmp);
     Index dA_offset = K_offset;
     Index dV_offset = K_offset;
-    const Y *dA_local = reinterpret_cast<const Y *>(dA);
-    Y *dV_local = reinterpret_cast<Y *>(dV);
-    tmp_local = reinterpret_cast<Y *>(tmp);
+    const T *dA_local = dA;
+    T *dV_local = dV;
+    tmp_local = tmp;
     for(Index i = 0; i < args->batch; ++i)
     {
         cblas(CblasNoTrans, CblasTrans, args->head, args->seq, args->seq,
@@ -125,9 +128,9 @@ void cpu(void *buffers[], void *cl_args)
     }
     Index V_offset = K_offset;
     Index tmp_grad_offset = tmp_offset;
-    dA_local = reinterpret_cast<const Y *>(dA);
-    const Y *V_local = reinterpret_cast<const Y *>(V);
-    Y *tmp_grad_local = reinterpret_cast<Y *>(tmp_grad);
+    dA_local = dA;
+    const T *V_local = V;
+    T *tmp_grad_local = tmp_grad;
     for(Index i = 0; i < args->batch; ++i)
     {
         cblas(CblasTrans, CblasNoTrans, args->seq, args->seq, args->head,
@@ -148,27 +151,46 @@ void cpu(void *buffers[], void *cl_args)
 // Overloaded call to batched cuBLAS gemm
 static inline
 void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
+        cublasOperation_t transB, int M, int N, int K, float alpha,
         const fp32_t *A, int ldA, long long int strideA, const fp32_t *B,
-        int ldB, long long int strideB, fp32_t beta, fp32_t *C, int ldC,
+        int ldB, long long int strideB, float beta, fp32_t *C, int ldC,
         long long int strideC, int batchCount)
     noexcept
 {
-    cublasSgemmStridedBatched(handle, transA, transB, M, N, K, &alpha, A, ldA,
-            strideA, B, ldB, strideB, &beta, C, ldC, strideC, batchCount);
+    cublasSgemmStridedBatched(handle, transA, transB, M, N, K, &alpha,
+            (const float *)A, ldA, strideA, (const float *)B, ldB, strideB,
+            &beta, (float *)C, ldC, strideC, batchCount);
 }
 
 // Overloaded call to batched cuBLAS gemm
 static inline
 void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, fp64_t alpha,
+        cublasOperation_t transB, int M, int N, int K, double alpha,
         const fp64_t *A, int ldA, long long int strideA, const fp64_t *B,
-        int ldB, long long int strideB, fp64_t beta, fp64_t *C, int ldC,
+        int ldB, long long int strideB, double beta, fp64_t *C, int ldC,
         long long int strideC, int batchCount)
     noexcept
 {
-    cublasDgemmStridedBatched(handle, transA, transB, M, N, K, &alpha, A, ldA,
-            strideA, B, ldB, strideB, &beta, C, ldC, strideC, batchCount);
+    cublasDgemmStridedBatched(handle, transA, transB, M, N, K, &alpha,
+            (const double *)A, ldA, strideA, (const double *)B, ldB, strideB,
+            &beta, (double *)C, ldC, strideC, batchCount);
+}
+
+// Overloaded call to batched cuBLAS gemm
+static inline
+void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
+        cublasOperation_t transB, int M, int N, int K, float alpha,
+        const fp32_fast_tf32_t *A, int ldA, long long int strideA,
+        const fp32_fast_tf32_t *B, int ldB, long long int strideB,
+        float beta, fp32_fast_tf32_t *C, int ldC, long long int strideC,
+        int batchCount)
+    noexcept
+{
+    cublasGemmStridedBatchedEx(handle, transA, transB, M, N, K, &alpha,
+            (const float *)A, CUDA_R_32F, ldA, strideA, (const float *)B,
+            CUDA_R_32F, ldB, strideB, &beta, (float *)C, CUDA_R_32F, ldC,
+            strideC, batchCount, CUBLAS_COMPUTE_32F_FAST_TF32,
+            CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
 #endif // STARPU_SIMGRID
 
@@ -201,11 +223,12 @@ void cuda(void *buffers[], void *cl_args)
     Index Q_offset = K_offset;
     Index tmp_offset = args->seq * args->seq;
     cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
-            args->seq, args->seq, args->head, 1.0/std::sqrt(T(args->head)),
+            args->seq, args->seq, args->head, 1.0/std::sqrt(args->head),
             K, args->head, K_offset, Q, args->head, Q_offset,
             0.0, tmp, args->seq, tmp_offset, args->batch);
+    using Y = typename nntile::kernel::CUDAComputeType<T>::value;
     kernel::mask_scalar::cuda<T>(stream, args->seq*args->seq, args->batch,
-            mask, -std::numeric_limits<T>::infinity(), tmp);
+            mask, -std::numeric_limits<Y>::infinity(), tmp);
     kernel::softmax_inplace::cuda<T>(stream, 1, args->seq*args->batch,
             args->seq, maxsumexp, 1.0, tmp);
     Index dA_offset = K_offset;
@@ -224,22 +247,6 @@ void cuda(void *buffers[], void *cl_args)
             1.0, tmp_grad, tmp, 1.0, sumprod_slice);
 #endif // STARPU_SIMGRID
 }
-
-#ifndef STARPU_SIMGRID
-static inline
-void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
-        const fp32_fast_tf32_t *A, int ldA, long long int strideA, const fp32_fast_tf32_t *B,
-        int ldB, long long int strideB, fp32_t beta, fp32_fast_tf32_t *C, int ldC,
-        long long int strideC, int batchCount)
-    noexcept
-{
-    cublasGemmStridedBatchedEx(handle, transA, transB, M, N, K, &alpha, A,
-            CUDA_R_32F, ldA, strideA, B, CUDA_R_32F, ldB, strideB, &beta, C,
-            CUDA_R_32F, ldC, strideC, batchCount, CUBLAS_COMPUTE_32F_FAST_TF32,
-            CUBLAS_GEMM_DEFAULT_TENSOR_OP);
-}
-#endif // STARPU_SIMGRID
 
 template<>
 void cuda<fp32_fast_tf32_t>(void *buffers[], void *cl_args)
@@ -270,37 +277,32 @@ void cuda<fp32_fast_tf32_t>(void *buffers[], void *cl_args)
     Index Q_offset = K_offset;
     Index tmp_offset = args->seq * args->seq;
     fp32_t head_ = static_cast<fp32_t>(args->head);
-
     cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
             args->seq, args->seq, args->head, 1.0/std::sqrt(head_),
             K, args->head, K_offset, Q, args->head, Q_offset,
             0.0, tmp, args->seq, tmp_offset, args->batch);
-
-    fp32_t* tmp_fp32 = reinterpret_cast<fp32_t*>(tmp);
-
-    kernel::mask_scalar::cuda<fp32_t>(stream, args->seq*args->seq, args->batch,
-            mask, -std::numeric_limits<fp32_t>::infinity(), tmp_fp32);
-
+    fp32_t *tmp_fp32 = reinterpret_cast<fp32_t *>(tmp);
+    kernel::mask_scalar::cuda<fp32_t>(stream, args->seq*args->seq,
+            args->batch, mask, -std::numeric_limits<float>::infinity(),
+            tmp_fp32);
     kernel::softmax_inplace::cuda<fp32_t>(stream, 1, args->seq*args->batch,
-            args->seq, reinterpret_cast<const fp32_t* >(maxsumexp), 1.0, tmp_fp32);
-
+            args->seq, reinterpret_cast<const fp32_t *>(maxsumexp), 1.0,
+            tmp_fp32);
     Index dA_offset = K_offset;
     Index dV_offset = K_offset;
     cublas_batch(handle, CUBLAS_OP_N, CUBLAS_OP_T,
             args->head, args->seq, args->seq, 1.0, dA, args->head, dA_offset,
             tmp, args->seq, tmp_offset, 1.0, dV, args->head, dV_offset,
             args->batch);
-
     Index tmp_grad_offset = tmp_offset;
     Index V_offset = K_offset;
     cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
             args->seq, args->seq, args->head, 1.0, V, args->head, V_offset,
             dA, args->head, dA_offset, 0.0, tmp_grad, args->seq,
             tmp_grad_offset, args->batch);
-
     kernel::sumprod_slice::cuda<fp32_t>(stream, 1, args->seq*args->batch, args->seq,
-            1.0, reinterpret_cast<const fp32_t*>(tmp_grad), tmp_fp32, 1.0,
-            reinterpret_cast<fp32_t*>(sumprod_slice));
+            1.0, reinterpret_cast<const fp32_t *>(tmp_grad), tmp_fp32, 1.0,
+            reinterpret_cast<fp32_t *>(sumprod_slice));
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
