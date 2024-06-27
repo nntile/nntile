@@ -39,25 +39,27 @@ namespace nntile::starpu::gemm
 // Overloaded call to CBLAS GEMM
 static inline
 void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
-        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, float alpha, const float *A,
-        CBLAS_INT ldA, const float *B, CBLAS_INT ldB, float beta, float *C,
+        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, float alpha, const fp32_t *A,
+        CBLAS_INT ldA, const fp32_t *B, CBLAS_INT ldB, float beta, fp32_t *C,
         CBLAS_INT ldC)
     noexcept
 {
-    cblas_sgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
-            beta, C, ldC);
+    cblas_sgemm(CblasColMajor, transA, transB, M, N, K, alpha,
+            (const float *)A, ldA, (const float *)B, ldB, beta, (float *)C,
+            ldC);
 }
 
 // Overloaded call to CBLAS GEMM
 static inline
 void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
-        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, double alpha, const double *A,
-        CBLAS_INT ldA, const double *B, CBLAS_INT ldB, double beta, double *C,
+        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, double alpha, const fp64_t *A,
+        CBLAS_INT ldA, const fp64_t *B, CBLAS_INT ldB, double beta, fp64_t *C,
         CBLAS_INT ldC)
     noexcept
 {
-    cblas_dgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
-            beta, C, ldC);
+    cblas_dgemm(CblasColMajor, transA, transB, M, N, K, alpha,
+            (const double *)A, ldA, (const double *)B, ldB, beta, (double *)C,
+            ldC);
 }
 #endif // STARPU_SIMGRID
 
@@ -72,10 +74,9 @@ void cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     // Launch kernel
-    using Y = typename nntile::kernel::CPUComputeType<T>::value;
-    const Y *A = interfaces[0]->get_ptr<Y>();
-    const Y *B = interfaces[1]->get_ptr<Y>();
-    Y *C = interfaces[2]->get_ptr<Y>();
+    const T *A = interfaces[0]->get_ptr<T>();
+    const T *B = interfaces[1]->get_ptr<T>();
+    T *C = interfaces[2]->get_ptr<T>();
     // It is OK to convert values as it was checked during task submission
     CBLAS_INT M=args->m, N=args->n, K=args->k, ldA, ldB, ldC=M;
     CBLAS_TRANSPOSE transA_, transB_;
@@ -124,87 +125,83 @@ void cpu(void *buffers[], void *cl_args)
 // Overloaded call to cuBLAS GEMM
 static inline
 void cublas(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
-        const fp32_t *A, int ldA, const fp32_t *B, int ldB, fp32_t beta,
+        cublasOperation_t transB, int M, int N, int K, float alpha,
+        const fp32_t *A, int ldA, const fp32_t *B, int ldB, float beta,
         fp32_t *C, int ldC)
     noexcept
 {
-    cublasSgemm(handle, transA, transB, M, N, K, (float *)(&alpha),
-            (const float *)A, ldA, (const float *)B, ldB, (float *)(&beta),
-            (double *)C, ldC);
+    cublasSgemm(handle, transA, transB, M, N, K, &alpha, (const float *)A,
+            ldA, (const float *)B, ldB, &beta, (float *)C, ldC);
 }
 
 // Overloaded call to cuBLAS GEMM
 static inline
 void cublas(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, fp64_t alpha,
-        const fp64_t *A, int ldA, const fp64_t *B, int ldB, fp64_t beta,
+        cublasOperation_t transB, int M, int N, int K, double alpha,
+        const fp64_t *A, int ldA, const fp64_t *B, int ldB, double beta,
         fp64_t *C, int ldC)
     noexcept
 {
-    cublasDgemm(handle, transA, transB, M, N, K, (double *)(&alpha),
-            (const double *)A, ldA, (const double *)B, ldB, (double *)(&beta),
-            (double *)C, ldC);
+    cublasDgemm(handle, transA, transB, M, N, K, &alpha, (const double *)A,
+            ldA, (const double *)B, ldB, &beta, (double *)C, ldC);
 }
 
 // Overloaded call to cuBLAS GEMM for fp32_fast_tf32_t
 static inline
 void cublas(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
-        const fp32_fast_tf32_t *A, int ldA, const fp32_fast_tf32_t *B, int ldB, fp32_t beta,
-        fp32_fast_tf32_t *C, int ldC)
+        cublasOperation_t transB, int M, int N, int K, float alpha,
+        const fp32_fast_tf32_t *A, int ldA, const fp32_fast_tf32_t *B, int ldB,
+        double beta, fp32_fast_tf32_t *C, int ldC)
     noexcept
 {
-    cublasGemmEx(handle, transA, transB, M, N, K, (float *)(&alpha),
-            (const float *)A, CUDA_R_32F, ldA, (const float *)B, CUDA_R_32F,
-            ldB, (float *)(&beta), (float *)C, CUDA_R_32F, ldC,
-            CUBLAS_COMPUTE_32F_FAST_TF32, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+    cublasGemmEx(handle, transA, transB, M, N, K, &alpha, (const float *)A,
+            CUDA_R_32F, ldA, (const float *)B, CUDA_R_32F, ldB, &beta,
+            (float *)C, CUDA_R_32F, ldC, CUBLAS_COMPUTE_32F_FAST_TF32,
+            CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
 
 // Overloaded call to batched cuBLAS gemm
 static inline
 void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
-        const fp32_fast_tf32_t *A, int ldA, long long int strideA, const fp32_fast_tf32_t *B,
-        int ldB, long long int strideB, fp32_t beta, fp32_fast_tf32_t *C, int ldC,
-        long long int strideC, int batchCount)
+        cublasOperation_t transB, int M, int N, int K, float alpha,
+        const fp32_fast_tf32_t *A, int ldA, long long int strideA,
+        const fp32_fast_tf32_t *B, int ldB, long long int strideB, float beta,
+        fp32_fast_tf32_t *C, int ldC, long long int strideC, int batchCount)
     noexcept
 {
-    cublasGemmStridedBatchedEx(handle, transA, transB, M, N, K,
-            (float *)(&alpha), (const float *)A, CUDA_R_32F, ldA, strideA,
-            (const float *)B, CUDA_R_32F, ldB, strideB, (float *)(&beta),
-            (float *)C, CUDA_R_32F, ldC, strideC, batchCount,
-            CUBLAS_COMPUTE_32F_FAST_TF32, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+    cublasGemmStridedBatchedEx(handle, transA, transB, M, N, K, &alpha,
+            (const float *)A, CUDA_R_32F, ldA, strideA, (const float *)B,
+            CUDA_R_32F, ldB, strideB, &beta, (float *)C, CUDA_R_32F, ldC,
+            strideC, batchCount, CUBLAS_COMPUTE_32F_FAST_TF32,
+            CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
 
 // Overloaded call to batched cuBLAS gemm
 static inline
 void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
+        cublasOperation_t transB, int M, int N, int K, float alpha,
         const fp32_t *A, int ldA, long long int strideA, const fp32_t *B,
-        int ldB, long long int strideB, fp32_t beta, fp32_t *C, int ldC,
+        int ldB, long long int strideB, float beta, fp32_t *C, int ldC,
         long long int strideC, int batchCount)
     noexcept
 {
-    cublasSgemmStridedBatched(handle, transA, transB, M, N, K,
-            (float *)(&alpha), (const float *)A, ldA, strideA,
-            (const float *)B, ldB, strideB, (float *)(&beta), (float *)C, ldC,
-            strideC, batchCount);
+    cublasSgemmStridedBatched(handle, transA, transB, M, N, K, &alpha,
+            (const float *)A, ldA, strideA, (const float *)B, ldB, strideB,
+            &beta, (float *)C, ldC, strideC, batchCount);
 }
 
 // Overloaded call to batched cuBLAS gemm
 static inline
 void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, fp64_t alpha,
+        cublasOperation_t transB, int M, int N, int K, double alpha,
         const fp64_t *A, int ldA, long long int strideA, const fp64_t *B,
-        int ldB, long long int strideB, fp64_t beta, fp64_t *C, int ldC,
+        int ldB, long long int strideB, double beta, fp64_t *C, int ldC,
         long long int strideC, int batchCount)
     noexcept
 {
-    cublasDgemmStridedBatched(handle, transA, transB, M, N, K,
-            (double *)(&alpha), (const double *)A, ldA, strideA,
-            (const double *)B, ldB, strideB, (double *)(&beta), (double *)C,
-            ldC, strideC, batchCount);
+    cublasDgemmStridedBatched(handle, transA, transB, M, N, K, &alpha,
+            (const double *)A, ldA, strideA, (const double *)B, ldB, strideB,
+            &beta, (double *)C, ldC, strideC, batchCount);
 }
 #endif // STARPU_SIMGRID
 
@@ -296,7 +293,7 @@ uint32_t footprint(struct starpu_task *task)
 Codelet codelet_NN_fp32, codelet_NN_fp64, codelet_NT_fp32, codelet_NT_fp64,
         codelet_TN_fp32, codelet_TN_fp64, codelet_TT_fp32, codelet_TT_fp64;
 
-Codelet codelet_NN_fp16, codelet_NT_fp16, codelet_TN_fp16, codelet_TT_fp16;
+//Codelet codelet_NN_fp16, codelet_NT_fp16, codelet_TN_fp16, codelet_TT_fp16;
 
 Codelet codelet_NN_fp32_fast_tf32, codelet_NT_fp32_fast_tf32,
         codelet_TN_fp32_fast_tf32, codelet_TT_fp32_fast_tf32;
@@ -333,7 +330,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
-codelet_TT_fp32_fast_tf32.init("nntile_gemm_TT_fp32_fast_tf32",
+    codelet_TT_fp32_fast_tf32.init("nntile_gemm_TT_fp32_fast_tf32",
             footprint,
             {},
 #ifdef NNTILE_USE_CUDA
@@ -447,42 +444,42 @@ codelet_TT_fp32_fast_tf32.init("nntile_gemm_TT_fp32_fast_tf32",
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_NN_fp16.init("nntile_gemm_NN_fp16",
-            footprint, // Scalars are fp32_t
-            {},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_NT_fp16.init("nntile_gemm_NT_fp16",
-            footprint, // Scalars are fp32_t
-            {},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_TN_fp16.init("nntile_gemm_TN_fp16",
-            footprint, // Scalars are fp32_t
-            {},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_TT_fp16.init("nntile_gemm_TT_fp16",
-            footprint, // Scalars are fp32_t
-            {},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
+//    codelet_NN_fp16.init("nntile_gemm_NN_fp16",
+//            footprint, // Scalars are fp32_t
+//            {},
+//#ifdef NNTILE_USE_CUDA
+//            {cuda<fp16_t>}
+//#else // NNTILE_USE_CUDA
+//            {}
+//#endif // NNTILE_USE_CUDA
+//            );
+//    codelet_NT_fp16.init("nntile_gemm_NT_fp16",
+//            footprint, // Scalars are fp32_t
+//            {},
+//#ifdef NNTILE_USE_CUDA
+//            {cuda<fp16_t>}
+//#else // NNTILE_USE_CUDA
+//            {}
+//#endif // NNTILE_USE_CUDA
+//            );
+//    codelet_TN_fp16.init("nntile_gemm_TN_fp16",
+//            footprint, // Scalars are fp32_t
+//            {},
+//#ifdef NNTILE_USE_CUDA
+//            {cuda<fp16_t>}
+//#else // NNTILE_USE_CUDA
+//            {}
+//#endif // NNTILE_USE_CUDA
+//            );
+//    codelet_TT_fp16.init("nntile_gemm_TT_fp16",
+//            footprint, // Scalars are fp32_t
+//            {},
+//#ifdef NNTILE_USE_CUDA
+//            {cuda<fp16_t>}
+//#else // NNTILE_USE_CUDA
+//            {}
+//#endif // NNTILE_USE_CUDA
+//            );
 }
 
 void restrict_where(uint32_t where)
@@ -619,11 +616,6 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
 }
 
 // Explicit instantiation
-template
-void submit<fp16_t>(const TransOp &transA, const TransOp &transB,
-        Index m, Index n, Index k, Index batch, scal_t alpha, Handle A,
-        Handle B, scal_t beta, Handle C, int redux);
-
 template
 void submit<fp32_t>(const TransOp &transA, const TransOp &transB,
         Index m, Index n, Index k, Index batch, scal_t alpha, Handle A,

@@ -38,18 +38,18 @@ namespace nntile::starpu::scal_inplace
 #ifndef STARPU_SIMGRID
 // Overloaded call to CBLAS scal
 static inline
-void cblas(CBLAS_INT N, float alpha, float *X, CBLAS_INT incX)
+void cblas(CBLAS_INT N, float alpha, fp32_t *X, CBLAS_INT incX)
     noexcept
 {
-    cblas_sscal(N, alpha, X, incX);
+    cblas_sscal(N, alpha, (float *)X, incX);
 }
 
 // Overloaded call to CBLAS scal
 static inline
-void cblas(CBLAS_INT N, double alpha, double *X, CBLAS_INT incX)
+void cblas(CBLAS_INT N, double alpha, fp64_t *X, CBLAS_INT incX)
     noexcept
 {
-    cblas_dscal(N, alpha, X, incX);
+    cblas_dscal(N, alpha, (double *)X, incX);
 }
 #endif // STARPU_SIMGRID
 
@@ -63,8 +63,7 @@ void cpu(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    using Y = typename nntile::kernel::CPUComputeType<T>::value;
-    Y *X = interfaces[0]->get_ptr<Y>();
+    T *X = interfaces[0]->get_ptr<T>();
     // Call corresponding CBLAS routine
     cblas(args->nelems, args->alpha, X, 1);
 #endif // STARPU_SIMGRID
@@ -75,18 +74,18 @@ void cpu(void *buffers[], void *cl_args)
 #ifndef STARPU_SIMGRID
 // Overloaded call to cuBLAS scal
 static inline
-void cublas(cublasHandle_t handle, int N, float alpha, float *X, int incX)
+void cublas(cublasHandle_t handle, int N, float alpha, fp32_t *X, int incX)
     noexcept
 {
-    cublasSscal(handle, N, &alpha, X, incX);
+    cublasSscal(handle, N, &alpha, (float *)X, incX);
 }
 
 // Overloaded call to cuBLAS scal
 static inline
-void cublas(cublasHandle_t handle, int N, double alpha, double *X, int incX)
+void cublas(cublasHandle_t handle, int N, double alpha, fp64_t *X, int incX)
     noexcept
 {
-    cublasDscal(handle, N, &alpha, X, incX);
+    cublasDscal(handle, N, &alpha, (double *)X, incX);
 }
 #endif // STARPU_SIMGRID
 
