@@ -65,7 +65,7 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src,
 
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
-        const T *src_, scal_T beta, T *dst_)
+        const T *src_, scal_t beta, T *dst_)
     noexcept
 //! Per-element addition of a tensor and a broadcasted slice on CUDA
 /*! This is a host function that does the following operations:

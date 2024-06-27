@@ -63,7 +63,7 @@ void cuda(cudaStream_t stream, Index nelems, const T *x_, const T *dy_, T *dx_)
     auto x = reinterpret_cast<const Y *>(x_);
     auto dy = reinterpret_cast<const Y *>(dy_);
     auto dx = reinterpret_cast<Y *>(dx_);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, x, dy, dx);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, x, dy, dx);
 }
 
 // Explicit instantiation

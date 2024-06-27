@@ -74,7 +74,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
     using Y = typename CUDAComputeType<T>::value;
     auto src = reinterpret_cast<const Y *>(src_);
     auto dst = reinterpret_cast<Y *>(dst_);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, Y{alpha},
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, Y{alpha},
             src, dst);
 }
 

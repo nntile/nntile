@@ -46,7 +46,7 @@ void cuda(cudaStream_t stream, Index nelems, const T *maxsumexp_,
     using Y = typename CUDAComputeType<T>::value;
     auto maxsumexp = reinterpret_cast<const Y *>(maxsumexp_);
     auto logsumexp = reinterpret_cast<Y *>(logsumexp_);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, maxsumexp,
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, maxsumexp,
             logsumexp);
 }
 
