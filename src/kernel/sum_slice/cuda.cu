@@ -104,4 +104,3 @@ void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, fp64_t alpha,
     noexcept;
 
 } // namespace nntile::kernel::sum_slice
-

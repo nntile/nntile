@@ -58,4 +58,3 @@ void cuda<fp64_t>(cudaStream_t stream, Index n_labels, Index n_outputs, fp64_t v
     noexcept;
 
 } // namespace nntile::kernel::subtract_indexed_outputs
-

@@ -55,4 +55,3 @@ void cuda<fp64_t>(cudaStream_t stream, Index nelems, const fp64_t *src,
     noexcept;
 
 } // namespace nntile::kernel::prod
-

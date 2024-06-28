@@ -29,7 +29,7 @@ void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src1,
  * k elements.
  * Mnemonically, the following operations are performed:
  *      dst[l] = beta*dst[l] + alpha*sum_ij(src1[i,l,j] * src2[i,l,j])
- *      
+ *
  * @param[in] m: Size of the first mode of src1 and src2 tensors
  * @param[in] n: Size of the last mode of src1 and src2 tensors
  * @param[in] k: Size of the middle mode of src1 and src2 tensors and of the
@@ -100,7 +100,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * k elements.
  * Mnemonically, the following operations are performed:
  *      dst[l] = beta*dst[l] + alpha*sum_ij(src1[i,l,j] * src2[i,l,j])
- *      
+ *
  * @param[in] m: Size of the first mode of src1 and src2 tensors
  * @param[in] n: Size of the last mode of src1 and src2 tensors
  * @param[in] k: Size of the middle mode of src1 and src2 tensors and of the
@@ -133,4 +133,3 @@ void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, fp64_t alpha,
     noexcept;
 
 } // namespace nntile::kernel::sumprod_fiber
-

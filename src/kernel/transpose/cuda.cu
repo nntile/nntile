@@ -71,4 +71,3 @@ void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, fp64_t alpha,
     noexcept;
 
 } // namespace nntile::kernel::tranpose
-

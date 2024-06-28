@@ -62,7 +62,7 @@ void cuda(cudaStream_t stream, Index num_iter, Index num_elems, T beta_1, T beta
           T* grad, T* first_moment, T* second_moment, T* p)
     noexcept
 //! Fused AdamW step operation of buffers
-/*! 
+/*!
  *
 * @param[in] num_iters: current iteration number
 * @param[in] num_elems: Number of elements in buffers
@@ -93,9 +93,8 @@ void cuda<fp32_t>(cudaStream_t stream, Index num_iter, Index num_elems, fp32_t b
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index num_iter, Index num_elems, fp64_t beta_1, fp64_t beta_2,
-                  fp64_t eps, fp64_t lr, fp64_t weight_decay, fp64_t* grad, fp64_t* first_moment, 
+                  fp64_t eps, fp64_t lr, fp64_t weight_decay, fp64_t* grad, fp64_t* first_moment,
                   fp64_t* second_moment, fp64_t* p)
     noexcept;
 
 } // namespace nntile::kernel::adamw_step
-

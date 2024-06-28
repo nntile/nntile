@@ -42,4 +42,3 @@ void cuda(cudaStream_t stream, Index nelems, const fp16_t *src, fp32_t *dst)
 }
 
 } // namespace nntile::kernel::fp16_to_fp32
-

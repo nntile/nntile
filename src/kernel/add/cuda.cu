@@ -81,7 +81,7 @@ void cuda16(cudaStream_t stream, Index nelems, fp32_t alpha, const fp16_t *src, 
 
     dim3 blocks((nelems+255)/256), threads(256);
     __half alpha_half = __float2half(alpha);
-    __half beta_half = __float2half(beta); 
+    __half beta_half = __float2half(beta);
     const __half *src_half = reinterpret_cast<const __half *>(src);
     __half *dst_half = reinterpret_cast<__half *>(dst);
     (cuda_kernel<__half>)<<<blocks, threads, 0, stream>>>(nelems, alpha_half, src_half, beta_half,
@@ -90,4 +90,3 @@ void cuda16(cudaStream_t stream, Index nelems, fp32_t alpha, const fp16_t *src, 
 
 
 } // namespace nntile::kernel::add
-

@@ -48,7 +48,7 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, T alpha, const T *src,
     Index i0_start = threadIdx.y, i0_step = blockDim.y;
     Index i1_start = threadIdx.z, i1_step = blockDim.z;
     constexpr T zero = 0;
-    // Init sum 
+    // Init sum
     T sum = zero;
     if(b < batch)
     {
@@ -134,4 +134,3 @@ void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
     noexcept;
 
 } // namespace nntile::kernel::sum_fiber
-

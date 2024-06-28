@@ -130,4 +130,3 @@ void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Index l,
     noexcept;
 
 } // namespace nntile::kernel::normalize
-

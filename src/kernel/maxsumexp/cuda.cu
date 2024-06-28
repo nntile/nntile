@@ -450,4 +450,3 @@ template void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
                            const fp64_t *src, fp64_t *maxsumexp) noexcept;
 
 } // namespace nntile::kernel::maxsumexp
-

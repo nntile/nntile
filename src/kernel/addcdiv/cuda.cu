@@ -61,4 +61,3 @@ void cuda<fp64_t>(cudaStream_t stream, fp64_t val, fp64_t eps, Index nelems,
     noexcept;
 
 } // namespace nntile::kernel::addcdiv
-

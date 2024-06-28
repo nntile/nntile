@@ -57,4 +57,3 @@ void cuda<fp64_t>(cudaStream_t stream, Index nelems, fp64_t alpha, fp64_t exp,
     noexcept;
 
 } // namespace nntile::kernel::pow
-

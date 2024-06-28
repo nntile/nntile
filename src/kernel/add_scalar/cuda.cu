@@ -54,4 +54,3 @@ void cuda<fp64_t>(cudaStream_t stream, Index num_elements, fp64_t alpha, fp64_t 
     noexcept;
 
 } // namespace nntile::kernel::add_scalar
-

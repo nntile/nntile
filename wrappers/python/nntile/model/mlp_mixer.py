@@ -137,5 +137,3 @@ class MlpMixer(BaseModel):
                     nntile_np = np.zeros(p.value.shape, dtype=np.float32, order="F")
                     p.value.to_array(nntile_np)
                     p_torch.copy_(torch.from_numpy(nntile_np))
-
-

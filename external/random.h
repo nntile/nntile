@@ -106,4 +106,3 @@ CORE_dlaran( unsigned long long int *ran )
 //}
 
 #endif /* _chameleon_random_h_ */
-
