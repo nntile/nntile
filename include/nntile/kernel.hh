@@ -59,8 +59,8 @@
 #include <nntile/kernel/add_scalar.hh>
 #include <nntile/kernel/embedding.hh>
 #include <nntile/kernel/embedding_backward.hh>
-#include <nntile/kernel/fp32_to_fp16.hh>
-#include <nntile/kernel/fp16_to_fp32.hh>
+//#include <nntile/kernel/fp32_to_fp16.hh>
+//#include <nntile/kernel/fp16_to_fp32.hh>
 #include <nntile/kernel/mask_scalar.hh>
 #include <nntile/kernel/scal.hh>
 #include <nntile/kernel/adam_step.hh>
