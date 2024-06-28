@@ -558,12 +558,12 @@ void def_mod_tensor(py::module_ &m)
         // Get grid (TileTraits)
         def_readonly("grid", &TensorTraits::grid);
     // Define wrappers for Tensor<T>
-    def_class_tensor<fp64_t>(m, "Tensor_fp64");
-    def_class_tensor<fp32_t>(m, "Tensor_fp32");
-    def_class_tensor<fp16_t>(m, "Tensor_fp16");
-    def_class_tensor<Index>(m, "Tensor_int64");
+    def_class_tensor<nntile::int64_t>(m, "Tensor_int64");
     def_class_tensor<bool_t>(m, "Tensor_bool");
+    def_class_tensor<fp64_t>(m, "Tensor_fp64");
     def_class_tensor<fp32_fast_tf32_t>(m, "Tensor_fp32_fast_tf32");
+    def_class_tensor<fp32_t>(m, "Tensor_fp32");
+    //def_class_tensor<fp16_t>(m, "Tensor_fp16");
     // Add tensor.distributions submodule
     auto distributions = m.def_submodule("distributions");
     def_tensor_distributions(distributions);
@@ -571,13 +571,13 @@ void def_mod_tensor(py::module_ &m)
     // Add functions for Tensor<T>
     m.def("gemm_async_fp64", &gemm_async<fp64_t>);
     m.def("gemm_async_fp32", &gemm_async<fp32_t>);
-    m.def("gemm_async_fp16", &gemm_async<fp16_t>);
     m.def("gemm_async_fp32_fast_tf32", &gemm_async<fp32_fast_tf32_t>);
+    //m.def("gemm_async_fp16", &gemm_async<fp16_t>);
 
     m.def("gemm_fp64", &gemm<fp64_t>);
     m.def("gemm_fp32", &gemm<fp32_t>);
-    m.def("gemm_fp16", &gemm<fp16_t>);
     m.def("gemm_fp32_fast_tf32", &gemm<fp32_fast_tf32_t>);
+    //m.def("gemm_fp16", &gemm<fp16_t>);
 
     // Add activation functions for Tensor<T>
     m.def("relu_async_fp64", &relu_async<fp64_t>);
@@ -799,11 +799,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("clear_async_fp64", &clear_async<fp64_t>);
     m.def("clear_async_fp32", &clear_async<fp32_t>);
     m.def("clear_async_fp32_fast_tf32", &clear_async<fp32_fast_tf32_t>);
-    m.def("clear_async_fp16", &clear_async<fp16_t>);
+    //m.def("clear_async_fp16", &clear_async<fp16_t>);
     m.def("clear_fp64", &clear<fp64_t>);
     m.def("clear_fp32", &clear<fp32_t>);
     m.def("clear_fp32_fast_tf32", &clear<fp32_fast_tf32_t>);
-    m.def("clear_fp16", &clear<fp16_t>);
+    //m.def("clear_fp16", &clear<fp16_t>);
 
     m.def("axpy_async_fp64", py::overload_cast<scal_t, const Tensor<fp64_t>&,
             const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
@@ -970,8 +970,8 @@ void def_mod_tensor(py::module_ &m)
     m.def("embedding_backward_fp32_fast_tf32", &embedding_backward<fp32_fast_tf32_t>);
 
     // FP32 <-> FP16
-    m.def("fp32_to_fp16_async", &fp32_to_fp16_async);
-    m.def("fp16_to_fp32_async", &fp16_to_fp32_async);
+    //m.def("fp32_to_fp16_async", &fp32_to_fp16_async);
+    //m.def("fp16_to_fp32_async", &fp16_to_fp32_async);
 
     m.def("mask_scalar_async_fp64", &mask_scalar_async<fp64_t>);
     m.def("mask_scalar_async_fp32", &mask_scalar_async<fp32_t>);

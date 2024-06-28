@@ -66,8 +66,8 @@
 #include <nntile/tile/gelutanh_backward.hh>
 #include <nntile/tile/add.hh>
 #include <nntile/tile/add_scalar.hh>
-#include <nntile/tile/fp32_to_fp16.hh>
-#include <nntile/tile/fp16_to_fp32.hh>
+//#include <nntile/tile/fp32_to_fp16.hh>
+//#include <nntile/tile/fp16_to_fp32.hh>
 #include <nntile/tile/mask_scalar.hh>
 #include <nntile/tile/hypot.hh>
 #include <nntile/tile/adam_step.hh>

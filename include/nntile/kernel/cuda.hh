@@ -99,73 +99,74 @@ struct CUDAComputeType<fp32_t>
 template<>
 struct CUDAComputeType<fp32_fast_tf32_t>
 {
-#ifdef NNTILE_USE_CUDA_TF32
-    using value = float;
-#endif
+    // No member `value` here is for a reason: this type shall be manually
+    // converted into computing types, as memory-bound operations shall be done
+    // in `fp32_t`, while compute-bound operations shall use `fp32_t` as data
+    // storage type and `tf32_t` as compute type.
 };
 
-//! Compute type for nntile::fp32_fast_fp16_t type
-template<>
-struct CUDAComputeType<fp32_fast_fp16_t>
-{
-#ifdef NNTILE_USE_CUDA_TF32
-    using value = float;
-#endif
-};
-
-//! Compute type for nntile::fp32_fast_bf16_t type
-template<>
-struct CUDAComputeType<fp32_fast_bf16_t>
-{
-#ifdef NNTILE_USE_CUDA_TF32
-    using value = float;
-#endif
-};
-
-//! Compute type for nntile::tf32_t type
-template<>
-struct CUDAComputeType<tf32_t>
-{
-#ifdef NNTILE_USE_CUDA_TF32
-    using value = float;
-#endif
-};
-
-//! Compute type for nntile::fp16_t type
-template<>
-struct CUDAComputeType<fp16_t>
-{
-#ifdef NNTILE_USE_CUDA_TF32
-    using value = __nv_half;
-#endif
-};
-
-//! Compute type for nntile::bf16_t type
-template<>
-struct CUDAComputeType<bf16_t>
-{
-#ifdef NNTILE_USE_CUDA_TF32
-    using value = __nv_bfloat16;
-#endif
-};
-
-//! Compute type for nntile::fp8_e4m3_t type
-template<>
-struct CUDAComputeType<fp8_e4m3_t>
-{
-#ifdef NNTILE_USE_CUDA_TF32
-    using value = __nv_fp8_e4m3;
-#endif
-};
-
-//! Compute type for nntile::fp8_e5m2_t type
-template<>
-struct CUDAComputeType<fp8_e5m2_t>
-{
-#ifdef NNTILE_USE_CUDA_TF32
-    using value = __nv_fp8_e5m2;
-#endif
-};
+////! Compute type for nntile::fp32_fast_fp16_t type
+//template<>
+//struct CUDAComputeType<fp32_fast_fp16_t>
+//{
+//#ifdef NNTILE_USE_CUDA_TF32
+//    using value = float;
+//#endif
+//};
+//
+////! Compute type for nntile::fp32_fast_bf16_t type
+//template<>
+//struct CUDAComputeType<fp32_fast_bf16_t>
+//{
+//#ifdef NNTILE_USE_CUDA_TF32
+//    using value = float;
+//#endif
+//};
+//
+////! Compute type for nntile::tf32_t type
+//template<>
+//struct CUDAComputeType<tf32_t>
+//{
+//#ifdef NNTILE_USE_CUDA_TF32
+//    using value = float;
+//#endif
+//};
+//
+////! Compute type for nntile::fp16_t type
+//template<>
+//struct CUDAComputeType<fp16_t>
+//{
+//#ifdef NNTILE_USE_CUDA_TF32
+//    using value = __nv_half;
+//#endif
+//};
+//
+////! Compute type for nntile::bf16_t type
+//template<>
+//struct CUDAComputeType<bf16_t>
+//{
+//#ifdef NNTILE_USE_CUDA_TF32
+//    using value = __nv_bfloat16;
+//#endif
+//};
+//
+////! Compute type for nntile::fp8_e4m3_t type
+//template<>
+//struct CUDAComputeType<fp8_e4m3_t>
+//{
+//#ifdef NNTILE_USE_CUDA_TF32
+//    using value = __nv_fp8_e4m3;
+//#endif
+//};
+//
+////! Compute type for nntile::fp8_e5m2_t type
+//template<>
+//struct CUDAComputeType<fp8_e5m2_t>
+//{
+//#ifdef NNTILE_USE_CUDA_TF32
+//    using value = __nv_fp8_e5m2;
+//#endif
+//};
 
 } // namespace nntile::kernel
 
