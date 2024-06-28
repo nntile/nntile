@@ -471,8 +471,7 @@ class FlashAttention(BaseLayer):
         clear_async(self.a_maxsumexp)
         # Use flash-like maxsumexp
         flash_maxsumexp_async(self.q.value, self.k.value, self.mask, \
-                self.a_maxsumexp, self.a.value, redux=self.redux, \
-                fp32_fast_tf32=self.fp32_fast_tf32)
+                self.a_maxsumexp, self.a.value, redux=self.redux)
         # Q and K can be offloaded from GPU
         self.q.value.wont_use()
         self.k.value.wont_use()
@@ -564,8 +563,7 @@ class FlashAttention(BaseLayer):
         flash_softmax_gemm_backward_async(self.q.value, self.q.grad, \
                 self.k.value, self.k.grad, self.v.value, self.v.grad, \
                 self.mask, self.a_maxsumexp, self.b.grad, self.a.value, \
-                self.a.grad, self.a_sumprod_slice, redux=self.redux, \
-                fp32_fast_tf32=self.fp32_fast_tf32)
+                self.a.grad, self.a_sumprod_slice, redux=self.redux)
         # Backward for B = einsum('jklb,kmlb->jmlb', V, A)
         #if self.a.grad_required:
         #    # dA = einsum('jklb,jmlb->kmlb', V, dB)

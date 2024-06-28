@@ -147,9 +147,7 @@ void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
     cublasDgemmStridedBatched(handle, transA, transB, M, N, K, &alpha, A, ldA,
             strideA, B, ldB, strideB, &beta, C, ldC, strideC, batchCount);
 }
-#endif // STARPU_SIMGRID
 
-#ifndef STARPU_SIMGRID
 static inline
 void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
         cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
@@ -190,10 +188,10 @@ void cuda(void *buffers[], void *cl_args)
     Index K_offset = args->head * args->seq;
     Index Q_offset = K_offset;
     Index tmp_offset = args->seq * args->seq;
-    scal_t head_fp32 = args->head;
+    T head_ = static_cast<T>(args->head);
 
     cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
-            args->seq, args->seq, args->head, 1.0/std::sqrt(head_fp32),
+            args->seq, args->seq, args->head, 1.0/std::sqrt(head_),
             K, args->head, K_offset, Q, args->head, Q_offset,
             0.0, tmp, args->seq, tmp_offset, args->batch);
 
@@ -202,6 +200,53 @@ void cuda(void *buffers[], void *cl_args)
 
     kernel::softmax_inplace::cuda<T>(stream, 1, args->seq*args->batch,
             args->seq, maxsumexp, 1.0, tmp);
+
+    Index V_offset = K_offset;
+    Index A_offset = K_offset;
+    cublas_batch(handle, CUBLAS_OP_N, CUBLAS_OP_N,
+            args->head, args->seq, args->seq, 1.0, V, args->head, V_offset,
+            tmp, args->seq, tmp_offset, 1.0, A, args->head, A_offset,
+            args->batch);
+#endif // STARPU_SIMGRID
+}
+
+template<>
+void cuda<fp32_fast_tf32_t>(void *buffers[], void *cl_args)
+    noexcept
+{
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(cl_args);
+    // Get interfaces
+    using T = fp32_fast_tf32_t;
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const T *K = interfaces[0]->get_ptr<T>();
+    const T *Q = interfaces[1]->get_ptr<T>();
+    const bool_t *mask = interfaces[2]->get_ptr<bool_t>();
+    const T *maxsumexp = interfaces[3]->get_ptr<T>();
+    const T *V = interfaces[4]->get_ptr<T>();
+    T *A = interfaces[5]->get_ptr<T>();
+    T *tmp = interfaces[6]->get_ptr<T>();
+    // Get CUDA stream
+    cublasHandle_t handle = starpu_cublas_get_local_handle();
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    cublasSetStream(handle, stream);
+    // Launch kernels
+    Index K_offset = args->head * args->seq;
+    Index Q_offset = K_offset;
+    Index tmp_offset = args->seq * args->seq;
+    fp32_t head_fp32 = args->head;
+
+    cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
+            args->seq, args->seq, args->head, 1.0/std::sqrt(head_fp32),
+            K, args->head, K_offset, Q, args->head, Q_offset,
+            0.0, tmp, args->seq, tmp_offset, args->batch);
+
+    kernel::mask_scalar::cuda<fp32_t>(stream, args->seq*args->seq, args->batch,
+            mask, -std::numeric_limits<fp32_t>::infinity(), reinterpret_cast<fp32_t*>(tmp));
+
+    kernel::softmax_inplace::cuda<fp32_t>(stream, 1, args->seq*args->batch,
+            args->seq, reinterpret_cast<const fp32_t*>(maxsumexp), 1.0, reinterpret_cast<fp32_t*>(tmp));
 
     Index V_offset = K_offset;
     Index A_offset = K_offset;
@@ -319,7 +364,7 @@ void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
     }
     // Submit task
     fp64_t nflops = 4 * seq * seq * head * batch;
-    int ret = starpu_task_insert(codelet<T>,
+    int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(K),
             STARPU_R, static_cast<starpu_data_handle_t>(Q),
             STARPU_R, static_cast<starpu_data_handle_t>(mask),

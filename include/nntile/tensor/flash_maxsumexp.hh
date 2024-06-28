@@ -22,12 +22,12 @@ namespace nntile::tensor
 template<typename T>
 void flash_maxsumexp_async(const Tensor<T> &Q, const Tensor<T> &K,
         const Tensor<bool_t> &mask, const Tensor<T> &maxsumexp,
-        const Tensor<T> &tmp, int redux=0, int fp32_fast_tf32=0);
+        const Tensor<T> &tmp, int redux=0);
 
 template<typename T>
 void flash_maxsumexp(const Tensor<T> &Q, const Tensor<T> &K,
         const Tensor<bool_t> &mask, const Tensor<T> &maxsumexp,
-        const Tensor<T> &tmp, int redux=0, int fp32_fast_tf32=0);
+        const Tensor<T> &tmp, int redux=0);
 
 } // namespace nntile::tensor
 

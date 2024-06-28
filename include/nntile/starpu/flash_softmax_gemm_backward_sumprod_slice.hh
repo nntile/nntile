@@ -56,6 +56,12 @@ constexpr Codelet *codelet<fp32_t>()
 }
 
 template<>
+constexpr Codelet *codelet<fp32_fast_tf32_t>()
+{
+    return &codelet_fp32_fast_tf32;
+}
+
+template<>
 constexpr Codelet *codelet<fp64_t>()
 {
     return &codelet_fp64;
@@ -70,8 +76,7 @@ void restore_where();
 template<typename T>
 void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle mask, Handle maxsumexp, Handle dA, Handle V, Handle dV,
-        Handle sumprod_slice, Handle tmp, Handle tmp_grad, int redux=0,
-        int fp32_fast_tf32=0);
+        Handle sumprod_slice, Handle tmp, Handle tmp_grad, int redux=0);
 
 } // namespace nntile::starpu::flash_softmax_gemm_backward_sumprod_slice
 
