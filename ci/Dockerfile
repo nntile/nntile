@@ -11,6 +11,8 @@
 #
 # @version 1.0.0
 
+LABEL org.opencontainers.image.source="https://github.com/nntile/nntile"
+
 ARG BASE_IMAGE=nvidia/cuda:12.4.0-devel-ubuntu22.04
 
 FROM $BASE_IMAGE AS devbase
