@@ -31,16 +31,9 @@ from nntile.tensor import (
 
 
 class BatchNorm2d(BaseLayer):
-    def __init__(
-        self,
-        x: TensorMoments,
-        weight: Tensor,
-        bias: Tensor,
-        x_res_tm: TensorMoments,
-        x_mean: Tensor,
-        inv_std: Tensor,
-        eps: float = 1e-05,
-        redux: bool = False,
+    def __init__(self, x: TensorMoments, weight: Tensor, bias: Tensor,
+        x_res_tm: TensorMoments, x_mean: Tensor, inv_std: Tensor,
+        eps: float = 1e-05, redux: bool = False,
     ):
         self.x_tm = x
         self.x = x.value
