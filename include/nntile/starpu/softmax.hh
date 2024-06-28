@@ -80,4 +80,3 @@ void submit(Index m, Index n, Index k, Handle maxsumnorm, Handle src, scal_t alp
         Handle dst);
 
 } // namespace nntile::starpu::softmax
-

@@ -27,4 +27,3 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, T alpha,
     noexcept;
 
 } // namespace nntile::kernel::add_fiber
-

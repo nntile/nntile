@@ -28,4 +28,3 @@ void nrm2(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
         const Tile<T> &tmp);
 
 } // namespace nntile::tile
-

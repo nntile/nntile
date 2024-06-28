@@ -25,4 +25,3 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src1, const T *src2,
     noexcept;
 
 } // namespace nntile::kernel::sumprod_fiber
-

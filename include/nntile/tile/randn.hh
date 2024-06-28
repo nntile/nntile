@@ -30,4 +30,3 @@ void randn(const Tile<T> &dst, const std::vector<Index> &start,
         scal_t mean, scal_t stddev);
 
 } // namespace nntile::tile
-

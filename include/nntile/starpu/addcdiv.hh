@@ -77,4 +77,3 @@ template<typename T>
 void submit(scal_t val, scal_t eps, Index nelems, Handle nom, Handle denom, Handle src);
 
 } // namespace nntile::starpu::addcdiv
-

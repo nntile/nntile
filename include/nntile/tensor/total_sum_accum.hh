@@ -30,4 +30,3 @@ void total_sum_accum(scal_t alpha, const Tensor<T> &logsumexp,
                            const Tensor<T> &val);
 
 } // namespace nntile::tensor
-

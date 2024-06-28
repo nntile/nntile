@@ -30,4 +30,3 @@ void embedding(const Tensor<Index> &index, const Tensor<T> &vocab,
         const Tensor<T> &embed, Index axis);
 
 } // namespace nntile::tensor
-

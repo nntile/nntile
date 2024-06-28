@@ -42,4 +42,3 @@ void restore_where();
 void submit(Handle data);
 
 } // namespace nntile::starpu::clear
-

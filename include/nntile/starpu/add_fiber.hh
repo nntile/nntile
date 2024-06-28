@@ -75,4 +75,3 @@ void submit(Index m, Index n, Index k, Index batch, scal_t alpha, Handle src,
         scal_t beta, Handle dst);
 
 } // namespace nntile::starpu::add_fiber
-

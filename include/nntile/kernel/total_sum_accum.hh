@@ -21,10 +21,9 @@
 #endif // NNTILE_USE_CUDA
 
 //! @namespace nntile::kernel::total_sum_accum
-/*! Low-level implementations of computing accumulated total sum 
+/*! Low-level implementations of computing accumulated total sum
  * */
 namespace nntile::kernel::total_sum_accum
 {
 
 } // namespace nntile::kernel::total_sum_accum
-

@@ -30,4 +30,3 @@ void flash_maxsumexp(const Tensor<T> &Q, const Tensor<T> &K,
         const Tensor<T> &tmp, int redux=0);
 
 } // namespace nntile::tensor
-

@@ -79,4 +79,3 @@ void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle sumprod_slice, Handle tmp, Handle tmp_grad, int redux=0);
 
 } // namespace nntile::starpu::flash_softmax_gemm_backward_sumprod_slice
-

@@ -32,4 +32,3 @@ public:
 extern Config config;
 
 } // namespace nntile
-

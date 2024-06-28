@@ -28,4 +28,3 @@ template<typename T>
 void relu(const Tile<T> &A);
 
 } // namespace nntile::tile
-

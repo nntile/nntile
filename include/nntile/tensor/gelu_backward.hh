@@ -28,4 +28,3 @@ void gelu_backward(const Tensor<T> &x, const Tensor<T> &dy,
         const Tensor<T> &dx);
 
 } // namespace nntile::tensor
-

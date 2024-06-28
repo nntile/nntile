@@ -28,4 +28,3 @@ namespace nntile::kernel::subcopy
 {
 
 } // namespace nntile::kernel::subcopy
-

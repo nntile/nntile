@@ -25,4 +25,3 @@ void cuda(cudaStream_t stream, T val, T eps, Index nelems, const T *nom, const T
     noexcept;
 
 } // namespace nntile::kernel::addcdiv
-

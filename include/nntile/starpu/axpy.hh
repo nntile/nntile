@@ -109,4 +109,3 @@ template<typename T>
 void submit(scal_t alpha, Index nelems, Handle src, Handle dst);
 
 } // namespace nntile::starpu::axpy
-

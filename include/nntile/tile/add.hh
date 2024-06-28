@@ -28,4 +28,3 @@ template<typename T>
 void add(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst);
 
 } // namespace nntile::tile
-

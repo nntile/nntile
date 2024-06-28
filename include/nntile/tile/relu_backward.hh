@@ -29,4 +29,3 @@ template<typename T>
 void relu_backward(const Tile<T> &x, const Tile<T> &dy, const Tile<T> &dx);
 
 } // namespace nntile::tile
-

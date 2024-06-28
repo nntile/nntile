@@ -301,4 +301,3 @@ void restore_where()
 }
 
 } // namespace nntile::starpu
-

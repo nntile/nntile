@@ -27,4 +27,3 @@ namespace nntile::kernel::add_fiber
 {
 
 } // namespace nntile::kernel::add_fiber
-

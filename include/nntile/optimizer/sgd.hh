@@ -8,7 +8,7 @@
  *
  * @file include/nntile/optimizer/sgd.hh
  * Stochastic Gradient Descent with constant learning rate.
- * It supports weight decay, momentum and Nesterov regimes. 
+ * It supports weight decay, momentum and Nesterov regimes.
  * The formulas are similar to PyTorch SGD
  *
  * @version 1.0.0
@@ -88,4 +88,3 @@ extern template
 class SGD<fp64_t>;
 
 } // namespace nntile::optimizer
-

@@ -28,4 +28,3 @@ void norm_slice(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &ds
         Index axis);
 
 } // namespace nntile::tile
-

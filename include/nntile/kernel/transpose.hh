@@ -27,4 +27,3 @@ namespace nntile::kernel::transpose
 {
 
 } // namespace nntile::kernel::transpose
-

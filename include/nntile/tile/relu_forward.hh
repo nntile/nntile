@@ -26,4 +26,3 @@ template<typename T>
 void relu_forward(const Tile<T> &src, const Tile<T> &dst);
 
 } // namespace nntile::tile
-

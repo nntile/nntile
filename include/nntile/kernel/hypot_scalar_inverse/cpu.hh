@@ -24,4 +24,3 @@ void cpu(Index nelems, T eps, T alpha, T* dst)
     noexcept;
 
 } // namespace nntile::kernel::hypot_scalar_inverse
-

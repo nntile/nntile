@@ -77,4 +77,3 @@ template<typename T>
 void submit(Index m, Index n, Index k, Handle src, Handle dst, int redux=0);
 
 } // namespace nntile::starpu::maxsumexp
-

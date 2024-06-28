@@ -28,4 +28,3 @@ void sumprod_slice(scal_t alpha, const Tensor<T> &src1, const Tensor<T> &src2,
         scal_t beta, const Tensor<T> &dst, Index axis, int redux=0);
 
 } // namespace nntile::tensor
-

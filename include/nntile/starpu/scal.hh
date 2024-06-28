@@ -77,4 +77,3 @@ template<typename T>
 void submit(Index nelems, scal_t alpha, Handle src, Handle dst);
 
 } // namespace nntile::starpu::scal
-

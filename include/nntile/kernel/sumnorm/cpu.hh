@@ -25,4 +25,3 @@ void cpu(Index m, Index n, Index k, const T *src, T *sumnorm)
     noexcept;
 
 } // namespace nntile::kernel::sumnorm
-

@@ -28,4 +28,3 @@ void addcdiv(scal_t val, scal_t eps, const Tensor<T> &nom, const Tensor<T> &deno
              const Tensor<T> &src);
 
 } // namespace nntile::tensor
-

@@ -27,4 +27,3 @@ namespace nntile::kernel::adamw_step
 {
 
 } // namespace nntile::kernel::adamw_step
-

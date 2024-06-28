@@ -27,4 +27,3 @@ namespace nntile::kernel::normalize
 {
 
 } // namespace nntile::kernel::normalize
-

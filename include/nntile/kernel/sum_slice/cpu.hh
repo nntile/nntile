@@ -25,4 +25,3 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::sum_slice
-

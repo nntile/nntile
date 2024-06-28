@@ -27,4 +27,3 @@ namespace nntile::kernel::accumulate_maxsumexp
 {
 
 } // namespace nntile::kernel::accumulate_maxsumexp
-

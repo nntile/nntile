@@ -78,4 +78,3 @@ template<typename T>
 void submit(scal_t alpha, Index nelems, Handle data);
 
 } // namespace nntile::starpu::scal_inplace
-

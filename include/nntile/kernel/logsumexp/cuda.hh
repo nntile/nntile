@@ -20,10 +20,9 @@
 namespace nntile::kernel::logsumexp
 {
 
-// Compute logsumexp based on the resut of maxsumexp operation 
+// Compute logsumexp based on the resut of maxsumexp operation
 template<typename T>
 void cuda(cudaStream_t stream, Index nelems, const T *maxsumexp, T *logsumexp)
     noexcept;
 
 } // namespace nntile::kernel::logsumexp
-

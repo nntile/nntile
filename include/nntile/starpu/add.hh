@@ -27,7 +27,7 @@ struct args_t
     args_t(Index nelems_, scal_t alpha_, scal_t beta_) :
         nelems(nelems_),
         alpha(alpha_),
-        beta(beta_) 
+        beta(beta_)
         {
         }
     Index nelems;
@@ -84,4 +84,3 @@ template<typename T>
 void submit(Index nelems, scal_t alpha, Handle src, scal_t beta, Handle dst);
 
 } // namespace nntile::starpu::add
-

@@ -26,4 +26,3 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta,
     noexcept;
 
 } // namespace nntile::kernel::norm_slice
-

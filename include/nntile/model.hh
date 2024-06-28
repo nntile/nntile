@@ -20,4 +20,3 @@ namespace nntile::model
 {
 
 } // namespace nntile::model
-

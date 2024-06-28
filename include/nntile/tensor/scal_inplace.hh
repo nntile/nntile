@@ -27,4 +27,3 @@ template<typename T>
 void scal_inplace(scal_t alpha, const Tensor<T> &data);
 
 } // namespace nntile::tensor
-

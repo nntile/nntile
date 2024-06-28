@@ -26,4 +26,3 @@ template<typename T>
 void sqrt_inplace(const Tensor<T> &A);
 
 } // namespace nntile::tensor
-

@@ -28,4 +28,3 @@ void total_sum_accum(scal_t alpha, const Tile<T> &logsumexp, const Tile<T> &src,
                      const Tile<Index> &class_labels, const Tile<T> &val);
 
 } // namespace nntile::tile
-

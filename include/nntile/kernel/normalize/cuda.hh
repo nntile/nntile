@@ -26,4 +26,3 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index l, T eps,
     noexcept;
 
 } // namespace nntile::kernel::normalize
-

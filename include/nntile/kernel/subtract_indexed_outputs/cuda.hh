@@ -25,4 +25,3 @@ void cuda(cudaStream_t stream, Index n_labels, Index n_outputs, T val, const Ind
     noexcept;
 
 } // namespace nntile::kernel::subtract_indexed_outputs
-

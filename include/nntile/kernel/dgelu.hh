@@ -27,4 +27,3 @@ namespace nntile::kernel::dgelu
 {
 
 } // namespace nntile::kernel::dgelu
-

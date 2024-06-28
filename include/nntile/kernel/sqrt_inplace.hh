@@ -27,4 +27,3 @@ namespace nntile::kernel::sqrt_inplace
 {
 
 } // namespace nntile::kernel::sqrt_inplace
-

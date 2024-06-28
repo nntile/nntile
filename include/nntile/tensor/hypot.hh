@@ -28,4 +28,3 @@ template<typename T>
 void hypot(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> &dst);
 
 } // namespace nntile::tensor
-

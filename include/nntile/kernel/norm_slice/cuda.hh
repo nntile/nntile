@@ -26,4 +26,3 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
     noexcept;
 
 } // namespace nntile::kernel::norm_slice
-

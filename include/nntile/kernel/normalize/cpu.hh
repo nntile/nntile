@@ -25,4 +25,3 @@ void cpu(Index m, Index n, Index k, Index l, T eps, const T *gamma,
     noexcept;
 
 } // namespace nntile::kernel::normalize
-

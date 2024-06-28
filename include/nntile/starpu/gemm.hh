@@ -198,4 +198,3 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
         Handle C, int redux=0);
 
 } // namespace nntile::starpu::gemm
-

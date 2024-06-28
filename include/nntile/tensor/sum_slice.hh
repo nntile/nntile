@@ -28,4 +28,3 @@ void sum_slice(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> 
         Index axis, int redux=0);
 
 } // namespace nntile::tensor
-

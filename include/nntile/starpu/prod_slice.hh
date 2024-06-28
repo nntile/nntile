@@ -79,4 +79,3 @@ template<typename T>
 void submit(Index m, Index n, Index k, scal_t alpha, Handle src, Handle dst);
 
 } // namespace nntile::starpu::prod_slice
-

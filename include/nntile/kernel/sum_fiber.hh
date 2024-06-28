@@ -27,4 +27,3 @@ namespace nntile::kernel::sum_fiber
 {
 
 } // namespace nntile::kernel::sum_fiber
-

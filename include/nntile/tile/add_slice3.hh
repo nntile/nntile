@@ -30,4 +30,3 @@ void add_slice3(scal_t alpha, const Tile<T> &src1, scal_t beta, const Tile<T> &s
         const Tile<T> &dst, Index axis);
 
 } // namespace nntile::tile
-

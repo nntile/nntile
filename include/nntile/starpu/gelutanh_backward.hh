@@ -73,4 +73,3 @@ template<typename T>
 void submit_mpi(Index nelems, Handle x, Handle dy, Handle dx, int exec_rank);
 
 } // namespace nntile::starpu::gelutanh_backward
-

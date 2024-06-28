@@ -30,4 +30,3 @@ void add_slice(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> 
         Index axis);
 
 } // namespace nntile::tensor
-

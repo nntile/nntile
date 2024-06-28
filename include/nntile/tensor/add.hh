@@ -28,4 +28,3 @@ template<typename T>
 void add(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> &dst);
 
 } // namespace nntile::tensor
-

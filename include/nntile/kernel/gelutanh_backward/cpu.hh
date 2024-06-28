@@ -25,4 +25,3 @@ void cpu(Index nelems, const T *x, const T *dy, T *dx)
     noexcept;
 
 } // namespace nntile::kernel::gelutanh_backward
-

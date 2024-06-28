@@ -27,4 +27,3 @@ namespace nntile::kernel::hypot_scalar_inverse
 {
 
 } // namespace nntile::kernel::hypot_scalar_inverse
-

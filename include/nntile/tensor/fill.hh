@@ -26,4 +26,3 @@ template<typename T>
 void fill(scal_t val, const Tensor<T> &A);
 
 } // namespace nntile::tensor
-

@@ -24,4 +24,3 @@ std::vector<int> block_cyclic(const std::vector<Index> &tensor_grid,
         const std::vector<int> &mpi_grid, int start_rank, int max_rank);
 
 } // namespace nntile::tensor::distributions
-

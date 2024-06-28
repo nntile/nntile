@@ -27,4 +27,3 @@ namespace nntile::kernel::gelu
 {
 
 } // namespace nntile::kernel::gelu
-

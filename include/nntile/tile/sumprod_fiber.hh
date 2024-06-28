@@ -28,4 +28,3 @@ void sumprod_fiber(scal_t alpha, const Tile<T> &src1, const Tile<T> &src2, scal_
         const Tile<T> &dst, Index axis);
 
 } // namespace nntile::tile
-

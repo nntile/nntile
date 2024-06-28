@@ -28,4 +28,3 @@ template<typename T>
 void addcdiv(scal_t val, scal_t eps, const Tile<T> &nom, const Tile<T> &denom, const Tile<T> &src);
 
 } // namespace nntile::tile
-

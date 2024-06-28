@@ -24,4 +24,3 @@ void fp16_to_fp32_async(const Tensor<fp16_t> &src, const Tensor<fp32_t> &dst);
 void fp16_to_fp32(const Tensor<fp16_t> &src, const Tensor<fp32_t> &dst);
 
 } // namespace nntile::tensor
-

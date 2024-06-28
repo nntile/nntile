@@ -36,4 +36,3 @@
 
 // Layers
 //#include <nntile/layer.hh>
-

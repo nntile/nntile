@@ -32,4 +32,3 @@ void copy_intersection(const Tensor<T> &src,
         const std::vector<Index> &dst_offset);
 
 } // namespace nntile::tensor
-

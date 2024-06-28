@@ -24,4 +24,3 @@ void cpu(Index n_labels, Index n_outputs, T val, const Index* labels, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::subtract_indexed_outputs
-

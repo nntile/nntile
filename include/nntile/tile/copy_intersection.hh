@@ -30,4 +30,3 @@ void copy_intersection(const Tile<T> &src,
         const std::vector<Index> &dst_offset, const Tile<Index> &scratch);
 
 } // namespace nntile::tile
-

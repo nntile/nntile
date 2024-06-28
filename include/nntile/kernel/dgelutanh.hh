@@ -27,4 +27,3 @@ namespace nntile::kernel::dgelutanh
 {
 
 } // namespace nntile::kernel::dgelutanh
-

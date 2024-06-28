@@ -77,4 +77,3 @@ template<typename T>
 void submit(Index nelems, scal_t val, Handle data);
 
 } // namespace nntile::starpu::fill
-

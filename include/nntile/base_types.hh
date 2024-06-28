@@ -61,4 +61,3 @@ using bool_t = bool;
 // Add more types like fp16_t, bf16_t and tf32_t in the future
 
 } // namespace nntile
-

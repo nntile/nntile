@@ -28,4 +28,3 @@ void softmax(const Tensor<T> &maxsumexp, const Tensor<T> &src,
         scal_t alpha, const Tensor<T> &dst, Index axis);
 
 } // namespace nntile::tensor
-

@@ -27,4 +27,3 @@ void subtract_indexed_outputs(scal_t val, const Tile<Index> &labels,
         const Tile<T> &dst);
 
 } // namespace nntile::tile
-

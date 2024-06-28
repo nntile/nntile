@@ -29,4 +29,3 @@ void nrm2(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
         const Tensor<T> &tmp);
 
 } // namespace nntile::tensor
-

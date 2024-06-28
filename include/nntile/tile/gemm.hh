@@ -38,4 +38,3 @@ void gemm(scal_t alpha, const TransOp &transA, const Tile<T> &A,
         Index ndim, Index batch_ndim);
 
 } // namespace nntile::tile
-

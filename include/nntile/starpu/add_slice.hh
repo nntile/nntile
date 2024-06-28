@@ -81,4 +81,3 @@ void submit(Index m, Index n, Index k, scal_t alpha, Handle src, scal_t beta,
             Handle dst);
 
 } // namespace nntile::starpu::add_slice
-

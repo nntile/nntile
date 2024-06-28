@@ -25,4 +25,3 @@ void cuda(cudaStream_t stream, Index num_elements, T alpha, T beta, T* dst)
     noexcept;
 
 } // namespace nntile::kernel::add_scalar
-

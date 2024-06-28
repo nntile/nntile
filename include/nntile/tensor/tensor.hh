@@ -231,4 +231,3 @@ public:
 };
 
 } // namespace nntile::tensor
-

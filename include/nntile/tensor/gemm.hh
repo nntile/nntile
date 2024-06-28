@@ -35,4 +35,3 @@ void gemm(scal_t alpha, const TransOp &transA, const Tensor<T> &A,
         const Tensor<T> &C, Index ndim, Index batch_ndim, int redux=0);
 
 } // namespace nntile::tensor
-

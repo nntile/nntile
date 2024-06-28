@@ -74,4 +74,3 @@ template<typename T>
 void submit(Index n_labels, Index n_outputs, scal_t val, Handle labels, Handle dst);
 
 } // namespace nntile::starpu::subtract_indexed_column
-

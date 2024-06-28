@@ -81,4 +81,3 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
           T *maxsumexp) noexcept;
 
 } // namespace nntile::kernel::maxsumexp
-

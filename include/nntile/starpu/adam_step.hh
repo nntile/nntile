@@ -83,4 +83,3 @@ void submit(Index num_iter, Index num_elems, scal_t beta_1, scal_t beta_2, scal_
             Handle second_moment, Handle p);
 
 } // namespace nntile::starpu::adam_step
-

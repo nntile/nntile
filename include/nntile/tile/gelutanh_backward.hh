@@ -29,4 +29,3 @@ template<typename T>
 void gelutanh_backward(const Tile<T> &x, const Tile<T> &dy, const Tile<T> &dx);
 
 } // namespace nntile::tile
-

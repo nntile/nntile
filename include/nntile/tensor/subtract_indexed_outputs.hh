@@ -28,4 +28,3 @@ void subtract_indexed_outputs(scal_t val, const Tensor<Index> &labels,
         const Tensor<T> &dst);
 
 } // namespace nntile::tensor
-

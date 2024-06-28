@@ -26,4 +26,3 @@ template<typename T>
 void sumnorm(const Tile<T> &src, const Tile<T> &dst, Index axis);
 
 } // namespace nntile::tile
-

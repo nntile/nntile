@@ -47,4 +47,3 @@
         throw std::runtime_error("Assert failed");\
     }\
 }\
-

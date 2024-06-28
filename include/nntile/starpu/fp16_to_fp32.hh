@@ -40,4 +40,3 @@ void restore_where();
 void submit(Index nelems, Handle src, Handle dst);
 
 } // namespace nntile::starpu::fp16_to_fp32
-

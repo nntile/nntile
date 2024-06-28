@@ -70,4 +70,3 @@ template<typename T>
 void submit(Index nelems, Handle data);
 
 } // namespace nntile::starpu::relu
-

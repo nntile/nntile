@@ -25,4 +25,3 @@ void cuda(cudaStream_t stream, Index nelems, T val, T *data)
     noexcept;
 
 } // namespace nntile::kernel::fill
-

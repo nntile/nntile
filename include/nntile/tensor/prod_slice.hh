@@ -30,4 +30,3 @@ void prod_slice(const Tensor<T> &src, scal_t alpha, const Tensor<T> &dst,
         Index axis);
 
 } // namespace nntile::tensor
-

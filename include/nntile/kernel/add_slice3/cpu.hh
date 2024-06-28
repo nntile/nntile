@@ -26,4 +26,3 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src1, T beta,
     noexcept;
 
 } // namespace nntile::kernel::add_slice3
-

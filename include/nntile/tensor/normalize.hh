@@ -28,4 +28,3 @@ void normalize(const Tensor<T> &gamma_beta, const Tensor<T> &src,
         const Tensor<T> &dst, Index l, T eps, Index axis);
 
 } // namespace nntile::tensor
-

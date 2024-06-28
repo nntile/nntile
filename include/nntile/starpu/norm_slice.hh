@@ -80,4 +80,3 @@ void submit(Index m, Index n, Index k, scal_t alpha, Handle src, scal_t beta,
         Handle dst, int redux=0);
 
 } // namespace nntile::starpu::norm_slice
-

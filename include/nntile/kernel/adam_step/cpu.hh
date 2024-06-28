@@ -25,4 +25,3 @@ void cpu(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T wei
     noexcept;
 
 } // namespace nntile::kernel::adam_step
-

@@ -31,4 +31,3 @@ void cpu_ndim0(unsigned long long seed, scal_t mean, scal_t stddev, T *data)
     noexcept;
 
 } // namespace nntile::kernel::randn
-

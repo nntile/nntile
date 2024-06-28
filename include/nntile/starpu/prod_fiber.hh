@@ -67,4 +67,3 @@ template<typename T>
 void submit(Index m, Index n, Index k, T alpha, Handle src, Handle dst);
 
 } // namespace nntile::starpu::prod_fiber
-

@@ -28,4 +28,3 @@ namespace nntile::kernel::randn
 {
 
 } // namespace nntile::kernel::randn
-

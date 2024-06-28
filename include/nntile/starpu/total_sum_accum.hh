@@ -78,4 +78,3 @@ void submit(scal_t alpha, Index n_labels, Index n_outputs, Handle logsumexp, Han
         Handle class_labels, Handle val);
 
 } // namespace nntile::starpu::total_sum_accum
-

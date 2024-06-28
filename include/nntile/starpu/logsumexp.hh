@@ -67,4 +67,3 @@ template<typename T>
 void submit(Index nelems, Handle maxsumexp, Handle logsumexp);
 
 } // namespace nntile::starpu::logsumexp
-

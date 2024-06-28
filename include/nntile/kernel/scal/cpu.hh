@@ -25,4 +25,3 @@ void cpu(Index nelems, T alpha, const T* src, T* dst)
     noexcept;
 
 } // namespace nntile::kernel::scal
-

@@ -30,4 +30,3 @@ void transpose(scal_t alpha, const Tensor<T> &src, const Tensor<T> &dst,
         Index ndim);
 
 } // namespace nntile::tensor
-

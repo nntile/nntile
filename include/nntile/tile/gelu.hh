@@ -26,4 +26,3 @@ template<typename T>
 void gelu(const Tile<T> &A);
 
 } // namespace nntile::tile
-

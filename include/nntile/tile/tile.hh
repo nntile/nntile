@@ -119,4 +119,3 @@ TileLocalData<T> Tile<T>::acquire(starpu_data_access_mode mode)
 }
 
 } // namespace nntile::tile
-

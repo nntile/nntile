@@ -99,4 +99,3 @@ void submit(Index ndim, Index nelems, unsigned long long seed,
         Handle tmp_index);
 
 } // namespace nntile::starpu::randn
-

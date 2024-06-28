@@ -27,4 +27,3 @@ namespace nntile::kernel::sum_slice
 {
 
 } // namespace nntile::kernel::sum_slice
-

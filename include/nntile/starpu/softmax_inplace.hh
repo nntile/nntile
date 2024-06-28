@@ -79,4 +79,3 @@ template<typename T>
 void submit(Index m, Index n, Index k, Handle maxsumnorm, scal_t alpha, Handle dst);
 
 } // namespace nntile::starpu::softmax_inplace
-

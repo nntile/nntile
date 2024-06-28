@@ -28,4 +28,3 @@ template<typename T>
 void fill(scal_t val, const Tile<T> &A);
 
 } // namespace nntile::tile
-

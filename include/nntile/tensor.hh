@@ -91,4 +91,3 @@ namespace nntile::tensor
 {
 
 } // namespace nntile::tensor
-

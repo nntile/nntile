@@ -30,4 +30,3 @@ void sum_fiber(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> 
         Index axis, Index batch_ndim, int redux=0);
 
 } // namespace nntile::tensor
-

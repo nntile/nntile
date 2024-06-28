@@ -26,4 +26,3 @@ template<typename T>
 void scal_inplace(scal_t alpha, const Tile<T> &data);
 
 } // namespace nntile::tile
-

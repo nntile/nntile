@@ -80,4 +80,3 @@ namespace nntile::tile
 {
 
 } // namespace nntile::tile
-

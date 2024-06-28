@@ -30,4 +30,3 @@ void add_fiber(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst
         Index axis, Index batch_ndim);
 
 } // namespace nntile::tile
-

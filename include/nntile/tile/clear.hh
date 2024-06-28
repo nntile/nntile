@@ -28,4 +28,3 @@ template<typename T>
 void clear(const Tile<T> &tile);
 
 } // namespace nntile::tile
-

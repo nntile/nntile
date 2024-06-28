@@ -32,4 +32,3 @@ void adamw_step(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t
                const Tile<T> &p);
 
 } // namespace nntile::tile
-

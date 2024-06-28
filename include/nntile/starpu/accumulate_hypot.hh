@@ -70,4 +70,3 @@ template<typename T>
 void submit(Handle src, Handle dst);
 
 } // namespace nntile::starpu::accumulate_hypot
-

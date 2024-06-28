@@ -27,4 +27,3 @@ namespace nntile::kernel::gelu_backward
 {
 
 } // namespace nntile::kernel::gelu_backward
-

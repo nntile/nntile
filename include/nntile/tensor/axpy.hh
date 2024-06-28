@@ -35,4 +35,3 @@ template<typename T>
 void axpy(scal_t alpha, const Tensor<T> &src, const Tensor<T> &dst);
 
 } // namespace nntile::tensor
-

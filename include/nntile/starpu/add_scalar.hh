@@ -28,7 +28,7 @@ struct args_t
     args_t(Index num_elements_, T alpha_, T beta_) :
         num_elements(num_elements_),
         alpha(alpha_),
-        beta(beta_) 
+        beta(beta_)
         {
         }
     Index num_elements;
@@ -79,4 +79,3 @@ template<typename T>
 void submit(Index num_elements, T alpha, T beta, Handle dst);
 
 } // namespace nntile::starpu::add_scalar
-

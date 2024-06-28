@@ -30,4 +30,3 @@ void prod_fiber3(const Tile<T> &src1, scal_t alpha, const Tile<T> &src2,
         const Tile<T> &dst, Index axis);
 
 } // namespace nntile::tile
-

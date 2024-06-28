@@ -26,4 +26,3 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
     noexcept;
 
 } // namespace nntile::kernel::sumnorm
-

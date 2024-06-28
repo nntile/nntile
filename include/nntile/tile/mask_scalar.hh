@@ -28,4 +28,3 @@ template<typename T>
 void mask_scalar(const Tile<bool_t> &mask, scal_t val, const Tile<T> &A);
 
 } // namespace nntile::tile
-

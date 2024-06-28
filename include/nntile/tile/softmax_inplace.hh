@@ -28,4 +28,3 @@ void softmax_inplace(const Tile<T> &maxsumexp, scal_t alpha, const Tile<T> &dst,
         Index axis);
 
 } // namespace nntile::tile
-

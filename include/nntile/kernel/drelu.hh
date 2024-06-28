@@ -27,4 +27,3 @@ namespace nntile::kernel::drelu
 {
 
 } // namespace nntile::kernel::drelu
-

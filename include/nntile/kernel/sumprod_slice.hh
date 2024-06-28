@@ -27,4 +27,3 @@ namespace nntile::kernel::sumprod_slice
 {
 
 } // namespace nntile::kernel::sumprod_slice
-

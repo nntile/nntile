@@ -27,4 +27,3 @@ namespace nntile::kernel::embedding_backward
 {
 
 } // namespace nntile::kernel::embedding_backward
-

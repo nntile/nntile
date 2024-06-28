@@ -27,4 +27,3 @@ namespace nntile::kernel::gelutanh_inplace
 {
 
 } // namespace nntile::kernel::gelutanh_inplace
-

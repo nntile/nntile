@@ -27,4 +27,3 @@ namespace nntile::kernel::embedding
 {
 
 } // namespace nntile::kernel::embedding
-

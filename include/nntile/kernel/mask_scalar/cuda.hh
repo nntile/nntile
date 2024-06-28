@@ -26,4 +26,3 @@ void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask,
     noexcept;
 
 } // namespace nntile::kernel::mask_scalar
-

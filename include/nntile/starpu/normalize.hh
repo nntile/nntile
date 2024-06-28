@@ -76,4 +76,3 @@ void submit(Index m, Index n, Index k, Index l, T eps, Handle gamma_beta,
         Handle sumnorm, Handle dst);
 
 } // namespace nntile::starpu::normalize
-
