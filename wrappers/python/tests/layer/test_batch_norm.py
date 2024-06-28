@@ -68,20 +68,20 @@ def test_batchnorm(params: BatchNormTestParams):
     nntile_layer.backward_async()
 
     # test forward
-    success = torch.allclose(
-        torch.tensor(nntile.tensor.to_array(nntile_layer.x_res)),
-        o,
-        atol=params.atol
+    np.testing.assert_allclose(
+        nntile.tensor.to_array(nntile_layer.x_res),
+        o.detach().numpy(),
+        atol = params.atol,
+        err_msg = f"Error in forward for params: {params}"
     )
-    assert success, f"Error in forward for params: {params}"
 
     # test backward
-    success = torch.allclose(
-        torch.tensor(nntile.tensor.to_array(nntile_layer.x_tm.grad)),
-        input_torch.grad,
-        atol=params.atol
+    np.testing.assert_allclose(
+        nntile.tensor.to_array(nntile_layer.x_tm.grad),
+        input_torch.grad.numpy(),
+        atol = params.atol,
+        err_msg = f"Error in backward for params: {params}"
     )
-    assert success, f"Error in backward for params: {params}"
 
 def batch_norm_test_suite():
     for _iter in range(4):
