@@ -52,7 +52,27 @@ def generate_input(params: BatchNormTestParams):
     return (input_moment, output_grad_nnt), (input_torch, output_grad_torch)
 
 
-def test_batchnorm(params: BatchNormTestParams):
+def test_batchnorm_forward(params: BatchNormTestParams):
+    (input_moment, _), (input_torch, _) = generate_input(params)
+    
+    # torch forward
+    out_torch = nn.BatchNorm2d(params.shape[1], dtype=input_torch.dtype, affine=False)(input_torch)
+
+    # nntile forward
+    nntile_layer = BatchNorm2d.generate_simple(input_moment, eps=params.eps, redux=params.redux)
+    
+    nntile_layer.forward_async()
+
+    # test forward
+    np.testing.assert_allclose(
+        nntile.tensor.to_array(nntile_layer.x_res),
+        out_torch.detach().numpy(),
+        atol = params.atol,
+        err_msg = f"Error in forward for params: {params}"
+    )
+
+
+def test_batchnorm_backward(params: BatchNormTestParams):
     (input_moment, output_grad_nnt), (input_torch, output_grad_torch) = generate_input(params)
     
     # torch forward/backward
@@ -67,14 +87,6 @@ def test_batchnorm(params: BatchNormTestParams):
     nntile_layer.grad = output_grad_nnt
     nntile_layer.backward_async()
 
-    # test forward
-    np.testing.assert_allclose(
-        nntile.tensor.to_array(nntile_layer.x_res),
-        out_torch.detach().numpy(),
-        atol = params.atol,
-        err_msg = f"Error in forward for params: {params}"
-    )
-
     # test backward
     np.testing.assert_allclose(
         nntile.tensor.to_array(nntile_layer.x_tm.grad),
@@ -83,12 +95,19 @@ def test_batchnorm(params: BatchNormTestParams):
         err_msg = f"Error in backward for params: {params}"
     )
 
-def batch_norm_test_suite():
-    for _iter in range(4):
-        test_batchnorm(BatchNormTestParams((4,5,10,10), np.float32))
-        test_batchnorm(BatchNormTestParams((4,5,10,10), np.float64))
 
-        test_batchnorm(BatchNormTestParams((1,1,10,10), np.float32))
+def batch_norm_test_suite():
+    test_params = [
+        BatchNormTestParams((4,5,10,10), np.float32),
+        BatchNormTestParams((4,5,10,10), np.float64),
+        BatchNormTestParams((1,1,10,10), np.float32)
+    ]
+
+    for _iter in range(4):
+        for params in test_params:
+            test_batchnorm_forward(params)
+            test_batchnorm_backward(params)
+
 
 if __name__ == "__main__":
     batch_norm_test_suite()
