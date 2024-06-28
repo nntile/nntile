@@ -28,7 +28,7 @@ np2nnt_type_mapping = {
 
 
 
-def tensor_from_numpy(A: np.array, basetile_shape: tuple = None, mpi_distr = [0], next_tag = 0):
+def from_array(A: np.array, basetile_shape: tuple = None, mpi_distr = [0], next_tag = 0):
     A_traits = TensorTraits(A.shape, basetile_shape if basetile_shape else A.shape)
     
     A_value = np2nnt_type_mapping[A.type](A_traits, mpi_distr, next_tag)
@@ -37,14 +37,14 @@ def tensor_from_numpy(A: np.array, basetile_shape: tuple = None, mpi_distr = [0]
     return A_value
 
 
-def tensor_to_numpy(tensor_nnt):
+def to_array(tensor_nnt):
     np_res = np.zeros(tensor_nnt.shape, order='F').astype(np2nnt_type_mapping[type(tensor_nnt)])
     tensor_nnt.to_array(np_res)
     return np_res
 
 def zeros(shape, dtype=Tensor_fp32):
     np_dtype = nnt2np_type_mapping[dtype]
-    return tensor_from_numpy(np.zeros(shape).astype(np_dtype))
+    return from_array(np.zeros(shape).astype(np_dtype))
 
 def full(shape, fill_value, dtype=Tensor_fp32):
     nnt_tensor = zeros(shape)

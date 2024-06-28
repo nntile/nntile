@@ -11,6 +11,6 @@
 #
 # @version 1.0.0
 
-from .utils.constructors import tensor_from_numpy, tensor_to_numpy, zeros, ones
+from .utils.constructors import from_array, to_array, zeros, ones
 
 from .functions import *
