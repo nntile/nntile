@@ -43,9 +43,6 @@ def generate_input(params: BatchNormTestParams):
     input_torch = torch.tensor(input_np, requires_grad=True)
     output_grad_torch = torch.tensor(output_grad_np, requires_grad=False)
 
-    # input_np = np.asfortranarray(input_np)
-    # output_grad_np = np.asfortranarray(output_grad_np)
-
     input_nnt = nntile.tensor.from_array(input_np)
     input_grad_nnt = nntile.tensor.from_array(np.zeros(params.shape).astype(params.dtype))
     input_moment = nntile.tensor.TensorMoments(input_nnt, input_grad_nnt, grad_required=True)
