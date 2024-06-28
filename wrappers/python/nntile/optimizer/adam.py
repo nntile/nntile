@@ -48,7 +48,7 @@ class Adam:
 
     def get_next_tag(self):
         return self.next_tag
-    
+
     def unregister(self):
         for i in range(len(self.first_moments)):
             self.first_moments[i].unregister()
@@ -109,17 +109,17 @@ class Adam:
             s_m = np.array(np.zeros(self.second_moments[i].shape, dtype=self.dtype), order="F")
             self.second_moments[i].to_array(s_m)
             second_moments.append(s_m.copy())
-        
+
         for m_s_m_nntile in self.max_second_moments:
             m_s_m = np.array(np.zeros(self.max_second_moments[i].shape, dtype=self.dtype), order="F")
             self.max_second_moments[i].to_array(m_s_m)
             max_second_moments.append(m_s_m.copy())
-        
+
         stored_data = {
             "first_moments": first_moments,
             "second_moments": second_moments,
             "max_second_moments": max_second_moments,
-            "num_iter": self.num_iter, 
+            "num_iter": self.num_iter,
             "beta1": self.beta1,
             "beta2": self.beta2,
             "lr": self.lr,
@@ -132,14 +132,14 @@ class Adam:
     def load_state(self, path):
         with open(path, 'rb') as fp:
             stored_states = pickle.load(fp)
-            
+
         self.lr = stored_states["lr"]
         self.beta1 = stored_states["beta1"]
         self.beta2 = stored_states["beta2"]
         self.eps = stored_states["eps"]
         self.num_iter = stored_states["num_iter"]
         self.weight_decay = stored_states["weight_decay"]
-        
+
         first_moments = stored_states["first_moments"]
         second_moments = stored_states["second_moments"]
         max_second_moments = stored_states["max_second_moments"]
@@ -180,7 +180,7 @@ class FusedAdam:
 
     def get_next_tag(self):
         return self.next_tag
-    
+
     def unregister(self):
         for i in range(len(self.first_moments)):
             self.first_moments[i].unregister()
@@ -222,7 +222,7 @@ class FusedAdam:
             elif dtype == "bf16":
                 first_moments.append(torch.tensor(f_m, dtype=torch.bfloat16))
                 second_moments.append(torch.tensor(s_m, dtype=torch.bfloat16))
-        
+
         stored_data = {
             "first_moments": first_moments,
             "second_moments": second_moments,
@@ -250,10 +250,9 @@ class FusedAdam:
         self.eps = stored_states["eps"]
         self.num_iter = stored_states["num_iter"]
         self.weight_decay = stored_states["weight_decay"]
-        
+
         first_moments = stored_states["first_moments"]
         second_moments = stored_states["second_moments"]
         for i in range(len(first_moments)):
             self.first_moments[i].from_array(first_moments[i].to(torch.float32))
             self.second_moments[i].from_array(second_moments[i].to(torch.float32))
-

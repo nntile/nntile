@@ -45,7 +45,7 @@ class FusedAdamW:
 
     def get_next_tag(self):
         return self.next_tag
-    
+
     def unregister(self):
         for i in range(len(self.first_moments)):
             self.first_moments[i].unregister()
@@ -87,7 +87,7 @@ class FusedAdamW:
             elif dtype == "bf16":
                 first_moments.append(torch.tensor(f_m, dtype=torch.bfloat16))
                 second_moments.append(torch.tensor(s_m, dtype=torch.bfloat16))
-        
+
         stored_data = {
             "first_moments": first_moments,
             "second_moments": second_moments,
@@ -115,7 +115,7 @@ class FusedAdamW:
         self.eps = stored_states["eps"]
         self.num_iter = stored_states["num_iter"]
         self.weight_decay = stored_states["weight_decay"]
-        
+
         first_moments = stored_states["first_moments"]
         second_moments = stored_states["second_moments"]
         for i in range(len(first_moments)):
@@ -128,4 +128,3 @@ class FusedAdamW:
             self.second_moments[i].from_array(s)
             del s
         del stored_states, first_moments, second_moments
-

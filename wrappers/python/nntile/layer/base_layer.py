@@ -64,4 +64,3 @@ class BaseLayer(object):
         for t in self.temporaries:
             if t is not None:
                 t.unregister()
-

@@ -85,7 +85,7 @@ class DeepReLU(BaseModel):
                 same and no biases in linear layers
         '''
         torch_parameters = list(torch_mlp.parameters())
-        
+
         if len(torch_parameters[1].shape) == 2:
             bias = False
             n_layers = len(torch_parameters)
@@ -115,4 +115,3 @@ class DeepReLU(BaseModel):
                     zip(mlp_nntile.parameters, torch_parameters):
                 p.value.from_array(p_torch.detach().cpu().numpy())
             return mlp_nntile, mlp_nntile.next_tag
-

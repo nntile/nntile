@@ -22,7 +22,7 @@ class Empty:
 
     def get_next_tag(self):
         return self.next_tag
-    
+
     def unregister(self):
         pass
 

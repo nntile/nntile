@@ -47,7 +47,7 @@ def helper(dtype):
     rand_A = np.random.randn(*shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A.from_array(np_A)
-    
+
     rand_B = np.random.randn(*shape)
     np_B = np.array(rand_B, dtype=dtype, order='F')
     B.from_array(np_B)

@@ -73,4 +73,3 @@ class BaseModel:
 
     def get_parameters(self):
         return self.parameters
-

@@ -43,12 +43,12 @@ class SGD:
 
     def get_next_tag(self):
         return self.next_tag
-    
+
     def unregister(self):
         if self.momentum > 0:
             for s in self.states:
                 s.unregister()
-            
+
     def step(self):
         for i, p in enumerate(self.params):
             if self.weight_decay != 0.:

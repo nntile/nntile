@@ -27,7 +27,7 @@ from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
         GPT2Model as GPT2Model_nntile
 from nntile.tensor import copy_async
 from nntile.loss import Frob
-import pdb 
+import pdb
 from typing import Union, Optional, Tuple, List
 from packaging import version
 import copy
@@ -417,4 +417,3 @@ for batch in batch_input+batch_output:
 
 # Unregister all tensors related to model, that are still registered
 model_nntile.unregister()
-

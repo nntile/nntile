@@ -211,4 +211,3 @@ class LayerNorm(BaseLayer):
         self.tmp_y_value.invalidate_submit()
         # dX can offloade from GPU
         self.x.grad.wont_use()
-

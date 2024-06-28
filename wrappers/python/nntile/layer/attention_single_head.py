@@ -587,4 +587,3 @@ class AttentionSingleHead(BaseLayer):
         self.w_q.grad.wont_use()
         # X_Q can be offloaded from GPU
         self.x_q.value.wont_use()
-

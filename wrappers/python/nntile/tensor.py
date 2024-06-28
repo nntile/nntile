@@ -394,7 +394,7 @@ def prod_async(x: Tensor, y: Tensor) -> None:
         core_tensor.prod_async_fp64(x, y)
     else:
         raise TypeError
-    
+
 # Wrapper for multiprecision add
 def add_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
     if type(x) is not type(y):
@@ -537,7 +537,7 @@ def prod_fiber_async(prod_fiber: Tensor, alpha: float, x: Tensor, \
         core_tensor.prod_fiber_async_fp64(prod_fiber, alpha, x, axis)
     else:
         raise TypeError
-    
+
 # Wrapper for multiprecision prod_fiber3
 def prod_fiber3_async(prod_fiber: Tensor, alpha: float, x: Tensor, \
         y: Tensor, axis: int) -> None:
@@ -553,7 +553,7 @@ def prod_fiber3_async(prod_fiber: Tensor, alpha: float, x: Tensor, \
         core_tensor.prod_fiber3_async_fp64(prod_fiber, alpha, x, y, axis)
     else:
         raise TypeError
-    
+
 # Wrapper for multiprecision add_scalar
 def add_scalar_async(alpha:float, beta: float, x: Tensor) -> None:
     if type(x) is core_tensor.Tensor_fp32:
@@ -904,4 +904,3 @@ def transpose_async(alpha: float, src: Tensor, dst: Tensor, ndim: int) -> None:
         core_tensor.transpose_async_fp64(alpha, src, dst, ndim)
     else:
         raise TypeError
-

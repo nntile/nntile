@@ -53,4 +53,3 @@ class FP16_to_FP32(BaseLayer):
     # Backward propagation of the activation layer
     def backward_async(self):
         fp32_to_fp16_async(self.y.grad, self.x.grad)
-

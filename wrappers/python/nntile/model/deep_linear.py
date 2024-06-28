@@ -68,4 +68,3 @@ class DeepLinear(BaseModel):
     def init_randn_async(self):
         for l in self.layers:
             l.init_randn_async()
-

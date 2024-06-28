@@ -51,7 +51,7 @@ class CrossEntropy:
         labels_traits = TensorTraits(shape, basetile)
         labels = Tensor_int64(labels_traits, model_output.value.distribution, \
                 next_tag)
-        next_tag = labels.next_tag 
+        next_tag = labels.next_tag
         maxsumexp_traits = TensorTraits([2]+shape, [2]+basetile)
         maxsumexp = type(model_output.value)(maxsumexp_traits, \
                 model_output.value.distribution, next_tag)
@@ -65,7 +65,7 @@ class CrossEntropy:
         loss = CrossEntropy(model_output, labels, val, maxsumexp, logsumexp, \
                 redux=redux, scale=scale)
         return loss, next_tag
-    
+
     def unregister(self):
         self.logsumexp.unregister()
         self.maxsumexp.unregister()
@@ -97,4 +97,3 @@ class CrossEntropy:
         self.logsumexp.wont_use()
         self.val.wont_use()
         self.y.wont_use()
-

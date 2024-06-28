@@ -42,7 +42,7 @@ def helper(dtype: np.dtype):
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
     next_tag = 0
-    
+
     # Tensor objects
     A = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = A.next_tag
@@ -56,7 +56,7 @@ def helper(dtype: np.dtype):
 
     # Define mlp_mixer layer
     layer, next_tag = Gap_Layer.generate_simple(A_moments, next_tag)
-    
+
     A.from_array(np_A)
     layer.forward_async()
 
@@ -70,7 +70,7 @@ def helper(dtype: np.dtype):
     if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > tol:
         A_moments.unregister()
         layer.unregister()
-        return False 
+        return False
 
     A_moments.unregister()
     layer.unregister()

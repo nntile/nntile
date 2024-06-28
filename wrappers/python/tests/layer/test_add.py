@@ -44,7 +44,7 @@ class ToyFC_SkipConnectionTorch(nn.Module):
         u = self.act(u)
         u = self.lin3(u)
         return u
-    
+
 
 n = 100
 hidden_dim = 50

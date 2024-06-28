@@ -99,7 +99,7 @@ def helper(dtype: np.dtype):
     np_inproj_bias_K = np.array(rand_bias_K, dtype=dtype, order='F')
     layer.in_proj_bias_k.value.from_array(np_inproj_bias_K)
     nntile.tensor.clear_async(layer.in_proj_bias_k.grad)
-        
+
     rand_W_V = np.random.randn(*layer.w_v.value.shape)
     np_W_V = np.array(rand_W_V, dtype=dtype, order='F')
     layer.w_v.value.from_array(np_W_V)
@@ -109,7 +109,7 @@ def helper(dtype: np.dtype):
     np_inproj_bias_V = np.array(rand_bias_V, dtype=dtype, order='F')
     layer.in_proj_bias_v.value.from_array(np_inproj_bias_V)
     nntile.tensor.clear_async(layer.in_proj_bias_v.grad)
-        
+
     rand_W = np.random.randn(*layer.w.value.shape)
     np_W = np.array(rand_W, dtype=dtype, order='F')
     layer.w.value.from_array(np_W)
@@ -174,7 +174,7 @@ def helper(dtype: np.dtype):
     layer.in_proj_bias_q.grad.to_array(np_inproj_bias_Q)
     layer.in_proj_bias_k.grad.to_array(np_inproj_bias_K)
     layer.in_proj_bias_v.grad.to_array(np_inproj_bias_V)
-        
+
     np_W_Q_nntile = np_W_Q
     np_W_K_nntile = np_W_K
     np_W_V_nntile = np_W_V
@@ -198,7 +198,7 @@ def helper(dtype: np.dtype):
     np_W_K_torch = np.array(torch_layer.k_proj_weight.grad)
     np_W_V_torch = np.array(torch_layer.v_proj_weight.grad)
     np_W_torch = np.array(torch_layer.out_proj.weight.grad)
-    
+
     np_out_proj_bias_torch = np.array(torch_layer.out_proj.bias.grad)
     norm = np.linalg.norm(np_out_proj_bias_torch)
     diff = np.linalg.norm(np_out_proj_bias_torch - np_out_proj_bias)
@@ -206,7 +206,7 @@ def helper(dtype: np.dtype):
     if diff > norm*1e-4:
         import ipdb; ipdb.set_trace()
         return False
-    
+
     np_inproj_bias_torch = np.array(torch_layer.in_proj_bias.grad)
     norm = np.linalg.norm(np_inproj_bias_torch)
     diff = np.linalg.norm(np_inproj_bias_torch - np_inproj_nntile)
@@ -214,7 +214,7 @@ def helper(dtype: np.dtype):
     if diff > norm*1e-4:
         import ipdb; ipdb.set_trace()
         return False
-    
+
     norm = np.linalg.norm(np_X_Q_torch)
     diff = np.linalg.norm(np_X_Q_torch - np_X_Q)
     if diff > norm*1e-4:
@@ -270,4 +270,3 @@ def test_repeat():
 if __name__ == "__main__":
     test()
     test_repeat()
-

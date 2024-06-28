@@ -711,4 +711,3 @@ class Attention(BaseLayer):
         # dQ_transposed can be deleted
         #self.q_transposed.grad.wont_use()
         self.q_transposed.grad.invalidate_submit()
-

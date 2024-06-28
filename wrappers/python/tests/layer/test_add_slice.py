@@ -60,7 +60,7 @@ class NNTileToyModel(BaseModel):
         layers = []
         new_layer, next_tag = Linear.generate_simple(x, "L", notrans,
                 1, [20], [20], next_tag, bias=False)
-        
+
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
@@ -71,7 +71,7 @@ class NNTileToyModel(BaseModel):
 
         new_layer, next_tag = Linear.generate_simple(activations[1], "L", notrans,
                 1, [20], [20], next_tag, bias=False)
-        
+
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
@@ -82,14 +82,14 @@ class NNTileToyModel(BaseModel):
 
         new_layer, next_tag = Linear.generate_simple(activations[-1], "L", notrans,
                 1, [10], [10], next_tag, bias=False)
-        
+
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
         self.next_tag = next_tag
         super().__init__(activations, layers)
-        
-    
+
+
     @staticmethod
     def from_torch(torch_model, batch_size, input_dim, axis, next_tag):
 

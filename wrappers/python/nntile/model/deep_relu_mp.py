@@ -125,5 +125,3 @@ class DeepReLU_mp(BaseModel):
             for p, p_torch in zip(mlp_nntile.parameters, torch_mlp.parameters()):
                 p.value.from_array(p_torch.detach().numpy().T)
             return mlp_nntile, mlp_nntile.next_tag
-
-

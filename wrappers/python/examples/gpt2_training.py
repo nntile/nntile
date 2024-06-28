@@ -29,7 +29,7 @@ from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
         GPT2Model as GPT2Model_nntile
 from nntile.tensor import copy_async
 from nntile.loss import Frob
-import pdb 
+import pdb
 from typing import Union, Optional, Tuple, List
 from packaging import version
 import copy
@@ -164,7 +164,7 @@ config.resid_pdrop = 0
 # supported soon
 model_torch.lm_head.weight = nn.Parameter(model_torch.lm_head \
         .weight.detach().clone())
-    
+
 inner_dim = config.n_inner if config.n_inner is not None \
         else 4 * config.hidden_size
 config.n_inner = inner_dim
@@ -665,4 +665,3 @@ if args.torch_nepochs > 0:
             * args.torch_nepochs * num_train_batches * args.batch_size \
             / time1 * 1e-12), flush=True)
     print("Torch loss on the last batch: {}".format(loss.item()), flush=True)
-

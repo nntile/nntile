@@ -16,7 +16,7 @@ import pathlib
 import os, sys
 import torch
 import torch.nn as nn
-import torchvision.datasets as dts 
+import torchvision.datasets as dts
 import numpy as np
 import argparse
 
@@ -51,7 +51,7 @@ def data_loader_to_tensor_rgb(data_set, label_set, trns, batch_size, minibatch_s
 
     n_patches = int(h * w / (patch_size ** 2))
     n_channels = c * (patch_size ** 2)
-  
+
     train_tensor = torch.empty((n_batches, n_minibatches, n_patches, minibatch_size, n_channels), dtype=torch.float32)
     label_tensor = torch.empty((n_batches, n_minibatches, minibatch_size), dtype=torch.float32)
     for i in range(n_batches):
@@ -92,7 +92,7 @@ def evaluate(torch_model, test_data_tensor, test_label_tensor):
                 patched_test_sample = test_data_tensor[test_batch_iter,test_minibatch_iter,:,:,:]
                 patched_test_sample = patched_test_sample.to(device)
                 true_test_labels = test_label_tensor[test_batch_iter, test_minibatch_iter, :].to(device)
-            
+
                 torch_output = torch_model(patched_test_sample)
 
                 _, predictions = torch.max(torch_output, 1)
@@ -189,9 +189,9 @@ optim_torch = torch.optim.Adam(mlp_mixer_model.parameters(), lr=lr)
 crit_torch = nn.CrossEntropyLoss(reduction="sum")
 
 train_data_tensor, train_labels = data_loader_to_tensor_rgb(train_set.data, train_set.targets, trnsform, batch_size, minibatch_size, patch_size)
-train_labels = train_labels.type(torch.LongTensor) 
+train_labels = train_labels.type(torch.LongTensor)
 num_batch_train, num_minibatch_train = train_data_tensor.shape[0], train_data_tensor.shape[1]
-    
+
 test_data_tensor, test_labels = data_loader_to_tensor_rgb(test_set.data, test_set.targets, trnsform, batch_size, minibatch_size, patch_size)
 test_labels = test_labels.type(torch.LongTensor)
 # checkpoint = torch.load(final_nntile_path)
@@ -205,7 +205,7 @@ if args.no_save == False:
                 }, init_state_path)
 mlp_mixer_model = mlp_mixer_model.to(device)
 mlp_mixer_model.zero_grad()
-for epoch_counter in range(num_epochs):  
+for epoch_counter in range(num_epochs):
     for batch_iter in range(num_batch_train):
         torch_train_loss = torch.zeros(1, dtype=torch.float32).to(device)
         for minibatch_iter in range(num_minibatch_train):
@@ -219,10 +219,10 @@ for epoch_counter in range(num_epochs):
         optim_torch.step()
         mlp_mixer_model.zero_grad()
         print('Epoch: {}, batch {} out of {}, train loss: {}'.format(epoch_counter, batch_iter, train_data_tensor.shape[0], torch_train_loss.item()))
-        
+
         if args.test_each_batch:
             evaluate(mlp_mixer_model, test_data_tensor, test_labels)
-    
+
     if args.test_each_epoch:
         evaluate(mlp_mixer_model, test_data_tensor, test_labels)
 if args.no_save == False:

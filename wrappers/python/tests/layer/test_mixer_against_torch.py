@@ -56,7 +56,7 @@ def helper(dtype: np.dtype):
         tol = 1e-5
     elif dtype == np.float64:
         tol = 1e-10
-    
+
     minibatch_size = 8
     clr_space_size = 3
     h, w = 8, 8
@@ -83,12 +83,12 @@ def helper(dtype: np.dtype):
     next_tag = A.next_tag
     A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = A_grad.next_tag
-   
+
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
 
     # Define mixer layer
     mixer_layer, next_tag = Mixer.generate_simple(A_moments, next_tag)
-    
+
     rand_W1 = np.random.randn(*mixer_layer.mlp_1.linear_1.w.value.shape)
     np_W1 = np.array(rand_W1, dtype=dtype, order='F')
     mixer_layer.mlp_1.linear_1.w.value.from_array(np_W1)
@@ -116,7 +116,7 @@ def helper(dtype: np.dtype):
     mixer_layer.norm_2.gamma.value.from_array(np_gamma)
     mixer_layer.norm_2.beta.value.from_array(np_beta)
     A.from_array(np_A)
-    
+
     mixer_layer.clear_gradients()
     mixer_layer.forward_async()
     nntile.starpu.wait_for_all()
@@ -130,7 +130,7 @@ def helper(dtype: np.dtype):
 
     mixer_layer.backward_async()
     nntile.starpu.wait_for_all()
-    
+
     torch_mixer_layer = TorchMixerLayer(n_patches, n_channels)
     torch_mixer_layer.set_weight_parameters(np_W1, np_W2, np_W3, np_W4)
     torch_mixer_layer.set_normalization_parameters(np_gamma, np_beta, np_gamma, np_beta)
@@ -146,7 +146,7 @@ def helper(dtype: np.dtype):
         A_moments.unregister()
         mixer_layer.unregister()
         fro_loss.unregister()
-        return False 
+        return False
 
     for p_nntile, p_torch in zip(mixer_layer.parameters, torch_mixer_layer.parameters()):
         p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=dtype)

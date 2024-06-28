@@ -42,7 +42,7 @@ class Add(BaseLayer):
         self.x.value.wont_use()
         self.y.value.wont_use()
         self.res.value.wont_use()
-    
+
     def backward_async(self):
         add_async(1, self.res.grad, 1, self.x.grad)
         add_async(1, self.res.grad, 1, self.y.grad)
@@ -52,4 +52,3 @@ class Add(BaseLayer):
 
     def unregister(self):
         self.res.unregister()
-

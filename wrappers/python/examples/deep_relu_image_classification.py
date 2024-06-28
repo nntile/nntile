@@ -129,7 +129,7 @@ for train_batch_data, train_batch_labels in train_loader:
 
         y = nntile.tensor.Tensor_int64(y_traits, y_distr, next_tag)
         next_tag = y.next_tag
-        
+
         y.from_array(current_labels[idx*args.minibatch:(idx+1)*args.minibatch])
         current_minibatch_label.append(y)
 
@@ -300,4 +300,3 @@ for minibatch in batch_data:
 for minibatch in batch_labels:
     for y in minibatch:
         y.unregister()
-

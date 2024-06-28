@@ -378,4 +378,3 @@ class Linear(BaseLayer):
         self.y.value.wont_use()
         self.y.grad.wont_use()
         self.w.value.wont_use()
-

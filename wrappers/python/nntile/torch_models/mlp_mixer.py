@@ -62,7 +62,7 @@ class MixerMlp(nn.Module):
         super().__init__()
         self.side = side
         self.dim = dim
-        self.fn = nn.Sequential(nn.Linear(self.dim, 4 * self.dim, bias = False), nn.GELU(), 
+        self.fn = nn.Sequential(nn.Linear(self.dim, 4 * self.dim, bias = False), nn.GELU(),
                                 nn.Linear(4 * self.dim, self.dim, bias = False))
 
 
@@ -86,12 +86,12 @@ class MixerMlp(nn.Module):
             x = torch.transpose(x, 0, 2)
             output = self.fn(x)
             return torch.transpose(output, 0, 2)
-        
+
 
 class Mixer(nn.Module):
     # channel dim - dimensionality of each channel - number of rows in a matrix [n_patches x n_channels]
     # patch dim - dimensionality of each patch vector - number of columns in a matrix [n_patches x n_channels]
-    def __init__(self, channel_dim: int, patch_dim :int):       
+    def __init__(self, channel_dim: int, patch_dim :int):
         super().__init__()
         self.norm_1 = nn.LayerNorm(patch_dim)
         self.mlp_1 = MixerMlp('R', channel_dim)
@@ -111,10 +111,10 @@ class Mixer(nn.Module):
         self.mlp_2.set_weight(mlp2_w1, mlp2_w2)
 
 
-    def forward(self, x: torch.Tensor):       
+    def forward(self, x: torch.Tensor):
         y_tmp = self.mlp_1.forward(self.norm_1(x)) + x
         return self.mlp_2.forward(self.norm_2(y_tmp)) + y_tmp
-    
+
 
 class MlpMixer(nn.Module):
     def __init__(self, channel_dim: int, init_patch_dim: int, patch_dim: int, num_mixer_layers: int, n_classes: int):
@@ -132,7 +132,7 @@ class MlpMixer(nn.Module):
     def forward(self, x: torch.Tensor):
         mixer_output = self.mixer_sequence(x)
         return self.classification(mixer_output.mean(dim=(0)))
-    
+
 
     def evaluate(self, test_data_tensor, test_label_tensor, device):
         num_batch_test, num_minibatch_test = test_data_tensor.shape[0], test_data_tensor.shape[1]
@@ -144,7 +144,7 @@ class MlpMixer(nn.Module):
                     patched_test_sample = test_data_tensor[test_batch_iter,test_minibatch_iter,:,:,:]
                     patched_test_sample = patched_test_sample.to(device)
                     true_test_labels = test_label_tensor[test_batch_iter, test_minibatch_iter, :].to(device)
-                
+
                     torch_output = self.forward(patched_test_sample)
 
                     _, predictions = torch.max(torch_output, 1)

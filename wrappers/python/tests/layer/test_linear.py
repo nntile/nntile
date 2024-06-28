@@ -205,7 +205,7 @@ def helper_torch_l(x_shape, w_shape, b_shape, n_contracted_dim):
     w_torch = torch.randn(w_shape, requires_grad=True)
     b_torch = torch.randn(b_shape, requires_grad=True)
     x_torch = torch.randn(x_shape, requires_grad=True)
-    
+
     y_torch = torch.tensordot(x_torch, w_torch, n_contracted_dim) \
             + b_torch.view(1, *b_torch.shape)
     loss_torch = y_torch.sum()
@@ -224,7 +224,7 @@ def helper_torch_l(x_shape, w_shape, b_shape, n_contracted_dim):
             nntile.tensor.notrans, n_contracted_dim, \
             [*w_shape[n_contracted_dim:]], \
             [*w_shape[n_contracted_dim:]], next_tag, bias=True)
-    
+
     np_W = np.array(w_torch.detach().numpy(), dtype=np.float32, order='F')
     layer.w.value.from_array(np_W)
     np_b = np.array(b_torch.detach().numpy(), dtype=np.float32, order='F')
@@ -249,7 +249,7 @@ def helper_torch_l(x_shape, w_shape, b_shape, n_contracted_dim):
         A_moments.unregister()
         layer.unregister()
         assert False
-    
+
     nntile_w_grad = np.zeros(w_torch.shape, dtype=np.float32, order="F")
     layer.w.grad.to_array(nntile_w_grad)
     w_grad_rel_error = np.linalg.norm(nntile_w_grad - \
@@ -272,7 +272,7 @@ def helper_torch_l(x_shape, w_shape, b_shape, n_contracted_dim):
         A_moments.unregister()
         layer.unregister()
         assert False
-    
+
     nntile_x_grad = np.zeros(x_torch.shape, dtype=np.float32, order="F")
     A_moments.grad.to_array(nntile_x_grad)
     x_grad_rel_error = np.linalg.norm(nntile_x_grad - \
@@ -305,7 +305,7 @@ def helper_torch_r(x_shape, w_shape, b_shape, n_contracted_dim):
         y_torch += b_torch.view(*b_torch.shape, 1, 1)
     loss_torch = y_torch.sum()
     loss_torch.backward()
-    
+
     A_traits = nntile.tensor.TensorTraits(x_torch.shape, x_torch.shape)
     mpi_distr = [0]
     next_tag = 0
@@ -320,7 +320,7 @@ def helper_torch_r(x_shape, w_shape, b_shape, n_contracted_dim):
             nntile.tensor.notrans, n_contracted_dim, \
             [*w_shape[:-n_contracted_dim]], \
             [*w_shape[:-n_contracted_dim]], next_tag, bias=True)
-    
+
     np_W = np.array(w_torch.detach().numpy(), dtype=np.float32, order='F')
     layer.w.value.from_array(np_W)
     np_b = np.array(b_torch.detach().numpy(), dtype=np.float32, order='F')
@@ -345,7 +345,7 @@ def helper_torch_r(x_shape, w_shape, b_shape, n_contracted_dim):
         A_moments.unregister()
         layer.unregister()
         assert False
-    
+
     nntile_w_grad = np.zeros(w_torch.shape, dtype=np.float32, order="F")
     layer.w.grad.to_array(nntile_w_grad)
     w_grad_rel_error = np.linalg.norm(nntile_w_grad - \
@@ -368,7 +368,7 @@ def helper_torch_r(x_shape, w_shape, b_shape, n_contracted_dim):
         A_moments.unregister()
         layer.unregister()
         assert False
-    
+
     nntile_x_grad = np.zeros(x_torch.shape, dtype=np.float32, order="F")
     A_moments.grad.to_array(nntile_x_grad)
     x_grad_rel_error = np.linalg.norm(nntile_x_grad - \
@@ -406,7 +406,7 @@ def helper_torch_linear(x_shape, w_shape):
     layer, next_tag = Linear.generate_simple(A_moments, 'L', \
             nntile.tensor.notrans, 1, [w_shape[1]], [w_shape[1]], next_tag, \
             bias=True)
-    
+
     np_W = np.array(linear_layer.weight.detach().numpy(), dtype=np.float32, \
             order='F')
     layer.w.value.from_array(np_W.T)
@@ -434,7 +434,7 @@ def helper_torch_linear(x_shape, w_shape):
         A_moments.unregister()
         layer.unregister()
         return False
-    
+
     nntile_w_grad = np.zeros(linear_layer.weight.T.shape, dtype=np.float32, \
             order="F")
     layer.w.grad.to_array(nntile_w_grad)
@@ -458,7 +458,7 @@ def helper_torch_linear(x_shape, w_shape):
         A_moments.unregister()
         layer.unregister()
         return False
-    
+
     nntile_x_grad = np.zeros(x_torch.shape, dtype=np.float32, order="F")
     A_moments.grad.to_array(nntile_x_grad)
     x_grad_rel_error = np.linalg.norm(nntile_x_grad - \
@@ -493,7 +493,7 @@ def test_repeat():
                           w_shape=[10, 5], b_shape=[5],
                           n_contracted_dim=1)
     # Support for multi-dim bias will be added later
-    #assert helper_torch_l(x_shape=[20, 10], 
+    #assert helper_torch_l(x_shape=[20, 10],
     #                      w_shape=[10, 5, 7], b_shape=[5, 7],
     #                      n_contracted_dim=1)
     assert helper_torch_l(x_shape=[20, 10, 5],
@@ -502,13 +502,13 @@ def test_repeat():
     assert helper_torch_l(x_shape=[20, 10, 5],
                           w_shape=[5, 7], b_shape=[7],
                           n_contracted_dim=1)
-    
-    assert helper_torch_r(x_shape=[5, 3], w_shape=[10, 5], 
+
+    assert helper_torch_r(x_shape=[5, 3], w_shape=[10, 5],
                           b_shape=[10], n_contracted_dim=1)
     # Support for multi-dim bias will be added later
-    #assert helper_torch_r(x_shape=[7, 2], w_shape=[10, 5, 7], 
+    #assert helper_torch_r(x_shape=[7, 2], w_shape=[10, 5, 7],
     #                      b_shape=[10, 5], n_contracted_dim=1)
-    assert helper_torch_r(x_shape=[5, 7, 2], w_shape=[10, 5, 7], 
+    assert helper_torch_r(x_shape=[5, 7, 2], w_shape=[10, 5, 7],
                           b_shape=[10], n_contracted_dim=2)
     assert helper_torch_r(x_shape=[7, 3, 10],
                           w_shape=[5, 7], b_shape=[5],

@@ -44,7 +44,7 @@ def helper(dtype):
     rand_A = np.random.randn(*shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A.from_array(np_A)
-    
+
     causal_mask = np.tril(np.ones((3, 3), dtype=bool))
     mask_value = -1000.
     np_res = np.where(causal_mask[:, :, np.newaxis], np_A, mask_value)

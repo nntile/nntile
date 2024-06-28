@@ -69,7 +69,7 @@ class GPT2MLP(BaseModel):
                 redux=redux)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
-        
+
         new_layer, next_tag = Act.generate_simple(activations[-1], \
                 activation_function, next_tag)
         layers.append(new_layer)
@@ -123,7 +123,7 @@ class GPT2Model(BaseModel):
         flashattention = config["flashattention"]
         redux = config["redux"]
         self.dtype = config["dtype"]
-        
+
         if self.dtype not in ["fp32", "tf32"]:
             raise TypeError("Only fp32 and tf32 are supported for weight type")
 
@@ -156,10 +156,10 @@ class GPT2Model(BaseModel):
             wte_layer, next_tag = Embedding.generate_simple(input_ids.value, \
                         Tensor_fp32_fast_tf32, 0, vocab_size, self.embed_dim, embed_dim_tile, \
                         vocab_embed_dim_tile, next_tag)
-                
+
         layers.append(wte_layer)
         activations.extend(wte_layer.activations_output)
-        
+
         if self.dtype == "fp32":
             wpe_layer, next_tag = Embedding.generate_simple(positional_ids.value, \
                         Tensor_fp32, 0, max_position_embeddings, self.embed_dim, \
@@ -168,7 +168,7 @@ class GPT2Model(BaseModel):
             wpe_layer, next_tag = Embedding.generate_simple(positional_ids.value, \
                         Tensor_fp32_fast_tf32, 0, max_position_embeddings, self.embed_dim, \
                         embed_dim_tile, vocab_embed_dim_tile, next_tag)
-        
+
         layers.append(wpe_layer)
         activations.extend(wpe_layer.activations_output)
 
@@ -210,7 +210,7 @@ class GPT2Model(BaseModel):
             next_tag = gpt_block.next_tag
 
             activations.extend(gpt_block.activations[1:])
-            layers.extend(gpt_block.layers) 
+            layers.extend(gpt_block.layers)
 
             new_layer, next_tag = Add.generate_simple(activations[-5], \
                     activations[-1], next_tag)
@@ -254,7 +254,7 @@ class GPT2Model(BaseModel):
                     self.parameters[nntile_p_idx].value.to_array(p_nntile_np)
                     init_shape = p[:, i_tensor*attn_embed_dim: (i_tensor+1)*attn_embed_dim].T.shape
                     cur_tensor = torch.from_numpy(p_nntile_np).reshape(init_shape)
-                    
+
                     p.data[:, i_tensor*attn_embed_dim: (i_tensor+1)*attn_embed_dim] = cur_tensor.T
                     nntile_p_idx += 1
             elif layer_name == "c_attn" and name.split(".")[-1] == "bias":
@@ -306,7 +306,7 @@ class GPT2Model(BaseModel):
         positional_ids_value.from_array(np.array(np.arange(seq_len), \
                 order="F", dtype=np.int64))
         positional_ids = TensorMoments(positional_ids_value, None, False)
-        
+
         x_traits = TensorTraits([seq_len, batch_size], \
                 [seq_len_tile, batch_size_tile])
         x_distr = [0] * x_traits.grid.nelems
@@ -380,9 +380,8 @@ class GPT2Model(BaseModel):
                 nntile_p_idx += 1
 
         return gpt2_nntile, gpt2_nntile.next_tag
-    
+
     def unregister(self):
         super().unregister()
         if self.mask:
             self.mask.unregister()
-

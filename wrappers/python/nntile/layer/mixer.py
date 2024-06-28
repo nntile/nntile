@@ -27,7 +27,7 @@ class GAP(BaseLayer):
         self.x = x
         self.y = y
         self.yT = yT
-        
+
         # Redirect to BaseClass initialization
         super().__init__([x], [y], [], [yT])
 
@@ -69,7 +69,7 @@ class GAP(BaseLayer):
         layer = GAP(x, y, yT)
         # Return layer and next tag to be used
         return (layer, next_tag)
-    
+
 
     def forward_async(self):
         alpha = 1 / (self.x.value.shape[0])
@@ -93,12 +93,12 @@ class MixerMlp(BaseLayer):
 
 
     # Construct MixerMlp layer with all the provided data
-    def __init__(self, side: str, x: TensorMoments, y: TensorMoments, 
+    def __init__(self, side: str, x: TensorMoments, y: TensorMoments,
                  linear_1: Linear, linear_2: Linear, act: Act):
         # Check parameter side
         if side != 'L' and side != 'R':
             raise ValueError("side must be either 'L' or 'R'")
-        
+
         # Set up local named parameters
         self.side = side
         self.x = x
@@ -109,7 +109,7 @@ class MixerMlp(BaseLayer):
 
         layer_temporaries = list(self.linear_1.activations_output + self.act.activations_output + self.linear_2.activations_output)
         layer_parameters = list(self.linear_1.parameters + self.linear_2.parameters)
-        
+
         # Redirect to BaseClass initialization
         super().__init__([x], [y], layer_parameters, layer_temporaries)
 
@@ -145,7 +145,7 @@ class MixerMlp(BaseLayer):
 
         # Return layer and next tag to be used
         return (layer, next_tag)
-    
+
 
     def forward_async(self):
         self.linear_1.forward_async()
@@ -168,7 +168,7 @@ class Mixer(BaseLayer):
     mlp_2: MixerMlp
 
     # Construct mixer layer with all the provided data
-    def __init__(self, x: TensorMoments, y: TensorMoments, 
+    def __init__(self, x: TensorMoments, y: TensorMoments,
                  norm_1: LayerNorm, norm_2: LayerNorm,
                  mlp_1: MixerMlp, mlp_2: MixerMlp):
 
@@ -202,7 +202,7 @@ class Mixer(BaseLayer):
         for t in self.parameters:
             if t.grad is not None and t.grad_required:
                 clear_async(t.grad)
-    
+
 
     # Simple generator for the mixer layer
     @staticmethod
@@ -211,7 +211,7 @@ class Mixer(BaseLayer):
         norm_1_layer, next_tag = LayerNorm.generate_simple(x, 2, eps, next_tag)
 
         mlp_layer1, next_tag = MixerMlp.generate_simple(norm_1_layer.y, 'R', next_tag)
-        
+
         norm_2_layer, next_tag = LayerNorm.generate_simple(mlp_layer1.y, 2, eps, next_tag)
 
         mlp_layer2, next_tag = MixerMlp.generate_simple(norm_2_layer.y, 'L', next_tag)
@@ -219,7 +219,7 @@ class Mixer(BaseLayer):
         layer = Mixer(x, mlp_layer2.y, norm_1_layer, norm_2_layer, mlp_layer1, mlp_layer2)
 
         return layer, next_tag
-    
+
 
     # Forward propagation of the mixer layer
     def forward_async(self):
