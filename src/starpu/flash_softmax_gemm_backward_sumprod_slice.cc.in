@@ -276,7 +276,7 @@ void cuda<fp32_fast_tf32_t>(void *buffers[], void *cl_args)
     Index K_offset = args->head * args->seq;
     Index Q_offset = K_offset;
     Index tmp_offset = args->seq * args->seq;
-    fp32_t head_ = static_cast<fp32_t>(args->head);
+    float head_ = static_cast<float>(args->head);
     cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
             args->seq, args->seq, args->head, 1.0/std::sqrt(head_),
             K, args->head, K_offset, Q, args->head, Q_offset,

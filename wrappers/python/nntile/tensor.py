@@ -60,9 +60,9 @@ def gemm_async(alpha: float, trans_A: TransOp, A: Tensor, trans_B: TransOp, \
     elif type(A) is core_tensor.Tensor_fp64:
         core_tensor.gemm_async_fp64(alpha, trans_A, A, trans_B, B, beta, C,
                 ndim, batch_ndim, redux)
-    elif type(A) is core_tensor.Tensor_fp16:
-        core_tensor.gemm_async_fp16(alpha, trans_A, A, trans_B, B, beta, C,
-                ndim, batch_ndim, redux)
+    #elif type(A) is core_tensor.Tensor_fp16:
+    #    core_tensor.gemm_async_fp16(alpha, trans_A, A, trans_B, B, beta, C,
+    #            ndim, batch_ndim, redux)
     elif type(A) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.gemm_async_fp32_fast_tf32(alpha, trans_A, A, trans_B, B, beta, C,
                 ndim, batch_ndim, redux)
