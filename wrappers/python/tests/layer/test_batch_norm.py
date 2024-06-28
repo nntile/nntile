@@ -43,11 +43,11 @@ def generate_input(params: BatchNormTestParams):
     input_torch = torch.tensor(input_np, requires_grad=True)
     output_grad_torch = torch.tensor(output_grad_np, requires_grad=False)
 
-    input_nnt = nntile.tensor.from_array(input_np)
-    input_grad_nnt = nntile.tensor.from_array(np.zeros(params.shape).astype(params.dtype))
+    input_nnt = nntile.tensor.astensor(input_np)
+    input_grad_nnt = nntile.tensor.astensor(np.zeros(params.shape).astype(params.dtype))
     input_moment = nntile.tensor.TensorMoments(input_nnt, input_grad_nnt, grad_required=True)
     
-    output_grad_nnt = nntile.tensor.from_array(output_grad_np)
+    output_grad_nnt = nntile.tensor.astensor(output_grad_np)
 
     return (input_moment, output_grad_nnt), (input_torch, output_grad_torch)
 
@@ -65,7 +65,7 @@ def test_batchnorm_forward(params: BatchNormTestParams):
 
     # test forward
     np.testing.assert_allclose(
-        nntile.tensor.to_array(nntile_layer.x_res),
+        nntile.tensor.asarray(nntile_layer.x_res),
         out_torch.detach().numpy(),
         atol = params.atol,
         err_msg = f"Error in forward for params: {params}"
@@ -89,7 +89,7 @@ def test_batchnorm_backward(params: BatchNormTestParams):
 
     # test backward
     np.testing.assert_allclose(
-        nntile.tensor.to_array(nntile_layer.x_tm.grad),
+        nntile.tensor.asarray(nntile_layer.x_tm.grad),
         input_torch.grad.numpy(),
         atol = params.atol,
         err_msg = f"Error in backward for params: {params}"

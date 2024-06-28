@@ -1,8 +1,11 @@
-from nntile.types import tensor as core_tensor
-from nntile.types import TensorTraits, Tensor_fp32, Tensor_fp64, \
-        Tensor_int64, Tensor_fp16, Tensor_bool
-from nntile.tensor import TransOp, notrans, trans
-from typing import Union, List
+from typing import List, Union
+
+from .nntile_core import TransOp, notrans, trans
+from .nntile_core import tensor as core_tensor
+from nntile.types import (Tensor, Tensor_bool, Tensor_fp16, Tensor_fp32,
+                          Tensor_fp64, Tensor_int64, TensorFloatOrInt,
+                          TensorOrFloat, TensorTraits)
+
 
 # Wrapper for multiprecision gemm
 def gemm_async(alpha: float, trans_A: TransOp, A: Tensor, trans_B: TransOp, \

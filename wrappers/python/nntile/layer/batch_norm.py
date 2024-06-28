@@ -64,7 +64,7 @@ class BatchNorm2d(BaseLayer):
         )
 
         self.n_channels = self.x.shape[1]
-        self.numel_in_channel = math.mul(self.x.shape) / self.n_channels
+        self.numel_in_channel = math.prod(self.x.shape) / self.n_channels
 
         self.grad = None
 
