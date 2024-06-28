@@ -75,4 +75,3 @@ endfunction()
 #    EXEC_NAME "deeplinear_mnist"
 #    SOURCES "deeplinear_mnist.cc"
 #    LINK_LIBRARIES nntile)
-

@@ -528,7 +528,7 @@ void restrict_where(uint32_t where)
     codelet_NT_fp32_fast_tf32.restrict_where(where);
     codelet_TN_fp32_fast_tf32.restrict_where(where);
     codelet_TT_fp32_fast_tf32.restrict_where(where);
-    
+
 }
 
 void restore_where()
@@ -664,4 +664,3 @@ void submit<fp64_t>(const TransOp &transA, const TransOp &transB,
         Handle B, scal_t beta, Handle C, int redux);
 
 } // namespace nntile::starpu::gemm
-

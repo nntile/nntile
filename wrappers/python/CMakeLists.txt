@@ -95,4 +95,3 @@ endforeach()
 
 # Install Python module
 install(CODE "execute_process(COMMAND ${PYTHON_EXECUTABLE} ${SETUP_PY} install)")
-

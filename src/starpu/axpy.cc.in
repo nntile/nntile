@@ -341,4 +341,3 @@ template
 void submit<fp64_t>(scal_t alpha, Index nelems, Handle src, Handle dst);
 
 } // namespace nntile::starpu::axpy
-

@@ -346,4 +346,3 @@ set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC})# ${LAYER_SRC})
     #${MODEL_SRC} ${OPTIMIZER_SRC})
 
 target_sources(nntile PRIVATE ${SRC})
-

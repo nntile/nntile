@@ -411,4 +411,3 @@ set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR})
     #${LAYER_HDR})# ${MODEL_HDR} ${OPTIMIZER_HDR})
 
 target_sources(nntile PUBLIC ${HDR})
-

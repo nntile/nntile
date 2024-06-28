@@ -399,4 +399,3 @@ void submit<fp64_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
         int redux);
 
 } // namespace nntile::starpu::flash_softmax_gemm
-
