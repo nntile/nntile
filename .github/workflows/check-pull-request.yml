@@ -47,7 +47,7 @@ jobs:
             --to-ref "${{ github.head_ref }}"
       - name: Run pre-commit on merge
         uses: pre-commit/action@v3.0.0
-        if: github.event.push
+        if: '!github.event.pull_request'
 
   # TODO(@daskol): We need rework this stage: pre-build images, build StarPU
   # in-tree, rework layout and defaults, etc.
