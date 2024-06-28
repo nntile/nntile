@@ -674,11 +674,11 @@ void def_mod_tensor(py::module_ &m)
 
     m.def("scatter_async_fp64", &scatter_async<fp64_t>);
     m.def("scatter_async_fp32", &scatter_async<fp32_t>);
-    m.def("scatter_async_int64", &scatter_async<Index>);
+    m.def("scatter_async_int64", &scatter_async<nntile::int64_t>);
     m.def("scatter_async_bool", &scatter_async<bool_t>);
     m.def("scatter_fp64", &scatter<fp64_t>);
     m.def("scatter_fp32", &scatter<fp32_t>);
-    m.def("scatter_int64", &scatter<Index>);
+    m.def("scatter_int64", &scatter<nntile::int64_t>);
     m.def("scatter_bool", &scatter<bool_t>);
     m.def("randn_async_fp64", &randn_async<fp64_t>);
     m.def("randn_async_fp32", &randn_async<fp32_t>);
@@ -771,30 +771,30 @@ void def_mod_tensor(py::module_ &m)
 
     m.def("gather_async_fp64", &gather_async<fp64_t>);
     m.def("gather_async_fp32", &gather_async<fp32_t>);
-    m.def("gather_async_int64", &gather_async<Index>);
+    m.def("gather_async_int64", &gather_async<nntile::int64_t>);
     m.def("gather_async_bool", &gather_async<bool_t>);
     m.def("gather_fp64", &gather<fp64_t>);
     m.def("gather_fp32", &gather<fp32_t>);
-    m.def("gather_int64", &gather<Index>);
+    m.def("gather_int64", &gather<nntile::int64_t>);
     m.def("gather_bool", &gather<bool_t>);
 
     m.def("copy_intersection_async_fp64", &copy_intersection_async<fp64_t>);
     m.def("copy_intersection_async_fp32", &copy_intersection_async<fp32_t>);
-    m.def("copy_intersection_async_int64", &copy_intersection_async<Index>);
+    m.def("copy_intersection_async_int64", &copy_intersection_async<nntile::int64_t>);
 
     m.def("copy_intersection_fp64", &copy_intersection<fp64_t>);
     m.def("copy_intersection_fp32", &copy_intersection<fp32_t>);
-    m.def("copy_intersection_int64", &copy_intersection<Index>);
+    m.def("copy_intersection_int64", &copy_intersection<nntile::int64_t>);
 
     m.def("copy_async_fp64", &copy_async<fp64_t>);
     m.def("copy_async_fp32", &copy_async<fp32_t>);
     m.def("copy_async_fp32_fast_tf32", &copy_async<fp32_fast_tf32_t>);
-    m.def("copy_async_int64", &copy_async<Index>);
+    m.def("copy_async_int64", &copy_async<nntile::int64_t>);
 
     m.def("copy_fp64", &copy<fp64_t>);
     m.def("copy_fp32", &copy<fp32_t>);
     m.def("copy_fp32_fast_tf32", &copy<fp32_fast_tf32_t>);
-    m.def("copy_int64", &copy<Index>);
+    m.def("copy_int64", &copy<nntile::int64_t>);
 
     m.def("clear_async_fp64", &clear_async<fp64_t>);
     m.def("clear_async_fp32", &clear_async<fp32_t>);
