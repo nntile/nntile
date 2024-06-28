@@ -2,6 +2,9 @@ name: Pull Request Checks
 
 # Trigger the workflow on push or pull request (only main branch).
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
