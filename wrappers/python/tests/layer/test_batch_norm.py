@@ -56,8 +56,8 @@ def test_batchnorm(params: BatchNormTestParams):
     (input_moment, output_grad_nnt), (input_torch, output_grad_torch) = generate_input(params)
     
     # torch forward/backward
-    o = nn.BatchNorm2d(params.shape[1], dtype=input_torch.dtype, affine=False)(input_torch)
-    l = (o*output_grad_torch.detach()).sum()
+    out_torch = nn.BatchNorm2d(params.shape[1], dtype=input_torch.dtype, affine=False)(input_torch)
+    l = (out_torch*output_grad_torch.detach()).sum()
     l.backward()
 
     # nntile forward/backward
@@ -70,7 +70,7 @@ def test_batchnorm(params: BatchNormTestParams):
     # test forward
     np.testing.assert_allclose(
         nntile.tensor.to_array(nntile_layer.x_res),
-        o.detach().numpy(),
+        out_torch.detach().numpy(),
         atol = params.atol,
         err_msg = f"Error in forward for params: {params}"
     )
