@@ -73,7 +73,7 @@ def test_batchnorm(params: BatchNormTestParams):
         o,
         atol=params.atol
     )
-    assert success, "Error in forward for params: " + str(params)
+    assert success, f"Error in forward for params: {params}"
 
     # test backward
     success = torch.allclose(
@@ -81,7 +81,7 @@ def test_batchnorm(params: BatchNormTestParams):
         input_torch.grad,
         atol=params.atol
     )
-    assert success, "Error in backward for params: " + str(params)
+    assert success, f"Error in backward for params: {params}"
 
 def batch_norm_test_suite():
     for _iter in range(4):
