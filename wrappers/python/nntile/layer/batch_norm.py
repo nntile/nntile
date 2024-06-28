@@ -77,8 +77,8 @@ class BatchNorm2d(BaseLayer):
         self.tmp_buff_channels = zeros([self.x.shape[1]], dtype=type(x.value))
         self.tmp_buff_channels_internal = zeros([self.x.shape[1]], dtype=type(x.value))
 
-    @staticmethod
-    def generate_simple(x, eps: float = 1e-05, redux=False):
+    @classmethod
+    def generate_simple(cls, x, eps: float = 1e-05, redux=False):
         x_res = TensorMoments(
             zeros(x.value.shape, dtype=type(x.value)),
             zeros(x.value.shape, dtype=type(x.value)),
