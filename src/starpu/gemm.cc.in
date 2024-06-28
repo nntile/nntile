@@ -151,7 +151,7 @@ static inline
 void cublas(cublasHandle_t handle, cublasOperation_t transA,
         cublasOperation_t transB, int M, int N, int K, float alpha,
         const fp32_fast_tf32_t *A, int ldA, const fp32_fast_tf32_t *B, int ldB,
-        double beta, fp32_fast_tf32_t *C, int ldC)
+        float beta, fp32_fast_tf32_t *C, int ldC)
     noexcept
 {
     cublasGemmEx(handle, transA, transB, M, N, K, &alpha, (const float *)A,
