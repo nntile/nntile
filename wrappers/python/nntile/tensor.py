@@ -11,5 +11,11 @@
 #
 # @version 1.0.0
 
+from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
+        Tensor_int64, Tensor_fp16, Tensor_bool
+from .nntile_core import TransOp, notrans, trans
+
+from .utils.constructors import astensor, asarray, zeros, ones
+
 from .types import *
 from .functions import *
