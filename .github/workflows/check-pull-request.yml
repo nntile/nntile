@@ -23,6 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Pull all PR commits
+        if: github.event.pull_request
         run: |
           # Un-shallow refs.
           git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
@@ -32,16 +33,21 @@ jobs:
           git checkout ${{ github.event.pull_request.head.ref }}
           # Fetch main for common origin.
           git fetch origin main:main --depth=100
-      - name: Set up Python 3.12
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           cache: 'pip'
-          python-version: 3.12
-      - uses: pre-commit/action@v3.0.0
+          python-version: ${{ matrix.python-version }}
+      - name: Run pre-commit on pull request
+        uses: pre-commit/action@v3.0.0
+        if: github.event.pull_request
         with:
           extra_args: >
             --from-ref "$(git merge-base main HEAD)"
             --to-ref "${{ github.head_ref }}"
+      - name: Run pre-commit on merge
+        uses: pre-commit/action@v3.0.0
+        if: github.event.push
 
   # TODO(@daskol): We need rework this stage: pre-build images, build StarPU
   # in-tree, rework layout and defaults, etc.
