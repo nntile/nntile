@@ -88,4 +88,3 @@ void cpu<fp64_t>(Index m, Index n, Index k, Index batch, fp64_t alpha,
     noexcept;
 
 } // namespace nntile::kernel::add_fiber
-

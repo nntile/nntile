@@ -59,4 +59,3 @@ template
 void gelutanh<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 } // namespace nntile::tile
-

@@ -75,4 +75,3 @@ void gelutanh_backward<fp64_t>(const Tile<fp64_t> &x, const Tile<fp64_t> &dy,
         const Tile<fp64_t> &dx);
 
 } // namespace nntile::tile
-

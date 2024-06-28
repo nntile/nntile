@@ -115,4 +115,3 @@ void cpu<fp64_t>(Index m, Index n, Index k, Index l, fp64_t eps,
     noexcept;
 
 } // namespace nntile::kernel::normalize
-

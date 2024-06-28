@@ -154,4 +154,3 @@ template
 void submit<fp64_t>(Index nelems, scal_t alpha, Handle src, Handle dst);
 
 } // namespace nntile::starpu::scal
-

@@ -545,4 +545,3 @@ void gemm<fp16_t>(scal_t alpha, const TransOp &transA,
         const Tensor<fp16_t> &C, Index ndim, Index batch_ndim, int redux);
 
 } // namespace nntile::tensor
-

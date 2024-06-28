@@ -193,4 +193,3 @@ void submit<fp64_t>(Index m, Index n, Index k, scal_t alpha, Handle src,
         scal_t beta, Handle dst, int redux);
 
 } // namespace nntile::starpu::sum_slice
-

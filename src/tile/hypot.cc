@@ -77,6 +77,5 @@ void hypot<fp32_fast_tf32_t>(scal_t alpha, const Tile<fp32_fast_tf32_t> &src, sc
 template
 void hypot<fp64_t>(scal_t alpha, const Tile<fp64_t> &src, scal_t beta,
         const Tile<fp64_t> &dst);
-        
-} // namespace nntile::tile
 
+} // namespace nntile::tile

@@ -78,7 +78,7 @@ void validate(Index m, Index n, Index k, T alpha, T beta)
             }
             sum_dst[i1*m+i0] = T{1.0};
         }
-    } 
+    }
     std::vector<T> sum_copy(sum_dst);
     // Check low-level kernel
     std::cout << "Run kernel::sum_slice::cpu<T>\n";
@@ -99,7 +99,7 @@ void validate(Index m, Index n, Index k, T alpha, T beta)
             {
                 TEST_ASSERT(std::abs(sum/sum_ref-T{1}) <= 10*eps);
             }
-            
+
         }
     }
     std::cout << "OK: kernel::sum_slice::cpu<T>\n";
@@ -115,13 +115,13 @@ void validate(Index m, Index n, Index k, T alpha, T beta)
             Index i = (i1*m+i0);
             if(sum_dst[i] == T{0})
             {
-                TEST_ASSERT(sum_cuda[i] == T{0});   
+                TEST_ASSERT(sum_cuda[i] == T{0});
             }
             else
-            {   
-                TEST_ASSERT(std::abs(sum_cuda[i]/sum_dst[i]-T{1}) <= 10*eps); 
+            {
+                TEST_ASSERT(std::abs(sum_cuda[i]/sum_dst[i]-T{1}) <= 10*eps);
             }
-            
+
         }
     }
     std::cout << "OK: kernel::sum_slice::cuda<T>\n";
@@ -140,4 +140,3 @@ int main(int argc, char **argv)
     validate<fp64_t>(4, 7, 8, 2.5, 1.25);
     return 0;
 }
-

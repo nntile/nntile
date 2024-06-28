@@ -72,4 +72,3 @@ template
 void fill<fp64_t>(scal_t val, const Tensor<fp64_t> &A);
 
 } // namespace nntile::tensor
-

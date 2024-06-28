@@ -107,7 +107,7 @@ void init()
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
-            );        
+            );
 }
 
 void restrict_where(uint32_t where)
@@ -183,4 +183,3 @@ void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, scal_t alpha, Handle sr
         scal_t beta, Handle dst);
 
 } // namespace nntile::starpu::add_slice
-

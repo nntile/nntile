@@ -143,4 +143,3 @@ template
 void submit<fp64_t>(Index nelems, Handle maxsumexp, Handle logsumexp);
 
 } // namespace nntile::starpu::logsumexp
-

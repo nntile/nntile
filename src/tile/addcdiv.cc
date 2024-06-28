@@ -82,4 +82,3 @@ void addcdiv<fp64_t>(scal_t val, scal_t eps, const Tile<fp64_t> &nom,
                      const Tile<fp64_t> &denom, const Tile<fp64_t> &src);
 
 } // namespace nntile::tile
-

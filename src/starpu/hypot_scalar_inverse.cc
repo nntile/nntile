@@ -145,4 +145,3 @@ template
 void submit<fp64_t>(Index nelems, scal_t eps, scal_t alpha, Handle dst);
 
 } // namespace nntile::starpu::hypot_scalar_inverse
-

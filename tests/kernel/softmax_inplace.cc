@@ -146,4 +146,3 @@ int main(int argc, char **argv)
     validate<fp64_t>(450, 450, 1);
     return 0;
 }
-

@@ -191,4 +191,3 @@ void sumprod_slice<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src1,
         Index axis, int redux);
 
 } // namespace nntile::tensor
-

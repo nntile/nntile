@@ -175,4 +175,3 @@ void randn<fp64_t>(const Tensor<fp64_t> &dst, const std::vector<Index> &start,
         scal_t mean, scal_t stddev);
 
 } // namespace nntile::tensor
-

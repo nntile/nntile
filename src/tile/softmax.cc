@@ -117,4 +117,3 @@ void softmax<fp64_t>(const Tile<fp64_t> &maxsumexp, const Tile<fp64_t> &src,
         scal_t alpha, const Tile<fp64_t> &dst, Index axis);
 
 } // namespace nntile::tile
-

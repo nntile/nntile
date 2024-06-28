@@ -97,4 +97,3 @@ void sumnorm<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst,
         Index axis);
 
 } // namespace nntile::tile
-

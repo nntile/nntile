@@ -110,4 +110,3 @@ void gelutanh_backward<fp64_t>(const Tensor<fp64_t> &x,
         const Tensor<fp64_t> &dy, const Tensor<fp64_t> &dx);
 
 } // namespace nntile::tensor
-

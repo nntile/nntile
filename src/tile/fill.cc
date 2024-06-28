@@ -59,4 +59,3 @@ template
 void fill<fp64_t>(scal_t val, const Tile<fp64_t> &A);
 
 } // namespace nntile::tile
-

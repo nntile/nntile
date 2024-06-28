@@ -76,4 +76,3 @@ int main(int argc, char **argv)
     validate_cpu<fp64_t>(3, 5, 7, 0.0, 1.0);
     return 0;
 }
-

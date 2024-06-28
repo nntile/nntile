@@ -173,4 +173,3 @@ void submit<fp64_t>(Index m, Index n, Index k, scal_t alpha, Handle src1,
         scal_t beta, Handle src2, Handle dst);
 
 } // namespace nntile::starpu::add_slice3
-

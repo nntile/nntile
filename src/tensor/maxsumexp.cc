@@ -162,4 +162,3 @@ void maxsumexp<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst,
         Index axis, int redux);
 
 } // namespace nntile::tensor
-

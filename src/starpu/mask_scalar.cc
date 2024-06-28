@@ -162,4 +162,3 @@ void submit<fp64_t>(Index nrows, Index ncols, Handle mask, scal_t val,
         Handle data);
 
 } // namespace nntile::starpu::mask_scalar
-

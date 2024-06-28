@@ -101,4 +101,3 @@ void submit(Handle data)
 }
 
 } // namespace nntile::starpu::clear
-

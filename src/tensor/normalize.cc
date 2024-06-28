@@ -208,4 +208,3 @@ void normalize<fp64_t>(const Tensor<fp64_t> &gamma_beta,
         fp64_t eps, Index axis);
 
 } // namespace nntile::tensor
-

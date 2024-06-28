@@ -91,7 +91,7 @@ void validate(Index nrows, Index ncols)
     std::cout << "OK: kernel::mask_scalar::cpu<T>\n";
     for(Index i = 0; i < nrows; ++i)
     {
-        if(i % 2 == 0) 
+        if(i % 2 == 0)
         {
             mask[i] = bool_t(true);
         }
@@ -146,4 +146,3 @@ int main(int argc, char **argv)
     validate<fp64_t>(256, 64);
     return 0;
 }
-

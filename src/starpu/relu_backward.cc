@@ -197,4 +197,3 @@ void submit_mpi<fp64_t>(Index nelems, Handle x, Handle dy, Handle dx,
         int exec_rank);
 
 } // namespace nntile::starpu::relu_backward
-

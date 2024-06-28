@@ -25,5 +25,3 @@ template
 class DeepLinear<fp64_t>;
 
 } // namespace nntile::model
-
-

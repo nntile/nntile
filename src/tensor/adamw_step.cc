@@ -116,4 +116,3 @@ void adamw_step<fp64_t>(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps
                    const Tensor<fp64_t> &p);
 
 } // namespace nntile::tensor
-

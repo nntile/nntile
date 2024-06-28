@@ -101,4 +101,3 @@ void norm_slice<fp64_t>(scal_t alpha, const Tile<fp64_t> &src, scal_t beta,
         const Tile<fp64_t> &dst, Index axis);
 
 } // namespace nntile::tile
-

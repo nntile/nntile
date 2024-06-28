@@ -375,4 +375,3 @@ void gemm<fp16_t>(scal_t alpha, const TransOp &transA,
         const Tile<fp16_t> &C, Index ndim, Index batch_ndim);
 
 } // namespace nntile::tile
-

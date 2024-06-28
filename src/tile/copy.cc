@@ -76,4 +76,3 @@ template
 void copy<Index>(const Tile<Index> &src, const Tile<Index> &dst);
 
 } // namespace nntile::tile
-

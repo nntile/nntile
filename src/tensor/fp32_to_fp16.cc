@@ -58,4 +58,3 @@ void fp32_to_fp16(const Tensor<fp32_t> &src, const Tensor<fp16_t> &dst)
 }
 
 } // namespace nntile::tensor
-

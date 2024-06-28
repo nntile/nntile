@@ -54,4 +54,3 @@ template
 void clear<fp64_t>(const Tile<fp64_t> &tile);
 
 } // namespace nntile::tile
-

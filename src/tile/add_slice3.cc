@@ -129,4 +129,3 @@ void add_slice3<fp64_t>(scal_t alpha, const Tile<fp64_t> &src, scal_t beta,
         const Tile<fp64_t> &src2, const Tile<fp64_t> &dst, Index axis);
 
 } // namespace nntile::tile
-

@@ -184,4 +184,3 @@ void softmax_inplace<fp64_t>(const Tensor<fp64_t> &maxsumexp, scal_t alpha,
         const Tensor<fp64_t> &dst, Index axis);
 
 } // namespace nntile::tensor
-

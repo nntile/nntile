@@ -25,4 +25,3 @@ template
 class SGD<fp64_t>;
 
 } // namespace nntile::optimizer
-

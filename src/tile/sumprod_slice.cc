@@ -112,4 +112,3 @@ void sumprod_slice<fp64_t>(scal_t alpha, const Tile<fp64_t> &src1,
         Index axis);
 
 } // namespace nntile::tile
-

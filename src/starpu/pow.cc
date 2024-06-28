@@ -126,4 +126,3 @@ template
 void submit<fp64_t>(Index nelems, fp64_t alpha, fp64_t exp, Handle data);
 
 } // namespace nntile::starpu::pow
-

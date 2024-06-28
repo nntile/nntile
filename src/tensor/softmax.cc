@@ -205,4 +205,3 @@ void softmax<fp64_t>(const Tensor<fp64_t> &maxsumexp,
         Index axis);
 
 } // namespace nntile::tensor
-

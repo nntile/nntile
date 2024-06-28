@@ -146,4 +146,3 @@ void prod_fiber3<fp64_t>(const Tensor<fp64_t> &src1, scal_t alpha,
         const Tensor<fp64_t> &src2, const Tensor<fp64_t> &dst, Index axis);
 
 } // namespace nntile::tensor
-

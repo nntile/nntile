@@ -90,4 +90,3 @@ void total_sum_accum<fp64_t>(scal_t alpha, const Tile<fp64_t> &logsumexp, const 
                            const Tile<Index> &class_labels, const Tile<fp64_t> &val);
 
 } // namespace nntile::tile
-

@@ -153,4 +153,3 @@ void embedding<fp64_t>(const Tensor<Index> &index, const Tensor<fp64_t> &vocab,
         const Tensor<fp64_t> &embed, Index axis);
 
 } // namespace nntile::tensor
-

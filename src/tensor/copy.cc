@@ -97,4 +97,3 @@ template
 void copy<Index>(const Tensor<Index> &src, const Tensor<Index> &dst);
 
 } // namespace nntile::tensor
-

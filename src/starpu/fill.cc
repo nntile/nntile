@@ -140,4 +140,3 @@ template
 void submit<fp64_t>(Index nelems, scal_t val, Handle data);
 
 } // namespace nntile::starpu::fill
-

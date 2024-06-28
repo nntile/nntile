@@ -121,4 +121,3 @@ void axpy<fp64_t>(scal_t alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst);
 
 } // namespace nntile::tile
-

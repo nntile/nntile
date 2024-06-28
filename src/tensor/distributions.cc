@@ -57,4 +57,3 @@ std::vector<int> block_cyclic(const std::vector<Index> &tensor_grid,
 }
 
 } // namespace nntile::tensor::distributions
-

@@ -110,4 +110,3 @@ void mask_scalar<fp64_t>(const Tensor<bool_t> &mask, scal_t val,
         const Tensor<fp64_t> &A, Index batch_ndim);
 
 } // namespace nntile::tensor
-

@@ -135,4 +135,3 @@ void randn<fp64_t>(const Tile<fp64_t> &dst, const std::vector<Index> &start,
         scal_t mean, scal_t stddev);
 
 } // namespace nntile::tile
-

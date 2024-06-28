@@ -104,7 +104,7 @@ void validate(Index nelems, int test_index_a, int test_index_b)
 {
     constexpr T eps = 20 * std::numeric_limits<T>::epsilon();
     // Init test input
-    T alpha = (1.0)/T(test_index_a); 
+    T alpha = (1.0)/T(test_index_a);
     T beta = (1.0)/T(test_index_b);
     std::vector<T> src(nelems), dst(nelems);
     for(Index i = 0; i < nelems; ++i)
@@ -144,7 +144,7 @@ void validate(Index nelems, int test_index_a, int test_index_b)
 //#ifdef NNTILE_USE_CUDA
 //    constexpr fp32_t eps = 0.001;
 //    // Init test input
-//    fp32_t alpha = (1.0)/fp32_t(test_index_a); 
+//    fp32_t alpha = (1.0)/fp32_t(test_index_a);
 //    fp32_t beta = (1.0)/fp32_t(test_index_b);
 //    std::vector<__half> src_half(nelems), dst_half(nelems);
 //    for(Index i = 0; i < nelems; ++i)
@@ -181,7 +181,7 @@ int main(int argc, char **argv)
         //validate<fp64_t>(nelems,i,-i);
         //validate<fp64_t>(nelems,-i,i);
         //validate<fp64_t>(nelems,-i,-i);
-        
+
         validate<fp32_t>(nelems,i,i);
         //validate<fp32_t>(nelems,i,-i);
         //validate<fp32_t>(nelems,-i,i);

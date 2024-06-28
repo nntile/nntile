@@ -70,4 +70,3 @@ template
 void clear<fp16_t>(const Tensor<fp16_t> &dst);
 
 } // namespace nntile::tensor
-

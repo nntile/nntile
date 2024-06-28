@@ -178,4 +178,3 @@ void submit<fp64_t>(Index m, Index n, Index k, Handle src, Handle dst,
         int redux);
 
 } // namespace nntile::starpu::maxsumexp
-

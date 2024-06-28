@@ -172,4 +172,3 @@ void submit<fp64_t>(Index m, Index n, Index k, scal_t alpha, Handle src1,
         Handle src2, Handle dst);
 
 } // namespace nntile::starpu::prod_fiber3
-

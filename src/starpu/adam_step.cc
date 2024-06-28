@@ -171,4 +171,3 @@ void submit<fp64_t>(Index num_iter, Index num_elems, scal_t beta_1, scal_t beta_
             Handle grad, Handle first_moment, Handle second_moment, Handle p);
 
 } // namespace nntile::starpu::adam_step
-

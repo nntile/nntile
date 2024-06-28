@@ -53,4 +53,3 @@ template
 void pow<fp64_t>(fp64_t alpha, fp64_t exp, const Tile<fp64_t> &A);
 
 } // namespace nntile::tile
-

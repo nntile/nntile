@@ -173,4 +173,3 @@ void submit<fp64_t>(Index m, Index n, Index k, Index k_start, Index k_size,
         Handle index, Handle vocab, Handle embed);
 
 } // namespace nntile::starpu::embedding
-

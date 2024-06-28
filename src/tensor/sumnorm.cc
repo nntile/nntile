@@ -157,4 +157,3 @@ void sumnorm<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst,
         Index axis);
 
 } // namespace nntile::tensor
-

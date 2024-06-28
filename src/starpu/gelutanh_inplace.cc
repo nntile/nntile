@@ -117,4 +117,3 @@ template
 void submit<fp64_t>(Index nelems, Handle data);
 
 } // namespace nntile::starpu::gelutanh_inplace
-

@@ -172,4 +172,3 @@ void add_slice<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src, scal_t beta,
         const Tensor<fp64_t> &dst, Index axis);
 
 } // namespace nntile::tensor
-

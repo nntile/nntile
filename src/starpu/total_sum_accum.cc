@@ -172,4 +172,3 @@ void submit<fp64_t>(scal_t alpha, Index n_labels, Index n_outputs, Handle logsum
         Handle src, Handle class_labels, Handle val);
 
 } // namespace nntile::starpu::total_sum_accum
-

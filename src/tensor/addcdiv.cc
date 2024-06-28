@@ -51,7 +51,7 @@ void addcdiv_async(scal_t val, scal_t eps, const Tensor<T> &nom, const Tensor<T>
         if(mpi_rank == src_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::addcdiv::submit<T>(val, eps, traits.nelems, nom_tile_handle, 
+            starpu::addcdiv::submit<T>(val, eps, traits.nelems, nom_tile_handle,
                                        denom_tile_handle, src_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -96,4 +96,3 @@ void addcdiv<fp64_t>(scal_t val, scal_t eps, const Tensor<fp64_t> &nom,
         const Tensor<fp64_t> &denom, const Tensor<fp64_t> &src);
 
 } // namespace nntile::tensor
-

@@ -25,4 +25,3 @@ template
 class GradDescent<fp64_t>;
 
 } // namespace nntile::optimizer
-

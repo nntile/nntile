@@ -76,4 +76,3 @@ void Config::shutdown()
 Config config;
 
 } // namespace nntile
-

@@ -100,4 +100,3 @@ void subtract_indexed_outputs<fp64_t>(scal_t val, const Tensor<Index> &labels,
         const Tensor<fp64_t> &dst);
 
 } // namespace nntile::tensor
-

@@ -110,4 +110,3 @@ int main(int argc, char **argv)
     TEST_ASSERT(t5d_traits.leftover_shape == std::vector<Index>({7, 9, 11, 13, 15}));
     return 0;
 }
-

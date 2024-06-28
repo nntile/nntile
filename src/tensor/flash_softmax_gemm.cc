@@ -176,4 +176,3 @@ void flash_softmax_gemm(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &K,
         const Tensor<fp64_t> &tmp, int redux);
 
 } // namespace nntile::tensor
-

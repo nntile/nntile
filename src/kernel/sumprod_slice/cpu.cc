@@ -27,7 +27,7 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src1, const T *src2,
  * elements, resulting in m-by-n output array dst.
  * Mnemonically, the following operations are performed:
  *      dst[i,j] = beta*dst[i,j] + alpha*sum_l(src1[i,l,j] * src2[i,l,j])
- *      
+ *
  * @param[in] m: Size of the first mode of src1, src2 and dst
  * @param[in] n: Size of the last mode of src1, src2 and dst
  * @param[in] k: Size of the middle mode of src1 and src2 arrays
@@ -89,4 +89,3 @@ void cpu<fp64_t>(Index m, Index n, Index k, fp64_t alpha, const fp64_t *src1,
     noexcept;
 
 } // namespace nntile::kernel::sumprod_slice
-

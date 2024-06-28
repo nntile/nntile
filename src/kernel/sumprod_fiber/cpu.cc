@@ -28,7 +28,7 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src1, const T *src2,
  * k elements.
  * Mnemonically, the following operations are performed:
  *      dst[l] = beta*dst[l] + alpha*sum_ij(src1[i,l,j] * src2[i,l,j])
- *      
+ *
  * @param[in] m: Size of the first mode of src1 and src2 tensors
  * @param[in] n: Size of the last mode of src1 and src2 tensors
  * @param[in] k: Size of the middle mode of src1 and src2 tensors and of the
@@ -91,4 +91,3 @@ void cpu<fp64_t>(Index m, Index n, Index k, fp64_t alpha, const fp64_t *src1,
     noexcept;
 
 } // namespace nntile::kernel::sumprod_fiber
-

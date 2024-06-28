@@ -83,4 +83,3 @@ std::ostream &operator<<(std::ostream &os, const TensorTraits &traits)
 }
 
 } // namespace nntile::tensor
-

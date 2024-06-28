@@ -74,4 +74,3 @@ int main(int argc, char **argv)
     validate<Index>();
     return 0;
 }
-

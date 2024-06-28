@@ -160,4 +160,3 @@ template
 void submit<fp64_t>(Index m, Index n, scal_t alpha, Handle src, Handle dst);
 
 } // namespace nntile::starpu::transpose
-

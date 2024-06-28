@@ -105,4 +105,3 @@ void adam_step<fp64_t>(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps,
                const Tile<fp64_t> &p);
 
 } // namespace nntile::tile
-

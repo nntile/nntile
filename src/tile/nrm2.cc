@@ -90,4 +90,3 @@ void nrm2<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src, fp64_t beta,
         const Tile<fp64_t> &dst, const Tile<fp64_t> &tmp);
 
 } // namespace nntile::tile
-

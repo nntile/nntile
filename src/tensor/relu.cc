@@ -72,4 +72,3 @@ template
 void relu<fp64_t>(const Tensor<fp64_t> &A);
 
 } // namespace nntile::tensor
-

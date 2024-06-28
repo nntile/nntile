@@ -43,4 +43,3 @@ void cpu<fp64_t>(Index nelems, fp64_t val, fp64_t *data)
     noexcept;
 
 } // namespace nntile::kernel::fill
-

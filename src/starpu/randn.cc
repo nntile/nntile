@@ -201,4 +201,3 @@ void submit<fp64_t>(Index ndim, Index nelems, unsigned long long seed,
         Handle tmp_index);
 
 } // namespace nntile::starpu::randn
-

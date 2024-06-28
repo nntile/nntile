@@ -102,4 +102,3 @@ int main(int argc, char **argv)
     validate_tile<fp32_t>();
     return 0;
 }
-

@@ -76,4 +76,3 @@ int main(int argc, char **argv)
     validate(100000);
     return 0;
 }
-

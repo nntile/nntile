@@ -167,4 +167,3 @@ void submit<fp64_t>(Index n_labels, Index n_outputs, scal_t val, Handle labels,
         Handle dst);
 
 } // namespace nntile::starpu::subtract_indexed_outputs
-

@@ -152,4 +152,3 @@ template
 void submit<fp64_t>(Handle src, Handle dst);
 
 } // namespace nntile::starpu::accumulate_maxsumexp
-

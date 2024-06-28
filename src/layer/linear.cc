@@ -25,4 +25,3 @@ template
 class Linear<fp64_t>;
 
 } // namespace nntile::layer
-

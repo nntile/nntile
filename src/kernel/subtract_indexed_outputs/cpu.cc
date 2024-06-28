@@ -52,4 +52,3 @@ void cpu<fp64_t>(Index n_labels, Index n_outputs, fp64_t val,
     noexcept;
 
 } // namespace nntile::kernel::subtract_indexed_outputs
-

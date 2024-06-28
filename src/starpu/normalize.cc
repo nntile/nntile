@@ -161,4 +161,3 @@ void submit<fp64_t>(Index m, Index n, Index k, Index l, fp64_t eps,
         Handle gamma_beta, Handle sumnorm, Handle dst);
 
 } // namespace nntile::starpu::normalize
-

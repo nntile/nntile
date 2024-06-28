@@ -75,4 +75,3 @@ void hypot_scalar_inverse<fp64_t>(scal_t eps, scal_t alpha,
         const Tensor<fp64_t> &dst);
 
 } // namespace nntile::tensor
-

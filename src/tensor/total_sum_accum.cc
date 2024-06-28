@@ -132,4 +132,3 @@ void total_sum_accum<fp64_t>(scal_t alpha, const Tensor<fp64_t> &logsumexp,
         const Tensor<fp64_t> &val);
 
 } // namespace nntile::tensor
-

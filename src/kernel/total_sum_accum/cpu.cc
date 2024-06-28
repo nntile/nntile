@@ -68,4 +68,3 @@ void cpu<fp64_t>(fp64_t alpha, Index n_labels, Index n_outputs, const fp64_t* lo
     noexcept;
 
 } // namespace nntile::kernel::total_sum_accum
-

@@ -170,4 +170,3 @@ void cpu_ndim0<fp64_t>(unsigned long long seed, scal_t mean, scal_t stddev,
         fp64_t *data);
 
 } // namespace nntile::kernel::randn
-

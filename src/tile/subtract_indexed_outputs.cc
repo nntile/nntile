@@ -73,4 +73,3 @@ void subtract_indexed_outputs<fp64_t>(scal_t val, const Tile<Index> &labels,
         const Tile<fp64_t> &dst);
 
 } // namespace nntile::tile
-

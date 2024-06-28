@@ -95,4 +95,3 @@ void prod_fiber<fp64_t>(const Tile<fp64_t> &src, fp64_t alpha,
         const Tile<fp64_t> &dst, Index axis);
 
 } // namespace nntile::tile
-

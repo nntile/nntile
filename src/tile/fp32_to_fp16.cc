@@ -36,4 +36,3 @@ void fp32_to_fp16(const Tile<fp32_t> &src, const Tile<fp16_t> &dst)
 }
 
 } // namespace nntile::tile
-

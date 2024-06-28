@@ -111,4 +111,3 @@ void transpose<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst, Index ndim);
 
 } // namespace nntile::tensor
-

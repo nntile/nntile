@@ -362,11 +362,11 @@ void def_class_tensor(py::module_ &m, const char *name)
         def("from_array", [](const tensor::Tensor<int64_t> & t, const py::array_t<int64_t, py::array::f_style | py::array::forcecast> & a) { return tensor_from_array<int64_t>(t, a); } ).
         def("from_array", [](const tensor::Tensor<bool_t> & t, const py::array_t<bool_t, py::array::f_style | py::array::forcecast> & a) { return tensor_from_array<bool_t>(t, a); } ).
         def("from_array", [](const tensor::Tensor<fp32_fast_tf32_t> & t, const py::array_t<fp32_t, py::array::f_style | py::array::forcecast> & a) { auto t_fp32 = reinterpret_cast<const tensor::Tensor<fp32_t>* >(&t); return tensor_from_array<fp32_t>(*t_fp32, a); } ).
-        
+
         def("to_array", [](const tensor::Tensor<fp32_t> & t, py::array_t<fp32_t, py::array::f_style> & a) { return tensor_to_array<fp32_t>(t, a); } ).
         def("to_array", [](const tensor::Tensor<fp32_fast_tf32_t> & t, py::array_t<fp32_t, py::array::f_style> & a) {  auto t_fp32 = reinterpret_cast<const tensor::Tensor<fp32_t>* >(&t); return tensor_to_array<fp32_t>(*t_fp32, a); } ).
         def("to_array", [](const tensor::Tensor<fp64_t> & t, py::array_t<fp64_t, py::array::f_style> & a) { return tensor_to_array<fp64_t>(t, a); } ).
-        
+
         def("set_reduction_add", &Tensor<T>::set_reduction_add).
         def("set_reduction_hypot", &Tensor<T>::set_reduction_hypot).
         def("set_reduction_maxsumexp", &Tensor<T>::set_reduction_maxsumexp).
@@ -639,7 +639,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("copy_intersection_fp64", &copy_intersection<fp64_t>);
     m.def("copy_intersection_fp32", &copy_intersection<fp32_t>);
     m.def("copy_intersection_int64", &copy_intersection<Index>);
-    
+
     m.def("copy_async_fp64", &copy_async<fp64_t>);
     m.def("copy_async_fp32", &copy_async<fp32_t>);
     m.def("copy_async_fp32_fast_tf32", &copy_async<fp32_fast_tf32_t>);
@@ -658,7 +658,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("clear_fp32", &clear<fp32_t>);
     m.def("clear_fp32_fast_tf32", &clear<fp32_fast_tf32_t>);
     m.def("clear_fp16", &clear<fp16_t>);
-        
+
     m.def("axpy_async_fp64", py::overload_cast<scal_t, const Tensor<fp64_t>&,
             const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
     m.def("axpy_async_fp32", py::overload_cast<scal_t, const Tensor<fp32_t>&,
@@ -726,7 +726,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("subtract_indexed_outputs_fp64", &subtract_indexed_outputs<fp64_t>);
     m.def("subtract_indexed_outputs_fp32", &subtract_indexed_outputs<fp32_t>);
     m.def("subtract_indexed_outputs_fp32_fast_tf32", &subtract_indexed_outputs<fp32_fast_tf32_t>);
-    
+
     m.def("scal_async_fp64", &scal_async<fp64_t>);
     m.def("scal_async_fp32", &scal_async<fp32_t>);
     m.def("scal_async_fp32_fast_tf32", &scal_async<fp32_fast_tf32_t>);
@@ -761,14 +761,14 @@ void def_mod_tensor(py::module_ &m)
     m.def("sumprod_slice_fp64", &sumprod_slice<fp64_t>);
     m.def("sumprod_slice_fp32", &sumprod_slice<fp32_t>);
     m.def("sumprod_slice_fp32_fast_tf32", &sumprod_slice<fp32_fast_tf32_t>);
-    
+
     m.def("sumprod_fiber_async_fp64", &sumprod_fiber_async<fp64_t>);
     m.def("sumprod_fiber_async_fp32", &sumprod_fiber_async<fp32_t>);
     m.def("sumprod_fiber_async_fp32_fast_tf32", &sumprod_fiber_async<fp32_fast_tf32_t>);
     m.def("sumprod_fiber_fp64", &sumprod_fiber<fp64_t>);
     m.def("sumprod_fiber_fp32", &sumprod_fiber<fp32_t>);
     m.def("sumprod_fiber_fp32_fast_tf32", &sumprod_fiber<fp32_fast_tf32_t>);
-    
+
     // gelu and dgelu
     m.def("gelu_async_fp64", &gelu_async<fp64_t>);
     m.def("gelu_async_fp32", &gelu_async<fp32_t>);
@@ -797,7 +797,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("gelutanh_backward_fp64", &gelutanh_backward<fp64_t>);
     m.def("gelutanh_backward_fp32", &gelutanh_backward<fp32_t>);
     m.def("gelutanh_backward_fp32_fast_tf32", &gelutanh_backward<fp32_fast_tf32_t>);
-    
+
     m.def("dgelu_async_fp64", &dgelu_async<fp64_t>);
     m.def("dgelu_async_fp32", &dgelu_async<fp32_t>);
     m.def("dgelu_fp64", &dgelu<fp64_t>);
@@ -805,7 +805,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("dgelutanh_async_fp64", &dgelutanh_async<fp64_t>);
     m.def("dgelutanh_async_fp32", &dgelutanh_async<fp32_t>);
     m.def("dgelutanh_fp64", &dgelutanh<fp64_t>);
-    m.def("dgelutanh_fp32", &dgelutanh<fp32_t>);   
+    m.def("dgelutanh_fp32", &dgelutanh<fp32_t>);
 
     // Embedding forward pass
     m.def("embedding_async_fp64", &embedding_async<fp64_t>);

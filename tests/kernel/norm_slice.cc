@@ -78,7 +78,7 @@ void validate(Index m, Index n, Index k, T alpha, T beta)
             }
             dst[i1*m+i0] = T{1.0};
         }
-    } 
+    }
     std::vector<T> dst_copy(dst);
     // Check low-level kernel
     std::cout << "Run kernel::norm_slice::cpu<T>\n";
@@ -100,7 +100,7 @@ void validate(Index m, Index n, Index k, T alpha, T beta)
             {
                 TEST_ASSERT(std::abs(val/ref-T{1}) <= 10*eps);
             }
-            
+
         }
     }
     std::cout << "OK: kernel::norm_slice::cpu<T>\n";
@@ -116,14 +116,14 @@ void validate(Index m, Index n, Index k, T alpha, T beta)
             Index i = (i1*m+i0);
             if(dst[i] == T{0})
             {
-                TEST_ASSERT(dst_cuda[i] == T{0});   
+                TEST_ASSERT(dst_cuda[i] == T{0});
             }
             else
-            {   
+            {
                 TEST_ASSERT(std::abs(dst_cuda[i]/dst[i]-T{1})
-                        <= 10*eps); 
+                        <= 10*eps);
             }
-            
+
         }
     }
     std::cout << "OK: kernel::norm_slice::cuda<T>\n";
@@ -142,4 +142,3 @@ int main(int argc, char **argv)
     validate<fp64_t>(4, 7, 8, 2.5, 1.25);
     return 0;
 }
-

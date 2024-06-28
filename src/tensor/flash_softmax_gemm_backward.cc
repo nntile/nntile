@@ -262,4 +262,3 @@ void flash_softmax_gemm_backward(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &
         const Tensor<fp64_t> &tmp_sumprod_slice, int redux);
 
 } // namespace nntile::tensor
-

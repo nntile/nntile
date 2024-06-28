@@ -172,4 +172,3 @@ void submit<fp64_t>(Index m, Index n, Index k, Handle maxsumexp, Handle src,
         scal_t alpha, Handle dst);
 
 } // namespace nntile::starpu::softmax
-

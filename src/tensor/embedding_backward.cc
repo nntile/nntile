@@ -157,4 +157,3 @@ void embedding_backward<fp64_t>(const Tensor<Index> &index,
         int redux);
 
 } // namespace nntile::tensor
-

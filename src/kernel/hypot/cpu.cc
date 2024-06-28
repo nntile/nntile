@@ -82,4 +82,3 @@ void cpu<fp64_t>(Index nelems, fp64_t alpha, const fp64_t* src, fp64_t beta,
     noexcept;
 
 } // namespace nntile::kernel::hypot
-

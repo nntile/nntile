@@ -183,4 +183,3 @@ void submit<fp64_t>(Index nelems, scal_t alpha, Handle src, scal_t beta,
         Handle dst);
 
 } // namespace nntile::starpu::hypot
-

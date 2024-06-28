@@ -66,4 +66,3 @@ void mask_scalar<fp64_t>(const Tile<bool_t> &mask, scal_t val,
         const Tile<fp64_t> &A);
 
 } // namespace nntile::tile
-

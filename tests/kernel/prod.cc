@@ -133,4 +133,3 @@ int main(int argc, char **argv)
     validate<fp64_t>(80000);
     return 0;
 }
-

@@ -75,4 +75,3 @@ void add_scalar<fp64_t>(fp64_t alpha, fp64_t beta,
         const Tensor<fp64_t> &dst);
 
 } // namespace nntile::tensor
-

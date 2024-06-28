@@ -49,7 +49,7 @@ void validate(T val, T eps)
     // }
     // tile2_local.release();
     // tile2_copy_local.release();
-    
+
     starpu::addcdiv::submit<T>(val, eps, src1.nelems, nom1, denom1, src1);
     addcdiv<T>(val, eps, nom1, denom1, src1_copy);
     src1_local.acquire(STARPU_R);
@@ -82,4 +82,3 @@ int main(int argc, char **argv)
     validate<fp64_t>(1000, 1e-9);
     return 0;
 }
-

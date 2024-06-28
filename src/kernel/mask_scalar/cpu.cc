@@ -55,4 +55,3 @@ void cpu<fp64_t>(Index nrows, Index ncols, const bool_t *mask, fp64_t val,
     noexcept;
 
 } // namespace nntile::kernel::mask_scalar
-

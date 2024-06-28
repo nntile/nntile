@@ -69,4 +69,3 @@ template
 void scal_inplace<fp64_t>(scal_t alpha, const Tensor<fp64_t> &data);
 
 } // namespace nntile::tensor
-

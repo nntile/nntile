@@ -147,4 +147,3 @@ int main(int argc, char **argv)
     validate_traits(t5d_traits);
     return 0;
 }
-
