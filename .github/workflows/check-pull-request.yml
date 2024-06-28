@@ -2,9 +2,6 @@ name: Pull Request Checks
 
 # Trigger the workflow on push or pull request (only main branch).
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
@@ -27,7 +24,7 @@ jobs:
           # Un-shallow refs.
           git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
           # Deepen topic branch; checkout topic branch.
-          git fetch origin ${{ github.event.pull_request.head.ref }} \
+          git fetch origin ${{ github.ref }}:${{ github.head_ref }} \
             --depth=$(( ${{ github.event.pull_request.commits }} + 1 ))
           git checkout ${{ github.event.pull_request.head.ref }}
           # Fetch main for common origin.
@@ -41,7 +38,7 @@ jobs:
         with:
           extra_args: >
             --from-ref "$(git merge-base main HEAD)"
-            --to-ref "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+            --to-ref "${{ github.head_ref }}"
 
   # TODO(@daskol): We need rework this stage: pre-build images, build StarPU
   # in-tree, rework layout and defaults, etc.
