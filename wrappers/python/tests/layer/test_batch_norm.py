@@ -28,7 +28,7 @@ dtypes = [np.float32, np.float64]
 
 @dataclass
 class BatchNormTestParams:
-    shape: list
+    shape: tuple
     dtype: np.dtype
 
     atol: float = 1e-05
@@ -88,10 +88,10 @@ def test_batchnorm(params: BatchNormTestParams):
 
 def batch_norm_test_suite():
     for _iter in range(4):
-        test_batchnorm(BatchNormTestParams([4,5,10,10], np.float32))
-        test_batchnorm(BatchNormTestParams([4,5,10,10], np.float64))
+        test_batchnorm(BatchNormTestParams((4,5,10,10), np.float32))
+        test_batchnorm(BatchNormTestParams((4,5,10,10), np.float64))
 
-        test_batchnorm(BatchNormTestParams([1,1,10,10], np.float32))
+        test_batchnorm(BatchNormTestParams((1,1,10,10), np.float32))
 
 if __name__ == "__main__":
     batch_norm_test_suite()
