@@ -1,0 +1,55 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file wrappers/python/nntile/pipeline.py
+# TRaining pipeline of NNTile Python package
+#
+# @version 1.0.0
+
+from nntile.nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
+        Tensor_int64, Tensor_fp16, Tensor_bool
+from nntile.functions import fill_async
+import numpy as np
+
+nnt2np_type_mapping = {
+    Tensor_fp32: np.float32,
+    Tensor_fp64: np.float64
+}
+
+np2nnt_type_mapping = {
+    np.float32: Tensor_fp32,
+    np.float64: Tensor_fp64
+}
+
+
+
+def tensor_from_numpy(A: np.array, basetile_shape: tuple = None, mpi_distr = [0], next_tag = 0):
+    A_traits = TensorTraits(A.shape, basetile_shape if basetile_shape else A.shape)
+    
+    A_value = np2nnt_type_mapping[A.type](A_traits, mpi_distr, next_tag)
+
+    A_value.from_array(A)   
+    return A_value
+
+
+def tensor_to_numpy(tensor_nnt):
+    np_res = np.zeros(tensor_nnt.shape, order='F').astype(np2nnt_type_mapping[type(tensor_nnt)])
+    tensor_nnt.to_array(np_res)
+    return np_res
+
+def zeros(shape, dtype=Tensor_fp32):
+    np_dtype = nnt2np_type_mapping[dtype]
+    return tensor_from_numpy(np.zeros(shape).astype(np_dtype))
+
+def full(shape, fill_value, dtype=Tensor_fp32):
+    nnt_tensor = zeros(shape)
+    fill_async(fill_value, nnt_tensor)
+    return nnt_tensor
+
+def ones(shape, dtype=Tensor_fp32):
+    return full(shape, 1, dtype=dtype)
