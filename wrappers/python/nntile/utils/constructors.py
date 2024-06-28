@@ -11,44 +11,53 @@
 #
 # @version 1.0.0
 
-from nntile.nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
-        Tensor_int64, Tensor_fp16, Tensor_bool
-from nntile.functions import fill_async
 import numpy as np
 
-nnt2np_type_mapping = {
-    Tensor_fp32: np.float32,
-    Tensor_fp64: np.float64
-}
+from nntile.functions import fill_async
+from nntile.nntile_core.tensor import (
+    Tensor_bool,
+    Tensor_fp16,
+    Tensor_fp32,
+    Tensor_fp64,
+    Tensor_int64,
+    TensorTraits,
+)
+
+nnt2np_type_mapping = {Tensor_fp32: np.float32, Tensor_fp64: np.float64}
 
 np2nnt_type_mapping = {
     np.dtypes.Float32DType: Tensor_fp32,
-    np.dtypes.Float64DType: Tensor_fp64
+    np.dtypes.Float64DType: Tensor_fp64,
 }
 
 
-def astensor(A: np.array, basetile_shape: tuple = None, mpi_distr = [0], next_tag = 0):
+def astensor(A: np.array, basetile_shape: tuple = None, mpi_distr=[0], next_tag=0):
     A_traits = TensorTraits(A.shape, basetile_shape if basetile_shape else A.shape)
-    
+
     A_value = np2nnt_type_mapping[type(A.dtype)](A_traits, mpi_distr, next_tag)
 
-    A_value.from_array(A)   
+    A_value.from_array(A)
     return A_value
 
 
 def asarray(tensor_nnt):
-    np_res = np.zeros(tensor_nnt.shape, order='F').astype(nnt2np_type_mapping[type(tensor_nnt)])
+    np_res = np.zeros(tensor_nnt.shape, order="F").astype(
+        nnt2np_type_mapping[type(tensor_nnt)]
+    )
     tensor_nnt.to_array(np_res)
     return np_res
+
 
 def zeros(shape, dtype=Tensor_fp32):
     np_dtype = nnt2np_type_mapping[dtype]
     return astensor(np.zeros(shape).astype(np_dtype))
 
+
 def full(shape, fill_value, dtype=Tensor_fp32):
     nnt_tensor = zeros(shape)
     fill_async(fill_value, nnt_tensor)
     return nnt_tensor
+
 
 def ones(shape, dtype=Tensor_fp32):
     return full(shape, 1, dtype=dtype)
