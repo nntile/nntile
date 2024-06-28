@@ -66,7 +66,7 @@ void cpu(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     // Launch kernel
@@ -160,6 +160,34 @@ void cublas(cublasHandle_t handle, cublasOperation_t transA,
             C, ldC);
 }
 
+// Overloaded call to cuBLAS GEMM for fp32_fast_tf32_t
+static inline
+void cublas(cublasHandle_t handle, cublasOperation_t transA,
+        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
+        const fp32_fast_tf32_t *A, int ldA, const fp32_fast_tf32_t *B, int ldB, fp32_t beta,
+        fp32_fast_tf32_t *C, int ldC)
+    noexcept
+{
+    cublasGemmEx(handle, transA, transB, M, N, K, &alpha, A, CUDA_R_32F, ldA,
+            B, CUDA_R_32F, ldB, &beta, C, CUDA_R_32F, ldC,
+            CUBLAS_COMPUTE_32F_FAST_TF32, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+}
+
+
+static inline
+void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
+        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
+        const fp32_fast_tf32_t *A, int ldA, long long int strideA, const fp32_fast_tf32_t *B,
+        int ldB, long long int strideB, fp32_t beta, fp32_fast_tf32_t *C, int ldC,
+        long long int strideC, int batchCount)
+    noexcept
+{
+    cublasGemmStridedBatchedEx(handle, transA, transB, M, N, K, &alpha, A,
+            CUDA_R_32F, ldA, strideA, B, CUDA_R_32F, ldB, strideB, &beta, C,
+            CUDA_R_32F, ldC, strideC, batchCount, CUBLAS_COMPUTE_32F_FAST_TF32,
+            CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+}
+
 // Overloaded call to batched cuBLAS gemm
 static inline
 void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
@@ -205,13 +233,13 @@ void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
 #endif // STARPU_SIMGRID
 
 //! GEMM for contiguous matrices without padding through StarPU buffers
-template<typename T, typename T_scal>
+template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T_scal> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     // Launch kernel
@@ -271,15 +299,14 @@ void cuda(void *buffers[], void *cl_args)
 #endif //NNTILE_USE_CUDA
 
 //! Footprint for GEMM tasks that depends only on M, N, K and alpha
-template<typename T_scal>
 static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t<T_scal> *>(task->cl_arg);
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
     // In case alpha is zero, entire gemm is unnecessary so it is better to
     // give it a different footprint since gemm time will be totally different
-    uint32_t hash = args->alpha == T_scal{0} ? -1 : 0;
+    uint32_t hash = args->alpha == scal_t{0} ? -1 : 0;
     // Apply hash over parameters M, N and K. This way if we swap values of M,
     // N and K total size of buffers will remain the same, but the footprint
     // will be different
@@ -295,144 +322,187 @@ Codelet codelet_NN_fp32, codelet_NN_fp64, codelet_NT_fp32, codelet_NT_fp64,
 
 Codelet codelet_NN_fp16, codelet_NT_fp16, codelet_TN_fp16, codelet_TT_fp16;
 
+Codelet codelet_NN_fp32_fast_tf32, codelet_NT_fp32_fast_tf32,
+        codelet_TN_fp32_fast_tf32, codelet_TT_fp32_fast_tf32;
+
 void init()
 {
+    codelet_NN_fp32_fast_tf32.init("nntile_gemm_NN_fp32_fast_tf32",
+            footprint,
+            {},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_fast_tf32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
+    codelet_NT_fp32_fast_tf32.init("nntile_gemm_NT_fp32_fast_tf32",
+            footprint,
+            {},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_fast_tf32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
+    codelet_TN_fp32_fast_tf32.init("nntile_gemm_TN_fp32_fast_tf32",
+            footprint,
+            {},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_fast_tf32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
+codelet_TT_fp32_fast_tf32.init("nntile_gemm_TT_fp32_fast_tf32",
+            footprint,
+            {},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_fast_tf32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
     codelet_NN_fp32.init("nntile_gemm_NN_fp32",
-            footprint<fp32_t>,
+            footprint,
 #ifdef NNTILE_USE_CBLAS
             {cpu<fp32_t>},
 #else // NNTILE_USE_CBLAS
             {},
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t, fp32_t>}
+            {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
     codelet_NN_fp64.init("nntile_gemm_NN_fp64",
-            footprint<fp64_t>,
+            footprint,
 #ifdef NNTILE_USE_CBLAS
             {cpu<fp64_t>},
 #else // NNTILE_USE_CBLAS
             {},
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t, fp64_t>}
+            {cuda<fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
     codelet_NT_fp32.init("nntile_gemm_NT_fp32",
-            footprint<fp32_t>,
+            footprint,
 #ifdef NNTILE_USE_CBLAS
             {cpu<fp32_t>},
 #else // NNTILE_USE_CBLAS
             {},
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t, fp32_t>}
+            {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
     codelet_NT_fp64.init("nntile_gemm_NT_fp64",
-            footprint<fp64_t>,
+            footprint,
 #ifdef NNTILE_USE_CBLAS
             {cpu<fp64_t>},
 #else // NNTILE_USE_CBLAS
             {},
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t, fp64_t>}
+            {cuda<fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
     codelet_TN_fp32.init("nntile_gemm_TN_fp32",
-            footprint<fp32_t>,
+            footprint,
 #ifdef NNTILE_USE_CBLAS
             {cpu<fp32_t>},
 #else // NNTILE_USE_CBLAS
             {},
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t, fp32_t>}
+            {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
     codelet_TN_fp64.init("nntile_gemm_TN_fp64",
-            footprint<fp64_t>,
+            footprint,
 #ifdef NNTILE_USE_CBLAS
             {cpu<fp64_t>},
 #else // NNTILE_USE_CBLAS
             {},
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t, fp64_t>}
+            {cuda<fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
     codelet_TT_fp32.init("nntile_gemm_TT_fp32",
-            footprint<fp32_t>,
+            footprint,
 #ifdef NNTILE_USE_CBLAS
             {cpu<fp32_t>},
 #else // NNTILE_USE_CBLAS
             {},
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t, fp32_t>}
+            {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
     codelet_TT_fp64.init("nntile_gemm_TT_fp64",
-            footprint<fp64_t>,
+            footprint,
 #ifdef NNTILE_USE_CBLAS
             {cpu<fp64_t>},
 #else // NNTILE_USE_CBLAS
             {},
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t, fp64_t>}
+            {cuda<fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
     codelet_NN_fp16.init("nntile_gemm_NN_fp16",
-            footprint<fp32_t>, // Scalars are fp32_t
+            footprint, // Scalars are fp32_t
             {},
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp16_t, fp32_t>}
+            {cuda<fp16_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
     codelet_NT_fp16.init("nntile_gemm_NT_fp16",
-            footprint<fp32_t>, // Scalars are fp32_t
+            footprint, // Scalars are fp32_t
             {},
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp16_t, fp32_t>}
+            {cuda<fp16_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
     codelet_TN_fp16.init("nntile_gemm_TN_fp16",
-            footprint<fp32_t>, // Scalars are fp32_t
+            footprint, // Scalars are fp32_t
             {},
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp16_t, fp32_t>}
+            {cuda<fp16_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
     codelet_TT_fp16.init("nntile_gemm_TT_fp16",
-            footprint<fp32_t>, // Scalars are fp32_t
+            footprint, // Scalars are fp32_t
             {},
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp16_t, fp32_t>}
+            {cuda<fp16_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -453,6 +523,12 @@ void restrict_where(uint32_t where)
     codelet_NT_fp16.restrict_where(where);
     codelet_TN_fp16.restrict_where(where);
     codelet_TT_fp16.restrict_where(where);
+
+    codelet_NN_fp32_fast_tf32.restrict_where(where);
+    codelet_NT_fp32_fast_tf32.restrict_where(where);
+    codelet_TN_fp32_fast_tf32.restrict_where(where);
+    codelet_TT_fp32_fast_tf32.restrict_where(where);
+
 }
 
 void restore_where()
@@ -469,11 +545,17 @@ void restore_where()
     codelet_NT_fp16.restore_where();
     codelet_TN_fp16.restore_where();
     codelet_TT_fp16.restore_where();
+
+    codelet_NN_fp32_fast_tf32.restore_where();
+    codelet_NT_fp32_fast_tf32.restore_where();
+    codelet_TN_fp32_fast_tf32.restore_where();
+    codelet_TT_fp32_fast_tf32.restore_where();
+
 }
 
-template<typename T, typename T_scal>
+template<typename T>
 void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
-        Index k, Index batch, T_scal alpha, Handle A, Handle B, T_scal beta,
+        Index k, Index batch, scal_t alpha, Handle A, Handle B, scal_t beta,
         Handle C, int redux)
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
@@ -510,7 +592,7 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
     }
 #endif // STARPU_SIMGRID
 #endif // NNTILE_USE_CUDA
-    constexpr T_scal zero = 0, one = 1;
+    constexpr scal_t zero = 0, one = 1;
     enum starpu_data_access_mode C_mode;
     if(beta == zero)
     {
@@ -533,7 +615,7 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
         C_mode = STARPU_RW;
     }
     // Codelet arguments
-    auto args = new args_t<T_scal>
+    auto args = new args_t
     {
         .transA = transA,
         .transB = transB,
@@ -562,19 +644,23 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
 
 // Explicit instantiation
 template
-void submit<fp16_t, fp32_t>(const TransOp &transA, const TransOp &transB,
-        Index m, Index n, Index k, Index batch, fp32_t alpha, Handle A,
-        Handle B, fp32_t beta, Handle C, int redux);
+void submit<fp16_t>(const TransOp &transA, const TransOp &transB,
+        Index m, Index n, Index k, Index batch, scal_t alpha, Handle A,
+        Handle B, scal_t beta, Handle C, int redux);
 
 template
-void submit<fp32_t, fp32_t>(const TransOp &transA, const TransOp &transB,
-        Index m, Index n, Index k, Index batch, fp32_t alpha, Handle A,
-        Handle B, fp32_t beta, Handle C, int redux);
+void submit<fp32_t>(const TransOp &transA, const TransOp &transB,
+        Index m, Index n, Index k, Index batch, scal_t alpha, Handle A,
+        Handle B, scal_t beta, Handle C, int redux);
 
 template
-void submit<fp64_t, fp64_t>(const TransOp &transA, const TransOp &transB,
-        Index m, Index n, Index k, Index batch, fp64_t alpha, Handle A,
-        Handle B, fp64_t beta, Handle C, int redux);
+void submit<fp32_fast_tf32_t>(const TransOp &transA, const TransOp &transB,
+        Index m, Index n, Index k, Index batch, scal_t alpha, Handle A,
+        Handle B, scal_t beta, Handle C, int redux);
+
+template
+void submit<fp64_t>(const TransOp &transA, const TransOp &transB,
+        Index m, Index n, Index k, Index batch, scal_t alpha, Handle A,
+        Handle B, scal_t beta, Handle C, int redux);
 
 } // namespace nntile::starpu::gemm
-

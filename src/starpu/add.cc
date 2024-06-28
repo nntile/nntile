@@ -32,7 +32,7 @@ void cpu(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
@@ -50,7 +50,7 @@ void cuda(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
@@ -65,24 +65,23 @@ void cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for add tasks that depends only on cl_arg
-template<typename T>
 static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
     // Apply hash over parameters m, n, k and k_size.
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->nelems, sizeof(args->nelems), hash);
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
 
 void init()
 {
     codelet_fp32.init("nntile_add_fp32",
-            footprint<fp32_t>,
+            footprint,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_t>}
@@ -90,8 +89,19 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
+
+    codelet_fp32_fast_tf32.init("nntile_add_fp32_fast_tf32",
+            footprint,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
     codelet_fp64.init("nntile_add_fp64",
-            footprint<fp64_t>,
+            footprint,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp64_t>}
@@ -104,24 +114,26 @@ void init()
 void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
+    codelet_fp32_fast_tf32.restrict_where(where);
     codelet_fp64.restrict_where(where);
 }
 
 void restore_where()
 {
     codelet_fp32.restore_where();
+    codelet_fp32_fast_tf32.restore_where();
     codelet_fp64.restore_where();
 }
 
 template<typename T>
-void submit(Index nelems, T alpha, Handle src, T beta, Handle dst)
+void submit(Index nelems, scal_t alpha, Handle src, scal_t beta, Handle dst)
 //! Insert add task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
-    constexpr T zero = 0, one = 1;
+    constexpr scal_t zero = 0, one = 1;
     // If beta is zero this function reduces to scal
     if(beta == zero)
     {
@@ -145,7 +157,7 @@ void submit(Index nelems, T alpha, Handle src, T beta, Handle dst)
         dst_mode = STARPU_RW;
     }
     // Codelet arguments
-    args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     args->alpha = alpha;
     args->beta = beta;
@@ -164,12 +176,15 @@ void submit(Index nelems, T alpha, Handle src, T beta, Handle dst)
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index nelems, fp32_t alpha, Handle src, fp32_t beta,
+void submit<fp32_t>(Index nelems, scal_t alpha, Handle src, scal_t beta,
         Handle dst);
 
 template
-void submit<fp64_t>(Index nelems, fp64_t alpha, Handle src, fp64_t beta,
+void submit<fp32_fast_tf32_t>(Index nelems, scal_t alpha, Handle src, scal_t beta,
+        Handle dst);
+
+template
+void submit<fp64_t>(Index nelems, scal_t alpha, Handle src, scal_t beta,
         Handle dst);
 
 } // namespace nntile::starpu::add
-

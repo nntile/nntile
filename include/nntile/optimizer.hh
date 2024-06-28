@@ -21,4 +21,3 @@ namespace nntile::optimizer
 {
 
 } // namespace nntile::optimizer
-

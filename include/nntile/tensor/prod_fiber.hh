@@ -30,4 +30,3 @@ void prod_fiber(const Tensor<T> &src, T alpha, const Tensor<T> &dst,
         Index axis);
 
 } // namespace nntile::tensor
-

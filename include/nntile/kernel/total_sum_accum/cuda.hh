@@ -26,4 +26,3 @@ void cuda(cudaStream_t stream, T alpha, Index n_labels, Index n_outputs, const T
     noexcept;
 
 } // namespace nntile::kernel::total_sum_accum
-

@@ -27,4 +27,3 @@ namespace nntile::kernel::gelutanh_backward
 {
 
 } // namespace nntile::kernel::gelutanh_backward
-

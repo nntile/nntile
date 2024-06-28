@@ -25,4 +25,3 @@ void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::gelutanh
-

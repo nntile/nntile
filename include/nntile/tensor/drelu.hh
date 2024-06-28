@@ -26,4 +26,3 @@ template<typename T>
 void drelu(const Tensor<T> &A);
 
 } // namespace nntile::tensor
-

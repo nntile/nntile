@@ -24,4 +24,3 @@ void cpu(Index nelems, const T *src, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::relu_forward
-

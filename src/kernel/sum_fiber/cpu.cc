@@ -48,7 +48,7 @@ void cpu(Index m, Index n, Index k, Index batch, T alpha, const T *src, T beta,
         // Cycle over the only axis of output buffer
         for(Index i2 = 0; i2 < k; ++i2)
         {
-            // Init sum 
+            // Init sum
             T sum = zero, c = zero, y, t;
             // Cycle over the third axis of input buffer
             for(Index i1 = 0; i1 < n; ++i1)
@@ -94,4 +94,3 @@ void cpu<fp64_t>(Index m, Index n, Index k, Index batch, fp64_t alpha,
     noexcept;
 
 } // namespace nntile::kernel::sum_fiber
-

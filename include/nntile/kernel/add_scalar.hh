@@ -27,4 +27,3 @@ namespace nntile::kernel::add_scalar
 {
 
 } // namespace nntile::kernel::add_scalar
-

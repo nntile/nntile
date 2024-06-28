@@ -195,4 +195,3 @@ public:
 };
 
 } // namespace nntile::tile
-

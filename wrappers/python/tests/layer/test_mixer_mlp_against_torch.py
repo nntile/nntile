@@ -42,7 +42,7 @@ def helper_l(dtype: np.dtype):
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
     next_tag = 0
-    
+
     n_channels = A_shape[2]
 
     # Tensor objects
@@ -58,7 +58,7 @@ def helper_l(dtype: np.dtype):
 
     # Define mlp_mixer layer
     layer, next_tag = MixerMlp.generate_simple(A_moments, 'L', next_tag)
-    
+
     rand_W1 = np.random.randn(*layer.linear_1.w.value.shape)
     np_W1 = np.array(rand_W1, dtype=dtype, order='F')
     layer.linear_1.w.value.from_array(np_W1)
@@ -68,7 +68,7 @@ def helper_l(dtype: np.dtype):
     layer.linear_2.w.value.from_array(np_W2)
 
     A.from_array(np_A)
-    
+
     layer.clear_gradients()
     layer.forward_async()
     nntile.starpu.wait_for_all()
@@ -98,7 +98,7 @@ def helper_l(dtype: np.dtype):
     if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > tol:
         A_moments.unregister()
         layer.unregister()
-        return False 
+        return False
 
     for i, (p_nntile, p_torch) in enumerate(zip(layer.parameters, torch_mlp.parameters())):
         p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=dtype)
@@ -125,7 +125,7 @@ def helper_r(dtype: np.dtype):
     next_tag = 0
 
     n_patches = A_shape[0]
-    
+
     # Tensor objects
     A = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = A.next_tag
@@ -139,7 +139,7 @@ def helper_r(dtype: np.dtype):
 
     # Define mlp_mixer layer
     layer, next_tag = MixerMlp.generate_simple(A_moments, 'R', next_tag)
-    
+
     rand_W1 = np.random.randn(*layer.linear_1.w.value.shape)
     np_W1 = np.array(rand_W1, dtype=dtype, order='F')
     layer.linear_1.w.value.from_array(np_W1)
@@ -149,7 +149,7 @@ def helper_r(dtype: np.dtype):
     layer.linear_2.w.value.from_array(np_W2)
 
     A.from_array(np_A)
-    
+
     layer.clear_gradients()
     layer.forward_async()
     nntile.starpu.wait_for_all()
@@ -179,7 +179,7 @@ def helper_r(dtype: np.dtype):
     if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > tol:
         A_moments.unregister()
         layer.unregister()
-        return False 
+        return False
 
     for i, (p_nntile, p_torch) in enumerate(zip(layer.parameters, torch_mlp.parameters())):
         p_nntile_grad_np = np.zeros(p_nntile.grad.shape, order="F", dtype=dtype)
@@ -187,7 +187,7 @@ def helper_r(dtype: np.dtype):
         # print(p_nntile_grad_np)
         rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np)) / torch.norm(p_torch.grad)
         print("Relative error in gradient in layer {} = {}".format(i, rel_error.item()))
-    
+
     A_moments.unregister()
     layer.unregister()
     print("helper_r test done")

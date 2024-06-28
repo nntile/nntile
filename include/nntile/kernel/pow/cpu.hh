@@ -25,4 +25,3 @@ void cpu(Index nelems, T alpha, T exp, T *data)
     noexcept;
 
 } // namespace nntile::kernel::pow
-

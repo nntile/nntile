@@ -27,4 +27,3 @@ namespace nntile::kernel::sumnorm
 {
 
 } // namespace nntile::kernel::sumnorm
-

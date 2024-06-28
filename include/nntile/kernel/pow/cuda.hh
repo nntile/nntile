@@ -26,4 +26,3 @@ void cuda(cudaStream_t stream, Index nelems, T alpha, T exp, T *data)
     noexcept;
 
 } // namespace nntile::kernel::pow
-

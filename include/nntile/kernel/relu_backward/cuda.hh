@@ -25,4 +25,3 @@ void cuda(cudaStream_t stream, Index nelems, const T *x, const T *dy, T *dx)
     noexcept;
 
 } // namespace nntile::kernel::relu_backward
-

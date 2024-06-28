@@ -21,16 +21,15 @@ namespace nntile::starpu::adamw_step
 {
 
 //! Structure for arguments
-template<typename T>
 struct args_t
 {
     Index num_iter;
     Index num_elems;
-    T beta_1;
-    T beta_2;
-    T eps;
-    T lr;
-    T weight_decay;
+    scal_t beta_1;
+    scal_t beta_2;
+    scal_t eps;
+    scal_t lr;
+    scal_t weight_decay;
 };
 
 // Apply AdamW step to StarPU buffers on CPU
@@ -45,7 +44,7 @@ void cuda(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern Codelet codelet_fp32, codelet_fp64;
+extern Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
 
 template<typename T>
 constexpr Codelet *codelet()
@@ -61,6 +60,12 @@ constexpr Codelet *codelet<fp32_t>()
 }
 
 template<>
+constexpr Codelet *codelet<fp32_fast_tf32_t>()
+{
+    return &codelet_fp32_fast_tf32;
+}
+
+template<>
 constexpr Codelet *codelet<fp64_t>()
 {
     return &codelet_fp64;
@@ -73,8 +78,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T weight_decay,
+void submit(Index num_iter, Index num_elems, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
             Handle grad, Handle first_moment, Handle second_moment, Handle p);
 
 } // namespace nntile::starpu::adamw_step
-

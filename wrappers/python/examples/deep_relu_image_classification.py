@@ -13,6 +13,10 @@
 
 # Imports
 import torch
+import nntile.model as model
+import nntile.optimizer as optimizer
+import nntile.loss as loss
+import nntile.pipeline as pipeline
 import nntile
 import numpy as np
 import time
@@ -40,7 +44,7 @@ parser.add_argument("--epoch_warmup", type=int)
 parser.add_argument("--lr", type=float)
 # parser.add_argument("--fp32_fast_fp16", action="store_true")
 # parser.add_argument("--fp32_convert_fp16", action="store_true")
-parser.add_argument("--fp32_fast_tf32", action="store_true")
+parser.add_argument("--dtype", choices=["fp32", "tf32"], default="fp32")
 
 
 # Parse arguments
@@ -115,14 +119,17 @@ for train_batch_data, train_batch_labels in train_loader:
     current_data = train_batch_data.view(args.batch, n_pixels).numpy()
     current_labels = train_batch_labels.numpy()
     for idx in range(args.batch // args.minibatch):
-
-        x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
+        if args.dtype == "fp32":
+            x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
+        elif args.dtype == "tf32":
+            x = nntile.tensor.Tensor_fp32_fast_tf32(x_traits, x_distr, next_tag)
         next_tag = x.next_tag
         x.from_array(current_data[idx*args.minibatch:(idx+1)*args.minibatch, :].T)
         current_minibatch_data.append(x)
 
         y = nntile.tensor.Tensor_int64(y_traits, y_distr, next_tag)
         next_tag = y.next_tag
+
         y.from_array(current_labels[idx*args.minibatch:(idx+1)*args.minibatch])
         current_minibatch_label.append(y)
 
@@ -136,7 +143,10 @@ print("From PyTorch loader to NNTile batches in {} seconds".format(time0))
 
 # Define tensor X for input batches
 time0 = -time.time()
-x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
+if args.dtype == "fp32":
+    x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
+elif args.dtype == "tf32":
+    x = nntile.tensor.Tensor_fp32_fast_tf32(x_traits, x_distr, next_tag)
 next_tag = x.next_tag
 x_grad = None
 x_grad_required = False
@@ -144,31 +154,27 @@ x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
 # Define deep ReLU network
 gemm_ndim = 1
-m = nntile.model.DeepReLU(x_moments, 'R', gemm_ndim, args.hidden_dim, \
-            args.hidden_dim_tile, args.depth, n_classes, next_tag, \
-            fp32_fast_tf32=args.fp32_fast_tf32)
-# if args.fp32_fast_tf32:
-    
-#     print("GEMM TF32")
-# else:
-#     m = nntile.model.DeepReLU(x_moments, 'R', gemm_ndim, args.hidden_dim, \
-#             args.hidden_dim_tile, args.depth, n_classes, next_tag, bias=False)
-#     print("GEMM FP32_FAST_FP16: {}".format(m.fp32_fast_fp16))
-#     print("GEMM FP32_CONVERT_FP16: {}".format(m.fp32_convert_fp16))
+m = model.DeepReLU(x_moments, 'R', gemm_ndim, args.hidden_dim, \
+            args.hidden_dim_tile, args.depth, n_classes, next_tag)
+
+print("Model is init")
+
 
 next_tag = m.next_tag
 # Set up learning rate and optimizer for training
 #optimizer = nntile.optimizer.SGD(m.get_parameters(), args.lr, next_tag, \
 #        momentum=0.0, nesterov=False, weight_decay=0.0)
-optimizer = nntile.optimizer.Adam(m.get_parameters(), args.lr, next_tag)
+optimizer = optimizer.Adam(m.get_parameters(), args.lr, next_tag)
 
 # Set up Cross Entropy loss function for the model
-loss, next_tag = nntile.loss.CrossEntropy.generate_simple(m.activations[-1], \
+loss, next_tag = loss.CrossEntropy.generate_simple(m.activations[-1], \
         next_tag)
 
 # Set up training pipeline
-pipeline = nntile.pipeline.Pipeline(batch_data, batch_labels, m, optimizer, \
+pipeline = pipeline.Pipeline(batch_data, batch_labels, m, optimizer, \
         loss, args.epoch)
+
+print("Pipeline is init")
 
 time0 += time.time()
 print("Finish generating pipeline (model, loss and optimizer) in {} seconds" \
@@ -177,6 +183,8 @@ print("Finish generating pipeline (model, loss and optimizer) in {} seconds" \
 # Randomly init weights of the DeepReLU model
 time0 = -time.time()
 m.init_randn_async()
+
+print("Model is randomly init")
 
 # Wait for all parameters to initialize
 nntile.starpu.wait_for_all()
@@ -233,12 +241,13 @@ print("Train GFLOPs/s (based on gemms): {}" \
 # Get inference rate based on train data
 time0 = -time.time()
 for x in batch_data:
-    #nntile.tensor.copy_async(x, m.activations[0].value)
-    m.forward_async()
-    #for t in m.activations:
-    #    t.value.wont_use()
-    #for p in m.parameters:
-    #    p.value.wont_use()
+    for mini_x in x:
+        nntile.tensor.copy_async(mini_x, m.activations[0].value)
+        m.forward_async()
+        for t in m.activations:
+            t.value.wont_use()
+        for p in m.parameters:
+            p.value.wont_use()
 nntile.starpu.wait_for_all()
 time0 += time.time()
 
@@ -291,4 +300,3 @@ for minibatch in batch_data:
 for minibatch in batch_labels:
     for y in minibatch:
         y.unregister()
-

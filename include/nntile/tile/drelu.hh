@@ -26,4 +26,3 @@ template<typename T>
 void drelu(const Tile<T> &A);
 
 } // namespace nntile::tile
-

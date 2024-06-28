@@ -22,7 +22,7 @@ namespace nntile::tensor
 //
 // @param[inout] A: Tensor for the element-wise fill operation
 template<typename T>
-void fill_async(T val, const Tensor<T> &A)
+void fill_async(scal_t val, const Tensor<T> &A)
 {
     int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < A.grid.nelems; ++i)
@@ -44,7 +44,7 @@ void fill_async(T val, const Tensor<T> &A)
 //
 // @param[inout] A: Tensor for the element-wise fill operation
 template<typename T>
-void fill(T val, const Tensor<T> &A)
+void fill(scal_t val, const Tensor<T> &A)
 {
     fill_async<T>(val, A);
     starpu_task_wait_for_all();
@@ -53,17 +53,22 @@ void fill(T val, const Tensor<T> &A)
 
 // Explicit instantiation
 template
-void fill_async<fp32_t>(fp32_t val, const Tensor<fp32_t> &A);
+void fill_async<fp32_t>(scal_t val, const Tensor<fp32_t> &A);
 
 template
-void fill_async<fp64_t>(fp64_t val, const Tensor<fp64_t> &A);
+void fill_async<fp32_fast_tf32_t>(scal_t val, const Tensor<fp32_fast_tf32_t> &A);
+
+template
+void fill_async<fp64_t>(scal_t val, const Tensor<fp64_t> &A);
 
 // Explicit instantiation
 template
-void fill<fp32_t>(fp32_t val, const Tensor<fp32_t> &A);
+void fill<fp32_t>(scal_t val, const Tensor<fp32_t> &A);
 
 template
-void fill<fp64_t>(fp64_t val, const Tensor<fp64_t> &A);
+void fill<fp32_fast_tf32_t>(scal_t val, const Tensor<fp32_fast_tf32_t> &A);
+
+template
+void fill<fp64_t>(scal_t val, const Tensor<fp64_t> &A);
 
 } // namespace nntile::tensor
-

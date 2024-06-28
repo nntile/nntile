@@ -42,7 +42,7 @@ static inline fp64_t chameleon_randn(unsigned long long &seed, fp64_t mean,
 
 template<typename T>
 void cpu(Index ndim, Index nelems, unsigned long long seed,
-        T mean, T stddev, const Index *start, const Index *shape,
+        scal_t mean, scal_t stddev, const Index *start, const Index *shape,
         const Index *underlying_shape, T *data, const Index *stride,
         Index *tmp_index)
     noexcept
@@ -140,20 +140,20 @@ void cpu(Index ndim, Index nelems, unsigned long long seed,
 // Explicit instantiation
 template
 void cpu<fp32_t>(Index ndim, Index nelems, unsigned long long seed,
-        fp32_t mean, fp32_t stddev, const Index *start, const Index *shape,
+        scal_t mean, scal_t stddev, const Index *start, const Index *shape,
         const Index *underlying_shape, fp32_t *data, const Index *stride,
         Index *tmp_index)
     noexcept;
 
 template
 void cpu<fp64_t>(Index ndim, Index nelems, unsigned long long seed,
-        fp64_t mean, fp64_t stddev, const Index *start, const Index *shape,
+        scal_t mean, scal_t stddev, const Index *start, const Index *shape,
         const Index *underlying_shape, fp64_t *data, const Index *stride,
         Index *tmp_index)
     noexcept;
 
 template<typename T>
-void cpu_ndim0(unsigned long long seed, T mean, T stddev, T *data)
+void cpu_ndim0(unsigned long long seed, scal_t mean, scal_t stddev, T *data)
     noexcept
 {
     // 0-dimensional tensor is just a scalar
@@ -162,12 +162,11 @@ void cpu_ndim0(unsigned long long seed, T mean, T stddev, T *data)
 
 // Explicit instantiation
 template
-void cpu_ndim0<fp32_t>(unsigned long long seed, fp32_t mean, fp32_t stddev,
+void cpu_ndim0<fp32_t>(unsigned long long seed, scal_t mean, scal_t stddev,
         fp32_t *data);
 
 template
-void cpu_ndim0<fp64_t>(unsigned long long seed, fp64_t mean, fp64_t stddev,
+void cpu_ndim0<fp64_t>(unsigned long long seed, scal_t mean, scal_t stddev,
         fp64_t *data);
 
 } // namespace nntile::kernel::randn
-

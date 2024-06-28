@@ -27,8 +27,8 @@ void cpu(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
-    T alpha = args->alpha;
+    auto args = reinterpret_cast<args_t *>(cl_args);
+    scal_t alpha = args->alpha;
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
     // Get interfaces
@@ -51,8 +51,8 @@ void cuda(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
-    T alpha = args->alpha;
+    auto args = reinterpret_cast<args_t *>(cl_args);
+    scal_t alpha = args->alpha;
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
     // Get interfaces
@@ -71,12 +71,11 @@ void cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for total_sum_accum tasks
-template<typename T>
 static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->n_labels, sizeof(args->n_labels),
             hash);
@@ -85,12 +84,12 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
 
 void init()
 {
     codelet_fp32.init("nntile_total_sum_accum_fp32",
-            footprint<fp32_t>,
+            footprint,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_t>}
@@ -98,8 +97,20 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
+
+    codelet_fp32_fast_tf32.init("nntile_total_sum_accum_fp32_fast_tf32",
+            footprint,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
+
     codelet_fp64.init("nntile_total_sum_accum_fp64",
-            footprint<fp64_t>,
+            footprint,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp64_t>}
@@ -112,21 +123,23 @@ void init()
 void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
+    codelet_fp32_fast_tf32.restrict_where(where);
     codelet_fp64.restrict_where(where);
 }
 
 void restore_where()
 {
     codelet_fp32.restore_where();
+    codelet_fp32_fast_tf32.restore_where();
     codelet_fp64.restore_where();
 }
 
 template<typename T>
-void submit(T alpha, Index n_labels, Index n_outputs, Handle logsumexp, Handle src,
+void submit(scal_t alpha, Index n_labels, Index n_outputs, Handle logsumexp, Handle src,
         Handle class_labels, Handle val)
 {
     // Codelet arguments
-    args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->alpha = alpha;
     args->n_labels = n_labels;
     args->n_outputs = n_outputs;
@@ -147,12 +160,15 @@ void submit(T alpha, Index n_labels, Index n_outputs, Handle logsumexp, Handle s
 
 // Explicit instantiation
 template
-void submit<fp32_t>(fp32_t alpha, Index n_labels, Index n_outputs, Handle logsumexp,
+void submit<fp32_t>(scal_t alpha, Index n_labels, Index n_outputs, Handle logsumexp,
         Handle src, Handle class_labels, Handle val);
 
 template
-void submit<fp64_t>(fp64_t alpha, Index n_labels, Index n_outputs, Handle logsumexp,
+void submit<fp32_fast_tf32_t>(scal_t alpha, Index n_labels, Index n_outputs, Handle logsumexp,
+        Handle src, Handle class_labels, Handle val);
+
+template
+void submit<fp64_t>(scal_t alpha, Index n_labels, Index n_outputs, Handle logsumexp,
         Handle src, Handle class_labels, Handle val);
 
 } // namespace nntile::starpu::total_sum_accum
-

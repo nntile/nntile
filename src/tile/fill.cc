@@ -22,7 +22,7 @@ namespace nntile::tile
 /*! @param[inout] A: Tile for the element-wise fill operation
  * */
 template<typename T>
-void fill_async(T val, const Tile<T> &A)
+void fill_async(scal_t val, const Tile<T> &A)
 {
     // Submit task without any arguments checked
     starpu::fill::submit<T>(A.nelems, val, A);
@@ -32,7 +32,7 @@ void fill_async(T val, const Tile<T> &A)
 /*! @param[inout] A: Tile for the element-wise fill operation
  * */
 template<typename T>
-void fill(T val, const Tile<T> &A)
+void fill(scal_t val, const Tile<T> &A)
 {
     fill_async<T>(val, A);
     starpu_task_wait_for_all();
@@ -40,17 +40,22 @@ void fill(T val, const Tile<T> &A)
 
 // Explicit instantiation
 template
-void fill_async<fp32_t>(fp32_t val, const Tile<fp32_t> &A);
+void fill_async<fp32_t>(scal_t val, const Tile<fp32_t> &A);
 
 template
-void fill_async<fp64_t>(fp64_t val, const Tile<fp64_t> &A);
+void fill_async<fp32_fast_tf32_t>(scal_t val, const Tile<fp32_fast_tf32_t> &A);
+
+template
+void fill_async<fp64_t>(scal_t val, const Tile<fp64_t> &A);
 
 // Explicit instantiation
 template
-void fill<fp32_t>(fp32_t val, const Tile<fp32_t> &A);
+void fill<fp32_t>(scal_t val, const Tile<fp32_t> &A);
 
 template
-void fill<fp64_t>(fp64_t val, const Tile<fp64_t> &A);
+void fill<fp32_fast_tf32_t>(scal_t val, const Tile<fp32_fast_tf32_t> &A);
+
+template
+void fill<fp64_t>(scal_t val, const Tile<fp64_t> &A);
 
 } // namespace nntile::tile
-

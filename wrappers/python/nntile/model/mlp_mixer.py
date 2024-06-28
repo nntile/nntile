@@ -28,12 +28,12 @@ class MlpMixer(BaseModel):
         # Check number of layers
         if n_layers < 1:
             raise ValueError("nlayers must be at least 1")
-        
+
         self.channel_dim = x.value.shape[0]
         self.init_patch_dim = x.value.shape[2]
         self.projected_patch_dim = embedding_dim
         self.num_mixer_layers = n_layers
-        
+
         # Init activations and list of layers
         activations = [x]
         layers = []
@@ -57,12 +57,12 @@ class MlpMixer(BaseModel):
         new_layer, next_tag = Linear.generate_simple(activations[-1], 'R', notrans, 1, [n_classes], [n_classes], next_tag,bias=False)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
-        
+
         self.next_tag = next_tag
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
 
-    
+
     # Unregister all tensors related to this model
     def unregister(self):
         for l in self.layers:
@@ -80,7 +80,7 @@ class MlpMixer(BaseModel):
             for t in l.temporaries:
                 if t is not None and t.grad is not None and t.grad_required:
                     clear_async(t.grad)
-                    
+
 
     # Clear gradients of inter-layer activations
     def clear_tmp_grads(self):
@@ -94,7 +94,7 @@ class MlpMixer(BaseModel):
     def clear_gradients(self):
         self.clear_parameters_grads()
         self.clear_activations_grads()
-        self.clear_tmp_grads()        
+        self.clear_tmp_grads()
 
 
     @staticmethod
@@ -116,7 +116,7 @@ class MlpMixer(BaseModel):
         x_grad = None
         x_grad_required = False
         x_moments = TensorMoments(x, x_grad, x_grad_required)
-  
+
         mlp_mixer_nntile = MlpMixer(x_moments, hidden_layer_dim, n_mixer_layers, n_classes, next_tag)
         for p, p_torch in zip(mlp_mixer_nntile.parameters, torch_mlp_mixer.parameters()):
             if p.value.shape[0] != p_torch.shape[0]:
@@ -137,5 +137,3 @@ class MlpMixer(BaseModel):
                     nntile_np = np.zeros(p.value.shape, dtype=np.float32, order="F")
                     p.value.to_array(nntile_np)
                     p_torch.copy_(torch.from_numpy(nntile_np))
-
-    

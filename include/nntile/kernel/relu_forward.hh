@@ -27,4 +27,3 @@ namespace nntile::kernel::relu_forward
 {
 
 } // namespace nntile::kernel::relu_forward
-

@@ -20,4 +20,3 @@ int main(int argc, char **argv)
     std::cout << "This test is not yet implemented\n";
     return -1;
 }
-

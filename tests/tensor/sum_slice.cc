@@ -64,7 +64,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     std::vector<Index> dst_shape, dst_basetile;
     for(Index i = 0; i < shape.size(); ++i)
     {
-        if (i == axis) 
+        if (i == axis)
         {
             continue;
         }
@@ -169,4 +169,3 @@ int main(int argc, char **argv)
     validate<fp64_t>();
     return 0;
 }
-

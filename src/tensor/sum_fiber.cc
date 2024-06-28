@@ -20,7 +20,7 @@ namespace nntile::tensor
 
 //! Tensor-wise sum_fiber
 template<typename T>
-void sum_fiber_async(T alpha, const Tensor<T> &src, T beta,
+void sum_fiber_async(scal_t alpha, const Tensor<T> &src, scal_t beta,
         const Tensor<T> &dst, Index axis, Index batch_ndim, int redux)
 {
     // Check dimensions
@@ -69,7 +69,7 @@ void sum_fiber_async(T alpha, const Tensor<T> &src, T beta,
     int mpi_rank = starpu_mpi_world_rank();
     int ret;
     Index ndim = src.ndim;
-    constexpr T one = 1.0;
+    constexpr scal_t one = 1.0;
     for(Index i = 0; i < src.grid.nelems; ++i)
     {
         auto src_tile_handle = src.get_tile_handle(i);
@@ -129,7 +129,7 @@ void sum_fiber_async(T alpha, const Tensor<T> &src, T beta,
 
 //! Tensor-wise sum_fiber
 template<typename T>
-void sum_fiber(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
+void sum_fiber(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> &dst,
         Index axis, Index batch_ndim, int redux)
 {
     sum_fiber_async<T>(alpha, src, beta, dst, axis, batch_ndim, redux);
@@ -139,25 +139,34 @@ void sum_fiber(T alpha, const Tensor<T> &src, T beta, const Tensor<T> &dst,
 
 // Explicit instantiation
 template
-void sum_fiber_async<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src,
-        fp32_t beta, const Tensor<fp32_t> &dst, Index axis, Index batch_ndim,
+void sum_fiber_async<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src,
+        scal_t beta, const Tensor<fp32_t> &dst, Index axis, Index batch_ndim,
         int redux);
 
 template
-void sum_fiber_async<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src,
-        fp64_t beta, const Tensor<fp64_t> &dst, Index axis, Index batch_ndim,
+void sum_fiber_async<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src,
+        scal_t beta, const Tensor<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim,
+        int redux);
+
+template
+void sum_fiber_async<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src,
+        scal_t beta, const Tensor<fp64_t> &dst, Index axis, Index batch_ndim,
         int redux);
 
 // Explicit instantiation
 template
-void sum_fiber<fp32_t>(fp32_t alpha, const Tensor<fp32_t> &src, fp32_t beta,
+void sum_fiber<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src, scal_t beta,
         const Tensor<fp32_t> &dst, Index axis, Index batch_ndim,
         int redux);
 
 template
-void sum_fiber<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src, fp64_t beta,
+void sum_fiber<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src, scal_t beta,
+        const Tensor<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim,
+        int redux);
+
+template
+void sum_fiber<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src, scal_t beta,
         const Tensor<fp64_t> &dst, Index axis, Index batch_ndim,
         int redux);
 
 } // namespace nntile::tensor
-

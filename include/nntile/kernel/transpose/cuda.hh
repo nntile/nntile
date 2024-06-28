@@ -26,4 +26,3 @@ void cuda(cudaStream_t stream, Index m, Index n, T alpha, const T* src, T* dst)
     noexcept;
 
 } // namespace nntile::kernel::transpose
-

@@ -67,4 +67,3 @@ void cpu<fp64_t>(Index m, Index n, Index k, Index k_start, Index k_size,
     noexcept;
 
 } // namespace nntile::kernel::embedding
-

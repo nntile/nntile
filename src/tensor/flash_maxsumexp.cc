@@ -24,7 +24,7 @@ namespace nntile::tensor
 template<typename T>
 void flash_maxsumexp_async(const Tensor<T> &Q, const Tensor<T> &K,
         const Tensor<bool_t> &mask, const Tensor<T> &maxsumexp,
-        const Tensor<T> &tmp, int redux, int fp32_fast_tf32)
+        const Tensor<T> &tmp, int redux)
 {
 //    // Check dimensions
 //    if(src.ndim != dst.ndim)
@@ -110,7 +110,7 @@ void flash_maxsumexp_async(const Tensor<T> &Q, const Tensor<T> &K,
             starpu::flash_maxsumexp::submit<T>(n_seq_tile, head_size,
                     n_batch_tile*n_head_tile, k_tile_handle, q_tile_handle,
                     mask_tile_handle, maxsumexp_tile_handle, tmp_tile_handle,
-                    redux=0, fp32_fast_tf32=fp32_fast_tf32);
+                    redux=0);
         }
     }
 }
@@ -118,34 +118,43 @@ void flash_maxsumexp_async(const Tensor<T> &Q, const Tensor<T> &K,
 template<typename T>
 void flash_maxsumexp(const Tensor<T> &Q, const Tensor<T> &K,
         const Tensor<bool_t> &mask, const Tensor<T> &maxsumexp,
-        const Tensor<T> &tmp, int redux, int fp32_fast_tf32)
+        const Tensor<T> &tmp, int redux)
 {
-    flash_maxsumexp_async<T>(Q, K, mask, maxsumexp, tmp, redux, fp32_fast_tf32);
+    flash_maxsumexp_async<T>(Q, K, mask, maxsumexp, tmp, redux);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
+void flash_maxsumexp_async(const Tensor<fp32_fast_tf32_t> &Q, const Tensor<fp32_fast_tf32_t> &K,
+        const Tensor<bool_t> &mask, const Tensor<fp32_fast_tf32_t> &maxsumexp,
+        const Tensor<fp32_fast_tf32_t> &tmp, int redux);
+
+template
 void flash_maxsumexp_async(const Tensor<fp32_t> &Q, const Tensor<fp32_t> &K,
         const Tensor<bool_t> &mask, const Tensor<fp32_t> &maxsumexp,
-        const Tensor<fp32_t> &tmp, int redux, int fp32_fast_tf32);
+        const Tensor<fp32_t> &tmp, int redux);
 
 template
 void flash_maxsumexp_async(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &K,
         const Tensor<bool_t> &mask, const Tensor<fp64_t> &maxsumexp,
-        const Tensor<fp64_t> &tmp, int redux, int fp32_fast_tf32);
+        const Tensor<fp64_t> &tmp, int redux);
 
 // Explicit instantiation
 template
 void flash_maxsumexp(const Tensor<fp32_t> &Q, const Tensor<fp32_t> &K,
         const Tensor<bool_t> &mask, const Tensor<fp32_t> &maxsumexp,
-        const Tensor<fp32_t> &tmp, int redux, int fp32_fast_tf32);
+        const Tensor<fp32_t> &tmp, int redux);
+
+template
+void flash_maxsumexp(const Tensor<fp32_fast_tf32_t> &Q, const Tensor<fp32_fast_tf32_t> &K,
+        const Tensor<bool_t> &mask, const Tensor<fp32_fast_tf32_t> &maxsumexp,
+        const Tensor<fp32_fast_tf32_t> &tmp, int redux);
 
 template
 void flash_maxsumexp(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &K,
         const Tensor<bool_t> &mask, const Tensor<fp64_t> &maxsumexp,
-        const Tensor<fp64_t> &tmp, int redux, int fp32_fast_tf32);
+        const Tensor<fp64_t> &tmp, int redux);
 
 } // namespace nntile::tensor
-

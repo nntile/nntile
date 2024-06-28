@@ -73,4 +73,3 @@ template<typename T>
 void submit(Index nelems, T alpha, T exp, Handle data);
 
 } // namespace nntile::starpu::pow
-

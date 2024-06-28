@@ -26,4 +26,3 @@ template<typename T>
 void gelutanh_inplace(const Tile<T> &A);
 
 } // namespace nntile::tile
-

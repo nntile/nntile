@@ -23,13 +23,12 @@ template<typename T>
 void flash_softmax_gemm_async(const Tensor<T> &Q, const Tensor<T> &K,
         const Tensor<T> &V, const Tensor<bool_t> &mask,
         const Tensor<T> &maxsumexp, const Tensor<T> &dst,
-        const Tensor<T> &tmp, int redux=0, int fp32_fast_tf32=0);
+        const Tensor<T> &tmp, int redux=0);
 
 template<typename T>
 void flash_softmax_gemm(const Tensor<T> &Q, const Tensor<T> &K,
         const Tensor<T> &V, const Tensor<bool_t> &mask,
         const Tensor<T> &maxsumexp, const Tensor<T> &dst,
-        const Tensor<T> &tmp, int redux=0, int fp32_fast_tf32=0);
+        const Tensor<T> &tmp, int redux=0);
 
 } // namespace nntile::tensor
-

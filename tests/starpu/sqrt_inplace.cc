@@ -132,4 +132,3 @@ int main(int argc, char **argv)
 #endif // NNTILE_USE_CUDA
     return 0;
 }
-

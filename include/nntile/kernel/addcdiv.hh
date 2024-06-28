@@ -27,4 +27,3 @@ namespace nntile::kernel::addcdiv
 {
 
 } // namespace nntile::kernel::addcdiv
-

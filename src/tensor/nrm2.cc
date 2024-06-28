@@ -147,4 +147,3 @@ void nrm2<fp64_t>(fp64_t alpha, const Tensor<fp64_t> &src, fp64_t beta,
         const Tensor<fp64_t> &dst, const Tensor<fp64_t> &tmp);
 
 } // namespace nntile::tensor
-

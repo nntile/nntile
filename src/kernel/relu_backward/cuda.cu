@@ -61,4 +61,3 @@ void cuda<fp64_t>(cudaStream_t stream, Index nelems, const fp64_t *x,
     noexcept;
 
 } // namespace nntile::kernel::relu_backward
-

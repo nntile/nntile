@@ -26,4 +26,3 @@ template<typename T>
 void clear(const Tensor<T> &dst);
 
 } // namespace nntile::tensor
-

@@ -86,4 +86,3 @@ class Embedding(BaseLayer):
         self.x.wont_use()
         self.y.grad.wont_use()
         self.w.grad.wont_use()
-

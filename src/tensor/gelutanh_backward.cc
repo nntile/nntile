@@ -89,6 +89,10 @@ void gelutanh_backward_async<fp32_t>(const Tensor<fp32_t> &x,
         const Tensor<fp32_t> &dy, const Tensor<fp32_t> &dx);
 
 template
+void gelutanh_backward_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &x,
+        const Tensor<fp32_fast_tf32_t> &dy, const Tensor<fp32_fast_tf32_t> &dx);
+
+template
 void gelutanh_backward_async<fp64_t>(const Tensor<fp64_t> &x,
         const Tensor<fp64_t> &dy, const Tensor<fp64_t> &dx);
 
@@ -98,8 +102,11 @@ void gelutanh_backward<fp32_t>(const Tensor<fp32_t> &x,
         const Tensor<fp32_t> &dy, const Tensor<fp32_t> &dx);
 
 template
+void gelutanh_backward<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &x,
+        const Tensor<fp32_fast_tf32_t> &dy, const Tensor<fp32_fast_tf32_t> &dx);
+
+template
 void gelutanh_backward<fp64_t>(const Tensor<fp64_t> &x,
         const Tensor<fp64_t> &dy, const Tensor<fp64_t> &dx);
 
 } // namespace nntile::tensor
-

@@ -25,4 +25,3 @@ template
 class MLP<fp64_t>;
 
 } // namespace nntile::layer
-

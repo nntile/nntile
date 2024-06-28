@@ -76,7 +76,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * elements, resulting in m-by-n output array dst.
  * Mnemonically, the following operations are performed:
  *      dst[i,j] = beta*dst[i,j] + alpha*sum_l(src1[i,l,j] * src2[i,l,j])
- *      
+ *
  * @param[in] m: Size of the first mode of src1, src2 and dst
  * @param[in] n: Size of the last mode of src1, src2 and dst
  * @param[in] k: Size of the middle mode of src1 and src2 arrays
@@ -107,4 +107,3 @@ void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, fp64_t alpha,
     noexcept;
 
 } // namespace nntile::kernel::sumprod_slice
-

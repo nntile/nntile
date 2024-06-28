@@ -52,6 +52,5 @@ void add_scalar<fp32_t>(fp32_t alpha, fp32_t beta, const Tile<fp32_t> &dst);
 
 template
 void add_scalar<fp64_t>(fp64_t alpha, fp64_t beta, const Tile<fp64_t> &dst);
-        
-} // namespace nntile::tile
 
+} // namespace nntile::tile

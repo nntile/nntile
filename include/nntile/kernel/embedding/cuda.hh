@@ -27,4 +27,3 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
     noexcept;
 
 } // namespace nntile::kernel::embedding
-

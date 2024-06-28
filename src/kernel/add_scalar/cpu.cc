@@ -45,4 +45,3 @@ void cpu<fp64_t>(Index num_elements, fp64_t alpha, fp64_t beta, fp64_t* dst)
     noexcept;
 
 } // namespace nntile::kernel::add_scalar
-

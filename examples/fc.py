@@ -83,4 +83,3 @@ dtime = time1 - time0
 print("Numpy time: {}".format(dtime))
 Z = X[n_layers]
 print("diff/norm : {}".format(np.linalg.norm(Y-Z) / np.linalg.norm(Z)))
-

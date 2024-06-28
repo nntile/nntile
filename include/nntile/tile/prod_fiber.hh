@@ -29,4 +29,3 @@ template<typename T>
 void prod_fiber(const Tile<T> &src, T alpha, const Tile<T> &dst, Index axis);
 
 } // namespace nntile::tile
-

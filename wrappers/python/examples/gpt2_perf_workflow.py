@@ -29,7 +29,7 @@ from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
         GPT2Model as GPT2Model_nntile
 from nntile.tensor import copy_async
 from nntile.loss import Frob
-import pdb 
+import pdb
 from typing import Union, Optional, Tuple, List
 from packaging import version
 import copy
@@ -63,7 +63,7 @@ parser.add_argument("--n-inner-tile", type=int, default=1536)
 parser.add_argument("--n-head-tile", type=int, default=-1)
 parser.add_argument("--torch-device", choices=["cpu", "cuda", "cuda:0", \
         "cuda:1", "cuda:2", "cuda:3", "cuda:4"], default="cpu")
-parser.add_argument("--dtype", choices=["fp32", "fp64"], default="fp32")      
+parser.add_argument("--dtype", choices=["fp32", "fp64"], default="fp32")
 # parser.add_argument("--torch-dtype", choices=["fp32", "fp64"], default="fp32")
 # parser.add_argument("--torch-compile", action="store_true")
 # parser.add_argument("--nntile-dtype", choices=["fp32", "fp64"], default="fp32")
@@ -278,4 +278,3 @@ if args.mode == "train":
 
 # Unregister all tensors related to model
 nntile_model.unregister()
-

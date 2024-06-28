@@ -8,7 +8,7 @@
 #
 # @file wrappers/python/tests/layer/test_gpt2mlp.py
 # Test for nntile.layer.gpt2mlp
-# Here we use transformers-4.28.1 from https://github.com/huggingface/transformers 
+# Here we use transformers-4.28.1 from https://github.com/huggingface/transformers
 #
 # @version 1.0.0
 
@@ -143,4 +143,3 @@ for i, (p_nntile, p_torch) in enumerate(zip(gpt2mlp_nntile.parameters, gpt2mlp_h
 
 gpt2mlp_nntile.unregister()
 x.unregister()
-

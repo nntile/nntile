@@ -32,4 +32,3 @@ void cuda16(cudaStream_t stream, Index nelems, fp32_t alpha, const fp16_t *src, 
     noexcept;
 
 } // namespace nntile::kernel::add
-

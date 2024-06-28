@@ -28,7 +28,7 @@ void cpu(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src1 = interfaces[0]->get_ptr<T>();
@@ -48,7 +48,7 @@ void cuda(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src1 = interfaces[0]->get_ptr<T>();
@@ -64,12 +64,11 @@ void cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for sumprod_slice tasks
-template<typename T>
 static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
     // Apply hash over parameters m, n and k
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
@@ -78,12 +77,12 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
 
 void init()
 {
     codelet_fp32.init("nntile_sumprod_slice_fp32",
-            footprint<fp32_t>,
+            footprint,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_t>}
@@ -91,8 +90,19 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
+
+    codelet_fp32_fast_tf32.init("nntile_sumprod_slice_fp32_fast_tf32",
+            footprint,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
     codelet_fp64.init("nntile_sumprod_slice_fp64",
-            footprint<fp64_t>,
+            footprint,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp64_t>}
@@ -105,18 +115,20 @@ void init()
 void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
+    codelet_fp32_fast_tf32.restrict_where(where);
     codelet_fp64.restrict_where(where);
 }
 
 void restore_where()
 {
     codelet_fp32.restore_where();
+    codelet_fp32_fast_tf32.restore_where();
     codelet_fp64.restore_where();
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, T alpha, Handle src1, Handle src2,
-        T beta, Handle dst, int redux)
+void submit(Index m, Index n, Index k, scal_t alpha, Handle src1, Handle src2,
+        scal_t beta, Handle dst, int redux)
 //! Insert sumprod_slice task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -124,7 +136,7 @@ void submit(Index m, Index n, Index k, T alpha, Handle src1, Handle src2,
  * */
 {
     // Access mode for the dst handle
-    constexpr T zero = 0, one = 1;
+    constexpr scal_t zero = 0, one = 1;
     enum starpu_data_access_mode dst_mode;
     if(beta == zero)
     {
@@ -147,7 +159,7 @@ void submit(Index m, Index n, Index k, T alpha, Handle src1, Handle src2,
         dst_mode = STARPU_RW;
     }
     // Codelet arguments
-    args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->m = m;
     args->n = n;
     args->k = k;
@@ -171,12 +183,15 @@ void submit(Index m, Index n, Index k, T alpha, Handle src1, Handle src2,
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index m, Index n, Index k, fp32_t alpha, Handle src1,
-        Handle src2, fp32_t beta, Handle dst, int redux);
+void submit<fp32_t>(Index m, Index n, Index k, scal_t alpha, Handle src1,
+        Handle src2, scal_t beta, Handle dst, int redux);
 
 template
-void submit<fp64_t>(Index m, Index n, Index k, fp64_t alpha, Handle src1,
-        Handle src2, fp64_t beta, Handle dst, int redux);
+void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, scal_t alpha, Handle src1,
+        Handle src2, scal_t beta, Handle dst, int redux);
+
+template
+void submit<fp64_t>(Index m, Index n, Index k, scal_t alpha, Handle src1,
+        Handle src2, scal_t beta, Handle dst, int redux);
 
 } // namespace nntile::starpu::sumprod_slice
-

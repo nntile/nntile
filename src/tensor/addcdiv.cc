@@ -20,7 +20,7 @@ namespace nntile::tensor
 
 //! Asynchronous tensor-wise addcdiv operation
 template<typename T>
-void addcdiv_async(T val, T eps, const Tensor<T> &nom, const Tensor<T> &denom,
+void addcdiv_async(scal_t val, scal_t eps, const Tensor<T> &nom, const Tensor<T> &denom,
                    const Tensor<T> &src)
 {
     if (nom.matrix_shape != denom.matrix_shape) {
@@ -51,7 +51,7 @@ void addcdiv_async(T val, T eps, const Tensor<T> &nom, const Tensor<T> &denom,
         if(mpi_rank == src_tile_rank)
         {
             auto traits = src.get_tile_traits(i);
-            starpu::addcdiv::submit<T>(val, eps, traits.nelems, nom_tile_handle, 
+            starpu::addcdiv::submit<T>(val, eps, traits.nelems, nom_tile_handle,
                                        denom_tile_handle, src_tile_handle);
         }
         // Flush cache for the output tile on every node
@@ -61,7 +61,7 @@ void addcdiv_async(T val, T eps, const Tensor<T> &nom, const Tensor<T> &denom,
 
 //! Blocking version of tensor-wise addcdiv operation
 template<typename T>
-void addcdiv(T val, T eps, const Tensor<T> &nom, const Tensor<T> &denom,
+void addcdiv(scal_t val, scal_t eps, const Tensor<T> &nom, const Tensor<T> &denom,
                    const Tensor<T> &src)
 {
     addcdiv_async<T>(val, eps, nom, denom, src);
@@ -71,21 +71,28 @@ void addcdiv(T val, T eps, const Tensor<T> &nom, const Tensor<T> &denom,
 
 // Explicit instantiation
 template
-void addcdiv_async<fp32_t>(fp32_t val, fp32_t eps, const Tensor<fp32_t> &nom,
+void addcdiv_async<fp32_t>(scal_t val, scal_t eps, const Tensor<fp32_t> &nom,
         const Tensor<fp32_t> &denom, const Tensor<fp32_t> &src);
 
 template
-void addcdiv_async<fp64_t>(fp64_t val, fp64_t eps, const Tensor<fp64_t> &nom,
+void addcdiv_async<fp32_fast_tf32_t>(scal_t val, scal_t eps, const Tensor<fp32_fast_tf32_t> &nom,
+        const Tensor<fp32_fast_tf32_t> &denom, const Tensor<fp32_fast_tf32_t> &src);
+
+template
+void addcdiv_async<fp64_t>(scal_t val, scal_t eps, const Tensor<fp64_t> &nom,
         const Tensor<fp64_t> &denom, const Tensor<fp64_t> &src);
 
 // Explicit instantiation
 template
-void addcdiv<fp32_t>(fp32_t val, fp32_t eps, const Tensor<fp32_t> &nom,
+void addcdiv<fp32_t>(scal_t val, scal_t eps, const Tensor<fp32_t> &nom,
         const Tensor<fp32_t> &denom, const Tensor<fp32_t> &src);
 
 template
-void addcdiv<fp64_t>(fp64_t val, fp64_t eps, const Tensor<fp64_t> &nom,
+void addcdiv<fp32_fast_tf32_t>(scal_t val, scal_t eps, const Tensor<fp32_fast_tf32_t> &nom,
+        const Tensor<fp32_fast_tf32_t> &denom, const Tensor<fp32_fast_tf32_t> &src);
+
+template
+void addcdiv<fp64_t>(scal_t val, scal_t eps, const Tensor<fp64_t> &nom,
         const Tensor<fp64_t> &denom, const Tensor<fp64_t> &src);
 
 } // namespace nntile::tensor
-

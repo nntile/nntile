@@ -20,14 +20,13 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void total_sum_accum_async(T alpha, const Tensor<T> &logsumexp,
+void total_sum_accum_async(scal_t alpha, const Tensor<T> &logsumexp,
                            const Tensor<T> &src, const Tensor<Index> &class_labels,
                            const Tensor<T> &val);
 
 template<typename T>
-void total_sum_accum(T alpha, const Tensor<T> &logsumexp,
+void total_sum_accum(scal_t alpha, const Tensor<T> &logsumexp,
                            const Tensor<T> &src, const Tensor<Index> &class_labels,
                            const Tensor<T> &val);
 
 } // namespace nntile::tensor
-

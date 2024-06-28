@@ -168,4 +168,3 @@ for x in batch_input:
     x.unregister()
 for x in batch_output:
     x.unregister()
-

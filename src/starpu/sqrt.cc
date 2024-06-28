@@ -124,4 +124,3 @@ template
 void submit<fp64_t>(Index nelems, Handle src, Handle dst);
 
 } // namespace nntile::starpu::sqrt
-

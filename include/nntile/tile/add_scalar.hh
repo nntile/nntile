@@ -28,4 +28,3 @@ template<typename T>
 void add_scalar(T alpha, T beta, const Tile<T> &dst);
 
 } // namespace nntile::tile
-

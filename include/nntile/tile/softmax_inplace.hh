@@ -20,12 +20,11 @@ namespace nntile::tile
 {
 
 template<typename T>
-void softmax_inplace_async(const Tile<T> &maxsumexp, T alpha,
+void softmax_inplace_async(const Tile<T> &maxsumexp, scal_t alpha,
         const Tile<T> &dst, Index axis);
 
 template<typename T>
-void softmax_inplace(const Tile<T> &maxsumexp, T alpha, const Tile<T> &dst,
+void softmax_inplace(const Tile<T> &maxsumexp, scal_t alpha, const Tile<T> &dst,
         Index axis);
 
 } // namespace nntile::tile
-

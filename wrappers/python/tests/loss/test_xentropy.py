@@ -85,10 +85,10 @@ def helper(dtype: np.dtype):
         tol = 1e-10
     if np.max(np.abs(np_xentropy_grad - nntile_xentropy_grad_np.T)) > tol:
         return False
-    
+
     if np.abs(nntile_xentropy_np[0] - np_xentropy) > tol:
         return False
-    
+
     return True
 
 # Test runner for different precisions

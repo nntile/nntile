@@ -63,4 +63,3 @@ template<typename T>
 void submit(Index nelems, Handle src, Handle dst);
 
 } // namespace nntile::starpu::maximum
-

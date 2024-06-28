@@ -91,4 +91,3 @@ template
 void sqrt<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
 } // namespace nntile::tensor
-

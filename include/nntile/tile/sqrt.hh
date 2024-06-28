@@ -28,4 +28,3 @@ template<typename T>
 void sqrt(const Tile<T> &src, const Tile<T> &dst);
 
 } // namespace nntile::tile
-

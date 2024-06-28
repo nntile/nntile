@@ -230,4 +230,3 @@ endif()
 if(BUILD_PYTHON_WRAPPERS)
     add_subdirectory("wrappers/python")
 endif()
-

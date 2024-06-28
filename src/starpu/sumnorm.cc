@@ -148,4 +148,3 @@ template
 void submit<fp64_t>(Index m, Index n, Index k, Handle src, Handle dst);
 
 } // namespace nntile::starpu::sumnorm
-

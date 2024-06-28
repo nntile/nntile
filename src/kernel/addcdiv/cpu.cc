@@ -22,7 +22,7 @@ void cpu(T val, T eps, Index nelems, const T *nom, const T* denom, T *res)
     noexcept
 //! Per-element addcdiv operation of buffers
 /*! One of the buffers serves as output
- * 
+ *
  * @param[in] val: scalar that is multiplied on the division result
  * @param[in] eps: small scalar to avoid division by zero
  * @param[in] nelems: Number of elements in both buffers
@@ -50,4 +50,3 @@ void cpu<fp64_t>(fp64_t val, fp64_t eps, Index nelems,
     noexcept;
 
 } // namespace nntile::kernel::addcdiv
-

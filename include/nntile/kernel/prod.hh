@@ -27,4 +27,3 @@ namespace nntile::kernel::prod
 {
 
 } // namespace nntile::kernel::prod
-

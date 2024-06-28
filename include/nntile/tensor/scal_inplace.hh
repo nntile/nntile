@@ -21,10 +21,9 @@ namespace nntile::tensor
 
 //! scal_inplacee tensor
 template<typename T>
-void scal_inplace_async(T alpha, const Tensor<T> &data);
+void scal_inplace_async(scal_t alpha, const Tensor<T> &data);
 
 template<typename T>
-void scal_inplace(T alpha, const Tensor<T> &data);
+void scal_inplace(scal_t alpha, const Tensor<T> &data);
 
 } // namespace nntile::tensor
-

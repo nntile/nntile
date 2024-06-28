@@ -82,4 +82,3 @@ void cpu<fp64_t>(Index m, Index n, Index k, fp64_t alpha, const fp64_t *src,
     noexcept;
 
 } // namespace nntile::kernel::add_slice
-

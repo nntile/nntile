@@ -27,4 +27,3 @@ namespace nntile::kernel::add
 {
 
 } // namespace nntile:kernel::add
-

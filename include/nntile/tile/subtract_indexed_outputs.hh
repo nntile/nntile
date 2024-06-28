@@ -19,12 +19,11 @@ namespace nntile::tile
 {
 
 template<typename T>
-void subtract_indexed_outputs_async(T val, const Tile<Index> &labels,
+void subtract_indexed_outputs_async(scal_t val, const Tile<Index> &labels,
         const Tile<T> &dst);
 
 template<typename T>
-void subtract_indexed_outputs(T val, const Tile<Index> &labels,
+void subtract_indexed_outputs(scal_t val, const Tile<Index> &labels,
         const Tile<T> &dst);
 
 } // namespace nntile::tile
-

@@ -26,4 +26,3 @@ template<typename T>
 void maxsumexp(const Tile<T> &src, const Tile<T> &dst, Index axis);
 
 } // namespace nntile::tile
-

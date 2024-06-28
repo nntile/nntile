@@ -27,4 +27,3 @@ void cuda(cudaStream_t stream, Index nelems, T alpha, const T* src, T beta,
     noexcept;
 
 } // namespace nntile::kernel::hypot
-

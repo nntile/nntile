@@ -19,7 +19,7 @@ namespace nntile::tile
 {
 
 template<typename T>
-void softmax_async(const Tile<T> &maxsumexp, const Tile<T> &src, T alpha,
+void softmax_async(const Tile<T> &maxsumexp, const Tile<T> &src, scal_t alpha,
         const Tile<T> &dst, Index axis)
 {
     // Check dimensions
@@ -80,7 +80,7 @@ void softmax_async(const Tile<T> &maxsumexp, const Tile<T> &src, T alpha,
 
 //! Tile-wise average and deviation from sum and scaled sum of squares
 template<typename T>
-void softmax(const Tile<T> &maxsumexp, const Tile<T> &src, T alpha,
+void softmax(const Tile<T> &maxsumexp, const Tile<T> &src, scal_t alpha,
         const Tile<T> &dst, Index axis)
 {
     softmax_async<T>(maxsumexp, src, alpha, dst, axis);
@@ -90,22 +90,30 @@ void softmax(const Tile<T> &maxsumexp, const Tile<T> &src, T alpha,
 // Explicit instantiation
 template
 void softmax_async<fp32_t>(const Tile<fp32_t> &maxsumexp,
-        const Tile<fp32_t> &src, fp32_t alpha, const Tile<fp32_t> &dst,
+        const Tile<fp32_t> &src, scal_t alpha, const Tile<fp32_t> &dst,
+        Index axis);
+
+template
+void softmax_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &maxsumexp,
+        const Tile<fp32_fast_tf32_t> &src, scal_t alpha, const Tile<fp32_fast_tf32_t> &dst,
         Index axis);
 
 template
 void softmax_async<fp64_t>(const Tile<fp64_t> &maxsumexp,
-        const Tile<fp64_t> &src, fp64_t alpha, const Tile<fp64_t> &dst,
+        const Tile<fp64_t> &src, scal_t alpha, const Tile<fp64_t> &dst,
         Index axis);
 
 // Explicit instantiation
 template
 void softmax<fp32_t>(const Tile<fp32_t> &maxsumexp, const Tile<fp32_t> &src,
-        fp32_t alpha, const Tile<fp32_t> &dst, Index axis);
+        scal_t alpha, const Tile<fp32_t> &dst, Index axis);
+
+template
+void softmax<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &maxsumexp, const Tile<fp32_fast_tf32_t> &src,
+        scal_t alpha, const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
 void softmax<fp64_t>(const Tile<fp64_t> &maxsumexp, const Tile<fp64_t> &src,
-        fp64_t alpha, const Tile<fp64_t> &dst, Index axis);
+        scal_t alpha, const Tile<fp64_t> &dst, Index axis);
 
 } // namespace nntile::tile
-

@@ -137,4 +137,3 @@ void cpu<fp64_t>(Index m, Index n, Index k, const fp64_t *src,
     noexcept;
 
 } // namespace nntile::kernel::maxsumexp
-

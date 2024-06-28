@@ -26,4 +26,3 @@ template<typename T>
 void logsumexp(const Tile<T> &src, const Tile<T> &dst);
 
 } // namespace nntile::tile
-

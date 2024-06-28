@@ -97,4 +97,3 @@ void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
     noexcept;
 
 } // namespace nntile::kernel::add_fiber
-

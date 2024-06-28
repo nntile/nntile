@@ -131,7 +131,7 @@ def mnist_data_loader_to_nntile(data_set, label_set, batch_input, batch_output, 
             y.from_array(np.asfortranarray(tmp_label_tensor.reshape(-1)))
             minibatch_output.append(y)
         batch_input.append(minibatch_input)
-        batch_output.append(minibatch_output) 
+        batch_output.append(minibatch_output)
 
 
 def cifar_data_loader_to_tensor(data_set, label_set, trns, batch_size, minibatch_size, patch_size):

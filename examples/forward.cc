@@ -101,4 +101,3 @@ int main(int argc, char **argv)
     //run_forward<fp32_t>(shape, shape, nforward);
     return 0;
 }
-

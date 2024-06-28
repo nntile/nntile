@@ -60,4 +60,3 @@ std::ostream &operator<<(std::ostream &os, const TileTraits &traits)
 }
 
 } // namespace nntile::tile
-

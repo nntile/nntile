@@ -28,4 +28,3 @@ namespace nntile::kernel::subtract_indexed_outputs
 {
 
 } // namespace nntile::kernel::subtract_indexed_outputs
-

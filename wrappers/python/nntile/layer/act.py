@@ -79,4 +79,3 @@ class Act(BaseLayer):
             self.x.value.wont_use()
             self.x.grad.wont_use()
             self.y.grad.wont_use()
-

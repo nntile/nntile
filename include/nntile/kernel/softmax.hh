@@ -27,4 +27,3 @@ namespace nntile::kernel::softmax
 {
 
 } // namespace nntile::kernel::softmax
-

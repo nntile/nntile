@@ -26,4 +26,3 @@ template<typename T>
 void pow(T alpha, T exp, const Tensor<T> &A);
 
 } // namespace nntile::tensor
-

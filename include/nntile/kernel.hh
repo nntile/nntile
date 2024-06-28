@@ -74,4 +74,3 @@ namespace nntile::kernel
 {
 
 } // namespace nntile::kernel
-

@@ -25,4 +25,3 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, const T *src, T alpha,
     noexcept;
 
 } // namespace nntile::kernel::softmax
-

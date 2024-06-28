@@ -53,4 +53,3 @@ void cpu<fp64_t>(Index nelems, fp64_t alpha, fp64_t exp, fp64_t *data)
     noexcept;
 
 } // namespace nntile::kernel::pow
-

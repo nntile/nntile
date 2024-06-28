@@ -51,4 +51,3 @@ void cpu<fp64_t>(Index m, Index n, fp64_t alpha, const fp64_t* src,
     noexcept;
 
 } // namespace nntile::kernel::tranpose
-

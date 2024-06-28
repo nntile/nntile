@@ -198,4 +198,3 @@ int main(int argc, char **argv)
     starpu_fxt_stop_profiling();
     return 0;
 }
-

@@ -36,7 +36,7 @@ void cuda(cudaStream_t stream, Index nelems, const T* src, T* dst)
  * dst[i] := max(src[i], dst[i])
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[in] src: input buffer 
+ * @params[in] src: input buffer
  * @params[inout] dst: buffer for comparison and store maximum
  * */
 {
@@ -54,4 +54,3 @@ void cuda<fp64_t>(cudaStream_t stream, Index nelems, const fp64_t* src, fp64_t *
     noexcept;
 
 } // namespace nntile::kernel::maximum
-

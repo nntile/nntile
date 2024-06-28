@@ -127,4 +127,3 @@ int main(int argc, char **argv)
     validate_many<fp64_t>();
     return 0;
 }
-

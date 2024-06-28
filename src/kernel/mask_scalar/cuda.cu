@@ -64,4 +64,3 @@ void cuda<fp64_t>(cudaStream_t stream, Index nrows, Index ncols,
     noexcept;
 
 } // namespace nntile::kernel::mask_scalar
-

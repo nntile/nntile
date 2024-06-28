@@ -20,7 +20,7 @@ namespace nntile::tile
 
 //! Tile-wise scal_inplaceing
 template<typename T>
-void scal_inplace_async(T alpha, const Tile<T> &data)
+void scal_inplace_async(scal_t alpha, const Tile<T> &data)
 {
     // Insert task
     starpu::scal_inplace::submit<T>(alpha, data.nelems, data);
@@ -28,7 +28,7 @@ void scal_inplace_async(T alpha, const Tile<T> &data)
 
 //! Tile-wise scal_inplaceing
 template<typename T>
-void scal_inplace(T alpha, const Tile<T> &data)
+void scal_inplace(scal_t alpha, const Tile<T> &data)
 {
     scal_inplace_async<T>(alpha, data);
     starpu_task_wait_for_all();
@@ -36,17 +36,22 @@ void scal_inplace(T alpha, const Tile<T> &data)
 
 // Explicit instantiation
 template
-void scal_inplace_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &data);
+void scal_inplace_async<fp32_t>(scal_t alpha, const Tile<fp32_t> &data);
 
 template
-void scal_inplace_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &data);
+void scal_inplace_async<fp32_fast_tf32_t>(scal_t alpha, const Tile<fp32_fast_tf32_t> &data);
+
+template
+void scal_inplace_async<fp64_t>(scal_t alpha, const Tile<fp64_t> &data);
 
 // Explicit instantiation
 template
-void scal_inplace<fp32_t>(fp32_t alpha, const Tile<fp32_t> &data);
+void scal_inplace<fp32_t>(scal_t alpha, const Tile<fp32_t> &data);
 
 template
-void scal_inplace<fp64_t>(fp64_t alpha, const Tile<fp64_t> &data);
+void scal_inplace<fp32_fast_tf32_t>(scal_t alpha, const Tile<fp32_fast_tf32_t> &data);
+
+template
+void scal_inplace<fp64_t>(scal_t alpha, const Tile<fp64_t> &data);
 
 } // namespace nntile::tile
-

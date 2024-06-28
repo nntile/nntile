@@ -27,4 +27,3 @@ namespace nntile::kernel::add_slice3
 {
 
 } // namespace nntile::kernel::add_slice3
-

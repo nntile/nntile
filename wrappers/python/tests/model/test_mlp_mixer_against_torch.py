@@ -48,7 +48,7 @@ def data_loader_to_tensor(data_set, label_set, trns, batch_size, minibatch_size,
 
     n_patches = int(h * w / (patch_size ** 2))
     n_channels = c * (patch_size ** 2)
-  
+
     train_tensor = torch.empty((n_batches, n_minibatches, n_patches, minibatch_size, n_channels), dtype=torch.float32)
     label_tensor = torch.empty((n_batches, n_minibatches, minibatch_size), dtype=torch.float32)
     for i in range(n_batches):
@@ -75,7 +75,7 @@ def helper():
     num_classes = 10
     num_clr_channels = 3
 
-    lr = 1e-4 
+    lr = 1e-4
     next_tag = 0
     tol = 1e-4
 
@@ -98,10 +98,10 @@ def helper():
     test_set_targets = np.random.randint(low=0, high=10, size=(num_batch_to_go * batch_size,))
 
     train_data_tensor, train_labels = data_loader_to_tensor(train_set_data, train_set_targets, trnsform, batch_size, minibatch_size, patch_size)
-    train_labels = train_labels.type(torch.LongTensor) 
+    train_labels = train_labels.type(torch.LongTensor)
 
     test_data_tensor, test_labels = data_loader_to_tensor(test_set_data, test_set_targets, trnsform, batch_size, minibatch_size, patch_size)
-    test_labels = test_labels.type(torch.LongTensor) 
+    test_labels = test_labels.type(torch.LongTensor)
     num_minibatch_train = train_data_tensor.shape[1]
 
     torch_mixer_model.zero_grad()
@@ -114,7 +114,7 @@ def helper():
             torch_output = torch_mixer_model(patched_train_sample)
             loss_local = crit_torch(torch_output, true_labels)
             loss_local.backward()
-            torch_train_loss += loss_local            
+            torch_train_loss += loss_local
         optim_torch.step()
         torch_mixer_model.zero_grad()
 
@@ -141,7 +141,7 @@ def helper():
     label_train_tensor = nntile.tensor.Tensor_int64(label_train_traits, [0], next_tag)
     next_tag = label_train_tensor.next_tag
     label_train_tensor.from_array(true_labels.numpy())
-    nntile.tensor.copy_async(label_train_tensor, crit_nntile.y)    
+    nntile.tensor.copy_async(label_train_tensor, crit_nntile.y)
 
     nntile_mixer_model.clear_gradients()
     nntile_mixer_model.forward_async()
@@ -150,7 +150,7 @@ def helper():
     nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
     crit_nntile.get_val(nntile_xentropy_np)
     nntile_xentropy_np = nntile_xentropy_np.reshape(-1)
-    
+
     nntile_last_layer_output = np.zeros(nntile_mixer_model.activations[-1].value.shape, order="F", dtype=np.float32)
     nntile_mixer_model.activations[-1].value.to_array(nntile_last_layer_output)
 
@@ -164,14 +164,14 @@ def helper():
         p_nntile.grad.to_array(p_nntile_grad_np)
         if p_torch.grad.shape[0] != p_nntile_grad_np.shape[0]:
             p_nntile_grad_np = np.transpose(p_nntile_grad_np)
-        
+
         rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np)) / torch.norm(p_torch.grad)
         if rel_error > tol:
             crit_nntile.unregister()
             test_tensor.unregister()
             nntile_mixer_model.unregister()
             return False
-            
+
     crit_nntile.unregister()
     test_tensor.unregister()
     nntile_mixer_model.unregister()

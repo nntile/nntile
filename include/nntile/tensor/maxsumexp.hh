@@ -28,4 +28,3 @@ void maxsumexp(const Tensor<T> &src, const Tensor<T> &dst, Index axis,
         int redux=0);
 
 } // namespace nntile::tensor
-

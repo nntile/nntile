@@ -27,4 +27,3 @@ void cuda(cudaStream_t stream, Index num_iter, Index num_elems, T beta_1, T beta
     noexcept;
 
 } // namespace nntile::kernel::adamw_step
-

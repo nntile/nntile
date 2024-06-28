@@ -38,4 +38,3 @@ foreach(test IN LISTS TESTS)
         COV_GLOBAL coverage_model coverage
         )
 endforeach()
-

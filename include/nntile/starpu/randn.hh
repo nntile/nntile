@@ -33,6 +33,8 @@ void cpu_ndim0(void *buffers[], void *cl_args)
 extern Codelet codelet_fp32, codelet_fp64,
        codelet_fp32_ndim0, codelet_fp64_ndim0;
 
+extern Codelet codelet_fp32_fast_tf32, codelet_fp32_fast_tf32_ndim0;
+
 template<typename T>
 constexpr Codelet *codelet()
 {
@@ -44,6 +46,12 @@ template<>
 constexpr Codelet *codelet<fp32_t>()
 {
     return &codelet_fp32;
+}
+
+template<>
+constexpr Codelet *codelet<fp32_fast_tf32_t>()
+{
+    return &codelet_fp32_fast_tf32;
 }
 
 template<>
@@ -66,6 +74,12 @@ constexpr Codelet *codelet_ndim0<fp32_t>()
 }
 
 template<>
+constexpr Codelet *codelet_ndim0<fp32_fast_tf32_t>()
+{
+    return &codelet_fp32_fast_tf32_ndim0;
+}
+
+template<>
 constexpr Codelet *codelet_ndim0<fp64_t>()
 {
     return &codelet_fp64_ndim0;
@@ -79,10 +93,9 @@ void restore_where();
 
 template<typename T>
 void submit(Index ndim, Index nelems, unsigned long long seed,
-        T mean, T stddev, const std::vector<Index> &start,
+        scal_t mean, scal_t stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
         const std::vector<Index> &underlying_shape, Handle data,
         Handle tmp_index);
 
 } // namespace nntile::starpu::randn
-

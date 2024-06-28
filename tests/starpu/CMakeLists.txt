@@ -176,4 +176,3 @@ add_test_set(TARGET_NAME tests_starpu_scal_inplace
     COV_NAME coverage_starpu_scal_inplace
     COV_GLOBAL coverage_starpu
     )
-

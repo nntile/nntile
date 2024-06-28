@@ -63,4 +63,3 @@ void cuda<fp64_t>(cudaStream_t stream, Index nelems, fp64_t *data)
     noexcept;
 
 } // namespace nntile::kernel::gelutanh_inplace
-

@@ -178,4 +178,3 @@ int main(int argc, char **argv)
     validate_many<Index>();
     return 0;
 }
-

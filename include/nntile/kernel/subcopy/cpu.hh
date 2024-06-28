@@ -27,4 +27,3 @@ void cpu(Index ndim, const Index *src_start, const Index *src_stride,
     noexcept;
 
 } // namespace nntile::kernel::subcopy
-

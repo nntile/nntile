@@ -224,4 +224,3 @@ int main(int argc, char **argv)
     validate<fp64_t>(4, 7, 8);
     return 0;
 }
-

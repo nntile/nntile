@@ -248,7 +248,7 @@ void copy_intersection_async(const Tensor<T> &src,
             }
         }
         // All the properties of the first source tile to copy from
-        Index src_first_tile_offset = src.grid.index_to_linear( 
+        Index src_first_tile_offset = src.grid.index_to_linear(
                 src_tile_index_begin);
         auto src_first_tile_traits = src.get_tile_traits(
                 src_first_tile_offset);
@@ -451,4 +451,3 @@ void copy_intersection<Index>(const Tensor<Index> &src,
         const std::vector<Index> &dst_offset);
 
 } // namespace nntile::tensor
-

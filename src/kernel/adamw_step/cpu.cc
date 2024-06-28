@@ -24,7 +24,7 @@ void cpu(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T wei
     noexcept
 //! Fused AdamW step on buffers
 /*!
- * 
+ *
  * @param[in] num_iter: current iteration number
  * @param[in] num_elems: Number of elements in buffers
  * @param[in] beta_1: parameter for moving average of first moments
@@ -90,4 +90,3 @@ void cpu<fp64_t>(Index num_iter, Index num_elems, fp64_t beta_1, fp64_t beta_2, 
     noexcept;
 
 } // namespace nntile::kernel::adamw_step
-

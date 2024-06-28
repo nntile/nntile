@@ -150,7 +150,6 @@ set(STARPU_SRC
     "starpu/drelu.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/axpy.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/gemm.cc"
-    "starpu/gemm_ex.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/nrm2.cc"
     "${CMAKE_CURRENT_BINARY_DIR}/starpu/scal_inplace.cc"
     "starpu/gelu.cc"
@@ -218,7 +217,6 @@ set(TILE_SRC
     "tile/dgelutanh.cc"
     "tile/drelu.cc"
     "tile/gemm.cc"
-    "tile/gemm_ex.cc"
     "tile/gelu.cc"
     "tile/gelutanh.cc"
     "tile/gelutanh_inplace.cc"
@@ -279,7 +277,6 @@ set(TENSOR_SRC
     "tensor/drelu.cc"
     "tensor/gather.cc"
     "tensor/gemm.cc"
-    "tensor/gemm_ex.cc"
     "tensor/gelu.cc"
     "tensor/gelutanh.cc"
     "tensor/gelutanh_inplace.cc"
@@ -349,4 +346,3 @@ set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC})# ${LAYER_SRC})
     #${MODEL_SRC} ${OPTIMIZER_SRC})
 
 target_sources(nntile PRIVATE ${SRC})
-

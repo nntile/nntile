@@ -15,7 +15,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import torchvision.datasets as dts 
+import torchvision.datasets as dts
 import torchvision.transforms as trnsfrms
 import pathlib
 import os, sys
@@ -150,7 +150,7 @@ if args.check:
     label_train_tensor = nntile.tensor.Tensor_int64(label_train_traits, [0], next_tag)
     next_tag = label_train_tensor.next_tag
     label_train_tensor.from_array(test_labels.numpy())
-    nntile.tensor.copy_async(label_train_tensor, loss.y)    
+    nntile.tensor.copy_async(label_train_tensor, loss.y)
     label_train_tensor.unregister()
 
     nntile_mixer_model.clear_gradients()
@@ -160,7 +160,7 @@ if args.check:
     nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
     loss.get_val(nntile_xentropy_np)
     nntile_xentropy_np = nntile_xentropy_np.reshape(-1)
-    
+
     nntile_last_layer_output = np.zeros(nntile_mixer_model.activations[-1].value.shape, order="F", dtype=np.float32)
     nntile_mixer_model.activations[-1].value.to_array(nntile_last_layer_output)
 
@@ -174,7 +174,7 @@ if args.check:
         p_nntile.grad.to_array(p_nntile_grad_np)
         if p_torch.grad.shape[0] != p_nntile_grad_np.shape[0]:
             p_nntile_grad_np = np.transpose(p_nntile_grad_np)
-        
+
         rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np)) / torch.norm(p_torch.grad)
         norm = torch.norm(p_torch.grad)
         print("Gradient of {} parameter: norm={} rel_err={}".format(i, norm, \

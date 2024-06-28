@@ -19,7 +19,7 @@ namespace nntile::tile
 {
 
 template<typename T>
-void prod_fiber3_async(const Tile<T> &src1, T alpha, const Tile<T> &src2,
+void prod_fiber3_async(const Tile<T> &src1, scal_t alpha, const Tile<T> &src2,
         const Tile<T> &dst, Index axis)
 //! Tile<T> per-element multiplication of a tensor and a broadcasted fiber
 /*! Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
@@ -68,7 +68,7 @@ void prod_fiber3_async(const Tile<T> &src1, T alpha, const Tile<T> &src2,
 }
 
 template<typename T>
-void prod_fiber3(const Tile<T> &src1, T alpha, const Tile<T> &src2,
+void prod_fiber3(const Tile<T> &src1, scal_t alpha, const Tile<T> &src2,
         const Tile<T> &dst, Index axis)
 //! Tile<T> per-element multiplication of a tensor and a broadcasted fiber
 /*! Blocking version of prod_fiber3_async<T>.
@@ -87,21 +87,28 @@ void prod_fiber3(const Tile<T> &src1, T alpha, const Tile<T> &src2,
 
 // Explicit instantiation of template
 template
-void prod_fiber3_async<fp32_t>(const Tile<fp32_t> &src1, fp32_t alpha,
+void prod_fiber3_async<fp32_t>(const Tile<fp32_t> &src1, scal_t alpha,
         const Tile<fp32_t> &src2, const Tile<fp32_t> &dst, Index axis);
 
 template
-void prod_fiber3_async<fp64_t>(const Tile<fp64_t> &src1, fp64_t alpha,
+void prod_fiber3_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src1, scal_t alpha,
+        const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst, Index axis);
+
+template
+void prod_fiber3_async<fp64_t>(const Tile<fp64_t> &src1, scal_t alpha,
         const Tile<fp64_t> &src2, const Tile<fp64_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void prod_fiber3<fp32_t>(const Tile<fp32_t> &src1, fp32_t alpha,
+void prod_fiber3<fp32_t>(const Tile<fp32_t> &src1, scal_t alpha,
         const Tile<fp32_t> &src2, const Tile<fp32_t> &dst, Index axis);
 
 template
-void prod_fiber3<fp64_t>(const Tile<fp64_t> &src1, fp64_t alpha,
+void prod_fiber3<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src1, scal_t alpha,
+        const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst, Index axis);
+
+template
+void prod_fiber3<fp64_t>(const Tile<fp64_t> &src1, scal_t alpha,
         const Tile<fp64_t> &src2, const Tile<fp64_t> &dst, Index axis);
 
 } // namespace nntile::tile
-

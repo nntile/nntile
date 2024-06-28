@@ -21,11 +21,10 @@ namespace nntile::tensor
 
 // Tensor-wise scal operation
 template<typename T>
-void scal_async(T alpha, const Tensor<T> &src, const Tensor<T> &dst);
+void scal_async(scal_t alpha, const Tensor<T> &src, const Tensor<T> &dst);
 
 // Tensor-wise scal operation
 template<typename T>
-void scal(T alpha, const Tensor<T> &src, const Tensor<T> &dst);
+void scal(scal_t alpha, const Tensor<T> &src, const Tensor<T> &dst);
 
 } // namespace nntile::tensor
-

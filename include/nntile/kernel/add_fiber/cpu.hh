@@ -26,4 +26,3 @@ void cpu(Index m, Index n, Index k, Index batch, T alpha, const T *src, T beta,
     noexcept;
 
 } // namespace nntile::kernel::add_fiber
-

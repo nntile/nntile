@@ -27,4 +27,3 @@ namespace nntile::kernel::mask_scalar
 {
 
 } // namespace nntile::kernel::mask_scalar
-

@@ -21,11 +21,10 @@ namespace nntile::tile
 
 // Asynchronous tile-wise addcdiv operation
 template<typename T>
-void addcdiv_async(T val, T eps, const Tile<T> &nom, const Tile<T> &denom, const Tile<T> &src);
+void addcdiv_async(scal_t val, scal_t eps, const Tile<T> &nom, const Tile<T> &denom, const Tile<T> &src);
 
 // Blocking version of tile-wise addcdiv operation
 template<typename T>
-void addcdiv(T val, T eps, const Tile<T> &nom, const Tile<T> &denom, const Tile<T> &src);
+void addcdiv(scal_t val, scal_t eps, const Tile<T> &nom, const Tile<T> &denom, const Tile<T> &src);
 
 } // namespace nntile::tile
-

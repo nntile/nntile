@@ -27,4 +27,3 @@ namespace nntile::kernel::scal
 {
 
 } // namespace nntile::kernel::scal
-

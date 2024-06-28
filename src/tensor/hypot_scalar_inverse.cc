@@ -19,7 +19,7 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void hypot_scalar_inverse_async(T eps, T alpha, const Tensor<T> &dst)
+void hypot_scalar_inverse_async(scal_t eps, scal_t alpha, const Tensor<T> &dst)
 {
     // Apply per-tile hypot asynchronously as needed
     int mpi_rank = starpu_mpi_world_rank();
@@ -41,7 +41,7 @@ void hypot_scalar_inverse_async(T eps, T alpha, const Tensor<T> &dst)
 }
 
 template<typename T>
-void hypot_scalar_inverse(T eps, T alpha, const Tensor<T> &dst)
+void hypot_scalar_inverse(scal_t eps, scal_t alpha, const Tensor<T> &dst)
 {
     hypot_scalar_inverse_async<T>(eps, alpha, dst);
     starpu_task_wait_for_all();
@@ -50,21 +50,28 @@ void hypot_scalar_inverse(T eps, T alpha, const Tensor<T> &dst)
 
 // Explicit instantiation of template
 template
-void hypot_scalar_inverse_async<fp32_t>(fp32_t eps, fp32_t alpha,
+void hypot_scalar_inverse_async<fp32_t>(scal_t eps, scal_t alpha,
         const Tensor<fp32_t> &dst);
 
 template
-void hypot_scalar_inverse_async<fp64_t>(fp64_t eps, fp64_t alpha,
+void hypot_scalar_inverse_async<fp32_fast_tf32_t>(scal_t eps, scal_t alpha,
+        const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void hypot_scalar_inverse_async<fp64_t>(scal_t eps, scal_t alpha,
         const Tensor<fp64_t> &dst);
 
 // Explicit instantiation of template
 template
-void hypot_scalar_inverse<fp32_t>(fp32_t eps, fp32_t alpha,
+void hypot_scalar_inverse<fp32_t>(scal_t eps, scal_t alpha,
         const Tensor<fp32_t> &dst);
 
 template
-void hypot_scalar_inverse<fp64_t>(fp64_t eps, fp64_t alpha,
+void hypot_scalar_inverse<fp32_fast_tf32_t>(scal_t eps, scal_t alpha,
+        const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void hypot_scalar_inverse<fp64_t>(scal_t eps, scal_t alpha,
         const Tensor<fp64_t> &dst);
 
 } // namespace nntile::tensor
-

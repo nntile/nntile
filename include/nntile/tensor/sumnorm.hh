@@ -26,4 +26,3 @@ template<typename T>
 void sumnorm(const Tensor<T> &src, const Tensor<T> &dst, Index axis);
 
 } // namespace nntile::tensor
-

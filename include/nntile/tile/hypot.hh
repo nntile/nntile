@@ -21,11 +21,10 @@ namespace nntile::tile
 
 // Tile-wise hypot operation
 template<typename T>
-void hypot_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst);
+void hypot_async(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst);
 
 // Tile-wise hypot operation
 template<typename T>
-void hypot(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst);
+void hypot(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst);
 
 } // namespace nntile::tile
-

@@ -19,7 +19,7 @@ namespace nntile::tile
 {
 
 template<typename T>
-void softmax_inplace_async(const Tile<T> &maxsumexp, T alpha,
+void softmax_inplace_async(const Tile<T> &maxsumexp, scal_t alpha,
         const Tile<T> &dst, Index axis)
 {
     // Check dimensions
@@ -72,7 +72,7 @@ void softmax_inplace_async(const Tile<T> &maxsumexp, T alpha,
 
 //! Tile-wise average and deviation from sum and scaled sum of squares
 template<typename T>
-void softmax_inplace(const Tile<T> &maxsumexp, T alpha, const Tile<T> &dst,
+void softmax_inplace(const Tile<T> &maxsumexp, scal_t alpha, const Tile<T> &dst,
         Index axis)
 {
     softmax_inplace_async<T>(maxsumexp, alpha, dst, axis);
@@ -81,21 +81,28 @@ void softmax_inplace(const Tile<T> &maxsumexp, T alpha, const Tile<T> &dst,
 
 // Explicit instantiation
 template
-void softmax_inplace_async<fp32_t>(const Tile<fp32_t> &maxsumexp, fp32_t alpha,
+void softmax_inplace_async<fp32_t>(const Tile<fp32_t> &maxsumexp, scal_t alpha,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void softmax_inplace_async<fp64_t>(const Tile<fp64_t> &maxsumexp, fp64_t alpha,
+void softmax_inplace_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &maxsumexp, scal_t alpha,
+        const Tile<fp32_fast_tf32_t> &dst, Index axis);
+
+template
+void softmax_inplace_async<fp64_t>(const Tile<fp64_t> &maxsumexp, scal_t alpha,
         const Tile<fp64_t> &dst, Index axis);
 
 // Explicit instantiation
 template
-void softmax_inplace<fp32_t>(const Tile<fp32_t> &maxsumexp, fp32_t alpha,
+void softmax_inplace<fp32_t>(const Tile<fp32_t> &maxsumexp, scal_t alpha,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void softmax_inplace<fp64_t>(const Tile<fp64_t> &maxsumexp, fp64_t alpha,
+void softmax_inplace<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &maxsumexp, scal_t alpha,
+        const Tile<fp32_fast_tf32_t> &dst, Index axis);
+
+template
+void softmax_inplace<fp64_t>(const Tile<fp64_t> &maxsumexp, scal_t alpha,
         const Tile<fp64_t> &dst, Index axis);
 
 } // namespace nntile::tile
-

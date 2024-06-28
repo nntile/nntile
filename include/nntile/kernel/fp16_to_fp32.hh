@@ -27,4 +27,3 @@ namespace nntile::kernel::fp16_to_fp32
 {
 
 } // namespace nntile::kernel::fp16_to_fp32
-

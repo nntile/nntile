@@ -64,4 +64,3 @@ void cuda<fp64_t>(cudaStream_t stream, fp64_t alpha, Index n_labels, Index n_out
     noexcept;
 
 } // namespace nntile::kernel::total_sum_accum
-

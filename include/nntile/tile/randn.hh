@@ -22,12 +22,11 @@ namespace nntile::tile
 template<typename T>
 void randn_async(const Tile<T> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
-        T mean, T stddev);
+        scal_t mean, scal_t stddev);
 
 template<typename T>
 void randn(const Tile<T> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
-        T mean, T stddev);
+        scal_t mean, scal_t stddev);
 
 } // namespace nntile::tile
-

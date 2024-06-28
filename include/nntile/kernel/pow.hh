@@ -27,4 +27,3 @@ namespace nntile::kernel::pow
 {
 
 } // namespace nntile::kernel::pow
-

@@ -65,4 +65,3 @@ void cpu<fp64_t>(Index nelems, const fp64_t *src, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::gelutanh
-

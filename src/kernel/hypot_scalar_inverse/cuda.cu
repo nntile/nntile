@@ -68,4 +68,3 @@ void cuda<fp64_t>(cudaStream_t stream, Index nelems, fp64_t eps, fp64_t alpha,
     noexcept;
 
 } // namespace nntile::kernel::hypot_scalar_inverse
-

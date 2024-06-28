@@ -23,4 +23,3 @@ void cpu(Index nelems, const fp16_t *src, fp32_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::fp16_to_fp32
-

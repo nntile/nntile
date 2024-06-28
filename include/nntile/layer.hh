@@ -23,4 +23,3 @@ namespace nntile::layer
 {
 
 } // namespace nntile::layer
-

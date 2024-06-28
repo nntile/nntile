@@ -63,4 +63,3 @@ void cpu<fp64_t>(Index nelems, const fp64_t *x, const fp64_t *dy, fp64_t *dx)
     noexcept;
 
 } // namespace nntile::kernel::gelutanh_backward
-

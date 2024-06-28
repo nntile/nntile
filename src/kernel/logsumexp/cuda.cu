@@ -36,7 +36,7 @@ void cuda(cudaStream_t stream, Index nelems, const T *maxsumexp, T *logsumexp)
 /*! One of the buffers serves as output
  *
  * @param[in] nelems: Number of elements in both buffers
- * @param[in] maxsumexp: Input buffer, result of maxsumexp operation 
+ * @param[in] maxsumexp: Input buffer, result of maxsumexp operation
  * @param[out] logsumexp: Output buffers that contains output in the end
  * */
 {
@@ -57,4 +57,3 @@ void cuda<fp64_t>(cudaStream_t stream, Index nelems, const fp64_t *maxsumexp,
     noexcept;
 
 } // namespace nntile::kernel::logsumexp
-

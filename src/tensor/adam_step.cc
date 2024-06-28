@@ -20,7 +20,7 @@ namespace nntile::tensor
 
 //! Asynchronous tensor-wise fuse Adam step
 template<typename T>
-void adam_step_async(Index num_iter, T beta_1, T beta_2, T eps, T lr, T weight_decay,
+void adam_step_async(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
                     const Tensor<T> &grad, const Tensor<T> &first_moment, const Tensor<T> &second_moment,
                     const Tensor<T> &p)
 {
@@ -73,7 +73,7 @@ void adam_step_async(Index num_iter, T beta_1, T beta_2, T eps, T lr, T weight_d
 
 //! Blocking version of tensor-wise addcdiv operation
 template<typename T>
-void adam_step(Index num_iter, T beta_1, T beta_2, T eps, T lr, T weight_decay,
+void adam_step(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
                const Tensor<T> &grad, const Tensor<T> &first_moment, const Tensor<T> &second_moment,
                const Tensor<T> &p)
 {
@@ -84,25 +84,34 @@ void adam_step(Index num_iter, T beta_1, T beta_2, T eps, T lr, T weight_decay,
 
 // Explicit instantiation
 template
-void adam_step_async<fp32_t>(Index num_iter, fp32_t beta_1, fp32_t beta_2, fp32_t eps, fp32_t lr, fp32_t weight_decay,
+void adam_step_async<fp32_t>(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
     const Tensor<fp32_t> &grad, const Tensor<fp32_t> &first_moment, const Tensor<fp32_t> &second_moment,
                    const Tensor<fp32_t> &p);
 
 template
-void adam_step_async<fp64_t>(Index num_iter, fp64_t beta_1, fp64_t beta_2, fp64_t eps, fp64_t lr, fp64_t weight_decay,
+void adam_step_async<fp32_fast_tf32_t>(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
+    const Tensor<fp32_fast_tf32_t> &grad, const Tensor<fp32_fast_tf32_t> &first_moment, const Tensor<fp32_fast_tf32_t> &second_moment,
+                   const Tensor<fp32_fast_tf32_t> &p);
+
+template
+void adam_step_async<fp64_t>(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
     const Tensor<fp64_t> &grad, const Tensor<fp64_t> &first_moment, const Tensor<fp64_t> &second_moment,
                    const Tensor<fp64_t> &p);
 
 // Explicit instantiation
 template
-void adam_step<fp32_t>(Index num_iter, fp32_t beta_1, fp32_t beta_2, fp32_t eps, fp32_t lr, fp32_t weight_decay,
+void adam_step<fp32_t>(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
     const Tensor<fp32_t> &grad, const Tensor<fp32_t> &first_moment, const Tensor<fp32_t> &second_moment,
                    const Tensor<fp32_t> &p);
 
 template
-void adam_step<fp64_t>(Index num_iter, fp64_t beta_1, fp64_t beta_2, fp64_t eps, fp64_t lr, fp64_t weight_decay,
+void adam_step<fp32_fast_tf32_t>(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
+    const Tensor<fp32_fast_tf32_t> &grad, const Tensor<fp32_fast_tf32_t> &first_moment, const Tensor<fp32_fast_tf32_t> &second_moment,
+                   const Tensor<fp32_fast_tf32_t> &p);
+
+template
+void adam_step<fp64_t>(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
     const Tensor<fp64_t> &grad, const Tensor<fp64_t> &first_moment, const Tensor<fp64_t> &second_moment,
                    const Tensor<fp64_t> &p);
 
 } // namespace nntile::tensor
-

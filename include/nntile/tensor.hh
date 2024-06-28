@@ -38,7 +38,6 @@
 #include <nntile/tensor/dgelutanh.hh>
 #include <nntile/tensor/drelu.hh>
 #include <nntile/tensor/gemm.hh>
-#include <nntile/tensor/gemm_ex.hh>
 #include <nntile/tensor/nrm2.hh>
 #include <nntile/tensor/normalize.hh>
 #include <nntile/tensor/prod.hh>
@@ -92,4 +91,3 @@ namespace nntile::tensor
 {
 
 } // namespace nntile::tensor
-

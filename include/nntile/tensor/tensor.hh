@@ -36,6 +36,13 @@ static std::ostream &operator<<(std::ostream &cout, fp16_t val)
     return cout;
 }
 
+// Overload for printing fp32_fast_tf32_t
+static std::ostream &operator<<(std::ostream &cout, fp32_fast_tf32_t val)
+{
+    cout << "fp32_fast_tf32_t is not yet printable";
+    return cout;
+}
+
 //! Many-dimensional tensor, presented by a set of subtensors (tiles)
 //
 // This is the main data storage class, that assumes a tensor as a set of
@@ -137,7 +144,7 @@ public:
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
             // Deactivate invalidate_submit
-            starpu_data_invalidate_submit(tmp);
+            //starpu_data_invalidate_submit(tmp);
             //starpu_data_deinitialize_submit(tmp);
         }
     }
@@ -224,4 +231,3 @@ public:
 };
 
 } // namespace nntile::tensor
-

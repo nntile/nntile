@@ -28,4 +28,3 @@ void normalize(const Tile<T> &gamma_beta, const Tile<T> &sumnorm,
         const Tile<T> &dst, Index l, T eps, Index axis);
 
 } // namespace nntile::tile
-

@@ -77,7 +77,7 @@ void cpu_scalar_alpha(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args2_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args2_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
@@ -139,7 +139,8 @@ void cuda2(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args2_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args2_t *>(cl_args);
+    T alpha_T = args->alpha;
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
@@ -150,13 +151,13 @@ void cuda2(void *buffers[], void *cl_args)
     cublasSetStream(handle, stream);
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
     // Call corresponding cuBLAS routine
-    cublas(handle, args->nelems, &(args->alpha), src, 1, dst, 1);
+    cublas(handle, args->nelems, &alpha_T, src, 1, dst, 1);
 #endif // STARPU_SIMGRID
 }
 #endif //NNTILE_USE_CUDA
 
 Codelet codelet_tensor_alpha_fp32, codelet_tensor_alpha_fp64;
-Codelet codelet_scalar_alpha_fp32, codelet_scalar_alpha_fp64;
+Codelet codelet_scalar_alpha_fp32, codelet_scalar_alpha_fp64, codelet_scalar_alpha_fp32_fast_tf32;
 
 void init()
 {
@@ -199,6 +200,21 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
+
+    codelet_scalar_alpha_fp32_fast_tf32.init("nntile_axpy_scalar_alpha_fp32_fast_tf32",
+            nullptr,
+#ifdef NNTILE_USE_CBLAS
+            {cpu_scalar_alpha<fp32_t>},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda2<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
     codelet_scalar_alpha_fp64.init("nntile_axpy_scalar_alpha_fp64",
             nullptr,
 #ifdef NNTILE_USE_CBLAS
@@ -219,6 +235,7 @@ void restrict_where(uint32_t where)
     codelet_tensor_alpha_fp32.restrict_where(where);
     codelet_tensor_alpha_fp64.restrict_where(where);
     codelet_scalar_alpha_fp32.restrict_where(where);
+    codelet_scalar_alpha_fp32_fast_tf32.restrict_where(where);
     codelet_scalar_alpha_fp64.restrict_where(where);
 }
 
@@ -227,6 +244,7 @@ void restore_where()
     codelet_tensor_alpha_fp32.restore_where();
     codelet_tensor_alpha_fp64.restore_where();
     codelet_scalar_alpha_fp32.restore_where();
+    codelet_scalar_alpha_fp32_fast_tf32.restore_where();
     codelet_scalar_alpha_fp64.restore_where();
 }
 
@@ -276,7 +294,7 @@ template
 void submit<fp64_t>(Handle alpha, Index nelems, Handle src, Handle dst);
 
 template<typename T>
-void submit(T alpha, Index nelems, Handle src, Handle dst)
+void submit(scal_t alpha, Index nelems, Handle src, Handle dst)
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
 #ifdef NNTILE_USE_CBLAS
@@ -297,7 +315,7 @@ void submit(T alpha, Index nelems, Handle src, Handle dst)
 #endif // STARPU_SIMGRID
 #endif // NNTILE_USE_CUDA
     // Codelet arguments
-    auto cl_args = new args2_t<T>{nelems, alpha};
+    auto cl_args = new args2_t{nelems, alpha};
     // Submit task
     int ret = starpu_task_insert(codelet_scalar_alpha<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
@@ -314,10 +332,12 @@ void submit(T alpha, Index nelems, Handle src, Handle dst)
 
 // Explicit instantiation
 template
-void submit<fp32_t>(fp32_t alpha, Index nelems, Handle src, Handle dst);
+void submit<fp32_t>(scal_t alpha, Index nelems, Handle src, Handle dst);
 
 template
-void submit<fp64_t>(fp64_t alpha, Index nelems, Handle src, Handle dst);
+void submit<fp32_fast_tf32_t>(scal_t alpha, Index nelems, Handle src, Handle dst);
+
+template
+void submit<fp64_t>(scal_t alpha, Index nelems, Handle src, Handle dst);
 
 } // namespace nntile::starpu::axpy
-

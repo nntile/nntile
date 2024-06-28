@@ -28,4 +28,3 @@ namespace nntile::kernel::sumprod_fiber
 {
 
 } // namespace nntile::kernel::sumprod_fiber
-

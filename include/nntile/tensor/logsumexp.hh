@@ -26,4 +26,3 @@ template<typename T>
 void logsumexp(const Tensor<T> &src, const Tensor<T> &dst);
 
 } // namespace nntile::tensor
-

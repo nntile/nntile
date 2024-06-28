@@ -79,5 +79,3 @@ class Frob:
         self.val.unregister()
         self.val_sqrt.unregister()
         self.y.unregister()
-
-

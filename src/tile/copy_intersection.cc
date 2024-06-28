@@ -172,4 +172,3 @@ void copy_intersection<Index>(const Tile<Index> &src,
         const std::vector<Index> &dst_offset, const Tile<Index> &scratch);
 
 } // namespace nntile::tile
-

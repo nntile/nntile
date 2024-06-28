@@ -26,4 +26,3 @@ void cpu(T alpha, Index n_labels, Index n_outputs, const T* logsumexp, const T* 
     noexcept;
 
 } // namespace nntile::kernel::total_sum_accum
-

@@ -68,4 +68,3 @@ void cpu<fp64_t>(Index m, Index n, Index k, fp64_t alpha, const fp64_t *src1,
     noexcept;
 
 } // namespace nntile::kernel::prod_fiber3
-

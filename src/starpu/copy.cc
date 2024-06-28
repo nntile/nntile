@@ -100,4 +100,3 @@ void submit(Handle src, Handle dst)
 }
 
 } // namespace nntile::starpu::copy
-

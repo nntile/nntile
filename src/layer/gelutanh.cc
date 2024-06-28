@@ -25,4 +25,3 @@ template
 class GeLUTanh<fp64_t>;
 
 } // namespace nntile::layer
-

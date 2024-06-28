@@ -483,4 +483,3 @@ public:
 
 } // namespace config
 } // namespace nntile
-

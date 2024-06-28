@@ -204,7 +204,6 @@ set(STARPU_HDR
     "nntile/starpu/dgelutanh.hh"
     "nntile/starpu/drelu.hh"
     "nntile/starpu/gemm.hh"
-    "nntile/starpu/gemm_ex.hh"
     "nntile/starpu/gelu.hh"
     "nntile/starpu/gelutanh.hh"
     "nntile/starpu/gelutanh_inplace.hh"
@@ -274,7 +273,6 @@ set(TILE_HDR
     "nntile/tile/dgelutanh.hh"
     "nntile/tile/drelu.hh"
     "nntile/tile/gemm.hh"
-    "nntile/tile/gemm_ex.hh"
     "nntile/tile/gelu.hh"
     "nntile/tile/gelutanh.hh"
     "nntile/tile/gelutanh_inplace.hh"
@@ -337,7 +335,6 @@ set(TENSOR_HDR
     "nntile/tensor/drelu.hh"
     "nntile/tensor/gather.hh"
     "nntile/tensor/gemm.hh"
-    "nntile/tensor/gemm_ex.hh"
     "nntile/tensor/gelu.hh"
     "nntile/tensor/gelutanh.hh"
     "nntile/tensor/gelutanh_inplace.hh"
@@ -414,4 +411,3 @@ set(HDR ${BASE_HDR} ${KERNEL_HDR} ${STARPU_HDR} ${TILE_HDR} ${TENSOR_HDR})
     #${LAYER_HDR})# ${MODEL_HDR} ${OPTIMIZER_HDR})
 
 target_sources(nntile PUBLIC ${HDR})
-

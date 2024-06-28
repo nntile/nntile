@@ -214,4 +214,3 @@ int main(int argc, char **argv)
     std::cout << "Done in " << diff.count() << " seconds\n";
     return 0;
 }
-

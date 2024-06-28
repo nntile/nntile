@@ -23,7 +23,7 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp, const T *src, T alpha,
         T *dst)
     noexcept
 //! Compute softmax on a buffer along middle axis
-/*! 
+/*!
  *
  * @param[in] m: Size of the first mode of dst and sumnorm arrays
  * @param[in] n: Size of the last mode of dst and sumnorm arrays
@@ -80,4 +80,3 @@ void cpu<fp64_t>(Index m, Index n, Index k, const fp64_t *maxsumexp,
     noexcept;
 
 } // namespace nntile::kernel::softmax
-

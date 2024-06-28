@@ -138,5 +138,3 @@ foreach(test IN LISTS TESTS_MPI)
         LABELS ${labels} MPI
         )
 endforeach()
-
-

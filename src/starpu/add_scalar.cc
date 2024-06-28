@@ -141,4 +141,3 @@ template
 void submit<fp64_t>(Index num_elements, fp64_t alpha, fp64_t beta, Handle dst);
 
 } // namespace nntile::starpu::add_scalar
-

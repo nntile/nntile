@@ -13,7 +13,7 @@
 
 import torch
 import torch.nn as nn
-import torchvision.datasets as dts 
+import torchvision.datasets as dts
 import numpy as np
 import random
 import time
@@ -34,7 +34,7 @@ set_all_seeds(121)
 class MLP(nn.Module):
     def __init__(self):
         super(MLP, self).__init__()
-        self.linear1 = nn.Linear(28*28, 4000, bias=False) 
+        self.linear1 = nn.Linear(28*28, 4000, bias=False)
         self.linear2 = nn.Linear(4000, 4000, bias=False)
         self.final = nn.Linear(4000, 10, bias=False)
         self.relu = nn.ReLU()

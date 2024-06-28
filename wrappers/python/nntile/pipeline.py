@@ -93,4 +93,3 @@ class Pipeline(object):
             # nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
             # self.loss.get_val(nntile_xentropy_np)
             # print("Last batch loss after in {} epoch = {}".format(i_epoch, nntile_xentropy_np[0]))
-

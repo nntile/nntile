@@ -31,4 +31,3 @@ void embedding_backward(const Tensor<Index> &index, const Tensor<T> &vocab,
         const Tensor<T> &embed, Index axis, int redux=0);
 
 } // namespace nntile::tensor
-

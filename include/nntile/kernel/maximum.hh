@@ -27,4 +27,3 @@ namespace nntile::kernel::maximum
 {
 
 } // namespace nntile::kernel::maximum
-

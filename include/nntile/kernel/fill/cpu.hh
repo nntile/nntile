@@ -25,4 +25,3 @@ void cpu(Index nelems, T val, T *data)
     noexcept;
 
 } // namespace nntile::kernel::fill
-

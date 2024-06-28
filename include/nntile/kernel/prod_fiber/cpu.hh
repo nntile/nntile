@@ -25,4 +25,3 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::prod_fiber
-

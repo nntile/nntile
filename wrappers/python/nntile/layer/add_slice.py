@@ -48,7 +48,7 @@ class AddSlice(BaseLayer):
         self.x.grad.wont_use()
         self.y.grad.wont_use()
         self.u.grad.wont_use()
-        
+
     # Simple generator for the add_slice layer
     @staticmethod
     def generate_simple(x: TensorMoments, y: TensorMoments, axis: int, \
@@ -65,4 +65,3 @@ class AddSlice(BaseLayer):
         layer = AddSlice(x, y, u, axis, redux)
         # Return layer and next tag to be used
         return (layer, next_tag)
-

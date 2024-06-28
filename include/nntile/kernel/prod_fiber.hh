@@ -27,4 +27,3 @@ namespace nntile::kernel::prod_fiber
 {
 
 } // namespace nntile::kernel::prod_fiber
-

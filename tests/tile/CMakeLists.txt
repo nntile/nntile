@@ -111,4 +111,3 @@ foreach(test IN LISTS TESTS)
         LABELS ${labels}
         )
 endforeach()
-

@@ -54,4 +54,3 @@ void cpu<fp64_t>(Index nelems, fp64_t *data)
     noexcept;
 
 } // namespace nntile::kernel::dgelu
-

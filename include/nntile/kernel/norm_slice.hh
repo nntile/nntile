@@ -27,4 +27,3 @@ namespace nntile::kernel::norm_slice
 {
 
 } // namespace nntile::kernel::norm_slice
-

@@ -25,4 +25,3 @@ void cpu(Index nrows, Index ncols, const bool_t *mask, T val, T *data)
     noexcept;
 
 } // namespace nntile::kernel::mask_scalar
-

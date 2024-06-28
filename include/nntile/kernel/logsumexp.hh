@@ -27,4 +27,3 @@ namespace nntile::kernel::logsumexp
 {
 
 } // namespace nntile::kernel::logsumexp
-

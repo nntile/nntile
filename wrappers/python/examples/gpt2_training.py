@@ -22,14 +22,14 @@ from torch import Tensor
 import torch.nn as nn
 from transformers import GPT2TokenizerFast, GPT2LMHeadModel, GPT2Model, \
         GPT2Config
-from torch.optim import Adam
+from torch.optim import Adam, AdamW
 from torch.optim import SGD
 from datasets import load_dataset
 from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
         GPT2Model as GPT2Model_nntile
 from nntile.tensor import copy_async
 from nntile.loss import Frob
-import pdb 
+import pdb
 from typing import Union, Optional, Tuple, List
 from packaging import version
 import copy
@@ -50,7 +50,7 @@ parser.add_argument("--pretrained", choices=["local", "remote"], default="remote
 parser.add_argument("--checkpoint_path", type=str, default="")
 parser.add_argument("--config_path", type=str, default="")
 parser.add_argument("--save_checkpoint_path", type=str, default=".model")
-parser.add_argument("--optimizer", choices=["sgd", "adam"], default="adam")
+parser.add_argument("--optimizer", choices=["sgd", "adam", "adamw"], default="adam")
 
 
 parser.add_argument("--model-path", default=".model")
@@ -65,7 +65,7 @@ parser.add_argument("--torch-device", choices=["cpu", "cuda", "cuda:0", \
         "cuda:1", "cuda:2", "cuda:3", "cuda:4"], default="cpu")
 parser.add_argument("--torch-dtype", choices=["fp32", "fp64"], default="fp32")
 parser.add_argument("--torch-compile", action="store_true")
-parser.add_argument("--nntile-dtype", choices=["fp32", "fp64"], default="fp32")
+parser.add_argument("--nntile-dtype", choices=["fp32", "fp64", "tf32"], default="fp32")
 parser.add_argument("--check", action="store_true")
 parser.add_argument("--check-fp64", action="store_true")
 parser.add_argument("--torch-nforward", type=int, default=0)
@@ -118,6 +118,9 @@ if args.torch_dtype == "fp32":
 elif args.torch_dtype == "fp64":
     torch_dtype = torch.float64
 
+if args.nntile_dtype == "tf32":
+    torch.backends.cuda.matmul.allow_tf32 = True
+
 # Load named pretrained PyTorch model
 if args.pretrained == "remote":
         model_torch = GPT2LMHeadModel.from_pretrained(args.model, \
@@ -130,9 +133,13 @@ elif args.pretrained == "local":
                 config = GPT2Config(**conf_dict)
                 model_torch = GPT2LMHeadModel(config).to(torch_dtype)
                 if args.optimizer == "adam":
-                        optimizer = Adam(model_torch.parameters(), args.lr)
+                    optimizer = Adam(model_torch.parameters(), args.lr)
                 elif args.optimizer == "sgd":
-                        optimizer = SGD(model_torch.parameters(), args.lr)
+                    optimizer = SGD(model_torch.parameters(), args.lr)
+                elif args.optimizer == "adamw":
+                    optimizer = AdamW(model_torch.parameters(), args.lr)
+                else:
+                    raise ValueError
                 if args.checkpoint_path:
                         checkpoint = torch.load(checkpoint_path)
                         torch_model.load_state_dict(checkpoint['model_state_dict'])
@@ -157,7 +164,7 @@ config.resid_pdrop = 0
 # supported soon
 model_torch.lm_head.weight = nn.Parameter(model_torch.lm_head \
         .weight.detach().clone())
-    
+
 inner_dim = config.n_inner if config.n_inner is not None \
         else 4 * config.hidden_size
 config.n_inner = inner_dim
@@ -204,7 +211,7 @@ nntile_model_config = GPT2Config_nntile(config.vocab_size, args.n_embd_tile, \
         config.n_embd, args.n_embd_tile, config.max_position_embeddings, \
         config.n_inner, args.n_inner_tile, config.layer_norm_epsilon, \
         config.num_hidden_layers, config.n_head, args.n_head_tile, \
-        "gelutanh", args.nntile_flashattention, args.nntile_use_redux)
+        "gelutanh", args.nntile_flashattention, args.nntile_use_redux, args.nntile_dtype)
 nntile_model, next_tag = GPT2Model_nntile.from_torch(model_torch, \
         args.minibatch_size, args.minibatch_size_tile, config.n_positions, \
         args.seq_len_tile, nntile_model_config, next_tag)
@@ -546,8 +553,15 @@ if args.nntile_nepochs > 0:
     time1 = time.time() - time0
     print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
     # Set up learning rate and optimizer for training
-    optimizer = nntile.optimizer.FusedAdam(nntile_model.get_parameters(), \
-            args.lr, next_tag)
+    if args.optimizer == "adam":
+        optimizer = nntile.optimizer.FusedAdam(nntile_model.get_parameters(), \
+                args.lr, next_tag)
+    elif args.optimizer == "adamw":
+        optimizer = nntile.optimizer.FusedAdamW(nntile_model.get_parameters(), \
+                args.lr, next_tag)
+    elif args.optimizer == "sgd":
+        optimizer = nntile.optimizer.SGD(nntile_model.get_parameters(), \
+                args.lr, next_tag)
     next_tag = optimizer.get_next_tag()
     # Define Cross Entropy loss function
     loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
@@ -651,4 +665,3 @@ if args.torch_nepochs > 0:
             * args.torch_nepochs * num_train_batches * args.batch_size \
             / time1 * 1e-12), flush=True)
     print("Torch loss on the last batch: {}".format(loss.item()), flush=True)
-

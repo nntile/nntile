@@ -27,4 +27,3 @@ namespace nntile::kernel::relu
 {
 
 } // namespace nntile::kernel::relu
-
