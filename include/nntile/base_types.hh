@@ -108,6 +108,7 @@ class int64_t
 public:
     using internal_t = std::int64_t;
     using compat_t = std::int64_t;
+    static constexpr bool trivial_copy_from_compat = true;
     internal_t value;
     explicit constexpr int64_t(const compat_t &other):
         value(other)
@@ -142,6 +143,7 @@ class int32_t
 public:
     using internal_t = std::int32_t;
     using compat_t = std::int32_t;
+    static constexpr bool trivial_copy_from_compat = true;
     internal_t value;
     explicit constexpr int32_t(const compat_t &other):
         value(other)
@@ -176,6 +178,7 @@ class int16_t
 public:
     using internal_t = std::int16_t;
     using compat_t = std::int16_t;
+    static constexpr bool trivial_copy_from_compat = true;
     internal_t value;
     explicit constexpr int16_t(const compat_t &other):
         value(other)
@@ -210,6 +213,7 @@ class int8_t
 public:
     using internal_t = std::int8_t;
     using compat_t = std::int8_t;
+    static constexpr bool trivial_copy_from_compat = true;
     internal_t value;
     explicit constexpr int8_t(const compat_t &other):
         value(other)
@@ -244,6 +248,7 @@ class bool_t
 public:
     using internal_t = bool;
     using compat_t = bool;
+    static constexpr bool trivial_copy_from_compat = true;
     internal_t value;
     explicit constexpr bool_t(const compat_t &other):
         value(other)
@@ -278,6 +283,7 @@ class fp64_t
 public:
     using internal_t = double;
     using compat_t = double;
+    static constexpr bool trivial_copy_from_compat = true;
     internal_t value;
     explicit constexpr fp64_t(const compat_t &other):
         value(other)
@@ -312,6 +318,7 @@ class fp32_t
 public:
     using internal_t = float;
     using compat_t = float;
+    static constexpr bool trivial_copy_from_compat = true;
     internal_t value;
     explicit constexpr fp32_t(const compat_t &other):
         value(other)
@@ -350,6 +357,7 @@ class fp32_fast_tf32_t
 public:
     using internal_t = float;
     using compat_t = float;
+    static constexpr bool trivial_copy_from_compat = true;
     internal_t value;
     explicit constexpr fp32_fast_tf32_t(const compat_t &other):
         value(other)
