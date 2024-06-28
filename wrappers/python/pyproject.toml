@@ -75,6 +75,9 @@ markers = [
 ]
 filterwarnings = ["ignore::DeprecationWarning"]
 
+[tool.ruff]
+line-length = 80
+
 [tool.setuptools]
 include-package-data = false
 platforms = ["Linux"]

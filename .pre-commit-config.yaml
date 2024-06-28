@@ -27,4 +27,4 @@ repos:
     - id: mypy
       files: (nntile/|tests/typing_test\.py)
       additional_dependencies: [numpy, scipy]
-      args: [--config=pyproject.toml]
+      args: [--config=wrappers/python/pyproject.toml]
