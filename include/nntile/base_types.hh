@@ -112,6 +112,8 @@ public:
     using compat_t = std::int64_t;
     //! Flag if copy from compat_t does not require conversion
     static const bool trivial_copy_from_compat = true;
+    //! String to represent this type
+    static constexpr const char *type_repr = "int64_t";
     //! Internal value of this type to hold actual data
     internal_t value;
     //! Constructor
@@ -155,6 +157,8 @@ public:
     using compat_t = bool;
     //! Flag if copy from compat_t does not require conversion
     static const bool trivial_copy_from_compat = true;
+    //! String to represent this type
+    static constexpr const char *type_repr = "bool_t";
     //! Internal value of this type to hold actual data
     internal_t value;
     //! Constructor
@@ -198,6 +202,8 @@ public:
     using compat_t = double;
     //! Flag if copy from compat_t does not require conversion
     static const bool trivial_copy_from_compat = true;
+    //! String to represent this type
+    static constexpr const char *type_repr = "fp64_t";
     //! Internal value of this type to hold actual data
     internal_t value;
     //! Constructor
@@ -225,8 +231,16 @@ public:
     //! Machine precision of this type
     static compat_t epsilon()
     {
-        static const std::uint64_t eps_int = 1;
-        return *reinterpret_cast<const compat_t *>(&eps_int);
+        // Check that compat_t type contains 8 bytes
+        static_assert(sizeof(compat_t) == 8);
+        // Init 1.0 and 1.0+eps identically
+        compat_t one{1.0}, one_plus_eps{1.0};
+        // Assume 1+eps with its unsigned integer view of the same bit size
+        auto uintptr = reinterpret_cast<std::uint64_t *>(&one_plus_eps);
+        // Add a bit into mantissa of 1+eps to get actual value of 1+eps
+        ++(*uintptr);
+        // Output difference of 1+eps and 1
+        return one_plus_eps - one;
     }
 };
 
@@ -247,6 +261,8 @@ public:
     using compat_t = float;
     //! Flag if copy from compat_t does not require conversion
     static const bool trivial_copy_from_compat = true;
+    //! String to represent this type
+    static constexpr const char *type_repr = "fp32_t";
     //! Internal value of this type to hold actual data
     internal_t value;
     //! Constructor
@@ -274,8 +290,16 @@ public:
     //! Machine precision of this type
     static compat_t epsilon()
     {
-        static const std::uint32_t eps_int = 1;
-        return *reinterpret_cast<const compat_t *>(&eps_int);
+        // Check that compat_t type contains 4 bytes
+        static_assert(sizeof(compat_t) == 4);
+        // Init 1.0 and 1.0+eps identically
+        compat_t one{1.0}, one_plus_eps{1.0};
+        // Assume 1+eps with its unsigned integer view of the same bit size
+        auto uintptr = reinterpret_cast<std::uint32_t *>(&one_plus_eps);
+        // Add a bit into mantissa of 1+eps to get actual value of 1+eps
+        ++(*uintptr);
+        // Output difference of 1+eps and 1
+        return one_plus_eps - one;
     }
 };
 
@@ -300,7 +324,9 @@ public:
     using compat_t = float;
     //! Flag if copy from compat_t does not require conversion
     static const bool trivial_copy_from_compat = true;
-    //! Internal value of nntile::fp32_t to hold actual data
+    //! String to represent this type
+    static constexpr const char *type_repr = "fp32_fast_tf32_t";
+    //! Internal value of this type to hold actual data
     internal_t value;
     //! Constructor
     fp32_fast_tf32_t() = default;
@@ -327,9 +353,15 @@ public:
     //! Machine precision of this type
     static compat_t epsilon()
     {
-        // Skip 13 bits from right and make 14-th bit equal 1
-        static const std::uint32_t eps_int = 0x2000;
-        return *reinterpret_cast<const compat_t *>(&eps_int);
+        // Check that compat_t type contains 4 bytes
+        static_assert(sizeof(compat_t) == 4);
+        // Init 1.0 and 1.0+eps identically
+        compat_t one{1.0}, one_plus_eps{1.0};
+        auto uintptr = reinterpret_cast<std::uint32_t *>(&one_plus_eps);
+        // Add a bit into mantissa of 1+eps to get actual value of 1+eps
+        *uintptr += 0x2000;
+        // Output difference of 1+eps and 1
+        return one_plus_eps - one;
     }
 };
 
@@ -351,7 +383,9 @@ public:
     using compat_t = float;
     //! Flag if copy from compat_t does not require conversion
     static const bool trivial_copy_from_compat = false;
-    //! Internal value of nntile::fp32_t to hold actual data
+    //! String to represent this type
+    static constexpr const char *type_repr = "bf16_t";
+    //! Internal value of this type to hold actual data
     internal_t value;
     //! Constructor
     bf16_t() = default;
@@ -368,9 +402,15 @@ public:
     //! Machine precision of this type
     static compat_t epsilon()
     {
-        // Skip 16 bits from right and make 17-th bit equal 1
-        static const std::uint32_t eps_int = 0x10000;
-        return *reinterpret_cast<const compat_t *>(&eps_int);
+        // Check that compat_t type contains 4 bytes
+        static_assert(sizeof(compat_t) == 4);
+        // Init 1.0 and 1.0+eps identically
+        compat_t one{1.0}, one_plus_eps{1.0};
+        auto uintptr = reinterpret_cast<std::uint32_t *>(&one_plus_eps);
+        // Add a bit into mantissa of 1+eps to get actual value of 1+eps
+        *uintptr += 0x10000;
+        // Output difference of 1+eps and 1
+        return one_plus_eps - one;
     }
 };
 

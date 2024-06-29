@@ -20,7 +20,8 @@
 #   include <cuda_fp16.h>
 #endif
 
-#ifdef NNTILE_USE_CUDA_BF16
+//#ifdef NNTILE_USE_CUDA_BF16
+#ifdef NNTILE_USE_CUDA
 #   include <cuda_bf16.h>
 #endif
 
@@ -140,16 +141,16 @@ struct CUDAComputeType<fp32_fast_tf32_t>
 //    using value = __nv_half;
 //#endif
 //};
-//
-////! Compute type for nntile::bf16_t type
-//template<>
-//struct CUDAComputeType<bf16_t>
-//{
-//#ifdef NNTILE_USE_CUDA_TF32
-//    using value = __nv_bfloat16;
-//#endif
-//};
-//
+
+//! Compute type for nntile::bf16_t type
+template<>
+struct CUDAComputeType<bf16_t>
+{
+#ifdef NNTILE_USE_CUDA
+    using value = __nv_bfloat16;
+#endif
+};
+
 ////! Compute type for nntile::fp8_e4m3_t type
 //template<>
 //struct CUDAComputeType<fp8_e4m3_t>
