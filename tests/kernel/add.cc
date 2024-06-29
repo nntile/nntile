@@ -72,7 +72,7 @@ template<typename T>
 void validate(Index nelems, int test_index_a, int test_index_b)
 {
     using Y = typename T::compat_t;
-    const Y eps = 20 * T::epsilon();
+    const Y eps = 2 * T::epsilon();
     // Init test input
     scal_t alpha = (1.0)/scal_t(test_index_a);
     scal_t beta = (1.0)/scal_t(test_index_b);
@@ -83,27 +83,30 @@ void validate(Index nelems, int test_index_a, int test_index_b)
         dst[i] = Y(2*nelems-i);
     }
     std::vector<T> dst_save(dst);
-    // Check low-level CPU kernel
-    std::cout << "Run kernel::add::cpu<T>\n";
-    add::cpu<T>(nelems, alpha, &src[0], beta, &dst[0]);
-    for(Index i = 0; i < nelems; ++i)
+    // Check low-level CPU kernel only for supported data types
+    if constexpr (std::is_same<T, fp64_t>::value
+            or std::is_same<T, fp32_t>::value)
     {
-        Y val_ref = alpha*Y(2*i+1-nelems) + beta*Y(2*nelems-i);
-        TEST_ASSERT(std::abs(Y{dst[i]}-val_ref)/std::abs(val_ref) <= eps);
+        std::cout << "Run kernel::add::cpu<" << T::type_repr << ">\n";
+        add::cpu<T>(nelems, alpha, &src[0], beta, &dst[0]);
+        for(Index i = 0; i < nelems; ++i)
+        {
+            Y val_ref = alpha*Y(2*i+1-nelems) + beta*Y(2*nelems-i);
+            TEST_ASSERT(std::abs(Y{dst[i]}-val_ref)/std::abs(val_ref) <= eps);
+        }
+        std::cout << "OK: kernel::add::cpu<" << T::type_repr << ">\n";
     }
-    //std::cout << "OK: kernel::add::cpu<" << typeid(T).name() << ">\n";
-    std::cout << "OK: kernel::add::cpu<T>\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
-    std::cout << "Run kernel::add::cuda<T>\n";
+    std::cout << "Run kernel::add::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(nelems, alpha, src, beta, dst);
     for(Index i = 0; i < nelems; ++i)
     {
         Y val_ref = alpha*Y(2*i+1-nelems) + beta*Y(2*nelems-i);
         TEST_ASSERT(std::abs(Y{dst[i]}-val_ref)/std::abs(val_ref) <= eps);
     }
-    std::cout << "OK: kernel::add::cuda<T>\n";
+    std::cout << "OK: kernel::add::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 
@@ -116,5 +119,6 @@ int main(int argc, char **argv)
         int i = int(j)+1;
         validate<fp64_t>(nelems, i, i);
         validate<fp32_t>(nelems, i, i);
+        validate<bf16_t>(nelems, i, i);
     }
 }

@@ -75,4 +75,9 @@ void cuda<fp64_t>(cudaStream_t stream, Index nelems, scal_t alpha,
         const fp64_t *src, scal_t beta, fp64_t *dst)
     noexcept;
 
+template
+void cuda<bf16_t>(cudaStream_t stream, Index nelems, scal_t alpha,
+        const bf16_t *src, scal_t beta, bf16_t *dst)
+    noexcept;
+
 } // namespace nntile::kernel::add
