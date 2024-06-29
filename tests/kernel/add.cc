@@ -71,12 +71,12 @@ void run_cuda(Index nelems, scal_t alpha, const std::vector<T> &src,
 template<typename T>
 void validate(Index nelems, int test_index_a, int test_index_b)
 {
-    constexpr T eps = 20 * std::numeric_limits<T>::epsilon();
+    using Y = typename T::compat_t;
+    const Y eps = 20 * T::epsilon();
     // Init test input
     scal_t alpha = (1.0)/scal_t(test_index_a);
     scal_t beta = (1.0)/scal_t(test_index_b);
     std::vector<T> src(nelems), dst(nelems);
-    using Y = typename T::compat_t;
     for(Index i = 0; i < nelems; ++i)
     {
         src[i] = Y(2*i+1-nelems);

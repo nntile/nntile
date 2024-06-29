@@ -102,29 +102,37 @@ using Index = std::int64_t;
 //! This type is meant for scalar values outside StarPU buffers
 using scal_t = float;
 
-//! NNTile type for std::int64_t inside StarPU buffers, Tile and Tensor
+//! NNTile wrapper type for 64-bit signed integers inside NNTile tensors
 class int64_t
 {
 public:
+    //! Basic type that must have the same size, as this type
     using internal_t = std::int64_t;
+    //! Basic type that must cover all possible values of this type
     using compat_t = std::int64_t;
-    static constexpr bool trivial_copy_from_compat = true;
+    //! Flag if copy from compat_t does not require conversion
+    static const bool trivial_copy_from_compat = true;
+    //! Internal value of this type to hold actual data
     internal_t value;
-    explicit constexpr int64_t(const compat_t &other):
+    //! Constructor
+    int64_t() = default;
+    //! Constructor from another value of this type
+    explicit int64_t(const int64_t &other) = default;
+    //! Constructor from a compat_t value
+    explicit int64_t(const compat_t &other):
         value(other)
     {
     }
-    constexpr int64_t &operator=(const compat_t &other)
+    //! Assignment from another value of this type
+    int64_t &operator=(const int64_t &other) = default;
+    //! Assignment from a compat_t value
+    int64_t &operator=(const compat_t &other)
     {
         value = other;
         return *this;
     }
-    constexpr int64_t &operator=(const int64_t &other)
-    {
-        value = other.value;
-        return *this;
-    }
-    explicit constexpr operator compat_t() const
+    //! Conversion to compat_t value
+    explicit operator compat_t() const
     {
         return value;
     }
@@ -137,134 +145,37 @@ inline std::ostream &operator<<(std::ostream &os, const int64_t &value)
     return os;
 }
 
-//! NNTile type for std::int32_t inside StarPU buffers, Tile and Tensor
-class int32_t
-{
-public:
-    using internal_t = std::int32_t;
-    using compat_t = std::int32_t;
-    static constexpr bool trivial_copy_from_compat = true;
-    internal_t value;
-    explicit constexpr int32_t(const compat_t &other):
-        value(other)
-    {
-    }
-    constexpr int32_t &operator=(const compat_t &other)
-    {
-        value = other;
-        return *this;
-    }
-    constexpr int32_t &operator=(const int32_t &other)
-    {
-        value = other.value;
-        return *this;
-    }
-    explicit constexpr operator compat_t() const
-    {
-        return value;
-    }
-};
-
-//! Print function for nntile::int32_t
-inline std::ostream &operator<<(std::ostream &os, const int32_t &value)
-{
-    os << static_cast<typename int32_t::compat_t>(value);
-    return os;
-}
-
-//! NNTile type for std::int16_t inside StarPU buffers, Tile and Tensor
-class int16_t
-{
-public:
-    using internal_t = std::int16_t;
-    using compat_t = std::int16_t;
-    static constexpr bool trivial_copy_from_compat = true;
-    internal_t value;
-    explicit constexpr int16_t(const compat_t &other):
-        value(other)
-    {
-    }
-    constexpr int16_t &operator=(const compat_t &other)
-    {
-        value = other;
-        return *this;
-    }
-    constexpr int16_t &operator=(const int16_t &other)
-    {
-        value = other.value;
-        return *this;
-    }
-    explicit constexpr operator compat_t() const
-    {
-        return value;
-    }
-};
-
-//! Print function for nntile::int16_t
-inline std::ostream &operator<<(std::ostream &os, const int16_t &value)
-{
-    os << static_cast<typename int16_t::compat_t>(value);
-    return os;
-}
-
-//! NNTile type for std::int8_t inside StarPU buffers, Tile and Tensor
-class int8_t
-{
-public:
-    using internal_t = std::int8_t;
-    using compat_t = std::int8_t;
-    static constexpr bool trivial_copy_from_compat = true;
-    internal_t value;
-    explicit constexpr int8_t(const compat_t &other):
-        value(other)
-    {
-    }
-    constexpr int8_t &operator=(const compat_t &other)
-    {
-        value = other;
-        return *this;
-    }
-    constexpr int8_t &operator=(const int8_t &other)
-    {
-        value = other.value;
-        return *this;
-    }
-    explicit constexpr operator compat_t() const
-    {
-        return value;
-    }
-};
-
-//! Print function for nntile::int8_t
-inline std::ostream &operator<<(std::ostream &os, const int8_t &value)
-{
-    os << static_cast<typename int8_t::compat_t>(value);
-    return os;
-}
-
-//! NNTile type for bool inside StarPU buffers, Tile and Tensor
+//! NNTile wrapper type for bool values inside NNTile tensors
 class bool_t
 {
 public:
+    //! Basic type that must have the same size, as this type
     using internal_t = bool;
+    //! Basic type that must cover all possible values of this type
     using compat_t = bool;
-    static constexpr bool trivial_copy_from_compat = true;
+    //! Flag if copy from compat_t does not require conversion
+    static const bool trivial_copy_from_compat = true;
+    //! Internal value of this type to hold actual data
     internal_t value;
-    explicit constexpr bool_t(const compat_t &other):
+    //! Constructor
+    bool_t() = default;
+    //! Constructor from another value of this type
+    explicit bool_t(const bool_t &other) = default;
+    //! Constructor from a compat_t value
+    explicit bool_t(const compat_t &other):
         value(other)
     {
     }
-    constexpr bool_t &operator=(const compat_t &other)
+    //! Assignment from another value of this type
+    bool_t &operator=(const bool_t &other) = default;
+    //! Assignment from a compat_t value
+    bool_t &operator=(const compat_t &other)
     {
         value = other;
         return *this;
     }
-    constexpr bool_t &operator=(const bool_t &other)
-    {
-        value = other.value;
-        return *this;
-    }
-    explicit constexpr operator compat_t() const
+    //! Conversion to compat_t value
+    explicit operator compat_t() const
     {
         return value;
     }
@@ -277,31 +188,45 @@ inline std::ostream &operator<<(std::ostream &os, const bool_t &value)
     return os;
 }
 
-//! NNTile type for double inside StarPU buffers, Tile and Tensor
+//! NNTile wrapper type for double inside NNTile tensors
 class fp64_t
 {
 public:
+    //! Basic type that must have the same size, as this type
     using internal_t = double;
+    //! Basic type that must cover all possible values of this type
     using compat_t = double;
-    static constexpr bool trivial_copy_from_compat = true;
+    //! Flag if copy from compat_t does not require conversion
+    static const bool trivial_copy_from_compat = true;
+    //! Internal value of this type to hold actual data
     internal_t value;
-    explicit constexpr fp64_t(const compat_t &other):
+    //! Constructor
+    fp64_t() = default;
+    //! Constructor from another value of this type
+    explicit fp64_t(const fp64_t &other) = default;
+    //! Constructor from a compat_t value
+    explicit fp64_t(const compat_t &other):
         value(other)
     {
     }
-    constexpr fp64_t &operator=(const compat_t &other)
+    //! Assignment from another value of this type
+    fp64_t &operator=(const fp64_t &other) = default;
+    //! Assignment from a compat_t value
+    fp64_t &operator=(const compat_t &other)
     {
         value = other;
         return *this;
     }
-    constexpr fp64_t &operator=(const fp64_t &other)
-    {
-        value = other.value;
-        return *this;
-    }
-    explicit constexpr operator compat_t() const
+    //! Conversion to compat_t value
+    explicit operator compat_t() const
     {
         return value;
+    }
+    //! Machine precision of this type
+    static compat_t epsilon()
+    {
+        static const std::uint64_t eps_int = 1;
+        return *reinterpret_cast<const compat_t *>(&eps_int);
     }
 };
 
@@ -312,31 +237,45 @@ inline std::ostream &operator<<(std::ostream &os, const fp64_t &value)
     return os;
 }
 
-//! NNTile type for float inside StarPU buffers, Tile and Tensor
+//! NNTile wrapper type for float inside NNTile tensors
 class fp32_t
 {
 public:
+    //! Basic type that must have the same size, as this type
     using internal_t = float;
+    //! Basic type that must cover all possible values of this type
     using compat_t = float;
-    static constexpr bool trivial_copy_from_compat = true;
+    //! Flag if copy from compat_t does not require conversion
+    static const bool trivial_copy_from_compat = true;
+    //! Internal value of this type to hold actual data
     internal_t value;
-    explicit constexpr fp32_t(const compat_t &other):
+    //! Constructor
+    fp32_t() = default;
+    //! Constructor from another value of this type
+    explicit fp32_t(const fp32_t &other) = default;
+    //! Constructor from a compat_t value
+    explicit fp32_t(const compat_t &other):
         value(other)
     {
     }
-    constexpr fp32_t &operator=(const compat_t &other)
+    //! Assignment from another value of this type
+    fp32_t &operator=(const fp32_t &other) = default;
+    //! Assignment from a compat_t value
+    fp32_t &operator=(const compat_t &other)
     {
         value = other;
         return *this;
     }
-    constexpr fp32_t &operator=(const fp32_t &other)
-    {
-        value = other.value;
-        return *this;
-    }
-    explicit constexpr operator compat_t() const
+    //! Conversion to compat_t value
+    explicit operator compat_t() const
     {
         return value;
+    }
+    //! Machine precision of this type
+    static compat_t epsilon()
+    {
+        static const std::uint32_t eps_int = 1;
+        return *reinterpret_cast<const compat_t *>(&eps_int);
     }
 };
 
@@ -347,7 +286,7 @@ inline std::ostream &operator<<(std::ostream &os, const fp32_t &value)
     return os;
 }
 
-/*! NNTile type for TensorFloat32-accelerated float type
+/*! NNTile wrapper type for TensorFloat32-accelerated float type inside tensors
  * 
  * All memory-bound operations are performed in `float` precision, while
  * all compute-bound operations are performed in `TensorFloat32` type.
@@ -355,27 +294,42 @@ inline std::ostream &operator<<(std::ostream &os, const fp32_t &value)
 class fp32_fast_tf32_t
 {
 public:
+    //! Basic type that must have the same size, as this type
     using internal_t = float;
+    //! Basic type that must cover all possible values of this type
     using compat_t = float;
-    static constexpr bool trivial_copy_from_compat = true;
+    //! Flag if copy from compat_t does not require conversion
+    static const bool trivial_copy_from_compat = true;
+    //! Internal value of nntile::fp32_t to hold actual data
     internal_t value;
-    explicit constexpr fp32_fast_tf32_t(const compat_t &other):
+    //! Constructor
+    fp32_fast_tf32_t() = default;
+    //! Constructor from another value of this type
+    explicit fp32_fast_tf32_t(const fp32_fast_tf32_t &other) = default;
+    //! Constructor from a compat_t value
+    explicit fp32_fast_tf32_t(const compat_t &other):
         value(other)
     {
     }
-    constexpr fp32_fast_tf32_t &operator=(const compat_t &other)
+    //! Assignment from another value of this type
+    fp32_fast_tf32_t &operator=(const fp32_fast_tf32_t &other) = default;
+    //! Assignment from a compat_t value
+    fp32_fast_tf32_t &operator=(const compat_t &other)
     {
         value = other;
         return *this;
     }
-    constexpr fp32_fast_tf32_t &operator=(const fp32_fast_tf32_t &other)
-    {
-        value = other.value;
-        return *this;
-    }
-    explicit constexpr operator compat_t() const
+    //! Conversion to compat_t value
+    explicit operator compat_t() const
     {
         return value;
+    }
+    //! Machine precision of this type
+    static compat_t epsilon()
+    {
+        // Skip 13 bits from right and make 14-th bit equal 1
+        static const std::uint32_t eps_int = 0x2000;
+        return *reinterpret_cast<const compat_t *>(&eps_int);
     }
 };
 
@@ -384,6 +338,46 @@ inline std::ostream &operator<<(std::ostream &os,
         const fp32_fast_tf32_t &value)
 {
     os << static_cast<typename fp32_fast_tf32_t::compat_t>(value);
+    return os;
+}
+
+//! NNTile wrapper type BrainFloat16 type inside tensors
+class bf16_t
+{
+public:
+    //! Basic type that must have the same size, as this type
+    using internal_t = std::uint16_t;
+    //! Basic type that must cover all possible values of this type
+    using compat_t = float;
+    //! Flag if copy from compat_t does not require conversion
+    static const bool trivial_copy_from_compat = false;
+    //! Internal value of nntile::fp32_t to hold actual data
+    internal_t value;
+    //! Constructor
+    bf16_t() = default;
+    //! Constructor from another value of this type
+    explicit bf16_t(const bf16_t &other) = default;
+    //! Constructor from a compat_t value
+    explicit bf16_t(const compat_t &other);
+    //! Assignment from another value of this type
+    bf16_t &operator=(const bf16_t &other) = default;
+    //! Assignment from a compat_t value
+    bf16_t &operator=(const compat_t &other);
+    //! Conversion to compat_t value
+    explicit operator compat_t() const;
+    //! Machine precision of this type
+    static compat_t epsilon()
+    {
+        // Skip 16 bits from right and make 17-th bit equal 1
+        static const std::uint32_t eps_int = 0x10000;
+        return *reinterpret_cast<const compat_t *>(&eps_int);
+    }
+};
+
+//! Print function for nntile::bf16_t
+inline std::ostream &operator<<(std::ostream &os, const bf16_t &value)
+{
+    os << static_cast<typename bf16_t::compat_t>(value);
     return os;
 }
 
