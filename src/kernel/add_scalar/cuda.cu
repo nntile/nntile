@@ -30,7 +30,7 @@ void cuda_kernel(Index num_elements, T alpha, T beta, T* dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index num_elements, scal_t alpha, scal_t beta,
+void cuda(cudaStream_t stream, Index num_elements, Scalar alpha, Scalar beta,
         T *dst_)
     noexcept
 //! Add scalar to buffer buffers on CUDA
@@ -51,13 +51,13 @@ void cuda(cudaStream_t stream, Index num_elements, scal_t alpha, scal_t beta,
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index num_elements, scal_t alpha,
-        scal_t beta, fp32_t *dst)
+void cuda<fp32_t>(cudaStream_t stream, Index num_elements, Scalar alpha,
+        Scalar beta, fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index num_elements, scal_t alpha,
-        scal_t beta, fp64_t *dst)
+void cuda<fp64_t>(cudaStream_t stream, Index num_elements, Scalar alpha,
+        Scalar beta, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::add_scalar

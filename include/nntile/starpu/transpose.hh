@@ -26,7 +26,7 @@ struct args_t
 {
     Index m;
     Index n;
-    scal_t alpha;
+    Scalar alpha;
 };
 
 // Apply transpose for StarPU buffers on CPU
@@ -75,6 +75,6 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, scal_t alpha, Handle src, Handle dst);
+void submit(Index m, Index n, Scalar alpha, Handle src, Handle dst);
 
 } // namespace nntile::starpu::transpose

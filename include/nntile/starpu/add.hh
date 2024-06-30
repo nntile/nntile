@@ -24,15 +24,15 @@ namespace nntile::starpu::add
 //! Structure for arguments
 struct args_t
 {
-    args_t(Index nelems_, scal_t alpha_, scal_t beta_) :
+    args_t(Index nelems_, Scalar alpha_, Scalar beta_) :
         nelems(nelems_),
         alpha(alpha_),
         beta(beta_)
         {
         }
     Index nelems;
-    scal_t alpha;
-    scal_t beta;
+    Scalar alpha;
+    Scalar beta;
 };
 
 // Apply add for StarPU buffers on CPU
@@ -81,6 +81,6 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nelems, scal_t alpha, Handle src, scal_t beta, Handle dst);
+void submit(Index nelems, Scalar alpha, Handle src, Scalar beta, Handle dst);
 
 } // namespace nntile::starpu::add

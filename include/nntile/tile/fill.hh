@@ -21,10 +21,10 @@ namespace nntile::tile
 
 // Asynchronous tile-wise fill operation
 template<typename T>
-void fill_async(scal_t val, const Tile<T> &A);
+void fill_async(Scalar val, const Tile<T> &A);
 
 // Blocking version of tile-wise fill operation
 template<typename T>
-void fill(scal_t val, const Tile<T> &A);
+void fill(Scalar val, const Tile<T> &A);
 
 } // namespace nntile::tile

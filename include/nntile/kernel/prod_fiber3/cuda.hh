@@ -22,7 +22,7 @@ namespace nntile::kernel::prod_fiber3
 
 // Per-element product of a tensor and a broadcasted fiber on CPU
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
+void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const T *src1, const T *src2, T *dst)
     noexcept;
 

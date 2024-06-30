@@ -26,7 +26,7 @@ namespace nntile::starpu::scal_inplace
 struct args_t
 {
     Index nelems;
-    scal_t alpha;
+    Scalar alpha;
 };
 
 #ifdef NNTILE_USE_CBLAS
@@ -75,6 +75,6 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nelems, scal_t alpha, Handle data);
+void submit(Index nelems, Scalar alpha, Handle data);
 
 } // namespace nntile::starpu::scal_inplace

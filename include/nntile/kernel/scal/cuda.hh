@@ -22,7 +22,7 @@ namespace nntile::kernel::scal
 
 // Apply scal for buffers on CUDA
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, scal_t alpha, const T* src, T* dst)
+void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T* src, T* dst)
     noexcept;
 
 } // namespace nntile::kernel::scal

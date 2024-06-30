@@ -31,7 +31,7 @@ void cuda_kernel(T val, T eps, Index nelems, const T *nom, const T* denom,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, scal_t val, scal_t eps, Index nelems,
+void cuda(cudaStream_t stream, Scalar val, Scalar eps, Index nelems,
         const T *nom_, const T *denom_, T *res_)
     noexcept
 //! Addcdiv operation of buffers
@@ -56,12 +56,12 @@ void cuda(cudaStream_t stream, scal_t val, scal_t eps, Index nelems,
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, scal_t val, scal_t eps, Index nelems,
+void cuda<fp32_t>(cudaStream_t stream, Scalar val, Scalar eps, Index nelems,
         const fp32_t *nom, const fp32_t *denom, fp32_t *res)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, scal_t val, scal_t eps, Index nelems,
+void cuda<fp64_t>(cudaStream_t stream, Scalar val, Scalar eps, Index nelems,
         const fp64_t *nom, const fp64_t *denom, fp64_t *res)
     noexcept;
 

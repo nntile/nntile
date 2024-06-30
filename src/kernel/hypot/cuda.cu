@@ -63,8 +63,8 @@ void cuda_kernel(Index nelems, T alpha, const T* src, T beta, T* dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, scal_t alpha, const T *src_,
-        scal_t beta, T *dst_)
+void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src_,
+        Scalar beta, T *dst_)
     noexcept
 //! hypot two buffers on CUDA
 /*! Performs the following operation:
@@ -88,13 +88,13 @@ void cuda(cudaStream_t stream, Index nelems, scal_t alpha, const T *src_,
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index nelems, scal_t alpha,
-        const fp32_t *src, scal_t beta, fp32_t *dst)
+void cuda<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp32_t *src, Scalar beta, fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index nelems, scal_t alpha,
-        const fp64_t *src, scal_t beta, fp64_t *dst)
+void cuda<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const fp64_t *src, Scalar beta, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::hypot

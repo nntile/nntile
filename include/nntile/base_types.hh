@@ -17,90 +17,16 @@
 #include <cstdint>
 #include <assert.h>
 #include <iostream>
+#include <limits>
 
 namespace nntile
 {
 
-//! Enumeration of base supported data types inside tiles and tensors
-//enum class DTypeEnum: int
-//{
-//    NOT_INITIALIZED=101,
-//    INT64,
-//    INT32,
-//    INT16,
-//    INT8,
-//    BOOL,
-//    FP64,
-//    FP32,
-//    FP32_FAST_TF32,
-//    FP32_FAST_FP16,
-//    FP32_FAST_BF16,
-//    TF32,
-//    FP16,
-//    BF16,
-//    FP8_E4M3,
-//    FP8_E5M2
-//};
-//    constexpr char *name()
-//    {
-//        switch(value)
-//        {
-//            case INT64:
-//                return "int64";
-//                break;
-//            case INT32:
-//                return "int32";
-//                break;
-//            case INT16:
-//                return "int16";
-//                break;
-//            case INT8:
-//                return "int8";
-//                break;
-//            case BOOL:
-//                return "bool";
-//                break;
-//            case FP64:
-//                return "fp64";
-//                break;
-//            case FP32:
-//                return "fp32";
-//                break;
-//            case FP32_FAST_TF32:
-//                return "fp32_fast_tf32";
-//                break;
-//            case FP32_FAST_FP16:
-//                return "fp32_fast_fp16";
-//                break;
-//            case FP32_FAST_BF16:
-//                return "fp32_fast_bf16";
-//                break;
-//            case TF32:
-//                return "tf32";
-//                break;
-//            case FP16:
-//                return "fp16";
-//                break;
-//            case BF16:
-//                return "bf16";
-//                break;
-//            case FP8_E4M3:
-//                return "fp8_e4m3";
-//                break;
-//            case FP8_E5M2:
-//                return "fp8_e5m2";
-//                break;
-//            default:
-//                return "error";
-//        }
-//    }
-//};
-
-//! Integer type for scalar values and indices outside StarPU buffers
+//! Integer type for sizes and indices outside StarPU buffers
 using Index = std::int64_t;
 
-//! This type is meant for scalar values outside StarPU buffers
-using scal_t = float;
+//! Floating point type for scalar values outside StarPU buffers
+using Scalar = float;
 
 //! NNTile wrapper type for 64-bit signed integers inside NNTile tensors
 class int64_t
@@ -231,16 +157,8 @@ public:
     //! Machine precision of this type
     static compat_t epsilon()
     {
-        // Check that compat_t type contains 8 bytes
-        static_assert(sizeof(compat_t) == 8);
-        // Init 1.0 and 1.0+eps identically
-        compat_t one{1.0}, one_plus_eps{1.0};
-        // Assume 1+eps with its unsigned integer view of the same bit size
-        auto uintptr = reinterpret_cast<std::uint64_t *>(&one_plus_eps);
-        // Add a bit into mantissa of 1+eps to get actual value of 1+eps
-        ++(*uintptr);
-        // Output difference of 1+eps and 1
-        return one_plus_eps - one;
+        // Just use std::numeric_limits
+        return std::numeric_limits<double>::epsilon();
     }
 };
 
@@ -290,16 +208,8 @@ public:
     //! Machine precision of this type
     static compat_t epsilon()
     {
-        // Check that compat_t type contains 4 bytes
-        static_assert(sizeof(compat_t) == 4);
-        // Init 1.0 and 1.0+eps identically
-        compat_t one{1.0}, one_plus_eps{1.0};
-        // Assume 1+eps with its unsigned integer view of the same bit size
-        auto uintptr = reinterpret_cast<std::uint32_t *>(&one_plus_eps);
-        // Add a bit into mantissa of 1+eps to get actual value of 1+eps
-        ++(*uintptr);
-        // Output difference of 1+eps and 1
-        return one_plus_eps - one;
+        // Just use std::numeric_limits
+        return std::numeric_limits<float>::epsilon();
     }
 };
 
@@ -353,15 +263,13 @@ public:
     //! Machine precision of this type
     static compat_t epsilon()
     {
-        // Check that compat_t type contains 4 bytes
-        static_assert(sizeof(compat_t) == 4);
         // Init 1.0 and 1.0+eps identically
-        compat_t one{1.0}, one_plus_eps{1.0};
-        auto uintptr = reinterpret_cast<std::uint32_t *>(&one_plus_eps);
+        fp32_fast_tf32_t one{1.0}, one_p_eps{1.0};
+        auto uintptr = reinterpret_cast<std::uint32_t *>(&one_p_eps);
         // Add a bit into mantissa of 1+eps to get actual value of 1+eps
         *uintptr += 0x2000;
         // Output difference of 1+eps and 1
-        return one_plus_eps - one;
+        return static_cast<compat_t>(one_p_eps) - static_cast<compat_t>(one);
     }
 };
 
@@ -402,15 +310,13 @@ public:
     //! Machine precision of this type
     static compat_t epsilon()
     {
-        // Check that compat_t type contains 4 bytes
-        static_assert(sizeof(compat_t) == 4);
         // Init 1.0 and 1.0+eps identically
-        compat_t one{1.0}, one_plus_eps{1.0};
-        auto uintptr = reinterpret_cast<std::uint32_t *>(&one_plus_eps);
+        bf16_t one{1.0}, one_p_eps{1.0};
+        auto uintptr = reinterpret_cast<std::uint16_t *>(&one_p_eps);
         // Add a bit into mantissa of 1+eps to get actual value of 1+eps
-        *uintptr += 0x10000;
+        *uintptr += 1;
         // Output difference of 1+eps and 1
-        return one_plus_eps - one;
+        return static_cast<compat_t>(one_p_eps) - static_cast<compat_t>(one);
     }
 };
 

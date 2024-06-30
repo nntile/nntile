@@ -27,8 +27,8 @@ struct args_t
     Index m;
     Index n;
     Index k;
-    scal_t alpha;
-    scal_t beta;
+    Scalar alpha;
+    Scalar beta;
 };
 
 // StarPU wrapper for kernel::add_slice3::cpu<T>
@@ -77,7 +77,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, scal_t alpha, Handle src1, scal_t beta,
+void submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Scalar beta,
         Handle src2, Handle dst);
 
 } // namespace nntile::starpu::add_slice3

@@ -19,7 +19,7 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void add_slice_async(scal_t alpha, const Tensor<T> &src, scal_t beta,
+void add_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
         const Tensor<T> &dst, Index axis)
 //! Tensor<T> addition of a tensor and a broadcasted slice
 /*! Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
@@ -126,7 +126,7 @@ void add_slice_async(scal_t alpha, const Tensor<T> &src, scal_t beta,
 }
 
 template<typename T>
-void add_slice(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> &dst,
+void add_slice(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst,
                Index axis)
 //! Tensor<T> addition of a tensor and a broadcasted slice
 /*! Blocking version of add_slice_async<T>.
@@ -147,28 +147,28 @@ void add_slice(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> 
 
 // Explicit instantiation of template
 template
-void add_slice_async<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src,
-        scal_t beta, const Tensor<fp32_t> &dst, Index axis);
+void add_slice_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
+        Scalar beta, const Tensor<fp32_t> &dst, Index axis);
 
 template
-void add_slice_async<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src,
-        scal_t beta, const Tensor<fp64_t> &dst, Index axis);
+void add_slice_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
+        Scalar beta, const Tensor<fp64_t> &dst, Index axis);
 
 template
-void add_slice_async<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src,
-        scal_t beta, const Tensor<fp32_fast_tf32_t> &dst, Index axis);
+void add_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
+        Scalar beta, const Tensor<fp32_fast_tf32_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void add_slice<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src, scal_t beta,
+void add_slice<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
         const Tensor<fp32_t> &dst, Index axis);
 
 template
-void add_slice<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src, scal_t beta,
+void add_slice<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
         const Tensor<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void add_slice<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src, scal_t beta,
+void add_slice<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
         const Tensor<fp64_t> &dst, Index axis);
 
 } // namespace nntile::tensor

@@ -87,7 +87,7 @@ void cuda_kernel(Index m, Index n, Index k, Index l, T eps,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, Index l, scal_t eps,
+void cuda(cudaStream_t stream, Index m, Index n, Index k, Index l, Scalar eps,
         const T *gamma_, const T *beta_, const T *sumnorm_, T *dst_)
     noexcept
 //! Renormalize buffer along middle axis
@@ -125,13 +125,13 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index l, scal_t eps,
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Index l,
-        scal_t eps, const fp32_t *gamma, const fp32_t *beta,
+        Scalar eps, const fp32_t *gamma, const fp32_t *beta,
         const fp32_t *sumnorm, fp32_t *dst)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Index l,
-        scal_t eps, const fp64_t *gamma, const fp64_t *beta,
+        Scalar eps, const fp64_t *gamma, const fp64_t *beta,
         const fp64_t *sumnorm, fp64_t *dst)
     noexcept;
 

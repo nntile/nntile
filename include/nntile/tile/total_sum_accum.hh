@@ -20,12 +20,12 @@ namespace nntile::tile
 {
 
 template<typename T>
-void total_sum_accum_async(scal_t alpha, const Tile<T> &logsumexp,
+void total_sum_accum_async(Scalar alpha, const Tile<T> &logsumexp,
         const Tile<T> &src, const Tile<int64_t> &class_labels,
         const Tile<T> &val);
 
 template<typename T>
-void total_sum_accum(scal_t alpha, const Tile<T> &logsumexp,
+void total_sum_accum(Scalar alpha, const Tile<T> &logsumexp,
         const Tile<T> &src, const Tile<int64_t> &class_labels,
         const Tile<T> &val);
 

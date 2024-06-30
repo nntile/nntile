@@ -20,9 +20,9 @@ namespace nntile::tile
 {
 
 template<typename T>
-void scal_inplace_async(scal_t alpha, const Tile<T> &data);
+void scal_inplace_async(Scalar alpha, const Tile<T> &data);
 
 template<typename T>
-void scal_inplace(scal_t alpha, const Tile<T> &data);
+void scal_inplace(Scalar alpha, const Tile<T> &data);
 
 } // namespace nntile::tile

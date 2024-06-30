@@ -49,7 +49,7 @@ void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src, T *dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
+void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const T *src_, T *dst_)
     noexcept
 //! Per-element product of a tensor and a broadcasted fiber on CPU
@@ -79,12 +79,12 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
+void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const fp32_t *src, fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
+void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const fp64_t *src, fp64_t *dst)
     noexcept;
 

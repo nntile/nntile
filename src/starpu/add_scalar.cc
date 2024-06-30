@@ -108,7 +108,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index num_elements, scal_t alpha, scal_t beta, Handle dst)
+void submit(Index num_elements, Scalar alpha, Scalar beta, Handle dst)
 //! Insert add_scalar task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -134,9 +134,9 @@ void submit(Index num_elements, scal_t alpha, scal_t beta, Handle dst)
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index num_elements, scal_t alpha, scal_t beta, Handle dst);
+void submit<fp32_t>(Index num_elements, Scalar alpha, Scalar beta, Handle dst);
 
 template
-void submit<fp64_t>(Index num_elements, scal_t alpha, scal_t beta, Handle dst);
+void submit<fp64_t>(Index num_elements, Scalar alpha, Scalar beta, Handle dst);
 
 } // namespace nntile::starpu::add_scalar

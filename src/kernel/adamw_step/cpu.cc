@@ -20,8 +20,8 @@ namespace nntile::kernel::adamw_step
 {
 
 template<typename T>
-void cpu(Index num_iter, Index num_elems, scal_t beta_1_, scal_t beta_2_,
-        scal_t eps_, scal_t lr_, scal_t weight_decay_, const T *grad_,
+void cpu(Index num_iter, Index num_elems, Scalar beta_1_, Scalar beta_2_,
+        Scalar eps_, Scalar lr_, Scalar weight_decay_, const T *grad_,
         T *first_moment_, T *second_moment_, T *p_)
     noexcept
 //! Fused AdamW step on buffers
@@ -87,14 +87,14 @@ void cpu(Index num_iter, Index num_elems, scal_t beta_1_, scal_t beta_2_,
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index num_iter, Index num_elems, scal_t beta_1, scal_t beta_2,
-        scal_t eps, scal_t lr, scal_t weight_decay, const fp32_t *grad,
+void cpu<fp32_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
+        Scalar eps, Scalar lr, Scalar weight_decay, const fp32_t *grad,
         fp32_t *first_moment, fp32_t *second_moment, fp32_t *p)
     noexcept;
 
 template
-void cpu<fp64_t>(Index num_iter, Index num_elems, scal_t beta_1, scal_t beta_2,
-        scal_t eps, scal_t lr, scal_t weight_decay, const fp64_t *grad,
+void cpu<fp64_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
+        Scalar eps, Scalar lr, Scalar weight_decay, const fp64_t *grad,
         fp64_t *first_moment, fp64_t *second_moment, fp64_t *p)
     noexcept;
 

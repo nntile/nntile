@@ -25,8 +25,8 @@ namespace nntile::starpu::hypot_scalar_inverse
 struct args_t
 {
     Index nelems;
-    scal_t eps;
-    scal_t alpha;
+    Scalar eps;
+    Scalar alpha;
 };
 
 template<typename T>
@@ -73,6 +73,6 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nelems, scal_t eps, scal_t alpha, Handle dst);
+void submit(Index nelems, Scalar eps, Scalar alpha, Handle dst);
 
 } // namespace nntile::starpu::hypot_scalar_inverse

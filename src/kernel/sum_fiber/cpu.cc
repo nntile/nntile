@@ -20,8 +20,8 @@ namespace nntile::kernel::sum_fiber
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, Index batch, scal_t alpha_, const T *src_,
-        scal_t beta_, T *dst_)
+void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src_,
+        Scalar beta_, T *dst_)
     noexcept
 //! Sums over slices along the first and last axes into a fiber of a tensor
 /*! For a provided m-by-k-by-n input array computes sums over slices
@@ -89,13 +89,13 @@ void cpu(Index m, Index n, Index k, Index batch, scal_t alpha_, const T *src_,
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m, Index n, Index k, Index batch, scal_t alpha,
-        const fp32_t *src, scal_t beta, fp32_t *dst)
+void cpu<fp32_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
+        const fp32_t *src, Scalar beta, fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index m, Index n, Index k, Index batch, scal_t alpha,
-        const fp64_t *src, scal_t beta, fp64_t *dst)
+void cpu<fp64_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
+        const fp64_t *src, Scalar beta, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::sum_fiber

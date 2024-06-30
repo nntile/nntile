@@ -21,7 +21,7 @@ namespace nntile::kernel::hypot
 
 // Apply hypot for buffers on CPU
 template<typename T>
-void cpu(Index nelems, scal_t alpha, const T* src, scal_t beta, T* dst)
+void cpu(Index nelems, Scalar alpha, const T* src, Scalar beta, T* dst)
     noexcept;
 
 } // namespace nntile::kernel::hypot

@@ -19,8 +19,8 @@ namespace nntile::kernel::sumprod_slice
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, scal_t alpha_, const T *src1_, const T *src2_,
-        scal_t beta_, T *dst_)
+void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src1_, const T *src2_,
+        Scalar beta_, T *dst_)
     noexcept
 //! Sums over fibers into a slice of a product of two tensors on CPU
 /*! For two provided m-by-k-by-n input arrays src1 and src2 compute sums of
@@ -85,13 +85,13 @@ void cpu(Index m, Index n, Index k, scal_t alpha_, const T *src1_, const T *src2
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m, Index n, Index k, scal_t alpha, const fp32_t *src1,
-        const fp32_t *src2, scal_t beta, fp32_t *dst)
+void cpu<fp32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_t *src1,
+        const fp32_t *src2, Scalar beta, fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index m, Index n, Index k, scal_t alpha, const fp64_t *src1,
-        const fp64_t *src2, scal_t beta, fp64_t *dst)
+void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src1,
+        const fp64_t *src2, Scalar beta, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::sumprod_slice

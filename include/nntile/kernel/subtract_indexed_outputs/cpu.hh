@@ -20,7 +20,7 @@ namespace nntile::kernel::subtract_indexed_outputs
 {
 
 template<typename T>
-void cpu(Index n_labels, Index n_outputs, scal_t val, const int64_t* labels, T *dst)
+void cpu(Index n_labels, Index n_outputs, Scalar val, const int64_t* labels, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::subtract_indexed_outputs

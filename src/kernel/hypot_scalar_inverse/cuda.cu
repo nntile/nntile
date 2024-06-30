@@ -40,7 +40,7 @@ void cuda_kernel(Index nelems, T eps, T alpha, T* dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, scal_t eps, scal_t alpha, T *dst_)
+void cuda(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha, T *dst_)
     noexcept
 //! Inverse of a hypot of a buffer and a scalar on CUDA
 /*! Performs the following operation:
@@ -62,12 +62,12 @@ void cuda(cudaStream_t stream, Index nelems, scal_t eps, scal_t alpha, T *dst_)
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index nelems, scal_t eps, scal_t alpha,
+void cuda<fp32_t>(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha,
         fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index nelems, scal_t eps, scal_t alpha,
+void cuda<fp64_t>(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha,
         fp64_t *dst)
     noexcept;
 

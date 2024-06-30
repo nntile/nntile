@@ -20,12 +20,12 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void total_sum_accum_async(scal_t alpha, const Tensor<T> &logsumexp,
+void total_sum_accum_async(Scalar alpha, const Tensor<T> &logsumexp,
         const Tensor<T> &src, const Tensor<int64_t> &class_labels,
         const Tensor<T> &val);
 
 template<typename T>
-void total_sum_accum(scal_t alpha, const Tensor<T> &logsumexp,
+void total_sum_accum(Scalar alpha, const Tensor<T> &logsumexp,
         const Tensor<T> &src, const Tensor<int64_t> &class_labels,
         const Tensor<T> &val);
 

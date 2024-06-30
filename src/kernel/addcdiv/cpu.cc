@@ -19,7 +19,7 @@ namespace nntile::kernel::addcdiv
 {
 
 template<typename T>
-void cpu(scal_t val_, scal_t eps_, Index nelems, const T *nom_, const T* denom_,
+void cpu(Scalar val_, Scalar eps_, Index nelems, const T *nom_, const T* denom_,
         T *res_)
     noexcept
 //! Per-element addcdiv operation of buffers
@@ -47,12 +47,12 @@ void cpu(scal_t val_, scal_t eps_, Index nelems, const T *nom_, const T* denom_,
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(scal_t val, scal_t eps, Index nelems,
+void cpu<fp32_t>(Scalar val, Scalar eps, Index nelems,
                  const fp32_t* nom, const fp32_t* denom, fp32_t* res)
     noexcept;
 
 template
-void cpu<fp64_t>(scal_t val, scal_t eps, Index nelems,
+void cpu<fp64_t>(Scalar val, Scalar eps, Index nelems,
                  const fp64_t* nom, const fp64_t* denom, fp64_t* res)
     noexcept;
 

@@ -20,11 +20,11 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void sum_slice_async(scal_t alpha, const Tensor<T> &src, scal_t beta,
+void sum_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
         const Tensor<T> &dst, Index axis, int redux=0);
 
 template<typename T>
-void sum_slice(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> &dst,
+void sum_slice(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst,
         Index axis, int redux=0);
 
 } // namespace nntile::tensor

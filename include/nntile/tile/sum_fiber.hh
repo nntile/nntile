@@ -21,12 +21,12 @@ namespace nntile::tile
 
 // Tile-wise sum_fiber
 template<typename T>
-void sum_fiber_async(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst,
+void sum_fiber_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         Index axis, Index batch_ndim);
 
 // Tile-wise sum_fiber
 template<typename T>
-void sum_fiber(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst,
+void sum_fiber(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         Index axis, Index batch_ndim);
 
 } // namespace nntile::tile

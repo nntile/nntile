@@ -91,8 +91,8 @@ void cuda_kernel(Index m, Index n, Index k, T alpha, const T *src1,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
-        const T *src1_, const T *src2_, scal_t beta, T *dst_)
+void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
+        const T *src1_, const T *src2_, Scalar beta, T *dst_)
     noexcept
 //! Sums over slices into a fiber of a product of two tensors on CPU
 /*! For two provided m-by-k-by-n input arrays src1 and src2 compute sums of
@@ -128,13 +128,13 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
-        const fp32_t *src1, const fp32_t *src2, scal_t beta, fp32_t *dst)
+void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
+        const fp32_t *src1, const fp32_t *src2, Scalar beta, fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
-        const fp64_t *src1, const fp64_t *src2, scal_t beta, fp64_t *dst)
+void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
+        const fp64_t *src1, const fp64_t *src2, Scalar beta, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::sumprod_fiber

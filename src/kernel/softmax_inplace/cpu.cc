@@ -20,7 +20,7 @@ namespace nntile::kernel::softmax_inplace
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, const T *maxsumexp_, scal_t alpha_, T *dst_)
+void cpu(Index m, Index n, Index k, const T *maxsumexp_, Scalar alpha_, T *dst_)
     noexcept
 //! Compute softmax on a buffer along middle axis
 /*!
@@ -74,12 +74,12 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp_, scal_t alpha_, T *dst_)
 // Explicit instantiation
 template
 void cpu<fp32_t>(Index m, Index n, Index k, const fp32_t *maxsumexp,
-        scal_t alpha, fp32_t *dst)
+        Scalar alpha, fp32_t *dst)
     noexcept;
 
 template
 void cpu<fp64_t>(Index m, Index n, Index k, const fp64_t *maxsumexp,
-        scal_t alpha, fp64_t *dst)
+        Scalar alpha, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::softmax_inplace

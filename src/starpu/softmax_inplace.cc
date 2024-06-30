@@ -126,7 +126,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, Handle maxsumexp, scal_t alpha, Handle dst)
+void submit(Index m, Index n, Index k, Handle maxsumexp, Scalar alpha, Handle dst)
 //! Insert softmax_inplace task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -155,15 +155,15 @@ void submit(Index m, Index n, Index k, Handle maxsumexp, scal_t alpha, Handle ds
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index m, Index n, Index k, Handle maxsumexp, scal_t alpha,
+void submit<fp32_t>(Index m, Index n, Index k, Handle maxsumexp, Scalar alpha,
         Handle dst);
 
 template
-void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Handle maxsumexp, scal_t alpha,
+void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Handle maxsumexp, Scalar alpha,
         Handle dst);
 
 template
-void submit<fp64_t>(Index m, Index n, Index k, Handle maxsumexp, scal_t alpha,
+void submit<fp64_t>(Index m, Index n, Index k, Handle maxsumexp, Scalar alpha,
         Handle dst);
 
 } // namespace nntile::starpu::softmax_inplace

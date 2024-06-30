@@ -118,7 +118,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, Index l, scal_t eps, Handle gamma_beta,
+void submit(Index m, Index n, Index k, Index l, Scalar eps, Handle gamma_beta,
         Handle sumnorm, Handle dst)
 //! Insert normalize task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -153,11 +153,11 @@ void submit(Index m, Index n, Index k, Index l, scal_t eps, Handle gamma_beta,
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index m, Index n, Index k, Index l, scal_t eps,
+void submit<fp32_t>(Index m, Index n, Index k, Index l, Scalar eps,
         Handle gamma_beta, Handle sumnorm, Handle dst);
 
 template
-void submit<fp64_t>(Index m, Index n, Index k, Index l, scal_t eps,
+void submit<fp64_t>(Index m, Index n, Index k, Index l, Scalar eps,
         Handle gamma_beta, Handle sumnorm, Handle dst);
 
 } // namespace nntile::starpu::normalize

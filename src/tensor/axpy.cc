@@ -117,7 +117,7 @@ void axpy<fp64_t>(const Tensor<fp64_t> &alpha, const Tensor<fp64_t> &src,
  * @param[inout] dst: Input and output tensor for the axpy operation
  * */
 template<typename T>
-void axpy_async(scal_t alpha, const Tensor<T> &src, const Tensor<T> &dst)
+void axpy_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst)
 {
     // Check shapes
     if(src.shape != dst.shape)
@@ -158,7 +158,7 @@ void axpy_async(scal_t alpha, const Tensor<T> &src, const Tensor<T> &dst)
  * @param[inout] dst: Input and output tensor for the axpy operation
  * */
 template<typename T>
-void axpy(scal_t alpha, const Tensor<T> &src, const Tensor<T> &dst)
+void axpy(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst)
 {
     axpy_async<T>(alpha, src, dst);
     starpu_task_wait_for_all();
@@ -167,28 +167,28 @@ void axpy(scal_t alpha, const Tensor<T> &src, const Tensor<T> &dst)
 
 // Explicit instantiation
 template
-void axpy_async<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src,
+void axpy_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
 
 template
-void axpy_async<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src,
+void axpy_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void axpy_async<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src,
+void axpy_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst);
 
 // Explicit instantiation
 template
-void axpy<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src,
+void axpy<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
 
 template
-void axpy<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src,
+void axpy<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void axpy<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src,
+void axpy<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst);
 
 } // namespace nntile::tensor

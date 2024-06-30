@@ -32,7 +32,7 @@ void cuda_kernel(Index nelems, T alpha, T exp, T *data)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, scal_t alpha, scal_t exp,
+void cuda(cudaStream_t stream, Index nelems, Scalar alpha, Scalar exp,
         T *data_)
     noexcept
 //! Inplace power operation on CUDA
@@ -52,12 +52,12 @@ void cuda(cudaStream_t stream, Index nelems, scal_t alpha, scal_t exp,
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index nelems, scal_t alpha, scal_t exp,
+void cuda<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha, Scalar exp,
         fp32_t *data)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index nelems, scal_t alpha, scal_t exp,
+void cuda<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha, Scalar exp,
         fp64_t *data)
     noexcept;
 

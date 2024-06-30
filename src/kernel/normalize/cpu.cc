@@ -20,7 +20,7 @@ namespace nntile::kernel::normalize
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, Index l, scal_t eps_, const T *gamma_,
+void cpu(Index m, Index n, Index k, Index l, Scalar eps_, const T *gamma_,
         const T *beta_, const T *sumnorm_, T *dst_)
     noexcept
 //! Renormalize buffer along middle axis
@@ -110,13 +110,13 @@ void cpu(Index m, Index n, Index k, Index l, scal_t eps_, const T *gamma_,
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m, Index n, Index k, Index l, scal_t eps,
+void cpu<fp32_t>(Index m, Index n, Index k, Index l, Scalar eps,
         const fp32_t *gamma, const fp32_t *beta, const fp32_t *sumnorm,
         fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index m, Index n, Index k, Index l, scal_t eps,
+void cpu<fp64_t>(Index m, Index n, Index k, Index l, Scalar eps,
         const fp64_t *gamma, const fp64_t *beta, const fp64_t *sumnorm,
         fp64_t *dst)
     noexcept;

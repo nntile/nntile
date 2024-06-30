@@ -64,8 +64,8 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha, const T *src,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
-        const T *src_, scal_t beta, T *dst_)
+void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
+        const T *src_, Scalar beta, T *dst_)
     noexcept
 //! Per-element addition of a tensor and a broadcasted slice on CUDA
 /*! This is a host function that does the following operations:
@@ -94,13 +94,13 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
-        const fp32_t *src, scal_t beta, fp32_t *dst)
+void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
+        const fp32_t *src, Scalar beta, fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
-        const fp64_t *src, scal_t beta, fp64_t *dst)
+void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
+        const fp64_t *src, Scalar beta, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::add_slice

@@ -22,7 +22,7 @@ namespace nntile::tensor
 
 //! Compute Euclidean norm
 template<typename T>
-void nrm2_async(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> &dst,
+void nrm2_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst,
         const Tensor<T> &tmp)
 {
     // Check dimensions
@@ -120,7 +120,7 @@ void nrm2_async(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T>
 }
 
 template<typename T>
-void nrm2(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> &dst,
+void nrm2(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst,
         const Tensor<T> &tmp)
 {
     nrm2_async<T>(alpha, src, beta, dst, tmp);
@@ -130,20 +130,20 @@ void nrm2(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> &dst,
 
 // Explicit instantiation
 template
-void nrm2_async<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src, scal_t beta,
+void nrm2_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
         const Tensor<fp32_t> &dst, const Tensor<fp32_t> &tmp);
 
 template
-void nrm2_async<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src, scal_t beta,
+void nrm2_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
         const Tensor<fp64_t> &dst, const Tensor<fp64_t> &tmp);
 
 // Explicit instantiation
 template
-void nrm2<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src, scal_t beta,
+void nrm2<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
         const Tensor<fp32_t> &dst, const Tensor<fp32_t> &tmp);
 
 template
-void nrm2<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src, scal_t beta,
+void nrm2<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
         const Tensor<fp64_t> &dst, const Tensor<fp64_t> &tmp);
 
 } // namespace nntile::tensor
