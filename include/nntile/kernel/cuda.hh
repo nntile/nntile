@@ -169,5 +169,32 @@ struct CUDAComputeType<bf16_t>
 //#endif
 //};
 
+//! Convert any NNTile wrapped type value into a corresponding CUDA value
+template<typename T>
+typename CUDAComputeType<T>::value cast_scalar_cuda(const Scalar &value)
+{
+    // Return value will be memcopied
+    typename CUDAComputeType<T>::value res;
+    // Convert input Scalar into intermediate T
+    const T inter(value);
+    // Copy internal part into the result
+    *reinterpret_cast<typename T::internal_t *>(&res) = inter.value;
+    return res;
+}
+
+//! Convert any ptr to NNTile wrapped type value into a corresponding CUDA ptr
+template<typename T>
+typename CUDAComputeType<T>::value *cast_pointer_cuda(T *ptr)
+{
+    return reinterpret_cast<typename CUDAComputeType<T>::value *>(ptr);
+}
+
+//! Convert any ptr to NNTile wrapped type value into a corresponding CUDA ptr
+template<typename T>
+const typename CUDAComputeType<T>::value *cast_pointer_cuda(const T *ptr)
+{
+    return reinterpret_cast<const typename CUDAComputeType<T>::value *>(ptr);
+}
+
 } // namespace nntile::kernel
 

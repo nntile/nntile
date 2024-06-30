@@ -40,6 +40,7 @@ set(KERNEL_HDR
     "nntile/kernel/dgelutanh/cpu.hh"
     "nntile/kernel/drelu.hh"
     "nntile/kernel/drelu/cpu.hh"
+    "${CMAKE_CURRENT_BINARY_DIR}/nntile/kernel/gemm.hh"
     "nntile/kernel/gelu.hh"
     "nntile/kernel/gelu/cpu.hh"
     "nntile/kernel/gelutanh.hh"

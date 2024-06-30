@@ -144,29 +144,13 @@ configure_file("${PROJECT_SOURCE_DIR}/src/starpu/axpy.cc.in"
 configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/axpy.cc.in"
     "${PROJECT_BINARY_DIR}/tests/starpu/axpy.cc" @ONLY)
 
-# Configure src/starpu/gemm.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/src/starpu/gemm.cc.in"
-    "${PROJECT_BINARY_DIR}/src/starpu/gemm.cc" @ONLY)
+# Configure include/nntile/kernel/gemm.hh.in that relies on cblas and cuda
+configure_file("${PROJECT_SOURCE_DIR}/include/nntile/kernel/gemm.hh.in"
+    "${PROJECT_BINARY_DIR}/include/nntile/kernel/gemm.hh" @ONLY)
 
 # Configure tests/starpu/gemm.cc that relies on cblas
 configure_file("${PROJECT_SOURCE_DIR}/tests/starpu/gemm.cc.in"
     "${PROJECT_BINARY_DIR}/tests/starpu/gemm.cc" @ONLY)
-
-# Configure src/starpu/flash_maxsumexp.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/src/starpu/flash_maxsumexp.cc.in"
-    "${PROJECT_BINARY_DIR}/src/starpu/flash_maxsumexp.cc" @ONLY)
-
-# Configure src/starpu/flash_softmax_gemm.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/src/starpu/flash_softmax_gemm.cc.in"
-    "${PROJECT_BINARY_DIR}/src/starpu/flash_softmax_gemm.cc" @ONLY)
-
-# Configure src/starpu/flash_softmax_gemm_backward_sumprod_slice.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/src/starpu/flash_softmax_gemm_backward_sumprod_slice.cc.in"
-    "${PROJECT_BINARY_DIR}/src/starpu/flash_softmax_gemm_backward_sumprod_slice.cc" @ONLY)
-
-# Configure src/starpu/flash_softmax_gemm_backward_dq_dk.cc that relies on cblas
-configure_file("${PROJECT_SOURCE_DIR}/src/starpu/flash_softmax_gemm_backward_dq_dk.cc.in"
-    "${PROJECT_BINARY_DIR}/src/starpu/flash_softmax_gemm_backward_dq_dk.cc" @ONLY)
 
 # Configure src/starpu/nrm2.cc that relies on cblas
 configure_file("${PROJECT_SOURCE_DIR}/src/starpu/nrm2.cc.in"
