@@ -41,8 +41,8 @@ void cuda_kernel(Index nelems, T alpha, const T *src, T beta, T *dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src_,
-        Scalar beta, T *dst_)
+void cuda(cudaStream_t stream, Index nelems, Scalar alpha_, const T *src_,
+        Scalar beta_, T *dst_)
     noexcept
 //! Add two buffers on CUDA
 /*! Performs the following operation:
@@ -57,11 +57,12 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src_,
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    using Y = typename CUDAComputeType<T>::value;
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto dst = reinterpret_cast<Y *>(dst_);
-    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, Y{alpha}, src,
-            Y{beta}, dst);
+    auto src = cast_pointer_cuda<T>(src_);
+    auto dst = cast_pointer_cuda<T>(dst_);
+    auto alpha = cast_scalar_cuda<T>(alpha_);
+    auto beta = cast_scalar_cuda<T>(beta_);
+    cuda_kernel<<<blocks, threads, 0, stream>>>(nelems, alpha, src,
+            beta, dst);
 }
 
 // Explicit instantiation

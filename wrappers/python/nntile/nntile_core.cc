@@ -687,17 +687,17 @@ void def_mod_tensor(py::module_ &m)
     m.def("clear_fp32_fast_tf32", &clear<fp32_fast_tf32_t>);
     //m.def("clear_fp16", &clear<fp16_t>);
 
-    m.def("axpy_async_fp64", py::overload_cast<scal_t, const Tensor<fp64_t>&,
+    m.def("axpy_async_fp64", py::overload_cast<Scalar, const Tensor<fp64_t>&,
             const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
-    m.def("axpy_async_fp32", py::overload_cast<scal_t, const Tensor<fp32_t>&,
+    m.def("axpy_async_fp32", py::overload_cast<Scalar, const Tensor<fp32_t>&,
             const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
-    m.def("axpy_async_fp32_fast_tf32", py::overload_cast<scal_t, const Tensor<fp32_fast_tf32_t>&,
+    m.def("axpy_async_fp32_fast_tf32", py::overload_cast<Scalar, const Tensor<fp32_fast_tf32_t>&,
             const Tensor<fp32_fast_tf32_t>&>(&axpy_async<fp32_fast_tf32_t>));
-    m.def("axpy_fp64", py::overload_cast<scal_t, const Tensor<fp64_t>&,
+    m.def("axpy_fp64", py::overload_cast<Scalar, const Tensor<fp64_t>&,
             const Tensor<fp64_t>&>(&axpy<fp64_t>));
-    m.def("axpy_fp32", py::overload_cast<scal_t, const Tensor<fp32_t>&,
+    m.def("axpy_fp32", py::overload_cast<Scalar, const Tensor<fp32_t>&,
             const Tensor<fp32_t>&>(&axpy<fp32_t>));
-    m.def("axpy_fp32_fast_tf32", py::overload_cast<scal_t, const Tensor<fp32_fast_tf32_t>&,
+    m.def("axpy_fp32_fast_tf32", py::overload_cast<Scalar, const Tensor<fp32_fast_tf32_t>&,
             const Tensor<fp32_fast_tf32_t>&>(&axpy<fp32_fast_tf32_t>));
 
     m.def("axpy_async_fp64", py::overload_cast<const Tensor<fp64_t>&,

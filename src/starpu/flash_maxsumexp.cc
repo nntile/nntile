@@ -6,70 +6,30 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/flash_maxsumexp.cc.in
+ * @file src/starpu/flash_maxsumexp.cc
  * Fused materialization and maxsumexp for StarPU buffer
  *
  * @version 1.0.0
  * */
 
+#include "nntile/starpu/flash_maxsumexp.hh"
 #ifndef STARPU_SIMGRID
+#include "nntile/kernel/gemm.hh"
 #include "nntile/kernel/maxsumexp.hh"
 #include "nntile/kernel/mask_scalar.hh"
+#include "nntile/kernel/cpu.hh"
+#include "nntile/kernel/cuda.hh"
 #endif // STARPU_SIMGRID
-#include "nntile/starpu/flash_maxsumexp.hh"
 #include <cstdlib>
 #include <cmath>
 #include <limits>
-#include "nntile/kernel/cpu.hh"
-#include "nntile/kernel/cuda.hh"
-
-#ifndef STARPU_SIMGRID
-#   ifdef NNTILE_USE_CBLAS
-#       include <@CBLAS_H_NAME@>
-#       ifndef CBLAS_INT
-#           define CBLAS_INT @CBLAS_INT_TYPE@
-#       endif // CBLAS_INT
-#   endif // NNTILE_USE_CBLAS
-
-#   ifdef NNTILE_USE_CUDA
-#       include <cublas_v2.h>
-#       include <starpu_cublas_v2.h>
-#       include <cuda_fp16.h>
-#   endif // NNTILE_USE_CUDA
-#endif // STARPU_SIMGRID
 
 namespace nntile::starpu::flash_maxsumexp
 {
 
+using namespace nntile::kernel::gemm;
+
 #ifdef NNTILE_USE_CBLAS
-#ifndef STARPU_SIMGRID
-// Overloaded call to CBLAS GEMM
-static inline
-void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
-        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, float alpha, const fp32_t *A,
-        CBLAS_INT ldA, const fp32_t *B, CBLAS_INT ldB, float beta, fp32_t *C,
-        CBLAS_INT ldC)
-    noexcept
-{
-    cblas_sgemm(CblasColMajor, transA, transB, M, N, K, alpha,
-            (const float *)A, ldA, (const float *)B, ldB, beta, (float *)C,
-            ldC);
-}
-
-// Overloaded call to CBLAS GEMM
-static inline
-void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
-        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, double alpha, const fp64_t *A,
-        CBLAS_INT ldA, const fp64_t *B, CBLAS_INT ldB, double beta, fp64_t *C,
-        CBLAS_INT ldC)
-    noexcept
-{
-    cblas_dgemm(CblasColMajor, transA, transB, M, N, K, alpha,
-            (const double *)A, ldA, (const double *)B, ldB, beta, (double *)C,
-            ldC);
-}
-#endif // STARPU_SIMGRID
-
 //! Rematerialize and compute maxsumexp along middle axis of StarPU buffer on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
@@ -111,51 +71,6 @@ void cpu(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CBLAS
 
 #ifdef NNTILE_USE_CUDA
-#ifndef STARPU_SIMGRID
-// Overloaded call to batched cuBLAS gemm
-static inline
-void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, float alpha,
-        const fp32_t *A, int ldA, long long int strideA, const fp32_t *B,
-        int ldB, long long int strideB, float beta, fp32_t *C, int ldC,
-        long long int strideC, int batchCount)
-    noexcept
-{
-    cublasSgemmStridedBatched(handle, transA, transB, M, N, K, &alpha,
-            (const float *)A, ldA, strideA, (const float *)B, ldB, strideB,
-            &beta, (float *)C, ldC, strideC, batchCount);
-}
-
-// Overloaded call to batched cuBLAS gemm
-static inline
-void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, double alpha,
-        const fp64_t *A, int ldA, long long int strideA, const fp64_t *B,
-        int ldB, long long int strideB, double beta, fp64_t *C, int ldC,
-        long long int strideC, int batchCount)
-    noexcept
-{
-    cublasDgemmStridedBatched(handle, transA, transB, M, N, K, &alpha,
-            (const double *)A, ldA, strideA, (const double *)B, ldB, strideB,
-            &beta, (double *)C, ldC, strideC, batchCount);
-}
-
-static inline
-void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, float alpha,
-        const fp32_fast_tf32_t *A, int ldA, long long int strideA,
-        const fp32_fast_tf32_t *B, int ldB, long long int strideB, float beta,
-        fp32_fast_tf32_t *C, int ldC, long long int strideC, int batchCount)
-    noexcept
-{
-    cublasGemmStridedBatchedEx(handle, transA, transB, M, N, K, &alpha,
-            (const float *)A, CUDA_R_32F, ldA, strideA, (const float *)B,
-            CUDA_R_32F, ldB, strideB, &beta, (float *)C, CUDA_R_32F, ldC,
-            strideC, batchCount, CUBLAS_COMPUTE_32F_FAST_TF32,
-            CUBLAS_GEMM_DEFAULT_TENSOR_OP);
-}
-#endif // STARPU_SIMGRID
-
 //! Max and sum of exponents along middle axis of StarPU buffer on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)

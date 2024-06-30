@@ -72,9 +72,9 @@ void cuda(cudaStream_t stream, Index nelems, const T *src_, T *dst_)
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
+    auto src = cast_pointer_cuda<T>(src_);
+    auto dst = cast_pointer_cuda<T>(dst_);
     using Y = typename CUDAComputeType<T>::value;
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto dst = reinterpret_cast<Y *>(dst_);
     (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
 }
 
