@@ -114,7 +114,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(scal_t val, scal_t eps, Index nelems, Handle nom, Handle denom, Handle src)
+void submit(Scalar val, Scalar eps, Index nelems, Handle nom, Handle denom, Handle src)
 {
     // Codelet arguments
     args_t* args = (args_t*)std::malloc(sizeof(*args));
@@ -139,15 +139,15 @@ void submit(scal_t val, scal_t eps, Index nelems, Handle nom, Handle denom, Hand
 
 // Explicit instantiaion
 template
-void submit<fp32_t>(scal_t val, scal_t eps, Index nelems, Handle nom,
+void submit<fp32_t>(Scalar val, Scalar eps, Index nelems, Handle nom,
         Handle denom, Handle src);
 
 template
-void submit<fp32_fast_tf32_t>(scal_t val, scal_t eps, Index nelems, Handle nom,
+void submit<fp32_fast_tf32_t>(Scalar val, Scalar eps, Index nelems, Handle nom,
         Handle denom, Handle src);
 
 template
-void submit<fp64_t>(scal_t val, scal_t eps, Index nelems, Handle nom,
+void submit<fp64_t>(Scalar val, Scalar eps, Index nelems, Handle nom,
         Handle denom, Handle src);
 
 } // namespace nntile::starpu::addcdiv

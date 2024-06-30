@@ -20,7 +20,7 @@ namespace nntile::kernel::subtract_indexed_outputs
 {
 
 template<typename T>
-void cpu(Index n_labels, Index n_outputs, scal_t val_, const int64_t* labels_,
+void cpu(Index n_labels, Index n_outputs, Scalar val_, const int64_t* labels_,
         T *dst_)
     noexcept
 //! Subtraction of given val from indexed output of dst
@@ -50,12 +50,12 @@ void cpu(Index n_labels, Index n_outputs, scal_t val_, const int64_t* labels_,
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index n_labels, Index n_outputs, scal_t val,
+void cpu<fp32_t>(Index n_labels, Index n_outputs, Scalar val,
         const int64_t* labels, fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index n_labels, Index n_outputs, scal_t val,
+void cpu<fp64_t>(Index n_labels, Index n_outputs, Scalar val,
         const int64_t* labels, fp64_t *dst)
     noexcept;
 

@@ -30,7 +30,7 @@ void cuda_kernel(Index n_labels, Index n_outputs, T val, const Index* labels, T 
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index n_labels, Index n_outputs, scal_t val,
+void cuda(cudaStream_t stream, Index n_labels, Index n_outputs, Scalar val,
         const int64_t *labels_, T *dst_)
     noexcept
 //! Subtraction of given val from indexed output of dst
@@ -58,12 +58,12 @@ void cuda(cudaStream_t stream, Index n_labels, Index n_outputs, scal_t val,
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index n_labels, Index n_outputs,
-        scal_t val, const int64_t *labels, fp32_t *dst)
+        Scalar val, const int64_t *labels, fp32_t *dst)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index n_labels, Index n_outputs,
-        scal_t val, const int64_t *labels, fp64_t *dst)
+        Scalar val, const int64_t *labels, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::subtract_indexed_outputs

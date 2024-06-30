@@ -59,8 +59,8 @@ void cuda_kernel(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index num_iter, Index num_elems, scal_t beta_1,
-        scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
+void cuda(cudaStream_t stream, Index num_iter, Index num_elems, Scalar beta_1,
+        Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
         const T *grad_, T *first_moment_, T *second_moment_, T *p_)
     noexcept
 //! Fused Adam step operation of buffers
@@ -94,15 +94,15 @@ void cuda(cudaStream_t stream, Index num_iter, Index num_elems, scal_t beta_1,
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index num_iter, Index num_elems,
-        scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr,
-        scal_t weight_decay, const fp32_t *grad, fp32_t *first_moment,
+        Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr,
+        Scalar weight_decay, const fp32_t *grad, fp32_t *first_moment,
         fp32_t *second_moment, fp32_t *p)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index num_iter, Index num_elems,
-        scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr,
-        scal_t weight_decay, const fp64_t *grad, fp64_t *first_moment,
+        Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr,
+        Scalar weight_decay, const fp64_t *grad, fp64_t *first_moment,
         fp64_t *second_moment, fp64_t *p)
     noexcept;
 

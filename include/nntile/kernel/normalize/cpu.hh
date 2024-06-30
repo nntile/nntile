@@ -20,7 +20,7 @@ namespace nntile::kernel::normalize
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, Index l, scal_t eps, const T *gamma,
+void cpu(Index m, Index n, Index k, Index l, Scalar eps, const T *gamma,
         const T *beta, const T *sumnorm, T *dst)
     noexcept;
 

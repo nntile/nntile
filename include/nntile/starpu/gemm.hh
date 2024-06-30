@@ -31,8 +31,8 @@ struct args_t
     Index n; // Number of columns of op(B) and C
     Index k; // Number of columns of op(A) and number of rows of op(B)
     Index batch; // Number of gemms in a batch
-    scal_t alpha;
-    scal_t beta;
+    Scalar alpha;
+    Scalar beta;
 };
 
 #ifdef NNTILE_USE_CBLAS
@@ -194,7 +194,7 @@ void restore_where();
 
 template<typename T>
 void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
-        Index k, Index batch, scal_t alpha, Handle A, Handle B, scal_t beta,
+        Index k, Index batch, Scalar alpha, Handle A, Handle B, Scalar beta,
         Handle C, int redux=0);
 
 } // namespace nntile::starpu::gemm

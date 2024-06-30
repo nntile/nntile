@@ -25,7 +25,7 @@ namespace nntile::starpu::scal
 struct args_t
 {
     Index nelems;
-    scal_t alpha;
+    Scalar alpha;
 };
 
 // Apply scal for StarPU buffers on CPU
@@ -74,6 +74,6 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nelems, scal_t alpha, Handle src, Handle dst);
+void submit(Index nelems, Scalar alpha, Handle src, Handle dst);
 
 } // namespace nntile::starpu::scal

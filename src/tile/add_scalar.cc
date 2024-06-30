@@ -20,7 +20,7 @@ namespace nntile::tile
 
 //! Tile-wise add_scalar operation
 template<typename T>
-void add_scalar_async(scal_t alpha, scal_t beta, const Tile<T> &dst)
+void add_scalar_async(Scalar alpha, Scalar beta, const Tile<T> &dst)
 {
     // Do nothing if alpha is zero and beta is one
     if(alpha == 0.0 && beta == 1.0)
@@ -33,7 +33,7 @@ void add_scalar_async(scal_t alpha, scal_t beta, const Tile<T> &dst)
 
 //! Tile-wise add_scalar operation
 template<typename T>
-void add_scalar(scal_t alpha, scal_t beta, const Tile<T> &dst)
+void add_scalar(Scalar alpha, Scalar beta, const Tile<T> &dst)
 {
     add_scalar_async<T>(alpha, beta, dst);
     starpu_task_wait_for_all();
@@ -41,16 +41,16 @@ void add_scalar(scal_t alpha, scal_t beta, const Tile<T> &dst)
 
 // Explicit instantiation of template
 template
-void add_scalar_async<fp32_t>(scal_t alpha, scal_t beta, const Tile<fp32_t> &dst);
+void add_scalar_async<fp32_t>(Scalar alpha, Scalar beta, const Tile<fp32_t> &dst);
 
 template
-void add_scalar_async<fp64_t>(scal_t alpha, scal_t beta, const Tile<fp64_t> &dst);
+void add_scalar_async<fp64_t>(Scalar alpha, Scalar beta, const Tile<fp64_t> &dst);
 
 // Explicit instantiation of template
 template
-void add_scalar<fp32_t>(scal_t alpha, scal_t beta, const Tile<fp32_t> &dst);
+void add_scalar<fp32_t>(Scalar alpha, Scalar beta, const Tile<fp32_t> &dst);
 
 template
-void add_scalar<fp64_t>(scal_t alpha, scal_t beta, const Tile<fp64_t> &dst);
+void add_scalar<fp64_t>(Scalar alpha, Scalar beta, const Tile<fp64_t> &dst);
 
 } // namespace nntile::tile

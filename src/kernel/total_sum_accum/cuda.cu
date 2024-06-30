@@ -31,7 +31,7 @@ void cuda_kernel(T alpha, Index n_labels, Index n_outputs, const T* logsumexp,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, scal_t alpha, Index n_labels, Index n_outputs,
+void cuda(cudaStream_t stream, Scalar alpha, Index n_labels, Index n_outputs,
         const T *logsumexp_, const T *src_, const int64_t *labels_, T *val_)
     noexcept
 //! Total sum accumulating from logsumexp and corrected by elements from src
@@ -62,13 +62,13 @@ void cuda(cudaStream_t stream, scal_t alpha, Index n_labels, Index n_outputs,
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, scal_t alpha, Index n_labels,
+void cuda<fp32_t>(cudaStream_t stream, Scalar alpha, Index n_labels,
         Index n_outputs, const fp32_t* logsumexp, const fp32_t* src,
         const int64_t* labels, fp32_t *val)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, scal_t alpha, Index n_labels,
+void cuda<fp64_t>(cudaStream_t stream, Scalar alpha, Index n_labels,
         Index n_outputs, const fp64_t* logsumexp, const fp64_t* src,
         const int64_t* labels, fp64_t *val)
     noexcept;

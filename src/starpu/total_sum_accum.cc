@@ -28,7 +28,7 @@ void cpu(void *buffers[], void *cl_args)
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
-    scal_t alpha = args->alpha;
+    Scalar alpha = args->alpha;
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
     // Get interfaces
@@ -52,7 +52,7 @@ void cuda(void *buffers[], void *cl_args)
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
-    scal_t alpha = args->alpha;
+    Scalar alpha = args->alpha;
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
     // Get interfaces
@@ -135,7 +135,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(scal_t alpha, Index n_labels, Index n_outputs, Handle logsumexp, Handle src,
+void submit(Scalar alpha, Index n_labels, Index n_outputs, Handle logsumexp, Handle src,
         Handle class_labels, Handle val)
 {
     // Codelet arguments
@@ -160,15 +160,15 @@ void submit(scal_t alpha, Index n_labels, Index n_outputs, Handle logsumexp, Han
 
 // Explicit instantiation
 template
-void submit<fp32_t>(scal_t alpha, Index n_labels, Index n_outputs, Handle logsumexp,
+void submit<fp32_t>(Scalar alpha, Index n_labels, Index n_outputs, Handle logsumexp,
         Handle src, Handle class_labels, Handle val);
 
 template
-void submit<fp32_fast_tf32_t>(scal_t alpha, Index n_labels, Index n_outputs, Handle logsumexp,
+void submit<fp32_fast_tf32_t>(Scalar alpha, Index n_labels, Index n_outputs, Handle logsumexp,
         Handle src, Handle class_labels, Handle val);
 
 template
-void submit<fp64_t>(scal_t alpha, Index n_labels, Index n_outputs, Handle logsumexp,
+void submit<fp64_t>(Scalar alpha, Index n_labels, Index n_outputs, Handle logsumexp,
         Handle src, Handle class_labels, Handle val);
 
 } // namespace nntile::starpu::total_sum_accum

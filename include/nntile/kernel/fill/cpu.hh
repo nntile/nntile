@@ -21,7 +21,7 @@ namespace nntile::kernel::fill
 
 // Fill operation on a buffer
 template<typename T>
-void cpu(Index nelems, scal_t val, T *data)
+void cpu(Index nelems, Scalar val, T *data)
     noexcept;
 
 } // namespace nntile::kernel::fill

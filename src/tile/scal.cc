@@ -20,7 +20,7 @@ namespace nntile::tile
 
 //! Tile-wise scal operation
 template<typename T>
-void scal_async(scal_t alpha, const Tile<T> &src, const Tile<T> &dst)
+void scal_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
 {
     // Check dimensions
     if(dst.ndim != src.ndim)
@@ -41,7 +41,7 @@ void scal_async(scal_t alpha, const Tile<T> &src, const Tile<T> &dst)
 
 //! Tile-wise scal operation
 template<typename T>
-void scal(scal_t alpha, const Tile<T> &src, const Tile<T> &dst)
+void scal(Scalar alpha, const Tile<T> &src, const Tile<T> &dst)
 {
     scal_async<T>(alpha, src, dst);
     starpu_task_wait_for_all();
@@ -49,28 +49,28 @@ void scal(scal_t alpha, const Tile<T> &src, const Tile<T> &dst)
 
 // Explicit instantiation of template
 template
-void scal_async<fp32_t>(scal_t alpha, const Tile<fp32_t> &src,
+void scal_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst);
 
 template
-void scal_async<fp32_fast_tf32_t>(scal_t alpha, const Tile<fp32_fast_tf32_t> &src,
+void scal_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void scal_async<fp64_t>(scal_t alpha, const Tile<fp64_t> &src,
+void scal_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst);
 
 // Explicit instantiation of template
 template
-void scal<fp32_t>(scal_t alpha, const Tile<fp32_t> &src,
+void scal<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
         const Tile<fp32_t> &dst);
 
 template
-void scal<fp32_fast_tf32_t>(scal_t alpha, const Tile<fp32_fast_tf32_t> &src,
+void scal<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void scal<fp64_t>(scal_t alpha, const Tile<fp64_t> &src,
+void scal<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst);
 
 } // namespace nntile::tile

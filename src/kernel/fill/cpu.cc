@@ -19,7 +19,7 @@ namespace nntile::kernel::fill
 {
 
 template<typename T>
-void cpu(Index nelems, scal_t val_, T *data_)
+void cpu(Index nelems, Scalar val_, T *data_)
     noexcept
 //! Fill operation on CPU
 /*! Sets all elements to the provided value
@@ -39,11 +39,11 @@ void cpu(Index nelems, scal_t val_, T *data_)
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index nelems, scal_t val, fp32_t *data)
+void cpu<fp32_t>(Index nelems, Scalar val, fp32_t *data)
     noexcept;
 
 template
-void cpu<fp64_t>(Index nelems, scal_t val, fp64_t *data)
+void cpu<fp64_t>(Index nelems, Scalar val, fp64_t *data)
     noexcept;
 
 } // namespace nntile::kernel::fill

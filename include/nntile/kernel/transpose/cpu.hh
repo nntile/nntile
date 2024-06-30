@@ -21,7 +21,7 @@ namespace nntile::kernel::transpose
 
 // Apply transpose for buffers on CPU
 template<typename T>
-void cpu(Index m, Index n, scal_t alpha, const T* src, T* dst)
+void cpu(Index m, Index n, Scalar alpha, const T* src, T* dst)
     noexcept;
 
 } // namespace nntile::kernel::transpose

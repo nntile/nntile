@@ -21,7 +21,7 @@ namespace nntile::kernel::add_slice3
 
 // Per-element addition of a tensor and a broadcasted slice on CPU
 template<typename T>
-void cpu(Index m, Index n, Index k, scal_t alpha, const T *src1, scal_t beta,
+void cpu(Index m, Index n, Index k, Scalar alpha, const T *src1, Scalar beta,
         const T *src2, T *dst)
     noexcept;
 

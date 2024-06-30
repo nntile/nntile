@@ -27,7 +27,7 @@ struct args_t
     Index m;
     Index n;
     Index k;
-    scal_t alpha;
+    Scalar alpha;
 };
 
 // StarPU wrapper for kernel::prod_fiber3::cpu<T>
@@ -69,7 +69,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, scal_t alpha, Handle src1, Handle src2,
+void submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Handle src2,
         Handle dst);
 
 } // namespace nntile::starpu::prod_fiber3

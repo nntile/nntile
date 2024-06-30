@@ -19,7 +19,7 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void subtract_indexed_outputs_async(scal_t val, const Tensor<int64_t> &labels,
+void subtract_indexed_outputs_async(Scalar val, const Tensor<int64_t> &labels,
         const Tensor<T> &dst)
 {
     if(labels.ndim != dst.ndim-1)
@@ -65,7 +65,7 @@ void subtract_indexed_outputs_async(scal_t val, const Tensor<int64_t> &labels,
 }
 
 template<typename T>
-void subtract_indexed_outputs(scal_t val, const Tensor<int64_t> &labels,
+void subtract_indexed_outputs(Scalar val, const Tensor<int64_t> &labels,
         const Tensor<T> &dst)
 {
     subtract_indexed_outputs_async<T>(val, labels, dst);
@@ -75,28 +75,28 @@ void subtract_indexed_outputs(scal_t val, const Tensor<int64_t> &labels,
 
 // Explicit instantiation
 template
-void subtract_indexed_outputs_async<fp32_t>(scal_t val,
+void subtract_indexed_outputs_async<fp32_t>(Scalar val,
         const Tensor<int64_t> &labels, const Tensor<fp32_t> &dst);
 
 template
-void subtract_indexed_outputs_async<fp32_fast_tf32_t>(scal_t val,
+void subtract_indexed_outputs_async<fp32_fast_tf32_t>(Scalar val,
         const Tensor<int64_t> &labels, const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void subtract_indexed_outputs_async<fp64_t>(scal_t val,
+void subtract_indexed_outputs_async<fp64_t>(Scalar val,
         const Tensor<int64_t> &labels, const Tensor<fp64_t> &dst);
 
 // Explicit instantiation
 template
-void subtract_indexed_outputs<fp32_t>(scal_t val, const Tensor<int64_t> &labels,
+void subtract_indexed_outputs<fp32_t>(Scalar val, const Tensor<int64_t> &labels,
         const Tensor<fp32_t> &dst);
 
 template
-void subtract_indexed_outputs<fp32_fast_tf32_t>(scal_t val, const Tensor<int64_t> &labels,
+void subtract_indexed_outputs<fp32_fast_tf32_t>(Scalar val, const Tensor<int64_t> &labels,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void subtract_indexed_outputs<fp64_t>(scal_t val, const Tensor<int64_t> &labels,
+void subtract_indexed_outputs<fp64_t>(Scalar val, const Tensor<int64_t> &labels,
         const Tensor<fp64_t> &dst);
 
 } // namespace nntile::tensor

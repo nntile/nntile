@@ -21,7 +21,7 @@ namespace nntile::kernel::pow
 
 // Power operation on a CPU buffer
 template<typename T>
-void cpu(Index nelems, scal_t alpha, scal_t exp, T *data)
+void cpu(Index nelems, Scalar alpha, Scalar exp, T *data)
     noexcept;
 
 } // namespace nntile::kernel::pow

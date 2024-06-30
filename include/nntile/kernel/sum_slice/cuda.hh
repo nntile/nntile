@@ -22,8 +22,8 @@ namespace nntile::kernel::sum_slice
 
 // Sums over fibers along the middle axis into a slice of a tensor
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, scal_t alpha,
-        const T *src, scal_t beta, T *dst)
+void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
+        const T *src, Scalar beta, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::sum_slice

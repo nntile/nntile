@@ -30,7 +30,7 @@ void cpu(void *buffers[], void *cl_args)
     const Index *ndim_ptr, *nelems_ptr, *start, *shape, *stride,
           *underlying_shape;
     const unsigned long long *seed_ptr;
-    const scal_t *mean_ptr, *stddev_ptr;
+    const Scalar *mean_ptr, *stddev_ptr;
     Config::unpack_args_ptr(cl_args, ndim_ptr, nelems_ptr, seed_ptr, mean_ptr,
             stddev_ptr, start, shape, stride, underlying_shape);
     // Get interfaces
@@ -53,7 +53,7 @@ void cpu_ndim0(void *buffers[], void *cl_args)
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     const unsigned long long *seed_ptr;
-    const scal_t *mean_ptr, *stddev_ptr;
+    const Scalar *mean_ptr, *stddev_ptr;
     Config::unpack_args_ptr(cl_args, seed_ptr, mean_ptr, stddev_ptr);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
@@ -71,7 +71,7 @@ uint32_t footprint(struct starpu_task *task)
     const Index *ndim_ptr, *nelems_ptr, *start, *shape, *stride,
           *underlying_shape;
     const unsigned long long *seed_ptr;
-    const scal_t *mean_ptr, *stddev_ptr;
+    const Scalar *mean_ptr, *stddev_ptr;
     Config::unpack_args_ptr(task->cl_arg, ndim_ptr, nelems_ptr, seed_ptr,
             mean_ptr, stddev_ptr, start, shape, stride, underlying_shape);
     std::size_t shape_size = *ndim_ptr * sizeof(*shape);
@@ -135,7 +135,7 @@ void restore_where()
 
 template<typename T>
 void submit(Index ndim, Index nelems, unsigned long long seed,
-        scal_t mean, scal_t stddev, const std::vector<Index> &start,
+        Scalar mean, Scalar stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
         const std::vector<Index> &underlying_shape, Handle data,
         Handle tmp_index)
@@ -181,21 +181,21 @@ void submit(Index ndim, Index nelems, unsigned long long seed,
 // Explicit instantiation
 template
 void submit<fp32_t>(Index ndim, Index nelems, unsigned long long seed,
-        scal_t mean, scal_t stddev, const std::vector<Index> &start,
+        Scalar mean, Scalar stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
         const std::vector<Index> &underlying_shape, Handle data,
         Handle tmp_index);
 
 template
 void submit<fp32_fast_tf32_t>(Index ndim, Index nelems, unsigned long long seed,
-        scal_t mean, scal_t stddev, const std::vector<Index> &start,
+        Scalar mean, Scalar stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
         const std::vector<Index> &underlying_shape, Handle data,
         Handle tmp_index);
 
 template
 void submit<fp64_t>(Index ndim, Index nelems, unsigned long long seed,
-        scal_t mean, scal_t stddev, const std::vector<Index> &start,
+        Scalar mean, Scalar stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
         const std::vector<Index> &underlying_shape, Handle data,
         Handle tmp_index);

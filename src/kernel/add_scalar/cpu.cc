@@ -19,7 +19,7 @@ namespace nntile::kernel::add_scalar
 {
 
 template<typename T>
-void cpu(Index num_elements, scal_t alpha_, scal_t beta_, T* dst_)
+void cpu(Index num_elements, Scalar alpha_, Scalar beta_, T* dst_)
     noexcept
 //! Add scalar to buffer buffers on CPU
 /*! dst[i] = alpha + beta*dst[i], where alpha and beta are scalars
@@ -41,11 +41,11 @@ void cpu(Index num_elements, scal_t alpha_, scal_t beta_, T* dst_)
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index num_elements, scal_t alpha, scal_t beta, fp32_t* dst)
+void cpu<fp32_t>(Index num_elements, Scalar alpha, Scalar beta, fp32_t* dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index num_elements, scal_t alpha, scal_t beta, fp64_t* dst)
+void cpu<fp64_t>(Index num_elements, Scalar alpha, Scalar beta, fp64_t* dst)
     noexcept;
 
 } // namespace nntile::kernel::add_scalar

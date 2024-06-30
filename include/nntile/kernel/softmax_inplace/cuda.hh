@@ -22,7 +22,7 @@ namespace nntile::kernel::softmax_inplace
 
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
-        scal_t alpha, T *dst)
+        Scalar alpha, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::softmax_inplace

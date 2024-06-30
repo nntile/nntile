@@ -25,13 +25,13 @@ void gemm_check(const TransOp &transA, const TensorTraits &A,
         Index ndim, Index batch_ndim);
 
 template<typename T>
-void gemm_async(scal_t alpha, const TransOp &transA, const Tensor<T> &A,
-        const TransOp &transB, const Tensor<T> &B, scal_t beta,
+void gemm_async(Scalar alpha, const TransOp &transA, const Tensor<T> &A,
+        const TransOp &transB, const Tensor<T> &B, Scalar beta,
         const Tensor<T> &C, Index ndim, Index batch_ndim, int redux=0);
 
 template<typename T>
-void gemm(scal_t alpha, const TransOp &transA, const Tensor<T> &A,
-        const TransOp &transB, const Tensor<T> &B, scal_t beta,
+void gemm(Scalar alpha, const TransOp &transA, const Tensor<T> &A,
+        const TransOp &transB, const Tensor<T> &B, Scalar beta,
         const Tensor<T> &C, Index ndim, Index batch_ndim, int redux=0);
 
 } // namespace nntile::tensor

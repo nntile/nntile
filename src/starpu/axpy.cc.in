@@ -299,7 +299,7 @@ template
 void submit<fp64_t>(Handle alpha, Index nelems, Handle src, Handle dst);
 
 template<typename T>
-void submit(scal_t alpha, Index nelems, Handle src, Handle dst)
+void submit(Scalar alpha, Index nelems, Handle src, Handle dst)
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
 #ifdef NNTILE_USE_CBLAS
@@ -337,12 +337,12 @@ void submit(scal_t alpha, Index nelems, Handle src, Handle dst)
 
 // Explicit instantiation
 template
-void submit<fp32_t>(scal_t alpha, Index nelems, Handle src, Handle dst);
+void submit<fp32_t>(Scalar alpha, Index nelems, Handle src, Handle dst);
 
 template
-void submit<fp32_fast_tf32_t>(scal_t alpha, Index nelems, Handle src, Handle dst);
+void submit<fp32_fast_tf32_t>(Scalar alpha, Index nelems, Handle src, Handle dst);
 
 template
-void submit<fp64_t>(scal_t alpha, Index nelems, Handle src, Handle dst);
+void submit<fp64_t>(Scalar alpha, Index nelems, Handle src, Handle dst);
 
 } // namespace nntile::starpu::axpy

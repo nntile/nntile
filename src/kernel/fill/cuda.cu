@@ -30,7 +30,7 @@ void cuda_kernel(Index nelems, T val, T *data)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, scal_t val, T *data_)
+void cuda(cudaStream_t stream, Index nelems, Scalar val, T *data_)
     noexcept
 //! Fill operation on CUDA
 /*! Sets all elements to the provided value
@@ -47,11 +47,11 @@ void cuda(cudaStream_t stream, Index nelems, scal_t val, T *data_)
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index nelems, scal_t val, fp32_t *data)
+void cuda<fp32_t>(cudaStream_t stream, Index nelems, Scalar val, fp32_t *data)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index nelems, scal_t val, fp64_t *data)
+void cuda<fp64_t>(cudaStream_t stream, Index nelems, Scalar val, fp64_t *data)
     noexcept;
 
 } // namespace nntile::kernel::fill

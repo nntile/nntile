@@ -20,7 +20,7 @@ namespace nntile::kernel::pow
 {
 
 template<typename T>
-void cpu(Index nelems, scal_t alpha_, scal_t exp_, T *data_)
+void cpu(Index nelems, Scalar alpha_, Scalar exp_, T *data_)
     noexcept
 //! Inplace power operation on CPU
 /*! Does the following per-element operation:
@@ -51,11 +51,11 @@ void cpu(Index nelems, scal_t alpha_, scal_t exp_, T *data_)
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index nelems, scal_t alpha, scal_t exp, fp32_t *data)
+void cpu<fp32_t>(Index nelems, Scalar alpha, Scalar exp, fp32_t *data)
     noexcept;
 
 template
-void cpu<fp64_t>(Index nelems, scal_t alpha, scal_t exp, fp64_t *data)
+void cpu<fp64_t>(Index nelems, Scalar alpha, Scalar exp, fp64_t *data)
     noexcept;
 
 } // namespace nntile::kernel::pow

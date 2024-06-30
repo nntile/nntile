@@ -26,7 +26,7 @@ struct args_t
 {
     Index nrows;
     Index ncols;
-    scal_t val;
+    Scalar val;
 };
 
 // Mask StarPU buffer with given value on CPU
@@ -75,6 +75,6 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nrows, Index ncols, Handle mask, scal_t val, Handle data);
+void submit(Index nrows, Index ncols, Handle mask, Scalar val, Handle data);
 
 } // namespace nntile::starpu::mask_scalar

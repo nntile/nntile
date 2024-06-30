@@ -21,7 +21,7 @@ namespace nntile::kernel::total_sum_accum
 {
 
 template<typename T>
-void cpu(scal_t alpha_, Index n_labels, Index n_outputs, const T* logsumexp_,
+void cpu(Scalar alpha_, Index n_labels, Index n_outputs, const T* logsumexp_,
         const T* src_, const int64_t* labels_, T *val_)
     noexcept
 //! Total sum accumulating from logsumexp and corrected by elements from src
@@ -66,12 +66,12 @@ void cpu(scal_t alpha_, Index n_labels, Index n_outputs, const T* logsumexp_,
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(scal_t alpha, Index n_labels, Index n_outputs, const fp32_t* logsumexp,
+void cpu<fp32_t>(Scalar alpha, Index n_labels, Index n_outputs, const fp32_t* logsumexp,
         const fp32_t* src, const int64_t* labels, fp32_t* val)
     noexcept;
 
 template
-void cpu<fp64_t>(scal_t alpha, Index n_labels, Index n_outputs, const fp64_t* logsumexp,
+void cpu<fp64_t>(Scalar alpha, Index n_labels, Index n_outputs, const fp64_t* logsumexp,
         const fp64_t* src, const int64_t* labels, fp64_t *val)
     noexcept;
 

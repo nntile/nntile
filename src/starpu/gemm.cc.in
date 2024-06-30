@@ -279,7 +279,7 @@ uint32_t footprint(struct starpu_task *task)
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
     // In case alpha is zero, entire gemm is unnecessary so it is better to
     // give it a different footprint since gemm time will be totally different
-    uint32_t hash = args->alpha == scal_t{0} ? -1 : 0;
+    uint32_t hash = args->alpha == Scalar{0} ? -1 : 0;
     // Apply hash over parameters M, N and K. This way if we swap values of M,
     // N and K total size of buffers will remain the same, but the footprint
     // will be different
@@ -528,7 +528,7 @@ void restore_where()
 
 template<typename T>
 void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
-        Index k, Index batch, scal_t alpha, Handle A, Handle B, scal_t beta,
+        Index k, Index batch, Scalar alpha, Handle A, Handle B, Scalar beta,
         Handle C, int redux)
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
@@ -565,7 +565,7 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
     }
 #endif // STARPU_SIMGRID
 #endif // NNTILE_USE_CUDA
-    constexpr scal_t zero = 0, one = 1;
+    constexpr Scalar zero = 0, one = 1;
     enum starpu_data_access_mode C_mode;
     if(beta == zero)
     {
@@ -618,17 +618,17 @@ void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
 // Explicit instantiation
 template
 void submit<fp32_t>(const TransOp &transA, const TransOp &transB,
-        Index m, Index n, Index k, Index batch, scal_t alpha, Handle A,
-        Handle B, scal_t beta, Handle C, int redux);
+        Index m, Index n, Index k, Index batch, Scalar alpha, Handle A,
+        Handle B, Scalar beta, Handle C, int redux);
 
 template
 void submit<fp32_fast_tf32_t>(const TransOp &transA, const TransOp &transB,
-        Index m, Index n, Index k, Index batch, scal_t alpha, Handle A,
-        Handle B, scal_t beta, Handle C, int redux);
+        Index m, Index n, Index k, Index batch, Scalar alpha, Handle A,
+        Handle B, Scalar beta, Handle C, int redux);
 
 template
 void submit<fp64_t>(const TransOp &transA, const TransOp &transB,
-        Index m, Index n, Index k, Index batch, scal_t alpha, Handle A,
-        Handle B, scal_t beta, Handle C, int redux);
+        Index m, Index n, Index k, Index batch, Scalar alpha, Handle A,
+        Handle B, Scalar beta, Handle C, int redux);
 
 } // namespace nntile::starpu::gemm

@@ -21,12 +21,12 @@ namespace nntile::tensor
 
 // Tensor-wise prod_slice operation
 template<typename T>
-void prod_slice_async(const Tensor<T> &src, scal_t alpha, const Tensor<T> &dst,
+void prod_slice_async(const Tensor<T> &src, Scalar alpha, const Tensor<T> &dst,
         Index axis);
 
 // Tensor-wise prod_slice operation
 template<typename T>
-void prod_slice(const Tensor<T> &src, scal_t alpha, const Tensor<T> &dst,
+void prod_slice(const Tensor<T> &src, Scalar alpha, const Tensor<T> &dst,
         Index axis);
 
 } // namespace nntile::tensor

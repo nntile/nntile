@@ -19,7 +19,7 @@ namespace nntile::tile
 {
 
 template<typename T>
-void add_fiber_async(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst,
+void add_fiber_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         Index axis, Index batch_ndim)
 //! Tile<T> addition of a tensor and a broadcasted fiber
 /*! Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
@@ -75,7 +75,7 @@ void add_fiber_async(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T
 }
 
 template<typename T>
-void add_fiber(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst,
+void add_fiber(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         Index axis, Index batch_ndim)
 //! Tile<T> addition of a tensor and a broadcasted fiber
 /*! Blocking version of add_fiber_async<T>.
@@ -95,28 +95,28 @@ void add_fiber(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst
 
 // Explicit instantiation of template
 template
-void add_fiber_async<fp32_t>(scal_t alpha, const Tile<fp32_t> &src,
-        scal_t beta, const Tile<fp32_t> &dst, Index axis, Index batch_ndim);
+void add_fiber_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+        Scalar beta, const Tile<fp32_t> &dst, Index axis, Index batch_ndim);
 
 template
-void add_fiber_async<fp32_fast_tf32_t>(scal_t alpha, const Tile<fp32_fast_tf32_t> &src,
-        scal_t beta, const Tile<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim);
+void add_fiber_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+        Scalar beta, const Tile<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim);
 
 template
-void add_fiber_async<fp64_t>(scal_t alpha, const Tile<fp64_t> &src,
-        scal_t beta, const Tile<fp64_t> &dst, Index axis, Index batch_ndim);
+void add_fiber_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+        Scalar beta, const Tile<fp64_t> &dst, Index axis, Index batch_ndim);
 
 // Explicit instantiation of template
 template
-void add_fiber<fp32_t>(scal_t alpha, const Tile<fp32_t> &src, scal_t beta,
+void add_fiber<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
         const Tile<fp32_t> &dst, Index axis, Index batch_ndim);
 
 template
-void add_fiber<fp32_fast_tf32_t>(scal_t alpha, const Tile<fp32_fast_tf32_t> &src, scal_t beta,
+void add_fiber<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
         const Tile<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim);
 
 template
-void add_fiber<fp64_t>(scal_t alpha, const Tile<fp64_t> &src, scal_t beta,
+void add_fiber<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst, Index axis, Index batch_ndim);
 
 } // namespace nntile::tile

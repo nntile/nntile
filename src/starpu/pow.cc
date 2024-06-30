@@ -94,7 +94,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index nelems, scal_t alpha, scal_t exp, Handle data)
+void submit(Index nelems, Scalar alpha, Scalar exp, Handle data)
 //! Insert pow task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -120,9 +120,9 @@ void submit(Index nelems, scal_t alpha, scal_t exp, Handle data)
 
 // Explicit instantiaion
 template
-void submit<fp32_t>(Index nelems, scal_t alpha, scal_t exp, Handle data);
+void submit<fp32_t>(Index nelems, Scalar alpha, Scalar exp, Handle data);
 
 template
-void submit<fp64_t>(Index nelems, scal_t alpha, scal_t exp, Handle data);
+void submit<fp64_t>(Index nelems, Scalar alpha, Scalar exp, Handle data);
 
 } // namespace nntile::starpu::pow

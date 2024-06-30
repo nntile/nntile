@@ -27,7 +27,7 @@ struct args_t
     Index m;
     Index n;
     Index k;
-    scal_t alpha;
+    Scalar alpha;
 };
 
 // Apply softmax along middle axis of StarPU buffer on CPU
@@ -76,7 +76,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, Handle maxsumnorm, Handle src, scal_t alpha,
+void submit(Index m, Index n, Index k, Handle maxsumnorm, Handle src, Scalar alpha,
         Handle dst);
 
 } // namespace nntile::starpu::softmax

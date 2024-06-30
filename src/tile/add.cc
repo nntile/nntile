@@ -20,7 +20,7 @@ namespace nntile::tile
 
 //! Tile-wise add operation
 template<typename T>
-void add_async(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst)
+void add_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst)
 {
     // Check dimensions
     if(dst.ndim != src.ndim)
@@ -46,7 +46,7 @@ void add_async(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst
 
 //! Tile-wise add operation
 template<typename T>
-void add(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst)
+void add(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst)
 {
     add_async<T>(alpha, src, beta, dst);
     starpu_task_wait_for_all();
@@ -54,28 +54,28 @@ void add(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst)
 
 // Explicit instantiation of template
 template
-void add_async<fp32_t>(scal_t alpha, const Tile<fp32_t> &src, scal_t beta,
+void add_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
         const Tile<fp32_t> &dst);
 
 template
-void add_async<fp32_fast_tf32_t>(scal_t alpha, const Tile<fp32_fast_tf32_t> &src, scal_t beta,
+void add_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void add_async<fp64_t>(scal_t alpha, const Tile<fp64_t> &src, scal_t beta,
+void add_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst);
 
 // Explicit instantiation of template
 template
-void add<fp32_t>(scal_t alpha, const Tile<fp32_t> &src, scal_t beta,
+void add<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
         const Tile<fp32_t> &dst);
 
 template
-void add<fp32_fast_tf32_t>(scal_t alpha, const Tile<fp32_fast_tf32_t> &src, scal_t beta,
+void add<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void add<fp64_t>(scal_t alpha, const Tile<fp64_t> &src, scal_t beta,
+void add<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst);
 
 } // namespace nntile::tile

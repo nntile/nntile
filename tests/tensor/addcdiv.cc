@@ -25,7 +25,7 @@ using namespace nntile;
 using namespace nntile::tensor;
 
 template<typename T>
-void check(scal_t val, scal_t eps, const std::vector<Index> &shape,
+void check(Scalar val, Scalar eps, const std::vector<Index> &shape,
         const std::vector<Index> &basetile)
 {
     // Barrier to wait for cleanup of previously used tags

@@ -31,8 +31,8 @@ using namespace nntile::kernel;
 #ifdef NNTILE_USE_CUDA
 
 template<typename T>
-void run_cuda(Index nelems, scal_t alpha, const std::vector<T> &src,
-        scal_t beta, std::vector<T> &dst)
+void run_cuda(Index nelems, Scalar alpha, const std::vector<T> &src,
+        Scalar beta, std::vector<T> &dst)
 {
     // Copy to device
     T *dev_src, *dev_dst;
@@ -74,8 +74,8 @@ void validate(Index nelems, int test_index_a, int test_index_b)
     using Y = typename T::compat_t;
     const Y eps = 2 * T::epsilon();
     // Init test input
-    scal_t alpha = (1.0)/scal_t(test_index_a);
-    scal_t beta = (1.0)/scal_t(test_index_b);
+    Scalar alpha = (1.0)/Scalar(test_index_a);
+    Scalar beta = (1.0)/Scalar(test_index_b);
     std::vector<T> src(nelems), dst(nelems);
     for(Index i = 0; i < nelems; ++i)
     {

@@ -21,7 +21,7 @@ namespace nntile::kernel::total_sum_accum
 
 // Compute total sum accumulating from buffers
 template<typename T>
-void cpu(scal_t alpha, Index n_labels, Index n_outputs, const T* logsumexp,
+void cpu(Scalar alpha, Index n_labels, Index n_outputs, const T* logsumexp,
         const T* src, const int64_t* labels, T *val)
     noexcept;
 

@@ -21,10 +21,10 @@ namespace nntile::tensor
 
 // Tensor-wise add_scalar operation
 template<typename T>
-void add_scalar_async(scal_t alpha, scal_t beta, const Tensor<T> &dst);
+void add_scalar_async(Scalar alpha, Scalar beta, const Tensor<T> &dst);
 
 // Tensor-wise add_scalar operation
 template<typename T>
-void add_scalar(scal_t alpha, scal_t beta, const Tensor<T> &dst);
+void add_scalar(Scalar alpha, Scalar beta, const Tensor<T> &dst);
 
 } // namespace nntile::tensor

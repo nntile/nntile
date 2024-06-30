@@ -19,7 +19,7 @@ namespace nntile::kernel::add_slice3
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, scal_t alpha_, const T *src1_, scal_t beta_,
+void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src1_, Scalar beta_,
         const T *src2_, T *dst_)
     noexcept
 //! Per-element addition of a tensor and a broadcasted slice on CPU
@@ -79,13 +79,13 @@ void cpu(Index m, Index n, Index k, scal_t alpha_, const T *src1_, scal_t beta_,
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m, Index n, Index k, scal_t alpha, const fp32_t *src1,
-        scal_t beta, const fp32_t *src2, fp32_t *dst)
+void cpu<fp32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_t *src1,
+        Scalar beta, const fp32_t *src2, fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index m, Index n, Index k, scal_t alpha, const fp64_t *src1,
-        scal_t beta, const fp64_t *src2, fp64_t *dst)
+void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src1,
+        Scalar beta, const fp64_t *src2, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::add_slice3

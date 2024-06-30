@@ -25,7 +25,7 @@ namespace nntile::starpu::fill
 struct args_t
 {
     Index nelems;
-    scal_t val;
+    Scalar val;
 };
 
 // fill StarPU buffer on CPU
@@ -74,6 +74,6 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nelems, scal_t val, Handle data);
+void submit(Index nelems, Scalar val, Handle data);
 
 } // namespace nntile::starpu::fill

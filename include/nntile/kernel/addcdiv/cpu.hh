@@ -21,7 +21,7 @@ namespace nntile::kernel::addcdiv
 
 // Per-element addcdiv operation x = x + val * nom / (denom + eps)
 template<typename T>
-void cpu(scal_t val, scal_t eps, Index nelems, const T *nom, const T *denom, T *res)
+void cpu(Scalar val, Scalar eps, Index nelems, const T *nom, const T *denom, T *res)
     noexcept;
 
 } // namespace nntile::kernel::addcdiv

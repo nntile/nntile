@@ -35,7 +35,7 @@ void cuda_kernel(Index nrows, Index ncols, const bool *mask, T val, T *data)
 
 template<typename T>
 void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask_,
-        scal_t val, T *data_)
+        Scalar val, T *data_)
     noexcept
 //! Set certain matrix entries to a given value by mask on CUDA
 /*! Does the following operation:
@@ -60,12 +60,12 @@ void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask_,
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index nrows, Index ncols,
-        const bool_t *mask, scal_t val, fp32_t *data)
+        const bool_t *mask, Scalar val, fp32_t *data)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index nrows, Index ncols,
-        const bool_t *mask, scal_t val, fp64_t *data)
+        const bool_t *mask, Scalar val, fp64_t *data)
     noexcept;
 
 } // namespace nntile::kernel::mask_scalar

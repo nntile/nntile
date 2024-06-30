@@ -40,7 +40,7 @@ void cuda_kernel(Index nelems, T alpha, const T* src, T* dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, scal_t alpha, const T *src_,
+void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src_,
         T *dst_)
     noexcept
 //! Set one buffer as a scaled version of another
@@ -64,12 +64,12 @@ void cuda(cudaStream_t stream, Index nelems, scal_t alpha, const T *src_,
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index nelems, scal_t alpha,
+void cuda<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         const fp32_t *src, fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index nelems, scal_t alpha,
+void cuda<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         const fp64_t *src, fp64_t *dst)
     noexcept;
 

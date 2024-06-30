@@ -20,9 +20,9 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void pow_async(scal_t alpha, scal_t exp, const Tensor<T> &A);
+void pow_async(Scalar alpha, Scalar exp, const Tensor<T> &A);
 
 template<typename T>
-void pow(scal_t alpha, scal_t exp, const Tensor<T> &A);
+void pow(Scalar alpha, Scalar exp, const Tensor<T> &A);
 
 } // namespace nntile::tensor

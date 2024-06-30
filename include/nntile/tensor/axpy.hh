@@ -29,9 +29,9 @@ template<typename T>
 void axpy(const Tensor<T> &alpha, const Tensor<T> &src, const Tensor<T> &dst);
 
 template<typename T>
-void axpy_async(scal_t alpha, const Tensor<T> &src, const Tensor<T> &dst);
+void axpy_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst);
 
 template<typename T>
-void axpy(scal_t alpha, const Tensor<T> &src, const Tensor<T> &dst);
+void axpy(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst);
 
 } // namespace nntile::tensor
