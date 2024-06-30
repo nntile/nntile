@@ -23,12 +23,12 @@ namespace nntile::tensor
 template<typename T>
 void randn_async(const Tensor<T> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
-        scal_t mean, scal_t stddev);
+        Scalar mean, Scalar stddev);
 
 // Blocking version of tensor-wise random generation operation
 template<typename T>
 void randn(const Tensor<T> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
-        scal_t mean, scal_t stddev);
+        Scalar mean, Scalar stddev);
 
 } // namespace nntile::tensor

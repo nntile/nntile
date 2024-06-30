@@ -21,7 +21,8 @@ namespace nntile::kernel::addcdiv
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, T val, T eps, Index nelems, const T *nom, const T* denom, T *res)
+void cuda(cudaStream_t stream, Scalar val, Scalar eps, Index nelems,
+        const T *nom, const T *denom, T *res)
     noexcept;
 
 } // namespace nntile::kernel::addcdiv

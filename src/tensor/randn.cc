@@ -35,7 +35,7 @@ namespace nntile::tensor
 template<typename T>
 void randn_async(const Tensor<T> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
-        scal_t mean, scal_t stddev)
+        Scalar mean, Scalar stddev)
 {
     // Check dimensions
     if(dst.ndim != start.size())
@@ -78,7 +78,7 @@ void randn_async(const Tensor<T> &dst, const std::vector<Index> &start,
         return;
     }
     // Temporary index
-    starpu::VariableHandle tmp_index(sizeof(Index)*2*ndim, STARPU_SCRATCH);
+    starpu::VariableHandle tmp_index(sizeof(int64_t)*2*ndim, STARPU_SCRATCH);
     // Now do the job
     std::vector<Index> tile_start(start), tile_index(dst.ndim);
     for(Index i = 0; i < dst.grid.nelems; ++i)
@@ -132,7 +132,7 @@ void randn_async(const Tensor<T> &dst, const std::vector<Index> &start,
 template<typename T>
 void randn(const Tensor<T> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
-        scal_t mean, scal_t stddev)
+        Scalar mean, Scalar stddev)
 {
     randn_async<T>(dst, start, underlying_shape, seed, mean, stddev);
     starpu_task_wait_for_all();
@@ -144,34 +144,34 @@ template
 void randn_async<fp32_t>(const Tensor<fp32_t> &dst,
         const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
-        scal_t mean, scal_t stddev);
+        Scalar mean, Scalar stddev);
 
 template
 void randn_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &dst,
         const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
-        scal_t mean, scal_t stddev);
+        Scalar mean, Scalar stddev);
 
 template
 void randn_async<fp64_t>(const Tensor<fp64_t> &dst,
         const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
-        scal_t mean, scal_t stddev);
+        Scalar mean, Scalar stddev);
 
 // Explicit instantiation
 template
 void randn<fp32_t>(const Tensor<fp32_t> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
-        scal_t mean, scal_t stddev);
+        Scalar mean, Scalar stddev);
 
 template
 void randn<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
-        scal_t mean, scal_t stddev);
+        Scalar mean, Scalar stddev);
 
 template
 void randn<fp64_t>(const Tensor<fp64_t> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
-        scal_t mean, scal_t stddev);
+        Scalar mean, Scalar stddev);
 
 } // namespace nntile::tensor

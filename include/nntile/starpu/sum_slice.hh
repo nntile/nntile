@@ -26,8 +26,8 @@ struct args_t
     Index m;
     Index n;
     Index k;
-    scal_t alpha;
-    scal_t beta;
+    Scalar alpha;
+    Scalar beta;
 };
 
 // StarPU wrapper for kernel::sum_slice::cpu<T>
@@ -76,7 +76,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, scal_t alpha, Handle src, scal_t beta,
+void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
         Handle dst, int redux=0);
 
 } // namespace nntile::starpu::sum_slice

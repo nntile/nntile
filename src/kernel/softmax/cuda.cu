@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/softmax/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::softmax
 {
@@ -65,8 +66,8 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
-        const T *src, T alpha, T *dst)
+void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp_,
+        const T *src_, Scalar alpha, T *dst_)
     noexcept
 //! Softmax of a buffer along middle axis
 /*!
@@ -93,19 +94,23 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
         n_per_block = (n+65534) / 65535;
         blocks.z = (n+n_per_block-1) / n_per_block;
     }
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, m_per_block, n,
-            n_per_block, k, maxsumexp, src, alpha, dst);
+    using Y = typename CUDAComputeType<T>::value;
+    auto maxsumexp = reinterpret_cast<const Y *>(maxsumexp_);
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, m_per_block, n,
+            n_per_block, k, maxsumexp, src, Y{alpha}, dst);
 }
 
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
-        const fp32_t *maxsumexp, const fp32_t *src, fp32_t alpha, fp32_t *dst)
+        const fp32_t *maxsumexp, const fp32_t *src, Scalar alpha, fp32_t *dst)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
-        const fp64_t *maxsumexp, const fp64_t *src, fp64_t alpha, fp64_t *dst)
+        const fp64_t *maxsumexp, const fp64_t *src, Scalar alpha, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::softmax

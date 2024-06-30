@@ -21,7 +21,7 @@ namespace nntile::kernel::sum_fiber
 
 // Sums over slices along the first and last axes into a fiber of a tensor
 template<typename T>
-void cpu(Index m, Index n, Index k, Index batch, T alpha, const T *src, T beta,
+void cpu(Index m, Index n, Index k, Index batch, Scalar alpha, const T *src, Scalar beta,
         T *dst)
     noexcept;
 

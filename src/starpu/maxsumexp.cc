@@ -138,7 +138,7 @@ void submit(Index m, Index n, Index k, Handle src, Handle dst, int redux)
     args->m = m;
     args->n = n;
     args->k = k;
-    //fp64_t nflops = m * n * k;
+    //double nflops = m * n * k;
     // Access mode for the dst handle
     enum starpu_data_access_mode dst_mode;
     if(redux != 0)

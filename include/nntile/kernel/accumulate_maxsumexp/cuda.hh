@@ -22,7 +22,7 @@ namespace nntile::kernel::accumulate_maxsumexp
 
 // Accumulate maxsumexp buffers on CUDA
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, const T* src, T* dst)
+void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::accumulate_maxsumexp

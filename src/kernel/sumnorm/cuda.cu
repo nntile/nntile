@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/sumnorm/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::sumnorm
 {
@@ -74,8 +75,8 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, const T *src,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
-        T *sumnorm)
+void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src_,
+        T *sumnorm_)
     noexcept
 //! Sum and Euclidean norm along middle axis
 /*! For a provided m-by-k-by-n input array src compute sums and norms of slices
@@ -95,15 +96,18 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
  *      arrays.
  * @param[in] n: Size of the last mode of src and sumnorm arrays
  * @param[in] k: Size of the middle mode of src array
- * @param[in] src: Input contiguous m-by-k-by-n array
- * @param[inout] sumnorm: Output contiguous 2-by-m-by-n array, that accumulates
+ * @param[in] src_: Input contiguous m-by-k-by-n array
+ * @param[inout] sumnorm_: Output contiguous 2-by-m-by-n array, that accumulates
  *      sums and norms of slices along middle axis.
  * */
 {
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
     // Both source and destination are Fortran-contiguous
     dim3 blocks(16, 16), threads(8, 4);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, src,
+    using Y = typename CUDAComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto sumnorm = reinterpret_cast<Y *>(sumnorm_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, src,
             sumnorm);
 }
 

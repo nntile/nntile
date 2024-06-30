@@ -15,6 +15,7 @@
 #include "nntile/kernel/sum_fiber/cuda.hh"
 #include <cmath>
 #include <algorithm>
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::sum_fiber
 {
@@ -93,8 +94,8 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, T alpha, const T *src,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, T alpha,
-        const T *src, T beta, T *dst)
+void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
+        Scalar alpha, const T *src_, Scalar beta, T *dst_)
     noexcept
 //! Sums over slices along the first and last axes into a fiber of a tensor
 /*! For a provided m-by-k-by-n input array computes sums over slices
@@ -109,28 +110,31 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, T alpha,
  *      dst array
  * @param[in] batch: Size of the batch dimension
  * @param[in] alpha: Scaling factor for src
- * @param[in] src: Input contiguous m-by-k-by-n array
+ * @param[in] src_: Input contiguous m-by-k-by-n array
  * @param[in] beta: Scaling factor for dst
- * @param[inout] sum: Output contiguous vector with k elements, that accumulate
+ * @param[inout] dst_: Output contiguous vector with k elements, that accumulate
  *      sums over slices along the first and the last axes.
  * */
 {
     // Both source and destination are Fortran-contiguous
     dim3 threads(1, std::min(int(m), 32), std::min(int(n), 32));
     dim3 blocks((k*batch+threads.x-1)/threads.x, 1, 1);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, batch, alpha,
-            src, beta, dst);
+    using Y = typename CUDAComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, n, k, batch, Y{alpha},
+            src, Y{beta}, dst);
 }
 
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
-        fp32_t alpha, const fp32_t *src, fp32_t beta, fp32_t *dst)
+        Scalar alpha, const fp32_t *src, Scalar beta, fp32_t *dst)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
-        fp64_t alpha, const fp64_t *src, fp64_t beta, fp64_t *dst)
+        Scalar alpha, const fp64_t *src, Scalar beta, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::sum_fiber

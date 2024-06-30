@@ -14,6 +14,8 @@
 
 #include "nntile/starpu/scal_inplace.hh"
 #include <cstdlib>
+#include "nntile/kernel/cpu.hh"
+#include "nntile/kernel/cuda.hh"
 
 #ifndef STARPU_SIMGRID
 #   ifdef NNTILE_USE_CBLAS
@@ -36,18 +38,18 @@ namespace nntile::starpu::scal_inplace
 #ifndef STARPU_SIMGRID
 // Overloaded call to CBLAS scal
 static inline
-void cblas(CBLAS_INT N, fp32_t alpha, fp32_t *X, CBLAS_INT incX)
+void cblas(CBLAS_INT N, float alpha, fp32_t *X, CBLAS_INT incX)
     noexcept
 {
-    cblas_sscal(N, alpha, X, incX);
+    cblas_sscal(N, alpha, (float *)X, incX);
 }
 
 // Overloaded call to CBLAS scal
 static inline
-void cblas(CBLAS_INT N, fp64_t alpha, fp64_t *X, CBLAS_INT incX)
+void cblas(CBLAS_INT N, double alpha, fp64_t *X, CBLAS_INT incX)
     noexcept
 {
-    cblas_dscal(N, alpha, X, incX);
+    cblas_dscal(N, alpha, (double *)X, incX);
 }
 #endif // STARPU_SIMGRID
 
@@ -72,18 +74,18 @@ void cpu(void *buffers[], void *cl_args)
 #ifndef STARPU_SIMGRID
 // Overloaded call to cuBLAS scal
 static inline
-void cublas(cublasHandle_t handle, int N, fp32_t alpha, fp32_t *X, int incX)
+void cublas(cublasHandle_t handle, int N, float alpha, fp32_t *X, int incX)
     noexcept
 {
-    cublasSscal(handle, N, &alpha, X, incX);
+    cublasSscal(handle, N, &alpha, (float *)X, incX);
 }
 
 // Overloaded call to cuBLAS scal
 static inline
-void cublas(cublasHandle_t handle, int N, fp64_t alpha, fp64_t *X, int incX)
+void cublas(cublasHandle_t handle, int N, double alpha, fp64_t *X, int incX)
     noexcept
 {
-    cublasDscal(handle, N, &alpha, X, incX);
+    cublasDscal(handle, N, &alpha, (double *)X, incX);
 }
 #endif // STARPU_SIMGRID
 
@@ -172,7 +174,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(scal_t alpha, Index nelems, Handle data)
+void submit(Index nelems, Scalar alpha, Handle data)
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
 #ifdef NNTILE_USE_CBLAS
@@ -211,13 +213,12 @@ void submit(scal_t alpha, Index nelems, Handle data)
 
 // Explicit instantiation
 template
-void submit<fp32_t>(scal_t alpha, Index nelems, Handle data);
+void submit<fp32_t>(Index nelems, Scalar alpha, Handle data);
 
 template
-void submit<fp32_fast_tf32_t>(scal_t alpha, Index nelems, Handle data);
-
+void submit<fp32_fast_tf32_t>(Index nelems, Scalar alpha, Handle data);
 
 template
-void submit<fp64_t>(scal_t alpha, Index nelems, Handle data);
+void submit<fp64_t>(Index nelems, Scalar alpha, Handle data);
 
 } // namespace nntile::starpu::scal_inplace

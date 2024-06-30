@@ -13,6 +13,8 @@
  * */
 
 #include "nntile/starpu/axpy.hh"
+#include "nntile/kernel/cpu.hh"
+#include "nntile/kernel/cuda.hh"
 
 #ifndef STARPU_SIMGRID
 #   ifdef NNTILE_USE_CBLAS
@@ -35,20 +37,20 @@ namespace nntile::starpu::axpy
 #ifndef STARPU_SIMGRID
 // Overloaded call to CBLAS GEMM
 static inline
-void cblas(CBLAS_INT N, fp32_t alpha, const fp32_t *X, CBLAS_INT incX,
+void cblas(CBLAS_INT N, float alpha, const fp32_t *X, CBLAS_INT incX,
         fp32_t *Y, CBLAS_INT incY)
     noexcept
 {
-    cblas_saxpy(N, alpha, X, incX, Y, incY);
+    cblas_saxpy(N, alpha, (const float *)X, incX, (float *)Y, incY);
 }
 
 // Overloaded call to CBLAS GEMM
 static inline
-void cblas(CBLAS_INT N, fp64_t alpha, const fp64_t *X, CBLAS_INT incX,
+void cblas(CBLAS_INT N, double alpha, const fp64_t *X, CBLAS_INT incX,
         fp64_t *Y, CBLAS_INT incY)
     noexcept
 {
-    cblas_daxpy(N, alpha, X, incX, Y, incY);
+    cblas_daxpy(N, alpha, (const double *)X, incX, (double *)Y, incY);
 }
 #endif // STARPU_SIMGRID
 
@@ -62,7 +64,8 @@ void cpu_tensor_alpha(void *buffers[], void *cl_args)
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *alpha = interfaces[0]->get_ptr<T>();
+    using Y = typename nntile::kernel::CPUComputeType<T>::value;
+    const Y *alpha = interfaces[0]->get_ptr<Y>();
     const T *src = interfaces[1]->get_ptr<T>();
     T *dst = interfaces[2]->get_ptr<T>();
     // Call corresponding CBLAS routine
@@ -92,20 +95,20 @@ void cpu_scalar_alpha(void *buffers[], void *cl_args)
 #ifndef STARPU_SIMGRID
 // Overloaded call to cuBLAS AXPY
 static inline
-void cublas(cublasHandle_t handle, int N, const fp32_t *alpha, const fp32_t *X,
+void cublas(cublasHandle_t handle, int N, const float *alpha, const fp32_t *X,
         int incX, fp32_t *Y, int incY)
     noexcept
 {
-    cublasSaxpy(handle, N, alpha, X, incX, Y, incY);
+    cublasSaxpy(handle, N, alpha, (const float *)X, incX, (float *)Y, incY);
 }
 
 // Overloaded call to cuBLAS AXPY
 static inline
-void cublas(cublasHandle_t handle, int N, const fp64_t *alpha, const fp64_t *X,
+void cublas(cublasHandle_t handle, int N, const double *alpha, const fp64_t *X,
         int incX, fp64_t *Y, int incY)
     noexcept
 {
-    cublasDaxpy(handle, N, alpha, X, incX, Y, incY);
+    cublasDaxpy(handle, N, alpha, (const double *)X, incX, (double *)Y, incY);
 }
 #endif // STARPU_SIMGRID
 
@@ -119,7 +122,8 @@ void cuda(void *buffers[], void *cl_args)
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *alpha = interfaces[0]->get_ptr<T>();
+    using Y = typename nntile::kernel::CUDAComputeType<T>::value;
+    const Y *alpha = interfaces[0]->get_ptr<Y>();
     const T *src = interfaces[1]->get_ptr<T>();
     T *dst = interfaces[2]->get_ptr<T>();
     // Get cuBLAS handle and CUDA stream
@@ -140,18 +144,19 @@ void cuda2(void *buffers[], void *cl_args)
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args2_t *>(cl_args);
-    T alpha_T = args->alpha;
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    using Y = typename nntile::kernel::CUDAComputeType<T>::value;
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
+    Y alpha_{args->alpha};
     // Get cuBLAS handle and CUDA stream
     cublasHandle_t handle = starpu_cublas_get_local_handle();
     cudaStream_t stream = starpu_cuda_get_local_stream();
     cublasSetStream(handle, stream);
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
     // Call corresponding cuBLAS routine
-    cublas(handle, args->nelems, &alpha_T, src, 1, dst, 1);
+    cublas(handle, args->nelems, &alpha_, src, 1, dst, 1);
 #endif // STARPU_SIMGRID
 }
 #endif //NNTILE_USE_CUDA
@@ -294,7 +299,7 @@ template
 void submit<fp64_t>(Handle alpha, Index nelems, Handle src, Handle dst);
 
 template<typename T>
-void submit(scal_t alpha, Index nelems, Handle src, Handle dst)
+void submit(Scalar alpha, Index nelems, Handle src, Handle dst)
 {
     // Check that matrix sizes fit proper types for underlying CBLAS
 #ifdef NNTILE_USE_CBLAS
@@ -332,12 +337,12 @@ void submit(scal_t alpha, Index nelems, Handle src, Handle dst)
 
 // Explicit instantiation
 template
-void submit<fp32_t>(scal_t alpha, Index nelems, Handle src, Handle dst);
+void submit<fp32_t>(Scalar alpha, Index nelems, Handle src, Handle dst);
 
 template
-void submit<fp32_fast_tf32_t>(scal_t alpha, Index nelems, Handle src, Handle dst);
+void submit<fp32_fast_tf32_t>(Scalar alpha, Index nelems, Handle src, Handle dst);
 
 template
-void submit<fp64_t>(scal_t alpha, Index nelems, Handle src, Handle dst);
+void submit<fp64_t>(Scalar alpha, Index nelems, Handle src, Handle dst);
 
 } // namespace nntile::starpu::axpy

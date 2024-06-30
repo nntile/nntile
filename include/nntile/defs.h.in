@@ -16,3 +16,7 @@
 
 #cmakedefine NNTILE_USE_CBLAS
 #cmakedefine NNTILE_USE_CUDA
+#cmakedefine NNTILE_USE_CUDA_TF32
+#cmakedefine NNTILE_USE_CUDA_FP16
+#cmakedefine NNTILE_USE_CUDA_BF16
+#cmakedefine NNTILE_USE_CUDA_FP8

@@ -22,7 +22,7 @@ namespace nntile::tensor
 //
 // @param[inout] A: Tensor for the element-wise power operation
 template<typename T>
-void pow_async(T alpha, T exp, const Tensor<T> &A)
+void pow_async(Scalar alpha, Scalar exp, const Tensor<T> &A)
 {
     int mpi_rank = starpu_mpi_world_rank();
     for(Index i = 0; i < A.grid.nelems; ++i)
@@ -45,7 +45,7 @@ void pow_async(T alpha, T exp, const Tensor<T> &A)
 //
 // @param[inout] A: Tensor for the element-wise power operation
 template<typename T>
-void pow(T alpha, T exp, const Tensor<T> &A)
+void pow(Scalar alpha, Scalar exp, const Tensor<T> &A)
 {
     pow_async<T>(alpha, exp, A);
     starpu_task_wait_for_all();
@@ -54,16 +54,16 @@ void pow(T alpha, T exp, const Tensor<T> &A)
 
 // Explicit instantiation
 template
-void pow_async<fp32_t>(fp32_t alpha, fp32_t exp, const Tensor<fp32_t> &A);
+void pow_async<fp32_t>(Scalar alpha, Scalar exp, const Tensor<fp32_t> &A);
 
 template
-void pow_async<fp64_t>(fp64_t alpha, fp64_t exp, const Tensor<fp64_t> &A);
+void pow_async<fp64_t>(Scalar alpha, Scalar exp, const Tensor<fp64_t> &A);
 
 // Explicit instantiation
 template
-void pow<fp32_t>(fp32_t alpha, fp32_t exp, const Tensor<fp32_t> &A);
+void pow<fp32_t>(Scalar alpha, Scalar exp, const Tensor<fp32_t> &A);
 
 template
-void pow<fp64_t>(fp64_t alpha, fp64_t exp, const Tensor<fp64_t> &A);
+void pow<fp64_t>(Scalar alpha, Scalar exp, const Tensor<fp64_t> &A);
 
 } // namespace nntile::tensor

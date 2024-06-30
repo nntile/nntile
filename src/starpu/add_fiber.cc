@@ -126,8 +126,8 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, Index batch, scal_t alpha, Handle src,
-        scal_t beta, Handle dst)
+void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src,
+        Scalar beta, Handle dst)
 //! Insert add_fiber task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -135,7 +135,7 @@ void submit(Index m, Index n, Index k, Index batch, scal_t alpha, Handle src,
  * */
 {
     // Access mode for the dst handle
-    constexpr scal_t zero = 0, one = 1;
+    constexpr Scalar zero = 0, one = 1;
     enum starpu_data_access_mode dst_mode;
     if(beta == zero)
     {
@@ -157,7 +157,7 @@ void submit(Index m, Index n, Index k, Index batch, scal_t alpha, Handle src,
     args->batch = batch;
     args->alpha = alpha;
     args->beta = beta;
-    fp64_t nflops = batch * k * (2*m*n+1);
+    double nflops = batch * k * (2*m*n+1);
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
@@ -174,15 +174,15 @@ void submit(Index m, Index n, Index k, Index batch, scal_t alpha, Handle src,
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index m, Index n, Index k, Index batch, scal_t alpha,
-        Handle src, scal_t beta, Handle dst);
+void submit<fp32_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
+        Handle src, Scalar beta, Handle dst);
 
 template
-void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Index batch, scal_t alpha,
-        Handle src, scal_t beta, Handle dst);
+void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
+        Handle src, Scalar beta, Handle dst);
 
 template
-void submit<fp64_t>(Index m, Index n, Index k, Index batch, scal_t alpha,
-        Handle src, scal_t beta, Handle dst);
+void submit<fp64_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
+        Handle src, Scalar beta, Handle dst);
 
 } // namespace nntile::starpu::add_fiber

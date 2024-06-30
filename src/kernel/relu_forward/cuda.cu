@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/relu_forward/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::relu_forward
 {
@@ -30,19 +31,22 @@ void cuda_kernel(Index nelems, const T *src, T *dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
+void cuda(cudaStream_t stream, Index nelems, const T *src_, T *dst_)
     noexcept
 //! Forward ReLU operation on CUDA
 /*! Does the following per-element operation:
  * dst[i] = max(src[i], 0)
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[in] src: Input array
- * @params[out] dst: Output array
+ * @params[in] src_: Input array
+ * @params[out] dst_: Output array
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
+    using Y = typename CUDAComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
 }
 
 // Explicit instantiation

@@ -20,11 +20,11 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void addcdiv_async(scal_t val, scal_t eps, const Tensor<T> &nom, const Tensor<T> &denom,
+void addcdiv_async(Scalar val, Scalar eps, const Tensor<T> &nom, const Tensor<T> &denom,
                    const Tensor<T> &src);
 
 template<typename T>
-void addcdiv(scal_t val, scal_t eps, const Tensor<T> &nom, const Tensor<T> &denom,
+void addcdiv(Scalar val, Scalar eps, const Tensor<T> &nom, const Tensor<T> &denom,
              const Tensor<T> &src);
 
 } // namespace nntile::tensor

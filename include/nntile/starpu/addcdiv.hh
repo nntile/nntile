@@ -23,8 +23,8 @@ namespace nntile::starpu::addcdiv
 //! Structure for arguments
 struct args_t
 {
-    scal_t val;
-    scal_t eps;
+    Scalar val;
+    Scalar eps;
     Index nelems;
 };
 
@@ -74,6 +74,6 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(scal_t val, scal_t eps, Index nelems, Handle nom, Handle denom, Handle src);
+void submit(Scalar val, Scalar eps, Index nelems, Handle nom, Handle denom, Handle src);
 
 } // namespace nntile::starpu::addcdiv

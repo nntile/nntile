@@ -23,7 +23,7 @@ namespace nntile::kernel::embedding
 // Fill embedding from vocabulary
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
-        Index k_size, const Index *index, const T *vocab, T *embed)
+        Index k_size, const int64_t *index, const T *vocab, T *embed)
     noexcept;
 
 } // namespace nntile::kernel::embedding

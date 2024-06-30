@@ -22,7 +22,7 @@ namespace nntile::tile
 /*! @param[inout] A: Tile for the element-wise mask scalar operation
  * */
 template<typename T>
-void mask_scalar_async(const Tile<bool_t> &mask, scal_t val, const Tile<T> &A)
+void mask_scalar_async(const Tile<bool_t> &mask, Scalar val, const Tile<T> &A)
 {
     // Submit task without any arguments checked
     starpu::mask_scalar::submit<T>(A.matrix_shape[A.ndim-1][0],
@@ -33,7 +33,7 @@ void mask_scalar_async(const Tile<bool_t> &mask, scal_t val, const Tile<T> &A)
 /*! @param[inout] A: Tile for the element-wise mask scalar operation
  * */
 template<typename T>
-void mask_scalar(const Tile<bool_t> &mask, scal_t val, const Tile<T> &A)
+void mask_scalar(const Tile<bool_t> &mask, Scalar val, const Tile<T> &A)
 {
     mask_scalar_async<T>(mask, val, A);
     starpu_task_wait_for_all();
@@ -41,28 +41,28 @@ void mask_scalar(const Tile<bool_t> &mask, scal_t val, const Tile<T> &A)
 
 // Explicit instantiation
 template
-void mask_scalar_async<fp32_t>(const Tile<bool_t> &mask, scal_t val,
+void mask_scalar_async<fp32_t>(const Tile<bool_t> &mask, Scalar val,
         const Tile<fp32_t> &A);
 
 template
-void mask_scalar_async<fp32_fast_tf32_t>(const Tile<bool_t> &mask, scal_t val,
+void mask_scalar_async<fp32_fast_tf32_t>(const Tile<bool_t> &mask, Scalar val,
         const Tile<fp32_fast_tf32_t> &A);
 
 template
-void mask_scalar_async<fp64_t>(const Tile<bool_t> &mask, scal_t val,
+void mask_scalar_async<fp64_t>(const Tile<bool_t> &mask, Scalar val,
         const Tile<fp64_t> &A);
 
 // Explicit instantiation
 template
-void mask_scalar<fp32_t>(const Tile<bool_t> &mask, scal_t val,
+void mask_scalar<fp32_t>(const Tile<bool_t> &mask, Scalar val,
         const Tile<fp32_t> &A);
 
 template
-void mask_scalar<fp32_fast_tf32_t>(const Tile<bool_t> &mask, scal_t val,
+void mask_scalar<fp32_fast_tf32_t>(const Tile<bool_t> &mask, Scalar val,
         const Tile<fp32_fast_tf32_t> &A);
 
 template
-void mask_scalar<fp64_t>(const Tile<bool_t> &mask, scal_t val,
+void mask_scalar<fp64_t>(const Tile<bool_t> &mask, Scalar val,
         const Tile<fp64_t> &A);
 
 } // namespace nntile::tile

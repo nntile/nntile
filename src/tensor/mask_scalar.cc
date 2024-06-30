@@ -22,7 +22,7 @@ namespace nntile::tensor
 //
 // @param[inout] A: Tensor for the element-wise fill operation
 template<typename T>
-void mask_scalar_async(const Tensor<bool_t> &mask, scal_t val, const Tensor<T> &A,
+void mask_scalar_async(const Tensor<bool_t> &mask, Scalar val, const Tensor<T> &A,
         Index batch_ndim)
 {
     if(mask.ndim != A.ndim-batch_ndim)
@@ -75,7 +75,7 @@ void mask_scalar_async(const Tensor<bool_t> &mask, scal_t val, const Tensor<T> &
 //
 // @param[inout] A: Tensor for the element-wise mask scalar operation
 template<typename T>
-void mask_scalar(const Tensor<bool_t> &mask, scal_t val, const Tensor<T> &A,
+void mask_scalar(const Tensor<bool_t> &mask, Scalar val, const Tensor<T> &A,
         Index batch_ndim)
 {
     mask_scalar_async<T>(mask, val, A, batch_ndim);
@@ -85,28 +85,28 @@ void mask_scalar(const Tensor<bool_t> &mask, scal_t val, const Tensor<T> &A,
 
 // Explicit instantiation
 template
-void mask_scalar_async<fp32_t>(const Tensor<bool_t> &mask, scal_t val,
+void mask_scalar_async<fp32_t>(const Tensor<bool_t> &mask, Scalar val,
         const Tensor<fp32_t> &A, Index batch_ndim);
 
 template
-void mask_scalar_async<fp32_fast_tf32_t>(const Tensor<bool_t> &mask, scal_t val,
+void mask_scalar_async<fp32_fast_tf32_t>(const Tensor<bool_t> &mask, Scalar val,
         const Tensor<fp32_fast_tf32_t> &A, Index batch_ndim);
 
 template
-void mask_scalar_async<fp64_t>(const Tensor<bool_t> &mask, scal_t val,
+void mask_scalar_async<fp64_t>(const Tensor<bool_t> &mask, Scalar val,
         const Tensor<fp64_t> &A, Index batch_ndim);
 
 // Explicit instantiation
 template
-void mask_scalar<fp32_t>(const Tensor<bool_t> &mask, scal_t val,
+void mask_scalar<fp32_t>(const Tensor<bool_t> &mask, Scalar val,
         const Tensor<fp32_t> &A, Index batch_ndim);
 
 template
-void mask_scalar<fp32_fast_tf32_t>(const Tensor<bool_t> &mask, scal_t val,
+void mask_scalar<fp32_fast_tf32_t>(const Tensor<bool_t> &mask, Scalar val,
         const Tensor<fp32_fast_tf32_t> &A, Index batch_ndim);
 
 template
-void mask_scalar<fp64_t>(const Tensor<bool_t> &mask, scal_t val,
+void mask_scalar<fp64_t>(const Tensor<bool_t> &mask, Scalar val,
         const Tensor<fp64_t> &A, Index batch_ndim);
 
 } // namespace nntile::tensor

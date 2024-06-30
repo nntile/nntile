@@ -21,13 +21,13 @@ namespace nntile::tensor
 
 // Tensor-wise embedding_backward operation
 template<typename T>
-void embedding_backward_async(const Tensor<Index> &index,
+void embedding_backward_async(const Tensor<int64_t> &index,
         const Tensor<T> &vocab, const Tensor<T> &embed, Index axis,
         int redux=0);
 
 // Tensor-wise embedding_backward operation
 template<typename T>
-void embedding_backward(const Tensor<Index> &index, const Tensor<T> &vocab,
+void embedding_backward(const Tensor<int64_t> &index, const Tensor<T> &vocab,
         const Tensor<T> &embed, Index axis, int redux=0);
 
 } // namespace nntile::tensor

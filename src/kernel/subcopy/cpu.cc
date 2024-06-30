@@ -13,14 +13,15 @@
  * */
 
 #include "nntile/kernel/subcopy/cpu.hh"
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::subcopy
 {
 
 template<typename T>
 void cpu(Index ndim, const Index *src_start, const Index *src_stride,
-        const Index *copy_shape, const T *src, const Index *dst_start,
-        const Index *dst_stride, T *dst, Index *tmp_index)
+        const Index *copy_shape, const T *src_, const Index *dst_start,
+        const Index *dst_stride, T *dst_, int64_t *tmp_index_)
     noexcept
 //! Complex copying of one multidimensional array into another
 /*! This function is not meant for a performant implementation, as its sole
@@ -36,19 +37,24 @@ void cpu(Index ndim, const Index *src_start, const Index *src_stride,
  *      values.
  * @param[in] src_stride: Strides of the source array. Contains ndim values.
  * @param[in] copy_shape: Shape of array to copy. Contains ndim values.
- * @param[in] src: Pointer to input data
+ * @param[in] src_: Pointer to input data
  * @param[in] dst_start: Start element to copy to destination array. Contains
  *      ndim values.
  * @param[in] dst_stride: Strides of the destination array. Contains ndim
  *      values.
- * @param[inout] dst: Pointer to output data
- * @param[out] tmp_index: Temporary buffer for indexing. Contains 2*ndim
+ * @param[inout] dst_: Pointer to output data
+ * @param[out] tmp_index_: Temporary buffer for indexing. Contains 2*ndim
  *      values.
  * */
 {
+    using Y = typename CPUComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    using I = typename CPUComputeType<int64_t>::value;
+    auto tmp_index = reinterpret_cast<I *>(tmp_index_);
     // Map temporary buffer into source index and destination index
-    Index *src_index = tmp_index;
-    Index *dst_index = tmp_index + ndim;
+    I *src_index = tmp_index;
+    I *dst_index = tmp_index + ndim;
     // Get number of elements to copy and init source and target indexes for
     // the first element to copy
     Index nelems = 1;
@@ -104,33 +110,27 @@ void cpu(Index ndim, const Index *src_start, const Index *src_stride,
 
 // Explicit instantiation
 template
-void cpu<fp16_t>(Index ndim, const Index *src_start, const Index *src_stride,
-        const Index *copy_shape, const fp16_t *src, const Index *dst_start,
-        const Index *dst_stride, fp16_t *dst, Index *tmp_index)
-    noexcept;
-
-template
 void cpu<fp32_t>(Index ndim, const Index *src_start, const Index *src_stride,
         const Index *copy_shape, const fp32_t *src, const Index *dst_start,
-        const Index *dst_stride, fp32_t *dst, Index *tmp_index)
+        const Index *dst_stride, fp32_t *dst, int64_t *tmp_index)
     noexcept;
 
 template
 void cpu<fp64_t>(Index ndim, const Index *src_start, const Index *src_stride,
         const Index *copy_shape, const fp64_t *src, const Index *dst_start,
-        const Index *dst_stride, fp64_t *dst, Index *tmp_index)
+        const Index *dst_stride, fp64_t *dst, int64_t *tmp_index)
     noexcept;
 
 template
-void cpu<Index>(Index ndim, const Index *src_start, const Index *src_stride,
-        const Index *copy_shape, const Index *src, const Index *dst_start,
-        const Index *dst_stride, Index *dst, Index *tmp_index)
+void cpu<int64_t>(Index ndim, const Index *src_start, const Index *src_stride,
+        const Index *copy_shape, const nntile::int64_t *src, const Index *dst_start,
+        const Index *dst_stride, nntile::int64_t *dst, int64_t *tmp_index)
     noexcept;
 
 template
 void cpu<bool_t>(Index ndim, const Index *src_start, const Index *src_stride,
         const Index *copy_shape, const bool_t *src, const Index *dst_start,
-        const Index *dst_stride, bool_t *dst, Index *tmp_index)
+        const Index *dst_stride, bool_t *dst, int64_t *tmp_index)
     noexcept;
 
 } // namespace nntile::kernel::subcopy

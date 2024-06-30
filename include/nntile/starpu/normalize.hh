@@ -22,14 +22,13 @@ namespace nntile::starpu::normalize
 {
 
 //! Structure for arguments
-template<typename T>
 struct args_t
 {
     Index m;
     Index n;
     Index k;
     Index l;
-    T eps;
+    Scalar eps;
 };
 
 // Apply normalize along middle axis of StarPU buffer on CPU
@@ -72,7 +71,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, Index l, T eps, Handle gamma_beta,
+void submit(Index m, Index n, Index k, Index l, Scalar eps, Handle gamma_beta,
         Handle sumnorm, Handle dst);
 
 } // namespace nntile::starpu::normalize

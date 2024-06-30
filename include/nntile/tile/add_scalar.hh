@@ -21,10 +21,10 @@ namespace nntile::tile
 
 // Tile-wise add_scalar operation
 template<typename T>
-void add_scalar_async(T alpha, T beta, const Tile<T> &dst);
+void add_scalar_async(Scalar alpha, Scalar beta, const Tile<T> &dst);
 
 // Tile-wise add_scalar operation
 template<typename T>
-void add_scalar(T alpha, T beta, const Tile<T> &dst);
+void add_scalar(Scalar alpha, Scalar beta, const Tile<T> &dst);
 
 } // namespace nntile::tile

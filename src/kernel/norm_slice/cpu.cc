@@ -14,12 +14,13 @@
 
 #include "nntile/kernel/norm_slice/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::norm_slice
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
+void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, Scalar beta_, T *dst_)
     noexcept
 //! Euclidean norms over fibers along middle axis into a slice of a tensor
 /*! For a provided m-by-k-by-n input array src compute norms of fibers
@@ -31,15 +32,19 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
  * @param[in] m: Size of the first mode of src and dst arrays
  * @param[in] n: Size of the last mode of src and dst arrays
  * @param[in] k: Size of the middle mode of src array
- * @param[in] alpha: Scaling factor for src
- * @param[in] src: Input contiguous m-by-k-by-n array
- * @param[in] beta: Scaling factor for dst
- * @param[inout] dst: Input and output contiguous m-by-n array, that
+ * @param[in] alpha_: Scaling factor for src
+ * @param[in] src_: Input contiguous m-by-k-by-n array
+ * @param[in] beta_: Scaling factor for dst
+ * @param[inout] dst_: Input and output contiguous m-by-n array, that
  *      accumulates norms along middle axis.
  * */
 {
+    using Y = typename CPUComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    Y alpha{alpha_}, beta{beta_};
     const Index mk = m * k;
-    constexpr T zero = 0.0, one = 1.0;
+    constexpr Y zero{0.0}, one{1.0};
     alpha = std::fabs(alpha);
     // Cycle over column of the output buffer dst
     for(Index i2 = 0; i2 < n; ++i2)
@@ -48,22 +53,22 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
         for(Index i1 = 0; i1 < m; ++i1)
         {
             // Pointer to a corresponding fiber of the source array src
-            const T *src_fiber = src + i2*mk + i1;
+            const Y *src_fiber = src + i2*mk + i1;
             // Init norm of the fiber
-            T norm_max = zero, norm_ssq = zero, c = zero, y, t;
+            Y norm_max{zero}, norm_ssq{zero}, c{zero}, y, t;
             // Output value
-            T &result = dst[i2*m+i1];
+            Y &result = dst[i2*m+i1];
             // Cycle over fiber elements and accumulate the norm
             for(Index i0 = 0; i0 < k; ++i0)
             {
                 // Read value from source
-                T val = std::fabs(src_fiber[i0*m]);
+                Y val = std::fabs(src_fiber[i0*m]);
                 // Update norm only if new value is non-zero
                 if(val > 0)
                 {
                     if(norm_max >= val)
                     {
-                        T tmp1 = val / norm_max;
+                        Y tmp1 = val / norm_max;
                         //norm_ssq += tmp1 * tmp1;
                         y = tmp1*tmp1 - c;
                         t = norm_ssq + y;
@@ -72,8 +77,8 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
                     }
                     else
                     {
-                        T tmp1 = norm_max / val;
-                        T tmp2 = tmp1 * tmp1;
+                        Y tmp1 = norm_max / val;
+                        Y tmp2 = tmp1 * tmp1;
                         y = one - c*tmp2;
                         norm_ssq *= tmp2;
                         t = norm_ssq + y;
@@ -95,16 +100,16 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
             else if(norm_max > 0)
             {
                 //result = std::hypot(beta*result, norm);
-                T tmp_res = std::fabs(beta * result);
+                Y tmp_res = std::fabs(beta * result);
                 if(norm_max >= tmp_res)
                 {
-                    T tmp1 = tmp_res / norm_max;
+                    Y tmp1 = tmp_res / norm_max;
                     result = norm_max * std::sqrt((tmp1*tmp1-c)+norm_ssq);
                 }
                 else
                 {
-                    T tmp1 = norm_max / tmp_res;
-                    T tmp2 = tmp1 * tmp1;
+                    Y tmp1 = norm_max / tmp_res;
+                    Y tmp2 = tmp1 * tmp1;
                     c *= tmp2;
                     norm_ssq *= tmp2;
                     result = tmp_res * std::sqrt((one-c)+norm_ssq);
@@ -121,13 +126,13 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m, Index n, Index k, fp32_t alpha, const fp32_t *src,
-        fp32_t beta, fp32_t *norm_dst)
+void cpu<fp32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_t *src,
+        Scalar beta, fp32_t *norm_dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index m, Index n, Index k, fp64_t alpha, const fp64_t *src,
-        fp64_t beta, fp64_t *norm_dst)
+void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src,
+        Scalar beta, fp64_t *norm_dst)
     noexcept;
 
 } // namespace nntile::kernel::norm_slice

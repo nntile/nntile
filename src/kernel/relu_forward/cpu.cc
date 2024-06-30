@@ -14,23 +14,27 @@
 
 #include "nntile/kernel/relu_forward/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::relu_forward
 {
 
 template<typename T>
-void cpu(Index nelems, const T *src, T *dst)
+void cpu(Index nelems, const T *src_, T *dst_)
     noexcept
 //! Forward ReLU operation on CPU
 /*! Does the following per-element operation:
  * dst[i] = max(src[i], 0)
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[in] src: Input array
- * @params[out] dst: Output array
+ * @params[in] src_: Input array
+ * @params[out] dst_: Output array
  * */
 {
-    constexpr T zero = 0;
+    using Y = typename CPUComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    constexpr Y zero{0.0};
     for(Index i = 0; i < nelems; ++i)
     {
         dst[i] = std::fmax(src[i], zero);

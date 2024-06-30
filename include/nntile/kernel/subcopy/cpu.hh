@@ -23,7 +23,7 @@ namespace nntile::kernel::subcopy
 template<typename T>
 void cpu(Index ndim, const Index *src_start, const Index *src_stride,
         const Index *copy_shape, const T *src, const Index *dst_start,
-        const Index *dst_stride, T *dst, Index *tmp_index)
+        const Index *dst_stride, T *dst, int64_t *tmp_index)
     noexcept;
 
 } // namespace nntile::kernel::subcopy

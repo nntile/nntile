@@ -21,7 +21,7 @@ namespace nntile::tensor
 
 //! Tensor-wise sum_slice
 template<typename T>
-void sum_slice_async(scal_t alpha, const Tensor<T> &src, scal_t beta,
+void sum_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
         const Tensor<T> &dst, Index axis, int redux)
 {
     // Check dimensions
@@ -124,7 +124,7 @@ void sum_slice_async(scal_t alpha, const Tensor<T> &src, scal_t beta,
                 n = src_tile_traits.matrix_shape[axis+1][1];
                 k = src_tile_traits.shape[axis];
                 // Insert task
-                constexpr scal_t one = 1.0;
+                constexpr Scalar one = 1.0;
                 starpu::sum_slice::submit<T>(m, n, k, alpha, src_tile_handle,
                         one, dst_tile_handle, redux);
             }
@@ -136,7 +136,7 @@ void sum_slice_async(scal_t alpha, const Tensor<T> &src, scal_t beta,
 
 
 template<typename T>
-void sum_slice(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> &dst,
+void sum_slice(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst,
         Index axis, int redux)
 {
     sum_slice_async<T>(alpha, src, beta, dst, axis, redux);
@@ -146,28 +146,28 @@ void sum_slice(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> 
 
 // Explicit instantiation
 template
-void sum_slice_async<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src,
-        scal_t beta, const Tensor<fp32_t> &dst, Index axis, int redux);
+void sum_slice_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
+        Scalar beta, const Tensor<fp32_t> &dst, Index axis, int redux);
 
 template
-void sum_slice_async<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src,
-        scal_t beta, const Tensor<fp32_fast_tf32_t> &dst, Index axis, int redux);
+void sum_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
+        Scalar beta, const Tensor<fp32_fast_tf32_t> &dst, Index axis, int redux);
 
 template
-void sum_slice_async<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src,
-        scal_t beta, const Tensor<fp64_t> &dst, Index axis, int redux);
+void sum_slice_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
+        Scalar beta, const Tensor<fp64_t> &dst, Index axis, int redux);
 
 // Explicit instantiation
 template
-void sum_slice<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src, scal_t beta,
+void sum_slice<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
         const Tensor<fp32_t> &dst, Index axis, int redux);
 
 template
-void sum_slice<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src, scal_t beta,
+void sum_slice<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
         const Tensor<fp32_fast_tf32_t> &dst, Index axis, int redux);
 
 template
-void sum_slice<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src, scal_t beta,
+void sum_slice<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
         const Tensor<fp64_t> &dst, Index axis, int redux);
 
 } // namespace nntile::tensor

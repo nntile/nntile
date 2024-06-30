@@ -30,7 +30,7 @@ void cpu(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const Index *index = interfaces[0]->get_ptr<Index>();
+    const int64_t *index = interfaces[0]->get_ptr<int64_t>();
     const T *vocab = interfaces[1]->get_ptr<T>();
     T *embed = interfaces[2]->get_ptr<T>();
     // Get embeddings
@@ -50,7 +50,7 @@ void cuda(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const Index *index = interfaces[0]->get_ptr<Index>();
+    const int64_t *index = interfaces[0]->get_ptr<int64_t>();
     const T *vocab = interfaces[1]->get_ptr<T>();
     T *embed = interfaces[2]->get_ptr<T>();
     // Get CUDA stream
@@ -142,7 +142,7 @@ void submit(Index m, Index n, Index k, Index k_start, Index k_size,
     args->k = k;
     args->k_start = k_start;
     args->k_size = k_size;
-    fp64_t nflops = m * n * k_size;
+    double nflops = m * n * k_size;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(index),

@@ -20,7 +20,7 @@ namespace nntile::tensor
 
 //! scal_inplacee tensor
 template<typename T>
-void scal_inplace_async(scal_t alpha, const Tensor<T> &data)
+void scal_inplace_async(Scalar alpha, const Tensor<T> &data)
 {
     // Do actual calculations
     int mpi_rank = starpu_mpi_world_rank();
@@ -41,7 +41,7 @@ void scal_inplace_async(scal_t alpha, const Tensor<T> &data)
 }
 
 template<typename T>
-void scal_inplace(scal_t alpha, const Tensor<T> &data)
+void scal_inplace(Scalar alpha, const Tensor<T> &data)
 {
     scal_inplace_async<T>(alpha, data);
     starpu_task_wait_for_all();
@@ -50,22 +50,22 @@ void scal_inplace(scal_t alpha, const Tensor<T> &data)
 
 // Explicit instantiation
 template
-void scal_inplace_async<fp32_t>(scal_t alpha, const Tensor<fp32_t> &data);
+void scal_inplace_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &data);
 
 template
-void scal_inplace_async<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &data);
+void scal_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &data);
 
 template
-void scal_inplace_async<fp64_t>(scal_t alpha, const Tensor<fp64_t> &data);
+void scal_inplace_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &data);
 
 // Explicit instantiation
 template
-void scal_inplace<fp32_t>(scal_t alpha, const Tensor<fp32_t> &data);
+void scal_inplace<fp32_t>(Scalar alpha, const Tensor<fp32_t> &data);
 
 template
-void scal_inplace<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &data);
+void scal_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &data);
 
 template
-void scal_inplace<fp64_t>(scal_t alpha, const Tensor<fp64_t> &data);
+void scal_inplace<fp64_t>(Scalar alpha, const Tensor<fp64_t> &data);
 
 } // namespace nntile::tensor

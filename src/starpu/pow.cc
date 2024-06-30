@@ -28,7 +28,7 @@ void cpu(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    args_t<T> *args = reinterpret_cast<args_t<T> *>(cl_args);
+    args_t *args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
@@ -45,7 +45,7 @@ void cuda(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    args_t<T> *args = reinterpret_cast<args_t<T> *>(cl_args);
+    args_t *args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *data = interfaces[0]->get_ptr<T>();
@@ -94,7 +94,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index nelems, T alpha, T exp, Handle data)
+void submit(Index nelems, Scalar alpha, Scalar exp, Handle data)
 //! Insert pow task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -102,7 +102,7 @@ void submit(Index nelems, T alpha, T exp, Handle data)
  * */
 {
     // Codelet arguments
-    args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->nelems = nelems;
     args->alpha = alpha;
     args->exp = exp;
@@ -120,9 +120,9 @@ void submit(Index nelems, T alpha, T exp, Handle data)
 
 // Explicit instantiaion
 template
-void submit<fp32_t>(Index nelems, fp32_t alpha, fp32_t exp, Handle data);
+void submit<fp32_t>(Index nelems, Scalar alpha, Scalar exp, Handle data);
 
 template
-void submit<fp64_t>(Index nelems, fp64_t alpha, fp64_t exp, Handle data);
+void submit<fp64_t>(Index nelems, Scalar alpha, Scalar exp, Handle data);
 
 } // namespace nntile::starpu::pow

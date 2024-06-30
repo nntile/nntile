@@ -21,12 +21,12 @@ namespace nntile::tensor
 
 // Tensor-wise embedding operation
 template<typename T>
-void embedding_async(const Tensor<Index> &index, const Tensor<T> &vocab,
+void embedding_async(const Tensor<int64_t> &index, const Tensor<T> &vocab,
         const Tensor<T> &embed, Index axis);
 
 // Tensor-wise embedding operation
 template<typename T>
-void embedding(const Tensor<Index> &index, const Tensor<T> &vocab,
+void embedding(const Tensor<int64_t> &index, const Tensor<T> &vocab,
         const Tensor<T> &embed, Index axis);
 
 } // namespace nntile::tensor

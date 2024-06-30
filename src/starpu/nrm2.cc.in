@@ -13,6 +13,8 @@
  * */
 
 #include "nntile/starpu/nrm2.hh"
+#include "nntile/kernel/cpu.hh"
+#include "nntile/kernel/cuda.hh"
 
 #ifndef STARPU_SIMGRID
 #   ifdef NNTILE_USE_CBLAS
@@ -38,7 +40,7 @@ static inline
 void cblas(CBLAS_INT N, const fp32_t *X, CBLAS_INT incX, fp32_t *Y)
     noexcept
 {
-    *Y = cblas_snrm2(N, X, incX);
+    *(float *)Y = cblas_snrm2(N, (const float *)X, incX);
 }
 
 // Overloaded call to CBLAS NRM2
@@ -46,7 +48,7 @@ static inline
 void cblas(CBLAS_INT N, const fp64_t *X, CBLAS_INT incX, fp64_t *Y)
     noexcept
 {
-    *Y = cblas_dnrm2(N, X, incX);
+    *(double *)Y = cblas_dnrm2(N, (const double *)X, incX);
 }
 #endif // STARPU_SIMGRID
 
@@ -75,7 +77,7 @@ static inline
 void cublas(cublasHandle_t handle, int N, const fp32_t *X, int incX, fp32_t *Y)
     noexcept
 {
-    cublasSnrm2(handle, N, X, incX, Y);
+    cublasSnrm2(handle, N, (const float *)X, incX, (float *)Y);
 }
 
 // Overloaded call to cuBLAS NRM2
@@ -83,7 +85,7 @@ static inline
 void cublas(cublasHandle_t handle, int N, const fp64_t *X, int incX, fp64_t *Y)
     noexcept
 {
-    cublasDnrm2(handle, N, X, incX, Y);
+    cublasDnrm2(handle, N, (const double *)X, incX, (double *)Y);
 }
 #endif // STARPU_SIMGRID
 

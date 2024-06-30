@@ -93,7 +93,7 @@ void restore_where();
 
 template<typename T>
 void submit(Index ndim, Index nelems, unsigned long long seed,
-        scal_t mean, scal_t stddev, const std::vector<Index> &start,
+        Scalar mean, Scalar stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
         const std::vector<Index> &underlying_shape, Handle data,
         Handle tmp_index);

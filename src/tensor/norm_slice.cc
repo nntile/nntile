@@ -19,7 +19,7 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void norm_slice_async(scal_t alpha, const Tensor<T> &src, scal_t beta,
+void norm_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
         const Tensor<T> &dst, Index axis, int redux)
 {
     // Check dimensions
@@ -70,7 +70,7 @@ void norm_slice_async(scal_t alpha, const Tensor<T> &src, scal_t beta,
     // Do actual calculations
     int mpi_rank = starpu_mpi_world_rank();
     int ret;
-    constexpr scal_t one = 1.0;
+    constexpr Scalar one = 1.0;
     for(Index i = 0; i < dst.grid.nelems; ++i)
     {
         auto dst_tile_handle = dst.get_tile_handle(i);
@@ -127,7 +127,7 @@ void norm_slice_async(scal_t alpha, const Tensor<T> &src, scal_t beta,
 }
 
 template<typename T>
-void norm_slice(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> &dst,
+void norm_slice(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst,
         Index axis, int redux)
 {
     norm_slice_async<T>(alpha, src, beta, dst, axis, redux);
@@ -137,28 +137,28 @@ void norm_slice(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T>
 
 // Explicit instantiation
 template
-void norm_slice_async<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src,
-        scal_t beta, const Tensor<fp32_t> &dst, Index axis, int redux);
+void norm_slice_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
+        Scalar beta, const Tensor<fp32_t> &dst, Index axis, int redux);
 
 template
-void norm_slice_async<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src,
-        scal_t beta, const Tensor<fp32_fast_tf32_t> &dst, Index axis, int redux);
+void norm_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
+        Scalar beta, const Tensor<fp32_fast_tf32_t> &dst, Index axis, int redux);
 
 template
-void norm_slice_async<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src,
-        scal_t beta, const Tensor<fp64_t> &dst, Index axis, int redux);
+void norm_slice_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
+        Scalar beta, const Tensor<fp64_t> &dst, Index axis, int redux);
 
 // Explicit instantiation
 template
-void norm_slice<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src, scal_t beta,
+void norm_slice<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
         const Tensor<fp32_t> &dst, Index axis, int redux);
 
 template
-void norm_slice<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src, scal_t beta,
+void norm_slice<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
         const Tensor<fp32_fast_tf32_t> &dst, Index axis, int redux);
 
 template
-void norm_slice<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src, scal_t beta,
+void norm_slice<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
         const Tensor<fp64_t> &dst, Index axis, int redux);
 
 } // namespace nntile::tensor

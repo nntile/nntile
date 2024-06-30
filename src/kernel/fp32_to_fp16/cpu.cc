@@ -18,7 +18,7 @@
 namespace nntile::kernel::fp32_to_fp16
 {
 
-void cpu(Index nelems, const fp32_t *src, fp16_t *dst)
+void cpu(Index nelems, const fp32_t *src_, fp16_t *dst_)
     noexcept
 /*!
  * @params[in] nelems: Number of elements in a buffer
@@ -26,10 +26,11 @@ void cpu(Index nelems, const fp32_t *src, fp16_t *dst)
  * @params[out] dst: Output array
  * */
 {
-    __half *dst_half = reinterpret_cast<__half *>(dst);
+    auto src = reinterpret_cast<const float *>(src_);
+    auto dst = reinterpret_cast<__half *>(dst_);
     for(Index i = 0; i < nelems; ++i)
     {
-        dst_half[i] = __float2half(src[i]);
+        dst[i] = __float2half(src[i]);
     }
 }
 

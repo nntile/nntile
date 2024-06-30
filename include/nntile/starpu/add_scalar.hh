@@ -22,18 +22,17 @@ namespace nntile::starpu::add_scalar
 {
 
 //! Structure for arguments
-template<typename T>
 struct args_t
 {
-    args_t(Index num_elements_, T alpha_, T beta_) :
+    args_t(Index num_elements_, Scalar alpha_, Scalar beta_) :
         num_elements(num_elements_),
         alpha(alpha_),
         beta(beta_)
         {
         }
     Index num_elements;
-    T alpha;
-    T beta;
+    Scalar alpha;
+    Scalar beta;
 };
 
 // Apply add_scalar for StarPU buffer on CPU
@@ -76,6 +75,6 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index num_elements, T alpha, T beta, Handle dst);
+void submit(Index num_elements, Scalar alpha, Scalar beta, Handle dst);
 
 } // namespace nntile::starpu::add_scalar

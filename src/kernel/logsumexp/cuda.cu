@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/logsumexp/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::logsumexp
 {
@@ -30,18 +31,22 @@ void cuda_kernel(Index nelems, const T * __restrict__ maxsumexp,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, const T *maxsumexp, T *logsumexp)
+void cuda(cudaStream_t stream, Index nelems, const T *maxsumexp_,
+        T *logsumexp_)
     noexcept
 //! Logsumexp of buffer
 /*! One of the buffers serves as output
  *
  * @param[in] nelems: Number of elements in both buffers
- * @param[in] maxsumexp: Input buffer, result of maxsumexp operation
- * @param[out] logsumexp: Output buffers that contains output in the end
+ * @param[in] maxsumexp_: Input buffer, result of maxsumexp operation 
+ * @param[out] logsumexp_: Output buffers that contains output in the end
  * */
 {
     dim3 blocks((nelems+31)/32), threads(32);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, maxsumexp,
+    using Y = typename CUDAComputeType<T>::value;
+    auto maxsumexp = reinterpret_cast<const Y *>(maxsumexp_);
+    auto logsumexp = reinterpret_cast<Y *>(logsumexp_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, maxsumexp,
             logsumexp);
 }
 

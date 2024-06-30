@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/accumulate_maxsumexp/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::accumulate_maxsumexp
 {
@@ -58,7 +59,7 @@ void cuda_kernel(Index nelems, const T *src, T *dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
+void cuda(cudaStream_t stream, Index nelems, const T *src_, T *dst_)
     noexcept
 //! Accumulate two maxsumexp buffers on CUDA
 /*! Performs the following operation:
@@ -66,12 +67,15 @@ void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
  *      dst[2*i] = max(src[2*i], dst[2*i]).
  *
  * @param[in] nelems: Number of (max,sumexp) pairs of the src and dst tensors
- * @param[in] src: Source tensor
- * @param[inout] dst: Destination of the maxsumexp accumulation
+ * @param[in] src_: Source tensor
+ * @param[inout] dst_: Destination of the maxsumexp accumulation
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
+    auto src = cast_pointer_cuda<T>(src_);
+    auto dst = cast_pointer_cuda<T>(dst_);
+    using Y = typename CUDAComputeType<T>::value;
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
 }
 
 // Explicit instantiation

@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/hypot_scalar_inverse/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::hypot_scalar_inverse
 {
@@ -39,7 +40,7 @@ void cuda_kernel(Index nelems, T eps, T alpha, T* dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, T eps, T alpha, T *dst)
+void cuda(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha, T *dst_)
     noexcept
 //! Inverse of a hypot of a buffer and a scalar on CUDA
 /*! Performs the following operation:
@@ -49,21 +50,24 @@ void cuda(cudaStream_t stream, Index nelems, T eps, T alpha, T *dst)
  * @param[in] nelems: Size of the dst tensor
  * @param[in] eps: Scalar to be added to the hypot result
  * @param[in] alpha: Scalar multiplier for the dst tensor
- * @param[inout] dst: Destination of the hypot operation
+ * @param[inout] dst_: Destination of the hypot operation
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, eps, alpha, dst);
+    using Y = typename CUDAComputeType<T>::value;
+    auto dst = reinterpret_cast<Y *>(dst_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, Y{eps}, Y{alpha},
+            dst);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index nelems, fp32_t eps, fp32_t alpha,
+void cuda<fp32_t>(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha,
         fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index nelems, fp64_t eps, fp64_t alpha,
+void cuda<fp64_t>(cudaStream_t stream, Index nelems, Scalar eps, Scalar alpha,
         fp64_t *dst)
     noexcept;
 
