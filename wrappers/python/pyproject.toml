@@ -50,7 +50,8 @@ requires-python = ">=3.8,<4"
 
 [project.optional-dependencies]
 dev = ["ipython", "isort", "mypy"]
-test = ["torch", "torchvision", "pytest", "scipy", "transformers", "datasets"]
+test = ["torch", "torchvision", "pytest", "scipy", "transformers", "datasets",
+    "tensorflow"]
 
 [project.urls]
 Homepage = "https://doge.skoltech.ru/green-ai/nntile"

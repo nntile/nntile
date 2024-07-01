@@ -23,6 +23,7 @@
 // Disabled MPI for now
 //#include <starpu_mpi.h>
 #include <nntile/defs.h>
+#include <nntile/logger/logger_thread.hh>
 
 namespace nntile
 {
@@ -58,7 +59,7 @@ class Config: public starpu_conf
 {
     int cublas;
 public:
-    explicit Config(int ncpus_=-1, int ncuda_=-1, int cublas_=-1)
+    explicit Config(int ncpus_=-1, int ncuda_=-1, int cublas_=-1, int logger=1)
     {
         starpu_fxt_autostart_profiling(0);
         // Init StarPU configuration with default values at first
@@ -98,6 +99,10 @@ public:
             std::cout << "Initialized cuBLAS\n";
         }
 #endif // NNTILE_USE_CUDA
+       if(logger != 0)
+       {
+           nntile::logger::logger_init();
+       }
     }
     ~Config()
     {
@@ -105,6 +110,10 @@ public:
     }
     void shutdown()
     {
+        if(nntile::logger::logger_running)
+        {
+            nntile::logger::logger_shutdown();
+        }
 #ifdef NNTILE_USE_CUDA
         if(cublas != 0)
         {

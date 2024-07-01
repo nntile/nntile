@@ -36,3 +36,6 @@
 
 // Layers
 //#include <nntile/layer.hh>
+
+// Logger thread to log activities
+#include <nntile/logger.hh>
