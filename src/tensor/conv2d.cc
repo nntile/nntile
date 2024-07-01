@@ -23,7 +23,7 @@ namespace tensor
 
 template <typename T>
 void conv2d_async(const Tensor<T> &src, const Tensor<T> &kernel,
-                  const Tensor<T> &dst)
+                  const Tensor<T> &dst, Index padding_m, Index padding_n)
 //! Tensor<T> 2D-Convolution between 2 matrices
 /*! Reshapes input tensors into 2-dimensional arrays
  * and performs the 2D-Convolution
@@ -31,6 +31,8 @@ void conv2d_async(const Tensor<T> &src, const Tensor<T> &kernel,
  * @param[in] src: Input tensor, that is reshaped into 2D array
  * @param[in] kernel: Input tensor, that is reshaped into 2D array
  * @param[out] dst: Resulting tensor, that is reshaped into 2D array
+ * @param[in] padding_m: Padding on the second axis of the input
+ * @param[in] padding_n: Padding on the first axis of the input
  * */
 {
     Index axis = 0;
@@ -49,13 +51,15 @@ void conv2d_async(const Tensor<T> &src, const Tensor<T> &kernel,
         throw std::runtime_error("src.ndim != dst.ndim");
     }
     // Check shapes of tensors
-    for(Index i = 0; i < 2; ++i)
+    if(dst.shape[0] != src.shape[0] + kernel.shape[0] - 1 - 2 * padding_m)
     {
-        if(dst.shape[i] != src.shape[i] + kernel.shape[i] - 1)
-        {
-            throw std::runtime_error(
-                "dst.shape[i] != src.shape[i] + kernel.shape[i] - 1");
-        }
+        throw std::runtime_error("dst.shape[0] != src.shape[0] + "
+                                 "kernel.shape[0] - 1 - 2 * padding_n");
+    }
+    if(dst.shape[1] != src.shape[1] + kernel.shape[1] - 1 - 2 * padding_n)
+    {
+        throw std::runtime_error("dst.shape[1] != src.shape[1] + "
+                                 "kernel.shape[1] - 1 - 2 * padding_m");
     }
 
     Index batch = src.grid.matrix_shape[src.ndim - batch_ndim][1];
@@ -100,10 +104,28 @@ void conv2d_async(const Tensor<T> &src, const Tensor<T> &kernel,
                 Index tile_ic_current =
                     src.get_tile_traits(ic * src_n * src_m).matrix_shape[3][0] /
                     src.get_tile_traits(ic * src_n * src_m).matrix_shape[2][0];
+                Index padding_n_current = padding_n;
+                Index limit_n_current = src.shape[1] - padding_n;
                 for(Index src_i = 0; src_i < src_n; ++src_i)
                 {
+                    if(padding_n_current > src_tile_n)
+                    {
+                        // Ignoring size differences in tiles
+                        padding_n_current -= src_tile_n;
+                        limit_n_current -= src_tile_n;
+                        continue;
+                    }
+                    Index padding_m_current = padding_m;
+                    Index limit_m_current = src.shape[0] - padding_m;
                     for(Index src_j = 0; src_j < src_m; ++src_j)
                     {
+                        if(padding_m_current > src_tile_m)
+                        {
+                            // Ignoring size differences in tiles
+                            padding_m_current -= src_tile_m;
+                            limit_m_current -= src_tile_m;
+                            continue;
+                        }
                         Index src_index = src_j + src_i * src_m +
                                           ic * src_n * src_m +
                                           b * src_n * src_m * in_channels;
@@ -117,8 +139,12 @@ void conv2d_async(const Tensor<T> &src, const Tensor<T> &kernel,
                         Index src_tile_n_current =
                             src.get_tile_traits(src_index).matrix_shape[2][0] /
                             src_tile_m_current;
-                        Index src_offset_n = src_i * src_tile_n;
-                        Index src_offset_m = src_j * src_tile_m;
+                        Index src_offset_n = src_i * src_tile_n - padding_n;
+                        if(src_offset_n < 0)
+                            src_offset_n = 0;
+                        Index src_offset_m = src_j * src_tile_m - padding_m;
+                        if(src_offset_m < 0)
+                            src_offset_m = 0;
 
                         for(Index kernel_i = 0; kernel_i < kernel_n; ++kernel_i)
                         {
@@ -188,6 +214,10 @@ void conv2d_async(const Tensor<T> &src, const Tensor<T> &kernel,
                                                 tile_batch_current,
                                                 tile_oc_current,
                                                 tile_ic_current,
+                                                padding_n_current,
+                                                limit_n_current,
+                                                padding_m_current,
+                                                limit_m_current,
                                                 src_tile_n_current,
                                                 src_tile_m_current,
                                                 src_tile_handle,
@@ -202,7 +232,11 @@ void conv2d_async(const Tensor<T> &src, const Tensor<T> &kernel,
                                 }
                             }
                         }
+                        padding_m_current -= src_tile_m;
+                        limit_m_current -= src_tile_m;
                     }
+                    padding_n_current -= src_tile_n;
+                    limit_n_current -= src_tile_n;
                 }
             }
         }
@@ -210,7 +244,8 @@ void conv2d_async(const Tensor<T> &src, const Tensor<T> &kernel,
 }
 
 template <typename T>
-void conv2d(const Tensor<T> &src, const Tensor<T> &kernel, const Tensor<T> &dst)
+void conv2d(const Tensor<T> &src, const Tensor<T> &kernel, const Tensor<T> &dst,
+            Index padding_m, Index padding_n)
 //! Tensor<T> 2D-Convolution between 2 matrices
 /*! Blocking version of conv2d_async<T>.
  * Reshapes input tensors into 2-dimensional arrays
@@ -219,9 +254,11 @@ void conv2d(const Tensor<T> &src, const Tensor<T> &kernel, const Tensor<T> &dst)
  * @param[in] src: Input tensor, that is reshaped into 2D array
  * @param[in] kernel: Input tensor, that is reshaped into 2D array
  * @param[out] dst: Resulting tensor, that is reshaped into 2D array
+ * @param[in] padding_m: Padding on the second axis of the input
+ * @param[in] padding_n: Padding on the first axis of the input
  * */
 {
-    conv2d_async<T>(src, kernel, dst);
+    conv2d_async<T>(src, kernel, dst, padding_m, padding_n);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -229,20 +266,24 @@ void conv2d(const Tensor<T> &src, const Tensor<T> &kernel, const Tensor<T> &dst)
 // Explicit instantiation of template
 template void conv2d_async<fp32_t>(const Tensor<fp32_t> &src,
                                    const Tensor<fp32_t> &kernel,
-                                   const Tensor<fp32_t> &dst);
+                                   const Tensor<fp32_t> &dst, Index padding_m,
+                                   Index padding_n);
 
 template void conv2d_async<fp64_t>(const Tensor<fp64_t> &src,
                                    const Tensor<fp64_t> &kernel,
-                                   const Tensor<fp64_t> &dst);
+                                   const Tensor<fp64_t> &dst, Index padding_m,
+                                   Index padding_n);
 
 // Explicit instantiation of template
 template void conv2d<fp32_t>(const Tensor<fp32_t> &src,
                              const Tensor<fp32_t> &kernel,
-                             const Tensor<fp32_t> &dst);
+                             const Tensor<fp32_t> &dst, Index padding_m,
+                             Index padding_n);
 
 template void conv2d<fp64_t>(const Tensor<fp64_t> &src,
                              const Tensor<fp64_t> &kernel,
-                             const Tensor<fp64_t> &dst);
+                             const Tensor<fp64_t> &dst, Index padding_m,
+                             Index padding_n);
 
 } // namespace tensor
 } // namespace nntile

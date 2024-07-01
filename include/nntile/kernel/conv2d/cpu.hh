@@ -25,9 +25,10 @@ namespace conv2d
 
 template <typename T>
 void cpu(Index src_offset_n, Index src_offset_m, Index batch,
-         Index out_channels, Index in_channels, Index src_n, Index src_m,
-         const T *src, Index kernel_n, Index kernel_m, const T *kernel,
-         Index dst_n, Index dst_m, T *dst) noexcept;
+         Index out_channels, Index in_channels, Index padding_n,
+         Index padding_n2, Index padding_m, Index padding_m2, Index src_n,
+         Index src_m, const T *src, Index kernel_n, Index kernel_m,
+         const T *kernel, Index dst_n, Index dst_m, T *dst) noexcept;
 
 } // namespace conv2d
 } // namespace kernel

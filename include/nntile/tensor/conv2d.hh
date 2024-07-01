@@ -24,12 +24,12 @@ namespace tensor
 // Tensor<T> 2D-Convolution between 2 matrices
 template <typename T>
 void conv2d_async(const Tensor<T> &src, const Tensor<T> &kernel,
-                  const Tensor<T> &dst);
+                  const Tensor<T> &dst, Index padding_m, Index padding_n);
 
 // Tensor<T> 2D-Convolution between 2 matrices
 template <typename T>
-void conv2d(const Tensor<T> &src, const Tensor<T> &kernel,
-            const Tensor<T> &dst);
+void conv2d(const Tensor<T> &src, const Tensor<T> &kernel, const Tensor<T> &dst,
+            Index padding_m, Index padding_n);
 
 } // namespace tensor
 } // namespace nntile

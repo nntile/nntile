@@ -24,14 +24,21 @@ namespace conv2d
 
 template <typename T>
 void cpu(Index offset_n, Index offset_m, Index batch, Index out_channels,
-         Index in_channels, Index src_n, Index src_m, const T *src,
-         Index kernel_n, Index kernel_m, const T *kernel, Index dst_n,
-         Index dst_m, T *dst) noexcept
+         Index in_channels, Index padding_n, Index limit_n, Index padding_m,
+         Index limit_m, Index src_n, Index src_m, const T *src, Index kernel_n,
+         Index kernel_m, const T *kernel, Index dst_n, Index dst_m,
+         T *dst) noexcept
 //! Compute full discrete linear convolution of two 2-dimensional arrays on
 //! CPU. Does not clear initial data, it should be done separately.
 /* @param[in] offset_n: Offset alongside first axis
  * @param[in] offset_m: Offset alongside second axis
  * @param[in] batch: Size of batch axes
+ * @param[in] out_channels: Size of repeating output tensor channel
+ * @param[in] in_channels: Size of repeating input tensor channel
+ * @param[in] padding_n: First element of the first axis of the input
+ * @param[in] limit_n: Last element of the first axis of the input
+ * @param[in] padding_m: First element of the second axis of the input
+ * @param[in] limit_m: First element of the second axis of the input
  * @param[in] src_n: Size of the first axis of src array
  * @param[in] src_m: Size of the second axis of src array
  * @param[in] src: Input contiguous src_n-by-src_m array
@@ -43,24 +50,35 @@ void cpu(Index offset_n, Index offset_m, Index batch, Index out_channels,
  * @param[out] dst: Output contiguous dst_n-by-dst_m array
  * */
 {
+    Index src_n_end = limit_n;
+    if(src_n_end > src_n)
+        src_n_end = src_n;
+    if(padding_n < 0)
+        padding_n = 0;
+    Index src_m_end = limit_m;
+    if(src_m_end > src_m)
+        src_m_end = src_m;
+    if(padding_m < 0)
+        padding_m = 0;
+
     for(Index b = 0; b < batch; ++b)
     {
         for(Index oc = 0; oc < out_channels; ++oc)
         {
             for(Index ic = 0; ic < in_channels; ++ic)
             {
-                for(Index i1 = 0; i1 < src_n; ++i1)
+                for(Index i1 = padding_n; i1 < src_n_end; ++i1)
                 {
                     for(Index j1 = 0; j1 < kernel_n; ++j1)
                     {
-                        Index dst_1 = i1 + j1;
+                        Index dst_1 = (i1 - padding_n) + j1;
                         if(dst_1 < offset_n || offset_n + dst_n <= dst_1)
                             continue;
-                        for(Index i2 = 0; i2 < src_m; ++i2)
+                        for(Index i2 = padding_m; i2 < src_m_end; ++i2)
                         {
                             for(Index j2 = 0; j2 < kernel_m; ++j2)
                             {
-                                Index dst_2 = i2 + j2;
+                                Index dst_2 = (i2 - padding_m) + j2;
                                 if(dst_2 < offset_m ||
                                    offset_m + dst_m <= dst_2)
                                     continue;
@@ -84,16 +102,20 @@ void cpu(Index offset_n, Index offset_m, Index batch, Index out_channels,
 
 // Explicit instantiation
 template void cpu<fp32_t>(Index offset_n, Index offset_m, Index batch,
-                          Index out_channels, Index in_channels, Index src_n,
-                          Index src_m, const fp32_t *src, Index kernel_n,
-                          Index kernel_m, const fp32_t *kernel, Index dst_n,
-                          Index dst_m, fp32_t *dst) noexcept;
+                          Index out_channels, Index in_channels,
+                          Index padding_n, Index limit_n, Index padding_m,
+                          Index limit_m, Index src_n, Index src_m,
+                          const fp32_t *src, Index kernel_n, Index kernel_m,
+                          const fp32_t *kernel, Index dst_n, Index dst_m,
+                          fp32_t *dst) noexcept;
 
 template void cpu<fp64_t>(Index offset_n, Index offset_m, Index batch,
-                          Index out_channels, Index in_channels, Index src_n,
-                          Index src_m, const fp64_t *src, Index kernel_n,
-                          Index kernel_m, const fp64_t *kernel, Index dst_n,
-                          Index dst_m, fp64_t *dst) noexcept;
+                          Index out_channels, Index in_channels,
+                          Index padding_n, Index limit_n, Index padding_m,
+                          Index limit_m, Index src_n, Index src_m,
+                          const fp64_t *src, Index kernel_n, Index kernel_m,
+                          const fp64_t *kernel, Index dst_n, Index dst_m,
+                          fp64_t *dst) noexcept;
 
 } // namespace conv2d
 } // namespace kernel

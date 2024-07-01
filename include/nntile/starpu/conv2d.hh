@@ -33,6 +33,10 @@ struct args_t
     Index batch;
     Index out_channels;
     Index in_channels;
+    Index padding_n;
+    Index limit_n;
+    Index padding_m;
+    Index limit_m;
     Index src_n;
     Index src_m;
     Index kernel_n;
@@ -70,9 +74,10 @@ void restore_where();
 
 template <typename T>
 void submit(Index offset_n, Index offset_m, Index batch, Index out_channels,
-            Index in_channels, Index src_n, Index src_m, Handle src,
-            Index kernel_n, Index kernel_m, Handle kernel, Index dst_n,
-            Index dst_m, Handle dst);
+            Index in_channels, Index padding_n, Index limit_n, Index padding_m,
+            Index limit_m, Index src_n, Index src_m, Handle src, Index kernel_n,
+            Index kernel_m, Handle kernel, Index dst_n, Index dst_m,
+            Handle dst);
 
 } // namespace conv2d
 } // namespace starpu
