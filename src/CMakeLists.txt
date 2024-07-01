@@ -342,7 +342,13 @@ set(OPTIMIZER_SRC
     # "optimizer/sgd.cc"
     )
 
-set(SRC "base_types.cc" ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC})# ${LAYER_SRC})
-    #${MODEL_SRC} ${OPTIMIZER_SRC})
+set(LOGGER_SRC
+    "logger/logger_thread.cc"
+    "logger/websocket_client.cc"
+    )
+
+set(SRC "base_types.cc" ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC}
+    ${LOGGER_SRC})
+    #${LAYER_SRC} ${MODEL_SRC} ${OPTIMIZER_SRC})
 
 target_sources(nntile PRIVATE ${SRC})
