@@ -68,6 +68,7 @@ set(KERNEL_SRC
     "kernel/adam_step/cpu.cc"
     "kernel/adamw_step/cpu.cc"
     "kernel/transpose/cpu.cc"
+    "kernel/rope/cpu.cc"
     )
 
 if(NNTILE_USE_CUDA)
@@ -197,6 +198,7 @@ set(STARPU_SRC
     "starpu/adam_step.cc"
     "starpu/adamw_step.cc"
     "starpu/transpose.cc"
+    "starpu/rope.cc"
     )
 
 set(TILE_SRC
@@ -256,6 +258,7 @@ set(TILE_SRC
     "tile/hypot.cc"
     "tile/adam_step.cc"
     "tile/adamw_step.cc"
+    "tile/rope.cc"
     )
 
 set(TENSOR_SRC
@@ -325,6 +328,7 @@ set(TENSOR_SRC
     "tensor/adam_step.cc"
     "tensor/adamw_step.cc"
     "tensor/transpose.cc"
+    "tensor/rope.cc"
     )
 
 set(LAYER_SRC

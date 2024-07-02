@@ -68,6 +68,7 @@
 #include <nntile/kernel/adam_step.hh>
 #include <nntile/kernel/adamw_step.hh>
 #include <nntile/kernel/transpose.hh>
+#include <nntile/kernel/rope.hh>
 
 namespace nntile
 {

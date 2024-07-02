@@ -75,6 +75,7 @@
 #include <nntile/tile/hypot.hh>
 #include <nntile/tile/adam_step.hh>
 #include <nntile/tile/adamw_step.hh>
+#include <nntile/tile/rope.hh>
 
 namespace nntile
 {

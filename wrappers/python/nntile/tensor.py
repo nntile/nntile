@@ -741,7 +741,7 @@ def embedding_async(index: Tensor_int64, vocab: Tensor, embed: Tensor, \
     else:
         raise TypeError
 
-# Wrapper for multiprecision embedding_backward
+# Wrapper for multiprecision embedding_`backwa`rd
 def embedding_backward_async(index: Tensor_int64, embed: Tensor, \
         vocab: Tensor, axis: int, redux: int=0) -> None:
     if type(vocab) is not type(embed):
@@ -817,6 +817,21 @@ def transpose_async(alpha: float, src: Tensor, dst: Tensor, ndim: int) -> None:
         core_tensor.transpose_async_fp32(alpha, src, dst, ndim)
     elif type(src) is core_tensor.Tensor_fp64:
         core_tensor.transpose_async_fp64(alpha, src, dst, ndim)
+    else:
+        raise TypeError
+
+
+# Wrapper for multiprecision rope
+def rope_async(sin: Tensor, cos: Tensor, \
+        x: Tensor, y: Tensor, axis: int) -> None:
+    if type(rope_async) is not type(x):
+        raise TypeError
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.rope_async_fp32(sin, cos, x, y, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.rope_async_fp64(sin, cos, x, y, axis)
     else:
         raise TypeError
 
