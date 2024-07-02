@@ -19,7 +19,8 @@ from .nntile_core import TransOp, notrans
 from .nntile_core import tensor as core_tensor
 from .nntile_core import trans
 from .nntile_core.tensor import (Tensor_bool, Tensor_fp32,
-                                 Tensor_fp32_fast_tf32, Tensor_fp64,
+                                 Tensor_fp32_fast_tf32, Tensor_bf16,
+                                 Tensor_fp64,
                                  Tensor_int64, TensorTraits)
 
 
@@ -506,6 +507,8 @@ def scatter_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:
         core_tensor.scatter_async_int64(x, y)
     elif type(x) is core_tensor.Tensor_bool:
         core_tensor.scatter_async_bool(x, y)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.scatter_async_bf16(x, y)
     else:
         raise TypeError
 
@@ -794,6 +797,8 @@ def gather_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:
         core_tensor.gather_async_int64(x, y)
     elif type(x) is core_tensor.Tensor_bool:
         core_tensor.gather_async_bool(x, y)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.gather_async_bf16(x, y)
     else:
         raise TypeError
 

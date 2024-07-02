@@ -27,7 +27,7 @@ void cpu(void *buffers[], void *cl_args)
 
 //extern Codelet codelet_fp16;
 extern Codelet codelet_fp32, codelet_fp64, codelet_int64,
-       codelet_bool, codelet_fp32_fast_tf32;
+       codelet_bool, codelet_fp32_fast_tf32, codelet_bf16;
 
 template<typename T>
 constexpr Codelet *codelet()
@@ -64,6 +64,12 @@ template<>
 constexpr Codelet *codelet<bool_t>()
 {
     return &codelet_bool;
+}
+
+template<>
+constexpr Codelet *codelet<bf16_t>()
+{
+    return &codelet_bf16;
 }
 
 template<>

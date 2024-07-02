@@ -47,9 +47,9 @@ void cpu(Index ndim, const Index *src_start, const Index *src_stride,
  *      values.
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto dst = reinterpret_cast<Y *>(dst_);
+    // using Y = typename CPUComputeType<T>::value;
+    // auto src = reinterpret_cast<const Y *>(src_);
+    // auto dst = reinterpret_cast<Y *>(dst_);
     using I = typename CPUComputeType<int64_t>::value;
     auto tmp_index = reinterpret_cast<I *>(tmp_index_);
     // Map temporary buffer into source index and destination index
@@ -73,7 +73,7 @@ void cpu(Index ndim, const Index *src_start, const Index *src_stride,
         dst_offset += dst_start[i] * dst_stride[i];
     }
     // Copy source into destination
-    dst[dst_offset] = src[src_offset];
+    dst_[dst_offset] = src_[src_offset];
     // Get source and target offsets for the next element to copy
     ++src_offset;
     ++dst_offset;
@@ -101,7 +101,7 @@ void cpu(Index ndim, const Index *src_start, const Index *src_stride,
             dst_offset += dst_stride[j] - copy_shape[j-1]*dst_stride[j-1];
         }
         // Copy source into destination
-        dst[dst_offset] = src[src_offset];
+        dst_[dst_offset] = src_[src_offset];
         // Update offsets for the next copy
         ++src_offset;
         ++dst_offset;
@@ -131,6 +131,12 @@ template
 void cpu<bool_t>(Index ndim, const Index *src_start, const Index *src_stride,
         const Index *copy_shape, const bool_t *src, const Index *dst_start,
         const Index *dst_stride, bool_t *dst, int64_t *tmp_index)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index ndim, const Index *src_start, const Index *src_stride,
+        const Index *copy_shape, const bf16_t *src, const Index *dst_start,
+        const Index *dst_stride, bf16_t *dst, int64_t *tmp_index)
     noexcept;
 
 } // namespace nntile::kernel::subcopy

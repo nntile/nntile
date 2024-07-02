@@ -14,7 +14,8 @@
 from .nntile_core import tensor as core_tensor
 
 # Multiprecision tensor as a union type for all precisions
-Tensor = core_tensor.Tensor_fp32 | core_tensor.Tensor_fp64
+Tensor = core_tensor.Tensor_fp32 | core_tensor.Tensor_fp64 \
+        | core_tensor.Tensor_fp32_fast_tf32 | core_tensor.Tensor_bf16
 # Optional tensor argument
 TensorOrNone = Tensor | None
 # Union of multiprecision tensor and float
