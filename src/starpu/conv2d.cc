@@ -36,9 +36,9 @@ template <typename T> void cpu(void *buffers[], void *cl_args) noexcept
     T *dst = interfaces[2]->get_ptr<T>();
     // Launch kernel
     kernel::conv2d::cpu<T>(args->offset_n, args->offset_m, args->batch,
-                           args->src_n, args->src_m, src, args->kernel_n,
-                           args->kernel_m, kernel, args->dst_n, args->dst_m,
-                           dst);
+                           args->out_channels, args->in_channels, args->src_n,
+                           args->src_m, src, args->kernel_n, args->kernel_m,
+                           kernel, args->dst_n, args->dst_m, dst);
 }
 
 //! Footprint for conv2d tasks
@@ -54,6 +54,10 @@ template <typename T> static uint32_t footprint(struct starpu_task *task)
         starpu_hash_crc32c_be_n(&args->kernel_n, sizeof(args->kernel_n), hash);
     hash =
         starpu_hash_crc32c_be_n(&args->kernel_m, sizeof(args->kernel_m), hash);
+    hash = starpu_hash_crc32c_be_n(&args->out_channels,
+                                   sizeof(args->out_channels), hash);
+    hash = starpu_hash_crc32c_be_n(&args->in_channels,
+                                   sizeof(args->in_channels), hash);
     return hash;
 }
 
@@ -82,9 +86,10 @@ void restore_where()
 }
 
 template <typename T>
-void submit(Index offset_n, Index offset_m, Index batch, Index src_n,
-            Index src_m, Handle src, Index kernel_n, Index kernel_m,
-            Handle kernel, Index dst_n, Index dst_m, Handle dst)
+void submit(Index offset_n, Index offset_m, Index batch, Index out_channels,
+            Index in_channels, Index src_n, Index src_m, Handle src,
+            Index kernel_n, Index kernel_m, Handle kernel, Index dst_n,
+            Index dst_m, Handle dst)
 //! Insert conv2d task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -96,13 +101,16 @@ void submit(Index offset_n, Index offset_m, Index batch, Index src_n,
     args->offset_n = offset_n;
     args->offset_m = offset_m;
     args->batch = batch;
+    args->out_channels = out_channels;
+    args->in_channels = in_channels;
     args->src_n = src_n;
     args->src_m = src_m;
     args->kernel_n = kernel_n;
     args->kernel_m = kernel_m;
     args->dst_n = dst_n;
     args->dst_m = dst_m;
-    fp64_t nflops = src_n * src_m * dst_n * dst_m * batch;
+    fp64_t nflops =
+        src_n * src_m * dst_n * dst_m * batch * in_channels * out_channels;
     // Submit task
     int ret = starpu_task_insert(
         codelet<T>(), STARPU_R, static_cast<starpu_data_handle_t>(src),
@@ -118,14 +126,16 @@ void submit(Index offset_n, Index offset_m, Index batch, Index src_n,
 
 // Explicit instantiation
 template void submit<fp32_t>(Index offset_n, Index offset_m, Index batch,
-                             Index src_n, Index src_m, Handle src,
-                             Index kernel_n, Index kernel_m, Handle kernel,
-                             Index dst_n, Index dst_m, Handle dst);
+                             Index out_channels, Index in_channels, Index src_n,
+                             Index src_m, Handle src, Index kernel_n,
+                             Index kernel_m, Handle kernel, Index dst_n,
+                             Index dst_m, Handle dst);
 
 template void submit<fp64_t>(Index offset_n, Index offset_m, Index batch,
-                             Index src_n, Index src_m, Handle src,
-                             Index kernel_n, Index kernel_m, Handle kernel,
-                             Index dst_n, Index dst_m, Handle dst);
+                             Index out_channels, Index in_channels, Index src_n,
+                             Index src_m, Handle src, Index kernel_n,
+                             Index kernel_m, Handle kernel, Index dst_n,
+                             Index dst_m, Handle dst);
 
 } // namespace conv2d
 } // namespace starpu

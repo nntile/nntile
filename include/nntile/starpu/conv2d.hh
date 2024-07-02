@@ -31,6 +31,8 @@ struct args_t
     Index offset_n;
     Index offset_m;
     Index batch;
+    Index out_channels;
+    Index in_channels;
     Index src_n;
     Index src_m;
     Index kernel_n;
@@ -67,9 +69,10 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template <typename T>
-void submit(Index offset_n, Index offset_m, Index batch, Index src_n,
-            Index src_m, Handle src, Index kernel_n, Index kernel_m,
-            Handle kernel, Index dst_n, Index dst_m, Handle dst);
+void submit(Index offset_n, Index offset_m, Index batch, Index out_channels,
+            Index in_channels, Index src_n, Index src_m, Handle src,
+            Index kernel_n, Index kernel_m, Handle kernel, Index dst_n,
+            Index dst_m, Handle dst);
 
 } // namespace conv2d
 } // namespace starpu

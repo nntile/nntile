@@ -34,15 +34,15 @@ void conv2d_async(const Tensor<T> &src, const Tensor<T> &kernel,
  * */
 {
     Index axis = 0;
-    Index batch_ndim = src.ndim - 2;
+    Index batch_ndim = src.ndim - 3;
+    Index in_channels = src.grid.matrix_shape[src.ndim - batch_ndim - 1][1] /
+                        src.grid.matrix_shape[src.ndim - batch_ndim][1];
+    Index out_channels = dst.grid.matrix_shape[src.ndim - batch_ndim - 1][1] /
+                         src.grid.matrix_shape[src.ndim - batch_ndim][1];
     // Check dimensions
     if(2 > src.ndim)
     {
         throw std::runtime_error("2 > src.ndim");
-    }
-    if(src.ndim != kernel.ndim)
-    {
-        throw std::runtime_error("src.ndim != kernel.ndim");
     }
     if(src.ndim != dst.ndim)
     {
@@ -57,144 +57,149 @@ void conv2d_async(const Tensor<T> &src, const Tensor<T> &kernel,
                 "dst.shape[i] != src.shape[i] + kernel.shape[i] - 1");
         }
     }
-    for(Index i = 2; i < src.ndim; ++i)
-    {
-        if(kernel.shape[i] != src.shape[i])
-        {
-            throw std::runtime_error("kernel.shape[i] != src.shape[i]");
-        }
-        if(dst.shape[i] != src.shape[i])
-        {
-            throw std::runtime_error("dst.shape[i] != src.shape[i]");
-        }
-    }
 
     Index batch = src.grid.matrix_shape[src.ndim - batch_ndim][1];
     Index tile_batch =
         src.get_tile_traits(0).matrix_shape[src.ndim - batch_ndim][1];
+    Index kernel_batch = kernel.grid.matrix_shape[src.ndim - batch_ndim][1];
+    Index kernel_tile_batch =
+        kernel.get_tile_traits(0).matrix_shape[src.ndim - batch_ndim][1];
 
     // Getting sizes
-    Index src_m = src.grid.matrix_shape[src.ndim - batch_ndim - 1][0];
-    Index src_n = src.grid.matrix_shape[src.ndim - batch_ndim - 1][1] / batch;
-    Index src_tile_m =
-        src.get_tile_traits(0).matrix_shape[src.ndim - batch_ndim - 1][0];
-    Index src_tile_n =
-        src.get_tile_traits(0).matrix_shape[src.ndim - batch_ndim - 1][1] /
-        tile_batch;
+    Index src_m = src.grid.matrix_shape[1][0];
+    Index src_n = src.grid.matrix_shape[2][0] / src_m;
+    Index src_tile_m = src.get_tile_traits(0).matrix_shape[1][0];
+    Index src_tile_n = src.get_tile_traits(0).matrix_shape[2][0] / src_tile_m;
 
-    Index kernel_m = kernel.grid.matrix_shape[kernel.ndim - batch_ndim - 1][0];
-    Index kernel_n =
-        kernel.grid.matrix_shape[kernel.ndim - batch_ndim - 1][1] / batch;
-    Index kernel_tile_m =
-        kernel.get_tile_traits(0).matrix_shape[kernel.ndim - batch_ndim - 1][0];
-    Index kernel_tile_n = kernel.get_tile_traits(0)
-                              .matrix_shape[kernel.ndim - batch_ndim - 1][1] /
-                          tile_batch;
+    Index kernel_m = kernel.grid.matrix_shape[1][0];
+    Index kernel_n = kernel.grid.matrix_shape[2][0] / kernel_m;
+    Index kernel_tile_m = kernel.get_tile_traits(0).matrix_shape[1][0];
+    Index kernel_tile_n =
+        kernel.get_tile_traits(0).matrix_shape[2][0] / kernel_tile_m;
 
-    Index dst_m = dst.grid.matrix_shape[dst.ndim - batch_ndim - 1][0];
-    Index dst_n = dst.grid.matrix_shape[dst.ndim - batch_ndim - 1][1] / batch;
-    Index dst_tile_m =
-        dst.get_tile_traits(0).matrix_shape[dst.ndim - batch_ndim - 1][0];
-    Index dst_tile_n =
-        dst.get_tile_traits(0).matrix_shape[dst.ndim - batch_ndim - 1][1] /
-        tile_batch;
+    Index dst_m = dst.grid.matrix_shape[1][0];
+    Index dst_n = dst.grid.matrix_shape[2][0] / dst_m;
+    Index dst_tile_m = dst.get_tile_traits(0).matrix_shape[1][0];
+    Index dst_tile_n = dst.get_tile_traits(0).matrix_shape[2][0] / dst_tile_m;
 
-    for(Index b = 1; b < batch; ++b)
+    for(Index dst_index = 0; dst_index < dst.grid.nelems; ++dst_index)
     {
-        for(Index dst_i = 0; dst_i < dst_n; ++dst_i)
-        {
-            for(Index dst_j = 0; dst_j < dst_m; ++dst_j)
-            {
-                Index dst_index = dst_j + dst_i * dst_m + b * dst_n * dst_m;
-                auto dst_tile_handle = dst.get_tile_handle(dst_index);
-                starpu::clear::submit(dst_tile_handle);
-            }
-        }
+        auto dst_tile_handle = dst.get_tile_handle(dst_index);
+        starpu::clear::submit(dst_tile_handle);
     }
 
     for(Index b = 0; b < batch; ++b)
     {
-        for(Index src_i = 0; src_i < src_n; ++src_i)
+        for(Index oc = 0; oc < out_channels; ++oc)
         {
-            for(Index src_j = 0; src_j < src_m; ++src_j)
+            Index tile_oc_current =
+                dst.get_tile_traits(oc * dst_n * dst_m).matrix_shape[3][0] /
+                dst.get_tile_traits(oc * dst_n * dst_m).matrix_shape[2][0];
+            for(Index ic = 0; ic < in_channels; ++ic)
             {
-                Index src_index = src_j + src_i * src_m + b * src_n * src_m;
-                auto src_tile_handle = src.get_tile_handle(src_index);
-
-                Index tile_batch_current =
-                    src.get_tile_traits(src_index)
-                        .matrix_shape[src.ndim - batch_ndim][1];
-
-                Index src_tile_m_current =
-                    src.get_tile_traits(src_index)
-                        .matrix_shape[src.ndim - batch_ndim - 1][0];
-                Index src_tile_n_current =
-                    src.get_tile_traits(src_index)
-                        .matrix_shape[src.ndim - batch_ndim - 1][1] /
-                    tile_batch_current;
-                Index src_offset_n = src_i * src_tile_n;
-                Index src_offset_m = src_j * src_tile_m;
-
-                for(Index kernel_i = 0; kernel_i < kernel_n; ++kernel_i)
+                Index tile_ic_current =
+                    src.get_tile_traits(ic * src_n * src_m).matrix_shape[3][0] /
+                    src.get_tile_traits(ic * src_n * src_m).matrix_shape[2][0];
+                for(Index src_i = 0; src_i < src_n; ++src_i)
                 {
-                    for(Index kernel_j = 0; kernel_j < kernel_m; ++kernel_j)
+                    for(Index src_j = 0; src_j < src_m; ++src_j)
                     {
-                        Index kernel_index = kernel_j + kernel_i * kernel_m +
-                                             b * kernel_n * kernel_m;
-                        auto kernel_tile_handle =
-                            kernel.get_tile_handle(kernel_index);
-                        Index kernel_tile_m_current =
-                            kernel.get_tile_traits(kernel_index)
-                                .matrix_shape[kernel.ndim - batch_ndim - 1][0];
-                        Index kernel_tile_n_current =
-                            kernel.get_tile_traits(kernel_index)
-                                .matrix_shape[kernel.ndim - batch_ndim - 1][1] /
-                            tile_batch_current;
-                        Index kernel_offset_n = kernel_i * kernel_tile_n;
-                        Index kernel_offset_m = kernel_j * kernel_tile_m;
+                        Index src_index = src_j + src_i * src_m +
+                                          ic * src_n * src_m +
+                                          b * src_n * src_m * in_channels;
+                        auto src_tile_handle = src.get_tile_handle(src_index);
 
-                        for(Index dst_i = 0; dst_i < dst_n; ++dst_i)
+                        Index tile_batch_current =
+                            src.get_tile_traits(src_index).matrix_shape[3][1];
+
+                        Index src_tile_m_current =
+                            src.get_tile_traits(src_index).matrix_shape[1][0];
+                        Index src_tile_n_current =
+                            src.get_tile_traits(src_index).matrix_shape[2][0] /
+                            src_tile_m_current;
+                        Index src_offset_n = src_i * src_tile_n;
+                        Index src_offset_m = src_j * src_tile_m;
+
+                        for(Index kernel_i = 0; kernel_i < kernel_n; ++kernel_i)
                         {
-                            for(Index dst_j = 0; dst_j < dst_m; ++dst_j)
+                            for(Index kernel_j = 0; kernel_j < kernel_m;
+                                ++kernel_j)
                             {
-                                Index dst_index =
-                                    dst_j + dst_i * dst_m + b * dst_n * dst_m;
-                                auto dst_tile_handle =
-                                    dst.get_tile_handle(dst_index);
+                                Index kernel_index =
+                                    kernel_j + kernel_i * kernel_m +
+                                    oc * kernel_n * kernel_m +
+                                    ic * kernel_n * kernel_m * out_channels;
+                                auto kernel_tile_handle =
+                                    kernel.get_tile_handle(kernel_index);
+                                Index kernel_tile_m_current =
+                                    kernel.get_tile_traits(kernel_index)
+                                        .matrix_shape[1][0];
+                                Index kernel_tile_n_current =
+                                    kernel.get_tile_traits(kernel_index)
+                                        .matrix_shape[2][0] /
+                                    kernel_tile_m_current;
+                                Index kernel_offset_n =
+                                    kernel_i * kernel_tile_n;
+                                Index kernel_offset_m =
+                                    kernel_j * kernel_tile_m;
 
-                                Index dst_tile_m_current =
-                                    dst.get_tile_traits(dst_index)
-                                        .matrix_shape[dst.ndim - batch_ndim - 1]
-                                                     [0];
-                                Index dst_tile_n_current =
-                                    dst.get_tile_traits(dst_index)
-                                        .matrix_shape[dst.ndim - batch_ndim - 1]
-                                                     [1] /
-                                    tile_batch_current;
-                                Index dst_offset_n = dst_i * dst_tile_n;
-                                Index dst_offset_m = dst_j * dst_tile_m;
+                                for(Index dst_i = 0; dst_i < dst_n; ++dst_i)
+                                {
+                                    for(Index dst_j = 0; dst_j < dst_m; ++dst_j)
+                                    {
+                                        Index dst_index =
+                                            dst_j + dst_i * dst_m +
+                                            oc * dst_n * dst_m +
+                                            b * out_channels * dst_n * dst_m;
+                                        auto dst_tile_handle =
+                                            dst.get_tile_handle(dst_index);
 
-                                Index offset_n = dst_offset_n - src_offset_n -
-                                                 kernel_offset_n;
-                                Index offset_m = dst_offset_m - src_offset_m -
-                                                 kernel_offset_m;
+                                        Index dst_tile_m_current =
+                                            dst.get_tile_traits(dst_index)
+                                                .matrix_shape[1][0];
+                                        Index dst_tile_n_current =
+                                            dst.get_tile_traits(dst_index)
+                                                .matrix_shape[2][0] /
+                                            dst_tile_m_current;
+                                        Index dst_offset_n = dst_i * dst_tile_n;
+                                        Index dst_offset_m = dst_j * dst_tile_m;
 
-                                if(src_tile_n_current + kernel_tile_n_current -
-                                           2 <
-                                       offset_n ||
-                                   offset_n + dst_tile_n_current - 1 < 0 ||
-                                   src_tile_m_current + kernel_tile_m_current -
-                                           2 <
-                                       offset_m ||
-                                   offset_m + dst_tile_m_current - 1 < 0)
-                                    continue;
-                                starpu::conv2d::submit<T>(
-                                    offset_n, offset_m, tile_batch_current,
-                                    src_tile_n_current, src_tile_m_current,
-                                    src_tile_handle, kernel_tile_n_current,
-                                    kernel_tile_m_current, kernel_tile_handle,
-                                    dst_tile_n_current, dst_tile_m_current,
-                                    dst_tile_handle);
+                                        Index offset_n = dst_offset_n -
+                                                         src_offset_n -
+                                                         kernel_offset_n;
+                                        Index offset_m = dst_offset_m -
+                                                         src_offset_m -
+                                                         kernel_offset_m;
+
+                                        if(src_tile_n_current +
+                                                   kernel_tile_n_current - 2 <
+                                               offset_n ||
+                                           offset_n + dst_tile_n_current - 1 <
+                                               0 ||
+                                           src_tile_m_current +
+                                                   kernel_tile_m_current - 2 <
+                                               offset_m ||
+                                           offset_m + dst_tile_m_current - 1 <
+                                               0)
+                                            continue;
+                                        {
+                                            starpu::conv2d::submit<T>(
+                                                offset_n, offset_m,
+                                                tile_batch_current,
+                                                tile_oc_current,
+                                                tile_ic_current,
+                                                src_tile_n_current,
+                                                src_tile_m_current,
+                                                src_tile_handle,
+                                                kernel_tile_n_current,
+                                                kernel_tile_m_current,
+                                                kernel_tile_handle,
+                                                dst_tile_n_current,
+                                                dst_tile_m_current,
+                                                dst_tile_handle);
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
