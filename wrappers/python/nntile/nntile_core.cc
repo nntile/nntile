@@ -567,12 +567,15 @@ void def_mod_tensor(py::module_ &m)
     m.def("scatter_int64", &scatter<nntile::int64_t>);
     m.def("scatter_bool", &scatter<bool_t>);
     m.def("scatter_bf16", &scatter<bf16_t>);
+
     m.def("randn_async_fp64", &randn_async<fp64_t>);
     m.def("randn_async_fp32", &randn_async<fp32_t>);
     m.def("randn_async_fp32_fast_tf32", &randn_async<fp32_fast_tf32_t>);
+    m.def("randn_async_bf16", &randn_async<bf16_t>);
     m.def("randn_fp64", &randn<fp64_t>);
     m.def("randn_fp32", &randn<fp32_t>);
     m.def("randn_fp32_fast_tf32", &randn<fp32_fast_tf32_t>);
+    m.def("randn_bf16", &randn<bf16_t>);
 
     m.def("prod_async_fp64", &prod_async<fp64_t>);
     m.def("prod_async_fp32", &prod_async<fp32_t>);

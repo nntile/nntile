@@ -30,8 +30,8 @@ template<typename T>
 void cpu_ndim0(void *buffers[], void *cl_args)
     noexcept;
 
-extern Codelet codelet_fp32, codelet_fp64,
-       codelet_fp32_ndim0, codelet_fp64_ndim0;
+extern Codelet codelet_fp32, codelet_fp64, codelet_bf16,
+       codelet_fp32_ndim0, codelet_fp64_ndim0, codelet_bf16_ndim0;
 
 extern Codelet codelet_fp32_fast_tf32, codelet_fp32_fast_tf32_ndim0;
 
@@ -46,6 +46,12 @@ template<>
 constexpr Codelet *codelet<fp32_t>()
 {
     return &codelet_fp32;
+}
+
+template<>
+constexpr Codelet *codelet<bf16_t>()
+{
+    return &codelet_bf16;
 }
 
 template<>
@@ -71,6 +77,12 @@ template<>
 constexpr Codelet *codelet_ndim0<fp32_t>()
 {
     return &codelet_fp32_ndim0;
+}
+
+template<>
+constexpr Codelet *codelet_ndim0<bf16_t>()
+{
+    return &codelet_bf16_ndim0;
 }
 
 template<>

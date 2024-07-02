@@ -118,6 +118,12 @@ void randn_async<fp64_t>(const Tile<fp64_t> &dst,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 
+template
+void randn_async<bf16_t>(const Tile<bf16_t> &dst,
+        const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        Scalar mean, Scalar stddev);
+
 // Explicit instantiation
 template
 void randn<fp32_t>(const Tile<fp32_t> &dst, const std::vector<Index> &start,
@@ -131,6 +137,11 @@ void randn<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &dst, const std::vecto
 
 template
 void randn<fp64_t>(const Tile<fp64_t> &dst, const std::vector<Index> &start,
+        const std::vector<Index> &underlying_shape, unsigned long long seed,
+        Scalar mean, Scalar stddev);
+
+template
+void randn<bf16_t>(const Tile<bf16_t> &dst, const std::vector<Index> &start,
         const std::vector<Index> &underlying_shape, unsigned long long seed,
         Scalar mean, Scalar stddev);
 

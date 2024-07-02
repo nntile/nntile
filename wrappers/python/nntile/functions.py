@@ -530,6 +530,8 @@ def randn_async(
         core_tensor.randn_async_fp32_fast_tf32(x, start, shape, seed, mean, dev)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.randn_async_fp64(x, start, shape, seed, mean, dev)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.randn_async_bf16(x, start, shape, seed, mean, dev)
     else:
         raise TypeError
 
