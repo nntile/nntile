@@ -35,18 +35,15 @@ class RotaryEmbedding(BaseLayer):
 
     # Simple generator for the embedding layer
     @staticmethod
-    def generate_simple(x: TensorMoments, y: TensorMoments, next_tag: int):
-        head_size, n_seq, n_batch, n_head = x.value.shape
-        head_size_tile, n_seq_tile, n_batch_tile, n_head_tile = x.value.basetile_shape
+    def generate_simple(x: TensorMoments, next_tag: int):
+        head_size, n_seq, _, n_head = x.value.shape
+        head_size_tile, n_seq_tile, _, n_head_tile = x.value.basetile_shape
 
-        n_emb = n_head * head_size
-        n_emb_tile = n_head_tile * head_size_tile
+        cos_shape = [int(head_size / 2) , n_seq, n_head]
+        sin_shape = [int(head_size / 2) , n_seq, n_head]
 
-        cos_shape = [n_emb, n_seq]
-        sin_shape = [n_emb, n_seq]
-
-        cos_basetile = [n_emb_tile, n_seq_tile]
-        sin_basetile = [n_emb_tile, n_seq_tile]
+        cos_basetile = [int(head_size_tile / 2), n_seq_tile, n_head_tile]
+        sin_basetile = [int(head_size_tile / 2), n_seq_tile, n_head_tile]
 
         cos_traits = TensorTraits(cos_shape, cos_basetile)
         sin_traits = TensorTraits(sin_shape, sin_basetile)
@@ -60,12 +57,18 @@ class RotaryEmbedding(BaseLayer):
         sin = type(x.value)(sin_traits, sin_distr, next_tag)
         next_tag = sin.next_tag
 
-        inv_freq = 1.0 / (10000 ** (np.arange(0, n_emb, 2, dtype=np.int64).float() / n_emb))
-        t = np.arange(n_seq, dtype=np.int64).type_as(inv_freq)
-        freqs = np.outer(inv_freq, t)
-        
-        cos.from_array(np.cos(freqs))
-        sin.from_array(np.sin(freqs))
+        y_shape = x.value.shape
+        y_basetile_shape = x.value.basetile_shape
+        y_traits = TensorTraits(y_shape, y_basetile_shape)
+        y_distr = [0] * y_traits.grid.nelems
+        y_value = type(x.value)(y_traits, y_distr, next_tag)
+        next_tag = y_value.next_tag
+
+        # Create gradient of Y with the same traits and distribution as Y
+        y_grad = type(x.value)(y_traits, y_distr, next_tag)
+        next_tag = y_grad.next_tag
+        # Define Y as TensorMoments
+        y = TensorMoments(y_value, y_grad, True)
 
         # Create rotary embedding layer with all the provided data
         layer = RotaryEmbedding(x, y, sin, cos) 
@@ -75,7 +78,7 @@ class RotaryEmbedding(BaseLayer):
     # Forward propagation of the embedding layer
     def forward_async(self):
         clear_async(self.y.value)
-        rope_async(self.sin, self.cos, self.x, self.y.value, 2)
+        rope_async(self.sin, self.cos, self.x.value, self.y.value, 2)
 
     # # Backward propagation of the embedding layer
     # def backward_async(self):

@@ -26,10 +26,11 @@ void cpu(Index m, Index k, Index l, const T *sin, const T *cos,
         const T *src, T *dst)
     noexcept
 
-/*! Change provided m-by-k src tensor and write result into dst tensor
- *  sin, cos (m/2)-by-k tensors. Each column holds sines and cosines.   
+/*! Change provided 2m-by-l src tensor and write result into dst tensor
+ *  sin, cos m-by-k tensors. Each column holds sines and cosines.   
  *  dst[2i,j] = cos[i,j] * src[2i,j] - sin[i,j] * src[2i+1,j]
  *  dst[2i+1,j] = sin[i,j] * src[2i,j] + cos[i,j] * src[2i+1,j]  
+ *  In the application: 2m = head_size, k = n_seq, l = n_seq x n_batch
  * @param[in] m: Size of the first mode of sin and cos tensors
  * @param[in] k: Size of the second mode of sin and cos tensors
  * @param[in] l: Size of the second mode of src and dst tensor
@@ -44,8 +45,9 @@ void cpu(Index m, Index k, Index l, const T *sin, const T *cos,
     Index mk = m * k;
     Index b = l / k;
     
-    // Cycle over whole 2*m*l elements of src and dst buffers. Pairwise rotation of elements.
+    // Cycle over whole m*k elements of sin and cos buffers.
     for(Index i = 0; i < mk; ++i) {
+        // Use these angles for pairwise rotation of the same elements across all batches
         for (Index j = 0; j < b; ++j) {
             dst[two * (i + j*mk)] = cos[i] * src[two * (i + j*mk)] - sin[i] * src[two * (i + j*mk) + one];
             dst[two * (i + j*mk) + one] = sin[i] * src[two * (i + j*mk)] + cos[i] * src[two * (i + j*mk) + one];

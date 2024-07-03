@@ -42,8 +42,7 @@ void rope_async(const Tensor<T> &sin, const Tensor<T> &cos,
         throw std::runtime_error("sin.ndim != cos.ndim");
     }
 
-    Index head_size = src.shape[0];
-    // Apply per-tile rope3 asynchronously as needed
+    // Apply per-tile rope asynchronously
     int mpi_rank = starpu_mpi_world_rank();
     int ret;
     for(Index i = 0; i < sin.grid.nelems; ++i)
@@ -64,12 +63,10 @@ void rope_async(const Tensor<T> &sin, const Tensor<T> &cos,
 
         // Set fixed indices of current destination tile
         std::vector<Index> dst_tile_index(dst.ndim);
-
-        Index head_num = sin_tile_index[0] * m / head_size;
   
-        dst_tile_index[0] = sin_tile_index[0] - (head_num * head_size / m);
+        dst_tile_index[0] = sin_tile_index[0];
         dst_tile_index[1] = sin_tile_index[1];
-        dst_tile_index[3] = head_num;
+        dst_tile_index[3] = sin_tile_index[2];
 
         // Loop through all necessary destination tiles across BATCH
         for(Index j = 0; j < dst.grid.shape[axis]; ++j)
@@ -78,7 +75,7 @@ void rope_async(const Tensor<T> &sin, const Tensor<T> &cos,
             dst_tile_index[axis] = j;
             // Get linear offset from index
             Index dst_tile_offset = dst.grid.index_to_linear(dst_tile_index);
-            auto dst_tile_traits = dst.get_tile_traits(i);
+            auto dst_tile_traits = dst.get_tile_traits(dst_tile_offset);
             // Get destination tile handle
             auto dst_tile_handle = dst.get_tile_handle(dst_tile_offset);
             // Get src2 tile handle
