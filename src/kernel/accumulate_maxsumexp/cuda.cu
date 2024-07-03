@@ -20,7 +20,7 @@ namespace nntile::kernel::accumulate_maxsumexp
 
 template<typename T>
 static __global__
-void cuda_kernel(Index nelems, const T *src, T *dst)
+void cuda_kernel(Index nelems, const T *src_, T *dst_)
 //! Accumulate two maxsumexp buffers on CUDA
 /*! Performs the following operation:
  *      dst[2*i+1] = dst[2*i+1]*exp(dst[2*i]) + src[2*i+1]*exp(src[2*i]),
@@ -32,11 +32,16 @@ void cuda_kernel(Index nelems, const T *src, T *dst)
  * */
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
-    constexpr float zero = static_cast<float>(0.0);
-    auto src_odd = __bfloat162float(src[2*i+1]);
-    auto src_even = __bfloat162float(src[2*i]);
-    auto dst_odd = __bfloat162float(dst[2*i+1]);
-    auto dst_even = __bfloat162float(dst[2*i]);
+    using Y = typename T::compat_t;
+    using Z = typename CUDAComputeType<T>::value;
+    auto src = reinterpret_cast<const Z *>(src_);
+    auto dst = reinterpret_cast<Z *>(dst_);
+    constexpr Y zero = 0.0;
+    Y dst_odd = Y{dst[2*i+1]};
+    Y dst_even = Y{dst[2*i]};
+
+    Y src_odd = Y{src[2*i+1]};
+    Y src_even = Y{src[2*i]};
     if(i < nelems)
     {
         // Do nothing if sum of exponents of source is zero
@@ -51,12 +56,13 @@ void cuda_kernel(Index nelems, const T *src, T *dst)
             // Otherwise update based on maximum
             else if(dst_even < src_even)
             {
-                dst[2*i+1] = __float2bfloat16(src_odd + dst_odd * ::exp(dst_even - src_even));
+                dst[2*i+1] = Z{src_odd + dst_odd * ::exp(dst_even - src_even)};
                 dst[2*i] = src[2*i];
             }
             else
             {
-                dst[2*i+1] = __float2bfloat16(dst_odd + src_odd * ::exp(src_even - dst_even));            }
+                dst[2*i+1] = Z{dst_odd + src_odd * ::exp(src_even - dst_even)};            
+            }
         }
     }
 }
@@ -75,10 +81,10 @@ void cuda(cudaStream_t stream, Index nelems, const T *src_, T *dst_)
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    auto src = cast_pointer_cuda<T>(src_);
-    auto dst = cast_pointer_cuda<T>(dst_);
-    using Y = typename CUDAComputeType<T>::value;
-    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
+    // auto src = cast_pointer_cuda<T>(src_);
+    // auto dst = cast_pointer_cuda<T>(dst_);
+    // using Y = typename CUDAComputeType<T>::value;
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, src_, dst_);
 }
 
 // Explicit instantiation

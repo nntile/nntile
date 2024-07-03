@@ -20,23 +20,32 @@ namespace nntile::kernel::add
 
 template<typename T>
 static __global__
-void cuda_kernel(Index nelems, T alpha, const T *src, T beta, T *dst)
+void cuda_kernel(Index nelems, Scalar alpha_, const T *src, Scalar beta_, T *dst)
 //! Add two buffers on CUDA
 /*! Performs the following operation:
  *      dst[i] = alpha*src[i] + beta*dst[i],
  * where alpha and beta are non-zero scalars.
  *
  * @param[in] nelems: Size of the src and dst tensors
- * @param[in] alpha: Scalar multiplier for the src tensor
+ * @param[in] alpha_: Scalar multiplier for the src tensor
  * @param[in] src: Source tensor
- * @param[in] beta: Scalar multiplier for the dst tensor
+ * @param[in] beta_: Scalar multiplier for the dst tensor
  * @param[inout] dst: Destination of the add operation
  * */
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     if(i < nelems)
     {
-        dst[i] = alpha*src[i] + beta*dst[i];
+        using Y = typename T::compat_t;
+        using Z = typename CUDAComputeType<T>::value;
+        auto src_ = reinterpret_cast<const Z *>(src);
+        auto dst_ = reinterpret_cast<Z *>(dst);
+
+        Y src_val = Y{src_[i]};
+        Y dst_val = Y{dst_[i]};
+        Y alpha = Y{alpha_};
+        Y beta = Y{beta_};
+        dst_[i] = Z{alpha * src_val + beta * dst_val};
     }
 }
 
@@ -50,19 +59,19 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha_, const T *src_,
  * where alpha and beta are non-zero scalars.
  *
  * @param[in] nelems: Size of the src and dst tensors
- * @param[in] alpha: Scalar multiplier for the src tensor
+ * @param[in] alpha_: Scalar multiplier for the src tensor
  * @param[in] src_: Source tensor
- * @param[in] beta: Scalar multiplier for the dst tensor
+ * @param[in] beta_: Scalar multiplier for the dst tensor
  * @param[inout] dst_: Destination of the add operation
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    auto src = cast_pointer_cuda<T>(src_);
-    auto dst = cast_pointer_cuda<T>(dst_);
-    auto alpha = cast_scalar_cuda<T>(alpha_);
-    auto beta = cast_scalar_cuda<T>(beta_);
-    cuda_kernel<<<blocks, threads, 0, stream>>>(nelems, alpha, src,
-            beta, dst);
+    // auto src = cast_pointer_cuda<T>(src_);
+    // auto dst = cast_pointer_cuda<T>(dst_);
+    // auto alpha = cast_scalar_cuda<T>(alpha_);
+    // auto beta = cast_scalar_cuda<T>(beta_);
+    cuda_kernel<T><<<blocks, threads, 0, stream>>>(nelems, alpha_, src_,
+            beta_, dst_);
 }
 
 // Explicit instantiation
