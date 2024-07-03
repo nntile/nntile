@@ -53,6 +53,10 @@ def gemm_async(
         core_tensor.gemm_async_fp32_fast_tf32(
             alpha, trans_A, A, trans_B, B, beta, C, ndim, batch_ndim, redux
         )
+    elif type(A) is core_tensor.Tensor_bf16:
+        core_tensor.gemm_async_bf16(
+            alpha, trans_A, A, trans_B, B, beta, C, ndim, batch_ndim, redux
+        )
     else:
         raise TypeError
 

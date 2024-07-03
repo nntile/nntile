@@ -456,12 +456,13 @@ void def_mod_tensor(py::module_ &m)
     m.def("gemm_async_fp64", &gemm_async<fp64_t>);
     m.def("gemm_async_fp32", &gemm_async<fp32_t>);
     m.def("gemm_async_fp32_fast_tf32", &gemm_async<fp32_fast_tf32_t>);
-    // m.def("gemm_async_bf16", &gemm_async<bf16_t>);
+    m.def("gemm_async_bf16", &gemm_async<bf16_t>);
     //m.def("gemm_async_fp16", &gemm_async<fp16_t>);
 
     m.def("gemm_fp64", &gemm<fp64_t>);
     m.def("gemm_fp32", &gemm<fp32_t>);
     m.def("gemm_fp32_fast_tf32", &gemm<fp32_fast_tf32_t>);
+    m.def("gemm_bf16", &gemm<bf16_t>);
     //m.def("gemm_fp16", &gemm<fp16_t>);
 
     // Add activation functions for Tensor<T>

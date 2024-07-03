@@ -368,6 +368,12 @@ void gemm<fp64_t>(Scalar alpha, const TransOp &transA,
         const TransOp &transB, const Tile<fp64_t> &B, Scalar beta,
         const Tile<fp64_t> &C, Index ndim, Index batch_ndim);
 
+template
+void gemm<bf16_t>(Scalar alpha, const TransOp &transA,
+        const Tile<bf16_t> &A,
+        const TransOp &transB, const Tile<bf16_t> &B, Scalar beta,
+        const Tile<bf16_t> &C, Index ndim, Index batch_ndim);
+
 //template
 //void gemm<fp16_t>(Scalar alpha, const TransOp &transA,
 //        const Tile<fp16_t> &A,
