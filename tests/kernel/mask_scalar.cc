@@ -25,7 +25,7 @@ using namespace nntile::kernel::mask_scalar;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void run_cuda(Index nrows, Index ncols, const bool_t *mask, T val,
+void run_cuda(Index nrows, Index ncols, const bool_t *mask, Scalar val,
         std::vector<T> &data)
 {
     // Alloc on device
@@ -68,13 +68,14 @@ void run_cuda(Index nrows, Index ncols, const bool_t *mask, T val,
 template<typename T>
 void validate(Index nrows, Index ncols)
 {
-    T val = -1.0;
+    using Y = typename T::repr_t;
+    Scalar val = -1.0;
     // Init test input
     Index nelems = nrows * ncols;
     std::vector<T> data(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        data[i] = T(2*i+1-nelems) / T{1000};
+        data[i] = Y(2*i+1-nelems) / Y{1000};
     }
     std::unique_ptr<bool_t[]> mask(new bool_t[nrows]);
     for(Index i = 0; i < nrows; ++i)
@@ -82,13 +83,13 @@ void validate(Index nrows, Index ncols)
         mask[i] = bool_t(false);
     }
     // Check low-level kernel
-    std::cout << "Run kernel::mask_scalar::cpu<T>\n";
+    std::cout << "Run kernel::mask_scalar::cpu<" << T::type_repr << ">\n";
     cpu<T>(nrows, ncols, &(mask[0]), val, &data[0]);
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(data[i] == val);
+        TEST_ASSERT(Y(data[i]) == val);
     }
-    std::cout << "OK: kernel::mask_scalar::cpu<T>\n";
+    std::cout << "OK: kernel::mask_scalar::cpu<" << T::type_repr << ">\n";
     for(Index i = 0; i < nrows; ++i)
     {
         if(i % 2 == 0)
@@ -96,7 +97,7 @@ void validate(Index nrows, Index ncols)
             mask[i] = bool_t(true);
         }
     }
-    T val_old= val;
+    Scalar val_old = val;
     val = 10000.0;
     cpu<T>(nrows, ncols, &(mask[0]), val, &data[0]);
     for(Index i = 0; i < nrows; ++i)
@@ -105,17 +106,17 @@ void validate(Index nrows, Index ncols)
         {
             if(i % 2 != 0)
             {
-                TEST_ASSERT(data[j*nrows+i] == val);
+                TEST_ASSERT(Y(data[j*nrows+i]) == val);
             }
             else
             {
-                TEST_ASSERT(data[j*nrows+i] == val_old);
+                TEST_ASSERT(Y(data[j*nrows+i]) == val_old);
             }
         }
     }
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
-    std::cout << "Run kernel::mask_scalar::cuda<T>\n";
+    std::cout << "Run kernel::mask_scalar::cuda<" << T::type_repr << ">\n";
     val = -val;
     run_cuda<T>(nrows, ncols, &mask[0], val, data);
     for(Index i = 0; i < nrows; ++i)
@@ -124,15 +125,15 @@ void validate(Index nrows, Index ncols)
         {
             if(i % 2 != 0)
             {
-                TEST_ASSERT(data[j*nrows+i] == val);
+                TEST_ASSERT(Y(data[j*nrows+i]) == val);
             }
             else
             {
-                TEST_ASSERT(data[j*nrows+i] == val_old);
+                TEST_ASSERT(Y(data[j*nrows+i]) == val_old);
             }
         }
     }
-    std::cout << "OK: kernel::mask_scalar::cuda<T>\n";
+    std::cout << "OK: kernel::mask_scalar::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

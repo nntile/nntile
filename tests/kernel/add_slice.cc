@@ -24,8 +24,8 @@ using namespace nntile::kernel::add_slice;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void run_cuda(Index m, Index n, Index k, T alpha, const std::vector<T> &src,
-        T beta, std::vector<T> &dst)
+void run_cuda(Index m, Index n, Index k, Scalar alpha,
+        const std::vector<T> &src, Scalar beta, std::vector<T> &dst)
 {
     // Copy to device
     T *dev_src, *dev_dst;
@@ -64,7 +64,8 @@ void run_cuda(Index m, Index n, Index k, T alpha, const std::vector<T> &src,
 template<typename T>
 void validate(Index m, Index n, Index k)
 {
-    constexpr T eps = std::numeric_limits<T>::epsilon();
+    using Y = typename T::repr_t;
+    const Y eps = 2 * T::epsilon();
     // Init test input
     std::vector<T> src(m*n), dst(m*n*k);
     for(Index i0 = 0; i0 < m; ++i0)
@@ -73,7 +74,7 @@ void validate(Index m, Index n, Index k)
         {
             for(Index i2 = 0; i2 < k; ++i2)
             {
-                dst[(i1*k+i2)*m+i0] = T(i0+i1+i2) / T{30};
+                dst[(i1*k+i2)*m+i0] = Y(i0+i1+i2) / Y{30};
             }
         }
     }
@@ -81,51 +82,51 @@ void validate(Index m, Index n, Index k)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
-            src[i1*m+i0] = T(i0+i1) / T{20};
+            src[i1*m+i0] = Y(i0+i1) / Y{20};
         }
     }
     // Save original dst
     std::vector<T> dst_save(dst);
     // Check low-level CPU kernel
-    std::cout << "Run kernel::add_slice::cpu<T>\n";
+    std::cout << "Run kernel::add_slice::cpu<" << T::type_repr << ">\n";
     cpu<T>(m, n, k, -2.0, &src[0], 3.0, &dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
             // Check i2=0 at first, as it means val_ref = 0
-            T val = dst[i1*k*m+i0];
-            TEST_ASSERT(std::abs(val) <= 10*eps);
+            Y val = dst[i1*k*m+i0];
+            TEST_ASSERT(std::abs(val) <= eps);
             for(Index i2 = 1; i2 < k; ++i2)
             {
-                T val = dst[(i1*k+i2)*m+i0];
-                T val_ref = T(i2) / T{10};
-                TEST_ASSERT(std::abs(val/val_ref-T{1}) <= 10*eps);
+                Y val = dst[(i1*k+i2)*m+i0];
+                Y val_ref = Y(i2) / Y{10};
+                TEST_ASSERT(std::abs(val/val_ref-Y{1}) <= 10*eps);
             }
         }
     }
-    std::cout << "OK: kernel::add_slice::cpu<T>\n";
+    std::cout << "OK: kernel::add_slice::cpu<" << T::type_repr << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
-    std::cout << "Run kernel::add_slice::cuda<T>\n";
+    std::cout << "Run kernel::add_slice::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(m, n, k, -2.0, src, 3.0, dst);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
             // Check i2=0 at first, as it means val_ref = 0
-            T val = dst[i1*k*m+i0];
+            Y val = dst[i1*k*m+i0];
             TEST_ASSERT(std::abs(val) <= 10*eps);
             for(Index i2 = 1; i2 < k; ++i2)
             {
-                T val = dst[(i1*k+i2)*m+i0];
-                T val_ref = T(i2) / T{10};
-                if(std::abs(val/val_ref-T{1}) <= 10*eps);
+                Y val = dst[(i1*k+i2)*m+i0];
+                Y val_ref = Y(i2) / Y{10};
+                if(std::abs(val/val_ref-Y{1}) <= eps);
             }
         }
     }
-    std::cout << "OK: kernel::add_slice::cuda<T>\n";
+    std::cout << "OK: kernel::add_slice::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

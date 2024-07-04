@@ -83,19 +83,14 @@ void validate(Index nelems, int test_index_a, int test_index_b)
         dst[i] = Y(2*nelems-i);
     }
     std::vector<T> dst_save(dst);
-    // Check low-level CPU kernel only for supported data types
-    if constexpr (std::is_same<T, fp64_t>::value
-            or std::is_same<T, fp32_t>::value)
+    std::cout << "Run kernel::add::cpu<" << T::type_repr << ">\n";
+    add::cpu<T>(nelems, alpha, &src[0], beta, &dst[0]);
+    for(Index i = 0; i < nelems; ++i)
     {
-        std::cout << "Run kernel::add::cpu<" << T::type_repr << ">\n";
-        add::cpu<T>(nelems, alpha, &src[0], beta, &dst[0]);
-        for(Index i = 0; i < nelems; ++i)
-        {
-            Y val_ref = alpha*Y(2*i+1-nelems) + beta*Y(2*nelems-i);
-            TEST_ASSERT(std::abs(Y{dst[i]}-val_ref)/std::abs(val_ref) <= eps);
-        }
-        std::cout << "OK: kernel::add::cpu<" << T::type_repr << ">\n";
+        Y val_ref = alpha*Y(2*i+1-nelems) + beta*Y(2*nelems-i);
+        TEST_ASSERT(std::abs(Y{dst[i]}-val_ref)/std::abs(val_ref) <= eps);
     }
+    std::cout << "OK: kernel::add::cpu<" << T::type_repr << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
