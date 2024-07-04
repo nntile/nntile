@@ -27,7 +27,7 @@ void cpu(Index m, Index n, Index k, Index batch, T alpha, const T *src, T beta,
  * along the first axis with m elements and the last axis with n elements,
  * resulting in output fiber of shape (k).
  * Mnemonically, the following operations are performed:
- *      dst[k,b] = hypot(beta*dst[k,b], alpha*norm(src[:,k,:,b]))
+ *      dst[l,b] = hypot(beta*dst[l,b], alpha*norm(src[:,l,:,b]))
  *
  * @param[in] m: Size of the first mode of src array
  * @param[in] n: Size of the last mode of src array
@@ -62,7 +62,7 @@ void cpu(Index m, Index n, Index k, Index batch, T alpha, const T *src, T beta,
                 for(Index i0 = 0; i0 < m; ++i0)
                 {
                     // Read value from source
-                    T val = src_slice[i0];
+                    T val = std::fabs(src_slice[i0]);
                     // Update norm only if new value is non-zero
                     if(val > 0)
                     {
