@@ -36,7 +36,7 @@ void cpu(Index nelems, T *data)
     const Y f1 = mone / std::sqrt(Y{2.0});
     for(Index i = 0; i < nelems; ++i)
     {
-        Y z = data[i];
+        Y z(data[i]);
         Y y = std::erfc(f1 * z);
         data[i] = (pt5 * z) * y;
     }
