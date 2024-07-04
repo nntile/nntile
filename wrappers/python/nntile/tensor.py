@@ -11,9 +11,8 @@
 #
 # @version 1.0.0
 
-from .nntile_core.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, \
-        Tensor_int64, Tensor_fp16, Tensor_bool
-from .nntile_core import TransOp, notrans, trans
-
-from .types import *
 from .functions import *
+from .nntile_core import TransOp, notrans, trans
+from .nntile_core.tensor import (Tensor_bool, Tensor_fp16, Tensor_fp32,
+                                 Tensor_fp64, Tensor_int64, TensorTraits)
+from .types import *

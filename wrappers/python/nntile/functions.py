@@ -13,19 +13,15 @@
 
 from typing import List, Union
 
-from .nntile_core import tensor as core_tensor
-from .nntile_core.tensor import (
-    TensorTraits,
-    Tensor_fp32,
-    Tensor_fp64,
-    Tensor_int64,
-    Tensor_fp16,
-    Tensor_bool,
-    Tensor_fp32_fast_tf32,
-)
-from .nntile_core import TransOp, notrans, trans
-from typing import Union, List
 from nntile.types import Tensor, TensorFloatOrInt, TensorOrFloat
+
+from .nntile_core import TransOp, notrans
+from .nntile_core import tensor as core_tensor
+from .nntile_core import trans
+from .nntile_core.tensor import (Tensor_bool, Tensor_fp16, Tensor_fp32,
+                                 Tensor_fp32_fast_tf32, Tensor_fp64,
+                                 Tensor_int64, TensorTraits)
+
 
 def gemm_async(
     alpha: float,
