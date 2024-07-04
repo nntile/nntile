@@ -39,7 +39,7 @@ void cpu(Index n_labels, Index n_outputs, Scalar val_, const int64_t* labels_,
     // using Y = typename CPUComputeType<T>::value;
     // auto dst = reinterpret_cast<Y *>(dst_);
     // const Y val{val_};
-    using Y = typename T::compat_t;
+    using Y = typename T::repr_t;
     const Y val = static_cast<Y>(val_);
     using I = typename CPUComputeType<int64_t>::value;
     auto labels = reinterpret_cast<const I *>(labels_);

@@ -43,7 +43,7 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
  *      accumulates maximums and sums of exponents of slices along middle axis.
  * */
 {
-    using Y = typename T::compat_t;
+    using Y = typename T::repr_t;
     // auto src = reinterpret_cast<const Y *>(src_);
     // auto maxsumexp = reinterpret_cast<Y *>(maxsumexp_);
     const Index mk = m * k;

@@ -23,7 +23,7 @@ static __global__
 void cuda_kernel(Index nelems, const T *src_, T *dst_)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
-    using Y = typename T::compat_t;
+    using Y = typename T::repr_t;
     using Z = typename CUDAComputeType<T>::value;
     const Z* src = reinterpret_cast<const Z *>(src_);
     Z* dst = reinterpret_cast<Z *>(dst_);

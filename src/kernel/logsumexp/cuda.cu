@@ -24,7 +24,7 @@ void cuda_kernel(Index nelems, const T * __restrict__ maxsumexp_,
         T * __restrict__ logsumexp_)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
-    using Y = typename T::compat_t;
+    using Y = typename T::repr_t;
     using Z = typename CUDAComputeType<T>::value;
     const Z* maxsumexp = reinterpret_cast<const Z *>(maxsumexp_);
     Z* logsumexp = reinterpret_cast<Z *>(logsumexp_);

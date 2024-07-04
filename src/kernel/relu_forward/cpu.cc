@@ -31,7 +31,7 @@ void cpu(Index nelems, const T *src, T *dst)
  * @params[out] dst_: Output array
  * */
 {
-    using Y = typename T::compat_t;
+    using Y = typename T::repr_t;
     // auto src = reinterpret_cast<const Y *>(src_);
     // auto dst = reinterpret_cast<Y *>(dst_);
     constexpr Y zero{0.0};

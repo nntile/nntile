@@ -27,7 +27,7 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
     Index i0_block = blockIdx.y, i1_block = blockIdx.z,
           i2_start = threadIdx.x, i2_step = blockDim.x;
 
-    using Y = typename T::compat_t;
+    using Y = typename T::repr_t;
     using Z = typename CUDAComputeType<T>::value;
     const Z* maxsumexp = reinterpret_cast<const Z *>(maxsumexp_);
     for(Index i0 = i0_block*m_per_block;

@@ -38,7 +38,7 @@ void cpu(Index nelems, T *data)
     {
         Y z(data[i]);
         Y y = std::erfc(f1 * z);
-        data[i] = (pt5 * z) * y;
+        data[i] = static_cast<T>((pt5 * z) * y);
     }
 }
 

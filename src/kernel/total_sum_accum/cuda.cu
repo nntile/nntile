@@ -24,7 +24,7 @@ void cuda_kernel(Scalar alpha_, Index n_labels, Index n_outputs, const T* logsum
         const T* src_, const Index* labels, T *val_)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
-    using Y = typename T::compat_t;
+    using Y = typename T::repr_t;
     using Z = typename CUDAComputeType<T>::value;
     auto src = reinterpret_cast<const Z *>(src_);
     auto logsumexp = reinterpret_cast<const Z *>(logsumexp_);

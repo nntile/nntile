@@ -85,6 +85,8 @@ def relu_forward_async(x: Tensor, y: Tensor) -> None:
         core_tensor.relu_forward_async_fp64(x, y)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.relu_forward_async_fp32_fast_tf32(x, y)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.relu_forward_async_bf16(x, y)
     else:
         raise TypeError
 
@@ -473,6 +475,8 @@ def softmax_async(
         core_tensor.softmax_async_fp32_fast_tf32(maxsumexp, x, alpha, y, axis)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.softmax_async_fp64(maxsumexp, x, alpha, y, axis)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.softmax_async_bf16(maxsumexp, x, alpha, y, axis)
     else:
         raise TypeError
 
@@ -651,6 +655,8 @@ def maxsumexp_async(
         core_tensor.maxsumexp_async_fp32_fast_tf32(x, maxsumexp, axis, redux)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.maxsumexp_async_fp64(x, maxsumexp, axis, redux)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.maxsumexp_async_bf16(x, maxsumexp, axis, redux)
     else:
         raise TypeError
 
@@ -844,6 +850,8 @@ def copy_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:
         core_tensor.copy_async_fp64(x, y)
     elif type(x) is core_tensor.Tensor_int64:
         core_tensor.copy_async_int64(x, y)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.copy_async_bf16(x, y)
     else:
         raise TypeError
 
@@ -858,6 +866,8 @@ def clear_async(x: Tensor) -> None:
         core_tensor.clear_async_fp32_fast_tf32(x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.clear_async_fp64(x)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.clear_async_bf16(x)
     else:
         raise TypeError
 
@@ -1021,6 +1031,8 @@ def logsumexp_async(maxsumexp: Tensor, logsumexp: Tensor) -> None:
         core_tensor.logsumexp_async_fp32_fast_tf32(maxsumexp, logsumexp)
     elif type(maxsumexp) is core_tensor.Tensor_fp64:
         core_tensor.logsumexp_async_fp64(maxsumexp, logsumexp)
+    elif type(maxsumexp) is core_tensor.Tensor_bf16:
+        core_tensor.logsumexp_async_bf16(maxsumexp, logsumexp)
     else:
         raise TypeError
 
@@ -1044,6 +1056,10 @@ def total_sum_accum_async(
         core_tensor.total_sum_accum_async_fp64(
             alpha, logsumexp, src, class_labels, val
         )
+    elif type(logsumexp) is core_tensor.Tensor_bf16:
+        core_tensor.total_sum_accum_async_bf16(
+            alpha, logsumexp, src, class_labels, val
+        )
     else:
         raise TypeError
 
@@ -1059,6 +1075,8 @@ def subtract_indexed_outputs_async(
         )
     elif type(dst) is core_tensor.Tensor_fp64:
         core_tensor.subtract_indexed_outputs_async_fp64(val, class_labels, dst)
+    elif type(dst) is core_tensor.Tensor_bf16:
+        core_tensor.subtract_indexed_outputs_async_bf16(val, class_labels, dst)
     else:
         raise TypeError
 

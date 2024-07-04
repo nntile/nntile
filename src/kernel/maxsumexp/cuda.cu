@@ -33,7 +33,7 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
     Index i1_block = blockIdx.y, i2_block = blockIdx.z,
           i0_start = threadIdx.x, i0_step = blockDim.x;
     
-    using Y = typename T::compat_t;
+    using Y = typename T::repr_t;
     using Z = typename CUDAComputeType<T>::value;
     constexpr Y zero = 0.0, one = 1.0;
     // const Z* src = reinterpret_cast<const Z*>(src_);

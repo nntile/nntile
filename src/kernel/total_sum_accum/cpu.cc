@@ -39,7 +39,7 @@ void cpu(Scalar alpha_, Index n_labels, Index n_outputs, const T* logsumexp_,
  * @param[inout] val_: Scalar that accumulates the total sum
  * */
 {
-    using Y = typename T::compat_t;
+    using Y = typename T::repr_t;
     // auto logsumexp = reinterpret_cast<const Y *>(logsumexp_);
     // auto src = reinterpret_cast<const Y *>(src_);
     // auto val = reinterpret_cast<Y *>(val_);

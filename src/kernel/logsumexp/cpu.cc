@@ -23,7 +23,7 @@ template<typename T>
 void cpu(Index nelems, const T *maxsumexp_, T *logsumexp_)
     noexcept
 {
-    using Y = typename T::compat_t;
+    using Y = typename T::repr_t;
     Y maxsumexp_val_even{0.0};
     Y maxsumexp_val_odd{0.0};
     for(Index i = 0; i < nelems; ++i) 
