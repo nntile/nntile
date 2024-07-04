@@ -18,6 +18,7 @@ from .attention import Attention
 from .flash_attention import FlashAttention
 from .attention_single_head import AttentionSingleHead
 from .embedding import Embedding
+from .batch_norm import BatchNorm2d
 from .layer_norm import LayerNorm
 #from .fp32_to_fp16 import FP32_to_FP16
 #from .fp16_to_fp32 import FP16_to_FP32
