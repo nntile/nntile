@@ -129,9 +129,7 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
-            // Deactivate invalidate_submit
-            //starpu_data_invalidate_submit(tmp);
-            //starpu_data_deinitialize_submit(tmp);
+            starpu_data_invalidate_submit(tmp);
         }
     }
     //! Advice to evict data from GPU
@@ -140,7 +138,6 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
-            // Deactivate wont_use
             starpu_data_wont_use(tmp);
         }
     }
