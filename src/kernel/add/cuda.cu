@@ -36,7 +36,7 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T *src, Scalar beta_, T *dst
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     if(i < nelems)
     {
-        using Y = typename T::compat_t;
+        using Y = typename T::repr_t;
         using Z = typename CUDAComputeType<T>::value;
         auto src_ = reinterpret_cast<const Z *>(src);
         auto dst_ = reinterpret_cast<Z *>(dst);

@@ -33,15 +33,15 @@ void cpu(Index nelems, const T* src_, T* dst_)
  * */
 {
     // using Y = typename CPUComputeType<T>::value;
-    constexpr typename T::compat_t zero{0.0};
+    constexpr typename T::repr_t zero{0.0};
     // auto src = reinterpret_cast<const Y *>(src_);
     // auto dst = reinterpret_cast<Y *>(dst_);
     for(Index i = 0; i < nelems; ++i)
     {
-        auto src_odd = static_cast<typename T::compat_t>(src_[2*i+1]);
-        auto src_even = static_cast<typename T::compat_t>(src_[2*i]);
-        auto dst_odd = static_cast<typename T::compat_t>(dst_[2*i+1]);
-        auto dst_even = static_cast<typename T::compat_t>(dst_[2*i]);
+        auto src_odd = static_cast<typename T::repr_t>(src_[2*i+1]);
+        auto src_even = static_cast<typename T::repr_t>(src_[2*i]);
+        auto dst_odd = static_cast<typename T::repr_t>(dst_[2*i+1]);
+        auto dst_even = static_cast<typename T::repr_t>(dst_[2*i]);
         // Do nothing if sum of exponents of source is zero
         if(src_odd != zero)
         {
