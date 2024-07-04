@@ -6,15 +6,7 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/tensor.py
-# Multiprecision tensor with operations
+# @file wrappers/python/nntile/layer/layer_norm.py
+# LayerNorm of NNTile Python package
 #
 # @version 1.0.0
-
-from .functions import *
-from .nntile_core import TransOp, notrans, trans
-from .nntile_core.tensor import (Tensor_bool, Tensor_fp32,
-                                 Tensor_fp32_fast_tf32, Tensor_fp64,
-                                 Tensor_int64, TensorTraits)
-from .types import *
-from .utils.constructors import *
