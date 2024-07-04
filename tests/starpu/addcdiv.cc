@@ -26,38 +26,39 @@ using namespace nntile;
 using namespace nntile::starpu;
 
 template<typename T>
-void validate_cpu(T val, T eps, Index nelems)
+void validate_cpu(Scalar val, Scalar eps, Index nelems)
 {
+    using Y = typename T::repr_t;
     // Init all the data
     std::vector<T> data(nelems);
     std::vector<T> nom(nelems);
     std::vector<T> denom(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        data[i] = T(i+1);
-        nom[i] = T(2*i + 1);
-        denom[i] = T(i);
+        data[i] = Y(i+1);
+        nom[i] = Y(2*i + 1);
+        denom[i] = Y(i);
     }
     // Create copies of destination
     std::vector<T> data2(data);
     // Launch low-level kernel
-    std::cout << "Run kernel::addcdiv::cpu<T>\n";
+    std::cout << "Run kernel::addcdiv::cpu<" << T::type_repr << ">\n";
     kernel::addcdiv::cpu<T>(val, eps, nelems, &nom[0], &denom[0], &data[0]);
     // Check by actually submitting a task
     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
     VariableHandle nom_handle(&nom[0], sizeof(T)*nelems, STARPU_R);
     VariableHandle denom_handle(&denom[0], sizeof(T)*nelems, STARPU_R);
     addcdiv::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::addcdiv::submit<T> restricted to CPU\n";
+    std::cout << "Run starpu::addcdiv::submit<" << T::type_repr << "> restricted to CPU\n";
     addcdiv::submit<T>(val, eps, nelems, nom_handle, denom_handle, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(data[i] == data2[i]);
+        TEST_ASSERT(Y(data[i]) == Y(data2[i]));
     }
-    std::cout << "OK: starpu::addcdiv::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::addcdiv::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
