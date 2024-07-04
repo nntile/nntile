@@ -39,7 +39,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     TensorTraits dst_single_traits(shape, shape);
     std::vector<int> dist_root = {mpi_root};
     Tensor<T> dst_single(dst_single_traits, dist_root, last_tag);
-    using Y = typename T::compat_t;
+    using Y = typename T::repr_t;
     if(mpi_rank == mpi_root)
     {
         auto tile = dst_single.get_tile(0);

@@ -48,30 +48,6 @@ struct CUDAComputeType<int64_t>
     using value = std::int64_t;
 };
 
-//! Compute type for nntile::int32_t type
-template<>
-struct CUDAComputeType<int32_t>
-{
-    // nntile::int32_t -> std::int32_t from <cstdint>
-    using value = std::int32_t;
-};
-
-//! Compute type for nntile::int16_t type
-template<>
-struct CUDAComputeType<int16_t>
-{
-    // nntile::int16_t -> std::int16_t from <cstdint>
-    using value = std::int16_t;
-};
-
-//! Compute type for nntile::int8_t type
-template<>
-struct CUDAComputeType<int8_t>
-{
-    // nntile::int8_t -> std::int8_t from <cstdint>
-    using value = std::int8_t;
-};
-
 //! Compute type for nntile::bool_t type
 template<>
 struct CUDAComputeType<bool_t>
@@ -106,42 +82,6 @@ struct CUDAComputeType<fp32_fast_tf32_t>
     // storage type and `tf32_t` as compute type.
 };
 
-////! Compute type for nntile::fp32_fast_fp16_t type
-//template<>
-//struct CUDAComputeType<fp32_fast_fp16_t>
-//{
-//#ifdef NNTILE_USE_CUDA_TF32
-//    using value = float;
-//#endif
-//};
-//
-////! Compute type for nntile::fp32_fast_bf16_t type
-//template<>
-//struct CUDAComputeType<fp32_fast_bf16_t>
-//{
-//#ifdef NNTILE_USE_CUDA_TF32
-//    using value = float;
-//#endif
-//};
-//
-////! Compute type for nntile::tf32_t type
-//template<>
-//struct CUDAComputeType<tf32_t>
-//{
-//#ifdef NNTILE_USE_CUDA_TF32
-//    using value = float;
-//#endif
-//};
-//
-////! Compute type for nntile::fp16_t type
-//template<>
-//struct CUDAComputeType<fp16_t>
-//{
-//#ifdef NNTILE_USE_CUDA_TF32
-//    using value = __nv_half;
-//#endif
-//};
-
 //! Compute type for nntile::bf16_t type
 template<>
 struct CUDAComputeType<bf16_t>
@@ -150,24 +90,6 @@ struct CUDAComputeType<bf16_t>
     using value = __nv_bfloat16;
 #endif
 };
-
-////! Compute type for nntile::fp8_e4m3_t type
-//template<>
-//struct CUDAComputeType<fp8_e4m3_t>
-//{
-//#ifdef NNTILE_USE_CUDA_TF32
-//    using value = __nv_fp8_e4m3;
-//#endif
-//};
-//
-////! Compute type for nntile::fp8_e5m2_t type
-//template<>
-//struct CUDAComputeType<fp8_e5m2_t>
-//{
-//#ifdef NNTILE_USE_CUDA_TF32
-//    using value = __nv_fp8_e5m2;
-//#endif
-//};
 
 //! Convert any NNTile wrapped type value into a corresponding CUDA value
 template<typename T>
@@ -178,7 +100,7 @@ typename CUDAComputeType<T>::value cast_scalar_cuda(const Scalar &value)
     // Convert input Scalar into intermediate T
     const T inter(value);
     // Copy internal part into the result
-    *reinterpret_cast<typename T::internal_t *>(&res) = inter.value;
+    *reinterpret_cast<typename T::storage_t *>(&res) = inter.value;
     return res;
 }
 
@@ -197,4 +119,3 @@ const typename CUDAComputeType<T>::value *cast_pointer_cuda(const T *ptr)
 }
 
 } // namespace nntile::kernel
-

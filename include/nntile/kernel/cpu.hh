@@ -33,30 +33,6 @@ struct CPUComputeType<int64_t>
     using value = std::int64_t;
 };
 
-//! Compute type for nntile::int32_t type
-template<>
-struct CPUComputeType<int32_t>
-{
-    // nntile::int32_t -> std::int32_t from <cstdint>
-    using value = std::int32_t;
-};
-
-//! Compute type for nntile::int16_t type
-template<>
-struct CPUComputeType<int16_t>
-{
-    // nntile::int16_t -> std::int16_t from <cstdint>
-    using value = std::int16_t;
-};
-
-//! Compute type for nntile::int8_t type
-template<>
-struct CPUComputeType<int8_t>
-{
-    // nntile::int8_t -> std::int8_t from <cstdint>
-    using value = std::int8_t;
-};
-
 //! Compute type for nntile::bool_t type
 template<>
 struct CPUComputeType<bool_t>
@@ -91,70 +67,4 @@ struct CPUComputeType<fp32_fast_tf32_t>
     // storage type and `tf32_t` as compute type.
 };
 
-////! Compute type for nntile::fp32_fast_fp16_t type
-//template<>
-//struct CPUComputeType<fp32_fast_fp16_t>
-//{
-//    // No member `value` here is for a reason: this type shall be manually
-//    // converted into computing types, as memory-bound operations shall be done
-//    // in `fp32_t`, while compute-bound operations shall use `fp32_t` as data
-//    // storage type and `fp16_t` as compute type.
-//};
-//
-////! Compute type for nntile::fp32_fast_bf16_t type
-//template<>
-//struct CPUComputeType<fp32_fast_bf16_t>
-//{
-//    // No member `value` here is for a reason: this type shall be manually
-//    // converted into computing types, as memory-bound operations shall be done
-//    // in `fp32_t`, while compute-bound operations shall use `fp32_t` as data
-//    // storage type and `bf16_t` as compute type.
-//};
-//
-////! Compute type for nntile::tf32_t type
-//template<>
-//struct CPUComputeType<tf32_t>
-//{
-//    // No member `value` here is for a reason: this type is usually not
-//    // supported on CPUs. TODO: find out how to define if CPU supports this
-//    // type and define corresponding per-CPU compute type with help of CMake.
-//};
-//
-////! Compute type for nntile::fp16_t type
-//template<>
-//struct CPUComputeType<fp16_t>
-//{
-//    // No member `value` here is for a reason: this type is usually not
-//    // supported on CPUs. TODO: find out how to define if CPU supports this
-//    // type and define corresponding per-CPU compute type with help of CMake.
-//};
-//
-////! Compute type for nntile::bf16_t type
-//template<>
-//struct CPUComputeType<bf16_t>
-//{
-//    // No member `value` here is for a reason: this type is usually not
-//    // supported on CPUs. TODO: find out how to define if CPU supports this
-//    // type and define corresponding per-CPU compute type with help of CMake.
-//};
-//
-////! Compute type for nntile::fp8_e4m3_t type
-//template<>
-//struct CPUComputeType<fp8_e4m3_t>
-//{
-//    // No member `value` here is for a reason: this type is usually not
-//    // supported on CPUs. TODO: find out how to define if CPU supports this
-//    // type and define corresponding per-CPU compute type with help of CMake.
-//};
-//
-////! Compute type for nntile::fp8_e5m2_t type
-//template<>
-//struct CPUComputeType<fp8_e5m2_t>
-//{
-//    // No member `value` here is for a reason: this type is usually not
-//    // supported on CPUs. TODO: find out how to define if CPU supports this
-//    // type and define corresponding per-CPU compute type with help of CMake.
-//};
-
 } // namespace nntile::kernel
-

@@ -24,10 +24,10 @@ namespace nntile
 {
 
 //! Shorthand for nntile::bf16_t internal type
-using bf16_i_t = typename bf16_t::internal_t;
+using bf16_i_t = typename bf16_t::storage_t;
 
 //! Shorthand for nntile::bf16_t compat type
-using bf16_c_t = typename bf16_t::compat_t;
+using bf16_c_t = typename bf16_t::repr_t;
 
 //! Conversion from compat to internal for nntile::bf16_t
 bf16_i_t bf16_c_to_i(const bf16_c_t &value)
@@ -51,21 +51,21 @@ bf16_c_t bf16_i_to_c(const bf16_i_t &value)
     return __bfloat162float(actual);
 }
 
-// BF16: Constructor from a compat_t value
+// BF16: Constructor from a repr_t value
 bf16_t::bf16_t(const bf16_c_t &other):
     value(bf16_c_to_i(other))
 {
 }
 
-// BF16: Assignment from a compat_t value
+// BF16: Assignment from a repr_t value
 bf16_t &bf16_t::operator=(const bf16_c_t &other)
 {
     value = bf16_c_to_i(other);
     return *this;
 }
 
-// BF16: Conversion to compat_t value
-bf16_t::operator compat_t() const
+// BF16: Conversion to repr_t value
+bf16_t::operator repr_t() const
 {
     return bf16_i_to_c(value);
 }

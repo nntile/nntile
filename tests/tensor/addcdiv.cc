@@ -41,7 +41,7 @@ void check(Scalar val, Scalar eps, const std::vector<Index> &shape,
     Tensor<T> src_single(single_traits, dist_root, last_tag),
               nom_single(single_traits, dist_root, last_tag),
               denom_single(single_traits, dist_root, last_tag);
-    using Y = typename T::compat_t;
+    using Y = typename T::repr_t;
     if(mpi_rank == mpi_root)
     {
         // Get the only tiles of single-tiled tensors

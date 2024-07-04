@@ -20,7 +20,7 @@ namespace nntile::kernel::gelu
 {
 
 template<typename T>
-void cpu(Index nelems, T *data_)
+void cpu(Index nelems, T *data)
     noexcept
 //! Inplace GeLU operation performed on CPU
 /*! Uses very slow std::erfc() function, so consider using approximated version
@@ -28,11 +28,10 @@ void cpu(Index nelems, T *data_)
  * GeLU(z) = 0.5 z erfc(-z/sqrt(2))
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data_: Buffer to apply GeLU
+ * @params[inout] data: Buffer to apply GeLU
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto data = reinterpret_cast<Y *>(data_);
+    using Y = typename T::repr_t;
     constexpr Y mone{-1.0}, pt5{0.5};
     const Y f1 = mone / std::sqrt(Y{2.0});
     for(Index i = 0; i < nelems; ++i)
@@ -50,6 +49,10 @@ void cpu<fp32_t>(Index nelems, fp32_t *data)
 
 template
 void cpu<fp64_t>(Index nelems, fp64_t *data)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index nelems, bf16_t *data)
     noexcept;
 
 } // namespace nntile::kernel::gelu

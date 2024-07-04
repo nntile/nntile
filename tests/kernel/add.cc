@@ -71,7 +71,7 @@ void run_cuda(Index nelems, Scalar alpha, const std::vector<T> &src,
 template<typename T>
 void validate(Index nelems, int test_index_a, int test_index_b)
 {
-    using Y = typename T::compat_t;
+    using Y = typename T::repr_t;
     const Y eps = 2 * T::epsilon();
     // Init test input
     Scalar alpha = (1.0)/Scalar(test_index_a);

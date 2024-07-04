@@ -92,7 +92,7 @@ void copy_raw(Index nelems, const T *src, Y *dst)
 // numpy.ndarray -> Tile
 template<typename T>
 void tile_from_array(const tile::Tile<T> &tile,
-        const py::array_t<typename T::compat_t,
+        const py::array_t<typename T::repr_t,
             py::array::f_style | py::array::forcecast> &array)
 {
     // Treat special 0-dimensional case, where NNTile assumes 1 element in a
@@ -110,7 +110,7 @@ void tile_from_array(const tile::Tile<T> &tile,
         // Acquire tile and copy a single element
         auto tile_local = tile.acquire(STARPU_W);
 #ifndef STARPU_SIMGRID
-        using Y = typename T::compat_t;
+        using Y = typename T::repr_t;
         constexpr bool triv = T::trivial_copy_from_compat;
         copy_raw<Y, T, triv>(1, array.data(), tile_local.get_ptr());
 #endif // STARPU_SIMGRID
@@ -132,7 +132,7 @@ void tile_from_array(const tile::Tile<T> &tile,
     // Acquire tile and copy data
     auto tile_local = tile.acquire(STARPU_W);
 #ifndef STARPU_SIMGRID
-    using Y = typename T::compat_t;
+    using Y = typename T::repr_t;
     constexpr bool triv = T::trivial_copy_from_compat;
     copy_raw<Y, T, triv>(tile.nelems, array.data(), tile_local.get_ptr());
 #endif // STARPU_SIMGRID
@@ -142,7 +142,7 @@ void tile_from_array(const tile::Tile<T> &tile,
 // Tile -> numpy.ndarray
 template<typename T>
 void tile_to_array(const tile::Tile<T> &tile,
-        py::array_t<typename T::compat_t, py::array::f_style> &array)
+        py::array_t<typename T::repr_t, py::array::f_style> &array)
 {
     // Treat special 0-dimensional case, where NNTile assumes 1 element in a
     // tensor, while 0-dimensional numpy array assumes there no array elements
@@ -159,7 +159,7 @@ void tile_to_array(const tile::Tile<T> &tile,
         // Acquire tile and copy a single element
         auto tile_local = tile.acquire(STARPU_R);
 #ifndef STARPU_SIMGRID
-        using Y = typename T::compat_t;
+        using Y = typename T::repr_t;
         constexpr bool triv = T::trivial_copy_from_compat;
         copy_raw<T, Y, triv>(1, tile_local.get_ptr(), array.mutable_data());
 #endif // STARPU_SIMGRID
@@ -181,7 +181,7 @@ void tile_to_array(const tile::Tile<T> &tile,
     // Acquire tile and copy data
     auto tile_local = tile.acquire(STARPU_R);
 #ifndef STARPU_SIMGRID
-    using Y = typename T::compat_t;
+    using Y = typename T::repr_t;
     constexpr bool triv = T::trivial_copy_from_compat;
     copy_raw<T, Y, triv>(tile.nelems, tile_local.get_ptr(),
         array.mutable_data());
@@ -237,7 +237,7 @@ void def_mod_tile(py::module_ &m)
 // numpy.ndarray -> Tensor
 template<typename T>
 void tensor_from_array(const tensor::Tensor<T> &tensor,
-        const py::array_t<typename T::compat_t,
+        const py::array_t<typename T::repr_t,
             py::array::f_style | py::array::forcecast> &array)
 {
     // Treat special 0-dimensional case, where NNTile assumes 1 element in a
@@ -259,7 +259,7 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
         {
             auto tile_local = tile.acquire(STARPU_W);
 #ifndef STARPU_SIMGRID
-            using Y = typename T::compat_t;
+            using Y = typename T::repr_t;
             constexpr bool triv = T::trivial_copy_from_compat;
             copy_raw<Y, T, triv>(1, array.data(), tile_local.get_ptr());
 #endif // STARPU_SIMGRID
@@ -295,7 +295,7 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
     {
         auto tile_local = tile.acquire(STARPU_W);
 #ifndef STARPU_SIMGRID
-        using Y = typename T::compat_t;
+        using Y = typename T::repr_t;
         constexpr bool triv = T::trivial_copy_from_compat;
         copy_raw<Y, T, triv>(tile.nelems, array.data(), tile_local.get_ptr());
 #endif // STARPU_SIMGRID
@@ -309,7 +309,7 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
 // Tensor -> numpy.ndarray
 template<typename T>
 void tensor_to_array(const tensor::Tensor<T> &tensor,
-        py::array_t<typename T::compat_t, py::array::f_style> &array)
+        py::array_t<typename T::repr_t, py::array::f_style> &array)
 {
     // Treat special 0-dimensional case, where NNTile assumes 1 element in a
     // tensor, while 0-dimensional numpy array assumes there no array elements
@@ -330,7 +330,7 @@ void tensor_to_array(const tensor::Tensor<T> &tensor,
         {
             auto tile_local = tile.acquire(STARPU_R);
 #ifndef STARPU_SIMGRID
-            using Y = typename T::compat_t;
+            using Y = typename T::repr_t;
             constexpr bool triv = T::trivial_copy_from_compat;
             copy_raw<T, Y, triv>(1, tile_local.get_ptr(),
                 array.mutable_data());
@@ -368,7 +368,7 @@ void tensor_to_array(const tensor::Tensor<T> &tensor,
     {
         auto tile_local = tile.acquire(STARPU_R);
 #ifndef STARPU_SIMGRID
-        using Y = typename T::compat_t;
+        using Y = typename T::repr_t;
         constexpr bool triv = T::trivial_copy_from_compat;
         copy_raw<T, Y, triv>(tile.nelems, tile_local.get_ptr(),
             array.mutable_data());
@@ -394,7 +394,7 @@ void def_class_tensor(py::module_ &m, const char *name)
         def("wont_use", &Tensor<T>::wont_use).
         def("from_array", &tensor_from_array<T>).
         def("to_array", &tensor_to_array<T>).
-        
+
         def("set_reduction_add", &Tensor<T>::set_reduction_add).
         def("set_reduction_hypot", &Tensor<T>::set_reduction_hypot).
         def("set_reduction_maxsumexp", &Tensor<T>::set_reduction_maxsumexp).
