@@ -78,10 +78,10 @@ void logger_main()
 }
 
 //! Initialization of the logger thread
-void logger_init()
+void logger_init(const char *server_addr, int server_port)
 {
     // Connect to websocket
-    websocket_connect();
+    websocket_connect(server_addr, server_port);
     // Start main logger thread function
     logger_running = true;
     logger_thread = std::thread(logger_main);

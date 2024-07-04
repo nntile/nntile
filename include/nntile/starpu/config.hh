@@ -59,7 +59,9 @@ class Config: public starpu_conf
 {
     int cublas;
 public:
-    explicit Config(int ncpus_=-1, int ncuda_=-1, int cublas_=-1, int logger=1)
+    explicit Config(int ncpus_=-1, int ncuda_=-1, int cublas_=-1, int logger=0,
+            const char *logger_server_addr="localhost",
+            int logger_server_port=5001)
     {
         starpu_fxt_autostart_profiling(0);
         // Init StarPU configuration with default values at first
@@ -101,7 +103,7 @@ public:
 #endif // NNTILE_USE_CUDA
        if(logger != 0)
        {
-           nntile::logger::logger_init();
+           nntile::logger::logger_init(logger_server_addr, logger_server_port);
        }
     }
     ~Config()

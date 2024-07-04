@@ -19,19 +19,19 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-
-#define SERVER_ADDR "127.0.0.1"
-#define SERVER_PORT 5001
+#include <iostream>
 
 namespace nntile::logger
 {
 
 int client_socket = -1;
 
-void websocket_connect()
+void websocket_connect(const char *server_addr, int server_port)
 {
     struct sockaddr_in server;
 
+    std::cout << "Trying to connect to " << server_addr << ":" << server_port
+        << "\n";
     client_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (client_socket == -1)
     {
@@ -40,8 +40,8 @@ void websocket_connect()
     }
 
     server.sin_family = AF_INET;
-    server.sin_port = htons(SERVER_PORT);
-    inet_pton(AF_INET, SERVER_ADDR, &server.sin_addr);
+    server.sin_port = htons(server_port);
+    inet_pton(AF_INET, server_addr, &server.sin_addr);
 
     if (connect(client_socket, (struct sockaddr *)&server, sizeof(server)) < 0)
     {

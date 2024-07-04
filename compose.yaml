@@ -1,0 +1,25 @@
+services:
+  logger-server:
+    image: nntile_logger_server
+    build:
+      dockerfile: Dockerfile
+      context: logger
+    ports:
+      - ${NNTILE_TB_PORT}:6006
+    cpus: 1
+
+  jupyter-lab:
+    image: nntile_jupyter_lab
+    build:
+      dockerfile: notebooks/Dockerfile
+      context: ./
+      args:
+        MAKE_JOBS: 8
+    ports:
+      - ${NNTILE_LAB_PORT}:8888
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]

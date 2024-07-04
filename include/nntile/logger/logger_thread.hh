@@ -21,7 +21,7 @@ namespace nntile::logger
 
 extern std::atomic<bool> logger_running;
 
-void logger_init();
+void logger_init(const char *server_addr, int server_port);
 
 void logger_shutdown();
 

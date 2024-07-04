@@ -19,9 +19,9 @@
 namespace nntile::logger
 {
 
-void websocket_connect();
-
 extern int client_socket;
+
+void websocket_connect(const char *server_addr, int server_port);
 
 void websocket_disconnect();
 
