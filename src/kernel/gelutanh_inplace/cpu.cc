@@ -14,12 +14,13 @@
 
 #include "nntile/kernel/gelutanh_inplace/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::gelutanh_inplace
 {
 
 template<typename T>
-void cpu(Index nelems, T *data)
+void cpu(Index nelems, T *data_)
     noexcept
 //! Approximate GeLU operation on CPU
 /*! Applies the following approximation of the GeLU function:
@@ -30,19 +31,21 @@ void cpu(Index nelems, T *data)
  * AGeLU(z) = z / (1+exp(f(z))
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data: Buffer to apply GeLU
+ * @params[inout] data_: Buffer to apply GeLU
  * */
 {
+    using Y = typename CPUComputeType<T>::value;
+    auto data = reinterpret_cast<Y *>(data_);
     // Constants
-    constexpr T pi = 3.141592653589793238462643383279502884L,
-        one = 1, pt5 = 0.5, f1 = T{0.044715};
+    constexpr Y pi{3.141592653589793238462643383279502884L},
+        one{1.0}, pt5{0.5}, f1{0.044715};
     // Square root is not constexpr by standard, proceed with a static const
-    static const T sqrt_pi = std::sqrt(pi), sqrt_2 = std::sqrt(T{2}),
-        f2 = sqrt_2/sqrt_pi, f3 = -T{2}*f2, f4 = f3*f1;
+    static const Y sqrt_pi = std::sqrt(pi), sqrt_2 = std::sqrt(Y{2.0}),
+        f2 = sqrt_2/sqrt_pi, f3 = -Y{2.0}*f2, f4 = f3*f1;
     for(Index i = 0; i < nelems; ++i)
     {
-        T z = data[i];
-        T y = z * (f3 + f4*z*z);
+        Y z = data[i];
+        Y y = z * (f3 + f4*z*z);
         data[i] = z / (one+std::exp(y));
     }
 }

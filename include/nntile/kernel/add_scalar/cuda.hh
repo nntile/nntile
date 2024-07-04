@@ -21,7 +21,7 @@ namespace nntile::kernel::add_scalar
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, Index num_elements, T alpha, T beta, T* dst)
+void cuda(cudaStream_t stream, Index num_elements, Scalar alpha, Scalar beta, T* dst)
     noexcept;
 
 } // namespace nntile::kernel::add_scalar

@@ -111,14 +111,14 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index nelems, scal_t alpha, Handle src, Handle dst)
+void submit(Index nelems, Scalar alpha, Handle src, Handle dst)
 //! Insert scal task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
-    constexpr scal_t zero = 0.0;
+    constexpr Scalar zero = 0.0;
     // if alpha is zero,sfunction reduces to clear
     if(alpha == zero)
     {
@@ -145,12 +145,12 @@ void submit(Index nelems, scal_t alpha, Handle src, Handle dst)
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index nelems, scal_t alpha, Handle src, Handle dst);
+void submit<fp32_t>(Index nelems, Scalar alpha, Handle src, Handle dst);
 
 template
-void submit<fp32_fast_tf32_t>(Index nelems, scal_t alpha, Handle src, Handle dst);
+void submit<fp32_fast_tf32_t>(Index nelems, Scalar alpha, Handle src, Handle dst);
 
 template
-void submit<fp64_t>(Index nelems, scal_t alpha, Handle src, Handle dst);
+void submit<fp64_t>(Index nelems, Scalar alpha, Handle src, Handle dst);
 
 } // namespace nntile::starpu::scal

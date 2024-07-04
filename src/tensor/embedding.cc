@@ -20,7 +20,7 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void embedding_async(const Tensor<Index> &index, const Tensor<T> &vocab,
+void embedding_async(const Tensor<int64_t> &index, const Tensor<T> &vocab,
         const Tensor<T> &embed, Index axis)
 {
     // Check dimensions
@@ -117,7 +117,7 @@ void embedding_async(const Tensor<Index> &index, const Tensor<T> &vocab,
 }
 
 template<typename T>
-void embedding(const Tensor<Index> &index, const Tensor<T> &vocab,
+void embedding(const Tensor<int64_t> &index, const Tensor<T> &vocab,
         const Tensor<T> &embed, Index axis)
 {
     embedding_async<T>(index, vocab, embed, axis);
@@ -127,29 +127,29 @@ void embedding(const Tensor<Index> &index, const Tensor<T> &vocab,
 
 // Explicit instantiation
 template
-void embedding_async<fp32_t>(const Tensor<Index> &index,
+void embedding_async<fp32_t>(const Tensor<int64_t> &index,
         const Tensor<fp32_t> &vocab, const Tensor<fp32_t> &embed, Index axis);
 
 template
-void embedding_async<fp32_fast_tf32_t>(const Tensor<Index> &index,
+void embedding_async<fp32_fast_tf32_t>(const Tensor<int64_t> &index,
         const Tensor<fp32_fast_tf32_t> &vocab, const Tensor<fp32_fast_tf32_t> &embed, Index axis);
 
 template
-void embedding_async<fp64_t>(const Tensor<Index> &index,
+void embedding_async<fp64_t>(const Tensor<int64_t> &index,
         const Tensor<fp64_t> &vocab, const Tensor<fp64_t> &embed, Index axis);
 
 // Explicit instantiation
 template
-void embedding<fp32_t>(const Tensor<Index> &index, const Tensor<fp32_t> &vocab,
+void embedding<fp32_t>(const Tensor<int64_t> &index, const Tensor<fp32_t> &vocab,
         const Tensor<fp32_t> &embed, Index axis);
 
 template
-void embedding<fp32_fast_tf32_t>(const Tensor<Index> &index, const Tensor<fp32_fast_tf32_t> &vocab,
+void embedding<fp32_fast_tf32_t>(const Tensor<int64_t> &index, const Tensor<fp32_fast_tf32_t> &vocab,
         const Tensor<fp32_fast_tf32_t> &embed, Index axis);
 
 
 template
-void embedding<fp64_t>(const Tensor<Index> &index, const Tensor<fp64_t> &vocab,
+void embedding<fp64_t>(const Tensor<int64_t> &index, const Tensor<fp64_t> &vocab,
         const Tensor<fp64_t> &embed, Index axis);
 
 } // namespace nntile::tensor

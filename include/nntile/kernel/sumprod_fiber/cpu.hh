@@ -20,8 +20,8 @@ namespace nntile::kernel::sumprod_fiber
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, T alpha, const T *src1, const T *src2,
-        T beta, T *dst)
+void cpu(Index m, Index n, Index k, Scalar alpha, const T *src1, const T *src2,
+        Scalar beta, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::sumprod_fiber

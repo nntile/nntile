@@ -27,7 +27,7 @@ void cpu(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *gamma_beta = interfaces[0]->get_ptr<T>();
@@ -48,7 +48,7 @@ void cuda(void *buffers[], void *cl_args)
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *gamma_beta = interfaces[0]->get_ptr<T>();
@@ -70,7 +70,7 @@ static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
     // Apply hash over parameters m, n and k. This way if we swap values of m,
     // n and k, then the total size of buffers will remain the same, but the
     // footprint will be different
@@ -118,7 +118,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, Index l, T eps, Handle gamma_beta,
+void submit(Index m, Index n, Index k, Index l, Scalar eps, Handle gamma_beta,
         Handle sumnorm, Handle dst)
 //! Insert normalize task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -127,7 +127,7 @@ void submit(Index m, Index n, Index k, Index l, T eps, Handle gamma_beta,
  * */
 {
     // Codelet arguments
-    auto args = new args_t<T>
+    auto args = new args_t
     {
         .m = m,
         .n = n,
@@ -135,7 +135,7 @@ void submit(Index m, Index n, Index k, Index l, T eps, Handle gamma_beta,
         .l = l,
         .eps = eps
     };
-    fp64_t nflops = 14 * m * n * k;
+    double nflops = 14 * m * n * k;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(gamma_beta),
@@ -153,11 +153,11 @@ void submit(Index m, Index n, Index k, Index l, T eps, Handle gamma_beta,
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index m, Index n, Index k, Index l, fp32_t eps,
+void submit<fp32_t>(Index m, Index n, Index k, Index l, Scalar eps,
         Handle gamma_beta, Handle sumnorm, Handle dst);
 
 template
-void submit<fp64_t>(Index m, Index n, Index k, Index l, fp64_t eps,
+void submit<fp64_t>(Index m, Index n, Index k, Index l, Scalar eps,
         Handle gamma_beta, Handle sumnorm, Handle dst);
 
 } // namespace nntile::starpu::normalize

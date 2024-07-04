@@ -24,24 +24,10 @@
 #include <nntile/starpu/accumulate_maxsumexp.hh>
 #include <nntile/starpu/clear.hh>
 
-#define starpu_mpi_tag_t int64_t
+#define starpu_mpi_tag_t std::int64_t
 
 namespace nntile::tensor
 {
-
-// Overload for printing fp16_t
-static std::ostream &operator<<(std::ostream &cout, fp16_t val)
-{
-    cout << "FP16 is not yet printable";
-    return cout;
-}
-
-// Overload for printing fp32_fast_tf32_t
-static std::ostream &operator<<(std::ostream &cout, fp32_fast_tf32_t val)
-{
-    cout << "fp32_fast_tf32_t is not yet printable";
-    return cout;
-}
 
 //! Many-dimensional tensor, presented by a set of subtensors (tiles)
 //

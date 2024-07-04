@@ -13,24 +13,31 @@
  * */
 
 #include "nntile/kernel/addcdiv/cpu.hh"
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::addcdiv
 {
 
 template<typename T>
-void cpu(T val, T eps, Index nelems, const T *nom, const T* denom, T *res)
+void cpu(Scalar val_, Scalar eps_, Index nelems, const T *nom_, const T* denom_,
+        T *res_)
     noexcept
 //! Per-element addcdiv operation of buffers
 /*! One of the buffers serves as output
- *
- * @param[in] val: scalar that is multiplied on the division result
- * @param[in] eps: small scalar to avoid division by zero
+ * 
+ * @param[in] val_: scalar that is multiplied on the division result
+ * @param[in] eps_: small scalar to avoid division by zero
  * @param[in] nelems: Number of elements in both buffers
- * @param[in] nom: Input buffer used as nominator
- * @param[in] denom: Input buffer used as denominator
- * @param[inout] res: Input buffers that contains output in the end
+ * @param[in] nom_: Input buffer used as nominator
+ * @param[in] denom_: Input buffer used as denominator
+ * @param[inout] res_: Input buffers that contains output in the end
  * */
 {
+    using Y = typename CPUComputeType<T>::value;
+    auto nom = reinterpret_cast<const Y *>(nom_);
+    auto denom = reinterpret_cast<const Y *>(denom_);
+    auto res = reinterpret_cast<Y *>(res_);
+    const Y val{val_}, eps{eps_};
     // Cycle over buffers
     for(Index i = 0; i < nelems; ++i)
     {
@@ -40,12 +47,12 @@ void cpu(T val, T eps, Index nelems, const T *nom, const T* denom, T *res)
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(fp32_t val, fp32_t eps, Index nelems,
+void cpu<fp32_t>(Scalar val, Scalar eps, Index nelems,
                  const fp32_t* nom, const fp32_t* denom, fp32_t* res)
     noexcept;
 
 template
-void cpu<fp64_t>(fp64_t val, fp64_t eps, Index nelems,
+void cpu<fp64_t>(Scalar val, Scalar eps, Index nelems,
                  const fp64_t* nom, const fp64_t* denom, fp64_t* res)
     noexcept;
 

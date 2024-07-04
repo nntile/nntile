@@ -21,7 +21,7 @@ namespace nntile::tile
 //! Tile-wise average and deviation from sum and scaled sum of squares
 template<typename T>
 void normalize_async(const Tile<T> &gamma_beta, const Tile<T> &sumnorm,
-        const Tile<T> &dst, Index l, T eps, Index axis)
+        const Tile<T> &dst, Index l, Scalar eps, Index axis)
 {
     // Check gamma_beta
     if(gamma_beta.shape.size() != 1)
@@ -93,7 +93,7 @@ void normalize_async(const Tile<T> &gamma_beta, const Tile<T> &sumnorm,
 //! Tile-wise average and deviation from sum and scaled sum of squares
 template<typename T>
 void normalize(const Tile<T> &gamma_beta, const Tile<T> &sumnorm,
-        const Tile<T> &dst, Index l, T eps, Index axis)
+        const Tile<T> &dst, Index l, Scalar eps, Index axis)
 {
     normalize_async<T>(gamma_beta, sumnorm, dst, l, eps, axis);
     starpu_task_wait_for_all();
@@ -103,22 +103,22 @@ void normalize(const Tile<T> &gamma_beta, const Tile<T> &sumnorm,
 template
 void normalize_async<fp32_t>(const Tile<fp32_t> &gamma_beta,
         const Tile<fp32_t> &sumnorm, const Tile<fp32_t> &dst, Index l,
-        fp32_t eps, Index axis);
+        Scalar eps, Index axis);
 
 template
 void normalize_async<fp64_t>(const Tile<fp64_t> &gamma_beta,
         const Tile<fp64_t> &sumnorm, const Tile<fp64_t> &dst, Index l,
-        fp64_t eps, Index axis);
+        Scalar eps, Index axis);
 
 // Explicit instantiation
 template
 void normalize<fp32_t>(const Tile<fp32_t> &gamma_beta,
         const Tile<fp32_t> &sumnorm, const Tile<fp32_t> &dst, Index l,
-        fp32_t eps, Index axis);
+        Scalar eps, Index axis);
 
 template
 void normalize<fp64_t>(const Tile<fp64_t> &gamma_beta,
         const Tile<fp64_t> &sumnorm, const Tile<fp64_t> &dst, Index l,
-        fp64_t eps, Index axis);
+        Scalar eps, Index axis);
 
 } // namespace nntile::tile

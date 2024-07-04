@@ -114,14 +114,14 @@ void restore_where()
 }
 
 template<typename T>
-void submit(scal_t val, scal_t eps, Index nelems, Handle nom, Handle denom, Handle src)
+void submit(Scalar val, Scalar eps, Index nelems, Handle nom, Handle denom, Handle src)
 {
     // Codelet arguments
     args_t* args = (args_t*)std::malloc(sizeof(*args));
     args->val = val;
     args->eps = eps;
     args->nelems = nelems;
-    //fp64_t nflops = 5 * nelems;
+    //double nflops = 5 * nelems;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(nom),
@@ -139,15 +139,15 @@ void submit(scal_t val, scal_t eps, Index nelems, Handle nom, Handle denom, Hand
 
 // Explicit instantiaion
 template
-void submit<fp32_t>(scal_t val, scal_t eps, Index nelems, Handle nom,
+void submit<fp32_t>(Scalar val, Scalar eps, Index nelems, Handle nom,
         Handle denom, Handle src);
 
 template
-void submit<fp32_fast_tf32_t>(scal_t val, scal_t eps, Index nelems, Handle nom,
+void submit<fp32_fast_tf32_t>(Scalar val, Scalar eps, Index nelems, Handle nom,
         Handle denom, Handle src);
 
 template
-void submit<fp64_t>(scal_t val, scal_t eps, Index nelems, Handle nom,
+void submit<fp64_t>(Scalar val, Scalar eps, Index nelems, Handle nom,
         Handle denom, Handle src);
 
 } // namespace nntile::starpu::addcdiv

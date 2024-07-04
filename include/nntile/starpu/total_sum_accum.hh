@@ -23,7 +23,7 @@ namespace nntile::starpu::total_sum_accum
 //! Structure for arguments
 struct args_t
 {
-    scal_t alpha;
+    Scalar alpha;
     Index n_labels;
     Index n_outputs;
 };
@@ -74,7 +74,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(scal_t alpha, Index n_labels, Index n_outputs, Handle logsumexp, Handle src,
+void submit(Scalar alpha, Index n_labels, Index n_outputs, Handle logsumexp, Handle src,
         Handle class_labels, Handle val);
 
 } // namespace nntile::starpu::total_sum_accum

@@ -20,7 +20,7 @@ namespace nntile::tensor
 
 //! Asynchronous tensor-wise fuse AdamW step
 template<typename T>
-void adamw_step_async(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
+void adamw_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
                     const Tensor<T> &grad, const Tensor<T> &first_moment, const Tensor<T> &second_moment,
                     const Tensor<T> &p)
 {
@@ -73,7 +73,7 @@ void adamw_step_async(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, 
 
 //! Blocking version of tensor-wise AdamW operation
 template<typename T>
-void adamw_step(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
+void adamw_step(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
                const Tensor<T> &grad, const Tensor<T> &first_moment, const Tensor<T> &second_moment,
                const Tensor<T> &p)
 {
@@ -84,34 +84,34 @@ void adamw_step(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t
 
 // Explicit instantiation
 template
-void adamw_step_async<fp32_t>(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
+void adamw_step_async<fp32_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
     const Tensor<fp32_t> &grad, const Tensor<fp32_t> &first_moment, const Tensor<fp32_t> &second_moment,
                    const Tensor<fp32_t> &p);
 
 template
-void adamw_step_async<fp32_fast_tf32_t>(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
+void adamw_step_async<fp32_fast_tf32_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
     const Tensor<fp32_fast_tf32_t> &grad, const Tensor<fp32_fast_tf32_t> &first_moment, const Tensor<fp32_fast_tf32_t> &second_moment,
                    const Tensor<fp32_fast_tf32_t> &p);
 
 template
-void adamw_step_async<fp64_t>(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
+void adamw_step_async<fp64_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
     const Tensor<fp64_t> &grad, const Tensor<fp64_t> &first_moment, const Tensor<fp64_t> &second_moment,
                    const Tensor<fp64_t> &p);
 
 // Explicit instantiation
 template
-void adamw_step<fp32_t>(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
+void adamw_step<fp32_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
     const Tensor<fp32_t> &grad, const Tensor<fp32_t> &first_moment, const Tensor<fp32_t> &second_moment,
                    const Tensor<fp32_t> &p);
 
 template
-void adamw_step<fp32_fast_tf32_t>(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
+void adamw_step<fp32_fast_tf32_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
                                   const Tensor<fp32_fast_tf32_t> &grad, const Tensor<fp32_fast_tf32_t> &first_moment, const Tensor<fp32_fast_tf32_t> &second_moment,
                                   const Tensor<fp32_fast_tf32_t> &p);
 
 
 template
-void adamw_step<fp64_t>(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
+void adamw_step<fp64_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
     const Tensor<fp64_t> &grad, const Tensor<fp64_t> &first_moment, const Tensor<fp64_t> &second_moment,
                    const Tensor<fp64_t> &p);
 

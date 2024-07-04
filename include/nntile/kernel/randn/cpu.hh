@@ -21,13 +21,13 @@ namespace nntile::kernel::randn
 
 template<typename T>
 void cpu(Index ndim, Index nelems, unsigned long long seed,
-        scal_t mean, scal_t stddev, const Index *start, const Index *shape,
+        Scalar mean, Scalar stddev, const Index *start, const Index *shape,
         const Index *underlying_shape, T *data, const Index *stride,
-        Index *tmp_index)
+        int64_t *tmp_index)
     noexcept;
 
 template<typename T>
-void cpu_ndim0(unsigned long long seed, scal_t mean, scal_t stddev, T *data)
+void cpu_ndim0(unsigned long long seed, Scalar mean, Scalar stddev, T *data)
     noexcept;
 
 } // namespace nntile::kernel::randn

@@ -14,12 +14,13 @@
 
 #include "nntile/kernel/sum_slice/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::sum_slice
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
+void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, Scalar beta_, T *dst_)
     noexcept
 //! Sums over fibers along middle axis into a slice of a tensor
 /*! For a provided m-by-k-by-n input array computes sums over fibers
@@ -30,15 +31,19 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
  * @param[in] m: Size of the first mode of src and dst arrays
  * @param[in] n: Size of the last mode of src and dst arrays
  * @param[in] k: Size of the middle mode of src array
- * @param[in] alpha: Scaling factor for src
- * @param[in] src: Input contiguous m-by-k-by-n array
- * @param[in] beta: Scaling factor for dst
- * @param[inout] dst: Output contiguous m-by-n array, that accumulates
+ * @param[in] alpha_: Scaling factor for src
+ * @param[in] src_: Input contiguous m-by-k-by-n array
+ * @param[in] beta_: Scaling factor for dst
+ * @param[inout] dst_: Output contiguous m-by-n array, that accumulates
  *      sums over fibers along middle axis
  * */
 {
+    using Y = typename CPUComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    const Y alpha{alpha_}, beta{beta_};
+    constexpr Y zero{0.0};
     const Index mk = m * k;
-    constexpr T zero = 0;
     // Cycle over column of the output buffer dst
     for(Index i2 = 0; i2 < n; ++i2)
     {
@@ -46,11 +51,11 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
         for(Index i1 = 0; i1 < m; ++i1)
         {
             // Pointer to a corresponding fiber of the source array src
-            const T *src_fiber = src + i2*mk + i1;
+            const Y *src_fiber = src + i2*mk + i1;
             // Init sum over the fiber
-            T sum = zero, c = zero, y, t;
+            Y sum = zero, c = zero, y, t;
             // Output value
-            T &result = dst[i2*m+i1];
+            Y &result = dst[i2*m+i1];
             // Cycle over fiber elements and accumulate the sum
             for(Index i0 = 0; i0 < k; ++i0)
             {
@@ -75,13 +80,13 @@ void cpu(Index m, Index n, Index k, T alpha, const T *src, T beta, T *dst)
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m, Index n, Index k, fp32_t alpha, const fp32_t *src,
-        fp32_t beta, fp32_t *dst)
+void cpu<fp32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_t *src,
+        Scalar beta, fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index m, Index n, Index k, fp64_t alpha, const fp64_t *src,
-        fp64_t beta, fp64_t *dst)
+void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src,
+        Scalar beta, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::sum_slice

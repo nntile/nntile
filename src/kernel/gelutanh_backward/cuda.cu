@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/gelutanh_backward/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::gelutanh_backward
 {
@@ -44,7 +45,7 @@ void cuda_kernel(Index nelems, const T *x, const T *dy, T *dx)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, const T *x, const T *dy, T *dx)
+void cuda(cudaStream_t stream, Index nelems, const T *x_, const T *dy_, T *dx_)
     noexcept
 //! Backward approximate GeLU operation on CUDA
 /*! Does the following per-element operation:
@@ -52,13 +53,17 @@ void cuda(cudaStream_t stream, Index nelems, const T *x, const T *dy, T *dx)
  * GeLUtanh'(z) = (1-(zf'(z)-1)exp(f(z))) / (1+exp(f(z)))^2
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[in] x: Input value for forward GeLU
- * @params[in] dy: Gradient over output of forward GeLU
- * @params[inout] dx: Gradient over input of forward GeLU
+ * @params[in] x_: Input value for forward GeLU
+ * @params[in] dy_: Gradient over output of forward GeLU
+ * @params[inout] dx_: Gradient over input of forward GeLU
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, x, dy, dx);
+    using Y = typename CUDAComputeType<T>::value;
+    auto x = reinterpret_cast<const Y *>(x_);
+    auto dy = reinterpret_cast<const Y *>(dy_);
+    auto dx = reinterpret_cast<Y *>(dx_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, x, dy, dx);
 }
 
 // Explicit instantiation

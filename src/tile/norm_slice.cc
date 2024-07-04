@@ -19,7 +19,7 @@ namespace nntile::tile
 {
 
 template<typename T>
-void norm_slice_async(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst,
+void norm_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         Index axis)
 {
     // Check dimensions
@@ -67,7 +67,7 @@ void norm_slice_async(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<
 }
 
 template<typename T>
-void norm_slice(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &dst,
+void norm_slice(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         Index axis)
 {
     norm_slice_async<T>(alpha, src, beta, dst, axis);
@@ -76,28 +76,28 @@ void norm_slice(scal_t alpha, const Tile<T> &src, scal_t beta, const Tile<T> &ds
 
 // Explicit instantiation
 template
-void norm_slice_async<fp32_t>(scal_t alpha, const Tile<fp32_t> &src,
-        scal_t beta, const Tile<fp32_t> &dst, Index axis);
+void norm_slice_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+        Scalar beta, const Tile<fp32_t> &dst, Index axis);
 
 template
-void norm_slice_async<fp32_fast_tf32_t>(scal_t alpha, const Tile<fp32_fast_tf32_t> &src,
-        scal_t beta, const Tile<fp32_fast_tf32_t> &dst, Index axis);
+void norm_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+        Scalar beta, const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void norm_slice_async<fp64_t>(scal_t alpha, const Tile<fp64_t> &src,
-        scal_t beta, const Tile<fp64_t> &dst, Index axis);
+void norm_slice_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+        Scalar beta, const Tile<fp64_t> &dst, Index axis);
 
 // Explicit instantiation
 template
-void norm_slice<fp32_t>(scal_t alpha, const Tile<fp32_t> &src, scal_t beta,
+void norm_slice<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void norm_slice<fp32_fast_tf32_t>(scal_t alpha, const Tile<fp32_fast_tf32_t> &src, scal_t beta,
+void norm_slice<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
         const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void norm_slice<fp64_t>(scal_t alpha, const Tile<fp64_t> &src, scal_t beta,
+void norm_slice<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst, Index axis);
 
 } // namespace nntile::tile

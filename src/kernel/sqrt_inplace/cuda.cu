@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/sqrt_inplace/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::sqrt_inplace
 {
@@ -29,17 +30,19 @@ void cuda_kernel(Index nelems, T *data)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, T *data)
+void cuda(cudaStream_t stream, Index nelems, T *data_)
     noexcept
 //! Inplace sqrt of buffer
 /*! One of the buffers serves as output
  *
  * @param[in] nelems: Number of elements in both buffers
- * @param[inout] data: Input buffers that contains output in the end
+ * @param[inout] data_: Input buffers that contains output in the end
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, data);
+    using Y = typename CUDAComputeType<T>::value;
+    auto data = reinterpret_cast<Y *>(data_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, data);
 }
 
 // Explicit instantiation

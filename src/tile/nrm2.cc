@@ -26,7 +26,7 @@ namespace nntile::tile
 
 //! Tile-wise Euclidean norm
 template<typename T>
-void nrm2_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
+void nrm2_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         const Tile<T> &tmp)
 {
     // Check dimensions
@@ -64,7 +64,7 @@ void nrm2_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
 
 //! Tile-wise Euclidean norm
 template<typename T>
-void nrm2(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
+void nrm2(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         const Tile<T> &tmp)
 {
     nrm2_async<T>(alpha, src, beta, dst, tmp);
@@ -73,20 +73,20 @@ void nrm2(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
 
 // Explicit instantiation
 template
-void nrm2_async<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src, fp32_t beta,
+void nrm2_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
         const Tile<fp32_t> &dst, const Tile<fp32_t> &tmp);
 
 template
-void nrm2_async<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src, fp64_t beta,
+void nrm2_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst, const Tile<fp64_t> &tmp);
 
 // Explicit instantiation
 template
-void nrm2<fp32_t>(fp32_t alpha, const Tile<fp32_t> &src, fp32_t beta,
+void nrm2<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
         const Tile<fp32_t> &dst, const Tile<fp32_t> &tmp);
 
 template
-void nrm2<fp64_t>(fp64_t alpha, const Tile<fp64_t> &src, fp64_t beta,
+void nrm2<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst, const Tile<fp64_t> &tmp);
 
 } // namespace nntile::tile

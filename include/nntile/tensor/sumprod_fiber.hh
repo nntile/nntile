@@ -20,12 +20,12 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void sumprod_fiber_async(scal_t alpha, const Tensor<T> &src1,
-        const Tensor<T> &src2, scal_t beta, const Tensor<T> &dst, Index axis,
+void sumprod_fiber_async(Scalar alpha, const Tensor<T> &src1,
+        const Tensor<T> &src2, Scalar beta, const Tensor<T> &dst, Index axis,
         int redux=0);
 
 template<typename T>
-void sumprod_fiber(scal_t alpha, const Tensor<T> &src1, const Tensor<T> &src2,
-        scal_t beta, const Tensor<T> &dst, Index axis, int redux=0);
+void sumprod_fiber(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &src2,
+        Scalar beta, const Tensor<T> &dst, Index axis, int redux=0);
 
 } // namespace nntile::tensor

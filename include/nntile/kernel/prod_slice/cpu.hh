@@ -21,7 +21,7 @@ namespace nntile::kernel::prod_slice
 
 // Per-element product of a tensor and a broadcasted slice on CPU
 template<typename T>
-void cpu(Index m, Index n, Index k, T alpha, const T *src, T *dst)
+void cpu(Index m, Index n, Index k, Scalar alpha, const T *src, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::prod_slice

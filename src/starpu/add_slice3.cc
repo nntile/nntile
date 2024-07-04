@@ -128,7 +128,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, scal_t alpha, Handle src1, scal_t beta,
+void submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Scalar beta,
         Handle src2, Handle dst)
 //! Insert add_slice3 task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -143,7 +143,7 @@ void submit(Index m, Index n, Index k, scal_t alpha, Handle src1, scal_t beta,
     args->k = k;
     args->alpha = alpha;
     args->beta = beta;
-    fp64_t nflops = m * n * (2*k+1);
+    double nflops = m * n * (2*k+1);
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src1),
@@ -161,15 +161,15 @@ void submit(Index m, Index n, Index k, scal_t alpha, Handle src1, scal_t beta,
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index m, Index n, Index k, scal_t alpha, Handle src1,
-        scal_t beta, Handle src2, Handle dst);
+void submit<fp32_t>(Index m, Index n, Index k, Scalar alpha, Handle src1,
+        Scalar beta, Handle src2, Handle dst);
 
 template
-void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, scal_t alpha, Handle src1,
-        scal_t beta, Handle src2, Handle dst);
+void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha, Handle src1,
+        Scalar beta, Handle src2, Handle dst);
 
 template
-void submit<fp64_t>(Index m, Index n, Index k, scal_t alpha, Handle src1,
-        scal_t beta, Handle src2, Handle dst);
+void submit<fp64_t>(Index m, Index n, Index k, Scalar alpha, Handle src1,
+        Scalar beta, Handle src2, Handle dst);
 
 } // namespace nntile::starpu::add_slice3

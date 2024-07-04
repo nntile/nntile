@@ -14,24 +14,29 @@
 
 #include "nntile/kernel/relu_backward/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::relu_backward
 {
 
 template<typename T>
-void cpu(Index nelems, const T *x, const T *dy, T *dx)
+void cpu(Index nelems, const T *x_, const T *dy_, T *dx_)
     noexcept
 //! Backward ReLU operation on CPU
 /*! Does the following per-element operation:
  * dx[i] = dx[i] + dy[i]*ReLU'(x[i])
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[in] x: Input value for forward ReLU
- * @params[in] dy: Gradient over output of forward ReLU
- * @params[inout] dx: Gradient over input of forward ReLU
+ * @params[in] x_: Input value for forward ReLU
+ * @params[in] dy_: Gradient over output of forward ReLU
+ * @params[inout] dx_: Gradient over input of forward ReLU
  * */
 {
-    constexpr T zero = 0;
+    using Y = typename CPUComputeType<T>::value;
+    auto x = reinterpret_cast<const Y *>(x_);
+    auto dy = reinterpret_cast<const Y *>(dy_);
+    auto dx = reinterpret_cast<Y *>(dx_);
+    constexpr Y zero{0.0};
     for(Index i = 0; i < nelems; ++i)
     {
         if(x[i] > zero)

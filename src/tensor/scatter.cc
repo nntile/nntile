@@ -63,7 +63,7 @@ void scatter_async(const Tensor<T> &src, const Tensor<T> &dst)
     // Do the slow complex copy
     // Temporary buffer for indexing, that is allocated per-worker when needed
     Index ndim = src.ndim;
-    starpu::VariableHandle scratch(2*ndim*sizeof(Index), STARPU_SCRATCH);
+    starpu::VariableHandle scratch(2*ndim*sizeof(int64_t), STARPU_SCRATCH);
     // We define starting coordinates and shapes for all complex copies of
     // tiles
     std::vector<Index> src_tile_start(ndim), dst_tile_start(ndim);
@@ -152,9 +152,9 @@ void scatter(const Tensor<T> &src, const Tensor<T> &dst)
 }
 
 // Explicit instantiation
-template
-void scatter_async<fp16_t>(const Tensor<fp16_t> &src,
-        const Tensor<fp16_t> &dst);
+//template
+//void scatter_async<fp16_t>(const Tensor<fp16_t> &src,
+//        const Tensor<fp16_t> &dst);
 
 template
 void scatter_async<fp32_t>(const Tensor<fp32_t> &src,
@@ -165,8 +165,8 @@ void scatter_async<fp64_t>(const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst);
 
 template
-void scatter_async<Index>(const Tensor<Index> &src,
-        const Tensor<Index> &dst);
+void scatter_async<int64_t>(const Tensor<int64_t> &src,
+        const Tensor<int64_t> &dst);
 
 template
 void scatter_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
@@ -177,8 +177,8 @@ void scatter_async<bool_t>(const Tensor<bool_t> &src,
         const Tensor<bool_t> &dst);
 
 // Explicit instantiation
-template
-void scatter<fp16_t>(const Tensor<fp16_t> &src, const Tensor<fp16_t> &dst);
+//template
+//void scatter<fp16_t>(const Tensor<fp16_t> &src, const Tensor<fp16_t> &dst);
 
 template
 void scatter<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
@@ -191,7 +191,7 @@ template
 void scatter<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
 template
-void scatter<Index>(const Tensor<Index> &src, const Tensor<Index> &dst);
+void scatter<int64_t>(const Tensor<int64_t> &src, const Tensor<int64_t> &dst);
 
 template
 void scatter<bool_t>(const Tensor<bool_t> &src, const Tensor<bool_t> &dst);

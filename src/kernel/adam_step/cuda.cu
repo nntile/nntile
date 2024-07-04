@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/adam_step/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::adam_step
 {
@@ -20,8 +21,8 @@ namespace nntile::kernel::adam_step
 template<typename T>
 static __global__
 void cuda_kernel(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps,
-        T lr, T weight_decay, T* grad, T* first_moment, T* second_moment,
-        T* p, T alpha, T beta)
+        T lr, T weight_decay, const T *grad, T *first_moment, T *second_moment,
+        T *p, T alpha, T beta)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     if(i < num_elems)
@@ -58,8 +59,9 @@ void cuda_kernel(Index num_iter, Index num_elems, T beta_1, T beta_2, T eps,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index num_iter, Index num_elems, T beta_1, T beta_2, T eps, T lr, T weight_decay,
-          T* grad, T* first_moment, T* second_moment, T* p)
+void cuda(cudaStream_t stream, Index num_iter, Index num_elems, Scalar beta_1,
+        Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
+        const T *grad_, T *first_moment_, T *second_moment_, T *p_)
     noexcept
 //! Fused Adam step operation of buffers
 /*!
@@ -70,31 +72,38 @@ void cuda(cudaStream_t stream, Index num_iter, Index num_elems, T beta_1, T beta
 * @param[in] beta_2: parameter for moving average of second moments
 * @param[in] eps: small scalar to avoid division by zero
 * @param[in] lr: learning rate
-* @param[in] grad: Input buffer stored gradient
-* @param[in] first_moment: Input buffer stored first moments
-* @param[in] second_moment: Input buffer stored second moments
-* @param[inout] p: Input buffers with parameter that are updated in the end
+* @param[in] grad_: Input buffer stored gradient
+* @param[in] first_moment_: Input buffer stored first moments
+* @param[in] second_moment_: Input buffer stored second moments
+* @param[inout] p_: Input buffers with parameter that are updated in the end
  * */
 {
     dim3 blocks((num_elems+255)/256), threads(256);
-    T alpha = lr / (1-::pow(beta_1, num_iter));
-    T beta = 1 / ::sqrt(1 - ::pow(beta_2, num_iter));
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(num_iter, num_elems,
-            beta_1, beta_2, eps, lr, weight_decay, grad, first_moment,
-            second_moment, p, alpha, beta);
+    using Y = typename CUDAComputeType<T>::value;
+    const Y alpha = lr / (Y{1.0} - std::pow(beta_1, num_iter));
+    const Y beta = Y{1.0} / std::sqrt(Y{1.0} - std::pow(beta_2, num_iter));
+    auto grad = reinterpret_cast<const Y *>(grad_);
+    auto first_moment = reinterpret_cast<Y *>(first_moment_);
+    auto second_moment = reinterpret_cast<Y *>(second_moment_);
+    auto p = reinterpret_cast<Y *>(p_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(num_iter, num_elems,
+            Y{beta_1}, Y{beta_2}, Y{eps}, Y{lr}, Y{weight_decay}, grad,
+            first_moment, second_moment, p, alpha, beta);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index num_iter, Index num_elems, fp32_t beta_1, fp32_t beta_2,
-                  fp32_t eps, fp32_t lr, fp32_t weight_decay, fp32_t* grad, fp32_t* first_moment,
-                  fp32_t* second_moment, fp32_t* p)
+void cuda<fp32_t>(cudaStream_t stream, Index num_iter, Index num_elems,
+        Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr,
+        Scalar weight_decay, const fp32_t *grad, fp32_t *first_moment,
+        fp32_t *second_moment, fp32_t *p)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index num_iter, Index num_elems, fp64_t beta_1, fp64_t beta_2,
-                  fp64_t eps, fp64_t lr, fp64_t weight_decay, fp64_t* grad, fp64_t* first_moment,
-                  fp64_t* second_moment, fp64_t* p)
+void cuda<fp64_t>(cudaStream_t stream, Index num_iter, Index num_elems,
+        Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr,
+        Scalar weight_decay, const fp64_t *grad, fp64_t *first_moment,
+        fp64_t *second_moment, fp64_t *p)
     noexcept;
 
 } // namespace nntile::kernel::adam_step

@@ -25,11 +25,11 @@ struct args_t
 {
     Index num_iter;
     Index num_elems;
-    scal_t beta_1;
-    scal_t beta_2;
-    scal_t eps;
-    scal_t lr;
-    scal_t weight_decay;
+    Scalar beta_1;
+    Scalar beta_2;
+    Scalar eps;
+    Scalar lr;
+    Scalar weight_decay;
 };
 
 // Apply Adam step to StarPU buffers on CPU
@@ -78,8 +78,8 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index num_iter, Index num_elems, scal_t beta_1, scal_t beta_2, scal_t eps,
-            scal_t lr, scal_t weight_decay, Handle grad, Handle first_moment,
+void submit(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2, Scalar eps,
+            Scalar lr, Scalar weight_decay, Handle grad, Handle first_moment,
             Handle second_moment, Handle p);
 
 } // namespace nntile::starpu::adam_step

@@ -14,21 +14,25 @@
 
 #include "nntile/kernel/maximum/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::maximum
 {
 
 template<typename T>
-void cpu(Index nelems, const T *src, T *dst)
+void cpu(Index nelems, const T *src_, T *dst_)
     noexcept
 //! Per-element maximum of two buffers
 /*! One of the buffers serves as output
  *
  * @param[in] nelems: Number of elements in both buffers
- * @param[in] src: Input buffer
- * @param[inout] dst: Input buffers that contains output in the end
+ * @param[in] src_: Input buffer
+ * @param[inout] dst_: Input buffers that contains output in the end
  * */
 {
+    using Y = typename CPUComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
     // Cycle over buffers
     for(Index i = 0; i < nelems; ++i)
     {

@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/add_scalar/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::add_scalar
 {
@@ -29,7 +30,8 @@ void cuda_kernel(Index num_elements, T alpha, T beta, T* dst)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index num_elements, T alpha, T beta, T* dst)
+void cuda(cudaStream_t stream, Index num_elements, Scalar alpha, Scalar beta,
+        T *dst_)
     noexcept
 //! Add scalar to buffer buffers on CUDA
 /*! dst[i] = alpha + beta*dst[i], where alpha and beta are scalars
@@ -37,20 +39,25 @@ void cuda(cudaStream_t stream, Index num_elements, T alpha, T beta, T* dst)
  * @param[in] num_elements: Size of the src and dst tensors
  * @param[in] alpha: Scalar bias for the dst tensor
  * @param[in] beta: Scalar multiplier for the dst tensor
- * @param[inout] dst: Destination of the add_scalar operation
+ * @param[inout] dst_: Destination of the add_scalar operation
  * */
 {
     dim3 blocks((num_elements+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(num_elements, alpha, beta, dst);
+    using Y = typename CUDAComputeType<T>::value;
+    auto dst = reinterpret_cast<Y *>(dst_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(num_elements, Y{alpha},
+            Y{beta}, dst);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index num_elements, fp32_t alpha, fp32_t beta, fp32_t* dst)
+void cuda<fp32_t>(cudaStream_t stream, Index num_elements, Scalar alpha,
+        Scalar beta, fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index num_elements, fp64_t alpha, fp64_t beta, fp64_t* dst)
+void cuda<fp64_t>(cudaStream_t stream, Index num_elements, Scalar alpha,
+        Scalar beta, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::add_scalar

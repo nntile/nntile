@@ -21,12 +21,12 @@ namespace nntile::tensor
 
 // Tensor-wise transpose operation
 template<typename T>
-void transpose_async(scal_t alpha, const Tensor<T> &src, const Tensor<T> &dst,
+void transpose_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
         Index ndim);
 
 // Tensor-wise transpose operation
 template<typename T>
-void transpose(scal_t alpha, const Tensor<T> &src, const Tensor<T> &dst,
+void transpose(Scalar alpha, const Tensor<T> &src, const Tensor<T> &dst,
         Index ndim);
 
 } // namespace nntile::tensor

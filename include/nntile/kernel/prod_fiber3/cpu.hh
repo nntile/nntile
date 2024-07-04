@@ -21,7 +21,7 @@ namespace nntile::kernel::prod_fiber3
 
 // Per-element product of a tensor and a broadcasted fiber on CPU
 template<typename T>
-void cpu(Index m, Index n, Index k, T alpha, const T *src1, const T *src2,
+void cpu(Index m, Index n, Index k, Scalar alpha, const T *src1, const T *src2,
         T *dst)
     noexcept;
 

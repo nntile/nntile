@@ -22,13 +22,12 @@ namespace nntile::starpu::prod_fiber
 {
 
 //! Structure for arguments
-template<typename T>
 struct args_t
 {
     Index m;
     Index n;
     Index k;
-    T alpha;
+    Scalar alpha;
 };
 
 // StarPU wrapper for kernel::prod_fiber::cpu<T>
@@ -64,6 +63,6 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, T alpha, Handle src, Handle dst);
+void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Handle dst);
 
 } // namespace nntile::starpu::prod_fiber

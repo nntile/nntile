@@ -19,7 +19,7 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void embedding_backward_async(const Tensor<Index> &index,
+void embedding_backward_async(const Tensor<int64_t> &index,
         const Tensor<T> &embed, const Tensor<T> &vocab, Index axis, int redux)
 {
     // Check dimensions
@@ -116,7 +116,7 @@ void embedding_backward_async(const Tensor<Index> &index,
 }
 
 template<typename T>
-void embedding_backward(const Tensor<Index> &index, const Tensor<T> &embed,
+void embedding_backward(const Tensor<int64_t> &index, const Tensor<T> &embed,
         const Tensor<T> &vocab, Index axis, int redux)
 {
     embedding_backward_async<T>(index, embed, vocab, axis, redux);
@@ -126,33 +126,33 @@ void embedding_backward(const Tensor<Index> &index, const Tensor<T> &embed,
 
 // Explicit instantiation
 template
-void embedding_backward_async<fp32_t>(const Tensor<Index> &index,
+void embedding_backward_async<fp32_t>(const Tensor<int64_t> &index,
         const Tensor<fp32_t> &embed, const Tensor<fp32_t> &vocab, Index axis,
         int redux);
 
 template
-void embedding_backward_async<fp32_fast_tf32_t>(const Tensor<Index> &index,
+void embedding_backward_async<fp32_fast_tf32_t>(const Tensor<int64_t> &index,
         const Tensor<fp32_fast_tf32_t> &embed, const Tensor<fp32_fast_tf32_t> &vocab, Index axis,
         int redux);
 
 template
-void embedding_backward_async<fp64_t>(const Tensor<Index> &index,
+void embedding_backward_async<fp64_t>(const Tensor<int64_t> &index,
         const Tensor<fp64_t> &embed, const Tensor<fp64_t> &vocab, Index axis,
         int redux);
 
 // Explicit instantiation
 template
-void embedding_backward<fp32_t>(const Tensor<Index> &index,
+void embedding_backward<fp32_t>(const Tensor<int64_t> &index,
         const Tensor<fp32_t> &embed, const Tensor<fp32_t> &vocab, Index axis,
         int redux);
 
 template
-void embedding_backward<fp32_fast_tf32_t>(const Tensor<Index> &index,
+void embedding_backward<fp32_fast_tf32_t>(const Tensor<int64_t> &index,
         const Tensor<fp32_fast_tf32_t> &embed, const Tensor<fp32_fast_tf32_t> &vocab, Index axis,
         int redux);
 
 template
-void embedding_backward<fp64_t>(const Tensor<Index> &index,
+void embedding_backward<fp64_t>(const Tensor<int64_t> &index,
         const Tensor<fp64_t> &embed, const Tensor<fp64_t> &vocab, Index axis,
         int redux);
 

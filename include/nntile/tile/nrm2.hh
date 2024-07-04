@@ -20,11 +20,11 @@ namespace nntile::tile
 {
 
 template<typename T>
-void nrm2_async(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
+void nrm2_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         const Tile<T> &tmp);
 
 template<typename T>
-void nrm2(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst,
+void nrm2(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         const Tile<T> &tmp);
 
 } // namespace nntile::tile

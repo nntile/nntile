@@ -14,12 +14,13 @@
 
 #include "nntile/kernel/maxsumexp/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::maxsumexp
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
+void cpu(Index m, Index n, Index k, const T *src_, T *maxsumexp_)
     noexcept
 //! Max and sum of exponents along middle axis
 /*! For a provided m-by-k-by-n input array src compute maximums and sums of
@@ -37,14 +38,17 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
  *      arrays.
  * @param[in] n: Size of the last mode of src and sumnorm arrays
  * @param[in] k: Size of the middle mode of src array
- * @param[in] src: Input contiguous m-by-k-by-n array
- * @param[inout] maxsumexp: Output contiguous 2-by-m-by-n array, that
+ * @param[in] src_: Input contiguous m-by-k-by-n array
+ * @param[inout] maxsumexp_: Output contiguous 2-by-m-by-n array, that
  *      accumulates maximums and sums of exponents of slices along middle axis.
  * */
 {
+    using Y = typename CPUComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto maxsumexp = reinterpret_cast<Y *>(maxsumexp_);
     const Index mk = m * k;
     Index dst_offset = 0;
-    constexpr T zero = 0, one = 1;
+    constexpr Y zero{0.0}, one{1.0};
     // Cycle over row of output buffer
     for(Index i2 = 0; i2 < n; ++i2)
     {
@@ -52,15 +56,15 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
         for(Index i1 = 0; i1 < m; ++i1)
         {
             // Get max and sum of exponents of a corresponding slice
-            const T *src_slice = src + i2*mk + i1;
+            const Y *src_slice = src + i2*mk + i1;
             // Init max and sum with the first value
-            T max = src_slice[0];
-            T sum = one, c = zero, y, t;
+            Y max = src_slice[0];
+            Y sum{one}, c{zero}, y, t;
             // Cycle over slice of input buffer
             for(Index i0 = 1; i0 < k; ++i0)
             {
                 // Read value from source
-                T val = src_slice[i0*m];
+                Y val = src_slice[i0*m];
                 // Ignore -inf value, which comes from mask
                 if(std::isinf(val))
                 {
@@ -70,7 +74,7 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
                 if(max < val)
                 {
                     //sum = sum*std::exp(max-val) + one;
-                    T tmp = std::exp(max-val);
+                    Y tmp = std::exp(max-val);
                     y = one - c*tmp;
                     sum *= tmp;
                     t = sum + y;
@@ -90,7 +94,7 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
             // Save result, do nothing if all elements are masked out
             if(not std::isinf(max))
             {
-                T sum_old = maxsumexp[dst_offset+1];
+                Y sum_old = maxsumexp[dst_offset+1];
                 // If old sum is zero then just overwrite it with current sum
                 if(sum_old == zero)
                 {
@@ -100,7 +104,7 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
                 // Update non-zero initial sum
                 else
                 {
-                    T max_old = maxsumexp[dst_offset];
+                    Y max_old = maxsumexp[dst_offset];
                     if(max_old < max)
                     {
                         maxsumexp[dst_offset] = max;
@@ -113,7 +117,7 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
                     {
                         maxsumexp[dst_offset+1] = sum*std::exp(max-max_old)
                             + sum_old;
-                        T tmp = std::exp(max-max_old);
+                        Y tmp = std::exp(max-max_old);
                         y = sum_old - c*tmp;
                         sum *= tmp;
                         maxsumexp[dst_offset+1] = sum + y;

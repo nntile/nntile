@@ -6,66 +6,30 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/flash_softmax_gemm.cc.in
- * Fast fused softmax+gemm
+ * @file src/starpu/flash_maxsumexp.cc
+ * Fused materialization and maxsumexp for StarPU buffer
  *
  * @version 1.0.0
  * */
 
+#include "nntile/starpu/flash_maxsumexp.hh"
 #ifndef STARPU_SIMGRID
+#include "nntile/kernel/gemm.hh"
+#include "nntile/kernel/maxsumexp.hh"
 #include "nntile/kernel/mask_scalar.hh"
-#include "nntile/kernel/softmax_inplace.hh"
+#include "nntile/kernel/cpu.hh"
+#include "nntile/kernel/cuda.hh"
 #endif // STARPU_SIMGRID
-#include "nntile/starpu/flash_softmax_gemm.hh"
 #include <cstdlib>
 #include <cmath>
 #include <limits>
 
-#ifndef STARPU_SIMGRID
-#   ifdef NNTILE_USE_CBLAS
-#       include <@CBLAS_H_NAME@>
-#       ifndef CBLAS_INT
-#           define CBLAS_INT @CBLAS_INT_TYPE@
-#       endif // CBLAS_INT
-#   endif // NNTILE_USE_CBLAS
-
-#   ifdef NNTILE_USE_CUDA
-#       include <cublas_v2.h>
-#       include <starpu_cublas_v2.h>
-#       include <cuda_fp16.h>
-#   endif // NNTILE_USE_CUDA
-#endif // STARPU_SIMGRID
-
-namespace nntile::starpu::flash_softmax_gemm
+namespace nntile::starpu::flash_maxsumexp
 {
+
+using namespace nntile::kernel::gemm;
 
 #ifdef NNTILE_USE_CBLAS
-#ifndef STARPU_SIMGRID
-// Overloaded call to CBLAS GEMM
-static inline
-void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
-        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp32_t alpha, const fp32_t *A,
-        CBLAS_INT ldA, const fp32_t *B, CBLAS_INT ldB, fp32_t beta, fp32_t *C,
-        CBLAS_INT ldC)
-    noexcept
-{
-    cblas_sgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
-            beta, C, ldC);
-}
-
-// Overloaded call to CBLAS GEMM
-static inline
-void cblas(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
-        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp64_t alpha, const fp64_t *A,
-        CBLAS_INT ldA, const fp64_t *B, CBLAS_INT ldB, fp64_t beta, fp64_t *C,
-        CBLAS_INT ldC)
-    noexcept
-{
-    cblas_dgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
-            beta, C, ldC);
-}
-#endif // STARPU_SIMGRID
-
 //! Rematerialize and compute maxsumexp along middle axis of StarPU buffer on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
@@ -79,90 +43,34 @@ void cpu(void *buffers[], void *cl_args)
     const T *K = interfaces[0]->get_ptr<T>();
     const T *Q = interfaces[1]->get_ptr<T>();
     const bool_t *mask = interfaces[2]->get_ptr<bool_t>();
-    const T *maxsumexp = interfaces[3]->get_ptr<T>();
-    const T *V = interfaces[4]->get_ptr<T>();
-    T *A = interfaces[5]->get_ptr<T>();
-    T *tmp = interfaces[6]->get_ptr<T>();
+    T *maxsumexp = interfaces[3]->get_ptr<T>();
+    T *tmp = interfaces[4]->get_ptr<T>();
     // Launch kernels
     Index K_offset = args->head * args->seq;
     Index Q_offset = K_offset;
     Index tmp_offset = args->seq * args->seq;
-    const T *K_local = K, *Q_local = Q;
+    using Y = typename nntile::kernel::CPUComputeType<T>::value;
+    const T *K_local = K;
+    const T *Q_local = Q;
     T *tmp_local = tmp;
     for(Index i = 0; i < args->batch; ++i)
     {
         cblas(CblasTrans, CblasNoTrans, args->seq, args->seq, args->head,
-                1.0/std::sqrt(T(args->head)), K_local, args->head, Q_local,
+                1.0/std::sqrt(args->head), K_local, args->head, Q_local,
                 args->head, 0.0, tmp_local, args->seq);
         K_local += K_offset;
         Q_local += Q_offset;
         tmp_local += tmp_offset;
     }
     kernel::mask_scalar::cpu<T>(args->seq*args->seq, args->batch, mask,
-            -std::numeric_limits<T>::infinity(), tmp);
-    kernel::softmax_inplace::cpu<T>(1, args->seq*args->batch, args->seq,
-            maxsumexp, 1.0, tmp);
-    Index V_offset = K_offset;
-    Index A_offset = K_offset;
-    const T *V_local = V;
-    T *A_local = A;
-    tmp_local = tmp;
-    for(Index i = 0; i < args->batch; ++i)
-    {
-        cblas(CblasNoTrans, CblasNoTrans, args->head, args->seq, args->seq,
-                1.0, V_local, args->head, tmp_local, args->seq, 1.0,
-                A_local, args->head);
-        V_local += V_offset;
-        A_local += A_offset;
-        tmp_local += tmp_offset;
-    }
+            -std::numeric_limits<Y>::infinity(), tmp);
+    kernel::maxsumexp::cpu<T>(1, args->seq*args->batch, args->seq, tmp,
+            maxsumexp);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CBLAS
 
 #ifdef NNTILE_USE_CUDA
-#ifndef STARPU_SIMGRID
-// Overloaded call to batched cuBLAS gemm
-static inline
-void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
-        const fp32_t *A, int ldA, long long int strideA, const fp32_t *B,
-        int ldB, long long int strideB, fp32_t beta, fp32_t *C, int ldC,
-        long long int strideC, int batchCount)
-    noexcept
-{
-    cublasSgemmStridedBatched(handle, transA, transB, M, N, K, &alpha, A, ldA,
-            strideA, B, ldB, strideB, &beta, C, ldC, strideC, batchCount);
-}
-
-// Overloaded call to batched cuBLAS gemm
-static inline
-void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, fp64_t alpha,
-        const fp64_t *A, int ldA, long long int strideA, const fp64_t *B,
-        int ldB, long long int strideB, fp64_t beta, fp64_t *C, int ldC,
-        long long int strideC, int batchCount)
-    noexcept
-{
-    cublasDgemmStridedBatched(handle, transA, transB, M, N, K, &alpha, A, ldA,
-            strideA, B, ldB, strideB, &beta, C, ldC, strideC, batchCount);
-}
-
-static inline
-void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
-        const fp32_fast_tf32_t *A, int ldA, long long int strideA, const fp32_fast_tf32_t *B,
-        int ldB, long long int strideB, fp32_t beta, fp32_fast_tf32_t *C, int ldC,
-        long long int strideC, int batchCount)
-    noexcept
-{
-    cublasGemmStridedBatchedEx(handle, transA, transB, M, N, K, &alpha, A,
-            CUDA_R_32F, ldA, strideA, B, CUDA_R_32F, ldB, strideB, &beta, C,
-            CUDA_R_32F, ldC, strideC, batchCount, CUBLAS_COMPUTE_32F_FAST_TF32,
-            CUBLAS_GEMM_DEFAULT_TENSOR_OP);
-}
-#endif // STARPU_SIMGRID
-
 //! Max and sum of exponents along middle axis of StarPU buffer on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
@@ -176,37 +84,25 @@ void cuda(void *buffers[], void *cl_args)
     const T *K = interfaces[0]->get_ptr<T>();
     const T *Q = interfaces[1]->get_ptr<T>();
     const bool_t *mask = interfaces[2]->get_ptr<bool_t>();
-    const T *maxsumexp = interfaces[3]->get_ptr<T>();
-    const T *V = interfaces[4]->get_ptr<T>();
-    T *A = interfaces[5]->get_ptr<T>();
-    T *tmp = interfaces[6]->get_ptr<T>();
+    T *maxsumexp = interfaces[3]->get_ptr<T>();
+    T *tmp = interfaces[4]->get_ptr<T>();
     // Get CUDA stream
     cublasHandle_t handle = starpu_cublas_get_local_handle();
     cudaStream_t stream = starpu_cuda_get_local_stream();
     cublasSetStream(handle, stream);
-    // Launch kernels
+    // Launch kernel
     Index K_offset = args->head * args->seq;
     Index Q_offset = K_offset;
     Index tmp_offset = args->seq * args->seq;
-    T head_ = static_cast<T>(args->head);
-
     cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
-            args->seq, args->seq, args->head, 1.0/std::sqrt(head_),
+            args->seq, args->seq, args->head, 1.0/std::sqrt(args->head),
             K, args->head, K_offset, Q, args->head, Q_offset,
             0.0, tmp, args->seq, tmp_offset, args->batch);
-
+    using Y = typename nntile::kernel::CUDAComputeType<T>::value;
     kernel::mask_scalar::cuda<T>(stream, args->seq*args->seq, args->batch,
-            mask, -std::numeric_limits<T>::infinity(), tmp);
-
-    kernel::softmax_inplace::cuda<T>(stream, 1, args->seq*args->batch,
-            args->seq, maxsumexp, 1.0, tmp);
-
-    Index V_offset = K_offset;
-    Index A_offset = K_offset;
-    cublas_batch(handle, CUBLAS_OP_N, CUBLAS_OP_N,
-            args->head, args->seq, args->seq, 1.0, V, args->head, V_offset,
-            tmp, args->seq, tmp_offset, 1.0, A, args->head, A_offset,
-            args->batch);
+            mask, -std::numeric_limits<Y>::infinity(), tmp);
+    kernel::maxsumexp::cuda<T>(stream, 1, args->seq*args->batch, args->seq,
+            tmp, maxsumexp);
 #endif // STARPU_SIMGRID
 }
 
@@ -215,48 +111,36 @@ void cuda<fp32_fast_tf32_t>(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
+    using T = fp32_fast_tf32_t;
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
-    using T = fp32_fast_tf32_t;
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *K = interfaces[0]->get_ptr<T>();
     const T *Q = interfaces[1]->get_ptr<T>();
     const bool_t *mask = interfaces[2]->get_ptr<bool_t>();
-    const T *maxsumexp = interfaces[3]->get_ptr<T>();
-    const T *V = interfaces[4]->get_ptr<T>();
-    T *A = interfaces[5]->get_ptr<T>();
-    T *tmp = interfaces[6]->get_ptr<T>();
+    T *maxsumexp = interfaces[3]->get_ptr<T>();
+    T *tmp = interfaces[4]->get_ptr<T>();
     // Get CUDA stream
     cublasHandle_t handle = starpu_cublas_get_local_handle();
     cudaStream_t stream = starpu_cuda_get_local_stream();
     cublasSetStream(handle, stream);
-    // Launch kernels
+    // Launch kernel
     Index K_offset = args->head * args->seq;
     Index Q_offset = K_offset;
     Index tmp_offset = args->seq * args->seq;
-    fp32_t head_fp32 = args->head;
-
+    float head_ = args->head;
     cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
-            args->seq, args->seq, args->head, 1.0/std::sqrt(head_fp32),
+            args->seq, args->seq, args->head, 1.0/std::sqrt(head_),
             K, args->head, K_offset, Q, args->head, Q_offset,
             0.0, tmp, args->seq, tmp_offset, args->batch);
-
+    fp32_t *tmp_fp32 = reinterpret_cast<fp32_t *>(tmp);
     kernel::mask_scalar::cuda<fp32_t>(stream, args->seq*args->seq, args->batch,
-            mask, -std::numeric_limits<fp32_t>::infinity(), reinterpret_cast<fp32_t*>(tmp));
-
-    kernel::softmax_inplace::cuda<fp32_t>(stream, 1, args->seq*args->batch,
-            args->seq, reinterpret_cast<const fp32_t*>(maxsumexp), 1.0, reinterpret_cast<fp32_t*>(tmp));
-
-    Index V_offset = K_offset;
-    Index A_offset = K_offset;
-    cublas_batch(handle, CUBLAS_OP_N, CUBLAS_OP_N,
-            args->head, args->seq, args->seq, 1.0, V, args->head, V_offset,
-            tmp, args->seq, tmp_offset, 1.0, A, args->head, A_offset,
-            args->batch);
+            mask, -std::numeric_limits<float>::infinity(), tmp_fp32);
+    kernel::maxsumexp::cuda<fp32_t>(stream, 1, args->seq*args->batch, args->seq,
+            tmp_fp32, reinterpret_cast<fp32_t *>(maxsumexp));
 #endif // STARPU_SIMGRID
 }
-
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for maxsumexp tasks that depends only on m, n and k
@@ -279,7 +163,7 @@ Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
 
 void init()
 {
-    codelet_fp32.init("nntile_flash_softmax_gemm_fp32",
+    codelet_fp32.init("nntile_flash_maxsumexp_fp32",
             footprint,
 #ifdef NNTILE_USE_CBLAS
             {cpu<fp32_t>},
@@ -292,8 +176,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-
-    codelet_fp64.init("nntile_flash_softmax_gemm_fp64",
+    codelet_fp64.init("nntile_flash_maxsumexp_fp64",
             footprint,
 #ifdef NNTILE_USE_CBLAS
             {cpu<fp64_t>},
@@ -306,8 +189,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-
-    codelet_fp32_fast_tf32.init("nntile_flash_softmax_gemm_fp32_fast_tf32",
+    codelet_fp32_fast_tf32.init("nntile_flash_maxsumexp_fp32_fast_tf32",
             footprint,
 #ifdef NNTILE_USE_CBLAS
             {},
@@ -338,8 +220,7 @@ void restore_where()
 
 template<typename T>
 void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
-        Handle mask, Handle maxsumexp, Handle V, Handle A, Handle tmp,
-        int redux)
+        Handle mask, Handle maxsumexp, Handle tmp, int redux)
 //! Insert flash_maxsumexp task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -352,25 +233,23 @@ void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
     args->head = head;
     args->batch = batch;
     // Access mode for the maxsumexp handle
-    enum starpu_data_access_mode rw_mode;
+    enum starpu_data_access_mode maxsumexp_mode;
     if(redux != 0)
     {
-        rw_mode = STARPU_REDUX;
-        //rw_mode = Config::STARPU_RW_COMMUTE;
+        maxsumexp_mode = STARPU_REDUX;
+        //maxsumexp_mode = Config::STARPU_RW_COMMUTE;
     }
     else
     {
-        rw_mode = Config::STARPU_RW_COMMUTE;
+        maxsumexp_mode = Config::STARPU_RW_COMMUTE;
     }
     // Submit task
-    fp64_t nflops = 4 * seq * seq * head * batch;
+    double nflops = 2 * seq * seq * head * batch;
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(K),
             STARPU_R, static_cast<starpu_data_handle_t>(Q),
             STARPU_R, static_cast<starpu_data_handle_t>(mask),
-            STARPU_R, static_cast<starpu_data_handle_t>(maxsumexp),
-            STARPU_R, static_cast<starpu_data_handle_t>(V),
-            rw_mode, static_cast<starpu_data_handle_t>(A),
+            maxsumexp_mode, static_cast<starpu_data_handle_t>(maxsumexp),
             STARPU_SCRATCH, static_cast<starpu_data_handle_t>(tmp),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
@@ -378,24 +257,21 @@ void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in flash_softmax_gemm task submission");
+        throw std::runtime_error("Error in flash_maxsumexp task submission");
     }
 }
 
 // Explicit instantiation
 template
 void submit<fp32_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
-        Handle mask, Handle maxsumexp, Handle V, Handle A, Handle tmp,
-        int redux);
+        Handle mask, Handle maxsumexp, Handle tmp, int redux);
 
 template
 void submit<fp32_fast_tf32_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
-        Handle mask, Handle maxsumexp, Handle V, Handle A, Handle tmp,
-        int redux);
+        Handle mask, Handle maxsumexp, Handle tmp, int redux);
 
 template
 void submit<fp64_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
-        Handle mask, Handle maxsumexp, Handle V, Handle A, Handle tmp,
-        int redux);
+        Handle mask, Handle maxsumexp, Handle tmp, int redux);
 
-} // namespace nntile::starpu::flash_softmax_gemm
+} // namespace nntile::starpu::flash_maxsumexp

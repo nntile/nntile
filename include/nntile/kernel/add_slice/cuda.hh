@@ -22,8 +22,8 @@ namespace nntile::kernel::add_slice
 
 // Per-element addition of a tensor and a broadcasted slice on CUDA
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
-        const T *src, T beta, T *dst)
+void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
+        const T *src, Scalar beta, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::add_slice

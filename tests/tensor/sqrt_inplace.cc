@@ -19,6 +19,7 @@
 #include "nntile/tensor/scatter.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/starpu/copy.hh"
+#include "nntile/kernel/cpu.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -38,13 +39,14 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     TensorTraits dst_single_traits(shape, shape);
     std::vector<int> dist_root = {mpi_root};
     Tensor<T> dst_single(dst_single_traits, dist_root, last_tag);
+    using Y = typename nntile::kernel::CPUComputeType<T>::value;
     if(mpi_rank == mpi_root)
     {
         auto tile = dst_single.get_tile(0);
         auto tile_local = tile.acquire(STARPU_W);
         for(Index i = 0; i < tile.nelems; ++i)
         {
-            tile_local[i] = T(i);
+            tile_local[i] = T{Y(i)};
         }
         tile_local.release();
     }
@@ -75,7 +77,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
         auto tile2_local = tile2.acquire(STARPU_R);
         for(Index i = 0; i < dst_traits.nelems; ++i)
         {
-            TEST_ASSERT(tile_local[i] == tile2_local[i]);
+            TEST_ASSERT(Y{tile_local[i]} == Y{tile2_local[i]});
         }
         tile_local.release();
         tile2_local.release();

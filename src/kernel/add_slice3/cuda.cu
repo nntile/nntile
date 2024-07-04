@@ -14,6 +14,7 @@
 
 #include "nntile/kernel/add_slice3/cuda.hh"
 #include <algorithm>
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::add_slice3
 {
@@ -64,8 +65,8 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, T alpha,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
-        const T *src1, T beta, const T *src2, T *dst)
+void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
+        const T *src1_, Scalar beta, const T *src2_, T *dst_)
     noexcept
 //! Per-element addition of a tensor and a broadcasted slice on CUDA
 /*! This is a global function that does the following operations:
@@ -75,10 +76,10 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
  * @param[in] n: Size of the last mode of src1, src2 and dst tensors
  * @param[in] k: Size of the middle mode of src2 and dst tensor
  * @param[in] alpha: Scalar factor for src1
- * @param[in] src1: Input contiguous m-by-n array
+ * @param[in] src1_: Input contiguous m-by-n array
  * @param[in] beta: Scaling factor for src1
- * @param[in] src2: Input contiguous m-by-k-by-n array
- * @param[out] dst: Output contiguous m-by-k-by-n array
+ * @param[in] src2_: Input contiguous m-by-k-by-n array
+ * @param[out] dst_: Output contiguous m-by-k-by-n array
  * */
 {
     // Both source and destination are Fortran-contiguous
@@ -86,19 +87,23 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, T alpha,
             std::min(int(k), 16));
     dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y,
             (k+threads.z-1)/threads.z);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha, src1,
-            beta, src2, dst);
+    using Y = typename CUDAComputeType<T>::value;
+    auto src1 = reinterpret_cast<const Y *>(src1_);
+    auto src2 = reinterpret_cast<const Y *>(src2_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, Y{alpha},
+            src1, Y{beta}, src2, dst);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, fp32_t alpha,
-        const fp32_t *src, fp32_t beta, const fp32_t *src2, fp32_t *dst)
+void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
+        const fp32_t *src, Scalar beta, const fp32_t *src2, fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, fp64_t alpha,
-        const fp64_t *src, fp64_t beta, const fp64_t *src2, fp64_t *dst)
+void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
+        const fp64_t *src, Scalar beta, const fp64_t *src2, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::add_slice3

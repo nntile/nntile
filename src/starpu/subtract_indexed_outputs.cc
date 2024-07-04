@@ -29,13 +29,12 @@ void cpu(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t*>(cl_args);
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
-    T value = args->value;
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const Index* labels = interfaces[0]->get_ptr<Index>();
-    T* dst = interfaces[1]->get_ptr<T>();
+    const int64_t *labels = interfaces[0]->get_ptr<int64_t>();
+    T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::subtract_indexed_outputs::cpu<T>(n_labels, n_outputs, value,
+    kernel::subtract_indexed_outputs::cpu<T>(n_labels, n_outputs, args->value,
             labels, dst);
 #endif // STARPU_SIMGRID
 }
@@ -51,16 +50,15 @@ void cuda(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t*>(cl_args);
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
-    T value = args->value;
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const Index* labels = interfaces[0]->get_ptr<Index>();
-    T* dst = interfaces[1]->get_ptr<T>();
+    const int64_t *labels = interfaces[0]->get_ptr<int64_t>();
+    T *dst = interfaces[1]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::subtract_indexed_outputs::cuda<T>(stream, n_labels, n_outputs, value,
-            labels, dst);
+    kernel::subtract_indexed_outputs::cuda<T>(stream, n_labels, n_outputs,
+            args->value, labels, dst);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
@@ -130,7 +128,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index n_labels, Index n_outputs, scal_t val, Handle labels, Handle dst)
+void submit(Index n_labels, Index n_outputs, Scalar val, Handle labels, Handle dst)
 {
     // Codelet arguments
     args_t* args = (args_t*)malloc(sizeof(args_t));
@@ -155,15 +153,15 @@ void submit(Index n_labels, Index n_outputs, scal_t val, Handle labels, Handle d
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index n_labels, Index n_outputs, scal_t val, Handle labels,
+void submit<fp32_t>(Index n_labels, Index n_outputs, Scalar val, Handle labels,
         Handle dst);
 
 template
-void submit<fp32_fast_tf32_t>(Index n_labels, Index n_outputs, scal_t val, Handle labels,
+void submit<fp32_fast_tf32_t>(Index n_labels, Index n_outputs, Scalar val, Handle labels,
         Handle dst);
 
 template
-void submit<fp64_t>(Index n_labels, Index n_outputs, scal_t val, Handle labels,
+void submit<fp64_t>(Index n_labels, Index n_outputs, Scalar val, Handle labels,
         Handle dst);
 
 } // namespace nntile::starpu::subtract_indexed_outputs

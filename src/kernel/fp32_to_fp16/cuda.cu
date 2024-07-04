@@ -19,7 +19,7 @@ namespace nntile::kernel::fp32_to_fp16
 {
 
 static __global__
-void cuda_kernel(Index nelems, const fp32_t *src, __half *dst)
+void cuda_kernel(Index nelems, const float *src, __half *dst)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     if(i < nelems)
@@ -28,7 +28,7 @@ void cuda_kernel(Index nelems, const fp32_t *src, __half *dst)
     }
 }
 
-void cuda(cudaStream_t stream, Index nelems, const fp32_t *src, fp16_t *dst)
+void cuda(cudaStream_t stream, Index nelems, const fp32_t *src_, fp16_t *dst_)
     noexcept
 /*!
  * @params[in] nelems: Number of elements in a buffer
@@ -37,8 +37,9 @@ void cuda(cudaStream_t stream, Index nelems, const fp32_t *src, fp16_t *dst)
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    __half *dst_half = reinterpret_cast<__half *>(dst);
-    (cuda_kernel)<<<blocks, threads, 0, stream>>>(nelems, src, dst_half);
+    const float *src = reinterpret_cast<const float *>(src_);
+    __half *dst = reinterpret_cast<__half *>(dst_);
+    (cuda_kernel)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
 }
 
 } // namespace nntile::kernel::fp32_to_fp16

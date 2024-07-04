@@ -35,7 +35,7 @@ void cpu(void *buffers[], void *cl_args)
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
-    Index *tmp_index = interfaces[2]->get_ptr<Index>();
+    int64_t *tmp_index = interfaces[2]->get_ptr<int64_t>();
     // Launch kernel
     kernel::subcopy::cpu<T>(*ndim_ptr, src_start, src_stride,
             copy_shape, src, dst_start, dst_stride, dst, tmp_index);
@@ -56,16 +56,17 @@ uint32_t footprint(struct starpu_task *task)
     return starpu_hash_crc32c_be_n(copy_shape, copy_shape_size, 0);
 }
 
-Codelet codelet_fp16, codelet_fp32, codelet_fp64, codelet_int64,
+//Codelet codelet_fp16;
+Codelet codelet_fp32, codelet_fp64, codelet_int64,
         codelet_bool, codelet_fp32_fast_tf32;
 
 void init()
 {
-    codelet_fp16.init("nntile_subcopy_fp16",
-            footprint,
-            {cpu<fp32_t>},
-            {}
-            );
+//    codelet_fp16.init("nntile_subcopy_fp16",
+//            footprint,
+//            {cpu<fp32_t>},
+//            {}
+//            );
     codelet_fp32.init("nntile_subcopy_fp32",
             footprint,
             {cpu<fp32_t>},
@@ -78,7 +79,7 @@ void init()
             );
     codelet_int64.init("nntile_subcopy_int64",
             footprint,
-            {cpu<Index>},
+            {cpu<int64_t>},
             {}
             );
     codelet_bool.init("nntile_subcopy_bool",
@@ -95,7 +96,7 @@ void init()
 
 void restrict_where(uint32_t where)
 {
-    codelet_fp16.restrict_where(where);
+    //codelet_fp16.restrict_where(where);
     codelet_fp32.restrict_where(where);
     codelet_fp64.restrict_where(where);
     codelet_int64.restrict_where(where);
@@ -105,7 +106,7 @@ void restrict_where(uint32_t where)
 
 void restore_where()
 {
-    codelet_fp16.restore_where();
+    //codelet_fp16.restore_where();
     codelet_fp32.restore_where();
     codelet_fp64.restore_where();
     codelet_int64.restore_where();
@@ -121,7 +122,7 @@ void submit(Index ndim, const std::vector<Index> &src_start,
         const std::vector<Index> &copy_shape, Handle src, Handle dst,
         Handle tmp_index, starpu_data_access_mode mode)
 {
-    constexpr fp64_t zero_flops = 0;
+    constexpr double nflops = 0;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_VALUE, &(ndim), sizeof(ndim),
@@ -133,7 +134,7 @@ void submit(Index ndim, const std::vector<Index> &src_start,
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             mode, static_cast<starpu_data_handle_t>(dst),
             STARPU_SCRATCH, static_cast<starpu_data_handle_t>(tmp_index),
-            STARPU_FLOPS, zero_flops, // No floating point operations
+            STARPU_FLOPS, nflops, // No floating point operations
             0);
     // Check submission
     if(ret != 0)
@@ -143,13 +144,13 @@ void submit(Index ndim, const std::vector<Index> &src_start,
 }
 
 // Explicit instantiation
-template
-void submit<fp16_t>(Index ndim, const std::vector<Index> &src_start,
-        const std::vector<Index> &src_stride,
-        const std::vector<Index> &dst_start,
-        const std::vector<Index> &dst_stride,
-        const std::vector<Index> &copy_shape, Handle src, Handle dst,
-        Handle tmp_index, starpu_data_access_mode mode);
+//template
+//void submit<fp16_t>(Index ndim, const std::vector<Index> &src_start,
+//        const std::vector<Index> &src_stride,
+//        const std::vector<Index> &dst_start,
+//        const std::vector<Index> &dst_stride,
+//        const std::vector<Index> &copy_shape, Handle src, Handle dst,
+//        Handle tmp_index, starpu_data_access_mode mode);
 
 template
 void submit<fp32_t>(Index ndim, const std::vector<Index> &src_start,
@@ -176,7 +177,7 @@ void submit<fp64_t>(Index ndim, const std::vector<Index> &src_start,
         Handle tmp_index, starpu_data_access_mode mode);
 
 template
-void submit<Index>(Index ndim, const std::vector<Index> &src_start,
+void submit<int64_t>(Index ndim, const std::vector<Index> &src_start,
         const std::vector<Index> &src_stride,
         const std::vector<Index> &dst_start,
         const std::vector<Index> &dst_stride,
@@ -192,3 +193,4 @@ void submit<bool_t>(Index ndim, const std::vector<Index> &src_start,
         Handle tmp_index, starpu_data_access_mode mode);
 
 } // namespace nntile::starpu::subcopy
+

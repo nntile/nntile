@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/addcdiv/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::addcdiv
 {
@@ -30,8 +31,8 @@ void cuda_kernel(T val, T eps, Index nelems, const T *nom, const T* denom,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, T val, T eps, Index nelems, const T *nom,
-        const T* denom, T *res)
+void cuda(cudaStream_t stream, Scalar val, Scalar eps, Index nelems,
+        const T *nom_, const T *denom_, T *res_)
     noexcept
 //! Addcdiv operation of buffers
 /*! One of the buffers serves as output
@@ -39,25 +40,29 @@ void cuda(cudaStream_t stream, T val, T eps, Index nelems, const T *nom,
  * @param[in] val: scalar multiplicator
  * @param[in] eps: small value to avoid division by zero
  * @param[in] nelems: Number of elements in both buffers
- * @param[in] nom: buffer to store the elements from nominator of ratio
- * @param[in] denom: buffer to store the elements from denominator of ratio
- * @param[inout] res: Input buffers that contains output in the end
+ * @param[in] nom_: buffer to store the elements from nominator of ratio
+ * @param[in] denom_: buffer to store the elements from denominator of ratio
+ * @param[inout] res_: Input buffers that contains output in the end
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(val, eps, nelems, nom,
-            denom, res);
+    using Y = typename CUDAComputeType<T>::value;
+    auto nom = reinterpret_cast<const Y *>(nom_);
+    auto denom = reinterpret_cast<const Y *>(denom_);
+    auto res = reinterpret_cast<Y *>(res_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(Y{val}, Y{eps}, nelems,
+            nom, denom, res);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, fp32_t val, fp32_t eps, Index nelems,
-        const fp32_t *nom, const fp32_t* denom, fp32_t *res)
+void cuda<fp32_t>(cudaStream_t stream, Scalar val, Scalar eps, Index nelems,
+        const fp32_t *nom, const fp32_t *denom, fp32_t *res)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, fp64_t val, fp64_t eps, Index nelems,
-        const fp64_t *nom, const fp64_t* denom, fp64_t *res)
+void cuda<fp64_t>(cudaStream_t stream, Scalar val, Scalar eps, Index nelems,
+        const fp64_t *nom, const fp64_t *denom, fp64_t *res)
     noexcept;
 
 } // namespace nntile::kernel::addcdiv

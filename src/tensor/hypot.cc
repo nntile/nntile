@@ -20,7 +20,7 @@ namespace nntile::tensor
 
 //! Tensor-wise hypot operation
 template<typename T>
-void hypot_async(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> &dst)
+void hypot_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst)
 {
     // Check dimensions
     if(dst.ndim != src.ndim)
@@ -70,7 +70,7 @@ void hypot_async(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T
 
 //! Tensor-wise hypot operation
 template<typename T>
-void hypot(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> &dst)
+void hypot(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst)
 {
     hypot_async<T>(alpha, src, beta, dst);
     starpu_task_wait_for_all();
@@ -79,28 +79,28 @@ void hypot(scal_t alpha, const Tensor<T> &src, scal_t beta, const Tensor<T> &dst
 
 // Explicit instantiation of template
 template
-void hypot_async<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src, scal_t beta,
+void hypot_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
         const Tensor<fp32_t> &dst);
 
 template
-void hypot_async<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src, scal_t beta,
+void hypot_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void hypot_async<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src, scal_t beta,
+void hypot_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
         const Tensor<fp64_t> &dst);
 
 // Explicit instantiation of template
 template
-void hypot<fp32_t>(scal_t alpha, const Tensor<fp32_t> &src, scal_t beta,
+void hypot<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
         const Tensor<fp32_t> &dst);
 
 template
-void hypot<fp32_fast_tf32_t>(scal_t alpha, const Tensor<fp32_fast_tf32_t> &src, scal_t beta,
+void hypot<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void hypot<fp64_t>(scal_t alpha, const Tensor<fp64_t> &src, scal_t beta,
+void hypot<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
         const Tensor<fp64_t> &dst);
 
 } // namespace nntile::tensor

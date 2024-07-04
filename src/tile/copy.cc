@@ -63,7 +63,7 @@ template
 void copy_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 template
-void copy_async<Index>(const Tile<Index> &src, const Tile<Index> &dst);
+void copy_async<int64_t>(const Tile<int64_t> &src, const Tile<int64_t> &dst);
 
 // Explicit instantiation
 template
@@ -73,6 +73,6 @@ template
 void copy<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 template
-void copy<Index>(const Tile<Index> &src, const Tile<Index> &dst);
+void copy<int64_t>(const Tile<int64_t> &src, const Tile<int64_t> &dst);
 
 } // namespace nntile::tile

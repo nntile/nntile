@@ -25,8 +25,8 @@ namespace nntile::starpu::hypot
 struct args_t
 {
     Index nelems;
-    scal_t alpha;
-    scal_t beta;
+    Scalar alpha;
+    Scalar beta;
 };
 
 // Apply hypot for StarPU buffers on CPU
@@ -75,6 +75,6 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nelems, scal_t alpha, Handle src, scal_t beta, Handle dst);
+void submit(Index nelems, Scalar alpha, Handle src, Scalar beta, Handle dst);
 
 } // namespace nntile::starpu::hypot

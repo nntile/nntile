@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/normalize/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::normalize
 {
@@ -86,8 +87,8 @@ void cuda_kernel(Index m, Index n, Index k, Index l, T eps,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, Index l, T eps,
-        const T *gamma, const T *beta, const T *sumnorm, T *dst)
+void cuda(cudaStream_t stream, Index m, Index n, Index k, Index l, Scalar eps,
+        const T *gamma_, const T *beta_, const T *sumnorm_, T *dst_)
     noexcept
 //! Renormalize buffer along middle axis
 /*! Provided m-by-k-by-n output array dst is renormalized along second axis
@@ -103,29 +104,34 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index l, T eps,
  * @param[in] k: Size of the middle mode of dst array
  * @param[in] l: Number of elements used to calculate sum and Euclidean norm
  * @param[in] eps: Regularization parameter for variance
- * @param[in] gamma: Deviation for the renormalized output
- * @param[in] beta: Mean value for the renormalized output
- * @param[in] sumnorm: Sums and norms of slices
- * @param[in] dst: Contiguous output array
+ * @param[in] gamma_: Deviation for the renormalized output
+ * @param[in] beta_: Mean value for the renormalized output
+ * @param[in] sumnorm_: Sums and norms of slices
+ * @param[in] dst_: Contiguous output array
  * */
 {
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
     // Both source and destination are Fortran-contiguous
     dim3 blocks(16, 16), threads(8, 4);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, l, eps,
+    using Y = typename CUDAComputeType<T>::value;
+    auto gamma = reinterpret_cast<const Y *>(gamma_);
+    auto beta = reinterpret_cast<const Y *>(beta_);
+    auto sumnorm = reinterpret_cast<const Y *>(sumnorm_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, n, k, l, Y{eps},
             gamma, beta, sumnorm, dst);
 }
 
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Index l,
-        fp32_t eps, const fp32_t *gamma, const fp32_t *beta,
+        Scalar eps, const fp32_t *gamma, const fp32_t *beta,
         const fp32_t *sumnorm, fp32_t *dst)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Index l,
-        fp64_t eps, const fp64_t *gamma, const fp64_t *beta,
+        Scalar eps, const fp64_t *gamma, const fp64_t *beta,
         const fp64_t *sumnorm, fp64_t *dst)
     noexcept;
 

@@ -26,7 +26,7 @@ namespace nntile::starpu::axpy
 struct args2_t
 {
     Index nelems;
-    scal_t alpha;
+    Scalar alpha;
 };
 
 #ifdef NNTILE_USE_CBLAS
@@ -106,6 +106,6 @@ template<typename T>
 void submit(Handle alpha, Index nelems, Handle src, Handle dst);
 
 template<typename T>
-void submit(scal_t alpha, Index nelems, Handle src, Handle dst);
+void submit(Scalar alpha, Index nelems, Handle src, Handle dst);
 
 } // namespace nntile::starpu::axpy

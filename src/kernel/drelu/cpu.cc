@@ -14,22 +14,25 @@
 
 #include "nntile/kernel/drelu/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::drelu
 {
 
 template<typename T>
-void cpu(Index nelems, T *data)
+void cpu(Index nelems, T *data_)
     noexcept
 //! Inplace derivative of ReLU operation performed on CPU
 /*! @params[in] nelems: Number of elements in a buffer
- * @params[inout] data: Buffer to apply derivative of ReLU
+ * @params[inout] data_: Buffer to apply derivative of ReLU
  * */
 {
-    constexpr T one = 1.0, zero = 0.0;
+    using Y = typename CPUComputeType<T>::value;
+    auto data = reinterpret_cast<Y *>(data_);
+    constexpr Y one{1.0}, zero{0.0};
     for(Index i = 0; i < nelems; ++i)
     {
-        T &z = data[i];
+        Y &z = data[i];
         if(z > zero)
         {
             z = one;

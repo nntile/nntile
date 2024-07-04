@@ -13,6 +13,7 @@
  * */
 
 #include "nntile/kernel/relu/cuda.hh"
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::relu
 {
@@ -30,18 +31,20 @@ void cuda_kernel(Index nelems, T *data)
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, T *data)
+void cuda(cudaStream_t stream, Index nelems, T *data_)
     noexcept
 //! Inplace ReLU operation on CUDA
 /*! Does the following per-element operation:
  * ReLU(z) = max(z, 0)
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data: Buffer to apply ReLU
+ * @params[inout] data_: Buffer to apply ReLU
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, data);
+    using Y = typename CUDAComputeType<T>::value;
+    auto data = reinterpret_cast<Y *>(data_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, data);
 }
 
 // Explicit instantiation

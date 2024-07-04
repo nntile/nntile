@@ -14,15 +14,19 @@
 
 #include "nntile/kernel/logsumexp/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::logsumexp
 {
 
 template<typename T>
-void cpu(Index nelems, const T *maxsumexp, T *logsumexp)
+void cpu(Index nelems, const T *maxsumexp_, T *logsumexp_)
     noexcept
 {
-    for(Index i = 0; i < nelems; ++i)
+    using Y = typename CPUComputeType<T>::value;
+    auto maxsumexp = reinterpret_cast<const Y *>(maxsumexp_);
+    auto logsumexp = reinterpret_cast<Y *>(logsumexp_);
+    for(Index i = 0; i < nelems; ++i) 
     {
         logsumexp[i] = maxsumexp[2*i] + std::log(maxsumexp[2*i+1]);
     }

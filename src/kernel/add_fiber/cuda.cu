@@ -14,6 +14,7 @@
 
 #include "nntile/kernel/add_fiber/cuda.hh"
 #include <algorithm>
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::add_fiber
 {
@@ -58,8 +59,8 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, T alpha, const T *src,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, T alpha,
-        const T *src, T beta, T *dst)
+void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
+        Scalar alpha, const T *src_, Scalar beta, T *dst_)
     noexcept
 //! Per-element addition of a tensor and a broadcasted fiber on CPU
 /*! Performs the following operations:
@@ -71,9 +72,9 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, T alpha,
  *      tensors
  * @param[in] batch: Size of the batch dimension
  * @param[in] alpha: Scalar factor for src
- * @param[in] src: Input contiguous vector with k elements
+ * @param[in] src_: Input contiguous vector with k elements
  * @param[in] beta: Scaling factor for dst
- * @param[inout] dst: Input and output contiguous m-by-k-by-n array
+ * @param[inout] dst_: Input and output contiguous m-by-k-by-n array
  * */
 {
     // Both source and destination are Fortran-contiguous
@@ -81,19 +82,22 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, T alpha,
             std::min(int(n), 1));
     dim3 blocks((k+threads.x-1)/threads.x, (m+threads.y-1)/threads.y,
             (n+threads.z-1)/threads.z);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, batch, alpha,
-            src, beta, dst);
+    using Y = typename CUDAComputeType<T>::value;
+    auto src = reinterpret_cast<const Y *>(src_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, n, k, batch, Y{alpha},
+            src, Y{beta}, dst);
 }
 
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
-        fp32_t alpha, const fp32_t *src, fp32_t beta, fp32_t *dst)
+        Scalar alpha, const fp32_t *src, Scalar beta, fp32_t *dst)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
-        fp64_t alpha, const fp64_t *src, fp64_t beta, fp64_t *dst)
+        Scalar alpha, const fp64_t *src, Scalar beta, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::add_fiber

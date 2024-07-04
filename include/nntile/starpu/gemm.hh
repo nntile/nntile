@@ -31,8 +31,8 @@ struct args_t
     Index n; // Number of columns of op(B) and C
     Index k; // Number of columns of op(A) and number of rows of op(B)
     Index batch; // Number of gemms in a batch
-    scal_t alpha;
-    scal_t beta;
+    Scalar alpha;
+    Scalar beta;
 };
 
 #ifdef NNTILE_USE_CBLAS
@@ -52,8 +52,8 @@ extern Codelet codelet_NN_fp32, codelet_NN_fp64,
        codelet_TN_fp32, codelet_TN_fp64,
        codelet_TT_fp32, codelet_TT_fp64;
 
-extern Codelet codelet_NN_fp16, codelet_NT_fp16,
-       codelet_TN_fp16, codelet_TT_fp16;
+//extern Codelet codelet_NN_fp16, codelet_NT_fp16,
+//       codelet_TN_fp16, codelet_TT_fp16;
 
 extern Codelet codelet_NN_fp32_fast_tf32, codelet_NT_fp32_fast_tf32,
        codelet_TN_fp32_fast_tf32, codelet_TT_fp32_fast_tf32;
@@ -156,35 +156,35 @@ Codelet *codelet<fp64_t>(TransOp transA, TransOp transB)
     }
 }
 
-template<>
-Codelet *codelet<fp16_t>(TransOp transA, TransOp transB)
-{
-    switch(transA.value)
-    {
-        case TransOp::NoTrans:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &codelet_NN_fp16;
-                default:
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                    return &codelet_NT_fp16;
-            }
-        // This parameter was already checked in gemm_check_opA_opB
-        //case TransOp::Trans:
-        default:
-            switch(transB.value)
-            {
-                case TransOp::NoTrans:
-                    return &codelet_TN_fp16;
-                // This parameter was already checked in gemm_check_opA_opB
-                //case TransOp::Trans:
-                default:
-                    return &codelet_TT_fp16;
-            }
-    }
-}
+//template<>
+//Codelet *codelet<fp16_t>(TransOp transA, TransOp transB)
+//{
+//    switch(transA.value)
+//    {
+//        case TransOp::NoTrans:
+//            switch(transB.value)
+//            {
+//                case TransOp::NoTrans:
+//                    return &codelet_NN_fp16;
+//                default:
+//                // This parameter was already checked in gemm_check_opA_opB
+//                //case TransOp::Trans:
+//                    return &codelet_NT_fp16;
+//            }
+//        // This parameter was already checked in gemm_check_opA_opB
+//        //case TransOp::Trans:
+//        default:
+//            switch(transB.value)
+//            {
+//                case TransOp::NoTrans:
+//                    return &codelet_TN_fp16;
+//                // This parameter was already checked in gemm_check_opA_opB
+//                //case TransOp::Trans:
+//                default:
+//                    return &codelet_TT_fp16;
+//            }
+//    }
+//}
 
 void init();
 
@@ -194,7 +194,7 @@ void restore_where();
 
 template<typename T>
 void submit(const TransOp &transA, const TransOp &transB, Index m, Index n,
-        Index k, Index batch, scal_t alpha, Handle A, Handle B, scal_t beta,
+        Index k, Index batch, Scalar alpha, Handle A, Handle B, Scalar beta,
         Handle C, int redux=0);
 
 } // namespace nntile::starpu::gemm

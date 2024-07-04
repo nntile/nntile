@@ -128,7 +128,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, scal_t alpha, Handle src1, Handle src2,
+void submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Handle src2,
         Handle dst)
 //! Insert prod_fiber3 task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -142,7 +142,7 @@ void submit(Index m, Index n, Index k, scal_t alpha, Handle src1, Handle src2,
     args->n = n;
     args->k = k;
     args->alpha = alpha;
-    fp64_t nflops = m * n * k;
+    double nflops = m * n * k;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src1),
@@ -160,15 +160,15 @@ void submit(Index m, Index n, Index k, scal_t alpha, Handle src1, Handle src2,
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index m, Index n, Index k, scal_t alpha, Handle src1,
+void submit<fp32_t>(Index m, Index n, Index k, Scalar alpha, Handle src1,
         Handle src2, Handle dst);
 
 template
-void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, scal_t alpha, Handle src1,
+void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha, Handle src1,
         Handle src2, Handle dst);
 
 template
-void submit<fp64_t>(Index m, Index n, Index k, scal_t alpha, Handle src1,
+void submit<fp64_t>(Index m, Index n, Index k, Scalar alpha, Handle src1,
         Handle src2, Handle dst);
 
 } // namespace nntile::starpu::prod_fiber3

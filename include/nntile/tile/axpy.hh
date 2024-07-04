@@ -26,9 +26,9 @@ template<typename T>
 void axpy(const Tile<T> &alpha, const Tile<T> &src, const Tile<T> &dst);
 
 template<typename T>
-void axpy_async(scal_t alpha, const Tile<T> &src, const Tile<T> &dst);
+void axpy_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst);
 
 template<typename T>
-void axpy(scal_t alpha, const Tile<T> &src, const Tile<T> &dst);
+void axpy(Scalar alpha, const Tile<T> &src, const Tile<T> &dst);
 
 } // namespace nntile::tile

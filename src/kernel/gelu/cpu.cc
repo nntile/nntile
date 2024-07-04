@@ -14,6 +14,7 @@
 
 #include "nntile/kernel/gelu/cpu.hh"
 #include <cmath>
+#include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::gelu
 {
@@ -30,12 +31,13 @@ void cpu(Index nelems, T *data)
  * @params[inout] data: Buffer to apply GeLU
  * */
 {
-    constexpr T mone = -1, pt5 = 0.5;
-    const T f1 = mone / std::sqrt(T{2.0});
+    using Y = typename T::repr_t;
+    constexpr Y mone{-1.0}, pt5{0.5};
+    const Y f1 = mone / std::sqrt(Y{2.0});
     for(Index i = 0; i < nelems; ++i)
     {
-        T z = data[i];
-        T y = std::erfc(f1 * z);
+        Y z = data[i];
+        Y y = std::erfc(f1 * z);
         data[i] = (pt5 * z) * y;
     }
 }
@@ -47,6 +49,10 @@ void cpu<fp32_t>(Index nelems, fp32_t *data)
 
 template
 void cpu<fp64_t>(Index nelems, fp64_t *data)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index nelems, bf16_t *data)
     noexcept;
 
 } // namespace nntile::kernel::gelu

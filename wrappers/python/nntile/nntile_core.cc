@@ -72,10 +72,28 @@ void def_mod_starpu(py::module_ &m)
             starpu_fxt_stop_profiling();});
 }
 
+//! Copy from raw pointer to a raw pointer with a possible conversion
+template<typename T, typename Y, bool trivial_copy>
+void copy_raw(Index nelems, const T *src, Y *dst)
+{
+    if constexpr (trivial_copy)
+    {
+        std::memcpy(dst, src, nelems*sizeof(T));
+    }
+    else
+    {
+        for(Index i = 0; i < nelems; ++i)
+        {
+            dst[i] = T{src[i]};
+        }
+    }
+}
+
 // numpy.ndarray -> Tile
 template<typename T>
 void tile_from_array(const tile::Tile<T> &tile,
-        const py::array_t<T, py::array::f_style | py::array::forcecast> &array)
+        const py::array_t<typename T::repr_t,
+            py::array::f_style | py::array::forcecast> &array)
 {
     // Treat special 0-dimensional case, where NNTile assumes 1 element in a
     // tensor, while 0-dimensional numpy array assumes there no array elements
@@ -92,7 +110,9 @@ void tile_from_array(const tile::Tile<T> &tile,
         // Acquire tile and copy a single element
         auto tile_local = tile.acquire(STARPU_W);
 #ifndef STARPU_SIMGRID
-        std::memcpy(tile_local.get_ptr(), array.data(), sizeof(T));
+        using Y = typename T::repr_t;
+        constexpr bool triv = T::trivial_copy_from_compat;
+        copy_raw<Y, T, triv>(1, array.data(), tile_local.get_ptr());
 #endif // STARPU_SIMGRID
         tile_local.release();
         return;
@@ -112,8 +132,9 @@ void tile_from_array(const tile::Tile<T> &tile,
     // Acquire tile and copy data
     auto tile_local = tile.acquire(STARPU_W);
 #ifndef STARPU_SIMGRID
-    std::memcpy(tile_local.get_ptr(), array.data(),
-            tile.nelems*sizeof(T));
+    using Y = typename T::repr_t;
+    constexpr bool triv = T::trivial_copy_from_compat;
+    copy_raw<Y, T, triv>(tile.nelems, array.data(), tile_local.get_ptr());
 #endif // STARPU_SIMGRID
     tile_local.release();
 }
@@ -121,7 +142,7 @@ void tile_from_array(const tile::Tile<T> &tile,
 // Tile -> numpy.ndarray
 template<typename T>
 void tile_to_array(const tile::Tile<T> &tile,
-        py::array_t<T, py::array::f_style> &array)
+        py::array_t<typename T::repr_t, py::array::f_style> &array)
 {
     // Treat special 0-dimensional case, where NNTile assumes 1 element in a
     // tensor, while 0-dimensional numpy array assumes there no array elements
@@ -138,7 +159,9 @@ void tile_to_array(const tile::Tile<T> &tile,
         // Acquire tile and copy a single element
         auto tile_local = tile.acquire(STARPU_R);
 #ifndef STARPU_SIMGRID
-        std::memcpy(array.mutable_data(), tile_local.get_ptr(), sizeof(T));
+        using Y = typename T::repr_t;
+        constexpr bool triv = T::trivial_copy_from_compat;
+        copy_raw<T, Y, triv>(1, tile_local.get_ptr(), array.mutable_data());
 #endif // STARPU_SIMGRID
         tile_local.release();
         return;
@@ -158,8 +181,10 @@ void tile_to_array(const tile::Tile<T> &tile,
     // Acquire tile and copy data
     auto tile_local = tile.acquire(STARPU_R);
 #ifndef STARPU_SIMGRID
-    std::memcpy(array.mutable_data(), tile_local.get_ptr(),
-            tile.nelems*sizeof(T));
+    using Y = typename T::repr_t;
+    constexpr bool triv = T::trivial_copy_from_compat;
+    copy_raw<T, Y, triv>(tile.nelems, tile_local.get_ptr(),
+        array.mutable_data());
 #endif // STARPU_SIMGRID
     tile_local.release();
 }
@@ -212,7 +237,8 @@ void def_mod_tile(py::module_ &m)
 // numpy.ndarray -> Tensor
 template<typename T>
 void tensor_from_array(const tensor::Tensor<T> &tensor,
-        const py::array_t<T, py::array::f_style | py::array::forcecast> &array)
+        const py::array_t<typename T::repr_t,
+            py::array::f_style | py::array::forcecast> &array)
 {
     // Treat special 0-dimensional case, where NNTile assumes 1 element in a
     // tensor, while 0-dimensional numpy array assumes there no array elements
@@ -233,7 +259,9 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
         {
             auto tile_local = tile.acquire(STARPU_W);
 #ifndef STARPU_SIMGRID
-            std::memcpy(tile_local.get_ptr(), array.data(), sizeof(T));
+            using Y = typename T::repr_t;
+            constexpr bool triv = T::trivial_copy_from_compat;
+            copy_raw<Y, T, triv>(1, array.data(), tile_local.get_ptr());
 #endif // STARPU_SIMGRID
             tile_local.release();
         }
@@ -254,7 +282,7 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
     }
     // Create temporary single-tile tensor
     tensor::TensorTraits tmp_traits(tensor.shape, tensor.shape);
-    int64_t tmp_tag = 0;
+    std::int64_t tmp_tag = 0;
     int flag;
     //starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
     //        &flag);
@@ -267,8 +295,9 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
     {
         auto tile_local = tile.acquire(STARPU_W);
 #ifndef STARPU_SIMGRID
-        std::memcpy(tile_local.get_ptr(), array.data(),
-                tile.nelems*sizeof(T));
+        using Y = typename T::repr_t;
+        constexpr bool triv = T::trivial_copy_from_compat;
+        copy_raw<Y, T, triv>(tile.nelems, array.data(), tile_local.get_ptr());
 #endif // STARPU_SIMGRID
         tile_local.release();
     }
@@ -279,7 +308,8 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
 
 // Tensor -> numpy.ndarray
 template<typename T>
-void tensor_to_array(const tensor::Tensor<T> &tensor, py::array_t<T, py::array::f_style> &array)
+void tensor_to_array(const tensor::Tensor<T> &tensor,
+        py::array_t<typename T::repr_t, py::array::f_style> &array)
 {
     // Treat special 0-dimensional case, where NNTile assumes 1 element in a
     // tensor, while 0-dimensional numpy array assumes there no array elements
@@ -300,7 +330,10 @@ void tensor_to_array(const tensor::Tensor<T> &tensor, py::array_t<T, py::array::
         {
             auto tile_local = tile.acquire(STARPU_R);
 #ifndef STARPU_SIMGRID
-            std::memcpy(array.mutable_data(), tile_local.get_ptr(), sizeof(T));
+            using Y = typename T::repr_t;
+            constexpr bool triv = T::trivial_copy_from_compat;
+            copy_raw<T, Y, triv>(1, tile_local.get_ptr(),
+                array.mutable_data());
 #endif // STARPU_SIMGRID
             tile_local.release();
         }
@@ -321,7 +354,7 @@ void tensor_to_array(const tensor::Tensor<T> &tensor, py::array_t<T, py::array::
     }
     // Create temporary single-tile tensor
     tensor::TensorTraits tmp_traits(tensor.shape, tensor.shape);
-    int64_t tmp_tag = 0;
+    std::int64_t tmp_tag = 0;
     int flag;
     //starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
             &flag);
@@ -335,8 +368,10 @@ void tensor_to_array(const tensor::Tensor<T> &tensor, py::array_t<T, py::array::
     {
         auto tile_local = tile.acquire(STARPU_R);
 #ifndef STARPU_SIMGRID
-        std::memcpy(array.mutable_data(), tile_local.get_ptr(),
-                tile.nelems*sizeof(T));
+        using Y = typename T::repr_t;
+        constexpr bool triv = T::trivial_copy_from_compat;
+        copy_raw<T, Y, triv>(tile.nelems, tile_local.get_ptr(),
+            array.mutable_data());
 #endif // STARPU_SIMGRID
         tile_local.release();
     }
@@ -357,15 +392,8 @@ void def_class_tensor(py::module_ &m, const char *name)
         def("invalidate_submit", &Tensor<T>::invalidate_submit).
         //def("invalidate_submit", &Tensor<T>::wont_use).
         def("wont_use", &Tensor<T>::wont_use).
-        // def("from_array", &tensor_from_array<T>).
-        def("from_array", [](const tensor::Tensor<fp32_t> & t, const py::array_t<fp32_t, py::array::f_style | py::array::forcecast> & a) { return tensor_from_array<fp32_t>(t, a); } ).
-        def("from_array", [](const tensor::Tensor<int64_t> & t, const py::array_t<int64_t, py::array::f_style | py::array::forcecast> & a) { return tensor_from_array<int64_t>(t, a); } ).
-        def("from_array", [](const tensor::Tensor<bool_t> & t, const py::array_t<bool_t, py::array::f_style | py::array::forcecast> & a) { return tensor_from_array<bool_t>(t, a); } ).
-        def("from_array", [](const tensor::Tensor<fp32_fast_tf32_t> & t, const py::array_t<fp32_t, py::array::f_style | py::array::forcecast> & a) { auto t_fp32 = reinterpret_cast<const tensor::Tensor<fp32_t>* >(&t); return tensor_from_array<fp32_t>(*t_fp32, a); } ).
-
-        def("to_array", [](const tensor::Tensor<fp32_t> & t, py::array_t<fp32_t, py::array::f_style> & a) { return tensor_to_array<fp32_t>(t, a); } ).
-        def("to_array", [](const tensor::Tensor<fp32_fast_tf32_t> & t, py::array_t<fp32_t, py::array::f_style> & a) {  auto t_fp32 = reinterpret_cast<const tensor::Tensor<fp32_t>* >(&t); return tensor_to_array<fp32_t>(*t_fp32, a); } ).
-        def("to_array", [](const tensor::Tensor<fp64_t> & t, py::array_t<fp64_t, py::array::f_style> & a) { return tensor_to_array<fp64_t>(t, a); } ).
+        def("from_array", &tensor_from_array<T>).
+        def("to_array", &tensor_to_array<T>).
 
         def("set_reduction_add", &Tensor<T>::set_reduction_add).
         def("set_reduction_hypot", &Tensor<T>::set_reduction_hypot).
@@ -412,12 +440,12 @@ void def_mod_tensor(py::module_ &m)
         // Get grid (TileTraits)
         def_readonly("grid", &TensorTraits::grid);
     // Define wrappers for Tensor<T>
-    def_class_tensor<fp64_t>(m, "Tensor_fp64");
-    def_class_tensor<fp32_t>(m, "Tensor_fp32");
-    def_class_tensor<fp16_t>(m, "Tensor_fp16");
-    def_class_tensor<Index>(m, "Tensor_int64");
+    def_class_tensor<nntile::int64_t>(m, "Tensor_int64");
     def_class_tensor<bool_t>(m, "Tensor_bool");
+    def_class_tensor<fp64_t>(m, "Tensor_fp64");
     def_class_tensor<fp32_fast_tf32_t>(m, "Tensor_fp32_fast_tf32");
+    def_class_tensor<fp32_t>(m, "Tensor_fp32");
+    //def_class_tensor<fp16_t>(m, "Tensor_fp16");
     // Add tensor.distributions submodule
     auto distributions = m.def_submodule("distributions");
     def_tensor_distributions(distributions);
@@ -425,13 +453,13 @@ void def_mod_tensor(py::module_ &m)
     // Add functions for Tensor<T>
     m.def("gemm_async_fp64", &gemm_async<fp64_t>);
     m.def("gemm_async_fp32", &gemm_async<fp32_t>);
-    m.def("gemm_async_fp16", &gemm_async<fp16_t>);
     m.def("gemm_async_fp32_fast_tf32", &gemm_async<fp32_fast_tf32_t>);
+    //m.def("gemm_async_fp16", &gemm_async<fp16_t>);
 
     m.def("gemm_fp64", &gemm<fp64_t>);
     m.def("gemm_fp32", &gemm<fp32_t>);
-    m.def("gemm_fp16", &gemm<fp16_t>);
     m.def("gemm_fp32_fast_tf32", &gemm<fp32_fast_tf32_t>);
+    //m.def("gemm_fp16", &gemm<fp16_t>);
 
     // Add activation functions for Tensor<T>
     m.def("relu_async_fp64", &relu_async<fp64_t>);
@@ -528,11 +556,11 @@ void def_mod_tensor(py::module_ &m)
 
     m.def("scatter_async_fp64", &scatter_async<fp64_t>);
     m.def("scatter_async_fp32", &scatter_async<fp32_t>);
-    m.def("scatter_async_int64", &scatter_async<Index>);
+    m.def("scatter_async_int64", &scatter_async<nntile::int64_t>);
     m.def("scatter_async_bool", &scatter_async<bool_t>);
     m.def("scatter_fp64", &scatter<fp64_t>);
     m.def("scatter_fp32", &scatter<fp32_t>);
-    m.def("scatter_int64", &scatter<Index>);
+    m.def("scatter_int64", &scatter<nntile::int64_t>);
     m.def("scatter_bool", &scatter<bool_t>);
     m.def("randn_async_fp64", &randn_async<fp64_t>);
     m.def("randn_async_fp32", &randn_async<fp32_t>);
@@ -625,51 +653,51 @@ void def_mod_tensor(py::module_ &m)
 
     m.def("gather_async_fp64", &gather_async<fp64_t>);
     m.def("gather_async_fp32", &gather_async<fp32_t>);
-    m.def("gather_async_int64", &gather_async<Index>);
+    m.def("gather_async_int64", &gather_async<nntile::int64_t>);
     m.def("gather_async_bool", &gather_async<bool_t>);
     m.def("gather_fp64", &gather<fp64_t>);
     m.def("gather_fp32", &gather<fp32_t>);
-    m.def("gather_int64", &gather<Index>);
+    m.def("gather_int64", &gather<nntile::int64_t>);
     m.def("gather_bool", &gather<bool_t>);
 
     m.def("copy_intersection_async_fp64", &copy_intersection_async<fp64_t>);
     m.def("copy_intersection_async_fp32", &copy_intersection_async<fp32_t>);
-    m.def("copy_intersection_async_int64", &copy_intersection_async<Index>);
+    m.def("copy_intersection_async_int64", &copy_intersection_async<nntile::int64_t>);
 
     m.def("copy_intersection_fp64", &copy_intersection<fp64_t>);
     m.def("copy_intersection_fp32", &copy_intersection<fp32_t>);
-    m.def("copy_intersection_int64", &copy_intersection<Index>);
+    m.def("copy_intersection_int64", &copy_intersection<nntile::int64_t>);
 
     m.def("copy_async_fp64", &copy_async<fp64_t>);
     m.def("copy_async_fp32", &copy_async<fp32_t>);
     m.def("copy_async_fp32_fast_tf32", &copy_async<fp32_fast_tf32_t>);
-    m.def("copy_async_int64", &copy_async<Index>);
+    m.def("copy_async_int64", &copy_async<nntile::int64_t>);
 
     m.def("copy_fp64", &copy<fp64_t>);
     m.def("copy_fp32", &copy<fp32_t>);
     m.def("copy_fp32_fast_tf32", &copy<fp32_fast_tf32_t>);
-    m.def("copy_int64", &copy<Index>);
+    m.def("copy_int64", &copy<nntile::int64_t>);
 
     m.def("clear_async_fp64", &clear_async<fp64_t>);
     m.def("clear_async_fp32", &clear_async<fp32_t>);
     m.def("clear_async_fp32_fast_tf32", &clear_async<fp32_fast_tf32_t>);
-    m.def("clear_async_fp16", &clear_async<fp16_t>);
+    //m.def("clear_async_fp16", &clear_async<fp16_t>);
     m.def("clear_fp64", &clear<fp64_t>);
     m.def("clear_fp32", &clear<fp32_t>);
     m.def("clear_fp32_fast_tf32", &clear<fp32_fast_tf32_t>);
-    m.def("clear_fp16", &clear<fp16_t>);
+    //m.def("clear_fp16", &clear<fp16_t>);
 
-    m.def("axpy_async_fp64", py::overload_cast<scal_t, const Tensor<fp64_t>&,
+    m.def("axpy_async_fp64", py::overload_cast<Scalar, const Tensor<fp64_t>&,
             const Tensor<fp64_t>&>(&axpy_async<fp64_t>));
-    m.def("axpy_async_fp32", py::overload_cast<scal_t, const Tensor<fp32_t>&,
+    m.def("axpy_async_fp32", py::overload_cast<Scalar, const Tensor<fp32_t>&,
             const Tensor<fp32_t>&>(&axpy_async<fp32_t>));
-    m.def("axpy_async_fp32_fast_tf32", py::overload_cast<scal_t, const Tensor<fp32_fast_tf32_t>&,
+    m.def("axpy_async_fp32_fast_tf32", py::overload_cast<Scalar, const Tensor<fp32_fast_tf32_t>&,
             const Tensor<fp32_fast_tf32_t>&>(&axpy_async<fp32_fast_tf32_t>));
-    m.def("axpy_fp64", py::overload_cast<scal_t, const Tensor<fp64_t>&,
+    m.def("axpy_fp64", py::overload_cast<Scalar, const Tensor<fp64_t>&,
             const Tensor<fp64_t>&>(&axpy<fp64_t>));
-    m.def("axpy_fp32", py::overload_cast<scal_t, const Tensor<fp32_t>&,
+    m.def("axpy_fp32", py::overload_cast<Scalar, const Tensor<fp32_t>&,
             const Tensor<fp32_t>&>(&axpy<fp32_t>));
-    m.def("axpy_fp32_fast_tf32", py::overload_cast<scal_t, const Tensor<fp32_fast_tf32_t>&,
+    m.def("axpy_fp32_fast_tf32", py::overload_cast<Scalar, const Tensor<fp32_fast_tf32_t>&,
             const Tensor<fp32_fast_tf32_t>&>(&axpy<fp32_fast_tf32_t>));
 
     m.def("axpy_async_fp64", py::overload_cast<const Tensor<fp64_t>&,
@@ -824,8 +852,8 @@ void def_mod_tensor(py::module_ &m)
     m.def("embedding_backward_fp32_fast_tf32", &embedding_backward<fp32_fast_tf32_t>);
 
     // FP32 <-> FP16
-    m.def("fp32_to_fp16_async", &fp32_to_fp16_async);
-    m.def("fp16_to_fp32_async", &fp16_to_fp32_async);
+    //m.def("fp32_to_fp16_async", &fp32_to_fp16_async);
+    //m.def("fp16_to_fp32_async", &fp16_to_fp32_async);
 
     m.def("mask_scalar_async_fp64", &mask_scalar_async<fp64_t>);
     m.def("mask_scalar_async_fp32", &mask_scalar_async<fp32_t>);

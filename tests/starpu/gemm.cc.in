@@ -59,7 +59,7 @@ void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
 
 template<typename T>
 void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
-        Index batch, scal_t alpha, scal_t beta)
+        Index batch, Scalar alpha, Scalar beta)
 {
     // Init all the data
     std::vector<T> A(m*k*batch), B(n*k*batch), C(m*n*batch);
@@ -178,7 +178,7 @@ void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
 
 template<typename T>
 void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
-        Index batch, scal_t alpha, scal_t beta)
+        Index batch, Scalar alpha, Scalar beta)
 {
     // Get a StarPU CUDA worker (to perform computations on the same device)
     int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);

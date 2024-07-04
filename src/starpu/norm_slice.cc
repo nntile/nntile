@@ -126,7 +126,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, scal_t alpha, Handle src, scal_t beta,
+void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
         Handle dst, int redux)
 //! Insert norm_slice task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
@@ -135,7 +135,7 @@ void submit(Index m, Index n, Index k, scal_t alpha, Handle src, scal_t beta,
  * */
 {
     // Access mode for the dst handle
-    constexpr scal_t zero = 0, one = 1;
+    constexpr Scalar zero = 0, one = 1;
     enum starpu_data_access_mode dst_mode;
     if(beta == zero)
     {
@@ -179,15 +179,15 @@ void submit(Index m, Index n, Index k, scal_t alpha, Handle src, scal_t beta,
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index m, Index n, Index k, scal_t alpha, Handle src,
-        scal_t beta, Handle dst, int redux);
+void submit<fp32_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
+        Scalar beta, Handle dst, int redux);
 
 template
-void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, scal_t alpha, Handle src,
-        scal_t beta, Handle dst, int redux);
+void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
+        Scalar beta, Handle dst, int redux);
 
 template
-void submit<fp64_t>(Index m, Index n, Index k, scal_t alpha, Handle src,
-        scal_t beta, Handle dst, int redux);
+void submit<fp64_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
+        Scalar beta, Handle dst, int redux);
 
 } // namespace nntile::starpu::norm_slice

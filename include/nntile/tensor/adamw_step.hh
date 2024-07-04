@@ -20,12 +20,12 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void adamw_step_async(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
+void adamw_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
     const Tensor<T> &grad, const Tensor<T> &first_moment, const Tensor<T> &second_moment,
                    const Tensor<T> &p);
 
 template<typename T>
-void adamw_step(Index num_iter, scal_t beta_1, scal_t beta_2, scal_t eps, scal_t lr, scal_t weight_decay,
+void adamw_step(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
     const Tensor<T> &grad, const Tensor<T> &first_moment, const Tensor<T> &second_moment,
                    const Tensor<T> &p);
 

@@ -14,6 +14,7 @@
 
 #include "nntile/kernel/softmax_inplace/cuda.hh"
 #include <stdio.h>
+#include "nntile/kernel/cuda.hh"
 
 namespace nntile::kernel::softmax_inplace
 {
@@ -62,8 +63,8 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
-        T alpha, T *dst)
+void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp_,
+        Scalar alpha, T *dst_)
     noexcept
 //! softmax of a buffer along middle axis
 /*!
@@ -71,9 +72,9 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
  * @param[in] m: Size of the first mode of dst and sumnorm arrays
  * @param[in] n: Size of the last mode of dst and sumnorm arrays
  * @param[in] k: Size of the middle mode of dst array
- * @param[in] maxsumexp: Maximums and sums of exponents of slices
+ * @param[in] maxsumexp_: Maximums and sums of exponents of slices
  * @param[in] alpha: Scalar multiplier for the output
- * @param[in] dst: Contiguous output array
+ * @param[in] dst_: Contiguous output array
  * */
 {
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
@@ -90,19 +91,22 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
         n_per_block = (n+65534) / 65535;
         blocks.z = (n+n_per_block-1) / n_per_block;
     }
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, m_per_block, n,
-            n_per_block, k, maxsumexp, alpha, dst);
+    using Y = typename CUDAComputeType<T>::value;
+    auto maxsumexp = reinterpret_cast<const Y *>(maxsumexp_);
+    auto dst = reinterpret_cast<Y *>(dst_);
+    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, m_per_block, n,
+            n_per_block, k, maxsumexp, Y{alpha}, dst);
 }
 
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
-        const fp32_t *maxsumexp, fp32_t alpha, fp32_t *dst)
+        const fp32_t *maxsumexp, Scalar alpha, fp32_t *dst)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
-        const fp64_t *maxsumexp, fp64_t alpha, fp64_t *dst)
+        const fp64_t *maxsumexp, Scalar alpha, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::softmax_inplace
