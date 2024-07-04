@@ -483,9 +483,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("relu_forward_fp32_fast_tf32", &relu_forward<fp32_fast_tf32_t>);
 
     m.def("relu_backward_async_fp64", &relu_backward_async<fp64_t>);
+    m.def("relu_backward_async_bf16", &relu_backward_async<bf16_t>);
     m.def("relu_backward_async_fp32", &relu_backward_async<fp32_t>);
     m.def("relu_backward_async_fp32_fast_tf32", &relu_backward_async<fp32_fast_tf32_t>);
     m.def("relu_backward_fp64", &relu_backward<fp64_t>);
+    m.def("relu_backward_bf16", &relu_backward<bf16_t>);
     m.def("relu_backward_fp32", &relu_backward<fp32_t>);
     m.def("relu_backward_fp32_fast_tf32", &relu_backward<fp32_fast_tf32_t>);
 

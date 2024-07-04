@@ -101,6 +101,8 @@ def relu_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
         core_tensor.relu_backward_async_fp64(x, dy, dx)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.relu_backward_async_fp32_fast_tf32(x, dy, dx)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.relu_backward_async_bf16(x, dy, dx)
     else:
         raise TypeError
 
