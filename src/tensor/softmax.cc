@@ -188,6 +188,11 @@ void softmax_async<fp64_t>(const Tensor<fp64_t> &maxsumexp,
         const Tensor<fp64_t> &src, Scalar alpha, const Tensor<fp64_t> &dst,
         Index axis);
 
+template
+void softmax_async<bf16_t>(const Tensor<bf16_t> &maxsumexp,
+        const Tensor<bf16_t> &src, Scalar alpha, const Tensor<bf16_t> &dst,
+        Index axis);
+
 // Explicit instantiation
 template
 void softmax<fp32_t>(const Tensor<fp32_t> &maxsumexp,
@@ -202,6 +207,11 @@ void softmax<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &maxsumexp,
 template
 void softmax<fp64_t>(const Tensor<fp64_t> &maxsumexp,
         const Tensor<fp64_t> &src, Scalar alpha, const Tensor<fp64_t> &dst,
+        Index axis);
+
+template
+void softmax<bf16_t>(const Tensor<bf16_t> &maxsumexp,
+        const Tensor<bf16_t> &src, Scalar alpha, const Tensor<bf16_t> &dst,
         Index axis);
 
 } // namespace nntile::tensor

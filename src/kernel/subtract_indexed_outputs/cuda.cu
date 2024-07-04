@@ -20,12 +20,18 @@ namespace nntile::kernel::subtract_indexed_outputs
 
 template<typename T>
 static __global__
-void cuda_kernel(Index n_labels, Index n_outputs, T val, const Index* labels, T *dst)
+void cuda_kernel(Index n_labels, Index n_outputs, Scalar val_, const Index* labels, T *dst_)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
+    using Y = typename T::compat_t;
+    using Z = typename CUDAComputeType<T>::value;
+    Z* dst = reinterpret_cast<Z *>(dst_);
+    Y dst_val{0.0};
+    Y val{val_};
     if(i < n_outputs)
     {
-         dst[labels[i] + i*n_labels] -= val;
+        dst_val = Y{dst[labels[i] + i*n_labels]}; 
+        dst[labels[i] + i*n_labels] = Z{dst_val - val};
     }
 }
 
@@ -47,12 +53,12 @@ void cuda(cudaStream_t stream, Index n_labels, Index n_outputs, Scalar val,
  * */
 {
     dim3 blocks((n_outputs+255)/256), threads(256);
-    using Y = typename CUDAComputeType<T>::value;
+    // using Y = typename CUDAComputeType<T>::value;
     using I = typename CUDAComputeType<int64_t>::value;
     auto labels = reinterpret_cast<const I *>(labels_);
-    auto dst = reinterpret_cast<Y *>(dst_);
-    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(n_labels, n_outputs,
-            Y{val}, labels, dst);
+    // auto dst = reinterpret_cast<Y *>(dst_);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(n_labels, n_outputs,
+            val, labels, dst_);
 }
 
 // Explicit instantiation
@@ -64,6 +70,11 @@ void cuda<fp32_t>(cudaStream_t stream, Index n_labels, Index n_outputs,
 template
 void cuda<fp64_t>(cudaStream_t stream, Index n_labels, Index n_outputs,
         Scalar val, const int64_t *labels, fp64_t *dst)
+    noexcept;
+
+template
+void cuda<bf16_t>(cudaStream_t stream, Index n_labels, Index n_outputs,
+        Scalar val, const int64_t *labels, bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::subtract_indexed_outputs

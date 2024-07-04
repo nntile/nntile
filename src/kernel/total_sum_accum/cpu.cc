@@ -39,28 +39,33 @@ void cpu(Scalar alpha_, Index n_labels, Index n_outputs, const T* logsumexp_,
  * @param[inout] val_: Scalar that accumulates the total sum
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto logsumexp = reinterpret_cast<const Y *>(logsumexp_);
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto val = reinterpret_cast<Y *>(val_);
+    using Y = typename T::compat_t;
+    // auto logsumexp = reinterpret_cast<const Y *>(logsumexp_);
+    // auto src = reinterpret_cast<const Y *>(src_);
+    // auto val = reinterpret_cast<Y *>(val_);
     const Y alpha{alpha_};
-    using I = typename CPUComputeType<int64_t>::value;
-    auto labels = reinterpret_cast<const I *>(labels_);
     constexpr Y zero{0.0};
     Y sum = zero, c = zero, y, t;
+    using I = typename CPUComputeType<int64_t>::value;
+    auto labels = reinterpret_cast<const I *>(labels_);
+    Y logsumexp_val{0.0};
+    Y src_val{0.0};
     for(Index i = 0; i < n_outputs; ++i)
     {
         //*val += logsumexp[i] - src[labels[i] + i*n_labels];
-        y = logsumexp[i] - c;
+        logsumexp_val = static_cast<Y>(logsumexp_[i]);
+        src_val = static_cast<Y>(src_[labels[i] + i*n_labels]);
+        y = logsumexp_val - c;
         t = sum + y;
         c = (t-sum) - y;
         sum = t;
-        y = - src[labels[i] + i*n_labels] - c;
+        y = -src_val - c;
         t = sum + y;
         c = (t-sum) - y;
         sum = t;
     }
-    *val = (*val-alpha*c) + alpha*sum;
+    Y cur_val = static_cast<Y>(*val_);
+    *val_ = static_cast<T>((cur_val-alpha*c) + alpha*sum);
     //std::cout << "loss=" << *val << "\n";
 }
 
@@ -73,6 +78,11 @@ void cpu<fp32_t>(Scalar alpha, Index n_labels, Index n_outputs, const fp32_t* lo
 template
 void cpu<fp64_t>(Scalar alpha, Index n_labels, Index n_outputs, const fp64_t* logsumexp,
         const fp64_t* src, const int64_t* labels, fp64_t *val)
+    noexcept;
+
+template
+void cpu<bf16_t>(Scalar alpha, Index n_labels, Index n_outputs, const bf16_t* logsumexp,
+        const bf16_t* src, const int64_t* labels, bf16_t *val)
     noexcept;
 
 } // namespace nntile::kernel::total_sum_accum
