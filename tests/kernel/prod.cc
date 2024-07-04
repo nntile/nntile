@@ -63,63 +63,64 @@ void run_cuda(Index nelems, const std::vector<T> &src, std::vector<T> &dst)
 template<typename T>
 void validate(Index nelems)
 {
-    constexpr T eps = 2 * std::numeric_limits<T>::epsilon();
+    using Y = typename T::repr_t;
+    const Y eps = 2 * T::epsilon();
     // Init test input
     std::vector<T> src(nelems), dst(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        src[i] = T(2*i+1-nelems) / T{1000};
-        dst[i] = T(nelems-i) / T{1000};
+        src[i] = Y(2*i+1-nelems) / Y{1000};
+        dst[i] = Y(nelems-i) / Y{1000};
     }
     std::vector<T> dst_save(dst);
     // Check low-level CPU kernel
-    std::cout << "Run kernel::prod::cpu<T>\n";
+    std::cout << "Run kernel::prod::cpu<" << T::type_repr << ">\n";
     cpu<T>(nelems, &src[0], &dst[0]);
     for(Index i = 0; i < nelems; ++i)
     {
-        T x = dst_save[i];
-        T val_ref = T((2*i+1-nelems)*(nelems-i)) / T{1000000};
+        Y x = dst_save[i];
+        Y val_ref = Y((2*i+1-nelems)*(nelems-i)) / Y{1000000};
         // Obtain range of correct values
-        T val_ref_min, val_ref_max;
+        Y val_ref_min, val_ref_max;
         if(val_ref < 0)
         {
-            val_ref_min = val_ref * (T{1}+eps) - eps;
-            val_ref_max = val_ref * (T{1}-eps) + eps;
+            val_ref_min = val_ref * (Y{1}+eps) - eps;
+            val_ref_max = val_ref * (Y{1}-eps) + eps;
         }
         else
         {
-            val_ref_min = val_ref * (T{1}-eps) - eps;
-            val_ref_max = val_ref * (T{1}+eps) + eps;
+            val_ref_min = val_ref * (Y{1}-eps) - eps;
+            val_ref_max = val_ref * (Y{1}+eps) + eps;
         }
         // NaN-aware comparisons
-        TEST_ASSERT(dst[i] >= val_ref_min and dst[i] <= val_ref_max);
+        TEST_ASSERT(Y(dst[i]) >= val_ref_min and Y(dst[i]) <= val_ref_max);
     }
-    std::cout << "OK: kernel::prod::cpu<T>\n";
+    std::cout << "OK: kernel::prod::cpu<" << T::type_repr << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
-    std::cout << "Run kernel::prod::cuda<T>\n";
+    std::cout << "Run kernel::prod::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(nelems, src, dst);
     for(Index i = 0; i < nelems; ++i)
     {
-        T x = dst_save[i];
-        T val_ref = T((2*i+1-nelems)*(nelems-i)) / T{1000000};
+        Y x = dst_save[i];
+        Y val_ref = Y((2*i+1-nelems)*(nelems-i)) / Y{1000000};
         // Obtain range of correct values
-        T val_ref_min, val_ref_max;
+        Y val_ref_min, val_ref_max;
         if(val_ref < 0)
         {
-            val_ref_min = val_ref * (T{1}+eps) - eps;
-            val_ref_max = val_ref * (T{1}-eps) + eps;
+            val_ref_min = val_ref * (Y{1}+eps) - eps;
+            val_ref_max = val_ref * (Y{1}-eps) + eps;
         }
         else
         {
-            val_ref_min = val_ref * (T{1}-eps) - eps;
-            val_ref_max = val_ref * (T{1}+eps) + eps;
+            val_ref_min = val_ref * (Y{1}-eps) - eps;
+            val_ref_max = val_ref * (Y{1}+eps) + eps;
         }
         // NaN-aware comparisons
-        TEST_ASSERT(dst[i] >= val_ref_min and dst[i] <= val_ref_max);
+        TEST_ASSERT(Y(dst[i]) >= val_ref_min and Y(dst[i]) <= val_ref_max);
     }
-    std::cout << "OK: kernel::prod::cuda<T>\n";
+    std::cout << "OK: kernel::prod::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

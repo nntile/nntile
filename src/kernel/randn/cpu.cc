@@ -77,7 +77,7 @@ void cpu(Index ndim, Index nelems, unsigned long long seed,
  *      ndim values.
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
+    using Y = typename T::repr_t;
     auto data = reinterpret_cast<Y *>(data_);
     Y mean{mean_}, stddev{stddev_};
     using I = typename CPUComputeType<int64_t>::value;
@@ -159,10 +159,13 @@ void cpu<fp64_t>(Index ndim, Index nelems, unsigned long long seed,
     noexcept;
 
 template<typename T>
-void cpu_ndim0(unsigned long long seed, Scalar mean, Scalar stddev, T *data)
+void cpu_ndim0(unsigned long long seed, Scalar mean_, Scalar stddev_, T *data_)
     noexcept
 {
     // 0-dimensional tensor is just a scalar
+    using Y = typename T::repr_t;
+    auto data = reinterpret_cast<Y *>(data_);
+    Y mean{mean_}, stddev{stddev_};
     *data = chameleon_randn(seed, mean, stddev);
 }
 
