@@ -21,8 +21,8 @@ namespace nntile::kernel::adamw_step
 
 template<typename T>
 void cpu(Index num_iter, Index num_elems, Scalar beta_1_, Scalar beta_2_,
-        Scalar eps_, Scalar lr_, Scalar weight_decay_, const T *grad_,
-        T *first_moment_, T *second_moment_, T *p_)
+        Scalar eps_, Scalar lr_, Scalar weight_decay_, const T *grad,
+        T *first_moment, T *second_moment, T *p)
     noexcept
 //! Fused AdamW step on buffers
 /*!
@@ -40,20 +40,20 @@ void cpu(Index num_iter, Index num_elems, Scalar beta_1_, Scalar beta_2_,
  * @param[inout] p_: Input buffers with parameter that are updated in the end
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
+    using Y = typename T::repr_t;
     const Y beta_1{beta_1_}, beta_2{beta_2_}, eps{eps_}, lr{lr_},
           weight_decay{weight_decay_};
     const Y alpha = lr / (1 - std::pow(beta_1, num_iter));
     const Y beta = 1.0 / std::sqrt(1 - std::pow(beta_2, num_iter));
-    auto grad = reinterpret_cast<const Y *>(grad_);
-    auto first_moment = reinterpret_cast<Y *>(first_moment_);
-    auto second_moment = reinterpret_cast<Y *>(second_moment_);
-    auto p = reinterpret_cast<Y *>(p_);
+    // auto grad = reinterpret_cast<const Y *>(grad_);
+    // auto first_moment = reinterpret_cast<Y *>(first_moment_);
+    // auto second_moment = reinterpret_cast<Y *>(second_moment_);
+    // auto p = reinterpret_cast<Y *>(p_);
     // Cycle over buffers
     for(Index i = 0; i < num_elems; ++i)
     {
         // Read values (param+grad) from RAM only once
-        Y p_val=p[i], grad_val=grad[i];
+        Y p_val = static_cast<Y>(p[i]), grad_val = static_cast<Y>(grad[i]);
         if (weight_decay != 0)
         {
             p_val *= 1 - lr*weight_decay;
@@ -64,24 +64,24 @@ void cpu(Index num_iter, Index num_elems, Scalar beta_1_, Scalar beta_2_,
         if(num_iter == 1)
         {
             f_val = (Y{1.0}-beta_1) * grad_val;
-            first_moment[i] = f_val;
+            first_moment[i] = static_cast<T>(f_val);
             s_val = std::sqrt(Y{1.0}-beta_2) * std::fabs(grad_val);
-            second_moment[i] = s_val;
+            second_moment[i] = static_cast<T>(s_val);
         }
         else
         {
-            f_val = first_moment[i];
-            s_val = second_moment[i];
+            f_val = static_cast<Y>(first_moment[i]);
+            s_val = static_cast<Y>(second_moment[i]);
             f_val = beta_1*f_val + (Y{1.0}-beta_1)*grad_val;
-            first_moment[i] = f_val;
+            first_moment[i] = static_cast<T>(f_val);
             s_val = std::hypot(std::sqrt(beta_2)*s_val,
                     std::sqrt(Y{1.0}-beta_2)*grad_val);
-            second_moment[i] = s_val;
+            second_moment[i] = static_cast<T>(s_val);
         }
         // Update parameters using only data in registers
         const Y denom = s_val*beta + eps;
         //T denom = ::sqrt(s_val * beta) + eps;
-        p[i] = p_val - alpha*f_val/denom;
+        p[i] = static_cast<T>(p_val - alpha*f_val/denom);
     }
 }
 
@@ -96,6 +96,12 @@ template
 void cpu<fp64_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
         Scalar eps, Scalar lr, Scalar weight_decay, const fp64_t *grad,
         fp64_t *first_moment, fp64_t *second_moment, fp64_t *p)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
+        Scalar eps, Scalar lr, Scalar weight_decay, const bf16_t *grad,
+        bf16_t *first_moment, bf16_t *second_moment, bf16_t *p)
     noexcept;
 
 } // namespace nntile::kernel::adamw_step

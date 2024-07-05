@@ -1338,6 +1338,19 @@ def fused_adamw_step(
             second_moment,
             p,
         )
+    elif type(p) is core_tensor.Tensor_bf16:
+        core_tensor.adamw_step_async_bf16(
+            num_iter,
+            beta1,
+            beta2,
+            eps,
+            lr,
+            weight_decay,
+            grad,
+            first_moment,
+            second_moment,
+            p,
+        )
     else:
         raise TypeError
 
