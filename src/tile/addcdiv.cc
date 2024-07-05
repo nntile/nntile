@@ -68,6 +68,10 @@ template
 void addcdiv_async<fp64_t>(Scalar val, Scalar eps, const Tile<fp64_t> &nom,
                         const Tile<fp64_t> &denom, const Tile<fp64_t> &src);
 
+template
+void addcdiv_async<bf16_t>(Scalar val, Scalar eps, const Tile<bf16_t> &nom,
+                     const Tile<bf16_t> &denom, const Tile<bf16_t> &src);
+
 // Explicit instantiation
 template
 void addcdiv<fp32_t>(Scalar val, Scalar eps, const Tile<fp32_t> &nom,
@@ -80,5 +84,9 @@ void addcdiv<fp32_fast_tf32_t>(Scalar val, Scalar eps, const Tile<fp32_fast_tf32
 template
 void addcdiv<fp64_t>(Scalar val, Scalar eps, const Tile<fp64_t> &nom,
                      const Tile<fp64_t> &denom, const Tile<fp64_t> &src);
+
+template
+void addcdiv<bf16_t>(Scalar val, Scalar eps, const Tile<bf16_t> &nom,
+                     const Tile<bf16_t> &denom, const Tile<bf16_t> &src);
 
 } // namespace nntile::tile

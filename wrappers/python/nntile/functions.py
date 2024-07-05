@@ -958,6 +958,8 @@ def addcdiv_async(
         core_tensor.addcdiv_async_fp32_fast_tf32(alpha, eps, nom, denom, src)
     elif type(nom) is core_tensor.Tensor_fp64:
         core_tensor.addcdiv_async_fp64(alpha, eps, nom, denom, src)
+    elif type(nom) is core_tensor.Tensor_bf16:
+        core_tensor.addcdiv_async_bf16(alpha, eps, nom, denom, src)
     else:
         raise TypeError
 

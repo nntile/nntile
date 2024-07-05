@@ -19,8 +19,8 @@ namespace nntile::kernel::addcdiv
 {
 
 template<typename T>
-void cpu(Scalar val_, Scalar eps_, Index nelems, const T *nom_, const T* denom_,
-        T *res_)
+void cpu(Scalar val_, Scalar eps_, Index nelems, const T *nom, const T* denom,
+        T *res)
     noexcept
 //! Per-element addcdiv operation of buffers
 /*! One of the buffers serves as output
@@ -33,15 +33,17 @@ void cpu(Scalar val_, Scalar eps_, Index nelems, const T *nom_, const T* denom_,
  * @param[inout] res_: Input buffers that contains output in the end
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto nom = reinterpret_cast<const Y *>(nom_);
-    auto denom = reinterpret_cast<const Y *>(denom_);
-    auto res = reinterpret_cast<Y *>(res_);
+    using Y = typename T::repr_t;
+    // auto nom = reinterpret_cast<const Y *>(nom_);
+    // auto denom = reinterpret_cast<const Y *>(denom_);
+    // auto res = reinterpret_cast<Y *>(res_);
     const Y val{val_}, eps{eps_};
+    Y res_val{0.0};
     // Cycle over buffers
     for(Index i = 0; i < nelems; ++i)
     {
-        res[i] += val * nom[i] / (denom[i] + eps);
+        res_val = static_cast<Y>(res[i]);
+        res[i] = static_cast<T>(res_val + val * static_cast<Y>(nom[i]) / (static_cast<Y>(denom[i]) + eps));
     }
 }
 
@@ -54,6 +56,11 @@ void cpu<fp32_t>(Scalar val, Scalar eps, Index nelems,
 template
 void cpu<fp64_t>(Scalar val, Scalar eps, Index nelems,
                  const fp64_t* nom, const fp64_t* denom, fp64_t* res)
+    noexcept;
+
+template
+void cpu<bf16_t>(Scalar val, Scalar eps, Index nelems,
+                 const bf16_t* nom, const bf16_t* denom, bf16_t* res)
     noexcept;
 
 } // namespace nntile::kernel::addcdiv
