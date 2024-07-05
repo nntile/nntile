@@ -27,24 +27,25 @@ using namespace nntile;
 using namespace nntile::starpu;
 
 template<typename T>
-void validate_cpu(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
+void validate_cpu(Index m, Index n, Index k, Index l, Scalar eps, T gamma, T beta)
 {
+    using Y = typename T::repr_t;
     // Init all the data
     std::vector<T> sumnorm(2*m*n);
     for(Index i = 0; i < 2*m*n; i += 2)
     {
-        sumnorm[i] = T(l*i); // Sum
-        sumnorm[i+1] = std::sqrt(T(l)*i*i + T(l)); // Norm
+        sumnorm[i] = Y(l*i); // Sum
+        sumnorm[i+1] = std::sqrt(Y(l)*i*i + Y(l)); // Norm
     }
     std::vector<T> dst(m*n*k);
     for(Index i = 0; i < m*n*k; ++i)
     {
-        dst[i] = T(-i-1);
+        dst[i] = Y(-i-1);
     }
     // Create copies of destination
     std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::normalize::cpu<T>\n";
+    std::cout << "Run kernel::normalize::cpu<" << T::type_repr << ">\n";
     kernel::normalize::cpu<T>(m, n, k, l, eps, &gamma, &beta, &sumnorm[0],
             &dst[0]);
     // Check by actually submitting a task
@@ -54,7 +55,7 @@ void validate_cpu(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW),
         gamma_beta_handle(gamma_beta, sizeof(gamma_beta), STARPU_R);
     normalize::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::normalize::submit<T> restricted to CPU\n";
+    std::cout << "Run starpu::normalize::submit<" << T::type_repr << "> restricted to CPU\n";
     normalize::submit<T>(m, n, k, l, eps, gamma_beta_handle, sumnorm_handle,
             dst2_handle);
     starpu_task_wait_for_all();
@@ -62,22 +63,23 @@ void validate_cpu(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     // Check result
     for(Index i = 0; i < m*n*k; ++i)
     {
-        TEST_ASSERT(dst[i] == dst2[i]);
+        TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::normalize::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::normalize::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 template<typename T>
 void validate_many_cpu()
 {
-    validate_cpu<T>(3, 5, 7, 10, 1e-16, 1, 0);
-    validate_cpu<T>(3, 5, 7, 2, 10, 2, 1);
+    validate_cpu<T>(3, 5, 7, 10, 1e-16, T(1.0), T(0.0));
+    validate_cpu<T>(3, 5, 7, 2, 10, T(2.0), T(1.0));
 }
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void validate_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
+void validate_cuda(Index m, Index n, Index k, Index l, Scalar eps, T gamma, T beta)
 {
+    using Y = typename T::repr_t;
     // Get a StarPU CUDA worker (to perform computations on the same device)
     int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
     // Choose worker CUDA device
@@ -92,13 +94,13 @@ void validate_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     std::vector<T> sumnorm(2*m*n);
     for(Index i = 0; i < 2*m*n; i += 2)
     {
-        sumnorm[i] = T(l*i); // Sum
-        sumnorm[i+1] = std::sqrt(T(l)*i*i + T(l)); // Norm
+        sumnorm[i] = Y(l*i); // Sum
+        sumnorm[i+1] = std::sqrt(Y(l)*i*i + Y(l)); // Norm
     }
     std::vector<T> dst(m*n*k);
     for(Index i = 0; i < m*n*k; ++i)
     {
-        dst[i] = T(-i-1);
+        dst[i] = Y(-i-1);
     }
     // Create copies of destination
     std::vector<T> dst2(dst);
@@ -124,7 +126,7 @@ void validate_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     cuda_err = cudaMemcpy(dev_beta, &beta, sizeof(T),
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::normalize::cuda<T>\n";
+    std::cout << "Run kernel::normalize::cuda<" << T::type_repr << ">\n";
     kernel::normalize::cuda<T>(stream, m, n, k, l, eps, dev_gamma, dev_beta,
             dev_sumnorm, dev_dst);
     // Wait for result and destroy stream
@@ -152,7 +154,7 @@ void validate_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW),
         gamma_beta_handle(gamma_beta, sizeof(T)*2, STARPU_R);
     normalize::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::normalize::submit<T> restricted to CUDA\n";
+    std::cout << "Run starpu::normalize::submit<" << T::type_repr << "> restricted to CUDA\n";
     normalize::submit<T>(m, n, k, l, eps, gamma_beta_handle, sumnorm_handle,
             dst2_handle);
     starpu_task_wait_for_all();
@@ -160,16 +162,16 @@ void validate_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     // Check result
     for(Index i = 0; i < m*n*k; ++i)
     {
-        TEST_ASSERT(dst[i] == dst2[i]);
+        TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::normalize::submit<T> restricted to CUDA\n";
+    std::cout << "OK: starpu::normalize::submit<" << T::type_repr << "> restricted to CUDA\n";
 }
 
 template<typename T>
 void validate_many_cuda()
 {
-    validate_cuda<T>(3, 5, 7, 10, 1e-16, 1, 0);
-    validate_cuda<T>(3, 5, 7, 2, 10, 2, 1);
+    validate_cuda<T>(3, 5, 7, 10, 1e-16, T(1.0), T(0.0));
+    validate_cuda<T>(3, 5, 7, 2, 10, T(2.0), T(1.0));
 }
 #endif // NNTILE_USE_CUDA
 

@@ -36,44 +36,45 @@ using namespace nntile::starpu;
 // Overloaded call to CBLAS GEMM
 static inline
 void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
-        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp32_t alpha, const fp32_t *A,
-        CBLAS_INT ldA, const fp32_t *B, CBLAS_INT ldB, fp32_t beta, fp32_t *C,
+        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, float alpha, const fp32_t *A,
+        CBLAS_INT ldA, const fp32_t *B, CBLAS_INT ldB, float beta, fp32_t *C,
         CBLAS_INT ldC)
     noexcept
 {
-    cblas_sgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
-            beta, C, ldC);
+    cblas_sgemm(CblasColMajor, transA, transB, M, N, K, alpha,
+            (const float *)A, ldA, (const float *)B, ldB, beta, (float *)C, ldC);
 }
 
 // Overloaded call to CBLAS GEMM
 static inline
 void cblas_gemm(CBLAS_TRANSPOSE transA, CBLAS_TRANSPOSE transB,
-        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, fp64_t alpha, const fp64_t *A,
-        CBLAS_INT ldA, const fp64_t *B, CBLAS_INT ldB, fp64_t beta, fp64_t *C,
+        CBLAS_INT M, CBLAS_INT N, CBLAS_INT K, double alpha, const fp64_t *A,
+        CBLAS_INT ldA, const fp64_t *B, CBLAS_INT ldB, double beta, fp64_t *C,
         CBLAS_INT ldC)
     noexcept
 {
-    cblas_dgemm(CblasColMajor, transA, transB, M, N, K, alpha, A, ldA, B, ldB,
-            beta, C, ldC);
+    cblas_dgemm(CblasColMajor, transA, transB, M, N, K, alpha,
+            (const double *)A, ldA, (const double *)B, ldB, beta, (double *)C, ldC);
 }
 
 template<typename T>
 void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
         Index batch, Scalar alpha, Scalar beta)
 {
+    using Y = typename T::repr_t;
     // Init all the data
     std::vector<T> A(m*k*batch), B(n*k*batch), C(m*n*batch);
     for(Index i = 0; i < A.size(); ++i)
     {
-        A[i] = T(i+1);
+        A[i] = Y(i+1);
     }
     for(Index i = 0; i < B.size(); ++i)
     {
-        B[i] = T(-i-1);
+        B[i] = Y(-i-1);
     }
     for(Index i = 0; i < C.size(); ++i)
     {
-        C[i] = T(2*i+1);
+        C[i] = Y(2*i+1);
     }
     // Create copy of C
     std::vector<T> C2(C);
@@ -100,7 +101,7 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
             transB_ = CblasTrans;
             ldB = n;
     }
-    std::cout << "Run cblas_gemm<T>\n";
+    std::cout << "Run cblas_gemm<" << T::type_repr << ">\n";
     for(Index b = 0; b < batch; ++b)
     {
         cblas_gemm(transA_, transB_, m, n, k, alpha, &A[b*m*k], ldA, &B[b*n*k],
@@ -111,7 +112,7 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
         B_handle(&B[0], sizeof(T)*B.size(), STARPU_R),
         C2_handle(&C2[0], sizeof(T)*C.size(), STARPU_RW);
     gemm::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::gemm::submit<T, T> restricted to CPU\n";
+    std::cout << "Run starpu::gemm::submit<" << T::type_repr << "> restricted to CPU\n";
     gemm::submit<T>(transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
             beta, C2_handle);
     starpu_task_wait_for_all();
@@ -119,9 +120,9 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
     // Check result
     for(Index i = 0; i < C.size(); ++i)
     {
-        TEST_ASSERT(C[i] == C2[i]);
+        TEST_ASSERT(Y(C[i]) == Y(C2[i]));
     }
-    std::cout << "OK: starpu::gemm::submit<T, T> restricted to CPU\n";
+    std::cout << "OK: starpu::gemm::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 template<typename T>
@@ -129,16 +130,16 @@ void validate_cpu_many()
 {
     TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
     TransOp trans[2] = {opN, opT};
-    T alpha[3] = {0, 1, -3};
-    T beta[3] = {0, 1, 2};
+    Scalar alpha[3] = {0, 1, -3};
+    Scalar beta[3] = {0, 1, 2};
     Index batch[3] = {1, 2, 100};
     for(auto transA: trans)
     {
         for(auto transB: trans)
         {
-            for(T a: alpha)
+            for(Scalar a: alpha)
             {
-                for(T b: beta)
+                for(Scalar b: beta)
                 {
                     for(auto nb: batch)
                     {
@@ -155,31 +156,32 @@ void validate_cpu_many()
 // Overloaded call to cuBLAS GEMM
 static inline
 void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, fp32_t alpha,
-        const fp32_t *A, int ldA, const fp32_t *B, int ldB, fp32_t beta,
+        cublasOperation_t transB, int M, int N, int K, float alpha,
+        const fp32_t *A, int ldA, const fp32_t *B, int ldB, float beta,
         fp32_t *C, int ldC)
     noexcept
 {
-    cublasSgemm(handle, transA, transB, M, N, K, &alpha, A, ldA, B, ldB, &beta,
-            C, ldC);
+    cublasSgemm(handle, transA, transB, M, N, K, &alpha, (const float *)A, ldA,
+            (const float *)B, ldB, &beta, (float *)C, ldC);
 }
 
 // Overloaded call to cuBLAS GEMM
 static inline
 void cublas_gemm(cublasHandle_t handle, cublasOperation_t transA,
-        cublasOperation_t transB, int M, int N, int K, fp64_t alpha,
-        const fp64_t *A, int ldA, const fp64_t *B, int ldB, fp64_t beta,
+        cublasOperation_t transB, int M, int N, int K, double alpha,
+        const fp64_t *A, int ldA, const fp64_t *B, int ldB, double beta,
         fp64_t *C, int ldC)
     noexcept
 {
-    cublasDgemm(handle, transA, transB, M, N, K, &alpha, A, ldA, B, ldB, &beta,
-            C, ldC);
+    cublasDgemm(handle, transA, transB, M, N, K, &alpha, (const double *)A, ldA,
+            (const double *)B, ldB, &beta, (double *)C, ldC);
 }
 
 template<typename T>
 void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
         Index batch, Scalar alpha, Scalar beta)
 {
+    using Y = typename T::repr_t;
     // Get a StarPU CUDA worker (to perform computations on the same device)
     int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
     // Choose worker CUDA device
@@ -200,15 +202,15 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
     std::vector<T> A(m*k*batch), B(n*k*batch), C(m*n*batch);
     for(Index i = 0; i < A.size(); ++i)
     {
-        A[i] = T(i+1);
+        A[i] = Y(i+1);
     }
     for(Index i = 0; i < B.size(); ++i)
     {
-        B[i] = T(-i-1);
+        B[i] = Y(-i-1);
     }
     for(Index i = 0; i < C.size(); ++i)
     {
-        C[i] = T(2*i+1);
+        C[i] = Y(2*i+1);
     }
     // Create copy of C
     std::vector<T> C2(C);
@@ -251,7 +253,7 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
     cuda_err = cudaMemcpy(dev_C, &C[0], sizeof(T)*C.size(),
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run cublas_gemm<T>\n";
+    std::cout << "Run cublas_gemm<" << T::type_repr << ">\n";
     for(Index b = 0; b < batch; ++b)
     {
         cublas_gemm(cublas, transA_, transB_, m, n, k, alpha, &dev_A[b*m*k],
@@ -280,7 +282,7 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
         B_handle(&B[0], sizeof(T)*B.size(), STARPU_R),
         C2_handle(&C2[0], sizeof(T)*C.size(), STARPU_RW);
     gemm::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::gemm::submit<T, T> restricted to CUDA\n";
+    std::cout << "Run starpu::gemm::submit<" << T::type_repr << "> restricted to CUDA\n";
     gemm::submit<T>(transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
             beta, C2_handle);
     starpu_task_wait_for_all();
@@ -288,9 +290,9 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
     // Check result
     for(Index i = 0; i < C.size(); ++i)
     {
-        TEST_ASSERT(C[i] == C2[i]);
+        TEST_ASSERT(Y(C[i]) == Y(C2[i]));
     }
-    std::cout << "OK: starpu::gemm::submit<T, T> restricted to CUDA\n";
+    std::cout << "OK: starpu::gemm::submit<" << T::type_repr << "> restricted to CUDA\n";
 }
 
 template<typename T>
@@ -298,16 +300,16 @@ void validate_cuda_many()
 {
     TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
     TransOp trans[2] = {opN, opT};
-    T alpha[3] = {0, 1, -3};
-    T beta[3] = {0, 1, 3};
+    Scalar alpha[3] = {0, 1, -3};
+    Scalar beta[3] = {0, 1, 3};
     Index batch[3] = {1, 2, 100};
     for(auto transA: trans)
     {
         for(auto transB: trans)
         {
-            for(T a: alpha)
+            for(Scalar a: alpha)
             {
-                for(T b: beta)
+                for(Scalar b: beta)
                 {
                     for(auto nb: batch)
                     {

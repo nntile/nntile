@@ -28,23 +28,24 @@ using namespace nntile::starpu;
 template<typename T>
 void validate_cpu(Index nelems)
 {
+    using Y = typename T::repr_t;
     // Init all the data
     std::vector<T> src(nelems), dst(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        src[i] = T(2*i+1-nelems) / T{1000};
-        dst[i] = T(nelems-i) / T{1000};
+        src[i] = Y(2*i+1-nelems) / Y{1000};
+        dst[i] = Y(nelems-i) / Y{1000};
     }
     // Create copies of destination
     std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::prod::cpu<T>\n";
+    std::cout << "Run kernel::prod::cpu<" << T::type_repr << ">\n";
     kernel::prod::cpu<T>(nelems, &src[0], &dst[0]);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*nelems, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*nelems, STARPU_RW);
     prod::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::prod::submit<T> restricted to CPU\n";
+    std::cout << "Run starpu::prod::submit<" << T::type_repr << "> restricted to CPU\n";
     prod::submit<T>(nelems, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     src_handle.unregister();
@@ -52,15 +53,16 @@ void validate_cpu(Index nelems)
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(dst[i] == dst2[i]);
+        TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::prod::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::prod::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
 void validate_cuda(Index nelems)
 {
+    using Y = typename T::repr_t;
     // Get a StarPU CUDA worker (to perform computations on the same device)
     int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
     // Choose worker CUDA device
@@ -75,8 +77,8 @@ void validate_cuda(Index nelems)
     std::vector<T> src(nelems), dst(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        src[i] = T(2*i+1-nelems) / T{1000};
-        dst[i] = T(nelems-i) / T{1000};
+        src[i] = Y(2*i+1-nelems) / Y{1000};
+        dst[i] = Y(nelems-i) / Y{1000};
     }
     // Create copies of destination
     std::vector<T> dst2(dst);
@@ -92,7 +94,7 @@ void validate_cuda(Index nelems)
     cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*nelems,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::prod::cuda<T>\n";
+    std::cout << "Run kernel::prod::cuda<" << T::type_repr << ">\n";
     kernel::prod::cuda<T>(stream, nelems, dev_src, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
@@ -112,7 +114,7 @@ void validate_cuda(Index nelems)
     VariableHandle src_handle(&src[0], sizeof(T)*nelems, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*nelems, STARPU_RW);
     prod::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::prod::submit<T> restricted to CUDA\n";
+    std::cout << "Run starpu::prod::submit<" << T::type_repr << "> restricted to CUDA\n";
     prod::submit<T>(nelems, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     src_handle.unregister();
@@ -120,9 +122,9 @@ void validate_cuda(Index nelems)
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(dst[i] == dst2[i]);
+        TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::prod::submit<T> restricted to CUDA\n";
+    std::cout << "OK: starpu::prod::submit<" << T::type_repr << "> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 

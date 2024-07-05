@@ -28,37 +28,39 @@ using namespace nntile::starpu;
 template<typename T>
 void validate_cpu(Index nelems)
 {
+    using Y = typename T::repr_t;
     // Init all the data
-    T val = -0.5;
+    Scalar val = -0.5;
     std::vector<T> data(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        data[i] = T(i+1);
+        data[i] = Y(i+1);
     }
     // Create copies of destination
     std::vector<T> data2(data);
     // Launch low-level kernel
-    std::cout << "Run kernel::fill::cpu<T>\n";
+    std::cout << "Run kernel::fill::cpu<" << T::type_repr << ">\n";
     kernel::fill::cpu<T>(nelems, val, &data[0]);
     // Check by actually submitting a task
     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
     fill::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::fill::submit<T> restricted to CPU\n";
+    std::cout << "Run starpu::fill::submit<" << T::type_repr << "> restricted to CPU\n";
     fill::submit<T>(nelems, val, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(data[i] == data2[i]);
+        TEST_ASSERT(Y(data[i]) == Y(data2[i]));
     }
-    std::cout << "OK: starpu::fill::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::fill::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
 void validate_cuda(Index nelems)
 {
+    using Y = typename T::repr_t;
     // Get a StarPU CUDA worker (to perform computations on the same device)
     int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
     // Choose worker CUDA device
@@ -70,11 +72,11 @@ void validate_cuda(Index nelems)
     cuda_err = cudaStreamCreate(&stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Init all the data
-    T val = -0.5;
+    Scalar val = -0.5;
     std::vector<T> data(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        data[i] = T(i+1);
+        data[i] = Y(i+1);
     }
     // Create copies of destination
     std::vector<T> data2(data);
@@ -85,7 +87,7 @@ void validate_cuda(Index nelems)
     cuda_err = cudaMemcpy(dev_data, &data[0], sizeof(T)*nelems,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::fill::cuda<T>\n";
+    std::cout << "Run kernel::fill::cuda<" << T::type_repr << ">\n";
     kernel::fill::cuda<T>(stream, nelems, val, dev_data);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
@@ -102,16 +104,16 @@ void validate_cuda(Index nelems)
     // Check by actually submitting a task
     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
     fill::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::fill::submit<T> restricted to CUDA\n";
+    std::cout << "Run starpu::fill::submit<" << T::type_repr << "> restricted to CUDA\n";
     fill::submit<T>(nelems, val, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(data[i] == data2[i]);
+        TEST_ASSERT(Y(data[i]) == Y(data2[i]));
     }
-    std::cout << "OK: starpu::fill::submit<T> restricted to CUDA\n";
+    std::cout << "OK: starpu::fill::submit<" << T::type_repr << "> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 

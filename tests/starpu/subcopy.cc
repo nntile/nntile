@@ -27,6 +27,7 @@ template<typename T, std::size_t NDIM>
 void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
         std::array<Index, NDIM> shape)
 {
+    using Y = typename T::repr_t;
     // Location of copy area in source and target buffers and their shapes
     std::vector<Index> src_start(NDIM), dst_start(NDIM),
         copy_shape(shape.cbegin(), shape.cend()),
@@ -76,18 +77,18 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
     std::vector<T> src_data(src_nelems);
     for(Index i = 0; i < src_nelems; ++i)
     {
-        src_data[i] = T(i+1);
+        src_data[i] = Y(i+1);
     }
     std::vector<T> dst_data(dst_nelems);
     for(Index i = 0; i < dst_nelems; ++i)
     {
-        dst_data[i] = T(-i-1);
+        dst_data[i] = Y(-i-1);
     }
     // Create copies of destination
     std::vector<T> dst2_data(dst_data);
     // Launch low-level kernel
-    std::vector<Index> tmp_index(2*NDIM);
-    std::cout << "Run kernel::subcopy::cpu<T>\n";
+    std::vector<nntile::int64_t> tmp_index(2*NDIM);
+    std::cout << "Run kernel::subcopy::cpu<" << T::type_repr << ">\n";
     kernel::subcopy::cpu<T>(NDIM, &src_start[0], &src_stride[0],
             &copy_shape[0], &src_data[0], &dst_start[0], &dst_stride[0],
             &dst_data[0], &tmp_index[0]);
@@ -97,7 +98,7 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
         dst2_handle(&dst2_data[0], sizeof(T)*dst_nelems, STARPU_RW),
         tmp_handle(&tmp_index[0], sizeof(Index)*NDIM*2, STARPU_R);
     subcopy::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::subcopy::submit<T> restricted to "
+    std::cout << "Run starpu::subcopy::submit<" << T::type_repr << "> restricted to "
         "CPU\n";
     subcopy::submit<T>(NDIM, src_start, src_stride,
             dst_start, dst_stride, copy_shape, src_handle, dst2_handle,
@@ -107,9 +108,9 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
     // Check result
     for(Index i = 0; i < dst_nelems; ++i)
     {
-        TEST_ASSERT(dst_data[i] == dst2_data[i]);
+        TEST_ASSERT(Y(dst_data[i]) == Y(dst2_data[i]));
     }
-    std::cout << "OK: starpu::subcopy::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::subcopy::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 // Run multiple tests for a given precision
@@ -136,6 +137,6 @@ int main(int argc, char **argv)
     // Launch all tests
     validate_many<fp32_t>();
     validate_many<fp64_t>();
-    validate_many<Index>();
+    validate_many<nntile::int64_t>();
     return 0;
 }

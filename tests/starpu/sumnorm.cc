@@ -29,43 +29,45 @@ using namespace nntile::starpu;
 template<typename T>
 void validate_cpu(Index m, Index n, Index k)
 {
+    using Y = typename T::repr_t;
     // Init all the data
     std::vector<T> src(m*n*k);
     for(Index i = 0; i < m*n*k; ++i)
     {
-        src[i] = T(i+1);
+        src[i] = Y(i+1);
     }
     std::vector<T> sumnorm(2*m*n);
     for(Index i = 0; i < 2*m*n; i += 2)
     {
-        sumnorm[i] = T(-i-1); // Sum
-        sumnorm[i+1] = T(2*i); // Norm
+        sumnorm[i] = Y(-i-1); // Sum
+        sumnorm[i+1] = Y(2*i); // Norm
     }
     // Create copies of destination
     std::vector<T> sumnorm2(sumnorm);
     // Launch low-level kernel
-    std::cout << "Run kernel::sumnorm::cpu<T>\n";
+    std::cout << "Run kernel::sumnorm::cpu<" << T::type_repr << ">\n";
     kernel::sumnorm::cpu<T>(m, n, k, &src[0], &sumnorm[0]);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*m*n*k, STARPU_R),
         sumnorm2_handle(&sumnorm2[0], sizeof(T)*2*m*n, STARPU_RW);
     sumnorm::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::sumnorm::submit<T> restricted to CPU\n";
+    std::cout << "Run starpu::sumnorm::submit<" << T::type_repr << "> restricted to CPU\n";
     sumnorm::submit<T>(m, n, k, src_handle, sumnorm2_handle);
     starpu_task_wait_for_all();
     sumnorm2_handle.unregister();
     // Check result
     for(Index i = 0; i < m*n; ++i)
     {
-        TEST_ASSERT(sumnorm[i] == sumnorm2[i]);
+        TEST_ASSERT(Y(sumnorm[i]) == Y(sumnorm2[i]));
     }
-    std::cout << "OK: starpu::sumnorm::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::sumnorm::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
 void validate_cuda(Index m, Index n, Index k)
 {
+    using Y = typename T::repr_t;
     // Get a StarPU CUDA worker (to perform computations on the same device)
     int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
     // Choose worker CUDA device
@@ -80,13 +82,13 @@ void validate_cuda(Index m, Index n, Index k)
     std::vector<T> src(m*n*k);
     for(Index i = 0; i < m*n*k; ++i)
     {
-        src[i] = T(i+1);
+        src[i] = Y(i+1);
     }
     std::vector<T> sumnorm(2*m*n);
     for(Index i = 0; i < 2*m*n; i += 2)
     {
-        sumnorm[i] = T(-i-1); // Sum
-        sumnorm[i+1] = T(2*i); // Norm
+        sumnorm[i] = Y(-i-1); // Sum
+        sumnorm[i+1] = Y(2*i); // Norm
     }
     // Create copies of destination
     std::vector<T> sumnorm2(sumnorm);
@@ -102,7 +104,7 @@ void validate_cuda(Index m, Index n, Index k)
     cuda_err = cudaMemcpy(dev_sumnorm, &sumnorm[0], sizeof(T)*2*m*n,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::sumnorm::cuda<T>\n";
+    std::cout << "Run kernel::sumnorm::cuda<" << T::type_repr << ">\n";
     kernel::sumnorm::cuda<T>(stream, m, n, k, dev_src, dev_sumnorm);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
@@ -122,16 +124,16 @@ void validate_cuda(Index m, Index n, Index k)
     VariableHandle src_handle(&src[0], sizeof(T)*m*n*k, STARPU_R),
         sumnorm2_handle(&sumnorm2[0], sizeof(T)*2*m*n, STARPU_RW);
     sumnorm::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::sumnorm::submit<T> restricted to CUDA\n";
+    std::cout << "Run starpu::sumnorm::submit<" << T::type_repr << "> restricted to CUDA\n";
     sumnorm::submit<T>(m, n, k, src_handle, sumnorm2_handle);
     starpu_task_wait_for_all();
     sumnorm2_handle.unregister();
     // Check result
     for(Index i = 0; i < 2*m*n; ++i)
     {
-        TEST_ASSERT(sumnorm[i] == sumnorm2[i]);
+        TEST_ASSERT(Y(sumnorm[i]) == Y(sumnorm2[i]));
     }
-    std::cout << "OK: starpu::sumnorm::submit<T> restricted to CUDA\n";
+    std::cout << "OK: starpu::sumnorm::submit<" << T::type_repr << "> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 

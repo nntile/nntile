@@ -38,7 +38,7 @@ static inline
 void cblas_nrm2(CBLAS_INT N, const fp32_t *X, CBLAS_INT incX, fp32_t *Y)
     noexcept
 {
-    *Y = cblas_snrm2(N, X, incX);
+    *(float *)Y = cblas_snrm2(N, (float *)X, incX);
 }
 
 // Overloaded call to CBLAS NRM2
@@ -46,34 +46,35 @@ static inline
 void cblas_nrm2(CBLAS_INT N, const fp64_t *X, CBLAS_INT incX, fp64_t *Y)
     noexcept
 {
-    *Y = cblas_dnrm2(N, X, incX);
+    *(double *)Y = cblas_dnrm2(N, (double *)X, incX);
 }
 
 template<typename T>
 void validate_cpu(Index nelems)
 {
+    using Y = typename T::repr_t;
     // Init all the data
     std::vector<T> src(nelems), norm(1);
     for(Index i = 0; i < nelems; ++i)
     {
-        src[i] = T(i+1);
+        src[i] = Y(i+1);
     }
     // Create copy of norm
     std::vector<T> norm2(norm);
     // Launch low-level kernel
-    std::cout << "Run cblas_nrm2<T>\n";
+    std::cout << "Run cblas_nrm2<" << T::type_repr << ">\n";
     cblas_nrm2(nelems, &src[0], 1, &norm[0]);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*nelems, STARPU_R),
         norm2_handle(&norm2[0], sizeof(T), STARPU_RW);
     nrm2::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::nrm2::submit<T> restricted to CPU\n";
+    std::cout << "Run starpu::nrm2::submit<" << T::type_repr << "> restricted to CPU\n";
     nrm2::submit<T>(nelems, src_handle, norm2_handle);
     starpu_task_wait_for_all();
     norm2_handle.unregister();
     // Check result
-    TEST_ASSERT(norm[0] == norm2[0]);
-    std::cout << "OK: starpu::nrm2::submit<T> restricted to CPU\n";
+    TEST_ASSERT(Y(norm[0]) == Y(norm2[0]));
+    std::cout << "OK: starpu::nrm2::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 template<typename T>
@@ -93,7 +94,7 @@ void cublas_nrm2(cublasHandle_t handle, int N, const fp32_t *X, int incX,
         fp32_t *Y)
     noexcept
 {
-    cublasSnrm2(handle, N, X, incX, Y);
+    cublasSnrm2(handle, N, (float *)X, incX, (float *)Y);
 }
 
 // Overloaded call to cuBLAS NRM2
@@ -102,12 +103,13 @@ void cublas_nrm2(cublasHandle_t handle, int N, const fp64_t *X, int incX,
         fp64_t *Y)
     noexcept
 {
-    cublasDnrm2(handle, N, X, incX, Y);
+    cublasDnrm2(handle, N, (double *)X, incX, (double *)Y);
 }
 
 template<typename T>
 void validate_cuda(Index nelems)
 {
+    using Y = typename T::repr_t;
     // Get a StarPU CUDA worker (to perform computations on the same device)
     int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
     // Choose worker CUDA device
@@ -128,7 +130,7 @@ void validate_cuda(Index nelems)
     std::vector<T> src(nelems), norm(1);
     for(Index i = 0; i < nelems; ++i)
     {
-        src[i] = T(i+1);
+        src[i] = Y(i+1);
     }
     // Create copy of dst
     std::vector<T> norm2(norm);
@@ -139,7 +141,7 @@ void validate_cuda(Index nelems)
     cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*nelems,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run cublas_nrm2<T>\n";
+    std::cout << "Run cublas_nrm2<" << T::type_repr << ">\n";
     cublasSetPointerMode(cublas, CUBLAS_POINTER_MODE_HOST);
     cublas_nrm2(cublas, nelems, dev_src, 1, &norm[0]);
     // Wait for result and destroy cublas handle and stream
@@ -156,13 +158,13 @@ void validate_cuda(Index nelems)
     VariableHandle src_handle(&src[0], sizeof(T)*nelems, STARPU_R),
         norm2_handle(&norm2[0], sizeof(T), STARPU_RW);
     nrm2::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::nrm2::submit<T> restricted to CUDA\n";
+    std::cout << "Run starpu::nrm2::submit<" << T::type_repr << "> restricted to CUDA\n";
     nrm2::submit<T>(nelems, src_handle, norm2_handle);
     starpu_task_wait_for_all();
     norm2_handle.unregister();
     // Check result
-    TEST_ASSERT(norm[0] == norm2[0]);
-    std::cout << "OK: starpu::nrm2::submit<T> restricted to CUDA\n";
+    TEST_ASSERT(Y(norm[0]) == Y(norm2[0]));
+    std::cout << "OK: starpu::nrm2::submit<" << T::type_repr << "> restricted to CUDA\n";
 }
 
 template<typename T>

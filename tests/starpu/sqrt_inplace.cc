@@ -28,30 +28,31 @@ using namespace nntile::starpu;
 template<typename T>
 void validate_cpu(Index nelems)
 {
+    using Y = typename T::repr_t;
     // Init all the data
     std::vector<T> data(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        data[i] = T(i+1);
+        data[i] = Y(i+1);
     }
     // Create copies of destination
     std::vector<T> data2(data);
     // Launch low-level kernel
-    std::cout << "Run kernel::sqrt_inplace::cpu<T>\n";
+    std::cout << "Run kernel::sqrt_inplace::cpu<" << T::type_repr << ">\n";
     kernel::sqrt_inplace::cpu<T>(nelems, &data[0]);
     // Check by actually submitting a task
     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
     sqrt_inplace::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::sqrt_inplace::submit<T> restricted to CPU\n";
+    std::cout << "Run starpu::sqrt_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
     sqrt_inplace::submit<T>(nelems, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(data[i] == data2[i]);
+        TEST_ASSERT(Y(data[i]) == Y(data2[i]));
     }
-    std::cout << "OK: starpu::sqrt_inplace::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::sqrt_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA

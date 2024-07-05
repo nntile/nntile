@@ -32,7 +32,7 @@ void scal_inplace_async(Scalar alpha, const Tensor<T> &data)
         // Execute on source tile
         if(mpi_rank == data_tile_rank)
         {
-            starpu::scal_inplace::submit<T>(alpha, data_tile_traits.nelems,
+            starpu::scal_inplace::submit<T>(data_tile_traits.nelems, alpha,
                     data_tile_handle);
         }
         // Flush cache for the output tile on every node

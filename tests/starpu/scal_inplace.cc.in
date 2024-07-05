@@ -35,46 +35,47 @@ using namespace nntile::starpu;
 #ifdef NNTILE_USE_CBLAS
 // Overloaded call to CBLAS scal
 static inline
-void cblas_scal(CBLAS_INT N, fp32_t alpha, fp32_t *X, CBLAS_INT incX)
+void cblas_scal(CBLAS_INT N, float alpha, fp32_t *X, CBLAS_INT incX)
     noexcept
 {
-    cblas_sscal(N, alpha, X, incX);
+    cblas_sscal(N, alpha, (float *)X, incX);
 }
 
 // Overloaded call to CBLAS scal
 static inline
-void cblas_scal(CBLAS_INT N, fp64_t alpha, fp64_t *X, CBLAS_INT incX)
+void cblas_scal(CBLAS_INT N, double alpha, fp64_t *X, CBLAS_INT incX)
     noexcept
 {
-    cblas_dscal(N, alpha, X, incX);
+    cblas_dscal(N, alpha, (double *)X, incX);
 }
 
 template<typename T>
-void validate_cpu(T alpha, Index nelems)
+void validate_cpu(Scalar alpha, Index nelems)
 {
+    using Y = typename T::repr_t;
     // Init all the data
     std::vector<T> src(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        src[i] = T(i+1);
+        src[i] = Y(i+1);
     }
     std::vector<T> src2(src);
     // Launch low-level kernel
-    std::cout << "Run cblas_scal<T>\n";
+    std::cout << "Run cblas_scal<" << T::type_repr << ">\n";
     cblas_scal(nelems, alpha, &src[0], 1);
     // Check by actually submitting a task
     VariableHandle src2_handle(&src2[0], sizeof(T)*nelems, STARPU_RW);
     scal_inplace::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::scal_inplace::submit<T> restricted to CPU\n";
-    scal_inplace::submit<T>(alpha, nelems, src2_handle);
+    std::cout << "Run starpu::scal_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
+    scal_inplace::submit<T>(nelems, alpha, src2_handle);
     starpu_task_wait_for_all();
     src2_handle.unregister();
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(src[i] == src2[i]);
+        TEST_ASSERT(Y(src[i]) == Y(src2[i]));
     }
-    std::cout << "OK: starpu::scal_inplace::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::scal_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 template<typename T>
@@ -90,25 +91,26 @@ void validate_cpu_many()
 #ifdef NNTILE_USE_CUDA
 // Overloaded call to cuBLAS scal
 static inline
-void cublas_scal(cublasHandle_t handle, int N, fp32_t alpha, fp32_t *X,
+void cublas_scal(cublasHandle_t handle, int N, float alpha, fp32_t *X,
         int incX)
     noexcept
 {
-    cublasSscal(handle, N, &alpha, X, incX);
+    cublasSscal(handle, N, &alpha, (float *)X, incX);
 }
 
 // Overloaded call to cuBLAS scal
 static inline
-void cublas_scal(cublasHandle_t handle, int N, fp64_t alpha, fp64_t *X,
+void cublas_scal(cublasHandle_t handle, int N, double alpha, fp64_t *X,
         int incX)
     noexcept
 {
-    cublasDscal(handle, N, &alpha, X, incX);
+    cublasDscal(handle, N, &alpha, (double *)X, incX);
 }
 
 template<typename T>
-void validate_cuda(T alpha, Index nelems)
+void validate_cuda(Scalar alpha, Index nelems)
 {
+    using Y = typename T::repr_t;
     // Get a StarPU CUDA worker (to perform computations on the same device)
     int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
     // Choose worker CUDA device
@@ -129,7 +131,7 @@ void validate_cuda(T alpha, Index nelems)
     std::vector<T> src(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        src[i] = T(i+1);
+        src[i] = Y(i+1);
     }
     std::vector<T> src2(src);
     // Launch low-level kernel
@@ -139,7 +141,7 @@ void validate_cuda(T alpha, Index nelems)
     cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*nelems,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run cublas_scal<T>\n";
+    std::cout << "Run cublas_scal<" << T::type_repr << ">\n";
     cublasSetPointerMode(cublas, CUBLAS_POINTER_MODE_HOST);
     cublas_scal(cublas, nelems, alpha, dev_src, 1);
     // Wait for result and destroy cublas handle and stream
@@ -158,16 +160,16 @@ void validate_cuda(T alpha, Index nelems)
     // Check by actually submitting a task
     VariableHandle src2_handle(&src2[0], sizeof(T)*nelems, STARPU_RW);
     scal_inplace::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::scal_inplace::submit<T> restricted to CUDA\n";
-    scal_inplace::submit<T>(alpha, nelems, src2_handle);
+    std::cout << "Run starpu::scal_inplace::submit<" << T::type_repr << "> restricted to CUDA\n";
+    scal_inplace::submit<T>(nelems, alpha, src2_handle);
     starpu_task_wait_for_all();
     src2_handle.unregister();
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(src[0] == src2[0]);
+        TEST_ASSERT(Y(src[0]) == Y(src2[0]));
     }
-    std::cout << "OK: starpu::scal_inplace::submit<T> restricted to CUDA\n";
+    std::cout << "OK: starpu::scal_inplace::submit<" << T::type_repr << "> restricted to CUDA\n";
 }
 
 template<typename T>
