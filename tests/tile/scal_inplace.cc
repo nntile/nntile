@@ -22,26 +22,27 @@ using namespace nntile;
 using namespace nntile::tile;
 
 template<typename T>
-void check(T alpha)
+void check(Scalar alpha)
 {
+    using Y = typename T::repr_t;
     // Init data for checking
     Tile<T> data({3, 4, 5}), data2({3, 4, 5});
     auto data_local = data.acquire(STARPU_W);
     auto data2_local = data2.acquire(STARPU_W);
     for(Index i = 0; i < data.nelems; ++i)
     {
-        data_local[i] = T(i);
-        data2_local[i] = T(i);
+        data_local[i] = Y(i);
+        data2_local[i] = Y(i);
     }
     data_local.release();
     data2_local.release();
-    starpu::scal_inplace::submit<T>(alpha, data.nelems, data);
+    starpu::scal_inplace::submit<T>(data.nelems, alpha, data);
     scal_inplace<T>(alpha, data2);
     data_local.acquire(STARPU_R);
     data2_local.acquire(STARPU_R);
     for(Index i = 0; i < data.nelems; ++i)
     {
-        TEST_ASSERT(data_local[i] == data2_local[i]);
+        TEST_ASSERT(Y(data_local[i]) == Y(data2_local[i]));
     }
     data_local.release();
     data2_local.release();

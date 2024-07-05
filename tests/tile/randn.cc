@@ -22,13 +22,14 @@ using namespace nntile::tile;
 template<typename T>
 void validate()
 {
+    using Y = typename T::repr_t;
     // Only CPU implementation is check, as there is no other backend yet
     Tile<T> dst({3, 4, 5}), dst2(dst.shape);
     std::vector<Index> start{1, 1, 1}, underlying_shape{5, 6, 7};
     unsigned long long seed = -1;
-    T mean = 1, stddev = 2;
+    Scalar mean = 1, stddev = 2;
     // Check some valid parameters
-    starpu::VariableHandle tmp_index(sizeof(Index)*2*3, STARPU_R);
+    starpu::VariableHandle tmp_index(sizeof(nntile::int64_t)*2*3, STARPU_R);
     starpu::randn::submit<T>(3, dst.nelems, seed, mean, stddev, start,
         dst.shape, dst.stride, underlying_shape, dst, tmp_index);
     randn(dst2, start, underlying_shape, seed, mean, stddev);
@@ -36,7 +37,7 @@ void validate()
     auto dst2_local = dst.acquire(STARPU_R);
     for(Index i = 0; i < dst.nelems; ++i)
     {
-        TEST_ASSERT(dst_local[i] == dst2_local[i]);
+        TEST_ASSERT(Y(dst_local[i]) == Y(dst2_local[i]));
     }
     dst_local.release();
     dst2_local.release();
@@ -48,7 +49,7 @@ void validate()
     randn(scalar2, scalar.shape, scalar.shape, seed, mean, stddev);
     auto scalar_local = scalar.acquire(STARPU_R);
     auto scalar2_local = scalar2.acquire(STARPU_R);
-    TEST_ASSERT(scalar_local[0] == scalar2_local[0]);
+    TEST_ASSERT(Y(scalar_local[0]) == Y(scalar2_local[0]));
     scalar_local.release();
     scalar2_local.release();
     // Check throwing exceptions

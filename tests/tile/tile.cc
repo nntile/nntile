@@ -22,6 +22,7 @@ using namespace nntile::tile;
 template<typename T>
 void check_tile(const std::vector<Index> &shape)
 {
+    using Y = typename T::repr_t;
     // Check temporary tile with allocation done by StarPU
     Tile<T> tile1(shape);
     TEST_ASSERT(static_cast<starpu_data_handle_t>(tile1) != nullptr);
@@ -29,7 +30,7 @@ void check_tile(const std::vector<Index> &shape)
     TEST_ASSERT(tile1_local.get_ptr() != nullptr);
     for(Index i = 0; i < tile1.nelems; ++i)
     {
-        tile1_local[i] = static_cast<T>(i);
+        tile1_local[i] = Y(i);
     }
     tile1_local.release();
     // Check copy construction
@@ -47,14 +48,14 @@ void check_tile(const std::vector<Index> &shape)
     auto tile3_local = tile3.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)
     {
-        TEST_ASSERT(tile3_local[i] == static_cast<T>(i));
+        TEST_ASSERT(Y(tile3_local[i]) == Y(i));
     }
     tile3_local.release();
     // Check with shape and pointer
     std::vector<T> data(tile1.nelems);
     for(Index i = 0; i < tile1.nelems; ++i)
     {
-        data[i] = static_cast<T>(i+1);
+        data[i] = Y(i+1);
     }
     TEST_THROW(Tile<T>(shape, &data[0], tile1.nelems-1));
     Tile<T> tile4(shape, &data[0], tile1.nelems);
@@ -64,7 +65,7 @@ void check_tile(const std::vector<Index> &shape)
     tile3_local.acquire(STARPU_R);
     for(Index i = 0; i < tile2.nelems; ++i)
     {
-        TEST_ASSERT(tile3_local[i] == static_cast<T>(i+1));
+        TEST_ASSERT(Y(tile3_local[i]) == Y(i+1));
     }
     tile3_local.release();
     // Check with TileTraits and pointer
@@ -78,8 +79,8 @@ void check_tile(const std::vector<Index> &shape)
     tile3_local.acquire(STARPU_RW);
     for(Index i = 0; i < tile2.nelems; ++i)
     {
-        TEST_ASSERT(tile3_local[i] == static_cast<T>(i+1));
-        tile3_local[i] += T{1};
+        TEST_ASSERT(Y(tile3_local[i]) == Y(i+1));
+        tile3_local[i] = Y(tile3_local[i]) + Y(1);
     }
     tile3_local.release();
 }
