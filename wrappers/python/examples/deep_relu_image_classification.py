@@ -168,7 +168,7 @@ next_tag = m.next_tag
 # Set up learning rate and optimizer for training
 #optimizer = nntile.optimizer.SGD(m.get_parameters(), args.lr, next_tag, \
 #        momentum=0.0, nesterov=False, weight_decay=0.0)
-optimizer = optimizer.Adam(m.get_parameters(), args.lr, next_tag)
+optimizer = optimizer.FusedAdam(m.get_parameters(), args.lr, next_tag)
 
 # Set up Cross Entropy loss function for the model
 loss, next_tag = loss.CrossEntropy.generate_simple(m.activations[-1], \
