@@ -31,6 +31,7 @@ using namespace nntile::tensor;
 template<typename T>
 void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
 {
+    using Y = typename T::repr_t;
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
@@ -48,7 +49,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
         auto tile_local = tile.acquire(STARPU_W);
         for(Index i = 0; i < src_single.nelems; ++i)
         {
-            tile_local[i] = T(i);
+            tile_local[i] = Y(i);
         }
         tile_local.release();
     }
@@ -75,7 +76,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     Tensor<T> dst2(dst_traits, dist_root, last_tag);
     if(mpi_rank == mpi_root)
     {
-        T dst_init = 1.54;
+        Y dst_init = 1.54;
         auto dst_tile = dst.get_tile(0).acquire(STARPU_W);
         auto dst2_tile = dst2.get_tile(0).acquire(STARPU_W);
         dst_tile[0] = dst_init;
@@ -84,7 +85,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
         dst2_tile.release();
     }
     // Perform tensor-wise and tile-wise nrm2 operations
-    T alpha = -3.1, beta = 0.67;
+    Scalar alpha = -3.1, beta = 0.67;
     nrm2<T>(alpha, src, beta, dst, tmp);
     if(mpi_rank == mpi_root)
     {
@@ -99,9 +100,9 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
         auto tile2 = dst2.get_tile(0);
         auto tile_local = tile.acquire(STARPU_R);
         auto tile2_local = tile2.acquire(STARPU_R);
-        T diff = std::abs(tile_local[0] - tile2_local[0]);
-        T abs = std::abs(tile_local[0]);
-        TEST_ASSERT(diff/abs < 10*std::numeric_limits<T>::epsilon());
+        Y diff = std::abs(Y(tile_local[0]) - Y(tile2_local[0]));
+        Y abs = std::abs(Y(tile_local[0]));
+        TEST_ASSERT(diff/abs < 10*T::epsilon());
         tile_local.release();
         tile2_local.release();
     }

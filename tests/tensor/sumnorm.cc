@@ -31,6 +31,7 @@ template<typename T>
 void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         Index axis)
 {
+    using Y = typename T::repr_t;
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
@@ -48,7 +49,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         auto tile_local = tile.acquire(STARPU_W);
         for(Index i = 0; i < src_single.nelems; ++i)
         {
-            tile_local[i] = T(i);
+            tile_local[i] = Y(i);
         }
         tile_local.release();
     }
@@ -98,9 +99,9 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         auto tile2_local = tile2.acquire(STARPU_R);
         for(Index i = 0; i < dst_traits.nelems; ++i)
         {
-            T diff = std::abs(tile_local[i] - tile2_local[i]);
-            T abs = std::abs(tile_local[i]);
-            TEST_ASSERT(diff/abs < 10*std::numeric_limits<T>::epsilon());
+            Y diff = std::abs(Y(tile_local[i]) - Y(tile2_local[i]));
+            Y abs = std::abs(Y(tile_local[i]));
+            TEST_ASSERT(diff/abs < 10*T::epsilon());
         }
         tile_local.release();
         tile2_local.release();

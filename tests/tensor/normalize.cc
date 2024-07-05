@@ -31,6 +31,7 @@ template<typename T>
 void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         Index axis)
 {
+    using Y = typename T::repr_t;
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
@@ -48,7 +49,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         auto tile_local = tile.acquire(STARPU_W);
         for(Index i = 0; i < dst_single.nelems; ++i)
         {
-            tile_local[i] = T(i);
+            tile_local[i] = Y(i);
         }
         tile_local.release();
     }
@@ -97,12 +98,12 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     {
         auto gb_tile = gamma_beta.get_tile(0);
         auto gb_local = gb_tile.acquire(STARPU_W);
-        gb_local[0] = T{1};
-        gb_local[1] = T{0};
+        gb_local[0] = Y(1);
+        gb_local[1] = Y(0);
         gb_local.release();
     }
     // Perform tensor-wise and tile-wise normalize operations
-    T eps = 1e-16;
+    Scalar eps = 1e-16;
     normalize<T>(gamma_beta, src, dst, shape[axis], eps, axis);
     if(mpi_rank == mpi_root)
     {
@@ -120,7 +121,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
         auto tile2_local = tile2.acquire(STARPU_R);
         for(Index i = 0; i < dst_traits.nelems; ++i)
         {
-            TEST_ASSERT(tile_local[i] == tile2_local[i]);
+            TEST_ASSERT(Y(tile_local[i]) == Y(tile2_local[i]));
         }
         tile_local.release();
         tile2_local.release();
@@ -152,11 +153,11 @@ void validate()
         C(trC, dist00, last_tag), D(trD, dist0, last_tag),
         E(trE, dist00, last_tag), F(trF, dist00, last_tag),
         G(trG, dist0, last_tag), gamma_beta(trgb, dist0, last_tag);
-    T eps = 1e-16, zero = 0;
+    Scalar eps = 1e-16, zero = 0;
     TEST_THROW(normalize<T>(gamma_beta, B, A, 1, eps, 0));
     TEST_THROW(normalize<T>(gamma_beta, D, D, 1, eps, 0));
     TEST_THROW(normalize<T>(gamma_beta, C, A, 0, eps, 0));
-    TEST_THROW(normalize<T>(gamma_beta, C, A, 1, T{-0.1}, 0));
+    TEST_THROW(normalize<T>(gamma_beta, C, A, 1, -0.1, 0));
     TEST_THROW(normalize<T>(gamma_beta, C, A, 1, zero, 0));
     TEST_THROW(normalize<T>(gamma_beta, C, A, 1, eps, -1));
     TEST_THROW(normalize<T>(gamma_beta, C, A, 1, eps, 2));

@@ -26,6 +26,7 @@ using namespace nntile::tensor;
 template<typename T>
 void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
 {
+    using Y = typename T::repr_t;
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
@@ -34,8 +35,8 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_root = 0;
     unsigned long long seed = -1;
-    T mean = -1;
-    T stddev = 2;
+    Scalar mean = -1;
+    Scalar stddev = 2;
     std::vector<Index> start(shape.size());
     // Generate single-tile destination tensor
     TensorTraits dst_single_traits(shape, shape);
@@ -66,7 +67,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
         auto tile2_local = tile2.acquire(STARPU_R);
         for(Index i = 0; i < dst_traits.nelems; ++i)
         {
-            TEST_ASSERT(tile_local[i] == tile2_local[i]);
+            TEST_ASSERT(Y(tile_local[i]) == Y(tile2_local[i]));
         }
         tile_local.release();
         tile2_local.release();
@@ -84,7 +85,7 @@ void validate()
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions
     unsigned long long seed = -1;
-    T mean = 1, stddev = 2;
+    Scalar mean = 1, stddev = 2;
     starpu_mpi_tag_t last_tag = 0;
     std::vector<Index> sh34 = {3, 4}, sh23 = {2,3};
     std::vector<int> dist0000 = {0, 0, 0, 0};

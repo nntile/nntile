@@ -26,6 +26,7 @@ using namespace nntile::tensor;
 template<typename T>
 void check()
 {
+    using Y = typename T::repr_t;
     // Sync to be sure old tags are destroyed on all nodes
     starpu_mpi_barrier(MPI_COMM_WORLD);
     int mpi_rank = starpu_mpi_world_rank();
@@ -33,7 +34,7 @@ void check()
     int mpi_root = 0;
     starpu_mpi_tag_t last_tag = 0;
     TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
-    T one = 1, zero = 0;
+    Scalar one = 1, zero = 0;
     // Init single-tiled tensors
     std::vector<Index> sh2222 = {2, 2, 2, 2, 2};
     TensorTraits tr2222(sh2222, sh2222);
@@ -54,9 +55,9 @@ void check()
              D_single_local = D_single_tile.acquire(STARPU_W);
         for(Index i = 0; i < A_single.nelems; ++i)
         {
-            A_single_local[i] = T(i+1);
-            B_single_local[i] = 2 * A_single_local[i];
-            C_single_local[i] = 3 * A_single_local[i];
+            A_single_local[i] = Y(i+1);
+            B_single_local[i] = 2 * Y(A_single_local[i]);
+            C_single_local[i] = 3 * Y(A_single_local[i]);
             D_single_local[i] = C_single_local[i];
         }
         A_single_local.release();
@@ -92,7 +93,7 @@ void check()
         auto D_single_local = D_single_tile.acquire(STARPU_R);
         for(Index i = 0; i < D.nelems; ++i)
         {
-            TEST_ASSERT(C_single_local[i] == D_single_local[i]);
+            TEST_ASSERT(Y(C_single_local[i]) == Y(D_single_local[i]));
         }
         C_single_local.release();
         D_single_local.release();
@@ -111,7 +112,7 @@ void check()
         auto D_single_local = D_single_tile.acquire(STARPU_R);
         for(Index i = 0; i < D.nelems; ++i)
         {
-            TEST_ASSERT(C_single_local[i] == D_single_local[i]);
+            TEST_ASSERT(Y(C_single_local[i]) == Y(D_single_local[i]));
         }
         C_single_local.release();
         D_single_local.release();
@@ -130,7 +131,7 @@ void check()
         auto D_single_local = D_single_tile.acquire(STARPU_R);
         for(Index i = 0; i < D.nelems; ++i)
         {
-            TEST_ASSERT(C_single_local[i] == D_single_local[i]);
+            TEST_ASSERT(Y(C_single_local[i]) == Y(D_single_local[i]));
         }
         C_single_local.release();
         D_single_local.release();
@@ -149,13 +150,13 @@ void check()
         auto D_single_local = D_single_tile.acquire(STARPU_R);
         for(Index i = 0; i < D.nelems; ++i)
         {
-            TEST_ASSERT(C_single_local[i] == D_single_local[i]);
+            TEST_ASSERT(Y(C_single_local[i]) == Y(D_single_local[i]));
         }
         C_single_local.release();
         D_single_local.release();
     }
     // Check alpha=2
-    T two = 2;
+    Scalar two = 2;
     if(mpi_rank == mpi_root)
     {
         tile::gemm<T>(two, opN, A_single_tile, opN, B_single_tile, zero,
@@ -169,7 +170,7 @@ void check()
         auto D_single_local = D_single_tile.acquire(STARPU_R);
         for(Index i = 0; i < D.nelems; ++i)
         {
-            TEST_ASSERT(C_single_local[i] == D_single_local[i]);
+            TEST_ASSERT(Y(C_single_local[i]) == Y(D_single_local[i]));
         }
         C_single_local.release();
         D_single_local.release();
@@ -188,13 +189,13 @@ void check()
         auto D_single_local = D_single_tile.acquire(STARPU_R);
         for(Index i = 0; i < D.nelems; ++i)
         {
-            TEST_ASSERT(C_single_local[i] == D_single_local[i]);
+            TEST_ASSERT(Y(C_single_local[i]) == Y(D_single_local[i]));
         }
         C_single_local.release();
         D_single_local.release();
     }
     // Check beta=-1
-    T mone = -1;
+    Scalar mone = -1;
     if(mpi_rank == mpi_root)
     {
         tile::gemm<T>(one, opN, A_single_tile, opN, B_single_tile, mone,
@@ -208,7 +209,7 @@ void check()
         auto D_single_local = D_single_tile.acquire(STARPU_R);
         for(Index i = 0; i < D.nelems; ++i)
         {
-            TEST_ASSERT(C_single_local[i] == D_single_local[i]);
+            TEST_ASSERT(Y(C_single_local[i]) == Y(D_single_local[i]));
         }
         C_single_local.release();
         D_single_local.release();
@@ -224,7 +225,7 @@ void validate()
     // Check throwing exceptions
     starpu_mpi_tag_t last_tag = 0;
     TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
-    T one = 1, zero = 0;
+    Scalar one = 1, zero = 0;
     std::vector<Index> shape11 = {1, 1}, shape12 = {1, 2},
         shape21 = {2, 1}, shape22 = {2, 2}, shape333 = {3, 3, 3};
     TensorTraits tr11(shape11, shape11), tr12(shape12, shape12),
