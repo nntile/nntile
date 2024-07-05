@@ -25,67 +25,68 @@
 using namespace nntile;
 using namespace nntile::kernel::randn;
 
-static inline fp32_t chameleon_randn(unsigned long long &seed, fp32_t mean,
-        fp32_t stddev)
+static inline void chameleon_randn(unsigned long long &seed, Scalar mean,
+        Scalar stddev, float &res)
 {
-    constexpr fp32_t two=2.0, twopi=6.2831853071795864769252867663;
-    fp32_t t1 = CORE_slaran(&seed);
-    fp32_t t2 = CORE_slaran(&seed) * twopi;
-    fp32_t t3 = std::sqrt(-two*std::log(t1)) * std::cos(t2);
-    return stddev*t3 + mean;
+    constexpr float two=2.0, twopi=6.2831853071795864769252867663;
+    float t1 = CORE_slaran(&seed);
+    float t2 = CORE_slaran(&seed) * twopi;
+    float t3 = std::sqrt(-two*std::log(t1)) * std::cos(t2);
+    res = stddev*t3 + mean;
 }
 
-static inline fp64_t chameleon_randn(unsigned long long &seed, fp64_t mean,
-        fp64_t stddev)
+static inline void chameleon_randn(unsigned long long &seed, Scalar mean,
+        Scalar stddev, double &res)
 {
-    constexpr fp64_t two=2.0, twopi=6.2831853071795864769252867663;
-    fp64_t t1 = CORE_dlaran(&seed);
-    fp64_t t2 = CORE_dlaran(&seed) * twopi;
-    fp64_t t3 = std::sqrt(-two*std::log(t1)) * std::cos(t2);
-    return stddev*t3 + mean;
+    constexpr double two=2.0, twopi=6.2831853071795864769252867663;
+    double t1 = CORE_dlaran(&seed);
+    double t2 = CORE_dlaran(&seed) * twopi;
+    double t3 = std::sqrt(-two*std::log(t1)) * std::cos(t2);
+    res = stddev*t3 + mean;
 }
 
 template<typename T>
 void validate_empty_shape()
 {
+    using Y = typename T::repr_t;
     // Set default values for tests
-    T mean = 0, stddev = 1;
+    Scalar mean = 0, stddev = 1;
     unsigned long long seed = CORE_rnd64_jump(1000, -1);
     // Init reference array
-    T data_ref;
+    Y data_ref;
     unsigned long long seed2 = seed;
-    data_ref = chameleon_randn(seed2, mean, stddev);
+    chameleon_randn(seed2, mean, stddev, data_ref);
     // Run kernel
     T data;
-    std::cout << "Run kernel::randn::cpu_ndim0<T>\n";
+    std::cout << "Run kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
     cpu_ndim0<T>(seed, mean, stddev, &data);
     // Check if the result is the same as the reference one
-    TEST_ASSERT(data == data_ref);
-    std::cout << "OK: kernel::randn::cpu_ndim0<T>\n";
+    TEST_ASSERT(Y(data) == data_ref);
+    std::cout << "OK: kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
     // Run kernel with a different seed that shall generate different result
     seed2 = seed + std::numeric_limits<unsigned long long>::max()/2;
     // Launch kernel
-    std::cout << "Run kernel::randn::cpu_ndim0<T>\n";
+    std::cout << "Run kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
     cpu_ndim0<T>(seed2, mean, stddev, &data);
     // Check if result is different
-    TEST_ASSERT(data != data_ref);
-    std::cout << "OK: kernel::randn::cpu_ndim0<T>\n";
+    TEST_ASSERT(Y(data) != data_ref);
+    std::cout << "OK: kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
     // Run kernel with a different mean
-    T mean2 = mean + T{1};
+    Scalar mean2 = mean + 1.0;
     // Launch kernel
-    std::cout << "Run kernel::randn::cpu_ndim0<T>\n";
+    std::cout << "Run kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
     cpu_ndim0(seed, mean2, stddev, &data);
     // Check if result is different for the first element
-    TEST_ASSERT(data != data_ref);
-    std::cout << "OK: kernel::randn::cpu_ndim0<T>\n";
+    TEST_ASSERT(Y(data) != data_ref);
+    std::cout << "OK: kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
     // Run kernel with a different stddev
-    T stddev2 = stddev + T{1};
+    Scalar stddev2 = stddev + 1.0;
     // Launch kernel
-    std::cout << "Run kernel::randn::cpu_ndim0<T>\n";
+    std::cout << "Run kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
     cpu_ndim0<T>(seed, mean, stddev2, &data);
     // Check if result is different for the first element
-    TEST_ASSERT(data != data_ref);
-    std::cout << "OK: kernel::randn::cpu_ndim0<T>\n";
+    TEST_ASSERT(Y(data) != data_ref);
+    std::cout << "OK: kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
 }
 
 // Check generation of a full contiguous array, which actually checks
@@ -93,11 +94,13 @@ void validate_empty_shape()
 template<typename T, std::size_t NDIM>
 void validate_full(std::array<Index, NDIM> shape)
 {
+    using Y = typename T::repr_t;
     // Set default values for tests
-    T mean = 0, stddev = 1;
+    Scalar mean = 0, stddev = 1;
     unsigned long long seed = CORE_rnd64_jump(1000, -1);
     // Init strides
-    std::array<Index, NDIM> stride, start, tmp_index;
+    std::array<Index, NDIM> stride, start;
+    std::array<nntile::int64_t, NDIM> tmp_index;
     stride[0] = 1;
     start[0] = 0;
     for(Index i = 1; i < NDIM; ++i)
@@ -111,99 +114,101 @@ void validate_full(std::array<Index, NDIM> shape)
     unsigned long long seed2 = seed;
     for(Index i = 0; i < nelems; ++i)
     {
-        data_ref[i] = chameleon_randn(seed2, mean, stddev);
+        chameleon_randn(seed2, mean, stddev, data_ref[i].value);
     }
     // Run kernel
     std::vector<T> data(nelems);
-    std::cout << "Run kernel::randn::cpu<T>\n";
+    std::cout << "Run kernel::randn::cpu<" << T::type_repr << ">\n";
     cpu<T>(NDIM, nelems, seed, mean, stddev, &start[0], &shape[0],
             &shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if the result is the same as the reference one
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(data[i] == data_ref[i]);
+        TEST_ASSERT(Y(data[i]) == Y(data_ref[i]));
     }
-    std::cout << "OK: kernel::randn::cpu<T>\n";
+    std::cout << "OK: kernel::randn::cpu<" << T::type_repr << ">\n";
     // Run kernel with a different seed that shall generate different result
     seed2 = seed + std::numeric_limits<unsigned long long>::max()/2;
     // Launch kernel
-    std::cout << "Run kernel::randn::cpu<T>\n";
+    std::cout << "Run kernel::randn::cpu<" << T::type_repr << ">\n";
     cpu<T>(NDIM, nelems, seed2, mean, stddev, &start[0], &shape[0],
             &shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if result is different for the first element
-    TEST_ASSERT(data[0] != data_ref[0]);
-    std::cout << "OK: kernel::randn::cpu<T>\n";
+    TEST_ASSERT(Y(data[0]) != Y(data_ref[0]));
+    std::cout << "OK: kernel::randn::cpu<" << T::type_repr << ">\n";
     // Run kernel with a different mean
-    T mean2 = mean + T{1};
+    Scalar mean2 = mean + 1.0;
     // Launch kernel
-    std::cout << "Run kernel::randn::cpu<T>\n";
+    std::cout << "Run kernel::randn::cpu<" << T::type_repr << ">\n";
     cpu(NDIM, nelems, seed, mean2, stddev, &start[0], &shape[0],
             &shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if result is different for the first element
-    TEST_ASSERT(data[0] != data_ref[0]);
-    std::cout << "OK: kernel::randn::cpu<T>\n";
+    TEST_ASSERT(Y(data[0]) != Y(data_ref[0]));
+    std::cout << "OK: kernel::randn::cpu<" << T::type_repr << ">\n";
     // Run kernel with a different stddev
-    T stddev2 = stddev + T{1};
+    Scalar stddev2 = stddev + 1.0;
     // Launch kernel
-    std::cout << "Run kernel::randn::cpu<T>\n";
+    std::cout << "Run kernel::randn::cpu<" << T::type_repr << ">\n";
     cpu<T>(NDIM, nelems, seed, mean, stddev2, &start[0], &shape[0],
             &shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if result is different for the first element
-    TEST_ASSERT(data[0] != data_ref[0])
-    std::cout << "OK: kernel::randn::cpu<T>\n";
+    TEST_ASSERT(Y(data[0]) != Y(data_ref[0]))
+    std::cout << "OK: kernel::randn::cpu<" << T::type_repr << ">\n";
 }
 
 // Check generation of a full contiguous 0-dimensional array
 template<typename T>
 void validate_full(std::array<Index, 0> shape_)
 {
+    using Y = typename T::repr_t;
     // Set default values for tests
-    T mean = 0, stddev = 1;
+    Scalar mean = 0, stddev = 1;
     unsigned long long seed = CORE_rnd64_jump(1000, -1);
     // 0-dimensional arrays are not referenced, so we just init them with null
     // pointers
-    Index *start = nullptr, *shape = nullptr, *stride = nullptr,
-          *tmp_index = nullptr;
+    Index *start = nullptr, *shape = nullptr, *stride = nullptr;
+    nntile::int64_t *tmp_index = nullptr;
     // Init nelems
     Index nelems = 1;
     // Init reference array
     unsigned long long seed2 = seed;
-    T data_ref = chameleon_randn(seed2, mean, stddev);
+    Y data_ref;
+    chameleon_randn(seed2, mean, stddev, data_ref);
     // Run kernel
     T data;
-    std::cout << "Run kernel::randn::cpu<T>\n";
+    std::cout << "Run kernel::randn::cpu<" << T::type_repr << ">\n";
     cpu<T>(0, nelems, seed, mean, stddev, start, shape, shape, &data,
             stride, tmp_index);
     // Check if the result is the same as the reference one
-    TEST_ASSERT(data == data_ref);
-    std::cout << "OK: kernel::randn::cpu<T>\n";
+    TEST_ASSERT(Y(data) == data_ref);
+    std::cout << "OK: kernel::randn::cpu<" << T::type_repr << ">\n";
     // Run kernel with a different seed that shall generate different result
     seed2 = seed + std::numeric_limits<unsigned long long>::max()/2;
     // Launch kernel
-    std::cout << "Run kernel::randn::cpu<T>\n";
+    std::cout << "Run kernel::randn::cpu<" << T::type_repr << ">\n";
     cpu<T>(0, nelems, seed2, mean, stddev, start, shape, shape, &data,
             stride, tmp_index);
     // Check if result is different for the first element
-    TEST_ASSERT(data != data_ref);
-    std::cout << "OK: kernel::randn::cpu<T>\n";
+    TEST_ASSERT(Y(data) != data_ref);
+    std::cout << "OK: kernel::randn::cpu<" << T::type_repr << ">\n";
     // Run kernel with a different mean
-    T mean2 = mean + T{1};
+    Scalar mean2 = mean + 1.0;
     // Launch kernel
-    std::cout << "Run kernel::randn::cpu<T>\n";
+    std::cout << "Run kernel::randn::cpu<" << T::type_repr << ">\n";
     cpu<T>(0, nelems, seed, mean2, stddev, start, shape, shape, &data,
             stride, tmp_index);
     // Check if result is different for the first element
-    TEST_ASSERT(data != data_ref);
-    std::cout << "OK: kernel::randn::cpu<T>\n";
+    TEST_ASSERT(Y(data) != data_ref);
+    std::cout << "OK: kernel::randn::cpu<" << T::type_repr << ">\n";
     // Run kernel with a different stddev
-    T stddev2 = stddev + T{1};
+    Scalar stddev2 = stddev + 1.0;
     // Launch kernel
-    std::cout << "Run kernel::randn::cpu<T>\n";
+    std::cout << "Run kernel::randn::cpu<" << T::type_repr << ">\n";
     cpu<T>(0, nelems, seed, mean, stddev2, start, shape, shape, &data,
             stride, tmp_index);
     // Check if result is different for the first element
-    TEST_ASSERT(data != data_ref);
-    std::cout << "OK: kernel::randn::cpu<T>\n";
+    TEST_ASSERT(Y(data) != data_ref);
+    std::cout << "OK: kernel::randn::cpu<" << T::type_repr << ">\n";
 }
 
 // Check partial generation, where parameters start, shape and stride are
@@ -212,11 +217,13 @@ template<typename T, std::size_t NDIM>
 void validate_part(std::array<Index, NDIM> underlying_shape,
         std::array<Index, NDIM> start, std::array<Index, NDIM> shape)
 {
+    using Y = typename T::repr_t;
     // Set default values for tests
-    T mean = 0, stddev = 1;
+    Scalar mean = 0, stddev = 1;
     unsigned long long seed = CORE_rnd64_jump(1000, -1);
     // Init strides
-    std::array<Index, NDIM> stride, tmp_index;
+    std::array<Index, NDIM> stride;
+    std::array<nntile::int64_t, NDIM> tmp_index;
     stride[0] = 2;
     Index underlying_nelems = underlying_shape[0];
     Index nelems = shape[0];
@@ -233,11 +240,11 @@ void validate_part(std::array<Index, NDIM> underlying_shape,
     unsigned long long seed2 = seed;
     for(Index i = 0; i < underlying_nelems; ++i)
     {
-        underlying_array[i] = chameleon_randn(seed2, mean, stddev);
+        chameleon_randn(seed2, mean, stddev, underlying_array[i].value);
     }
     // Run kernel
     std::vector<T> data(size);
-    std::cout << "Run kernel::randn::cpu<T>\n";
+    std::cout << "Run kernel::randn::cpu<" << T::type_repr << ">\n";
     cpu(NDIM, nelems, seed, mean, stddev, &start[0], &shape[0],
             &underlying_shape[0], &data[0], &stride[0], &tmp_index[0]);
     // Check if the result is the same as the reference one
@@ -271,9 +278,9 @@ void validate_part(std::array<Index, NDIM> underlying_shape,
             offset += stride[j] * index[j];
         }
         // Compare results
-        TEST_ASSERT(data[offset] == underlying_array[underlying_offset]);
+        TEST_ASSERT(Y(data[offset]) == Y(underlying_array[underlying_offset]));
     }
-    std::cout << "OK: kernel::randn::cpu<T>\n";
+    std::cout << "OK: kernel::randn::cpu<" << T::type_repr << ">\n";
 }
 
 // Run multiple tests for a given precision

@@ -22,17 +22,18 @@ using namespace nntile::tile;
 template<typename T>
 void check()
 {
+    using Y = typename T::repr_t;
     // Check all parameters are properly passed to the underlying gemm
     TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
-    T one = 1, zero = 0;
+    Scalar one = 1, zero = 0;
     Tile<T> A({2, 2, 2, 2, 2}), B(A.shape), C(A.shape), D(A.shape);
     auto A_local = A.acquire(STARPU_W), B_local = B.acquire(STARPU_W),
          C_local = C.acquire(STARPU_W), D_local = D.acquire(STARPU_W);
     for(Index i = 0; i < A.nelems; ++i)
     {
-        A_local[i] = T(i+1);
-        B_local[i] = 2 * A_local[i];
-        C_local[i] = 3 * A_local[i];
+        A_local[i] = Y(i+1);
+        B_local[i] = 2 * Y(A_local[i]);
+        C_local[i] = 3 * Y(A_local[i]);
         D_local[i] = C_local[i];
     }
     A_local.release();
@@ -46,7 +47,7 @@ void check()
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
     {
-        TEST_ASSERT(C_local[i] == D_local[i]);
+        TEST_ASSERT(Y(C_local[i]) == Y(D_local[i]));
     }
     C_local.release();
     D_local.release();
@@ -57,7 +58,7 @@ void check()
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
     {
-        TEST_ASSERT(C_local[i] == D_local[i]);
+        TEST_ASSERT(Y(C_local[i]) == Y(D_local[i]));
     }
     C_local.release();
     D_local.release();
@@ -68,7 +69,7 @@ void check()
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
     {
-        TEST_ASSERT(C_local[i] == D_local[i]);
+        TEST_ASSERT(Y(C_local[i]) == Y(D_local[i]));
     }
     C_local.release();
     D_local.release();
@@ -79,19 +80,19 @@ void check()
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
     {
-        TEST_ASSERT(C_local[i] == D_local[i]);
+        TEST_ASSERT(Y(C_local[i]) == Y(D_local[i]));
     }
     C_local.release();
     D_local.release();
     // Check alpha=2
-    T two = 2;
+    Scalar two = 2;
     starpu::gemm::submit<T>(opN, opN, 4, 4, 4, 2, two, A, B, zero, C);
     gemm<T>(two, opN, A, opN, B, zero, D, 2, 1);
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
     {
-        TEST_ASSERT(C_local[i] == D_local[i]);
+        TEST_ASSERT(Y(C_local[i]) == Y(D_local[i]));
     }
     C_local.release();
     D_local.release();
@@ -102,19 +103,19 @@ void check()
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
     {
-        TEST_ASSERT(C_local[i] == D_local[i]);
+        TEST_ASSERT(Y(C_local[i]) == Y(D_local[i]));
     }
     C_local.release();
     D_local.release();
     // Check beta=-1
-    T mone = -1;
+    Scalar mone = -1;
     starpu::gemm::submit<T>(opN, opN, 4, 4, 4, 2, one, A, B, mone, C);
     gemm<T>(one, opN, A, opN, B, mone, D, 2, 1);
     C_local.acquire(STARPU_R);
     D_local.acquire(STARPU_R);
     for(Index i = 0; i < C.nelems; ++i)
     {
-        TEST_ASSERT(C_local[i] == D_local[i]);
+        TEST_ASSERT(Y(C_local[i]) == Y(D_local[i]));
     }
     C_local.release();
     D_local.release();
@@ -127,7 +128,7 @@ void validate()
     check<T>();
     // Check throwing exceptions
     TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
-    T one = 1, zero = 0;
+    Scalar one = 1, zero = 0;
     Tile<T> mat11({1, 1}), mat12({1, 2}), mat21({2, 1}), mat22({2, 2}),
         mat333({3, 3, 3});
     auto fail_trans_val = static_cast<TransOp::Value>(-1);

@@ -63,45 +63,54 @@ void run_cuda(Index nelems, const std::vector<T> &src, std::vector<T> &dst)
 template<typename T>
 void validate(Index nelems)
 {
-    constexpr T eps = 2 * std::numeric_limits<T>::epsilon();
+    using Y = typename T::repr_t;
+    const Y eps = 2 * T::epsilon();
     // Init test input
     std::vector<T> src(nelems), dst(nelems);
-    T sign_factor = T(-1.);
+    Y sign_factor = -1.;
     for(Index i = 0; i < nelems; ++i)
     {
-        src[i] = T(2*i+1-nelems) * sign_factor;
-        dst[i] = T(nelems-i);
-        sign_factor *= T(-1.);
+        src[i] = Y(2*i+1-nelems) * sign_factor;
+        dst[i] = Y(nelems-i);
+        sign_factor *= Y(-1.);
     }
     std::vector<T> dst_save(dst);
     // Check low-level CPU kernel
-    std::cout << "Run kernel::maximum::cpu<T>\n";
+    std::cout << "Run kernel::maximum::cpu<" << T::type_repr << ">\n";
     cpu<T>(nelems, &src[0], &dst[0]);
-    T ref_val;
+    Y ref_val;
     for(Index i = 0; i < nelems; ++i)
     {
-        if (dst_save[i] <= src[i])
-            ref_val = src[i];
+        if (Y(dst_save[i]) <= Y(src[i]))
+        {
+            ref_val = Y(src[i]);
+        }
         else
-            ref_val = dst_save[i];
+        {
+            ref_val = Y(dst_save[i]);
+        }
         // NaN-aware comparisons
-        TEST_ASSERT(dst[i] == ref_val);
+        TEST_ASSERT(Y(dst[i]) == ref_val);
     }
-    std::cout << "OK: kernel::maximum::cpu<T>\n";
+    std::cout << "OK: kernel::maximum::cpu<" << T::type_repr << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
-    std::cout << "Run kernel::maximum::cuda<T>\n";
+    std::cout << "Run kernel::maximum::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(nelems, src, dst);
     for(Index i = 0; i < nelems; ++i)
     {
-        if (dst_save[i] <= src[i])
-            ref_val = src[i];
+        if (Y(dst_save[i]) <= Y(src[i]))
+        {
+            ref_val = Y(src[i]);
+        }
         else
-            ref_val = dst_save[i];
-        TEST_ASSERT(dst[i] == ref_val);
+        {
+            ref_val = Y(dst_save[i]);
+        }
+        TEST_ASSERT(Y(dst[i]) == ref_val);
     }
-    std::cout << "OK: kernel::maximum::cuda<T>\n";
+    std::cout << "OK: kernel::maximum::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

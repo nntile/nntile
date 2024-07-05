@@ -28,7 +28,7 @@ template<typename T>
 void run_cuda(Index m, Index n, Index k, const std::vector<T> &maxsumexp,
         std::vector<T> &dst)
 {
-    constexpr T alpha = 1.0;
+    constexpr Scalar alpha = 1.0;
     // Copy to device
     T *dev_maxsumexp, *dev_dst;
     cudaError_t cuda_err = cudaMalloc(&dev_maxsumexp, sizeof(T)*2*m*n);
@@ -67,8 +67,9 @@ void run_cuda(Index m, Index n, Index k, const std::vector<T> &maxsumexp,
 template<typename T>
 void validate(Index m, Index n, Index k)
 {
-    constexpr T epsilon = std::numeric_limits<T>::epsilon();
-    constexpr T alpha = 1.0;
+    using Y = typename T::repr_t;
+    const Y eps = T::epsilon();
+    constexpr Y alpha = 1.0;
     // Init test input
     std::vector<T> maxsumexp(2*m*n), dst(m*n*k);
     for(Index i0 = 0; i0 < m; ++i0)
@@ -77,7 +78,7 @@ void validate(Index m, Index n, Index k)
         {
             for(Index i2 = 0; i2 < k; ++i2)
             {
-                dst[(i1*k+i2)*m+i0] = T(i0+i1+i2) / T{100};
+                dst[(i1*k+i2)*m+i0] = Y(i0+i1+i2) / Y{100};
             }
         }
     }
@@ -85,14 +86,14 @@ void validate(Index m, Index n, Index k)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
-            T max = T(i0+i1+k-1) / T{100};
+            Y max = Y(i0+i1+k-1) / Y{100};
             maxsumexp[2*(i1*m+i0)] = max;
-            maxsumexp[2*(i1*m+i0)+1] = T(i0+i1+1) / T{100};
+            maxsumexp[2*(i1*m+i0)+1] = Y(i0+i1+1) / Y{100};
         }
     }
     std::vector<T> dst_save(dst);
     // Check low-level kernel
-    std::cout << "Run kernel::softmax_inplace::cpu<T>\n";
+    std::cout << "Run kernel::softmax_inplace::cpu<" << T::type_repr << ">\n";
     cpu<T>(m, n, k, &maxsumexp[0], alpha, &dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -100,18 +101,18 @@ void validate(Index m, Index n, Index k)
         {
             for(Index i2 = 0; i2 < k; ++i2)
             {
-                T val = dst[(i1*k+i2)*m+i0];
-                T val_ref = std::exp(T(i2-k+1) / T{100}) * T{100} / T(i0+i1+1);
-                T tmp = std::abs(val - val_ref);
-                TEST_ASSERT(tmp/val_ref < 100*epsilon);
+                Y val = dst[(i1*k+i2)*m+i0];
+                Y val_ref = std::exp(Y(i2-k+1) / Y{100}) * Y{100} / Y(i0+i1+1);
+                Y tmp = std::abs(val - val_ref);
+                TEST_ASSERT(tmp/val_ref < 100*eps);
             }
         }
     }
-    std::cout << "OK: kernel::softmax_inplace::cpu<T>\n";
+    std::cout << "OK: kernel::softmax_inplace::cpu<" << T::type_repr << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
-    std::cout << "Run kernel::softmax_inplace::cuda<T>\n";
+    std::cout << "Run kernel::softmax_inplace::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(m, n, k, maxsumexp, dst);
     for(Index i0 = 0; i0 < m; ++i0)
     {
@@ -119,14 +120,14 @@ void validate(Index m, Index n, Index k)
         {
             for(Index i2 = 0; i2 < k; ++i2)
             {
-                T val = dst[(i1*k+i2)*m+i0];
-                T val_ref = std::exp(T(i2-k+1) / T{100}) * T{100} / T(i0+i1+1);
-                T tmp = std::abs(val - val_ref);
-                TEST_ASSERT(tmp/val_ref < 100*epsilon);
+                Y val = dst[(i1*k+i2)*m+i0];
+                Y val_ref = std::exp(Y(i2-k+1) / Y{100}) * Y{100} / Y(i0+i1+1);
+                Y tmp = std::abs(val - val_ref);
+                TEST_ASSERT(tmp/val_ref < 100*eps);
             }
         }
     }
-    std::cout << "OK: kernel::softmax_inplace::cuda<T>\n";
+    std::cout << "OK: kernel::softmax_inplace::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

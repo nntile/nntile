@@ -22,6 +22,7 @@ using namespace nntile::tile;
 template<typename T>
 void check()
 {
+    using Y = typename T::repr_t;
     // Init data for checking
     Tile<T> src({3, 4, 5});
     Tile<T> dst[3] = {Tile<T>({2, 4, 5}), Tile<T>({2, 3, 5}),
@@ -31,10 +32,10 @@ void check()
     auto src_local = src.acquire(STARPU_W);
     for(Index i = 0; i < src.nelems; ++i)
     {
-        src_local[i] = T(i+1);
+        src_local[i] = Y(i+1);
     }
     src_local.release();
-    T zero = 0;
+    Y zero = 0;
     for(Index i = 0; i < 3; ++i)
     {
         auto dst_local = dst[i].acquire(STARPU_W);
@@ -55,7 +56,7 @@ void check()
         auto dst2_local = dst2[0].acquire(STARPU_R);
         for(Index i = 0; i < dst[0].nelems; ++i)
         {
-            TEST_ASSERT(dst_local[i] == dst2_local[i]);
+            TEST_ASSERT(Y(dst_local[i]) == Y(dst2_local[i]));
         }
         dst_local.release();
         dst2_local.release();
@@ -68,7 +69,7 @@ void check()
         auto dst2_local = dst2[1].acquire(STARPU_R);
         for(Index i = 0; i < dst[1].nelems; ++i)
         {
-            TEST_ASSERT(dst_local[i] == dst2_local[i]);
+            TEST_ASSERT(Y(dst_local[i]) == Y(dst2_local[i]));
         }
         dst_local.release();
         dst2_local.release();
@@ -81,7 +82,7 @@ void check()
         auto dst2_local = dst2[2].acquire(STARPU_R);
         for(Index i = 0; i < dst[2].nelems; ++i)
         {
-            TEST_ASSERT(dst_local[i] == dst2_local[i]);
+            TEST_ASSERT(Y(dst_local[i]) == Y(dst2_local[i]));
         }
         dst_local.release();
         dst2_local.release();

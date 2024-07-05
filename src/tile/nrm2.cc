@@ -50,7 +50,7 @@ void nrm2_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &ds
             starpu::nrm2::submit<T>(src.nelems, src, dst);
             if(alpha != 1.0)
             {
-                starpu::scal_inplace::submit<T>(std::fabs(alpha), dst.nelems,
+                starpu::scal_inplace::submit<T>(dst.nelems, std::fabs(alpha),
                         dst);
             }
         }

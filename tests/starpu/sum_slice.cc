@@ -27,38 +27,39 @@ using namespace nntile;
 using namespace nntile::starpu;
 
 template<typename T>
-void validate_cpu(Index m, Index n, Index k, T alpha, T beta)
+void validate_cpu(Index m, Index n, Index k, Scalar alpha, Scalar beta)
 {
+    using Y = typename T::repr_t;
     // Init all the data
     std::vector<T> src(m*n*k);
     for(Index i = 0; i < m*n*k; ++i)
     {
-        src[i] = T(i+1);
+        src[i] = Y(i+1);
     }
     std::vector<T> sum_dst(m*n);
     for(Index i = 0; i < m*n; i += 1)
     {
-        sum_dst[i] = T(-i-1);
+        sum_dst[i] = Y(-i-1);
     }
     // Create copies of destination
     std::vector<T> sum_dst2(sum_dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::sum_slice::cpu<T>\n";
+    std::cout << "Run kernel::sum_slice::cpu<" << T::type_repr << ">\n";
     kernel::sum_slice::cpu<T>(m, n, k, alpha, &src[0], beta, &sum_dst[0]);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*m*n*k, STARPU_R),
         sum_dst2_handle(&sum_dst2[0], sizeof(T)*m*n, STARPU_RW);
     sum_slice::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::sum_slice::submit<T> restricted to CPU\n";
+    std::cout << "Run starpu::sum_slice::submit<" << T::type_repr << "> restricted to CPU\n";
     sum_slice::submit<T>(m, n, k, alpha, src_handle, beta, sum_dst2_handle);
     starpu_task_wait_for_all();
     sum_dst2_handle.unregister();
     // Check result
     for(Index i = 0; i < m*n; ++i)
     {
-        TEST_ASSERT(sum_dst[i] == sum_dst2[i]);
+        TEST_ASSERT(Y(sum_dst[i]) == Y(sum_dst2[i]));
     }
-    std::cout << "OK: starpu::sum_slice::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::sum_slice::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 int main(int argc, char **argv)

@@ -22,19 +22,20 @@ using namespace nntile::tile;
 template<typename T>
 void validate()
 {
+    using Y = typename T::repr_t;
     TileTraits traits({4, 5, 6, 7});
     std::vector<T> data(traits.nelems);
     for(Index i = 0; i < traits.nelems; ++i)
     {
-        data[i] = T(i+1);
+        data[i] = Y(i+1);
     }
     Tile<T> tile(traits, &data[0], traits.nelems);
     clear(tile);
     auto tile_local = tile.acquire(STARPU_R);
-    constexpr T zero = 0;
+    constexpr Y zero = 0;
     for(Index i = 0; i < traits.nelems; ++i)
     {
-        TEST_ASSERT(tile_local[i] == zero);
+        TEST_ASSERT(Y(tile_local[i]) == zero);
     }
     tile_local.release();
 }

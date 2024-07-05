@@ -24,7 +24,7 @@ using namespace nntile::kernel::addcdiv;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void run_cuda(T val, T eps, Index nelems, T* nom, T* denom, T* src)
+void run_cuda(Scalar val, Scalar eps, Index nelems, T* nom, T* denom, T* src)
 {
     // Copy to device
     T *dev_src, *dev_nom, *dev_denom;
@@ -69,38 +69,40 @@ void run_cuda(T val, T eps, Index nelems, T* nom, T* denom, T* src)
 
 // Templated validation
 template<typename T>
-void validate(T val, T eps, Index nelems)
+void validate(Scalar val, Scalar eps, Index nelems)
 {
+    using Y = typename T::repr_t;
+    const Y epsilon = 2 * T::epsilon();
     // Init test input
     std::vector<T> src(nelems), nom(nelems), denom(nelems);
-    T sign_factor = T(-1.);
+    Y sign_factor = Y(-1.);
     for(Index i = 0; i < nelems; ++i)
     {
-        src[i] = T(2*i+1-nelems) * sign_factor;
-        nom[i] = T(nelems-i);
-        denom[i] = T(i+1);
-        sign_factor *= T(-1.);
+        src[i] = Y(2*i+1-nelems) * sign_factor;
+        nom[i] = Y(nelems-i);
+        denom[i] = Y(i+1);
+        sign_factor *= Y(-1.);
     }
     std::vector<T> src_copy(src);
     // Check low-level CPU kernel
-    std::cout << "Run kernel::addcdiv::cpu<T>\n";
+    std::cout << "Run kernel::addcdiv::cpu<" << T::type_repr << ">\n";
     cpu<T>(val, eps, nelems, &nom[0], &denom[0], &src[0]);
-    T ref_val;
+    Y ref_val;
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(src[i] == (src_copy[i] + val * nom[i] / (denom[i] + eps)));
+        TEST_ASSERT(Y(src[i]) == (Y(src_copy[i]) + val*Y(nom[i]) / (Y(denom[i]) + eps)));
     }
-    std::cout << "OK: kernel::addcdiv::cpu<T>\n";
+    std::cout << "OK: kernel::addcdiv::cpu<" << T::type_repr << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     src = src_copy;
-    std::cout << "Run kernel::addcdiv::cuda<T>\n";
+    std::cout << "Run kernel::addcdiv::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(val, eps, nelems, &nom[0], &denom[0], &src[0]);
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(src[i] == (src_copy[i] + val * nom[i] / (denom[i] + eps)));
+        TEST_ASSERT(Y(src[i]) == (Y(src_copy[i]) + val*Y(nom[i]) / (Y(denom[i]) + eps)));
     }
-    std::cout << "OK: kernel::addcdiv::cuda<T>\n";
+    std::cout << "OK: kernel::addcdiv::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

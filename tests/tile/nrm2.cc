@@ -27,15 +27,16 @@ using namespace nntile::tile;
 template<typename T>
 void check()
 {
+    using Y = typename T::repr_t;
+    const Y eps = T::epsilon();
     // Init data for checking
-    constexpr T eps = std::numeric_limits<T>::epsilon();
     Tile<T> src({3, 4, 5}), norm({}), norm2({}), tmp({});
-    T norm2_init = 2.0;
-    T alpha = -0.5, beta = 2.0;
+    T norm2_init(Y(2.0));
+    Scalar alpha = -0.5, beta = 2.0;
     auto src_local = src.acquire(STARPU_W);
     for(Index i = 0; i < src.nelems; ++i)
     {
-        src_local[i] = T(i);
+        src_local[i] = Y(i);
     }
     src_local.release();
     auto norm2_local = norm2.acquire(STARPU_W);
@@ -45,9 +46,9 @@ void check()
     nrm2<T>(alpha, src, beta, norm2, tmp);
     norm2_local.acquire(STARPU_R);
     auto norm_local = norm.acquire(STARPU_R);
-    T val1 = norm2_local[0]*norm2_local[0];
-    T val2 = alpha*alpha*norm_local[0]*norm_local[0]
-        + beta*beta*norm2_init*norm2_init;
+    Y val1 = Y(norm2_local[0]) * Y(norm2_local[0]);
+    Y val2 = alpha * alpha * Y(norm_local[0]) * Y(norm_local[0])
+        + beta * beta * Y(norm2_init) * Y(norm2_init);
     norm2_local.release();
     norm_local.release();
     TEST_ASSERT(std::abs(val1/val2-1.0) <= 10*eps);

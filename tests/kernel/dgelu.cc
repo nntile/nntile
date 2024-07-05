@@ -58,82 +58,83 @@ void run_cuda(Index nelems, std::vector<T> &data)
 template<typename T>
 void validate(Index nelems)
 {
-    constexpr T eps = std::numeric_limits<T>::epsilon();
-    constexpr T pi = 3.141592653589793238462643383279502884L;
+    using Y = typename T::repr_t;
+    const Y eps = 2 * T::epsilon();
+    constexpr Y pi = 3.141592653589793238462643383279502884L;
     // Init test input
     std::vector<T> data(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        data[i] = T(2*i+1-nelems) / T{1000};
+        data[i] = Y(2*i+1-nelems) / Y{1000};
     }
     std::vector<T> data_save(data);
     // Check low-level CPU kernel
-    std::cout << "Run kernel::dgelu::cpu<T>\n";
+    std::cout << "Run kernel::dgelu::cpu<" << T::type_repr << ">\n";
     cpu<T>(nelems, &data[0]);
     for(Index i = 0; i < nelems; ++i)
     {
-        T x = data_save[i];
-        T val_ref = 0.5 * std::erfc(-x/std::sqrt(T(2)));
+        Y x = data_save[i];
+        Y val_ref = 0.5 * std::erfc(-x/std::sqrt(Y(2)));
         val_ref += x / std::sqrt(2*pi) * std::exp(-0.5*x*x);
         // Obtain range of correct values
-        T val_ref_min, val_ref_max;
+        Y val_ref_min, val_ref_max;
         if(val_ref < 0)
         {
-            val_ref_min = val_ref * (T{1}+eps) - eps;
-            val_ref_max = val_ref * (T{1}-eps) + eps;
+            val_ref_min = val_ref * (Y{1}+eps) - eps;
+            val_ref_max = val_ref * (Y{1}-eps) + eps;
         }
         else
         {
-            val_ref_min = val_ref * (T{1}-eps) - eps;
-            val_ref_max = val_ref * (T{1}+eps) + eps;
+            val_ref_min = val_ref * (Y{1}-eps) - eps;
+            val_ref_max = val_ref * (Y{1}+eps) + eps;
         }
         // NaN-aware comparisons
-        TEST_ASSERT(data[i] >= val_ref_min and data[i] <= val_ref_max);
+        TEST_ASSERT(Y(data[i]) >= val_ref_min and Y(data[i]) <= val_ref_max);
     }
-    std::cout << "OK: kernel::dgelu::cpu<T>\n";
+    std::cout << "OK: kernel::dgelu::cpu<" << T::type_repr << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     data = data_save;
-    std::cout << "Run kernel::dgelu::cuda<T>\n";
+    std::cout << "Run kernel::dgelu::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(nelems, data);
     for(Index i = 0; i < nelems; ++i)
     {
-        T x = data_save[i];
-        T val_ref = 0.5 * std::erfc(-x/std::sqrt(T(2)));
+        Y x = data_save[i];
+        Y val_ref = 0.5 * std::erfc(-x/std::sqrt(Y(2)));
         val_ref += x / std::sqrt(2*pi) * std::exp(-0.5*x*x);
         // Obtain range of correct values
-        T val_ref_min, val_ref_max;
+        Y val_ref_min, val_ref_max;
         if(val_ref < 0)
         {
-            val_ref_min = val_ref * (T{1}+eps) - eps;
-            val_ref_max = val_ref * (T{1}-eps) + eps;
+            val_ref_min = val_ref * (Y{1}+eps) - eps;
+            val_ref_max = val_ref * (Y{1}-eps) + eps;
         }
         else
         {
-            val_ref_min = val_ref * (T{1}-eps) - eps;
-            val_ref_max = val_ref * (T{1}+eps) + eps;
+            val_ref_min = val_ref * (Y{1}-eps) - eps;
+            val_ref_max = val_ref * (Y{1}+eps) + eps;
         }
         // NaN-aware comparisons
-        TEST_ASSERT(data[i] >= val_ref_min and data[i] <= val_ref_max);
+        TEST_ASSERT(Y(data[i]) >= val_ref_min and Y(data[i]) <= val_ref_max);
     }
-    std::cout << "OK: kernel::dgelu::cuda<T>\n";
+    std::cout << "OK: kernel::dgelu::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
     // Check if dgelu is a derivative of gelu numerically
     std::vector<T> data2(data_save), data3(data_save);
-    constexpr T h = 1e-3, inv_h = 1/h;
+    constexpr Y h = 1e-3, inv_h = 1/h;
     for(Index i = 0; i < nelems; ++i)
     {
-        data2[i] += h/2;
-        data3[i] -= h/2;
+        data2[i] = Y(data2[i]) + h/2;
+        data3[i] = Y(data3[i]) - h/2;
     }
     gelu::cpu<T>(nelems, &data2[0]);
     gelu::cpu<T>(nelems, &data3[0]);
     for(Index i = 0; i < nelems; ++i)
     {
-        T num_x = inv_h * (data2[i]-data3[i]);
-        T diff = std::abs(num_x - data[i]);
-        T abs = std::abs(data[i]);
-        T threshold = abs * 5e-2;
+        Y num_x = inv_h * (Y(data2[i])-Y(data3[i]));
+        Y diff = std::abs(num_x - Y(data[i]));
+        Y abs = std::abs(Y(data[i]));
+        Y threshold = abs * 5e-2;
         // NaN-aware comparisons
         TEST_ASSERT(diff <= threshold or (diff > threshold and abs < 1e-4));
     }

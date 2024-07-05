@@ -65,7 +65,8 @@ void run_cuda(Index m, Index n, Index k, const std::vector<T> &src,
 template<typename T>
 void validate(Index m, Index n, Index k)
 {
-    constexpr T eps = std::numeric_limits<T>::epsilon();
+    using Y = typename T::repr_t;
+    const Y eps = T::epsilon();
     // Init test input
     std::vector<T> src(m*n*k), sumnorm(2*m*n);
     for(Index i0 = 0; i0 < m; ++i0)
@@ -74,141 +75,141 @@ void validate(Index m, Index n, Index k)
         {
             for(Index i2 = 0; i2 < k; ++i2)
             {
-                src[(i1*k+i2)*m+i0] = T(i0+i1+i2) / T{10};
+                src[(i1*k+i2)*m+i0] = Y(i0+i1+i2) / Y{10};
             }
         }
     }
     std::vector<T> sumnorm_copy(sumnorm);
     // Check low-level kernel
-    std::cout << "Run kernel::sumnorm::cpu<T>\n";
+    std::cout << "Run kernel::sumnorm::cpu<" << T::type_repr << ">\n";
     cpu<T>(m, n, k, &src[0], &sumnorm[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
             Index a = i0 + i1;
-            T sum_ref = k * (2*a+k-1) / 2 / T{10};
-            T sum = sumnorm[2*(i1*m+i0)];
-            if(sum_ref == T{0})
+            Y sum_ref = k * (2*a+k-1) / 2 / Y{10};
+            Y sum = sumnorm[2*(i1*m+i0)];
+            if(sum_ref == Y{0})
             {
                 TEST_ASSERT(std::abs(sum) <= 10*eps);
             }
             else
             {
-                TEST_ASSERT(std::abs(sum/sum_ref-T{1}) <= 10*eps);
+                TEST_ASSERT(std::abs(sum/sum_ref-Y{1}) <= 10*eps);
             }
-            T norm_sqr_ref = k * (2*(a-1)*a+(2*a+k-1)*(2*a+2*k-1)) / 6
-                / T{100};
-            T norm = sumnorm[2*(i1*m+i0)+1];
-            T norm_sqr = norm * norm;
-            if(norm_sqr_ref == T{0})
+            Y norm_sqr_ref = k * (2*(a-1)*a+(2*a+k-1)*(2*a+2*k-1)) / 6
+                / Y{100};
+            Y norm = sumnorm[2*(i1*m+i0)+1];
+            Y norm_sqr = norm * norm;
+            if(norm_sqr_ref == Y{0})
             {
                 TEST_ASSERT(norm_sqr <= 10*eps);
             }
             else
             {
-                TEST_ASSERT(std::abs(norm_sqr/norm_sqr_ref-T{1}) <= 10*eps);
+                TEST_ASSERT(std::abs(norm_sqr/norm_sqr_ref-Y{1}) <= 10*eps);
             }
         }
     }
-    std::cout << "OK: kernel::sumnorm::cpu<T>\n";
+    std::cout << "OK: kernel::sumnorm::cpu<" << T::type_repr << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     sumnorm = sumnorm_copy;
-    std::cout << "Run kernel::sumnorm::cuda<T>\n";
+    std::cout << "Run kernel::sumnorm::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(m, n, k, src, sumnorm);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
             Index a = i0 + i1;
-            T sum_ref = k * (2*a+k-1) / 2 / T{10};
-            T sum = sumnorm[2*(i1*m+i0)];
-            if(sum_ref == T{0})
+            Y sum_ref = k * (2*a+k-1) / 2 / Y{10};
+            Y sum = sumnorm[2*(i1*m+i0)];
+            if(sum_ref == Y{0})
             {
                 TEST_ASSERT(std::abs(sum) <= 10*eps);
             }
             else
             {
-                TEST_ASSERT(std::abs(sum/sum_ref-T{1}) <= 10*eps);
+                TEST_ASSERT(std::abs(sum/sum_ref-Y{1}) <= 10*eps);
             }
-            T norm_sqr_ref = k * (2*(a-1)*a+(2*a+k-1)*(2*a+2*k-1)) / 6
-                / T{100};
-            T norm = sumnorm[2*(i1*m+i0)+1];
-            T norm_sqr = norm * norm;
-            if(norm_sqr_ref == T{0})
+            Y norm_sqr_ref = k * (2*(a-1)*a+(2*a+k-1)*(2*a+2*k-1)) / 6
+                / Y{100};
+            Y norm = sumnorm[2*(i1*m+i0)+1];
+            Y norm_sqr = norm * norm;
+            if(norm_sqr_ref == Y{0})
             {
                 TEST_ASSERT(norm_sqr <= 10*eps);
             }
             else
             {
-                TEST_ASSERT(std::abs(norm_sqr/norm_sqr_ref-T{1}) <= 10*eps);
+                TEST_ASSERT(std::abs(norm_sqr/norm_sqr_ref-Y{1}) <= 10*eps);
             }
         }
     }
-    std::cout << "OK: kernel::sumnorm::cuda<T>\n";
+    std::cout << "OK: kernel::sumnorm::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
     // Check low-level kernel even more
     sumnorm_copy = sumnorm;
-    std::cout << "Run kernel::sumnorm::cpu<T>\n";
+    std::cout << "Run kernel::sumnorm::cpu<" << T::type_repr << ">\n";
     cpu<T>(m, n, k, &src[0], &sumnorm[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
             Index i = 2 * (i1*m+i0);
-            if(sumnorm_copy[i] == T{0})
+            if(Y(sumnorm_copy[i]) == Y{0})
             {
-                TEST_ASSERT(sumnorm[i] == T{0});
+                TEST_ASSERT(Y(sumnorm[i]) == Y{0});
             }
             else
             {
-                TEST_ASSERT(std::abs(sumnorm[i]/sumnorm_copy[i]-T{2})
+                TEST_ASSERT(std::abs(Y(sumnorm[i])/Y(sumnorm_copy[i])-Y{2})
                         <= 10*eps);
             }
-            if(sumnorm_copy[i+1] == T{0})
+            if(Y(sumnorm_copy[i+1]) == Y{0})
             {
-                TEST_ASSERT(sumnorm[i+1] == T{0});
+                TEST_ASSERT(Y(sumnorm[i+1]) == Y{0});
             }
             else
             {
-                TEST_ASSERT(std::abs(sumnorm[i+1]/sumnorm_copy[i+1]
-                        -std::sqrt(T{2})) <= 10*eps);
+                TEST_ASSERT(std::abs(Y(sumnorm[i+1])/Y(sumnorm_copy[i+1])
+                        -std::sqrt(Y{2})) <= 10*eps);
             }
         }
     }
-    std::cout << "OK: kernel::sumnorm::cpu<T>\n";
+    std::cout << "OK: kernel::sumnorm::cpu<" << T::type_repr << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     sumnorm = sumnorm_copy;
-    std::cout << "Run kernel::sumnorm::cuda<T>\n";
+    std::cout << "Run kernel::sumnorm::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(m, n, k, src, sumnorm);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
             Index i = 2 * (i1*m+i0);
-            if(sumnorm_copy[i] == T{0})
+            if(Y(sumnorm_copy[i]) == Y{0})
             {
-                TEST_ASSERT(sumnorm[i] == T{0});
+                TEST_ASSERT(Y(sumnorm[i]) == Y{0});
             }
             else
             {
-                TEST_ASSERT(std::abs(sumnorm[i]/sumnorm_copy[i]-T{2})
+                TEST_ASSERT(std::abs(Y(sumnorm[i])/Y(sumnorm_copy[i])-Y{2})
                         <= 10*eps);
             }
-            if(sumnorm_copy[i+1] == T{0})
+            if(Y(sumnorm_copy[i+1]) == Y{0})
             {
-                TEST_ASSERT(sumnorm[i+1] == T{0});
+                TEST_ASSERT(Y(sumnorm[i+1]) == Y{0});
             }
             else
             {
-                TEST_ASSERT(std::abs(sumnorm[i+1]/sumnorm_copy[i+1]
-                        -std::sqrt(T{2})) <= 10*eps);
+                TEST_ASSERT(std::abs(Y(sumnorm[i+1])/Y(sumnorm_copy[i+1])
+                        -std::sqrt(Y{2})) <= 10*eps);
             }
         }
     }
-    std::cout << "OK: kernel::sumnorm::cuda<T>\n";
+    std::cout << "OK: kernel::sumnorm::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

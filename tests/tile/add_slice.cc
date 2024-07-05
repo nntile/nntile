@@ -20,8 +20,10 @@ using namespace nntile;
 using namespace nntile::tile;
 
 template<typename T>
-void check(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst, Index axis)
+void check(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
+        Index axis)
 {
+    using Y = typename T::repr_t;
     std::vector<T> dst2_data(dst.nelems);
     auto dst_local = dst.acquire(STARPU_R);
     for(Index i = 0; i < dst.nelems; ++i)
@@ -48,13 +50,14 @@ void check(T alpha, const Tile<T> &src, T beta, const Tile<T> &dst, Index axis)
     dst_local.acquire(STARPU_R);
     for(Index i = 0; i < dst.nelems; ++i)
     {
-        TEST_ASSERT(dst_local[i] == dst2_local[i]);
+        TEST_ASSERT(Y(dst_local[i]) == Y(dst2_local[i]));
     }
 }
 
 template<typename T>
 void validate()
 {
+    using Y = typename T::repr_t;
     std::vector<Index> A_shape{3, 4, 5, 6}, b0_shape{4, 5, 6},
         b1_shape{3, 5, 6}, b2_shape{3, 4, 6}, b3_shape{3, 4, 5};
     TileTraits A_traits(A_shape), b0_traits(b0_shape), b1_traits(b1_shape),
@@ -64,23 +67,23 @@ void validate()
         b3_data(b3_traits.nelems);
     for(Index i = 0; i < A_traits.nelems; ++i)
     {
-        A_data[i] = T(i+1);
+        A_data[i] = Y(i+1);
     }
     for(Index i = 0; i < b0_traits.nelems; ++i)
     {
-        b0_data[i] = T(2*i+1);
+        b0_data[i] = Y(2*i+1);
     }
     for(Index i = 0; i < b1_traits.nelems; ++i)
     {
-        b1_data[i] = T(3*i+1);
+        b1_data[i] = Y(3*i+1);
     }
     for(Index i = 0; i < b2_traits.nelems; ++i)
     {
-        b2_data[i] = T(4*i+1);
+        b2_data[i] = Y(4*i+1);
     }
     for(Index i = 0; i < b3_traits.nelems; ++i)
     {
-        b3_data[i] = T(5*i+1);
+        b3_data[i] = Y(5*i+1);
     }
     Tile<T> A(A_traits, &A_data[0], A_traits.nelems),
         b0(b0_traits, &b0_data[0], b0_traits.nelems),

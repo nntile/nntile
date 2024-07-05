@@ -27,38 +27,39 @@ using namespace nntile;
 using namespace nntile::starpu;
 
 template<typename T>
-void validate_cpu(Index m, Index n, Index k, T alpha, T beta)
+void validate_cpu(Index m, Index n, Index k, Scalar alpha, Scalar beta)
 {
+    using Y = typename T::repr_t;
     // Init all the data
     std::vector<T> src(m*n*k);
     for(Index i = 0; i < m*n*k; ++i)
     {
-        src[i] = T(i+1);
+        src[i] = Y(i+1);
     }
     std::vector<T> dst(m*n);
     for(Index i = 0; i < m*n; i += 1)
     {
-        dst[i] = T(i+0.5);
+        dst[i] = Y(i+0.5);
     }
     // Create copies of destination
     std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::norm_slice::cpu<T>\n";
+    std::cout << "Run kernel::norm_slice::cpu<" << T::type_repr << ">\n";
     kernel::norm_slice::cpu<T>(m, n, k, alpha, &src[0], beta, &dst[0]);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*m*n*k, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n, STARPU_RW);
     norm_slice::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::norm_slice::submit<T> restricted to CPU\n";
+    std::cout << "Run starpu::norm_slice::submit<" << T::type_repr << "> restricted to CPU\n";
     norm_slice::submit<T>(m, n, k, alpha, src_handle, beta, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
     for(Index i = 0; i < m*n; ++i)
     {
-        TEST_ASSERT(dst[i] == dst2[i]);
+        TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::norm_slice::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::norm_slice::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 int main(int argc, char **argv)

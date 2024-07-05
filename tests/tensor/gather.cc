@@ -24,6 +24,7 @@ template<typename T>
 void check(const std::vector<Index> &shape,
         const std::vector<Index> &src_basetile, int mpi_root)
 {
+    using Y = typename T::repr_t;
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
@@ -63,7 +64,7 @@ void check(const std::vector<Index> &shape,
                 {
                     global_index[k] += tile_index[k];
                 }
-                tile_local_ptr[j] = T(src.index_to_linear(global_index));
+                tile_local_ptr[j] = Y(src.index_to_linear(global_index));
             }
             tile_local.release();
         }
@@ -81,7 +82,7 @@ void check(const std::vector<Index> &shape,
         auto tile_traits = dst.get_tile_traits(0);
         for(Index j = 0; j < tile_traits.nelems; ++j)
         {
-            TEST_ASSERT(tile_local_ptr[j] == T(j));
+            TEST_ASSERT(Y(tile_local_ptr[j]) == Y(j));
         }
         tile_local.release();
     }

@@ -20,24 +20,25 @@ using namespace nntile;
 using namespace nntile::tile;
 
 template<typename T>
-void validate(T val, T eps)
+void validate(Scalar val, Scalar eps)
 {
+    using Y = typename T::repr_t;
     Tile<T> src1({}), src1_copy({}), nom1({}), denom1({});
     Tile<T> src2({2, 3, 4}), src2_copy({2, 3, 4});
 
     auto src1_local = src1.acquire(STARPU_W);
-    src1_local[0] = T{-1};
+    src1_local[0] = Y{-1};
     src1_local.release();
     auto src1_copy_local = src1_copy.acquire(STARPU_W);
-    src1_copy_local[0] = T{-1};
+    src1_copy_local[0] = Y{-1};
     src1_copy_local.release();
 
     auto nom1_local = nom1.acquire(STARPU_W);
-    nom1_local[0] = T(100);
+    nom1_local[0] = Y(100);
     nom1_local.release();
 
     auto denom1_local = denom1.acquire(STARPU_W);
-    denom1_local[0] = T(-10);
+    denom1_local[0] = Y(-10);
     denom1_local.release();
 
     // auto tile2_local = tile2.acquire(STARPU_W);
@@ -54,7 +55,7 @@ void validate(T val, T eps)
     addcdiv<T>(val, eps, nom1, denom1, src1_copy);
     src1_local.acquire(STARPU_R);
     src1_copy_local.acquire(STARPU_R);
-    TEST_ASSERT(src1_local[0] == src1_copy_local[0]);
+    TEST_ASSERT(Y(src1_local[0]) == Y(src1_copy_local[0]));
     src1_local.release();
     src1_copy_local.release();
 

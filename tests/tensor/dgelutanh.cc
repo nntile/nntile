@@ -27,6 +27,7 @@ using namespace nntile::tensor;
 template<typename T>
 void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
 {
+    using Y = typename T::repr_t;
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
@@ -44,7 +45,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
         auto tile_local = tile.acquire(STARPU_W);
         for(Index i = 0; i < tile.nelems; ++i)
         {
-            tile_local[i] = T(i);
+            tile_local[i] = Y(i);
         }
         tile_local.release();
     }
@@ -75,7 +76,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
         auto tile2_local = tile2.acquire(STARPU_R);
         for(Index i = 0; i < dst_traits.nelems; ++i)
         {
-            TEST_ASSERT(tile_local[i] == tile2_local[i]);
+            TEST_ASSERT(Y(tile_local[i]) == Y(tile2_local[i]));
         }
         tile_local.release();
         tile2_local.release();

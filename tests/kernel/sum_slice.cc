@@ -25,8 +25,8 @@ using namespace nntile::kernel::sum_slice;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void run_cuda(Index m, Index n, Index k, T alpha, const std::vector<T> &src,
-        T beta, std::vector<T> &sum_dst)
+void run_cuda(Index m, Index n, Index k, Scalar alpha, const std::vector<T> &src,
+        Scalar beta, std::vector<T> &sum_dst)
 {
     // Copy to device
     T *dev_src, *dev_sum_dst;
@@ -63,9 +63,10 @@ void run_cuda(Index m, Index n, Index k, T alpha, const std::vector<T> &src,
 
 // Templated validation
 template<typename T>
-void validate(Index m, Index n, Index k, T alpha, T beta)
+void validate(Index m, Index n, Index k, Scalar alpha, Scalar beta)
 {
-    constexpr T eps = std::numeric_limits<T>::epsilon();
+    using Y = typename T::repr_t;
+    const Y eps = T::epsilon();
     // Init test input
     std::vector<T> src(m*n*k), sum_dst(m*n);
     for(Index i0 = 0; i0 < m; ++i0)
@@ -74,57 +75,56 @@ void validate(Index m, Index n, Index k, T alpha, T beta)
         {
             for(Index i2 = 0; i2 < k; ++i2)
             {
-                src[(i1*k+i2)*m+i0] = T(i0+i1+i2) / T{10};
+                src[(i1*k+i2)*m+i0] = Y(i0+i1+i2) / Y{10};
             }
-            sum_dst[i1*m+i0] = T{1.0};
+            sum_dst[i1*m+i0] = Y{1.0};
         }
     }
     std::vector<T> sum_copy(sum_dst);
     // Check low-level kernel
-    std::cout << "Run kernel::sum_slice::cpu<T>\n";
+    std::cout << "Run kernel::sum_slice::cpu<" << T::type_repr << ">\n";
     cpu<T>(m, n, k, alpha, &src[0], beta, &sum_dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
             Index a = i0 + i1;
-            T sum_ref = k * (2*a+k-1) / 2 / T{10};
+            Y sum_ref = k * (2*a+k-1) / 2 / Y{10};
             sum_ref = alpha*sum_ref + beta;
-            T sum = sum_dst[i1*m+i0];
-            if(sum_ref == T{0})
+            Y sum = sum_dst[i1*m+i0];
+            if(sum_ref == Y{0})
             {
                 TEST_ASSERT(std::abs(sum) <= 10*eps);
             }
             else
             {
-                TEST_ASSERT(std::abs(sum/sum_ref-T{1}) <= 10*eps);
+                TEST_ASSERT(std::abs(sum/sum_ref-Y{1}) <= 10*eps);
             }
-
         }
     }
-    std::cout << "OK: kernel::sum_slice::cpu<T>\n";
+    std::cout << "OK: kernel::sum_slice::cpu<" << T::type_repr << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     std::vector<T> sum_cuda(sum_copy);
-    std::cout << "Run kernel::sum_slice::cuda<T>\n";
+    std::cout << "Run kernel::sum_slice::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(m, n, k, alpha, src, beta, sum_cuda);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
             Index i = (i1*m+i0);
-            if(sum_dst[i] == T{0})
+            if(Y(sum_dst[i]) == Y{0})
             {
-                TEST_ASSERT(sum_cuda[i] == T{0});
+                TEST_ASSERT(Y(sum_cuda[i]) == Y{0});
             }
             else
             {
-                TEST_ASSERT(std::abs(sum_cuda[i]/sum_dst[i]-T{1}) <= 10*eps);
+                TEST_ASSERT(std::abs(Y(sum_cuda[i])/Y(sum_dst[i])-Y{1}) <= 10*eps);
             }
 
         }
     }
-    std::cout << "OK: kernel::sum_slice::cuda<T>\n";
+    std::cout << "OK: kernel::sum_slice::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

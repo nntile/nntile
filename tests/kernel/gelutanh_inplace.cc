@@ -57,67 +57,68 @@ void run_cuda(Index nelems, std::vector<T> &data)
 template<typename T>
 void validate(Index nelems)
 {
-    constexpr T pi = 3.141592653589793238462643383279502884L;
-    constexpr T eps = std::numeric_limits<T>::epsilon();
+    using Y = typename T::repr_t;
+    const Y eps = T::epsilon();
+    constexpr Y pi = 3.141592653589793238462643383279502884L;
     // Init test input
     std::vector<T> data(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        data[i] = T(2*i+1-nelems) / T{1000};
+        data[i] = Y(2*i+1-nelems) / Y{1000};
     }
     std::vector<T> data_save(data);
     // Check low-level CPU kernel
-    std::cout << "Run kernel::gelutanh_inplace::cpu<T>\n";
+    std::cout << "Run kernel::gelutanh_inplace::cpu<" << T::type_repr << ">\n";
     cpu<T>(nelems, &data[0]);
     for(Index i = 0; i < nelems; ++i)
     {
-        T x = data_save[i];
-        T y = std::sqrt(T{2}/pi) * (x+T{0.044715}*x*x*x);
-        T z = T{1}+std::tanh(y);
-        T val_ref = T{0.5} * x * z;
+        Y x = data_save[i];
+        Y y = std::sqrt(Y{2}/pi) * (x+Y{0.044715}*x*x*x);
+        Y z = Y{1}+std::tanh(y);
+        Y val_ref = Y{0.5} * x * z;
         // Obtain range of correct values
-        T val_ref_min, val_ref_max;
+        Y val_ref_min, val_ref_max;
         if(val_ref < 0)
         {
-            val_ref_min = val_ref * (T{1}+eps) - eps;
-            val_ref_max = val_ref * (T{1}-eps) + eps;
+            val_ref_min = val_ref * (Y{1}+eps) - eps;
+            val_ref_max = val_ref * (Y{1}-eps) + eps;
         }
         else
         {
-            val_ref_min = val_ref * (T{1}-eps) - eps;
-            val_ref_max = val_ref * (T{1}+eps) + eps;
+            val_ref_min = val_ref * (Y{1}-eps) - eps;
+            val_ref_max = val_ref * (Y{1}+eps) + eps;
         }
         // NaN-aware comparisons
-        TEST_ASSERT(data[i] >= val_ref_min and data[i] <= val_ref_max);
+        TEST_ASSERT(Y(data[i]) >= val_ref_min and Y(data[i]) <= val_ref_max);
     }
-    std::cout << "OK: kernel::gelutanh_inplace::cpu<T>\n";
+    std::cout << "OK: kernel::gelutanh_inplace::cpu<" << T::type_repr << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     data = data_save;
-    std::cout << "Run kernel::gelutanh_inplace::cuda<T>\n";
+    std::cout << "Run kernel::gelutanh_inplace::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(nelems, data);
     for(Index i = 0; i < nelems; ++i)
     {
-        T x = data_save[i];
-        T y = std::sqrt(T{2}/pi) * (x+T{0.044715}*x*x*x);
-        T z = T{1}+std::tanh(y);
-        T val_ref = T{0.5} * x * z;
+        Y x = data_save[i];
+        Y y = std::sqrt(Y{2}/pi) * (x+Y{0.044715}*x*x*x);
+        Y z = Y{1}+std::tanh(y);
+        Y val_ref = Y{0.5} * x * z;
         // Obtain range of correct values
-        T val_ref_min, val_ref_max;
+        Y val_ref_min, val_ref_max;
         if(val_ref < 0)
         {
-            val_ref_min = val_ref * (T{1}+eps) - eps;
-            val_ref_max = val_ref * (T{1}-eps) + eps;
+            val_ref_min = val_ref * (Y{1}+eps) - eps;
+            val_ref_max = val_ref * (Y{1}-eps) + eps;
         }
         else
         {
-            val_ref_min = val_ref * (T{1}-eps) - eps;
-            val_ref_max = val_ref * (T{1}+eps) + eps;
+            val_ref_min = val_ref * (Y{1}-eps) - eps;
+            val_ref_max = val_ref * (Y{1}+eps) + eps;
         }
         // NaN-aware comparisons
-        TEST_ASSERT(data[i] >= val_ref_min and data[i] <= val_ref_max);
+        TEST_ASSERT(Y(data[i]) >= val_ref_min and Y(data[i]) <= val_ref_max);
     }
-    std::cout << "OK: kernel::gelutanh_inplace::cuda<T>\n";
+    std::cout << "OK: kernel::gelutanh_inplace::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

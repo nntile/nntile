@@ -25,8 +25,8 @@ using namespace nntile::kernel::normalize;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void run_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta,
-        const std::vector<T> &sumnorm, std::vector<T> &dst)
+void run_cuda(Index m, Index n, Index k, Index l, Scalar eps, T gamma,
+        T beta, const std::vector<T> &sumnorm, std::vector<T> &dst)
 {
     // Copy to device
     T *dev_sumnorm, *dev_dst, *dev_gamma, *dev_beta;
@@ -79,9 +79,10 @@ void run_cuda(Index m, Index n, Index k, Index l, T eps, T gamma, T beta,
 
 // Templated validation
 template<typename T>
-void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
+void validate(Index m, Index n, Index k, Index l, Scalar eps, T gamma, T beta)
 {
-    constexpr T epsilon = std::numeric_limits<T>::epsilon();
+    using Y = typename T::repr_t;
+    const Y epsilon = T::epsilon();
     // Init test input
     std::vector<T> sumnorm(2*m*n), dst(m*n*k);
     for(Index i0 = 0; i0 < m; ++i0)
@@ -90,7 +91,7 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
         {
             for(Index i2 = 0; i2 < k; ++i2)
             {
-                dst[(i1*k+i2)*m+i0] = T(i0+i1+i2) / T{10};
+                dst[(i1*k+i2)*m+i0] = Y(i0+i1+i2) / Y{10};
             }
         }
     }
@@ -98,29 +99,29 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
-            T avg = T(i0+i1) / T{10};
-            sumnorm[2*(i1*m+i0)] = avg * T(l);
-            sumnorm[2*(i1*m+i0)+1] = std::sqrt((avg*avg+T{1}) * T(l));
+            Y avg = Y(i0+i1) / Y{10};
+            sumnorm[2*(i1*m+i0)] = avg * Y(l);
+            sumnorm[2*(i1*m+i0)+1] = std::sqrt((avg*avg+Y{1}) * Y(l));
         }
     }
     std::vector<T> dst_save(dst);
     // Check low-level kernel
-    std::cout << "Run kernel::normalize::cpu<T>\n";
+    std::cout << "Run kernel::normalize::cpu<" << T::type_repr << ">\n";
     cpu<T>(m, n, k, l, eps, &gamma, &beta, &sumnorm[0], &dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
-            T norm = 0, diff = 0;
+            Y norm = 0, diff = 0;
             for(Index i2 = 0; i2 < k; ++i2)
             {
-                T val = dst[(i1*k+i2)*m+i0];
-                T val_ref = T(i2)/T{10}/std::sqrt(T{1}+eps)*gamma + beta;
-                T tmp = val - val_ref;
+                Y val = dst[(i1*k+i2)*m+i0];
+                Y val_ref = Y(i2)/Y{10}/std::sqrt(Y{1}+eps)*Y(gamma) + Y(beta);
+                Y tmp = val - val_ref;
                 norm += val_ref * val_ref;
                 diff += tmp * tmp;
             }
-            if(norm == T{0})
+            if(norm == Y{0})
             {
                 TEST_ASSERT(diff <= epsilon);
             }
@@ -130,26 +131,26 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
             }
         }
     }
-    std::cout << "OK: kernel::normalize::cpu<T>\n";
+    std::cout << "OK: kernel::normalize::cpu<" << T::type_repr << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
-    std::cout << "Run kernel::normalize::cuda<T>\n";
+    std::cout << "Run kernel::normalize::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(m, n, k, l, eps, gamma, beta, sumnorm, dst);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
-            T norm = 0, diff = 0;
+            Y norm = 0, diff = 0;
             for(Index i2 = 0; i2 < k; ++i2)
             {
-                T val = dst[(i1*k+i2)*m+i0];
-                T val_ref = T(i2)/T{10}/std::sqrt(T{1}+eps)*gamma + beta;
-                T tmp = val - val_ref;
+                Y val = dst[(i1*k+i2)*m+i0];
+                Y val_ref = Y(i2)/Y{10}/std::sqrt(Y{1}+eps)*Y(gamma) + Y(beta);
+                Y tmp = val - val_ref;
                 norm += val_ref * val_ref;
                 diff += tmp * tmp;
             }
-            if(norm == T{0})
+            if(norm == Y{0})
             {
                 TEST_ASSERT(diff <= epsilon);
             }
@@ -159,30 +160,30 @@ void validate(Index m, Index n, Index k, Index l, T eps, T gamma, T beta)
             }
         }
     }
-    std::cout << "OK: kernel::normalize::cuda<T>\n";
+    std::cout << "OK: kernel::normalize::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 
 int main(int argc, char **argv)
 {
-    fp64_t eps[3] = {1e-16, 1.0, 1111.1};
-    fp64_t gamma[3] = {0.0, 1.0, 3.3};
-    fp64_t beta[3] = {0.0, 1.1, -2.2};
+    Scalar eps[3] = {1e-16, 1.0, 1111.1};
+    double gamma[3] = {0.0, 1.0, 3.3};
+    double beta[3] = {0.0, 1.1, -2.2};
     for(Index i = 0 ; i < sizeof(eps)/sizeof(eps[0]); ++i)
     {
         for(Index j = 0 ; j < sizeof(gamma)/sizeof(gamma[0]); ++j)
         {
             for(Index k = 0 ; k < sizeof(beta)/sizeof(beta[0]); ++k)
             {
-                validate<fp32_t>(1, 9, 11, 22, eps[i], gamma[j], beta[k]);
-                validate<fp32_t>(8, 1, 11, 22, eps[i], gamma[j], beta[k]);
-                validate<fp32_t>(8, 9, 1, 22, eps[i], gamma[j], beta[k]);
-                validate<fp64_t>(1, 9, 11, 22, eps[i], gamma[j], beta[k]);
-                validate<fp64_t>(8, 1, 11, 22, eps[i], gamma[j], beta[k]);
-                validate<fp64_t>(8, 9, 1, 22, eps[i], gamma[j], beta[k]);
-                validate<fp64_t>(1, 450, 450, 1000, eps[i], gamma[j], beta[k]);
-                validate<fp64_t>(450, 1, 450, 1000, eps[i], gamma[j], beta[k]);
-                validate<fp64_t>(450, 450, 1, 1000, eps[i], gamma[j], beta[k]);
+                validate<fp32_t>(1, 9, 11, 22, eps[i], fp32_t(gamma[j]), fp32_t(beta[k]));
+                validate<fp32_t>(8, 1, 11, 22, eps[i], fp32_t(gamma[j]), fp32_t(beta[k]));
+                validate<fp32_t>(8, 9, 1, 22, eps[i], fp32_t(gamma[j]), fp32_t(beta[k]));
+                validate<fp64_t>(1, 9, 11, 22, eps[i], fp64_t(gamma[j]), fp64_t(beta[k]));
+                validate<fp64_t>(8, 1, 11, 22, eps[i], fp64_t(gamma[j]), fp64_t(beta[k]));
+                validate<fp64_t>(8, 9, 1, 22, eps[i], fp64_t(gamma[j]), fp64_t(beta[k]));
+                validate<fp64_t>(1, 450, 450, 1000, eps[i], fp64_t(gamma[j]), fp64_t(beta[k]));
+                validate<fp64_t>(450, 1, 450, 1000, eps[i], fp64_t(gamma[j]), fp64_t(beta[k]));
+                validate<fp64_t>(450, 450, 1, 1000, eps[i], fp64_t(gamma[j]), fp64_t(beta[k]));
             }
         }
     }

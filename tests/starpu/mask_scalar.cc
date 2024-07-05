@@ -29,13 +29,14 @@ using namespace nntile::starpu;
 template<typename T>
 void validate_cpu(Index nrows, Index ncols)
 {
+    using Y = typename T::repr_t;
     // Init all the data
-    T val = -0.5;
+    Scalar val = -0.5;
     Index nelems = nrows * ncols;
     std::vector<T> data(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        data[i] = T(i+1);
+        data[i] = Y(i+1);
     }
     std::unique_ptr<bool_t[]> mask(new bool_t[nrows]);
     for(Index i = 0; i < nrows; ++i)
@@ -52,13 +53,13 @@ void validate_cpu(Index nrows, Index ncols)
     // Create copies of destination
     std::vector<T> data2(data);
     // Launch low-level kernel
-    std::cout << "Run kernel::mask_scalar::cpu<T>\n";
+    std::cout << "Run kernel::mask_scalar::cpu<" << T::type_repr << ">\n";
     kernel::mask_scalar::cpu<T>(nrows, ncols, &mask[0], val, &data[0]);
     // Check by actually submitting a task
     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
     VariableHandle mask_handle(&mask[0], sizeof(bool_t)*nrows, STARPU_RW);
     mask_scalar::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::mask_scalar::submit<T> restricted to CPU\n";
+    std::cout << "Run starpu::mask_scalar::submit<" << T::type_repr << "> restricted to CPU\n";
     mask_scalar::submit<T>(nrows, ncols, mask_handle, val, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
@@ -66,15 +67,16 @@ void validate_cpu(Index nrows, Index ncols)
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(data[i] == data2[i]);
+        TEST_ASSERT(Y(data[i]) == Y(data2[i]));
     }
-    std::cout << "OK: starpu::mask_scalar::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::mask_scalar::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
 void validate_cuda(Index nrows, Index ncols)
 {
+    using Y = typename T::repr_t;
     // Get a StarPU CUDA worker (to perform computations on the same device)
     int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
     // Choose worker CUDA device
@@ -86,12 +88,12 @@ void validate_cuda(Index nrows, Index ncols)
     cuda_err = cudaStreamCreate(&stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Init all the data
-    T val = -0.5;
+    Scalar val = -0.5;
     Index nelems = nrows * ncols;
     std::vector<T> data(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        data[i] = T(i+1);
+        data[i] = Y(i+1);
     }
     std::unique_ptr<bool_t[]> mask(new bool_t[nrows]);
     for(Index i = 0; i < nrows; ++i)
@@ -120,7 +122,7 @@ void validate_cuda(Index nrows, Index ncols)
     cuda_err = cudaMemcpy(dev_mask, &mask[0], sizeof(bool_t)*nrows,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::mask_scalar::cuda<T>\n";
+    std::cout << "Run kernel::mask_scalar::cuda<" << T::type_repr << ">\n";
     kernel::mask_scalar::cuda<T>(stream, nrows, ncols, dev_mask, val,
             dev_data);
     // Wait for result and destroy stream
@@ -141,7 +143,7 @@ void validate_cuda(Index nrows, Index ncols)
     VariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
     VariableHandle mask_handle(&mask[0], sizeof(bool_t)*nrows, STARPU_RW);
     mask_scalar::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::mask_scalar::submit<T> restricted to CUDA\n";
+    std::cout << "Run starpu::mask_scalar::submit<" << T::type_repr << "> restricted to CUDA\n";
     mask_scalar::submit<T>(nrows, ncols, mask_handle, val, data2_handle);
     starpu_task_wait_for_all();
     data2_handle.unregister();
@@ -149,9 +151,9 @@ void validate_cuda(Index nrows, Index ncols)
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(data[i] == data2[i]);
+        TEST_ASSERT(Y(data[i]) == Y(data2[i]));
     }
-    std::cout << "OK: starpu::mask_scalar::submit<T> restricted to CUDA\n";
+    std::cout << "OK: starpu::mask_scalar::submit<" << T::type_repr << "> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 

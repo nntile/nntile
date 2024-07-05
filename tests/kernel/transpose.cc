@@ -24,7 +24,7 @@ using namespace nntile::kernel::transpose;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
-void run_cuda(Index m, Index n, T alpha, const std::vector<T> &src,
+void run_cuda(Index m, Index n, Scalar alpha, const std::vector<T> &src,
         std::vector<T> &dst)
 {
     // Copy to device
@@ -64,50 +64,51 @@ void run_cuda(Index m, Index n, T alpha, const std::vector<T> &src,
 template<typename T>
 void validate(Index m, Index n)
 {
-    constexpr T eps = std::numeric_limits<T>::epsilon();
+    using Y = typename T::repr_t;
+    const Y eps = T::epsilon();
     // Init test input
     std::vector<T> src(m*n), dst(m*n);
     for(Index i0 = 0; i0 < m*n; ++i0)
     {
-        dst[i0] = T{0.0};
+        dst[i0] = Y{0.0};
     }
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
-            src[i1*m+i0] = T(i0+2*i1+1) / T{20};
+            src[i1*m+i0] = Y(i0+2*i1+1) / Y{20};
         }
     }
     // Save original dst
     std::vector<T> dst_save(dst);
     // Check low-level CPU kernel
-    std::cout << "Run kernel::transpose::cpu<T>\n";
+    std::cout << "Run kernel::transpose::cpu<" << T::type_repr << ">\n";
     cpu<T>(m, n, -2.0, &src[0], &dst[0]);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
-            T val = dst[i0*n+i1];
-            T val_ref = -2.0 * src[i1*m+i0];
-            TEST_ASSERT(std::abs(val/val_ref-T{1}) <= 10*eps);
+            Y val = dst[i0*n+i1];
+            Y val_ref = -2.0 * Y(src[i1*m+i0]);
+            TEST_ASSERT(std::abs(val/val_ref-Y{1}) <= 10*eps);
         }
     }
-    std::cout << "OK: kernel::transpose::cpu<T>\n";
+    std::cout << "OK: kernel::transpose::cpu<" << T::type_repr << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
-    std::cout << "Run kernel::transpose::cuda<T>\n";
+    std::cout << "Run kernel::transpose::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(m, n, -2.0, src, dst);
     for(Index i0 = 0; i0 < m; ++i0)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
-            T val = dst[i0*n+i1];
-            T val_ref = -2.0 * src[i1*m+i0];
-            TEST_ASSERT(std::abs(val/val_ref-T{1}) <= 10*eps);
+            Y val = dst[i0*n+i1];
+            Y val_ref = -2.0 * Y(src[i1*m+i0]);
+            TEST_ASSERT(std::abs(val/val_ref-Y{1}) <= 10*eps);
         }
     }
-    std::cout << "OK: kernel::transpose::cuda<T>\n";
+    std::cout << "OK: kernel::transpose::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

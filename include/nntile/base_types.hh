@@ -52,7 +52,7 @@ public:
     //! Constructor
     NNTILE_HOST_DEVICE int64_t() = default;
     //! Constructor from another value of this type
-    NNTILE_HOST_DEVICE explicit int64_t(const int64_t &other) = default;
+    NNTILE_HOST_DEVICE int64_t(const int64_t &other) = default;
     //! Constructor from a repr_t value
     NNTILE_HOST_DEVICE explicit int64_t(const repr_t &other):
         value(other)
@@ -97,7 +97,7 @@ public:
     //! Constructor
     bool_t() = default;
     //! Constructor from another value of this type
-    NNTILE_HOST_DEVICE explicit bool_t(const bool_t &other) = default;
+    NNTILE_HOST_DEVICE bool_t(const bool_t &other) = default;
     //! Constructor from a repr_t value
     NNTILE_HOST_DEVICE explicit bool_t(const repr_t &other):
         value(other)
@@ -142,7 +142,7 @@ public:
     //! Constructor
     NNTILE_HOST_DEVICE fp64_t() = default;
     //! Constructor from another value of this type
-    NNTILE_HOST_DEVICE explicit fp64_t(const fp64_t &other) = default;
+    NNTILE_HOST_DEVICE fp64_t(const fp64_t &other) = default;
     //! Constructor from a repr_t value
     NNTILE_HOST_DEVICE explicit fp64_t(const repr_t &other):
         value(other)
@@ -193,7 +193,7 @@ public:
     //! Constructor
     NNTILE_HOST_DEVICE fp32_t() = default;
     //! Constructor from another value of this type
-    NNTILE_HOST_DEVICE explicit fp32_t(const fp32_t &other) = default;
+    NNTILE_HOST_DEVICE fp32_t(const fp32_t &other) = default;
     //! Constructor from a repr_t value
     NNTILE_HOST_DEVICE explicit fp32_t(const repr_t &other):
         value(other)
@@ -248,7 +248,7 @@ public:
     //! Constructor
     NNTILE_HOST_DEVICE fp32_fast_tf32_t() = default;
     //! Constructor from another value of this type
-    NNTILE_HOST_DEVICE explicit fp32_fast_tf32_t(const fp32_fast_tf32_t &other) = default;
+    NNTILE_HOST_DEVICE fp32_fast_tf32_t(const fp32_fast_tf32_t &other) = default;
     //! Constructor from a repr_t value
     NNTILE_HOST_DEVICE explicit fp32_fast_tf32_t(const repr_t &other):
         value(other)
@@ -305,7 +305,7 @@ public:
     //! Constructor
     NNTILE_HOST_DEVICE bf16_t() = default;
     //! Constructor from another value of this type
-    NNTILE_HOST_DEVICE explicit bf16_t(const bf16_t &other) = default;
+    NNTILE_HOST_DEVICE bf16_t(const bf16_t &other) = default;
     //! Constructor from a repr_t value
     NNTILE_HOST_DEVICE explicit bf16_t(const repr_t &other);
     //! Assignment from another value of this type

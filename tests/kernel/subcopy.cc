@@ -27,6 +27,7 @@ template<typename T, std::size_t NDIM>
 void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
         std::array<Index, NDIM> copy_shape)
 {
+    using Y = typename T::repr_t;
     // Location of copy area in source and target buffers and their shapes
     std::array<Index, NDIM> src_start, dst_start, src_shape, dst_shape;
     Index src_nelems = 1, dst_nelems = 1, copy_nelems = 1;
@@ -72,7 +73,7 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
     }
     // Init test input. Set non-copied values to 1 and copied values to 2 in
     // the source and set all the elements to 3 in the destination.
-    std::vector<T> src_data(src_nelems, T{1}), dst_data(dst_nelems, T{3}),
+    std::vector<T> src_data(src_nelems, T(Y(1))), dst_data(dst_nelems, T(Y(3))),
         dst2_data(dst_data);
     std::array<Index, NDIM> src_index(src_start);
     for(Index i = 0; i < copy_nelems; ++i)
@@ -84,7 +85,7 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
             src_offset += src_stride[j] * src_index[j];
         }
         // Set its value to 2
-        src_data[src_offset] = T{2};
+        src_data[src_offset] = Y(2);
         // Do nothing if it was the last element to copy
         if(i == copy_nelems-1)
         {
@@ -102,15 +103,15 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
     }
     std::vector<T> src2_data(src_data);
     // Check low-level kernel
-    std::array<Index, 2*NDIM> tmp_index;
-    std::cout << "Run kernel::subcopy::cpu<T>\n";
+    std::array<nntile::int64_t, 2*NDIM> tmp_index;
+    std::cout << "Run kernel::subcopy::cpu<" << T::type_repr << ">\n";
     cpu<T>(NDIM, &src_start[0], &src_stride[0], &copy_shape[0],
             &src_data[0], &dst_start[0], &dst_stride[0], &dst_data[0],
             &tmp_index[0]);
     // Check source is unchanged
     for(Index i = 0; i < src_nelems; ++i)
     {
-        TEST_ASSERT(src_data[i] == src2_data[i]);
+        TEST_ASSERT(Y(src_data[i]) == Y(src2_data[i]));
     }
     // Check destination
     std::vector<Index> dst_index(NDIM);
@@ -130,12 +131,12 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
         // Check if it was overwritten
         if(copied)
         {
-            TEST_ASSERT(dst_data[i] == T{2});
+            TEST_ASSERT(Y(dst_data[i]) == Y{2});
         }
         // Check if it was not overwritten
         else
         {
-            TEST_ASSERT(dst_data[i] == T{3});
+            TEST_ASSERT(Y(dst_data[i]) == Y{3});
         }
         // Get out if it was last element of destination buffer
         if(i == dst_nelems-1)
@@ -152,7 +153,7 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
             ++dst_index[j];
         }
     }
-    std::cout << "Ok: kernel::subcopy::cpu<T>\n";
+    std::cout << "Ok: kernel::subcopy::cpu<" << T::type_repr << ">\n";
 }
 
 // Run multiple tests for a given precision
@@ -175,6 +176,6 @@ int main(int argc, char **argv)
 {
     validate_many<fp32_t>();
     validate_many<fp64_t>();
-    validate_many<Index>();
+    validate_many<nntile::int64_t>();
     return 0;
 }

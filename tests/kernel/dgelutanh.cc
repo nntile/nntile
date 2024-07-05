@@ -58,110 +58,111 @@ void run_cuda(Index nelems, std::vector<T> &data)
 template<typename T>
 void validate(Index nelems)
 {
-    constexpr T eps = std::max(std::numeric_limits<T>::epsilon(), T{1e-5f});
-    constexpr T pi = 3.141592653589793238462643383279502884L;
+    using Y = typename T::repr_t;
+    const Y eps = 1e-5;
+    constexpr Y pi = 3.141592653589793238462643383279502884L;
     // Init test input
     std::vector<T> data(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        data[i] = T(2*i+1-nelems) / T{1000};
+        data[i] = Y(2*i+1-nelems) / Y{1000};
     }
     std::vector<T> data_save(data);
     // Check low-level CPU kernel
-    std::cout << "Run kernel::dgelutanh::cpu<T>\n";
+    std::cout << "Run kernel::dgelutanh::cpu<" << T::type_repr << ">\n";
     cpu<T>(nelems, &data[0]);
     for(Index i = 0; i < nelems; ++i)
     {
         // AGeLU'(z) = 0.5 + 0.5 tanh ( 0.0356774 z^3 + 0.797885 z) +
         // ( 0.0535161 z^3 + 0.398942 z) sech^2 ( 0.0356774 z^3 + 0.797885 z)
-        T x = data_save[i];
-        T x1 = 0.0356774*x*x*x + 0.797885*x;
-        T x2 = 0.0535161*x*x*x + 0.398942*x;
-        T exp = std::exp(x1);
-        T val_ref;
+        Y x = data_save[i];
+        Y x1 = 0.0356774*x*x*x + 0.797885*x;
+        Y x2 = 0.0535161*x*x*x + 0.398942*x;
+        Y exp = std::exp(x1);
+        Y val_ref;
         if(std::isinf(exp))
         {
-            val_ref = T{1};
+            val_ref = Y{1};
         }
         else
         {
-            T cosh = std::cosh(x1);
-            T inv_cosh = T{1} / cosh;
-            val_ref = (T{0.5}*exp+x2*inv_cosh) * inv_cosh;
+            Y cosh = std::cosh(x1);
+            Y inv_cosh = Y{1} / cosh;
+            val_ref = (Y{0.5}*exp+x2*inv_cosh) * inv_cosh;
         }
         // Obtain range of correct values
-        T val_ref_min, val_ref_max;
+        Y val_ref_min, val_ref_max;
         if(val_ref < 0)
         {
-            val_ref_min = val_ref * (T{1}+eps) - eps;
-            val_ref_max = val_ref * (T{1}-eps) + eps;
+            val_ref_min = val_ref * (Y{1}+eps) - eps;
+            val_ref_max = val_ref * (Y{1}-eps) + eps;
         }
         else
         {
-            val_ref_min = val_ref * (T{1}-eps) - eps;
-            val_ref_max = val_ref * (T{1}+eps) + eps;
+            val_ref_min = val_ref * (Y{1}-eps) - eps;
+            val_ref_max = val_ref * (Y{1}+eps) + eps;
         }
         // NaN-aware comparisons
-        TEST_ASSERT(data[i] >= val_ref_min and data[i] <= val_ref_max);
+        TEST_ASSERT(Y(data[i]) >= val_ref_min and Y(data[i]) <= val_ref_max);
     }
-    std::cout << "OK: kernel::dgelutanh::cpu<T>\n";
+    std::cout << "OK: kernel::dgelutanh::cpu<" << T::type_repr << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     data = data_save;
-    std::cout << "Run kernel::dgelutanh::cuda<T>\n";
+    std::cout << "Run kernel::dgelutanh::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(nelems, data);
     for(Index i = 0; i < nelems; ++i)
     {
         // AGeLU'(z) = 0.5 + 0.5 tanh ( 0.0356774 z^3 + 0.797885 z) +
         // ( 0.0535161 z^3 + 0.398942 z) sech^2 ( 0.0356774 z^3 + 0.797885 z)
-        T x = data_save[i];
-        T x1 = 0.0356774*x*x*x + 0.797885*x;
-        T x2 = 0.0535161*x*x*x + 0.398942*x;
-        T exp = std::exp(x1);
-        T val_ref;
+        Y x = data_save[i];
+        Y x1 = 0.0356774*x*x*x + 0.797885*x;
+        Y x2 = 0.0535161*x*x*x + 0.398942*x;
+        Y exp = std::exp(x1);
+        Y val_ref;
         if(std::isinf(exp))
         {
-            val_ref = T{1};
+            val_ref = Y{1};
         }
         else
         {
-            T cosh = std::cosh(x1);
-            T inv_cosh = T{1} / cosh;
-            val_ref = (T{0.5}*exp+x2*inv_cosh) * inv_cosh;
+            Y cosh = std::cosh(x1);
+            Y inv_cosh = Y{1} / cosh;
+            val_ref = (Y{0.5}*exp+x2*inv_cosh) * inv_cosh;
         }
         // Obtain range of correct values
-        T val_ref_min, val_ref_max;
+        Y val_ref_min, val_ref_max;
         if(val_ref < 0)
         {
-            val_ref_min = val_ref * (T{1}+eps) - eps;
-            val_ref_max = val_ref * (T{1}-eps) + eps;
+            val_ref_min = val_ref * (Y{1}+eps) - eps;
+            val_ref_max = val_ref * (Y{1}-eps) + eps;
         }
         else
         {
-            val_ref_min = val_ref * (T{1}-eps) - eps;
-            val_ref_max = val_ref * (T{1}+eps) + eps;
+            val_ref_min = val_ref * (Y{1}-eps) - eps;
+            val_ref_max = val_ref * (Y{1}+eps) + eps;
         }
         // NaN-aware comparisons
-        TEST_ASSERT(data[i] >= val_ref_min and data[i] <= val_ref_max);
+        TEST_ASSERT(Y(data[i]) >= val_ref_min and Y(data[i]) <= val_ref_max);
     }
-    std::cout << "OK: kernel::dgelutanh::cuda<T>\n";
+    std::cout << "OK: kernel::dgelutanh::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
     // Check if dgelu is a derivative of gelu numerically
     std::vector<T> data2(data_save), data3(data_save);
-    constexpr T h = 1e-3, inv_h = 1/h;
+    constexpr Y h = 1e-3, inv_h = 1/h;
     for(Index i = 0; i < nelems; ++i)
     {
-        data2[i] += h/2;
-        data3[i] -= h/2;
+        data2[i] = Y(data2[i]) + h/2;
+        data3[i] = Y(data3[i]) - h/2;
     }
     gelutanh_inplace::cpu<T>(nelems, &data2[0]);
     gelutanh_inplace::cpu<T>(nelems, &data3[0]);
     for(Index i = 0; i < nelems; ++i)
     {
-        T num_x = inv_h * (data2[i]-data3[i]);
-        T diff = std::abs(num_x - data[i]);
-        T abs = std::abs(data[i]);
-        T threshold = abs * 4e-2;
+        Y num_x = inv_h * (Y(data2[i])-Y(data3[i]));
+        Y diff = std::abs(num_x - Y(data[i]));
+        Y abs = std::abs(Y(data[i]));
+        Y threshold = abs * 4e-2;
         TEST_ASSERT(diff <= threshold
             or (diff > threshold and abs < eps));
     }

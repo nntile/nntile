@@ -28,6 +28,7 @@ template<typename T>
 void check(Scalar val, Scalar eps, const std::vector<Index> &shape,
         const std::vector<Index> &basetile)
 {
+    using Y = typename T::repr_t;
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
@@ -41,7 +42,6 @@ void check(Scalar val, Scalar eps, const std::vector<Index> &shape,
     Tensor<T> src_single(single_traits, dist_root, last_tag),
               nom_single(single_traits, dist_root, last_tag),
               denom_single(single_traits, dist_root, last_tag);
-    using Y = typename T::repr_t;
     if(mpi_rank == mpi_root)
     {
         // Get the only tiles of single-tiled tensors
@@ -55,9 +55,9 @@ void check(Scalar val, Scalar eps, const std::vector<Index> &shape,
         // Init tiles
         for(Index i = 0; i < src_tile.nelems; ++i)
         {
-            src_local[i] = T{Y(i)};
-            nom_local[i] = T{Y(i-100)};
-            denom_local[i] = T{Y(i+1)};
+            src_local[i] = Y(i);
+            nom_local[i] = Y(i-100);
+            denom_local[i] = Y(i+1);
         }
         // Put data back into StarPU
         src_local.release();
@@ -102,9 +102,7 @@ void check(Scalar val, Scalar eps, const std::vector<Index> &shape,
         auto tile2_local = tile2.acquire(STARPU_R);
         for(Index i = 0; i < traits.nelems; ++i)
         {
-            std::cout << Y{tile_local[i]} << " " << Y{tile2_local[i]}
-                    << std::endl;
-            TEST_ASSERT(Y{tile_local[i]} == Y{tile2_local[i]});
+            TEST_ASSERT(Y(tile_local[i]) == Y(tile2_local[i]));
         }
         tile_local.release();
         tile2_local.release();

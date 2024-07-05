@@ -39,7 +39,7 @@ void cblas_axpy(CBLAS_INT N, fp32_t alpha, const fp32_t *X, CBLAS_INT incX,
         fp32_t *Y, CBLAS_INT incY)
     noexcept
 {
-    cblas_saxpy(N, alpha, X, incX, Y, incY);
+    cblas_saxpy(N, (float)alpha, (float *)X, incX, (float *)Y, incY);
 }
 
 // Overloaded call to CBLAS AXPY
@@ -48,45 +48,47 @@ void cblas_axpy(CBLAS_INT N, fp64_t alpha, const fp64_t *X, CBLAS_INT incX,
         fp64_t *Y, CBLAS_INT incY)
     noexcept
 {
-    cblas_daxpy(N, alpha, X, incX, Y, incY);
+    cblas_daxpy(N, (double)alpha, (double *)X, incX, (double *)Y, incY);
 }
 
 template<typename T>
 void validate_cpu(Index nelems, T alpha)
 {
+    using Y = typename T::repr_t;
     // Init all the data
     std::vector<T> src(nelems), dst(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        src[i] = T(i+1);
-        dst[i] = T(-i-1);
+        src[i] = Y(i+1);
+        dst[i] = Y(-i-1);
     }
     // Create copy of dst
     std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run cblas_axpy<T>\n";
+    std::cout << "Run cblas_axpy<" << T::type_repr << ">\n";
     cblas_axpy(nelems, alpha, &src[0], 1, &dst[0], 1);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*nelems, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*nelems, STARPU_RW),
         alpha_handle(&alpha, sizeof(T), STARPU_R);
     axpy::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::axpy::submit<T> restricted to CPU\n";
+    std::cout << "Run starpu::axpy::submit<" << T::type_repr << "> restricted to CPU\n";
     axpy::submit<T>(alpha_handle, nelems, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(dst[i] == dst2[i]);
+        TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::axpy::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::axpy::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 template<typename T>
 void validate_cpu_many()
 {
-    T alpha[5] = {0, 1, -1, 2, -2};
+    using Y = typename T::repr_t;
+    T alpha[5]{T(Y(0)), T(Y(1)), T(Y(-1)), T(Y(2)), T(Y(-2))};
     for(T a: alpha)
     {
         validate_cpu<T>(1, a);
@@ -100,25 +102,26 @@ void validate_cpu_many()
 #ifdef NNTILE_USE_CUDA
 // Overloaded call to cuBLAS AXPY
 static inline
-void cublas_axpy(cublasHandle_t handle, int N, fp32_t *alpha, const fp32_t *X,
+void cublas_axpy(cublasHandle_t handle, int N, fp32_t alpha, const fp32_t *X,
         int incX, fp32_t *Y, int incY)
     noexcept
 {
-    cublasSaxpy(handle, N, alpha, X, incX, Y, incY);
+    cublasSaxpy(handle, N, (float *)&alpha, (float *)X, incX, (float *)Y, incY);
 }
 
 // Overloaded call to cuBLAS AXPY
 static inline
-void cublas_axpy(cublasHandle_t handle, int N, fp64_t *alpha, const fp64_t *X,
+void cublas_axpy(cublasHandle_t handle, int N, fp64_t alpha, const fp64_t *X,
         int incX, fp64_t *Y, int incY)
     noexcept
 {
-    cublasDaxpy(handle, N, alpha, X, incX, Y, incY);
+    cublasDaxpy(handle, N, (double *)&alpha, (double *)X, incX, (double *)Y, incY);
 }
 
 template<typename T>
 void validate_cuda(Index nelems, T alpha)
 {
+    using Y = typename T::repr_t;
     // Get a StarPU CUDA worker (to perform computations on the same device)
     int cuda_worker_id = starpu_worker_get_by_type(STARPU_CUDA_WORKER, 0);
     // Choose worker CUDA device
@@ -139,8 +142,8 @@ void validate_cuda(Index nelems, T alpha)
     std::vector<T> src(nelems), dst(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        src[i] = T(i+1);
-        dst[i] = T(-i-1);
+        src[i] = Y(i+1);
+        dst[i] = Y(-i-1);
     }
     // Create copy of dst
     std::vector<T> dst2(dst);
@@ -156,9 +159,9 @@ void validate_cuda(Index nelems, T alpha)
     cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*nelems,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run cublas_axpy<T>\n";
+    std::cout << "Run cublas_axpy<" << T::type_repr << ">\n";
     cublasSetPointerMode(cublas, CUBLAS_POINTER_MODE_HOST);
-    cublas_axpy(cublas, nelems, &alpha, dev_src, 1, dev_dst, 1);
+    cublas_axpy(cublas, nelems, alpha, dev_src, 1, dev_dst, 1);
     // Wait for result and destroy cublas handle and stream
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
@@ -180,22 +183,23 @@ void validate_cuda(Index nelems, T alpha)
         dst2_handle(&dst2[0], sizeof(T)*nelems, STARPU_RW),
         alpha_handle(&alpha, sizeof(T), STARPU_R);
     axpy::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::axpy::submit<T> restricted to CUDA\n";
+    std::cout << "Run starpu::axpy::submit<" << T::type_repr << "> restricted to CUDA\n";
     axpy::submit<T>(alpha_handle, nelems, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
     for(Index i = 0; i < nelems; ++i)
     {
-        TEST_ASSERT(dst[i] == dst2[i]);
+        TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::axpy::submit<T> restricted to CUDA\n";
+    std::cout << "OK: starpu::axpy::submit<" << T::type_repr << "> restricted to CUDA\n";
 }
 
 template<typename T>
 void validate_cuda_many()
 {
-    T alpha[5] = {0, 1, -1, 2, -2};
+    using Y = typename T::repr_t;
+    T alpha[5]{T(Y(0)), T(Y(1)), T(Y(-1)), T(Y(2)), T(Y(-2))};
     for(T a: alpha)
     {
         validate_cuda<T>(1, a);
