@@ -25,6 +25,7 @@ using namespace nntile::tensor;
 template<typename T>
 void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
 {
+    using Y = typename T::repr_t;
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
@@ -52,7 +53,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
             auto tile_traits = src.get_tile_traits(i);
             for(Index j = 0; j < tile_traits.nelems; ++j)
             {
-                tile_local_ptr[j] = T{-1};
+                tile_local_ptr[j] = Y(-1);
             }
             tile_local.release();
         }
@@ -70,7 +71,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
         T *tile_local_ptr = reinterpret_cast<T *>(tile_local.get_ptr());
         for(Index i = 0; i < dst.nelems; ++i)
         {
-            TEST_ASSERT(tile_local_ptr[i] == T{0});
+            TEST_ASSERT(Y(tile_local_ptr[i]) == Y(0));
         }
         tile_local.release();
     }

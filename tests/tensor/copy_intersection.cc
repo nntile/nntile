@@ -28,6 +28,7 @@ void check(const std::vector<Index> &shape,
         const std::vector<Index> &dst_shape,
         const std::vector<Index> &dst_basetile)
 {
+    using Y = typename T::repr_t;
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
@@ -73,7 +74,7 @@ void check(const std::vector<Index> &shape,
                 {
                     global_index[k] += tile_index[k];
                 }
-                tile_local_ptr[j] = T(traits.index_to_linear(global_index));
+                tile_local_ptr[j] = Y(traits.index_to_linear(global_index));
             }
             tile_local.release();
         }
@@ -90,7 +91,7 @@ void check(const std::vector<Index> &shape,
             auto tile_traits = dst.get_tile_traits(i);
             for(Index j = 0; j < tile_traits.nelems; ++j)
             {
-                tile_local_ptr[j] = T{-1};
+                tile_local_ptr[j] = Y(-1);
             }
             tile_local.release();
         }
@@ -131,12 +132,12 @@ void check(const std::vector<Index> &shape,
                 }
                 if(copied)
                 {
-                    TEST_ASSERT(tile_local_ptr[j]
-                            == T(traits.index_to_linear(global_index)));
+                    TEST_ASSERT(Y(tile_local_ptr[j])
+                            == Y(traits.index_to_linear(global_index)));
                 }
                 else
                 {
-                    TEST_ASSERT(tile_local_ptr[j] == T{-1});
+                    TEST_ASSERT(Y(tile_local_ptr[j]) == Y(-1));
                 }
             }
             tile_local.release();
@@ -196,6 +197,6 @@ int main(int argc, char **argv)
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
-    validate<Index>();
+    validate<nntile::int64_t>();
     return 0;
 }
