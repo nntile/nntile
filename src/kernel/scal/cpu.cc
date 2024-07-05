@@ -32,13 +32,13 @@ void cpu(Index nelems, Scalar alpha_, const T* src_, T* dst_)
  *      ignored, its content is overwritten on exit.
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto dst = reinterpret_cast<Y *>(dst_);
+    using Y = typename T::repr_t;
+    // auto src = reinterpret_cast<const Y *>(src_);
+    // auto dst = reinterpret_cast<Y *>(dst_);
     const Y alpha{alpha_};
     for(Index i = 0; i < nelems; ++i)
     {
-        dst[i] = alpha * src[i];
+        dst_[i] = static_cast<T>(alpha * static_cast<Y>(src_[i]));
     }
 }
 
@@ -49,6 +49,10 @@ void cpu<fp32_t>(Index nelems, Scalar alpha, const fp32_t* src, fp32_t* dst)
 
 template
 void cpu<fp64_t>(Index nelems, Scalar alpha, const fp64_t* src, fp64_t* dst)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index nelems, Scalar alpha, const bf16_t* src, bf16_t* dst)
     noexcept;
 
 } // namespace nntile::kernel::scal

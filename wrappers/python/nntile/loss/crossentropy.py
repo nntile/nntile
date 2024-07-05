@@ -11,10 +11,10 @@
 #
 # @version 1.0.0
 
-from nntile.tensor import softmax_async, clear_async, copy_async, \
+from nntile.tensor import softmax_async, clear_async, \
         subtract_indexed_outputs_async, logsumexp_async, maxsumexp_async, \
-        total_sum_accum_async, scal_inplace_async
-from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
+        total_sum_accum_async
+from nntile.tensor import TensorTraits, Tensor, TensorMoments, \
         Tensor_int64
 import numpy as np
 

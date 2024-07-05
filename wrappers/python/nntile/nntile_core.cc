@@ -633,7 +633,9 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_async_fp64", &add_async<fp64_t>);
     m.def("add_async_fp32", &add_async<fp32_t>);
     m.def("add_async_fp32_fast_tf32", &add_async<fp32_fast_tf32_t>);
+    m.def("add_async_bf16", &add_async<bf16_t>);
     m.def("add_fp64", &add<fp64_t>);
+    m.def("add_bf16", &add<bf16_t>);
     m.def("add_fp32", &add<fp32_t>);
     m.def("add_fp32_fast_tf32", &add<fp32_fast_tf32_t>);
 
@@ -786,10 +788,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("subtract_indexed_outputs_fp32_fast_tf32", &subtract_indexed_outputs<fp32_fast_tf32_t>);
 
     m.def("scal_async_fp64", &scal_async<fp64_t>);
+    m.def("scal_async_bf16", &scal_async<bf16_t>);
     m.def("scal_async_fp32", &scal_async<fp32_t>);
     m.def("scal_async_fp32_fast_tf32", &scal_async<fp32_fast_tf32_t>);
     m.def("scal_fp64", &scal<fp64_t>);
     m.def("scal_fp32", &scal<fp32_t>);
+    m.def("scal_bf16", &scal<bf16_t>);
     m.def("scal_fp32_fast_tf32", &scal<fp32_fast_tf32_t>);
 
     m.def("adam_step_async_fp64", &adam_step_async<fp64_t>);
@@ -893,9 +897,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("mask_scalar_fp32_fast_tf32", &mask_scalar<fp32_fast_tf32_t>);
 
     m.def("hypot_async_fp64", &hypot_async<fp64_t>);
+    m.def("hypot_async_bf16", &hypot_async<bf16_t>);
     m.def("hypot_async_fp32", &hypot_async<fp32_t>);
     m.def("hypot_async_fp32_fast_tf32", &hypot_async<fp32_fast_tf32_t>);
     m.def("hypot_fp64", &hypot<fp64_t>);
+    m.def("hypot_bf16", &hypot<bf16_t>);
     m.def("hypot_fp32", &hypot<fp32_t>);
     m.def("hypot_fp32", &hypot<fp32_fast_tf32_t>);
 

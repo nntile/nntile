@@ -20,7 +20,7 @@ namespace nntile::kernel::hypot
 {
 
 template<typename T>
-void cpu(Index nelems, Scalar alpha_, const T* src_, Scalar beta_, T* dst_)
+void cpu(Index nelems, Scalar alpha_, const T* src, Scalar beta_, T* dst)
     noexcept
 //! hypot of two buffers on CPU
 /*! Performs the following operation:
@@ -29,14 +29,14 @@ void cpu(Index nelems, Scalar alpha_, const T* src_, Scalar beta_, T* dst_)
  *
  * @param[in] nelems: Size of the src and dst tensors
  * @param[in] alpha_: Scalar multiplier for the src tensor
- * @param[in] src_: Source tensor
+ * @param[in] src: Source tensor
  * @param[in] beta_: Scalar multiplier for the dst tensor
- * @param[inout] dst_: Destination of the hypot operation
+ * @param[inout] dst: Destination of the hypot operation
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto dst = reinterpret_cast<Y *>(dst_);
+    using Y = typename T::repr_t;
+    // auto src = reinterpret_cast<const Y *>(src_);
+    // auto dst = reinterpret_cast<Y *>(dst_);
     const Y zero{0.0}, alpha{alpha_}, beta{beta_};
     if(alpha == zero)
     {
@@ -44,14 +44,14 @@ void cpu(Index nelems, Scalar alpha_, const T* src_, Scalar beta_, T* dst_)
         {
             for(Index i = 0; i < nelems; ++i)
             {
-                dst[i] = zero;
+                dst[i] = static_cast<T>(zero);
             }
         }
         else
         {
             for(Index i = 0; i < nelems; ++i)
             {
-                dst[i] = std::fabs(beta * dst[i]);
+                dst[i] = static_cast<T>(std::fabs(beta * static_cast<Y>(dst[i])));
             }
         }
     }
@@ -61,14 +61,15 @@ void cpu(Index nelems, Scalar alpha_, const T* src_, Scalar beta_, T* dst_)
         {
             for(Index i = 0; i < nelems; ++i)
             {
-                dst[i] = std::fabs(alpha * src[i]);
+                dst[i] = static_cast<T>(std::fabs(alpha * static_cast<Y>(src[i])));
             }
         }
         else
         {
             for(Index i = 0; i < nelems; ++i)
             {
-                dst[i] = std::hypot(alpha*src[i], beta*dst[i]);
+                dst[i] = static_cast<T>(std::hypot(alpha*static_cast<Y>(src[i]),
+                                                   beta*static_cast<Y>(dst[i])));
             }
         }
     }
@@ -83,6 +84,11 @@ void cpu<fp32_t>(Index nelems, Scalar alpha, const fp32_t* src, Scalar beta,
 template
 void cpu<fp64_t>(Index nelems, Scalar alpha, const fp64_t* src, Scalar beta,
         fp64_t* dst)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index nelems, Scalar alpha, const bf16_t* src, Scalar beta,
+        bf16_t* dst)
     noexcept;
 
 } // namespace nntile::kernel::hypot

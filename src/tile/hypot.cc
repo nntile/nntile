@@ -65,6 +65,10 @@ template
 void hypot_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst);
 
+template
+void hypot_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
+        const Tile<bf16_t> &dst);
+
 // Explicit instantiation of template
 template
 void hypot<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
@@ -77,5 +81,9 @@ void hypot<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Sc
 template
 void hypot<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst);
+
+template
+void hypot<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
+        const Tile<bf16_t> &dst);
 
 } // namespace nntile::tile

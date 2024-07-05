@@ -574,6 +574,8 @@ def add_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
         core_tensor.add_async_fp32_fast_tf32(alpha, x, beta, y)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.add_async_fp64(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.add_async_bf16(alpha, x, beta, y)
     else:
         raise TypeError
 
@@ -1093,6 +1095,8 @@ def scal_async(alpha: float, x: Tensor, y: Tensor) -> None:
         core_tensor.scal_async_fp32(alpha, x, y)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.scal_async_fp64(alpha, x, y)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.scal_async_bf16(alpha, x, y)
     else:
         raise TypeError
 
@@ -1181,6 +1185,8 @@ def hypot_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
         core_tensor.hypot_async_fp32_fast_tf32(alpha, x, beta, y)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.hypot_async_fp64(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.hypot_async_bf16(alpha, x, beta, y)
     else:
         raise TypeError
 

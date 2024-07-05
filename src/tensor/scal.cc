@@ -78,6 +78,10 @@ void scal_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
 
 template
+void scal_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
+        const Tensor<bf16_t> &dst);
+
+template
 void scal_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst);
 
@@ -89,6 +93,10 @@ void scal_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
 template
 void scal<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst);
+
+template
+void scal<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
+        const Tensor<bf16_t> &dst);
 
 template
 void scal<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
