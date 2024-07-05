@@ -108,9 +108,9 @@ void cublas(cublasHandle_t handle, cublasOperation_t transA,
         float beta, bf16_t *C, int ldC)
     noexcept
 {
-    cublasGemmEx(handle, transA, transB, M, N, K, &alpha, (const float *)A,
-            CUDA_R_16BF, ldA, (const float *)B, CUDA_R_16BF, ldB, &beta,
-            (float *)C, CUDA_R_16BF, ldC, CUBLAS_COMPUTE_32F,
+    cublasGemmEx(handle, transA, transB, M, N, K, &alpha, (const __nv_bfloat16 *)A,
+            CUDA_R_16BF, ldA, (const __nv_bfloat16 *)B, CUDA_R_16BF, ldB, &beta,
+            (__nv_bfloat16 *)C, CUDA_R_16BF, ldC, CUBLAS_COMPUTE_32F,
             CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
 

@@ -43,8 +43,8 @@ static inline double chameleon_randn(unsigned long long &seed, double mean,
 
 template<typename T>
 void cpu(Index ndim, Index nelems, unsigned long long seed,
-        Scalar mean, Scalar stddev, const Index *start, const Index *shape,
-        const Index *underlying_shape, T *data, const Index *stride,
+        Scalar mean_, Scalar stddev_, const Index *start, const Index *shape,
+        const Index *underlying_shape, T *data_, const Index *stride,
         int64_t *tmp_index_)
     noexcept
 //! Fill manydimensional array with random normally distributed numbers
@@ -64,14 +64,14 @@ void cpu(Index ndim, Index nelems, unsigned long long seed,
  * @param[in] ndim: Number of dimensions of the output array
  * @param[in] nelems: Number of elements of the output array
  * @param[in] seed: Random seed for the entire underlying array
- * @param[in] mean: Average value of the normal distribution
- * @param[in] stddev: Standard deviation of the normal distribution
+ * @param[in] mean_: Average value of the normal distribution
+ * @param[in] stddev_: Standard deviation of the normal distribution
  * @param[in] start: Starting index of a subarray to generate. Contains ndim
  *      values.
  * @param[in] shape: Shape of the output array. Contains ndim values.
  * @param[in] underlying_shape: Shape of the underlying array. Contains ndim
  *      values.
- * @param[out] data: The output array memory buffer
+ * @param[out] data_: The output array memory buffer
  * @param[in] stride: Strides of the output array. Contains ndim values.
  * @param[scratch] tmp_index_: Temporary buffer for indexing purposes. Contains
  *      ndim values.
@@ -94,7 +94,7 @@ void cpu(Index ndim, Index nelems, unsigned long long seed,
     // Generate the first column
     for(Index i = 0; i < nrows; ++i)
     {
-        *data = static_cast<T>(chameleon_randn(seed, mean, stddev));
+        *data = chameleon_randn(seed, mean, stddev);
         data += stride[0];
     }
     // Init temporary index
@@ -137,7 +137,7 @@ void cpu(Index ndim, Index nelems, unsigned long long seed,
         // Generate the current column
         for(Index i = 0; i < nrows; ++i)
         {
-            *data = static_cast<T>(chameleon_randn(seed, mean, stddev));
+            *data = chameleon_randn(seed, mean, stddev);
             data += stride[0];
         }
     }
