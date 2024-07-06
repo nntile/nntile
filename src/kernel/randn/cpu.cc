@@ -44,7 +44,7 @@ static inline double chameleon_randn(unsigned long long &seed, double mean,
 template<typename T>
 void cpu(Index ndim, Index nelems, unsigned long long seed,
         Scalar mean_, Scalar stddev_, const Index *start, const Index *shape,
-        const Index *underlying_shape, T *data_, const Index *stride,
+        const Index *underlying_shape, T *data, const Index *stride,
         int64_t *tmp_index_)
     noexcept
 //! Fill manydimensional array with random normally distributed numbers
@@ -71,14 +71,14 @@ void cpu(Index ndim, Index nelems, unsigned long long seed,
  * @param[in] shape: Shape of the output array. Contains ndim values.
  * @param[in] underlying_shape: Shape of the underlying array. Contains ndim
  *      values.
- * @param[out] data_: The output array memory buffer
+ * @param[out] data: The output array memory buffer
  * @param[in] stride: Strides of the output array. Contains ndim values.
  * @param[scratch] tmp_index_: Temporary buffer for indexing purposes. Contains
  *      ndim values.
  * */
 {
     using Y = typename T::repr_t;
-    auto data = reinterpret_cast<Y *>(data_);
+    // auto data = reinterpret_cast<Y *>(data_);
     Y mean{mean_}, stddev{stddev_};
     using I = typename CPUComputeType<int64_t>::value;
     auto tmp_index = reinterpret_cast<I *>(tmp_index_);
@@ -94,7 +94,7 @@ void cpu(Index ndim, Index nelems, unsigned long long seed,
     // Generate the first column
     for(Index i = 0; i < nrows; ++i)
     {
-        *data = chameleon_randn(seed, mean, stddev);
+        *data = static_cast<T>(chameleon_randn(seed, mean, stddev));
         data += stride[0];
     }
     // Init temporary index
@@ -137,7 +137,7 @@ void cpu(Index ndim, Index nelems, unsigned long long seed,
         // Generate the current column
         for(Index i = 0; i < nrows; ++i)
         {
-            *data = chameleon_randn(seed, mean, stddev);
+            *data = static_cast<T>(chameleon_randn(seed, mean, stddev));
             data += stride[0];
         }
     }
@@ -166,14 +166,14 @@ void cpu<bf16_t>(Index ndim, Index nelems, unsigned long long seed,
     noexcept;
 
 template<typename T>
-void cpu_ndim0(unsigned long long seed, Scalar mean_, Scalar stddev_, T *data_)
+void cpu_ndim0(unsigned long long seed, Scalar mean_, Scalar stddev_, T *data)
     noexcept
 {
     // 0-dimensional tensor is just a scalar
     using Y = typename T::repr_t;
-    auto data = reinterpret_cast<Y *>(data_);
+    // auto data = reinterpret_cast<Y *>(data_);
     Y mean{mean_}, stddev{stddev_};
-    *data = chameleon_randn(seed, mean, stddev);
+    *data = static_cast<T>(chameleon_randn(seed, mean, stddev));
 }
 
 // Explicit instantiation
