@@ -21,15 +21,13 @@ namespace nntile::kernel::softmax
 template<typename T>
 static __global__
 void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
-        Index k, const T * __restrict__ maxsumexp_,
+        Index k, const T * __restrict__ maxsumexp,
         const T * __restrict__ src, Scalar alpha, T * __restrict__ dst_)
 {
     Index i0_block = blockIdx.y, i1_block = blockIdx.z,
           i2_start = threadIdx.x, i2_step = blockDim.x;
 
     using Y = typename T::repr_t;
-    using Z = typename CUDAComputeType<T>::value;
-    const Z* maxsumexp = reinterpret_cast<const Z *>(maxsumexp_);
     for(Index i0 = i0_block*m_per_block;
             i0 < (i0_block+1)*m_per_block and i0 < m; ++i0)
     {
@@ -39,8 +37,8 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
             // Offset in memory for src and dst
             Index src_dst_offset = i1*k*m + i0;
             // Input and output fiber/slice
-            const Z *src_slice = reinterpret_cast<const Z *>(src + src_dst_offset);
-            Z *dst_slice = reinterpret_cast<Z *>(dst_ + src_dst_offset);
+            const T *src_slice = src + src_dst_offset;
+            T *dst_slice = dst_ + src_dst_offset;
             // Max and sum of exponents
             __shared__ Y max, sum;
             if(i2_start == 0)
@@ -57,11 +55,11 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
                 // Update value
                 if(not ::isinf(val))
                 {
-                    dst_slice[i2*m] = Z{Y{alpha} * ::exp(val-max) / sum};
+                    dst_slice[i2*m] = Y{alpha} * ::exp(val-max) / sum;
                 }
                 else
                 {
-                    dst_slice[i2*m] = Z{0.0};
+                    dst_slice[i2*m] = 0.0;
                 }
             }
         }
@@ -98,10 +96,6 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp_,
         n_per_block = (n+65534) / 65535;
         blocks.z = (n+n_per_block-1) / n_per_block;
     }
-    // using Y = typename CUDAComputeType<T>::value;
-    // auto maxsumexp = reinterpret_cast<const Y *>(maxsumexp_);
-    // auto src = reinterpret_cast<const Y *>(src_);
-    // auto dst = reinterpret_cast<Y *>(dst_);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, m_per_block, n,
             n_per_block, k, maxsumexp_, src_, alpha, dst_);
 }

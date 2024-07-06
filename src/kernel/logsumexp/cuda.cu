@@ -20,19 +20,16 @@ namespace nntile::kernel::logsumexp
 
 template<typename T>
 static __global__
-void cuda_kernel(Index nelems, const T * __restrict__ maxsumexp_,
-        T * __restrict__ logsumexp_)
+void cuda_kernel(Index nelems, const T * __restrict__ maxsumexp,
+        T * __restrict__ logsumexp)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     using Y = typename T::repr_t;
-    using Z = typename CUDAComputeType<T>::value;
-    const Z* maxsumexp = reinterpret_cast<const Z *>(maxsumexp_);
-    Z* logsumexp = reinterpret_cast<Z *>(logsumexp_);
-    Y maxsumexp_even = Y{maxsumexp[2*i]};
-    Y maxsumexp_odd = Y{maxsumexp[2*i+1]};
     if(i < nelems)
     {
-        logsumexp[i] = Z{maxsumexp_even + ::log(maxsumexp_odd)};
+        Y maxsumexp_even = Y{maxsumexp[2*i]};
+        Y maxsumexp_odd = Y{maxsumexp[2*i+1]};
+        logsumexp[i] = maxsumexp_even + ::log(maxsumexp_odd);
     }
 }
 
@@ -49,9 +46,6 @@ void cuda(cudaStream_t stream, Index nelems, const T *maxsumexp_,
  * */
 {
     dim3 blocks((nelems+31)/32), threads(32);
-    // using Y = typename CUDAComputeType<T>::value;
-    // auto maxsumexp = reinterpret_cast<const Y *>(maxsumexp_);
-    // auto logsumexp = reinterpret_cast<Y *>(logsumexp_);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, maxsumexp_,
             logsumexp_);
 }

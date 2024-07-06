@@ -40,9 +40,6 @@ void cpu(Scalar alpha_, Index n_labels, Index n_outputs, const T* logsumexp_,
  * */
 {
     using Y = typename T::repr_t;
-    // auto logsumexp = reinterpret_cast<const Y *>(logsumexp_);
-    // auto src = reinterpret_cast<const Y *>(src_);
-    // auto val = reinterpret_cast<Y *>(val_);
     const Y alpha{alpha_};
     constexpr Y zero{0.0};
     Y sum = zero, c = zero, y, t;

@@ -32,10 +32,7 @@ void cpu(Index nelems, const T* src_, T* dst_)
  * @param[inout] dst_: Destination of the maxsumexp accumulation
  * */
 {
-    // using Y = typename CPUComputeType<T>::value;
     constexpr typename T::repr_t zero{0.0};
-    // auto src = reinterpret_cast<const Y *>(src_);
-    // auto dst = reinterpret_cast<Y *>(dst_);
     for(Index i = 0; i < nelems; ++i)
     {
         auto src_odd = static_cast<typename T::repr_t>(src_[2*i+1]);

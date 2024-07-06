@@ -20,19 +20,16 @@ namespace nntile::kernel::relu_forward
 
 template<typename T>
 static __global__
-void cuda_kernel(Index nelems, const T *src_, T *dst_)
+void cuda_kernel(Index nelems, const T *src, T *dst)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     using Y = typename T::repr_t;
-    using Z = typename CUDAComputeType<T>::value;
-    const Z* src = reinterpret_cast<const Z *>(src_);
-    Z* dst = reinterpret_cast<Z *>(dst_);
     constexpr Y zero = Y{0.0};
     Y src_val{0.0};
     if(i < nelems)
     {   
         src_val = Y{src[i]};
-        dst[i] = Z{::fmax(src_val, zero)};
+        dst[i] = ::fmax(src_val, zero);
     }
 }
 
@@ -49,9 +46,6 @@ void cuda(cudaStream_t stream, Index nelems, const T *src_, T *dst_)
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    // using Y = typename CUDAComputeType<T>::value;
-    // auto src = reinterpret_cast<const Y *>(src_);
-    // auto dst = reinterpret_cast<Y *>(dst_);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, src_, dst_);
 }
 

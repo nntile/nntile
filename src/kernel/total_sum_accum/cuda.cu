@@ -20,21 +20,17 @@ namespace nntile::kernel::total_sum_accum
 
 template<typename T>
 static __global__
-void cuda_kernel(Scalar alpha_, Index n_labels, Index n_outputs, const T* logsumexp_,
-        const T* src_, const Index* labels, T *val_)
+void cuda_kernel(Scalar alpha_, Index n_labels, Index n_outputs, const T* logsumexp,
+        const T* src, const Index* labels, T *val_)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     using Y = typename T::repr_t;
     using Z = typename CUDAComputeType<T>::value;
-    auto src = reinterpret_cast<const Z *>(src_);
-    auto logsumexp = reinterpret_cast<const Z *>(logsumexp_);
-    Y logsumexp_val = Y{logsumexp[i]};
-    Y src_val = Y{src[labels[i]+i*n_labels]};
     auto val = reinterpret_cast<Z *>(val_);
     Y alpha = Y{alpha_};
     if(i < n_outputs)
     {
-         atomicAdd(val, Z{alpha*(logsumexp_val - src_val)});
+         atomicAdd(val, Z{alpha*(Y{logsumexp[i]} - Y{src[labels[i]+i*n_labels]})});
     }
 }
 
@@ -58,12 +54,8 @@ void cuda(cudaStream_t stream, Scalar alpha, Index n_labels, Index n_outputs,
  * */
 {
     dim3 blocks((n_outputs+255)/256), threads(256);
-    // using Y = typename CUDAComputeType<T>::value;
     using I = typename CUDAComputeType<int64_t>::value;
-    // auto logsumexp = reinterpret_cast<const Y *>(logsumexp_);
-    // auto src = reinterpret_cast<const Y *>(src_);
     auto labels = reinterpret_cast<const I *>(labels_);
-    // auto val = reinterpret_cast<Y *>(val_);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(alpha, n_labels,
             n_outputs, logsumexp_, src_, labels, val_);
 }

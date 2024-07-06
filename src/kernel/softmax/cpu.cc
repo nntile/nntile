@@ -36,9 +36,6 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp_, const T *src_,
  * */
 {
     using Y = typename T::repr_t;
-    // auto maxsumexp = reinterpret_cast<const Y *>(maxsumexp_);
-    // auto src = reinterpret_cast<const Y *>(src_);
-    // auto dst = reinterpret_cast<Y *>(dst_);
     const Y alpha{alpha_};
     Index src_dst_offset = 0;
     // Outer loop by the last mode of dst and sumnorm arrays

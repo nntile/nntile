@@ -20,26 +20,18 @@ namespace nntile::kernel::relu_backward
 
 template<typename T>
 static __global__
-void cuda_kernel(Index nelems, const T *x_, const T *dy_, T *dx_)
+void cuda_kernel(Index nelems, const T *x, const T *dy, T *dx)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     using Y = typename T::repr_t;
-    using Z = typename CUDAComputeType<T>::value;
-    Z* dx = reinterpret_cast<Z *>(dx_);
-    const Z* dy = reinterpret_cast<const Z *>(dy_);
-    const Z* x = reinterpret_cast<const Z *>(x_);
     constexpr Y zero{0.0};
     Y x_val{0.0};
-    Y dx_val{0.0};
-    Y dy_val{0.0};
     if(i < nelems)
     {
         x_val = Y{x[i]};
         if(x_val > zero)
         {
-            dx_val = Y{dx[i]};
-            dy_val = Y{dy[i]};
-            dx[i] = Z{dx_val + dy_val};
+            dx[i] = Y{dx[i]} + Y{dy[i]};
         }
     }
 }
@@ -58,10 +50,6 @@ void cuda(cudaStream_t stream, Index nelems, const T *x_, const T *dy_, T *dx_)
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    // using Y = typename CUDAComputeType<T>::value;
-    // auto x = reinterpret_cast<const Y *>(x_);
-    // auto dy = reinterpret_cast<const Y *>(dy_);
-    // auto dx = reinterpret_cast<Y *>(dx_);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, x_, dy_, dx_);
 }
 

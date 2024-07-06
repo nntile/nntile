@@ -20,7 +20,7 @@ namespace nntile::kernel::scal
 
 template<typename T>
 static __global__
-void cuda_kernel(Index nelems, Scalar alpha_, const T* src_, T* dst_)
+void cuda_kernel(Index nelems, Scalar alpha_, const T* src, T* dst)
 //! Set one buffer as a scaled version of another
 /*! Performs the followin operation:
  *      dst[i] = alpha * src[i]
@@ -34,13 +34,10 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T* src_, T* dst_)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     using Y = typename T::repr_t;
-    using Z = typename CUDAComputeType<T>::value;
-    Z* dst = reinterpret_cast<Z *>(dst_);
-    const Z* src = reinterpret_cast<const Z *>(src_);
     const Y alpha{alpha_};
     if(i < nelems)
     {
-        dst[i] = Z{alpha * Y{src[i]}};
+        dst[i] = alpha * Y{src[i]};
     }
 }
 
@@ -60,9 +57,6 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src_,
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    // using Y = typename CUDAComputeType<T>::value;
-    // auto src = reinterpret_cast<const Y *>(src_);
-    // auto dst = reinterpret_cast<Y *>(dst_);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, alpha, src_,
             dst_);
 }

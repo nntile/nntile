@@ -44,8 +44,6 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
  * */
 {
     using Y = typename T::repr_t;
-    // auto src = reinterpret_cast<const Y *>(src_);
-    // auto maxsumexp = reinterpret_cast<Y *>(maxsumexp_);
     const Index mk = m * k;
     Index dst_offset = 0;
     constexpr Y zero{0.0}, one{1.0};

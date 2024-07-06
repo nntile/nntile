@@ -37,15 +37,11 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T *src, Scalar beta_, T *dst
     if(i < nelems)
     {
         using Y = typename T::repr_t;
-        using Z = typename CUDAComputeType<T>::value;
-        auto src_ = reinterpret_cast<const Z *>(src);
-        auto dst_ = reinterpret_cast<Z *>(dst);
-
-        Y src_val = Y{src_[i]};
-        Y dst_val = Y{dst_[i]};
+        Y src_val = Y{src[i]};
+        Y dst_val = Y{dst[i]};
         Y alpha = Y{alpha_};
         Y beta = Y{beta_};
-        dst_[i] = Z{alpha * src_val + beta * dst_val};
+        dst[i] = alpha * src_val + beta * dst_val;
     }
 }
 
@@ -66,10 +62,6 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha_, const T *src_,
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    // auto src = cast_pointer_cuda<T>(src_);
-    // auto dst = cast_pointer_cuda<T>(dst_);
-    // auto alpha = cast_scalar_cuda<T>(alpha_);
-    // auto beta = cast_scalar_cuda<T>(beta_);
     cuda_kernel<T><<<blocks, threads, 0, stream>>>(nelems, alpha_, src_,
             beta_, dst_);
 }
