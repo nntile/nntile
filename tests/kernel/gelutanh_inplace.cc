@@ -72,7 +72,7 @@ void validate(Index nelems)
     cpu<T>(nelems, &data[0]);
     for(Index i = 0; i < nelems; ++i)
     {
-        Y x = data_save[i];
+        Y x{data_save[i]};
         Y y = std::sqrt(Y{2}/pi) * (x+Y{0.044715}*x*x*x);
         Y z = Y{1}+std::tanh(y);
         Y val_ref = Y{0.5} * x * z;
@@ -99,7 +99,7 @@ void validate(Index nelems)
     run_cuda<T>(nelems, data);
     for(Index i = 0; i < nelems; ++i)
     {
-        Y x = data_save[i];
+        Y x{data_save[i]};
         Y y = std::sqrt(Y{2}/pi) * (x+Y{0.044715}*x*x*x);
         Y z = Y{1}+std::tanh(y);
         Y val_ref = Y{0.5} * x * z;

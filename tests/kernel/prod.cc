@@ -78,7 +78,7 @@ void validate(Index nelems)
     cpu<T>(nelems, &src[0], &dst[0]);
     for(Index i = 0; i < nelems; ++i)
     {
-        Y x = dst_save[i];
+        Y x{dst_save[i]};
         Y val_ref = Y((2*i+1-nelems)*(nelems-i)) / Y{1000000};
         // Obtain range of correct values
         Y val_ref_min, val_ref_max;
@@ -103,7 +103,7 @@ void validate(Index nelems)
     run_cuda<T>(nelems, src, dst);
     for(Index i = 0; i < nelems; ++i)
     {
-        Y x = dst_save[i];
+        Y x{dst_save[i]};
         Y val_ref = Y((2*i+1-nelems)*(nelems-i)) / Y{1000000};
         // Obtain range of correct values
         Y val_ref_min, val_ref_max;

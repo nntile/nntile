@@ -115,7 +115,7 @@ void validate(Index m, Index n, Index k, Index l, Scalar eps, T gamma, T beta)
             Y norm = 0, diff = 0;
             for(Index i2 = 0; i2 < k; ++i2)
             {
-                Y val = dst[(i1*k+i2)*m+i0];
+                Y val{dst[(i1*k+i2)*m+i0]};
                 Y val_ref = Y(i2)/Y{10}/std::sqrt(Y{1}+eps)*Y(gamma) + Y(beta);
                 Y tmp = val - val_ref;
                 norm += val_ref * val_ref;
@@ -144,7 +144,7 @@ void validate(Index m, Index n, Index k, Index l, Scalar eps, T gamma, T beta)
             Y norm = 0, diff = 0;
             for(Index i2 = 0; i2 < k; ++i2)
             {
-                Y val = dst[(i1*k+i2)*m+i0];
+                Y val{dst[(i1*k+i2)*m+i0]};
                 Y val_ref = Y(i2)/Y{10}/std::sqrt(Y{1}+eps)*Y(gamma) + Y(beta);
                 Y tmp = val - val_ref;
                 norm += val_ref * val_ref;

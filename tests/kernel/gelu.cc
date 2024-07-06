@@ -70,7 +70,7 @@ void validate(Index nelems)
     cpu<T>(nelems, &data[0]);
     for(Index i = 0; i < nelems; ++i)
     {
-        Y x = data_save[i];
+        Y x{data_save[i]};
         Y val_ref = 0.5 * std::erfc(-x/std::sqrt(Y(2)));
         val_ref *= x;
         // Obtain range of correct values
@@ -96,7 +96,7 @@ void validate(Index nelems)
     run_cuda<T>(nelems, data);
     for(Index i = 0; i < nelems; ++i)
     {
-        Y x = data_save[i];
+        Y x{data_save[i]};
         Y val_ref = 0.5 * std::erfc(-x/std::sqrt(Y(2)));
         val_ref *= x;
         // Obtain range of correct values
