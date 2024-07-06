@@ -20,19 +20,15 @@ namespace nntile::kernel::addcdiv
 
 template<typename T>
 static __global__
-void cuda_kernel(Scalar val, Scalar eps, Index nelems, const T *nom_, const T* denom_,
-        T *res_)
+void cuda_kernel(Scalar val, Scalar eps, Index nelems, const T *nom, const T* denom,
+        T *res)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     using Y = typename T::repr_t;
-    using Z = typename CUDAComputeType<T>::value;
-    Z* res = reinterpret_cast<Z *>(res_);
-    const Z* denom = reinterpret_cast<const Z *>(denom_);
-    const Z* nom = reinterpret_cast<const Z *>(nom_);
     if(i < nelems)
     {
         Y res_val{res[i]};
-        res[i] = Z{res_val + (Y{val} * Y{nom[i]}) / (Y{denom[i]} + Y{eps})};
+        res[i] = res_val + (Y{val} * Y{nom[i]}) / (Y{denom[i]} + Y{eps});
     }
 }
 
@@ -52,10 +48,6 @@ void cuda(cudaStream_t stream, Scalar val, Scalar eps, Index nelems,
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    // using Y = typename CUDAComputeType<T>::value;
-    // auto nom = reinterpret_cast<const Y *>(nom_);
-    // auto denom = reinterpret_cast<const Y *>(denom_);
-    // auto res = reinterpret_cast<Y *>(res_);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(val, eps, nelems,
             nom, denom, res);
 }

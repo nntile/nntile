@@ -20,7 +20,7 @@ namespace nntile::kernel::hypot
 
 template<typename T>
 static __global__
-void cuda_kernel(Index nelems, Scalar alpha_, const T* src_, Scalar beta_, T* dst_)
+void cuda_kernel(Index nelems, Scalar alpha_, const T* src, Scalar beta_, T* dst)
 //! hypot two buffers on CUDA
 /*! Performs the following operation:
  *      dst[i] = hypot(alpha*src[i], beta*dst[i]),
@@ -35,9 +35,6 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T* src_, Scalar beta_, T* ds
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     using Y = typename T::repr_t;
-    using Z = typename CUDAComputeType<T>::value;
-    Z* dst = reinterpret_cast<Z *>(dst_);
-    const Z* src = reinterpret_cast<const Z *>(src_);
     constexpr Y zero{0.0};
     Y alpha{alpha_};
     Y beta{beta_};
@@ -47,22 +44,22 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T* src_, Scalar beta_, T* ds
         {
             if(beta == zero)
             {
-                dst[i] = Z{zero};
+                dst[i] = zero;
             }
             else
             {
-                dst[i] = Z{::fabs(beta * Y{dst[i]})};
+                dst[i] = ::fabs(beta * Y{dst[i]});
             }
         }
         else
         {
             if(beta == zero)
             {
-                dst[i] = Z{::fabs(alpha * Y{src[i]})};
+                dst[i] = ::fabs(alpha * Y{src[i]});
             }
             else
             {
-                dst[i] = Z{::hypot(alpha*Y{src[i]}, beta*Y{dst[i]})};
+                dst[i] = ::hypot(alpha*Y{src[i]}, beta*Y{dst[i]});
             }
         }
     }
@@ -85,9 +82,6 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src,
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    // using Y = typename CUDAComputeType<T>::value;
-    // auto src = reinterpret_cast<const Y *>(src_);
-    // auto dst = reinterpret_cast<Y *>(dst_);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, alpha, src,
             beta, dst);
 }
