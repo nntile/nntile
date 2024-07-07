@@ -32,7 +32,7 @@ void def_mod_starpu(py::module_ &m)
     using namespace nntile::starpu;
     using namespace std::chrono_literals;
     py::class_<Config>(m, "Config").
-        def(py::init<int, int, int>()).
+        def(py::init<int, int, int, int, const char *, int>()).
         def("shutdown", &Config::shutdown);
     m.def("init", init);
     m.def("pause", starpu_pause);

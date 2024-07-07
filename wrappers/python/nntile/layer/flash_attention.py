@@ -409,11 +409,11 @@ class FlashAttention(BaseLayer):
                     redux=self.redux)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.q_transposed.value, self.q.value, 1)
-        # X_Q, W_Q and Q_transposed can be offloaded from GPU
+        # X_Q and W_Q can be offloaded from GPU
         self.x_q.value.wont_use()
-        #self.q_transposed.value.wont_use()
-        self.q_transposed.value.invalidate_submit()
         self.w_q.value.wont_use()
+        # Q_transposed can be deleted
+        self.q_transposed.value.invalidate_submit()
         # Apply bias if needed
         if self.in_proj_bias_q is not None:
             # batched add_fiber (head_size, batch=n_head) into
@@ -429,11 +429,11 @@ class FlashAttention(BaseLayer):
                     redux=self.redux)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.k_transposed.value, self.k.value, 1)
-        # X_K, W_K and K_transposed can be offloaded from GPU
+        # X_K and W_K can be offloaded from GPU
         self.x_k.value.wont_use()
-        #self.k_transposed.value.wont_use()
-        self.k_transposed.value.invalidate_submit()
         self.w_k.value.wont_use()
+        # K_transposed can be deleted
+        self.k_transposed.value.invalidate_submit()
         # Apply bias if needed
         if self.in_proj_bias_k is not None:
             # batched add_fiber (head_size, batch=n_head) into
@@ -449,11 +449,11 @@ class FlashAttention(BaseLayer):
                     redux=self.redux)
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.v_transposed.value, self.v.value, 1)
-        # X_V, W_V and V_transposed can be offloaded from GPU
+        # X_V and W_V can be offloaded from GPU
         self.x_v.value.wont_use()
-        #self.v_transposed.value.wont_use()
-        self.v_transposed.value.invalidate_submit()
         self.w_v.value.wont_use()
+        # K_transposed can be deleted
+        self.v_transposed.value.invalidate_submit()
         # Apply bias if needed
         if self.in_proj_bias_v is not None:
             # batched add_fiber (head_size, batch=n_head) into
@@ -461,62 +461,36 @@ class FlashAttention(BaseLayer):
             add_fiber_async(1, self.in_proj_bias_v.value, 1, \
                     self.v.value, 0, 1)
             self.in_proj_bias_v.value.wont_use()
-        # Get tensor for softmax
-        # A = 1.0/sqrt(head_size) * einsum('jklb,jmlb->kmlb', K, Q)
-        # single batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
-        # by (head_size, n_seq, batch=n_batch, batch=n_head) into
-        # (n_seq, n_seq, batch=n_batch, batch=n_head)
-        #gemm_async(1.0/self.head_size**0.5, trans, self.k.value, \
-        #        notrans, self.q.value, 0.0, self.a.value, 1, 2, redux=self.redux)
-        clear_async(self.a_maxsumexp)
         # Use flash-like maxsumexp
+        clear_async(self.a_maxsumexp)
         flash_maxsumexp_async(self.q.value, self.k.value, self.mask, \
                 self.a_maxsumexp, self.a.value, redux=self.redux)
-        # Q and K can be offloaded from GPU
-        self.q.value.wont_use()
-        self.k.value.wont_use()
-        # Calculate softmax inplace
-        # A = softmax(A, axis=0)
-        # Apply mask if needed
-        #if self.mask:
-        #    mask_scalar_async(self.mask, self.val, self.a.value, 2)
-        #    self.mask.wont_use()
-        # Calculate max and sumexp along axis
-        # Temporary disable maxsumexp for testing
-        #maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=self.redux)
         # Use flash-like softmax+gemm
         flash_softmax_gemm_async(self.q.value, self.k.value, self.v.value, \
                 self.mask, self.a_maxsumexp, self.b.value, self.a.value, \
                 redux=self.redux)
-        # Finally, get the inplace softmax
-        #softmax_inplace_async(self.a_maxsumexp, self.a.value, 0)
-        # A_maxsumexp can be deleted
-        #self.a_maxsumexp.wont_use()
-        self.a_maxsumexp.invalidate_submit()
-        # Apply value tensor
-        # B = einsum('jklb,kmlb->jmlb', V, A)
-        # batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
-        # by (n_seq, n_seq, batch=n_batch, batch=n_head) into
-        # (head_size, n_seq, batch=n_batch, batch=n_head)
-        #gemm_async(1.0, notrans, self.v.value, notrans, \
-        #        self.a.value, 0.0, self.b.value, 1, 2, redux=self.redux)
-        # V and A can be offloaded from GPU
+        # Q, K, V, mask and A_maxsumexp can be offloaded from GPU
+        self.q.value.wont_use()
+        self.k.value.wont_use()
         self.v.value.wont_use()
-        self.a.value.wont_use()
+        self.mask.wont_use()
+        self.a_maxsumexp.wont_use()
+        # A can deleted
+        self.a.value.invalidate_submit()
         # Accumulate result from all the heads
         # rotate axes (head_size, n_seq, n_batch, n_head) into
         # (n_head, head_size, n_seq, n_batch) and then
         transpose_async(1.0, self.b.value, self.b_transposed.value, 3)
+        # B can be deleted
+        self.b.value.invalidate_submit()
         # Y = einsum('jkl,klmn->jmn', W, B_transposed)
         # gemm (n_emb, n_head, head_size) by
         # (n_head, head_size, n_seq, n_batch) into (n_emb, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w.value, notrans, \
                     self.b_transposed.value, 0.0, self.y.value, 2, 0, \
                     redux=self.redux)
-        # W, B and B_transposed can be offloaded from GPU
+        # W and B_transposed can be offloaded from GPU
         self.w.value.wont_use()
-        #self.b.value.wont_use()
-        self.b.value.invalidate_submit()
         self.b_transposed.value.wont_use()
         # Apply bias if needed
         if self.out_proj_bias is not None:
@@ -540,8 +514,8 @@ class FlashAttention(BaseLayer):
                         self.b_transposed.value, 1.0, self.w.grad, 2, 0, \
                         redux=self.redux)
         # B_transposed can be deleted
-        #self.b_transposed.value.wont_use()
         self.b_transposed.value.invalidate_submit()
+        # dW can be offloaded from GPU
         self.w.grad.wont_use()
         if self.b_transposed.grad_required:
             # dB_transposed = einsum('jkl,jmn->klmn', W, dY)
@@ -556,7 +530,7 @@ class FlashAttention(BaseLayer):
             # rotate axes (n_head, head_size, n_seq, n_batch) into
             # (head_size, n_seq, n_batch, n_head) and then
             transpose_async(1.0, self.b_transposed.grad, self.b.grad, 1)
-        #self.b_transposed.grad.wont_use()
+        # dB_transposed can be deleted
         self.b_transposed.grad.invalidate_submit()
         # Flash-like backward of softmax+gemm
         clear_async(self.a_sumprod_slice)
@@ -564,59 +538,24 @@ class FlashAttention(BaseLayer):
                 self.k.value, self.k.grad, self.v.value, self.v.grad, \
                 self.mask, self.a_maxsumexp, self.b.grad, self.a.value, \
                 self.a.grad, self.a_sumprod_slice, redux=self.redux)
-        # Backward for B = einsum('jklb,kmlb->jmlb', V, A)
-        #if self.a.grad_required:
-        #    # dA = einsum('jklb,jmlb->kmlb', V, dB)
-        #    gemm_async(1.0, trans, self.v.value, notrans, \
-        #            self.b.grad, 0.0, self.a.grad, 1, 2, redux=self.redux)
-        # V can be deleted
-        #self.v.value.wont_use()
-        self.v.value.invalidate_submit()
-        #if self.v.grad_required:
-        #    # dV = einsum('jmlb,kmlb->jklb', dB, A)
-        #    gemm_async(1.0, notrans, self.b.grad, trans, \
-        #            self.a.value, 0.0, self.v.grad, 1, 2, redux=self.redux)
-        # dB can be deleted
-        #self.b.grad.wont_use()
-        self.b.grad.invalidate_submit()
-        # Backward for A = softmax(A, axis=0)
-        #if self.a.grad_required:
-        #    # A_sumprod_slice = einsum('kmlb,kmlb->mlb', A, dA)
-        #    #sumprod_slice_async(1.0, self.a.value, self.a.grad, \
-        #    #        0.0, self.a_sumprod_slice, 0, redux=self.redux)
-        #    # dA += -bias('kmlb,mlb->kmlb', dA, A_sumprod_slice)
-        #    #add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
-        #    # A_sumprod_slice can be deleted
-        #    #self.a_sumprod_slice.wont_use()
-        #    #self.a_sumprod_slice.invalidate_submit()
-        #    # dA *= A
-        #    #prod_async(self.a.value, self.a.grad)
-        # A can be deleted
-        #self.a.value.wont_use()
-        #self.a.value.invalidate_submit()
-        # Backward for mask if needed
-        #if self.mask:
-        #    mask_scalar_async(self.mask, 0, self.a.grad, 2)
-        #    self.mask.wont_use()
-        # Backward for:
-        # A = 1.0/sqrt(head_size) * einsum('jklb,jmlb->kmlb', K, Q)
-        #if self.k.grad_required:
-        #    # dK = 1.0/sqrt(head_size) * einsum('jmlb,kmlb->jklb', Q, dA)
-        #    gemm_async(1.0/self.head_size**0.5, notrans, self.q.value, \
-        #            trans, self.a.grad, 0.0, self.k.grad, 1, 2, redux=self.redux)
         # Q can be deleted
-        #self.q.value.wont_use()
         self.q.value.invalidate_submit()
-        #if self.q.grad_required:
-        #    # dQ = 1.0/sqrt(head_size) * einsum('jklb,kmlb->jmlb', K, dA)
-        #    gemm_async(1.0/self.head_size**0.5, notrans, self.k.value, \
-        #            notrans, self.a.grad, 0.0, self.q.grad, 1, 2, redux=self.redux)
         # K can be deleted
-        #self.k.value.wont_use()
         self.k.value.invalidate_submit()
+        # V can be deleted
+        self.v.value.invalidate_submit()
+        # mask can be offloaded from GPU
+        self.mask.wont_use()
+        # A_maxsumexp can be deleted
+        self.a_maxsumexp.invalidate_submit()
+        # dB can be deleted
+        self.b.grad.invalidate_submit()
+        # A can be deleted
+        self.a.value.invalidate_submit()
         # dA can be deleted
-        #self.a.grad.wont_use()
         self.a.grad.invalidate_submit()
+        # A_sumprod_slice can be deleted
+        self.a_sumprod_slice.invalidate_submit()
         # Backward for bias of V
         if self.in_proj_bias_v is not None:
             if self.in_proj_bias_v.grad_required:
@@ -629,7 +568,6 @@ class FlashAttention(BaseLayer):
             # (n_head, head_size, n_seq, n_batch)
             transpose_async(1.0, self.v.grad, self.v_transposed.grad, 3)
         # dV can be deleted
-        #self.v.grad.wont_use()
         self.v.grad.invalidate_submit()
         # Backward for V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V)
         if self.x_v.grad_required:
@@ -651,7 +589,6 @@ class FlashAttention(BaseLayer):
         # X_V can be offloaded from GPU
         self.x_v.value.wont_use()
         # dV_transposed can be deleted
-        #self.v_transposed.grad.wont_use()
         self.v_transposed.grad.invalidate_submit()
         # Backward for bias of K
         if self.in_proj_bias_k is not None:
@@ -665,7 +602,6 @@ class FlashAttention(BaseLayer):
             # (n_head, head_size, n_seq, n_batch)
             transpose_async(1.0, self.k.grad, self.k_transposed.grad, 3)
         # dK can be deleted
-        #self.k.grad.wont_use()
         self.k.grad.invalidate_submit()
         # Backward for K_transposed = einsum('jkl,lmn->jkmn', W_K, X_K)
         if self.x_k.grad_required:
@@ -687,7 +623,6 @@ class FlashAttention(BaseLayer):
         # X_K can be offloaded from GPU
         self.x_k.value.wont_use()
         # dK_transposed can be deleted
-        #self.k_transposed.grad.wont_use()
         self.k_transposed.grad.invalidate_submit()
         # Backward for bias of Q
         if self.in_proj_bias_q is not None:
@@ -701,7 +636,6 @@ class FlashAttention(BaseLayer):
             # (n_head, head_size, n_seq, n_batch)
             transpose_async(1.0, self.q.grad, self.q_transposed.grad, 3)
         # dQ can be deleted
-        #self.q.grad.wont_use()
         self.q.grad.invalidate_submit()
         # Backward for Q_transposed = einsum('jkl,lmn->jkmn', W_Q, X_Q)
         if self.x_q.grad_required:
@@ -724,5 +658,4 @@ class FlashAttention(BaseLayer):
         # X_Q can be offloaded from GPU
         self.x_q.value.wont_use()
         # dQ_transposed can be deleted
-        #self.q_transposed.grad.wont_use()
         self.q_transposed.grad.invalidate_submit()

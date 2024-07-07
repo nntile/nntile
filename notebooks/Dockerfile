@@ -6,12 +6,10 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file ci/Dockerfile
-# Instructions for Docker to build a sandbox image
+# @file notebooks/Dockerfile
+# Instructions for Docker to build a Jupyter server with NNTile support
 #
 # @version 1.0.0
-
-LABEL org.opencontainers.image.source="https://github.com/nntile/nntile"
 
 ARG BASE_IMAGE=nvidia/cuda:12.4.0-devel-ubuntu22.04
 
@@ -36,8 +34,6 @@ RUN --mount=type=cache,target=/var/cache/apt \
         libopenblas-dev libtool-bin ninja-build pkg-config python3 \
         python3-dev python-is-python3 python3-pip vim && \
     find /var/lib/apt/lists -type f -print -delete
-
-FROM devbase AS sandbox
 
 ARG MAKE_JOBS=1
 
@@ -79,23 +75,21 @@ ADD wrappers/python/pyproject.toml wrappers/python/
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     set -xe && \
-    pip install tomli && \
+    pip install tomli jupyter && \
     GIST_PEDS=https://gist.githubusercontent.com/daskol/5513ff9c5b8a2d6b2a0e78f522dd2800 && \
     curl -SL $GIST_PEDS/raw/4e7b80e5f9d49c2e39cf8aa4e6b6b8b951724730/peds.py | \
-    python - -i -e dev wrappers/python
+    python - -i -e test wrappers/python
 
 RUN --mount=type=cache,target=/var/cache/apt \
-     apt update && \
+    apt update && \
     apt install -y --no-install-recommends time && \
     find /var/lib/apt/lists -type f -print -delete
-
-FROM sandbox AS nntile
 
 ADD . /workspace/nntile
 
 ARG CUDA_ARCHS=70;75;80;86;89;90
 
-RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHS} -GNinja
 
 RUN cmake --build build -j $MAKE_JOBS
@@ -105,3 +99,8 @@ ENV PYTHONPATH=/workspace/nntile/build/wrappers/python
 ENV STARPU_SILENT=1
 
 ENV STARPU_FXT_TRACE=0
+
+EXPOSE 8888
+
+CMD ["jupyter", "lab", "--port=8888", "--no-browser", "--ip=0.0.0.0", \
+    "--allow-root", "--notebook-dir=notebooks"]
