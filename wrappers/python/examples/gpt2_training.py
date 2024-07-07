@@ -88,6 +88,9 @@ parser.add_argument("--torch-nepochs", type=int, default=0)
 parser.add_argument("--torch-nepochs-warmup", type=int, default=0)
 parser.add_argument("--nntile-nepochs", type=int, default=0)
 parser.add_argument("--nntile-nepochs-warmup", type=int, default=0)
+parser.add_argument("--nntile-logger", action="store_true")
+parser.add_argument("--nntile-logger-server-addr", type=str, default="localhost")
+parser.add_argument("--nntile-logger-server-port", type=int, default=5001)
 
 # Parse arguments
 args = parser.parse_args()
@@ -184,7 +187,8 @@ nflops_seq = config.num_hidden_layers*nflops_seq_block \
 # Initialize NNTile and StarPU
 time0 = time.time()
 # Set up StarPU+MPI and init codelets
-nntile_config = nntile.starpu.Config(-1, -1, 1)
+nntile_config = nntile.starpu.Config(-1, -1, 1, args.nntile_logger,
+        args.nntile_logger_server_addr, args.nntile_logger_server_port)
 nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
 nntile.starpu.init()
