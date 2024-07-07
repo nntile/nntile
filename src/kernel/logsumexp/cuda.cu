@@ -41,7 +41,7 @@ void cuda(cudaStream_t stream, Index nelems, const T *maxsumexp_,
 /*! One of the buffers serves as output
  *
  * @param[in] nelems: Number of elements in both buffers
- * @param[in] maxsumexp_: Input buffer, result of maxsumexp operation 
+ * @param[in] maxsumexp_: Input buffer, result of maxsumexp operation
  * @param[out] logsumexp_: Output buffers that contains output in the end
  * */
 {

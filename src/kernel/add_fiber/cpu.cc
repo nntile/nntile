@@ -19,7 +19,7 @@ namespace nntile::kernel::add_fiber
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src_, 
+void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src_,
         Scalar beta_, T *dst_)
     noexcept
 //! Per-element addition of a tensor and a broadcasted fiber on CPU

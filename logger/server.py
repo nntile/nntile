@@ -29,7 +29,7 @@ async def create_new_writer(log_dir):
     os.makedirs(current_log_dir, exist_ok=True)
     if "writer" in globals():
         writer.close()
-    
+
     writer = tf.summary.create_file_writer(current_log_dir)
     writer.set_as_default()
     return writer
@@ -45,7 +45,7 @@ async def handle_new_logs(log_dir, split_hours):
             await asyncio.sleep(split_hours * 60 * 60)
     else:
         writer = await create_new_writer(log_dir)
-                    
+
 
 def increaseStep(node, node_dict):
     if not node in node_dict:
@@ -56,7 +56,7 @@ def increaseStep(node, node_dict):
 async def start_tensorboard(log_dir):
     print(os.getcwd())
     process = await asyncio.create_subprocess_exec(
-        'tensorboard', 
+        'tensorboard',
         '--logdir',
         log_dir,
         '--reload_multifile=true',
@@ -84,7 +84,7 @@ async def handle_client(reader, writer):
             tf.summary.scalar(name, flops, NODE_COUNTER[name])
         except json.JSONDecodeError as e:
             print("Error decoding JSON:", message)
-            
+
 async def main():
     log_dir = os.environ['LOG_DIR']
     split_hours = int(os.environ['SPLIT_HOURS'])
@@ -105,7 +105,7 @@ async def main():
         handle_new_logs(log_dir, split_hours),
         start_server(),
         start_tensorboard(log_dir)
-    ) 
+    )
 
 if __name__ == '__main__':
     asyncio.run(main())

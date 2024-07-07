@@ -27,7 +27,7 @@ void cuda_kernel(Index nelems, const T *src, T *dst)
     constexpr Y zero = Y{0.0};
     Y src_val{0.0};
     if(i < nelems)
-    {   
+    {
         src_val = Y{src[i]};
         dst[i] = ::fmax(src_val, zero);
     }

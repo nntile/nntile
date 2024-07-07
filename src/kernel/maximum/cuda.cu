@@ -37,7 +37,7 @@ void cuda(cudaStream_t stream, Index nelems, const T *src_, T *dst_)
  * dst[i] := max(src[i], dst[i])
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[in] src_: input buffer 
+ * @params[in] src_: input buffer
  * @params[inout] dst_: buffer for comparison and store maximum
  * */
 {
