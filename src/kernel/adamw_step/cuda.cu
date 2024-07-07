@@ -31,8 +31,8 @@ void cuda_kernel(Index num_iter, Index num_elems, Scalar beta_1_, Scalar beta_2_
     const Y beta_2{beta_2_};
     const Y eps{eps_};
     const Y weight_decay{weight_decay_};
-    const Y alpha = lr / (Y{1.0} - std::pow(beta_1, num_iter));
-    const Y beta = Y{1.0} / std::sqrt(Y{1.0} - std::pow(beta_2, num_iter));
+    const Y alpha = lr / (Y{1.0} - ::pow(beta_1, num_iter));
+    const Y beta = Y{1.0} / ::sqrt(Y{1.0} - ::pow(beta_2, num_iter));
     if(i < num_elems)
     {
         // Read values (param+grad) from RAM only once
