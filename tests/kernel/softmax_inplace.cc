@@ -101,7 +101,7 @@ void validate(Index m, Index n, Index k)
         {
             for(Index i2 = 0; i2 < k; ++i2)
             {
-                Y val = dst[(i1*k+i2)*m+i0];
+                Y val(dst[(i1*k+i2)*m+i0]);
                 Y val_ref = std::exp(Y(i2-k+1) / Y{100}) * Y{100} / Y(i0+i1+1);
                 Y tmp = std::abs(val - val_ref);
                 TEST_ASSERT(tmp/val_ref < 100*eps);
@@ -120,7 +120,7 @@ void validate(Index m, Index n, Index k)
         {
             for(Index i2 = 0; i2 < k; ++i2)
             {
-                Y val = dst[(i1*k+i2)*m+i0];
+                Y val(dst[(i1*k+i2)*m+i0]);
                 Y val_ref = std::exp(Y(i2-k+1) / Y{100}) * Y{100} / Y(i0+i1+1);
                 Y tmp = std::abs(val - val_ref);
                 TEST_ASSERT(tmp/val_ref < 100*eps);
