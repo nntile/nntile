@@ -26,23 +26,33 @@ using namespace nntile;
 using namespace nntile::kernel::randn;
 
 static inline void chameleon_randn(unsigned long long &seed, Scalar mean,
-        Scalar stddev, float &res)
+        Scalar stddev, fp32_t &res)
 {
     constexpr float two=2.0, twopi=6.2831853071795864769252867663;
     float t1 = CORE_slaran(&seed);
     float t2 = CORE_slaran(&seed) * twopi;
     float t3 = std::sqrt(-two*std::log(t1)) * std::cos(t2);
-    res = stddev*t3 + mean;
+    res = fp32_t(stddev*t3 + mean);
 }
 
 static inline void chameleon_randn(unsigned long long &seed, Scalar mean,
-        Scalar stddev, double &res)
+        Scalar stddev, bf16_t &res)
+{
+    constexpr float two=2.0, twopi=6.2831853071795864769252867663;
+    float t1 = CORE_slaran(&seed);
+    float t2 = CORE_slaran(&seed) * twopi;
+    float t3 = std::sqrt(-two*std::log(t1)) * std::cos(t2);
+    res = bf16_t(stddev*t3 + mean);
+}
+
+static inline void chameleon_randn(unsigned long long &seed, Scalar mean,
+        Scalar stddev, fp64_t &res)
 {
     constexpr double two=2.0, twopi=6.2831853071795864769252867663;
     double t1 = CORE_dlaran(&seed);
     double t2 = CORE_dlaran(&seed) * twopi;
     double t3 = std::sqrt(-two*std::log(t1)) * std::cos(t2);
-    res = stddev*t3 + mean;
+    res = fp64_t(stddev*t3 + mean);
 }
 
 template<typename T>
@@ -53,7 +63,7 @@ void validate_empty_shape()
     Scalar mean = 0, stddev = 1;
     unsigned long long seed = CORE_rnd64_jump(1000, -1);
     // Init reference array
-    Y data_ref;
+    T data_ref;
     unsigned long long seed2 = seed;
     chameleon_randn(seed2, mean, stddev, data_ref);
     // Run kernel
@@ -61,7 +71,7 @@ void validate_empty_shape()
     std::cout << "Run kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
     cpu_ndim0<T>(seed, mean, stddev, &data);
     // Check if the result is the same as the reference one
-    TEST_ASSERT(Y(data) == data_ref);
+    TEST_ASSERT(Y(data) == Y(data_ref));
     std::cout << "OK: kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
     // Run kernel with a different seed that shall generate different result
     seed2 = seed + std::numeric_limits<unsigned long long>::max()/2;
@@ -69,7 +79,7 @@ void validate_empty_shape()
     std::cout << "Run kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
     cpu_ndim0<T>(seed2, mean, stddev, &data);
     // Check if result is different
-    TEST_ASSERT(Y(data) != data_ref);
+    TEST_ASSERT(Y(data) != Y(data_ref));
     std::cout << "OK: kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
     // Run kernel with a different mean
     Scalar mean2 = mean + 1.0;
@@ -77,7 +87,7 @@ void validate_empty_shape()
     std::cout << "Run kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
     cpu_ndim0(seed, mean2, stddev, &data);
     // Check if result is different for the first element
-    TEST_ASSERT(Y(data) != data_ref);
+    TEST_ASSERT(Y(data) != Y(data_ref));
     std::cout << "OK: kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
     // Run kernel with a different stddev
     Scalar stddev2 = stddev + 1.0;
@@ -85,7 +95,7 @@ void validate_empty_shape()
     std::cout << "Run kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
     cpu_ndim0<T>(seed, mean, stddev2, &data);
     // Check if result is different for the first element
-    TEST_ASSERT(Y(data) != data_ref);
+    TEST_ASSERT(Y(data) != Y(data_ref));
     std::cout << "OK: kernel::randn::cpu_ndim0<" << T::type_repr << ">\n";
 }
 
@@ -114,7 +124,7 @@ void validate_full(std::array<Index, NDIM> shape)
     unsigned long long seed2 = seed;
     for(Index i = 0; i < nelems; ++i)
     {
-        chameleon_randn(seed2, mean, stddev, data_ref[i].value);
+        chameleon_randn(seed2, mean, stddev, data_ref[i]);
     }
     // Run kernel
     std::vector<T> data(nelems);
@@ -240,7 +250,7 @@ void validate_part(std::array<Index, NDIM> underlying_shape,
     unsigned long long seed2 = seed;
     for(Index i = 0; i < underlying_nelems; ++i)
     {
-        chameleon_randn(seed2, mean, stddev, underlying_array[i].value);
+        chameleon_randn(seed2, mean, stddev, underlying_array[i]);
     }
     // Run kernel
     std::vector<T> data(size);
