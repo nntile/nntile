@@ -11,12 +11,13 @@
 #
 # @version 1.0.0
 
-import os
-import subprocess
-import datetime
-import shutil
 import asyncio
+import datetime
 import json
+import os
+import shutil
+import subprocess
+
 import tensorflow as tf
 
 NODE_COUNTER = {}
