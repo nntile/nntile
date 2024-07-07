@@ -46,9 +46,8 @@ async def handle_new_logs(log_dir, split_hours):
     else:
         writer = await create_new_writer(log_dir)
 
-
 def increaseStep(node, node_dict):
-    if not node in node_dict:
+    if node not in node_dict:
         node_dict[node] = 1
     else:
         node_dict[node] = node_dict[node] + 1
@@ -82,7 +81,7 @@ async def handle_client(reader, writer):
             flops = float(parsed_data.get("flops"))
             increaseStep(name, NODE_COUNTER)
             tf.summary.scalar(name, flops, NODE_COUNTER[name])
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             print("Error decoding JSON:", message)
 
 async def main():
