@@ -81,12 +81,18 @@ uint32_t footprint(struct starpu_task *task)
 
 Codelet codelet_fp32, codelet_fp64, codelet_fp32_ndim0, codelet_fp64_ndim0;
 Codelet codelet_fp32_fast_tf32, codelet_fp32_fast_tf32_ndim0;
+Codelet codelet_bf16, codelet_bf16_ndim0;
 
 void init()
 {
     codelet_fp32.init("nntile_randn_fp32",
             footprint,
             {cpu<fp32_t>},
+            {});
+
+    codelet_bf16.init("nntile_randn_bf16",
+            footprint,
+            {cpu<bf16_t>},
             {});
 
     codelet_fp32_fast_tf32.init("nntile_randn_fp32_fast_tf32",
@@ -98,9 +104,15 @@ void init()
             footprint,
             {cpu<fp64_t>},
             {});
+
     codelet_fp32_ndim0.init("nntile_randn_fp32",
             nullptr,
             {cpu_ndim0<fp32_t>},
+            {});
+
+    codelet_bf16_ndim0.init("nntile_randn_bf16",
+            nullptr,
+            {cpu_ndim0<bf16_t>},
             {});
 
     codelet_fp32_fast_tf32_ndim0.init("nntile_randn_fp32_fast_tf32",
@@ -116,21 +128,25 @@ void init()
 void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
+    codelet_bf16.restrict_where(where);
     codelet_fp32_fast_tf32.restrict_where(where);
     codelet_fp64.restrict_where(where);
     codelet_fp32_ndim0.restrict_where(where);
     codelet_fp32_fast_tf32_ndim0.restrict_where(where);
     codelet_fp64_ndim0.restrict_where(where);
+    codelet_bf16_ndim0.restrict_where(where);
 }
 
 void restore_where()
 {
     codelet_fp32.restore_where();
+    codelet_bf16.restore_where();
     codelet_fp32_fast_tf32.restore_where();
     codelet_fp64.restore_where();
     codelet_fp32_ndim0.restore_where();
     codelet_fp32_fast_tf32_ndim0.restore_where();
     codelet_fp64_ndim0.restore_where();
+    codelet_bf16_ndim0.restore_where();
 }
 
 template<typename T>
@@ -181,6 +197,13 @@ void submit(Index ndim, Index nelems, unsigned long long seed,
 // Explicit instantiation
 template
 void submit<fp32_t>(Index ndim, Index nelems, unsigned long long seed,
+        Scalar mean, Scalar stddev, const std::vector<Index> &start,
+        const std::vector<Index> &shape, const std::vector<Index> &stride,
+        const std::vector<Index> &underlying_shape, Handle data,
+        Handle tmp_index);
+
+template
+void submit<bf16_t>(Index ndim, Index nelems, unsigned long long seed,
         Scalar mean, Scalar stddev, const std::vector<Index> &start,
         const std::vector<Index> &shape, const std::vector<Index> &stride,
         const std::vector<Index> &underlying_shape, Handle data,

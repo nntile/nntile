@@ -115,6 +115,11 @@ void total_sum_accum_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &logsumexp
         const Tensor<fp64_t> &src, const Tensor<int64_t> &class_labels,
         const Tensor<fp64_t> &val);
 
+template
+void total_sum_accum_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &logsumexp,
+        const Tensor<bf16_t> &src, const Tensor<int64_t> &class_labels,
+        const Tensor<bf16_t> &val);
+
 // Explicit instantiation
 template
 void total_sum_accum<fp32_t>(Scalar alpha, const Tensor<fp32_t> &logsumexp,
@@ -130,5 +135,10 @@ template
 void total_sum_accum<fp64_t>(Scalar alpha, const Tensor<fp64_t> &logsumexp,
         const Tensor<fp64_t> &src, const Tensor<int64_t> &class_labels,
         const Tensor<fp64_t> &val);
+
+template
+void total_sum_accum<bf16_t>(Scalar alpha, const Tensor<bf16_t> &logsumexp,
+        const Tensor<bf16_t> &src, const Tensor<int64_t> &class_labels,
+        const Tensor<bf16_t> &val);
 
 } // namespace nntile::tensor

@@ -20,22 +20,24 @@ namespace nntile::kernel::scal
 
 template<typename T>
 static __global__
-void cuda_kernel(Index nelems, T alpha, const T* src, T* dst)
+void cuda_kernel(Index nelems, Scalar alpha_, const T* src, T* dst)
 //! Set one buffer as a scaled version of another
 /*! Performs the followin operation:
  *      dst[i] = alpha * src[i]
  *
  * @param[in] nelems: Size of the src and dst tensors
- * @param[in] alpha: Scalar multiplier for the src tensor
- * @param[in] src: Source tensor
- * @param[out] dst: Destination of the scal operation. Input values are
+ * @param[in] alpha_: Scalar multiplier for the src tensor
+ * @param[in] src_: Source tensor
+ * @param[out] dst_: Destination of the scal operation. Input values are
  *      ignored, its content is overwritten on exit.
  * */
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
+    using Y = typename T::repr_t;
+    const Y alpha{alpha_};
     if(i < nelems)
     {
-        dst[i] = alpha * src[i];
+        dst[i] = alpha * Y{src[i]};
     }
 }
 
@@ -55,17 +57,19 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src_,
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    using Y = typename CUDAComputeType<T>::value;
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto dst = reinterpret_cast<Y *>(dst_);
-    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, Y{alpha}, src,
-            dst);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, alpha, src_,
+            dst_);
 }
 
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha,
         const fp32_t *src, fp32_t *dst)
+    noexcept;
+
+template
+void cuda<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
+        const bf16_t *src, bf16_t *dst)
     noexcept;
 
 template

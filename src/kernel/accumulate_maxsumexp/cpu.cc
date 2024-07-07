@@ -32,30 +32,31 @@ void cpu(Index nelems, const T* src_, T* dst_)
  * @param[inout] dst_: Destination of the maxsumexp accumulation
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    constexpr Y zero{0.0};
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto dst = reinterpret_cast<Y *>(dst_);
+    constexpr typename T::repr_t zero{0.0};
     for(Index i = 0; i < nelems; ++i)
     {
+        auto src_odd = static_cast<typename T::repr_t>(src_[2*i+1]);
+        auto src_even = static_cast<typename T::repr_t>(src_[2*i]);
+        auto dst_odd = static_cast<typename T::repr_t>(dst_[2*i+1]);
+        auto dst_even = static_cast<typename T::repr_t>(dst_[2*i]);
         // Do nothing if sum of exponents of source is zero
-        if(src[2*i+1] != zero)
+        if(src_odd != zero)
         {
             // Overwrite if old value of sum is zero
-            if(dst[2*i+1] == zero)
+            if(dst_odd == zero)
             {
-                dst[2*i] = src[2*i];
-                dst[2*i+1] = src[2*i+1];
+                dst_[2*i] = src_[2*i];
+                dst_[2*i+1] = src_[2*i+1];
             }
             // Otherwise update based on maximum
-            else if(dst[2*i] < src[2*i])
+            else if(dst_even < src_even)
             {
-                dst[2*i+1] = src[2*i+1] + dst[2*i+1]*std::exp(dst[2*i]-src[2*i]);
-                dst[2*i] = src[2*i];
+                dst_[2*i+1] = static_cast<T>(src_odd + dst_odd*std::exp(dst_even - src_even));
+                dst_[2*i] = src_[2*i];
             }
             else
             {
-                dst[2*i+1] += src[2*i+1]*std::exp(src[2*i]-dst[2*i]);
+                dst_[2*i+1] = static_cast<T>(dst_odd + src_odd * std::exp(src_even - dst_even));
             }
         }
     }
@@ -68,6 +69,10 @@ void cpu<fp32_t>(Index nelems, const fp32_t* src, fp32_t* dst)
 
 template
 void cpu<fp64_t>(Index nelems, const fp64_t* src, fp64_t* dst)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index nelems, const bf16_t* src, bf16_t* dst)
     noexcept;
 
 } // namespace nntile::kernel::accumulate_maxsumexp

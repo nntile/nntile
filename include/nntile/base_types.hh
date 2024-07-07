@@ -19,6 +19,9 @@
 #include <iostream>
 #include <limits>
 
+// TODO: add conversions aside from CUDA
+#include <cuda_bf16.h>
+
 // Copy definition of HOST_DEVICE from NVIDIA/cutlass
 #if defined(__CUDACC__) || defined(_NVHPC_CUDA)
 #   define NNTILE_HOST_DEVICE __host__ __device__
@@ -307,13 +310,24 @@ public:
     //! Constructor from another value of this type
     NNTILE_HOST_DEVICE bf16_t(const bf16_t &other) = default;
     //! Constructor from a repr_t value
-    NNTILE_HOST_DEVICE explicit bf16_t(const repr_t &other);
+    NNTILE_HOST_DEVICE explicit bf16_t(const repr_t &other)
+    {
+        auto val = __float2bfloat16(other);
+        value = *reinterpret_cast<storage_t *>(&val);
+    }
     //! Assignment from another value of this type
     NNTILE_HOST_DEVICE bf16_t &operator=(const bf16_t &other) = default;
     //! Assignment from a repr_t value
-    NNTILE_HOST_DEVICE bf16_t &operator=(const repr_t &other);
+    NNTILE_HOST_DEVICE bf16_t &operator=(const repr_t &other)
+    {
+        return *this = bf16_t(other);
+    }
     //! Conversion to repr_t value
-    NNTILE_HOST_DEVICE explicit operator repr_t() const;
+    NNTILE_HOST_DEVICE explicit operator repr_t() const
+    {
+        auto val = reinterpret_cast<const __nv_bfloat16 *>(&value);
+        return __bfloat162float(*val);
+    }
     //! Machine precision of this type
     static repr_t epsilon()
     {

@@ -50,6 +50,10 @@ template
 void relu_forward_async<fp64_t>(const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst);
 
+template
+void relu_forward_async<bf16_t>(const Tile<bf16_t> &src,
+        const Tile<bf16_t> &dst);
+
 // Explicit instantiation
 template
 void relu_forward<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
@@ -60,5 +64,8 @@ void relu_forward<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
 
 template
 void relu_forward<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+
+template
+void relu_forward<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
 } // namespace nntile::tile

@@ -80,6 +80,11 @@ void total_sum_accum_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &logsumexp,
         const Tile<fp64_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp64_t> &val);
 
+template
+void total_sum_accum_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &logsumexp,
+        const Tile<bf16_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<bf16_t> &val);
+
 // Explicit instantiation
 template
 void total_sum_accum<fp32_t>(Scalar alpha, const Tile<fp32_t> &logsumexp,
@@ -97,5 +102,10 @@ template
 void total_sum_accum<fp64_t>(Scalar alpha, const Tile<fp64_t> &logsumexp,
         const Tile<fp64_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp64_t> &val);
+
+template
+void total_sum_accum<bf16_t>(Scalar alpha, const Tile<bf16_t> &logsumexp,
+        const Tile<bf16_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<bf16_t> &val);
 
 } // namespace nntile::tile

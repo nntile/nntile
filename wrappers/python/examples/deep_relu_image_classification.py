@@ -12,11 +12,11 @@
 # @version 1.0.0
 
 # Imports
-import torch
 import nntile.model as model
 import nntile.optimizer as optimizer
 import nntile.loss as loss
 import nntile.pipeline as pipeline
+import nntile.tensor
 import nntile
 import numpy as np
 import time
@@ -44,7 +44,7 @@ parser.add_argument("--epoch_warmup", type=int)
 parser.add_argument("--lr", type=float)
 # parser.add_argument("--fp32_fast_fp16", action="store_true")
 # parser.add_argument("--fp32_convert_fp16", action="store_true")
-parser.add_argument("--dtype", choices=["fp32", "tf32"], default="fp32")
+parser.add_argument("--dtype", choices=["fp32", "tf32", "bf16"], default="fp32")
 
 
 # Parse arguments
@@ -123,6 +123,8 @@ for train_batch_data, train_batch_labels in train_loader:
             x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
         elif args.dtype == "tf32":
             x = nntile.tensor.Tensor_fp32_fast_tf32(x_traits, x_distr, next_tag)
+        elif args.dtype == "bf16":
+            x = nntile.tensor.Tensor_bf16(x_traits, x_distr, next_tag)
         next_tag = x.next_tag
         x.from_array(current_data[idx*args.minibatch:(idx+1)*args.minibatch, :].T)
         current_minibatch_data.append(x)
@@ -147,6 +149,8 @@ if args.dtype == "fp32":
     x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
 elif args.dtype == "tf32":
     x = nntile.tensor.Tensor_fp32_fast_tf32(x_traits, x_distr, next_tag)
+elif args.dtype == "bf16":
+    x = nntile.tensor.Tensor_bf16(x_traits, x_distr, next_tag)
 next_tag = x.next_tag
 x_grad = None
 x_grad_required = False
@@ -165,6 +169,7 @@ next_tag = m.next_tag
 #optimizer = nntile.optimizer.SGD(m.get_parameters(), args.lr, next_tag, \
 #        momentum=0.0, nesterov=False, weight_decay=0.0)
 optimizer = optimizer.Adam(m.get_parameters(), args.lr, next_tag)
+# optimizer = optimizer.AdamW(m.get_parameters(), args.lr, next_tag)
 
 # Set up Cross Entropy loss function for the model
 loss, next_tag = loss.CrossEntropy.generate_simple(m.activations[-1], \
@@ -229,7 +234,7 @@ time0 += time.time()
 print("Finish adding tasks (computations are running) in {} seconds" \
         .format(time0))
 
-# Wait for all computations to finish
+# # Wait for all computations to finish
 time1 = -time.time()
 nntile.starpu.wait_for_all()
 time1 += time.time()

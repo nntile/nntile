@@ -149,6 +149,10 @@ template
 void gather_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst);
 
+template
+void gather_async<bf16_t>(const Tensor<bf16_t> &src,
+        const Tensor<bf16_t> &dst);
+
 // Explicit instantiation
 template
 void gather<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
@@ -165,5 +169,8 @@ void gather<int64_t>(const Tensor<int64_t> &src, const Tensor<int64_t> &dst);
 
 template
 void gather<bool_t>(const Tensor<bool_t> &src, const Tensor<bool_t> &dst);
+
+template
+void gather<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
 
 } // namespace nntile::tensor

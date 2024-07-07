@@ -53,6 +53,9 @@ void clear_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &dst);
 template
 void clear_async<fp64_t>(const Tensor<fp64_t> &dst);
 
+template
+void clear_async<bf16_t>(const Tensor<bf16_t> &dst);
+
 //template
 //void clear_async<fp16_t>(const Tensor<fp16_t> &dst);
 
@@ -65,6 +68,9 @@ void clear<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &dst);
 
 template
 void clear<fp64_t>(const Tensor<fp64_t> &dst);
+
+template
+void clear<bf16_t>(const Tensor<bf16_t> &dst);
 
 //template
 //void clear<fp16_t>(const Tensor<fp16_t> &dst);

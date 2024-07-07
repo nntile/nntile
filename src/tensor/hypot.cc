@@ -90,6 +90,10 @@ template
 void hypot_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
         const Tensor<fp64_t> &dst);
 
+template
+void hypot_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
+        const Tensor<bf16_t> &dst);
+
 // Explicit instantiation of template
 template
 void hypot<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
@@ -102,5 +106,9 @@ void hypot<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, 
 template
 void hypot<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
         const Tensor<fp64_t> &dst);
+
+template
+void hypot<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
+        const Tensor<bf16_t> &dst);
 
 } // namespace nntile::tensor

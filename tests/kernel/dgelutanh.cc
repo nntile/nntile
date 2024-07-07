@@ -75,7 +75,7 @@ void validate(Index nelems)
     {
         // AGeLU'(z) = 0.5 + 0.5 tanh ( 0.0356774 z^3 + 0.797885 z) +
         // ( 0.0535161 z^3 + 0.398942 z) sech^2 ( 0.0356774 z^3 + 0.797885 z)
-        Y x = data_save[i];
+        Y x{data_save[i]};
         Y x1 = 0.0356774*x*x*x + 0.797885*x;
         Y x2 = 0.0535161*x*x*x + 0.398942*x;
         Y exp = std::exp(x1);
@@ -115,7 +115,7 @@ void validate(Index nelems)
     {
         // AGeLU'(z) = 0.5 + 0.5 tanh ( 0.0356774 z^3 + 0.797885 z) +
         // ( 0.0535161 z^3 + 0.398942 z) sech^2 ( 0.0356774 z^3 + 0.797885 z)
-        Y x = data_save[i];
+        Y x{data_save[i]};
         Y x1 = 0.0356774*x*x*x + 0.797885*x;
         Y x2 = 0.0535161*x*x*x + 0.398942*x;
         Y exp = std::exp(x1);

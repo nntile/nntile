@@ -305,5 +305,6 @@ int main(int argc, char **argv)
 {
     validate_many<fp32_t>();
     validate_many<fp64_t>();
+    validate_many<bf16_t>();
     return 0;
 }

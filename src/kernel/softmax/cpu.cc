@@ -35,13 +35,9 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp_, const T *src_,
  * @param[out] dst_: Contiguous output array
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto maxsumexp = reinterpret_cast<const Y *>(maxsumexp_);
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto dst = reinterpret_cast<Y *>(dst_);
+    using Y = typename T::repr_t;
     const Y alpha{alpha_};
     Index src_dst_offset = 0;
-    constexpr Y zero{0.0};
     // Outer loop by the last mode of dst and sumnorm arrays
     for(Index i2 = 0; i2 < n; ++i2)
     {
@@ -53,18 +49,18 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp_, const T *src_,
             for(Index i0 = 0; i0 < m; ++i0)
             {
                 // Value-to-update
-                Y val = src[src_dst_offset];
+                Y val = static_cast<Y>(src_[src_dst_offset]);
                 // Max and sum of exponents
-                const Y max = maxsumexp[maxsumexp_offset];
-                const Y sum = maxsumexp[maxsumexp_offset+1];
+                const Y max = static_cast<Y>(maxsumexp_[maxsumexp_offset]);
+                const Y sum = static_cast<Y>(maxsumexp_[maxsumexp_offset+1]);
                 // Update value
                 if(not std::isinf(val))
                 {
-                    dst[src_dst_offset] = alpha * std::exp(val-max) / sum;
+                    dst_[src_dst_offset] = static_cast<T>(alpha * std::exp(val-max) / sum);
                 }
                 else
                 {
-                    dst[src_dst_offset] = zero;
+                    dst_[src_dst_offset] = T{0.0};
                 }
                 // Update pointers
                 ++src_dst_offset;
@@ -83,6 +79,11 @@ void cpu<fp32_t>(Index m, Index n, Index k, const fp32_t *maxsumexp,
 template
 void cpu<fp64_t>(Index m, Index n, Index k, const fp64_t *maxsumexp,
         const fp64_t *src, Scalar alpha, fp64_t *dst)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index m, Index n, Index k, const bf16_t *maxsumexp,
+        const bf16_t *src, Scalar alpha, bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::softmax

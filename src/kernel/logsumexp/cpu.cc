@@ -23,12 +23,14 @@ template<typename T>
 void cpu(Index nelems, const T *maxsumexp_, T *logsumexp_)
     noexcept
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto maxsumexp = reinterpret_cast<const Y *>(maxsumexp_);
-    auto logsumexp = reinterpret_cast<Y *>(logsumexp_);
+    using Y = typename T::repr_t;
+    Y maxsumexp_val_even{0.0};
+    Y maxsumexp_val_odd{0.0};
     for(Index i = 0; i < nelems; ++i) 
     {
-        logsumexp[i] = maxsumexp[2*i] + std::log(maxsumexp[2*i+1]);
+        maxsumexp_val_even = static_cast<Y>(maxsumexp_[2*i]);
+        maxsumexp_val_odd = static_cast<Y>(maxsumexp_[2*i+1]);
+        logsumexp_[i] = static_cast<T>(maxsumexp_val_even + std::log(maxsumexp_val_odd));
     }
 }
 
@@ -39,6 +41,10 @@ void cpu<fp32_t>(Index nelems, const fp32_t *maxsumexp, fp32_t *logsumexp)
 
 template
 void cpu<fp64_t>(Index nelems, const fp64_t *maxsumexp, fp64_t *logsumexp)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index nelems, const bf16_t *maxsumexp, bf16_t *logsumexp)
     noexcept;
 
 } // namespace nntile::kernel::logsumexp

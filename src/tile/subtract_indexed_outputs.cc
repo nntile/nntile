@@ -59,6 +59,10 @@ template
 void subtract_indexed_outputs_async<fp64_t>(Scalar val,
         const Tile<int64_t> &labels, const Tile<fp64_t> &dst);
 
+template
+void subtract_indexed_outputs_async<bf16_t>(Scalar val,
+        const Tile<int64_t> &labels, const Tile<bf16_t> &dst);
+
 // Explicit instantiation
 template
 void subtract_indexed_outputs<fp32_t>(Scalar val, const Tile<int64_t> &labels,
@@ -71,5 +75,9 @@ void subtract_indexed_outputs<fp32_fast_tf32_t>(Scalar val, const Tile<int64_t> 
 template
 void subtract_indexed_outputs<fp64_t>(Scalar val, const Tile<int64_t> &labels,
         const Tile<fp64_t> &dst);
+
+template
+void subtract_indexed_outputs<bf16_t>(Scalar val,
+        const Tile<int64_t> &labels, const Tile<bf16_t> &dst);
 
 } // namespace nntile::tile

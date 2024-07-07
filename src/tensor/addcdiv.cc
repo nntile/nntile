@@ -82,6 +82,10 @@ template
 void addcdiv_async<fp64_t>(Scalar val, Scalar eps, const Tensor<fp64_t> &nom,
         const Tensor<fp64_t> &denom, const Tensor<fp64_t> &src);
 
+template
+void addcdiv_async<bf16_t>(Scalar val, Scalar eps, const Tensor<bf16_t> &nom,
+        const Tensor<bf16_t> &denom, const Tensor<bf16_t> &src);
+
 // Explicit instantiation
 template
 void addcdiv<fp32_t>(Scalar val, Scalar eps, const Tensor<fp32_t> &nom,
@@ -94,5 +98,9 @@ void addcdiv<fp32_fast_tf32_t>(Scalar val, Scalar eps, const Tensor<fp32_fast_tf
 template
 void addcdiv<fp64_t>(Scalar val, Scalar eps, const Tensor<fp64_t> &nom,
         const Tensor<fp64_t> &denom, const Tensor<fp64_t> &src);
+
+template
+void addcdiv<bf16_t>(Scalar val, Scalar eps, const Tensor<bf16_t> &nom,
+        const Tensor<bf16_t> &denom, const Tensor<bf16_t> &src);
 
 } // namespace nntile::tensor

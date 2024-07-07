@@ -91,6 +91,10 @@ template
 void maxsumexp_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst,
         Index axis);
 
+template
+void maxsumexp_async<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst,
+        Index axis);
+
 // Explicit instantiation
 template
 void maxsumexp<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst,
@@ -102,6 +106,10 @@ void maxsumexp<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src, const Tile<f
 
 template
 void maxsumexp<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst,
+        Index axis);
+
+template
+void maxsumexp<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst,
         Index axis);
 
 } // namespace nntile::tile

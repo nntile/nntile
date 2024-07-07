@@ -89,6 +89,10 @@ void relu_backward_async<fp32_t>(const Tensor<fp32_t> &x,
         const Tensor<fp32_t> &dy, const Tensor<fp32_t> &dx);
 
 template
+void relu_backward_async<bf16_t>(const Tensor<bf16_t> &x,
+        const Tensor<bf16_t> &dy, const Tensor<bf16_t> &dx);
+
+template
 void relu_backward_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &x,
         const Tensor<fp32_fast_tf32_t> &dy, const Tensor<fp32_fast_tf32_t> &dx);
 
@@ -108,5 +112,9 @@ void relu_backward<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &x,
 template
 void relu_backward<fp64_t>(const Tensor<fp64_t> &x,
         const Tensor<fp64_t> &dy, const Tensor<fp64_t> &dx);
+
+template
+void relu_backward<bf16_t>(const Tensor<bf16_t> &x,
+        const Tensor<bf16_t> &dy, const Tensor<bf16_t> &dx);
 
 } // namespace nntile::tensor

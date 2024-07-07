@@ -32,34 +32,40 @@ void cuda_kernel(Index nelems, const T *src, T *dst)
  * */
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
-    constexpr T zero = 0.0;
+    using Y = typename T::repr_t;
+    constexpr Y zero = 0.0;
     if(i < nelems)
     {
+        Y dst_odd(dst[2*i+1]);
+        Y dst_even(dst[2*i]);
+
+        Y src_odd(src[2*i+1]);
+        Y src_even(src[2*i]);
         // Do nothing if sum of exponents of source is zero
-        if(src[2*i+1] != zero)
+        if(src_odd != zero)
         {
             // Overwrite if old value of sum is zero
-            if(dst[2*i+1] == zero)
+            if(dst_odd == zero)
             {
                 dst[2*i] = src[2*i];
                 dst[2*i+1] = src[2*i+1];
             }
             // Otherwise update based on maximum
-            else if(dst[2*i] < src[2*i])
+            else if(dst_even < src_even)
             {
-                dst[2*i+1] = src[2*i+1] + dst[2*i+1]*::exp(dst[2*i]-src[2*i]);
+                dst[2*i+1] = src_odd + dst_odd*::exp(dst_even-src_even);
                 dst[2*i] = src[2*i];
             }
             else
             {
-                dst[2*i+1] += src[2*i+1]*::exp(src[2*i]-dst[2*i]);
+                dst[2*i+1] = dst_odd + src_odd*::exp(src_even-dst_even);
             }
         }
     }
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, const T *src_, T *dst_)
+void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
     noexcept
 //! Accumulate two maxsumexp buffers on CUDA
 /*! Performs the following operation:
@@ -67,15 +73,12 @@ void cuda(cudaStream_t stream, Index nelems, const T *src_, T *dst_)
  *      dst[2*i] = max(src[2*i], dst[2*i]).
  *
  * @param[in] nelems: Number of (max,sumexp) pairs of the src and dst tensors
- * @param[in] src_: Source tensor
- * @param[inout] dst_: Destination of the maxsumexp accumulation
+ * @param[in] src: Source tensor
+ * @param[inout] dst: Destination of the maxsumexp accumulation
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    auto src = cast_pointer_cuda<T>(src_);
-    auto dst = cast_pointer_cuda<T>(dst_);
-    using Y = typename CUDAComputeType<T>::value;
-    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
 }
 
 // Explicit instantiation
@@ -87,6 +90,11 @@ void cuda<fp32_t>(cudaStream_t stream, Index nelems, const fp32_t *src,
 template
 void cuda<fp64_t>(cudaStream_t stream, Index nelems, const fp64_t *src,
         fp64_t *dst)
+    noexcept;
+
+template
+void cuda<bf16_t>(cudaStream_t stream, Index nelems, const bf16_t *src,
+        bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::accumulate_maxsumexp

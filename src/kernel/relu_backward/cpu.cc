@@ -20,28 +20,34 @@ namespace nntile::kernel::relu_backward
 {
 
 template<typename T>
-void cpu(Index nelems, const T *x_, const T *dy_, T *dx_)
+void cpu(Index nelems, const T *x, const T *dy, T *dx)
     noexcept
 //! Backward ReLU operation on CPU
 /*! Does the following per-element operation:
  * dx[i] = dx[i] + dy[i]*ReLU'(x[i])
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[in] x_: Input value for forward ReLU
- * @params[in] dy_: Gradient over output of forward ReLU
- * @params[inout] dx_: Gradient over input of forward ReLU
+ * @params[in] x: Input value for forward ReLU
+ * @params[in] dy: Gradient over output of forward ReLU
+ * @params[inout] dx: Gradient over input of forward ReLU
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto x = reinterpret_cast<const Y *>(x_);
-    auto dy = reinterpret_cast<const Y *>(dy_);
-    auto dx = reinterpret_cast<Y *>(dx_);
+    using Y = typename T::repr_t;
+    // auto x = reinterpret_cast<const Y *>(x_);
+    // auto dy = reinterpret_cast<const Y *>(dy_);
+    // auto dx = reinterpret_cast<Y *>(dx_);
+    Y x_val{0.0};
+    Y dx_val{0.0};
+    Y dy_val{0.0};
     constexpr Y zero{0.0};
     for(Index i = 0; i < nelems; ++i)
     {
-        if(x[i] > zero)
+        x_val = static_cast<Y>(x[i]);
+        if(x_val > zero)
         {
-            dx[i] += dy[i];
+            dx_val = static_cast<Y>(dx[i]);
+            dy_val = static_cast<Y>(dy[i]);
+            dx[i] = static_cast<T>(dx_val + dy_val);
         }
     }
 }
@@ -53,6 +59,10 @@ void cpu<fp32_t>(Index nelems, const fp32_t *x, const fp32_t *dy, fp32_t *dx)
 
 template
 void cpu<fp64_t>(Index nelems, const fp64_t *x, const fp64_t *dy, fp64_t *dx)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index nelems, const bf16_t *x, const bf16_t *dy, bf16_t *dx)
     noexcept;
 
 } // namespace nntile::kernel::relu_backward

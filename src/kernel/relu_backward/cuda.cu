@@ -23,12 +23,15 @@ static __global__
 void cuda_kernel(Index nelems, const T *x, const T *dy, T *dx)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
-    constexpr T zero = 0;
+    using Y = typename T::repr_t;
+    constexpr Y zero{0.0};
+    Y x_val{0.0};
     if(i < nelems)
     {
-        if(x[i] > zero)
+        x_val = Y{x[i]};
+        if(x_val > zero)
         {
-            dx[i] += dy[i];
+            dx[i] = Y{dx[i]} + Y{dy[i]};
         }
     }
 }
@@ -47,11 +50,7 @@ void cuda(cudaStream_t stream, Index nelems, const T *x_, const T *dy_, T *dx_)
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    using Y = typename CUDAComputeType<T>::value;
-    auto x = reinterpret_cast<const Y *>(x_);
-    auto dy = reinterpret_cast<const Y *>(dy_);
-    auto dx = reinterpret_cast<Y *>(dx_);
-    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, x, dy, dx);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, x_, dy_, dx_);
 }
 
 // Explicit instantiation
@@ -63,6 +62,11 @@ void cuda<fp32_t>(cudaStream_t stream, Index nelems, const fp32_t *x,
 template
 void cuda<fp64_t>(cudaStream_t stream, Index nelems, const fp64_t *x,
         const fp64_t *dy, fp64_t *dx)
+    noexcept;
+
+template
+void cuda<bf16_t>(cudaStream_t stream, Index nelems, const bf16_t *x,
+        const bf16_t *dy, bf16_t *dx)
     noexcept;
 
 } // namespace nntile::kernel::relu_backward

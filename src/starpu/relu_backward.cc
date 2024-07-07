@@ -61,7 +61,7 @@ void cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
 
 void init()
 {
@@ -74,6 +74,16 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
+    codelet_bf16.init("nntile_relu_backward_bf16",
+            nullptr,
+            {cpu<bf16_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<bf16_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
     codelet_fp32_fast_tf32.init("nntile_relu_backward_fp32_fast_tf32",
             nullptr,
             {cpu<fp32_t>},
@@ -97,6 +107,7 @@ void init()
 void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
+    codelet_bf16.restrict_where(where);
     codelet_fp64.restrict_where(where);
     codelet_fp32_fast_tf32.restrict_where(where);
 }
@@ -104,6 +115,7 @@ void restrict_where(uint32_t where)
 void restore_where()
 {
     codelet_fp32.restore_where();
+    codelet_bf16.restore_where();
     codelet_fp64.restore_where();
     codelet_fp32_fast_tf32.restore_where();
 }
@@ -129,6 +141,9 @@ void submit(Index nelems, Handle x, Handle dy, Handle dx)
 // Explicit instantiaion
 template
 void submit<fp32_t>(Index nelems, Handle x, Handle dy, Handle dx);
+
+template
+void submit<bf16_t>(Index nelems, Handle x, Handle dy, Handle dx);
 
 template
 void submit<fp32_fast_tf32_t>(Index nelems, Handle x, Handle dy, Handle dx);
@@ -186,6 +201,10 @@ void submit_mpi(Index nelems, Handle x, Handle dy, Handle dx, int exec_rank)
 // Explicit instantiaion
 template
 void submit_mpi<fp32_t>(Index nelems, Handle x, Handle dy, Handle dx,
+        int exec_rank);
+
+template
+void submit_mpi<bf16_t>(Index nelems, Handle x, Handle dy, Handle dx,
         int exec_rank);
 
 template

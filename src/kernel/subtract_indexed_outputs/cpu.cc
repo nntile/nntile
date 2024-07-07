@@ -36,15 +36,18 @@ void cpu(Index n_labels, Index n_outputs, Scalar val_, const int64_t* labels_,
  *      in Fortran order
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto dst = reinterpret_cast<Y *>(dst_);
-    const Y val{val_};
+    // using Y = typename CPUComputeType<T>::value;
+    // auto dst = reinterpret_cast<Y *>(dst_);
+    // const Y val{val_};
+    using Y = typename T::repr_t;
+    const Y val = static_cast<Y>(val_);
     using I = typename CPUComputeType<int64_t>::value;
     auto labels = reinterpret_cast<const I *>(labels_);
-    constexpr Y zero{0.0}, one{1.0};
+    Y dst_val{0.0};
     for(Index i = 0; i < n_outputs; ++i)
     {
-        dst[labels[i] + i*n_labels] -= val;
+        dst_val = static_cast<Y>(dst_[labels[i] + i*n_labels]);
+        dst_[labels[i] + i*n_labels] = static_cast<T>(dst_val - val);
     }
 }
 
@@ -57,6 +60,11 @@ void cpu<fp32_t>(Index n_labels, Index n_outputs, Scalar val,
 template
 void cpu<fp64_t>(Index n_labels, Index n_outputs, Scalar val,
         const int64_t* labels, fp64_t *dst)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index n_labels, Index n_outputs, Scalar val,
+        const int64_t* labels, bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::subtract_indexed_outputs

@@ -87,6 +87,7 @@ void cublas(cublasHandle_t handle, int N, double alpha, fp64_t *X, int incX)
 {
     cublasDscal(handle, N, &alpha, (double *)X, incX);
 }
+
 #endif // STARPU_SIMGRID
 
 //! scal_inplace for contiguous vector through StarPU buffers
@@ -220,5 +221,8 @@ void submit<fp32_fast_tf32_t>(Index nelems, Scalar alpha, Handle data);
 
 template
 void submit<fp64_t>(Index nelems, Scalar alpha, Handle data);
+
+template
+void submit<bf16_t>(Index nelems, Scalar alpha, Handle data);
 
 } // namespace nntile::starpu::scal_inplace

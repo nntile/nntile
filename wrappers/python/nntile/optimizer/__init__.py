@@ -12,6 +12,6 @@
 # @version 1.0.0
 
 from .sgd import SGD
-from .adam import Adam, FusedAdam
-from .adamw import FusedAdamW
+from .adam import Adam
+from .adamw import AdamW
 from .empty import Empty

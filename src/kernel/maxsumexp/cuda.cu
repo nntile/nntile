@@ -27,12 +27,18 @@ namespace nntile::kernel::maxsumexp
 template<typename T>
 static __global__
 void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
-        Index k, Index mk, const T * __restrict__ src,
-        T * __restrict__ maxsumexp)
+        Index k, Index mk, const T * __restrict__ src_,
+        T * __restrict__ maxsumexp_)
 {
     Index i1_block = blockIdx.y, i2_block = blockIdx.z,
           i0_start = threadIdx.x, i0_step = blockDim.x;
-    constexpr T zero = 0.0, one = 1.0;
+    
+    using Y = typename T::repr_t;
+    using Z = typename CUDAComputeType<T>::value;
+    constexpr Y zero = 0.0, one = 1.0;
+    // const Z* src = reinterpret_cast<const Z*>(src_);
+    Z* maxsumexp = reinterpret_cast<Z*>(maxsumexp_);
+
     if(i0_start < k)
     {
         for(Index i1 = i1_block*m_per_block;
@@ -42,15 +48,15 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
                     i2 < (i2_block+1)*n_per_block and i2 < n; ++i2)
             {
                 // Get max and sum of exponents of a corresponding slice
-                const T *src_slice = src + i2*mk + i1;
+                const Z *src_slice = reinterpret_cast<const Z*>(src_ + i2*mk + i1);
                 // Init max and sum
-                T max_val = src_slice[i0_start*m];
-                T sum_val = one;
+                Y max_val = Y{src_slice[i0_start*m]};
+                Y sum_val = one;
                 // Cycle over slice of input buffer
                 for(Index i0 = i0_start+i0_step; i0 < k; i0 += i0_step)
                 {
                     // Read value from source
-                    T val = src_slice[i0*m];
+                    Y val = Y{src_slice[i0*m]};
                     // Ignore -inf value, which comes from mask
                     if(::isinf(val))
                     {
@@ -68,8 +74,8 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
                     }
                 }
                 // Per-block of threads max and sum of exponents
-                volatile __shared__ T block_max_val;
-                __shared__ T block_sum_val;
+                volatile __shared__ Y block_max_val;
+                __shared__ Y block_sum_val;
                 // Init shared values in the i0_start==0 thread
                 if(i0_start == 0)
                 {
@@ -101,8 +107,8 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
                     Index dst_offset = i1 + i2*m;
                     // Now max_val is finite, we need to accumulate sum of exponents
                     // with the data in global memory
-                    T max_output;
-                    T sum_output = maxsumexp[2*dst_offset+1];
+                    Y max_output;
+                    Y sum_output = Y{maxsumexp[2*dst_offset+1]};
                     // If data was not yet initialised, just overwrite it
                     if(sum_output == zero)
                     {
@@ -112,7 +118,7 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
                     // Accumulate otherwise
                     else
                     {
-                        max_output = maxsumexp[2*dst_offset];
+                        max_output = Y{maxsumexp[2*dst_offset]};
                         if(max_val < max_output)
                         {
                             sum_val *= ::exp(max_val - max_output);
@@ -124,8 +130,8 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
                         }
                         sum_output += sum_val;
                     }
-                    maxsumexp[2*dst_offset] = max_output;
-                    maxsumexp[2*dst_offset+1] = sum_output;
+                    maxsumexp[2*dst_offset] = Z{max_output};
+                    maxsumexp[2*dst_offset+1] = Z{sum_output};
                 }
             }
         }
@@ -150,11 +156,11 @@ void LaunchMaxSumExp1(cudaStream_t stream, Index m, Index n, Index k,
         n_per_block = (n+65534) / 65535;
         blocks.z = (n+n_per_block-1) / n_per_block;
     }
-    using Y = typename CUDAComputeType<T>::value;
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto maxsumexp = reinterpret_cast<Y *>(maxsumexp_);
-    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, m_per_block, n,
-            n_per_block, k, m*k, src, maxsumexp);
+    // using Y = typename CUDAComputeType<T>::value;
+    // auto src = reinterpret_cast<const Y *>(src_);
+    // auto maxsumexp = reinterpret_cast<Y *>(maxsumexp_);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, m_per_block, n,
+            n_per_block, k, m*k, src_, maxsumexp_);
 }
 // clang-format on
 
@@ -165,6 +171,10 @@ template void LaunchMaxSumExp1<fp32_t>(cudaStream_t stream, Index m, Index n,
 template void LaunchMaxSumExp1<fp64_t>(cudaStream_t stream, Index m, Index n,
                                        Index k, const fp64_t *src,
                                        fp64_t *maxsumexp) noexcept;
+
+template void LaunchMaxSumExp1<bf16_t>(cudaStream_t stream, Index m, Index n,
+                                       Index k, const bf16_t *src,
+                                       bf16_t *maxsumexp) noexcept;
 
 //extern __shared__ float extent[]; // User-managed cache on device.
 //
@@ -455,5 +465,8 @@ template void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
 
 template void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
         const fp64_t *src, fp64_t *maxsumexp) noexcept;
+
+template void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
+        const bf16_t *src, bf16_t *maxsumexp) noexcept;
 
 } // namespace nntile::kernel::maxsumexp

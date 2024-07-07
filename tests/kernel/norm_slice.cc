@@ -92,7 +92,7 @@ void validate(Index m, Index n, Index k, Scalar alpha, Scalar beta)
             Y ref = k * (2*a+k-1) / 2 / Y{10};
             ref = std::sqrt(ref);
             ref = std::hypot(alpha*ref, beta);
-            Y val = dst[i1*m+i0];
+            Y val{dst[i1*m+i0]};
             if(ref == Y{0})
             {
                 TEST_ASSERT(std::abs(val) <= 10*eps);
