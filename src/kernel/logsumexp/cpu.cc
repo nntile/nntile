@@ -26,7 +26,7 @@ void cpu(Index nelems, const T *maxsumexp_, T *logsumexp_)
     using Y = typename T::repr_t;
     Y maxsumexp_val_even{0.0};
     Y maxsumexp_val_odd{0.0};
-    for(Index i = 0; i < nelems; ++i) 
+    for(Index i = 0; i < nelems; ++i)
     {
         maxsumexp_val_even = static_cast<Y>(maxsumexp_[2*i]);
         maxsumexp_val_odd = static_cast<Y>(maxsumexp_[2*i+1]);

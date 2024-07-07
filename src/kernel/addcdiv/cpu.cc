@@ -24,7 +24,7 @@ void cpu(Scalar val_, Scalar eps_, Index nelems, const T *nom, const T* denom,
     noexcept
 //! Per-element addcdiv operation of buffers
 /*! One of the buffers serves as output
- * 
+ *
  * @param[in] val_: scalar that is multiplied on the division result
  * @param[in] eps_: small scalar to avoid division by zero
  * @param[in] nelems: Number of elements in both buffers

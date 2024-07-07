@@ -208,4 +208,3 @@ void submit<bf16_t>(Index ndim, const std::vector<Index> &src_start,
         Handle tmp_index, starpu_data_access_mode mode);
 
 } // namespace nntile::starpu::subcopy
-

@@ -53,7 +53,7 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src_,
         // Cycle over the only axis of output buffer
         for(Index i2 = 0; i2 < k; ++i2)
         {
-            // Init sum 
+            // Init sum
             Y sum = zero, c = zero, y, t;
             // Cycle over the third axis of input buffer
             for(Index i1 = 0; i1 < n; ++i1)
