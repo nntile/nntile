@@ -89,7 +89,7 @@ void validate(Index m, Index n, Index k)
         {
             Index a = i0 + i1;
             Y sum_ref = k * (2*a+k-1) / 2 / Y{10};
-            Y sum = sumnorm[2*(i1*m+i0)];
+            Y sum(sumnorm[2*(i1*m+i0)]);
             if(sum_ref == Y{0})
             {
                 TEST_ASSERT(std::abs(sum) <= 10*eps);
@@ -100,7 +100,7 @@ void validate(Index m, Index n, Index k)
             }
             Y norm_sqr_ref = k * (2*(a-1)*a+(2*a+k-1)*(2*a+2*k-1)) / 6
                 / Y{100};
-            Y norm = sumnorm[2*(i1*m+i0)+1];
+            Y norm(sumnorm[2*(i1*m+i0)+1]);
             Y norm_sqr = norm * norm;
             if(norm_sqr_ref == Y{0})
             {
@@ -124,7 +124,7 @@ void validate(Index m, Index n, Index k)
         {
             Index a = i0 + i1;
             Y sum_ref = k * (2*a+k-1) / 2 / Y{10};
-            Y sum = sumnorm[2*(i1*m+i0)];
+            Y sum(sumnorm[2*(i1*m+i0)]);
             if(sum_ref == Y{0})
             {
                 TEST_ASSERT(std::abs(sum) <= 10*eps);
@@ -135,7 +135,7 @@ void validate(Index m, Index n, Index k)
             }
             Y norm_sqr_ref = k * (2*(a-1)*a+(2*a+k-1)*(2*a+2*k-1)) / 6
                 / Y{100};
-            Y norm = sumnorm[2*(i1*m+i0)+1];
+            Y norm(sumnorm[2*(i1*m+i0)+1]);
             Y norm_sqr = norm * norm;
             if(norm_sqr_ref == Y{0})
             {
