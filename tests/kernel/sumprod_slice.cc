@@ -99,7 +99,7 @@ void validate(Index m, Index n, Index k, Scalar alpha, Scalar beta)
             Index a = i0 + i1;
             Y sum = k * (2*a+k-1) / 2 / Y{10};
             Y val_ref = alpha*sum + beta;
-            Y val = dst[i1*m+i0];
+            Y val(dst[i1*m+i0]);
             if(val_ref == Y{0})
             {
                 TEST_ASSERT(std::abs(val) <= 10*eps);
@@ -123,7 +123,7 @@ void validate(Index m, Index n, Index k, Scalar alpha, Scalar beta)
             Index a = i0 + i1;
             Y sum = k * (2*a+k-1) / 2 / Y{10};
             Y val_ref = alpha*sum + beta;
-            Y val = dst[i1*m+i0];
+            Y val(dst[i1*m+i0]);
             if(val_ref == Y{0})
             {
                 TEST_ASSERT(std::abs(val) <= 10*eps);

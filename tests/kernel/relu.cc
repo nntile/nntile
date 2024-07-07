@@ -69,7 +69,7 @@ void validate(Index nelems)
     cpu<T>(nelems, &data[0]);
     for(Index i = 0; i < nelems; ++i)
     {
-        Y x = data_save[i];
+        Y x(data_save[i]);
         Y val_ref = std::max(x, Y{0});
         TEST_ASSERT(Y(data[i]) == val_ref);
     }
@@ -81,7 +81,7 @@ void validate(Index nelems)
     run_cuda<T>(nelems, data);
     for(Index i = 0; i < nelems; ++i)
     {
-        Y x = data_save[i];
+        Y x(data_save[i]);
         Y val_ref = std::max(x, Y{0});
         TEST_ASSERT(Y(data[i]) == val_ref);
     }

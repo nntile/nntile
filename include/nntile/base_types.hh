@@ -20,7 +20,10 @@
 #include <limits>
 
 // TODO: add conversions aside from CUDA
-#include <cuda_bf16.h>
+#include <nntile/defs.h>
+#ifdef NNTILE_USE_CUDA
+#   include <cuda_bf16.h>
+#endif // NNTILE_USE_CUDA
 
 // Copy definition of HOST_DEVICE from NVIDIA/cutlass
 #if defined(__CUDACC__) || defined(_NVHPC_CUDA)
@@ -312,8 +315,13 @@ public:
     //! Constructor from a repr_t value
     NNTILE_HOST_DEVICE explicit bf16_t(const repr_t &other)
     {
+#ifdef NNTILE_USE_CUDA
         auto val = __float2bfloat16(other);
         value = *reinterpret_cast<storage_t *>(&val);
+#else
+        auto raw_uint32 = reinterpret_cast<const std::uint32_t *>(&other);
+        value = static_cast<std::uint16_t>(*raw_uint32 >> 16);
+#endif
     }
     //! Assignment from another value of this type
     NNTILE_HOST_DEVICE bf16_t &operator=(const bf16_t &other) = default;
@@ -325,8 +333,14 @@ public:
     //! Conversion to repr_t value
     NNTILE_HOST_DEVICE explicit operator repr_t() const
     {
+#ifdef NNTILE_USE_CUDA
         auto val = reinterpret_cast<const __nv_bfloat16 *>(&value);
         return __bfloat162float(*val);
+#else
+        auto raw_uint16 = reinterpret_cast<const std::uint16_t *>(&value);
+        auto raw_uint32 = static_cast<std::uint32_t>(*raw_uint16);
+        return *reinterpret_cast<repr_t *>(raw_uint32 << 16);
+#endif
     }
     //! Machine precision of this type
     static repr_t epsilon()

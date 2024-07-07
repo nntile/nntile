@@ -91,7 +91,7 @@ void validate(Index m, Index n, Index k, Scalar alpha, Scalar beta)
             Index a = i0 + i1;
             Y sum_ref = k * (2*a+k-1) / 2 / Y{10};
             sum_ref = alpha*sum_ref + beta;
-            Y sum = sum_dst[i1*m+i0];
+            Y sum(sum_dst[i1*m+i0]);
             if(sum_ref == Y{0})
             {
                 TEST_ASSERT(std::abs(sum) <= 10*eps);

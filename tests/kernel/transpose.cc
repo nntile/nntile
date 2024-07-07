@@ -88,7 +88,7 @@ void validate(Index m, Index n)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
-            Y val = dst[i0*n+i1];
+            Y val(dst[i0*n+i1]);
             Y val_ref = -2.0 * Y(src[i1*m+i0]);
             TEST_ASSERT(std::abs(val/val_ref-Y{1}) <= 10*eps);
         }
@@ -103,7 +103,7 @@ void validate(Index m, Index n)
     {
         for(Index i1 = 0; i1 < n; ++i1)
         {
-            Y val = dst[i0*n+i1];
+            Y val(dst[i0*n+i1]);
             Y val_ref = -2.0 * Y(src[i1*m+i0]);
             TEST_ASSERT(std::abs(val/val_ref-Y{1}) <= 10*eps);
         }
