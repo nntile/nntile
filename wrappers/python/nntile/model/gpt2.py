@@ -381,6 +381,31 @@ class GPT2Model(BaseModel):
 
         return gpt2_nntile, gpt2_nntile.next_tag
 
+    def set_input(self, x: Tensor):
+        expected_shape = self.activations[0].value.shape
+        if x.shape != expected_shape:
+            raise Exception("Mismatch shapes. Got: ", x.shape, " Expected: ", expected_shape)
+
+        self.activations[0].value = x
+
+    def get_output(self) -> Tensor:
+        return self.activations[-1].value
+
+    def set_output_grad(self, grad):
+        expected_shape = self.activations[-1].value.shape
+        if grad.shape != expected_shape:
+            raise Exception("Mismatch shapes. Got: ", grad.shape, " Expected: ", expected_shape)
+
+        self.activations[-1].grad = grad
+
+    def get_input_grad(self):
+        return self.activations[0].grad
+
+    def forward(self, x: Tensor) -> Tensor:
+        self.set_input(x)
+        self.forward_async()
+        return self.get_output()
+    
     def unregister(self):
         super().unregister()
         if self.mask:
