@@ -21,7 +21,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from datasets import load_dataset
-from transformers import (GPT2Config, GPT2LMHeadModel, GPT2TokenizerFast)
+from transformers import GPT2Config, GPT2LMHeadModel, GPT2TokenizerFast
 
 # Import NNTile
 import nntile
