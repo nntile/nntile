@@ -753,6 +753,8 @@ def prod_slice_async(
         core_tensor.prod_slice_async_fp32_fast_tf32(prod_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.prod_slice_async_fp64(prod_slice, alpha, x, axis)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.prod_slice_async_bf16(prod_slice, alpha, x, axis)
     else:
         raise TypeError
 

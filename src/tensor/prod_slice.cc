@@ -156,6 +156,10 @@ template
 void prod_slice_async<fp64_t>(const Tensor<fp64_t> &src, Scalar alpha,
         const Tensor<fp64_t> &dst, Index axis);
 
+template
+void prod_slice_async<bf16_t>(const Tensor<bf16_t> &src, Scalar alpha,
+        const Tensor<bf16_t> &dst, Index axis);
+
 // Explicit instantiation of template
 template
 void prod_slice<fp32_t>(const Tensor<fp32_t> &src, Scalar alpha,
@@ -168,5 +172,9 @@ void prod_slice<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src, Scalar al
 template
 void prod_slice<fp64_t>(const Tensor<fp64_t> &src, Scalar alpha,
         const Tensor<fp64_t> &dst, Index axis);
+
+template
+void prod_slice<bf16_t>(const Tensor<bf16_t> &src, Scalar alpha,
+        const Tensor<bf16_t> &dst, Index axis);
 
 } // namespace nntile::tensor

@@ -19,7 +19,7 @@ namespace nntile::kernel::prod_slice
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, T *dst_)
+void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, T *dst)
     noexcept
 //! Per-element product of a tensor and a broadcasted slice on CPU
 /*! Performs the following operations:
@@ -29,13 +29,11 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, T *dst_)
  * @param[in] n: Size of the last mode of src and dst tensors
  * @param[in] k: Size of the middle mode of dst tensor
  * @param[in] alpha_: Scalar factor
- * @param[in] src_: Input contiguous m-by-n array
- * @param[inout] dst_: Input and output contiguous m-by-k-by-n array
+ * @param[in] src: Input contiguous m-by-n array
+ * @param[inout] dst: Input and output contiguous m-by-k-by-n array
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto dst = reinterpret_cast<Y *>(dst_);
+    using Y = typename T::repr_t;
     const Y alpha{alpha_};
     const Index mk = m * k;
     // Cycle over column of the output buffer dst
@@ -45,14 +43,14 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, T *dst_)
         for(Index i1 = 0; i1 < m; ++i1)
         {
             // Pointer to a corresponding fiber of the output array dst
-            Y *dst_fiber = dst + i2*mk + i1;
+            T *dst_fiber = dst + i2*mk + i1;
             // Value to multiply by the output fiber
-            const Y src_val = alpha * src[i2*m+i1];
+            const Y src_val = alpha * Y{src[i2*m+i1]};
             // Cycle over output fiber elements
             for(Index i0 = 0; i0 < k; ++i0)
             {
                 // Update output value
-                dst_fiber[i0*m] *= src_val;
+                dst_fiber[i0*m] = static_cast<T>(Y{dst_fiber[i0*m]} * src_val);
             }
         }
     }
@@ -67,6 +65,11 @@ void cpu<fp32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_t *src,
 template
 void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src,
         fp64_t *dst)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index m, Index n, Index k, Scalar alpha, const bf16_t *src,
+        bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::prod_slice
