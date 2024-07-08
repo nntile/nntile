@@ -4,6 +4,11 @@ services:
     build:
       dockerfile: Dockerfile
       context: logger
+    environment:
+      - SERVER_PORT=5001
+      - LOG_DIR=/workspace/logs
+      - CLEAR_LOGS=1
+      - SPLIT_HOURS=24
     ports:
       - ${NNTILE_TB_PORT}:6006
     cpus: 1
