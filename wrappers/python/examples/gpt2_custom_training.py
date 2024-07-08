@@ -11,28 +11,22 @@
 #
 # @version 1.0.0
 
-# Imports
-from datasets import load_dataset
-import torch
-import nntile
-import math
-import numpy as np
-import time
-import sys
-from torch import Tensor
-import torch.nn as nn
-from transformers import GPT2TokenizerFast, GPT2LMHeadModel, GPT2Model, \
-        GPT2Config
-from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
-        GPT2Model as GPT2Model_nntile
-from nntile.tensor import copy_async
-from nntile.loss import Frob
-import pdb
-from typing import Union, Optional, Tuple, List
-from packaging import version
-import copy
+# Import system packages
 import argparse
 import json
+import time
+
+# Import 3rd party packages
+import numpy as np
+import torch
+import torch.nn as nn
+from datasets import load_dataset
+from transformers import (GPT2Config, GPT2LMHeadModel, GPT2TokenizerFast)
+
+# Import NNTile
+import nntile
+from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile
+from nntile.model.gpt2 import GPT2Model as GPT2Model_nntile
 
 # Create argument parser
 parser = argparse.ArgumentParser(prog="GPT2-based neural networks", \
@@ -387,8 +381,8 @@ for t in model_nntile.parameters:
         t.grad.unregister()
 
 # Unregister temporaries of each layer to free some space
-for l in model_nntile.layers:
-    for t in l.temporaries:
+for layer in model_nntile.layers:
+    for t in layer.temporaries:
         if t is not None:
             t.unregister()
 
