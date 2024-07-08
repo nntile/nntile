@@ -19,8 +19,8 @@ namespace nntile::kernel::add_slice
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, Scalar beta_,
-        T *dst_)
+void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_,
+        T *dst)
     noexcept
 //! Per-element addition of a tensor and a broadcasted slice on CPU
 /*! Performs the following operations:
@@ -30,14 +30,14 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, Scalar beta_,
  * @param[in] n: Size of the last mode of src and dst tensors
  * @param[in] k: Size of the middle mode of dst tensor
  * @param[in] alpha_: Scalar factor for src
- * @param[in] src_: Input contiguous m-by-n array
+ * @param[in] src: Input contiguous m-by-n array
  * @param[in] beta_: Scaling factor for dst
- * @param[inout] dst_: Input and output contiguous m-by-k-by-n array
+ * @param[inout] dst: Input and output contiguous m-by-k-by-n array
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto dst = reinterpret_cast<Y *>(dst_);
+    using Y = typename T::repr_t;
+    // auto src = reinterpret_cast<const Y *>(src_);
+    // auto dst = reinterpret_cast<Y *>(dst_);
     const Y zero{0.0}, alpha{alpha_}, beta{beta_};
     const Index mk = m * k;
     // Cycle over column of the output buffer dst
@@ -47,9 +47,9 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, Scalar beta_,
         for(Index i1 = 0; i1 < m; ++i1)
         {
             // Pointer to a corresponding fiber of the output array dst
-            Y *dst_fiber = dst + i2*mk + i1;
+            T *dst_fiber = dst + i2*mk + i1;
             // Value to add to the output fiber
-            const Y src_val = alpha * src[i2*m+i1];
+            const Y src_val = alpha * Y{src[i2*m+i1]};
             // Overwrite or update output depending on beta
             if(beta == zero)
             {
@@ -57,7 +57,7 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, Scalar beta_,
                 for(Index i0 = 0; i0 < k; ++i0)
                 {
                     // Set output value
-                    dst_fiber[i0*m] = src_val;
+                    dst_fiber[i0*m] = static_cast<T>(src_val);
                 }
             }
             else
@@ -66,9 +66,9 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, Scalar beta_,
                 for(Index i0 = 0; i0 < k; ++i0)
                 {
                     // Read value from the output
-                    Y &dst_val = dst_fiber[i0*m];
+                    T &dst_val = dst_fiber[i0*m];
                     // And update it
-                    dst_val = beta*dst_val + src_val;
+                    dst_val = static_cast<T>(beta*Y{dst_val} + src_val);
                 }
             }
         }
@@ -79,6 +79,11 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, Scalar beta_,
 template
 void cpu<fp32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_t *src,
         Scalar beta, fp32_t *dst)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index m, Index n, Index k, Scalar alpha, const bf16_t *src,
+        Scalar beta, bf16_t *dst)
     noexcept;
 
 template

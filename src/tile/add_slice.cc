@@ -102,6 +102,10 @@ template
 void add_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
         Scalar beta, const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
+template
+void add_slice_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
+        const Tile<bf16_t> &dst, Index axis);
+
 // Explicit instantiation of template
 template
 void add_slice<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
@@ -114,5 +118,9 @@ void add_slice<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src
 template
 void add_slice<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst, Index axis);
+
+template
+void add_slice<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
+        const Tile<bf16_t> &dst, Index axis);
 
 } // namespace nntile::tile

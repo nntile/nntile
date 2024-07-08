@@ -623,9 +623,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("maxsumexp_fp32_fast_tf32", &maxsumexp<fp32_fast_tf32_t>);
 
     m.def("add_slice_async_fp64", &add_slice_async<fp64_t>);
+    m.def("add_slice_async_bf16", &add_slice_async<bf16_t>);
     m.def("add_slice_async_fp32", &add_slice_async<fp32_t>);
     m.def("add_slice_async_fp32_fast_tf32", &add_slice_async<fp32_fast_tf32_t>);
     m.def("add_slice_fp64", &add_slice<fp64_t>);
+    m.def("add_slice_bf16", &add_slice<bf16_t>);
     m.def("add_slice_fp32", &add_slice<fp32_t>);
     m.def("add_slice_fp32_fast_tf32", &add_slice<fp32_fast_tf32_t>);
 

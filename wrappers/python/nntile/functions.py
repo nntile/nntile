@@ -679,6 +679,8 @@ def add_slice_async(
         core_tensor.add_slice_async_fp32_fast_tf32(
             alpha, add_slice, beta, x, axis
         )
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.add_slice_async_bf16(alpha, add_slice, beta, x, axis)
     else:
         raise TypeError
 
