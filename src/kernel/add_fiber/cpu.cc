@@ -19,8 +19,8 @@ namespace nntile::kernel::add_fiber
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src_,
-        Scalar beta_, T *dst_)
+void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src,
+        Scalar beta_, T *dst)
     noexcept
 //! Per-element addition of a tensor and a broadcasted fiber on CPU
 /*! Performs the following operations:
@@ -32,14 +32,12 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src_,
  *      tensors
  * @param[in] batch: Size of the batch dimension
  * @param[in] alpha_: Scalar factor for src
- * @param[in] src_: Input contiguous vector with k elements
+ * @param[in] src: Input contiguous vector with k elements
  * @param[in] beta_: Scaling factor for dst
- * @param[inout] dst_: Input and output contiguous m-by-k-by-n array
+ * @param[inout] dst: Input and output contiguous m-by-k-by-n array
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto dst = reinterpret_cast<Y *>(dst_);
+    using Y = typename T::repr_t;
     const Y zero{0.0}, alpha{alpha_}, beta{beta_};
     // Cycle over batch
     for(Index b = 0; b < batch; ++b)
@@ -48,12 +46,12 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src_,
         for(Index i2 = 0; i2 < k; ++i2)
         {
             // Value to add to the output slice
-            const Y src_val = alpha * src[i2+b*k];
+            const Y src_val = alpha * Y{src[i2+b*k]};
             // Cycle over the third axis of output buffer dst
             for(Index i1 = 0; i1 < n; ++i1)
             {
                 // Output fiber to be updated
-                Y *dst_fiber = dst + ((i1+b*n)*k+i2)*m;
+                T *dst_fiber = dst + ((i1+b*n)*k+i2)*m;
                 // Overwrite or update output depending on beta
                 if(beta == zero)
                 {
@@ -61,7 +59,7 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src_,
                     for(Index i0 = 0; i0 < m; ++i0)
                     {
                         // Set output value
-                        dst_fiber[i0] = src_val;
+                        dst_fiber[i0] = static_cast<T>(src_val);
                     }
                 }
                 else
@@ -70,9 +68,9 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src_,
                     for(Index i0 = 0; i0 < m; ++i0)
                     {
                         // Read value from the output
-                        Y &dst_val = dst_fiber[i0];
+                        T &dst_val = dst_fiber[i0];
                         // And update it
-                        dst_val = beta*dst_val + src_val;
+                        dst_val = static_cast<T>(beta * Y{dst_val} + src_val);
                     }
                 }
             }
@@ -89,6 +87,11 @@ void cpu<fp32_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
 template
 void cpu<fp64_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
         const fp64_t *src, Scalar beta, fp64_t *dst)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
+        const bf16_t *src, Scalar beta, bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::add_fiber

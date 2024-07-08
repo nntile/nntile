@@ -731,6 +731,10 @@ def add_fiber_async(
         core_tensor.add_fiber_async_fp64(
             alpha, add_fiber, beta, x, axis, batch_ndim
         )
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.add_fiber_async_bf16(
+            alpha, add_fiber, beta, x, axis, batch_ndim
+        )
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.add_fiber_async_fp32_fast_tf32(
             alpha, add_fiber, beta, x, axis, batch_ndim
