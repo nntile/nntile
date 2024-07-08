@@ -1145,6 +1145,8 @@ def mask_scalar_async(
         core_tensor.mask_scalar_async_fp32_fast_tf32(mask, alpha, x, batch_ndim)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.mask_scalar_async_fp64(mask, alpha, x, batch_ndim)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.mask_scalar_async_bf16(mask, alpha, x, batch_ndim)
     else:
         raise TypeError
 

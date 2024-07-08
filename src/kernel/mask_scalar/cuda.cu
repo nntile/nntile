@@ -20,22 +20,24 @@ namespace nntile::kernel::mask_scalar
 
 template<typename T>
 static __global__
-void cuda_kernel(Index nrows, Index ncols, const bool *mask, T val, T *data)
+void cuda_kernel(Index nrows, Index ncols, const bool *mask, Scalar val_, T *data)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x,
         j = threadIdx.y + blockIdx.y*blockDim.y;
+    using Y = typename T::repr_t;
+    const Y val{val_};
     if(i < nrows and j < ncols)
     {
         if(!mask[i])
         {
-            data[j*nrows+i] = val;
+            data[j*nrows+i] = T{val};
         }
     }
 }
 
 template<typename T>
 void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask_,
-        Scalar val, T *data_)
+        Scalar val, T *data)
     noexcept
 //! Set certain matrix entries to a given value by mask on CUDA
 /*! Does the following operation:
@@ -45,16 +47,14 @@ void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask_,
  * @params[in] ncols: Number of columns of data
  * @params[in] mask_: buffer with mask values with nrows entries
  * @params[in] val: value to set if mask element is false
- * @params[inout] data_: nrows by ncols matrix, whose elements are updated
+ * @params[inout] data: nrows by ncols matrix, whose elements are updated
  * */
 {
     dim3 blocks((nrows+255)/256, ncols), threads(256, 1);
-    using Y = typename CUDAComputeType<T>::value;
     using B = typename CUDAComputeType<bool_t>::value;
     auto mask = reinterpret_cast<const B *>(mask_);
-    auto data = reinterpret_cast<Y *>(data_);
-    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nrows, ncols, mask,
-            Y{val}, data);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nrows, ncols, mask,
+            val, data);
 }
 
 // Explicit instantiation
@@ -66,6 +66,11 @@ void cuda<fp32_t>(cudaStream_t stream, Index nrows, Index ncols,
 template
 void cuda<fp64_t>(cudaStream_t stream, Index nrows, Index ncols,
         const bool_t *mask, Scalar val, fp64_t *data)
+    noexcept;
+
+template
+void cuda<bf16_t>(cudaStream_t stream, Index nrows, Index ncols,
+        const bool_t *mask, Scalar val, bf16_t *data)
     noexcept;
 
 } // namespace nntile::kernel::mask_scalar
