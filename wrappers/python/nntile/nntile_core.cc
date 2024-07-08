@@ -32,7 +32,11 @@ void def_mod_starpu(py::module_ &m)
     using namespace nntile::starpu;
     using namespace std::chrono_literals;
     py::class_<Config>(m, "Config").
-        def(py::init<int, int, int, int, const char *, int>()).
+        def(py::init<int, int, int, int, const char *, int>(),
+                py::arg("ncpus_")=-1, py::arg("ncuda_")=-1,
+                py::arg("cublas_")=-1, py::arg("logger")=0,
+                py::arg("logger_server_addr")="",
+                py::arg("logger_server_port")=5001).
         def("shutdown", &Config::shutdown);
     m.def("init", init);
     m.def("pause", starpu_pause);
