@@ -242,6 +242,8 @@ def sum_slice_async(
         )
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.sum_slice_async_fp64(alpha, x, beta, sum_slice, axis, redux)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.sum_slice_async_bf16(alpha, x, beta, sum_slice, axis, redux)
     else:
         raise TypeError
 
