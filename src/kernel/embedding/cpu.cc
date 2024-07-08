@@ -20,7 +20,7 @@ namespace nntile::kernel::embedding
 
 template<typename T>
 void cpu(Index m, Index n, Index k, Index k_start, Index k_size,
-        const int64_t *index_, const T *vocab_, T *embed_)
+        const int64_t *index_, const T *vocab, T *embed)
     noexcept
 //! Fill embedding from vocabulary
 /*! Fill provided m-by-k-by-n output tensor embed:
@@ -37,9 +37,9 @@ void cpu(Index m, Index n, Index k, Index k_start, Index k_size,
  * @param[inout] embed_: Output tensor to be filled with embeddings
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto vocab = reinterpret_cast<const Y *>(vocab_);
-    auto embed = reinterpret_cast<Y *>(embed_);
+    using Y = typename T::repr_t;
+    // auto vocab = reinterpret_cast<const Y *>(vocab_);
+    // auto embed = reinterpret_cast<Y *>(embed_);
     using I = typename CPUComputeType<int64_t>::value;
     auto index = reinterpret_cast<const I *>(index_);
     // Cycle over column of output buffer
@@ -49,9 +49,9 @@ void cpu(Index m, Index n, Index k, Index k_start, Index k_size,
         for(Index i1 = 0; i1 < m; ++i1)
         {
             // Input slice of vocabulary
-            const Y *vocab_slice = vocab + k_size*index[i2*m+i1];
+            const T *vocab_slice = vocab + k_size*index[i2*m+i1];
             // Output slice to be updated
-            Y *embed_slice = embed + (i2*k+k_start)*m + i1;
+            T *embed_slice = embed + (i2*k+k_start)*m + i1;
             // Cycle over slice over middle axis of output buffer
             for(Index i0 = 0; i0 < k_size; ++i0)
             {
@@ -65,6 +65,11 @@ void cpu(Index m, Index n, Index k, Index k_start, Index k_size,
 template
 void cpu<fp32_t>(Index m, Index n, Index k, Index k_start, Index k_size,
         const int64_t *index, const fp32_t *vocab, fp32_t *embed)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index m, Index n, Index k, Index k_start, Index k_size,
+        const int64_t *index, const bf16_t *vocab, bf16_t *embed)
     noexcept;
 
 template

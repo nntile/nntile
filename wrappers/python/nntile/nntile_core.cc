@@ -884,9 +884,11 @@ void def_mod_tensor(py::module_ &m)
     // Embedding forward pass
     m.def("embedding_async_fp64", &embedding_async<fp64_t>);
     m.def("embedding_async_fp32", &embedding_async<fp32_t>);
+    m.def("embedding_async_bf16", &embedding_async<bf16_t>);
     m.def("embedding_async_fp32_fast_tf32", &embedding_async<fp32_fast_tf32_t>);
     m.def("embedding_fp64", &embedding<fp64_t>);
     m.def("embedding_fp32", &embedding<fp32_t>);
+    m.def("embedding_bf16", &embedding<bf16_t>);
     m.def("embedding_fp32_fast_tf32", &embedding<fp32_fast_tf32_t>);
 
     // Embedding backward pass

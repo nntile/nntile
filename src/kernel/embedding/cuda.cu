@@ -52,7 +52,7 @@ void cuda_kernel(Index m, Index n, Index k, Index k_start, Index k_size,
 
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
-        Index k_size, const int64_t *index_, const T *vocab_, T *embed_)
+        Index k_size, const int64_t *index_, const T *vocab, T *embed)
     noexcept
 //! Fill embedding from vocabulary
 /*! Fill provided m-by-k-by-n output tensor embed:
@@ -64,9 +64,9 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
  * @param[in] k_start: Offset of the middle mode of embed tensor
  * @param[in] k_size: Size of the first mode of vocab tensor
  * @param[in] index_: Tokens (indices of embeddings)
- * @param[in] vocab_: Vocabulary of embeddings. It is a contiguous matrix of shape
+ * @param[in] vocab: Vocabulary of embeddings. It is a contiguous matrix of shape
  *      (k_size, vocab_size) but vocab_size is not passed as a parameter.
- * @param[inout] embed_: Output tensor to be filled with embeddings
+ * @param[inout] embed: Output tensor to be filled with embeddings
  * */
 {
     // Both source and destination are Fortran-contiguous
@@ -74,12 +74,12 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
             std::min(int(k_size), 16));
     dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y,
             (k_size+threads.z-1)/threads.z);
-    using Y = typename CUDAComputeType<T>::value;
+//     using Y = typename CUDAComputeType<T>::value;
     using I = typename CUDAComputeType<int64_t>::value;
     auto index = reinterpret_cast<const I *>(index_);
-    auto vocab = reinterpret_cast<const Y *>(vocab_);
-    auto embed = reinterpret_cast<Y *>(embed_);
-    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, n, k, k_start, k_size,
+//     auto vocab = reinterpret_cast<const Y *>(vocab_);
+//     auto embed = reinterpret_cast<Y *>(embed_);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, k_start, k_size,
             index, vocab, embed);
 }
 
@@ -88,6 +88,12 @@ template
 void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
         Index k_start, Index k_size, const int64_t *index, const fp32_t *vocab,
         fp32_t *embed)
+    noexcept;
+
+template
+void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
+        Index k_start, Index k_size, const int64_t *index, const bf16_t *vocab,
+        bf16_t *embed)
     noexcept;
 
 template
