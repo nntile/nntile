@@ -19,21 +19,20 @@ namespace nntile::kernel::fill
 {
 
 template<typename T>
-void cpu(Index nelems, Scalar val_, T *data_)
+void cpu(Index nelems, Scalar val_, T *data)
     noexcept
 //! Fill operation on CPU
 /*! Sets all elements to the provided value
  * @params[in] nelems: Number of elements in a buffer
  * @param[in] val_: Input value
- * @params[out] data_: Output buffer
+ * @params[out] data: Output buffer
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto data = reinterpret_cast<Y *>(data_);
+    using Y = typename T::repr_t;
     const Y val{val_};
     for(Index i = 0; i < nelems; ++i)
     {
-        data[i] = val;
+        data[i] = static_cast<T>(val);
     }
 }
 
@@ -46,4 +45,7 @@ template
 void cpu<fp64_t>(Index nelems, Scalar val, fp64_t *data)
     noexcept;
 
+template
+void cpu<bf16_t>(Index nelems, Scalar val, bf16_t *data)
+    noexcept;
 } // namespace nntile::kernel::fill

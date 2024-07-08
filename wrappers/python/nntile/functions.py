@@ -11,17 +11,13 @@
 #
 # @version 1.0.0
 
-from typing import List, Union
+from typing import List
 
 from nntile.types import Tensor, TensorFloatOrInt, TensorOrFloat
 
-from .nntile_core import TransOp, notrans
+from .nntile_core import TransOp
 from .nntile_core import tensor as core_tensor
-from .nntile_core import trans
-from .nntile_core.tensor import (Tensor_bool, Tensor_fp32,
-                                 Tensor_fp32_fast_tf32, Tensor_bf16,
-                                 Tensor_fp64,
-                                 Tensor_int64, TensorTraits)
+from .nntile_core.tensor import Tensor_bool, Tensor_int64
 
 
 def gemm_async(
@@ -219,6 +215,8 @@ def fill_async(val: float, x: Tensor) -> None:
         core_tensor.fill_async_fp32_fast_tf32(val, x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.fill_async_fp64(val, x)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.fill_async_bf16(val, x)
     else:
         raise TypeError
 
@@ -597,7 +595,7 @@ def nrm2_async(
 
 
 def normalize_async(
-    gb: Tensor, x: Tensor, y: Tensor, l: int, eps: float, axis: int
+    gb: Tensor, x: Tensor, y: Tensor, n_elem: int, eps: float, axis: int
 ) -> None:
     """
     Wrapper for multiprecision normalize
@@ -605,9 +603,9 @@ def normalize_async(
     if type(x) is not type(y) or type(x) is not type(gb):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.normalize_async_fp32(gb, x, y, l, eps, axis)
+        core_tensor.normalize_async_fp32(gb, x, y, n_elem, eps, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.normalize_async_fp64(gb, x, y, l, eps, axis)
+        core_tensor.normalize_async_fp64(gb, x, y, n_elem, eps, axis)
     else:
         raise TypeError
 
@@ -1147,6 +1145,8 @@ def embedding_async(
         core_tensor.embedding_async_fp32_fast_tf32(index, vocab, embed, axis)
     elif type(embed) is core_tensor.Tensor_fp64:
         core_tensor.embedding_async_fp64(index, vocab, embed, axis)
+    elif type(embed) is core_tensor.Tensor_bf16:
+        core_tensor.embedding_async_bf16(index, vocab, embed, axis)
     else:
         raise TypeError
 
@@ -1169,6 +1169,10 @@ def embedding_backward_async(
         )
     elif type(embed) is core_tensor.Tensor_fp64:
         core_tensor.embedding_backward_async_fp64(
+            index, embed, vocab, axis, redux
+        )
+    elif type(embed) is core_tensor.Tensor_bf16:
+        core_tensor.embedding_backward_async_bf16(
             index, embed, vocab, axis, redux
         )
     else:

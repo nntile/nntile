@@ -56,6 +56,9 @@ template
 void fill_async<fp32_t>(Scalar val, const Tensor<fp32_t> &A);
 
 template
+void fill_async<bf16_t>(Scalar val, const Tensor<bf16_t> &A);
+
+template
 void fill_async<fp32_fast_tf32_t>(Scalar val, const Tensor<fp32_fast_tf32_t> &A);
 
 template
@@ -64,6 +67,9 @@ void fill_async<fp64_t>(Scalar val, const Tensor<fp64_t> &A);
 // Explicit instantiation
 template
 void fill<fp32_t>(Scalar val, const Tensor<fp32_t> &A);
+
+template
+void fill<bf16_t>(Scalar val, const Tensor<bf16_t> &A);
 
 template
 void fill<fp32_fast_tf32_t>(Scalar val, const Tensor<fp32_fast_tf32_t> &A);

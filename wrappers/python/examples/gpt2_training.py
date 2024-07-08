@@ -11,30 +11,21 @@
 #
 # @version 1.0.0
 
-# Imports
-import torch
-import nntile
-import math
-import numpy as np
-import time
-import sys
-from torch import Tensor
-import torch.nn as nn
-from transformers import GPT2TokenizerFast, GPT2LMHeadModel, GPT2Model, \
-        GPT2Config
-from torch.optim import Adam, AdamW
-from torch.optim import SGD
-from datasets import load_dataset
-from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
-        GPT2Model as GPT2Model_nntile
-from nntile.tensor import copy_async
-from nntile.loss import Frob
-import pdb
-from typing import Union, Optional, Tuple, List
-from packaging import version
-import copy
 import argparse
 import json
+import time
+
+import numpy as np
+# Imports
+import torch
+import torch.nn as nn
+from datasets import load_dataset
+from torch.optim import SGD, Adam, AdamW
+from transformers import GPT2Config, GPT2LMHeadModel, GPT2TokenizerFast
+
+import nntile
+from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile
+from nntile.model.gpt2 import GPT2Model as GPT2Model_nntile
 
 # Create argument parser
 parser = argparse.ArgumentParser(prog="GPT2-based neural networks", \
@@ -63,9 +54,9 @@ parser.add_argument("--n-inner-tile", type=int, default=1536)
 parser.add_argument("--n-head-tile", type=int, default=-1)
 parser.add_argument("--torch-device", choices=["cpu", "cuda", "cuda:0", \
         "cuda:1", "cuda:2", "cuda:3", "cuda:4"], default="cpu")
-parser.add_argument("--torch-dtype", choices=["fp32", "fp64"], default="fp32")
+parser.add_argument("--torch-dtype", choices=["fp32", "fp64", "bf16"], default="fp32")
 parser.add_argument("--torch-compile", action="store_true")
-parser.add_argument("--nntile-dtype", choices=["fp32", "fp64", "tf32"], default="fp32")
+parser.add_argument("--nntile-dtype", choices=["fp32", "fp64", "tf32", "bf16"], default="fp32")
 parser.add_argument("--check", action="store_true")
 parser.add_argument("--check-fp64", action="store_true")
 parser.add_argument("--torch-nforward", type=int, default=0)
@@ -120,6 +111,8 @@ if args.torch_dtype == "fp32":
     torch_dtype = torch.float32
 elif args.torch_dtype == "fp64":
     torch_dtype = torch.float64
+elif args.torch_dtype == "bf16":
+    torch_dtype = torch.bfloat16
 
 if args.nntile_dtype == "tf32":
     torch.backends.cuda.matmul.allow_tf32 = True
@@ -144,8 +137,8 @@ elif args.pretrained == "local":
                 else:
                     raise ValueError
                 if args.checkpoint_path:
-                        checkpoint = torch.load(checkpoint_path)
-                        torch_model.load_state_dict(checkpoint['model_state_dict'])
+                        checkpoint = torch.load(args.checkpoint_path)
+                        model_torch.load_state_dict(checkpoint['model_state_dict'])
                         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
 model_torch.eval()
@@ -258,7 +251,6 @@ def check_grads(model_torch, nntile_model):
             norm = np.linalg.norm(p_torch_grad_np)
             nntile_par_idx += 1
         elif layer_name == "c_attn" and name.split(".")[-1] == "weight":
-            attn_head_size = config.n_embd // config.n_head
             diff = 0
             norm = np.linalg.norm(p_torch_grad_np)
             for i_tensor in range(3):
@@ -273,7 +265,6 @@ def check_grads(model_torch, nntile_model):
                 nntile_par_idx += 1
             diff = diff ** 0.5
         elif layer_name == "c_attn" and name.split(".")[-1] == "bias":
-            attn_head_size = config.n_embd // config.n_head
             diff = 0
             norm = np.linalg.norm(p_torch_grad_np)
             for i_tensor in range(3):
@@ -289,7 +280,6 @@ def check_grads(model_torch, nntile_model):
             diff = diff ** 0.5
         elif layer_name == "c_proj" and name.split(".")[-3] == "attn":
             if name.split(".")[-1] == "weight":
-                attn_head_size = config.n_embd // config.n_head
                 diff = 0
                 norm = np.linalg.norm(p_torch_grad_np)
                 p_nntile = nntile_model.parameters[nntile_par_idx]
@@ -558,10 +548,10 @@ if args.nntile_nepochs > 0:
     print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
     # Set up learning rate and optimizer for training
     if args.optimizer == "adam":
-        optimizer = nntile.optimizer.FusedAdam(nntile_model.get_parameters(), \
+        optimizer = nntile.optimizer.Adam(nntile_model.get_parameters(), \
                 args.lr, next_tag)
     elif args.optimizer == "adamw":
-        optimizer = nntile.optimizer.FusedAdamW(nntile_model.get_parameters(), \
+        optimizer = nntile.optimizer.AdamW(nntile_model.get_parameters(), \
                 args.lr, next_tag)
     elif args.optimizer == "sgd":
         optimizer = nntile.optimizer.SGD(nntile_model.get_parameters(), \

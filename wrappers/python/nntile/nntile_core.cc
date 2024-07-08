@@ -501,9 +501,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("drelu_fp32", &drelu<fp32_t>);
     // Add other functions for Tensor<T>
     m.def("fill_async_fp64", &fill_async<fp64_t>);
+    m.def("fill_async_bf16", &fill_async<bf16_t>);
     m.def("fill_async_fp32", &fill_async<fp32_t>);
     m.def("fill_async_fp32_fast_tf32", &fill_async<fp32_fast_tf32_t>);
     m.def("fill_fp64", &fill<fp64_t>);
+    m.def("fill_bf16", &fill<bf16_t>);
     m.def("fill_fp32", &fill<fp32_t>);
     m.def("fill_fp32_fast_tf32", &fill<fp32_fast_tf32_t>);
 
