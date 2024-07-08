@@ -11,28 +11,22 @@
 #
 # @version 1.0.0
 
-# Imports
-from datasets import load_dataset
-import torch
-import nntile
-import math
-import numpy as np
-import time
-import sys
-from torch import Tensor
-import torch.nn as nn
-from transformers import GPT2TokenizerFast, GPT2LMHeadModel, GPT2Model, \
-        GPT2Config
-from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
-        GPT2Model as GPT2Model_nntile
-from nntile.tensor import copy_async
-from nntile.loss import Frob
-import pdb
-from typing import Union, Optional, Tuple, List
-from packaging import version
-import copy
+# Import system packages
 import argparse
 import json
+import time
+
+# Import 3rd party packages
+import numpy as np
+import torch
+import torch.nn as nn
+from datasets import load_dataset
+from transformers import GPT2Config, GPT2LMHeadModel, GPT2TokenizerFast
+
+# Import NNTile
+import nntile
+from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile
+from nntile.model.gpt2 import GPT2Model as GPT2Model_nntile
 
 # Create argument parser
 parser = argparse.ArgumentParser(prog="GPT2-based neural networks", \
@@ -64,7 +58,6 @@ parser.add_argument("--restrict", choices=["cpu", "cuda", None], \
         default=None)
 parser.add_argument("--flashattention", action="store_true")
 parser.add_argument("--redux", action="store_true")
-parser.add_argument("--fp32-fast-tf32", action="store_true")
 parser.add_argument("--nforward", type=int, default=0)
 parser.add_argument("--nforward-warmup", type=int, default=0)
 parser.add_argument("--nbackward", type=int, default=0)
@@ -73,8 +66,8 @@ parser.add_argument("--dataset", choices=["WikiText-103", "train.bin"], \
         default="WikiText-103")
 parser.add_argument("--dataset-path", default=".data")
 parser.add_argument("--dataset-select", type=int, default=100)
-parser.add_argument("--optimizer", choices=["sgd", "adam", "fusedadamw"], \
-        default="fusedadamw")
+parser.add_argument("--optimizer", choices=["sgd", "adam", "adamw"], \
+        default="adamw")
 parser.add_argument("--optimizer-eps", type=float, default=1e-8)
 parser.add_argument("--weight-decay", type=float, default=0.0)
 parser.add_argument("--loss-reduction", choices=["sum", "mean"], default="sum")
@@ -83,6 +76,11 @@ parser.add_argument("--start-lr", type=float, default=0.0)
 parser.add_argument("--full-lr-iter", type=int, default=1)
 parser.add_argument("--nepochs", type=int, default=0)
 parser.add_argument("--nepochs-warmup", type=int, default=0)
+parser.add_argument("--dtype", choices=["fp32", "tf32", "fp64"], \
+        default="fp32")
+parser.add_argument("--logger", action="store_true")
+parser.add_argument("--logger-server-addr", type=str, default="localhost")
+parser.add_argument("--logger-server-port", type=int, default=5001)
 
 # Parse arguments
 args = parser.parse_args()
@@ -176,7 +174,8 @@ nflops_seq = nflops_seq_fwd + nflops_seq_bwd
 # Initialize NNTile and StarPU
 time0 = time.time()
 # Set up StarPU+MPI and init codelets
-nntile_config = nntile.starpu.Config(-1, -1, 1)
+nntile_config = nntile.starpu.Config(-1, -1, 1, \
+        args.logger, args.logger_server_addr, args.logger_server_port)
 nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
 nntile.starpu.init()
@@ -194,10 +193,10 @@ model_nntile_config = GPT2Config_nntile(config.vocab_size, args.embd_tile, \
         config.n_embd, args.embd_tile, config.max_position_embeddings, \
         config.n_inner, args.inner_tile, config.layer_norm_epsilon, \
         config.num_hidden_layers, config.n_head, args.head_tile, \
-        "gelutanh", args.flashattention, args.redux)
+        "gelutanh", args.flashattention, args.redux, args.dtype)
 model_nntile, next_tag = GPT2Model_nntile.from_torch(model_torch, \
         args.minibatch, args.minibatch_tile, config.n_positions, \
-        args.seq_tile, model_nntile_config, next_tag, args.fp32_fast_tf32)
+        args.seq_tile, model_nntile_config, next_tag)
 del model_torch
 
 # Measure throughput of the forward pass by NNTile
@@ -319,8 +318,8 @@ time1 = time.time() - time0
 print("From PyTorch loader to NNTile batches in {} seconds".format(time1), \
         flush=True)
 # Set up learning rate and optimizer for training
-if args.optimizer == "fusedadamw":
-    optimizer = nntile.optimizer.FusedAdamW(model_nntile.get_parameters(), \
+if args.optimizer == "adamw":
+    optimizer = nntile.optimizer.AdamW(model_nntile.get_parameters(), \
             args.lr, next_tag, eps=args.optimizer_eps, \
             start_lr=args.start_lr, full_lr_iter=args.full_lr_iter, \
             weight_decay=args.weight_decay)
@@ -382,8 +381,8 @@ for t in model_nntile.parameters:
         t.grad.unregister()
 
 # Unregister temporaries of each layer to free some space
-for l in model_nntile.layers:
-    for t in l.temporaries:
+for layer in model_nntile.layers:
+    for t in layer.temporaries:
         if t is not None:
             t.unregister()
 
