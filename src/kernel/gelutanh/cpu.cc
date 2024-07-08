@@ -20,7 +20,7 @@ namespace nntile::kernel::gelutanh
 {
 
 template<typename T>
-void cpu(Index nelems, const T *src_, T *dst_)
+void cpu(Index nelems, const T *src, T *dst)
     noexcept
 //! Approximate GeLU operation on CPU
 /*! Applies the following approximation of the GeLU function:
@@ -35,9 +35,7 @@ void cpu(Index nelems, const T *src_, T *dst_)
  * @params[out] dst_: Output buffer to apply GeLU
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto dst = reinterpret_cast<Y *>(dst_);
+    using Y = typename T::repr_t;
     // Constants
     constexpr Y pi{3.141592653589793238462643383279502884L},
         one{1.0}, pt5{0.5}, f1{0.044715};
@@ -46,14 +44,14 @@ void cpu(Index nelems, const T *src_, T *dst_)
         f2 = sqrt_2/sqrt_pi, f3 = -Y{2.0}*f2, f4 = f3*f1;
     for(Index i = 0; i < nelems; ++i)
     {
-        Y z = src[i];
+        Y z = Y{src[i]};
         Y y1 = f4 * z * z;
         Y y2 = f3 + y1;
         Y c = y1 - (y2-f3);
         y2 *= z;
         c *= z;
         Y y3 = one + std::exp(c)*std::exp(y2);
-        dst[i] = z / y3;
+        dst[i] = T{z / y3};
     }
 }
 
@@ -64,6 +62,10 @@ void cpu<fp32_t>(Index nelems, const fp32_t *src, fp32_t *dst)
 
 template
 void cpu<fp64_t>(Index nelems, const fp64_t *src, fp64_t *dst)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index nelems, const bf16_t *src, bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::gelutanh

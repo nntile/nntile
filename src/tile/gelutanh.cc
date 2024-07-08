@@ -48,6 +48,9 @@ void gelutanh_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src, const T
 template
 void gelutanh_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
+template
+void gelutanh_async<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+
 // Explicit instantiation
 template
 void gelutanh<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
@@ -57,5 +60,8 @@ void gelutanh<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src, const Tile<fp
 
 template
 void gelutanh<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+
+template
+void gelutanh<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
 } // namespace nntile::tile
