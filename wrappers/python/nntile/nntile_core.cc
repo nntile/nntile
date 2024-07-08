@@ -943,10 +943,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("hypot_scalar_inverse_fp32_fast_tf32", &hypot_scalar_inverse<fp32_fast_tf32_t>);
 
     m.def("transpose_async_fp64", &transpose_async<fp64_t>);
+    m.def("transpose_async_bf16", &transpose_async<bf16_t>);
     m.def("transpose_async_fp32", &transpose_async<fp32_t>);
     m.def("transpose_async_fp32_fast_tf32", &transpose_async<fp32_fast_tf32_t>);
     m.def("transpose_fp64", &transpose<fp64_t>);
     m.def("transpose_fp32", &transpose<fp32_t>);
+    m.def("transpose_bf16", &transpose<bf16_t>);
     m.def("transpose_fp32_fast_tf32", &transpose<fp32_fast_tf32_t>);
 }
 

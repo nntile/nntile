@@ -110,4 +110,8 @@ template
 void transpose<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst, Index ndim);
 
+template
+void transpose<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
+        const Tensor<bf16_t> &dst, Index ndim);
+
 } // namespace nntile::tensor

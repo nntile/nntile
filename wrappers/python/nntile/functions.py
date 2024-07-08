@@ -1391,5 +1391,7 @@ def transpose_async(alpha: float, src: Tensor, dst: Tensor, ndim: int) -> None:
         core_tensor.transpose_async_fp32_fast_tf32(alpha, src, dst, ndim)
     elif type(src) is core_tensor.Tensor_fp64:
         core_tensor.transpose_async_fp64(alpha, src, dst, ndim)
+    elif type(src) is core_tensor.Tensor_bf16:
+        core_tensor.transpose_async_bf16(alpha, src, dst, ndim)
     else:
         raise TypeError
