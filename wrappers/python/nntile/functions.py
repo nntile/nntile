@@ -1217,6 +1217,8 @@ def hypot_scalar_inverse_async(eps: float, alpha: float, x: Tensor) -> None:
         core_tensor.hypot_scalar_inverse_async_fp32_fast_tf32(eps, alpha, x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.hypot_scalar_inverse_async_fp64(eps, alpha, x)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.hypot_scalar_inverse_async_bf16(eps, alpha, x)
     else:
         raise TypeError
 

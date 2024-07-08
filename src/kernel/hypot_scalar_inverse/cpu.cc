@@ -20,7 +20,7 @@ namespace nntile::kernel::hypot_scalar_inverse
 {
 
 template<typename T>
-void cpu(Index nelems, Scalar eps_, Scalar alpha_, T* dst_)
+void cpu(Index nelems, Scalar eps_, Scalar alpha_, T* dst)
     noexcept
 //! Inverse of a hypot of a buffer and a scalar on CPU
 /*! Performs the following operation:
@@ -30,15 +30,14 @@ void cpu(Index nelems, Scalar eps_, Scalar alpha_, T* dst_)
  * @param[in] nelems: Size of the dst tensor
  * @param[in] eps_: Scalar to be added to the hypot result
  * @param[in] alpha_: Scalar multiplier for the dst tensor
- * @param[inout] dst_: Destination of the hypot operation
+ * @param[inout] dst: Destination of the hypot operation
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto dst = reinterpret_cast<Y *>(dst_);
+    using Y = typename T::repr_t;
     const Y eps{eps_}, alpha{alpha_};
     for(Index i = 0; i < nelems; ++i)
     {
-        dst[i] = Y{1.0} / std::hypot(alpha*dst[i], eps);
+        dst[i] = static_cast<T>(Y{1.0} / std::hypot(alpha*Y{dst[i]}, eps));
     }
 }
 
@@ -49,6 +48,10 @@ void cpu<fp32_t>(Index nelems, Scalar eps, Scalar alpha, fp32_t* dst)
 
 template
 void cpu<fp64_t>(Index nelems, Scalar eps, Scalar alpha, fp64_t* dst)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index nelems, Scalar eps, Scalar alpha, bf16_t* dst)
     noexcept;
 
 } // namespace nntile::kernel::hypot_scalar_inverse
