@@ -86,10 +86,10 @@ async def handle_client(reader, writer):
             print("Error decoding JSON:", message)
 
 async def main():
-    log_dir = os.environ['LOG_DIR']
-    split_hours = int(os.environ['SPLIT_HOURS'])
-    clear_logs = bool(os.environ['CLEAR_LOGS'])
-    server_port = int(os.environ['SERVER_PORT'])
+    log_dir = os.environ.get('LOG_DIR', 'logs')
+    split_hours = int(os.environ.get('SPLIT_HOURS', 24))
+    clear_logs = int(os.environ.get('CLEAR_LOGS', 1)
+    server_port = int(os.environ.get('SERVER_PORT', 5001)
 
     os.makedirs(log_dir, exist_ok=True)
     print(f"log_dir={log_dir}, split_hours={split_hours}")
