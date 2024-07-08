@@ -88,10 +88,13 @@ async def handle_client(reader, writer):
 async def main():
     log_dir = os.environ['LOG_DIR']
     split_hours = int(os.environ['SPLIT_HOURS'])
+    clear_logs = bool(os.environ['CLEAR_LOGS'])
+    server_port = int(os.environ['SERVER_PORT'])
+
     os.makedirs(log_dir, exist_ok=True)
     print(f"log_dir={log_dir}, split_hours={split_hours}")
     server = await asyncio.start_server(
-        handle_client, "0.0.0.0", 5001)
+        handle_client, "0.0.0.0", server_port)
 
     addr = server.sockets[0].getsockname()
     print(f"Server has been started on {addr}")
@@ -100,7 +103,9 @@ async def main():
         async with server:
             await server.serve_forever()
 
-    shutil.rmtree(log_dir)
+    if clear_logs:
+        shutil.rmtree(log_dir)
+
     await asyncio.gather(
         handle_new_logs(log_dir, split_hours),
         start_server(),
