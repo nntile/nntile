@@ -705,6 +705,8 @@ def add_slice3_async(
         )
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.add_slice3_async_fp64(alpha, add_slice, beta, x, y, axis)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.add_slice3_async_bf16(alpha, add_slice, beta, x, y, axis)
     else:
         raise TypeError
 
