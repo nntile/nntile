@@ -793,6 +793,8 @@ def prod_fiber3_async(
         )
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.prod_fiber3_async_fp64(prod_fiber, alpha, x, y, axis)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.prod_fiber3_async_bf16(prod_fiber, alpha, x, y, axis)
     else:
         raise TypeError
 
