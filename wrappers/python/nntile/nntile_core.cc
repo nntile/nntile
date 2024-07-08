@@ -568,9 +568,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("softmax_fp32_fast_tf32", &softmax<fp32_fast_tf32_t>);
 
     m.def("softmax_inplace_async_fp64", &softmax_inplace_async<fp64_t>);
+    m.def("softmax_inplace_async_bf16", &softmax_inplace_async<bf16_t>);
     m.def("softmax_inplace_async_fp32", &softmax_inplace_async<fp32_t>);
     m.def("softmax_inplace_async_fp32_fast_tf32", &softmax_inplace_async<fp32_fast_tf32_t>);
     m.def("softmax_inplace_fp64", &softmax_inplace<fp64_t>);
+    m.def("softmax_inplace_bf16", &softmax_inplace<bf16_t>);
     m.def("softmax_inplace_fp32", &softmax_inplace<fp32_t>);
     m.def("softmax_inplace_fp32_fast_tf32", &softmax_inplace<fp32_fast_tf32_t>);
 

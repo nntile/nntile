@@ -20,7 +20,7 @@ namespace nntile::kernel::softmax_inplace
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, const T *maxsumexp_, Scalar alpha_, T *dst_)
+void cpu(Index m, Index n, Index k, const T *maxsumexp, Scalar alpha_, T *dst)
     noexcept
 //! Compute softmax on a buffer along middle axis
 /*!
@@ -28,14 +28,12 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp_, Scalar alpha_, T *dst_)
  * @param[in] m: Size of the first mode of dst and sumnorm arrays
  * @param[in] n: Size of the last mode of dst and sumnorm arrays
  * @param[in] k: Size of the middle mode of dst array
- * @param[in] maxsumexp_: Maximums and sums of exponents of slices
+ * @param[in] maxsumexp: Maximums and sums of exponents of slices
  * @param[in] alpha_: Scalar multiplier for the output
- * @param[in] dst_: Contiguous output array
+ * @param[in] dst: Contiguous output array
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto maxsumexp = reinterpret_cast<const Y *>(maxsumexp_);
-    auto dst = reinterpret_cast<Y *>(dst_);
+    using Y = typename T::repr_t;
     const Y alpha{alpha_};
     Index dst_offset = 0;
     constexpr Y zero{0.0};
@@ -50,18 +48,18 @@ void cpu(Index m, Index n, Index k, const T *maxsumexp_, Scalar alpha_, T *dst_)
             for(Index i0 = 0; i0 < m; ++i0)
             {
                 // Value-to-update
-                Y &val = dst[dst_offset];
+                T &val = dst[dst_offset];
                 // Max and sum of exponents
-                const Y max = maxsumexp[src_offset];
-                const Y sum = maxsumexp[src_offset+1];
+                const Y max = Y{maxsumexp[src_offset]};
+                const Y sum = Y{maxsumexp[src_offset+1]};
                 // Update value
-                if(not std::isinf(val))
+                if(not std::isinf(Y{val}))
                 {
-                    val = alpha * std::exp(val-max) / sum;
+                    val = static_cast<T>(alpha * std::exp(Y{val}-max) / sum);
                 }
                 else
                 {
-                    val = zero;
+                    val = static_cast<T>(zero);
                 }
                 // Update pointers
                 ++dst_offset;
@@ -80,6 +78,11 @@ void cpu<fp32_t>(Index m, Index n, Index k, const fp32_t *maxsumexp,
 template
 void cpu<fp64_t>(Index m, Index n, Index k, const fp64_t *maxsumexp,
         Scalar alpha, fp64_t *dst)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index m, Index n, Index k, const bf16_t *maxsumexp,
+        Scalar alpha, bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::softmax_inplace

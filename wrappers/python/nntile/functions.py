@@ -503,6 +503,8 @@ def softmax_inplace_async(
         )
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.softmax_inplace_async_fp64(maxsumexp, alpha, x, axis)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.softmax_inplace_async_bf16(maxsumexp, alpha, x, axis)
     else:
         raise TypeError
 

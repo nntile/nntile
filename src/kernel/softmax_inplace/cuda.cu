@@ -22,11 +22,13 @@ namespace nntile::kernel::softmax_inplace
 template<typename T>
 static __global__
 void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
-        Index k, const T *maxsumexp, T alpha, T *dst)
+        Index k, const T *maxsumexp, Scalar alpha, T *dst)
 {
     Index i0_block = blockIdx.y, i1_block = blockIdx.z,
           i2_start = threadIdx.x, i2_step = blockDim.x;
-    constexpr T zero = 0.0;
+    using Y = typename T::repr_t;
+    constexpr Y zero{0.0};
+
     for(Index i0 = i0_block*m_per_block;
             i0 < (i0_block+1)*m_per_block and i0 < m; ++i0)
     {
@@ -36,12 +38,12 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
             Index dst_offset = i1*k*m + i0;
             T *dst_slice = dst + dst_offset;
             // Max and sum of exponents
-            __shared__ T max, sum;
+            __shared__ Y max, sum;
             if(i2_start == 0)
             {
                 Index src_offset = m*i1 + i0;
-                max = maxsumexp[2*src_offset];
-                sum = maxsumexp[2*src_offset+1];
+                max = Y{maxsumexp[2*src_offset]};
+                sum = Y{maxsumexp[2*src_offset+1]};
             }
             __syncthreads();
             for(Index i2 = i2_start; i2 < k; i2 += i2_step)
@@ -49,13 +51,13 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
                 // Value-to-update
                 T &val = dst_slice[i2*m];
                 // Update value
-                if(not ::isinf(val))
+                if(not ::isinf(Y{val}))
                 {
-                    val = alpha * ::exp(val-max) / sum;
+                    val = T{alpha * ::exp(Y{val}-max) / sum};
                 }
                 else
                 {
-                    val = zero;
+                    val = T{zero};
                 }
             }
         }
@@ -63,8 +65,8 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp_,
-        Scalar alpha, T *dst_)
+void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp,
+        Scalar alpha, T *dst)
     noexcept
 //! softmax of a buffer along middle axis
 /*!
@@ -72,9 +74,9 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp_,
  * @param[in] m: Size of the first mode of dst and sumnorm arrays
  * @param[in] n: Size of the last mode of dst and sumnorm arrays
  * @param[in] k: Size of the middle mode of dst array
- * @param[in] maxsumexp_: Maximums and sums of exponents of slices
+ * @param[in] maxsumexp: Maximums and sums of exponents of slices
  * @param[in] alpha: Scalar multiplier for the output
- * @param[in] dst_: Contiguous output array
+ * @param[in] dst: Contiguous output array
  * */
 {
     // Source is an m-by-n matrix and destination is an m-by-k-by-n tensor
@@ -91,11 +93,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp_,
         n_per_block = (n+65534) / 65535;
         blocks.z = (n+n_per_block-1) / n_per_block;
     }
-    using Y = typename CUDAComputeType<T>::value;
-    auto maxsumexp = reinterpret_cast<const Y *>(maxsumexp_);
-    auto dst = reinterpret_cast<Y *>(dst_);
-    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, m_per_block, n,
-            n_per_block, k, maxsumexp, Y{alpha}, dst);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, m_per_block, n,
+            n_per_block, k, maxsumexp, alpha, dst);
 }
 
 // Explicit instantiation
@@ -107,6 +106,11 @@ void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k,
 template
 void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
         const fp64_t *maxsumexp, Scalar alpha, fp64_t *dst)
+    noexcept;
+
+template
+void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
+        const bf16_t *maxsumexp, Scalar alpha, bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::softmax_inplace
