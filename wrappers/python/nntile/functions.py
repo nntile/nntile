@@ -303,6 +303,10 @@ def norm_slice_async(
         core_tensor.norm_slice_async_fp64(
             alpha, x, beta, norm_slice, axis, redux
         )
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.norm_slice_async_bf16(
+            alpha, x, beta, norm_slice, axis, redux
+        )
     else:
         raise TypeError
 

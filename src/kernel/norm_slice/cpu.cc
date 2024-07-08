@@ -20,7 +20,7 @@ namespace nntile::kernel::norm_slice
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, Scalar beta_, T *dst_)
+void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_, T *dst)
     noexcept
 //! Euclidean norms over fibers along middle axis into a slice of a tensor
 /*! For a provided m-by-k-by-n input array src compute norms of fibers
@@ -39,9 +39,7 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, Scalar beta_, 
  *      accumulates norms along middle axis.
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto dst = reinterpret_cast<Y *>(dst_);
+    using Y = typename T::repr_t;
     Y alpha{alpha_}, beta{beta_};
     const Index mk = m * k;
     constexpr Y zero{0.0}, one{1.0};
@@ -53,16 +51,16 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, Scalar beta_, 
         for(Index i1 = 0; i1 < m; ++i1)
         {
             // Pointer to a corresponding fiber of the source array src
-            const Y *src_fiber = src + i2*mk + i1;
+            const T *src_fiber = src + i2*mk + i1;
             // Init norm of the fiber
             Y norm_max{zero}, norm_ssq{zero}, c{zero}, y, t;
             // Output value
-            Y &result = dst[i2*m+i1];
+            T &result = dst[i2*m+i1];
             // Cycle over fiber elements and accumulate the norm
             for(Index i0 = 0; i0 < k; ++i0)
             {
                 // Read value from source
-                Y val = std::fabs(src_fiber[i0*m]);
+                Y val = std::fabs(Y{src_fiber[i0*m]});
                 // Update norm only if new value is non-zero
                 if(val > 0)
                 {
@@ -95,16 +93,16 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, Scalar beta_, 
             if(beta == zero)
             {
                 //result = norm;
-                result = norm_max * std::sqrt(norm_ssq);
+                result = static_cast<T>(norm_max * std::sqrt(norm_ssq));
             }
             else if(norm_max > 0)
             {
                 //result = std::hypot(beta*result, norm);
-                Y tmp_res = std::fabs(beta * result);
+                Y tmp_res = std::fabs(beta * Y{result});
                 if(norm_max >= tmp_res)
                 {
                     Y tmp1 = tmp_res / norm_max;
-                    result = norm_max * std::sqrt((tmp1*tmp1-c)+norm_ssq);
+                    result = static_cast<T>(norm_max * std::sqrt((tmp1*tmp1-c)+norm_ssq));
                 }
                 else
                 {
@@ -112,13 +110,13 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, Scalar beta_, 
                     Y tmp2 = tmp1 * tmp1;
                     c *= tmp2;
                     norm_ssq *= tmp2;
-                    result = tmp_res * std::sqrt((one-c)+norm_ssq);
+                    result = static_cast<T>(tmp_res * std::sqrt((one-c)+norm_ssq));
                 }
             }
             // norm_max==0
             else
             {
-                result = std::fabs(beta * result);
+                result = static_cast<T>(std::fabs(beta * Y{result}));
             }
         }
     }
@@ -133,6 +131,11 @@ void cpu<fp32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_t *src,
 template
 void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src,
         Scalar beta, fp64_t *norm_dst)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index m, Index n, Index k, Scalar alpha, const bf16_t *src,
+        Scalar beta, bf16_t *norm_dst)
     noexcept;
 
 } // namespace nntile::kernel::norm_slice
