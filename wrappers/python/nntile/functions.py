@@ -276,6 +276,10 @@ def sum_fiber_async(
         core_tensor.sum_fiber_async_fp64(
             alpha, x, beta, sum_fiber, axis, batch_ndim, redux
         )
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.sum_fiber_async_bf16(
+            alpha, x, beta, sum_fiber, axis, batch_ndim, redux
+        )
     else:
         raise TypeError
 

@@ -519,10 +519,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("sum_slice_bf16", &sum_slice<bf16_t>);
 
     m.def("sum_fiber_async_fp64", &sum_fiber_async<fp64_t>);
+    m.def("sum_fiber_async_bf16", &sum_fiber_async<bf16_t>);
     m.def("sum_fiber_async_fp32", &sum_fiber_async<fp32_t>);
     m.def("sum_fiber_async_fp32_fast_tf32", &sum_fiber_async<fp32_fast_tf32_t>);
     m.def("sum_fiber_fp64", &sum_fiber<fp64_t>);
     m.def("sum_fiber_fp32", &sum_fiber<fp32_t>);
+    m.def("sum_fiber_bf16", &sum_fiber<bf16_t>);
     m.def("sum_fiber_fp32_fast_tf32", &sum_fiber<fp32_fast_tf32_t>);
 
     m.def("norm_slice_async_fp64", &norm_slice_async<fp64_t>);
