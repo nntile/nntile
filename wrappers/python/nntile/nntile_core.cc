@@ -848,10 +848,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("scal_inplace_fp32_fast_tf32", &scal_inplace<fp32_fast_tf32_t>);
 
     m.def("sumprod_slice_async_fp64", &sumprod_slice_async<fp64_t>);
+    m.def("sumprod_slice_async_bf16", &sumprod_slice_async<bf16_t>);
     m.def("sumprod_slice_async_fp32", &sumprod_slice_async<fp32_t>);
     m.def("sumprod_slice_async_fp32_fast_tf32", &sumprod_slice_async<fp32_fast_tf32_t>);
     m.def("sumprod_slice_fp64", &sumprod_slice<fp64_t>);
     m.def("sumprod_slice_fp32", &sumprod_slice<fp32_t>);
+    m.def("sumprod_slice_bf16", &sumprod_slice<bf16_t>);
     m.def("sumprod_slice_fp32_fast_tf32", &sumprod_slice<fp32_fast_tf32_t>);
 
     m.def("sumprod_fiber_async_fp64", &sumprod_fiber_async<fp64_t>);
