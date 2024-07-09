@@ -240,7 +240,7 @@ else:
 def check_grads(model_torch, nntile_model):
     nntile_par_idx = 0
     for name, p_torch in model_torch.named_parameters():
-        p_torch_grad_np = p_torch.grad.cpu().detach().numpy()
+        p_torch_grad_np = p_torch.grad.float().cpu().detach().numpy()
         layer_name = name.split(".")[-2]
         if layer_name == "lm_head":
             p_nntile = nntile_model.parameters[nntile_par_idx]
@@ -324,10 +324,10 @@ if args.check:
             (args.minibatch_size, config.n_positions), dtype=torch.int64, \
             device=args.torch_device)
     input_value[10:] = config.eos_token_id
-    output_value = model_torch(input_value)
+    output_value = model_torch.to(torch_dtype)(input_value)
     if args.torch_device.startswith("cuda"):
         torch.cuda.synchronize()
-    output_value_np = output_value.logits.cpu().detach().numpy()
+    output_value_np = output_value.logits.float().cpu().detach().numpy()
     # Get gradients of parameters through the backward pass
     loss = 0.5 * (output_value.logits * output_value.logits).sum()
     model_torch.zero_grad()

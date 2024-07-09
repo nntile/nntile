@@ -39,18 +39,21 @@ void cuda_kernel(Index m, Index n, Index k, Index k_start, Index k_size,
 {
     Index i2 = threadIdx.x + blockIdx.x*blockDim.x;
     Index i0 = blockIdx.y, i1 = blockIdx.z;
+    using Z = typename CUDAComputeType<T>::value;
+    using Y = typename T::repr_t;
     if(i2 < k_size)
     {
         // Output slice of vocabulary
-        T *vocab_slice = vocab + k_size*index[i1*m+i0];
+        Z *vocab_slice = reinterpret_cast<Z*>(vocab + k_size*index[i1*m+i0]);
         // Update value of embedding
-        atomicAdd(&vocab_slice[i2], embed[(i1*k+k_start+i2)*m + i0]);
+        Y embed_val = Y{embed[(i1*k+k_start+i2)*m + i0]};
+        atomicAdd(&vocab_slice[i2], Z{embed_val});
     }
 }
 
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
-        Index k_size, const int64_t *index_, const T *embed_, T *vocab_)
+        Index k_size, const int64_t *index_, const T *embed, T *vocab)
     noexcept
 //! Accumulate gradients of embeddings into vocabulary
 /*! Does the following operation:
@@ -62,20 +65,17 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
  * @param[in] k_start: Offset of the middle mode of embed tensor
  * @param[in] k_size: Size of the first mode of vocab tensor
  * @param[in] index_: Tokens (indices of embeddings)
- * @param[out] embed_: Tensor of gradients of embeddings
- * @param[inout] vocab_: Gradient of vocabulary. It is a contiguous matrix of
+ * @param[out] embed: Tensor of gradients of embeddings
+ * @param[inout] vocab: Gradient of vocabulary. It is a contiguous matrix of
  *      shape (k_size, vocab_size) but vocab_size is not passed as a parameter.
  * */
 {
     // Both source and destination are Fortran-contiguous
     dim3 threads(256, 1, 1);
     dim3 blocks((k_size+255)/256, m, n);
-    using Y = typename CUDAComputeType<T>::value;
     using I = typename CUDAComputeType<int64_t>::value;
     auto index = reinterpret_cast<const I *>(index_);
-    auto embed = reinterpret_cast<const Y *>(embed_);
-    auto vocab = reinterpret_cast<Y *>(vocab_);
-    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, n, k, k_start, k_size,
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, k_start, k_size,
             index, embed, vocab);
 }
 
@@ -90,6 +90,12 @@ template
 void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
         Index k_start, Index k_size, const int64_t *index, const fp64_t *embed,
         fp64_t *vocab)
+    noexcept;
+
+template
+void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
+        Index k_start, Index k_size, const int64_t *index, const bf16_t *embed,
+        bf16_t *vocab)
     noexcept;
 
 } // namespace nntile::kernel::embedding_backward

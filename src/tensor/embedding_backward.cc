@@ -140,6 +140,11 @@ void embedding_backward_async<fp64_t>(const Tensor<int64_t> &index,
         const Tensor<fp64_t> &embed, const Tensor<fp64_t> &vocab, Index axis,
         int redux);
 
+template
+void embedding_backward_async<bf16_t>(const Tensor<int64_t> &index,
+        const Tensor<bf16_t> &embed, const Tensor<bf16_t> &vocab, Index axis,
+        int redux);
+
 // Explicit instantiation
 template
 void embedding_backward<fp32_t>(const Tensor<int64_t> &index,
@@ -154,6 +159,11 @@ void embedding_backward<fp32_fast_tf32_t>(const Tensor<int64_t> &index,
 template
 void embedding_backward<fp64_t>(const Tensor<int64_t> &index,
         const Tensor<fp64_t> &embed, const Tensor<fp64_t> &vocab, Index axis,
+        int redux);
+
+template
+void embedding_backward<bf16_t>(const Tensor<int64_t> &index,
+        const Tensor<bf16_t> &embed, const Tensor<bf16_t> &vocab, Index axis,
         int redux);
 
 } // namespace nntile::tensor
