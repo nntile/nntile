@@ -41,7 +41,8 @@ void cpu(Index m, Index n, Index k, Index batch, T alpha, const T *src, T beta,
  *      norm over slices along the first and the last axes.
  * */
 {
-    constexpr T zero = 0;
+    constexpr T zero = 0.0;
+    constexpr T one = 1.0;
     alpha = std::fabs(alpha); // norm is always nonnegative
     // Cycle over batch
     for(Index b = 0; b < batch; ++b)

@@ -70,6 +70,7 @@ else()
         "kernel/adam_step/cpu.cc"
         "kernel/adamw_step/cpu.cc"
         "kernel/transpose/cpu.cc"
+        "kernel/norm_fiber/cpu.cc"
         )
 
     if(NNTILE_USE_CUDA)
