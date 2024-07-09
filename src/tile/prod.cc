@@ -55,6 +55,9 @@ void prod_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src, const Tile<
 template
 void prod_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
+template
+void prod_async<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+
 // Explicit instantiation
 template
 void prod<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
@@ -64,5 +67,8 @@ void prod<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src, const Tile<fp32_f
 
 template
 void prod<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+
+template
+void prod<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
 } // namespace nntile::tile
