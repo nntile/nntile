@@ -86,6 +86,11 @@ void sumprod_fiber_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1,
         const Tile<fp64_t> &src2, Scalar beta, const Tile<fp64_t> &dst,
         Index axis);
 
+template
+void sumprod_fiber_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1,
+        const Tile<bf16_t> &src2, Scalar beta, const Tile<bf16_t> &dst,
+        Index axis);
+
 // Explicit instantiation
 template
 void sumprod_fiber<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1,
@@ -100,6 +105,11 @@ void sumprod_fiber<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> 
 template
 void sumprod_fiber<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1,
         const Tile<fp64_t> &src2, Scalar beta, const Tile<fp64_t> &dst,
+        Index axis);
+
+template
+void sumprod_fiber<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1,
+        const Tile<bf16_t> &src2, Scalar beta, const Tile<bf16_t> &dst,
         Index axis);
 
 } // namespace nntile::tile

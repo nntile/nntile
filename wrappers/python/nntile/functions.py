@@ -1048,6 +1048,10 @@ def sumprod_fiber_async(
         core_tensor.sumprod_fiber_async_fp64(
             alpha, src1, src2, beta, dst, axis, redux
         )
+    elif type(src1) is core_tensor.Tensor_bf16:
+        core_tensor.sumprod_fiber_async_bf16(
+            alpha, src1, src2, beta, dst, axis, redux
+        )
     else:
         raise TypeError
 

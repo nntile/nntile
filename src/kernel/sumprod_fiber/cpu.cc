@@ -19,8 +19,8 @@ namespace nntile::kernel::sumprod_fiber
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src1_, const T *src2_,
-        Scalar beta_, T *dst_)
+void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src1, const T *src2,
+        Scalar beta_, T *dst)
     noexcept
 //! Sums over slices into a fiber of a product of two tensors on CPU
 /*! For two provided m-by-k-by-n input arrays src1 and src2 compute sums of
@@ -35,18 +35,15 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src1_, const T *src2
  * @param[in] k: Size of the middle mode of src1 and src2 tensors and of the
  *      only mode of dst tensor
  * @param[in] alpha_: Scaling factor for src1*src2
- * @param[in] src1_: Input contiguous m-by-k-by-n array
- * @param[in] src2_: Input contiguous m-by-k-by-n array
+ * @param[in] src1: Input contiguous m-by-k-by-n array
+ * @param[in] src2: Input contiguous m-by-k-by-n array
  * @param[in] beta_: Scaling factor for dst
- * @param[inout] dst_: Output contiguous vector with k elements, that
+ * @param[inout] dst: Output contiguous vector with k elements, that
  *      accumulates sums along the first and the last axes of per-element
  *      products of src1 and src2.
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto src1 = reinterpret_cast<const Y *>(src1_);
-    auto src2 = reinterpret_cast<const Y *>(src2_);
-    auto dst = reinterpret_cast<Y *>(dst_);
+    using Y = typename T::repr_t;
     const Y alpha{alpha_}, beta{beta_};
     constexpr Y zero{0.0};
     // Cycle over output vector
@@ -55,18 +52,18 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src1_, const T *src2
         // Init sum of product of the slices
         Y sum = zero, c = zero, y, t;
         // Output value
-        Y &result = dst[i2];
+        T &result = dst[i2];
         // Cycle over column of src1 and src2
         for(Index i1 = 0; i1 < n; ++i1)
         {
             // Get corresponding fibers of both sources
-            const Y *src1_fiber = src1 + (i1*k+i2)*m;
-            const Y *src2_fiber = src2 + (i1*k+i2)*m;
+            const T *src1_fiber = src1 + (i1*k+i2)*m;
+            const T *src2_fiber = src2 + (i1*k+i2)*m;
             // Cycle over fibers of inputs
             for(Index i0 = 0; i0 < m; ++i0)
             {
                 // Update sum
-                sum += src1_fiber[i0] * src2_fiber[i0];
+                sum += Y{src1_fiber[i0]} * Y{src2_fiber[i0]};
                 //y = src1_fiber[i0*m]*src2_fiber[i0*m] - c;
                 //t = sum + y;
                 //c = (t-sum) - y;
@@ -76,11 +73,11 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src1_, const T *src2
         // Update output value
         if(beta == zero)
         {
-            result = alpha * sum;
+            result = static_cast<T>(alpha * sum);
         }
         else
         {
-            result = (beta*result-alpha*c) + alpha*sum;
+            result = static_cast<T>((beta * Y{result} - alpha * c) + alpha * sum);
         }
     }
 }
@@ -94,6 +91,11 @@ void cpu<fp32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_t *src1,
 template
 void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src1,
         const fp64_t *src2, Scalar beta, fp64_t *dst)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index m, Index n, Index k, Scalar alpha, const bf16_t *src1,
+        const bf16_t *src2, Scalar beta, bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::sumprod_fiber
