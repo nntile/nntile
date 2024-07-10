@@ -379,6 +379,10 @@ def flash_softmax_gemm_async(
         core_tensor.flash_softmax_gemm_async_fp64(
             Q, K, V, mask, maxsumexp, dst, tmp, redux
         )
+    elif type(Q) is core_tensor.Tensor_bf16:
+        core_tensor.flash_softmax_gemm_async_bf16(
+            Q, K, V, mask, maxsumexp, dst, tmp, redux
+        )
     else:
         raise TypeError
 
@@ -469,6 +473,22 @@ def flash_softmax_gemm_backward_async(
             tmp_sumprod_slice,
             redux,
         )
+    # elif type(Q) is core_tensor.Tensor_bf16:
+    #     core_tensor.flash_softmax_gemm_backward_async_bf16(
+    #         Q,
+    #         dQ,
+    #         K,
+    #         dK,
+    #         V,
+    #         dV,
+    #         mask,
+    #         maxsumexp,
+    #         dst_grad,
+    #         tmp,
+    #         tmp_grad,
+    #         tmp_sumprod_slice,
+    #         redux,
+    #     )
     else:
         raise TypeError
 

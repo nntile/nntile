@@ -76,6 +76,11 @@ void cpu<fp32_t>(Index m, Index n, Index k, const fp32_t *maxsumexp,
     noexcept;
 
 template
+void cpu<fp32_fast_tf32_t>(Index m, Index n, Index k, const fp32_fast_tf32_t *maxsumexp,
+        Scalar alpha, fp32_fast_tf32_t *dst)
+    noexcept;
+
+template
 void cpu<fp64_t>(Index m, Index n, Index k, const fp64_t *maxsumexp,
         Scalar alpha, fp64_t *dst)
     noexcept;
