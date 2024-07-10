@@ -435,10 +435,11 @@ if args.nntile_nbackward > 0:
         nntile_model.backward_async()
     nntile.starpu.wait_for_all()
     time1 = time.time() - time0
-    print("NNTile backward throughput (sequence/sec): ", \
+    print("NNTile forward+backward throughput (sequence/sec): ", \
             args.nntile_nbackward * args.minibatch_size / time1)
-    print("NNTile backward performance: {} Tflops/s".format(2 * nflops_seq \
-            * args.nntile_nbackward * args.minibatch_size / time1 * 1e-12))
+    print("NNTile forward+backward performance: {} Tflops/s".format(3 \
+            * nflops_seq * args.nntile_nbackward * args.minibatch_size \
+            / time1 * 1e-12))
 
 # Prepare input and output batches if real training is required
 if args.torch_nepochs > 0 or args.nntile_nepochs > 0 or args.check_fp64:
