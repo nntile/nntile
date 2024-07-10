@@ -419,16 +419,17 @@ if args.nntile_nbackward > 0:
     input_value = torch.randint(config.vocab_size, \
             (args.minibatch_size, config.n_positions), dtype=torch.int64)
     nntile_model.activations[0].value.from_array(input_value.T)
-    nntile_model.forward_async()
+    nntile_model.clear_gradients()
     for i in range(args.nntile_nbackward_warmup):
-        nntile_model.clear_gradients()
+        nntile_model.forward_async()
         nntile.tensor.copy_async(nntile_model.activations[-1].value, \
                 nntile_model.activations[-1].grad)
         nntile_model.backward_async()
     nntile.starpu.wait_for_all()
     time0 = time.time()
+    nntile_model.clear_gradients()
     for i in range(args.nntile_nbackward):
-        nntile_model.clear_gradients()
+        nntile_model.forward_async()
         nntile.tensor.copy_async(nntile_model.activations[-1].value, \
                 nntile_model.activations[-1].grad)
         nntile_model.backward_async()
