@@ -44,6 +44,7 @@ class GPT2Config(Dict):
         flashattention: bool = True,
         use_redux: bool = False,
         dtype: str = "fp32",
+        eos_token_id: int = 50256,
     ):
         self["vocab_size"] = vocab_size
         self["vocab_embed_dim_tile"] = vocab_embed_dim_tile
@@ -60,6 +61,7 @@ class GPT2Config(Dict):
         self["flashattention"] = flashattention
         self["redux"] = use_redux
         self["dtype"] = dtype
+        self["eos_token_id"] = eos_token_id
 
     def __getattr__(self, attr):
         return self[attr]
@@ -160,6 +162,7 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         flashattention = config["flashattention"]
         redux = config["redux"]
         self.dtype = config["dtype"]
+        self.eos_token_id = config["eos_token_id"]
 
         if self.dtype not in ["fp32", "tf32", "bf16"]:
             raise TypeError("Only fp32 and tf32 are supported for weight type")

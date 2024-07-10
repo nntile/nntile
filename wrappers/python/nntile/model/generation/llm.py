@@ -26,14 +26,14 @@ class LLMGenerationMixin:
         mode: GenerationMode = GenerationMode.Greedy,
     ):
         if mode == GenerationMode.Greedy:
-            output_ids = generate_greedy(self, input_ids, prefill_size, params)
+            output_ids = generate_greedy(self, input_ids, prefill_size, self.eos_token_id, params)
         else:
             raise Exception("Unsupported generation mode: ", mode)
 
         return output_ids
 
 
-def generate_greedy(model, input_ids, prefill_size, params):
+def generate_greedy(model, input_ids, prefill_size, eos_token_id, params):
     cur_seq_size = prefill_size
 
     output_ids = input_ids
@@ -45,6 +45,8 @@ def generate_greedy(model, input_ids, prefill_size, params):
         pred_token = np.argmax(logits_np[:, cur_seq_size - 1, :])
 
         # TODO: add tokenizer.eos break
+        if pred_token == eos_token_id:
+            return output_ids, cur_seq_size
 
         # TODO: add starpu function for scalar assign
         output_ids_np = nnt_constructors.to_numpy(output_ids)
