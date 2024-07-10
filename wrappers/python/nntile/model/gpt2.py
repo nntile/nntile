@@ -16,8 +16,16 @@ from typing import Dict, List
 import numpy as np
 import torch
 
-from nntile.layer import (Act, AddSlice, Attention, AttentionSingleHead,
-                          Embedding, FlashAttention, LayerNorm, Linear)
+from nntile.layer import (
+    Act,
+    AddSlice,
+    Attention,
+    AttentionSingleHead,
+    Embedding,
+    FlashAttention,
+    LayerNorm,
+    Linear,
+)
 from nntile.layer.add import Add
 from nntile.model.base_model import BaseModel
 from nntile.tensor import (Tensor, Tensor_bf16, Tensor_bool, Tensor_fp32,
@@ -551,6 +559,27 @@ class GPT2Model(BaseModel):
 
         return gpt2_nntile, gpt2_nntile.next_tag
 
+    @classmethod
+    def from_pretrained(
+        cls,
+        model_name: str,
+        batch_size: int,
+        batch_size_tile: int,
+        seq_len_tile: int,
+        next_tag: int,
+        cache_dir: str | None = None,
+    ):
+        # TODO: where should be global repo with all this logic. We need to design it.
+        # For now, manual code for usability
+        return create_gpt2_model_from_torch_pretrained(
+            model_name,
+            batch_size,
+            batch_size_tile,
+            seq_len_tile,
+            next_tag,
+            cache_dir=cache_dir,
+        )
+
     def set_input(self, x: Tensor):
         expected_shape = self.activations[0].value.shape
         if x.shape != expected_shape:
@@ -587,3 +616,74 @@ class GPT2Model(BaseModel):
         super().unregister()
         if self.mask:
             self.mask.unregister()
+
+
+PretrainedGpt2Configs = {
+    "gpt2": GPT2Config(
+        vocab_size=50257,
+        vocab_embed_dim_tile=384,
+        embed_dim=768,
+        embed_dim_tile=384,
+        max_position_embeddings=1024,
+        inner_dim=3072,
+        inner_dim_tile=1536,
+        layer_norm_epsilon=1e-05,
+        num_hidden_layers=12,
+        n_head=12,
+        n_head_tile=12,
+        activation_function="gelutanh",
+        flashattention=False,
+        use_redux=False,
+        dtype="fp32",
+    )
+}
+
+
+def create_gpt2_model_from_torch_pretrained(
+    model_name: str,
+    batch_size: int,
+    batch_size_tile: int,
+    seq_len_tile: int,
+    next_tag: int,
+    cache_dir: str | None = None,
+):
+    if model_name not in PretrainedGpt2Configs:
+        raise Exception(
+            f"Unsupported pretrained model: {model_name}. Try create manually with GPT2Model_nntile.from_torch. Currently supported: {list(PretrainedGpt2Configs.keys())}"
+        )
+
+    nntile_model_config = PretrainedGpt2Configs[model_name]
+
+    import torch.nn as nn
+    from transformers import GPT2LMHeadModel
+
+    model_torch = GPT2LMHeadModel.from_pretrained(
+        model_name, cache_dir=cache_dir
+    )
+
+    config = model_torch.config
+    config.attn_pdrop = 0
+    config.embd_pdrop = 0
+    config.resid_pdrop = 0
+    # Current version splits lm_head and wte parameters, shared parameters will be
+    # supported soon
+    model_torch.lm_head.weight = nn.Parameter(
+        model_torch.lm_head.weight.detach().clone()
+    )
+
+    inner_dim = (
+        config.n_inner if config.n_inner is not None else 4 * config.hidden_size
+    )
+    config.n_inner = inner_dim
+
+    nntile_model, next_tag = GPT2Model.from_torch(
+        model_torch,
+        batch_size,
+        batch_size_tile,
+        config.n_positions,
+        seq_len_tile,
+        nntile_model_config,
+        next_tag,
+    )
+
+    return nntile_model, next_tag
