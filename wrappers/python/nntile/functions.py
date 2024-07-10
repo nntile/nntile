@@ -655,7 +655,11 @@ def flash_maxsumexp_async(
         )
     elif type(Q) is core_tensor.Tensor_fp64:
         core_tensor.flash_maxsumexp_async_fp64(
-            Q, K, mask, maxsumexp, tmp, redux, 0
+            Q, K, mask, maxsumexp, tmp, redux
+        )
+    elif type(Q) is core_tensor.Tensor_bf16:
+        core_tensor.flash_maxsumexp_async_bf16(
+            Q, K, mask, maxsumexp, tmp, redux
         )
     else:
         raise TypeError

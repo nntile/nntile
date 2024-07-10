@@ -617,10 +617,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("normalize_fp32", &normalize<fp32_t>);
 
     m.def("flash_maxsumexp_async_fp64", &flash_maxsumexp_async<fp64_t>);
+    m.def("flash_maxsumexp_async_bf16", &flash_maxsumexp_async<bf16_t>);
     m.def("flash_maxsumexp_async_fp32", &flash_maxsumexp_async<fp32_t>);
     m.def("flash_maxsumexp_async_fp32_fast_tf32", &flash_maxsumexp_async<fp32_fast_tf32_t>);
     m.def("flash_maxsumexp_fp64", &flash_maxsumexp<fp64_t>);
     m.def("flash_maxsumexp_fp32", &flash_maxsumexp<fp32_t>);
+    m.def("flash_maxsumexp_bf16", &flash_maxsumexp<bf16_t>);
     m.def("flash_maxsumexp_fp32_fast_tf32", &flash_maxsumexp<fp32_fast_tf32_t>);
 
     m.def("maxsumexp_async_fp64", &maxsumexp_async<fp64_t>);
