@@ -88,9 +88,6 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
             std::min(int(k), 16));
     dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y,
             (k+threads.z-1)/threads.z);
-    // using Y = typename CUDAComputeType<T>::value;
-    // auto src = reinterpret_cast<const Y *>(src_);
-    // auto dst = reinterpret_cast<Y *>(dst_);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha,
             src_, beta, dst_);
 }

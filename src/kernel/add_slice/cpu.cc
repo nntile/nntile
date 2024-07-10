@@ -36,8 +36,6 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_,
  * */
 {
     using Y = typename T::repr_t;
-    // auto src = reinterpret_cast<const Y *>(src_);
-    // auto dst = reinterpret_cast<Y *>(dst_);
     const Y zero{0.0}, alpha{alpha_}, beta{beta_};
     const Index mk = m * k;
     // Cycle over column of the output buffer dst

@@ -74,11 +74,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index k_start,
             std::min(int(k_size), 16));
     dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y,
             (k_size+threads.z-1)/threads.z);
-//     using Y = typename CUDAComputeType<T>::value;
     using I = typename CUDAComputeType<int64_t>::value;
     auto index = reinterpret_cast<const I *>(index_);
-//     auto vocab = reinterpret_cast<const Y *>(vocab_);
-//     auto embed = reinterpret_cast<Y *>(embed_);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, k_start, k_size,
             index, vocab, embed);
 }

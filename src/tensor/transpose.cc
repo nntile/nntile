@@ -90,6 +90,10 @@ void transpose_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
         const Tensor<fp32_t> &dst, Index ndim);
 
 template
+void transpose_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src,
+        const Tensor<bf16_t> &dst, Index ndim);
+
+template
 void transpose_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst, Index ndim);
 

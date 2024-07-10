@@ -42,8 +42,6 @@ void cuda(cudaStream_t stream, Index nelems, Scalar val, T *data)
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    // using Y = typename CUDAComputeType<T>::value;
-    // auto data = reinterpret_cast<Y *>(data_);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, val, data);
 }
 

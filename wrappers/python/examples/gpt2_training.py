@@ -360,12 +360,12 @@ if args.torch_nforward > 0:
             (args.minibatch_size, config.n_positions), dtype=torch.int64, \
             device=args.torch_device)
     for i in range(args.torch_nforward_warmup):
-        output_value = model_torch(input_value)
+        output_value = model_torch.to(torch_dtype)(input_value)
     if args.torch_device.startswith("cuda"):
         torch.cuda.synchronize()
     time0 = time.time()
     for i in range(args.torch_nforward):
-        output_value = model_torch(input_value)
+        output_value = model_torch.to(torch_dtype)(input_value)
     if args.torch_device.startswith("cuda"):
         torch.cuda.synchronize()
     time1 = time.time() - time0
@@ -379,7 +379,7 @@ if args.torch_nbackward > 0:
     input_value = torch.randint(config.vocab_size, \
             (args.minibatch_size, config.n_positions), dtype=torch.int64, \
             device=args.torch_device)
-    output_value = model_torch(input_value)
+    output_value = model_torch.to(torch_dtype)(input_value)
     loss = (output_value.logits * output_value.logits).sum()
     for i in range(args.torch_nbackward_warmup):
         loss.backward(retain_graph=True)
@@ -621,7 +621,7 @@ if args.torch_nepochs > 0:
             for k in range(num_minibatch):
                 train_input = torch_input[j][k].to(args.torch_device)
                 train_labels = torch_output[j][k].to(args.torch_device).reshape(-1)
-                train_output = model_torch(train_input)
+                train_output = model_torch.to(torch_dtype)(train_input)
                 train_logits = train_output.logits.reshape(-1, config.vocab_size)
                 loss_local = loss_func(train_logits, train_labels)
                 loss_local.backward()
@@ -639,7 +639,7 @@ if args.torch_nepochs > 0:
             for k in range(num_minibatch):
                 train_input = torch_input[j][k].to(args.torch_device)
                 train_labels = torch_output[j][k].to(args.torch_device).reshape(-1)
-                train_output = model_torch(train_input)
+                train_output = model_torch.to(torch_dtype)(train_input)
                 train_logits = train_output.logits.reshape(-1, config.vocab_size)
                 loss_local = loss_func(train_logits, train_labels)
                 loss_local.backward()

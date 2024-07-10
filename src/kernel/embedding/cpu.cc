@@ -38,8 +38,6 @@ void cpu(Index m, Index n, Index k, Index k_start, Index k_size,
  * */
 {
     using Y = typename T::repr_t;
-    // auto vocab = reinterpret_cast<const Y *>(vocab_);
-    // auto embed = reinterpret_cast<Y *>(embed_);
     using I = typename CPUComputeType<int64_t>::value;
     auto index = reinterpret_cast<const I *>(index_);
     // Cycle over column of output buffer
