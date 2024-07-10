@@ -52,7 +52,7 @@ class Attention(BaseLayer):
     b_transposed: TensorMoments
     n_head: int
     n_head_kv: int
-    n_rep: int
+    kv_group_size: int
     head_size: int
 
     # Construct attention layer with all the provided data
@@ -136,6 +136,10 @@ class Attention(BaseLayer):
         self.in_proj_bias_v = in_proj_bias_v
         self.out_proj_bias = out_proj_bias
         self.n_head = w_q.value.shape[0]
+        self.n_head_kv = w_k.value.shape[0]
+        self.kv_group_size = self.n_head // self.n_head_kv
+        if self.n_head != self.kv_group_size * self.n_head_kv:
+            raise ValueError("Wrong number of heads of W_k")
         n_emb = x_q.value.shape[0]
         head_size = n_emb // self.n_head
         # Stupid check, that is not necessary, as the code shall work
@@ -162,8 +166,14 @@ class Attention(BaseLayer):
         # Stupid check, that is not necessary, as the code shall work
         if n_emb != head_size * n_head:
             raise RuntimeError
-        if n_head_tile % n_head_kv != 0:
+        # KV group is NOT split into tiles
+        kv_group_size = n_head // n_head_kv
+        kv_group_size_tile = n_head // n_head_kv
+        # n_head_kv is split into tiles in such a way, that
+        # n_head_kv_tile*kv_group_size_tile=n_head_tile
+        if n_head_tile % kv_group_size != 0:
             raise ValueError("Invalid value of n_head_kv")
+        n_head_kv_tile = n_head_tile // kv_group_size
         n_emb_k = x_k.value.shape[0]
         n_emb_k_tile = x_k.value.basetile_shape[0]
         if [n_seq, n_batch] != x_k.value.shape[1:]:
@@ -179,37 +189,56 @@ class Attention(BaseLayer):
         # Fixed for now
         head_size_tile = head_size
         # Define shape of each tensor
-        w_q_shape = [n_head, head_size, n_emb]
-        w_k_shape = [n_head, head_size, n_emb_k]
-        w_v_shape = [n_head, head_size, n_emb_v]
-        w_shape = [n_emb, n_head, head_size]
-        q_transposed_shape = [n_head, head_size, n_seq, n_batch]
-        q_shape = [head_size, n_seq, n_batch, n_head]
-        k_transposed_shape = [n_head, head_size, n_seq, n_batch]
-        k_shape = [head_size, n_seq, n_batch, n_head]
-        v_transposed_shape = [n_head, head_size, n_seq, n_batch]
-        v_shape = [head_size, n_seq, n_batch, n_head]
-        a_shape = [n_seq, n_seq, n_batch, n_head]
-        a_maxsumexp_shape = [2, n_seq, n_batch, n_head]
-        a_sumprod_slice_shape = [n_seq, n_batch, n_head]
-        b_shape = [head_size, n_seq, n_batch, n_head]
-        b_transposed_shape = [n_head, head_size, n_seq, n_batch]
+        w_q_shape = [kv_group_size, n_head_kv, head_size, n_emb]
+        w_k_shape = [n_head_kv, head_size, n_emb_k]
+        w_v_shape = [n_head_kv, head_size, n_emb_v]
+        w_shape = [n_emb, kv_group_size, n_head_kv, head_size]
+        q_transposed_shape = [kv_group_size, n_head_kv, head_size, n_seq, \
+                n_batch]
+        q_shape = [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+        k_transposed_shape = [n_head_kv, head_size, n_seq, n_batch]
+        k_shape = [head_size, n_seq, n_batch, n_head_kv]
+        k_rep_shape = [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+        v_transposed_shape = [n_head_kv, head_size, n_seq, n_batch]
+        v_shape = [head_size, n_seq, n_batch, n_head_kv]
+        v_rep_shape = [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+        a_shape = [n_seq, n_seq, n_batch, kv_group_size, n_head_kv]
+        a_maxsumexp_shape = [2, n_seq, n_batch, kv_group_size, n_head_kv]
+        a_sumprod_slice_shape = [n_seq, n_batch, kv_group_size, n_head_kv]
+        b_shape = [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+        b_transposed_shape = [kv_group_size, n_head_kv, head_size, n_seq, \
+                n_batch]
         # Define tile shapes of each tensor
-        w_q_basetile = [n_head_tile, head_size_tile, n_emb_tile]
-        w_k_basetile = [n_head_tile, head_size_tile, n_emb_k_tile]
-        w_v_basetile = [n_head_tile, head_size_tile, n_emb_v_tile]
-        w_basetile = [n_emb_tile, n_head_tile, head_size_tile]
-        q_transposed_basetile = [n_head_tile, head_size_tile, n_seq_tile, n_batch_tile]
-        q_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head_tile]
-        k_transposed_basetile = [n_head_tile, head_size_tile, n_seq_tile, n_batch_tile]
-        k_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head_tile]
-        v_transposed_basetile = [n_head_tile, head_size_tile, n_seq_tile, n_batch_tile]
-        v_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head_tile]
-        a_basetile = [n_seq_tile, n_seq_tile, n_batch_tile, n_head_tile]
-        a_maxsumexp_basetile = [2, n_seq_tile, n_batch_tile, n_head_tile]
-        a_sumprod_slice_basetile = [n_seq_tile, n_batch_tile, n_head_tile]
-        b_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head_tile]
-        b_transposed_basetile = [n_head_tile, head_size_tile, n_seq_tile, n_batch_tile]
+        w_q_basetile = [kv_group_size_tile, n_head_kv_tile, head_size_tile, \
+                n_emb_tile]
+        w_k_basetile = [n_head_kv_tile, head_size_tile, n_emb_k_tile]
+        w_v_basetile = [n_head_kv_tile, head_size_tile, n_emb_v_tile]
+        w_basetile = [n_emb_tile, kv_group_size_tile, n_head_kv_tile, \
+                head_size_tile]
+        q_transposed_basetile = [kv_group_size_tile, n_head_kv_tile, \
+                head_size_tile, n_seq_tile, n_batch_tile]
+        q_basetile = [head_size_tile, n_seq_tile, n_batch_tile, \
+                kv_group_size_tile, n_head_kv_tile]
+        k_transposed_basetile = [n_head_kv_tile, head_size_tile, n_seq_tile, \
+                n_batch_tile]
+        k_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head_kv_tile]
+        k_rep_basetile = [head_size_tile, n_seq_tile, n_batch_tile, \
+                kv_group_size_tile, n_head_kv_tile]
+        v_transposed_basetile = [n_head_kv_tile, head_size_tile, n_seq_tile, \
+                n_batch_tile]
+        v_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head_kv_tile]
+        v_rep_basetile = [head_size_tile, n_seq_tile, n_batch_tile, \
+                kv_group_size_tile, n_head_kv_tile]
+        a_basetile = [n_seq_tile, n_seq_tile, n_batch_tile, \
+                kv_group_size_tile, n_head_kv_tile]
+        a_maxsumexp_basetile = [2, n_seq_tile, n_batch_tile, \
+                kv_group_size_tile, n_head_kv_tile]
+        a_sumprod_slice_basetile = [n_seq_tile, n_batch_tile, \
+                kv_group_size_tile, n_head_kv_tile]
+        b_basetile = [head_size_tile, n_seq_tile, n_batch_tile, \
+                kv_group_size_tile, n_head_kv_tile]
+        b_transposed_basetile = [kv_group_size_tile, n_head_kv_tile, \
+                head_size_tile, n_seq_tile, n_batch_tile]
         # Define traits
         w_q_traits = TensorTraits(w_q_shape, w_q_basetile)
         w_k_traits = TensorTraits(w_k_shape, w_k_basetile)
@@ -219,8 +248,10 @@ class Attention(BaseLayer):
         q_traits = TensorTraits(q_shape, q_basetile)
         k_transposed_traits = TensorTraits(k_transposed_shape, k_transposed_basetile)
         k_traits = TensorTraits(k_shape, k_basetile)
+        k_rep_traits = TensorTraits(k_rep_shape, k_rep_basetile)
         v_transposed_traits = TensorTraits(v_transposed_shape, v_transposed_basetile)
         v_traits = TensorTraits(v_shape, v_basetile)
+        v_rep_traits = TensorTraits(v_rep_shape, v_rep_basetile)
         a_traits = TensorTraits(a_shape, a_basetile)
         a_maxsumexp_traits = TensorTraits(a_maxsumexp_shape,
                 a_maxsumexp_basetile)
@@ -237,17 +268,23 @@ class Attention(BaseLayer):
         q_distr = [0] * q_traits.grid.nelems
         k_transposed_distr = [0] * k_transposed_traits.grid.nelems
         k_distr = [0] * k_traits.grid.nelems
+        k_rep_distr = [0] * k_rep_traits.grid.nelems
         v_transposed_distr = [0] * v_transposed_traits.grid.nelems
         v_distr = [0] * v_traits.grid.nelems
+        v_rep_distr = [0] * v_rep_traits.grid.nelems
         a_distr = [0] * a_traits.grid.nelems
         a_maxsumexp_distr = [0] * a_maxsumexp_traits.grid.nelems
         a_sumprod_slice_distr = [0] * a_sumprod_slice_traits.grid.nelems
         b_distr = [0] * b_traits.grid.nelems
         b_transposed_distr = [0] * b_transposed_traits.grid.nelems
         if bias:
-            in_proj_bias_qkv_traits = TensorTraits([head_size, n_head], \
-                    [head_size_tile, n_head_tile])
-            in_proj_bias_qkv_distr = [0] * in_proj_bias_qkv_traits.grid.nelems
+            in_proj_bias_q_traits = TensorTraits([head_size, kv_group_size, \
+                    n_head_kv], \
+                    [head_size_tile, kv_group_size_tile, n_head_kv_tile])
+            in_proj_bias_q_distr = [0] * in_proj_bias_q_traits.grid.nelems
+            in_proj_bias_kv_traits = TensorTraits([head_size, n_head_kv], \
+                    [head_size_tile, n_head_kv_tile])
+            in_proj_bias_kv_distr = [0] * in_proj_bias_kv_traits.grid.nelems
         # Define all the lists
         # w_q
         w_q_value = type(x_q.value)(w_q_traits, w_q_distr, next_tag)
@@ -257,11 +294,11 @@ class Attention(BaseLayer):
         w_q = TensorMoments(w_q_value, w_q_grad, True)
         if bias:
             in_proj_bias_q_value = type(x_q.value)( \
-                    in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
+                    in_proj_bias_q_traits, in_proj_bias_q_distr, \
                     next_tag)
             next_tag = in_proj_bias_q_value.next_tag
             in_proj_bias_q_grad = type(x_q.value)( \
-                    in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
+                    in_proj_bias_q_traits, in_proj_bias_q_distr, \
                     next_tag)
             next_tag = in_proj_bias_q_grad.next_tag
             bias_inproj_q = TensorMoments(in_proj_bias_q_value, \
@@ -276,11 +313,11 @@ class Attention(BaseLayer):
         w_k = TensorMoments(w_k_value, w_k_grad, True)
         if bias:
             in_proj_bias_k_value = type(x_q.value)( \
-                    in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
+                    in_proj_bias_kv_traits, in_proj_bias_kv_distr, \
                     next_tag)
             next_tag = in_proj_bias_k_value.next_tag
             in_proj_bias_k_grad = type(x_q.value)( \
-                    in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
+                    in_proj_bias_kv_traits, in_proj_bias_kv_distr, \
                     next_tag)
             next_tag = in_proj_bias_k_grad.next_tag
             bias_inproj_k = TensorMoments(in_proj_bias_k_value, \
@@ -295,11 +332,11 @@ class Attention(BaseLayer):
         w_v = TensorMoments(w_v_value, w_v_grad, True)
         if bias:
             in_proj_bias_v_value = type(x_q.value)( \
-                    in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
+                    in_proj_bias_kv_traits, in_proj_bias_kv_distr, \
                     next_tag)
             next_tag = in_proj_bias_v_value.next_tag
             in_proj_bias_v_grad = type(x_q.value)( \
-                    in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
+                    in_proj_bias_kv_traits, in_proj_bias_kv_distr, \
                     next_tag)
             next_tag = in_proj_bias_v_grad.next_tag
             bias_inproj_v = TensorMoments(in_proj_bias_v_value, \
@@ -336,6 +373,12 @@ class Attention(BaseLayer):
         k_grad = type(x_q.value)(k_traits, k_distr, next_tag)
         next_tag = k_grad.next_tag
         k = TensorMoments(k_value, k_grad, True)
+        # k_rep
+        k_rep_value = type(x_q.value)(k_rep_traits, k_rep_distr, next_tag)
+        next_tag = k_rep_value.next_tag
+        k_rep_grad = type(x_q.value)(k_rep_traits, k_rep_distr, next_tag)
+        next_tag = k_rep_grad.next_tag
+        k_rep = TensorMoments(k_rep_value, k_rep_grad, True)
         # v_transposed
         v_transposed_value = type(x_q.value)(v_transposed_traits, v_transposed_distr, next_tag)
         next_tag = v_transposed_value.next_tag
@@ -348,6 +391,12 @@ class Attention(BaseLayer):
         v_grad = type(x_q.value)(v_traits, v_distr, next_tag)
         next_tag = v_grad.next_tag
         v = TensorMoments(v_value, v_grad, True)
+        # v_rep
+        v_rep_value = type(x_q.value)(v_rep_traits, v_rep_distr, next_tag)
+        next_tag = v_rep_value.next_tag
+        v_rep_grad = type(x_q.value)(v_rep_traits, v_rep_distr, next_tag)
+        next_tag = v_rep_grad.next_tag
+        v_rep = TensorMoments(v_rep_value, v_rep_grad, True)
         # a
         a_value = type(x_q.value)(a_traits, a_distr, next_tag)
         next_tag = a_value.next_tag
@@ -397,8 +446,8 @@ class Attention(BaseLayer):
         y = TensorMoments(y_value, y_grad, True)
         # Create attention layer with all the provided data
         layer = Attention(x_q, x_k, x_v, y, w_q, w_k, w_v, w, q_transposed, \
-                q, k_transposed, k, v_transposed, v, a, a_maxsumexp, \
-                a_sumprod_slice, b, b_transposed, bias_inproj_q, \
+                q, k_transposed, k, k_rep, v_transposed, v, v_rep, a, \
+                a_maxsumexp, a_sumprod_slice, b, b_transposed, bias_inproj_q, \
                 bias_inproj_k, bias_inproj_v, out_proj_bias, mask, \
                 redux=redux)
         # Return layer and next tag to be used
@@ -408,12 +457,12 @@ class Attention(BaseLayer):
     def forward_async(self):
         # Compute query, key and value tensors
         # Q_transposed = einsum('ijkl,lmn->ijkmn', W_Q, X_Q)
-        # gemm (n_rep, n_head_kv, head_size, n_emb) by (n_emb, n_seq, n_batch)
-        # into (n_rep, n_head_kv, head_size, n_seq, n_batch)
+        # gemm (kv_group_size, n_head_kv, head_size, n_emb) by (n_emb, n_seq, n_batch)
+        # into (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w_q.value, notrans, \
                     self.x_q.value, 0.0, self.q_transposed.value, 1, 0, \
                     redux=self.redux)
-        # Rotate axes into (head_size, n_seq, n_batch, n_rep, n_head_kv)
+        # Rotate axes into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
         transpose_async(1.0, self.q_transposed.value, self.q.value, 2)
         # X_Q, W_Q and Q_transposed can be offloaded from GPU
         self.x_q.value.wont_use()
@@ -421,8 +470,8 @@ class Attention(BaseLayer):
         self.w_q.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_q is not None:
-            # batched add_fiber (head_size, batch=(n_rep, n_head_kv)) into
-            # (head_size, n_seq, n_batch, batch=(n_rep, n_head_kv))
+            # batched add_fiber (head_size, batch=(kv_group_size, n_head_kv)) into
+            # (head_size, n_seq, n_batch, batch=(kv_group_size, n_head_kv))
             add_fiber_async(1, self.in_proj_bias_q.value, 1, \
                     self.q.value, 0, 2)
             self.in_proj_bias_q.value.wont_use()
@@ -466,16 +515,16 @@ class Attention(BaseLayer):
             self.in_proj_bias_v.value.wont_use()
         # Repeat K along fibers of proper axis
         # from (head_size, n_seq, n_batch, n_head_kv)
-        # into (head_size, n_seq, n_batch, n_rep, n_head_kv)
+        # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
         add_slice_async(1.0, self.k.value, 0.0, self.k_rep.value, 3)
         # K can be deleted
         self.k.value.invalidate_submit()
         # Get tensor for softmax
         # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q)
         # single batched gemm
-        # (head_size, n_seq, batch=(n_batch, n_rep, n_head_kv))
-        # by (head_size, n_seq, batch=(n_batch, n_rep, n_head_kv))
-        # into (n_seq, n_seq, batch=(n_batch, n_rep, n_head_kv))
+        # (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
+        # by (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
+        # into (n_seq, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
         gemm_async(1.0/self.head_size**0.5, trans, self.k_rep.value, \
                     notrans, self.q.value, 0.0, self.a.value, 1, 3, \
                     redux=self.redux)
@@ -497,27 +546,27 @@ class Attention(BaseLayer):
         self.a_maxsumexp.invalidate_submit()
         # Repeat V along fibers of proper axis
         # from (head_size, n_seq, n_batch, n_head_kv)
-        # into (head_size, n_seq, n_batch, n_rep, n_head_kv)
+        # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
         add_slice_async(1.0, self.v.value, 0.0, self.v_rep.value, 3)
         # V can be deleted
         self.v.value.invalidate_submit()
         # Apply value tensor
         # B = einsum('jklbi,kmlbi->jmlbi', V_rep, A)
-        # batched gemm (head_size, n_seq, batch=(n_batch, n_rep, n_head_kv))
-        # by (n_seq, n_seq, batch=(n_batch, n_rep, n_head_kv)) into
-        # (head_size, n_seq, batch=(n_batch, n_rep, n_head_kv))
+        # batched gemm (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
+        # by (n_seq, n_seq, batch=(n_batch, kv_group_size, n_head_kv)) into
+        # (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
         gemm_async(1.0, notrans, self.v_rep.value, notrans, \
                     self.a.value, 0.0, self.b.value, 1, 3, redux=self.redux)
         # V_rep and A can be offloaded from GPU
         self.v_rep.value.wont_use()
         self.a.value.wont_use()
         # Accumulate result from all the heads
-        # rotate axes (head_size, n_seq, n_batch, n_rep, n_head_kv) into
-        # (n_rep, n_head_kv, head_size, n_seq, n_batch) and then
+        # rotate axes (head_size, n_seq, n_batch, kv_group_size, n_head_kv) into
+        # (kv_group_size, n_head_kv, head_size, n_seq, n_batch) and then
         transpose_async(1.0, self.b.value, self.b_transposed.value, 3)
         # Y = einsum('jklm,klmni->jni', W, B_transposed)
-        # gemm (n_emb, n_rep, n_head_kv, head_size) by
-        # (n_rep, n_head_vk, head_size, n_seq, n_batch)
+        # gemm (n_emb, kv_group_size, n_head_kv, head_size) by
+        # (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
         # into (n_emb, n_seq, n_batch)
         gemm_async(1.0, notrans, self.w.value, notrans, \
                     self.b_transposed.value, 0.0, self.y.value, 3, 0, \
@@ -698,8 +747,8 @@ class Attention(BaseLayer):
                 self.in_proj_bias_q.grad.wont_use()
         # Backward for axes rotation (Q_transposed->Q)
         if self.q_transposed.grad_required:
-            # Rotate axes (head_size, n_seq, n_batch, n_rep, n_head_kv) into
-            # (n_rep, n_head_kv, head_size, n_seq, n_batch)
+            # Rotate axes (head_size, n_seq, n_batch, kv_group_size, n_head_kv) into
+            # (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
             transpose_async(1.0, self.q.grad, self.q_transposed.grad, 3)
         # dQ can be deleted
         self.q.grad.invalidate_submit()
