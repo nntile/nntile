@@ -87,6 +87,11 @@ void cpu<fp32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_t *src1,
     noexcept;
 
 template
+void cpu<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_fast_tf32_t *src1,
+        const fp32_fast_tf32_t *src2, Scalar beta, fp32_fast_tf32_t *dst)
+    noexcept;
+
+template
 void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src1,
         const fp64_t *src2, Scalar beta, fp64_t *dst)
     noexcept;

@@ -80,6 +80,11 @@ void cpu<fp32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_t *src,
     noexcept;
 
 template
+void cpu<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_fast_tf32_t *src,
+        Scalar beta, fp32_fast_tf32_t *dst)
+    noexcept;
+
+template
 void cpu<bf16_t>(Index m, Index n, Index k, Scalar alpha, const bf16_t *src,
         Scalar beta, bf16_t *dst)
     noexcept;

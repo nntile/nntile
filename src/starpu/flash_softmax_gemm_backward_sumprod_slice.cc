@@ -139,7 +139,7 @@ void cuda(void *buffers[], void *cl_args)
             args->seq, args->seq, args->head, 1.0/std::sqrt(args->head),
             K, args->head, K_offset, Q, args->head, Q_offset,
             0.0, tmp, args->seq, tmp_offset, args->batch);
-    using Y = typename nntile::kernel::CUDAComputeType<T>::value;
+    using Y = typename T::repr_t;
     kernel::mask_scalar::cuda<T>(stream, args->seq*args->seq, args->batch,
             mask, -std::numeric_limits<Y>::infinity(), tmp);
     kernel::softmax_inplace::cuda<T>(stream, 1, args->seq*args->batch,
@@ -160,64 +160,6 @@ void cuda(void *buffers[], void *cl_args)
             1.0, tmp_grad, tmp, 1.0, sumprod_slice);
 #endif // STARPU_SIMGRID
 }
-
-template<>
-void cuda<fp32_fast_tf32_t>(void *buffers[], void *cl_args)
-    noexcept
-{
-#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
-    using T = fp32_fast_tf32_t;
-    // Get arguments
-    auto args = reinterpret_cast<args_t *>(cl_args);
-    // Get interfaces
-    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *K = interfaces[0]->get_ptr<T>();
-    const T *Q = interfaces[1]->get_ptr<T>();
-    const bool_t *mask = interfaces[2]->get_ptr<bool_t>();
-    const T *maxsumexp = interfaces[3]->get_ptr<T>();
-    const T *dA = interfaces[4]->get_ptr<T>();
-    const T *V = interfaces[5]->get_ptr<T>();
-    T *dV = interfaces[6]->get_ptr<T>();
-    T *sumprod_slice = interfaces[7]->get_ptr<T>();
-    T *tmp = interfaces[8]->get_ptr<T>();
-    T *tmp_grad = interfaces[9]->get_ptr<T>();
-    // Get CUDA stream
-    cublasHandle_t handle = starpu_cublas_get_local_handle();
-    cudaStream_t stream = starpu_cuda_get_local_stream();
-    cublasSetStream(handle, stream);
-    // Launch kernels
-    Index K_offset = args->head * args->seq;
-    Index Q_offset = K_offset;
-    Index tmp_offset = args->seq * args->seq;
-    float head_ = static_cast<float>(args->head);
-    cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
-            args->seq, args->seq, args->head, 1.0/std::sqrt(head_),
-            K, args->head, K_offset, Q, args->head, Q_offset,
-            0.0, tmp, args->seq, tmp_offset, args->batch);
-    fp32_t *tmp_fp32 = reinterpret_cast<fp32_t *>(tmp);
-    kernel::mask_scalar::cuda<fp32_t>(stream, args->seq*args->seq,
-            args->batch, mask, -std::numeric_limits<float>::infinity(),
-            tmp_fp32);
-    kernel::softmax_inplace::cuda<fp32_t>(stream, 1, args->seq*args->batch,
-            args->seq, reinterpret_cast<const fp32_t *>(maxsumexp), 1.0,
-            tmp_fp32);
-    Index dA_offset = K_offset;
-    Index dV_offset = K_offset;
-    cublas_batch(handle, CUBLAS_OP_N, CUBLAS_OP_T,
-            args->head, args->seq, args->seq, 1.0, dA, args->head, dA_offset,
-            tmp, args->seq, tmp_offset, 1.0, dV, args->head, dV_offset,
-            args->batch);
-    Index tmp_grad_offset = tmp_offset;
-    Index V_offset = K_offset;
-    cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
-            args->seq, args->seq, args->head, 1.0, V, args->head, V_offset,
-            dA, args->head, dA_offset, 0.0, tmp_grad, args->seq,
-            tmp_grad_offset, args->batch);
-    kernel::sumprod_slice::cuda<fp32_t>(stream, 1, args->seq*args->batch, args->seq,
-            1.0, reinterpret_cast<const fp32_t *>(tmp_grad), tmp_fp32, 1.0,
-            reinterpret_cast<fp32_t *>(sumprod_slice));
-#endif // STARPU_SIMGRID
-}
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for maxsumexp tasks that depends only on m, n and k
@@ -236,7 +178,7 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
 
 void init()
 {
@@ -279,11 +221,25 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
+        codelet_bf16.init("nntile_flash_softmax_gemm_backward_sumprod_slice_bf16",
+            footprint,
+#ifdef NNTILE_USE_CBLAS
+            {},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda<bf16_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
 }
 
 void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
+    codelet_bf16.restrict_where(where);
     codelet_fp64.restrict_where(where);
     codelet_fp32_fast_tf32.restrict_where(where);
 }
@@ -291,6 +247,7 @@ void restrict_where(uint32_t where)
 void restore_where()
 {
     codelet_fp32.restore_where();
+    codelet_bf16.restore_where();
     codelet_fp64.restore_where();
     codelet_fp32_fast_tf32.restore_where();
 }
@@ -348,6 +305,11 @@ void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
 // Explicit instantiation
 template
 void submit<fp32_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
+        Handle mask, Handle maxsumexp, Handle dA, Handle V, Handle dV,
+        Handle sumprod_slice, Handle tmp, Handle tmp_grad, int redux);
+
+template
+void submit<bf16_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle mask, Handle maxsumexp, Handle dA, Handle V, Handle dV,
         Handle sumprod_slice, Handle tmp, Handle tmp_grad, int redux);
 

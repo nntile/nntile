@@ -236,6 +236,14 @@ void flash_softmax_gemm_backward_async(const Tensor<fp64_t> &Q, const Tensor<fp6
         const Tensor<fp64_t> &tmp, const Tensor<fp64_t> &tmp_grad,
         const Tensor<fp64_t> &tmp_sumprod_slice, int redux);
 
+template
+void flash_softmax_gemm_backward_async(const Tensor<bf16_t> &Q, const Tensor<bf16_t> &dQ,
+        const Tensor<bf16_t> &K, const Tensor<bf16_t> &dK, const Tensor<bf16_t> &V,
+        const Tensor<bf16_t> &dV, const Tensor<bool_t> &mask,
+        const Tensor<bf16_t> &maxsumexp, const Tensor<bf16_t> &dst_grad,
+        const Tensor<bf16_t> &tmp, const Tensor<bf16_t> &tmp_grad,
+        const Tensor<bf16_t> &tmp_sumprod_slice, int redux);
+
 // Explicit instantiation
 template
 void flash_softmax_gemm_backward(const Tensor<fp32_t> &Q, const Tensor<fp32_t> &dQ,
@@ -260,5 +268,13 @@ void flash_softmax_gemm_backward(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &
         const Tensor<fp64_t> &maxsumexp, const Tensor<fp64_t> &dst_grad,
         const Tensor<fp64_t> &tmp, const Tensor<fp64_t> &tmp_grad,
         const Tensor<fp64_t> &tmp_sumprod_slice, int redux);
+
+template
+void flash_softmax_gemm_backward(const Tensor<bf16_t> &Q, const Tensor<bf16_t> &dQ,
+        const Tensor<bf16_t> &K, const Tensor<bf16_t> &dK, const Tensor<bf16_t> &V,
+        const Tensor<bf16_t> &dV, const Tensor<bool_t> &mask,
+        const Tensor<bf16_t> &maxsumexp, const Tensor<bf16_t> &dst_grad,
+        const Tensor<bf16_t> &tmp, const Tensor<bf16_t> &tmp_grad,
+        const Tensor<bf16_t> &tmp_sumprod_slice, int redux);
 
 } // namespace nntile::tensor

@@ -43,6 +43,10 @@ void cpu<fp32_t>(Index nelems, const fp32_t *src, fp32_t *dst)
     noexcept;
 
 template
+void cpu<fp32_fast_tf32_t>(Index nelems, const fp32_fast_tf32_t *src, fp32_fast_tf32_t *dst)
+    noexcept;
+
+template
 void cpu<fp64_t>(Index nelems, const fp64_t *src, fp64_t *dst)
     noexcept;
 
