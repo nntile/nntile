@@ -42,9 +42,7 @@ def generate_greedy(model, input_ids, prefill_size, params):
 
         # TODO: add starpu function for argmax
         logits_np = nnt_constructors.to_numpy(logits)
-        print(logits_np.shape)
         pred_token = np.argmax(logits_np[:, cur_seq_size - 1, :])
-        print(pred_token)
 
         # TODO: add tokenizer.eos break
 

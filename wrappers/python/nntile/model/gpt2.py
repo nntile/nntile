@@ -16,16 +16,9 @@ from typing import Dict, List
 import numpy as np
 import torch
 
-from nntile.layer import (
-    Act,
-    AddSlice,
-    Attention,
-    AttentionSingleHead,
-    Embedding,
-    FlashAttention,
-    LayerNorm,
-    Linear,
-)
+import nntile
+from nntile.layer import (Act, AddSlice, Attention, AttentionSingleHead,
+                          Embedding, FlashAttention, LayerNorm, Linear)
 from nntile.layer.add import Add
 from nntile.model.base_model import BaseModel
 from nntile.tensor import (Tensor, Tensor_bf16, Tensor_bool, Tensor_fp32,
@@ -143,7 +136,7 @@ class GPT2MLP(BaseModel):
         return gpt2mlp_nntile, gpt2mlp_nntile.next_tag
 
 
-class GPT2Model(BaseModel):
+class GPT2Model(BaseModel, LLMGenerationMixin):
     next_tag: int
 
     # Construct model with all the provided data
@@ -582,19 +575,19 @@ class GPT2Model(BaseModel):
 
     def set_input(self, x: Tensor):
         expected_shape = self.activations[0].value.shape
-        if x.shape != expected_shape:
+        if not compare_shapes(x.shape, expected_shape):
             raise Exception(
                 "Mismatch shapes. Got: ", x.shape, " Expected: ", expected_shape
             )
 
-        self.activations[0].value = x
+        nntile.functions.copy_async(x, self.activations[0].value)
 
     def get_output(self) -> Tensor:
         return self.activations[-1].value
 
     def set_output_grad(self, grad):
         expected_shape = self.activations[-1].value.shape
-        if grad.shape != expected_shape:
+        if not compare_shapes(grad.shape, expected_shape):
             raise Exception(
                 "Mismatch shapes. Got: ",
                 grad.shape,
@@ -602,7 +595,7 @@ class GPT2Model(BaseModel):
                 expected_shape,
             )
 
-        self.activations[-1].grad = grad
+        nntile.functions.copy_async(grad, self.activations[-1].grad)
 
     def get_input_grad(self):
         return self.activations[0].grad
@@ -616,6 +609,10 @@ class GPT2Model(BaseModel):
         super().unregister()
         if self.mask:
             self.mask.unregister()
+
+
+def compare_shapes(iterable1, iterable2):
+    return all(x == y for x, y in zip(iterable1, iterable2))
 
 
 PretrainedGpt2Configs = {

@@ -44,3 +44,8 @@ def torch_rng():
     gen.manual_seed(seed)
 
     return gen
+
+
+@pytest.fixture(scope="package")
+def huggingface_local_cache_dir():
+    return "./hf_cache"
