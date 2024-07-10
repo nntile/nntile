@@ -28,7 +28,6 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_, const T *sr
           i1 = threadIdx.y + blockIdx.y*blockDim.y;
     Index i2_start = threadIdx.z, i2_step = blockDim.z;
     using Y = typename T::repr_t;
-    using Z = typename CUDAComputeType<T>::value;
     constexpr Y zero{0.};
     const Y alpha{alpha_};
     const Y beta{beta_};
@@ -45,20 +44,20 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_, const T *sr
             // Update sum
             sum += Y{src1_fiber[i2*m]} * Y{src2_fiber[i2*m]};
         }
-        __shared__ Z block_sum[64];
+        __shared__ Y block_sum[64];
         if(i2_start == 0)
         {
-            block_sum[threadIdx.x+blockDim.x*threadIdx.y] = Z{zero};
+            block_sum[threadIdx.x+blockDim.x*threadIdx.y] = zero;
         }
         __syncthreads();
-        atomicAdd(&block_sum[threadIdx.x+blockDim.x*threadIdx.y], Z{sum});
+        atomicAdd(&block_sum[threadIdx.x+blockDim.x*threadIdx.y], sum);
         __syncthreads();
         // Update output value
         if(i2_start == 0)
         {
             // Output value
             T &result = dst[i1*m+i0];
-            sum = Y{block_sum[threadIdx.x+blockDim.x*threadIdx.y]};
+            sum = block_sum[threadIdx.x+blockDim.x*threadIdx.y];
             if(beta == zero)
             {
                 result = T{alpha * sum};

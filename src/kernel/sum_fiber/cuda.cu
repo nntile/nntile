@@ -49,7 +49,6 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha, const T *
     Index i0_start = threadIdx.y, i0_step = blockDim.y;
     Index i1_start = threadIdx.z, i1_step = blockDim.z;
     using Y = typename T::repr_t;
-    using Z = typename CUDAComputeType<T>::value;
     constexpr Y zero{0.0};
     // Init sum
     Y sum = zero;
@@ -69,19 +68,19 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha, const T *
                 sum += Y{val};
             }
         }
-        __shared__ Z block_sum[1];
+        __shared__ Y block_sum[1];
         if(i1_start == 0 and i0_start == 0)
         {
-            block_sum[threadIdx.x] = Z{zero};
+            block_sum[threadIdx.x] = zero;
         }
         __syncthreads();
-        atomicAdd(&block_sum[threadIdx.x], Z{sum});
+        atomicAdd(&block_sum[threadIdx.x], sum);
         __syncthreads();
         // Update output value
         if(i1_start == 0 and i0_start == 0)
         {
             // Save result
-            sum = Y{block_sum[threadIdx.x]};
+            sum = block_sum[threadIdx.x];
             if(beta == zero)
             {
                 sum *= alpha;

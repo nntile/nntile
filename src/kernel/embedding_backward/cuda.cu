@@ -21,7 +21,7 @@ namespace nntile::kernel::embedding_backward
 template<typename T>
 static __global__
 void cuda_kernel(Index m, Index n, Index k, Index k_start, Index k_size,
-        const Index *index, const T *embed, T *vocab)
+        const Index *index, const T *embed_, T *vocab)
 //! Accumulate gradients of embeddings into vocabulary
 /*! Does the following operation:
  *      vocab[:, index[i, j]] += embed[i, k_start:k_start+k_size, j]
@@ -32,7 +32,7 @@ void cuda_kernel(Index m, Index n, Index k, Index k_start, Index k_size,
  * @param[in] k_start: Offset of the middle mode of embed tensor
  * @param[in] k_size: Size of the first mode of vocab tensor
  * @param[in] index: Tokens (indices of embeddings)
- * @param[out] embed: Tensor of gradients of embeddings
+ * @param[out] embed_: Tensor of gradients of embeddings
  * @param[inout] vocab: Gradient of vocabulary. It is a contiguous matrix of
  *      shape (k_size, vocab_size) but vocab_size is not passed as a parameter.
  * */
@@ -40,14 +40,13 @@ void cuda_kernel(Index m, Index n, Index k, Index k_start, Index k_size,
     Index i2 = threadIdx.x + blockIdx.x*blockDim.x;
     Index i0 = blockIdx.y, i1 = blockIdx.z;
     using Z = typename CUDAComputeType<T>::value;
-    using Y = typename T::repr_t;
     if(i2 < k_size)
     {
         // Output slice of vocabulary
         Z *vocab_slice = reinterpret_cast<Z*>(vocab + k_size*index[i1*m+i0]);
+        const Z *embed = reinterpret_cast<const Z *>(embed_);
         // Update value of embedding
-        Y embed_val = Y{embed[(i1*k+k_start+i2)*m + i0]};
-        atomicAdd(&vocab_slice[i2], Z{embed_val});
+        atomicAdd(&vocab_slice[i2], embed[(i1*k+k_start+i2)*m + i0]);
     }
 }
 

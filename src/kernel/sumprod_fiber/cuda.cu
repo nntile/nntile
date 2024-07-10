@@ -50,7 +50,6 @@ void cuda_kernel(Index m, Index n, Index k, Scalar alpha_, const T *src1,
     using Y = typename T::repr_t;
     const Y alpha{alpha_};
     const Y beta{beta_};
-    using Z = typename CUDAComputeType<T>::value;
     constexpr Y zero{0.0};
     // Init sum of product of the slices
     Y sum = zero;
@@ -70,13 +69,13 @@ void cuda_kernel(Index m, Index n, Index k, Scalar alpha_, const T *src1,
             }
         }
     }
-    __shared__ Z block_sum[2];
+    __shared__ Y block_sum[2];
     if(i1_start == 0 and i0_start == 0)
     {
-        block_sum[threadIdx.x] = Z{zero};
+        block_sum[threadIdx.x] = zero;
     }
     __syncthreads();
-    atomicAdd(&block_sum[threadIdx.x], Z{sum});
+    atomicAdd(&block_sum[threadIdx.x], sum);
     __syncthreads();
     // Update output value
     if(i1_start == 0 and i0_start == 0 and i2 < k)
@@ -89,7 +88,7 @@ void cuda_kernel(Index m, Index n, Index k, Scalar alpha_, const T *src1,
         }
         else
         {
-            result = T{beta * Y{result} + alpha * Y{block_sum[threadIdx.x]}};
+            result = T{beta * Y{result} + alpha * block_sum[threadIdx.x]};
         }
     }
 }

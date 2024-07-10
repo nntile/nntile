@@ -80,6 +80,7 @@ struct CUDAComputeType<fp32_fast_tf32_t>
     // converted into computing types, as memory-bound operations shall be done
     // in `fp32_t`, while compute-bound operations shall use `fp32_t` as data
     // storage type and `tf32_t` as compute type.
+    using value = float;
 };
 
 //! Compute type for nntile::bf16_t type

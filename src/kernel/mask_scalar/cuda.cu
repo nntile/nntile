@@ -64,6 +64,11 @@ void cuda<fp32_t>(cudaStream_t stream, Index nrows, Index ncols,
     noexcept;
 
 template
+void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index nrows, Index ncols,
+        const bool_t *mask, Scalar val, fp32_fast_tf32_t *data)
+    noexcept;
+
+template
 void cuda<fp64_t>(cudaStream_t stream, Index nrows, Index ncols,
         const bool_t *mask, Scalar val, fp64_t *data)
     noexcept;
