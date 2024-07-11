@@ -83,6 +83,7 @@
 #include <nntile/starpu/adam_step.hh>
 #include <nntile/starpu/adamw_step.hh>
 #include <nntile/starpu/transpose.hh>
+#include <nntile/starpu/silu_forward.hh>
 
 //! @namespace nntile::starpu
 /*! This namespace holds StarPU wrappers
@@ -158,6 +159,7 @@ void init()
     adam_step::init();
     adamw_step::init();
     transpose::init();
+    silu_forward::init();
 }
 
 // Restrict StarPU codelets to certain computational units
@@ -228,6 +230,7 @@ void restrict_where(uint32_t where)
     adam_step::restrict_where(where);
     adamw_step::restrict_where(where);
     transpose::restrict_where(where);
+    silu_forward::restrict_where(where);
 }
 
 // Restore computational units for StarPU codelets
@@ -298,6 +301,7 @@ void restore_where()
     adam_step::restore_where();
     adamw_step::restore_where();
     transpose::restore_where();
+    silu_forward::restore_where();
 }
 
 } // namespace nntile::starpu

@@ -11,20 +11,23 @@
 #
 # @version 1.0.0
 
-from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        copy_async, prod_async, relu_async, relu_backward_async, gelu_async, \
-        gelu_backward_async, gelutanh_async, gelutanh_backward_async, \
-        gelutanh_inplace_async, relu_forward_async
+from typing import Callable
+
 from nntile.layer.base_layer import BaseLayer
-import numpy as np
-from typing import List, Callable
+from nntile.tensor import (Tensor, TensorMoments, TensorTraits, copy_async,
+                           gelu_async, gelu_backward_async, gelutanh_async,
+                           gelutanh_backward_async, gelutanh_inplace_async,
+                           relu_backward_async, relu_forward_async,
+                           silu_forward_async)
+
 
 class Act(BaseLayer):
     x: TensorMoments
     y: TensorMoments
-    activations = {'relu': (relu_async, relu_backward_async), \
+    activations = {'relu': (relu_forward_async, relu_backward_async), \
             'gelu': (gelu_async, gelu_backward_async), \
-            'gelutanh': (gelutanh_inplace_async, gelutanh_backward_async) \
+            'gelutanh': (gelutanh_inplace_async, gelutanh_backward_async), \
+            'silu': (silu_forward_async, None) \
             }
     funcname: str
     func: Callable[[Tensor], None]
@@ -63,6 +66,8 @@ class Act(BaseLayer):
     def forward_async(self):
         if self.funcname == "relu":
             relu_forward_async(self.x.value, self.y.value)
+        if self.funcname == "silu":
+            silu_forward_async(self.x.value, self.y.value)
         if self.funcname == "gelutanh":
             gelutanh_async(self.x.value, self.y.value)
         if self.funcname == "gelu":
