@@ -11,21 +11,28 @@
 #
 # @version 1.0.0
 
-import numpy as np
 from typing import Sequence
 
-from nntile.functions import fill_async
-from nntile.nntile_core.tensor import (
-    Tensor_fp32,
-    Tensor_fp64,
-    TensorTraits,
-)
+import numpy as np
 
-nnt2np_type_mapping = {Tensor_fp32: np.float32, Tensor_fp64: np.float64}
+from nntile.functions import fill_async
+from nntile.nntile_core.tensor import (Tensor_bool, Tensor_fp32, Tensor_fp64,
+                                       Tensor_int64, TensorTraits)
+
+nnt2np_type_mapping = {
+    Tensor_fp32: np.float32,
+    Tensor_fp64: np.float64,
+    Tensor_int64: np.int64,
+    Tensor_bool: bool,
+}
 
 np2nnt_type_mapping = {
     np.dtypes.Float32DType: Tensor_fp32,
     np.dtypes.Float64DType: Tensor_fp64,
+    np.dtypes.IntDType: Tensor_int64,
+    np.dtypes.Int32DType: Tensor_int64,
+    np.dtypes.Int64DType: Tensor_int64,
+    np.dtypes.BoolDType: Tensor_bool,
 }
 
 

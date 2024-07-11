@@ -1,3 +1,4 @@
+import os
 from typing import Generator
 
 import pytest
@@ -44,3 +45,9 @@ def torch_rng():
     gen.manual_seed(seed)
 
     return gen
+
+
+@pytest.fixture(scope="package")
+def huggingface_local_cache_dir():
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    return f"{dir_path}/hf_cache"
