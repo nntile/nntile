@@ -119,6 +119,12 @@ if args.nntile_dtype == "tf32":
 
 # Load named pretrained PyTorch model
 if args.pretrained == "remote":
+    # Newer versions of transformers can use fast attention, so we disable it
+    # through a parameter attn_implementation
+    try:
+        model_torch = GPT2LMHeadModel.from_pretrained(args.model, \
+                cache_dir=args.model_path, attn_implementation="eager")
+    except:
         model_torch = GPT2LMHeadModel.from_pretrained(args.model, \
                 cache_dir=args.model_path)
 elif args.pretrained == "local":
@@ -169,13 +175,35 @@ config.n_inner = inner_dim
 #print("PyTorch model:")
 #print(model_torch)
 
+# Forward FLOPs for Torch without FlashAttention
 # Forward FLOPs of matrix products per input sequence per GPT block
-nflops_seq_block = 2*config.n_positions*config.n_embd*(3+1)*config.n_embd \
+torch_nflops_seq_block = 2*config.n_positions*config.n_embd*(3+1)*config.n_embd \
         + 4*config.n_positions*config.n_positions*config.n_embd \
         + 4*config.n_positions*config.n_embd*config.n_inner
 # Forward FLOPs of matrix products per input sequence per GPT model
-nflops_seq = config.num_hidden_layers*nflops_seq_block \
+torch_nflops_seq = config.num_hidden_layers*torch_nflops_seq_block \
         + 2*config.n_positions*config.n_embd*config.vocab_size
+
+# FLOPs counting
+# MLP
+nflops_seq_block_fwd = 4 * config.n_positions * config.n_embd * config.n_inner
+nflops_seq_block_bwd = 8 * config.n_positions * config.n_embd * config.n_inner
+# Attention Q, K, V
+nflops_seq_block_fwd += 8 * config.n_positions * config.n_embd**2
+nflops_seq_block_bwd += 16 * config.n_positions * config.n_embd**2
+# Attention softmax(Q'@K)@V
+if args.nntile_flashattention:
+    nflops_seq_block_fwd += 6 * config.n_positions**2 * config.n_embd
+    nflops_seq_block_bwd += 14 * config.n_positions**2 * config.n_embd
+else:
+    nflops_seq_block_fwd += 4 * config.n_positions**2 * config.n_embd
+    nflops_seq_block_bwd += 8 * config.n_positions**2 * config.n_embd
+# Total flops with LM_head
+nflops_seq_fwd = config.num_hidden_layers*nflops_seq_block_fwd \
+        + 2*config.n_positions*config.n_embd*config.vocab_size
+nflops_seq_bwd = config.num_hidden_layers*nflops_seq_block_bwd \
+        + 4*config.n_positions*config.n_embd*config.vocab_size
+nflops_seq = nflops_seq_fwd + nflops_seq_bwd
 
 # Initialize NNTile and StarPU
 time0 = time.time()
@@ -371,7 +399,7 @@ if args.torch_nforward > 0:
     time1 = time.time() - time0
     print("Torch forward throughput (sequence/sec): ", \
             args.torch_nforward * args.minibatch_size / time1)
-    print("Torch forward performance: {} Tflops/s".format(nflops_seq \
+    print("Torch forward performance: {} Tflops/s".format(torch_nflops_seq \
             * args.torch_nforward * args.minibatch_size / time1 * 1e-12))
 
 # Measure throughput of Torch backward pass
@@ -393,7 +421,7 @@ if args.torch_nbackward > 0:
     time1 = time.time() - time0
     print("Torch backward throughput (sequence/sec): ", \
             args.torch_nbackward * args.minibatch_size / time1)
-    print("Torch backward performance: {} Tflops/s".format(2 * nflops_seq \
+    print("Torch backward performance: {} Tflops/s".format(2 * torch_nflops_seq \
             * args.torch_nbackward * args.minibatch_size / time1 * 1e-12))
 
 # Measure throughput of the forward pass by NNTile
@@ -411,7 +439,7 @@ if args.nntile_nforward > 0:
     time1 = time.time() - time0
     print("NNTile forward throughput (sequence/sec): ", \
             args.nntile_nforward * args.minibatch_size / time1)
-    print("NNTile forward performance: {} Tflops/s".format(nflops_seq \
+    print("NNTile forward performance: {} Tflops/s".format(nflops_seq_fwd \
             * args.nntile_nforward * args.minibatch_size / time1 * 1e-12))
 
 # Measure throughput of the forward pass by NNTile
@@ -437,8 +465,8 @@ if args.nntile_nbackward > 0:
     time1 = time.time() - time0
     print("NNTile forward+backward throughput (sequence/sec): ", \
             args.nntile_nbackward * args.minibatch_size / time1)
-    print("NNTile forward+backward performance: {} Tflops/s".format(3 \
-            * nflops_seq * args.nntile_nbackward * args.minibatch_size \
+    print("NNTile forward+backward performance: {} Tflops/s".format( \
+            nflops_seq * args.nntile_nbackward * args.minibatch_size \
             / time1 * 1e-12))
 
 # Prepare input and output batches if real training is required
@@ -585,7 +613,7 @@ if args.nntile_nepochs > 0:
     print("NNTile training throughput tokens/sec: {}".format( \
             args.nntile_nepochs * num_train_batches * args.batch_size \
             * config.n_positions / time1))
-    print("NNTile performance: {} Tflops/s".format(3 * nflops_seq \
+    print("NNTile performance: {} Tflops/s".format(nflops_seq \
             * args.nntile_nepochs * num_train_batches * args.batch_size \
             / time1 * 1e-12))
     loss_np = np.zeros((1), dtype=np.float32)
@@ -657,7 +685,7 @@ if args.torch_nepochs > 0:
     print("Torch training throughput tokens/sec: {}".format( \
             args.torch_nepochs * num_train_batches * args.batch_size \
             * config.n_positions/time1), flush=True)
-    print("Torch performance: {} Tflops/s".format(3 * nflops_seq \
+    print("Torch performance: {} Tflops/s".format(3 * torch_nflops_seq \
             * args.torch_nepochs * num_train_batches * args.batch_size \
             / time1 * 1e-12), flush=True)
     print("Torch loss on the last batch: {}".format(loss.item()), flush=True)

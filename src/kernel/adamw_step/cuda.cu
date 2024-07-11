@@ -20,19 +20,14 @@ namespace nntile::kernel::adamw_step
 
 template<typename T>
 static __global__
-void cuda_kernel(Index num_iter, Index num_elems, Scalar beta_1_, Scalar beta_2_, Scalar eps_,
-        Scalar lr_, Scalar weight_decay_, const T *grad, T *first_moment, T *second_moment,
-        T *p)
+void cuda_kernel(Index num_iter, Index num_elems, typename T::repr_t beta_1,
+        typename T::repr_t beta_2, typename T::repr_t eps,
+        typename T::repr_t lr, typename T::repr_t  weight_decay,
+        typename T::repr_t alpha, typename T::repr_t beta, const T *grad,
+        T *first_moment, T *second_moment, T *p)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     using Y = typename T::repr_t;
-    const Y lr{lr_};
-    const Y beta_1{beta_1_};
-    const Y beta_2{beta_2_};
-    const Y eps{eps_};
-    const Y weight_decay{weight_decay_};
-    const Y alpha = lr / (Y{1.0} - ::pow(beta_1, num_iter));
-    const Y beta = Y{1.0} / ::sqrt(Y{1.0} - ::pow(beta_2, num_iter));
     if(i < num_elems)
     {
         // Read values (param+grad) from RAM only once
@@ -87,9 +82,12 @@ void cuda(cudaStream_t stream, Index num_iter, Index num_elems, Scalar beta_1,
  * */
 {
     dim3 blocks((num_elems+255)/256), threads(256);
+    using Y = typename T::repr_t;
+    const Scalar alpha = lr / (1.0 - std::pow(beta_1, num_iter));
+    const Scalar beta = 1.0 / std::sqrt(1.0 - std::pow(beta_2, num_iter));
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(num_iter, num_elems,
-            beta_1, beta_2, eps, lr, weight_decay, grad_,
-            first_moment_, second_moment_, p_);
+            Y{beta_1}, Y{beta_2}, Y{eps}, Y{lr}, Y{weight_decay}, Y{alpha},
+            Y{beta}, grad_, first_moment_, second_moment_, p_);
 }
 
 // Explicit instantiation

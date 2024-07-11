@@ -70,13 +70,13 @@ parser.add_argument("--optimizer", choices=["sgd", "adam", "adamw"], \
         default="adamw")
 parser.add_argument("--optimizer-eps", type=float, default=1e-8)
 parser.add_argument("--weight-decay", type=float, default=0.0)
-parser.add_argument("--loss-reduction", choices=["sum", "mean"], default="sum")
+parser.add_argument("--loss-reduction", choices=["sum", "mean"], default="mean")
 parser.add_argument("--lr", type=float, default=0.0)
 parser.add_argument("--start-lr", type=float, default=0.0)
 parser.add_argument("--full-lr-iter", type=int, default=1)
 parser.add_argument("--nepochs", type=int, default=0)
 parser.add_argument("--nepochs-warmup", type=int, default=0)
-parser.add_argument("--dtype", choices=["fp32", "tf32", "fp64"], \
+parser.add_argument("--dtype", choices=["fp32", "tf32", "bf16", "fp64"], \
         default="fp32")
 parser.add_argument("--logger", action="store_true")
 parser.add_argument("--logger-server-addr", type=str, default="localhost")
