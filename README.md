@@ -60,11 +60,10 @@ Alternatively, the docker image can be built on your own system with the followi
 command:
 ```shell
 docker build . \
-    -f ci/Dockerfile \
     -t nntile:latest \
     --build-arg MAKE_JOBS=4 \
     --build-arg BASE_IMAGE=nvidia/cuda:12.2.0-devel-ubuntu22.04 \
-    --build-arg CUDA_ARCHS="80;86;90"
+    --build-arg CUDA_ARCHS="70;75;80;86;89;90"
 ```
 
 During image building `StarPU` is compiled with `make`. This process can be
