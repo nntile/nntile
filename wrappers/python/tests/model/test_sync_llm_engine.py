@@ -1,9 +1,7 @@
 from dataclasses import dataclass
 
-import numpy as np
 import pytest
 
-import nntile.utils.constructors as nnt_constructors
 from nntile.inference.llm_sync_engine import LlmSyncInferenceEngine
 from nntile.model.generation.llm import GenerationMode, GenerationParams
 from nntile.model.gpt2 import GPT2Model as GPT2Model_nnt
