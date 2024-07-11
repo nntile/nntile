@@ -17,7 +17,7 @@ def get_tokenizer(model_name, cache_dir):
 
 
 @dataclass
-class GenerateTestParams:
+class SyncLlmInferenceEngineTestParams:
     model_name: str
     prompt: str
     expected: str
@@ -28,8 +28,8 @@ class GenerateTestParams:
     seq_len_tile: int = 1024
 
 
-TEST_GENERATE_INPUT_PARAMS = [
-    GenerateTestParams(
+TEST_LLM_INF_ENGINE_INPUT_PARAMS = [
+    SyncLlmInferenceEngineTestParams(
         "gpt2",
         "Are you big?\n",
         "Are you big?\n\nI'm",  # not big.
@@ -38,8 +38,8 @@ TEST_GENERATE_INPUT_PARAMS = [
 ]
 
 
-@pytest.mark.parametrize("params", TEST_GENERATE_INPUT_PARAMS)
-def test_generation_from_pretrained(
+@pytest.mark.parametrize("params", TEST_LLM_INF_ENGINE_INPUT_PARAMS)
+def test_sync_llm_inference_engine_from_pretrained(
     starpu_simple, huggingface_local_cache_dir, params
 ):
     tokenizer = get_tokenizer(params.model_name, huggingface_local_cache_dir)
