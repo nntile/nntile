@@ -20,6 +20,7 @@ class GenerateTestParams:
     model_name: str
     prompt: str
     expected: str
+    max_tokens: int
 
     minibatch_size: int = 1
     minibatch_size_tile: int = 1
@@ -30,7 +31,8 @@ TEST_GENERATE_INPUT_PARAMS = [
     GenerateTestParams(
         "gpt2",
         "Hello, my dog is cute",
-        "Hello, my dog is cute. I'm not sure if she's a puppy or not. I",
+        "Hello, my dog is cute. I'm", # not sure, if she's a puppy or not.",
+        max_tokens = 9,
     )
 ]
 
@@ -61,7 +63,7 @@ def test_generation_from_pretrained(
     output_ids, effective_size = model_nnt.generate(
         padded_input,
         prefill_size=input_ids.shape[1],
-        params=GenerationParams(max_tokens=20),
+        params=GenerationParams(max_tokens=params.max_tokens),
         mode=GenerationMode.Greedy,
     )
 

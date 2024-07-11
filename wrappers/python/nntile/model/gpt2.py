@@ -21,6 +21,7 @@ from nntile.layer import (Act, AddSlice, Attention, AttentionSingleHead,
                           Embedding, FlashAttention, LayerNorm, Linear)
 from nntile.layer.add import Add
 from nntile.model.base_model import BaseModel
+from nntile.model.generation.llm import LLMGenerationMixin
 from nntile.tensor import (Tensor, Tensor_bf16, Tensor_bool, Tensor_fp32,
                            Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments,
                            TensorOrNone, TensorTraits, notrans, trans)
