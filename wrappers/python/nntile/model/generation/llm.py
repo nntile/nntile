@@ -3,7 +3,6 @@ from enum import Enum
 
 import numpy as np
 
-import nntile
 from nntile.tensor import Tensor
 from nntile.utils import constructors as nnt_constructors
 
@@ -26,7 +25,9 @@ class LLMGenerationMixin:
         mode: GenerationMode = GenerationMode.Greedy,
     ):
         if mode == GenerationMode.Greedy:
-            output_ids = generate_greedy(self, input_ids, prefill_size, self.eos_token_id, params)
+            output_ids = generate_greedy(
+                self, input_ids, prefill_size, self.eos_token_id, params
+            )
         else:
             raise Exception("Unsupported generation mode: ", mode)
 
