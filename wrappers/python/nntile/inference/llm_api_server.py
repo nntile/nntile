@@ -1,12 +1,19 @@
+import logging
 from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Body, FastAPI
 from pydantic import BaseModel, Field
 
-from nntile.inference.api_server_base import (SimpleApiServerBase,
-                                              SimpleApiServerParams)
+from nntile.inference.api_server_base import (
+    SimpleApiServerBase,
+    SimpleApiServerParams,
+)
+from nntile.inference.utils import dump_pydantic_model
 from nntile.model.generation.llm import GenerationMode, GenerationParams
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -45,7 +52,9 @@ class SimpleLlmApiServer(SimpleApiServerBase):
                 SimpleLlmApiServerGenerateRequest, Body(embed=True)
             ],
         ):
-            # TODO: add logging
+            logger.info(
+                f"Start generating for request: {dump_pydantic_model(request)}"
+            )
             generated_text = self.llm_engine.generate(
                 request.text,
                 params=GenerationParams(max_tokens=request.max_tokens),
