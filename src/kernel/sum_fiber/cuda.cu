@@ -22,8 +22,8 @@ namespace nntile::kernel::sum_fiber
 
 template<typename T>
 static __global__
-void cuda_kernel(Index m, Index n, Index k, Index batch, T alpha, const T *src,
-        T beta, T *dst)
+void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha, const T *src,
+        Scalar beta, T *dst)
 //! Sums over slices along the first and last axes into a fiber of a tensor
 /*! For a provided m-by-k-by-n input array computes sums over slices
  * along the first axis with m elements and the last axis with n elements,
@@ -48,9 +48,10 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, T alpha, const T *src,
     Index b = i2_batched / k;
     Index i0_start = threadIdx.y, i0_step = blockDim.y;
     Index i1_start = threadIdx.z, i1_step = blockDim.z;
-    constexpr T zero = 0;
+    using Y = typename T::repr_t;
+    constexpr Y zero{0.0};
     // Init sum
-    T sum = zero;
+    Y sum = zero;
     if(b < batch)
     {
         // Cycle over the third axis of input buffer
@@ -64,10 +65,10 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, T alpha, const T *src,
                 // Read value from source
                 T val = src_slice[i0];
                 // Update sum
-                sum += val;
+                sum += Y{val};
             }
         }
-        __shared__ T block_sum[1];
+        __shared__ Y block_sum[1];
         if(i1_start == 0 and i0_start == 0)
         {
             block_sum[threadIdx.x] = zero;
@@ -86,16 +87,16 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, T alpha, const T *src,
             }
             else
             {
-                sum = beta*dst[i2_batched] + alpha*sum;
+                sum = beta * Y{dst[i2_batched]} + alpha * sum;
             }
-            dst[i2_batched] = sum;
+            dst[i2_batched] = T{sum};
         }
     }
 }
 
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
-        Scalar alpha, const T *src_, Scalar beta, T *dst_)
+        Scalar alpha, const T *src, Scalar beta, T *dst)
     noexcept
 //! Sums over slices along the first and last axes into a fiber of a tensor
 /*! For a provided m-by-k-by-n input array computes sums over slices
@@ -110,20 +111,17 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
  *      dst array
  * @param[in] batch: Size of the batch dimension
  * @param[in] alpha: Scaling factor for src
- * @param[in] src_: Input contiguous m-by-k-by-n array
+ * @param[in] src: Input contiguous m-by-k-by-n array
  * @param[in] beta: Scaling factor for dst
- * @param[inout] dst_: Output contiguous vector with k elements, that accumulate
+ * @param[inout] dst: Output contiguous vector with k elements, that accumulate
  *      sums over slices along the first and the last axes.
  * */
 {
     // Both source and destination are Fortran-contiguous
     dim3 threads(1, std::min(int(m), 32), std::min(int(n), 32));
     dim3 blocks((k*batch+threads.x-1)/threads.x, 1, 1);
-    using Y = typename CUDAComputeType<T>::value;
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto dst = reinterpret_cast<Y *>(dst_);
-    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(m, n, k, batch, Y{alpha},
-            src, Y{beta}, dst);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, batch, alpha,
+            src, beta, dst);
 }
 
 // Explicit instantiation
@@ -135,6 +133,11 @@ void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
 template
 void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
         Scalar alpha, const fp64_t *src, Scalar beta, fp64_t *dst)
+    noexcept;
+
+template
+void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
+        Scalar alpha, const bf16_t *src, Scalar beta, bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::sum_fiber

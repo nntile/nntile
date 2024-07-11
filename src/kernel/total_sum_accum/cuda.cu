@@ -20,8 +20,8 @@ namespace nntile::kernel::total_sum_accum
 
 template<typename T>
 static __global__
-void cuda_kernel(Scalar alpha_, Index n_labels, Index n_outputs, const T* logsumexp,
-        const T* src, const Index* labels, T *val_)
+void cuda_kernel(Scalar alpha_, Index n_labels, Index n_outputs, const T *logsumexp,
+        const T *src, const Index *labels, T *val_)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     using Y = typename T::repr_t;
@@ -30,7 +30,17 @@ void cuda_kernel(Scalar alpha_, Index n_labels, Index n_outputs, const T* logsum
     Y alpha = Y{alpha_};
     if(i < n_outputs)
     {
-         atomicAdd(val, Z{alpha*(Y{logsumexp[i]} - Y{src[labels[i]+i*n_labels]})});
+        __shared__ Y block_val;
+        if(threadIdx.x == 0)
+        {
+            block_val = 0;
+        }
+        atomicAdd(&block_val, Y{logsumexp[i]} - Y{src[labels[i]+i*n_labels]});
+        __syncthreads();
+        if(threadIdx.x == 0)
+        {
+            atomicAdd(val, Z{alpha*block_val});
+        }
     }
 }
 

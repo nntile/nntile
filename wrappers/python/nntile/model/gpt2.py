@@ -20,7 +20,7 @@ from nntile.layer import (Act, AddSlice, Attention, AttentionSingleHead,
                           Embedding, FlashAttention, LayerNorm, Linear)
 from nntile.layer.add import Add
 from nntile.model.base_model import BaseModel
-from nntile.tensor import (Tensor, Tensor_bool, Tensor_fp32,
+from nntile.tensor import (Tensor, Tensor_bf16, Tensor_bool, Tensor_fp32,
                            Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments,
                            TensorOrNone, TensorTraits, notrans, trans)
 
@@ -117,9 +117,9 @@ class GPT2MLP(BaseModel):
 
     # Randomly init all linear layers
     def init_randn_async(self):
-        for l in self.layers:
-            if type(l) is Linear:
-                l.init_randn_async()
+        for layer in self.layers:
+            if type(layer) is Linear:
+                layer.init_randn_async()
 
     @staticmethod
     def from_torch(
@@ -152,8 +152,6 @@ class GPT2Model(BaseModel):
         self.embed_dim = config["embed_dim"]
         embed_dim_tile = config["embed_dim_tile"]
         max_position_embeddings = config["max_position_embeddings"]
-        inner_dim = config["inner_dim"]
-        inner_dim_tile = config["inner_dim_tile"]
         layer_norm_epsilon = config["layer_norm_epsilon"]
         num_hidden_layers = config["num_hidden_layers"]
         self.n_head = config["n_head"]
@@ -162,7 +160,7 @@ class GPT2Model(BaseModel):
         redux = config["redux"]
         self.dtype = config["dtype"]
 
-        if self.dtype not in ["fp32", "tf32"]:
+        if self.dtype not in ["fp32", "tf32", "bf16"]:
             raise TypeError("Only fp32 and tf32 are supported for weight type")
 
         if self.n_head == 1:
@@ -209,6 +207,17 @@ class GPT2Model(BaseModel):
                 vocab_embed_dim_tile,
                 next_tag,
             )
+        elif self.dtype == "bf16":
+            wte_layer, next_tag = Embedding.generate_simple(
+                input_ids.value,
+                Tensor_bf16,
+                0,
+                vocab_size,
+                self.embed_dim,
+                embed_dim_tile,
+                vocab_embed_dim_tile,
+                next_tag,
+            )
 
         layers.append(wte_layer)
         activations.extend(wte_layer.activations_output)
@@ -228,6 +237,17 @@ class GPT2Model(BaseModel):
             wpe_layer, next_tag = Embedding.generate_simple(
                 positional_ids.value,
                 Tensor_fp32_fast_tf32,
+                0,
+                max_position_embeddings,
+                self.embed_dim,
+                embed_dim_tile,
+                vocab_embed_dim_tile,
+                next_tag,
+            )
+        elif self.dtype == "bf16":
+            wpe_layer, next_tag = Embedding.generate_simple(
+                positional_ids.value,
+                Tensor_bf16,
                 0,
                 max_position_embeddings,
                 self.embed_dim,
@@ -330,8 +350,6 @@ class GPT2Model(BaseModel):
     def to_torch(self, base_torch_model):
         nntile_p_idx = 0
         attn_embed_dim = self.embed_dim
-        attn_nheads = self.n_head
-        attn_head_size = attn_embed_dim // attn_nheads
         for name, p in base_torch_model.named_parameters():
             layer_name = name.split(".")[-2]
             if layer_name in ("lm_head",):

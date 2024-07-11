@@ -157,6 +157,10 @@ template
 void sum_slice_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         Scalar beta, const Tensor<fp64_t> &dst, Index axis, int redux);
 
+template
+void sum_slice_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
+        const Tensor<bf16_t> &dst, Index axis, int redux);
+
 // Explicit instantiation
 template
 void sum_slice<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
@@ -169,5 +173,9 @@ void sum_slice<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &s
 template
 void sum_slice<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
         const Tensor<fp64_t> &dst, Index axis, int redux);
+
+template
+void sum_slice<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
+        const Tensor<bf16_t> &dst, Index axis, int redux);
 
 } // namespace nntile::tensor

@@ -35,8 +35,6 @@ void cpu(Index nelems, Scalar alpha_, const T* src, Scalar beta_, T* dst)
  * */
 {
     using Y = typename T::repr_t;
-    // auto src = reinterpret_cast<const Y *>(src_);
-    // auto dst = reinterpret_cast<Y *>(dst_);
     const Y zero{0.0}, alpha{alpha_}, beta{beta_};
     if(alpha == zero)
     {

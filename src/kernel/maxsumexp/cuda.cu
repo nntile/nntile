@@ -27,18 +27,14 @@ namespace nntile::kernel::maxsumexp
 template<typename T>
 static __global__
 void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
-        Index k, Index mk, const T * __restrict__ src_,
-        T * __restrict__ maxsumexp_)
+        Index k, Index mk, const T * __restrict__ src,
+        T * __restrict__ maxsumexp)
 {
     Index i1_block = blockIdx.y, i2_block = blockIdx.z,
           i0_start = threadIdx.x, i0_step = blockDim.x;
 
     using Y = typename T::repr_t;
-    using Z = typename CUDAComputeType<T>::value;
     constexpr Y zero = 0.0, one = 1.0;
-    // const Z* src = reinterpret_cast<const Z*>(src_);
-    Z* maxsumexp = reinterpret_cast<Z*>(maxsumexp_);
-
     if(i0_start < k)
     {
         for(Index i1 = i1_block*m_per_block;
@@ -48,7 +44,7 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
                     i2 < (i2_block+1)*n_per_block and i2 < n; ++i2)
             {
                 // Get max and sum of exponents of a corresponding slice
-                const Z *src_slice = reinterpret_cast<const Z*>(src_ + i2*mk + i1);
+                const T *src_slice = src + i2*mk + i1;
                 // Init max and sum
                 Y max_val = Y{src_slice[i0_start*m]};
                 Y sum_val = one;
@@ -130,8 +126,8 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
                         }
                         sum_output += sum_val;
                     }
-                    maxsumexp[2*dst_offset] = Z{max_output};
-                    maxsumexp[2*dst_offset+1] = Z{sum_output};
+                    maxsumexp[2*dst_offset] = T{max_output};
+                    maxsumexp[2*dst_offset+1] = T{sum_output};
                 }
             }
         }
@@ -468,5 +464,8 @@ template void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k,
 
 template void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k,
         const bf16_t *src, bf16_t *maxsumexp) noexcept;
+
+template void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index m, Index n, Index k,
+        const fp32_fast_tf32_t *src, fp32_fast_tf32_t *maxsumexp) noexcept;
 
 } // namespace nntile::kernel::maxsumexp

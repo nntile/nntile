@@ -112,7 +112,7 @@ void cuda(void *buffers[], void *cl_args)
     Index K_offset = args->head * args->seq;
     Index Q_offset = K_offset;
     Index tmp_offset = args->seq * args->seq;
-    using Y = typename nntile::kernel::CUDAComputeType<T>::value;
+    using Y = typename T::repr_t;
     Y head_ = static_cast<Y>(args->head);
     cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
             args->seq, args->seq, args->head, 1.0/std::sqrt(head_),
@@ -122,51 +122,6 @@ void cuda(void *buffers[], void *cl_args)
             mask, -std::numeric_limits<Y>::infinity(), tmp);
     kernel::softmax_inplace::cuda<T>(stream, 1, args->seq*args->batch,
             args->seq, maxsumexp, 1.0, tmp);
-    Index V_offset = K_offset;
-    Index A_offset = K_offset;
-    cublas_batch(handle, CUBLAS_OP_N, CUBLAS_OP_N,
-            args->head, args->seq, args->seq, 1.0, V, args->head, V_offset,
-            tmp, args->seq, tmp_offset, 1.0, A, args->head, A_offset,
-            args->batch);
-#endif // STARPU_SIMGRID
-}
-
-template<>
-void cuda<fp32_fast_tf32_t>(void *buffers[], void *cl_args)
-    noexcept
-{
-#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
-    // Get arguments
-    auto args = reinterpret_cast<args_t *>(cl_args);
-    // Get interfaces
-    using T = fp32_fast_tf32_t;
-    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *K = interfaces[0]->get_ptr<T>();
-    const T *Q = interfaces[1]->get_ptr<T>();
-    const bool_t *mask = interfaces[2]->get_ptr<bool_t>();
-    const T *maxsumexp = interfaces[3]->get_ptr<T>();
-    const T *V = interfaces[4]->get_ptr<T>();
-    T *A = interfaces[5]->get_ptr<T>();
-    T *tmp = interfaces[6]->get_ptr<T>();
-    // Get CUDA stream
-    cublasHandle_t handle = starpu_cublas_get_local_handle();
-    cudaStream_t stream = starpu_cuda_get_local_stream();
-    cublasSetStream(handle, stream);
-    // Launch kernels
-    Index K_offset = args->head * args->seq;
-    Index Q_offset = K_offset;
-    Index tmp_offset = args->seq * args->seq;
-    float head_fp32 = args->head;
-    cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
-            args->seq, args->seq, args->head, 1.0/std::sqrt(head_fp32),
-            K, args->head, K_offset, Q, args->head, Q_offset,
-            0.0, tmp, args->seq, tmp_offset, args->batch);
-    kernel::mask_scalar::cuda<fp32_t>(stream, args->seq*args->seq, args->batch,
-            mask, -std::numeric_limits<float>::infinity(),
-            reinterpret_cast<fp32_t *>(tmp));
-    kernel::softmax_inplace::cuda<fp32_t>(stream, 1, args->seq*args->batch,
-            args->seq, reinterpret_cast<const fp32_t *>(maxsumexp), 1.0,
-    reinterpret_cast<fp32_t *>(tmp));
     Index V_offset = K_offset;
     Index A_offset = K_offset;
     cublas_batch(handle, CUBLAS_OP_N, CUBLAS_OP_N,
@@ -193,7 +148,7 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
 
 void init()
 {
@@ -206,6 +161,20 @@ void init()
 #endif // NNTILE_USE_CBLAS
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
+    codelet_bf16.init("nntile_flash_softmax_gemm_bf16",
+            footprint,
+#ifdef NNTILE_USE_CBLAS
+            {},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda<bf16_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -243,6 +212,7 @@ void init()
 void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
+    codelet_bf16.restrict_where(where);
     codelet_fp64.restrict_where(where);
     codelet_fp32_fast_tf32.restrict_where(where);
 }
@@ -250,6 +220,7 @@ void restrict_where(uint32_t where)
 void restore_where()
 {
     codelet_fp32.restore_where();
+    codelet_bf16.restore_where();
     codelet_fp64.restore_where();
     codelet_fp32_fast_tf32.restore_where();
 }
@@ -303,6 +274,11 @@ void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
 // Explicit instantiation
 template
 void submit<fp32_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
+        Handle mask, Handle maxsumexp, Handle V, Handle A, Handle tmp,
+        int redux);
+
+template
+void submit<bf16_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle mask, Handle maxsumexp, Handle V, Handle A, Handle tmp,
         int redux);
 

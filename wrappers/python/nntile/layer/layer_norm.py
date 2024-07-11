@@ -11,16 +11,14 @@
 #
 # @version 1.0.0
 
-from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp64, Tensor, \
-        TensorOrNone, TensorMoments, \
-        add_slice_async, sum_slice_async, norm_slice_async, \
-        fill_async, pow_async, prod_slice_async, sumprod_slice_async, \
-        axpy_async, prod_fiber_async, prod_fiber3_async, add_slice3_async, \
-        add_fiber_async, sum_fiber_async, sumprod_fiber_async, \
-        clear_async, copy_async, hypot_scalar_inverse_async
 from nntile.layer.base_layer import BaseLayer
-import numpy as np
-from typing import List
+from nntile.tensor import (Tensor, TensorMoments, TensorTraits, add_async,
+                           add_fiber_async, add_slice3_async, add_slice_async,
+                           clear_async, fill_async, hypot_scalar_inverse_async,
+                           norm_slice_async, prod_fiber3_async,
+                           prod_slice_async, sum_fiber_async, sum_slice_async,
+                           sumprod_fiber_async, sumprod_slice_async)
+
 
 class LayerNorm(BaseLayer):
     x: TensorMoments
@@ -191,7 +189,7 @@ class LayerNorm(BaseLayer):
         # Multiply tmp_Y_value by the mean
         prod_slice_async(self.mean, 1.0, self.tmp_y_value, self.axis)
         # Add tmp_Y_grad to tmp_Y_value
-        axpy_async(1.0, self.tmp_y_grad, self.tmp_y_value)
+        add_async(1., self.tmp_y_grad, 1., self.tmp_y_value)
         # Get mean value of tmp_Y_grad over the given axis
         sum_slice_async(1.0/self.l, self.tmp_y_grad, 0.0, self.mean, \
                 self.axis, redux=self.redux)
@@ -206,7 +204,8 @@ class LayerNorm(BaseLayer):
         # inv_stddev can be deleted
         self.inv_stddev.invalidate_submit()
         # Accumulate gradient from tmp_Y_value
-        axpy_async(1.0, self.tmp_y_value, self.x.grad)
+        # axpy_async(1.0, self.tmp_y_value, self.x.grad)
+        add_async(1., self.tmp_y_value, 1., self.x.grad)
         # tmp_Y_value can be deleted
         self.tmp_y_value.invalidate_submit()
         # dX can offloade from GPU

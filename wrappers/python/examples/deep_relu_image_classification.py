@@ -11,20 +11,20 @@
 #
 # @version 1.0.0
 
+import argparse
+import time
+
+import numpy as np
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+
+import nntile
+import nntile.loss as loss
 # Imports
 import nntile.model as model
 import nntile.optimizer as optimizer
-import nntile.loss as loss
 import nntile.pipeline as pipeline
 import nntile.tensor
-import nntile
-import numpy as np
-import time
-import sys
-from torchvision import datasets, transforms
-import torch
-from torch.utils.data import DataLoader
-import argparse
 
 # Create argument parser
 parser = argparse.ArgumentParser(prog="DeepReLU neural network", \
@@ -45,6 +45,10 @@ parser.add_argument("--lr", type=float)
 # parser.add_argument("--fp32_fast_fp16", action="store_true")
 # parser.add_argument("--fp32_convert_fp16", action="store_true")
 parser.add_argument("--dtype", choices=["fp32", "tf32", "bf16"], default="fp32")
+
+parser.add_argument("--nntile-logger", action="store_true")
+parser.add_argument("--nntile-logger-server-addr", type=str, default="localhost")
+parser.add_argument("--nntile-logger-server-port", type=int, default=5001)
 
 
 # Parse arguments
@@ -71,7 +75,7 @@ elif args.dataset == "cifar10":
     n_pixels = 32 * 32 * 3
     n_classes = 10
 else:
-    raise ValueError("{} dataset is not supported yet!".format(dataset))
+    raise ValueError("{} dataset is not supported yet!".format(args.dataset))
 
 train_loader = DataLoader(train_set, batch_size=args.batch, shuffle=False)
 test_loader = DataLoader(test_set, batch_size=args.batch, shuffle=False)
@@ -83,7 +87,10 @@ print("Number of test batches: {}".format(len(test_loader)))
 
 time0 = -time.time()
 # Set up StarPU+MPI and init codelets
-config = nntile.starpu.Config(-1, -1, 1)
+config = nntile.starpu.Config(-1, -1, 1,
+                              args.nntile_logger,
+                              args.nntile_logger_server_addr,
+                              args.nntile_logger_server_port)
 nntile.starpu.init()
 nntile.starpu.restrict_cuda()
 time0 += time.time()

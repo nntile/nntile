@@ -54,7 +54,7 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
         for(Index i1 = 0; i1 < m; ++i1)
         {
             // Get max and sum of exponents of a corresponding slice
-            const Y *src_slice = reinterpret_cast<const Y *>(src + i2*mk + i1);
+            const T *src_slice = src + i2*mk + i1;
             // Init max and sum with the first value
             Y max = static_cast<Y>(src_slice[0]);
             Y sum{one}, c{zero}, y, t;
@@ -131,6 +131,11 @@ void cpu(Index m, Index n, Index k, const T *src, T *maxsumexp)
 template
 void cpu<fp32_t>(Index m, Index n, Index k, const fp32_t *src,
         fp32_t *maxsumexp)
+    noexcept;
+
+template
+void cpu<fp32_fast_tf32_t>(Index m, Index n, Index k, const fp32_fast_tf32_t *src,
+        fp32_fast_tf32_t *maxsumexp)
     noexcept;
 
 template

@@ -11,17 +11,13 @@
 #
 # @version 1.0.0
 
-from typing import List, Union
+from typing import List
 
 from nntile.types import Tensor, TensorFloatOrInt, TensorOrFloat
 
-from .nntile_core import TransOp, notrans
+from .nntile_core import TransOp
 from .nntile_core import tensor as core_tensor
-from .nntile_core import trans
-from .nntile_core.tensor import (Tensor_bool, Tensor_fp32,
-                                 Tensor_fp32_fast_tf32, Tensor_bf16,
-                                 Tensor_fp64,
-                                 Tensor_int64, TensorTraits)
+from .nntile_core.tensor import Tensor_bool, Tensor_int64
 
 
 def gemm_async(
@@ -167,6 +163,8 @@ def gelutanh_async(x: Tensor, y: Tensor) -> None:
         core_tensor.gelutanh_async_fp32_fast_tf32(x, y)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.gelutanh_async_fp64(x, y)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.gelutanh_async_bf16(x, y)
     else:
         raise TypeError
 
@@ -205,6 +203,8 @@ def gelutanh_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
         core_tensor.gelutanh_backward_async_fp32_fast_tf32(x, dy, dx)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.gelutanh_backward_async_fp64(x, dy, dx)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.gelutanh_backward_async_bf16(x, dy, dx)
     else:
         raise TypeError
 
@@ -219,6 +219,8 @@ def fill_async(val: float, x: Tensor) -> None:
         core_tensor.fill_async_fp32_fast_tf32(val, x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.fill_async_fp64(val, x)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.fill_async_bf16(val, x)
     else:
         raise TypeError
 
@@ -244,6 +246,8 @@ def sum_slice_async(
         )
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.sum_slice_async_fp64(alpha, x, beta, sum_slice, axis, redux)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.sum_slice_async_bf16(alpha, x, beta, sum_slice, axis, redux)
     else:
         raise TypeError
 
@@ -274,6 +278,10 @@ def sum_fiber_async(
         core_tensor.sum_fiber_async_fp64(
             alpha, x, beta, sum_fiber, axis, batch_ndim, redux
         )
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.sum_fiber_async_bf16(
+            alpha, x, beta, sum_fiber, axis, batch_ndim, redux
+        )
     else:
         raise TypeError
 
@@ -301,6 +309,10 @@ def norm_slice_async(
         )
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.norm_slice_async_fp64(
+            alpha, x, beta, norm_slice, axis, redux
+        )
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.norm_slice_async_bf16(
             alpha, x, beta, norm_slice, axis, redux
         )
     else:
@@ -365,6 +377,10 @@ def flash_softmax_gemm_async(
         )
     elif type(Q) is core_tensor.Tensor_fp64:
         core_tensor.flash_softmax_gemm_async_fp64(
+            Q, K, V, mask, maxsumexp, dst, tmp, redux
+        )
+    elif type(Q) is core_tensor.Tensor_bf16:
+        core_tensor.flash_softmax_gemm_async_bf16(
             Q, K, V, mask, maxsumexp, dst, tmp, redux
         )
     else:
@@ -457,6 +473,22 @@ def flash_softmax_gemm_backward_async(
             tmp_sumprod_slice,
             redux,
         )
+    elif type(Q) is core_tensor.Tensor_bf16:
+        core_tensor.flash_softmax_gemm_backward_async_bf16(
+            Q,
+            dQ,
+            K,
+            dK,
+            V,
+            dV,
+            mask,
+            maxsumexp,
+            dst_grad,
+            tmp,
+            tmp_grad,
+            tmp_sumprod_slice,
+            redux,
+        )
     else:
         raise TypeError
 
@@ -499,6 +531,8 @@ def softmax_inplace_async(
         )
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.softmax_inplace_async_fp64(maxsumexp, alpha, x, axis)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.softmax_inplace_async_bf16(maxsumexp, alpha, x, axis)
     else:
         raise TypeError
 
@@ -558,6 +592,8 @@ def prod_async(x: Tensor, y: Tensor) -> None:
         core_tensor.prod_async_fp32_fast_tf32(x, y)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.prod_async_fp64(x, y)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.prod_async_bf16(x, y)
     else:
         raise TypeError
 
@@ -597,7 +633,7 @@ def nrm2_async(
 
 
 def normalize_async(
-    gb: Tensor, x: Tensor, y: Tensor, l: int, eps: float, axis: int
+    gb: Tensor, x: Tensor, y: Tensor, n_elem: int, eps: float, axis: int
 ) -> None:
     """
     Wrapper for multiprecision normalize
@@ -605,9 +641,9 @@ def normalize_async(
     if type(x) is not type(y) or type(x) is not type(gb):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.normalize_async_fp32(gb, x, y, l, eps, axis)
+        core_tensor.normalize_async_fp32(gb, x, y, n_elem, eps, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.normalize_async_fp64(gb, x, y, l, eps, axis)
+        core_tensor.normalize_async_fp64(gb, x, y, n_elem, eps, axis)
     else:
         raise TypeError
 
@@ -639,7 +675,11 @@ def flash_maxsumexp_async(
         )
     elif type(Q) is core_tensor.Tensor_fp64:
         core_tensor.flash_maxsumexp_async_fp64(
-            Q, K, mask, maxsumexp, tmp, redux, 0
+            Q, K, mask, maxsumexp, tmp, redux
+        )
+    elif type(Q) is core_tensor.Tensor_bf16:
+        core_tensor.flash_maxsumexp_async_bf16(
+            Q, K, mask, maxsumexp, tmp, redux
         )
     else:
         raise TypeError
@@ -681,6 +721,8 @@ def add_slice_async(
         core_tensor.add_slice_async_fp32_fast_tf32(
             alpha, add_slice, beta, x, axis
         )
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.add_slice_async_bf16(alpha, add_slice, beta, x, axis)
     else:
         raise TypeError
 
@@ -703,6 +745,8 @@ def add_slice3_async(
         )
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.add_slice3_async_fp64(alpha, add_slice, beta, x, y, axis)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.add_slice3_async_bf16(alpha, add_slice, beta, x, y, axis)
     else:
         raise TypeError
 
@@ -721,6 +765,10 @@ def add_fiber_async(
         )
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.add_fiber_async_fp64(
+            alpha, add_fiber, beta, x, axis, batch_ndim
+        )
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.add_fiber_async_bf16(
             alpha, add_fiber, beta, x, axis, batch_ndim
         )
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
@@ -745,6 +793,8 @@ def prod_slice_async(
         core_tensor.prod_slice_async_fp32_fast_tf32(prod_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.prod_slice_async_fp64(prod_slice, alpha, x, axis)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.prod_slice_async_bf16(prod_slice, alpha, x, axis)
     else:
         raise TypeError
 
@@ -783,6 +833,8 @@ def prod_fiber3_async(
         )
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.prod_fiber3_async_fp64(prod_fiber, alpha, x, y, axis)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.prod_fiber3_async_bf16(prod_fiber, alpha, x, y, axis)
     else:
         raise TypeError
 
@@ -992,6 +1044,10 @@ def sumprod_slice_async(
         core_tensor.sumprod_slice_async_fp64(
             alpha, src1, src2, beta, dst, axis, redux
         )
+    elif type(src1) is core_tensor.Tensor_bf16:
+        core_tensor.sumprod_slice_async_bf16(
+            alpha, src1, src2, beta, dst, axis, redux
+        )
     else:
         raise TypeError
 
@@ -1022,6 +1078,10 @@ def sumprod_fiber_async(
         )
     elif type(src1) is core_tensor.Tensor_fp64:
         core_tensor.sumprod_fiber_async_fp64(
+            alpha, src1, src2, beta, dst, axis, redux
+        )
+    elif type(src1) is core_tensor.Tensor_bf16:
+        core_tensor.sumprod_fiber_async_bf16(
             alpha, src1, src2, beta, dst, axis, redux
         )
     else:
@@ -1129,6 +1189,8 @@ def mask_scalar_async(
         core_tensor.mask_scalar_async_fp32_fast_tf32(mask, alpha, x, batch_ndim)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.mask_scalar_async_fp64(mask, alpha, x, batch_ndim)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.mask_scalar_async_bf16(mask, alpha, x, batch_ndim)
     else:
         raise TypeError
 
@@ -1147,6 +1209,8 @@ def embedding_async(
         core_tensor.embedding_async_fp32_fast_tf32(index, vocab, embed, axis)
     elif type(embed) is core_tensor.Tensor_fp64:
         core_tensor.embedding_async_fp64(index, vocab, embed, axis)
+    elif type(embed) is core_tensor.Tensor_bf16:
+        core_tensor.embedding_async_bf16(index, vocab, embed, axis)
     else:
         raise TypeError
 
@@ -1169,6 +1233,10 @@ def embedding_backward_async(
         )
     elif type(embed) is core_tensor.Tensor_fp64:
         core_tensor.embedding_backward_async_fp64(
+            index, embed, vocab, axis, redux
+        )
+    elif type(embed) is core_tensor.Tensor_bf16:
+        core_tensor.embedding_backward_async_bf16(
             index, embed, vocab, axis, redux
         )
     else:
@@ -1203,6 +1271,8 @@ def hypot_scalar_inverse_async(eps: float, alpha: float, x: Tensor) -> None:
         core_tensor.hypot_scalar_inverse_async_fp32_fast_tf32(eps, alpha, x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.hypot_scalar_inverse_async_fp64(eps, alpha, x)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.hypot_scalar_inverse_async_bf16(eps, alpha, x)
     else:
         raise TypeError
 
@@ -1367,5 +1437,7 @@ def transpose_async(alpha: float, src: Tensor, dst: Tensor, ndim: int) -> None:
         core_tensor.transpose_async_fp32_fast_tf32(alpha, src, dst, ndim)
     elif type(src) is core_tensor.Tensor_fp64:
         core_tensor.transpose_async_fp64(alpha, src, dst, ndim)
+    elif type(src) is core_tensor.Tensor_bf16:
+        core_tensor.transpose_async_bf16(alpha, src, dst, ndim)
     else:
         raise TypeError

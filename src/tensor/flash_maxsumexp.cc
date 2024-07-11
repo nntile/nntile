@@ -141,6 +141,11 @@ void flash_maxsumexp_async(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &K,
         const Tensor<bool_t> &mask, const Tensor<fp64_t> &maxsumexp,
         const Tensor<fp64_t> &tmp, int redux);
 
+template
+void flash_maxsumexp_async(const Tensor<bf16_t> &Q, const Tensor<bf16_t> &K,
+        const Tensor<bool_t> &mask, const Tensor<bf16_t> &maxsumexp,
+        const Tensor<bf16_t> &tmp, int redux);
+
 // Explicit instantiation
 template
 void flash_maxsumexp(const Tensor<fp32_t> &Q, const Tensor<fp32_t> &K,
@@ -156,5 +161,10 @@ template
 void flash_maxsumexp(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &K,
         const Tensor<bool_t> &mask, const Tensor<fp64_t> &maxsumexp,
         const Tensor<fp64_t> &tmp, int redux);
+
+template
+void flash_maxsumexp(const Tensor<bf16_t> &Q, const Tensor<bf16_t> &K,
+        const Tensor<bool_t> &mask, const Tensor<bf16_t> &maxsumexp,
+        const Tensor<bf16_t> &tmp, int redux);
 
 } // namespace nntile::tensor

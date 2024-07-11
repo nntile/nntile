@@ -20,7 +20,7 @@ namespace nntile::kernel::sum_slice
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, Scalar beta_, T *dst_)
+void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_, T *dst)
     noexcept
 //! Sums over fibers along middle axis into a slice of a tensor
 /*! For a provided m-by-k-by-n input array computes sums over fibers
@@ -38,9 +38,7 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, Scalar beta_, 
  *      sums over fibers along middle axis
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto src = reinterpret_cast<const Y *>(src_);
-    auto dst = reinterpret_cast<Y *>(dst_);
+    using Y = typename T::repr_t;
     const Y alpha{alpha_}, beta{beta_};
     constexpr Y zero{0.0};
     const Index mk = m * k;
@@ -51,16 +49,16 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, Scalar beta_, 
         for(Index i1 = 0; i1 < m; ++i1)
         {
             // Pointer to a corresponding fiber of the source array src
-            const Y *src_fiber = src + i2*mk + i1;
+            const T *src_fiber = src + i2*mk + i1;
             // Init sum over the fiber
             Y sum = zero, c = zero, y, t;
             // Output value
-            Y &result = dst[i2*m+i1];
+            T& result = dst[i2*m+i1];
             // Cycle over fiber elements and accumulate the sum
             for(Index i0 = 0; i0 < k; ++i0)
             {
                 //sum += src_fiber[i0*m];
-                y = src_fiber[i0*m] - c;
+                y = Y{src_fiber[i0*m]} - c;
                 t = sum + y;
                 c = (t-sum) - y;
                 sum = t;
@@ -68,11 +66,11 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src_, Scalar beta_, 
             // Update output value
             if(beta == zero)
             {
-                result = alpha * sum;
+                result = static_cast<T>(alpha * sum);
             }
             else
             {
-                result = (beta*result-alpha*c) + alpha*sum;
+                result = static_cast<T>((beta * Y{result} - alpha*c) + alpha*sum);
             }
         }
     }
@@ -87,6 +85,11 @@ void cpu<fp32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_t *src,
 template
 void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src,
         Scalar beta, fp64_t *dst)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index m, Index n, Index k, Scalar alpha, const bf16_t *src,
+        Scalar beta, bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::sum_slice

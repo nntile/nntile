@@ -79,6 +79,9 @@ void prod_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src, const Ten
 template
 void prod_async<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
+template
+void prod_async<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
+
 // Explicit instantiation
 template
 void prod<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
@@ -88,5 +91,8 @@ void prod<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src, const Tensor<fp
 
 template
 void prod<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
+
+template
+void prod<bf16_t>(const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst);
 
 } // namespace nntile::tensor

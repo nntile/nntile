@@ -96,6 +96,10 @@ template
 void mask_scalar_async<fp64_t>(const Tensor<bool_t> &mask, Scalar val,
         const Tensor<fp64_t> &A, Index batch_ndim);
 
+template
+void mask_scalar_async<bf16_t>(const Tensor<bool_t> &mask, Scalar val,
+        const Tensor<bf16_t> &A, Index batch_ndim);
+
 // Explicit instantiation
 template
 void mask_scalar<fp32_t>(const Tensor<bool_t> &mask, Scalar val,
@@ -108,5 +112,9 @@ void mask_scalar<fp32_fast_tf32_t>(const Tensor<bool_t> &mask, Scalar val,
 template
 void mask_scalar<fp64_t>(const Tensor<bool_t> &mask, Scalar val,
         const Tensor<fp64_t> &A, Index batch_ndim);
+
+template
+void mask_scalar<bf16_t>(const Tensor<bool_t> &mask, Scalar val,
+        const Tensor<bf16_t> &A, Index batch_ndim);
 
 } // namespace nntile::tensor

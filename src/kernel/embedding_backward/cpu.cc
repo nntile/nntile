@@ -20,7 +20,7 @@ namespace nntile::kernel::embedding_backward
 
 template<typename T>
 void cpu(Index m, Index n, Index k, Index k_start, Index k_size,
-        const int64_t *index_, const T *embed_, T *vocab_)
+        const int64_t *index_, const T *embed, T *vocab)
     noexcept
 //! Accumulate gradients of embeddings into vocabulary
 /*! Does the following operation:
@@ -32,14 +32,12 @@ void cpu(Index m, Index n, Index k, Index k_start, Index k_size,
  * @param[in] k_start: Offset of the middle mode of embed tensor
  * @param[in] k_size: Size of the first mode of vocab tensor
  * @param[in] index_: Tokens (indices of embeddings)
- * @param[out] embed_: Tensor of gradients of embeddings
- * @param[inout] vocab_: Gradient of vocabulary. It is a contiguous matrix of
+ * @param[out] embed: Tensor of gradients of embeddings
+ * @param[inout] vocab: Gradient of vocabulary. It is a contiguous matrix of
  *      shape (k_size, vocab_size) but vocab_size is not passed as a parameter.
  * */
 {
-    using Y = typename CPUComputeType<T>::value;
-    auto embed = reinterpret_cast<const Y *>(embed_);
-    auto vocab = reinterpret_cast<Y *>(vocab_);
+    using Y = typename T::repr_t;
     using I = typename CPUComputeType<int64_t>::value;
     auto index = reinterpret_cast<const I *>(index_);
     // Cycle over column of embed buffer
@@ -49,13 +47,13 @@ void cpu(Index m, Index n, Index k, Index k_start, Index k_size,
         for(Index i1 = 0; i1 < m; ++i1)
         {
             // Output slice of vocabulary
-            Y *vocab_slice = vocab + k_size*index[i2*m+i1];
+            T *vocab_slice = vocab + k_size*index[i2*m+i1];
             // Input slice of embedding
-            const Y *embed_slice = embed + (i2*k+k_start)*m + i1;
+            const T *embed_slice = embed + (i2*k+k_start)*m + i1;
             // Cycle over slice of output vocab
             for(Index i0 = 0; i0 < k_size; ++i0)
             {
-                vocab_slice[i0] += embed_slice[i0*m];
+                vocab_slice[i0] = static_cast<T>(Y{vocab_slice[i0]} + Y{embed_slice[i0*m]});
             }
         }
     }
@@ -70,6 +68,11 @@ void cpu<fp32_t>(Index m, Index n, Index k, Index k_start, Index k_size,
 template
 void cpu<fp64_t>(Index m, Index n, Index k, Index k_start, Index k_size,
         const int64_t *index, const fp64_t *embed, fp64_t *vocab)
+    noexcept;
+
+template
+void cpu<bf16_t>(Index m, Index n, Index k, Index k_start, Index k_size,
+        const int64_t *index, const bf16_t *embed, bf16_t *vocab)
     noexcept;
 
 } // namespace nntile::kernel::embedding_backward
