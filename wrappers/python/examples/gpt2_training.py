@@ -119,6 +119,12 @@ if args.nntile_dtype == "tf32":
 
 # Load named pretrained PyTorch model
 if args.pretrained == "remote":
+    # Newer versions of transformers can use fast attention, so we disable it
+    # through a parameter attn_implementation
+    try:
+        model_torch = GPT2LMHeadModel.from_pretrained(args.model, \
+                cache_dir=args.model_path, attn_implementation="eager")
+    except:
         model_torch = GPT2LMHeadModel.from_pretrained(args.model, \
                 cache_dir=args.model_path)
 elif args.pretrained == "local":
