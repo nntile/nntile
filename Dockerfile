@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file ci/Dockerfile
-# Instructions for Docker to build a sandbox image
+# @file Dockerfile
+# Instructions for Docker to build an image for testing with NNTile and Torch
 #
 # @version 1.0.0
 
@@ -45,7 +45,7 @@ ENV STARPU_SILENT=1
 
 ENV OMP_NUM_THREADS=1
 
-ARG STARPU_VERSION=starpu-1.3.11
+ARG STARPU_VERSION=starpu-1.4.7
 
 RUN set -xe && \
     mkdir -p /usr/src && \
@@ -82,7 +82,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install tomli && \
     GIST_PEDS=https://gist.githubusercontent.com/daskol/5513ff9c5b8a2d6b2a0e78f522dd2800 && \
     curl -SL $GIST_PEDS/raw/4e7b80e5f9d49c2e39cf8aa4e6b6b8b951724730/peds.py | \
-    python - -i -e dev wrappers/python
+    python - -i -e test wrappers/python
 
 RUN --mount=type=cache,target=/var/cache/apt \
      apt update && \
