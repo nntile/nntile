@@ -19,7 +19,7 @@ import torch.nn.functional as F
 import nntile
 
 # Set up StarPU configuration and init it
-config = nntile.starpu.Config(1, 0, 0)
+config = nntile.starpu.Config(1, 1, 0)
 # Init all NNTile-StarPU codelets
 nntile.starpu.init()
 # Define list of tested types
@@ -95,8 +95,13 @@ def helper(dtype: np.dtype):
             torch_grad = torch.autograd.functional.jvp( \
                     lambda x: F.gelu(x, approximate="tanh"), \
                     torch.from_numpy(np_A), torch.from_numpy(2 * np_A))[1]
+        elif funcname == "silu":
+            torch_grad = torch.autograd.functional.jvp( \
+                    lambda x: F.silu(x), \
+                    torch.from_numpy(np_A), torch.from_numpy(2 * np_A))[1]
         np_C = np.array(torch_grad.numpy(), order="F", dtype=dtype)
         if np.linalg.norm(np_C - np_B) / np.linalg.norm(np_C) > tol:
+            print(np.linalg.norm(np_C - np_B), np.linalg.norm(np_C))
             A_moments.unregister()
             layer.unregister()
             assert False

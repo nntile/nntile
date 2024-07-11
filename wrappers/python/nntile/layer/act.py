@@ -18,7 +18,7 @@ from nntile.tensor import (Tensor, TensorMoments, TensorTraits, copy_async,
                            gelu_async, gelu_backward_async, gelutanh_async,
                            gelutanh_backward_async, gelutanh_inplace_async,
                            relu_backward_async, relu_forward_async,
-                           silu_forward_async)
+                           silu_backward_async, silu_forward_async)
 
 
 class Act(BaseLayer):
@@ -27,7 +27,7 @@ class Act(BaseLayer):
     activations = {'relu': (relu_forward_async, relu_backward_async), \
             'gelu': (gelu_async, gelu_backward_async), \
             'gelutanh': (gelutanh_inplace_async, gelutanh_backward_async), \
-            'silu': (silu_forward_async, None) \
+            'silu': (silu_forward_async, silu_backward_async) \
             }
     funcname: str
     func: Callable[[Tensor], None]

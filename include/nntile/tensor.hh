@@ -84,6 +84,7 @@
 #include <nntile/tensor/adamw_step.hh>
 #include <nntile/tensor/transpose.hh>
 #include <nntile/tensor/silu_forward.hh>
+#include <nntile/tensor/silu_backward.hh>
 
 //! @namespace nntile::tensor
 /*! This namespace holds high-level routines for Tensor<T>
