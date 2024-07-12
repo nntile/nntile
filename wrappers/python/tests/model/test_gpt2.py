@@ -29,9 +29,7 @@ from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
         GPT2Model as GPT2Model_nntile
 from nntile.tensor import copy_async
 from nntile.loss import Frob
-import pdb
 from typing import Union, Optional, Tuple, List
-from packaging import version
 import copy
 import argparse
 import json

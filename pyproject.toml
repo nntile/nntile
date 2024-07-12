@@ -13,11 +13,11 @@ authors = [
     {name = "Aleksandr Mikhalev", email = "al.mikhalev@skoltech.ru"},
     {name = "Aleksandr Katrutsa", email = "a.katrutsa@skoltech.ru"},
     {name = "Konstantin Sozykin", email = "ko.sozykin@skoltech.ru"},
-    {name = "Daniel Bershatsky", email = "d.bershatsky@skoltech.ru"},
+    {name = "Daniel Bershatsky", email = "d.bershatsky2@skoltech.ru"},
     {name = "Ivan Oseledets", email = "i.oseledets@skoltech.ru"},
 ]
 maintainers = [
-    {name = "Daniel Bershatsky", email = "d.bershatsky@skoltech.ru"},
+    {name = "Daniel Bershatsky", email = "d.bershatsky2@skoltech.ru"},
     {name = "Aleksandr Mikhalev", email = "al.mikhalev@skoltech.ru"},
 ]
 readme = {file = "README.md", content-type = "text/markdown"}
@@ -40,44 +40,63 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Typing :: Typed",
 ]
-dependencies = ["numpy"]
-requires-python = ">=3.8,<4"
+dependencies = ["fastapi", "pydantic", "numpy", "uvicorn"]
+requires-python = ">=3.10,<4"
 
 [project.optional-dependencies]
-dev = ["ipython", "isort", "mypy"]
-test = ["torch", "torchvision", "pytest", "scipy", "transformers", "datasets",
-    "tensorflow"]
+dev = ["isort", "mypy", "ruff"]
+test = [
+    "datasets", "pytest>=8.2", "scipy", "torch", "torchvision", "transformers",
+]
 
 [project.urls]
-Homepage = "https://doge.skoltech.ru/green-ai/nntile"
-Repository = "https://doge.skoltech.ru/green-ai/nntile.git"
+Homepage = "https://github.com/nntile/nntile"
+Repository = "https://github.com/nntile/nntile.git"
 
 [tool.isort]
+combine_as_imports = true
 known_first_party = ["nntile"]
-
-[tool.mypy]
-ignore_missing_imports = true
-plugins = "numpy.typing.mypy_plugin"
-show_column_numbers = true
-show_error_codes = true
-show_error_context = false
+multi_line_output = 4
+sort_reexports = true
 
 [tool.pytest.ini_options]
-minversion = "7.0"
+minversion = "8.2"
 addopts = "-ra -q -m 'not slow'"
-testpaths = ["tests"]
+testpaths = ["wrappers/python/tests"]
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "slow: slow tests (deselect with '-m \"not slow\"')",
+    "cuda: tests that requires CUDA",
 ]
 filterwarnings = ["ignore::DeprecationWarning"]
 
+[tool.pytest-dirty]
+packages = [
+    "datasets", "fastapi", "numpy", "pydantic", "pytest", "scipy", "torch",
+    "torchvision", "transformers", "uvicorn",
+]
+sources = ["wrappers/python/nntile"]
+targets = ["wrappers/python/tests"]
+
+[tool.pytest-dirty.dependency]
+"wrappers/python/tests/**/test_*.py" = ["wrappers/python/tests/conftest.py"]
+
 [tool.ruff]
-line-length = 80
+indent-width = 4
+line-length = 79
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "NPY", "PYI", "PTH"]
+preview = true
+
+[tool.ruff.lint.pycodestyle]
+max-doc-length = 79
+max-line-length = 79
 
 [tool.setuptools]
 include-package-data = false
@@ -85,4 +104,5 @@ platforms = ["Linux"]
 zip-safe = false
 
 [tool.setuptools.packages.find]
+where = "wrappers/python"
 include = ["nntile*"]
