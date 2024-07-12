@@ -137,7 +137,7 @@ elif args.pretrained == "local":
                 if args.optimizer == "adam":
                     optimizer = Adam(model_torch.parameters(), args.lr)
                 elif args.optimizer == "sgd":
-                    optimizer = SGD(model_torch.parameters(), args.lr, 0.9)
+                    optimizer = SGD(model_torch.parameters(), args.lr)
                 elif args.optimizer == "adamw":
                     optimizer = AdamW(model_torch.parameters(), args.lr)
                 else:
@@ -585,7 +585,7 @@ if args.nntile_nepochs > 0:
                 args.lr, next_tag)
     elif args.optimizer == "sgd":
         optimizer = nntile.optimizer.SGD(nntile_model.get_parameters(), \
-                args.lr, next_tag, momentum=0.9)
+                args.lr, next_tag)
     next_tag = optimizer.get_next_tag()
     # Define Cross Entropy loss function
     loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
@@ -641,12 +641,19 @@ if args.torch_nepochs > 0:
                 requires_grad=False).contiguous())
         torch_input.append(minibatch_input)
         torch_output.append(minibatch_output)
-    optim = Adam(model_torch.parameters(), lr=args.lr)
     loss_func = nn.CrossEntropyLoss(reduction="mean")
+    if args.optimizer == "adam":
+        optimizer = Adam(model_torch.parameters(), args.lr)
+    elif args.optimizer == "sgd":
+        optimizer = SGD(model_torch.parameters(), args.lr)
+    elif args.optimizer == "adamw":
+        optimizer = AdamW(model_torch.parameters(), args.lr)
+    else:
+        raise ValueError
     # Warmup training
     for i in range(args.torch_nepochs_warmup):
         for j in range(num_train_batches):
-            optim.zero_grad()
+            optimizer.zero_grad()
             loss = torch.zeros(1, dtype=torch_dtype, device=args.torch_device)
             for k in range(num_minibatch):
                 train_input = torch_input[j][k].to(args.torch_device)
@@ -657,14 +664,14 @@ if args.torch_nepochs > 0:
                 loss_local.backward()
                 loss += loss_local
             print("loss={}".format(loss.item()), flush=True)
-            optim.step()
+            optimizer.step()
     # Actual training
     if args.torch_device.startswith("cuda"):
         torch.cuda.synchronize()
     time0 = time.time()
     for i in range(args.torch_nepochs):
         for j in range(num_train_batches):
-            optim.zero_grad()
+            optimizer.zero_grad()
             loss = torch.zeros(1, dtype=torch_dtype, device=args.torch_device)
             for k in range(num_minibatch):
                 train_input = torch_input[j][k].to(args.torch_device)
@@ -677,7 +684,7 @@ if args.torch_nepochs > 0:
             print("Batch={}/{} Epoch={}/{} Loss={}".format(j+1, num_train_batches,
                                                            i+1, args.torch_nepochs,
                                                            loss.item()), flush=True)
-            optim.step()
+            optimizer.step()
     if args.torch_device.startswith("cuda"):
         torch.cuda.synchronize()
     time1 = time.time() - time0

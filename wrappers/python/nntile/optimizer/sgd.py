@@ -58,8 +58,7 @@ class SGD:
                 if self.num_iter == 0:
                     nntile.tensor.copy_async(p.grad, self.states[i])
                 else:
-                    nntile.tensor.scal_inplace_async(self.momentum, self.states[i])
-                    nntile.tensor.add_async(1 - self.damping, p.grad, 1., self.states[i])
+                    nntile.tensor.add_async(1 - self.damping, p.grad, self.momentum, self.states[i])
                 if self.nesterov:
                     nntile.tensor.add_async(self.momentum, self.states[i], 1., p.grad)
                 else:
