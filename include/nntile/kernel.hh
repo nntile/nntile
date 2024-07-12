@@ -66,6 +66,8 @@
 #include <nntile/kernel/adam_step.hh>
 #include <nntile/kernel/adamw_step.hh>
 #include <nntile/kernel/transpose.hh>
+#include <nntile/kernel/silu_forward.hh>
+#include <nntile/kernel/silu_backward.hh>
 
 #include <nntile/kernel/cpu.hh>
 #include <nntile/kernel/cuda.hh>

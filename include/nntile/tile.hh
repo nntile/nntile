@@ -72,6 +72,8 @@
 #include <nntile/tile/hypot.hh>
 #include <nntile/tile/adam_step.hh>
 #include <nntile/tile/adamw_step.hh>
+#include <nntile/tile/silu_forward.hh>
+#include <nntile/tile/silu_backward.hh>
 
 //! @namespace nntile::tile
 /*! This namespace holds high-level routines for Tile<T>

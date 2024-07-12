@@ -11,11 +11,13 @@
 #
 # @version 1.0.0
 
+import numpy as np
+import torch
+import torch.nn.functional as F
+
 # All necesary imports
 import nntile
-import numpy as np
-import torch.nn.functional as F
-import torch
+
 # Set up StarPU configuration and init it
 config = nntile.starpu.Config(1, 0, 0)
 # Init all NNTile-StarPU codelets
@@ -36,7 +38,6 @@ def helper(dtype: np.dtype):
         tol = 1e-10
     # Describe single-tile tensor, located at node 0
     A_shape = [4, 5, 6]
-    ndim = len(A_shape)
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
     next_tag = 0
@@ -69,11 +70,14 @@ def helper(dtype: np.dtype):
             torch_output = F.gelu(torch.from_numpy(np_A))
         elif funcname == "gelutanh":
             torch_output = F.gelu(torch.from_numpy(np_A), approximate="tanh")
+        elif funcname == "silu":
+            torch_output = F.silu(torch.from_numpy(np_A))
         np_C = np.array(torch_output.numpy(), order="F", dtype=dtype)
         if np.linalg.norm(np_C - np_B) / np.linalg.norm(np_C) > tol:
             A_moments.unregister()
             layer.unregister()
             assert False
+        print("Forward in {} passed".format(funcname))
         # Do backward
         layer.y.grad.from_array(2*np_A)
         layer.backward_async()
@@ -91,11 +95,17 @@ def helper(dtype: np.dtype):
             torch_grad = torch.autograd.functional.jvp( \
                     lambda x: F.gelu(x, approximate="tanh"), \
                     torch.from_numpy(np_A), torch.from_numpy(2 * np_A))[1]
+        elif funcname == "silu":
+            torch_grad = torch.autograd.functional.jvp( \
+                    lambda x: F.silu(x), \
+                    torch.from_numpy(np_A), torch.from_numpy(2 * np_A))[1]
         np_C = np.array(torch_grad.numpy(), order="F", dtype=dtype)
         if np.linalg.norm(np_C - np_B) / np.linalg.norm(np_C) > tol:
+            print(np.linalg.norm(np_C - np_B), np.linalg.norm(np_C))
             A_moments.unregister()
             layer.unregister()
             assert False
+        print("Backward in {} passed".format(funcname))
     A_moments.unregister()
     layer.unregister()
     print("Finish checking {}".format(Act.activations.keys()))
