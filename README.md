@@ -1,6 +1,8 @@
 NNTile
 ======
 
+![Linting and testing.](https://github.com/nntile/nntile/actions/workflows/on-push.yml/badge.svg)
+
 ## General purpose
 
 **NNTile** is a framework for training large neural networks. It relies
