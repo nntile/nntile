@@ -11,13 +11,10 @@
 #
 # @version 1.0.0
 
-import copy
-import time
 
 import numpy as np
 import pytest
 import torch
-import torch.nn as nn
 import torch.optim as optim
 
 import nntile
@@ -38,11 +35,10 @@ def starpu():
     (1000, 100, 'cpu', 1e-4),
 ])
 def test_adam(starpu, dim, num_steps, device, lr, tol=1e-5):
-    torch_param = torch.randn((dim, ), device=device, requires_grad=True, dtype=torch.float32)
+    torch_param = torch.randn((dim, ), device=device, requires_grad=True,
+                              dtype=torch.float32)
     next_tag = 0
-    x_traits = nntile.tensor.TensorTraits( \
-                [dim], \
-                [dim])
+    x_traits = nntile.tensor.TensorTraits([dim], [dim])
     x_distr = [0] * x_traits.grid.nelems
     x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
     next_tag = x.next_tag
@@ -61,8 +57,9 @@ def test_adam(starpu, dim, num_steps, device, lr, tol=1e-5):
         torch_optimizer.step()
         nntile_optimizer.step()
         nntile_param.value.to_array(nntile_param_np)
-        assert np.linalg.norm(torch_param.data.cpu().numpy() - nntile_param_np) / \
-            np.linalg.norm(torch_param.data.cpu().numpy()) < tol
+        top = np.linalg.norm(torch_param.data.cpu().numpy() - nntile_param_np)
+        bottom = np.linalg.norm(torch_param.data.cpu().numpy())
+        assert top / bottom < tol
 
     nntile_optimizer.unregister()
     nntile_param.unregister()

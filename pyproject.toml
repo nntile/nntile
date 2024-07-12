@@ -61,7 +61,7 @@ Repository = "https://github.com/nntile/nntile.git"
 
 [tool.isort]
 combine_as_imports = true
-known_first_party = ["nntile"]
+known_first_party = ["nntile", "gpt2_config", "huggingface_activations"]
 multi_line_output = 4
 sort_reexports = true
 
@@ -91,7 +91,8 @@ indent-width = 4
 line-length = 79
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "NPY", "PYI", "PTH"]
+select = ["E", "F", "NPY", "PYI", "PTH"]
+ignore = ["PTH123"]
 preview = true
 
 [tool.ruff.lint.pycodestyle]

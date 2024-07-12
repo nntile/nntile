@@ -96,7 +96,7 @@ def test_deep_relu(bias: bool, device: str, optimizer: str, input_dim: int = 5,
     batch_labels = []
     minibatch_tile = minibatch_size
     input_dim_tile = input_dim
-    x_traits = nntile.tensor.TensorTraits([input_dim, minibatch_size], \
+    x_traits = nntile.tensor.TensorTraits([input_dim, minibatch_size],
             [input_dim_tile, minibatch_tile])
     x_distr = [0] * x_traits.grid.nelems
     y_traits = nntile.tensor.TensorTraits([minibatch_size], [minibatch_tile])

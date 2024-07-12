@@ -31,8 +31,8 @@ TEST_GENERATE_INPUT_PARAMS = [
     GenerateTestParams(
         "gpt2",
         "Hello, my dog is cute",
-        "Hello, my dog is cute. I'm", # not sure, if she's a puppy or not.",
-        max_tokens = 9,
+        "Hello, my dog is cute. I'm",  # not sure, if she's a puppy or not.",
+        max_tokens=9,
     )
 ]
 

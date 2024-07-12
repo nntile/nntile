@@ -13,23 +13,24 @@
 # @version 1.0.0
 
 import time
-from typing import Optional, Tuple
 
 import numpy as np
 import pytest
 import torch
 import torch.nn as nn
-from gpt2_config import GPT2Config
-from huggingface_activations import ACT2FN
+from torch import Tensor
 
 import nntile
+from gpt2_config import GPT2Config
+from huggingface_activations import ACT2FN
 from nntile.model.gpt2 import GPT2MLP as GPT2MLP_nntile
 
 
 class Conv1D(nn.Module):
-    """
-    1D-convolutional layer as defined by Radford et al. for OpenAI GPT (and also used in GPT-2).
-    Basically works like a linear layer but the weights are transposed.
+    """1D-convolutional layer as defined by Radford et al. for OpenAI GPT (and
+    also used in GPT-2). Basically works like a linear layer but the weights
+    are transposed.
+
     Args:
         nf (`int`): The number of output features.
         nx (`int`): The number of input features.
@@ -58,7 +59,7 @@ class GPT2MLP(nn.Module):
         self.act = ACT2FN[config.activation_function]
         self.dropout = nn.Dropout(config.resid_pdrop)
 
-    def forward(self, hidden_states: Optional[Tuple[torch.FloatTensor]]) -> torch.FloatTensor:
+    def forward(self, hidden_states: tuple[Tensor, ...] | None) -> Tensor:
         hidden_states = self.c_fc(hidden_states)
         hidden_states = self.act(hidden_states)
         hidden_states = self.c_proj(hidden_states)
@@ -77,11 +78,12 @@ def test_gpt2mlp(batch_size=100, batch_size_tile=10, interm_size=1000,
     input_dim_tile = input_dim // 4
     gpt2mlp_hug = GPT2MLP(interm_size, gpt2_config).to(device)
 
-    test_input_np = np.array(np.random.randn(input_dim, batch_size), \
-            dtype=np.float32, order="F")
+    rng = np.random.default_rng(42)
+    test_input_np = rng.standard_normal((input_dim, batch_size))
+    test_input_np = test_input_np.astype(np.float32, 'F')
     test_input = torch.from_numpy(test_input_np.T).to(device)
     hug_result = gpt2mlp_hug(test_input)
-    print("Norm of the output of PyTorch GPT2MLP", \
+    print("Norm of the output of PyTorch GPT2MLP",
             torch.norm(hug_result).item())
 
     torch_val = torch.square(torch.norm(hug_result)) * 0.5
@@ -105,7 +107,7 @@ def test_gpt2mlp(batch_size=100, batch_size_tile=10, interm_size=1000,
         "activation_function": gpt2_config.activation_function
     }
 
-    x_traits = nntile.tensor.TensorTraits([input_dim, batch_size], \
+    x_traits = nntile.tensor.TensorTraits([input_dim, batch_size],
             [input_dim_tile, batch_size_tile])
     x_distr = [0] * x_traits.grid.nelems
     x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
@@ -116,22 +118,22 @@ def test_gpt2mlp(batch_size=100, batch_size_tile=10, interm_size=1000,
     x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
 
     print("Create model...")
-    gpt2mlp_nntile, next_tag = GPT2MLP_nntile.from_torch(gpt2mlp_hug, x_moments, \
-            nntile_config, next_tag)
+    gpt2mlp_nntile, next_tag = GPT2MLP_nntile.from_torch(
+        gpt2mlp_hug, x_moments, nntile_config, next_tag)
     print("Create model...done")
     print("Forward model...")
     gpt2mlp_nntile.forward_async()
     print("Forward model...done")
     gpt2mlp_nntile.clear_gradients()
-    nntile.tensor.copy_async(gpt2mlp_nntile.activations[-1].value, \
+    nntile.tensor.copy_async(gpt2mlp_nntile.activations[-1].value,
             gpt2mlp_nntile.activations[-1].grad)
     gpt2mlp_nntile.backward_async()
 
-    output = np.zeros(gpt2mlp_nntile.activations[-1].value.shape, order="F", \
+    output = np.zeros(gpt2mlp_nntile.activations[-1].value.shape, order="F",
             dtype=np.float32)
     gpt2mlp_nntile.activations[-1].value.to_array(output)
     print("Norm of the output of NNtile GPT2MLP", np.linalg.norm(output))
-    print("Norm of difference =", np.linalg.norm(output.T - \
+    print("Norm of difference =", np.linalg.norm(output.T -
             hug_result.cpu().detach().numpy()))
 
     for i, (p_nntile, p_torch) in enumerate(

@@ -67,18 +67,19 @@ class ToyFC_SkipConnection(BaseModel):
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         # Add operation
-        new_layer, next_tag = Add.generate_simple(activations[1], activations[-1],
-                                                  next_tag)
+        new_layer, next_tag = Add.generate_simple(
+            activations[1], activations[-1], next_tag)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         # ReLU activation
-        new_layer, next_tag = Act.generate_simple(activations[-1], "relu",
-                                                  next_tag)
+        new_layer, next_tag = \
+            Act.generate_simple(activations[-1], "relu", next_tag)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = Linear.generate_simple(activations[-1], "L", notrans,
-                1, [x.value.shape[1]], [x.value.shape[1]], next_tag, bias=False)
+        new_layer, next_tag = Linear.generate_simple(activations[-1], "L",
+            notrans, 1, [x.value.shape[1]], [x.value.shape[1]], next_tag,
+            bias=False)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         self.next_tag = next_tag
@@ -87,12 +88,13 @@ class ToyFC_SkipConnection(BaseModel):
 
     @staticmethod
     def from_torch(torch_model, input_moment, hidden_dim, next_tag: int):
-        '''
-        torch_mlp is PyTorch MLP where all intermediate dimensions are the same and no biases in linear layers
-        '''
+        """`torch_mlp` is PyTorch MLP where all intermediate dimensions are the
+        same and no biases in linear layers
+        """
         print("Call from torch static method")
         nntile_model = ToyFC_SkipConnection(input_moment, hidden_dim, next_tag)
-        for p, p_torch in zip(nntile_model.parameters, torch_model.parameters()):
+        pairs = zip(nntile_model.parameters, torch_model.parameters())
+        for p, p_torch in pairs:
             p.value.from_array(p_torch.detach().numpy().T)
         return nntile_model, nntile_model.next_tag
 
@@ -120,16 +122,17 @@ def test_add(n=100, hidden_dim=50, num_samples=1000):
     nntile_input.from_array(torch_input.numpy())
     next_tag = nntile_input.next_tag
     nntile_input_moment = TensorMoments(nntile_input, None, False)
-    nntile_model, next_tag = ToyFC_SkipConnection.from_torch(torch_model, nntile_input_moment,
-                                                             hidden_dim, next_tag)
+    nntile_model, next_tag = ToyFC_SkipConnection \
+        .from_torch(torch_model, nntile_input_moment, hidden_dim, next_tag)
     nntile_model.clear_gradients()
     nntile_model.forward_async()
-    fro_loss, next_tag = nntile.loss.Frob.generate_simple(nntile_model.activations[-1], next_tag)
-    np_zero = np.zeros(nntile_model.activations[-1].value.shape, dtype=np.float32, order="F")
+    fro_loss, next_tag = nntile.loss.Frob \
+        .generate_simple(nntile_model.activations[-1], next_tag)
+    np_zero = np.zeros(nntile_model.activations[-1].value.shape,
+                       dtype=np.float32, order='F')
     fro_loss.y.from_array(np_zero)
     fro_loss.calc_async()
     nntile_model.backward_async()
-
 
     np_loss_nntile = np.zeros((1,), dtype=np.float32, order="F")
     fro_loss.val.to_array(np_loss_nntile)
@@ -137,11 +140,13 @@ def test_add(n=100, hidden_dim=50, num_samples=1000):
     print("Relative error in the loss for torch and nntile models = {}".format(
         abs(torch_loss.item() - np_loss_nntile[0]) / torch_loss.item()))
 
-    for i, (p_nntile, p_torch) in enumerate(zip(nntile_model.parameters, torch_model.parameters())):
+    param_pairs = zip(nntile_model.parameters, torch_model.parameters())
+    for i, (p_nntile, p_torch) in enumerate(param_pairs):
         p_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
         p_nntile.grad.to_array(p_np)
         p_torch_np = p_torch.grad.cpu().detach().numpy()
-        rel_error = np.linalg.norm(p_np - p_torch_np.T, "fro") / np.linalg.norm(p_torch_np, "fro")
+        abs_error = np.linalg.norm(p_np - p_torch_np.T, "fro")
+        rel_error = abs_error / np.linalg.norm(p_torch_np, "fro")
         print("Relative error in layer {} gradient = {}".format(i, rel_error))
 
     nntile_model.unregister()
