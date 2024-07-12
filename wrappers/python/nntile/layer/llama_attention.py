@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/layer/attention.py
-# Attention layer of NNTile Python package
+# @file wrappers/python/nntile/layer/llama_attention.py
+# LLaMaAttention layer of NNTile Python package
 #
 # @version 1.0.0
 
@@ -28,7 +28,7 @@ from typing import List
 #  x_v: (n_emb_v, n_seq, n_batch) tensor
 # Output:
 #  y: (n_emb, n_seq, n_batch) tensor
-class Attention(BaseLayer):
+class LlamaAttention(BaseLayer):
     x_q: TensorMoments
     x_k: TensorMoments
     x_v: TensorMoments
@@ -135,7 +135,7 @@ class Attention(BaseLayer):
         self.in_proj_bias_k = in_proj_bias_k
         self.in_proj_bias_v = in_proj_bias_v
         self.out_proj_bias = out_proj_bias
-        self.n_head = w_q.value.shape[0]
+        self.n_head = w_q.value.shape[0] * w_q.value.shape[1]
         self.n_head_kv = w_k.value.shape[0]
         self.kv_group_size = self.n_head // self.n_head_kv
         if self.n_head != self.kv_group_size * self.n_head_kv:
@@ -445,7 +445,7 @@ class Attention(BaseLayer):
         next_tag = y_grad.next_tag
         y = TensorMoments(y_value, y_grad, True)
         # Create attention layer with all the provided data
-        layer = Attention(x_q, x_k, x_v, y, w_q, w_k, w_v, w, q_transposed, \
+        layer = LlamaAttention(x_q, x_k, x_v, y, w_q, w_k, w_v, w, q_transposed, \
                 q, k_transposed, k, k_rep, v_transposed, v, v_rep, a, \
                 a_maxsumexp, a_sumprod_slice, b, b_transposed, bias_inproj_q, \
                 bias_inproj_k, bias_inproj_v, out_proj_bias, mask, \
