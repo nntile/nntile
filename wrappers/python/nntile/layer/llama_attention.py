@@ -15,7 +15,7 @@ from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
         maxsumexp_async, softmax_inplace_async, sumprod_slice_async, \
         add_slice_async, prod_async, mask_scalar_async, add_fiber_async, \
-        sum_fiber_async, transpose_async, copy_async
+        sum_fiber_async, transpose_async, copy_async, sum_slice_async
 
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
@@ -562,7 +562,7 @@ class LlamaAttention(BaseLayer):
         self.a.value.wont_use()
         # Accumulate result from all the heads
         # rotate axes (head_size, n_seq, n_batch, kv_group_size, n_head_kv) into
-        # (kv_group_size, n_head_kv, head_size, n_seq, n_batch) and then
+        # (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
         transpose_async(1.0, self.b.value, self.b_transposed.value, 3)
         # Y = einsum('jklm,klmni->jni', W, B_transposed)
         # gemm (n_emb, kv_group_size, n_head_kv, head_size) by
@@ -609,9 +609,9 @@ class LlamaAttention(BaseLayer):
         self.y.grad.wont_use()
         # Backward for axes rotation
         if self.b.grad_required:
-            # rotate axes (n_head, head_size, n_seq, n_batch) into
-            # (head_size, n_seq, n_batch, n_head) and then
-            transpose_async(1.0, self.b_transposed.grad, self.b.grad, 1)
+            # rotate axes (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
+            # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
+            transpose_async(1.0, self.b_transposed.grad, self.b.grad, 2)
         #self.b_transposed.grad.wont_use()
         self.b_transposed.grad.invalidate_submit()
         # Backward for B = einsum('jklbi,kmlbi->jmlbi', V_rep, A)
