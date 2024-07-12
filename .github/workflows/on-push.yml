@@ -220,13 +220,26 @@ jobs:
       - name: Run dirty tests with PyTest
         if: 'github.event.pull_request'
         run: |
+          export PYTHON_TAG=$(
+            python -c 'import sys; print(sys.implementation.cache_tag)')
           export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
           .github/scripts/run-dirty-tests.sh \
             ${{ github.event.pull_request.head.ref }}
       - name: Run all tests with PyTest
         if: '!github.event.pull_request'
         run: |
+          export PYTHON_TAG=$(
+            python -c 'import sys; print(sys.implementation.cache_tag)')
           export PYTHONPATH=$PWD/wrappers/python:$PYTHONPATH
           pytest -vv \
-            --junitxml=junit/test-results.xml \
-            --cov=com --cov-report=xml --cov-report=html
+            --cov=wrappers/python/nntile \
+            --cov-report=html:coverage/html/${PYTHON_TAG} \
+            --cov-report=xml:coverage/xml/report.${PYTHON_TAG}.xml \
+            --junitxml=pytest/report.${PYTHON_TAG}.xml
+      - name: Upload PyTest report for Python ${{ matrix.python-version }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-report
+          path: |
+            coverage
+            pytest

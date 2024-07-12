@@ -43,8 +43,10 @@ cat affected.txt
 # Run tests affected by this PR.
 if [ -s affected.txt ]; then
     pytest -vv \
-        --junitxml=junit/test-results.xml \
-        --cov=com --cov-report=xml --cov-report=html \
+        --cov=wrappers/python/nntile \
+        --cov-report=html:coverage/html/${PYTHON_TAG} \
+        --cov-report=xml:coverage/xml/report.${PYTHON_TAG}.xml \
+        --junitxml=pytest/report.${PYTHON_TAG}.xml \
         @affected.txt
 else
     echo ':: No tests affected'
