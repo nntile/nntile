@@ -11,5 +11,6 @@
 #
 # @version 1.0.0
 
-from . import functions, layer, loss, model, optimizer, pipeline, tensor
+from . import (functions, inference, layer, loss, model, optimizer, pipeline,
+               tensor)
 from .nntile_core import TransOp, notrans, starpu, tile, trans
