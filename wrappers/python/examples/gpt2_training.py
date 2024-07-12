@@ -137,7 +137,7 @@ elif args.pretrained == "local":
                 if args.optimizer == "adam":
                     optimizer = Adam(model_torch.parameters(), args.lr)
                 elif args.optimizer == "sgd":
-                    optimizer = SGD(model_torch.parameters(), args.lr)
+                    optimizer = SGD(model_torch.parameters(), args.lr, 0.9)
                 elif args.optimizer == "adamw":
                     optimizer = AdamW(model_torch.parameters(), args.lr)
                 else:
@@ -585,7 +585,7 @@ if args.nntile_nepochs > 0:
                 args.lr, next_tag)
     elif args.optimizer == "sgd":
         optimizer = nntile.optimizer.SGD(nntile_model.get_parameters(), \
-                args.lr, next_tag)
+                args.lr, next_tag, momentum=0.9)
     next_tag = optimizer.get_next_tag()
     # Define Cross Entropy loss function
     loss, next_tag = nntile.loss.CrossEntropy.generate_simple( \
