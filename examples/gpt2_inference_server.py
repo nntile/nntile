@@ -1,6 +1,8 @@
 import argparse
+import logging
 
-from nntile.inference.llm_api_server import SimpleLlmApiServer, SimpleLlmApiServerParams
+from nntile.inference.llm_api_server import (SimpleLlmApiServer,
+                                             SimpleLlmApiServerParams)
 from nntile.inference.llm_sync_engine import LlmSyncInferenceEngine
 from nntile.model.gpt2 import GPT2Model as GPT2Model_nnt
 from transformers import GPT2TokenizerFast
@@ -9,6 +11,8 @@ import nntile
 
 starpu_config = nntile.starpu.Config(1, 0, 0)
 nntile.starpu.init()
+
+logging.basicConfig(level=logging.INFO)
 
 
 def parse_args():
