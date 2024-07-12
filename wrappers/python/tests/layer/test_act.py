@@ -19,7 +19,7 @@ import torch.nn.functional as F
 import nntile
 
 # Set up StarPU configuration and init it
-config = nntile.starpu.Config(1, 1, 0)
+config = nntile.starpu.Config(1, 0, 0)
 # Init all NNTile-StarPU codelets
 nntile.starpu.init()
 # Define list of tested types
