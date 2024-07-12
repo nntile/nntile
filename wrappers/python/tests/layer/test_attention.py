@@ -158,7 +158,6 @@ def helper(dtype: np.dtype):
     diff = np.linalg.norm(np_Y_torch - np_Y_nntile)
     # print("Forward diff = {}".format(diff/norm))
     if diff > norm*1e-4:
-        import ipdb; ipdb.set_trace()
         return False
     # Check backward
     layer.backward_async()
@@ -204,7 +203,6 @@ def helper(dtype: np.dtype):
     diff = np.linalg.norm(np_out_proj_bias_torch - np_out_proj_bias)
     # print("Error in grad for outproj bias = {}".format(diff / norm))
     if diff > norm*1e-4:
-        import ipdb; ipdb.set_trace()
         return False
 
     np_inproj_bias_torch = np.array(torch_layer.in_proj_bias.grad)
@@ -212,43 +210,35 @@ def helper(dtype: np.dtype):
     diff = np.linalg.norm(np_inproj_bias_torch - np_inproj_nntile)
     # print("Error in grad for inproj bias = {}".format(diff / norm))
     if diff > norm*1e-4:
-        import ipdb; ipdb.set_trace()
         return False
 
     norm = np.linalg.norm(np_X_Q_torch)
     diff = np.linalg.norm(np_X_Q_torch - np_X_Q)
     if diff > norm*1e-4:
-        import ipdb; ipdb.set_trace()
         return False
     norm = np.linalg.norm(np_X_K_torch)
     diff = np.linalg.norm(np_X_K_torch - np_X_K)
     if diff > norm*1e-4:
-        import ipdb; ipdb.set_trace()
         return False
     norm = np.linalg.norm(np_X_V_torch)
     diff = np.linalg.norm(np_X_V_torch - np_X_V)
     if diff > norm*1e-4:
-        import ipdb; ipdb.set_trace()
         return False
     norm = np.linalg.norm(np_W_Q_torch)
     diff = np.linalg.norm(np_W_Q_torch - np_W_Q_nntile.reshape(n_emb, n_emb))
     if diff > norm*1e-4:
-        import ipdb; ipdb.set_trace()
         return False
     norm = np.linalg.norm(np_W_K_torch)
     diff = np.linalg.norm(np_W_K_torch - np_W_K_nntile.reshape(n_emb, n_emb_k))
     if diff > norm*1e-4:
-        import ipdb; ipdb.set_trace()
         return False
     norm = np.linalg.norm(np_W_V_torch)
     diff = np.linalg.norm(np_W_V_torch - np_W_V_nntile.reshape(n_emb, n_emb_v))
     if diff > norm*1e-4:
-        import ipdb; ipdb.set_trace()
         return False
     norm = np.linalg.norm(np_W_torch)
     diff = np.linalg.norm(np_W_torch - np_W_nntile.reshape(n_emb, n_emb))
     if diff > norm*1e-4:
-        import ipdb; ipdb.set_trace()
         return False
     # Unregister
     X_Q.unregister()
