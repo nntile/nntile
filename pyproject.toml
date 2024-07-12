@@ -46,14 +46,13 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Typing :: Typed",
 ]
-dependencies = ["numpy"]
+dependencies = ["fastapi", "pydantic", "numpy", "uvicorn"]
 requires-python = ">=3.10,<4"
 
 [project.optional-dependencies]
 dev = ["isort", "mypy", "ruff"]
 test = [
-    "datasets", "numpy", "pytest>=8.2", "scipy", "torch", "torchvision",
-    "transformers",
+    "datasets", "pytest>=8.2", "scipy", "torch", "torchvision", "transformers",
 ]
 
 [project.urls]
@@ -78,8 +77,8 @@ filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.pytest-dirty]
 packages = [
-    "datasets", "numpy", "pytest", "scipy", "torch", "torchvision",
-    "transformers",
+    "datasets", "fastapi", "numpy", "pydantic", "pytest", "scipy", "torch",
+    "torchvision", "transformers", "uvicorn",
 ]
 sources = ["wrappers/python/nntile"]
 targets = ["wrappers/python/tests"]
