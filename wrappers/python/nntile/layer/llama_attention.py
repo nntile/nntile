@@ -95,38 +95,38 @@ class LlamaAttention(BaseLayer):
         self.x_v = x_v
         self.x_v.grad.set_reduction_add()
         self.y = y
-        self.y.value.set_reduction_add()
+        #self.y.value.set_reduction_add()
         self.w_q = w_q
-        self.w_q.grad.set_reduction_add()
+        #self.w_q.grad.set_reduction_add()
         self.w_k = w_k
-        self.w_k.grad.set_reduction_add()
+        #self.w_k.grad.set_reduction_add()
         self.w_v = w_v
-        self.w_v.grad.set_reduction_add()
+        #self.w_v.grad.set_reduction_add()
         self.w = w
-        self.w.grad.set_reduction_add()
+        #self.w.grad.set_reduction_add()
         self.q_transposed = q_transposed
-        self.q_transposed.value.set_reduction_add()
+        #self.q_transposed.value.set_reduction_add()
         self.q = q
-        self.q.grad.set_reduction_add()
+        #self.q.grad.set_reduction_add()
         self.k_transposed = k_transposed
-        self.k_transposed.value.set_reduction_add()
+        #self.k_transposed.value.set_reduction_add()
         self.k = k
-        self.k.grad.set_reduction_add()
+        #self.k.grad.set_reduction_add()
         self.k_rep = k_rep
-        self.k_rep.grad.set_reduction_add()
+        #self.k_rep.grad.set_reduction_add()
         self.v_transposed = v_transposed
-        self.v_transposed.value.set_reduction_add()
+        #self.v_transposed.value.set_reduction_add()
         self.v = v
-        self.v.grad.set_reduction_add()
+        #self.v.grad.set_reduction_add()
         self.v_rep = v_rep
-        self.v_rep.grad.set_reduction_add()
+        #self.v_rep.grad.set_reduction_add()
         self.a = a
-        self.a.value.set_reduction_add()
-        self.a.grad.set_reduction_add()
+        #self.a.value.set_reduction_add()
+        #self.a.grad.set_reduction_add()
         self.a_maxsumexp = a_maxsumexp
-        self.a_maxsumexp.set_reduction_maxsumexp()
+        #self.a_maxsumexp.set_reduction_maxsumexp()
         self.a_sumprod_slice = a_sumprod_slice
-        self.a_sumprod_slice.set_reduction_add()
+        #self.a_sumprod_slice.set_reduction_add()
         self.b = b
         self.b.value.set_reduction_add()
         self.b_transposed = b_transposed
@@ -168,7 +168,7 @@ class LlamaAttention(BaseLayer):
             raise RuntimeError
         # KV group is NOT split into tiles
         kv_group_size = n_head // n_head_kv
-        kv_group_size_tile = n_head // n_head_kv
+        kv_group_size_tile = kv_group_size
         # n_head_kv is split into tiles in such a way, that
         # n_head_kv_tile*kv_group_size_tile=n_head_tile
         if n_head_tile % kv_group_size != 0:
