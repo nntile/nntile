@@ -45,9 +45,8 @@ class RMSNorm(BaseLayer):
         self.tmp_y_grad = tmp_y_grad
         self.inv_stddev = inv_stddev
         self.inv_stddev.set_reduction_hypot()
-        if mean is not None:
-            self.mean = mean
-            self.mean.set_reduction_add()
+        self.mean = mean
+        self.mean.set_reduction_add()
         self.axis = axis
         self.l = self.x.value.shape[axis]
         self.eps = eps ** 0.5  # This value is used to init deviation
@@ -105,13 +104,10 @@ class RMSNorm(BaseLayer):
         inv_stddev = type(x.value)(inv_stddev_traits, inv_stddev_distr,
                                    next_tag)
         next_tag = inv_stddev.next_tag
-        if x.grad_required:
-            mean = type(x.value)(inv_stddev_traits, inv_stddev_distr, next_tag)
-            next_tag = mean.next_tag
-        else:
-            mean = None
+        mean = type(x.value)(inv_stddev_traits, inv_stddev_distr, next_tag)
+        next_tag = mean.next_tag
 
-        # Create LayerNorm object with all the provided tensors
+        # Create RMSNorm object with all the provided tensors
         layer = RMSNorm(x, y, gamma, tmp_y_value, tmp_y_grad, mean,
                 inv_stddev, axis, eps, redux=redux)
         # Init gamma and beta
