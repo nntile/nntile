@@ -33,7 +33,7 @@ class RMSNorm(BaseLayer):
     def __init__(self, x: TensorMoments, y: TensorMoments,
             gamma: TensorMoments, tmp_y_value: Tensor,
             tmp_y_grad: Tensor, mean: Tensor, inv_stddev: Tensor, axis: int,
-            eps: float, redux: bool=False):
+            eps: float, redux: bool = False):
         # Redirect to BaseLayer initialization
         super().__init__([x], [y], [gamma], [tmp_y_value, tmp_y_grad,
                 inv_stddev, mean])
@@ -58,7 +58,7 @@ class RMSNorm(BaseLayer):
     # Simple generator for the normalization layer
     @staticmethod
     def generate_simple(x: TensorMoments, axis: int, eps: float,
-            next_tag: int, redux: bool=False):
+            next_tag: int, redux: bool = False):
         # Get traits of X
         x_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
         # Create Y with the same traits and distribution as X
@@ -88,9 +88,9 @@ class RMSNorm(BaseLayer):
         # Temporary tensor for gradient of normalized input
         tmp_y_grad = type(x.value)(x_traits, x_distr, next_tag)
         next_tag = tmp_y_grad.next_tag
-        inv_stddev_shape = x.value.shape[:axis] + x.value.shape[axis+1:]
+        inv_stddev_shape = x.value.shape[:axis] + x.value.shape[axis + 1:]
         inv_stddev_basetile = x.value.basetile_shape[:axis] \
-                + x.value.basetile_shape[axis+1:]
+                + x.value.basetile_shape[axis + 1:]
         inv_stddev_traits = TensorTraits(inv_stddev_shape, inv_stddev_basetile)
         inv_stddev_distr = []
         # Set distribution of mean tensor as X tensor with 0 index in provided

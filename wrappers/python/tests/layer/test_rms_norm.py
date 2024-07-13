@@ -94,17 +94,18 @@ def helper(dtype: np.dtype):
     next_tag = A_grad.next_tag
     A = nntile.tensor.TensorMoments(A_value, A_grad, True)
     # Set initial values of tensors
-    rand_A = np.random.randn(*A_shape)
+    gen = np.random.default_rng()
+    rand_A = gen.standard_normal(size=A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A.value.from_array(np_A)
     torch_A = torch.tensor(np_A, requires_grad=True)
-    rand_B_grad = np.random.randn(*A_shape)
+    rand_B_grad = gen.standard_normal(size=A_shape)
     np_B_grad = np.array(rand_B_grad, dtype=dtype, order='F')
-    rand_gamma = np.random.randn((A_shape[-1]))
+    rand_gamma = gen.standard_normal(size=A_shape[-1])
     np_gamma = np.array(rand_gamma, dtype=dtype, order='F')
     # Init NNTile LayerNorm
     nntile_layer, next_tag = nntile.layer.RMSNorm.generate_simple(A,
-            ndim-1, eps, next_tag)
+            ndim - 1, eps, next_tag)
     nntile_layer.gamma.value.from_array(np_gamma)
     # Init PyTorch LayerNorm
     torch_layer = RMSNorm(A_shape[-1], eps=eps)
@@ -117,7 +118,7 @@ def helper(dtype: np.dtype):
     torch_B = torch_layer(torch_A)
     np_B_torch = torch_B.data.numpy()
     # Check forward
-    if np.linalg.norm(np_B_torch-np_B_nntile) \
+    if np.linalg.norm(np_B_torch - np_B_nntile) \
             / np.linalg.norm(np_B_torch) >= 1e-5:
         assert False
     # NNTile backward of LayerNorm
@@ -131,15 +132,15 @@ def helper(dtype: np.dtype):
     nntile_layer.gamma.grad.to_array(np_gamma_grad_nntile)
     # PyTorch backward
     torch_B_grad = torch.tensor(np_B_grad, requires_grad=True)
-    res = (torch_B*torch_B_grad).sum()
+    res = (torch_B * torch_B_grad).sum()
     res.backward()
     np_A_grad_torch = torch_A.grad.numpy()
     np_gamma_grad_torch = torch_layer.weight.grad.numpy()
     # Check backward
-    if np.linalg.norm(np_A_grad_torch-np_A_grad_nntile) \
+    if np.linalg.norm(np_A_grad_torch - np_A_grad_nntile) \
             / np.linalg.norm(np_A_grad_torch) >= 1e-5:
         assert False
-    if np.linalg.norm(np_gamma_grad_torch-np_gamma_grad_nntile) \
+    if np.linalg.norm(np_gamma_grad_torch - np_gamma_grad_nntile) \
             / np.linalg.norm(np_gamma_grad_torch) >= 1e-5:
         assert False
 

@@ -12,8 +12,6 @@
 # @version 1.0.0
 
 from .act import Act
-#from .fp32_to_fp16 import FP32_to_FP16
-#from .fp16_to_fp32 import FP16_to_FP32
 from .add_slice import AddSlice
 from .attention import Attention
 from .attention_single_head import AttentionSingleHead
