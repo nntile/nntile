@@ -15,23 +15,25 @@ from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
         maxsumexp_async, softmax_inplace_async, sumprod_slice_async, \
         add_slice_async, prod_async, mask_scalar_async, add_fiber_async, \
-        sum_fiber_async, transpose_async, copy_async, sum_slice_async
+        sum_fiber_async, transpose_async, copy_async, sum_slice_async, \
+        to_numpy
 
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
 
-# Multi-head attention
+import torch
+from transformers.models.llama.modeling_llama import ( \
+        LlamaAttention as LlamaAttention_torch, \
+        LlamaConfig as LlamaConfig_torch)
+
+# LLaMa Multi-Query Self-Attention with Rotary Embeddings
 # Inputs:
-#  x_q: (n_emb, n_seq, n_batch) tensor
-#  x_k: (n_emb_k, n_seq, n_batch) tensor
-#  x_v: (n_emb_v, n_seq, n_batch) tensor
+#  x: (n_emb, n_seq, n_batch) tensor
 # Output:
 #  y: (n_emb, n_seq, n_batch) tensor
 class LlamaAttention(BaseLayer):
-    x_q: TensorMoments
-    x_k: TensorMoments
-    x_v: TensorMoments
+    x: TensorMoments
     y: TensorMoments
     w_q: TensorMoments
     w_k: TensorMoments
@@ -50,14 +52,17 @@ class LlamaAttention(BaseLayer):
     a_sumprod_slice: Tensor
     b: TensorMoments
     b_transposed: TensorMoments
+    n_emb: int
+    n_emb_kv: int
+    n_seq: int
+    n_batch: int
     n_head: int
     n_head_kv: int
     kv_group_size: int
     head_size: int
 
     # Construct attention layer with all the provided data
-    def __init__(self, x_q: TensorMoments, x_k: TensorMoments, \
-            x_v: TensorMoments, y: TensorMoments, \
+    def __init__(self, x: TensorMoments, y: TensorMoments, \
             w_q: TensorMoments, w_k: TensorMoments, \
             w_v: TensorMoments, w: TensorMoments, \
             q_transposed: TensorMoments, q: TensorMoments, \
@@ -84,49 +89,49 @@ class LlamaAttention(BaseLayer):
         else:
             bias_list_out_proj = []
         # Redirect to BaseClass initialization
-        super().__init__([x_q, x_k, x_v], [y], [w_q, w_k, w_v] + \
+        super().__init__([x], [y], [w_q, w_k, w_v] + \
                 qkv_bias_list + [w] + bias_list_out_proj, \
                 [q_transposed, q, k_transposed, k, k_rep, v_transposed, v, \
                 v_rep, a, a_maxsumexp, a_sumprod_slice, b, b_transposed])
-        self.x_q = x_q
-        self.x_q.grad.set_reduction_add()
-        self.x_k = x_k
-        self.x_k.grad.set_reduction_add()
-        self.x_v = x_v
-        self.x_v.grad.set_reduction_add()
+        self.x = x
+        self.x.grad.set_reduction_add()
+        # Aliases
+        self.x_q = x
+        self.x_k = x
+        self.x_v = x
         self.y = y
-        #self.y.value.set_reduction_add()
+        self.y.value.set_reduction_add()
         self.w_q = w_q
-        #self.w_q.grad.set_reduction_add()
+        self.w_q.grad.set_reduction_add()
         self.w_k = w_k
-        #self.w_k.grad.set_reduction_add()
+        self.w_k.grad.set_reduction_add()
         self.w_v = w_v
-        #self.w_v.grad.set_reduction_add()
+        self.w_v.grad.set_reduction_add()
         self.w = w
-        #self.w.grad.set_reduction_add()
+        self.w.grad.set_reduction_add()
         self.q_transposed = q_transposed
-        #self.q_transposed.value.set_reduction_add()
+        self.q_transposed.value.set_reduction_add()
         self.q = q
-        #self.q.grad.set_reduction_add()
+        self.q.grad.set_reduction_add()
         self.k_transposed = k_transposed
-        #self.k_transposed.value.set_reduction_add()
+        self.k_transposed.value.set_reduction_add()
         self.k = k
-        #self.k.grad.set_reduction_add()
+        self.k.grad.set_reduction_add()
         self.k_rep = k_rep
-        #self.k_rep.grad.set_reduction_add()
+        self.k_rep.grad.set_reduction_add()
         self.v_transposed = v_transposed
-        #self.v_transposed.value.set_reduction_add()
+        self.v_transposed.value.set_reduction_add()
         self.v = v
-        #self.v.grad.set_reduction_add()
+        self.v.grad.set_reduction_add()
         self.v_rep = v_rep
-        #self.v_rep.grad.set_reduction_add()
+        self.v_rep.grad.set_reduction_add()
         self.a = a
-        #self.a.value.set_reduction_add()
-        #self.a.grad.set_reduction_add()
+        self.a.value.set_reduction_add()
+        self.a.grad.set_reduction_add()
         self.a_maxsumexp = a_maxsumexp
-        #self.a_maxsumexp.set_reduction_maxsumexp()
+        self.a_maxsumexp.set_reduction_maxsumexp()
         self.a_sumprod_slice = a_sumprod_slice
-        #self.a_sumprod_slice.set_reduction_add()
+        self.a_sumprod_slice.set_reduction_add()
         self.b = b
         self.b.value.set_reduction_add()
         self.b_transposed = b_transposed
@@ -140,11 +145,15 @@ class LlamaAttention(BaseLayer):
         self.kv_group_size = self.n_head // self.n_head_kv
         if self.n_head != self.kv_group_size * self.n_head_kv:
             raise ValueError("Wrong number of heads of W_k")
-        n_emb = x_q.value.shape[0]
+        n_emb, n_seq, n_batch = x.value.shape
         head_size = n_emb // self.n_head
         # Stupid check, that is not necessary, as the code shall work
         if n_emb != head_size * self.n_head:
             raise RuntimeError
+        self.n_emb = n_emb
+        self.n_emb_kv = head_size * self.n_head_kv
+        self.n_seq = n_seq
+        self.n_batch = n_batch
         self.head_size = head_size
         self.mask = mask
         if mask:
@@ -156,12 +165,14 @@ class LlamaAttention(BaseLayer):
 
     # Simple generator for the linear layer
     @staticmethod
-    def generate_simple(x_q: TensorMoments, x_k: TensorMoments, \
-            x_v: TensorMoments, n_head: int, n_head_tile: int, n_head_kv: int, next_tag: int, \
-            bias=False, mask=None, redux: bool=False):
+    def generate_simple(x: TensorMoments, n_head: int, n_head_tile: int, \
+            n_head_kv: int, next_tag: int, bias=False, mask=None, \
+            redux: bool=False):
         # Get sizes
-        n_emb, n_seq, n_batch = x_q.value.shape
-        n_emb_tile, n_seq_tile, n_batch_tile = x_q.value.basetile_shape
+        n_emb, n_seq, n_batch = x.value.shape
+        n_emb_tile, n_seq_tile, n_batch_tile = x.value.basetile_shape
+        n_emb_k = n_emb_v = n_emb
+        n_emb_k_tile = n_emb_v_tile = n_emb_tile
         head_size = n_emb // n_head
         # Stupid check, that is not necessary, as the code shall work
         if n_emb != head_size * n_head:
@@ -174,18 +185,6 @@ class LlamaAttention(BaseLayer):
         if n_head_tile % kv_group_size != 0:
             raise ValueError("Invalid value of n_head_kv")
         n_head_kv_tile = n_head_tile // kv_group_size
-        n_emb_k = x_k.value.shape[0]
-        n_emb_k_tile = x_k.value.basetile_shape[0]
-        if [n_seq, n_batch] != x_k.value.shape[1:]:
-            raise ValueError("Invalid shape of x_k")
-        if [n_seq_tile, n_batch_tile] != x_k.value.basetile_shape[1:]:
-            raise ValueError("Invalid basetile shape of x_k")
-        n_emb_v = x_v.value.shape[0]
-        n_emb_v_tile = x_v.value.basetile_shape[0]
-        if [n_seq, n_batch] != x_v.value.shape[1:]:
-            raise ValueError("Invalid shape of x_v")
-        if [n_seq_tile, n_batch_tile] != x_v.value.basetile_shape[1:]:
-            raise ValueError("Invalid basetile shape of x_v")
         # Fixed for now
         head_size_tile = head_size
         # Define shape of each tensor
@@ -287,17 +286,17 @@ class LlamaAttention(BaseLayer):
             in_proj_bias_kv_distr = [0] * in_proj_bias_kv_traits.grid.nelems
         # Define all the lists
         # w_q
-        w_q_value = type(x_q.value)(w_q_traits, w_q_distr, next_tag)
+        w_q_value = type(x.value)(w_q_traits, w_q_distr, next_tag)
         next_tag = w_q_value.next_tag
-        w_q_grad = type(x_q.value)(w_q_traits, w_q_distr, next_tag)
+        w_q_grad = type(x.value)(w_q_traits, w_q_distr, next_tag)
         next_tag = w_q_grad.next_tag
         w_q = TensorMoments(w_q_value, w_q_grad, True)
         if bias:
-            in_proj_bias_q_value = type(x_q.value)( \
+            in_proj_bias_q_value = type(x.value)( \
                     in_proj_bias_q_traits, in_proj_bias_q_distr, \
                     next_tag)
             next_tag = in_proj_bias_q_value.next_tag
-            in_proj_bias_q_grad = type(x_q.value)( \
+            in_proj_bias_q_grad = type(x.value)( \
                     in_proj_bias_q_traits, in_proj_bias_q_distr, \
                     next_tag)
             next_tag = in_proj_bias_q_grad.next_tag
@@ -306,17 +305,17 @@ class LlamaAttention(BaseLayer):
         else:
             bias_inproj_q = None
         # w_k
-        w_k_value = type(x_q.value)(w_k_traits, w_k_distr, next_tag)
+        w_k_value = type(x.value)(w_k_traits, w_k_distr, next_tag)
         next_tag = w_k_value.next_tag
-        w_k_grad = type(x_q.value)(w_k_traits, w_k_distr, next_tag)
+        w_k_grad = type(x.value)(w_k_traits, w_k_distr, next_tag)
         next_tag = w_k_grad.next_tag
         w_k = TensorMoments(w_k_value, w_k_grad, True)
         if bias:
-            in_proj_bias_k_value = type(x_q.value)( \
+            in_proj_bias_k_value = type(x.value)( \
                     in_proj_bias_kv_traits, in_proj_bias_kv_distr, \
                     next_tag)
             next_tag = in_proj_bias_k_value.next_tag
-            in_proj_bias_k_grad = type(x_q.value)( \
+            in_proj_bias_k_grad = type(x.value)( \
                     in_proj_bias_kv_traits, in_proj_bias_kv_distr, \
                     next_tag)
             next_tag = in_proj_bias_k_grad.next_tag
@@ -325,17 +324,17 @@ class LlamaAttention(BaseLayer):
         else:
             bias_inproj_k = None
         # w_v
-        w_v_value = type(x_q.value)(w_v_traits, w_v_distr, next_tag)
+        w_v_value = type(x.value)(w_v_traits, w_v_distr, next_tag)
         next_tag = w_v_value.next_tag
-        w_v_grad = type(x_q.value)(w_v_traits, w_v_distr, next_tag)
+        w_v_grad = type(x.value)(w_v_traits, w_v_distr, next_tag)
         next_tag = w_v_grad.next_tag
         w_v = TensorMoments(w_v_value, w_v_grad, True)
         if bias:
-            in_proj_bias_v_value = type(x_q.value)( \
+            in_proj_bias_v_value = type(x.value)( \
                     in_proj_bias_kv_traits, in_proj_bias_kv_distr, \
                     next_tag)
             next_tag = in_proj_bias_v_value.next_tag
-            in_proj_bias_v_grad = type(x_q.value)( \
+            in_proj_bias_v_grad = type(x.value)( \
                     in_proj_bias_kv_traits, in_proj_bias_kv_distr, \
                     next_tag)
             next_tag = in_proj_bias_v_grad.next_tag
@@ -344,93 +343,93 @@ class LlamaAttention(BaseLayer):
         else:
             bias_inproj_v = None
         # w
-        w_value = type(x_q.value)(w_traits, w_distr, next_tag)
+        w_value = type(x.value)(w_traits, w_distr, next_tag)
         next_tag = w_value.next_tag
-        w_grad = type(x_q.value)(w_traits, w_distr, next_tag)
+        w_grad = type(x.value)(w_traits, w_distr, next_tag)
         next_tag = w_grad.next_tag
         w = TensorMoments(w_value, w_grad, True)
         # q_transposed
-        q_transposed_value = type(x_q.value)(q_transposed_traits, q_transposed_distr, next_tag)
+        q_transposed_value = type(x.value)(q_transposed_traits, q_transposed_distr, next_tag)
         next_tag = q_transposed_value.next_tag
-        q_transposed_grad = type(x_q.value)(q_transposed_traits, q_transposed_distr, next_tag)
+        q_transposed_grad = type(x.value)(q_transposed_traits, q_transposed_distr, next_tag)
         next_tag = q_transposed_grad.next_tag
         q_transposed = TensorMoments(q_transposed_value, q_transposed_grad, True)
         # q
-        q_value = type(x_q.value)(q_traits, q_distr, next_tag)
+        q_value = type(x.value)(q_traits, q_distr, next_tag)
         next_tag = q_value.next_tag
-        q_grad = type(x_q.value)(q_traits, q_distr, next_tag)
+        q_grad = type(x.value)(q_traits, q_distr, next_tag)
         next_tag = q_grad.next_tag
         q = TensorMoments(q_value, q_grad, True)
         # k_transposed
-        k_transposed_value = type(x_q.value)(k_transposed_traits, k_transposed_distr, next_tag)
+        k_transposed_value = type(x.value)(k_transposed_traits, k_transposed_distr, next_tag)
         next_tag = k_transposed_value.next_tag
-        k_transposed_grad = type(x_q.value)(k_transposed_traits, k_transposed_distr, next_tag)
+        k_transposed_grad = type(x.value)(k_transposed_traits, k_transposed_distr, next_tag)
         next_tag = k_transposed_grad.next_tag
         k_transposed = TensorMoments(k_transposed_value, k_transposed_grad, True)
         # k
-        k_value = type(x_q.value)(k_traits, k_distr, next_tag)
+        k_value = type(x.value)(k_traits, k_distr, next_tag)
         next_tag = k_value.next_tag
-        k_grad = type(x_q.value)(k_traits, k_distr, next_tag)
+        k_grad = type(x.value)(k_traits, k_distr, next_tag)
         next_tag = k_grad.next_tag
         k = TensorMoments(k_value, k_grad, True)
         # k_rep
-        k_rep_value = type(x_q.value)(k_rep_traits, k_rep_distr, next_tag)
+        k_rep_value = type(x.value)(k_rep_traits, k_rep_distr, next_tag)
         next_tag = k_rep_value.next_tag
-        k_rep_grad = type(x_q.value)(k_rep_traits, k_rep_distr, next_tag)
+        k_rep_grad = type(x.value)(k_rep_traits, k_rep_distr, next_tag)
         next_tag = k_rep_grad.next_tag
         k_rep = TensorMoments(k_rep_value, k_rep_grad, True)
         # v_transposed
-        v_transposed_value = type(x_q.value)(v_transposed_traits, v_transposed_distr, next_tag)
+        v_transposed_value = type(x.value)(v_transposed_traits, v_transposed_distr, next_tag)
         next_tag = v_transposed_value.next_tag
-        v_transposed_grad = type(x_q.value)(v_transposed_traits, v_transposed_distr, next_tag)
+        v_transposed_grad = type(x.value)(v_transposed_traits, v_transposed_distr, next_tag)
         next_tag = v_transposed_grad.next_tag
         v_transposed = TensorMoments(v_transposed_value, v_transposed_grad, True)
         # v
-        v_value = type(x_q.value)(v_traits, v_distr, next_tag)
+        v_value = type(x.value)(v_traits, v_distr, next_tag)
         next_tag = v_value.next_tag
-        v_grad = type(x_q.value)(v_traits, v_distr, next_tag)
+        v_grad = type(x.value)(v_traits, v_distr, next_tag)
         next_tag = v_grad.next_tag
         v = TensorMoments(v_value, v_grad, True)
         # v_rep
-        v_rep_value = type(x_q.value)(v_rep_traits, v_rep_distr, next_tag)
+        v_rep_value = type(x.value)(v_rep_traits, v_rep_distr, next_tag)
         next_tag = v_rep_value.next_tag
-        v_rep_grad = type(x_q.value)(v_rep_traits, v_rep_distr, next_tag)
+        v_rep_grad = type(x.value)(v_rep_traits, v_rep_distr, next_tag)
         next_tag = v_rep_grad.next_tag
         v_rep = TensorMoments(v_rep_value, v_rep_grad, True)
         # a
-        a_value = type(x_q.value)(a_traits, a_distr, next_tag)
+        a_value = type(x.value)(a_traits, a_distr, next_tag)
         next_tag = a_value.next_tag
-        a_grad = type(x_q.value)(a_traits, a_distr, next_tag)
+        a_grad = type(x.value)(a_traits, a_distr, next_tag)
         next_tag = a_grad.next_tag
         a = TensorMoments(a_value, a_grad, True)
         # a_maxsumexp
-        a_maxsumexp = type(x_q.value)(a_maxsumexp_traits, a_maxsumexp_distr, \
+        a_maxsumexp = type(x.value)(a_maxsumexp_traits, a_maxsumexp_distr, \
                 next_tag)
         next_tag = a_maxsumexp.next_tag
         # a_sumprod_slice
-        a_sumprod_slice = type(x_q.value)(a_sumprod_slice_traits, \
+        a_sumprod_slice = type(x.value)(a_sumprod_slice_traits, \
                 a_sumprod_slice_distr, next_tag)
         next_tag = a_sumprod_slice.next_tag
         # b
-        b_value = type(x_q.value)(b_traits, b_distr, next_tag)
+        b_value = type(x.value)(b_traits, b_distr, next_tag)
         next_tag = b_value.next_tag
-        b_grad = type(x_q.value)(b_traits, b_distr, next_tag)
+        b_grad = type(x.value)(b_traits, b_distr, next_tag)
         next_tag = b_grad.next_tag
         b = TensorMoments(b_value, b_grad, True)
         # b_transposed
-        b_transposed_value = type(x_q.value)(b_transposed_traits, b_transposed_distr, next_tag)
+        b_transposed_value = type(x.value)(b_transposed_traits, b_transposed_distr, next_tag)
         next_tag = b_transposed_value.next_tag
-        b_transposed_grad = type(x_q.value)(b_transposed_traits, b_transposed_distr, next_tag)
+        b_transposed_grad = type(x.value)(b_transposed_traits, b_transposed_distr, next_tag)
         next_tag = b_transposed_grad.next_tag
         b_transposed = TensorMoments(b_transposed_value, b_transposed_grad, True)
         # Allocate tensors for bias for q, k, v and output projection
         if bias:
             out_proj_bias_traits = TensorTraits([n_emb], [n_emb_tile])
             out_proj_bias_distr = [0] * out_proj_bias_traits.grid.nelems
-            out_proj_bias_value = type(x_q.value)(out_proj_bias_traits, \
+            out_proj_bias_value = type(x.value)(out_proj_bias_traits, \
                     out_proj_bias_distr, next_tag)
             next_tag = out_proj_bias_value.next_tag
-            out_proj_bias_grad = type(x_q.value)(out_proj_bias_traits, \
+            out_proj_bias_grad = type(x.value)(out_proj_bias_traits, \
                     out_proj_bias_distr, next_tag)
             next_tag = out_proj_bias_grad.next_tag
             out_proj_bias = TensorMoments(out_proj_bias_value, \
@@ -438,14 +437,14 @@ class LlamaAttention(BaseLayer):
         else:
             out_proj_bias = None
         # Allocate tensor for output y
-        y_traits = TensorTraits(x_q.value.shape, x_q.value.basetile_shape)
-        y_value = type(x_q.value)(y_traits, x_q.value.distribution, next_tag)
+        y_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
+        y_value = type(x.value)(y_traits, x.value.distribution, next_tag)
         next_tag = y_value.next_tag
-        y_grad = type(x_q.value)(y_traits, x_q.value.distribution, next_tag)
+        y_grad = type(x.value)(y_traits, x.value.distribution, next_tag)
         next_tag = y_grad.next_tag
         y = TensorMoments(y_value, y_grad, True)
         # Create attention layer with all the provided data
-        layer = LlamaAttention(x_q, x_k, x_v, y, w_q, w_k, w_v, w, q_transposed, \
+        layer = LlamaAttention(x, y, w_q, w_k, w_v, w, q_transposed, \
                 q, k_transposed, k, k_rep, v_transposed, v, v_rep, a, \
                 a_maxsumexp, a_sumprod_slice, b, b_transposed, bias_inproj_q, \
                 bias_inproj_k, bias_inproj_v, out_proj_bias, mask, \
@@ -774,3 +773,60 @@ class LlamaAttention(BaseLayer):
         self.x_q.value.wont_use()
         # dQ_transposed can be deleted
         self.q_transposed.grad.invalidate_submit()
+
+    def from_torch(self, torch_hf_llama_attention):
+        pass
+
+    def to_torch(self) -> LlamaAttention_torch:
+        bias = self.in_proj_bias_q is not None
+        torch_layer_config = LlamaConfig_torch(hidden_size=self.n_emb, \
+                num_attention_heads=self.n_head, num_key_value_heads=self.n_head_kv, \
+                attention_bias=bias, use_cache=False, attention_dropout=0.0)
+        torch_layer = LlamaAttention_torch(torch_layer_config, layer_idx=0)
+        W_Q_tensor = torch.tensor(np.moveaxis(to_numpy(self.w_q.value), 0, 1) \
+                .reshape(self.n_emb, self.n_emb), requires_grad=True)
+        W_K_tensor = torch.tensor(to_numpy(self.w_k.value) \
+                .reshape(self.n_emb_kv, self.n_emb), requires_grad=True)
+        W_V_tensor = torch.tensor(to_numpy(self.w_v.value) \
+                .reshape(self.n_emb_kv, self.n_emb), requires_grad=True)
+        torch_layer.q_proj.weight.data = W_Q_tensor
+        torch_layer.k_proj.weight.data = W_K_tensor
+        torch_layer.v_proj.weight.data = W_V_tensor
+        W_out_tensor = torch.tensor(np.moveaxis(to_numpy(self.w.value), 1, 2) \
+                .reshape(self.n_emb, self.n_emb), requires_grad=True)
+        torch_layer.o_proj.weight.data = W_out_tensor
+        out_proj_bias = torch.tensor(to_numpy(self.out_proj_bias.value).flatten(), \
+                requires_grad=True)
+        in_proj_bias_q = torch.tensor(to_numpy(self.in_proj_bias_q.value).T.flatten(), \
+                requires_grad=True)
+        in_proj_bias_k = torch.tensor(to_numpy(self.in_proj_bias_k.value).T.flatten(), \
+                requires_grad=True)
+        in_proj_bias_v = torch.tensor(to_numpy(self.in_proj_bias_v.value).T.flatten(), \
+                requires_grad=True)
+        torch_layer.o_proj.bias.data = out_proj_bias
+        torch_layer.q_proj.bias.data = in_proj_bias_q
+        torch_layer.k_proj.bias.data = in_proj_bias_k
+        torch_layer.v_proj.bias.data = in_proj_bias_v
+        return torch_layer
+
+    def to_torch_with_grads(self) -> LlamaAttention_torch:
+        torch_layer = self.to_torch()
+        torch_layer.q_proj.weight.grad = torch.tensor( \
+                np.moveaxis(to_numpy(self.w_q.grad), 0, 1) \
+                .reshape(self.n_emb, self.n_emb))
+        torch_layer.k_proj.weight.grad = torch.tensor( \
+                to_numpy(self.w_k.grad).reshape(self.n_emb_kv, self.n_emb))
+        torch_layer.v_proj.weight.grad = torch.tensor( \
+                to_numpy(self.w_v.grad).reshape(self.n_emb_kv, self.n_emb))
+        torch_layer.o_proj.weight.grad = torch.tensor( \
+                np.moveaxis(np.moveaxis(to_numpy(self.w.grad), 1, 3), 2, 3) \
+                .reshape(self.n_emb, self.n_emb))
+        torch_layer.q_proj.bias.grad = torch.tensor( \
+                to_numpy(self.in_proj_bias_q.grad).T.flatten())
+        torch_layer.k_proj.bias.grad = torch.tensor( \
+                np.moveaxis(to_numpy(self.in_proj_bias_k.grad), 0, 1).flatten())
+        torch_layer.v_proj.bias.grad = torch.tensor( \
+                np.moveaxis(to_numpy(self.in_proj_bias_v.grad), 0, 1).flatten())
+        torch_layer.o_proj.bias.grad = torch.tensor( \
+                to_numpy(self.out_proj_bias.grad))
+        return torch_layer
