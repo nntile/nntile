@@ -12,12 +12,10 @@
 # @version 1.0.0
 
 from nntile.layer.base_layer import BaseLayer
-from nntile.tensor import (Tensor, TensorMoments, TensorTraits, add_async,
-                           add_fiber_async, add_slice3_async, add_slice_async,
-                           clear_async, fill_async, hypot_scalar_inverse_async,
-                           norm_slice_async, prod_fiber3_async,
-                           prod_slice_async, sum_fiber_async, sum_slice_async,
-                           sumprod_fiber_async, sumprod_slice_async, copy_async)
+from nntile.tensor import (
+    Tensor, TensorMoments, TensorTraits, add_async, copy_async, fill_async,
+    hypot_scalar_inverse_async, norm_slice_async, prod_fiber3_async,
+    prod_slice_async, sumprod_fiber_async, sumprod_slice_async)
 
 
 class RMSNorm(BaseLayer):
@@ -32,13 +30,13 @@ class RMSNorm(BaseLayer):
     eps: float
 
     # Construct normalization layer with all the provided data
-    def __init__(self, x: TensorMoments, y: TensorMoments, \
-            gamma: TensorMoments, tmp_y_value: Tensor, \
-            tmp_y_grad: Tensor, inv_stddev: Tensor, axis: int, \
+    def __init__(self, x: TensorMoments, y: TensorMoments,
+            gamma: TensorMoments, tmp_y_value: Tensor,
+            tmp_y_grad: Tensor, mean: Tensor, inv_stddev: Tensor, axis: int,
             eps: float, redux: bool=False):
         # Redirect to BaseLayer initialization
-        super().__init__([x], [y], [gamma], [tmp_y_value, tmp_y_grad, \
-                inv_stddev])
+        super().__init__([x], [y], [gamma], [tmp_y_value, tmp_y_grad,
+                inv_stddev, mean])
         self.x = x
         self.y = y
         self.gamma = gamma
@@ -47,9 +45,12 @@ class RMSNorm(BaseLayer):
         self.tmp_y_grad = tmp_y_grad
         self.inv_stddev = inv_stddev
         self.inv_stddev.set_reduction_hypot()
+        if mean is not None:
+            self.mean = mean
+            self.mean.set_reduction_add()
         self.axis = axis
         self.l = self.x.value.shape[axis]
-        self.eps = eps ** 0.5 # This value is used to init deviation
+        self.eps = eps ** 0.5  # This value is used to init deviation
         if redux:
             self.redux = 1
         else:
@@ -76,7 +77,7 @@ class RMSNorm(BaseLayer):
         gamma_traits = TensorTraits(gamma_shape, gamma_basetile)
         gamma_distr = []
         for i in range(x.value.grid.shape[axis]):
-            gamma_distr.append(x_distr[x.value.grid.stride[axis]*i])
+            gamma_distr.append(x_distr[x.value.grid.stride[axis] * i])
         gamma_value = type(x.value)(gamma_traits, gamma_distr, next_tag)
         next_tag = gamma_value.next_tag
         gamma_grad = type(x.value)(gamma_traits, gamma_distr, next_tag)
@@ -88,8 +89,6 @@ class RMSNorm(BaseLayer):
         # Temporary tensor for gradient of normalized input
         tmp_y_grad = type(x.value)(x_traits, x_distr, next_tag)
         next_tag = tmp_y_grad.next_tag
-        # Define auxiliary tensors to hold mean, inverse of stddev and scalar
-        # products along given axis
         inv_stddev_shape = x.value.shape[:axis] + x.value.shape[axis+1:]
         inv_stddev_basetile = x.value.basetile_shape[:axis] \
                 + x.value.basetile_shape[axis+1:]
@@ -103,10 +102,17 @@ class RMSNorm(BaseLayer):
                     + inv_stddev_tile_index[axis:]
             x_tile_offset = x.value.grid.index_to_linear(x_tile_index)
             inv_stddev_distr.append(x_distr[x_tile_offset])
-        inv_stddev = type(x.value)(inv_stddev_traits, inv_stddev_distr, next_tag)
+        inv_stddev = type(x.value)(inv_stddev_traits, inv_stddev_distr,
+                                   next_tag)
         next_tag = inv_stddev.next_tag
+        if x.grad_required:
+            mean = type(x.value)(inv_stddev_traits, inv_stddev_distr, next_tag)
+            next_tag = mean.next_tag
+        else:
+            mean = None
+
         # Create LayerNorm object with all the provided tensors
-        layer = RMSNorm(x, y, gamma, tmp_y_value, tmp_y_grad, \
+        layer = RMSNorm(x, y, gamma, tmp_y_value, tmp_y_grad, mean,
                 inv_stddev, axis, eps, redux=redux)
         # Init gamma and beta
         fill_async(1.0, gamma.value)
@@ -115,30 +121,17 @@ class RMSNorm(BaseLayer):
 
     # Forward propagation of the normalization layer
     def forward_async(self):
-        # # Get means over given axis
-        # sum_slice_async(1.0/self.l, self.x.value, 0.0, self.mean, self.axis, \
-        #         redux=self.redux)
-        # # Y = X - mean
-        # add_slice3_async(-1.0, self.mean, 1.0, self.x.value, \
-        #         self.tmp_y_value, self.axis)
-        # # mean can be offloaded from GPU
-        # self.mean.wont_use()
-        # # X can be offloaded from GPU
-        # self.x.value.wont_use()
         # Compute standard deviation of self.y.value
-        #fill_async(self.eps, self.inv_stddev)
-        norm_slice_async(1.0/self.l**0.5, self.x.value, 0.0, \
+        norm_slice_async(1.0 / self.l**0.5, self.x.value, 0.0,
                 self.inv_stddev, self.axis, redux=self.redux)
         hypot_scalar_inverse_async(self.eps, 1.0, self.inv_stddev)
-        # Invert stddev (to multiply by it instead of dividing)
-        #pow_async(1.0, -1.0, self.inv_stddev)
         # Finally, normalize input
         copy_async(self.x.value, self.tmp_y_value)
         prod_slice_async(self.inv_stddev, 1.0, self.tmp_y_value, self.axis)
         # inv_stddev can be offloaded from GPU
         self.inv_stddev.wont_use()
         # Scale normalized input for the backward phase
-        prod_fiber3_async(self.gamma.value, 1.0, self.tmp_y_value, \
+        prod_fiber3_async(self.gamma.value, 1.0, self.tmp_y_value,
                 self.y.value, self.axis)
         # tmp_Y_value can be offloaded from GPU
         self.tmp_y_value.wont_use()
@@ -149,45 +142,34 @@ class RMSNorm(BaseLayer):
 
     # Backward propagation of the normalization layer
     def backward_async(self):
-        # Accumulate gradient over beta
-        # sum_fiber_async(1.0, self.y.grad, 1.0, self.beta.grad, self.axis, 0,
-        #         redux=self.redux)
-        # d_beta can be offloaded from GPU
-        # self.beta.grad.wont_use()
         # Accumulate gradient over gamma
-        sumprod_fiber_async(1.0, self.y.grad, self.tmp_y_value, 1.0, \
+        sumprod_fiber_async(1.0, self.y.grad, self.tmp_y_value, 1.0,
                 self.gamma.grad, self.axis, redux=self.redux)
         # d_gamma can be offloaded from GPU
         self.gamma.grad.wont_use()
         # Define gradient over normalized input
-        prod_fiber3_async(self.gamma.value, 1.0, self.y.grad, \
+        prod_fiber3_async(self.gamma.value, 1.0, self.y.grad,
                 self.tmp_y_grad, self.axis)
         # dY can be offloaded from GPU
         self.y.grad.wont_use()
         # gamma can be offloaded from GPU
         self.gamma.value.wont_use()
         # Get mean of product of tmp_Y_grad and tmp_Y_value over the given axis
-        # sumprod_slice_async(-1.0/self.l, self.tmp_y_grad, self.tmp_y_value, \
-        #         0.0, self.mean, self.axis, redux=self.redux)
+        sumprod_slice_async(-1.0 / self.l, self.tmp_y_grad, self.tmp_y_value,
+                0.0, self.mean, self.axis, redux=self.redux)
         # Multiply tmp_Y_value by the mean
-        # prod_slice_async(self.mean, 1.0, self.tmp_y_value, self.axis)
+        prod_slice_async(self.mean, 1.0, self.tmp_y_value, self.axis)
         # Add tmp_Y_grad to tmp_Y_value
         add_async(1., self.tmp_y_grad, 1., self.tmp_y_value)
-        # Get mean value of tmp_Y_grad over the given axis
-        # sum_slice_async(1.0/self.l, self.tmp_y_grad, 0.0, self.mean, \
-        #         self.axis, redux=self.redux)
         # tmp_Y_grad can be deleted
         self.tmp_y_grad.invalidate_submit()
-        # Subtract mean from tmp_Y_value
-        # add_slice_async(-1.0, self.mean, 1.0, self.tmp_y_value, self.axis)
         # mean can be deleted
-        # self.mean.invalidate_submit()
+        self.mean.invalidate_submit()
         # Multiply tmp_Y_value by the inverse stddev
         prod_slice_async(self.inv_stddev, 1.0, self.tmp_y_value, self.axis)
         # inv_stddev can be deleted
         self.inv_stddev.invalidate_submit()
         # Accumulate gradient from tmp_Y_value
-        # axpy_async(1.0, self.tmp_y_value, self.x.grad)
         add_async(1., self.tmp_y_value, 1., self.x.grad)
         # tmp_Y_value can be deleted
         self.tmp_y_value.invalidate_submit()

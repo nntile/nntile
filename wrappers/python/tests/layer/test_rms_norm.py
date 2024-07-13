@@ -11,21 +11,12 @@
 #
 # @version 1.0.0
 
-# All necesary imports
-import nntile
 import numpy as np
-# Set up StarPU configuration and init it
-config = nntile.starpu.Config(1, 0, 0)
-# Init all NNTile-StarPU codelets
-nntile.starpu.init()
-# Define list of tested types
-dtypes = [np.float32, np.float64]
-# Define mapping between numpy and nntile types
-Tensor = {np.float32: nntile.tensor.Tensor_fp32,
-        np.float64: nntile.tensor.Tensor_fp64}
-# Get LayerNorm from PyTorch
 import torch
 import torch.nn as nn
+
+import nntile
+
 
 # From https://github.com/meta-llama/llama/blob/main/llama/model.py
 class RMSNorm(torch.nn.Module):
@@ -35,10 +26,12 @@ class RMSNorm(torch.nn.Module):
 
         Args:
             dim (int): The dimension of the input tensor.
-            eps (float, optional): A small value added to the denominator for numerical stability. Default is 1e-6.
+            eps (float, optional): A small value added to the denominator
+                                   for numerical stability. Default is 1e-6.
 
         Attributes:
-            eps (float): A small value added to the denominator for numerical stability.
+            eps (float): A small value added to the denominator
+                         for numerical stability.
             weight (nn.Parameter): Learnable scaling parameter.
 
         """
@@ -73,6 +66,18 @@ class RMSNorm(torch.nn.Module):
         output = self._norm(x.float()).type_as(x)
         return output * self.weight
 
+
+# Set up StarPU configuration and init it
+config = nntile.starpu.Config(1, 0, 0)
+# Init all NNTile-StarPU codelets
+nntile.starpu.init()
+# Define list of tested types
+dtypes = [np.float32, np.float64]
+# Define mapping between numpy and nntile types
+Tensor = {np.float32: nntile.tensor.Tensor_fp32,
+          np.float64: nntile.tensor.Tensor_fp64}
+
+
 # Helper function returns bool value true if test passes
 def helper(dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
@@ -98,7 +103,7 @@ def helper(dtype: np.dtype):
     rand_gamma = np.random.randn((A_shape[-1]))
     np_gamma = np.array(rand_gamma, dtype=dtype, order='F')
     # Init NNTile LayerNorm
-    nntile_layer, next_tag = nntile.layer.RMSNorm.generate_simple(A, \
+    nntile_layer, next_tag = nntile.layer.RMSNorm.generate_simple(A,
             ndim-1, eps, next_tag)
     nntile_layer.gamma.value.from_array(np_gamma)
     # Init PyTorch LayerNorm
@@ -124,15 +129,13 @@ def helper(dtype: np.dtype):
     nntile_layer.x.grad.to_array(np_A_grad_nntile)
     np_gamma_grad_nntile = np.zeros_like(np_gamma)
     nntile_layer.gamma.grad.to_array(np_gamma_grad_nntile)
-    # # PyTorch backward
+    # PyTorch backward
     torch_B_grad = torch.tensor(np_B_grad, requires_grad=True)
     res = (torch_B*torch_B_grad).sum()
     res.backward()
     np_A_grad_torch = torch_A.grad.numpy()
     np_gamma_grad_torch = torch_layer.weight.grad.numpy()
-    # # Check backward
-    print(np.linalg.norm(np_A_grad_torch-np_A_grad_nntile) \
-            / np.linalg.norm(np_A_grad_torch))
+    # Check backward
     if np.linalg.norm(np_A_grad_torch-np_A_grad_nntile) \
             / np.linalg.norm(np_A_grad_torch) >= 1e-5:
         assert False
@@ -144,15 +147,18 @@ def helper(dtype: np.dtype):
     A.unregister()
     return True
 
+
 # Test runner for different precisions
 def test():
     for dtype in dtypes:
         assert helper(dtype)
 
+
 # Repeat tests
 def test_repeat():
     for dtype in dtypes:
         assert helper(dtype)
+
 
 if __name__ == "__main__":
     test()
