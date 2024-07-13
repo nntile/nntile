@@ -33,12 +33,12 @@ from transformers.models.llama.modeling_llama import (LlamaAttention, \
 
 # Helper function returns bool value true if test passes
 def helper(dtype: np.dtype):
-    n_emb = 12
-    n_seq = 4
-    n_batch = 1
-    n_head = 4
+    n_emb = 128
+    n_seq = 64
+    n_batch = 3
+    n_head = 8
     n_head_tile = 4
-    n_head_kv = 2
+    n_head_kv = 4
     head_size = n_emb // n_head
     np.random.seed(1)
     # Describe single-tile tensor, located at node 0
@@ -62,14 +62,14 @@ def helper(dtype: np.dtype):
             n_head, n_head_tile, n_head_kv, next_tag, bias=True, mask=None, \
             redux=False)
     # Define numpy arrays and nntile tensors
-    #rand_W_Q = np.random.randn(*layer.w_q.value.shape)
-    rand_W_Q = np.ones(layer.w_q.value.shape)
+    rand_W_Q = np.random.randn(*layer.w_q.value.shape)
+    #rand_W_Q = np.ones(layer.w_q.value.shape)
     np_W_Q = np.array(rand_W_Q, dtype=dtype, order='F')
     layer.w_q.value.from_array(np_W_Q)
     nntile.tensor.clear_async(layer.w_q.grad)
 
-    #rand_bias_Q = np.random.randn(*layer.in_proj_bias_q.value.shape)
-    rand_bias_Q = np.zeros(layer.in_proj_bias_q.value.shape)
+    rand_bias_Q = np.random.randn(*layer.in_proj_bias_q.value.shape)
+    #rand_bias_Q = np.zeros(layer.in_proj_bias_q.value.shape)
     np_inproj_bias_Q = np.array(rand_bias_Q, dtype=dtype, order='F')
     layer.in_proj_bias_q.value.from_array(np_inproj_bias_Q)
     nntile.tensor.clear_async(layer.in_proj_bias_q.grad)
@@ -80,32 +80,32 @@ def helper(dtype: np.dtype):
     layer.w_k.value.from_array(np_W_K)
     nntile.tensor.clear_async(layer.w_k.grad)
 
-    #rand_bias_K = np.random.randn(*layer.in_proj_bias_k.value.shape)
-    rand_bias_K = np.zeros(layer.in_proj_bias_k.value.shape)
+    rand_bias_K = np.random.randn(*layer.in_proj_bias_k.value.shape)
+    #rand_bias_K = np.zeros(layer.in_proj_bias_k.value.shape)
     np_inproj_bias_K = np.array(rand_bias_K, dtype=dtype, order='F')
     layer.in_proj_bias_k.value.from_array(np_inproj_bias_K)
     nntile.tensor.clear_async(layer.in_proj_bias_k.grad)
 
-    #rand_W_V = np.random.randn(*layer.w_v.value.shape)
-    rand_W_V = np.ones(layer.w_v.value.shape)
+    rand_W_V = np.random.randn(*layer.w_v.value.shape)
+    #rand_W_V = np.ones(layer.w_v.value.shape)
     np_W_V = np.array(rand_W_V, dtype=dtype, order='F')
     layer.w_v.value.from_array(np_W_V)
     nntile.tensor.clear_async(layer.w_v.grad)
 
-    #rand_bias_V = np.random.randn(*layer.in_proj_bias_v.value.shape)
-    rand_bias_V = np.zeros(layer.in_proj_bias_v.value.shape)
+    rand_bias_V = np.random.randn(*layer.in_proj_bias_v.value.shape)
+    #rand_bias_V = np.zeros(layer.in_proj_bias_v.value.shape)
     np_inproj_bias_V = np.array(rand_bias_V, dtype=dtype, order='F')
     layer.in_proj_bias_v.value.from_array(np_inproj_bias_V)
     nntile.tensor.clear_async(layer.in_proj_bias_v.grad)
 
-    #rand_W = np.random.randn(*layer.w.value.shape)
-    rand_W = np.ones(layer.w.value.shape)
+    rand_W = np.random.randn(*layer.w.value.shape)
+    #rand_W = np.ones(layer.w.value.shape)
     np_W = np.array(rand_W, dtype=dtype, order='F')
     layer.w.value.from_array(np_W)
     nntile.tensor.clear_async(layer.w.grad)
 
-    #np_out_proj_bias = np.array(np.random.randn(n_emb), dtype=dtype, order='F')
-    np_out_proj_bias = np.array(np.zeros(n_emb), dtype=dtype, order='F')
+    np_out_proj_bias = np.array(np.random.randn(n_emb), dtype=dtype, order='F')
+    #np_out_proj_bias = np.array(np.zeros(n_emb), dtype=dtype, order='F')
     layer.out_proj_bias.value.from_array(np_out_proj_bias)
     nntile.tensor.clear_async(layer.out_proj_bias.grad)
 
@@ -122,18 +122,16 @@ def helper(dtype: np.dtype):
             num_attention_heads=n_head, num_key_value_heads=n_head_kv, \
             attention_bias=True, use_cache=False, attention_dropout=0.0)
     torch_layer = LlamaAttention(torch_layer_config, layer_idx=0)
-    W_Q_tensor = torch.tensor(np_W_Q.reshape(n_emb, n_emb), requires_grad=True)
+    W_Q_tensor = torch.tensor(np.moveaxis(np_W_Q, 0, 1).reshape(n_emb, n_emb), requires_grad=True)
     W_K_tensor = torch.tensor(np_W_K.reshape(n_head_kv*head_size, n_emb), requires_grad=True)
     W_V_tensor = torch.tensor(np_W_V.reshape(n_head_kv*head_size, n_emb), requires_grad=True)
-    #W_Q_tensor = torch.tensor(np.moveaxis(np_W_Q.reshape(n_head, head_size,
-    #    n_emb), 0, 1).reshape(n_head*head_size, n_emb).T, requires_grad=True)
-    #W_K_tensor = torch.tensor(np.moveaxis(np_W_K, 0, 1).reshape(n_head_kv*head_size, n_emb), requires_grad=True)
-    #W_V_tensor = torch.tensor(np.moveaxis(np_W_V.reshape(n_head_kv, head_size,
-    #    n_emb), 0, 1).reshape(n_head_kv*head_size, n_emb), requires_grad=True)
+    #print(torch_layer.q_proj.weight.shape, W_Q_tensor.shape)
     torch_layer.q_proj.weight.data = W_Q_tensor
+    #print(torch_layer.k_proj.weight.shape, W_K_tensor.shape)
     torch_layer.k_proj.weight.data = W_K_tensor
+    #print(torch_layer.v_proj.weight.shape, W_V_tensor.shape)
     torch_layer.v_proj.weight.data = W_V_tensor
-    W_out_tensor = torch.tensor(np_W.reshape(n_emb, n_emb), requires_grad=True)
+    W_out_tensor = torch.tensor(np.moveaxis(np_W, 1, 2).reshape(n_emb, n_emb), requires_grad=True)
     torch_layer.o_proj.weight.data = W_out_tensor
     out_proj_bias = torch.tensor(np_out_proj_bias.reshape(-1), requires_grad=True)
     torch_layer.o_proj.bias.data = out_proj_bias
@@ -168,12 +166,12 @@ def helper(dtype: np.dtype):
     layer.in_proj_bias_k.grad.to_array(np_inproj_bias_K)
     layer.in_proj_bias_v.grad.to_array(np_inproj_bias_V)
 
-    np_W_Q_nntile = np_W_Q
+    np_W_Q_nntile = np.moveaxis(np_W_Q, 0, 1)
     np_W_K_nntile = np_W_K
     np_W_V_nntile = np_W_V
     np_W_nntile = np.moveaxis(np.moveaxis(np_W, 1, 3), 2, 3)
 
-    np_inproj_bias_Q_nntile = np.moveaxis(np_inproj_bias_Q, 1, 2).T
+    np_inproj_bias_Q_nntile = np_inproj_bias_Q.T
     np_inproj_bias_K_nntile = np.moveaxis(np_inproj_bias_K, 0, 1)
     np_inproj_bias_V_nntile = np.moveaxis(np_inproj_bias_V, 0, 1)
 
@@ -210,9 +208,8 @@ def helper(dtype: np.dtype):
             np_inproj_bias_V_nntile.flatten())
 
     if diff1*diff1+diff2*diff2+diff3*diff3 > (norm1*norm1+norm2*norm2+norm3*norm3)*1e-8:
-        #import ipdb; ipdb.set_trace()
-        #return False
-        pass
+        import ipdb; ipdb.set_trace()
+        return False
 
     norm = np.linalg.norm(np_X_torch)
     diff = np.linalg.norm(np_X_torch - np_X)
@@ -242,7 +239,6 @@ def helper(dtype: np.dtype):
     # Unregister
     X.unregister()
     layer.unregister()
-    import ipdb; ipdb.set_trace()
     return True
 
 # Test runner for different precisions
