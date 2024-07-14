@@ -132,7 +132,7 @@ def generate_inputs(params: LlamaAttentionTestParams):
 
 @pytest.mark.parametrize("params", TEST_PARAMS)
 class TestLlamaAttention:
-    def test_from_to_torch(
+    def test_from_torch_and_to_torch(
         self, starpu_simple, torch_rng, params: LlamaAttentionTestParams
     ):
         torch_layer, nntile_layer, _, _ = generate_inputs(params)
@@ -140,30 +140,38 @@ class TestLlamaAttention:
         nntile_layer.unregister()
         nntile_layer.x.unregister()
         nntile_layer.y.unregister()
-        assert torch.equal(
-            torch_layer.q_proj.weight, torch_layer_other.q_proj.weight
+        np.testing.assert_equal(
+            torch_layer.q_proj.weight.detach().numpy(),
+            torch_layer_other.q_proj.weight.detach().numpy()
         )
-        assert torch.equal(
-            torch_layer.k_proj.weight, torch_layer_other.k_proj.weight
+        np.testing.assert_equal(
+            torch_layer.k_proj.weight.detach().numpy(),
+            torch_layer_other.k_proj.weight.detach().numpy()
         )
-        assert torch.equal(
-            torch_layer.v_proj.weight, torch_layer_other.v_proj.weight
+        np.testing.assert_equal(
+            torch_layer.v_proj.weight.detach().numpy(),
+            torch_layer_other.v_proj.weight.detach().numpy()
         )
-        assert torch.equal(
-            torch_layer.o_proj.weight, torch_layer_other.o_proj.weight
+        np.testing.assert_equal(
+            torch_layer.o_proj.weight.detach().numpy(),
+            torch_layer_other.o_proj.weight.detach().numpy()
         )
         if params.bias:
-            assert torch.equal(
-                torch_layer.q_proj.bias, torch_layer_other.q_proj.bias
+            np.testing.assert_equal(
+                torch_layer.q_proj.bias.detach().numpy(),
+                torch_layer_other.q_proj.bias.detach().numpy()
             )
-            assert torch.equal(
-                torch_layer.k_proj.bias, torch_layer_other.k_proj.bias
+            np.testing.assert_equal(
+                torch_layer.k_proj.bias.detach().numpy(),
+                torch_layer_other.k_proj.bias.detach().numpy()
             )
-            assert torch.equal(
-                torch_layer.v_proj.bias, torch_layer_other.v_proj.bias
+            np.testing.assert_equal(
+                torch_layer.v_proj.bias.detach().numpy(),
+                torch_layer_other.v_proj.bias.detach().numpy()
             )
-            assert torch.equal(
-                torch_layer.o_proj.bias, torch_layer_other.o_proj.bias
+            np.testing.assert_equal(
+                torch_layer.o_proj.bias.detach().numpy(),
+                torch_layer_other.o_proj.bias.detach().numpy()
             )
 
     def test_forward(
@@ -177,7 +185,11 @@ class TestLlamaAttention:
         nntile_layer.unregister()
         nntile_layer.x.unregister()
         nntile_layer.y.unregister()
-        torch.testing.assert_close(y, y_nntile)
+        np.testing.assert_allclose(
+                y.detach().numpy(),
+                y_nntile.detach().numpy(),
+                atol=1e-5
+        )
 
     def test_forward_backward(
         self, starpu_simple, torch_rng, params: LlamaAttentionTestParams
@@ -195,29 +207,41 @@ class TestLlamaAttention:
         nntile_layer.unregister()
         nntile_layer.x.unregister()
         nntile_layer.y.unregister()
-        torch.testing.assert_close(y, y_nntile)
-        torch.testing.assert_close(
-            torch_layer.q_proj.weight, torch_layer_other.q_proj.weight
+        np.testing.assert_allclose(
+                y.detach().numpy(),
+                y_nntile.detach().numpy(),
+                atol=1e-5
         )
-        torch.testing.assert_close(
-            torch_layer.k_proj.weight, torch_layer_other.k_proj.weight
+        np.testing.assert_allclose(
+            torch_layer.q_proj.weight.detach().numpy(),
+            torch_layer_other.q_proj.weight.detach().numpy()
         )
-        torch.testing.assert_close(
-            torch_layer.v_proj.weight, torch_layer_other.v_proj.weight
+        np.testing.assert_allclose(
+            torch_layer.k_proj.weight.detach().numpy(),
+            torch_layer_other.k_proj.weight.detach().numpy()
         )
-        torch.testing.assert_close(
-            torch_layer.o_proj.weight, torch_layer_other.o_proj.weight
+        np.testing.assert_allclose(
+            torch_layer.v_proj.weight.detach().numpy(),
+            torch_layer_other.v_proj.weight.detach().numpy()
+        )
+        np.testing.assert_allclose(
+            torch_layer.o_proj.weight.detach().numpy(),
+            torch_layer_other.o_proj.weight.detach().numpy()
         )
         if params.bias:
-            torch.testing.assert_close(
-                torch_layer.q_proj.bias, torch_layer_other.q_proj.bias
+            np.testing.assert_allclose(
+                torch_layer.q_proj.bias.detach().numpy(),
+                torch_layer_other.q_proj.bias.detach().numpy()
             )
-            torch.testing.assert_close(
-                torch_layer.k_proj.bias, torch_layer_other.k_proj.bias
+            np.testing.assert_allclose(
+                torch_layer.k_proj.bias.detach().numpy(),
+                torch_layer_other.k_proj.bias.detach().numpy()
             )
-            torch.testing.assert_close(
-                torch_layer.v_proj.bias, torch_layer_other.v_proj.bias
+            np.testing.assert_allclose(
+                torch_layer.v_proj.bias.detach().numpy(),
+                torch_layer_other.v_proj.bias.detach().numpy()
             )
-            torch.testing.assert_close(
-                torch_layer.o_proj.bias, torch_layer_other.o_proj.bias
+            np.testing.assert_allclose(
+                torch_layer.o_proj.bias.detach().numpy(),
+                torch_layer_other.o_proj.bias.detach().numpy()
             )
