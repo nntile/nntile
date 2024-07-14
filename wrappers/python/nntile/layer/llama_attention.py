@@ -774,8 +774,44 @@ class LlamaAttention(BaseLayer):
         # dQ_transposed can be deleted
         self.q_transposed.grad.invalidate_submit()
 
-    def from_torch(self, torch_hf_llama_attention):
-        pass
+    @staticmethod
+    def from_torch(torch_layer: LlamaAttention_torch, x: TensorMoments, \
+            n_head_tile: int): # -> Self: does not work with Python 3.10
+        layer, next_tag = __class__.generate_simple(x, n_head=torch_layer.num_heads, \
+                n_head_tile=n_head_tile, \
+                n_head_kv=torch_layer.num_key_value_heads, \
+                next_tag=0, bias=torch_layer.q_proj.bias is not None, \
+                mask=None, redux=False)
+        tmp_q_shape = layer.w_q.value.shape.copy()
+        tmp_q_shape[:2] = tmp_q_shape[1::-1]
+        layer.w_q.value.from_array(np.moveaxis( \
+                torch_layer.q_proj.weight.detach().cpu().numpy() \
+                .reshape(*tmp_q_shape), 0, 1))
+        layer.w_k.value.from_array( \
+                torch_layer.k_proj.weight.detach().cpu().numpy() \
+                .reshape(*layer.w_k.value.shape))
+        layer.w_v.value.from_array( \
+                torch_layer.v_proj.weight.detach().cpu().numpy() \
+                .reshape(*layer.w_v.value.shape))
+        tmp_w_shape = layer.w.value.shape.copy()
+        tmp_w_shape[1:3] = tmp_w_shape[2:0:-1]
+        layer.w.value.from_array(np.moveaxis( \
+                torch_layer.o_proj.weight.detach().cpu().numpy() \
+                .reshape(*tmp_w_shape), 1, 2))
+        if layer.out_proj_bias is not None:
+            layer.out_proj_bias.value.from_array( \
+                    torch_layer.o_proj.bias.detach().cpu().numpy() \
+                    .reshape(*layer.out_proj_bias.value.shape))
+            layer.in_proj_bias_q.value.from_array( \
+                    torch_layer.q_proj.bias.detach().cpu().numpy() \
+                    .reshape(*layer.in_proj_bias_q.value.shape[::-1]).T)
+            layer.in_proj_bias_k.value.from_array( \
+                    torch_layer.k_proj.bias.detach().cpu().numpy() \
+                    .reshape(*layer.in_proj_bias_k.value.shape[::-1]).T)
+            layer.in_proj_bias_v.value.from_array( \
+                    torch_layer.v_proj.bias.detach().cpu().numpy() \
+                    .reshape(*layer.in_proj_bias_v.value.shape[::-1]).T)
+        return layer
 
     def to_torch(self) -> LlamaAttention_torch:
         bias = self.in_proj_bias_q is not None
@@ -795,18 +831,19 @@ class LlamaAttention(BaseLayer):
         W_out_tensor = torch.tensor(np.moveaxis(to_numpy(self.w.value), 1, 2) \
                 .reshape(self.n_emb, self.n_emb), requires_grad=True)
         torch_layer.o_proj.weight.data = W_out_tensor
-        out_proj_bias = torch.tensor(to_numpy(self.out_proj_bias.value).flatten(), \
-                requires_grad=True)
-        in_proj_bias_q = torch.tensor(to_numpy(self.in_proj_bias_q.value).T.flatten(), \
-                requires_grad=True)
-        in_proj_bias_k = torch.tensor(to_numpy(self.in_proj_bias_k.value).T.flatten(), \
-                requires_grad=True)
-        in_proj_bias_v = torch.tensor(to_numpy(self.in_proj_bias_v.value).T.flatten(), \
-                requires_grad=True)
-        torch_layer.o_proj.bias.data = out_proj_bias
-        torch_layer.q_proj.bias.data = in_proj_bias_q
-        torch_layer.k_proj.bias.data = in_proj_bias_k
-        torch_layer.v_proj.bias.data = in_proj_bias_v
+        if bias:
+            out_proj_bias = torch.tensor(to_numpy(self.out_proj_bias.value).flatten(), \
+                    requires_grad=True)
+            in_proj_bias_q = torch.tensor(to_numpy(self.in_proj_bias_q.value).T.flatten(), \
+                    requires_grad=True)
+            in_proj_bias_k = torch.tensor(to_numpy(self.in_proj_bias_k.value).T.flatten(), \
+                    requires_grad=True)
+            in_proj_bias_v = torch.tensor(to_numpy(self.in_proj_bias_v.value).T.flatten(), \
+                    requires_grad=True)
+            torch_layer.o_proj.bias.data = out_proj_bias
+            torch_layer.q_proj.bias.data = in_proj_bias_q
+            torch_layer.k_proj.bias.data = in_proj_bias_k
+            torch_layer.v_proj.bias.data = in_proj_bias_v
         return torch_layer
 
     def to_torch_with_grads(self) -> LlamaAttention_torch:
