@@ -36,14 +36,14 @@ class RotaryEmbedding(BaseLayer):
     # Simple generator for the embedding layer
     @staticmethod
     def generate_simple(x: TensorMoments, next_tag: int):
-        head_size, n_seq, _, n_head = x.value.shape
-        head_size_tile, n_seq_tile, _, n_head_tile = x.value.basetile_shape
+        head_size, n_seq, n_batch, _ = x.value.shape
+        head_size_tile, n_seq_tile, n_batch_tile, _ = x.value.basetile_shape
 
-        cos_shape = [int(head_size / 2) , n_seq, n_head]
-        sin_shape = [int(head_size / 2) , n_seq, n_head]
+        cos_shape = [int(head_size / 2) , n_seq, n_batch]
+        sin_shape = [int(head_size / 2) , n_seq, n_batch]
 
-        cos_basetile = [int(head_size_tile / 2), n_seq_tile, n_head_tile]
-        sin_basetile = [int(head_size_tile / 2), n_seq_tile, n_head_tile]
+        cos_basetile = [int(head_size_tile / 2), n_seq_tile, n_batch_tile]
+        sin_basetile = [int(head_size_tile / 2), n_seq_tile, n_batch_tile]
 
         cos_traits = TensorTraits(cos_shape, cos_basetile)
         sin_traits = TensorTraits(sin_shape, sin_basetile)
@@ -78,7 +78,7 @@ class RotaryEmbedding(BaseLayer):
     # Forward propagation of the embedding layer
     def forward_async(self):
         clear_async(self.y.value)
-        rope_async(self.sin, self.cos, self.x.value, self.y.value, 2)
+        rope_async(self.sin, self.cos, self.x.value, self.y.value, 3)
 
     # # Backward propagation of the embedding layer
     # def backward_async(self):

@@ -66,7 +66,7 @@ void rope_async(const Tensor<T> &sin, const Tensor<T> &cos,
   
         dst_tile_index[0] = sin_tile_index[0];
         dst_tile_index[1] = sin_tile_index[1];
-        dst_tile_index[3] = sin_tile_index[2];
+        dst_tile_index[2] = sin_tile_index[2];
 
         // Loop through all necessary destination tiles across BATCH
         for(Index j = 0; j < dst.grid.shape[axis]; ++j)
