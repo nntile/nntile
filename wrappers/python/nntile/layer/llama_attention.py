@@ -847,6 +847,7 @@ class LlamaAttention(BaseLayer):
         return torch_layer
 
     def to_torch_with_grads(self) -> LlamaAttention_torch:
+        bias = self.in_proj_bias_q is not None
         torch_layer = self.to_torch()
         torch_layer.q_proj.weight.grad = torch.tensor( \
                 np.moveaxis(to_numpy(self.w_q.grad), 0, 1) \
@@ -858,12 +859,13 @@ class LlamaAttention(BaseLayer):
         torch_layer.o_proj.weight.grad = torch.tensor( \
                 np.moveaxis(np.moveaxis(to_numpy(self.w.grad), 1, 3), 2, 3) \
                 .reshape(self.n_emb, self.n_emb))
-        torch_layer.q_proj.bias.grad = torch.tensor( \
-                to_numpy(self.in_proj_bias_q.grad).T.flatten())
-        torch_layer.k_proj.bias.grad = torch.tensor( \
-                np.moveaxis(to_numpy(self.in_proj_bias_k.grad), 0, 1).flatten())
-        torch_layer.v_proj.bias.grad = torch.tensor( \
-                np.moveaxis(to_numpy(self.in_proj_bias_v.grad), 0, 1).flatten())
-        torch_layer.o_proj.bias.grad = torch.tensor( \
-                to_numpy(self.out_proj_bias.grad))
+        if bias:
+            torch_layer.q_proj.bias.grad = torch.tensor( \
+                    to_numpy(self.in_proj_bias_q.grad).T.flatten())
+            torch_layer.k_proj.bias.grad = torch.tensor( \
+                    np.moveaxis(to_numpy(self.in_proj_bias_k.grad), 0, 1).flatten())
+            torch_layer.v_proj.bias.grad = torch.tensor( \
+                    np.moveaxis(to_numpy(self.in_proj_bias_v.grad), 0, 1).flatten())
+            torch_layer.o_proj.bias.grad = torch.tensor( \
+                    to_numpy(self.out_proj_bias.grad))
         return torch_layer
