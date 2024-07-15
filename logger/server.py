@@ -83,7 +83,7 @@ async def handle_flops_message(parsed_data, log_dir):
 
     with WRITERS[name].as_default():
         increaseStep(name, NODE_COUNTER)
-        tf.summary.scalar("Flops", flops, NODE_COUNTER[name])
+        tf.summary.scalar("GFlops", flops / 1e9, NODE_COUNTER[name])
 
 
 async def handle_bus_message(parsed_data, log_dir):
@@ -91,23 +91,26 @@ async def handle_bus_message(parsed_data, log_dir):
     total_bus_time = float(parsed_data.get("total_bus_time"))
     transferred_bytes = int(parsed_data.get("transferred_bytes"))
     transfer_count = int(parsed_data.get("transfer_count"))
+    transferred_megabytes = transferred_bytes / 1e6
+    total_bus_time_seconds = total_bus_time / 1000
+    bus_speed_mbps = transferred_megabytes / total_bus_time_seconds
 
     if bus_id not in WRITERS:
         WRITERS[bus_id] = await create_new_writer(log_dir, f"bus_{bus_id}")
 
     with WRITERS[bus_id].as_default():
         increaseStep(bus_id, BUS_COUNTER)
-        tf.summary.scalar(f"Bus/{bus_id}/Total_Bus_Time",
-                total_bus_time,
+        tf.summary.scalar(f"Bus/Bus_speed_MBps",
+                bus_speed_mbps,
                 BUS_COUNTER[bus_id]
         )
         tf.summary.scalar(
-                f"Bus/{bus_id}/Transferred_Bytes",
+                f"Bus/Transferred_Bytes",
                 transferred_bytes,
                 BUS_COUNTER[bus_id]
         )
         tf.summary.scalar(
-                f"Bus/{bus_id}/Transfer_Count",
+                f"Bus/Transfer_Count",
                 transfer_count,
                 BUS_COUNTER[bus_id]
         )
