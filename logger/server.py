@@ -104,16 +104,6 @@ async def handle_bus_message(parsed_data, log_dir):
                 bus_speed_mbps,
                 BUS_COUNTER[bus_id]
         )
-        tf.summary.scalar(
-                f"Bus/Transferred_Bytes",
-                transferred_bytes,
-                BUS_COUNTER[bus_id]
-        )
-        tf.summary.scalar(
-                f"Bus/Transfer_Count",
-                transfer_count,
-                BUS_COUNTER[bus_id]
-        )
 
 
 async def handle_client(reader, writer):

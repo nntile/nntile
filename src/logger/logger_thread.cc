@@ -90,9 +90,8 @@ void logger_main()
             // Form message to send
             char message[256];
             snprintf(message, sizeof(message), "{\"type\": \"1\", \"bus_id\": \"%i\","
-                     "\"total_bus_time\": \"%.2lf\", \"transferred_bytes\": \"%llu\", "
-                     "\"transfer_count\": \"%d\"}\n",
-                     busid, total_bus_time, transferred_bytes, transfer_count);
+                     "\"total_bus_time\": \"%.2lf\", \"transferred_bytes\": \"%llu\", }\n",
+                     busid, total_bus_time, transferred_bytes);
             // Send the message
             if (send(client_socket, message, strlen(message), 0) != (ssize_t)strlen(message))
             {
