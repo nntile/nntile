@@ -85,7 +85,7 @@ void logger_main()
             // Read the profiling information for the bus
             double total_bus_time = starpu_timing_timespec_to_us(&info.total_time) / 1000.;
             uint64_t transferred_bytes = info.transferred_bytes;
-            
+
             // Form message to send
             char message[256];
             snprintf(message, sizeof(message), "{\"type\": \"1\", \"bus_id\": \"%i\","

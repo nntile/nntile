@@ -32,8 +32,7 @@ async def create_new_writer(log_dir, node_name):
     current_log_dir = Path(log_dir) / node_name / current_time
     print(current_log_dir)
     Path(current_log_dir).mkdir(parents=True)
-
-    writer = tf.summary.create_file_writer(current_log_dir)
+    writer = tf.summary.create_file_writer(str(current_log_dir))
     writer.set_as_default()
     return writer
 
@@ -59,7 +58,7 @@ def increaseStep(node, node_dict):
 
 
 async def start_tensorboard(log_dir):
-    print(Path.getcwd())
+    print(Path.cwd())
     process = await asyncio.create_subprocess_exec(
         'tensorboard',
         '--logdir',
@@ -90,7 +89,6 @@ async def handle_bus_message(parsed_data, log_dir):
     bus_id = parsed_data.get("bus_id")
     total_bus_time = float(parsed_data.get("total_bus_time"))
     transferred_bytes = int(parsed_data.get("transferred_bytes"))
-    transfer_count = int(parsed_data.get("transfer_count"))
     transferred_megabytes = transferred_bytes / 1e6
     total_bus_time_seconds = total_bus_time / 1000
     bus_speed_mbps = transferred_megabytes / total_bus_time_seconds
@@ -100,7 +98,8 @@ async def handle_bus_message(parsed_data, log_dir):
 
     with WRITERS[bus_id].as_default():
         increaseStep(bus_id, BUS_COUNTER)
-        tf.summary.scalar(f"Bus/Bus_speed_MBps",
+        tf.summary.scalar(
+                'Bus/Bus_speed_MBps',
                 bus_speed_mbps,
                 BUS_COUNTER[bus_id]
         )
