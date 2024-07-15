@@ -63,31 +63,47 @@ class LlamaAttentionTestParams:
 
 
 TEST_PARAMS = [
-    LlamaAttentionTestParams(
-        n_emb=128,
-        n_emb_tile=32,
-        n_seq=64,
-        n_seq_tile=16,
-        n_batch=4,
-        n_batch_tile=1,
-        n_head=16,
-        n_head_tile=8,
-        n_head_kv=4,
-        dtype='bf16',
-        bias=True,
+    pytest.param(
+        LlamaAttentionTestParams(
+            n_emb=128,
+            n_emb_tile=32,
+            n_seq=64,
+            n_seq_tile=16,
+            n_batch=4,
+            n_batch_tile=1,
+            n_head=16,
+            n_head_tile=8,
+            n_head_kv=4,
+            dtype='bf16',
+            bias=True,
+        ),
+        marks=[
+            pytest.mark.skipif(
+                not torch.cuda.is_available(),
+                reason="CUDA is required"
+            )
+        ]
     ),
-    LlamaAttentionTestParams(
-        n_emb=128,
-        n_emb_tile=32,
-        n_seq=64,
-        n_seq_tile=16,
-        n_batch=4,
-        n_batch_tile=1,
-        n_head=16,
-        n_head_tile=8,
-        n_head_kv=4,
-        dtype='fp32_fast_tf32',
-        bias=True,
+    pytest.param(
+        LlamaAttentionTestParams(
+            n_emb=128,
+            n_emb_tile=32,
+            n_seq=64,
+            n_seq_tile=16,
+            n_batch=4,
+            n_batch_tile=1,
+            n_head=16,
+            n_head_tile=8,
+            n_head_kv=4,
+            dtype='fp32_fast_tf32',
+            bias=True,
+        ),
+        marks=[
+            pytest.mark.skipif(
+                not torch.cuda.is_available(),
+                reason="CUDA is required"
+            )
+        ]
     ),
     LlamaAttentionTestParams(
         n_emb=128,

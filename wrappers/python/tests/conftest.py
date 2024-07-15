@@ -8,8 +8,9 @@ import nntile
 
 @pytest.fixture(scope="session")
 def starpu_simple() -> Generator[nntile.starpu.Config, None, None]:
-    config = nntile.starpu.Config(1, 0, 0)
+    config = nntile.starpu.Config(1, 1, 1)
     nntile.starpu.init()
+    nntile.starpu.restrict_cpu()
     try:
         yield config
     finally:
