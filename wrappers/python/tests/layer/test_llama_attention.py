@@ -8,6 +8,8 @@
 #
 # @file wrappers/python/tests/layer/test_llama_attention.py
 # Test for nntile.layer.LlamaAttention
+# Each test is generated in float precision by Torch, then it is downcasted
+# into NNTile type. So, implementation of double precision is NOT checked.
 #
 # @version 1.0.0
 
@@ -23,6 +25,26 @@ import nntile
 from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
 
+# NNTile dtype via corresponding Tensor type
+dtype2nntile = {
+        'fp32': nntile.tensor.Tensor_fp32,
+        'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
+        'bf16': nntile.tensor.Tensor_bf16,
+}
+
+dtype2tol = {
+        'fp32': {'rtol': 1e-6},
+        'fp32_fast_tf32': {'rtol': 1e-4},
+        'bf16': {'rtol': 1.6e-2},
+}
+
+
+def assert_close_by_frobnorm(a: np.ndarray, b: np.ndarray, rtol: float):
+    np.testing.assert_array_less(
+            np.linalg.norm(a - b),
+            rtol * np.linalg.norm(a)
+    )
+
 
 @dataclass
 class LlamaAttentionTestParams:
@@ -35,7 +57,7 @@ class LlamaAttentionTestParams:
     n_head: int
     n_head_tile: int
     n_head_kv: int
-    dtype: np.dtype
+    dtype: str
     bias: bool
     layer_idx: int = 0
 
@@ -51,7 +73,7 @@ TEST_PARAMS = [
         n_head=16,
         n_head_tile=8,
         n_head_kv=4,
-        dtype=np.dtypes.Float32DType(),
+        dtype='bf16',
         bias=True,
     ),
     LlamaAttentionTestParams(
@@ -64,7 +86,33 @@ TEST_PARAMS = [
         n_head=16,
         n_head_tile=8,
         n_head_kv=4,
-        dtype=np.dtypes.Float32DType(),
+        dtype='fp32_fast_tf32',
+        bias=True,
+    ),
+    LlamaAttentionTestParams(
+        n_emb=128,
+        n_emb_tile=32,
+        n_seq=64,
+        n_seq_tile=16,
+        n_batch=4,
+        n_batch_tile=1,
+        n_head=16,
+        n_head_tile=8,
+        n_head_kv=4,
+        dtype='fp32',
+        bias=True,
+    ),
+    LlamaAttentionTestParams(
+        n_emb=128,
+        n_emb_tile=32,
+        n_seq=64,
+        n_seq_tile=16,
+        n_batch=4,
+        n_batch_tile=1,
+        n_head=16,
+        n_head_tile=8,
+        n_head_kv=4,
+        dtype='fp32',
         bias=False,
     ),
     LlamaAttentionTestParams(
@@ -77,7 +125,7 @@ TEST_PARAMS = [
         n_head=8,
         n_head_tile=4,
         n_head_kv=4,
-        dtype=np.dtypes.Float32DType(),
+        dtype='fp32',
         bias=True,
     ),
     LlamaAttentionTestParams(
@@ -90,7 +138,7 @@ TEST_PARAMS = [
         n_head=8,
         n_head_tile=4,
         n_head_kv=4,
-        dtype=np.dtypes.Float32DType(),
+        dtype='fp32',
         bias=False,
     ),
 ]
@@ -112,19 +160,19 @@ def generate_inputs(params: LlamaAttentionTestParams):
     x_basetile = [params.n_emb_tile, params.n_seq_tile, params.n_batch_tile]
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
-    x_type = nntile.utils.constructors.np2nnt_type_mapping[type(params.dtype)]
+    x_type = dtype2nntile[params.dtype]
     x_value = x_type(x_traits, x_distr, 0)
     x_grad = x_type(x_traits, x_distr, 0)
     X = TensorMoments(x_value, x_grad, grad_required=True)
     x_random = np.random.randn(*x_shape)
-    x_nntile = np.array(x_random, dtype=params.dtype, order="F")
+    x_nntile = np.array(x_random, dtype=np.float32, order="F")
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
     nntile_layer = nntile.layer.LlamaAttention.from_torch(
         torch_layer, X, params.n_head_tile
     )
     y_grad_random = np.random.randn(*x_shape)
-    y_grad_nntile = np.array(y_grad_random, dtype=params.dtype, order="F")
+    y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
     nntile_layer.y.grad.from_array(y_grad_nntile)
     y_grad_torch = torch.Tensor(y_grad_nntile.T)
     return torch_layer, nntile_layer, x_torch, y_grad_torch
@@ -140,38 +188,46 @@ class TestLlamaAttention:
         nntile_layer.unregister()
         nntile_layer.x.unregister()
         nntile_layer.y.unregister()
-        np.testing.assert_equal(
+        assert_close_by_frobnorm(
             torch_layer.q_proj.weight.detach().numpy(),
-            torch_layer_other.q_proj.weight.detach().numpy()
+            torch_layer_other.q_proj.weight.detach().numpy(),
+            **dtype2tol[params.dtype]
         )
-        np.testing.assert_equal(
+        assert_close_by_frobnorm(
             torch_layer.k_proj.weight.detach().numpy(),
-            torch_layer_other.k_proj.weight.detach().numpy()
+            torch_layer_other.k_proj.weight.detach().numpy(),
+            **dtype2tol[params.dtype]
         )
-        np.testing.assert_equal(
+        assert_close_by_frobnorm(
             torch_layer.v_proj.weight.detach().numpy(),
-            torch_layer_other.v_proj.weight.detach().numpy()
+            torch_layer_other.v_proj.weight.detach().numpy(),
+            **dtype2tol[params.dtype]
         )
-        np.testing.assert_equal(
+        assert_close_by_frobnorm(
             torch_layer.o_proj.weight.detach().numpy(),
-            torch_layer_other.o_proj.weight.detach().numpy()
+            torch_layer_other.o_proj.weight.detach().numpy(),
+            **dtype2tol[params.dtype]
         )
         if params.bias:
-            np.testing.assert_equal(
+            assert_close_by_frobnorm(
                 torch_layer.q_proj.bias.detach().numpy(),
-                torch_layer_other.q_proj.bias.detach().numpy()
+                torch_layer_other.q_proj.bias.detach().numpy(),
+                **dtype2tol[params.dtype]
             )
-            np.testing.assert_equal(
+            assert_close_by_frobnorm(
                 torch_layer.k_proj.bias.detach().numpy(),
-                torch_layer_other.k_proj.bias.detach().numpy()
+                torch_layer_other.k_proj.bias.detach().numpy(),
+                **dtype2tol[params.dtype]
             )
-            np.testing.assert_equal(
+            assert_close_by_frobnorm(
                 torch_layer.v_proj.bias.detach().numpy(),
-                torch_layer_other.v_proj.bias.detach().numpy()
+                torch_layer_other.v_proj.bias.detach().numpy(),
+                **dtype2tol[params.dtype]
             )
-            np.testing.assert_equal(
+            assert_close_by_frobnorm(
                 torch_layer.o_proj.bias.detach().numpy(),
-                torch_layer_other.o_proj.bias.detach().numpy()
+                torch_layer_other.o_proj.bias.detach().numpy(),
+                **dtype2tol[params.dtype]
             )
 
     def test_forward(
@@ -185,10 +241,10 @@ class TestLlamaAttention:
         nntile_layer.unregister()
         nntile_layer.x.unregister()
         nntile_layer.y.unregister()
-        np.testing.assert_allclose(
+        assert_close_by_frobnorm(
                 y.detach().numpy(),
                 y_nntile.detach().numpy(),
-                atol=1e-5
+                **dtype2tol[params.dtype]
         )
 
     def test_forward_backward(
@@ -207,41 +263,49 @@ class TestLlamaAttention:
         nntile_layer.unregister()
         nntile_layer.x.unregister()
         nntile_layer.y.unregister()
-        np.testing.assert_allclose(
+        assert_close_by_frobnorm(
                 y.detach().numpy(),
                 y_nntile.detach().numpy(),
-                atol=1e-5
+                **dtype2tol[params.dtype]
         )
-        np.testing.assert_allclose(
+        assert_close_by_frobnorm(
             torch_layer.q_proj.weight.detach().numpy(),
-            torch_layer_other.q_proj.weight.detach().numpy()
+            torch_layer_other.q_proj.weight.detach().numpy(),
+            **dtype2tol[params.dtype]
         )
-        np.testing.assert_allclose(
+        assert_close_by_frobnorm(
             torch_layer.k_proj.weight.detach().numpy(),
-            torch_layer_other.k_proj.weight.detach().numpy()
+            torch_layer_other.k_proj.weight.detach().numpy(),
+            **dtype2tol[params.dtype]
         )
-        np.testing.assert_allclose(
+        assert_close_by_frobnorm(
             torch_layer.v_proj.weight.detach().numpy(),
-            torch_layer_other.v_proj.weight.detach().numpy()
+            torch_layer_other.v_proj.weight.detach().numpy(),
+            **dtype2tol[params.dtype]
         )
-        np.testing.assert_allclose(
+        assert_close_by_frobnorm(
             torch_layer.o_proj.weight.detach().numpy(),
-            torch_layer_other.o_proj.weight.detach().numpy()
+            torch_layer_other.o_proj.weight.detach().numpy(),
+            **dtype2tol[params.dtype]
         )
         if params.bias:
-            np.testing.assert_allclose(
+            assert_close_by_frobnorm(
                 torch_layer.q_proj.bias.detach().numpy(),
-                torch_layer_other.q_proj.bias.detach().numpy()
+                torch_layer_other.q_proj.bias.detach().numpy(),
+                **dtype2tol[params.dtype]
             )
-            np.testing.assert_allclose(
+            assert_close_by_frobnorm(
                 torch_layer.k_proj.bias.detach().numpy(),
-                torch_layer_other.k_proj.bias.detach().numpy()
+                torch_layer_other.k_proj.bias.detach().numpy(),
+                **dtype2tol[params.dtype]
             )
-            np.testing.assert_allclose(
+            assert_close_by_frobnorm(
                 torch_layer.v_proj.bias.detach().numpy(),
-                torch_layer_other.v_proj.bias.detach().numpy()
+                torch_layer_other.v_proj.bias.detach().numpy(),
+                **dtype2tol[params.dtype]
             )
-            np.testing.assert_allclose(
+            assert_close_by_frobnorm(
                 torch_layer.o_proj.bias.detach().numpy(),
-                torch_layer_other.o_proj.bias.detach().numpy()
+                torch_layer_other.o_proj.bias.detach().numpy(),
+                **dtype2tol[params.dtype]
             )
