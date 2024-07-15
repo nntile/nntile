@@ -21,31 +21,30 @@ import subprocess
 import tensorflow as tf
 
 NODE_COUNTER = {}
+BUS_COUNTER = {}
+WRITERS = {}
 
-async def create_new_writer(log_dir):
-    global writer
+async def create_new_writer(log_dir, node_name):
     current_time = datetime.datetime.now().strftime("%Y-%m-%d---%H%M")
-    current_log_dir = os.path.join(log_dir, current_time)
+    current_log_dir = os.path.join(log_dir, node_name, current_time)
     print(current_log_dir)
     os.makedirs(current_log_dir, exist_ok=True)
-    if "writer" in globals():
-        writer.close()
 
     writer = tf.summary.create_file_writer(current_log_dir)
     writer.set_as_default()
     return writer
 
 async def handle_new_logs(log_dir, split_hours):
-    global writer
+    global WRITERS
     global NODE_COUNTER
+    global BUS_COUNTER
     NODE_COUNTER = {}
-    if split_hours > 0:
-        while True:
-            writer = await create_new_writer(log_dir)
-            # Convert hours into seconds
-            await asyncio.sleep(split_hours * 60 * 60)
-    else:
-        writer = await create_new_writer(log_dir)
+    BUS_COUNTER = {}
+    WRITERS = {}
+    while True:
+        await asyncio.sleep(split_hours * 60 * 60)
+        for key in WRITERS.keys():
+            WRITERS[key] = await create_new_writer(log_dir, key)
 
 def increaseStep(node, node_dict):
     if node not in node_dict:
@@ -68,6 +67,32 @@ async def start_tensorboard(log_dir):
     print(f'TensorBoard stdout: {stdout.decode()}')
     print(f'TensorBoard stderr: {stderr.decode()}')
 
+async def handle_flops_message(parsed_data):
+    name = parsed_data.get("name")
+    flops = float(parsed_data.get("flops"))
+    
+    if name not in WRITERS:
+        WRITERS[name] = await create_new_writer('logs', name)
+    
+    with WRITERS[name].as_default():
+        increaseStep(name, NODE_COUNTER)
+        tf.summary.scalar(f"Flops", flops, NODE_COUNTER[name])
+        
+async def handle_bus_message(parsed_data):
+    bus_id = parsed_data.get("bus_id")
+    total_bus_time = float(parsed_data.get("total_bus_time"))
+    transferred_bytes = int(parsed_data.get("transferred_bytes"))
+    transfer_count = int(parsed_data.get("transfer_count"))
+    
+    if bus_id not in WRITERS:
+        WRITERS[bus_id] = await create_new_writer('logs', f"bus_{bus_id}")
+    
+    with WRITERS[bus_id].as_default():
+        increaseStep(bus_id, BUS_COUNTER)
+        tf.summary.scalar(f"Bus/{bus_id}/Total_Bus_Time", total_bus_time, BUS_COUNTER[bus_id])
+        tf.summary.scalar(f"Bus/{bus_id}/Transferred_Bytes", transferred_bytes, BUS_COUNTER[bus_id])
+        tf.summary.scalar(f"Bus/{bus_id}/Transfer_Count", transfer_count, BUS_COUNTER[bus_id])
+        
 async def handle_client(reader, writer):
     addr = writer.get_extra_info('peername')
     print(f"Connect from {addr}")
@@ -78,10 +103,14 @@ async def handle_client(reader, writer):
         message = data.decode().strip()
         try:
             parsed_data = json.loads(message)
-            name = parsed_data.get("name")
-            flops = float(parsed_data.get("flops"))
-            increaseStep(name, NODE_COUNTER)
-            tf.summary.scalar(name, flops, NODE_COUNTER[name])
+            message_type = int(parsed_data.get("type"))
+            match message_type:
+                case 0:
+                    await handle_flops_message(parsed_data)
+                case 1:
+                    await handle_bus_message(parsed_data)
+                case _:
+                    print(f"Unknown message type: {message_type}")
         except json.JSONDecodeError:
             print("Error decoding JSON:", message)
 

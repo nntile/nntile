@@ -32,11 +32,14 @@ std::atomic<bool> logger_running(false);
 //! Main routine for the logger thread
 void logger_main()
 {
-    // At first get worker count and check if starpu is initialized
+    // At first get worker count, bus count and check if starpu is initialized
     int workerid;
+    int busid;
     int worker_cnt = starpu_worker_get_count();
+    int bus_cnt = starpu_bus_get_count();
     int is_initialized = starpu_is_initialized();
     std::cout << "WORKER COUNT: " << worker_cnt << std::endl;
+    std::cout << "BUS COUNT: " << bus_cnt << std::endl;
     std::cout << "IS initialized : " << is_initialized << std::endl;
     // Infinite loop until NNTile exits this thread
     while (logger_running)
@@ -62,12 +65,36 @@ void logger_main()
                 flops = info.flops;
             // Form message to send
             char message[256];
-            snprintf(message, sizeof(message), "{\"name\": \"%s\", "
+            snprintf(message, sizeof(message), "{\"type\": \"0\", \"name\": \"%s\","
                     "\"total_time\": \"%.2lf\", \"flops\": \"%.2lf\"}\n",
                     name, total_time, flops);
             // Send the message
             if (send(client_socket, message, strlen(message), 0)
                     != (ssize_t)strlen(message))
+            {
+                perror("send");
+            }
+        }
+        for (busid = 0; busid < bus_cnt; busid++)
+        {
+            // Profiling info is read from StarPU
+            struct starpu_profiling_bus_info info;
+            int ret = starpu_bus_get_profiling_info(busid, &info);
+            if (ret != 0)
+                continue;
+            // Read the profiling information for the bus
+            double total_bus_time = starpu_timing_timespec_to_us(&info.total_time) / 1000.;
+            uint64_t transferred_bytes = info.transferred_bytes;
+            int transfer_count = info.transfer_count;
+            
+            // Form message to send
+            char message[256];
+            snprintf(message, sizeof(message), "{\"type\": \"1\", \"bus_id\": \"%i\","
+                     "\"total_bus_time\": \"%.2lf\", \"transferred_bytes\": \"%llu\", "
+                     "\"transfer_count\": \"%d\"}\n",
+                     busid, total_bus_time, transferred_bytes, transfer_count);
+            // Send the message
+            if (send(client_socket, message, strlen(message), 0) != (ssize_t)strlen(message))
             {
                 perror("send");
             }
