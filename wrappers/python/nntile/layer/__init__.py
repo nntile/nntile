@@ -21,5 +21,6 @@ from .embedding import Embedding
 from .flash_attention import FlashAttention
 from .layer_norm import LayerNorm
 from .linear import Linear
+from .llama_attention import LlamaAttention
 from .mixer import GAP, Mixer, MixerMlp
 from .rms_norm import RMSNorm

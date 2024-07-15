@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/layer/test_layer_norm.py
-# Test for nntile.layer.LayerNorm
+# @file wrappers/python/tests/layer/test_batch_norm.py
+# Test for nntile.layer.BatchNorm2d
 #
 # @version 1.0.0
 
