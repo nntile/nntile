@@ -205,6 +205,7 @@ set(STARPU_SRC
     "starpu/transpose.cc"
     "starpu/silu_forward.cc"
     "starpu/silu_backward.cc"
+    "starpu/rope.cc"
     )
 
 set(TILE_SRC
@@ -265,6 +266,7 @@ set(TILE_SRC
     "tile/adamw_step.cc"
     "tile/silu_forward.cc"
     "tile/silu_backward.cc"
+    "tile/rope.cc"
     )
 
 set(TENSOR_SRC
@@ -335,6 +337,7 @@ set(TENSOR_SRC
     "tensor/transpose.cc"
     "tensor/silu_forward.cc"
     "tensor/silu_backward.cc"
+    "tensor/rope.cc"
     )
 
 set(LAYER_SRC
