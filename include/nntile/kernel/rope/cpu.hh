@@ -16,19 +16,12 @@
 
 #include <nntile/base_types.hh>
 
-namespace nntile
-{
-namespace kernel
-{
-namespace rope
+namespace nntile::kernel::rope
 {
 
-// Fill embedding from vocabulary
 template<typename T>
 void cpu(Index m, Index k, Index l, const T *sin, const T *cos, 
         const T *src, T *dst)
     noexcept;
 
 } // namespace rope
-} // namespace kernel
-} // namespace nntile

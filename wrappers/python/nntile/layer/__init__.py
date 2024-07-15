@@ -18,6 +18,7 @@ from .attention_single_head import AttentionSingleHead
 from .base_layer import BaseLayer
 from .batch_norm import BatchNorm2d
 from .embedding import Embedding
+from .rotary_embedding import RotaryEmbedding
 from .flash_attention import FlashAttention
 from .layer_norm import LayerNorm
 from .linear import Linear

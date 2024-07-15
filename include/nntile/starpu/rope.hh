@@ -18,15 +18,10 @@
 #include <nntile/starpu/config.hh>
 #include <nntile/defs.h>
 
-namespace nntile
-{
-namespace starpu
-{
-namespace rope
+namespace nntile::starpu::rope
 {
 
 //! Structure for arguments
-template<typename T>
 struct args_t
 {
     Index m;
@@ -34,12 +29,19 @@ struct args_t
     Index l;
 };
 
-// StarPU wrapper for kernel::add_fiber::cpu<T>
+// StarPU wrapper for kernel::rope::cpu<T>
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
 
-extern Codelet codelet_fp32, codelet_fp64;
+#ifdef NNTILE_USE_CUDA
+// StarPU wrapper for kernel::rope::cuda<T>
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept;
+#endif // NNTILE_USE_CUDA
+
+extern Codelet codelet_fp32, codelet_fp64, codelet_bf16;
 
 template<typename T>
 constexpr Codelet *codelet()
@@ -60,6 +62,12 @@ constexpr Codelet *codelet<fp64_t>()
     return &codelet_fp64;
 }
 
+template<>
+constexpr Codelet *codelet<bf16_t>()
+{
+    return &codelet_bf16;
+}
+
 void init();
 
 void restrict_where(uint32_t where);
@@ -71,5 +79,3 @@ void submit(Index m, Index k, Index l, Handle sin, Handle cos,
     Handle src, Handle dst);
 
 } // namespace rope
-} // namespace starpu
-} // namespace nntile

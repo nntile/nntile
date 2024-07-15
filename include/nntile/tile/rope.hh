@@ -16,20 +16,17 @@
 
 #include <nntile/tile/tile.hh>
 
-namespace nntile
-{
-namespace tile
+namespace nntile::tile
 {
 
-// Tile<T> addition of a tensor and a broadcasted slice
+// Tile<T> RoPE
 template<typename T>
 void rope_async(const Tile<T> &sin, const Tile<T> &cos, 
         const Tile<T> &src, const Tile<T> &dst, Index axis);
 
-// Tile<T> addition of a tensor and a broadcasted slice
+// Tile<T> RoPE
 template<typename T>
 void rope(const Tile<T> &sin, const Tile<T> &cos, 
         const Tile<T> &src, const Tile<T> &dst, Index axis);
 
 } // namespace tile
-} // namespace nntile

@@ -17,20 +17,15 @@
 #include <nntile/kernel/rope/cpu.hh>
 #include <nntile/defs.h>
 // #ifdef NNTILE_USE_CUDA
-// #include <nntile/kernel/embedding/cuda.hh>
+// #include <nntile/kernel/rope/cuda.hh>
 // #endif // NNTILE_USE_CUDA
 
-namespace nntile
-{
-namespace kernel
-{
+
 //! @namespace nntile::kernel::rope
 /*! Low-level implementations of rotary positional embedding operation
  * */
-namespace rope
+namespace nntile::kernel::rope
 {
 
-} // namespace rope
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::add_slice3
 

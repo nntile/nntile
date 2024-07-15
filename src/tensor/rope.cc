@@ -15,9 +15,7 @@
 #include "nntile/tensor/rope.hh"
 #include "nntile/starpu/rope.hh"
 
-namespace nntile
-{
-namespace tensor
+namespace nntile::tensor
 {
 
 template<typename T>
@@ -128,6 +126,10 @@ template
 void rope_async<fp64_t>(const Tensor<fp64_t> &sin, const Tensor<fp64_t> &cos, 
         const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst, Index axis);
 
+template
+void rope_async<bf16_t>(const Tensor<bf16_t> &sin, const Tensor<bf16_t> &cos,
+        const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst, Index axis);
+
 // Explicit instantiation of template
 template
 void rope<fp32_t>(const Tensor<fp32_t> &sin, const Tensor<fp32_t> &cos, 
@@ -137,5 +139,8 @@ template
 void rope<fp64_t>(const Tensor<fp64_t> &sin, const Tensor<fp64_t> &cos, 
         const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst, Index axis);
 
+template
+void rope<bf16_t>(const Tensor<bf16_t> &sin, const Tensor<bf16_t> &cos,
+        const Tensor<bf16_t> &src, const Tensor<bf16_t> &dst, Index axis);
+
 } // namespace tensor
-} // namespace nntile

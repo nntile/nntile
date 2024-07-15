@@ -16,20 +16,17 @@
 
 #include <nntile/tensor/tensor.hh>
 
-namespace nntile
-{
-namespace tensor
+namespace nntile::tensor
 {
 
-// Tensor<T> addition of a tensor and a broadcasted slice
+// Tensor<T> RoPE
 template<typename T>
 void rope_async(const Tensor<T> &sin, const Tensor<T> &cos, 
         const Tensor<T> &src, const Tensor<T> &dst, Index axis);
 
-// Tensor<T> addition of a tensor and a broadcasted slice
+// Tensor<T> RoPE
 template<typename T>
 void rope(const Tensor<T> &sin, const Tensor<T> &cos, 
         const Tensor<T> &src, const Tensor<T> &dst, Index axis);
 
 } // namespace tensor
-} // namespace nntile

@@ -1471,3 +1471,22 @@ def transpose_async(alpha: float, src: Tensor, dst: Tensor, ndim: int) -> None:
         core_tensor.transpose_async_bf16(alpha, src, dst, ndim)
     else:
         raise TypeError
+
+
+def rope_async(
+    sin: Tensor, cos: Tensor, x: Tensor, y: Tensor, axis: int
+) -> None:
+    """
+    Wrapper for multiprecision add_slice3
+    """
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.rope_async_fp32(sin, cos, x, y, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.rope_async_fp64(sin, cos, x, y, axis)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.rope_async_bf16(sin, cos, x, y, axis)
+    else:
+        raise TypeError
+

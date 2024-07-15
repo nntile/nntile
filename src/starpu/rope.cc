@@ -12,16 +12,14 @@
  * @date 2024-05-27
  * */
 
-#include "nntile/starpu/rope.hh"
+#ifndef STARPU_SIMGRID
 #include "nntile/kernel/rope.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/rope.hh"
 #include <cstdlib>
 
-namespace nntile
-{
-namespace starpu
-{
 //! StarPU wrappers for add_fiber operation
-namespace rope
+namespace nntile::starpu::rope
 {
 
 //! StarPU wrapper for kernel::add_fiber::cpu<T>
@@ -29,8 +27,9 @@ template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(cl_args);
+    auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *sin = interfaces[0]->get_ptr<T>();
@@ -39,6 +38,7 @@ void cpu(void *buffers[], void *cl_args)
     T *dst = interfaces[3]->get_ptr<T>();
     // Launch kernel
     kernel::rope::cpu<T>(args->m, args->k, args->l, sin, cos, src, dst);
+#endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -62,12 +62,11 @@ void cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 //! Footprint for rope tasks
-template<typename T>
 static
 uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
-    auto args = reinterpret_cast<args_t<T> *>(task->cl_arg);
+    auto args = reinterpret_cast<args_t *>(task->cl_arg);
     // Apply hash over parameters m, and k
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
@@ -76,12 +75,12 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64;
+Codelet codelet_fp32, codelet_fp64, codelet_bf16;
 
 void init()
 {
     codelet_fp32.init("nntile_rope_fp32",
-            footprint<fp32_t>,
+            footprint,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_t>}
@@ -89,11 +88,22 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
+
     codelet_fp64.init("nntile_rope_fp64",
-            footprint<fp64_t>,
+            footprint,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
+    codelet_bf16.init("nntile_rope_bf16",
+            footprint,
+            {cpu<bf16_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<bf16_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -104,12 +114,14 @@ void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
     codelet_fp64.restrict_where(where);
+    codelet_bf16.restrict_where(where);
 }
 
 void restore_where()
 {
     codelet_fp32.restore_where();
     codelet_fp64.restore_where();
+    codelet_bf16.restore_where();
 }
 
 template<typename T>
@@ -126,7 +138,7 @@ void submit(Index m, Index k, Index l, Handle sin, Handle cos,
     dst_mode = STARPU_RW;
 
     // Codelet arguments
-    args_t<T> *args = (args_t<T> *)std::malloc(sizeof(*args));
+    args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->m = m;
     args->k = k;
     args->l = l;
@@ -156,6 +168,8 @@ template
 void submit<fp64_t>(Index m, Index k, Index l, Handle sin,
         Handle cos, Handle src, Handle dst);
 
+template
+void submit<bf16_t>(Index m, Index k, Index l, Handle sin,
+        Handle cos, Handle src, Handle dst);
+
 } // namespace rope
-} // namespace starpu
-} // namespace nntile

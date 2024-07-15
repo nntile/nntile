@@ -13,13 +13,11 @@
  * */
 
 #include "nntile/kernel/rope/cpu.hh"
+#include "nntile/kernel/cpu.hh"
 
-namespace nntile
+namespace nntile::kernel::rope
 {
-namespace kernel
-{
-namespace rope
-{
+
 
 template<typename T>
 void cpu(Index m, Index k, Index l, const T *sin, const T *cos, 
@@ -40,7 +38,7 @@ void cpu(Index m, Index k, Index l, const T *sin, const T *cos,
  * @param[in] src: Input embedding tensor
  * @param[out] dst: Output embedding tensor with applied RoPE
  * */
-{
+{   using Y = typename T::repr_t;
     Index one = 1;
     Index two = 2;
     Index mk = m * k;
@@ -50,8 +48,10 @@ void cpu(Index m, Index k, Index l, const T *sin, const T *cos,
     for (Index j = 0; j < h; ++j) {
         // Cycle over whole m*k elements of sin and cos buffers.
         for(Index i = 0; i < mk; ++i) {
-            dst[two * (i + j*mk)] = cos[i] * src[two * (i + j*mk)] - sin[i] * src[two * (i + j*mk) + one];
-            dst[two * (i + j*mk) + one] = sin[i] * src[two * (i + j*mk)] + cos[i] * src[two * (i + j*mk) + one];
+            dst[two * (i + j*mk)] = static_cast<T>(Y{cos[i]} * Y{src[two * (i + j*mk)]}
+                - Y{sin[i]} * Y{src[two * (i + j*mk) + one]});
+            dst[two * (i + j*mk) + one] = static_cast<T>(Y{sin[i]} * Y{src[two * (i + j*mk)]}
+                + Y{cos[i]} * Y{src[two * (i + j*mk) + one]});
         }
     }
      
@@ -68,6 +68,9 @@ void cpu<fp64_t>(Index m, Index k, Index l, const fp64_t *sin, const fp64_t *cos
         const fp64_t *src, fp64_t *dst)
     noexcept;
 
+template
+void cpu<bf16_t>(Index m, Index k, Index l, const bf16_t *sin, const bf16_t *cos,
+        const bf16_t *src, bf16_t *dst)
+    noexcept;
+
 } // namespace rope
-} // namespace kernel
-} // namespace nntile
