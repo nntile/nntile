@@ -15,17 +15,19 @@ import argparse
 # import json
 import time
 
-import numpy as np
+# import numpy as np
 import torch
+
+import nntile
+
 # import torch.nn as nn
 # from datasets import load_dataset
 # from torch.optim import SGD, Adam, AdamW
-from transformers import LlamaConfig, LlamaModel
+# from transformers import LlamaConfig, LlamaModel
 
-import nntile
-from nntile.loss import Frob
-from nntile.model.llama import (
-    LlamaConfig as LlamaConfig_nntile, LlamaMLP as LlamaMLP_nntile)
+# from nntile.layer.llama_mlp import LlamaMLP as LlamaMLP_nntile
+# from nntile.loss import Frob
+# from nntile.model.llama import LlamaConfig as LlamaConfig_nntile
 
 # Create argument parser
 parser = argparse.ArgumentParser(prog="Llama-based neural networks",
@@ -122,19 +124,6 @@ elif args.torch_dtype == "bf16":
 if args.nntile_dtype == "tf32":
     torch.backends.cuda.matmul.allow_tf32 = True
 
-config = LlamaConfig()
-config.num_hidden_layers = 1
-model_torch = LlamaModel(config)
-model_torch.eval()
-# print(model_torch)
-
-llama_torch_mlp = model_torch.layers[0].mlp
-
-torch_input = torch.randn(100, 4096)
-torch_output = llama_torch_mlp(torch_input)
-nntile_model_config = LlamaConfig_nntile()
-print(nntile_model_config)
-
 # Initialize NNTile and StarPU
 time0 = time.time()
 # Set up StarPU+MPI and init codelets
@@ -151,50 +140,3 @@ elif args.nntile_restrict == "cpu":
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
 next_tag = 0
-
-x_traits = nntile.tensor.TensorTraits([4096, 100], [4096, 100])
-x_distr = [0] * x_traits.grid.nelems
-nntile_input = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
-nntile_input.from_array(np.array(torch_input.numpy().T, order="F"))
-next_tag = nntile_input.next_tag
-nntile_input_moment = nntile.tensor.TensorMoments(nntile_input, None, False)
-nntile_model, next_tag = LlamaMLP_nntile.from_torch(llama_torch_mlp,
-                                                    nntile_input_moment,
-                                                    nntile_model_config,
-                                                    next_tag)
-
-# Torch run
-torch_output = llama_torch_mlp(torch_input)
-torch_loss = 0.5 * torch.sum(torch_output**2)
-torch_loss.backward()
-
-# NNTile run
-nntile_model.clear_gradients()
-nntile_model.forward_async()
-fro_loss, next_tag = Frob.generate_simple(nntile_model.activations[-1],
-                                          next_tag)
-np_zero = np.zeros(nntile_model.activations[-1].value.shape,
-                   dtype=np.float32,
-                   order="F")
-fro_loss.y.from_array(np_zero)
-fro_loss.calc_async()
-nntile_model.backward_async()
-
-# Compare loss and gradients
-np_loss_nntile = np.zeros((1,), dtype=np.float32, order="F")
-fro_loss.val.to_array(np_loss_nntile)
-print("NNTile loss = {}".format(np_loss_nntile[0]))
-print("Relative error in the loss for torch and nntile models = {}".format(
-    abs(torch_loss.item() - np_loss_nntile[0]) / torch_loss.item()))
-
-for i, (p_nntile, p_torch) in enumerate(zip(nntile_model.parameters,
-                                            llama_torch_mlp.parameters())):
-    p_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
-    p_nntile.grad.to_array(p_np)
-    p_torch_np = p_torch.grad.cpu().detach().numpy()
-    rel_error = np.linalg.norm(p_np - p_torch_np, "fro") / \
-                np.linalg.norm(p_torch_np, "fro")
-    print("Relative error in layer {} gradient = {}".format(i, rel_error))
-
-nntile_model.unregister()
-fro_loss.unregister()

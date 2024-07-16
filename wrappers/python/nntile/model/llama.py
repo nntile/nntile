@@ -13,9 +13,10 @@
 
 from typing import Dict
 
-from nntile.layer import Act, Linear, Prod
+# from nntile.layer import Act, Linear, Prod
 from nntile.model.base_model import BaseModel
-from nntile.tensor import TensorMoments, notrans
+
+# from nntile.tensor import TensorMoments, notrans
 
 
 class LlamaConfig(Dict):
@@ -43,7 +44,6 @@ class LlamaConfig(Dict):
         attention_bias: bool = False,
         attention_dropout: float = 0.0,
         rope_theta: float = 10000.,
-        mlp_bias: bool = False
     ):
         self["vocab_size"] = vocab_size
         self["vocab_embed_dim_tile"] = vocab_embed_dim_tile
@@ -67,102 +67,12 @@ class LlamaConfig(Dict):
         self["attention_bias"] = attention_bias
         self["attention_dropout"] = attention_dropout
         self["rope_theta"] = rope_theta
-        self["mlp_bias"] = mlp_bias
 
     def __getattr__(self, attr):
         return self[attr]
 
 
-class LlamaMLP(BaseModel):
-    next_tag: int
+class Llama(BaseModel):
 
-    # Construct model with all the provided data
-    def __init__(self, x: TensorMoments, config: LlamaConfig, next_tag: int):
-        # Init activations and list of layers
-        activations = [x]
-        layers = []
-        hidden_size = config["hidden_size"]
-        hidden_size_tile = config["hidden_size_tile"]
-        intermediate_size = config["intermediate_size"]
-        intermediate_size_tile = config["intermediate_size_tile"]
-        activation_function = config["activation_function"]
-        redux = config["redux"]
-        mlp_bias = config["mlp_bias"]
-        gemm_ndim = 1
-        # Initial linear layer that converts input to internal shape
-        gate_proj, next_tag = Linear.generate_simple(
-            x,
-            "R",
-            notrans,
-            gemm_ndim,
-            [intermediate_size],
-            [intermediate_size_tile],
-            next_tag,
-            redux=redux,
-            bias=mlp_bias
-        )
-        layers.append(gate_proj)
-        activations.extend(gate_proj.activations_output)
-
-        new_layer, next_tag = Act.generate_simple(
-            activations[-1], activation_function, next_tag
-        )
-        layers.append(new_layer)
-        activations.extend(new_layer.activations_output)
-
-        up_proj, next_tag = Linear.generate_simple(
-            x,
-            "R",
-            notrans,
-            gemm_ndim,
-            [intermediate_size],
-            [intermediate_size_tile],
-            next_tag,
-            redux=redux,
-            bias=mlp_bias
-        )
-        layers.append(up_proj)
-        activations.extend(up_proj.activations_output)
-        self.next_tag = next_tag
-
-        prod_layer, next_tag = Prod.generate_simple(
-            activations[-2], activations[-1], next_tag
-        )
-        layers.append(prod_layer)
-        activations.extend(prod_layer.activations_output)
-
-        down_proj, next_tag = Linear.generate_simple(
-            activations[-1],
-            "R",
-            notrans,
-            gemm_ndim,
-            [hidden_size],
-            [hidden_size_tile],
-            next_tag,
-            redux=redux,
-            bias=mlp_bias
-        )
-        layers.append(down_proj)
-        activations.extend(down_proj.activations_output)
-        self.next_tag = next_tag
-        # Fill Base Model with the generated data
-        super().__init__(activations, layers)
-
-    # Randomly init all linear layers
-    def init_randn_async(self):
-        for layer in self.layers:
-            if type(layer) is Linear:
-                layer.init_randn_async()
-
-    @staticmethod
-    def from_torch(
-        torch_mlp, x: TensorMoments, config: LlamaConfig, next_tag: int
-    ):
-        """
-        torch_mlp is PyTorch MLP where no biases in linear layers
-        """
-        llama_ff_nntile = LlamaMLP(x, config, next_tag)
-        torch_params = list(torch_mlp.parameters())
-        for i, p in enumerate(llama_ff_nntile.parameters):
-            p.value.from_array(torch_params[i].cpu().detach().numpy())
-        return llama_ff_nntile, llama_ff_nntile.next_tag
+    def __init__(self):
+        pass
