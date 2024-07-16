@@ -134,6 +134,7 @@ else()
             "kernel/transpose/cuda.cu"
             "kernel/silu_forward/cuda.cu"
             "kernel/silu_backward/cuda.cu"
+            "kernel/norm_fiber/cuda.cu"
             )
         endif(NNTILE_USE_CUDA)
 endif(HAVE_STARPU_SIMGRID)
@@ -206,6 +207,7 @@ set(STARPU_SRC
     "starpu/transpose.cc"
     "starpu/silu_forward.cc"
     "starpu/silu_backward.cc"
+    "starpu/norm_fiber.cc"
     )
 
 set(TILE_SRC
