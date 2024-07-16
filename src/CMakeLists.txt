@@ -268,6 +268,7 @@ set(TILE_SRC
     "tile/adamw_step.cc"
     "tile/silu_forward.cc"
     "tile/silu_backward.cc"
+    "tile/norm_fiber.cc"
     )
 
 set(TENSOR_SRC
