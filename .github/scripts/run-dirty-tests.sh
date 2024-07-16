@@ -24,7 +24,7 @@ echo "$(wc -l headers.txt) headers changed"
 echo "$(wc -l sources.txt) sources changed"
 cat cmake-lists.txt headers.txt sources.txt > total.txt
 if [ -s total.txt ]; then
-    echo wrappers/python/nntile/nntile_code*.so > changed.txt
+    echo wrappers/python/nntile/nntile_core*.so > changed.txt
 fi
 
 # What pure python modules are changed in this PR?
