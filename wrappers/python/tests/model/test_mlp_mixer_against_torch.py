@@ -11,7 +11,6 @@
 #
 # @version 1.0.0
 
-# All necesary imports
 import numpy as np
 import torch
 import torch.nn as nn
@@ -20,6 +19,9 @@ import torchvision.transforms as trnsfrms
 import nntile
 from nntile.model.mlp_mixer import MlpMixer as MlpMixerTile
 from nntile.torch_models.mlp_mixer import MlpMixer
+
+config = nntile.starpu.Config(1, 0, 0)
+nntile.starpu.init()
 
 
 def image_patching(image, patch_size):
@@ -62,13 +64,7 @@ def data_loader_to_tensor(data_set, label_set, trns, batch_size, minibatch_size,
     return train_tensor, label_tensor
 
 
-# Set up StarPU configuration and init it
-config = nntile.starpu.Config(1, 0, 0)
-# Init all NNTile-StarPU codelets
-nntile.starpu.init()
-
-
-def helper():
+def test_mlp_mixer():
     patch_size = 16
     batch_size = 6
     minibatch_size = 3
@@ -171,23 +167,8 @@ def helper():
             p_nntile_grad_np = np.transpose(p_nntile_grad_np)
 
         rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np)) / torch.norm(p_torch.grad)
-        if rel_error > tol:
-            crit_nntile.unregister()
-            test_tensor.unregister()
-            nntile_mixer_model.unregister()
-            return False
+        assert rel_error <= tol
 
     crit_nntile.unregister()
     test_tensor.unregister()
     nntile_mixer_model.unregister()
-    print("Test successful")
-    assert True
-
-
-# Test runner
-def test():
-    helper()
-
-
-if __name__ == "__main__":
-    test()
