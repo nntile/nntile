@@ -72,13 +72,14 @@ async def start_tensorboard(log_dir):
 async def handle_flops_message(parsed_data, log_dir):
     name = parsed_data.get("name")
     flops = float(parsed_data.get("flops"))
+    time = float(parsed_data.get("total_time"))
 
     if name not in WRITERS:
         WRITERS[name] = await create_new_writer(log_dir, name)
 
     with WRITERS[name].as_default():
         increaseStep(name, NODE_COUNTER)
-        tf.summary.scalar("GFlops", flops / 1e9, NODE_COUNTER[name])
+        tf.summary.scalar("GFlop/s", flops / time / 1e9, NODE_COUNTER[name])
 
 
 async def handle_bus_message(parsed_data, log_dir):
@@ -86,9 +87,7 @@ async def handle_bus_message(parsed_data, log_dir):
     transferred_bytes = int(parsed_data.get("transferred_bytes"))
     src = parsed_data.get("src_name")
     dst = parsed_data.get("dst_name")
-    transferred_megabytes = transferred_bytes / 1e6
-    total_bus_time_seconds = total_bus_time / 1000
-    bus_speed_mbps = transferred_megabytes / total_bus_time_seconds
+    bus_speed_gbps = transferred_bytes / total_bus_time / 1e9
     bus_name = f"{src}->{dst}"
 
     if bus_name not in WRITERS:
@@ -106,21 +105,21 @@ async def handle_bus_message(parsed_data, log_dir):
     if dst not in MEMORY_NODES_SUM_RECEIVED:
         MEMORY_NODES_SUM_RECEIVED[dst] = 0
 
-    MEMORY_NODES_SUM_SENT[src] += bus_speed_mbps
-    MEMORY_NODES_SUM_RECEIVED[dst] += bus_speed_mbps
+    MEMORY_NODES_SUM_SENT[src] += bus_speed_gbps
+    MEMORY_NODES_SUM_RECEIVED[dst] += bus_speed_gbps
 
     with WRITERS[bus_name].as_default():
         increaseStep(bus_name, NODE_COUNTER)
         tf.summary.scalar(
-            'Bus/Bus_speed_MBps',
-            bus_speed_mbps,
+            'Bus/Link_speed_GB/s',
+            bus_speed_gbps,
             NODE_COUNTER[bus_name]
         )
 
     with WRITERS[src].as_default():
         increaseStep(src, NODE_COUNTER)
         tf.summary.scalar(
-            'Bus/Total_Sent_MB',
+            'Bus/MemNode_Sent_GB/s',
             MEMORY_NODES_SUM_SENT[src],
             NODE_COUNTER[src]
         )
@@ -128,7 +127,7 @@ async def handle_bus_message(parsed_data, log_dir):
     with WRITERS[dst].as_default():
         increaseStep(dst, NODE_COUNTER)
         tf.summary.scalar(
-            'Bus/Total_Received_MB',
+            'Bus/MemNode_Recv_GB/s',
             MEMORY_NODES_SUM_RECEIVED[dst],
             NODE_COUNTER[dst]
         )

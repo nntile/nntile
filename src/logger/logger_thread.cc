@@ -58,7 +58,7 @@ void logger_main()
             starpu_worker_get_name(workerid, name, sizeof(name));
             // Read how long the worker is running
             double total_time = starpu_timing_timespec_to_us(&info.total_time)
-                / 1000.;
+                * 1e-6;
             // Read how many FLOPs are performed by the worker
             double flops = 0.0;
             if (info.flops)
@@ -85,7 +85,8 @@ void logger_main()
             if (ret != 0)
                 continue;
             // Read the profiling information for the bus
-            double total_bus_time = starpu_timing_timespec_to_us(&info.total_time) / 1000.;
+            double total_bus_time = starpu_timing_timespec_to_us(&info.total_time)
+                * 1e-6;
             uint64_t transferred_bytes = info.transferred_bytes;
             src = starpu_bus_get_src(busid);
 		    dst = starpu_bus_get_dst(busid);

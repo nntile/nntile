@@ -92,7 +92,7 @@ ARG CUDA_ARCHS=70;75;80;86;89;90
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHS} -GNinja
 
-RUN cmake --build build -j $MAKE_JOBS
+RUN cmake --build build -j $MAKE_JOBS -t nntile_core
 
 ENV PYTHONPATH=/workspace/nntile/build/wrappers/python
 
