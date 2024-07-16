@@ -15,7 +15,7 @@ from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
         maxsumexp_async, softmax_inplace_async, sumprod_slice_async, \
         add_slice_async, prod_async, mask_scalar_async, add_fiber_async, \
-        sum_fiber_async, transpose_async, copy_async
+        sum_fiber_async, transpose_async, copy_async, copy_intersection_async
 
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
@@ -142,6 +142,8 @@ class Attention(BaseLayer):
         else:
             self.redux = 0
 
+        self.reset_cache()
+    
     # Simple generator for the linear layer
     @staticmethod
     def generate_simple(x_q: TensorMoments, x_k: TensorMoments, \
@@ -394,9 +396,12 @@ class Attention(BaseLayer):
         # Return layer and next tag to be used
         return (layer, next_tag)
 
-    # Forward propagation of the attention layer
-    def forward_async(self):
-        # Compute query, key and value tensors
+    def reset_cache(self):
+        self.k_cache_size = 0
+        self.q_cache_size = 0
+        self.v_cache_size = 0    
+    
+    def _forward_mlp_q_async(self):
         # Q_transposed = einsum('jkl,lmn->jkmn', W_Q, X_Q)
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
@@ -417,6 +422,26 @@ class Attention(BaseLayer):
             add_fiber_async(1, self.in_proj_bias_q.value, 1, \
                     self.q.value, 0, 1)
             self.in_proj_bias_q.value.wont_use()
+
+    def _forward_mlp_q_cached(self, x: Tensor):
+        # TODO: no reason to cache q, as you need only last logit for generation. You should just support dynamic shapes of q
+        
+        import nntile.utils.constructors as nntc
+        q_partial_tr = nntc.zeros((1,)+ tuple(x.shape), dtype=type(x))
+        q_partial = nntc.zeros(tuple(x.shape)+(1,), dtype=type(x))
+        
+        gemm_async(1.0, notrans, self.w_q.value, notrans, 
+            x, 0.0, q_partial_tr, 1, 0, redux=self.redux)
+
+        transpose_async(1.0, q_partial_tr, q_partial, 1)
+        
+        if self.in_proj_bias_q is not None:
+            add_fiber_async(1, self.in_proj_bias_q.value, 1, q_partial, 0, 1)
+
+        copy_intersection_async(q_partial, [0,self.q_cache_size,0,0], self.q.value, [0,0,0,0])
+        self.q_cache_size+=x.shape[1]
+    
+    def _forward_mlp_k_async(self):
         # K_transposed = einsum('jkl,lmn->jkmn', W_K, X_K)
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
@@ -437,6 +462,24 @@ class Attention(BaseLayer):
             add_fiber_async(1, self.in_proj_bias_k.value, 1, \
                     self.k.value, 0, 1)
             self.in_proj_bias_k.value.wont_use()
+
+    def _forward_mlp_k_cached(self, x: Tensor):
+        import nntile.utils.constructors as nntc
+        k_partial_tr = nntc.zeros((1,)+ tuple(x.shape), dtype=type(x))
+        k_partial = nntc.zeros(tuple(x.shape)+(1,), dtype=type(x))
+        
+        gemm_async(1.0, notrans, self.w_k.value, notrans, 
+            x, 0.0, k_partial_tr, 1, 0, redux=self.redux)
+
+        transpose_async(1.0, k_partial_tr, k_partial, 1)
+        
+        if self.in_proj_bias_k is not None:
+            add_fiber_async(1, self.in_proj_bias_k.value, 1, k_partial, 0, 1)
+
+        copy_intersection_async(k_partial, [0,self.k_cache_size,0,0], self.k.value, [0,0,0,0])
+        self.k_cache_size+=x.shape[1]
+
+    def _forward_mlp_v_async(self):
         # V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V)
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
@@ -457,6 +500,24 @@ class Attention(BaseLayer):
             add_fiber_async(1, self.in_proj_bias_v.value, 1, \
                     self.v.value, 0, 1)
             self.in_proj_bias_v.value.wont_use()
+
+    def _forward_mlp_v_cached(self, x: Tensor):
+        import nntile.utils.constructors as nntc
+        v_partial_tr = nntc.zeros((1,)+ tuple(x.shape), dtype=type(x))
+        v_partial = nntc.zeros(tuple(x.shape)+(1,), dtype=type(x))
+        
+        gemm_async(1.0, notrans, self.w_v.value, notrans, 
+            x, 0.0, v_partial_tr, 1, 0, redux=self.redux)
+
+        transpose_async(1.0, v_partial_tr, v_partial, 1)
+        
+        if self.in_proj_bias_v is not None:
+            add_fiber_async(1, self.in_proj_bias_v.value, 1, v_partial, 0, 1)
+
+        copy_intersection_async(v_partial, [0,self.v_cache_size,0,0], self.v.value, [0,0,0,0])
+        self.v_cache_size+=x.shape[1]
+    
+    def _forward_attn_async(self):
         # Get tensor for softmax
         # A = 1.0/sqrt(head_size) * einsum('jklb,jmlb->kmlb', K, Q)
         # single batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
@@ -513,6 +574,25 @@ class Attention(BaseLayer):
                     0, 0)
             self.out_proj_bias.value.wont_use()
         self.y.value.wont_use()
+    
+    # Forward propagation of the attention layer
+    def forward_async(self):
+        # Compute query, key and value tensors
+        self._forward_mlp_q_async()
+        self._forward_mlp_k_async()
+        self._forward_mlp_v_async()
+        
+        # compute attention and weight result
+        self._forward_attn_async()
+
+    def forward_cached(self, x: TensorMoments):
+        # Compute query, key and value tensors
+        self._forward_mlp_q_cached(x.value)
+        self._forward_mlp_k_cached(x.value)
+        self._forward_mlp_v_cached(x.value)
+        
+        # compute attention and weight result
+        self._forward_attn_async()
 
     # Backward propagation of the linear layer
     def backward_async(self):
