@@ -72,6 +72,7 @@ else()
         "kernel/transpose/cpu.cc"
         "kernel/silu_forward/cpu.cc"
         "kernel/silu_backward/cpu.cc"
+        "kernel/norm_fiber/cpu.cc"
         )
 
     if(NNTILE_USE_CUDA)
