@@ -106,8 +106,8 @@ async def handle_bus_message(parsed_data, log_dir):
     if dst not in MEMORY_NODES_SUM_RECEIVED:
         MEMORY_NODES_SUM_RECEIVED[dst] = 0
 
-    MEMORY_NODES_SUM_SENT[src] += transferred_megabytes
-    MEMORY_NODES_SUM_RECEIVED[dst] += transferred_megabytes
+    MEMORY_NODES_SUM_SENT[src] += bus_speed_mbps
+    MEMORY_NODES_SUM_RECEIVED[dst] += bus_speed_mbps
 
     with WRITERS[bus_name].as_default():
         increaseStep(bus_name, NODE_COUNTER)
