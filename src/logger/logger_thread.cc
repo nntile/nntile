@@ -77,6 +77,8 @@ void logger_main()
         }
         for (busid = 0; busid < bus_cnt; busid++)
         {
+            int src, dst;
+            char src_name[128], dst_name[128];
             // Profiling info is read from StarPU
             struct starpu_profiling_bus_info info;
             int ret = starpu_bus_get_profiling_info(busid, &info);
@@ -85,12 +87,18 @@ void logger_main()
             // Read the profiling information for the bus
             double total_bus_time = starpu_timing_timespec_to_us(&info.total_time) / 1000.;
             uint64_t transferred_bytes = info.transferred_bytes;
+            src = starpu_bus_get_src(busid);
+		    dst = starpu_bus_get_dst(busid);
+            starpu_memory_node_get_name(src, src_name, sizeof(src_name));
+		    starpu_memory_node_get_name(dst, dst_name, sizeof(dst_name));        
 
             // Form message to send
-            char message[256];
-            snprintf(message, sizeof(message), "{\"type\": \"1\", \"bus_id\": \"%i\","
-                     "\"total_bus_time\": \"%.2lf\", \"transferred_bytes\": \"%llu\"}\n",
-                     busid, total_bus_time, transferred_bytes);
+            char message[512];
+            snprintf(message, sizeof(message),
+                "{ \"type\": \"1\", \"total_bus_time\": \"%.2lf\", "
+                " \"transferred_bytes\": \"%llu\","
+                " \"src_name\": \"%s\", \"dst_name\": \"%s\"}\n",
+                total_bus_time, transferred_bytes, src_name, dst_name);
             // Send the message
             if (send(client_socket, message, strlen(message), 0) != (ssize_t)strlen(message))
             {

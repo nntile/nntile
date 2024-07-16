@@ -22,8 +22,10 @@ from pathlib import Path
 import tensorflow as tf
 
 NODE_COUNTER = {}
-BUS_COUNTER = {}
 WRITERS = {}
+MEMORY_NODES_COUNTER = {}
+MEMORY_NODES_SUM_SENT = {}
+MEMORY_NODES_SUM_RECEIVED = {}
 LOG_DIR = "logs"
 
 
@@ -38,12 +40,6 @@ async def create_new_writer(log_dir, node_name):
 
 
 async def handle_new_logs(log_dir, split_hours):
-    global WRITERS
-    global NODE_COUNTER
-    global BUS_COUNTER
-    NODE_COUNTER = {}
-    BUS_COUNTER = {}
-    WRITERS = {}
     while True:
         await asyncio.sleep(split_hours * 60 * 60)
         for key in WRITERS.keys():
@@ -86,22 +82,55 @@ async def handle_flops_message(parsed_data, log_dir):
 
 
 async def handle_bus_message(parsed_data, log_dir):
-    bus_id = parsed_data.get("bus_id")
     total_bus_time = float(parsed_data.get("total_bus_time"))
     transferred_bytes = int(parsed_data.get("transferred_bytes"))
+    src = parsed_data.get("src_name")
+    dst = parsed_data.get("dst_name")
     transferred_megabytes = transferred_bytes / 1e6
     total_bus_time_seconds = total_bus_time / 1000
     bus_speed_mbps = transferred_megabytes / total_bus_time_seconds
+    bus_name = f"{src}->{dst}"
 
-    if bus_id not in WRITERS:
-        WRITERS[bus_id] = await create_new_writer(log_dir, f"bus_{bus_id}")
+    if bus_name not in WRITERS:
+        WRITERS[bus_name] = await create_new_writer(log_dir, bus_name)
 
-    with WRITERS[bus_id].as_default():
-        increaseStep(bus_id, BUS_COUNTER)
+    if src not in WRITERS:
+        WRITERS[src] = await create_new_writer(log_dir, src)
+
+    if dst not in WRITERS:
+        WRITERS[dst] = await create_new_writer(log_dir, dst)
+
+    if src not in MEMORY_NODES_SUM_SENT:
+        MEMORY_NODES_SUM_SENT[src] = 0
+
+    if dst not in MEMORY_NODES_SUM_RECEIVED:
+        MEMORY_NODES_SUM_RECEIVED[dst] = 0
+
+    MEMORY_NODES_SUM_SENT[src] += transferred_megabytes
+    MEMORY_NODES_SUM_RECEIVED[dst] += transferred_megabytes
+
+    with WRITERS[bus_name].as_default():
+        increaseStep(bus_name, NODE_COUNTER)
         tf.summary.scalar(
-                'Bus/Bus_speed_MBps',
-                bus_speed_mbps,
-                BUS_COUNTER[bus_id]
+            'Bus/Bus_speed_MBps',
+            bus_speed_mbps,
+            NODE_COUNTER[bus_name]
+        )
+
+    with WRITERS[src].as_default():
+        increaseStep(src, NODE_COUNTER)
+        tf.summary.scalar(
+            'Bus/Total_Sent_MB',
+            MEMORY_NODES_SUM_SENT[src],
+            NODE_COUNTER[src]
+        )
+
+    with WRITERS[dst].as_default():
+        increaseStep(dst, NODE_COUNTER)
+        tf.summary.scalar(
+            'Bus/Total_Received_MB',
+            MEMORY_NODES_SUM_RECEIVED[dst],
+            NODE_COUNTER[dst]
         )
 
 
