@@ -1158,6 +1158,44 @@ class LlamaAttention(BaseLayer):
         self.q_transposed.grad.invalidate_submit()
 
     @staticmethod
+    def rotate_tensor_in(x: np.ndarray, axis: int) -> np.ndarray:
+        if axis == 0:
+            new_shape = (1, x.shape[0], np.prod(x.shape[1:]))
+        elif axis == x.ndim - 1:
+            new_shape = (np.prod(x.shape[:-1]), x.shape[-1], 1)
+        else:
+            new_shape = (
+                    np.prod(x.shape[:axis]),
+                    x.shape[axis],
+                    np.prod(x.shape[axis + 1:])
+            )
+        x_reshaped = x.reshape(new_shape)
+        mid = x.shape[axis] // 2
+        y_reshaped = np.empty_like(x_reshaped)
+        y_reshaped[:, 0::2, :] = x_reshaped[:, :mid, :]
+        y_reshaped[:, 1::2, :] = x_reshaped[:, mid:, :]
+        return y_reshaped.reshape(x.shape)
+
+    @staticmethod
+    def rotate_tensor_out(x: np.ndarray, axis: int) -> np.ndarray:
+        if axis == 0:
+            new_shape = (1, x.shape[0], np.prod(x.shape[1:]))
+        elif axis == x.ndim - 1:
+            new_shape = (np.prod(x.shape[:-1]), x.shape[-1], 1)
+        else:
+            new_shape = (
+                    np.prod(x.shape[:axis]),
+                    x.shape[axis],
+                    np.prod(x.shape[axis + 1:])
+            )
+        x_reshaped = x.reshape(new_shape)
+        mid = x.shape[axis] // 2
+        y_reshaped = np.empty_like(x_reshaped)
+        y_reshaped[:, :mid, :] = x_reshaped[:, 0::2, :]
+        y_reshaped[:, mid:, :] = x_reshaped[:, 1::2, :]
+        return y_reshaped.reshape(x.shape)
+
+    @staticmethod
     def from_torch(
         torch_layer: LlamaAttention_torch, x: TensorMoments, n_head_tile: int
     ):  # -> Self: does not work with Python 3.10
@@ -1174,26 +1212,26 @@ class LlamaAttention(BaseLayer):
         tmp_q_shape = layer.w_q.value.shape.copy()
         tmp_q_shape[:2] = tmp_q_shape[1::-1]
         layer.w_q.value.from_array(
-            np.moveaxis(
-                torch_layer.q_proj.weight.detach()
-                .cpu()
-                .numpy()
-                .reshape(*tmp_q_shape),
-                0,
-                1,
+            __class__.rotate_tensor_in(
+                np.moveaxis(
+                    torch_layer.q_proj.weight.detach().cpu().numpy()
+                    .reshape(*tmp_q_shape),
+                    0,
+                    1,
+                ),
+                2
             )
         )
         layer.w_k.value.from_array(
-            torch_layer.k_proj.weight.detach()
-            .cpu()
-            .numpy()
-            .reshape(*layer.w_k.value.shape)
+            __class__.rotate_tensor_in(
+                torch_layer.k_proj.weight.detach().cpu().numpy()
+                .reshape(*layer.w_k.value.shape),
+                1
+            )
         )
         layer.w_v.value.from_array(
-            torch_layer.v_proj.weight.detach()
-            .cpu()
-            .numpy()
-            .reshape(*layer.w_v.value.shape)
+                torch_layer.v_proj.weight.detach().cpu().numpy()
+                .reshape(*layer.w_v.value.shape)
         )
         tmp_w_shape = layer.w.value.shape.copy()
         tmp_w_shape[1:3] = tmp_w_shape[2:0:-1]
@@ -1249,13 +1287,16 @@ class LlamaAttention(BaseLayer):
         )
         torch_layer = LlamaAttention_torch(torch_layer_config, layer_idx=0)
         W_Q_tensor = torch.tensor(
-            np.moveaxis(to_numpy(self.w_q.value), 0, 1).reshape(
-                self.n_emb, self.n_emb
-            ),
+            np.moveaxis(
+                __class__.rotate_tensor_out(to_numpy(self.w_q.value), 2),
+                0,
+                1
+            ).reshape(self.n_emb, self.n_emb),
             requires_grad=True,
         )
         W_K_tensor = torch.tensor(
-            to_numpy(self.w_k.value).reshape(self.n_emb_kv, self.n_emb),
+            __class__.rotate_tensor_out(to_numpy(self.w_k.value), 1)
+            .reshape(self.n_emb_kv, self.n_emb),
             requires_grad=True,
         )
         W_V_tensor = torch.tensor(
