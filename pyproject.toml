@@ -95,6 +95,9 @@ select = ["E", "F", "NPY", "PYI", "PTH"]
 ignore = ["PTH123"]
 preview = true
 
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "single"
+
 [tool.ruff.lint.pycodestyle]
 max-doc-length = 79
 max-line-length = 79
