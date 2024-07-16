@@ -21,7 +21,7 @@ from nntile.tensor import (
     Tensor, TensorMoments, TensorTraits, add_fiber_async, add_slice_async,
     clear_async, gemm_async, mask_scalar_async, maxsumexp_async, notrans,
     prod_async, softmax_inplace_async, sum_fiber_async, sum_slice_async,
-    sumprod_slice_async, to_numpy, trans, transpose_async)
+    sumprod_slice_async, to_numpy, trans, transpose_async, rope_async)
 
 
 # LLaMa Multi-Query Self-Attention with Rotary Embeddings
@@ -38,8 +38,10 @@ class LlamaAttention(BaseLayer):
     w: TensorMoments
     q_transposed: TensorMoments
     q: TensorMoments
+    q_rope: TensorMoments
     k_transposed: TensorMoments
     k: TensorMoments
+    k_rope: TensorMoments
     k_rep: TensorMoments
     v_transposed: TensorMoments
     v: TensorMoments
@@ -49,6 +51,8 @@ class LlamaAttention(BaseLayer):
     a_sumprod_slice: Tensor
     b: TensorMoments
     b_transposed: TensorMoments
+    sin: Tensor
+    cos: Tensor
     n_emb: int
     n_emb_kv: int
     n_seq: int
@@ -69,8 +73,10 @@ class LlamaAttention(BaseLayer):
         w: TensorMoments,
         q_transposed: TensorMoments,
         q: TensorMoments,
+        q_rope: TensorMoments,
         k_transposed: TensorMoments,
         k: TensorMoments,
+        k_rope: TensorMoments,
         k_rep: TensorMoments,
         v_transposed: TensorMoments,
         v: TensorMoments,
@@ -80,6 +86,8 @@ class LlamaAttention(BaseLayer):
         a_sumprod_slice: Tensor,
         b: TensorMoments,
         b_transposed: TensorMoments,
+        sin: Tensor,
+        cos: Tensor,
         in_proj_bias_q: TensorMoments,
         in_proj_bias_k: TensorMoments,
         in_proj_bias_v: TensorMoments,
@@ -110,8 +118,10 @@ class LlamaAttention(BaseLayer):
             [
                 q_transposed,
                 q,
+                q_rope,
                 k_transposed,
                 k,
+                k_rope,
                 k_rep,
                 v_transposed,
                 v,
@@ -121,6 +131,8 @@ class LlamaAttention(BaseLayer):
                 a_sumprod_slice,
                 b,
                 b_transposed,
+                sin,
+                cos
             ],
         )
         self.x = x
@@ -142,10 +154,12 @@ class LlamaAttention(BaseLayer):
         self.q_transposed = q_transposed
         self.q_transposed.value.set_reduction_add()
         self.q = q
+        self.q_rope = q_rope
         self.q.grad.set_reduction_add()
         self.k_transposed = k_transposed
         self.k_transposed.value.set_reduction_add()
         self.k = k
+        self.k_rope = k_rope
         self.k.grad.set_reduction_add()
         self.k_rep = k_rep
         self.k_rep.grad.set_reduction_add()
@@ -166,6 +180,8 @@ class LlamaAttention(BaseLayer):
         self.b.value.set_reduction_add()
         self.b_transposed = b_transposed
         self.b_transposed.grad.set_reduction_add()
+        self.sin = sin,
+        self.cos = cos,
         self.in_proj_bias_q = in_proj_bias_q
         self.in_proj_bias_k = in_proj_bias_k
         self.in_proj_bias_v = in_proj_bias_v
@@ -200,6 +216,8 @@ class LlamaAttention(BaseLayer):
         n_head: int,
         n_head_tile: int,
         n_head_kv: int,
+        position_ids: np.ndarray,
+        theta: np.float32,
         next_tag: int,
         bias=False,
         mask=None,
@@ -237,8 +255,10 @@ class LlamaAttention(BaseLayer):
             n_batch,
         ]
         q_shape = [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+        q_rope_shape = [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
         k_transposed_shape = [n_head_kv, head_size, n_seq, n_batch]
         k_shape = [head_size, n_seq, n_batch, n_head_kv]
+        k_rope_shape = [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
         k_rep_shape = [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
         v_transposed_shape = [n_head_kv, head_size, n_seq, n_batch]
         v_shape = [head_size, n_seq, n_batch, n_head_kv]
@@ -254,6 +274,8 @@ class LlamaAttention(BaseLayer):
             n_seq,
             n_batch,
         ]
+        cos_shape = [head_size // 2, n_seq, n_batch]
+        sin_shape = [head_size // 2, n_seq, n_batch]
         # Define tile shapes of each tensor
         w_q_basetile = [
             kv_group_size_tile,
@@ -283,6 +305,13 @@ class LlamaAttention(BaseLayer):
             kv_group_size_tile,
             n_head_kv_tile,
         ]
+        q_rope_basetile = [
+            head_size_tile,
+            n_seq_tile,
+            n_batch_tile,
+            kv_group_size_tile,
+            n_head_kv_tile,
+        ]
         k_transposed_basetile = [
             n_head_kv_tile,
             head_size_tile,
@@ -290,6 +319,13 @@ class LlamaAttention(BaseLayer):
             n_batch_tile,
         ]
         k_basetile = [head_size_tile, n_seq_tile, n_batch_tile, n_head_kv_tile]
+        k_rope_basetile = [
+            head_size_tile,
+            n_seq_tile,
+            n_batch_tile,
+            kv_group_size_tile,
+            n_head_kv_tile,
+        ]
         k_rep_basetile = [
             head_size_tile,
             n_seq_tile,
@@ -345,6 +381,8 @@ class LlamaAttention(BaseLayer):
             n_seq_tile,
             n_batch_tile,
         ]
+        cos_basetile = [head_size_tile // 2, n_seq_tile, n_batch_tile]
+        sin_basetile = [head_size_tile // 2, n_seq_tile, n_batch_tile]
         # Define traits
         w_q_traits = TensorTraits(w_q_shape, w_q_basetile)
         w_k_traits = TensorTraits(w_k_shape, w_k_basetile)
@@ -354,10 +392,12 @@ class LlamaAttention(BaseLayer):
             q_transposed_shape, q_transposed_basetile
         )
         q_traits = TensorTraits(q_shape, q_basetile)
+        q_rope_traits = TensorTraits(q_rope_shape, q_rope_basetile)
         k_transposed_traits = TensorTraits(
             k_transposed_shape, k_transposed_basetile
         )
         k_traits = TensorTraits(k_shape, k_basetile)
+        k_rope_traits = TensorTraits(k_rope_shape, k_rope_basetile)
         k_rep_traits = TensorTraits(k_rep_shape, k_rep_basetile)
         v_transposed_traits = TensorTraits(
             v_transposed_shape, v_transposed_basetile
@@ -375,6 +415,8 @@ class LlamaAttention(BaseLayer):
         b_transposed_traits = TensorTraits(
             b_transposed_shape, b_transposed_basetile
         )
+        cos_traits = TensorTraits(cos_shape, cos_basetile)
+        sin_traits = TensorTraits(sin_shape, sin_basetile)
         # TODO change distribution
         w_q_distr = [0] * w_q_traits.grid.nelems
         w_k_distr = [0] * w_k_traits.grid.nelems
@@ -382,8 +424,10 @@ class LlamaAttention(BaseLayer):
         w_distr = [0] * w_traits.grid.nelems
         q_transposed_distr = [0] * q_transposed_traits.grid.nelems
         q_distr = [0] * q_traits.grid.nelems
+        q_rope_distr = [0] * q_rope_traits.grid.nelems
         k_transposed_distr = [0] * k_transposed_traits.grid.nelems
         k_distr = [0] * k_traits.grid.nelems
+        k_rope_distr = [0] * k_rope_traits.grid.nelems
         k_rep_distr = [0] * k_rep_traits.grid.nelems
         v_transposed_distr = [0] * v_transposed_traits.grid.nelems
         v_distr = [0] * v_traits.grid.nelems
@@ -403,6 +447,8 @@ class LlamaAttention(BaseLayer):
                 [head_size, n_head_kv], [head_size_tile, n_head_kv_tile]
             )
             in_proj_bias_kv_distr = [0] * in_proj_bias_kv_traits.grid.nelems
+        cos_distr = [0] * cos_traits.grid.nelems
+        sin_distr = [0] * sin_traits.grid.nelems
         # Define all the lists
         # w_q
         w_q_value = type(x.value)(w_q_traits, w_q_distr, next_tag)
@@ -488,6 +534,12 @@ class LlamaAttention(BaseLayer):
         q_grad = type(x.value)(q_traits, q_distr, next_tag)
         next_tag = q_grad.next_tag
         q = TensorMoments(q_value, q_grad, True)
+        # q_rope
+        q_rope_value = type(x.value)(q_rope_traits, q_rope_distr, next_tag)
+        next_tag = q_rope_value.next_tag
+        q_rope_grad = type(x.value)(q_rope_traits, q_rope_distr, next_tag)
+        next_tag = q_rope_grad.next_tag
+        q_rope = TensorMoments(q_rope_value, q_rope_grad, True)
         # k_transposed
         k_transposed_value = type(x.value)(
             k_transposed_traits, k_transposed_distr, next_tag
@@ -506,6 +558,12 @@ class LlamaAttention(BaseLayer):
         k_grad = type(x.value)(k_traits, k_distr, next_tag)
         next_tag = k_grad.next_tag
         k = TensorMoments(k_value, k_grad, True)
+        # k_rope
+        k_rope_value = type(x.value)(k_rope_traits, k_rope_distr, next_tag)
+        next_tag = k_rope_value.next_tag
+        k_rope_grad = type(x.value)(k_rope_traits, k_rope_distr, next_tag)
+        next_tag = k_grad.next_tag
+        k_rope = TensorMoments(k_rope_value, k_rope_grad, True)
         # k_rep
         k_rep_value = type(x.value)(k_rep_traits, k_rep_distr, next_tag)
         next_tag = k_rep_value.next_tag
@@ -570,6 +628,11 @@ class LlamaAttention(BaseLayer):
         b_transposed = TensorMoments(
             b_transposed_value, b_transposed_grad, True
         )
+        cos = type(x.value)(cos_traits, cos_distr, next_tag)
+        next_tag = cos.next_tag
+
+        sin = type(x.value)(sin_traits, sin_distr, next_tag)
+        next_tag = sin.next_tag
         # Allocate tensors for bias for q, k, v and output projection
         if bias:
             out_proj_bias_traits = TensorTraits([n_emb], [n_emb_tile])
@@ -594,6 +657,18 @@ class LlamaAttention(BaseLayer):
         y_grad = type(x.value)(y_traits, x.value.distribution, next_tag)
         next_tag = y_grad.next_tag
         y = TensorMoments(y_value, y_grad, True)
+
+        # Fill sin, cos tensors:
+        inv_freq = 1.0 / (theta ** (np.arange(0, head_size, 2, dtype=np.float32) / head_size))
+        freq_frame = np.empty((head_size // 2, n_seq, n_batch))
+        for i in range(n_batch):
+            freq_frame[:,:,i] = np.outer(inv_freq, position_ids[i, :])
+        np_freqs = np.array(freq_frame, dtype=np.float32, order='F')
+        np_cos = np.cos(np_freqs)
+        np_sin = np.sin(np_freqs)
+    
+        cos.from_array(np_cos)
+        sin.from_array(np_sin)
         # Create attention layer with all the provided data
         layer = LlamaAttention(
             x,
@@ -604,8 +679,10 @@ class LlamaAttention(BaseLayer):
             w,
             q_transposed,
             q,
+            q_rope,
             k_transposed,
             k,
+            k_rope,
             k_rep,
             v_transposed,
             v,
@@ -615,6 +692,8 @@ class LlamaAttention(BaseLayer):
             a_sumprod_slice,
             b,
             b_transposed,
+            sin,
+            cos,
             bias_inproj_q,
             bias_inproj_k,
             bias_inproj_v,
@@ -660,6 +739,10 @@ class LlamaAttention(BaseLayer):
                 1, self.in_proj_bias_q.value, 1, self.q.value, 0, 2
             )
             self.in_proj_bias_q.value.wont_use()
+        
+        # Perform RoPE on q
+        rope_async(self.sin, self.cos, self.q.value, self.q_rope.value, 3)
+
         # K_transposed = einsum('jkl,lmn->jkmn', W_K, X_K)
         # gemm (n_head_kv, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head_kv, head_size, n_seq, n_batch)
@@ -724,6 +807,9 @@ class LlamaAttention(BaseLayer):
         add_slice_async(1.0, self.k.value, 0.0, self.k_rep.value, 3)
         # K can be deleted
         self.k.value.invalidate_submit()
+
+        # Perform RoPE on k_rep
+        rope_async(self.sin, self.cos, self.k_rep.value, self.k_rope.value, 3)
         # Get tensor for softmax
         # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q)
         # single batched gemm
@@ -733,9 +819,9 @@ class LlamaAttention(BaseLayer):
         gemm_async(
             1.0 / self.head_size**0.5,
             trans,
-            self.k_rep.value,
+            self.k_rope.value,
             notrans,
-            self.q.value,
+            self.q_rope.value,
             0.0,
             self.a.value,
             1,
@@ -743,9 +829,11 @@ class LlamaAttention(BaseLayer):
             redux=self.redux,
         )
         clear_async(self.a_maxsumexp)
-        # Q and K_rep can be offloaded from GPU
+        # Q, K_rep, Q_rope, K_rope can be offloaded from GPU
         self.q.value.wont_use()
         self.k_rep.value.wont_use()
+        self.q_rope.value.wont_use()
+        self.k_rope.value.wont_use()
         # Calculate softmax inplace
         # A = softmax(A, axis=0)
         # Apply mask if needed
@@ -1197,13 +1285,16 @@ class LlamaAttention(BaseLayer):
 
     @staticmethod
     def from_torch(
-        torch_layer: LlamaAttention_torch, x: TensorMoments, n_head_tile: int
+        torch_layer: LlamaAttention_torch, x: TensorMoments, n_head_tile: int,
+        position_ids: np.ndarray, theta: np.float32
     ):  # -> Self: does not work with Python 3.10
         layer, _ = __class__.generate_simple(
             x,
             n_head=torch_layer.num_heads,
             n_head_tile=n_head_tile,
             n_head_kv=torch_layer.num_key_value_heads,
+            position_ids=position_ids,
+            theta=theta,
             next_tag=0,
             bias=torch_layer.q_proj.bias is not None,
             mask=None,

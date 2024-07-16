@@ -35,12 +35,12 @@ class RotaryEmbedding(BaseLayer):
 
     # Simple generator for the embedding layer
     @staticmethod
-    def generate_simple(x: TensorMoments, next_tag: int):
+    def generate_simple(x: TensorMoments, position_ids: np.ndarray, theta: float, next_tag: int):
         head_size, n_seq, n_batch, _ = x.value.shape
         head_size_tile, n_seq_tile, n_batch_tile, _ = x.value.basetile_shape
 
-        cos_shape = [int(head_size / 2) , n_seq, n_batch]
-        sin_shape = [int(head_size / 2) , n_seq, n_batch]
+        cos_shape = [int(head_size / 2), n_seq, n_batch]
+        sin_shape = [int(head_size / 2), n_seq, n_batch]
 
         cos_basetile = [int(head_size_tile / 2), n_seq_tile, n_batch_tile]
         sin_basetile = [int(head_size_tile / 2), n_seq_tile, n_batch_tile]
@@ -70,8 +70,19 @@ class RotaryEmbedding(BaseLayer):
         # Define Y as TensorMoments
         y = TensorMoments(y_value, y_grad, True)
 
+        inv_freq = 1.0 / (theta ** (np.arange(0, head_size, 2, dtype=np.float32) / head_size))
+        freq_frame = np.empty((head_size // 2, n_seq, n_batch))
+        for i in range(n_batch):
+            freq_frame[:,:,i] = np.outer(inv_freq, position_ids[i, :])
+        np_freqs = np.array(freq_frame, dtype=np.float32, order='F')
+        np_cos = np.cos(np_freqs)
+        np_sin = np.sin(np_freqs)
+    
+        cos.from_array(np_cos)
+        sin.from_array(np_sin)
+
         # Create rotary embedding layer with all the provided data
-        layer = RotaryEmbedding(x, y, sin, cos) 
+        layer = RotaryEmbedding(x, y, sin, cos)
         # Return layer and next tag to be used
         return (layer, next_tag)
 

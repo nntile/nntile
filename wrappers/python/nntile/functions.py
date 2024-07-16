@@ -1477,7 +1477,7 @@ def rope_async(
     sin: Tensor, cos: Tensor, x: Tensor, y: Tensor, axis: int
 ) -> None:
     """
-    Wrapper for multiprecision add_slice3
+    Wrapper for multiprecision rope
     """
     if type(x) is not type(y):
         raise TypeError

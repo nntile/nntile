@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/rope.hh"
 #include "nntile/starpu/rope.hh"
+#include <iostream>
 
 namespace nntile::tensor
 {
@@ -55,6 +56,9 @@ void rope_async(const Tensor<T> &sin, const Tensor<T> &cos,
         // Get destination tile traits
         auto sin_tile_traits = sin.get_tile_traits(i);
 
+        auto num_repetitions = dst.grid.matrix_shape[3][1];
+        auto step_stride = dst.grid.stride[3];
+
         Index m, k;
         m = sin_tile_traits.matrix_shape[1][0];
         k = sin_tile_traits.matrix_shape[1][1];
@@ -66,13 +70,12 @@ void rope_async(const Tensor<T> &sin, const Tensor<T> &cos,
         dst_tile_index[1] = sin_tile_index[1];
         dst_tile_index[2] = sin_tile_index[2];
 
-        // Loop through all necessary destination tiles across BATCH
-        for(Index j = 0; j < dst.grid.shape[axis]; ++j)
-        {
-            // Set floating axis
-            dst_tile_index[axis] = j;
-            // Get linear offset from index
-            Index dst_tile_offset = dst.grid.index_to_linear(dst_tile_index);
+        Index dst_tile_offset = dst_tile_index[0];
+        for (Index j = 1; j < 3; ++j) {
+            dst_tile_offset += dst_tile_index[j] * dst.grid.stride[j];
+        }
+        for (Index j = 0; j < num_repetitions; ++j) {
+            dst_tile_offset += step_stride * j;
             auto dst_tile_traits = dst.get_tile_traits(dst_tile_offset);
             // Get destination tile handle
             auto dst_tile_handle = dst.get_tile_handle(dst_tile_offset);
@@ -96,6 +99,37 @@ void rope_async(const Tensor<T> &sin, const Tensor<T> &cos,
             // Flush cache for the output tile on every node
             dst_tile_handle.mpi_flush();
         }
+
+        // // Loop through all necessary destination tiles across BATCH
+        // for(Index j = 0; j < dst.grid.shape[axis]; ++j)
+        // {
+        //     // Set floating axis
+        //     dst_tile_index[axis] = j;
+        //     // Get linear offset from index
+        //     Index dst_tile_offset = dst.grid.index_to_linear(dst_tile_index);
+        //     auto dst_tile_traits = dst.get_tile_traits(dst_tile_offset);
+        //     // Get destination tile handle
+        //     auto dst_tile_handle = dst.get_tile_handle(dst_tile_offset);
+        //     // Get src2 tile handle
+        //     auto src_tile_handle = src.get_tile_handle(dst_tile_offset);
+        //     // MPI rank of the destination tile
+        //     int dst_tile_rank = dst_tile_handle.mpi_get_rank();
+        //     // Transfer data
+        //     sin_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
+        //     cos_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
+        //     src_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
+        //     // Execute on destination node
+        //     if(mpi_rank == dst_tile_rank)
+        //     {
+        //         Index l;
+        //         l = dst_tile_traits.matrix_shape[1][1];
+        //         // Insert corresponding task
+        //         starpu::rope::submit<T>(m, k, l, sin_tile_handle, cos_tile_handle,
+        //                 src_tile_handle, dst_tile_handle);
+        //     }
+        //     // Flush cache for the output tile on every node
+        //     dst_tile_handle.mpi_flush();
+        // }
         
     }
 }

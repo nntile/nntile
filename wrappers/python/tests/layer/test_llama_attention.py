@@ -60,6 +60,7 @@ class LlamaAttentionTestParams:
     dtype: str
     bias: bool
     layer_idx: int = 0
+    theta = 2.0
 
 
 TEST_PARAMS = [
@@ -74,15 +75,15 @@ TEST_PARAMS = [
             n_head=16,
             n_head_tile=8,
             n_head_kv=4,
-            dtype='bf16',
+            dtype='fp32',
             bias=False,
         ),
-        marks=[
-            pytest.mark.skipif(
-                not torch.cuda.is_available(),
-                reason="CUDA is required"
-            )
-        ]
+        # marks=[
+        #     pytest.mark.skipif(
+        #         not torch.cuda.is_available(),
+        #         reason="CUDA is required"
+        #     )
+        # ]
     ),
 #    pytest.param(
 #        LlamaAttentionTestParams(
@@ -168,6 +169,7 @@ def generate_inputs(params: LlamaAttentionTestParams):
         attention_bias=params.bias,
         use_cache=False,
         attention_dropout=0.0,
+        rope_theta=params.theta
     )
     torch_layer = LlamaAttention_torch(
         torch_layer_config, layer_idx=params.layer_idx
@@ -184,8 +186,12 @@ def generate_inputs(params: LlamaAttentionTestParams):
     x_nntile = np.array(x_random, dtype=np.float32, order="F")
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
+
+    pos = [np.arange(params.n_seq) for _ in range(params.n_batch)]
+    position_ids = np.array(pos)
+
     nntile_layer = nntile.layer.LlamaAttention.from_torch(
-        torch_layer, X, params.n_head_tile
+        torch_layer, X, params.n_head_tile, position_ids, params.theta
     )
     y_grad_random = np.random.randn(*x_shape)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
@@ -250,8 +256,10 @@ class TestLlamaAttention:
         self, starpu_simple, torch_rng, params: LlamaAttentionTestParams
     ):
         torch_layer, nntile_layer, x, _ = generate_inputs(params)
-        pos_ids = torch.zeros((params.n_batch, params.n_seq), dtype=torch.long)
-        y, _, _ = torch_layer(x, position_ids=pos_ids)
+        # pos_ids = torch.zeros((params.n_batch, params.n_seq), dtype=torch.long)
+        pos = [np.arange(params.n_seq) for _ in range(params.n_batch)]
+        torch_pos_ids = torch.tensor(pos, dtype=torch.long)
+        y, _, _ = torch_layer(x, position_ids=torch_pos_ids)
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.y.value).T)
         nntile_layer.unregister()

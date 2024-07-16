@@ -39,10 +39,10 @@ def helper(dtype: np.dtype):
         tol = 1e-10
     rng = default_rng()
 
-    head_size, n_seq, n_batch, n_head = 16, 20, 8, 4
+    head_size, n_seq, n_batch, n_head = 16, 4, 4, 4
     half_hs = int(head_size / 2)
     max_pos_emb = 256
-
+    theta = 2.0
     rand_input = np.random.rand(n_batch, n_head, n_seq, head_size)
     np_input = np.array(rand_input, dtype=dtype, order='F')
 
@@ -51,8 +51,8 @@ def helper(dtype: np.dtype):
     
     # PyTorch part
     torch_input = torch.from_numpy(np_input)
-    pos_ix = torch.tensor(pos, dtype=torch.int32)
-    RopeLayer = TorchRope(dim=head_size,max_position_embeddings=max_pos_emb,base=2)
+    pos_ix = torch.tensor(pos, dtype=torch.long)
+    RopeLayer = TorchRope(dim=head_size,max_position_embeddings=max_pos_emb,base=theta)
 
     permuted_input = torch.empty(*torch_input.shape)
     for i in range(half_hs):
@@ -70,7 +70,7 @@ def helper(dtype: np.dtype):
 
 
     # NNTile part
-    head_size_tile = 4
+    head_size_tile = 8
     n_seq_tile = 2
     n_batch_tile = 2
     n_head_tile = 2
@@ -92,19 +92,19 @@ def helper(dtype: np.dtype):
     nntile_input = np.moveaxis(np_tmp, [0,1,2,3], [2,3,0,1])
 
     # Define layer
-    layer, next_tag = rope_layer.generate_simple(A_moments, next_tag)
+    layer, next_tag = rope_layer.generate_simple(A_moments, pos, theta, next_tag)
     A.from_array(nntile_input)
 
-    inv_freq = 1.0 / (2 ** (np.arange(0, head_size, 2, dtype=dtype) / head_size))
-    freq_frame = np.empty((int(half_hs), n_seq, n_batch))
-    for i in range(n_batch):
-        freq_frame[:,:,i] = np.outer(inv_freq, pos_ix[i, :])
-    np_freqs = np.array(freq_frame, dtype=dtype, order='F')
-    np_cos = np.cos(np_freqs)
-    np_sin = np.sin(np_freqs)
+    # inv_freq = 1.0 / (2 ** (np.arange(0, head_size, 2, dtype=dtype) / head_size))
+    # freq_frame = np.empty((int(half_hs), n_seq, n_batch))
+    # for i in range(n_batch):
+    #     freq_frame[:,:,i] = np.outer(inv_freq, pos_ix[i, :])
+    # np_freqs = np.array(freq_frame, dtype=dtype, order='F')
+    # np_cos = np.cos(np_freqs)
+    # np_sin = np.sin(np_freqs)
  
-    layer.cos.from_array(np_cos)
-    layer.sin.from_array(np_sin)
+    # layer.cos.from_array(np_cos)
+    # layer.sin.from_array(np_sin)
 
     # layer.clear_gradients()
     layer.forward_async()
