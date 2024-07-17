@@ -14,6 +14,7 @@
 
 #include "nntile/logger/logger_thread.hh"
 #include <iostream>
+#include <sstream>
 #include <thread>
 #include <atomic>
 #include <unistd.h>
@@ -100,7 +101,7 @@ void logger_main()
             src = starpu_bus_get_src(busid);
 		    dst = starpu_bus_get_dst(busid);
             starpu_memory_node_get_name(src, src_name, sizeof(src_name));
-		    starpu_memory_node_get_name(dst, dst_name, sizeof(dst_name));        
+		    starpu_memory_node_get_name(dst, dst_name, sizeof(dst_name));
             // Create JSON object for the bus
             ss << "{";
             ss << "\"total_bus_time\":" << total_bus_time << ",";

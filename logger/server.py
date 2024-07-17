@@ -17,6 +17,7 @@ import json
 import os
 import shutil
 import subprocess
+from functools import partial
 from pathlib import Path
 
 import tensorflow as tf
@@ -25,7 +26,6 @@ NODE_COUNTER = {}
 WRITERS = {}
 MEMORY_NODES_COUNTER_SEND = {}
 MEMORY_NODES_COUNTER_RECEIVED = {}
-LOG_DIR = "logs"
 
 
 def create_new_writer(log_dir, node_name):
@@ -42,11 +42,13 @@ async def handle_new_logs(log_dir, split_hours):
     while True:
         await asyncio.sleep(split_hours * 60 * 60)
         for key in WRITERS.keys():
-            WRITERS[key] = create_new_writer(log_dir, key)    
+            WRITERS[key] = create_new_writer(log_dir, key)
+
 
 def write_data(writer, tag, value, step):
     with writer.as_default():
         tf.summary.scalar(tag, value, step)
+
 
 def increaseStep(node, node_dict):
     if node not in node_dict:
@@ -58,13 +60,13 @@ def increaseStep(node, node_dict):
 async def start_tensorboard(log_dir):
     print(Path.cwd())
     process = await asyncio.create_subprocess_exec(
-        'tensorboard',
-        '--logdir',
-        log_dir,
-        '--reload_multifile=true',
-        '--bind_all',
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
+            'tensorboard',
+            '--logdir',
+            log_dir,
+            '--reload_multifile=true',
+            '--bind_all',
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
     )
     stdout, stderr = await process.communicate()
     print(f'TensorBoard stdout: {stdout.decode()}')
@@ -78,9 +80,15 @@ def handle_flops_message(workers_data, log_dir):
         flops = float(worker.get("flops"))
         if name not in WRITERS:
             WRITERS[name] = create_new_writer(log_dir, name)
-        
-        increaseStep(name, NODE_COUNTER)    
-        write_data(WRITERS[name], "GFlop/s", flops / time / 1e9, NODE_COUNTER[name])    
+
+        increaseStep(name, NODE_COUNTER)
+        write_data(
+                WRITERS[name],
+                'Perf/GFlops/s',
+                flops / time / 1e9,
+                NODE_COUNTER[name]
+        )
+
 
 def handle_bus_message(buses_data, log_dir):
     memory_nodes_sum_sent = {}
@@ -94,30 +102,46 @@ def handle_bus_message(buses_data, log_dir):
         bus_name = f"{src}->{dst}"
         if bus_name not in WRITERS:
             WRITERS[bus_name] = create_new_writer(log_dir, bus_name)
-            
-        increaseStep(bus_name, NODE_COUNTER)    
-        write_data(WRITERS[bus_name], 'Bus/Link_speed_GB/s', bus_speed_gbps, NODE_COUNTER[bus_name])    
 
-        memory_nodes_sum_sent[src] = memory_nodes_sum_sent.get(src, 0) + bus_speed_gbps
-        memory_nodes_sum_received[dst] = memory_nodes_sum_received.get(dst, 0) + bus_speed_gbps
-            
+        increaseStep(bus_name, NODE_COUNTER)
+        write_data(
+                WRITERS[bus_name],
+                'Perf/Data_link_GB/s',
+                bus_speed_gbps,
+                NODE_COUNTER[bus_name]
+        )
+
+        memory_nodes_sum_sent[src] = memory_nodes_sum_sent.get(src, 0) \
+                + bus_speed_gbps
+        memory_nodes_sum_received[dst] = \
+                memory_nodes_sum_received.get(dst, 0) + bus_speed_gbps
+
     for name, speed in memory_nodes_sum_sent.items():
         if name not in WRITERS:
             WRITERS[name] = create_new_writer(log_dir, name)
-            
-        increaseStep(name, MEMORY_NODES_COUNTER_SEND)    
-        write_data(WRITERS[name], 'Bus/MemNode_Sent_GB/s', speed, MEMORY_NODES_COUNTER_SEND[name])    
-            
-            
+
+        increaseStep(name, MEMORY_NODES_COUNTER_SEND)
+        write_data(
+                WRITERS[name],
+                'Perf/Data_send_GB/s',
+                speed,
+                MEMORY_NODES_COUNTER_SEND[name]
+        )
+
     for name, speed in memory_nodes_sum_received.items():
         if name not in WRITERS:
             WRITERS[name] = create_new_writer(log_dir, name)
-            
-        increaseStep(name, MEMORY_NODES_COUNTER_RECEIVED)    
-        write_data(WRITERS[name], 'Bus/MemNode_Recv_GB/s', speed, MEMORY_NODES_COUNTER_RECEIVED[name])
+
+        increaseStep(name, MEMORY_NODES_COUNTER_RECEIVED)
+        write_data(
+                WRITERS[name],
+                'Perf/Data_recv_GB/s',
+                speed,
+                MEMORY_NODES_COUNTER_RECEIVED[name]
+        )
 
 
-async def handle_client(reader, writer):
+async def handle_client(log_dir, reader, writer):
     addr = writer.get_extra_info('peername')
     print(f"Connect from {addr}")
     while True:
@@ -129,23 +153,24 @@ async def handle_client(reader, writer):
             parsed_data = json.loads(message)
             workers_data = parsed_data.get("workers")
             buses_data = parsed_data.get("buses")
-            handle_flops_message(workers_data, LOG_DIR)
-            handle_bus_message(buses_data, LOG_DIR)
+            handle_flops_message(workers_data, log_dir)
+            handle_bus_message(buses_data, log_dir)
         except json.JSONDecodeError:
             print("Error decoding JSON:", message)
 
+
 async def main():
     log_dir = os.environ.get('LOG_DIR', 'logs')
-    global LOG_DIR
-    LOG_DIR = log_dir
     split_hours = int(os.environ.get('SPLIT_HOURS', 24))
     clear_logs = int(os.environ.get('CLEAR_LOGS', 1))
     server_port = int(os.environ.get('SERVER_PORT', 5001))
 
     Path(log_dir).mkdir(parents=True)
     print(f"log_dir={log_dir}, split_hours={split_hours}")
+
+    handle_client_log = partial(handle_client, log_dir)
     server = await asyncio.start_server(
-        handle_client, "0.0.0.0", server_port)
+        handle_client_log, "0.0.0.0", server_port)
 
     addr = server.sockets[0].getsockname()
     print(f"Server has been started on {addr}")
