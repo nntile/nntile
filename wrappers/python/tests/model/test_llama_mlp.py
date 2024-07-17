@@ -21,8 +21,9 @@ import torch
 from transformers.models.llama.modeling_llama import LlamaConfig, LlamaMLP
 
 import nntile
-from nntile.layer.llama_mlp import LlamaMLP as LlamaMLP_nntile
-from nntile.model.llama import LlamaConfig as LlamaConfig_nntile
+from nntile.model.llama_config import LlamaConfigNNTile
+from nntile.model.llama_mlp import LlamaMLP as LlamaMLP_nntile
+# from nntile.model.llama import LlamaConfigNNTile
 from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
 
@@ -134,7 +135,7 @@ def generate_inputs(params: LlamaMLPTestParams):
     torch_layer = LlamaMLP(
         torch_layer_config
     )
-    nntile_config = LlamaConfig_nntile(
+    nntile_config = LlamaConfigNNTile(
         hidden_size=params.hidden_size,
         hidden_size_tile=params.hidden_size_tile,
         intermediate_size=params.intermediate_size,

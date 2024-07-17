@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/layer/llama_mlp.py
-# LlamaMLP layer of NNTile Python package
+# @file wrappers/python/nntile/model/llama_mlp.py
+# LlamaMLP submodule of NNTile Python package
 #
 # @version 1.0.0
 
@@ -15,20 +15,20 @@ import torch
 from transformers import LlamaConfig as LlamaConfig_torch
 from transformers.models.llama.modeling_llama import LlamaMLP as LlamaMLP_torch
 
-from nntile.model.base_model import BaseModel
-from nntile.model.llama import LlamaConfig as LlamaConfig_nntile
 from nntile.tensor import TensorMoments, notrans, to_numpy
 
-from .act import Act
-from .linear import Linear
-from .prod import Prod
+from ..layer.act import Act
+from ..layer.linear import Linear
+from ..layer.prod import Prod
+from .base_model import BaseModel
+from .llama_config import LlamaConfigNNTile
 
 
 class LlamaMLP(BaseModel):
     next_tag: int
 
     # Construct model with all the provided data
-    def __init__(self, x: TensorMoments, config: LlamaConfig_nntile,
+    def __init__(self, x: TensorMoments, config: LlamaConfigNNTile,
                  next_tag: int):
         # Init activations and list of layers
         activations = [x]
@@ -107,7 +107,7 @@ class LlamaMLP(BaseModel):
 
     @staticmethod
     def from_torch(
-        torch_mlp, x: TensorMoments, config: LlamaConfig_nntile, next_tag: int
+        torch_mlp, x: TensorMoments, config: LlamaConfigNNTile, next_tag: int
     ):
         """
         torch_mlp is PyTorch MLP where no biases in linear layers
