@@ -55,17 +55,14 @@ def helper(dtype: np.dtype):
     RopeLayer = TorchRope(dim=head_size,max_position_embeddings=max_pos_emb,base=theta)
 
     permuted_input = torch.empty(*torch_input.shape)
-    for i in range(half_hs):
-        permuted_input[..., i] = torch_input[..., 2*i]
-        permuted_input[..., half_hs + i] = torch_input[..., 2*i + 1]
-    
+    permuted_input[...,:half_hs] = torch_input[..., 0::2]
+    permuted_input[...,half_hs:] = torch_input[..., 1::2]
     cos, sin = RopeLayer.forward(permuted_input,pos_ix)
     torch_permuted_output = apply_rotary_pos_emb(permuted_input, cos, sin)
 
     torch_output = torch.empty(*torch_permuted_output.shape)
-    for i in range(half_hs):
-        torch_output[..., 2*i] = torch_permuted_output[..., i]
-        torch_output[..., 2*i+1] = torch_permuted_output[..., half_hs + i]
+    torch_output[...,0::2] = torch_permuted_output[..., :half_hs]
+    torch_output[...,1::2] = torch_permuted_output[..., half_hs:]
     np_torch_output = np.array(torch_output.detach().numpy(), order="F", dtype=dtype)
 
 
