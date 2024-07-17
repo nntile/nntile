@@ -65,18 +65,6 @@ class LlamaAttentionTestParams:
 
 single_tile = LlamaAttentionTestParams(
     n_emb=128,
-    n_emb_tile=32,
-    n_seq=64,
-    n_seq_tile=16,
-    n_batch=4,
-    n_batch_tile=1,
-    n_head=16,
-    n_head_tile=8,
-    n_head_kv=4,
-)
-
-multiple_tiles = LlamaAttentionTestParams(
-    n_emb=128,
     n_emb_tile=128,
     n_seq=64,
     n_seq_tile=64,
@@ -84,6 +72,18 @@ multiple_tiles = LlamaAttentionTestParams(
     n_batch_tile=3,
     n_head=8,
     n_head_tile=4,
+    n_head_kv=4,
+)
+
+multiple_tiles = LlamaAttentionTestParams(
+    n_emb=128,
+    n_emb_tile=32,
+    n_seq=64,
+    n_seq_tile=16,
+    n_batch=4,
+    n_batch_tile=1,
+    n_head=16,
+    n_head_tile=8,
     n_head_kv=4,
 )
 
@@ -123,7 +123,7 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool):
     pos_ids_torch = torch.tensor(pos_ids, dtype=torch.long)
 
     nntile_layer = nntile.layer.LlamaAttention.from_torch(
-        torch_layer, X, params.n_head_tile, pos_ids, params.theta
+            torch_layer, X, params.n_head_tile, pos_ids, params.theta
     )
     y_grad_random = rng.standard_normal(x_shape)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
@@ -144,9 +144,10 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool):
 ])
 class TestLlamaAttention:
 
-    def test_torch_coersion(self, starpu_simple, torch_rng, dtype: str,
+    def test_torch_coercion(self, starpu_simple, torch_rng, dtype: str,
                             params: LlamaAttentionTestParams, bias: bool):
-        torch_layer, nntile_layer, _, _ = generate_inputs(dtype, params, bias)
+        torch_layer, nntile_layer, _, _, _ = \
+                generate_inputs(dtype, params, bias)
         torch_layer_other = nntile_layer.to_torch()
         nntile_layer.unregister()
         nntile_layer.x.unregister()
@@ -195,8 +196,8 @@ class TestLlamaAttention:
 
     def test_forward(self, starpu_simple, torch_rng, dtype: str,
                      params: LlamaAttentionTestParams, bias: bool):
-        torch_layer, nntile_layer, x, _ = generate_inputs(dtype, params, bias)
-        pos_ids = torch.zeros((params.n_batch, params.n_seq), dtype=torch.long)
+        torch_layer, nntile_layer, x, pos_ids, _ = \
+                generate_inputs(dtype, params, bias)
         y, _, _ = torch_layer(x, position_ids=pos_ids)
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.y.value).T)
@@ -211,9 +212,8 @@ class TestLlamaAttention:
 
     def test_forward_backward(self, starpu_simple, torch_rng, dtype: str,
                               params: LlamaAttentionTestParams, bias: bool):
-        torch_layer, nntile_layer, x, y_grad = \
-            generate_inputs(dtype, params, bias)
-        torch_layer_other = nntile_layer.to_torch()
+        torch_layer, nntile_layer, x, pos_ids, y_grad = \
+                generate_inputs(dtype, params, bias)
         y, _, _ = torch_layer(x, position_ids=pos_ids)
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.y.value).T)
@@ -232,41 +232,41 @@ class TestLlamaAttention:
         assert_close_by_frobnorm(
             torch_layer.q_proj.weight.grad.detach().numpy(),
             torch_layer_other.q_proj.weight.grad.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.k_proj.weight.grad.detach().numpy(),
             torch_layer_other.k_proj.weight.grad.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.v_proj.weight.grad.detach().numpy(),
             torch_layer_other.v_proj.weight.grad.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.o_proj.weight.grad.detach().numpy(),
             torch_layer_other.o_proj.weight.grad.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         if bias:
             assert_close_by_frobnorm(
                 torch_layer.q_proj.bias.grad.detach().numpy(),
                 torch_layer_other.q_proj.bias.grad.detach().numpy(),
-                **dtype2tol[params.dtype]
+                **dtype2tol[dtype]
             )
             assert_close_by_frobnorm(
                 torch_layer.k_proj.bias.grad.detach().numpy(),
                 torch_layer_other.k_proj.bias.grad.detach().numpy(),
-                **dtype2tol[params.dtype]
+                **dtype2tol[dtype]
             )
             assert_close_by_frobnorm(
                 torch_layer.v_proj.bias.grad.detach().numpy(),
                 torch_layer_other.v_proj.bias.grad.detach().numpy(),
-                **dtype2tol[params.dtype]
+                **dtype2tol[dtype]
             )
             assert_close_by_frobnorm(
                 torch_layer.o_proj.bias.grad.detach().numpy(),
                 torch_layer_other.o_proj.bias.grad.detach().numpy(),
-                **dtype2tol[params.dtype]
+                **dtype2tol[dtype]
             )

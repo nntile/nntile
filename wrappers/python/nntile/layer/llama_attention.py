@@ -1400,7 +1400,7 @@ class LlamaAttention(BaseLayer):
             attention_dropout=0.0,
         )
         torch_layer = LlamaAttention_torch(torch_layer_config, layer_idx=0)
-        W_Q_tensor = torch.tensor(
+        torch_layer.q_proj.weight.data = torch.tensor(
             np.moveaxis(
                 __class__.rotate_tensor_out(to_numpy(self.w_q.value), 2),
                 0,
@@ -1408,25 +1408,21 @@ class LlamaAttention(BaseLayer):
             ).reshape(self.n_emb, self.n_emb),
             requires_grad=True,
         )
-        W_K_tensor = torch.tensor(
+        torch_layer.k_proj.weight.data = torch.tensor(
             __class__.rotate_tensor_out(to_numpy(self.w_k.value), 1)
             .reshape(self.n_emb_kv, self.n_emb),
             requires_grad=True,
         )
-        W_V_tensor = torch.tensor(
+        torch_layer.v_proj.weight.data = torch.tensor(
             to_numpy(self.w_v.value).reshape(self.n_emb_kv, self.n_emb),
             requires_grad=True,
         )
-        torch_layer.q_proj.weight.data = W_Q_tensor
-        torch_layer.k_proj.weight.data = W_K_tensor
-        torch_layer.v_proj.weight.data = W_V_tensor
-        W_out_tensor = torch.tensor(
+        torch_layer.o_proj.weight.data = torch.tensor(
             np.moveaxis(to_numpy(self.w.value), 1, 2).reshape(
                 self.n_emb, self.n_emb
             ),
             requires_grad=True,
         )
-        torch_layer.o_proj.weight.data = W_out_tensor
         if bias:
             torch_layer.o_proj.bias.data = torch.tensor(
                 to_numpy(self.out_proj_bias.value).flatten(),
@@ -1459,8 +1455,8 @@ class LlamaAttention(BaseLayer):
             np.moveaxis(
                 __class__.rotate_tensor_out(to_numpy(self.w_q.grad), 2),
                 0,
-                1)
-            .reshape(self.n_emb, self.n_emb)
+                1
+            ).reshape(self.n_emb, self.n_emb)
         )
         torch_layer.k_proj.weight.grad = torch.tensor(
             __class__.rotate_tensor_out(to_numpy(self.w_k.grad), 1)
@@ -1470,9 +1466,9 @@ class LlamaAttention(BaseLayer):
             to_numpy(self.w_v.grad).reshape(self.n_emb_kv, self.n_emb)
         )
         torch_layer.o_proj.weight.grad = torch.tensor(
-            np.moveaxis(
-                np.moveaxis(to_numpy(self.w.grad), 1, 3), 2, 3
-            ).reshape(self.n_emb, self.n_emb)
+            np.moveaxis(to_numpy(self.w.grad), 1, 2).reshape(
+                self.n_emb, self.n_emb
+            )
         )
         if bias:
             torch_layer.o_proj.bias.grad = torch.tensor(
