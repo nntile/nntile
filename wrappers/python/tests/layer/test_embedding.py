@@ -11,24 +11,24 @@
 #
 # @version 1.0.0
 
-# All necesary imports
-import nntile
 import numpy as np
-# Set up StarPU configuration and init it
+import pytest
+import torch
+from numpy.testing import assert_equal
+
+import nntile
+from nntile.layer import Embedding
+
 config = nntile.starpu.Config(1, 0, 0)
-# Init all NNTile-StarPU codelets
 nntile.starpu.init()
-# Define list of tested types
-dtypes = [np.float32, np.float64]
+
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
-        np.float64: nntile.tensor.Tensor_fp64}
-# Get attention from PyTorch
-import torch
-from torch.nn import Embedding
+          np.float64: nntile.tensor.Tensor_fp64}
 
-# Helper function returns bool value true if test passes
-def helper(dtype: np.dtype):
+
+@pytest.mark.parametrize('dtype', [np.float32, np.float64])
+def test_embedding(dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
     index_shape = [4, 5, 6]
     vocab_size = 1000
@@ -40,24 +40,26 @@ def helper(dtype: np.dtype):
     mpi_distr = [0]
     next_tag = 0
     # Tensor objects
-    nntile_index = nntile.tensor.Tensor_int64(index_traits, mpi_distr, next_tag)
+    nntile_index = nntile.tensor.Tensor_int64(index_traits, mpi_distr,
+                                              next_tag)
     next_tag = nntile_index.next_tag
     # Set initial values of tensors
-    rand_index = np.random.randint(0, vocab_size, size=index_shape)
+    rng = np.random.default_rng(42)
+    rand_index = rng.integers(0, vocab_size, index_shape)
     np_index = np.array(rand_index, dtype=np.int64, order='F')
     nntile_index.from_array(np_index)
     torch_index = torch.tensor(np_index)
-    rand_vocab = np.random.randn(emb_size, vocab_size)
+    rand_vocab = rng.standard_normal((emb_size, vocab_size))
     np_vocab = np.array(rand_vocab, dtype=dtype, order='F')
-    rand_embed_grad = np.random.randn(*index_shape, emb_size)
+    rand_embed_grad = rng.standard_normal(index_shape + [emb_size])
     np_embed_grad = np.array(rand_embed_grad, dtype=dtype, order='F')
     # Define NNTile embedding layer
-    nntile_layer, next_tag = nntile.layer.Embedding.generate_simple( \
-            nntile_index, Tensor[dtype], axis, vocab_size, emb_size, \
-            emb_size_tile, emb_size_tile, next_tag)
+    nntile_layer, next_tag = Embedding.generate_simple(
+        nntile_index, Tensor[dtype], axis, vocab_size, emb_size, emb_size_tile,
+        emb_size_tile, next_tag)
     nntile_layer.w.value.from_array(np_vocab)
     # Define PyTorch embedding layer
-    torch_layer = Embedding(vocab_size, emb_size)
+    torch_layer = torch.nn.Embedding(vocab_size, emb_size)
     torch_layer.weight.data = torch.tensor(np_vocab.T)
     # NNTile forward
     nntile_layer.forward_async()
@@ -66,30 +68,16 @@ def helper(dtype: np.dtype):
     # PyTorch forward
     torch_embed = torch_layer(torch_index)
     # Check forward
-    assert (torch_embed.data.numpy() == nntile_embed).all()
+    assert_equal(torch_embed.data.numpy(), nntile_embed)
     # NNTile backward
     nntile_layer.y.grad.from_array(np_embed_grad)
     nntile.tensor.clear_async(nntile_layer.w.grad)
     nntile_layer.backward_async()
     nntile_layer.w.grad.to_array(np_vocab)
     # PyTorch backward
-    res = (torch_embed*torch.tensor(np_embed_grad)).sum()
+    res = (torch_embed * torch.tensor(np_embed_grad)).sum()
     res.backward()
     np_vocab_torch = torch_layer.weight.grad.numpy().T
-    assert (np.linalg.norm(np_vocab_torch-np_vocab) \
-            / np.linalg.norm(np_vocab_torch) < 1e-6)
-    return True
-
-# Test runner for different precisions
-def test():
-    for dtype in dtypes:
-        assert helper(dtype)
-
-# Repeat tests
-def test_repeat():
-    for dtype in dtypes:
-        assert helper(dtype)
-
-if __name__ == "__main__":
-    test()
-    test_repeat()
+    abs_error = np.linalg.norm(np_vocab_torch - np_vocab)
+    rel_error = abs_error / np.linalg.norm(np_vocab_torch)
+    assert rel_error < 1e-6

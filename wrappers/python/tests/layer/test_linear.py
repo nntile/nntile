@@ -11,29 +11,27 @@
 #
 # @version 1.0.0
 
-# All necesary imports
-import nntile
 import numpy as np
+import pytest
 import torch
 import torch.nn as nn
 
-# Set up StarPU configuration and init it
-config = nntile.starpu.Config(1, 0, 0)
-# Init all NNTile-StarPU codelets
-nntile.starpu.init()
-# Define list of tested types
-dtypes = [np.float32, np.float64]
+import nntile
+from nntile.layer import Linear
+
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
-# Get multiprecision activation layer
-Linear = nntile.layer.Linear
 
-# Helper function returns bool value true if test passes
-def helper_l(dtype: np.dtype):
+config = nntile.starpu.Config(1, 0, 0)
+nntile.starpu.init()
+
+
+@pytest.mark.parametrize('dtype', [np.float32, np.float64])
+@pytest.mark.parametrize('side', ['L', 'R'])
+def test_linear(side: str, dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [4, 5, 6]
-    ndim = len(A_shape)
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
     next_tag = 0
@@ -43,110 +41,64 @@ def helper_l(dtype: np.dtype):
     A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = A_grad.next_tag
     # Set initial values of tensors
-    rand_A = np.random.randn(*A_shape)
+    rng = np.random.default_rng(42)
+    rand_A = rng.standard_normal(A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Define linear layer
-    layer, next_tag = Linear.generate_simple(A_moments, 'L',
-            nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag, bias=False)
-    rand_W = np.random.randn(*layer.w.value.shape)
+    layer, next_tag = Linear.generate_simple(
+        A_moments, side, nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag,
+        bias=False)
+    rand_W = rng.standard_normal(layer.w.value.shape)
     np_W = np.array(rand_W, dtype=dtype, order='F')
     layer.w.value.from_array(np_W)
     nntile.tensor.clear_async(layer.w.grad)
+
     # Check result of forward pass layer.y.value
     A.from_array(np_A)
     nntile.tensor.clear_async(A_grad)
     layer.forward_async()
-    np_Y = np.tensordot(np_A, np_W, 2)
+
+    match side:
+        case 'L':
+            np_Y = np.tensordot(np_A, np_W, 2)
+        case 'R':
+            np_Y = np.tensordot(np_W, np_A, 2)
     np_Y2 = np.zeros_like(np_Y, order='F')
     layer.y.value.to_array(np_Y2)
-    if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > 1e-5:
-        A_moments.unregister()
-        layer.unregister()
-        return False
+    assert np.linalg.norm(np_Y - np_Y2) / np.linalg.norm(np_Y) <= 1e-5
+
     # Check results of backward pass layer.w.grad and layer.x.grad
     layer.y.grad.from_array(np_Y)
     layer.backward_async()
-    np_Z = np.einsum("ijk,ilm->jklm", np_A, np_Y2)
+
+    match side:
+        case 'L':
+            np_Z = np.einsum("ijk,ilm->jklm", np_A, np_Y2)
+        case 'R':
+            np_Z = np.einsum("ijk,lmk->ijlm", np_Y2, np_A)
     np_Z2 = np.zeros_like(np_Z, order='F')
     layer.w.grad.to_array(np_Z2)
-    if np.linalg.norm(np_Z-np_Z2)/np.linalg.norm(np_Z) > 1e-5:
-        A_moments.unregister()
-        layer.unregister()
-        return False
-    np_Z3 = np.einsum("ijk,lmjk->ilm", np_Y2, np_W)
+    assert np.linalg.norm(np_Z - np_Z2) / np.linalg.norm(np_Z) <= 1e-5
+
+    match side:
+        case 'L':
+            np_Z3 = np.einsum("ijk,lmjk->ilm", np_Y2, np_W)
+        case 'R':
+            np_Z3 = np.einsum("ijkl,ijm->klm", np_W, np_Y2)
     np_Z4 = np.zeros_like(np_Z3, order='F')
     layer.x.grad.to_array(np_Z4)
-    if np.linalg.norm(np_Z3-np_Z4)/np.linalg.norm(np_Z3) > 1e-5:
-        A_moments.unregister()
-        layer.unregister()
-        return False
+    assert np.linalg.norm(np_Z3 - np_Z4) / np.linalg.norm(np_Z3) < 1e-5
+
     A_moments.unregister()
     layer.unregister()
-    return True
 
-# Helper function returns bool value true if test passes
-def helper_r(dtype: np.dtype):
-    # Describe single-tile tensor, located at node 0
-    A_shape = [4, 5, 6]
-    ndim = len(A_shape)
-    A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
-    mpi_distr = [0]
-    next_tag = 0
-    # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A_grad.next_tag
-    # Set initial values of tensors
-    rand_A = np.random.randn(*A_shape)
-    np_A = np.array(rand_A, dtype=dtype, order='F')
-    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
-    # Define linear layer
-    layer, next_tag = Linear.generate_simple(A_moments, 'R',
-            nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag, bias=False)
-    rand_W = np.random.randn(*layer.w.value.shape)
-    np_W = np.array(rand_W, dtype=dtype, order='F')
-    layer.w.value.from_array(np_W)
-    nntile.tensor.clear_async(layer.w.grad)
-    # Check result of forward pass layer.y.value
-    A.from_array(np_A)
-    nntile.tensor.clear_async(A_grad)
-    layer.forward_async()
-    np_Y = np.tensordot(np_W, np_A, 2)
-    np_Y2 = np.zeros_like(np_Y, order='F')
-    layer.y.value.to_array(np_Y2)
-    if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > 1e-5:
-        A_moments.unregister()
-        layer.unregister()
-        return False
-    # Check results of backward pass layer.w.grad and layer.x.grad
-    layer.y.grad.from_array(np_Y)
-    layer.backward_async()
-    np_Z = np.einsum("ijk,lmk->ijlm", np_Y2, np_A)
-    np_Z2 = np.zeros_like(np_Z, order='F')
-    layer.w.grad.to_array(np_Z2)
-    if np.linalg.norm(np_Z-np_Z2)/np.linalg.norm(np_Z) > 1e-5:
-        A_moments.unregister()
-        layer.unregister()
-        return False
-    np_Z3 = np.einsum("ijkl,ijm->klm", np_W, np_Y2)
-    np_Z4 = np.zeros_like(np_Z3, order='F')
-    layer.x.grad.to_array(np_Z4)
-    if np.linalg.norm(np_Z3-np_Z4)/np.linalg.norm(np_Z3) > 1e-5:
-        A_moments.unregister()
-        layer.unregister()
-        return False
-    A_moments.unregister()
-    layer.unregister()
-    return True
 
-# Helper function returns bool value true if test passes
-def helper_l_fp32_fast_fp16():
+@pytest.mark.skip(reason='not implemented')
+def test_linear_fp32_fast_fp16():
     dtype = np.float32
     # Describe single-tile tensor, located at node 0
     A_shape = [4, 5, 6]
-    ndim = len(A_shape)
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
     next_tag = 0
@@ -156,14 +108,15 @@ def helper_l_fp32_fast_fp16():
     A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
     next_tag = A_grad.next_tag
     # Set initial values of tensors
-    rand_A = np.random.randn(*A_shape)
+    rng = np.random.default_rng(42)
+    rand_A = rng.standard_normal(A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Define linear layer
-    layer, next_tag = Linear.generate_simple(A_moments, 'L',
-            nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag, \
-            fp32_fast_fp16=True, bias=False)
-    rand_W = np.random.randn(*layer.w.value.shape)
+    layer, next_tag = Linear.generate_simple(
+        A_moments, 'L', nntile.tensor.notrans, 2, [7, 8], [7, 8], next_tag,
+        fp32_fast_fp16=True, bias=False)
+    rand_W = rng.standard_normal(layer.w.value.shape)
     np_W = np.array(rand_W, dtype=dtype, order='F')
     layer.w.value.from_array(np_W)
     # Check result of forward pass layer.y.value
@@ -172,137 +125,59 @@ def helper_l_fp32_fast_fp16():
     np_Y = np.tensordot(np_A, np_W, 2)
     np_Y2 = np.zeros_like(np_Y, order='F')
     layer.y.value.to_array(np_Y2)
-    if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > 1e-5:
-        A_moments.unregister()
-        layer.unregister()
-        return False
+    assert np.linalg.norm(np_Y - np_Y2) / np.linalg.norm(np_Y) <= 1e-5
     # Check results of backward pass layer.w.grad and layer.x.grad
     layer.y.grad.from_array(np_Y)
     layer.backward_async()
     np_Z = np.einsum("ijk,ilm->jklm", np_A, np_Y2)
     np_Z2 = np.zeros_like(np_Z, order='F')
     layer.w.grad.to_array(np_Z2)
-    if np.linalg.norm(np_Z-np_Z2)/np.linalg.norm(np_Z) > 1e-5:
-        A_moments.unregister()
-        layer.unregister()
-        return False
+    assert np.linalg.norm(np_Z - np_Z2) / np.linalg.norm(np_Z) <= 1e-5
     np_Z3 = np.einsum("ijk,lmjk->ilm", np_Y2, np_W)
     np_Z4 = np.zeros_like(np_Z3, order='F')
     layer.x.grad.to_array(np_Z4)
-    if np.linalg.norm(np_Z3-np_Z4)/np.linalg.norm(np_Z3) > 1e-5:
-        A_moments.unregister()
-        layer.unregister()
-        return False
+    assert np.linalg.norm(np_Z3 - np_Z4) / np.linalg.norm(np_Z3) <= 1e-5
     A_moments.unregister()
     layer.unregister()
-    return True
 
-def helper_torch_l(x_shape, w_shape, b_shape, n_contracted_dim):
-    '''
-    y = x @ w + b
-    different shapes of b mean the axis of bias addition
-    '''
+
+# Support for multi-dim bias will be added later.
+#   ('L', [20, 10], [10, 5, 7], [5, 7], 1),
+#   ('R', [7, 2], [10, 5, 7], [10, 5], 1),
+@pytest.mark.parametrize('side,x_shape,w_shape,b_shape,n_contracted_dim', [
+    ('L', [20, 10], [10, 5], [5], 1),
+    ('L', [20, 10, 5], [10, 5, 7], [7], 2),
+    ('L', [20, 10, 5], [5, 7], [7], 1),
+    ('R', [5, 3], [10, 5], [10], 1),
+    ('R', [5, 7, 2], [10, 5, 7], [10], 2),
+    ('R', [7, 3, 10], [5, 7], [5], 1),
+])
+def test_linear_with_torch(side: str, x_shape, w_shape, b_shape,
+                           n_contracted_dim):
+    """Compare :py:class:`nntile.layer.Linear` and :py:class:`torch.nn.Linear`.
+
+    There are two cases depending on `side` parameter.
+
+        y = x @ w + b (left)
+        y = w @ x + b (right)
+
+    Different shapes of b mean the axis of bias addition.
+    """
     w_torch = torch.randn(w_shape, requires_grad=True)
     b_torch = torch.randn(b_shape, requires_grad=True)
     x_torch = torch.randn(x_shape, requires_grad=True)
 
-    y_torch = torch.tensordot(x_torch, w_torch, n_contracted_dim) \
-            + b_torch.view(1, *b_torch.shape)
-    loss_torch = y_torch.sum()
-    loss_torch.backward()
+    match side:
+        case 'L':
+            y_torch = (torch.tensordot(x_torch, w_torch, n_contracted_dim) +
+                       b_torch.view(1, *b_torch.shape))
+        case 'R':
+            y_torch = torch.tensordot(w_torch, x_torch, n_contracted_dim)
+            if len(y_torch.shape) - len(b_torch.shape) == 1:
+                y_torch += b_torch.view(*b_torch.shape, 1)
+            elif len(y_torch.shape) - len(b_torch.shape) == 2:
+                y_torch += b_torch.view(*b_torch.shape, 1, 1)
 
-    A_traits = nntile.tensor.TensorTraits(x_torch.shape, x_torch.shape)
-    mpi_distr = [0]
-    next_tag = 0
-    # Tensor objects
-    A = Tensor[np.float32](A_traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    A_grad = Tensor[np.float32](A_traits, mpi_distr, next_tag)
-    next_tag = A_grad.next_tag
-    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
-    layer, next_tag = Linear.generate_simple(A_moments, 'L', \
-            nntile.tensor.notrans, n_contracted_dim, \
-            [*w_shape[n_contracted_dim:]], \
-            [*w_shape[n_contracted_dim:]], next_tag, bias=True)
-
-    np_W = np.array(w_torch.detach().numpy(), dtype=np.float32, order='F')
-    layer.w.value.from_array(np_W)
-    np_b = np.array(b_torch.detach().numpy(), dtype=np.float32, order='F')
-    layer.b.value.from_array(np_b)
-    nntile.tensor.clear_async(layer.w.grad)
-    nntile.tensor.clear_async(layer.b.grad)
-    # Check result of forward pass layer.y.value
-    np_A = np.array(x_torch.detach().numpy(), dtype=np.float32, order='F')
-    A.from_array(np_A)
-    nntile.tensor.clear_async(A_grad)
-    layer.forward_async()
-    layer.y.grad.from_array(np.array(np.ones(y_torch.shape), order="F", \
-            dtype=np.float32))
-    layer.backward_async()
-
-    nntile_res = np.zeros(y_torch.shape, dtype=np.float32, order="F")
-    layer.y.value.to_array(nntile_res)
-    output_rel_error = np.linalg.norm(nntile_res - y_torch.detach().numpy()) \
-            / np.linalg.norm(y_torch.detach().numpy())
-    if output_rel_error > 1e-5:
-        print("Output rel error = {}".format(output_rel_error))
-        A_moments.unregister()
-        layer.unregister()
-        assert False
-
-    nntile_w_grad = np.zeros(w_torch.shape, dtype=np.float32, order="F")
-    layer.w.grad.to_array(nntile_w_grad)
-    w_grad_rel_error = np.linalg.norm(nntile_w_grad - \
-            w_torch.grad.detach().numpy()) \
-            / np.linalg.norm(w_torch.grad.detach().numpy())
-    if w_grad_rel_error > 1e-5:
-        print("W grad rel error = {}".format(w_grad_rel_error))
-        A_moments.unregister()
-        layer.unregister()
-        assert False
-
-    nntile_b_grad = np.zeros(b_torch.shape, dtype=np.float32, order="F")
-    layer.b.grad.to_array(nntile_b_grad)
-
-    b_grad_rel_error = np.linalg.norm(nntile_b_grad - \
-            b_torch.grad.detach().numpy()) \
-            / np.linalg.norm(b_torch.grad.detach().numpy())
-    if b_grad_rel_error > 1e-5:
-        print("b grad rel error = {}".format(b_grad_rel_error))
-        A_moments.unregister()
-        layer.unregister()
-        assert False
-
-    nntile_x_grad = np.zeros(x_torch.shape, dtype=np.float32, order="F")
-    A_moments.grad.to_array(nntile_x_grad)
-    x_grad_rel_error = np.linalg.norm(nntile_x_grad - \
-            x_torch.grad.detach().numpy()) \
-            / np.linalg.norm(x_torch.grad.detach().numpy())
-    if x_grad_rel_error > 1e-5:
-        print("x grad rel error = {}".format(x_grad_rel_error))
-        A_moments.unregister()
-        layer.unregister()
-        assert False
-
-    A_moments.unregister()
-    layer.unregister()
-
-    return True
-
-def helper_torch_r(x_shape, w_shape, b_shape, n_contracted_dim):
-    '''
-    y = w @ x + b
-    different shapes of b mean the axis of bias addition
-    '''
-    w_torch = torch.randn(w_shape, requires_grad=True)
-    b_torch = torch.randn(b_shape, requires_grad=True)
-    x_torch = torch.randn(x_shape, requires_grad=True)
-
-    y_torch = torch.tensordot(w_torch, x_torch, n_contracted_dim)
-    if len(y_torch.shape) - len(b_torch.shape) == 1:
-        y_torch += b_torch.view(*b_torch.shape, 1)
-    elif len(y_torch.shape) - len(b_torch.shape) == 2:
-        y_torch += b_torch.view(*b_torch.shape, 1, 1)
     loss_torch = y_torch.sum()
     loss_torch.backward()
 
@@ -316,10 +191,17 @@ def helper_torch_r(x_shape, w_shape, b_shape, n_contracted_dim):
     next_tag = A_grad.next_tag
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Define linear layer
-    layer, next_tag = Linear.generate_simple(A_moments, 'R', \
-            nntile.tensor.notrans, n_contracted_dim, \
-            [*w_shape[:-n_contracted_dim]], \
-            [*w_shape[:-n_contracted_dim]], next_tag, bias=True)
+    match side:
+        case 'L':
+            layer, next_tag = Linear.generate_simple(
+                A_moments, 'L', nntile.tensor.notrans, n_contracted_dim,
+                [*w_shape[n_contracted_dim:]], [*w_shape[n_contracted_dim:]],
+                next_tag, bias=True)
+        case 'R':
+            layer, next_tag = Linear.generate_simple(
+                A_moments, 'R', nntile.tensor.notrans, n_contracted_dim,
+                [*w_shape[:-n_contracted_dim]], [*w_shape[:-n_contracted_dim]],
+                next_tag, bias=True)
 
     np_W = np.array(w_torch.detach().numpy(), dtype=np.float32, order='F')
     layer.w.value.from_array(np_W)
@@ -332,61 +214,49 @@ def helper_torch_r(x_shape, w_shape, b_shape, n_contracted_dim):
     A.from_array(np_A)
     nntile.tensor.clear_async(A_grad)
     layer.forward_async()
-    layer.y.grad.from_array(np.array(np.ones(y_torch.shape), order="F", \
-            dtype=np.float32))
+    layer.y.grad.from_array(np.ones(y_torch.shape, np.float32, 'F'))
     layer.backward_async()
 
     nntile_res = np.zeros(y_torch.shape, dtype=np.float32, order="F")
     layer.y.value.to_array(nntile_res)
-    output_rel_error = np.linalg.norm(nntile_res - y_torch.detach().numpy()) \
-            / np.linalg.norm(y_torch.detach().numpy())
-    if output_rel_error > 1e-5:
-        print("Output rel error = {}".format(output_rel_error))
-        A_moments.unregister()
-        layer.unregister()
-        assert False
+    output_rel_error = (np.linalg.norm(nntile_res - y_torch.detach().numpy()) /
+                        np.linalg.norm(y_torch.detach().numpy()))
+    assert output_rel_error <= 1e-5
 
     nntile_w_grad = np.zeros(w_torch.shape, dtype=np.float32, order="F")
     layer.w.grad.to_array(nntile_w_grad)
-    w_grad_rel_error = np.linalg.norm(nntile_w_grad - \
-            w_torch.grad.detach().numpy()) \
-            / np.linalg.norm(w_torch.grad.detach().numpy())
-    if w_grad_rel_error > 1e-5:
-        print("W grad rel error = {}".format(w_grad_rel_error))
-        A_moments.unregister()
-        layer.unregister()
-        assert False
+    w_grad_rel_error = (
+        np.linalg.norm(nntile_w_grad - w_torch.grad.detach().numpy()) /
+        np.linalg.norm(w_torch.grad.detach().numpy()))
+    assert w_grad_rel_error <= 1e-5
 
     nntile_b_grad = np.zeros(b_torch.shape, dtype=np.float32, order="F")
     layer.b.grad.to_array(nntile_b_grad)
 
-    b_grad_rel_error = np.linalg.norm(nntile_b_grad - \
-            b_torch.grad.detach().numpy()) \
-            / np.linalg.norm(b_torch.grad.detach().numpy())
-    if b_grad_rel_error > 1e-5:
-        print("b grad rel error = {}".format(b_grad_rel_error))
-        A_moments.unregister()
-        layer.unregister()
-        assert False
+    b_grad_rel_error = (
+        np.linalg.norm(nntile_b_grad - b_torch.grad.detach().numpy()) /
+        np.linalg.norm(b_torch.grad.detach().numpy()))
+    assert b_grad_rel_error <= 1e-5
 
     nntile_x_grad = np.zeros(x_torch.shape, dtype=np.float32, order="F")
     A_moments.grad.to_array(nntile_x_grad)
-    x_grad_rel_error = np.linalg.norm(nntile_x_grad - \
-            x_torch.grad.detach().numpy()) \
-            / np.linalg.norm(x_torch.grad.detach().numpy())
-    if x_grad_rel_error > 1e-5:
-        print("x grad rel error = {}".format(x_grad_rel_error))
-        A_moments.unregister()
-        layer.unregister()
-        assert False
+    x_grad_rel_error = (
+        np.linalg.norm(nntile_x_grad - x_torch.grad.detach().numpy()) /
+        np.linalg.norm(x_torch.grad.detach().numpy()))
+    assert x_grad_rel_error <= 1e-5
 
     A_moments.unregister()
     layer.unregister()
 
-    return True
 
-
-def helper_torch_linear(x_shape, w_shape):
+@pytest.mark.parametrize('x_shape,w_shape', [
+    ([64, 100], [100, 10]),
+    ([64, 128, 100], [100, 20]),
+])
+def test_linear_with_torch_init(x_shape, w_shape):
+    """Similar to `test_linear_with_torch` but weights are initialized with
+    :py:class:`torch.nn.Linear`.
+    """
     linear_layer = nn.Linear(*w_shape)
     x_torch = torch.randn(x_shape, requires_grad=True)
     torch_output = linear_layer(x_torch)
@@ -403,15 +273,13 @@ def helper_torch_linear(x_shape, w_shape):
     next_tag = A_grad.next_tag
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Define linear layer
-    layer, next_tag = Linear.generate_simple(A_moments, 'L', \
-            nntile.tensor.notrans, 1, [w_shape[1]], [w_shape[1]], next_tag, \
-            bias=True)
+    layer, next_tag = Linear.generate_simple(
+        A_moments, 'L', nntile.tensor.notrans, 1, [w_shape[1]], [w_shape[1]],
+        next_tag, bias=True)
 
-    np_W = np.array(linear_layer.weight.detach().numpy(), dtype=np.float32, \
-            order='F')
+    np_W = linear_layer.weight.detach().numpy().astype(np.float32, 'F')
     layer.w.value.from_array(np_W.T)
-    np_b = np.array(linear_layer.bias.detach().numpy(), dtype=np.float32, \
-            order='F')
+    np_b = linear_layer.bias.detach().numpy().astype(np.float32, 'F')
     layer.b.value.from_array(np_b)
     nntile.tensor.clear_async(layer.w.grad)
     nntile.tensor.clear_async(layer.b.grad)
@@ -420,104 +288,37 @@ def helper_torch_linear(x_shape, w_shape):
     A.from_array(np_A)
     nntile.tensor.clear_async(A_grad)
     layer.forward_async()
-    layer.y.grad.from_array(np.array(np.ones(torch_output.shape), order="F", \
-            dtype=np.float32))
+    layer.y.grad.from_array(np.ones(torch_output.shape, np.float32, 'F'))
     layer.backward_async()
 
     nntile_res = np.zeros(torch_output.shape, dtype=np.float32, order="F")
     layer.y.value.to_array(nntile_res)
-    output_rel_error = np.linalg.norm(nntile_res - \
-            torch_output.detach().numpy()) \
-            / np.linalg.norm(torch_output.detach().numpy())
-    if output_rel_error > 1e-5:
-        print("Output rel error = {}".format(output_rel_error))
-        A_moments.unregister()
-        layer.unregister()
-        return False
+    output_rel_error = (
+        np.linalg.norm(nntile_res - torch_output.detach().numpy()) /
+        np.linalg.norm(torch_output.detach().numpy()))
+    assert output_rel_error <= 1e-5
 
-    nntile_w_grad = np.zeros(linear_layer.weight.T.shape, dtype=np.float32, \
-            order="F")
+    nntile_w_grad = np.zeros(linear_layer.weight.T.shape, np.float32, 'F')
     layer.w.grad.to_array(nntile_w_grad)
-    w_grad_rel_error = np.linalg.norm(nntile_w_grad.T - \
-            linear_layer.weight.grad.detach().numpy()) \
-            / np.linalg.norm(linear_layer.weight.grad.detach().numpy())
-    if w_grad_rel_error > 1e-5:
-        print("W grad rel error = {}".format(w_grad_rel_error))
-        A_moments.unregister()
-        layer.unregister()
-        return False
+    w_grad_rel_error = (
+        np.linalg.norm(nntile_w_grad.T -
+                       linear_layer.weight.grad.detach().numpy()) /
+        np.linalg.norm(linear_layer.weight.grad.detach().numpy()))
+    assert w_grad_rel_error <= 1e-5
 
-    nntile_b_grad = np.zeros(linear_layer.bias.shape, dtype=np.float32, \
-            order="F")
+    nntile_b_grad = np.zeros(linear_layer.bias.shape, np.float32, 'F')
     layer.b.grad.to_array(nntile_b_grad)
-    b_grad_rel_error = np.linalg.norm(nntile_b_grad - \
-            linear_layer.bias.grad.detach().numpy()) \
-            / np.linalg.norm(linear_layer.bias.grad.detach().numpy())
-    if b_grad_rel_error > 1e-5:
-        print("b grad rel error = {}".format(b_grad_rel_error))
-        A_moments.unregister()
-        layer.unregister()
-        return False
+    b_grad_rel_error = (
+        np.linalg.norm(nntile_b_grad - linear_layer.bias.grad.detach().numpy())
+        / np.linalg.norm(linear_layer.bias.grad.detach().numpy()))
+    assert b_grad_rel_error <= 1e-5
 
     nntile_x_grad = np.zeros(x_torch.shape, dtype=np.float32, order="F")
     A_moments.grad.to_array(nntile_x_grad)
-    x_grad_rel_error = np.linalg.norm(nntile_x_grad - \
-            x_torch.grad.detach().numpy()) \
-            / np.linalg.norm(x_torch.grad.detach().numpy())
-    if x_grad_rel_error > 1e-5:
-        print("x grad rel error = {}".format(x_grad_rel_error))
-        A_moments.unregister()
-        layer.unregister()
-        return False
+    x_grad_rel_error = (
+        np.linalg.norm(nntile_x_grad - x_torch.grad.detach().numpy()) /
+        np.linalg.norm(x_torch.grad.detach().numpy()))
+    assert x_grad_rel_error <= 1e-5
 
     A_moments.unregister()
     layer.unregister()
-
-    return True
-
-
-# Test runner for different precisions
-def test():
-    for dtype in dtypes:
-        assert helper_l(dtype)
-        assert helper_r(dtype)
-    #assert helper_l_fp32_fast_fp16()
-
-# Repeat tests
-def test_repeat():
-    for dtype in dtypes:
-        assert helper_l(dtype)
-        assert helper_r(dtype)
-    #assert helper_l_fp32_fast_fp16()
-    assert helper_torch_l(x_shape=[20, 10],
-                          w_shape=[10, 5], b_shape=[5],
-                          n_contracted_dim=1)
-    # Support for multi-dim bias will be added later
-    #assert helper_torch_l(x_shape=[20, 10],
-    #                      w_shape=[10, 5, 7], b_shape=[5, 7],
-    #                      n_contracted_dim=1)
-    assert helper_torch_l(x_shape=[20, 10, 5],
-                          w_shape=[10, 5, 7], b_shape=[7],
-                          n_contracted_dim=2)
-    assert helper_torch_l(x_shape=[20, 10, 5],
-                          w_shape=[5, 7], b_shape=[7],
-                          n_contracted_dim=1)
-
-    assert helper_torch_r(x_shape=[5, 3], w_shape=[10, 5],
-                          b_shape=[10], n_contracted_dim=1)
-    # Support for multi-dim bias will be added later
-    #assert helper_torch_r(x_shape=[7, 2], w_shape=[10, 5, 7],
-    #                      b_shape=[10, 5], n_contracted_dim=1)
-    assert helper_torch_r(x_shape=[5, 7, 2], w_shape=[10, 5, 7],
-                          b_shape=[10], n_contracted_dim=2)
-    assert helper_torch_r(x_shape=[7, 3, 10],
-                          w_shape=[5, 7], b_shape=[5],
-                          n_contracted_dim=1)
-
-
-    assert helper_torch_linear(x_shape=[64, 100], w_shape=[100, 10])
-    assert helper_torch_linear(x_shape=[64, 128, 100], w_shape=[100, 20])
-
-if __name__ == "__main__":
-    test()
-    test_repeat()

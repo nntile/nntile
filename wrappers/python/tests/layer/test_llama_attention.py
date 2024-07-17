@@ -38,6 +38,8 @@ dtype2tol = {
         'bf16': {'rtol': 1.6e-2},
 }
 
+nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
+
 
 def assert_close_by_frobnorm(a: np.ndarray, b: np.ndarray, rtol: float):
     np.testing.assert_array_less(
@@ -57,116 +59,42 @@ class LlamaAttentionTestParams:
     n_head: int
     n_head_tile: int
     n_head_kv: int
-    dtype: str
-    bias: bool
     layer_idx: int = 0
     theta = 2.0
 
 
-TEST_PARAMS = [
-    pytest.param(
-        LlamaAttentionTestParams(
-            n_emb=128,
-            n_emb_tile=32,
-            n_seq=64,
-            n_seq_tile=16,
-            n_batch=4,
-            n_batch_tile=1,
-            n_head=16,
-            n_head_tile=8,
-            n_head_kv=4,
-            dtype='bf16',
-            bias=True,
-        ),
-        marks=[
-            pytest.mark.skipif(
-                not torch.cuda.is_available(),
-                reason="CUDA is required"
-            )
-        ]
-    ),
-    pytest.param(
-        LlamaAttentionTestParams(
-            n_emb=128,
-            n_emb_tile=32,
-            n_seq=64,
-            n_seq_tile=16,
-            n_batch=4,
-            n_batch_tile=1,
-            n_head=16,
-            n_head_tile=8,
-            n_head_kv=4,
-            dtype='fp32_fast_tf32',
-            bias=True,
-        ),
-        marks=[
-            pytest.mark.skipif(
-                not torch.cuda.is_available(),
-                reason="CUDA is required"
-            )
-        ]
-    ),
-    LlamaAttentionTestParams(
-        n_emb=128,
-        n_emb_tile=32,
-        n_seq=64,
-        n_seq_tile=16,
-        n_batch=4,
-        n_batch_tile=1,
-        n_head=16,
-        n_head_tile=8,
-        n_head_kv=4,
-        dtype='fp32',
-        bias=True,
-    ),
-    LlamaAttentionTestParams(
-        n_emb=128,
-        n_emb_tile=32,
-        n_seq=64,
-        n_seq_tile=16,
-        n_batch=4,
-        n_batch_tile=1,
-        n_head=16,
-        n_head_tile=8,
-        n_head_kv=4,
-        dtype='fp32',
-        bias=False,
-    ),
-    LlamaAttentionTestParams(
-        n_emb=128,
-        n_emb_tile=128,
-        n_seq=64,
-        n_seq_tile=64,
-        n_batch=3,
-        n_batch_tile=3,
-        n_head=8,
-        n_head_tile=4,
-        n_head_kv=4,
-        dtype='fp32',
-        bias=True,
-    ),
-    LlamaAttentionTestParams(
-        n_emb=128,
-        n_emb_tile=128,
-        n_seq=64,
-        n_seq_tile=64,
-        n_batch=3,
-        n_batch_tile=3,
-        n_head=8,
-        n_head_tile=4,
-        n_head_kv=4,
-        dtype='fp32',
-        bias=False,
-    ),
-]
+single_tile = LlamaAttentionTestParams(
+    n_emb=128,
+    n_emb_tile=32,
+    n_seq=64,
+    n_seq_tile=16,
+    n_batch=4,
+    n_batch_tile=1,
+    n_head=16,
+    n_head_tile=8,
+    n_head_kv=4,
+)
+
+multiple_tiles = LlamaAttentionTestParams(
+    n_emb=128,
+    n_emb_tile=128,
+    n_seq=64,
+    n_seq_tile=64,
+    n_batch=3,
+    n_batch_tile=3,
+    n_head=8,
+    n_head_tile=4,
+    n_head_kv=4,
+)
 
 
-def generate_inputs(params: LlamaAttentionTestParams):
+def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool):
+    rng = np.random.default_rng(42)
     torch_layer_config = LlamaConfig_torch(
         hidden_size=params.n_emb,
         num_attention_heads=params.n_head,
         num_key_value_heads=params.n_head_kv,
-        attention_bias=params.bias,
+        attention_bias=bias,
         use_cache=False,
         attention_dropout=0.0,
         rope_theta=params.theta
@@ -178,11 +106,11 @@ def generate_inputs(params: LlamaAttentionTestParams):
     x_basetile = [params.n_emb_tile, params.n_seq_tile, params.n_batch_tile]
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
-    x_type = dtype2nntile[params.dtype]
+    x_type = dtype2nntile[dtype]
     x_value = x_type(x_traits, x_distr, 0)
     x_grad = x_type(x_traits, x_distr, 0)
     X = TensorMoments(x_value, x_grad, grad_required=True)
-    x_random = np.random.randn(*x_shape)
+    x_random = rng.standard_normal(x_shape)
     x_nntile = np.array(x_random, dtype=np.float32, order="F")
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
@@ -197,19 +125,28 @@ def generate_inputs(params: LlamaAttentionTestParams):
     nntile_layer = nntile.layer.LlamaAttention.from_torch(
         torch_layer, X, params.n_head_tile, pos_ids, params.theta
     )
-    y_grad_random = np.random.randn(*x_shape)
+    y_grad_random = rng.standard_normal(x_shape)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
     nntile_layer.y.grad.from_array(y_grad_nntile)
     y_grad_torch = torch.Tensor(y_grad_nntile.T)
     return torch_layer, nntile_layer, x_torch, pos_ids_torch, y_grad_torch
 
 
-@pytest.mark.parametrize("params", TEST_PARAMS)
+@pytest.mark.parametrize('bias', [False, True])
+@pytest.mark.parametrize('params', [
+    pytest.param(single_tile, id='single_tile'),
+    pytest.param(multiple_tiles, id='multiple_tiles'),
+])
+@pytest.mark.parametrize('dtype', [
+    'fp32',
+    pytest.param('fp32_fast_tf32', marks=nocuda),
+    pytest.param('bf16', marks=nocuda),
+])
 class TestLlamaAttention:
-    def test_from_torch_and_to_torch(
-        self, starpu_simple, torch_rng, params: LlamaAttentionTestParams
-    ):
-        torch_layer, nntile_layer, _, _, _ = generate_inputs(params)
+
+    def test_torch_coersion(self, starpu_simple, torch_rng, dtype: str,
+                            params: LlamaAttentionTestParams, bias: bool):
+        torch_layer, nntile_layer, _, _ = generate_inputs(dtype, params, bias)
         torch_layer_other = nntile_layer.to_torch()
         nntile_layer.unregister()
         nntile_layer.x.unregister()
@@ -217,49 +154,49 @@ class TestLlamaAttention:
         assert_close_by_frobnorm(
             torch_layer.q_proj.weight.detach().numpy(),
             torch_layer_other.q_proj.weight.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.k_proj.weight.detach().numpy(),
             torch_layer_other.k_proj.weight.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.v_proj.weight.detach().numpy(),
             torch_layer_other.v_proj.weight.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.o_proj.weight.detach().numpy(),
             torch_layer_other.o_proj.weight.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
-        if params.bias:
+        if bias:
             assert_close_by_frobnorm(
                 torch_layer.q_proj.bias.detach().numpy(),
                 torch_layer_other.q_proj.bias.detach().numpy(),
-                **dtype2tol[params.dtype]
+                **dtype2tol[dtype]
             )
             assert_close_by_frobnorm(
                 torch_layer.k_proj.bias.detach().numpy(),
                 torch_layer_other.k_proj.bias.detach().numpy(),
-                **dtype2tol[params.dtype]
+                **dtype2tol[dtype]
             )
             assert_close_by_frobnorm(
                 torch_layer.v_proj.bias.detach().numpy(),
                 torch_layer_other.v_proj.bias.detach().numpy(),
-                **dtype2tol[params.dtype]
+                **dtype2tol[dtype]
             )
             assert_close_by_frobnorm(
                 torch_layer.o_proj.bias.detach().numpy(),
                 torch_layer_other.o_proj.bias.detach().numpy(),
-                **dtype2tol[params.dtype]
+                **dtype2tol[dtype]
             )
 
-    def test_forward(
-        self, starpu_simple, torch_rng, params: LlamaAttentionTestParams
-    ):
-        torch_layer, nntile_layer, x, pos_ids, _ = generate_inputs(params)
+    def test_forward(self, starpu_simple, torch_rng, dtype: str,
+                     params: LlamaAttentionTestParams, bias: bool):
+        torch_layer, nntile_layer, x, _ = generate_inputs(dtype, params, bias)
+        pos_ids = torch.zeros((params.n_batch, params.n_seq), dtype=torch.long)
         y, _, _ = torch_layer(x, position_ids=pos_ids)
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.y.value).T)
@@ -269,13 +206,13 @@ class TestLlamaAttention:
         assert_close_by_frobnorm(
                 y.detach().numpy(),
                 y_nntile.detach().numpy(),
-                **dtype2tol[params.dtype]
+                **dtype2tol[dtype]
         )
 
-    def test_forward_backward(
-        self, starpu_simple, torch_rng, params: LlamaAttentionTestParams
-    ):
-        torch_layer, nntile_layer, x, pos_ids, y_grad = generate_inputs(params)
+    def test_forward_backward(self, starpu_simple, torch_rng, dtype: str,
+                              params: LlamaAttentionTestParams, bias: bool):
+        torch_layer, nntile_layer, x, y_grad = \
+            generate_inputs(dtype, params, bias)
         torch_layer_other = nntile_layer.to_torch()
         y, _, _ = torch_layer(x, position_ids=pos_ids)
         nntile_layer.forward_async()
@@ -290,7 +227,7 @@ class TestLlamaAttention:
         assert_close_by_frobnorm(
                 y.detach().numpy(),
                 y_nntile.detach().numpy(),
-                **dtype2tol[params.dtype]
+                **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.q_proj.weight.grad.detach().numpy(),
@@ -312,7 +249,7 @@ class TestLlamaAttention:
             torch_layer_other.o_proj.weight.grad.detach().numpy(),
             **dtype2tol[params.dtype]
         )
-        if params.bias:
+        if bias:
             assert_close_by_frobnorm(
                 torch_layer.q_proj.bias.grad.detach().numpy(),
                 torch_layer_other.q_proj.bias.grad.detach().numpy(),

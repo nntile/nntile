@@ -11,6 +11,8 @@
 #
 # @version 1.0.0
 
+# ruff: noqa: E501
+
 class GPT2Config:
     """
     This is the configuration class to store the configuration of a [`GPT2Model`] or a [`TFGPT2Model`]. It is used to
