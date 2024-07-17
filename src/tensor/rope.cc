@@ -20,10 +20,10 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void rope_async(const Tensor<T> &sin, const Tensor<T> &cos, 
+void rope_async(const Tensor<T> &sin, const Tensor<T> &cos,
         const Tensor<T> &src, const Tensor<T> &dst)
 //! Tensor<T> Rotary Positional Embedding
-/*! 
+/*!
  * @param[in] sin: Input sine tensor
  * @param[in] cos: Input cosine tensor
  * @param[in] src: Input embedding tensor
@@ -134,7 +134,7 @@ void rope_async(const Tensor<T> &sin, const Tensor<T> &cos,
 template<typename T>
 void rope(const Tensor<T> &sin, const Tensor<T> &cos, const Tensor<T> &src,
         const Tensor<T> &dst)
-//! 
+//!
 /*! Blocking version of rope_async<T>.
  *
  * @param[in] sin: Input sine tensor
@@ -150,12 +150,18 @@ void rope(const Tensor<T> &sin, const Tensor<T> &cos, const Tensor<T> &src,
 
 // Explicit instantiation of template
 template
-void rope_async<fp32_t>(const Tensor<fp32_t> &sin, const Tensor<fp32_t> &cos, 
+void rope_async<fp32_t>(const Tensor<fp32_t> &sin, const Tensor<fp32_t> &cos,
         const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 
 template
-void rope_async<fp64_t>(const Tensor<fp64_t> &sin, const Tensor<fp64_t> &cos, 
+void rope_async<fp64_t>(const Tensor<fp64_t> &sin, const Tensor<fp64_t> &cos,
         const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
+
+template
+void rope_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &sin,
+        const Tensor<fp32_fast_tf32_t> &cos,
+        const Tensor<fp32_fast_tf32_t> &src,
+        const Tensor<fp32_fast_tf32_t> &dst);
 
 template
 void rope_async<bf16_t>(const Tensor<bf16_t> &sin, const Tensor<bf16_t> &cos,
@@ -163,12 +169,18 @@ void rope_async<bf16_t>(const Tensor<bf16_t> &sin, const Tensor<bf16_t> &cos,
 
 // Explicit instantiation of template
 template
-void rope<fp32_t>(const Tensor<fp32_t> &sin, const Tensor<fp32_t> &cos, 
+void rope<fp32_t>(const Tensor<fp32_t> &sin, const Tensor<fp32_t> &cos,
         const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 
 template
-void rope<fp64_t>(const Tensor<fp64_t> &sin, const Tensor<fp64_t> &cos, 
+void rope<fp64_t>(const Tensor<fp64_t> &sin, const Tensor<fp64_t> &cos,
         const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
+
+template
+void rope<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &sin,
+        const Tensor<fp32_fast_tf32_t> &cos,
+        const Tensor<fp32_fast_tf32_t> &src,
+        const Tensor<fp32_fast_tf32_t> &dst);
 
 template
 void rope<bf16_t>(const Tensor<bf16_t> &sin, const Tensor<bf16_t> &cos,

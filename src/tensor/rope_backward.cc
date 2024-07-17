@@ -20,10 +20,10 @@ namespace nntile::tensor
 {
 
 template<typename T>
-void rope_backward_async(const Tensor<T> &sin, const Tensor<T> &cos, 
+void rope_backward_async(const Tensor<T> &sin, const Tensor<T> &cos,
         const Tensor<T> &dy, const Tensor<T> &dx)
 //! Tensor<T> Backward for Rotary Positional Embedding
-/*! 
+/*!
  * @param[in] sin: Input sine tensor
  * @param[in] cos: Input cosine tensor
  * @param[in] dy: Input embedding tensor
@@ -134,7 +134,7 @@ void rope_backward_async(const Tensor<T> &sin, const Tensor<T> &cos,
 template<typename T>
 void rope_backward(const Tensor<T> &sin, const Tensor<T> &cos, const Tensor<T> &dy,
         const Tensor<T> &dx)
-//! 
+//!
 /*! Blocking version of rope_async<T>.
  *
  * @param[in] sin: Input sine tensor
@@ -150,12 +150,18 @@ void rope_backward(const Tensor<T> &sin, const Tensor<T> &cos, const Tensor<T> &
 
 // Explicit instantiation of template
 template
-void rope_backward_async<fp32_t>(const Tensor<fp32_t> &sin, const Tensor<fp32_t> &cos, 
+void rope_backward_async<fp32_t>(const Tensor<fp32_t> &sin, const Tensor<fp32_t> &cos,
         const Tensor<fp32_t> &dy, const Tensor<fp32_t> &dx);
 
 template
-void rope_backward_async<fp64_t>(const Tensor<fp64_t> &sin, const Tensor<fp64_t> &cos, 
+void rope_backward_async<fp64_t>(const Tensor<fp64_t> &sin, const Tensor<fp64_t> &cos,
         const Tensor<fp64_t> &dy, const Tensor<fp64_t> &dx);
+
+template
+void rope_backward_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &sin,
+        const Tensor<fp32_fast_tf32_t> &cos,
+        const Tensor<fp32_fast_tf32_t> &dy,
+        const Tensor<fp32_fast_tf32_t> &dx);
 
 template
 void rope_backward_async<bf16_t>(const Tensor<bf16_t> &sin, const Tensor<bf16_t> &cos,
@@ -163,12 +169,18 @@ void rope_backward_async<bf16_t>(const Tensor<bf16_t> &sin, const Tensor<bf16_t>
 
 // Explicit instantiation of template
 template
-void rope_backward<fp32_t>(const Tensor<fp32_t> &sin, const Tensor<fp32_t> &cos, 
+void rope_backward<fp32_t>(const Tensor<fp32_t> &sin, const Tensor<fp32_t> &cos,
         const Tensor<fp32_t> &dy, const Tensor<fp32_t> &dx);
 
 template
-void rope_backward<fp64_t>(const Tensor<fp64_t> &sin, const Tensor<fp64_t> &cos, 
+void rope_backward<fp64_t>(const Tensor<fp64_t> &sin, const Tensor<fp64_t> &cos,
         const Tensor<fp64_t> &dy, const Tensor<fp64_t> &dx);
+
+template
+void rope_backward<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &sin,
+        const Tensor<fp32_fast_tf32_t> &cos,
+        const Tensor<fp32_fast_tf32_t> &dy,
+        const Tensor<fp32_fast_tf32_t> &dx);
 
 template
 void rope_backward<bf16_t>(const Tensor<bf16_t> &sin, const Tensor<bf16_t> &cos,

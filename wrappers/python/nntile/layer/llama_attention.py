@@ -20,9 +20,9 @@ from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor, TensorMoments, TensorTraits, add_fiber_async, add_slice_async,
     clear_async, gemm_async, mask_scalar_async, maxsumexp_async, notrans,
-    prod_async, softmax_inplace_async, sum_fiber_async, sum_slice_async,
-    sumprod_slice_async, to_numpy, trans, transpose_async, rope_async,
-    rope_backward_async)
+    prod_async, rope_async, rope_backward_async, softmax_inplace_async,
+    sum_fiber_async, sum_slice_async, sumprod_slice_async, to_numpy, trans,
+    transpose_async)
 
 
 # LLaMa Multi-Query Self-Attention with Rotary Embeddings
@@ -667,7 +667,7 @@ class LlamaAttention(BaseLayer):
         np_freqs = np.array(freq_frame, dtype=np.float32, order='F')
         np_cos = np.cos(np_freqs)
         np_sin = np.sin(np_freqs)
-    
+
         cos.from_array(np_cos)
         sin.from_array(np_sin)
 
@@ -741,10 +741,10 @@ class LlamaAttention(BaseLayer):
                 1, self.in_proj_bias_q.value, 1, self.q.value, 0, 2
             )
             self.in_proj_bias_q.value.wont_use()
-        
         # Perform RoPE on q
         rope_async(self.sin, self.cos, self.q.value, self.q_rope.value)
-
+        # Q can be deleted
+        self.q.value.invalidate_submit()
         # K_transposed = einsum('jkl,lmn->jkmn', W_K, X_K)
         # gemm (n_head_kv, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head_kv, head_size, n_seq, n_batch)
@@ -805,16 +805,16 @@ class LlamaAttention(BaseLayer):
             self.in_proj_bias_v.value.wont_use()
         # Perform RoPE on k_rep
         rope_async(self.sin, self.cos, self.k.value, self.k_rope.value)
-        # Repeat K along fibers of proper axis
+        # K can be deleted
+        self.k.value.invalidate_submit()
+        # Repeat K_rope along fibers of proper axis
         # from (head_size, n_seq, n_batch, n_head_kv)
         # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
         add_slice_async(1.0, self.k_rope.value, 0.0, self.k_rep.value, 3)
-        #add_slice_async(1.0, self.k.value, 0.0, self.k_rep.value, 3)
-        # K can be deleted
-        self.k.value.invalidate_submit()
-
+        # K_rope can be deleted
+        self.k_rope.value.invalidate_submit()
         # Get tensor for softmax
-        # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q)
+        # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q_rope)
         # single batched gemm
         # (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
         # by (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
@@ -832,9 +832,7 @@ class LlamaAttention(BaseLayer):
             redux=self.redux,
         )
         clear_async(self.a_maxsumexp)
-        # Q, K_rep, Q_rope, K_rope can be offloaded from GPU
-        self.q.value.wont_use()
-        self.k_rep.value.wont_use()
+        # Q_rope, K_rope can be offloaded from GPU
         self.q_rope.value.wont_use()
         self.k_rope.value.wont_use()
         # Calculate softmax inplace
@@ -1024,14 +1022,14 @@ class LlamaAttention(BaseLayer):
             mask_scalar_async(self.mask, 0, self.a.grad, 3)
             self.mask.wont_use()
         # Backward for:
-        # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q)
+        # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q_rope)
         if self.k_rep.grad_required:
             # dK_rep = 1.0/sqrt(head_size)
-            #          * einsum('jmlbi,kmlbi->jklbi', Q, dA)
+            #          * einsum('jmlbi,kmlbi->jklbi', Q_rope, dA)
             gemm_async(
                 1.0 / self.head_size**0.5,
                 notrans,
-                self.q.value,
+                self.q_rope.value,
                 trans,
                 self.a.grad,
                 0.0,
@@ -1040,10 +1038,10 @@ class LlamaAttention(BaseLayer):
                 3,
                 redux=self.redux,
             )
-        # Q can be deleted
-        self.q.value.invalidate_submit()
+        # Q_rope can be deleted
+        self.q_rope.value.invalidate_submit()
         if self.q_rope.grad_required:
-            # dQ = 1.0/sqrt(head_size)
+            # dQ_rope = 1.0/sqrt(head_size)
             #      * einsum('jklbi,kmlbi->jmlbi', K_rep, dA)
             gemm_async(
                 1.0 / self.head_size**0.5,
@@ -1130,7 +1128,9 @@ class LlamaAttention(BaseLayer):
             sum_slice_async(1.0, self.k_rep.grad, 0.0, self.k_rope.grad, 3)
         # Backward for RoPE
         if self.k.grad_required:
-            rope_backward_async(self.sin, self.cos, self.k_rope.grad, self.k.grad)
+            rope_backward_async(
+                    self.sin, self.cos, self.k_rope.grad, self.k.grad
+            )
         # dK_rep can be deleted
         self.k_rep.grad.invalidate_submit()
         # #dK_rope can be deleted
@@ -1196,7 +1196,9 @@ class LlamaAttention(BaseLayer):
         self.k_transposed.grad.invalidate_submit()
         # Backward for RoPE for Q
         if self.q.grad_required:
-            rope_backward_async(self.sin, self.cos, self.q_rope.grad, self.q.grad)
+            rope_backward_async(
+                    self.sin, self.cos, self.q_rope.grad, self.q.grad
+            )
         # Backward for bias of Q
         if self.in_proj_bias_q is not None:
             if self.in_proj_bias_q.grad_required:
@@ -1359,18 +1361,24 @@ class LlamaAttention(BaseLayer):
                 .reshape(*layer.out_proj_bias.value.shape)
             )
             layer.in_proj_bias_q.value.from_array(
-                torch_layer.q_proj.bias.detach()
-                .cpu()
-                .numpy()
-                .reshape(*layer.in_proj_bias_q.value.shape[::-1])
-                .T
+                __class__.rotate_tensor_in(
+                    torch_layer.q_proj.bias.detach()
+                    .cpu()
+                    .numpy()
+                    .reshape(*layer.in_proj_bias_q.value.shape[::-1])
+                    .T,
+                    0
+                )
             )
             layer.in_proj_bias_k.value.from_array(
-                torch_layer.k_proj.bias.detach()
-                .cpu()
-                .numpy()
-                .reshape(*layer.in_proj_bias_k.value.shape[::-1])
-                .T
+                __class__.rotate_tensor_in(
+                    torch_layer.k_proj.bias.detach()
+                    .cpu()
+                    .numpy()
+                    .reshape(*layer.in_proj_bias_k.value.shape[::-1])
+                    .T,
+                    0
+                )
             )
             layer.in_proj_bias_v.value.from_array(
                 torch_layer.v_proj.bias.detach()
@@ -1420,26 +1428,28 @@ class LlamaAttention(BaseLayer):
         )
         torch_layer.o_proj.weight.data = W_out_tensor
         if bias:
-            out_proj_bias = torch.tensor(
+            torch_layer.o_proj.bias.data = torch.tensor(
                 to_numpy(self.out_proj_bias.value).flatten(),
                 requires_grad=True,
             )
-            in_proj_bias_q = torch.tensor(
-                to_numpy(self.in_proj_bias_q.value).T.flatten(),
+            torch_layer.q_proj.bias.data = torch.tensor(
+                __class__.rotate_tensor_out(
+                    to_numpy(self.in_proj_bias_q.value),
+                    0
+                ).T.flatten(),
                 requires_grad=True,
             )
-            in_proj_bias_k = torch.tensor(
-                to_numpy(self.in_proj_bias_k.value).T.flatten(),
+            torch_layer.k_proj.bias.data = torch.tensor(
+                __class__.rotate_tensor_out(
+                    to_numpy(self.in_proj_bias_k.value),
+                    0
+                ).T.flatten(),
                 requires_grad=True,
             )
-            in_proj_bias_v = torch.tensor(
+            torch_layer.v_proj.bias.data = torch.tensor(
                 to_numpy(self.in_proj_bias_v.value).T.flatten(),
                 requires_grad=True,
             )
-            torch_layer.o_proj.bias.data = out_proj_bias
-            torch_layer.q_proj.bias.data = in_proj_bias_q
-            torch_layer.k_proj.bias.data = in_proj_bias_k
-            torch_layer.v_proj.bias.data = in_proj_bias_v
         return torch_layer
 
     def to_torch_with_grads(self) -> LlamaAttention_torch:
@@ -1465,16 +1475,22 @@ class LlamaAttention(BaseLayer):
             ).reshape(self.n_emb, self.n_emb)
         )
         if bias:
+            torch_layer.o_proj.bias.grad = torch.tensor(
+                to_numpy(self.out_proj_bias.grad).flatten()
+            )
             torch_layer.q_proj.bias.grad = torch.tensor(
-                to_numpy(self.in_proj_bias_q.grad).T.flatten()
+                __class__.rotate_tensor_out(
+                    to_numpy(self.in_proj_bias_q.grad),
+                    0
+                ).T.flatten()
             )
             torch_layer.k_proj.bias.grad = torch.tensor(
-                np.moveaxis(to_numpy(self.in_proj_bias_k.grad), 0, 1).flatten()
+                __class__.rotate_tensor_out(
+                    to_numpy(self.in_proj_bias_k.grad),
+                    0
+                ).T.flatten()
             )
             torch_layer.v_proj.bias.grad = torch.tensor(
-                np.moveaxis(to_numpy(self.in_proj_bias_v.grad), 0, 1).flatten()
-            )
-            torch_layer.o_proj.bias.grad = torch.tensor(
-                to_numpy(self.out_proj_bias.grad)
+                to_numpy(self.in_proj_bias_v.grad).T.flatten()
             )
         return torch_layer

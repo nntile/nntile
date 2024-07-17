@@ -98,12 +98,18 @@ void rope(const Tile<T> &sin, const Tile<T> &cos, const Tile<T> &src,
 
 // Explicit instantiation of template
 template
-void rope_async<fp32_t>(const Tile<fp32_t> &sin, const Tile<fp32_t> &cos, 
+void rope_async<fp32_t>(const Tile<fp32_t> &sin, const Tile<fp32_t> &cos,
         const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void rope_async<fp64_t>(const Tile<fp64_t> &sin, const Tile<fp64_t> &cos, 
+void rope_async<fp64_t>(const Tile<fp64_t> &sin, const Tile<fp64_t> &cos,
         const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+
+template
+void rope_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &sin,
+        const Tile<fp32_fast_tf32_t> &cos,
+        const Tile<fp32_fast_tf32_t> &src,
+        const Tile<fp32_fast_tf32_t> &dst);
 
 template
 void rope_async<bf16_t>(const Tile<bf16_t> &sin, const Tile<bf16_t> &cos,
@@ -111,12 +117,18 @@ void rope_async<bf16_t>(const Tile<bf16_t> &sin, const Tile<bf16_t> &cos,
 
 // Explicit instantiation of template
 template
-void rope<fp32_t>(const Tile<fp32_t> &sin, const Tile<fp32_t> &cos, 
+void rope<fp32_t>(const Tile<fp32_t> &sin, const Tile<fp32_t> &cos,
         const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void rope<fp64_t>(const Tile<fp64_t> &sin, const Tile<fp64_t> &cos, 
+void rope<fp64_t>(const Tile<fp64_t> &sin, const Tile<fp64_t> &cos,
         const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+
+template
+void rope<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &sin,
+        const Tile<fp32_fast_tf32_t> &cos,
+        const Tile<fp32_fast_tf32_t> &src,
+        const Tile<fp32_fast_tf32_t> &dst);
 
 template
 void rope<bf16_t>(const Tile<bf16_t> &sin, const Tile<bf16_t> &cos,

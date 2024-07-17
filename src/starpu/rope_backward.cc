@@ -75,7 +75,7 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64, codelet_bf16;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
 
 void init()
 {
@@ -99,6 +99,16 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
+    codelet_fp32_fast_tf32.init("nntile_rope_backward_fp32_fast_tf32",
+            footprint,
+            {cpu<fp32_fast_tf32_t>},
+#ifdef NNTILE_USE_CUDA
+            {}//{cuda<fp32_fast_tf32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
     codelet_bf16.init("nntile_rope_backward_bf16",
             footprint,
             {cpu<bf16_t>},
@@ -114,6 +124,7 @@ void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
     codelet_fp64.restrict_where(where);
+    codelet_fp32_fast_tf32.restrict_where(where);
     codelet_bf16.restrict_where(where);
 }
 
@@ -121,6 +132,7 @@ void restore_where()
 {
     codelet_fp32.restore_where();
     codelet_fp64.restore_where();
+    codelet_fp32_fast_tf32.restore_where();
     codelet_bf16.restore_where();
 }
 
@@ -158,6 +170,10 @@ void submit<fp32_t>(Index m, Index n, Handle sin, Handle cos, Handle dy,
 
 template
 void submit<fp64_t>(Index m, Index n, Handle sin, Handle cos, Handle dy,
+        Handle dx);
+
+template
+void submit<fp32_fast_tf32_t>(Index m, Index n, Handle sin, Handle cos, Handle dy,
         Handle dx);
 
 template

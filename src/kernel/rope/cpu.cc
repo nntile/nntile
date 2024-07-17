@@ -22,7 +22,7 @@ template<typename T>
 void cpu(Index m, Index n, const T *sin, const T *cos, const T *src, T *dst)
     noexcept
 /*! Change provided 2-by-m-by-n src tensor and write result into dst tensor
- *  sin, cos are tensors of shape (m). Each column holds sines and cosines.   
+ *  sin, cos are tensors of shape (m). Each column holds sines and cosines.
  *  dst[2i,j] = cos[i] * src[2i,j] - sin[i] * src[2i+1,j]
  *  dst[2i+1,j] = sin[i] * src[2i,j] + cos[i] * src[2i+1,j]
  *
@@ -35,7 +35,6 @@ void cpu(Index m, Index n, const T *sin, const T *cos, const T *src, T *dst)
  * */
 {
     using Y = typename T::repr_t;
- 
     // Use these angles for pairwise rotation of the same elements across all
     // batches
     for (Index j = 0; j < n; ++j)
@@ -61,6 +60,12 @@ void cpu<fp32_t>(Index m, Index n, const fp32_t *sin, const fp32_t *cos,
 template
 void cpu<fp64_t>(Index m, Index n, const fp64_t *sin, const fp64_t *cos,
         const fp64_t *src, fp64_t *dst)
+    noexcept;
+
+template
+void cpu<fp32_fast_tf32_t>(Index m, Index n, const fp32_fast_tf32_t *sin,
+        const fp32_fast_tf32_t *cos, const fp32_fast_tf32_t *src,
+        fp32_fast_tf32_t *dst)
     noexcept;
 
 template

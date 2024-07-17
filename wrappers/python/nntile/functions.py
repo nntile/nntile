@@ -15,8 +15,7 @@ from typing import List
 
 from nntile.types import Tensor, TensorFloatOrInt, TensorOrFloat
 
-from .nntile_core import TransOp
-from .nntile_core import tensor as core_tensor
+from .nntile_core import TransOp, tensor as core_tensor
 from .nntile_core.tensor import Tensor_bool, Tensor_int64
 
 
@@ -86,6 +85,7 @@ def relu_forward_async(x: Tensor, y: Tensor) -> None:
     else:
         raise TypeError
 
+
 def silu_forward_async(x: Tensor, y: Tensor) -> None:
     """
     Wrapper for multiprecision forward SiLU
@@ -116,6 +116,7 @@ def relu_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
         core_tensor.relu_backward_async_bf16(x, dy, dx)
     else:
         raise TypeError
+
 
 def silu_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
     """
@@ -269,15 +270,21 @@ def sum_slice_async(
     if type(x) is not type(sum_slice):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.sum_slice_async_fp32(alpha, x, beta, sum_slice, axis, redux)
+        core_tensor.sum_slice_async_fp32(
+                alpha, x, beta, sum_slice, axis, redux
+        )
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.sum_slice_async_fp32_fast_tf32(
             alpha, x, beta, sum_slice, axis, redux
         )
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.sum_slice_async_fp64(alpha, x, beta, sum_slice, axis, redux)
+        core_tensor.sum_slice_async_fp64(
+                alpha, x, beta, sum_slice, axis, redux
+        )
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.sum_slice_async_bf16(alpha, x, beta, sum_slice, axis, redux)
+        core_tensor.sum_slice_async_bf16(
+                alpha, x, beta, sum_slice, axis, redux
+        )
     else:
         raise TypeError
 
@@ -601,7 +608,8 @@ def randn_async(
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.randn_async_fp32(x, start, shape, seed, mean, dev)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.randn_async_fp32_fast_tf32(x, start, shape, seed, mean, dev)
+        core_tensor.randn_async_fp32_fast_tf32(
+                x, start, shape, seed, mean, dev)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.randn_async_fp64(x, start, shape, seed, mean, dev)
     elif type(x) is core_tensor.Tensor_bf16:
@@ -782,7 +790,11 @@ def add_slice3_async(
 
 
 def add_fiber_async(
-    alpha: float, add_fiber: Tensor, beta, x: Tensor, axis: int, batch_ndim: int
+    alpha: float,
+    add_fiber: Tensor,
+    beta, x: Tensor,
+    axis: int,
+    batch_ndim: int
 ) -> None:
     """
     Wrapper for multiprecision add_fiber
@@ -1216,7 +1228,8 @@ def mask_scalar_async(
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.mask_scalar_async_fp32(mask, alpha, x, batch_ndim)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.mask_scalar_async_fp32_fast_tf32(mask, alpha, x, batch_ndim)
+        core_tensor.mask_scalar_async_fp32_fast_tf32(
+                mask, alpha, x, batch_ndim)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.mask_scalar_async_fp64(mask, alpha, x, batch_ndim)
     elif type(x) is core_tensor.Tensor_bf16:
@@ -1246,7 +1259,11 @@ def embedding_async(
 
 
 def embedding_backward_async(
-    index: Tensor_int64, embed: Tensor, vocab: Tensor, axis: int, redux: int = 0
+    index: Tensor_int64,
+    embed: Tensor,
+    vocab: Tensor,
+    axis: int,
+    redux: int = 0
 ) -> None:
     """
     Wrapper for multiprecision embedding_backward
@@ -1473,7 +1490,12 @@ def transpose_async(alpha: float, src: Tensor, dst: Tensor, ndim: int) -> None:
         raise TypeError
 
 
-def rope_async( sin: Tensor, cos: Tensor, x: Tensor, y: Tensor) -> None:
+def rope_async(
+        sin: Tensor,
+        cos: Tensor,
+        x: Tensor,
+        y: Tensor
+) -> None:
     """
     Wrapper for multiprecision rope
     """
@@ -1483,13 +1505,20 @@ def rope_async( sin: Tensor, cos: Tensor, x: Tensor, y: Tensor) -> None:
         core_tensor.rope_async_fp32(sin, cos, x, y)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.rope_async_fp64(sin, cos, x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.rope_async_fp32_fast_tf32(sin, cos, x, y)
     elif type(x) is core_tensor.Tensor_bf16:
         core_tensor.rope_async_bf16(sin, cos, x, y)
     else:
         raise TypeError
 
 
-def rope_backward_async( sin: Tensor, cos: Tensor, dy: Tensor, dx: Tensor) -> None:
+def rope_backward_async(
+        sin: Tensor,
+        cos: Tensor,
+        dy: Tensor,
+        dx: Tensor
+) -> None:
     """
     Wrapper for multiprecision rope
     """
@@ -1499,6 +1528,8 @@ def rope_backward_async( sin: Tensor, cos: Tensor, dy: Tensor, dx: Tensor) -> No
         core_tensor.rope_backward_async_fp32(sin, cos, dy, dx)
     elif type(dx) is core_tensor.Tensor_fp64:
         core_tensor.rope_backward_async_fp64(sin, cos, dy, dx)
+    elif type(dx) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.rope_backward_async_fp32_fast_tf32(sin, cos, dy, dx)
     elif type(dx) is core_tensor.Tensor_bf16:
         core_tensor.rope_backward_async_bf16(sin, cos, dy, dx)
     else:

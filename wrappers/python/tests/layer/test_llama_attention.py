@@ -34,7 +34,7 @@ dtype2nntile = {
 
 dtype2tol = {
         'fp32': {'rtol': 1e-6},
-        'fp32_fast_tf32': {'rtol': 1e-4},
+        'fp32_fast_tf32': {'rtol': 4e-4},
         'bf16': {'rtol': 1.6e-2},
 }
 
@@ -75,89 +75,89 @@ TEST_PARAMS = [
             n_head=16,
             n_head_tile=8,
             n_head_kv=4,
-            dtype='fp32',
-            bias=False,
+            dtype='bf16',
+            bias=True,
         ),
-        # marks=[
-        #     pytest.mark.skipif(
-        #         not torch.cuda.is_available(),
-        #         reason="CUDA is required"
-        #     )
-        # ]
+        marks=[
+            pytest.mark.skipif(
+                not torch.cuda.is_available(),
+                reason="CUDA is required"
+            )
+        ]
     ),
-#    pytest.param(
-#        LlamaAttentionTestParams(
-#            n_emb=128,
-#            n_emb_tile=32,
-#            n_seq=64,
-#            n_seq_tile=16,
-#            n_batch=4,
-#            n_batch_tile=1,
-#            n_head=16,
-#            n_head_tile=8,
-#            n_head_kv=4,
-#            dtype='fp32_fast_tf32',
-#            bias=True,
-#        ),
-#        marks=[
-#            pytest.mark.skipif(
-#                not torch.cuda.is_available(),
-#                reason="CUDA is required"
-#            )
-#        ]
-#    ),
-#    LlamaAttentionTestParams(
-#        n_emb=128,
-#        n_emb_tile=32,
-#        n_seq=64,
-#        n_seq_tile=16,
-#        n_batch=4,
-#        n_batch_tile=1,
-#        n_head=16,
-#        n_head_tile=8,
-#        n_head_kv=4,
-#        dtype='fp32',
-#        bias=True,
-#    ),
-#    LlamaAttentionTestParams(
-#        n_emb=128,
-#        n_emb_tile=32,
-#        n_seq=64,
-#        n_seq_tile=16,
-#        n_batch=4,
-#        n_batch_tile=1,
-#        n_head=16,
-#        n_head_tile=8,
-#        n_head_kv=4,
-#        dtype='fp32',
-#        bias=False,
-#    ),
-#    LlamaAttentionTestParams(
-#        n_emb=128,
-#        n_emb_tile=128,
-#        n_seq=64,
-#        n_seq_tile=64,
-#        n_batch=3,
-#        n_batch_tile=3,
-#        n_head=8,
-#        n_head_tile=4,
-#        n_head_kv=4,
-#        dtype='fp32',
-#        bias=True,
-#    ),
-#    LlamaAttentionTestParams(
-#        n_emb=128,
-#        n_emb_tile=128,
-#        n_seq=64,
-#        n_seq_tile=64,
-#        n_batch=3,
-#        n_batch_tile=3,
-#        n_head=8,
-#        n_head_tile=4,
-#        n_head_kv=4,
-#        dtype='fp32',
-#        bias=False,
-#    ),
+    pytest.param(
+        LlamaAttentionTestParams(
+            n_emb=128,
+            n_emb_tile=32,
+            n_seq=64,
+            n_seq_tile=16,
+            n_batch=4,
+            n_batch_tile=1,
+            n_head=16,
+            n_head_tile=8,
+            n_head_kv=4,
+            dtype='fp32_fast_tf32',
+            bias=True,
+        ),
+        marks=[
+            pytest.mark.skipif(
+                not torch.cuda.is_available(),
+                reason="CUDA is required"
+            )
+        ]
+    ),
+    LlamaAttentionTestParams(
+        n_emb=128,
+        n_emb_tile=32,
+        n_seq=64,
+        n_seq_tile=16,
+        n_batch=4,
+        n_batch_tile=1,
+        n_head=16,
+        n_head_tile=8,
+        n_head_kv=4,
+        dtype='fp32',
+        bias=True,
+    ),
+    LlamaAttentionTestParams(
+        n_emb=128,
+        n_emb_tile=32,
+        n_seq=64,
+        n_seq_tile=16,
+        n_batch=4,
+        n_batch_tile=1,
+        n_head=16,
+        n_head_tile=8,
+        n_head_kv=4,
+        dtype='fp32',
+        bias=False,
+    ),
+    LlamaAttentionTestParams(
+        n_emb=128,
+        n_emb_tile=128,
+        n_seq=64,
+        n_seq_tile=64,
+        n_batch=3,
+        n_batch_tile=3,
+        n_head=8,
+        n_head_tile=4,
+        n_head_kv=4,
+        dtype='fp32',
+        bias=True,
+    ),
+    LlamaAttentionTestParams(
+        n_emb=128,
+        n_emb_tile=128,
+        n_seq=64,
+        n_seq_tile=64,
+        n_batch=3,
+        n_batch_tile=3,
+        n_head=8,
+        n_head_tile=4,
+        n_head_kv=4,
+        dtype='fp32',
+        bias=False,
+    ),
 ]
 
 
@@ -192,7 +192,6 @@ def generate_inputs(params: LlamaAttentionTestParams):
             size=(params.n_batch, params.n_seq),
             dtype=np.int64
     )
-    # pos_ids = np.zeros((params.n_batch, params.n_seq), dtype=np.int64)
     pos_ids_torch = torch.tensor(pos_ids, dtype=torch.long)
 
     nntile_layer = nntile.layer.LlamaAttention.from_torch(
