@@ -127,6 +127,8 @@ set(KERNEL_HDR
     "nntile/kernel/transpose/cpu.hh"
     "nntile/kernel/rope.hh"
     "nntile/kernel/rope/cpu.hh"
+    "nntile/kernel/rope_backward.hh"
+    "nntile/kernel/rope_backward/cpu.hh"
     )
 
 if(NNTILE_USE_CUDA)
@@ -257,6 +259,7 @@ set(STARPU_HDR
     "nntile/starpu/adamw_step.hh"
     "nntile/starpu/transpose.hh"
     "nntile/starpu/rope.hh"
+    "nntile/starpu/rope_backward.hh"
     )
 
 set(TILE_HDR
@@ -389,6 +392,7 @@ set(TENSOR_HDR
     "nntile/tensor/adamw_step.hh"
     "nntile/tensor/transpose.hh"
     "nntile/tensor/rope.hh"
+    "nntile/tensor/rope_backward.hh"
     )
 
 set(LAYER_HDR

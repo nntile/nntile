@@ -1487,3 +1487,19 @@ def rope_async( sin: Tensor, cos: Tensor, x: Tensor, y: Tensor) -> None:
         core_tensor.rope_async_bf16(sin, cos, x, y)
     else:
         raise TypeError
+
+
+def rope_backward_async( sin: Tensor, cos: Tensor, dy: Tensor, dx: Tensor) -> None:
+    """
+    Wrapper for multiprecision rope
+    """
+    if type(dx) is not type(dy):
+        raise TypeError
+    if type(dx) is core_tensor.Tensor_fp32:
+        core_tensor.rope_backward_async_fp32(sin, cos, dy, dx)
+    elif type(dx) is core_tensor.Tensor_fp64:
+        core_tensor.rope_backward_async_fp64(sin, cos, dy, dx)
+    elif type(dx) is core_tensor.Tensor_bf16:
+        core_tensor.rope_backward_async_bf16(sin, cos, dy, dx)
+    else:
+        raise TypeError

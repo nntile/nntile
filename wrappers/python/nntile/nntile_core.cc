@@ -999,6 +999,13 @@ void def_mod_tensor(py::module_ &m)
     m.def("rope_fp64", &rope<fp64_t>);
     m.def("rope_fp32", &rope<fp32_t>);
     m.def("rope_bf16", &rope<bf16_t>);
+
+    m.def("rope_backward_async_fp64", &rope_backward_async<fp64_t>);
+    m.def("rope_backward_async_fp32", &rope_backward_async<fp32_t>);
+    m.def("rope_backward_async_bf16", &rope_backward_async<bf16_t>);
+    m.def("rope_backward_fp64", &rope_backward<fp64_t>);
+    m.def("rope_backward_fp32", &rope_backward<fp32_t>);
+    m.def("rope_backward_bf16", &rope_backward<bf16_t>);
 }
 
 // Main extension module with all wrappers

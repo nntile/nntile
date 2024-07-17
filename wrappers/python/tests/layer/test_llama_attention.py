@@ -75,7 +75,7 @@ TEST_PARAMS = [
             n_head=16,
             n_head_tile=8,
             n_head_kv=4,
-            dtype='bf16',
+            dtype='fp32',
             bias=False,
         ),
         # marks=[
@@ -192,7 +192,7 @@ def generate_inputs(params: LlamaAttentionTestParams):
             size=(params.n_batch, params.n_seq),
             dtype=np.int64
     )
-    #pos_ids = np.zeros((params.n_batch, params.n_seq), dtype=np.int64)
+    # pos_ids = np.zeros((params.n_batch, params.n_seq), dtype=np.int64)
     pos_ids_torch = torch.tensor(pos_ids, dtype=torch.long)
 
     nntile_layer = nntile.layer.LlamaAttention.from_torch(

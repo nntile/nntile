@@ -73,6 +73,7 @@ else()
         "kernel/silu_forward/cpu.cc"
         "kernel/silu_backward/cpu.cc"
         "kernel/rope/cpu.cc"
+        "kernel/rope_backward/cpu.cc"
         )
 
     if(NNTILE_USE_CUDA)
@@ -207,6 +208,7 @@ set(STARPU_SRC
     "starpu/silu_forward.cc"
     "starpu/silu_backward.cc"
     "starpu/rope.cc"
+    "starpu/rope_backward.cc"
     )
 
 set(TILE_SRC
@@ -339,6 +341,7 @@ set(TENSOR_SRC
     "tensor/silu_forward.cc"
     "tensor/silu_backward.cc"
     "tensor/rope.cc"
+    "tensor/rope_backward.cc"
     )
 
 set(LAYER_SRC

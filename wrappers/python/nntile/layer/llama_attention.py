@@ -21,7 +21,8 @@ from nntile.tensor import (
     Tensor, TensorMoments, TensorTraits, add_fiber_async, add_slice_async,
     clear_async, gemm_async, mask_scalar_async, maxsumexp_async, notrans,
     prod_async, softmax_inplace_async, sum_fiber_async, sum_slice_async,
-    sumprod_slice_async, to_numpy, trans, transpose_async, rope_async)
+    sumprod_slice_async, to_numpy, trans, transpose_async, rope_async,
+    rope_backward_async)
 
 
 # LLaMa Multi-Query Self-Attention with Rotary Embeddings
@@ -561,7 +562,7 @@ class LlamaAttention(BaseLayer):
         k_rope_value = type(x.value)(k_rope_traits, k_rope_distr, next_tag)
         next_tag = k_rope_value.next_tag
         k_rope_grad = type(x.value)(k_rope_traits, k_rope_distr, next_tag)
-        next_tag = k_grad.next_tag
+        next_tag = k_rope_grad.next_tag
         k_rope = TensorMoments(k_rope_value, k_rope_grad, True)
         # k_rep
         k_rep_value = type(x.value)(k_rep_traits, k_rep_distr, next_tag)
@@ -1041,7 +1042,7 @@ class LlamaAttention(BaseLayer):
             )
         # Q can be deleted
         self.q.value.invalidate_submit()
-        if self.q.grad_required:
+        if self.q_rope.grad_required:
             # dQ = 1.0/sqrt(head_size)
             #      * einsum('jklbi,kmlbi->jmlbi', K_rep, dA)
             gemm_async(
@@ -1051,7 +1052,7 @@ class LlamaAttention(BaseLayer):
                 notrans,
                 self.a.grad,
                 0.0,
-                self.q.grad,
+                self.q_rope.grad,
                 1,
                 3,
                 redux=self.redux,
@@ -1123,10 +1124,17 @@ class LlamaAttention(BaseLayer):
         self.x_v.value.wont_use()
         # dV_transposed can be deleted
         self.v_transposed.grad.invalidate_submit()
+
         # Backward for repeating K along fibers of proper axis
-        sum_slice_async(1.0, self.k_rep.grad, 0.0, self.k.grad, 3)
+        if self.k_rope.grad_required:
+            sum_slice_async(1.0, self.k_rep.grad, 0.0, self.k_rope.grad, 3)
+        # Backward for RoPE
+        if self.k.grad_required:
+            rope_backward_async(self.sin, self.cos, self.k_rope.grad, self.k.grad)
         # dK_rep can be deleted
         self.k_rep.grad.invalidate_submit()
+        # #dK_rope can be deleted
+        self.k_rope.grad.invalidate_submit()
         # Backward for bias of K
         if self.in_proj_bias_k is not None:
             if self.in_proj_bias_k.grad_required:
@@ -1186,6 +1194,9 @@ class LlamaAttention(BaseLayer):
         self.x_k.value.wont_use()
         # dK_transposed can be deleted
         self.k_transposed.grad.invalidate_submit()
+        # Backward for RoPE for Q
+        if self.q.grad_required:
+            rope_backward_async(self.sin, self.cos, self.q_rope.grad, self.q.grad)
         # Backward for bias of Q
         if self.in_proj_bias_q is not None:
             if self.in_proj_bias_q.grad_required:
@@ -1206,6 +1217,8 @@ class LlamaAttention(BaseLayer):
             transpose_async(1.0, self.q.grad, self.q_transposed.grad, 3)
         # dQ can be deleted
         self.q.grad.invalidate_submit()
+        # dQ_rope can be deleted
+        self.q_rope.grad.invalidate_submit()
         # Backward for Q_transposed = einsum('ijkl,lmn->ijkmn', W_Q, X_Q)
         if self.x_q.grad_required:
             # dX_Q += einsum('ijkl,ijkmn->lmn', W_Q, dQ_transposed)
