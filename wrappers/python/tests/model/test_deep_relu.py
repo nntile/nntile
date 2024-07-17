@@ -11,22 +11,35 @@
 #
 # @version 1.0.0
 
-import torch.optim as optim
-import torch.nn as nn
-import torch
-import nntile
-import time
+# ruff: noqa: E501
+
 import copy
-from nntile.tensor import copy_async, clear_async
-import numpy as np
+import time
 from typing import Dict
 
-def run_test(input_dim: int, hidden_dim: int, n_classes: int, bias: bool,
-             n_layers: int, device: str, lr: float, n_epoch: int,
-             optimizer: str, optimizer_params: Dict[str, float],
-             n_samples: int, batch_size: int, minibatch_size: int):
+import numpy as np
+import pytest
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+import nntile
 
 
+@pytest.mark.xfail(reason='not implemented')
+@pytest.mark.slow
+@pytest.mark.parametrize('bias,device,optimizer', [
+    (True, 'cuda', 'adam'),
+    (False, "cuda", "adam"),
+    (False, "cuda", "sgd"),
+    (True, "cpu", "sgd"),
+])
+def test_deep_relu(bias: bool, device: str, optimizer: str, input_dim: int = 5,
+                   hidden_dim: int = 100, n_classes: int = 10,
+                   n_layers: int = 5, lr: float = 1e-3, n_epoch: int = 3,
+                   n_samples: int = 1024, batch_size: int = 32,
+                   minibatch_size: int = 8,
+                   optimizer_params: Dict[str, float] = {}):
 
     # Create simple PyTorch model and make some optimizer steps
     class MLP(nn.Module):
@@ -38,8 +51,8 @@ def run_test(input_dim: int, hidden_dim: int, n_classes: int, bias: bool,
             self.relu = nn.ReLU()
 
         def forward(self, x):
-            for l in self.layers[:-1]:
-                x = l(x)
+            for layer in self.layers[:-1]:
+                x = layer(x)
                 x = self.relu(x)
             x = self.layers[-1](x)
             return x
@@ -73,7 +86,7 @@ def run_test(input_dim: int, hidden_dim: int, n_classes: int, bias: bool,
 
     # Set up StarPU+MPI and init codelets
     time0 = -time.time()
-    config = nntile.starpu.Config(-1, -1, 1)
+    _config = nntile.starpu.Config(-1, -1, 1)
     nntile.starpu.init()
     nntile.starpu.restrict_cuda()
     time0 += time.time()
@@ -86,7 +99,7 @@ def run_test(input_dim: int, hidden_dim: int, n_classes: int, bias: bool,
     batch_labels = []
     minibatch_tile = minibatch_size
     input_dim_tile = input_dim
-    x_traits = nntile.tensor.TensorTraits([input_dim, minibatch_size], \
+    x_traits = nntile.tensor.TensorTraits([input_dim, minibatch_size],
             [input_dim_tile, minibatch_tile])
     x_distr = [0] * x_traits.grid.nelems
     y_traits = nntile.tensor.TensorTraits([minibatch_size], [minibatch_tile])
@@ -147,43 +160,3 @@ def run_test(input_dim: int, hidden_dim: int, n_classes: int, bias: bool,
             x.unregister()
     nntile_optimizer.unregister()
     nntile_model.unregister()
-
-if __name__ == "__main__":
-    input_dim = 5
-    hidden_dim = 100
-    n_classes = 10
-    n_layers = 5
-    lr = 1e-3
-    n_epoch = 3
-
-    n_samples = 1024
-    batch_size = 32
-    minibatch_size = 8
-
-    run_test(input_dim=input_dim, hidden_dim=hidden_dim,
-             n_classes=n_classes, bias=True,
-             n_layers=n_layers, device="cuda", lr=lr,
-             n_epoch=n_epoch, optimizer="adam", optimizer_params={},
-             n_samples=n_samples, batch_size=batch_size,
-             minibatch_size=minibatch_size)
-
-    run_test(input_dim=input_dim, hidden_dim=hidden_dim,
-             n_classes=n_classes, bias=False,
-             n_layers=n_layers, device="cuda", lr=lr,
-             n_epoch=n_epoch, optimizer="adam", optimizer_params={},
-             n_samples=n_samples, batch_size=batch_size,
-             minibatch_size=minibatch_size)
-
-    run_test(input_dim=input_dim, hidden_dim=hidden_dim,
-             n_classes=n_classes, bias=False,
-             n_layers=n_layers, device="cuda", lr=lr,
-             n_epoch=n_epoch, optimizer="sgd", optimizer_params={},
-             n_samples=n_samples, batch_size=batch_size,
-             minibatch_size=minibatch_size)
-
-    run_test(input_dim=input_dim, hidden_dim=hidden_dim,
-             n_classes=n_classes, bias=True,
-             n_layers=n_layers, device="cpu", lr=lr,
-             n_epoch=n_epoch, optimizer="sgd", optimizer_params={},
-             n_samples=n_samples, batch_size=batch_size,
-             minibatch_size=minibatch_size)

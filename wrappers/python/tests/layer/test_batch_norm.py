@@ -90,9 +90,9 @@ def generate_input(params: BatchNormTestParams, rng):
 
 @pytest.mark.parametrize("params", BATCH_NORM_2D_TEST_PARAMS)
 class TestBatchNorm2d:
-    def test_batchnorm_forward(
-        self, starpu_simple, numpy_rng, torch_rng, params: BatchNormTestParams
-    ):
+
+    def test_forward(self, starpu_simple, numpy_rng, torch_rng,
+                     params: BatchNormTestParams):
         (
             (input_moment, _, weights_nnt, bias_nnt),
             (input_torch, _, weights_torch, bias_torch),
@@ -123,9 +123,8 @@ class TestBatchNorm2d:
             err_msg=f"Error in forward for params: {params}",
         )
 
-    def test_batchnorm_backward(
-        self, starpu_simple, numpy_rng, torch_rng, params: BatchNormTestParams
-    ):
+    def test_backward(self, starpu_simple, numpy_rng, torch_rng,
+                      params: BatchNormTestParams):
         (
             (input_moment, output_grad_nnt, weights_nnt, bias_nnt),
             (input_torch, output_grad_torch, weights_torch, bias_torch),
@@ -157,15 +156,14 @@ class TestBatchNorm2d:
             nntile.tensor.to_numpy(nntile_layer.bias.grad),
             bn_torch.bias.grad.numpy(),
             atol=params.atol,
-            err_msg=f"Error in backward d(batch_norm)/d(bias) for params: {params}",
         )
 
         # test d(batch_norm)/d(weight)
+        # for some reasons not good match. Maybe different order of operations
         np.testing.assert_allclose(
             nntile.tensor.to_numpy(nntile_layer.weight.grad),
             bn_torch.weight.grad.numpy(),
-            atol=5e-5,  # for some reasons not good match. Maybe different order of operations
-            err_msg=f"Error in backward test d(batch_norm)/d(weight) for params: {params}",
+            atol=5e-5,
         )
 
         # test d(batch_norm)/d(input)
@@ -173,5 +171,4 @@ class TestBatchNorm2d:
             nntile.tensor.to_numpy(nntile_layer.x.grad),
             input_torch.grad.numpy(),
             atol=params.atol,
-            err_msg=f"Error in backward d(batch_norm)/d(input) for params: {params}",
         )

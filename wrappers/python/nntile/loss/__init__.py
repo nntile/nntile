@@ -11,5 +11,7 @@
 #
 # @version 1.0.0
 
-from .frob import Frob
 from .crossentropy import CrossEntropy
+from .frob import Frob
+
+__all__ = ('CrossEntropy', 'Frob')

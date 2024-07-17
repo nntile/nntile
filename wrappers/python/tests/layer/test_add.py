@@ -11,21 +11,19 @@
 #
 # @version 1.0.0
 
+import time
+
+import numpy as np
+import pytest
 import torch
 import torch.nn as nn
-import numpy as np
 
-from nntile.model.base_model import BaseModel
-from nntile.layer.linear import Linear
+import nntile
 from nntile.layer.act import Act
 from nntile.layer.add import Add
-
-from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        notrans, trans, Tensor_fp32
-
-import time
-import nntile
-
+from nntile.layer.linear import Linear
+from nntile.model.base_model import BaseModel
+from nntile.tensor import Tensor_fp32, TensorMoments, TensorTraits, notrans
 
 
 class ToyFC_SkipConnectionTorch(nn.Module):
@@ -45,16 +43,6 @@ class ToyFC_SkipConnectionTorch(nn.Module):
         u = self.lin3(u)
         return u
 
-
-n = 100
-hidden_dim = 50
-num_samples = 1000
-torch_input = torch.randn(num_samples, n)
-torch_model = ToyFC_SkipConnectionTorch(n, hidden_dim)
-torch_output = torch_model(torch_input)
-torch_loss = 0.5 * torch.sum(torch.square(torch_output))
-torch_loss.backward()
-print("Torch loss = {}".format(torch_loss.item()))
 
 class ToyFC_SkipConnection(BaseModel):
     next_tag: int
@@ -79,18 +67,19 @@ class ToyFC_SkipConnection(BaseModel):
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         # Add operation
-        new_layer, next_tag = Add.generate_simple(activations[1], activations[-1],
-                                                  next_tag)
+        new_layer, next_tag = Add.generate_simple(
+            activations[1], activations[-1], next_tag)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         # ReLU activation
-        new_layer, next_tag = Act.generate_simple(activations[-1], "relu",
-                                                  next_tag)
+        new_layer, next_tag = \
+            Act.generate_simple(activations[-1], "relu", next_tag)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
 
-        new_layer, next_tag = Linear.generate_simple(activations[-1], "L", notrans,
-                1, [x.value.shape[1]], [x.value.shape[1]], next_tag, bias=False)
+        new_layer, next_tag = Linear.generate_simple(activations[-1], "L",
+            notrans, 1, [x.value.shape[1]], [x.value.shape[1]], next_tag,
+            bias=False)
         layers.append(new_layer)
         activations.extend(new_layer.activations_output)
         self.next_tag = next_tag
@@ -99,52 +88,66 @@ class ToyFC_SkipConnection(BaseModel):
 
     @staticmethod
     def from_torch(torch_model, input_moment, hidden_dim, next_tag: int):
-        '''
-        torch_mlp is PyTorch MLP where all intermediate dimensions are the same and no biases in linear layers
-        '''
+        """`torch_mlp` is PyTorch MLP where all intermediate dimensions are the
+        same and no biases in linear layers
+        """
         print("Call from torch static method")
         nntile_model = ToyFC_SkipConnection(input_moment, hidden_dim, next_tag)
-        for p, p_torch in zip(nntile_model.parameters, torch_model.parameters()):
+        pairs = zip(nntile_model.parameters, torch_model.parameters())
+        for p, p_torch in pairs:
             p.value.from_array(p_torch.detach().numpy().T)
         return nntile_model, nntile_model.next_tag
 
-time0 = -time.time()
-# Set up StarPU+MPI and init codelets
-config = nntile.starpu.Config(1, -1, 1)
-nntile.starpu.init()
-time0 += time.time()
-print("StarPU + NNTile + MPI init in {} seconds".format(time0))
-next_tag = 0
 
-x_traits = TensorTraits([num_samples, n], [num_samples, n])
-x_distr = [0] * x_traits.grid.nelems
-nntile_input = Tensor_fp32(x_traits, x_distr, next_tag)
-nntile_input.from_array(torch_input.numpy())
-next_tag = nntile_input.next_tag
-nntile_input_moment = TensorMoments(nntile_input, None, False)
-nntile_model, next_tag = ToyFC_SkipConnection.from_torch(torch_model, nntile_input_moment,
-                                                         hidden_dim, next_tag)
-nntile_model.clear_gradients()
-nntile_model.forward_async()
-fro_loss, next_tag = nntile.loss.Frob.generate_simple(nntile_model.activations[-1], next_tag)
-np_zero = np.zeros(nntile_model.activations[-1].value.shape, dtype=np.float32, order="F")
-fro_loss.y.from_array(np_zero)
-fro_loss.calc_async()
-nntile_model.backward_async()
+@pytest.mark.xfail(reason='not implemented')
+def test_add(n=100, hidden_dim=50, num_samples=1000):
+    torch_input = torch.randn(num_samples, n)
+    torch_model = ToyFC_SkipConnectionTorch(n, hidden_dim)
+    torch_output = torch_model(torch_input)
+    torch_loss = 0.5 * torch.sum(torch.square(torch_output))
+    torch_loss.backward()
+    print("Torch loss = {}".format(torch_loss.item()))
 
+    time0 = -time.time()
+    # Set up StarPU+MPI and init codelets
+    _config = nntile.starpu.Config(1, -1, 1)
+    nntile.starpu.init()
+    time0 += time.time()
+    print("StarPU + NNTile + MPI init in {} seconds".format(time0))
+    next_tag = 0
 
-np_loss_nntile = np.zeros((1,), dtype=np.float32, order="F")
-fro_loss.val.to_array(np_loss_nntile)
-print("NNTile loss = {}".format(np_loss_nntile[0]))
-print("Relative error in the loss for torch and nntile models = {}".format(
-    abs(torch_loss.item() - np_loss_nntile[0]) / torch_loss.item()))
+    x_traits = TensorTraits([num_samples, n], [num_samples, n])
+    x_distr = [0] * x_traits.grid.nelems
+    nntile_input = Tensor_fp32(x_traits, x_distr, next_tag)
+    nntile_input.from_array(torch_input.numpy())
+    next_tag = nntile_input.next_tag
+    nntile_input_moment = TensorMoments(nntile_input, None, False)
+    nntile_model, next_tag = ToyFC_SkipConnection \
+        .from_torch(torch_model, nntile_input_moment, hidden_dim, next_tag)
+    nntile_model.clear_gradients()
+    nntile_model.forward_async()
+    fro_loss, next_tag = nntile.loss.Frob \
+        .generate_simple(nntile_model.activations[-1], next_tag)
+    np_zero = np.zeros(nntile_model.activations[-1].value.shape,
+                       dtype=np.float32, order='F')
+    fro_loss.y.from_array(np_zero)
+    fro_loss.calc_async()
+    nntile_model.backward_async()
 
-for i, (p_nntile, p_torch) in enumerate(zip(nntile_model.parameters, torch_model.parameters())):
-    p_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
-    p_nntile.grad.to_array(p_np)
-    p_torch_np = p_torch.grad.cpu().detach().numpy()
-    rel_error = np.linalg.norm(p_np - p_torch_np.T, "fro") / np.linalg.norm(p_torch_np, "fro")
-    print("Relative error in layer {} gradient = {}".format(i, rel_error))
+    np_loss_nntile = np.zeros((1,), dtype=np.float32, order="F")
+    fro_loss.val.to_array(np_loss_nntile)
+    print("NNTile loss = {}".format(np_loss_nntile[0]))
+    print("Relative error in the loss for torch and nntile models = {}".format(
+        abs(torch_loss.item() - np_loss_nntile[0]) / torch_loss.item()))
 
-nntile_model.unregister()
-fro_loss.unregister()
+    param_pairs = zip(nntile_model.parameters, torch_model.parameters())
+    for i, (p_nntile, p_torch) in enumerate(param_pairs):
+        p_np = np.zeros(p_nntile.grad.shape, order="F", dtype=np.float32)
+        p_nntile.grad.to_array(p_np)
+        p_torch_np = p_torch.grad.cpu().detach().numpy()
+        abs_error = np.linalg.norm(p_np - p_torch_np.T, "fro")
+        rel_error = abs_error / np.linalg.norm(p_torch_np, "fro")
+        print("Relative error in layer {} gradient = {}".format(i, rel_error))
+
+    nntile_model.unregister()
+    fro_loss.unregister()

@@ -12,30 +12,23 @@
 # @version 1.0.0
 
 import numpy as np
+import pytest
 import torch
 import torch.nn.functional as F
+from torch.autograd.functional import jvp
 
-# All necesary imports
 import nntile
+from nntile.layer import Act
 
-# Set up StarPU configuration and init it
 config = nntile.starpu.Config(1, 0, 0)
-# Init all NNTile-StarPU codelets
 nntile.starpu.init()
-# Define list of tested types
-dtypes = [np.float32, np.float64]
+
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
-        np.float64: nntile.tensor.Tensor_fp64}
-# Get multiprecision activation layer
-Act = nntile.layer.Act
+          np.float64: nntile.tensor.Tensor_fp64}
 
-# Helper function returns bool value true if test passes
-def helper(dtype: np.dtype):
-    if dtype == np.float32:
-        tol = 1e-5
-    elif dtype == np.float64:
-        tol = 1e-10
+
+def setup(name: str, dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [4, 5, 6]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
@@ -48,79 +41,79 @@ def helper(dtype: np.dtype):
     next_tag = A_grad.next_tag
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Set initial values of tensors
-    rand_A = np.random.randn(*A_shape)
+    rand_A = np.random.default_rng(42).standard_normal(A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
     np_B = np.zeros_like(np_A)
-    # Check result for each activation function
-    for funcname in Act.activations:
-        # A is invalidated after each forward_async
-        A.from_array(np_A)
-        nntile.tensor.clear_async(A_grad)
-        # Set up activation layer
-        layer, next_tag = Act.generate_simple(A_moments, funcname, next_tag)
+
+    # A is invalidated after each forward_async
+    A.from_array(np_A)
+    nntile.tensor.clear_async(A_grad)
+    # Set up activation layer
+    layer, _ = Act.generate_simple(A_moments, name, next_tag)
+
+    return np_A, np_B, A_moments, layer
+
+
+@pytest.mark.parametrize('name', ['relu', 'gelu', 'gelutanh', 'silu'])
+@pytest.mark.parametrize('dtype', [np.float32, np.float64])
+class TestAct:
+
+    def test_forward(self, name: str, dtype: np.dtype):
+        if dtype == np.float32:
+            tol = 1e-5
+        elif dtype == np.float64:
+            tol = 1e-10
+        np_A, np_B, A_moments, layer = setup(name, dtype)
+
         # Do forward pass and wait until it is finished
         layer.forward_async()
         nntile.starpu.wait_for_all()
         # Dump output
         layer.y.value.to_array(np_B)
         # Check output correctness
-        if funcname == "relu":
+        if name == "relu":
             torch_output = F.relu(torch.from_numpy(np_A))
-        elif funcname == "gelu":
+        elif name == "gelu":
             torch_output = F.gelu(torch.from_numpy(np_A))
-        elif funcname == "gelutanh":
+        elif name == "gelutanh":
             torch_output = F.gelu(torch.from_numpy(np_A), approximate="tanh")
-        elif funcname == "silu":
+        elif name == "silu":
             torch_output = F.silu(torch.from_numpy(np_A))
         np_C = np.array(torch_output.numpy(), order="F", dtype=dtype)
-        if np.linalg.norm(np_C - np_B) / np.linalg.norm(np_C) > tol:
-            A_moments.unregister()
-            layer.unregister()
-            assert False
-        print("Forward in {} passed".format(funcname))
+        assert np.linalg.norm(np_C - np_B) / np.linalg.norm(np_C) <= tol
+
+        A_moments.unregister()
+        layer.unregister()
+
+    def test_backward(self, name: str, dtype: np.dtype):
+        if dtype == np.float32:
+            tol = 1e-5
+        elif dtype == np.float64:
+            tol = 1e-10
+        np_A, np_B, A_moments, layer = setup(name, dtype)
+
         # Do backward
-        layer.y.grad.from_array(2*np_A)
+        layer.y.grad.from_array(2 * np_A)
         layer.backward_async()
         nntile.starpu.wait_for_all()
         # Dump output
         layer.x.grad.to_array(np_B)
         # Check correctness
-        if funcname == "relu":
-            torch_grad = torch.autograd.functional.jvp(F.relu, \
-                    torch.from_numpy(np_A), torch.from_numpy(2 * np_A))[1]
-        elif funcname == "gelu":
-            torch_grad = torch.autograd.functional.jvp(F.gelu, \
-                    torch.from_numpy(np_A), torch.from_numpy(2 * np_A))[1]
-        elif funcname == "gelutanh":
-            torch_grad = torch.autograd.functional.jvp( \
-                    lambda x: F.gelu(x, approximate="tanh"), \
-                    torch.from_numpy(np_A), torch.from_numpy(2 * np_A))[1]
-        elif funcname == "silu":
-            torch_grad = torch.autograd.functional.jvp( \
-                    lambda x: F.silu(x), \
-                    torch.from_numpy(np_A), torch.from_numpy(2 * np_A))[1]
+        if name == "relu":
+            torch_grad = jvp(F.relu, torch.from_numpy(np_A),
+                             torch.from_numpy(2 * np_A))[1]
+        elif name == "gelu":
+            torch_grad = jvp(F.gelu, torch.from_numpy(np_A),
+                             torch.from_numpy(2 * np_A))[1]
+        elif name == "gelutanh":
+            torch_grad = jvp(lambda x: F.gelu(x, approximate="tanh"),
+                             torch.from_numpy(np_A),
+                             torch.from_numpy(2 * np_A))[1]
+        elif name == "silu":
+            torch_grad = jvp(lambda x: F.silu(x), torch.from_numpy(np_A),
+                             torch.from_numpy(2 * np_A))[1]
         np_C = np.array(torch_grad.numpy(), order="F", dtype=dtype)
-        if np.linalg.norm(np_C - np_B) / np.linalg.norm(np_C) > tol:
-            print(np.linalg.norm(np_C - np_B), np.linalg.norm(np_C))
-            A_moments.unregister()
-            layer.unregister()
-            assert False
-        print("Backward in {} passed".format(funcname))
-    A_moments.unregister()
-    layer.unregister()
-    print("Finish checking {}".format(Act.activations.keys()))
-    assert True
+        assert np.linalg.norm(np_C - np_B) / np.linalg.norm(np_C) <= tol
 
-# Test runner for different precisions
-def test():
-    for dtype in dtypes:
-        helper(dtype)
-
-# Repeat tests
-def test_repeat():
-    for dtype in dtypes:
-        helper(dtype)
-
-if __name__ == "__main__":
-    test()
-    test_repeat()
+        A_moments.unregister()
+        layer.unregister()
