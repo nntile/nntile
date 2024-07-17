@@ -63,7 +63,6 @@ Repository = "https://github.com/nntile/nntile.git"
 combine_as_imports = true
 known_first_party = ["nntile", "gpt2_config", "huggingface_activations"]
 multi_line_output = 4
-sort_reexports = true
 
 [tool.pytest.ini_options]
 minversion = "8.2"
