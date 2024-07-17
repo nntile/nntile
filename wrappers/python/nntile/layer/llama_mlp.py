@@ -15,10 +15,13 @@ import torch
 from transformers import LlamaConfig as LlamaConfig_torch
 from transformers.models.llama.modeling_llama import LlamaMLP as LlamaMLP_torch
 
-from nntile.layer import Act, Linear, Prod
 from nntile.model.base_model import BaseModel
 from nntile.model.llama import LlamaConfig as LlamaConfig_nntile
 from nntile.tensor import TensorMoments, notrans, to_numpy
+
+from .act import Act
+from .linear import Linear
+from .prod import Prod
 
 
 class LlamaMLP(BaseModel):

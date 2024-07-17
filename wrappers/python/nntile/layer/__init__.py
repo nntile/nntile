@@ -22,7 +22,6 @@ from .flash_attention import FlashAttention
 from .layer_norm import LayerNorm
 from .linear import Linear
 from .llama_attention import LlamaAttention
-from .llama_mlp import LlamaMLP
 from .mixer import GAP, Mixer, MixerMlp
 from .prod import Prod
 from .rms_norm import RMSNorm

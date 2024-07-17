@@ -21,6 +21,7 @@ import torch
 from transformers.models.llama.modeling_llama import LlamaConfig, LlamaMLP
 
 import nntile
+from nntile.layer.llama_mlp import LlamaMLP as LlamaMLP_nntile
 from nntile.model.llama import LlamaConfig as LlamaConfig_nntile
 from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
@@ -147,12 +148,12 @@ def generate_inputs(params: LlamaMLPTestParams):
     x_value = x_type(x_traits, x_distr, 0)
     x_grad = x_type(x_traits, x_distr, 0)
     X = TensorMoments(x_value, x_grad, grad_required=True)
-    gen = np.random.default_generator()
+    gen = np.random.default_rng()
     x_random = gen.standard_normal(x_shape)
     x_nntile = np.array(x_random, dtype=np.float32, order="F")
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
-    nntile_layer, _ = nntile.layer.LlamaMLP.from_torch(torch_layer, X,
+    nntile_layer, _ = LlamaMLP_nntile.from_torch(torch_layer, X,
                                                        nntile_config, 0)
     nntile_layer.clear_gradients()
     y_grad_random = gen.standard_normal(x_shape)
