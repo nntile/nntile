@@ -14,7 +14,7 @@
 import numpy as np
 
 from nntile.tensor import (
-    Tensor_fp32, Tensor_int64, TensorMoments, TensorTraits)
+    Tensor_bool, Tensor_fp32, Tensor_int64, TensorMoments, TensorTraits)
 
 from ..layer import Embedding, LlamaAttention, RMSNorm
 from ..layer.add import Add
@@ -38,7 +38,7 @@ class Llama(BaseModel):
         if self.dtype not in ["fp32", "tf32", "bf16"]:
             raise TypeError("Only fp32, tf32 and bf16 are"
                             "supported for weight type")
-        activations = [input_ids, positional_ids]
+        activations = [input_ids]
         layers = []
 
         self.num_hidden_layers = config["num_hidden_layers"]
@@ -53,6 +53,19 @@ class Llama(BaseModel):
         n_head = config["n_attention_heads"]
         n_head_tile = config["n_head_tile"]
         n_head_kv = config["num_key_value_heads"]
+
+        seq_len = input_ids.value.shape[0]
+        seq_len_tile = input_ids.value.basetile_shape[0]
+        mask_traits = TensorTraits(
+            (seq_len, seq_len), (seq_len_tile, seq_len_tile)
+        )
+        mask_distr = [0] * mask_traits.grid.nelems
+        self.mask = Tensor_bool(mask_traits, mask_distr, next_tag)
+        next_tag = self.mask.next_tag
+        mask_np = np.array(
+            np.triu(np.ones((seq_len, seq_len))), dtype=bool, order="F"
+        )
+        self.mask.from_array(mask_np)
 
         if self.dtype == "fp32":
             embed_layer, next_tag = Embedding.generate_simple(
@@ -69,7 +82,8 @@ class Llama(BaseModel):
         activations.extend(embed_layer.activations_output)
 
         for _ in range(self.num_hidden_layers):
-            norm_layer, next_tag = RMSNorm.generate_simple(activations[-1], 1,
+            input_act = activations[-1]
+            norm_layer, next_tag = RMSNorm.generate_simple(activations[-1], 0,
                                                        config["rms_norm_eps"],
                                                        next_tag,
                                                        redux)
@@ -82,17 +96,18 @@ class Llama(BaseModel):
                                     n_head_tile,
                                     n_head_kv,
                                     next_tag,
+                                    mask=self.mask,
                                     redux=redux)
             layers.append(attn_layer)
             activations.extend(attn_layer.activations_output)
 
             new_layer, next_tag = Add.generate_simple(
-                activations[-3], activations[-1], next_tag
+                input_act, activations[-1], next_tag
             )
             layers.append(new_layer)
             activations.extend(new_layer.activations_output)
 
-            norm_layer, next_tag = RMSNorm.generate_simple(activations[-1], 1,
+            norm_layer, next_tag = RMSNorm.generate_simple(activations[-1], 0,
                                                        config["rms_norm_eps"],
                                                        next_tag,
                                                        redux)
@@ -105,12 +120,12 @@ class Llama(BaseModel):
             layers.extend(mlp_subnetwork.layers)
 
             new_layer, next_tag = Add.generate_simple(
-                norm_layer.activations_output, activations[-1], next_tag
+                norm_layer.activations_output[0], activations[-1], next_tag
             )
             layers.append(new_layer)
             activations.extend(new_layer.activations_output)
 
-        norm_layer, next_tag = RMSNorm.generate_simple(activations[-1], 1,
+        norm_layer, next_tag = RMSNorm.generate_simple(activations[-1], 0,
                                                        config["rms_norm_eps"],
                                                        next_tag,
                                                        redux)
@@ -150,9 +165,87 @@ class Llama(BaseModel):
         x_moments = TensorMoments(x, x_grad, x_grad_required)
 
         llama_nntile = Llama(x_moments, positional_ids, config, next_tag)
-        for p_nntile, (name, p_torch) in zip(llama_nntile.parameters,
-                                             torch_llama.named_parameters()):
-            print(p_nntile.value.shape, p_torch.shape, name)
-            p_nntile.value.from_array(p_torch.cpu().detach().numpy().T)
+        nntile_params = llama_nntile.parameters
+        torch_named_parameters = list(torch_llama.named_parameters())
+        # Copy embedding parameters
+        print(torch_named_parameters[0][0])
+        nntile_params[0].value.from_array(
+            torch_named_parameters[0][1].cpu().detach().numpy().T)
+        # Copy the last RMSNorm layer parameters
+        print(torch_named_parameters[-1][0])
+        nntile_params[-1].value.from_array(
+            torch_named_parameters[-1][1].cpu().detach().numpy())
+        for layer_idx in range(config["num_hidden_layers"]):
+            # First 4 parameters are for Attention (q, k, v, o)
+            tmp_q_shape = nntile_params[layer_idx * 9 + 2].value.shape.copy()
+            tmp_q_shape[:2] = tmp_q_shape[1::-1]
+            print(torch_named_parameters[1 + 9 * layer_idx][0])
+            nntile_params[layer_idx * 9 + 2].value.from_array(
+                np.moveaxis(
+                    torch_named_parameters[1 + 9 * layer_idx][1].detach()
+                    .cpu()
+                    .numpy()
+                    .reshape(*tmp_q_shape),
+                    0,
+                    1,
+                )
+            )
+            print(torch_named_parameters[2 + 9 * layer_idx][0])
+            w_k_shape = nntile_params[layer_idx * 9 + 3].value.shape
+            nntile_params[layer_idx * 9 + 3].value.from_array(
+                torch_named_parameters[2 + 9 * layer_idx][1].detach()
+                .cpu()
+                .numpy()
+                .reshape(*w_k_shape)
+            )
+            w_v_shape = nntile_params[layer_idx * 9 + 4].value.shape
+            print(torch_named_parameters[3 + 9 * layer_idx][0])
+            nntile_params[layer_idx * 9 + 4].value.from_array(
+                torch_named_parameters[3 + 9 * layer_idx][1].detach()
+                .cpu()
+                .numpy()
+                .reshape(*w_v_shape)
+            )
+            print(torch_named_parameters[4 + 9 * layer_idx][0])
+            tmp_w_shape = nntile_params[layer_idx * 9 + 5].value.shape.copy()
+            tmp_w_shape[1:3] = tmp_w_shape[2:0:-1]
+            nntile_params[layer_idx * 9 + 5].value.from_array(
+                np.moveaxis(
+                    torch_named_parameters[4 + 9 * layer_idx][1].detach()
+                    .cpu()
+                    .numpy()
+                    .reshape(*tmp_w_shape),
+                    1,
+                    2,
+                )
+            )
+            # Next 3 parameters are for LlamaMLP
+            print(torch_named_parameters[1 + layer_idx * 9 + 4][0])
+            nntile_params[7 + layer_idx * 9].value.from_array(
+                torch_named_parameters[1 + layer_idx * 9 + 4][1].
+                cpu().detach().numpy())
+            print(torch_named_parameters[1 + layer_idx * 9 + 5][0])
+            nntile_params[8 + layer_idx * 9].value.from_array(
+                torch_named_parameters[1 + layer_idx * 9 + 5][1].
+                cpu().detach().numpy())
+            print(torch_named_parameters[1 + layer_idx * 9 + 6][0])
+            nntile_params[9 + layer_idx * 9].value.from_array(
+                torch_named_parameters[1 + layer_idx * 9 + 6][1].
+                cpu().detach().numpy())
+            # Next is input RMSNorm
+            print(torch_named_parameters[1 + layer_idx * 9 + 7][0])
+            nntile_params[1 + layer_idx * 9].value.from_array(
+                torch_named_parameters[1 + layer_idx * 9 + 7][1].
+                cpu().detach().numpy())
+            # Next is RMSNorm after skip connection after attention
+            print(torch_named_parameters[1 + layer_idx * 9 + 8][0])
+            nntile_params[6 + layer_idx * 9].value.from_array(
+                torch_named_parameters[1 + layer_idx * 9 + 8][1].
+                cpu().detach().numpy())
 
         return llama_nntile, llama_nntile.next_tag
+
+    def unregister(self):
+        super().unregister()
+        if self.mask:
+            self.mask.unregister()

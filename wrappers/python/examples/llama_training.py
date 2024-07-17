@@ -15,19 +15,20 @@ import argparse
 # import json
 import time
 
-# import numpy as np
+import numpy as np
 import torch
-
-import nntile
-
 # import torch.nn as nn
 # from datasets import load_dataset
 # from torch.optim import SGD, Adam, AdamW
-# from transformers import LlamaConfig, LlamaModel
+from transformers import LlamaConfig, LlamaModel
 
+import nntile
 # from nntile.layer.llama_mlp import LlamaMLP as LlamaMLP_nntile
 # from nntile.loss import Frob
-# from nntile.model.llama import LlamaConfig as LlamaConfig_nntile
+from nntile.model.llama import Llama as Llama_nntile, LlamaConfigNNTile
+
+# from transformers import LlamaTokenizerFast
+
 
 # Create argument parser
 parser = argparse.ArgumentParser(prog="Llama-based neural networks",
@@ -112,7 +113,8 @@ assert args.nntile_nbackward >= 0
 assert args.nntile_nepochs >= 0
 
 # Set Torch default device to cpu
-torch.set_default_device("cpu")
+# torch.set_default_device("cpu")
+torch_device = args.torch_device
 
 if args.torch_dtype == "fp32":
     torch_dtype = torch.float32
@@ -140,3 +142,75 @@ elif args.nntile_restrict == "cpu":
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
 next_tag = 0
+
+
+llama_config_torch = LlamaConfig()
+print(llama_config_torch)
+llama_config_torch.num_hidden_layers = 1
+torch_model = LlamaModel(llama_config_torch)
+print(torch_model)
+
+llama_config_nntile = LlamaConfigNNTile(
+    vocab_size=llama_config_torch.vocab_size,
+    vocab_embed_dim_tile=llama_config_torch.hidden_size,
+    hidden_size=llama_config_torch.hidden_size,
+    hidden_size_tile=llama_config_torch.hidden_size,
+    max_position_embeddings=llama_config_torch.max_position_embeddings,
+    num_hidden_layers=llama_config_torch.num_hidden_layers,
+    rms_norm_eps=llama_config_torch.rms_norm_eps,
+    n_attention_head=llama_config_torch.num_attention_heads)
+
+llama_nntile, next_tag = Llama_nntile.from_torch(torch_model,
+                                                 10, 10, 4096, 4096,
+                                                 llama_config_nntile,
+                                                 next_tag)
+
+# from datasets import load_dataset
+# import numpy as np
+# train_dataset = load_dataset("wikitext", "wikitext-103-v1", \
+#                 split='train', cache_dir=".data") \
+#                 .select(np.arange(args.dataset_select, dtype=np.int64))
+# test_dataset = load_dataset("wikitext", "wikitext-103-v1", \
+#                 split='test', cache_dir=".data")
+
+# tokenizer = LlamaTokenizerFast.from_pretrained("huggyllama/llama-7b")
+# map_train_tokens = map(lambda x: tokenizer(x["text"])["input_ids"],
+# train_dataset)
+# list_train_tokens = []
+# for seq in map_train_tokens:
+#     list_train_tokens.extend(seq)
+# num_train_tokens = len(list_train_tokens)
+
+n_positions = 4096
+# num_train_seq = num_train_tokens // (n_positions+1)
+# num_train_batches = num_train_seq // args.batch_size
+# num_train_tokens_truncated = num_train_batches * args.batch_size \
+#         * (n_positions+1)
+# train_tokens = np.array(list_train_tokens[:num_train_tokens_truncated], \
+#         order='F', dtype=np.int64)
+# train_tokens = train_tokens.reshape(num_train_batches, \
+#         num_minibatch, args.minibatch_size, n_positions+1)
+
+input_value = torch.randint(llama_config_torch.vocab_size,
+            (10, n_positions), dtype=torch.int64, device=torch_device)
+position_ids = torch.zeros((10, n_positions)).to(torch.long).to(torch_device)
+
+torch_model.to(torch_device)
+output = torch_model(input_value, position_ids=position_ids)
+print(output.last_hidden_state.shape)
+
+# Transfer input/output to NNTile format
+llama_nntile.activations[0].value.from_array(input_value.T.cpu().numpy())
+llama_nntile.forward_async()
+nntile.starpu.wait_for_all()
+llama_nntile_output_np = np.zeros((4096, 4096, 10), order="F",
+                                  dtype=np.float32)
+llama_nntile.activations[-1].value.to_array(llama_nntile_output_np)
+
+output_torch = output.last_hidden_state.cpu().detach().numpy()
+print(output_torch.shape, llama_nntile_output_np.shape,
+      llama_nntile_output_np.T.shape)
+print(np.linalg.norm(output_torch - llama_nntile_output_np.T) /
+      np.linalg.norm(output_torch))
+
+llama_nntile.unregister()

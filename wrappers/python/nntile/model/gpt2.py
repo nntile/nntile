@@ -17,14 +17,15 @@ import numpy as np
 import torch
 
 import nntile
-from nntile.layer import (Act, AddSlice, Attention, AttentionSingleHead,
-                          Embedding, FlashAttention, LayerNorm, Linear)
+from nntile.layer import (
+    Act, AddSlice, Attention, AttentionSingleHead, Embedding, FlashAttention,
+    LayerNorm, Linear)
 from nntile.layer.add import Add
 from nntile.model.base_model import BaseModel
 from nntile.model.generation.llm import LLMGenerationMixin
-from nntile.tensor import (Tensor, Tensor_bf16, Tensor_bool, Tensor_fp32,
-                           Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments,
-                           TensorTraits, notrans)
+from nntile.tensor import (
+    Tensor, Tensor_bf16, Tensor_bool, Tensor_fp32, Tensor_fp32_fast_tf32,
+    Tensor_int64, TensorMoments, TensorTraits, notrans)
 
 
 class GPT2Config(Dict):
@@ -166,7 +167,8 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         self.eos_token_id = config["eos_token_id"]
 
         if self.dtype not in ["fp32", "tf32", "bf16"]:
-            raise TypeError("Only fp32 and tf32 are supported for weight type")
+            raise TypeError("Only fp32, tf32 and bf16 are"
+                            "supported for weight type")
 
         if self.n_head == 1:
             print("Set 1 head")
@@ -419,7 +421,8 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
                     cur_tensor = torch.from_numpy(p_nntile_np)
                     p.data = cur_tensor.reshape(init_shape).T
 
-                    #     cur_tensor = p.T.reshape(attn_embed_dim, attn_nheads, \
+                    #     cur_tensor = p.T.reshape(attn_embed_dim,
+                    #             attn_nheads, \
                     #             attn_head_size)
                     #     cur_tensor.data = torch.from_numpy(p_nntile_np)
                     #     p_nntile.value.from_array(p_torch_np.T \
@@ -566,7 +569,8 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         next_tag: int,
         cache_dir: str | None = None,
     ):
-        # TODO: where should be global repo with all this logic. We need to design it.
+        # TODO: where should be global repo with all this logic.
+        # We need to design it.
         # For now, manual code for usability
         return create_gpt2_model_from_torch_pretrained(
             model_name,
@@ -581,7 +585,8 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         expected_shape = self.activations[0].value.shape
         if not compare_shapes(x.shape, expected_shape):
             raise Exception(
-                "Mismatch shapes. Got: ", x.shape, " Expected: ", expected_shape
+                "Mismatch shapes. Got: ", x.shape,
+                " Expected: ", expected_shape
             )
 
         nntile.functions.copy_async(x, self.activations[0].value)
@@ -650,7 +655,9 @@ def create_gpt2_model_from_torch_pretrained(
 ):
     if model_name not in PretrainedGpt2Configs:
         raise Exception(
-            f"Unsupported pretrained model: {model_name}. Try create manually with GPT2Model_nntile.from_torch. Currently supported: {list(PretrainedGpt2Configs.keys())}"
+            f"Unsupported pretrained model: {model_name}."
+            "Try create manually with GPT2Model_nntile.from_torch."
+            "Currently supported: {list(PretrainedGpt2Configs.keys())}"
         )
 
     nntile_model_config = PretrainedGpt2Configs[model_name]
@@ -666,14 +673,15 @@ def create_gpt2_model_from_torch_pretrained(
     config.attn_pdrop = 0
     config.embd_pdrop = 0
     config.resid_pdrop = 0
-    # Current version splits lm_head and wte parameters, shared parameters will be
-    # supported soon
+    # Current version splits lm_head and wte parameters,
+    # shared parameters will be supported soon
     model_torch.lm_head.weight = nn.Parameter(
         model_torch.lm_head.weight.detach().clone()
     )
 
     inner_dim = (
-        config.n_inner if config.n_inner is not None else 4 * config.hidden_size
+        config.n_inner if config.n_inner is not None
+        else 4 * config.hidden_size
     )
     config.n_inner = inner_dim
 
