@@ -12,14 +12,27 @@
 # @version 1.0.0
 
 import numpy as np
+import pytest
 import torch
 import torch.nn as nn
 
 import nntile
 
+# Define mapping between numpy and nntile types
+Tensor = {np.float32: nntile.tensor.Tensor_fp32,
+          np.float64: nntile.tensor.Tensor_fp64}
 
-# From https://github.com/meta-llama/llama/blob/main/llama/model.py
+
+config = nntile.starpu.Config(1, 0, 0)
+nntile.starpu.init()
+
+
 class RMSNorm(torch.nn.Module):
+    """See `original`_ implementation.
+
+    .. _original: https://github.com/meta-llama/llama/blob/main/llama/model.py`
+    """
+
     def __init__(self, dim: int, eps: float = 1e-6):
         """
         Initialize the RMSNorm normalization layer.
@@ -67,19 +80,8 @@ class RMSNorm(torch.nn.Module):
         return output * self.weight
 
 
-# Set up StarPU configuration and init it
-config = nntile.starpu.Config(1, 0, 0)
-# Init all NNTile-StarPU codelets
-nntile.starpu.init()
-# Define list of tested types
-dtypes = [np.float32, np.float64]
-# Define mapping between numpy and nntile types
-Tensor = {np.float32: nntile.tensor.Tensor_fp32,
-          np.float64: nntile.tensor.Tensor_fp64}
-
-
-# Helper function returns bool value true if test passes
-def helper(dtype: np.dtype):
+@pytest.mark.parametrize('dtype', [np.float32, np.float64])
+def test_rms_norm(dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [20, 30]
     ndim = len(A_shape)
@@ -118,9 +120,8 @@ def helper(dtype: np.dtype):
     torch_B = torch_layer(torch_A)
     np_B_torch = torch_B.data.numpy()
     # Check forward
-    if np.linalg.norm(np_B_torch - np_B_nntile) \
-            / np.linalg.norm(np_B_torch) >= 1e-5:
-        assert False
+    assert (np.linalg.norm(np_B_torch - np_B_nntile) /
+            np.linalg.norm(np_B_torch) <= 1e-5)
     # NNTile backward of LayerNorm
     nntile_layer.y.grad.from_array(np_B_grad)
     nntile.tensor.clear_async(nntile_layer.x.grad)
@@ -137,30 +138,10 @@ def helper(dtype: np.dtype):
     np_A_grad_torch = torch_A.grad.numpy()
     np_gamma_grad_torch = torch_layer.weight.grad.numpy()
     # Check backward
-    if np.linalg.norm(np_A_grad_torch - np_A_grad_nntile) \
-            / np.linalg.norm(np_A_grad_torch) >= 1e-5:
-        assert False
-    if np.linalg.norm(np_gamma_grad_torch - np_gamma_grad_nntile) \
-            / np.linalg.norm(np_gamma_grad_torch) >= 1e-5:
-        assert False
+    assert (np.linalg.norm(np_A_grad_torch - np_A_grad_nntile)
+            / np.linalg.norm(np_A_grad_torch) <= 1e-5)
+    assert (np.linalg.norm(np_gamma_grad_torch - np_gamma_grad_nntile) /
+            np.linalg.norm(np_gamma_grad_torch) <= 1e-5)
 
     # Unregister tensors
     A.unregister()
-    return True
-
-
-# Test runner for different precisions
-def test():
-    for dtype in dtypes:
-        assert helper(dtype)
-
-
-# Repeat tests
-def test_repeat():
-    for dtype in dtypes:
-        assert helper(dtype)
-
-
-if __name__ == "__main__":
-    test()
-    test_repeat()
