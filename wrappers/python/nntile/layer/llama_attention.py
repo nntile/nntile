@@ -1433,12 +1433,15 @@ class LlamaAttention(BaseLayer):
         bias = self.in_proj_bias_q is not None
         torch_layer = self.to_torch()
         torch_layer.q_proj.weight.grad = torch.tensor(
-            np.moveaxis(to_numpy(self.w_q.grad), 0, 1).reshape(
-                self.n_emb, self.n_emb
-            )
+            np.moveaxis(
+                __class__.rotate_tensor_out(to_numpy(self.w_q.grad), 2),
+                0,
+                1)
+            .reshape(self.n_emb, self.n_emb)
         )
         torch_layer.k_proj.weight.grad = torch.tensor(
-            to_numpy(self.w_k.grad).reshape(self.n_emb_kv, self.n_emb)
+            __class__.rotate_tensor_out(to_numpy(self.w_k.grad), 1)
+            .reshape(self.n_emb_kv, self.n_emb)
         )
         torch_layer.v_proj.weight.grad = torch.tensor(
             to_numpy(self.w_v.grad).reshape(self.n_emb_kv, self.n_emb)
