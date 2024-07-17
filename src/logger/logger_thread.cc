@@ -44,6 +44,10 @@ void logger_main()
     // Infinite loop until NNTile exits this thread
     while (logger_running)
     {
+        std::stringstream ss;
+        ss << "{";
+        ss << "\"workers\":[";
+        bool first_worker = true;
         // Loop through all workers to get their activities
         for (workerid = 0; workerid < worker_cnt; workerid++)
         {
@@ -52,6 +56,9 @@ void logger_main()
             int ret = starpu_profiling_worker_get_info(workerid, &info);
             if (ret != 0)
                 continue;
+            if (!first_worker)
+                ss << ",";
+            first_worker = false;
             // Get name of the worker
             // TODO: move this out of infinite loop
             char name[64];
@@ -63,18 +70,17 @@ void logger_main()
             double flops = 0.0;
             if (info.flops)
                 flops = info.flops;
-            // Form message to send
-            char message[256];
-            snprintf(message, sizeof(message), "{\"type\": \"0\", \"name\": \"%s\","
-                    "\"total_time\": \"%.2lf\", \"flops\": \"%.2lf\"}\n",
-                    name, total_time, flops);
-            // Send the message
-            if (send(client_socket, message, strlen(message), 0)
-                    != (ssize_t)strlen(message))
-            {
-                perror("send");
-            }
+            // Create JSON object for the worker
+            ss << "{";
+            ss << "\"name\":\"" << name << "\",";
+            ss << "\"total_time\":" << total_time << ",";
+            ss << "\"flops\":" << flops;
+            ss << "}";
         }
+        ss << "],";
+
+        ss << "\"buses\":[";
+        bool first_bus = true;
         for (busid = 0; busid < bus_cnt; busid++)
         {
             int src, dst;
@@ -84,6 +90,9 @@ void logger_main()
             int ret = starpu_bus_get_profiling_info(busid, &info);
             if (ret != 0)
                 continue;
+            if (!first_bus)
+                ss << ",";
+            first_bus = false;
             // Read the profiling information for the bus
             double total_bus_time = starpu_timing_timespec_to_us(&info.total_time)
                 * 1e-6;
@@ -92,19 +101,22 @@ void logger_main()
 		    dst = starpu_bus_get_dst(busid);
             starpu_memory_node_get_name(src, src_name, sizeof(src_name));
 		    starpu_memory_node_get_name(dst, dst_name, sizeof(dst_name));        
-
-            // Form message to send
-            char message[512];
-            snprintf(message, sizeof(message),
-                "{ \"type\": \"1\", \"total_bus_time\": \"%.2lf\", "
-                " \"transferred_bytes\": \"%llu\","
-                " \"src_name\": \"%s\", \"dst_name\": \"%s\"}\n",
-                total_bus_time, transferred_bytes, src_name, dst_name);
-            // Send the message
-            if (send(client_socket, message, strlen(message), 0) != (ssize_t)strlen(message))
-            {
-                perror("send");
-            }
+            // Create JSON object for the bus
+            ss << "{";
+            ss << "\"total_bus_time\":" << total_bus_time << ",";
+            ss << "\"transferred_bytes\":" << transferred_bytes << ",";
+            ss << "\"src_name\":\"" << src_name << "\",";
+            ss << "\"dst_name\":\"" << dst_name << "\"";
+            ss << "}";
+        }
+        ss << "]";
+        ss << "}";
+        // Serialize JSON object to string
+        std::string message = ss.str() + "\n";
+        // Send the message
+        if (send(client_socket, message.c_str(), message.length(), 0) != (ssize_t)message.length())
+        {
+            perror("send");
         }
         // Wait for 0.5 seconds until next time we read activities
         usleep(500000);

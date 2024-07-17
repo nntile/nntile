@@ -23,13 +23,12 @@ import tensorflow as tf
 
 NODE_COUNTER = {}
 WRITERS = {}
-MEMORY_NODES_COUNTER = {}
-MEMORY_NODES_SUM_SENT = {}
-MEMORY_NODES_SUM_RECEIVED = {}
+MEMORY_NODES_COUNTER_SEND = {}
+MEMORY_NODES_COUNTER_RECEIVED = {}
 LOG_DIR = "logs"
 
 
-async def create_new_writer(log_dir, node_name):
+def create_new_writer(log_dir, node_name):
     current_time = datetime.datetime.now().strftime("%Y-%m-%d---%H%M")
     current_log_dir = Path(log_dir) / node_name / current_time
     print(current_log_dir)
@@ -43,8 +42,11 @@ async def handle_new_logs(log_dir, split_hours):
     while True:
         await asyncio.sleep(split_hours * 60 * 60)
         for key in WRITERS.keys():
-            WRITERS[key] = await create_new_writer(log_dir, key)
+            WRITERS[key] = create_new_writer(log_dir, key)    
 
+def write_data(writer, tag, value, step):
+    with writer.as_default():
+        tf.summary.scalar(tag, value, step)
 
 def increaseStep(node, node_dict):
     if node not in node_dict:
@@ -69,68 +71,50 @@ async def start_tensorboard(log_dir):
     print(f'TensorBoard stderr: {stderr.decode()}')
 
 
-async def handle_flops_message(parsed_data, log_dir):
-    name = parsed_data.get("name")
-    flops = float(parsed_data.get("flops"))
-    time = float(parsed_data.get("total_time"))
+def handle_flops_message(workers_data, log_dir):
+    for worker in workers_data:
+        name = worker.get("name")
+        time = float(worker.get("total_time"))
+        flops = float(worker.get("flops"))
+        if name not in WRITERS:
+            WRITERS[name] = create_new_writer(log_dir, name)
+        
+        increaseStep(name, NODE_COUNTER)    
+        write_data(WRITERS[name], "GFlop/s", flops / time / 1e9, NODE_COUNTER[name])    
 
-    if name not in WRITERS:
-        WRITERS[name] = await create_new_writer(log_dir, name)
+def handle_bus_message(buses_data, log_dir):
+    memory_nodes_sum_sent = {}
+    memory_nodes_sum_received = {}
+    for bus in buses_data:
+        total_bus_time = float(bus.get("total_bus_time"))
+        transferred_bytes = int(bus.get("transferred_bytes"))
+        src = bus.get("src_name")
+        dst = bus.get("dst_name")
+        bus_speed_gbps = transferred_bytes / total_bus_time / 1e9
+        bus_name = f"{src}->{dst}"
+        if bus_name not in WRITERS:
+            WRITERS[bus_name] = create_new_writer(log_dir, bus_name)
+            
+        increaseStep(bus_name, NODE_COUNTER)    
+        write_data(WRITERS[bus_name], 'Bus/Link_speed_GB/s', bus_speed_gbps, NODE_COUNTER[bus_name])    
 
-    with WRITERS[name].as_default():
-        increaseStep(name, NODE_COUNTER)
-        tf.summary.scalar("GFlop/s", flops / time / 1e9, NODE_COUNTER[name])
-
-
-async def handle_bus_message(parsed_data, log_dir):
-    total_bus_time = float(parsed_data.get("total_bus_time"))
-    transferred_bytes = int(parsed_data.get("transferred_bytes"))
-    src = parsed_data.get("src_name")
-    dst = parsed_data.get("dst_name")
-    bus_speed_gbps = transferred_bytes / total_bus_time / 1e9
-    bus_name = f"{src}->{dst}"
-
-    if bus_name not in WRITERS:
-        WRITERS[bus_name] = await create_new_writer(log_dir, bus_name)
-
-    if src not in WRITERS:
-        WRITERS[src] = await create_new_writer(log_dir, src)
-
-    if dst not in WRITERS:
-        WRITERS[dst] = await create_new_writer(log_dir, dst)
-
-    if src not in MEMORY_NODES_SUM_SENT:
-        MEMORY_NODES_SUM_SENT[src] = 0
-
-    if dst not in MEMORY_NODES_SUM_RECEIVED:
-        MEMORY_NODES_SUM_RECEIVED[dst] = 0
-
-    MEMORY_NODES_SUM_SENT[src] += bus_speed_gbps
-    MEMORY_NODES_SUM_RECEIVED[dst] += bus_speed_gbps
-
-    with WRITERS[bus_name].as_default():
-        increaseStep(bus_name, NODE_COUNTER)
-        tf.summary.scalar(
-            'Bus/Link_speed_GB/s',
-            bus_speed_gbps,
-            NODE_COUNTER[bus_name]
-        )
-
-    with WRITERS[src].as_default():
-        increaseStep(src, NODE_COUNTER)
-        tf.summary.scalar(
-            'Bus/MemNode_Sent_GB/s',
-            MEMORY_NODES_SUM_SENT[src],
-            NODE_COUNTER[src]
-        )
-
-    with WRITERS[dst].as_default():
-        increaseStep(dst, NODE_COUNTER)
-        tf.summary.scalar(
-            'Bus/MemNode_Recv_GB/s',
-            MEMORY_NODES_SUM_RECEIVED[dst],
-            NODE_COUNTER[dst]
-        )
+        memory_nodes_sum_sent[src] = memory_nodes_sum_sent.get(src, 0) + bus_speed_gbps
+        memory_nodes_sum_received[dst] = memory_nodes_sum_received.get(dst, 0) + bus_speed_gbps
+            
+    for name, speed in memory_nodes_sum_sent.items():
+        if name not in WRITERS:
+            WRITERS[name] = create_new_writer(log_dir, name)
+            
+        increaseStep(name, MEMORY_NODES_COUNTER_SEND)    
+        write_data(WRITERS[name], 'Bus/MemNode_Sent_GB/s', speed, MEMORY_NODES_COUNTER_SEND[name])    
+            
+            
+    for name, speed in memory_nodes_sum_received.items():
+        if name not in WRITERS:
+            WRITERS[name] = create_new_writer(log_dir, name)
+            
+        increaseStep(name, MEMORY_NODES_COUNTER_RECEIVED)    
+        write_data(WRITERS[name], 'Bus/MemNode_Recv_GB/s', speed, MEMORY_NODES_COUNTER_RECEIVED[name])
 
 
 async def handle_client(reader, writer):
@@ -143,17 +127,12 @@ async def handle_client(reader, writer):
         message = data.decode().strip()
         try:
             parsed_data = json.loads(message)
-            message_type = int(parsed_data.get("type"))
-            match message_type:
-                case 0:
-                    await handle_flops_message(parsed_data, LOG_DIR)
-                case 1:
-                    await handle_bus_message(parsed_data, LOG_DIR)
-                case _:
-                    print(f"Unknown message type: {message_type}")
+            workers_data = parsed_data.get("workers")
+            buses_data = parsed_data.get("buses")
+            handle_flops_message(workers_data, LOG_DIR)
+            handle_bus_message(buses_data, LOG_DIR)
         except json.JSONDecodeError:
             print("Error decoding JSON:", message)
-
 
 async def main():
     log_dir = os.environ.get('LOG_DIR', 'logs')
