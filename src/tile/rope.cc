@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,8 +10,6 @@
  * Tile wrappers for the Rotary Positional Embedding
  *
  * @version 1.0.0
- * @author Gleb Karpov
- * @date 2024-06-29
  * */
 
 #include "nntile/tile/rope.hh"
@@ -19,8 +19,8 @@ namespace nntile::tile
 {
 
 template<typename T>
-void rope_async(const Tile<T> &sin, const Tile<T> &cos, 
-        const Tile<T> &src, const Tile<T> &dst, Index axis)
+void rope_async(const Tile<T> &sin, const Tile<T> &cos, const Tile<T> &src,
+        const Tile<T> &dst)
 //! Tile<T> Rotary Positional Embedding
 /*! Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
  * @param[in] sin: Input sine tensor
@@ -28,7 +28,7 @@ void rope_async(const Tile<T> &sin, const Tile<T> &cos,
  * @param[in] src: Input embedding tensor
  * @param[out] dst: Output embedding tensor with applied RoPE
  * */
-{   Index two = 2;
+{
     // Check dimensions
     if(dst.ndim != src.ndim)
     {
@@ -40,50 +40,49 @@ void rope_async(const Tile<T> &sin, const Tile<T> &cos,
         throw std::runtime_error("sin.ndim != cos.ndim");
     }
 
-    // Check axis
-    if(axis < 0)
+    if(src.ndim < sin.ndim)
     {
-        throw std::runtime_error("axis < 0");
-    }
-    if(axis >= dst.ndim)
-    {
-        throw std::runtime_error("axis >= dst.ndim");
-    }
-    // Check shapes of tiles
-    
-    if(src.shape[0] != two * sin.shape[0])
-    {
-        throw std::runtime_error("dst.shape[0] != 2 * sin.shape[0]");
+        throw std::runtime_error("src.ndim < sin.ndim");
     }
 
-    if(src.shape[0] != two * cos.shape[0])
+    if(src.shape != dst.shape)
     {
-        throw std::runtime_error("dst.shape[0] != 2 * cos.shape[0]");
+        throw std::runtime_error("src.shape != dst.shape");
     }
 
-    for(Index i = 0; i < sin.ndim; ++i)
+    if(sin.shape != cos.shape)
     {
-        if(sin.shape[i] != cos.shape[i])
+        throw std::runtime_error("sin.shape != cos.shape");
+    }
+
+    if(sin.ndim == 0)
+    {
+        throw std::runtime_error("sin.ndim == 0");
+    }
+
+    // 0-th dimension is the head_size, which is halved for sin and cos
+    if(src.shape[0] != 2*sin.shape[0])
+    {
+        throw std::runtime_error("src.shape[0] != 2*sin.shape[0]");
+    }
+
+    for(Index i = 1; i < sin.ndim; ++i)
+    {
+        if(src.shape[i] != sin.shape[i])
         {
-            throw std::runtime_error("sin.shape[i] != cos.shape[i]");
+            throw std::runtime_error("src.shape[i] != sin.shape[i]");
         }
     }
-    if(dst.shape != src.shape)
-    {
-        throw std::runtime_error("dst.shape != src2.shape");
-    }
-    // Reshape inputs for simplicity: src -> (m,n), dst -> (m,k,n)
-    Index m, k, l;
-    m = sin.matrix_shape[1][0];
-    k = sin.matrix_shape[1][1];
-    l = dst.matrix_shape[1][1];
+
+    // Reshape inputs for simplicity: sin,cos -> (m), src,dst -> (2,m,n)
+    Index m{sin.nelems}, n={src.matrix_shape[sin.ndim-1][1]};
     // Insert corresponding task
-    starpu::rope::submit<T>(m, k, l, sin, cos, src, dst);
+    starpu::rope::submit<T>(m, n, sin, cos, src, dst);
 }
 
 template<typename T>
-void rope(const Tile<T> &sin, const Tile<T> &cos, 
-        const Tile<T> &src, const Tile<T> &dst, Index axis)
+void rope(const Tile<T> &sin, const Tile<T> &cos, const Tile<T> &src,
+        const Tile<T> &dst)
 //! Tile<T> addition of a tensor and a broadcasted slice
 /*! Blocking version of rope_async<T>.
  *
@@ -93,34 +92,34 @@ void rope(const Tile<T> &sin, const Tile<T> &cos,
  * @param[out] dst: Output embedding tensor with applied RoPE
  * */
 {
-    rope_async<T>(sin, cos, src, dst, axis);
+    rope_async<T>(sin, cos, src, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
 void rope_async<fp32_t>(const Tile<fp32_t> &sin, const Tile<fp32_t> &cos, 
-        const Tile<fp32_t> &src, const Tile<fp32_t> &dst, Index axis);
+        const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
 void rope_async<fp64_t>(const Tile<fp64_t> &sin, const Tile<fp64_t> &cos, 
-        const Tile<fp64_t> &src, const Tile<fp64_t> &dst, Index axis);
+        const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 template
 void rope_async<bf16_t>(const Tile<bf16_t> &sin, const Tile<bf16_t> &cos,
-        const Tile<bf16_t> &src, const Tile<bf16_t> &dst, Index axis);
+        const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
 // Explicit instantiation of template
 template
 void rope<fp32_t>(const Tile<fp32_t> &sin, const Tile<fp32_t> &cos, 
-        const Tile<fp32_t> &src, const Tile<fp32_t> &dst, Index axis);
+        const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
 void rope<fp64_t>(const Tile<fp64_t> &sin, const Tile<fp64_t> &cos, 
-        const Tile<fp64_t> &src, const Tile<fp64_t> &dst, Index axis);
+        const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 template
 void rope<bf16_t>(const Tile<bf16_t> &sin, const Tile<bf16_t> &cos,
-        const Tile<bf16_t> &src, const Tile<bf16_t> &dst, Index axis);
+        const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
-} // namespace tile
+} // namespace nntile::tile

@@ -1,15 +1,15 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/add_fiber.hh
- * StarPU wrappers for addition of a tensor and a broadcasted fiber
+ * @file include/nntile/starpu/rope.hh
+ * Rotary positional embedding
  *
  * @version 1.0.0
- * @author Gleb Karpov
- * @date 2024-05-27
  * */
 
 #pragma once
@@ -25,8 +25,7 @@ namespace nntile::starpu::rope
 struct args_t
 {
     Index m;
-    Index k;
-    Index l;
+    Index n;
 };
 
 // StarPU wrapper for kernel::rope::cpu<T>
@@ -75,7 +74,6 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index k, Index l, Handle sin, Handle cos,
-    Handle src, Handle dst);
+void submit(Index m, Index n, Handle sin, Handle cos, Handle src, Handle dst);
 
-} // namespace rope
+} // namespace nntile::starpu::rope

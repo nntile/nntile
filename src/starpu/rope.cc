@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,8 +10,6 @@
  * StarPU wrappers for addition of a tensor and a broadcasted fiber
  *
  * @version 1.0.0
- * @author Gleb Karpov
- * @date 2024-05-27
  * */
 
 #ifndef STARPU_SIMGRID
@@ -37,7 +37,7 @@ void cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[2]->get_ptr<T>();
     T *dst = interfaces[3]->get_ptr<T>();
     // Launch kernel
-    kernel::rope::cpu<T>(args->m, args->k, args->l, sin, cos, src, dst);
+    kernel::rope::cpu<T>(args->m, args->n, sin, cos, src, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -51,13 +51,14 @@ void cuda(void *buffers[], void *cl_args)
     // auto args = reinterpret_cast<args_t<T> *>(cl_args);
     // // Get interfaces
     // auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    // const T *src = interfaces[0]->get_ptr<T>();
-    // T *dst = interfaces[1]->get_ptr<T>();
+    //const T *sin = interfaces[0]->get_ptr<T>();
+    //const T *cos = interfaces[1]->get_ptr<T>();
+    //const T *src = interfaces[2]->get_ptr<T>();
+    //T *dst = interfaces[3]->get_ptr<T>();
     // // Get CUDA stream
     // cudaStream_t stream = starpu_cuda_get_local_stream();
     // // Launch kernel
-    // kernel::add_fiber::cuda<T>(stream, args->m, args->n, args->k, args->batch,
-    //         args->alpha, src, args->beta, dst);
+    //kernel::rope::cuda<T>(stream, args->m, args->n, sin, cos, src, dst);
 }
 #endif // NNTILE_USE_CUDA
 
@@ -70,8 +71,7 @@ uint32_t footprint(struct starpu_task *task)
     // Apply hash over parameters m, and k
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(&args->m, sizeof(args->m), hash);
-    hash = starpu_hash_crc32c_be_n(&args->k, sizeof(args->k), hash);
-    hash = starpu_hash_crc32c_be_n(&args->l, sizeof(args->l), hash);
+    hash = starpu_hash_crc32c_be_n(&args->n, sizeof(args->n), hash);
     return hash;
 }
 
@@ -83,7 +83,7 @@ void init()
             footprint,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
+            {}//{cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -93,7 +93,7 @@ void init()
             footprint,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
+            {}//{cuda<fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -103,7 +103,7 @@ void init()
             footprint,
             {cpu<bf16_t>},
 #ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
+            {}//{cuda<bf16_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -125,24 +125,17 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index k, Index l, Handle sin, Handle cos,
-    Handle src, Handle dst)
+void submit(Index m, Index n, Handle sin, Handle cos, Handle src, Handle dst)
 //! Insert rope task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
  * */
 {
-    // Access mode for the dst handle
-    enum starpu_data_access_mode dst_mode;
-    dst_mode = STARPU_RW;
-
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->m = m;
-    args->k = k;
-    args->l = l;
-    // fp64_t nflops = batch * k * (2*m*n+1);
+    args->n = n;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(sin),
@@ -150,7 +143,6 @@ void submit(Index m, Index k, Index l, Handle sin, Handle cos,
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_W, static_cast<starpu_data_handle_t>(dst),
-            // STARPU_FLOPS, nflops,
             0);
     // Check submission
     if(ret != 0)
@@ -161,15 +153,15 @@ void submit(Index m, Index k, Index l, Handle sin, Handle cos,
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index m, Index k, Index l, Handle sin,
-        Handle cos, Handle src, Handle dst);
+void submit<fp32_t>(Index m, Index n, Handle sin, Handle cos, Handle src,
+        Handle dst);
 
 template
-void submit<fp64_t>(Index m, Index k, Index l, Handle sin,
-        Handle cos, Handle src, Handle dst);
+void submit<fp64_t>(Index m, Index n, Handle sin, Handle cos, Handle src,
+        Handle dst);
 
 template
-void submit<bf16_t>(Index m, Index k, Index l, Handle sin,
-        Handle cos, Handle src, Handle dst);
+void submit<bf16_t>(Index m, Index n, Handle sin, Handle cos, Handle src,
+        Handle dst);
 
 } // namespace rope

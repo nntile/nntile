@@ -187,8 +187,10 @@ def generate_inputs(params: LlamaAttentionTestParams):
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
 
-    pos = [np.arange(params.n_seq) for _ in range(params.n_batch)]
+    #pos = [np.arange(params.n_seq) for _ in range(params.n_batch)]
+    pos = np.zeros((params.n_batch, params.n_seq), dtype=np.int64)
     position_ids = np.array(pos)
+    pos_ids_torch = torch.tensor(pos, dtype=torch.long)
 
     nntile_layer = nntile.layer.LlamaAttention.from_torch(
         torch_layer, X, params.n_head_tile, position_ids, params.theta
@@ -197,7 +199,7 @@ def generate_inputs(params: LlamaAttentionTestParams):
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
     nntile_layer.y.grad.from_array(y_grad_nntile)
     y_grad_torch = torch.Tensor(y_grad_nntile.T)
-    return torch_layer, nntile_layer, x_torch, y_grad_torch
+    return torch_layer, nntile_layer, x_torch, pos_ids_torch, y_grad_torch
 
 
 @pytest.mark.parametrize("params", TEST_PARAMS)
@@ -205,7 +207,7 @@ class TestLlamaAttention:
     def test_from_torch_and_to_torch(
         self, starpu_simple, torch_rng, params: LlamaAttentionTestParams
     ):
-        torch_layer, nntile_layer, _, _ = generate_inputs(params)
+        torch_layer, nntile_layer, _, _, _ = generate_inputs(params)
         torch_layer_other = nntile_layer.to_torch()
         nntile_layer.unregister()
         nntile_layer.x.unregister()
@@ -255,11 +257,8 @@ class TestLlamaAttention:
     def test_forward(
         self, starpu_simple, torch_rng, params: LlamaAttentionTestParams
     ):
-        torch_layer, nntile_layer, x, _ = generate_inputs(params)
-        # pos_ids = torch.zeros((params.n_batch, params.n_seq), dtype=torch.long)
-        pos = [np.arange(params.n_seq) for _ in range(params.n_batch)]
-        torch_pos_ids = torch.tensor(pos, dtype=torch.long)
-        y, _, _ = torch_layer(x, position_ids=torch_pos_ids)
+        torch_layer, nntile_layer, x, pos_ids, _ = generate_inputs(params)
+        y, _, _ = torch_layer(x, position_ids=pos_ids)
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.y.value).T)
         nntile_layer.unregister()
@@ -274,9 +273,8 @@ class TestLlamaAttention:
     def test_forward_backward(
         self, starpu_simple, torch_rng, params: LlamaAttentionTestParams
     ):
-        torch_layer, nntile_layer, x, y_grad = generate_inputs(params)
+        torch_layer, nntile_layer, x, pos_ids, y_grad = generate_inputs(params)
         torch_layer_other = nntile_layer.to_torch()
-        pos_ids = torch.zeros((params.n_batch, params.n_seq), dtype=torch.long)
         y, _, _ = torch_layer(x, position_ids=pos_ids)
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.y.value).T)

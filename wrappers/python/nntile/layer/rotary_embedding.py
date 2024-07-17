@@ -1,5 +1,7 @@
-# @copyright (c) 2022-2024 Skolkovo Institute of Science and Technology
-#                           (Skoltech). All rights reserved.
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,8 +10,6 @@
 # Rotary Positional Embedding layer of NNTile Python package
 #
 # @version 1.0.0
-# @author Gleb Karpov
-# @date 2024-06-29
 
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, clear_async, rope_async
 from nntile.layer.base_layer import BaseLayer
@@ -89,7 +89,7 @@ class RotaryEmbedding(BaseLayer):
     # Forward propagation of the embedding layer
     def forward_async(self):
         clear_async(self.y.value)
-        rope_async(self.sin, self.cos, self.x.value, self.y.value, 3)
+        rope_async(self.sin, self.cos, self.x.value, self.y.value)
 
     # # Backward propagation of the embedding layer
     # def backward_async(self):

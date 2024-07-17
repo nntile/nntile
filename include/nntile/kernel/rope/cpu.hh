@@ -1,15 +1,15 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/kernel/rope/cpu.hh
- * Embeddings from vocabulary within buffers
+ * Rotary positional embedding
  *
  * @version 1.0.0
- * @author Gleb Karpov
- * @date 2024-05-22
  * */
 
 #pragma once
@@ -20,8 +20,7 @@ namespace nntile::kernel::rope
 {
 
 template<typename T>
-void cpu(Index m, Index k, Index l, const T *sin, const T *cos, 
-        const T *src, T *dst)
+void cpu(Index m, Index n, const T *sin, const T *cos, const T *src, T *dst)
     noexcept;
 
-} // namespace rope
+} // namespace nntile::kernel::rope

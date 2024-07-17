@@ -180,8 +180,8 @@ class LlamaAttention(BaseLayer):
         self.b.value.set_reduction_add()
         self.b_transposed = b_transposed
         self.b_transposed.grad.set_reduction_add()
-        self.sin = sin,
-        self.cos = cos,
+        self.sin = sin
+        self.cos = cos
         self.in_proj_bias_q = in_proj_bias_q
         self.in_proj_bias_k = in_proj_bias_k
         self.in_proj_bias_v = in_proj_bias_v
@@ -217,7 +217,7 @@ class LlamaAttention(BaseLayer):
         n_head_tile: int,
         n_head_kv: int,
         position_ids: np.ndarray,
-        theta: np.float32,
+        theta: float,
         next_tag: int,
         bias=False,
         mask=None,
@@ -258,7 +258,7 @@ class LlamaAttention(BaseLayer):
         q_rope_shape = [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
         k_transposed_shape = [n_head_kv, head_size, n_seq, n_batch]
         k_shape = [head_size, n_seq, n_batch, n_head_kv]
-        k_rope_shape = [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
+        k_rope_shape = [head_size, n_seq, n_batch, n_head_kv]
         k_rep_shape = [head_size, n_seq, n_batch, kv_group_size, n_head_kv]
         v_transposed_shape = [n_head_kv, head_size, n_seq, n_batch]
         v_shape = [head_size, n_seq, n_batch, n_head_kv]
@@ -323,7 +323,6 @@ class LlamaAttention(BaseLayer):
             head_size_tile,
             n_seq_tile,
             n_batch_tile,
-            kv_group_size_tile,
             n_head_kv_tile,
         ]
         k_rep_basetile = [
@@ -659,16 +658,18 @@ class LlamaAttention(BaseLayer):
         y = TensorMoments(y_value, y_grad, True)
 
         # Fill sin, cos tensors:
-        inv_freq = 1.0 / (theta ** (np.arange(0, head_size, 2, dtype=np.float32) / head_size))
+        inv_freq = 1.0 / (theta
+                ** (np.arange(0, head_size, 2, dtype=np.float32) / head_size))
         freq_frame = np.empty((head_size // 2, n_seq, n_batch))
         for i in range(n_batch):
-            freq_frame[:,:,i] = np.outer(inv_freq, position_ids[i, :])
+            freq_frame[:, :, i] = np.outer(inv_freq, position_ids[i, :])
         np_freqs = np.array(freq_frame, dtype=np.float32, order='F')
         np_cos = np.cos(np_freqs)
         np_sin = np.sin(np_freqs)
     
         cos.from_array(np_cos)
         sin.from_array(np_sin)
+
         # Create attention layer with all the provided data
         layer = LlamaAttention(
             x,
@@ -741,7 +742,7 @@ class LlamaAttention(BaseLayer):
             self.in_proj_bias_q.value.wont_use()
         
         # Perform RoPE on q
-        rope_async(self.sin, self.cos, self.q.value, self.q_rope.value, 3)
+        rope_async(self.sin, self.cos, self.q.value, self.q_rope.value)
 
         # K_transposed = einsum('jkl,lmn->jkmn', W_K, X_K)
         # gemm (n_head_kv, head_size, n_emb) by (n_emb, n_seq, n_batch) into
@@ -801,15 +802,16 @@ class LlamaAttention(BaseLayer):
                 1, self.in_proj_bias_v.value, 1, self.v.value, 0, 1
             )
             self.in_proj_bias_v.value.wont_use()
+        # Perform RoPE on k_rep
+        rope_async(self.sin, self.cos, self.k.value, self.k_rope.value)
         # Repeat K along fibers of proper axis
         # from (head_size, n_seq, n_batch, n_head_kv)
         # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
-        add_slice_async(1.0, self.k.value, 0.0, self.k_rep.value, 3)
+        add_slice_async(1.0, self.k_rope.value, 0.0, self.k_rep.value, 3)
+        #add_slice_async(1.0, self.k.value, 0.0, self.k_rep.value, 3)
         # K can be deleted
         self.k.value.invalidate_submit()
 
-        # Perform RoPE on k_rep
-        rope_async(self.sin, self.cos, self.k_rep.value, self.k_rope.value, 3)
         # Get tensor for softmax
         # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q)
         # single batched gemm
@@ -819,7 +821,7 @@ class LlamaAttention(BaseLayer):
         gemm_async(
             1.0 / self.head_size**0.5,
             trans,
-            self.k_rope.value,
+            self.k_rep.value,
             notrans,
             self.q_rope.value,
             0.0,
