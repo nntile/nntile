@@ -115,7 +115,7 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool):
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
 
-    pos_ids = np.random.randint(
+    pos_ids = rng.integers(
             params.n_seq,
             size=(params.n_batch, params.n_seq),
             dtype=np.int64
