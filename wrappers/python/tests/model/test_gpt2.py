@@ -25,28 +25,8 @@ import nntile
 from nntile.model.gpt2 import (
     GPT2Config as GPT2Config_nntile, GPT2Model as GPT2Model_nntile)
 
-# parser.add_argument("--optimizer", choices=["sgd", "adam"], default="adam")
-# parser.add_argument("--seq-len-tile", type=int, default=1024)
-
-# parser.add_argument("--num-samples", type=int, default=1)
-# parser.add_argument("--batch-size", type=int, default=1)
-# parser.add_argument("--minibatch-size", type=int, default=1)
-# parser.add_argument("--minibatch-size-tile", type=int, default=1)
-# parser.add_argument("--n-embd-tile", type=int, default=384)
-# parser.add_argument("--n-inner-tile", type=int, default=1536)
-# parser.add_argument("--n-head-tile", type=int, default=-1)
-# parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
-
-# parser.add_argument("--nntile-flashattention", action="store_true")
-# parser.add_argument("--nntile-use-redux", action="store_true")
-
-# parser.add_argument("--lr", type=float, default=0.0)
-# parser.add_argument("--nepochs", type=int, default=0)
-
-# args = parser.parse_args()
-# print(args)
-
 data_dir = Path(__file__).parent / 'testdata'
+nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
 
 
 def check_grads(config, model_torch, nntile_model):
@@ -71,9 +51,11 @@ def check_grads(config, model_torch, nntile_model):
                         dtype=np.float32)
                 p_nntile.grad.to_array(p_nntile_grad_np)
                 p_nntile_grad_np = p_nntile_grad_np.reshape(-1, config.n_embd)
-                current_grad_block = p_torch_grad_np[:,
-                        i_tensor * config.n_embd:(i_tensor + 1) * config.n_embd]
-                diff += np.linalg.norm(current_grad_block.T - p_nntile_grad_np) ** 2
+                current_grad_block_ix = slice(i_tensor * config.n_embd,
+                                              (i_tensor + 1) * config.n_embd)
+                current_grad_block = p_torch_grad_np[:, current_grad_block_ix]
+                diff_tensor = current_grad_block.T - p_nntile_grad_np
+                diff += np.linalg.norm(diff_tensor) ** 2
                 nntile_par_idx += 1
             diff = diff ** 0.5
         elif layer_name == "c_attn" and name.split(".")[-1] == "bias":
@@ -87,7 +69,8 @@ def check_grads(config, model_torch, nntile_model):
                 p_nntile_grad_np = p_nntile_grad_np.transpose().reshape(-1)
                 current_grad_block = p_torch_grad_np[i_tensor * config.n_embd:
                         (i_tensor + 1) * config.n_embd]
-                diff += np.linalg.norm(current_grad_block - p_nntile_grad_np) ** 2
+                diff_tensor = current_grad_block - p_nntile_grad_np
+                diff += np.linalg.norm(diff_tensor) ** 2
                 nntile_par_idx += 1
             diff = diff ** 0.5
         elif layer_name == "c_proj" and name.split(".")[-3] == "attn":
@@ -151,8 +134,9 @@ def check_params(config, model_torch, nntile_model):
                         dtype=np.float32)
                 p_nntile.value.to_array(p_nntile_np)
                 p_nntile_np = p_nntile_np.reshape(-1, config.n_embd)
-                current_block = p_torch_np[:,
-                        i_tensor * config.n_embd:(i_tensor + 1) * config.n_embd]
+                current_block_ix = slice(i_tensor * config.n_embd,
+                                         (i_tensor + 1) * config.n_embd)
+                current_block = p_torch_np[:, current_block_ix]
                 diff += np.linalg.norm(current_block.T - p_nntile_np) ** 2
                 nntile_par_idx += 1
             diff = diff ** 0.5
@@ -210,22 +194,23 @@ def check_params(config, model_torch, nntile_model):
 
 
 @pytest.mark.xfail(reason='not implemented')
+@pytest.mark.slow
 @pytest.mark.parametrize(
     'num_samples,batch_size,minibatch_size,minibatch_size_tile,seq_len_tile,'
-    'device,optimizer,lr,nepochs', [
-        (8, 4, 2, 2, 1024, 'cuda', 'adam', 1e-4, 3),
-        (8, 4, 2, 2, 1024, 'cpu', 'adam', 1e-4, 3),
-        (8, 4, 2, 2, 1024, 'cuda', 'sgd', 1e-4, 3),
-        (8, 4, 2, 2, 1024, 'cpu', 'sgd', 1e-4, 3),
+    'optimizer,lr,nepochs', [
+        (8, 4, 2, 2, 1024, 'adam', 1e-4, 3),
+        (8, 4, 2, 2, 1024, 'sgd', 1e-4, 3),
     ])
-def test_gpt2(num_samples, batch_size, minibatch_size, minibatch_size_tile,
-              seq_len_tile, device, optimizer, lr, nepochs):
+@pytest.mark.parametrize('device', ['cpu', pytest.param('cpu', marks=nocuda)])
+def test_gpt2(device, num_samples, batch_size, minibatch_size,
+              minibatch_size_tile, seq_len_tile, optimizer, lr, nepochs):
     assert num_samples % batch_size == 0
     assert batch_size % minibatch_size == 0
     num_minibatch = batch_size // minibatch_size
     assert minibatch_size % minibatch_size_tile == 0
 
-    # Init model locally or remote and save the corresponding checkpoint for further processing
+    # Init model locally or remote and save the corresponding checkpoint for
+    # further processing.
     config = GPT2Config.from_json_file(data_dir / 'gpt2_test_config.json')
 
     n_head_tile = config.n_head
@@ -233,8 +218,10 @@ def test_gpt2(num_samples, batch_size, minibatch_size, minibatch_size_tile,
     config.attn_pdrop = 0
     config.embd_pdrop = 0
     config.resid_pdrop = 0
-    inner_dim = config.n_inner if config.n_inner is not None \
-        else 4 * config.hidden_size
+    if config.n_inner is not None:
+        inner_dim = config.n_inner
+    else:
+        inner_dim = 4 * config.hidden_size
     config.n_inner = inner_dim
     model_torch = GPT2LMHeadModel(config).to(device)
     model_torch.lm_head.weight = nn.Parameter(model_torch.lm_head
@@ -269,8 +256,8 @@ def test_gpt2(num_samples, batch_size, minibatch_size, minibatch_size_tile,
             nntile_model.activations[-1], next_tag)
 
     if optimizer == "adam":
-        nntile_optimizer = nntile.optimizer.FusedAdam(nntile_model.get_parameters(),
-                                                      lr, next_tag)
+        nntile_optimizer = nntile.optimizer \
+            .FusedAdam(nntile_model.get_parameters(), lr, next_tag)
         torch_optimizer = Adam(model_torch.parameters(), lr)
     elif optimizer == "sgd":
         nntile_optimizer = nntile.optimizer.SGD(nntile_model.get_parameters(),
@@ -282,12 +269,14 @@ def test_gpt2(num_samples, batch_size, minibatch_size, minibatch_size_tile,
     num_train_batches = num_samples // batch_size
     num_minibatch = batch_size // minibatch_size
     torch.manual_seed(0)
-    random_dataset = torch.randint(config.vocab_size,
-            (num_train_batches, num_minibatch, minibatch_size, config.n_positions + 1),
-            dtype=torch.int64, device=device)
+    random_dataset_shape = (num_train_batches, num_minibatch, minibatch_size,
+                            config.n_positions + 1)
+    random_dataset = torch.randint(config.vocab_size, random_dataset_shape,
+                                   dtype=torch.int64, device=device)
     torch_input = random_dataset[:, :, :, :-1]
     torch_output = random_dataset[:, :, :, 1:]
-    # # Run train loop for n_epoch for PyTorch model and report loss after every epoch
+    # Run train loop for n_epoch for PyTorch model and report loss after every
+    # epoch.
     torch_loss_func = nn.CrossEntropyLoss(reduction="sum")
     # Define Cross Entropy loss function
     nntile_loss_func, next_tag = nntile.loss.CrossEntropy.generate_simple(
@@ -302,7 +291,8 @@ def test_gpt2(num_samples, batch_size, minibatch_size, minibatch_size_tile,
                 train_input = torch_input[j][k].to(device)
                 train_labels = torch_output[j][k].to(device).reshape(-1)
                 train_output = model_torch(train_input)
-                train_logits = train_output.logits.reshape(-1, config.vocab_size)
+                train_logits = train_output.logits \
+                    .reshape(-1, config.vocab_size)
                 loss_local = torch_loss_func(train_logits, train_labels)
                 loss += loss_local
             torch_loss_hist.append(loss.item())
@@ -324,11 +314,13 @@ def test_gpt2(num_samples, batch_size, minibatch_size, minibatch_size_tile,
         for j in range(num_minibatch):
             x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
             next_tag = x.next_tag
-            x.from_array(np.asfortranarray(random_dataset[i, j, :, :-1].cpu().T))
+            x_buf = random_dataset[i, j, :, :-1].cpu().T
+            x.from_array(np.asfortranarray(x_buf))
             minibatch_input.append(x)
             y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
             next_tag = y.next_tag
-            y.from_array(np.asfortranarray(random_dataset[i, j, :, 1:].cpu().T))
+            y_buf = random_dataset[i, j, :, 1:].cpu().T
+            y.from_array(np.asfortranarray(y_buf))
             minibatch_output.append(y)
         batch_input.append(minibatch_input)
         batch_output.append(minibatch_output)
@@ -341,9 +333,9 @@ def test_gpt2(num_samples, batch_size, minibatch_size, minibatch_size_tile,
     pipeline.train_async()
     nntile.starpu.wait_for_all()
     for i in range(len(torch_loss_hist)):
-        # print(torch_loss_hist[i], pipeline.loss_hist[i])
-        # print(abs(torch_loss_hist[i] - pipeline.loss_hist[i]) / torch_loss_hist[i])
-        assert abs(torch_loss_hist[i] - pipeline.loss_hist[i]) / torch_loss_hist[i] < 1e-4
+        rel_error = (abs(torch_loss_hist[i] - pipeline.loss_hist[i]) /
+                     torch_loss_hist[i])
+        assert rel_error < 1e-4
 
     nntile_loss_func.unregister()
     nntile_optimizer.unregister()

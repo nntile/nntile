@@ -11,6 +11,8 @@
 #
 # @version 1.0.0
 
+# ruff: noqa: E501
+
 import copy
 import time
 from typing import Dict
@@ -25,6 +27,7 @@ import nntile
 
 
 @pytest.mark.xfail(reason='not implemented')
+@pytest.mark.slow
 @pytest.mark.parametrize('bias,device,optimizer', [
     (True, 'cuda', 'adam'),
     (False, "cuda", "adam"),

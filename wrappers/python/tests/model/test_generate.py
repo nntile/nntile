@@ -37,6 +37,7 @@ TEST_GENERATE_INPUT_PARAMS = [
 ]
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("params", TEST_GENERATE_INPUT_PARAMS)
 def test_generation_from_pretrained(
     starpu_simple, huggingface_local_cache_dir, params

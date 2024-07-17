@@ -11,7 +11,10 @@
 #
 # @version 1.0.0
 
+# ruff: noqa: E501
+
 import numpy as np
+import pytest
 import torch
 import torch.nn as nn
 import torchvision.transforms as trnsfrms
@@ -64,6 +67,7 @@ def data_loader_to_tensor(data_set, label_set, trns, batch_size, minibatch_size,
     return train_tensor, label_tensor
 
 
+@pytest.mark.slow
 def test_mlp_mixer():
     patch_size = 16
     batch_size = 6
