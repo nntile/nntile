@@ -11,27 +11,23 @@
 #
 # @version 1.0.0
 
-# All necesary imports
-import sys
-import nntile
-import math
 import numpy as np
+import pytest
+from numpy.testing import assert_allclose
 from scipy.special import erf
-from numpy import sqrt
-from numpy import tanh
 
-# Set up StarPU configuration and init it
+import nntile
+
 config = nntile.starpu.Config(1, 0, 0)
-# Init all NNTile-StarPU codelets
 nntile.starpu.init()
-# Define list of tested types
-dtypes = [np.float32, np.float64]
+
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
+
 # Define mapping between tested function and numpy type
 dgelutanh = {np.float32: nntile.nntile_core.tensor.dgelutanh_fp32,
-        np.float64: nntile.nntile_core.tensor.dgelutanh_fp64}
+             np.float64: nntile.nntile_core.tensor.dgelutanh_fp64}
 
 
 def dgelu_numpy(x, approximate=True):
@@ -50,8 +46,8 @@ def dgelu_numpy(x, approximate=True):
     return dx
 
 
-# Helper function returns bool value true if test passes
-def helper(dtype, approximate=True):
+@pytest.mark.parametrize('dtype', [np.float32, np.float64])
+def test_dgelutanh(dtype, approximate=True):
     # Describe single-tile tensor, located at node 0
     shape = [2, 2]
     mpi_distr = [0]
@@ -60,7 +56,7 @@ def helper(dtype, approximate=True):
     # Tensor objects
     A = Tensor[dtype](traits, mpi_distr, next_tag)
     # Set initial values of tensors
-    rand = np.random.randn(*shape)
+    rand = np.random.default_rng(42).standard_normal(shape)
     src_A = np.array(rand, dtype=dtype, order='F')
     dst_A = np.zeros_like(src_A)
     A.from_array(src_A)
@@ -70,24 +66,4 @@ def helper(dtype, approximate=True):
     A.unregister()
     # Get result in numpy
     src_A = dgelu_numpy(src_A, approximate=approximate)
-    verbose = 'src_a {0} of {1}\ndst_A {2} of {1}\n'.format(src_A,dtype,dst_A)
-    print(verbose)
-    return np.allclose(src_A, dst_A,atol=1e-3,rtol=1e-3)
-
-
-# Test runner for different precisions
-def test():
-    for dtype in dtypes:
-        for a in [True]:
-            assert helper(dtype, approximate=a)
-
-
-# Repeat tests
-def test_repeat():
-    for dtype in dtypes:
-        for a in [True]:
-            assert helper(dtype, approximate=a)
-
-if __name__ == "__main__":
-    test()
-    test_repeat()
+    assert_allclose(src_A, dst_A, atol=1e-3, rtol=1e-3)
