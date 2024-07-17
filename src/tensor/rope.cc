@@ -123,7 +123,7 @@ void rope_async(const Tensor<T> &sin, const Tensor<T> &cos,
 
         // Sizes of underlying StarPU submit call
         Index m{sincos_tile_traits.nelems},
-              n{srcdst_tile_traits.matrix_shape[src.ndim-1][1]};
+              n{srcdst_tile_traits.matrix_shape[sin.ndim-1][1]};
 
         // Insert corresponding task
         starpu::rope::submit<T>(m, n, sin_tile_handle, cos_tile_handle,

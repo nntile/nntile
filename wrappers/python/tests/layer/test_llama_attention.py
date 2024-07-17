@@ -75,7 +75,7 @@ TEST_PARAMS = [
             n_head=16,
             n_head_tile=8,
             n_head_kv=4,
-            dtype='fp32',
+            dtype='bf16',
             bias=False,
         ),
         # marks=[
@@ -187,13 +187,15 @@ def generate_inputs(params: LlamaAttentionTestParams):
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
 
-    #pos = [np.arange(params.n_seq) for _ in range(params.n_batch)]
-    pos = np.zeros((params.n_batch, params.n_seq), dtype=np.int64)
-    position_ids = np.array(pos)
-    pos_ids_torch = torch.tensor(pos, dtype=torch.long)
+    pos_ids = np.random.randint(
+            params.n_seq,
+            size=(params.n_batch, params.n_seq),
+            dtype=np.int64
+    )
+    pos_ids_torch = torch.tensor(pos_ids, dtype=torch.long)
 
     nntile_layer = nntile.layer.LlamaAttention.from_torch(
-        torch_layer, X, params.n_head_tile, position_ids, params.theta
+        torch_layer, X, params.n_head_tile, pos_ids, params.theta
     )
     y_grad_random = np.random.randn(*x_shape)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
