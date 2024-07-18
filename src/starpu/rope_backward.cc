@@ -47,18 +47,18 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
-    // // Get arguments
-    // auto args = reinterpret_cast<args_t<T> *>(cl_args);
-    // // Get interfaces
-    // auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    //const T *sin = interfaces[0]->get_ptr<T>();
-    //const T *cos = interfaces[1]->get_ptr<T>();
-    //const T *src = interfaces[2]->get_ptr<T>();
-    //T *dst = interfaces[3]->get_ptr<T>();
-    // // Get CUDA stream
-    // cudaStream_t stream = starpu_cuda_get_local_stream();
-    // // Launch kernel
-    //kernel::rope::cuda<T>(stream, args->m, args->n, sin, cos, src, dst);
+    // Get arguments
+    auto args = reinterpret_cast<args_t*>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const T *sin = interfaces[0]->get_ptr<T>();
+    const T *cos = interfaces[1]->get_ptr<T>();
+    const T *src = interfaces[2]->get_ptr<T>();
+    T *dst = interfaces[3]->get_ptr<T>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Launch kernel
+    kernel::rope_backward::cuda<T>(stream, args->m, args->n, sin, cos, src, dst);
 }
 #endif // NNTILE_USE_CUDA
 

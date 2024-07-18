@@ -135,6 +135,8 @@ else()
             "kernel/transpose/cuda.cu"
             "kernel/silu_forward/cuda.cu"
             "kernel/silu_backward/cuda.cu"
+            "kernel/rope/cuda.cu"
+            "kernel/rope_backward/cuda.cu"
             )
         endif(NNTILE_USE_CUDA)
 endif(HAVE_STARPU_SIMGRID)
