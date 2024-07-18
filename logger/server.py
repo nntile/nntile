@@ -26,6 +26,8 @@ NODE_COUNTER = {}
 WRITERS = {}
 MEMORY_NODES_COUNTER_SEND = {}
 MEMORY_NODES_COUNTER_RECEIVED = {}
+MEMORY_NODES_COUNTER = {}
+BYTES_TO_GB = 1 / (1024 * 1024 * 1024)
 
 
 def create_new_writer(log_dir, node_name):
@@ -87,6 +89,22 @@ def handle_flops_message(workers_data, log_dir):
                 'Perf/GFlops/s',
                 flops / time / 1e9,
                 NODE_COUNTER[name]
+        )
+
+
+def handle_memory_nodes_message(memory_nodes_data, log_dir):
+    for worker in memory_nodes_data:
+        name = worker.get("name")
+        size = float(worker.get("size"))
+        if name not in WRITERS:
+            WRITERS[name] = create_new_writer(log_dir, name)
+
+        increaseStep(name, MEMORY_NODES_COUNTER)
+        write_data(
+                WRITERS[name],
+                "MemoryUsage by GB",
+                size * BYTES_TO_GB,
+                MEMORY_NODES_COUNTER[name]
         )
 
 
@@ -153,8 +171,10 @@ async def handle_client(log_dir, reader, writer):
             parsed_data = json.loads(message)
             workers_data = parsed_data.get("workers")
             buses_data = parsed_data.get("buses")
+            memory_nodes_data = parsed_data.get("memory_nodes")
             handle_flops_message(workers_data, log_dir)
             handle_bus_message(buses_data, log_dir)
+            handle_memory_nodes_message(memory_nodes_data, log_dir)
         except json.JSONDecodeError:
             print("Error decoding JSON:", message)
 
