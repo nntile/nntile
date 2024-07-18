@@ -1323,19 +1323,16 @@ class LlamaAttention(BaseLayer):
 
     @staticmethod
     def from_torch(
-        torch_layer: LlamaAttention_torch, x: TensorMoments, n_head_tile: int,
-        position_ids: np.ndarray, mask: np.ndarray, theta: np.float32
+        torch_layer: LlamaAttention_torch, x: TensorMoments,
+        n_head_tile: int, next_tag: int
     ):  # -> Self: does not work with Python 3.10
-        layer, _ = __class__.generate_simple(
+        layer, next_tag = __class__.generate_simple(
             x,
             n_head=torch_layer.num_heads,
             n_head_tile=n_head_tile,
             n_head_kv=torch_layer.num_key_value_heads,
-            position_ids=position_ids,
-            theta=theta,
-            next_tag=0,
+            next_tag=next_tag,
             bias=torch_layer.q_proj.bias is not None,
-            mask=mask,
             redux=False,
         )
         tmp_q_shape = layer.w_q.value.shape.copy()
@@ -1408,7 +1405,7 @@ class LlamaAttention(BaseLayer):
                 .reshape(*layer.in_proj_bias_v.value.shape[::-1])
                 .T
             )
-        return layer
+        return layer, next_tag
 
     def to_torch(self) -> LlamaAttention_torch:
         bias = self.in_proj_bias_q is not None
