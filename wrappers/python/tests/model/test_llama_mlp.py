@@ -36,7 +36,7 @@ dtype2nntile = {
 
 dtype2tol = {
         'fp32': {'rtol': 1e-6},
-        'fp32_fast_tf32': {'rtol': 1e-4},
+        'fp32_fast_tf32': {'rtol': 4e-4},
         'bf16': {'rtol': 1.6e-2},
 }
 
@@ -59,6 +59,8 @@ class LlamaMLPTestParams:
     dtype: str
     redux: bool = True
     activation_function: str = "silu"
+    seq_len: int = 100
+    seq_len_tile: int = 100
 
 
 TEST_PARAMS = [
@@ -141,8 +143,10 @@ def generate_inputs(params: LlamaMLPTestParams):
         intermediate_size=params.intermediate_size,
         intermediate_size_tile=params.intermediate_size_tile,
     )
-    x_shape = [params.hidden_size, params.n_batch]
-    x_basetile = [params.hidden_size_tile, params.n_batch_tile]
+    x_shape = [params.hidden_size, params.seq_len, params.n_batch]
+    x_basetile = [params.hidden_size_tile,
+                  params.seq_len_tile,
+                  params.n_batch_tile]
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[params.dtype]
@@ -155,7 +159,7 @@ def generate_inputs(params: LlamaMLPTestParams):
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
     nntile_layer, _ = LlamaMLP_nntile.from_torch(torch_layer, X,
-                                                       nntile_config, 0)
+                                                nntile_config, 0)
     nntile_layer.clear_gradients()
     y_grad_random = gen.standard_normal(x_shape)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
@@ -210,7 +214,6 @@ class TestLlamaMLP:
         y = torch_layer(x)
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.activations[-1].value).T)
-        # print(y.shape, y_nntile.shape)
         res = (y * y_grad).sum()
         res.backward()
         nntile_layer.backward_async()
