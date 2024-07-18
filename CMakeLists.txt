@@ -59,7 +59,7 @@ find_package(PkgConfig REQUIRED)
 
 # Get the StarPU as the first dependency. StarPU defines if we are in
 # simulation by SimGrid mode or not.
-pkg_check_modules(StarPU REQUIRED starpu-1.3)
+pkg_check_modules(StarPU REQUIRED starpu-1.4)
 target_link_libraries(nntile PUBLIC ${StarPU_LDFLAGS})
 target_include_directories(nntile PUBLIC
     "${PROJECT_SOURCE_DIR}/include"

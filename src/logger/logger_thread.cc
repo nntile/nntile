@@ -133,7 +133,7 @@ void logger_main()
         }
         ss << "]";
 
-        ss << "}";  
+        ss << "}";
         // Serialize JSON object to string
         std::string message = ss.str() + "\n";
         // Send the message

@@ -91,15 +91,22 @@ def handle_flops_message(workers_data, log_dir):
                 NODE_COUNTER[name]
         )
 
+
 def handle_memory_nodes_message(memory_nodes_data, log_dir):
     for worker in memory_nodes_data:
         name = worker.get("name")
         size = float(worker.get("size"))
         if name not in WRITERS:
             WRITERS[name] = create_new_writer(log_dir, name)
-        
-        increaseStep(name, MEMORY_NODES_COUNTER)    
-        write_data(WRITERS[name], "MemoryUsage by GB", size * BYTES_TO_GB, MEMORY_NODES_COUNTER[name])    
+
+        increaseStep(name, MEMORY_NODES_COUNTER)
+        write_data(
+                WRITERS[name],
+                "MemoryUsage by GB",
+                size * BYTES_TO_GB,
+                MEMORY_NODES_COUNTER[name]
+        )
+
 
 def handle_bus_message(buses_data, log_dir):
     memory_nodes_sum_sent = {}
