@@ -39,8 +39,10 @@ void logger_main()
     int worker_cnt = starpu_worker_get_count();
     int bus_cnt = starpu_bus_get_count();
     int is_initialized = starpu_is_initialized();
+    unsigned memnodes_cnt = starpu_memory_nodes_get_count();
     std::cout << "WORKER COUNT: " << worker_cnt << std::endl;
     std::cout << "BUS COUNT: " << bus_cnt << std::endl;
+    std::cout << "MEMNODES COUNT: " << memnodes_cnt << std::endl;
     std::cout << "IS initialized : " << is_initialized << std::endl;
     // Infinite loop until NNTile exits this thread
     while (logger_running)
@@ -110,8 +112,28 @@ void logger_main()
             ss << "\"dst_name\":\"" << dst_name << "\"";
             ss << "}";
         }
+        ss << "],";
+
+        // Get memory usage information for each memory node
+        ss << "\"memory_nodes\":[";
+        bool first_memory_node = true;
+        for (unsigned memory_node = 0; memory_node < memnodes_cnt; memory_node++)
+        {
+            if (!first_memory_node)
+                ss << ",";
+            first_memory_node = false;
+            char memory_node_name[128];
+            // Read the profiling information for the memory node
+            starpu_memory_node_get_name(memory_node, memory_node_name, sizeof(memory_node_name));
+            size_t node = starpu_memory_get_used(memory_node);
+            ss << "{";
+            ss << "\"name\":\"" << memory_node_name << "\",";
+            ss << "\"size\":" << node;
+            ss << "}";
+        }
         ss << "]";
-        ss << "}";
+
+        ss << "}";  
         // Serialize JSON object to string
         std::string message = ss.str() + "\n";
         // Send the message
