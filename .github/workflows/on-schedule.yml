@@ -63,7 +63,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Build StarPU
         run: |
-          export STARPU_VERSION=starpu-1.3.11
+          export STARPU_VERSION=starpu-1.4.7
           export STARPU_LABEL=$STARPU_VERSION
           mkdir -p /usr/src
           curl -SL https://gitlab.inria.fr/starpu/starpu/-/archive/$STARPU_LABEL/starpu-$STARPU_LABEL.tar.gz | tar -xzC /usr/src
