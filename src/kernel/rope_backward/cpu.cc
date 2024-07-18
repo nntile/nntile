@@ -23,8 +23,7 @@ void cpu(Index m, Index n, const T *sin, const T *cos, const T *dy, T *dx)
     noexcept
 /*! Change provided 2-by-m-by-n src tensor and write result into dst tensor
  *  sin, cos are tensors of shape (m). Each column holds sines and cosines.
- *  dst[2i,j] = cos[i] * src[2i,j] - sin[i] * src[2i+1,j]
- *  dst[2i+1,j] = sin[i] * src[2i,j] + cos[i] * src[2i+1,j]
+ *  TODO: describe math here
  *
  * @param[in] m: Size of sin and cos tensors
  * @param[in] n: Size of the second mode of src and dst tensors
