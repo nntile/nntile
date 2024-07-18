@@ -1,0 +1,158 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file wrappers/python/tests/model/test_llama.py
+# Test for nntile.model.Llama
+# Each test is generated in float precision by Torch, then it is downcasted
+# into NNTile type. So, implementation of double precision is NOT checked.
+#
+# @version 1.0.0
+
+from dataclasses import dataclass
+
+import numpy as np
+import pytest
+import torch
+from transformers.models.llama import (
+    LlamaModel as LlamaModel_torch, LlamaConfig as LlamaConfig_torch)
+
+import nntile
+from nntile.model.llama_config import LlamaConfigNNTile
+from nntile.model.llama import Llama as LlamaModel
+from nntile.tensor import TensorMoments, TensorTraits
+from nntile.utils.constructors import to_numpy
+
+# NNTile dtype via corresponding Tensor type
+dtype2nntile = {
+        'fp32': nntile.tensor.Tensor_fp32,
+        'fp32_fast_tf32': nntile.tensor.Tensor_fp32_fast_tf32,
+        'bf16': nntile.tensor.Tensor_bf16,
+}
+
+dtype2tol = {
+        'fp32': {'rtol': 1e-6},
+        'fp32_fast_tf32': {'rtol': 1e-4},
+        'bf16': {'rtol': 1.6e-2},
+}
+
+
+def assert_close_by_frobnorm(a: np.ndarray, b: np.ndarray, rtol: float):
+    np.testing.assert_array_less(
+            np.linalg.norm(a - b),
+            rtol * np.linalg.norm(a)
+    )
+
+
+@dataclass
+class LlamaTestParams:
+    vocab_size: int
+    vocab_embed_dim_tile: int
+    hidden_size: int
+    hidden_size_tile: int
+    max_position_embeddings: int
+    intermediate_size: int
+    intermediate_size_tile: int
+    rms_norm_eps: float
+    num_hidden_layers: int
+    num_attention_heads: int
+    num_attention_heads_tile: int
+    num_key_value_heads: int
+    activation_function: str = "silu"
+    flashattention: bool = True
+    attention_bias: bool = False
+    attention_dropout: float = 0.0
+    rope_theta: float = 10000.
+    seq_len: int = 1
+    seq_len_tile: int = 1
+    batch_size: int = 1
+    batch_size_tile: int = 1
+    dtype: str = "fp32"
+    redux: bool = False
+
+
+TEST_PARAMS = [
+    pytest.param(
+        LlamaTestParams(
+            vocab_size=32000,
+            vocab_embed_dim_tile=32,
+            hidden_size=128,
+            hidden_size_tile=32,
+            max_position_embeddings=1024,
+            intermediate_size=384,
+            intermediate_size_tile=96,
+            rms_norm_eps=1e-6,
+            num_hidden_layers=2,
+            num_attention_heads=16,
+            num_attention_heads_tile=8,
+            num_key_value_heads=4,
+            activation_function="silu",
+            flashattention=False,
+            attention_bias=False,
+            attention_dropout=0.0,
+            rope_theta=2.,
+            seq_len=64,
+            seq_len_tile=16,
+            batch_size=4,
+            batch_size_tile=1,
+            dtype='fp32',
+            redux=False
+        )
+    ),
+]
+
+
+def generate_inputs(params: LlamaTestParams):
+    torch_config = LlamaConfig_torch(
+            vocab_size=params.vocab_size,
+            hidden_size=params.hidden_size,
+            max_position_embeddings=params.max_position_embeddings,
+            intermediate_size=params.intermediate_size,
+            num_attention_heads=params.num_attention_heads,
+            num_key_value_heads=params.num_key_value_heads,
+            attention_bias=params.attention_bias,
+            use_cache=False,
+            attention_dropout=0.0,
+    )
+    torch_model = LlamaModel_torch(
+            torch_config,
+    )
+    nntile_config = LlamaConfigNNTile(
+            vocab_size=params.vocab_size,
+            vocab_embed_dim_tile=params.hidden_size_tile,
+            hidden_size=params.hidden_size,
+            hidden_size_tile=params.hidden_size_tile,
+            intermediate_size=params.intermediate_size,
+            intermediate_size_tile=params.intermediate_size_tile,
+    )
+    nntile_model = LlamaModel.from_torch(
+            torch_model, params.batch_size, params.batch_size_tile,
+            params.seq_len, params.seq_len_tile, nntile_config, 0
+    )
+    x_random = np.random.randint(
+            params.seq_len,
+            size=nntile_model.activations[0].shape
+    )
+    x_nntile = np.array(x_random, dtype=np.int64, order='F')
+    nntile_model.activations[0].value.from_array(x_nntile)
+    x_torch = torch.tensor(x_nntile.T)
+    pos_ids = np.zeros((params.batch_size, params.seq_len), dtype=np.int64)
+    y_grad_random = np.random.randn(*x_random.shape)
+    y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order='F')
+    nntile_model.activations[-1].grad.from_array(y_grad_nntile)
+    y_grad_torch = torch.Tensor(y_grad_nntile.T)
+    return torch_layer, nntile_layer, x_torch, pos_ids_torch, y_grad_torch
+
+
+@pytest.mark.parametrize("params", TEST_PARAMS)
+class TestLlama:
+    def test_coercion(
+        self, starpu_simple, torch_rng, params: LlamaTestParams
+    ):
+        torch_model, nntile_model, _, _, _ = generate_inputs(params)
+        torch_model_other = nntile_model.to_torch()
+        nntile_model.unregister()
