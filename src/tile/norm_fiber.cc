@@ -20,7 +20,7 @@ namespace nntile::tile
 
 template<typename T>
 void norm_fiber_async(Scalar alpha, const Tile<T> &src, Scalar beta,
-        const Tile<T> &dst, Index axis, Index batch_ndim)
+        const Tile<T> &dst, Index axis, Index batch_ndim, int redux)
 {
     // Check dimensions
     if(dst.ndim != batch_ndim+1)
@@ -67,44 +67,44 @@ void norm_fiber_async(Scalar alpha, const Tile<T> &src, Scalar beta,
 
 template<typename T>
 void norm_fiber(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-        Index axis, Index batch_ndim)
+        Index axis, Index batch_ndim, int redux)
 {
-    norm_fiber_async<T>(alpha, src, beta, dst, axis, batch_ndim);
+    norm_fiber_async<T>(alpha, src, beta, dst, axis, batch_ndim, redux);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
 void norm_fiber_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
-        Scalar beta, const Tile<fp32_t> &dst, Index axis, Index batch_ndim);
+        Scalar beta, const Tile<fp32_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 template
 void norm_fiber_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
-        Scalar beta, const Tile<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim);
+        Scalar beta, const Tile<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 template
 void norm_fiber_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
-        Scalar beta, const Tile<fp64_t> &dst, Index axis, Index batch_ndim);
+        Scalar beta, const Tile<fp64_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 template
 void norm_fiber_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
-        const Tile<bf16_t> &dst, Index axis, Index batch_ndim);
+        const Tile<bf16_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 // Explicit instantiation
 template
 void norm_fiber<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
-        const Tile<fp32_t> &dst, Index axis, Index batch_ndim);
+        const Tile<fp32_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 template
 void norm_fiber<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
-        const Tile<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim);
+        const Tile<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 template
 void norm_fiber<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
-        const Tile<fp64_t> &dst, Index axis, Index batch_ndim);
+        const Tile<fp64_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 template
 void norm_fiber<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
-        const Tile<bf16_t> &dst, Index axis, Index batch_ndim);
+        const Tile<bf16_t> &dst, Index axis, Index batch_ndim, int redux=0);
 
 } // namespace nntile::tile

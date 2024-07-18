@@ -19,14 +19,14 @@
 namespace nntile::tile
 {
 
-// Tile-wise sum_fiber
+// Tile-wise norm_fiber
 template<typename T>
 void norm_fiber_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-        Index axis, Index batch_ndim);
+        Index axis, Index batch_ndim, int redux);
 
-// Tile-wise sum_fiber
+// Tile-wise norm_fiber
 template<typename T>
 void norm_fiber(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-        Index axis, Index batch_ndim);
+        Index axis, Index batch_ndim, int redux);
 
 } // namespace nntile::tile
