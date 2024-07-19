@@ -23,11 +23,11 @@ from typing import Any, List, Sequence, Type, TypeGuard, TypeVar
 import nntile.nntile_core.tensor as ops
 from nntile.nntile_core import TransOp, tensor as core_tensor
 from nntile.nntile_core.tensor import (
-    Tensor as TensorProtocol, Tensor_bf16, Tensor_bool, Tensor_fp32,
-    Tensor_fp32_fast_tf32, Tensor_fp64, Tensor_int64)
+    Tensor_bf16, Tensor_bool, Tensor_fp32, Tensor_fp32_fast_tf32, Tensor_fp64,
+    Tensor_int64)
 from nntile.types import Tensor, TensorFloatOrInt, TensorOrFloat
 
-T = TypeVar('T', bound=TensorProtocol)
+T = TypeVar('T')
 
 
 def is_tensor_of(tensors: Sequence[Any],
