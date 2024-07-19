@@ -11,241 +11,128 @@
 #
 # @version 1.0.0
 
-import numpy as np
+from typing import List
 
-from nntile.tensor import (
-    Tensor_bool, Tensor_fp32, Tensor_int64, TensorMoments, TensorTraits)
+from transformers import LlamaConfig as LlamaConfig_torch
+from transformers.models.llama.modeling_llama import (
+    LlamaModel as LlamaModel_torch)
 
-from ..layer import Embedding, LlamaAttention, RMSNorm
-from ..layer.add import Add
+from nntile.tensor import Tensor_fp32, Tensor_int64, TensorTraits
+
+from ..layer import Embedding, RMSNorm
 # from nntile.layer import Act, Linear, Prod
 from .base_model import BaseModel
 from .llama_config import LlamaConfigNNTile
-from .llama_mlp import LlamaMLP as LlamaMLP_nntile
+from .llama_decoder import LlamaDecoder
 
 
 class Llama(BaseModel):
     next_tag: int
+    embd_layer: Embedding
+    final_rmsnorm: RMSNorm
+    list_decoder: List[LlamaDecoder]
 
     def __init__(self,
-                 input_ids: TensorMoments,
-                 positional_ids: TensorMoments,
+                 input_ids: Tensor_int64,
+                 emb_layer_: Embedding,
+                 decoders: List[LlamaDecoder],
+                 rms_norm_layer: RMSNorm,
                  config: LlamaConfigNNTile,
-                 next_tag: int,):
+                 ):
         self.dtype = config["dtype"]
-        redux = config["redux"]
+
+        self.config = config
 
         if self.dtype not in ["fp32", "tf32", "bf16"]:
             raise TypeError("Only fp32, tf32 and bf16 are"
                             "supported for weight type")
-        activations = [input_ids]
-        layers = []
+        activations = [input_ids] + emb_layer_.activations_output
+        layers = [emb_layer_]
+        self.decoders = decoders
 
-        self.num_hidden_layers = config["num_hidden_layers"]
+        for dec_layer in decoders:
+            activations.extend(dec_layer.activations[1:])
+            layers.extend(dec_layer.layers)
 
-        self.hidden_size = config["hidden_size"]
-        self.hidden_size_tile = config["hidden_size_tile"]
-        vocab_size = config["vocab_size"]
-        vocab_embed_dim_tile = config["vocab_embed_dim_tile"]
-        self.embed_dim = config["hidden_size"]
-        embed_dim_tile = config["hidden_size_tile"]
+        activations.extend(rms_norm_layer.activations_output)
+        layers.append(rms_norm_layer)
 
-        n_head = config["n_attention_heads"]
-        n_head_tile = config["n_head_tile"]
-        n_head_kv = config["num_key_value_heads"]
-
-        seq_len = input_ids.value.shape[0]
-        seq_len_tile = input_ids.value.basetile_shape[0]
-        mask_traits = TensorTraits(
-            (seq_len, seq_len), (seq_len_tile, seq_len_tile)
-        )
-        mask_distr = [0] * mask_traits.grid.nelems
-        self.mask = Tensor_bool(mask_traits, mask_distr, next_tag)
-        next_tag = self.mask.next_tag
-        mask_np = np.array(
-            np.triu(np.ones((seq_len, seq_len))), dtype=bool, order="F"
-        )
-        self.mask.from_array(mask_np)
-
-        if self.dtype == "fp32":
-            embed_layer, next_tag = Embedding.generate_simple(
-                input_ids.value,
-                Tensor_fp32,
-                0,
-                vocab_size,
-                self.embed_dim,
-                embed_dim_tile,
-                vocab_embed_dim_tile,
-                next_tag,
-            )
-        layers.append(embed_layer)
-        activations.extend(embed_layer.activations_output)
-
-        for _ in range(self.num_hidden_layers):
-            input_act = activations[-1]
-            norm_layer, next_tag = RMSNorm.generate_simple(activations[-1], 0,
-                                                       config["rms_norm_eps"],
-                                                       next_tag,
-                                                       redux)
-            layers.append(norm_layer)
-            activations.extend(norm_layer.activations_output)
-
-            attn_layer, next_tag = LlamaAttention.generate_simple(
-                                    activations[-1],
-                                    n_head,
-                                    n_head_tile,
-                                    n_head_kv,
-                                    next_tag,
-                                    mask=self.mask,
-                                    redux=redux)
-            layers.append(attn_layer)
-            activations.extend(attn_layer.activations_output)
-
-            new_layer, next_tag = Add.generate_simple(
-                input_act, activations[-1], next_tag
-            )
-            layers.append(new_layer)
-            activations.extend(new_layer.activations_output)
-
-            norm_layer, next_tag = RMSNorm.generate_simple(activations[-1], 0,
-                                                       config["rms_norm_eps"],
-                                                       next_tag,
-                                                       redux)
-            layers.append(norm_layer)
-            activations.extend(norm_layer.activations_output)
-
-            mlp_subnetwork = LlamaMLP_nntile(activations[-1], config, next_tag)
-            next_tag = mlp_subnetwork.next_tag
-            activations.extend(mlp_subnetwork.activations[1:])
-            layers.extend(mlp_subnetwork.layers)
-
-            new_layer, next_tag = Add.generate_simple(
-                norm_layer.activations_output[0], activations[-1], next_tag
-            )
-            layers.append(new_layer)
-            activations.extend(new_layer.activations_output)
-
-        norm_layer, next_tag = RMSNorm.generate_simple(activations[-1], 0,
-                                                       config["rms_norm_eps"],
-                                                       next_tag,
-                                                       redux)
-        layers.append(norm_layer)
-        activations.extend(norm_layer.activations_output)
-
-        self.next_tag = next_tag
         super().__init__(activations, layers)
 
     @staticmethod
     def from_torch(torch_llama,
-                   batch_size: int,
-                   batch_size_tile: int,
-                   seq_len: int,
-                   seq_len_tile: int,
+                   batch_size, batch_size_tile,
+                   seq_len, seq_len_tile,
                    config: LlamaConfigNNTile,
                    next_tag: int):
-        positional_ids_traits = TensorTraits([seq_len], [seq_len_tile])
-        positional_ids_distr = [0] * positional_ids_traits.grid.nelems
-        positional_ids_value = Tensor_int64(
-            positional_ids_traits, positional_ids_distr, next_tag
-        )
-        next_tag = positional_ids_value.next_tag
-        positional_ids_value.from_array(
-            np.array(np.zeros(seq_len), order="F", dtype=np.int64)
-        )
-        positional_ids = TensorMoments(positional_ids_value, None, False)
 
-        x_traits = TensorTraits(
-            [seq_len, batch_size], [seq_len_tile, batch_size_tile]
-        )
+        if config["dtype"] not in ["fp32", "tf32", "bf16"]:
+            raise TypeError("Only fp32, tf32 and bf16 are"
+                            "supported for weight type")
+
+        x_shape = [seq_len, batch_size]
+        x_basetile = [seq_len_tile, batch_size_tile]
+        x_traits = TensorTraits(x_shape, x_basetile)
         x_distr = [0] * x_traits.grid.nelems
-        x = Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = x.next_tag
-        x_grad = None
-        x_grad_required = False
-        x_moments = TensorMoments(x, x_grad, x_grad_required)
+        x_value = Tensor_int64(x_traits, x_distr, 0)
+        if config["dtype"] == "fp32":
+            embed_layer, next_tag = Embedding.generate_simple(
+                                    x_value, Tensor_fp32, 0,
+                                    config["vocab_size"],
+                                    config["hidden_size"],
+                                    config["hidden_size_tile"],
+                                    config["hidden_size_tile"],
+                                    next_tag)
+        else:
+            raise TypeError
 
-        llama_nntile = Llama(x_moments, positional_ids, config, next_tag)
-        nntile_params = llama_nntile.parameters
-        torch_named_parameters = list(torch_llama.named_parameters())
-        # Copy embedding parameters
-        print(torch_named_parameters[0][0])
-        nntile_params[0].value.from_array(
-            torch_named_parameters[0][1].cpu().detach().numpy().T)
-        # Copy the last RMSNorm layer parameters
-        print(torch_named_parameters[-1][0])
-        nntile_params[-1].value.from_array(
-            torch_named_parameters[-1][1].cpu().detach().numpy())
-        for layer_idx in range(config["num_hidden_layers"]):
-            # First 4 parameters are for Attention (q, k, v, o)
-            tmp_q_shape = nntile_params[layer_idx * 9 + 2].value.shape.copy()
-            tmp_q_shape[:2] = tmp_q_shape[1::-1]
-            print(torch_named_parameters[1 + 9 * layer_idx][0])
-            nntile_params[layer_idx * 9 + 2].value.from_array(
-                np.moveaxis(
-                    torch_named_parameters[1 + 9 * layer_idx][1].detach()
-                    .cpu()
-                    .numpy()
-                    .reshape(*tmp_q_shape),
-                    0,
-                    1,
-                )
-            )
-            print(torch_named_parameters[2 + 9 * layer_idx][0])
-            w_k_shape = nntile_params[layer_idx * 9 + 3].value.shape
-            nntile_params[layer_idx * 9 + 3].value.from_array(
-                torch_named_parameters[2 + 9 * layer_idx][1].detach()
-                .cpu()
-                .numpy()
-                .reshape(*w_k_shape)
-            )
-            w_v_shape = nntile_params[layer_idx * 9 + 4].value.shape
-            print(torch_named_parameters[3 + 9 * layer_idx][0])
-            nntile_params[layer_idx * 9 + 4].value.from_array(
-                torch_named_parameters[3 + 9 * layer_idx][1].detach()
-                .cpu()
-                .numpy()
-                .reshape(*w_v_shape)
-            )
-            print(torch_named_parameters[4 + 9 * layer_idx][0])
-            tmp_w_shape = nntile_params[layer_idx * 9 + 5].value.shape.copy()
-            tmp_w_shape[1:3] = tmp_w_shape[2:0:-1]
-            nntile_params[layer_idx * 9 + 5].value.from_array(
-                np.moveaxis(
-                    torch_named_parameters[4 + 9 * layer_idx][1].detach()
-                    .cpu()
-                    .numpy()
-                    .reshape(*tmp_w_shape),
-                    1,
-                    2,
-                )
-            )
-            # Next 3 parameters are for LlamaMLP
-            print(torch_named_parameters[1 + layer_idx * 9 + 4][0])
-            nntile_params[7 + layer_idx * 9].value.from_array(
-                torch_named_parameters[1 + layer_idx * 9 + 4][1].
-                cpu().detach().numpy())
-            print(torch_named_parameters[1 + layer_idx * 9 + 5][0])
-            nntile_params[8 + layer_idx * 9].value.from_array(
-                torch_named_parameters[1 + layer_idx * 9 + 5][1].
-                cpu().detach().numpy())
-            print(torch_named_parameters[1 + layer_idx * 9 + 6][0])
-            nntile_params[9 + layer_idx * 9].value.from_array(
-                torch_named_parameters[1 + layer_idx * 9 + 6][1].
-                cpu().detach().numpy())
-            # Next is input RMSNorm
-            print(torch_named_parameters[1 + layer_idx * 9 + 7][0])
-            nntile_params[1 + layer_idx * 9].value.from_array(
-                torch_named_parameters[1 + layer_idx * 9 + 7][1].
-                cpu().detach().numpy())
-            # Next is RMSNorm after skip connection after attention
-            print(torch_named_parameters[1 + layer_idx * 9 + 8][0])
-            nntile_params[6 + layer_idx * 9].value.from_array(
-                torch_named_parameters[1 + layer_idx * 9 + 8][1].
-                cpu().detach().numpy())
+        embed_layer.w.value.from_array(torch_llama.embed_tokens.weight.cpu().detach().numpy().T)
 
-        return llama_nntile, llama_nntile.next_tag
+        # u_shape = [config["hidden_size"], seq_len, batch_size]
+        # u_basetile = [config["hidden_size_tile"],
+        #               seq_len_tile, batch_size_tile]
+        # u_traits = TensorTraits(u_shape, u_basetile)
+        # u_distr = [0] * u_traits.grid.nelems
+        # u_value = type(embed_layer.w.value)(u_traits, u_distr, 0)
+        # u_grad = type(embed_layer.w.value)(u_traits, u_distr, 0)
+        # U = TensorMoments(u_value, u_grad, grad_required=True)
+        U = embed_layer.activations_output[0]
+        decoders_list = []
 
-    def unregister(self):
-        super().unregister()
-        if self.mask:
-            self.mask.unregister()
+        for decoder_llama_torch in torch_llama.layers:
+            decoder_nntile_layer, next_tag = LlamaDecoder.from_torch(
+                decoder_llama_torch, U, config, next_tag)
+            U = decoder_nntile_layer.activations[-1]
+            decoders_list.append(decoder_nntile_layer)
+
+        rms_norm_final, next_tag = RMSNorm.from_torch(
+                                    torch_llama.norm,
+                                    decoders_list[-1].activations[-1],
+                                    0,
+                                    config["rms_norm_eps"],
+                                    next_tag, config["redux"])
+
+        llama_nntile = Llama(x_value, embed_layer,
+                             decoders_list, rms_norm_final,
+                             config)
+
+        return llama_nntile, next_tag
+
+    def to_torch(self):
+        config_torch = LlamaConfig_torch(
+            hidden_size=self.config["hidden_size"],
+            intermediate_size=self.config["intermediate_size"],
+            num_hidden_layers=self.config["num_hidden_layers"],
+            vocab_size=self.config["vocab_size"],
+            max_position_embeddings=self.config["max_position_embeddings"],
+            rms_norm_eps=self.config["rms_norm_eps"],
+            n_attention_head=self.config["n_attention_heads"])
+
+        llama_model_torch = LlamaModel_torch(config_torch)
+        llama_model_torch.embed_tokens = self.layers[0].to_torch()
+        for i in range(self.config["num_hidden_layers"]):
+            llama_model_torch.layers[i] = self.decoders[i].to_torch()
+
+        llama_model_torch.norm = self.layers[-1].to_torch()
+
+        return llama_model_torch

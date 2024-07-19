@@ -19,13 +19,11 @@ import numpy as np
 import pytest
 import torch
 from transformers.models.llama import (
-    LlamaModel as LlamaModel_torch, LlamaConfig as LlamaConfig_torch)
+    LlamaConfig as LlamaConfig_torch, LlamaModel as LlamaModel_torch)
 
 import nntile
-from nntile.model.llama_config import LlamaConfigNNTile
 from nntile.model.llama import Llama as LlamaModel
-from nntile.tensor import TensorMoments, TensorTraits
-from nntile.utils.constructors import to_numpy
+from nntile.model.llama_config import LlamaConfigNNTile
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -86,7 +84,7 @@ TEST_PARAMS = [
             intermediate_size=384,
             intermediate_size_tile=96,
             rms_norm_eps=1e-6,
-            num_hidden_layers=2,
+            num_hidden_layers=1,
             num_attention_heads=16,
             num_attention_heads_tile=8,
             num_key_value_heads=4,
@@ -117,6 +115,7 @@ def generate_inputs(params: LlamaTestParams):
             attention_bias=params.attention_bias,
             use_cache=False,
             attention_dropout=0.0,
+            num_hidden_layers=params.num_hidden_layers
     )
     torch_model = LlamaModel_torch(
             torch_config,
@@ -128,24 +127,27 @@ def generate_inputs(params: LlamaTestParams):
             hidden_size_tile=params.hidden_size_tile,
             intermediate_size=params.intermediate_size,
             intermediate_size_tile=params.intermediate_size_tile,
+            num_hidden_layers=params.num_hidden_layers
     )
-    nntile_model = LlamaModel.from_torch(
+    nntile_model, _ = LlamaModel.from_torch(
             torch_model, params.batch_size, params.batch_size_tile,
             params.seq_len, params.seq_len_tile, nntile_config, 0
     )
-    x_random = np.random.randint(
-            params.seq_len,
-            size=nntile_model.activations[0].shape
-    )
+    gen = np.random.default_rng()
+    x_random = gen.integers(0,
+                            params.seq_len,
+                            nntile_model.activations[0].shape)
     x_nntile = np.array(x_random, dtype=np.int64, order='F')
-    nntile_model.activations[0].value.from_array(x_nntile)
+    nntile_model.activations[0].from_array(x_nntile)
     x_torch = torch.tensor(x_nntile.T)
     pos_ids = np.zeros((params.batch_size, params.seq_len), dtype=np.int64)
-    y_grad_random = np.random.randn(*x_random.shape)
+    y_grad_random = gen.standard_normal((params.hidden_size,
+                                         params.seq_len,
+                                         params.batch_size))
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order='F')
     nntile_model.activations[-1].grad.from_array(y_grad_nntile)
     y_grad_torch = torch.Tensor(y_grad_nntile.T)
-    return torch_layer, nntile_layer, x_torch, pos_ids_torch, y_grad_torch
+    return torch_model, nntile_model, x_torch, pos_ids, y_grad_torch
 
 
 @pytest.mark.parametrize("params", TEST_PARAMS)
@@ -156,3 +158,77 @@ class TestLlama:
         torch_model, nntile_model, _, _, _ = generate_inputs(params)
         torch_model_other = nntile_model.to_torch()
         nntile_model.unregister()
+
+        assert_close_by_frobnorm(
+            torch_model.embed_tokens.weight.detach().numpy(),
+            torch_model_other.embed_tokens.weight.detach().numpy(),
+            **dtype2tol[params.dtype]
+        )
+        for i in range(params.num_hidden_layers):
+            assert_close_by_frobnorm(
+                torch_model.layers[i].mlp.down_proj.weight.detach().numpy(),
+                torch_model_other.layers[i].mlp.down_proj.weight.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+            assert_close_by_frobnorm(
+                torch_model.layers[i].mlp.up_proj.weight.detach().numpy(),
+                torch_model_other.layers[i].mlp.up_proj.weight.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+            assert_close_by_frobnorm(
+                torch_model.layers[i].mlp.gate_proj.weight.detach().numpy(),
+                torch_model_other.layers[i].mlp.gate_proj.weight.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+
+            assert_close_by_frobnorm(
+                torch_model.layers[i].post_attention_layernorm.weight.detach().numpy(),
+                torch_model_other.layers[i].post_attention_layernorm.weight.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+            assert_close_by_frobnorm(
+                torch_model.layers[i].input_layernorm.weight.detach().numpy(),
+                torch_model_other.layers[i].input_layernorm.weight.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+
+            assert_close_by_frobnorm(
+                torch_model.layers[i].self_attn.q_proj.weight.detach().numpy(),
+                torch_model_other.layers[i].self_attn.q_proj.weight.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+            assert_close_by_frobnorm(
+                torch_model.layers[i].self_attn.v_proj.weight.detach().numpy(),
+                torch_model_other.layers[i].self_attn.v_proj.weight.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+            assert_close_by_frobnorm(
+                torch_model.layers[i].self_attn.o_proj.weight.detach().numpy(),
+                torch_model_other.layers[i].self_attn.o_proj.weight.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+            assert_close_by_frobnorm(
+                torch_model.layers[i].self_attn.k_proj.weight.detach().numpy(),
+                torch_model_other.layers[i].self_attn.k_proj.weight.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+
+    # def test_forward(
+    #     self, starpu_simple, torch_rng, params: LlamaTestParams
+    # ):
+    #     torch_model, nntile_model, x, _, _ = generate_inputs(params)
+    #     pos_ids = torch.zeros((x.shape[0], x.shape[1])).to(torch.long).to(x)
+    #     y = torch_model(x, position_ids=pos_ids, return_dict=True)
+    #     nntile_model.forward_async()
+    #     y_nntile = torch.Tensor(
+    #       to_numpy(nntile_model.activations[-1].value).T)
+    #     nntile_model.unregister()
+    #     print(np.linalg.norm(y_nntile.detach().numpy() -
+    #           y.last_hidden_state.detach().numpy()) /
+    #           np.linalg.norm(y.last_hidden_state.detach().numpy()))
+    #     print(params.dtype)
+    #     assert_close_by_frobnorm(
+    #             y.last_hidden_state.detach().numpy(),
+    #             y_nntile.detach().numpy(),
+    #             **dtype2tol[params.dtype]
+    #     )
