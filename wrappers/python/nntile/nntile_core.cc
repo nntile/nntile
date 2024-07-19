@@ -21,6 +21,7 @@
 #include <cstring>
 #include <thread>
 
+using pybind11::literals::operator""_a;
 using namespace nntile;
 namespace py = pybind11;
 
@@ -633,10 +634,11 @@ void def_mod_tensor(py::module_ &m)
     m.def("nrm2_async_fp32", &nrm2_async<fp32_t>);
     m.def("nrm2_fp64", &nrm2<fp64_t>);
     m.def("nrm2_fp32", &nrm2<fp32_t>);
-    m.def("normalize_async_fp64", &normalize_async<fp64_t>);
-    m.def("normalize_async_fp32", &normalize_async<fp32_t>);
-    m.def("normalize_fp64", &normalize<fp64_t>);
-    m.def("normalize_fp32", &normalize<fp32_t>);
+
+    m.def("normalize_async_fp64", &normalize_async<fp64_t>, "gamma_beta"_a, "src"_a, "dst"_a, "size"_a, "eps"_a, "axis"_a);
+    m.def("normalize_async_fp32", &normalize_async<fp32_t>, "gamma_beta"_a, "src"_a, "dst"_a, "size"_a, "eps"_a, "axis"_a);
+    m.def("normalize_fp64", &normalize<fp64_t>, "gamma_beta"_a, "src"_a, "dst"_a, "size"_a, "eps"_a, "axis"_a);
+    m.def("normalize_fp32", &normalize<fp32_t>, "gamma_beta"_a, "src"_a, "dst"_a, "size"_a, "eps"_a, "axis"_a);
 
     m.def("flash_maxsumexp_async_fp64", &flash_maxsumexp_async<fp64_t>);
     m.def("flash_maxsumexp_async_bf16", &flash_maxsumexp_async<bf16_t>);
