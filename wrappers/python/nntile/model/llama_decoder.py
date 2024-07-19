@@ -60,7 +60,7 @@ class LlamaDecoder(BaseModel):
         torch_llama_decoder, x: TensorMoments,
         config: LlamaConfigNNTile, next_tag: int):
         """
-        torch_mlp is PyTorch MLP where no biases in linear layers
+        torch_llama_decoder is HF module for LlamaDecoder block
         """
         rms_norm_input_layer, next_tag = RMSNorm.from_torch(
             torch_llama_decoder.input_layernorm, x,
