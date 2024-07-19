@@ -402,7 +402,6 @@ class Attention(BaseLayer):
 
     def reset_cache(self, value=0):
         self.k_cache_size = value
-        self.q_cache_size = value
         self.v_cache_size = value
     
     def _forward_mlp_q_async(self):
@@ -442,23 +441,28 @@ class Attention(BaseLayer):
         # return self.tmp_buff
 
     def _forward_mlp_q_cached(self, x: Tensor):
-        # TODO: no reason to cache q, as you need only last logit for generation. You should just support dynamic shapes of q
-        
         q_partial_tr = self._get_tmp_tr_for_cache(x)
         q_partial = self._get_tmp_for_cache(x)
-        
-        gemm_async(1.0, notrans, self.w_q.value, notrans, 
-            x, 0.0, q_partial_tr, 1, 0, redux=self.redux)
+
+        gemm_async(
+            1.0,
+            notrans,
+            self.w_q.value,
+            notrans,
+            x,
+            0.0,
+            q_partial_tr,
+            1,
+            0,
+            redux=self.redux,
+        )
 
         transpose_async(1.0, q_partial_tr, q_partial, 1)
-        
+
         if self.in_proj_bias_q is not None:
             add_fiber_async(1, self.in_proj_bias_q.value, 1, q_partial, 0, 1)
 
-        copy_intersection_async(q_partial, [0,self.q_cache_size,0,0], self.q.value, [0,0,0,0])
-        self.q_cache_size+=x.shape[1]
-
-        return self.q.value
+        return q_partial
     
     def _forward_mlp_k_async(self):
         # K_transposed = einsum('jkl,lmn->jkmn', W_K, X_K)
@@ -683,14 +687,14 @@ class Attention(BaseLayer):
         if x.value.shape[1] + self.v_cache_size > self.x_v.value.shape[1]:
             raise Exception(f"Overload internal state: try add {x.value.shape[1]} to {self.v_cache_size}, max: {self.x_v.value.shape[1]}")
 
-        q = self._forward_mlp_q_cached(x.value)
+        q_partial = self._forward_mlp_q_cached(x.value)
         k = self._forward_mlp_k_cached(x.value)
         v = self._forward_mlp_v_cached(x.value)
         
         # compute attention and weight result
         # self._forward_attn_async()
         # return self.y
-        y_tensor = self._forward_attn_cached(q,k,v)
+        y_tensor = self._forward_attn_cached(q_partial,k,v)
         return y_tensor
 
     # Backward propagation of the linear layer
