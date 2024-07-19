@@ -18,6 +18,7 @@ from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         sum_fiber_async, transpose_async, copy_async, copy_intersection_async
 
 from nntile.layer.base_layer import BaseLayer
+import nntile.utils.constructors as nntc
 import numpy as np
 from typing import List
 
@@ -143,6 +144,9 @@ class Attention(BaseLayer):
             self.redux = 0
 
         self.reset_cache()
+
+        self.tmp_buff_tr = None
+        self.tmp_buff = None
     
     # Simple generator for the linear layer
     @staticmethod
@@ -396,10 +400,10 @@ class Attention(BaseLayer):
         # Return layer and next tag to be used
         return (layer, next_tag)
 
-    def reset_cache(self):
-        self.k_cache_size = 0
-        self.q_cache_size = 0
-        self.v_cache_size = 0    
+    def reset_cache(self, value=0):
+        self.k_cache_size = value
+        self.q_cache_size = value
+        self.v_cache_size = value
     
     def _forward_mlp_q_async(self):
         # Q_transposed = einsum('jkl,lmn->jkmn', W_Q, X_Q)
@@ -423,12 +427,25 @@ class Attention(BaseLayer):
                     self.q.value, 0, 1)
             self.in_proj_bias_q.value.wont_use()
 
+    def _get_tmp_tr_for_cache(self, x):
+        q_partial_tr_shape = (1,)+ tuple(x.shape)
+        return nntc.zeros(q_partial_tr_shape, dtype=type(x))
+        # if self.tmp_buff_tr is None or self.tmp_buff_tr.shape != q_partial_tr_shape:
+        #     self.tmp_buff_tr = nntc.zeros(q_partial_tr_shape, dtype=type(x))
+        # return self.tmp_buff_tr
+    
+    def _get_tmp_for_cache(self, x):
+        q_partial_shape = tuple(x.shape)+(1,)
+        return nntc.zeros(q_partial_shape, dtype=type(x))
+        # if self.tmp_buff is None or self.tmp_buff.shape != q_partial_shape:
+        #     self.tmp_buff = nntc.zeros(q_partial_shape, dtype=type(x))
+        # return self.tmp_buff
+
     def _forward_mlp_q_cached(self, x: Tensor):
         # TODO: no reason to cache q, as you need only last logit for generation. You should just support dynamic shapes of q
         
-        import nntile.utils.constructors as nntc
-        q_partial_tr = nntc.zeros((1,)+ tuple(x.shape), dtype=type(x))
-        q_partial = nntc.zeros(tuple(x.shape)+(1,), dtype=type(x))
+        q_partial_tr = self._get_tmp_tr_for_cache(x)
+        q_partial = self._get_tmp_for_cache(x)
         
         gemm_async(1.0, notrans, self.w_q.value, notrans, 
             x, 0.0, q_partial_tr, 1, 0, redux=self.redux)
@@ -440,6 +457,8 @@ class Attention(BaseLayer):
 
         copy_intersection_async(q_partial, [0,self.q_cache_size,0,0], self.q.value, [0,0,0,0])
         self.q_cache_size+=x.shape[1]
+
+        return self.q.value
     
     def _forward_mlp_k_async(self):
         # K_transposed = einsum('jkl,lmn->jkmn', W_K, X_K)
@@ -464,9 +483,8 @@ class Attention(BaseLayer):
             self.in_proj_bias_k.value.wont_use()
 
     def _forward_mlp_k_cached(self, x: Tensor):
-        import nntile.utils.constructors as nntc
-        k_partial_tr = nntc.zeros((1,)+ tuple(x.shape), dtype=type(x))
-        k_partial = nntc.zeros(tuple(x.shape)+(1,), dtype=type(x))
+        k_partial_tr = self._get_tmp_tr_for_cache(x)
+        k_partial = self._get_tmp_for_cache(x)
         
         gemm_async(1.0, notrans, self.w_k.value, notrans, 
             x, 0.0, k_partial_tr, 1, 0, redux=self.redux)
@@ -478,6 +496,7 @@ class Attention(BaseLayer):
 
         copy_intersection_async(k_partial, [0,self.k_cache_size,0,0], self.k.value, [0,0,0,0])
         self.k_cache_size+=x.shape[1]
+        return self.k.value
 
     def _forward_mlp_v_async(self):
         # V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V)
@@ -502,9 +521,8 @@ class Attention(BaseLayer):
             self.in_proj_bias_v.value.wont_use()
 
     def _forward_mlp_v_cached(self, x: Tensor):
-        import nntile.utils.constructors as nntc
-        v_partial_tr = nntc.zeros((1,)+ tuple(x.shape), dtype=type(x))
-        v_partial = nntc.zeros(tuple(x.shape)+(1,), dtype=type(x))
+        v_partial_tr = self._get_tmp_tr_for_cache(x)
+        v_partial = self._get_tmp_for_cache(x)
         
         gemm_async(1.0, notrans, self.w_v.value, notrans, 
             x, 0.0, v_partial_tr, 1, 0, redux=self.redux)
@@ -516,6 +534,7 @@ class Attention(BaseLayer):
 
         copy_intersection_async(v_partial, [0,self.v_cache_size,0,0], self.v.value, [0,0,0,0])
         self.v_cache_size+=x.shape[1]
+        return self.v.value
     
     def _forward_attn_async(self):
         # Get tensor for softmax
@@ -575,8 +594,78 @@ class Attention(BaseLayer):
             self.out_proj_bias.value.wont_use()
         self.y.value.wont_use()
     
+    def _forward_attn_cached(self, q, k, v):
+        a_tmp = nntc.zeros(k.shape[1:2]+q.shape[1:2]+k.shape[2:], dtype=type(q))
+        a_maxsumexp_tmp = nntc.zeros((2,)+tuple(a_tmp.shape[1:]), dtype=type(q))
+        b_tmp = nntc.zeros(q.shape, dtype=type(q))
+        b_tr_tmp = nntc.zeros(q.shape[3:]+q.shape[:3], dtype=type(q))
+        self.y_tensor = nntc.zeros((tuple(q.shape[:2])+(q.shape[2]*q.shape[3],)), dtype=type(q))
+        y_tensor = self.y_tensor
+        # Get tensor for softmax
+        # A = 1.0/sqrt(head_size) * einsum('jklb,jmlb->kmlb', K, Q)
+        # single batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
+        # by (head_size, n_seq, batch=n_batch, batch=n_head) into
+        # (n_seq, n_seq, batch=n_batch, batch=n_head)
+        gemm_async(1.0/self.head_size**0.5, trans, k, 
+                notrans, q, 0.0, a_tmp, 1, 2, 
+                redux=self.redux)
+        
+        clear_async(a_maxsumexp_tmp)
+        # Q and K can be offloaded from GPU
+        q.wont_use()
+        k.wont_use()
+
+        # Calculate softmax inplace
+        # A = softmax(A, axis=0)
+        # Apply mask if needed
+        if self.mask:
+            raise Exception("Mask not implemented") # TODO: implement mask
+
+        
+        # Calculate max and sumexp along axis
+        maxsumexp_async(a_tmp, a_maxsumexp_tmp, 0, redux=self.redux)
+        # Finally, get the inplace softmax
+        softmax_inplace_async(a_maxsumexp_tmp, 1.0, a_tmp, 0)
+        # A_maxsumexp can be deleted
+        # a_maxsumexp_tmp.invalidate_submit()
+
+        # Apply value tensor
+        # B = einsum('jklb,kmlb->jmlb', V, A)
+        # batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
+        # by (n_seq, n_seq, batch=n_batch, batch=n_head) into
+        # (head_size, n_seq, batch=n_batch, batch=n_head)
+        gemm_async(1.0, notrans, v, notrans, 
+                    a_tmp, 0.0, b_tmp, 1, 2, redux=self.redux)
+        # V and A can be offloaded from GPU
+        v.wont_use()
+        a_tmp.wont_use()
+
+        # Accumulate result from all the heads
+        # rotate axes (head_size, n_seq, n_batch, n_head) into
+        # (n_head, head_size, n_seq, n_batch) and then
+        transpose_async(1.0, b_tmp, b_tr_tmp, 3)
+        # Y = einsum('jkl,klmn->jmn', W, B_transposed)
+        # gemm (n_emb, n_head, head_size) by
+        # (n_head, head_size, n_seq, n_batch) into (n_emb, n_seq, n_batch)
+        gemm_async(1.0, notrans, self.w.value, notrans, \
+                    b_tr_tmp, 0.0, y_tensor, 2, 0, \
+                    redux=self.redux)
+        # W, B and B_transposed can be offloaded from GPU
+        self.w.value.wont_use()
+        #self.b.value.wont_use()
+        # b_tmp.invalidate_submit()
+        b_tr_tmp.wont_use()
+        
+        # Apply bias if needed
+        if self.out_proj_bias is not None:
+            add_fiber_async(1.0, self.out_proj_bias.value, 1.0, y_tensor, \
+                    0, 0)
+            self.out_proj_bias.value.wont_use()
+        return y_tensor
+
     # Forward propagation of the attention layer
-    def forward_async(self):
+    def forward_async(self, effective_size=None):
+        self.reset_cache()
         # Compute query, key and value tensors
         self._forward_mlp_q_async()
         self._forward_mlp_k_async()
@@ -585,14 +674,24 @@ class Attention(BaseLayer):
         # compute attention and weight result
         self._forward_attn_async()
 
+        effective_size = effective_size or self.x_q.value.shape[1]
+        self.reset_cache(effective_size)
+        
+
     def forward_cached(self, x: TensorMoments):
         # Compute query, key and value tensors
-        self._forward_mlp_q_cached(x.value)
-        self._forward_mlp_k_cached(x.value)
-        self._forward_mlp_v_cached(x.value)
+        if x.value.shape[1] + self.v_cache_size > self.x_v.value.shape[1]:
+            raise Exception(f"Overload internal state: try add {x.value.shape[1]} to {self.v_cache_size}, max: {self.x_v.value.shape[1]}")
+
+        q = self._forward_mlp_q_cached(x.value)
+        k = self._forward_mlp_k_cached(x.value)
+        v = self._forward_mlp_v_cached(x.value)
         
         # compute attention and weight result
-        self._forward_attn_async()
+        # self._forward_attn_async()
+        # return self.y
+        y_tensor = self._forward_attn_cached(q,k,v)
+        return y_tensor
 
     # Backward propagation of the linear layer
     def backward_async(self):
