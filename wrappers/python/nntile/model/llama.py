@@ -17,7 +17,8 @@ from transformers import LlamaConfig as LlamaConfig_torch
 from transformers.models.llama.modeling_llama import (
     LlamaModel as LlamaModel_torch)
 
-from nntile.tensor import Tensor_fp32, Tensor_int64, TensorTraits
+from nntile.tensor import (
+    Tensor_fp32, Tensor_int64, TensorMoments, TensorTraits)
 
 from ..layer import Embedding, RMSNorm
 # from nntile.layer import Act, Linear, Prod
@@ -33,7 +34,7 @@ class Llama(BaseModel):
     list_decoder: List[LlamaDecoder]
 
     def __init__(self,
-                 input_ids: Tensor_int64,
+                 input_ids: TensorMoments,
                  emb_layer_: Embedding,
                  decoders: List[LlamaDecoder],
                  rms_norm_layer: RMSNorm,
@@ -75,6 +76,7 @@ class Llama(BaseModel):
         x_traits = TensorTraits(x_shape, x_basetile)
         x_distr = [0] * x_traits.grid.nelems
         x_value = Tensor_int64(x_traits, x_distr, 0)
+
         if config["dtype"] == "fp32":
             embed_layer, next_tag = Embedding.generate_simple(
                                     x_value, Tensor_fp32, 0,
@@ -87,15 +89,6 @@ class Llama(BaseModel):
             raise TypeError
 
         embed_layer.w.value.from_array(torch_llama.embed_tokens.weight.cpu().detach().numpy().T)
-
-        # u_shape = [config["hidden_size"], seq_len, batch_size]
-        # u_basetile = [config["hidden_size_tile"],
-        #               seq_len_tile, batch_size_tile]
-        # u_traits = TensorTraits(u_shape, u_basetile)
-        # u_distr = [0] * u_traits.grid.nelems
-        # u_value = type(embed_layer.w.value)(u_traits, u_distr, 0)
-        # u_grad = type(embed_layer.w.value)(u_traits, u_distr, 0)
-        # U = TensorMoments(u_value, u_grad, grad_required=True)
         U = embed_layer.activations_output[0]
         decoders_list = []
 
@@ -112,8 +105,10 @@ class Llama(BaseModel):
                                     config["rms_norm_eps"],
                                     next_tag, config["redux"])
 
-        llama_nntile = Llama(x_value, embed_layer,
-                             decoders_list, rms_norm_final,
+        llama_nntile = Llama(x_value,
+                             embed_layer,
+                             decoders_list,
+                             rms_norm_final,
                              config)
 
         return llama_nntile, next_tag
