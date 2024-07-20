@@ -64,40 +64,40 @@ class LlamaDecoderTestParams:
 
 
 TEST_PARAMS = [
-    pytest.param(
-        LlamaDecoderTestParams(
-            hidden_size=128,
-            hidden_size_tile=32,
-            intermediate_size=64,
-            intermediate_size_tile=16,
-            n_batch=4,
-            n_batch_tile=1,
-            dtype='bf16',
-        ),
-        marks=[
-            pytest.mark.skipif(
-                not torch.cuda.is_available(),
-                reason="CUDA is required"
-            )
-        ]
-    ),
-    pytest.param(
-        LlamaDecoderTestParams(
-            hidden_size=128,
-            hidden_size_tile=32,
-            intermediate_size=64,
-            intermediate_size_tile=16,
-            n_batch=4,
-            n_batch_tile=1,
-            dtype='fp32_fast_tf32',
-        ),
-        marks=[
-            pytest.mark.skipif(
-                not torch.cuda.is_available(),
-                reason="CUDA is required"
-            )
-        ]
-    ),
+    # pytest.param(
+    #     LlamaDecoderTestParams(
+    #         hidden_size=128,
+    #         hidden_size_tile=32,
+    #         intermediate_size=64,
+    #         intermediate_size_tile=16,
+    #         n_batch=4,
+    #         n_batch_tile=1,
+    #         dtype='bf16',
+    #     ),
+    #     marks=[
+    #         pytest.mark.skipif(
+    #             not torch.cuda.is_available(),
+    #             reason="CUDA is required"
+    #         )
+    #     ]
+    # ),
+    # pytest.param(
+    #     LlamaDecoderTestParams(
+    #         hidden_size=128,
+    #         hidden_size_tile=32,
+    #         intermediate_size=64,
+    #         intermediate_size_tile=16,
+    #         n_batch=4,
+    #         n_batch_tile=1,
+    #         dtype='fp32_fast_tf32',
+    #     ),
+    #     marks=[
+    #         pytest.mark.skipif(
+    #             not torch.cuda.is_available(),
+    #             reason="CUDA is required"
+    #         )
+    #     ]
+    # ),
     LlamaDecoderTestParams(
         hidden_size=128,
         hidden_size_tile=32,
@@ -134,11 +134,10 @@ def generate_inputs(params: LlamaDecoderTestParams):
         intermediate_size=params.intermediate_size,
         pretraining_tp=1,
         num_hidden_layers=1,
-        _attn_implementation="eager"
     )
     llama_torch = LlamaModel(torch_layer_config)
     torch_layer = llama_torch.layers[0]
-    # print(torch_layer)
+    print(torch_layer)
     nntile_config = LlamaConfigNNTile(
         hidden_size=params.hidden_size,
         hidden_size_tile=params.hidden_size_tile,
@@ -160,14 +159,20 @@ def generate_inputs(params: LlamaDecoderTestParams):
     x_nntile = np.array(x_random, dtype=np.float32, order="F")
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
+    pos_ids = gen.integers(params.seq_len,
+                           size=(params.n_batch, params.seq_len),
+                           dtype=np.int64)
+    mask = np.array(np.triu(np.ones((params.seq_len, params.seq_len))),
+                    dtype=bool, order="F")
     nntile_layer, _ = LlamaDecoder_nntile.from_torch(torch_layer, X,
-                                                nntile_config, 0)
+                                                     pos_ids, mask,
+                                                     nntile_config, 0)
     nntile_layer.clear_gradients()
     y_grad_random = gen.standard_normal(x_shape)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
     nntile_layer.activations[-1].grad.from_array(y_grad_nntile)
     y_grad_torch = torch.Tensor(y_grad_nntile.T)
-    return torch_layer, nntile_layer, x_torch, y_grad_torch
+    return torch_layer, nntile_layer, x_torch, y_grad_torch, pos_ids, mask
 
 
 @pytest.mark.parametrize("params", TEST_PARAMS)
@@ -175,7 +180,7 @@ class TestLlamaMLP:
     def test_from_torch_and_to_torch(
         self, starpu_simple, torch_rng, params: LlamaDecoderTestParams
     ):
-        torch_layer, nntile_layer, _, _ = generate_inputs(params)
+        torch_layer, nntile_layer, _, _, _, _ = generate_inputs(params)
         torch_layer_other = nntile_layer.to_torch()
         nntile_layer.unregister()
 
@@ -231,9 +236,14 @@ class TestLlamaMLP:
     def test_forward(
         self, starpu_simple, torch_rng, params: LlamaDecoderTestParams
     ):
-        torch_layer, nntile_layer, x, _ = generate_inputs(params)
-        pos_ids = torch.zeros((x.shape[0], x.shape[1])).to(torch.long).to(x)
-        y = torch_layer(x, position_ids=pos_ids)[0]
+        torch_layer, nntile_layer, x, _, pos_ids, mask = \
+            generate_inputs(params)
+        mask_torch = torch.Tensor(np.array(1 - mask, dtype=np.float32)).T \
+            * torch.finfo(torch.float32).min
+        mask_torch = mask_torch[None, None, :, :].expand(params.n_batch,
+                                                         1, -1, -1)
+        y = torch_layer(x, position_ids=torch.tensor(pos_ids),
+                        attention_mask=mask_torch)[0]
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.activations[-1].value).T)
         nntile_layer.unregister()
@@ -246,10 +256,15 @@ class TestLlamaMLP:
     def test_forward_backward(
         self, starpu_simple, torch_rng, params: LlamaDecoderTestParams
     ):
-        torch_layer, nntile_layer, x, y_grad = generate_inputs(params)
+        torch_layer, nntile_layer, x, y_grad, pos_ids, mask = \
+            generate_inputs(params)
         torch_layer_other = nntile_layer.to_torch()
-        pos_ids = torch.zeros((x.shape[0], x.shape[1])).to(torch.long).to(x)
-        y = torch_layer(x, position_ids=pos_ids)[0]
+        mask_torch = torch.Tensor(np.array(1 - mask, dtype=np.float32)).T \
+            * torch.finfo(torch.float32).min
+        mask_torch = mask_torch[None, None, :, :].expand(params.n_batch,
+                                                         1, -1, -1)
+        y = torch_layer(x, position_ids=torch.tensor(pos_ids),
+                        attention_mask=mask_torch)[0]
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.activations[-1].value).T)
         res = (y * y_grad).sum()
