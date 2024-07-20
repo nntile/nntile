@@ -64,6 +64,17 @@ combine_as_imports = true
 known_first_party = ["nntile", "gpt2_config", "huggingface_activations"]
 multi_line_output = 4
 
+[tool.mypy]
+no_implicit_optional = true
+
+show_column_numbers = true
+show_error_codes = true
+show_error_context = false
+
+warn_unused_ignores = true
+
+plugins = ["numpy.typing.mypy_plugin"]
+
 [tool.pytest.ini_options]
 minversion = "8.2"
 addopts = "-ra -q -m 'not slow'"

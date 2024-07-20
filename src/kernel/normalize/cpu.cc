@@ -20,7 +20,7 @@ namespace nntile::kernel::normalize
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, Index l, Scalar eps_, const T *gamma_,
+void cpu(Index m, Index n, Index k, Index size, Scalar eps_, const T *gamma_,
         const T *beta_, const T *sumnorm_, T *dst_)
     noexcept
 //! Renormalize buffer along middle axis
@@ -29,13 +29,13 @@ void cpu(Index m, Index n, Index k, Index l, Scalar eps_, const T *gamma_,
  *      dst[i, :, j] := (dst[i, :, j]-mean(i, j)) / sqrt(var(i, j)+eps)
  *          * gamma + beta
  * where mean and var functions are computed as follows:
- *      mean(i, j) = sumnorm[0, i, j] / l
- *      var(i, j) = sumnorm[1, i, j]^2/l - mean(i,j)^2
+ *      mean(i, j) = sumnorm[0, i, j] / size
+ *      var(i, j) = sumnorm[1, i, j]^2/size - mean(i,j)^2
  *
  * @param[in] m: Size of the first mode of dst and sumnorm arrays
  * @param[in] n: Size of the last mode of dst and sumnorm arrays
  * @param[in] k: Size of the middle mode of dst array
- * @param[in] l: Number of elements used to calculate sum and Euclidean norm
+ * @param[in] size: Number of elements used to calculate sum and Euclidean norm
  * @param[in] eps_: Regularization parameter for variance. eps > 0
  * @param[in] gamma_: Deviation for the renormalized output
  * @param[in] beta_: Mean value for the renormalized output
@@ -51,7 +51,7 @@ void cpu(Index m, Index n, Index k, Index l, Scalar eps_, const T *gamma_,
     const Y eps{eps_};
     Index dst_offset = 0;
     constexpr Y one{1.0};
-    const Y invl = one / Y(l);
+    const Y invl = one / Y(size);
     const Y rinvl = std::sqrt(invl);
     const Y reps = std::sqrt(eps);
     // Outer loop by the last mode of dst and sumnorm arrays
@@ -110,13 +110,13 @@ void cpu(Index m, Index n, Index k, Index l, Scalar eps_, const T *gamma_,
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m, Index n, Index k, Index l, Scalar eps,
+void cpu<fp32_t>(Index m, Index n, Index k, Index size, Scalar eps,
         const fp32_t *gamma, const fp32_t *beta, const fp32_t *sumnorm,
         fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index m, Index n, Index k, Index l, Scalar eps,
+void cpu<fp64_t>(Index m, Index n, Index k, Index size, Scalar eps,
         const fp64_t *gamma, const fp64_t *beta, const fp64_t *sumnorm,
         fp64_t *dst)
     noexcept;

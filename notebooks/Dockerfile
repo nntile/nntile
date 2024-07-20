@@ -41,7 +41,7 @@ ENV STARPU_SILENT=1
 
 ENV OMP_NUM_THREADS=1
 
-ARG STARPU_VERSION=starpu-1.3.11
+ARG STARPU_VERSION=starpu-1.4.7
 
 RUN set -xe && \
     mkdir -p /usr/src && \
@@ -71,14 +71,14 @@ RUN set -xe && \
 
 WORKDIR /workspace/nntile
 
-ADD wrappers/python/pyproject.toml wrappers/python/
+ADD pyproject.toml .
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     set -xe && \
     pip install tomli jupyter && \
     GIST_PEDS=https://gist.githubusercontent.com/daskol/5513ff9c5b8a2d6b2a0e78f522dd2800 && \
     curl -SL $GIST_PEDS/raw/4e7b80e5f9d49c2e39cf8aa4e6b6b8b951724730/peds.py | \
-    python - -i -e test wrappers/python
+    python - -i -e test .
 
 RUN --mount=type=cache,target=/var/cache/apt \
     apt update && \
@@ -92,7 +92,7 @@ ARG CUDA_ARCHS=70;75;80;86;89;90
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHS} -GNinja
 
-RUN cmake --build build -j $MAKE_JOBS
+RUN cmake --build build -j $MAKE_JOBS -t nntile_core
 
 ENV PYTHONPATH=/workspace/nntile/build/wrappers/python
 
