@@ -13,6 +13,7 @@
 
 from typing import List
 
+import numpy as np
 from transformers import LlamaConfig as LlamaConfig_torch
 from transformers.models.llama.modeling_llama import (
     LlamaModel as LlamaModel_torch)
@@ -64,6 +65,7 @@ class Llama(BaseModel):
     def from_torch(torch_llama,
                    batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
+                   position_ids: np.ndarray,
                    config: LlamaConfigNNTile,
                    next_tag: int):
 
@@ -94,7 +96,7 @@ class Llama(BaseModel):
 
         for decoder_llama_torch in torch_llama.layers:
             decoder_nntile_layer, next_tag = LlamaDecoder.from_torch(
-                decoder_llama_torch, U, config, next_tag)
+                decoder_llama_torch, U, position_ids, config, next_tag)
             U = decoder_nntile_layer.activations[-1]
             decoders_list.append(decoder_nntile_layer)
 

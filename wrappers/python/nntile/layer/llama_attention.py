@@ -18,11 +18,13 @@ from transformers.models.llama.modeling_llama import (
 
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
-    add_fiber_async, add_slice_async, clear_async, gemm_async,
+    Tensor, Tensor_bool, Tensor_int64, TensorMoments, TensorOrNone,
+    TensorTraits, add_fiber_async, add_slice_async, clear_async, gemm_async,
     mask_scalar_async, maxsumexp_async, notrans, prod_async, rope_async,
     rope_backward_async, softmax_inplace_async, sum_fiber_async,
     sum_slice_async, sumprod_slice_async, to_numpy, trans, transpose_async)
+
+from ..model.llama_config import LlamaConfigNNTile
 
 
 # LLaMa Multi-Query Self-Attention with Rotary Embeddings
@@ -1324,13 +1326,16 @@ class LlamaAttention(BaseLayer):
     @staticmethod
     def from_torch(
         torch_layer: LlamaAttention_torch, x: TensorMoments,
-        n_head_tile: int, next_tag: int
+        position_ids: Tensor_int64,
+        config: LlamaConfigNNTile, next_tag: int
     ):  # -> Self: does not work with Python 3.10
         layer, next_tag = __class__.generate_simple(
             x,
             n_head=torch_layer.num_heads,
-            n_head_tile=n_head_tile,
+            n_head_tile=config["n_head_tile"],
             n_head_kv=torch_layer.num_key_value_heads,
+            position_ids=position_ids,
+            theta=config["rope_theta"],
             next_tag=next_tag,
             bias=torch_layer.q_proj.bias is not None,
             redux=False,

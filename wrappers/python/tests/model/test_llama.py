@@ -140,9 +140,10 @@ def generate_inputs(params: LlamaTestParams):
             num_hidden_layers=params.num_hidden_layers,
             rms_norm_eps=params.rms_norm_eps
     )
+    pos_ids = np.zeros((params.batch_size, params.seq_len), dtype=np.int64)
     nntile_model, _ = LlamaModel.from_torch(
             torch_model, params.batch_size, params.batch_size_tile,
-            params.seq_len, params.seq_len_tile, nntile_config, 0
+            params.seq_len, params.seq_len_tile, pos_ids, nntile_config, 0
     )
     nntile_model.clear_gradients()
     gen = np.random.default_rng()
@@ -153,7 +154,6 @@ def generate_inputs(params: LlamaTestParams):
     x_nntile = np.array(x_random, np.int64, order='F')
     nntile_model.activations[0].value.from_array(x_nntile)
     x_torch = torch.tensor(x_nntile.T)
-    pos_ids = np.zeros((params.batch_size, params.seq_len), dtype=np.int64)
     y_grad_random = gen.standard_normal((params.hidden_size,
                                          params.seq_len,
                                          params.batch_size))

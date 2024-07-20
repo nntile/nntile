@@ -11,6 +11,7 @@
 #
 # @version 1.0.0
 
+import numpy as np
 from transformers import LlamaConfig as LlamaConfig_torch
 from transformers.models.llama.modeling_llama import (
     LlamaModel as LlamaModel_torch)
@@ -58,6 +59,7 @@ class LlamaDecoder(BaseModel):
     @staticmethod
     def from_torch(
         torch_llama_decoder, x: TensorMoments,
+        position_ids: np.ndarray,
         config: LlamaConfigNNTile, next_tag: int):
         """
         torch_llama_decoder is HF module for LlamaDecoder block
@@ -69,7 +71,8 @@ class LlamaDecoder(BaseModel):
         attention_layer, next_tag = LlamaAttention.from_torch(
             torch_llama_decoder.self_attn,
             rms_norm_input_layer.activations_output[0],
-            config["n_head_tile"], next_tag)
+            position_ids,
+            config, next_tag)
         post_attn_add, next_tag = Add.generate_simple(
             x, attention_layer.activations_output[0],
             next_tag)
