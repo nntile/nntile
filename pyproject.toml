@@ -46,7 +46,13 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Typing :: Typed",
 ]
-dependencies = ["fastapi", "pydantic", "numpy", "uvicorn"]
+dependencies = [
+    "fastapi",
+    "pydantic",
+    "numpy",
+    "typing_extensions>=4.6.0; python_version<'3.12'",
+    "uvicorn",
+]
 requires-python = ">=3.10,<4"
 
 [project.optional-dependencies]
