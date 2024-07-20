@@ -11,13 +11,40 @@
 #
 # @version 1.0.0
 
-from typing import List
+# TODO(@daskol): There are a lot of typing errors related to dispatching
+# depending on operand types. Arguments are usually annotated as a `Tensor`
+# (sum of types) while a specific tensor routine requires a specific type
+# `Tensor_*` instead of `Tensor`.
+#
+# mypy: ignore-errors
 
+from typing import Any, List, Sequence, Type, TypeGuard, TypeVar
+
+import nntile.nntile_core.tensor as ops
+from nntile.nntile_core import TransOp, tensor as core_tensor
+from nntile.nntile_core.tensor import (
+    Tensor_bf16, Tensor_bool, Tensor_fp32, Tensor_fp32_fast_tf32, Tensor_fp64,
+    Tensor_int64)
 from nntile.types import Tensor, TensorFloatOrInt, TensorOrFloat
 
-from .nntile_core import TransOp
-from .nntile_core import tensor as core_tensor
-from .nntile_core.tensor import Tensor_bool, Tensor_int64
+T = TypeVar('T')
+
+
+def is_tensor_of(tensors: Sequence[Any],
+                 tensor_type: Type[T]) -> TypeGuard[Sequence[T]]:
+    """A type guard to narrow type of of collection of uniformly typed
+    tensors.
+
+    >>> a: Tensor_fp32
+    >>> b: Tensor_fp32
+    >>> tensors: list[Tensor] = [a, b]
+    >>> reveal_type(tensors)
+    # Revealed type is "builtins.list[nntile.nntile_core.tensor.Tensor]
+    >>> if is_tensor_of(tensors, Tensor_fp32):
+    >>>     reveal_type(tensors)
+    # Revealed type is "typing.Sequence[nntile.nntile_core.tensor.Tensor_fp32]
+    """
+    return all(isinstance(t, tensor_type) for t in tensors)
 
 
 def gemm_async(
@@ -86,6 +113,7 @@ def relu_forward_async(x: Tensor, y: Tensor) -> None:
     else:
         raise TypeError
 
+
 def silu_forward_async(x: Tensor, y: Tensor) -> None:
     """
     Wrapper for multiprecision forward SiLU
@@ -116,6 +144,7 @@ def relu_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
         core_tensor.relu_backward_async_bf16(x, dy, dx)
     else:
         raise TypeError
+
 
 def silu_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
     """
@@ -255,31 +284,23 @@ def fill_async(val: float, x: Tensor) -> None:
         raise TypeError
 
 
-def sum_slice_async(
-    alpha: float,
-    x: Tensor,
-    beta: float,
-    sum_slice: Tensor,
-    axis: int,
-    redux: int = 0,
-) -> None:
-    """
-    Wrapper for multiprecision sum_slice
-    """
-    if type(x) is not type(sum_slice):
-        raise TypeError
-    if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.sum_slice_async_fp32(alpha, x, beta, sum_slice, axis, redux)
-    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.sum_slice_async_fp32_fast_tf32(
-            alpha, x, beta, sum_slice, axis, redux
-        )
-    elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.sum_slice_async_fp64(alpha, x, beta, sum_slice, axis, redux)
-    elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.sum_slice_async_bf16(alpha, x, beta, sum_slice, axis, redux)
+def sum_slice_async(alpha: float, x: Tensor, beta: float, sum_slice: Tensor,
+                    axis: int, redux: int = 0) -> None:
+    """Wrapper for multiprecision `sum_slice`."""
+    ts = (x, sum_slice)
+    if is_tensor_of(ts, Tensor_bf16):
+        ops.sum_slice_async_bf16(alpha, ts[0], beta, ts[1], axis, redux)
+    elif is_tensor_of(ts, Tensor_fp32):
+        ops.sum_slice_async_fp32(alpha, ts[0], beta, ts[1], axis, redux)
+    elif is_tensor_of(ts, Tensor_fp32_fast_tf32):
+        ops.sum_slice_async_fp32_fast_tf32(alpha, ts[0], beta, ts[1], axis,
+                                           redux)
+    elif is_tensor_of(ts, Tensor_fp64):
+        ops.sum_slice_async_fp64(alpha, ts[0], beta, ts[1], axis, redux)
     else:
-        raise TypeError
+        types = ', '.join(str(type(t)) for t in ts)
+        raise TypeError(
+            f'Tensor must share the same type but actual types are {types}.')
 
 
 def sum_fiber_async(
@@ -587,27 +608,19 @@ def scatter_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:
         raise TypeError
 
 
-def randn_async(
-    x: Tensor,
-    start: List[int],
-    shape: List[int],
-    seed: int,
-    mean: float,
-    dev: float,
-) -> None:
-    """
-    Wrapper for multiprecision randn
-    """
-    if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.randn_async_fp32(x, start, shape, seed, mean, dev)
-    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.randn_async_fp32_fast_tf32(x, start, shape, seed, mean, dev)
-    elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.randn_async_fp64(x, start, shape, seed, mean, dev)
-    elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.randn_async_bf16(x, start, shape, seed, mean, dev)
+def randn_async(x: Tensor, start: Sequence[int], shape: Sequence[int],
+                seed: int, mean: float, dev: float) -> None:
+    """Wrapper for multiprecision randn."""
+    if isinstance(x, Tensor_bf16):
+        ops.randn_async_bf16(x, start, shape, seed, mean, dev)
+    elif isinstance(x, Tensor_fp32):
+        ops.randn_async_fp32(x, start, shape, seed, mean, dev)
+    elif isinstance(x, Tensor_fp32_fast_tf32):
+        ops.randn_async_fp32_fast_tf32(x, start, shape, seed, mean, dev)
+    elif isinstance(x, Tensor_fp64):
+        ops.randn_async_fp64(x, start, shape, seed, mean, dev)
     else:
-        raise TypeError
+        raise TypeError('Wrong tensor type {type(x)}.')
 
 
 def prod_async(x: Tensor, y: Tensor) -> None:
@@ -781,32 +794,23 @@ def add_slice3_async(
         raise TypeError
 
 
-def add_fiber_async(
-    alpha: float, add_fiber: Tensor, beta, x: Tensor, axis: int, batch_ndim: int
-) -> None:
-    """
-    Wrapper for multiprecision add_fiber
-    """
-    if type(add_fiber) is not type(x):
-        raise TypeError
-    if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.add_fiber_async_fp32(
-            alpha, add_fiber, beta, x, axis, batch_ndim
-        )
-    elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.add_fiber_async_fp64(
-            alpha, add_fiber, beta, x, axis, batch_ndim
-        )
-    elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.add_fiber_async_bf16(
-            alpha, add_fiber, beta, x, axis, batch_ndim
-        )
-    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.add_fiber_async_fp32_fast_tf32(
-            alpha, add_fiber, beta, x, axis, batch_ndim
-        )
+def add_fiber_async(alpha: float, add_fiber: Tensor, beta, x: Tensor,
+                    axis: int, batch_ndim: int) -> None:
+    """Wrapper for multiprecision `add_fiber`."""
+    ts = (add_fiber, x)
+    if is_tensor_of(ts, Tensor_bf16):
+        ops.add_fiber_async_bf16(alpha, ts[0], beta, ts[1], axis, batch_ndim)
+    elif is_tensor_of(ts, Tensor_fp32):
+        ops.add_fiber_async_fp32(alpha, ts[0], beta, ts[1], axis, batch_ndim)
+    elif is_tensor_of(ts, Tensor_fp32_fast_tf32):
+        ops.add_fiber_async_fp32_fast_tf32(alpha, ts[0], beta, ts[1], axis,
+                                           batch_ndim)
+    elif is_tensor_of(ts, Tensor_fp64):
+        ops.add_fiber_async_fp64(alpha, ts[0], beta, ts[1], axis, batch_ndim)
     else:
-        raise TypeError
+        types = ', '.join(str(type(t)) for t in ts)
+        raise TypeError(
+            f'Tensor must share the same type but actual types are {types}.')
 
 
 def prod_slice_async(
@@ -1207,22 +1211,19 @@ def scal_inplace_async(alpha: float, x: Tensor) -> None:
         raise TypeError
 
 
-def mask_scalar_async(
-    mask: Tensor_bool, alpha: float, x: Tensor, batch_ndim: int
-) -> None:
-    """
-    Wrapper for multiprecision scaling
-    """
-    if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.mask_scalar_async_fp32(mask, alpha, x, batch_ndim)
-    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.mask_scalar_async_fp32_fast_tf32(mask, alpha, x, batch_ndim)
-    elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.mask_scalar_async_fp64(mask, alpha, x, batch_ndim)
-    elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.mask_scalar_async_bf16(mask, alpha, x, batch_ndim)
+def mask_scalar_async(mask: Tensor_bool, alpha: float, x: Tensor,
+                      batch_ndim: int) -> None:
+    """Wrapper for multiprecision scaling."""
+    if isinstance(x, Tensor_bf16):
+        ops.mask_scalar_async_bf16(mask, alpha, x, batch_ndim)
+    elif isinstance(x, Tensor_fp32):
+        ops.mask_scalar_async_fp32(mask, alpha, x, batch_ndim)
+    elif isinstance(x, Tensor_fp32_fast_tf32):
+        ops.mask_scalar_async_fp32_fast_tf32(mask, alpha, x, batch_ndim)
+    elif isinstance(x, Tensor_fp64):
+        ops.mask_scalar_async_fp64(mask, alpha, x, batch_ndim)
     else:
-        raise TypeError
+        raise TypeError('Wrong tensor type {type(x)}.')
 
 
 def embedding_async(
@@ -1245,32 +1246,23 @@ def embedding_async(
         raise TypeError
 
 
-def embedding_backward_async(
-    index: Tensor_int64, embed: Tensor, vocab: Tensor, axis: int, redux: int = 0
-) -> None:
-    """
-    Wrapper for multiprecision embedding_backward
-    """
-    if type(vocab) is not type(embed):
-        raise TypeError
-    if type(embed) is core_tensor.Tensor_fp32:
-        core_tensor.embedding_backward_async_fp32(
-            index, embed, vocab, axis, redux
-        )
-    elif type(embed) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.embedding_backward_async_fp32_fast_tf32(
-            index, embed, vocab, axis, redux
-        )
-    elif type(embed) is core_tensor.Tensor_fp64:
-        core_tensor.embedding_backward_async_fp64(
-            index, embed, vocab, axis, redux
-        )
-    elif type(embed) is core_tensor.Tensor_bf16:
-        core_tensor.embedding_backward_async_bf16(
-            index, embed, vocab, axis, redux
-        )
+def embedding_backward_async(index: Tensor_int64, embed: Tensor, vocab: Tensor,
+                             axis: int, redux: int = 0) -> None:
+    """Wrapper for multiprecision `embedding_backward`."""
+    ts = (embed, vocab)
+    if is_tensor_of(ts, Tensor_bf16):
+        ops.embedding_backward_async_bf16(index, ts[0], ts[1], axis, redux)
+    elif is_tensor_of(ts, Tensor_fp32):
+        ops.embedding_backward_async_fp32(index, ts[0], ts[1], axis, redux)
+    elif is_tensor_of(ts, Tensor_fp32_fast_tf32):
+        ops.embedding_backward_async_fp32_fast_tf32(index, ts[0], ts[1], axis,
+                                                    redux)
+    elif is_tensor_of(ts, Tensor_fp64):
+        ops.embedding_backward_async_fp64(index, ts[0], ts[1], axis, redux)
     else:
-        raise TypeError
+        types = ', '.join(str(type(t)) for t in ts)
+        raise TypeError(
+            f'Tensor must share the same type but actual types are {types}.')
 
 
 def hypot_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
