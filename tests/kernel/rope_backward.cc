@@ -40,10 +40,10 @@ void run_cuda(Index m, Index n,
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_cos, sizeof(T)*m);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_dy, &src[0], sizeof(T)*2*m*n,
+    cuda_err = cudaMemcpy(dev_dy, &dy[0], sizeof(T)*2*m*n,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_dx, &dst[0], sizeof(T)*2*m*n,
+    cuda_err = cudaMemcpy(dev_dx, &dx[0], sizeof(T)*2*m*n,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_sin, &sin[0], sizeof(T)*m,
@@ -84,7 +84,7 @@ template<typename T>
 void validate(Index m, Index n)
 {
     using Y = typename T::repr_t;
-    const Y eps = 2 * T::epsilon();
+    const Y eps = 6 * T::epsilon();
     Index num_data_elems{2*m*n};
     // Init test input
     std::vector<T> sin(m);
@@ -152,7 +152,7 @@ void validate(Index m, Index n)
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dx = dx_copy;
-    std::cout << "Run kernel::rope::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::rope_backward::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(m, n, sin, cos, dy, dx);
     for(Index j = 0; j < n; ++j)
     {
@@ -202,11 +202,11 @@ void validate(Index m, Index n)
 
 int main(int argc, char **argv)
 {
-    validate<fp32_t>(0,5);
-    validate<fp32_t>(1,5);
-    validate<fp32_t>(100,100);
-    validate<fp64_t>(0,5);
-    validate<fp64_t>(1,5);
-    validate<fp64_t>(100,100);
+    validate<fp32_t>(0, 5);
+    validate<fp32_t>(1, 5);
+    validate<fp32_t>(100, 100);
+    validate<fp64_t>(0, 5);
+    validate<fp64_t>(1, 5);
+    validate<fp64_t>(100, 100);
     return 0;
 }

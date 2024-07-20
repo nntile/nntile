@@ -196,11 +196,11 @@ void validate(Index m, Index n)
 
 int main(int argc, char **argv)
 {
-    validate<fp32_t>(0,5);
-    validate<fp32_t>(1,10);
-    validate<fp32_t>(10,100);
-    validate<fp64_t>(0,5);
-    validate<fp64_t>(1,10);
-    validate<fp64_t>(10,100);
+    validate<fp32_t>(0, 5);
+    validate<fp32_t>(1, 10);
+    validate<fp32_t>(10, 100);
+    validate<fp64_t>(0, 5);
+    validate<fp64_t>(1, 10);
+    validate<fp64_t>(10, 100);
     return 0;
 }
