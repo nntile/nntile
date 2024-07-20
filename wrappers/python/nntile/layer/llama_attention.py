@@ -18,11 +18,11 @@ from transformers.models.llama.modeling_llama import (
 
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor, TensorMoments, TensorTraits, add_fiber_async, add_slice_async,
-    clear_async, gemm_async, mask_scalar_async, maxsumexp_async, notrans,
-    prod_async, rope_async, rope_backward_async, softmax_inplace_async,
-    sum_fiber_async, sum_slice_async, sumprod_slice_async, to_numpy, trans,
-    transpose_async)
+    Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
+    add_fiber_async, add_slice_async, clear_async, gemm_async,
+    mask_scalar_async, maxsumexp_async, notrans, prod_async, rope_async,
+    rope_backward_async, softmax_inplace_async, sum_fiber_async,
+    sum_slice_async, sumprod_slice_async, to_numpy, trans, transpose_async)
 
 
 # LLaMa Multi-Query Self-Attention with Rotary Embeddings
@@ -54,6 +54,7 @@ class LlamaAttention(BaseLayer):
     b_transposed: TensorMoments
     sin: Tensor
     cos: Tensor
+    mask: TensorOrNone
     n_emb: int
     n_emb_kv: int
     n_seq: int
@@ -93,7 +94,7 @@ class LlamaAttention(BaseLayer):
         in_proj_bias_k: TensorMoments,
         in_proj_bias_v: TensorMoments,
         out_proj_bias: TensorMoments,
-        mask=None,
+        mask: TensorOrNone = None,
         redux: bool = False,
     ):
         qkv_bias_list = []
@@ -136,6 +137,8 @@ class LlamaAttention(BaseLayer):
                 cos
             ],
         )
+        if mask is not None:
+            self.temporaries.append(mask)
         self.x = x
         self.x.grad.set_reduction_add()
         # Aliases
@@ -220,8 +223,8 @@ class LlamaAttention(BaseLayer):
         position_ids: np.ndarray,
         theta: float,
         next_tag: int,
-        bias=False,
-        mask=None,
+        bias: bool = False,
+        mask: np.ndarray = None,
         redux: bool = False,
     ):
         # Get sizes
@@ -671,6 +674,24 @@ class LlamaAttention(BaseLayer):
         cos.from_array(np_cos)
         sin.from_array(np_sin)
 
+        # Mask
+        if mask is not None:
+            layer_mask_shape = [n_seq, n_seq]
+            layer_mask_basetile = [n_seq_tile, n_seq_tile]
+            layer_mask_traits = TensorTraits(
+                    layer_mask_shape,
+                    layer_mask_basetile
+            )
+            layer_mask = Tensor_bool(
+                    layer_mask_traits,
+                    [0] * layer_mask_traits.grid.nelems,
+                    next_tag
+            )
+            next_tag = layer_mask.next_tag
+            layer_mask.from_array(mask)
+        else:
+            layer_mask = None
+
         # Create attention layer with all the provided data
         layer = LlamaAttention(
             x,
@@ -700,7 +721,7 @@ class LlamaAttention(BaseLayer):
             bias_inproj_k,
             bias_inproj_v,
             out_proj_bias,
-            mask,
+            layer_mask,
             redux=redux,
         )
         # Return layer and next tag to be used
@@ -1019,7 +1040,7 @@ class LlamaAttention(BaseLayer):
         self.a.value.invalidate_submit()
         # Backward for mask if needed
         if self.mask:
-            mask_scalar_async(self.mask, 0, self.a.grad, 3)
+            mask_scalar_async(self.mask, 0.0, self.a.grad, 3)
             self.mask.wont_use()
         # Backward for:
         # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q_rope)
@@ -1303,7 +1324,7 @@ class LlamaAttention(BaseLayer):
     @staticmethod
     def from_torch(
         torch_layer: LlamaAttention_torch, x: TensorMoments, n_head_tile: int,
-        position_ids: np.ndarray, theta: np.float32
+        position_ids: np.ndarray, mask: np.ndarray, theta: np.float32
     ):  # -> Self: does not work with Python 3.10
         layer, _ = __class__.generate_simple(
             x,
@@ -1314,7 +1335,7 @@ class LlamaAttention(BaseLayer):
             theta=theta,
             next_tag=0,
             bias=torch_layer.q_proj.bias is not None,
-            mask=None,
+            mask=mask,
             redux=False,
         )
         tmp_q_shape = layer.w_q.value.shape.copy()
