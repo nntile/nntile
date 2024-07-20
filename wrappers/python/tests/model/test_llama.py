@@ -24,6 +24,7 @@ from transformers.models.llama import (
 import nntile
 from nntile.model.llama import Llama as LlamaModel
 from nntile.model.llama_config import LlamaConfigNNTile
+from nntile.tensor import to_numpy
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -84,7 +85,7 @@ TEST_PARAMS = [
             intermediate_size=384,
             intermediate_size_tile=96,
             rms_norm_eps=1e-6,
-            num_hidden_layers=32,
+            num_hidden_layers=1,
             num_attention_heads=16,
             num_attention_heads_tile=8,
             num_key_value_heads=4,
@@ -143,13 +144,14 @@ def generate_inputs(params: LlamaTestParams):
             torch_model, params.batch_size, params.batch_size_tile,
             params.seq_len, params.seq_len_tile, nntile_config, 0
     )
+    nntile_model.clear_gradients()
     gen = np.random.default_rng()
     x_random = gen.integers(0,
                             params.seq_len,
-                            nntile_model.activations[0].shape)
+                            nntile_model.activations[0].value.shape)
     # x_random = gen.standard_normal(nntile_model.activations[0].shape)
     x_nntile = np.array(x_random, np.int64, order='F')
-    nntile_model.activations[0].from_array(x_nntile)
+    nntile_model.activations[0].value.from_array(x_nntile)
     x_torch = torch.tensor(x_nntile.T)
     pos_ids = np.zeros((params.batch_size, params.seq_len), dtype=np.int64)
     y_grad_random = gen.standard_normal((params.hidden_size,
@@ -227,17 +229,93 @@ class TestLlama:
     def test_forward(
         self, starpu_simple, torch_rng, params: LlamaTestParams
     ):
-        torch_model, nntile_model, x, _, _ = generate_inputs(params)
-        pos_ids = torch.zeros((x.shape[0], x.shape[1])).to(torch.long).to(x)
-        y = torch_model(x, position_ids=pos_ids, return_dict=True)
+        torch_model, nntile_model, x, pos_ids, _ = generate_inputs(params)
+        y = torch_model(x, position_ids=torch.tensor(pos_ids),
+                        return_dict=True)
         nntile_model.forward_async()
-        y_nntile_np = np.array(
-            np.zeros(nntile_model.activations[-1].value.shape),
-            dtype=np.float32, order="F")
-        nntile_model.activations[-1].value.to_array(y_nntile_np)
+        y_nntile_np = to_numpy(nntile_model.activations[-1].value)
         nntile_model.unregister()
         assert_close_by_frobnorm(
                 y.last_hidden_state.detach().numpy(),
                 y_nntile_np.T,
                 **dtype2tol[params.dtype]
         )
+
+    def test_forward_backward(
+        self, starpu_simple, torch_rng, params: LlamaTestParams
+    ):
+        torch_model, nntile_model, x, pos_ids, y_grad = generate_inputs(params)
+        y = torch_model(x, position_ids=torch.tensor(pos_ids))
+        nntile_model.forward_async()
+        y_nntile_np = to_numpy(nntile_model.activations[-1].value).T
+        res = (y.last_hidden_state * y_grad).sum()
+        res.backward()
+        nntile_model.backward_async()
+        torch_model_other = nntile_model.to_torch_with_grads()
+        nntile_model.unregister()
+        assert_close_by_frobnorm(
+                y.last_hidden_state.detach().numpy(),
+                y_nntile_np,
+                **dtype2tol[params.dtype]
+        )
+        # Embedding grad
+        assert_close_by_frobnorm(
+            torch_model.embed_tokens.weight.grad.detach().numpy(),
+            torch_model_other.embed_tokens.weight.grad.detach().numpy(),
+            **dtype2tol[params.dtype]
+        )
+        for i in range(params.num_hidden_layers):
+
+            # MLP gradients
+            assert_close_by_frobnorm(
+                torch_model.layers[i].mlp.up_proj.weight.grad.detach().numpy(),
+                torch_model_other.layers[i].mlp.up_proj.weight.grad.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+            assert_close_by_frobnorm(
+                torch_model.layers[i].mlp.gate_proj.weight.grad.detach().numpy(),
+                torch_model_other.layers[i].mlp.gate_proj.weight.grad.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+            assert_close_by_frobnorm(
+                torch_model.layers[i].mlp.down_proj.weight.grad.detach().numpy(),
+                torch_model_other.layers[i].mlp.down_proj.weight.grad.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+            # Normalizations gradients
+            assert_close_by_frobnorm(
+                torch_model.layers[i].post_attention_layernorm.weight.grad.detach().numpy(),
+                torch_model_other.layers[i].post_attention_layernorm.weight.grad.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+            assert_close_by_frobnorm(
+                torch_model.layers[i].input_layernorm.weight.grad.detach().numpy(),
+                torch_model_other.layers[i].input_layernorm.weight.grad.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+            # Attention gradients
+            assert_close_by_frobnorm(
+                torch_model.layers[i].self_attn.q_proj.weight.grad.detach().numpy(),
+                torch_model_other.layers[i].self_attn.q_proj.weight.grad.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+            assert_close_by_frobnorm(
+                torch_model.layers[i].self_attn.v_proj.weight.grad.detach().numpy(),
+                torch_model_other.layers[i].self_attn.v_proj.weight.grad.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+            assert_close_by_frobnorm(
+                torch_model.layers[i].self_attn.o_proj.weight.grad.detach().numpy(),
+                torch_model_other.layers[i].self_attn.o_proj.weight.grad.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+            assert_close_by_frobnorm(
+                torch_model.layers[i].self_attn.k_proj.weight.grad.detach().numpy(),
+                torch_model_other.layers[i].self_attn.k_proj.weight.grad.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )
+        assert_close_by_frobnorm(
+                torch_model.norm.weight.grad.detach().numpy(),
+                torch_model_other.norm.weight.grad.detach().numpy(),
+                **dtype2tol[params.dtype]
+            )

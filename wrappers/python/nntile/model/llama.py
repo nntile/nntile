@@ -104,8 +104,8 @@ class Llama(BaseModel):
                                     0,
                                     config["rms_norm_eps"],
                                     next_tag, config["redux"])
-
-        llama_nntile = Llama(x_value,
+        X = TensorMoments(x_value, None, False)
+        llama_nntile = Llama(X,
                              embed_layer,
                              decoders_list,
                              rms_norm_final,
@@ -129,5 +129,25 @@ class Llama(BaseModel):
             llama_model_torch.layers[i] = self.decoders[i].to_torch()
 
         llama_model_torch.norm = self.layers[-1].to_torch()
+
+        return llama_model_torch
+
+    def to_torch_with_grads(self):
+        config_torch = LlamaConfig_torch(
+            hidden_size=self.config["hidden_size"],
+            intermediate_size=self.config["intermediate_size"],
+            num_hidden_layers=self.config["num_hidden_layers"],
+            vocab_size=self.config["vocab_size"],
+            max_position_embeddings=self.config["max_position_embeddings"],
+            rms_norm_eps=self.config["rms_norm_eps"],
+            n_attention_head=self.config["n_attention_heads"])
+
+        llama_model_torch = LlamaModel_torch(config_torch)
+        llama_model_torch.embed_tokens = self.layers[0].to_torch_with_grads()
+        for i in range(self.config["num_hidden_layers"]):
+            llama_model_torch.layers[i] = \
+                self.decoders[i].to_torch_with_grads()
+
+        llama_model_torch.norm = self.layers[-1].to_torch_with_grads()
 
         return llama_model_torch
