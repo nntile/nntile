@@ -11,7 +11,7 @@
 #
 # @version 1.0.0
 
-from collections.abc import Buffer
+import sys
 from typing import TYPE_CHECKING, Protocol, Sequence
 
 from .nntile_core.tensor import (
@@ -22,7 +22,8 @@ from .nntile_core.tile import TileTraits
 if TYPE_CHECKING:
     from .nntile_core.tensor import Tensor as TensorProtocol
     from .nntile_core.tile import Tile as TileProtocol
-else:
+elif int(sys.version.split()[0].split('.')[1]) >= 12:
+    from collections.abc import Buffer
     class TileProtocol(Protocol):
         """Tile type specification for duck typing."""
 
