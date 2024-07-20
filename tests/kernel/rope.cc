@@ -63,7 +63,7 @@ void run_cuda(Index m, Index n,
     cuda_err = cudaMemcpy(&dst[0], dev_dst, sizeof(T)*2*m*n,
             cudaMemcpyDeviceToHost);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    
+
     cuda_err = cudaFree(dev_src);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaFree(dev_dst);
@@ -72,7 +72,7 @@ void run_cuda(Index m, Index n,
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaFree(dev_cos);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    
+
     cuda_err = cudaStreamDestroy(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
 }
