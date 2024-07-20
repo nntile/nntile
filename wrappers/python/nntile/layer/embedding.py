@@ -96,3 +96,11 @@ class Embedding(BaseLayer):
         torch_emb.weight.data = torch.tensor(to_numpy(self.w.value).T,
                                              requires_grad=True)
         return torch_emb
+
+    def to_torch_with_grads(self):
+        torch_emb = Embedding_torch(self.w.value.shape[1],
+                                    self.w.value.shape[0])
+        torch_emb.weight.data = torch.tensor(to_numpy(self.w.value).T,
+                                             requires_grad=True)
+        torch_emb.weight.grad = torch.tensor(to_numpy(self.w.grad).T)
+        return torch_emb
