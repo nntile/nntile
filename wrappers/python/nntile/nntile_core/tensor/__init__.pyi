@@ -1,5 +1,10 @@
-from collections.abc import Buffer
+import sys
 from typing import Protocol, Sequence, overload
+
+if sys.version_info >= (3, 12):
+    from collections.abc import Buffer
+else:
+    from typing_extensions import Buffer
 
 from .. import TransOp
 from ..tile import Tile, TileTraits
