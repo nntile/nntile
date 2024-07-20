@@ -66,6 +66,7 @@ class Llama(BaseModel):
                    batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
                    position_ids: np.ndarray,
+                   mask: np.ndarray,
                    config: LlamaConfigNNTile,
                    next_tag: int):
 
@@ -96,7 +97,7 @@ class Llama(BaseModel):
 
         for decoder_llama_torch in torch_llama.layers:
             decoder_nntile_layer, next_tag = LlamaDecoder.from_torch(
-                decoder_llama_torch, U, position_ids, config, next_tag)
+                decoder_llama_torch, U, position_ids, mask, config, next_tag)
             U = decoder_nntile_layer.activations[-1]
             decoders_list.append(decoder_nntile_layer)
 

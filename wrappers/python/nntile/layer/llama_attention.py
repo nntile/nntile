@@ -18,8 +18,8 @@ from transformers.models.llama.modeling_llama import (
 
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor, Tensor_bool, Tensor_int64, TensorMoments, TensorOrNone,
-    TensorTraits, add_fiber_async, add_slice_async, clear_async, gemm_async,
+    Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
+    add_fiber_async, add_slice_async, clear_async, gemm_async,
     mask_scalar_async, maxsumexp_async, notrans, prod_async, rope_async,
     rope_backward_async, softmax_inplace_async, sum_fiber_async,
     sum_slice_async, sumprod_slice_async, to_numpy, trans, transpose_async)
@@ -1326,7 +1326,8 @@ class LlamaAttention(BaseLayer):
     @staticmethod
     def from_torch(
         torch_layer: LlamaAttention_torch, x: TensorMoments,
-        position_ids: Tensor_int64,
+        position_ids: np.ndarray,
+        mask: np.ndarray,
         config: LlamaConfigNNTile, next_tag: int
     ):  # -> Self: does not work with Python 3.10
         layer, next_tag = __class__.generate_simple(
@@ -1338,7 +1339,8 @@ class LlamaAttention(BaseLayer):
             theta=config["rope_theta"],
             next_tag=next_tag,
             bias=torch_layer.q_proj.bias is not None,
-            redux=False,
+            mask=mask,
+            redux=config["redux"],
         )
         tmp_q_shape = layer.w_q.value.shape.copy()
         tmp_q_shape[:2] = tmp_q_shape[1::-1]

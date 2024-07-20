@@ -120,14 +120,7 @@ def generate_inputs(params: LlamaTestParams):
             rms_norm_eps=params.rms_norm_eps
     )
 
-    class LlamaModel_torch_nonmasked(LlamaModel_torch):
-        def __init__(self, config):
-            super().__init__(config)
-
-        def _update_causal_mask(self, *args):
-            return None
-
-    torch_model = LlamaModel_torch_nonmasked(
+    torch_model = LlamaModel_torch(
             torch_config,
     )
     nntile_config = LlamaConfigNNTile(
@@ -141,10 +134,12 @@ def generate_inputs(params: LlamaTestParams):
             rms_norm_eps=params.rms_norm_eps
     )
     pos_ids = np.zeros((params.batch_size, params.seq_len), dtype=np.int64)
+    mask = np.array(np.triu(np.ones((params.seq_len, params.seq_len))),
+                    dtype=bool, order="F")
     nntile_model, _ = LlamaModel.from_torch(
             torch_model, params.batch_size, params.batch_size_tile,
-            params.seq_len, params.seq_len_tile, pos_ids, nntile_config, 0
-    )
+            params.seq_len, params.seq_len_tile, pos_ids,
+            mask, nntile_config, 0)
     nntile_model.clear_gradients()
     gen = np.random.default_rng()
     x_random = gen.integers(0,

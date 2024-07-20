@@ -60,6 +60,7 @@ class LlamaDecoder(BaseModel):
     def from_torch(
         torch_llama_decoder, x: TensorMoments,
         position_ids: np.ndarray,
+        mask: np.ndarray,
         config: LlamaConfigNNTile, next_tag: int):
         """
         torch_llama_decoder is HF module for LlamaDecoder block
@@ -72,6 +73,7 @@ class LlamaDecoder(BaseModel):
             torch_llama_decoder.self_attn,
             rms_norm_input_layer.activations_output[0],
             position_ids,
+            mask,
             config, next_tag)
         post_attn_add, next_tag = Add.generate_simple(
             x, attention_layer.activations_output[0],
