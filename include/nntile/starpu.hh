@@ -85,6 +85,8 @@
 #include <nntile/starpu/transpose.hh>
 #include <nntile/starpu/silu_forward.hh>
 #include <nntile/starpu/silu_backward.hh>
+#include <nntile/starpu/rope.hh>
+#include <nntile/starpu/rope_backward.hh>
 
 //! @namespace nntile::starpu
 /*! This namespace holds StarPU wrappers
@@ -162,6 +164,8 @@ void init()
     transpose::init();
     silu_forward::init();
     silu_backward::init();
+    rope::init();
+    rope_backward::init();
 }
 
 // Restrict StarPU codelets to certain computational units
@@ -234,6 +238,8 @@ void restrict_where(uint32_t where)
     transpose::restrict_where(where);
     silu_forward::restrict_where(where);
     silu_backward::restrict_where(where);
+    rope::restrict_where(where);
+    rope_backward::restrict_where(where);
 }
 
 // Restore computational units for StarPU codelets
@@ -306,6 +312,8 @@ void restore_where()
     transpose::restore_where();
     silu_forward::restore_where();
     silu_backward::restore_where();
+    rope::restore_where();
+    rope_backward::restore_where();
 }
 
 } // namespace nntile::starpu

@@ -18,6 +18,17 @@ def starpu_simple() -> Generator[nntile.starpu.Config, None, None]:
 
 
 @pytest.fixture(scope='function')
+def starpu_simple_cuda() -> Generator[nntile.starpu.Config, None, None]:
+    config = nntile.starpu.Config(1, 1, 1)
+    nntile.starpu.init()
+    nntile.starpu.restrict_cuda()
+    try:
+        yield config
+    finally:
+        nntile.starpu.wait_for_all()
+
+
+@pytest.fixture(scope='function')
 def numpy_rng():
     bits = np.random.MT19937()
     return np.random.Generator(bits)
