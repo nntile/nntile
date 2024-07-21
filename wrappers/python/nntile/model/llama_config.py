@@ -32,7 +32,7 @@ class LlamaConfigNNTile(Dict):
         num_key_value_head_tile: int = 32,
         activation_function: str = "silu",
         flashattention: bool = True,
-        use_redux: bool = False,
+        redux: bool = False,
         dtype: str = "fp32",
         eos_token_id: int = 2,
         bos_token_id: int = 1,
@@ -55,7 +55,7 @@ class LlamaConfigNNTile(Dict):
         self["num_key_value_head_tile"] = num_key_value_head_tile
         self["activation_function"] = activation_function
         self["flashattention"] = flashattention
-        self["redux"] = use_redux
+        self["redux"] = redux
         self["dtype"] = dtype
         self["eos_token_id"] = eos_token_id
         self["bos_token_id"] = bos_token_id

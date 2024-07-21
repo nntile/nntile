@@ -1325,10 +1325,12 @@ class LlamaAttention(BaseLayer):
 
     @staticmethod
     def from_torch(
-        torch_layer: LlamaAttention_torch, x: TensorMoments,
+        torch_layer: LlamaAttention_torch,
+        x: TensorMoments,
         position_ids: np.ndarray,
         mask: np.ndarray,
-        config: LlamaConfigNNTile, next_tag: int
+        config: LlamaConfigNNTile,
+        next_tag: int
     ):  # -> Self: does not work with Python 3.10
         layer, next_tag = __class__.generate_simple(
             x,

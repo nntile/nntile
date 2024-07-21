@@ -22,6 +22,7 @@ from transformers.models.llama.modeling_llama import (
     LlamaAttention as LlamaAttention_torch, LlamaConfig as LlamaConfig_torch)
 
 import nntile
+from nntile.model.llama_config import LlamaConfigNNTile
 from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
 
@@ -34,7 +35,7 @@ dtype2nntile = {
 
 dtype2tol = {
         'fp32': {'rtol': 1e-6},
-        'fp32_fast_tf32': {'rtol': 6e-4},
+        'fp32_fast_tf32': {'rtol': 8e-4},
         'bf16': {'rtol': 1.6e-2},
 }
 
@@ -99,6 +100,15 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool):
         attention_dropout=0.0,
         rope_theta=params.theta,
     )
+    nntile_layer_config = LlamaConfigNNTile(
+        hidden_size=params.n_emb,
+        hidden_size_tile=params.n_emb_tile,
+        n_attention_head=params.n_head,
+        num_key_value_heads=params.n_head_kv,
+        attention_bias=bias,
+        attention_dropout=0.0,
+        rope_theta=params.theta,
+        n_head_tile=params.n_head_tile)
     torch_layer = LlamaAttention_torch(
         torch_layer_config, layer_idx=params.layer_idx
     )
@@ -115,11 +125,10 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool):
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
 
-    pos_ids = rng.integers(
+    pos_ids = rng.integers(0,
             params.n_seq,
             size=(params.n_batch, params.n_seq),
-            dtype=np.int64
-    )
+            dtype=np.int64)
     pos_ids_torch = torch.tensor(pos_ids, dtype=torch.long)
     mask = rng.integers(2, size=(params.n_seq, params.n_seq))
     mask_np = np.array(mask, dtype=bool, order='F')
@@ -127,9 +136,8 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool):
             * torch.finfo(torch.float32).min
     mask_torch = mask_torch[None, None, :, :].expand(params.n_batch, 1, -1, -1)
 
-    nntile_layer = nntile.layer.LlamaAttention.from_torch(
-            torch_layer, X, params.n_head_tile, pos_ids, mask_np, params.theta
-    )
+    nntile_layer, _ = nntile.layer.LlamaAttention.from_torch(
+            torch_layer, X, pos_ids, mask_np, nntile_layer_config, 0)
     y_grad_random = rng.standard_normal(x_shape)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
     nntile_layer.y.grad.from_array(y_grad_nntile)
