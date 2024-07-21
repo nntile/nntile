@@ -101,5 +101,10 @@ template
 void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
         Scalar alpha, const bf16_t *src, Scalar beta, bf16_t *dst)
     noexcept;
+    
+template
+void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
+        Scalar alpha, const fp32_fast_tf32_t *src, Scalar beta, fp32_fast_tf32_t *dst)
+    noexcept;
 
 } // namespace nntile::kernel::norm_fiber
