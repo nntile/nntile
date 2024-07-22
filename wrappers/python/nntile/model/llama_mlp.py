@@ -33,12 +33,12 @@ class LlamaMLP(BaseModel):
         # Init activations and list of layers
         activations = [x]
         layers = []
-        self.hidden_size = config["hidden_size"]
-        hidden_size_tile = config["hidden_size_tile"]
-        self.intermediate_size = config["intermediate_size"]
-        intermediate_size_tile = config["intermediate_size_tile"]
-        activation_function = config["activation_function"]
-        redux = config["redux"]
+        self.hidden_size = config.hidden_size
+        hidden_size_tile = config.hidden_size_tile
+        self.intermediate_size = config.intermediate_size
+        intermediate_size_tile = config.intermediate_size_tile
+        activation_function = config.activation_function
+        redux = config.redux
         gemm_ndim = 1
         # Initial linear layer that converts input to internal shape
         gate_proj, next_tag = Linear.generate_simple(

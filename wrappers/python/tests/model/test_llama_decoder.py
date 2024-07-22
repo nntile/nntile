@@ -23,7 +23,6 @@ from transformers.models.llama.modeling_llama import LlamaConfig, LlamaModel
 import nntile
 from nntile.model.llama_config import LlamaConfigNNTile
 from nntile.model.llama_decoder import LlamaDecoder as LlamaDecoder_nntile
-# from nntile.model.llama import LlamaConfigNNTile
 from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
 
@@ -64,40 +63,40 @@ class LlamaDecoderTestParams:
 
 
 TEST_PARAMS = [
-    # pytest.param(
-    #     LlamaDecoderTestParams(
-    #         hidden_size=128,
-    #         hidden_size_tile=32,
-    #         intermediate_size=64,
-    #         intermediate_size_tile=16,
-    #         n_batch=4,
-    #         n_batch_tile=1,
-    #         dtype='bf16',
-    #     ),
-    #     marks=[
-    #         pytest.mark.skipif(
-    #             not torch.cuda.is_available(),
-    #             reason="CUDA is required"
-    #         )
-    #     ]
-    # ),
-    # pytest.param(
-    #     LlamaDecoderTestParams(
-    #         hidden_size=128,
-    #         hidden_size_tile=32,
-    #         intermediate_size=64,
-    #         intermediate_size_tile=16,
-    #         n_batch=4,
-    #         n_batch_tile=1,
-    #         dtype='fp32_fast_tf32',
-    #     ),
-    #     marks=[
-    #         pytest.mark.skipif(
-    #             not torch.cuda.is_available(),
-    #             reason="CUDA is required"
-    #         )
-    #     ]
-    # ),
+    pytest.param(
+        LlamaDecoderTestParams(
+            hidden_size=128,
+            hidden_size_tile=32,
+            intermediate_size=64,
+            intermediate_size_tile=16,
+            n_batch=4,
+            n_batch_tile=1,
+            dtype='bf16',
+        ),
+        marks=[
+            pytest.mark.skipif(
+                not torch.cuda.is_available(),
+                reason="CUDA is required"
+            )
+        ]
+    ),
+    pytest.param(
+        LlamaDecoderTestParams(
+            hidden_size=128,
+            hidden_size_tile=32,
+            intermediate_size=64,
+            intermediate_size_tile=16,
+            n_batch=4,
+            n_batch_tile=1,
+            dtype='fp32_fast_tf32',
+        ),
+        marks=[
+            pytest.mark.skipif(
+                not torch.cuda.is_available(),
+                reason="CUDA is required"
+            )
+        ]
+    ),
     LlamaDecoderTestParams(
         hidden_size=128,
         hidden_size_tile=32,
@@ -139,10 +138,16 @@ def generate_inputs(params: LlamaDecoderTestParams):
     torch_layer = llama_torch.layers[0]
     print(torch_layer)
     nntile_config = LlamaConfigNNTile(
+        vocab_size=torch_layer_config.vocab_size,
+        vocab_embed_dim_tile=params.hidden_size,
+        max_position_embeddings=torch_layer_config.max_position_embeddings,
+        n_attention_head=torch_layer_config.num_attention_heads,
+        n_head_tile=torch_layer_config.num_attention_heads,
+        num_key_value_heads=torch_layer_config.num_key_value_heads,
         hidden_size=params.hidden_size,
         hidden_size_tile=params.hidden_size_tile,
         intermediate_size=params.intermediate_size,
-        intermediate_size_tile=params.intermediate_size_tile,
+        intermediate_size_tile=params.intermediate_size_tile
     )
     x_shape = [params.hidden_size, params.seq_len, params.n_batch]
     x_basetile = [params.hidden_size_tile,

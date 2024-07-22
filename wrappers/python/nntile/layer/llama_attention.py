@@ -1335,14 +1335,14 @@ class LlamaAttention(BaseLayer):
         layer, next_tag = __class__.generate_simple(
             x,
             n_head=torch_layer.num_heads,
-            n_head_tile=config["n_head_tile"],
+            n_head_tile=config.n_head_tile,
             n_head_kv=torch_layer.num_key_value_heads,
             position_ids=position_ids,
-            theta=config["rope_theta"],
+            theta=config.rope_theta,
             next_tag=next_tag,
             bias=torch_layer.q_proj.bias is not None,
             mask=mask,
-            redux=config["redux"],
+            redux=config.redux,
         )
         tmp_q_shape = layer.w_q.value.shape.copy()
         tmp_q_shape[:2] = tmp_q_shape[1::-1]

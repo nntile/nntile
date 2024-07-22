@@ -108,7 +108,14 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool):
         attention_bias=bias,
         attention_dropout=0.0,
         rope_theta=params.theta,
-        n_head_tile=params.n_head_tile)
+        n_head_tile=params.n_head_tile,
+        num_hidden_layers=torch_layer_config.num_hidden_layers,
+        max_position_embeddings=torch_layer_config.max_position_embeddings,
+        intermediate_size=torch_layer_config.intermediate_size,
+        intermediate_size_tile=torch_layer_config.intermediate_size,
+        vocab_size=torch_layer_config.vocab_size,
+        vocab_embed_dim_tile=params.n_emb)
+
     torch_layer = LlamaAttention_torch(
         torch_layer_config, layer_idx=params.layer_idx
     )
@@ -125,8 +132,7 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool):
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
 
-    pos_ids = rng.integers(0,
-            params.n_seq,
+    pos_ids = rng.integers(params.n_seq,
             size=(params.n_batch, params.n_seq),
             dtype=np.int64)
     pos_ids_torch = torch.tensor(pos_ids, dtype=torch.long)

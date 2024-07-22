@@ -41,7 +41,7 @@ class Llama(BaseModel):
                  rms_norm_layer: RMSNorm,
                  config: LlamaConfigNNTile,
                  ):
-        self.dtype = config["dtype"]
+        self.dtype = config.dtype
 
         self.config = config
 
@@ -70,7 +70,7 @@ class Llama(BaseModel):
                    config: LlamaConfigNNTile,
                    next_tag: int):
 
-        if config["dtype"] not in ["fp32", "tf32", "bf16"]:
+        if config.dtype not in ["fp32", "tf32", "bf16"]:
             raise TypeError("Only fp32, tf32 and bf16 are"
                             "supported for weight type")
 
@@ -80,13 +80,13 @@ class Llama(BaseModel):
         x_distr = [0] * x_traits.grid.nelems
         x_value = Tensor_int64(x_traits, x_distr, 0)
 
-        if config["dtype"] == "fp32":
+        if config.dtype == "fp32":
             embed_layer, next_tag = Embedding.generate_simple(
                                     x_value, Tensor_fp32, 0,
-                                    config["vocab_size"],
-                                    config["hidden_size"],
-                                    config["hidden_size_tile"],
-                                    config["hidden_size_tile"],
+                                    config.vocab_size,
+                                    config.hidden_size,
+                                    config.hidden_size_tile,
+                                    config.hidden_size_tile,
                                     next_tag)
         else:
             raise TypeError
@@ -105,8 +105,8 @@ class Llama(BaseModel):
                                     torch_llama.norm,
                                     decoders_list[-1].activations[-1],
                                     0,
-                                    config["rms_norm_eps"],
-                                    next_tag, config["redux"])
+                                    config.rms_norm_eps,
+                                    next_tag, config.redux)
         X = TensorMoments(x_value, None, False)
         llama_nntile = Llama(X,
                              embed_layer,
@@ -118,17 +118,17 @@ class Llama(BaseModel):
 
     def to_torch(self):
         config_torch = LlamaConfig_torch(
-            hidden_size=self.config["hidden_size"],
-            intermediate_size=self.config["intermediate_size"],
-            num_hidden_layers=self.config["num_hidden_layers"],
-            vocab_size=self.config["vocab_size"],
-            max_position_embeddings=self.config["max_position_embeddings"],
-            rms_norm_eps=self.config["rms_norm_eps"],
-            n_attention_head=self.config["n_attention_heads"])
+            hidden_size=self.config.hidden_size,
+            intermediate_size=self.config.intermediate_size,
+            num_hidden_layers=self.config.num_hidden_layers,
+            vocab_size=self.config.vocab_size,
+            max_position_embeddings=self.config.max_position_embeddings,
+            rms_norm_eps=self.config.rms_norm_eps,
+            n_attention_head=self.config.n_attention_head)
 
         llama_model_torch = LlamaModel_torch(config_torch)
         llama_model_torch.embed_tokens = self.layers[0].to_torch()
-        for i in range(self.config["num_hidden_layers"]):
+        for i in range(self.config.num_hidden_layers):
             llama_model_torch.layers[i] = self.decoders[i].to_torch()
 
         llama_model_torch.norm = self.layers[-1].to_torch()
@@ -137,17 +137,17 @@ class Llama(BaseModel):
 
     def to_torch_with_grads(self):
         config_torch = LlamaConfig_torch(
-            hidden_size=self.config["hidden_size"],
-            intermediate_size=self.config["intermediate_size"],
-            num_hidden_layers=self.config["num_hidden_layers"],
-            vocab_size=self.config["vocab_size"],
-            max_position_embeddings=self.config["max_position_embeddings"],
-            rms_norm_eps=self.config["rms_norm_eps"],
-            n_attention_head=self.config["n_attention_heads"])
+            hidden_size=self.config.hidden_size,
+            intermediate_size=self.config.intermediate_size,
+            num_hidden_layers=self.config.num_hidden_layers,
+            vocab_size=self.config.vocab_size,
+            max_position_embeddings=self.config.max_position_embeddings,
+            rms_norm_eps=self.config.rms_norm_eps,
+            n_attention_head=self.config.n_attention_head)
 
         llama_model_torch = LlamaModel_torch(config_torch)
         llama_model_torch.embed_tokens = self.layers[0].to_torch_with_grads()
-        for i in range(self.config["num_hidden_layers"]):
+        for i in range(self.config.num_hidden_layers):
             llama_model_torch.layers[i] = \
                 self.decoders[i].to_torch_with_grads()
 

@@ -131,7 +131,11 @@ def generate_inputs(params: LlamaTestParams):
             intermediate_size=params.intermediate_size,
             intermediate_size_tile=params.intermediate_size_tile,
             num_hidden_layers=params.num_hidden_layers,
-            rms_norm_eps=params.rms_norm_eps
+            rms_norm_eps=params.rms_norm_eps,
+            max_position_embeddings=torch_config.max_position_embeddings,
+            n_attention_head=torch_config.num_attention_heads,
+            n_head_tile=torch_config.num_attention_heads,
+            num_key_value_heads=torch_config.num_key_value_heads,
     )
     gen = np.random.default_rng()
     pos_ids = gen.integers(

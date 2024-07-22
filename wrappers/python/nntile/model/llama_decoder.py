@@ -67,8 +67,8 @@ class LlamaDecoder(BaseModel):
         """
         rms_norm_input_layer, next_tag = RMSNorm.from_torch(
             torch_llama_decoder.input_layernorm, x,
-            0, config["rms_norm_eps"],
-            next_tag, config["redux"])
+            0, config.rms_norm_eps,
+            next_tag, config.redux)
         attention_layer, next_tag = LlamaAttention.from_torch(
             torch_llama_decoder.self_attn,
             rms_norm_input_layer.activations_output[0],
@@ -82,8 +82,8 @@ class LlamaDecoder(BaseModel):
         rms_norm_post_attn_layer, next_tag = RMSNorm.from_torch(
             torch_llama_decoder.post_attention_layernorm,
             post_attn_add.activations_output[0],
-            0, config["rms_norm_eps"],
-            next_tag, config["redux"])
+            0, config.rms_norm_eps,
+            next_tag, config.redux)
         llama_mlp_module, next_tag = LlamaMLP_nntile.from_torch(
             torch_llama_decoder.mlp,
             rms_norm_post_attn_layer.activations_output[0],
@@ -105,13 +105,13 @@ class LlamaDecoder(BaseModel):
 
     def to_torch(self):
         config_torch = LlamaConfig_torch(
-            hidden_size=self.config["hidden_size"],
-            intermediate_size=self.config["intermediate_size"],
+            hidden_size=self.config.hidden_size,
+            intermediate_size=self.config.intermediate_size,
             num_hidden_layers=1,
-            vocab_size=self.config["vocab_size"],
-            max_position_embeddings=self.config["max_position_embeddings"],
-            rms_norm_eps=self.config["rms_norm_eps"],
-            n_attention_head=self.config["n_attention_heads"])
+            vocab_size=self.config.vocab_size,
+            max_position_embeddings=self.config.max_position_embeddings,
+            rms_norm_eps=self.config.rms_norm_eps,
+            n_attention_head=self.config.n_attention_head)
 
         llama_decoder_torch = LlamaModel_torch(config_torch).layers[0]
         llama_decoder_torch.input_layernorm = self.layers[0].to_torch()
@@ -124,13 +124,13 @@ class LlamaDecoder(BaseModel):
 
     def to_torch_with_grads(self):
         config_torch = LlamaConfig_torch(
-            hidden_size=self.config["hidden_size"],
-            intermediate_size=self.config["intermediate_size"],
+            hidden_size=self.config.hidden_size,
+            intermediate_size=self.config.intermediate_size,
             num_hidden_layers=1,
-            vocab_size=self.config["vocab_size"],
-            max_position_embeddings=self.config["max_position_embeddings"],
-            rms_norm_eps=self.config["rms_norm_eps"],
-            n_attention_head=self.config["n_attention_heads"])
+            vocab_size=self.config.vocab_size,
+            max_position_embeddings=self.config.max_position_embeddings,
+            rms_norm_eps=self.config.rms_norm_eps,
+            n_attention_head=self.config.n_attention_head)
 
         decoder_torch = LlamaModel_torch(config_torch).layers[0]
         decoder_torch.input_layernorm = self.layers[0].to_torch_with_grads()
