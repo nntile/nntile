@@ -1323,8 +1323,8 @@ class LlamaAttention(BaseLayer):
         y_reshaped[:, mid:, :] = x_reshaped[:, 1::2, :]
         return y_reshaped.reshape(x.shape)
 
-    @staticmethod
-    def from_torch(
+    @classmethod
+    def from_torch(cls,
         torch_layer: LlamaAttention_torch,
         x: TensorMoments,
         position_ids: np.ndarray,
@@ -1332,7 +1332,7 @@ class LlamaAttention(BaseLayer):
         config: LlamaConfigNNTile,
         next_tag: int
     ):  # -> Self: does not work with Python 3.10
-        layer, next_tag = __class__.generate_simple(
+        layer, next_tag = cls.generate_simple(
             x,
             n_head=torch_layer.num_heads,
             n_head_tile=config.n_head_tile,
@@ -1347,7 +1347,7 @@ class LlamaAttention(BaseLayer):
         tmp_q_shape = layer.w_q.value.shape.copy()
         tmp_q_shape[:2] = tmp_q_shape[1::-1]
         layer.w_q.value.from_array(
-            __class__.rotate_tensor_in(
+            cls.rotate_tensor_in(
                 np.moveaxis(
                     torch_layer.q_proj.weight.detach().cpu().numpy()
                     .reshape(*tmp_q_shape),
@@ -1358,7 +1358,7 @@ class LlamaAttention(BaseLayer):
             )
         )
         layer.w_k.value.from_array(
-            __class__.rotate_tensor_in(
+            cls.rotate_tensor_in(
                 torch_layer.k_proj.weight.detach().cpu().numpy()
                 .reshape(*layer.w_k.value.shape),
                 1
@@ -1388,7 +1388,7 @@ class LlamaAttention(BaseLayer):
                 .reshape(*layer.out_proj_bias.value.shape)
             )
             layer.in_proj_bias_q.value.from_array(
-                __class__.rotate_tensor_in(
+                cls.rotate_tensor_in(
                     torch_layer.q_proj.bias.detach()
                     .cpu()
                     .numpy()
@@ -1398,7 +1398,7 @@ class LlamaAttention(BaseLayer):
                 )
             )
             layer.in_proj_bias_k.value.from_array(
-                __class__.rotate_tensor_in(
+                cls.rotate_tensor_in(
                     torch_layer.k_proj.bias.detach()
                     .cpu()
                     .numpy()
