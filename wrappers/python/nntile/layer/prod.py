@@ -49,6 +49,3 @@ class Prod(BaseLayer):
         self.x.grad.wont_use()
         self.y.grad.wont_use()
         self.res.grad.wont_use()
-
-    def unregister(self):
-        self.res.unregister()
