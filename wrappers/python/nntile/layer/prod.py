@@ -6,17 +6,17 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/layer/add.py
-# Add layer of NNTile Python package.
-# It is used in skip-connection operation
+# @file wrappers/python/nntile/layer/prod.py
+# Product layer of NNTile Python package.
+# It is used in Llama MLP block
 #
 # @version 1.0.0
 
 from nntile.layer.base_layer import BaseLayer
-from nntile.tensor import TensorMoments, TensorTraits, add_async, copy_async
+from nntile.tensor import TensorMoments, TensorTraits, copy_async, prod_async
 
 
-class Add(BaseLayer):
+class Prod(BaseLayer):
     def __init__(self, x: TensorMoments, y: TensorMoments, res: TensorMoments):
         self.x = x
         self.y = y
@@ -32,18 +32,20 @@ class Add(BaseLayer):
         res_grad = type(y.value)(res_traits, res_distr, next_tag)
         next_tag = res_grad.next_tag
         res = TensorMoments(res_value, res_grad, True)
-        return Add(x, y, res), next_tag
+        return Prod(x, y, res), next_tag
 
     def forward_async(self):
         copy_async(self.x.value, self.res.value)
-        add_async(1, self.y.value, 1, self.res.value)
+        prod_async(self.y.value, self.res.value)
         self.x.value.wont_use()
         self.y.value.wont_use()
         self.res.value.wont_use()
 
     def backward_async(self):
-        add_async(1, self.res.grad, 1, self.x.grad)
-        add_async(1, self.res.grad, 1, self.y.grad)
+        copy_async(self.x.value, self.y.grad)
+        copy_async(self.y.value, self.x.grad)
+        prod_async(self.res.grad, self.x.grad)
+        prod_async(self.res.grad, self.y.grad)
         self.x.grad.wont_use()
         self.y.grad.wont_use()
         self.res.grad.wont_use()

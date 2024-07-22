@@ -24,6 +24,8 @@ from nntile.tensor import (
     rope_backward_async, softmax_inplace_async, sum_fiber_async,
     sum_slice_async, sumprod_slice_async, to_numpy, trans, transpose_async)
 
+from ..model.llama_config import LlamaConfigNNTile
+
 
 # LLaMa Multi-Query Self-Attention with Rotary Embeddings
 # Inputs:
@@ -1321,27 +1323,31 @@ class LlamaAttention(BaseLayer):
         y_reshaped[:, mid:, :] = x_reshaped[:, 1::2, :]
         return y_reshaped.reshape(x.shape)
 
-    @staticmethod
-    def from_torch(
-        torch_layer: LlamaAttention_torch, x: TensorMoments, n_head_tile: int,
-        position_ids: np.ndarray, mask: np.ndarray, theta: np.float32
+    @classmethod
+    def from_torch(cls,
+        torch_layer: LlamaAttention_torch,
+        x: TensorMoments,
+        position_ids: np.ndarray,
+        mask: np.ndarray,
+        config: LlamaConfigNNTile,
+        next_tag: int
     ):  # -> Self: does not work with Python 3.10
-        layer, _ = __class__.generate_simple(
+        layer, next_tag = cls.generate_simple(
             x,
             n_head=torch_layer.num_heads,
-            n_head_tile=n_head_tile,
+            n_head_tile=config.n_head_tile,
             n_head_kv=torch_layer.num_key_value_heads,
             position_ids=position_ids,
-            theta=theta,
-            next_tag=0,
+            theta=config.rope_theta,
+            next_tag=next_tag,
             bias=torch_layer.q_proj.bias is not None,
             mask=mask,
-            redux=False,
+            redux=config.redux,
         )
         tmp_q_shape = layer.w_q.value.shape.copy()
         tmp_q_shape[:2] = tmp_q_shape[1::-1]
         layer.w_q.value.from_array(
-            __class__.rotate_tensor_in(
+            cls.rotate_tensor_in(
                 np.moveaxis(
                     torch_layer.q_proj.weight.detach().cpu().numpy()
                     .reshape(*tmp_q_shape),
@@ -1352,7 +1358,7 @@ class LlamaAttention(BaseLayer):
             )
         )
         layer.w_k.value.from_array(
-            __class__.rotate_tensor_in(
+            cls.rotate_tensor_in(
                 torch_layer.k_proj.weight.detach().cpu().numpy()
                 .reshape(*layer.w_k.value.shape),
                 1
@@ -1382,7 +1388,7 @@ class LlamaAttention(BaseLayer):
                 .reshape(*layer.out_proj_bias.value.shape)
             )
             layer.in_proj_bias_q.value.from_array(
-                __class__.rotate_tensor_in(
+                cls.rotate_tensor_in(
                     torch_layer.q_proj.bias.detach()
                     .cpu()
                     .numpy()
@@ -1392,7 +1398,7 @@ class LlamaAttention(BaseLayer):
                 )
             )
             layer.in_proj_bias_k.value.from_array(
-                __class__.rotate_tensor_in(
+                cls.rotate_tensor_in(
                     torch_layer.k_proj.bias.detach()
                     .cpu()
                     .numpy()
@@ -1408,7 +1414,7 @@ class LlamaAttention(BaseLayer):
                 .reshape(*layer.in_proj_bias_v.value.shape[::-1])
                 .T
             )
-        return layer
+        return layer, next_tag
 
     def to_torch(self) -> LlamaAttention_torch:
         bias = self.in_proj_bias_q is not None

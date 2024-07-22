@@ -11,11 +11,14 @@
 #
 # @version 1.0.0
 
-from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        Tensor_int64, clear_async, embedding_async, embedding_backward_async
+import torch
+from torch.nn import Embedding as Embedding_torch
+
 from nntile.layer.base_layer import BaseLayer
-import numpy as np
-from typing import List
+from nntile.tensor import (
+    Tensor_int64, TensorMoments, TensorTraits, clear_async, embedding_async,
+    embedding_backward_async, to_numpy)
+
 
 class Embedding(BaseLayer):
     x: Tensor_int64
@@ -23,7 +26,7 @@ class Embedding(BaseLayer):
     w: TensorMoments
 
     # Construct linear layer with all the provided data
-    def __init__(self, x: Tensor_int64, y: TensorMoments, w: TensorMoments, \
+    def __init__(self, x: Tensor_int64, y: TensorMoments, w: TensorMoments,
             axis: int):
         # Redirect to BaseClass initialization
         super().__init__([x], [y], [w], [])
@@ -36,8 +39,8 @@ class Embedding(BaseLayer):
 
     # Simple generator for the embedding layer
     @staticmethod
-    def generate_simple(x: Tensor_int64, TensorType, axis: int, \
-            vocab_size: int, emb_size: int, y_emb_tile: int, w_emb_tile: int, \
+    def generate_simple(x: Tensor_int64, TensorType, axis: int,
+            vocab_size: int, emb_size: int, y_emb_tile: int, w_emb_tile: int,
             next_tag: int):
         # Check embedding tile sizes
         if y_emb_tile % w_emb_tile != 0:
@@ -81,8 +84,23 @@ class Embedding(BaseLayer):
     def backward_async(self):
         # redux=1 leads to performance loss, as each embedding_backward is a
         # sparse operation, but reduction plays with a full dense vocabulary
-        embedding_backward_async(self.x, self.y.grad, self.w.grad, self.axis, \
+        embedding_backward_async(self.x, self.y.grad, self.w.grad, self.axis,
                 redux=0)
         self.x.wont_use()
         self.y.grad.wont_use()
         self.w.grad.wont_use()
+
+    def to_torch(self):
+        torch_emb = Embedding_torch(self.w.value.shape[1],
+                                    self.w.value.shape[0])
+        torch_emb.weight.data = torch.tensor(to_numpy(self.w.value).T,
+                                             requires_grad=True)
+        return torch_emb
+
+    def to_torch_with_grads(self):
+        torch_emb = Embedding_torch(self.w.value.shape[1],
+                                    self.w.value.shape[0])
+        torch_emb.weight.data = torch.tensor(to_numpy(self.w.value).T,
+                                             requires_grad=True)
+        torch_emb.weight.grad = torch.tensor(to_numpy(self.w.grad).T)
+        return torch_emb

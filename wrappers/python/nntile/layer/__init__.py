@@ -23,8 +23,9 @@ from .layer_norm import LayerNorm
 from .linear import Linear
 from .llama_attention import LlamaAttention
 from .mixer import GAP, Mixer, MixerMlp
+from .prod import Prod
 from .rms_norm import RMSNorm
 
 __all__ = ('Act', 'AddSlice', 'Attention', 'AttentionSingleHead', 'BaseLayer',
            'BatchNorm2d', 'Embedding', 'FlashAttention', 'GAP', 'LayerNorm',
-           'Linear', 'LlamaAttention', 'Mixer', 'MixerMlp', 'RMSNorm')
+           'Linear', 'LlamaAttention', 'Mixer', 'MixerMlp', 'RMSNorm', 'Prod')
