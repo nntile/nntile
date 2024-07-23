@@ -81,33 +81,20 @@ class Llama(BaseModel):
         x_distr = [0] * x_traits.grid.nelems
         x_value = Tensor_int64(x_traits, x_distr, 0)
 
-        if config.dtype == "fp32":
-            embed_layer, next_tag = Embedding.generate_simple(
-                                    x_value, Tensor_fp32, 0,
+        dtype2tensor_type = {"fp32": Tensor_fp32,
+                             "bf16": Tensor_bf16,
+                             "fp32_fast_tf32": Tensor_fp32_fast_tf32
+                            }
+
+        tensor_type = dtype2tensor_type[config.dtype]
+
+        embed_layer, next_tag = Embedding.generate_simple(
+                                    x_value, tensor_type, 0,
                                     config.vocab_size,
                                     config.hidden_size,
                                     config.hidden_size_tile,
                                     config.hidden_size_tile,
                                     next_tag)
-        elif config.dtype == "bf16":
-            embed_layer, next_tag = Embedding.generate_simple(
-                                    x_value, Tensor_bf16, 0,
-                                    config.vocab_size,
-                                    config.hidden_size,
-                                    config.hidden_size_tile,
-                                    config.hidden_size_tile,
-                                    next_tag)
-        elif config.dtype == "fp32_fast_tf32":
-            embed_layer, next_tag = Embedding.generate_simple(
-                                    x_value, Tensor_fp32_fast_tf32,
-                                    0,
-                                    config.vocab_size,
-                                    config.hidden_size,
-                                    config.hidden_size_tile,
-                                    config.hidden_size_tile,
-                                    next_tag)
-        else:
-            raise TypeError
 
         embed_layer.w.value.from_array(torch_llama.embed_tokens.weight.cpu().detach().numpy().T)
         U = embed_layer.activations_output[0]
