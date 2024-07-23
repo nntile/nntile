@@ -19,7 +19,8 @@ from transformers.models.llama.modeling_llama import (
     LlamaModel as LlamaModel_torch)
 
 from nntile.tensor import (
-    Tensor_fp32, Tensor_int64, TensorMoments, TensorTraits)
+    Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_tf32, Tensor_int64,
+    TensorMoments, TensorTraits)
 
 from ..layer import Embedding, RMSNorm
 # from nntile.layer import Act, Linear, Prod
@@ -45,8 +46,8 @@ class Llama(BaseModel):
 
         self.config = config
 
-        if self.dtype not in ["fp32", "tf32", "bf16"]:
-            raise TypeError("Only fp32, tf32 and bf16 are"
+        if self.dtype not in ["fp32", "fp32_fast_tf32", "bf16"]:
+            raise TypeError("Only fp32, fp32_fast_tf32 and bf16 are"
                             "supported for weight type")
         activations = [input_ids] + emb_layer_.activations_output
         layers = [emb_layer_]
@@ -70,8 +71,8 @@ class Llama(BaseModel):
                    config: LlamaConfigNNTile,
                    next_tag: int):
 
-        if config.dtype not in ["fp32", "tf32", "bf16"]:
-            raise TypeError("Only fp32, tf32 and bf16 are"
+        if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16"]:
+            raise TypeError("Only fp32, fp32_fast_tf32 and bf16 are"
                             "supported for weight type")
 
         x_shape = [seq_len, batch_size]
@@ -83,6 +84,23 @@ class Llama(BaseModel):
         if config.dtype == "fp32":
             embed_layer, next_tag = Embedding.generate_simple(
                                     x_value, Tensor_fp32, 0,
+                                    config.vocab_size,
+                                    config.hidden_size,
+                                    config.hidden_size_tile,
+                                    config.hidden_size_tile,
+                                    next_tag)
+        elif config.dtype == "bf16":
+            embed_layer, next_tag = Embedding.generate_simple(
+                                    x_value, Tensor_bf16, 0,
+                                    config.vocab_size,
+                                    config.hidden_size,
+                                    config.hidden_size_tile,
+                                    config.hidden_size_tile,
+                                    next_tag)
+        elif config.dtype == "fp32_fast_tf32":
+            embed_layer, next_tag = Embedding.generate_simple(
+                                    x_value, Tensor_fp32_fast_tf32,
+                                    0,
                                     config.vocab_size,
                                     config.hidden_size,
                                     config.hidden_size_tile,
