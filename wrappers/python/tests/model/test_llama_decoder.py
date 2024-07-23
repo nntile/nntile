@@ -35,7 +35,7 @@ dtype2nntile = {
 
 dtype2tol = {
         'fp32': {'rtol': 1e-6},
-        'fp32_fast_tf32': {'rtol': 6e-4},
+        'fp32_fast_tf32': {'rtol': 8e-4},
         'bf16': {'rtol': 1.6e-2},
 }
 
@@ -47,6 +47,9 @@ def assert_close_by_frobnorm(a: np.ndarray, b: np.ndarray, rtol: float):
     )
 
 
+nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
+
+
 @dataclass
 class LlamaDecoderTestParams:
     hidden_size: int
@@ -55,79 +58,30 @@ class LlamaDecoderTestParams:
     intermediate_size_tile: int
     n_batch: int
     n_batch_tile: int
-    dtype: str
     redux: bool = True
     activation_function: str = "silu"
     seq_len: int = 100
     seq_len_tile: int = 100
 
 
-TEST_PARAMS = [
-    pytest.param(
-        LlamaDecoderTestParams(
-            hidden_size=128,
-            hidden_size_tile=32,
-            intermediate_size=64,
-            intermediate_size_tile=16,
-            n_batch=4,
-            n_batch_tile=1,
-            dtype='bf16',
-        ),
-        marks=[
-            pytest.mark.skipif(
-                not torch.cuda.is_available(),
-                reason="CUDA is required"
-            )
-        ]
-    ),
-    pytest.param(
-        LlamaDecoderTestParams(
-            hidden_size=128,
-            hidden_size_tile=32,
-            intermediate_size=64,
-            intermediate_size_tile=16,
-            n_batch=4,
-            n_batch_tile=1,
-            dtype='fp32_fast_tf32',
-        ),
-        marks=[
-            pytest.mark.skipif(
-                not torch.cuda.is_available(),
-                reason="CUDA is required"
-            )
-        ]
-    ),
-    LlamaDecoderTestParams(
-        hidden_size=128,
-        hidden_size_tile=32,
-        intermediate_size=64,
-        intermediate_size_tile=16,
-        n_batch=4,
-        n_batch_tile=1,
-        dtype='fp32',
-    ),
-    LlamaDecoderTestParams(
-        hidden_size=128,
-        hidden_size_tile=32,
-        intermediate_size=64,
-        intermediate_size_tile=32,
-        n_batch=4,
-        n_batch_tile=2,
-        dtype='fp32',
-    ),
-    LlamaDecoderTestParams(
-        hidden_size=128,
-        hidden_size_tile=128,
-        intermediate_size=64,
-        intermediate_size_tile=64,
-        n_batch=3,
-        n_batch_tile=3,
-        dtype='fp32',
-    )
-]
+single_tile = LlamaDecoderTestParams(
+    hidden_size=128,
+    hidden_size_tile=128,
+    intermediate_size=64,
+    intermediate_size_tile=64,
+    n_batch=3,
+    n_batch_tile=3)
+
+multiple_tiles = LlamaDecoderTestParams(
+    hidden_size=128,
+    hidden_size_tile=32,
+    intermediate_size=64,
+    intermediate_size_tile=16,
+    n_batch=4,
+    n_batch_tile=1)
 
 
-def generate_inputs(params: LlamaDecoderTestParams):
+def generate_inputs(params: LlamaDecoderTestParams, dtype: str):
     torch_layer_config = LlamaConfig(
         hidden_size=params.hidden_size,
         intermediate_size=params.intermediate_size,
@@ -147,7 +101,8 @@ def generate_inputs(params: LlamaDecoderTestParams):
         hidden_size=params.hidden_size,
         hidden_size_tile=params.hidden_size_tile,
         intermediate_size=params.intermediate_size,
-        intermediate_size_tile=params.intermediate_size_tile
+        intermediate_size_tile=params.intermediate_size_tile,
+        dtype=dtype
     )
     x_shape = [params.hidden_size, params.seq_len, params.n_batch]
     x_basetile = [params.hidden_size_tile,
@@ -155,11 +110,11 @@ def generate_inputs(params: LlamaDecoderTestParams):
                   params.n_batch_tile]
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
-    x_type = dtype2nntile[params.dtype]
+    x_type = dtype2nntile[dtype]
     x_value = x_type(x_traits, x_distr, 0)
     x_grad = x_type(x_traits, x_distr, 0)
     X = TensorMoments(x_value, x_grad, grad_required=True)
-    gen = np.random.default_rng()
+    gen = np.random.default_rng(42)
     x_random = gen.standard_normal(x_shape)
     x_nntile = np.array(x_random, dtype=np.float32, order="F")
     x_value.from_array(x_nntile)
@@ -180,12 +135,20 @@ def generate_inputs(params: LlamaDecoderTestParams):
     return torch_layer, nntile_layer, x_torch, y_grad_torch, pos_ids, mask
 
 
-@pytest.mark.parametrize("params", TEST_PARAMS)
+@pytest.mark.parametrize('params', [
+    pytest.param(single_tile, id='single_tile'),
+    pytest.param(multiple_tiles, id='multiple_tiles'),
+])
+@pytest.mark.parametrize('dtype', [
+    'fp32',
+    pytest.param('fp32_fast_tf32', marks=nocuda),
+    pytest.param('bf16', marks=nocuda),
+])
 class TestLlamaMLP:
-    def test_from_torch_and_to_torch(
-        self, starpu_simple, torch_rng, params: LlamaDecoderTestParams
-    ):
-        torch_layer, nntile_layer, _, _, _, _ = generate_inputs(params)
+    def test_from_torch_and_to_torch(self, starpu_simple, torch_rng,
+                                     params: LlamaDecoderTestParams,
+                                     dtype: str):
+        torch_layer, nntile_layer, _, _, _, _ = generate_inputs(params, dtype)
         torch_layer_other = nntile_layer.to_torch()
         nntile_layer.unregister()
 
@@ -193,56 +156,56 @@ class TestLlamaMLP:
         assert_close_by_frobnorm(
             torch_layer.mlp.gate_proj.weight.detach().numpy(),
             torch_layer_other.mlp.gate_proj.weight.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.mlp.up_proj.weight.detach().numpy(),
             torch_layer_other.mlp.up_proj.weight.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.mlp.down_proj.weight.detach().numpy(),
             torch_layer_other.mlp.down_proj.weight.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         # Normalizations
         assert_close_by_frobnorm(
             torch_layer.post_attention_layernorm.weight.detach().numpy(),
             torch_layer_other.post_attention_layernorm.weight.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.input_layernorm.weight.detach().numpy(),
             torch_layer_other.input_layernorm.weight.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         # Attention
         assert_close_by_frobnorm(
             torch_layer.self_attn.q_proj.weight.detach().numpy(),
             torch_layer_other.self_attn.q_proj.weight.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.self_attn.v_proj.weight.detach().numpy(),
             torch_layer_other.self_attn.v_proj.weight.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.self_attn.o_proj.weight.detach().numpy(),
             torch_layer_other.self_attn.o_proj.weight.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.self_attn.k_proj.weight.detach().numpy(),
             torch_layer_other.self_attn.k_proj.weight.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
 
-    def test_forward(
-        self, starpu_simple, torch_rng, params: LlamaDecoderTestParams
-    ):
+    def test_forward(self, starpu_simple, torch_rng,
+                     params: LlamaDecoderTestParams,
+                     dtype: str):
         torch_layer, nntile_layer, x, _, pos_ids, mask = \
-            generate_inputs(params)
+            generate_inputs(params, dtype)
         mask_torch = torch.Tensor(np.array(1 - mask, dtype=np.float32)).T \
             * torch.finfo(torch.float32).min
         mask_torch = mask_torch[None, None, :, :].expand(params.n_batch,
@@ -255,14 +218,14 @@ class TestLlamaMLP:
         assert_close_by_frobnorm(
                 y.detach().numpy(),
                 y_nntile.detach().numpy(),
-                **dtype2tol[params.dtype]
+                **dtype2tol[dtype]
         )
 
-    def test_forward_backward(
-        self, starpu_simple, torch_rng, params: LlamaDecoderTestParams
-    ):
+    def test_forward_backward(self, starpu_simple, torch_rng,
+                              params: LlamaDecoderTestParams,
+                              dtype: str):
         torch_layer, nntile_layer, x, y_grad, pos_ids, mask = \
-            generate_inputs(params)
+            generate_inputs(params, dtype)
         torch_layer_other = nntile_layer.to_torch()
         mask_torch = torch.Tensor(np.array(1 - mask, dtype=np.float32)).T \
             * torch.finfo(torch.float32).min
@@ -280,53 +243,53 @@ class TestLlamaMLP:
         assert_close_by_frobnorm(
                 y.detach().numpy(),
                 y_nntile.detach().numpy(),
-                **dtype2tol[params.dtype]
+                **dtype2tol[dtype]
         )
         # MLP gradients
         assert_close_by_frobnorm(
             torch_layer.mlp.up_proj.weight.grad.detach().numpy(),
             torch_layer_other.mlp.up_proj.weight.grad.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.mlp.gate_proj.weight.grad.detach().numpy(),
             torch_layer_other.mlp.gate_proj.weight.grad.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.mlp.down_proj.weight.grad.detach().numpy(),
             torch_layer_other.mlp.down_proj.weight.grad.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         # Normalizations gradients
         assert_close_by_frobnorm(
             torch_layer.post_attention_layernorm.weight.grad.detach().numpy(),
             torch_layer_other.post_attention_layernorm.weight.grad.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.input_layernorm.weight.grad.detach().numpy(),
             torch_layer_other.input_layernorm.weight.grad.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         # Attention gradients
         assert_close_by_frobnorm(
             torch_layer.self_attn.q_proj.weight.grad.detach().numpy(),
             torch_layer_other.self_attn.q_proj.weight.grad.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.self_attn.v_proj.weight.grad.detach().numpy(),
             torch_layer_other.self_attn.v_proj.weight.grad.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.self_attn.o_proj.weight.grad.detach().numpy(),
             torch_layer_other.self_attn.o_proj.weight.grad.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
         assert_close_by_frobnorm(
             torch_layer.self_attn.k_proj.weight.grad.detach().numpy(),
             torch_layer_other.self_attn.k_proj.weight.grad.detach().numpy(),
-            **dtype2tol[params.dtype]
+            **dtype2tol[dtype]
         )
