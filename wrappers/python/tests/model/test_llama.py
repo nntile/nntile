@@ -65,7 +65,6 @@ class LlamaTestParams:
     num_key_value_heads: int
     activation_function: str = "silu"
     flashattention: bool = True
-    attention_bias: bool = False
     attention_dropout: float = 0.0
     rope_theta: float = 10000.
     seq_len: int = 1
@@ -89,7 +88,6 @@ multiple_tiles = LlamaTestParams(
             num_key_value_heads=4,
             activation_function="silu",
             flashattention=False,
-            attention_bias=False,
             attention_dropout=0.0,
             rope_theta=2.,
             seq_len=64,
@@ -112,7 +110,6 @@ single_tile = LlamaTestParams(
             num_key_value_heads=4,
             activation_function="silu",
             flashattention=False,
-            attention_bias=False,
             attention_dropout=0.0,
             rope_theta=2.,
             seq_len=64,
@@ -125,7 +122,7 @@ single_tile = LlamaTestParams(
 def generate_inputs(params: LlamaTestParams,
                     dtype: str,
                     num_hidden_layers: int,
-                    ):
+                    att_bias: bool):
     torch_config = LlamaConfig_torch(
             vocab_size=params.vocab_size,
             hidden_size=params.hidden_size,
@@ -133,7 +130,7 @@ def generate_inputs(params: LlamaTestParams,
             intermediate_size=params.intermediate_size,
             num_attention_heads=params.num_attention_heads,
             num_key_value_heads=params.num_key_value_heads,
-            attention_bias=params.attention_bias,
+            attention_bias=att_bias,
             use_cache=False,
             attention_dropout=0.0,
             num_hidden_layers=num_hidden_layers,
@@ -156,7 +153,8 @@ def generate_inputs(params: LlamaTestParams,
             n_attention_head=torch_config.num_attention_heads,
             n_head_tile=torch_config.num_attention_heads,
             num_key_value_heads=torch_config.num_key_value_heads,
-            dtype=dtype
+            dtype=dtype,
+            attention_bias=att_bias
     )
     gen = np.random.default_rng(42)
     pos_ids = gen.integers(params.seq_len,
@@ -194,15 +192,18 @@ def generate_inputs(params: LlamaTestParams,
     pytest.param('bf16', marks=nocuda),
 ])
 @pytest.mark.parametrize('num_hidden_layers', [1, 2, 3])
+@pytest.mark.parametrize('att_bias', [True, False])
 class TestLlama:
     def test_coercion(self, starpu_simple, torch_rng,
                       params: LlamaTestParams,
                       dtype: str,
-                      num_hidden_layers: int):
+                      num_hidden_layers: int,
+                      att_bias: bool):
 
         torch_model, nntile_model, _, _, _ = generate_inputs(params,
                                                              dtype,
-                                                             num_hidden_layers)
+                                                             num_hidden_layers,
+                                                             att_bias)
         torch_model_other = nntile_model.to_torch()
         nntile_model.unregister()
 
@@ -225,6 +226,13 @@ class TestLlama:
                         torch_model_other.layers[i].__getattr__(split_name[0]).weight.detach().numpy(),
                         **dtype2tol[dtype]
                     )
+                    if att_bias and split_name[0] not in ["input_layernorm",
+                                                          "post_attention_layernorm"]:
+                        assert_close_by_frobnorm(
+                            torch_model.layers[i].__getattr__(split_name[0]).bias.detach().numpy(),
+                            torch_model_other.layers[i].__getattr__(split_name[0]).bias.detach().numpy(),
+                            **dtype2tol[dtype]
+                        )
                 elif len(split_name) == 3:
                     assert_close_by_frobnorm(
                         torch_model.layers[i].__getattr__(split_name[0]).__getattr__(split_name[1]).weight.detach().numpy(),
@@ -235,10 +243,12 @@ class TestLlama:
     def test_forward(self, starpu_simple, torch_rng,
                      params: LlamaTestParams,
                      dtype: str,
-                     num_hidden_layers: int):
+                     num_hidden_layers: int,
+                     att_bias: bool):
         torch_model, nntile_model, x, pos_ids, _ = generate_inputs(params,
                                                                    dtype,
-                                                                   num_hidden_layers)
+                                                                   num_hidden_layers,
+                                                                   att_bias)
         y = torch_model(x, position_ids=torch.tensor(pos_ids),
                         return_dict=True)
         nntile_model.forward_async()
@@ -253,10 +263,12 @@ class TestLlama:
     def test_forward_backward(self, starpu_simple, torch_rng,
                               params: LlamaTestParams,
                               dtype: str,
-                              num_hidden_layers: int):
+                              num_hidden_layers: int,
+                              att_bias: bool):
         torch_model, nntile_model, x, pos_ids, y_grad = generate_inputs(params,
                                                                         dtype,
-                                                                        num_hidden_layers)
+                                                                        num_hidden_layers,
+                                                                        att_bias)
         y = torch_model(x, position_ids=torch.tensor(pos_ids))
         nntile_model.forward_async()
         y_nntile_np = to_numpy(nntile_model.activations[-1].value).T
@@ -292,6 +304,13 @@ class TestLlama:
                         torch_model_other.layers[i].__getattr__(split_name[0]).weight.grad.detach().numpy(),
                         **dtype2tol[dtype]
                     )
+                    if att_bias and split_name[0] not in ["input_layernorm",
+                                                          "post_attention_layernorm"]:
+                        assert_close_by_frobnorm(
+                            torch_model.layers[i].__getattr__(split_name[0]).bias.grad.detach().numpy(),
+                            torch_model_other.layers[i].__getattr__(split_name[0]).bias.grad.detach().numpy(),
+                            **dtype2tol[dtype]
+                        )
                 elif len(split_name) == 3:
                     assert_close_by_frobnorm(
                         torch_model.layers[i].__getattr__(split_name[0]).__getattr__(split_name[1]).weight.grad.detach().numpy(),

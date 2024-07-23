@@ -160,7 +160,8 @@ class TestLlamaMLP:
             )
 
     def test_forward(self, starpu_simple, torch_rng,
-                     params: LlamaMLPTestParams, dtype: str):
+                     params: LlamaMLPTestParams,
+                     dtype: str):
         torch_layer, nntile_layer, x, _ = generate_inputs(params, dtype)
         y = torch_layer(x)
         nntile_layer.forward_async()
@@ -173,7 +174,8 @@ class TestLlamaMLP:
         )
 
     def test_forward_backward(self, starpu_simple, torch_rng,
-                              params: LlamaMLPTestParams, dtype: str):
+                              params: LlamaMLPTestParams,
+                              dtype: str):
         torch_layer, nntile_layer, x, y_grad = generate_inputs(params, dtype)
         torch_layer_other = nntile_layer.to_torch()
         y = torch_layer(x)

@@ -37,3 +37,4 @@ class LlamaConfigNNTile:
     rope_theta: float = 10000.
     rms_norm_eps: float = 1e-06
     num_hidden_layers: int = 1
+    mlp_bias: bool = False
