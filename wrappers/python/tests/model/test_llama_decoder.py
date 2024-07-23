@@ -69,6 +69,8 @@ single_tile = LlamaDecoderTestParams(
     hidden_size_tile=128,
     intermediate_size=64,
     intermediate_size_tile=64,
+    seq_len=32,
+    seq_len_tile=32,
     n_batch=3,
     n_batch_tile=3)
 
@@ -77,6 +79,8 @@ multiple_tiles = LlamaDecoderTestParams(
     hidden_size_tile=32,
     intermediate_size=64,
     intermediate_size_tile=16,
+    seq_len=128,
+    seq_len_tile=32,
     n_batch=4,
     n_batch_tile=1)
 
@@ -90,7 +94,6 @@ def generate_inputs(params: LlamaDecoderTestParams, dtype: str):
     )
     llama_torch = LlamaModel(torch_layer_config)
     torch_layer = llama_torch.layers[0]
-    print(torch_layer)
     nntile_config = LlamaConfigNNTile(
         vocab_size=torch_layer_config.vocab_size,
         vocab_embed_dim_tile=params.hidden_size,
@@ -148,58 +151,24 @@ class TestLlamaMLP:
     def test_from_torch_and_to_torch(self, starpu_simple, torch_rng,
                                      params: LlamaDecoderTestParams,
                                      dtype: str):
-        torch_layer, nntile_layer, _, _, _, _ = generate_inputs(params, dtype)
+        torch_layer, nntile_layer, *_ = generate_inputs(params, dtype)
         torch_layer_other = nntile_layer.to_torch()
         nntile_layer.unregister()
 
-        # MLP submodule
-        assert_close_by_frobnorm(
-            torch_layer.mlp.gate_proj.weight.detach().numpy(),
-            torch_layer_other.mlp.gate_proj.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.mlp.up_proj.weight.detach().numpy(),
-            torch_layer_other.mlp.up_proj.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.mlp.down_proj.weight.detach().numpy(),
-            torch_layer_other.mlp.down_proj.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        # Normalizations
-        assert_close_by_frobnorm(
-            torch_layer.post_attention_layernorm.weight.detach().numpy(),
-            torch_layer_other.post_attention_layernorm.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.input_layernorm.weight.detach().numpy(),
-            torch_layer_other.input_layernorm.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        # Attention
-        assert_close_by_frobnorm(
-            torch_layer.self_attn.q_proj.weight.detach().numpy(),
-            torch_layer_other.self_attn.q_proj.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.self_attn.v_proj.weight.detach().numpy(),
-            torch_layer_other.self_attn.v_proj.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.self_attn.o_proj.weight.detach().numpy(),
-            torch_layer_other.self_attn.o_proj.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.self_attn.k_proj.weight.detach().numpy(),
-            torch_layer_other.self_attn.k_proj.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
+        for parameter_name, _ in torch_layer.named_parameters():
+            split_name = parameter_name.split(".")
+            if len(split_name) == 2:
+                assert_close_by_frobnorm(
+                    torch_layer.__getattr__(split_name[0]).weight.detach().numpy(),
+                    torch_layer_other.__getattr__(split_name[0]).weight.detach().numpy(),
+                    **dtype2tol[dtype]
+                )
+            elif len(split_name) == 3:
+                assert_close_by_frobnorm(
+                    torch_layer.__getattr__(split_name[0]).__getattr__(split_name[1]).weight.detach().numpy(),
+                    torch_layer_other.__getattr__(split_name[0]).__getattr__(split_name[1]).weight.detach().numpy(),
+                    **dtype2tol[dtype]
+                )
 
     def test_forward(self, starpu_simple, torch_rng,
                      params: LlamaDecoderTestParams,
@@ -245,51 +214,17 @@ class TestLlamaMLP:
                 y_nntile.detach().numpy(),
                 **dtype2tol[dtype]
         )
-        # MLP gradients
-        assert_close_by_frobnorm(
-            torch_layer.mlp.up_proj.weight.grad.detach().numpy(),
-            torch_layer_other.mlp.up_proj.weight.grad.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.mlp.gate_proj.weight.grad.detach().numpy(),
-            torch_layer_other.mlp.gate_proj.weight.grad.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.mlp.down_proj.weight.grad.detach().numpy(),
-            torch_layer_other.mlp.down_proj.weight.grad.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        # Normalizations gradients
-        assert_close_by_frobnorm(
-            torch_layer.post_attention_layernorm.weight.grad.detach().numpy(),
-            torch_layer_other.post_attention_layernorm.weight.grad.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.input_layernorm.weight.grad.detach().numpy(),
-            torch_layer_other.input_layernorm.weight.grad.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        # Attention gradients
-        assert_close_by_frobnorm(
-            torch_layer.self_attn.q_proj.weight.grad.detach().numpy(),
-            torch_layer_other.self_attn.q_proj.weight.grad.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.self_attn.v_proj.weight.grad.detach().numpy(),
-            torch_layer_other.self_attn.v_proj.weight.grad.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.self_attn.o_proj.weight.grad.detach().numpy(),
-            torch_layer_other.self_attn.o_proj.weight.grad.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.self_attn.k_proj.weight.grad.detach().numpy(),
-            torch_layer_other.self_attn.k_proj.weight.grad.detach().numpy(),
-            **dtype2tol[dtype]
-        )
+        for parameter_name, _ in torch_layer.named_parameters():
+            split_name = parameter_name.split(".")
+            if len(split_name) == 2:
+                assert_close_by_frobnorm(
+                    torch_layer.__getattr__(split_name[0]).weight.grad.detach().numpy(),
+                    torch_layer_other.__getattr__(split_name[0]).weight.grad.detach().numpy(),
+                    **dtype2tol[dtype]
+                )
+            elif len(split_name) == 3:
+                assert_close_by_frobnorm(
+                    torch_layer.__getattr__(split_name[0]).__getattr__(split_name[1]).weight.grad.detach().numpy(),
+                    torch_layer_other.__getattr__(split_name[0]).__getattr__(split_name[1]).weight.grad.detach().numpy(),
+                    **dtype2tol[dtype]
+                )
