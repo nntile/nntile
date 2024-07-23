@@ -69,6 +69,8 @@ multiple_tiles = LlamaMLPTestParams(
     hidden_size_tile=32,
     intermediate_size=64,
     intermediate_size_tile=16,
+    seq_len=256,
+    seq_len_tile=16,
     n_batch=4,
     n_batch_tile=1)
 
@@ -77,6 +79,8 @@ single_tile = LlamaMLPTestParams(
     hidden_size_tile=128,
     intermediate_size=64,
     intermediate_size_tile=64,
+    seq_len=64,
+    seq_len_tile=64,
     n_batch=3,
     n_batch_tile=3,
 )
@@ -146,21 +150,14 @@ class TestLlamaMLP:
         torch_layer, nntile_layer, _, _ = generate_inputs(params, dtype)
         torch_layer_other = nntile_layer.to_torch()
         nntile_layer.unregister()
-        assert_close_by_frobnorm(
-            torch_layer.gate_proj.weight.detach().numpy(),
-            torch_layer_other.gate_proj.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.up_proj.weight.detach().numpy(),
-            torch_layer_other.up_proj.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.down_proj.weight.detach().numpy(),
-            torch_layer_other.down_proj.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
+
+        for param_name, _ in torch_layer.named_parameters():
+            n = param_name.split(".")[0]
+            assert_close_by_frobnorm(
+                torch_layer.__getattr__(n).weight.detach().numpy(),
+                torch_layer_other.__getattr__(n).weight.detach().numpy(),
+                **dtype2tol[dtype]
+            )
 
     def test_forward(self, starpu_simple, torch_rng,
                      params: LlamaMLPTestParams, dtype: str):
@@ -192,18 +189,10 @@ class TestLlamaMLP:
                 y_nntile.detach().numpy(),
                 **dtype2tol[dtype]
         )
-        assert_close_by_frobnorm(
-            torch_layer.up_proj.weight.grad.detach().numpy(),
-            torch_layer_other.up_proj.weight.grad.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.gate_proj.weight.grad.detach().numpy(),
-            torch_layer_other.gate_proj.weight.grad.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.down_proj.weight.grad.detach().numpy(),
-            torch_layer_other.down_proj.weight.grad.detach().numpy(),
-            **dtype2tol[dtype]
-        )
+        for param_name, _ in torch_layer.named_parameters():
+            n = param_name.split(".")[0]
+            assert_close_by_frobnorm(
+                torch_layer.__getattr__(n).weight.grad.detach().numpy(),
+                torch_layer_other.__getattr__(n).weight.grad.detach().numpy(),
+                **dtype2tol[dtype]
+            )
