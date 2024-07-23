@@ -339,6 +339,7 @@ set(TENSOR_SRC
     "tensor/transpose.cc"
     "tensor/silu_forward.cc"
     "tensor/silu_backward.cc"
+    "tensor/norm_fiber.cc"
     )
 
 set(LAYER_SRC
