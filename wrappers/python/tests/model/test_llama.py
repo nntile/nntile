@@ -41,10 +41,7 @@ dtype2tol = {
 
 
 def assert_close_by_frobnorm(a: np.ndarray, b: np.ndarray, rtol: float):
-    np.testing.assert_array_less(
-            np.linalg.norm(a - b),
-            rtol * np.linalg.norm(a)
-    )
+    assert np.linalg.norm(a - b) <= rtol * np.linalg.norm(a)
 
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
@@ -207,38 +204,11 @@ class TestLlama:
         torch_model_other = nntile_model.to_torch()
         nntile_model.unregister()
 
-        assert_close_by_frobnorm(
-            torch_model.embed_tokens.weight.detach().numpy(),
-            torch_model_other.embed_tokens.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_model.norm.weight.detach().numpy(),
-            torch_model_other.norm.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        for i in range(num_hidden_layers):
-            for parameters_name, _ in torch_model.layers[i].named_parameters():
-                split_name = parameters_name.split(".")
-                if len(split_name) == 2:
-                    assert_close_by_frobnorm(
-                        torch_model.layers[i].__getattr__(split_name[0]).weight.detach().numpy(),
-                        torch_model_other.layers[i].__getattr__(split_name[0]).weight.detach().numpy(),
-                        **dtype2tol[dtype]
-                    )
-                    if att_bias and split_name[0] not in ["input_layernorm",
-                                                          "post_attention_layernorm"]:
-                        assert_close_by_frobnorm(
-                            torch_model.layers[i].__getattr__(split_name[0]).bias.detach().numpy(),
-                            torch_model_other.layers[i].__getattr__(split_name[0]).bias.detach().numpy(),
-                            **dtype2tol[dtype]
-                        )
-                elif len(split_name) == 3:
-                    assert_close_by_frobnorm(
-                        torch_model.layers[i].__getattr__(split_name[0]).__getattr__(split_name[1]).weight.detach().numpy(),
-                        torch_model_other.layers[i].__getattr__(split_name[0]).__getattr__(split_name[1]).weight.detach().numpy(),
-                        **dtype2tol[dtype]
-                    )
+        for (n1, p1), (n2, p2) in zip(torch_model.named_parameters(),
+                torch_model_other.named_parameters()):
+            assert n1 == n2
+            assert_close_by_frobnorm(p1.detach().numpy(), p2.detach().numpy(),
+                **dtype2tol[dtype])
 
     def test_forward(self, starpu_simple, torch_rng,
                      params: LlamaTestParams,
