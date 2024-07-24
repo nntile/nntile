@@ -40,6 +40,7 @@ class LlamaMLP(BaseModel):
         activation_function = config.activation_function
         redux = config.redux
         gemm_ndim = 1
+        self.bias = config.mlp_bias
         # Initial linear layer that converts input to internal shape
         gate_proj, next_tag = Linear.generate_simple(
             x,
@@ -50,7 +51,7 @@ class LlamaMLP(BaseModel):
             [intermediate_size_tile],
             next_tag,
             redux=redux,
-            bias=False
+            bias=self.bias
         )
         layers.append(gate_proj)
         activations.extend(gate_proj.activations_output)
@@ -70,7 +71,7 @@ class LlamaMLP(BaseModel):
             [intermediate_size_tile],
             next_tag,
             redux=redux,
-            bias=False
+            bias=self.bias
         )
         layers.append(up_proj)
         activations.extend(up_proj.activations_output)
@@ -91,7 +92,7 @@ class LlamaMLP(BaseModel):
             [hidden_size_tile],
             next_tag,
             redux=redux,
-            bias=False
+            bias=self.bias
         )
         layers.append(down_proj)
         activations.extend(down_proj.activations_output)
@@ -120,7 +121,8 @@ class LlamaMLP(BaseModel):
 
     def to_torch(self):
         config_torch = LlamaConfig_torch(hidden_size=self.hidden_size,
-                                         intermediate_size=self.intermediate_size)
+                                         intermediate_size=self.intermediate_size,
+                                         mlp_bias=self.bias)
         llama_mlp_torch = LlamaMLP_torch(config_torch)
         for p_nntile, p_torch in zip(self.parameters,
                                      llama_mlp_torch.parameters()):

@@ -42,13 +42,6 @@ dtype2tol = {
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
 
 
-def assert_close_by_frobnorm(a: np.ndarray, b: np.ndarray, rtol: float):
-    np.testing.assert_array_less(
-            np.linalg.norm(a - b),
-            rtol * np.linalg.norm(a)
-    )
-
-
 @dataclass
 class LlamaAttentionTestParams:
     n_emb: int
@@ -172,47 +165,12 @@ class TestLlamaAttention:
         nntile_layer.unregister()
         nntile_layer.x.unregister()
         nntile_layer.y.unregister()
-        assert_close_by_frobnorm(
-            torch_layer.q_proj.weight.detach().numpy(),
-            torch_layer_other.q_proj.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.k_proj.weight.detach().numpy(),
-            torch_layer_other.k_proj.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.v_proj.weight.detach().numpy(),
-            torch_layer_other.v_proj.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.o_proj.weight.detach().numpy(),
-            torch_layer_other.o_proj.weight.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        if bias:
-            assert_close_by_frobnorm(
-                torch_layer.q_proj.bias.detach().numpy(),
-                torch_layer_other.q_proj.bias.detach().numpy(),
-                **dtype2tol[dtype]
-            )
-            assert_close_by_frobnorm(
-                torch_layer.k_proj.bias.detach().numpy(),
-                torch_layer_other.k_proj.bias.detach().numpy(),
-                **dtype2tol[dtype]
-            )
-            assert_close_by_frobnorm(
-                torch_layer.v_proj.bias.detach().numpy(),
-                torch_layer_other.v_proj.bias.detach().numpy(),
-                **dtype2tol[dtype]
-            )
-            assert_close_by_frobnorm(
-                torch_layer.o_proj.bias.detach().numpy(),
-                torch_layer_other.o_proj.bias.detach().numpy(),
-                **dtype2tol[dtype]
-            )
+
+        rtol = dtype2tol[dtype]['rtol']
+        for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
+                torch_layer_other.named_parameters()):
+            assert n1 == n2
+            assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
     def test_forward(self, starpu_simple, torch_rng, dtype: str,
                      params: LlamaAttentionTestParams, bias: bool):
@@ -224,11 +182,9 @@ class TestLlamaAttention:
         nntile_layer.unregister()
         nntile_layer.x.unregister()
         nntile_layer.y.unregister()
-        assert_close_by_frobnorm(
-                y.detach().numpy(),
-                y_nntile.detach().numpy(),
-                **dtype2tol[dtype]
-        )
+
+        rtol = dtype2tol[dtype]['rtol']
+        assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
     def test_forward_backward(self, starpu_simple, torch_rng, dtype: str,
                               params: LlamaAttentionTestParams, bias: bool):
@@ -244,49 +200,14 @@ class TestLlamaAttention:
         nntile_layer.unregister()
         nntile_layer.x.unregister()
         nntile_layer.y.unregister()
-        assert_close_by_frobnorm(
-                y.detach().numpy(),
-                y_nntile.detach().numpy(),
-                **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.q_proj.weight.grad.detach().numpy(),
-            torch_layer_other.q_proj.weight.grad.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.k_proj.weight.grad.detach().numpy(),
-            torch_layer_other.k_proj.weight.grad.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.v_proj.weight.grad.detach().numpy(),
-            torch_layer_other.v_proj.weight.grad.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        assert_close_by_frobnorm(
-            torch_layer.o_proj.weight.grad.detach().numpy(),
-            torch_layer_other.o_proj.weight.grad.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        if bias:
-            assert_close_by_frobnorm(
-                torch_layer.q_proj.bias.grad.detach().numpy(),
-                torch_layer_other.q_proj.bias.grad.detach().numpy(),
-                **dtype2tol[dtype]
-            )
-            assert_close_by_frobnorm(
-                torch_layer.k_proj.bias.grad.detach().numpy(),
-                torch_layer_other.k_proj.bias.grad.detach().numpy(),
-                **dtype2tol[dtype]
-            )
-            assert_close_by_frobnorm(
-                torch_layer.v_proj.bias.grad.detach().numpy(),
-                torch_layer_other.v_proj.bias.grad.detach().numpy(),
-                **dtype2tol[dtype]
-            )
-            assert_close_by_frobnorm(
-                torch_layer.o_proj.bias.grad.detach().numpy(),
-                torch_layer_other.o_proj.bias.grad.detach().numpy(),
-                **dtype2tol[dtype]
-            )
+
+        rtol = dtype2tol[dtype]['rtol']
+        assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
+
+        for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
+                torch_layer_other.named_parameters()):
+            assert n1 == n2
+            assert p1.requires_grad == p2.requires_grad
+            if p1.requires_grad:
+                g1, g2 = p1.grad, p2.grad
+                assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
