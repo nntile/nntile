@@ -23,6 +23,8 @@ import numpy as np
 import torch
 from torch.nn import MultiheadAttention
 
+from nntile.functions import copy_async
+
 
 # Define list of tested types
 dtypes = [np.float32, np.float64]
@@ -267,4 +269,84 @@ def test_dynamic(starpu_simple, n_head, n_head_tile):
         out_dynamic_actual_np,
         out_dynamic_expected_np,
         err_msg=f"Dynamic does not match static",
+    )
+
+def generate_greedy_logits_padding(attn_layer, input_ids, prefill_size, max_tokens):
+    cur_seq_size = prefill_size
+
+    output_ids = input_ids
+    while cur_seq_size < max_tokens:
+        copy_async(output_ids, attn_layer.x_k.value)
+        copy_async(output_ids, attn_layer.x_v.value)
+        copy_async(output_ids, attn_layer.x_q.value)
+        attn_layer.forward_async()
+        logits = attn_layer.y.value
+
+        logits_np = nntc.to_numpy(logits)
+
+        # TODO: add starpu function for scalar assign
+        output_ids_np = nntc.to_numpy(output_ids)
+        output_ids_np[:, cur_seq_size, :] = logits_np[:, cur_seq_size - 1, :]
+        output_ids = nntc.from_array(output_ids_np)
+        cur_seq_size += 1
+
+    return output_ids
+
+def generate_greedy_logits_dynamic(attn_layer, input_ids, prefill_size, max_tokens):
+    cur_seq_size = prefill_size
+
+    # prefill
+    output_ids = input_ids
+    
+    is_prefill = True
+
+    while cur_seq_size < max_tokens:
+        output_ids_np = nntc.to_numpy(output_ids)
+
+        logits = attn_layer.forward_dynamic(nntile.tensor.TensorMoments(input_ids, None, False), use_cache=(not is_prefill))
+        if is_prefill:
+            is_prefill = False
+        
+        logits_np = nntc.to_numpy(logits)
+
+        input_ids_np = logits_np[:,-1,:][:,None,:]
+        output_ids_np = np.concatenate([output_ids_np, input_ids_np], axis=1)
+
+        input_ids = nntc.from_array(input_ids_np)
+        output_ids = nntc.from_array(output_ids_np)
+        cur_seq_size += 1
+
+    return output_ids
+
+@pytest.mark.parametrize('n_head,n_head_tile', [(1,1)])
+def test_kvcache(starpu_simple, n_head, n_head_tile):
+    prefill_size = 5
+    max_tokens = 6
+
+    inp_np = np.asfortranarray(np.random.randn(3,10,1))
+    inp_np[:, prefill_size: ,:] = 0
+
+    inp = nntc.from_array(inp_np)
+    inp2 = nntc.from_array(inp_np)
+    inp3 = nntc.from_array(inp_np)
+
+    inp_tm = nntile.tensor.TensorMoments(inp, grad=nntc.zeros(inp.shape, dtype=type(inp)), grad_required=False)
+    inp_tm2 = nntile.tensor.TensorMoments(inp2, grad=nntc.zeros(inp2.shape, dtype=type(inp)), grad_required=False)
+    inp_tm3 = nntile.tensor.TensorMoments(inp3, grad=nntc.zeros(inp3.shape, dtype=type(inp)), grad_required=False)
+
+    l, _ = Attention.generate_simple(inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, 0, bias=False)
+    l.init_randn_async()
+    
+    # slice to prefill size
+    inp_prefill = nntc.from_array(inp_np[:,:prefill_size,:])
+    outs_dyn = generate_greedy_logits_dynamic(l, inp_prefill, prefill_size, max_tokens)
+    outs_dyn_np = nntc.to_numpy(outs_dyn)
+
+    outs_stat = generate_greedy_logits_padding(l, inp, prefill_size, max_tokens)
+    outs_stat_np = nntc.to_numpy(outs_stat)
+
+    np.testing.assert_allclose(
+        outs_stat_np[:, prefill_size:max_tokens, :],
+        outs_dyn_np[:, prefill_size:max_tokens, :],
+        err_msg=f"test_kvcache: Dynamic does not match static",
     )

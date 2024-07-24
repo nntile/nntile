@@ -408,6 +408,11 @@ class Attention(BaseLayer):
     def reset_cache(self, value=0):
         self.k_cache_size = value
         self.v_cache_size = value
+
+        # need to fill with valid values for dynamic api usage
+        clear_async(self.q.value)
+        clear_async(self.k.value)
+        clear_async(self.v.value)
     
     def _forward_mlp_q_async(self):
         # Q_transposed = einsum('jkl,lmn->jkmn', W_Q, X_Q)
@@ -697,14 +702,17 @@ class Attention(BaseLayer):
         self.reset_cache(effective_size)
         
 
-    def forward_dynamic(self, x: TensorMoments, use_kv_partials: bool = True):
-        # Compute query, key and value tensors
+    def forward_dynamic(self, x: TensorMoments, use_cache: bool = False, use_kv_partials: bool = True):
+        if not use_cache:
+            self.reset_cache()
+
         if x.value.shape[1] + self.v_cache_size > self.x_v.value.shape[1]:
             raise Exception(
                 f"Overload internal state: try add {x.value.shape[1]} to {self.v_cache_size}, max: {self.x_v.value.shape[1]}. "
                 "Maybe you forgot to call reset_cache between iterations?"
             )
 
+        # Compute query, key and value tensors
         q_partial = self._forward_mlp_q_cached(x.value)
         k = self._forward_mlp_k_dynamic(x.value, use_kv_partials)
         v = self._forward_mlp_v_dynamic(x.value, use_kv_partials)
