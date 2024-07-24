@@ -151,13 +151,11 @@ class TestLlamaMLP:
         torch_layer_other = nntile_layer.to_torch()
         nntile_layer.unregister()
 
-        for param_name, _ in torch_layer.named_parameters():
-            n = param_name.split(".")[0]
-            assert_close_by_frobnorm(
-                torch_layer.__getattr__(n).weight.detach().numpy(),
-                torch_layer_other.__getattr__(n).weight.detach().numpy(),
-                **dtype2tol[dtype]
-            )
+        rtol = dtype2tol[dtype]['rtol']
+        for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
+                torch_layer_other.named_parameters()):
+            assert n1 == n2
+            assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
     def test_forward(self, starpu_simple, torch_rng,
                      params: LlamaMLPTestParams,
@@ -167,11 +165,8 @@ class TestLlamaMLP:
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.activations[-1].value).T)
         nntile_layer.unregister()
-        assert_close_by_frobnorm(
-                y.detach().numpy(),
-                y_nntile.detach().numpy(),
-                **dtype2tol[dtype]
-        )
+        rtol = dtype2tol[dtype]['rtol']
+        assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
     def test_forward_backward(self, starpu_simple, torch_rng,
                               params: LlamaMLPTestParams,
@@ -186,15 +181,13 @@ class TestLlamaMLP:
         nntile_layer.backward_async()
         torch_layer_other = nntile_layer.to_torch_with_grads()
         nntile_layer.unregister()
-        assert_close_by_frobnorm(
-                y.detach().numpy(),
-                y_nntile.detach().numpy(),
-                **dtype2tol[dtype]
-        )
-        for param_name, _ in torch_layer.named_parameters():
-            n = param_name.split(".")[0]
-            assert_close_by_frobnorm(
-                torch_layer.__getattr__(n).weight.grad.detach().numpy(),
-                torch_layer_other.__getattr__(n).weight.grad.detach().numpy(),
-                **dtype2tol[dtype]
-            )
+        rtol = dtype2tol[dtype]['rtol']
+        assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
+
+        for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
+                torch_layer_other.named_parameters()):
+            assert n1 == n2
+            assert p1.requires_grad == p2.requires_grad
+            if p1.requires_grad:
+                g1, g2 = p1.grad, p2.grad
+                assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
