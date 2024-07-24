@@ -39,11 +39,6 @@ dtype2tol = {
         'bf16': {'rtol': 4e-2},
 }
 
-
-def assert_close_by_frobnorm(a: np.ndarray, b: np.ndarray, rtol: float):
-    assert np.linalg.norm(a - b) <= rtol * np.linalg.norm(a)
-
-
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
 
 
@@ -204,11 +199,11 @@ class TestLlama:
         torch_model_other = nntile_model.to_torch()
         nntile_model.unregister()
 
+        rtol = dtype2tol[dtype]['rtol']
         for (n1, p1), (n2, p2) in zip(torch_model.named_parameters(),
                 torch_model_other.named_parameters()):
             assert n1 == n2
-            assert_close_by_frobnorm(p1.detach().numpy(), p2.detach().numpy(),
-                **dtype2tol[dtype])
+            assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
     def test_forward(self, starpu_simple, torch_rng,
                      params: LlamaTestParams,
@@ -216,19 +211,16 @@ class TestLlama:
                      num_hidden_layers: int,
                      att_bias: bool):
         torch_model, nntile_model, x, pos_ids, _ = generate_inputs(params,
-                                                                   dtype,
-                                                                   num_hidden_layers,
-                                                                   att_bias)
+                dtype, num_hidden_layers, att_bias)
         y = torch_model(x, position_ids=torch.tensor(pos_ids),
                         return_dict=True)
+        y_torch = y.last_hidden_state
         nntile_model.forward_async()
-        y_nntile_np = to_numpy(nntile_model.activations[-1].value)
+        y_nntile = torch.Tensor(to_numpy(nntile_model.activations[-1].value).T)
         nntile_model.unregister()
-        assert_close_by_frobnorm(
-                y.last_hidden_state.detach().numpy(),
-                y_nntile_np.T,
-                **dtype2tol[dtype]
-        )
+
+        rtol = dtype2tol[dtype]['rtol']
+        assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
 
     def test_forward_backward(self, starpu_simple, torch_rng,
                               params: LlamaTestParams,
@@ -236,54 +228,24 @@ class TestLlama:
                               num_hidden_layers: int,
                               att_bias: bool):
         torch_model, nntile_model, x, pos_ids, y_grad = generate_inputs(params,
-                                                                        dtype,
-                                                                        num_hidden_layers,
-                                                                        att_bias)
+                dtype, num_hidden_layers, att_bias)
         y = torch_model(x, position_ids=torch.tensor(pos_ids))
+        y_torch = y.last_hidden_state
         nntile_model.forward_async()
-        y_nntile_np = to_numpy(nntile_model.activations[-1].value).T
+        y_nntile = torch.Tensor(to_numpy(nntile_model.activations[-1].value).T)
         res = (y.last_hidden_state * y_grad).sum()
         res.backward()
         nntile_model.backward_async()
         torch_model_other = nntile_model.to_torch_with_grads()
         nntile_model.unregister()
-        assert_close_by_frobnorm(
-                y.last_hidden_state.detach().numpy(),
-                y_nntile_np,
-                **dtype2tol[dtype]
-        )
-        # Embedding grad
-        assert_close_by_frobnorm(
-            torch_model.embed_tokens.weight.grad.detach().numpy(),
-            torch_model_other.embed_tokens.weight.grad.detach().numpy(),
-            **dtype2tol[dtype]
-        )
-        # Final normalization grad
-        assert_close_by_frobnorm(
-                torch_model.norm.weight.grad.detach().numpy(),
-                torch_model_other.norm.weight.grad.detach().numpy(),
-                **dtype2tol[dtype]
-            )
 
-        for i in range(num_hidden_layers):
-            for parameters_name, _ in torch_model.layers[i].named_parameters():
-                split_name = parameters_name.split(".")
-                if len(split_name) == 2:
-                    assert_close_by_frobnorm(
-                        torch_model.layers[i].__getattr__(split_name[0]).weight.grad.detach().numpy(),
-                        torch_model_other.layers[i].__getattr__(split_name[0]).weight.grad.detach().numpy(),
-                        **dtype2tol[dtype]
-                    )
-                    if att_bias and split_name[0] not in ["input_layernorm",
-                                                          "post_attention_layernorm"]:
-                        assert_close_by_frobnorm(
-                            torch_model.layers[i].__getattr__(split_name[0]).bias.grad.detach().numpy(),
-                            torch_model_other.layers[i].__getattr__(split_name[0]).bias.grad.detach().numpy(),
-                            **dtype2tol[dtype]
-                        )
-                elif len(split_name) == 3:
-                    assert_close_by_frobnorm(
-                        torch_model.layers[i].__getattr__(split_name[0]).__getattr__(split_name[1]).weight.grad.detach().numpy(),
-                        torch_model_other.layers[i].__getattr__(split_name[0]).__getattr__(split_name[1]).weight.grad.detach().numpy(),
-                        **dtype2tol[dtype]
-                    )
+        rtol = dtype2tol[dtype]['rtol']
+        assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
+
+        for (n1, p1), (n2, p2) in zip(torch_model.named_parameters(),
+                torch_model_other.named_parameters()):
+            assert n1 == n2
+            assert p1.requires_grad == p2.requires_grad
+            if p1.requires_grad:
+                g1, g2 = p1.grad, p2.grad
+                assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
