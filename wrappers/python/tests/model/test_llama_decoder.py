@@ -39,14 +39,6 @@ dtype2tol = {
         'bf16': {'rtol': 1.6e-2},
 }
 
-
-def assert_close_by_frobnorm(a: np.ndarray, b: np.ndarray, rtol: float):
-    np.testing.assert_array_less(
-            np.linalg.norm(a - b),
-            rtol * np.linalg.norm(a)
-    )
-
-
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
 
 
@@ -153,10 +145,9 @@ def generate_inputs(params: LlamaDecoderTestParams,
 ])
 @pytest.mark.parametrize('att_bias', [True, False])
 class TestLlamaMLP:
-    def test_from_torch_and_to_torch(self, starpu_simple, torch_rng,
-                                     params: LlamaDecoderTestParams,
-                                     dtype: str,
-                                     att_bias: bool):
+    def test_coercion(self, starpu_simple, torch_rng,
+                      params: LlamaDecoderTestParams, dtype: str,
+                      att_bias: bool):
         torch_layer, nntile_layer, *_ = generate_inputs(params,
                                                         dtype,
                                                         att_bias)
