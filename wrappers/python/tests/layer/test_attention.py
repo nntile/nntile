@@ -11,13 +11,13 @@
 #
 # @version 1.0.0
 
+import pytest
+
 # All necesary imports
 import nntile
+import nntile.utils.constructors as nntc
 import numpy as np
-# Set up StarPU configuration and init it
-config = nntile.starpu.Config(1, 0, 0)
-# Init all NNTile-StarPU codelets
-nntile.starpu.init()
+
 # Define list of tested types
 dtypes = [np.float32, np.float64]
 # Define mapping between numpy and nntile types
@@ -247,16 +247,35 @@ def helper(dtype: np.dtype):
     layer.unregister()
     return True
 
-# Test runner for different precisions
-def test():
+@pytest.mark.parametrize('execution_number', range(2))
+def test_attention(starpu_simple, execution_number):
+    # Test runner for different precisions
     for dtype in dtypes:
         assert helper(dtype)
 
-# Repeat tests
-def test_repeat():
-    for dtype in dtypes:
-        assert helper(dtype)
+@pytest.mark.parametrize('n_head,n_head_tile', [(1,1)])
+def test_dynamic(starpu_simple, n_head, n_head_tile):
+    inp_np = np.asfortranarray(np.random.randn(3,10,1))
 
-if __name__ == "__main__":
-    test()
-    test_repeat()
+    inp = nntc.from_array(inp_np)
+    inp2 = nntc.from_array(inp_np)
+    inp3 = nntc.from_array(inp_np)
+
+    inp_tm = nntile.tensor.TensorMoments(inp, grad=nntc.zeros(inp.shape, dtype=type(inp)), grad_required=False)
+    inp_tm2 = nntile.tensor.TensorMoments(inp2, grad=nntc.zeros(inp2.shape, dtype=type(inp)), grad_required=False)
+    inp_tm3 = nntile.tensor.TensorMoments(inp3, grad=nntc.zeros(inp3.shape, dtype=type(inp)), grad_required=False)
+
+    l, _ = Attention.generate_simple(inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, 0, bias=False)
+    l.init_randn_async()
+
+    out_dynamic_actual = l.forward_dynamic(inp_tm)
+    out_dynamic_actual_np = nntc.to_numpy(out_dynamic_actual)
+
+    l.forward_async()
+    out_dynamic_expected_np = nntc.to_numpy(l.y.value)
+
+    np.testing.assert_allclose(
+        out_dynamic_actual_np,
+        out_dynamic_expected_np,
+        err_msg=f"Dynamic does not match static",
+    )

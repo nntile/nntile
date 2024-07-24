@@ -150,8 +150,6 @@ class Attention(BaseLayer):
         clear_async(self.k.value)
         clear_async(self.v.value)
 
-        self.tmp_buff_tr = None
-        self.tmp_buff = None
         self.k_partial_cached = None
         self.v_partial_cached = None
     
@@ -436,16 +434,10 @@ class Attention(BaseLayer):
     def _get_tmp_tr_for_cache(self, x):
         q_partial_tr_shape = (1,)+ tuple(x.shape)
         return nntc.zeros(q_partial_tr_shape, dtype=type(x))
-        # if self.tmp_buff_tr is None or self.tmp_buff_tr.shape != q_partial_tr_shape:
-        #     self.tmp_buff_tr = nntc.zeros(q_partial_tr_shape, dtype=type(x))
-        # return self.tmp_buff_tr
     
     def _get_tmp_for_cache(self, x):
         q_partial_shape = tuple(x.shape)+(1,)
         return nntc.zeros(q_partial_shape, dtype=type(x))
-        # if self.tmp_buff is None or self.tmp_buff.shape != q_partial_shape:
-        #     self.tmp_buff = nntc.zeros(q_partial_shape, dtype=type(x))
-        # return self.tmp_buff
 
     def _forward_mlp_q_cached(self, x: Tensor):
         q_partial_tr = self._get_tmp_tr_for_cache(x)
@@ -493,7 +485,7 @@ class Attention(BaseLayer):
                     self.k.value, 0, 1)
             self.in_proj_bias_k.value.wont_use()
 
-    def _forward_mlp_k_cached(self, x: Tensor, use_kv_partials: bool = True):
+    def _forward_mlp_k_dynamic(self, x: Tensor, use_kv_partials: bool = True):
         k_partial_tr = self._get_tmp_tr_for_cache(x)
         k_partial = self._get_tmp_for_cache(x)
         
@@ -511,10 +503,9 @@ class Attention(BaseLayer):
         if use_kv_partials:
             cached_shape = self.k.value.shape
             cached_shape[1] = self.k_cache_size
-            if self.k_partial_cached is None or self.k_partial_cached.shape != cached_shape:
-                self.k_partial_cached = nntc.zeros(cached_shape, dtype=type(x))
-            copy_intersection_async(self.k.value, [0,0,0,0], self.k_partial_cached, [0,0,0,0])
-            return self.k_partial_cached
+            k_partial_cached = nntc.zeros(cached_shape, dtype=type(x))
+            copy_intersection_async(self.k.value, [0,0,0,0], k_partial_cached, [0,0,0,0])
+            return k_partial_cached
         else:
             return self.k.value
 
@@ -540,7 +531,7 @@ class Attention(BaseLayer):
                     self.v.value, 0, 1)
             self.in_proj_bias_v.value.wont_use()
 
-    def _forward_mlp_v_cached(self, x: Tensor, use_kv_partials: bool = True):
+    def _forward_mlp_v_dynamic(self, x: Tensor, use_kv_partials: bool = True):
         v_partial_tr = self._get_tmp_tr_for_cache(x)
         v_partial = self._get_tmp_for_cache(x)
         
@@ -558,10 +549,9 @@ class Attention(BaseLayer):
         if use_kv_partials:
             cached_shape = self.v.value.shape
             cached_shape[1] = self.v_cache_size
-            if self.v_partial_cached is None or self.v_partial_cached.shape != cached_shape:
-                self.v_partial_cached = nntc.zeros(cached_shape, dtype=type(x))
-            copy_intersection_async(self.v.value, [0,0,0,0], self.v_partial_cached, [0,0,0,0])
-            return self.v_partial_cached
+            v_partial_cached = nntc.zeros(cached_shape, dtype=type(x))
+            copy_intersection_async(self.v.value, [0,0,0,0], v_partial_cached, [0,0,0,0])
+            return v_partial_cached
         else:
             return self.v.value
     
@@ -623,7 +613,7 @@ class Attention(BaseLayer):
             self.out_proj_bias.value.wont_use()
         self.y.value.wont_use()
     
-    def _forward_attn_cached(self, q, k, v):
+    def _forward_attn_dynamic(self, q, k, v):
         a_tmp = nntc.zeros(k.shape[1:2]+q.shape[1:2]+k.shape[2:], dtype=type(q))
         a_maxsumexp_tmp = nntc.zeros((2,)+tuple(a_tmp.shape[1:]), dtype=type(q))
         b_tmp = nntc.zeros(q.shape, dtype=type(q))
@@ -707,19 +697,20 @@ class Attention(BaseLayer):
         self.reset_cache(effective_size)
         
 
-    def forward_cached(self, x: TensorMoments, use_kv_partials: bool = True):
+    def forward_dynamic(self, x: TensorMoments, use_kv_partials: bool = True):
         # Compute query, key and value tensors
         if x.value.shape[1] + self.v_cache_size > self.x_v.value.shape[1]:
-            raise Exception(f"Overload internal state: try add {x.value.shape[1]} to {self.v_cache_size}, max: {self.x_v.value.shape[1]}")
+            raise Exception(
+                f"Overload internal state: try add {x.value.shape[1]} to {self.v_cache_size}, max: {self.x_v.value.shape[1]}. "
+                "Maybe you forgot to call reset_cache between iterations?"
+            )
 
         q_partial = self._forward_mlp_q_cached(x.value)
-        k = self._forward_mlp_k_cached(x.value, use_kv_partials)
-        v = self._forward_mlp_v_cached(x.value, use_kv_partials)
+        k = self._forward_mlp_k_dynamic(x.value, use_kv_partials)
+        v = self._forward_mlp_v_dynamic(x.value, use_kv_partials)
         
         # compute attention and weight result
-        # self._forward_attn_async()
-        # return self.y
-        y_tensor = self._forward_attn_cached(q_partial,k,v)
+        y_tensor = self._forward_attn_dynamic(q_partial,k,v)
         return y_tensor
 
     # Backward propagation of the linear layer
