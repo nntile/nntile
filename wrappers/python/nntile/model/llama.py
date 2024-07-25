@@ -23,7 +23,6 @@ from nntile.tensor import (
     TensorMoments, TensorTraits)
 
 from ..layer import Embedding, RMSNorm
-# from nntile.layer import Act, Linear, Prod
 from .base_model import BaseModel
 from .llama_config import LlamaConfigNNTile
 from .llama_decoder import LlamaDecoder
@@ -52,6 +51,8 @@ class Llama(BaseModel):
         activations = [input_ids] + emb_layer_.activations_output
         layers = [emb_layer_]
         self.decoders = decoders
+        self.embd_layer = emb_layer_
+        self.final_rmsnorm = rms_norm_layer
 
         for dec_layer in decoders:
             activations.extend(dec_layer.activations[1:])
@@ -136,7 +137,7 @@ class Llama(BaseModel):
         for i in range(self.config.num_hidden_layers):
             llama_model_torch.layers[i] = self.decoders[i].to_torch()
 
-        llama_model_torch.norm = self.layers[-1].to_torch()
+        llama_model_torch.norm = self.final_rmsnorm.to_torch()
 
         return llama_model_torch
 
@@ -151,11 +152,11 @@ class Llama(BaseModel):
             n_attention_head=self.config.n_attention_head)
 
         llama_model_torch = LlamaModel_torch(config_torch)
-        llama_model_torch.embed_tokens = self.layers[0].to_torch_with_grads()
+        llama_model_torch.embed_tokens = self.embd_layer.to_torch_with_grads()
         for i in range(self.config.num_hidden_layers):
             llama_model_torch.layers[i] = \
                 self.decoders[i].to_torch_with_grads()
 
-        llama_model_torch.norm = self.layers[-1].to_torch_with_grads()
+        llama_model_torch.norm = self.final_rmsnorm.to_torch_with_grads()
 
         return llama_model_torch

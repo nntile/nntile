@@ -97,13 +97,13 @@ def test_rms_norm(dtype: np.dtype):
     A = nntile.tensor.TensorMoments(A_value, A_grad, True)
     # Set initial values of tensors
     gen = np.random.default_rng()
-    rand_A = gen.standard_normal(size=A_shape)
+    rand_A = gen.standard_normal(size=A_shape, dtype=np.float32)
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A.value.from_array(np_A)
     torch_A = torch.tensor(np_A, requires_grad=True)
-    rand_B_grad = gen.standard_normal(size=A_shape)
+    rand_B_grad = gen.standard_normal(size=A_shape, dtype=np.float32)
     np_B_grad = np.array(rand_B_grad, dtype=dtype, order='F')
-    rand_gamma = gen.standard_normal(size=A_shape[-1])
+    rand_gamma = gen.standard_normal(size=A_shape[-1], dtype=np.float32)
     np_gamma = np.array(rand_gamma, dtype=dtype, order='F')
     # Init NNTile LayerNorm
     nntile_layer, next_tag = nntile.layer.RMSNorm.generate_simple(A,

@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/model/test_llama.py
-# Test for nntile.model.Llama
+# @file wrappers/python/tests/model/test_llama_causal.py
+# Test for nntile.model.llama_causal
 # Each test is generated in float precision by Torch, then it is downcasted
 # into NNTile type. So, implementation of double precision is NOT checked.
 #
@@ -19,10 +19,10 @@ import numpy as np
 import pytest
 import torch
 from transformers.models.llama import (
-    LlamaConfig as LlamaConfig_torch, LlamaModel as LlamaModel_torch)
+    LlamaConfig as LlamaConfig_torch, LlamaForCausalLM as LlamaModel_torch)
 
 import nntile
-from nntile.model.llama import Llama as LlamaModel
+from nntile.model.llama_causal import LlamaForCausalLM as LlamaModel_nntile
 from nntile.model.llama_config import LlamaConfigNNTile
 from nntile.tensor import to_numpy
 
@@ -154,7 +154,7 @@ def generate_inputs(params: LlamaTestParams,
                            dtype=np.int64)
     mask = np.array(np.triu(np.ones((params.seq_len, params.seq_len))),
                     dtype=bool, order="F")
-    nntile_model, _ = LlamaModel.from_torch(
+    nntile_model, _ = LlamaModel_nntile.from_torch(
             torch_model, params.batch_size, params.batch_size_tile,
             params.seq_len, params.seq_len_tile, pos_ids,
             mask, nntile_config, 0)
@@ -166,7 +166,7 @@ def generate_inputs(params: LlamaTestParams,
     x_nntile = np.array(x_random, dtype=np.int64, order='F')
     nntile_model.activations[0].value.from_array(x_nntile)
     x_torch = torch.tensor(x_nntile.T)
-    y_grad_random = gen.standard_normal((params.hidden_size,
+    y_grad_random = gen.standard_normal((params.vocab_size,
                                          params.seq_len,
                                          params.batch_size),
                                         dtype=np.float32)
@@ -194,10 +194,10 @@ class TestLlama:
                       num_hidden_layers: int,
                       att_bias: bool):
 
-        torch_model, nntile_model, _, _, _ = generate_inputs(params,
-                                                             dtype,
-                                                             num_hidden_layers,
-                                                             att_bias)
+        torch_model, nntile_model, *_ = generate_inputs(params,
+                                                        dtype,
+                                                        num_hidden_layers,
+                                                        att_bias)
         torch_model_other = nntile_model.to_torch()
         nntile_model.unregister()
 
@@ -216,7 +216,7 @@ class TestLlama:
                 dtype, num_hidden_layers, att_bias)
         y = torch_model(x, position_ids=torch.tensor(pos_ids),
                         return_dict=True)
-        y_torch = y.last_hidden_state
+        y_torch = y.logits
         nntile_model.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_model.activations[-1].value).T)
         nntile_model.unregister()
@@ -232,10 +232,10 @@ class TestLlama:
         torch_model, nntile_model, x, pos_ids, y_grad = generate_inputs(params,
                 dtype, num_hidden_layers, att_bias)
         y = torch_model(x, position_ids=torch.tensor(pos_ids))
-        y_torch = y.last_hidden_state
+        y_torch = y.logits
         nntile_model.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_model.activations[-1].value).T)
-        res = (y.last_hidden_state * y_grad).sum()
+        res = (y.logits * y_grad).sum()
         res.backward()
         nntile_model.backward_async()
         torch_model_other = nntile_model.to_torch_with_grads()
