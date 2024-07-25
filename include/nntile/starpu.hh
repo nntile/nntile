@@ -85,6 +85,7 @@
 #include <nntile/starpu/transpose.hh>
 #include <nntile/starpu/silu_forward.hh>
 #include <nntile/starpu/silu_backward.hh>
+#include <nntile/starpu/norm_fiber.hh>
 
 //! @namespace nntile::starpu
 /*! This namespace holds StarPU wrappers

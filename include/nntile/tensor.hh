@@ -85,6 +85,7 @@
 #include <nntile/tensor/transpose.hh>
 #include <nntile/tensor/silu_forward.hh>
 #include <nntile/tensor/silu_backward.hh>
+#include <nntile/tensor/norm_fiber.hh>
 
 //! @namespace nntile::tensor
 /*! This namespace holds high-level routines for Tensor<T>
