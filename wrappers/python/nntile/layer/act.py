@@ -19,6 +19,7 @@ from nntile.tensor import (Tensor, TensorMoments, TensorTraits, copy_async,
                            gelutanh_backward_async, gelutanh_inplace_async,
                            relu_backward_async, relu_forward_async,
                            silu_backward_async, silu_forward_async)
+import nntile.utils.constructors as nntc
 
 
 class Act(BaseLayer):
@@ -75,6 +76,20 @@ class Act(BaseLayer):
             gelu_async(self.y.value)
         self.x.value.wont_use()
         self.y.value.wont_use()
+
+    def forward_dynamic(self, x: TensorMoments):
+        y = nntc.zeros(x.value.shape, dtype=type(x.value))
+        if self.funcname == "relu":
+            relu_forward_async(x.value, y)
+        if self.funcname == "silu":
+            silu_forward_async(x.value, y)
+        if self.funcname == "gelutanh":
+            gelutanh_async(x.value, y)
+        if self.funcname == "gelu":
+            copy_async(x.value, y)
+            gelu_async(y)
+
+        return TensorMoments(y, None, False)
 
     # Backward propagation of the activation layer
     def backward_async(self):
