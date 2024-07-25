@@ -258,7 +258,7 @@ def test_attention(starpu_simple, dtype: np.dtype):
 
 @pytest.mark.parametrize("n_head,n_head_tile", [(1, 1)])
 def test_dynamic(starpu_simple, numpy_rng, n_head, n_head_tile):
-    inp_np = np.asfortranarray(numpy_rng.random(3, 10, 1))
+    inp_np = np.asfortranarray(numpy_rng.random((3, 10, 1)))
 
     inp = nntc.from_array(inp_np)
     inp2 = nntc.from_array(inp_np)
@@ -353,7 +353,7 @@ def test_kvcache(starpu_simple, numpy_rng, n_head, n_head_tile):
     prefill_size = 4
     max_tokens = 8
 
-    inp_np = np.asfortranarray(numpy_rng.random(3, 8, 1))
+    inp_np = np.asfortranarray(numpy_rng.random((3, 8, 1)))
     inp_np[:, prefill_size:, :] = 0
 
     inp = nntc.from_array(inp_np)
