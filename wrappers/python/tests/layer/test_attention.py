@@ -258,8 +258,8 @@ def test_attention(starpu_simple, dtype: np.dtype):
 
 
 @pytest.mark.parametrize("n_head,n_head_tile", [(1, 1)])
-def test_dynamic(starpu_simple, n_head, n_head_tile):
-    inp_np = np.asfortranarray(np.random.randn(3, 10, 1))
+def test_dynamic(starpu_simple, numpy_rng, n_head, n_head_tile):
+    inp_np = np.asfortranarray(numpy_rng.random(3, 10, 1))
 
     inp = nntc.from_array(inp_np)
     inp2 = nntc.from_array(inp_np)
@@ -275,21 +275,21 @@ def test_dynamic(starpu_simple, n_head, n_head_tile):
         inp3, grad=nntc.zeros(inp3.shape, dtype=type(inp)), grad_required=False
     )
 
-    l, _ = Attention.generate_simple(
+    attn, _ = Attention.generate_simple(
         inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, 0, bias=False
     )
-    l.init_randn_async()
+    attn.init_randn_async()
 
-    out_dynamic_actual = l.forward_dynamic(inp_tm)
+    out_dynamic_actual = attn.forward_dynamic(inp_tm)
     out_dynamic_actual_np = nntc.to_numpy(out_dynamic_actual)
 
-    l.forward_async()
-    out_dynamic_expected_np = nntc.to_numpy(l.y.value)
+    attn.forward_async()
+    out_dynamic_expected_np = nntc.to_numpy(attn.y.value)
 
     np.testing.assert_allclose(
         out_dynamic_actual_np,
         out_dynamic_expected_np,
-        err_msg=f"Dynamic does not match static",
+        err_msg="Dynamic does not match static",
     )
 
 
@@ -392,5 +392,5 @@ def test_kvcache(starpu_simple, n_head, n_head_tile):
     np.testing.assert_allclose(
         outs_stat_np,
         outs_dyn_np,
-        err_msg=f"test_kvcache: Dynamic does not match static",
+        err_msg="test_kvcache: Dynamic does not match static",
     )
