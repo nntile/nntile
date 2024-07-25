@@ -11,18 +11,29 @@
 #
 # @version 1.0.0
 
-from typing import List
-
 import numpy as np
 
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor, TensorMoments, TensorOrNone, TensorTraits, TransOp,
-    add_fiber_async, add_slice_async, clear_async, copy_async,
-    copy_intersection_async, gemm_async, mask_scalar_async, maxsumexp_async,
-    notrans, prod_async, randn_async, softmax_inplace_async, sum_fiber_async,
-    sumprod_slice_async, trans, transpose_async)
+    Tensor,
+    TensorMoments,
+    TensorTraits,
+    add_fiber_async,
+    add_slice_async,
+    clear_async,
+    copy_intersection_async,
+    gemm_async,
+    mask_scalar_async,
+    maxsumexp_async,
+    notrans,
+    prod_async,
+    softmax_inplace_async,
+    sum_fiber_async,
+    sumprod_slice_async,
+    trans,
+    transpose_async,
+)
 
 
 # Multi-head attention
@@ -658,7 +669,8 @@ class Attention(BaseLayer):
         )
         self.k_cache_size += x.shape[1]
 
-        # For correct softmax we should next use only currently cached seq_size. So copy here
+        # For correct softmax we should next use only currently cached seq_size
+        # So copy here
         cached_shape = self.k.value.shape
         cached_shape[1] = self.k_cache_size
         k_partial_cached = nntc.zeros(cached_shape, dtype=type(x))
@@ -726,7 +738,8 @@ class Attention(BaseLayer):
         )
         self.v_cache_size += x.shape[1]
 
-        # For correct softmax we should next use only currently cached seq_size. So copy here
+        # For correct softmax we should next use only currently cached seq_size
+        # So copy here
         cached_shape = self.v.value.shape
         cached_shape[1] = self.v_cache_size
         v_partial_cached = nntc.zeros(cached_shape, dtype=type(x))
@@ -934,7 +947,8 @@ class Attention(BaseLayer):
 
         if x.value.shape[1] + self.v_cache_size > self.x_v.value.shape[1]:
             raise Exception(
-                f"Overload internal state: try add {x.value.shape[1]} to {self.v_cache_size}, max: {self.x_v.value.shape[1]}. "
+                "Overload internal state: "
+                f"try add {x.value.shape[1]} to {self.v_cache_size}, max: {self.x_v.value.shape[1]}. "
                 "Maybe you forgot to call reset_cache between iterations?"
             )
 
