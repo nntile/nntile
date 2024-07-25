@@ -160,14 +160,16 @@ def generate_inputs(params: LlamaTestParams,
             mask, nntile_config, 0)
     nntile_model.clear_gradients()
     x_random = gen.integers(params.seq_len,
-                            size=nntile_model.activations[0].value.shape)
+                            size=nntile_model.activations[0].value.shape,
+                            dtype=np.int64)
 
-    x_nntile = np.array(x_random, np.int64, order='F')
+    x_nntile = np.array(x_random, dtype=np.int64, order='F')
     nntile_model.activations[0].value.from_array(x_nntile)
     x_torch = torch.tensor(x_nntile.T)
     y_grad_random = gen.standard_normal((params.hidden_size,
                                          params.seq_len,
-                                         params.batch_size))
+                                         params.batch_size),
+                                        dtype=np.float32)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order='F')
     nntile_model.activations[-1].grad.from_array(y_grad_nntile)
     y_grad_torch = torch.Tensor(y_grad_nntile.T)
