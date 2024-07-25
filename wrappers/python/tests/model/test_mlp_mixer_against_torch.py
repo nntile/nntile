@@ -11,20 +11,28 @@
 #
 # @version 1.0.0
 
-# All necesary imports
+# ruff: noqa: E501
+
 import numpy as np
+import pytest
 import torch
 import torch.nn as nn
 import torchvision.transforms as trnsfrms
+
 import nntile
-from nntile.torch_models.mlp_mixer import MlpMixer
 from nntile.model.mlp_mixer import MlpMixer as MlpMixerTile
+from nntile.torch_models.mlp_mixer import MlpMixer
+
+config = nntile.starpu.Config(1, 0, 0)
+nntile.starpu.init()
 
 
 def image_patching(image, patch_size):
     c, h, w = image.shape
     if h % patch_size != 0 or w % patch_size != 0:
-            raise ValueError("patch size should be divisor of both image height and width")
+        raise ValueError(
+            'Patch size should be divisor of both image height and width: '
+            f'height={h}, width={w}, patch_size={patch_size}.')
     n_patches = int(h * w / (patch_size ** 2))
     n_channels = c * (patch_size ** 2)
     patched_batch = torch.empty((n_patches, n_channels), dtype=image.dtype)
@@ -36,8 +44,8 @@ def image_patching(image, patch_size):
         y = i % n_y
 
         for clr in range(c):
-            vect_patch = image[clr, x * patch_size: (x+1) * patch_size , y * patch_size: (y+1) * patch_size].flatten()
-            patched_batch[i, clr * (patch_size ** 2) : (clr+1) * (patch_size ** 2)] = vect_patch
+            vect_patch = image[clr, x * patch_size:(x + 1) * patch_size, y * patch_size:(y + 1) * patch_size].flatten()
+            patched_batch[i, clr * (patch_size ** 2) : (clr + 1) * (patch_size ** 2)] = vect_patch
     return patched_batch
 
 
@@ -59,13 +67,8 @@ def data_loader_to_tensor(data_set, label_set, trns, batch_size, minibatch_size,
     return train_tensor, label_tensor
 
 
-# Set up StarPU configuration and init it
-config = nntile.starpu.Config(1, 0, 0)
-# Init all NNTile-StarPU codelets
-nntile.starpu.init()
-
-
-def helper():
+@pytest.mark.slow
+def test_mlp_mixer():
     patch_size = 16
     batch_size = 6
     minibatch_size = 3
@@ -91,11 +94,13 @@ def helper():
 
     trnsform = trnsfrms.Compose([trnsfrms.ToTensor()])
 
-    train_set_data = np.random.randint(low=0, high=255, size=data_dim)
-    train_set_targets = np.random.randint(low=0, high=10, size=(num_batch_to_go * batch_size,))
+    rng = np.random.default_rng(42)
 
-    test_set_data = np.random.randint(low=0, high=255, size=data_dim)
-    test_set_targets = np.random.randint(low=0, high=10, size=(num_batch_to_go * batch_size,))
+    train_set_data = rng.integers(0, 255, data_dim)
+    train_set_targets = rng.integers(0, 10, (num_batch_to_go * batch_size,))
+
+    test_set_data = rng.integers(0, 255, data_dim)
+    test_set_targets = rng.integers(0, 10, (num_batch_to_go * batch_size,))
 
     train_data_tensor, train_labels = data_loader_to_tensor(train_set_data, train_set_targets, trnsform, batch_size, minibatch_size, patch_size)
     train_labels = train_labels.type(torch.LongTensor)
@@ -109,7 +114,7 @@ def helper():
     for batch_iter in range(num_batch_to_go):
         torch_train_loss = torch.zeros(1, dtype=torch.float32)
         for minibatch_iter in range(num_minibatch_train):
-            patched_train_sample = train_data_tensor[batch_iter,minibatch_iter,:,:,:]
+            patched_train_sample = train_data_tensor[batch_iter, minibatch_iter, :, :, :]
             true_labels = train_labels[batch_iter, minibatch_iter, :]
             torch_output = torch_mixer_model(patched_train_sample)
             loss_local = crit_torch(torch_output, true_labels)
@@ -118,10 +123,10 @@ def helper():
         optim_torch.step()
         torch_mixer_model.zero_grad()
 
-    patched_test_sample = test_data_tensor[1,1,:,:,:]
+    patched_test_sample = test_data_tensor[1, 1, :, :, :]
     true_labels = train_labels[1, 1, :]
 
-    nntile_mixer_model, next_tag = MlpMixerTile.from_torch(torch_mixer_model,minibatch_size,num_classes, next_tag)
+    nntile_mixer_model, next_tag = MlpMixerTile.from_torch(torch_mixer_model, minibatch_size, num_classes, next_tag)
     crit_nntile, next_tag = nntile.loss.CrossEntropy.generate_simple(nntile_mixer_model.activations[-1], next_tag)
 
     torch_mixer_model.zero_grad()
@@ -166,23 +171,8 @@ def helper():
             p_nntile_grad_np = np.transpose(p_nntile_grad_np)
 
         rel_error = torch.norm(p_torch.grad - torch.from_numpy(p_nntile_grad_np)) / torch.norm(p_torch.grad)
-        if rel_error > tol:
-            crit_nntile.unregister()
-            test_tensor.unregister()
-            nntile_mixer_model.unregister()
-            return False
+        assert rel_error <= tol
 
     crit_nntile.unregister()
     test_tensor.unregister()
     nntile_mixer_model.unregister()
-    print("Test successful")
-    assert True
-
-
-# Test runner
-def test():
-    helper()
-
-
-if __name__ == "__main__":
-    test()

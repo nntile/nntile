@@ -21,7 +21,7 @@ namespace nntile::tensor
 //! Tile-wise average and deviation from sum and scaled sum of squares
 template<typename T>
 void normalize_async(const Tensor<T> &gamma_beta, const Tensor<T> &src,
-        const Tensor<T> &dst, Index l, Scalar eps, Index axis)
+        const Tensor<T> &dst, Index size, Scalar eps, Index axis)
 {
     // Check gamma_beta
     if(gamma_beta.shape.size() != 1)
@@ -47,9 +47,9 @@ void normalize_async(const Tensor<T> &gamma_beta, const Tensor<T> &src,
         throw std::runtime_error("src.ndim == 0");
     }
     // Check number of elements
-    if(l <= 0)
+    if(size <= 0)
     {
-        throw std::runtime_error("l <= 0");
+        throw std::runtime_error("size <= 0");
     }
     // Check regularization
     if(eps <= 0)
@@ -160,13 +160,13 @@ void normalize_async(const Tensor<T> &gamma_beta, const Tensor<T> &src,
                 // Get destination tile traits
                 auto dst_tile_traits = dst.get_tile_traits(dst_tile_offset);
                 // Reshape inputs for simplicity: src -> (2,m,n), dst -> (m,k,n)
-                // dst is a part of (m,l,n) tensor
+                // dst is a part of (m,size,n) tensor
                 Index m, n, k;
                 m = dst_tile_traits.stride[axis];
                 n = dst_tile_traits.matrix_shape[axis+1][1];
                 k = dst_tile_traits.shape[axis];
                 // Insert corresponding task
-                starpu::normalize::submit<T>(m, n, k, l, eps,
+                starpu::normalize::submit<T>(m, n, k, size, eps,
                         gamma_beta_handle, src_tile_handle, dst_tile_handle);
             }
             // Flush cache for the output tile on every node
@@ -178,9 +178,9 @@ void normalize_async(const Tensor<T> &gamma_beta, const Tensor<T> &src,
 //! Tile-wise average and deviation from sum and scaled sum of squares
 template<typename T>
 void normalize(const Tensor<T> &gamma_beta, const Tensor<T> &src,
-        const Tensor<T> &dst, Index l, Scalar eps, Index axis)
+        const Tensor<T> &dst, Index size, Scalar eps, Index axis)
 {
-    normalize_async<T>(gamma_beta, src, dst, l, eps, axis);
+    normalize_async<T>(gamma_beta, src, dst, size, eps, axis);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -188,23 +188,23 @@ void normalize(const Tensor<T> &gamma_beta, const Tensor<T> &src,
 // Explicit instantiation
 template
 void normalize_async<fp32_t>(const Tensor<fp32_t> &gamma_beta,
-        const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst, Index l,
+        const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst, Index size,
         Scalar eps, Index axis);
 
 template
 void normalize_async<fp64_t>(const Tensor<fp64_t> &gamma_beta,
-        const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst, Index l,
+        const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst, Index size,
         Scalar eps, Index axis);
 
 // Explicit instantiation
 template
 void normalize<fp32_t>(const Tensor<fp32_t> &gamma_beta,
-        const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst, Index l,
+        const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst, Index size,
         Scalar eps, Index axis);
 
 template
 void normalize<fp64_t>(const Tensor<fp64_t> &gamma_beta,
-        const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst, Index l,
+        const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst, Index size,
         Scalar eps, Index axis);
 
 } // namespace nntile::tensor

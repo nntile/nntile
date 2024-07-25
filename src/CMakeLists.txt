@@ -72,6 +72,8 @@ else()
         "kernel/transpose/cpu.cc"
         "kernel/silu_forward/cpu.cc"
         "kernel/silu_backward/cpu.cc"
+        "kernel/rope/cpu.cc"
+        "kernel/rope_backward/cpu.cc"
         )
 
     if(NNTILE_USE_CUDA)
@@ -133,6 +135,8 @@ else()
             "kernel/transpose/cuda.cu"
             "kernel/silu_forward/cuda.cu"
             "kernel/silu_backward/cuda.cu"
+            "kernel/rope/cuda.cu"
+            "kernel/rope_backward/cuda.cu"
             )
         endif(NNTILE_USE_CUDA)
 endif(HAVE_STARPU_SIMGRID)
@@ -205,6 +209,8 @@ set(STARPU_SRC
     "starpu/transpose.cc"
     "starpu/silu_forward.cc"
     "starpu/silu_backward.cc"
+    "starpu/rope.cc"
+    "starpu/rope_backward.cc"
     )
 
 set(TILE_SRC
@@ -265,6 +271,7 @@ set(TILE_SRC
     "tile/adamw_step.cc"
     "tile/silu_forward.cc"
     "tile/silu_backward.cc"
+    "tile/rope.cc"
     )
 
 set(TENSOR_SRC
@@ -335,6 +342,8 @@ set(TENSOR_SRC
     "tensor/transpose.cc"
     "tensor/silu_forward.cc"
     "tensor/silu_backward.cc"
+    "tensor/rope.cc"
+    "tensor/rope_backward.cc"
     )
 
 set(LAYER_SRC

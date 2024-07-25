@@ -26,9 +26,6 @@ from torch.nn import MultiheadAttention
 from nntile.functions import copy_async
 
 
-# Define list of tested types
-dtypes = [np.float32, np.float64]
-
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}

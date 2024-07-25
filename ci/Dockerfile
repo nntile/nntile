@@ -45,7 +45,7 @@ ENV STARPU_SILENT=1
 
 ENV OMP_NUM_THREADS=1
 
-ARG STARPU_VERSION=starpu-1.3.11
+ARG STARPU_VERSION=starpu-1.4.7
 
 RUN set -xe && \
     mkdir -p /usr/src && \

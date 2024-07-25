@@ -14,6 +14,6 @@
 from .base_model import BaseModel
 from .deep_linear import DeepLinear
 from .deep_relu import DeepReLU
-#from .deep_relu_mp import DeepReLU_mp
-# from .gpt2 import GPT2Config, GPT2Model
 from .mlp_mixer import MlpMixer
+
+__all__ = ('BaseModel', 'DeepLinear', 'DeepReLU', 'MlpMixer')
