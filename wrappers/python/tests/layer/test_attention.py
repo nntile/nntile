@@ -276,23 +276,18 @@ def generate_greedy_logits_padding(attn_layer, input_ids, prefill_size, max_toke
 
     output_ids = input_ids
     while cur_seq_size < max_tokens:
-        copy_async(output_ids, attn_layer.x_k.value)
-        copy_async(output_ids, attn_layer.x_v.value)
-        copy_async(output_ids, attn_layer.x_q.value)
-        attn_layer.forward_async()
-        logits = attn_layer.y.value
+        output_ids_np = nntc.to_numpy(output_ids)
 
+        logits = attn_layer.forward_dynamic(nntile.tensor.TensorMoments(output_ids, None, False), use_cache=False)
         logits_np = nntc.to_numpy(logits)
 
-        # TODO: add starpu function for scalar assign
-        output_ids_np = nntc.to_numpy(output_ids)
-        output_ids_np[:, cur_seq_size, :] = logits_np[:, cur_seq_size - 1, :]
+        output_ids_np = np.concatenate([output_ids_np, logits_np[:,-1,:][:,None,:]], axis=1)
         output_ids = nntc.from_array(output_ids_np)
         cur_seq_size += 1
 
     return output_ids
 
-def generate_greedy_logits_dynamic(attn_layer, input_ids, prefill_size, max_tokens):
+def generate_greedy_logits_dynamic_kvcache(attn_layer, input_ids, prefill_size, max_tokens):
     cur_seq_size = prefill_size
 
     # prefill
@@ -320,10 +315,10 @@ def generate_greedy_logits_dynamic(attn_layer, input_ids, prefill_size, max_toke
 
 @pytest.mark.parametrize('n_head,n_head_tile', [(1,1)])
 def test_kvcache(starpu_simple, n_head, n_head_tile):
-    prefill_size = 5
-    max_tokens = 6
+    prefill_size = 4
+    max_tokens = 8
 
-    inp_np = np.asfortranarray(np.random.randn(3,10,1))
+    inp_np = np.asfortranarray(np.random.randn(3,8,1))
     inp_np[:, prefill_size: ,:] = 0
 
     inp = nntc.from_array(inp_np)
@@ -339,14 +334,15 @@ def test_kvcache(starpu_simple, n_head, n_head_tile):
     
     # slice to prefill size
     inp_prefill = nntc.from_array(inp_np[:,:prefill_size,:])
-    outs_dyn = generate_greedy_logits_dynamic(l, inp_prefill, prefill_size, max_tokens)
+    outs_dyn = generate_greedy_logits_dynamic_kvcache(l, inp_prefill, prefill_size, max_tokens)
     outs_dyn_np = nntc.to_numpy(outs_dyn)
 
-    outs_stat = generate_greedy_logits_padding(l, inp, prefill_size, max_tokens)
+    inp_prefill = nntc.from_array(inp_np[:,:prefill_size,:])
+    outs_stat = generate_greedy_logits_padding(l, inp_prefill, prefill_size, max_tokens)
     outs_stat_np = nntc.to_numpy(outs_stat)
 
     np.testing.assert_allclose(
-        outs_stat_np[:, prefill_size:max_tokens, :],
-        outs_dyn_np[:, prefill_size:max_tokens, :],
+        outs_stat_np,
+        outs_dyn_np,
         err_msg=f"test_kvcache: Dynamic does not match static",
     )
