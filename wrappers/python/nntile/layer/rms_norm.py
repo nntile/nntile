@@ -192,8 +192,9 @@ class RMSNorm(BaseLayer):
         target_shape = self.activations_input[0].value.shape
         torch_layer = RMSNorm_torch(target_shape[self.axis],
                                     self.eps**2)
-        self.parameters[0].value.to_array(torch_layer.weight.data)
-
+        torch_layer.weight.data = torch.tensor(
+                                to_numpy(self.parameters[0].value),
+                                requires_grad=True)
         return torch_layer
 
     def to_torch_with_grads(self):
