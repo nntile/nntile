@@ -408,11 +408,6 @@ class Attention(BaseLayer):
     def reset_cache(self, value=0):
         self.k_cache_size = value
         self.v_cache_size = value
-
-        # need to fill with valid values for dynamic api usage
-        clear_async(self.q.value)
-        clear_async(self.k.value)
-        clear_async(self.v.value)
     
     def _forward_mlp_q_async(self):
         # Q_transposed = einsum('jkl,lmn->jkmn', W_Q, X_Q)
