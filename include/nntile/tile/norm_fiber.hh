@@ -22,11 +22,11 @@ namespace nntile::tile
 // Tile-wise norm_fiber
 template<typename T>
 void norm_fiber_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-        Index axis, Index batch_ndim, int redux);
+        Index axis, Index batch_ndim, int redux=0);
 
 // Tile-wise norm_fiber
 template<typename T>
 void norm_fiber(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-        Index axis, Index batch_ndim, int redux);
+        Index axis, Index batch_ndim, int redux=0);
 
 } // namespace nntile::tile
