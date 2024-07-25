@@ -16,24 +16,10 @@ import numpy as np
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor,
-    TensorMoments,
-    TensorTraits,
-    add_fiber_async,
-    add_slice_async,
-    clear_async,
-    copy_intersection_async,
-    gemm_async,
-    mask_scalar_async,
-    maxsumexp_async,
-    notrans,
-    prod_async,
-    softmax_inplace_async,
-    sum_fiber_async,
-    sumprod_slice_async,
-    trans,
-    transpose_async,
-)
+    Tensor, TensorMoments, TensorTraits, add_fiber_async, add_slice_async,
+    clear_async, copy_intersection_async, gemm_async, mask_scalar_async,
+    maxsumexp_async, notrans, prod_async, softmax_inplace_async,
+    sum_fiber_async, sumprod_slice_async, trans, transpose_async)
 
 
 # Multi-head attention
