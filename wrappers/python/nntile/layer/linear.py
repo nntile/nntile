@@ -29,9 +29,6 @@ class Linear(BaseLayer):
     y: TensorMoments
     w: TensorMoments
     ndim: int
-    x_fp16: TensorMoments
-    y_fp16: TensorMoments
-    w_fp16: TensorMoments
     b: Union[TensorMoments, None]
 
     # Construct linear layer with all the provided data
