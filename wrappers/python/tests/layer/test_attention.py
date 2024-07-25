@@ -19,7 +19,6 @@ from torch.nn import MultiheadAttention
 # All necesary imports
 import nntile
 import nntile.utils.constructors as nntc
-from nntile.functions import copy_async
 from nntile.layer import Attention
 
 # Define mapping between numpy and nntile types
@@ -350,11 +349,11 @@ def generate_greedy_logits_dynamic_kvcache(
 
 
 @pytest.mark.parametrize("n_head,n_head_tile", [(1, 1)])
-def test_kvcache(starpu_simple, n_head, n_head_tile):
+def test_kvcache(starpu_simple, numpy_rng, n_head, n_head_tile):
     prefill_size = 4
     max_tokens = 8
 
-    inp_np = np.asfortranarray(np.random.randn(3, 8, 1))
+    inp_np = np.asfortranarray(numpy_rng.random(3, 8, 1))
     inp_np[:, prefill_size:, :] = 0
 
     inp = nntc.from_array(inp_np)
@@ -371,21 +370,21 @@ def test_kvcache(starpu_simple, n_head, n_head_tile):
         inp3, grad=nntc.zeros(inp3.shape, dtype=type(inp)), grad_required=False
     )
 
-    l, _ = Attention.generate_simple(
+    attn, _ = Attention.generate_simple(
         inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, 0, bias=False
     )
-    l.init_randn_async()
+    attn.init_randn_async()
 
     # slice to prefill size
     inp_prefill = nntc.from_array(inp_np[:, :prefill_size, :])
     outs_dyn = generate_greedy_logits_dynamic_kvcache(
-        l, inp_prefill, prefill_size, max_tokens
+        attn, inp_prefill, prefill_size, max_tokens
     )
     outs_dyn_np = nntc.to_numpy(outs_dyn)
 
     inp_prefill = nntc.from_array(inp_np[:, :prefill_size, :])
     outs_stat = generate_greedy_logits_padding(
-        l, inp_prefill, prefill_size, max_tokens
+        attn, inp_prefill, prefill_size, max_tokens
     )
     outs_stat_np = nntc.to_numpy(outs_stat)
 

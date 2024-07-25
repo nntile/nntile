@@ -934,7 +934,8 @@ class Attention(BaseLayer):
         if x.value.shape[1] + self.v_cache_size > self.x_v.value.shape[1]:
             raise Exception(
                 "Overload internal state: "
-                f"try add {x.value.shape[1]} to {self.v_cache_size}, max: {self.x_v.value.shape[1]}. "
+                f"try add {x.value.shape[1]} "
+                f"to {self.v_cache_size}, max: {self.x_v.value.shape[1]}. "
                 "Maybe you forgot to call reset_cache between iterations?"
             )
 
