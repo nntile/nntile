@@ -444,7 +444,7 @@ class Attention(BaseLayer):
         q_partial_shape = tuple(x.shape)+(1,)
         return nntc.zeros(q_partial_shape, dtype=type(x))
 
-    def _forward_mlp_q_cached(self, x: Tensor):
+    def _forward_mlp_q_dynamic(self, x: Tensor):
         q_partial_tr = self._get_tmp_tr_for_cache(x)
         q_partial = self._get_tmp_for_cache(x)
 
@@ -490,7 +490,7 @@ class Attention(BaseLayer):
                     self.k.value, 0, 1)
             self.in_proj_bias_k.value.wont_use()
 
-    def _forward_mlp_k_dynamic(self, x: Tensor, use_kv_partials: bool = True):
+    def _forward_mlp_k_dynamic(self, x: Tensor):
         k_partial_tr = self._get_tmp_tr_for_cache(x)
         k_partial = self._get_tmp_for_cache(x)
         
@@ -505,14 +505,12 @@ class Attention(BaseLayer):
         copy_intersection_async(k_partial, [0,self.k_cache_size,0,0], self.k.value, [0,0,0,0])
         self.k_cache_size+=x.shape[1]
 
-        if use_kv_partials:
-            cached_shape = self.k.value.shape
-            cached_shape[1] = self.k_cache_size
-            k_partial_cached = nntc.zeros(cached_shape, dtype=type(x))
-            copy_intersection_async(self.k.value, [0,0,0,0], k_partial_cached, [0,0,0,0])
-            return k_partial_cached
-        else:
-            return self.k.value
+        # For correct softmax we should next use only currently cached seq_size. So copy here
+        cached_shape = self.k.value.shape
+        cached_shape[1] = self.k_cache_size
+        k_partial_cached = nntc.zeros(cached_shape, dtype=type(x))
+        copy_intersection_async(self.k.value, [0,0,0,0], k_partial_cached, [0,0,0,0])
+        return k_partial_cached
 
     def _forward_mlp_v_async(self):
         # V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V)
@@ -536,7 +534,7 @@ class Attention(BaseLayer):
                     self.v.value, 0, 1)
             self.in_proj_bias_v.value.wont_use()
 
-    def _forward_mlp_v_dynamic(self, x: Tensor, use_kv_partials: bool = True):
+    def _forward_mlp_v_dynamic(self, x: Tensor):
         v_partial_tr = self._get_tmp_tr_for_cache(x)
         v_partial = self._get_tmp_for_cache(x)
         
@@ -551,14 +549,12 @@ class Attention(BaseLayer):
         copy_intersection_async(v_partial, [0,self.v_cache_size,0,0], self.v.value, [0,0,0,0])
         self.v_cache_size+=x.shape[1]
 
-        if use_kv_partials:
-            cached_shape = self.v.value.shape
-            cached_shape[1] = self.v_cache_size
-            v_partial_cached = nntc.zeros(cached_shape, dtype=type(x))
-            copy_intersection_async(self.v.value, [0,0,0,0], v_partial_cached, [0,0,0,0])
-            return v_partial_cached
-        else:
-            return self.v.value
+        # For correct softmax we should next use only currently cached seq_size. So copy here
+        cached_shape = self.v.value.shape
+        cached_shape[1] = self.v_cache_size
+        v_partial_cached = nntc.zeros(cached_shape, dtype=type(x))
+        copy_intersection_async(self.v.value, [0,0,0,0], v_partial_cached, [0,0,0,0])
+        return v_partial_cached
     
     def _forward_attn_async(self):
         # Get tensor for softmax
@@ -702,7 +698,7 @@ class Attention(BaseLayer):
         self.reset_cache(effective_size)
         
 
-    def forward_dynamic(self, x: TensorMoments, use_cache: bool = False, use_kv_partials: bool = True):
+    def forward_dynamic(self, x: TensorMoments, use_cache: bool = False):
         if not use_cache:
             self.reset_cache()
 
@@ -713,9 +709,9 @@ class Attention(BaseLayer):
             )
 
         # Compute query, key and value tensors
-        q_partial = self._forward_mlp_q_cached(x.value)
-        k = self._forward_mlp_k_dynamic(x.value, use_kv_partials)
-        v = self._forward_mlp_v_dynamic(x.value, use_kv_partials)
+        q_partial = self._forward_mlp_q_dynamic(x.value)
+        k = self._forward_mlp_k_dynamic(x.value)
+        v = self._forward_mlp_v_dynamic(x.value)
         
         # compute attention and weight result
         y_tensor = self._forward_attn_dynamic(q_partial,k,v)
