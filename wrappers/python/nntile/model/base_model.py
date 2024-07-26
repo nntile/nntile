@@ -42,6 +42,13 @@ class BaseModel:
         for l in self.layers:
             l.forward_async()
 
+    # Forward propagation with dynamic shapes
+    def forward_dynamic(self, x: TensorMoments):
+        out = x
+        for l in self.layers:
+            out = l.forward_dynamic(out)
+        return out
+
     # Backward propagation
     def backward_async(self):
         for l in reversed(self.layers):

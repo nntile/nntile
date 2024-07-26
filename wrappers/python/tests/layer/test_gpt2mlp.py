@@ -21,6 +21,7 @@ import torch.nn as nn
 from torch import Tensor
 
 import nntile
+import nntile.utils.constructors as nntc
 from gpt2_config import GPT2Config
 from huggingface_activations import ACT2FN
 from nntile.model.gpt2 import GPT2MLP as GPT2MLP_nntile
@@ -67,7 +68,6 @@ class GPT2MLP(nn.Module):
         return hidden_states
 
 
-@pytest.mark.xfail(reason='not implemented')
 def test_gpt2mlp(batch_size=100, batch_size_tile=10, interm_size=1000,
                  interm_size_tile=100):
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -104,7 +104,8 @@ def test_gpt2mlp(batch_size=100, batch_size_tile=10, interm_size=1000,
         "inner_dim_tile": interm_size_tile,
         "interm_size": interm_size,
         "interm_size_tile": interm_size_tile,
-        "activation_function": gpt2_config.activation_function
+        "activation_function": gpt2_config.activation_function,
+        "redux": False,
     }
 
     x_traits = nntile.tensor.TensorTraits([input_dim, batch_size],
@@ -144,6 +145,59 @@ def test_gpt2mlp(batch_size=100, batch_size_tile=10, interm_size=1000,
         rel_error = np.linalg.norm(p_np - p_torch_np) \
                 / np.linalg.norm(p_torch_np)
         print("Relative error in layer {} gradient = {}".format(i, rel_error))
+
+    gpt2mlp_nntile.unregister()
+    x.unregister()
+
+
+def test_gpt2mlp_dynamic(starpu_simple, batch_size=100, interm_size=1000,
+                 interm_size_tile=1000):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    gpt2_config = GPT2Config(activation_function="relu",
+                             resid_pdrop=0.)
+
+    input_dim = gpt2_config.n_embd
+    input_dim_tile = input_dim
+    gpt2mlp_hug = GPT2MLP(interm_size, gpt2_config).to(device)
+
+    rng = np.random.default_rng(42)
+    test_input_np = rng.standard_normal((input_dim, batch_size)).astype(np.float32, 'F')
+    test_input_half_np = rng.standard_normal((input_dim, batch_size//2)).astype(np.float32, 'F')
+
+    hug_result = gpt2mlp_hug(torch.from_numpy(test_input_np.T).to(device))
+    hug_result_half = gpt2mlp_hug(torch.from_numpy(test_input_half_np.T).to(device))
+
+    next_tag = 0
+
+    nntile_config = {
+        "embed_dim": input_dim,
+        "embed_dim_tile": input_dim_tile,
+        "inner_dim": interm_size,
+        "inner_dim_tile": interm_size_tile,
+        "interm_size": interm_size,
+        "interm_size_tile": interm_size_tile,
+        "activation_function": gpt2_config.activation_function,
+        "redux": False,
+    }
+
+    x = nntc.from_array(test_input_np)
+    x_moments = nntile.tensor.TensorMoments(x, None, False)
+
+
+    gpt2mlp_nntile, next_tag = GPT2MLP_nntile.from_torch(
+        gpt2mlp_hug, x_moments, nntile_config, next_tag)
+    
+    # test with same tensor
+    output_nnt = gpt2mlp_nntile.forward_dynamic(x_moments)
+    output = nntc.to_numpy(output_nnt.value)
+    assert np.linalg.norm(output.T - hug_result.cpu().detach().numpy()) < 1e-04
+
+    # test with half size tensor
+    x_half = nntc.from_array(test_input_half_np)
+    x_half_moments = nntile.tensor.TensorMoments(x_half, None, False)
+    output_half_nnt = gpt2mlp_nntile.forward_dynamic(x_half_moments)
+    output_half_nnt = nntc.to_numpy(output_half_nnt.value)
+    assert np.linalg.norm(output_half_nnt.T - hug_result_half.cpu().detach().numpy()) < 1e-04
 
     gpt2mlp_nntile.unregister()
     x.unregister()
