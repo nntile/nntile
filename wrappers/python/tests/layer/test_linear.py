@@ -17,11 +17,14 @@ import torch
 import torch.nn as nn
 
 import nntile
+import nntile.utils.constructors as nntc
 from nntile.layer import Linear
 
 # Define mapping between numpy and nntile types
-Tensor = {np.float32: nntile.tensor.Tensor_fp32,
-        np.float64: nntile.tensor.Tensor_fp64}
+Tensor = {
+    np.float32: nntile.tensor.Tensor_fp32,
+    np.float64: nntile.tensor.Tensor_fp64,
+}
 
 config = nntile.starpu.Config(1, 0, 0)
 nntile.starpu.init()
@@ -321,4 +324,63 @@ def test_linear_with_torch_init(x_shape, w_shape):
     assert x_grad_rel_error <= 1e-5
 
     A_moments.unregister()
+    layer.unregister()
+
+
+@pytest.mark.parametrize(
+    "x_shape,w_shape",
+    [
+        ([64, 100], [100, 10]),
+        ([64, 128, 100], [100, 20]),
+    ],
+)
+def test_dynamic(numpy_rng, x_shape, w_shape):
+    """Similar to `test_linear_with_torch` but weights are initialized with
+    :py:class:`torch.nn.Linear`.
+    """
+    # build layer from torch
+    linear_layer = nn.Linear(*w_shape)
+    x_nntile_tm_for_build = nntile.tensor.TensorMoments(
+        nntc.zeros(x_shape[::-1], dtype=nntile.tensor.Tensor_fp32), None, False
+    )
+    next_tag = 0
+    layer, next_tag = Linear.from_torch(
+        linear_layer, x_nntile_tm_for_build, w_shape[1], False, next_tag
+    )
+
+    # generate input
+    x_np = np.asfortranarray(numpy_rng.random(x_shape, dtype=np.float32))
+
+    # Test for same size tensor
+    x_torch = torch.Tensor(x_np)
+    torch_output = linear_layer(x_torch)
+
+    x_nntile_tm = nntile.tensor.TensorMoments(
+        nntc.from_array(np.transpose(x_np)), None, False
+    )
+    nntile_res_tm = layer.forward_dynamic(x_nntile_tm)
+    nntile_res = np.transpose(nntc.to_numpy(nntile_res_tm.value))
+
+    output_rel_error = np.linalg.norm(
+        nntile_res - torch_output.detach().numpy()
+    ) / np.linalg.norm(torch_output.detach().numpy())
+    assert output_rel_error <= 1e-5
+
+    # Test for half size tensor
+    torch_output_half = linear_layer(x_torch[: x_torch.shape[0] // 2, :])
+    x_nntile_half_tm = nntile.tensor.TensorMoments(
+        nntc.from_array(np.transpose(x_np[: x_np.shape[0] // 2, :])),
+        None,
+        False,
+    )
+    nntile_res_half_tm = layer.forward_dynamic(x_nntile_half_tm)
+    nntile_half_res = np.transpose(nntc.to_numpy(nntile_res_half_tm.value))
+
+    output_rel_error = np.linalg.norm(
+        nntile_half_res - torch_output_half.detach().numpy()
+    ) / np.linalg.norm(torch_output_half.detach().numpy())
+    assert output_rel_error <= 1e-5
+
+    x_nntile_tm_for_build.value.unregister()
+    x_nntile_tm.value.unregister()
     layer.unregister()
