@@ -31,12 +31,11 @@ nnt2np_type_mapping = {
 }
 
 np2nnt_type_mapping = {
-    np.dtypes.Float32DType: Tensor_fp32,
-    np.dtypes.Float64DType: Tensor_fp64,
-    np.dtypes.IntDType: Tensor_int64,
-    np.dtypes.Int32DType: Tensor_int64,
-    np.dtypes.Int64DType: Tensor_int64,
-    np.dtypes.BoolDType: Tensor_bool,
+    np.float32: Tensor_fp32,
+    np.float64: Tensor_fp64,
+    np.int32: Tensor_int64,
+    np.int64: Tensor_int64,
+    np.bool: Tensor_bool,
 }
 
 
@@ -54,14 +53,8 @@ def empty(
     return A_value
 
 
-def empty_like(
-    A: np.ndarray,
-    basetile_shape: Sequence[int] | None = None,
-    mpi_distr: Sequence[int] | None = None,
-    next_tag: int = 0
-):
-    dtype = np2nnt_type_mapping[type(A.dtype)]
-    return empty(A.shape, basetile_shape, dtype, mpi_distr, next_tag)
+def empty_like(A: Tensor, next_tag: int = 0):
+    return empty(A.shape, A.basetile_shape, type(A), A.mpi_distr, next_tag)
 
 
 def from_array(
@@ -70,9 +63,10 @@ def from_array(
     mpi_distr: Sequence[int] | None = None,
     next_tag: int = 0,
 ):
-    A_value = empty_like(A, basetile_shape, mpi_distr, next_tag)
-    A_value.from_array(A)
-    return A_value
+    dtype = np2nnt_type_mapping[A.dtype]
+    A_nntile = empty(A.shape, basetile_shape, dtype, mpi_distr, next_tag)
+    A_nntile.from_array(A)
+    return A_nntile
 
 
 def to_numpy(tensor_nnt):
@@ -92,19 +86,13 @@ def zeros(
     mpi_distr: Sequence[int] | None = None,
     next_tag: int = 0,
 ):
-    A_value = empty(shape, basetile_shape, dtype, mpi_distr, next_tag)
-    clear_async(A_value)
-    return A_value
+    A_nntile = empty(shape, basetile_shape, dtype, mpi_distr, next_tag)
+    clear_async(A_nntile)
+    return A_nntile
 
 
-def zeros_like(
-    A: np.ndarray,
-    basetile_shape: Sequence[int] | None = None,
-    mpi_distr: Sequence[int] | None = None,
-    next_tag: int = 0
-):
-    dtype = np2nnt_type_mapping[type(A.dtype)]
-    return zeros(A.shape, basetile_shape, dtype, mpi_distr, next_tag)
+def zeros_like(A: Tensor, next_tag: int = 0):
+    return zeros(A.shape, A.basetile_shape, type(A), A.mpi_distr, next_tag)
 
 
 def full(
@@ -115,20 +103,13 @@ def full(
     mpi_distr: Sequence[int] | None = None,
     next_tag: int = 0,
 ):
-    A_value = empty(shape, basetile_shape, dtype, mpi_distr, next_tag)
-    fill_async(fill_value, A_value)
-    return A_value
+    A_nntile = empty(shape, basetile_shape, dtype, mpi_distr, next_tag)
+    fill_async(fill_value, A_nntile)
+    return A_nntile
 
 
-def full_like(
-    A: np.ndarray,
-    basetile_shape: Sequence[int] | None = None,
-    fill_value: float = 0.0,
-    mpi_distr: Sequence[int] | None = None,
-    next_tag: int = 0
-):
-    dtype = np2nnt_type_mapping[type(A.dtype)]
-    return full(A.shape, basetile_shape, dtype, fill_value, mpi_distr,
+def full_like(A: Tensor, fill_value: float = 0.0, next_tag: int = 0):
+    return full(A.shape, A.basetile_shape, type(A), fill_value, A.mpi_distr,
             next_tag)
 
 
@@ -142,11 +123,5 @@ def ones(
     return full(shape, basetile_shape, dtype, 1, mpi_distr, next_tag)
 
 
-def ones_like(
-    A: np.ndarray,
-    basetile_shape: Sequence[int] | None = None,
-    mpi_distr: Sequence[int] | None = None,
-    next_tag: int = 0
-):
-    dtype = np2nnt_type_mapping[type(A.dtype)]
-    return ones(A.shape, basetile_shape, dtype, mpi_distr, next_tag)
+def ones_like(A: Tensor, next_tag: int = 0):
+    return ones(A.shape, A.basetile_shape, type(A), A.mpi_distr, next_tag)
