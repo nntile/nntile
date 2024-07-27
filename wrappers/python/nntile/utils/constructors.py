@@ -16,8 +16,9 @@ from typing import Sequence
 import numpy as np
 
 from nntile.functions import clear_async, fill_async
+from nntile.types import Tensor
 from nntile.nntile_core.tensor import (
-    Tensor, Tensor_bf16, Tensor_bool, Tensor_fp32, Tensor_fp32_fast_tf32,
+    Tensor_bf16, Tensor_bool, Tensor_fp32, Tensor_fp32_fast_tf32,
     Tensor_fp64, Tensor_int64, TensorTraits)
 
 nnt2np_type_mapping = {
@@ -96,6 +97,16 @@ def zeros(
     return A_value
 
 
+def zeros_like(
+    A: np.ndarray,
+    basetile_shape: Sequence[int] | None = None,
+    mpi_distr: Sequence[int] | None = None,
+    next_tag: int = 0
+):
+    dtype = np2nnt_type_mapping[type(A.dtype)]
+    return zeros(A.shape, basetile_shape, dtype, mpi_distr, next_tag)
+
+
 def full(
     shape: Sequence[int],
     basetile_shape: Sequence[int] | None = None,
@@ -109,6 +120,18 @@ def full(
     return A_value
 
 
+def full_like(
+    A: np.ndarray,
+    basetile_shape: Sequence[int] | None = None,
+    fill_value: float = 0.0,
+    mpi_distr: Sequence[int] | None = None,
+    next_tag: int = 0
+):
+    dtype = np2nnt_type_mapping[type(A.dtype)]
+    return full(A.shape, basetile_shape, fill_value, dtype, mpi_distr,
+            next_tag)
+
+
 def ones(
     shape: Sequence[int],
     basetile_shape: Sequence[int] | None = None,
@@ -117,3 +140,13 @@ def ones(
     next_tag: int = 0,
 ):
     return full(shape, basetile_shape, 1, dtype, mpi_distr, next_tag)
+
+
+def ones_like(
+    A: np.ndarray,
+    basetile_shape: Sequence[int] | None = None,
+    mpi_distr: Sequence[int] | None = None,
+    next_tag: int = 0
+):
+    dtype = np2nnt_type_mapping[type(A.dtype)]
+    return ones(A.shape, basetile_shape, dtype, mpi_distr, next_tag)
