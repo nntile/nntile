@@ -15,10 +15,10 @@ from typing import Sequence
 
 import numpy as np
 
-from nntile.functions import fill_async
+from nntile.functions import clear_async, fill_async
 from nntile.nntile_core.tensor import (
-    Tensor_bf16, Tensor_bool, Tensor_fp32, Tensor_fp32_fast_tf32, Tensor_fp64,
-    Tensor_int64, TensorTraits)
+    Tensor, Tensor_bf16, Tensor_bool, Tensor_fp32, Tensor_fp32_fast_tf32,
+    Tensor_fp64, Tensor_int64, TensorTraits)
 
 nnt2np_type_mapping = {
     Tensor_fp32: np.float32,
@@ -39,38 +39,81 @@ np2nnt_type_mapping = {
 }
 
 
+def empty(
+    shape: Sequence[int],
+    basetile_shape: Sequence[int] | None = None,
+    dtype: Tensor = Tensor_fp32,
+    mpi_distr: Sequence[int] | None = None,
+    next_tag: int = 0
+):
+    A_traits = TensorTraits(shape, basetile_shape or shape)
+    if mpi_distr is None:
+        mpi_distr = [0] * A_traits.grid.nelems
+    A_value = dtype(A_traits, mpi_distr, next_tag)
+    return A_value
+
+
+def empty_like(
+    A: np.ndarray,
+    basetile_shape: Sequence[int] | None = None,
+    mpi_distr: Sequence[int] | None = None,
+    next_tag: int = 0
+):
+    dtype = np2nnt_type_mapping[type(A.dtype)]
+    return empty(A.shape, basetile_shape, dtype, mpi_distr, next_tag)
+
+
 def from_array(
     A: np.ndarray,
     basetile_shape: Sequence[int] | None = None,
-    mpi_distr=[0],
-    next_tag=0,
+    mpi_distr: Sequence[int] | None = None,
+    next_tag: int = 0,
 ):
-    A_traits = TensorTraits(A.shape, basetile_shape or A.shape)
-
-    A_value = np2nnt_type_mapping[type(A.dtype)](A_traits, mpi_distr, next_tag)
-
+    A_value = empty_like(A, basetile_shape, mpi_distr, next_tag)
     A_value.from_array(A)
     return A_value
 
 
 def to_numpy(tensor_nnt):
     np_res = np.zeros(
-        tensor_nnt.shape, order="F", dtype=nnt2np_type_mapping[type(tensor_nnt)]
+        tensor_nnt.shape,
+        order="F",
+        dtype=nnt2np_type_mapping[type(tensor_nnt)]
     )
     tensor_nnt.to_array(np_res)
     return np_res
 
 
-def zeros(shape: Sequence[int], dtype=Tensor_fp32):
-    np_dtype = nnt2np_type_mapping[dtype]
-    return from_array(np.zeros(shape, dtype=np_dtype))
+def zeros(
+    shape: Sequence[int],
+    basetile_shape: Sequence[int] | None = None,
+    dtype: Tensor = Tensor_fp32,
+    mpi_distr: Sequence[int] | None = None,
+    next_tag: int = 0,
+):
+    A_value = empty(shape, basetile_shape, dtype, mpi_distr, next_tag)
+    clear_async(A_value)
+    return A_value
 
 
-def full(shape: Sequence[int], fill_value, dtype=Tensor_fp32):
-    nnt_tensor = zeros(shape, dtype=dtype)
-    fill_async(fill_value, nnt_tensor)
-    return nnt_tensor
+def full(
+    shape: Sequence[int],
+    basetile_shape: Sequence[int] | None = None,
+    dtype: Tensor = Tensor_fp32,
+    fill_value: float = 0.0,
+    mpi_distr: Sequence[int] | None = None,
+    next_tag: int = 0,
+):
+    A_value = empty(shape, basetile_shape, dtype, mpi_distr, next_tag)
+    fill_async(fill_value, A_value)
+    return A_value
 
 
-def ones(shape: Sequence[int], dtype=Tensor_fp32):
-    return full(shape, 1, dtype=dtype)
+def ones(
+    shape: Sequence[int],
+    basetile_shape: Sequence[int] | None = None,
+    dtype: Tensor = Tensor_fp32,
+    mpi_distr: Sequence[int] | None = None,
+    next_tag: int = 0,
+):
+    return full(shape, basetile_shape, 1, dtype, mpi_distr, next_tag)
