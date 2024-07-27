@@ -15,7 +15,7 @@ from typing import Sequence
 
 import numpy as np
 
-from nntile.functions import clear_async, fill_async
+from nntile.functions import clear_async, copy_async, fill_async
 from nntile.nntile_core.tensor import (
     Tensor_bf16, Tensor_bool, Tensor_fp32, Tensor_fp32_fast_tf32, Tensor_fp64,
     Tensor_int64, TensorTraits)
@@ -27,15 +27,15 @@ nnt2np_type_mapping = {
     Tensor_bf16: np.float32,
     Tensor_fp64: np.float64,
     Tensor_int64: np.int64,
-    Tensor_bool: bool,
+    Tensor_bool: bool
 }
 
 np2nnt_type_mapping = {
-    np.float32: Tensor_fp32,
-    np.float64: Tensor_fp64,
-    np.int32: Tensor_int64,
-    np.int64: Tensor_int64,
-    np.bool: Tensor_bool,
+    'float32': Tensor_fp32,
+    'float64': Tensor_fp64,
+    'int32': Tensor_int64,
+    'int64': Tensor_int64,
+    'bool': Tensor_bool
 }
 
 
@@ -63,18 +63,15 @@ def from_array(
     mpi_distr: Sequence[int] | None = None,
     next_tag: int = 0,
 ):
-    dtype = np2nnt_type_mapping[A.dtype]
+    dtype = np2nnt_type_mapping[A.dtype.name]
     A_nntile = empty(A.shape, basetile_shape, dtype, mpi_distr, next_tag)
     A_nntile.from_array(A)
     return A_nntile
 
 
 def to_numpy(tensor_nnt):
-    np_res = np.zeros(
-        tensor_nnt.shape,
-        order="F",
-        dtype=nnt2np_type_mapping[type(tensor_nnt)]
-    )
+    dtype = nnt2np_type_mapping[type(tensor_nnt)]
+    np_res = np.zeros(tensor_nnt.shape, order="F", dtype=dtype)
     tensor_nnt.to_array(np_res)
     return np_res
 
@@ -125,3 +122,9 @@ def ones(
 
 def ones_like(A: Tensor, next_tag: int = 0):
     return ones(A.shape, A.basetile_shape, type(A), A.mpi_distr, next_tag)
+
+
+def clone(A: Tensor, next_tag: int = 0):
+    A_clone = empty_like(A, next_tag)
+    copy_async(A, A_clone)
+    return A_clone
