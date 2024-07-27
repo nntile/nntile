@@ -128,7 +128,7 @@ def full_like(
     next_tag: int = 0
 ):
     dtype = np2nnt_type_mapping[type(A.dtype)]
-    return full(A.shape, basetile_shape, fill_value, dtype, mpi_distr,
+    return full(A.shape, basetile_shape, dtype, fill_value, mpi_distr,
             next_tag)
 
 
@@ -139,7 +139,7 @@ def ones(
     mpi_distr: Sequence[int] | None = None,
     next_tag: int = 0,
 ):
-    return full(shape, basetile_shape, 1, dtype, mpi_distr, next_tag)
+    return full(shape, basetile_shape, dtype, 1, mpi_distr, next_tag)
 
 
 def ones_like(
