@@ -42,7 +42,6 @@ class LlamaForCausalLM(BaseModel):
         activations.extend(llama_model_.activations)
         layers = []
         layers.extend(llama_model_.layers)
-        print(layers)
         layers.append(lin_head_)
 
         self.llama_model_ = llama_model_
