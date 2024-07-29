@@ -91,38 +91,38 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src, Sc
                         }
                     }
                 }
-                // Get the scaled norm
-                norm_max *= alpha;
-                //T norm = norm_max * std::sqrt(norm_ssq);
-                // Update output value
-                if(beta == zero)
+            }
+            // Get the scaled norm
+            norm_max *= alpha;
+            //T norm = norm_max * std::sqrt(norm_ssq);
+            // Update output value
+            if(beta == zero)
+            {
+                //result = norm;
+                result = static_cast<T>(norm_max * std::sqrt(norm_ssq));
+            }
+            else if(norm_max > 0)
+            {
+                //result = std::hypot(beta*result, norm);
+                Y tmp_res = std::fabs(beta * Y{result});
+                if(norm_max >= tmp_res)
                 {
-                    //result = norm;
-                    result = static_cast<T>(norm_max * std::sqrt(norm_ssq));
+                    Y tmp1 = tmp_res / norm_max;
+                    result = static_cast<T>(norm_max * std::sqrt((tmp1*tmp1-c)+norm_ssq));
                 }
-                else if(norm_max > 0)
-                {
-                    //result = std::hypot(beta*result, norm);
-                    Y tmp_res = std::fabs(beta * Y{result});
-                    if(norm_max >= tmp_res)
-                    {
-                        Y tmp1 = tmp_res / norm_max;
-                        result = static_cast<T>(norm_max * std::sqrt((tmp1*tmp1-c)+norm_ssq));
-                    }
-                    else
-                    {
-                        Y tmp1 = norm_max / tmp_res;
-                        Y tmp2 = tmp1 * tmp1;
-                        c *= tmp2;
-                        norm_ssq *= tmp2;
-                        result = static_cast<T>(tmp_res * std::sqrt((one-c)+norm_ssq));
-                    }
-                }
-                // norm_max==0
                 else
                 {
-                    result = static_cast<T>(std::fabs(beta * Y{result}));
+                    Y tmp1 = norm_max / tmp_res;
+                    Y tmp2 = tmp1 * tmp1;
+                    c *= tmp2;
+                    norm_ssq *= tmp2;
+                    result = static_cast<T>(tmp_res * std::sqrt((one-c)+norm_ssq));
                 }
+            }
+            // norm_max==0
+            else
+            {
+                result = static_cast<T>(std::fabs(beta * Y{result}));
             }
         }
     }

@@ -33,7 +33,8 @@ class BatchNorm2d(BaseLayer):
         redux: bool = False,
     ):
         self.x = x
-        self.eps = eps**0.5  # we will square it in forward (implementation constraints)
+        # eps is squared in low-level kernel (implementation constraints)
+        self.eps = eps**0.5
 
         self.weight = weight
         self.bias = bias
@@ -47,9 +48,6 @@ class BatchNorm2d(BaseLayer):
         self.x_unbiased_copy = zeros(self.y.value.shape, dtype=self.dtype)
         self.inv_std = zeros(self.x.value.shape[2:3], dtype=self.dtype)
 
-        self.std_tmp_3dim = zeros(self.x.value.shape[1:], dtype=self.dtype)
-        self.std_tmp_2dim = zeros(self.x.value.shape[2:], dtype=self.dtype)
-        
         self.n_channels = self.x.value.shape[2]
         self.numel_in_channel = self.x.value.nelems / self.n_channels
 
@@ -58,7 +56,8 @@ class BatchNorm2d(BaseLayer):
         self.x_grad_tmp = zeros(self.x.value.shape, dtype=self.dtype)
 
         self.tmp_buff_full = zeros(self.x.value.shape, dtype=self.dtype)
-        self.tmp_buff_channels = zeros(self.x.value.shape[2:3], dtype=self.dtype)
+        self.tmp_buff_channels = zeros(self.x.value.shape[2:3],
+                dtype=self.dtype)
 
     @classmethod
     def generate_simple(cls, x, eps: float = 1e-05, redux=False):
@@ -114,28 +113,10 @@ class BatchNorm2d(BaseLayer):
         self.x_unbiased_copy.wont_use()
 
         # inverse std
-        #[0,1,2,3]->[1]
-        #norm_fiber_async(
-        #    1.0 / self.numel_in_channel**0.5, self.x_normalized, 0.0,
-        #    self.inv_std, axis=2, batch_ndim=0, redux=self.redux
-        #)
-        norm_slice_async(
-            1.0, self.x_normalized, 0.0, self.std_tmp_3dim, 0, redux=self.redux
+        norm_fiber_async(
+            1.0 / self.numel_in_channel**0.5, self.x_normalized, 0.0,
+            self.inv_std, axis=2, batch_ndim=0, redux=self.redux
         )
-        norm_slice_async(
-            1.0, self.std_tmp_3dim, 0.0, self.std_tmp_2dim, 0, redux=self.redux
-        )
-        self.std_tmp_3dim.invalidate_submit()
-        norm_slice_async(
-            1.0 / self.numel_in_channel**0.5,
-            self.std_tmp_2dim,
-            0.0,
-            self.inv_std,
-            1,
-            redux=self.redux,
-        )
-        self.std_tmp_2dim.invalidate_submit()
-
         hypot_scalar_inverse_async(self.eps, 1.0, self.inv_std)
 
         # X_res = X_res/std
@@ -174,7 +155,7 @@ class BatchNorm2d(BaseLayer):
         # x_var_eps = self.inv_std**-2
         # xvar_grad = denom_grad[None, :, None, None] * -0.5*(xvar_eps)**(-1.5)
         x_var_eps_ref = self.inv_std
-        xvar_grad = x_var_eps_ref  # inplace for reuse. Invalidates self.inv_std
+        xvar_grad = x_var_eps_ref  # inplace for reuse
 
         pow_async(-0.5, -2.0 * -1.5, xvar_grad)  # fuse two powers from above
         prod_async(inv_denom_grad, xvar_grad)
@@ -183,17 +164,18 @@ class BatchNorm2d(BaseLayer):
         x_normalized_grad = grad_nnt  # zeros(self.x.value.shape)
         mean_grad = self.tmp_buff_channels  #  zeros([self.n_channels])
 
-        # x_normalized_grad = 1.0/self.numel_in_channel*2*(A-xmean[None, :, None, None])
-        # x_grad = (-1*x_normalized_grad.sum([0,2,3])[None, :, None,None]/self.numel_in_channel + x_normalized_grad)
+        # x_normalized_grad = 1.0/self.numel_in_channel*2
+        #       *(A-xmean[None, :, None, None])
+        # x_grad = (-1*x_normalized_grad.sum([0,2,3])
+        #       [None, :, None,None]/self.numel_in_channel + x_normalized_grad)
         add_async(
             1.0 / self.numel_in_channel * 2,
             self.x_unbiased_copy,
             0.0,
             x_normalized_grad,
         )  # copy + scalar prod
-        sum_fiber_async(
-            -1.0 / self.numel_in_channel, x_normalized_grad, 0.0, mean_grad, 2, 0
-        )
+        sum_fiber_async(-1.0 / self.numel_in_channel, x_normalized_grad, 0.0,
+                mean_grad, 2, 0)
         add_fiber_async(1.0, mean_grad, 1.0, x_normalized_grad, 2, 0)
         self.tmp_buff_channels.invalidate_submit()
 
