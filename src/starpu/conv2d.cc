@@ -13,7 +13,9 @@
  * */
 
 #include "nntile/starpu/conv2d.hh"
-#include "nntile/kernel/conv2d.hh"
+#ifndef STARPU_SIMGRID
+#   include "nntile/kernel/conv2d.hh"
+#endif // STARPU_SIMGRID
 #include <cstdlib>
 
 //! StarPU wrappers for conv2d operation
@@ -23,6 +25,7 @@ namespace nntile::starpu::conv2d
 //! StarPU wrapper for kernel::conv2d::cpu<T>
 template <typename T> void cpu(void *buffers[], void *cl_args) noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
@@ -36,25 +39,17 @@ template <typename T> void cpu(void *buffers[], void *cl_args) noexcept
         args->in_channels, args->padding_n, args->limit_n, args->padding_m,
         args->limit_m, args->src_n, args->src_m, src, args->kernel_n,
         args->kernel_m, kernel, args->dst_n, args->dst_m, dst);
+#endif // STARPU_SIMGRID
 }
 
 //! Footprint for conv2d tasks
-template <typename T> static uint32_t footprint(struct starpu_task *task)
+static uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
     // Apply hash over parameters m, n and k
     uint32_t hash = 0;
-    hash = starpu_hash_crc32c_be_n(&args->src_n, sizeof(args->src_n), hash);
-    hash = starpu_hash_crc32c_be_n(&args->src_m, sizeof(args->src_m), hash);
-    hash =
-        starpu_hash_crc32c_be_n(&args->kernel_n, sizeof(args->kernel_n), hash);
-    hash =
-        starpu_hash_crc32c_be_n(&args->kernel_m, sizeof(args->kernel_m), hash);
-    hash = starpu_hash_crc32c_be_n(&args->out_channels,
-                                   sizeof(args->out_channels), hash);
-    hash = starpu_hash_crc32c_be_n(&args->in_channels,
-                                   sizeof(args->in_channels), hash);
+    hash = starpu_hash_crc32c_be_n(args, sizeof(*args), hash);
     return hash;
 }
 
@@ -62,12 +57,16 @@ Codelet codelet_fp32, codelet_fp64;
 
 void init()
 {
-    codelet_fp32.init("nntile_conv2d_fp32", footprint<fp32_t>, {cpu<fp32_t>},
-                      {}
-    );
-    codelet_fp64.init("nntile_conv2d_fp64", footprint<fp64_t>, {cpu<fp64_t>},
-                      {}
-    );
+    codelet_fp32.init("nntile_conv2d_fp32",
+            footprint,
+            {cpu<fp32_t>},
+            {}
+            );
+    codelet_fp64.init("nntile_conv2d_fp64",
+            footprint,
+            {cpu<fp64_t>},
+            {}
+            );
 }
 
 void restrict_where(uint32_t where)
@@ -85,8 +84,9 @@ void restore_where()
 template <typename T>
 void submit(Index offset_n, Index offset_m, Index batch, Index out_channels,
             Index in_channels, Index padding_n, Index limit_n, Index padding_m,
-            Index limit_m, Index src_n, Index src_m, Handle src, Index kernel_n,
-            Index kernel_m, Handle kernel, Index dst_n, Index dst_m, Handle dst)
+            Index limit_m, Index src_n, Index src_m, Handle src,
+            Index kernel_n, Index kernel_m, Handle kernel, Index dst_n,
+            Index dst_m, Handle dst)
 //! Insert conv2d task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -110,14 +110,16 @@ void submit(Index offset_n, Index offset_m, Index batch, Index out_channels,
     args->kernel_m = kernel_m;
     args->dst_n = dst_n;
     args->dst_m = dst_m;
-    fp64_t nflops =
+    double nflops =
         src_n * src_m * dst_n * dst_m * batch * in_channels * out_channels;
     // Submit task
-    int ret = starpu_task_insert(
-        codelet<T>(), STARPU_R, static_cast<starpu_data_handle_t>(src),
-        STARPU_R, static_cast<starpu_data_handle_t>(kernel), STARPU_CL_ARGS,
-        args, sizeof(*args), STARPU_RW, static_cast<starpu_data_handle_t>(dst),
-        STARPU_FLOPS, nflops, 0);
+    int ret = starpu_task_insert(codelet<T>(),
+            STARPU_R, static_cast<starpu_data_handle_t>(src),
+            STARPU_R, static_cast<starpu_data_handle_t>(kernel),
+            STARPU_CL_ARGS, args, sizeof(*args),
+            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
+            STARPU_FLOPS, nflops,
+            0);
     // Check submission
     if(ret != 0)
     {
@@ -126,7 +128,8 @@ void submit(Index offset_n, Index offset_m, Index batch, Index out_channels,
 }
 
 // Explicit instantiation
-template void submit<fp32_t>(Index offset_n, Index offset_m, Index batch,
+template
+void submit<fp32_t>(Index offset_n, Index offset_m, Index batch,
                              Index out_channels, Index in_channels,
                              Index padding_n, Index limit_n, Index padding_m,
                              Index limit_m, Index src_n, Index src_m,
@@ -134,7 +137,8 @@ template void submit<fp32_t>(Index offset_n, Index offset_m, Index batch,
                              Handle kernel, Index dst_n, Index dst_m,
                              Handle dst);
 
-template void submit<fp64_t>(Index offset_n, Index offset_m, Index batch,
+template
+void submit<fp64_t>(Index offset_n, Index offset_m, Index batch,
                              Index out_channels, Index in_channels,
                              Index padding_n, Index limit_n, Index padding_m,
                              Index limit_m, Index src_n, Index src_m,
