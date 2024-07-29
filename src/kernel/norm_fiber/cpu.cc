@@ -150,4 +150,3 @@ void cpu<fp32_fast_tf32_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
     noexcept;
 
 } // namespace nntile::kernel::norm_fiber
-
