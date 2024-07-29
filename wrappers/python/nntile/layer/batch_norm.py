@@ -51,7 +51,7 @@ class BatchNorm2d(BaseLayer):
         self.std_tmp_2dim = zeros(
             self.x.value.shape[1:2] + self.x.value.shape[3:], dtype=self.dtype
         )
-
+        
         self.n_channels = self.x.value.shape[1]
         self.numel_in_channel = math.prod(self.x.value.shape) / self.n_channels
 
@@ -115,22 +115,10 @@ class BatchNorm2d(BaseLayer):
         self.x_unbiased_copy.wont_use()
 
         # inverse std
-        norm_slice_async(
-            1.0, self.x_normalized, 0.0, self.std_tmp_3dim, 0, redux=self.redux
+        #[0,1,2,3]->[1]
+        norm_fiber_async(
+            1.0 / self.numel_in_channel**0.5, self.x_normalized, 0.0, self.inv_std, axis=1, batch_ndim=0, redux=self.redux
         )
-        norm_slice_async(
-            1.0, self.std_tmp_3dim, 0.0, self.std_tmp_2dim, 2, redux=self.redux
-        )
-        self.std_tmp_3dim.invalidate_submit()
-        norm_slice_async(
-            1.0 / self.numel_in_channel**0.5,
-            self.std_tmp_2dim,
-            0.0,
-            self.inv_std,
-            1,
-            redux=self.redux,
-        )
-        self.std_tmp_2dim.invalidate_submit()
 
         hypot_scalar_inverse_async(self.eps, 1.0, self.inv_std)
 
