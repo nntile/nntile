@@ -30,7 +30,8 @@ void validate(Index offset_x, Index offset_y, Index batch, Index out_channels,
               Index my, Index kx, Index ky, Index px, Index py, Index qx,
               Index qy)
 {
-    constexpr T eps = std::numeric_limits<T>::epsilon();
+    using Y = typename T::repr_t;
+    const Y eps = T::epsilon();
     // Init test input
     std::vector<T> src(nx * ny * in_channels * batch),
         kernel(mx * my * in_channels * out_channels),
@@ -38,32 +39,32 @@ void validate(Index offset_x, Index offset_y, Index batch, Index out_channels,
 
     for(Index i = 0; i < kx * ky * out_channels * batch; ++i)
     {
-        dst[i] = -2;
+        dst[i] = Y(-2);
     }
 
     for(Index i = 0; i < nx * ny * in_channels * batch; ++i)
     {
-        src[i] = 0;
+        src[i] = Y(0);
     }
     for(Index i = 0; i < (batch < in_channels ? batch : in_channels); ++i)
     {
-        src[px * ny + py + nx * ny * i + nx * ny * in_channels * i] = 1;
+        src[px * ny + py + nx * ny * i + nx * ny * in_channels * i] = Y(1.0);
     }
 
     for(Index i = 0; i < mx * my * in_channels * out_channels; ++i)
     {
-        kernel[i] = 0;
+        kernel[i] = Y(0.0);
     }
     for(Index i = 0;
         i < (out_channels < in_channels ? out_channels : in_channels); ++i)
     {
-        kernel[qx * my + qy + mx * my * i + mx * my * out_channels * i] = 1;
+        kernel[qx*my + qy + mx*my*i + mx*my*out_channels*i] = Y(1.0);
     }
 
     // Save original dst
     std::vector<T> dst_save(dst);
     // Check low-level CPU kernel
-    std::cout << "Run kernel::conv2d::cpu<T>\n";
+    std::cout << "Run kernel::conv2d::cpu<" << T::type_repr << ">\n";
     cpu<T>(offset_x, offset_y, batch, out_channels, in_channels, padding_n,
            limit_n, padding_m, limit_m, nx, ny, &src[0], mx, my, &kernel[0], kx,
            ky, &dst[0]);
@@ -75,28 +76,28 @@ void validate(Index offset_x, Index offset_y, Index batch, Index out_channels,
             {
                 for(Index i1 = 0; i1 < kx; ++i1)
                 {
-                    T ref = -1;
+                    Y ref = Y(-1.0);
                     if(i0 != py + qy - offset_y - padding_m)
-                        ref = -2;
+                        ref = Y(-2.0);
                     if(i1 != px + qx - offset_x - padding_n)
-                        ref = -2;
+                        ref = (-2.0);
                     if(px < padding_n || py < padding_m)
-                        ref = -2;
+                        ref = Y(-2.0);
                     if(px >= limit_n)
-                        ref = -2;
+                        ref = Y(-2.0);
                     if(py >= limit_m)
-                        ref = -2;
+                        ref = Y(-2.0);
                     if(b != c)
-                        ref = -2;
+                        ref = Y(-2.0);
 
-                    T val = dst[i1 * ky + i0 + ky * kx * c +
-                                ky * kx * out_channels * b];
+                    Y val = Y(dst[i1 * ky + i0 + ky * kx * c +
+                                ky * kx * out_channels * b]);
                     TEST_ASSERT(std::abs(val - ref) <= 10 * eps);
                 }
             }
         }
     }
-    std::cout << "OK: kernel::conv2d::cpu<T>\n";
+    std::cout << "OK: kernel::conv2d::cpu<" << T::type_repr << ">\n";
 }
 
 void validate_all(Index offset_x, Index offset_y, Index batch,

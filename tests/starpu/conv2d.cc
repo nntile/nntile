@@ -23,8 +23,10 @@
 using namespace nntile;
 using namespace nntile::starpu;
 
-template <typename T> void validate_cpu()
+template <typename T>
+void validate_cpu()
 {
+    using Y = typename T::repr_t;
     Index nx = 20, ny = 21, mx = 3, my = 4, kx = nx + mx - 1, ky = ny + my - 1;
     Index offset_x = 1, offset_y = 2;
     Index batch = 3, out_channels = 4, in_channels = 5;
@@ -37,22 +39,22 @@ template <typename T> void validate_cpu()
     std::vector<T> src(src_size);
     for(Index i = 0; i < nx * ny; ++i)
     {
-        src[i] = 1;
+        src[i] = Y(1);
     }
     std::vector<T> kernel(kernel_size);
     for(Index i = 0; i < mx * my; ++i)
     {
-        kernel[i] = 1;
+        kernel[i] = Y(1);
     }
     std::vector<T> dst(dst_size);
     for(Index i = 0; i < (nx + mx - 1) * (ny + my - 1); ++i)
     {
-        dst[i] = 0;
+        dst[i] = Y(0);
     }
     // Create copies of destination
     std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::conv2d::cpu<T>\n";
+    std::cout << "Run kernel::conv2d::cpu<" << T::type_repr << ">\n";
     kernel::conv2d::cpu<T>(offset_x, offset_y, batch, out_channels, in_channels,
                            0, nx, 0, ny, nx, ny, &src[0], mx, my, &kernel[0],
                            kx, ky, &dst[0]);
@@ -61,7 +63,7 @@ template <typename T> void validate_cpu()
         kernel_handle(&kernel[0], sizeof(T) * kernel_size, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T) * dst_size, STARPU_W);
     conv2d::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::conv2d::submit<T> restricted to CPU\n";
+    std::cout << "Run starpu::conv2d::submit<" << T::type_repr << "> restricted to CPU\n";
     conv2d::submit<T>(offset_x, offset_y, batch, out_channels, in_channels, 0,
                       nx, 0, ny, nx, ny, src_handle, mx, my, kernel_handle, kx,
                       ky, dst2_handle);
@@ -70,9 +72,9 @@ template <typename T> void validate_cpu()
     // Check result
     for(Index i = 0; i < dst_size; ++i)
     {
-        TEST_ASSERT(dst[i] == dst2[i]);
+        TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::conv2d::submit<T> restricted to CPU\n";
+    std::cout << "OK: starpu::conv2d::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 int main(int argc, char **argv)
