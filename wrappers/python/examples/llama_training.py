@@ -17,19 +17,12 @@ import time
 
 import numpy as np
 import torch
-import torch.nn as nn
-# from datasets import load_dataset
 from torch.optim import SGD, Adam, AdamW
 from transformers import LlamaConfig, LlamaForCausalLM, LlamaTokenizerFast
 
 import nntile
-# from nntile.layer.llama_mlp import LlamaMLP as LlamaMLP_nntile
-# from nntile.loss import Frob
 from nntile.model.llama_causal import LlamaForCausalLM as Llama_nntile
 from nntile.model.llama_config import LlamaConfigNNTile
-
-# from transformers import LlamaTokenizerFast
-
 
 # Create argument parser
 parser = argparse.ArgumentParser(prog="LLaMa-based neural networks",
@@ -45,50 +38,35 @@ parser.add_argument("--remote_model_name", default="kimihailv/llama-1.3b")
 
 parser.add_argument("--pretrained", choices=["local", "remote"],
                     default="local")
-parser.add_argument("--checkpoint_path", type=str, default="")
-parser.add_argument("--config_path", type=str, default="")
-parser.add_argument("--save_checkpoint_path", type=str, default=".model")
+parser.add_argument("--checkpoint-path", type=str, default="")
+parser.add_argument("--config-path", type=str, default="")
+parser.add_argument("--save-checkpoint-path", type=str, default=".model")
 parser.add_argument("--optimizer", choices=["sgd", "adam", "adamw"],
                     default="adam")
 
 
 parser.add_argument("--model-path", default=".model")
 parser.add_argument("--seq-len", type=int, default=1024)
-parser.add_argument("--seq-len-tile", type=int, default=1024)
+parser.add_argument("--seq-len-tile", type=int, default=-1)
 parser.add_argument("--batch-size", type=int, default=1)
-parser.add_argument("--minibatch-size", type=int, default=1)
-parser.add_argument("--minibatch-size-tile", type=int, default=1)
-parser.add_argument("--hidden-size-tile", type=int)
-parser.add_argument("--intermediate-size-tile", type=int)
-parser.add_argument("--n-head-tile", type=int)
-parser.add_argument("--torch-device", choices=["cpu", "cuda", "cuda:0",
-        "cuda:1", "cuda:2", "cuda:3", "cuda:4"], default="cpu")
-parser.add_argument("--torch-dtype", choices=["fp32", "fp64", "bf16"],
-                    default="fp32")
-# parser.add_argument("--torch-compile", action="store_true")
+parser.add_argument("--minibatch-size", type=int, default=-1)
+parser.add_argument("--minibatch-size-tile", type=int, default=-1)
+
+parser.add_argument("--hidden-size-tile", type=int, default=-1)
+parser.add_argument("--intermediate-size-tile", type=int, default=-1)
+parser.add_argument("--n-head-tile", type=int, default=-1)
+
 parser.add_argument("--nntile-dtype", choices=["fp32", "fp64", "tf32", "bf16"],
                     default="fp32")
-
-# parser.add_argument("--torch-nforward", type=int, default=0)
-# parser.add_argument("--torch-nforward-warmup", type=int, default=0)
-# parser.add_argument("--torch-nbackward", type=int, default=0)
-# parser.add_argument("--torch-nbackward-warmup", type=int, default=0)
 parser.add_argument("--nntile-restrict", choices=["cpu", "cuda", None],
         default=None)
-# parser.add_argument("--nntile-flashattention", action="store_true")
-# parser.add_argument("--nntile-use-redux", action="store_true")
-# parser.add_argument("--nntile-nforward", type=int, default=0)
-# parser.add_argument("--nntile-nforward-warmup", type=int, default=0)
-# parser.add_argument("--nntile-nbackward", type=int, default=0)
-# parser.add_argument("--nntile-nbackward-warmup", type=int, default=0)
+parser.add_argument("--nntile-flashattention", action="store_true")
+parser.add_argument("--nntile-use-redux", action="store_true")
 parser.add_argument("--dataset", default="WikiText-103")
 parser.add_argument("--dataset-path", default=".data")
 parser.add_argument("--dataset-select", type=int, default=100)
 parser.add_argument("--lr", type=float, default=0.0)
-parser.add_argument("--torch-nepochs", type=int, default=0)
-# parser.add_argument("--torch-nepochs-warmup", type=int, default=0)
 parser.add_argument("--nntile-nepochs", type=int, default=0)
-# parser.add_argument("--nntile-nepochs-warmup", type=int, default=0)
 parser.add_argument("--nntile-logger", action="store_true")
 parser.add_argument("--nntile-logger-server-addr", type=str,
                     default="localhost")
@@ -98,6 +76,12 @@ parser.add_argument("--nntile-logger-server-port", type=int, default=5001)
 args = parser.parse_args()
 print(args)
 
+if args.seq_len_tile == -1:
+    args.seq_len_tile = args.seq_len
+if args.minibatch_size == -1:
+    args.minibatch_size = args.batch_size
+if args.minibatch_size_tile == -1:
+    args.minibatch_size_tile = args.minibatch_size
 # Check arguments
 assert args.seq_len_tile > 0
 assert args.batch_size > 0
@@ -106,29 +90,7 @@ assert args.minibatch_size_tile > 0
 assert args.batch_size % args.minibatch_size == 0
 num_minibatch = args.batch_size // args.minibatch_size
 assert args.minibatch_size % args.minibatch_size_tile == 0
-# assert args.n_embd_tile > 0
-# assert args.n_inner_tile > 0
-# assert args.torch_nforward >= 0
-# assert args.torch_nbackward >= 0
-# assert args.torch_nepochs >= 0
-# assert args.nntile_nforward >= 0
-# assert args.nntile_nbackward >= 0
-# assert args.nntile_nepochs >= 0
-
-# Set Torch default device to cpu
-# torch.set_default_device("cpu")
-torch_device = args.torch_device
-
-if args.torch_dtype == "fp32":
-    torch_dtype = torch.float32
-elif args.torch_dtype == "fp64":
-    torch_dtype = torch.float64
-elif args.torch_dtype == "bf16":
-    torch_dtype = torch.bfloat16
-
-if args.nntile_dtype == "tf32":
-    torch.backends.cuda.matmul.allow_tf32 = True
-
+assert args.nntile_nepochs >= 0
 
 # Load named pretrained PyTorch model
 if args.pretrained == "remote":
@@ -142,7 +104,7 @@ elif args.pretrained == "local":
         conf_dict = json.load(f)
         f.close()
         config = LlamaConfig(**conf_dict)
-        model_torch = LlamaForCausalLM(config).to(torch_dtype)
+        model_torch = LlamaForCausalLM(config)
         tokenizer = None
         if args.optimizer == "adam":
             optimizer = Adam(model_torch.parameters(), args.lr)
@@ -160,7 +122,6 @@ elif args.pretrained == "local":
 tokenizer = LlamaTokenizerFast.from_pretrained(args.remote_model_name,
                                                 cache_dir=args.model_path)
 model_torch.eval()
-model_torch.to(torch_device).to(torch_dtype)
 print(model_torch.config)
 
 if args.nntile_nepochs:
@@ -182,6 +143,13 @@ if args.nntile_nepochs:
     next_tag = 0
 
     time0 = time.time()
+    if args.n_head_tile == -1:
+        args.n_head_tile = model_torch.config.num_attention_heads
+    if args.hidden_size_tile == -1:
+        args.hidden_size_tile = model_torch.config.hidden_size
+    if args.intermediate_size_tile == -1:
+        args.intermediate_size_tile = model_torch.config.intermediate_size
+
     llama_config_nntile = LlamaConfigNNTile(
         vocab_size=model_torch.vocab_size,
         vocab_embed_dim_tile=model_torch.config.hidden_size,
@@ -197,6 +165,7 @@ if args.nntile_nepochs:
         n_head_tile=args.n_head_tile,
         dtype=args.nntile_dtype
         )
+
     print(llama_config_nntile)
 
     single_batch_pos_ids = np.arange(args.seq_len).reshape(1, args.seq_len)
@@ -216,10 +185,9 @@ if args.nntile_nepochs:
     time1 = time.time() - time0
     print("Converting PyTorch model to NNTile",
           "requires {} seconds".format(time1))
-if args.torch_nepochs == 0:
     del model_torch
 
-if args.torch_nepochs > 0 or args.nntile_nepochs > 0:
+if args.nntile_nepochs > 0:
     import numpy as np
     from datasets import load_dataset
     train_dataset = load_dataset("wikitext", "wikitext-103-v1",
@@ -244,85 +212,34 @@ if args.torch_nepochs > 0 or args.nntile_nepochs > 0:
     train_tokens = train_tokens.reshape(num_train_batches,
             num_minibatch, args.minibatch_size, args.seq_len + 1)
 
-if args.torch_nepochs > 0:
-    torch_input = []
-    torch_output = []
-    for i in range(num_train_batches):
-        minibatch_input = []
-        minibatch_output = []
-        for j in range(num_minibatch):
-            minibatch_input.append(torch.tensor(train_tokens[i, j, :, :-1],
-                requires_grad=False).contiguous())
-            minibatch_output.append(torch.tensor(train_tokens[i, j, :, 1:],
-                requires_grad=False).contiguous())
-        torch_input.append(minibatch_input)
-        torch_output.append(minibatch_output)
-    loss_func = nn.CrossEntropyLoss(reduction="mean")
-    model_torch.train()
-    if args.pretrained == "remote":
-        if args.optimizer == "adam":
-            optimizer = Adam(model_torch.parameters(), args.lr)
-        elif args.optimizer == "sgd":
-            optimizer = SGD(model_torch.parameters(), args.lr)
-        elif args.optimizer == "adamw":
-            optimizer = AdamW(model_torch.parameters(), args.lr)
-        else:
-            raise ValueError
-    # Warmup training
-    # for i in range(args.torch_nepochs_warmup):
-    #     for j in range(num_train_batches):
-    #         optimizer.zero_grad()
-    #         loss = torch.zeros(1, dtype=torch_dtype,
-    #                            device=args.torch_device)
-    #         for k in range(num_minibatch):
-    #             train_input = torch_input[j][k].to(args.torch_device)
-    #             train_labels = torch_output[j][k].to(
-    #                               args.torch_device).reshape(-1)
-    #             train_output = model_torch.to(torch_dtype)(train_input)
-    #             train_logits = train_output.logits.reshape(-1,
-    #                                                        config.vocab_size)
-    #             loss_local = loss_func(train_logits, train_labels)
-    #             loss_local.backward()
-    #             loss += loss_local
-    #         print("loss={}".format(loss.item()), flush=True)
-    #         optimizer.step()
-    # Actual training
-    if args.torch_device.startswith("cuda"):
-        torch.cuda.synchronize()
-    time0 = time.time()
-    for i in range(args.torch_nepochs):
-        for j in range(num_train_batches):
-            optimizer.zero_grad()
-            loss = torch.zeros(1, dtype=torch_dtype, device=args.torch_device)
-            for k in range(num_minibatch):
-                train_input = torch_input[j][k].to(
-                    args.torch_device)
-                train_labels = torch_output[j][k].to(
-                    args.torch_device).reshape(-1)
-                train_output = model_torch(train_input)
-                train_logits = train_output.logits.reshape(-1,
-                                                           model_torch.config.vocab_size)
-                loss_local = loss_func(train_logits, train_labels)
-                loss_local.backward()
-                loss += loss_local
-            print("Batch={}/{} Epoch={}/{} Loss={}".format(j + 1,
-                                                           num_train_batches,
-                                                           i + 1,
-                                                           args.torch_nepochs,
-                                                           loss.item()),
-                                                           flush=True)
-            optimizer.step()
-    if args.torch_device.startswith("cuda"):
-        torch.cuda.synchronize()
-    time1 = time.time() - time0
-    print("Torch training time: {} seconds".format(time1), flush=True)
-    print("Torch training throughput tokens/sec: {}".format(
-            args.torch_nepochs * num_train_batches * args.batch_size
-            * args.seq_len / time1), flush=True)
-    # print("Torch performance: {} Tflops/s".format(3 * torch_nflops_seq \
-    #         * args.torch_nepochs * num_train_batches * args.batch_size \
-    #         / time1 * 1e-12), flush=True)
-    print("Torch loss on the last batch: {}".format(loss.item()), flush=True)
+# FLOPs counting
+# MLP
+nflops_seq_block_fwd = 4 * args.seq_len * (llama_config_nntile.hidden_size *
+                                           llama_config_nntile.intermediate_size)
+nflops_seq_block_bwd = 8 * args.seq_len * (llama_config_nntile.hidden_size *
+                                           llama_config_nntile.intermediate_size)
+# Attention Q, K, V
+nflops_seq_block_fwd += 8 * args.seq_len * llama_config_nntile.hidden_size**2
+nflops_seq_block_bwd += 16 * args.seq_len * llama_config_nntile.hidden_size**2
+# Attention softmax(Q'@K)@V
+if args.nntile_flashattention:
+    nflops_seq_block_fwd += 6 * (args.seq_len**2 *
+                                 llama_config_nntile.hidden_size)
+    nflops_seq_block_bwd += 14 * (args.seq_len**2 *
+                                  llama_config_nntile.hidden_size)
+else:
+    nflops_seq_block_fwd += 4 * (args.seq_len**2 *
+                                 llama_config_nntile.hidden_size)
+    nflops_seq_block_bwd += 8 * (args.seq_len**2 *
+                                 llama_config_nntile.hidden_size)
+# Total flops with LM_head
+nflops_seq_fwd = llama_config_nntile.num_hidden_layers * (nflops_seq_block_fwd
+        + 2 * args.seq_len * llama_config_nntile.hidden_size *
+        llama_config_nntile.vocab_size)
+nflops_seq_bwd = llama_config_nntile.num_hidden_layers * (nflops_seq_block_bwd
+        + 4 * args.seq_len * llama_config_nntile.hidden_size *
+        llama_config_nntile.vocab_size)
+nflops_seq = nflops_seq_fwd + nflops_seq_bwd
 
 if args.nntile_nepochs > 0:
     time0 = time.time()
@@ -378,9 +295,9 @@ if args.nntile_nepochs > 0:
     print("NNTile training throughput tokens/sec: {}".format(
             args.nntile_nepochs * num_train_batches * args.batch_size
             * args.seq_len / time1))
-    # print("NNTile performance: {} Tflops/s".format(nflops_seq \
-    #         * args.nntile_nepochs * num_train_batches * args.batch_size \
-    #         / time1 * 1e-12))
+    print("NNTile performance: {} Tflops/s".format(nflops_seq
+            * args.nntile_nepochs * num_train_batches * args.batch_size
+            / time1 * 1e-12))
     loss_np = np.zeros((1), dtype=np.float32)
     loss.val.to_array(loss_np)
     print("NNTile loss on the last batch: {}".format(loss_np[0]))
