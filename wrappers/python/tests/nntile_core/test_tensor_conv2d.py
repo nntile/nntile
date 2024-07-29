@@ -12,10 +12,10 @@
 # @version 1.0.0
 
 import numpy as np
-import scipy
-from typing import Sequence
-import nntile
 import pytest
+import scipy
+
+import nntile
 
 # Set up StarPU configuration and init it
 config = nntile.starpu.Config(1, 0, 0)

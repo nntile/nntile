@@ -53,18 +53,28 @@ def helper(
 ):
     next_tag = 0
 
+    bits = np.random.MT19937()
+    rng = np.random.Generator(bits)
     shape = [*shape_A, in_channels, batch]
     traits = nntile.tensor.TensorTraits(shape, tile_shape_A)
     mpi_distr = [0] * traits.grid.nelems
     A = Tensor[dtype](traits, mpi_distr, next_tag)
-    src_A = np.array(np.random.randn(*shape), dtype=dtype, order="F")
+    src_A = np.array(
+            rng.standard_normal(shape, dtype=dtype),
+            dtype=dtype,
+            order="F"
+    )
     next_tag = A.next_tag
 
     shape = [*shape_B, out_channels, in_channels]
     traits = nntile.tensor.TensorTraits(shape, tile_shape_B)
     mpi_distr = [0] * traits.grid.nelems
     B = Tensor[dtype](traits, mpi_distr, next_tag)
-    src_B = np.array(np.random.randn(*shape), dtype=dtype, order="F")
+    src_B = np.array(
+            rng(shape, dtype=dtype),
+            dtype=dtype,
+            order="F"
+    )
     next_tag = B.next_tag
 
     shape = [
@@ -76,7 +86,11 @@ def helper(
     traits = nntile.tensor.TensorTraits(shape, tile_shape_C)
     mpi_distr = [0] * traits.grid.nelems
     C = Tensor[dtype](traits, mpi_distr, next_tag)
-    src_C = np.array(np.random.randn(*shape), dtype=dtype, order="F")
+    src_C = np.array(
+            rng(shape, dtype=dtype),
+            dtype=dtype,
+            order="F"
+    )
     dst_C = np.zeros_like(src_C, dtype=dtype, order="F")
 
     # Set initial values of tensors
