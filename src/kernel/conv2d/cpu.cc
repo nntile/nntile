@@ -1,5 +1,7 @@
-/*! @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
- *                           (Skoltech). All rights reserved.
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+ *                              (Skoltech), Russia. All rights reserved.
+ *                 2023-present Artificial Intelligence Research Institute
+ *                              (AIRI), Russia. All rights reserved.
  *
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
@@ -8,18 +10,11 @@
  * 2D-Convolution between 2 matrices
  *
  * @version 1.0.0
- * @author Aleksandr Mikhalev
- * @date 2023-04-28
  * */
 
 #include "nntile/kernel/conv2d/cpu.hh"
-#include <cstdio>
-#include <iostream>
-namespace nntile
-{
-namespace kernel
-{
-namespace conv2d
+
+namespace nntile::kernel::conv2d
 {
 
 template <typename T>
@@ -117,6 +112,4 @@ template void cpu<fp64_t>(Index offset_n, Index offset_m, Index batch,
                           const fp64_t *kernel, Index dst_n, Index dst_m,
                           fp64_t *dst) noexcept;
 
-} // namespace conv2d
-} // namespace kernel
-} // namespace nntile
+} // namespace nntile::kernel::conv2d

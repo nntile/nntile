@@ -1,20 +1,21 @@
-# @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
-#                           (Skoltech). All rights reserved.
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_strassen.py
-# Test for tensor::strassen<T> Python wrapper
+# @file wrappers/python/tests/nntile_core/test_tensor_conv2d.py
+# Test for tensor::conv2d<T> Python wrapper
 #
 # @version 1.0.0
-# @author Aleksandr Mikhalev
-# @date 2023-12-18
+
+import numpy as np
+import scipy
 
 # All necesary imports
 import nntile
-import numpy as np
-import scipy
 
 # Set up StarPU configuration and init it
 config = nntile.starpu.Config(1, 0, 0)
@@ -77,7 +78,6 @@ def helper(
     B.from_array(src_B)
     C.from_array(src_C)
 
-    C.to_array(dst_C)
     conv2d[dtype](A, B, C, padding[0], padding[1])
     C.to_array(dst_C)
 

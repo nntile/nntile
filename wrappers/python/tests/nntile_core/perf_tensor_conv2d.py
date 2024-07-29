@@ -1,23 +1,24 @@
-# @copyright (c) 2022-2023 Skolkovo Institute of Science and Technology
-#                           (Skoltech). All rights reserved.
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
 #
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_strassen.py
-# Test for tensor::strassen<T> Python wrapper
+# @file wrappers/python/tests/nntile_core/perf_tensor_conv2d.py
+# Test for tensor::conv2d<T> Python wrapper
 #
 # @version 1.0.0
-# @author Aleksandr Mikhalev
-# @date 2023-12-18
+
+import itertools
+import timeit
+
+import click
+import numpy as np
 
 # All necesary imports
 import nntile
-import numpy as np
-import scipy
-import timeit
-import click
-import itertools
 
 # Set up StarPU configuration and init it
 config = nntile.starpu.Config(1, 0, 0)
@@ -26,7 +27,10 @@ nntile.starpu.init()
 # Define list of tested types
 dtypes = [np.float32, np.float64]
 # Define mapping between numpy and nntile types
-Tensor = {np.float32: nntile.tensor.Tensor_fp32, np.float64: nntile.tensor.Tensor_fp64}
+Tensor = {
+    np.float32: nntile.tensor.Tensor_fp32,
+    np.float64: nntile.tensor.Tensor_fp64
+}
 # Define mapping between tested function and numpy type
 conv2d = {
     np.float32: nntile.nntile_core.tensor.conv2d_fp32,
@@ -97,7 +101,8 @@ nntile.starpu.wait_for_all()""",
 
 @click.command()
 @click.option(
-    "--file", "-f", "file", type=click.File("a"), help="CSV file used for output"
+    "--file", "-f", "file", type=click.File("a"),
+    help="CSV file used for output"
 )
 @click.option(
     "--dtype",
@@ -206,19 +211,21 @@ def all_configurations(
     )
     if file.tell() == 0:
         file.write(
-            "time, dtype, Ax, Ay, Bx, By, tile_Ax, tile_Ay, tile_Aic, tile_Ab, tile_Bx, tile_By, tile_Bic, tile_Boc, tile_Cx, tile_Cy, tile_Coc, tile_Cb, in_channels, out_channels, batch, padding_x, padding_y\n"
+            "time, dtype, Ax, Ay, Bx, By, tile_Ax, tile_Ay, tile_Aic, tile_Ab,"
+            "tile_Bx, tile_By, tile_Bic, tile_Boc, tile_Cx, tile_Cy, tile_Coc,"
+            "tile_Cb, in_channels, out_channels, batch, padding_x, padding_y\n"
         )
     for chosen_args in itertools.product(*all_args):
         str_arg, *num_args = chosen_args
         nptype = {"float32": np.float32, "float64": np.float64}[str_arg]
         iterations, timing = helper(nptype, *num_args)
-        #        print(f"{timing/iterations}, {str_arg}, {', '.join(map(str, num_args[1:]))}")
         num_args = list(
             itertools.chain.from_iterable(
                 [a if isinstance(a, tuple) else (a,) for a in num_args]
             )
         )
-        file.write(f"{timing/iterations}, {str_arg}, {', '.join(map(str, num_args))}\n")
+        file.write(f"{timing / iterations}, {str_arg}, "
+                "{', '.join(map(str, num_args))}\n")
 
 
 if __name__ == "__main__":
