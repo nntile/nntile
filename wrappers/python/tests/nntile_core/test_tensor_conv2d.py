@@ -13,9 +13,9 @@
 
 import numpy as np
 import scipy
-
-# All necesary imports
+from typing import Sequence
 import nntile
+import pytest
 
 # Set up StarPU configuration and init it
 config = nntile.starpu.Config(1, 0, 0)
@@ -24,7 +24,10 @@ nntile.starpu.init()
 # Define list of tested types
 dtypes = [np.float32, np.float64]
 # Define mapping between numpy and nntile types
-Tensor = {np.float32: nntile.tensor.Tensor_fp32, np.float64: nntile.tensor.Tensor_fp64}
+Tensor = {
+        np.float32: nntile.tensor.Tensor_fp32,
+        np.float64: nntile.tensor.Tensor_fp64
+}
 # Define mapping between tested function and numpy type
 conv2d = {
     np.float32: nntile.nntile_core.tensor.conv2d_fp32,
@@ -32,33 +35,73 @@ conv2d = {
 }
 
 
-# Helper function returns bool value true if test passes
-def helper(
+@pytest.mark.parametrize('dtype', conv2d.keys())
+@pytest.mark.parametrize('shape_A, shape_A_tile', [
+    [[8, 8], [8, 8]],
+    [[8, 8], [3, 5]],
+    [[3, 5], [1, 1]]
+])
+@pytest.mark.parametrize('shape_B, shape_B_tile', [
+    [[8, 8], [8, 8]],
+    [[8, 8], [3, 5]],
+    [[3, 5], [1, 1]]
+])
+@pytest.mark.parametrize('shape_C_tile', [[15, 15], [3, 3]])
+@pytest.mark.parametrize('in_channels, in_channels_tile', [
+    [3, 3],
+    [3, 1]
+])
+@pytest.mark.parametrize('out_channels, out_channels_tile', [
+    [3, 3],
+    [3, 1]
+])
+@pytest.mark.parametrize('batch, batch_tile', [
+    [1, 1],
+    [3, 3],
+    [3, 1]
+])
+@pytest.mark.parametrize('padding', [[0, 0], [2, 1]])
+def test_conv2d(
+    starpu_simple,
+    numpy_rng,
     dtype,
     shape_A,
+    shape_A_tile,
     shape_B,
-    tile_shape_A,
-    tile_shape_B,
-    tile_shape_C,
+    shape_B_tile,
+    shape_C_tile,
     in_channels,
+    in_channels_tile,
     out_channels,
+    out_channels_tile,
     batch,
+    batch_tile,
     padding,
 ):
     next_tag = 0
 
     shape = [*shape_A, in_channels, batch]
-    traits = nntile.tensor.TensorTraits(shape, tile_shape_A)
+    tile_shape = [*shape_A_tile, in_channels_tile, batch_tile]
+    traits = nntile.tensor.TensorTraits(shape, tile_shape)
     mpi_distr = [0] * traits.grid.nelems
     A = Tensor[dtype](traits, mpi_distr, next_tag)
-    src_A = np.array(np.random.randn(*shape), dtype=dtype, order="F")
+    src_A = np.array(
+            numpy_rng.standard_normal(shape, dtype=dtype),
+            dtype=dtype,
+            order="F"
+    )
     next_tag = A.next_tag
 
     shape = [*shape_B, out_channels, in_channels]
-    traits = nntile.tensor.TensorTraits(shape, tile_shape_B)
+    tile_shape = [*shape_B_tile, out_channels_tile, in_channels_tile]
+    traits = nntile.tensor.TensorTraits(shape, tile_shape)
     mpi_distr = [0] * traits.grid.nelems
     B = Tensor[dtype](traits, mpi_distr, next_tag)
-    src_B = np.array(np.random.randn(*shape), dtype=dtype, order="F")
+    src_B = np.array(
+            numpy_rng.standard_normal(shape, dtype=dtype),
+            dtype=dtype,
+            order="F"
+    )
     next_tag = B.next_tag
 
     shape = [
@@ -67,10 +110,15 @@ def helper(
         out_channels,
         batch,
     ]
-    traits = nntile.tensor.TensorTraits(shape, tile_shape_C)
+    tile_shape = [*shape_C_tile, out_channels_tile, batch_tile]
+    traits = nntile.tensor.TensorTraits(shape, tile_shape)
     mpi_distr = [0] * traits.grid.nelems
     C = Tensor[dtype](traits, mpi_distr, next_tag)
-    src_C = np.array(np.random.randn(*shape), dtype=dtype, order="F")
+    src_C = np.array(
+            numpy_rng.standard_normal(shape, dtype=dtype),
+            dtype=dtype,
+            order="F"
+    )
     dst_C = np.zeros_like(src_C, dtype=dtype, order="F")
 
     # Set initial values of tensors
@@ -102,106 +150,6 @@ def helper(
             # Check if results are almost equal
             value = src_C[..., oc, b]
             result = dst_C[..., oc, b]
-            if np.linalg.norm(result - value) / np.linalg.norm(value) > 1e-4:
-                return False
-    return True
-
-
-# Repeat tests for different configurations
-def tests():
-    for dtype in conv2d.keys():
-        # Basic test
-        assert helper(
-            dtype=dtype,
-            shape_A=[8, 8],
-            shape_B=[8, 8],
-            tile_shape_A=[8, 8, 1, 1],
-            tile_shape_B=[8, 8, 1, 1],
-            tile_shape_C=[15, 15, 1, 1],
-            in_channels=1,
-            out_channels=1,
-            batch=1,
-            padding=[0, 0],
-        )
-        # Different matrix sizes
-        assert helper(
-            dtype=dtype,
-            shape_A=[3, 5],
-            shape_B=[7, 11],
-            tile_shape_A=[3, 5, 1, 1],
-            tile_shape_B=[7, 11, 1, 1],
-            tile_shape_C=[9, 15, 1, 1],
-            in_channels=1,
-            out_channels=1,
-            batch=1,
-            padding=[0, 0],
-        )
-        # With padding
-        assert helper(
-            dtype=dtype,
-            shape_A=[3, 5],
-            shape_B=[7, 11],
-            tile_shape_A=[3, 5, 1, 1],
-            tile_shape_B=[7, 11, 1, 1],
-            tile_shape_C=[8, 13, 1, 1],
-            in_channels=1,
-            out_channels=1,
-            batch=1,
-            padding=[1, 2],
-        )
-        # With smaller tiles
-        assert helper(
-            dtype=dtype,
-            shape_A=[3, 5],
-            shape_B=[7, 11],
-            tile_shape_A=[2, 2, 1, 1],
-            tile_shape_B=[3, 3, 1, 1],
-            tile_shape_C=[4, 4, 1, 1],
-            in_channels=1,
-            out_channels=1,
-            batch=1,
-            padding=[1, 2],
-        )
-        # With in/out channels
-        assert helper(
-            dtype=dtype,
-            shape_A=[3, 5],
-            shape_B=[7, 11],
-            tile_shape_A=[2, 2, 1, 1],
-            tile_shape_B=[3, 3, 1, 1],
-            tile_shape_C=[4, 4, 1, 1],
-            in_channels=4,
-            out_channels=5,
-            batch=1,
-            padding=[1, 2],
-        )
-        # With batch
-        assert helper(
-            dtype=dtype,
-            shape_A=[3, 5],
-            shape_B=[7, 11],
-            tile_shape_A=[2, 2, 1, 1],
-            tile_shape_B=[3, 3, 1, 1],
-            tile_shape_C=[4, 4, 1, 1],
-            in_channels=4,
-            out_channels=5,
-            batch=3,
-            padding=[1, 2],
-        )
-        # With tile batches
-        assert helper(
-            dtype=dtype,
-            shape_A=[3, 5],
-            shape_B=[7, 11],
-            tile_shape_A=[2, 2, 2, 2],
-            tile_shape_B=[3, 3, 2, 2],
-            tile_shape_C=[4, 4, 2, 2],
-            in_channels=4,
-            out_channels=5,
-            batch=3,
-            padding=[1, 2],
-        )
-
-
-if __name__ == "__main__":
-    tests()
+            diff = np.linalg.norm(result - value)
+            norm = np.linalg.norm(value)
+            assert diff <= 1e-4 * norm

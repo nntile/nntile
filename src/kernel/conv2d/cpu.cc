@@ -42,9 +42,13 @@ void cpu(Index offset_n, Index offset_m, Index batch, Index out_channels,
  * @param[in] kernel: Input contiguous kernel_n-by-kernel_m array
  * @param[in] dst_n: Size of the first axis of dst array
  * @param[in] dst_m: Size of the second axis of dst array
- * @param[out] dst: Output contiguous dst_n-by-dst_m array
+ * @param[inout] dst: Output contiguous dst_n-by-dst_m array
  * */
 {
+    using Y = typename T::repr_t;
+    auto src_ = reinterpret_cast<const Y *>(src);
+    auto kernel_ = reinterpret_cast<const Y *>(kernel);
+    auto dst_ = reinterpret_cast<const Y *>(dst);
     Index src_n_end = limit_n;
     if(src_n_end > src_n)
         src_n_end = src_n;
@@ -77,15 +81,17 @@ void cpu(Index offset_n, Index offset_m, Index batch, Index out_channels,
                                 if(dst_2 < offset_m ||
                                    offset_m + dst_m <= dst_2)
                                     continue;
-                                dst[(dst_1 - offset_n) * dst_m +
+                                T &dst_val = dst[(dst_1 - offset_n) * dst_m +
                                     (dst_2 - offset_m) + oc * dst_n * dst_m +
-                                    b * out_channels * dst_n * dst_m] +=
-                                    src[i1 * src_m + i2 + ic * src_n * src_m +
-                                        b * in_channels * src_n * src_m] *
-                                    kernel[j1 * kernel_m + j2 +
-                                           oc * kernel_n * kernel_m +
-                                           ic * out_channels * kernel_n *
-                                               kernel_m];
+                                    b * out_channels * dst_n * dst_m];
+                                Y src_val = Y{src[i1 * src_m + i2 +
+                                    ic * src_n * src_m +
+                                    b * in_channels * src_n * src_m]};
+                                Y kernel_val = Y{kernel[j1 * kernel_m + j2 +
+                                    oc * kernel_n * kernel_m +
+                                    ic * out_channels * kernel_n *
+                                    kernel_m]};
+                                dst_val = T{Y{dst_val} + src_val*kernel_val};
                             }
                         }
                     }
@@ -111,5 +117,21 @@ template void cpu<fp64_t>(Index offset_n, Index offset_m, Index batch,
                           const fp64_t *src, Index kernel_n, Index kernel_m,
                           const fp64_t *kernel, Index dst_n, Index dst_m,
                           fp64_t *dst) noexcept;
+
+template void cpu<fp32_fast_tf32_t>(Index offset_n, Index offset_m, Index batch,
+                          Index out_channels, Index in_channels,
+                          Index padding_n, Index limit_n, Index padding_m,
+                          Index limit_m, Index src_n, Index src_m,
+                          const fp32_fast_tf32_t *src, Index kernel_n, Index kernel_m,
+                          const fp32_fast_tf32_t *kernel, Index dst_n, Index dst_m,
+                          fp32_fast_tf32_t *dst) noexcept;
+
+template void cpu<bf16_t>(Index offset_n, Index offset_m, Index batch,
+                          Index out_channels, Index in_channels,
+                          Index padding_n, Index limit_n, Index padding_m,
+                          Index limit_m, Index src_n, Index src_m,
+                          const bf16_t *src, Index kernel_n, Index kernel_m,
+                          const bf16_t *kernel, Index dst_n, Index dst_m,
+                          bf16_t *dst) noexcept;
 
 } // namespace nntile::kernel::conv2d
