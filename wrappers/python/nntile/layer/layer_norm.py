@@ -11,6 +11,7 @@
 #
 # @version 1.0.0
 
+import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (Tensor, TensorMoments, TensorTraits, add_async,
                            add_fiber_async, add_slice3_async, add_slice_async,
@@ -18,6 +19,7 @@ from nntile.tensor import (Tensor, TensorMoments, TensorTraits, add_async,
                            norm_slice_async, prod_fiber3_async,
                            prod_slice_async, sum_fiber_async, sum_slice_async,
                            sumprod_fiber_async, sumprod_slice_async)
+import nntile.utils.constructors as nntc
 
 
 class LayerNorm(BaseLayer):
@@ -163,6 +165,63 @@ class LayerNorm(BaseLayer):
         self.beta.value.wont_use()
         # Y can be offloaded from GPU
         self.y.value.wont_use()
+
+    # Forward propagation of the normalization layer
+    def forward_dynamic(self, x: TensorMoments):
+        mean_shape = (
+            x.value.shape[: self.axis] + x.value.shape[self.axis + 1 :]
+        )
+        mean_basetile = (
+            x.value.basetile_shape[: self.axis]
+            + x.value.basetile_shape[self.axis + 1 :]
+        )
+
+        tmp_y_value = nntc.empty_like(x.value)
+        y = TensorMoments(nntc.empty_like(x.value), None, False)
+        mean = nntc.empty(mean_shape, mean_basetile, dtype=type(x.value))
+        inv_stddev = nntc.empty(mean_shape, mean_basetile, dtype=type(x.value))
+
+        num_layers = x.value.shape[self.axis]
+
+        # Get means over given axis
+        sum_slice_async(
+            1.0 / num_layers, x.value, 0.0, mean, self.axis, redux=self.redux
+        )
+        # Y = X - mean
+        add_slice3_async(-1.0, mean, 1.0, x.value, tmp_y_value, self.axis)
+        # mean can be offloaded from GPU
+        mean.wont_use()
+
+        # Compute standard deviation of self.y.value
+        # fill_async(self.eps, self.inv_stddev)
+        norm_slice_async(
+            1.0 / num_layers**0.5,
+            tmp_y_value,
+            0.0,
+            inv_stddev,
+            self.axis,
+            redux=self.redux,
+        )
+        hypot_scalar_inverse_async(self.eps, 1.0, inv_stddev)
+        # Invert stddev (to multiply by it instead of dividing)
+        # pow_async(1.0, -1.0, self.inv_stddev)
+        # Finally, normalize input
+        prod_slice_async(inv_stddev, 1.0, tmp_y_value, self.axis)
+        # inv_stddev can be offloaded from GPU
+        inv_stddev.wont_use()
+        # Scale normalized input for the backward phase
+        prod_fiber3_async(
+            self.gamma.value, 1.0, tmp_y_value, y.value, self.axis
+        )
+        # tmp_Y_value can be offloaded from GPU
+        tmp_y_value.wont_use()
+        # gamma can be offloaded from GPU
+        self.gamma.value.wont_use()
+        # Shift output
+        add_fiber_async(1.0, self.beta.value, 1.0, y.value, self.axis, 0)
+        # beta can be offloaded from GPU
+        self.beta.value.wont_use()
+        return y
 
     # Backward propagation of the normalization layer
     def backward_async(self):
