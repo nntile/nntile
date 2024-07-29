@@ -11,25 +11,27 @@
 #
 # @version 1.0.0
 
-# All necesary imports
-import nntile
 import numpy as np
-# Set up StarPU configuration and init it
+import pytest
+from numpy.testing import assert_equal
+
+import nntile
+
 config = nntile.starpu.Config(1, 0, 0)
-# Init all NNTile-StarPU codelets
 nntile.starpu.init()
-# Define list of tested types
-dtypes = [np.float32, np.float64]
+
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
-        np.float64: nntile.tensor.Tensor_fp64,
-        bool: nntile.tensor.Tensor_bool}
+          np.float64: nntile.tensor.Tensor_fp64,
+          bool: nntile.tensor.Tensor_bool}
+
 # Define mapping between tested function and numpy type
 mask_scalar_func = {np.float32: nntile.nntile_core.tensor.mask_scalar_fp32,
                     np.float64: nntile.nntile_core.tensor.mask_scalar_fp64}
 
-# Helper function returns bool value true if test passes
-def helper(dtype):
+
+@pytest.mark.parametrize('dtype', [np.float32, np.float64])
+def test_mask_scalar(dtype):
     # Describe single-tile tensor, located at node 0
     shape = [3, 3, 10]
     mpi_distr = [0]
@@ -41,7 +43,7 @@ def helper(dtype):
     mask_traits = nntile.tensor.TensorTraits(shape[:2], shape[:2])
     mask = Tensor[bool](mask_traits, mpi_distr, next_tag)
     # Set initial values of tensors
-    rand_A = np.random.randn(*shape)
+    rand_A = np.random.default_rng(42).standard_normal(shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A.from_array(np_A)
 
@@ -56,18 +58,4 @@ def helper(dtype):
     A.unregister()
     mask.unregister()
     # Compare results
-    return (np_res == np_A).all()
-
-# Test runner for different precisions
-def test():
-    for dtype in dtypes:
-        assert helper(dtype)
-
-# Repeat tests
-def test_repeat():
-    for dtype in dtypes:
-        assert helper(dtype)
-
-if __name__ == "__main__":
-    test()
-    test_repeat()
+    assert_equal(np_res, np_A)

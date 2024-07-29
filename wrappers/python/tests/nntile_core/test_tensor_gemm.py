@@ -11,24 +11,25 @@
 #
 # @version 1.0.0
 
-# All necesary imports
-import nntile
 import numpy as np
-# Set up StarPU configuration and init it
+import pytest
+
+import nntile
+
 config = nntile.starpu.Config(1, 0, 0)
-# Init all NNTile-StarPU codelets
 nntile.starpu.init()
-# Define list of tested types
-dtypes = [np.float32, np.float64]
+
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
-        np.float64: nntile.tensor.Tensor_fp64}
+          np.float64: nntile.tensor.Tensor_fp64}
+
 # Define mapping between tested function and numpy type
 gemm = {np.float32: nntile.nntile_core.tensor.gemm_fp32,
         np.float64: nntile.nntile_core.tensor.gemm_fp64}
 
-# Helper function returns bool value true if test passes
-def helper(dtype):
+
+@pytest.mark.parametrize('dtype', [np.float32, np.float64])
+def test_gemm(dtype):
     # Describe single-tile tensor, located at node 0
     matrix_shape = [2, 2]
     batch = 3
@@ -43,9 +44,10 @@ def helper(dtype):
     next_tag = B.next_tag
     C = Tensor[dtype](traits, mpi_distr, next_tag)
     # Set initial values of tensors
-    src_A = np.array(np.random.randn(*shape), dtype=dtype, order='F')
-    src_B = np.array(np.random.randn(*shape), dtype=dtype, order='F')
-    src_C = np.array(np.random.randn(*shape), dtype=dtype, order='F')
+    rng = np.random.default_rng(42)
+    src_A = rng.standard_normal(shape).astype(dtype, 'F')
+    src_B = rng.standard_normal(shape).astype(dtype, 'F')
+    src_C = rng.standard_normal(shape).astype(dtype, 'F')
     dst_C = np.zeros_like(src_C)
     A.from_array(src_A)
     B.from_array(src_B)
@@ -62,24 +64,9 @@ def helper(dtype):
     # Check results
     for i in range(batch):
         # Get result in numpy
-        src_C[:, :, i] = beta*src_C[:, :, i] + \
-                alpha*(src_A[:, :, i]@(src_B[:, :, i].T))
+        src_C[:, :, i] = (beta * src_C[:, :, i] + alpha *
+                          (src_A[:, :, i] @ (src_B[:, :, i].T)))
         # Check if results are almost equal
-        if np.linalg.norm(dst_C[:, :, i]-src_C[:, :, i]) \
-                / np.linalg.norm(src_C[:, :, i]) > 1e-4:
-            return False
-    return True
-
-# Test runner for different precisions
-def test():
-    for dtype in dtypes:
-        assert helper(dtype)
-
-# Repeat tests
-def test_repeat():
-    for dtype in dtypes:
-        assert helper(dtype)
-
-if __name__ == "__main__":
-    test()
-    test_repeat()
+        rel_error = (np.linalg.norm(dst_C[:, :, i] - src_C[:, :, i]) /
+                     np.linalg.norm(src_C[:, :, i]))
+        assert rel_error <= 1e-4

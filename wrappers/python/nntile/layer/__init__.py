@@ -11,17 +11,21 @@
 #
 # @version 1.0.0
 
-from .base_layer import BaseLayer
 from .act import Act
-from .linear import Linear
-from .attention import Attention
-from .flash_attention import FlashAttention
-from .attention_single_head import AttentionSingleHead
-from .embedding import Embedding
-from .batch_norm import BatchNorm2d
-from .layer_norm import LayerNorm
-#from .fp32_to_fp16 import FP32_to_FP16
-#from .fp16_to_fp32 import FP16_to_FP32
 from .add_slice import AddSlice
+from .attention import Attention
+from .attention_single_head import AttentionSingleHead
+from .base_layer import BaseLayer
+from .batch_norm import BatchNorm2d
+from .embedding import Embedding
+from .flash_attention import FlashAttention
+from .layer_norm import LayerNorm
+from .linear import Linear
+from .llama_attention import LlamaAttention
+from .mixer import GAP, Mixer, MixerMlp
+from .prod import Prod
+from .rms_norm import RMSNorm
 
-from .mixer import Mixer, MixerMlp, GAP
+__all__ = ('Act', 'AddSlice', 'Attention', 'AttentionSingleHead', 'BaseLayer',
+           'BatchNorm2d', 'Embedding', 'FlashAttention', 'GAP', 'LayerNorm',
+           'Linear', 'LlamaAttention', 'Mixer', 'MixerMlp', 'RMSNorm', 'Prod')

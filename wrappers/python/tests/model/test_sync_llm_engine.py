@@ -1,17 +1,11 @@
 from dataclasses import dataclass
 
 import pytest
+from transformers import GPT2Tokenizer
 
 from nntile.inference.llm_sync_engine import LlmSyncInferenceEngine
 from nntile.model.generation.llm import GenerationMode, GenerationParams
 from nntile.model.gpt2 import GPT2Model as GPT2Model_nnt
-
-
-def get_tokenizer(model_name, cache_dir):
-    from transformers import GPT2TokenizerFast
-
-    tokenizer = GPT2TokenizerFast.from_pretrained("gpt2", cache_dir=cache_dir)
-    return tokenizer
 
 
 @dataclass
@@ -36,11 +30,10 @@ TEST_LLM_INF_ENGINE_INPUT_PARAMS = [
 ]
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("params", TEST_LLM_INF_ENGINE_INPUT_PARAMS)
-def test_sync_llm_inference_engine_from_pretrained(
-    starpu_simple, huggingface_local_cache_dir, params
-):
-    tokenizer = get_tokenizer(params.model_name, huggingface_local_cache_dir)
+def test_sync_llm_inference_engine_from_pretrained(starpu_simple, params):
+    tokenizer = GPT2Tokenizer.from_pretrained(params.model_name)
     next_tag = 0
     model_nnt, next_tag = GPT2Model_nnt.from_pretrained(
         params.model_name,

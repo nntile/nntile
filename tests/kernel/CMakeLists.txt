@@ -42,6 +42,8 @@ set(TESTS
     "randn"
     "relu"
     "relu_backward"
+    "rope"
+    "rope_backward"
     "softmax"
     "softmax_inplace"
     "sqrt"

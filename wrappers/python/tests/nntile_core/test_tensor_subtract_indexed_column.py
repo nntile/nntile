@@ -6,10 +6,14 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/nntile_core/test_tensor_subtract_indexed_column.py
+# @file test_tensor_subtract_indexed_column.py
 # Test for tensor::subtract_indexed_column<T> Python wrapper
 #
 # @version 1.0.0
 
-# Test is not yet implemented
-raise NotImplementedError
+import pytest
+
+
+@pytest.mark.xfail(reason='not implemented')
+def test_subtract_indexed_column_async():
+    pass
