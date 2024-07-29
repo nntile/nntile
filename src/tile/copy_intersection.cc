@@ -155,6 +155,11 @@ void copy_intersection_async<int64_t>(const Tile<int64_t> &src,
         const std::vector<Index> &src_offset, const Tile<int64_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
+template
+void copy_intersection_async<bool_t>(const Tile<bool_t> &src,
+        const std::vector<Index> &src_offset, const Tile<bool_t> &dst,
+        const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
+
 // Explicit instantiation
 template
 void copy_intersection<fp32_t>(const Tile<fp32_t> &src,

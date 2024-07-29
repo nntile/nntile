@@ -434,6 +434,11 @@ void copy_intersection_async<int64_t>(const Tensor<int64_t> &src,
         const std::vector<Index> &src_offset, const Tensor<int64_t> &dst,
         const std::vector<Index> &dst_offset);
 
+template
+void copy_intersection_async<bool_t>(const Tensor<bool_t> &src,
+        const std::vector<Index> &src_offset, const Tensor<bool_t> &dst,
+        const std::vector<Index> &dst_offset);
+
 // Explicit instantiation
 template
 void copy_intersection<fp32_t>(const Tensor<fp32_t> &src,
