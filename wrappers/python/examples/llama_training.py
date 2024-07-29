@@ -40,7 +40,8 @@ parser = argparse.ArgumentParser(prog="LLaMa-based neural networks",
         "activations) and a throughput of inference and training. It can "
         "also fine-tune a pretrained NNTile model on a chosen dataset.")
 
-parser.add_argument("--remote_model_name", default="huggyllama/llama-7b")
+# parser.add_argument("--remote_model_name", default="huggyllama/llama-7b")
+parser.add_argument("--remote_model_name", default="kimihailv/llama-1.3b")
 
 parser.add_argument("--pretrained", choices=["local", "remote"],
                     default="local")
@@ -133,7 +134,7 @@ if args.nntile_dtype == "tf32":
 if args.pretrained == "remote":
     # Newer versions of transformers can use fast attention, so we disable it
     # through a parameter attn_implementation
-    model_torch = LlamaForCausalLM.from_pretrained(args.model,
+    model_torch = LlamaForCausalLM.from_pretrained(args.remote_model_name,
                 cache_dir=args.model_path, local_files_only=True)
 elif args.pretrained == "local":
     if args.config_path:
@@ -198,11 +199,9 @@ if args.nntile_nepochs:
         )
     print(llama_config_nntile)
 
-    gen = np.random.default_rng(42)
-    pos_ids = np.arange(args.seq_len).reshape(1, args.seq_len)
-    # pos_ids = gen.integers(args.seq_len,
-    #                     size=(args.minibatch_size, args.seq_len),
-    #                     dtype=np.int64)
+    single_batch_pos_ids = np.arange(args.seq_len).reshape(1, args.seq_len)
+    pos_ids = np.repeat(single_batch_pos_ids, args.minibatch_size, axis=0)
+
     mask = np.array(np.triu(np.ones((args.seq_len, args.seq_len))),
                         dtype=bool, order="F")
     llama_nntile, next_tag = Llama_nntile.from_torch(model_torch,
