@@ -36,17 +36,12 @@ conv2d = {
 
 
 @pytest.mark.parametrize('dtype', conv2d.keys())
-@pytest.mark.parametrize('shape_A, shape_A_tile', [
-    [[8, 8], [8, 8]],
-    [[8, 8], [3, 5]],
-    [[3, 5], [1, 1]]
+@pytest.mark.parametrize('shape_A, shape_A_tile, shape_B, shape_B_tile, '
+        'shape_C_tile', [
+    [[8, 8], [8, 8], [8, 8], [8, 8], [1, 1]],
+    [[8, 8], [3, 5], [8, 8], [3, 5], [1, 1]],
+    [[3, 5], [1, 1], [2, 2], [1, 1], [1, 1]]
 ])
-@pytest.mark.parametrize('shape_B, shape_B_tile', [
-    [[8, 8], [8, 8]],
-    [[8, 8], [3, 5]],
-    [[3, 5], [1, 1]]
-])
-@pytest.mark.parametrize('shape_C_tile', [[15, 15], [3, 3]])
 @pytest.mark.parametrize('in_channels, in_channels_tile', [
     [3, 3],
     [3, 1]
