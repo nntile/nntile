@@ -125,6 +125,8 @@ set(KERNEL_HDR
     "nntile/kernel/adamw_step/cpu.hh"
     "nntile/kernel/transpose.hh"
     "nntile/kernel/transpose/cpu.hh"
+    "nntile/kernel/conv2d_v2_inplace.hh"
+    "nntile/kernel/conv2d_v2_inplace/cpu.hh"
     "nntile/kernel/rope.hh"
     "nntile/kernel/rope/cpu.hh"
     "nntile/kernel/rope_backward.hh"
@@ -260,6 +262,7 @@ set(STARPU_HDR
     "nntile/starpu/adam_step.hh"
     "nntile/starpu/adamw_step.hh"
     "nntile/starpu/transpose.hh"
+    "nntile/starpu/conv2d_v2_inplace.hh"
     "nntile/starpu/rope.hh"
     "nntile/starpu/rope_backward.hh"
     )
@@ -393,6 +396,7 @@ set(TENSOR_HDR
     "nntile/tensor/adam_step.hh"
     "nntile/tensor/adamw_step.hh"
     "nntile/tensor/transpose.hh"
+    "nntile/tensor/conv2d_v2_inplace.hh"
     "nntile/tensor/rope.hh"
     "nntile/tensor/rope_backward.hh"
     )

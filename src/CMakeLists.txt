@@ -72,6 +72,7 @@ else()
         "kernel/transpose/cpu.cc"
         "kernel/silu_forward/cpu.cc"
         "kernel/silu_backward/cpu.cc"
+        "kernel/conv2d_v2_inplace/cpu.cc"
         "kernel/rope/cpu.cc"
         "kernel/rope_backward/cpu.cc"
         )
@@ -209,6 +210,7 @@ set(STARPU_SRC
     "starpu/transpose.cc"
     "starpu/silu_forward.cc"
     "starpu/silu_backward.cc"
+    "starpu/conv2d_v2_inplace.cc"
     "starpu/rope.cc"
     "starpu/rope_backward.cc"
     )
@@ -342,6 +344,7 @@ set(TENSOR_SRC
     "tensor/transpose.cc"
     "tensor/silu_forward.cc"
     "tensor/silu_backward.cc"
+    "tensor/conv2d_v2_inplace.cc"
     "tensor/rope.cc"
     "tensor/rope_backward.cc"
     )
