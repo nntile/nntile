@@ -256,13 +256,24 @@ def test_attention(starpu_simple, dtype: np.dtype):
     layer.unregister()
 
 
-@pytest.mark.parametrize("n_head,n_head_tile", [(1, 1)])
-def test_dynamic(starpu_simple, numpy_rng, n_head, n_head_tile):
-    inp_np = np.asfortranarray(numpy_rng.random((3, 10, 1)))
+@pytest.mark.parametrize(
+    "n_head,n_head_tile,n_emb,n_emb_tile,seq_size", [(2, 1, 6, 2, 10)]
+)
+def test_dynamic(
+    starpu_simple, numpy_rng, n_head, n_head_tile, n_emb, n_emb_tile, seq_size
+):
+    input_shape = (n_emb, seq_size, 1)
+    inp_np = np.asfortranarray(numpy_rng.random(input_shape))
 
-    inp = nntc.from_array(inp_np)
-    inp2 = nntc.from_array(inp_np)
-    inp3 = nntc.from_array(inp_np)
+    inp = nntc.from_array(
+        inp_np, basetile_shape=(n_emb_tile,) + input_shape[1:]
+    )
+    inp2 = nntc.from_array(
+        inp_np, basetile_shape=(n_emb_tile,) + input_shape[1:]
+    )
+    inp3 = nntc.from_array(
+        inp_np, basetile_shape=(n_emb_tile,) + input_shape[1:]
+    )
 
     inp_tm = nntile.tensor.TensorMoments(
         inp, grad=nntc.zeros(inp.shape, dtype=type(inp)), grad_required=False
