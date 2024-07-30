@@ -14,6 +14,7 @@
 
 #include "nntile/kernel/conv2d_v2_inplace/cpu.hh"
 #include <algorithm>
+#include <iostream>
 
 namespace nntile::kernel::conv2d_v2_inplace
 {
@@ -45,49 +46,81 @@ void cpu(Index src_m, Index src_n, Index in_channels, Index batch,
  * */
 {
     using Y = typename T::repr_t;
-    Index src_start_m = std::max(offset_m, Index(0));
-    Index src_end_m = std::min(offset_m+src_m+kernel_m, dst_m);
-    Index src_start_n = std::max(offset_n, Index(0));
-    Index src_end_n = std::min(offset_n+src_n+kernel_n, dst_n);
-//    for(Index b = 0; b < batch; ++b)
-//    {
-//        for(Index oc = 0; oc < out_channels; ++oc)
-//        {
-//            for(Index ic = 0; ic < in_channels; ++ic)
-//            {
-//                for(Index i1 = padding_n; i1 < src_n_end; ++i1)
-//                {
-//                    for(Index j1 = 0; j1 < kernel_n; ++j1)
-//                    {
-//                        Index dst_1 = (i1 - padding_n) + j1;
-//                        if(dst_1 < offset_n || offset_n + dst_n <= dst_1)
-//                            continue;
-//                        for(Index i2 = padding_m; i2 < src_m_end; ++i2)
-//                        {
-//                            for(Index j2 = 0; j2 < kernel_m; ++j2)
-//                            {
-//                                Index dst_2 = (i2 - padding_m) + j2;
-//                                if(dst_2 < offset_m ||
-//                                   offset_m + dst_m <= dst_2)
-//                                    continue;
-//                                T &dst_val = dst[(dst_1 - offset_n) * dst_m +
-//                                    (dst_2 - offset_m) + oc * dst_n * dst_m +
-//                                    b * out_channels * dst_n * dst_m];
-//                                Y src_val = Y{src[i1 * src_m + i2 +
-//                                    ic * src_n * src_m +
-//                                    b * in_channels * src_n * src_m]};
-//                                Y kernel_val = Y{kernel[j1 * kernel_m + j2 +
-//                                    oc * kernel_n * kernel_m +
-//                                    ic * out_channels * kernel_n *
-//                                    kernel_m]};
-//                                dst_val = T{Y{dst_val} + src_val*kernel_val};
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//    }
+    Index dst_start_m = std::max(offset_m-kernel_m+1, Index(0));
+    Index dst_end_m = std::min(offset_m+src_m+kernel_m-1, dst_m);
+    Index dst_start_n = std::max(offset_n-kernel_n+1, Index(0));
+    Index dst_end_n = std::min(offset_n+src_n+kernel_n-1, dst_n);
+    Index src_step = src_n * src_m;
+    Index kernel_step = kernel_n * kernel_m;
+    for(Index b = 0; b < batch; ++b)
+    {
+        for(Index oc = 0; oc < out_channels; ++oc)
+        {
+            for(Index dst_j = 0; dst_j < dst_n; ++dst_j)
+            {
+                T *dst_slice = dst + ((b*out_channels+oc)*dst_n+dst_j)*dst_m;
+                for(Index dst_i = 0; dst_i < dst_m; ++dst_i)
+                {
+                    // Update within convolution bounds
+                    if(dst_i >= dst_start_m and dst_i < dst_end_m and
+                            dst_j >= dst_start_n and dst_j < dst_end_n)
+                    {
+                        Y conv{0.0};
+                        Index src_start_m = std::max(dst_i-offset_m,
+                                Index(0));
+                        Index src_end_m = std::min(dst_i-offset_m+kernel_m,
+                                src_m);
+                        Index src_start_n = std::max(dst_j-offset_n,
+                                Index(0));
+                        Index src_end_n = std::min(dst_j-offset_n+kernel_n,
+                                src_n);
+                        for(Index src_i = src_start_m; src_i < src_end_m;
+                                ++src_i)
+                        {
+                            for(Index src_j = src_start_n; src_j < src_end_n;
+                                    ++src_j)
+                            {
+                                const T *src_slice = src + src_i
+                                    + (b*in_channels*src_n+src_j)*src_m;
+                                const T *kernel_slice = kernel
+                                    + src_i + offset_m - dst_i
+                                    + (src_j+offset_n-dst_j)*kernel_m
+                                    + oc*in_channels*kernel_step;
+                                for(Index ic = 0; ic < in_channels; ++ic)
+                                {
+                                    Y src_val{src_slice[src_step*ic]};
+                                    Y kernel_val{kernel_slice[kernel_step*ic]};
+                                    conv += src_val * kernel_val;
+                                }
+                            }
+                        }
+                        if(beta == 0.0)
+                        {
+                            dst_slice[dst_i] = T{alpha * conv};
+                        }
+                        else
+                        {
+                            Y old{dst_slice[dst_i]};
+                            dst_slice[dst_i] = T{beta*old + alpha*conv};
+                        }
+                    }
+                    // Out of convolution bounds
+                    else
+                    {
+                        if(beta == 0.0)
+                        {
+                            dst_slice[dst_i] = T{Y{0.0}};
+                        }
+                        else if(beta != 1.0)
+                        {
+                            Y old{dst_slice[dst_i]};
+                            dst_slice[dst_i] = T{beta * old};
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 // Explicit instantiation
