@@ -116,8 +116,8 @@ void conv2d_v2_inplace_async(Scalar alpha, const Tensor<T> &src,
         // Get src tile coordinates that interact with dst tile
         Index src_start_tile_m = src_start_m / src.basetile_shape[0];
         Index src_end_tile_m = (src_end_m-1) / src.basetile_shape[0] + 1;
-        Index src_start_tile_n = src_start_n / src.basetile_shape[0];
-        Index src_end_tile_n = (src_end_n-1) / src.basetile_shape[0] + 1;
+        Index src_start_tile_n = src_start_n / src.basetile_shape[1];
+        Index src_end_tile_n = (src_end_n-1) / src.basetile_shape[1] + 1;
         // Case of big padding: dst tile does not require any convolution
         if(src_end_tile_m <= 0 or src_start_tile_m >= src.grid.shape[0]
                 or src_end_tile_n <= 0 or src_start_tile_n >= src.grid.shape[1])
@@ -143,6 +143,7 @@ void conv2d_v2_inplace_async(Scalar alpha, const Tensor<T> &src,
         Index end_m = std::min(src_end_tile_m, src.grid.shape[0]);
         Index start_n = std::max(src_start_tile_n, Index(0));
         Index end_n = std::min(src_end_tile_n, src.grid.shape[1]);
+        Scalar dst_tile_beta = beta;
         for(Index src_i = start_m; src_i < end_m; ++src_i)
         {
             src_tile_index[0] = src_i;
@@ -161,7 +162,8 @@ void conv2d_v2_inplace_async(Scalar alpha, const Tensor<T> &src,
                         src_tile_handle, kernel.shape[0], kernel.shape[1],
                         kernel.shape[3], kernel.get_tile_handle(0),
                         dst_tile_traits.shape[0], dst_tile_traits.shape[1],
-                        beta, dst_tile_handle);
+                        dst_tile_beta, dst_tile_handle);
+                dst_tile_beta = 1.0;
             }
         }
     }
