@@ -86,6 +86,7 @@
 #include <nntile/starpu/silu_forward.hh>
 #include <nntile/starpu/silu_backward.hh>
 #include <nntile/starpu/conv2d.hh>
+#include <nntile/starpu/conv2d_v2_inplace.hh>
 #include <nntile/starpu/rope.hh>
 #include <nntile/starpu/rope_backward.hh>
 
@@ -166,6 +167,7 @@ void init()
     silu_forward::init();
     silu_backward::init();
     conv2d::init();
+    conv2d_v2_inplace::init();
     rope::init();
     rope_backward::init();
 }
@@ -241,6 +243,7 @@ void restrict_where(uint32_t where)
     silu_forward::restrict_where(where);
     silu_backward::restrict_where(where);
     conv2d::restrict_where(where);
+    conv2d_v2_inplace::restrict_where(where);
     rope::restrict_where(where);
     rope_backward::restrict_where(where);
 }
@@ -316,6 +319,7 @@ void restore_where()
     silu_forward::restore_where();
     silu_backward::restore_where();
     conv2d::restore_where();
+    conv2d_v2_inplace::restore_where();
     rope::restore_where();
     rope_backward::restore_where();
 }

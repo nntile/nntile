@@ -6,24 +6,26 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tensor/conv2d.cc
+ * @file src/tensor/conv2d_v2.cc
  * Tensor wrappers for 2D-Convolution between 2 matrices
  *
  * @version 1.0.0
  * */
 
-#include "nntile/tensor/conv2d_v2.hh"
+#include "nntile/tensor/conv2d_v2_inplace.hh"
+#include <algorithm>
 #include "nntile/starpu/clear.hh"
-#include "nntile/starpu/conv2d.hh"
+#include "nntile/starpu/scal_inplace.hh"
+#include "nntile/starpu/conv2d_v2_inplace.hh"
 #include <unistd.h>
 
 namespace nntile::tensor
 {
 
 template <typename T>
-void conv2d_v2_inplace_async(Scalar alpha, const Tensor<T> &src, const Tensor<T> &kernel,
-                  Scalar beta, const Tensor<T> &dst, Index padding_m,
-                  Index padding_n)
+void conv2d_v2_inplace_async(Scalar alpha, const Tensor<T> &src,
+        const Tensor<T> &kernel, Scalar beta, const Tensor<T> &dst,
+        Index padding_m, Index padding_n)
 //! Tensor<T> 2D-Convolution between 2 matrices
 /*! Reshapes input tensors into 2-dimensional arrays
  * and performs the 2D-Convolution
@@ -65,29 +67,29 @@ void conv2d_v2_inplace_async(Scalar alpha, const Tensor<T> &src, const Tensor<T>
     }
     if(src.shape[2] != kernel.shape[2])
     {
-        throw std::runtime_error("src.shape[2] != kernel.shape[2]")
+        throw std::runtime_error("src.shape[2] != kernel.shape[2]");
     }
     if(dst.shape[2] != kernel.shape[3])
     {
-        throw std::runtime_error("dst.shape[2] != kernel.shape[3]")
+        throw std::runtime_error("dst.shape[2] != kernel.shape[3]");
     }
     if(src.shape[3] != dst.shape[3])
     {
-        throw std::runtime_error("src.shape[3] != dst.shape[3]")
+        throw std::runtime_error("src.shape[3] != dst.shape[3]");
     }
     // Check base tiles
     if(src.basetile_shape[2] != src.shape[2])
     {
-        throw std::runtime_error("src.basetile_shape[2] != src.shape[2]")
+        throw std::runtime_error("src.basetile_shape[2] != src.shape[2]");
     }
     if(dst.basetile_shape[2] != dst.shape[2])
     {
-        throw std::runtime_error("dst.basetile_shape[2] != dst.shape[2]")
+        throw std::runtime_error("dst.basetile_shape[2] != dst.shape[2]");
     }
     if(src.basetile_shape[3] != dst.basetile_shape[3])
     {
         throw std::runtime_error("src.basetile_shape[3] != "
-                "dst.basetile_shape[3]")
+                "dst.basetile_shape[3]");
     }
     if(kernel.shape != kernel.basetile_shape)
     {
@@ -128,7 +130,8 @@ void conv2d_v2_inplace_async(Scalar alpha, const Tensor<T> &src, const Tensor<T>
             // Scale inplace if beta is neither zero nor one
             else if(beta != 1.0)
             {
-                starpu::scal_inplace<T>(beta, dst_tile_handle);
+                starpu::scal_inplace::submit<T>(dst_tile_traits.nelems, beta,
+                        dst_tile_handle);
             }
             // Do nothing if beta is one
             // Cycle to the next dst tile
@@ -136,9 +139,9 @@ void conv2d_v2_inplace_async(Scalar alpha, const Tensor<T> &src, const Tensor<T>
         }
         // Loop through corresponding src tiles
         std::vector<Index> src_tile_index(dst_tile_index);
-        Index start_m = std::max(src_start_tile_m, 0);
+        Index start_m = std::max(src_start_tile_m, Index(0));
         Index end_m = std::min(src_end_tile_m, src.grid.shape[0]);
-        Index start_n = std::max(src_start_tile_n, 0);
+        Index start_n = std::max(src_start_tile_n, Index(0));
         Index end_n = std::min(src_end_tile_n, src.grid.shape[1]);
         for(Index src_i = start_m; src_i < end_m; ++src_i)
         {
@@ -152,12 +155,13 @@ void conv2d_v2_inplace_async(Scalar alpha, const Tensor<T> &src, const Tensor<T>
                     + padding_m;
                 Index offset_n = src_j*src.basetile_shape[1] - dst_start_n
                     + padding_n;
-                starpu::conv2d_v2::submit<T>(src_tile_traits.shape[0],
+                starpu::conv2d_v2_inplace::submit<T>(src_tile_traits.shape[0],
                         src_tile_traits.shape[1], src_tile_traits.shape[2],
                         src_tile_traits.shape[3], offset_m, offset_n, alpha,
                         src_tile_handle, kernel.shape[0], kernel.shape[1],
-                        kernel.shape[3], kernel.get_tile_handle(0), beta,
-                        dst_tile_handle);
+                        kernel.shape[3], kernel.get_tile_handle(0),
+                        dst_tile_traits.shape[0], dst_tile_traits.shape[1],
+                        beta, dst_tile_handle);
             }
         }
     }
