@@ -189,6 +189,7 @@ class Linear(BaseLayer):
         y = nntc.zeros(
             self.out_features_shape + x.value.shape[self.ndim :],
             dtype=type(x.value),
+            basetile_shape=self.out_features_basetile_shape + x.value.shape[self.ndim :],
         )
         # Y = einsum('ij,jk->ik', W, op(X))
         # 'i' is a multi-index of dimension W.ndim-ndim

@@ -78,7 +78,7 @@ class Act(BaseLayer):
         self.y.value.wont_use()
 
     def forward_dynamic(self, x: TensorMoments):
-        y = nntc.zeros(x.value.shape, dtype=type(x.value))
+        y = nntc.zeros(x.value.shape, dtype=type(x.value), basetile_shape=x.value.basetile_shape)
         if self.funcname == "relu":
             relu_forward_async(x.value, y)
         if self.funcname == "silu":
