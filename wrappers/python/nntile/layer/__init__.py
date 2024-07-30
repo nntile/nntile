@@ -22,10 +22,11 @@ from .flash_attention import FlashAttention
 from .layer_norm import LayerNorm
 from .linear import Linear
 from .llama_attention import LlamaAttention
+from .gpt2_attention import GPT2Attention
 from .mixer import GAP, Mixer, MixerMlp
 from .prod import Prod
 from .rms_norm import RMSNorm
 
 __all__ = ('Act', 'AddSlice', 'Attention', 'AttentionSingleHead', 'BaseLayer',
            'BatchNorm2d', 'Embedding', 'FlashAttention', 'GAP', 'LayerNorm',
-           'Linear', 'LlamaAttention', 'Mixer', 'MixerMlp', 'RMSNorm', 'Prod')
+           'Linear', 'LlamaAttention', 'GPT2Attention', 'Mixer', 'MixerMlp', 'RMSNorm', 'Prod')
