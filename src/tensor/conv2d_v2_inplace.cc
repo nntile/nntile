@@ -24,15 +24,19 @@ namespace nntile::tensor
 
 template <typename T>
 void conv2d_v2_inplace_async(Scalar alpha, const Tensor<T> &src,
-        const Tensor<T> &kernel, Scalar beta, const Tensor<T> &dst,
-        Index padding_m, Index padding_n)
+        bool kernel_transpose, const Tensor<T> &kernel, Scalar beta,
+        const Tensor<T> &dst, Index padding_m, Index padding_n)
 //! Tensor<T> 2D-Convolution between 2 matrices
 /*! Reshapes input tensors into 2-dimensional arrays
  * and performs the 2D-Convolution
  * src must be of shape (W_in, H_in, C_in, N)
  * src must have basetile (W_in_tile, H_in_tile, C_in, N_tile)
- * kernel must be of shape (K_x, K_y, C_in, C_out)
- * kernel must have basetile (K_x, K_y, C_in, C_out)
+ * if kernel_transpose is False:
+ *      kernel must be of shape (K_x, K_y, C_in, C_out)
+ *      kernel must have basetile (K_x, K_y, C_in, C_out)
+ * else:
+ *      kernel must be of shape (K_x, K_y, C_out, C_in)
+ *      kernel must have basetile (K_x, K_y, C_out, C_in)
  * dst must be of shape (W_out, H_out, C_out, N)
  * with W_out=W_in-K_x+2paddint_m+1
  * and H_out=H_in-K_y+2padding_n+1
@@ -55,23 +59,53 @@ void conv2d_v2_inplace_async(Scalar alpha, const Tensor<T> &src,
         throw std::runtime_error("4 != dst.ndim");
     }
     // Check shapes of tensors
-    if(dst.shape[0] != src.shape[0] - kernel.shape[0] + 1 + 2*padding_m)
+    if(not kernel_transpose)
     {
-        throw std::runtime_error("dst.shape[0] != src.shape[0] - "
-                                 "kernel.shape[0] + 1 + 2*padding_n");
+        if(dst.shape[0] != src.shape[0] - kernel.shape[0] + 1 + 2*padding_m)
+        {
+            throw std::runtime_error("dst.shape[0] != src.shape[0] - "
+                                     "kernel.shape[0] + 1 + 2*padding_n");
+        }
+        if(dst.shape[1] != src.shape[1] - kernel.shape[1] + 1 + 2*padding_n)
+        {
+            throw std::runtime_error("dst.shape[1] != src.shape[1] - "
+                                     "kernel.shape[1] + 1 + 2*padding_m");
+        }
     }
-    if(dst.shape[1] != src.shape[1] - kernel.shape[1] + 1 + 2*padding_n)
+    else
     {
-        throw std::runtime_error("dst.shape[1] != src.shape[1] - "
-                                 "kernel.shape[1] + 1 + 2*padding_m");
+        if(src.shape[0] != dst.shape[0] - kernel.shape[0] + 1 + 2*padding_m)
+        {
+            throw std::runtime_error("src.shape[0] != dst.shape[0] - "
+                                     "kernel.shape[0] + 1 + 2*padding_n");
+        }
+        if(src.shape[1] != dst.shape[1] - kernel.shape[1] + 1 + 2*padding_n)
+        {
+            throw std::runtime_error("src.shape[1] != dst.shape[1] - "
+                                     "kernel.shape[1] + 1 + 2*padding_m");
+        }
     }
-    if(src.shape[2] != kernel.shape[2])
+    if(not kernel_transpose)
     {
-        throw std::runtime_error("src.shape[2] != kernel.shape[2]");
+        if(src.shape[2] != kernel.shape[2])
+        {
+            throw std::runtime_error("src.shape[2] != kernel.shape[2]");
+        }
+        if(dst.shape[2] != kernel.shape[3])
+        {
+            throw std::runtime_error("dst.shape[2] != kernel.shape[3]");
+        }
     }
-    if(dst.shape[2] != kernel.shape[3])
+    else
     {
-        throw std::runtime_error("dst.shape[2] != kernel.shape[3]");
+        if(src.shape[2] != kernel.shape[3])
+        {
+            throw std::runtime_error("src.shape[2] != kernel.shape[3]");
+        }
+        if(dst.shape[2] != kernel.shape[2])
+        {
+            throw std::runtime_error("dst.shape[2] != kernel.shape[2]");
+        }
     }
     if(src.shape[3] != dst.shape[3])
     {
@@ -113,6 +147,13 @@ void conv2d_v2_inplace_async(Scalar alpha, const Tensor<T> &src,
         Index src_end_m = dst_end_m - padding_m + kernel.shape[0];
         Index src_start_n = dst_start_n - padding_n;
         Index src_end_n = dst_end_n - padding_n + kernel.shape[1];
+        if(kernel_transpose)
+        {
+            src_start_m = dst_start_m + padding_m - kernel.shape[0] + 1;
+            src_end_m = dst_end_m + padding_m + 1;
+            src_start_n = dst_start_n + padding_n - kernel.shape[1] + 1;
+            src_end_n = dst_end_n + padding_n + 1;
+        }
         // Get src tile coordinates that interact with dst tile
         Index src_start_tile_m = src_start_m / src.basetile_shape[0];
         Index src_end_tile_m = (src_end_m-1) / src.basetile_shape[0] + 1;
@@ -156,13 +197,21 @@ void conv2d_v2_inplace_async(Scalar alpha, const Tensor<T> &src,
                     + padding_m;
                 Index offset_n = src_j*src.basetile_shape[1] - dst_start_n
                     + padding_n;
+                if(kernel_transpose)
+                {
+                    offset_m = src_i*src.basetile_shape[0] - dst_start_m
+                        - padding_m;
+                    offset_n = src_j*src.basetile_shape[1] - dst_start_n
+                        - padding_n;
+                }
                 starpu::conv2d_v2_inplace::submit<T>(src_tile_traits.shape[0],
                         src_tile_traits.shape[1], src_tile_traits.shape[2],
                         src_tile_traits.shape[3], offset_m, offset_n, alpha,
                         src_tile_handle, kernel.shape[0], kernel.shape[1],
-                        kernel.shape[3], kernel.get_tile_handle(0),
-                        dst_tile_traits.shape[0], dst_tile_traits.shape[1],
-                        dst_tile_beta, dst_tile_handle);
+                        dst_tile_traits.shape[2], kernel_transpose,
+                        kernel.get_tile_handle(0), dst_tile_traits.shape[0],
+                        dst_tile_traits.shape[1], dst_tile_beta,
+                        dst_tile_handle);
                 dst_tile_beta = 1.0;
             }
         }
@@ -171,8 +220,8 @@ void conv2d_v2_inplace_async(Scalar alpha, const Tensor<T> &src,
 
 template <typename T>
 void conv2d_v2_inplace(Scalar alpha, const Tensor<T> &src,
-        const Tensor<T> &kernel, Scalar beta, const Tensor<T> &dst,
-        Index padding_m, Index padding_n)
+        bool kernel_transpose, const Tensor<T> &kernel, Scalar beta,
+        const Tensor<T> &dst, Index padding_m, Index padding_n)
 //! Tensor<T> 2D-Convolution between 2 matrices
 /*! Blocking version of conv2d_async<T>.
  * Reshapes input tensors into 2-dimensional arrays
@@ -185,32 +234,52 @@ void conv2d_v2_inplace(Scalar alpha, const Tensor<T> &src,
  * @param[in] padding_n: Padding on the first axis of the input
  * */
 {
-    conv2d_v2_inplace_async<T>(alpha, src, kernel, beta, dst, padding_m,
-            padding_n);
+    conv2d_v2_inplace_async<T>(alpha, src, kernel_transpose, kernel, beta, dst,
+            padding_m, padding_n);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation of template
+template void conv2d_v2_inplace_async<bf16_t>(Scalar alpha,
+        const Tensor<bf16_t> &src, bool kernel_transpose,
+        const Tensor<bf16_t> &kernel, Scalar beta, const Tensor<bf16_t> &dst,
+        Index padding_m, Index padding_n);
+
 template void conv2d_v2_inplace_async<fp32_t>(Scalar alpha,
-        const Tensor<fp32_t> &src, const Tensor<fp32_t> &kernel,
-        Scalar beta, const Tensor<fp32_t> &dst, Index padding_m,
-        Index padding_n);
+        const Tensor<fp32_t> &src, bool kernel_transpose,
+        const Tensor<fp32_t> &kernel, Scalar beta, const Tensor<fp32_t> &dst,
+        Index padding_m, Index padding_n);
+
+template void conv2d_v2_inplace_async<fp32_fast_tf32_t>(Scalar alpha,
+        const Tensor<fp32_fast_tf32_t> &src,bool kernel_transpose, 
+        const Tensor<fp32_fast_tf32_t> &kernel, Scalar beta,
+        const Tensor<fp32_fast_tf32_t> &dst, Index padding_m, Index padding_n);
 
 template void conv2d_v2_inplace_async<fp64_t>(Scalar alpha,
-        const Tensor<fp64_t> &src, const Tensor<fp64_t> &kernel,
-        Scalar beta, const Tensor<fp64_t> &dst, Index padding_m,
-        Index padding_n);
+        const Tensor<fp64_t> &src, bool kernel_transpose,
+        const Tensor<fp64_t> &kernel, Scalar beta, const Tensor<fp64_t> &dst,
+        Index padding_m, Index padding_n);
 
 // Explicit instantiation of template
+template void conv2d_v2_inplace<bf16_t>(Scalar alpha,
+        const Tensor<bf16_t> &src, bool kernel_transpose,
+        const Tensor<bf16_t> &kernel, Scalar beta, const Tensor<bf16_t> &dst,
+        Index padding_m, Index padding_n);
+
 template void conv2d_v2_inplace<fp32_t>(Scalar alpha,
-        const Tensor<fp32_t> &src, const Tensor<fp32_t> &kernel,
-        Scalar beta, const Tensor<fp32_t> &dst, Index padding_m,
-        Index padding_n);
+        const Tensor<fp32_t> &src, bool kernel_transpose,
+        const Tensor<fp32_t> &kernel, Scalar beta, const Tensor<fp32_t> &dst,
+        Index padding_m, Index padding_n);
+
+template void conv2d_v2_inplace<fp32_fast_tf32_t>(Scalar alpha,
+        const Tensor<fp32_fast_tf32_t> &src, bool kernel_transpose,
+        const Tensor<fp32_fast_tf32_t> &kernel, Scalar beta,
+        const Tensor<fp32_fast_tf32_t> &dst, Index padding_m, Index padding_n);
 
 template void conv2d_v2_inplace<fp64_t>(Scalar alpha,
-        const Tensor<fp64_t> &src, const Tensor<fp64_t> &kernel,
-        Scalar beta, const Tensor<fp64_t> &dst, Index padding_m,
-        Index padding_n);
+        const Tensor<fp64_t> &src, bool kernel_transpose,
+        const Tensor<fp64_t> &kernel, Scalar beta, const Tensor<fp64_t> &dst,
+        Index padding_m, Index padding_n);
 
 } // namespace nntile::tensor

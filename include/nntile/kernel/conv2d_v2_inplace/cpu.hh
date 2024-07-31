@@ -22,7 +22,8 @@ namespace nntile::kernel::conv2d_v2_inplace
 template <typename T>
 void cpu(Index src_m, Index src_n, Index in_channels, Index batch,
         Index offset_m, Index offset_n, Scalar alpha, const T *src,
-        Index kernel_m, Index kernel_n, Index out_channels, const T *kernel,
-        Index dst_m, Index dst_n, Scalar beta, T *dst) noexcept;
+        Index kernel_m, Index kernel_n, Index out_channels,
+        bool kernel_transpose, const T *kernel, Index dst_m, Index dst_n,
+        Scalar beta, T *dst) noexcept;
 
 } // namespace nntile::kernel::conv2d_v2_inplace

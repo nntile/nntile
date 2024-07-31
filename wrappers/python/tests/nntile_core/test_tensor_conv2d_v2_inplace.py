@@ -110,7 +110,7 @@ def test_conv2d(
     W.from_array(src_W)
     Y.from_array(src_Y)
 
-    conv2d_v2_inplace[dtype](1.0, X, W, 0.0, Y, padding[0], padding[1])
+    conv2d_v2_inplace[dtype](1.0, X, False, W, 0.0, Y, padding[0], padding[1])
     Y.to_array(dst_Y)
 
     nntile.starpu.wait_for_all()
