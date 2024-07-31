@@ -12,6 +12,7 @@
 # @version 1.0.0
 
 from typing import Sequence
+
 import numpy as np
 import pytest
 import torch

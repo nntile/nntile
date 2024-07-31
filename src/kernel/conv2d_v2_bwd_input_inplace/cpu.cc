@@ -6,17 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/conv2d_v2_inplace/cpu.cc
- * 2D-Convolution between 2 matrices
+ * @file src/kernel/conv2d_v2_bwd_input_inplace/cpu.cc
+ * Backward of 2D-Convolution for gradient over input
  *
  * @version 1.0.0
  * */
 
-#include "nntile/kernel/conv2d_v2_inplace/cpu.hh"
+#include "nntile/kernel/conv2d_v2_bwd_input_inplace/cpu.hh"
 #include <algorithm>
 #include <iostream>
 
-namespace nntile::kernel::conv2d_v2_inplace
+namespace nntile::kernel::conv2d_v2_bwd_input_inplace
 {
 
 template<typename T>
@@ -27,7 +27,7 @@ void cpu(Index src_m, Index src_n, Index in_channels, Index batch,
     noexcept
 /*! Compute full discrete linear convolution of two 2-dimensional arrays
  *
- * Y[i,j,k,b] = sum_l sum_m sum_n X[m,n,l,b]*W[m+om-i,n+on-j,l,k],
+ * Y[i,j,k,b] = sum_l sum_m sum_n X[m,n,l,b]*W[i+om-m,j+on-n,k,l],
  *
  * where X is represented by src, W is represented by kernel and Y is
  * represented by dst, om is an offset_n and om is an offset_m.
@@ -56,8 +56,8 @@ void cpu(Index src_m, Index src_n, Index in_channels, Index batch,
     Index dst_start_n = std::max(offset_n-kernel_n+1, Index(0));
     Index dst_end_n = std::min(offset_n+src_n+kernel_n-1, dst_n);
     Index src_step = src_n * src_m;
-    Index kernel_ic_step = kernel_n * kernel_m;
-    Index kernel_oc_step = kernel_ic_step * in_channels;
+    Index kernel_oc_step = kernel_n * kernel_m;
+    Index kernel_ic_step = kernel_oc_step * out_channels;
     for(Index b = 0; b < batch; ++b)
     {
         for(Index oc = 0; oc < out_channels; ++oc)
@@ -72,14 +72,12 @@ void cpu(Index src_m, Index src_n, Index in_channels, Index batch,
                             dst_j >= dst_start_n and dst_j < dst_end_n)
                     {
                         Y conv{0.0};
-                        Index src_start_m = std::max(dst_i-offset_m,
+                        Index src_start_m = std::max(dst_i-offset_m-kernel_m+1,
                                 Index(0));
-                        Index src_end_m = std::min(dst_i-offset_m+kernel_m,
-                                src_m);
-                        Index src_start_n = std::max(dst_j-offset_n,
+                        Index src_end_m = std::min(dst_i-offset_m+1, src_m);
+                        Index src_start_n = std::max(dst_j-offset_n-kernel_n+1,
                                 Index(0));
-                        Index src_end_n = std::min(dst_j-offset_n+kernel_n,
-                                src_n);
+                        Index src_end_n = std::min(dst_j-offset_n+1, src_n);
                         for(Index src_i = src_start_m; src_i < src_end_m;
                                 ++src_i)
                         {
@@ -89,8 +87,8 @@ void cpu(Index src_m, Index src_n, Index in_channels, Index batch,
                                 const T *src_slice = src + src_i
                                     + (b*in_channels*src_n+src_j)*src_m;
                                 const T *kernel_slice = kernel
-                                    + src_i + offset_m - dst_i
-                                    + (src_j+offset_n-dst_j)*kernel_m
+                                    - src_i - offset_m + dst_i
+                                    + (-src_j-offset_n+dst_j)*kernel_m
                                     + oc*kernel_oc_step;
                                 for(Index ic = 0; ic < in_channels; ++ic)
                                 {
@@ -158,4 +156,4 @@ void cpu<fp64_t>(Index src_m, Index src_n, Index in_channels, Index batch,
         const fp64_t *kernel, Index dst_m, Index dst_n, Scalar beta,
         fp64_t *dst) noexcept;
 
-} // namespace nntile::kernel::conv2d_v2_inplace
+} // namespace nntile::kernel::conv2d_bwd_input_inplace

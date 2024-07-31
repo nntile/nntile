@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/conv2d_v2_inplace.hh
- * StarPU wrappers for 2D-Convolution between 2 matrices
+ * @file include/nntile/starpu/conv2d_v2_bwd_input_inplace.hh
+ * Backward of 2D-Convolution for gradient over input
  *
  * @version 1.0.0
  * */
@@ -18,7 +18,7 @@
 #include <nntile/defs.h>
 #include <nntile/starpu/config.hh>
 
-namespace nntile::starpu::conv2d_v2_inplace
+namespace nntile::starpu::conv2d_v2_bwd_input_inplace
 {
 
 //! Structure for arguments
@@ -39,7 +39,7 @@ struct args_t
     Scalar beta;
 };
 
-// StarPU wrapper for kernel::conv2d_v2_inplace::cpu<T>
+// StarPU wrapper for kernel::conv2d_v2_bwd_input_inplace::cpu<T>
 template <typename T> void cpu(void *buffers[], void *cl_args) noexcept;
 
 extern Codelet codelet_bf16, codelet_fp32, codelet_fp32_fast_tf32,
@@ -83,4 +83,4 @@ void submit(Index src_m, Index src_n, Index in_channels, Index batch,
         Index kernel_m, Index kernel_n, Index out_channels, Handle kernel,
         Index dst_m, Index dst_n, Scalar beta, Handle dst);
 
-} // namespace nntile::starpu::conv2d_v2_inplace
+} // namespace nntile::starpu::conv2d_v2_bwd_input_inplace

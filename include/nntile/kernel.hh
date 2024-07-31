@@ -70,6 +70,7 @@
 #include <nntile/kernel/silu_backward.hh>
 #include <nntile/kernel/conv2d.hh>
 #include <nntile/kernel/conv2d_v2_inplace.hh>
+#include <nntile/kernel/conv2d_v2_bwd_input_inplace.hh>
 #include <nntile/kernel/rope.hh>
 #include <nntile/kernel/rope_backward.hh>
 
