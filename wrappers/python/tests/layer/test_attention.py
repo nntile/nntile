@@ -291,7 +291,7 @@ def test_dynamic(
     attn.init_randn_async()
 
     out_dynamic_actual = attn.forward_dynamic(inp_tm)
-    out_dynamic_actual_np = nntc.to_numpy(out_dynamic_actual)
+    out_dynamic_actual_np = nntc.to_numpy(out_dynamic_actual.value)
 
     attn.forward_async()
     out_dynamic_expected_np = nntc.to_numpy(attn.y.value)
@@ -316,7 +316,7 @@ def generate_greedy_logits_padding(
             nntile.tensor.TensorMoments(output_ids, None, False),
             use_cache=False,
         )
-        logits_np = nntc.to_numpy(logits)
+        logits_np = nntc.to_numpy(logits.value)
 
         output_ids_np = np.concatenate(
             [output_ids_np, logits_np[:, -1, :][:, None, :]], axis=1
@@ -347,7 +347,7 @@ def generate_greedy_logits_dynamic_kvcache(
         if is_prefill:
             is_prefill = False
 
-        logits_np = nntc.to_numpy(logits)
+        logits_np = nntc.to_numpy(logits.value)
 
         input_ids_np = logits_np[:, -1, :][:, None, :]
         output_ids_np = np.concatenate([output_ids_np, input_ids_np], axis=1)
