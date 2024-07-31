@@ -906,7 +906,9 @@ class Attention(BaseLayer):
         # Apply mask if needed
         if self.mask:
             mask_tmp = nntc.empty(a_tmp.shape[:2], dtype=Tensor_bool)
-            copy_intersection_async(self.mask, [0, 0], mask_tmp, [0, 0])
+            copy_intersection_async(
+                self.mask, [0, 0], mask_tmp, [0, k.shape[1] - q.shape[1]]
+            )
             mask_scalar_async(mask_tmp, self.val, a_tmp, 2)
 
         # Calculate max and sumexp along axis
