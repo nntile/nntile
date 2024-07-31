@@ -24,17 +24,22 @@ class LlmSyncInferenceEngine:
         # tokenize
         inputs = self.tokenizer(prompt, return_tensors="np")
         input_ids = inputs["input_ids"]
+        prefill_size = input_ids.shape[0]
 
         # transform to compatible input
-        padded_input_ids = _pad_input_numpy_tensor_to_sequence_size(
-            input_ids, self.input_seq_size
-        )
-        padded_input = nnt_constructors.from_array(padded_input_ids.T)
+        if params.need_static_padding:
+            input_ids_np = _pad_input_numpy_tensor_to_sequence_size(
+                input_ids, self.input_seq_size
+            )
+        else:
+            input_ids_np = np.asfortranarray(input_ids).astype(np.int64)
+
+        input_ids_nnt = nnt_constructors.from_array(input_ids_np.T)
 
         # generate ids
         output_ids, effective_size = self.model.generate(
-            padded_input,
-            prefill_size=input_ids.shape[1],
+            input_ids_nnt,
+            prefill_size=prefill_size,
             params=params,
             mode=mode,
         )

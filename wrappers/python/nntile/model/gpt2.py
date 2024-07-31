@@ -356,6 +356,8 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
 
+        self.kvcache_size = 0
+
     def to_torch(self, base_torch_model):
         nntile_p_idx = 0
         attn_embed_dim = self.embed_dim
@@ -616,10 +618,17 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         self.forward_async()
         return self.get_output()
 
-    def forward_dynamic(self, x: TensorMoments):
+    def forward_dynamic(self, x: TensorMoments, use_cache: bool = False):
+        if not use_cache:
+            self.kvcache_size = 0
         inp_emb, pos_emb, add_l = self.layers[0:3]
         seq_size = x.value.shape[0]
-        pos_ids_np = np.asfortranarray(np.arange(seq_size, dtype=np.int64))
+        pos_ids_np = np.asfortranarray(
+            np.arange(
+                self.kvcache_size, self.kvcache_size + seq_size, dtype=np.int64
+            )
+        )
+        self.kvcache_size += seq_size
         pos_ids_nnt_tm = TensorMoments(
             nntc.from_array(
                 pos_ids_np, basetile_shape=(x.value.basetile_shape[0],)
@@ -650,7 +659,7 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
             add2 = cur_block_layers[7]
 
             x_tmp = layer_norm1.forward_dynamic(gpt_block_inout)
-            x_tmp1 = attn.forward_dynamic(x_tmp)
+            x_tmp1 = attn.forward_dynamic(x_tmp, use_cache=use_cache)
             x_tmp2 = add1.forward_dynamic(gpt_block_inout, x_tmp1)
             x_tmp3 = layer_norm2.forward_dynamic(x_tmp2)
             mlp_output = x_tmp3
