@@ -37,8 +37,8 @@ template <typename T> void cpu(void *buffers[], void *cl_args) noexcept
     kernel::conv2d_v2_inplace::cpu<T>(args->src_m, args->src_n,
             args->in_channels, args->batch, args->offset_m, args->offset_n,
             args->alpha, src, args->kernel_m, args->kernel_n,
-            args->out_channels, kernel, args->dst_m, args->dst_n, args->beta,
-            dst);
+            args->out_channels, args->kernel_transpose, kernel, args->dst_m,
+            args->dst_n, args->beta, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -53,13 +53,23 @@ static uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64;
+Codelet codelet_bf16, codelet_fp32, codelet_fp32_fast_tf32, codelet_fp64;
 
 void init()
 {
+    codelet_bf16.init("nntile_conv2d_v2_inplace_bf16",
+            footprint,
+            {cpu<bf16_t>},
+            {}
+            );
     codelet_fp32.init("nntile_conv2d_v2_inplace_fp32",
             footprint,
             {cpu<fp32_t>},
+            {}
+            );
+    codelet_fp32_fast_tf32.init("nntile_conv2d_v2_inplace_fp32_fast_tf32",
+            footprint,
+            {cpu<fp32_fast_tf32_t>},
             {}
             );
     codelet_fp64.init("nntile_conv2d_v2_inplace_fp64",
@@ -71,21 +81,26 @@ void init()
 
 void restrict_where(uint32_t where)
 {
+    codelet_bf16.restrict_where(where);
     codelet_fp32.restrict_where(where);
+    codelet_fp32_fast_tf32.restrict_where(where);
     codelet_fp64.restrict_where(where);
 }
 
 void restore_where()
 {
+    codelet_bf16.restore_where();
     codelet_fp32.restore_where();
+    codelet_fp32_fast_tf32.restore_where();
     codelet_fp64.restore_where();
 }
 
 template <typename T>
 void submit(Index src_m, Index src_n, Index in_channels, Index batch,
         Index offset_m, Index offset_n, Scalar alpha, Handle src,
-        Index kernel_m, Index kernel_n, Index out_channels, Handle kernel,
-        Index dst_m, Index dst_n, Scalar beta, Handle dst)
+        Index kernel_m, Index kernel_n, Index out_channels,
+        bool kernel_transpose, Handle kernel, Index dst_m, Index dst_n,
+        Scalar beta, Handle dst)
 //! Insert conv2d_v2 task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -104,6 +119,7 @@ void submit(Index src_m, Index src_n, Index in_channels, Index batch,
     args->kernel_m = kernel_m;
     args->kernel_n = kernel_n;
     args->out_channels = out_channels;
+    args->kernel_transpose = kernel_transpose;
     args->dst_m = dst_m;
     args->dst_n = dst_n;
     args->beta = beta;
@@ -128,15 +144,31 @@ void submit(Index src_m, Index src_n, Index in_channels, Index batch,
 
 // Explicit instantiation
 template
+void submit<bf16_t>(Index src_m, Index src_n, Index in_channels, Index batch,
+        Index offset_m, Index offset_n, Scalar alpha, Handle src,
+        Index kernel_m, Index kernel_n, Index out_channels,
+        bool kernel_transpose, Handle kernel, Index dst_m, Index dst_n,
+        Scalar beta, Handle dst);
+
+template
 void submit<fp32_t>(Index src_m, Index src_n, Index in_channels, Index batch,
         Index offset_m, Index offset_n, Scalar alpha, Handle src,
-        Index kernel_m, Index kernel_n, Index out_channels, Handle kernel,
-        Index dst_m, Index dst_n, Scalar beta, Handle dst);
+        Index kernel_m, Index kernel_n, Index out_channels,
+        bool kernel_transpose, Handle kernel, Index dst_m, Index dst_n,
+        Scalar beta, Handle dst);
+
+template
+void submit<fp32_fast_tf32_t>(Index src_m, Index src_n, Index in_channels,
+        Index batch, Index offset_m, Index offset_n, Scalar alpha, Handle src,
+        Index kernel_m, Index kernel_n, Index out_channels,
+        bool kernel_transpose, Handle kernel, Index dst_m, Index dst_n,
+        Scalar beta, Handle dst);
 
 template
 void submit<fp64_t>(Index src_m, Index src_n, Index in_channels, Index batch,
         Index offset_m, Index offset_n, Scalar alpha, Handle src,
-        Index kernel_m, Index kernel_n, Index out_channels, Handle kernel,
-        Index dst_m, Index dst_n, Scalar beta, Handle dst);
+        Index kernel_m, Index kernel_n, Index out_channels,
+        bool kernel_transpose, Handle kernel, Index dst_m, Index dst_n,
+        Scalar beta, Handle dst);
 
 } // namespace nntile::starpu::conv2d_v2_inplace

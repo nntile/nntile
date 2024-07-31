@@ -22,8 +22,9 @@ namespace nntile::kernel::conv2d_v2_inplace
 template<typename T>
 void cpu(Index src_m, Index src_n, Index in_channels, Index batch,
         Index offset_m, Index offset_n, Scalar alpha, const T *src,
-        Index kernel_m, Index kernel_n, Index out_channels, const T *kernel,
-        Index dst_m, Index dst_n, Scalar beta, T *dst)
+        Index kernel_m, Index kernel_n, Index out_channels,
+        bool kernel_transpose, const T *kernel, Index dst_m, Index dst_n,
+        Scalar beta, T *dst)
     noexcept
 /*! Compute full discrete linear convolution of two 2-dimensional arrays
  *
@@ -38,6 +39,7 @@ void cpu(Index src_m, Index src_n, Index in_channels, Index batch,
  * @param[in] kernel_m: Size of the first axis of kernel array
  * @param[in] kernel_n: Size of the second axis of kernel array
  * @param[in] out_channels: Size of repeating output tensor channel
+ * @param[in] kernel_transpose: False for forward, True for backward
  * @param[in] kernel: Input contiguous kernel_n-by-kernel_m array
  * @param[in] dst_m: Size of the first axis of dst array
  * @param[in] dst_n: Size of the second axis of dst array
@@ -51,7 +53,13 @@ void cpu(Index src_m, Index src_n, Index in_channels, Index batch,
     Index dst_start_n = std::max(offset_n-kernel_n+1, Index(0));
     Index dst_end_n = std::min(offset_n+src_n+kernel_n-1, dst_n);
     Index src_step = src_n * src_m;
-    Index kernel_step = kernel_n * kernel_m;
+    Index kernel_ic_step = kernel_n * kernel_m;
+    Index kernel_oc_step = kernel_ic_step * in_channels;
+    if(kernel_transpose)
+    {
+         kernel_oc_step = kernel_ic_step;
+         kernel_ic_step = kernel_oc_step * out_channels;
+    }
     for(Index b = 0; b < batch; ++b)
     {
         for(Index oc = 0; oc < out_channels; ++oc)
@@ -74,6 +82,15 @@ void cpu(Index src_m, Index src_n, Index in_channels, Index batch,
                                 Index(0));
                         Index src_end_n = std::min(dst_j-offset_n+kernel_n,
                                 src_n);
+                        if(kernel_transpose)
+                        {
+                            src_start_m = std::max(dst_i-offset_m-kernel_m+1,
+                                    Index(0));
+                            src_end_m = std::min(dst_i-offset_m+1, src_m);
+                            src_start_n = std::max(dst_j-offset_n-kernel_n+1,
+                                    Index(0));
+                            src_end_n = std::min(dst_j-offset_n+1, src_n);
+                        }
                         for(Index src_i = src_start_m; src_i < src_end_m;
                                 ++src_i)
                         {
@@ -85,12 +102,19 @@ void cpu(Index src_m, Index src_n, Index in_channels, Index batch,
                                 const T *kernel_slice = kernel
                                     + src_i + offset_m - dst_i
                                     + (src_j+offset_n-dst_j)*kernel_m
-                                    + oc*in_channels*kernel_step;
+                                    + oc*kernel_oc_step;
+                                if(kernel_transpose)
+                                {
+                                    kernel_slice = kernel
+                                        - src_i - offset_m + dst_i
+                                        + (-src_j-offset_n+dst_j)*kernel_m
+                                        + oc*kernel_oc_step;
+                                }
                                 for(Index ic = 0; ic < in_channels; ++ic)
                                 {
                                     Y src_val{src_slice[src_step*ic]};
-                                    Y kernel_val{kernel_slice[kernel_step*ic]};
-                                    conv += src_val * kernel_val;
+                                    Y ker_val{kernel_slice[kernel_ic_step*ic]};
+                                    conv += src_val * ker_val;
                                 }
                             }
                         }
@@ -125,17 +149,32 @@ void cpu(Index src_m, Index src_n, Index in_channels, Index batch,
 
 // Explicit instantiation
 template
+void cpu<bf16_t>(Index src_m, Index src_n, Index in_channels, Index batch,
+        Index offset_m, Index offset_n, Scalar alpha, const bf16_t *src,
+        Index kernel_m, Index kernel_n, Index out_channels,
+        bool kernel_transpose, const bf16_t *kernel, Index dst_m, Index dst_n,
+        Scalar beta, bf16_t *dst) noexcept;
+
+template
 void cpu<fp32_t>(Index src_m, Index src_n, Index in_channels, Index batch,
         Index offset_m, Index offset_n, Scalar alpha, const fp32_t *src,
         Index kernel_m, Index kernel_n, Index out_channels,
-        const fp32_t *kernel, Index dst_m, Index dst_n, Scalar beta,
-        fp32_t *dst) noexcept;
+        bool kernel_transpose, const fp32_t *kernel, Index dst_m, Index dst_n,
+        Scalar beta, fp32_t *dst) noexcept;
+
+template
+void cpu<fp32_fast_tf32_t>(Index src_m, Index src_n, Index in_channels,
+        Index batch, Index offset_m, Index offset_n, Scalar alpha,
+        const fp32_fast_tf32_t *src, Index kernel_m, Index kernel_n,
+        Index out_channels, bool kernel_transpose,
+        const fp32_fast_tf32_t *kernel, Index dst_m, Index dst_n, Scalar beta,
+        fp32_fast_tf32_t *dst) noexcept;
 
 template
 void cpu<fp64_t>(Index src_m, Index src_n, Index in_channels, Index batch,
         Index offset_m, Index offset_n, Scalar alpha, const fp64_t *src,
         Index kernel_m, Index kernel_n, Index out_channels,
-        const fp64_t *kernel, Index dst_m, Index dst_n, Scalar beta,
-        fp64_t *dst) noexcept;
+        bool kernel_transpose, const fp64_t *kernel, Index dst_m, Index dst_n,
+        Scalar beta, fp64_t *dst) noexcept;
 
 } // namespace nntile::kernel::conv2d

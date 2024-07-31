@@ -34,15 +34,17 @@ struct args_t
     Index kernel_m;
     Index kernel_n;
     Index out_channels;
+    bool kernel_transpose;
     Index dst_m;
     Index dst_n;
     Scalar beta;
 };
 
-// StarPU wrapper for kernel::conv2d::cpu<T>
+// StarPU wrapper for kernel::conv2d_v2_inplace::cpu<T>
 template <typename T> void cpu(void *buffers[], void *cl_args) noexcept;
 
-extern Codelet codelet_fp32, codelet_fp64;
+extern Codelet codelet_bf16, codelet_fp32, codelet_fp32_fast_tf32,
+       codelet_fp64;
 
 template <typename T> constexpr Codelet *codelet()
 {
@@ -50,9 +52,19 @@ template <typename T> constexpr Codelet *codelet()
     return nullptr;
 }
 
+template <> constexpr Codelet *codelet<bf16_t>()
+{
+    return &codelet_bf16;
+}
+
 template <> constexpr Codelet *codelet<fp32_t>()
 {
     return &codelet_fp32;
+}
+
+template <> constexpr Codelet *codelet<fp32_fast_tf32_t>()
+{
+    return &codelet_fp32_fast_tf32;
 }
 
 template <> constexpr Codelet *codelet<fp64_t>()
@@ -69,7 +81,8 @@ void restore_where();
 template <typename T>
 void submit(Index src_m, Index src_n, Index in_channels, Index batch,
         Index offset_m, Index offset_n, Scalar alpha, Handle src,
-        Index kernel_m, Index kernel_n, Index out_channels, Handle kernel,
-        Index dst_m, Index dst_n, Scalar beta, Handle dst);
+        Index kernel_m, Index kernel_n, Index out_channels,
+        bool kernel_transpose, Handle kernel, Index dst_m, Index dst_n,
+        Scalar beta, Handle dst);
 
 } // namespace nntile::starpu::conv2d_v2_inplace
