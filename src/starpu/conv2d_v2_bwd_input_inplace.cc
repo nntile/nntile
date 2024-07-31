@@ -6,23 +6,23 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/conv2d_v2_inplace.cc
- * StarPU wrappers for 2D-Convolution between 2 matrices
+ * @file src/starpu/conv2d_v2_bwd_input_inplace.cc
+ * Backward of 2D-Convolution for gradient over input
  *
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/conv2d_v2_inplace.hh"
+#include "nntile/starpu/conv2d_v2_bwd_input_inplace.hh"
 #ifndef STARPU_SIMGRID
-#   include "nntile/kernel/conv2d_v2_inplace.hh"
+#   include "nntile/kernel/conv2d_v2_bwd_input_inplace.hh"
 #endif // STARPU_SIMGRID
 #include <cstdlib>
 
-//! StarPU wrappers for conv2d_v2_inplace operation
-namespace nntile::starpu::conv2d_v2_inplace
+//! StarPU wrappers for conv2d_v2_bwd_input_inplace operation
+namespace nntile::starpu::conv2d_v2_bwd_input_inplace
 {
 
-//! StarPU wrapper for kernel::conv2d_v2_inplace::cpu<T>
+//! StarPU wrapper for kernel::conv2d_v2_bwd_input_inplace::cpu<T>
 template <typename T> void cpu(void *buffers[], void *cl_args) noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -34,7 +34,7 @@ template <typename T> void cpu(void *buffers[], void *cl_args) noexcept
     const T *kernel = interfaces[1]->get_ptr<T>();
     T *dst = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::conv2d_v2_inplace::cpu<T>(args->src_m, args->src_n,
+    kernel::conv2d_v2_bwd_input_inplace::cpu<T>(args->src_m, args->src_n,
             args->in_channels, args->batch, args->offset_m, args->offset_n,
             args->alpha, src, args->kernel_m, args->kernel_n,
             args->out_channels, kernel, args->dst_m, args->dst_n, args->beta,
@@ -57,22 +57,22 @@ Codelet codelet_bf16, codelet_fp32, codelet_fp32_fast_tf32, codelet_fp64;
 
 void init()
 {
-    codelet_bf16.init("nntile_conv2d_v2_inplace_bf16",
+    codelet_bf16.init("nntile_conv2d_v2_bwd_input_inplace_bf16",
             footprint,
             {cpu<bf16_t>},
             {}
             );
-    codelet_fp32.init("nntile_conv2d_v2_inplace_fp32",
+    codelet_fp32.init("nntile_conv2d_v2_bwd_input_inplace_fp32",
             footprint,
             {cpu<fp32_t>},
             {}
             );
-    codelet_fp32_fast_tf32.init("nntile_conv2d_v2_inplace_fp32_fast_tf32",
+    codelet_fp32_fast_tf32.init("nntile_conv2d_v2_bwd_input_inplace_fp32_fast_tf32",
             footprint,
             {cpu<fp32_fast_tf32_t>},
             {}
             );
-    codelet_fp64.init("nntile_conv2d_v2_inplace_fp64",
+    codelet_fp64.init("nntile_conv2d_v2_bwd_input_inplace_fp64",
             footprint,
             {cpu<fp64_t>},
             {}
@@ -165,4 +165,4 @@ void submit<fp64_t>(Index src_m, Index src_n, Index in_channels, Index batch,
         Index kernel_m, Index kernel_n, Index out_channels, Handle kernel,
         Index dst_m, Index dst_n, Scalar beta, Handle dst);
 
-} // namespace nntile::starpu::conv2d_v2_inplace
+} // namespace nntile::starpu::conv2d_v2_bwd_input_inplace
