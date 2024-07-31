@@ -11,15 +11,15 @@
 #
 # @version 1.0.0
 
-from typing import List, Union, Sequence
+from typing import Sequence
 
 import torch
 import torch.nn as nn
 
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    TensorMoments, TensorTraits, to_numpy, conv2d_v2_inplace_async,
-    conv2d_v2_bwd_input_inplace_async)
+    TensorMoments, TensorTraits, conv2d_v2_bwd_input_inplace_async,
+    conv2d_v2_inplace_async, to_numpy)
 
 
 class Conv2d(BaseLayer):
@@ -56,8 +56,8 @@ class Conv2d(BaseLayer):
         # Define shapes
         w_shape = kernel_shape + [x.value.shape[2], out_channels]
         y_shape = [
-                x.value.shape[0]-kernel_shape[0]+2*padding[0]+1,
-                x.value.shape[1]-kernel_shape[1]+2*padding[1]+1,
+                x.value.shape[0] - kernel_shape[0] + 2 * padding[0] + 1,
+                x.value.shape[1] - kernel_shape[1] + 2 * padding[1] + 1,
                 out_channels,
                 x.value.shape[3]
                 ]
