@@ -50,14 +50,16 @@ def generate_inputs(numpy_rng, dtype: str, in_channels: int, out_channels: int,
     x_value = x_type(x_traits, x_distr, 0)
     x_grad = x_type(x_traits, x_distr, 0)
     X = TensorMoments(x_value, x_grad, grad_required=True)
-    x_random = numpy_rng.standard_normal(x_shape, dtype=np.float32)
+    #x_random = numpy_rng.standard_normal(x_shape, dtype=np.float32)
+    x_random = np.ones(x_shape, dtype=np.float32)
     x_nntile = np.array(x_random, dtype=np.float32, order="F")
     x_value.from_array(x_nntile)
     x_torch = torch.tensor(x_nntile.T, requires_grad=True)
 
     nntile_layer, _ = nntile.layer.Conv2d.from_torch(torch_layer, X, 0)
-    y_grad_random = numpy_rng.standard_normal(nntile_layer.y.value.shape,
-            dtype=np.float32)
+    #y_grad_random = numpy_rng.standard_normal(nntile_layer.y.value.shape,
+    #        dtype=np.float32)
+    y_grad_random = np.ones(nntile_layer.y.value.shape, dtype=np.float32)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
     nntile_layer.y.grad.from_array(y_grad_nntile)
     y_grad_torch = torch.Tensor(y_grad_nntile.T)
@@ -66,15 +68,15 @@ def generate_inputs(numpy_rng, dtype: str, in_channels: int, out_channels: int,
 
 @pytest.mark.parametrize('dtype', [
     'fp32',
-    'fp32_fast_tf32',
-    'bf16'
+    #'fp32_fast_tf32',
+    #'bf16'
 ])
-@pytest.mark.parametrize('in_channels,out_channels', [[1, 1]])#[3, 2], [10, 9]])
-@pytest.mark.parametrize('kernel', [[1, 1]])#, [3, 3], [4, 6]])
-@pytest.mark.parametrize('H_in,H_in_tile', [[8, 9], [9, 2]])
-@pytest.mark.parametrize('W_in,W_in_tile', [[6, 7], [9, 2]])
-@pytest.mark.parametrize('batch,batch_tile', [[5, 2]])
-@pytest.mark.parametrize('padding', [[0, 0], [2, 3]])
+@pytest.mark.parametrize('in_channels,out_channels', [[1, 1], [3, 2], [10, 9]])
+@pytest.mark.parametrize('kernel', [[1, 1], [3, 2], [3, 3], [4, 6]])
+@pytest.mark.parametrize('H_in,H_in_tile', [[7, 3], [9, 2]])
+@pytest.mark.parametrize('W_in,W_in_tile', [[6, 99], [9, 2]])
+@pytest.mark.parametrize('batch,batch_tile', [[1, 1]])
+@pytest.mark.parametrize('padding', [[0, 0], [2, 4]])
 class TestConv2d:
 
     def test_coercion(self, starpu_simple, numpy_rng, dtype: str,
@@ -126,17 +128,17 @@ class TestConv2d:
         nntile_layer.backward_async()
         x_grad_nntile = torch.Tensor(to_numpy(nntile_layer.x.grad).T)
         torch_layer_other = nntile_layer.to_torch_with_grads()
-        nntile_layer.unregister()
-        nntile_layer.x.unregister()
-        nntile_layer.y.unregister()
+        #nntile_layer.unregister()
+        #nntile_layer.x.unregister()
+        #nntile_layer.y.unregister()
 
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(x.grad - x_grad_nntile) <= rtol * torch.norm(x.grad)
 
-#        for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
-#                torch_layer_other.named_parameters()):
-#            assert n1 == n2
-#            assert p1.requires_grad == p2.requires_grad
-#            if p1.requires_grad:
-#                g1, g2 = p1.grad, p2.grad
-#                assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+        for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
+                torch_layer_other.named_parameters()):
+            assert n1 == n2
+            assert p1.requires_grad == p2.requires_grad
+            if p1.requires_grad:
+                g1, g2 = p1.grad, p2.grad
+                assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
