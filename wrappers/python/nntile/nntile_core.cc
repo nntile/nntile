@@ -733,11 +733,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("gather_bool", &gather<bool_t>);
     m.def("gather_bf16", &gather<bf16_t>);
 
+    m.def("copy_intersection_async_bool", &copy_intersection_async<bool_t>);
     m.def("copy_intersection_async_fp64", &copy_intersection_async<fp64_t>);
     m.def("copy_intersection_async_fp32", &copy_intersection_async<fp32_t>);
-    m.def("copy_intersection_async_bool", &copy_intersection_async<bool_t>);
     m.def("copy_intersection_async_int64", &copy_intersection_async<nntile::int64_t>);
 
+    m.def("copy_intersection_bool", &copy_intersection<bool_t>);
     m.def("copy_intersection_fp64", &copy_intersection<fp64_t>);
     m.def("copy_intersection_fp32", &copy_intersection<fp32_t>);
     m.def("copy_intersection_int64", &copy_intersection<nntile::int64_t>);
