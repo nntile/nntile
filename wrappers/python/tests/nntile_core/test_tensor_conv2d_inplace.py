@@ -29,13 +29,13 @@ Tensor = {
         np.float64: nntile.tensor.Tensor_fp64
 }
 # Define mapping between tested function and numpy type
-conv2d_v2_inplace = {
-    np.float32: nntile.nntile_core.tensor.conv2d_v2_inplace_fp32,
-    np.float64: nntile.nntile_core.tensor.conv2d_v2_inplace_fp64,
+conv2d_inplace = {
+    np.float32: nntile.nntile_core.tensor.conv2d_inplace_fp32,
+    np.float64: nntile.nntile_core.tensor.conv2d_inplace_fp64,
 }
 
 
-@pytest.mark.parametrize('dtype', conv2d_v2_inplace.keys())
+@pytest.mark.parametrize('dtype', conv2d_inplace.keys())
 @pytest.mark.parametrize('shape_X, shape_X_tile, shape_W, shape_Y_tile', [
     [[2, 3], [2, 3], [2, 3], [1, 1]],
     [[2, 3], [1, 1], [2, 3], [1, 1]],
@@ -110,7 +110,7 @@ def test_conv2d(
     W.from_array(src_W)
     Y.from_array(src_Y)
 
-    conv2d_v2_inplace[dtype](1.0, X, False, W, 0.0, Y, padding[0], padding[1])
+    conv2d_inplace[dtype](1.0, X, W, 0.0, Y, padding[0], padding[1])
     Y.to_array(dst_Y)
 
     nntile.starpu.wait_for_all()

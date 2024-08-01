@@ -27,9 +27,9 @@ void cpu(Index src_m, Index src_n, Index in_channels, Index batch,
     noexcept
 /*! Compute full discrete linear convolution of two 2-dimensional arrays
  *
- * Y[i,j,k,b] = sum_l sum_m sum_n X[m,n,l,b]*W[i+om-m,j+on-n,k,l],
+ * dX[i,j,k,b] = sum_l sum_m sum_n dY[m,n,l,b]*W[i+om-m,j+on-n,k,l],
  *
- * where X is represented by src, W is represented by kernel and Y is
+ * where dY is represented by src, W is represented by kernel and dX is
  * represented by dst, om is an offset_n and om is an offset_m.
  *
  * @param[in] src_m: Size of the first axis of src array

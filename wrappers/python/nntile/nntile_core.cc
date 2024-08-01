@@ -995,15 +995,15 @@ void def_mod_tensor(py::module_ &m)
     m.def("transpose_bf16", &transpose<bf16_t>);
     m.def("transpose_fp32_fast_tf32", &transpose<fp32_fast_tf32_t>);
 
-    m.def("conv2d_v2_inplace_async_fp64", &conv2d_v2_inplace_async<fp64_t>);
-    m.def("conv2d_v2_inplace_async_fp32", &conv2d_v2_inplace_async<fp32_t>);
-    m.def("conv2d_v2_inplace_async_fp32_fast_tf32",
-            &conv2d_v2_inplace_async<fp32_fast_tf32_t>);
-    m.def("conv2d_v2_inplace_async_bf16", &conv2d_v2_inplace_async<bf16_t>);
-    m.def("conv2d_v2_inplace_fp64", &conv2d_v2_inplace<fp64_t>);
-    m.def("conv2d_v2_inplace_fp32", &conv2d_v2_inplace<fp32_t>);
-    m.def("conv2d_v2_inplace_fp32_fast_tf32",
-            &conv2d_v2_inplace<fp32_fast_tf32_t>);
+    m.def("conv2d_inplace_async_fp64", &conv2d_inplace_async<fp64_t>);
+    m.def("conv2d_inplace_async_fp32", &conv2d_inplace_async<fp32_t>);
+    m.def("conv2d_inplace_async_fp32_fast_tf32",
+            &conv2d_inplace_async<fp32_fast_tf32_t>);
+    m.def("conv2d_inplace_async_bf16", &conv2d_inplace_async<bf16_t>);
+    m.def("conv2d_inplace_fp64", &conv2d_inplace<fp64_t>);
+    m.def("conv2d_inplace_fp32", &conv2d_inplace<fp32_t>);
+    m.def("conv2d_inplace_fp32_fast_tf32",
+            &conv2d_inplace<fp32_fast_tf32_t>);
 
     m.def("conv2d_v2_bwd_input_inplace_bf16",
             &conv2d_v2_bwd_input_inplace<bf16_t>);

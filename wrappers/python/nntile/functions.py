@@ -1511,7 +1511,7 @@ def rope_backward_async(
         raise TypeError
 
 
-def conv2d_v2_inplace_async(
+def conv2d_inplace_async(
         alpha: float,
         src: Tensor,
         kernel: Tensor,
@@ -1520,19 +1520,19 @@ def conv2d_v2_inplace_async(
         padding_m: int = 0,
         padding_n: int = 0
 ) -> None:
-    """Wrapper for multiprecision conv2d_v2_inplace"""
+    """Wrapper for multiprecision conv2d_inplace"""
     ts = (src, kernel, dst)
     if is_tensor_of(ts, Tensor_bf16):
-        ops.conv2d_v2_inplace_async_bf16(alpha, src, kernel, beta, dst,
+        ops.conv2d_inplace_async_bf16(alpha, src, kernel, beta, dst,
                 padding_m, padding_n)
     elif is_tensor_of(ts, Tensor_fp32):
-        ops.conv2d_v2_inplace_async_fp32(alpha, src, kernel, beta, dst,
+        ops.conv2d_inplace_async_fp32(alpha, src, kernel, beta, dst,
                 padding_m, padding_n)
     elif is_tensor_of(ts, Tensor_fp32_fast_tf32):
-        ops.conv2d_v2_inplace_async_fp32_fast_tf32(alpha, src, kernel, beta,
+        ops.conv2d_inplace_async_fp32_fast_tf32(alpha, src, kernel, beta,
                 dst, padding_m, padding_n)
     elif is_tensor_of(ts, Tensor_fp64):
-        ops.conv2d_v2_inplace_async_fp64(alpha, src, kernel, beta, dst,
+        ops.conv2d_inplace_async_fp64(alpha, src, kernel, beta, dst,
                 padding_m, padding_n)
     else:
         types = ', '.join(str(type(t)) for t in ts)
