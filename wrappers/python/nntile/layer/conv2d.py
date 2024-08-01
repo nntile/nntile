@@ -18,7 +18,7 @@ import torch.nn as nn
 
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    TensorMoments, TensorTraits, conv2d_v2_bwd_input_inplace_async,
+    TensorMoments, TensorTraits, conv2d_bwd_input_inplace_async,
     conv2d_inplace_async, to_numpy)
 
 
@@ -96,7 +96,7 @@ class Conv2d(BaseLayer):
 
     # Backward propagation of the conv2d layer
     def backward_async(self):
-        conv2d_v2_bwd_input_inplace_async(1.0, self.y.grad, self.w.value, 0.0,
+        conv2d_bwd_input_inplace_async(1.0, self.y.grad, self.w.value, 0.0,
                 self.x.grad, self.padding[0], self.padding[1])
 
     def to_torch(self):

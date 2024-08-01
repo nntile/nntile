@@ -6,23 +6,24 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/conv2d_v2_bwd_input_inplace.cc
- * Backward of 2D-Convolution for gradient over input
+ * @file src/starpu/conv2d_bwd_input_inplace.cc
+ * Backward 2D-Convolution of two tensors in WHCN format to get grad of input
+ * Due to Fortran ordering, WHCN of NNTile is equal to NCHF format of PyTorch
  *
  * @version 1.0.0
  * */
 
-#include "nntile/starpu/conv2d_v2_bwd_input_inplace.hh"
+#include "nntile/starpu/conv2d_bwd_input_inplace.hh"
 #ifndef STARPU_SIMGRID
-#   include "nntile/kernel/conv2d_v2_bwd_input_inplace.hh"
+#   include "nntile/kernel/conv2d_bwd_input_inplace.hh"
 #endif // STARPU_SIMGRID
 #include <cstdlib>
 
-//! StarPU wrappers for conv2d_v2_bwd_input_inplace operation
-namespace nntile::starpu::conv2d_v2_bwd_input_inplace
+//! StarPU wrappers for conv2d_bwd_input_inplace operation
+namespace nntile::starpu::conv2d_bwd_input_inplace
 {
 
-//! StarPU wrapper for kernel::conv2d_v2_bwd_input_inplace::cpu<T>
+//! StarPU wrapper for kernel::conv2d_bwd_input_inplace::cpu<T>
 template <typename T> void cpu(void *buffers[], void *cl_args) noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -30,24 +31,23 @@ template <typename T> void cpu(void *buffers[], void *cl_args) noexcept
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *src = interfaces[0]->get_ptr<T>();
-    const T *kernel = interfaces[1]->get_ptr<T>();
+    const T *src1 = interfaces[0]->get_ptr<T>();
+    const T *src2 = interfaces[1]->get_ptr<T>();
     T *dst = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::conv2d_v2_bwd_input_inplace::cpu<T>(args->src_m, args->src_n,
-            args->in_channels, args->batch, args->offset_m, args->offset_n,
-            args->alpha, src, args->kernel_m, args->kernel_n,
-            args->out_channels, kernel, args->dst_m, args->dst_n, args->beta,
-            dst);
+    kernel::conv2d_bwd_input_inplace::cpu<T>(args->src1_m, args->src1_n,
+            args->src1_channels, args->batch, args->src2_m, args->src2_n,
+            args->dst_channels, args->offset_m, args->offset_n, args->alpha,
+            src1, src2, args->dst_m, args->dst_n, args->beta, dst);
 #endif // STARPU_SIMGRID
 }
 
-//! Footprint for conv2d_v2_inplace tasks
+//! Footprint for conv2d_bwd_input_inplace tasks
 static uint32_t footprint(struct starpu_task *task)
 {
     // Get arguments
     auto args = reinterpret_cast<args_t *>(task->cl_arg);
-    // Apply hash over parameters m, n and k
+    // Apply hash over entire args
     uint32_t hash = 0;
     hash = starpu_hash_crc32c_be_n(args, sizeof(*args), hash);
     return hash;
@@ -57,22 +57,22 @@ Codelet codelet_bf16, codelet_fp32, codelet_fp32_fast_tf32, codelet_fp64;
 
 void init()
 {
-    codelet_bf16.init("nntile_conv2d_v2_bwd_input_inplace_bf16",
+    codelet_bf16.init("nntile_conv2d_bwd_input_inplace_bf16",
             footprint,
             {cpu<bf16_t>},
             {}
             );
-    codelet_fp32.init("nntile_conv2d_v2_bwd_input_inplace_fp32",
+    codelet_fp32.init("nntile_conv2d_bwd_input_inplace_fp32",
             footprint,
             {cpu<fp32_t>},
             {}
             );
-    codelet_fp32_fast_tf32.init("nntile_conv2d_v2_bwd_input_inplace_fp32_fast_tf32",
+    codelet_fp32_fast_tf32.init("nntile_conv2d_bwd_input_inplace_fp32_fast_tf32",
             footprint,
             {cpu<fp32_fast_tf32_t>},
             {}
             );
-    codelet_fp64.init("nntile_conv2d_v2_bwd_input_inplace_fp64",
+    codelet_fp64.init("nntile_conv2d_bwd_input_inplace_fp64",
             footprint,
             {cpu<fp64_t>},
             {}
@@ -96,11 +96,11 @@ void restore_where()
 }
 
 template <typename T>
-void submit(Index src_m, Index src_n, Index in_channels, Index batch,
-        Index offset_m, Index offset_n, Scalar alpha, Handle src,
-        Index kernel_m, Index kernel_n, Index out_channels, Handle kernel,
-        Index dst_m, Index dst_n, Scalar beta, Handle dst)
-//! Insert conv2d_v2 task into StarPU pool of tasks
+void submit(Index src1_m, Index src1_n, Index src1_channels, Index batch,
+        Index src2_m, Index src2_n, Index dst_channels, Index offset_m,
+        Index offset_n, Scalar alpha, Handle src1, Handle src2, Index dst_m,
+        Index dst_n, Scalar beta, Handle dst)
+//! Insert conv2d_bwd_input_inplace task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
@@ -108,16 +108,16 @@ void submit(Index src_m, Index src_n, Index in_channels, Index batch,
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
-    args->src_m = src_m;
-    args->src_n = src_n;
-    args->in_channels = in_channels;
+    args->src1_m = src1_m;
+    args->src1_n = src1_n;
+    args->src1_channels = src1_channels;
     args->batch = batch;
+    args->src2_m = src2_m;
+    args->src2_n = src2_n;
+    args->dst_channels = dst_channels;
     args->offset_m = offset_m;
     args->offset_n = offset_n;
     args->alpha = alpha;
-    args->kernel_m = kernel_m;
-    args->kernel_n = kernel_n;
-    args->out_channels = out_channels;
     args->dst_m = dst_m;
     args->dst_n = dst_n;
     args->beta = beta;
@@ -128,41 +128,41 @@ void submit(Index src_m, Index src_n, Index in_channels, Index batch,
     }
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
-            STARPU_R, static_cast<starpu_data_handle_t>(kernel),
+            STARPU_R, static_cast<starpu_data_handle_t>(src1),
+            STARPU_R, static_cast<starpu_data_handle_t>(src2),
             STARPU_CL_ARGS, args, sizeof(*args),
             dst_mode, static_cast<starpu_data_handle_t>(dst),
             0);
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in conv2d_v2_inplace task submission");
+        throw std::runtime_error("Error in conv2d_bwd_input_inplace task submission");
     }
 }
 
 // Explicit instantiation
 template
-void submit<bf16_t>(Index src_m, Index src_n, Index in_channels, Index batch,
-        Index offset_m, Index offset_n, Scalar alpha, Handle src,
-        Index kernel_m, Index kernel_n, Index out_channels, Handle kernel,
+void submit<bf16_t>(Index src1_m, Index src1_n, Index src1_channels,
+        Index batch, Index src2_m, Index src2_n, Index dst_channels,
+        Index offset_m, Index offset_n, Scalar alpha, Handle src1, Handle src2,
         Index dst_m, Index dst_n, Scalar beta, Handle dst);
 
 template
-void submit<fp32_t>(Index src_m, Index src_n, Index in_channels, Index batch,
-        Index offset_m, Index offset_n, Scalar alpha, Handle src,
-        Index kernel_m, Index kernel_n, Index out_channels, Handle kernel,
+void submit<fp32_t>(Index src1_m, Index src1_n, Index src1_channels,
+        Index batch, Index src2_m, Index src2_n, Index dst_channels,
+        Index offset_m, Index offset_n, Scalar alpha, Handle src1, Handle src2,
         Index dst_m, Index dst_n, Scalar beta, Handle dst);
 
 template
-void submit<fp32_fast_tf32_t>(Index src_m, Index src_n, Index in_channels,
-        Index batch, Index offset_m, Index offset_n, Scalar alpha, Handle src,
-        Index kernel_m, Index kernel_n, Index out_channels, Handle kernel,
+void submit<fp32_fast_tf32_t>(Index src1_m, Index src1_n, Index src1_channels,
+        Index batch, Index src2_m, Index src2_n, Index dst_channels,
+        Index offset_m, Index offset_n, Scalar alpha, Handle src1, Handle src2,
         Index dst_m, Index dst_n, Scalar beta, Handle dst);
 
 template
-void submit<fp64_t>(Index src_m, Index src_n, Index in_channels, Index batch,
-        Index offset_m, Index offset_n, Scalar alpha, Handle src,
-        Index kernel_m, Index kernel_n, Index out_channels, Handle kernel,
+void submit<fp64_t>(Index src1_m, Index src1_n, Index src1_channels,
+        Index batch, Index src2_m, Index src2_n, Index dst_channels,
+        Index offset_m, Index offset_n, Scalar alpha, Handle src1, Handle src2,
         Index dst_m, Index dst_n, Scalar beta, Handle dst);
 
-} // namespace nntile::starpu::conv2d_v2_bwd_input_inplace
+} // namespace nntile::starpu::conv2d_bwd_input_inplace

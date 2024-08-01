@@ -47,7 +47,7 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
  * C must be of shape (K_x, K_y, C_in, C_out)
  * C must have basetile (K_x, K_y, C_in, C_out)
  * Y must be of shape (W_out, H_out, C_out, N)
- * with W_out=W_in-K_x+2paddint_m+1
+ * with W_out=W_in-K_x+2padding_m+1
  * and H_out=H_in-K_y+2padding_n+1
  * Y must have basetile (W_out_tile, H_out_tile, C_out, N_tile)
  *
@@ -185,14 +185,11 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
 template <typename T>
 void conv2d_inplace(Scalar alpha, const Tensor<T> &X, const Tensor<T> &C,
         Scalar beta, const Tensor<T> &Y, Index padding_m, Index padding_n)
-//! Tensor<T> 2D-Convolution between 2 matrices
-/*! Blocking version of conv2d_async<T>.
- * Reshapes input tensors into 2-dimensional arrays
- * and performs the 2D-Convolution
+/*! Blocking version of conv2d_inplace_async<T>.
  *
- * @param[in] X: Input tensor, that is reshaped into 2D array
- * @param[in] C: Input tensor, that is reshaped into 2D array
- * @param[out] Y: Resulting tensor, that is reshaped into 2D array
+ * @param[in] X: Input tensor, that is usually a source for Conv2d.
+ * @param[in] C: Input tensor, that is usually a kernel for Conv2d.
+ * @param[inout] Y: Resulting tensor
  * @param[in] padding_m: Padding on the second axis of the input
  * @param[in] padding_n: Padding on the first axis of the input
  * */

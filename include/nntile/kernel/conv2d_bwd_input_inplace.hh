@@ -6,8 +6,9 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/conv2d_v2_bwd_input_inplace.hh
- * Backward of 2D-Convolution for gradient over input
+ * @file include/nntile/kernel/conv2d_bwd_input_inplace.hh
+ * Backward 2D-Convolution of two tensors in WHCN format to get grad of input
+ * Due to Fortran ordering, WHCN of NNTile is equal to NCHF format of PyTorch
  *
  * @version 1.0.0
  * */
@@ -15,12 +16,12 @@
 #pragma once
 
 #include <nntile/defs.h>
-#include <nntile/kernel/conv2d_v2_bwd_input_inplace/cpu.hh>
+#include <nntile/kernel/conv2d_bwd_input_inplace/cpu.hh>
 
-//! @namespace nntile::kernel::conv2d_v2_bwd_input_inplace
-/*! Low-level implementations of conv2d_v2_bwd_input_inplace operation
+//! @namespace nntile::kernel::conv2d_bwd_input_inplace
+/*! Low-level implementations of conv2d_bwd_input_inplace operation
  * */
-namespace nntile::kernel::conv2d_v2_bwd_input_inplace
+namespace nntile::kernel::conv2d_bwd_input_inplace
 {
 
-} // namespace nntile::kernel::conv2d_v2_bwd_input_inplace
+} // namespace nntile::kernel::conv2d_bwd_input_inplace

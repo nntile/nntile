@@ -86,7 +86,7 @@
 #include <nntile/tensor/silu_forward.hh>
 #include <nntile/tensor/silu_backward.hh>
 #include <nntile/tensor/conv2d_inplace.hh>
-#include <nntile/tensor/conv2d_v2_bwd_input_inplace.hh>
+#include <nntile/tensor/conv2d_bwd_input_inplace.hh>
 #include <nntile/tensor/rope.hh>
 #include <nntile/tensor/rope_backward.hh>
 

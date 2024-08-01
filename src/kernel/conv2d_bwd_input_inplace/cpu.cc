@@ -6,17 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/conv2d_inplace/cpu.cc
- * Forward 2D-Convolution of two tensors in WHCN format
+ * @file src/kernel/conv2d_bwd_input_inplace/cpu.cc
+ * Backward 2D-Convolution of two tensors in WHCN format to get grad of input
  * Due to Fortran ordering, WHCN of NNTile is equal to NCHF format of PyTorch
  *
  * @version 1.0.0
  * */
 
-#include "nntile/kernel/conv2d_inplace/cpu.hh"
+#include "nntile/kernel/conv2d_bwd_input_inplace/cpu.hh"
 #include <algorithm>
 
-namespace nntile::kernel::conv2d_inplace
+namespace nntile::kernel::conv2d_bwd_input_inplace
 {
 
 template<typename T>
@@ -25,16 +25,17 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
         Index offset_m, Index offset_n, Scalar alpha, const T *src1,
         const T *src2, Index dst_m, Index dst_n, Scalar beta, T *dst)
     noexcept
-/*! Forward convolution of WHCN tensors
+/*! Backward convolution of WHCN tensors to get grad of input
  *
  * The following operation is performed:
  *      `dst` = `alpha`*`f(src1, src2)` + `beta`*`dst`,
  * where `f` operation does the following:
  *      `f[i,j,k,b]` = \sum_l \sum_m \sum_n `src1[m,n,l,b]`
- *      * `src2[m + offset_m - i,n + offset_n - j,l,k]`
+ *      * `src2[i + offset_m - m,j + offset_n - n,k,l]`
  *
- * Generally, `src1` represents input of `Conv2d` layer, `src2` represents
- * kernel of `Conv2d` layer and `dst` represents output of `Conv2d` layer.
+ * Generally, `src1` represents output grad of `Conv2d` layer, `src2`
+ * represents kernel of `Conv2d` layer and `dst` represents input grad of
+ * `Conv2d` layer.
  *
  * @param[in] src1_m: Size of the thirst axis of `src1` array
  * @param[in] src1_n: Size of the second axis of `src1` array
@@ -49,7 +50,7 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
  * @param[in] src1: F-contiguous tensor of shape
  *      (`src1_m`,`src1_n`,`src1_channels`,`batch`)
  * @param[in] src2: F-contiguous tensor of shape
- *      (`src2_m`,`src2_n`,`src1_channels`,`dst_channels`)
+ *      (`src2_m`,`src2_n`,`dst_channels`,`src1_channels`)
  * @param[in] dst_m: Size of the first axis of dst array
  * @param[in] dst_n: Size of the second axis of dst array
  * @param[in] beta: Scalar multiplier for initial value of `dst`
@@ -63,8 +64,8 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
     Index dst_start_n = std::max(offset_n-src2_n+1, Index(0));
     Index dst_end_n = std::min(offset_n+src1_n+src2_n-1, dst_n);
     Index src1_step = src1_n * src1_m;
-    Index src2_ic_step = src2_n * src2_m;
-    Index src2_oc_step = src2_ic_step * src1_channels;
+    Index src2_oc_step = src2_n * src2_m;
+    Index src2_ic_step = src2_oc_step * dst_channels;
     for(Index b = 0; b < batch; ++b)
     {
         for(Index oc = 0; oc < dst_channels; ++oc)
@@ -79,14 +80,12 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
                             dst_j >= dst_start_n and dst_j < dst_end_n)
                     {
                         Y conv{0.0};
-                        Index src1_start_m = std::max(dst_i-offset_m,
+                        Index src1_start_m = std::max(dst_i-offset_m-src2_m+1,
                                 Index(0));
-                        Index src1_end_m = std::min(dst_i-offset_m+src2_m,
-                                src1_m);
-                        Index src1_start_n = std::max(dst_j-offset_n,
+                        Index src1_end_m = std::min(dst_i-offset_m+1, src1_m);
+                        Index src1_start_n = std::max(dst_j-offset_n-src2_n+1,
                                 Index(0));
-                        Index src1_end_n = std::min(dst_j-offset_n+src2_n,
-                                src1_n);
+                        Index src1_end_n = std::min(dst_j-offset_n+1, src1_n);
                         for(Index src1_i = src1_start_m; src1_i < src1_end_m;
                                 ++src1_i)
                         {
@@ -96,8 +95,8 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
                                 const T *src1_slice = src1 + src1_i
                                     + (b*src1_channels*src1_n+src1_j)*src1_m;
                                 const T *src2_slice = src2
-                                    + src1_i + offset_m - dst_i
-                                    + (src1_j+offset_n-dst_j)*src2_m
+                                    - src1_i - offset_m + dst_i
+                                    + (-src1_j-offset_n+dst_j)*src2_m
                                     + oc*src2_oc_step;
                                 for(Index ic = 0; ic < src1_channels; ++ic)
                                 {
@@ -152,10 +151,11 @@ void cpu<fp32_t>(Index src1_m, Index src1_n, Index src1_channels, Index batch,
     noexcept;
 
 template
-void cpu<fp32_fast_tf32_t>(Index src1_m, Index src1_n, Index src1_channels, Index batch,
-        Index src2_m, Index src2_n, Index dst_channels,
-        Index offset_m, Index offset_n, Scalar alpha, const fp32_fast_tf32_t *src1,
-        const fp32_fast_tf32_t *src2, Index dst_m, Index dst_n, Scalar beta, fp32_fast_tf32_t *dst)
+void cpu<fp32_fast_tf32_t>(Index src1_m, Index src1_n, Index src1_channels,
+        Index batch, Index src2_m, Index src2_n, Index dst_channels,
+        Index offset_m, Index offset_n, Scalar alpha,
+        const fp32_fast_tf32_t *src1, const fp32_fast_tf32_t *src2,
+        Index dst_m, Index dst_n, Scalar beta, fp32_fast_tf32_t *dst)
     noexcept;
 
 template
@@ -165,4 +165,4 @@ void cpu<fp64_t>(Index src1_m, Index src1_n, Index src1_channels, Index batch,
         const fp64_t *src2, Index dst_m, Index dst_n, Scalar beta, fp64_t *dst)
     noexcept;
 
-} // namespace nntile::kernel::conv2d_inplace
+} // namespace nntile::kernel::conv2d_bwd_input_inplace

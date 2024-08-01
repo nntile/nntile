@@ -6,8 +6,9 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/conv2d_v2_bwd_input_inplace.hh
- * Backward of 2D-Convolution for gradient over input
+ * @file include/nntile/tensor/conv2d_bwd_input_inplace.hh
+ * Backward 2D-Convolution of two tensors in WHCN format to get grad of input
+ * Due to Fortran ordering, WHCN of NNTile is equal to NCHF format of PyTorch
  *
  * @version 1.0.0
  * */
@@ -19,16 +20,14 @@
 namespace nntile::tensor
 {
 
-// Tensor<T> 2D-Convolution between 2 matrices
 template <typename T>
-void conv2d_v2_bwd_input_inplace_async(Scalar alpha, const Tensor<T> &src,
-        const Tensor<T> &kernel, Scalar beta, const Tensor<T> &dst,
+void conv2d_bwd_input_inplace_async(Scalar alpha, const Tensor<T> &dY,
+        const Tensor<T> &kernel, Scalar beta, const Tensor<T> &dX,
         Index padding_m, Index padding_n);
 
-// Tensor<T> 2D-Convolution between 2 matrices
 template <typename T>
-void conv2d_v2_bwd_input_inplace(Scalar alpha, const Tensor<T> &src,
-        const Tensor<T> &kernel, Scalar beta, const Tensor<T> &dst,
+void conv2d_bwd_input_inplace(Scalar alpha, const Tensor<T> &dY,
+        const Tensor<T> &kernel, Scalar beta, const Tensor<T> &dX,
         Index padding_m, Index padding_n);
 
 } // namespace nntile::tensor
