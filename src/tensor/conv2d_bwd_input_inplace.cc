@@ -127,9 +127,9 @@ void conv2d_bwd_input_inplace_async(Scalar alpha, const Tensor<T> &dY,
         // Get dY start and end coordinates that interact with dX through
         // provided kernel
         Index dY_start_m = dX_start_m + padding_m - C.shape[0] + 1;
-        Index dY_end_m = dX_end_m + padding_m + 1;
+        Index dY_end_m = dX_end_m + padding_m;
         Index dY_start_n = dX_start_n + padding_n - C.shape[1] + 1;
-        Index dY_end_n = dX_end_n + padding_n + 1;
+        Index dY_end_n = dX_end_n + padding_n;
         // Get dY tile coordinates that interact with dX tile
         Index dY_start_tile_m = dY_start_m / dY.basetile_shape[0];
         Index dY_end_tile_m = (dY_end_m-1) / dY.basetile_shape[0] + 1;

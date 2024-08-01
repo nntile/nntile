@@ -132,9 +132,9 @@ void conv2d_bwd_weight_inplace_async(Scalar alpha, const Tensor<T> &X,
         // Get dY start and end coordinates that interact with X through
         // provided kernel
         Index dY_start_m = X_start_m + padding_m - dC.shape[0] + 1;
-        Index dY_end_m = X_end_m + padding_m + 1;
+        Index dY_end_m = X_end_m + padding_m;
         Index dY_start_n = X_start_n + padding_n - dC.shape[1] + 1;
-        Index dY_end_n = X_end_n + padding_n + 1;
+        Index dY_end_n = X_end_n + padding_n;
         // Get dY tile coordinates that interact with dX tile
         Index dY_start_tile_m = dY_start_m / dY.basetile_shape[0];
         Index dY_end_tile_m = (dY_end_m-1) / dY.basetile_shape[0] + 1;
@@ -169,7 +169,7 @@ void conv2d_bwd_weight_inplace_async(Scalar alpha, const Tensor<T> &X,
                         X_tile_traits.shape[0], X_tile_traits.shape[1],
                         X_tile_traits.shape[2], X_tile_traits.shape[3],
                         dY_tile_traits.shape[0], dY_tile_traits.shape[1],
-                        dY_tile_traits.shape[2], offset_m, offset_n, alpha,
+                        dY_tile_traits.shape[2], -offset_m, -offset_n, alpha,
                         X_tile_handle, dY_tile_handle, dC_tile_traits.shape[0],
                         dC_tile_traits.shape[1], dC_tile_beta, dC_tile_handle);
                 dC_tile_beta = 1.0;
