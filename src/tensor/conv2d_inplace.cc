@@ -63,6 +63,10 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
     {
         throw std::runtime_error("4 != X.ndim");
     }
+    if(4 != C.ndim)
+    {
+        throw std::runtime_error("4 != C.ndim");
+    }
     if(4 != Y.ndim)
     {
         throw std::runtime_error("4 != Y.ndim");

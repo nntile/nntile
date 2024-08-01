@@ -87,6 +87,7 @@
 #include <nntile/starpu/silu_backward.hh>
 #include <nntile/starpu/conv2d_inplace.hh>
 #include <nntile/starpu/conv2d_bwd_input_inplace.hh>
+#include <nntile/starpu/conv2d_bwd_weight_inplace.hh>
 #include <nntile/starpu/rope.hh>
 #include <nntile/starpu/rope_backward.hh>
 
@@ -168,6 +169,7 @@ void init()
     silu_backward::init();
     conv2d_inplace::init();
     conv2d_bwd_input_inplace::init();
+    conv2d_bwd_weight_inplace::init();
     rope::init();
     rope_backward::init();
 }
@@ -244,6 +246,7 @@ void restrict_where(uint32_t where)
     silu_backward::restrict_where(where);
     conv2d_inplace::restrict_where(where);
     conv2d_bwd_input_inplace::restrict_where(where);
+    conv2d_bwd_weight_inplace::restrict_where(where);
     rope::restrict_where(where);
     rope_backward::restrict_where(where);
 }
@@ -320,6 +323,7 @@ void restore_where()
     silu_backward::restore_where();
     conv2d_inplace::restore_where();
     conv2d_bwd_input_inplace::restore_where();
+    conv2d_bwd_weight_inplace::restore_where();
     rope::restore_where();
     rope_backward::restore_where();
 }

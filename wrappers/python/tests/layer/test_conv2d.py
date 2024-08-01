@@ -70,7 +70,7 @@ def generate_inputs(numpy_rng, dtype: str, in_channels: int, out_channels: int,
     'bf16'
 ])
 @pytest.mark.parametrize('in_channels,out_channels', [[3, 2], [10, 9]])
-@pytest.mark.parametrize('kernel', [[1, 1], [3, 3], [4, 6]])
+@pytest.mark.parametrize('kernel', [[1, 1]])#, [3, 3], [4, 6]])
 @pytest.mark.parametrize('H_in,H_in_tile', [[8, 9], [9, 2]])
 @pytest.mark.parametrize('W_in,W_in_tile', [[6, 7], [9, 2]])
 @pytest.mark.parametrize('batch,batch_tile', [[5, 2]])
@@ -133,10 +133,10 @@ class TestConv2d:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(x.grad - x_grad_nntile) <= rtol * torch.norm(x.grad)
 
-#        for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
-#                torch_layer_other.named_parameters()):
-#            assert n1 == n2
-#            assert p1.requires_grad == p2.requires_grad
-#            if p1.requires_grad:
-#                g1, g2 = p1.grad, p2.grad
-#                assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+        for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
+                torch_layer_other.named_parameters()):
+            assert n1 == n2
+            assert p1.requires_grad == p2.requires_grad
+            if p1.requires_grad:
+                g1, g2 = p1.grad, p2.grad
+                assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)

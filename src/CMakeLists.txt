@@ -74,6 +74,7 @@ else()
         "kernel/silu_backward/cpu.cc"
         "kernel/conv2d_inplace/cpu.cc"
         "kernel/conv2d_bwd_input_inplace/cpu.cc"
+        "kernel/conv2d_bwd_weight_inplace/cpu.cc"
         "kernel/rope/cpu.cc"
         "kernel/rope_backward/cpu.cc"
         )
@@ -213,6 +214,7 @@ set(STARPU_SRC
     "starpu/silu_backward.cc"
     "starpu/conv2d_inplace.cc"
     "starpu/conv2d_bwd_input_inplace.cc"
+    "starpu/conv2d_bwd_weight_inplace.cc"
     "starpu/rope.cc"
     "starpu/rope_backward.cc"
     )
@@ -348,6 +350,7 @@ set(TENSOR_SRC
     "tensor/silu_backward.cc"
     "tensor/conv2d_inplace.cc"
     "tensor/conv2d_bwd_input_inplace.cc"
+    "tensor/conv2d_bwd_weight_inplace.cc"
     "tensor/rope.cc"
     "tensor/rope_backward.cc"
     )

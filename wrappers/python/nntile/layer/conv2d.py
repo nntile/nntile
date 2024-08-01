@@ -19,6 +19,7 @@ import torch.nn as nn
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     TensorMoments, TensorTraits, conv2d_bwd_input_inplace_async,
+    conv2d_bwd_weight_inplace_async,
     conv2d_inplace_async, to_numpy)
 
 
@@ -96,8 +97,12 @@ class Conv2d(BaseLayer):
 
     # Backward propagation of the conv2d layer
     def backward_async(self):
-        conv2d_bwd_input_inplace_async(1.0, self.y.grad, self.w.value, 0.0,
-                self.x.grad, self.padding[0], self.padding[1])
+        if self.x.grad_required:
+            conv2d_bwd_input_inplace_async(1.0, self.y.grad, self.w.value, 1.0,
+                    self.x.grad, self.padding[0], self.padding[1])
+        if self.w.grad_required:
+            conv2d_bwd_weight_inplace_async(1.0, self.x.value, self.y.grad,
+                    0.0, self.w.grad, self.padding[0], self.padding[1])
 
     def to_torch(self):
         torch_layer = nn.Conv2d(self.w.value.shape[2], self.w.value.shape[3],
@@ -107,7 +112,9 @@ class Conv2d(BaseLayer):
         return torch_layer
 
     def to_torch_with_grads(self):
-        pass
+        torch_layer = self.to_torch()
+        torch_layer.weight.grad = torch.tensor(to_numpy(self.w.grad).T)
+        return torch_layer
 
     @classmethod
     def from_torch(cls, torch_layer, x, next_tag):
