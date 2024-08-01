@@ -30,8 +30,8 @@ class LLMGenerationMixin:
     ):
         if mode == GenerationMode.Greedy:
             if params.need_static_padding:
-                # This path only for compatibility with statically defined model
-                # and not efficient on small examples
+                # This path only for compatibility with statically defined
+                # model and not efficient on small examples
                 if params.use_cache:
                     raise Exception(
                         "No support for kvcache for static inference"

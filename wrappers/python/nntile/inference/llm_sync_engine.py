@@ -9,7 +9,8 @@ class LlmSyncInferenceEngine:
         """
         model - nntile model
         tokenizer - huggingface-like tokenizer
-        input_seq_size - static size of input sequence. For now, need to manually pad sequence to it
+        input_seq_size - static size of input sequence. 
+        For now, need to manually pad sequence to it
         """
         self.model = model
         self.tokenizer = tokenizer
