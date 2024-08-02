@@ -43,17 +43,56 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha, const T *
  *      norm over slices along the first and the last axes.
  * */
 {
-    /* Index i2_batched = threadIdx.x + blockIdx.x*blockDim.x;
+    Index i2_batched = threadIdx.x + blockIdx.x*blockDim.x;
     Index i2 = i2_batched % k;
     Index b = i2_batched / k;
     Index i0_start = threadIdx.y, i0_step = blockDim.y;
     Index i1_start = threadIdx.z, i1_step = blockDim.z;
     using Y = typename T::repr_t;
     constexpr Y zero{0.0};
+    // WORK IN PROGRESS!!!
     // Init sum
     Y sum = zero;
-    */
-    // this is placholder - TODO
+    if(b < batch)
+    {
+        // Cycle over the third axis of input buffer
+        for(Index i1 = i1_start; i1 < n; i1 += i1_step)
+        {
+            // Get sum of a corresponding slice
+            const T *src_slice = src + ((i1+b*n)*k+i2)*m;
+            // Cycle over the first axis of input buffer
+            for(Index i0 = i0_start; i0 < m; i0 += i0_step)
+            {
+                // Read value from source and Update sum
+                sum = ::hypot(sum, Y{src_slice[i2*m]});
+            }
+        }
+        /* // WORK IN PROGRESS!!!
+        __shared__ Y block_sum[1];
+        if(i1_start == 0 and i0_start == 0)
+        {
+            block_sum[threadIdx.x] = zero;
+        }
+        __syncthreads();
+        atomicAdd(&block_sum[threadIdx.x], sum);
+        __syncthreads();
+        // Update output value
+        if(i1_start == 0 and i0_start == 0)
+        {
+            // Save result
+            sum = block_sum[threadIdx.x];
+            if(beta == zero)
+            {
+                sum *= alpha;
+            }
+            else
+            {
+                sum = beta * Y{dst[i2_batched]} + alpha * sum;
+            }
+            dst[i2_batched] = T{sum};
+        }*/
+    }
+    
 }
 
 template<typename T>
