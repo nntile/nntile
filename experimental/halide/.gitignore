@@ -1,0 +1,8 @@
+# Automatically generated.
+maxsumexp.h
+maxsumexp.a
+
+# Binaries.
+a.out
+maxsumexp
+maxsumexp-bench
