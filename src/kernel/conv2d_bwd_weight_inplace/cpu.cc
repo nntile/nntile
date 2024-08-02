@@ -60,14 +60,21 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
  * */
 {
     using Y = typename T::repr_t;
-    Index dst_start_m = std::max(offset_m-src1_m+1, Index(0));
-    Index dst_end_m = std::min(offset_m+src1_n+src2_m+dst_m+1, dst_m);
-    Index dst_start_n = std::max(offset_n-src1_n+1, Index(0));
-    Index dst_end_n = std::min(offset_n+src1_n+src2_n+dst_n+1, dst_n);
-    //std::cout << "dst_sm: " << dst_start_m << "\n";
-    //std::cout << "dst_em: " << dst_end_m << "\n";
-    //std::cout << "dst_sn: " << dst_start_n << "\n";
-    //std::cout << "dst_en: " << dst_end_n << "\n";
+    // Let `d` denote a 2-dimensional index within `dst`,
+    //     `s1` denote a 2-dim index within `s1`,
+    //     `o` denote a 2-dim offset
+    // Then, this convolution computes
+    //      `conv[d] = sum_s1 src1[s1]*src2[s1-o-d]`
+    // And we must satisfy condition
+    //      `0 <= s1-o-d < src2.shape`
+    // It means all values of `d`, that actually get non-zero `conv[d]` are:
+    //      `s1-o-src2.shape < d <= s1-o`
+    // To support left border inclusively and right border exclusively:
+    //      `1-o-src2.shape <= d < src1.shape-o`
+    Index dst_start_m = std::max(1-offset_m-src2_m, Index(0));
+    Index dst_end_m = std::min(src1_m-offset_m, dst_m);
+    Index dst_start_n = std::max(1-offset_n-src2_n, Index(0));
+    Index dst_end_n = std::min(src1_n-offset_n, dst_n);
     Index src1_step = src1_channels * src1_n * src1_m;
     Index src2_step = src2_channels * src2_n * src2_m;
     for(Index oc = 0; oc < src2_channels; ++oc)
@@ -85,6 +92,10 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
                     {
                         // Additional variables for Kahan summation rule
                         Y conv{0.0}, c{0}, y, t;
+                        // Once again, we must satisfy condition
+                        //      `0 <= s1-o-d < src2.shape`
+                        // Therefore, indices `s1` are bound as follows:
+                        //      `o+d <= s1 < o+d+src2.shape`
                         Index src1_start_m = std::max(offset_m+dst_i,
                                 Index(0));
                         Index src1_end_m = std::min(offset_m+src2_m+dst_i,
@@ -101,6 +112,7 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
                             {
                                 const T *src1_slice = src1 + src1_i
                                     + (ic*src1_n+src1_j)*src1_m;
+                                // Slice of `src2[s1-o-d]`
                                 const T *src2_slice = src2
                                     + src1_i - offset_m - dst_i
                                     + (oc*src2_n+src1_j-offset_n-dst_j)*src2_m;

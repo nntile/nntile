@@ -169,10 +169,10 @@ void conv2d_bwd_input_inplace_async(Scalar alpha, const Tensor<T> &dY,
                 dY_tile_index[1] = dY_j;
                 auto dY_tile_traits = dY.get_tile_traits(dY_tile_index);
                 auto dY_tile_handle = dY.get_tile_handle(dY_tile_index);
-                Index offset_m = dY_i*dY.basetile_shape[0] - dX_start_m
-                    - padding_m;
-                Index offset_n = dY_j*dY.basetile_shape[1] - dX_start_n
-                    - padding_n;
+                Index offset_m = -dY_i*dY.basetile_shape[0] + dX_start_m
+                    + padding_m;
+                Index offset_n = -dY_j*dY.basetile_shape[1] + dX_start_n
+                    + padding_n;
                 starpu::conv2d_bwd_input_inplace::submit<T>(
                         dY_tile_traits.shape[0], dY_tile_traits.shape[1],
                         dY_tile_traits.shape[2], dY_tile_traits.shape[3],

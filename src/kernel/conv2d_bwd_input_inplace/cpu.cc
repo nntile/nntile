@@ -31,7 +31,7 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
  *      `dst` = `alpha`*`f(src1, src2)` + `beta`*`dst`,
  * where `f` operation does the following:
  *      `f[i,j,k,b]` = \sum_l \sum_m \sum_n `src1[m,n,l,b]`
- *      * `src2[i + offset_m - m,j + offset_n - n,k,l]`
+ *      * `src2[i - offset_m - m,j - offset_n - n,k,l]`
  *
  * Generally, `src1` represents output grad of `Conv2d` layer, `src2`
  * represents kernel of `Conv2d` layer and `dst` represents input grad of
@@ -59,6 +59,17 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
  * */
 {
     using Y = typename T::repr_t;
+    // Let `d` denote a 2-dimensional index within `dst`,
+    //     `s1` denote a 2-dim index within `s1`,
+    //     `o` denote a 2-dim offset
+    // Then, this convolution computes
+    //      `conv[d] = sum_s1 src1[s1]*src2[d+o-s1]`
+    // And we must satisfy condition
+    //      `0 <= d+o-s1 < src2.shape`
+    // It means all values of `d`, that actually get non-zero `conv[d]` are:
+    //      `s1-o <= d <= s1-o`
+    // To support left border inclusively and right border exclusively:
+    //      `1-o-src2.shape <= d < src1.shape-o`
     Index dst_start_m = std::max(offset_m-src2_m+1, Index(0));
     Index dst_end_m = std::min(offset_m+src1_m+src2_m-1, dst_m);
     Index dst_start_n = std::max(offset_n-src2_n+1, Index(0));
