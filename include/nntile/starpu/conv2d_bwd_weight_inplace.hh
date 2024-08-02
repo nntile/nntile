@@ -53,28 +53,33 @@ void cuda(void *buffers[], void *cl_args)
 extern Codelet codelet_bf16, codelet_fp32, codelet_fp32_fast_tf32,
        codelet_fp64;
 
-template <typename T> constexpr Codelet *codelet()
+template <typename T>
+constexpr Codelet *codelet()
 {
     throw std::runtime_error("Non-supported type");
     return nullptr;
 }
 
-template <> constexpr Codelet *codelet<bf16_t>()
+template <>
+constexpr Codelet *codelet<bf16_t>()
 {
     return &codelet_bf16;
 }
 
-template <> constexpr Codelet *codelet<fp32_t>()
+template <>
+constexpr Codelet *codelet<fp32_t>()
 {
     return &codelet_fp32;
 }
 
-template <> constexpr Codelet *codelet<fp32_fast_tf32_t>()
+template <>
+constexpr Codelet *codelet<fp32_fast_tf32_t>()
 {
     return &codelet_fp32_fast_tf32;
 }
 
-template <> constexpr Codelet *codelet<fp64_t>()
+template <>
+constexpr Codelet *codelet<fp64_t>()
 {
     return &codelet_fp64;
 }
