@@ -31,7 +31,7 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
  *      `dst` = `alpha`*`f(src1, src2)` + `beta`*`dst`,
  * where `f` operation does the following:
  *      `f[i,j,k,b]` = \sum_l \sum_m \sum_n `src1[m,n,l,b]`
- *      * `src2[i - offset_m - m,j - offset_n - n,k,l]`
+ *      * `src2[i + offset_m - m,j + offset_n - n,k,l]`
  *
  * Generally, `src1` represents output grad of `Conv2d` layer, `src2`
  * represents kernel of `Conv2d` layer and `dst` represents input grad of
@@ -61,19 +61,19 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
     using Y = typename T::repr_t;
     // Let `d` denote a 2-dimensional index within `dst`,
     //     `s1` denote a 2-dim index within `s1`,
-    //     `o` denote a 2-dim offset
+    //     `o` denote a 2-dim offset from `dst` to `src1`
     // Then, this convolution computes
     //      `conv[d] = sum_s1 src1[s1]*src2[d+o-s1]`
     // And we must satisfy condition
     //      `0 <= d+o-s1 < src2.shape`
     // It means all values of `d`, that actually get non-zero `conv[d]` are:
-    //      `s1-o <= d <= s1-o`
-    // To support left border inclusively and right border exclusively:
-    //      `1-o-src2.shape <= d < src1.shape-o`
-    Index dst_start_m = std::max(offset_m-src2_m+1, Index(0));
-    Index dst_end_m = std::min(offset_m+src1_m+src2_m-1, dst_m);
-    Index dst_start_n = std::max(offset_n-src2_n+1, Index(0));
-    Index dst_end_n = std::min(offset_n+src1_n+src2_n-1, dst_n);
+    //      `s1-o <= d < src2.shape+s1-o`
+    // Therefore, index `d` is bound as follows:
+    //      `-o <= d < src2.shape+src1.shape-o`
+    Index dst_start_m = std::max(-offset_m, Index(0));
+    Index dst_end_m = std::min(src1_m+src2_m-offset_m, dst_m);
+    Index dst_start_n = std::max(-offset_n, Index(0));
+    Index dst_end_n = std::min(src1_n+src2_n-offset_n, dst_n);
     Index src1_step = src1_n * src1_m;
     Index src2_oc_step = src2_n * src2_m;
     Index src2_ic_step = src2_oc_step * dst_channels;
@@ -92,12 +92,16 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
                     {
                         // Additional variables for Kahan summation rule
                         Y conv{0.0}, c{0}, y, t;
-                        Index src1_start_m = std::max(dst_i-offset_m-src2_m+1,
+                        // Once again, we must satisfy condition
+                        //      `0 <= d+o-s1 < src2.shape`
+                        // Therefore, condition on `s1` is the following:
+                        //      `d+o-src2.shape+1 <= s1 < d+o+1`
+                        Index src1_start_m = std::max(dst_i+offset_m-src2_m+1,
                                 Index(0));
-                        Index src1_end_m = std::min(dst_i-offset_m+1, src1_m);
-                        Index src1_start_n = std::max(dst_j-offset_n-src2_n+1,
+                        Index src1_end_m = std::min(dst_i+offset_m+1, src1_m);
+                        Index src1_start_n = std::max(dst_j+offset_n-src2_n+1,
                                 Index(0));
-                        Index src1_end_n = std::min(dst_j-offset_n+1, src1_n);
+                        Index src1_end_n = std::min(dst_j+offset_n+1, src1_n);
                         for(Index src1_i = src1_start_m; src1_i < src1_end_m;
                                 ++src1_i)
                         {
@@ -106,9 +110,10 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
                             {
                                 const T *src1_slice = src1 + src1_i
                                     + (b*src1_channels*src1_n+src1_j)*src1_m;
+                                // Slice of `src2[d+o-s1]`
                                 const T *src2_slice = src2
-                                    - src1_i - offset_m + dst_i
-                                    + (-src1_j-offset_n+dst_j)*src2_m
+                                    - src1_i + offset_m + dst_i
+                                    + (-src1_j+offset_n+dst_j)*src2_m
                                     + oc*src2_oc_step;
                                 for(Index ic = 0; ic < src1_channels; ++ic)
                                 {
