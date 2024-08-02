@@ -195,6 +195,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/adamw_step/cuda.hh"
         "nntile/kernel/transpose/cuda.hh"
         "nntile/kernel/conv2d_inplace/cuda.hh"
+        "nntile/kernel/conv2d_bwd_input_inplace/cuda.hh"
         "nntile/kernel/rope/cuda.hh"
         "nntile/kernel/rope_backward/cuda.hh"
         )

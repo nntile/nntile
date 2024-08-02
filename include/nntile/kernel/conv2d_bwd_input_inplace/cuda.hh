@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/conv2d_bwd_input_inplace.hh
+ * @file include/nntile/kernel/conv2d_bwd_input_inplace/cuda.hh
  * Backward 2D-Convolution of two tensors in WHCN format to get grad of input
  * Due to Fortran ordering, WHCN of NNTile is equal to NCHF format of PyTorch
  *
@@ -15,16 +15,17 @@
 
 #pragma once
 
-#include <nntile/kernel/conv2d_bwd_input_inplace/cpu.hh>
-#include <nntile/defs.h>
-#ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/conv2d_bwd_input_inplace/cuda.hh>
-#endif // NNTILE_USE_CUDA
+#include <nntile/base_types.hh>
+#include <cuda_runtime.h>
 
-//! @namespace nntile::kernel::conv2d_bwd_input_inplace
-/*! Low-level implementations of conv2d_bwd_input_inplace operation
- * */
 namespace nntile::kernel::conv2d_bwd_input_inplace
 {
+
+template<typename T>
+void cuda(cudaStream_t stream, Index src1_m, Index src1_n, Index src1_channels,
+        Index batch, Index src2_m, Index src2_n, Index dst_channels,
+        Index offset_m, Index offset_n, Scalar alpha, const T *src1,
+        const T *src2, Index dst_m, Index dst_n, Scalar beta, T *dst)
+    noexcept;
 
 } // namespace nntile::kernel::conv2d_bwd_input_inplace

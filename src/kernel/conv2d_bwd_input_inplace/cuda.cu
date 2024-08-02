@@ -6,17 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/conv2d_inplace/cuda.cu
- * Forward 2D-Convolution of two tensors in WHCN format
+ * @file src/kernel/conv2d_bwd_input_inplace/cuda.cu
+ * Backward 2D-Convolution of two tensors in WHCN format to get grad of input
  * Due to Fortran ordering, WHCN of NNTile is equal to NCHF format of PyTorch
  *
  * @version 1.0.0
  * */
 
-#include "nntile/kernel/conv2d_inplace/cuda.hh"
+#include "nntile/kernel/conv2d_bwd_input_inplace/cuda.hh"
 #include "nntile/kernel/cuda.hh"
 
-namespace nntile::kernel::conv2d_inplace
+namespace nntile::kernel::conv2d_bwd_input_inplace
 {
 
 template<typename T>
@@ -25,16 +25,17 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
         Index batch, Index src2_m, Index src2_n, Index dst_channels,
         Index offset_m, Index offset_n, Scalar alpha, const T *src1,
         const T *src2, Index dst_m, Index dst_n, Scalar beta, T *dst)
-/*! Forward convolution of WHCN tensors
+/*! Backward convolution of WHCN tensors to get grad of input
  *
  * The following operation is performed:
  *      `dst` = `alpha`*`f(src1, src2)` + `beta`*`dst`,
  * where `f` operation does the following:
  *      `f[i,j,k,b]` = \sum_l \sum_m \sum_n `src1[m,n,l,b]`
- *      * `src2[m + offset_m - i,n + offset_n - j,l,k]`
+ *      * `src2[i + offset_m - m,j + offset_n - n,k,l]`
  *
- * Generally, `src1` represents input of `Conv2d` layer, `src2` represents
- * kernel of `Conv2d` layer and `dst` represents output of `Conv2d` layer.
+ * Generally, `src1` represents output grad of `Conv2d` layer, `src2`
+ * represents kernel of `Conv2d` layer and `dst` represents input grad of
+ * `Conv2d` layer.
  *
  * @param[in] src1_m: Size of the thirst axis of `src1` array
  * @param[in] src1_n: Size of the second axis of `src1` array
@@ -49,7 +50,7 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
  * @param[in] src1: F-contiguous tensor of shape
  *      (`src1_m`,`src1_n`,`src1_channels`,`batch`)
  * @param[in] src2: F-contiguous tensor of shape
- *      (`src2_m`,`src2_n`,`src1_channels`,`dst_channels`)
+ *      (`src2_m`,`src2_n`,`dst_channels`,`src1_channels`)
  * @param[in] dst_m: Size of the first axis of dst array
  * @param[in] dst_n: Size of the second axis of dst array
  * @param[in] beta: Scalar multiplier for initial value of `dst`
@@ -63,13 +64,13 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
     //     `s1` denote a 2-dim index within `s1`,
     //     `o` denote a 2-dim offset from `dst` to `src1`
     // Then, this convolution computes
-    //      `conv[d] = sum_s1 src1[s1]*src2[s1+o-d]`
+    //      `conv[d] = sum_s1 src1[s1]*src2[d+o-s1]`
     // And we must satisfy condition
-    //      `0 <= s1+o-d < src2.shape`
+    //      `0 <= d+o-s1 < src2.shape`
     // It means all values of `d`, that actually get non-zero `conv[d]` are:
-    //      `s1+o-src2.shape < d <= s1+o`
+    //      `s1-o <= d < src2.shape+s1-o`
     // Therefore, index `d` is bound as follows:
-    //      `o-src2.shape+1 <= d < src1.shape+o`
+    //      `-o <= d < src2.shape+src1.shape-o`
     Index dst_i = i % dst_m;
     i = i / dst_m;
     Index dst_j = i % dst_n;
@@ -81,31 +82,27 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
     {
         return;
     }
-    Index dst_start_m = ::max(offset_m-src2_m+1, Index(0));
-    Index dst_end_m = ::min(offset_m+src1_m, dst_m);
-    Index dst_start_n = ::max(offset_n-src2_n+1, Index(0));
-    Index dst_end_n = ::min(offset_n+src1_n, dst_n);
+    Index dst_start_m = ::max(-offset_m, Index(0));
+    Index dst_end_m = ::min(src1_m+src2_m-offset_m, dst_m);
+    Index dst_start_n = ::max(-offset_n, Index(0));
+    Index dst_end_n = ::min(src1_n+src2_n-offset_n, dst_n);
     T *dst_val = dst + ((b*dst_channels+oc)*dst_n+dst_j)*dst_m + dst_i;
     if(dst_i >= dst_start_m and dst_i < dst_end_m and
             dst_j >= dst_start_n and dst_j < dst_end_n)
     {
         Index src1_step = src1_n * src1_m;
-        Index src2_ic_step = src2_n * src2_m;
-        Index src2_oc_step = src2_ic_step * src1_channels;
+        Index src2_oc_step = src2_n * src2_m;
+        Index src2_ic_step = src2_oc_step * dst_channels;
         // Additional variables for Kahan summation rule
         Y conv{0.0}, c{0}, y, t;
         // Once again, we must satisfy condition
-        //      `0 <= s1+o-d < src2.shape`
+        //      `0 <= d+o-s1 < src2.shape`
         // Therefore, condition on `s1` is the following:
-        //      `d-o <= s1 < d-o+src2.shape`
-        Index src1_start_m = ::max(dst_i-offset_m,
-                Index(0));
-        Index src1_end_m = ::min(dst_i-offset_m+src2_m,
-                src1_m);
-        Index src1_start_n = ::max(dst_j-offset_n,
-                Index(0));
-        Index src1_end_n = ::min(dst_j-offset_n+src2_n,
-                src1_n);
+        //      `d+o-src2.shape+1 <= s1 < d+o+1`
+        Index src1_start_m = ::max(dst_i+offset_m-src2_m+1, Index(0));
+        Index src1_end_m = ::min(dst_i+offset_m+1, src1_m);
+        Index src1_start_n = ::max(dst_j+offset_n-src2_n+1, Index(0));
+        Index src1_end_n = ::min(dst_j+offset_n+1, src1_n);
         for(Index src1_i = src1_start_m; src1_i < src1_end_m;
                 ++src1_i)
         {
@@ -114,10 +111,10 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
             {
                 const T *src1_slice = src1 + src1_i
                     + (b*src1_channels*src1_n+src1_j)*src1_m;
-                // Slice of `src2[s1+o-d]`
+                // Slice of `src2[d+o-s1]`
                 const T *src2_slice = src2
-                    + src1_i + offset_m - dst_i
-                    + (src1_j+offset_n-dst_j)*src2_m
+                    - src1_i + offset_m + dst_i
+                    + (-src1_j+offset_n+dst_j)*src2_m
                     + oc*src2_oc_step;
                 for(Index ic = 0; ic < src1_channels; ++ic)
                 {
@@ -204,4 +201,4 @@ void cuda<fp64_t>(cudaStream_t stream, Index src1_m, Index src1_n,
         Scalar beta, fp64_t *dst)
     noexcept;
 
-} // namespace nntile::kernel::conv2d_inplace
+} // namespace nntile::kernel::conv2d_bwd_input_inplace

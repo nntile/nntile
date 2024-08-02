@@ -24,7 +24,9 @@ namespace nntile::starpu::conv2d_bwd_input_inplace
 {
 
 //! StarPU wrapper for kernel::conv2d_bwd_input_inplace::cpu<T>
-template <typename T> void cpu(void *buffers[], void *cl_args) noexcept
+template <typename T>
+void cpu(void *buffers[], void *cl_args)
+    noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
@@ -41,6 +43,31 @@ template <typename T> void cpu(void *buffers[], void *cl_args) noexcept
             src1, src2, args->dst_m, args->dst_n, args->beta, dst);
 #endif // STARPU_SIMGRID
 }
+
+#ifdef NNTILE_USE_CUDA
+//! StarPU wrapper for kernel::conv2d_bwd_input_inplace::cuda<T>
+template <typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const T *src1 = interfaces[0]->get_ptr<T>();
+    const T *src2 = interfaces[1]->get_ptr<T>();
+    T *dst = interfaces[2]->get_ptr<T>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Launch kernel
+    kernel::conv2d_bwd_input_inplace::cuda<T>(stream, args->src1_m, args->src1_n,
+            args->src1_channels, args->batch, args->src2_m, args->src2_n,
+            args->dst_channels, args->offset_m, args->offset_n, args->alpha,
+            src1, src2, args->dst_m, args->dst_n, args->beta, dst);
+#endif // STARPU_SIMGRID
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for conv2d_bwd_input_inplace tasks
 static uint32_t footprint(struct starpu_task *task)
@@ -60,22 +87,38 @@ void init()
     codelet_bf16.init("nntile_conv2d_bwd_input_inplace_bf16",
             footprint,
             {cpu<bf16_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<bf16_t>}
+#else // NNTILE_USE_CUDA
             {}
+#endif // NNTILE_USE_CUDA
             );
     codelet_fp32.init("nntile_conv2d_bwd_input_inplace_fp32",
             footprint,
             {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
             {}
+#endif // NNTILE_USE_CUDA
             );
     codelet_fp32_fast_tf32.init("nntile_conv2d_bwd_input_inplace_fp32_fast_tf32",
             footprint,
             {cpu<fp32_fast_tf32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_fast_tf32_t>}
+#else // NNTILE_USE_CUDA
             {}
+#endif // NNTILE_USE_CUDA
             );
     codelet_fp64.init("nntile_conv2d_bwd_input_inplace_fp64",
             footprint,
             {cpu<fp64_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
             {}
+#endif // NNTILE_USE_CUDA
             );
 }
 
