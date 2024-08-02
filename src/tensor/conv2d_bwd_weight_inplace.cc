@@ -19,7 +19,6 @@
 #include "nntile/starpu/scal_inplace.hh"
 #include "nntile/starpu/conv2d_bwd_weight_inplace.hh"
 #include <unistd.h>
-#include <iostream>
 
 namespace nntile::tensor
 {
@@ -166,10 +165,6 @@ void conv2d_bwd_weight_inplace_async(Scalar alpha, const Tensor<T> &X,
                     - padding_m;
                 Index offset_n = dY_j*dY.basetile_shape[1] - X_start_n
                     - padding_n;
-                //std::cout << "X: " << X.grid.index_to_linear(X_tile_index) << "\n";
-                //std::cout << "dY: " << dY.grid.index_to_linear(dY_tile_index) << "\n";
-                //std::cout << "Om: " << offset_m << "\n";
-                //std::cout << "On: " << offset_n << "\n";
                 starpu::conv2d_bwd_weight_inplace::submit<T>(
                         X_tile_traits.shape[0], X_tile_traits.shape[1],
                         X_tile_traits.shape[2], X_tile_traits.shape[3],

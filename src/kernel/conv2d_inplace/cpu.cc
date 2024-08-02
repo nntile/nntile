@@ -58,10 +58,21 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
  * */
 {
     using Y = typename T::repr_t;
+    // Let `d` denote a 2-dimensional index within `dst`,
+    //     `s1` denote a 2-dim index within `s1`,
+    //     `o` denote a 2-dim offset from `dst` to `src1`
+    // Then, this convolution computes
+    //      `conv[d] = sum_s1 src1[s1]*src2[s1+o-d]`
+    // And we must satisfy condition
+    //      `0 <= s1+o-d < src2.shape`
+    // It means all values of `d`, that actually get non-zero `conv[d]` are:
+    //      `s1+o-src2.shape < d <= s1+o`
+    // Therefore, index `d` is bound as follows:
+    //      `o-src2.shape+1 <= d < src1.shape+o`
     Index dst_start_m = std::max(offset_m-src2_m+1, Index(0));
-    Index dst_end_m = std::min(offset_m+src1_m+src2_m-1, dst_m);
+    Index dst_end_m = std::min(offset_m+src1_m, dst_m);
     Index dst_start_n = std::max(offset_n-src2_n+1, Index(0));
-    Index dst_end_n = std::min(offset_n+src1_n+src2_n-1, dst_n);
+    Index dst_end_n = std::min(offset_n+src1_n, dst_n);
     Index src1_step = src1_n * src1_m;
     Index src2_ic_step = src2_n * src2_m;
     Index src2_oc_step = src2_ic_step * src1_channels;
@@ -80,6 +91,10 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
                     {
                         // Additional variables for Kahan summation rule
                         Y conv{0.0}, c{0}, y, t;
+                        // Once again, we must satisfy condition
+                        //      `0 <= s1+o-d < src2.shape`
+                        // Therefore, condition on `s1` is the following:
+                        //      `d-o <= s1 < d-o+src2.shape`
                         Index src1_start_m = std::max(dst_i-offset_m,
                                 Index(0));
                         Index src1_end_m = std::min(dst_i-offset_m+src2_m,
@@ -96,6 +111,7 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
                             {
                                 const T *src1_slice = src1 + src1_i
                                     + (b*src1_channels*src1_n+src1_j)*src1_m;
+                                // Slice of `src2[s1+o-d]`
                                 const T *src2_slice = src2
                                     + src1_i + offset_m - dst_i
                                     + (src1_j+offset_n-dst_j)*src2_m

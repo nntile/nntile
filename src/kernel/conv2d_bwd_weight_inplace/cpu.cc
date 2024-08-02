@@ -15,7 +15,6 @@
 
 #include "nntile/kernel/conv2d_bwd_weight_inplace/cpu.hh"
 #include <algorithm>
-#include <iostream>
 
 namespace nntile::kernel::conv2d_bwd_weight_inplace
 {
