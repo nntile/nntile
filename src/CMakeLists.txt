@@ -138,6 +138,7 @@ else()
             "kernel/transpose/cuda.cu"
             "kernel/silu_forward/cuda.cu"
             "kernel/silu_backward/cuda.cu"
+            "kernel/conv2d_inplace/cuda.cu"
             "kernel/rope/cuda.cu"
             "kernel/rope_backward/cuda.cu"
             )

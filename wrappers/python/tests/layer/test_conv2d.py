@@ -121,7 +121,7 @@ def test_coercion(starpu_simple, numpy_rng, dtype: str,
 @pytest.mark.parametrize('padding', [[2, 3]])
 class TestConv2d:
 
-    def test_forward(self, starpu_simple, numpy_rng, dtype: str,
+    def test_forward(self, starpu_simple_cuda, numpy_rng, dtype: str,
             in_channels: int, out_channels: int, kernel: Sequence[int],
             H_in: int, H_in_tile: int, W_in: int, W_in_tile: int, batch: int,
             batch_tile: int, padding: Sequence[int]):
