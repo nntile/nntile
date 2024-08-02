@@ -40,8 +40,15 @@ struct args_t
     Scalar beta;
 };
 
-// StarPU wrapper for kernel::conv2d_bwd_weight_inplace::cpu<T>
-template <typename T> void cpu(void *buffers[], void *cl_args) noexcept;
+template<typename T>
+void cpu(void *buffers[], void *cl_args)
+    noexcept;
+
+#ifdef NNTILE_USE_CUDA
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept;
+#endif // NNTILE_USE_CUDA
 
 extern Codelet codelet_bf16, codelet_fp32, codelet_fp32_fast_tf32,
        codelet_fp64;
