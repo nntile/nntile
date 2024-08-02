@@ -140,6 +140,7 @@ else()
             "kernel/silu_backward/cuda.cu"
             "kernel/conv2d_inplace/cuda.cu"
             "kernel/conv2d_bwd_input_inplace/cuda.cu"
+            "kernel/conv2d_bwd_weight_inplace/cuda.cu"
             "kernel/rope/cuda.cu"
             "kernel/rope_backward/cuda.cu"
             )
