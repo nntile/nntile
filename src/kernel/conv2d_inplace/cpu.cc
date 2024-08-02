@@ -78,7 +78,8 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
                     if(dst_i >= dst_start_m and dst_i < dst_end_m and
                             dst_j >= dst_start_n and dst_j < dst_end_n)
                     {
-                        Y conv{0.0};
+                        // Additional variables for Kahan summation rule
+                        Y conv{0.0}, c{0}, y, t;
                         Index src1_start_m = std::max(dst_i-offset_m,
                                 Index(0));
                         Index src1_end_m = std::min(dst_i-offset_m+src2_m,
@@ -103,7 +104,12 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
                                 {
                                     Y src1_val{src1_slice[src1_step*ic]};
                                     Y src2_val{src2_slice[src2_ic_step*ic]};
-                                    conv += src1_val * src2_val;
+                                    // Kahan rule to get the following sum
+                                    // conv += src1_val * src2_val
+                                    y = src1_val*src2_val - c;
+                                    t = conv + y;
+                                    c = (t-conv) - y;
+                                    conv = t;
                                 }
                             }
                         }
@@ -114,7 +120,8 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
                         else
                         {
                             Y old{dst_slice[dst_i]};
-                            dst_slice[dst_i] = T{beta*old + alpha*conv};
+                            dst_slice[dst_i] = T{(beta*old - alpha*c)
+                                + alpha*conv};
                         }
                     }
                     // Out of convolution bounds
