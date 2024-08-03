@@ -73,7 +73,7 @@ def generate_inputs(numpy_rng, dtype: str, in_channels: int, out_channels: int,
 @pytest.mark.parametrize('dtype', [
     'fp32',
     'fp32_fast_tf32',
-    'bf16'
+    pytest.param('bf16', marks=nocuda)
 ])
 @pytest.mark.parametrize('in_channels,out_channels', [[2, 4]])
 @pytest.mark.parametrize('kernel', [[3, 2]])
