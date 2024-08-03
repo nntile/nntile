@@ -62,11 +62,17 @@ parser.add_argument("--nntile-restrict", choices=["cpu", "cuda", None],
         default=None)
 parser.add_argument("--nntile-flashattention", action="store_true")
 parser.add_argument("--nntile-use-redux", action="store_true")
-parser.add_argument("--dataset", default="WikiText-103")
+
+parser.add_argument("--dataset", default="tinystories")
 parser.add_argument("--dataset-path", default=".data")
+parser.add_argument("--dataset-file", default="")
 parser.add_argument("--dataset-select", type=int, default=100)
+parser.add_argument("--save-dataset-bin", action="store_true")
+
+
 parser.add_argument("--lr", type=float, default=0.0)
 parser.add_argument("--nntile-nepochs", type=int, default=0)
+
 parser.add_argument("--nntile-logger", action="store_true")
 parser.add_argument("--nntile-logger-server-addr", type=str,
                     default="localhost")
@@ -188,58 +194,69 @@ if args.nntile_nepochs:
     del model_torch
 
 if args.nntile_nepochs > 0:
+    from pathlib import Path
+
     import numpy as np
     from datasets import load_dataset
-    train_dataset = load_dataset("wikitext", "wikitext-103-v1",
-                    split='train', cache_dir=".data").select(np.arange(
-                        args.dataset_select, dtype=np.int64))
-    test_dataset = load_dataset("wikitext", "wikitext-103-v1",
-                    split='test', cache_dir=".data")
+    if args.dataset == "tinystories":
+        if args.dataset_file == args.dataset + "_train.bin":
+            train_data = np.memmap(Path(args.dataset_path) /
+                                    args.dataset_file,
+                                   dtype=np.uint16, mode='r')
+            train_tokens_raw = np.array(train_data, order='F', dtype=np.int64)
+            del train_data
+        elif args.dataset_file == "":
+            train_dataset = load_dataset("roneneldan/TinyStories",
+                            split='train', cache_dir=args.dataset_path)
+            if args.dataset_select != -1:
+                train_dataset = train_dataset.select(np.arange(
+                                args.dataset_select, dtype=np.int64))
 
-    map_train_tokens = map(lambda x: tokenizer(x["text"])["input_ids"],
-                        train_dataset)
-    list_train_tokens = []
-    for seq in map_train_tokens:
-        list_train_tokens.extend(seq)
-    num_train_tokens = len(list_train_tokens)
+            map_train_tokens = map(lambda x: tokenizer(x["text"])["input_ids"],
+                                    train_dataset)
+            list_train_tokens = []
+            for seq in map_train_tokens:
+                list_train_tokens.extend(seq)
+            train_tokens_raw = np.array(list_train_tokens, dtype=np.int64)
+        else:
+            raise ValueError("Incompatible datasetfile")
 
-    num_train_seq = num_train_tokens // (args.seq_len + 1)
-    num_train_batches = num_train_seq // args.batch_size
-    num_train_tokens_truncated = num_train_batches * (args.batch_size
-            * (args.seq_len + 1))
-    train_tokens = np.array(list_train_tokens[:num_train_tokens_truncated],
+        num_train_tokens = train_tokens_raw.shape[0]
+
+        num_train_seq = num_train_tokens // (args.seq_len + 1)
+        num_train_batches = num_train_seq // args.batch_size
+        num_train_tokens_truncated = num_train_batches * (args.batch_size
+                * (args.seq_len + 1))
+        train_tokens_trunc = np.array(
+            train_tokens_raw[:num_train_tokens_truncated],
             order='F', dtype=np.int64)
-    train_tokens = train_tokens.reshape(num_train_batches,
-            num_minibatch, args.minibatch_size, args.seq_len + 1)
+        train_tokens = train_tokens_trunc.reshape(num_train_batches,
+                                            num_minibatch,
+                                            args.minibatch_size,
+                                            args.seq_len + 1)
 
-# FLOPs counting
-# MLP
-nflops_seq_block_fwd = 4 * args.seq_len * (llama_config_nntile.hidden_size *
-                                           llama_config_nntile.intermediate_size)
-nflops_seq_block_bwd = 8 * args.seq_len * (llama_config_nntile.hidden_size *
-                                           llama_config_nntile.intermediate_size)
-# Attention Q, K, V
-nflops_seq_block_fwd += 8 * args.seq_len * llama_config_nntile.hidden_size**2
-nflops_seq_block_bwd += 16 * args.seq_len * llama_config_nntile.hidden_size**2
-# Attention softmax(Q'@K)@V
-if args.nntile_flashattention:
-    nflops_seq_block_fwd += 6 * (args.seq_len**2 *
-                                 llama_config_nntile.hidden_size)
-    nflops_seq_block_bwd += 14 * (args.seq_len**2 *
-                                  llama_config_nntile.hidden_size)
-else:
-    nflops_seq_block_fwd += 4 * (args.seq_len**2 *
-                                 llama_config_nntile.hidden_size)
-    nflops_seq_block_bwd += 8 * (args.seq_len**2 *
-                                 llama_config_nntile.hidden_size)
-# Total flops with LM_head
-nflops_seq_fwd = llama_config_nntile.num_hidden_layers * (nflops_seq_block_fwd
-        + 2 * args.seq_len * llama_config_nntile.hidden_size *
-        llama_config_nntile.vocab_size)
-nflops_seq_bwd = llama_config_nntile.num_hidden_layers * (nflops_seq_block_bwd
-        + 4 * args.seq_len * llama_config_nntile.hidden_size *
-        llama_config_nntile.vocab_size)
-nflops_seq = nflops_seq_fwd + nflops_seq_bwd
+        if args.save_dataset_bin:
+
+            # concatenate all the ids in each dataset
+            # into one large file we can use for training
+            arr_len = num_train_tokens_truncated
+            filename = Path(args.dataset_path) / 'tinystories_train.bin'
+            dtype = np.uint16
+            arr = np.memmap(filename, dtype=dtype, mode='w+', shape=(arr_len,))
+
+            idx = 0
+            b_size_in_tok = args.batch_size * (args.seq_len + 1)
+            for batch_idx in range(num_train_batches):
+                # Batch together samples for faster write
+                # batch = dset.shard(num_shards=num_train_batches,
+                # index=batch_idx, contiguous=True).with_format('numpy')
+
+                arr_batch = train_tokens_trunc[batch_idx * b_size_in_tok:
+                                               (batch_idx + 1) * b_size_in_tok]
+                # Write into mmap
+                arr[idx : idx + len(arr_batch)] = arr_batch
+                idx += len(arr_batch)
+            arr.flush()
 
 if args.nntile_nepochs > 0:
     time0 = time.time()
@@ -295,9 +312,9 @@ if args.nntile_nepochs > 0:
     print("NNTile training throughput tokens/sec: {}".format(
             args.nntile_nepochs * num_train_batches * args.batch_size
             * args.seq_len / time1))
-    print("NNTile performance: {} Tflops/s".format(nflops_seq
-            * args.nntile_nepochs * num_train_batches * args.batch_size
-            / time1 * 1e-12))
+    # print("NNTile performance: {} Tflops/s".format(nflops_seq
+    #         * args.nntile_nepochs * num_train_batches * args.batch_size
+    #         / time1 * 1e-12))
     loss_np = np.zeros((1), dtype=np.float32)
     loss.val.to_array(loss_np)
     print("NNTile loss on the last batch: {}".format(loss_np[0]))
