@@ -86,7 +86,7 @@ jobs:
           make -j 4 install
           rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_LABEL
       - name: Upload StarPU libraries (*.so)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.3.4
         with:
           name: starpu-${{ matrix.python-version }}
           path: /usr/local/lib/lib*.so*
@@ -96,7 +96,7 @@ jobs:
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF
           cmake --build build
       - name: Upload all shared objects (*.so)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.3.4
         with:
           name: shared-objects-${{ matrix.python-version }}
           path: build/**/*.so
@@ -180,7 +180,7 @@ jobs:
             --cov-report=xml:coverage/xml/report.${PYTHON_TAG}.xml \
             --junitxml=pytest/report.${PYTHON_TAG}.xml
       - name: Upload PyTest report for Python ${{ matrix.python-version }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.3.4
         with:
           name: pytest-report
           path: |
