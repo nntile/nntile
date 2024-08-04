@@ -374,3 +374,25 @@ class Linear(BaseLayer):
                 return w_shape[-1] * w_shape[-2] * x_shape[-2]
             else:
                 return w_shape[-1] * w_shape[-2] * x_shape[1]
+
+    def get_layer_backward_flops(self):
+        x_shape = self.x.value.shape
+        w_shape = self.w.value.shape
+        y_grad_shape = self.y.grad.shape
+        if self.side == "L":
+            if self.trans_x:
+                w_grad_flops = x_shape[0] * x_shape[1] * y_grad_shape[1]
+                x_grad_flops = w_shape[0] * w_shape[1] * y_grad_shape[1]
+            else:
+                w_grad_flops = x_shape[-1] * x_shape[-2] * y_grad_shape[1]
+                x_grad_flops = y_grad_shape[-1] * y_grad_shape[-2] * w_shape[1]
+        elif self.side == "R":
+            if self.trans_x:
+                w_grad_flops = x_shape[-2] * (y_grad_shape[-1] *
+                                              y_grad_shape[-2])
+                x_grad_flops = y_grad_shape[-1] * y_grad_shape[-2] * w_shape[1]
+            else:
+                w_grad_flops = y_grad_shape[-1] * y_grad_shape[-2] * x_shape[1]
+                x_grad_flops = w_shape[-1] * w_shape[-2] * y_grad_shape[1]
+        total_backward_flops = w_grad_flops + x_grad_flops
+        return total_backward_flops

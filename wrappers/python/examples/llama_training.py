@@ -312,7 +312,9 @@ if args.nntile_nepochs > 0:
     print("NNTile training throughput tokens/sec: {}".format(
             args.nntile_nepochs * num_train_batches * args.batch_size
             * args.seq_len / time1))
-    nflops_seq = llama_nntile.get_model_forward_flops()
+    nflops_fwd_seq = llama_nntile.get_model_forward_flops()
+    nflops_bwd_seq = llama_nntile.get_model_backward_flops()
+    nflops_seq = nflops_fwd_seq + nflops_bwd_seq
     print("NNTile performance: {} Tflops/s".format(nflops_seq
             * args.nntile_nepochs * num_train_batches * args.batch_size
             / time1 * 1e-12))

@@ -87,3 +87,9 @@ class BaseModel:
         for layer in self.layers:
             model_flops += layer.get_layer_forward_flops()
         return model_flops
+
+    def get_model_backward_flops(self):
+        model_flops = 0
+        for layer in self.layers:
+            model_flops += layer.get_layer_backward_flops()
+        return model_flops
