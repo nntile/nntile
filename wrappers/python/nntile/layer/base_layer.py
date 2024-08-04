@@ -15,6 +15,7 @@ from typing import List, Union
 
 import numpy as np
 
+import nntile
 from nntile.tensor import Tensor, TensorMoments, randn_async
 
 
@@ -51,14 +52,14 @@ class BaseLayer(object):
 
     def forward(self):
         self.forward_async()
-        # starpu.wait_for_all()
+        nntile.starpu.wait_for_all()
 
     def backward_async(self):
         raise NotImplementedError
 
     def backward(self):
         self.forward_async()
-        # starpu.wait_for_all()
+        nntile.starpu.wait_for_all()
 
     # Unregister layer weights and temporary tensors
     def unregister(self):
