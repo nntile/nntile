@@ -81,3 +81,9 @@ class BaseModel:
 
     def get_parameters(self):
         return self.parameters
+
+    def get_model_forward_flops(self):
+        model_flops = 0
+        for layer in self.layers:
+            model_flops += layer.get_layer_forward_flops()
+        return model_flops

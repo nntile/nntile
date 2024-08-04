@@ -312,9 +312,10 @@ if args.nntile_nepochs > 0:
     print("NNTile training throughput tokens/sec: {}".format(
             args.nntile_nepochs * num_train_batches * args.batch_size
             * args.seq_len / time1))
-    # print("NNTile performance: {} Tflops/s".format(nflops_seq
-    #         * args.nntile_nepochs * num_train_batches * args.batch_size
-    #         / time1 * 1e-12))
+    nflops_seq = llama_nntile.get_model_forward_flops()
+    print("NNTile performance: {} Tflops/s".format(nflops_seq
+            * args.nntile_nepochs * num_train_batches * args.batch_size
+            / time1 * 1e-12))
     loss_np = np.zeros((1), dtype=np.float32)
     loss.val.to_array(loss_np)
     print("NNTile loss on the last batch: {}".format(loss_np[0]))

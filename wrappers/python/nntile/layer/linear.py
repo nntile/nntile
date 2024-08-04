@@ -360,3 +360,17 @@ class Linear(BaseLayer):
             linear_nntile.b.value.from_array(torch_linear.bias.data.cpu().detach().numpy())
 
         return linear_nntile, next_tag
+
+    def get_layer_forward_flops(self):
+        x_shape = self.x.value.shape
+        w_shape = self.w.value.shape
+        if self.side == "L":
+            if self.trans_x:
+                return x_shape[0] * x_shape[1] * w_shape[1]
+            else:
+                return x_shape[-1] * x_shape[-2] * w_shape[1]
+        elif self.side == "R":
+            if self.trans_x:
+                return w_shape[-1] * w_shape[-2] * x_shape[-2]
+            else:
+                return w_shape[-1] * w_shape[-2] * x_shape[1]
