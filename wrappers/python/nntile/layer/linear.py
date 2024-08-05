@@ -36,7 +36,7 @@ class Linear(BaseLayer):
     def __init__(self, side: str, trans_x: TransOp, x: TensorMoments,
             y: TensorMoments, w: TensorMoments, ndim: int,
             b: Union[TensorMoments, None],
-            out_features_shape: List[int], 
+            out_features_shape: List[int],
             out_features_basetile_shape: List[int],
             redux: bool = False):
         # Check parameter side
