@@ -67,7 +67,7 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha, const T *
                 sum = ::hypot(sum, Y{src_slice[i2*m]});
             }
         }
-        /* // WORK IN PROGRESS!!!
+        // WORK IN PROGRESS!!!
         __shared__ Y block_sum[1];
         if(i1_start == 0 and i0_start == 0)
         {
@@ -83,14 +83,14 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha, const T *
             sum = block_sum[threadIdx.x];
             if(beta == zero)
             {
-                sum *= alpha;
+                sum = Y{::fabs(alpha) * sum};
             }
             else
             {
-                sum = beta * Y{dst[i2_batched]} + alpha * sum;
+                sum = Y{::hypot(beta*Y{dst[i2_batched]}, alpha*sum)};
             }
-            dst[i2_batched] = T{sum};
-        }*/
+            dst[i2_batched] = Y{sum}; // dst[i2_batched] is result
+        }
     }
     
 }
