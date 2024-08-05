@@ -37,6 +37,8 @@ struct args_t
     Scalar alpha;
     Index dst_m;
     Index dst_n;
+    Index stride_m;
+    Index stride_n;
     Scalar beta;
 };
 
@@ -94,6 +96,7 @@ template <typename T>
 void submit(Index src1_m, Index src1_n, Index src1_channels, Index batch,
         Index src2_m, Index src2_n, Index dst_channels,
         Index offset_m, Index offset_n, Scalar alpha, Handle src1,
-        Handle src2, Index dst_m, Index dst_n, Scalar beta, Handle dst);
+        Handle src2, Index dst_m, Index dst_n, Index stride_m, Index stride_n,
+        Scalar beta, Handle dst);
 
 } // namespace nntile::starpu::conv2d_inplace

@@ -1517,23 +1517,24 @@ def conv2d_inplace_async(
         C: Tensor,
         beta: float,
         Y: Tensor,
-        padding_m: int = 0,
-        padding_n: int = 0
+        padding: Sequence[int] = [0, 0],
+        stride: Sequence[int] = [1, 1],
+        dilation: Sequence[int] = [1, 1]
 ) -> None:
     """Wrapper for multiprecision conv2d_inplace"""
     ts = (X, C, Y)
     if is_tensor_of(ts, Tensor_bf16):
         ops.conv2d_inplace_async_bf16(alpha, X, C, beta, Y,
-                padding_m, padding_n)
+                padding, stride, dilation)
     elif is_tensor_of(ts, Tensor_fp32):
         ops.conv2d_inplace_async_fp32(alpha, X, C, beta, Y,
-                padding_m, padding_n)
+                padding, stride, dilation)
     elif is_tensor_of(ts, Tensor_fp32_fast_tf32):
         ops.conv2d_inplace_async_fp32_fast_tf32(alpha, X, C, beta,
-                Y, padding_m, padding_n)
+                Y, padding, stride, dilation)
     elif is_tensor_of(ts, Tensor_fp64):
         ops.conv2d_inplace_async_fp64(alpha, X, C, beta, Y,
-                padding_m, padding_n)
+                padding, stride, dilation)
     else:
         types = ', '.join(str(type(t)) for t in ts)
         raise TypeError(
@@ -1546,23 +1547,24 @@ def conv2d_bwd_input_inplace_async(
         C: Tensor,
         beta: float,
         dX: Tensor,
-        padding_m: int = 0,
-        padding_n: int = 0
+        padding: Sequence[int] = [0, 0],
+        stride: Sequence[int] = [1, 1],
+        dilation: Sequence[int] = [1, 1]
 ) -> None:
     """Wrapper for multiprecision conv2d_bwd_input_inplace"""
     ts = (dY, C, dX)
     if is_tensor_of(ts, Tensor_bf16):
         ops.conv2d_bwd_input_inplace_async_bf16(alpha, dY, C, beta,
-                dX, padding_m, padding_n)
+                dX, padding, stride, dilation)
     elif is_tensor_of(ts, Tensor_fp32):
         ops.conv2d_bwd_input_inplace_async_fp32(alpha, dY, C, beta,
-                dX, padding_m, padding_n)
+                dX, padding, stride, dilation)
     elif is_tensor_of(ts, Tensor_fp32_fast_tf32):
         ops.conv2d_bwd_input_inplace_async_fp32_fast_tf32(alpha, dY,
-                C, beta, dX, padding_m, padding_n)
+                C, beta, dX, padding, stride, dilation)
     elif is_tensor_of(ts, Tensor_fp64):
         ops.conv2d_bwd_input_inplace_async_fp64(alpha, dY, C, beta,
-                dX, padding_m, padding_n)
+                dX, padding, stride, dilation)
     else:
         types = ', '.join(str(type(t)) for t in ts)
         raise TypeError(
@@ -1575,23 +1577,24 @@ def conv2d_bwd_weight_inplace_async(
         dY: Tensor,
         beta: float,
         dC: Tensor,
-        padding_m: int = 0,
-        padding_n: int = 0
+        padding: Sequence[int] = [0, 0],
+        stride: Sequence[int] = [1, 1],
+        dilation: Sequence[int] = [1, 1]
 ) -> None:
     """Wrapper for multiprecision conv2d_bwd_weight_inplace"""
     ts = (X, dY, dC)
     if is_tensor_of(ts, Tensor_bf16):
         ops.conv2d_bwd_weight_inplace_async_bf16(alpha, X, dY, beta,
-                dC, padding_m, padding_n)
+                dC, padding, stride, dilation)
     elif is_tensor_of(ts, Tensor_fp32):
         ops.conv2d_bwd_weight_inplace_async_fp32(alpha, X, dY, beta,
-                dC, padding_m, padding_n)
+                dC, padding, stride, dilation)
     elif is_tensor_of(ts, Tensor_fp32_fast_tf32):
         ops.conv2d_bwd_weight_inplace_async_fp32_fast_tf32(alpha, X,
-                dY, beta, dC, padding_m, padding_n)
+                dY, beta, dC, padding, stride, dilation)
     elif is_tensor_of(ts, Tensor_fp64):
         ops.conv2d_bwd_weight_inplace_async_fp64(alpha, X, dY, beta,
-                dC, padding_m, padding_n)
+                dC, padding, stride, dilation)
     else:
         types = ', '.join(str(type(t)) for t in ts)
         raise TypeError(
