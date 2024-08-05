@@ -49,7 +49,7 @@ class AddSlice(BaseLayer):
     def forward_dynamic(self, x: TensorMoments, slice_tensor: TensorMoments):
         y = nntc.empty_like(x.value)
         copy_async(x.value, y)
-        add_slice_async(1, slice_tensor.value, 1, y, self.axis)
+        add_slice_async(1.0, slice_tensor.value, 1.0, y, self.axis)
         return TensorMoments(y, None, False)
 
     def backward_async(self):

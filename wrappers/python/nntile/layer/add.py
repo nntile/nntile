@@ -44,7 +44,7 @@ class Add(BaseLayer):
 
     def forward_dynamic(self, x1: TensorMoments, x2: TensorMoments):
         y = nntc.clone(x1.value)
-        add_async(1, x2.value, 1, y)
+        add_async(1.0, x2.value, 1.0, y)
         return TensorMoments(y, None, False)
 
     def backward_async(self):

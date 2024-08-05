@@ -193,7 +193,6 @@ class LayerNorm(BaseLayer):
         mean.wont_use()
 
         # Compute standard deviation of self.y.value
-        # fill_async(self.eps, self.inv_stddev)
         norm_slice_async(
             1.0 / num_layers**0.5,
             tmp_y_value,
@@ -203,8 +202,6 @@ class LayerNorm(BaseLayer):
             redux=self.redux,
         )
         hypot_scalar_inverse_async(self.eps, 1.0, inv_stddev)
-        # Invert stddev (to multiply by it instead of dividing)
-        # pow_async(1.0, -1.0, self.inv_stddev)
         # Finally, normalize input
         prod_slice_async(inv_stddev, 1.0, tmp_y_value, self.axis)
         # inv_stddev can be offloaded from GPU

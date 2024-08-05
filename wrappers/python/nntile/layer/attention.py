@@ -573,7 +573,7 @@ class Attention(BaseLayer):
         partial_tr_basetile_shape = (self.n_head_tile, self.head_size) + tuple(
             x.shape[1:]
         )
-        return nntc.zeros(
+        return nntc.empty(
             partial_tr_shape,
             dtype=type(x),
             basetile_shape=partial_tr_basetile_shape,
@@ -584,7 +584,7 @@ class Attention(BaseLayer):
         partial_basetile_shape = (
             (self.head_size,) + tuple(x.shape[1:]) + (self.n_head_tile,)
         )
-        return nntc.zeros(
+        return nntc.empty(
             partial_shape, dtype=type(x), basetile_shape=partial_basetile_shape
         )
 
@@ -675,7 +675,7 @@ class Attention(BaseLayer):
         # So copy here
         cached_shape = self.k.value.shape
         cached_shape[1] = self.k_cache_size
-        k_partial_cached = nntc.zeros(
+        k_partial_cached = nntc.empty(
             cached_shape,
             dtype=type(x),
             basetile_shape=tuple(cached_shape[:-1]) + (self.n_head_tile,),
@@ -748,7 +748,7 @@ class Attention(BaseLayer):
         # So copy here
         cached_shape = self.v.value.shape
         cached_shape[1] = self.v_cache_size
-        v_partial_cached = nntc.zeros(
+        v_partial_cached = nntc.empty(
             cached_shape,
             dtype=type(x),
             basetile_shape=tuple(cached_shape[:-1]) + (self.n_head_tile,),
@@ -846,7 +846,7 @@ class Attention(BaseLayer):
         self.y.value.wont_use()
 
     def _forward_attn_dynamic(self, q, k, v):
-        a_tmp = nntc.zeros(
+        a_tmp = nntc.empty(
             (k.shape[1],) + (q.shape[1],) + tuple(k.shape[2:]),
             dtype=type(q),
             basetile_shape=(k.shape[1],)
@@ -854,25 +854,25 @@ class Attention(BaseLayer):
             + (k.shape[2],)
             + (self.n_head_tile,),
         )  # (n_seq, n_seq, batch=n_batch, batch=n_head)
-        a_maxsumexp_tmp = nntc.zeros(
+        a_maxsumexp_tmp = nntc.empty(
             (2,) + tuple(a_tmp.shape[1:]),
             dtype=type(q),
             basetile_shape=(2,)
             + tuple(a_tmp.shape[1:-1])
             + (self.n_head_tile,),
         )
-        b_tmp = nntc.zeros(
+        b_tmp = nntc.empty(
             q.shape,
             dtype=type(q),
             basetile_shape=tuple(q.shape[:-1]) + (self.n_head_tile,),
         )  # (head_size, n_seq, n_batch, n_head)
-        b_tr_tmp = nntc.zeros(
+        b_tr_tmp = nntc.empty(
             (self.n_head, self.head_size) + tuple(q.shape[1:3]),
             dtype=type(q),
             basetile_shape=(self.n_head_tile, self.head_size)
             + tuple(q.shape[1:3]),
         )  # (n_head, head_size, n_seq, n_batch)
-        self.y_tensor = nntc.zeros(
+        self.y_tensor = nntc.empty(
             (self.n_emb,) + tuple(q.shape[1:3]),
             dtype=type(q),
             basetile_shape=(self.n_emb_tile,) + tuple(q.shape[1:3]),

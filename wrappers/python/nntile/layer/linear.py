@@ -186,7 +186,7 @@ class Linear(BaseLayer):
                 "Implemented only for from_torch version:"
                 "self.side == 'R' and self.trans_x == notrans"
             )
-        y = nntc.zeros(
+        y = nntc.empty(
             self.out_features_shape + x.value.shape[self.ndim :],
             dtype=type(x.value),
             basetile_shape=self.out_features_basetile_shape
