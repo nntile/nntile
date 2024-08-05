@@ -17,6 +17,7 @@ from .attention import Attention
 from .attention_single_head import AttentionSingleHead
 from .base_layer import BaseLayer
 from .batch_norm import BatchNorm2d
+from .conv2d import Conv2d
 from .embedding import Embedding
 from .flash_attention import FlashAttention
 from .layer_norm import LayerNorm
@@ -27,5 +28,6 @@ from .prod import Prod
 from .rms_norm import RMSNorm
 
 __all__ = ('Act', 'AddSlice', 'Attention', 'AttentionSingleHead', 'BaseLayer',
-           'BatchNorm2d', 'Embedding', 'FlashAttention', 'GAP', 'LayerNorm',
-           'Linear', 'LlamaAttention', 'Mixer', 'MixerMlp', 'RMSNorm', 'Prod')
+           'BatchNorm2d', 'Conv2d', 'Embedding', 'FlashAttention', 'GAP',
+           'LayerNorm', 'Linear', 'LlamaAttention', 'Mixer', 'MixerMlp',
+           'RMSNorm', 'Prod')

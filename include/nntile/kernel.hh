@@ -68,9 +68,9 @@
 #include <nntile/kernel/transpose.hh>
 #include <nntile/kernel/silu_forward.hh>
 #include <nntile/kernel/silu_backward.hh>
-
-#include <nntile/kernel/cpu.hh>
-#include <nntile/kernel/cuda.hh>
+#include <nntile/kernel/conv2d_inplace.hh>
+#include <nntile/kernel/conv2d_bwd_input_inplace.hh>
+#include <nntile/kernel/conv2d_bwd_weight_inplace.hh>
 #include <nntile/kernel/rope.hh>
 #include <nntile/kernel/rope_backward.hh>
 
