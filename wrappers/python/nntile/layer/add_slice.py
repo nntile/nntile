@@ -21,9 +21,14 @@ from .base_layer import BaseLayer
 
 
 class AddSlice(BaseLayer):
-
-    def __init__(self, x: TensorMoments, y: TensorMoments, u: TensorMoments, \
-            axis: int, redux: bool=False):
+    def __init__(
+        self,
+        x: TensorMoments,
+        y: TensorMoments,
+        u: TensorMoments,
+        axis: int,
+        redux: bool = False,
+    ):
         super().__init__([x, y], [u], [], [])
         # Set up local named parameters
         self.x = x
@@ -54,8 +59,9 @@ class AddSlice(BaseLayer):
 
     def backward_async(self):
         add_async(1, self.u.grad, 1, self.x.grad)
-        sum_slice_async(1, self.u.grad, 1, self.y.grad, self.axis, \
-                redux=self.redux)
+        sum_slice_async(
+            1, self.u.grad, 1, self.y.grad, self.axis, redux=self.redux
+        )
         self.x.grad.wont_use()
         self.y.grad.wont_use()
         self.u.grad.wont_use()

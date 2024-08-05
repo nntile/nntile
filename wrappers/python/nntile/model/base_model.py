@@ -11,11 +11,17 @@
 #
 # @version 1.0.0
 
-from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        clear_async
+from nntile.tensor import (
+    TensorTraits,
+    Tensor,
+    TensorOrNone,
+    TensorMoments,
+    clear_async,
+)
 from nntile.layer.base_layer import BaseLayer
 import numpy as np
 from typing import List
+
 
 class BaseModel:
     activations: List[TensorMoments]
@@ -23,8 +29,9 @@ class BaseModel:
     layers: List[BaseLayer]
 
     # Construct model with all the provided data
-    def __init__(self, activations: List[TensorMoments],
-            layers: List[BaseLayer]):
+    def __init__(
+        self, activations: List[TensorMoments], layers: List[BaseLayer]
+    ):
         self.activations = activations
         self.layers = layers
         self.parameters = []

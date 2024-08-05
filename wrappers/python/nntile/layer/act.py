@@ -25,11 +25,12 @@ import nntile.utils.constructors as nntc
 class Act(BaseLayer):
     x: TensorMoments
     y: TensorMoments
-    activations = {'relu': (relu_forward_async, relu_backward_async), \
-            'gelu': (gelu_async, gelu_backward_async), \
-            'gelutanh': (gelutanh_inplace_async, gelutanh_backward_async), \
-            'silu': (silu_forward_async, silu_backward_async) \
-            }
+    activations = {
+        "relu": (relu_forward_async, relu_backward_async),
+        "gelu": (gelu_async, gelu_backward_async),
+        "gelutanh": (gelutanh_inplace_async, gelutanh_backward_async),
+        "silu": (silu_forward_async, silu_backward_async),
+    }
     funcname: str
     func: Callable[[Tensor], None]
     dfunc: Callable[[Tensor], None]
@@ -78,7 +79,11 @@ class Act(BaseLayer):
         self.y.value.wont_use()
 
     def forward_dynamic(self, x: TensorMoments):
-        y = nntc.zeros(x.value.shape, dtype=type(x.value), basetile_shape=x.value.basetile_shape)
+        y = nntc.zeros(
+            x.value.shape,
+            dtype=type(x.value),
+            basetile_shape=x.value.basetile_shape,
+        )
         if self.funcname == "relu":
             relu_forward_async(x.value, y)
         if self.funcname == "silu":

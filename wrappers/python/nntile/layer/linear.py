@@ -143,7 +143,18 @@ class Linear(BaseLayer):
         # Define Y as TensorMoments
         y = TensorMoments(y_value, y_grad, True)
         # Create linear layer with all the provided data
-        layer = Linear(side, trans_x, x, y, w, ndim, b, out_features_shape, out_features_basetile_shape, redux=redux)
+        layer = Linear(
+            side,
+            trans_x,
+            x,
+            y,
+            w,
+            ndim,
+            b,
+            out_features_shape,
+            out_features_basetile_shape,
+            redux=redux,
+        )
         # Return layer and next tag to be used
         return (layer, next_tag)
 
