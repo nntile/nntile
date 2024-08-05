@@ -27,6 +27,8 @@ struct args_t
 {
     Index src1_m;
     Index src1_n;
+    Index stride_m;
+    Index stride_n;
     Index src1_channels;
     Index batch;
     Index src2_m;
@@ -91,9 +93,10 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template <typename T>
-void submit(Index src1_m, Index src1_n, Index src1_channels, Index batch,
-        Index src2_m, Index src2_n, Index dst_channels, Index offset_m,
-        Index offset_n, Scalar alpha, Handle src1, Handle src2, Index dst_m,
-        Index dst_n, Scalar beta, Handle dst);
+void submit(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
+        Index src1_channels, Index batch, Index src2_m, Index src2_n,
+        Index dst_channels, Index offset_m, Index offset_n, Scalar alpha,
+        Handle src1, Handle src2, Index dst_m, Index dst_n, Scalar beta,
+        Handle dst);
 
 } // namespace nntile::starpu::conv2d_bwd_input_inplace

@@ -23,11 +23,13 @@ namespace nntile::tensor
 template <typename T>
 void conv2d_bwd_weight_inplace_async(Scalar alpha, const Tensor<T> &X,
         const Tensor<T> &dY, Scalar beta, const Tensor<T> &dC,
-        Index padding_m, Index padding_n);
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
 
 template <typename T>
 void conv2d_bwd_weight_inplace(Scalar alpha, const Tensor<T> &X,
         const Tensor<T> &dY, Scalar beta, const Tensor<T> &dC,
-        Index padding_m, Index padding_n);
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
 
 } // namespace nntile::tensor

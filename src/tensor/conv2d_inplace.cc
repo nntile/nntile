@@ -39,7 +39,7 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
  *      `Y` = `alpha`*`f(X, C)` + `beta`*`Y`,
  * where `f` operation does the following:
  *      `f[i,j,k,b]` = \sum_l \sum_m \sum_n `X[m,n,l,b]`
- *      * `C[m + offset_m - i,n + offset_n - j,l,k]`
+ *      * `C[m + offset_m - stride_m*i,n + offset_n - stride_n*j,l,k]`
  *
  * Generally, `X` represents input of `Conv2d` layer, `C` represents
  * kernel of `Conv2d` layer and `Y` represents output of `Conv2d` layer.
@@ -136,12 +136,19 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
         Index Y_end_m = Y_start_m + Y_tile_traits.shape[0];
         Index Y_start_n = Y_tile_index[1] * Y.basetile_shape[1];
         Index Y_end_n = Y_start_n + Y_tile_traits.shape[1];
-        // Get X start and end coordinates that interact with Y through
-        // provided kernel
+        // Get start and end indices `m` and `n` from the operation:
+        //      `f[i,j,k,b]` = \sum_l \sum_m \sum_n `X[m,n,l,b]`
+        //      * `C[m + offset_m - stride_m*i,n + offset_n - stride_n*j,l,k]`.
+        // The kernel `C` has limited shape:
+        //      `0 <= m + offset_n - stride_m*i < C.shape[0]`
+        // Therefore, `m` is limited as follows:
+        //      `m >= stride_m*i - offset_m`
+        //      `m < stride_m*i - offset_m + C.shape[0]`
+        // For `n` we get similar limits.
         Index X_start_m = stride[0]*Y_start_m - padding[0];
-        Index X_end_m = stride[0]*(Y_end_m-1) + 1 - padding[0] + C.shape[0];
+        Index X_end_m = stride[0]*(Y_end_m-1) - padding[0] + C.shape[0];
         Index X_start_n = stride[1]*Y_start_n - padding[1];
-        Index X_end_n = stride[1]*(Y_end_n-1) + 1 - padding[1] + C.shape[1];
+        Index X_end_n = stride[1]*(Y_end_n-1) - padding[1] + C.shape[1];
         // Get X tile coordinates that interact with Y tile
         Index X_start_tile_m = X_start_m / X.basetile_shape[0];
         Index X_end_tile_m = (X_end_m-1) / X.basetile_shape[0] + 1;

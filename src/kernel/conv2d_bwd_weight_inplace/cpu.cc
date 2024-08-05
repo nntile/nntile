@@ -21,9 +21,10 @@ namespace nntile::kernel::conv2d_bwd_weight_inplace
 
 template<typename T>
 void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
-        Index src2_m, Index src2_n, Index src2_channels,
-        Index offset_m, Index offset_n, Scalar alpha, const T *src1,
-        const T *src2, Index dst_m, Index dst_n, Scalar beta, T *dst)
+        Index src2_m, Index src2_n, Index stride_m, Index stride_n,
+        Index src2_channels, Index offset_m, Index offset_n, Scalar alpha,
+        const T *src1, const T *src2, Index dst_m, Index dst_n, Scalar beta,
+        T *dst)
     noexcept
 /*! Backward convolution of WHCN tensors to get grad of weight
  *
@@ -31,18 +32,20 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
  *      `dst` = `alpha`*`f(src1, src2)` + `beta`*`dst`,
  * where `f` operation does the following:
  *      `f[i,j,k,l]` = \sum_b \sum_m \sum_n `src1[m,n,k,b]`
- *      * `src2[m + offset_m - i,n + offset_n - i,l,b]`
+ *      * `src2[(m+offset_m-i)/stride_m,(n+offset_n-j)/stride_n,l,b]`
  *
  * Generally, `src1` represents input of `Conv2d` layer, `src2` represents
  * output grad of `Conv2d` layer and `dst` represents weight grad of `Conv2d`
  * layer.
  *
- * @param[in] src1_m: Size of the thirst axis of `src1` array
+ * @param[in] src1_m: Size of the first axis of `src1` array
  * @param[in] src1_n: Size of the second axis of `src1` array
  * @param[in] src1_channels: Size of the third axis of `src1` array
  * @param[in] batch: Size of the fourth axis of `src1` array
  * @param[in] src2_m: Size of the first axis of `src2` array
  * @param[in] src2_n: Size of the second axis of `src2` array
+ * @param[in] stride_m: Step of the first axis of `src2` array
+ * @param[in] stride_n: Step of the second axis of `src2` array
  * @param[in] src2_channels: Size of the third axis of `src2` array
  * @param[in] offset_m: Convolution offset alongside the first axis
  * @param[in] offset_n: Convolution offset alongside the second axis
@@ -63,17 +66,18 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
     //     `s1` denote a 2-dim index within `s1`,
     //     `o` denote a 2-dim offset
     // Then, this convolution computes
-    //      `conv[d] = sum_s1 src1[s1]*src2[s1-o-d]`
+    //      `conv[d] = sum_s1 src1[s1]*src2[(s1+o-d)/stride]`
+    // with a limitation that `(s1+o-d) % stride = 0`.
     // And we must satisfy condition
-    //      `0 <= s1-o-d < src2.shape`
+    //      `0 <= (s1+o-d)/stride <= src2.shape-1`
     // It means all values of `d`, that actually get non-zero `conv[d]` are:
-    //      `s1-o-src2.shape < d <= s1-o`
+    //      `s1+o-stride*(src2.shape-1) <= d <= s1+o`
     // To support left border inclusively and right border exclusively:
-    //      `1-o-src2.shape <= d < src1.shape-o`
-    Index dst_start_m = std::max(1-offset_m-src2_m, Index(0));
-    Index dst_end_m = std::min(src1_m-offset_m, dst_m);
-    Index dst_start_n = std::max(1-offset_n-src2_n, Index(0));
-    Index dst_end_n = std::min(src1_n-offset_n, dst_n);
+    //      `o-stride*src2.shape <= d < src1.shape+o`
+    Index dst_start_m = std::max(offset_m-stride_m*(src2_m-1), Index(0));
+    Index dst_end_m = std::min(src1_m+offset_m, dst_m);
+    Index dst_start_n = std::max(offset_n-stride_n*(src2_n-1), Index(0));
+    Index dst_end_n = std::min(src1_n+offset_n, dst_n);
     Index src1_step = src1_channels * src1_n * src1_m;
     Index src2_step = src2_channels * src2_n * src2_m;
     for(Index oc = 0; oc < src2_channels; ++oc)
@@ -92,29 +96,62 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
                         // Additional variables for Kahan summation rule
                         Y conv{0.0}, c{0}, y, t;
                         // Once again, we must satisfy condition
-                        //      `0 <= s1-o-d < src2.shape`
+                        //      `0 <= s1+o-d <= stride*(src2.shape-1)` and
                         // Therefore, indices `s1` are bound as follows:
-                        //      `o+d <= s1 < o+d+src2.shape`
-                        Index src1_start_m = std::max(offset_m+dst_i,
-                                Index(0));
-                        Index src1_end_m = std::min(offset_m+src2_m+dst_i,
+                        //      `d-o <= s1 < d-o+stride*(src2.shape-1)+1`
+                        // while `(s1+o-d) % stride = 0`
+                        Index src1_start_m = dst_i - offset_m;
+                        if(src1_start_m < 0)
+                        {
+                            // We need to get minimal non-negative number
+                            // with the same reminder
+                            if(src1_start_m % stride_m == 0)
+                            {
+                                src1_start_m = 0;
+                            }
+                            else
+                            {
+                                // By Standard ((-x) % y) is a negative number
+                                src1_start_m = (src1_start_m % stride_m)
+                                    + stride_m;
+                            }
+                        }
+                        Index src1_end_m = std::min(
+                                dst_i - offset_m + stride_m*(src2_m-1) + 1,
                                 src1_m);
-                        Index src1_start_n = std::max(offset_n+dst_j,
-                                Index(0));
-                        Index src1_end_n = std::min(offset_n+src2_n+dst_j,
+                        Index src1_start_n = dst_j - offset_n;
+                        if(src1_start_n < 0)
+                        {
+                            // We need to get minimal non-negative number
+                            // with the same reminder
+                            if(src1_start_n % stride_n == 0)
+                            {
+                                src1_start_n = 0;
+                            }
+                            else
+                            {
+                                // By Standard ((-x) % y) is a negative number
+                                src1_start_n = (src1_start_n % stride_n)
+                                    + stride_n;
+                            }
+                        }
+                        Index src1_end_n = std::min(
+                                dst_j - offset_n + stride_n*(src2_n-1) + 1,
                                 src1_n);
                         for(Index src1_i = src1_start_m; src1_i < src1_end_m;
-                                ++src1_i)
+                                src1_i += stride_m)
                         {
                             for(Index src1_j = src1_start_n;
-                                    src1_j < src1_end_n; ++src1_j)
+                                    src1_j < src1_end_n; src1_j += stride_n)
                             {
                                 const T *src1_slice = src1 + src1_i
                                     + (ic*src1_n+src1_j)*src1_m;
-                                // Slice of `src2[s1-o-d]`
+                                // Slice of `src2[(s1+o-d)/stride]`
                                 const T *src2_slice = src2
-                                    + src1_i - offset_m - dst_i
-                                    + (oc*src2_n+src1_j-offset_n-dst_j)*src2_m;
+                                    + (src1_i + offset_m - dst_i)/stride_m
+                                    + (oc*src2_n
+                                            +(src1_j+offset_n-dst_j)/stride_n
+                                    )*src2_m;
                                 for(Index b = 0; b < batch; ++b)
                                 {
                                     Y src1_val{src1_slice[src1_step*b]};
@@ -161,31 +198,35 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
 // Explicit instantiation
 template
 void cpu<bf16_t>(Index src1_m, Index src1_n, Index src1_channels, Index batch,
-        Index src2_m, Index src2_n, Index src2_channels, Index offset_m,
-        Index offset_n, Scalar alpha, const bf16_t *src1, const bf16_t *src2,
-        Index dst_m, Index dst_n, Scalar beta, bf16_t *dst)
+        Index src2_m, Index src2_n, Index stride_m, Index stride_n,
+        Index src2_channels, Index offset_m, Index offset_n, Scalar alpha,
+        const bf16_t *src1, const bf16_t *src2, Index dst_m, Index dst_n,
+        Scalar beta, bf16_t *dst)
     noexcept;
 
 template
 void cpu<fp32_t>(Index src1_m, Index src1_n, Index src1_channels, Index batch,
-        Index src2_m, Index src2_n, Index src2_channels, Index offset_m,
-        Index offset_n, Scalar alpha, const fp32_t *src1, const fp32_t *src2,
-        Index dst_m, Index dst_n, Scalar beta, fp32_t *dst)
+        Index src2_m, Index src2_n, Index stride_m, Index stride_n,
+        Index src2_channels, Index offset_m, Index offset_n, Scalar alpha,
+        const fp32_t *src1, const fp32_t *src2, Index dst_m, Index dst_n,
+        Scalar beta, fp32_t *dst)
     noexcept;
 
 template
 void cpu<fp32_fast_tf32_t>(Index src1_m, Index src1_n, Index src1_channels,
-        Index batch, Index src2_m, Index src2_n, Index src2_channels,
-        Index offset_m, Index offset_n, Scalar alpha,
-        const fp32_fast_tf32_t *src1, const fp32_fast_tf32_t *src2,
-        Index dst_m, Index dst_n, Scalar beta, fp32_fast_tf32_t *dst)
+        Index batch, Index src2_m, Index src2_n, Index stride_m,
+        Index stride_n, Index src2_channels, Index offset_m, Index offset_n,
+        Scalar alpha, const fp32_fast_tf32_t *src1,
+        const fp32_fast_tf32_t *src2, Index dst_m, Index dst_n, Scalar beta,
+        fp32_fast_tf32_t *dst)
     noexcept;
 
 template
 void cpu<fp64_t>(Index src1_m, Index src1_n, Index src1_channels, Index batch,
-        Index src2_m, Index src2_n, Index src2_channels, Index offset_m,
-        Index offset_n, Scalar alpha, const fp64_t *src1, const fp64_t *src2,
-        Index dst_m, Index dst_n, Scalar beta, fp64_t *dst)
+        Index src2_m, Index src2_n, Index stride_m, Index stride_n,
+        Index src2_channels, Index offset_m, Index offset_n, Scalar alpha,
+        const fp64_t *src1, const fp64_t *src2, Index dst_m, Index dst_n,
+        Scalar beta, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::conv2d_bwd_weight_inplace

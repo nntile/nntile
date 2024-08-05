@@ -32,12 +32,12 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
  *      `dst` = `alpha`*`f(src1, src2)` + `beta`*`dst`,
  * where `f` operation does the following:
  *      `f[i,j,k,b]` = \sum_l \sum_m \sum_n `src1[m,n,l,b]`
- *      * `src2[m + offset_m - i,n + offset_n - j,l,k]`
+ *      * `src2[m+offset_m-stride_m*i,n+offset_n-stride_n*j,l,k]`
  *
  * Generally, `src1` represents input of `Conv2d` layer, `src2` represents
  * kernel of `Conv2d` layer and `dst` represents output of `Conv2d` layer.
  *
- * @param[in] src1_m: Size of the thirst axis of `src1` array
+ * @param[in] src1_m: Size of the first axis of `src1` array
  * @param[in] src1_n: Size of the second axis of `src1` array
  * @param[in] src1_channels: Size of the third axis of `src1` array
  * @param[in] batch: Size of the fourth axis of `src1` array
@@ -68,12 +68,17 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
     // Then, this convolution computes
     //      `conv[d] = sum_s1 src1[s1]*src2[s1+o-d*stride]`
     // And we must satisfy condition
-    //      `0 <= s1+o-d*stride < src2.shape`
+    //      `0 <= s1+o-d*stride <= src2.shape-1`
     // It means all values of `d`, that actually get non-zero `conv[d]` are:
-    //      `s1+o-src2.shape < d*stride <= s1+o`
+    //      `s1+o-src2.shape+1 <= d*stride <= s1+o`
     // Therefore, index `d` is bound as follows:
-    //      `d >= (o-src2.shape+stride)/stride` and `d >= 0`
-    //      `d < (src1.shape+o+stride-1)/stride` and `d < (dst_m, dst_n)`
+    //      `d >= ceil((o-src2.shape+1)/stride)`
+    // or
+    //      `d >= floor((o-src2.shape+stride)/stride)`
+    // and
+    //      `d <= floor(src1.shape-1+o)/stride`
+    // or
+    //      `d < floor((src1.shape+o+stride-1)/stride)`
     // Such a notation works well even if a negative integer number is divided
     // by `stride`
     Index dst_start_m = std::max((offset_m-src2_m+stride_m)/stride_m,

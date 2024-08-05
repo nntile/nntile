@@ -32,7 +32,7 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
  *      `dst` = `alpha`*`f(src1, src2)` + `beta`*`dst`,
  * where `f` operation does the following:
  *      `f[i,j,k,b]` = \sum_l \sum_m \sum_n `src1[m,n,l,b]`
- *      * `src2[m + offset_m - i,n + offset_n - j,l,k]`
+ *      * `src2[m+offset_m-stride_m*i,n+offset_n-stride_n*j,l,k]`
  *
  * Generally, `src1` represents input of `Conv2d` layer, `src2` represents
  * kernel of `Conv2d` layer and `dst` represents output of `Conv2d` layer.
@@ -53,6 +53,8 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
  *      (`src2_m`,`src2_n`,`src1_channels`,`dst_channels`)
  * @param[in] dst_m: Size of the first axis of dst array
  * @param[in] dst_n: Size of the second axis of dst array
+ * @param[in] stride_m: Step of the first axis of dst array
+ * @param[in] stride_n: Step of the second axis of dst array
  * @param[in] beta: Scalar multiplier for initial value of `dst`
  * @param[inout] dst: F-contiguous array of shape
  *      (`dst_m`, `dst_n`, `dst_channels`, `batch`)
@@ -63,14 +65,23 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
     // Let `d` denote a 2-dimensional index within `dst`,
     //     `s1` denote a 2-dim index within `s1`,
     //     `o` denote a 2-dim offset from `dst` to `src1`
+    //     `stride` denote convolution stride
     // Then, this convolution computes
-    //      `conv[d] = sum_s1 src1[s1]*src2[s1+o-d]`
+    //      `conv[d] = sum_s1 src1[s1]*src2[s1+o-d*stride]`
     // And we must satisfy condition
-    //      `0 <= s1+o-d < src2.shape`
+    //      `0 <= s1+o-d*stride <= src2.shape-1`
     // It means all values of `d`, that actually get non-zero `conv[d]` are:
-    //      `s1+o-src2.shape < d <= s1+o`
+    //      `s1+o-src2.shape+1 <= d*stride <= s1+o`
     // Therefore, index `d` is bound as follows:
-    //      `o-src2.shape+1 <= d < src1.shape+o`
+    //      `d >= ceil((o-src2.shape+1)/stride)`
+    // or
+    //      `d >= floor((o-src2.shape+stride)/stride)`
+    // and
+    //      `d <= floor(src1.shape-1+o)/stride`
+    // or
+    //      `d < floor((src1.shape+o+stride-1)/stride)`
+    // Such a notation works well even if a negative integer number is divided
+    // by `stride`
     Index dst_i = i % dst_m;
     i = i / dst_m;
     Index dst_j = i % dst_n;
@@ -82,10 +93,12 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
     {
         return;
     }
-    Index dst_start_m = ::max(offset_m-src2_m+1, Index(0));
-    Index dst_end_m = ::min(offset_m+src1_m, dst_m);
-    Index dst_start_n = ::max(offset_n-src2_n+1, Index(0));
-    Index dst_end_n = ::min(offset_n+src1_n, dst_n);
+    Index dst_start_m = ::max((offset_m-src2_m+stride_m)/stride_m,
+            Index(0));
+    Index dst_end_m = ::min((offset_m+src1_m+stride_m-1)/stride_m, dst_m);
+    Index dst_start_n = ::max((offset_n-src2_n+stride_n)/stride_n,
+            Index(0));
+    Index dst_end_n = ::min((offset_n+src1_n+stride_n-1)/stride_n, dst_n);
     T *dst_val = dst + ((b*dst_channels+oc)*dst_n+dst_j)*dst_m + dst_i;
     if(dst_i >= dst_start_m and dst_i < dst_end_m and
             dst_j >= dst_start_n and dst_j < dst_end_n)
@@ -96,17 +109,13 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
         // Additional variables for Kahan summation rule
         Y conv{0.0}, c{0}, y, t;
         // Once again, we must satisfy condition
-        //      `0 <= s1+o-d < src2.shape`
+        //      `0 <= s1+o-d*stride < src2.shape`
         // Therefore, condition on `s1` is the following:
-        //      `d-o <= s1 < d-o+src2.shape`
-        Index src1_start_m = ::max(dst_i-offset_m,
-                Index(0));
-        Index src1_end_m = ::min(dst_i-offset_m+src2_m,
-                src1_m);
-        Index src1_start_n = ::max(dst_j-offset_n,
-                Index(0));
-        Index src1_end_n = ::min(dst_j-offset_n+src2_n,
-                src1_n);
+        //      `d*stride-o <= s1 < d*stride-o+src2.shape`
+        Index src1_start_m = ::max(dst_i*stride_m-offset_m, Index(0));
+        Index src1_end_m = ::min(dst_i*stride_m-offset_m+src2_m, src1_m);
+        Index src1_start_n = ::max(dst_j*stride_n-offset_n, Index(0));
+        Index src1_end_n = ::min(dst_j*stride_n-offset_n+src2_n, src1_n);
         for(Index src1_i = src1_start_m; src1_i < src1_end_m;
                 ++src1_i)
         {
@@ -115,10 +124,10 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
             {
                 const T *src1_slice = src1 + src1_i
                     + (b*src1_channels*src1_n+src1_j)*src1_m;
-                // Slice of `src2[s1+o-d]`
+                // Slice of `src2[s1+o-d*stride]`
                 const T *src2_slice = src2
-                    + src1_i + offset_m - dst_i
-                    + (src1_j+offset_n-dst_j)*src2_m
+                    + src1_i + offset_m - stride_m*dst_i
+                    + (src1_j+offset_n-stride_n*dst_j)*src2_m
                     + oc*src2_oc_step;
                 for(Index ic = 0; ic < src1_channels; ++ic)
                 {
