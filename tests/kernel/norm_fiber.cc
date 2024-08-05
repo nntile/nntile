@@ -30,14 +30,14 @@ void run_cuda(Index m, Index n, Index k, Index batch, Scalar alpha,
 {
     // Copy to device
     T *dev_src, *dev_dst;
-    cudaError_t cuda_err = cudaMalloc(&dev_src, sizeof(T)*m*n*k);
+    cudaError_t cuda_err = cudaMalloc(&dev_src, sizeof(T)*m*n*k*batch);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_dst, sizeof(T)*m*n);
+    cuda_err = cudaMalloc(&dev_dst, sizeof(T)*k*batch);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*m*n*k,
+    cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*m*n*k*batch,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*m*n,
+    cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*k*batch,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Init stream
@@ -49,7 +49,7 @@ void run_cuda(Index m, Index n, Index k, Index batch, Scalar alpha,
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result and deallocate device memory
-    cuda_err = cudaMemcpy(&dst[0], dev_dst, sizeof(T)*m*n,
+    cuda_err = cudaMemcpy(&dst[0], dev_dst, sizeof(T)*k*batch,
             cudaMemcpyDeviceToHost);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaFree(dev_src);
@@ -107,7 +107,7 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
     std::vector<T> dst_cuda(dst_copy);
     std::cout << "Run kernel::norm_fiber::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(m, n, k, batch, alpha, src, beta, dst_cuda);
-    Y val_cuda{dst[0]};
+    Y val_cuda{dst_cuda[0]};
     if(ref == Y{0})
     {
         TEST_ASSERT(std::abs(val) <= 10*eps);
@@ -122,10 +122,9 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
 
 int main(int argc, char **argv)
 {
-    validate<fp32_t>(32, 32, 10, 1, 1.0, 0.0);
-    validate<fp32_t>(32, 9, 10, 1, 1.0, 0.0);
     validate<fp64_t>(32, 32, 10, 1, 1.0, 0.0);
     validate<fp64_t>(32, 9, 10, 1, 1.0, 0.0);
-    
+    validate<fp32_t>(32, 32, 10, 1, 1.0, 0.0);
+    validate<fp32_t>(32, 9, 10, 1, 1.0, 0.0);
     return 0;
 }
