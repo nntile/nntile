@@ -17,6 +17,7 @@ import numpy as np
 import torch
 
 import nntile
+import nntile.utils.constructors as nntc
 from nntile.layer import (
     Act, AddSlice, Attention, AttentionSingleHead, Embedding, FlashAttention,
     LayerNorm, Linear)
@@ -350,9 +351,12 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         layers.append(lm_head_layer)
         activations.extend(lm_head_layer.activations_output)
 
+        self.num_hidden_layers = num_hidden_layers
         self.next_tag = next_tag
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
+
+        self.kvcache_size = 0
 
     def to_torch(self, base_torch_model):
         nntile_p_idx = 0
@@ -613,6 +617,61 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         self.set_input(x)
         self.forward_async()
         return self.get_output()
+
+    def forward_dynamic(self, x: TensorMoments, use_cache: bool = False):
+        if not use_cache:
+            self.kvcache_size = 0
+        inp_emb, pos_emb, add_l = self.layers[0:3]
+        seq_size = x.value.shape[0]
+        pos_ids_np = np.asfortranarray(
+            np.arange(
+                self.kvcache_size, self.kvcache_size + seq_size, dtype=np.int64
+            )
+        )
+        self.kvcache_size += seq_size
+        pos_ids_nnt_tm = TensorMoments(
+            nntc.from_array(
+                pos_ids_np, basetile_shape=(x.value.basetile_shape[0],)
+            ),
+            None,
+            False,
+        )
+
+        outs_inp = inp_emb.forward_dynamic(x)
+        outs_pos = pos_emb.forward_dynamic(pos_ids_nnt_tm)
+        embedded_input = add_l.forward_dynamic(outs_inp, outs_pos)
+
+        layers_in_block = 8
+        blocks_start = 3
+        gpt_block_inout = embedded_input
+        for hidden_id in range(self.num_hidden_layers):
+            # dispatch block
+            block_start = blocks_start + hidden_id * layers_in_block
+            block_end = block_start + layers_in_block
+            cur_block_layers = self.layers[block_start:block_end]
+
+            # dispatch layers
+            layer_norm1 = cur_block_layers[0]
+            attn = cur_block_layers[1]
+            add1 = cur_block_layers[2]
+            layer_norm2 = cur_block_layers[3]
+            mlp_block = cur_block_layers[4:7]
+            add2 = cur_block_layers[7]
+
+            x_tmp = layer_norm1.forward_dynamic(gpt_block_inout)
+            x_tmp1 = attn.forward_dynamic(x_tmp, use_cache=use_cache)
+            x_tmp2 = add1.forward_dynamic(gpt_block_inout, x_tmp1)
+            x_tmp3 = layer_norm2.forward_dynamic(x_tmp2)
+            mlp_output = x_tmp3
+            for layer in mlp_block:
+                mlp_output = layer.forward_dynamic(mlp_output)
+            gpt_block_inout = add2.forward_dynamic(x_tmp2, mlp_output)
+
+        last_ln, last_linear = self.layers[-2:]
+
+        last_out = last_ln.forward_dynamic(gpt_block_inout)
+        last_out = last_linear.forward_dynamic(last_out)
+        return last_out
 
     def unregister(self):
         super().unregister()

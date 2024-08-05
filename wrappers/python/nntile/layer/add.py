@@ -12,6 +12,7 @@
 #
 # @version 1.0.0
 
+import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import TensorMoments, TensorTraits, add_async, copy_async
 
@@ -40,6 +41,11 @@ class Add(BaseLayer):
         self.x.value.wont_use()
         self.y.value.wont_use()
         self.res.value.wont_use()
+
+    def forward_dynamic(self, x1: TensorMoments, x2: TensorMoments):
+        y = nntc.clone(x1.value)
+        add_async(1.0, x2.value, 1.0, y)
+        return TensorMoments(y, None, False)
 
     def backward_async(self):
         add_async(1, self.res.grad, 1, self.x.grad)

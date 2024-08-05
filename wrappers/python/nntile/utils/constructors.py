@@ -54,7 +54,7 @@ def empty(
 
 
 def empty_like(A: Tensor, next_tag: int = 0):
-    return empty(A.shape, A.basetile_shape, type(A), A.mpi_distr, next_tag)
+    return empty(A.shape, A.basetile_shape, type(A), A.distribution, next_tag)
 
 
 def from_array(
@@ -89,7 +89,7 @@ def zeros(
 
 
 def zeros_like(A: Tensor, next_tag: int = 0):
-    return zeros(A.shape, A.basetile_shape, type(A), A.mpi_distr, next_tag)
+    return zeros(A.shape, A.basetile_shape, type(A), A.distribution, next_tag)
 
 
 def full(
@@ -106,7 +106,7 @@ def full(
 
 
 def full_like(A: Tensor, fill_value: float = 0.0, next_tag: int = 0):
-    return full(A.shape, A.basetile_shape, type(A), fill_value, A.mpi_distr,
+    return full(A.shape, A.basetile_shape, type(A), fill_value, A.distribution,
             next_tag)
 
 
@@ -121,7 +121,7 @@ def ones(
 
 
 def ones_like(A: Tensor, next_tag: int = 0):
-    return ones(A.shape, A.basetile_shape, type(A), A.mpi_distr, next_tag)
+    return ones(A.shape, A.basetile_shape, type(A), A.distribution, next_tag)
 
 
 def clone(A: Tensor, next_tag: int = 0):

@@ -11,14 +11,23 @@
 #
 # @version 1.0.0
 
+import nntile.utils.constructors as nntc
+from nntile.tensor import (
+    TensorMoments, TensorTraits, add_async, add_slice_async, copy_async,
+    sum_slice_async)
+
 from .base_layer import BaseLayer
-from nntile.tensor import add_async, copy_async, add_slice_async, sum_slice_async
-from nntile.tensor import TensorTraits, TensorMoments
+
 
 class AddSlice(BaseLayer):
-
-    def __init__(self, x: TensorMoments, y: TensorMoments, u: TensorMoments, \
-            axis: int, redux: bool=False):
+    def __init__(
+        self,
+        x: TensorMoments,
+        y: TensorMoments,
+        u: TensorMoments,
+        axis: int,
+        redux: bool = False,
+    ):
         super().__init__([x, y], [u], [], [])
         # Set up local named parameters
         self.x = x
@@ -41,18 +50,30 @@ class AddSlice(BaseLayer):
         self.y.value.wont_use()
         self.u.value.wont_use()
 
+    def forward_dynamic(self, x: TensorMoments, slice_tensor: TensorMoments):
+        y = nntc.empty_like(x.value)
+        copy_async(x.value, y)
+        add_slice_async(1.0, slice_tensor.value, 1.0, y, self.axis)
+        return TensorMoments(y, None, False)
+
     def backward_async(self):
         add_async(1, self.u.grad, 1, self.x.grad)
-        sum_slice_async(1, self.u.grad, 1, self.y.grad, self.axis, \
-                redux=self.redux)
+        sum_slice_async(
+            1, self.u.grad, 1, self.y.grad, self.axis, redux=self.redux
+        )
         self.x.grad.wont_use()
         self.y.grad.wont_use()
         self.u.grad.wont_use()
 
     # Simple generator for the add_slice layer
     @staticmethod
-    def generate_simple(x: TensorMoments, y: TensorMoments, axis: int, \
-            next_tag: int, redux: bool=False):
+    def generate_simple(
+        x: TensorMoments,
+        y: TensorMoments,
+        axis: int,
+        next_tag: int,
+        redux: bool = False,
+    ):
         # Get traits of X
         u_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
         # Create Y with the same traits and distribution as X

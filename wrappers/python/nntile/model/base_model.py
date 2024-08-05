@@ -11,11 +11,11 @@
 #
 # @version 1.0.0
 
-from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        clear_async
-from nntile.layer.base_layer import BaseLayer
-import numpy as np
 from typing import List
+
+from nntile.layer.base_layer import BaseLayer
+from nntile.tensor import TensorMoments, clear_async
+
 
 class BaseModel:
     activations: List[TensorMoments]
@@ -23,13 +23,14 @@ class BaseModel:
     layers: List[BaseLayer]
 
     # Construct model with all the provided data
-    def __init__(self, activations: List[TensorMoments],
-            layers: List[BaseLayer]):
+    def __init__(
+        self, activations: List[TensorMoments], layers: List[BaseLayer]
+    ):
         self.activations = activations
         self.layers = layers
         self.parameters = []
-        for l in layers:
-            self.parameters.extend(l.parameters)
+        for layer in layers:
+            self.parameters.extend(layer.parameters)
 
     # Add a new layer with corresponding new activations
     def append(self, layer: BaseLayer):
@@ -39,13 +40,20 @@ class BaseModel:
 
     # Forward propagation
     def forward_async(self):
-        for l in self.layers:
-            l.forward_async()
+        for layer in self.layers:
+            layer.forward_async()
+
+    # Forward propagation with dynamic shapes
+    def forward_dynamic(self, x: TensorMoments):
+        out = x
+        for layer in self.layers:
+            out = layer.forward_dynamic(out)
+        return out
 
     # Backward propagation
     def backward_async(self):
-        for l in reversed(self.layers):
-            l.backward_async()
+        for layer in reversed(self.layers):
+            layer.backward_async()
 
     # Clear all gradients (parameters and inter-layer activations)
     def clear_gradients(self):
@@ -54,20 +62,20 @@ class BaseModel:
 
     # Clear gradients of parameters
     def clear_parameters_grads(self):
-        for t in self.parameters:
-            if t.grad is not None and t.grad_required:
-                clear_async(t.grad)
+        for tensor in self.parameters:
+            if tensor.grad is not None and tensor.grad_required:
+                clear_async(tensor.grad)
 
     # Clear gradients of inter-layer activations
     def clear_activations_grads(self):
-        for t in self.activations:
-            if t.grad is not None and t.grad_required:
-                clear_async(t.grad)
+        for tensor in self.activations:
+            if tensor.grad is not None and tensor.grad_required:
+                clear_async(tensor.grad)
 
     # Unregister all tensors related to this model
     def unregister(self):
-        for l in self.layers:
-            l.unregister()
+        for layer in self.layers:
+            layer.unregister()
         for x in self.activations:
             x.unregister()
 

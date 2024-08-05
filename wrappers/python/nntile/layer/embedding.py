@@ -14,6 +14,7 @@
 import torch
 from torch.nn import Embedding as Embedding_torch
 
+import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor_int64, TensorMoments, TensorTraits, clear_async, embedding_async,
@@ -26,8 +27,9 @@ class Embedding(BaseLayer):
     w: TensorMoments
 
     # Construct linear layer with all the provided data
-    def __init__(self, x: Tensor_int64, y: TensorMoments, w: TensorMoments,
-            axis: int):
+    def __init__(
+        self, x: Tensor_int64, y: TensorMoments, w: TensorMoments, axis: int
+    ):
         # Redirect to BaseClass initialization
         super().__init__([x], [y], [w], [])
         # Named storage
@@ -39,9 +41,16 @@ class Embedding(BaseLayer):
 
     # Simple generator for the embedding layer
     @staticmethod
-    def generate_simple(x: Tensor_int64, TensorType, axis: int,
-            vocab_size: int, emb_size: int, y_emb_tile: int, w_emb_tile: int,
-            next_tag: int):
+    def generate_simple(
+        x: Tensor_int64,
+        TensorType,
+        axis: int,
+        vocab_size: int,
+        emb_size: int,
+        y_emb_tile: int,
+        w_emb_tile: int,
+        next_tag: int,
+    ):
         # Check embedding tile sizes
         if y_emb_tile % w_emb_tile != 0:
             raise ValueError("y_emb_tile % w_emb_tile != 0")
@@ -80,27 +89,45 @@ class Embedding(BaseLayer):
         self.w.value.wont_use()
         self.y.value.wont_use()
 
+    def forward_dynamic(self, x: TensorMoments):
+        y_shape = x.value.shape.copy()
+        y_shape.insert(self.axis, self.w.value.shape[0])
+
+        y_basetile = x.value.basetile_shape.copy()
+        y_basetile.insert(self.axis, self.y.value.basetile_shape[self.axis])
+
+        y = nntc.empty(
+            y_shape, basetile_shape=y_basetile, dtype=type(self.w.value)
+        )
+        embedding_async(x.value, self.w.value, y, self.axis)
+        return TensorMoments(y, None, False)
+
     # Backward propagation of the embedding layer
     def backward_async(self):
         # redux=1 leads to performance loss, as each embedding_backward is a
         # sparse operation, but reduction plays with a full dense vocabulary
-        embedding_backward_async(self.x, self.y.grad, self.w.grad, self.axis,
-                redux=0)
+        embedding_backward_async(
+            self.x, self.y.grad, self.w.grad, self.axis, redux=0
+        )
         self.x.wont_use()
         self.y.grad.wont_use()
         self.w.grad.wont_use()
 
     def to_torch(self):
-        torch_emb = Embedding_torch(self.w.value.shape[1],
-                                    self.w.value.shape[0])
-        torch_emb.weight.data = torch.tensor(to_numpy(self.w.value).T,
-                                             requires_grad=True)
+        torch_emb = Embedding_torch(
+            self.w.value.shape[1], self.w.value.shape[0]
+        )
+        torch_emb.weight.data = torch.tensor(
+            to_numpy(self.w.value).T, requires_grad=True
+        )
         return torch_emb
 
     def to_torch_with_grads(self):
-        torch_emb = Embedding_torch(self.w.value.shape[1],
-                                    self.w.value.shape[0])
-        torch_emb.weight.data = torch.tensor(to_numpy(self.w.value).T,
-                                             requires_grad=True)
+        torch_emb = Embedding_torch(
+            self.w.value.shape[1], self.w.value.shape[0]
+        )
+        torch_emb.weight.data = torch.tensor(
+            to_numpy(self.w.value).T, requires_grad=True
+        )
         torch_emb.weight.grad = torch.tensor(to_numpy(self.w.grad).T)
         return torch_emb

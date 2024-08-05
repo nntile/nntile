@@ -256,13 +256,24 @@ def test_attention(starpu_simple, dtype: np.dtype):
     layer.unregister()
 
 
-@pytest.mark.parametrize("n_head,n_head_tile", [(1, 1)])
-def test_dynamic(starpu_simple, numpy_rng, n_head, n_head_tile):
-    inp_np = np.asfortranarray(numpy_rng.random((3, 10, 1)))
+@pytest.mark.parametrize(
+    "n_head,n_head_tile,n_emb,n_emb_tile,seq_size", [(2, 1, 6, 2, 10)]
+)
+def test_dynamic(
+    starpu_simple, numpy_rng, n_head, n_head_tile, n_emb, n_emb_tile, seq_size
+):
+    input_shape = (n_emb, seq_size, 1)
+    inp_np = np.asfortranarray(numpy_rng.random(input_shape))
 
-    inp = nntc.from_array(inp_np)
-    inp2 = nntc.from_array(inp_np)
-    inp3 = nntc.from_array(inp_np)
+    inp = nntc.from_array(
+        inp_np, basetile_shape=(n_emb_tile,) + input_shape[1:]
+    )
+    inp2 = nntc.from_array(
+        inp_np, basetile_shape=(n_emb_tile,) + input_shape[1:]
+    )
+    inp3 = nntc.from_array(
+        inp_np, basetile_shape=(n_emb_tile,) + input_shape[1:]
+    )
 
     inp_tm = nntile.tensor.TensorMoments(
         inp, grad=nntc.zeros(inp.shape, dtype=type(inp)), grad_required=False
@@ -280,7 +291,7 @@ def test_dynamic(starpu_simple, numpy_rng, n_head, n_head_tile):
     attn.init_randn_async()
 
     out_dynamic_actual = attn.forward_dynamic(inp_tm)
-    out_dynamic_actual_np = nntc.to_numpy(out_dynamic_actual)
+    out_dynamic_actual_np = nntc.to_numpy(out_dynamic_actual.value)
 
     attn.forward_async()
     out_dynamic_expected_np = nntc.to_numpy(attn.y.value)
@@ -305,7 +316,7 @@ def generate_greedy_logits_padding(
             nntile.tensor.TensorMoments(output_ids, None, False),
             use_cache=False,
         )
-        logits_np = nntc.to_numpy(logits)
+        logits_np = nntc.to_numpy(logits.value)
 
         output_ids_np = np.concatenate(
             [output_ids_np, logits_np[:, -1, :][:, None, :]], axis=1
@@ -336,7 +347,7 @@ def generate_greedy_logits_dynamic_kvcache(
         if is_prefill:
             is_prefill = False
 
-        logits_np = nntc.to_numpy(logits)
+        logits_np = nntc.to_numpy(logits.value)
 
         input_ids_np = logits_np[:, -1, :][:, None, :]
         output_ids_np = np.concatenate([output_ids_np, input_ids_np], axis=1)
