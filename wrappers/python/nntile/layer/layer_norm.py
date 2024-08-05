@@ -14,25 +14,11 @@
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor,
-    TensorMoments,
-    TensorTraits,
-    add_async,
-    add_fiber_async,
-    add_slice3_async,
-    add_slice_async,
-    clear_async,
-    fill_async,
-    hypot_scalar_inverse_async,
-    norm_slice_async,
-    prod_fiber3_async,
-    prod_slice_async,
-    sum_fiber_async,
-    sum_slice_async,
-    sumprod_fiber_async,
-    sumprod_slice_async,
-)
-import nntile.utils.constructors as nntc
+    Tensor, TensorMoments, TensorTraits, add_async, add_fiber_async,
+    add_slice3_async, add_slice_async, clear_async, fill_async,
+    hypot_scalar_inverse_async, norm_slice_async, prod_fiber3_async,
+    prod_slice_async, sum_fiber_async, sum_slice_async, sumprod_fiber_async,
+    sumprod_slice_async)
 
 
 class LayerNorm(BaseLayer):

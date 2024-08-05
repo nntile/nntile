@@ -11,16 +11,13 @@
 #
 # @version 1.0.0
 
-from nntile.tensor import (
-    TensorTraits,
-    Tensor,
-    TensorOrNone,
-    TensorMoments,
-    clear_async,
-)
-from nntile.layer.base_layer import BaseLayer
-import numpy as np
 from typing import List
+
+import numpy as np
+
+from nntile.layer.base_layer import BaseLayer
+from nntile.tensor import (
+    Tensor, TensorMoments, TensorOrNone, TensorTraits, clear_async)
 
 
 class BaseModel:

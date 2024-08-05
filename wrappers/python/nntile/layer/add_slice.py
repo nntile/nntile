@@ -14,8 +14,7 @@
 import nntile.utils.constructors as nntc
 from nntile.tensor import (
     TensorMoments, TensorTraits, add_async, add_slice_async, copy_async,
-    sum_slice_async
-)
+    sum_slice_async)
 
 from .base_layer import BaseLayer
 

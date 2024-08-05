@@ -13,13 +13,13 @@
 
 from typing import Callable
 
-from nntile.layer.base_layer import BaseLayer
-from nntile.tensor import (Tensor, TensorMoments, TensorTraits, copy_async,
-                           gelu_async, gelu_backward_async, gelutanh_async,
-                           gelutanh_backward_async, gelutanh_inplace_async,
-                           relu_backward_async, relu_forward_async,
-                           silu_backward_async, silu_forward_async)
 import nntile.utils.constructors as nntc
+from nntile.layer.base_layer import BaseLayer
+from nntile.tensor import (
+    Tensor, TensorMoments, TensorTraits, copy_async, gelu_async,
+    gelu_backward_async, gelutanh_async, gelutanh_backward_async,
+    gelutanh_inplace_async, relu_backward_async, relu_forward_async,
+    silu_backward_async, silu_forward_async)
 
 
 class Act(BaseLayer):
