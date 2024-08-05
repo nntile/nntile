@@ -13,11 +13,8 @@
 
 from typing import List
 
-import numpy as np
-
 from nntile.layer.base_layer import BaseLayer
-from nntile.tensor import (
-    Tensor, TensorMoments, TensorOrNone, TensorTraits, clear_async)
+from nntile.tensor import TensorMoments, clear_async
 
 
 class BaseModel:
