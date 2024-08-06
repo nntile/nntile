@@ -56,27 +56,24 @@ parser.add_argument("--hidden-size-tile", type=int, default=-1)
 parser.add_argument("--intermediate-size-tile", type=int, default=-1)
 parser.add_argument("--n-head-tile", type=int, default=-1)
 
-parser.add_argument("--nntile-dtype", choices=["fp32", "fp64", "tf32", "bf16"],
+parser.add_argument("--dtype", choices=["fp32", "fp64", "tf32", "bf16"],
                     default="fp32")
-parser.add_argument("--nntile-restrict", choices=["cpu", "cuda", None],
+parser.add_argument("--restrict", choices=["cpu", "cuda", None],
         default=None)
-parser.add_argument("--nntile-flashattention", action="store_true")
-parser.add_argument("--nntile-use-redux", action="store_true")
+parser.add_argument("--flashattention", action="store_true")
+parser.add_argument("--use-redux", action="store_true")
 
-parser.add_argument("--dataset", default="tinystories")
+
 parser.add_argument("--dataset-path", default=".data")
 parser.add_argument("--dataset-file", default="")
-parser.add_argument("--dataset-select", type=int, default=100)
-parser.add_argument("--save-dataset-bin", action="store_true")
-
 
 parser.add_argument("--lr", type=float, default=0.0)
-parser.add_argument("--nntile-nepochs", type=int, default=0)
+parser.add_argument("--nepochs", type=int, default=0)
 
-parser.add_argument("--nntile-logger", action="store_true")
-parser.add_argument("--nntile-logger-server-addr", type=str,
+parser.add_argument("--logger", action="store_true")
+parser.add_argument("--logger-server-addr", type=str,
                     default="localhost")
-parser.add_argument("--nntile-logger-server-port", type=int, default=5001)
+parser.add_argument("--logger-server-port", type=int, default=5001)
 
 # Parse arguments
 args = parser.parse_args()
@@ -96,7 +93,7 @@ assert args.minibatch_size_tile > 0
 assert args.batch_size % args.minibatch_size == 0
 num_minibatch = args.batch_size // args.minibatch_size
 assert args.minibatch_size % args.minibatch_size_tile == 0
-assert args.nntile_nepochs >= 0
+assert args.nepochs >= 0
 
 # Load named pretrained PyTorch model
 if args.pretrained == "remote":
@@ -130,19 +127,19 @@ tokenizer = LlamaTokenizerFast.from_pretrained(args.remote_model_name,
 model_torch.eval()
 print(model_torch.config)
 
-if args.nntile_nepochs:
+if args.nepochs > 0:
     # Initialize NNTile and StarPU
     time0 = time.time()
     # Set up StarPU+MPI and init codelets
-    nntile_config = nntile.starpu.Config(-1, -1, 1, args.nntile_logger,
-            args.nntile_logger_server_addr, args.nntile_logger_server_port)
+    nntile_config = nntile.starpu.Config(-1, -1, 1, args.logger,
+            args.logger_server_addr, args.logger_server_port)
     nntile.starpu.profiling_init()
     nntile.starpu.profiling_disable()
     nntile.starpu.init()
     # Restrict computations to CUDA if possible
-    if args.nntile_restrict == "cuda":
+    if args.restrict == "cuda":
         nntile.starpu.restrict_cuda()
-    elif args.nntile_restrict == "cpu":
+    elif args.restrict == "cpu":
         nntile.starpu.restrict_cpu()
     time1 = time.time() - time0
     print("StarPU + NNTile + MPI init in {} seconds".format(time1))
@@ -169,7 +166,7 @@ if args.nntile_nepochs:
         intermediate_size=model_torch.config.intermediate_size,
         intermediate_size_tile=args.intermediate_size_tile,
         n_head_tile=args.n_head_tile,
-        dtype=args.nntile_dtype
+        dtype=args.dtype
         )
 
     print(llama_config_nntile)
@@ -193,72 +190,36 @@ if args.nntile_nepochs:
           "requires {} seconds".format(time1))
     del model_torch
 
-if args.nntile_nepochs > 0:
+if args.nepochs > 0:
     from pathlib import Path
 
     import numpy as np
-    from datasets import load_dataset
-    if args.dataset == "tinystories":
-        if args.dataset_file == args.dataset + "_train.bin":
-            train_data = np.memmap(Path(args.dataset_path) /
-                                    args.dataset_file,
-                                   dtype=np.uint16, mode='r')
-            train_tokens_raw = np.array(train_data, order='F', dtype=np.int64)
-            del train_data
-        elif args.dataset_file == "":
-            train_dataset = load_dataset("roneneldan/TinyStories",
-                            split='train', cache_dir=args.dataset_path)
-            if args.dataset_select != -1:
-                train_dataset = train_dataset.select(np.arange(
-                                args.dataset_select, dtype=np.int64))
+    splitted_darasetfile = args.dataset_file.split("/")
+    if splitted_darasetfile[-1] == "train.bin":
+        train_data = np.memmap(Path(args.dataset_path) /
+                                args.dataset_file,
+                                dtype=np.uint16, mode='r')
+        train_tokens_raw = np.array(train_data, order='F', dtype=np.int64)
+        del train_data
+    else:
+        raise ValueError("Only train.bin file is accepted"
+                         "for training dataset!")
 
-            map_train_tokens = map(lambda x: tokenizer(x["text"])["input_ids"],
-                                    train_dataset)
-            list_train_tokens = []
-            for seq in map_train_tokens:
-                list_train_tokens.extend(seq)
-            train_tokens_raw = np.array(list_train_tokens, dtype=np.int64)
-        else:
-            raise ValueError("Incompatible datasetfile")
+    num_train_tokens = train_tokens_raw.shape[0]
 
-        num_train_tokens = train_tokens_raw.shape[0]
+    num_train_seq = num_train_tokens // (args.seq_len + 1)
+    num_train_batches = num_train_seq // args.batch_size
+    num_train_tokens_truncated = num_train_batches * (args.batch_size
+            * (args.seq_len + 1))
+    train_tokens_trunc = np.array(
+        train_tokens_raw[:num_train_tokens_truncated],
+        order='F', dtype=np.int64)
+    train_tokens = train_tokens_trunc.reshape(num_train_batches,
+                                        num_minibatch,
+                                        args.minibatch_size,
+                                        args.seq_len + 1)
 
-        num_train_seq = num_train_tokens // (args.seq_len + 1)
-        num_train_batches = num_train_seq // args.batch_size
-        num_train_tokens_truncated = num_train_batches * (args.batch_size
-                * (args.seq_len + 1))
-        train_tokens_trunc = np.array(
-            train_tokens_raw[:num_train_tokens_truncated],
-            order='F', dtype=np.int64)
-        train_tokens = train_tokens_trunc.reshape(num_train_batches,
-                                            num_minibatch,
-                                            args.minibatch_size,
-                                            args.seq_len + 1)
-
-        if args.save_dataset_bin:
-
-            # concatenate all the ids in each dataset
-            # into one large file we can use for training
-            arr_len = num_train_tokens_truncated
-            filename = Path(args.dataset_path) / 'tinystories_train.bin'
-            dtype = np.uint16
-            arr = np.memmap(filename, dtype=dtype, mode='w+', shape=(arr_len,))
-
-            idx = 0
-            b_size_in_tok = args.batch_size * (args.seq_len + 1)
-            for batch_idx in range(num_train_batches):
-                # Batch together samples for faster write
-                # batch = dset.shard(num_shards=num_train_batches,
-                # index=batch_idx, contiguous=True).with_format('numpy')
-
-                arr_batch = train_tokens_trunc[batch_idx * b_size_in_tok:
-                                               (batch_idx + 1) * b_size_in_tok]
-                # Write into mmap
-                arr[idx : idx + len(arr_batch)] = arr_batch
-                idx += len(arr_batch)
-            arr.flush()
-
-if args.nntile_nepochs > 0:
+if args.nepochs > 0:
     time0 = time.time()
     batch_input = []
     batch_output = []
@@ -299,7 +260,7 @@ if args.nntile_nepochs > 0:
             scale=1.0 / (args.batch_size * args.seq_len))
     # Set up training pipeline
     pipeline = nntile.pipeline.Pipeline(batch_input, batch_output,
-            llama_nntile, optimizer, loss, args.nntile_nepochs)
+            llama_nntile, optimizer, loss, args.nepochs)
     # Warmup training
     # nntile.starpu.pause()
     nntile.starpu.profiling_enable()
@@ -310,13 +271,13 @@ if args.nntile_nepochs > 0:
     time1 = time.time() - time0
     print("NNTile training time: {} seconds".format(time1))
     print("NNTile training throughput tokens/sec: {}".format(
-            args.nntile_nepochs * num_train_batches * args.batch_size
+            args.nepochs * num_train_batches * args.batch_size
             * args.seq_len / time1))
     nflops_fwd_seq = llama_nntile.get_model_forward_flops()
     nflops_bwd_seq = llama_nntile.get_model_backward_flops()
     nflops_seq = nflops_fwd_seq + nflops_bwd_seq
     print("NNTile performance: {} Tflops/s".format(nflops_seq
-            * args.nntile_nepochs * num_train_batches * args.batch_size
+            * args.nepochs * num_train_batches * args.batch_size
             / time1 * 1e-12))
     loss_np = np.zeros((1), dtype=np.float32)
     loss.val.to_array(loss_np)
