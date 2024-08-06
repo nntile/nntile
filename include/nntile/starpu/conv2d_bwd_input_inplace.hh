@@ -33,6 +33,8 @@ struct args_t
     Index batch;
     Index src2_m;
     Index src2_n;
+    Index dilation_m;
+    Index dilation_n;
     Index dst_channels;
     Index offset_m;
     Index offset_n;
@@ -95,8 +97,8 @@ void restore_where();
 template <typename T>
 void submit(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
-        Index dst_channels, Index offset_m, Index offset_n, Scalar alpha,
-        Handle src1, Handle src2, Index dst_m, Index dst_n, Scalar beta,
-        Handle dst);
+        Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
+        Index offset_n, Scalar alpha, Handle src1, Handle src2, Index dst_m,
+        Index dst_n, Scalar beta, Handle dst);
 
 } // namespace nntile::starpu::conv2d_bwd_input_inplace
