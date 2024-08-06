@@ -15,13 +15,15 @@ import numpy as np
 import torch
 from transformers.models.gpt2.modeling_gpt2 import (
     GPT2Attention as GPT2Attention_torch, GPT2Config as GPT2Config_torch)
+
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
         maxsumexp_async, softmax_inplace_async, sumprod_slice_async, \
         add_slice_async, prod_async, mask_scalar_async, add_fiber_async, \
         sum_fiber_async, transpose_async, to_numpy, copy_async, Tensor_bool
-from typing import List
+# from typing import List
+from ..model.gpt2_config import GPT2ConfigNNTile
 
 # Multi-head attention
 # Inputs:
@@ -806,28 +808,27 @@ class GPT2Attention(BaseLayer):
     def from_torch(
         torch_layer: GPT2Attention_torch,
         x_q: TensorMoments, x_k: TensorMoments, x_v: TensorMoments,
-        n_head_tile: int
+        config: GPT2ConfigNNTile,
+        next_tag: int = 0
     ):  # -> Self: does not work with Python 3.10
         n_emb, n_seq, _ = x_q.value.shape
 
         mask_np = np.array(
             np.triu(np.ones((n_seq, n_seq))), dtype=bool, order="F"
         )
-        # mask_np = None
-        layer, _ = __class__.generate_simple(
+        layer, next_tag = __class__.generate_simple(
             x_q,
             x_k,
             x_v,
             n_head=torch_layer.num_heads,
-            n_head_tile=n_head_tile,
-            next_tag=0,
+            n_head_tile=config.n_head_tile,
+            next_tag=next_tag,
             bias=True,
             mask=mask_np,
-            redux=False,
+            redux=config.redux,
         )
+
         weight_torch_np = torch_layer.c_attn.weight.cpu().detach().numpy()
-        # tquery, tkey, tvalue = torch_layer.c_attn.weight.split(layer.n_head * layer.head_size, dim=1)
-        # n_emb = layer.n_head * layer.head_size
         layer.w_q.value.from_array(
             weight_torch_np[:, 0 : n_emb,
             ].T.reshape(
@@ -847,23 +848,7 @@ class GPT2Attention(BaseLayer):
             )
         )
 
-        layer.w.value.from_array(
-            torch_layer.c_proj.weight
-            .cpu()
-            .detach()
-            .numpy()
-            .T
-            .reshape(n_emb, layer.n_head, layer.head_size)
-        )
-
         bias_torch_np = torch_layer.c_attn.bias.cpu().detach().numpy()
-        # q_bias, k_bias, v_bias = torch_layer.c_attn.bias.split(layer.n_head * layer.head_size, dim=0)
-        layer.out_proj_bias.value.from_array(
-            torch_layer.c_proj.bias
-            .cpu()
-            .detach()
-            .numpy()
-        )
         layer.in_proj_bias_q.value.from_array(
             bias_torch_np[0 : n_emb]
             .reshape(layer.n_head, layer.head_size)
@@ -879,4 +864,119 @@ class GPT2Attention(BaseLayer):
             .reshape(layer.n_head, layer.head_size)
             .T
         )
-        return layer
+
+        layer.w.value.from_array(
+            torch_layer.c_proj.weight
+            .cpu()
+            .detach()
+            .numpy()
+            .T
+            .reshape(n_emb, layer.n_head, layer.head_size)
+        )
+
+        layer.out_proj_bias.value.from_array(
+            torch_layer.c_proj.bias
+            .cpu()
+            .detach()
+            .numpy()
+        )
+        return layer, next_tag
+
+    def to_torch(self) -> GPT2Attention_torch:
+        n_emb = self.head_size * self.n_head
+        torch_layer_config = GPT2Config_torch(
+            n_embd=self.head_size * self.n_head,
+            n_head=self.n_head,
+            # attention_bias=bias,
+            use_cache=False,
+            attn_pdrop=0.0,
+            resid_pdrop=0.0,
+            embd_pdrop = 0.0,
+            reorder_and_upcast_attn = False,
+            scale_attn_by_inverse_layer_idx = False,
+            scale_attn_weights = True
+        )
+        torch_layer = GPT2Attention_torch(
+            torch_layer_config, is_cross_attention=False, layer_idx=0
+        )
+
+        weight_torch_np = np.empty((n_emb, 3*n_emb))
+        weight_torch_np[:, : n_emb] = to_numpy(
+            self.w_q.value
+            ).reshape(n_emb, n_emb).T
+        weight_torch_np[:, n_emb : 2*n_emb] = to_numpy(
+            self.w_k.value
+            ).reshape(n_emb, n_emb).T
+        weight_torch_np[:, 2*n_emb : 3*n_emb] = to_numpy(
+            self.w_v.value
+            ).reshape(n_emb, n_emb).T    
+        torch_layer.c_attn.weight.data = torch.tensor(
+            weight_torch_np,
+            requires_grad=True,
+        )
+
+        bias_torch_np = np.empty((3*n_emb,))
+        bias_torch_np[: n_emb] = to_numpy(
+            self.in_proj_bias_q.value
+            ).T.reshape(n_emb,)
+        bias_torch_np[n_emb : 2*n_emb] = to_numpy(
+            self.in_proj_bias_k.value
+            ).T.reshape(n_emb,)
+        bias_torch_np[2*n_emb : 3*n_emb] = to_numpy(
+            self.in_proj_bias_v.value
+            ).T.reshape(n_emb,)
+        torch_layer.c_attn.bias.data = torch.tensor(
+            bias_torch_np,
+            requires_grad=True,
+        )
+
+        torch_layer.c_proj.weight.data = torch.tensor(
+            to_numpy(self.w.value)
+            .reshape(n_emb, n_emb).T,
+            requires_grad=True,
+        )
+        torch_layer.c_proj.bias.data = torch.tensor(
+            to_numpy(self.out_proj_bias.value),
+            requires_grad=True,
+        )
+        return torch_layer
+
+    def to_torch_with_grads(self) -> GPT2Attention_torch:
+        n_embd = self.head_size * self.n_head
+        torch_layer = self.to_torch()
+        weight_torch_np = np.empty((n_embd, 3*n_embd))
+        weight_torch_np[:, : n_embd] = to_numpy(
+            self.w_q.grad
+            ).reshape(n_embd, n_embd).T
+        weight_torch_np[:, n_embd : 2*n_embd] = to_numpy(
+            self.w_k.grad
+            ).reshape(n_embd, n_embd).T
+        weight_torch_np[:, 2*n_embd : 3*n_embd] = to_numpy(
+            self.w_v.grad
+            ).reshape(n_embd, n_embd).T    
+        torch_layer.c_attn.weight.grad = torch.tensor(
+            weight_torch_np
+        )
+
+        bias_torch_np = np.empty((3*n_embd,))
+        bias_torch_np[: n_embd] = to_numpy(
+            self.in_proj_bias_q.grad
+            ).T.reshape(n_embd,)
+        bias_torch_np[n_embd : 2*n_embd] = to_numpy(
+            self.in_proj_bias_k.grad
+            ).T.reshape(n_embd,)
+        bias_torch_np[2*n_embd : 3*n_embd] = to_numpy(
+            self.in_proj_bias_v.grad
+            ).T.reshape(n_embd,)
+        torch_layer.c_attn.bias.grad = torch.tensor(
+            bias_torch_np
+        )
+
+        torch_layer.c_proj.weight.grad = torch.tensor(
+            to_numpy(self.w.grad)
+            .reshape(n_embd, n_embd).T
+        )
+        torch_layer.c_proj.bias.grad = torch.tensor(
+            to_numpy(self.out_proj_bias.grad)
+        )
+        return torch_layer

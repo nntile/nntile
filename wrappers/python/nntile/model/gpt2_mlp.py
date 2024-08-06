@@ -13,7 +13,7 @@
 
 import torch
 from transformers.models.gpt2.modeling_gpt2 import (
-    GPT2MLP as GPT2MLP_torch, GPT2Config as GPT2Config_torch)
+    GPT2MLP as GPT2MLP_torch, GPT2Config as GPT2ConfigTorch)
 
 from nntile.tensor import TensorMoments, notrans, to_numpy
 
@@ -31,12 +31,12 @@ class GPT2MLP(BaseModel):
         # Init activations and list of layers
         activations = [x]
         layers = []
-        self.embed_dim = config["embed_dim"]
-        embed_dim_tile = config["embed_dim_tile"]
-        self.inner_dim = config["inner_dim"]
-        inner_dim_tile = config["inner_dim_tile"]
-        activation_function = config["activation_function"]
-        redux = config["redux"]
+        self.hidden_size = config.hidden_size
+        hidden_size_tile = config.hidden_size_tile
+        self.intermediate_size = config.intermediate_size
+        intermediate_size_tile = config.intermediate_size_tile
+        activation_function = config.activation_function
+        redux = config.redux
         gemm_ndim = 1
         # Initial linear layer that converts input to internal shape
         new_layer, next_tag = Linear.generate_simple(
@@ -44,8 +44,8 @@ class GPT2MLP(BaseModel):
             "R",
             notrans,
             gemm_ndim,
-            [self.inner_dim],
-            [inner_dim_tile],
+            [self.intermediate_size],
+            [intermediate_size_tile],
             next_tag,
             redux=redux,
         )
@@ -63,8 +63,8 @@ class GPT2MLP(BaseModel):
             "R",
             notrans,
             gemm_ndim,
-            [self.embed_dim],
-            [embed_dim_tile],
+            [self.hidden_size],
+            [hidden_size_tile],
             next_tag,
             redux=redux,
         )
@@ -94,9 +94,9 @@ class GPT2MLP(BaseModel):
         return gpt2mlp_nntile, gpt2mlp_nntile.next_tag
 
     def to_torch(self):
-        config_torch = GPT2Config_torch()
-        config_torch.hidden_size = self.embed_dim
-        gpt2_mlp_torch = GPT2MLP_torch(self.inner_dim, config_torch)
+        config_torch = GPT2ConfigTorch()
+        config_torch.n_embd=self.hidden_size
+        gpt2_mlp_torch = GPT2MLP_torch(self.intermediate_size, config_torch)
         for p_nntile, p_torch in zip(self.parameters,
                                      gpt2_mlp_torch.parameters()):
             p_torch.data = torch.tensor(to_numpy(p_nntile.value).T,
@@ -104,9 +104,9 @@ class GPT2MLP(BaseModel):
         return gpt2_mlp_torch
 
     def to_torch_with_grads(self):
-        config_torch = GPT2Config_torch()
-        config_torch.hidden_size = self.embed_dim
-        gpt2_mlp_torch = GPT2MLP_torch(self.inner_dim, config_torch)
+        config_torch = GPT2ConfigTorch()
+        config_torch.hidden_size = self.hidden_size
+        gpt2_mlp_torch = GPT2MLP_torch(self.intermediate_size, config_torch)
         for p_nntile, p_torch in zip(self.parameters,
                                      gpt2_mlp_torch.parameters()):
             p_torch.data = torch.tensor(to_numpy(p_nntile.value).T,

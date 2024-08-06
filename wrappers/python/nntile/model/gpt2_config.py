@@ -18,18 +18,18 @@ from dataclasses import dataclass
 class GPT2ConfigNNTile:
     vocab_size: int
     vocab_embed_dim_tile: int
-    embed_dim: int
-    embed_dim_tile: int
-    max_position_embeddings: int
-    inner_dim: int
-    inner_dim_tile: int
-    layer_norm_epsilon: float
-    num_hidden_layers: int
+    hidden_size: int
+    hidden_size_tile: int
+    intermediate_size: int
+    intermediate_size_tile: int
     n_head: int
     n_head_tile: int
-    activation_function: str
+    activation_function: str = "gelutanh"
+    dtype: str = "fp32"
     flashattention: bool = False
-    use_redux: bool = False
-    dtype: str = "fp32",
+    layer_norm_epsilon: float = 1e-5
+    max_position_embeddings: int = 1024
+    num_hidden_layers: int = 1
+    redux: bool = True
     eos_token_id: int = 50256
     
