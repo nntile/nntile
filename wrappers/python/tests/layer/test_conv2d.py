@@ -188,10 +188,10 @@ class TestConv2d:
         assert torch.norm(x.grad - x_grad_nntile) <= rtol * torch.norm(x.grad)
 
         rtol = dtype2tol_weight[dtype]['rtol']
-#        for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
-#                torch_layer_other.named_parameters()):
-#            assert n1 == n2
-#            assert p1.requires_grad == p2.requires_grad
-#            if p1.requires_grad:
-#                g1, g2 = p1.grad, p2.grad
-#                assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+        for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
+                torch_layer_other.named_parameters()):
+            assert n1 == n2
+            assert p1.requires_grad == p2.requires_grad
+            if p1.requires_grad:
+                g1, g2 = p1.grad, p2.grad
+                assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)

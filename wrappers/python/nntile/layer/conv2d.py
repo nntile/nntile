@@ -106,9 +106,8 @@ class Conv2d(BaseLayer):
             conv2d_bwd_input_inplace_async(1.0, self.y.grad, self.w.value, 1.0,
                     self.x.grad, self.padding, self.stride, self.dilation)
         if self.w.grad_required:
-            pass
-            #conv2d_bwd_weight_inplace_async(1.0, self.x.value, self.y.grad,
-            #        0.0, self.w.grad, self.padding, self.stride, self.dilation)
+            conv2d_bwd_weight_inplace_async(1.0, self.x.value, self.y.grad,
+                    0.0, self.w.grad, self.padding, self.stride, self.dilation)
 
     def to_torch(self):
         torch_layer = nn.Conv2d(
