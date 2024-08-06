@@ -106,14 +106,14 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels, Index batch,
         {
             // We need to get minimal non-negative number
             // with the same reminder
-            if(src1_start_m % stride_m == 0)
+            if((-src1_start_m) % stride_m == 0)
             {
                 src1_start_m = 0;
             }
             else
             {
                 // By Standard ((-x) % y) is a negative number
-                src1_start_m = (src1_start_m % stride_m)
+                src1_start_m = -((-src1_start_m) % stride_m)
                     + stride_m;
             }
         }
@@ -125,14 +125,14 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels, Index batch,
         {
             // We need to get minimal non-negative number
             // with the same reminder
-            if(src1_start_n % stride_n == 0)
+            if((-src1_start_n) % stride_n == 0)
             {
                 src1_start_n = 0;
             }
             else
             {
                 // By Standard ((-x) % y) is a negative number
-                src1_start_n = (src1_start_n % stride_n)
+                src1_start_n = -((-src1_start_n) % stride_n)
                     + stride_n;
             }
         }
@@ -149,9 +149,9 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels, Index batch,
                     + (ic*src1_n+src1_j)*src1_m;
                 // Slice of `src2[(s1+o-d)/stride]`
                 const T *src2_slice = src2
-                    + (src1_i - offset_m - dst_i)/stride_m
+                    + (src1_i + offset_m - dst_i)/stride_m
                     + (oc*src2_n+
-                            (src1_j-offset_n-dst_j)/stride_n
+                            (src1_j+offset_n-dst_j)/stride_n
                     )*src2_m;
                 for(Index b = 0; b < batch; ++b)
                 {

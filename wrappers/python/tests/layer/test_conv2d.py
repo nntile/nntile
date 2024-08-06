@@ -126,10 +126,10 @@ def test_coercion(starpu_simple, numpy_rng, dtype: str,
 ])
 @pytest.mark.parametrize('batch,batch_tile', [[3, 2]])
 @pytest.mark.parametrize('padding', [[3, 4]])
-@pytest.mark.parametrize('stride', [[2, 3]])
+@pytest.mark.parametrize('stride', [[1, 1], [2, 3]])
 class TestConv2d:
 
-    def test_forward(self, starpu_simple_cuda, numpy_rng, dtype: str,
+    def test_forward(self, starpu_simple, numpy_rng, dtype: str,
             in_channels: int, out_channels: int, kernel: Sequence[int],
             H_in: int, H_in_tile: int, W_in: int, W_in_tile: int, batch: int,
             batch_tile: int, padding: Sequence[int], stride: Sequence[int]):
@@ -146,7 +146,7 @@ class TestConv2d:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple_cuda, numpy_rng, dtype: str,
+    def test_backward(self, starpu_simple, numpy_rng, dtype: str,
             in_channels: int, out_channels: int, kernel: Sequence[int],
             H_in: int, H_in_tile: int, W_in: int, W_in_tile: int, batch: int,
             batch_tile: int, padding: Sequence[int], stride: Sequence[int]):

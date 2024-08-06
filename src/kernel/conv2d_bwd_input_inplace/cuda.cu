@@ -130,8 +130,8 @@ void cuda_kernel(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
                     + (b*src1_channels*src1_n+src1_j)*src1_m;
                 // Slice of `src2[d+o-stride*s1]`
                 const T *src2_slice = src2
-                    - stride_m*src1_i + offset_m + dst_i
-                    + (-stride_n*src1_j+offset_n+dst_j)*src2_m
+                    + dst_i + offset_m - stride_m*src1_i
+                    + (dst_j+offset_n-stride_n*src1_j)*src2_m
                     + oc*src2_oc_step;
                 for(Index ic = 0; ic < src1_channels; ++ic)
                 {
@@ -172,8 +172,8 @@ void cuda_kernel(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index src1_m, Index stride_m, Index stride_n,
-        Index src1_n, Index src1_channels, Index batch, Index src2_m,
+void cuda(cudaStream_t stream, Index src1_m, Index src1_n, Index stride_m,
+        Index stride_n, Index src1_channels, Index batch, Index src2_m,
         Index src2_n, Index dst_channels, Index offset_m, Index offset_n,
         Scalar alpha, const T *src1, const T *src2, Index dst_m, Index dst_n,
         Scalar beta, T *dst)
