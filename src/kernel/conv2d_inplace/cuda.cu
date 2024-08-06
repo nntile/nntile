@@ -22,10 +22,10 @@ namespace nntile::kernel::conv2d_inplace
 template<typename T>
 static __global__
 void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
-        Index batch, Index src2_m, Index src2_n, Index dst_channels,
-        Index offset_m, Index offset_n, Scalar alpha, const T *src1,
-        const T *src2, Index dst_m, Index dst_n, Index stride_m,
-        Index stride_n, Scalar beta, T *dst)
+        Index batch, Index src2_m, Index src2_n, Index dilation_m,
+        Index dilation_n, Index dst_channels, Index offset_m, Index offset_n,
+        Scalar alpha, const T *src1, const T *src2, Index dst_m, Index dst_n,
+        Index stride_m, Index stride_n, Scalar beta, T *dst)
 /*! Forward convolution of WHCN tensors
  *
  * The following operation is performed:
@@ -169,52 +169,55 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
 
 template<typename T>
 void cuda(cudaStream_t stream, Index src1_m, Index src1_n, Index src1_channels,
-        Index batch, Index src2_m, Index src2_n, Index dst_channels,
-        Index offset_m, Index offset_n, Scalar alpha, const T *src1,
-        const T *src2, Index dst_m, Index dst_n, Index stride_m,
-        Index stride_n, Scalar beta, T *dst)
+        Index batch, Index src2_m, Index src2_n, Index dilation_m,
+        Index dilation_n, Index dst_channels, Index offset_m, Index offset_n,
+        Scalar alpha, const T *src1, const T *src2, Index dst_m, Index dst_n,
+        Index stride_m, Index stride_n, Scalar beta, T *dst)
     noexcept
 {
     int nelems_dst = dst_m * dst_n * dst_channels * batch;
     dim3 blocks((nelems_dst+255)/256), threads(256);
     cuda_kernel<T><<<blocks, threads, 0, stream>>>(src1_m, src1_n,
-            src1_channels, batch, src2_m, src2_n, dst_channels, offset_m,
-            offset_n, alpha, src1, src2, dst_m, dst_n, stride_m, stride_n,
-            beta, dst);
+            src1_channels, batch, src2_m, src2_n, dilation_m, dilation_n,
+            dst_channels, offset_m, offset_n, alpha, src1, src2, dst_m, dst_n,
+            stride_m, stride_n, beta, dst);
 }
 
 // Explicit instantiation
 template
 void cuda<bf16_t>(cudaStream_t stream, Index src1_m, Index src1_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
-        Index dst_channels, Index offset_m, Index offset_n, Scalar alpha,
-        const bf16_t *src1, const bf16_t *src2, Index dst_m, Index dst_n,
-        Index stride_m, Index stride_n, Scalar beta, bf16_t *dst)
+        Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
+        Index offset_n, Scalar alpha, const bf16_t *src1, const bf16_t *src2,
+        Index dst_m, Index dst_n, Index stride_m, Index stride_n, Scalar beta,
+        bf16_t *dst)
     noexcept;
 
 template
 void cuda<fp32_t>(cudaStream_t stream, Index src1_m, Index src1_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
-        Index dst_channels, Index offset_m, Index offset_n, Scalar alpha,
-        const fp32_t *src1, const fp32_t *src2, Index dst_m, Index dst_n,
-        Index stride_m, Index stride_n, Scalar beta, fp32_t *dst)
+        Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
+        Index offset_n, Scalar alpha, const fp32_t *src1, const fp32_t *src2,
+        Index dst_m, Index dst_n, Index stride_m, Index stride_n, Scalar beta,
+        fp32_t *dst)
     noexcept;
 
 template
 void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index src1_m, Index src1_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
-        Index dst_channels, Index offset_m, Index offset_n, Scalar alpha,
-        const fp32_fast_tf32_t *src1, const fp32_fast_tf32_t *src2,
-        Index dst_m, Index dst_n, Index stride_m, Index stride_n, Scalar beta,
-        fp32_fast_tf32_t *dst)
+        Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
+        Index offset_n, Scalar alpha, const fp32_fast_tf32_t *src1,
+        const fp32_fast_tf32_t *src2, Index dst_m, Index dst_n, Index stride_m,
+        Index stride_n, Scalar beta, fp32_fast_tf32_t *dst)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index src1_m, Index src1_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
-        Index dst_channels, Index offset_m, Index offset_n, Scalar alpha,
-        const fp64_t *src1, const fp64_t *src2, Index dst_m, Index dst_n,
-        Index stride_m, Index stride_n, Scalar beta, fp64_t *dst)
+        Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
+        Index offset_n, Scalar alpha, const fp64_t *src1, const fp64_t *src2,
+        Index dst_m, Index dst_n, Index stride_m, Index stride_n, Scalar beta,
+        fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::conv2d_inplace

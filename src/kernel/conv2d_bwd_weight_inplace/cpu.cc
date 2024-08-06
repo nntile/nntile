@@ -103,17 +103,16 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
                         Index src1_start_m = dst_i - offset_m;
                         if(src1_start_m < 0)
                         {
+                            Index neg_rem = (-src1_start_m) % stride_m;
                             // We need to get minimal non-negative number
                             // with the same reminder
-                            if(src1_start_m % stride_m == 0)
+                            if(neg_rem == 0)
                             {
                                 src1_start_m = 0;
                             }
                             else
                             {
-                                // By Standard ((-x) % y) is a negative number
-                                src1_start_m = (src1_start_m % stride_m)
-                                    + stride_m;
+                                src1_start_m = stride_m - neg_rem;
                             }
                         }
                         Index src1_end_m = std::min(
@@ -122,17 +121,16 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
                         Index src1_start_n = dst_j - offset_n;
                         if(src1_start_n < 0)
                         {
+                            Index neg_rem = (-src1_start_n) % stride_n;
                             // We need to get minimal non-negative number
                             // with the same reminder
-                            if(src1_start_n % stride_n == 0)
+                            if(neg_rem == 0)
                             {
                                 src1_start_n = 0;
                             }
                             else
                             {
-                                // By Standard ((-x) % y) is a negative number
-                                src1_start_n = (src1_start_n % stride_n)
-                                    + stride_n;
+                                src1_start_n = stride_n - neg_rem;
                             }
                         }
                         Index src1_end_n = std::min(
