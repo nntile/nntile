@@ -93,10 +93,10 @@ def test_conv2d(
     next_tag = W.next_tag
 
     shape = [
-        (shape_X[0] - dilation[0] * (shape_W[0] - 1) - 1 + 2 * padding[0]) \
-                // stride[0] + 1,
-        (shape_X[1] - dilation[1] * (shape_W[1] - 1) - 1 + 2 * padding[1]) \
-                // stride[1] + 1,
+        (shape_X[0] - dilation[0] * (shape_W[0] - 1) - 1 + 2 * padding[0])
+            // stride[0] + 1,
+        (shape_X[1] - dilation[1] * (shape_W[1] - 1) - 1 + 2 * padding[1])
+            // stride[1] + 1,
         out_channels,
         batch,
     ]
