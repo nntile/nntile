@@ -32,4 +32,3 @@ class GPT2ConfigNNTile:
     num_hidden_layers: int = 1
     redux: bool = True
     eos_token_id: int = 50256
-    
