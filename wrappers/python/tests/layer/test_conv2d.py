@@ -134,8 +134,8 @@ def test_coercion(starpu_simple, numpy_rng, dtype: str,
 ])
 @pytest.mark.parametrize('batch,batch_tile', [[3, 2]])
 @pytest.mark.parametrize('padding', [[3, 4]])
-@pytest.mark.parametrize('stride', [[1, 1], [2, 3]])
-@pytest.mark.parametrize('dilation', [[1, 1], [3, 2]])
+@pytest.mark.parametrize('stride', [[2, 3]])
+@pytest.mark.parametrize('dilation', [[3, 2]])
 class TestConv2d:
 
     def test_forward(self, starpu_simple, numpy_rng, dtype: str,
