@@ -22,22 +22,23 @@ namespace nntile::kernel::conv2d_bwd_weight_inplace
 template<typename T>
 static __global__
 void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels, Index batch,
-        Index src2_m, Index src2_n, Index src2_channels,
-        Index offset_m, Index offset_n, Scalar alpha, const T *src1,
-        const T *src2, Index dst_m, Index dst_n, Scalar beta, T *dst)
+        Index src2_m, Index src2_n, Index stride_m, Index stride_n,
+        Index src2_channels, Index offset_m, Index offset_n, Scalar alpha,
+        const T *src1, const T *src2, Index dst_m, Index dst_n, Scalar beta,
+        T *dst)
 /*! Backward convolution of WHCN tensors to get grad of weight
  *
  * The following operation is performed:
  *      `dst` = `alpha`*`f(src1, src2)` + `beta`*`dst`,
  * where `f` operation does the following:
  *      `f[i,j,k,l]` = \sum_b \sum_m \sum_n `src1[m,n,k,b]`
- *      * `src2[m + offset_m - i,n + offset_n - i,l,b]`
+ *      * `src2[(m+offset_m-i)/stride_m,(n+offset_n-j)/stride_n,l,b]`
  *
  * Generally, `src1` represents input of `Conv2d` layer, `src2` represents
  * output grad of `Conv2d` layer and `dst` represents weight grad of `Conv2d`
  * layer.
  *
- * @param[in] src1_m: Size of the thirst axis of `src1` array
+ * @param[in] src1_m: Size of the first axis of `src1` array
  * @param[in] src1_n: Size of the second axis of `src1` array
  * @param[in] src1_channels: Size of the third axis of `src1` array
  * @param[in] batch: Size of the fourth axis of `src1` array
@@ -64,13 +65,14 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels, Index batch,
     //     `s1` denote a 2-dim index within `s1`,
     //     `o` denote a 2-dim offset
     // Then, this convolution computes
-    //      `conv[d] = sum_s1 src1[s1]*src2[s1-o-d]`
+    //      `conv[d] = sum_s1 src1[s1]*src2[(s1+o-d)/stride]`
+    // with a limitation that `(s1+o-d) % stride = 0`.
     // And we must satisfy condition
-    //      `0 <= s1-o-d < src2.shape`
+    //      `0 <= (s1+o-d)/stride <= src2.shape-1`
     // It means all values of `d`, that actually get non-zero `conv[d]` are:
-    //      `s1-o-src2.shape < d <= s1-o`
+    //      `s1+o-stride*(src2.shape-1) <= d <= s1+o`
     // To support left border inclusively and right border exclusively:
-    //      `1-o-src2.shape <= d < src1.shape-o`
+    //      `o-stride*src2.shape <= d < src1.shape+o`
     Index dst_i = i % dst_m;
     i = i / dst_m;
     Index dst_j = i % dst_n;
@@ -82,10 +84,10 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels, Index batch,
     {
         return;
     }
-    Index dst_start_m = ::max(1-offset_m-src2_m, Index(0));
-    Index dst_end_m = ::min(src1_m-offset_m, dst_m);
-    Index dst_start_n = ::max(1-offset_n-src2_n, Index(0));
-    Index dst_end_n = ::min(src1_n-offset_n, dst_n);
+    Index dst_start_m = ::max(offset_m-stride_m*(src2_m-1), Index(0));
+    Index dst_end_m = ::min(src1_m+offset_m, dst_m);
+    Index dst_start_n = ::max(offset_n-stride_n*(src2_n-1), Index(0));
+    Index dst_end_n = ::min(src1_n+offset_n, dst_n);
     T *dst_val = dst + ((oc*src1_channels+ic)*dst_n+dst_j)*dst_m + dst_i;
     if(dst_i >= dst_start_m and dst_i < dst_end_m and
             dst_j >= dst_start_n and dst_j < dst_end_n)
@@ -95,25 +97,62 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels, Index batch,
         // Additional variables for Kahan summation rule
         Y conv{0.0}, c{0}, y, t;
         // Once again, we must satisfy condition
-        //      `0 <= s1-o-d < src2.shape`
+        //      `0 <= s1+o-d <= stride*(src2.shape-1)` and
         // Therefore, indices `s1` are bound as follows:
-        //      `o+d <= s1 < o+d+src2.shape`
-        Index src1_start_m = ::max(offset_m+dst_i, Index(0));
-        Index src1_end_m = ::min(offset_m+src2_m+dst_i, src1_m);
-        Index src1_start_n = ::max(offset_n+dst_j, Index(0));
-        Index src1_end_n = ::min(offset_n+src2_n+dst_j, src1_n);
+        //      `d-o <= s1 < d-o+stride*(src2.shape-1)+1`
+        // while `(s1+o-d) % stride = 0`
+        Index src1_start_m = dst_i - offset_m;
+        if(src1_start_m < 0)
+        {
+            // We need to get minimal non-negative number
+            // with the same reminder
+            if((-src1_start_m) % stride_m == 0)
+            {
+                src1_start_m = 0;
+            }
+            else
+            {
+                // By Standard ((-x) % y) is a negative number
+                src1_start_m = -((-src1_start_m) % stride_m)
+                    + stride_m;
+            }
+        }
+        Index src1_end_m = ::min(
+                dst_i - offset_m + stride_m*(src2_m-1) + 1,
+                src1_m);
+        Index src1_start_n = dst_j - offset_n;
+        if(src1_start_n < 0)
+        {
+            // We need to get minimal non-negative number
+            // with the same reminder
+            if((-src1_start_n) % stride_n == 0)
+            {
+                src1_start_n = 0;
+            }
+            else
+            {
+                // By Standard ((-x) % y) is a negative number
+                src1_start_n = -((-src1_start_n) % stride_n)
+                    + stride_n;
+            }
+        }
+        Index src1_end_n = ::min(
+                dst_j - offset_n + stride_n*(src2_n-1) + 1,
+                src1_n);
         for(Index src1_i = src1_start_m; src1_i < src1_end_m;
-                ++src1_i)
+                src1_i += stride_m)
         {
             for(Index src1_j = src1_start_n;
-                    src1_j < src1_end_n; ++src1_j)
+                    src1_j < src1_end_n; src1_j += stride_n)
             {
                 const T *src1_slice = src1 + src1_i
                     + (ic*src1_n+src1_j)*src1_m;
-                // Slice of `src2[s1-o-d]`
+                // Slice of `src2[(s1+o-d)/stride]`
                 const T *src2_slice = src2
-                    + src1_i - offset_m - dst_i
-                    + (oc*src2_n+src1_j-offset_n-dst_j)*src2_m;
+                    + (src1_i + offset_m - dst_i)/stride_m
+                    + (oc*src2_n+
+                            (src1_j+offset_n-dst_j)/stride_n
+                    )*src2_m;
                 for(Index b = 0; b < batch; ++b)
                 {
                     Y src1_val{src1_slice[src1_step*b]};
@@ -154,49 +193,52 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels, Index batch,
 
 template<typename T>
 void cuda(cudaStream_t stream, Index src1_m, Index src1_n, Index src1_channels,
-        Index batch, Index src2_m, Index src2_n, Index src2_channels,
-        Index offset_m, Index offset_n, Scalar alpha, const T *src1,
-        const T *src2, Index dst_m, Index dst_n, Scalar beta, T *dst)
+        Index batch, Index src2_m, Index src2_n, Index stride_m,
+        Index stride_n, Index src2_channels, Index offset_m, Index offset_n,
+        Scalar alpha, const T *src1, const T *src2, Index dst_m, Index dst_n,
+        Scalar beta, T *dst)
     noexcept
 {
     int nelems_dst = dst_m * dst_n * src1_channels * src2_channels;
     dim3 blocks((nelems_dst+255)/256), threads(256);
     cuda_kernel<T><<<blocks, threads, 0, stream>>>(src1_m, src1_n,
-            src1_channels, batch, src2_m, src2_n, src2_channels, offset_m,
-            offset_n, alpha, src1, src2, dst_m, dst_n, beta, dst);
+            src1_channels, batch, src2_m, src2_n, stride_m, stride_n,
+            src2_channels, offset_m, offset_n, alpha, src1, src2, dst_m, dst_n,
+            beta, dst);
 }
 
 // Explicit instantiation
 template
 void cuda<bf16_t>(cudaStream_t stream, Index src1_m, Index src1_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
-        Index src2_channels, Index offset_m, Index offset_n, Scalar alpha,
-        const bf16_t *src1, const bf16_t *src2, Index dst_m, Index dst_n,
-        Scalar beta, bf16_t *dst)
+        Index stride_m, Index stride_n, Index src2_channels, Index offset_m,
+        Index offset_n, Scalar alpha, const bf16_t *src1, const bf16_t *src2,
+        Index dst_m, Index dst_n, Scalar beta, bf16_t *dst)
     noexcept;
 
 template
 void cuda<fp32_t>(cudaStream_t stream, Index src1_m, Index src1_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
-        Index src2_channels, Index offset_m, Index offset_n, Scalar alpha,
-        const fp32_t *src1, const fp32_t *src2, Index dst_m, Index dst_n,
-        Scalar beta, fp32_t *dst)
+        Index stride_m, Index stride_n, Index src2_channels, Index offset_m,
+        Index offset_n, Scalar alpha, const fp32_t *src1, const fp32_t *src2,
+        Index dst_m, Index dst_n, Scalar beta, fp32_t *dst)
     noexcept;
 
 template
 void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index src1_m, Index src1_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
-        Index dst_channels, Index offset_m, Index offset_n, Scalar alpha,
-        const fp32_fast_tf32_t *src1, const fp32_fast_tf32_t *src2,
-        Index dst_m, Index dst_n, Scalar beta, fp32_fast_tf32_t *dst)
+        Index stride_m, Index stride_n, Index dst_channels, Index offset_m,
+        Index offset_n, Scalar alpha, const fp32_fast_tf32_t *src1,
+        const fp32_fast_tf32_t *src2, Index dst_m, Index dst_n, Scalar beta,
+        fp32_fast_tf32_t *dst)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index src1_m, Index src1_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
-        Index src2_channels, Index offset_m, Index offset_n, Scalar alpha,
-        const fp64_t *src1, const fp64_t *src2, Index dst_m, Index dst_n,
-        Scalar beta, fp64_t *dst)
+        Index stride_m, Index stride_n, Index src2_channels, Index offset_m,
+        Index offset_n, Scalar alpha, const fp64_t *src1, const fp64_t *src2,
+        Index dst_m, Index dst_n, Scalar beta, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::conv2d_bwd_weight_inplace

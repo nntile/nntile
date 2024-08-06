@@ -20,10 +20,11 @@ namespace nntile::kernel::conv2d_bwd_input_inplace
 {
 
 template<typename T>
-void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
-        Index src2_m, Index src2_n, Index dst_channels,
-        Index offset_m, Index offset_n, Scalar alpha, const T *src1,
-        const T *src2, Index dst_m, Index dst_n, Scalar beta, T *dst)
+void cpu(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
+        Index src1_channels, Index batch, Index src2_m, Index src2_n,
+        Index dst_channels, Index offset_m, Index offset_n, Scalar alpha,
+        const T *src1, const T *src2, Index dst_m, Index dst_n, Scalar beta,
+        T *dst)
     noexcept
 /*! Backward convolution of WHCN tensors to get grad of input
  *
@@ -31,14 +32,16 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
  *      `dst` = `alpha`*`f(src1, src2)` + `beta`*`dst`,
  * where `f` operation does the following:
  *      `f[i,j,k,b]` = \sum_l \sum_m \sum_n `src1[m,n,l,b]`
- *      * `src2[i + offset_m - m,j + offset_n - n,k,l]`
+ *      * `src2[i + offset_m - stride_m*m,j + offset_n - stride_n*n,k,l]`
  *
  * Generally, `src1` represents output grad of `Conv2d` layer, `src2`
  * represents kernel of `Conv2d` layer and `dst` represents input grad of
  * `Conv2d` layer.
  *
- * @param[in] src1_m: Size of the thirst axis of `src1` array
+ * @param[in] src1_m: Size of the first axis of `src1` array
  * @param[in] src1_n: Size of the second axis of `src1` array
+ * @param[in] stride_m: Step of the first axis of `src1` array
+ * @param[in] stride_n: Step of the first axis of `src1` array
  * @param[in] src1_channels: Size of the third axis of `src1` array
  * @param[in] batch: Size of the fourth axis of `src1` array
  * @param[in] src2_m: Size of the first axis of `src2` array
@@ -63,17 +66,17 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
     //     `s1` denote a 2-dim index within `s1`,
     //     `o` denote a 2-dim offset from `dst` to `src1`
     // Then, this convolution computes
-    //      `conv[d] = sum_s1 src1[s1]*src2[d+o-s1]`
+    //      `conv[d] = sum_s1 src1[s1]*src2[d+o-stride*s1]`
     // And we must satisfy condition
-    //      `0 <= d+o-s1 < src2.shape`
+    //      `0 <= d+o-stride*s1 <= src2.shape-1`
     // It means all values of `d`, that actually get non-zero `conv[d]` are:
-    //      `s1-o <= d < src2.shape+s1-o`
+    //      `stride*s1-o <= d <= src2.shape+stride*s1-o-1`
     // Therefore, index `d` is bound as follows:
-    //      `-o <= d < src2.shape+src1.shape-o`
+    //      `-o <= d < src2.shape+stride*(src1.shape-1)-o`
     Index dst_start_m = std::max(-offset_m, Index(0));
-    Index dst_end_m = std::min(src1_m+src2_m-offset_m, dst_m);
+    Index dst_end_m = std::min(stride_m*(src1_m-1)+src2_m-offset_m, dst_m);
     Index dst_start_n = std::max(-offset_n, Index(0));
-    Index dst_end_n = std::min(src1_n+src2_n-offset_n, dst_n);
+    Index dst_end_n = std::min(stride_n*(src1_n-1)+src2_n-offset_n, dst_n);
     Index src1_step = src1_n * src1_m;
     Index src2_oc_step = src2_n * src2_m;
     Index src2_ic_step = src2_oc_step * dst_channels;
@@ -93,15 +96,27 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
                         // Additional variables for Kahan summation rule
                         Y conv{0.0}, c{0}, y, t;
                         // Once again, we must satisfy condition
-                        //      `0 <= d+o-s1 < src2.shape`
+                        //      `0 <= d+o-stride*s1 <= src2.shape-1`
                         // Therefore, condition on `s1` is the following:
-                        //      `d+o-src2.shape+1 <= s1 < d+o+1`
-                        Index src1_start_m = std::max(dst_i+offset_m-src2_m+1,
+                        //      `d+o-src2.shape+1 <= s1*stride <= d+o`
+                        // Finally, we get
+                        //      `s1 >= ceil((d+o-src2.shape+1)/stride)`
+                        // or
+                        //      `s1 >= floor(d+o-src2.shape+stride)/stride)`
+                        // and
+                        //      `s1 < floor((d+o+stride)/stride)`
+                        Index src1_start_m = std::max(
+                                (dst_i+offset_m-src2_m+stride_m) / stride_m,
                                 Index(0));
-                        Index src1_end_m = std::min(dst_i+offset_m+1, src1_m);
-                        Index src1_start_n = std::max(dst_j+offset_n-src2_n+1,
+                        Index src1_end_m = std::min(
+                                (dst_i+offset_m+stride_m) / stride_m,
+                                src1_m);
+                        Index src1_start_n = std::max(
+                                (dst_j+offset_n-src2_n+stride_n) / stride_n,
                                 Index(0));
-                        Index src1_end_n = std::min(dst_j+offset_n+1, src1_n);
+                        Index src1_end_n = std::min(
+                                (dst_j+offset_n+stride_n) / stride_n,
+                                src1_n);
                         for(Index src1_i = src1_start_m; src1_i < src1_end_m;
                                 ++src1_i)
                         {
@@ -110,10 +125,10 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
                             {
                                 const T *src1_slice = src1 + src1_i
                                     + (b*src1_channels*src1_n+src1_j)*src1_m;
-                                // Slice of `src2[d+o-s1]`
+                                // Slice of `src2[d+o-stride*s1]`
                                 const T *src2_slice = src2
-                                    - src1_i + offset_m + dst_i
-                                    + (-src1_j+offset_n+dst_j)*src2_m
+                                    + dst_i + offset_m - stride_m*src1_i
+                                    + (dst_j+offset_n-stride_n*src1_j)*src2_m
                                     + oc*src2_oc_step;
                                 for(Index ic = 0; ic < src1_channels; ++ic)
                                 {
@@ -160,32 +175,36 @@ void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
 
 // Explicit instantiation
 template
-void cpu<bf16_t>(Index src1_m, Index src1_n, Index src1_channels, Index batch,
-        Index src2_m, Index src2_n, Index dst_channels,
-        Index offset_m, Index offset_n, Scalar alpha, const bf16_t *src1,
-        const bf16_t *src2, Index dst_m, Index dst_n, Scalar beta, bf16_t *dst)
+void cpu<bf16_t>(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
+        Index src1_channels, Index batch, Index src2_m, Index src2_n,
+        Index dst_channels, Index offset_m, Index offset_n, Scalar alpha,
+        const bf16_t *src1, const bf16_t *src2, Index dst_m, Index dst_n,
+        Scalar beta, bf16_t *dst)
     noexcept;
 
 template
-void cpu<fp32_t>(Index src1_m, Index src1_n, Index src1_channels, Index batch,
-        Index src2_m, Index src2_n, Index dst_channels,
-        Index offset_m, Index offset_n, Scalar alpha, const fp32_t *src1,
-        const fp32_t *src2, Index dst_m, Index dst_n, Scalar beta, fp32_t *dst)
+void cpu<fp32_t>(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
+        Index src1_channels, Index batch, Index src2_m, Index src2_n,
+        Index dst_channels, Index offset_m, Index offset_n, Scalar alpha,
+        const fp32_t *src1, const fp32_t *src2, Index dst_m, Index dst_n,
+        Scalar beta, fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp32_fast_tf32_t>(Index src1_m, Index src1_n, Index src1_channels,
-        Index batch, Index src2_m, Index src2_n, Index dst_channels,
-        Index offset_m, Index offset_n, Scalar alpha,
-        const fp32_fast_tf32_t *src1, const fp32_fast_tf32_t *src2,
-        Index dst_m, Index dst_n, Scalar beta, fp32_fast_tf32_t *dst)
+void cpu<fp32_fast_tf32_t>(Index src1_m, Index src1_n, Index stride_m,
+        Index stride_n, Index src1_channels, Index batch, Index src2_m,
+        Index src2_n, Index dst_channels, Index offset_m, Index offset_n,
+        Scalar alpha, const fp32_fast_tf32_t *src1,
+        const fp32_fast_tf32_t *src2, Index dst_m, Index dst_n, Scalar beta,
+        fp32_fast_tf32_t *dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index src1_m, Index src1_n, Index src1_channels, Index batch,
-        Index src2_m, Index src2_n, Index dst_channels,
-        Index offset_m, Index offset_n, Scalar alpha, const fp64_t *src1,
-        const fp64_t *src2, Index dst_m, Index dst_n, Scalar beta, fp64_t *dst)
+void cpu<fp64_t>(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
+        Index src1_channels, Index batch, Index src2_m, Index src2_n,
+        Index dst_channels, Index offset_m, Index offset_n, Scalar alpha,
+        const fp64_t *src1, const fp64_t *src2, Index dst_m, Index dst_n,
+        Scalar beta, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::conv2d_bwd_input_inplace

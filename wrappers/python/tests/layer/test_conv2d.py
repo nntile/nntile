@@ -45,9 +45,10 @@ nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
 
 def generate_inputs(numpy_rng, dtype: str, in_channels: int, out_channels: int,
         kernel: Sequence[int], H_in: int, H_in_tile: int, W_in: int,
-        W_in_tile: int, batch: int, batch_tile: int, padding: Sequence[int]):
+        W_in_tile: int, batch: int, batch_tile: int, padding: Sequence[int],
+        stride: Sequence[int]):
     torch_layer = torch.nn.Conv2d(in_channels, out_channels,
-            kernel_size=kernel, padding=padding, bias=False)
+            kernel_size=kernel, padding=padding, stride=stride, bias=False)
     x_shape = [W_in, H_in, in_channels, batch]
     x_basetile = [W_in_tile, H_in_tile, in_channels, batch_tile]
     x_traits = TensorTraits(x_shape, x_basetile)
@@ -81,17 +82,25 @@ def generate_inputs(numpy_rng, dtype: str, in_channels: int, out_channels: int,
 @pytest.mark.parametrize('W_in,W_in_tile', [[6, 2]])
 @pytest.mark.parametrize('batch,batch_tile', [[3, 2]])
 @pytest.mark.parametrize('padding', [[2, 4]])
+@pytest.mark.parametrize('stride', [[2, 3]])
 def test_coercion(starpu_simple, numpy_rng, dtype: str,
         in_channels: int, out_channels: int, kernel: Sequence[int],
         H_in: int, H_in_tile: int, W_in: int, W_in_tile: int, batch: int,
-        batch_tile: int, padding: Sequence[int]):
+        batch_tile: int, padding: Sequence[int], stride: Sequence[int]):
     torch_layer, nntile_layer, *_ = generate_inputs(numpy_rng, dtype,
             in_channels, out_channels, kernel, H_in, H_in_tile, W_in,
-            W_in_tile, batch, batch_tile, padding)
+            W_in_tile, batch, batch_tile, padding, stride)
     torch_layer_other = nntile_layer.to_torch()
     nntile_layer.unregister()
     nntile_layer.x.unregister()
     nntile_layer.y.unregister()
+
+    assert torch_layer.in_channels == torch_layer_other.in_channels
+    assert torch_layer.out_channels == torch_layer_other.out_channels
+    assert torch_layer.kernel_size == torch_layer_other.kernel_size
+    assert torch_layer.padding == torch_layer_other.padding
+    assert torch_layer.stride == torch_layer_other.stride
+    assert torch_layer.dilation == torch_layer_other.dilation
 
     rtol = dtype2tol[dtype]['rtol']
     for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
@@ -116,16 +125,17 @@ def test_coercion(starpu_simple, numpy_rng, dtype: str,
     [7, 11, 6, 10], [7, 12, 6, 11]
 ])
 @pytest.mark.parametrize('batch,batch_tile', [[3, 2]])
-@pytest.mark.parametrize('padding', [[2, 3]])
+@pytest.mark.parametrize('padding', [[3, 4]])
+@pytest.mark.parametrize('stride', [[1, 1], [2, 3]])
 class TestConv2d:
 
     def test_forward(self, starpu_simple, numpy_rng, dtype: str,
             in_channels: int, out_channels: int, kernel: Sequence[int],
             H_in: int, H_in_tile: int, W_in: int, W_in_tile: int, batch: int,
-            batch_tile: int, padding: Sequence[int]):
+            batch_tile: int, padding: Sequence[int], stride: Sequence[int]):
         torch_layer, nntile_layer, x, _ = generate_inputs(
                 numpy_rng, dtype, in_channels, out_channels, kernel, H_in,
-                H_in_tile, W_in, W_in_tile, batch, batch_tile, padding)
+                H_in_tile, W_in, W_in_tile, batch, batch_tile, padding, stride)
         y = torch_layer(x)
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.y.value).T)
@@ -139,10 +149,10 @@ class TestConv2d:
     def test_backward(self, starpu_simple, numpy_rng, dtype: str,
             in_channels: int, out_channels: int, kernel: Sequence[int],
             H_in: int, H_in_tile: int, W_in: int, W_in_tile: int, batch: int,
-            batch_tile: int, padding: Sequence[int]):
+            batch_tile: int, padding: Sequence[int], stride: Sequence[int]):
         torch_layer, nntile_layer, x, y_grad = generate_inputs(
                 numpy_rng, dtype, in_channels, out_channels, kernel, H_in,
-                H_in_tile, W_in, W_in_tile, batch, batch_tile, padding)
+                H_in_tile, W_in, W_in_tile, batch, batch_tile, padding, stride)
         y = torch_layer(x)
         nntile_layer.forward_async()
         res = (y * y_grad).sum()

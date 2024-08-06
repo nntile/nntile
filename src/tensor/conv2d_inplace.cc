@@ -15,10 +15,11 @@
 
 #include "nntile/tensor/conv2d_inplace.hh"
 #include <algorithm>
+#include <array>
+#include <unistd.h>
 #include "nntile/starpu/clear.hh"
 #include "nntile/starpu/scal_inplace.hh"
 #include "nntile/starpu/conv2d_inplace.hh"
-#include <unistd.h>
 
 namespace nntile::tensor
 {
@@ -26,7 +27,8 @@ namespace nntile::tensor
 template <typename T>
 void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
         const Tensor<T> &C, Scalar beta, const Tensor<T> &Y,
-        Index padding_m, Index padding_n)
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation)
 /*! Forward 2D convolution of two tensors in WHCN format
  *
  * Due to Fortran ordering, WHCN of NNTile is equal to NCHF format of PyTorch
@@ -37,7 +39,7 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
  *      `Y` = `alpha`*`f(X, C)` + `beta`*`Y`,
  * where `f` operation does the following:
  *      `f[i,j,k,b]` = \sum_l \sum_m \sum_n `X[m,n,l,b]`
- *      * `C[m + offset_m - i,n + offset_n - j,l,k]`
+ *      * `C[m + offset_m - stride_m*i,n + offset_n - stride_n*j,l,k]`
  *
  * Generally, `X` represents input of `Conv2d` layer, `C` represents
  * kernel of `Conv2d` layer and `Y` represents output of `Conv2d` layer.
@@ -47,15 +49,16 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
  * C must be of shape (K_x, K_y, C_in, C_out)
  * C must have basetile (K_x, K_y, C_in, C_out)
  * Y must be of shape (W_out, H_out, C_out, N)
- * with W_out=W_in-K_x+2padding_m+1
- * and H_out=H_in-K_y+2padding_n+1
+ * with W_out=(W_in+2*padding[0]-dilation[0]*(K_x-1)-1)/stride[0]+1
+ * and H_out=(H_in+2*padding[1]-dilation[1]*(K_y-1)-1)/stride[1]+1
  * Y must have basetile (W_out_tile, H_out_tile, C_out, N_tile)
  *
  * @param[in] X: Input tensor, that is usually a source for Conv2d.
  * @param[in] C: Input tensor, that is usually a kernel for Conv2d.
  * @param[inout] Y: Resulting tensor
- * @param[in] padding_m: Padding on the second axis of the input
- * @param[in] padding_n: Padding on the first axis of the input
+ * @param[in] padding: Padding of the convolution
+ * @param[in] stride: Stride of the convolution
+ * @param[in] dilation: Padding of the convolution
  * */
 {
     // Check dimensions
@@ -71,16 +74,25 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
     {
         throw std::runtime_error("4 != Y.ndim");
     }
-    // Check shapes of tensors
-    if(Y.shape[0] != X.shape[0] - C.shape[0] + 1 + 2*padding_m)
+    // Check additional arguments
+    if(stride[0] <= 0 or stride[1] <= 0)
     {
-        throw std::runtime_error("Y.shape[0] != X.shape[0] - "
-                                 "C.shape[0] + 1 + 2*padding_n");
+        throw std::runtime_error("Incorrect stride");
     }
-    if(Y.shape[1] != X.shape[1] - C.shape[1] + 1 + 2*padding_n)
+    if(dilation[0] <= 0 or dilation[1] <= 0)
     {
-        throw std::runtime_error("Y.shape[1] != X.shape[1] - "
-                                 "C.shape[1] + 1 + 2*padding_m");
+        throw std::runtime_error("Incorrect dilation");
+    }
+    // Check shapes of tensors
+    if(Y.shape[0] != (X.shape[0] + 2*padding[0] - dilation[0]*(C.shape[0]-1)-1)
+            / stride[0] + 1)
+    {
+        throw std::runtime_error("Incorrect Y.shape[0]");
+    }
+    if(Y.shape[1] != (X.shape[1] + 2*padding[1] - dilation[1]*(C.shape[1]-1)-1)
+            / stride[1] + 1)
+    {
+        throw std::runtime_error("Incorrect Y.shape[1]");
     }
     if(X.shape[2] != C.shape[2])
     {
@@ -124,12 +136,19 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
         Index Y_end_m = Y_start_m + Y_tile_traits.shape[0];
         Index Y_start_n = Y_tile_index[1] * Y.basetile_shape[1];
         Index Y_end_n = Y_start_n + Y_tile_traits.shape[1];
-        // Get X start and end coordinates that interact with Y through
-        // provided kernel
-        Index X_start_m = Y_start_m - padding_m;
-        Index X_end_m = Y_end_m - padding_m + C.shape[0];
-        Index X_start_n = Y_start_n - padding_n;
-        Index X_end_n = Y_end_n - padding_n + C.shape[1];
+        // Get start and end indices `m` and `n` from the operation:
+        //      `f[i,j,k,b]` = \sum_l \sum_m \sum_n `X[m,n,l,b]`
+        //      * `C[m + offset_m - stride_m*i,n + offset_n - stride_n*j,l,k]`.
+        // The kernel `C` has limited shape:
+        //      `0 <= m + offset_n - stride_m*i < C.shape[0]`
+        // Therefore, `m` is limited as follows:
+        //      `m >= stride_m*i - offset_m`
+        //      `m < stride_m*i - offset_m + C.shape[0]`
+        // For `n` we get similar limits.
+        Index X_start_m = stride[0]*Y_start_m - padding[0];
+        Index X_end_m = stride[0]*(Y_end_m-1) - padding[0] + C.shape[0];
+        Index X_start_n = stride[1]*Y_start_n - padding[1];
+        Index X_end_n = stride[1]*(Y_end_n-1) - padding[1] + C.shape[1];
         // Get X tile coordinates that interact with Y tile
         Index X_start_tile_m = X_start_m / X.basetile_shape[0];
         Index X_end_tile_m = (X_end_m-1) / X.basetile_shape[0] + 1;
@@ -169,17 +188,17 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
                 X_tile_index[1] = X_j;
                 auto X_tile_traits = X.get_tile_traits(X_tile_index);
                 auto X_tile_handle = X.get_tile_handle(X_tile_index);
-                Index offset_m = X_i*X.basetile_shape[0] - Y_start_m
-                    + padding_m;
-                Index offset_n = X_j*X.basetile_shape[1] - Y_start_n
-                    + padding_n;
+                Index offset_m = X_i*X.basetile_shape[0] - stride[0]*Y_start_m
+                    + padding[0];
+                Index offset_n = X_j*X.basetile_shape[1] - stride[1]*Y_start_n
+                    + padding[1];
                 starpu::conv2d_inplace::submit<T>(X_tile_traits.shape[0],
                         X_tile_traits.shape[1], X_tile_traits.shape[2],
                         X_tile_traits.shape[3], C.shape[0],
                         C.shape[1], Y_tile_traits.shape[2], offset_m,
                         offset_n, alpha, X_tile_handle, C.get_tile_handle(0),
                         Y_tile_traits.shape[0], Y_tile_traits.shape[1],
-                        Y_tile_beta, Y_tile_handle);
+                        stride[0], stride[1], Y_tile_beta, Y_tile_handle);
                 Y_tile_beta = 1.0;
             }
         }
@@ -188,55 +207,73 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
 
 template <typename T>
 void conv2d_inplace(Scalar alpha, const Tensor<T> &X, const Tensor<T> &C,
-        Scalar beta, const Tensor<T> &Y, Index padding_m, Index padding_n)
+        Scalar beta, const Tensor<T> &Y, std::array<Index, 2> padding,
+        std::array<Index, 2> stride, std::array<Index, 2> dilation)
 /*! Blocking version of conv2d_inplace_async<T>.
  *
  * @param[in] X: Input tensor, that is usually a source for Conv2d.
  * @param[in] C: Input tensor, that is usually a kernel for Conv2d.
  * @param[inout] Y: Resulting tensor
- * @param[in] padding_m: Padding on the second axis of the input
- * @param[in] padding_n: Padding on the first axis of the input
+ * @param[in] padding: Padding of the convolution
+ * @param[in] stride: Stride of the convolution
+ * @param[in] dilation: Padding of the convolution
  * */
 {
-    conv2d_inplace_async<T>(alpha, X, C, beta, Y, padding_m, padding_n);
+    conv2d_inplace_async<T>(alpha, X, C, beta, Y, padding, stride, dilation);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation of template
-template void conv2d_inplace_async<bf16_t>(Scalar alpha,
-        const Tensor<bf16_t> &X, const Tensor<bf16_t> &C, Scalar beta,
-        const Tensor<bf16_t> &Y, Index padding_m, Index padding_n);
+template
+void conv2d_inplace_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &X,
+        const Tensor<bf16_t> &C, Scalar beta, const Tensor<bf16_t> &Y,
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
 
-template void conv2d_inplace_async<fp32_t>(Scalar alpha,
-        const Tensor<fp32_t> &X, const Tensor<fp32_t> &C, Scalar beta,
-        const Tensor<fp32_t> &Y, Index padding_m, Index padding_n);
+template
+void conv2d_inplace_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &X,
+        const Tensor<fp32_t> &C, Scalar beta, const Tensor<fp32_t> &Y,
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
 
-template void conv2d_inplace_async<fp32_fast_tf32_t>(Scalar alpha,
-        const Tensor<fp32_fast_tf32_t> &X,
-        const Tensor<fp32_fast_tf32_t> &C, Scalar beta,
-        const Tensor<fp32_fast_tf32_t> &Y, Index padding_m, Index padding_n);
+template
+void conv2d_inplace_async<fp32_fast_tf32_t>(Scalar alpha,
+        const Tensor<fp32_fast_tf32_t> &X, const Tensor<fp32_fast_tf32_t> &C,
+        Scalar beta, const Tensor<fp32_fast_tf32_t> &Y,
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
 
-template void conv2d_inplace_async<fp64_t>(Scalar alpha,
-        const Tensor<fp64_t> &X, const Tensor<fp64_t> &C, Scalar beta,
-        const Tensor<fp64_t> &Y, Index padding_m, Index padding_n);
+template
+void conv2d_inplace_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &X,
+        const Tensor<fp64_t> &C, Scalar beta, const Tensor<fp64_t> &Y,
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
 
 // Explicit instantiation of template
-template void conv2d_inplace<bf16_t>(Scalar alpha,
-        const Tensor<bf16_t> &X, const Tensor<bf16_t> &C, Scalar beta,
-        const Tensor<bf16_t> &Y, Index padding_m, Index padding_n);
+template
+void conv2d_inplace<bf16_t>(Scalar alpha, const Tensor<bf16_t> &X,
+        const Tensor<bf16_t> &C, Scalar beta, const Tensor<bf16_t> &Y,
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
 
-template void conv2d_inplace<fp32_t>(Scalar alpha,
-        const Tensor<fp32_t> &X, const Tensor<fp32_t> &C, Scalar beta,
-        const Tensor<fp32_t> &Y, Index padding_m, Index padding_n);
+template
+void conv2d_inplace<fp32_t>(Scalar alpha, const Tensor<fp32_t> &X,
+        const Tensor<fp32_t> &C, Scalar beta, const Tensor<fp32_t> &Y,
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
 
-template void conv2d_inplace<fp32_fast_tf32_t>(Scalar alpha,
-        const Tensor<fp32_fast_tf32_t> &X,
-        const Tensor<fp32_fast_tf32_t> &C, Scalar beta,
-        const Tensor<fp32_fast_tf32_t> &Y, Index padding_m, Index padding_n);
+template
+void conv2d_inplace<fp32_fast_tf32_t>(Scalar alpha,
+        const Tensor<fp32_fast_tf32_t> &X, const Tensor<fp32_fast_tf32_t> &C,
+        Scalar beta, const Tensor<fp32_fast_tf32_t> &Y,
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
 
-template void conv2d_inplace<fp64_t>(Scalar alpha,
-        const Tensor<fp64_t> &X, const Tensor<fp64_t> &C, Scalar beta,
-        const Tensor<fp64_t> &Y, Index padding_m, Index padding_n);
+template
+void conv2d_inplace<fp64_t>(Scalar alpha, const Tensor<fp64_t> &X,
+        const Tensor<fp64_t> &C, Scalar beta, const Tensor<fp64_t> &Y,
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
 
 } // namespace nntile::tensor

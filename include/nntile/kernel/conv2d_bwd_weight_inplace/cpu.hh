@@ -22,9 +22,10 @@ namespace nntile::kernel::conv2d_bwd_weight_inplace
 
 template<typename T>
 void cpu(Index src1_m, Index src1_n, Index src1_channels, Index batch,
-        Index src2_m, Index src2_n, Index src2_channels,
-        Index offset_m, Index offset_n, Scalar alpha, const T *src1,
-        const T *src2, Index dst_m, Index dst_n, Scalar beta, T *dst)
+        Index src2_m, Index src2_n, Index stride_m, Index stride_n,
+        Index src2_channels, Index offset_m, Index offset_n, Scalar alpha,
+        const T *src1, const T *src2, Index dst_m, Index dst_n, Scalar beta,
+        T *dst)
     noexcept;
 
 } // namespace nntile::kernel::conv2d_bwd_weight_inplace

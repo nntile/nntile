@@ -24,12 +24,14 @@ namespace nntile::tensor
 template <typename T>
 void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
         const Tensor<T> &C, Scalar beta, const Tensor<T> &Y,
-        Index padding_m, Index padding_n);
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
 
 // Tensor<T> 2D-Convolution between 2 matrices
 template <typename T>
 void conv2d_inplace(Scalar alpha, const Tensor<T> &X,
         const Tensor<T> &C, Scalar beta, const Tensor<T> &Y,
-        Index padding_m, Index padding_n);
+        std::array<Index, 2> padding, std::array<Index, 2> stride,
+        std::array<Index, 2> dilation);
 
 } // namespace nntile::tensor
