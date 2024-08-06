@@ -127,8 +127,8 @@ void cpu(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
                                     + (b*src1_channels*src1_n+src1_j)*src1_m;
                                 // Slice of `src2[d+o-stride*s1]`
                                 const T *src2_slice = src2
-                                    - stride_m*src1_i + offset_m + dst_i
-                                    + (-stride_n*src1_j+offset_n+dst_j)*src2_m
+                                    + dst_i + offset_m - stride_m*src1_i
+                                    + (dst_j+offset_n-stride_n*src1_j)*src2_m
                                     + oc*src2_oc_step;
                                 for(Index ic = 0; ic < src1_channels; ++ic)
                                 {

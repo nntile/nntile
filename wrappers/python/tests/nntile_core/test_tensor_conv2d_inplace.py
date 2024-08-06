@@ -49,6 +49,8 @@ conv2d_inplace = {
     [4, 2]
 ])
 @pytest.mark.parametrize('padding', [[0, 0], [2, 1]])
+@pytest.mark.parametrize('stride', [[1, 1], [2, 3]])
+@pytest.mark.parametrize('dilation', [[1, 1]])
 def test_conv2d(
     starpu_simple,
     numpy_rng,
@@ -62,6 +64,8 @@ def test_conv2d(
     batch,
     batch_tile,
     padding,
+    stride,
+    dilation
 ):
     next_tag = 0
 
@@ -89,8 +93,10 @@ def test_conv2d(
     next_tag = W.next_tag
 
     shape = [
-        shape_X[0] - shape_W[0] + 1 + 2 * padding[0],
-        shape_X[1] - shape_W[1] + 1 + 2 * padding[1],
+        (shape_X[0] - dilation[0] * (shape_W[0] - 1) - 1 + 2 * padding[0]) \
+                // stride[0] + 1,
+        (shape_X[1] - dilation[1] * (shape_W[1] - 1) - 1 + 2 * padding[1]) \
+                // stride[1] + 1,
         out_channels,
         batch,
     ]
@@ -110,7 +116,7 @@ def test_conv2d(
     W.from_array(src_W)
     Y.from_array(src_Y)
 
-    conv2d_inplace[dtype](1.0, X, W, 0.0, Y, padding[0], padding[1])
+    conv2d_inplace[dtype](1.0, X, W, 0.0, Y, padding, stride, dilation)
     Y.to_array(dst_Y)
 
     nntile.starpu.wait_for_all()
@@ -121,7 +127,7 @@ def test_conv2d(
     # Check results
     conv_torch = torch.nn.Conv2d(in_channels, out_channels,
             kernel_size=reversed(shape_W), padding=reversed(padding),
-            bias=False)
+            stride=reversed(stride), dilation=reversed(dilation), bias=False)
     conv_torch.weight.data = torch.Tensor(src_W.T)
     Y_torch = conv_torch(torch.Tensor(src_X.T))
 
