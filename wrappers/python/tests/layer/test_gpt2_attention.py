@@ -82,11 +82,9 @@ def generate_inputs(dtype: str, params: GPT2AttentionTestParams):
         n_embd=params.n_emb,
         n_head=params.n_head,
         use_cache=False,
-        attn_pdrop=0.0,
         resid_pdrop=0.0,
         embd_pdrop = 0.0,
-        reorder_and_upcast_attn = False,
-        scale_attn_by_inverse_layer_idx = False,
+        attn_pdrop=0.0,
         scale_attn_weights = True
     )
 

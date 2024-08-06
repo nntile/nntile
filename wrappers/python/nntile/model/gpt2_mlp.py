@@ -7,7 +7,7 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file wrappers/python/nntile/model/gpt2_mlp.py
-# LlamaMLP submodule of NNTile Python package
+# GPT2MLP submodule of NNTile Python package
 #
 # @version 1.0.0
 
