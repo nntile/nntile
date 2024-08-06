@@ -32,7 +32,8 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
  *      `dst` = `alpha`*`f(src1, src2)` + `beta`*`dst`,
  * where `f` operation does the following:
  *      `f[i,j,k,b]` = \sum_l \sum_m \sum_n `src1[m,n,l,b]`
- *      * `src2[m+offset_m-stride_m*i,n+offset_n-stride_n*j,l,k]`
+ *      * `src2[(m + offset_m - stride_m*i) / dilation_m,
+ *              (n + offset_n - stride_n*j) / dilation_n,l,k]`
  *
  * Generally, `src1` represents input of `Conv2d` layer, `src2` represents
  * kernel of `Conv2d` layer and `dst` represents output of `Conv2d` layer.
@@ -43,6 +44,8 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
  * @param[in] batch: Size of the fourth axis of `src1` array
  * @param[in] src2_m: Size of the first axis of `src2` array
  * @param[in] src2_n: Size of the second axis of `src2` array
+ * @param[in] dilation_m: dilation effect of kernel (`src2`) array
+ * @param[in] dilation_n: dilation effect of kernel (`src2`) array
  * @param[in] dst_channels: Size of the third axis of `dst` array
  * @param[in] offset_m: Convolution offset alongside the first axis
  * @param[in] offset_n: Convolution offset alongside the second axis
@@ -67,18 +70,17 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
     //     `o` denote a 2-dim offset from `dst` to `src1`
     //     `stride` denote convolution stride
     // Then, this convolution computes
-    //      `conv[d] = sum_s1 src1[s1]*src2[s1+o-d*stride]`
+    //      `conv[d] = sum_s1 src1[s1]*src2[(s1+o-d*stride)/dilation]`
+    // with `(s1+o-d*stride) % dilation == 0`.
     // And we must satisfy condition
-    //      `0 <= s1+o-d*stride <= src2.shape-1`
+    //      `0 <= s1+o-d*stride <= dilation*(src2.shape-1)`
     // It means all values of `d`, that actually get non-zero `conv[d]` are:
-    //      `s1+o-src2.shape+1 <= d*stride <= s1+o`
+    //      `s1+o-dilation*(src2.shape-1) <= d*stride <= s1+o`
     // Therefore, index `d` is bound as follows:
-    //      `d >= ceil((o-src2.shape+1)/stride)`
-    // or
-    //      `d >= floor((o-src2.shape+stride)/stride)`
-    // and
+    //      `d >= ceil((o-dilation*(src2.shape-1))/stride)`
     //      `d <= floor(src1.shape-1+o)/stride`
     // or
+    //      `d >= floor((o-dilation*(src2.shape-1)+stride-1)/stride)`
     //      `d < floor((src1.shape+o+stride-1)/stride)`
     // Such a notation works well even if a negative integer number is divided
     // by `stride`
@@ -93,10 +95,12 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
     {
         return;
     }
-    Index dst_start_m = ::max((offset_m-src2_m+stride_m)/stride_m,
+    Index dst_start_m = ::max(
+            (offset_m-dilation_m*(src2_m-1)+stride_m-1) / stride_m,
             Index(0));
     Index dst_end_m = ::min((offset_m+src1_m+stride_m-1)/stride_m, dst_m);
-    Index dst_start_n = ::max((offset_n-src2_n+stride_n)/stride_n,
+    Index dst_start_n = ::max(
+            (offset_n-dilation_n*(src2_n-1)+stride_n-1) / stride_n,
             Index(0));
     Index dst_end_n = ::min((offset_n+src1_n+stride_n-1)/stride_n, dst_n);
     T *dst_val = dst + ((b*dst_channels+oc)*dst_n+dst_j)*dst_m + dst_i;
@@ -109,25 +113,59 @@ void cuda_kernel(Index src1_m, Index src1_n, Index src1_channels,
         // Additional variables for Kahan summation rule
         Y conv{0.0}, c{0}, y, t;
         // Once again, we must satisfy condition
-        //      `0 <= s1+o-d*stride < src2.shape`
+        //      `0 <= s1+o-d*stride <= dilation*(src2.shape-1)`
+        // with `(s1+o-d*stride) % dilation == 0`
         // Therefore, condition on `s1` is the following:
-        //      `d*stride-o <= s1 < d*stride-o+src2.shape`
-        Index src1_start_m = ::max(dst_i*stride_m-offset_m, Index(0));
-        Index src1_end_m = ::min(dst_i*stride_m-offset_m+src2_m, src1_m);
-        Index src1_start_n = ::max(dst_j*stride_n-offset_n, Index(0));
-        Index src1_end_n = ::min(dst_j*stride_n-offset_n+src2_n, src1_n);
+        //      `s1 >= d*stride-o`
+        //      `s1 < d*stride-o+dilation*(src2.shape-1)+1`
+        Index src1_start_m = dst_i*stride_m - offset_m;
+        if(src1_start_m < 0)
+        {
+            Index neg_rem = (-src1_start_m) % dilation_m;
+            // We need to get minimal non-negative number
+            // with the same reminder
+            if(neg_rem == 0)
+            {
+                src1_start_m = 0;
+            }
+            else
+            {
+                src1_start_m = dilation_m - neg_rem;
+            }
+        }
+        Index src1_end_m = ::min(
+                dst_i*stride_m - offset_m + dilation_m*(src2_m-1) + 1,
+                src1_m);
+        Index src1_start_n = dst_j*stride_n - offset_n;
+        if(src1_start_n < 0)
+        {
+            Index neg_rem = (-src1_start_n) % dilation_n;
+            // We need to get minimal non-negative number
+            // with the same reminder
+            if(neg_rem == 0)
+            {
+                src1_start_n = 0;
+            }
+            else
+            {
+                src1_start_n = dilation_n - neg_rem;
+            }
+        }
+        Index src1_end_n = ::min(
+                dst_j*stride_n - offset_n + dilation_n*(src2_n-1) + 1,
+                src1_n);
         for(Index src1_i = src1_start_m; src1_i < src1_end_m;
-                ++src1_i)
+                src1_i += dilation_m)
         {
             for(Index src1_j = src1_start_n;
-                    src1_j < src1_end_n; ++src1_j)
+                    src1_j < src1_end_n; src1_j += dilation_n)
             {
                 const T *src1_slice = src1 + src1_i
                     + (b*src1_channels*src1_n+src1_j)*src1_m;
-                // Slice of `src2[s1+o-d*stride]`
+                // Slice of `src2[(s1+o-d*stride)/dilation]`
                 const T *src2_slice = src2
-                    + src1_i + offset_m - stride_m*dst_i
-                    + (src1_j+offset_n-stride_n*dst_j)*src2_m
+                    + (src1_i+offset_m-dst_i*stride_m) / dilation_m
+                    + (src1_j+offset_n-dst_j*stride_n) / dilation_n * src2_m
                     + oc*src2_oc_step;
                 for(Index ic = 0; ic < src1_channels; ++ic)
                 {
