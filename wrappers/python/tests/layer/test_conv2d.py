@@ -91,9 +91,10 @@ def test_coercion(starpu_simple, numpy_rng, dtype: str,
         batch_tile: int, padding: Sequence[int], stride: Sequence[int],
         dilation: Sequence[int]):
     # Run tests only if output shape is positive
-    if ((H_in+2*padding[0]-dilation[0]*(kernel[0]-1)-1) < 0) \
-        or ((W_in+2*padding[1]-dilation[1]*(kernel[1]-1)-1) < 0):
-            return
+    H_out = H_in + 2 * padding[0] - dilation[0] * (kernel[0] - 1) - 1
+    W_out = W_in + 2 * padding[1] - dilation[1] * (kernel[1] - 1) - 1
+    if H_out <= 0 or W_out <= 0:
+        return
     torch_layer, nntile_layer, *_ = generate_inputs(numpy_rng, dtype,
             in_channels, out_channels, kernel, H_in, H_in_tile, W_in,
             W_in_tile, batch, batch_tile, padding, stride, dilation)
@@ -143,9 +144,10 @@ class TestConv2d:
             batch_tile: int, padding: Sequence[int], stride: Sequence[int],
             dilation: Sequence[int]):
         # Run tests only if output shape is positive
-        if ((H_in+2*padding[0]-dilation[0]*(kernel[0]-1)-1) < 0) \
-            or ((W_in+2*padding[1]-dilation[1]*(kernel[1]-1)-1) < 0):
-                return
+        H_out = H_in + 2 * padding[0] - dilation[0] * (kernel[0] - 1) - 1
+        W_out = W_in + 2 * padding[1] - dilation[1] * (kernel[1] - 1) - 1
+        if H_out <= 0 or W_out <= 0:
+            return
         torch_layer, nntile_layer, x, _ = generate_inputs(
                 numpy_rng, dtype, in_channels, out_channels, kernel, H_in,
                 H_in_tile, W_in, W_in_tile, batch, batch_tile, padding, stride,
@@ -166,9 +168,10 @@ class TestConv2d:
             batch_tile: int, padding: Sequence[int], stride: Sequence[int],
             dilation: Sequence[int]):
         # Run tests only if output shape is positive
-        if ((H_in+2*padding[0]-dilation[0]*(kernel[0]-1)-1) < 0) \
-            or ((W_in+2*padding[1]-dilation[1]*(kernel[1]-1)-1) < 0):
-                return
+        H_out = H_in + 2 * padding[0] - dilation[0] * (kernel[0] - 1) - 1
+        W_out = W_in + 2 * padding[1] - dilation[1] * (kernel[1] - 1) - 1
+        if H_out <= 0 or W_out <= 0:
+            return
         torch_layer, nntile_layer, x, y_grad = generate_inputs(
                 numpy_rng, dtype, in_channels, out_channels, kernel, H_in,
                 H_in_tile, W_in, W_in_tile, batch, batch_tile, padding, stride,
