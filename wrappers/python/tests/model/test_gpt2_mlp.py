@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/layer/test_llama_mlp.py
-# Test for nntile.layer.LlamaMLP
+# @file wrappers/python/tests/layer/test_gpt2_mlp.py
+# Test for nntile.layer.GPT2MLP
 # Each test is generated in float precision by PyTorch, then it is downcasted
 # into NNTile type. So, implementation of double precision is NOT checked.
 #
@@ -79,11 +79,11 @@ single_tile = GPT2MLPTestParams(
 
 def generate_inputs(params: GPT2MLPTestParams, dtype: str):
     torch_layer_config = GPT2Config(
-        use_cache=False,
+        n_embd=params.hidden_size,
         attn_pdrop=0.0,
         resid_pdrop=0.0,
         embd_pdrop = 0.0,
-        n_embd=params.hidden_size,
+        use_cache=False,
     )
     torch_layer = GPT2MLP(
         params.intermediate_size,
