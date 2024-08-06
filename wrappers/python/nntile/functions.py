@@ -658,6 +658,23 @@ def add_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
     else:
         raise TypeError
 
+def add_inplace_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
+    """
+    Wrapper for multiprecision add
+    """
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.add_inplace_async_fp32(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.add_inplace_async_fp32_fast_tf32(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.add_inplace_async_fp64(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.add_inplace_async_bf16(alpha, x, beta, y)
+    else:
+        raise TypeError
+
 
 def nrm2_async(
     alpha: float, x: Tensor, beta: float, y: Tensor, tmp: Tensor

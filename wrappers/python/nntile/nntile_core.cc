@@ -685,6 +685,15 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_fp32", &add<fp32_t>);
     m.def("add_fp32_fast_tf32", &add<fp32_fast_tf32_t>);
 
+    m.def("add_inplace_async_fp64", &add_inplace_async<fp64_t>);
+    m.def("add_inplace_async_fp32", &add_inplace_async<fp32_t>);
+    m.def("add_inplace_async_fp32_fast_tf32", &add_inplace_async<fp32_fast_tf32_t>);
+    m.def("add_inplace_async_bf16", &add_inplace_async<bf16_t>);
+    m.def("add_inplace_fp64", &add_inplace<fp64_t>);
+    m.def("add_inplace_bf16", &add_inplace<bf16_t>);
+    m.def("add_inplace_fp32", &add_inplace<fp32_t>);
+    m.def("add_inplace_fp32_fast_tf32", &add_inplace<fp32_fast_tf32_t>);
+
     m.def("add_scalar_async_fp64", &add_scalar_async<fp64_t>);
     m.def("add_scalar_async_fp32", &add_scalar_async<fp32_t>);
     m.def("add_scalar_fp64", &add_scalar<fp64_t>);
