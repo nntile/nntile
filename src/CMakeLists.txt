@@ -72,6 +72,11 @@ else()
         "kernel/transpose/cpu.cc"
         "kernel/silu_forward/cpu.cc"
         "kernel/silu_backward/cpu.cc"
+        "kernel/conv2d_inplace/cpu.cc"
+        "kernel/conv2d_bwd_input_inplace/cpu.cc"
+        "kernel/conv2d_bwd_weight_inplace/cpu.cc"
+        "kernel/rope/cpu.cc"
+        "kernel/rope_backward/cpu.cc"
         "kernel/norm_fiber/cpu.cc"
         )
 
@@ -134,6 +139,11 @@ else()
             "kernel/transpose/cuda.cu"
             "kernel/silu_forward/cuda.cu"
             "kernel/silu_backward/cuda.cu"
+            "kernel/conv2d_inplace/cuda.cu"
+            "kernel/conv2d_bwd_input_inplace/cuda.cu"
+            "kernel/conv2d_bwd_weight_inplace/cuda.cu"
+            "kernel/rope/cuda.cu"
+            "kernel/rope_backward/cuda.cu"
             "kernel/norm_fiber/cuda.cu"
             )
         endif(NNTILE_USE_CUDA)
@@ -207,6 +217,11 @@ set(STARPU_SRC
     "starpu/transpose.cc"
     "starpu/silu_forward.cc"
     "starpu/silu_backward.cc"
+    "starpu/conv2d_inplace.cc"
+    "starpu/conv2d_bwd_input_inplace.cc"
+    "starpu/conv2d_bwd_weight_inplace.cc"
+    "starpu/rope.cc"
+    "starpu/rope_backward.cc"
     "starpu/norm_fiber.cc"
     )
 
@@ -268,6 +283,7 @@ set(TILE_SRC
     "tile/adamw_step.cc"
     "tile/silu_forward.cc"
     "tile/silu_backward.cc"
+    "tile/rope.cc"
     "tile/norm_fiber.cc"
     )
 
@@ -339,6 +355,11 @@ set(TENSOR_SRC
     "tensor/transpose.cc"
     "tensor/silu_forward.cc"
     "tensor/silu_backward.cc"
+    "tensor/conv2d_inplace.cc"
+    "tensor/conv2d_bwd_input_inplace.cc"
+    "tensor/conv2d_bwd_weight_inplace.cc"
+    "tensor/rope.cc"
+    "tensor/rope_backward.cc"
     "tensor/norm_fiber.cc"
     )
 

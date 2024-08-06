@@ -11,23 +11,34 @@
 #
 # @version 1.0.0
 
-import torch.optim as optim
-import torch.nn as nn
-import torch
-import nntile
-import time
-import copy
+
 import numpy as np
+import pytest
+import torch
+import torch.optim as optim
 
-nntile_config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
+import nntile
 
-def run_test(dim, num_steps, device, lr, tol=1e-5):
-    torch_param = torch.randn((dim, ), device=device, requires_grad=True, dtype=torch.float32)
+
+@pytest.fixture(scope='module')
+def starpu():
+    nntile_config = nntile.starpu.Config(1, 0, 0)
+    nntile.starpu.init()
+    yield nntile_config
+
+
+@pytest.mark.xfail(reason='not implemented')
+@pytest.mark.parametrize('dim,num_steps,device,lr', [
+    (1000, 100, 'cpu', 1),
+    (1000, 10, 'cpu', 1e-1),
+    (1000, 10, 'cpu', 1e-4),
+    (1000, 100, 'cpu', 1e-4),
+])
+def test_adam(starpu, dim, num_steps, device, lr, tol=1e-5):
+    torch_param = torch.randn((dim, ), device=device, requires_grad=True,
+                              dtype=torch.float32)
     next_tag = 0
-    x_traits = nntile.tensor.TensorTraits( \
-                [dim], \
-                [dim])
+    x_traits = nntile.tensor.TensorTraits([dim], [dim])
     x_distr = [0] * x_traits.grid.nelems
     x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
     next_tag = x.next_tag
@@ -46,23 +57,9 @@ def run_test(dim, num_steps, device, lr, tol=1e-5):
         torch_optimizer.step()
         nntile_optimizer.step()
         nntile_param.value.to_array(nntile_param_np)
-        assert np.linalg.norm(torch_param.data.cpu().numpy() - nntile_param_np) / \
-            np.linalg.norm(torch_param.data.cpu().numpy()) < tol
-
+        top = np.linalg.norm(torch_param.data.cpu().numpy() - nntile_param_np)
+        bottom = np.linalg.norm(torch_param.data.cpu().numpy())
+        assert top / bottom < tol
 
     nntile_optimizer.unregister()
     nntile_param.unregister()
-
-if __name__ == "__main__":
-
-    run_test(dim=1000, num_steps=100, device="cpu", lr=1)
-    #run_test(dim=1000, num_steps=100, device="cuda", lr=1)
-
-    #run_test(dim=1000, num_steps=10, device="cuda", lr=1e-1)
-    run_test(dim=1000, num_steps=10, device="cpu", lr=1e-1)
-
-    run_test(dim=1000, num_steps=10, device="cpu", lr=1e-4)
-    #run_test(dim=1000, num_steps=10, device="cuda", lr=1e-4)
-
-    run_test(dim=1000, num_steps=100, device="cpu", lr=1e-4)
-    #run_test(dim=1000, num_steps=100, device="cuda", lr=1e-4)

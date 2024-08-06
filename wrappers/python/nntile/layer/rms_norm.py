@@ -11,11 +11,15 @@
 #
 # @version 1.0.0
 
+import torch
+from transformers.models.llama.modeling_llama import (
+    LlamaRMSNorm as RMSNorm_torch)
+
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor, TensorMoments, TensorTraits, add_async, copy_async, fill_async,
     hypot_scalar_inverse_async, norm_slice_async, prod_fiber3_async,
-    prod_slice_async, sumprod_fiber_async, sumprod_slice_async)
+    prod_slice_async, sumprod_fiber_async, sumprod_slice_async, to_numpy)
 
 
 class RMSNorm(BaseLayer):
@@ -171,3 +175,31 @@ class RMSNorm(BaseLayer):
         self.tmp_y_value.invalidate_submit()
         # dX can offloade from GPU
         self.x.grad.wont_use()
+
+    @staticmethod
+    def from_torch(torch_rmsnorm, x: TensorMoments,
+                   axis: int, eps: float,
+                   next_tag: int, redux: bool = False):
+        rmsnorm_layer, next_tag = RMSNorm.generate_simple(x, axis,
+                                                          eps, next_tag,
+                                                          redux)
+        rmsnorm_layer.parameters[0].value.from_array(
+            torch_rmsnorm.weight.data.cpu().detach().numpy())
+
+        return rmsnorm_layer, next_tag
+
+    def to_torch(self):
+        target_shape = self.activations_input[0].value.shape
+        torch_layer = RMSNorm_torch(target_shape[self.axis],
+                                    self.eps**2)
+        torch_layer.weight.data = torch.tensor(
+                                to_numpy(self.parameters[0].value),
+                                requires_grad=True)
+        return torch_layer
+
+    def to_torch_with_grads(self):
+        torch_layer = self.to_torch()
+        torch_layer.weight.grad = torch.tensor(
+                                to_numpy(self.parameters[0].grad))
+
+        return torch_layer

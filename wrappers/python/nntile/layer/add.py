@@ -12,11 +12,10 @@
 #
 # @version 1.0.0
 
-from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        TransOp, trans, notrans, copy_async, gemm_async, randn_async, add_async
+import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
-import numpy as np
-from typing import List
+from nntile.tensor import TensorMoments, TensorTraits, add_async, copy_async
+
 
 class Add(BaseLayer):
     def __init__(self, x: TensorMoments, y: TensorMoments, res: TensorMoments):
@@ -43,12 +42,14 @@ class Add(BaseLayer):
         self.y.value.wont_use()
         self.res.value.wont_use()
 
+    def forward_dynamic(self, x1: TensorMoments, x2: TensorMoments):
+        y = nntc.clone(x1.value)
+        add_async(1.0, x2.value, 1.0, y)
+        return TensorMoments(y, None, False)
+
     def backward_async(self):
         add_async(1, self.res.grad, 1, self.x.grad)
         add_async(1, self.res.grad, 1, self.y.grad)
         self.x.grad.wont_use()
         self.y.grad.wont_use()
         self.res.grad.wont_use()
-
-    def unregister(self):
-        self.res.unregister()

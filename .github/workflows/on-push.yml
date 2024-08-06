@@ -88,7 +88,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Build StarPU
         run: |
-          export STARPU_VERSION=starpu-1.3.11
+          export STARPU_VERSION=starpu-1.4.7
           export STARPU_LABEL=$STARPU_VERSION
           mkdir -p /usr/src
           curl -SL https://gitlab.inria.fr/starpu/starpu/-/archive/$STARPU_LABEL/starpu-$STARPU_LABEL.tar.gz | tar -xzC /usr/src
@@ -111,7 +111,7 @@ jobs:
           make -j 4 install
           rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_LABEL
       - name: Upload StarPU libraries (*.so)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.3.4
         with:
           name: starpu-${{ matrix.python-version }}
           path: /usr/local/lib/lib*.so*
@@ -121,7 +121,7 @@ jobs:
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_CUDA=OFF
           cmake --build build
       - name: Upload all shared objects (*.so)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.3.4
         with:
           name: shared-objects-${{ matrix.python-version }}
           path: build/**/*.so
@@ -216,7 +216,7 @@ jobs:
             torch torchvision
           python -m pip install datasets scipy tokenizers transformers
           # Testing dependencies.
-          python -m pip install 'pytest>=8.2' pytest-cov pytest-dirty
+          python -m pip install mypy 'pytest>=8.2' pytest-cov pytest-dirty
       - name: Run dirty tests with PyTest
         if: 'github.event.pull_request'
         run: |
@@ -237,9 +237,13 @@ jobs:
             --cov-report=xml:coverage/xml/report.${PYTHON_TAG}.xml \
             --junitxml=pytest/report.${PYTHON_TAG}.xml
       - name: Upload PyTest report for Python ${{ matrix.python-version }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.3.4
         with:
           name: pytest-report
           path: |
             coverage
             pytest
+      # This step never fails but it is useful to monitor status of type
+      # corectness.
+      - name: Check typing
+        run: mypy wrappers/python/nntile || true

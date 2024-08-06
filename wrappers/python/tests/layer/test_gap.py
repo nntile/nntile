@@ -11,28 +11,23 @@
 #
 # @version 1.0.0
 
-import nntile
 import numpy as np
-import torch.nn.functional as F
+import pytest
 import torch
-from nntile.torch_models.mlp_mixer import MixerMlp as TorchMixerMlp
 
+import nntile
+from nntile.layer import GAP as Gap_Layer
 
-# Set up StarPU configuration and init it
 config = nntile.starpu.Config(1, 0, 0)
-# Init all NNTile-StarPU codelets
 nntile.starpu.init()
-# Define list of tested types
-dtypes = [np.float32, np.float64]
+
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
         np.float64: nntile.tensor.Tensor_fp64}
 
-# Get MixerMlp layer from nntile
-Gap_Layer = nntile.layer.GAP
 
-# Helper function returns bool value true if test passes
-def helper(dtype: np.dtype):
+@pytest.mark.parametrize('dtype', [np.float32, np.float64])
+def test_gap(dtype: np.dtype):
     if dtype == np.float32:
         tol = 1e-5
     elif dtype == np.float64:
@@ -50,7 +45,7 @@ def helper(dtype: np.dtype):
     next_tag = A_grad.next_tag
 
     # Set initial values of tensors
-    rand_A = np.random.randn(*A_shape)
+    rand_A = np.random.default_rng(42).standard_normal(A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
 
@@ -67,22 +62,6 @@ def helper(dtype: np.dtype):
 
     np_Y2 = np.zeros_like(np_Y, order='F')
     layer.y.value.to_array(np_Y2)
-    if np.linalg.norm(np_Y-np_Y2)/np.linalg.norm(np_Y) > tol:
-        A_moments.unregister()
-        layer.unregister()
-        return False
-
+    assert np.linalg.norm(np_Y - np_Y2) / np.linalg.norm(np_Y) <= tol
     A_moments.unregister()
     layer.unregister()
-    print("test complete")
-    assert True
-
-
-# Test runner for different precisions
-def test():
-    for dtype in dtypes:
-        helper(dtype)
-
-
-if __name__ == "__main__":
-    test()

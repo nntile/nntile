@@ -74,6 +74,7 @@
 #include <nntile/tile/adamw_step.hh>
 #include <nntile/tile/silu_forward.hh>
 #include <nntile/tile/silu_backward.hh>
+#include <nntile/tile/rope.hh>
 #include <nntile/tile/norm_fiber.hh>
 
 //! @namespace nntile::tile

@@ -11,98 +11,63 @@
 #
 # @version 1.0.0
 
-# All necesary imports
-import nntile
 import numpy as np
-# Set up StarPU configuration and init it
+import pytest
+
+import nntile
+
 config = nntile.starpu.Config(1, 0, 0)
-# Init all NNTile-StarPU codelets
 nntile.starpu.init()
-# Define list of tested types
-dtypes = [np.float32, np.float64]
+
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
-        np.float64: nntile.tensor.Tensor_fp64}
+          np.float64: nntile.tensor.Tensor_fp64}
+
 # Define mapping between tested function and numpy type
 axpy = {np.float32: nntile.nntile_core.tensor.axpy_fp32,
         np.float64: nntile.nntile_core.tensor.axpy_fp64}
 
 
-# Helper function returns bool value true if test passes
-def helper(dtype):
+@pytest.mark.parametrize('dtype', [np.float32, np.float64])
+@pytest.mark.parametrize('scalar_type', ['nntile', 'numpy'])
+def test_axpy(dtype, scalar_type: str):
     # Describe single-tile tensor, located at node 0
     shape = [2, 3, 4]
     mpi_distr = [0]
     next_tag = 0
     traits = nntile.tensor.TensorTraits(shape, shape)
-    const_traits = nntile.tensor.TensorTraits([], [])
     # Tensor objects
     A = Tensor[dtype](traits, mpi_distr, next_tag)
     next_tag = A.next_tag
     B = Tensor[dtype](traits, mpi_distr, next_tag)
     next_tag = B.next_tag
-    alpha = Tensor[dtype](const_traits, mpi_distr, next_tag)
+
     # Set initial values of tensors
-    rand_A = np.random.randn(*shape)
+    rng = np.random.default_rng(42)
+    rand_A = rng.standard_normal(shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A.from_array(np_A)
-    rand_B = np.random.randn(*shape)
+    rand_B = rng.standard_normal(shape)
     np_B = np.array(rand_B, dtype=dtype, order='F')
     B.from_array(np_B)
-    a = np.random.randn(1)
-    alpha_np = np.array(a, dtype=dtype, order='F')
-    alpha.from_array(alpha_np)
+
+    match scalar_type:
+        case 'nntile':
+            const_traits = nntile.tensor.TensorTraits([], [])
+            alpha_np = rng.standard_normal(1).astype(dtype, 'F')
+            alpha = Tensor[dtype](const_traits, mpi_distr, next_tag)
+            alpha.from_array(alpha_np)
+        case 'numpy':
+            alpha_np = dtype(rng.standard_normal())
+            alpha = alpha_np
+
     axpy[dtype](alpha, A, B)
     np_C = np.zeros(shape, dtype=dtype, order='F')
     B.to_array(np_C)
     nntile.starpu.wait_for_all()
     A.unregister()
     B.unregister()
-    alpha.unregister()
+    if scalar_type == 'nntile':
+        alpha.unregister()
     # Compare results
-    return np.allclose(np_C, rand_B + alpha_np * rand_A)
-
-# Helper function returns bool value true if test passes
-def helper2(dtype):
-    # Describe single-tile tensor, located at node 0
-    shape = [2, 3, 4]
-    mpi_distr = [0]
-    next_tag = 0
-    traits = nntile.tensor.TensorTraits(shape, shape)
-    # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    B = Tensor[dtype](traits, mpi_distr, next_tag)
-    next_tag = B.next_tag
-    # Set initial values of tensors
-    rand_A = np.random.randn(*shape)
-    np_A = np.array(rand_A, dtype=dtype, order='F')
-    A.from_array(np_A)
-    rand_B = np.random.randn(*shape)
-    np_B = np.array(rand_B, dtype=dtype, order='F')
-    B.from_array(np_B)
-    a = np.array(np.random.randn(1), dtype=dtype)
-    axpy[dtype](a[0], A, B)
-    np_C = np.zeros(shape, dtype=dtype, order='F')
-    B.to_array(np_C)
-    nntile.starpu.wait_for_all()
-    A.unregister()
-    B.unregister()
-    # Compare results
-    return np.allclose(np_C, rand_B + a * rand_A)
-
-# Test runner for different precisions
-def test():
-    for dtype in dtypes:
-        assert helper(dtype)
-        assert helper2(dtype)
-
-# Repeat tests
-def test_repeat():
-    for dtype in dtypes:
-        assert helper(dtype)
-        assert helper2(dtype)
-
-if __name__ == "__main__":
-    test()
-    test_repeat()
+    assert np.allclose(np_C, rand_B + alpha_np * rand_A)

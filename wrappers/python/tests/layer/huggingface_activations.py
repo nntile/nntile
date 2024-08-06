@@ -12,11 +12,14 @@
 #
 # @version 1.0.0
 
+# ruff: noqa: E501
+
 import math
 from collections import OrderedDict
 
 import torch
 from torch import Tensor, nn
+from torch.nn.functional import gelu
 
 
 class PytorchGELUTanh(nn.Module):

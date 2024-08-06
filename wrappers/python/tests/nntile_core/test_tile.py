@@ -11,31 +11,30 @@
 #
 # @version 1.0.0
 
-import nntile
 import numpy as np
+import pytest
+from numpy.testing import assert_equal
+
+import nntile
+
 config = nntile.starpu.Config(1, 0, 0)
 
-def helper(shape, Tile, dtype):
-    traits = nntile.tile.TileTraits(shape)
-    tile = Tile(traits)
-    src = np.array(np.random.randn(*shape), dtype=dtype, order='F')
-    dst = np.zeros_like(src)
-    tile.from_array(src)
-    tile.to_array(dst)
-    nntile.starpu.wait_for_all()
-    tile.unregister()
-    return (dst == src).all()
+Tile = {np.float32: nntile.tile.Tile_fp32,
+        np.float64: nntile.tile.Tile_fp64}
 
-def test():
-    shape = [3, 4]
-    assert helper(shape, nntile.tile.Tile_fp32, np.float32)
-    assert helper(shape, nntile.tile.Tile_fp64, np.float64)
 
-def test_repeat():
-    shape = [3, 4]
-    assert helper(shape, nntile.tile.Tile_fp32, np.float32)
-    assert helper(shape, nntile.tile.Tile_fp64, np.float64)
+class TestTile:
 
-if __name__ == "__main__":
-    test()
-    test_repeat()
+    @pytest.mark.parametrize('dtype', [np.float32, np.float64])
+    def test_init(self, dtype, shape=(3, 4)):
+        traits = nntile.tile.TileTraits(shape)
+        tile = Tile[dtype](traits)
+        src = np.random.default_rng(42) \
+            .standard_normal(shape) \
+            .astype(dtype, 'F')
+        dst = np.zeros_like(src)
+        tile.from_array(src)
+        tile.to_array(dst)
+        nntile.starpu.wait_for_all()
+        tile.unregister()
+        assert_equal(dst, src)

@@ -2,6 +2,7 @@ NNTile
 ======
 
 ![Linting and testing.](https://github.com/nntile/nntile/actions/workflows/on-push.yml/badge.svg)
+![Nightly building.](https://github.com/nntile/nntile/actions/workflows/on-schedule.yml/badge.svg)
 
 ## General purpose
 

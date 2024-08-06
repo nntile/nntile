@@ -5,8 +5,8 @@ from typing import Annotated
 from fastapi import Body, FastAPI
 from pydantic import BaseModel, Field
 
-from nntile.inference.api_server_base import (SimpleApiServerBase,
-                                              SimpleApiServerParams)
+from nntile.inference.api_server_base import (
+    SimpleApiServerBase, SimpleApiServerParams)
 from nntile.model.generation.llm import GenerationMode, GenerationParams
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,13 @@ class SimpleLlmApiServerGenerateRequest(BaseModel):
     )
     mode: GenerationMode = Field(
         default=GenerationMode.Greedy, description="Strategy for generation"
+    )
+    use_cache: bool = Field(
+        default=True, description="Use key value cache for generation"
+    )
+    need_static_padding: bool = Field(
+        default=False,
+        description="Padd input tensor and use static model via forward_async",
     )
 
 
@@ -46,10 +53,16 @@ class SimpleLlmApiServer(SimpleApiServerBase):
                 SimpleLlmApiServerGenerateRequest, Body(embed=True)
             ],
         ):
-            logger.info(f"Start generating for request: {request.model_dump()}")
+            logger.info(
+                f"Start generating for request: {request.model_dump()}"
+            )
             generated_text = self.llm_engine.generate(
                 request.text,
-                params=GenerationParams(max_tokens=request.max_tokens),
+                params=GenerationParams(
+                    max_tokens=request.max_tokens,
+                    use_cache=request.use_cache,
+                    need_static_padding=request.need_static_padding,
+                ),
                 mode=request.mode,
             )
             return generated_text

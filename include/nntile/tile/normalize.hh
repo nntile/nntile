@@ -21,10 +21,10 @@ namespace nntile::tile
 
 template<typename T>
 void normalize_async(const Tile<T> &gamma_beta, const Tile<T> &sumnorm,
-        const Tile<T> &dst, Index l, Scalar eps, Index axis);
+        const Tile<T> &dst, Index size, Scalar eps, Index axis);
 
 template<typename T>
 void normalize(const Tile<T> &gamma_beta, const Tile<T> &sumnorm,
-        const Tile<T> &dst, Index l, Scalar eps, Index axis);
+        const Tile<T> &dst, Index size, Scalar eps, Index axis);
 
 } // namespace nntile::tile
