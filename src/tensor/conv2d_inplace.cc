@@ -38,8 +38,11 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
  * The following operation is performed:
  *      `Y` = `alpha`*`f(X, C)` + `beta`*`Y`,
  * where `f` operation does the following:
- *      `f[i,j,k,b]` = \sum_l \sum_m \sum_n `X[m,n,l,b]`
- *      * `C[m + offset_m - stride_m*i,n + offset_n - stride_n*j,l,k]`
+ *      `f[i,j,k,b]` = \sum_l \sum_m \sum_n X[m,n,l,b]`
+ *      * `C[(m + offset_m - stride_m*i) / dilation_m,
+ *           (n + offset_n - stride_n*j) / dilation_n,l,k]`
+ * with `(m + offset_m - stride_m*i) % dilation_m == 0`
+ * and `(n + offset_n - stride_n*i) % dilation_n == 0`
  *
  * Generally, `X` represents input of `Conv2d` layer, `C` represents
  * kernel of `Conv2d` layer and `Y` represents output of `Conv2d` layer.
@@ -137,18 +140,23 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
         Index Y_start_n = Y_tile_index[1] * Y.basetile_shape[1];
         Index Y_end_n = Y_start_n + Y_tile_traits.shape[1];
         // Get start and end indices `m` and `n` from the operation:
-        //      `f[i,j,k,b]` = \sum_l \sum_m \sum_n `X[m,n,l,b]`
-        //      * `C[m + offset_m - stride_m*i,n + offset_n - stride_n*j,l,k]`.
+        //      `f[i,j,k,b]` = \sum_l \sum_m \sum_n X[m,n,l,b]`
+        //          * `C[(m+offset_m-stride_m*i)/dilation_m,
+        //               (n+offset_n-stride_n*j)/dilation_n,l,k]`.
+        // with `(m + offset_m - stride_m*i) % dilation_m == 0`
+        // and `(n + offset_n - stride_n*i) % dilation_n == 0`
         // The kernel `C` has limited shape:
-        //      `0 <= m + offset_n - stride_m*i < C.shape[0]`
+        //      `0 <= m + offset_m - stride_m*i <= dilation_m*(C.shape[0] - 1)`
         // Therefore, `m` is limited as follows:
-        //      `m >= stride_m*i - offset_m`
-        //      `m < stride_m*i - offset_m + C.shape[0]`
+        //      `m >= stride_m*i-offset_m`
+        //      `m < stride_m*i-offset_m+dilation_m*(C.shape[0]-1)+1`
         // For `n` we get similar limits.
         Index X_start_m = stride[0]*Y_start_m - padding[0];
-        Index X_end_m = stride[0]*(Y_end_m-1) - padding[0] + C.shape[0];
+        Index X_end_m = stride[0]*(Y_end_m-1) - padding[0]
+            + dilation[0]*(C.shape[0]-1) + 1;
         Index X_start_n = stride[1]*Y_start_n - padding[1];
-        Index X_end_n = stride[1]*(Y_end_n-1) - padding[1] + C.shape[1];
+        Index X_end_n = stride[1]*(Y_end_n-1) - padding[1]
+            + dilation[1]*(C.shape[1]-1) + 1;
         // Get X tile coordinates that interact with Y tile
         Index X_start_tile_m = X_start_m / X.basetile_shape[0];
         Index X_end_tile_m = (X_end_m-1) / X.basetile_shape[0] + 1;
@@ -188,17 +196,18 @@ void conv2d_inplace_async(Scalar alpha, const Tensor<T> &X,
                 X_tile_index[1] = X_j;
                 auto X_tile_traits = X.get_tile_traits(X_tile_index);
                 auto X_tile_handle = X.get_tile_handle(X_tile_index);
-                Index offset_m = X_i*X.basetile_shape[0] - stride[0]*Y_start_m
-                    + padding[0];
-                Index offset_n = X_j*X.basetile_shape[1] - stride[1]*Y_start_n
-                    + padding[1];
+                Index offset_m = X_i*X.basetile_shape[0] + padding[0]
+                    - stride[0]*Y_start_m;
+                Index offset_n = X_j*X.basetile_shape[1] + padding[1]
+                    - stride[1]*Y_start_n;
                 starpu::conv2d_inplace::submit<T>(X_tile_traits.shape[0],
                         X_tile_traits.shape[1], X_tile_traits.shape[2],
-                        X_tile_traits.shape[3], C.shape[0],
-                        C.shape[1], Y_tile_traits.shape[2], offset_m,
-                        offset_n, alpha, X_tile_handle, C.get_tile_handle(0),
-                        Y_tile_traits.shape[0], Y_tile_traits.shape[1],
-                        stride[0], stride[1], Y_tile_beta, Y_tile_handle);
+                        X_tile_traits.shape[3], C.shape[0], C.shape[1],
+                        dilation[0], dilation[1], Y_tile_traits.shape[2],
+                        offset_m, offset_n, alpha, X_tile_handle,
+                        C.get_tile_handle(0), Y_tile_traits.shape[0],
+                        Y_tile_traits.shape[1], stride[0], stride[1],
+                        Y_tile_beta, Y_tile_handle);
                 Y_tile_beta = 1.0;
             }
         }

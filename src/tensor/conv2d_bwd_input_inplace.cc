@@ -39,7 +39,10 @@ void conv2d_bwd_input_inplace_async(Scalar alpha, const Tensor<T> &dY,
  *      `dX` = `alpha`*`f(dY, C)` + `beta`*`dX`,
  * where `f` operation does the following:
  *      `f[i,j,k,b]` = \sum_l \sum_m \sum_n `dY[m,n,l,b]`
- *      * `C[i + offset_m - stride_m*m,j + offset_n - stride_n*n,k,l]`
+ *      * `C[(i + offset_m - stride_m*m) / dilation_m,
+ *           (j + offset_n - stride_n*n) / dilation_n,k,l]`
+ * with `(i + offset_m - stride_m*m) % dilation_m == 0`
+ * and `(j + offset_n - stride_n*n) % dilation_n == 0`
  *
  * Generally, `dY` represents output grad of `Conv2d` layer, `C` represents
  * kernel of `Conv2d` layer and `dX` represents input grad of `Conv2d` layer.
@@ -129,16 +132,17 @@ void conv2d_bwd_input_inplace_async(Scalar alpha, const Tensor<T> &dY,
         Index dX_end_n = dX_start_n + dX_tile_traits.shape[1];
         // Get start and end indices `m` and `n` from the operation:
         //      `f[i,j,k,b]` = \sum_l \sum_m \sum_n `dY[m,n,l,b]`
-        //      * `C[i + offset_m - stride_m*m,j + offset_n - stride_n*n,l,k]`
-        // Limits are `0 <= i+offset_m-stride_m*m <= C.shape[0]-1`.
-        // Therefore, `i+offset_m-C.shape[0]+1 <= stride_m*m <= i+offset_m`.
-        // And lower bound of `m` shall be rounded up, while upper bound shall
-        // be rounded down.
-        Index dY_start_m = (dX_start_m+padding[0]-C.shape[0]+stride[0])
-            / stride[0];
+        //      * `C[(i + offset_m - stride_m*m) / dilation_m,
+        //           (j + offset_n - stride_n*n) / dilation_n,k,l]`
+        // Limits are `0 <= i+offset_m-stride_m*m <= dilation_m*(C.shape[0]-1)`
+        // Therefore,
+        //      `m >= ceil((i+offset_m-dilation_m*(C.shape[0]-1)) / stride_m)`
+        //      `m <= floor((i+offset_m) / stride_m)`.
+        Index dY_start_m = (dX_start_m+padding[0]-dilation[0]*(C.shape[0]-1)
+                +stride[0]-1) / stride[0];
         Index dY_end_m = (dX_end_m-1+padding[0]+stride[0]) / stride[0];
-        Index dY_start_n = (dX_start_n+padding[1]-C.shape[1]+stride[1])
-            / stride[1];
+        Index dY_start_n = (dX_start_n+padding[1]-dilation[1]*(C.shape[1]-1)
+                +stride[1]-1) / stride[1];
         Index dY_end_n = (dX_end_n-1+padding[1]+stride[1]) / stride[1];
         // Get dY tile coordinates that interact with dX tile
         Index dY_start_tile_m = dY_start_m / dY.basetile_shape[0];
@@ -187,10 +191,10 @@ void conv2d_bwd_input_inplace_async(Scalar alpha, const Tensor<T> &dY,
                         dY_tile_traits.shape[0], dY_tile_traits.shape[1],
                         stride[0], stride[1], dY_tile_traits.shape[2],
                         dY_tile_traits.shape[3], C.shape[0], C.shape[1],
-                        dX_tile_traits.shape[2], offset_m, offset_n, alpha,
-                        dY_tile_handle, C.get_tile_handle(0),
-                        dX_tile_traits.shape[0], dX_tile_traits.shape[1],
-                        dX_tile_beta, dX_tile_handle);
+                        dilation[0], dilation[1], dX_tile_traits.shape[2],
+                        offset_m, offset_n, alpha, dY_tile_handle,
+                        C.get_tile_handle(0), dX_tile_traits.shape[0],
+                        dX_tile_traits.shape[1], dX_tile_beta, dX_tile_handle);
                 dX_tile_beta = 1.0;
             }
         }
