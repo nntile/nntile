@@ -13,6 +13,7 @@
 
 from typing import List, Union
 
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -365,34 +366,37 @@ class Linear(BaseLayer):
         x_shape = self.x.value.shape
         w_shape = self.w.value.shape
         if self.side == "L":
-            if self.trans_x:
-                return x_shape[0] * x_shape[1] * w_shape[1]
-            else:
-                return x_shape[-1] * x_shape[-2] * w_shape[1]
+            return np.prod(x_shape) * np.prod(w_shape[self.ndim:])
         elif self.side == "R":
-            if self.trans_x:
-                return w_shape[-1] * w_shape[-2] * x_shape[-2]
-            else:
-                return w_shape[-1] * w_shape[-2] * x_shape[1]
+            return np.prod(x_shape) * np.prod(w_shape[:-self.ndim])
 
     def get_layer_backward_flops(self):
         x_shape = self.x.value.shape
         w_shape = self.w.value.shape
         y_grad_shape = self.y.grad.shape
+        w_grad_flops = 0
+        x_grad_flops = 0
         if self.side == "L":
-            if self.trans_x:
-                w_grad_flops = x_shape[0] * x_shape[1] * y_grad_shape[1]
-                x_grad_flops = w_shape[0] * w_shape[1] * y_grad_shape[1]
-            else:
-                w_grad_flops = x_shape[-1] * x_shape[-2] * y_grad_shape[1]
-                x_grad_flops = y_grad_shape[-1] * y_grad_shape[-2] * w_shape[1]
+            if self.w.grad_required:
+                w_grad_flops = (np.prod(x_shape) *
+                                np.prod(y_grad_shape[self.ndim:]))
+            if self.x.grad_required:
+                if self.trans_x == notrans:
+                    x_grad_flops = (np.prod(w_shape) *
+                                    np.prod(y_grad_shape[:-self.ndim]))
+                else:
+                    x_grad_flops = (np.prod(w_shape) *
+                                    np.prod(y_grad_shape[self.ndim:]))
         elif self.side == "R":
-            if self.trans_x:
-                w_grad_flops = x_shape[-2] * (y_grad_shape[-1] *
-                                              y_grad_shape[-2])
-                x_grad_flops = y_grad_shape[-1] * y_grad_shape[-2] * w_shape[1]
-            else:
-                w_grad_flops = y_grad_shape[-1] * y_grad_shape[-2] * x_shape[1]
-                x_grad_flops = w_shape[-1] * w_shape[-2] * y_grad_shape[1]
+            if self.w.grad_required:
+                w_grad_flops = (np.prod(x_shape) *
+                                np.prod(y_grad_shape[:-self.ndim]))
+            if self.x.grad_required:
+                if self.trans_x == notrans:
+                    x_grad_flops = (np.prod(w_shape) *
+                                    np.prod(y_grad_shape[self.ndim:]))
+                else:
+                    x_grad_flops = (np.prod(w_shape) *
+                                    np.prod(y_grad_shape[:-self.ndim]))
         total_backward_flops = w_grad_flops + x_grad_flops
         return total_backward_flops
