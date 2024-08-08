@@ -16,6 +16,7 @@ import torch
 from transformers.models.llama.modeling_llama import (
     LlamaAttention as LlamaAttention_torch, LlamaConfig as LlamaConfig_torch)
 
+import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
@@ -928,6 +929,285 @@ class LlamaAttention(BaseLayer):
             )
             self.out_proj_bias.value.wont_use()
         self.y.value.wont_use()
+
+    def _forward_mlp_q_dynamic(self, x):
+        q_partial_tr_bt_shape = tuple(
+            self.q_transposed.value.basetile_shape[:-2]
+        ) + tuple(x.shape[-2:])
+        q_partial_tr_shape = tuple(self.q_transposed.value.shape[:-2]) + tuple(
+            x.shape[-2:]
+        )
+        q_partial_tr = nntc.empty(
+            q_partial_tr_shape,
+            basetile_shape=q_partial_tr_bt_shape,
+            dtype=type(x),
+        )
+
+        q_partial_bt_shape = (
+            (self.q.value.basetile_shape[0],)
+            + tuple(x.shape[-2:])
+            + tuple(self.q.value.basetile_shape[-2:])
+        )
+        q_partial_shape = (
+            (self.q.value.shape[0],)
+            + tuple(x.shape[-2:])
+            + tuple(self.q.value.shape[-2:])
+        )
+        q_partial = nntc.empty(
+            q_partial_shape, basetile_shape=q_partial_bt_shape, dtype=type(x)
+        )
+
+        q_rope_partial = nntc.empty(
+            q_partial_shape, basetile_shape=q_partial_bt_shape, dtype=type(x)
+        )
+
+        gemm_async(
+            1.0,
+            notrans,
+            self.w_q.value,
+            notrans,
+            x,
+            0.0,
+            q_partial_tr,
+            1,
+            0,
+            redux=self.redux,
+        )
+
+        transpose_async(1.0, q_partial_tr, q_partial, 2)
+        q_partial_tr.invalidate_submit()
+
+        if self.in_proj_bias_q is not None:
+            add_fiber_async(1, self.in_proj_bias_q.value, 1, q_partial, 0, 2)
+
+        rope_async(self.sin, self.cos, q_partial, q_rope_partial)
+        q_partial.invalidate_submit()
+        return q_rope_partial
+
+    def _forward_mlp_k_dynamic(self, x):
+        k_partial_tr_bt_shape = tuple(
+            self.k_transposed.value.basetile_shape[:-2]
+        ) + tuple(x.shape[-2:])
+        k_partial_tr_shape = tuple(self.k_transposed.value.shape[:-2]) + tuple(
+            x.shape[-2:]
+        )
+        k_partial_tr = nntc.empty(
+            k_partial_tr_shape,
+            basetile_shape=k_partial_tr_bt_shape,
+            dtype=type(x),
+        )
+
+        k_partial_bt_shape = (
+            (self.k.value.basetile_shape[0],)
+            + tuple(x.shape[-2:])
+            + (self.k.value.basetile_shape[-1],)
+        )
+        k_partial_shape = (
+            (self.k.value.shape[0],)
+            + tuple(x.shape[-2:])
+            + (self.k.value.shape[-1],)
+        )
+        k_partial = nntc.empty(
+            k_partial_shape, basetile_shape=k_partial_bt_shape, dtype=type(x)
+        )
+
+        k_rope_partial = nntc.empty(
+            k_partial_shape, basetile_shape=k_partial_bt_shape, dtype=type(x)
+        )
+
+        k_rep_bt_shape = (
+            (self.q_rope.value.basetile_shape[0],)
+            + tuple(x.shape[-2:])
+            + tuple(self.q_rope.value.basetile_shape[-2:])
+        )
+        K_rep_shape = (
+            (self.q_rope.value.shape[0],)
+            + tuple(x.shape[-2:])
+            + tuple(self.q_rope.value.shape[-2:])
+        )
+        k_rep_partial = nntc.empty(
+            K_rep_shape, basetile_shape=k_rep_bt_shape, dtype=type(x)
+        )
+
+        gemm_async(
+            1.0,
+            notrans,
+            self.w_k.value,
+            notrans,
+            x,
+            0.0,
+            k_partial_tr,
+            1,
+            0,
+            redux=self.redux,
+        )
+        transpose_async(1.0, k_partial_tr, k_partial, 1)
+        if self.in_proj_bias_k is not None:
+            add_fiber_async(1, self.in_proj_bias_k.value, 1, k_partial, 0, 1)
+
+        rope_async(self.sin, self.cos, k_partial, k_rope_partial)
+        add_slice_async(1.0, k_rope_partial, 0.0, k_rep_partial, 3)
+
+        k_partial_tr.invalidate_submit()
+        k_rope_partial.invalidate_submit()
+        return k_rep_partial
+
+    def _forward_mlp_v_dynamic(self, x):
+        v_partial_tr_bt_shape = tuple(
+            self.v_transposed.value.basetile_shape[:-2]
+        ) + tuple(x.shape[-2:])
+        v_partial_tr_shape = tuple(self.v_transposed.value.shape[:-2]) + tuple(
+            x.shape[-2:]
+        )
+        v_partial_tr = nntc.empty(
+            v_partial_tr_shape,
+            basetile_shape=v_partial_tr_bt_shape,
+            dtype=type(x),
+        )
+
+        v_partial_bt_shape = (
+            (self.v.value.basetile_shape[0],)
+            + tuple(x.shape[-2:])
+            + (self.v.value.basetile_shape[-1],)
+        )
+        v_partial_shape = (
+            (self.v.value.shape[0],)
+            + tuple(x.shape[-2:])
+            + (self.v.value.shape[-1],)
+        )
+        v_partial = nntc.empty(
+            v_partial_shape, basetile_shape=v_partial_bt_shape, dtype=type(x)
+        )
+
+        v_rep_bt_shape = (
+            (self.v_rep.value.basetile_shape[0],)
+            + tuple(x.shape[-2:])
+            + tuple(self.v_rep.value.basetile_shape[-2:])
+        )
+        v_rep_shape = (
+            (self.v_rep.value.shape[0],)
+            + tuple(x.shape[-2:])
+            + tuple(self.v_rep.value.shape[-2:])
+        )
+        v_rep_partial = nntc.empty(
+            v_rep_shape, basetile_shape=v_rep_bt_shape, dtype=type(x)
+        )
+
+        gemm_async(
+            1.0,
+            notrans,
+            self.w_v.value,
+            notrans,
+            x,
+            0.0,
+            v_partial_tr,
+            1,
+            0,
+            redux=self.redux,
+        )
+        transpose_async(1.0, v_partial_tr, v_partial, 1)
+        if self.in_proj_bias_v is not None:
+            add_fiber_async(1, self.in_proj_bias_v.value, 1, v_partial, 0, 1)
+
+        v_partial_tr.invalidate_submit()
+
+        add_slice_async(1.0, v_partial, 0.0, v_rep_partial, 3)
+        v_partial.invalidate_submit()
+        return v_rep_partial
+
+    def _forward_attn_dynamic(self, q, k, v):
+        a_tmp = nntc.empty(
+            (k.shape[1],) + (q.shape[1],) + tuple(k.shape[2:]),
+            dtype=type(q),
+            basetile_shape=(k.basetile_shape[1],)
+            + (q.basetile_shape[1],)
+            + tuple(k.basetile_shape[2:]),
+        )  # (n_seq, n_seq, batch=n_batch, batch=n_head)
+        a_maxsumexp_tmp = nntc.empty(
+            (2,) + tuple(a_tmp.shape[1:]),
+            dtype=type(q),
+            basetile_shape=(2,) + tuple(a_tmp.basetile_shape[1:]),
+        )
+        b_tmp = nntc.empty(
+            q.shape,
+            dtype=type(q),
+            basetile_shape=q.basetile_shape,
+        )  # (head_size, n_seq, n_batch, n_head)
+        b_tr_tmp = nntc.empty(
+            tuple(b_tmp.shape[3:]) + tuple(b_tmp.shape[:3]),
+            dtype=type(q),
+            basetile_shape=tuple(b_tmp.basetile_shape[3:])
+            + tuple(b_tmp.basetile_shape[:3]),
+        )  # (n_head, head_size, n_seq, n_batch)
+
+        y_tensor = nntc.empty(
+            (self.q.value.shape[0],) + tuple(q.shape[1:3]),
+            dtype=type(q),
+            basetile_shape=(self.q.value.basetile_shape[0],)
+            + tuple(q.basetile_shape[1:3]),
+        )
+
+        gemm_async(
+            1.0 / self.head_size**0.5,
+            trans,
+            k,
+            notrans,
+            q,
+            0.0,
+            a_tmp,
+            1,
+            3,
+            redux=self.redux,
+        )
+        clear_async(a_maxsumexp_tmp)
+        # if self.mask:
+        #     raise Exception("not implemented")
+
+        maxsumexp_async(a_tmp, a_maxsumexp_tmp, 0, redux=self.redux)
+        softmax_inplace_async(a_maxsumexp_tmp, 1.0, a_tmp, 0)
+
+        gemm_async(
+            1.0,
+            notrans,
+            v,
+            notrans,
+            a_tmp,
+            0.0,
+            b_tmp,
+            1,
+            3,
+            redux=self.redux,
+        )
+
+        transpose_async(1.0, b_tmp, b_tr_tmp, 3)
+
+        gemm_async(
+            1.0,
+            notrans,
+            self.w.value,
+            notrans,
+            b_tr_tmp,
+            0.0,
+            y_tensor,
+            3,
+            0,
+            redux=self.redux,
+        )
+
+        if self.out_proj_bias is not None:
+            add_fiber_async(1.0, self.out_proj_bias.value, 1.0, y_tensor, 0, 0)
+
+        return y_tensor
+
+    def forward_dynamic(self, x: TensorMoments):
+        q_rope_partial = self._forward_mlp_q_dynamic(x.value)
+        k_rep_partial = self._forward_mlp_k_dynamic(x.value)
+        v_rep_partial = self._forward_mlp_v_dynamic(x.value)
+
+        y_tensor = self._forward_attn_dynamic(
+            q_rope_partial, k_rep_partial, v_rep_partial
+        )
+        return TensorMoments(y_tensor, None, False)
 
     # Backward propagation of the linear layer
     def backward_async(self):
