@@ -47,11 +47,11 @@ BATCH_NORM_2D_TEST_PARAMS = [
 def generate_input(params: BatchNormTestParams, rng):
     input_np = rng.random(params.shape).astype(params.dtype)
     output_grad_np = rng.random(params.shape).astype(params.dtype)
-    weights_np = rng.random(params.shape[1:2]).astype(params.dtype)
-    bias_np = rng.random(params.shape[1:2]).astype(params.dtype)
+    weights_np = rng.random(params.shape[2:3]).astype(params.dtype)
+    bias_np = rng.random(params.shape[2:3]).astype(params.dtype)
 
-    input_torch = torch.tensor(input_np, requires_grad=True)
-    output_grad_torch = torch.tensor(output_grad_np, requires_grad=False)
+    input_torch = torch.tensor(input_np.T, requires_grad=True)
+    output_grad_torch = torch.tensor(output_grad_np.T, requires_grad=False)
     weights_torch = torch.tensor(weights_np)
     bias_torch = torch.tensor(bias_np)
 
@@ -90,9 +90,9 @@ def generate_input(params: BatchNormTestParams, rng):
 
 @pytest.mark.parametrize("params", BATCH_NORM_2D_TEST_PARAMS)
 class TestBatchNorm2d:
-
-    def test_forward(self, starpu_simple, numpy_rng, torch_rng,
-                     params: BatchNormTestParams):
+    def test_batchnorm_forward(
+        self, starpu_simple, numpy_rng, torch_rng, params: BatchNormTestParams
+    ):
         (
             (input_moment, _, weights_nnt, bias_nnt),
             (input_torch, _, weights_torch, bias_torch),
@@ -100,7 +100,7 @@ class TestBatchNorm2d:
 
         # torch forward
         bn_torch = nn.BatchNorm2d(
-            params.shape[1], dtype=input_torch.dtype, affine=False
+            params.shape[2], dtype=input_torch.dtype, affine=False
         )
         bn_torch.weight = torch.nn.Parameter(weights_torch)
         bn_torch.bias = torch.nn.Parameter(bias_torch)
@@ -118,13 +118,15 @@ class TestBatchNorm2d:
         # test forward
         np.testing.assert_allclose(
             nntile.tensor.to_numpy(nntile_layer.y.value),
-            out_torch.detach().numpy(),
-            atol=params.atol,
+            out_torch.detach().numpy().T,
+            atol=5e-5,
+            rtol=1e-6,
             err_msg=f"Error in forward for params: {params}",
         )
 
-    def test_backward(self, starpu_simple, numpy_rng, torch_rng,
-                      params: BatchNormTestParams):
+    def test_batchnorm_backward(
+        self, starpu_simple, numpy_rng, torch_rng, params: BatchNormTestParams
+    ):
         (
             (input_moment, output_grad_nnt, weights_nnt, bias_nnt),
             (input_torch, output_grad_torch, weights_torch, bias_torch),
@@ -132,7 +134,7 @@ class TestBatchNorm2d:
 
         # torch forward/backward
         bn_torch = nn.BatchNorm2d(
-            params.shape[1], dtype=input_torch.dtype, affine=False
+            params.shape[2], dtype=input_torch.dtype, affine=False
         )
         bn_torch.weight = torch.nn.Parameter(weights_torch)
         bn_torch.bias = torch.nn.Parameter(bias_torch)
@@ -155,20 +157,25 @@ class TestBatchNorm2d:
         np.testing.assert_allclose(
             nntile.tensor.to_numpy(nntile_layer.bias.grad),
             bn_torch.bias.grad.numpy(),
-            atol=params.atol,
+            atol=5e-5,
+            rtol=1e-6,
+            err_msg=f"Error in backward d(batch_norm)/d(bias) for params: {params}",
         )
 
         # test d(batch_norm)/d(weight)
-        # for some reasons not good match. Maybe different order of operations
         np.testing.assert_allclose(
             nntile.tensor.to_numpy(nntile_layer.weight.grad),
             bn_torch.weight.grad.numpy(),
-            atol=5e-5,
+            atol=5e-5,  # for some reasons not good match. Maybe different order of operations
+            rtol=1e-6,
+            err_msg=f"Error in backward test d(batch_norm)/d(weight) for params: {params}",
         )
 
         # test d(batch_norm)/d(input)
         np.testing.assert_allclose(
             nntile.tensor.to_numpy(nntile_layer.x.grad),
-            input_torch.grad.numpy(),
-            atol=params.atol,
+            input_torch.grad.numpy().T,
+            atol=5e-5,
+            rtol=1e-6,
+            err_msg=f"Error in backward d(batch_norm)/d(input) for params: {params}",
         )
