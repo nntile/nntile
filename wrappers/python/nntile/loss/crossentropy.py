@@ -11,24 +11,30 @@
 #
 # @version 1.0.0
 
-from nntile.tensor import softmax_async, clear_async, \
-        subtract_indexed_outputs_async, logsumexp_async, maxsumexp_async, \
-        total_sum_accum_async
-from nntile.tensor import TensorTraits, Tensor, TensorMoments, \
-        Tensor_int64
-import numpy as np
+from nntile.tensor import (
+    Tensor, Tensor_int64, TensorMoments, TensorTraits, clear_async,
+    logsumexp_async, maxsumexp_async, softmax_async,
+    subtract_indexed_outputs_async, total_sum_accum_async)
+
 
 class CrossEntropy:
     model_output: TensorMoments
-    y: Tensor_int64 # labels
+    y: Tensor_int64  # labels
     val: Tensor
     tmp: Tensor
     maxsumexp: Tensor
 
     # Constructor of loss with all the provided data
-    def __init__(self, model_output: TensorMoments, labels: Tensor_int64, \
-            val: Tensor, maxsumexp: Tensor, logsumexp: Tensor, \
-            redux: bool=False, scale: float=1.0):
+    def __init__(
+        self,
+        model_output: TensorMoments,
+        labels: Tensor_int64,
+        val: Tensor,
+        maxsumexp: Tensor,
+        logsumexp: Tensor,
+        redux: bool = False,
+        scale: float = 1.0,
+    ):
         self.model_output = model_output
         self.val = val
         self.val.set_reduction_add()
@@ -44,26 +50,40 @@ class CrossEntropy:
 
     # Simple generator
     @staticmethod
-    def generate_simple(model_output: TensorMoments, next_tag: int, \
-            redux: bool=False, scale: float=1.0) -> tuple:
+    def generate_simple(
+        model_output: TensorMoments,
+        next_tag: int,
+        redux: bool = False,
+        scale: float = 1.0,
+    ) -> tuple:
         shape = model_output.value.shape[1:]
         basetile = model_output.value.basetile_shape[1:]
         labels_traits = TensorTraits(shape, basetile)
-        labels = Tensor_int64(labels_traits, model_output.value.distribution, \
-                next_tag)
+        labels = Tensor_int64(
+            labels_traits, model_output.value.distribution, next_tag
+        )
         next_tag = labels.next_tag
-        maxsumexp_traits = TensorTraits([2]+shape, [2]+basetile)
-        maxsumexp = type(model_output.value)(maxsumexp_traits, \
-                model_output.value.distribution, next_tag)
+        maxsumexp_traits = TensorTraits([2] + shape, [2] + basetile)
+        maxsumexp = type(model_output.value)(
+            maxsumexp_traits, model_output.value.distribution, next_tag
+        )
         next_tag = maxsumexp.next_tag
         val_traits = TensorTraits([], [])
         val = type(model_output.value)(val_traits, [0], next_tag)
         next_tag = val.next_tag
-        logsumexp = type(model_output.value)(labels_traits, \
-                model_output.value.distribution, next_tag)
+        logsumexp = type(model_output.value)(
+            labels_traits, model_output.value.distribution, next_tag
+        )
         next_tag = logsumexp.next_tag
-        loss = CrossEntropy(model_output, labels, val, maxsumexp, logsumexp, \
-                redux=redux, scale=scale)
+        loss = CrossEntropy(
+            model_output,
+            labels,
+            val,
+            maxsumexp,
+            logsumexp,
+            redux=redux,
+            scale=scale,
+        )
         return loss, next_tag
 
     def unregister(self):
@@ -81,16 +101,28 @@ class CrossEntropy:
     # Get value and gradient if needed
     def calc_async(self):
         clear_async(self.maxsumexp)
-        maxsumexp_async(self.model_output.value, self.maxsumexp, 0, \
-                redux=self.redux)
+        maxsumexp_async(
+            self.model_output.value, self.maxsumexp, 0, redux=self.redux
+        )
         logsumexp_async(self.maxsumexp, self.logsumexp)
-        total_sum_accum_async(self.scale, self.logsumexp, \
-                self.model_output.value, self.y, self.val)
+        total_sum_accum_async(
+            self.scale,
+            self.logsumexp,
+            self.model_output.value,
+            self.y,
+            self.val,
+        )
         if self.model_output.grad_required is True:
-            softmax_async(self.maxsumexp, self.model_output.value, \
-                    self.scale, self.model_output.grad, 0)
-            subtract_indexed_outputs_async(self.scale, self.y, \
-                    self.model_output.grad)
+            softmax_async(
+                self.maxsumexp,
+                self.model_output.value,
+                self.scale,
+                self.model_output.grad,
+                0,
+            )
+            subtract_indexed_outputs_async(
+                self.scale, self.y, self.model_output.grad
+            )
         self.model_output.value.wont_use()
         self.model_output.grad.wont_use()
         self.maxsumexp.wont_use()

@@ -11,12 +11,13 @@
 #
 # @version 1.0.0
 
-from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        copy_async, axpy_async, clear_async
-from nntile.layer.base_layer import BaseLayer
-from nntile.model.base_model import BaseModel
+from typing import Any, List
+
 import numpy as np
-from typing import List, Any
+
+from nntile.model.base_model import BaseModel
+from nntile.tensor import Tensor, clear_async, copy_async
+
 
 class Pipeline(object):
     x: List[List[Tensor]]
@@ -27,7 +28,7 @@ class Pipeline(object):
     n_epochs: int
     lr: float
 
-    def __init__(self, x: List[List[Tensor]], y: List[List[Tensor]], \
+    def __init__(self, x: List[List[Tensor]], y: List[List[Tensor]],
             model: BaseModel, opt, loss, n_epochs):
         self.x = x
         self.y = y
@@ -38,8 +39,6 @@ class Pipeline(object):
         self.loss_hist = []
 
     def train_async(self):
-        batch_counter = 0
-        total_batch_num = len(self.x)
         for i_epoch in range(self.n_epochs):
             # print("Epoch ", i_epoch)
             num_batches = len(self.x)
@@ -61,12 +60,11 @@ class Pipeline(object):
                     # activations[-1].value of the model and write gradient
                     # into activations[-1].grad
                     self.loss.calc_async()
-                    # Print value asynchronously
-                    #self.loss.val.print_scalar_async()
                     # Now do the backward pass
                     self.model.backward_async()
-                    # Invalidate activations[2:]. We have to keep activations[1] as
-                    # it holds positional embedding indices, that are computed once
+                    # Invalidate activations[2:]. We have to keep
+                    # activations[1] as it holds positional embedding indices,
+                    # that are computed once
                     for t in self.model.activations[2:]:
                         t.value.invalidate_submit()
                     # Invalidate gradients of activations
@@ -87,9 +85,10 @@ class Pipeline(object):
                 self.loss.get_val(loss_np)
                 self.loss_hist.append(loss_np[0])
                 # print("Loss in {} epoch = {}".format(i_epoch, loss_np[0]))
-                print("Batch={}/{} Epoch={}/{} Loss={}".format( \
-                        i_batch+1, num_batches, i_epoch+1, self.n_epochs, \
+                print("Batch={}/{} Epoch={}/{} Loss={}".format(
+                        i_batch + 1, num_batches, i_epoch + 1, self.n_epochs,
                         loss_np[0]), flush=True)
             # nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
             # self.loss.get_val(nntile_xentropy_np)
-            # print("Last batch loss after in {} epoch = {}".format(i_epoch, nntile_xentropy_np[0]))
+            # print("Last batch loss after in {} epoch = {}".format(
+            #       i_epoch, nntile_xentropy_np[0]))
