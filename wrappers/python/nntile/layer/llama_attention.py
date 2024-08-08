@@ -1582,7 +1582,7 @@ class LlamaAttention(BaseLayer):
             # dW += einsum('jni,klmni->jklm', dY, B_transposed)
             y_grad_shape = self.y.grad.shape
             bt_shape = self.b_transposed.value.shape
-            w_grad_flops = 2 * np.prod(bt_shape) * np.prod(y_grad_shape[:-2])
+            w_grad_flops = 2 * np.prod(bt_shape) * np.prod(y_grad_shape[0])
             total_backward_flops += w_grad_flops
         if self.b_transposed.grad_required:
             # dB_transposed = einsum('jklm,jni->klmni', W, dY)
@@ -1613,7 +1613,7 @@ class LlamaAttention(BaseLayer):
             # batch_ndim = 3
             q_rope_shape = self.q_rope.value.shape
             a_grad_shape = self.a.grad.shape
-            k_rep_grad_flops = 2 * np.prod(a_grad_shape) * q_rope_shape[1]
+            k_rep_grad_flops = 2 * np.prod(a_grad_shape) * q_rope_shape[0]
             total_backward_flops += k_rep_grad_flops
         if self.q_rope.grad_required:
             # dQ_rope = 1.0/sqrt(head_size)
@@ -1629,46 +1629,46 @@ class LlamaAttention(BaseLayer):
             # ndim = 2
             v_t_grad_shape = self.v_transposed.grad.shape
             w_v_shape = self.w_v.value.shape
-            x_v_grad_flops = 2 * (np.prod(w_v_shape) *
-                                  np.prod(v_t_grad_shape[2:]))
+            x_v_grad_flops = (2 * np.prod(w_v_shape) *
+                              np.prod(v_t_grad_shape[2:]))
             total_backward_flops += x_v_grad_flops
         if self.w_v.grad_required:
             # dW_V += einsum('jkmn,lmn->jkl', dV_transposed, X_V)
             # ndim = 2
             x_v_shape = self.x_v.value.shape
             v_t_grad_shape = self.v_transposed.grad.shape
-            w_v_grad_flops = 2 * (np.prod(x_v_shape) *
-                                  np.prod(v_t_grad_shape[:-2]))
+            w_v_grad_flops = (2 * np.prod(x_v_shape) *
+                              np.prod(v_t_grad_shape[:-2]))
             total_backward_flops += w_v_grad_flops
         if self.x_k.grad_required:
             # dX_K += einsum('jkl,jkmn->lmn', W_K, dK_transposed)
             # ndim = 2
             kt_grad_shape = self.k_transposed.grad.shape
             w_k_shape = self.w_k.value.shape
-            x_k_grad_flops = 2 * (np.prod(w_k_shape) *
-                                  np.prod(kt_grad_shape[2:]))
+            x_k_grad_flops = (2 * np.prod(w_k_shape) *
+                              np.prod(kt_grad_shape[2:]))
             total_backward_flops += x_k_grad_flops
         if self.w_k.grad_required:
             # dW_K += einsum('jkmn,lmn->jkl', dK_transposed, X_K)
             # ndim = 2
             x_k_shape = self.x_k.value.shape
             kt_grad_shape = self.k_transposed.grad.shape
-            w_k_grad_flops = 2 * np.prod(kt_grad_shape) * x_k_shape[-1]
+            w_k_grad_flops = 2 * np.prod(kt_grad_shape) * x_k_shape[0]
             total_backward_flops += w_k_grad_flops
         if self.x_q.grad_required:
             # dX_Q += einsum('ijkl,ijkmn->lmn', W_Q, dQ_transposed)
             # ndim = 3
             qt_grad_shape = self.q_transposed.grad.shape
             w_q_shape = self.w_q.value.shape
-            x_q_grad_flops = 2 * (np.prod(w_q_shape) *
-                                  np.prod(qt_grad_shape[3:]))
+            x_q_grad_flops = (2 * np.prod(w_q_shape) *
+                              np.prod(qt_grad_shape[3:]))
             total_backward_flops += x_q_grad_flops
         if self.w_q.grad_required:
             # dW_Q += einsum('ijkmn,lmn->ijkl', dQ_transposed, X_Q)
             # ndim = 2
             x_q_shape = self.x_q.value.shape
             qt_grad_shape = self.q_transposed.grad.shape
-            w_q_grad_flops = 2 * (np.prod(x_q_shape) *
-                                  np.prod(qt_grad_shape[:-2]))
+            w_q_grad_flops = (2 * np.prod(x_q_shape) *
+                              np.prod(qt_grad_shape[:-2]))
             total_backward_flops += w_q_grad_flops
         return total_backward_flops
