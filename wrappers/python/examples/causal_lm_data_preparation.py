@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/examples/prepare_data.py
-# Data preparation for training models
+# @file wrappers/python/examples/causal_lm_data_preparation.py
+# Data preparation for causal language modeling
 #
 # @version 1.0.0
 
