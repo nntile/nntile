@@ -957,10 +957,6 @@ class LlamaAttention(BaseLayer):
             q_partial_shape, basetile_shape=q_partial_bt_shape, dtype=type(x)
         )
 
-        q_rope_partial = nntc.empty(
-            q_partial_shape, basetile_shape=q_partial_bt_shape, dtype=type(x)
-        )
-
         gemm_async(
             1.0,
             notrans,
@@ -980,15 +976,7 @@ class LlamaAttention(BaseLayer):
         if self.in_proj_bias_q is not None:
             add_fiber_async(1, self.in_proj_bias_q.value, 1, q_partial, 0, 2)
 
-        sin_partial = nntc.empty((self.sin.shape[0],)+tuple(x.shape[-2:]))
-        cos_partial = nntc.empty((self.cos.shape[0],)+tuple(x.shape[-2:]))
-        copy_intersection_async(self.sin, [0,0,0], sin_partial, [0,0,0])
-        copy_intersection_async(self.cos, [0,0,0], cos_partial, [0,0,0])
-        rope_async(sin_partial, cos_partial, q_partial, q_rope_partial)
-        sin_partial.invalidate_submit()
-        cos_partial.invalidate_submit()
-        q_partial.invalidate_submit()
-        return q_rope_partial
+        return q_partial
 
     def _forward_mlp_k_dynamic(self, x):
         k_partial_tr_bt_shape = tuple(
@@ -1017,10 +1005,6 @@ class LlamaAttention(BaseLayer):
             k_partial_shape, basetile_shape=k_partial_bt_shape, dtype=type(x)
         )
 
-        k_rope_partial = nntc.empty(
-            k_partial_shape, basetile_shape=k_partial_bt_shape, dtype=type(x)
-        )
-
         k_rep_bt_shape = (
             (self.q_rope.value.basetile_shape[0],)
             + tuple(x.shape[-2:])
@@ -1030,9 +1014,6 @@ class LlamaAttention(BaseLayer):
             (self.q_rope.value.shape[0],)
             + tuple(x.shape[-2:])
             + tuple(self.q_rope.value.shape[-2:])
-        )
-        k_rep_partial = nntc.empty(
-            K_rep_shape, basetile_shape=k_rep_bt_shape, dtype=type(x)
         )
 
         gemm_async(
@@ -1051,18 +1032,7 @@ class LlamaAttention(BaseLayer):
         if self.in_proj_bias_k is not None:
             add_fiber_async(1, self.in_proj_bias_k.value, 1, k_partial, 0, 1)
 
-        sin_partial = nntc.empty((self.sin.shape[0],)+tuple(x.shape[-2:]))
-        cos_partial = nntc.empty((self.cos.shape[0],)+tuple(x.shape[-2:]))
-        copy_intersection_async(self.sin, [0,0,0], sin_partial, [0,0,0])
-        copy_intersection_async(self.cos, [0,0,0], cos_partial, [0,0,0])
-        rope_async(sin_partial, cos_partial, k_partial, k_rope_partial)
-        sin_partial.invalidate_submit()
-        cos_partial.invalidate_submit()
-        add_slice_async(1.0, k_rope_partial, 0.0, k_rep_partial, 3)
-
-        k_partial_tr.invalidate_submit()
-        k_rope_partial.invalidate_submit()
-        return k_rep_partial
+        return k_partial
 
     def _forward_mlp_v_dynamic(self, x):
         v_partial_tr_bt_shape = tuple(
@@ -1091,20 +1061,6 @@ class LlamaAttention(BaseLayer):
             v_partial_shape, basetile_shape=v_partial_bt_shape, dtype=type(x)
         )
 
-        v_rep_bt_shape = (
-            (self.v_rep.value.basetile_shape[0],)
-            + tuple(x.shape[-2:])
-            + tuple(self.v_rep.value.basetile_shape[-2:])
-        )
-        v_rep_shape = (
-            (self.v_rep.value.shape[0],)
-            + tuple(x.shape[-2:])
-            + tuple(self.v_rep.value.shape[-2:])
-        )
-        v_rep_partial = nntc.empty(
-            v_rep_shape, basetile_shape=v_rep_bt_shape, dtype=type(x)
-        )
-
         gemm_async(
             1.0,
             notrans,
@@ -1123,9 +1079,7 @@ class LlamaAttention(BaseLayer):
 
         v_partial_tr.invalidate_submit()
 
-        add_slice_async(1.0, v_partial, 0.0, v_rep_partial, 3)
-        v_partial.invalidate_submit()
-        return v_rep_partial
+        return v_partial
 
     def _forward_attn_dynamic(self, q, k, v):
         a_tmp = nntc.empty(
@@ -1153,9 +1107,9 @@ class LlamaAttention(BaseLayer):
         )  # (n_head, head_size, n_seq, n_batch)
 
         y_tensor = nntc.empty(
-            (self.q.value.shape[0],) + tuple(q.shape[1:3]),
+            (self.w.value.shape[0],) + tuple(q.shape[1:3]),
             dtype=type(q),
-            basetile_shape=(self.q.value.basetile_shape[0],)
+            basetile_shape=(self.w.value.basetile_shape[0],)
             + tuple(q.basetile_shape[1:3]),
         )
 
@@ -1172,8 +1126,12 @@ class LlamaAttention(BaseLayer):
             redux=self.redux,
         )
         clear_async(a_maxsumexp_tmp)
-        # if self.mask:
-        #     raise Exception("not implemented")
+        if self.mask:
+            mask_tmp = nntc.empty(a_tmp.shape[:2], dtype=Tensor_bool)
+            copy_intersection_async(
+                self.mask, [0, 0], mask_tmp, [0, k.shape[1] - q.shape[1]]
+            )
+            mask_scalar_async(mask_tmp, self.val, a_tmp, 3)
 
         maxsumexp_async(a_tmp, a_maxsumexp_tmp, 0, redux=self.redux)
         softmax_inplace_async(a_maxsumexp_tmp, 1.0, a_tmp, 0)
@@ -1211,14 +1169,89 @@ class LlamaAttention(BaseLayer):
 
         return y_tensor
 
+    def _apply_rope_dynamic(
+        self, x: Tensor, q_partial: Tensor, k_partial: Tensor
+    ):
+        q_rope_partial = nntc.empty(
+            q_partial.shape,
+            basetile_shape=q_partial.basetile_shape,
+            dtype=type(x),
+        )
+        k_rope_partial = nntc.empty(
+            k_partial.shape,
+            basetile_shape=k_partial.basetile_shape,
+            dtype=type(x),
+        )
+
+        sin_partial = nntc.empty((self.sin.shape[0],) + tuple(x.shape[-2:]))
+        cos_partial = nntc.empty((self.cos.shape[0],) + tuple(x.shape[-2:]))
+        copy_intersection_async(self.sin, [0, 0, 0], sin_partial, [0, 0, 0])
+        copy_intersection_async(self.cos, [0, 0, 0], cos_partial, [0, 0, 0])
+
+        rope_async(sin_partial, cos_partial, q_partial, q_rope_partial)
+        rope_async(sin_partial, cos_partial, k_partial, k_rope_partial)
+
+        sin_partial.invalidate_submit()
+        cos_partial.invalidate_submit()
+        return q_rope_partial, k_rope_partial
+
+    def _broadcast_kv_dynamic(
+        self, x: Tensor, k_rope_partial: Tensor, v_partial: Tensor
+    ):
+        k_rep_bt_shape = (
+            (self.q_rope.value.basetile_shape[0],)
+            + tuple(x.shape[-2:])
+            + tuple(self.q_rope.value.basetile_shape[-2:])
+        )
+        K_rep_shape = (
+            (self.q_rope.value.shape[0],)
+            + tuple(x.shape[-2:])
+            + tuple(self.q_rope.value.shape[-2:])
+        )
+        k_rep_partial = nntc.empty(
+            K_rep_shape, basetile_shape=k_rep_bt_shape, dtype=type(x)
+        )
+
+        v_rep_bt_shape = (
+            (self.v_rep.value.basetile_shape[0],)
+            + tuple(x.shape[-2:])
+            + tuple(self.v_rep.value.basetile_shape[-2:])
+        )
+        v_rep_shape = (
+            (self.v_rep.value.shape[0],)
+            + tuple(x.shape[-2:])
+            + tuple(self.v_rep.value.shape[-2:])
+        )
+        v_rep_partial = nntc.empty(
+            v_rep_shape, basetile_shape=v_rep_bt_shape, dtype=type(x)
+        )
+
+        add_slice_async(1.0, k_rope_partial, 0.0, k_rep_partial, 3)
+        add_slice_async(1.0, v_partial, 0.0, v_rep_partial, 3)
+
+        return k_rep_partial, v_rep_partial
+
     def forward_dynamic(self, x: TensorMoments):
-        q_rope_partial = self._forward_mlp_q_dynamic(x.value)
-        k_rep_partial = self._forward_mlp_k_dynamic(x.value)
-        v_rep_partial = self._forward_mlp_v_dynamic(x.value)
+        q_partial = self._forward_mlp_q_dynamic(x.value)
+        k_partial = self._forward_mlp_k_dynamic(x.value)
+        v_partial = self._forward_mlp_v_dynamic(x.value)
+
+        q_rope_partial, k_rope_partial = self._apply_rope_dynamic(
+            x.value, q_partial, k_partial
+        )
+        q_partial.invalidate_submit()
+        k_partial.invalidate_submit()
+
+        k_rep_partial, v_rep_partial = self._broadcast_kv_dynamic(
+            x.value, k_rope_partial, v_partial
+        )
+        v_partial.invalidate_submit()
+        k_rope_partial.invalidate_submit()
 
         y_tensor = self._forward_attn_dynamic(
             q_rope_partial, k_rep_partial, v_rep_partial
         )
+
         return TensorMoments(y_tensor, None, False)
 
     # Backward propagation of the linear layer
