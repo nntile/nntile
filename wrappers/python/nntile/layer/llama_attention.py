@@ -23,7 +23,7 @@ from nntile.tensor import (
     add_fiber_async, add_slice_async, clear_async, gemm_async,
     mask_scalar_async, maxsumexp_async, notrans, prod_async, rope_async,
     rope_backward_async, softmax_inplace_async, sum_fiber_async,
-    sum_slice_async, sumprod_slice_async, to_numpy, trans, transpose_async)
+    sum_slice_async, sumprod_slice_async, to_numpy, trans, transpose_async, copy_intersection_async)
 
 from ..model.llama_config import LlamaConfigNNTile
 
@@ -980,7 +980,13 @@ class LlamaAttention(BaseLayer):
         if self.in_proj_bias_q is not None:
             add_fiber_async(1, self.in_proj_bias_q.value, 1, q_partial, 0, 2)
 
-        rope_async(self.sin, self.cos, q_partial, q_rope_partial)
+        sin_partial = nntc.empty((self.sin.shape[0],)+tuple(x.shape[-2:]))
+        cos_partial = nntc.empty((self.cos.shape[0],)+tuple(x.shape[-2:]))
+        copy_intersection_async(self.sin, [0,0,0], sin_partial, [0,0,0])
+        copy_intersection_async(self.cos, [0,0,0], cos_partial, [0,0,0])
+        rope_async(sin_partial, cos_partial, q_partial, q_rope_partial)
+        sin_partial.invalidate_submit()
+        cos_partial.invalidate_submit()
         q_partial.invalidate_submit()
         return q_rope_partial
 
@@ -1045,7 +1051,13 @@ class LlamaAttention(BaseLayer):
         if self.in_proj_bias_k is not None:
             add_fiber_async(1, self.in_proj_bias_k.value, 1, k_partial, 0, 1)
 
-        rope_async(self.sin, self.cos, k_partial, k_rope_partial)
+        sin_partial = nntc.empty((self.sin.shape[0],)+tuple(x.shape[-2:]))
+        cos_partial = nntc.empty((self.cos.shape[0],)+tuple(x.shape[-2:]))
+        copy_intersection_async(self.sin, [0,0,0], sin_partial, [0,0,0])
+        copy_intersection_async(self.cos, [0,0,0], cos_partial, [0,0,0])
+        rope_async(sin_partial, cos_partial, k_partial, k_rope_partial)
+        sin_partial.invalidate_submit()
+        cos_partial.invalidate_submit()
         add_slice_async(1.0, k_rope_partial, 0.0, k_rep_partial, 3)
 
         k_partial_tr.invalidate_submit()

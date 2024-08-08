@@ -22,6 +22,7 @@ from transformers.models.llama.modeling_llama import (
     LlamaAttention as LlamaAttention_torch, LlamaConfig as LlamaConfig_torch)
 
 import nntile
+import nntile.utils.constructors as nntc
 from nntile.model.llama_config import LlamaConfigNNTile
 from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
@@ -211,3 +212,62 @@ class TestLlamaAttention:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+
+@pytest.mark.parametrize("bias", [True])
+@pytest.mark.parametrize(
+    "params",
+    [
+        pytest.param(single_tile, id="single_tile"),
+    ],
+)
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        "fp32",
+    ],
+)
+def test_llama_attn_forward_dynamic(
+    starpu_simple,
+    torch_rng,
+    dtype: str,
+    params: LlamaAttentionTestParams,
+    bias: bool,
+):
+    torch_layer, nntile_layer, x, pos_ids, mask, *_ = generate_inputs(
+        dtype, params, bias
+    )
+
+    y, _, _ = torch_layer(x, position_ids=pos_ids, attention_mask=mask)
+
+    input_x = x.cpu().numpy().T
+    y_nntile_logits = nntile_layer.forward_dynamic(
+        TensorMoments(nntc.from_array(input_x), None, False)
+    )
+    y_nntile = torch.Tensor(nntc.to_numpy(y_nntile_logits.value).T)
+
+    rtol = dtype2tol[dtype]["rtol"]
+    assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
+
+    truncate_to_size = 4
+    y_nntile_logits_trunc = nntile_layer.forward_dynamic(
+        TensorMoments(
+            nntc.from_array(input_x[:, :truncate_to_size, :]), None, False
+        )
+    )
+    y_nntile_trunc = torch.Tensor(nntc.to_numpy(y_nntile_logits_trunc.value).T)
+
+    y_torch_trunc, _, _ = torch_layer(
+        x[:, :truncate_to_size, :],
+        position_ids=pos_ids[:, :truncate_to_size],
+        attention_mask=mask[:, :, :truncate_to_size, :truncate_to_size],
+    )
+
+    rtol = dtype2tol[dtype]["rtol"]
+    assert torch.norm(y_torch_trunc - y_nntile_trunc) <= rtol * torch.norm(
+        y_torch_trunc
+    )
+
+    nntile_layer.unregister()
+    nntile_layer.x.unregister()
+    nntile_layer.y.unregister()
