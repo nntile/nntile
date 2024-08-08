@@ -1063,6 +1063,10 @@ void def_mod_tensor(py::module_ &m)
     m.def("rope_backward_fp32", &rope_backward<fp32_t>);
     m.def("rope_backward_fp32_fast_tf32", &rope_backward<fp32_fast_tf32_t>);
     m.def("rope_backward_bf16", &rope_backward<bf16_t>);
+
+    m.def("strassen_fp64", &strassen<fp64_t>);
+    m.def("strassen_fp32", &strassen<fp32_t>);
+    // m.def("strassen_fp16", &strassen<fp16_t, fp32_t>);
 }
 
 // Main extension module with all wrappers

@@ -356,6 +356,7 @@ set(TENSOR_SRC
     "tensor/conv2d_bwd_weight_inplace.cc"
     "tensor/rope.cc"
     "tensor/rope_backward.cc"
+    "tensor/strassen.cc"
     )
 
 set(LAYER_SRC

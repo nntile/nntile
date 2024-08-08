@@ -16,6 +16,7 @@
 
 #include <nntile/layer/base.hh>
 #include <nntile/tensor/gemm.hh>
+#include <nntile/tensor/strassen.hh>
 
 namespace nntile::layer
 {
@@ -30,11 +31,16 @@ public:
     Linear(const tensor::TensorTraits &input_traits_,
             const tensor::TensorTraits &output_traits_,
             tensor::Tensor<T> params_,
-            tensor::Tensor<T> grads_):
+            tensor::Tensor<T> grads_,
+			bool strassen_ = false):
         Base<T>(input_traits_, output_traits_, {params_}, {grads_}),
         weight(this->params[0]),
         grad_weight(this->grads[0])
     {
+        if(strassen_)
+            p_tensor_gemm = &(tensor::strassen_async<T>);
+        else
+            p_tensor_gemm = &(tensor::gemm_async<T>);
     }
     virtual ~Linear() = default;
     virtual void forward_async(const tensor::Tensor<T> &input,
@@ -42,7 +48,7 @@ public:
     {
         constexpr T one = 1, zero = 0;
         constexpr TransOp opN(TransOp::NoTrans);
-        tensor::gemm_async<T>(one, opN, weight, opN, input, zero, output, 1);
+        p_tensor_gemm(one, opN, weight, opN, input, zero, output, 1);
         input.wont_use();
         weight.wont_use();
     }
@@ -52,13 +58,21 @@ public:
     {
         constexpr T one = 1, zero = 0;
         constexpr TransOp opN(TransOp::NoTrans), opT(TransOp::Trans);
-        tensor::gemm_async<T>(one, opN, input, opT, forward_input, zero,
-                grad_weight, 1);
+        p_tensor_gemm(one, opN, input, opT, forward_input, zero, grad_weight,
+                      1);
         forward_input.invalidate_submit();
-        tensor::gemm_async<T>(one, opT, weight, opN, input, zero, output, 1);
+        p_tensor_gemm(one, opT, weight, opN, input, zero, output, 1);
         weight.wont_use();
         input.invalidate_submit();
     }
+
+private:
+    template <typename T>
+    void (*p_tensor_gemm)(Scalar alpha, const TransOp &transA,
+                          const Tensor<T> &A, const TransOp &transB,
+                          const Tensor<T> &B, Scalar beta, const Tensor<T> &C,
+                          Index ndim, Index batch_ndim,
+                          int redux = 0) = nullptr;
 };
 
 // Explicit instantiations
