@@ -1521,34 +1521,106 @@ class LlamaAttention(BaseLayer):
     def get_layer_forward_flops(self):
         total_forward_flops = 0
         # Compute Q_transposed
+        # gemm_async(
+        #     1.0,
+        #     notrans,
+        #     self.w_q.value,
+        #     notrans,
+        #     self.x_q.value,
+        #     0.0,
+        #     self.q_transposed.value,
+        #     1,
+        #     0,
+        #     redux=self.redux,
+        # )
         w_q_shape = self.w_q.value.shape
         x_q_shape = self.x_q.value.shape
         qt_flops = np.prod(w_q_shape) * np.prod(x_q_shape[1:])
         total_forward_flops += qt_flops
         # Compute K_transposed
+        # gemm_async(
+        #     1.0,
+        #     notrans,
+        #     self.w_k.value,
+        #     notrans,
+        #     self.x_k.value,
+        #     0.0,
+        #     self.k_transposed.value,
+        #     1,
+        #     0,
+        #     redux=self.redux,
+        # )
         w_k_shape = self.w_k.value.shape
         x_k_shape = self.x_k.value.shape
         kt_flops = np.prod(w_k_shape) * np.prod(x_k_shape[1:])
         total_forward_flops += kt_flops
         # Compute V_transposed
+        # gemm_async(
+        #     1.0,
+        #     notrans,
+        #     self.w_v.value,
+        #     notrans,
+        #     self.x_v.value,
+        #     0.0,
+        #     self.v_transposed.value,
+        #     1,
+        #     0,
+        #     redux=self.redux,
+        # )
         w_v_shape = self.w_v.value.shape
         x_v_shape = self.x_v.value.shape
         vt_flops = np.prod(w_v_shape) * np.prod(x_v_shape[1:])
         total_forward_flops += vt_flops
         # Compute tensor for softmax
+        # gemm_async(
+        #     1.0 / self.head_size**0.5,
+        #     trans,
+        #     self.k_rep.value,
+        #     notrans,
+        #     self.q_rope.value,
+        #     0.0,
+        #     self.a.value,
+        #     1,
+        #     3,
+        #     redux=self.redux,
+        # )
         k_rep_shape = self.k_rep.value.shape
         q_rope_shape = self.q_rope.value.shape
         a_flops = np.prod(k_rep_shape[:2]) * np.prod(q_rope_shape[1:])
         total_forward_flops += a_flops
         # Apply value tensor
+        # gemm_async(
+        #     1.0,
+        #     notrans,
+        #     self.v_rep.value,
+        #     notrans,
+        #     self.a.value,
+        #     0.0,
+        #     self.b.value,
+        #     1,
+        #     3,
+        #     redux=self.redux,
+        # )
         v_rep_shape = self.v_rep.value.shape
         a_shape = self.a.value.shape
         b_flops = np.prod(a_shape) * v_rep_shape[0]
         total_forward_flops += b_flops
         # Gemm for accumulate result for all the heads
+        # gemm_async(
+        #     1.0,
+        #     notrans,
+        #     self.w.value,
+        #     notrans,
+        #     self.b_transposed.value,
+        #     0.0,
+        #     self.y.value,
+        #     3,
+        #     0,
+        #     redux=self.redux,
+        # )
         w_shape = self.w.value.shape
         bt_shape = self.b_transposed.value.shape
-        y_flops = np.prod(w_shape) * bt_shape[-1] * bt_shape[-2]
+        y_flops = np.prod(w_shape) * np.prod(bt_shape[3:])
         total_forward_flops += y_flops
         return total_forward_flops
 
