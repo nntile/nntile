@@ -52,11 +52,16 @@ Technology under Contract No. 70-2021-00145/10841 dated 02.11.2021 (items
 
 ## Assembly
 
-**NNTile** comes with a `ci/Dockerfile` to construct docker image with NNTile
+**NNTile** comes with a `Dockerfile` to construct docker image with NNTile
 and all prerequisites. Ready image can be acquired from the GitHub container
 registry:
 ```shell
-docker pull ghcr.io/skolai/nntile:1.0.0-starpu1.3.11-cuda12.2.0-ubuntu22.04
+docker pull ghcr.io/nntile/nntile:1.0.0-starpu1.3.11-cuda12.2.0-ubuntu22.04
+```
+Sandbox image with prerequisites but without precompiled NNTile is also
+accessible:
+```shell
+docker pull ghcr.io/nntile/nntile_sandbox:starpu1.4.7-cuda12.4.0-ubuntu22.04
 ```
 
 Alternatively, the docker image can be built on your own system with the following
