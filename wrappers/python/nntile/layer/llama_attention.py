@@ -1582,7 +1582,7 @@ class LlamaAttention(BaseLayer):
             # dW += einsum('jni,klmni->jklm', dY, B_transposed)
             y_grad_shape = self.y.grad.shape
             bt_shape = self.b_transposed.value.shape
-            w_grad_flops = 2 * np.prod(bt_shape) * y_grad_shape[:-2]
+            w_grad_flops = 2 * np.prod(bt_shape) * np.prod(y_grad_shape[:-2])
             total_backward_flops += w_grad_flops
         if self.b_transposed.grad_required:
             # dB_transposed = einsum('jklm,jni->klmni', W, dY)
@@ -1660,13 +1660,15 @@ class LlamaAttention(BaseLayer):
             # ndim = 3
             qt_grad_shape = self.q_transposed.grad.shape
             w_q_shape = self.w_q.value.shape
-            x_q_grad_flops = 2 * np.prod(w_q_shape) * qt_grad_shape[3:]
+            x_q_grad_flops = 2 * (np.prod(w_q_shape) *
+                                  np.prod(qt_grad_shape[3:]))
             total_backward_flops += x_q_grad_flops
         if self.w_q.grad_required:
             # dW_Q += einsum('ijkmn,lmn->ijkl', dQ_transposed, X_Q)
             # ndim = 2
             x_q_shape = self.x_q.value.shape
             qt_grad_shape = self.q_transposed.grad.shape
-            w_q_grad_flops = 2 * np.prod(x_q_shape) * qt_grad_shape[:-2]
+            w_q_grad_flops = 2 * (np.prod(x_q_shape) *
+                                  np.prod(qt_grad_shape[:-2]))
             total_backward_flops += w_q_grad_flops
         return total_backward_flops
