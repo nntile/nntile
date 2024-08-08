@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tile/sum_fiber.hh
- * Euclidean norms over slices into a fiber of  of a Tile<T>
+ * @file include/nntile/tile/norm_fiber.hh
+ * Euclidean norms over slices into a fiber of a Tile<T>
  *
  * @version 1.0.0
  * */
