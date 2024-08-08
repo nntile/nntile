@@ -159,16 +159,16 @@ class TestBatchNorm2d:
             bn_torch.bias.grad.numpy(),
             atol=5e-5,
             rtol=1e-6,
-            err_msg=f"Error in backward d(batch_norm)/d(bias) for params: {params}",
+            err_msg=f"Error in backward d(bn)/d(b) for params: {params}",
         )
 
         # test d(batch_norm)/d(weight)
         np.testing.assert_allclose(
             nntile.tensor.to_numpy(nntile_layer.weight.grad),
             bn_torch.weight.grad.numpy(),
-            atol=5e-5,  # for some reasons not good match. Maybe different order of operations
+            atol=5e-5,  # mb not good match, like different order of operations
             rtol=1e-6,
-            err_msg=f"Error in backward test d(batch_norm)/d(weight) for params: {params}",
+            err_msg=f"Error in backward d(bn)/d(w) for params: {params}",
         )
 
         # test d(batch_norm)/d(input)
@@ -177,5 +177,5 @@ class TestBatchNorm2d:
             input_torch.grad.numpy().T,
             atol=5e-5,
             rtol=1e-6,
-            err_msg=f"Error in backward d(batch_norm)/d(input) for params: {params}",
+            err_msg=f"Error in backward d(bn)/d(inp) for params: {params}",
         )
