@@ -11,9 +11,10 @@
 #
 # @version 1.0.0
 
-from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        copy_async, axpy_async, nrm2_async, prod_async, scal_inplace_async
-import numpy as np
+from nntile.tensor import (
+    Tensor, TensorMoments, TensorTraits, axpy_async, copy_async, nrm2_async,
+    prod_async, scal_inplace_async)
+
 
 class Frob:
     x: TensorMoments
@@ -22,8 +23,14 @@ class Frob:
     tmp: Tensor
 
     # Constructor of loss with all the provided data
-    def __init__(self, x: TensorMoments, y: Tensor, val: Tensor, \
-            val_sqrt: Tensor, tmp: Tensor):
+    def __init__(
+        self,
+        x: TensorMoments,
+        y: Tensor,
+        val: Tensor,
+        val_sqrt: Tensor,
+        tmp: Tensor,
+    ):
         self.x = x
         self.y = y
         self.val_sqrt = val_sqrt
@@ -48,7 +55,7 @@ class Frob:
         next_tag = val.next_tag
         val2 = type(x.value)(val_traits, [0], next_tag)
         next_tag = val2.next_tag
-        tmp_traits = TensorTraits(x.value.grid.shape, [1]*ndim)
+        tmp_traits = TensorTraits(x.value.grid.shape, [1] * ndim)
         tmp = type(x.value)(tmp_traits, x.value.distribution, next_tag)
         next_tag = tmp.next_tag
         loss = Frob(x, y, val, val2, tmp)
@@ -61,21 +68,15 @@ class Frob:
         # Define gradient dX as X-Y
         axpy_async(-1, self.y, self.x.grad)
         # Values Y are not needed anymore
-        #self.y.invalidate_submit()
+        # self.y.invalidate_submit()
         # Get value ||grad X||
         nrm2_async(1.0, self.x.grad, 0.0, self.val_sqrt, self.tmp)
         # Ignore temporary values
-        #self.tmp.invalidate_submit()
+        # self.tmp.invalidate_submit()
         # Invalidate gradient if it is unnecessary
-        #if self.x.grad_required is False:
+        # if self.x.grad_required is False:
         #    self.x.grad.invalidate_submit()
         # Compute loss as 0.5*||dX||^2
         copy_async(self.val_sqrt, self.val)
         prod_async(self.val_sqrt, self.val)
         scal_inplace_async(0.5, self.val)
-
-    def unregister(self):
-        self.tmp.unregister()
-        self.val.unregister()
-        self.val_sqrt.unregister()
-        self.y.unregister()
