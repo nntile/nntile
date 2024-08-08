@@ -47,11 +47,11 @@ BATCH_NORM_2D_TEST_PARAMS = [
 def generate_input(params: BatchNormTestParams, rng):
     input_np = rng.random(params.shape).astype(params.dtype)
     output_grad_np = rng.random(params.shape).astype(params.dtype)
-    weights_np = rng.random(params.shape[2:3]).astype(params.dtype)
-    bias_np = rng.random(params.shape[2:3]).astype(params.dtype)
+    weights_np = rng.random(params.shape[1:2]).astype(params.dtype)
+    bias_np = rng.random(params.shape[1:2]).astype(params.dtype)
 
-    input_torch = torch.tensor(input_np.T, requires_grad=True)
-    output_grad_torch = torch.tensor(output_grad_np.T, requires_grad=False)
+    input_torch = torch.tensor(input_np, requires_grad=True)
+    output_grad_torch = torch.tensor(output_grad_np, requires_grad=False)
     weights_torch = torch.tensor(weights_np)
     bias_torch = torch.tensor(bias_np)
 
@@ -100,7 +100,7 @@ class TestBatchNorm2d:
 
         # torch forward
         bn_torch = nn.BatchNorm2d(
-            params.shape[2], dtype=input_torch.dtype, affine=False
+            params.shape[1], dtype=input_torch.dtype, affine=False
         )
         bn_torch.weight = torch.nn.Parameter(weights_torch)
         bn_torch.bias = torch.nn.Parameter(bias_torch)
@@ -118,9 +118,8 @@ class TestBatchNorm2d:
         # test forward
         np.testing.assert_allclose(
             nntile.tensor.to_numpy(nntile_layer.y.value),
-            out_torch.detach().numpy().T,
-            atol=5e-5,
-            rtol=1e-6,
+            out_torch.detach().numpy(),
+            atol=params.atol,
             err_msg=f"Error in forward for params: {params}",
         )
 
@@ -134,7 +133,7 @@ class TestBatchNorm2d:
 
         # torch forward/backward
         bn_torch = nn.BatchNorm2d(
-            params.shape[2], dtype=input_torch.dtype, affine=False
+            params.shape[1], dtype=input_torch.dtype, affine=False
         )
         bn_torch.weight = torch.nn.Parameter(weights_torch)
         bn_torch.bias = torch.nn.Parameter(bias_torch)
@@ -157,8 +156,7 @@ class TestBatchNorm2d:
         np.testing.assert_allclose(
             nntile.tensor.to_numpy(nntile_layer.bias.grad),
             bn_torch.bias.grad.numpy(),
-            atol=5e-5,
-            rtol=1e-6,
+            atol=params.atol,
             err_msg=f"Error in backward d(bn)/d(b) for params: {params}",
         )
 
@@ -166,16 +164,14 @@ class TestBatchNorm2d:
         np.testing.assert_allclose(
             nntile.tensor.to_numpy(nntile_layer.weight.grad),
             bn_torch.weight.grad.numpy(),
-            atol=5e-5,  # mb not good match, like different order of operations
-            rtol=1e-6,
-            err_msg=f"Error in backward d(bn)/d(w) for params: {params}",
+            atol=5e-5,
+            err_msg=f"Error in backward test d(bn)/d(w) for params: {params}",
         )
 
         # test d(batch_norm)/d(input)
         np.testing.assert_allclose(
             nntile.tensor.to_numpy(nntile_layer.x.grad),
-            input_torch.grad.numpy().T,
-            atol=5e-5,
-            rtol=1e-6,
-            err_msg=f"Error in backward d(bn)/d(inp) for params: {params}",
+            input_torch.grad.numpy(),
+            atol=params.atol,
+            err_msg=f"Error in backward d(bn)/d(i) for params: {params}",
         )
