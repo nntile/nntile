@@ -11,34 +11,26 @@
 #
 # @version 1.0.0
 
-# Imports
-import torch
-import nntile
-import math
-import numpy as np
-import time
-import sys
-from torch import Tensor
-import torch.nn as nn
-from transformers import GPT2TokenizerFast, GPT2LMHeadModel, GPT2Model, \
-        GPT2Config
-from datasets import load_dataset
-from nntile.model.gpt2 import GPT2Config as GPT2Config_nntile, \
-        GPT2Model as GPT2Model_nntile
-from nntile.tensor import copy_async
-from nntile.loss import Frob
-import pdb
-from typing import Union, Optional, Tuple, List
-from packaging import version
-import copy
 import argparse
 import json
+import time
+
+import numpy as np
+import torch
+import torch.nn as nn
+from transformers import GPT2Config, GPT2LMHeadModel, GPT2TokenizerFast
+
+import nntile
+from nntile.model.gpt2 import (
+    GPT2Config as GPT2Config_nntile, GPT2Model as GPT2Model_nntile)
 
 # Create argument parser
-parser = argparse.ArgumentParser(prog="GPT2-based neural networks", \
-        description="This example presents an NNTile implementation of a " \
-        "GPT2-family of models and provides functionality for text " \
-        "generation.")
+parser = argparse.ArgumentParser(
+    prog="GPT2-based neural networks",
+    description="This example presents an NNTile implementation of a "
+    "GPT2-family of models and provides functionality for text "
+    "generation.",
+)
 parser.add_argument("--config-path")
 parser.add_argument("--tokenizer", default="gpt2")
 parser.add_argument("--tokenizer-path")
@@ -50,8 +42,7 @@ parser.add_argument("--seq-tile", type=int, default=-1)
 parser.add_argument("--embd-tile", type=int, default=-1)
 parser.add_argument("--inner-tile", type=int, default=-1)
 parser.add_argument("--head-tile", type=int, default=-1)
-parser.add_argument("--restrict", choices=["cpu", "cuda", None], \
-        default=None)
+parser.add_argument("--restrict", choices=["cpu", "cuda", None], default=None)
 parser.add_argument("--flashattention", action="store_true")
 parser.add_argument("--redux", action="store_true")
 parser.add_argument("--fp32-fast-tf32", action="store_true")
@@ -73,8 +64,9 @@ with open(args.config_path, "r") as fd:
 config = GPT2Config(**conf_dict)
 config.n_inner = 4 * config.n_embd
 model_torch = GPT2LMHeadModel(config)
-model_torch.lm_head.weight = nn.Parameter(model_torch.lm_head \
-    .weight.detach().clone())
+model_torch.lm_head.weight = nn.Parameter(
+    model_torch.lm_head.weight.detach().clone()
+)
 
 # Disable dropout, as it is not supported by NNTile yet
 config.pdrop = 0
@@ -128,8 +120,10 @@ if args.flashattention:
 else:
     nflops_seq_block_fwd += 4 * config.n_positions**2 * config.n_embd
 # Total flops with LM_head
-nflops_seq_fwd = config.num_hidden_layers*nflops_seq_block_fwd \
-        + 2*config.n_positions*config.n_embd*config.vocab_size
+nflops_seq_fwd = (
+    config.num_hidden_layers * nflops_seq_block_fwd
+    + 2 * config.n_positions * config.n_embd * config.vocab_size
+)
 nflops_seq = nflops_seq_fwd
 
 # Initialize NNTile and StarPU
@@ -149,21 +143,40 @@ print("StarPU + NNTile + MPI init in {} seconds".format(time1), flush=True)
 next_tag = 0
 
 # Prepare GPT2 model based on the NNTile backend
-model_nntile_config = GPT2Config_nntile(config.vocab_size, args.embd_tile, \
-        config.n_embd, args.embd_tile, config.max_position_embeddings, \
-        config.n_inner, args.inner_tile, config.layer_norm_epsilon, \
-        config.num_hidden_layers, config.n_head, args.head_tile, \
-        "gelutanh", args.flashattention, args.redux)
-model_nntile, next_tag = GPT2Model_nntile.from_torch(model_torch, \
-        args.minibatch, args.minibatch_tile, config.n_positions, \
-        args.seq_tile, model_nntile_config, next_tag, args.fp32_fast_tf32)
-#model_torch.eval()
+model_nntile_config = GPT2Config_nntile(
+    config.vocab_size,
+    args.embd_tile,
+    config.n_embd,
+    args.embd_tile,
+    config.max_position_embeddings,
+    config.n_inner,
+    args.inner_tile,
+    config.layer_norm_epsilon,
+    config.num_hidden_layers,
+    config.n_head,
+    args.head_tile,
+    "gelutanh",
+    args.flashattention,
+    args.redux,
+)
+model_nntile, next_tag = GPT2Model_nntile.from_torch(
+    model_torch,
+    args.minibatch,
+    args.minibatch_tile,
+    config.n_positions,
+    args.seq_tile,
+    model_nntile_config,
+    next_tag,
+    args.fp32_fast_tf32,
+)
+# model_torch.eval()
 del model_torch
 
 # Warmup
 if args.nwarmup > 0:
-    input_value = torch.randint(config.vocab_size, \
-            (1, config.n_positions), dtype=torch.int64)
+    input_value = torch.randint(
+        config.vocab_size, (1, config.n_positions), dtype=torch.int64
+    )
     model_nntile.activations[0].value.from_array(input_value.T)
     for i in range(args.nwarmup):
         model_nntile.forward_async()
@@ -173,39 +186,43 @@ if args.nwarmup > 0:
 if args.input == "text":
     with open(args.input_path) as fd:
         lines = fd.readlines()
-    tokenizer = GPT2TokenizerFast.from_pretrained(args.tokenizer, \
-            cache_dir=args.tokenizer_path)
-    input_numpy = config.eos_token_id * np.ones((1, config.n_positions), \
-            dtype=np.int64)
-    input_tokens = np.array(list(map(lambda x: tokenizer(x)["input_ids"], \
-            lines)))
-    input_tokens_start = input_tokens.shape[1]-1
+    tokenizer = GPT2TokenizerFast.from_pretrained(
+        args.tokenizer, cache_dir=args.tokenizer_path
+    )
+    input_numpy = config.eos_token_id * np.ones(
+        (1, config.n_positions), dtype=np.int64
+    )
+    input_tokens = np.array(
+        list(map(lambda x: tokenizer(x)["input_ids"], lines))
+    )
+    input_tokens_start = input_tokens.shape[1] - 1
     input_numpy[0, 0:input_tokens_start] = input_tokens[0, :-1]
 
 # Run forward 50 times autoregressively
-output_numpy = np.zeros((config.vocab_size, config.n_positions, 1), \
-        dtype=np.float32, order='F')
+output_numpy = np.zeros(
+    (config.vocab_size, config.n_positions, 1), dtype=np.float32, order="F"
+)
 for i in range(args.ntokens):
     model_nntile.activations[0].value.from_array(input_numpy.T)
     model_nntile.forward_async()
     model_nntile.activations[-1].value.to_array(output_numpy)
-    #with torch.no_grad():
-    #    torch_output_numpy = model_torch(torch.tensor(input_numpy))[0].numpy().T
-    #print(np.linalg.norm(torch_output_numpy-output_numpy) /
-    #        np.linalg.norm(torch_output_numpy))
-    #print(output_numpy[input_numpy[0, 0], 0, 0], output_numpy[:, 0, 0].max())
-    new_id = output_numpy[:50257, input_tokens_start+i-1, 0].argmax()
-    #print(new_id, output_numpy[new_id, input_tokens_start+i, 0])
-    input_numpy[0, input_tokens_start+i] = new_id
-    print(tokenizer.decode(input_numpy[0, 0:input_tokens_start+i+1]))
+    new_id = output_numpy[:50257, input_tokens_start + i - 1, 0].argmax()
+    input_numpy[0, input_tokens_start + i] = new_id
+    print(tokenizer.decode(input_numpy[0, 0 : input_tokens_start + i + 1]))
 
 nntile.starpu.wait_for_all()
 time1 = time.time() - time0
 print("Generate time: {} seconds".format(time1))
-print("Generate throughput tokens/sec: {}".format( \
-        args.ntokens * config.n_positions / time1))
-print("Generate performance: {} Tflops/s".format(nflops_seq \
-        * args.ntokens / time1 * 1e-12))
+print(
+    "Generate throughput tokens/sec: {}".format(
+        args.ntokens * config.n_positions / time1
+    )
+)
+print(
+    "Generate performance: {} Tflops/s".format(
+        nflops_seq * args.ntokens / time1 * 1e-12
+    )
+)
 
 # Unregister intermediate activations to free some space
 for t in model_nntile.activations:
@@ -217,8 +234,8 @@ for t in model_nntile.parameters:
         t.grad.unregister()
 
 # Unregister temporaries of each layer to free some space
-for l in model_nntile.layers:
-    for t in l.temporaries:
+for layer in model_nntile.layers:
+    for t in layer.temporaries:
         if t is not None:
             t.unregister()
 
