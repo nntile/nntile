@@ -84,7 +84,7 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
             }
         }
     }
-    
+
     constexpr Y zero{0.0}, one{1.0};
     std::vector<T> dst_copy(dst);
     // Check low-level kernel
@@ -101,7 +101,7 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
         TEST_ASSERT(std::abs(val/ref-Y{1}) <= 10*eps);
     }
     std::cout << "OK: kernel::norm_fiber::cpu<" << T::type_repr << ">\n";
-    
+
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     std::vector<T> dst_cuda(dst_copy);

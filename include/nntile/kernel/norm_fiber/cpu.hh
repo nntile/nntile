@@ -25,4 +25,3 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src, Sc
     noexcept;
 
 } // namespace nntile::kernel::norm_fiber
-

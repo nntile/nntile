@@ -335,7 +335,7 @@ def sum_fiber_async(
         )
     else:
         raise TypeError
-        
+
 
 def norm_fiber_async(
     alpha: float,
