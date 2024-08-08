@@ -11,6 +11,8 @@
 #
 # @version 1.0.0
 
+# Base images could be unavailable due to NVidia policies on keeping track only
+# of the latest ones
 ARG BASE_IMAGE=nvidia/cuda:12.4.0-devel-ubuntu22.04
 
 FROM $BASE_IMAGE AS devbase
@@ -19,6 +21,7 @@ LABEL org.opencontainers.image.source="https://github.com/nntile/nntile"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Add kitware repository with deb packages of the latest CMake into the system
 ADD ci/add-repo-kitware.sh .
 
 RUN --mount=type=cache,target=/var/cache/apt \
@@ -27,6 +30,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     find /var/lib/apt/lists -type f -print -delete && \
     rm -rf ./add-repo-kitware.sh
 
+# Install most of prerequisites via APT
 RUN --mount=type=cache,target=/var/cache/apt \
     rm -rfv /etc/apt/apt.conf.d/docker* && \
     apt update && \
@@ -34,16 +38,14 @@ RUN --mount=type=cache,target=/var/cache/apt \
         autoconf automake binutils build-essential clang cmake \
         cmake-curses-gui fxt-tools gdb git lcov libfxt-dev libhwloc-dev \
         libopenblas-dev libtool-bin ninja-build pkg-config python3 \
-        python3-dev python-is-python3 python3-pip vim && \
+        python3-dev python-is-python3 python3-pip vim time && \
     find /var/lib/apt/lists -type f -print -delete
 
 FROM devbase AS sandbox
 
+# Compile and install StarPU of a given version (or a hash of commit) using
+# parallel build
 ARG MAKE_JOBS=1
-
-ENV STARPU_SILENT=1
-
-ENV OMP_NUM_THREADS=1
 
 ARG STARPU_VERSION=starpu-1.4.7
 
@@ -73,6 +75,9 @@ RUN set -xe && \
     echo '/usr/local/lib' > /etc/ld.so.conf.d/nntile.conf && \
     ldconfig
 
+ENV STARPU_SILENT=1 STARPU_FXT_TRACE=0 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
+
+# Collect prerequisites for Python interface of NNTile
 WORKDIR /workspace/nntile
 
 ADD pyproject.toml .
@@ -84,13 +89,13 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     curl -SL $GIST_PEDS/raw/4e7b80e5f9d49c2e39cf8aa4e6b6b8b951724730/peds.py | \
     python - -i -e test .
 
-RUN --mount=type=cache,target=/var/cache/apt \
-     apt update && \
-    apt install -y --no-install-recommends time && \
-    find /var/lib/apt/lists -type f -print -delete
+# Install helpful developer tools
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install pre-commit isort ruff mypy
 
 FROM sandbox AS nntile
 
+# Build NNTile inplace without installation
 ADD . /workspace/nntile
 
 ARG CUDA_ARCHS=70;75;80;86;89;90
@@ -101,7 +106,3 @@ RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
 RUN cmake --build build -j $MAKE_JOBS
 
 ENV PYTHONPATH=/workspace/nntile/build/wrappers/python
-
-ENV STARPU_SILENT=1
-
-ENV STARPU_FXT_TRACE=0
