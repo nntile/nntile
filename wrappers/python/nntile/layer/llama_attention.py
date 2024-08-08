@@ -1626,60 +1626,126 @@ class LlamaAttention(BaseLayer):
 
     def get_layer_backward_flops(self):
         total_backward_flops = 0
-        # dW += einsum('jni,klmni->jklm', dY, B_transposed)
-        y_grad_shape = self.y.grad.shape
-        bt_shape = self.b_transposed.value.shape
-        w_grad_flops = np.prod(bt_shape) * y_grad_shape[0]
-        total_backward_flops += w_grad_flops
-        # dB_transposed = einsum('jklm,jni->klmni', W, dY)
-        w_shape = self.w.value.shape
-        bt_grad_flops = np.prod(w_shape) * np.prod(y_grad_shape[1:])
-        total_backward_flops += bt_grad_flops
-        # dA = einsum('jklbi,jmlbi->kmlbi', V_rep, dB)
-        b_grad_shape = self.b.grad.shape
-        v_rep_shape = self.v_rep.value.shape
-        a_grad_flops = np.prod(b_grad_shape) * v_rep_shape[-2]
-        total_backward_flops += a_grad_flops
-        # dV_rep = einsum('jmlbi,kmlbi->jklbi', dB, A)
-        a_shape = self.a.value.shape
-        v_rep_grad_flops = np.prod(b_grad_shape) * a_shape[-1]
-        total_backward_flops += v_rep_grad_flops
-        # dK_rep = 1.0/sqrt(head_size)
-        #          * einsum('jmlbi,kmlbi->jklbi', Q_rope, dA)
-        q_rope_shape = self.q_rope.value.shape
-        a_grad_shape = self.a.grad.shape
-        k_rep_grad_flops = np.prod(q_rope_shape) * a_grad_shape[-1]
-        total_backward_flops += k_rep_grad_flops
-        # dQ_rope = 1.0/sqrt(head_size)
-        #      * einsum('jklbi,kmlbi->jmlbi', K_rep, dA)
-        k_rep_shape = self.k_rep.value.shape
-        q_rope_grad_flops = np.prod(a_grad_shape) * k_rep_shape[0]
-        total_backward_flops += q_rope_grad_flops
-        # dX_V += einsum('jkl,jkmn->lmn', W_V, dV_transposed)
-        v_t_grad_shape = self.v_transposed.grad.shape
-        w_v_shape = self.w_v.value.shape
-        x_v_grad_flops = np.prod(v_t_grad_shape) * w_v_shape[-1]
-        total_backward_flops += x_v_grad_flops
-        # dW_V += einsum('jkmn,lmn->jkl', dV_transposed, X_V)
-        x_v_shape = self.x_v.value.shape
-        w_v_grad_flops = np.prod(v_t_grad_shape) * x_v_shape[-1]
-        total_backward_flops += w_v_grad_flops
-        # dX_K += einsum('jkl,jkmn->lmn', W_K, dK_transposed)
-        kt_grad_shape = self.k_transposed.grad.shape
-        w_k_shape = self.w_k.value.shape
-        x_k_grad_flops = np.prod(kt_grad_shape) * w_k_shape[0]
-        total_backward_flops += x_k_grad_flops
-        # dW_K += einsum('jkmn,lmn->jkl', dK_transposed, X_K)
-        x_k_shape = self.x_k.value.shape
-        w_k_grad_flops = np.prod(kt_grad_shape) * x_k_shape[-1]
-        total_backward_flops += w_k_grad_flops
-        # dX_Q += einsum('ijkl,ijkmn->lmn', W_Q, dQ_transposed)
-        qt_grad_shape = self.q_transposed.grad.shape
-        w_q_shape = self.w_q.value.shape
-        x_q_grad_flops = np.prod(qt_grad_shape) * w_q_shape[0]
-        total_backward_flops += x_q_grad_flops
-        # dW_Q += einsum('ijkmn,lmn->ijkl', dQ_transposed, X_Q)
-        x_q_shape = self.x_q.value.shape
-        w_q_grad_flops = np.prod(qt_grad_shape) * x_q_shape[-1]
-        total_backward_flops += w_q_grad_flops
+        if self.w.grad_required:
+            # dW += einsum('jni,klmni->jklm', dY, B_transposed)
+            y_grad_shape = self.y.grad.shape
+            bt_shape = self.b_transposed.value.shape
+            w_grad_flops = np.prod(bt_shape) * y_grad_shape[:-2]
+            total_backward_flops += w_grad_flops
+        if self.b_transposed.grad_required:
+            # dB_transposed = einsum('jklm,jni->klmni', W, dY)
+            w_shape = self.w.value.shape
+            y_grad_shape = self.y.grad.shape
+            bt_grad_flops = np.prod(w_shape) * np.prod(y_grad_shape[1:])
+            total_backward_flops += bt_grad_flops
+        if self.a.grad_required:
+            # dA = einsum('jklbi,jmlbi->kmlbi', V_rep, dB)
+            # gemm_async(
+            #     1.0,
+            #     trans,
+            #     self.v_rep.value,
+            #     notrans,
+            #     self.b.grad,
+            #     0.0,
+            #     self.a.grad,
+            #     1,
+            #     3,
+            #     redux=self.redux,
+            # )
+            b_grad_shape = self.b.grad.shape
+            v_rep_shape = self.v_rep.value.shape
+            a_grad_flops = np.prod(v_rep_shape) * b_grad_shape[1]
+            total_backward_flops += a_grad_flops
+        if self.v_rep.grad_required:
+            # dV_rep = einsum('jmlbi,kmlbi->jklbi', dB, A)
+            # gemm_async(
+            #     1.0,
+            #     notrans,
+            #     self.b.grad,
+            #     trans,
+            #     self.a.value,
+            #     0.0,
+            #     self.v_rep.grad,
+            #     1,
+            #     3,
+            #     redux=self.redux,
+            # )
+            a_shape = self.a.value.shape
+            b_grad_shape = self.b.grad.shape
+            v_rep_grad_flops = np.prod(a_shape) * b_grad_shape[0]
+            total_backward_flops += v_rep_grad_flops
+        if self.k_rep.grad_required:
+            # dK_rep = 1.0/sqrt(head_size)
+            #          * einsum('jmlbi,kmlbi->jklbi', Q_rope, dA)
+            # gemm_async(
+            #     1.0 / self.head_size**0.5,
+            #     notrans,
+            #     self.q_rope.value,
+            #     trans,
+            #     self.a.grad,
+            #     0.0,
+            #     self.k_rep.grad,
+            #     1,
+            #     3,
+            #     redux=self.redux,
+            # )
+            q_rope_shape = self.q_rope.value.shape
+            a_grad_shape = self.a.grad.shape
+            k_rep_grad_flops = np.prod(a_grad_shape) * q_rope_shape[1]
+            total_backward_flops += k_rep_grad_flops
+        if self.q_rope.grad_required:
+            # dQ_rope = 1.0/sqrt(head_size)
+            #      * einsum('jklbi,kmlbi->jmlbi', K_rep, dA)
+            # gemm_async(
+            #     1.0 / self.head_size**0.5,
+            #     notrans,
+            #     self.k_rep.value,
+            #     notrans,
+            #     self.a.grad,
+            #     0.0,
+            #     self.q_rope.grad,
+            #     1,
+            #     3,
+            #     redux=self.redux,
+            # )
+            k_rep_shape = self.k_rep.value.shape
+            a_grad_shape = self.a.grad.shape
+            q_rope_grad_flops = np.prod(a_grad_shape) * k_rep_shape[0]
+            total_backward_flops += q_rope_grad_flops
+        if self.x_v.grad_required:
+            # dX_V += einsum('jkl,jkmn->lmn', W_V, dV_transposed)
+            v_t_grad_shape = self.v_transposed.grad.shape
+            w_v_shape = self.w_v.value.shape
+            x_v_grad_flops = np.prod(w_v_shape) * np.prod(v_t_grad_shape[2:])
+            total_backward_flops += x_v_grad_flops
+        if self.w_v.grad_required:
+            # dW_V += einsum('jkmn,lmn->jkl', dV_transposed, X_V)
+            x_v_shape = self.x_v.value.shape
+            v_t_grad_shape = self.v_transposed.grad.shape
+            w_v_grad_flops = np.prod(x_v_shape) * np.prod(v_t_grad_shape[:-2])
+            total_backward_flops += w_v_grad_flops
+        if self.x_k.grad_required:
+            # dX_K += einsum('jkl,jkmn->lmn', W_K, dK_transposed)
+            kt_grad_shape = self.k_transposed.grad.shape
+            w_k_shape = self.w_k.value.shape
+            x_k_grad_flops = np.prod(w_k_shape) * np.prod(kt_grad_shape[2:])
+            total_backward_flops += x_k_grad_flops
+        if self.w_k.grad_required:
+            # dW_K += einsum('jkmn,lmn->jkl', dK_transposed, X_K)
+            x_k_shape = self.x_k.value.shape
+            kt_grad_shape = self.k_transposed.grad.shape
+            w_k_grad_flops = np.prod(kt_grad_shape) * x_k_shape[-1]
+            total_backward_flops += w_k_grad_flops
+        if self.x_q.grad_required:
+            # dX_Q += einsum('ijkl,ijkmn->lmn', W_Q, dQ_transposed)
+            qt_grad_shape = self.q_transposed.grad.shape
+            w_q_shape = self.w_q.value.shape
+            x_q_grad_flops = np.prod(w_q_shape) * qt_grad_shape[3:]
+            total_backward_flops += x_q_grad_flops
+        if self.w_q.grad_required:
+            # dW_Q += einsum('ijkmn,lmn->ijkl', dQ_transposed, X_Q)
+            x_q_shape = self.x_q.value.shape
+            qt_grad_shape = self.q_transposed.grad.shape
+            w_q_grad_flops = np.prod(x_q_shape) * qt_grad_shape[:-2]
+            total_backward_flops += w_q_grad_flops
         return total_backward_flops
