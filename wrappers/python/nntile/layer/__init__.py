@@ -12,6 +12,7 @@
 # @version 1.0.0
 
 from .act import Act
+from .add import Add
 from .add_slice import AddSlice
 from .attention import Attention
 from .attention_single_head import AttentionSingleHead
@@ -27,7 +28,7 @@ from .mixer import GAP, Mixer, MixerMlp
 from .prod import Prod
 from .rms_norm import RMSNorm
 
-__all__ = ('Act', 'AddSlice', 'Attention', 'AttentionSingleHead', 'BaseLayer',
-           'BatchNorm2d', 'Conv2d', 'Embedding', 'FlashAttention', 'GAP',
-           'LayerNorm', 'Linear', 'LlamaAttention', 'Mixer', 'MixerMlp',
-           'RMSNorm', 'Prod')
+__all__ = ('Act', 'Add', 'AddSlice', 'Attention', 'AttentionSingleHead',
+        'BaseLayer', 'BatchNorm2d', 'Conv2d', 'Embedding', 'FlashAttention',
+        'GAP', 'LayerNorm', 'Linear', 'LlamaAttention', 'Mixer', 'MixerMlp',
+        'RMSNorm', 'Prod')

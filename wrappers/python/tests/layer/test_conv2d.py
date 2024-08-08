@@ -46,9 +46,10 @@ nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
 def generate_inputs(numpy_rng, dtype: str, in_channels: int, out_channels: int,
         kernel: Sequence[int], H_in: int, H_in_tile: int, W_in: int,
         W_in_tile: int, batch: int, batch_tile: int, padding: Sequence[int],
-        stride: Sequence[int]):
+        stride: Sequence[int], dilation: Sequence[int]):
     torch_layer = torch.nn.Conv2d(in_channels, out_channels,
-            kernel_size=kernel, padding=padding, stride=stride, bias=False)
+            kernel_size=kernel, padding=padding, stride=stride,
+            dilation=dilation, bias=False)
     x_shape = [W_in, H_in, in_channels, batch]
     x_basetile = [W_in_tile, H_in_tile, in_channels, batch_tile]
     x_traits = TensorTraits(x_shape, x_basetile)
@@ -83,13 +84,20 @@ def generate_inputs(numpy_rng, dtype: str, in_channels: int, out_channels: int,
 @pytest.mark.parametrize('batch,batch_tile', [[3, 2]])
 @pytest.mark.parametrize('padding', [[2, 4]])
 @pytest.mark.parametrize('stride', [[2, 3]])
+@pytest.mark.parametrize('dilation', [[3, 2]])
 def test_coercion(starpu_simple, numpy_rng, dtype: str,
         in_channels: int, out_channels: int, kernel: Sequence[int],
         H_in: int, H_in_tile: int, W_in: int, W_in_tile: int, batch: int,
-        batch_tile: int, padding: Sequence[int], stride: Sequence[int]):
+        batch_tile: int, padding: Sequence[int], stride: Sequence[int],
+        dilation: Sequence[int]):
+    # Run tests only if output shape is positive
+    H_out = H_in + 2 * padding[0] - dilation[0] * (kernel[0] - 1) - 1
+    W_out = W_in + 2 * padding[1] - dilation[1] * (kernel[1] - 1) - 1
+    if H_out <= 0 or W_out <= 0:
+        return
     torch_layer, nntile_layer, *_ = generate_inputs(numpy_rng, dtype,
             in_channels, out_channels, kernel, H_in, H_in_tile, W_in,
-            W_in_tile, batch, batch_tile, padding, stride)
+            W_in_tile, batch, batch_tile, padding, stride, dilation)
     torch_layer_other = nntile_layer.to_torch()
     nntile_layer.unregister()
     nntile_layer.x.unregister()
@@ -126,16 +134,24 @@ def test_coercion(starpu_simple, numpy_rng, dtype: str,
 ])
 @pytest.mark.parametrize('batch,batch_tile', [[3, 2]])
 @pytest.mark.parametrize('padding', [[3, 4]])
-@pytest.mark.parametrize('stride', [[1, 1], [2, 3]])
+@pytest.mark.parametrize('stride', [[2, 3]])
+@pytest.mark.parametrize('dilation', [[3, 2]])
 class TestConv2d:
 
     def test_forward(self, starpu_simple, numpy_rng, dtype: str,
             in_channels: int, out_channels: int, kernel: Sequence[int],
             H_in: int, H_in_tile: int, W_in: int, W_in_tile: int, batch: int,
-            batch_tile: int, padding: Sequence[int], stride: Sequence[int]):
+            batch_tile: int, padding: Sequence[int], stride: Sequence[int],
+            dilation: Sequence[int]):
+        # Run tests only if output shape is positive
+        H_out = H_in + 2 * padding[0] - dilation[0] * (kernel[0] - 1) - 1
+        W_out = W_in + 2 * padding[1] - dilation[1] * (kernel[1] - 1) - 1
+        if H_out <= 0 or W_out <= 0:
+            return
         torch_layer, nntile_layer, x, _ = generate_inputs(
                 numpy_rng, dtype, in_channels, out_channels, kernel, H_in,
-                H_in_tile, W_in, W_in_tile, batch, batch_tile, padding, stride)
+                H_in_tile, W_in, W_in_tile, batch, batch_tile, padding, stride,
+                dilation)
         y = torch_layer(x)
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.y.value).T)
@@ -149,10 +165,17 @@ class TestConv2d:
     def test_backward(self, starpu_simple, numpy_rng, dtype: str,
             in_channels: int, out_channels: int, kernel: Sequence[int],
             H_in: int, H_in_tile: int, W_in: int, W_in_tile: int, batch: int,
-            batch_tile: int, padding: Sequence[int], stride: Sequence[int]):
+            batch_tile: int, padding: Sequence[int], stride: Sequence[int],
+            dilation: Sequence[int]):
+        # Run tests only if output shape is positive
+        H_out = H_in + 2 * padding[0] - dilation[0] * (kernel[0] - 1) - 1
+        W_out = W_in + 2 * padding[1] - dilation[1] * (kernel[1] - 1) - 1
+        if H_out <= 0 or W_out <= 0:
+            return
         torch_layer, nntile_layer, x, y_grad = generate_inputs(
                 numpy_rng, dtype, in_channels, out_channels, kernel, H_in,
-                H_in_tile, W_in, W_in_tile, batch, batch_tile, padding, stride)
+                H_in_tile, W_in, W_in_tile, batch, batch_tile, padding, stride,
+                dilation)
         y = torch_layer(x)
         nntile_layer.forward_async()
         res = (y * y_grad).sum()

@@ -41,7 +41,8 @@ void cpu(void *buffers[], void *cl_args)
             args->src1_channels, args->batch, args->src2_m, args->src2_n,
             args->stride_m, args->stride_n, args->src2_channels,
             args->offset_m, args->offset_n, args->alpha, src1, src2,
-            args->dst_m, args->dst_n, args->beta, dst);
+            args->dst_m, args->dst_n, args->dilation_m, args->dilation_n,
+            args->beta, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -66,7 +67,8 @@ void cuda(void *buffers[], void *cl_args)
             args->src1_n, args->src1_channels, args->batch, args->src2_m,
             args->src2_n, args->stride_m, args->stride_n, args->src2_channels,
             args->offset_m, args->offset_n, args->alpha, src1, src2,
-            args->dst_m, args->dst_n, args->beta, dst);
+            args->dst_m, args->dst_n, args->dilation_m, args->dilation_n,
+            args->beta, dst);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
@@ -145,8 +147,8 @@ template <typename T>
 void submit(Index src1_m, Index src1_n, Index src1_channels, Index batch,
         Index src2_m, Index src2_n, Index stride_m, Index stride_n,
         Index src2_channels, Index offset_m, Index offset_n, Scalar alpha,
-        Handle src1, Handle src2, Index dst_m, Index dst_n, Scalar beta,
-        Handle dst)
+        Handle src1, Handle src2, Index dst_m, Index dst_n, Index dilation_m,
+        Index dilation_n, Scalar beta, Handle dst)
 //! Insert conv2d_bwd_weight_inplace task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -169,6 +171,8 @@ void submit(Index src1_m, Index src1_n, Index src1_channels, Index batch,
     args->alpha = alpha;
     args->dst_m = dst_m;
     args->dst_n = dst_n;
+    args->dilation_m = dilation_m;
+    args->dilation_n = dilation_n;
     args->beta = beta;
     enum starpu_data_access_mode dst_mode = STARPU_RW;
     if(beta == 0.0)
@@ -196,27 +200,27 @@ void submit<bf16_t>(Index src1_m, Index src1_n, Index src1_channels,
         Index batch, Index src2_m, Index src2_n, Index stride_m,
         Index stride_n, Index src2_channels, Index offset_m, Index offset_n,
         Scalar alpha, Handle src1, Handle src2, Index dst_m, Index dst_n,
-        Scalar beta, Handle dst);
+        Index dilation_m, Index dilation_n, Scalar beta, Handle dst);
 
 template
 void submit<fp32_t>(Index src1_m, Index src1_n, Index src1_channels,
         Index batch, Index src2_m, Index src2_n, Index stride_m,
         Index stride_n, Index src2_channels, Index offset_m, Index offset_n,
         Scalar alpha, Handle src1, Handle src2, Index dst_m, Index dst_n,
-        Scalar beta, Handle dst);
+        Index dilation_m, Index dilation_n, Scalar beta, Handle dst);
 
 template
 void submit<fp32_fast_tf32_t>(Index src1_m, Index src1_n, Index src1_channels,
         Index batch, Index src2_m, Index src2_n, Index stride_m,
         Index stride_n, Index src2_channels, Index offset_m, Index offset_n,
         Scalar alpha, Handle src1, Handle src2, Index dst_m, Index dst_n,
-        Scalar beta, Handle dst);
+        Index dilation_m, Index dilation_n, Scalar beta, Handle dst);
 
 template
 void submit<fp64_t>(Index src1_m, Index src1_n, Index src1_channels,
         Index batch, Index src2_m, Index src2_n, Index stride_m,
         Index stride_n, Index src2_channels, Index offset_m, Index offset_n,
         Scalar alpha, Handle src1, Handle src2, Index dst_m, Index dst_n,
-        Scalar beta, Handle dst);
+        Index dilation_m, Index dilation_n, Scalar beta, Handle dst);
 
 } // namespace nntile::starpu::conv2d_bwd_weight_inplace

@@ -50,7 +50,7 @@ conv2d_inplace = {
 ])
 @pytest.mark.parametrize('padding', [[0, 0], [2, 1]])
 @pytest.mark.parametrize('stride', [[1, 1], [2, 3]])
-@pytest.mark.parametrize('dilation', [[1, 1]])
+@pytest.mark.parametrize('dilation', [[1, 1], [2, 2]])
 def test_conv2d(
     starpu_simple,
     numpy_rng,
@@ -67,6 +67,18 @@ def test_conv2d(
     stride,
     dilation
 ):
+    # Get output shape
+    shape_Y = [
+        (shape_X[0] - dilation[0] * (shape_W[0] - 1) - 1 + 2 * padding[0])
+            // stride[0] + 1,
+        (shape_X[1] - dilation[1] * (shape_W[1] - 1) - 1 + 2 * padding[1])
+            // stride[1] + 1,
+        out_channels,
+        batch,
+    ]
+    # Pass test with unappropriate shapes
+    if shape_Y[0] <= 0 or shape_Y[1] <= 0:
+        return
     next_tag = 0
 
     shape = [*shape_X, in_channels, batch]
@@ -92,14 +104,7 @@ def test_conv2d(
     )
     next_tag = W.next_tag
 
-    shape = [
-        (shape_X[0] - dilation[0] * (shape_W[0] - 1) - 1 + 2 * padding[0])
-            // stride[0] + 1,
-        (shape_X[1] - dilation[1] * (shape_W[1] - 1) - 1 + 2 * padding[1])
-            // stride[1] + 1,
-        out_channels,
-        batch,
-    ]
+    shape = shape_Y
     tile_shape = [*shape_Y_tile, out_channels, batch_tile]
     traits = nntile.tensor.TensorTraits(shape, tile_shape)
     mpi_distr = [0] * traits.grid.nelems

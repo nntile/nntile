@@ -38,9 +38,10 @@ void conv2d_bwd_weight_inplace_async(Scalar alpha, const Tensor<T> &X,
  *      `dC` = `alpha`*`f(X, dY)` + `beta`*`dC`,
  * where `f` operation does the following:
  *      `f[i,j,k,l]` = \sum_l \sum_m \sum_n `X[m,n,k,b]`
- *      * `dY[(m+offset_m-i) / stride[0],(n+offset_n-j) / stride[1],l,b]`
- * while `(m+offset_m-i) % stride[0] == 0`
- * and `(n+offset_n-j) % stride[1] == 0`.
+ *      * `dY[(m+offset_m-dilation[0]*i) / stride[0],
+ *            (n+offset_n-dilation[1]*j) / stride[1],l,b]`
+ * while `(m+offset_m-dilation[0]*i) % stride[0] == 0`
+ * and `(n+offset_n-dilation[1]*j) % stride[1] == 0`.
  *
  * Generally, `X` represents input of `Conv2d` layer, `dY` represents output
  * grad of `Conv2d` layer and `dC` represents weight grad of `Conv2d` layer.
@@ -133,20 +134,20 @@ void conv2d_bwd_weight_inplace_async(Scalar alpha, const Tensor<T> &X,
         Index X_end_m = X_start_m + X_tile_traits.shape[0];
         Index X_start_n = X_tile_index[1] * X.basetile_shape[1];
         Index X_end_n = X_start_n + X_tile_traits.shape[1];
-        // Get start and end indices `m` and `n` from the operation:
+        // Get start and end indices for dY from the operation:
         //      `f[i,j,k,l]` = \sum_l \sum_m \sum_n `X[m,n,k,b]`
-        //      * `dY[(m+offset_m-i)/stride[0],(n+offset_n-j)/stride[1],l,b]`
-        // while `(m+offset_m-i) % stride[0] == 0`
-        // and `(n+offset_n-j) % stride[1] == 0`.
-        // So, minimal integer value of `(m+offset_m-i)/stride[0]` is just a
-        // round up of minimal floating point value.
-        // Maximal integer value of `(m+offset_m-i)/stride[0]` is just a round
-        // down of maximal floating point value.
-        Index dY_start_m = (X_start_m+padding[0]-dC.shape[0]+stride[0])
-            / stride[0];
+        //      * `dY[(m+offset_m-dilation[0]*i) / stride[0],
+        //            (n+offset_n-dilation[1]*j) / stride[1],l,b]`
+        // while `(m+offset_m-dilation[0]*i) % stride[0] == 0`
+        // and `(n+offset_n-dilation[1]*j) % stride[1] == 0`.
+        // Minimal value of `(m+offset_m-dilation[0]*i)/stride[0]` is
+        // `floor((m+offset_m-dilation[0]*(dst_m-1)+stride[0]-1)/stride[0])
+        // Maximal (excl.) value is `floor((m+offset_m+stride[0])/stride[0])
+        Index dY_start_m = (X_start_m+padding[0]-dilation[0]*(dC.shape[0]-1)
+                +stride[0]-1) / stride[0];
         Index dY_end_m = (X_end_m-1+padding[0]+stride[0]) / stride[0];
-        Index dY_start_n = (X_start_n+padding[1]-dC.shape[1]+stride[1])
-            / stride[1];
+        Index dY_start_n = (X_start_n+padding[1]-dilation[1]*(dC.shape[1]-1)
+                +stride[1]-1) / stride[1];
         Index dY_end_n = (X_end_n-1+padding[1]+stride[1]) / stride[1];
         // Get dY tile coordinates that interact with dX tile
         Index dY_start_tile_m = dY_start_m / dY.basetile_shape[0];
@@ -185,7 +186,8 @@ void conv2d_bwd_weight_inplace_async(Scalar alpha, const Tensor<T> &X,
                         stride[0], stride[1], dY_tile_traits.shape[2],
                         offset_m, offset_n, alpha, X_tile_handle,
                         dY_tile_handle, dC_tile_traits.shape[0],
-                        dC_tile_traits.shape[1], dC_tile_beta, dC_tile_handle);
+                        dC_tile_traits.shape[1], dilation[0], dilation[1],
+                        dC_tile_beta, dC_tile_handle);
                 dC_tile_beta = 1.0;
                 initialized = true;
             }

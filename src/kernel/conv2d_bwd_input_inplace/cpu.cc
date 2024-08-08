@@ -22,9 +22,9 @@ namespace nntile::kernel::conv2d_bwd_input_inplace
 template<typename T>
 void cpu(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
-        Index dst_channels, Index offset_m, Index offset_n, Scalar alpha,
-        const T *src1, const T *src2, Index dst_m, Index dst_n, Scalar beta,
-        T *dst)
+        Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
+        Index offset_n, Scalar alpha, const T *src1, const T *src2,
+        Index dst_m, Index dst_n, Scalar beta, T *dst)
     noexcept
 /*! Backward convolution of WHCN tensors to get grad of input
  *
@@ -32,7 +32,10 @@ void cpu(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
  *      `dst` = `alpha`*`f(src1, src2)` + `beta`*`dst`,
  * where `f` operation does the following:
  *      `f[i,j,k,b]` = \sum_l \sum_m \sum_n `src1[m,n,l,b]`
- *      * `src2[i + offset_m - stride_m*m,j + offset_n - stride_n*n,k,l]`
+ *      * `src2[(i + offset_m - stride_m*m) / dilation_m,
+ *              (j + offset_n - stride_n*n) / dilation_n,k,l]`
+ * with `(i + offset_m - stride_m*m) % dilation_m == 0`
+ * and `(j + offset_n - stride_n*n) % dilation_n == 0`
  *
  * Generally, `src1` represents output grad of `Conv2d` layer, `src2`
  * represents kernel of `Conv2d` layer and `dst` represents input grad of
@@ -46,6 +49,8 @@ void cpu(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
  * @param[in] batch: Size of the fourth axis of `src1` array
  * @param[in] src2_m: Size of the first axis of `src2` array
  * @param[in] src2_n: Size of the second axis of `src2` array
+ * @param[in] dilation_m: dilation effect of kernel (`src2`) array
+ * @param[in] dilation_n: dilation effect of kernel (`src2`) array
  * @param[in] dst_channels: Size of the third axis of `dst` array
  * @param[in] offset_m: Convolution offset alongside the first axis
  * @param[in] offset_n: Convolution offset alongside the second axis
@@ -66,17 +71,21 @@ void cpu(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
     //     `s1` denote a 2-dim index within `s1`,
     //     `o` denote a 2-dim offset from `dst` to `src1`
     // Then, this convolution computes
-    //      `conv[d] = sum_s1 src1[s1]*src2[d+o-stride*s1]`
+    //      `conv[d] = sum_s1 src1[s1]*src2[(d+o-stride*s1)/dilation]`
     // And we must satisfy condition
-    //      `0 <= d+o-stride*s1 <= src2.shape-1`
+    //      `0 <= d+o-stride*s1 <= dilation*(src2.shape-1)`
     // It means all values of `d`, that actually get non-zero `conv[d]` are:
-    //      `stride*s1-o <= d <= src2.shape+stride*s1-o-1`
+    //      `stride*s1-o <= d <= dilation*(src2.shape-1)+stride*s1-o`
     // Therefore, index `d` is bound as follows:
-    //      `-o <= d < src2.shape+stride*(src1.shape-1)-o`
+    //      `-o <= d < dilation*(src2.shape-1)+stride*(src1.shape-1)-o+1`
     Index dst_start_m = std::max(-offset_m, Index(0));
-    Index dst_end_m = std::min(stride_m*(src1_m-1)+src2_m-offset_m, dst_m);
+    Index dst_end_m = std::min(
+            dilation_m*(src2_m-1)+stride_m*(src1_m-1)-offset_m+1,
+            dst_m);
     Index dst_start_n = std::max(-offset_n, Index(0));
-    Index dst_end_n = std::min(stride_n*(src1_n-1)+src2_n-offset_n, dst_n);
+    Index dst_end_n = std::min(
+            dilation_n*(src2_n-1)+stride_n*(src1_n-1)-offset_n+1,
+            dst_n);
     Index src1_step = src1_n * src1_m;
     Index src2_oc_step = src2_n * src2_m;
     Index src2_ic_step = src2_oc_step * dst_channels;
@@ -96,39 +105,50 @@ void cpu(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
                         // Additional variables for Kahan summation rule
                         Y conv{0.0}, c{0}, y, t;
                         // Once again, we must satisfy condition
-                        //      `0 <= d+o-stride*s1 <= src2.shape-1`
-                        // Therefore, condition on `s1` is the following:
-                        //      `d+o-src2.shape+1 <= s1*stride <= d+o`
+                        //      `0 <= d+o-stride*s1 <= dilation*(src2.shape-1)`
+                        // with `(d+o-s1*stride) % dilation == 0`
                         // Finally, we get
-                        //      `s1 >= ceil((d+o-src2.shape+1)/stride)`
-                        // or
-                        //      `s1 >= floor(d+o-src2.shape+stride)/stride)`
-                        // and
+                        //      `s1 >= ceil((d+o-dilation*(src2.shape-1)
+                        //          / stride)`
                         //      `s1 < floor((d+o+stride)/stride)`
-                        Index src1_start_m = std::max(
-                                (dst_i+offset_m-src2_m+stride_m) / stride_m,
-                                Index(0));
+                        Index src1_start_m = (dst_i + offset_m
+                                - dilation_m*(src2_m-1) + stride_m - 1)
+                            / stride_m;
+                        src1_start_m = std::max(src1_start_m, Index(0));
                         Index src1_end_m = std::min(
                                 (dst_i+offset_m+stride_m) / stride_m,
                                 src1_m);
-                        Index src1_start_n = std::max(
-                                (dst_j+offset_n-src2_n+stride_n) / stride_n,
-                                Index(0));
+                        Index src1_start_n = (dst_j + offset_n
+                                - dilation_n*(src2_n-1) + stride_n - 1)
+                            / stride_n;
+                        src1_start_n = std::max(src1_start_n, Index(0));
                         Index src1_end_n = std::min(
                                 (dst_j+offset_n+stride_n) / stride_n,
                                 src1_n);
                         for(Index src1_i = src1_start_m; src1_i < src1_end_m;
                                 ++src1_i)
                         {
+                            Index tmp_i = dst_i+offset_m-stride_m*src1_i;
+                            // Ensure `(d+o-stride*s1) % dilation == 0`
+                            if(tmp_i % dilation_m != 0)
+                            {
+                                continue;
+                            }
                             for(Index src1_j = src1_start_n;
                                     src1_j < src1_end_n; ++src1_j)
                             {
+                                Index tmp_j = dst_j+offset_n-stride_n*src1_j;
+                                // Ensure `(d+o-stride*s1) % dilation == 0`
+                                if(tmp_j % dilation_n != 0)
+                                {
+                                    continue;
+                                }
                                 const T *src1_slice = src1 + src1_i
                                     + (b*src1_channels*src1_n+src1_j)*src1_m;
-                                // Slice of `src2[d+o-stride*s1]`
+                                // Slice of `src2[(d+o-stride*s1)/dilation]`
                                 const T *src2_slice = src2
-                                    + dst_i + offset_m - stride_m*src1_i
-                                    + (dst_j+offset_n-stride_n*src1_j)*src2_m
+                                    + tmp_i/dilation_m
+                                    + tmp_j/dilation_n*src2_m
                                     + oc*src2_oc_step;
                                 for(Index ic = 0; ic < src1_channels; ++ic)
                                 {
@@ -177,34 +197,34 @@ void cpu(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
 template
 void cpu<bf16_t>(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
-        Index dst_channels, Index offset_m, Index offset_n, Scalar alpha,
-        const bf16_t *src1, const bf16_t *src2, Index dst_m, Index dst_n,
-        Scalar beta, bf16_t *dst)
+        Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
+        Index offset_n, Scalar alpha, const bf16_t *src1, const bf16_t *src2,
+        Index dst_m, Index dst_n, Scalar beta, bf16_t *dst)
     noexcept;
 
 template
 void cpu<fp32_t>(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
-        Index dst_channels, Index offset_m, Index offset_n, Scalar alpha,
-        const fp32_t *src1, const fp32_t *src2, Index dst_m, Index dst_n,
-        Scalar beta, fp32_t *dst)
+        Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
+        Index offset_n, Scalar alpha, const fp32_t *src1, const fp32_t *src2,
+        Index dst_m, Index dst_n, Scalar beta, fp32_t *dst)
     noexcept;
 
 template
 void cpu<fp32_fast_tf32_t>(Index src1_m, Index src1_n, Index stride_m,
         Index stride_n, Index src1_channels, Index batch, Index src2_m,
-        Index src2_n, Index dst_channels, Index offset_m, Index offset_n,
-        Scalar alpha, const fp32_fast_tf32_t *src1,
-        const fp32_fast_tf32_t *src2, Index dst_m, Index dst_n, Scalar beta,
-        fp32_fast_tf32_t *dst)
+        Index src2_n, Index dilation_m, Index dilation_n, Index dst_channels,
+        Index offset_m, Index offset_n, Scalar alpha,
+        const fp32_fast_tf32_t *src1, const fp32_fast_tf32_t *src2,
+        Index dst_m, Index dst_n, Scalar beta, fp32_fast_tf32_t *dst)
     noexcept;
 
 template
 void cpu<fp64_t>(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
         Index src1_channels, Index batch, Index src2_m, Index src2_n,
-        Index dst_channels, Index offset_m, Index offset_n, Scalar alpha,
-        const fp64_t *src1, const fp64_t *src2, Index dst_m, Index dst_n,
-        Scalar beta, fp64_t *dst)
+        Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
+        Index offset_n, Scalar alpha, const fp64_t *src1, const fp64_t *src2,
+        Index dst_m, Index dst_n, Scalar beta, fp64_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::conv2d_bwd_input_inplace
