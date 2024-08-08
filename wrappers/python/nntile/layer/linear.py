@@ -366,9 +366,9 @@ class Linear(BaseLayer):
         x_shape = self.x.value.shape
         w_shape = self.w.value.shape
         if self.side == "L":
-            return np.prod(x_shape) * np.prod(w_shape[self.ndim:])
+            return 2 * np.prod(x_shape) * np.prod(w_shape[self.ndim:])
         elif self.side == "R":
-            return np.prod(x_shape) * np.prod(w_shape[:-self.ndim])
+            return 2 * np.prod(x_shape) * np.prod(w_shape[:-self.ndim])
 
     def get_layer_backward_flops(self):
         x_shape = self.x.value.shape
@@ -378,25 +378,25 @@ class Linear(BaseLayer):
         x_grad_flops = 0
         if self.side == "L":
             if self.w.grad_required:
-                w_grad_flops = (np.prod(x_shape) *
+                w_grad_flops = (2 * np.prod(x_shape) *
                                 np.prod(y_grad_shape[self.ndim:]))
             if self.x.grad_required:
                 if self.trans_x == notrans:
-                    x_grad_flops = (np.prod(w_shape) *
+                    x_grad_flops = (2 * np.prod(w_shape) *
                                     np.prod(y_grad_shape[:-self.ndim]))
                 else:
-                    x_grad_flops = (np.prod(w_shape) *
+                    x_grad_flops = (2 * np.prod(w_shape) *
                                     np.prod(y_grad_shape[self.ndim:]))
         elif self.side == "R":
             if self.w.grad_required:
-                w_grad_flops = (np.prod(x_shape) *
+                w_grad_flops = (2 * np.prod(x_shape) *
                                 np.prod(y_grad_shape[:-self.ndim]))
             if self.x.grad_required:
                 if self.trans_x == notrans:
-                    x_grad_flops = (np.prod(w_shape) *
+                    x_grad_flops = (2 * np.prod(w_shape) *
                                     np.prod(y_grad_shape[self.ndim:]))
                 else:
-                    x_grad_flops = (np.prod(w_shape) *
+                    x_grad_flops = (2 * np.prod(w_shape) *
                                     np.prod(y_grad_shape[:-self.ndim]))
         total_backward_flops = w_grad_flops + x_grad_flops
         return total_backward_flops
