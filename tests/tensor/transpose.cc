@@ -9,7 +9,7 @@
  * @file tests/tensor/transpose.cc
  * Transpose operation
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/transpose.hh"

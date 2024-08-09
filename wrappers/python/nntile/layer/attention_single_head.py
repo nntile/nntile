@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/layer/attention_single_head.py
 # Single-headed attention layer of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 

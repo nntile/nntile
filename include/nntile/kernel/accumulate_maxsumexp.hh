@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/accumulate_maxsumexp.hh
  * Accumulate maxsumexp buffers low-level kernel
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

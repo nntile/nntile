@@ -9,7 +9,7 @@
  * @file tests/kernel/scal.cc
  * Per-element scaling of tensors
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>

@@ -9,7 +9,7 @@
  * @file src/kernel/mask_scalar/cuda.cu
  * Mask operation with scalar on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/mask_scalar/cuda.hh"

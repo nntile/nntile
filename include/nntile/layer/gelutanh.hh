@@ -9,7 +9,7 @@
  * @file include/nntile/layer/gelutanh.hh
  * Approximate GeLU layer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

@@ -9,7 +9,7 @@
  * @file tests/tensor/subtract_indexed_column.cc
  * Subtract indexed column for Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>

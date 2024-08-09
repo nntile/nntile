@@ -9,7 +9,7 @@
  * @file src/kernel/fp32_to_fp16/cpu.cc
  * Convert fp32_t array into fp16_t array on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/fp32_to_fp16/cpu.hh"

@@ -9,7 +9,7 @@
  * @file include/nntile/optimizer/base.hh
  * Common API for all optimizers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

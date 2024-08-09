@@ -9,7 +9,7 @@
 # @file Dockerfile
 # Instructions for Docker to build an image for testing with NNTile and Torch
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # Base images could be unavailable due to NVidia policies on keeping track only
 # of the latest ones

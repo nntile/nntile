@@ -9,7 +9,7 @@
  * @file src/kernel/sumnorm/cuda.cu
  * Sum and Euclidean norm of a buffer on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/sumnorm/cuda.hh"

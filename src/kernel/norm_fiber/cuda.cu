@@ -9,7 +9,7 @@
  * @file src/kernel/norm_fiber/cuda.cu
  * Sums over slices into a fiber of a buffer on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/norm_fiber/cuda.hh"

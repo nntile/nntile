@@ -9,7 +9,7 @@
  * @file tests/tile/gelu_backward.cc
  * Backward GeLU operation for Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>

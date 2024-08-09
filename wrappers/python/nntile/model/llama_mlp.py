@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/llama_mlp.py
 # LlamaMLP submodule of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import torch
 from transformers import LlamaConfig as LlamaConfig_torch

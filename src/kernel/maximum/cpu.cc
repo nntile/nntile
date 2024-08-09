@@ -9,7 +9,7 @@
  * @file src/kernel/maximum/cpu.cc
  * Per-element maximum of two buffers on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/maximum/cpu.hh"

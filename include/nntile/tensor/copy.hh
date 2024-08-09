@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/copy.hh
  * Copy one tensors into another matching tensor
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

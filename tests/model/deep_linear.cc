@@ -9,7 +9,7 @@
  * @file tests/model/deep_linear.cc
  * Deep linear meural network
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/model/deep_linear.hh"

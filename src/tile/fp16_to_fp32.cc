@@ -9,7 +9,7 @@
  * @file src/tile/fp16_to_fp32.cc
  * Convert fp32_t array into fp16_t array
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/fp16_to_fp32.hh"

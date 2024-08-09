@@ -8,7 +8,7 @@
  *
  * @file src/tile/subtract_indexed_outputs.cc
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/subtract_indexed_outputs.hh"

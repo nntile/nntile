@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/silu_forward/cpu.hh
  * Forward SiLU operation on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

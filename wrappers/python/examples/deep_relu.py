@@ -9,7 +9,7 @@
 # @file wrappers/python/examples/deep_relu.py
 # Example of using Deep ReLU network of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import time
 

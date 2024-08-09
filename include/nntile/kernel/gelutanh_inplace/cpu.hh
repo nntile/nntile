@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/gelutanh_inplace/cpu.hh
  * Approximate GeLU operation on CPU based on tanh function
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

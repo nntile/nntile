@@ -10,7 +10,7 @@
 # @file ci/add-repo-kitware
 # A script to add source of CMake package to the APT system
 #
-# @version 1.0.0
+# @version 1.1.0
 
 set -xe
 

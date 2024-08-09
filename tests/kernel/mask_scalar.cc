@@ -9,7 +9,7 @@
  * @file tests/kernel/mask_scalar.cc
  * Mask scalar operation on a buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/mask_scalar.hh"

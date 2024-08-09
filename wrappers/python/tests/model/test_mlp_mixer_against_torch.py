@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/model/test_mlp_mixer_against_torch.py
 # Test for comparison of torch and NNTile versions of MLP-Mixer model
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # ruff: noqa: E501
 

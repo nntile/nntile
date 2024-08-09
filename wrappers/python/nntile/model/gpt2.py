@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/gpt2.py
 # GPT2 model of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from typing import Dict
 

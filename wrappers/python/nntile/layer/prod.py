@@ -10,7 +10,7 @@
 # Product layer of NNTile Python package.
 # It is used in Llama MLP block
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import TensorMoments, TensorTraits, copy_async, prod_async

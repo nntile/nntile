@@ -9,7 +9,7 @@
 # @file wrappers/python/examples/mlp_mixer_data_preparation.py
 # Helper module to load MNIST data for MLP-Mixer training
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 import torch

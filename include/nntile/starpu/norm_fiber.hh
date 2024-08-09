@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/norm_fiber.hh
  * Euclidean norms over slices into a fiber of a product of a StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

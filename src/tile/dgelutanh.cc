@@ -9,7 +9,7 @@
  * @file src/tile/dgelutanh.cc
  * Derivative of approximate GeLU operation for Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/dgelutanh.hh"

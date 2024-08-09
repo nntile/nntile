@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/layer/test_batch_norm.py
 # Test for nntile.layer.BatchNorm2d
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from dataclasses import dataclass, field
 

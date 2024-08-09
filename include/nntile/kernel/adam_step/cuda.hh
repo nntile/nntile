@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/adam_step/cuda.hh
  * Fused Adam step on CUDA buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

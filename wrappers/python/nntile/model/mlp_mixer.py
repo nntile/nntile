@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/deep_linear.py
 # Deep Linear model of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 import torch

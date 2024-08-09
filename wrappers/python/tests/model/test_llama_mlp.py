@@ -11,7 +11,7 @@
 # Each test is generated in float precision by PyTorch, then it is downcasted
 # into NNTile type. So, implementation of double precision is NOT checked.
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from dataclasses import dataclass
 

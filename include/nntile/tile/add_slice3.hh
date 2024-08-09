@@ -9,7 +9,7 @@
  * @file include/nntile/tile/add_slice3.hh
  * Tile wrappers for addition of a tensor and a broadcasted slice
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

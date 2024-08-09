@@ -9,7 +9,7 @@
  * @file tests/starpu/add_slice.cc
  * StarPU wrappers for addition of a tensor and a broadcasted slice
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/starpu/add_slice.hh"

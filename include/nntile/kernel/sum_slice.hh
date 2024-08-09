@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/sum_slice.hh
  * Sums over fibers into a slice of a buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

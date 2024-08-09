@@ -9,7 +9,7 @@
  * @file tests/tile/add.cc
  * Per-element addition of tensors
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>

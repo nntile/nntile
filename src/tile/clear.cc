@@ -9,7 +9,7 @@
  * @file src/tile/clear.cc
  * Clear Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/clear.hh"

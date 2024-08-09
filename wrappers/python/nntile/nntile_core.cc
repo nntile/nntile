@@ -9,7 +9,7 @@
  * @file wrappers/python/nntile/nntile_core.cc
  * Extension module with NNTile wrappers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <pybind11/pybind11.h>

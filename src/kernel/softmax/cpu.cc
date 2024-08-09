@@ -9,7 +9,7 @@
  * @file src/kernel/softmax/cpu.cc
  * Softmax operation for a buffer on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/softmax/cpu.hh"

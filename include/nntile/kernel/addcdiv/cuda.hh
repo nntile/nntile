@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/addcdiv/cuda.hh
  * Addcdiv operation on buffers on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

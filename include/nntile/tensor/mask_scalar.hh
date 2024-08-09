@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/mask_scalar.hh
  * Mask scalar operation on tensor
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

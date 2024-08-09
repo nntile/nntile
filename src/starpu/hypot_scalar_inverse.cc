@@ -9,7 +9,7 @@
  * @file src/starpu/hypot_scalar_inverse.cc
  * Inverse of a hypot operation of a buffer and a scalar
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID

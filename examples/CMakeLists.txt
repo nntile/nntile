@@ -9,7 +9,7 @@
 # @file examples/CMakeLists.txt
 # Add examples to the CMake
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # Add an example, which is NOT controlled by the ctest. Example executable
 # shall not take any arguments, as all of the inputs shall be within the

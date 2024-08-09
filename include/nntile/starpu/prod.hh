@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/prod.hh
  * Per-element product of two StarPU buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

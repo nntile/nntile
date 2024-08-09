@@ -9,7 +9,7 @@
  * @file src/kernel/silu_backward/cuda.cu
  * Backward SiLU operation on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/silu_backward/cuda.hh"

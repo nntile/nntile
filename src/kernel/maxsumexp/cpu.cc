@@ -9,7 +9,7 @@
  * @file src/kernel/maxsumexp/cpu.cc
  * Max and sum of exponents of a buffer on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/maxsumexp/cpu.hh"

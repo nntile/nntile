@@ -9,7 +9,7 @@
  * @file src/kernel/addcdiv/cuda.cu
  * Addcdiv operation for buffers on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/addcdiv/cuda.hh"

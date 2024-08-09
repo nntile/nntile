@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/layer/test_mixer_against_torch.py
 # Test for nntile.layer.mixer
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 import pytest

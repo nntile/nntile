@@ -9,7 +9,7 @@
  * @file src/starpu/sum_slice.cc
  * Sum over fibers into a slice of a StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID

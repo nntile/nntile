@@ -9,7 +9,7 @@
  * @file tests/kernel/sqrt_inplace.cc
  * Inplace sqrt operation on a buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/sqrt_inplace.hh"

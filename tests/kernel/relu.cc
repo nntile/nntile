@@ -9,7 +9,7 @@
  * @file tests/kernel/relu.cc
  * ReLU operation on a buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/relu.hh"

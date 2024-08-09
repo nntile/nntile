@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/tensor.py
 # Multiprecision tensor with operations
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # TODO(@daskol): There are a lot of typing errors related to dispatching
 # depending on operand types. Arguments are usually annotated as a `Tensor`

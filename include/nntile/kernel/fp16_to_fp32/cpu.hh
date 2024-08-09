@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/fp16_to_fp32/cpu.hh
  * Convert fp16_t array into fp32_t array on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

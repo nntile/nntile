@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/torch_models/mlp_mixer.py
 # PyTorch-based implementation of MLP-Mixer architecture
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import torch
 from torch import nn

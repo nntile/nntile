@@ -9,7 +9,7 @@
 # @file tests/layer/CMakeLists.txt
 # Tests for nntile::layer functions
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # All unit tests for layers
 set(TESTS

@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/loss/frob.py
 # Frobenius norm loss of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from nntile.tensor import (
     Tensor, TensorMoments, TensorTraits, axpy_async, copy_async, nrm2_async,

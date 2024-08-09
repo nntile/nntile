@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/total_sum_accum.hh
  * Low-level kernels to compute total_sum_accum
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

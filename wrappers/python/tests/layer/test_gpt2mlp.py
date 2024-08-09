@@ -10,7 +10,7 @@
 # Test for nntile.layer.gpt2mlp
 # Here we use transformers-4.28.1 from https://github.com/huggingface/transformers
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import time
 

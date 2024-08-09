@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/silu_forward/cuda.hh
  * SiLU operation on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

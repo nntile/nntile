@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/dgelutanh.hh
  * Derivative of approximated GeLU low-level kernels
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

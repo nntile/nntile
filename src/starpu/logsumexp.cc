@@ -9,7 +9,7 @@
  * @file src/starpu/logsumexp.cc
  * Log of sum of exponents for StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID

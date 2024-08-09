@@ -9,7 +9,7 @@
  * @file src/starpu/flash_softmax_gemm_backward_dq_dk.cc
  * Flash Attention backward to get gradients of Q and K
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/starpu/flash_softmax_gemm_backward_dq_dk.hh"

@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/nntile_core/test_tensor_add_slice3.py
 # Test for tensor::add_slice3<T> Python wrapper
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import pytest
 

@@ -9,7 +9,7 @@
 # @file wrappers/python/examples/llama_training.py
 # Llama training example
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import argparse
 import json

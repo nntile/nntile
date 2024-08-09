@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/test_gpt2.py
 # GPT2 performance analysis workflow
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import time
 from pathlib import Path

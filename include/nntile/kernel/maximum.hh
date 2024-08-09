@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/maximum.hh
  * Per-element maximum of two buffers. low-level kernels
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

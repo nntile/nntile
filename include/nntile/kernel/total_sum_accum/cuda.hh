@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/total_sum_accum/cuda.hh
  * total_sum_accum operation for buffers on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

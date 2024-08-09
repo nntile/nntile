@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/optimizer/adam.py
 # Implementation of Adam with amsgrad option within nntile package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import pickle
 

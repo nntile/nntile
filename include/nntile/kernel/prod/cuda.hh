@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/prod/cuda.hh
  * Per-element product of two buffers on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

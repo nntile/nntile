@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/optimizer/empty.py
 # This optimizer does nothing, it does not update parameters at all
 #
-# @version 1.0.0
+# @version 1.1.0
 
 class Empty:
     def __init__(self, params, next_tag):

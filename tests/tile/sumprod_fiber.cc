@@ -9,7 +9,7 @@
  * @file tests/tile/sumprod_fiber.cc
  * Sums over slices into a fiber of a product of two Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>

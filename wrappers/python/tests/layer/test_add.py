@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/layer/test_add.py
 # Test for nntile.layer.add
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import time
 

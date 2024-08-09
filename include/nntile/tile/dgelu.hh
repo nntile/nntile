@@ -9,7 +9,7 @@
  * @file include/nntile/tile/dgelu.hh
  * Derivative of GeLU operation for Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

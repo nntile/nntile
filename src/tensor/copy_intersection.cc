@@ -9,7 +9,7 @@
  * @file src/tensor/copy_intersection.cc
  * Copy intersection of 2 tensors from one into another
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/copy_intersection.hh"

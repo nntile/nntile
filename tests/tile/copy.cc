@@ -9,7 +9,7 @@
  * @file tests/tile/copy.cc
  * Copy one tile into another
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/copy.hh"

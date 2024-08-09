@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/base_model.py
 # Base model API of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from typing import List
 

@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/prod_slice.hh
  * StarPU wrappers for multiplication of a tensor and a broadcasted slice
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

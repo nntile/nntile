@@ -9,7 +9,7 @@
  * @file src/kernel/sqrt/cpu.cc
  * Sqrt operation on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/sqrt/cpu.hh"
