@@ -399,23 +399,6 @@ def test_linear_flops(side: str, x_shape, w_shape, b_shape,
     """Compare flopscounting in :py:class:`nntile.layer.Linear`
     and analytical formulas
     """
-    # w_torch = torch.randn(w_shape, requires_grad=True)
-    # b_torch = torch.randn(b_shape, requires_grad=True)
-    # x_torch = torch.randn(x_shape, requires_grad=True)
-
-    # match side:
-    #     case 'L':
-    #         y_torch = (torch.tensordot(x_torch, w_torch, n_contracted_dim) +
-    #                    b_torch.view(1, *b_torch.shape))
-    #     case 'R':
-    #         y_torch = torch.tensordot(w_torch, x_torch, n_contracted_dim)
-    #         if len(y_torch.shape) - len(b_torch.shape) == 1:
-    #             y_torch += b_torch.view(*b_torch.shape, 1)
-    #         elif len(y_torch.shape) - len(b_torch.shape) == 2:
-    #             y_torch += b_torch.view(*b_torch.shape, 1, 1)
-
-    # loss_torch = y_torch.sum()
-    # loss_torch.backward()
 
     A_traits = nntile.tensor.TensorTraits(x_shape, x_shape)
     mpi_distr = [0]

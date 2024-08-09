@@ -222,8 +222,10 @@ class TestLlamaAttention:
                 generate_inputs(dtype, params, bias)
         nntile_layer.forward_async()
         nntile_layer.backward_async()
-        analytical_fwd_flops = (8 * params.n_batch * params.n_seq *
-                                params.n_emb**2 + 4 * params.n_batch *
+        analytical_fwd_flops = (4 * params.n_batch * params.n_seq *
+                                params.n_emb * (params.n_emb +
+                                params.n_emb * params.n_head_kv //
+                                params.n_head) + 4 * params.n_batch *
                                 params.n_seq**2 * params.n_emb)
         assert (nntile_layer.get_layer_forward_flops() ==
                 analytical_fwd_flops)
