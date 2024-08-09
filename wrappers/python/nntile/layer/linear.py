@@ -372,28 +372,20 @@ class Linear(BaseLayer):
 
     def get_layer_backward_flops(self):
         x_shape = self.x.value.shape
-        y_grad_shape = self.y.grad.shape
-        w_grad_flops = 0
-        x_grad_flops = 0
+        w_shape = self.w.grad.shape
+        total_backward_flops = 0
         if self.side == "L":
             doubled_prod_dim = (2 * np.prod(x_shape) *
-                                np.prod(y_grad_shape[self.ndim:]))
+                                np.prod(w_shape[self.ndim:]))
             if self.w.grad_required:
-                w_grad_flops = doubled_prod_dim
+                total_backward_flops += doubled_prod_dim
             if self.x.grad_required:
-                if self.trans_x == notrans:
-                    x_grad_flops = doubled_prod_dim
-                else:
-                    x_grad_flops = doubled_prod_dim
+                total_backward_flops += doubled_prod_dim
         elif self.side == "R":
             doubled_prod_dim = (2 * np.prod(x_shape) *
-                                np.prod(y_grad_shape[:-self.ndim]))
+                                np.prod(w_shape[:-self.ndim]))
             if self.w.grad_required:
-                w_grad_flops = doubled_prod_dim
+                total_backward_flops += doubled_prod_dim
             if self.x.grad_required:
-                if self.trans_x == notrans:
-                    x_grad_flops = doubled_prod_dim
-                else:
-                    x_grad_flops = doubled_prod_dim
-        total_backward_flops = w_grad_flops + x_grad_flops
+                total_backward_flops += doubled_prod_dim
         return total_backward_flops
