@@ -94,7 +94,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install pre-commit isort ruff mypy jupyter tensorflow-cpu tensorboard
 
 # Open Jupyter Lab and Tensorboard ports
-EXPOSE 8888 6008
+EXPOSE 8888 6006
 
 FROM sandbox AS nntile
 
