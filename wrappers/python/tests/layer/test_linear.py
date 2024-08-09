@@ -396,7 +396,7 @@ def test_dynamic(numpy_rng, x_shape, w_shape):
 ])
 def test_linear_flops(side: str, x_shape, w_shape, b_shape,
                            n_contracted_dim):
-    """Compare flopscounting in :py:class:`nntile.layer.Linear`
+    """Compare flops counting in :py:class:`nntile.layer.Linear`
     and analytical formulas
     """
 
@@ -421,21 +421,6 @@ def test_linear_flops(side: str, x_shape, w_shape, b_shape,
                 A_moments, 'R', nntile.tensor.notrans, n_contracted_dim,
                 [*w_shape[:-n_contracted_dim]], [*w_shape[:-n_contracted_dim]],
                 next_tag, bias=True)
-    gen = np.random.default_rng(42)
-    np_W = np.array(gen.standard_normal(w_shape), dtype=np.float32, order='F')
-    layer.w.value.from_array(np_W)
-    np_b = np.array(gen.standard_normal(b_shape), dtype=np.float32, order='F')
-    layer.b.value.from_array(np_b)
-    nntile.tensor.clear_async(layer.w.grad)
-    nntile.tensor.clear_async(layer.b.grad)
-    # Check result of forward pass layer.y.value
-    np_A = np.array(gen.standard_normal(x_shape), dtype=np.float32, order='F')
-    A.from_array(np_A)
-    nntile.tensor.clear_async(A_grad)
-    layer.forward_async()
-    layer.y.grad.from_array(np.ones(layer.y.value.shape, np.float32, 'F'))
-    layer.backward_async()
-
     match side:
         case 'L':
             analytical_fwd_flops = (2 * np.prod(x_shape) *
