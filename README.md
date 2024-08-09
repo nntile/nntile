@@ -71,7 +71,7 @@ docker build . \
     -t nntile:latest \
     --build-arg MAKE_JOBS=4 \
     --build-arg BASE_IMAGE=nvidia/cuda:12.4.0-devel-ubuntu22.04 \
-    --build-arg CUDA_ARCHS="70;75;80;86;89;90"
+    --build-arg CUDA_ARCHS="80;86;89;90"
 ```
 
 During image building `StarPU` is compiled with `make`. This process can be
@@ -81,6 +81,10 @@ possible that a default `nvidia/cuda:12.4.0-devel-ubuntu-22.04` is not
 available. In such a case, input name of an appropriate available image.
 Argument `CUDA_ARCHS` defines target CUDA architectures to be supported by
 **NNTile**.
+
+## Minimal requirements
+
+NNTile does supports CUDA devices only of compute capability 8.0 or higher
 
 ## Minimal working GPT example
 
