@@ -216,6 +216,11 @@ class LlamaAttention(BaseLayer):
         else:
             self.redux = 0
 
+        # need to fill with valid values for dynamic api usage
+        clear_async(self.q.value)
+        clear_async(self.k.value)
+        clear_async(self.v.value)
+
         self.reset_cache()
 
     # Simple generator for the linear layer
@@ -733,8 +738,7 @@ class LlamaAttention(BaseLayer):
         return (layer, next_tag)
 
     def reset_cache(self, value=0):
-        self.k_cache_size = value
-        self.v_cache_size = value
+        self.kv_cache_size = value
 
     # Forward propagation of the attention layer
     def forward_async(self):
@@ -1191,8 +1195,12 @@ class LlamaAttention(BaseLayer):
 
         sin_partial = nntc.empty((self.sin.shape[0],) + tuple(x.shape[-2:]))
         cos_partial = nntc.empty((self.cos.shape[0],) + tuple(x.shape[-2:]))
-        copy_intersection_async(self.sin, [0, 0, 0], sin_partial, [0, 0, 0])
-        copy_intersection_async(self.cos, [0, 0, 0], cos_partial, [0, 0, 0])
+        copy_intersection_async(
+            self.sin, [0, 0, 0], sin_partial, [self.kv_cache_size, 0, 0]
+        )
+        copy_intersection_async(
+            self.cos, [0, 0, 0], cos_partial, [self.kv_cache_size, 0, 0]
+        )
 
         rope_async(sin_partial, cos_partial, q_partial, q_rope_partial)
         rope_async(sin_partial, cos_partial, k_partial, k_rope_partial)
@@ -1209,29 +1217,34 @@ class LlamaAttention(BaseLayer):
         1. Save new partials to cache
         2. Load K,V from cache
         """
-        if not use_cache:
-            self.reset_cache()
+        if k_rope_partial.shape[1] != v_partial.shape[1]:
+            raise Exception(
+                "Current kvcache code assumes equal seq_size for K,V: ",
+                f"{k_rope_partial.shape[1]} != {v_partial.shape[1]}",
+            )
 
-        if v_partial.shape[1] + self.v_cache_size > self.x_v.value.shape[1]:
+        if v_partial.shape[1] + self.kv_cache_size > self.x_v.value.shape[1]:
             raise Exception(
                 "Overload internal state: "
                 f"try add {v_partial.shape[1]} "
-                f"to {self.v_cache_size}, max: {self.x_v.value.shape[1]}. "
+                f"to {self.kv_cache_size}, max: {self.x_v.value.shape[1]}. "
                 "Maybe you forgot to call reset_cache between iterations?"
             )
 
         copy_intersection_async(
             k_rope_partial,
-            [0, self.k_cache_size, 0, 0],
+            [0, self.kv_cache_size, 0, 0],
             self.k.value,
             [0, 0, 0, 0],
         )
-        self.k_cache_size += k_rope_partial.shape[1]
 
         copy_intersection_async(
-            v_partial, [0, self.v_cache_size, 0, 0], self.v.value, [0, 0, 0, 0]
+            v_partial,
+            [0, self.kv_cache_size, 0, 0],
+            self.v.value,
+            [0, 0, 0, 0],
         )
-        self.v_cache_size += v_partial.shape[1]
+        self.kv_cache_size += v_partial.shape[1]
 
         if not use_cache:
             return k_rope_partial, v_partial
@@ -1239,7 +1252,7 @@ class LlamaAttention(BaseLayer):
         # For correct softmax we should next use only currently cached seq_size
         # So copy here
         k_cached_shape = self.k.value.shape
-        k_cached_shape[1] = self.k_cache_size
+        k_cached_shape[1] = self.kv_cache_size
         k_partial_cached = nntc.empty(
             k_cached_shape,
             dtype=type(k_rope_partial),
@@ -1251,7 +1264,7 @@ class LlamaAttention(BaseLayer):
         )
 
         cached_shape = self.v.value.shape
-        cached_shape[1] = self.v_cache_size
+        cached_shape[1] = self.kv_cache_size
         v_partial_cached = nntc.empty(
             cached_shape,
             dtype=type(v_partial),
@@ -1301,6 +1314,9 @@ class LlamaAttention(BaseLayer):
         return k_rep_partial, v_rep_partial
 
     def forward_dynamic(self, x: TensorMoments, use_cache: bool = False):
+        if not use_cache:
+            self.reset_cache()
+
         q_partial = self._forward_mlp_q_dynamic(x.value)
         k_partial = self._forward_mlp_k_dynamic(x.value)
         v_partial = self._forward_mlp_v_dynamic(x.value)
