@@ -9,7 +9,7 @@
  * @file tests/starpu/subtract_indexed_column.cc
  * Subtract a given value from the indexed column of a matrix for StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>

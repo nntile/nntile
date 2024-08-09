@@ -9,7 +9,7 @@
  * @file src/kernel/logsumexp/cuda.cu
  * Logsumexp after computed maxsumexp result of a buffer on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/logsumexp/cuda.hh"

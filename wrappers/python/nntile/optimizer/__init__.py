@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/optimizer/__init__.py
 # Optimizer init as a part of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from .adam import Adam
 from .adamw import AdamW

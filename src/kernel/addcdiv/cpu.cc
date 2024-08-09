@@ -9,7 +9,7 @@
  * @file src/kernel/addcdiv/cpu.cc
  * Per-element addcdiv operation for buffers on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/addcdiv/cpu.hh"

@@ -9,7 +9,7 @@
  * @file tests/tile/drelu.cc
  * Derivative of ReLU operation on Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/drelu.hh"

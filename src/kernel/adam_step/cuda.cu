@@ -9,7 +9,7 @@
  * @file src/kernel/adam_step/cuda.cu
  * Adam step with buffers on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/adam_step/cuda.hh"

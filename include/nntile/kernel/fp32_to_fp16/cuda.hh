@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/fp32_to_fp16/cuda.hh
  * Convert fp32_t array into fp16_t array on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

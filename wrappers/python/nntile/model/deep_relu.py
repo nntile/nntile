@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/deep_relu.py
 # Deep ReLU model of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from nntile.layer.act import Act
 from nntile.layer.linear import Linear

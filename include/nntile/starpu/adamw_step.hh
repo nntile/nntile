@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/adamw_step.hh
  * AdamW step with StarPU buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

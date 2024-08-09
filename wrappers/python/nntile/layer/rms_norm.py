@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/layer/rms_norm.py
 # RMSNorm of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import torch
 from transformers.models.llama.modeling_llama import (

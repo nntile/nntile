@@ -10,7 +10,7 @@
  * Backward 2D-Convolution of two tensors in WHCN format to get grad of weight
  * Due to Fortran ordering, WHCN of NNTile is equal to NCHF format of PyTorch
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

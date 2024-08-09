@@ -10,7 +10,7 @@
 # Add layer of NNTile Python package.
 # It is used in skip-connection operation
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer

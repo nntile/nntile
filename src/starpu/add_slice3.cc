@@ -9,7 +9,7 @@
  * @file src/starpu/add_slice3.cc
  * StarPU wrappers for addition of a tensor and a broadcasted slice
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID

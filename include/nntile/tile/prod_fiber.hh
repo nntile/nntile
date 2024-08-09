@@ -9,7 +9,7 @@
  * @file include/nntile/tile/prod_fiber.hh
  * Tile wrappers for per-element product of a tensor and a broadcasted fiber
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

@@ -9,7 +9,7 @@
 # @file wrappers/python/examples/gpt2_training.py
 # GPT2 training example
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import argparse
 import json

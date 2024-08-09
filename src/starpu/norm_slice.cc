@@ -9,7 +9,7 @@
  * @file src/starpu/norm_slice.cc
  * Euclidean norms of fibers into a slice of a StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID

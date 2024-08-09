@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/hypot.hh
  * hypot operation on StarPU buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

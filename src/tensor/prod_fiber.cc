@@ -9,7 +9,7 @@
  * @file src/tensor/prod_fiber.cc
  * Tensor wrappers for per-element product of a tensor and a broadcasted fiber
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/prod_fiber.hh"

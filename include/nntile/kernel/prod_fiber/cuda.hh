@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/prod_fiber/cuda.hh
  * Per-element multiplication of a tensor by a broadcasted fiber on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/layer/add_slice.py
 # Add slice layer of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import nntile.utils.constructors as nntc
 from nntile.tensor import (

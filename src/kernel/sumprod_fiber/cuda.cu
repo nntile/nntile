@@ -9,7 +9,7 @@
  * @file src/kernel/sumprod_fiber/cuda.cu
  * Sums over slices into a fiber of a product of buffers on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/sumprod_fiber/cuda.hh"

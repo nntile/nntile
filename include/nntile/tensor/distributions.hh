@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/distributions.hh
  * Distributions for tensors
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

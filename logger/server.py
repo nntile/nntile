@@ -9,7 +9,7 @@
 # @file logger/server.py
 # A simple server that listens websocket port 5001 and writes TensorBoard logs
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import asyncio
 import datetime

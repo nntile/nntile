@@ -9,7 +9,7 @@
  * @file src/kernel/relu_forward/cpu.cc
  * Forward ReLU operation on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/relu_forward/cpu.hh"

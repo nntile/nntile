@@ -9,7 +9,7 @@
 # @file include/CMakeLists.txt
 # Set NNTile headers
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # Set list of headers
 set(BASE_HDR

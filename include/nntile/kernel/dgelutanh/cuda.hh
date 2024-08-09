@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/dgelutanh/cuda.hh
  * Derivative of approximate GeLU operation on a buffer on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

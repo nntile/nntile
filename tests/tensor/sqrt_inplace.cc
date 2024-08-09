@@ -9,7 +9,7 @@
  * @file tests/tensor/sqrt_inplace.cc
  * sqrt_inplace operation for Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/sqrt_inplace.hh"

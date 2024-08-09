@@ -9,7 +9,7 @@
  * @file include/nntile/config.hh
  * Base configuration of NNTile with its initialization
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

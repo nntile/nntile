@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/sumnorm.hh
  * Low-level kernels to compute sum and Euclidean norm along axis
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

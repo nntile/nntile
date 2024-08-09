@@ -9,7 +9,7 @@
 # @file wrappers/python/CMakeLists.txt
 # Python wrappers for High-level API of NNTile library
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # Get pybind11 library and set up binary directory pybind11
 add_subdirectory("../../external/pybind11" "pybind11")

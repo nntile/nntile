@@ -9,7 +9,7 @@
  * @file src/tensor/norm_fiber.cc
  * Euclidean norms over slices into a fiber of a product of a Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/norm_fiber.hh"

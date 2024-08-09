@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/layer/fp16_to_fp32.py
 # Conversion layer from fp16_t to fp32_t of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from nntile.layer.base_layer import BaseLayer
 from nntile.nntile_core.tensor import fp16_to_fp32_async, fp32_to_fp16_async

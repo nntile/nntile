@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/maxsumexp.hh
  * Low-level kernels to compute maximums and sums of exponents along axis
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

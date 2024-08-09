@@ -9,7 +9,7 @@
 # @file wrappers/python/examples/mlp_mixer_torch.py
 # Example for torch version of MLP-Mixer model
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import argparse
 # All necesary imports

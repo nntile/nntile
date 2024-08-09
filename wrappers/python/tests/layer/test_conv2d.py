@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/nntile_core/test_tensor_conv2d.py
 # Test for tensor::conv2d<T> Python wrapper
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from typing import Sequence
 

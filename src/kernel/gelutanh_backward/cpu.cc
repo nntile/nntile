@@ -9,7 +9,7 @@
  * @file src/kernel/gelutanh_backward/cpu.cc
  * Backward of approximate GeLU operation on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/gelutanh_backward/cpu.hh"

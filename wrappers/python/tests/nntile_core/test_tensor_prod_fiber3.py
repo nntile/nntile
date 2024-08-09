@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/nntile_core/test_tensor_prod_fiber3.py
 # Test for tensor::prod_fiber3<T> Python wrapper
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import pytest
 

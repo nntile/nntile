@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/sum_slice/cpu.hh
  * Sums over fibers into a slice of a buffer on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

@@ -9,7 +9,7 @@
  * @file include/nntile/layer/linear.hh
  * Fully connected dense linear layer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

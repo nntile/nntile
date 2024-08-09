@@ -9,7 +9,7 @@
  * @file src/tile/add_scalar.cc
  * Add_scalar operation for Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/add_scalar.hh"

@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/subtract_indexed_outputs.hh
  * Subtraction of a given value from certain matrix elements for StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

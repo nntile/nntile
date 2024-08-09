@@ -9,7 +9,7 @@
  * @file src/optimizer/sgd.cc
  * SGD with constant learning rate, momentum, nesterov regime and weight decay
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/optimizer/sgd.hh"

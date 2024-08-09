@@ -9,7 +9,7 @@
  * @file src/kernel/gelu_backward/cpu.cc
  * Backward GeLU operation on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/gelu_backward/cpu.hh"

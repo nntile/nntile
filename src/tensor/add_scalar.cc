@@ -9,7 +9,7 @@
  * @file src/tensor/add_scalar.cc
  * Add_scalar operation for Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/add_scalar.hh"

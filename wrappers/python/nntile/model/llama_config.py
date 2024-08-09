@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/llama_config.py
 # LLaMa model config
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from dataclasses import dataclass
 

@@ -9,7 +9,7 @@
  * @file tests/tensor/dgelutanh.cc
  * Derivative of approximate GeLU operation for Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/dgelutanh.hh"

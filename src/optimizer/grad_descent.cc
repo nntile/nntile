@@ -9,7 +9,7 @@
  * @file src/optimizer/grad_descent.cc
  * Gradient descent with constant learning rate
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/optimizer/grad_descent.hh"

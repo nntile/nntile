@@ -9,7 +9,7 @@
  * @file src/tensor/copy.cc
  * Copy one tensors into another matching tensor
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/copy.hh"

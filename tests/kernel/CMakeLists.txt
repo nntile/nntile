@@ -9,7 +9,7 @@
 # @file tests/kernel/CMakeLists.txt
 # Tests for nntile::kernel functions
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # All unit tests without arguments to test executable
 set(TESTS

@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/loss/test_xentropy.py
 # Test for nntile.loss.CrossEntropy
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 import pytest

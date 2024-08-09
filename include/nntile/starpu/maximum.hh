@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/maximum.hh
  * Per-element maximum of two StarPU buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

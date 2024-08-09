@@ -9,7 +9,7 @@
  * @file src/tensor/flash_softmax_gemm.cc
  * Fast softmax and gemm operations
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/flash_softmax_gemm.hh"

@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/addcdiv.hh
  * Per-element addcdiv operation on the given buffers. low-level kernels
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

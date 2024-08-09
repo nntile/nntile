@@ -9,7 +9,7 @@
  * @file src/kernel/scal/cpu.cc
  * Scal operation on buffers on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/scal/cpu.hh"

@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/layer/conv2d.py
 # Conv2d layer of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from typing import Sequence
 

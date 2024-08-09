@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/scal.hh
  * Scal low-level kernel
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

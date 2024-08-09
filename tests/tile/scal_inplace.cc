@@ -9,7 +9,7 @@
  * @file tests/tile/scal_inplace.cc
  * Inplace scal operation on Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/scal_inplace.hh"

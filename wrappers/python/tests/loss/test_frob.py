@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/loss/test_frob.py
 # Test for nntile.loss.frob
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 import pytest

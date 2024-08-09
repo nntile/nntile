@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/sqrt_inplace/cuda.hh
  * Inplace sqrt of buffer on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

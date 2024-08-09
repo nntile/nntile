@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/subtract_indexed_outputs.hh
  * Subtraction of value from certain elements in Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

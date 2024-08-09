@@ -9,7 +9,7 @@
 # @file wrappers/python/examples/gpt2_perf_workflow.py
 # GPT2 performance analysis workflow
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import argparse
 import json

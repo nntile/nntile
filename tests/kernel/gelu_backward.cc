@@ -9,7 +9,7 @@
  * @file tests/kernel/gelu_backward.cc
  * Backward GeLU operation
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>

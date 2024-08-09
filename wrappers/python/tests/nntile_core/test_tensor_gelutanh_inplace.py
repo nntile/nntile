@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/nntile_core/test_tensor_gelutanh_inplace.py
 # Test for tensor::gelutanh_inplace<T> Python wrapper
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import math
 

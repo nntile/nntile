@@ -9,7 +9,7 @@
  * @file src/tensor/hypot_scalar_inverse.cc
  * hypot_scalar_inverse operation for Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/hypot_scalar_inverse.hh"

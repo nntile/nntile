@@ -9,7 +9,7 @@
 # @file wrappers/python/examples/mlp_mixer_nntile.py
 # Example for NNTile version of MLP-Mixer model
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import argparse
 import pathlib

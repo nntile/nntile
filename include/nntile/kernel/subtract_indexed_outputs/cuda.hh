@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/subtract_indexed_outputs/cuda.hh
  * subtract_indexed_outputs operation for buffers on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

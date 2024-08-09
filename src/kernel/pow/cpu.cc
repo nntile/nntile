@@ -9,7 +9,7 @@
  * @file src/kernel/pow/cpu.cc
  * Power operation on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/pow/cpu.hh"

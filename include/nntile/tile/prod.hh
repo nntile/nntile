@@ -9,7 +9,7 @@
  * @file include/nntile/tile/prod.hh
  * Per-element product of two Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

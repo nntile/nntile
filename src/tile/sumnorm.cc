@@ -9,7 +9,7 @@
  * @file src/tile/sumnorm.cc
  * Sum and Euclidean norm of Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/sumnorm.hh"

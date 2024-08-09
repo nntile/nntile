@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/normalize.hh
  * Normalize operation for StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

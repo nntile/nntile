@@ -9,7 +9,7 @@
  * @file src/kernel/rope_backward/cuda.cu
  * Backward for Rotary Positional Embedding
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/rope_backward/cuda.hh"

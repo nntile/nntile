@@ -9,7 +9,7 @@
  * @file tests/tile/gelutanh.cc
  * Approximate GeLU operation
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>

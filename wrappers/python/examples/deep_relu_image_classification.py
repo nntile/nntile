@@ -9,7 +9,7 @@
 # @file wrappers/python/examples/deep_relu_image_classification.py
 # Deep ReLU network for image classification with NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import argparse
 import time

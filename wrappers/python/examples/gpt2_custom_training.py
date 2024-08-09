@@ -9,7 +9,7 @@
 # @file wrappers/python/examples/gpt2_custom_training.py
 # Custom GPT2 training example
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # Import system packages
 import argparse

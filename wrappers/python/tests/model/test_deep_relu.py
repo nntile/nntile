@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/test_deep_relu.py
 # Test for implementation of Deep ReLU model in NNTile
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # ruff: noqa: E501
 

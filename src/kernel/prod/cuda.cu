@@ -9,7 +9,7 @@
  * @file src/kernel/prod/cuda.cu
  * Per-element product of two buffers on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/prod/cuda.hh"

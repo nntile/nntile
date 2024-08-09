@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/add_fiber.hh
  * Tensor wrappers for addition of a tensor and a broadcasted fiber
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

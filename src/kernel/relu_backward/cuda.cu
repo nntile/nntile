@@ -9,7 +9,7 @@
  * @file src/kernel/relu_backward/cuda.cu
  * Backward ReLU operation on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/relu_backward/cuda.hh"

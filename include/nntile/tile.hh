@@ -9,7 +9,7 @@
  * @file include/nntile/tile.hh
  * Header for Tile<T> class with corresponding operations
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

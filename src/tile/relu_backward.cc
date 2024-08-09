@@ -9,7 +9,7 @@
  * @file src/tile/relu_backward.cc
  * Backward ReLU operation for Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/relu_backward.hh"

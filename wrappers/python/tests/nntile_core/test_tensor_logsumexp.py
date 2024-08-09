@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/nntile_core/test_tensor_logsumexp.py
 # Test for tensor::logsumexp<T> Python wrapper
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import pytest
 

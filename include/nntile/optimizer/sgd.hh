@@ -11,7 +11,7 @@
  * It supports weight decay, momentum and Nesterov regimes.
  * The formulas are similar to PyTorch SGD
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

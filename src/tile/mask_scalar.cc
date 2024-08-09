@@ -9,7 +9,7 @@
  * @file src/tile/mask_scalar.cc
  * Mask scalar operation for Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/mask_scalar.hh"

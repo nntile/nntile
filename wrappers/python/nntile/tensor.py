@@ -12,7 +12,7 @@
 # Disable ruff F403 checking (import *) and F401 (unused imports)
 # ruff: noqa: F401, F403
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from .functions import *
 from .nntile_core import TransOp, notrans, trans

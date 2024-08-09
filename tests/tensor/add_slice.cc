@@ -9,7 +9,7 @@
  * @file tests/tensor/add_slice.cc
  * Tensor wrappers for addition of a tensor and a broadcasted slice
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/add_slice.hh"

@@ -9,7 +9,7 @@
 # @file wrappers/python/examples/causal_lm_data_preparation.py
 # Data preparation for causal language modeling
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import argparse
 from pathlib import Path

@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/layer/__init__.py
 # Submodule with neural network layers of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from .act import Act
 from .add import Add

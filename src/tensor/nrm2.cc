@@ -9,7 +9,7 @@
  * @file src/tensor/nrm2.cc
  * Euclidean norm of Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/nrm2.hh"

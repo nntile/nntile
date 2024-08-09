@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/embedding_backward.hh
  * Backward embeddings from vocabulary within StarPU buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

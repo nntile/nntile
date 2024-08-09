@@ -9,7 +9,7 @@
  * @file src/tensor/sumprod_fiber.cc
  * Sums over fibers into a slice of a product of two Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/sumprod_fiber.hh"

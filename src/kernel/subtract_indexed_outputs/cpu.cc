@@ -9,7 +9,7 @@
  * @file src/kernel/subtract_indexed_outputs/cpu.cc
  * Subtract a value from certain elements of a matrix on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/subtract_indexed_outputs/cpu.hh"

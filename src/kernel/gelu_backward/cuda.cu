@@ -9,7 +9,7 @@
  * @file src/kernel/gelu_backward/cuda.cu
  * Backward GeLU operation on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/gelu_backward/cuda.hh"

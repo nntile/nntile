@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/utils/constructors.py
 # Certain auxiliary constructors for NNTile-Numpy interoperability
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from typing import Sequence
 

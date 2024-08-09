@@ -9,7 +9,7 @@
  * @file tests/kernel/subcopy.cc
  * Copy subarray based on contiguous indices
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/subcopy.hh"

@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/loss/crossentropy.py
 # Crossentropy loss of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from nntile.tensor import (
     Tensor, Tensor_int64, TensorMoments, TensorTraits, clear_async,

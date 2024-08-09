@@ -9,7 +9,7 @@
 # @file src/CMakeLists.txt
 # Set NNTile sources to compile
 #
-# @version 1.0.0
+# @version 1.1.0
 
 add_subdirectory(kernel)
 

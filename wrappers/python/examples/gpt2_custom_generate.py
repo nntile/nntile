@@ -9,7 +9,7 @@
 # @file wrappers/python/examples/gpt2_custom_generate.py
 # GPT2 generate example
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import argparse
 import json

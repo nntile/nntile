@@ -9,7 +9,7 @@
  * @file include/nntile/layer/base.hh
  * Base API for all layers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

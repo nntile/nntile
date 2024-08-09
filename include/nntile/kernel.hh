@@ -9,7 +9,7 @@
  * @file include/nntile/kernel.hh
  * General info about namespace nntile::kernel
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

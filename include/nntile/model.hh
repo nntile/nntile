@@ -9,7 +9,7 @@
  * @file include/nntile/model.hh
  * All implemented models
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once
