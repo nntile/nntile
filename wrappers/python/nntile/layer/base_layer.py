@@ -70,7 +70,7 @@ class BaseLayer(object):
                 t.unregister()
 
     def get_layer_forward_flops(self):
-        return 0.
+        return 0
 
     def get_layer_backward_flops(self):
-        return 0.
+        return 0
