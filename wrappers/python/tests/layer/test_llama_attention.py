@@ -145,7 +145,10 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool):
             y_grad_torch
 
 
-@pytest.mark.parametrize('bias', [False, True])
+@pytest.mark.parametrize('bias', [
+    False,
+    True
+    ])
 @pytest.mark.parametrize('params', [
     pytest.param(single_tile, id='single_tile'),
     pytest.param(multiple_tiles, id='multiple_tiles'),
@@ -211,3 +214,21 @@ class TestLlamaAttention:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+    def test_flops_counting(self, starpu_simple, torch_rng, dtype: str,
+                            params: LlamaAttentionTestParams, bias: bool):
+
+        _, nntile_layer, *_ = \
+                generate_inputs(dtype, params, bias)
+        nntile_layer.forward_async()
+        nntile_layer.backward_async()
+        analytical_fwd_flops = (8 * params.n_batch * params.n_seq *
+                                params.n_emb**2 + 4 * params.n_batch *
+                                params.n_seq**2 * params.n_emb)
+        assert (nntile_layer.get_layer_forward_flops() ==
+                analytical_fwd_flops)
+        assert (nntile_layer.get_layer_backward_flops() ==
+                2 * analytical_fwd_flops)
+        nntile_layer.unregister()
+        nntile_layer.x.unregister()
+        nntile_layer.y.unregister()
