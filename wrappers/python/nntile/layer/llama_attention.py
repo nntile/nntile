@@ -216,6 +216,8 @@ class LlamaAttention(BaseLayer):
         else:
             self.redux = 0
 
+        self.reset_cache()
+
     # Simple generator for the linear layer
     @staticmethod
     def generate_simple(
@@ -730,6 +732,10 @@ class LlamaAttention(BaseLayer):
         # Return layer and next tag to be used
         return (layer, next_tag)
 
+    def reset_cache(self, value=0):
+        self.k_cache_size = value
+        self.v_cache_size = value
+
     # Forward propagation of the attention layer
     def forward_async(self):
         # Compute query, key and value tensors
@@ -1195,6 +1201,69 @@ class LlamaAttention(BaseLayer):
         cos_partial.invalidate_submit()
         return q_rope_partial, k_rope_partial
 
+    def _storeload_kvcache(
+        self, k_rope_partial: Tensor, v_partial: Tensor, use_cache: bool
+    ):
+        """
+        handles kv-cache routine.
+        1. Save new partials to cache
+        2. Load K,V from cache
+        """
+        if not use_cache:
+            self.reset_cache()
+
+        if v_partial.shape[1] + self.v_cache_size > self.x_v.value.shape[1]:
+            raise Exception(
+                "Overload internal state: "
+                f"try add {v_partial.shape[1]} "
+                f"to {self.v_cache_size}, max: {self.x_v.value.shape[1]}. "
+                "Maybe you forgot to call reset_cache between iterations?"
+            )
+
+        copy_intersection_async(
+            k_rope_partial,
+            [0, self.k_cache_size, 0, 0],
+            self.k.value,
+            [0, 0, 0, 0],
+        )
+        self.k_cache_size += k_rope_partial.shape[1]
+
+        copy_intersection_async(
+            v_partial, [0, self.v_cache_size, 0, 0], self.v.value, [0, 0, 0, 0]
+        )
+        self.v_cache_size += v_partial.shape[1]
+
+        if not use_cache:
+            return k_rope_partial, v_partial
+
+        # For correct softmax we should next use only currently cached seq_size
+        # So copy here
+        k_cached_shape = self.k.value.shape
+        k_cached_shape[1] = self.k_cache_size
+        k_partial_cached = nntc.empty(
+            k_cached_shape,
+            dtype=type(k_rope_partial),
+            basetile_shape=tuple(k_cached_shape[:-1])
+            + (k_rope_partial.basetile_shape[-1],),
+        )
+        copy_intersection_async(
+            self.k.value, [0, 0, 0, 0], k_partial_cached, [0, 0, 0, 0]
+        )
+
+        cached_shape = self.v.value.shape
+        cached_shape[1] = self.v_cache_size
+        v_partial_cached = nntc.empty(
+            cached_shape,
+            dtype=type(v_partial),
+            basetile_shape=tuple(cached_shape[:-1])
+            + (v_partial.basetile_shape[-1],),
+        )
+        copy_intersection_async(
+            self.v.value, [0, 0, 0, 0], v_partial_cached, [0, 0, 0, 0]
+        )
+
+        return k_partial_cached, v_partial_cached
+
     def _broadcast_kv_dynamic(
         self, x: Tensor, k_rope_partial: Tensor, v_partial: Tensor
     ):
@@ -1231,7 +1300,7 @@ class LlamaAttention(BaseLayer):
 
         return k_rep_partial, v_rep_partial
 
-    def forward_dynamic(self, x: TensorMoments):
+    def forward_dynamic(self, x: TensorMoments, use_cache: bool = False):
         q_partial = self._forward_mlp_q_dynamic(x.value)
         k_partial = self._forward_mlp_k_dynamic(x.value)
         v_partial = self._forward_mlp_v_dynamic(x.value)
@@ -1241,6 +1310,10 @@ class LlamaAttention(BaseLayer):
         )
         q_partial.invalidate_submit()
         k_partial.invalidate_submit()
+
+        k_rope_partial, v_partial = self._storeload_kvcache(
+            k_rope_partial, v_partial, use_cache
+        )
 
         k_rep_partial, v_rep_partial = self._broadcast_kv_dynamic(
             x.value, k_rope_partial, v_partial
