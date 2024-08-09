@@ -90,6 +90,7 @@
 #include <nntile/tensor/conv2d_bwd_weight_inplace.hh>
 #include <nntile/tensor/rope.hh>
 #include <nntile/tensor/rope_backward.hh>
+#include <nntile/tensor/norm_fiber.hh>
 
 //! @namespace nntile::tensor
 /*! This namespace holds high-level routines for Tensor<T>

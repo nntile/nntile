@@ -73,6 +73,7 @@
 #include <nntile/kernel/conv2d_bwd_weight_inplace.hh>
 #include <nntile/kernel/rope.hh>
 #include <nntile/kernel/rope_backward.hh>
+#include <nntile/kernel/norm_fiber.hh>
 
 //! @namespace nntile::kernel
 /*! This namespace holds low-level routines for codelets
