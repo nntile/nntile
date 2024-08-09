@@ -384,3 +384,87 @@ def test_dynamic(numpy_rng, x_shape, w_shape):
     x_nntile_tm_for_build.value.unregister()
     x_nntile_tm.value.unregister()
     layer.unregister()
+
+
+@pytest.mark.parametrize('side,x_shape,w_shape,b_shape,n_contracted_dim', [
+    ('L', [20, 10], [10, 5], [5], 1),
+    ('L', [20, 10, 5], [10, 5, 7], [7], 2),
+    ('L', [20, 10, 5], [5, 7], [7], 1),
+    ('R', [5, 3], [10, 5], [10], 1),
+    ('R', [5, 7, 2], [10, 5, 7], [10], 2),
+    ('R', [7, 3, 10], [5, 7], [5], 1),
+])
+def test_linear_flops(side: str, x_shape, w_shape, b_shape,
+                           n_contracted_dim):
+    """Compare flopscounting in :py:class:`nntile.layer.Linear`
+    and analytical formulas
+    """
+    # w_torch = torch.randn(w_shape, requires_grad=True)
+    # b_torch = torch.randn(b_shape, requires_grad=True)
+    # x_torch = torch.randn(x_shape, requires_grad=True)
+
+    # match side:
+    #     case 'L':
+    #         y_torch = (torch.tensordot(x_torch, w_torch, n_contracted_dim) +
+    #                    b_torch.view(1, *b_torch.shape))
+    #     case 'R':
+    #         y_torch = torch.tensordot(w_torch, x_torch, n_contracted_dim)
+    #         if len(y_torch.shape) - len(b_torch.shape) == 1:
+    #             y_torch += b_torch.view(*b_torch.shape, 1)
+    #         elif len(y_torch.shape) - len(b_torch.shape) == 2:
+    #             y_torch += b_torch.view(*b_torch.shape, 1, 1)
+
+    # loss_torch = y_torch.sum()
+    # loss_torch.backward()
+
+    A_traits = nntile.tensor.TensorTraits(x_shape, x_shape)
+    mpi_distr = [0]
+    next_tag = 0
+    # Tensor objects
+    A = Tensor[np.float32](A_traits, mpi_distr, next_tag)
+    next_tag = A.next_tag
+    A_grad = Tensor[np.float32](A_traits, mpi_distr, next_tag)
+    next_tag = A_grad.next_tag
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
+    # Define linear layer
+    match side:
+        case 'L':
+            layer, next_tag = Linear.generate_simple(
+                A_moments, 'L', nntile.tensor.notrans, n_contracted_dim,
+                [*w_shape[n_contracted_dim:]], [*w_shape[n_contracted_dim:]],
+                next_tag, bias=True)
+        case 'R':
+            layer, next_tag = Linear.generate_simple(
+                A_moments, 'R', nntile.tensor.notrans, n_contracted_dim,
+                [*w_shape[:-n_contracted_dim]], [*w_shape[:-n_contracted_dim]],
+                next_tag, bias=True)
+    gen = np.random.default_rng(42)
+    np_W = np.array(gen.standard_normal(w_shape), dtype=np.float32, order='F')
+    layer.w.value.from_array(np_W)
+    np_b = np.array(gen.standard_normal(b_shape), dtype=np.float32, order='F')
+    layer.b.value.from_array(np_b)
+    nntile.tensor.clear_async(layer.w.grad)
+    nntile.tensor.clear_async(layer.b.grad)
+    # Check result of forward pass layer.y.value
+    np_A = np.array(gen.standard_normal(x_shape), dtype=np.float32, order='F')
+    A.from_array(np_A)
+    nntile.tensor.clear_async(A_grad)
+    layer.forward_async()
+    layer.y.grad.from_array(np.ones(layer.y.value.shape, np.float32, 'F'))
+    layer.backward_async()
+
+    match side:
+        case 'L':
+            analytical_fwd_flops = (2 * np.prod(x_shape) *
+                                    np.prod(w_shape[n_contracted_dim:]))
+        case 'R':
+            analytical_fwd_flops = (2 * np.prod(x_shape) *
+                                    np.prod(w_shape[:-n_contracted_dim:]))
+
+    assert analytical_fwd_flops == layer.get_layer_forward_flops()
+
+    analytical_bwd_flops = 2 * analytical_fwd_flops
+    assert analytical_bwd_flops == layer.get_layer_backward_flops()
+
+    A_moments.unregister()
+    layer.unregister()
