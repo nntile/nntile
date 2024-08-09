@@ -69,8 +69,8 @@ class BaseLayer(object):
             if t is not None:
                 t.unregister()
 
-    def get_layer_forward_flops(self):
+    def get_forward_flops(self):
         return 0
 
-    def get_layer_backward_flops(self):
+    def get_backward_flops(self):
         return 0

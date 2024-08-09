@@ -429,10 +429,10 @@ def test_linear_flops(side: str, x_shape, w_shape, b_shape,
             analytical_fwd_flops = (2 * np.prod(x_shape) *
                                     np.prod(w_shape[:-n_contracted_dim:]))
 
-    assert analytical_fwd_flops == layer.get_layer_forward_flops()
+    assert analytical_fwd_flops == layer.get_forward_flops()
 
     analytical_bwd_flops = 2 * analytical_fwd_flops
-    assert analytical_bwd_flops == layer.get_layer_backward_flops()
+    assert analytical_bwd_flops == layer.get_backward_flops()
 
     A_moments.unregister()
     layer.unregister()

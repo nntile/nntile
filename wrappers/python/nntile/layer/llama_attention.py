@@ -1518,7 +1518,7 @@ class LlamaAttention(BaseLayer):
             )
         return torch_layer
 
-    def get_layer_forward_flops(self):
+    def get_forward_flops(self):
         total_forward_flops = 0
         # Compute Q_transposed
         # Q_transposed = einsum('ijkl,lmn->ijkmn', W_Q, X_Q)
@@ -1576,7 +1576,7 @@ class LlamaAttention(BaseLayer):
         total_forward_flops += y_flops
         return total_forward_flops
 
-    def get_layer_backward_flops(self):
+    def get_backward_flops(self):
         total_backward_flops = 0
         if self.w.grad_required:
             # dW += einsum('jni,klmni->jklm', dY, B_transposed)

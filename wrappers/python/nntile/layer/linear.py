@@ -362,7 +362,7 @@ class Linear(BaseLayer):
 
         return linear_nntile, next_tag
 
-    def get_layer_forward_flops(self):
+    def get_forward_flops(self):
         x_shape = self.x.value.shape
         w_shape = self.w.value.shape
         if self.side == "L":
@@ -370,7 +370,7 @@ class Linear(BaseLayer):
         elif self.side == "R":
             return 2 * np.prod(x_shape) * np.prod(w_shape[:-self.ndim])
 
-    def get_layer_backward_flops(self):
+    def get_backward_flops(self):
         x_shape = self.x.value.shape
         w_shape = self.w.grad.shape
         total_backward_flops = 0

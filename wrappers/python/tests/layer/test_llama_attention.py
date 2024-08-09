@@ -225,9 +225,9 @@ class TestLlamaAttention:
                                 params.n_emb * params.n_head_kv //
                                 params.n_head) + 4 * params.n_batch *
                                 params.n_seq**2 * params.n_emb)
-        assert (nntile_layer.get_layer_forward_flops() ==
+        assert (nntile_layer.get_forward_flops() ==
                 analytical_fwd_flops)
-        assert (nntile_layer.get_layer_backward_flops() ==
+        assert (nntile_layer.get_backward_flops() ==
                 2 * analytical_fwd_flops)
         nntile_layer.unregister()
         nntile_layer.x.unregister()
