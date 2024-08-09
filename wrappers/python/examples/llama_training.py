@@ -269,8 +269,12 @@ print("NNTile training throughput tokens/sec: {}".format(
 nflops_fwd_seq = llama_nntile.get_model_forward_flops()
 nflops_bwd_seq = llama_nntile.get_model_backward_flops()
 nflops_seq = nflops_fwd_seq + nflops_bwd_seq
+print("Fwd flops={}".format(nflops_fwd_seq))
+print("Bwd flops={}".format(nflops_bwd_seq))
+print("Num train batches={}".format(num_train_batches))
+print("Time={}".format(time1))
 print("NNTile performance: {} Tflops/s".format(nflops_seq
-        * args.nepochs * num_train_batches * args.batch_size
+        * args.nepochs * num_train_batches
         / time1 * 1e-12))
 loss_np = np.zeros((1), dtype=np.float32)
 loss.val.to_array(loss_np)
