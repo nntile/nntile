@@ -1517,3 +1517,158 @@ class LlamaAttention(BaseLayer):
                 to_numpy(self.in_proj_bias_v.grad).T.flatten()
             )
         return torch_layer
+
+    def get_forward_flops(self):
+        total_forward_flops = 0
+        # Compute Q_transposed
+        # Q_transposed = einsum('ijkl,lmn->ijkmn', W_Q, X_Q)
+        # gemm (kv_group_size, n_head_kv, head_size, n_emb)
+        # by (n_emb, n_seq, n_batch)
+        # into (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
+        w_q_shape = self.w_q.value.shape
+        x_q_shape = self.x_q.value.shape
+        qt_flops = 2 * np.prod(w_q_shape) * np.prod(x_q_shape[1:])
+        total_forward_flops += qt_flops
+        # Compute K_transposed
+        # K_transposed = einsum('jkl,lmn->jkmn', W_K, X_K)
+        # gemm (n_head_kv, head_size, n_emb) by (n_emb, n_seq, n_batch) into
+        # (n_head_kv, head_size, n_seq, n_batch)
+        w_k_shape = self.w_k.value.shape
+        x_k_shape = self.x_k.value.shape
+        kt_flops = 2 * np.prod(w_k_shape) * np.prod(x_k_shape[1:])
+        total_forward_flops += kt_flops
+        # Compute V_transposed
+        # V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V)
+        # gemm (n_head_kv, head_size, n_emb) by (n_emb, n_seq, n_batch) into
+        # (n_head_kv, head_size, n_seq, n_batch)
+        w_v_shape = self.w_v.value.shape
+        x_v_shape = self.x_v.value.shape
+        vt_flops = 2 * np.prod(w_v_shape) * np.prod(x_v_shape[1:])
+        total_forward_flops += vt_flops
+        # Compute tensor for softmax
+        # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q_rope)
+        # single batched gemm
+        # (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
+        # by (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
+        # into (n_seq, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
+        k_rep_shape = self.k_rep.value.shape
+        q_rope_shape = self.q_rope.value.shape
+        a_flops = 2 * np.prod(k_rep_shape[:2]) * np.prod(q_rope_shape[1:])
+        total_forward_flops += a_flops
+        # Apply value tensor
+        # B = einsum('jklbi,kmlbi->jmlbi', V_rep, A)
+        # batched gemm
+        # (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
+        # by (n_seq, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
+        # into (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
+        v_rep_shape = self.v_rep.value.shape
+        a_shape = self.a.value.shape
+        b_flops = 2 * np.prod(a_shape) * v_rep_shape[0]
+        total_forward_flops += b_flops
+        # Gemm for accumulate result for all the heads
+        # Y = einsum('jklm,klmni->jni', W, B_transposed)
+        # gemm (n_emb, kv_group_size, n_head_kv, head_size) by
+        # (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
+        # into (n_emb, n_seq, n_batch)
+        w_shape = self.w.value.shape
+        bt_shape = self.b_transposed.value.shape
+        y_flops = 2 * np.prod(w_shape) * np.prod(bt_shape[3:])
+        total_forward_flops += y_flops
+        return total_forward_flops
+
+    def get_backward_flops(self):
+        total_backward_flops = 0
+        if self.w.grad_required:
+            # dW += einsum('jni,klmni->jklm', dY, B_transposed)
+            y_grad_shape = self.y.grad.shape
+            bt_shape = self.b_transposed.value.shape
+            w_grad_flops = 2 * np.prod(bt_shape) * np.prod(y_grad_shape[0])
+            total_backward_flops += w_grad_flops
+        if self.b_transposed.grad_required:
+            # dB_transposed = einsum('jklm,jni->klmni', W, dY)
+            w_shape = self.w.value.shape
+            y_grad_shape = self.y.grad.shape
+            bt_grad_flops = 2 * np.prod(w_shape) * np.prod(y_grad_shape[1:])
+            total_backward_flops += bt_grad_flops
+        if self.a.grad_required:
+            # dA = einsum('jklbi,jmlbi->kmlbi', V_rep, dB)
+            # ndim = 1
+            # batch_ndim = 3
+            b_grad_shape = self.b.grad.shape
+            v_rep_shape = self.v_rep.value.shape
+            a_grad_flops = 2 * np.prod(v_rep_shape) * b_grad_shape[1]
+            total_backward_flops += a_grad_flops
+        if self.v_rep.grad_required:
+            # dV_rep = einsum('jmlbi,kmlbi->jklbi', dB, A)
+            # ndim = 1
+            # batch_ndim = 3
+            a_shape = self.a.value.shape
+            b_grad_shape = self.b.grad.shape
+            v_rep_grad_flops = 2 * np.prod(a_shape) * b_grad_shape[0]
+            total_backward_flops += v_rep_grad_flops
+        if self.k_rep.grad_required:
+            # dK_rep = 1.0/sqrt(head_size)
+            #          * einsum('jmlbi,kmlbi->jklbi', Q_rope, dA)
+            # ndim = 1
+            # batch_ndim = 3
+            q_rope_shape = self.q_rope.value.shape
+            a_grad_shape = self.a.grad.shape
+            k_rep_grad_flops = 2 * np.prod(a_grad_shape) * q_rope_shape[0]
+            total_backward_flops += k_rep_grad_flops
+        if self.q_rope.grad_required:
+            # dQ_rope = 1.0/sqrt(head_size)
+            #      * einsum('jklbi,kmlbi->jmlbi', K_rep, dA)
+            # ndim = 1
+            # batch_ndim = 3
+            k_rep_shape = self.k_rep.value.shape
+            a_grad_shape = self.a.grad.shape
+            q_rope_grad_flops = 2 * np.prod(a_grad_shape) * k_rep_shape[0]
+            total_backward_flops += q_rope_grad_flops
+        if self.x_v.grad_required:
+            # dX_V += einsum('jkl,jkmn->lmn', W_V, dV_transposed)
+            # ndim = 2
+            v_t_grad_shape = self.v_transposed.grad.shape
+            w_v_shape = self.w_v.value.shape
+            x_v_grad_flops = (2 * np.prod(w_v_shape) *
+                              np.prod(v_t_grad_shape[2:]))
+            total_backward_flops += x_v_grad_flops
+        if self.w_v.grad_required:
+            # dW_V += einsum('jkmn,lmn->jkl', dV_transposed, X_V)
+            # ndim = 2
+            x_v_shape = self.x_v.value.shape
+            v_t_grad_shape = self.v_transposed.grad.shape
+            w_v_grad_flops = (2 * np.prod(x_v_shape) *
+                              np.prod(v_t_grad_shape[:-2]))
+            total_backward_flops += w_v_grad_flops
+        if self.x_k.grad_required:
+            # dX_K += einsum('jkl,jkmn->lmn', W_K, dK_transposed)
+            # ndim = 2
+            kt_grad_shape = self.k_transposed.grad.shape
+            w_k_shape = self.w_k.value.shape
+            x_k_grad_flops = (2 * np.prod(w_k_shape) *
+                              np.prod(kt_grad_shape[2:]))
+            total_backward_flops += x_k_grad_flops
+        if self.w_k.grad_required:
+            # dW_K += einsum('jkmn,lmn->jkl', dK_transposed, X_K)
+            # ndim = 2
+            x_k_shape = self.x_k.value.shape
+            kt_grad_shape = self.k_transposed.grad.shape
+            w_k_grad_flops = 2 * np.prod(kt_grad_shape) * x_k_shape[0]
+            total_backward_flops += w_k_grad_flops
+        if self.x_q.grad_required:
+            # dX_Q += einsum('ijkl,ijkmn->lmn', W_Q, dQ_transposed)
+            # ndim = 3
+            qt_grad_shape = self.q_transposed.grad.shape
+            w_q_shape = self.w_q.value.shape
+            x_q_grad_flops = (2 * np.prod(w_q_shape) *
+                              np.prod(qt_grad_shape[3:]))
+            total_backward_flops += x_q_grad_flops
+        if self.w_q.grad_required:
+            # dW_Q += einsum('ijkmn,lmn->ijkl', dQ_transposed, X_Q)
+            # ndim = 2
+            x_q_shape = self.x_q.value.shape
+            qt_grad_shape = self.q_transposed.grad.shape
+            w_q_grad_flops = (2 * np.prod(x_q_shape) *
+                              np.prod(qt_grad_shape[:-2]))
+            total_backward_flops += w_q_grad_flops
+        return total_backward_flops
