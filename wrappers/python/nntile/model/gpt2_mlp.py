@@ -74,12 +74,6 @@ class GPT2MLP(BaseModel):
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
 
-    # Randomly init all linear layers
-    def init_randn_async(self):
-        for layer in self.layers:
-            if type(layer) is Linear:
-                layer.init_randn_async()
-
     @staticmethod
     def from_torch(
         torch_mlp, x: TensorMoments, config: GPT2ConfigNNTile, next_tag: int

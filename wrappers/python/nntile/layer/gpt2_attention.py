@@ -22,7 +22,6 @@ from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
         maxsumexp_async, softmax_inplace_async, sumprod_slice_async, \
         add_slice_async, prod_async, mask_scalar_async, add_fiber_async, \
         sum_fiber_async, transpose_async, to_numpy, copy_async, Tensor_bool
-# from typing import List
 from ..model.gpt2_config import GPT2ConfigNNTile
 
 # Multi-head attention
@@ -804,8 +803,8 @@ class GPT2Attention(BaseLayer):
         #self.q_transposed.grad.wont_use()
         self.q_transposed.grad.invalidate_submit()
 
-    @staticmethod
-    def from_torch(
+    @classmethod
+    def from_torch(cls,
         torch_layer: GPT2Attention_torch,
         x_q: TensorMoments, x_k: TensorMoments, x_v: TensorMoments,
         config: GPT2ConfigNNTile,
@@ -816,7 +815,7 @@ class GPT2Attention(BaseLayer):
         mask_np = np.array(
             np.triu(np.ones((n_seq, n_seq))), dtype=bool, order="F"
         )
-        layer, next_tag = __class__.generate_simple(
+        layer, next_tag = cls.generate_simple(
             x_q,
             x_k,
             x_v,
@@ -887,13 +886,9 @@ class GPT2Attention(BaseLayer):
         torch_layer_config = GPT2Config_torch(
             n_embd=self.head_size * self.n_head,
             n_head=self.n_head,
-            # attention_bias=bias,
             use_cache=False,
             attn_pdrop=0.0,
             resid_pdrop=0.0,
-            embd_pdrop = 0.0,
-            reorder_and_upcast_attn = False,
-            scale_attn_by_inverse_layer_idx = False,
             scale_attn_weights = True
         )
         torch_layer = GPT2Attention_torch(

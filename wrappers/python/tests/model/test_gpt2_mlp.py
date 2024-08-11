@@ -115,6 +115,7 @@ def generate_inputs(params: GPT2MLPTestParams, dtype: str):
     x_nntile = np.array(x_random, dtype=np.float32, order="F")
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
+    x_torch.requires_grad_()
     nntile_layer, _ = GPT2MLP_nntile.from_torch(torch_layer, X,
                                                 nntile_config, 0)
     nntile_layer.clear_gradients()
@@ -159,21 +160,21 @@ class TestGPT2MLP:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_forward_backward(self, starpu_simple, torch_rng,
+    def test_backward(self, starpu_simple, torch_rng,
                               params: GPT2MLPTestParams,
                               dtype: str):
         torch_layer, nntile_layer, x, y_grad = generate_inputs(params, dtype)
         torch_layer_other = nntile_layer.to_torch()
         y = torch_layer(x)
         nntile_layer.forward_async()
-        y_nntile = torch.Tensor(to_numpy(nntile_layer.activations[-1].value).T)
         res = (y * y_grad).sum()
         res.backward()
         nntile_layer.backward_async()
         torch_layer_other = nntile_layer.to_torch_with_grads()
+        input_grad_nntile = torch.Tensor(to_numpy(nntile_layer.activations[0].grad).T)
         nntile_layer.unregister()
         rtol = dtype2tol[dtype]['rtol']
-        assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
+        assert torch.norm(x.grad - input_grad_nntile) <= rtol * torch.norm(x.grad)
 
         for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
                 torch_layer_other.named_parameters()):

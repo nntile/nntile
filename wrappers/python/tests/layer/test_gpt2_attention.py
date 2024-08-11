@@ -83,9 +83,7 @@ def generate_inputs(dtype: str, params: GPT2AttentionTestParams):
         n_head=params.n_head,
         use_cache=False,
         resid_pdrop=0.0,
-        embd_pdrop = 0.0,
         attn_pdrop=0.0,
-        scale_attn_weights = True
     )
 
     nntile_config = GPT2ConfigNNTile(
@@ -118,6 +116,7 @@ def generate_inputs(dtype: str, params: GPT2AttentionTestParams):
     x_nntile = np.array(x_random, dtype=np.float32, order="F")
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
+    x_torch.requires_grad_()
    
     nntile_layer, _ = nntile.layer.GPT2Attention.from_torch(
             torch_layer, X, X, X, nntile_config, 0
@@ -173,16 +172,16 @@ class TestGPT2Attention:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_forward_backward(self, starpu_simple, torch_rng, dtype: str,
+    def test_backward(self, starpu_simple, torch_rng, dtype: str,
                               params: GPT2AttentionTestParams):
         torch_layer, nntile_layer, x, y_grad = generate_inputs(dtype, params)
         y, _ = torch_layer(x)
         nntile_layer.forward_async()
-        y_nntile = torch.Tensor(to_numpy(nntile_layer.y.value).T)
         res = (y * y_grad).sum()
         res.backward()
         nntile_layer.backward_async()
         torch_layer_other = nntile_layer.to_torch_with_grads()
+        input_grad_nntile = torch.Tensor(to_numpy(nntile_layer.x_k.grad).T)
         nntile_layer.unregister()
         nntile_layer.x_q.unregister()
         nntile_layer.x_k.unregister()
@@ -190,7 +189,7 @@ class TestGPT2Attention:
         nntile_layer.y.unregister()
 
         rtol = dtype2tol[dtype]['rtol']
-        assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
+        assert torch.norm(x.grad - input_grad_nntile) <= rtol * torch.norm(x.grad)
 
         for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
                 torch_layer_other.named_parameters()):
