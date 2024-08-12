@@ -23,7 +23,7 @@ from transformers.models.llama.modeling_llama import LlamaConfig, LlamaModel
 import nntile
 from nntile.model.llama_config import LlamaConfigNNTile
 from nntile.model.llama_decoder import LlamaDecoder as LlamaDecoder_nntile
-from nntile.tensor import TensorMoments, TensorTraits, clear_async
+from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy, zeros_like
 
 # NNTile dtype via corresponding Tensor type
