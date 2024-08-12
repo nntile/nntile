@@ -74,7 +74,8 @@ class LlamaDecoder(BaseModel):
             rms_norm_input_layer.activations_output[0],
             position_ids,
             mask,
-            config, next_tag)
+            config,
+            next_tag)
         post_attn_add, next_tag = Add.generate_simple(
             x, attention_layer.activations_output[0],
             next_tag)
