@@ -24,7 +24,8 @@ from nntile.tensor import (
     flash_softmax_gemm_async, flash_softmax_gemm_backward_async, gemm_async,
     mask_scalar_async, maxsumexp_async, notrans, prod_async, rope_async,
     rope_backward_async, softmax_inplace_async, sum_fiber_async,
-    sum_slice_async, sumprod_slice_async, to_numpy, trans, transpose_async, copy_intersection_async)
+    sum_slice_async, sumprod_slice_async, to_numpy, trans, 
+    transpose_async, copy_intersection_async)
 
 from ..model.llama_config import LlamaConfigNNTile
 
@@ -956,7 +957,7 @@ class LlamaAttention(BaseLayer):
         if self.in_proj_bias_q is not None:
             # batched add_fiber (head_size, batch=(kv_group_size, n_head_kv))
             # into
-            # (head_size, n_seq_dyn, n_batch_dyn, batch=(kv_group_size, n_head_kv))
+            # (head_size, n_seq_dyn, n_batch_dyn, batch=(kv_group_size, n_head_kv)) # noqa: E501
             add_fiber_async(1, self.in_proj_bias_q.value, 1, q_partial, 0, 2)
 
         return q_partial
@@ -989,7 +990,7 @@ class LlamaAttention(BaseLayer):
         )  # (head_size, n_seq_dyn, n_batch_dyn, n_head_kv)
 
         # K_transposed = einsum('jkl,lmn->jkmn', W_K, X_K_dyn)
-        # gemm (n_head_kv, head_size, n_emb) by (n_emb, n_seq_dyn, n_batch_dyn) into
+        # gemm (n_head_kv, head_size, n_emb) by (n_emb, n_seq_dyn, n_batch_dyn) into # noqa: E501
         # (n_head_kv, head_size, n_seq_dyn, n_batch_dyn)
         gemm_async(
             1.0,
@@ -1040,7 +1041,7 @@ class LlamaAttention(BaseLayer):
         )  # (head_size, n_seq_dyn, n_batch_dyn, n_head_kv)
 
         # V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V_dyn)
-        # gemm (n_head_kv, head_size, n_emb) by (n_emb, n_seq_dyn, n_batch_dyn) into
+        # gemm (n_head_kv, head_size, n_emb) by (n_emb, n_seq_dyn, n_batch_dyn) into # noqa: E501
         # (n_head_kv, head_size, n_seq_dyn, n_batch_dyn)
         gemm_async(
             1.0,
@@ -1100,9 +1101,9 @@ class LlamaAttention(BaseLayer):
         # Get tensor for softmax
         # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q_rope)
         # single batched gemm
-        # (head_size, n_seq_cached, batch=(n_batch_cached, kv_group_size, n_head_kv))
-        # by (head_size, n_seq_dyn, batch=(n_batch_dyn, kv_group_size, n_head_kv))
-        # into (n_seq_cached, n_seq_dyn, batch=(n_batch_dyn, kv_group_size, n_head_kv))
+        # (head_size, n_seq_cached, batch=(n_batch_cached, kv_group_size, n_head_kv)) # noqa: E501
+        # by (head_size, n_seq_dyn, batch=(n_batch_dyn, kv_group_size, n_head_kv)) # noqa: E501
+        # into (n_seq_cached, n_seq_dyn, batch=(n_batch_dyn, kv_group_size, n_head_kv)) # noqa: E501
         # note: n_batch_cached == n_batch_dyn
         gemm_async(
             1.0 / self.head_size**0.5,
@@ -1130,9 +1131,9 @@ class LlamaAttention(BaseLayer):
         # Apply value tensor
         # B = einsum('jklbi,kmlbi->jmlbi', V_rep, A)
         # batched gemm
-        # (head_size, n_seq_cached, batch=(n_batch_cached, kv_group_size, n_head_kv))
-        # by (n_seq_cached, n_seq_dyn, batch=(n_batch_dyn, kv_group_size, n_head_kv))
-        # into (head_size, n_seq_dyn, batch=(n_batch_dyn, kv_group_size, n_head_kv))
+        # (head_size, n_seq_cached, batch=(n_batch_cached, kv_group_size, n_head_kv)) # noqa: E501
+        # by (n_seq_cached, n_seq_dyn, batch=(n_batch_dyn, kv_group_size, n_head_kv)) # noqa: E501
+        # into (head_size, n_seq_dyn, batch=(n_batch_dyn, kv_group_size, n_head_kv)) # noqa: E501
         gemm_async(
             1.0,
             notrans,
@@ -1146,7 +1147,7 @@ class LlamaAttention(BaseLayer):
             redux=self.redux,
         )
 
-        # Rotate axes (head_size, n_seq_dyn, n_batch_dyn, kv_group_size, n_head_kv)
+        # Rotate axes (head_size, n_seq_dyn, n_batch_dyn, kv_group_size, n_head_kv) # noqa: E501
         # into (kv_group_size, n_head_kv, head_size, n_seq_dyn, n_batch_dyn)
         transpose_async(1.0, b_tmp, b_tr_tmp, 3)
 

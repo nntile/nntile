@@ -61,6 +61,7 @@ class LlamaAttentionTestParams:
     layer_idx: int = 0
     theta = 2.0
 
+
 single_tile_trivial = LlamaAttentionTestParams(
     n_emb=4,
     n_emb_tile=4,
