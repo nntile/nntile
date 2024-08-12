@@ -342,13 +342,13 @@ class LayerNorm(BaseLayer):
         # dX can offloade from GPU
         self.x.grad.wont_use()
 
-    @staticmethod
-    def from_torch(torch_layer, x: TensorMoments,
-                   axis: int, eps: float,
-                   next_tag: int, redux: bool = False):
-        nntile_layer, next_tag = LayerNorm.generate_simple(x, axis,
-                                                          eps, next_tag,
-                                                          redux)
+    @classmethod
+    def from_torch(cls,
+        torch_layer, x: TensorMoments,
+        axis: int, eps: float,
+        next_tag: int, redux: bool = False
+    ):
+        nntile_layer, next_tag = cls.generate_simple(x, axis, eps**2, next_tag, redux)
         nntile_layer.gamma.value.from_array(
             torch_layer.weight.data.cpu().detach().numpy())
         nntile_layer.beta.value.from_array(
