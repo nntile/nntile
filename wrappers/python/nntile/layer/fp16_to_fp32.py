@@ -9,14 +9,12 @@
 # @file wrappers/python/nntile/layer/fp16_to_fp32.py
 # Conversion layer from fp16_t to fp32_t of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
-from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp16, \
-        TensorMoments
-from nntile.nntile_core.tensor import fp32_to_fp16_async, fp16_to_fp32_async
 from nntile.layer.base_layer import BaseLayer
-import numpy as np
-from typing import List, Callable
+from nntile.nntile_core.tensor import fp16_to_fp32_async, fp32_to_fp16_async
+from nntile.tensor import Tensor_fp32, TensorMoments, TensorTraits
+
 
 class FP16_to_FP32(BaseLayer):
     x: TensorMoments
@@ -36,9 +34,9 @@ class FP16_to_FP32(BaseLayer):
         # Get traits of X
         x_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
         # Create Y with the same traits and distribution as X
-        y_value = Tensor_fp16(x_traits, x.value.distribution, next_tag)
+        y_value = Tensor_fp32(x_traits, x.value.distribution, next_tag)
         next_tag = y_value.next_tag
-        y_grad = Tensor_fp16(x_traits, x.value.distribution, next_tag)
+        y_grad = Tensor_fp32(x_traits, x.value.distribution, next_tag)
         next_tag = y_grad.next_tag
         y = TensorMoments(y_value, y_grad, True)
         # Create activation layer with all the provided tensors

@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/relu_forward.hh
  * Forward ReLU operation for Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

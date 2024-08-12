@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/layer/test_attention.py
 # Test for nntile.layer.attention
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 import pytest

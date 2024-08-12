@@ -9,7 +9,7 @@
 # @file tests/CMakeLists.txt
 # Function to register test sets with CTest
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # Extend set of ctest-controlled tests and enable code coverage if required.
 # All of the tests shall be launched by the same executable but with different

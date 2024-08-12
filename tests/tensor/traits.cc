@@ -9,7 +9,7 @@
  * @file tests/tensor/traits.cc
  * Traits of Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/traits.hh"

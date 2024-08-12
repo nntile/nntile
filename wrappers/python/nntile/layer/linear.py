@@ -9,10 +9,11 @@
 # @file wrappers/python/nntile/layer/linear.py
 # Linear layer of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from typing import List, Union
 
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -360,3 +361,31 @@ class Linear(BaseLayer):
             linear_nntile.b.value.from_array(torch_linear.bias.data.cpu().detach().numpy())
 
         return linear_nntile, next_tag
+
+    def get_forward_flops(self):
+        x_shape = self.x.value.shape
+        w_shape = self.w.value.shape
+        if self.side == "L":
+            return 2 * np.prod(x_shape) * np.prod(w_shape[self.ndim:])
+        elif self.side == "R":
+            return 2 * np.prod(x_shape) * np.prod(w_shape[:-self.ndim])
+
+    def get_backward_flops(self):
+        x_shape = self.x.value.shape
+        w_shape = self.w.grad.shape
+        total_backward_flops = 0
+        if self.side == "L":
+            doubled_prod_dim = (2 * np.prod(x_shape) *
+                                np.prod(w_shape[self.ndim:]))
+            if self.w.grad_required:
+                total_backward_flops += doubled_prod_dim
+            if self.x.grad_required:
+                total_backward_flops += doubled_prod_dim
+        elif self.side == "R":
+            doubled_prod_dim = (2 * np.prod(x_shape) *
+                                np.prod(w_shape[:-self.ndim]))
+            if self.w.grad_required:
+                total_backward_flops += doubled_prod_dim
+            if self.x.grad_required:
+                total_backward_flops += doubled_prod_dim
+        return total_backward_flops

@@ -9,7 +9,7 @@
  * @file src/kernel/rope_backward/cpu.cc
  * Backward for Rotary Positional Embedding
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/rope_backward/cpu.hh"
@@ -25,17 +25,18 @@ void cpu(Index m, Index n, const T *sin, const T *cos, const T *dy, T *dx)
  *  sin, cos are tensors of shape (m). Each column holds sines and cosines.
  *  TODO: describe math here
  *
+ * Although this is backward procedure, which usually implies += update of the
+ * output, we specifically use = for the output.
+ *
  * @param[in] m: Size of sin and cos tensors
  * @param[in] n: Size of the second mode of src and dst tensors
  * @param[in] sin: Input sine tensor
  * @param[in] cos: Input cosine tensor
  * @param[in] dy: Gradient over output of forward RoPE
- * @param[inout] dx: Gradient over input of forward RoPE
+ * @param[out] dx: Gradient over input of forward RoPE
  * */
 {
     using Y = typename T::repr_t;
-    Y dx_val_a{0.0};
-    Y dx_val_b{0.0};
     // Use these angles for pairwise rotation of the same elements across all
     // batches
     for (Index j = 0; j < n; ++j)
@@ -46,10 +47,8 @@ void cpu(Index m, Index n, const T *sin, const T *cos, const T *dy, T *dx)
             Index l = 2 * (i+j*m);
             Y c{cos[i]}, s{sin[i]};
             Y a{dy[l]}, b{dy[l+1]};
-            dx_val_a = static_cast<Y>(dx[l]);
-            dx_val_b = static_cast<Y>(dx[l+1]);
-            dx[l] = static_cast<T>(dx_val_a + c*a + s*b);
-            dx[l+1] = static_cast<T>(dx_val_b + c*b - s*a);
+            dx[l] = static_cast<T>(c*a + s*b);
+            dx[l+1] = static_cast<T>(c*b - s*a);
         }
     }
 }

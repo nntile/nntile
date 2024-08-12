@@ -9,7 +9,7 @@
 # @file tests/model/CMakeLists.txt
 # Tests for nntile::model
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # All unit tests for models
 set(TESTS

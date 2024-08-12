@@ -9,7 +9,7 @@
  * @file tests/kernel/logsumexp.cc
  * Logsumexp after computed maxsumexp result of a buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>

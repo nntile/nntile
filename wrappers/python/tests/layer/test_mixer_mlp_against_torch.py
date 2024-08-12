@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/layer/test_mixer_mlp_against_torch.py
 # Test for MixerMLP layer
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 import pytest

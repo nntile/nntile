@@ -9,7 +9,7 @@
  * @file src/tensor/total_sum_accum.cc
  * Total sum accumulating of Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/total_sum_accum.hh"

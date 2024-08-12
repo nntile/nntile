@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/flash_softmax_gemm.hh
  * Fast fused softmax+gemm
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

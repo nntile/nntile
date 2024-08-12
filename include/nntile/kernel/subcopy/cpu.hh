@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/subcopy/cpu.hh
  * Copy subarray based on contiguous indices
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

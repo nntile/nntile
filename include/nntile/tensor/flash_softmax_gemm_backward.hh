@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/flash_softmax_gemm_backward.hh
  * Fast backward of softmax and gemm operations
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

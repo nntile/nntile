@@ -9,7 +9,7 @@
  * @file tests/tile/add_slice.cc
  * Tile wrappers for addition of a tensor and a broadcasted slice
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/add_slice.hh"

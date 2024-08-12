@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/accumulate_hypot.hh
  * Accumulate one StarPU buffers into another as hypot
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

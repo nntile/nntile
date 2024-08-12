@@ -9,7 +9,7 @@
  * @file tests/tensor/gelutanh_inplace.cc
  * Approximate GeLU operation for Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/gelutanh_inplace.hh"

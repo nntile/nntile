@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/layer/test_layer_norm.py
 # Test for nntile.layer.LayerNorm
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 import pytest

@@ -9,7 +9,7 @@
  * @file src/kernel/prod_slice/cpu.cc
  * Per-element multiplication of a tensor by a broadcasted slice on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/prod_slice/cpu.hh"

@@ -9,7 +9,7 @@
  * @file src/kernel/dgelu/cpu.cc
  * Derivative of GeLU operation on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/dgelu/cpu.hh"

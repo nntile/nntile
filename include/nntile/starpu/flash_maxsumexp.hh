@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/flash_maxsumexp.hh
  * Fused materialization and maxsumexp for StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

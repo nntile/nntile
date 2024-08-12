@@ -9,11 +9,15 @@
 # @file wrappers/python/nntile/layer/base_layer.py
 # Base layer API of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
-from nntile.tensor import Tensor, TensorMoments, randn_async
-import numpy as np
 from typing import List, Union
+
+import numpy as np
+
+import nntile
+from nntile.tensor import Tensor, TensorMoments, randn_async
+
 
 class BaseLayer(object):
     # Input activations with moments
@@ -25,9 +29,9 @@ class BaseLayer(object):
     # Auxiliary tensors or tensors with moments
     temporaries: List[Union[Tensor, TensorMoments]]
 
-    def __init__(self, activations_input: List[TensorMoments], \
-            activations_output: List[TensorMoments], \
-            parameters: List[TensorMoments], \
+    def __init__(self, activations_input: List[TensorMoments],
+            activations_output: List[TensorMoments],
+            parameters: List[TensorMoments],
             temporaries: List[Union[Tensor, TensorMoments]]):
         self.activations_input = activations_input
         self.activations_output = activations_output
@@ -40,7 +44,7 @@ class BaseLayer(object):
         for p in self.parameters:
             mean = 0.0
             stddev = 1.0 / np.sqrt(p.value.nelems)
-            randn_async(p.value, [0]*len(p.value.shape), p.value.shape, \
+            randn_async(p.value, [0] * len(p.value.shape), p.value.shape,
                     seed, mean, stddev)
 
     def forward_async(self):
@@ -48,14 +52,14 @@ class BaseLayer(object):
 
     def forward(self):
         self.forward_async()
-        starpu.wait_for_all()
+        nntile.starpu.wait_for_all()
 
     def backward_async(self):
         raise NotImplementedError
 
     def backward(self):
         self.forward_async()
-        starpu.wait_for_all()
+        nntile.starpu.wait_for_all()
 
     # Unregister layer weights and temporary tensors
     def unregister(self):
@@ -64,3 +68,9 @@ class BaseLayer(object):
         for t in self.temporaries:
             if t is not None:
                 t.unregister()
+
+    def get_forward_flops(self):
+        return 0
+
+    def get_backward_flops(self):
+        return 0

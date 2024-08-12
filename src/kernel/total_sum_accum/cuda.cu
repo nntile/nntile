@@ -9,7 +9,7 @@
  * @file src/kernel/total_sum_accum/cuda.cu
  * total_sum_accum operation on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/total_sum_accum/cuda.hh"

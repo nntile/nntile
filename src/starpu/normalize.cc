@@ -9,7 +9,7 @@
  * @file src/starpu/normalize.cc
  * Normalize operation for StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID

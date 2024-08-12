@@ -9,7 +9,7 @@
  * @file tests/tile/logsumexp.cc
  * Log of sum of exponents of Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>

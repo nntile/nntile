@@ -9,7 +9,7 @@
 # @file include/CMakeLists.txt
 # Set NNTile headers
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # Set list of headers
 set(BASE_HDR
@@ -73,6 +73,7 @@ set(KERNEL_HDR
     "nntile/kernel/sum_slice/cpu.hh"
     "nntile/kernel/sum_fiber.hh"
     "nntile/kernel/sum_fiber/cpu.hh"
+    "nntile/kernel/norm_fiber/cpu.hh"
     "nntile/kernel/norm_slice.hh"
     "nntile/kernel/norm_slice/cpu.hh"
     "nntile/kernel/pow.hh"
@@ -168,6 +169,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/fill/cuda.hh"
         "nntile/kernel/sum_slice/cuda.hh"
         "nntile/kernel/sum_fiber/cuda.hh"
+        "nntile/kernel/norm_fiber/cuda.hh"
         "nntile/kernel/logsumexp/cuda.hh"
         "nntile/kernel/norm_slice/cuda.hh"
         "nntile/kernel/pow/cuda.hh"
@@ -237,6 +239,7 @@ set(STARPU_HDR
     "nntile/starpu/fill.hh"
     "nntile/starpu/sum_slice.hh"
     "nntile/starpu/sum_fiber.hh"
+    "nntile/starpu/norm_fiber.hh"
     "nntile/starpu/norm_slice.hh"
     "nntile/starpu/pow.hh"
     "nntile/starpu/flash_maxsumexp.hh"
@@ -308,6 +311,7 @@ set(TILE_HDR
     "nntile/tile/fill.hh"
     "nntile/tile/sum_slice.hh"
     "nntile/tile/sum_fiber.hh"
+    "nntile/tile/norm_fiber.hh"
     "nntile/tile/norm_slice.hh"
     "nntile/tile/pow.hh"
     "nntile/tile/maxsumexp.hh"
@@ -372,6 +376,7 @@ set(TENSOR_HDR
     "nntile/tensor/fill.hh"
     "nntile/tensor/sum_slice.hh"
     "nntile/tensor/sum_fiber.hh"
+    "nntile/tensor/norm_fiber.hh"
     "nntile/tensor/norm_slice.hh"
     "nntile/tensor/pow.hh"
     "nntile/tensor/flash_maxsumexp.hh"

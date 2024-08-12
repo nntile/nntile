@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/llama_config.py
 # LLaMa model config
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from dataclasses import dataclass
 
@@ -38,3 +38,4 @@ class LlamaConfigNNTile:
     rms_norm_eps: float = 1e-06
     num_hidden_layers: int = 1
     mlp_bias: bool = False
+    flash_attention: bool = True

@@ -9,7 +9,7 @@
  * @file src/starpu/subtract_indexed_outputs.cc
  * Subtract a given value from certain matrix elements for StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID

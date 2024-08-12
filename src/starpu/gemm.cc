@@ -9,7 +9,7 @@
  * @file src/starpu/gemm.cc
  * GEMM operation for StarPU buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/starpu/gemm.hh"

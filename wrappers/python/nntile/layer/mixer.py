@@ -9,13 +9,15 @@
 # @file wrappers/python/nntile/layer/mixer.py
 # Mixer layer of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
-from nntile.tensor import TensorMoments, TensorTraits, notrans, add_async, add_slice_async, sum_slice_async, clear_async, transpose_async
+from nntile.layer.act import Act
 from nntile.layer.base_layer import BaseLayer
 from nntile.layer.layer_norm import LayerNorm
 from nntile.layer.linear import Linear
-from nntile.layer.act import Act
+from nntile.tensor import (
+    TensorMoments, TensorTraits, add_async, add_slice_async, clear_async,
+    notrans, sum_slice_async, transpose_async)
 
 
 class GAP(BaseLayer):
@@ -27,14 +29,8 @@ class GAP(BaseLayer):
         self.x = x
         self.y = y
         self.yT = yT
-
         # Redirect to BaseClass initialization
         super().__init__([x], [y], [], [yT])
-
-
-    def unregister(self):
-        super().unregister()
-
 
     @staticmethod
     def generate_simple(x: TensorMoments, next_tag: int):
@@ -50,7 +46,6 @@ class GAP(BaseLayer):
         next_tag = yT_grad.next_tag
         # Define Y as TensorMoments
         yT = TensorMoments(yT_value, yT_grad, True)
-
 
         y_shape = yT_shape[::-1]
         y_basetile_shape = yT_basetile_shape[::-1]
@@ -70,12 +65,10 @@ class GAP(BaseLayer):
         # Return layer and next tag to be used
         return (layer, next_tag)
 
-
     def forward_async(self):
         alpha = 1 / (self.x.value.shape[0])
         sum_slice_async(alpha, self.x.value, 0.0, self.yT.value, 0)
         transpose_async(1.0, self.yT.value, self.y.value, 1)
-
 
     def backward_async(self):
         alpha = 1 / (self.x.value.shape[0])
@@ -91,7 +84,6 @@ class MixerMlp(BaseLayer):
     linear_2: Linear
     act: Act
 
-
     # Construct MixerMlp layer with all the provided data
     def __init__(self, side: str, x: TensorMoments, y: TensorMoments,
                  linear_1: Linear, linear_2: Linear, act: Act):
@@ -106,27 +98,22 @@ class MixerMlp(BaseLayer):
         self.linear_1 = linear_1
         self.linear_2 = linear_2
         self.act = act
-
-        layer_temporaries = list(self.linear_1.activations_output + self.act.activations_output + self.linear_2.activations_output)
-        layer_parameters = list(self.linear_1.parameters + self.linear_2.parameters)
-
+        layer_temporaries = list(self.linear_1.activations_output +
+                self.act.activations_output + self.linear_2.activations_output)
+        layer_parameters = list(self.linear_1.parameters +
+                self.linear_2.parameters)
         # Redirect to BaseClass initialization
         super().__init__([x], [y], layer_parameters, layer_temporaries)
 
-
-    def unregister(self):
-        super().unregister()
-
-
     # Clear gradients of activations and parameters
     def clear_gradients(self):
-        for t in (self.activations_input + self.activations_output + self.temporaries):
+        for t in (self.activations_input + self.activations_output +
+                self.temporaries):
             if t.grad is not None and t.grad_required:
                 clear_async(t.grad)
         for t in self.parameters:
             if t.grad is not None and t.grad_required:
                 clear_async(t.grad)
-
 
     @staticmethod
     def generate_simple(x: TensorMoments, side: str, next_tag: int):
@@ -138,20 +125,21 @@ class MixerMlp(BaseLayer):
             add_shape = x.value.shape[-1] * 4
             add_basetile_shape = x.value.shape[-1] * 4
             init_shape = x.value.shape[-1]
-        linear_1_layer, next_tag = Linear.generate_simple(x, side, notrans, 1, [add_shape], [add_basetile_shape], next_tag, bias=False)
-        act_layer, next_tag = Act.generate_simple(linear_1_layer.y, 'gelu', next_tag)
-        linear_2_layer, next_tag = Linear.generate_simple(act_layer.y, side, notrans, 1, [init_shape], [init_shape], next_tag, bias=False)
-        layer = MixerMlp(side, x, linear_2_layer.y, linear_1_layer, linear_2_layer, act_layer)
-
+        linear_1_layer, next_tag = Linear.generate_simple(x, side, notrans, 1,
+                [add_shape], [add_basetile_shape], next_tag, bias=False)
+        act_layer, next_tag = Act.generate_simple(linear_1_layer.y, 'gelu',
+                next_tag)
+        linear_2_layer, next_tag = Linear.generate_simple(act_layer.y, side,
+                notrans, 1, [init_shape], [init_shape], next_tag, bias=False)
+        layer = MixerMlp(side, x, linear_2_layer.y, linear_1_layer,
+                linear_2_layer, act_layer)
         # Return layer and next tag to be used
         return (layer, next_tag)
-
 
     def forward_async(self):
         self.linear_1.forward_async()
         self.act.forward_async()
         self.linear_2.forward_async()
-
 
     def backward_async(self):
         self.linear_2.backward_async()
@@ -179,12 +167,14 @@ class Mixer(BaseLayer):
         self.norm_2 = norm_2
         self.mlp_1 = mlp_1
         self.mlp_2 = mlp_2
-        layer_parameters = list(self.norm_1.parameters + self.mlp_1.parameters + self.norm_2.parameters + self.mlp_2.parameters)
-        layer_tmp = list(self.norm_1.activations_output + self.mlp_1.temporaries + self.norm_2.activations_output + self.mlp_2.temporaries)
-
+        layer_parameters = list(self.norm_1.parameters +
+                self.mlp_1.parameters + self.norm_2.parameters +
+                self.mlp_2.parameters)
+        layer_tmp = list(self.norm_1.activations_output +
+                self.mlp_1.temporaries + self.norm_2.activations_output +
+                self.mlp_2.temporaries)
         # Redirect to BaseClass initialization
         super().__init__([x], [y], layer_parameters, layer_tmp)
-
 
     def unregister(self):
         super().unregister()
@@ -193,33 +183,30 @@ class Mixer(BaseLayer):
         self.mlp_1 .unregister()
         self.mlp_2.unregister()
 
-
     # Clear gradients of activations and parameters
     def clear_gradients(self):
-        for t in (self.activations_input + self.activations_output + self.temporaries):
+        for t in (self.activations_input + self.activations_output
+                + self.temporaries):
             if t.grad is not None and t.grad_required:
                 clear_async(t.grad)
         for t in self.parameters:
             if t.grad is not None and t.grad_required:
                 clear_async(t.grad)
 
-
     # Simple generator for the mixer layer
     @staticmethod
     def generate_simple(x: TensorMoments, next_tag: int):
         eps = 1e-5
         norm_1_layer, next_tag = LayerNorm.generate_simple(x, 2, eps, next_tag)
-
-        mlp_layer1, next_tag = MixerMlp.generate_simple(norm_1_layer.y, 'R', next_tag)
-
-        norm_2_layer, next_tag = LayerNorm.generate_simple(mlp_layer1.y, 2, eps, next_tag)
-
-        mlp_layer2, next_tag = MixerMlp.generate_simple(norm_2_layer.y, 'L', next_tag)
-
-        layer = Mixer(x, mlp_layer2.y, norm_1_layer, norm_2_layer, mlp_layer1, mlp_layer2)
-
+        mlp_layer1, next_tag = MixerMlp.generate_simple(norm_1_layer.y, 'R',
+                next_tag)
+        norm_2_layer, next_tag = LayerNorm.generate_simple(mlp_layer1.y, 2,
+                eps, next_tag)
+        mlp_layer2, next_tag = MixerMlp.generate_simple(norm_2_layer.y, 'L',
+                next_tag)
+        layer = Mixer(x, mlp_layer2.y, norm_1_layer, norm_2_layer, mlp_layer1,
+                mlp_layer2)
         return layer, next_tag
-
 
     # Forward propagation of the mixer layer
     def forward_async(self):
@@ -229,7 +216,6 @@ class Mixer(BaseLayer):
         self.norm_2.forward_async()
         self.mlp_2.forward_async()
         add_async(1.0, self.norm_2.x.value, 1.0, self.mlp_2.y.value)
-
 
     def backward_async(self):
         self.mlp_2.backward_async()

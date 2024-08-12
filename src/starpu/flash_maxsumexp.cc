@@ -9,7 +9,7 @@
  * @file src/starpu/flash_maxsumexp.cc
  * Fused materialization and maxsumexp for StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/starpu/flash_maxsumexp.hh"

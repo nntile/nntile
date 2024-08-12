@@ -9,7 +9,7 @@
  * @file tests/kernel/randn.cc
  * Randn operation on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/randn.hh"

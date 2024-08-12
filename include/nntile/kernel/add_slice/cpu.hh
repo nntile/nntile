@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/add_slice/cpu.hh
  * Per-element addition of a tensor and a broadcasted slice on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

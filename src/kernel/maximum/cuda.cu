@@ -9,7 +9,7 @@
  * @file src/kernel/maximum/cuda.cu
  * Maximum operation on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/maximum/cuda.hh"

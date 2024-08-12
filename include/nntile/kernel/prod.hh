@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/prod.hh
  * Per-element product of two buffers. low-level kernels
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

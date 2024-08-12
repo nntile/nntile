@@ -10,7 +10,7 @@
  * This is a simple example with many matrix multiplications. It simulates
  * forward passes of a simple DeepLinear network.
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <nntile.hh>

@@ -9,7 +9,7 @@
  * @file src/kernel/embedding/cuda.cu
  * Embeddings from vocabulary within buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/embedding/cuda.hh"

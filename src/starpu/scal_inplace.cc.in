@@ -9,7 +9,7 @@
  * @file src/starpu/scal_inplace.cc.in
  * Inplace scal operation for StarPU buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/starpu/scal_inplace.hh"

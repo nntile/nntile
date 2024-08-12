@@ -9,7 +9,7 @@
 # @file external/CMakeLists.txt
 # External header libraires to be used
 #
-# @version 1.0.0
+# @version 1.1.0
 
 include(FetchContent)
 

@@ -9,7 +9,7 @@
  * @file include/nntile/model/deep_linear.hh
  * Deep linear network model
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

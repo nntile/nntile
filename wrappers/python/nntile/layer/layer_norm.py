@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/layer/layer_norm.py
 # LayerNorm of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer

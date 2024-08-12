@@ -9,7 +9,7 @@
  * @file include/nntile/tile/logsumexp.hh
  * Logsumexp operation of Tile<T> based on the result of maxsumexp operation
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

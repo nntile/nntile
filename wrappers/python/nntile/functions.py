@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/tensor.py
 # Multiprecision tensor with operations
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # TODO(@daskol): There are a lot of typing errors related to dispatching
 # depending on operand types. Arguments are usually annotated as a `Tensor`
@@ -332,6 +332,40 @@ def sum_fiber_async(
     elif type(x) is core_tensor.Tensor_bf16:
         core_tensor.sum_fiber_async_bf16(
             alpha, x, beta, sum_fiber, axis, batch_ndim, redux
+        )
+    else:
+        raise TypeError
+
+
+def norm_fiber_async(
+    alpha: float,
+    x: Tensor,
+    beta: float,
+    norm_fiber: Tensor,
+    axis: int,
+    batch_ndim: int,
+    redux: int = 0,
+) -> None:
+    """
+    Wrapper for multiprecision norm_fiber
+    """
+    if type(x) is not type(norm_fiber):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.norm_fiber_async_fp32(
+            alpha, x, beta, norm_fiber, axis, batch_ndim, redux
+        )
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.norm_fiber_async_fp32_fast_tf32(
+            alpha, x, beta, norm_fiber, axis, batch_ndim, redux
+        )
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.norm_fiber_async_fp64(
+            alpha, x, beta, norm_fiber, axis, batch_ndim, redux
+        )
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.norm_fiber_async_bf16(
+            alpha, x, beta, norm_fiber, axis, batch_ndim, redux
         )
     else:
         raise TypeError

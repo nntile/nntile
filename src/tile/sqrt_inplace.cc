@@ -9,7 +9,7 @@
  * @file src/tile/sqrt_inplace.cc
  * Inplace sqrt operation for Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/sqrt_inplace.hh"

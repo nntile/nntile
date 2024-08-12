@@ -9,7 +9,7 @@
  * @file tests/tile/prod_fiber.cc
  * Tile wrappers for multiplication of a tensor and a broadcasted fiber
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>

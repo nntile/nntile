@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/tensor.py
 # Multiprecision tensor with operations
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import sys
 from typing import TYPE_CHECKING, Protocol, Sequence

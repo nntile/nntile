@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/dgelutanh/cpu.hh
  * Derivative of approximate GeLU operation on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

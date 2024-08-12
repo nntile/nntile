@@ -9,7 +9,7 @@
  * @file src/kernel/sum_slice/cuda.cu
  * Sums over fibers into a slice of a buffer on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/sum_slice/cuda.hh"

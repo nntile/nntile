@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/base_model.py
 # Base model API of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from typing import List
 
@@ -81,3 +81,15 @@ class BaseModel:
 
     def get_parameters(self):
         return self.parameters
+
+    def get_flops_forward(self):
+        flops = 0
+        for layer in self.layers:
+            flops += layer.get_forward_flops()
+        return flops
+
+    def get_flops_backward(self):
+        flops = 0
+        for layer in self.layers:
+            flops += layer.get_backward_flops()
+        return flops

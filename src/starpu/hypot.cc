@@ -9,7 +9,7 @@
  * @file src/starpu/hypot.cc
  * hypot operation on a StarPU buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID

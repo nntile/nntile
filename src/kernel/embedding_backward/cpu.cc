@@ -9,7 +9,7 @@
  * @file src/kernel/embedding_backward/cpu.cc
  * Backward of embeddings from vocabulary within buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/embedding_backward/cpu.hh"

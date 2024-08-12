@@ -9,7 +9,7 @@
  * @file include/nntile/layer/mixer.hh
  * Mixer layer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

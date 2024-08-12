@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/mask_scalar/cuda.hh
  * Mask operation with scalar on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

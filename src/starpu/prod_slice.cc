@@ -9,7 +9,7 @@
  * @file src/starpu/prod_slice.cc
  * StarPU wrappers for per-element product of a tensor and a broadcasted slice
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID

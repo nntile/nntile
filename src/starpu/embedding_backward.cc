@@ -9,7 +9,7 @@
  * @file src/starpu/embedding_backward.cc
  * Embeddings from vocabulary within StarPU buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID

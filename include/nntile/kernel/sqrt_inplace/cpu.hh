@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/sqrt_inplace/cpu.hh
  * Inplace sqrt operation on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/rope/cpu.hh
  * Rotary positional embedding
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

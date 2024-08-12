@@ -9,7 +9,7 @@
  * @file src/tensor/axpy.cc
  * AXPY for two Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/axpy.hh"

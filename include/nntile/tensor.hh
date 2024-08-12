@@ -9,7 +9,7 @@
  * @file include/nntile/tensor.hh
  * Header for Tensor<T> class with corresponding operations
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once
@@ -90,6 +90,7 @@
 #include <nntile/tensor/conv2d_bwd_weight_inplace.hh>
 #include <nntile/tensor/rope.hh>
 #include <nntile/tensor/rope_backward.hh>
+#include <nntile/tensor/norm_fiber.hh>
 
 //! @namespace nntile::tensor
 /*! This namespace holds high-level routines for Tensor<T>

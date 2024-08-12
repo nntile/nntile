@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/layer/embedding.py
 # Embedding layer of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import torch
 from torch.nn import Embedding as Embedding_torch

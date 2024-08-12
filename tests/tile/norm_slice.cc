@@ -9,7 +9,7 @@
  * @file tests/tile/norm_slice.cc
  * Euclidean norms of fibers into a slice of a Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/norm_slice.hh"

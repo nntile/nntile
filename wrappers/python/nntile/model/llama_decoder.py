@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/llama_decoder.py
 # LlamaDecoder submodule of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 from transformers import LlamaConfig as LlamaConfig_torch
@@ -74,7 +74,8 @@ class LlamaDecoder(BaseModel):
             rms_norm_input_layer.activations_output[0],
             position_ids,
             mask,
-            config, next_tag)
+            config,
+            next_tag)
         post_attn_add, next_tag = Add.generate_simple(
             x, attention_layer.activations_output[0],
             next_tag)

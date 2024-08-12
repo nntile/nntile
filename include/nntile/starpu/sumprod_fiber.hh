@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/sumprod_fiber.hh
  * Sums over slices into a fiber of a product of two StarPU buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

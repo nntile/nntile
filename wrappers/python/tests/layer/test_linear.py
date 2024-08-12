@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/layer/test_linear.py
 # Test for nntile.layer.linear
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 import pytest
@@ -383,4 +383,56 @@ def test_dynamic(numpy_rng, x_shape, w_shape):
 
     x_nntile_tm_for_build.value.unregister()
     x_nntile_tm.value.unregister()
+    layer.unregister()
+
+
+@pytest.mark.parametrize('side,x_shape,w_shape,b_shape,n_contracted_dim', [
+    ('L', [20, 10], [10, 5], [5], 1),
+    ('L', [20, 10, 5], [10, 5, 7], [7], 2),
+    ('L', [20, 10, 5], [5, 7], [7], 1),
+    ('R', [5, 3], [10, 5], [10], 1),
+    ('R', [5, 7, 2], [10, 5, 7], [10], 2),
+    ('R', [7, 3, 10], [5, 7], [5], 1),
+])
+def test_linear_flops(side: str, x_shape, w_shape, b_shape,
+                           n_contracted_dim):
+    """Compare flops counting in :py:class:`nntile.layer.Linear`
+    and analytical formulas
+    """
+
+    A_traits = nntile.tensor.TensorTraits(x_shape, x_shape)
+    mpi_distr = [0]
+    next_tag = 0
+    # Tensor objects
+    A = Tensor[np.float32](A_traits, mpi_distr, next_tag)
+    next_tag = A.next_tag
+    A_grad = Tensor[np.float32](A_traits, mpi_distr, next_tag)
+    next_tag = A_grad.next_tag
+    A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
+    # Define linear layer
+    match side:
+        case 'L':
+            layer, next_tag = Linear.generate_simple(
+                A_moments, 'L', nntile.tensor.notrans, n_contracted_dim,
+                [*w_shape[n_contracted_dim:]], [*w_shape[n_contracted_dim:]],
+                next_tag, bias=True)
+        case 'R':
+            layer, next_tag = Linear.generate_simple(
+                A_moments, 'R', nntile.tensor.notrans, n_contracted_dim,
+                [*w_shape[:-n_contracted_dim]], [*w_shape[:-n_contracted_dim]],
+                next_tag, bias=True)
+    match side:
+        case 'L':
+            analytical_fwd_flops = (2 * np.prod(x_shape) *
+                                    np.prod(w_shape[n_contracted_dim:]))
+        case 'R':
+            analytical_fwd_flops = (2 * np.prod(x_shape) *
+                                    np.prod(w_shape[:-n_contracted_dim:]))
+
+    assert analytical_fwd_flops == layer.get_forward_flops()
+
+    analytical_bwd_flops = 2 * analytical_fwd_flops
+    assert analytical_bwd_flops == layer.get_backward_flops()
+
+    A_moments.unregister()
     layer.unregister()

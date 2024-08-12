@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/llama_causal.py
 # LlamaCausal model of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 from transformers import LlamaConfig as LlamaConfig_torch
@@ -42,7 +42,6 @@ class LlamaForCausalLM(BaseModel):
         activations.extend(llama_model_.activations)
         layers = []
         layers.extend(llama_model_.layers)
-        print(layers)
         layers.append(lin_head_)
 
         self.llama_model_ = llama_model_

@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/pow.hh
  * Power operation low-level kernels
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  * @file tests/testing.hh
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

@@ -9,7 +9,7 @@
  * @file src/tile/gelutanh_inplace.cc
  * Approximate GeLU operation for Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/gelutanh_inplace.hh"

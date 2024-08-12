@@ -9,7 +9,7 @@
  * @file src/kernel/prod_fiber/cpu.cc
  * Per-element multiplication of a tensor by a broadcasted fiber on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/prod_fiber/cpu.hh"

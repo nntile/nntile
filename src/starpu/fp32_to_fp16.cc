@@ -9,7 +9,7 @@
  * @file src/starpu/fp32_to_fp16.cc
  * Convert fp32_t array into fp16_t array
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID

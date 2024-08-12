@@ -9,7 +9,7 @@
  * @file examples/mixer.cc
  * This is an example of a an MLP-Mixer architecture, only a forward pass
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <nntile.hh>

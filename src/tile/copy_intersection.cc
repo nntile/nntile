@@ -9,7 +9,7 @@
  * @file src/tile/copy_intersection.cc
  * Copy intersection of 2 tiles from one into another
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/copy_intersection.hh"

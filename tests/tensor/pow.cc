@@ -9,7 +9,7 @@
  * @file tests/tensor/pow.cc
  * Per-element power operation for Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>

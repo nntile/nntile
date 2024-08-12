@@ -9,7 +9,7 @@
 # @file test_tensor_subtract_indexed_column.py
 # Test for tensor::subtract_indexed_column<T> Python wrapper
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import pytest
 

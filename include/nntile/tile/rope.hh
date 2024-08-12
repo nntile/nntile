@@ -9,7 +9,7 @@
  * @file include/nntile/tile/add_slice3.hh
  * Tile wrappers for the Rotary Positional Embedding
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

@@ -9,7 +9,7 @@
  * @file src/kernel/hypot/cuda.cu
  * hypot operation on buffers on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/hypot/cuda.hh"

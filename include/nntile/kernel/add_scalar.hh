@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/add_scalar.hh
  * Add_ scalar low-level kernel
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

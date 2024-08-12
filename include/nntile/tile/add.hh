@@ -9,7 +9,7 @@
  * @file include/nntile/tile/add.hh
  * Add operation for two Tile<T>'s
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

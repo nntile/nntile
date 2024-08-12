@@ -9,7 +9,7 @@
  * @file tests/kernel/subtract_indexed_column.cc
  * Subtract a value from the indexed column of matrix in a buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>

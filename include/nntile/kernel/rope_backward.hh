@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/rope_backward.hh
  * Backward operation for Rotary Positional Embedding
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

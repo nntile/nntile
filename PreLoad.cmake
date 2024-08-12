@@ -9,7 +9,7 @@
 # @file PreLoad.cmake
 # Cmake script to set generator to Ninja
 #
-# @version 1.0.0
+# @version 1.1.0
 
 if (NOT DEFINED ENV{CLION_IDE})
     find_program(NINJA_PATH ninja)

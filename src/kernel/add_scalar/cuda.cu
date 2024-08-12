@@ -9,7 +9,7 @@
  * @file src/kernel/add_scalar/cuda.cu
  * Add scalar operation of buffer on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/add_scalar/cuda.hh"
