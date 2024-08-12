@@ -23,8 +23,8 @@ from transformers.models.llama.modeling_llama import (
 
 import nntile
 from nntile.model.llama_config import LlamaConfigNNTile
-from nntile.tensor import TensorMoments, TensorTraits
-from nntile.utils.constructors import to_numpy
+from nntile.tensor import TensorMoments, TensorTraits, clear_async
+from nntile.utils.constructors import to_numpy, zeros_like
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -82,7 +82,8 @@ multiple_tiles = LlamaAttentionTestParams(
 )
 
 
-def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool):
+def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool,
+                    flash_attention: bool):
     rng = np.random.default_rng(42)
     torch_layer_config = LlamaConfig_torch(
         hidden_size=params.n_emb,
@@ -107,7 +108,8 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool):
         intermediate_size=torch_layer_config.intermediate_size,
         intermediate_size_tile=torch_layer_config.intermediate_size,
         vocab_size=torch_layer_config.vocab_size,
-        vocab_embed_dim_tile=params.n_emb)
+        vocab_embed_dim_tile=params.n_emb,
+        flash_attention=flash_attention)
 
     torch_layer = LlamaAttention_torch(
         torch_layer_config, layer_idx=params.layer_idx
@@ -118,12 +120,12 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool):
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[dtype]
     x_value = x_type(x_traits, x_distr, 0)
-    x_grad = x_type(x_traits, x_distr, 0)
+    x_grad = zeros_like(x_value)
     X = TensorMoments(x_value, x_grad, grad_required=True)
     x_random = rng.standard_normal(x_shape)
     x_nntile = np.array(x_random, dtype=np.float32, order="F")
     x_value.from_array(x_nntile)
-    x_torch = torch.Tensor(x_nntile.T)
+    x_torch = torch.tensor(x_nntile.T, requires_grad=True)
 
     pos_ids = rng.integers(params.n_seq,
             size=(params.n_batch, params.n_seq),
@@ -158,12 +160,14 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool):
     pytest.param('fp32_fast_tf32', marks=nocuda),
     pytest.param('bf16', marks=nocuda),
 ])
+@pytest.mark.parametrize('flash_attention', [False, True])
 class TestLlamaAttention:
 
     def test_torch_coercion(self, starpu_simple, torch_rng, dtype: str,
-                            params: LlamaAttentionTestParams, bias: bool):
+                            params: LlamaAttentionTestParams, bias: bool,
+                            flash_attention: bool):
         torch_layer, nntile_layer, *_ = \
-                generate_inputs(dtype, params, bias)
+                generate_inputs(dtype, params, bias, flash_attention)
         torch_layer_other = nntile_layer.to_torch()
         nntile_layer.unregister()
         nntile_layer.x.unregister()
@@ -176,9 +180,10 @@ class TestLlamaAttention:
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
     def test_forward(self, starpu_simple, torch_rng, dtype: str,
-                     params: LlamaAttentionTestParams, bias: bool):
+                     params: LlamaAttentionTestParams, bias: bool,
+                            flash_attention: bool):
         torch_layer, nntile_layer, x, pos_ids, mask, *_ = \
-                generate_inputs(dtype, params, bias)
+                generate_inputs(dtype, params, bias, flash_attention)
         y, _, _ = torch_layer(x, position_ids=pos_ids, attention_mask=mask)
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.y.value).T)
@@ -189,23 +194,27 @@ class TestLlamaAttention:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_forward_backward(self, starpu_simple, torch_rng, dtype: str,
-                              params: LlamaAttentionTestParams, bias: bool):
+    def test_backward(self, starpu_simple, torch_rng, dtype: str,
+                              params: LlamaAttentionTestParams, bias: bool,
+                            flash_attention: bool):
         torch_layer, nntile_layer, x, pos_ids, mask, y_grad = \
-                generate_inputs(dtype, params, bias)
+                generate_inputs(dtype, params, bias, flash_attention)
         y, _, _ = torch_layer(x, position_ids=pos_ids, attention_mask=mask)
         nntile_layer.forward_async()
-        y_nntile = torch.Tensor(to_numpy(nntile_layer.y.value).T)
         res = (y * y_grad).sum()
         res.backward()
+        for tensor in nntile_layer.parameters:
+            if tensor.grad_required:
+                clear_async(tensor.grad)
         nntile_layer.backward_async()
+        x_grad_nntile = torch.Tensor(to_numpy(nntile_layer.x.grad).T)
         torch_layer_other = nntile_layer.to_torch_with_grads()
         nntile_layer.unregister()
         nntile_layer.x.unregister()
         nntile_layer.y.unregister()
 
         rtol = dtype2tol[dtype]['rtol']
-        assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
+        assert torch.norm(x.grad - x_grad_nntile) <= rtol * torch.norm(x.grad)
 
         for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
                 torch_layer_other.named_parameters()):
@@ -216,10 +225,11 @@ class TestLlamaAttention:
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
 
     def test_flops_counting(self, starpu_simple, torch_rng, dtype: str,
-                            params: LlamaAttentionTestParams, bias: bool):
+                            params: LlamaAttentionTestParams, bias: bool,
+                            flash_attention: bool):
 
         _, nntile_layer, *_ = \
-                generate_inputs(dtype, params, bias)
+                generate_inputs(dtype, params, bias, flash_attention)
         analytical_fwd_flops = (4 * params.n_batch * params.n_seq *
                                 params.n_emb * (params.n_emb +
                                 params.n_emb * params.n_head_kv //

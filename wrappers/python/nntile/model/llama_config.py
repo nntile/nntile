@@ -38,3 +38,4 @@ class LlamaConfigNNTile:
     rms_norm_eps: float = 1e-06
     num_hidden_layers: int = 1
     mlp_bias: bool = False
+    flash_attention: bool = True

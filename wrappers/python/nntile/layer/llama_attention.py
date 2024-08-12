@@ -7,7 +7,7 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file wrappers/python/nntile/layer/llama_attention.py
-# LLaMaAttention layer of NNTile Python package
+# LlamaAttention layer of NNTile Python package
 #
 # @version 1.1.0
 
@@ -22,7 +22,9 @@ from nntile.tensor import (
     add_fiber_async, add_slice_async, clear_async, gemm_async,
     mask_scalar_async, maxsumexp_async, notrans, prod_async, rope_async,
     rope_backward_async, softmax_inplace_async, sum_fiber_async,
-    sum_slice_async, sumprod_slice_async, to_numpy, trans, transpose_async)
+    sum_slice_async, sumprod_slice_async, to_numpy, trans, transpose_async,
+    flash_maxsumexp_async, flash_softmax_gemm_async,
+    flash_softmax_gemm_backward_async)
 
 from ..model.llama_config import LlamaConfigNNTile
 
@@ -65,6 +67,7 @@ class LlamaAttention(BaseLayer):
     n_head_kv: int
     kv_group_size: int
     head_size: int
+    flash_attention: bool
 
     # Construct attention layer with all the provided data
     def __init__(
@@ -97,6 +100,7 @@ class LlamaAttention(BaseLayer):
         in_proj_bias_v: TensorMoments,
         out_proj_bias: TensorMoments,
         mask: TensorOrNone = None,
+        flash_attention: bool = True,
         redux: bool = False,
     ):
         qkv_bias_list = []
@@ -214,6 +218,7 @@ class LlamaAttention(BaseLayer):
             self.redux = 1
         else:
             self.redux = 0
+        self.flash_attention = flash_attention
 
     # Simple generator for the linear layer
     @staticmethod
@@ -227,6 +232,7 @@ class LlamaAttention(BaseLayer):
         next_tag: int,
         bias: bool = False,
         mask: np.ndarray = None,
+        flash_attention: bool = True,
         redux: bool = False,
     ):
         # Get sizes
@@ -724,6 +730,7 @@ class LlamaAttention(BaseLayer):
             bias_inproj_v,
             out_proj_bias,
             layer_mask,
+            flash_attention=flash_attention,
             redux=redux,
         )
         # Return layer and next tag to be used
@@ -751,9 +758,10 @@ class LlamaAttention(BaseLayer):
         # Rotate axes into
         # (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
         transpose_async(1.0, self.q_transposed.value, self.q.value, 2)
-        # X_Q, W_Q and Q_transposed can be offloaded from GPU
-        self.x_q.value.wont_use()
+        # Q_transposed can be deleted
         self.q_transposed.value.invalidate_submit()
+        # X_Q and W_Q can be offloaded from GPU
+        self.x_q.value.wont_use()
         self.w_q.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_q is not None:
@@ -764,7 +772,7 @@ class LlamaAttention(BaseLayer):
                 1, self.in_proj_bias_q.value, 1, self.q.value, 0, 2
             )
             self.in_proj_bias_q.value.wont_use()
-        # Perform RoPE on q
+        # Perform RoPE on Q
         rope_async(self.sin, self.cos, self.q.value, self.q_rope.value)
         # Q can be deleted
         self.q.value.invalidate_submit()
@@ -785,9 +793,10 @@ class LlamaAttention(BaseLayer):
         )
         # Rotate axes into (head_size, n_seq, n_batch, n_head_kv)
         transpose_async(1.0, self.k_transposed.value, self.k.value, 1)
-        # X_K, W_K and K_transposed can be offloaded from GPU
-        self.x_k.value.wont_use()
+        # K_transposed can be deleted
         self.k_transposed.value.invalidate_submit()
+        # X_K and W_K can be offloaded from GPU
+        self.x_k.value.wont_use()
         self.w_k.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_k is not None:
@@ -797,6 +806,16 @@ class LlamaAttention(BaseLayer):
                 1, self.in_proj_bias_k.value, 1, self.k.value, 0, 1
             )
             self.in_proj_bias_k.value.wont_use()
+        # Perform RoPE on K
+        rope_async(self.sin, self.cos, self.k.value, self.k_rope.value)
+        # K can be deleted
+        self.k.value.invalidate_submit()
+        # Repeat K_rope along fibers of proper axis
+        # from (head_size, n_seq, n_batch, n_head_kv)
+        # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
+        add_slice_async(1.0, self.k_rope.value, 0.0, self.k_rep.value, 3)
+        # K_rope can be deleted
+        self.k_rope.value.invalidate_submit()
         # V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V)
         # gemm (n_head_kv, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head_kv, head_size, n_seq, n_batch)
@@ -814,9 +833,10 @@ class LlamaAttention(BaseLayer):
         )
         # Rotate axes into (head_size, n_seq, n_batch, n_head_kv)
         transpose_async(1.0, self.v_transposed.value, self.v.value, 1)
-        # X_V, W_V and V_transposed can be offloaded from GPU
-        self.x_v.value.wont_use()
+        # V_transposed can be deleted
         self.v_transposed.value.invalidate_submit()
+        # X_V and W_V can be offloaded from GPU
+        self.x_v.value.wont_use()
         self.w_v.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_v is not None:
@@ -826,81 +846,22 @@ class LlamaAttention(BaseLayer):
                 1, self.in_proj_bias_v.value, 1, self.v.value, 0, 1
             )
             self.in_proj_bias_v.value.wont_use()
-        # Perform RoPE on k_rep
-        rope_async(self.sin, self.cos, self.k.value, self.k_rope.value)
-        # K can be deleted
-        self.k.value.invalidate_submit()
-        # Repeat K_rope along fibers of proper axis
-        # from (head_size, n_seq, n_batch, n_head_kv)
-        # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
-        add_slice_async(1.0, self.k_rope.value, 0.0, self.k_rep.value, 3)
-        # K_rope can be deleted
-        self.k_rope.value.invalidate_submit()
-        # Get tensor for softmax
-        # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q_rope)
-        # single batched gemm
-        # (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
-        # by (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
-        # into (n_seq, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
-        gemm_async(
-            1.0 / self.head_size**0.5,
-            trans,
-            self.k_rep.value,
-            notrans,
-            self.q_rope.value,
-            0.0,
-            self.a.value,
-            1,
-            3,
-            redux=self.redux,
-        )
-        clear_async(self.a_maxsumexp)
-        # Q_rope, K_rope can be offloaded from GPU
-        self.q_rope.value.wont_use()
-        self.k_rope.value.wont_use()
-        # Calculate softmax inplace
-        # A = softmax(A, axis=0)
-        # Apply mask if needed
-        if self.mask:
-            mask_scalar_async(self.mask, self.val, self.a.value, 3)
-            self.mask.wont_use()
-        # Calculate max and sumexp along axis
-        maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=self.redux)
-        # Finally, get the inplace softmax
-        softmax_inplace_async(self.a_maxsumexp, 1.0, self.a.value, 0)
-        # A_maxsumexp can be deleted
-        self.a_maxsumexp.invalidate_submit()
         # Repeat V along fibers of proper axis
         # from (head_size, n_seq, n_batch, n_head_kv)
         # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
         add_slice_async(1.0, self.v.value, 0.0, self.v_rep.value, 3)
         # V can be deleted
         self.v.value.invalidate_submit()
-        # Apply value tensor
-        # B = einsum('jklbi,kmlbi->jmlbi', V_rep, A)
-        # batched gemm
-        # (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
-        # by (n_seq, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
-        # into (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
-        gemm_async(
-            1.0,
-            notrans,
-            self.v_rep.value,
-            notrans,
-            self.a.value,
-            0.0,
-            self.b.value,
-            1,
-            3,
-            redux=self.redux,
-        )
-        # V_rep and A can be offloaded from GPU
-        self.v_rep.value.wont_use()
-        self.a.value.wont_use()
-        # Accumulate result from all the heads
-        # rotate axes (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
+        # Apply attention to Q_rope, K_rep and V_rep into B
+        if self.flash_attention:
+            self._flash_attention_fwd()
+        else:
+            self._attention_fwd()
+        # Rotate axes (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
         # into (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
         transpose_async(1.0, self.b.value, self.b_transposed.value, 3)
+        # B can be deleted
+        self.b.value.invalidate_submit()
         # Y = einsum('jklm,klmni->jni', W, B_transposed)
         # gemm (n_emb, kv_group_size, n_head_kv, head_size) by
         # (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
@@ -917,9 +878,8 @@ class LlamaAttention(BaseLayer):
             0,
             redux=self.redux,
         )
-        # W, B and B_transposed can be offloaded from GPU
+        # W and B_transposed can be offloaded from GPU
         self.w.value.wont_use()
-        self.b.value.invalidate_submit()
         self.b_transposed.value.wont_use()
         # Apply bias if needed
         if self.out_proj_bias is not None:
@@ -987,101 +947,13 @@ class LlamaAttention(BaseLayer):
             transpose_async(1.0, self.b_transposed.grad, self.b.grad, 2)
         # self.b_transposed.grad.wont_use()
         self.b_transposed.grad.invalidate_submit()
-        # Backward for B = einsum('jklbi,kmlbi->jmlbi', V_rep, A)
-        if self.a.grad_required:
-            # dA = einsum('jklbi,jmlbi->kmlbi', V_rep, dB)
-            gemm_async(
-                1.0,
-                trans,
-                self.v_rep.value,
-                notrans,
-                self.b.grad,
-                0.0,
-                self.a.grad,
-                1,
-                3,
-                redux=self.redux,
-            )
-        # V_rep can be deleted
-        self.v_rep.value.invalidate_submit()
-        if self.v_rep.grad_required:
-            # dV_rep = einsum('jmlbi,kmlbi->jklbi', dB, A)
-            gemm_async(
-                1.0,
-                notrans,
-                self.b.grad,
-                trans,
-                self.a.value,
-                0.0,
-                self.v_rep.grad,
-                1,
-                3,
-                redux=self.redux,
-            )
-        # dB can be deleted
-        self.b.grad.invalidate_submit()
-        # Backward for A = softmax(A, axis=0)
-        if self.a.grad_required:
-            # A_sumprod_slice = einsum('kmlbi,kmlbi->mlbi', A, dA)
-            sumprod_slice_async(
-                1.0,
-                self.a.value,
-                self.a.grad,
-                0.0,
-                self.a_sumprod_slice,
-                0,
-                redux=self.redux,
-            )
-            # dA += -bias('kmlbi,mlbi->kmlbi', dA, A_sumprod_slice)
-            add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
-            # A_sumprod_slice can be deleted
-            self.a_sumprod_slice.invalidate_submit()
-            # dA *= A
-            prod_async(self.a.value, self.a.grad)
-        # A can be deleted
-        self.a.value.invalidate_submit()
-        # Backward for mask if needed
-        if self.mask:
-            mask_scalar_async(self.mask, 0.0, self.a.grad, 3)
-            self.mask.wont_use()
-        # Backward for:
-        # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q_rope)
-        if self.k_rep.grad_required:
-            # dK_rep = 1.0/sqrt(head_size)
-            #          * einsum('jmlbi,kmlbi->jklbi', Q_rope, dA)
-            gemm_async(
-                1.0 / self.head_size**0.5,
-                notrans,
-                self.q_rope.value,
-                trans,
-                self.a.grad,
-                0.0,
-                self.k_rep.grad,
-                1,
-                3,
-                redux=self.redux,
-            )
-        # Q_rope can be deleted
-        self.q_rope.value.invalidate_submit()
-        if self.q_rope.grad_required:
-            # dQ_rope = 1.0/sqrt(head_size)
-            #      * einsum('jklbi,kmlbi->jmlbi', K_rep, dA)
-            gemm_async(
-                1.0 / self.head_size**0.5,
-                notrans,
-                self.k_rep.value,
-                notrans,
-                self.a.grad,
-                0.0,
-                self.q_rope.grad,
-                1,
-                3,
-                redux=self.redux,
-            )
-        # K_rep can be deleted
-        self.k_rep.value.invalidate_submit()
-        # dA can be deleted
-        self.a.grad.invalidate_submit()
+
+        # Apply backward to (attention to Q_rope, K_rep and V_rep into B)
+        if self.flash_attention:
+            self._flash_attention_bwd()
+        else:
+            self._attention_bwd()
+
         # Backward for repeating V along fibers of proper axis
         sum_slice_async(1.0, self.v_rep.grad, 0.0, self.v.grad, 3)
         # dV_rep can be deleted
@@ -1342,6 +1214,7 @@ class LlamaAttention(BaseLayer):
             next_tag=next_tag,
             bias=torch_layer.q_proj.bias is not None,
             mask=mask,
+            flash_attention=config.flash_attention,
             redux=config.redux,
         )
         tmp_q_shape = layer.w_q.value.shape.copy()
@@ -1672,3 +1545,225 @@ class LlamaAttention(BaseLayer):
                               np.prod(qt_grad_shape[:-2]))
             total_backward_flops += w_q_grad_flops
         return total_backward_flops
+
+    def _flash_attention_fwd(self):
+        # Use flash-like maxsumexp
+        clear_async(self.a_maxsumexp)
+        flash_maxsumexp_async(
+            self.q_rope.value,
+            self.k_rep.value,
+            self.mask,
+            self.a_maxsumexp,
+            self.a.value,
+            redux=self.redux,
+        )
+        # Use flash-like softmax+gemm
+        flash_softmax_gemm_async(
+            self.q_rope.value,
+            self.k_rep.value,
+            self.v_rep.value,
+            self.mask,
+            self.a_maxsumexp,
+            self.b.value,
+            self.a.value,
+            redux=self.redux,
+        )
+        # Q_rope, K_rep, V_rep, mask and A_maxsumexp can be offloaded from GPU
+        self.q_rope.value.wont_use()
+        self.k_rep.value.wont_use()
+        self.v_rep.value.wont_use()
+        self.mask.wont_use()
+        self.a_maxsumexp.wont_use()
+        # A can be deleted
+        self.a.value.invalidate_submit()
+
+    def _flash_attention_bwd(self):
+        # Flash-like backward of softmax+gemm
+        clear_async(self.a_sumprod_slice)
+        flash_softmax_gemm_backward_async(
+            self.q_rope.value,
+            self.q_rope.grad,
+            self.k_rep.value,
+            self.k_rep.grad,
+            self.v_rep.value,
+            self.v_rep.grad,
+            self.mask,
+            self.a_maxsumexp,
+            self.b.grad,
+            self.a.value,
+            self.a.grad,
+            self.a_sumprod_slice,
+            redux=self.redux,
+        )
+        # Q_rope can be deleted
+        self.q_rope.value.invalidate_submit()
+        # K_rep can be deleted
+        self.k_rep.value.invalidate_submit()
+        # V_rep can be deleted
+        self.v_rep.value.invalidate_submit()
+        # mask can be offloaded from GPU
+        self.mask.wont_use()
+        # A_maxsumexp can be deleted
+        self.a_maxsumexp.invalidate_submit()
+        # dB can be deleted
+        self.b.grad.invalidate_submit()
+        # A can be deleted
+        self.a.value.invalidate_submit()
+        # dA can be deleted
+        self.a.grad.invalidate_submit()
+        # A_sumprod_slice can be deleted
+        self.a_sumprod_slice.invalidate_submit()
+
+    def _attention_fwd(self):
+        # Get tensor for softmax
+        # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q_rope)
+        # single batched gemm
+        # (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
+        # by (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
+        # into (n_seq, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
+        gemm_async(
+            1.0 / self.head_size**0.5,
+            trans,
+            self.k_rep.value,
+            notrans,
+            self.q_rope.value,
+            0.0,
+            self.a.value,
+            1,
+            3,
+            redux=self.redux,
+        )
+        clear_async(self.a_maxsumexp)
+        # Q_rope, K_rep can be offloaded from GPU
+        self.q_rope.value.wont_use()
+        self.k_rep.value.wont_use()
+        # Calculate softmax inplace
+        # A = softmax(A, axis=0)
+        # Apply mask if needed
+        if self.mask:
+            mask_scalar_async(self.mask, self.val, self.a.value, 3)
+            self.mask.wont_use()
+        # Calculate max and sumexp along axis
+        maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=self.redux)
+        # Finally, get the inplace softmax
+        softmax_inplace_async(self.a_maxsumexp, 1.0, self.a.value, 0)
+        # A_maxsumexp can be deleted
+        self.a_maxsumexp.invalidate_submit()
+        # Apply value tensor
+        # B = einsum('jklbi,kmlbi->jmlbi', V_rep, A)
+        # batched gemm
+        # (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
+        # by (n_seq, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
+        # into (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
+        gemm_async(
+            1.0,
+            notrans,
+            self.v_rep.value,
+            notrans,
+            self.a.value,
+            0.0,
+            self.b.value,
+            1,
+            3,
+            redux=self.redux,
+        )
+        # V_rep and A can be offloaded from GPU
+        self.v_rep.value.wont_use()
+        self.a.value.wont_use()
+
+    def _attention_bwd(self):
+        # Backward for B = einsum('jklbi,kmlbi->jmlbi', V_rep, A)
+        if self.a.grad_required:
+            # dA = einsum('jklbi,jmlbi->kmlbi', V_rep, dB)
+            gemm_async(
+                1.0,
+                trans,
+                self.v_rep.value,
+                notrans,
+                self.b.grad,
+                0.0,
+                self.a.grad,
+                1,
+                3,
+                redux=self.redux,
+            )
+        # V_rep can be deleted
+        self.v_rep.value.invalidate_submit()
+        if self.v_rep.grad_required:
+            # dV_rep = einsum('jmlbi,kmlbi->jklbi', dB, A)
+            gemm_async(
+                1.0,
+                notrans,
+                self.b.grad,
+                trans,
+                self.a.value,
+                0.0,
+                self.v_rep.grad,
+                1,
+                3,
+                redux=self.redux,
+            )
+        # dB can be deleted
+        self.b.grad.invalidate_submit()
+        # Backward for A = softmax(A, axis=0)
+        if self.a.grad_required:
+            # A_sumprod_slice = einsum('kmlbi,kmlbi->mlbi', A, dA)
+            sumprod_slice_async(
+                1.0,
+                self.a.value,
+                self.a.grad,
+                0.0,
+                self.a_sumprod_slice,
+                0,
+                redux=self.redux,
+            )
+            # dA += -bias('kmlbi,mlbi->kmlbi', dA, A_sumprod_slice)
+            add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
+            # A_sumprod_slice can be deleted
+            self.a_sumprod_slice.invalidate_submit()
+            # dA *= A
+            prod_async(self.a.value, self.a.grad)
+        # A can be deleted
+        self.a.value.invalidate_submit()
+        # Backward for mask if needed
+        if self.mask:
+            mask_scalar_async(self.mask, 0.0, self.a.grad, 3)
+            self.mask.wont_use()
+        # Backward for:
+        # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q_rope)
+        if self.k_rep.grad_required:
+            # dK_rep = 1.0/sqrt(head_size)
+            #          * einsum('jmlbi,kmlbi->jklbi', Q_rope, dA)
+            gemm_async(
+                1.0 / self.head_size**0.5,
+                notrans,
+                self.q_rope.value,
+                trans,
+                self.a.grad,
+                0.0,
+                self.k_rep.grad,
+                1,
+                3,
+                redux=self.redux,
+            )
+        # Q_rope can be deleted
+        self.q_rope.value.invalidate_submit()
+        if self.q_rope.grad_required:
+            # dQ_rope = 1.0/sqrt(head_size)
+            #      * einsum('jklbi,kmlbi->jmlbi', K_rep, dA)
+            gemm_async(
+                1.0 / self.head_size**0.5,
+                notrans,
+                self.k_rep.value,
+                notrans,
+                self.a.grad,
+                0.0,
+                self.q_rope.grad,
+                1,
+                3,
+                redux=self.redux,
+            )
+        # K_rep can be deleted
+        self.k_rep.value.invalidate_submit()
+        # dA can be deleted
+        self.a.grad.invalidate_submit()

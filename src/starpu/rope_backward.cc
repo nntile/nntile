@@ -154,7 +154,7 @@ void submit(Index m, Index n, Handle sin, Handle cos, Handle dy, Handle dx)
             STARPU_R, static_cast<starpu_data_handle_t>(cos),
             STARPU_R, static_cast<starpu_data_handle_t>(dy),
             STARPU_CL_ARGS, args, sizeof(*args),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dx),
+            STARPU_W, static_cast<starpu_data_handle_t>(dx),
             0);
     // Check submission
     if(ret != 0)
