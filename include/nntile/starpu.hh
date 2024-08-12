@@ -74,6 +74,7 @@
 #include <nntile/starpu/gelu_backward.hh>
 #include <nntile/starpu/gelutanh_backward.hh>
 #include <nntile/starpu/add.hh>
+#include <nntile/starpu/add_inplace.hh>
 #include <nntile/starpu/add_scalar.hh>
 #include <nntile/starpu/embedding.hh>
 #include <nntile/starpu/embedding_backward.hh>

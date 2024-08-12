@@ -56,6 +56,7 @@
 #include <nntile/kernel/gelu_backward.hh>
 #include <nntile/kernel/gelutanh_backward.hh>
 #include <nntile/kernel/add.hh>
+#include <nntile/kernel/add_inplace.hh>
 #include <nntile/kernel/add_scalar.hh>
 #include <nntile/kernel/embedding.hh>
 #include <nntile/kernel/embedding_backward.hh>

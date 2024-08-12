@@ -23,7 +23,8 @@ void cpu(Index nelems, Scalar alpha, const T* src, Scalar beta, T* dst)
     noexcept
 //! Add of two buffers on CPU
 /*! Performs the following operation:
- *      dst[i] = alpha*src[i] + beta*dst[i],
+ *      dst[i] = alpha*src[i] + beta*dst[i]
+	//dst[i] = alpha*src1[I] + beta*src2[I],
  * where alpha and beta are non-zero scalars.
  *
  * @param[in] nelems: Size of the src and dst tensors
