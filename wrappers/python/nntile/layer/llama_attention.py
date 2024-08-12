@@ -979,17 +979,6 @@ class LlamaAttention(BaseLayer):
             k_partial_shape, basetile_shape=k_partial_bt_shape, dtype=type(x)
         )
 
-        k_rep_bt_shape = (
-            (self.q_rope.value.basetile_shape[0],)
-            + tuple(x.shape[-2:])
-            + tuple(self.q_rope.value.basetile_shape[-2:])
-        )
-        K_rep_shape = (
-            (self.q_rope.value.shape[0],)
-            + tuple(x.shape[-2:])
-            + tuple(self.q_rope.value.shape[-2:])
-        )
-
         gemm_async(
             1.0,
             notrans,
