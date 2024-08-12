@@ -27,7 +27,6 @@ class LlamaConfigNNTile:
     n_head_tile: int
     num_key_value_heads: int
     activation_function: str = "silu"
-    flashattention: bool = False
     redux: bool = False
     dtype: str = "fp32"
     eos_token_id: int = 2

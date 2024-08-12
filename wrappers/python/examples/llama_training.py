@@ -61,7 +61,7 @@ parser.add_argument("--dtype", choices=["fp32", "fp64", "tf32", "bf16"],
                     default="fp32")
 parser.add_argument("--restrict", choices=["cpu", "cuda", None],
         default=None)
-parser.add_argument("--flashattention", action="store_true")
+parser.add_argument("--flash-attention", action="store_true")
 parser.add_argument("--use-redux", action="store_true")
 
 
@@ -164,8 +164,9 @@ llama_config_nntile = LlamaConfigNNTile(
     intermediate_size=model_torch.config.intermediate_size,
     intermediate_size_tile=args.intermediate_size_tile,
     n_head_tile=args.n_head_tile,
-    dtype=args.dtype
-    )
+    dtype=args.dtype,
+    flash_attention=args.flash_attention
+)
 
 print(llama_config_nntile)
 
