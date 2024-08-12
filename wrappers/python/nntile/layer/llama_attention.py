@@ -814,8 +814,8 @@ class LlamaAttention(BaseLayer):
         # from (head_size, n_seq, n_batch, n_head_kv)
         # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
         add_slice_async(1.0, self.k_rope.value, 0.0, self.k_rep.value, 3)
-        # K_rope can be deleted
-        self.k_rope.value.invalidate_submit()
+        # K_rope can be offloaded from GPU
+        self.k_rope.value.wont_use()
         # V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V)
         # gemm (n_head_kv, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head_kv, head_size, n_seq, n_batch)
@@ -850,13 +850,18 @@ class LlamaAttention(BaseLayer):
         # from (head_size, n_seq, n_batch, n_head_kv)
         # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
         add_slice_async(1.0, self.v.value, 0.0, self.v_rep.value, 3)
-        # V can be deleted
-        self.v.value.invalidate_submit()
+        # V can be offloaded from GPU
+        self.v.value.wont_use()
+
         # Apply attention to Q_rope, K_rep and V_rep into B
         if self.flash_attention:
             self._flash_attention_fwd()
         else:
             self._attention_fwd()
+        # Repeated tensors can be deleted now
+        self.k_rep.value.invalidate_submit()
+        self.v_rep.value.invalidate_submit()
+
         # Rotate axes (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
         # into (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
         transpose_async(1.0, self.b.value, self.b_transposed.value, 3)
@@ -948,6 +953,18 @@ class LlamaAttention(BaseLayer):
         # self.b_transposed.grad.wont_use()
         self.b_transposed.grad.invalidate_submit()
 
+        # Repeat K along fibers of proper axis
+        # from (head_size, n_seq, n_batch, n_head_kv)
+        # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
+        add_slice_async(1.0, self.k_rope.value, 0.0, self.k_rep.value, 3)
+        # K_rope can be deleted
+        self.k_rope.value.invalidate_submit()
+        # Repeat V along fibers of proper axis
+        # from (head_size, n_seq, n_batch, n_head_kv)
+        # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
+        add_slice_async(1.0, self.v.value, 0.0, self.v_rep.value, 3)
+        # V can be deleted
+        self.v.value.invalidate_submit()
         # Apply backward to (attention to Q_rope, K_rep and V_rep into B)
         if self.flash_attention:
             self._flash_attention_bwd()
