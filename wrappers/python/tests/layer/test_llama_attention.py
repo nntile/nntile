@@ -345,7 +345,7 @@ def test_llama_attn_kvcache(
     bias: bool,
     flash_attention: bool,
 ):
-    torch_layer, nntile_layer, x, pos_ids, mask, *_ = generate_inputs(
+    _, nntile_layer, x, _, _, *_ = generate_inputs(
         dtype, params, bias, flash_attention
     )
 
