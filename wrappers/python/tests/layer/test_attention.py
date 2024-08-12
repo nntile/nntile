@@ -14,16 +14,14 @@
 import numpy as np
 import pytest
 import torch
+from gen_utils import (
+    generate_greedy_logits_dynamic_kvcache, generate_greedy_logits_padding)
 from torch.nn import MultiheadAttention
 
 # All necesary imports
 import nntile
 import nntile.utils.constructors as nntc
 from nntile.layer import Attention
-from gen_utils import (
-    generate_greedy_logits_dynamic_kvcache,
-    generate_greedy_logits_padding
-)
 
 # Define mapping between numpy and nntile types
 Tensor = {

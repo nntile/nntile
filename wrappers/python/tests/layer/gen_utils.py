@@ -14,6 +14,7 @@
 # @version 1.1.0
 
 import numpy as np
+
 import nntile
 import nntile.utils.constructors as nntc
 

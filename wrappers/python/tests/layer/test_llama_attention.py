@@ -15,13 +15,11 @@
 
 from dataclasses import dataclass
 
-from gen_utils import (
-    generate_greedy_logits_dynamic_kvcache,
-    generate_greedy_logits_padding,
-)
 import numpy as np
 import pytest
 import torch
+from gen_utils import (
+    generate_greedy_logits_dynamic_kvcache, generate_greedy_logits_padding)
 from transformers.models.llama.modeling_llama import (
     LlamaAttention as LlamaAttention_torch, LlamaConfig as LlamaConfig_torch)
 
