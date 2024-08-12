@@ -274,20 +274,22 @@ class TestLlamaAttention:
         "fp32",
     ],
 )
+@pytest.mark.parametrize("flash_attention", [False])
 def test_llama_attn_forward_dynamic(
     starpu_simple,
     torch_rng,
     dtype: str,
     params: LlamaAttentionTestParams,
     bias: bool,
+    flash_attention: bool,
 ):
     torch_layer, nntile_layer, x, pos_ids, mask, *_ = generate_inputs(
-        dtype, params, bias
+        dtype, params, bias, flash_attention
     )
 
     y, _, _ = torch_layer(x, position_ids=pos_ids, attention_mask=mask)
 
-    input_x = x.cpu().numpy().T
+    input_x = x.cpu().detach().numpy().T
     y_nntile_logits = nntile_layer.forward_dynamic(
         TensorMoments(nntc.from_array(input_x), None, False)
     )
@@ -334,21 +336,23 @@ def test_llama_attn_forward_dynamic(
         "fp32",
     ],
 )
+@pytest.mark.parametrize("flash_attention", [False])
 def test_llama_attn_kvcache(
     starpu_simple,
     torch_rng,
     dtype: str,
     params: LlamaAttentionTestParams,
     bias: bool,
+    flash_attention: bool,
 ):
     torch_layer, nntile_layer, x, pos_ids, mask, *_ = generate_inputs(
-        dtype, params, bias
+        dtype, params, bias, flash_attention
     )
 
     prefill_size = 4
     max_tokens = 8
 
-    inp_np = x.cpu().numpy().T
+    inp_np = x.cpu().detach().numpy().T
     inp_prefill = nntc.from_array(inp_np[:, :prefill_size, 0:1])
 
     outs_dyn = generate_greedy_logits_dynamic_kvcache(
