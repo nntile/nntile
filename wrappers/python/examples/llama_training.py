@@ -255,6 +255,8 @@ loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
 # Set up training pipeline
 pipeline = nntile.pipeline.Pipeline(batch_input, batch_output,
         llama_nntile, optimizer, loss, args.nepochs)
+# Print pipeline memory info
+pipeline.print_meminfo()
 # Warmup training
 # nntile.starpu.pause()
 nntile.starpu.profiling_enable()

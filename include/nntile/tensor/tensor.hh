@@ -211,6 +211,11 @@ public:
         std::cout << "Value: " << *data << "\n";
         starpu_data_release(handle);
     }
+    //! Get size of the data in bytes
+    size_t get_nbytes()
+    {
+        return sizeof(T) * nelems;
+    }
 };
 
 } // namespace nntile::tensor

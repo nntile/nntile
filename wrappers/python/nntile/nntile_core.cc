@@ -408,6 +408,7 @@ void def_class_tensor(py::module_ &m, const char *name)
         // Get tile
         def("get_tile", static_cast<tile::Tile<T>(Tensor<T>::*)(Index) const>(
                     &Tensor<T>::get_tile)).
+        def("get_nbytes", &Tensor<T>::get_nbytes).
         def_readonly("distribution", &Tensor<T>::tile_distr);
     m.def("tensor_to_array", tensor_to_array<T>);
     m.def("tensor_from_array", tensor_from_array<T>);
