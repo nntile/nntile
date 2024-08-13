@@ -16,14 +16,16 @@ import torch
 from transformers.models.llama.modeling_llama import (
     LlamaAttention as LlamaAttention_torch, LlamaConfig as LlamaConfig_torch)
 
+import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
-    add_fiber_async, add_slice_async, clear_async, flash_maxsumexp_async,
-    flash_softmax_gemm_async, flash_softmax_gemm_backward_async, gemm_async,
-    mask_scalar_async, maxsumexp_async, notrans, prod_async, rope_async,
-    rope_backward_async, softmax_inplace_async, sum_fiber_async,
-    sum_slice_async, sumprod_slice_async, to_numpy, trans, transpose_async)
+    add_fiber_async, add_slice_async, clear_async, copy_intersection_async,
+    flash_maxsumexp_async, flash_softmax_gemm_async,
+    flash_softmax_gemm_backward_async, gemm_async, mask_scalar_async,
+    maxsumexp_async, notrans, prod_async, rope_async, rope_backward_async,
+    softmax_inplace_async, sum_fiber_async, sum_slice_async,
+    sumprod_slice_async, to_numpy, trans, transpose_async)
 
 from ..model.llama_config import LlamaConfigNNTile
 
@@ -218,6 +220,13 @@ class LlamaAttention(BaseLayer):
         else:
             self.redux = 0
         self.flash_attention = flash_attention
+
+        # need to fill with valid values for dynamic api usage
+        clear_async(self.q.value)
+        clear_async(self.k.value)
+        clear_async(self.v.value)
+
+        self.reset_cache()
 
     # Simple generator for the linear layer
     @staticmethod
@@ -735,6 +744,9 @@ class LlamaAttention(BaseLayer):
         # Return layer and next tag to be used
         return (layer, next_tag)
 
+    def reset_cache(self, value=0):
+        self.kv_cache_size = value
+
     # Forward propagation of the attention layer
     def forward_async(self):
         # Compute query, key and value tensors
@@ -892,6 +904,449 @@ class LlamaAttention(BaseLayer):
             )
             self.out_proj_bias.value.wont_use()
         self.y.value.wont_use()
+
+    def _forward_mlp_q_dynamic(self, x):
+        q_partial_tr_bt_shape = tuple(
+            self.q_transposed.value.basetile_shape[:-2]
+        ) + tuple(x.shape[-2:])
+        q_partial_tr_shape = tuple(self.q_transposed.value.shape[:-2]) + tuple(
+            x.shape[-2:]
+        )
+        q_partial_tr = nntc.empty(
+            q_partial_tr_shape,
+            basetile_shape=q_partial_tr_bt_shape,
+            dtype=type(x),
+        )  # (kv_group_size, n_head_kv, head_size, n_seq_dyn, n_batch_dyn)
+
+        q_partial_bt_shape = (
+            (self.q.value.basetile_shape[0],)
+            + tuple(x.shape[-2:])
+            + tuple(self.q.value.basetile_shape[-2:])
+        )
+        q_partial_shape = (
+            (self.q.value.shape[0],)
+            + tuple(x.shape[-2:])
+            + tuple(self.q.value.shape[-2:])
+        )
+        q_partial = nntc.empty(
+            q_partial_shape, basetile_shape=q_partial_bt_shape, dtype=type(x)
+        )  # (head_size, n_seq_dyn, n_batch_dyn, kv_group_size, n_head_kv)
+
+        # Q_transposed = einsum('ijkl,lmn->ijkmn', W_Q, X_Q_dyn)
+        # gemm (kv_group_size, n_head_kv, head_size, n_emb)
+        # by (n_emb, n_seq_dyn, n_batch_dyn)
+        # into (kv_group_size, n_head_kv, head_size, n_seq_dyn, n_batch_dyn)
+        gemm_async(
+            1.0,
+            notrans,
+            self.w_q.value,
+            notrans,
+            x,
+            0.0,
+            q_partial_tr,
+            1,
+            0,
+            redux=self.redux,
+        )
+
+        # Rotate axes into
+        # (head_size, n_seq_dyn, n_batch_dyn, kv_group_size, n_head_kv)
+        transpose_async(1.0, q_partial_tr, q_partial, 2)
+        q_partial_tr.invalidate_submit()
+
+        if self.in_proj_bias_q is not None:
+            # batched add_fiber (head_size, batch=(kv_group_size, n_head_kv))
+            # into
+            # (head_size, n_seq_dyn, n_batch_dyn, batch=(kv_group_size, n_head_kv)) # noqa: E501
+            add_fiber_async(
+                1.0, self.in_proj_bias_q.value, 1.0, q_partial, 0, 2
+            )
+
+        return q_partial
+
+    def _forward_mlp_k_dynamic(self, x):
+        k_partial_tr_bt_shape = tuple(
+            self.k_transposed.value.basetile_shape[:-2]
+        ) + tuple(x.shape[-2:])
+        k_partial_tr_shape = tuple(self.k_transposed.value.shape[:-2]) + tuple(
+            x.shape[-2:]
+        )
+        k_partial_tr = nntc.empty(
+            k_partial_tr_shape,
+            basetile_shape=k_partial_tr_bt_shape,
+            dtype=type(x),
+        )  # (n_head_kv, head_size, n_seq_dyn, n_batch_dyn)
+
+        k_partial_bt_shape = (
+            (self.k.value.basetile_shape[0],)
+            + tuple(x.shape[-2:])
+            + (self.k.value.basetile_shape[-1],)
+        )
+        k_partial_shape = (
+            (self.k.value.shape[0],)
+            + tuple(x.shape[-2:])
+            + (self.k.value.shape[-1],)
+        )
+        k_partial = nntc.empty(
+            k_partial_shape, basetile_shape=k_partial_bt_shape, dtype=type(x)
+        )  # (head_size, n_seq_dyn, n_batch_dyn, n_head_kv)
+
+        # K_transposed = einsum('jkl,lmn->jkmn', W_K, X_K_dyn)
+        # gemm (n_head_kv, head_size, n_emb) by (n_emb, n_seq_dyn, n_batch_dyn) into # noqa: E501
+        # (n_head_kv, head_size, n_seq_dyn, n_batch_dyn)
+        gemm_async(
+            1.0,
+            notrans,
+            self.w_k.value,
+            notrans,
+            x,
+            0.0,
+            k_partial_tr,
+            1,
+            0,
+            redux=self.redux,
+        )
+        # Rotate axes into (head_size, n_seq_dyn, n_batch_dyn, n_head_kv)
+        transpose_async(1.0, k_partial_tr, k_partial, 1)
+        if self.in_proj_bias_k is not None:
+            # batched add_fiber (head_size, batch=n_head_kv) into
+            # (head_size, n_seq_dyn, n_batch_dyn, batch=n_head_kv)
+            add_fiber_async(
+                1.0, self.in_proj_bias_k.value, 1.0, k_partial, 0, 1
+            )
+
+        return k_partial
+
+    def _forward_mlp_v_dynamic(self, x):
+        v_partial_tr_bt_shape = tuple(
+            self.v_transposed.value.basetile_shape[:-2]
+        ) + tuple(x.shape[-2:])
+        v_partial_tr_shape = tuple(self.v_transposed.value.shape[:-2]) + tuple(
+            x.shape[-2:]
+        )
+        v_partial_tr = nntc.empty(
+            v_partial_tr_shape,
+            basetile_shape=v_partial_tr_bt_shape,
+            dtype=type(x),
+        )  # (n_head_kv, head_size, n_seq_dyn, n_batch_dyn)
+
+        v_partial_bt_shape = (
+            (self.v.value.basetile_shape[0],)
+            + tuple(x.shape[-2:])
+            + (self.v.value.basetile_shape[-1],)
+        )
+        v_partial_shape = (
+            (self.v.value.shape[0],)
+            + tuple(x.shape[-2:])
+            + (self.v.value.shape[-1],)
+        )
+        v_partial = nntc.empty(
+            v_partial_shape, basetile_shape=v_partial_bt_shape, dtype=type(x)
+        )  # (head_size, n_seq_dyn, n_batch_dyn, n_head_kv)
+
+        # V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V_dyn)
+        # gemm (n_head_kv, head_size, n_emb) by (n_emb, n_seq_dyn, n_batch_dyn) into # noqa: E501
+        # (n_head_kv, head_size, n_seq_dyn, n_batch_dyn)
+        gemm_async(
+            1.0,
+            notrans,
+            self.w_v.value,
+            notrans,
+            x,
+            0.0,
+            v_partial_tr,
+            1,
+            0,
+            redux=self.redux,
+        )
+        # Rotate axes into (head_size, n_seq_dyn, n_batch_dyn, n_head_kv)
+        transpose_async(1.0, v_partial_tr, v_partial, 1)
+        if self.in_proj_bias_v is not None:
+            # batched add_fiber (head_size, batch=n_head_kv) into
+            # (head_size, n_seq_dyn, n_batch_dyn, batch=n_head_kv)
+            add_fiber_async(
+                1.0, self.in_proj_bias_v.value, 1.0, v_partial, 0, 1
+            )
+
+        v_partial_tr.invalidate_submit()
+
+        return v_partial
+
+    def _forward_attn_dynamic(self, q, k, v):
+        a_tmp = nntc.empty(
+            (k.shape[1],) + tuple(q.shape[1:3]) + tuple(k.shape[3:]),
+            dtype=type(q),
+            basetile_shape=(k.basetile_shape[1],)
+            + tuple(q.basetile_shape[1:3])
+            + tuple(k.basetile_shape[3:]),
+        )  # (n_seq_kvcached, n_seq_dyn, n_batch_dyn, kv_group_size, n_head_kv)
+        a_maxsumexp_tmp = nntc.empty(
+            (2,) + tuple(a_tmp.shape[1:]),
+            dtype=type(q),
+            basetile_shape=(2,) + tuple(a_tmp.basetile_shape[1:]),
+        )  # (2, n_seq_dyn, n_batch_dyn, kv_group_size, n_head_kv)
+        b_tmp = nntc.empty(
+            q.shape,
+            dtype=type(q),
+            basetile_shape=q.basetile_shape,
+        )  # (head_size, n_seq_dyn, n_batch_dyn, kv_group_size, n_head_kv)
+        b_tr_tmp = nntc.empty(
+            tuple(b_tmp.shape[3:]) + tuple(b_tmp.shape[:3]),
+            dtype=type(q),
+            basetile_shape=tuple(b_tmp.basetile_shape[3:])
+            + tuple(b_tmp.basetile_shape[:3]),
+        )  # (n_head, head_size, n_seq_dyn, n_batch_dyn)
+
+        y_tensor = nntc.empty(
+            (self.w.value.shape[0],) + tuple(q.shape[1:3]),
+            dtype=type(q),
+            basetile_shape=(self.w.value.basetile_shape[0],)
+            + tuple(q.basetile_shape[1:3]),
+        )  # [n_emb, n_seq_dyn, n_batch_dyn] == x.shape
+
+        # Get tensor for softmax
+        # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q_rope)
+        # single batched gemm
+        # (head_size, n_seq_cached, batch=(n_batch_cached, kv_group_size, n_head_kv)) # noqa: E501
+        # by (head_size, n_seq_dyn, batch=(n_batch_dyn, kv_group_size, n_head_kv)) # noqa: E501
+        # into (n_seq_cached, n_seq_dyn, batch=(n_batch_dyn, kv_group_size, n_head_kv)) # noqa: E501
+        # note: n_batch_cached == n_batch_dyn
+        gemm_async(
+            1.0 / self.head_size**0.5,
+            trans,
+            k,
+            notrans,
+            q,
+            0.0,
+            a_tmp,
+            1,
+            3,
+            redux=self.redux,
+        )
+        clear_async(a_maxsumexp_tmp)
+        if self.mask:
+            mask_tmp = nntc.empty(a_tmp.shape[:2], dtype=Tensor_bool)
+            copy_intersection_async(
+                self.mask, [0, 0], mask_tmp, [0, k.shape[1] - q.shape[1]]
+            )
+            mask_scalar_async(mask_tmp, self.val, a_tmp, 3)
+
+        maxsumexp_async(a_tmp, a_maxsumexp_tmp, 0, redux=self.redux)
+        softmax_inplace_async(a_maxsumexp_tmp, 1.0, a_tmp, 0)
+
+        # Apply value tensor
+        # B = einsum('jklbi,kmlbi->jmlbi', V_rep, A)
+        # batched gemm
+        # (head_size, n_seq_cached, batch=(n_batch_cached, kv_group_size, n_head_kv)) # noqa: E501
+        # by (n_seq_cached, n_seq_dyn, batch=(n_batch_dyn, kv_group_size, n_head_kv)) # noqa: E501
+        # into (head_size, n_seq_dyn, batch=(n_batch_dyn, kv_group_size, n_head_kv)) # noqa: E501
+        gemm_async(
+            1.0,
+            notrans,
+            v,
+            notrans,
+            a_tmp,
+            0.0,
+            b_tmp,
+            1,
+            3,
+            redux=self.redux,
+        )
+
+        # Rotate axes (head_size, n_seq_dyn, n_batch_dyn, kv_group_size, n_head_kv) # noqa: E501
+        # into (kv_group_size, n_head_kv, head_size, n_seq_dyn, n_batch_dyn)
+        transpose_async(1.0, b_tmp, b_tr_tmp, 3)
+
+        # Y = einsum('jklm,klmni->jni', W, B_transposed)
+        # gemm (n_emb, kv_group_size, n_head_kv, head_size) by
+        # (kv_group_size, n_head_kv, head_size, n_seq_dyn, n_batch_dyn)
+        # into (n_emb, n_seq_dyn, n_batch_dyn)
+        gemm_async(
+            1.0,
+            notrans,
+            self.w.value,
+            notrans,
+            b_tr_tmp,
+            0.0,
+            y_tensor,
+            3,
+            0,
+            redux=self.redux,
+        )
+
+        if self.out_proj_bias is not None:
+            add_fiber_async(1.0, self.out_proj_bias.value, 1.0, y_tensor, 0, 0)
+
+        return y_tensor
+
+    def _apply_rope_dynamic(
+        self, x: Tensor, q_partial: Tensor, k_partial: Tensor
+    ):
+        q_rope_partial = nntc.empty(
+            q_partial.shape,
+            basetile_shape=q_partial.basetile_shape,
+            dtype=type(x),
+        )
+        k_rope_partial = nntc.empty(
+            k_partial.shape,
+            basetile_shape=k_partial.basetile_shape,
+            dtype=type(x),
+        )
+
+        sin_partial = nntc.zeros((self.sin.shape[0],) + tuple(x.shape[-2:]))
+        cos_partial = nntc.zeros((self.cos.shape[0],) + tuple(x.shape[-2:]))
+        copy_intersection_async(
+            self.sin, [0, 0, 0], sin_partial, [0, self.kv_cache_size, 0]
+        )
+        copy_intersection_async(
+            self.cos, [0, 0, 0], cos_partial, [0, self.kv_cache_size, 0]
+        )
+
+        rope_async(sin_partial, cos_partial, q_partial, q_rope_partial)
+        rope_async(sin_partial, cos_partial, k_partial, k_rope_partial)
+
+        sin_partial.invalidate_submit()
+        cos_partial.invalidate_submit()
+        return q_rope_partial, k_rope_partial
+
+    def _storeload_kvcache(
+        self,
+        x: Tensor,
+        k_rope_partial: Tensor,
+        v_partial: Tensor,
+        use_cache: bool,
+    ):
+        """
+        handles kv-cache routine.
+        1. Save new partials to cache
+        2. Load K,V from cache
+        """
+        if k_rope_partial.shape[1] != v_partial.shape[1]:
+            raise Exception(
+                "Current kvcache code assumes equal seq_size for K,V: ",
+                f"{k_rope_partial.shape[1]} != {v_partial.shape[1]}",
+            )
+
+        if v_partial.shape[1] + self.kv_cache_size > self.x_v.value.shape[1]:
+            raise Exception(
+                "Overload internal state: "
+                f"try add {v_partial.shape[1]} "
+                f"to {self.kv_cache_size}, max: {self.x_v.value.shape[1]}. "
+                "Maybe you forgot to call reset_cache between iterations?"
+            )
+
+        copy_intersection_async(
+            k_rope_partial,
+            [0, self.kv_cache_size, 0, 0],
+            self.k.value,
+            [0, 0, 0, 0],
+        )
+
+        copy_intersection_async(
+            v_partial,
+            [0, self.kv_cache_size, 0, 0],
+            self.v.value,
+            [0, 0, 0, 0],
+        )
+        self.kv_cache_size += v_partial.shape[1]
+
+        if not use_cache:
+            return k_rope_partial, v_partial
+
+        # For correct softmax we should next use only currently cached seq_size
+        # So copy here
+        k_cached_shape = self.k.value.shape
+        k_cached_shape[1] = self.kv_cache_size
+        k_cached_shape[2] = x.shape[2]
+        k_partial_cached = nntc.empty(
+            k_cached_shape,
+            dtype=type(k_rope_partial),
+            basetile_shape=tuple(k_cached_shape[:-1])
+            + (k_rope_partial.basetile_shape[-1],),
+        )
+        copy_intersection_async(
+            self.k.value, [0, 0, 0, 0], k_partial_cached, [0, 0, 0, 0]
+        )
+
+        cached_shape = self.v.value.shape
+        cached_shape[1] = self.kv_cache_size
+        cached_shape[2] = x.shape[2]
+        v_partial_cached = nntc.empty(
+            cached_shape,
+            dtype=type(v_partial),
+            basetile_shape=tuple(cached_shape[:-1])
+            + (v_partial.basetile_shape[-1],),
+        )
+        copy_intersection_async(
+            self.v.value, [0, 0, 0, 0], v_partial_cached, [0, 0, 0, 0]
+        )
+
+        return k_partial_cached, v_partial_cached
+
+    def _broadcast_kv_dynamic(
+        self, x: Tensor, k_rope_partial: Tensor, v_partial: Tensor
+    ):
+        k_rep_bt_shape = (
+            (self.q_rope.value.basetile_shape[0],)
+            + tuple(k_rope_partial.shape[-3:-1])
+            + tuple(self.q_rope.value.basetile_shape[-2:])
+        )
+        K_rep_shape = (
+            (self.q_rope.value.shape[0],)
+            + tuple(k_rope_partial.shape[-3:-1])
+            + tuple(self.q_rope.value.shape[-2:])
+        )
+        k_rep_partial = nntc.empty(
+            K_rep_shape, basetile_shape=k_rep_bt_shape, dtype=type(x)
+        )
+
+        v_rep_bt_shape = (
+            (self.v_rep.value.basetile_shape[0],)
+            + tuple(v_partial.shape[-3:-1])
+            + tuple(self.v_rep.value.basetile_shape[-2:])
+        )
+        v_rep_shape = (
+            (self.v_rep.value.shape[0],)
+            + tuple(v_partial.shape[-3:-1])
+            + tuple(self.v_rep.value.shape[-2:])
+        )
+        v_rep_partial = nntc.empty(
+            v_rep_shape, basetile_shape=v_rep_bt_shape, dtype=type(x)
+        )
+        add_slice_async(1.0, k_rope_partial, 0.0, k_rep_partial, 3)
+        add_slice_async(1.0, v_partial, 0.0, v_rep_partial, 3)
+
+        return k_rep_partial, v_rep_partial
+
+    def forward_dynamic(self, x: TensorMoments, use_cache: bool = False):
+        if not use_cache:
+            self.reset_cache()
+
+        q_partial = self._forward_mlp_q_dynamic(x.value)
+        k_partial = self._forward_mlp_k_dynamic(x.value)
+        v_partial = self._forward_mlp_v_dynamic(x.value)
+
+        q_rope_partial, k_rope_partial = self._apply_rope_dynamic(
+            x.value, q_partial, k_partial
+        )
+        q_partial.invalidate_submit()
+        k_partial.invalidate_submit()
+
+        k_rope_partial, v_partial = self._storeload_kvcache(
+            x.value, k_rope_partial, v_partial, use_cache
+        )
+
+        k_rep_partial, v_rep_partial = self._broadcast_kv_dynamic(
+            x.value, k_rope_partial, v_partial
+        )
+        v_partial.invalidate_submit()
+        k_rope_partial.invalidate_submit()
+
+        y_tensor = self._forward_attn_dynamic(
+            q_rope_partial, k_rep_partial, v_rep_partial
+        )
+
+        return TensorMoments(y_tensor, None, False)
 
     # Backward propagation of the linear layer
     def backward_async(self):
