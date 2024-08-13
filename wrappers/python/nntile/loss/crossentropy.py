@@ -11,11 +11,11 @@
 #
 # @version 1.1.0
 
+import nntile.utils.constructors as nntc
 from nntile.tensor import (
-    Tensor, Tensor_int64, Tensor_fp32, TensorMoments, TensorTraits,
+    Tensor, Tensor_fp32, Tensor_int64, TensorMoments, TensorTraits,
     clear_async, logsumexp_async, maxsumexp_async, softmax_async,
     subtract_indexed_outputs_async, total_sum_accum_async)
-import nntile.utils.constructors as nntc
 
 
 class CrossEntropy:

@@ -13,8 +13,6 @@
 
 from typing import Any, List
 
-import numpy as np
-
 from nntile.model.base_model import BaseModel
 from nntile.tensor import Tensor, clear_async, copy_async
 
