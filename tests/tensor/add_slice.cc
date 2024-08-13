@@ -25,8 +25,7 @@ using namespace nntile;
 using namespace nntile::tensor;
 
 template<typename T>
-void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
-        Index axis)
+void check(const std::vector<Index> &shape, const std::vector<Index> &basetile, Index axis)
 {
     using Y = typename T::repr_t;
     // Barrier to wait for cleanup of previously used tags

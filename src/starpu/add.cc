@@ -35,10 +35,13 @@ void cpu(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *src = interfaces[0]->get_ptr<T>();
+    //const T *src = interfaces[0]->get_ptr<T>();
+    const T *src1 = interfaces[0]->get_ptr<T>();
+    const T *src2 = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::add::cpu<T>(args->nelems, args->alpha, src, args->beta, dst);
+    //kernel::add::cpu<T>(args->nelems, args->alpha, src, args->beta, dst);
+    kernel::add::cpu<T>(args->nelems, args->alpha, src1, src2, args->beta, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -53,13 +56,15 @@ void cuda(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t *>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *src = interfaces[0]->get_ptr<T>();
+    //const T *src = interfaces[0]->get_ptr<T>();
+    const T *src1 = interfaces[0]->get_ptr<T>();
+    const T *src2 = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::add::cuda<T>(stream, args->nelems, args->alpha, src,
-            args->beta, dst);
+    //kernel::add::cuda<T>(stream, args->nelems, args->alpha, src, args->beta, dst);
+    kernel::add::cuda<T>(stream, args->nelems, args->alpha, src1, src2, args->beta, dst);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
@@ -138,7 +143,8 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index nelems, Scalar alpha, Handle src, Scalar beta, Handle dst)
+//void submit(Index nelems, Scalar alpha, Handle src, Scalar beta, Handle dst)
+void submit(Index nelems, Scalar alpha, Handle src1, Handle src2, Scalar beta, Handle dst)
 //! Insert add task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -149,13 +155,15 @@ void submit(Index nelems, Scalar alpha, Handle src, Scalar beta, Handle dst)
     // If beta is zero this function reduces to scal
     if(beta == zero)
     {
-        scal::submit<T>(nelems, alpha, src, dst);
+        // dst = alpha*src1
+        scal::submit<T>(nelems, alpha, src1, dst);
         return;
     }
-    // If beta is non-zero and alpha is zero then reduce to scal_inplace
+    // If beta is non-zero and alpha is zero then reduce to scal
     if(alpha == zero)
     {
-        scal_inplace::submit<T>(nelems, beta, dst);
+        // dst = beta*src2
+        scal::submit<T>(nelems, beta, src2, dst);
         return;
     }
     // Access mode for the dst handle
@@ -175,7 +183,9 @@ void submit(Index nelems, Scalar alpha, Handle src, Scalar beta, Handle dst)
     args->beta = beta;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
+            /*STARPU_R, static_cast<starpu_data_handle_t>(src),*/
+            STARPU_R, static_cast<starpu_data_handle_t>(src1),
+            STARPU_R, static_cast<starpu_data_handle_t>(src2),
             STARPU_CL_ARGS, args, sizeof(*args),
             dst_mode, static_cast<starpu_data_handle_t>(dst), 0);
             // STARPU_FLOPS, nflops);
@@ -188,19 +198,19 @@ void submit(Index nelems, Scalar alpha, Handle src, Scalar beta, Handle dst)
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Index nelems, Scalar alpha, Handle src, Scalar beta,
-        Handle dst);
+//void submit<fp32_t>(Index nelems, Scalar alpha, Handle src, Scalar beta, Handle dst);
+void submit<fp32_t>(Index nelems, Scalar alpha, Handle src1, Handle src2, Scalar beta, Handle dst);
 
 template
-void submit<bf16_t>(Index nelems, Scalar alpha, Handle src, Scalar beta,
-        Handle dst);
+//void submit<bf16_t>(Index nelems, Scalar alpha, Handle src, Scalar beta, Handle dst);
+void submit<bf16_t>(Index nelems, Scalar alpha, Handle src1, Handle src2, Scalar beta, Handle dst);
 
 template
-void submit<fp32_fast_tf32_t>(Index nelems, Scalar alpha, Handle src, Scalar beta,
-        Handle dst);
+//void submit<fp32_fast_tf32_t>(Index nelems, Scalar alpha, Handle src, Scalar beta, Handle dst);
+void submit<fp32_fast_tf32_t>(Index nelems, Scalar alpha, Handle src1, Handle src2, Scalar beta, Handle dst);
 
 template
-void submit<fp64_t>(Index nelems, Scalar alpha, Handle src, Scalar beta,
-        Handle dst);
+//void submit<fp64_t>(Index nelems, Scalar alpha, Handle src, Scalar beta, Handle dst);
+void submit<fp64_t>(Index nelems, Scalar alpha, Handle src1, Handle src2, Scalar beta, Handle dst);
 
 } // namespace nntile::starpu::add
