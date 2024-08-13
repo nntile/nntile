@@ -102,7 +102,7 @@ void init()
             footprint,
             {cpu<bf16_t>},
 #ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
+            {} // Disabled due to numerical instability {cuda<bf16_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA

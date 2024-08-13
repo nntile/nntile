@@ -92,3 +92,27 @@ class Pipeline(object):
             # self.loss.get_val(nntile_xentropy_np)
             # print("Last batch loss after in {} epoch = {}".format(
             #       i_epoch, nntile_xentropy_np[0]))
+
+    def print_meminfo(self):
+        params_nbytes = 0
+        for params in self.model.parameters:
+            params_nbytes += params.get_nbytes()
+
+        acts_nbytes = 0
+        for acts in self.model.activations:
+            acts_nbytes += acts.get_nbytes()
+
+        opts_nbytes = self.opt.get_nbytes()
+
+        persistent_nbytes = params_nbytes + acts_nbytes + opts_nbytes
+
+        temps_nbytes = 0
+        for layer in self.model.layers:
+            for temps in layer.temporaries:
+                temps_nbytes += temps.get_nbytes()
+
+        print(f"Params+grads (GB): {params_nbytes / 2**30:.3f}")
+        print(f"Activations  (GB): {acts_nbytes / 2**30:.3f}")
+        print(f"Optimizer    (GB): {opts_nbytes / 2**30:.3f}")
+        print(f"Persistent   (GB): {persistent_nbytes / 2**30:.3f}")
+        print(f"Temporaries  (GB): {temps_nbytes / 2**30:.3f}")

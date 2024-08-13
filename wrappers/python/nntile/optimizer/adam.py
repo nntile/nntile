@@ -154,3 +154,10 @@ class Adam:
             self.second_moments[i].from_array(
                 second_moments[i].to(torch.float32)
             )
+
+    def get_nbytes(self):
+        nbytes = 0
+        for i in range(len(self.first_moments)):
+            nbytes += self.first_moments[i].get_nbytes()
+            nbytes += self.second_moments[i].get_nbytes()
+        return nbytes

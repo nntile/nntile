@@ -85,3 +85,9 @@ class SGD:
                     nntile.tensor.copy_async(self.states[i], p.grad)
             nntile.tensor.add_async(-self.lr, p.grad, 1.0, p.value)
         self.num_iter += 1
+
+    def get_nbytes(self):
+        nbytes = 0
+        for state in self.states:
+            nbytes += state.get_nbytes()
+        return nbytes

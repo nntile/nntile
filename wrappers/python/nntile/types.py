@@ -94,3 +94,9 @@ class TensorMoments(object):
         if self.grad is not None:
             self.grad.unregister()
             self.grad = None
+
+    def get_nbytes(self):
+        if self.grad is None:
+            return self.value.get_nbytes()
+        else:
+            return self.value.get_nbytes() + self.grad.get_nbytes()

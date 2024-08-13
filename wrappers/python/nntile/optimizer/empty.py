@@ -24,3 +24,6 @@ class Empty:
 
     def step(self):
         pass
+
+    def get_nbytes(self):
+        return 0
