@@ -6,10 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/layer/test_llama_attention.py
-# Test for nntile.layer.LlamaAttention
-# Each test is generated in float precision by Torch, then it is downcasted
-# into NNTile type. So, implementation of double precision is NOT checked.
+# @file wrappers/python/tests/layer/gen_utils.py
+# Utils for testing autoregressive generation
 #
 # @version 1.1.0
 

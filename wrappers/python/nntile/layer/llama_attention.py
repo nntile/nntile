@@ -958,7 +958,7 @@ class LlamaAttention(BaseLayer):
             # batched add_fiber (head_size, batch=(kv_group_size, n_head_kv))
             # into
             # (head_size, n_seq_dyn, n_batch_dyn, batch=(kv_group_size, n_head_kv)) # noqa: E501
-            add_fiber_async(1, self.in_proj_bias_q.value, 1, q_partial, 0, 2)
+            add_fiber_async(1.0, self.in_proj_bias_q.value, 1.0, q_partial, 0, 2)
 
         return q_partial
 
@@ -1009,7 +1009,7 @@ class LlamaAttention(BaseLayer):
         if self.in_proj_bias_k is not None:
             # batched add_fiber (head_size, batch=n_head_kv) into
             # (head_size, n_seq_dyn, n_batch_dyn, batch=n_head_kv)
-            add_fiber_async(1, self.in_proj_bias_k.value, 1, k_partial, 0, 1)
+            add_fiber_async(1.0, self.in_proj_bias_k.value, 1.0, k_partial, 0, 1)
 
         return k_partial
 
@@ -1060,7 +1060,7 @@ class LlamaAttention(BaseLayer):
         if self.in_proj_bias_v is not None:
             # batched add_fiber (head_size, batch=n_head_kv) into
             # (head_size, n_seq_dyn, n_batch_dyn, batch=n_head_kv)
-            add_fiber_async(1, self.in_proj_bias_v.value, 1, v_partial, 0, 1)
+            add_fiber_async(1.0, self.in_proj_bias_v.value, 1.0, v_partial, 0, 1)
 
         v_partial_tr.invalidate_submit()
 
