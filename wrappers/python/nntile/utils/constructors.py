@@ -71,7 +71,11 @@ def from_array(
 
 def to_numpy(tensor_nnt):
     dtype = nnt2np_type_mapping[type(tensor_nnt)]
-    np_res = np.zeros(tensor_nnt.shape, order="F", dtype=dtype)
+    # Deal with case of empty shape
+    if tensor_nnt.shape == []:
+        np_res = np.zeros((1,), order='F', dtype=dtype)
+    else:
+        np_res = np.zeros(tensor_nnt.shape, order="F", dtype=dtype)
     tensor_nnt.to_array(np_res)
     return np_res
 

@@ -13,8 +13,6 @@
 
 from typing import Any, List
 
-import numpy as np
-
 from nntile.model.base_model import BaseModel
 from nntile.tensor import Tensor, clear_async, copy_async
 
@@ -81,8 +79,7 @@ class Pipeline(object):
                     if p.grad_required:
                         p.grad.invalidate_submit()
                 # Limit parallelism through value of loss
-                loss_np = np.zeros((1,), dtype=np.float32, order="F")
-                self.loss.get_val(loss_np)
+                loss_np = self.loss.get_val()
                 self.loss_hist.append(loss_np[0])
                 # print("Loss in {} epoch = {}".format(i_epoch, loss_np[0]))
                 print("Batch={}/{} Epoch={}/{} Loss={}".format(

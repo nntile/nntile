@@ -11,9 +11,10 @@
 #
 # @version 1.1.0
 
+import nntile.utils.constructors as nntc
 from nntile.tensor import (
-    Tensor, Tensor_int64, TensorMoments, TensorTraits, clear_async,
-    logsumexp_async, maxsumexp_async, softmax_async,
+    Tensor, Tensor_fp32, Tensor_int64, TensorMoments, TensorTraits,
+    clear_async, logsumexp_async, maxsumexp_async, softmax_async,
     subtract_indexed_outputs_async, total_sum_accum_async)
 
 
@@ -69,7 +70,7 @@ class CrossEntropy:
         )
         next_tag = maxsumexp.next_tag
         val_traits = TensorTraits([], [])
-        val = type(model_output.value)(val_traits, [0], next_tag)
+        val = Tensor_fp32(val_traits, [0], next_tag)
         next_tag = val.next_tag
         logsumexp = type(model_output.value)(
             labels_traits, model_output.value.distribution, next_tag
@@ -92,11 +93,11 @@ class CrossEntropy:
         self.val.unregister()
         self.y.unregister()
 
-    def get_val(self, val_np):
-        self.val.to_array(val_np)
+    def get_val(self):
+        return nntc.to_numpy(self.val)
 
-    def get_grad(self, grad_np):
-        self.model_output.grad.to_array(grad_np)
+    def get_grad(self):
+        return nntc.to_numpy(self.model_output.grad)
 
     # Get value and gradient if needed
     def calc_async(self):
