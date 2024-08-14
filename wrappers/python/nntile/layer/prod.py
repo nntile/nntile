@@ -14,6 +14,7 @@
 
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import TensorMoments, TensorTraits, copy_async, prod_async
+import nntile.utils.constructors as nntc
 
 
 class Prod(BaseLayer):
@@ -40,6 +41,12 @@ class Prod(BaseLayer):
         self.x.value.wont_use()
         self.y.value.wont_use()
         self.res.value.wont_use()
+
+    def forward_dynamic(self, x: TensorMoments, y: TensorMoments):
+        res = nntc.empty(x.value.shape, basetile_shape=x.value.basetile_shape)
+        copy_async(x.value, res)
+        prod_async(y.value, res)
+        return TensorMoments(res, None, False)
 
     def backward_async(self):
         copy_async(self.x.value, self.y.grad)
