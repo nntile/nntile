@@ -35,20 +35,25 @@ void cuda_kernel(Index m, Index n, Scalar alpha_, const T *src, T *dst)
 {
     Index i = threadIdx.x;
     Index j = threadIdx.y;
-    Index block_i = blockIdx.x;
-    Index block_j = blockIdx.y;
+    Index griddim_x = (m+blockDim.x-1) / blockDim.x;
+    Index block_i = blockIdx.x % griddim_x;
+    Index block_j = blockIdx.x / griddim_x;
     Index global_i = i + block_i*blockDim.x;
     Index global_j = j + block_j*blockDim.y;
     using Y = typename T::repr_t;
-    const Y alpha{alpha_};
-
+ 
     if(global_i < m and global_j < n)
     {
-        __shared__ T block[64];
-        //dst[i*n+j] = T{alpha * Y{src[i+j*m]}};
-        block[i+j*8] = T{alpha * Y{src[global_i + global_j*m]}};
+        const Y alpha{alpha_};
+        __shared__ T block[8][9];
+        block[i][j] = T{alpha * Y{src[global_i + global_j*m]}};
+        Index dst_thread_offset = i + j*blockDim.x;
+        Index dst_i = dst_thread_offset % blockDim.y;
+        Index dst_j = dst_thread_offset / blockDim.y;
+        Index global_dst_i = dst_i + block_j*blockDim.y;
+        Index global_dst_j = dst_j + block_i*blockDim.x;
         __syncthreads();
-        dst[global_i*n + global_j] = block[i*8+j];
+        dst[global_dst_i + global_dst_j*n] = block[dst_j][dst_i];
     }
 }
 
@@ -68,7 +73,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Scalar alpha, const T *src,
 {
     // Both source and destination are Fortran-contiguous
     dim3 threads(8, 8);
-    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y);
+    dim3 blocks(((m+threads.x-1)/threads.x) * ((n+threads.y-1)/threads.y));
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, alpha, src, dst);
     cudaError_t status = cudaGetLastError();
     if(status != cudaSuccess)
