@@ -345,7 +345,7 @@ class LayerNorm(BaseLayer):
 
     @classmethod
     def from_torch(cls,
-        torch_layer: LayerNormTorch, x: TensorMoments,  
+        torch_layer: LayerNormTorch, x: TensorMoments,
         next_tag: int, redux: bool = False
     ):
         eps = torch_layer.eps
