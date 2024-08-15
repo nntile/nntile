@@ -47,7 +47,7 @@ class LayerNormTestParams:
     m_size: int
     m_size_tile: int
     m_size_dyn: int
-    m_size_dyn_tile : int
+    m_size_dyn_tile: int
 
 
 single_tile = LayerNormTestParams(
