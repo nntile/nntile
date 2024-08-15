@@ -113,7 +113,17 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile, 
             tile_local[i] = Y(-i);
         }
         tile_local.release();
+
+        //заполнить для src2
+        auto tile2 = src2_single.get_tile(0);
+        auto tile2_local = tile2.acquire(STARPU_W);
+        for(Index i = 0; i < src2_single.nelems; ++i)
+        {
+            tile_local[i] = Y(-i);
+        }
+        tile_local.release();
     }
+
     // Scatter source tensor
     //TensorTraits src_traits(src_shape, src_basetile);
     //std::vector<int> src_distr(src_traits.grid.nelems);
@@ -139,11 +149,12 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile, 
     // Perform tensor-wise and tile-wise add_slice operations
     //add_slice<T>(-1.0, src, 0.5, dst, axis);
     //add<T>(-1.0, src, 0.5, dst, axis);
-    add<T>(-1.0, src1, src2, 0.5, dst, axis);
+    add<T>(-1.0, src1, src2, 0.5, dst);
     if(mpi_rank == mpi_root)
     {
         //tile::add_slice<T>(-1.0, src_single.get_tile(0), 0.5, dst_single.get_tile(0), axis);
-        tile::add<T>(-1.0, src_single.get_tile(0), 0.5, dst_single.get_tile(0), axis);
+        tile::add<T>(-1.0, src1_single.get_tile(0), 0.5, dst_single.get_tile(0));
+        tile::add<T>(-1.0, src2_single.get_tile(0), 0.5, dst_single.get_tile(0));
     }
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
@@ -192,13 +203,16 @@ void validate()
     TEST_THROW(add_slice<T>(1.0, C, 0.0, A, 0));
     TEST_THROW(add_slice<T>(1.0, C, 0.0, A, 1));*/
 
-    TEST_THROW(add<T>(1.0, A, 0.0, A, 0));
-    TEST_THROW(add<T>(1.0, B, 0.0, A, -1));
-    TEST_THROW(add<T>(1.0, B, 0.0, A, 2));
-    TEST_THROW(add<T>(1.0, B, 0.0, A, 0));
-    TEST_THROW(add<T>(1.0, B, 0.0, A, 1));
-    TEST_THROW(add<T>(1.0, C, 0.0, A, 0));
-    TEST_THROW(add<T>(1.0, C, 0.0, A, 1));
+    TEST_THROW(add<T>(1.0, A, A, 0.0, A));
+    TEST_THROW(add<T>(1.0, B, B, 0.0, A));
+    TEST_THROW(add<T>(1.0, B, B, 0.0, A));
+    TEST_THROW(add<T>(1.0, B, B, 0.0, A));
+    TEST_THROW(add<T>(1.0, B, B, 0.0, A));
+    TEST_THROW(add<T>(1.0, C, C, 0.0, A));
+    TEST_THROW(add<T>(1.0, C, C, 0.0, A));
+
+          //add_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &src2, Scalar beta, const Tensor<T> &dst)
+    //add_slice_async(Scalar alpha, const Tensor<T> &src,                         Scalar beta, const Tensor<T> &dst, Index axis)
 }
 
 int main(int argc, char **argv)
