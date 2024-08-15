@@ -13,6 +13,7 @@
 
 import torch
 from torch.nn import LayerNorm as LayerNormTorch
+
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
@@ -344,11 +345,12 @@ class LayerNorm(BaseLayer):
 
     @classmethod
     def from_torch(cls,
-        torch_layer, x: TensorMoments,
-        axis: int, eps: float,
+        torch_layer: LayerNormTorch, x: TensorMoments,  
         next_tag: int, redux: bool = False
     ):
-        nntile_layer, next_tag = cls.generate_simple(x, axis, eps**2, next_tag, redux)
+        eps = torch_layer.eps
+        nntile_layer, next_tag = cls.generate_simple(x, 0, eps**2,
+                                                     next_tag, redux)
         nntile_layer.gamma.value.from_array(
             torch_layer.weight.data.cpu().detach().numpy())
         nntile_layer.beta.value.from_array(
@@ -358,7 +360,7 @@ class LayerNorm(BaseLayer):
     def to_torch(self) -> LayerNormTorch:
         target_shape = self.activations_input[0].value.shape
         torch_layer = LayerNormTorch(target_shape[self.axis],
-                                    self.eps**2)
+                                    self.eps)
         torch_layer.weight.data = torch.tensor(
                                 to_numpy(self.gamma.value),
                                 requires_grad=True)
