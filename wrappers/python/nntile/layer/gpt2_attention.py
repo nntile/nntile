@@ -17,11 +17,11 @@ from transformers.models.gpt2.modeling_gpt2 import (
     GPT2Attention as GPT2Attention_torch, GPT2Config as GPT2Config_torch)
 
 from nntile.layer.base_layer import BaseLayer
-from nntile.tensor import TensorTraits, Tensor, TensorOrNone, TensorMoments, \
-        TransOp, trans, notrans, clear_async, gemm_async, randn_async, \
+from nntile.tensor import TensorTraits, Tensor, TensorMoments, \
+        trans, notrans, clear_async, gemm_async, \
         maxsumexp_async, softmax_inplace_async, sumprod_slice_async, \
         add_slice_async, prod_async, mask_scalar_async, add_fiber_async, \
-        sum_fiber_async, transpose_async, to_numpy, copy_async, Tensor_bool
+        sum_fiber_async, transpose_async, to_numpy, Tensor_bool
 from ..model.gpt2_config import GPT2ConfigNNTile
 
 # Multi-head attention
@@ -178,9 +178,11 @@ class GPT2Attention(BaseLayer):
 
     # Simple generator for the linear layer
     @staticmethod
-    def generate_simple(x_q: TensorMoments, x_k: TensorMoments, \
-            x_v: TensorMoments, n_head: int, n_head_tile: int, next_tag: int, \
-            bias=False, mask=None, redux: bool=False):
+    def generate_simple(x_q: TensorMoments,
+                        x_k: TensorMoments,
+                        x_v: TensorMoments,
+                        n_head: int, n_head_tile: int, next_tag: int,
+                        bias=False, mask=None, redux: bool=False):
         # Get sizes
         n_emb, n_seq, n_batch = x_q.value.shape
         n_emb_tile, n_seq_tile, n_batch_tile = x_q.value.basetile_shape
@@ -279,11 +281,20 @@ class GPT2Attention(BaseLayer):
         w_k_traits = TensorTraits(w_k_shape, w_k_basetile)
         w_v_traits = TensorTraits(w_v_shape, w_v_basetile)
         w_traits = TensorTraits(w_shape, w_basetile)
-        q_transposed_traits = TensorTraits(q_transposed_shape, q_transposed_basetile)
+        q_transposed_traits = TensorTraits(
+            q_transposed_shape,
+            q_transposed_basetile
+        )
         q_traits = TensorTraits(q_shape, q_basetile)
-        k_transposed_traits = TensorTraits(k_transposed_shape, k_transposed_basetile)
+        k_transposed_traits = TensorTraits(
+            k_transposed_shape,
+            k_transposed_basetile
+        )
         k_traits = TensorTraits(k_shape, k_basetile)
-        v_transposed_traits = TensorTraits(v_transposed_shape, v_transposed_basetile)
+        v_transposed_traits = TensorTraits(
+            v_transposed_shape,
+            v_transposed_basetile
+        )
         v_traits = TensorTraits(v_shape, v_basetile)
         a_traits = TensorTraits(a_shape, a_basetile)
         a_maxsumexp_traits = TensorTraits(a_maxsumexp_shape,
@@ -291,7 +302,10 @@ class GPT2Attention(BaseLayer):
         a_sumprod_slice_traits = TensorTraits(a_sumprod_slice_shape, \
                 a_sumprod_slice_basetile)
         b_traits = TensorTraits(b_shape, b_basetile)
-        b_transposed_traits = TensorTraits(b_transposed_shape, b_transposed_basetile)
+        b_transposed_traits = TensorTraits(
+            b_transposed_shape,
+            b_transposed_basetile
+        )
         # TODO change distribution
         w_q_distr = [0] * w_q_traits.grid.nelems
         w_k_distr = [0] * w_k_traits.grid.nelems
@@ -309,8 +323,8 @@ class GPT2Attention(BaseLayer):
         b_distr = [0] * b_traits.grid.nelems
         b_transposed_distr = [0] * b_transposed_traits.grid.nelems
         if bias:
-            in_proj_bias_qkv_traits = TensorTraits([head_size, n_head], \
-                    [head_size_tile, n_head_tile])
+            in_proj_bias_qkv_traits = TensorTraits([head_size, n_head],
+                                        [head_size_tile, n_head_tile])
             in_proj_bias_qkv_distr = [0] * in_proj_bias_qkv_traits.grid.nelems
         # Define all the lists
         # w_q
@@ -320,16 +334,23 @@ class GPT2Attention(BaseLayer):
         next_tag = w_q_grad.next_tag
         w_q = TensorMoments(w_q_value, w_q_grad, True)
         if bias:
-            in_proj_bias_q_value = type(x_q.value)( \
-                    in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
-                    next_tag)
+            in_proj_bias_q_value = type(x_q.value)(
+                in_proj_bias_qkv_traits,
+                in_proj_bias_qkv_distr,
+                next_tag
+            )
             next_tag = in_proj_bias_q_value.next_tag
-            in_proj_bias_q_grad = type(x_q.value)( \
-                    in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
-                    next_tag)
+            in_proj_bias_q_grad = type(x_q.value)(
+                in_proj_bias_qkv_traits,
+                in_proj_bias_qkv_distr,
+                next_tag
+            )
             next_tag = in_proj_bias_q_grad.next_tag
-            bias_inproj_q = TensorMoments(in_proj_bias_q_value, \
-                    in_proj_bias_q_grad, True)
+            bias_inproj_q = TensorMoments(
+                in_proj_bias_q_value,
+                in_proj_bias_q_grad,
+                True
+            )
         else:
             bias_inproj_q = None
         # w_k
@@ -339,16 +360,23 @@ class GPT2Attention(BaseLayer):
         next_tag = w_k_grad.next_tag
         w_k = TensorMoments(w_k_value, w_k_grad, True)
         if bias:
-            in_proj_bias_k_value = type(x_q.value)( \
-                    in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
-                    next_tag)
+            in_proj_bias_k_value = type(x_q.value)(
+                in_proj_bias_qkv_traits,
+                in_proj_bias_qkv_distr,
+                next_tag
+            )
             next_tag = in_proj_bias_k_value.next_tag
-            in_proj_bias_k_grad = type(x_q.value)( \
-                    in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
-                    next_tag)
+            in_proj_bias_k_grad = type(x_q.value)(
+                in_proj_bias_qkv_traits,
+                in_proj_bias_qkv_distr,
+                next_tag
+            )
             next_tag = in_proj_bias_k_grad.next_tag
-            bias_inproj_k = TensorMoments(in_proj_bias_k_value, \
-                    in_proj_bias_k_grad, True)
+            bias_inproj_k = TensorMoments(
+                in_proj_bias_k_value,
+                in_proj_bias_k_grad,
+                True
+            )
         else:
             bias_inproj_k = None
         # w_v
@@ -358,16 +386,23 @@ class GPT2Attention(BaseLayer):
         next_tag = w_v_grad.next_tag
         w_v = TensorMoments(w_v_value, w_v_grad, True)
         if bias:
-            in_proj_bias_v_value = type(x_q.value)( \
-                    in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
-                    next_tag)
+            in_proj_bias_v_value = type(x_q.value)(
+                in_proj_bias_qkv_traits,
+                in_proj_bias_qkv_distr,
+                next_tag
+            )
             next_tag = in_proj_bias_v_value.next_tag
-            in_proj_bias_v_grad = type(x_q.value)( \
-                    in_proj_bias_qkv_traits, in_proj_bias_qkv_distr, \
-                    next_tag)
+            in_proj_bias_v_grad = type(x_q.value)(
+                in_proj_bias_qkv_traits,
+                in_proj_bias_qkv_distr,
+                next_tag
+            )
             next_tag = in_proj_bias_v_grad.next_tag
-            bias_inproj_v = TensorMoments(in_proj_bias_v_value, \
-                    in_proj_bias_v_grad, True)
+            bias_inproj_v = TensorMoments(
+                in_proj_bias_v_value,
+                in_proj_bias_v_grad,
+                True
+            )
         else:
             bias_inproj_v = None
         # w
@@ -377,9 +412,17 @@ class GPT2Attention(BaseLayer):
         next_tag = w_grad.next_tag
         w = TensorMoments(w_value, w_grad, True)
         # q_transposed
-        q_transposed_value = type(x_q.value)(q_transposed_traits, q_transposed_distr, next_tag)
+        q_transposed_value = type(x_q.value)(
+            q_transposed_traits,
+            q_transposed_distr,
+            next_tag
+        )
         next_tag = q_transposed_value.next_tag
-        q_transposed_grad = type(x_q.value)(q_transposed_traits, q_transposed_distr, next_tag)
+        q_transposed_grad = type(x_q.value)(
+            q_transposed_traits,
+            q_transposed_distr,
+            next_tag
+        )
         next_tag = q_transposed_grad.next_tag
         q_transposed = TensorMoments(q_transposed_value, q_transposed_grad, True)
         # q
@@ -389,11 +432,23 @@ class GPT2Attention(BaseLayer):
         next_tag = q_grad.next_tag
         q = TensorMoments(q_value, q_grad, True)
         # k_transposed
-        k_transposed_value = type(x_q.value)(k_transposed_traits, k_transposed_distr, next_tag)
+        k_transposed_value = type(x_q.value)(
+            k_transposed_traits,
+            k_transposed_distr,
+            next_tag
+        )
         next_tag = k_transposed_value.next_tag
-        k_transposed_grad = type(x_q.value)(k_transposed_traits, k_transposed_distr, next_tag)
+        k_transposed_grad = type(x_q.value)(
+            k_transposed_traits,
+            k_transposed_distr,
+            next_tag
+        )
         next_tag = k_transposed_grad.next_tag
-        k_transposed = TensorMoments(k_transposed_value, k_transposed_grad, True)
+        k_transposed = TensorMoments(
+            k_transposed_value,
+            k_transposed_grad,
+            True
+        )
         # k
         k_value = type(x_q.value)(k_traits, k_distr, next_tag)
         next_tag = k_value.next_tag
@@ -401,11 +456,23 @@ class GPT2Attention(BaseLayer):
         next_tag = k_grad.next_tag
         k = TensorMoments(k_value, k_grad, True)
         # v_transposed
-        v_transposed_value = type(x_q.value)(v_transposed_traits, v_transposed_distr, next_tag)
+        v_transposed_value = type(x_q.value)(
+            v_transposed_traits,
+            v_transposed_distr,
+            next_tag
+        )
         next_tag = v_transposed_value.next_tag
-        v_transposed_grad = type(x_q.value)(v_transposed_traits, v_transposed_distr, next_tag)
+        v_transposed_grad = type(x_q.value)(
+            v_transposed_traits,
+            v_transposed_distr,
+            next_tag
+        )
         next_tag = v_transposed_grad.next_tag
-        v_transposed = TensorMoments(v_transposed_value, v_transposed_grad, True)
+        v_transposed = TensorMoments(
+            v_transposed_value,
+            v_transposed_grad,
+            True
+        )
         # v
         v_value = type(x_q.value)(v_traits, v_distr, next_tag)
         next_tag = v_value.next_tag
@@ -419,12 +486,18 @@ class GPT2Attention(BaseLayer):
         next_tag = a_grad.next_tag
         a = TensorMoments(a_value, a_grad, True)
         # a_maxsumexp
-        a_maxsumexp = type(x_q.value)(a_maxsumexp_traits, a_maxsumexp_distr, \
-                next_tag)
+        a_maxsumexp = type(x_q.value)(
+            a_maxsumexp_traits,
+            a_maxsumexp_distr,
+            next_tag
+        )
         next_tag = a_maxsumexp.next_tag
         # a_sumprod_slice
-        a_sumprod_slice = type(x_q.value)(a_sumprod_slice_traits, \
-                a_sumprod_slice_distr, next_tag)
+        a_sumprod_slice = type(x_q.value)(
+            a_sumprod_slice_traits,
+            a_sumprod_slice_distr,
+            next_tag
+        )
         next_tag = a_sumprod_slice.next_tag
         # b
         b_value = type(x_q.value)(b_traits, b_distr, next_tag)
@@ -433,23 +506,44 @@ class GPT2Attention(BaseLayer):
         next_tag = b_grad.next_tag
         b = TensorMoments(b_value, b_grad, True)
         # b_transposed
-        b_transposed_value = type(x_q.value)(b_transposed_traits, b_transposed_distr, next_tag)
+        b_transposed_value = type(x_q.value)(
+            b_transposed_traits,
+            b_transposed_distr,
+            next_tag
+        )
         next_tag = b_transposed_value.next_tag
-        b_transposed_grad = type(x_q.value)(b_transposed_traits, b_transposed_distr, next_tag)
+        b_transposed_grad = type(x_q.value)(
+            b_transposed_traits,
+            b_transposed_distr,
+            next_tag
+        )
         next_tag = b_transposed_grad.next_tag
-        b_transposed = TensorMoments(b_transposed_value, b_transposed_grad, True)
+        b_transposed = TensorMoments(
+            b_transposed_value,
+            b_transposed_grad,
+            True
+        )
         # Allocate tensors for bias for q, k, v and output projection
         if bias:
             out_proj_bias_traits = TensorTraits([n_emb], [n_emb_tile])
             out_proj_bias_distr = [0] * out_proj_bias_traits.grid.nelems
-            out_proj_bias_value = type(x_q.value)(out_proj_bias_traits, \
-                    out_proj_bias_distr, next_tag)
+            out_proj_bias_value = type(x_q.value)(
+                out_proj_bias_traits,
+                out_proj_bias_distr,
+                next_tag
+            )
             next_tag = out_proj_bias_value.next_tag
-            out_proj_bias_grad = type(x_q.value)(out_proj_bias_traits, \
-                    out_proj_bias_distr, next_tag)
+            out_proj_bias_grad = type(x_q.value)(
+                out_proj_bias_traits,
+                out_proj_bias_distr,
+                next_tag
+            )
             next_tag = out_proj_bias_grad.next_tag
-            out_proj_bias = TensorMoments(out_proj_bias_value, \
-                    out_proj_bias_grad, True)
+            out_proj_bias = TensorMoments(
+                out_proj_bias_value,
+                out_proj_bias_grad,
+                True
+            )
         else:
             out_proj_bias = None
         # Allocate tensor for output y
@@ -477,11 +571,11 @@ class GPT2Attention(BaseLayer):
         else:
             layer_mask = None
         # Create attention layer with all the provided data
-        layer = GPT2Attention(x_q, x_k, x_v, y, w_q, w_k, w_v, w, q_transposed, \
-                q, k_transposed, k, v_transposed, v, a, a_maxsumexp, \
-                a_sumprod_slice, b, b_transposed, bias_inproj_q, \
-                bias_inproj_k, bias_inproj_v, out_proj_bias, layer_mask, \
-                redux=redux)
+        layer = GPT2Attention(x_q, x_k, x_v, y, w_q, w_k, w_v, w,
+                q_transposed, q, k_transposed, k, v_transposed,
+                v, a, a_maxsumexp, a_sumprod_slice, b, b_transposed,
+                bias_inproj_q, bias_inproj_k, bias_inproj_v, out_proj_bias,
+                layer_mask, redux=redux)
         # Return layer and next tag to be used
         return (layer, next_tag)
 
@@ -895,14 +989,14 @@ class GPT2Attention(BaseLayer):
             torch_layer_config, is_cross_attention=False, layer_idx=0
         )
 
-        weight_torch_np = np.empty((n_emb, 3*n_emb))
+        weight_torch_np = np.empty((n_emb, 3 * n_emb))
         weight_torch_np[:, : n_emb] = to_numpy(
             self.w_q.value
             ).reshape(n_emb, n_emb).T
-        weight_torch_np[:, n_emb : 2*n_emb] = to_numpy(
+        weight_torch_np[:, n_emb : 2 * n_emb] = to_numpy(
             self.w_k.value
             ).reshape(n_emb, n_emb).T
-        weight_torch_np[:, 2*n_emb : 3*n_emb] = to_numpy(
+        weight_torch_np[:, 2 * n_emb : 3 * n_emb] = to_numpy(
             self.w_v.value
             ).reshape(n_emb, n_emb).T    
         torch_layer.c_attn.weight.data = torch.tensor(
@@ -910,14 +1004,14 @@ class GPT2Attention(BaseLayer):
             requires_grad=True,
         )
 
-        bias_torch_np = np.empty((3*n_emb,))
+        bias_torch_np = np.empty((3 * n_emb,))
         bias_torch_np[: n_emb] = to_numpy(
             self.in_proj_bias_q.value
             ).T.reshape(n_emb,)
-        bias_torch_np[n_emb : 2*n_emb] = to_numpy(
+        bias_torch_np[n_emb : 2 * n_emb] = to_numpy(
             self.in_proj_bias_k.value
             ).T.reshape(n_emb,)
-        bias_torch_np[2*n_emb : 3*n_emb] = to_numpy(
+        bias_torch_np[2 * n_emb : 3 * n_emb] = to_numpy(
             self.in_proj_bias_v.value
             ).T.reshape(n_emb,)
         torch_layer.c_attn.bias.data = torch.tensor(
@@ -939,28 +1033,28 @@ class GPT2Attention(BaseLayer):
     def to_torch_with_grads(self) -> GPT2Attention_torch:
         n_embd = self.head_size * self.n_head
         torch_layer = self.to_torch()
-        weight_torch_np = np.empty((n_embd, 3*n_embd))
+        weight_torch_np = np.empty((n_embd, 3 * n_embd))
         weight_torch_np[:, : n_embd] = to_numpy(
             self.w_q.grad
             ).reshape(n_embd, n_embd).T
-        weight_torch_np[:, n_embd : 2*n_embd] = to_numpy(
+        weight_torch_np[:, n_embd : 2 * n_embd] = to_numpy(
             self.w_k.grad
             ).reshape(n_embd, n_embd).T
-        weight_torch_np[:, 2*n_embd : 3*n_embd] = to_numpy(
+        weight_torch_np[:, 2 * n_embd : 3 * n_embd] = to_numpy(
             self.w_v.grad
             ).reshape(n_embd, n_embd).T    
         torch_layer.c_attn.weight.grad = torch.tensor(
             weight_torch_np
         )
 
-        bias_torch_np = np.empty((3*n_embd,))
+        bias_torch_np = np.empty((3 * n_embd,))
         bias_torch_np[: n_embd] = to_numpy(
             self.in_proj_bias_q.grad
             ).T.reshape(n_embd,)
-        bias_torch_np[n_embd : 2*n_embd] = to_numpy(
+        bias_torch_np[n_embd : 2 * n_embd] = to_numpy(
             self.in_proj_bias_k.grad
             ).T.reshape(n_embd,)
-        bias_torch_np[2*n_embd : 3*n_embd] = to_numpy(
+        bias_torch_np[2 * n_embd : 3 * n_embd] = to_numpy(
             self.in_proj_bias_v.grad
             ).T.reshape(n_embd,)
         torch_layer.c_attn.bias.grad = torch.tensor(
