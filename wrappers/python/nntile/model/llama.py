@@ -56,7 +56,7 @@ class Llama(BaseModel):
 
         for dec_layer in decoders:
             activations.extend(dec_layer.activations[1:])
-            layers.extend(dec_layer.layers)
+            layers.extend([dec_layer])
 
         activations.extend(rms_norm_layer.activations_output)
         layers.append(rms_norm_layer)

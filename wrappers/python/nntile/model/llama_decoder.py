@@ -45,7 +45,7 @@ class LlamaDecoder(BaseModel):
         # Init activations and list of layers
         self.mlp = llama_mlp
         layers = [input_norm, attention_layer, post_attn_add, post_attn_norm]
-        layers = layers + llama_mlp.layers + [post_mlp_add]
+        layers = layers + [llama_mlp,] + [post_mlp_add]
         activations = [x] + input_norm.activations_output + \
                       attention_layer.activations_output + \
                       post_attn_add.activations_output + \
@@ -55,6 +55,20 @@ class LlamaDecoder(BaseModel):
         self.config = config
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
+
+    def forward_dynamic(self, x: TensorMoments):
+        (input_norm, attention_layer, post_attn_add, post_attn_norm) = self.layers[:4]  # noqa: E501
+        post_mlp_add = self.layers[-1]
+
+        x_normalized = input_norm.forward_dynamic(x)
+        attn_outs = attention_layer.forward_dynamic(x_normalized)
+        post_attn_outs = post_attn_add.forward_dynamic(attn_outs, x)
+        post_attn_norm_outs = post_attn_norm.forward_dynamic(post_attn_outs)
+
+        mlp_outs = self.mlp.forward_dynamic(post_attn_norm_outs)
+        post_mlp_outs = post_mlp_add.forward_dynamic(mlp_outs, post_attn_outs)
+
+        return post_mlp_outs
 
     @staticmethod
     def from_torch(
