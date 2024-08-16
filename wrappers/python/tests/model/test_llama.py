@@ -262,7 +262,7 @@ class TestLlama:
     'fp32',
 ])
 @pytest.mark.parametrize('num_hidden_layers', [2])
-@pytest.mark.parametrize('att_bias', [True])
+@pytest.mark.parametrize('att_bias', [False])
 def test_forward_dynamic(starpu_simple, torch_rng,
                      params: LlamaTestParams,
                      dtype: str,
