@@ -63,6 +63,15 @@ class Llama(BaseModel):
 
         super().__init__(activations, layers)
 
+    def forward_dynamic(self, x: TensorMoments):
+        x_emb = self.embd_layer.forward_dynamic(x)
+
+        dec_out = x_emb
+        for dec_layer in self.decoders:
+            dec_out = dec_layer.forward_dynamic(dec_out)
+        normalized_outs = self.final_rmsnorm.forward_dynamic(dec_out)
+        return normalized_outs
+
     @staticmethod
     def from_torch(torch_llama,
                    batch_size, batch_size_tile,

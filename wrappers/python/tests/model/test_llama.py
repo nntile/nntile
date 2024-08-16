@@ -22,6 +22,7 @@ from transformers.models.llama import (
     LlamaConfig as LlamaConfig_torch, LlamaModel as LlamaModel_torch)
 
 import nntile
+import nntile.utils.constructors as nntc
 from nntile.model.llama import Llama as LlamaModel
 from nntile.model.llama_config import LlamaConfigNNTile
 from nntile.tensor import to_numpy
@@ -252,3 +253,55 @@ class TestLlama:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+
+
+@pytest.mark.parametrize('params', [
+    pytest.param(single_tile, id='single_tile'),
+])
+@pytest.mark.parametrize('dtype', [
+    'fp32',
+])
+@pytest.mark.parametrize('num_hidden_layers', [2])
+@pytest.mark.parametrize('att_bias', [False])
+def test_forward_dynamic(starpu_simple, torch_rng,
+                     params: LlamaTestParams,
+                     dtype: str,
+                     num_hidden_layers: int,
+                     att_bias: bool):
+    torch_model, nntile_model, x, pos_ids, _ = generate_inputs(
+        params, dtype, num_hidden_layers, att_bias
+    )
+    y = torch_model(x, position_ids=torch.tensor(pos_ids),
+                    return_dict=True)
+    y_torch = y.last_hidden_state
+
+    x_np = x.cpu().detach().numpy()
+    x_nnt = nntile.tensor.TensorMoments(nntc.from_array(x_np.T), None, False)
+
+    logits_nnt = nntile_model.forward_dynamic(x_nnt)
+    y_nntile = torch.Tensor(nntc.to_numpy(logits_nnt.value).T)
+
+    rtol = dtype2tol[dtype]['rtol']
+    assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
+
+    x_np_trunc = x_np[:x_np.shape[0] // 2, :x_np.shape[1] // 2]
+    pos_ids_trunc = pos_ids[:pos_ids.shape[0] // 2, :pos_ids.shape[1] // 2]
+    x_trunc_nnt = nntile.tensor.TensorMoments(
+        nntc.from_array(x_np_trunc.T), None, False
+    )
+
+    y_trunc = torch_model(
+        torch.tensor(x_np_trunc),
+        position_ids=torch.tensor(pos_ids_trunc),
+        return_dict=True
+    )
+    y_trunc_torch = y_trunc.last_hidden_state
+
+    logits_trunc_nnt = nntile_model.forward_dynamic(x_trunc_nnt)
+    y_trunc_nntile = torch.Tensor(nntc.to_numpy(logits_trunc_nnt.value).T)
+
+    actual_diff = torch.norm(y_trunc_torch - y_trunc_nntile)
+    upper_bound_diff = rtol * torch.norm(y_trunc_torch)
+    assert actual_diff <= upper_bound_diff
+
+    nntile_model.unregister()
