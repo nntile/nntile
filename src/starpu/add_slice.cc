@@ -12,10 +12,11 @@
  * @version 1.1.0
  * */
 
+#include "nntile/starpu/add_slice.hh"
+#include "nntile/starpu/add.hh"
 #ifndef STARPU_SIMGRID
 #include "nntile/kernel/add_slice.hh"
 #endif // STARPU_SIMGRID
-#include "nntile/starpu/add_slice.hh"
 #include <cstdlib>
 
 //! StarPU wrappers for add_slice operation
@@ -144,8 +145,14 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta, Ha
  * throws an std::runtime_error() exception.
  * */
 {
+    constexpr Scalar zero = 0.0, one = 1.0;
+    // If k is 1, then this operation reduces to add
+    if(k == 1)
+    {
+        add::submit<T>(m*n, alpha, src, beta, dst);
+        return;
+    }
     // Access mode for the dst handle
-    constexpr Scalar zero = 0, one = 1;
     enum starpu_data_access_mode dst_mode;
     if(beta == zero)
     {
