@@ -21,7 +21,7 @@ from transformers.models.gpt2.modeling_gpt2 import (
 
 import nntile
 from nntile.model.gpt2_config import GPT2ConfigNNTile
-from nntile.tensor import TensorMoments, TensorTraits, Tensor_bool
+from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
 
 # NNTile dtype via corresponding Tensor type
@@ -99,7 +99,9 @@ def generate_inputs(dtype: str, params: GPT2AttentionTestParams):
     )
 
     torch_layer = GPT2Attention_torch(
-        torch_layer_config, is_cross_attention=False, layer_idx=params.layer_idx
+        torch_layer_config,
+        is_cross_attention=False,
+        layer_idx=params.layer_idx
     )
 
     x_shape = [params.n_emb, params.n_seq, params.n_batch]
@@ -138,7 +140,6 @@ def generate_inputs(dtype: str, params: GPT2AttentionTestParams):
     pytest.param('fp32_fast_tf32', marks=nocuda),
     pytest.param('bf16', marks=nocuda),
 ])
-
 class TestGPT2Attention:
 
     def test_torch_coercion(self, starpu_simple, torch_rng, dtype: str,
@@ -181,7 +182,7 @@ class TestGPT2Attention:
         res.backward()
         nntile_layer.backward_async()
         torch_layer_other = nntile_layer.to_torch_with_grads()
-        input_grad_nntile = torch.Tensor(to_numpy(nntile_layer.x_k.grad).T)
+        grad_nntile = torch.Tensor(to_numpy(nntile_layer.x_k.grad).T)
         nntile_layer.unregister()
         nntile_layer.x_q.unregister()
         nntile_layer.x_k.unregister()
@@ -189,7 +190,7 @@ class TestGPT2Attention:
         nntile_layer.y.unregister()
 
         rtol = dtype2tol[dtype]['rtol']
-        assert torch.norm(x.grad - input_grad_nntile) <= rtol * torch.norm(x.grad)
+        assert torch.norm(x.grad - grad_nntile) <= rtol * torch.norm(x.grad)
 
         for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
                 torch_layer_other.named_parameters()):

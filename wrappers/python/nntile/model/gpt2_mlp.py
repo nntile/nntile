@@ -27,7 +27,8 @@ class GPT2MLP(BaseModel):
     next_tag: int
 
     # Construct model with all the provided data
-    def __init__(self, x: TensorMoments, config: GPT2ConfigNNTile, next_tag: int):
+    def __init__(self, x: TensorMoments,
+                 config: GPT2ConfigNNTile, next_tag: int):
         # Init activations and list of layers
         activations = [x]
         layers = []
@@ -89,7 +90,7 @@ class GPT2MLP(BaseModel):
 
     def to_torch(self):
         config_torch = GPT2ConfigTorch()
-        config_torch.n_embd=self.hidden_size
+        config_torch.n_embd = self.hidden_size
         gpt2_mlp_torch = GPT2MLP_torch(self.intermediate_size, config_torch)
         for p_nntile, p_torch in zip(self.parameters,
                                      gpt2_mlp_torch.parameters()):

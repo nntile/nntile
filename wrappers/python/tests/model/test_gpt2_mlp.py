@@ -80,8 +80,8 @@ single_tile = GPT2MLPTestParams(
 def generate_inputs(params: GPT2MLPTestParams, dtype: str):
     torch_layer_config = GPT2Config(
         n_embd=params.hidden_size,
-        attn_pdrop=0.0,
-        resid_pdrop=0.0,
+        attn_pdrop = 0.0,
+        resid_pdrop = 0.0,
         embd_pdrop = 0.0,
         use_cache=False,
     )
@@ -171,10 +171,12 @@ class TestGPT2MLP:
         res.backward()
         nntile_layer.backward_async()
         torch_layer_other = nntile_layer.to_torch_with_grads()
-        input_grad_nntile = torch.Tensor(to_numpy(nntile_layer.activations[0].grad).T)
+        grad_nntile = torch.Tensor(
+            to_numpy(nntile_layer.activations[0].grad).T
+        )
         nntile_layer.unregister()
         rtol = dtype2tol[dtype]['rtol']
-        assert torch.norm(x.grad - input_grad_nntile) <= rtol * torch.norm(x.grad)
+        assert torch.norm(x.grad - grad_nntile) <= rtol * torch.norm(x.grad)
 
         for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
                 torch_layer_other.named_parameters()):
