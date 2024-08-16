@@ -41,7 +41,7 @@ void cuda_kernel(Index m, Index n, Scalar alpha_, const T *src, T *dst)
     Index global_src_j = src_j + src_block_j*BLOCK_COL;
     using Y = typename T::repr_t;
     const Y alpha{alpha_};
- 
+
     if((src_block_i+1)*BLOCK_ROW <= m and (src_block_j+1)*BLOCK_COL <= n)
     {
         __shared__ T block[BLOCK_ROW][BLOCK_COL+1];
