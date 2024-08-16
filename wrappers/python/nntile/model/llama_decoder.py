@@ -45,7 +45,7 @@ class LlamaDecoder(BaseModel):
         # Init activations and list of layers
         self.mlp = llama_mlp
         layers = [input_norm, attention_layer, post_attn_add, post_attn_norm]
-        layers = layers + [llama_mlp,] + [post_mlp_add]
+        layers = layers + llama_mlp.layers + [post_mlp_add]
         activations = [x] + input_norm.activations_output + \
                       attention_layer.activations_output + \
                       post_attn_add.activations_output + \
