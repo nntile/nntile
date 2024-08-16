@@ -119,7 +119,6 @@ def generate_inputs(dtype: str, params: GPT2AttentionTestParams):
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_()
-   
     nntile_layer, _ = nntile.layer.GPT2Attention.from_torch(
             torch_layer, X, X, X, nntile_config, 0
     )

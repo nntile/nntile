@@ -17,12 +17,14 @@ from transformers.models.gpt2.modeling_gpt2 import (
     GPT2Attention as GPT2Attention_torch, GPT2Config as GPT2Config_torch)
 
 from nntile.layer.base_layer import BaseLayer
-from nntile.tensor import TensorTraits, Tensor, TensorMoments, \
-        trans, notrans, clear_async, gemm_async, \
-        maxsumexp_async, softmax_inplace_async, sumprod_slice_async, \
-        add_slice_async, prod_async, mask_scalar_async, add_fiber_async, \
-        sum_fiber_async, transpose_async, to_numpy, Tensor_bool
+from nntile.tensor import (
+    Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_async,
+    add_slice_async, clear_async, gemm_async, mask_scalar_async,
+    maxsumexp_async, notrans, prod_async, softmax_inplace_async,
+    sum_fiber_async, sumprod_slice_async, to_numpy, trans, transpose_async)
+
 from ..model.gpt2_config import GPT2ConfigNNTile
+
 
 # Multi-head attention
 # Inputs:
@@ -38,7 +40,7 @@ class GPT2Attention(BaseLayer):
     y: TensorMoments
     w_q: TensorMoments
     w_k: TensorMoments
-    w_v: TensorMoments  
+    w_v: TensorMoments 
     w: TensorMoments
     q_transposed: TensorMoments
     q: TensorMoments
@@ -80,7 +82,7 @@ class GPT2Attention(BaseLayer):
         in_proj_bias_k: TensorMoments,
         in_proj_bias_v: TensorMoments,
         out_proj_bias: TensorMoments,
-        mask = None,
+        mask=None,
         redux: bool = False
         ):
         qkv_bias_list = []
@@ -653,9 +655,9 @@ class GPT2Attention(BaseLayer):
         # single batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
         # by (head_size, n_seq, batch=n_batch, batch=n_head) into
         # (n_seq, n_seq, batch=n_batch, batch=n_head)
-        gemm_async(1.0/self.head_size**0.5, trans, self.k.value,
+        gemm_async(1.0 / self.head_size ** 0.5, trans, self.k.value,
                     notrans, self.q.value, 0.0, self.a.value, 1, 2,
-                    redux = self.redux)
+                    redux=self.redux)
         clear_async(self.a_maxsumexp)
         # Q and K can be offloaded from GPU
         self.q.value.wont_use()
@@ -761,12 +763,12 @@ class GPT2Attention(BaseLayer):
             # dA += -bias('kmlb,mlb->kmlb', dA, A_sumprod_slice)
             add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
             # A_sumprod_slice can be deleted
-            #self.a_sumprod_slice.wont_use()
+            # self.a_sumprod_slice.wont_use()
             self.a_sumprod_slice.invalidate_submit()
             # dA *= A
             prod_async(self.a.value, self.a.grad)
         # A can be deleted
-        #self.a.value.wont_use()
+        # self.a.value.wont_use()
         self.a.value.invalidate_submit()
         # Backward for mask if needed
         if self.mask:
@@ -780,11 +782,11 @@ class GPT2Attention(BaseLayer):
                         trans, self.a.grad, 0.0, self.k.grad, 1, 2,
                         redux=self.redux)
         # Q can be deleted
-        #self.q.value.wont_use()
+        # self.q.value.wont_use()
         self.q.value.invalidate_submit()
         if self.q.grad_required:
             # dQ = 1.0/sqrt(head_size) * einsum('jklb,kmlb->jmlb', K, dA)
-            gemm_async(1.0/self.head_size**0.5, notrans, self.k.value,
+            gemm_async(1.0 / self.head_size ** 0.5, notrans, self.k.value,
                         notrans, self.a.grad, 0.0, self.q.grad, 1, 2,
                         redux=self.redux)
         # K can be deleted
@@ -954,12 +956,12 @@ class GPT2Attention(BaseLayer):
             .T
         )
         layer.in_proj_bias_k.value.from_array(
-            bias_torch_np[n_emb : 2*n_emb]
+            bias_torch_np[n_emb : 2 * n_emb]
             .reshape(layer.n_head, layer.head_size)
             .T
         )
         layer.in_proj_bias_v.value.from_array(
-            bias_torch_np[2*n_emb : 3*n_emb]
+            bias_torch_np[2 * n_emb : 3 * n_emb]
             .reshape(layer.n_head, layer.head_size)
             .T
         )
@@ -989,7 +991,7 @@ class GPT2Attention(BaseLayer):
             use_cache=False,
             attn_pdrop=0.0,
             resid_pdrop=0.0,
-            scale_attn_weights = True
+            scale_attn_weights=True
         )
         torch_layer = GPT2Attention_torch(
             torch_layer_config, is_cross_attention=False, layer_idx=0
@@ -1004,7 +1006,7 @@ class GPT2Attention(BaseLayer):
             ).reshape(n_emb, n_emb).T
         weight_torch_np[:, 2 * n_emb : 3 * n_emb] = to_numpy(
             self.w_v.value
-            ).reshape(n_emb, n_emb).T    
+            ).reshape(n_emb, n_emb).T
         torch_layer.c_attn.weight.data = torch.tensor(
             weight_torch_np,
             requires_grad=True,
@@ -1048,7 +1050,7 @@ class GPT2Attention(BaseLayer):
             ).reshape(n_embd, n_embd).T
         weight_torch_np[:, 2 * n_embd : 3 * n_embd] = to_numpy(
             self.w_v.grad
-            ).reshape(n_embd, n_embd).T    
+            ).reshape(n_embd, n_embd).T
         torch_layer.c_attn.weight.grad = torch.tensor(
             weight_torch_np
         )

@@ -80,9 +80,9 @@ single_tile = GPT2MLPTestParams(
 def generate_inputs(params: GPT2MLPTestParams, dtype: str):
     torch_layer_config = GPT2Config(
         n_embd=params.hidden_size,
-        attn_pdrop = 0.0,
-        resid_pdrop = 0.0,
-        embd_pdrop = 0.0,
+        attn_pdrop=0.0,
+        resid_pdrop=0.0,
+        embd_pdrop=0.0,
         use_cache=False,
     )
     torch_layer = GPT2MLP(
