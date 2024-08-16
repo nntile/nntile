@@ -146,7 +146,7 @@ def generate_inputs(params: LlamaTestParams,
             n_head_tile=torch_config.num_attention_heads,
             num_key_value_heads=torch_config.num_key_value_heads,
             dtype=dtype,
-            attention_bias=att_bias
+            attention_bias=att_bias,
             flash_attention=params.flash_attention
     )
     gen = np.random.default_rng(42)
