@@ -12,9 +12,9 @@
 #
 # @version 1.1.0
 
+import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import TensorMoments, TensorTraits, copy_async, prod_async
-import nntile.utils.constructors as nntc
 
 
 class Prod(BaseLayer):
