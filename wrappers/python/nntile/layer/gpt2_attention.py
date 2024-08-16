@@ -40,7 +40,7 @@ class GPT2Attention(BaseLayer):
     y: TensorMoments
     w_q: TensorMoments
     w_k: TensorMoments
-    w_v: TensorMoments 
+    w_v: TensorMoments
     w: TensorMoments
     q_transposed: TensorMoments
     q: TensorMoments
@@ -778,7 +778,7 @@ class GPT2Attention(BaseLayer):
         # A = 1.0/sqrt(head_size) * einsum('jklb,jmlb->kmlb', K, Q)
         if self.k.grad_required:
             # dK = 1.0/sqrt(head_size) * einsum('jmlb,kmlb->jklb', Q, dA)
-            gemm_async(1.0/self.head_size**0.5, notrans, self.q.value,
+            gemm_async(1.0 / self.head_size ** 0.5, notrans, self.q.value,
                         trans, self.a.grad, 0.0, self.k.grad, 1, 2,
                         redux=self.redux)
         # Q can be deleted

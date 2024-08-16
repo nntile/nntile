@@ -21,10 +21,10 @@ from .batch_norm import BatchNorm2d
 from .conv2d import Conv2d
 from .embedding import Embedding
 from .flash_attention import FlashAttention
+from .gpt2_attention import GPT2Attention
 from .layer_norm import LayerNorm
 from .linear import Linear
 from .llama_attention import LlamaAttention
-from .gpt2_attention import GPT2Attention
 from .mixer import GAP, Mixer, MixerMlp
 from .prod import Prod
 from .rms_norm import RMSNorm
