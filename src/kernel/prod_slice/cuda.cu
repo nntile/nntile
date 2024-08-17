@@ -147,7 +147,6 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
                 (k+threads.z-1)/threads.z);
         (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha,
                 src, dst);
-        printf("m=%ld,n=%ld,k=%ld\n", m, n, k);
     }
 }
 
