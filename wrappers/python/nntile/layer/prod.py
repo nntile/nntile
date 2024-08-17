@@ -49,6 +49,8 @@ class Prod(BaseLayer):
     def backward_async(self):
         prod_async(self.y.value, self.res.grad, self.x.grad)
         prod_async(self.x.value, self.res.grad, self.y.grad)
+        self.x.value.wont_use()
+        self.y.value.wont_use()
         self.x.grad.wont_use()
         self.y.grad.wont_use()
         self.res.grad.wont_use()
