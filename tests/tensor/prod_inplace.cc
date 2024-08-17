@@ -6,15 +6,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/prod.cc
+ * @file tests/tensor/prod_inplace.cc
  * Prod operation for Tensor<T>
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/prod.hh"
-#include "nntile/tile/prod.hh"
-#include "nntile/starpu/prod.hh"
+#include "nntile/tensor/prod_inplace.hh"
+#include "nntile/tile/prod_inplace.hh"
+#include "nntile/starpu/prod_inplace.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/starpu/subcopy.hh"
@@ -66,14 +66,14 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
         dst(traits, dst_distr, last_tag);
     scatter(src_single, src);
     scatter(dst_single, dst);
-    // Get prod
+    // Get prod_inplace
     if(mpi_rank == mpi_root)
     {
         auto src_tile = src_single.get_tile(0);
         auto dst_tile = dst_single.get_tile(0);
-        tile::prod<T>(src_tile, dst_tile);
+        tile::prod_inplace<T>(src_tile, dst_tile);
     }
-    prod<T>(src, dst);
+    prod_inplace<T>(src, dst);
     // Compare results
     Tensor<T> dst2_single(single_traits, dist_root, last_tag);
     gather<T>(dst, dst2_single);
@@ -110,10 +110,10 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    starpu::prod::init();
+    starpu::prod_inplace::init();
     starpu::subcopy::init();
     starpu::copy::init();
-    starpu::prod::restrict_where(STARPU_CPU);
+    starpu::prod_inplace::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
     starpu::copy::restrict_where(STARPU_CPU);
     // Launch all tests

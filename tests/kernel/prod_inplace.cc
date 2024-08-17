@@ -6,13 +6,13 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/prod.cc
+ * @file tests/kernel/prod_inplace.cc
  * Per-element product of two buffers
  *
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/prod.hh"
+#include "nntile/kernel/prod_inplace.hh"
 #include "../testing.hh"
 #include <vector>
 #include <stdexcept>
@@ -20,7 +20,7 @@
 #include <iostream>
 
 using namespace nntile;
-using namespace nntile::kernel::prod;
+using namespace nntile::kernel::prod_inplace;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>
@@ -74,7 +74,7 @@ void validate(Index nelems)
     }
     std::vector<T> dst_save(dst);
     // Check low-level CPU kernel
-    std::cout << "Run kernel::prod::cpu<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::prod_inplace::cpu<" << T::type_repr << ">\n";
     cpu<T>(nelems, &src[0], &dst[0]);
     for(Index i = 0; i < nelems; ++i)
     {
@@ -95,11 +95,11 @@ void validate(Index nelems)
         // NaN-aware comparisons
         TEST_ASSERT(Y(dst[i]) >= val_ref_min and Y(dst[i]) <= val_ref_max);
     }
-    std::cout << "OK: kernel::prod::cpu<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::prod_inplace::cpu<" << T::type_repr << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
-    std::cout << "Run kernel::prod::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::prod_inplace::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(nelems, src, dst);
     for(Index i = 0; i < nelems; ++i)
     {
@@ -120,7 +120,7 @@ void validate(Index nelems)
         // NaN-aware comparisons
         TEST_ASSERT(Y(dst[i]) >= val_ref_min and Y(dst[i]) <= val_ref_max);
     }
-    std::cout << "OK: kernel::prod::cuda<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::prod_inplace::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

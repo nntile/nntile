@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/prod.hh
+ * @file include/nntile/starpu/prod_inplace.hh
  * Per-element product of two StarPU buffers
  *
  * @version 1.1.0
@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/starpu/config.hh>
 
-namespace nntile::starpu::prod
+namespace nntile::starpu::prod_inplace
 {
 
 // Apply gelu along middle axis of StarPU buffer on CPU
@@ -72,6 +72,6 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nelems, Handle src1, Handle src2, Handle dst);
+void submit(Index nelems, Handle src, Handle dst);
 
-} // namespace nntile::starpu::prod
+} // namespace nntile::starpu::prod_inplace

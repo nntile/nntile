@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/prod/cuda.hh
+ * @file include/nntile/kernel/prod_inplace/cpu.hh
  * Per-element product of two buffers on CPU
  *
  * @version 1.1.0
@@ -15,14 +15,13 @@
 #pragma once
 
 #include <nntile/base_types.hh>
-#include <cuda_runtime.h>
 
-namespace nntile::kernel::prod
+namespace nntile::kernel::prod_inplace
 {
 
+// Per-element product of two buffers
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, const T *src1, const T *src2,
-        T *dst)
+void cpu(Index nelems, const T *src, T *dst)
     noexcept;
 
-} // namespace nntile::kernel::prod
+} // namespace nntile::kernel::prod_inplace

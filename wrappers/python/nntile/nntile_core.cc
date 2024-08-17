@@ -640,6 +640,16 @@ void def_mod_tensor(py::module_ &m)
     m.def("prod_bf16", &prod<bf16_t>);
     m.def("prod_fp32_fast_tf32", &prod<fp32_fast_tf32_t>);
 
+    m.def("prod_inplace_async_fp64", &prod_inplace_async<fp64_t>);
+    m.def("prod_inplace_async_bf16", &prod_inplace_async<bf16_t>);
+    m.def("prod_inplace_async_fp32", &prod_inplace_async<fp32_t>);
+    m.def("prod_inplace_async_fp32_fast_tf32",
+            &prod_inplace_async<fp32_fast_tf32_t>);
+    m.def("prod_inplace_fp64", &prod_inplace<fp64_t>);
+    m.def("prod_inplace_fp32", &prod_inplace<fp32_t>);
+    m.def("prod_inplace_bf16", &prod_inplace<bf16_t>);
+    m.def("prod_inplace_fp32_fast_tf32", &prod_inplace<fp32_fast_tf32_t>);
+
     m.def("nrm2_async_fp64", &nrm2_async<fp64_t>);
     m.def("nrm2_async_fp32", &nrm2_async<fp32_t>);
     m.def("nrm2_fp64", &nrm2<fp64_t>);

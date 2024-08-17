@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/starpu/prod.cc
+ * @file tests/starpu/prod_inplace.cc
  * Per-element product of two StarPU buffers
  *
  * @version 1.1.0
  * */
 
-#include "nntile/starpu/prod.hh"
-#include "nntile/kernel/prod.hh"
+#include "nntile/starpu/prod_inplace.hh"
+#include "nntile/kernel/prod_inplace.hh"
 #include "../testing.hh"
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_runtime.h>
@@ -39,14 +39,14 @@ void validate_cpu(Index nelems)
     // Create copies of destination
     std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::prod::cpu<" << T::type_repr << ">\n";
-    kernel::prod::cpu<T>(nelems, &src[0], &dst[0]);
+    std::cout << "Run kernel::prod_inplace::cpu<" << T::type_repr << ">\n";
+    kernel::prod_inplace::cpu<T>(nelems, &src[0], &dst[0]);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*nelems, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*nelems, STARPU_RW);
-    prod::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::prod::submit<" << T::type_repr << "> restricted to CPU\n";
-    prod::submit<T>(nelems, src_handle, dst2_handle);
+    prod_inplace::restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::prod_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
+    prod_inplace::submit<T>(nelems, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     src_handle.unregister();
     dst2_handle.unregister();
@@ -55,7 +55,7 @@ void validate_cpu(Index nelems)
     {
         TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::prod::submit<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "OK: starpu::prod_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -94,8 +94,8 @@ void validate_cuda(Index nelems)
     cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*nelems,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::prod::cuda<" << T::type_repr << ">\n";
-    kernel::prod::cuda<T>(stream, nelems, dev_src, dev_dst);
+    std::cout << "Run kernel::prod_inplace::cuda<" << T::type_repr << ">\n";
+    kernel::prod_inplace::cuda<T>(stream, nelems, dev_src, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
@@ -113,9 +113,9 @@ void validate_cuda(Index nelems)
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*nelems, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*nelems, STARPU_RW);
-    prod::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::prod::submit<" << T::type_repr << "> restricted to CUDA\n";
-    prod::submit<T>(nelems, src_handle, dst2_handle);
+    prod_inplace::restrict_where(STARPU_CUDA);
+    std::cout << "Run starpu::prod_inplace::submit<" << T::type_repr << "> restricted to CUDA\n";
+    prod_inplace::submit<T>(nelems, src_handle, dst2_handle);
     starpu_task_wait_for_all();
     src_handle.unregister();
     dst2_handle.unregister();
@@ -124,7 +124,7 @@ void validate_cuda(Index nelems)
     {
         TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::prod::submit<" << T::type_repr << "> restricted to CUDA\n";
+    std::cout << "OK: starpu::prod_inplace::submit<" << T::type_repr << "> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 
@@ -133,7 +133,7 @@ int main(int argc, char **argv)
     // Init StarPU for testing
     Config starpu(1, 1, 0);
     // Init codelet
-    prod::init();
+    prod_inplace::init();
     // Launch all tests
     validate_cpu<fp32_t>(1);
     validate_cpu<fp32_t>(10000);

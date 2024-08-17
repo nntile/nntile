@@ -104,7 +104,7 @@ void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src,
     {
         // Pointer to a corresponding fiber of the output array dst
         T *dst_fiber = dst + global_dst_l + global_dst_j*k;
-        int BLOCK_COL_STEP = BLOCK_COL / BLOCK_LOOP;
+        constexpr int BLOCK_COL_STEP = BLOCK_COL / BLOCK_LOOP;
         if((dst_block_j+1)*BLOCK_COL <= n)
         {
             // Overwrite or update output depending on beta

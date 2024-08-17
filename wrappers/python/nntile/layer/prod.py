@@ -14,7 +14,7 @@
 
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
-from nntile.tensor import TensorMoments, TensorTraits, copy_async, prod_async
+from nntile.tensor import TensorMoments, TensorTraits, prod_async
 
 
 class Prod(BaseLayer):
@@ -36,23 +36,21 @@ class Prod(BaseLayer):
         return Prod(x, y, res), next_tag
 
     def forward_async(self):
-        copy_async(self.x.value, self.res.value)
-        prod_async(self.y.value, self.res.value)
+        prod_async(self.x.value, self.y.value, self.res.value)
         self.x.value.wont_use()
         self.y.value.wont_use()
         self.res.value.wont_use()
 
     def forward_dynamic(self, x: TensorMoments, y: TensorMoments):
         res = nntc.empty(x.value.shape, basetile_shape=x.value.basetile_shape)
-        copy_async(x.value, res)
-        prod_async(y.value, res)
+        prod_async(x.value, y.value, res)
         return TensorMoments(res, None, False)
 
     def backward_async(self):
-        copy_async(self.x.value, self.y.grad)
-        copy_async(self.y.value, self.x.grad)
-        prod_async(self.res.grad, self.x.grad)
-        prod_async(self.res.grad, self.y.grad)
+        prod_async(self.y.value, self.res.grad, self.x.grad)
+        prod_async(self.x.value, self.res.grad, self.y.grad)
+        self.x.value.wont_use()
+        self.y.value.wont_use()
         self.x.grad.wont_use()
         self.y.grad.wont_use()
         self.res.grad.wont_use()

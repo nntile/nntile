@@ -21,10 +21,11 @@ namespace nntile::tensor
 
 // Asynchronous tensor-wise prod operation
 template<typename T>
-void prod_async(const Tensor<T> &src, const Tensor<T> &dst);
+void prod_async(const Tensor<T> &src1, const Tensor<T> &src2,
+        const Tensor<T> &dst);
 
 // Blocking version of tensor-wise prod operation
 template<typename T>
-void prod(const Tensor<T> &src, const Tensor<T> &dst);
+void prod(const Tensor<T> &src1, const Tensor<T> &src2, const Tensor<T> &dst);
 
 } // namespace nntile::tensor

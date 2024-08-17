@@ -15,6 +15,7 @@
 #include "nntile/tensor/add_slice.hh"
 #include "nntile/tile/add_slice.hh"
 #include "nntile/starpu/add_slice.hh"
+#include "nntile/starpu/add.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
@@ -155,6 +156,7 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
+    starpu::add::init();
     starpu::add_slice::init();
     starpu::subcopy::init();
     starpu::copy::init();

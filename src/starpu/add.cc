@@ -177,8 +177,8 @@ void submit(Index nelems, Scalar alpha, Handle src, Scalar beta, Handle dst)
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_CL_ARGS, args, sizeof(*args),
-            dst_mode, static_cast<starpu_data_handle_t>(dst), 0);
-            // STARPU_FLOPS, nflops);
+            dst_mode, static_cast<starpu_data_handle_t>(dst),
+            0);
     // Check submission
     if(ret != 0)
     {

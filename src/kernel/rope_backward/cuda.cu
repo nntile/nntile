@@ -42,7 +42,7 @@ void cuda_kernel(Index m, Index n, const T *sin, const T *cos, const T *src,
         Y c{cos[j]}, s{sin[j]};
         Y a{src[2*i]}, b{src[2*i+1]};
         dst[2*i] = static_cast<T>(c*a + s*b);
-        dst[2*i+1] = static_cast<T>(s*a + c*b);
+        dst[2*i+1] = static_cast<T>(-s*a + c*b);
     }
 }
 
