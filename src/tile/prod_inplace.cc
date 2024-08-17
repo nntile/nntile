@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tile/prod.cc
+ * @file src/tile/prod_inplace.cc
  * Per-element product of two Tile<T>
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tile/prod.hh"
-#include "nntile/starpu/prod.hh"
+#include "nntile/tile/prod_inplace.hh"
+#include "nntile/starpu/prod_inplace.hh"
 
 namespace nntile::tile
 {
@@ -23,7 +23,7 @@ namespace nntile::tile
  * @param[inout] dst: Input and output tile for the prod operation
  * */
 template<typename T>
-void prod_async(const Tile<T> &src, const Tile<T> &dst)
+void prod_inplace_async(const Tile<T> &src, const Tile<T> &dst)
 {
     // Check shapes
     if(src.shape != dst.shape)
@@ -31,7 +31,7 @@ void prod_async(const Tile<T> &src, const Tile<T> &dst)
         throw std::runtime_error("src.shape != dst.shape");
     }
     // Submit task
-    starpu::prod::submit<T>(src.nelems, src, dst);
+    starpu::prod_inplace::submit<T>(src.nelems, src, dst);
 }
 
 //! Blocking version of tile-wise prod operation
@@ -39,36 +39,41 @@ void prod_async(const Tile<T> &src, const Tile<T> &dst)
  * @param[inout] dst: Input and output tile for the prod operation
  * */
 template<typename T>
-void prod(const Tile<T> &src, const Tile<T> &dst)
+void prod_inplace(const Tile<T> &src, const Tile<T> &dst)
 {
-    prod_async<T>(src, dst);
+    prod_inplace_async<T>(src, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void prod_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
+void prod_inplace_async<fp32_t>(const Tile<fp32_t> &src,
+        const Tile<fp32_t> &dst);
 
 template
-void prod_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src, const Tile<fp32_fast_tf32_t> &dst);
+void prod_inplace_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+        const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void prod_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+void prod_inplace_async<fp64_t>(const Tile<fp64_t> &src,
+        const Tile<fp64_t> &dst);
 
 template
-void prod_async<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+void prod_inplace_async<bf16_t>(const Tile<bf16_t> &src,
+        const Tile<bf16_t> &dst);
 
 // Explicit instantiation
 template
-void prod<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
+void prod_inplace<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void prod<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src, const Tile<fp32_fast_tf32_t> &dst);
+void prod_inplace<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+        const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void prod<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
+void prod_inplace<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
 
 template
-void prod<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
+void prod_inplace<bf16_t>(const Tile<bf16_t> &src, const Tile<bf16_t> &dst);
 
 } // namespace nntile::tile

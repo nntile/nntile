@@ -657,20 +657,40 @@ def randn_async(x: Tensor, start: Sequence[int], shape: Sequence[int],
         raise TypeError('Wrong tensor type {type(x)}.')
 
 
-def prod_async(x: Tensor, y: Tensor) -> None:
+def prod_async(x: Tensor, y: Tensor, z: Tensor) -> None:
     """
     Wrapper for multiprecision prod
     """
     if type(x) is not type(y):
         raise TypeError
+    if type(x) is not type(z):
+        raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.prod_async_fp32(x, y)
+        core_tensor.prod_async_fp32(x, y, z)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.prod_async_fp32_fast_tf32(x, y)
+        core_tensor.prod_async_fp32_fast_tf32(x, y, z)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.prod_async_fp64(x, y)
+        core_tensor.prod_async_fp64(x, y, z)
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.prod_async_bf16(x, y)
+        core_tensor.prod_async_bf16(x, y, z)
+    else:
+        raise TypeError
+
+
+def prod_inplace_async(x: Tensor, y: Tensor) -> None:
+    """
+    Wrapper for multiprecision prod_inplace
+    """
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.prod_inplace_async_fp32(x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.prod_inplace_async_fp32_fast_tf32(x, y)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.prod_inplace_async_fp64(x, y)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.prod_inplace_async_bf16(x, y)
     else:
         raise TypeError
 

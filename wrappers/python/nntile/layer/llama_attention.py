@@ -23,9 +23,9 @@ from nntile.tensor import (
     add_fiber_async, add_slice_async, clear_async, copy_intersection_async,
     flash_maxsumexp_async, flash_softmax_gemm_async,
     flash_softmax_gemm_backward_async, gemm_async, mask_scalar_async,
-    maxsumexp_async, notrans, prod_async, rope_async, rope_backward_async,
-    softmax_inplace_async, sum_fiber_async, sum_slice_async,
-    sumprod_slice_async, to_numpy, trans, transpose_async)
+    maxsumexp_async, notrans, prod_inplace_async, rope_async,
+    rope_backward_async, softmax_inplace_async, sum_fiber_async,
+    sum_slice_async, sumprod_slice_async, to_numpy, trans, transpose_async)
 
 from ..model.llama_config import LlamaConfigNNTile
 
@@ -2193,7 +2193,7 @@ class LlamaAttention(BaseLayer):
             # A_sumprod_slice can be deleted
             self.a_sumprod_slice.invalidate_submit()
             # dA *= A
-            prod_async(self.a.value, self.a.grad)
+            prod_inplace_async(self.a.value, self.a.grad)
         # A can be deleted
         self.a.value.invalidate_submit()
         # Backward for mask if needed

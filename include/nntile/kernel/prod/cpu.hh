@@ -21,7 +21,7 @@ namespace nntile::kernel::prod
 
 // Per-element product of two buffers
 template<typename T>
-void cpu(Index nelems, const T *src, T *dst)
+void cpu(Index nelems, const T *src1, const T *src2, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::prod

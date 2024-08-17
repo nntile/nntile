@@ -42,6 +42,7 @@
 #include <nntile/starpu/nrm2.hh>
 #include <nntile/starpu/normalize.hh>
 #include <nntile/starpu/prod.hh>
+#include <nntile/starpu/prod_inplace.hh>
 #include <nntile/starpu/randn.hh>
 #include <nntile/starpu/relu.hh>
 #include <nntile/starpu/relu_forward.hh>
@@ -129,6 +130,7 @@ void init()
     relu_forward::init();
     relu_backward::init();
     prod::init();
+    prod_inplace::init();
     subcopy::init();
     sumnorm::init();
     fill::init();
@@ -203,6 +205,7 @@ void restrict_where(uint32_t where)
     nrm2::restrict_where(where);
     normalize::restrict_where(where);
     prod::restrict_where(where);
+    prod_inplace::restrict_where(where);
     randn::restrict_where(where);
     relu::restrict_where(where);
     relu_forward::restrict_where(where);
@@ -281,6 +284,7 @@ void restore_where()
     nrm2::restore_where();
     normalize::restore_where();
     prod::restore_where();
+    prod_inplace::restore_where();
     randn::restore_where();
     relu::restore_where();
     relu_forward::restore_where();

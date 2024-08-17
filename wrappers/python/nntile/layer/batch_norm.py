@@ -17,7 +17,7 @@ from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     TensorMoments, add_async, add_fiber_async, copy_async, empty,
     hypot_scalar_inverse_async, norm_fiber_async, ones, pow_async, prod_async,
-    prod_fiber_async, sum_fiber_async, sumprod_fiber_async)
+    prod_inplace_async, prod_fiber_async, sum_fiber_async, sumprod_fiber_async)
 
 
 class BatchNorm2d(BaseLayer):
@@ -157,7 +157,7 @@ class BatchNorm2d(BaseLayer):
         xvar_grad = x_var_eps_ref
 
         pow_async(-0.5, -2.0 * -1.5, xvar_grad)  # fuse two powers from above
-        prod_async(inv_denom_grad, xvar_grad)
+        prod_inplace_async(inv_denom_grad, xvar_grad)
 
         # Compute grad d(variance)/d(x)
         # empty(self.x.value.shape)
@@ -199,8 +199,7 @@ class BatchNorm2d(BaseLayer):
 
         # denominator_grad = self.grad*nominator
         nominator_ref = self.x_unbiased_copy
-        copy_async(nominator_ref, inv_denominator_grad)
-        prod_async(self.y.grad, inv_denominator_grad)
+        prod_async(nominator_ref, self.y.grad, inv_denominator_grad)
 
         inv_denominator_grad_x = inv_denominator_grad
         self._compute_grad_inv_std_over_x(inv_denominator_grad_x)
