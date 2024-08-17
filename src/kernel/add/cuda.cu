@@ -45,8 +45,13 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T *src, Scalar beta_, T *dst
         for(int j = 0; j < BLOCK; j += BLOCK_STEP)
         {
             src1_block[threadIdx.x+j] = src[i+j];
+        }
+        __syncthreads();
+        for(int j = 0; j < BLOCK; j += BLOCK_STEP)
+        {
             src2_block[threadIdx.x+j] = dst[i+j];
         }
+        __syncthreads();
         for(int j = 0; j < BLOCK; j += BLOCK_STEP)
         {
             dst[i+j] = static_cast<T>(
@@ -59,8 +64,13 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T *src, Scalar beta_, T *dst
         for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
         {
             src1_block[threadIdx.x+j] = src[i+j];
+        }
+        __syncthreads();
+        for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
+        {
             src2_block[threadIdx.x+j] = dst[i+j];
         }
+        __syncthreads();
         for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
         {
             dst[i+j] = static_cast<T>(
@@ -86,9 +96,9 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha_, const T *src_,
  * @param[inout] dst_: Destination of the add operation
  * */
 {
-    dim3 threads(256);
+    dim3 threads(128);
     dim3 blocks((nelems+1023)/1024);
-    (cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(nelems, alpha_,
+    (cuda_kernel<T, 1024, 8>)<<<blocks, threads, 0, stream>>>(nelems, alpha_,
             src_, beta_, dst_);
 }
 
