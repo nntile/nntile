@@ -17,7 +17,7 @@ from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     TensorMoments, add_async, add_fiber_async, copy_async, empty,
     hypot_scalar_inverse_async, norm_fiber_async, ones, pow_async, prod_async,
-    prod_inplace_async, prod_fiber_async, sum_fiber_async, sumprod_fiber_async)
+    prod_fiber_async, prod_inplace_async, sum_fiber_async, sumprod_fiber_async)
 
 
 class BatchNorm2d(BaseLayer):

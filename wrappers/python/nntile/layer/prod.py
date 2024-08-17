@@ -14,7 +14,7 @@
 
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
-from nntile.tensor import TensorMoments, TensorTraits, copy_async, prod_async
+from nntile.tensor import TensorMoments, TensorTraits, prod_async
 
 
 class Prod(BaseLayer):
