@@ -51,6 +51,7 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_, const T *sr
         dst_fiber[i2*m] = T{Y{dst_fiber[i2*m]} * src_val};
     }
 }
+
 template<typename T, int BLOCK_ROW, int BLOCK_COL, int BLOCK_LOOP>
 static __global__
 void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src, T *dst)
