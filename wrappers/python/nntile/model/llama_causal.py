@@ -16,6 +16,8 @@ from transformers import LlamaConfig as LlamaConfig_torch
 from transformers.models.llama.modeling_llama import (
     LlamaForCausalLM as LlamaCausalModel_torch)
 
+from nntile.wrappers.python.nntile.types import TensorMoments
+
 from ..layer import Linear
 from .base_model import BaseModel
 from .llama import Llama as Llama_nntile
@@ -50,6 +52,11 @@ class LlamaForCausalLM(BaseModel):
         activations.extend(lin_head_.activations_output)
 
         super().__init__(activations, layers)
+
+    def forward_dynamic(self, x: TensorMoments):
+        llama_logits = self.llama_model_.forward_dynamic(x)
+        out_logits = self.lin_.forward_dynamic(llama_logits)
+        return out_logits
 
     @staticmethod
     def from_torch(torch_llama_causal,
