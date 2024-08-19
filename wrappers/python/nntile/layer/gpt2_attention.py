@@ -20,7 +20,7 @@ from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_async,
     add_slice_async, clear_async, gemm_async, mask_scalar_async,
-    maxsumexp_async, notrans, prod_async, softmax_inplace_async,
+    maxsumexp_async, notrans, prod_inplace_async, softmax_inplace_async,
     sum_fiber_async, sumprod_slice_async, to_numpy, trans, transpose_async)
 
 from ..model.gpt2_config import GPT2ConfigNNTile
@@ -766,7 +766,7 @@ class GPT2Attention(BaseLayer):
             # self.a_sumprod_slice.wont_use()
             self.a_sumprod_slice.invalidate_submit()
             # dA *= A
-            prod_async(self.a.value, self.a.grad)
+            prod_inplace_async(self.a.value, self.a.grad)
         # A can be deleted
         # self.a.value.wont_use()
         self.a.value.invalidate_submit()
