@@ -26,6 +26,7 @@ from nntile.tensor import (
     add_fiber_async,
     gemm_async,
     notrans,
+    strassen_async,
     sum_fiber_async,
     to_numpy,
     trans,
@@ -79,6 +80,14 @@ class Linear(BaseLayer):
             self.redux = 1
         else:
             self.redux = 0
+        self.mult_async = strassen_async
+        if (
+            x.value.shape[0] % x.value.basetile_shape[0]
+            or x.value.shape[1] % x.value.basetile_shape[1]
+            or w.value.shape[0] % w.value.basetile_shape[0]
+            or w.value.shape[1] % w.value.basetile_shape[1]
+        ):
+            self.mult_async = gemm_async
 
     # Simple generator for the linear layer
     @staticmethod
@@ -180,7 +189,7 @@ class Linear(BaseLayer):
             # 'i' is a multi-index of dimension X.ndim-ndim
             # 'j' is a multi-index of dimension ndim
             # 'k' is a multi-index of dimension W.ndim-ndim
-            gemm_async(
+            self.mult_async(
                 1.0,
                 self.trans_x,
                 self.x.value,
@@ -201,7 +210,7 @@ class Linear(BaseLayer):
             # 'i' is a multi-index of dimension W.ndim-ndim
             # 'j' is a multi-index of dimension ndim
             # 'k' is a multi-index of dimension X.ndim-ndim
-            gemm_async(
+            self.mult_async(
                 1.0,
                 notrans,
                 self.w.value,
@@ -276,7 +285,7 @@ class Linear(BaseLayer):
                 # 'j' is a multi-index of dimension ndim
                 # 'k' is a multi-index of dimension W.ndim-ndim
                 if self.trans_x == notrans:
-                    gemm_async(
+                    self.mult_async(
                         1.0,
                         trans,
                         self.x.value,
@@ -289,7 +298,7 @@ class Linear(BaseLayer):
                         redux=self.redux,
                     )
                 else:
-                    gemm_async(
+                    self.mult_async(
                         1.0,
                         notrans,
                         self.x.value,
@@ -308,7 +317,7 @@ class Linear(BaseLayer):
                 # 'j' is a multi-index of dimension ndim
                 # 'k' is a multi-index of dimension X.ndim-ndim
                 if self.trans_x == notrans:
-                    gemm_async(
+                    self.mult_async(
                         1.0,
                         notrans,
                         self.y.grad,
@@ -321,7 +330,7 @@ class Linear(BaseLayer):
                         redux=self.redux,
                     )
                 else:
-                    gemm_async(
+                    self.mult_async(
                         1.0,
                         notrans,
                         self.y.grad,
@@ -366,7 +375,7 @@ class Linear(BaseLayer):
                 # 'k' is a multi-index of dimension W.ndim-ndim
                 if self.trans_x == notrans:
                     # dX += einsum('ik,jk->ij', dY, W)
-                    gemm_async(
+                    self.mult_async(
                         1.0,
                         notrans,
                         self.y.grad,
@@ -380,7 +389,7 @@ class Linear(BaseLayer):
                     )
                 else:
                     # dX += einsum('ik,jk->ij', W, dY)
-                    gemm_async(
+                    self.mult_async(
                         1.0,
                         notrans,
                         self.w.value,
@@ -400,7 +409,7 @@ class Linear(BaseLayer):
                 # 'k' is a multi-index of dimension X.ndim-ndim
                 if self.trans_x == notrans:
                     # dX += einsum('ij,ik->jk', W, dY)
-                    gemm_async(
+                    self.mult_async(
                         1.0,
                         trans,
                         self.w.value,
@@ -414,7 +423,7 @@ class Linear(BaseLayer):
                     )
                 else:
                     # dX = einsum('ij,ik->jk', dY, W)
-                    gemm_async(
+                    self.mult_async(
                         1.0,
                         trans,
                         self.y.grad,
