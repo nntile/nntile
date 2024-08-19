@@ -20,8 +20,16 @@ import torch.nn as nn
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    TensorMoments, TensorTraits, TransOp, add_fiber_async, gemm_async, notrans,
-    sum_fiber_async, to_numpy, trans)
+    TensorMoments,
+    TensorTraits,
+    TransOp,
+    add_fiber_async,
+    gemm_async,
+    notrans,
+    sum_fiber_async,
+    to_numpy,
+    trans,
+)
 
 
 class Linear(BaseLayer):
@@ -41,7 +49,7 @@ class Linear(BaseLayer):
             out_features_basetile_shape: List[int],
             redux: bool = False):
         # Check parameter side
-        if side != 'L' and side != 'R':
+        if side != "L" and side != "R":
             raise ValueError("side must be either 'L' or 'R'")
         # Check parameter ndim
         if ndim <= 0:
@@ -74,16 +82,22 @@ class Linear(BaseLayer):
 
     # Simple generator for the linear layer
     @staticmethod
-    def generate_simple(x: TensorMoments, side: str, trans_x: TransOp,
-            in_features_ndim: int, out_features_shape: List[int],
-            out_features_basetile_shape: List[int], next_tag: int,
-            bias: bool = True,
-            redux: bool = False):
+    def generate_simple(
+        x: TensorMoments,
+        side: str,
+        trans_x: TransOp,
+        in_features_ndim: int,
+        out_features_shape: List[int],
+        out_features_basetile_shape: List[int],
+        next_tag: int,
+        bias: bool = True,
+        redux: bool = False,
+    ):
         # Define shapes
         ndim = in_features_ndim
         add_shape = out_features_shape
         add_basetile_shape = out_features_basetile_shape
-        if side == 'L':
+        if side == "L":
             if trans_x == notrans:
                 w_shape = x.value.shape[-ndim:] + add_shape
                 w_tile = x.value.basetile_shape[-ndim:] + add_basetile_shape
@@ -118,8 +132,7 @@ class Linear(BaseLayer):
         w = TensorMoments(w_value, w_grad, True)
         if bias:
             if len(add_shape) > 1:
-                raise ValueError("Bias is not yet supported for "
-                        "len(add_shape) > 1")
+                raise ValueError("Bias is not yet supported for " "len(add_shape) > 1")
             b_traits = TensorTraits(add_shape, add_basetile_shape)
             # TODO change distribution
             b_distr = [0] * b_traits.grid.nelems
@@ -162,25 +175,44 @@ class Linear(BaseLayer):
     # Forward propagation of the linear layer
     def forward_async(self):
         # Perform actual gemm
-        if self.side == 'L':
+        if self.side == "L":
             # Y = einsum('ij,jk->ik', op(X), W)
             # 'i' is a multi-index of dimension X.ndim-ndim
             # 'j' is a multi-index of dimension ndim
             # 'k' is a multi-index of dimension W.ndim-ndim
-            gemm_async(1.0, self.trans_x, self.x.value, notrans,
-                        self.w.value, 0.0, self.y.value, self.ndim, 0,
-                        redux=self.redux)
+            gemm_async(
+                1.0,
+                self.trans_x,
+                self.x.value,
+                notrans,
+                self.w.value,
+                0.0,
+                self.y.value,
+                self.ndim,
+                0,
+                redux=self.redux,
+            )
             if self.b is not None:
-                add_fiber_async(1.0, self.b.value, 1.0, self.y.value,
-                        self.y.value.ndim - 1, 0)
+                add_fiber_async(
+                    1.0, self.b.value, 1.0, self.y.value, self.y.value.ndim - 1, 0
+                )
         else:
             # Y = einsum('ij,jk->ik', W, op(X))
             # 'i' is a multi-index of dimension W.ndim-ndim
             # 'j' is a multi-index of dimension ndim
             # 'k' is a multi-index of dimension X.ndim-ndim
-            gemm_async(1.0, notrans, self.w.value, self.trans_x,
-                        self.x.value, 0.0, self.y.value, self.ndim, 0,
-                        redux=self.redux)
+            gemm_async(
+                1.0,
+                notrans,
+                self.w.value,
+                self.trans_x,
+                self.x.value,
+                0.0,
+                self.y.value,
+                self.ndim,
+                0,
+                redux=self.redux,
+            )
             if self.b is not None:
                 add_fiber_async(1.0, self.b.value, 1.0, self.y.value, 0, 0)
         # Hint for StarPU that W tensor will
@@ -237,20 +269,38 @@ class Linear(BaseLayer):
         # Gradient over W (weights)
         if self.w.grad_required:
             gemm_ndim = self.x.value.ndim - self.ndim
-            if self.side == 'L':
+            if self.side == "L":
                 # Backward for Y = einsum('ij,jk->ik', op(X), W)
                 # dW += einsum('ij,ik->jk', op(X), dY)
                 # 'i' is a multi-index of dimension X.ndim-ndim
                 # 'j' is a multi-index of dimension ndim
                 # 'k' is a multi-index of dimension W.ndim-ndim
                 if self.trans_x == notrans:
-                    gemm_async(1.0, trans, self.x.value, notrans,
-                                self.y.grad, 1.0, self.w.grad, gemm_ndim, 0,
-                                redux=self.redux)
+                    gemm_async(
+                        1.0,
+                        trans,
+                        self.x.value,
+                        notrans,
+                        self.y.grad,
+                        1.0,
+                        self.w.grad,
+                        gemm_ndim,
+                        0,
+                        redux=self.redux,
+                    )
                 else:
-                    gemm_async(1.0, notrans, self.x.value, notrans,
-                                self.y.grad, 1.0, self.w.grad, gemm_ndim, 0,
-                                redux=self.redux)
+                    gemm_async(
+                        1.0,
+                        notrans,
+                        self.x.value,
+                        notrans,
+                        self.y.grad,
+                        1.0,
+                        self.w.grad,
+                        gemm_ndim,
+                        0,
+                        redux=self.redux,
+                    )
             else:
                 # Backward for Y = einsum('ij,jk->ik', W, op(X))
                 # dW += einsum('ik,jk->ij', dY, op(X))
@@ -258,31 +308,57 @@ class Linear(BaseLayer):
                 # 'j' is a multi-index of dimension ndim
                 # 'k' is a multi-index of dimension X.ndim-ndim
                 if self.trans_x == notrans:
-                    gemm_async(1.0, notrans, self.y.grad, trans,
-                                self.x.value, 1.0, self.w.grad, gemm_ndim, 0,
-                                redux=self.redux)
+                    gemm_async(
+                        1.0,
+                        notrans,
+                        self.y.grad,
+                        trans,
+                        self.x.value,
+                        1.0,
+                        self.w.grad,
+                        gemm_ndim,
+                        0,
+                        redux=self.redux,
+                    )
                 else:
-                    gemm_async(1.0, notrans, self.y.grad, notrans,
-                                self.x.value, 1.0, self.w.grad, gemm_ndim, 0,
-                                redux=self.redux)
+                    gemm_async(
+                        1.0,
+                        notrans,
+                        self.y.grad,
+                        notrans,
+                        self.x.value,
+                        1.0,
+                        self.w.grad,
+                        gemm_ndim,
+                        0,
+                        redux=self.redux,
+                    )
             # Hint StarPU to offload gradient over W if needed
             self.w.grad.wont_use()
             self.x.value.wont_use()
             self.y.grad.wont_use()
         if self.b is not None:
             if self.b.grad_required:
-                if self.side == 'L':
-                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad,
-                            self.y.value.ndim - 1, 0, redux=self.redux)
+                if self.side == "L":
+                    sum_fiber_async(
+                        1.0,
+                        self.y.grad,
+                        1.0,
+                        self.b.grad,
+                        self.y.value.ndim - 1,
+                        0,
+                        redux=self.redux,
+                    )
                 else:
-                    sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, 0, 0,
-                            redux=self.redux)
+                    sum_fiber_async(
+                        1.0, self.y.grad, 1.0, self.b.grad, 0, 0, redux=self.redux
+                    )
                 self.b.grad.wont_use()
                 self.y.grad.wont_use()
         # Gradient over X (input)
         if self.x.grad_required:
             gemm_ndim = self.w.value.ndim - self.ndim
-            if self.side == 'L':
+            if self.side == "L":
                 # Backward for Y = einsum('ij,jk->ik', op(X), W)
                 # d op(X) += einsum('ik,jk->ij', dY, W)
                 # 'i' is a multi-index of dimension X.ndim-ndim
@@ -290,14 +366,32 @@ class Linear(BaseLayer):
                 # 'k' is a multi-index of dimension W.ndim-ndim
                 if self.trans_x == notrans:
                     # dX += einsum('ik,jk->ij', dY, W)
-                    gemm_async(1.0, notrans, self.y.grad, trans,
-                                self.w.value, 1.0, self.x.grad, gemm_ndim, 0,
-                                redux=self.redux)
+                    gemm_async(
+                        1.0,
+                        notrans,
+                        self.y.grad,
+                        trans,
+                        self.w.value,
+                        1.0,
+                        self.x.grad,
+                        gemm_ndim,
+                        0,
+                        redux=self.redux,
+                    )
                 else:
                     # dX += einsum('ik,jk->ij', W, dY)
-                    gemm_async(1.0, notrans, self.w.value, trans,
-                                self.y.grad, 1.0, self.x.grad, gemm_ndim, 0,
-                                redux=self.redux)
+                    gemm_async(
+                        1.0,
+                        notrans,
+                        self.w.value,
+                        trans,
+                        self.y.grad,
+                        1.0,
+                        self.x.grad,
+                        gemm_ndim,
+                        0,
+                        redux=self.redux,
+                    )
             else:
                 # Backward for Y = einsum('ij,jk->ik', W, op(X))
                 # d op(X) = einsum('ij,ik->jk', W, dY)
@@ -306,14 +400,32 @@ class Linear(BaseLayer):
                 # 'k' is a multi-index of dimension X.ndim-ndim
                 if self.trans_x == notrans:
                     # dX += einsum('ij,ik->jk', W, dY)
-                    gemm_async(1.0, trans, self.w.value, notrans,
-                                self.y.grad, 1.0, self.x.grad, gemm_ndim, 0,
-                                redux=self.redux)
+                    gemm_async(
+                        1.0,
+                        trans,
+                        self.w.value,
+                        notrans,
+                        self.y.grad,
+                        1.0,
+                        self.x.grad,
+                        gemm_ndim,
+                        0,
+                        redux=self.redux,
+                    )
                 else:
                     # dX = einsum('ij,ik->jk', dY, W)
-                    gemm_async(1.0, trans, self.y.grad, notrans,
-                                self.w.value, 1.0, self.x.grad, gemm_ndim, 0,
-                                redux=self.redux)
+                    gemm_async(
+                        1.0,
+                        trans,
+                        self.y.grad,
+                        notrans,
+                        self.w.value,
+                        1.0,
+                        self.x.grad,
+                        gemm_ndim,
+                        0,
+                        redux=self.redux,
+                    )
             # Hint StarPU to offload certain buffers
             self.x.grad.wont_use()
         self.x.value.wont_use()
@@ -322,14 +434,14 @@ class Linear(BaseLayer):
         self.w.value.wont_use()
 
     def to_torch(self):
-        lin_torch = nn.Linear(self.w.value.shape[1],
-                              self.w.value.shape[0],
-                              bias=self.b is not None)
-        lin_torch.weight.data = torch.tensor(to_numpy(self.w.value),
-                                             requires_grad=True)
+        lin_torch = nn.Linear(
+            self.w.value.shape[1], self.w.value.shape[0], bias=self.b is not None
+        )
+        lin_torch.weight.data = torch.tensor(to_numpy(self.w.value), requires_grad=True)
         if self.b is not None:
-            lin_torch.bias.data = torch.tensor(to_numpy(self.b.value),
-                                               requires_grad=True)
+            lin_torch.bias.data = torch.tensor(
+                to_numpy(self.b.value), requires_grad=True
+            )
 
         return lin_torch
 
@@ -353,12 +465,16 @@ class Linear(BaseLayer):
             [hidden_dim_tile],
             next_tag,
             redux=redux,
-            bias=torch_linear.bias is not None
+            bias=torch_linear.bias is not None,
         )
 
-        linear_nntile.w.value.from_array(torch_linear.weight.data.cpu().detach().numpy())
+        linear_nntile.w.value.from_array(
+            torch_linear.weight.data.cpu().detach().numpy()
+        )
         if torch_linear.bias is not None:
-            linear_nntile.b.value.from_array(torch_linear.bias.data.cpu().detach().numpy())
+            linear_nntile.b.value.from_array(
+                torch_linear.bias.data.cpu().detach().numpy()
+            )
 
         return linear_nntile, next_tag
 
