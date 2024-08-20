@@ -87,7 +87,7 @@ def generate_inputs(dtype: str, params: LayerNormTestParams):
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[dtype]
     x_value = x_type(x_traits, x_distr, 0)
-    x_grad = x_type(x_traits, x_distr, 0)
+    x_grad = nntc.zeros_like(x_value)
     X = TensorMoments(x_value, x_grad, grad_required=True)
     x_random = rng.standard_normal(x_shape)
     x_nntile = np.array(x_random, dtype=np.float32, order="F")
@@ -100,7 +100,6 @@ def generate_inputs(dtype: str, params: LayerNormTestParams):
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
     nntile_layer.y.grad.from_array(y_grad_nntile)
     y_grad_torch = torch.Tensor(y_grad_nntile.T)
-    nntile.tensor.clear_async(nntile_layer.x.grad)
     nntile.tensor.clear_async(nntile_layer.gamma.grad)
     nntile.tensor.clear_async(nntile_layer.beta.grad)
     return torch_layer, nntile_layer, x_torch, y_grad_torch
