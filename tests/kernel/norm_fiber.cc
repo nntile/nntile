@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/norm_fiber.hh"
+#include "nntile/kernel/norm_fiber_inplace.hh"
 #include "../testing.hh"
 #include <vector>
 #include <stdexcept>
@@ -21,7 +21,7 @@
 #include <iostream>
 
 using namespace nntile;
-using namespace nntile::kernel::norm_fiber;
+using namespace nntile::kernel::norm_fiber_inplace;
 
 #ifdef NNTILE_USE_CUDA
 template<typename T>

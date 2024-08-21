@@ -78,7 +78,7 @@ else()
         "kernel/conv2d_bwd_weight_inplace/cpu.cc"
         "kernel/rope/cpu.cc"
         "kernel/rope_backward/cpu.cc"
-        "kernel/norm_fiber/cpu.cc"
+        "kernel/norm_fiber_inplace/cpu.cc"
         )
 
     if(NNTILE_USE_CUDA)
@@ -146,7 +146,7 @@ else()
             "kernel/conv2d_bwd_weight_inplace/cuda.cu"
             "kernel/rope/cuda.cu"
             "kernel/rope_backward/cuda.cu"
-            "kernel/norm_fiber/cuda.cu"
+            "kernel/norm_fiber_inplace/cuda.cu"
             )
         endif(NNTILE_USE_CUDA)
 endif(HAVE_STARPU_SIMGRID)

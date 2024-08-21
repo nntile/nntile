@@ -6,18 +6,18 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/norm_fiber/cuda.cu
+ * @file src/kernel/norm_fiber_inplace/cuda.cu
  * Sums over slices into a fiber of a buffer on CUDA
  *
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/norm_fiber/cuda.hh"
+#include "nntile/kernel/norm_fiber_inplace/cuda.hh"
 #include <cmath>
 #include <algorithm>
 #include "nntile/kernel/cuda.hh"
 
-namespace nntile::kernel::norm_fiber
+namespace nntile::kernel::norm_fiber_inplace
 {
 
 template<typename T>
@@ -144,4 +144,4 @@ void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index m, Index n, Index k, Inde
         Scalar alpha, const fp32_fast_tf32_t *src, Scalar beta, fp32_fast_tf32_t *dst)
     noexcept;
 
-} // namespace nntile::kernel::norm_fiber
+} // namespace nntile::kernel::norm_fiber_inplace

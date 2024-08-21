@@ -6,17 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/kernel/norm_fiber/cpu.cc
+ * @file src/kernel/norm_fiber_inplace/cpu.cc
  * Euclidean norms over slices into a fiber of a product of buffers on CPU
  *
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/norm_fiber/cpu.hh"
+#include "nntile/kernel/norm_fiber_inplace/cpu.hh"
 #include <cmath>
 #include "nntile/kernel/cpu.hh"
 
-namespace nntile::kernel::norm_fiber
+namespace nntile::kernel::norm_fiber_inplace
 {
 
 template<typename T>
@@ -146,4 +146,4 @@ void cpu<fp32_fast_tf32_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
         const fp32_fast_tf32_t *src, Scalar beta, fp32_fast_tf32_t *dst)
     noexcept;
 
-} // namespace nntile::kernel::norm_fiber
+} // namespace nntile::kernel::norm_fiber_inplace

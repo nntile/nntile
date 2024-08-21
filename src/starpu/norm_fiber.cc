@@ -13,7 +13,7 @@
  * */
 
 #ifndef STARPU_SIMGRID
-#include "nntile/kernel/norm_fiber.hh"
+#include "nntile/kernel/norm_fiber_inplace.hh"
 #endif // STARPU_SIMGRID
 #include "nntile/starpu/norm_fiber.hh"
 #include <cstdlib>
@@ -34,7 +34,7 @@ void cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::norm_fiber::cpu<T>(args->m, args->n, args->k, args->batch,
+    kernel::norm_fiber_inplace::cpu<T>(args->m, args->n, args->k, args->batch,
             args->alpha, src, args->beta, dst);
 #endif // STARPU_SIMGRID
 }
@@ -55,7 +55,7 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::norm_fiber::cuda<T>(stream, args->m, args->n, args->k, args->batch,
+    kernel::norm_fiber_inplace::cuda<T>(stream, args->m, args->n, args->k, args->batch,
             args->alpha, src, args->beta, dst);
 #endif // STARPU_SIMGRID
 }
