@@ -212,4 +212,4 @@ def create_llama_model_from_torch_pretrained(
         next_tag
     )
 
-    return llama_causal_nntile
+    return llama_causal_nntile, next_tag
