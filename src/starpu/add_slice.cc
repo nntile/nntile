@@ -204,7 +204,7 @@ void submit<fp64_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
         Scalar beta, Handle dst);
 
 template
-void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
-        Scalar beta, Handle dst);
+void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha,
+        Handle src, Scalar beta, Handle dst);
 
 } // namespace nntile::starpu::add_slice

@@ -87,7 +87,7 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_,
     }
 }
 
-template<typename T, int BLOCK>
+template<typename T, int BLOCK_ROW, int LOOP>
 static __global__
 void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
         const T *src2, Scalar beta_, T *dst)
@@ -98,7 +98,6 @@ void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
  * Mnemonically, the following operations are performed:
  *      dst[0,j] = beta*dst[0,j] + alpha*sum_l(src1[0,l,j] * src2[0,l,j])
  *
- * @param[in] m: Size of the first mode of src1, src2 and dst
  * @param[in] n: Size of the last mode of src1, src2 and dst
  * @param[in] k: Size of the middle mode of src1 and src2 arrays
  * @param[in] alpha: Scaling factor for src1*src2
@@ -109,139 +108,59 @@ void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
  *      sums along middle axis of per-element products of src1 and src2.
  * */
 {
-    Index src_l = threadIdx.x;
-    Index src_j = blockIdx.x*BLOCK;
+    Index src_l_block_end = (k/BLOCK_ROW) * BLOCK_ROW;
     using Y = typename T::repr_t;
     const Y alpha{alpha_};
     const Y beta{beta_};
-    __shared__ T src1_block[BLOCK][BLOCK+1];
-    __shared__ T src2_block[BLOCK][BLOCK+1];
-    __shared__ Y dst_block[BLOCK];
-    dst_block[threadIdx.x] = 0.0;
-    T *dst_fiber = dst + src_j;
-    if(n-src_j >= BLOCK)
+    constexpr int BLOCK_ROW_STEP = BLOCK_ROW / LOOP;
+    __shared__ Y dst_block[BLOCK_ROW_STEP];
+    Y dst_val = 0.0;
+    // Pointer to a corresponding fiber of the input arrays
+    for(Index src_l = threadIdx.x; src_l < src_l_block_end;
+            src_l += BLOCK_ROW)
     {
-        while(src_l-threadIdx.x+BLOCK < k)
+        const T *src1_fiber = src1 + src_l + blockIdx.x*k;
+        const T *src2_fiber = src2 + src_l + blockIdx.x*k;
+        for(int c = 0; c < BLOCK_ROW; c += BLOCK_ROW_STEP)
         {
-            // Pointer to a corresponding fiber of the input arrays
-            const T *src1_fiber = src1 + src_l + src_j*k;
-            const T *src2_fiber = src2 + src_l + src_j*k;
-            for(int c = 0; c < BLOCK; ++c)
-            {
-                src1_block[threadIdx.x][c] = src1_fiber[c*k];
-            }
-            for(int c = 0; c < BLOCK; ++c)
-            {
-                src2_block[threadIdx.x][c] = src2_fiber[c*k];
-            }
-            __syncthreads();
-            for(int c = 0; c < BLOCK; ++c)
-            {
-                dst_block[threadIdx.x] +=
-                    static_cast<Y>(src1_block[c][threadIdx.x]) *
-                    static_cast<Y>(src2_block[c][threadIdx.x]);
-            }
-            src_l += BLOCK;
-        }
-        // Pointer to a corresponding fiber of the input arrays
-        const T *src1_fiber = src1 + src_l + src_j*k;
-        const T *src2_fiber = src2 + src_l + src_j*k;
-        if(src_l < k)
-        {
-            for(int c = 0; c < BLOCK; ++c)
-            {
-                src1_block[threadIdx.x][c] = src1_fiber[c*k];
-            }
-            for(int c = 0; c < BLOCK; ++c)
-            {
-                src2_block[threadIdx.x][c] = src2_fiber[c*k];
-            }
-        }
-        __syncthreads();
-        for(int c = 0; c < k+threadIdx.x-src_l; ++c)
-        {
-            dst_block[threadIdx.x] +=
-                static_cast<Y>(src1_block[c][threadIdx.x]) *
-                static_cast<Y>(src2_block[c][threadIdx.x]);
-        }
-        if(beta == 0.0)
-        {
-            dst_fiber[threadIdx.x] = static_cast<T>(
-                    alpha*dst_block[threadIdx.x]);
-        }
-        else
-        {
-            dst_fiber[threadIdx.x] = static_cast<T>(
-                    beta*static_cast<Y>(dst_fiber[threadIdx.x]) +
-                    alpha*dst_block[threadIdx.x]);
+            Y val1 = static_cast<Y>(src1_fiber[c]);
+            Y val2 = static_cast<Y>(src2_fiber[c]);
+            dst_val += val1 * val2;
         }
     }
-    else
+    // Pointer to a corresponding fiber of the input arrays
+    Index src_l = threadIdx.x + src_l_block_end;
+    const T *src1_fiber = src1 + blockIdx.x*k;
+    const T *src2_fiber = src2 + blockIdx.x*k;
+    for(Index c = src_l; c < k; c += BLOCK_ROW_STEP)
     {
-        while(src_l-threadIdx.x+BLOCK < k)
+        Y val1 = static_cast<Y>(src1_fiber[c]);
+        Y val2 = static_cast<Y>(src2_fiber[c]);
+        dst_val += val1 * val2;
+    }
+    // Put calculated value into shared memory
+    dst_block[threadIdx.x] = alpha * dst_val;
+    __syncthreads();
+    for(int c = BLOCK_ROW_STEP>>1; c > 0; c >>= 1)
+    {
+        if(threadIdx.x < c)
         {
-            // Pointer to a corresponding fiber of the input arrays
-            const T *src1_fiber = src1 + src_l + src_j*k;
-            const T *src2_fiber = src2 + src_l + src_j*k;
-            for(int c = 0; c < n-src_j; ++c)
-            {
-                src1_block[threadIdx.x][c] = src1_fiber[c*k];
-            }
-            for(int c = 0; c < n-src_j; ++c)
-            {
-                src2_block[threadIdx.x][c] = src2_fiber[c*k];
-            }
-            __syncthreads();
-            if(threadIdx.x < n-src_j)
-            {
-                for(int c = 0; c < BLOCK; ++c)
-                {
-                    static_cast<Y>(src1_block[c][threadIdx.x]) *
-                    static_cast<Y>(src2_block[c][threadIdx.x]);
-                }
-            }
-            src_l += BLOCK;
-        }
-        // Pointer to a corresponding fiber of the input arrays
-        const T *src1_fiber = src1 + src_l + src_j*k;
-        const T *src2_fiber = src2 + src_l + src_j*k;
-        if(src_l < k)
-        {
-            for(int c = 0; c < n-src_j; ++c)
-            {
-                src1_block[threadIdx.x][c] = src1_fiber[c*k];
-            }
-            for(int c = 0; c < n-src_j; ++c)
-            {
-                src2_block[threadIdx.x][c] = src2_fiber[c*k];
-            }
+            dst_block[threadIdx.x] += dst_block[threadIdx.x+c];
         }
         __syncthreads();
-        if(threadIdx.x < n-src_j)
-        {
-            for(int c = 0; c < k+threadIdx.x-src_l; ++c)
-            {
-                dst_block[threadIdx.x] +=
-                    static_cast<Y>(src1_block[c][threadIdx.x]) *
-                    static_cast<Y>(src2_block[c][threadIdx.x]);
-            }
-        }
+    }
+    // Write output
+    if(threadIdx.x == 0)
+    {
         if(beta == 0.0)
         {
-            if(threadIdx.x < n-src_j)
-            {
-                dst_fiber[threadIdx.x] = static_cast<T>(
-                        alpha*dst_block[threadIdx.x]);
-            }
+            dst[blockIdx.x] = static_cast<T>(dst_block[0]);
         }
         else
         {
-            if(threadIdx.x < n-src_j)
-            {
-                dst_fiber[threadIdx.x] = static_cast<T>(
-                        beta*static_cast<Y>(dst_fiber[threadIdx.x]) +
-                        alpha*dst_block[threadIdx.x]);
-            }
+            dst[blockIdx.x] = static_cast<T>(
+                    beta*static_cast<Y>(dst[blockIdx.x]) +
+                    dst_block[0]);
         }
     }
 }
@@ -272,10 +191,9 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
     // Separate case for m==1
     if(m == 1)
     {
-        dim3 threads(64);
-        dim3 blocks((n+63)/64);
-        //printf("n=%ld\n", n);
-        (cuda_kernel_m1<T, 64>)<<<blocks, threads, 0, stream>>>(n, k,
+        dim3 threads(256);
+        dim3 blocks(n);
+        (cuda_kernel_m1<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(n, k,
                 alpha, src1, src2, beta, dst);
     }
     else
@@ -284,7 +202,6 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y, 1);
         (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha,
                 src1, src2, beta, dst);
-        printf("m=%ld,n=%ld,k=%ld,alpha=%f,beta=%f\n", m, n, k, alpha, beta);
     }
 }
 
@@ -295,8 +212,9 @@ void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
     noexcept;
 
 template
-void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
-        const fp32_fast_tf32_t *src1, const fp32_fast_tf32_t *src2, Scalar beta, fp32_fast_tf32_t *sum_dst)
+void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index m, Index n, Index k,
+        Scalar alpha, const fp32_fast_tf32_t *src1,
+        const fp32_fast_tf32_t *src2, Scalar beta, fp32_fast_tf32_t *sum_dst)
     noexcept;
 
 template

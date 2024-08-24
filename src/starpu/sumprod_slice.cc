@@ -177,7 +177,11 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Handle src2,
     args->k = k;
     args->alpha = alpha;
     args->beta = beta;
-    double nflops = m * n * (2*k+3);
+    // Put amount of bytes read and write inplace of gflops
+    size_t src1_nbytes = sizeof(T) * m * k * n;
+    size_t dst_nbytes = sizeof(T) * m * n;
+    double nflops = beta == 0.0 ? 2*src1_nbytes + dst_nbytes :
+        2 * (src1_nbytes+dst_nbytes);
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src1),
