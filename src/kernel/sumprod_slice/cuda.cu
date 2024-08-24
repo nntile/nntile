@@ -21,8 +21,25 @@ namespace nntile::kernel::sumprod_slice
 
 template<typename T>
 static __global__
-void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_, const T *src1,
-        const T *src2, Scalar beta_, T *dst)
+void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_,
+        const T *src1, const T *src2, Scalar beta_, T *dst)
+//! Sums over fibers into a slice of a product of two tensors
+/*! For two provided m-by-k-by-n input arrays src1 and src2 compute sums of
+ * per-element product of corresponding fibers along second axis with k
+ * elements, resulting in m-by-n output array dst.
+ * Mnemonically, the following operations are performed:
+ *      dst[i,j] = beta*dst[i,j] + alpha*sum_l(src1[i,l,j] * src2[i,l,j])
+ *
+ * @param[in] m: Size of the first mode of src1, src2 and dst
+ * @param[in] n: Size of the last mode of src1, src2 and dst
+ * @param[in] k: Size of the middle mode of src1 and src2 arrays
+ * @param[in] alpha: Scaling factor for src1*src2
+ * @param[in] src1: Input contiguous m-by-k-by-n array
+ * @param[in] src2: Input contiguous m-by-k-by-n array
+ * @param[in] beta: Scaling factor for dst
+ * @param[inout] dst: Output contiguous m-by-n array, that accumulates
+ *      sums along middle axis of per-element products of src1 and src2.
+ * */
 {
     Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
           i1 = threadIdx.y + blockIdx.y*blockDim.y;
@@ -70,6 +87,84 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_, const T *sr
     }
 }
 
+template<typename T, int BLOCK_ROW, int LOOP>
+static __global__
+void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
+        const T *src2, Scalar beta_, T *dst)
+//! Sums over fibers into a slice of a product of two tensors
+/*! For two provided 1-by-k-by-n input arrays src1 and src2 compute sums of
+ * per-element product of corresponding fibers along second axis with k
+ * elements, resulting in 1-by-n output array dst.
+ * Mnemonically, the following operations are performed:
+ *      dst[0,j] = beta*dst[0,j] + alpha*sum_l(src1[0,l,j] * src2[0,l,j])
+ *
+ * @param[in] n: Size of the last mode of src1, src2 and dst
+ * @param[in] k: Size of the middle mode of src1 and src2 arrays
+ * @param[in] alpha: Scaling factor for src1*src2
+ * @param[in] src1: Input contiguous m-by-k-by-n array
+ * @param[in] src2: Input contiguous m-by-k-by-n array
+ * @param[in] beta: Scaling factor for dst
+ * @param[inout] dst: Output contiguous m-by-n array, that accumulates
+ *      sums along middle axis of per-element products of src1 and src2.
+ * */
+{
+    Index src_l_block_end = (k/BLOCK_ROW) * BLOCK_ROW;
+    using Y = typename T::repr_t;
+    const Y alpha{alpha_};
+    const Y beta{beta_};
+    constexpr int BLOCK_ROW_STEP = BLOCK_ROW / LOOP;
+    __shared__ Y dst_block[BLOCK_ROW_STEP];
+    Y dst_val = 0.0;
+    // Pointer to a corresponding fiber of the input arrays
+    for(Index src_l = threadIdx.x; src_l < src_l_block_end;
+            src_l += BLOCK_ROW)
+    {
+        const T *src1_fiber = src1 + src_l + blockIdx.x*k;
+        const T *src2_fiber = src2 + src_l + blockIdx.x*k;
+        for(int c = 0; c < BLOCK_ROW; c += BLOCK_ROW_STEP)
+        {
+            Y val1 = static_cast<Y>(src1_fiber[c]);
+            Y val2 = static_cast<Y>(src2_fiber[c]);
+            dst_val += val1 * val2;
+        }
+    }
+    // Pointer to a corresponding fiber of the input arrays
+    Index src_l = threadIdx.x + src_l_block_end;
+    const T *src1_fiber = src1 + blockIdx.x*k;
+    const T *src2_fiber = src2 + blockIdx.x*k;
+    for(Index c = src_l; c < k; c += BLOCK_ROW_STEP)
+    {
+        Y val1 = static_cast<Y>(src1_fiber[c]);
+        Y val2 = static_cast<Y>(src2_fiber[c]);
+        dst_val += val1 * val2;
+    }
+    // Put calculated value into shared memory
+    dst_block[threadIdx.x] = alpha * dst_val;
+    __syncthreads();
+    for(int c = BLOCK_ROW_STEP>>1; c > 0; c >>= 1)
+    {
+        if(threadIdx.x < c)
+        {
+            dst_block[threadIdx.x] += dst_block[threadIdx.x+c];
+        }
+        __syncthreads();
+    }
+    // Write output
+    if(threadIdx.x == 0)
+    {
+        if(beta == 0.0)
+        {
+            dst[blockIdx.x] = static_cast<T>(dst_block[0]);
+        }
+        else
+        {
+            dst[blockIdx.x] = static_cast<T>(
+                    beta*static_cast<Y>(dst[blockIdx.x]) +
+                    dst_block[0]);
+        }
+    }
+}
+
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const T *src1, const T *src2, Scalar beta, T *dst)
@@ -93,10 +188,21 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 threads(std::min(int(m), 8), std::min(int(n), 8), 16);
-    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y, 1);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha,
-            src1, src2, beta, dst);
+    // Separate case for m==1
+    if(m == 1)
+    {
+        dim3 threads(256);
+        dim3 blocks(n);
+        (cuda_kernel_m1<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(n, k,
+                alpha, src1, src2, beta, dst);
+    }
+    else
+    {
+        dim3 threads(std::min(int(m), 8), std::min(int(n), 8), 16);
+        dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y, 1);
+        (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha,
+                src1, src2, beta, dst);
+    }
 }
 
 // Explicit instantiation
@@ -106,8 +212,9 @@ void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
     noexcept;
 
 template
-void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
-        const fp32_fast_tf32_t *src1, const fp32_fast_tf32_t *src2, Scalar beta, fp32_fast_tf32_t *sum_dst)
+void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index m, Index n, Index k,
+        Scalar alpha, const fp32_fast_tf32_t *src1,
+        const fp32_fast_tf32_t *src2, Scalar beta, fp32_fast_tf32_t *sum_dst)
     noexcept;
 
 template
