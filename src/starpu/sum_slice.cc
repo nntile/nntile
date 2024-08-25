@@ -176,7 +176,11 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
     args->k = k;
     args->alpha = alpha;
     args->beta = beta;
-    double nflops = m * n * (k+2);
+    // Put amount of bytes read and write inplace of gflops
+    size_t src_nbytes = sizeof(T) * m * k * n;
+    size_t dst_nbytes = sizeof(T) * m * n;
+    double nflops = beta == 0.0 ? src_nbytes + dst_nbytes :
+        src_nbytes + 2*dst_nbytes;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
@@ -201,8 +205,8 @@ void submit<bf16_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
         Scalar beta, Handle dst, int redux);
 
 template
-void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
-        Scalar beta, Handle dst, int redux);
+void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha,
+        Handle src, Scalar beta, Handle dst, int redux);
 
 template
 void submit<fp64_t>(Index m, Index n, Index k, Scalar alpha, Handle src,

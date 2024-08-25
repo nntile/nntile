@@ -113,7 +113,7 @@ void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
     const Y alpha{alpha_};
     const Y beta{beta_};
     constexpr int BLOCK_ROW_STEP = BLOCK_ROW / LOOP;
-    __shared__ Y dst_block[BLOCK_ROW_STEP];
+    volatile __shared__ Y dst_block[BLOCK_ROW_STEP];
     Y dst_val = 0.0;
     // Pointer to a corresponding fiber of the input arrays
     for(Index src_l = threadIdx.x; src_l < src_l_block_end;
@@ -141,7 +141,8 @@ void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
     // Put calculated value into shared memory
     dst_block[threadIdx.x] = alpha * dst_val;
     __syncthreads();
-    for(int c = BLOCK_ROW_STEP>>1; c > 0; c >>= 1)
+    // Inter-warp reduction
+    for(int c = BLOCK_ROW_STEP>>1; c > 32; c >>= 1)
     {
         if(threadIdx.x < c)
         {
@@ -149,18 +150,25 @@ void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src1,
         }
         __syncthreads();
     }
+    // Reduction within a single warp
+    if(threadIdx.x < 32)
+    {
+        for(int c = 32; c > 0; c >>= 1)
+        {
+            dst_block[threadIdx.x] += dst_block[threadIdx.x+c];
+        }
+    }
     // Write output
     if(threadIdx.x == 0)
     {
         if(beta == 0.0)
         {
-            dst[blockIdx.x] = static_cast<T>(dst_block[0]);
+            dst[blockIdx.x] = static_cast<T>(static_cast<Y>(dst_block[0]));
         }
         else
         {
-            dst[blockIdx.x] = static_cast<T>(
-                    beta*static_cast<Y>(dst[blockIdx.x]) +
-                    dst_block[0]);
+            dst_val = beta * static_cast<Y>(dst[blockIdx.x]);
+            dst[blockIdx.x] = static_cast<T>(dst_val + dst_block[0]);
         }
     }
 }
