@@ -173,11 +173,15 @@ void submit(Index nelems, Scalar alpha, Handle src, Scalar beta, Handle dst)
     args->nelems = nelems;
     args->alpha = alpha;
     args->beta = beta;
+    // Put amount of bytes read and write inplace of gflops
+    double nflops = beta == zero ? sizeof(T)*2*nelems :
+            sizeof(T)*3*nelems;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_CL_ARGS, args, sizeof(*args),
             dst_mode, static_cast<starpu_data_handle_t>(dst),
+            STARPU_FLOPS, nflops,
             0);
     // Check submission
     if(ret != 0)
@@ -196,8 +200,8 @@ void submit<bf16_t>(Index nelems, Scalar alpha, Handle src, Scalar beta,
         Handle dst);
 
 template
-void submit<fp32_fast_tf32_t>(Index nelems, Scalar alpha, Handle src, Scalar beta,
-        Handle dst);
+void submit<fp32_fast_tf32_t>(Index nelems, Scalar alpha, Handle src,
+        Scalar beta, Handle dst);
 
 template
 void submit<fp64_t>(Index nelems, Scalar alpha, Handle src, Scalar beta,

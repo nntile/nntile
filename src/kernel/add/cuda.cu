@@ -20,7 +20,8 @@ namespace nntile::kernel::add
 
 template<typename T, int BLOCK, int LOOP>
 static __global__
-void cuda_kernel(Index nelems, Scalar alpha_, const T *src, Scalar beta_, T *dst)
+void cuda_kernel(Index nelems, Scalar alpha_, const T * __restrict__ src,
+        Scalar beta_, T * __restrict__ dst)
 //! Add two buffers on CUDA
 /*! Performs the following operation:
  *      dst[i] = alpha*src[i] + beta*dst[i],
@@ -35,47 +36,30 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T *src, Scalar beta_, T *dst
 {
     int i = threadIdx.x + blockIdx.x*BLOCK;
     using Y = typename T::repr_t;
-    __shared__ T src1_block[BLOCK];
-    __shared__ T src2_block[BLOCK];
+    Y dst_block[LOOP];
+    Y src_block[LOOP];
     Y alpha = Y{alpha_};
     Y beta = Y{beta_};
     constexpr int BLOCK_STEP = BLOCK / LOOP;
     if((blockIdx.x+1)*BLOCK <= nelems)
     {
-        for(int j = 0; j < BLOCK; j += BLOCK_STEP)
+        for(int j = 0; j < LOOP; ++j)
         {
-            src1_block[threadIdx.x+j] = src[i+j];
-        }
-        __syncthreads();
-        for(int j = 0; j < BLOCK; j += BLOCK_STEP)
-        {
-            src2_block[threadIdx.x+j] = dst[i+j];
-        }
-        __syncthreads();
-        for(int j = 0; j < BLOCK; j += BLOCK_STEP)
-        {
-            dst[i+j] = static_cast<T>(
-                    alpha*static_cast<Y>(src1_block[threadIdx.x+j]) +
-                    beta*static_cast<Y>(src2_block[threadIdx.x+j]));
+            dst_block[j] = static_cast<Y>(dst[i+j*BLOCK_STEP]);
+            src_block[j] = static_cast<Y>(src[i+j*BLOCK_STEP]);
+            dst_block[j] = alpha*src_block[j] + beta*dst_block[j];
+            dst[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
         }
     }
     else
     {
-        for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
+        int j_max = (nelems-i+BLOCK_STEP) / BLOCK_STEP;
+        for(int j = 0; j < j_max; ++j)
         {
-            src1_block[threadIdx.x+j] = src[i+j];
-        }
-        __syncthreads();
-        for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
-        {
-            src2_block[threadIdx.x+j] = dst[i+j];
-        }
-        __syncthreads();
-        for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
-        {
-            dst[i+j] = static_cast<T>(
-                    alpha*static_cast<Y>(src1_block[threadIdx.x+j]) +
-                    beta*static_cast<Y>(src2_block[threadIdx.x+j]));
+            dst_block[j] = static_cast<Y>(dst[i+j*BLOCK_STEP]);
+            Y val1 = static_cast<Y>(src[i+j*BLOCK_STEP]);
+            dst_block[j] = alpha*val1 + beta*dst_block[j];
+            dst[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
         }
     }
 }
@@ -96,9 +80,9 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha_, const T *src_,
  * @param[inout] dst_: Destination of the add operation
  * */
 {
-    dim3 threads(128);
+    dim3 threads(256);
     dim3 blocks((nelems+1023)/1024);
-    (cuda_kernel<T, 1024, 8>)<<<blocks, threads, 0, stream>>>(nelems, alpha_,
+    (cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(nelems, alpha_,
             src_, beta_, dst_);
 }
 
