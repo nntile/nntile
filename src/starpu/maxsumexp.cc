@@ -162,12 +162,14 @@ void submit(Index m, Index n, Index k, Handle src, Handle dst, int redux)
     {
         dst_mode = Config::STARPU_RW_COMMUTE;
     }
+    // Put amount of bytes read and write inplace of gflops
+    double nflops = sizeof(T) * m * (k+2) * n;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_CL_ARGS, args, sizeof(*args),
             dst_mode, static_cast<starpu_data_handle_t>(dst),
-            //STARPU_FLOPS, nflops,
+            STARPU_FLOPS, nflops,
             0);
     // Check submission
     if(ret != 0)
@@ -182,8 +184,8 @@ void submit<fp32_t>(Index m, Index n, Index k, Handle src, Handle dst,
         int redux);
 
 template
-void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Handle src, Handle dst,
-        int redux);
+void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Handle src,
+        Handle dst, int redux);
 
 template
 void submit<fp64_t>(Index m, Index n, Index k, Handle src, Handle dst,

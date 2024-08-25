@@ -21,8 +21,8 @@ namespace nntile::kernel::add_slice
 
 template<typename T>
 static __global__
-void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_, const T *src,
-        Scalar beta_, T *dst)
+void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_,
+        const T *src, Scalar beta_, T *dst)
 //! Per-element addition of a tensor and a broadcasted slice on CUDA
 /*! This is a global function that does the following operations:
  *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[i,j]
