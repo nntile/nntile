@@ -138,7 +138,8 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, Handle maxsumexp, Scalar alpha, Handle dst)
+void submit(Index m, Index n, Index k, Handle maxsumexp, Scalar alpha,
+        Handle dst)
 //! Insert softmax_inplace task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -151,12 +152,14 @@ void submit(Index m, Index n, Index k, Handle maxsumexp, Scalar alpha, Handle ds
     args->n = n;
     args->k = k;
     args->alpha = alpha;
+    // Put amount of bytes read and write inplace of gflops
+    double nflops = sizeof(T) * m * (2*k+1) * n;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(maxsumexp),
             STARPU_RW, static_cast<starpu_data_handle_t>(dst),
             STARPU_CL_ARGS, args, sizeof(*args),
-            //STARPU_FLOPS, nflops,
+            STARPU_FLOPS, nflops,
             0);
     // Check submission
     if(ret != 0)
