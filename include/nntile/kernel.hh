@@ -75,6 +75,8 @@
 #include <nntile/kernel/rope.hh>
 #include <nntile/kernel/rope_backward.hh>
 #include <nntile/kernel/norm_fiber_inplace.hh>
+#include <nntile/kernel/norm_fiber.hh>
+
 
 //! @namespace nntile::kernel
 /*! This namespace holds low-level routines for codelets
