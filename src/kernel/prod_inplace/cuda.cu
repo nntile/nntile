@@ -70,7 +70,8 @@ void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
 {
     dim3 threads(256);
     dim3 blocks((nelems+1023)/1024);
-    (cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
+    (cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(nelems, src,
+            dst);
 }
 
 // Explicit instantiation
