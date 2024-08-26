@@ -80,7 +80,7 @@ public:
         starpu::VariableHandle(ptr, _get_size(ptr_nelems), STARPU_RW)
     {
     }
-    TileLocalData<T> acquire(starpu_data_access_mode mode)
+    TileLocalData<T> acquire(starpu_data_access_mode mode, bool is_blocking = true)
         const;
 };
 
@@ -91,8 +91,8 @@ template<typename T>
 class TileLocalData: public starpu::HandleLocalData
 {
 public:
-    TileLocalData(const Tile<T> &tile, starpu_data_access_mode mode):
-        starpu::HandleLocalData(tile, mode)
+    TileLocalData(const Tile<T> &tile, starpu_data_access_mode mode, bool is_blocking = true):
+        starpu::HandleLocalData(tile, mode, is_blocking)
     {
     }
     const T &operator[](Index i)
@@ -112,10 +112,10 @@ public:
 
 //! Acquire tile locally in CPU RAM
 template<typename T>
-TileLocalData<T> Tile<T>::acquire(starpu_data_access_mode mode)
+TileLocalData<T> Tile<T>::acquire(starpu_data_access_mode mode, bool is_blocking)
     const
 {
-    return TileLocalData<T>(*this, mode);
+    return TileLocalData<T>(*this, mode, is_blocking);
 }
 
 } // namespace nntile::tile
