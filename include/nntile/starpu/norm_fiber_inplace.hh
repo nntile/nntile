@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/norm_fiber.hh
+ * @file include/nntile/starpu/norm_fiber_inplace.hh
  * Euclidean norms over slices into a fiber of a product of a StarPU buffer
  *
  * @version 1.1.0
@@ -17,7 +17,7 @@
 #include <nntile/base_types.hh>
 #include <nntile/starpu/config.hh>
 
-namespace nntile::starpu::norm_fiber
+namespace nntile::starpu::norm_fiber_inplace
 {
 
 //! Structure for arguments
@@ -31,7 +31,7 @@ struct args_t
     Scalar beta;
 };
 
-// StarPU wrapper for kernel::norm_fiber::cpu<T>
+// StarPU wrapper for kernel::norm_fiber_inplace::cpu<T>
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
@@ -79,4 +79,4 @@ template<typename T>
 void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src,
         Scalar beta, Handle dst, int redux=0);
 
-} // namespace nntile::starpu::norm_fiber
+} // namespace nntile::starpu::norm_fiber_inplace

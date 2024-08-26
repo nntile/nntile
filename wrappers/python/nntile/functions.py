@@ -337,7 +337,7 @@ def sum_fiber_async(
         raise TypeError
 
 
-def norm_fiber_async(
+def norm_fiber_inplace_async(
     alpha: float,
     x: Tensor,
     beta: float,
@@ -352,19 +352,19 @@ def norm_fiber_async(
     if type(x) is not type(norm_fiber):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.norm_fiber_async_fp32(
+        core_tensor.norm_fiber_inplace_async_fp32(
             alpha, x, beta, norm_fiber, axis, batch_ndim, redux
         )
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.norm_fiber_async_fp32_fast_tf32(
+        core_tensor.norm_fiber_inplace_async_fp32_fast_tf32(
             alpha, x, beta, norm_fiber, axis, batch_ndim, redux
         )
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.norm_fiber_async_fp64(
+        core_tensor.norm_fiber_inplace_async_fp64(
             alpha, x, beta, norm_fiber, axis, batch_ndim, redux
         )
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.norm_fiber_async_bf16(
+        core_tensor.norm_fiber_inplace_async_bf16(
             alpha, x, beta, norm_fiber, axis, batch_ndim, redux
         )
     else:
