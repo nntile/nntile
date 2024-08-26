@@ -20,7 +20,8 @@ namespace nntile::kernel::mask_scalar
 
 template<typename T>
 static __global__
-void cuda_kernel(Index nrows, Index ncols, const bool *mask, Scalar val_, T *data)
+void cuda_kernel(Index nrows, Index ncols, const bool *mask, Scalar val_,
+        T *data)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x,
         j = threadIdx.y + blockIdx.y*blockDim.y;
@@ -31,6 +32,40 @@ void cuda_kernel(Index nrows, Index ncols, const bool *mask, Scalar val_, T *dat
         if(!mask[i])
         {
             data[j*nrows+i] = T{val};
+        }
+    }
+}
+
+template<typename T, int BLOCK_ROW, int BLOCK_COL, int LOOP>
+static __global__
+void cuda_kernel2(Index nrows, Index ncols, const bool *mask, Scalar val_,
+        T *data)
+{
+    Index griddim_row = (nrows+BLOCK_ROW-1) / BLOCK_ROW;
+    Index block_i = blockIdx.x % griddim_row;
+    Index block_j = blockIdx.x / griddim_row;
+    Index i = threadIdx.x % BLOCK_ROW;
+    Index j = threadIdx.x / BLOCK_ROW;
+    Index global_i = block_i*BLOCK_ROW + i;
+    using Y = typename T::repr_t;
+    const T val = static_cast<T>(static_cast<Y>(val_));
+    __shared__ bool mask_block[BLOCK_ROW];
+    constexpr int BLOCK_COL_STEP = BLOCK_COL / LOOP;
+    if(threadIdx.x < BLOCK_ROW and global_i < nrows)
+    {
+        mask_block[threadIdx.x] = mask[global_i];
+    }
+    __syncthreads();
+    if(global_i < nrows)
+    {
+        if(!mask[global_i])
+        {
+            for(Index global_j = block_j*BLOCK_COL+j;
+                    global_j < ::min((block_j+1)*BLOCK_COL, ncols);
+                    global_j += BLOCK_COL_STEP)
+            {
+                data[global_j*nrows+global_i] = val;
+            }
         }
     }
 }
@@ -50,11 +85,12 @@ void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask_,
  * @params[inout] data: nrows by ncols matrix, whose elements are updated
  * */
 {
-    dim3 blocks((nrows+255)/256, ncols), threads(256, 1);
+    dim3 threads(256);
+    dim3 blocks(((nrows+127)/128) * ((ncols+63)/64));
     using B = typename CUDAComputeType<bool_t>::value;
     auto mask = reinterpret_cast<const B *>(mask_);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nrows, ncols, mask,
-            val, data);
+    (cuda_kernel2<T, 128, 64, 32>)<<<blocks, threads, 0, stream>>>(nrows, ncols,
+            mask, val, data);
 }
 
 // Explicit instantiation
