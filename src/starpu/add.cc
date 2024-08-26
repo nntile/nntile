@@ -187,8 +187,8 @@ void submit(Index nelems, Scalar alpha, Handle src1, Handle src2, Scalar beta, H
             STARPU_R, static_cast<starpu_data_handle_t>(src1),
             STARPU_R, static_cast<starpu_data_handle_t>(src2),
             STARPU_CL_ARGS, args, sizeof(*args),
-            dst_mode, static_cast<starpu_data_handle_t>(dst), 0);
-            // STARPU_FLOPS, nflops);
+            dst_mode, static_cast<starpu_data_handle_t>(dst),
+            0);
     // Check submission
     if(ret != 0)
     {

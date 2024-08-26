@@ -22,6 +22,7 @@
 #include "nntile/tensor/add.hh"
 #include "nntile/tile/add.hh"
 #include "nntile/starpu/add.hh"
+#include "nntile/starpu/scal.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
@@ -69,28 +70,9 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile, 
     // Define proper shape and basetile for the source tensor
     //std::vector<Index> src_shape(dst_traits.ndim-1), src_basetile(dst_traits.ndim-1);
 
-    std::vector<Index> src1_shape(dst_traits.ndim-1), src1_basetile(dst_traits.ndim-1);
-    std::vector<Index> src2_shape(dst_traits.ndim-1), src2_basetile(dst_traits.ndim-1);
+    std::vector<Index> src1_shape(shape), src1_basetile(basetile);
+    std::vector<Index> src2_shape(shape), src2_basetile(basetile);
 
-    for(Index i = 0; i < axis; ++i)
-    {
-        //src_shape[i] = shape[i];
-        //src_basetile[i] = basetile[i];
-        src1_shape[i] = shape[i];
-        src1_basetile[i] = basetile[i];
-        src2_shape[i] = shape[i];
-        src2_basetile[i] = basetile[i];
-    }
-    for(Index i = axis+1; i < dst_traits.ndim; ++i)
-    {
-        //src_shape[i-1] = shape[i];
-        //src_basetile[i-1] = basetile[i];
-
-        src1_shape[i-1] = shape[i];
-        src1_basetile[i-1] = basetile[i];
-        src2_shape[i-1] = shape[i];
-        src2_basetile[i-1] = basetile[i];
-    }
     // Generate single-tile source tensor and init it
     //TensorTraits src_single_traits(src_shape, src_shape);
     //Tensor<T> src_single(src_single_traits, dist_root, last_tag);
@@ -114,14 +96,13 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile, 
         }
         tile_local.release();
 
-        //заполнить для src2
         auto tile2 = src2_single.get_tile(0);
         auto tile2_local = tile2.acquire(STARPU_W);
         for(Index i = 0; i < src2_single.nelems; ++i)
         {
-            tile_local[i] = Y(-i);
+            tile2_local[i] = Y(-i);
         }
-        tile_local.release();
+        tile2_local.release();
     }
 
     // Scatter source tensor
@@ -153,8 +134,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile, 
     if(mpi_rank == mpi_root)
     {
         //tile::add_slice<T>(-1.0, src_single.get_tile(0), 0.5, dst_single.get_tile(0), axis);
-        tile::add<T>(-1.0, src1_single.get_tile(0), 0.5, dst_single.get_tile(0));
-        tile::add<T>(-1.0, src2_single.get_tile(0), 0.5, dst_single.get_tile(0));
+        tile::add<T>(-1.0, src1_single.get_tile(0), src2_single.get_tile(0),  0.5, dst_single.get_tile(0));
     }
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
@@ -203,13 +183,13 @@ void validate()
     TEST_THROW(add_slice<T>(1.0, C, 0.0, A, 0));
     TEST_THROW(add_slice<T>(1.0, C, 0.0, A, 1));*/
 
-    TEST_THROW(add<T>(1.0, A, A, 0.0, A));
-    TEST_THROW(add<T>(1.0, B, B, 0.0, A));
-    TEST_THROW(add<T>(1.0, B, B, 0.0, A));
-    TEST_THROW(add<T>(1.0, B, B, 0.0, A));
-    TEST_THROW(add<T>(1.0, B, B, 0.0, A));
-    TEST_THROW(add<T>(1.0, C, C, 0.0, A));
-    TEST_THROW(add<T>(1.0, C, C, 0.0, A));
+    TEST_THROW(add<T>(1.0, A, B, 0.0, C));
+    TEST_THROW(add<T>(1.0, A, C, 0.0, B));
+    TEST_THROW(add<T>(1.0, B, C, 0.0, A));
+    TEST_THROW(add<T>(1.0, B, A, 0.0, C));
+    TEST_THROW(add<T>(1.0, C, B, 0.0, A));
+    TEST_THROW(add<T>(1.0, C, A, 0.0, B));
+    TEST_THROW(add<T>(1.0, A, A, 0.0, B));
 
           //add_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &src2, Scalar beta, const Tensor<T> &dst)
     //add_slice_async(Scalar alpha, const Tensor<T> &src,                         Scalar beta, const Tensor<T> &dst, Index axis)
@@ -220,7 +200,7 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    //starpu::add_slice::init();
+    starpu::scal::init();
     starpu::add::init();
     starpu::subcopy::init();
     starpu::copy::init();

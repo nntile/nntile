@@ -21,6 +21,7 @@ namespace nntile::tensor
 //! Tensor-wise add operation
 template<typename T>
 void add_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst)
+//void add_inplace_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &src2, Scalar beta, const Tensor<T> &dst)
 {
     // Check dimensions
     if(dst.ndim != src.ndim)
@@ -79,36 +80,28 @@ void add_inplace(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T
 
 // Explicit instantiation of template
 template
-void add_inplace_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
-        const Tensor<fp32_t> &dst);
+void add_inplace_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta, const Tensor<fp32_t> &dst);
 
 template
-void add_inplace_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
-        const Tensor<bf16_t> &dst);
+void add_inplace_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta, const Tensor<bf16_t> &dst);
 
 template
-void add_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
-        const Tensor<fp32_fast_tf32_t> &dst);
+void add_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta, const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void add_inplace_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
-        const Tensor<fp64_t> &dst);
+void add_inplace_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta, const Tensor<fp64_t> &dst);
 
 // Explicit instantiation of template
 template
-void add_inplace<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
-        const Tensor<fp32_t> &dst);
+void add_inplace<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta, const Tensor<fp32_t> &dst);
 
 template
-void add_inplace<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
-        const Tensor<bf16_t> &dst);
+void add_inplace<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta, const Tensor<bf16_t> &dst);
 
 template
-void add_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
-        const Tensor<fp32_fast_tf32_t> &dst);
+void add_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta, const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void add_inplace<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
-        const Tensor<fp64_t> &dst);
+void add_inplace<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta, const Tensor<fp64_t> &dst);
 
 } // namespace nntile::tensor
