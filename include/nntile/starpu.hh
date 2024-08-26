@@ -91,7 +91,7 @@
 #include <nntile/starpu/conv2d_bwd_weight_inplace.hh>
 #include <nntile/starpu/rope.hh>
 #include <nntile/starpu/rope_backward.hh>
-#include <nntile/starpu/norm_fiber.hh>
+#include <nntile/starpu/norm_fiber_inplace.hh>
 
 //! @namespace nntile::starpu
 /*! This namespace holds StarPU wrappers
@@ -137,7 +137,7 @@ void init()
     sum_slice::init();
     sum_fiber::init();
     norm_slice::init();
-    norm_fiber::init();
+    norm_fiber_inplace::init();
     pow::init();
     softmax::init();
     softmax_inplace::init();
@@ -216,7 +216,7 @@ void restrict_where(uint32_t where)
     sum_slice::restrict_where(where);
     sum_fiber::restrict_where(where);
     norm_slice::restrict_where(where);
-    norm_fiber::restrict_where(where);
+    norm_fiber_inplace::restrict_where(where);
     pow::restrict_where(where);
     softmax::restrict_where(where);
     softmax_inplace::restrict_where(where);
@@ -295,7 +295,7 @@ void restore_where()
     sum_slice::restore_where();
     sum_fiber::restore_where();
     norm_slice::restore_where();
-    norm_fiber::restore_where();
+    norm_fiber_inplace::restore_where();
     pow::restore_where();
     softmax::restore_where();
     softmax_inplace::restore_where();

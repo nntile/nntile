@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/norm_fiber.cc
+ * @file src/starpu/norm_fiber_inplace.cc
  * Euclidean norms over slices into a fiber of a product of a StarPU buffer
  *
  * @version 1.1.0
@@ -15,13 +15,13 @@
 #ifndef STARPU_SIMGRID
 #include "nntile/kernel/norm_fiber_inplace.hh"
 #endif // STARPU_SIMGRID
-#include "nntile/starpu/norm_fiber.hh"
+#include "nntile/starpu/norm_fiber_inplace.hh"
 #include <cstdlib>
 
-namespace nntile::starpu::norm_fiber
+namespace nntile::starpu::norm_fiber_inplace
 {
 
-//! StarPU wrapper for kernel::norm_fiber::cpu<T>
+//! StarPU wrapper for kernel::norm_fiber_inplace::cpu<T>
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
@@ -40,7 +40,7 @@ void cpu(void *buffers[], void *cl_args)
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::norm_fiber::cuda<T>
+//! StarPU wrapper for kernel::norm_fiber_inplace::cuda<T>
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
@@ -61,7 +61,7 @@ void cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for norm_fiber tasks
+//! Footprint for norm_fiber_inplace tasks
 static
 uint32_t footprint(struct starpu_task *task)
 {
@@ -80,7 +80,7 @@ Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
 
 void init()
 {
-    codelet_fp32.init("nntile_norm_fiber_fp32",
+    codelet_fp32.init("nntile_norm_fiber_inplace_fp32",
             footprint,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -90,7 +90,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_bf16.init("nntile_norm_fiber_bf16",
+    codelet_bf16.init("nntile_norm_fiber_inplace_bf16",
             footprint,
             {cpu<bf16_t>},
 #ifdef NNTILE_USE_CUDA
@@ -100,7 +100,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_fp32_fast_tf32.init("nntile_norm_fiber_fp32_fast_tf32",
+    codelet_fp32_fast_tf32.init("nntile_norm_fiber_inplace_fp32_fast_tf32",
             footprint,
             {cpu<fp32_fast_tf32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -110,7 +110,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_fp64.init("nntile_norm_fiber_fp64",
+    codelet_fp64.init("nntile_norm_fiber_inplace_fp64",
             footprint,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
@@ -140,7 +140,7 @@ void restore_where()
 template<typename T>
 void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src,
         Scalar beta, Handle dst, int redux)
-//! Insert norm_fiber task into StarPU pool of tasks
+//! Insert norm_fiber_inplace task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
@@ -186,7 +186,7 @@ void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src,
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in norm_fiber task submission");
+        throw std::runtime_error("Error in norm_fiber_inplace task submission");
     }
 }
 
@@ -207,4 +207,4 @@ template
 void submit<fp64_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
         Handle src, Scalar beta, Handle dst, int redux);
 
-} // namespace nntile::starpu::norm_fiber
+} // namespace nntile::starpu::norm_fiber_inplace

@@ -16,7 +16,7 @@ import math
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     TensorMoments, add_async, add_fiber_async, copy_async, empty,
-    hypot_scalar_inverse_async, norm_fiber_async, ones, pow_async, prod_async,
+    hypot_scalar_inverse_async, norm_fiber_inplace_async, ones, pow_async, prod_async,
     prod_fiber_async, prod_inplace_async, sum_fiber_async, sumprod_fiber_async)
 
 
@@ -110,7 +110,7 @@ class BatchNorm2d(BaseLayer):
         self.x_unbiased_copy.wont_use()
 
         # inverse std using norm_fiber
-        norm_fiber_async(
+        norm_fiber_inplace_async(
             1.0 / self.numel_in_channel**0.5, self.x_normalized,
                 0.0, self.inv_std, axis=1, batch_ndim=0, redux=self.redux
         )

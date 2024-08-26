@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/norm_fiber.cc
+ * @file tests/kernel/norm_fiber_inplace.cc
  * Euclidean norms over slices into a fiber of a product of buffers
  *
  * @version 1.1.0
@@ -88,7 +88,7 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
     constexpr Y zero{0.0}, one{1.0};
     std::vector<T> dst_copy(dst);
     // Check low-level kernel
-    std::cout << "OK: kernel::norm_fiber::cpu<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::norm_fiber_inplace::cpu<" << T::type_repr << ">\n";
     cpu<T>(m, n, k, batch, alpha, &src[0], beta, &dst[0]);
     Y ref = sqrt(m*n);
     Y val{dst[0]};
@@ -100,12 +100,12 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
     {
         TEST_ASSERT(std::abs(val/ref-Y{1}) <= 10*eps);
     }
-    std::cout << "OK: kernel::norm_fiber::cpu<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::norm_fiber_inplace::cpu<" << T::type_repr << ">\n";
 
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     std::vector<T> dst_cuda(dst_copy);
-    std::cout << "Run kernel::norm_fiber::cuda<" << T::type_repr << ">\n";
+    std::cout << "Run kernel::norm_fiber_inplace::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(m, n, k, batch, alpha, src, beta, dst_cuda);
     Y val_cuda{dst_cuda[0]};
     if(ref == Y{0})
@@ -116,7 +116,7 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
     {
         TEST_ASSERT(std::abs(val/ref-Y{1}) <= 10*eps);
     }
-    std::cout << "OK: kernel::norm_fiber::cuda<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::norm_fiber_inplace::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

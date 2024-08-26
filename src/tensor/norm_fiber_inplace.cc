@@ -6,21 +6,21 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tensor/norm_fiber.cc
+ * @file src/tensor/norm_fiber_inplace.cc
  * Euclidean norms over slices into a fiber of a product of a Tensor<T>
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/norm_fiber.hh"
-#include "nntile/starpu/norm_fiber.hh"
+#include "nntile/tensor/norm_fiber_inplace.hh"
+#include "nntile/starpu/norm_fiber_inplace.hh"
 
 namespace nntile::tensor
 {
 
-//! Tensor-wise norm_fiber
+//! Tensor-wise norm_fiber_inplace
 template<typename T>
-void norm_fiber_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
+void norm_fiber_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
         const Tensor<T> &dst, Index axis, Index batch_ndim, int redux)
 {
     // Check dimensions
@@ -110,12 +110,12 @@ void norm_fiber_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
             // Insert task
             if(init_first)
             {
-                starpu::norm_fiber::submit<T>(m, n, k, batch, alpha,
+                starpu::norm_fiber_inplace::submit<T>(m, n, k, batch, alpha,
                         src_tile_handle, beta, dst_tile_handle);
             }
             else
             {
-                starpu::norm_fiber::submit<T>(m, n, k, batch, alpha,
+                starpu::norm_fiber_inplace::submit<T>(m, n, k, batch, alpha,
                         src_tile_handle, one, dst_tile_handle, redux);
             }
         }
@@ -127,55 +127,55 @@ void norm_fiber_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
     }
 }
 
-//! Tensor-wise norm_fiber
+//! Tensor-wise norm_fiber_inplace
 template<typename T>
-void norm_fiber(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst,
+void norm_fiber_inplace(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst,
         Index axis, Index batch_ndim, int redux)
 {
-    norm_fiber_async<T>(alpha, src, beta, dst, axis, batch_ndim, redux);
+    norm_fiber_inplace_async<T>(alpha, src, beta, dst, axis, batch_ndim, redux);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void norm_fiber_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
+void norm_fiber_inplace_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
         Scalar beta, const Tensor<fp32_t> &dst, Index axis, Index batch_ndim,
         int redux);
 
 template
-void norm_fiber_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
+void norm_fiber_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
         Scalar beta, const Tensor<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim,
         int redux);
 
 template
-void norm_fiber_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
+void norm_fiber_inplace_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         Scalar beta, const Tensor<fp64_t> &dst, Index axis, Index batch_ndim,
         int redux);
 
 template
-void norm_fiber_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
+void norm_fiber_inplace_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
         const Tensor<bf16_t> &dst, Index axis, Index batch_ndim,
         int redux);
 
 // Explicit instantiation
 template
-void norm_fiber<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
+void norm_fiber_inplace<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
         const Tensor<fp32_t> &dst, Index axis, Index batch_ndim,
         int redux);
 
 template
-void norm_fiber<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
+void norm_fiber_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
         const Tensor<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim,
         int redux);
 
 template
-void norm_fiber<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
+void norm_fiber_inplace<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
         const Tensor<fp64_t> &dst, Index axis, Index batch_ndim,
         int redux);
 
 template
-void norm_fiber<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
+void norm_fiber_inplace<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
         const Tensor<bf16_t> &dst, Index axis, Index batch_ndim,
         int redux);
 

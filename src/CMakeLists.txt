@@ -225,7 +225,7 @@ set(STARPU_SRC
     "starpu/conv2d_bwd_weight_inplace.cc"
     "starpu/rope.cc"
     "starpu/rope_backward.cc"
-    "starpu/norm_fiber.cc"
+    "starpu/norm_fiber_inplace.cc"
     )
 
 set(TILE_SRC
@@ -287,7 +287,7 @@ set(TILE_SRC
     "tile/silu_forward.cc"
     "tile/silu_backward.cc"
     "tile/rope.cc"
-    "tile/norm_fiber.cc"
+    "tile/norm_fiber_inplace.cc"
     )
 
 set(TENSOR_SRC
@@ -364,7 +364,7 @@ set(TENSOR_SRC
     "tensor/conv2d_bwd_weight_inplace.cc"
     "tensor/rope.cc"
     "tensor/rope_backward.cc"
-    "tensor/norm_fiber.cc"
+    "tensor/norm_fiber_inplace.cc"
     )
 
 set(LAYER_SRC
