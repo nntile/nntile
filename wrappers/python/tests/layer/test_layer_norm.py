@@ -32,7 +32,7 @@ dtype2nntile = {
 }
 
 dtype2tol = {
-        'fp32': {'rtol': 3e-5},
+        'fp32': {'rtol': 1e-6},
         'fp32_fast_tf32': {'rtol': 8e-4},
         'bf16': {'rtol': 1.6e-2},
 }
@@ -42,6 +42,7 @@ nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
 
 @dataclass
 class LayerNormTestParams:
+    eps: float
     n_size: int
     n_size_tile: int
     m_size: int
@@ -51,6 +52,7 @@ class LayerNormTestParams:
 
 
 single_tile = LayerNormTestParams(
+    eps=1e-05,
     n_size=10,
     n_size_tile=10,
     m_size=30,
@@ -60,6 +62,7 @@ single_tile = LayerNormTestParams(
 )
 
 multiple_tiles = LayerNormTestParams(
+    eps=100.0,
     n_size=10,
     n_size_tile=5,
     m_size=30,
@@ -71,7 +74,7 @@ multiple_tiles = LayerNormTestParams(
 
 def generate_inputs(dtype: str, params: LayerNormTestParams):
     rng = np.random.default_rng(42)
-    eps = 1e-05
+    eps = params.eps
 
     torch_layer = LayerNorm(params.n_size, eps=eps)
     rand_gamma = rng.standard_normal(params.n_size)
@@ -107,7 +110,7 @@ def generate_inputs(dtype: str, params: LayerNormTestParams):
 
 def generate_inputs_dynamic(dtype: str, params: LayerNormTestParams):
     rng = np.random.default_rng(42)
-    eps = 1e-05
+    eps = params.eps
 
     torch_layer = LayerNorm(params.n_size, eps=eps)
     rand_gamma = rng.standard_normal(params.n_size)

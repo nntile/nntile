@@ -349,7 +349,7 @@ class LayerNorm(BaseLayer):
         next_tag: int, redux: bool = False
     ):
         eps = torch_layer.eps
-        nntile_layer, next_tag = cls.generate_simple(x, 0, eps**2,
+        nntile_layer, next_tag = cls.generate_simple(x, 0, eps,
                                                      next_tag, redux)
         nntile_layer.gamma.value.from_array(
             torch_layer.weight.data.cpu().detach().numpy())
@@ -360,7 +360,7 @@ class LayerNorm(BaseLayer):
     def to_torch(self) -> LayerNormTorch:
         target_shape = self.activations_input[0].value.shape
         torch_layer = LayerNormTorch(target_shape[self.axis],
-                                    self.eps)
+                                    self.eps**2)
         torch_layer.weight.data = torch.tensor(
                                 to_numpy(self.gamma.value),
                                 requires_grad=True)
