@@ -273,7 +273,7 @@ public:
         return handle.get();
     }
     //! Acquire data locally
-    HandleLocalData acquire(starpu_data_access_mode mode, bool is_blocking = true) const;
+    HandleLocalData acquire(starpu_data_access_mode mode) const;
     //! Unregister underlying handle without waiting for destructor
     void unregister()
     {
@@ -381,9 +381,9 @@ public:
 };
 
 inline
-HandleLocalData Handle::acquire(starpu_data_access_mode mode, bool is_blocking) const
+HandleLocalData Handle::acquire(starpu_data_access_mode mode) const
 {
-    return HandleLocalData(*this, mode, is_blocking);
+    return HandleLocalData(*this, mode, true);
 }
 
 //! Wrapper for struct starpu_variable_interface
