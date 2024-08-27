@@ -395,7 +395,7 @@ bool tensor_try_gathered_to_array(const tensor::Tensor<T> &tensor,
     int mpi_rank = starpu_mpi_world_rank();
     auto tile = tensor.get_tile(0);
     if(mpi_rank == tile.mpi_get_rank()) {
-        auto tile_local_future = tile.acquire(STARPU_R, false);
+        auto tile_local_future = tile.acquire_async(STARPU_R);
         if (!tile_local_future.try_acquire(STARPU_R)) {
             return false;
         }
