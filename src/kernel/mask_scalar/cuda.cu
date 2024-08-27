@@ -18,24 +18,6 @@
 namespace nntile::kernel::mask_scalar
 {
 
-template<typename T>
-static __global__
-void cuda_kernel(Index nrows, Index ncols, const bool *mask, Scalar val_,
-        T *data)
-{
-    int i = threadIdx.x + blockIdx.x*blockDim.x,
-        j = threadIdx.y + blockIdx.y*blockDim.y;
-    using Y = typename T::repr_t;
-    const Y val{val_};
-    if(i < nrows and j < ncols)
-    {
-        if(!mask[i])
-        {
-            data[j*nrows+i] = T{val};
-        }
-    }
-}
-
 template<typename T, int BLOCK_ROW, int BLOCK_COL, int LOOP>
 static __global__
 void cuda_kernel2(Index nrows, Index ncols, const bool *mask, Scalar val_,
@@ -86,11 +68,11 @@ void cuda(cudaStream_t stream, Index nrows, Index ncols, const bool_t *mask_,
  * */
 {
     dim3 threads(256);
-    dim3 blocks(((nrows+127)/128) * ((ncols+63)/64));
     using B = typename CUDAComputeType<bool_t>::value;
     auto mask = reinterpret_cast<const B *>(mask_);
-    (cuda_kernel2<T, 128, 64, 32>)<<<blocks, threads, 0, stream>>>(nrows, ncols,
-            mask, val, data);
+    dim3 blocks(((nrows+127)/128) * ((ncols+31)/32));
+    (cuda_kernel2<T, 128, 32, 16>)<<<blocks, threads, 0, stream>>>(nrows,
+            ncols, mask, val, data);
 }
 
 // Explicit instantiation
