@@ -138,6 +138,7 @@ void cuda_kernel_m1(Index n, Index k, const T *src, T *dst)
     using Y = typename T::repr_t;
     constexpr Y one = 1.0;
     constexpr int BLOCK_ROW_STEP = BLOCK_ROW / LOOP;
+    T src_val[LOOP];
     volatile __shared__ Y dst_block_max[BLOCK_ROW_STEP];
     volatile __shared__ Y dst_block_sumexp[BLOCK_ROW_STEP];
     Y dst_max=-INFINITY, dst_sumexp=0.0;
@@ -146,9 +147,13 @@ void cuda_kernel_m1(Index n, Index k, const T *src, T *dst)
             src_l += BLOCK_ROW)
     {
         const T *src_fiber = src + src_l + blockIdx.x*k;
-        for(int c = 0; c < BLOCK_ROW; c += BLOCK_ROW_STEP)
+        for(int c = 0; c < LOOP; ++c)
         {
-            Y val = static_cast<Y>(src_fiber[c]);
+            src_val[c] = src_fiber[c*BLOCK_ROW_STEP];
+        }
+        for(int c = 0; c < LOOP; ++c)
+        {
+            Y val = static_cast<Y>(src_val[c]);
             if(not ::isinf(val))
             {
                 if(dst_max < val)
@@ -165,10 +170,15 @@ void cuda_kernel_m1(Index n, Index k, const T *src, T *dst)
     }
     // Pointer to a corresponding fiber of the input arrays
     Index src_l = threadIdx.x + src_l_block_end;
-    const T *src_fiber = src + blockIdx.x*k;
-    for(Index c = src_l; c < k; c += BLOCK_ROW_STEP)
+    const T *src_fiber = src + src_l + blockIdx.x*k;
+    int c_max = (k-src_l+BLOCK_ROW_STEP-1) / BLOCK_ROW_STEP;
+    for(int c = 0; c < c_max; ++c)
     {
-        Y val = static_cast<Y>(src_fiber[c]);
+        src_val[c] = src_fiber[c*BLOCK_ROW_STEP];
+    }
+    for(int c = 0; c < c_max; ++c)
+    {
+        Y val = static_cast<Y>(src_val[c]);
         if(not ::isinf(val))
         {
             if(dst_max < val)
@@ -271,10 +281,27 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *src,
     // Custom case m==1
     if(m == 1)
     {
-        dim3 threads(256);
-        dim3 blocks(n);
-        (cuda_kernel_m1<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(n, k, src,
-                maxsumexp);
+        if(k <= 1024)
+        {
+            dim3 threads(64);
+            dim3 blocks(n);
+            (cuda_kernel_m1<T, 1024, 16>)<<<blocks, threads, 0, stream>>>(n,
+                    k, src, maxsumexp);
+        }
+        else if(k <= 2048)
+        {
+            dim3 threads(128);
+            dim3 blocks(n);
+            (cuda_kernel_m1<T, 2048, 16>)<<<blocks, threads, 0, stream>>>(n,
+                    k, src, maxsumexp);
+        }
+        else
+        {
+            dim3 threads(256);
+            dim3 blocks(n);
+            (cuda_kernel_m1<T, 4096, 16>)<<<blocks, threads, 0, stream>>>(n,
+                    k, src, maxsumexp);
+        }
     }
     else
     {
