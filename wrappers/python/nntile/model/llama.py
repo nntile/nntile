@@ -63,12 +63,12 @@ class Llama(BaseModel):
 
         super().__init__(activations, layers)
 
-    def forward_dynamic(self, x: TensorMoments):
+    def forward_dynamic(self, x: TensorMoments, use_cache: bool = False):
         x_emb = self.embd_layer.forward_dynamic(x)
 
         dec_out = x_emb
         for dec_layer in self.decoders:
-            dec_out = dec_layer.forward_dynamic(dec_out)
+            dec_out = dec_layer.forward_dynamic(dec_out, use_cache=use_cache)
         normalized_outs = self.final_rmsnorm.forward_dynamic(dec_out)
         return normalized_outs
 

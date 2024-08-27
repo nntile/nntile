@@ -56,12 +56,14 @@ class LlamaDecoder(BaseModel):
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
 
-    def forward_dynamic(self, x: TensorMoments):
+    def forward_dynamic(self, x: TensorMoments, use_cache: bool = False):
         (input_norm, attention_layer, post_attn_add, post_attn_norm) = self.layers[:4]  # noqa: E501
         post_mlp_add = self.layers[-1]
 
         x_normalized = input_norm.forward_dynamic(x)
-        attn_outs = attention_layer.forward_dynamic(x_normalized)
+        attn_outs = attention_layer.forward_dynamic(
+            x_normalized, use_cache=use_cache
+        )
         post_attn_outs = post_attn_add.forward_dynamic(attn_outs, x)
         post_attn_norm_outs = post_attn_norm.forward_dynamic(post_attn_outs)
 
