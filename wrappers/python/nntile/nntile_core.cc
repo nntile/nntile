@@ -384,6 +384,33 @@ void tensor_to_array(const tensor::Tensor<T> &tensor,
     tmp.unregister();
 }
 
+template<typename T>
+bool tensor_try_gathered_to_array(const tensor::Tensor<T> &tensor,
+        py::array_t<typename T::repr_t, py::array::f_style> &array)
+{
+    if(tensor.grid.nelems != 1) {
+        throw std::runtime_error("Assumes tensor is already one-tiled. For low level api need manual gathering");
+    }
+
+    int mpi_rank = starpu_mpi_world_rank();
+    auto tile = tensor.get_tile(0);
+    if(mpi_rank == tile.mpi_get_rank()) {
+        auto tile_local_future = tile.acquire_async(STARPU_R);
+        if (!tile_local_future.try_acquire(STARPU_R)) {
+            return false;
+        }
+        #ifndef STARPU_SIMGRID
+            using Y = typename T::repr_t;
+            constexpr bool triv = T::trivial_copy_from_compat;
+            copy_raw<T, Y, triv>(tile.nelems, tile_local_future.get_ptr(),
+                array.mutable_data());
+        #endif // STARPU_SIMGRID
+        tile_local_future.release();
+    }
+    tile.mpi_flush();
+    return true;
+}
+
 // Extend (sub)module with nntile::tensor::Tensor<T>
 template<typename T>
 void def_class_tensor(py::module_ &m, const char *name)
@@ -400,6 +427,7 @@ void def_class_tensor(py::module_ &m, const char *name)
         def("wont_use", &Tensor<T>::wont_use).
         def("from_array", &tensor_from_array<T>).
         def("to_array", &tensor_to_array<T>).
+        def("try_gathered_to_array", &tensor_try_gathered_to_array<T>).
 
         def("set_reduction_add", &Tensor<T>::set_reduction_add).
         def("set_reduction_hypot", &Tensor<T>::set_reduction_hypot).
