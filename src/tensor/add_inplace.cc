@@ -21,7 +21,6 @@ namespace nntile::tensor
 //! Tensor-wise add operation
 template<typename T>
 void add_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst)
-//void add_inplace_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &src2, Scalar beta, const Tensor<T> &dst)
 {
     // Check dimensions
     if(dst.ndim != src.ndim)

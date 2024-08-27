@@ -14,7 +14,6 @@
 
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import TensorMoments, TensorTraits, add_inplace_async, copy_async
-#from nntile.tensor import TensorMoments, TensorTraits, add_inplace_async, copy_async
 
 class Add(BaseLayer):
     def __init__(self, x: TensorMoments, y: TensorMoments, res: TensorMoments):
@@ -37,7 +36,6 @@ class Add(BaseLayer):
     def forward_async(self):
         copy_async(self.x.value, self.res.value)
         add_inplace_async(1, self.y.value, 1, self.res.value)
-        #add_inplace_async(1, self.y.value, 1, self.res.value)
         self.x.value.wont_use()
         self.y.value.wont_use()
         self.res.value.wont_use()
@@ -45,8 +43,6 @@ class Add(BaseLayer):
     def backward_async(self):
         add_inplace_async(1, self.res.grad, 1, self.x.grad)
         add_inplace_async(1, self.res.grad, 1, self.y.grad)
-        #add_inplace_async(1, self.res.grad, 1, self.x.grad)
-        #add_inplace_async(1, self.res.grad, 1, self.y.grad)
         self.x.grad.wont_use()
         self.y.grad.wont_use()
         self.res.grad.wont_use()

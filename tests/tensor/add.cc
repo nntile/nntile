@@ -68,14 +68,11 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile, 
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
     scatter<T>(dst_single, dst);
     // Define proper shape and basetile for the source tensor
-    //std::vector<Index> src_shape(dst_traits.ndim-1), src_basetile(dst_traits.ndim-1);
 
     std::vector<Index> src1_shape(shape), src1_basetile(basetile);
     std::vector<Index> src2_shape(shape), src2_basetile(basetile);
 
     // Generate single-tile source tensor and init it
-    //TensorTraits src_single_traits(src_shape, src_shape);
-    //Tensor<T> src_single(src_single_traits, dist_root, last_tag);
 
     TensorTraits src1_single_traits(src1_shape, src1_shape);
     Tensor<T> src1_single(src1_single_traits, dist_root, last_tag);
@@ -86,10 +83,8 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile, 
 
     if(mpi_rank == mpi_root)
     {
-        //auto tile = src_single.get_tile(0);
         auto tile = src1_single.get_tile(0);
         auto tile_local = tile.acquire(STARPU_W);
-        //for(Index i = 0; i < src_single.nelems; ++i)
         for(Index i = 0; i < src1_single.nelems; ++i)
         {
             tile_local[i] = Y(-i);
@@ -106,34 +101,28 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile, 
     }
 
     // Scatter source tensor
-    //TensorTraits src_traits(src_shape, src_basetile);
-    //std::vector<int> src_distr(src_traits.grid.nelems);
-
     TensorTraits src1_traits(src1_shape, src1_basetile);
     std::vector<int> src1_distr(src1_traits.grid.nelems);
     TensorTraits src2_traits(src2_shape, src2_basetile);
     std::vector<int> src2_distr(src2_traits.grid.nelems);
 
-    //for(Index i = 0; i < src_traits.grid.nelems; ++i)
     for(Index i = 0; i < src1_traits.grid.nelems; ++i)
     {
         //src_distr[i] = (i*i+1) % mpi_size;
         src1_distr[i] = (i*i+1) % mpi_size;
         src2_distr[i] = (i*i+1) % mpi_size;
     }
-    //Tensor<T> src(src_traits, src_distr, last_tag);
+    
     Tensor<T> src1(src1_traits, src1_distr, last_tag);
     Tensor<T> src2(src2_traits, src2_distr, last_tag);
     //scatter<T>(src_single, src);
     scatter<T>(src1_single, src1);
     scatter<T>(src2_single, src2);
-    // Perform tensor-wise and tile-wise add_slice operations
-    //add_slice<T>(-1.0, src, 0.5, dst, axis);
-    //add<T>(-1.0, src, 0.5, dst, axis);
+    // Perform tensor-wise and tile-wise add operations
+
     add<T>(-1.0, src1, src2, 0.5, dst);
     if(mpi_rank == mpi_root)
     {
-        //tile::add_slice<T>(-1.0, src_single.get_tile(0), 0.5, dst_single.get_tile(0), axis);
         tile::add<T>(-1.0, src1_single.get_tile(0), src2_single.get_tile(0),  0.5, dst_single.get_tile(0));
     }
     // Compare results
@@ -175,13 +164,6 @@ void validate()
     TensorTraits trA(sh34, sh23), trB(sh3, sh3), trC(sh4, sh4);
     std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0};
     Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),  C(trC, dist0, last_tag);
-    /*TEST_THROW(add_slice<T>(1.0, A, 0.0, A, 0));
-    TEST_THROW(add_slice<T>(1.0, B, 0.0, A, -1));
-    TEST_THROW(add_slice<T>(1.0, B, 0.0, A, 2));
-    TEST_THROW(add_slice<T>(1.0, B, 0.0, A, 0));
-    TEST_THROW(add_slice<T>(1.0, B, 0.0, A, 1));
-    TEST_THROW(add_slice<T>(1.0, C, 0.0, A, 0));
-    TEST_THROW(add_slice<T>(1.0, C, 0.0, A, 1));*/
 
     TEST_THROW(add<T>(1.0, A, B, 0.0, C));
     TEST_THROW(add<T>(1.0, A, C, 0.0, B));
@@ -190,9 +172,6 @@ void validate()
     TEST_THROW(add<T>(1.0, C, B, 0.0, A));
     TEST_THROW(add<T>(1.0, C, A, 0.0, B));
     TEST_THROW(add<T>(1.0, A, A, 0.0, B));
-
-          //add_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &src2, Scalar beta, const Tensor<T> &dst)
-    //add_slice_async(Scalar alpha, const Tensor<T> &src,                         Scalar beta, const Tensor<T> &dst, Index axis)
 }
 
 int main(int argc, char **argv)
@@ -204,7 +183,6 @@ int main(int argc, char **argv)
     starpu::add::init();
     starpu::subcopy::init();
     starpu::copy::init();
-    //starpu::add_slice::restrict_where(STARPU_CPU);
     starpu::add::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
     starpu::copy::restrict_where(STARPU_CPU);
