@@ -6,22 +6,25 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/add/cpu.hh
- * Add operation on buffers on CPU
+ * @file include/nntile/tile/add.hh
+ * Add operation for two Tile<T>'s
  *
  * @version 1.0.0
  * */
 
 #pragma once
 
-#include <nntile/base_types.hh>
+#include <nntile/tile/tile.hh>
 
-namespace nntile::kernel::add
+namespace nntile::tile
 {
 
-// Apply add for buffers on CPU
+// Tile-wise add operation
 template<typename T>
-void cpu(Index nelems, Scalar alpha, const T* src1, const T* src2, Scalar beta, T* dst)
-    noexcept;
+void add_async(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2, Scalar beta, const Tile<T> &dst);
 
-} // namespace nntile::kernel::add
+// Tile-wise add operation
+template<typename T>
+void add(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2, Scalar beta, const Tile<T> &dst);
+
+} // namespace nntile::tile

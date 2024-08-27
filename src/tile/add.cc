@@ -20,7 +20,6 @@ namespace nntile::tile
 
 //! Tile-wise add operation
 template<typename T>
-//void add_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst)
 void add_async(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2, Scalar beta, const Tile<T> &dst)
 {
     // Check dimensions

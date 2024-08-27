@@ -22,7 +22,6 @@ namespace nntile::kernel::add
 
 // Apply add for buffers on CUDA
 template<typename T>
-//void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src, Scalar beta, T *dst)
 void cuda(cudaStream_t stream, Index nelems, Scalar alpha, const T *src1, const T *src2, Scalar beta, T *dst)
     noexcept;
 

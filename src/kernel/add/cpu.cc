@@ -24,8 +24,8 @@ void cpu(Index nelems, Scalar alpha, const T* src1, const T* src2, Scalar beta, 
     noexcept
 //! Add of two buffers on CPU
 /*! Performs the following operation:
- *      dst[i] = alpha*src[i] + beta*dst[i]
-	//dst[i] = alpha*src1[i] + beta*src2[i],
+ * dst[i] = alpha*src1[i] + beta*src2[i],
+ 
  * where alpha and beta are non-zero scalars.
  *
  * @param[in] nelems: Size of the src and dst tensors
@@ -45,17 +45,14 @@ void cpu(Index nelems, Scalar alpha, const T* src1, const T* src2, Scalar beta, 
 
 // Explicit instantiation
 template
-//void cpu<fp64_t>(Index nelems, Scalar alpha, const fp64_t* src, Scalar beta, fp64_t* dst)
 void cpu<fp64_t>(Index nelems, Scalar alpha, const fp64_t* src1, const fp64_t* src2, Scalar beta, fp64_t* dst)
     noexcept;
 
 template
-//void cpu<fp32_t>(Index nelems, Scalar alpha, const fp32_t* src, Scalar beta, fp32_t* dst)
 void cpu<fp32_t>(Index nelems, Scalar alpha, const fp32_t* src1, const fp32_t* src2, Scalar beta, fp32_t* dst)
     noexcept;
 
 template
-//void cpu<bf16_t>(Index nelems, Scalar alpha, const bf16_t* src, Scalar beta, bf16_t* dst)
 void cpu<bf16_t>(Index nelems, Scalar alpha, const bf16_t* src1, const bf16_t* src2, Scalar beta, bf16_t* dst)
     noexcept;
 } // namespace nntile::kernel::add

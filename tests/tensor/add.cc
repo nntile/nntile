@@ -13,12 +13,6 @@
  * */
 
 #include <iostream>
-/*int main(int argc, char **argv)
-{
-    // Not implemented
-    std::cout << "This test is not yet implemented\n";
-    return -1;
-}*/
 #include "nntile/tensor/add.hh"
 #include "nntile/tile/add.hh"
 #include "nntile/starpu/add.hh"
@@ -115,7 +109,6 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile, 
     
     Tensor<T> src1(src1_traits, src1_distr, last_tag);
     Tensor<T> src2(src2_traits, src2_distr, last_tag);
-    //scatter<T>(src_single, src);
     scatter<T>(src1_single, src1);
     scatter<T>(src2_single, src2);
     // Perform tensor-wise and tile-wise add operations
