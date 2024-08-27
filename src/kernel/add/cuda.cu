@@ -53,7 +53,7 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T * __restrict__ src,
     }
     else
     {
-        int j_max = (nelems-i+BLOCK_STEP) / BLOCK_STEP;
+        int j_max = (nelems-i+BLOCK_STEP-1) / BLOCK_STEP;
         for(int j = 0; j < j_max; ++j)
         {
             dst_block[j] = static_cast<Y>(dst[i+j*BLOCK_STEP]);
