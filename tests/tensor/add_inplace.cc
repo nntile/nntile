@@ -12,18 +12,12 @@
  * @version 1.0.0
  * */
 
-/*#include <iostream>
-int main(int argc, char **argv)
-{
-    // Not implemented
-    std::cout << "This test is not yet implemented\n";
-    return -1;
-}*/
 
 #include <iostream>
 #include "nntile/tensor/add_inplace.hh"
 //#include "nntile/tile/add_inplace.hh"
-#include "nntile/starpu/add_inplace.hh"
+#include "nntile/starpu/add.hh"
+#include "nntile/starpu/scal.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
@@ -34,7 +28,7 @@ using namespace nntile;
 using namespace nntile::tensor;
 
 template<typename T>
-void check(const std::vector<Index> &shape, const std::vector<Index> &basetile, Index axis)
+void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
 {
     using Y = typename T::repr_t;
     // Barrier to wait for cleanup of previously used tags
@@ -68,21 +62,13 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile, 
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
     scatter<T>(dst_single, dst);
     // Define proper shape and basetile for the source tensor
-    std::vector<Index> src_shape(dst_traits.ndim-1),
-        src_basetile(dst_traits.ndim-1);
-    for(Index i = 0; i < axis; ++i)
-    {
-        src_shape[i] = shape[i];
-        src_basetile[i] = basetile[i];
-    }
-    for(Index i = axis+1; i < dst_traits.ndim; ++i)
-    {
-        src_shape[i-1] = shape[i];
-        src_basetile[i-1] = basetile[i];
-    }
+
+    std::vector<Index> src_shape(shape), src_basetile(basetile);
+
     // Generate single-tile source tensor and init it
     TensorTraits src_single_traits(src_shape, src_shape);
     Tensor<T> src_single(src_single_traits, dist_root, last_tag);
+
     if(mpi_rank == mpi_root)
     {
         auto tile = src_single.get_tile(0);
@@ -92,22 +78,26 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile, 
             tile_local[i] = Y(-i);
         }
         tile_local.release();
+
     }
     // Scatter source tensor
     TensorTraits src_traits(src_shape, src_basetile);
     std::vector<int> src_distr(src_traits.grid.nelems);
+
     for(Index i = 0; i < src_traits.grid.nelems; ++i)
     {
         src_distr[i] = (i*i+1) % mpi_size;
     }
+    
     Tensor<T> src(src_traits, src_distr, last_tag);
     scatter<T>(src_single, src);
-    // Perform tensor-wise and tile-wise add_inplace operations
-    add_inplace<T>(-1.0, src, 0.5, dst, axis);
+
+    // Perform tensor-wise and tile-wise add operations
+
+    add_inplace<T>(-1.0, src, 0.5, dst);
     if(mpi_rank == mpi_root)
     {
-        tile::add_inplace<T>(-1.0, src_single.get_tile(0), 0.5,
-                dst_single.get_tile(0), axis);
+        add_inplace<T>(-1.0, src_single, 0.5, dst_single);
     }
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
@@ -130,15 +120,15 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile, 
 template<typename T>
 void validate()
 {
-    // Bias along the given axis
-    check<T>({11}, {5}, 0);
-    check<T>({11, 12}, {5, 6}, 0);
-    check<T>({11, 12}, {5, 6}, 1);
-    check<T>({11, 12, 13}, {5, 6, 5}, 0);
-    check<T>({11, 12, 13}, {5, 6, 5}, 1);
-    check<T>({11, 12, 13}, {5, 6, 5}, 2);
-    check<T>({1000, 1000}, {450, 450}, 0);
-    check<T>({1000, 1000}, {450, 450}, 1);
+    
+    check<T>({11}, {5});
+    check<T>({11, 12}, {5, 6});
+    check<T>({11, 12}, {5, 6});
+    check<T>({11, 12, 13}, {5, 6, 5});
+    check<T>({11, 12, 13}, {5, 6, 5});
+    check<T>({11, 12, 13}, {5, 6, 5});
+    check<T>({1000, 1000}, {450, 450});
+    check<T>({1000, 1000}, {450, 450});
 
     // Sync to guarantee old data tags are cleaned up and can be reused
     starpu_mpi_barrier(MPI_COMM_WORLD);
@@ -147,15 +137,14 @@ void validate()
     std::vector<Index> sh34 = {3, 4}, sh23 = {2, 3}, sh3 = {3}, sh4 = {4};
     TensorTraits trA(sh34, sh23), trB(sh3, sh3), trC(sh4, sh4);
     std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0};
-    Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
-        C(trC, dist0, last_tag);
-    TEST_THROW(add_inplace<T>(1.0, A, 0.0, A, 0));
-    TEST_THROW(add_inplace<T>(1.0, B, 0.0, A, -1));
-    TEST_THROW(add_inplace<T>(1.0, B, 0.0, A, 2));
-    TEST_THROW(add_inplace<T>(1.0, B, 0.0, A, 0));
-    TEST_THROW(add_inplace<T>(1.0, B, 0.0, A, 1));
-    TEST_THROW(add_inplace<T>(1.0, C, 0.0, A, 0));
-    TEST_THROW(add_inplace<T>(1.0, C, 0.0, A, 1));
+    Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),  C(trC, dist0, last_tag);
+
+    TEST_THROW(add_inplace<T>(1.0, A, 0.0, C));
+    TEST_THROW(add_inplace<T>(1.0, A, 0.0, B));
+    TEST_THROW(add_inplace<T>(1.0, B, 0.0, A));
+    TEST_THROW(add_inplace<T>(1.0, B, 0.0, C));
+    TEST_THROW(add_inplace<T>(1.0, C, 0.0, A));
+    TEST_THROW(add_inplace<T>(1.0, C, 0.0, B));
 }
 
 int main(int argc, char **argv)
@@ -163,10 +152,11 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    starpu::add_inplace::init();
+    starpu::scal::init();
+    starpu::add::init();
     starpu::subcopy::init();
     starpu::copy::init();
-    starpu::add_inplace::restrict_where(STARPU_CPU);
+    starpu::add::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
     starpu::copy::restrict_where(STARPU_CPU);
     // Launch all tests

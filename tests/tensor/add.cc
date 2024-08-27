@@ -27,7 +27,7 @@ using namespace nntile;
 using namespace nntile::tensor;
 
 template<typename T>
-void check(const std::vector<Index> &shape, const std::vector<Index> &basetile, Index axis)
+void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
 
 {
     using Y = typename T::repr_t;
@@ -102,7 +102,6 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile, 
 
     for(Index i = 0; i < src1_traits.grid.nelems; ++i)
     {
-        //src_distr[i] = (i*i+1) % mpi_size;
         src1_distr[i] = (i*i+1) % mpi_size;
         src2_distr[i] = (i*i+1) % mpi_size;
     }
@@ -139,15 +138,15 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile, 
 template<typename T>
 void validate()
 {
-    // Bias along the given axis
-    check<T>({11}, {5}, 0);
-    check<T>({11, 12}, {5, 6}, 0);
-    check<T>({11, 12}, {5, 6}, 1);
-    check<T>({11, 12, 13}, {5, 6, 5}, 0);
-    check<T>({11, 12, 13}, {5, 6, 5}, 1);
-    check<T>({11, 12, 13}, {5, 6, 5}, 2);
-    check<T>({1000, 1000}, {450, 450}, 0);
-    check<T>({1000, 1000}, {450, 450}, 1);
+    
+    check<T>({11}, {5});
+    check<T>({11, 12}, {5, 6});
+    check<T>({11, 12}, {5, 6});
+    check<T>({11, 12, 13}, {5, 6, 5});
+    check<T>({11, 12, 13}, {5, 6, 5});
+    check<T>({11, 12, 13}, {5, 6, 5});
+    check<T>({1000, 1000}, {450, 450});
+    check<T>({1000, 1000}, {450, 450});
 
     // Sync to guarantee old data tags are cleaned up and can be reused
     starpu_mpi_barrier(MPI_COMM_WORLD);
