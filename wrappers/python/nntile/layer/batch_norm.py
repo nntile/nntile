@@ -14,17 +14,11 @@
 import math
 
 from nntile.layer.base_layer import BaseLayer
-from nntile.tensor import (Tensor, TensorMoments, add_async, add_fiber_async,
+from nntile.tensor import (Tensor, TensorMoments, add_inplace_async, add_fiber_async,
                            copy_async, hypot_scalar_inverse_async,
                            norm_slice_async, ones, pow_async, prod_async,
                            prod_fiber_async, sum_fiber_async,
                            sumprod_fiber_async, zeros)
-
-#from nntile.tensor import (Tensor, TensorMoments, add_inplace_async, add_fiber_async,
-                           #copy_async, hypot_scalar_inverse_async,
-                           #norm_slice_async, ones, pow_async, prod_async,
-                           #prod_fiber_async, sum_fiber_async,
-                           #sumprod_fiber_async, zeros)
 
 
 
@@ -186,8 +180,7 @@ class BatchNorm2d(BaseLayer):
 
         # x_normalized_grad = 1.0/self.numel_in_channel*2*(A-xmean[None, :, None, None])
         # x_grad = (-1*x_normalized_grad.sum([0,2,3])[None, :, None,None]/self.numel_in_channel + x_normalized_grad)
-        #add_inplace_async(
-	add_async(
+        add_inplace_async(
             1.0 / self.numel_in_channel * 2,
             self.x_unbiased_copy,
             0.0,
@@ -229,13 +222,11 @@ class BatchNorm2d(BaseLayer):
         self.x_unbiased_copy.invalidate_submit()
 
         # grad_x = nominator_grad_x + inv_denominator_grad_x
-        add_async(1.0, inv_denominator_grad_x, 1.0, nominator_grad_x)
-	#add_inplace_async(1.0, inv_denominator_grad_x, 1.0, nominator_grad_x)
+        add_inplace_async(1.0, inv_denominator_grad_x, 1.0, nominator_grad_x)
         self.tmp_buff_full.invalidate_submit()
 
         # accumulate calculated gradient
-        add_async(1.0, nominator_grad_x, 1.0, self.x.grad)
-	#add_inplace_async(1.0, nominator_grad_x, 1.0, self.x.grad)
+        add_inplace_async(1.0, nominator_grad_x, 1.0, self.x.grad)
         self.x_grad_tmp.invalidate_submit()
 
     def _learnable_transform_backward(self):

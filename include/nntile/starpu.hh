@@ -154,6 +154,7 @@ void init()
     gelu_backward::init();
     gelutanh_backward::init();
     add::init();
+    add_inplace::init();
     add_scalar::init();
     embedding::init();
     embedding_backward::init();
@@ -228,6 +229,7 @@ void restrict_where(uint32_t where)
     gelu_backward::restrict_where(where);
     gelutanh_backward::restrict_where(where);
     add::restrict_where(where);
+    add_inplace::restrict_where(where);
     add_scalar::restrict_where(where);
     embedding::restrict_where(where);
     embedding_backward::restrict_where(where);
@@ -302,6 +304,7 @@ void restore_where()
     gelu_backward::restore_where();
     gelutanh_backward::restore_where();
     add::restore_where();
+    add_inplace::restore_where();
     add_scalar::restore_where();
     embedding::restore_where();
     embedding_backward::restore_where();

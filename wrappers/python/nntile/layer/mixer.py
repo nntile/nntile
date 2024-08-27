@@ -11,8 +11,7 @@
 #
 # @version 1.0.0
 
-from nntile.tensor import TensorMoments, TensorTraits, notrans, add_async, add_slice_async, sum_slice_async, clear_async, transpose_async
-#from nntile.tensor import TensorMoments, TensorTraits, notrans, add_inplace_async, add_slice_async, sum_slice_async, clear_async, transpose_async
+from nntile.tensor import TensorMoments, TensorTraits, notrans, add_inplace_async, add_slice_async, sum_slice_async, clear_async, transpose_async
 from nntile.layer.base_layer import BaseLayer
 from nntile.layer.layer_norm import LayerNorm
 from nntile.layer.linear import Linear
@@ -226,20 +225,16 @@ class Mixer(BaseLayer):
     def forward_async(self):
         self.norm_1.forward_async()
         self.mlp_1.forward_async()
-        add_async(1.0, self.x.value, 1.0, self.mlp_1.y.value)
-	#add_inplace_async(1.0, self.x.value, 1.0, self.mlp_1.y.value)
+        add_inplace_async(1.0, self.x.value, 1.0, self.mlp_1.y.value)
         self.norm_2.forward_async()
         self.mlp_2.forward_async()
-        add_async(1.0, self.norm_2.x.value, 1.0, self.mlp_2.y.value)
-	#add_inplace_async(1.0, self.norm_2.x.value, 1.0, self.mlp_2.y.value)
+        add_inplace_async(1.0, self.norm_2.x.value, 1.0, self.mlp_2.y.value)
 
 
     def backward_async(self):
         self.mlp_2.backward_async()
         self.norm_2.backward_async()
-        add_async(1.0, self.mlp_2.linear_2.y.grad, 1.0, self.mlp_1.y.grad)
-	#add_inplace_async(1.0, self.mlp_2.linear_2.y.grad, 1.0, self.mlp_1.y.grad)
+        add_inplace_async(1.0, self.mlp_2.linear_2.y.grad, 1.0, self.mlp_1.y.grad)
         self.mlp_1.backward_async()
         self.norm_1.backward_async()
-        add_async(1.0, self.mlp_1.linear_2.y.grad, 1.0, self.x.grad)
-	#add_inplace_async(1.0, self.mlp_1.linear_2.y.grad, 1.0, self.x.grad)
+        add_inplace_async(1.0, self.mlp_1.linear_2.y.grad, 1.0, self.x.grad)

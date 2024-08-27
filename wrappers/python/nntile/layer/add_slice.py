@@ -12,7 +12,7 @@
 # @version 1.0.0
 
 from .base_layer import BaseLayer
-from nntile.tensor import add_async, copy_async, add_slice_async, sum_slice_async
+from nntile.tensor import add_inplace_async, copy_async, add_slice_async, sum_slice_async
 from nntile.tensor import TensorTraits, TensorMoments
 
 class AddSlice(BaseLayer):
@@ -42,7 +42,7 @@ class AddSlice(BaseLayer):
         self.u.value.wont_use()
 
     def backward_async(self):
-        add_async(1, self.u.grad, 1, self.x.grad)
+        add_inplace_async(1, self.u.grad, 1, self.x.grad)
         sum_slice_async(1, self.u.grad, 1, self.y.grad, self.axis, \
                 redux=self.redux)
         self.x.grad.wont_use()
