@@ -147,11 +147,14 @@ void submit(Index nrows, Index ncols, Handle mask, Scalar val, Handle data)
     args->nrows = nrows;
     args->ncols = ncols;
     args->val = val;
+    // Indicate maximal possible amount of writes as flops count
+    double nflops = sizeof(T) * nrows * (ncols+1);
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_RW, static_cast<starpu_data_handle_t>(data),
             STARPU_R, static_cast<starpu_data_handle_t>(mask),
             STARPU_CL_ARGS, args, sizeof(*args),
+            STARPU_FLOPS, nflops,
             0);
     // Check submission
     if(ret != 0)
@@ -166,8 +169,8 @@ void submit<fp32_t>(Index nrows, Index ncols, Handle mask, Scalar val,
         Handle data);
 
 template
-void submit<fp32_fast_tf32_t>(Index nrows, Index ncols, Handle mask, Scalar val,
-        Handle data);
+void submit<fp32_fast_tf32_t>(Index nrows, Index ncols, Handle mask,
+        Scalar val, Handle data);
 
 template
 void submit<fp64_t>(Index nrows, Index ncols, Handle mask, Scalar val,
