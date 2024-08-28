@@ -15,7 +15,7 @@
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    TensorMoments, TensorTraits, add_inplace_async, copy_async)
+    TensorMoments, TensorTraits, add_async, add_inplace_async)
 
 
 class Add(BaseLayer):
@@ -37,20 +37,19 @@ class Add(BaseLayer):
         return Add(x, y, res), next_tag
 
     def forward_async(self):
-        copy_async(self.x.value, self.res.value)
-        add_inplace_async(1, self.y.value, 1, self.res.value)
+        add_async(1.0, self.x.value, self.y.value, 1.0, self.res.value)
         self.x.value.wont_use()
         self.y.value.wont_use()
         self.res.value.wont_use()
 
     def forward_dynamic(self, x1: TensorMoments, x2: TensorMoments):
-        y = nntc.clone(x1.value)
-        add_inplace_async(1.0, x2.value, 1.0, y)
+        y = nntc.empty_like(x1.value)
+        add_async(1.0, x1.value, x2.value, 1.0, y)
         return TensorMoments(y, None, False)
 
     def backward_async(self):
-        add_inplace_async(1, self.res.grad, 1, self.x.grad)
-        add_inplace_async(1, self.res.grad, 1, self.y.grad)
+        add_inplace_async(1.0, self.res.grad, 1.0, self.x.grad)
+        add_inplace_async(1.0, self.res.grad, 1.0, self.y.grad)
         self.x.grad.wont_use()
         self.y.grad.wont_use()
         self.res.grad.wont_use()

@@ -19,7 +19,8 @@ namespace nntile::kernel::add
 {
 
 template<typename T>
-void cpu(Index nelems, Scalar alpha, const T* src1, const T* src2, Scalar beta, T* dst)
+void cpu(Index nelems, Scalar alpha, const T* src1, const T* src2, Scalar beta,
+        T* dst)
     noexcept
 //! Add of two buffers on CPU
 /*! Performs the following operation:
@@ -44,14 +45,18 @@ void cpu(Index nelems, Scalar alpha, const T* src1, const T* src2, Scalar beta, 
 
 // Explicit instantiation
 template
-void cpu<fp64_t>(Index nelems, Scalar alpha, const fp64_t* src1, const fp64_t* src2, Scalar beta, fp64_t* dst)
+void cpu<fp64_t>(Index nelems, Scalar alpha, const fp64_t* src1,
+        const fp64_t* src2, Scalar beta, fp64_t* dst)
     noexcept;
 
 template
-void cpu<fp32_t>(Index nelems, Scalar alpha, const fp32_t* src1, const fp32_t* src2, Scalar beta, fp32_t* dst)
+void cpu<fp32_t>(Index nelems, Scalar alpha, const fp32_t* src1,
+        const fp32_t* src2, Scalar beta, fp32_t* dst)
     noexcept;
 
 template
-void cpu<bf16_t>(Index nelems, Scalar alpha, const bf16_t* src1, const bf16_t* src2, Scalar beta, bf16_t* dst)
+void cpu<bf16_t>(Index nelems, Scalar alpha, const bf16_t* src1,
+        const bf16_t* src2, Scalar beta, bf16_t* dst)
     noexcept;
+
 } // namespace nntile::kernel::add

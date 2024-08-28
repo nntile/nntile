@@ -74,7 +74,6 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     TensorTraits src2_single_traits(src2_shape, src2_shape);
     Tensor<T> src2_single(src2_single_traits, dist_root, last_tag);
 
-
     if(mpi_rank == mpi_root)
     {
         auto tile = src1_single.get_tile(0);
@@ -115,7 +114,8 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     add<T>(-1.0, src1, src2, 0.5, dst);
     if(mpi_rank == mpi_root)
     {
-        tile::add<T>(-1.0, src1_single.get_tile(0), src2_single.get_tile(0),  0.5, dst_single.get_tile(0));
+        tile::add<T>(-1.0, src1_single.get_tile(0), src2_single.get_tile(0),
+                0.5, dst_single.get_tile(0));
     }
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
@@ -155,7 +155,8 @@ void validate()
     std::vector<Index> sh34 = {3, 4}, sh23 = {2, 3}, sh3 = {3}, sh4 = {4};
     TensorTraits trA(sh34, sh23), trB(sh3, sh3), trC(sh4, sh4);
     std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0};
-    Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),  C(trC, dist0, last_tag);
+    Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
+        C(trC, dist0, last_tag);
 
     TEST_THROW(add<T>(1.0, A, B, 0.0, C));
     TEST_THROW(add<T>(1.0, A, C, 0.0, B));

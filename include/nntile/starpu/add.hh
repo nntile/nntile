@@ -47,7 +47,8 @@ void cuda(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
+extern Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32,
+       codelet_bf16;
 
 template<typename T>
 constexpr Codelet *codelet()
@@ -87,6 +88,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nelems, Scalar alpha, Handle src1, Handle src2, Scalar beta, Handle dst);
+void submit(Index nelems, Scalar alpha, Handle src1, Handle src2, Scalar beta,
+        Handle dst);
 
 } // namespace nntile::starpu::add
