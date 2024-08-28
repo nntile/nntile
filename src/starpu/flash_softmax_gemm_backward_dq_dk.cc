@@ -17,7 +17,7 @@
 #include "nntile/kernel/gemm.hh"
 #include "nntile/kernel/mask_scalar.hh"
 #include "nntile/kernel/softmax_inplace.hh"
-#include "nntile/kernel/add_slice.hh"
+#include "nntile/kernel/add_slice_inplace.hh"
 #include "nntile/kernel/prod_inplace.hh"
 #include "nntile/kernel/cpu.hh"
 #include "nntile/kernel/cuda.hh"
@@ -89,7 +89,7 @@ void cpu(void *buffers[], void *cl_args)
         dA_local += dA_offset;
         tmp_grad_local += tmp_grad_offset;
     }
-    kernel::add_slice::cpu<T>(1, args->seq*args->batch, args->seq,
+    kernel::add_slice_inplace::cpu<T>(1, args->seq*args->batch, args->seq,
             -1.0, sumprod_slice, 1.0, tmp_grad);
     kernel::prod_inplace::cpu<T>(args->seq*args->seq*args->batch, tmp,
             tmp_grad);
@@ -166,7 +166,7 @@ void cuda(void *buffers[], void *cl_args)
             args->seq, args->seq, args->head, 1.0, V, args->head, V_offset,
             dA, args->head, dA_offset, 0.0, tmp_grad, args->seq,
             tmp_grad_offset, args->batch);
-    kernel::add_slice::cuda<T>(stream, 1, args->seq*args->batch, args->seq,
+    kernel::add_slice_inplace::cuda<T>(stream, 1, args->seq*args->batch, args->seq,
             -1.0, sumprod_slice, 1.0, tmp_grad);
     kernel::prod_inplace::cuda<T>(stream, args->seq*args->seq*args->batch, tmp,
             tmp_grad);

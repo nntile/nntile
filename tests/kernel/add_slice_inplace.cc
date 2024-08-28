@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/add_slice.hh"
+#include "nntile/kernel/add_slice_inplace.hh"
 #include "../testing.hh"
 #include <vector>
 #include <stdexcept>

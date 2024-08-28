@@ -20,7 +20,7 @@ else()
     # Set list of sources
     set(KERNEL_SRC
         "kernel/accumulate_maxsumexp/cpu.cc"
-        "kernel/add_slice/cpu.cc"
+        "kernel/add_slice_inplace/cpu.cc"
         "kernel/add_slice3/cpu.cc"
         "kernel/add_fiber/cpu.cc"
         "kernel/prod_slice/cpu.cc"
@@ -86,7 +86,7 @@ else()
             ${KERNEL_SRC}
             "kernel/accumulate_maxsumexp/cuda.cu"
             "kernel/add/cuda.cu"
-            "kernel/add_slice/cuda.cu"
+            "kernel/add_slice_inplace/cuda.cu"
             "kernel/add_slice3/cuda.cu"
             "kernel/add_fiber/cuda.cu"
             "kernel/prod_slice/cuda.cu"
@@ -155,7 +155,7 @@ set(STARPU_SRC
     "starpu/accumulate.cc"
     "starpu/accumulate_hypot.cc"
     "starpu/accumulate_maxsumexp.cc"
-    "starpu/add_slice.cc"
+    "starpu/add_slice_inplace.cc"
     "starpu/add_slice3.cc"
     "starpu/add_fiber.cc"
     "starpu/prod_slice.cc"
@@ -294,7 +294,7 @@ set(TENSOR_SRC
     "tensor/traits.cc"
     "tensor/distributions.cc"
     "tensor/axpy.cc"
-    "tensor/add_slice.cc"
+    "tensor/add_slice_inplace.cc"
     "tensor/add_slice3.cc"
     "tensor/add_fiber.cc"
     "tensor/prod_slice.cc"

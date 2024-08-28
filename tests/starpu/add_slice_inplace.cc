@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/starpu/add_slice.cc
+ * @file tests/starpu/add_slice_inplace.cc
  * StarPU wrappers for addition of a tensor and a broadcasted slice
  *
  * @version 1.1.0
  * */
 
-#include "nntile/starpu/add_slice.hh"
-#include "nntile/kernel/add_slice.hh"
+#include "nntile/starpu/add_slice_inplace.hh"
+#include "nntile/kernel/add_slice_inplace.hh"
 #include "../testing.hh"
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_runtime.h>
@@ -43,14 +43,14 @@ void validate_cpu(Index m, Index n, Index k)
     // Create copies of destination
     std::vector<T> dst2(dst);
     // Launch low-level kernel
-    std::cout << "Run kernel::add_slice::cpu<" << T::type_repr << ">\n";
-    kernel::add_slice::cpu<T>(m, n, k, 0.5, &src[0], -0.5, &dst[0]);
+    std::cout << "Run kernel::add_slice_inplace::cpu<" << T::type_repr << ">\n";
+    kernel::add_slice_inplace::cpu<T>(m, n, k, 0.5, &src[0], -0.5, &dst[0]);
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
-    add_slice::restrict_where(STARPU_CPU);
-    std::cout << "Run starpu::add_slice::submit<" << T::type_repr << "> restricted to CPU\n";
-    add_slice::submit<T>(m, n, k, 0.5, src_handle, -0.5, dst2_handle);
+    add_slice_inplace::restrict_where(STARPU_CPU);
+    std::cout << "Run starpu::add_slice_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
+    add_slice_inplace::submit<T>(m, n, k, 0.5, src_handle, -0.5, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -58,7 +58,7 @@ void validate_cpu(Index m, Index n, Index k)
     {
         TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::add_slice::submit<" << T::type_repr << "> restricted to CPU\n";
+    std::cout << "OK: starpu::add_slice_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
 }
 
 #ifdef NNTILE_USE_CUDA
@@ -101,8 +101,8 @@ void validate_cuda(Index m, Index n, Index k)
     cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*m*n*k,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    std::cout << "Run kernel::add_slice::cuda<" << T::type_repr << ">\n";
-    kernel::add_slice::cuda<T>(stream, m, n, k, 0.5, dev_src, -0.5, dev_dst);
+    std::cout << "Run kernel::add_slice_inplace::cuda<" << T::type_repr << ">\n";
+    kernel::add_slice_inplace::cuda<T>(stream, m, n, k, 0.5, dev_src, -0.5, dev_dst);
     // Wait for result and destroy stream
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
@@ -120,9 +120,9 @@ void validate_cuda(Index m, Index n, Index k)
     // Check by actually submitting a task
     VariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
         dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
-    add_slice::restrict_where(STARPU_CUDA);
-    std::cout << "Run starpu::add_slice::submit<" << T::type_repr << "> restricted to CUDA\n";
-    add_slice::submit<T>(m, n, k, 0.5, src_handle, -0.5, dst2_handle);
+    add_slice_inplace::restrict_where(STARPU_CUDA);
+    std::cout << "Run starpu::add_slice_inplace::submit<" << T::type_repr << "> restricted to CUDA\n";
+    add_slice_inplace::submit<T>(m, n, k, 0.5, src_handle, -0.5, dst2_handle);
     starpu_task_wait_for_all();
     dst2_handle.unregister();
     // Check result
@@ -130,7 +130,7 @@ void validate_cuda(Index m, Index n, Index k)
     {
         TEST_ASSERT(Y(dst[i]) == Y(dst2[i]));
     }
-    std::cout << "OK: starpu::add_slice::submit<" << T::type_repr << "> restricted to CUDA\n";
+    std::cout << "OK: starpu::add_slice_inplace::submit<" << T::type_repr << "> restricted to CUDA\n";
 }
 #endif // NNTILE_USE_CUDA
 
@@ -139,7 +139,7 @@ int main(int argc, char **argv)
     // Init StarPU for testing
     Config starpu(1, 1, 0);
     // Init codelet
-    add_slice::init();
+    add_slice_inplace::init();
     // Launch all tests
     // Bias for middle axis
     validate_cpu<fp32_t>(3, 5, 7);

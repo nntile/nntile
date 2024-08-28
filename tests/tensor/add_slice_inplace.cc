@@ -6,15 +6,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/add_slice.cc
+ * @file tests/tensor/add_slice_inplace.cc
  * Tensor wrappers for addition of a tensor and a broadcasted slice
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/add_slice.hh"
-#include "nntile/tile/add_slice.hh"
-#include "nntile/starpu/add_slice.hh"
+#include "nntile/tensor/add_slice_inplace.hh"
+#include "nntile/tile/add_slice_inplace.hh"
+#include "nntile/starpu/add_slice_inplace.hh"
 #include "nntile/starpu/add.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
@@ -95,11 +95,11 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     }
     Tensor<T> src(src_traits, src_distr, last_tag);
     scatter<T>(src_single, src);
-    // Perform tensor-wise and tile-wise add_slice operations
-    add_slice<T>(-1.0, src, 0.5, dst, axis);
+    // Perform tensor-wise and tile-wise add_slice_inplace operations
+    add_slice_inplace<T>(-1.0, src, 0.5, dst, axis);
     if(mpi_rank == mpi_root)
     {
-        tile::add_slice<T>(-1.0, src_single.get_tile(0), 0.5,
+        tile::add_slice_inplace<T>(-1.0, src_single.get_tile(0), 0.5,
                 dst_single.get_tile(0), axis);
     }
     // Compare results
@@ -142,13 +142,13 @@ void validate()
     std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0};
     Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
         C(trC, dist0, last_tag);
-    TEST_THROW(add_slice<T>(1.0, A, 0.0, A, 0));
-    TEST_THROW(add_slice<T>(1.0, B, 0.0, A, -1));
-    TEST_THROW(add_slice<T>(1.0, B, 0.0, A, 2));
-    TEST_THROW(add_slice<T>(1.0, B, 0.0, A, 0));
-    TEST_THROW(add_slice<T>(1.0, B, 0.0, A, 1));
-    TEST_THROW(add_slice<T>(1.0, C, 0.0, A, 0));
-    TEST_THROW(add_slice<T>(1.0, C, 0.0, A, 1));
+    TEST_THROW(add_slice_inplace<T>(1.0, A, 0.0, A, 0));
+    TEST_THROW(add_slice_inplace<T>(1.0, B, 0.0, A, -1));
+    TEST_THROW(add_slice_inplace<T>(1.0, B, 0.0, A, 2));
+    TEST_THROW(add_slice_inplace<T>(1.0, B, 0.0, A, 0));
+    TEST_THROW(add_slice_inplace<T>(1.0, B, 0.0, A, 1));
+    TEST_THROW(add_slice_inplace<T>(1.0, C, 0.0, A, 0));
+    TEST_THROW(add_slice_inplace<T>(1.0, C, 0.0, A, 1));
 }
 
 int main(int argc, char **argv)
@@ -157,10 +157,10 @@ int main(int argc, char **argv)
     starpu::Config starpu(1, 0, 0);
     // Init codelet
     starpu::add::init();
-    starpu::add_slice::init();
+    starpu::add_slice_inplace::init();
     starpu::subcopy::init();
     starpu::copy::init();
-    starpu::add_slice::restrict_where(STARPU_CPU);
+    starpu::add_slice_inplace::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
     starpu::copy::restrict_where(STARPU_CPU);
     // Launch all tests

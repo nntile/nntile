@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tile/add_slice.cc
+ * @file src/tile/add_slice_inplace.cc
  * Tile wrappers for addition of a tensor and a broadcasted slice
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tile/add_slice.hh"
-#include "nntile/starpu/add_slice.hh"
+#include "nntile/tile/add_slice_inplace.hh"
+#include "nntile/starpu/add_slice_inplace.hh"
 
 namespace nntile::tile
 {
@@ -67,14 +67,14 @@ void add_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
     // Insert corresponding task
-    starpu::add_slice::submit<T>(m, n, k, alpha, src, beta, dst);
+    starpu::add_slice_inplace::submit<T>(m, n, k, alpha, src, beta, dst);
 }
 
 template<typename T>
 void add_slice(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
                Index axis)
 //! Tile<T> addition of a tensor and a broadcasted slice
-/*! Blocking version of add_slice_async<T>.
+/*! Blocking version of add_slice_inplace_async<T>.
  * Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
  * and performs the following operations:
  *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[i,j]

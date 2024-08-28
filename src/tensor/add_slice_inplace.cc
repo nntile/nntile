@@ -6,20 +6,20 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/tensor/add_slice.cc
+ * @file src/tensor/add_slice_inplace.cc
  * Tensor wrappers for addition of a tensor and a broadcasted slice
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/add_slice.hh"
-#include "nntile/starpu/add_slice.hh"
+#include "nntile/tensor/add_slice_inplace.hh"
+#include "nntile/starpu/add_slice_inplace.hh"
 
 namespace nntile::tensor
 {
 
 template<typename T>
-void add_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
+void add_slice_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
         const Tensor<T> &dst, Index axis)
 //! Tensor<T> addition of a tensor and a broadcasted slice
 /*! Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
@@ -71,7 +71,7 @@ void add_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
                     "src.basetile_shape[i-1]");
         }
     }
-    // Apply per-tile add_slice asynchronously as needed
+    // Apply per-tile add_slice_inplace asynchronously as needed
     int mpi_rank = starpu_mpi_world_rank();
     int ret;
     for(Index i = 0; i < src.grid.nelems; ++i)
@@ -116,7 +116,7 @@ void add_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
                 n = dst_tile_traits.matrix_shape[axis+1][1];
                 k = dst_tile_traits.shape[axis];
                 // Insert corresponding task
-                starpu::add_slice::submit<T>(m, n, k, alpha, src_tile_handle,
+                starpu::add_slice_inplace::submit<T>(m, n, k, alpha, src_tile_handle,
                         beta, dst_tile_handle);
             }
             // Flush cache for the output tile on every node
@@ -126,10 +126,10 @@ void add_slice_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
 }
 
 template<typename T>
-void add_slice(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst,
+void add_slice_inplace(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst,
                Index axis)
 //! Tensor<T> addition of a tensor and a broadcasted slice
-/*! Blocking version of add_slice_async<T>.
+/*! Blocking version of add_slice_inplace_async<T>.
  * Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
  * and performs the following operations:
  *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[i,j]
@@ -140,43 +140,43 @@ void add_slice(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> 
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
-    add_slice_async<T>(alpha, src, beta, dst, axis);
+    add_slice_inplace_async<T>(alpha, src, beta, dst, axis);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation of template
 template
-void add_slice_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
+void add_slice_inplace_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src,
         Scalar beta, const Tensor<fp32_t> &dst, Index axis);
 
 template
-void add_slice_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
+void add_slice_inplace_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         Scalar beta, const Tensor<fp64_t> &dst, Index axis);
 
 template
-void add_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
+void add_slice_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src,
         Scalar beta, const Tensor<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void add_slice_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
+void add_slice_inplace_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
         const Tensor<bf16_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void add_slice<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
+void add_slice_inplace<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar beta,
         const Tensor<fp32_t> &dst, Index axis);
 
 template
-void add_slice<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
+void add_slice_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
         const Tensor<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void add_slice<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
+void add_slice_inplace<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,
         const Tensor<fp64_t> &dst, Index axis);
 
 template
-void add_slice<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
+void add_slice_inplace<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
         const Tensor<bf16_t> &dst, Index axis);
 
 } // namespace nntile::tensor

@@ -12,7 +12,7 @@
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/add_slice/cpu.hh"
+#include "nntile/kernel/add_slice_inplace/cpu.hh"
 #include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::add_slice
@@ -94,4 +94,4 @@ void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src,
         Scalar beta, fp64_t *dst)
     noexcept;
 
-} // namespace nntile::kernel::add_slice
+} // namespace nntile::kernel::add_slice_inplace
