@@ -15,7 +15,7 @@
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    TensorMoments, TensorTraits, add_async, add_inplace_async)
+    TensorMoments, TensorTraits, add_async, add_inplace_async, copy_async)
 
 
 class Add(BaseLayer):
@@ -37,14 +37,14 @@ class Add(BaseLayer):
         return Add(x, y, res), next_tag
 
     def forward_async(self):
-        add_async(1.0, self.x.value, self.y.value, 1.0, self.res.value)
+        add_async(1.0, self.x.value, 1.0, self.y.value, self.res.value)
         self.x.value.wont_use()
         self.y.value.wont_use()
         self.res.value.wont_use()
 
     def forward_dynamic(self, x1: TensorMoments, x2: TensorMoments):
         y = nntc.empty_like(x1.value)
-        add_async(1.0, x1.value, x2.value, 1.0, y)
+        add_async(1.0, x1.value, 1.0, x2.value, y)
         return TensorMoments(y, None, False)
 
     def backward_async(self):

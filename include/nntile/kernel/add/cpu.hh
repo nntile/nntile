@@ -21,7 +21,7 @@ namespace nntile::kernel::add
 
 // Apply add for buffers on CPU
 template<typename T>
-void cpu(Index nelems, Scalar alpha, const T* src1, const T* src2, Scalar beta,
+void cpu(Index nelems, Scalar alpha, const T* src1, Scalar beta, const T* src2,
         T* dst)
     noexcept;
 

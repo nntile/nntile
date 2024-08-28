@@ -45,7 +45,7 @@ class AddSlice(BaseLayer):
         # Init Y as a copy of X
         copy_async(self.x.value, self.u.value)
         # Add slice operation
-        add_slice_async(1, self.y.value, 1, self.u.value, self.axis)
+        add_slice_async(1.0, self.y.value, 1.0, self.u.value, self.axis)
         self.x.value.wont_use()
         self.y.value.wont_use()
         self.u.value.wont_use()
@@ -57,9 +57,9 @@ class AddSlice(BaseLayer):
         return TensorMoments(y, None, False)
 
     def backward_async(self):
-        add_inplace_async(1, self.u.grad, 1, self.x.grad)
+        add_inplace_async(1.0, self.u.grad, 1.0, self.x.grad)
         sum_slice_async(
-            1, self.u.grad, 1, self.y.grad, self.axis, redux=self.redux
+            1.0, self.u.grad, 1.0, self.y.grad, self.axis, redux=self.redux
         )
         self.x.grad.wont_use()
         self.y.grad.wont_use()

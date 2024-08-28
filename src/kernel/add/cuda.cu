@@ -20,18 +20,18 @@ namespace nntile::kernel::add
 
 template<typename T, int BLOCK, int LOOP>
 static __global__
-void cuda_kernel(Index nelems, Scalar alpha_, const T *src1, const T *src2,
-        Scalar beta_, T *dst)
+void cuda_kernel(Index nelems, Scalar alpha_, const T *src1, Scalar beta_,
+        const T *src2, T *dst)
 //! Add two buffers on CUDA
 /*! Performs the following operation:
  *      dst[i] = alpha*src1[i] + beta*src2[i],
  * where alpha and beta are non-zero scalars.
  *
  * @param[in] nelems: Size of the src and dst tensors
- * @param[in] alpha_: Scalar multiplier for the src tensor
+ * @param[in] alpha_: Scalar multiplier for the src1 tensor
  * @param[in] src1: Source tensor
+ * @param[in] beta_: Scalar multiplier for the scr2 tensor
  * @param[in] src2: Source tensor
- * @param[in] beta_: Scalar multiplier for the dst tensor
  * @param[out] dst: Destination of the add operation
  * */
 {
@@ -67,7 +67,7 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T *src1, const T *src2,
 
 template<typename T>
 void cuda(cudaStream_t stream, Index nelems, Scalar alpha_, const T *src1_,
-        const T *src2_, Scalar beta_, T *dst_)
+        Scalar beta_, const T *src2_, T *dst_)
     noexcept
 //! Add two buffers on CUDA
 /*! Performs the following operation:
@@ -75,33 +75,33 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha_, const T *src1_,
  * where alpha and beta are non-zero scalars.
  *
  * @param[in] nelems: Size of the src and dst tensors
- * @param[in] alpha_: Scalar multiplier for the src tensor
+ * @param[in] alpha_: Scalar multiplier for the src1 tensor
  * @param[in] src1_: Source tensor
+ * @param[in] beta_: Scalar multiplier for the src2 tensor
  * @param[in] src2_: Source tensor
- * @param[in] beta_: Scalar multiplier for the dst tensor
  * @param[out] dst_: Destination of the add operation
  * */
 {
     dim3 threads(256);
     dim3 blocks((nelems+1023)/1024);
     (cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(nelems, alpha_,
-            src1_, src2_, beta_, dst_);
+            src1_, beta_, src2_, dst_);
 }
 
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha,
-        const fp32_t *src1, const fp32_t *src2, Scalar beta, fp32_t *dst)
+        const fp32_t *src1, Scalar beta, const fp32_t *src2, fp32_t *dst)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
-        const fp64_t *src1, const fp64_t *src2, Scalar beta, fp64_t *dst)
+        const fp64_t *src1, Scalar beta, const fp64_t *src2, fp64_t *dst)
     noexcept;
 
 template
 void cuda<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
-        const bf16_t *src1, const bf16_t *src2, Scalar beta, bf16_t *dst)
+        const bf16_t *src1, Scalar beta, const bf16_t *src2, bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::add

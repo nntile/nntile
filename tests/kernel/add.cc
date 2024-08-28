@@ -29,27 +29,33 @@ using namespace nntile;
 using namespace nntile::kernel;
 
 #ifdef NNTILE_USE_CUDA
-
 template<typename T>
-void run_cuda(Index nelems, Scalar alpha, const std::vector<T> &src,
-        Scalar beta, std::vector<T> &dst)
+void run_cuda(Index nelems, Scalar alpha, const std::vector<T> &src1,
+        Scalar beta, const std::vector<T> &src2, std::vector<T> &dst)
 {
     // Copy to device
-    T *dev_src1, T *dev_src2, *dev_dst;
-    cudaError_t cuda_err = cudaMalloc(&dev_src1, &dev_src2, sizeof(T)*nelems);
+    T *dev_src1, *dev_src2, *dev_dst;
+    cudaError_t cuda_err = cudaMalloc(&dev_src1, sizeof(T)*nelems);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    cuda_err = cudaMalloc(&dev_src2, sizeof(T)*nelems);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_dst, sizeof(T)*nelems);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_src1, dev_src2, &src1[0], &src2[0], sizeof(T)*nelems, cudaMemcpyHostToDevice);
+    cuda_err = cudaMemcpy(dev_src1, &src1[0], sizeof(T)*nelems,
+            cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*nelems,cudaMemcpyHostToDevice);
+    cuda_err = cudaMemcpy(dev_src2, &src2[0], sizeof(T)*nelems,
+            cudaMemcpyHostToDevice);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*nelems,
+            cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Init stream
     cudaStream_t stream;
     cuda_err = cudaStreamCreate(&stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Launch low-level CUDA kernel
-    add::cuda<T>(stream, nelems, alpha, dev_src1, dev_src2, beta, dev_dst);
+    add::cuda<T>(stream, nelems, alpha, dev_src1, beta, dev_src2, dev_dst);
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result and deallocate device memory
@@ -81,12 +87,12 @@ void validate(Index nelems, int test_index_a, int test_index_b)
     {
         src1[i] = Y(2*i+1-nelems);
         src2[i] = Y(2*nelems-i);
-        dst[i] = Y(2*nelems-i);
+        dst[i] = Y(5*nelems-2*i);
 
     }
     std::vector<T> dst_save(dst);
     std::cout << "Run kernel::add::cpu<" << T::type_repr << ">\n";
-    add::cpu<T>(nelems, alpha, &src1[0], &src2[0], beta, &dst[0]);
+    add::cpu<T>(nelems, alpha, &src1[0], beta, &src2[0], &dst[0]);
     for(Index i = 0; i < nelems; ++i)
     {
         Y val_ref = alpha*Y(2*i+1-nelems) + beta*Y(2*nelems-i);
@@ -97,7 +103,7 @@ void validate(Index nelems, int test_index_a, int test_index_b)
     // Check low-level CUDA kernel
     dst = dst_save;
     std::cout << "Run kernel::add::cuda<" << T::type_repr << ">\n";
-    run_cuda<T>(nelems, alpha, src1, src2, beta, dst);
+    run_cuda<T>(nelems, alpha, src1, beta, src2, dst);
     for(Index i = 0; i < nelems; ++i)
     {
         Y val_ref = alpha*Y(2*i+1-nelems) + beta*Y(2*nelems-i);

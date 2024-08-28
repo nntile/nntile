@@ -19,8 +19,8 @@ namespace nntile::kernel::add
 {
 
 template<typename T>
-void cpu(Index nelems, Scalar alpha, const T* src1, const T* src2, Scalar beta,
-        T* dst)
+void cpu(Index nelems, Scalar alpha, const T *src1, Scalar beta, const T *src2,
+        T *dst)
     noexcept
 //! Add of two buffers on CPU
 /*! Performs the following operation:
@@ -29,10 +29,11 @@ void cpu(Index nelems, Scalar alpha, const T* src1, const T* src2, Scalar beta,
  * where alpha and beta are non-zero scalars.
  *
  * @param[in] nelems: Size of the src and dst tensors
- * @param[in] alpha: Scalar multiplier for the src tensor
- * @param[in] src: Source tensor
- * @param[in] beta: Scalar multiplier for the dst tensor
- * @param[inout] dst: Destination of the add operation
+ * @param[in] alpha: Scalar multiplier for the src1 tensor
+ * @param[in] src1: Source tensor
+ * @param[in] beta: Scalar multiplier for the src2 tensor
+ * @param[in] src2: Source tensor
+ * @param[out] dst: Destination of the add operation
  * */
 {
     using Y = typename T::repr_t;
@@ -45,18 +46,18 @@ void cpu(Index nelems, Scalar alpha, const T* src1, const T* src2, Scalar beta,
 
 // Explicit instantiation
 template
-void cpu<fp64_t>(Index nelems, Scalar alpha, const fp64_t* src1,
-        const fp64_t* src2, Scalar beta, fp64_t* dst)
+void cpu<fp64_t>(Index nelems, Scalar alpha, const fp64_t *src1,
+        Scalar beta, const fp64_t *src2, fp64_t *dst)
     noexcept;
 
 template
-void cpu<fp32_t>(Index nelems, Scalar alpha, const fp32_t* src1,
-        const fp32_t* src2, Scalar beta, fp32_t* dst)
+void cpu<fp32_t>(Index nelems, Scalar alpha, const fp32_t *src1,
+        Scalar beta, const fp32_t *src2, fp32_t *dst)
     noexcept;
 
 template
 void cpu<bf16_t>(Index nelems, Scalar alpha, const bf16_t* src1,
-        const bf16_t* src2, Scalar beta, bf16_t* dst)
+        Scalar beta, const bf16_t *src2, bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::add

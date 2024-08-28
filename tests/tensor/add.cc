@@ -111,11 +111,11 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     scatter<T>(src2_single, src2);
     // Perform tensor-wise and tile-wise add operations
 
-    add<T>(-1.0, src1, src2, 0.5, dst);
+    add<T>(-1.0, src1, 0.5, src2, dst);
     if(mpi_rank == mpi_root)
     {
-        tile::add<T>(-1.0, src1_single.get_tile(0), src2_single.get_tile(0),
-                0.5, dst_single.get_tile(0));
+        tile::add<T>(-1.0, src1_single.get_tile(0), 0.5,
+                src2_single.get_tile(0), dst_single.get_tile(0));
     }
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
@@ -158,13 +158,13 @@ void validate()
     Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
         C(trC, dist0, last_tag);
 
-    TEST_THROW(add<T>(1.0, A, B, 0.0, C));
-    TEST_THROW(add<T>(1.0, A, C, 0.0, B));
-    TEST_THROW(add<T>(1.0, B, C, 0.0, A));
-    TEST_THROW(add<T>(1.0, B, A, 0.0, C));
-    TEST_THROW(add<T>(1.0, C, B, 0.0, A));
-    TEST_THROW(add<T>(1.0, C, A, 0.0, B));
-    TEST_THROW(add<T>(1.0, A, A, 0.0, B));
+    TEST_THROW(add<T>(1.0, A, 0.0, B, C));
+    TEST_THROW(add<T>(1.0, A, 0.0, C, B));
+    TEST_THROW(add<T>(1.0, B, 0.0, C, A));
+    TEST_THROW(add<T>(1.0, B, 0.0, A, C));
+    TEST_THROW(add<T>(1.0, C, 0.0, B, A));
+    TEST_THROW(add<T>(1.0, C, 0.0, A, B));
+    TEST_THROW(add<T>(1.0, A, 0.0, A, B));
 }
 
 int main(int argc, char **argv)

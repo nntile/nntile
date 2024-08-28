@@ -20,8 +20,8 @@ namespace nntile::tile
 
 //! Tile-wise add operation
 template<typename T>
-void add_async(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
-        Scalar beta, const Tile<T> &dst)
+void add_async(Scalar alpha, const Tile<T> &src1, Scalar beta,
+        const Tile<T> &src2, const Tile<T> &dst)
 {
     // Check dimensions
     if(dst.ndim != src1.ndim)
@@ -53,52 +53,52 @@ void add_async(Scalar alpha, const Tile<T> &src1, const Tile<T> &src2,
         return;
     }
     // Insert corresponding task
-    starpu::add::submit<T>(src1.nelems, alpha, src1, src2, beta, dst);
+    starpu::add::submit<T>(src1.nelems, alpha, src1, beta, src2, dst);
 }
 
 //! Tile-wise add operation
 template<typename T>
-void add(Scalar alpha, const Tile<T> &src1,const Tile<T> &src2, Scalar beta,
+void add(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
         const Tile<T> &dst)
 {
-    add_async<T>(alpha, src1, src2, beta, dst);
+    add_async<T>(alpha, src1, beta, src2, dst);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
-void add_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1,
-        const Tile<fp32_t> &src2,  Scalar beta, const Tile<fp32_t> &dst);
+void add_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1, Scalar beta,
+        const Tile<fp32_t> &src2, const Tile<fp32_t> &dst);
 
 template
-void add_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1,
-        const Tile<bf16_t> &src2, Scalar beta, const Tile<bf16_t> &dst);
+void add_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1, Scalar beta,
+        const Tile<bf16_t> &src2, const Tile<bf16_t> &dst);
 
 template
 void add_async<fp32_fast_tf32_t>(Scalar alpha,
-        const Tile<fp32_fast_tf32_t> &src1, const Tile<fp32_fast_tf32_t> &src2,
-        Scalar beta, const Tile<fp32_fast_tf32_t> &dst);
+        const Tile<fp32_fast_tf32_t> &src1, Scalar beta,
+        const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void add_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1,
-        const Tile<fp64_t> &src2, Scalar beta, const Tile<fp64_t> &dst);
+void add_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1, Scalar beta,
+        const Tile<fp64_t> &src2, const Tile<fp64_t> &dst);
 
 // Explicit instantiation of template
 template
-void add<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1,
-        const Tile<fp32_t> &src2, Scalar beta, const Tile<fp32_t> &dst);
+void add<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1, Scalar beta,
+        const Tile<fp32_t> &src2, const Tile<fp32_t> &dst);
 
 template
-void add<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1,
-        const Tile<bf16_t> &src2, Scalar beta, const Tile<bf16_t> &dst);
+void add<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1, Scalar beta,
+        const Tile<bf16_t> &src2, const Tile<bf16_t> &dst);
 
 template
 void add<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,
-        const Tile<fp32_fast_tf32_t> &src2, Scalar beta,
+        Scalar beta, const Tile<fp32_fast_tf32_t> &src2,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
-void add<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1,
-        const Tile<fp64_t> &src2, Scalar beta, const Tile<fp64_t> &dst);
+void add<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1, Scalar beta,
+        const Tile<fp64_t> &src2, const Tile<fp64_t> &dst);
 
 } // namespace nntile::tile

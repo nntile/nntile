@@ -88,7 +88,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nelems, Scalar alpha, Handle src1, Handle src2, Scalar beta,
+void submit(Index nelems, Scalar alpha, Handle src1, Scalar beta, Handle src2,
         Handle dst);
 
 } // namespace nntile::starpu::add

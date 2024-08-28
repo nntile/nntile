@@ -20,8 +20,8 @@ namespace nntile::tensor
 
 //! Tensor-wise add operation
 template<typename T>
-void add_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &src2,
-        Scalar beta, const Tensor<T> &dst)
+void add_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
+        const Tensor<T> &src2, const Tensor<T> &dst)
 {
     // Check dimensions
     if(dst.ndim != src1.ndim)
@@ -78,7 +78,7 @@ void add_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &src2,
         {
             auto traits = src1.get_tile_traits(i);
             starpu::add::submit<T>(traits.nelems, alpha, src1_tile_handle,
-                    src2_tile_handle,  beta, dst_tile_handle);
+                    beta, src2_tile_handle, dst_tile_handle);
         }
         // Flush cache for the output tile on every node
         dst_tile_handle.mpi_flush();
@@ -88,50 +88,50 @@ void add_async(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &src2,
 
 //! Tensor-wise add operation
 template<typename T>
-void add(Scalar alpha, const Tensor<T> &src1, const Tensor<T> &src2,
-        Scalar beta, const Tensor<T> &dst)
+void add(Scalar alpha, const Tensor<T> &src1, Scalar beta,
+        const Tensor<T> &src2, const Tensor<T> &dst)
 {
-    add_async<T>(alpha, src1, src2, beta, dst);
+    add_async<T>(alpha, src1, beta, src2, dst);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation of template
 template
-void add_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src1,
-        const Tensor<fp32_t> &src2, Scalar beta, const Tensor<fp32_t> &dst);
+void add_async<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src1, Scalar beta,
+        const Tensor<fp32_t> &src2, const Tensor<fp32_t> &dst);
 
 template
-void add_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src1,
-        const Tensor<bf16_t> &src2, Scalar beta, const Tensor<bf16_t> &dst);
+void add_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src1, Scalar beta,
+        const Tensor<bf16_t> &src2, const Tensor<bf16_t> &dst);
 
 template
 void add_async<fp32_fast_tf32_t>(Scalar alpha,
-        const Tensor<fp32_fast_tf32_t> &src1,
-        const Tensor<fp32_fast_tf32_t> &src2, Scalar beta,
+        const Tensor<fp32_fast_tf32_t> &src1, Scalar beta,
+        const Tensor<fp32_fast_tf32_t> &src2,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void add_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src1,
-        const Tensor<fp64_t> &src2, Scalar beta, const Tensor<fp64_t> &dst);
+void add_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src1, Scalar beta,
+        const Tensor<fp64_t> &src2, const Tensor<fp64_t> &dst);
 
 // Explicit instantiation of template
 
 template
-void add<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src1,
-        const Tensor<fp32_t> &src2, Scalar beta, const Tensor<fp32_t> &dst);
+void add<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src1, Scalar beta,
+        const Tensor<fp32_t> &src2, const Tensor<fp32_t> &dst);
 
 template
-void add<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src1,
-        const Tensor<bf16_t> &src2, Scalar beta, const Tensor<bf16_t> &dst);
+void add<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src1, Scalar beta,
+        const Tensor<bf16_t> &src2, const Tensor<bf16_t> &dst);
 
 template
 void add<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src1,
-        const Tensor<fp32_fast_tf32_t> &src2, Scalar beta,
+        Scalar beta, const Tensor<fp32_fast_tf32_t> &src2,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
-void add<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src1,
-        const Tensor<fp64_t> &src2, Scalar beta, const Tensor<fp64_t> &dst);
+void add<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src1, Scalar beta,
+        const Tensor<fp64_t> &src2, const Tensor<fp64_t> &dst);
 
 } // namespace nntile::tensor
