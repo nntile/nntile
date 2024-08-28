@@ -15,8 +15,7 @@
 
 #include <iostream>
 #include "nntile/tensor/add_inplace.hh"
-//#include "nntile/tile/add_inplace.hh"
-#include "nntile/starpu/add.hh"
+#include "nntile/starpu/add_inplace.hh"
 #include "nntile/starpu/scal.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
@@ -153,10 +152,10 @@ int main(int argc, char **argv)
     starpu::Config starpu(1, 0, 0);
     // Init codelet
     starpu::scal::init();
-    starpu::add::init();
+    starpu::add_inplace::init();
     starpu::subcopy::init();
     starpu::copy::init();
-    starpu::add::restrict_where(STARPU_CPU);
+    starpu::add_inplace::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
     starpu::copy::restrict_where(STARPU_CPU);
     // Launch all tests
