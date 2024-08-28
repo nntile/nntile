@@ -9,7 +9,7 @@
  * @file src/starpu/clear.cc
  * Clear a StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/starpu/clear.hh"

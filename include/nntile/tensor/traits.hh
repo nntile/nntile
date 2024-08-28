@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/traits.hh
  * Integer properties of the Tensor<T> class
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

@@ -9,7 +9,7 @@
  * @file include/nntile/tensor.hh
  * Header for Tensor<T> class with corresponding operations
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once
@@ -41,6 +41,7 @@
 #include <nntile/tensor/nrm2.hh>
 #include <nntile/tensor/normalize.hh>
 #include <nntile/tensor/prod.hh>
+#include <nntile/tensor/prod_inplace.hh>
 #include <nntile/tensor/randn.hh>
 #include <nntile/tensor/relu.hh>
 #include <nntile/tensor/relu_forward.hh>
@@ -86,8 +87,12 @@
 #include <nntile/tensor/transpose.hh>
 #include <nntile/tensor/silu_forward.hh>
 #include <nntile/tensor/silu_backward.hh>
+#include <nntile/tensor/conv2d_inplace.hh>
+#include <nntile/tensor/conv2d_bwd_input_inplace.hh>
+#include <nntile/tensor/conv2d_bwd_weight_inplace.hh>
 #include <nntile/tensor/rope.hh>
 #include <nntile/tensor/rope_backward.hh>
+#include <nntile/tensor/norm_fiber.hh>
 
 //! @namespace nntile::tensor
 /*! This namespace holds high-level routines for Tensor<T>

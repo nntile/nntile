@@ -9,7 +9,7 @@
  * @file src/tile/adamw_step.cc
  * AdamW step for Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/adamw_step.hh"

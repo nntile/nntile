@@ -9,7 +9,7 @@
  * @file tests/tile/nrm2.cc
  * NRM2 operation on Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/nrm2.hh"

@@ -9,7 +9,7 @@
  * @file tests/kernel/maximum.cc
  * Per-element maximum of two buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/maximum.hh"

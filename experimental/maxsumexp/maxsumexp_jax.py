@@ -9,7 +9,7 @@
 # @file experimental/maxsumexp/maxsumexp_jax.py
 # Some simple code for maxsumexp using JAX
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from os import environ
 from pathlib import Path

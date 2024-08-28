@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/prod.hh
  * Per-element product of two StarPU buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once
@@ -72,6 +72,6 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nelems, Handle src, Handle dst);
+void submit(Index nelems, Handle src1, Handle src2, Handle dst);
 
 } // namespace nntile::starpu::prod

@@ -9,7 +9,7 @@
  * @file tests/kernel/prod_slice.cc
  * Per-element multiplication of a tensor by a broadcasted slice
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>

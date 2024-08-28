@@ -9,7 +9,7 @@
  * @file src/starpu/add_fiber.cc
  * StarPU wrappers for addition of a tensor and a broadcasted fiber
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID

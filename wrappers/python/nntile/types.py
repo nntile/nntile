@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/tensor.py
 # Multiprecision tensor with operations
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import sys
 from typing import TYPE_CHECKING, Protocol, Sequence
@@ -94,3 +94,9 @@ class TensorMoments(object):
         if self.grad is not None:
             self.grad.unregister()
             self.grad = None
+
+    def get_nbytes(self):
+        if self.grad is None:
+            return self.value.get_nbytes()
+        else:
+            return self.value.get_nbytes() + self.grad.get_nbytes()

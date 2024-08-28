@@ -9,7 +9,7 @@
  * @file src/starpu/prod_slice.cc
  * StarPU wrappers for per-element product of a tensor and a broadcasted slice
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID
@@ -151,7 +151,8 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Handle dst)
     args->n = n;
     args->k = k;
     args->alpha = alpha;
-    double nflops = m * n * k;
+    // Put amount of bytes read and write inplace of gflops
+    double nflops = sizeof(T) * m * (2*k+1) * n;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),

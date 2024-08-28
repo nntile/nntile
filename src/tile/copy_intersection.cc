@@ -9,7 +9,7 @@
  * @file src/tile/copy_intersection.cc
  * Copy intersection of 2 tiles from one into another
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/copy_intersection.hh"
@@ -141,6 +141,11 @@ void copy_intersection(const Tile<T> &src,
 
 // Explicit instantiation
 template
+void copy_intersection_async<bool_t>(const Tile<bool_t> &src,
+        const std::vector<Index> &src_offset, const Tile<bool_t> &dst,
+        const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
+
+template
 void copy_intersection_async<fp32_t>(const Tile<fp32_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp32_t> &dst,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
@@ -156,6 +161,11 @@ void copy_intersection_async<int64_t>(const Tile<int64_t> &src,
         const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
 
 // Explicit instantiation
+template
+void copy_intersection<bool_t>(const Tile<bool_t> &src,
+        const std::vector<Index> &src_offset, const Tile<bool_t> &dst,
+        const std::vector<Index> &dst_offset, const Tile<int64_t> &scratch);
+
 template
 void copy_intersection<fp32_t>(const Tile<fp32_t> &src,
         const std::vector<Index> &src_offset, const Tile<fp32_t> &dst,

@@ -9,7 +9,7 @@
  * @file src/kernel/accumulate_maxsumexp/cuda.cu
  * Accumulate maxsumexp buffers on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/accumulate_maxsumexp/cuda.hh"

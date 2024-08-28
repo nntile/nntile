@@ -9,7 +9,7 @@
  * @file src/kernel/drelu/cpu.cc
  * Derivative of ReLU operation on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/drelu/cpu.hh"

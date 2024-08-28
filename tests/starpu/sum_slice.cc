@@ -9,7 +9,7 @@
  * @file tests/starpu/sum_slice.cc
  * Sums over fibers into a slice of a StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/starpu/sum_slice.hh"

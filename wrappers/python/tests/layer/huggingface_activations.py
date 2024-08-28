@@ -10,7 +10,7 @@
 # This file is taken from
 # https://github.com/huggingface/transformers/blob/main/src/transformers/activations.py
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # ruff: noqa: E501
 

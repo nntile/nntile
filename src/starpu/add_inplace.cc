@@ -9,7 +9,7 @@
  * @file src/starpu/add_inplace.cc
  * Add operation on a StarPU buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID
@@ -173,16 +173,19 @@ void submit(Index nelems, Scalar alpha, Handle src, Scalar beta, Handle dst)
     args->nelems = nelems;
     args->alpha = alpha;
     args->beta = beta;
+    // Put amount of bytes read and write inplace of gflops
+    double nflops = sizeof(T) * 3 * nelems;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_CL_ARGS, args, sizeof(*args),
-            dst_mode, static_cast<starpu_data_handle_t>(dst), 0);
-            // STARPU_FLOPS, nflops);
+            dst_mode, static_cast<starpu_data_handle_t>(dst),
+            STARPU_FLOPS, nflops,
+            0);
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in add task submission");
+        throw std::runtime_error("Error in add_inplace task submission");
     }
 }
 
@@ -196,8 +199,8 @@ void submit<bf16_t>(Index nelems, Scalar alpha, Handle src, Scalar beta,
         Handle dst);
 
 template
-void submit<fp32_fast_tf32_t>(Index nelems, Scalar alpha, Handle src, Scalar beta,
-        Handle dst);
+void submit<fp32_fast_tf32_t>(Index nelems, Scalar alpha, Handle src,
+        Scalar beta, Handle dst);
 
 template
 void submit<fp64_t>(Index nelems, Scalar alpha, Handle src, Scalar beta,

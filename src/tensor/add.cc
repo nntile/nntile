@@ -9,7 +9,7 @@
  * @file src/tensor/add.cc
  * Add operation for Tensor<T>'s
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/add.hh"

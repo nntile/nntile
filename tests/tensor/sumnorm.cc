@@ -9,7 +9,7 @@
  * @file tests/tensor/sumnorm.cc
  * Sumnorm operation for Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/sumnorm.hh"

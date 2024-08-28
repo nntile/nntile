@@ -9,7 +9,7 @@
  * @file src/logger/logger_thread.cc
  * Implementation of a logger thread
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/logger/logger_thread.hh"

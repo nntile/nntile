@@ -9,7 +9,7 @@
  * @file tests/tile/pow.cc
  * Per-element power operation for Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>

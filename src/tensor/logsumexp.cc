@@ -9,7 +9,7 @@
  * @file src/tensor/logsumexp.cc
  * Log sum of exponents of Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/logsumexp.hh"

@@ -9,7 +9,7 @@
  * @file tests/tensor/sum_slice.cc
  * Sums over fibers into a slice of a Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/sum_slice.hh"

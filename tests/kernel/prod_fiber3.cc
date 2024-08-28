@@ -9,7 +9,7 @@
  * @file tests/kernel/prod_fiber3.cc
  * Per-element multiplication of a tensor by a broadcasted fiber
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>

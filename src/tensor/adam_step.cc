@@ -9,7 +9,7 @@
  * @file src/tensor/adam_step.cc
  * Fuse Adam step operation for Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/adam_step.hh"

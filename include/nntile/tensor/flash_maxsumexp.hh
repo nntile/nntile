@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/flash_maxsumexp.hh
  * Fast max and sum of exponents of Tensor<T> along axis
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

@@ -9,7 +9,7 @@
  * @file src/starpu/total_sum_accum.cc
  * Total sum accumulating for StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID
@@ -36,7 +36,7 @@ void cpu(void *buffers[], void *cl_args)
     const T *logsumexp = interfaces[0]->get_ptr<T>();
     const T *src = interfaces[1]->get_ptr<T>();
     const int64_t* labels = interfaces[2]->get_ptr<int64_t>();
-    T* val = interfaces[3]->get_ptr<T>();
+    float *val = interfaces[3]->get_ptr<float>();
     // Launch kernel
     kernel::total_sum_accum::cpu<T>(alpha, n_labels, n_outputs, logsumexp, src,
             labels, val);
@@ -60,12 +60,12 @@ void cuda(void *buffers[], void *cl_args)
     const T *logsumexp = interfaces[0]->get_ptr<T>();
     const T *src = interfaces[1]->get_ptr<T>();
     const int64_t* labels = interfaces[2]->get_ptr<int64_t>();
-    T* val = interfaces[3]->get_ptr<T>();
+    float *val = interfaces[3]->get_ptr<float>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::total_sum_accum::cuda<T>(stream, alpha, n_labels, n_outputs, logsumexp, src,
-            labels, val);
+    kernel::total_sum_accum::cuda<T>(stream, alpha, n_labels, n_outputs,
+            logsumexp, src, labels, val);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
@@ -147,8 +147,8 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Scalar alpha, Index n_labels, Index n_outputs, Handle logsumexp, Handle src,
-        Handle class_labels, Handle val)
+void submit(Scalar alpha, Index n_labels, Index n_outputs, Handle logsumexp,
+        Handle src, Handle class_labels, Handle val)
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
@@ -161,7 +161,7 @@ void submit(Scalar alpha, Index n_labels, Index n_outputs, Handle logsumexp, Han
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_R, static_cast<starpu_data_handle_t>(class_labels),
             STARPU_CL_ARGS, args, sizeof(*args),
-            STARPU_RW | STARPU_COMMUTE, static_cast<starpu_data_handle_t>(val),
+            Config::STARPU_RW_COMMUTE, static_cast<starpu_data_handle_t>(val),
             0);
     // Check submission
     if(ret != 0)
@@ -172,19 +172,19 @@ void submit(Scalar alpha, Index n_labels, Index n_outputs, Handle logsumexp, Han
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Scalar alpha, Index n_labels, Index n_outputs, Handle logsumexp,
-        Handle src, Handle class_labels, Handle val);
+void submit<fp32_t>(Scalar alpha, Index n_labels, Index n_outputs,
+        Handle logsumexp, Handle src, Handle class_labels, Handle val);
 
 template
-void submit<fp32_fast_tf32_t>(Scalar alpha, Index n_labels, Index n_outputs, Handle logsumexp,
-        Handle src, Handle class_labels, Handle val);
+void submit<fp32_fast_tf32_t>(Scalar alpha, Index n_labels, Index n_outputs,
+        Handle logsumexp, Handle src, Handle class_labels, Handle val);
 
 template
-void submit<fp64_t>(Scalar alpha, Index n_labels, Index n_outputs, Handle logsumexp,
-        Handle src, Handle class_labels, Handle val);
+void submit<fp64_t>(Scalar alpha, Index n_labels, Index n_outputs,
+        Handle logsumexp, Handle src, Handle class_labels, Handle val);
 
 template
-void submit<bf16_t>(Scalar alpha, Index n_labels, Index n_outputs, Handle logsumexp,
-        Handle src, Handle class_labels, Handle val);
+void submit<bf16_t>(Scalar alpha, Index n_labels, Index n_outputs,
+        Handle logsumexp, Handle src, Handle class_labels, Handle val);
 
 } // namespace nntile::starpu::total_sum_accum

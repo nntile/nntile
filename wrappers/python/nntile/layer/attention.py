@@ -9,17 +9,18 @@
 # @file wrappers/python/nntile/layer/attention.py
 # Attention layer of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor, TensorMoments, TensorTraits, add_fiber_async, add_slice_async,
-    clear_async, copy_intersection_async, gemm_async, mask_scalar_async,
-    maxsumexp_async, notrans, prod_async, softmax_inplace_async,
-    sum_fiber_async, sumprod_slice_async, trans, transpose_async)
+    Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_async,
+    add_slice_async, clear_async, copy_intersection_async, gemm_async,
+    mask_scalar_async, maxsumexp_async, notrans, prod_inplace_async,
+    softmax_inplace_async, sum_fiber_async, sumprod_slice_async, trans,
+    transpose_async)
 
 
 # Multi-head attention
@@ -159,10 +160,13 @@ class Attention(BaseLayer):
         self.in_proj_bias_v = in_proj_bias_v
         self.out_proj_bias = out_proj_bias
         self.n_head = w_q.value.shape[0]
-        n_emb = x_q.value.shape[0]
-        head_size = n_emb // self.n_head
+        self.n_head_tile = w_q.value.basetile_shape[0]
+        self.n_emb = x_q.value.shape[0]
+        self.n_emb_tile = x_q.value.basetile_shape[0]
+
+        head_size = self.n_emb // self.n_head
         # Stupid check, that is not necessary, as the code shall work
-        if n_emb != head_size * self.n_head:
+        if self.n_emb != head_size * self.n_head:
             raise RuntimeError
         self.head_size = head_size
         self.mask = mask
@@ -565,12 +569,24 @@ class Attention(BaseLayer):
             self.in_proj_bias_q.value.wont_use()
 
     def _get_tmp_tr_for_cache(self, x):
-        q_partial_tr_shape = (1,) + tuple(x.shape)
-        return nntc.zeros(q_partial_tr_shape, dtype=type(x))
+        partial_tr_shape = (self.n_head, self.head_size) + tuple(x.shape[1:])
+        partial_tr_basetile_shape = (self.n_head_tile, self.head_size) + tuple(
+            x.shape[1:]
+        )
+        return nntc.empty(
+            partial_tr_shape,
+            dtype=type(x),
+            basetile_shape=partial_tr_basetile_shape,
+        )
 
     def _get_tmp_for_cache(self, x):
-        q_partial_shape = tuple(x.shape) + (1,)
-        return nntc.zeros(q_partial_shape, dtype=type(x))
+        partial_shape = (self.head_size,) + tuple(x.shape[1:]) + (self.n_head,)
+        partial_basetile_shape = (
+            (self.head_size,) + tuple(x.shape[1:]) + (self.n_head_tile,)
+        )
+        return nntc.empty(
+            partial_shape, dtype=type(x), basetile_shape=partial_basetile_shape
+        )
 
     def _forward_mlp_q_dynamic(self, x: Tensor):
         q_partial_tr = self._get_tmp_tr_for_cache(x)
@@ -659,7 +675,11 @@ class Attention(BaseLayer):
         # So copy here
         cached_shape = self.k.value.shape
         cached_shape[1] = self.k_cache_size
-        k_partial_cached = nntc.zeros(cached_shape, dtype=type(x))
+        k_partial_cached = nntc.empty(
+            cached_shape,
+            dtype=type(x),
+            basetile_shape=tuple(cached_shape[:-1]) + (self.n_head_tile,),
+        )
         copy_intersection_async(
             self.k.value, [0, 0, 0, 0], k_partial_cached, [0, 0, 0, 0]
         )
@@ -728,7 +748,11 @@ class Attention(BaseLayer):
         # So copy here
         cached_shape = self.v.value.shape
         cached_shape[1] = self.v_cache_size
-        v_partial_cached = nntc.zeros(cached_shape, dtype=type(x))
+        v_partial_cached = nntc.empty(
+            cached_shape,
+            dtype=type(x),
+            basetile_shape=tuple(cached_shape[:-1]) + (self.n_head_tile,),
+        )
         copy_intersection_async(
             self.v.value, [0, 0, 0, 0], v_partial_cached, [0, 0, 0, 0]
         )
@@ -822,17 +846,37 @@ class Attention(BaseLayer):
         self.y.value.wont_use()
 
     def _forward_attn_dynamic(self, q, k, v):
-        a_tmp = nntc.zeros(
-            k.shape[1:2] + q.shape[1:2] + k.shape[2:], dtype=type(q)
+        a_tmp = nntc.empty(
+            (k.shape[1],) + (q.shape[1],) + tuple(k.shape[2:]),
+            dtype=type(q),
+            basetile_shape=(k.shape[1],)
+            + (q.shape[1],)
+            + (k.shape[2],)
+            + (self.n_head_tile,),
+        )  # (n_seq, n_seq, batch=n_batch, batch=n_head)
+        a_maxsumexp_tmp = nntc.empty(
+            (2,) + tuple(a_tmp.shape[1:]),
+            dtype=type(q),
+            basetile_shape=(2,)
+            + tuple(a_tmp.shape[1:-1])
+            + (self.n_head_tile,),
         )
-        a_maxsumexp_tmp = nntc.zeros(
-            (2,) + tuple(a_tmp.shape[1:]), dtype=type(q)
-        )
-        b_tmp = nntc.zeros(q.shape, dtype=type(q))
-        b_tr_tmp = nntc.zeros(q.shape[3:] + q.shape[:3], dtype=type(q))
-        self.y_tensor = nntc.zeros(
-            (tuple(q.shape[:2]) + (q.shape[2] * q.shape[3],)), dtype=type(q)
-        )
+        b_tmp = nntc.empty(
+            q.shape,
+            dtype=type(q),
+            basetile_shape=tuple(q.shape[:-1]) + (self.n_head_tile,),
+        )  # (head_size, n_seq, n_batch, n_head)
+        b_tr_tmp = nntc.empty(
+            (self.n_head, self.head_size) + tuple(q.shape[1:3]),
+            dtype=type(q),
+            basetile_shape=(self.n_head_tile, self.head_size)
+            + tuple(q.shape[1:3]),
+        )  # (n_head, head_size, n_seq, n_batch)
+        self.y_tensor = nntc.empty(
+            (self.n_emb,) + tuple(q.shape[1:3]),
+            dtype=type(q),
+            basetile_shape=(self.n_emb_tile,) + tuple(q.shape[1:3]),
+        )  # (n_emb, n_seq, n_batch)
         y_tensor = self.y_tensor
         # Get tensor for softmax
         # A = 1.0/sqrt(head_size) * einsum('jklb,jmlb->kmlb', K, Q)
@@ -861,7 +905,11 @@ class Attention(BaseLayer):
         # A = softmax(A, axis=0)
         # Apply mask if needed
         if self.mask:
-            raise Exception("Mask not implemented")  # TODO: implement mask
+            mask_tmp = nntc.empty(a_tmp.shape[:2], dtype=Tensor_bool)
+            copy_intersection_async(
+                self.mask, [0, 0], mask_tmp, [0, k.shape[1] - q.shape[1]]
+            )
+            mask_scalar_async(mask_tmp, self.val, a_tmp, 2)
 
         # Calculate max and sumexp along axis
         maxsumexp_async(a_tmp, a_maxsumexp_tmp, 0, redux=self.redux)
@@ -946,7 +994,7 @@ class Attention(BaseLayer):
 
         # compute attention and weight result
         y_tensor = self._forward_attn_dynamic(q_partial, k, v)
-        return y_tensor
+        return TensorMoments(y_tensor, None, False)
 
     # Backward propagation of the linear layer
     def backward_async(self):
@@ -1060,7 +1108,7 @@ class Attention(BaseLayer):
             # self.a_sumprod_slice.wont_use()
             self.a_sumprod_slice.invalidate_submit()
             # dA *= A
-            prod_async(self.a.value, self.a.grad)
+            prod_inplace_async(self.a.value, self.a.grad)
         # A can be deleted
         # self.a.value.wont_use()
         self.a.value.invalidate_submit()

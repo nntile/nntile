@@ -9,7 +9,7 @@
  * @file src/kernel/hypot_scalar_inverse/cpu.cc
  * Inverse of a hypot operation of a buffer and a scalar on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/hypot_scalar_inverse/cpu.hh"

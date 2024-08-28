@@ -9,7 +9,7 @@
  * @file src/kernel/norm_slice/cuda.cu
  * Euclidean norms of fibers into a slice of a buffer on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/norm_slice/cuda.hh"
@@ -21,8 +21,24 @@ namespace nntile::kernel::norm_slice
 
 template<typename T>
 static __global__
-void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_, const T *src,
-        Scalar beta_, T *dst)
+void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_,
+        const T *src, Scalar beta_, T *dst)
+//! Euclidean norms over fibers along middle axis into a slice of a tensor
+/*! For a provided m-by-k-by-n input array src compute norms of fibers
+ * along second axis with k elements, resulting in m-by-n output array-slice
+ * dst.
+ * Mnemonically, the following operations are performed:
+ *      dst[i,j] = hypot(beta*dst[i,j], alpha*norm(src[i,:,j]))
+ *
+ * @param[in] m: Size of the first mode of src and dst arrays
+ * @param[in] n: Size of the last mode of src and dst arrays
+ * @param[in] k: Size of the middle mode of src array
+ * @param[in] alpha_: Scaling factor for src
+ * @param[in] src: Input contiguous m-by-k-by-n array
+ * @param[in] beta_: Scaling factor for dst
+ * @param[inout] dst: Input and output contiguous m-by-n array, that
+ *      accumulates norms along middle axis.
+ * */
 {
     Index i0 = threadIdx.x + blockIdx.x*blockDim.x,
           i1 = threadIdx.y + blockIdx.y*blockDim.y;
@@ -30,7 +46,6 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_, const T *sr
     using Y = typename T::repr_t;
     const Y beta{beta_};
     const Y alpha{alpha_};
-    using Z = typename CUDAComputeType<T>::value;
     constexpr Y zero{0.};
     if(i0 < m and i1 < n)
     {
@@ -81,6 +96,89 @@ void cuda_kernel(Index m, Index n, Index k, Index mk, Scalar alpha_, const T *sr
     }
 }
 
+template<typename T, int BLOCK_ROW, int LOOP>
+static __global__
+void cuda_kernel_m1(Index n, Index k, Scalar alpha_, const T *src,
+        Scalar beta_, T *dst)
+//! Euclidean norms over fibers along middle axis into a slice of a tensor
+/*! For a provided 1-by-k-by-n input array src compute norms of fibers
+ * along second axis with k elements, resulting in 1-by-n output array-slice
+ * dst.
+ * Mnemonically, the following operations are performed:
+ *      dst[0,j] = hypot(beta*dst[0,j], alpha*norm(src[0,:,j]))
+ *
+ * @param[in] n: Size of the last mode of src and dst arrays
+ * @param[in] k: Size of the middle mode of src array
+ * @param[in] alpha_: Scaling factor for src
+ * @param[in] src: Input contiguous 1-by-k-by-n array
+ * @param[in] beta_: Scaling factor for dst
+ * @param[inout] dst: Input and output contiguous 1-by-n array, that
+ *      accumulates norms along middle axis.
+ * */
+{
+    Index src_l_block_end = (k/BLOCK_ROW) * BLOCK_ROW;
+    using Y = typename T::repr_t;
+    const Y alpha{alpha_};
+    const Y beta{beta_};
+    constexpr int BLOCK_ROW_STEP = BLOCK_ROW / LOOP;
+    volatile __shared__ Y dst_block[BLOCK_ROW_STEP];
+    Y dst_val = 0.0;
+    // Pointer to a corresponding fiber of the input arrays
+    for(Index src_l = threadIdx.x; src_l < src_l_block_end;
+            src_l += BLOCK_ROW)
+    {
+        const T *src_fiber = src + src_l + blockIdx.x*k;
+        for(int c = 0; c < BLOCK_ROW; c += BLOCK_ROW_STEP)
+        {
+            Y val = static_cast<Y>(src_fiber[c]);
+            dst_val = ::hypot(dst_val, val);
+        }
+    }
+    // Pointer to a corresponding fiber of the input arrays
+    Index src_l = threadIdx.x + src_l_block_end;
+    const T *src_fiber = src + blockIdx.x*k;
+    for(Index c = src_l; c < k; c += BLOCK_ROW_STEP)
+    {
+        Y val = static_cast<Y>(src_fiber[c]);
+        dst_val = ::hypot(dst_val, val);
+    }
+    // Put calculated value into shared memory
+    dst_block[threadIdx.x] = ::fabs(alpha) * dst_val;
+    __syncthreads();
+    // Inter-warp reduction
+    for(int c = BLOCK_ROW_STEP>>1; c > 32; c >>= 1)
+    {
+        if(threadIdx.x < c)
+        {
+            dst_block[threadIdx.x] = ::hypot(
+                    dst_block[threadIdx.x], dst_block[threadIdx.x+c]);
+        }
+        __syncthreads();
+    }
+    // Reduction within a single warp
+    if(threadIdx.x < 32)
+    {
+        for(int c = 32; c > 0; c >>= 1)
+        {
+            dst_block[threadIdx.x] = ::hypot(
+                    dst_block[threadIdx.x], dst_block[threadIdx.x+c]);
+        }
+    }
+    // Write output
+    if(threadIdx.x == 0)
+    {
+        if(beta == 0.0)
+        {
+            dst[blockIdx.x] = static_cast<T>(static_cast<Y>(dst_block[0]));
+        }
+        else
+        {
+            dst_val = beta * static_cast<Y>(dst[blockIdx.x]);
+            dst[blockIdx.x] = static_cast<T>(::hypot(dst_val, dst_block[0]));
+        }
+    }
+}
+
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
         const T *src, Scalar beta, T *dst)
@@ -103,11 +201,22 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Scalar alpha,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 threads(std::min(int(m), 8), std::min(int(n), 8),
-            std::min(int(k), 16));
-    dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y, 1);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha,
-            src, beta, dst);
+    // Separate case for m==1
+    if(m == 1)
+    {
+        dim3 threads(256);
+        dim3 blocks(n);
+        (cuda_kernel_m1<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(n, k,
+                alpha, src, beta, dst);
+    }
+    else
+    {
+        dim3 threads(std::min(int(m), 8), std::min(int(n), 8),
+                std::min(int(k), 16));
+        dim3 blocks((m+threads.x-1)/threads.x, (n+threads.y-1)/threads.y, 1);
+        (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, m*k, alpha,
+                src, beta, dst);
+    }
 }
 
 // Explicit instantiation

@@ -9,7 +9,7 @@
 # @file logger/server.py
 # A simple server that listens websocket port 5001 and writes TensorBoard logs
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import asyncio
 import datetime
@@ -34,7 +34,7 @@ def create_new_writer(log_dir, node_name):
     current_time = datetime.datetime.now().strftime("%Y-%m-%d---%H%M")
     current_log_dir = Path(log_dir) / node_name / current_time
     print(current_log_dir)
-    Path(current_log_dir).mkdir(parents=True)
+    Path(current_log_dir).mkdir(parents=True, exist_ok=True)
     writer = tf.summary.create_file_writer(str(current_log_dir))
     writer.set_as_default()
     return writer
@@ -185,7 +185,7 @@ async def main():
     clear_logs = int(os.environ.get('CLEAR_LOGS', 1))
     server_port = int(os.environ.get('SERVER_PORT', 5001))
 
-    Path(log_dir).mkdir(parents=True)
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
     print(f"log_dir={log_dir}, split_hours={split_hours}")
 
     handle_client_log = partial(handle_client, log_dir)

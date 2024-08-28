@@ -9,4 +9,4 @@
 # @file wrappers/python/nntile/utils/__init__.py
 # Just an init file of util subpackage
 #
-# @version 1.0.0
+# @version 1.1.0

@@ -7,9 +7,9 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/starpu/rope.cc
- * StarPU wrappers for addition of a tensor and a broadcasted fiber
+ * Rotary positional embedding
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID
@@ -18,11 +18,11 @@
 #include "nntile/starpu/rope.hh"
 #include <cstdlib>
 
-//! StarPU wrappers for add_fiber operation
+//! StarPU wrappers for rope operation
 namespace nntile::starpu::rope
 {
 
-//! StarPU wrapper for kernel::add_fiber::cpu<T>
+//! StarPU wrapper for kernel::rope::cpu<T>
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
@@ -47,6 +47,7 @@ template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t*>(cl_args);
     // Get interfaces
@@ -59,6 +60,7 @@ void cuda(void *buffers[], void *cl_args)
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     kernel::rope::cuda<T>(stream, args->m, args->n, sin, cos, src, dst);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 

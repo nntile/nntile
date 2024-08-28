@@ -9,7 +9,7 @@
  * @file src/tensor/relu_forward.cc
  * ReLU operation for Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/relu_forward.hh"

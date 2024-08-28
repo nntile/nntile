@@ -9,16 +9,19 @@
 # @file wrappers/python/nntile/layer/__init__.py
 # Submodule with neural network layers of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from .act import Act
+from .add import Add
 from .add_slice import AddSlice
 from .attention import Attention
 from .attention_single_head import AttentionSingleHead
 from .base_layer import BaseLayer
 from .batch_norm import BatchNorm2d
+from .conv2d import Conv2d
 from .embedding import Embedding
 from .flash_attention import FlashAttention
+from .gpt2_attention import GPT2Attention
 from .layer_norm import LayerNorm
 from .linear import Linear
 from .llama_attention import LlamaAttention
@@ -26,6 +29,7 @@ from .mixer import GAP, Mixer, MixerMlp
 from .prod import Prod
 from .rms_norm import RMSNorm
 
-__all__ = ('Act', 'AddSlice', 'Attention', 'AttentionSingleHead', 'BaseLayer',
-           'BatchNorm2d', 'Embedding', 'FlashAttention', 'GAP', 'LayerNorm',
-           'Linear', 'LlamaAttention', 'Mixer', 'MixerMlp', 'RMSNorm', 'Prod')
+__all__ = ('Act', 'Add', 'AddSlice', 'Attention', 'AttentionSingleHead',
+        'BaseLayer', 'BatchNorm2d', 'Conv2d', 'Embedding', 'FlashAttention',
+        'GAP', 'LayerNorm', 'Linear', 'LlamaAttention', 'GPT2Attention',
+        'Mixer', 'MixerMlp', 'RMSNorm', 'Prod')

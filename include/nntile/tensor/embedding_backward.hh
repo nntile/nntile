@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/embedding_backward.hh
  * Backward embeddings from vocabulary within Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/hypot_scalar_inverse/cpu.hh
  * Inverse of a hypot operation of a buffer and a scalar
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

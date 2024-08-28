@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/__init__.py
 # Submodule with neural network models of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from .base_model import BaseModel
 from .deep_linear import DeepLinear

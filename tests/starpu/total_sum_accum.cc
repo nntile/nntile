@@ -9,7 +9,7 @@
  * @file tests/starpu/total_sum_accum.cc
  * Total sum accumulating for StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>

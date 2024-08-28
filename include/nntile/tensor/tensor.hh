@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/tensor.hh
  * Tensor<T> class
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once
@@ -210,6 +210,11 @@ public:
         T *data = reinterpret_cast<T *>(starpu_data_get_local_ptr(handle));
         std::cout << "Value: " << *data << "\n";
         starpu_data_release(handle);
+    }
+    //! Get size of the data in bytes
+    size_t get_nbytes()
+    {
+        return sizeof(T) * nelems;
     }
 };
 

@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/embedding.hh
  * Embeddings from vocabulary within buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

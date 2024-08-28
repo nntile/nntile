@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/tensor.py
 # Multiprecision tensor with operations
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # TODO(@daskol): There are a lot of typing errors related to dispatching
 # depending on operand types. Arguments are usually annotated as a `Tensor`
@@ -337,6 +337,40 @@ def sum_fiber_async(
         raise TypeError
 
 
+def norm_fiber_async(
+    alpha: float,
+    x: Tensor,
+    beta: float,
+    norm_fiber: Tensor,
+    axis: int,
+    batch_ndim: int,
+    redux: int = 0,
+) -> None:
+    """
+    Wrapper for multiprecision norm_fiber
+    """
+    if type(x) is not type(norm_fiber):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.norm_fiber_async_fp32(
+            alpha, x, beta, norm_fiber, axis, batch_ndim, redux
+        )
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.norm_fiber_async_fp32_fast_tf32(
+            alpha, x, beta, norm_fiber, axis, batch_ndim, redux
+        )
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.norm_fiber_async_fp64(
+            alpha, x, beta, norm_fiber, axis, batch_ndim, redux
+        )
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.norm_fiber_async_bf16(
+            alpha, x, beta, norm_fiber, axis, batch_ndim, redux
+        )
+    else:
+        raise TypeError
+
+
 def norm_slice_async(
     alpha: float,
     x: Tensor,
@@ -623,30 +657,52 @@ def randn_async(x: Tensor, start: Sequence[int], shape: Sequence[int],
         raise TypeError('Wrong tensor type {type(x)}.')
 
 
-def prod_async(x: Tensor, y: Tensor) -> None:
+def prod_async(x: Tensor, y: Tensor, z: Tensor) -> None:
     """
     Wrapper for multiprecision prod
     """
     if type(x) is not type(y):
         raise TypeError
+    if type(x) is not type(z):
+        raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.prod_async_fp32(x, y)
+        core_tensor.prod_async_fp32(x, y, z)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.prod_async_fp32_fast_tf32(x, y)
+        core_tensor.prod_async_fp32_fast_tf32(x, y, z)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.prod_async_fp64(x, y)
+        core_tensor.prod_async_fp64(x, y, z)
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.prod_async_bf16(x, y)
+        core_tensor.prod_async_bf16(x, y, z)
     else:
         raise TypeError
 
 
-def add_async(alpha: float, x: Tensor, y: Tensor, beta: float, z: Tensor) -> None:
+def prod_inplace_async(x: Tensor, y: Tensor) -> None:
+    """
+    Wrapper for multiprecision prod_inplace
+    """
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.prod_inplace_async_fp32(x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.prod_inplace_async_fp32_fast_tf32(x, y)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.prod_inplace_async_fp64(x, y)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.prod_inplace_async_bf16(x, y)
+    else:
+        raise TypeError
 
+
+def add_async(alpha: float, x: Tensor, y: Tensor, beta: float,
+        z: Tensor) -> None:
     """
     Wrapper for multiprecision add
     """
     if type(x) is not type(y):
+        raise TypeError
+    if type(x) is not type(z):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
         core_tensor.add_async_fp32(alpha, x, y, beta, z)
@@ -659,9 +715,10 @@ def add_async(alpha: float, x: Tensor, y: Tensor, beta: float, z: Tensor) -> Non
     else:
         raise TypeError
 
+
 def add_inplace_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
     """
-    Wrapper for multiprecision add
+    Wrapper for multiprecision add_inplace
     """
     if type(x) is not type(y):
         raise TypeError
@@ -940,6 +997,8 @@ def copy_intersection_async(
         core_tensor.copy_intersection_async_fp64(x, x_offset, y, y_offset)
     elif type(x) is core_tensor.Tensor_int64:
         core_tensor.copy_intersection_async_int64(x, x_offset, y, y_offset)
+    elif type(x) is core_tensor.Tensor_bool:
+        core_tensor.copy_intersection_async_bool(x, x_offset, y, y_offset)
     else:
         raise TypeError
 
@@ -1527,3 +1586,93 @@ def rope_backward_async(
         core_tensor.rope_backward_async_bf16(sin, cos, dy, dx)
     else:
         raise TypeError
+
+
+def conv2d_inplace_async(
+        alpha: float,
+        X: Tensor,
+        C: Tensor,
+        beta: float,
+        Y: Tensor,
+        padding: Sequence[int] = [0, 0],
+        stride: Sequence[int] = [1, 1],
+        dilation: Sequence[int] = [1, 1]
+) -> None:
+    """Wrapper for multiprecision conv2d_inplace"""
+    ts = (X, C, Y)
+    if is_tensor_of(ts, Tensor_bf16):
+        ops.conv2d_inplace_async_bf16(alpha, X, C, beta, Y,
+                padding, stride, dilation)
+    elif is_tensor_of(ts, Tensor_fp32):
+        ops.conv2d_inplace_async_fp32(alpha, X, C, beta, Y,
+                padding, stride, dilation)
+    elif is_tensor_of(ts, Tensor_fp32_fast_tf32):
+        ops.conv2d_inplace_async_fp32_fast_tf32(alpha, X, C, beta,
+                Y, padding, stride, dilation)
+    elif is_tensor_of(ts, Tensor_fp64):
+        ops.conv2d_inplace_async_fp64(alpha, X, C, beta, Y,
+                padding, stride, dilation)
+    else:
+        types = ', '.join(str(type(t)) for t in ts)
+        raise TypeError(
+            f'Tensor must share the same type but actual types are {types}.')
+
+
+def conv2d_bwd_input_inplace_async(
+        alpha: float,
+        dY: Tensor,
+        C: Tensor,
+        beta: float,
+        dX: Tensor,
+        padding: Sequence[int] = [0, 0],
+        stride: Sequence[int] = [1, 1],
+        dilation: Sequence[int] = [1, 1]
+) -> None:
+    """Wrapper for multiprecision conv2d_bwd_input_inplace"""
+    ts = (dY, C, dX)
+    if is_tensor_of(ts, Tensor_bf16):
+        ops.conv2d_bwd_input_inplace_async_bf16(alpha, dY, C, beta,
+                dX, padding, stride, dilation)
+    elif is_tensor_of(ts, Tensor_fp32):
+        ops.conv2d_bwd_input_inplace_async_fp32(alpha, dY, C, beta,
+                dX, padding, stride, dilation)
+    elif is_tensor_of(ts, Tensor_fp32_fast_tf32):
+        ops.conv2d_bwd_input_inplace_async_fp32_fast_tf32(alpha, dY,
+                C, beta, dX, padding, stride, dilation)
+    elif is_tensor_of(ts, Tensor_fp64):
+        ops.conv2d_bwd_input_inplace_async_fp64(alpha, dY, C, beta,
+                dX, padding, stride, dilation)
+    else:
+        types = ', '.join(str(type(t)) for t in ts)
+        raise TypeError(
+            f'Tensor must share the same type but actual types are {types}.')
+
+
+def conv2d_bwd_weight_inplace_async(
+        alpha: float,
+        X: Tensor,
+        dY: Tensor,
+        beta: float,
+        dC: Tensor,
+        padding: Sequence[int] = [0, 0],
+        stride: Sequence[int] = [1, 1],
+        dilation: Sequence[int] = [1, 1]
+) -> None:
+    """Wrapper for multiprecision conv2d_bwd_weight_inplace"""
+    ts = (X, dY, dC)
+    if is_tensor_of(ts, Tensor_bf16):
+        ops.conv2d_bwd_weight_inplace_async_bf16(alpha, X, dY, beta,
+                dC, padding, stride, dilation)
+    elif is_tensor_of(ts, Tensor_fp32):
+        ops.conv2d_bwd_weight_inplace_async_fp32(alpha, X, dY, beta,
+                dC, padding, stride, dilation)
+    elif is_tensor_of(ts, Tensor_fp32_fast_tf32):
+        ops.conv2d_bwd_weight_inplace_async_fp32_fast_tf32(alpha, X,
+                dY, beta, dC, padding, stride, dilation)
+    elif is_tensor_of(ts, Tensor_fp64):
+        ops.conv2d_bwd_weight_inplace_async_fp64(alpha, X, dY, beta,
+                dC, padding, stride, dilation)
+    else:
+        types = ', '.join(str(type(t)) for t in ts)
+        raise TypeError(
+            f'Tensor must share the same type but actual types are {types}.')

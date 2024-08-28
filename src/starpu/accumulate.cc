@@ -9,7 +9,7 @@
  * @file src/starpu/accumulate.cc
  * Accumulate one StarPU buffers into another
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID

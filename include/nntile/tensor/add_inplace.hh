@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/add.hh
  * Add operation for Tensor<T>'s
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once
@@ -21,10 +21,12 @@ namespace nntile::tensor
 
 // Tensor-wise add operation
 template<typename T>
-void add_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst);
+void add_inplace_async(Scalar alpha, const Tensor<T> &src, Scalar beta,
+        const Tensor<T> &dst);
 
 // Tensor-wise add operation
 template<typename T>
-void add_inplace(Scalar alpha, const Tensor<T> &src, Scalar beta, const Tensor<T> &dst);
+void add_inplace(Scalar alpha, const Tensor<T> &src, Scalar beta,
+        const Tensor<T> &dst);
 
 } // namespace nntile::tensor

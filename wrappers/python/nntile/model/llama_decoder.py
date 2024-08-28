@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/llama_decoder.py
 # LlamaDecoder submodule of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 from transformers import LlamaConfig as LlamaConfig_torch
@@ -56,6 +56,22 @@ class LlamaDecoder(BaseModel):
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
 
+    def forward_dynamic(self, x: TensorMoments, use_cache: bool = False):
+        (input_norm, attention_layer, post_attn_add, post_attn_norm) = self.layers[:4]  # noqa: E501
+        post_mlp_add = self.layers[-1]
+
+        x_normalized = input_norm.forward_dynamic(x)
+        attn_outs = attention_layer.forward_dynamic(
+            x_normalized, use_cache=use_cache
+        )
+        post_attn_outs = post_attn_add.forward_dynamic(attn_outs, x)
+        post_attn_norm_outs = post_attn_norm.forward_dynamic(post_attn_outs)
+
+        mlp_outs = self.mlp.forward_dynamic(post_attn_norm_outs)
+        post_mlp_outs = post_mlp_add.forward_dynamic(mlp_outs, post_attn_outs)
+
+        return post_mlp_outs
+
     @staticmethod
     def from_torch(
         torch_llama_decoder, x: TensorMoments,
@@ -74,7 +90,8 @@ class LlamaDecoder(BaseModel):
             rms_norm_input_layer.activations_output[0],
             position_ids,
             mask,
-            config, next_tag)
+            config,
+            next_tag)
         post_attn_add, next_tag = Add.generate_simple(
             x, attention_layer.activations_output[0],
             next_tag)

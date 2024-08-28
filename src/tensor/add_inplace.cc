@@ -9,7 +9,7 @@
  * @file src/tensor/add_inplace.cc
  * Add operation for Tensor<T>'s
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/add_inplace.hh"

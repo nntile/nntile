@@ -10,7 +10,7 @@
 # This is a top-level CMake script, that is tested to work only with a
 # single-configuration build systems like Ninja or Unix Makefile.
 #
-# @version 1.0.0
+# @version 1.1.0
 
 
 ###############################################################################
@@ -25,7 +25,7 @@ cmake_minimum_required(VERSION 3.24)
 message(STATUS "Using CMake ${CMAKE_VERSION}")
 
 # Define the project
-project(NNTile VERSION 1.0.0 LANGUAGES CXX C)
+project(NNTile VERSION 1.1.0 LANGUAGES CXX C)
 
 # Show a path to additional auxiliary CMake scripts
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake_modules")

@@ -9,7 +9,7 @@
  * @file src/starpu/flash_softmax_gemm.cc
  * Fast fused softmax+gemm
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/starpu/flash_softmax_gemm.hh"

@@ -9,7 +9,7 @@
  * @file tests/tensor/add.cc
  * Per-element addition of tensors
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <iostream>
@@ -105,7 +105,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
         src1_distr[i] = (i*i+1) % mpi_size;
         src2_distr[i] = (i*i+1) % mpi_size;
     }
-    
+
     Tensor<T> src1(src1_traits, src1_distr, last_tag);
     Tensor<T> src2(src2_traits, src2_distr, last_tag);
     scatter<T>(src1_single, src1);
@@ -138,7 +138,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
 template<typename T>
 void validate()
 {
-    
+
     check<T>({11}, {5});
     check<T>({11, 12}, {5, 6});
     check<T>({11, 12}, {5, 6});

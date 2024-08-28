@@ -10,7 +10,7 @@
  * Example of training a DeepLinear network without activation function on
  * MNIST images
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <nntile.hh>

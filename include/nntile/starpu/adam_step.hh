@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/adam_step.hh
  * Adam step with StarPU buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

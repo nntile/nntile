@@ -52,11 +52,16 @@ Technology under Contract No. 70-2021-00145/10841 dated 02.11.2021 (items
 
 ## Assembly
 
-**NNTile** comes with a `ci/Dockerfile` to construct docker image with NNTile
+**NNTile** comes with a `Dockerfile` to construct docker image with NNTile
 and all prerequisites. Ready image can be acquired from the GitHub container
 registry:
 ```shell
-docker pull ghcr.io/skolai/nntile:1.0.0-starpu1.3.11-cuda12.2.0-ubuntu22.04
+docker pull ghcr.io/nntile/nntile:1.1.0-starpu1.4.7-cuda12.4.0-ubuntu22.04
+```
+Sandbox image with prerequisites but without precompiled NNTile is also
+accessible:
+```shell
+docker pull ghcr.io/nntile/nntile_sandbox:starpu1.4.7-cuda12.4.0-ubuntu22.04
 ```
 
 Alternatively, the docker image can be built on your own system with the following
@@ -65,17 +70,21 @@ command:
 docker build . \
     -t nntile:latest \
     --build-arg MAKE_JOBS=4 \
-    --build-arg BASE_IMAGE=nvidia/cuda:12.2.0-devel-ubuntu22.04 \
-    --build-arg CUDA_ARCHS="70;75;80;86;89;90"
+    --build-arg BASE_IMAGE=nvidia/cuda:12.4.0-devel-ubuntu22.04 \
+    --build-arg CUDA_ARCHS="80;86;89;90"
 ```
 
 During image building `StarPU` is compiled with `make`. This process can be
 adjusted with degree of parallelism with `MAKE_JOBS` option (default no
 parallelism). Due to Nvidia pruning their old docker images, it could be
-possible that a default `nvidia/cuda:12.2.0-devel-ubuntu-22.04` is not
+possible that a default `nvidia/cuda:12.4.0-devel-ubuntu-22.04` is not
 available. In such a case, input name of an appropriate available image.
 Argument `CUDA_ARCHS` defines target CUDA architectures to be supported by
 **NNTile**.
+
+## Minimal requirements
+
+NNTile does supports CUDA devices only of compute capability 8.0 or higher
 
 ## Minimal working GPT example
 

@@ -9,7 +9,7 @@
  * @file src/kernel/add_inplace/cuda.cu
  * Add operation on buffers on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/add_inplace/cuda.hh"
@@ -18,9 +18,10 @@
 namespace nntile::kernel::add_inplace
 {
 
-template<typename T>
+template<typename T, int BLOCK, int LOOP>
 static __global__
-void cuda_kernel(Index nelems, Scalar alpha_, const T *src, Scalar beta_, T *dst)
+void cuda_kernel(Index nelems, Scalar alpha_, const T *src, Scalar beta_,
+        T *dst)
 //! Add two buffers on CUDA
 /*! Performs the following operation:
  *      dst[i] = alpha*src[i] + beta*dst[i],
@@ -33,15 +34,33 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T *src, Scalar beta_, T *dst
  * @param[inout] dst: Destination of the add operation
  * */
 {
-    int i = threadIdx.x + blockIdx.x*blockDim.x;
-    if(i < nelems)
+    int i = threadIdx.x + blockIdx.x*BLOCK;
+    using Y = typename T::repr_t;
+    Y dst_block[LOOP];
+    Y src_block[LOOP];
+    Y alpha = Y{alpha_};
+    Y beta = Y{beta_};
+    constexpr int BLOCK_STEP = BLOCK / LOOP;
+    if((blockIdx.x+1)*BLOCK <= nelems)
     {
-        using Y = typename T::repr_t;
-        Y src_val = Y{src[i]};
-        Y dst_val = Y{dst[i]};
-        Y alpha = Y{alpha_};
-        Y beta = Y{beta_};
-        dst[i] = alpha * src_val + beta * dst_val;
+        for(int j = 0; j < LOOP; ++j)
+        {
+            dst_block[j] = static_cast<Y>(dst[i+j*BLOCK_STEP]);
+            src_block[j] = static_cast<Y>(src[i+j*BLOCK_STEP]);
+            dst_block[j] = alpha*src_block[j] + beta*dst_block[j];
+            dst[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
+        }
+    }
+    else
+    {
+        int j_max = (nelems-i+BLOCK_STEP-1) / BLOCK_STEP;
+        for(int j = 0; j < j_max; ++j)
+        {
+            dst_block[j] = static_cast<Y>(dst[i+j*BLOCK_STEP]);
+            Y val1 = static_cast<Y>(src[i+j*BLOCK_STEP]);
+            dst_block[j] = alpha*val1 + beta*dst_block[j];
+            dst[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
+        }
     }
 }
 

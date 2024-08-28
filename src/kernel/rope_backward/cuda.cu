@@ -9,7 +9,7 @@
  * @file src/kernel/rope_backward/cuda.cu
  * Backward for Rotary Positional Embedding
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/rope_backward/cuda.hh"
@@ -31,7 +31,7 @@ void cuda_kernel(Index m, Index n, const T *sin, const T *cos, const T *src,
  * @param[in] sin: Input sine tensor
  * @param[in] cos: Input cosine tensor
  * @param[in] src: Gradient over output of forward RoPE
- * @param[inout] dst: Gradient over input of forward RoPE
+ * @param[out] dst: Gradient over input of forward RoPE
  * */
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
@@ -41,9 +41,8 @@ void cuda_kernel(Index m, Index n, const T *sin, const T *cos, const T *src,
         int j = i % m;
         Y c{cos[j]}, s{sin[j]};
         Y a{src[2*i]}, b{src[2*i+1]};
-        Y x{dst[2*i]}, y{dst[2*i+1]};
-        dst[2*i] = static_cast<T>(x + c*a + s*b);
-        dst[2*i+1] = static_cast<T>(y - s*a + c*b);
+        dst[2*i] = static_cast<T>(c*a + s*b);
+        dst[2*i+1] = static_cast<T>(-s*a + c*b);
     }
 }
 

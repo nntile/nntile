@@ -9,7 +9,7 @@
  * @file tests/layer/linear.cc
  * Fully connected dense linear layer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/layer/linear.hh"

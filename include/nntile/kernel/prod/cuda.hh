@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/prod/cuda.hh
  * Per-element product of two buffers on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once
@@ -21,7 +21,8 @@ namespace nntile::kernel::prod
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
+void cuda(cudaStream_t stream, Index nelems, const T *src1, const T *src2,
+        T *dst)
     noexcept;
 
 } // namespace nntile::kernel::prod

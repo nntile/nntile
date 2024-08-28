@@ -9,7 +9,7 @@
  * @file include/nntile/tile/add_scalar.hh
  * Add_scalar operation for Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

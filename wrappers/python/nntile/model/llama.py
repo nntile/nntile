@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/llama.py
 # Llama model of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from typing import List
 
@@ -62,6 +62,15 @@ class Llama(BaseModel):
         layers.append(rms_norm_layer)
 
         super().__init__(activations, layers)
+
+    def forward_dynamic(self, x: TensorMoments, use_cache: bool = False):
+        x_emb = self.embd_layer.forward_dynamic(x)
+
+        dec_out = x_emb
+        for dec_layer in self.decoders:
+            dec_out = dec_layer.forward_dynamic(dec_out, use_cache=use_cache)
+        normalized_outs = self.final_rmsnorm.forward_dynamic(dec_out)
+        return normalized_outs
 
     @staticmethod
     def from_torch(torch_llama,

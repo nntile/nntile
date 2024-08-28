@@ -9,7 +9,7 @@
  * @file src/kernel/add/cpu.cc
  * Add operation on buffers on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/add/cpu.hh"
@@ -24,7 +24,7 @@ void cpu(Index nelems, Scalar alpha, const T* src1, const T* src2, Scalar beta, 
 //! Add of two buffers on CPU
 /*! Performs the following operation:
  * dst[i] = alpha*src1[i] + beta*src2[i],
- 
+
  * where alpha and beta are non-zero scalars.
  *
  * @param[in] nelems: Size of the src and dst tensors

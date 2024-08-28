@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/optimizer/test_adam.py
 # Test for Adam optimizer
 #
-# @version 1.0.0
+# @version 1.1.0
 
 
 import numpy as np

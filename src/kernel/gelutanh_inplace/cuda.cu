@@ -9,7 +9,7 @@
  * @file src/kernel/gelutanh_inplace/cuda.cu
  * Approximate GeLU operation on CUDA based on tanh function
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/gelutanh_inplace/cuda.hh"

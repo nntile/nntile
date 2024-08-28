@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/add_fiber.hh
  * StarPU wrappers for addition of a tensor and a broadcasted fiber
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

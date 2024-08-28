@@ -9,7 +9,7 @@
  * @file src/starpu/prod.cc
  * Per-element product of two StarPU buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID
@@ -31,10 +31,11 @@ void cpu(void *buffers[], void *cl_args)
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *src = interfaces[0]->get_ptr<T>();
-    T *dst = interfaces[1]->get_ptr<T>();
+    const T *src1 = interfaces[0]->get_ptr<T>();
+    const T *src2 = interfaces[1]->get_ptr<T>();
+    T *dst = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::prod::cpu<T>(nelems, src, dst);
+    kernel::prod::cpu<T>(nelems, src1, src2, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -49,12 +50,13 @@ void cuda(void *buffers[], void *cl_args)
     Index nelems = reinterpret_cast<Index *>(cl_args)[0];
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *src = interfaces[0]->get_ptr<T>();
-    T *dst = interfaces[1]->get_ptr<T>();
+    const T *src1 = interfaces[0]->get_ptr<T>();
+    const T *src2 = interfaces[1]->get_ptr<T>();
+    T *dst = interfaces[2]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::prod::cuda<T>(stream, nelems, src, dst);
+    kernel::prod::cuda<T>(stream, nelems, src1, src2, dst);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
@@ -121,15 +123,17 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index nelems, Handle src, Handle dst)
+void submit(Index nelems, Handle src1, Handle src2, Handle dst)
 {
     Index *nelems_ = new Index{nelems};
-    //double nflops = 5 * nelems;
+    // Put amount of read-write bytes into flop count
+    double nflops = sizeof(T) * 3 * nelems;
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
+            STARPU_R, static_cast<starpu_data_handle_t>(src1),
+            STARPU_R, static_cast<starpu_data_handle_t>(src2),
+            STARPU_W, static_cast<starpu_data_handle_t>(dst),
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
-            //STARPU_FLOPS, nflops,
+            STARPU_FLOPS, nflops,
             0);
     // Check submission
     if(ret != 0)
@@ -140,15 +144,16 @@ void submit(Index nelems, Handle src, Handle dst)
 
 // Explicit instantiaion
 template
-void submit<fp32_t>(Index nelems, Handle src, Handle dst);
+void submit<fp32_t>(Index nelems, Handle src1, Handle src2, Handle dst);
 
 template
-void submit<bf16_t>(Index nelems, Handle src, Handle dst);
+void submit<bf16_t>(Index nelems, Handle src1, Handle src2, Handle dst);
 
 template
-void submit<fp32_fast_tf32_t>(Index nelems, Handle src, Handle dst);
+void submit<fp32_fast_tf32_t>(Index nelems, Handle src1, Handle src2,
+        Handle dst);
 
 template
-void submit<fp64_t>(Index nelems, Handle src, Handle dst);
+void submit<fp64_t>(Index nelems, Handle src1, Handle src2, Handle dst);
 
 } // namespace nntile::starpu::prod

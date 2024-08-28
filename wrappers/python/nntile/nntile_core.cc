@@ -9,7 +9,7 @@
  * @file wrappers/python/nntile/nntile_core.cc
  * Extension module with NNTile wrappers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include <pybind11/pybind11.h>
@@ -384,6 +384,33 @@ void tensor_to_array(const tensor::Tensor<T> &tensor,
     tmp.unregister();
 }
 
+template<typename T>
+bool tensor_try_gathered_to_array(const tensor::Tensor<T> &tensor,
+        py::array_t<typename T::repr_t, py::array::f_style> &array)
+{
+    if(tensor.grid.nelems != 1) {
+        throw std::runtime_error("Assumes tensor is already one-tiled. For low level api need manual gathering");
+    }
+
+    int mpi_rank = starpu_mpi_world_rank();
+    auto tile = tensor.get_tile(0);
+    if(mpi_rank == tile.mpi_get_rank()) {
+        auto tile_local_future = tile.acquire_async(STARPU_R);
+        if (!tile_local_future.try_acquire(STARPU_R)) {
+            return false;
+        }
+        #ifndef STARPU_SIMGRID
+            using Y = typename T::repr_t;
+            constexpr bool triv = T::trivial_copy_from_compat;
+            copy_raw<T, Y, triv>(tile.nelems, tile_local_future.get_ptr(),
+                array.mutable_data());
+        #endif // STARPU_SIMGRID
+        tile_local_future.release();
+    }
+    tile.mpi_flush();
+    return true;
+}
+
 // Extend (sub)module with nntile::tensor::Tensor<T>
 template<typename T>
 void def_class_tensor(py::module_ &m, const char *name)
@@ -400,6 +427,7 @@ void def_class_tensor(py::module_ &m, const char *name)
         def("wont_use", &Tensor<T>::wont_use).
         def("from_array", &tensor_from_array<T>).
         def("to_array", &tensor_to_array<T>).
+        def("try_gathered_to_array", &tensor_try_gathered_to_array<T>).
 
         def("set_reduction_add", &Tensor<T>::set_reduction_add).
         def("set_reduction_hypot", &Tensor<T>::set_reduction_hypot).
@@ -408,6 +436,7 @@ void def_class_tensor(py::module_ &m, const char *name)
         // Get tile
         def("get_tile", static_cast<tile::Tile<T>(Tensor<T>::*)(Index) const>(
                     &Tensor<T>::get_tile)).
+        def("get_nbytes", &Tensor<T>::get_nbytes).
         def_readonly("distribution", &Tensor<T>::tile_distr);
     m.def("tensor_to_array", tensor_to_array<T>);
     m.def("tensor_from_array", tensor_from_array<T>);
@@ -546,6 +575,15 @@ void def_mod_tensor(py::module_ &m)
     m.def("sum_fiber_bf16", &sum_fiber<bf16_t>);
     m.def("sum_fiber_fp32_fast_tf32", &sum_fiber<fp32_fast_tf32_t>);
 
+    m.def("norm_fiber_async_fp64", &norm_fiber_async<fp64_t>);
+    m.def("norm_fiber_async_bf16", &norm_fiber_async<bf16_t>);
+    m.def("norm_fiber_async_fp32", &norm_fiber_async<fp32_t>);
+    m.def("norm_fiber_async_fp32_fast_tf32", &norm_fiber_async<fp32_fast_tf32_t>);
+    m.def("norm_fiber_fp64", &norm_fiber<fp64_t>);
+    m.def("norm_fiber_fp32", &norm_fiber<fp32_t>);
+    m.def("norm_fiber_bf16", &norm_fiber<bf16_t>);
+    m.def("norm_fiber_fp32_fast_tf32", &norm_fiber<fp32_fast_tf32_t>);
+
     m.def("norm_slice_async_fp64", &norm_slice_async<fp64_t>);
     m.def("norm_slice_async_bf16", &norm_slice_async<bf16_t>);
     m.def("norm_slice_async_fp32", &norm_slice_async<fp32_t>);
@@ -629,6 +667,16 @@ void def_mod_tensor(py::module_ &m)
     m.def("prod_fp32", &prod<fp32_t>);
     m.def("prod_bf16", &prod<bf16_t>);
     m.def("prod_fp32_fast_tf32", &prod<fp32_fast_tf32_t>);
+
+    m.def("prod_inplace_async_fp64", &prod_inplace_async<fp64_t>);
+    m.def("prod_inplace_async_bf16", &prod_inplace_async<bf16_t>);
+    m.def("prod_inplace_async_fp32", &prod_inplace_async<fp32_t>);
+    m.def("prod_inplace_async_fp32_fast_tf32",
+            &prod_inplace_async<fp32_fast_tf32_t>);
+    m.def("prod_inplace_fp64", &prod_inplace<fp64_t>);
+    m.def("prod_inplace_fp32", &prod_inplace<fp32_t>);
+    m.def("prod_inplace_bf16", &prod_inplace<bf16_t>);
+    m.def("prod_inplace_fp32_fast_tf32", &prod_inplace<fp32_fast_tf32_t>);
 
     m.def("nrm2_async_fp64", &nrm2_async<fp64_t>);
     m.def("nrm2_async_fp32", &nrm2_async<fp32_t>);
@@ -742,10 +790,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("gather_bool", &gather<bool_t>);
     m.def("gather_bf16", &gather<bf16_t>);
 
+    m.def("copy_intersection_async_bool", &copy_intersection_async<bool_t>);
     m.def("copy_intersection_async_fp64", &copy_intersection_async<fp64_t>);
     m.def("copy_intersection_async_fp32", &copy_intersection_async<fp32_t>);
     m.def("copy_intersection_async_int64", &copy_intersection_async<nntile::int64_t>);
 
+    m.def("copy_intersection_bool", &copy_intersection<bool_t>);
     m.def("copy_intersection_fp64", &copy_intersection<fp64_t>);
     m.def("copy_intersection_fp32", &copy_intersection<fp32_t>);
     m.def("copy_intersection_int64", &copy_intersection<nntile::int64_t>);
@@ -1003,6 +1053,54 @@ void def_mod_tensor(py::module_ &m)
     m.def("transpose_fp32", &transpose<fp32_t>);
     m.def("transpose_bf16", &transpose<bf16_t>);
     m.def("transpose_fp32_fast_tf32", &transpose<fp32_fast_tf32_t>);
+
+    m.def("conv2d_inplace_async_fp64", &conv2d_inplace_async<fp64_t>);
+    m.def("conv2d_inplace_async_fp32", &conv2d_inplace_async<fp32_t>);
+    m.def("conv2d_inplace_async_fp32_fast_tf32",
+            &conv2d_inplace_async<fp32_fast_tf32_t>);
+    m.def("conv2d_inplace_async_bf16", &conv2d_inplace_async<bf16_t>);
+    m.def("conv2d_inplace_fp64", &conv2d_inplace<fp64_t>);
+    m.def("conv2d_inplace_fp32", &conv2d_inplace<fp32_t>);
+    m.def("conv2d_inplace_fp32_fast_tf32",
+            &conv2d_inplace<fp32_fast_tf32_t>);
+
+    m.def("conv2d_bwd_input_inplace_bf16",
+            &conv2d_bwd_input_inplace<bf16_t>);
+    m.def("conv2d_bwd_input_inplace_async_fp64",
+            &conv2d_bwd_input_inplace_async<fp64_t>);
+    m.def("conv2d_bwd_input_inplace_async_fp32",
+            &conv2d_bwd_input_inplace_async<fp32_t>);
+    m.def("conv2d_bwd_input_inplace_async_fp32_fast_tf32",
+            &conv2d_bwd_input_inplace_async<fp32_fast_tf32_t>);
+    m.def("conv2d_bwd_input_inplace_async_bf16",
+            &conv2d_bwd_input_inplace_async<bf16_t>);
+    m.def("conv2d_bwd_input_inplace_fp64",
+            &conv2d_bwd_input_inplace<fp64_t>);
+    m.def("conv2d_bwd_input_inplace_fp32",
+            &conv2d_bwd_input_inplace<fp32_t>);
+    m.def("conv2d_bwd_input_inplace_fp32_fast_tf32",
+            &conv2d_bwd_input_inplace<fp32_fast_tf32_t>);
+    m.def("conv2d_bwd_input_inplace_bf16",
+            &conv2d_bwd_input_inplace<bf16_t>);
+
+    m.def("conv2d_bwd_weight_inplace_bf16",
+            &conv2d_bwd_weight_inplace<bf16_t>);
+    m.def("conv2d_bwd_weight_inplace_async_fp64",
+            &conv2d_bwd_weight_inplace_async<fp64_t>);
+    m.def("conv2d_bwd_weight_inplace_async_fp32",
+            &conv2d_bwd_weight_inplace_async<fp32_t>);
+    m.def("conv2d_bwd_weight_inplace_async_fp32_fast_tf32",
+            &conv2d_bwd_weight_inplace_async<fp32_fast_tf32_t>);
+    m.def("conv2d_bwd_weight_inplace_async_bf16",
+            &conv2d_bwd_weight_inplace_async<bf16_t>);
+    m.def("conv2d_bwd_weight_inplace_fp64",
+            &conv2d_bwd_weight_inplace<fp64_t>);
+    m.def("conv2d_bwd_weight_inplace_fp32",
+            &conv2d_bwd_weight_inplace<fp32_t>);
+    m.def("conv2d_bwd_weight_inplace_fp32_fast_tf32",
+            &conv2d_bwd_weight_inplace<fp32_fast_tf32_t>);
+    m.def("conv2d_bwd_weight_inplace_bf16",
+            &conv2d_bwd_weight_inplace<bf16_t>);
 
     m.def("rope_async_fp64", &rope_async<fp64_t>);
     m.def("rope_async_fp32", &rope_async<fp32_t>);

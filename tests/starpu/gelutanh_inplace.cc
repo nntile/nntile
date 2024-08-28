@@ -9,7 +9,7 @@
  * @file tests/starpu/gelutanh_inplace.cc
  * Approximate GeLU operation on a StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/starpu/gelutanh_inplace.hh"

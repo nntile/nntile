@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/nntile_core/test_tensor_dgelutanh.py
 # Test for tensor::dgelutanh<T> Python wrapper
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 import pytest

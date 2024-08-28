@@ -9,14 +9,12 @@
 # @file wrappers/python/nntile/layer/fp32_to_fp16.py
 # Conversion layer from fp32_t to fp16_t of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
-from nntile.tensor import TensorTraits, Tensor_fp32, Tensor_fp16, \
-        TensorMoments
-from nntile.nntile_core.tensor import fp32_to_fp16_async, fp16_to_fp32_async
 from nntile.layer.base_layer import BaseLayer
-import numpy as np
-from typing import List, Callable
+from nntile.nntile_core.tensor import fp16_to_fp32_async, fp32_to_fp16_async
+from nntile.tensor import Tensor_fp16, TensorMoments, TensorTraits
+
 
 class FP32_to_FP16(BaseLayer):
     x: TensorMoments

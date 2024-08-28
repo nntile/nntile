@@ -9,7 +9,7 @@
  * @file tests/kernel/rope_backward.cc
  * Backward RoPE operation on a buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/rope_backward.hh"
@@ -115,8 +115,8 @@ void validate(Index m, Index n)
             Y a{dy[l]}, b{dy[l+1]};
             Y dx_val_a{dx_copy[l]};
             Y dx_val_b{dx_copy[l+1]};
-            Y val_ref_a{dx_val_a + c*a + s*b};
-            Y val_ref_b{dx_val_b + c*b - s*a};
+            Y val_ref_a{c*a + s*b};
+            Y val_ref_b{c*b - s*a};
 
             // Obtain range of correct values
             Y val_ref_a_min, val_ref_a_max;
@@ -163,8 +163,8 @@ void validate(Index m, Index n)
             Y a{dy[l]}, b{dy[l+1]};
             Y dx_val_a{dx_copy[l]};
             Y dx_val_b{dx_copy[l+1]};
-            Y val_ref_a{dx_val_a + c*a + s*b};
-            Y val_ref_b{dx_val_b + c*b - s*a};
+            Y val_ref_a{c*a + s*b};
+            Y val_ref_b{c*b - s*a};
 
             // Obtain range of correct values
             Y val_ref_a_min, val_ref_a_max;

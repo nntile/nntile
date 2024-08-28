@@ -9,7 +9,7 @@
 # @file include/CMakeLists.txt
 # Set NNTile headers
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # Set list of headers
 set(BASE_HDR
@@ -55,6 +55,8 @@ set(KERNEL_HDR
     "nntile/kernel/normalize/cpu.hh"
     "nntile/kernel/prod.hh"
     "nntile/kernel/prod/cpu.hh"
+    "nntile/kernel/prod_inplace.hh"
+    "nntile/kernel/prod_inplace/cpu.hh"
     "nntile/kernel/randn.hh"
     "nntile/kernel/randn/cpu.hh"
     "nntile/kernel/relu.hh"
@@ -73,6 +75,7 @@ set(KERNEL_HDR
     "nntile/kernel/sum_slice/cpu.hh"
     "nntile/kernel/sum_fiber.hh"
     "nntile/kernel/sum_fiber/cpu.hh"
+    "nntile/kernel/norm_fiber/cpu.hh"
     "nntile/kernel/norm_slice.hh"
     "nntile/kernel/norm_slice/cpu.hh"
     "nntile/kernel/pow.hh"
@@ -127,6 +130,12 @@ set(KERNEL_HDR
     "nntile/kernel/adamw_step/cpu.hh"
     "nntile/kernel/transpose.hh"
     "nntile/kernel/transpose/cpu.hh"
+    "nntile/kernel/conv2d_inplace.hh"
+    "nntile/kernel/conv2d_inplace/cpu.hh"
+    "nntile/kernel/conv2d_bwd_input_inplace.hh"
+    "nntile/kernel/conv2d_bwd_input_inplace/cpu.hh"
+    "nntile/kernel/conv2d_bwd_weight_inplace.hh"
+    "nntile/kernel/conv2d_bwd_weight_inplace/cpu.hh"
     "nntile/kernel/rope.hh"
     "nntile/kernel/rope/cpu.hh"
     "nntile/kernel/rope_backward.hh"
@@ -155,6 +164,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/gelutanh_backward/cuda.hh"
         "nntile/kernel/normalize/cuda.hh"
         "nntile/kernel/prod/cuda.hh"
+        "nntile/kernel/prod_inplace/cuda.hh"
         "nntile/kernel/sqrt/cuda.hh"
         "nntile/kernel/sqrt_inplace/cuda.hh"
         "nntile/kernel/addcdiv/cuda.hh"
@@ -165,6 +175,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/fill/cuda.hh"
         "nntile/kernel/sum_slice/cuda.hh"
         "nntile/kernel/sum_fiber/cuda.hh"
+        "nntile/kernel/norm_fiber/cuda.hh"
         "nntile/kernel/logsumexp/cuda.hh"
         "nntile/kernel/norm_slice/cuda.hh"
         "nntile/kernel/pow/cuda.hh"
@@ -191,6 +202,9 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/adam_step/cuda.hh"
         "nntile/kernel/adamw_step/cuda.hh"
         "nntile/kernel/transpose/cuda.hh"
+        "nntile/kernel/conv2d_inplace/cuda.hh"
+        "nntile/kernel/conv2d_bwd_input_inplace/cuda.hh"
+        "nntile/kernel/conv2d_bwd_weight_inplace/cuda.hh"
         "nntile/kernel/rope/cuda.hh"
         "nntile/kernel/rope_backward/cuda.hh"
         )
@@ -222,6 +236,7 @@ set(STARPU_HDR
     "nntile/starpu/nrm2.hh"
     "nntile/starpu/normalize.hh"
     "nntile/starpu/prod.hh"
+    "nntile/starpu/prod_inplace.hh"
     "nntile/starpu/randn.hh"
     "nntile/starpu/relu.hh"
     "nntile/starpu/relu_forward.hh"
@@ -231,6 +246,7 @@ set(STARPU_HDR
     "nntile/starpu/fill.hh"
     "nntile/starpu/sum_slice.hh"
     "nntile/starpu/sum_fiber.hh"
+    "nntile/starpu/norm_fiber.hh"
     "nntile/starpu/norm_slice.hh"
     "nntile/starpu/pow.hh"
     "nntile/starpu/flash_maxsumexp.hh"
@@ -264,6 +280,9 @@ set(STARPU_HDR
     "nntile/starpu/adam_step.hh"
     "nntile/starpu/adamw_step.hh"
     "nntile/starpu/transpose.hh"
+    "nntile/starpu/conv2d_inplace.hh"
+    "nntile/starpu/conv2d_bwd_input_inplace.hh"
+    "nntile/starpu/conv2d_bwd_weight_inplace.hh"
     "nntile/starpu/rope.hh"
     "nntile/starpu/rope_backward.hh"
     )
@@ -291,7 +310,7 @@ set(TILE_HDR
     "nntile/tile/gelutanh_inplace.hh"
     "nntile/tile/nrm2.hh"
     "nntile/tile/normalize.hh"
-    "nntile/tile/prod.hh"
+    "nntile/tile/prod_inplace.hh"
     "nntile/tile/randn.hh"
     "nntile/tile/relu.hh"
     "nntile/tile/relu_forward.hh"
@@ -300,6 +319,7 @@ set(TILE_HDR
     "nntile/tile/fill.hh"
     "nntile/tile/sum_slice.hh"
     "nntile/tile/sum_fiber.hh"
+    "nntile/tile/norm_fiber.hh"
     "nntile/tile/norm_slice.hh"
     "nntile/tile/pow.hh"
     "nntile/tile/maxsumexp.hh"
@@ -355,6 +375,7 @@ set(TENSOR_HDR
     "nntile/tensor/nrm2.hh"
     "nntile/tensor/normalize.hh"
     "nntile/tensor/prod.hh"
+    "nntile/tensor/prod_inplace.hh"
     "nntile/tensor/randn.hh"
     "nntile/tensor/relu.hh"
     "nntile/tensor/relu_forward.hh"
@@ -364,6 +385,7 @@ set(TENSOR_HDR
     "nntile/tensor/fill.hh"
     "nntile/tensor/sum_slice.hh"
     "nntile/tensor/sum_fiber.hh"
+    "nntile/tensor/norm_fiber.hh"
     "nntile/tensor/norm_slice.hh"
     "nntile/tensor/pow.hh"
     "nntile/tensor/flash_maxsumexp.hh"
@@ -398,6 +420,9 @@ set(TENSOR_HDR
     "nntile/tensor/adam_step.hh"
     "nntile/tensor/adamw_step.hh"
     "nntile/tensor/transpose.hh"
+    "nntile/tensor/conv2d_inplace.hh"
+    "nntile/tensor/conv2d_bwd_input_inplace.hh"
+    "nntile/tensor/conv2d_bwd_weight_inplace.hh"
     "nntile/tensor/rope.hh"
     "nntile/tensor/rope_backward.hh"
     )

@@ -9,7 +9,7 @@
  * @file src/kernel/accumulate_maxsumexp/cpu.cc
  * Accumulate maxsumexp buffers on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/accumulate_maxsumexp/cpu.hh"

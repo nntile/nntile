@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/nntile_core/test_tensor_prod.py
 # Test for tensor::prod<T> Python wrapper
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 import pytest
@@ -40,6 +40,8 @@ def test_prod(dtype):
     A = Tensor[dtype](traits, mpi_distr, next_tag)
     next_tag = A.next_tag
     B = Tensor[dtype](traits, mpi_distr, next_tag)
+    next_tag = B.next_tag
+    C = Tensor[dtype](traits, mpi_distr, next_tag)
     # Set initial values of tensors
     rng = np.random.default_rng(42)
     rand_A = rng.standard_normal(shape)
@@ -48,11 +50,12 @@ def test_prod(dtype):
     rand_B = rng.standard_normal(shape)
     np_B = np.array(rand_B, dtype=dtype, order='F')
     B.from_array(np_B)
-    prod[dtype](A, B)
+    prod[dtype](A, B, C)
     np_C = np.zeros(shape, dtype=dtype, order='F')
-    B.to_array(np_C)
+    C.to_array(np_C)
     nntile.starpu.wait_for_all()
     A.unregister()
     B.unregister()
+    C.unregister()
     # Compare results
     assert_equal(np_C, np_A * np_B)

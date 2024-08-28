@@ -9,7 +9,7 @@
  * @file src/tile/add.cc
  * Add operation for two Tile<T>'s
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/add.hh"

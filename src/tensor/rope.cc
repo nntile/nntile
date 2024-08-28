@@ -9,7 +9,7 @@
  * @file src/tensor/rope.cc
  * Tensor wrappers for the Rotary Positional Embedding
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/rope.hh"

@@ -9,11 +9,13 @@
 # @file wrappers/python/tests/layer/test_attention.py
 # Test for nntile.layer.attention
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 import pytest
 import torch
+from gen_utils import (
+    generate_greedy_logits_dynamic_kvcache, generate_greedy_logits_padding)
 from torch.nn import MultiheadAttention
 
 # All necesary imports
@@ -256,13 +258,24 @@ def test_attention(starpu_simple, dtype: np.dtype):
     layer.unregister()
 
 
-@pytest.mark.parametrize("n_head,n_head_tile", [(1, 1)])
-def test_dynamic(starpu_simple, numpy_rng, n_head, n_head_tile):
-    inp_np = np.asfortranarray(numpy_rng.random((3, 10, 1)))
+@pytest.mark.parametrize(
+    "n_head,n_head_tile,n_emb,n_emb_tile,seq_size", [(2, 1, 6, 2, 10)]
+)
+def test_dynamic(
+    starpu_simple, numpy_rng, n_head, n_head_tile, n_emb, n_emb_tile, seq_size
+):
+    input_shape = (n_emb, seq_size, 1)
+    inp_np = np.asfortranarray(numpy_rng.random(input_shape))
 
-    inp = nntc.from_array(inp_np)
-    inp2 = nntc.from_array(inp_np)
-    inp3 = nntc.from_array(inp_np)
+    inp = nntc.from_array(
+        inp_np, basetile_shape=(n_emb_tile,) + input_shape[1:]
+    )
+    inp2 = nntc.from_array(
+        inp_np, basetile_shape=(n_emb_tile,) + input_shape[1:]
+    )
+    inp3 = nntc.from_array(
+        inp_np, basetile_shape=(n_emb_tile,) + input_shape[1:]
+    )
 
     inp_tm = nntile.tensor.TensorMoments(
         inp, grad=nntc.zeros(inp.shape, dtype=type(inp)), grad_required=False
@@ -280,7 +293,7 @@ def test_dynamic(starpu_simple, numpy_rng, n_head, n_head_tile):
     attn.init_randn_async()
 
     out_dynamic_actual = attn.forward_dynamic(inp_tm)
-    out_dynamic_actual_np = nntc.to_numpy(out_dynamic_actual)
+    out_dynamic_actual_np = nntc.to_numpy(out_dynamic_actual.value)
 
     attn.forward_async()
     out_dynamic_expected_np = nntc.to_numpy(attn.y.value)
@@ -290,62 +303,6 @@ def test_dynamic(starpu_simple, numpy_rng, n_head, n_head_tile):
         out_dynamic_expected_np,
         err_msg="Dynamic does not match static",
     )
-
-
-def generate_greedy_logits_padding(
-    attn_layer, input_ids, prefill_size, max_tokens
-):
-    cur_seq_size = prefill_size
-
-    output_ids = input_ids
-    while cur_seq_size < max_tokens:
-        output_ids_np = nntc.to_numpy(output_ids)
-
-        logits = attn_layer.forward_dynamic(
-            nntile.tensor.TensorMoments(output_ids, None, False),
-            use_cache=False,
-        )
-        logits_np = nntc.to_numpy(logits)
-
-        output_ids_np = np.concatenate(
-            [output_ids_np, logits_np[:, -1, :][:, None, :]], axis=1
-        )
-        output_ids = nntc.from_array(output_ids_np)
-        cur_seq_size += 1
-
-    return output_ids
-
-
-def generate_greedy_logits_dynamic_kvcache(
-    attn_layer, input_ids, prefill_size, max_tokens
-):
-    cur_seq_size = prefill_size
-
-    # prefill
-    output_ids = input_ids
-
-    is_prefill = True
-
-    while cur_seq_size < max_tokens:
-        output_ids_np = nntc.to_numpy(output_ids)
-
-        logits = attn_layer.forward_dynamic(
-            nntile.tensor.TensorMoments(input_ids, None, False),
-            use_cache=(not is_prefill),
-        )
-        if is_prefill:
-            is_prefill = False
-
-        logits_np = nntc.to_numpy(logits)
-
-        input_ids_np = logits_np[:, -1, :][:, None, :]
-        output_ids_np = np.concatenate([output_ids_np, input_ids_np], axis=1)
-
-        input_ids = nntc.from_array(input_ids_np)
-        output_ids = nntc.from_array(output_ids_np)
-        cur_seq_size += 1
-
-    return output_ids
 
 
 @pytest.mark.parametrize("n_head,n_head_tile", [(1, 1)])

@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/layer/test_layer_norm.py
 # Test for nntile.layer.LayerNorm
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 import pytest
@@ -17,6 +17,7 @@ import torch
 import torch.nn as nn
 
 import nntile
+import nntile.utils.constructors as nntc
 
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
@@ -142,6 +143,62 @@ def test_rms_norm(dtype: np.dtype):
             / np.linalg.norm(np_A_grad_torch) <= 1e-5)
     assert (np.linalg.norm(np_gamma_grad_torch - np_gamma_grad_nntile) /
             np.linalg.norm(np_gamma_grad_torch) <= 1e-5)
+
+    # Unregister tensors
+    A.unregister()
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+def test_rms_norm_dynamic(numpy_rng, dtype: np.dtype):
+    # Describe single-tile tensor, located at node 0
+    A_shape = [20, 30]
+    ndim = len(A_shape)
+    eps = 1e-5
+
+    # Generate input
+    np_A = np.asfortranarray(
+        numpy_rng.standard_normal(size=A_shape, dtype=np.float32)
+    )
+    np_gamma = np.asfortranarray(
+        numpy_rng.standard_normal(size=A_shape[-1], dtype=np.float32)
+    )
+
+    A = nntile.tensor.TensorMoments(nntc.from_array(np_A), None, False)
+    torch_A = torch.tensor(np_A)
+
+    # Init NNTile LayerNorm
+    nntile_layer, _ = nntile.layer.RMSNorm.generate_simple(A, ndim - 1, eps, 0)
+    nntile_layer.gamma.value.from_array(np_gamma)
+    # Init PyTorch LayerNorm
+    torch_layer = RMSNorm(A_shape[-1], eps=eps)
+    torch_layer.weight.data = torch.tensor(np_gamma)
+
+    # NNTile forward of LayerNorm
+    B_nntile = nntile_layer.forward_dynamic(A)
+    np_B_nntile = nntc.to_numpy(B_nntile.value)
+    # PyTorch forward
+    torch_B = torch_layer(torch_A)
+    np_B_torch = torch_B.data.numpy()
+    # Check forward
+    assert (
+        np.linalg.norm(np_B_torch - np_B_nntile) / np.linalg.norm(np_B_torch)
+        <= 1e-5
+    )
+
+    np_A_trunc = np_A[: np_A.shape[0] // 2, :]
+
+    B_nntile = nntile_layer.forward_dynamic(
+        nntile.tensor.TensorMoments(nntc.from_array(np_A_trunc), None, False)
+    )
+    np_B_nntile = nntc.to_numpy(B_nntile.value)
+    # PyTorch forward
+    torch_B = torch_layer(torch.tensor(np_A_trunc))
+    np_B_torch = torch_B.data.numpy()
+    # Check forward
+    assert (
+        np.linalg.norm(np_B_torch - np_B_nntile) / np.linalg.norm(np_B_torch)
+        <= 1e-5
+    )
 
     # Unregister tensors
     A.unregister()

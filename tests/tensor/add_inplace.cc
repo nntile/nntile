@@ -9,9 +9,8 @@
  * @file tests/tensor/add_inplace.cc
  * Per-element addition of tensors
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
-
 
 #include <iostream>
 #include "nntile/tensor/add_inplace.hh"
@@ -87,7 +86,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     {
         src_distr[i] = (i*i+1) % mpi_size;
     }
-    
+
     Tensor<T> src(src_traits, src_distr, last_tag);
     scatter<T>(src_single, src);
 
@@ -119,7 +118,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
 template<typename T>
 void validate()
 {
-    
+
     check<T>({11}, {5});
     check<T>({11, 12}, {5, 6});
     check<T>({11, 12}, {5, 6});

@@ -9,7 +9,7 @@
 # @file tests/tile/CMakeLists.txt
 # Tests for nntile::tile functions
 #
-# @version 1.0.0
+# @version 1.1.0
 
 # All unit tests without arguments to test executable
 set(TESTS
@@ -39,7 +39,7 @@ set(TESTS
     "normalize"
     "nrm2"
     "pow"
-    "prod"
+    "prod_inplace"
     "prod_fiber"
     "prod_fiber3"
     "prod_slice"

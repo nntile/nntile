@@ -9,7 +9,7 @@
  * @file include/nntile/kernel.hh
  * General info about namespace nntile::kernel
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once
@@ -30,6 +30,7 @@
 #include <nntile/kernel/hypot.hh>
 #include <nntile/kernel/normalize.hh>
 #include <nntile/kernel/prod.hh>
+#include <nntile/kernel/prod_inplace.hh>
 #include <nntile/kernel/randn.hh>
 #include <nntile/kernel/relu.hh>
 #include <nntile/kernel/relu_forward.hh>
@@ -69,11 +70,12 @@
 #include <nntile/kernel/transpose.hh>
 #include <nntile/kernel/silu_forward.hh>
 #include <nntile/kernel/silu_backward.hh>
-
-#include <nntile/kernel/cpu.hh>
-#include <nntile/kernel/cuda.hh>
+#include <nntile/kernel/conv2d_inplace.hh>
+#include <nntile/kernel/conv2d_bwd_input_inplace.hh>
+#include <nntile/kernel/conv2d_bwd_weight_inplace.hh>
 #include <nntile/kernel/rope.hh>
 #include <nntile/kernel/rope_backward.hh>
+#include <nntile/kernel/norm_fiber.hh>
 
 //! @namespace nntile::kernel
 /*! This namespace holds low-level routines for codelets

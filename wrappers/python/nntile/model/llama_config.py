@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/llama_config.py
 # LLaMa model config
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from dataclasses import dataclass
 
@@ -27,7 +27,6 @@ class LlamaConfigNNTile:
     n_head_tile: int
     num_key_value_heads: int
     activation_function: str = "silu"
-    flashattention: bool = False
     redux: bool = False
     dtype: str = "fp32"
     eos_token_id: int = 2
@@ -38,3 +37,4 @@ class LlamaConfigNNTile:
     rms_norm_eps: float = 1e-06
     num_hidden_layers: int = 1
     mlp_bias: bool = False
+    flash_attention: bool = True

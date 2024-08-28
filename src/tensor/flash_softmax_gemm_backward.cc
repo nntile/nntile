@@ -9,7 +9,7 @@
  * @file src/tensor/flash_softmax_gemm_backward.cc
  * Fast backward of softmax and gemm operations
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/flash_softmax_gemm_backward.hh"
@@ -86,7 +86,21 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
     Index head_size = Q.shape[0];
     Index n_seq_tile = Q.basetile_shape[1];
     Index n_batch_tile = Q.basetile_shape[2];
-    Index n_head_tile = Q.basetile_shape[3];
+    Index n_head_tile;
+    // Support both GPT2 and Llama attention inputs, that differ by shape of
+    // inputs:
+    // GPT2: Q is  (head_size, n_seq, n_batch, n_head)
+    // Llama: Q is (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
+    if(Q.ndim == 4)
+    {
+        // GPT2 case
+        n_head_tile = Q.basetile_shape[3];
+    }
+    else
+    {
+        // Llama case
+        n_head_tile = Q.basetile_shape[3] * Q.basetile_shape[4];
+    }
     // Cycle for all tiles of dV tensor
     for(Index i = 0; i < dV.grid.nelems; ++i)
     {
@@ -101,13 +115,15 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
             v_tile_index(dV_tile_index), dst_grad_tile_index(dV_tile_index),
             mask_tile_index(2), maxsumexp_tile_index(dV_tile_index),
             tmp_grad_tile_index(dV_tile_index),
-            tmp_sumprod_slice_tile_index(3);
+            tmp_sumprod_slice_tile_index(Q.ndim-1);
         auto k_tile_handle = K.get_tile_handle(k_tile_index);
         auto v_tile_handle = V.get_tile_handle(v_tile_index);
         tmp_tile_index[0] = dV_tile_index[1];
         tmp_grad_tile_index[0] = dV_tile_index[1];
-        tmp_sumprod_slice_tile_index[1] = dV_tile_index[2];
-        tmp_sumprod_slice_tile_index[2] = dV_tile_index[3];
+        for(Index j = 1; j < Q.ndim-1; ++j)
+        {
+            tmp_sumprod_slice_tile_index[j] = dV_tile_index[j+1];
+        }
         mask_tile_index[0] = dV_tile_index[1];
         // Clear destination buffers at first
         starpu::clear::submit(dQ_tile_handle);
@@ -156,13 +172,15 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
             v_tile_index(dV_tile_index), dst_grad_tile_index(dV_tile_index),
             mask_tile_index(2), maxsumexp_tile_index(dV_tile_index),
             tmp_grad_tile_index(dV_tile_index),
-            tmp_sumprod_slice_tile_index(3);
+            tmp_sumprod_slice_tile_index(Q.ndim-1);
         auto k_tile_handle = K.get_tile_handle(k_tile_index);
         auto v_tile_handle = V.get_tile_handle(v_tile_index);
         tmp_tile_index[0] = dV_tile_index[1];
         tmp_grad_tile_index[0] = dV_tile_index[1];
-        tmp_sumprod_slice_tile_index[1] = dV_tile_index[2];
-        tmp_sumprod_slice_tile_index[2] = dV_tile_index[3];
+        for(Index j = 1; j < Q.ndim-1; ++j)
+        {
+            tmp_sumprod_slice_tile_index[j] = dV_tile_index[j+1];
+        }
         mask_tile_index[0] = dV_tile_index[1];
         for(Index j = 0; j < dQ.grid.shape[1]; ++j)
         {

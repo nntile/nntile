@@ -9,7 +9,7 @@
  * @file include/nntile/tensor/total_sum_accum.hh
  * Total sum accumulating of Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once
@@ -22,11 +22,11 @@ namespace nntile::tensor
 template<typename T>
 void total_sum_accum_async(Scalar alpha, const Tensor<T> &logsumexp,
         const Tensor<T> &src, const Tensor<int64_t> &class_labels,
-        const Tensor<T> &val);
+        const Tensor<fp32_t> &val);
 
 template<typename T>
 void total_sum_accum(Scalar alpha, const Tensor<T> &logsumexp,
         const Tensor<T> &src, const Tensor<int64_t> &class_labels,
-        const Tensor<T> &val);
+        const Tensor<fp32_t> &val);
 
 } // namespace nntile::tensor

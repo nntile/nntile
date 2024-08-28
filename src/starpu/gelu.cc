@@ -9,7 +9,7 @@
  * @file src/starpu/gelu.cc
  * GeLU operation on a StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID

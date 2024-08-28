@@ -9,7 +9,7 @@
  * @file src/kernel/subtract_indexed_outputs/cuda.cu
  * subtract_indexed_output operation on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/subtract_indexed_outputs/cuda.hh"

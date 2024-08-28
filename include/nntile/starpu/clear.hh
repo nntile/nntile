@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/clear.hh
  * Clear a StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/sumprod_slice/cpu.hh
  * Sums over fibers into a slice of a product of buffers on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

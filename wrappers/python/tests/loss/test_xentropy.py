@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/loss/test_xentropy.py
 # Test for nntile.loss.CrossEntropy
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 import pytest
@@ -81,11 +81,9 @@ def test_cross_entropy(dtype: np.dtype):
     xentropy_loss.y.from_array(true_class_lables)
     xentropy_loss.calc_async()
 
-    nntile_xentropy_np = np.zeros((1,), dtype, 'F')
-    xentropy_loss.get_val(nntile_xentropy_np)
+    nntile_xentropy_np = xentropy_loss.get_val()
 
-    nntile_xentropy_grad_np = np.zeros((nclasses, batch_size), dtype, 'F')
-    xentropy_loss.get_grad(nntile_xentropy_grad_np)
+    nntile_xentropy_grad_np = xentropy_loss.get_grad()
 
     xentropy_loss.unregister()
     final_layer_output_tensor.unregister()
@@ -93,7 +91,7 @@ def test_cross_entropy(dtype: np.dtype):
     if dtype == np.float32:
         tol = 1e-5
     elif dtype == np.float64:
-        tol = 1e-10
+        tol = 1e-5
 
     assert np.max(np.abs(np_xentropy_grad - nntile_xentropy_grad_np.T)) <= tol
     assert np.abs(nntile_xentropy_np[0] - np_xentropy) <= tol

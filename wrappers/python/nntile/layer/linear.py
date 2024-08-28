@@ -9,13 +9,15 @@
 # @file wrappers/python/nntile/layer/linear.py
 # Linear layer of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from typing import List, Union
 
+import numpy as np
 import torch
 import torch.nn as nn
 
+import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     TensorMoments, TensorTraits, TransOp, add_fiber_async, gemm_async, notrans,
@@ -35,6 +37,8 @@ class Linear(BaseLayer):
     def __init__(self, side: str, trans_x: TransOp, x: TensorMoments,
             y: TensorMoments, w: TensorMoments, ndim: int,
             b: Union[TensorMoments, None],
+            out_features_shape: List[int],
+            out_features_basetile_shape: List[int],
             redux: bool = False):
         # Check parameter side
         if side != 'L' and side != 'R':
@@ -61,6 +65,8 @@ class Linear(BaseLayer):
         self.y.value.set_reduction_add()
         self.w = w
         self.w.grad.set_reduction_add()
+        self.out_features_shape = out_features_shape
+        self.out_features_basetile_shape = out_features_basetile_shape
         if redux:
             self.redux = 1
         else:
@@ -138,8 +144,18 @@ class Linear(BaseLayer):
         # Define Y as TensorMoments
         y = TensorMoments(y_value, y_grad, True)
         # Create linear layer with all the provided data
-        layer = Linear(side, trans_x, x, y, w, ndim, b,
-                    redux=redux)
+        layer = Linear(
+            side,
+            trans_x,
+            x,
+            y,
+            w,
+            ndim,
+            b,
+            out_features_shape,
+            out_features_basetile_shape,
+            redux=redux,
+        )
         # Return layer and next tag to be used
         return (layer, next_tag)
 
@@ -174,6 +190,47 @@ class Linear(BaseLayer):
         self.y.value.wont_use()
         if self.b is not None:
             self.b.value.wont_use()
+
+    def forward_dynamic(self, x: TensorMoments):
+        # TODO: think about dynamic dispatch for side and x_trans
+        if self.side != "R" or self.trans_x != notrans:
+            raise Exception(
+                "Implemented only for from_torch version:"
+                "self.side == 'R' and self.trans_x == notrans"
+            )
+        y = nntc.empty(
+            self.out_features_shape + x.value.shape[self.ndim :],
+            dtype=type(x.value),
+            basetile_shape=self.out_features_basetile_shape
+            + x.value.shape[self.ndim :],
+        )
+        # Y = einsum('ij,jk->ik', W, op(X))
+        # 'i' is a multi-index of dimension W.ndim-ndim
+        # 'j' is a multi-index of dimension ndim
+        # 'k' is a multi-index of dimension X.ndim-ndim
+        gemm_async(
+            1.0,
+            notrans,
+            self.w.value,
+            self.trans_x,
+            x.value,
+            0.0,
+            y,
+            self.ndim,
+            0,
+            redux=self.redux,
+        )
+        if self.b is not None:
+            add_fiber_async(1.0, self.b.value, 1.0, y, 0, 0)
+
+        # Hint for StarPU that W tensor will
+        # not be used soon and it is advised to offload data from GPU
+        self.w.value.wont_use()
+        x.value.wont_use()
+        if self.b is not None:
+            self.b.value.wont_use()
+
+        return TensorMoments(y, None, False)
 
     # Backward propagation of the linear layer
     def backward_async(self):
@@ -304,3 +361,31 @@ class Linear(BaseLayer):
             linear_nntile.b.value.from_array(torch_linear.bias.data.cpu().detach().numpy())
 
         return linear_nntile, next_tag
+
+    def get_forward_flops(self):
+        x_shape = self.x.value.shape
+        w_shape = self.w.value.shape
+        if self.side == "L":
+            return 2 * np.prod(x_shape) * np.prod(w_shape[self.ndim:])
+        elif self.side == "R":
+            return 2 * np.prod(x_shape) * np.prod(w_shape[:-self.ndim])
+
+    def get_backward_flops(self):
+        x_shape = self.x.value.shape
+        w_shape = self.w.grad.shape
+        total_backward_flops = 0
+        if self.side == "L":
+            doubled_prod_dim = (2 * np.prod(x_shape) *
+                                np.prod(w_shape[self.ndim:]))
+            if self.w.grad_required:
+                total_backward_flops += doubled_prod_dim
+            if self.x.grad_required:
+                total_backward_flops += doubled_prod_dim
+        elif self.side == "R":
+            doubled_prod_dim = (2 * np.prod(x_shape) *
+                                np.prod(w_shape[:-self.ndim]))
+            if self.w.grad_required:
+                total_backward_flops += doubled_prod_dim
+            if self.x.grad_required:
+                total_backward_flops += doubled_prod_dim
+        return total_backward_flops

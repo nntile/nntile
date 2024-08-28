@@ -9,7 +9,7 @@
  * @file include/nntile/tile/relu_forward.hh
  * Forward ReLU operation for Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

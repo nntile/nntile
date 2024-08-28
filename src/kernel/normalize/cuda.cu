@@ -9,7 +9,7 @@
  * @file src/kernel/normalize/cuda.cu
  * Normalize operation on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/normalize/cuda.hh"

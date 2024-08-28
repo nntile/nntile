@@ -9,7 +9,7 @@
  * @file src/starpu/relu_backward.cc
  * Backward ReLU operation on a StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID

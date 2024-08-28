@@ -9,7 +9,7 @@
  * @file src/kernel/dgelutanh/cpu.cc
  * Derivative of approximate GeLU operation on CPU based on tanh function
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/dgelutanh/cpu.hh"

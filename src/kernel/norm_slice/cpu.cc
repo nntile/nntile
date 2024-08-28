@@ -9,7 +9,7 @@
  * @file src/kernel/norm_slice/cpu.cc
  * Euclidean norms of fibers into a slice of a buffer on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/norm_slice/cpu.hh"

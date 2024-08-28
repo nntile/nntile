@@ -7,9 +7,9 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file src/starpu/rope.cc
- * StarPU wrappers for addition of a tensor and a broadcasted fiber
+ * Backward of rotary positional embedding
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID
@@ -18,11 +18,11 @@
 #include "nntile/starpu/rope_backward.hh"
 #include <cstdlib>
 
-//! StarPU wrappers for add_fiber operation
+//! StarPU wrappers for rope_backward operation
 namespace nntile::starpu::rope_backward
 {
 
-//! StarPU wrapper for kernel::add_fiber::cpu<T>
+//! StarPU wrapper for kernel::rope_backward::cpu<T>
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
@@ -42,11 +42,12 @@ void cpu(void *buffers[], void *cl_args)
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::rope::cuda<T>
+//! StarPU wrapper for kernel::rope_backward::cuda<T>
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
 {
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
     // Get arguments
     auto args = reinterpret_cast<args_t*>(cl_args);
     // Get interfaces
@@ -58,11 +59,13 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::rope_backward::cuda<T>(stream, args->m, args->n, sin, cos, src, dst);
+    kernel::rope_backward::cuda<T>(stream, args->m, args->n, sin, cos, src,
+        dst);
+#endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for rope tasks
+//! Footprint for rope_backward tasks
 static
 uint32_t footprint(struct starpu_task *task)
 {
@@ -138,7 +141,7 @@ void restore_where()
 
 template<typename T>
 void submit(Index m, Index n, Handle sin, Handle cos, Handle dy, Handle dx)
-//! Insert rope task into StarPU pool of tasks
+//! Insert rope_backward task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
@@ -154,12 +157,12 @@ void submit(Index m, Index n, Handle sin, Handle cos, Handle dy, Handle dx)
             STARPU_R, static_cast<starpu_data_handle_t>(cos),
             STARPU_R, static_cast<starpu_data_handle_t>(dy),
             STARPU_CL_ARGS, args, sizeof(*args),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dx),
+            STARPU_W, static_cast<starpu_data_handle_t>(dx),
             0);
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in rope task submission");
+        throw std::runtime_error("Error in rope_backward task submission");
     }
 }
 

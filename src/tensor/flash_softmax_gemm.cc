@@ -9,7 +9,7 @@
  * @file src/tensor/flash_softmax_gemm.cc
  * Fast softmax and gemm operations
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/flash_softmax_gemm.hh"
@@ -86,7 +86,21 @@ void flash_softmax_gemm_async(const Tensor<T> &Q, const Tensor<T> &K,
     Index head_size = Q.shape[0];
     Index n_seq_tile = Q.basetile_shape[1];
     Index n_batch_tile = Q.basetile_shape[2];
-    Index n_head_tile = Q.basetile_shape[3];
+    Index n_head_tile;
+    // Support both GPT2 and Llama attention inputs, that differ by shape of
+    // inputs:
+    // GPT2: Q is  (head_size, n_seq, n_batch, n_head)
+    // Llama: Q is (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
+    if(Q.ndim == 4)
+    {
+        // GPT2 case
+        n_head_tile = Q.basetile_shape[3];
+    }
+    else
+    {
+        // Llama case
+        n_head_tile = Q.basetile_shape[3] * Q.basetile_shape[4];
+    }
     for(Index i = 0; i < maxsumexp.grid.nelems; ++i)
     {
         // Destination tile on dest node must be already prepared (cleared)

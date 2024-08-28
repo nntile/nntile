@@ -9,7 +9,7 @@
  * @file tests/starpu/sumprod_slice.cc
  * Scalar products of slices for two StarPU buffers
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/starpu/sumprod_slice.hh"

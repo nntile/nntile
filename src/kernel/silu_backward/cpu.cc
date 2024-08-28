@@ -9,7 +9,7 @@
  * @file src/kernel/silu_backward/cpu.cc
  * Backward SiLU operation on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/silu_backward/cpu.hh"

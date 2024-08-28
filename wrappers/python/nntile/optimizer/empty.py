@@ -9,11 +9,7 @@
 # @file wrappers/python/nntile/optimizer/empty.py
 # This optimizer does nothing, it does not update parameters at all
 #
-# @version 1.0.0
-
-import nntile
-import numpy as np
-from nntile.tensor import TensorTraits
+# @version 1.1.0
 
 class Empty:
     def __init__(self, params, next_tag):
@@ -28,3 +24,6 @@ class Empty:
 
     def step(self):
         pass
+
+    def get_nbytes(self):
+        return 0

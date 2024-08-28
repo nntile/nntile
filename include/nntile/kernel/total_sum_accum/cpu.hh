@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/total_sum_accum/cpu.hh
  * Total sum accumulated of a buffer on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once
@@ -22,7 +22,7 @@ namespace nntile::kernel::total_sum_accum
 // Compute total sum accumulating from buffers
 template<typename T>
 void cpu(Scalar alpha, Index n_labels, Index n_outputs, const T* logsumexp,
-        const T* src, const int64_t* labels, T *val)
+        const T* src, const int64_t* labels, float *val)
     noexcept;
 
 } // namespace nntile::kernel::total_sum_accum

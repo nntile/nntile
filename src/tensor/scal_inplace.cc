@@ -9,7 +9,7 @@
  * @file src/tensor/scal_inplace.cc
  * Inplace scal of Tensor<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tensor/scal_inplace.hh"

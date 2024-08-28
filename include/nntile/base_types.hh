@@ -9,7 +9,7 @@
  * @file include/nntile/base_types.hh
  * Base integer and floating point types.
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

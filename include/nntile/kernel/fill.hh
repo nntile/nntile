@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/fill.hh
  * Low-level kernel to fill data with a provided value
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

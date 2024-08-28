@@ -9,13 +9,14 @@
 # @file wrappers/python/nntile/utils/constructors.py
 # Certain auxiliary constructors for NNTile-Numpy interoperability
 #
-# @version 1.0.0
+# @version 1.1.0
 
+import asyncio
 from typing import Sequence
 
 import numpy as np
 
-from nntile.functions import clear_async, copy_async, fill_async
+from nntile.functions import clear_async, copy_async, fill_async, gather_async
 from nntile.nntile_core.tensor import (
     Tensor_bf16, Tensor_bool, Tensor_fp32, Tensor_fp32_fast_tf32, Tensor_fp64,
     Tensor_int64, TensorTraits)
@@ -54,7 +55,7 @@ def empty(
 
 
 def empty_like(A: Tensor, next_tag: int = 0):
-    return empty(A.shape, A.basetile_shape, type(A), A.mpi_distr, next_tag)
+    return empty(A.shape, A.basetile_shape, type(A), A.distribution, next_tag)
 
 
 def from_array(
@@ -71,9 +72,32 @@ def from_array(
 
 def to_numpy(tensor_nnt):
     dtype = nnt2np_type_mapping[type(tensor_nnt)]
-    np_res = np.zeros(tensor_nnt.shape, order="F", dtype=dtype)
+    # Deal with case of empty shape
+    if tensor_nnt.shape == []:
+        np_res = np.zeros((1,), order='F', dtype=dtype)
+    else:
+        np_res = np.zeros(tensor_nnt.shape, order="F", dtype=dtype)
     tensor_nnt.to_array(np_res)
     return np_res
+
+
+async def to_numpy_async(tensor):
+    dest_np = np.empty(tensor.shape)
+
+    if tensor.grid.nelems > 1:
+        gathered = empty(
+            shape=tensor.shape,
+            basetile_shape=tensor.basetile_shape,
+            dtype=type(tensor)
+        )
+        gather_async(tensor, gathered)
+    else:
+        gathered = tensor
+
+    while not gathered.try_gathered_to_array(dest_np):
+        await asyncio.sleep(0)
+
+    return dest_np
 
 
 def zeros(
@@ -89,7 +113,7 @@ def zeros(
 
 
 def zeros_like(A: Tensor, next_tag: int = 0):
-    return zeros(A.shape, A.basetile_shape, type(A), A.mpi_distr, next_tag)
+    return zeros(A.shape, A.basetile_shape, type(A), A.distribution, next_tag)
 
 
 def full(
@@ -106,7 +130,7 @@ def full(
 
 
 def full_like(A: Tensor, fill_value: float = 0.0, next_tag: int = 0):
-    return full(A.shape, A.basetile_shape, type(A), fill_value, A.mpi_distr,
+    return full(A.shape, A.basetile_shape, type(A), fill_value, A.distribution,
             next_tag)
 
 
@@ -121,7 +145,7 @@ def ones(
 
 
 def ones_like(A: Tensor, next_tag: int = 0):
-    return ones(A.shape, A.basetile_shape, type(A), A.mpi_distr, next_tag)
+    return ones(A.shape, A.basetile_shape, type(A), A.distribution, next_tag)
 
 
 def clone(A: Tensor, next_tag: int = 0):

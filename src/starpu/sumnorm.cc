@@ -9,7 +9,7 @@
  * @file src/starpu/sumnorm.cc
  * Sum and Euclidean norm for StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID

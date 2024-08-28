@@ -1,3 +1,15 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file wrappers/python/nntile/inference/llm_sync_engine.py
+#
+# @version 1.1.0
+
 import numpy as np
 
 import nntile.utils.constructors as nnt_constructors
@@ -9,7 +21,8 @@ class LlmSyncInferenceEngine:
         """
         model - nntile model
         tokenizer - huggingface-like tokenizer
-        input_seq_size - static size of input sequence. For now, need to manually pad sequence to it
+        input_seq_size - static size of input sequence.
+        For now, need to manually pad sequence to it
         """
         self.model = model
         self.tokenizer = tokenizer
@@ -24,17 +37,22 @@ class LlmSyncInferenceEngine:
         # tokenize
         inputs = self.tokenizer(prompt, return_tensors="np")
         input_ids = inputs["input_ids"]
+        prefill_size = input_ids.shape[0]
 
         # transform to compatible input
-        padded_input_ids = _pad_input_numpy_tensor_to_sequence_size(
-            input_ids, self.input_seq_size
-        )
-        padded_input = nnt_constructors.from_array(padded_input_ids.T)
+        if params.need_static_padding:
+            input_ids_np = _pad_input_numpy_tensor_to_sequence_size(
+                input_ids, self.input_seq_size
+            )
+        else:
+            input_ids_np = np.asfortranarray(input_ids).astype(np.int64)
+
+        input_ids_nnt = nnt_constructors.from_array(input_ids_np.T)
 
         # generate ids
         output_ids, effective_size = self.model.generate(
-            padded_input,
-            prefill_size=input_ids.shape[1],
+            input_ids_nnt,
+            prefill_size=prefill_size,
             params=params,
             mode=mode,
         )
@@ -44,8 +62,7 @@ class LlmSyncInferenceEngine:
         output_ids_np = output_ids_np[:effective_size]
 
         # construct generation result
-        generation_result_list = self.tokenizer.batch_decode(output_ids_np)
-        generated_text = "".join(generation_result_list)
+        generated_text = self.tokenizer.decode(output_ids_np)
         return generated_text
 
 

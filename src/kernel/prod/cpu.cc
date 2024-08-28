@@ -9,7 +9,7 @@
  * @file src/kernel/prod/cpu.cc
  * Per-element product of two buffers on CPU
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/prod/cpu.hh"
@@ -19,7 +19,7 @@ namespace nntile::kernel::prod
 {
 
 template<typename T>
-void cpu(Index nelems, const T *src, T *dst)
+void cpu(Index nelems, const T *src1, const T *src2, T *dst)
     noexcept
 //! Per-element product of two buffers
 /*! One of the buffers serves as output
@@ -33,25 +33,29 @@ void cpu(Index nelems, const T *src, T *dst)
     // Cycle over buffers
     for(Index i = 0; i < nelems; ++i)
     {
-        dst[i] = static_cast<T>(Y{dst[i]} * Y{src[i]});
+        dst[i] = static_cast<T>(Y{src1[i]} * Y{src2[i]});
     }
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index nelems, const fp32_t *src, fp32_t *dst)
+void cpu<fp32_t>(Index nelems, const fp32_t *src1, const fp32_t *src2,
+        fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp32_fast_tf32_t>(Index nelems, const fp32_fast_tf32_t *src, fp32_fast_tf32_t *dst)
+void cpu<fp32_fast_tf32_t>(Index nelems, const fp32_fast_tf32_t *src1,
+        const fp32_fast_tf32_t *src2, fp32_fast_tf32_t *dst)
     noexcept;
 
 template
-void cpu<fp64_t>(Index nelems, const fp64_t *src, fp64_t *dst)
+void cpu<fp64_t>(Index nelems, const fp64_t *src1, const fp64_t *src2,
+        fp64_t *dst)
     noexcept;
 
 template
-void cpu<bf16_t>(Index nelems, const bf16_t *src, bf16_t *dst)
+void cpu<bf16_t>(Index nelems, const bf16_t *src1, const bf16_t *src2,
+        bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::prod

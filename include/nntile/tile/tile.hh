@@ -9,7 +9,7 @@
  * @file include/nntile/tile/tile.hh
  * Tile<T> class
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once
@@ -82,6 +82,9 @@ public:
     }
     TileLocalData<T> acquire(starpu_data_access_mode mode)
         const;
+
+    TileLocalData<T> acquire_async(starpu_data_access_mode mode)
+        const;
 };
 
 //! Local copy of a tile in CPU RAM
@@ -91,8 +94,8 @@ template<typename T>
 class TileLocalData: public starpu::HandleLocalData
 {
 public:
-    TileLocalData(const Tile<T> &tile, starpu_data_access_mode mode):
-        starpu::HandleLocalData(tile, mode)
+    TileLocalData(const Tile<T> &tile, starpu_data_access_mode mode, bool is_blocking = true):
+        starpu::HandleLocalData(tile, mode, is_blocking)
     {
     }
     const T &operator[](Index i)
@@ -115,7 +118,14 @@ template<typename T>
 TileLocalData<T> Tile<T>::acquire(starpu_data_access_mode mode)
     const
 {
-    return TileLocalData<T>(*this, mode);
+    return TileLocalData<T>(*this, mode, true);
+}
+
+template<typename T>
+TileLocalData<T> Tile<T>::acquire_async(starpu_data_access_mode mode)
+    const
+{
+    return TileLocalData<T>(*this, mode, false);
 }
 
 } // namespace nntile::tile

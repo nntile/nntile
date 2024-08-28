@@ -9,7 +9,7 @@
  * @file src/kernel/softmax/cuda.cu
  * Softmax operation on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/softmax/cuda.hh"
@@ -66,6 +66,79 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
     }
 }
 
+template<typename T, int BLOCK_ROW, int BLOCK_COL, int BLOCK_LOOP>
+static __global__
+void cuda_kernel_m1(Index n, Index k, const T *maxsumexp, const T *src,
+        Scalar alpha_, T *dst)
+{
+    Index dst_l = threadIdx.x % BLOCK_ROW;
+    Index dst_griddim_row = (k+BLOCK_ROW-1) / BLOCK_ROW;
+    Index dst_block_l = blockIdx.x % dst_griddim_row;
+    Index dst_block_j = blockIdx.x / dst_griddim_row;
+    Index global_dst_l = dst_l + dst_block_l*BLOCK_ROW;
+    Index global_dst_j = dst_block_j*BLOCK_COL;
+    using Y = typename T::repr_t;
+    const Y alpha{alpha_};
+    constexpr Y zero{0.0};
+    __shared__ Y max_block[BLOCK_COL];
+    __shared__ Y sumexp_block[BLOCK_COL];
+    __shared__ T dst_block[BLOCK_ROW][BLOCK_COL];
+    Index maxsumexp_j = dst_block_j*BLOCK_COL + threadIdx.x;
+    if(maxsumexp_j < n and threadIdx.x < BLOCK_COL)
+    {
+        max_block[threadIdx.x] = static_cast<Y>(maxsumexp[2*maxsumexp_j]);
+        sumexp_block[threadIdx.x] = static_cast<Y>(maxsumexp[2*maxsumexp_j+1]);
+    }
+    __syncthreads();
+    if(global_dst_l < k)
+    {
+        // Pointer to a corresponding fiber of the output array dst
+        const T *src_fiber = src + global_dst_l + global_dst_j*k;
+        T *dst_fiber = dst + global_dst_l + global_dst_j*k;
+        constexpr int BLOCK_COL_STEP = BLOCK_COL / BLOCK_LOOP;
+        if((dst_block_j+1)*BLOCK_COL <= n)
+        {
+            for(Index c = 0; c < BLOCK_COL; c += BLOCK_COL_STEP)
+            {
+                dst_block[dst_l][c] = src_fiber[c*k];
+            }
+            for(Index c = 0; c < BLOCK_COL; c += BLOCK_COL_STEP)
+            {
+                Y val = static_cast<Y>(dst_block[dst_l][c]);
+                if(not ::isinf(val))
+                {
+                    val = alpha * ::exp(val-max_block[c]) / sumexp_block[c];
+                    dst_fiber[c*k] = static_cast<T>(val);
+                }
+                else
+                {
+                    dst_fiber[c*k] = static_cast<T>(0.0);
+                }
+            }
+        }
+        else
+        {
+            for(Index c = 0; c < n-global_dst_j; c += BLOCK_COL_STEP)
+            {
+                dst_block[dst_l][c] = src_fiber[c*k];
+            }
+            for(Index c = 0; c < n-global_dst_j; c += BLOCK_COL_STEP)
+            {
+                Y val = static_cast<Y>(dst_block[dst_l][c]);
+                if(not ::isinf(val))
+                {
+                    val = alpha * ::exp(val-max_block[c]) / sumexp_block[c];
+                    dst_fiber[c*k] = static_cast<T>(val);
+                }
+                else
+                {
+                    dst_fiber[c*k] = static_cast<T>(0.0);
+                }
+            }
+        }
+    }
+}
+
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp_,
         const T *src_, Scalar alpha, T *dst_)
@@ -83,21 +156,32 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, const T *maxsumexp_,
  * */
 {
     // Both source and destination are Fortran-contiguous
-    dim3 threads(32, 1, 1);
-    dim3 blocks(1, m, n);
-    Index m_per_block = 1, n_per_block = 1;
-    if(m > 65535)
+    // Custom case m==1
+    if(m == 1)
     {
-        m_per_block = (m+65534) / 65535;
-        blocks.y = (m+m_per_block-1) / m_per_block;
+        dim3 threads(256);
+        dim3 blocks(((k+255)/256) * ((n+7)/8));
+        (cuda_kernel_m1<T, 256, 8, 8>)<<<blocks, threads, 0, stream>>>(n, k,
+                maxsumexp_, src_, alpha, dst_);
     }
-    if(n > 65535)
+    else
     {
-        n_per_block = (n+65534) / 65535;
-        blocks.z = (n+n_per_block-1) / n_per_block;
+        dim3 threads(32, 1, 1);
+        dim3 blocks(1, m, n);
+        Index m_per_block = 1, n_per_block = 1;
+        if(m > 65535)
+        {
+            m_per_block = (m+65534) / 65535;
+            blocks.y = (m+m_per_block-1) / m_per_block;
+        }
+        if(n > 65535)
+        {
+            n_per_block = (n+65534) / 65535;
+            blocks.z = (n+n_per_block-1) / n_per_block;
+        }
+        (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, m_per_block, n,
+                n_per_block, k, maxsumexp_, src_, alpha, dst_);
     }
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, m_per_block, n,
-            n_per_block, k, maxsumexp_, src_, alpha, dst_);
 }
 
 // Explicit instantiation

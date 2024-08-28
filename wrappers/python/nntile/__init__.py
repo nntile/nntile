@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/__init__.py
 # Main init of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from . import (
     functions, inference, layer, loss, model, optimizer, pipeline, tensor)

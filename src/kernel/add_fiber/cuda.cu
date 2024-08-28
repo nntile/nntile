@@ -9,7 +9,7 @@
  * @file src/kernel/add_fiber/cuda.cu
  * Per-element addition of a tensor and a broadcasted fiber on CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/add_fiber/cuda.hh"

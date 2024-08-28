@@ -9,7 +9,7 @@
  * @file include/nntile/tile.hh
  * Header for Tile<T> class with corresponding operations
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once
@@ -37,7 +37,7 @@
 #include <nntile/tile/gemm.hh>
 #include <nntile/tile/nrm2.hh>
 #include <nntile/tile/normalize.hh>
-#include <nntile/tile/prod.hh>
+#include <nntile/tile/prod_inplace.hh>
 #include <nntile/tile/randn.hh>
 #include <nntile/tile/relu.hh>
 #include <nntile/tile/relu_forward.hh>
@@ -75,6 +75,7 @@
 #include <nntile/tile/silu_forward.hh>
 #include <nntile/tile/silu_backward.hh>
 #include <nntile/tile/rope.hh>
+#include <nntile/tile/norm_fiber.hh>
 
 //! @namespace nntile::tile
 /*! This namespace holds high-level routines for Tile<T>

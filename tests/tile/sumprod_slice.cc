@@ -9,7 +9,7 @@
  * @file tests/tile/sumprod_slice.cc
  * sumprod_slice operation on Tile<T>
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/tile/sumprod_slice.hh"

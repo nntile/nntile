@@ -9,18 +9,19 @@
 # @file wrappers/python/nntile/layer/rms_norm.py
 # RMSNorm of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import torch
 from transformers.models.llama.modeling_llama import (
     LlamaRMSNorm as RMSNorm_torch)
 
+import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor, TensorMoments, TensorTraits, add_inplace_async, copy_async, fill_async,
-    hypot_scalar_inverse_async, norm_slice_async, prod_fiber3_async,
-    prod_slice_async, sumprod_fiber_async, sumprod_slice_async, to_numpy)
-
+    Tensor, TensorMoments, TensorTraits, add_inplace_async, copy_async,
+    fill_async, hypot_scalar_inverse_async, norm_slice_async,
+    prod_fiber3_async, prod_slice_async, sumprod_fiber_async,
+    sumprod_slice_async, to_numpy)
 
 
 class RMSNorm(BaseLayer):
@@ -140,6 +141,39 @@ class RMSNorm(BaseLayer):
         self.gamma.value.wont_use()
         # Y can be offloaded from GPU
         self.y.value.wont_use()
+
+    # Dynamic forward propagation of the normalization layer
+    def forward_dynamic(self, x: TensorMoments):
+        inv_stddev = nntc.empty(
+            x.value.shape[: self.axis] + x.value.shape[self.axis + 1 :],
+            basetile_shape=x.value.basetile_shape[: self.axis]
+            + x.value.basetile_shape[self.axis + 1 :],
+            dtype=type(x.value),
+        )
+        tmp_y_value = nntc.empty_like(x.value)
+        y_value = nntc.empty_like(x.value)
+
+        # Finally, normalize input
+        norm_slice_async(
+            1.0 / x.value.shape[self.axis] ** 0.5,
+            x.value,
+            0.0,
+            inv_stddev,
+            self.axis,
+            redux=self.redux,
+        )
+        hypot_scalar_inverse_async(self.eps, 1.0, inv_stddev)
+
+        # Finally, normalize input
+        copy_async(x.value, tmp_y_value)
+        prod_slice_async(inv_stddev, 1.0, tmp_y_value, self.axis)
+
+        # Scale normalized input for the backward phase
+        prod_fiber3_async(
+            self.gamma.value, 1.0, tmp_y_value, y_value, self.axis
+        )
+
+        return TensorMoments(y_value, None, False)
 
     # Backward propagation of the normalization layer
     def backward_async(self):

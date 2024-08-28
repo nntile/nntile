@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/llama_mlp.py
 # LlamaMLP submodule of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import torch
 from transformers import LlamaConfig as LlamaConfig_torch
@@ -105,6 +105,18 @@ class LlamaMLP(BaseModel):
         for layer in self.layers:
             if type(layer) is Linear:
                 layer.init_randn_async()
+
+    def forward_dynamic(self, x: TensorMoments):
+        gate_proj, gate_proj_act, up_proj, prod, down_proj = self.layers
+        gate_outs = gate_proj.forward_dynamic(x)
+
+        gate_act_outs = gate_proj_act.forward_dynamic(gate_outs)
+        up_proj_outs = up_proj.forward_dynamic(x)
+
+        prod_outs = prod.forward_dynamic(gate_act_outs, up_proj_outs)
+        down_proj_outs = down_proj.forward_dynamic(prod_outs)
+
+        return down_proj_outs
 
     @staticmethod
     def from_torch(

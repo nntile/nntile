@@ -9,7 +9,7 @@
  * @file include/nntile/starpu.hh
  * StarPU wrappers for data handles and low-level kernels
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once
@@ -42,6 +42,7 @@
 #include <nntile/starpu/nrm2.hh>
 #include <nntile/starpu/normalize.hh>
 #include <nntile/starpu/prod.hh>
+#include <nntile/starpu/prod_inplace.hh>
 #include <nntile/starpu/randn.hh>
 #include <nntile/starpu/relu.hh>
 #include <nntile/starpu/relu_forward.hh>
@@ -86,8 +87,12 @@
 #include <nntile/starpu/transpose.hh>
 #include <nntile/starpu/silu_forward.hh>
 #include <nntile/starpu/silu_backward.hh>
+#include <nntile/starpu/conv2d_inplace.hh>
+#include <nntile/starpu/conv2d_bwd_input_inplace.hh>
+#include <nntile/starpu/conv2d_bwd_weight_inplace.hh>
 #include <nntile/starpu/rope.hh>
 #include <nntile/starpu/rope_backward.hh>
+#include <nntile/starpu/norm_fiber.hh>
 
 //! @namespace nntile::starpu
 /*! This namespace holds StarPU wrappers
@@ -126,12 +131,14 @@ void init()
     relu_forward::init();
     relu_backward::init();
     prod::init();
+    prod_inplace::init();
     subcopy::init();
     sumnorm::init();
     fill::init();
     sum_slice::init();
     sum_fiber::init();
     norm_slice::init();
+    norm_fiber::init();
     pow::init();
     softmax::init();
     softmax_inplace::init();
@@ -166,6 +173,9 @@ void init()
     transpose::init();
     silu_forward::init();
     silu_backward::init();
+    conv2d_inplace::init();
+    conv2d_bwd_input_inplace::init();
+    conv2d_bwd_weight_inplace::init();
     rope::init();
     rope_backward::init();
 }
@@ -197,6 +207,7 @@ void restrict_where(uint32_t where)
     nrm2::restrict_where(where);
     normalize::restrict_where(where);
     prod::restrict_where(where);
+    prod_inplace::restrict_where(where);
     randn::restrict_where(where);
     relu::restrict_where(where);
     relu_forward::restrict_where(where);
@@ -207,6 +218,7 @@ void restrict_where(uint32_t where)
     sum_slice::restrict_where(where);
     sum_fiber::restrict_where(where);
     norm_slice::restrict_where(where);
+    norm_fiber::restrict_where(where);
     pow::restrict_where(where);
     softmax::restrict_where(where);
     softmax_inplace::restrict_where(where);
@@ -241,6 +253,9 @@ void restrict_where(uint32_t where)
     transpose::restrict_where(where);
     silu_forward::restrict_where(where);
     silu_backward::restrict_where(where);
+    conv2d_inplace::restrict_where(where);
+    conv2d_bwd_input_inplace::restrict_where(where);
+    conv2d_bwd_weight_inplace::restrict_where(where);
     rope::restrict_where(where);
     rope_backward::restrict_where(where);
 }
@@ -272,6 +287,7 @@ void restore_where()
     nrm2::restore_where();
     normalize::restore_where();
     prod::restore_where();
+    prod_inplace::restore_where();
     randn::restore_where();
     relu::restore_where();
     relu_forward::restore_where();
@@ -282,6 +298,7 @@ void restore_where()
     sum_slice::restore_where();
     sum_fiber::restore_where();
     norm_slice::restore_where();
+    norm_fiber::restore_where();
     pow::restore_where();
     softmax::restore_where();
     softmax_inplace::restore_where();
@@ -316,6 +333,9 @@ void restore_where()
     transpose::restore_where();
     silu_forward::restore_where();
     silu_backward::restore_where();
+    conv2d_inplace::restore_where();
+    conv2d_bwd_input_inplace::restore_where();
+    conv2d_bwd_weight_inplace::restore_where();
     rope::restore_where();
     rope_backward::restore_where();
 }

@@ -9,7 +9,7 @@
  * @file include/nntile/kernel/gemm.hh
  * Wrappers for gemm on CPU and CUDA
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

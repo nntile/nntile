@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/loss/__init__.py
 # Submodule with loss functions of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from .crossentropy import CrossEntropy
 from .frob import Frob

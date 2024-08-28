@@ -10,7 +10,7 @@
 # @file ci/add-repo-kitware
 # A script to add source of CMake package to the APT system
 #
-# @version 1.0.0
+# @version 1.1.0
 
 set -xe
 
@@ -19,9 +19,6 @@ apt install -y --no-install-recommends \
     ca-certificates curl gpg lsb-release
 
 . /etc/os-release
-if [ "$UBUNTU_CODENAME" != "jammy" ]; then
-    exit 0
-fi
 
 (curl -fsSL https://apt.kitware.com/keys/kitware-archive-latest.asc \
 | gpg --dearmor -o /usr/share/keyrings/kitware-archive-keyring.gpg)

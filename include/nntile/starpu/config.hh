@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/config.hh
  * StarPU initialization/finalization and smart data handles
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once
@@ -58,10 +58,11 @@ namespace starpu
 class Config: public starpu_conf
 {
     int cublas;
+    int verbose;
 public:
     explicit Config(int ncpus_=-1, int ncuda_=-1, int cublas_=-1, int logger=0,
             const char *logger_server_addr="localhost",
-            int logger_server_port=5001)
+            int logger_server_port=5001, int verbose_=0)
     {
         starpu_fxt_autostart_profiling(0);
         // Init StarPU configuration with default values at first
@@ -81,6 +82,8 @@ public:
         sched_policy_name = "dmda";
         // Save initial value
         cublas = cublas_;
+        // Verbosity level
+        verbose = verbose_;
         // Init StarPU (master-slave)
         ret = starpu_init(this);
         if(ret != 0)
@@ -91,14 +94,20 @@ public:
         {
             int ncpus_ = starpu_worker_get_count_by_type(STARPU_CPU_WORKER);
             int ncuda_ = starpu_worker_get_count_by_type(STARPU_CUDA_WORKER);
-            std::cout << "Initialized NCPU=" << ncpus_ << " NCUDA=" << ncuda_
-                << "\n";
+            if(verbose > 0)
+            {
+                std::cout << "Initialized NCPU=" << ncpus_ << " NCUDA=" <<
+                    ncuda_ << "\n";
+            }
         }
 #ifdef NNTILE_USE_CUDA
         if(cublas != 0)
         {
             starpu_cublas_init();
-            std::cout << "Initialized cuBLAS\n";
+            if(verbose > 0)
+            {
+                std::cout << "Initialized cuBLAS\n";
+            }
         }
 #endif // NNTILE_USE_CUDA
        if(logger != 0)
@@ -120,11 +129,17 @@ public:
         if(cublas != 0)
         {
             starpu_cublas_shutdown();
-            std::cout << "Shutdown cuBLAS\n";
+            if(verbose > 0)
+            {
+                std::cout << "Shutdown cuBLAS\n";
+            }
         }
 #endif // NNTILE_USE_CUDA
         starpu_shutdown();
-        std::cout << "Shutdown StarPU\n";
+        if(verbose > 0)
+        {
+            std::cout << "Shutdown StarPU\n";
+        }
     }
     //! StarPU commute data access mode
     static constexpr starpu_data_access_mode STARPU_RW_COMMUTE
@@ -306,12 +321,15 @@ class HandleLocalData
     Handle handle;
     void *ptr = nullptr;
     bool acquired = false;
+    bool is_blocking_ = true;
 public:
     explicit HandleLocalData(const Handle &handle_,
-            starpu_data_access_mode mode):
-        handle(handle_)
+            starpu_data_access_mode mode, bool is_blocking = true):
+        handle(handle_), is_blocking_(is_blocking)
     {
-        acquire(mode);
+        if (is_blocking_) {
+            acquire(mode);
+        }
     }
     virtual ~HandleLocalData()
     {
@@ -331,6 +349,25 @@ public:
         acquired = true;
         ptr = starpu_data_get_local_ptr(starpu_handle);
     }
+
+    bool try_acquire(starpu_data_access_mode mode)
+    {
+        if (acquired) {
+            return true;
+        }
+
+        auto starpu_handle = static_cast<starpu_data_handle_t>(handle);
+        int status = starpu_data_acquire_try(starpu_handle, mode);
+        if(status != 0)
+        {
+            return false;
+        }
+
+        acquired = true;
+        ptr = starpu_data_get_local_ptr(starpu_handle);
+        return true;
+    }
+
     void release()
     {
         starpu_data_release(static_cast<starpu_data_handle_t>(handle));
@@ -346,7 +383,7 @@ public:
 inline
 HandleLocalData Handle::acquire(starpu_data_access_mode mode) const
 {
-    return HandleLocalData(*this, mode);
+    return HandleLocalData(*this, mode, true);
 }
 
 //! Wrapper for struct starpu_variable_interface

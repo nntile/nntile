@@ -9,7 +9,7 @@
  * @file include/nntile/starpu/softmax_inplace.hh
  * softmax_inplace operation for StarPU buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #pragma once

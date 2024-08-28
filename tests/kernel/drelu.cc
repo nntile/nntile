@@ -9,7 +9,7 @@
  * @file tests/kernel/drelu.cc
  * Derivative of ReLU operation on a buffer
  *
- * @version 1.0.0
+ * @version 1.1.0
  * */
 
 #include "nntile/kernel/drelu.hh"
