@@ -16,6 +16,7 @@ set(TESTS
     "adam_step"
     "adamw_step"
     "add"
+    "add_inplace"
     "add_fiber"
     "add_slice"
     "add_slice3"

@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/gpt2_config.py
 # GPT2 model config
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from dataclasses import dataclass
 

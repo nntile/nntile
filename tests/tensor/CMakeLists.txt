@@ -19,6 +19,7 @@ set(TESTS
 
 set(TESTS_MPI
     "add"
+    "add_inplace"
     "add_fiber"
     "add_slice"
     "add_slice3"
@@ -74,7 +75,6 @@ set(TESTS_MPI
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
-    "add"
     "gelu_backward"
     "gelutanh"
     "gelutanh_backward"

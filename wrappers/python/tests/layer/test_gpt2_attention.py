@@ -9,7 +9,7 @@
 # @file wrappers/python/tests/layer/test_gpt2_attention.py
 # Test for nntile.layer.GPT2Attention
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from dataclasses import dataclass
 

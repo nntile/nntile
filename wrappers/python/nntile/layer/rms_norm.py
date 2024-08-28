@@ -18,9 +18,10 @@ from transformers.models.llama.modeling_llama import (
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor, TensorMoments, TensorTraits, add_async, copy_async, fill_async,
-    hypot_scalar_inverse_async, norm_slice_async, prod_fiber3_async,
-    prod_slice_async, sumprod_fiber_async, sumprod_slice_async, to_numpy)
+    Tensor, TensorMoments, TensorTraits, add_inplace_async, copy_async,
+    fill_async, hypot_scalar_inverse_async, norm_slice_async,
+    prod_fiber3_async, prod_slice_async, sumprod_fiber_async,
+    sumprod_slice_async, to_numpy)
 
 
 class RMSNorm(BaseLayer):
@@ -194,7 +195,7 @@ class RMSNorm(BaseLayer):
         # Multiply tmp_Y_value by the mean
         prod_slice_async(self.mean, 1.0, self.tmp_y_value, self.axis)
         # Add tmp_Y_grad to tmp_Y_value
-        add_async(1., self.tmp_y_grad, 1., self.tmp_y_value)
+        add_inplace_async(1., self.tmp_y_grad, 1., self.tmp_y_value)
         # tmp_Y_grad can be deleted
         self.tmp_y_grad.invalidate_submit()
         # mean can be deleted
@@ -204,7 +205,7 @@ class RMSNorm(BaseLayer):
         # inv_stddev can be deleted
         self.inv_stddev.invalidate_submit()
         # Accumulate gradient from tmp_Y_value
-        add_async(1., self.tmp_y_value, 1., self.x.grad)
+        add_inplace_async(1., self.tmp_y_value, 1., self.x.grad)
         # tmp_Y_value can be deleted
         self.tmp_y_value.invalidate_submit()
         # dX can offloade from GPU

@@ -6,13 +6,13 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/add.cc
+ * @file tests/kernel/add_inplace.cc
  * Per-element addition of tensors
  *
  * @version 1.1.0
  * */
 
-#include "nntile/kernel/add.hh"
+#include "nntile/kernel/add_inplace.hh"
 #include "../testing.hh"
 #include <vector>
 #include <stdexcept>
@@ -29,22 +29,18 @@ using namespace nntile;
 using namespace nntile::kernel;
 
 #ifdef NNTILE_USE_CUDA
+
 template<typename T>
-void run_cuda(Index nelems, Scalar alpha, const std::vector<T> &src1,
-        Scalar beta, const std::vector<T> &src2, std::vector<T> &dst)
+void run_cuda(Index nelems, Scalar alpha, const std::vector<T> &src,
+        Scalar beta, std::vector<T> &dst)
 {
     // Copy to device
-    T *dev_src1, *dev_src2, *dev_dst;
-    cudaError_t cuda_err = cudaMalloc(&dev_src1, sizeof(T)*nelems);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_src2, sizeof(T)*nelems);
+    T *dev_src, *dev_dst;
+    cudaError_t cuda_err = cudaMalloc(&dev_src, sizeof(T)*nelems);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_dst, sizeof(T)*nelems);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_src1, &src1[0], sizeof(T)*nelems,
-            cudaMemcpyHostToDevice);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_src2, &src2[0], sizeof(T)*nelems,
+    cuda_err = cudaMemcpy(dev_src, &src[0], sizeof(T)*nelems,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*nelems,
@@ -55,16 +51,14 @@ void run_cuda(Index nelems, Scalar alpha, const std::vector<T> &src1,
     cuda_err = cudaStreamCreate(&stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Launch low-level CUDA kernel
-    add::cuda<T>(stream, nelems, alpha, dev_src1, beta, dev_src2, dev_dst);
+    add_inplace::cuda<T>(stream, nelems, alpha, dev_src, beta, dev_dst);
     cuda_err = cudaStreamSynchronize(stream);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Copy result and deallocate device memory
     cuda_err = cudaMemcpy(&dst[0], dev_dst, sizeof(T)*nelems,
             cudaMemcpyDeviceToHost);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaFree(dev_src1);
-    TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaFree(dev_src2);
+    cuda_err = cudaFree(dev_src);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaFree(dev_dst);
     TEST_ASSERT(cuda_err == cudaSuccess);
@@ -82,34 +76,32 @@ void validate(Index nelems, int test_index_a, int test_index_b)
     // Init test input
     Scalar alpha = (1.0)/Scalar(test_index_a);
     Scalar beta = (1.0)/Scalar(test_index_b);
-    std::vector<T> src1(nelems), src2(nelems), dst(nelems);
+    std::vector<T> src(nelems), dst(nelems);
     for(Index i = 0; i < nelems; ++i)
     {
-        src1[i] = Y(2*i+1-nelems);
-        src2[i] = Y(2*nelems-i);
-        dst[i] = Y(5*nelems-2*i);
-
+        src[i] = Y(2*i+1-nelems);
+        dst[i] = Y(2*nelems-i);
     }
     std::vector<T> dst_save(dst);
-    std::cout << "Run kernel::add::cpu<" << T::type_repr << ">\n";
-    add::cpu<T>(nelems, alpha, &src1[0], beta, &src2[0], &dst[0]);
+    std::cout << "Run kernel::add_inplace::cpu<" << T::type_repr << ">\n";
+    add_inplace::cpu<T>(nelems, alpha, &src[0], beta, &dst[0]);
     for(Index i = 0; i < nelems; ++i)
     {
         Y val_ref = alpha*Y(2*i+1-nelems) + beta*Y(2*nelems-i);
         TEST_ASSERT(std::abs(Y{dst[i]}-val_ref)/std::abs(val_ref) <= eps);
     }
-    std::cout << "OK: kernel::add::cpu<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::add_inplace::cpu<" << T::type_repr << ">\n";
 #ifdef NNTILE_USE_CUDA
     // Check low-level CUDA kernel
     dst = dst_save;
-    std::cout << "Run kernel::add::cuda<" << T::type_repr << ">\n";
-    run_cuda<T>(nelems, alpha, src1, beta, src2, dst);
+    std::cout << "Run kernel::add_inplace::cuda<" << T::type_repr << ">\n";
+    run_cuda<T>(nelems, alpha, src, beta, dst);
     for(Index i = 0; i < nelems; ++i)
     {
         Y val_ref = alpha*Y(2*i+1-nelems) + beta*Y(2*nelems-i);
         TEST_ASSERT(std::abs(Y{dst[i]}-val_ref)/std::abs(val_ref) <= eps);
     }
-    std::cout << "OK: kernel::add::cuda<" << T::type_repr << ">\n";
+    std::cout << "OK: kernel::add_inplace::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
 }
 

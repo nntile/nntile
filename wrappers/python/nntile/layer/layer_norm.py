@@ -17,11 +17,11 @@ from torch.nn import LayerNorm as LayerNormTorch
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor, TensorMoments, TensorTraits, add_async, add_fiber_async,
+    Tensor, TensorMoments, TensorTraits, add_fiber_async, add_inplace_async,
     add_slice3_async, add_slice_async, clear_async, fill_async,
     hypot_scalar_inverse_async, norm_slice_async, prod_fiber3_async,
     prod_slice_async, sum_fiber_async, sum_slice_async, sumprod_fiber_async,
-    sumprod_slice_async, to_numpy)
+    sumprod_slice_async)
 
 
 class LayerNorm(BaseLayer):
@@ -315,7 +315,7 @@ class LayerNorm(BaseLayer):
         # Multiply tmp_Y_value by the mean
         prod_slice_async(self.mean, 1.0, self.tmp_y_value, self.axis)
         # Add tmp_Y_grad to tmp_Y_value
-        add_async(1.0, self.tmp_y_grad, 1.0, self.tmp_y_value)
+        add_inplace_async(1., self.tmp_y_grad, 1., self.tmp_y_value)
         # Get mean value of tmp_Y_grad over the given axis
         sum_slice_async(
             1.0 / self.l,
@@ -336,8 +336,7 @@ class LayerNorm(BaseLayer):
         # inv_stddev can be deleted
         self.inv_stddev.invalidate_submit()
         # Accumulate gradient from tmp_Y_value
-        # axpy_async(1.0, self.tmp_y_value, self.x.grad)
-        add_async(1.0, self.tmp_y_value, 1.0, self.x.grad)
+        add_inplace_async(1., self.tmp_y_value, 1., self.x.grad)
         # tmp_Y_value can be deleted
         self.tmp_y_value.invalidate_submit()
         # dX can offloade from GPU
@@ -362,18 +361,18 @@ class LayerNorm(BaseLayer):
         torch_layer = LayerNormTorch(target_shape[self.axis],
                                     self.eps**2)
         torch_layer.weight.data = torch.tensor(
-                                to_numpy(self.gamma.value),
+                                nntc.to_numpy(self.gamma.value),
                                 requires_grad=True)
         torch_layer.bias.data = torch.tensor(
-                                to_numpy(self.beta.value),
+                                nntc.to_numpy(self.beta.value),
                                 requires_grad=True)
         return torch_layer
 
     def to_torch_with_grads(self) -> LayerNormTorch:
         torch_layer = self.to_torch()
         torch_layer.weight.grad = torch.tensor(
-                                to_numpy(self.gamma.grad))
+                                nntc.to_numpy(self.gamma.grad))
         torch_layer.bias.grad = torch.tensor(
-                                to_numpy(self.beta.grad))
+                                nntc.to_numpy(self.beta.grad))
 
         return torch_layer

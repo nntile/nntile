@@ -66,7 +66,7 @@ class SGD:
     def step(self):
         for i, p in enumerate(self.params):
             if self.weight_decay != 0.0:
-                nntile.tensor.add_async(
+                nntile.tensor.add_inplace_async(
                     self.weight_decay, p.value, 1.0, p.grad
                 )
 
@@ -74,16 +74,16 @@ class SGD:
                 if self.num_iter == 0:
                     nntile.tensor.copy_async(p.grad, self.states[i])
                 else:
-                    nntile.tensor.add_async(
+                    nntile.tensor.add_inplace_async(
                         1 - self.damping, p.grad, self.momentum, self.states[i]
                     )
                 if self.nesterov:
-                    nntile.tensor.add_async(
+                    nntile.tensor.add_inplace_async(
                         self.momentum, self.states[i], 1.0, p.grad
                     )
                 else:
                     nntile.tensor.copy_async(self.states[i], p.grad)
-            nntile.tensor.add_async(-self.lr, p.grad, 1.0, p.value)
+            nntile.tensor.add_inplace_async(-self.lr, p.grad, 1.0, p.value)
         self.num_iter += 1
 
     def get_nbytes(self):
