@@ -80,9 +80,10 @@ void cuda(cudaStream_t stream, Index nelems, Scalar alpha_, const T *src_,
  * @param[inout] dst_: Destination of the add operation
  * */
 {
-    dim3 blocks((nelems+255)/256), threads(256);
-    cuda_kernel<T><<<blocks, threads, 0, stream>>>(nelems, alpha_, src_,
-            beta_, dst_);
+    dim3 threads(256);
+    dim3 blocks((nelems+1023)/1024);
+    (cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(nelems, alpha_,
+            src_, beta_, dst_);
 }
 
 // Explicit instantiation

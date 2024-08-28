@@ -13,7 +13,7 @@
  * */
 
 #include "nntile/starpu/add_slice.hh"
-#include "nntile/starpu/add.hh"
+#include "nntile/starpu/add_inplace.hh"
 #ifndef STARPU_SIMGRID
 #include "nntile/kernel/add_slice.hh"
 #endif // STARPU_SIMGRID
@@ -138,7 +138,8 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta, Handle dst)
+void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
+        Handle dst)
 //! Insert add_slice task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -146,10 +147,10 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta, Ha
  * */
 {
     constexpr Scalar zero = 0.0, one = 1.0;
-    // If k is 1, then this operation reduces to add
+    // If k is 1, then this operation reduces to add_inplace
     if(k == 1)
     {
-        add::submit<T>(m*n, alpha, src, beta, dst);
+        add_inplace::submit<T>(m*n, alpha, src, beta, dst);
         return;
     }
     // Access mode for the dst handle
