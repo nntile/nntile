@@ -16,7 +16,7 @@ set(TESTS
     "add"
     "add_fiber"
     "add_slice_inplace"
-    "add_slice3"
+    "add_slice"
     "addcdiv"
     "axpy"
     "clear"
@@ -84,7 +84,7 @@ set(TESTS_NOT_IMPLEMENTED
     "scal"
     "softmax"
     "hypot"
-    "add_slice3"
+    "add_slice"
     "prod_fiber3"
     )
 

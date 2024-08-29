@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tensor/add_slice3.hh
+ * @file include/nntile/tensor/add_slice.hh
  * Tensor wrappers for addition of a tensor and a broadcasted slice
  *
  * @version 1.1.0
@@ -21,12 +21,12 @@ namespace nntile::tensor
 
 // Tensor<T> addition of a tensor and a broadcasted slice
 template<typename T>
-void add_slice3_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
+void add_slice_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
         const Tensor<T> &src2, const Tensor<T> &dst, Index axis);
 
 // Tensor<T> addition of a tensor and a broadcasted slice
 template<typename T>
-void add_slice3(Scalar alpha, const Tensor<T> &src1, Scalar beta, const Tensor<T> &src2,
+void add_slice(Scalar alpha, const Tensor<T> &src1, Scalar beta, const Tensor<T> &src2,
         const Tensor<T> &dst, Index axis);
 
 } // namespace nntile::tensor

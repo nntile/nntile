@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/add_slice3/cpu.hh
+ * @file include/nntile/kernel/add_slice/cpu.hh
  * Per-element addition of a tensor and a broadcasted slice on CPU
  *
  * @version 1.1.0
@@ -16,7 +16,7 @@
 
 #include <nntile/base_types.hh>
 
-namespace nntile::kernel::add_slice3
+namespace nntile::kernel::add_slice
 {
 
 // Per-element addition of a tensor and a broadcasted slice on CPU
@@ -25,4 +25,4 @@ void cpu(Index m, Index n, Index k, Scalar alpha, const T *src1, Scalar beta,
         const T *src2, T *dst)
     noexcept;
 
-} // namespace nntile::kernel::add_slice3
+} // namespace nntile::kernel::add_slice

@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/add_slice3.hh
+ * @file include/nntile/starpu/add_slice.hh
  * StarPU wrappers for addition of a tensor and a broadcasted slice
  *
  * @version 1.1.0
@@ -18,7 +18,7 @@
 #include <nntile/starpu/config.hh>
 #include <nntile/defs.h>
 
-namespace nntile::starpu::add_slice3
+namespace nntile::starpu::add_slice
 {
 
 //! Structure for arguments
@@ -31,13 +31,13 @@ struct args_t
     Scalar beta;
 };
 
-// StarPU wrapper for kernel::add_slice3::cpu<T>
+// StarPU wrapper for kernel::add_slice::cpu<T>
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 #ifdef NNTILE_USE_CUDA
-// StarPU wrapper for kernel::add_slice3::cuda<T>
+// StarPU wrapper for kernel::add_slice::cuda<T>
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept;
@@ -86,4 +86,4 @@ template<typename T>
 void submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Scalar beta,
         Handle src2, Handle dst);
 
-} // namespace nntile::starpu::add_slice3
+} // namespace nntile::starpu::add_slice

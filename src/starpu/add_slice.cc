@@ -6,23 +6,23 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/add_slice3.cc
+ * @file src/starpu/add_slice.cc
  * StarPU wrappers for addition of a tensor and a broadcasted slice
  *
  * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID
-#include "nntile/kernel/add_slice3.hh"
+#include "nntile/kernel/add_slice.hh"
 #endif // STARPU_SIMGRID
-#include "nntile/starpu/add_slice3.hh"
+#include "nntile/starpu/add_slice.hh"
 #include <cstdlib>
 
-//! StarPU wrappers for add_slice3 operation
-namespace nntile::starpu::add_slice3
+//! StarPU wrappers for add_slice operation
+namespace nntile::starpu::add_slice
 {
 
-//! StarPU wrapper for kernel::add_slice3::cpu<T>
+//! StarPU wrapper for kernel::add_slice::cpu<T>
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
@@ -36,13 +36,13 @@ void cpu(void *buffers[], void *cl_args)
     const T *src2 = interfaces[1]->get_ptr<T>();
     T *dst = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::add_slice3::cpu<T>(args->m, args->n, args->k, args->alpha, src1,
+    kernel::add_slice::cpu<T>(args->m, args->n, args->k, args->alpha, src1,
             args->beta, src2, dst);
 #endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::add_slice3::cuda<T>
+//! StarPU wrapper for kernel::add_slice::cuda<T>
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
@@ -58,13 +58,13 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::add_slice3::cuda<T>(stream, args->m, args->n, args->k, args->alpha,
+    kernel::add_slice::cuda<T>(stream, args->m, args->n, args->k, args->alpha,
             src1, args->beta, src2, dst);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for add_slice3 tasks
+//! Footprint for add_slice tasks
 static
 uint32_t footprint(struct starpu_task *task)
 {
@@ -82,7 +82,7 @@ Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
 
 void init()
 {
-    codelet_fp32.init("nntile_add_slice3_fp32",
+    codelet_fp32.init("nntile_add_slice_fp32",
             footprint,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -92,7 +92,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_bf16.init("nntile_add_slice3_bf16",
+    codelet_bf16.init("nntile_add_slice_bf16",
             footprint,
             {cpu<bf16_t>},
 #ifdef NNTILE_USE_CUDA
@@ -102,7 +102,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_fp32_fast_tf32.init("nntile_add_slice3_fp32_fast_tf32",
+    codelet_fp32_fast_tf32.init("nntile_add_slice_fp32_fast_tf32",
             footprint,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -112,7 +112,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_fp64.init("nntile_add_slice3_fp64",
+    codelet_fp64.init("nntile_add_slice_fp64",
             footprint,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
@@ -142,7 +142,7 @@ void restore_where()
 template<typename T>
 void submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Scalar beta,
         Handle src2, Handle dst)
-//! Insert add_slice3 task into StarPU pool of tasks
+//! Insert add_slice task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
@@ -167,7 +167,7 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Scalar beta,
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in add_slice3 task submission");
+        throw std::runtime_error("Error in add_slice task submission");
     }
 }
 
@@ -188,4 +188,4 @@ template
 void submit<bf16_t>(Index m, Index n, Index k, Scalar alpha, Handle src1,
         Scalar beta, Handle src2, Handle dst);
 
-} // namespace nntile::starpu::add_slice3
+} // namespace nntile::starpu::add_slice
