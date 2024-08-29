@@ -17,7 +17,7 @@ set(TESTS
     "adamw_step"
     "add"
     "add_fiber"
-    "add_slice"
+    "add_slice_inplace"
     "add_slice3"
     "addcdiv"
     "dgelu"

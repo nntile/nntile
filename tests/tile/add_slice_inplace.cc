@@ -6,14 +6,14 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tile/add_slice.cc
+ * @file tests/tile/add_slice_inplace.cc
  * Tile wrappers for addition of a tensor and a broadcasted slice
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tile/add_slice.hh"
-#include "nntile/starpu/add_slice.hh"
+#include "nntile/tile/add_slice_inplace.hh"
+#include "nntile/starpu/add_slice_inplace.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -32,7 +32,7 @@ void check(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
     }
     dst_local.release();
     Tile<T> dst2(dst, &dst2_data[0], dst.nelems);
-    add_slice<T>(alpha, src, beta, dst, axis);
+    add_slice_inplace<T>(alpha, src, beta, dst, axis);
     Index m = 1;
     for(Index i = 0; i < axis; ++i)
     {
@@ -44,7 +44,7 @@ void check(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         n *= dst.shape[i];
     }
     Index k = dst.shape[axis];
-    starpu::add_slice::submit<T>(m, n, k, alpha, src, beta, dst2);
+    starpu::add_slice_inplace::submit<T>(m, n, k, alpha, src, beta, dst2);
     starpu_task_wait_for_all();
     auto dst2_local = dst.acquire(STARPU_R);
     dst_local.acquire(STARPU_R);
@@ -90,17 +90,17 @@ void validate()
         b1(b1_traits, &b1_data[0], b1_traits.nelems),
         b2(b2_traits, &b2_data[0], b2_traits.nelems),
         b3(b3_traits, &b3_data[0], b3_traits.nelems);
-    // Compare results of tile::add_slice and starpu::add_slice::submit
+    // Compare results of tile::add_slice_inplace and starpu::add_slice_inplace::submit
     check<T>(-1.0, b0, 1.0, A, 0);
     check<T>(1.0, b1, -1.0, A, 1);
     check<T>(2.0, b2, 0.5, A, 2);
     check<T>(-2.0, b3, 0.0, A, 3);
     // Checking throwing exceptions
-    TEST_THROW(add_slice<T>(1.0, A, 0.0, A, 0));
-    TEST_THROW(add_slice<T>(1.0, b0, 0.0, A, -1));
-    TEST_THROW(add_slice<T>(1.0, b0, 0.0, A, 1));
-    TEST_THROW(add_slice<T>(1.0, b3, 0.0, A, 2));
-    TEST_THROW(add_slice<T>(1.0, b3, 0.0, A, 4));
+    TEST_THROW(add_slice_inplace<T>(1.0, A, 0.0, A, 0));
+    TEST_THROW(add_slice_inplace<T>(1.0, b0, 0.0, A, -1));
+    TEST_THROW(add_slice_inplace<T>(1.0, b0, 0.0, A, 1));
+    TEST_THROW(add_slice_inplace<T>(1.0, b3, 0.0, A, 2));
+    TEST_THROW(add_slice_inplace<T>(1.0, b3, 0.0, A, 4));
 }
 
 int main(int argc, char **argv)
@@ -108,8 +108,8 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    starpu::add_slice::init();
-    starpu::add_slice::restrict_where(STARPU_CPU);
+    starpu::add_slice_inplace::init();
+    starpu::add_slice_inplace::restrict_where(STARPU_CPU);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

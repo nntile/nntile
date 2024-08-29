@@ -231,7 +231,7 @@ set(STARPU_SRC
 set(TILE_SRC
     "tile/traits.cc"
     "tile/axpy.cc"
-    "tile/add_slice.cc"
+    "tile/add_slice_inplace.cc"
     "tile/add_slice3.cc"
     "tile/add_fiber.cc"
     "tile/prod_slice.cc"

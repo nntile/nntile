@@ -19,7 +19,7 @@ namespace nntile::tile
 {
 
 template<typename T>
-void add_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
+void add_slice_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
         Index axis)
 //! Tile<T> addition of a tensor and a broadcasted slice
 /*! Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
@@ -71,7 +71,7 @@ void add_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T
 }
 
 template<typename T>
-void add_slice(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
+void add_slice_inplace(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
                Index axis)
 //! Tile<T> addition of a tensor and a broadcasted slice
 /*! Blocking version of add_slice_inplace_async<T>.
@@ -85,42 +85,42 @@ void add_slice(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
-    add_slice_async<T>(alpha, src, beta, dst, axis);
+    add_slice_inplace_async<T>(alpha, src, beta, dst, axis);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
-void add_slice_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+void add_slice_inplace_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
         Scalar beta, const Tile<fp32_t> &dst, Index axis);
 
 template
-void add_slice_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+void add_slice_inplace_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
         Scalar beta, const Tile<fp64_t> &dst, Index axis);
 
 template
-void add_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+void add_slice_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
         Scalar beta, const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void add_slice_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
+void add_slice_inplace_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void add_slice<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
+void add_slice_inplace<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
         const Tile<fp32_t> &dst, Index axis);
 
 template
-void add_slice<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
+void add_slice_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
         const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
-void add_slice<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
+void add_slice_inplace<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
         const Tile<fp64_t> &dst, Index axis);
 
 template
-void add_slice<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
+void add_slice_inplace<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
         const Tile<bf16_t> &dst, Index axis);
 
 } // namespace nntile::tile

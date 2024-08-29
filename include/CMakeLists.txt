@@ -288,7 +288,7 @@ set(TILE_HDR
     "nntile/tile/traits.hh"
     "nntile/tile/tile.hh"
     "nntile/tile/axpy.hh"
-    "nntile/tile/add_slice.hh"
+    "nntile/tile/add_slice_inplace.hh"
     "nntile/tile/add_slice3.hh"
     "nntile/tile/add_fiber.hh"
     "nntile/tile/prod_slice.hh"
