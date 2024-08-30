@@ -89,13 +89,15 @@ def generate_greedy_dynamic(model, input_ids, eos_token_id, params):
 
     is_prefill = True
 
+    kv_caches = None
+
     output_ids = input_ids
     while cur_seq_size < params.max_tokens:
         output_ids_np = nnt_constructors.to_numpy(output_ids)
 
-        logits_nnt = model.forward_dynamic(
+        logits_nnt, kv_caches = model.forward_dynamic(
             nntile.tensor.TensorMoments(input_ids, None, False),
-            use_cache=(not is_prefill),
+            use_cache=True, kv_caches=kv_caches
         )
         output_value_np = nntc.to_numpy(logits_nnt.value)
         if params.use_cache and is_prefill:

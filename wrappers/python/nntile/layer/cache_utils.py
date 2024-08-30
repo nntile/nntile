@@ -20,7 +20,7 @@ class KVCache:
         cached_basetile_shape = tensor.basetile_shape
         cached_basetile_shape[1] = self.max_cache_size
 
-        init_cache_tensor = nntc.empty(
+        init_cache_tensor = nntc.zeros(
             cached_shape,
             dtype=type(tensor),
             basetile_shape=cached_basetile_shape
@@ -54,7 +54,7 @@ class KVCache:
         cached_shape[1] = self.k_cache_size
 
         cached_basetile_shape = self.k.basetile_shape
-        cached_basetile_shape[1] = self.max_cache_size
+        cached_basetile_shape[1] = self.k_cache_size
 
         k_partial = nntc.empty(
             cached_shape,
@@ -74,7 +74,7 @@ class KVCache:
         cached_shape[1] = self.v_cache_size
 
         cached_basetile_shape = self.v.basetile_shape
-        cached_basetile_shape[1] = self.max_cache_size
+        cached_basetile_shape[1] = self.v_cache_size
 
         v_partial = nntc.empty(
             cached_shape,

@@ -13,7 +13,6 @@
 
 from dataclasses import dataclass
 
-import numpy as np
 import pytest
 from transformers import GPT2Tokenizer
 
@@ -60,12 +59,7 @@ def test_generation_from_pretrained(starpu_simple, params):
     inputs = tokenizer(params.prompt, return_tensors="np")
     input_ids = inputs["input_ids"]
 
-    input_static_size = params.seq_len_tile
-    padded_input_ids = np.zeros((1, input_static_size), dtype=int, order="F")
-    padded_input_ids[0, : input_ids.shape[1]] = input_ids
-    padded_input_ids = padded_input_ids.T
-
-    padded_input = nnt_constructors.from_array(padded_input_ids)
+    padded_input = nnt_constructors.from_array(input_ids.T)
     output_ids, effective_size = model_nnt.generate(
         padded_input,
         prefill_size=input_ids.shape[1],

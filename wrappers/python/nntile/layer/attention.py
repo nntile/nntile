@@ -957,7 +957,7 @@ class Attention(BaseLayer):
         k_partial = self._forward_mlp_k_dynamic(x.value)
         v_partial = self._forward_mlp_v_dynamic(x.value)
 
-        if kv_cache:
+        if kv_cache is not None:
             kv_cache.append(k_partial, v_partial)
             k = kv_cache.k_partial
             v = kv_cache.v_partial
