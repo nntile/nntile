@@ -11,10 +11,13 @@
 #
 # @version 1.1.0
 
+from typing import Optional
+
 import numpy as np
 
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
+from nntile.layer.cache_utils import KVCache
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_async,
     add_slice_async, clear_async, copy_intersection_async, gemm_async,
@@ -183,9 +186,6 @@ class Attention(BaseLayer):
         clear_async(self.q.value)
         clear_async(self.k.value)
         clear_async(self.v.value)
-
-        self.k_partial_cached = None
-        self.v_partial_cached = None
 
     # Simple generator for the linear layer
     @staticmethod
@@ -666,24 +666,7 @@ class Attention(BaseLayer):
         if self.in_proj_bias_k is not None:
             add_fiber_async(1, self.in_proj_bias_k.value, 1, k_partial, 0, 1)
 
-        copy_intersection_async(
-            k_partial, [0, self.k_cache_size, 0, 0], self.k.value, [0, 0, 0, 0]
-        )
-        self.k_cache_size += x.shape[1]
-
-        # For correct softmax we should next use only currently cached seq_size
-        # So copy here
-        cached_shape = self.k.value.shape
-        cached_shape[1] = self.k_cache_size
-        k_partial_cached = nntc.empty(
-            cached_shape,
-            dtype=type(x),
-            basetile_shape=tuple(cached_shape[:-1]) + (self.n_head_tile,),
-        )
-        copy_intersection_async(
-            self.k.value, [0, 0, 0, 0], k_partial_cached, [0, 0, 0, 0]
-        )
-        return k_partial_cached
+        return k_partial
 
     def _forward_mlp_v_async(self):
         # V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V)
@@ -739,24 +722,7 @@ class Attention(BaseLayer):
         if self.in_proj_bias_v is not None:
             add_fiber_async(1, self.in_proj_bias_v.value, 1, v_partial, 0, 1)
 
-        copy_intersection_async(
-            v_partial, [0, self.v_cache_size, 0, 0], self.v.value, [0, 0, 0, 0]
-        )
-        self.v_cache_size += x.shape[1]
-
-        # For correct softmax we should next use only currently cached seq_size
-        # So copy here
-        cached_shape = self.v.value.shape
-        cached_shape[1] = self.v_cache_size
-        v_partial_cached = nntc.empty(
-            cached_shape,
-            dtype=type(x),
-            basetile_shape=tuple(cached_shape[:-1]) + (self.n_head_tile,),
-        )
-        copy_intersection_async(
-            self.v.value, [0, 0, 0, 0], v_partial_cached, [0, 0, 0, 0]
-        )
-        return v_partial_cached
+        return v_partial
 
     def _forward_attn_async(self):
         # Get tensor for softmax
@@ -975,26 +941,33 @@ class Attention(BaseLayer):
         effective_size = effective_size or self.x_q.value.shape[1]
         self.reset_cache(effective_size)
 
-    def forward_dynamic(self, x: TensorMoments, use_cache: bool = False):
-        if not use_cache:
-            self.reset_cache()
-
-        if x.value.shape[1] + self.v_cache_size > self.x_v.value.shape[1]:
+    def forward_dynamic(
+            self, x: TensorMoments, kv_cache: Optional[KVCache] = None
+        ):
+        if kv_cache and (x.value.shape[1] + len(kv_cache) > self.x_v.value.shape[1]):  # noqa: E501
             raise Exception(
                 "Overload internal state: "
                 f"try add {x.value.shape[1]} "
-                f"to {self.v_cache_size}, max: {self.x_v.value.shape[1]}. "
+                f"to {len(kv_cache)}, max: {self.x_v.value.shape[1]}. "
                 "Maybe you forgot to call reset_cache between iterations?"
             )
 
         # Compute query, key and value tensors
         q_partial = self._forward_mlp_q_dynamic(x.value)
-        k = self._forward_mlp_k_dynamic(x.value)
-        v = self._forward_mlp_v_dynamic(x.value)
+        k_partial = self._forward_mlp_k_dynamic(x.value)
+        v_partial = self._forward_mlp_v_dynamic(x.value)
+
+        if kv_cache:
+            kv_cache.append(k_partial, v_partial)
+            k = kv_cache.k_partial
+            v = kv_cache.v_partial
+        else:
+            k = k_partial
+            v = v_partial
 
         # compute attention and weight result
         y_tensor = self._forward_attn_dynamic(q_partial, k, v)
-        return TensorMoments(y_tensor, None, False)
+        return TensorMoments(y_tensor, None, False), kv_cache
 
     # Backward propagation of the linear layer
     def backward_async(self):

@@ -292,7 +292,7 @@ def test_dynamic(
     )
     attn.init_randn_async()
 
-    out_dynamic_actual = attn.forward_dynamic(inp_tm)
+    out_dynamic_actual, _ = attn.forward_dynamic(inp_tm)
     out_dynamic_actual_np = nntc.to_numpy(out_dynamic_actual.value)
 
     attn.forward_async()
