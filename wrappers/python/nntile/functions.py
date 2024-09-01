@@ -23,8 +23,8 @@ from typing import Any, List, Sequence, Type, TypeGuard, TypeVar
 import nntile.nntile_core.tensor as ops
 from nntile.nntile_core import TransOp, tensor as core_tensor
 from nntile.nntile_core.tensor import (
-    Tensor_bf16, Tensor_bool, Tensor_fp32, Tensor_fp32_fast_tf32, Tensor_fp64,
-    Tensor_int64)
+    Tensor_bf16, Tensor_bool, Tensor_fp32, Tensor_fp32_fast_fp16,
+    Tensor_fp32_fast_tf32, Tensor_fp64, Tensor_int64)
 from nntile.types import Tensor, TensorFloatOrInt, TensorOrFloat
 
 T = TypeVar('T')
@@ -859,18 +859,44 @@ def add_slice_async(
     """
     if type(add_slice) is not type(x):
         raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.add_slice_async_fp32(alpha, add_slice, beta, x, axis)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.add_slice_async_fp64(alpha, add_slice, beta, x, axis)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.add_slice_async_fp32_fast_tf32(
+            alpha, add_slice, beta, x, axis
+        )
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.add_slice_async_fp32_fast_fp16(
+            alpha, add_slice, beta, x, axis
+        )
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.add_slice_async_bf16(alpha, add_slice, beta, x, axis)
+    else:
+        raise TypeError
+
+
+def add_slice3_async(
+    alpha: float, add_slice: Tensor, beta, x: Tensor, y: Tensor, axis: int
+) -> None:
+    """
+    Wrapper for multiprecision add_slice3
+    """
+    if type(add_slice) is not type(x):
+        raise TypeError
     if type(x) is not type(y):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.add_slice_async_fp32(alpha, add_slice, beta, x, y, axis)
+        core_tensor.add_slice3_async_fp32(alpha, add_slice, beta, x, y, axis)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.add_slice_async_fp32_fast_tf32(
+        core_tensor.add_slice3_async_fp32_fast_tf32(
             alpha, add_slice, beta, x, y, axis
         )
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.add_slice_async_fp64(alpha, add_slice, beta, x, y, axis)
+        core_tensor.add_slice3_async_fp64(alpha, add_slice, beta, x, y, axis)
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.add_slice_async_bf16(alpha, add_slice, beta, x, y, axis)
+        core_tensor.add_slice3_async_bf16(alpha, add_slice, beta, x, y, axis)
     else:
         raise TypeError
 
@@ -1028,6 +1054,8 @@ def copy_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:
         core_tensor.copy_async_fp32(x, y)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.copy_async_fp32_fast_tf32(x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.copy_async_fp32_fast_fp16(x, y)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.copy_async_fp64(x, y)
     elif type(x) is core_tensor.Tensor_int64:
@@ -1285,6 +1313,8 @@ def scal_async(alpha: float, x: Tensor, y: Tensor) -> None:
         core_tensor.scal_async_fp64(alpha, x, y)
     elif type(x) is core_tensor.Tensor_bf16:
         core_tensor.scal_async_bf16(alpha, x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.scal_async_fp32_fast_fp16(alpha, x, y)
     else:
         raise TypeError
 
@@ -1330,6 +1360,8 @@ def embedding_async(
         core_tensor.embedding_async_fp32(index, vocab, embed, axis)
     elif type(embed) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.embedding_async_fp32_fast_tf32(index, vocab, embed, axis)
+    elif type(embed) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.embedding_async_fp32_fast_fp16(index, vocab, embed, axis)
     elif type(embed) is core_tensor.Tensor_fp64:
         core_tensor.embedding_async_fp64(index, vocab, embed, axis)
     elif type(embed) is core_tensor.Tensor_bf16:
@@ -1348,6 +1380,9 @@ def embedding_backward_async(index: Tensor_int64, embed: Tensor, vocab: Tensor,
         ops.embedding_backward_async_fp32(index, ts[0], ts[1], axis, redux)
     elif is_tensor_of(ts, Tensor_fp32_fast_tf32):
         ops.embedding_backward_async_fp32_fast_tf32(index, ts[0], ts[1], axis,
+                                                    redux)
+    elif is_tensor_of(ts, Tensor_fp32_fast_fp16):
+        ops.embedding_backward_async_fp32_fast_fp16(index, ts[0], ts[1], axis,
                                                     redux)
     elif is_tensor_of(ts, Tensor_fp64):
         ops.embedding_backward_async_fp64(index, ts[0], ts[1], axis, redux)

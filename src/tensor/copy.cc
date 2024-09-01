@@ -75,7 +75,12 @@ template
 void copy_async<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 
 template
-void copy_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src, const Tensor<fp32_fast_tf32_t> &dst);
+void copy_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
+                                  const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void copy_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+                                  const Tensor<fp32_fast_fp16_t> &dst);
 
 template
 void copy_async<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
@@ -91,7 +96,12 @@ template
 void copy<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 
 template
-void copy<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src, const Tensor<fp32_fast_tf32_t> &dst);
+void copy<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
+                            const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void copy<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+                            const Tensor<fp32_fast_fp16_t> &dst);
 
 template
 void copy<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);

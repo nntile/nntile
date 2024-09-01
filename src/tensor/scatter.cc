@@ -173,6 +173,10 @@ void scatter_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
+void scatter_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+        const Tensor<fp32_fast_fp16_t> &dst);
+
+template
 void scatter_async<bool_t>(const Tensor<bool_t> &src,
         const Tensor<bool_t> &dst);
 
@@ -190,6 +194,10 @@ void scatter<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 template
 void scatter<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
                                const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void scatter<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+                               const Tensor<fp32_fast_fp16_t> &dst);
 
 template
 void scatter<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
