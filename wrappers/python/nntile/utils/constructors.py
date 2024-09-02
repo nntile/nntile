@@ -82,7 +82,8 @@ def to_numpy(tensor_nnt):
 
 
 async def to_numpy_async(tensor):
-    dest_np = np.empty(tensor.shape)
+    dtype = nnt2np_type_mapping[type(tensor)]
+    dest_np = np.zeros(tensor.shape, dtype=dtype, order='F')
 
     if tensor.grid.nelems > 1:
         gathered = empty(
