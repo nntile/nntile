@@ -49,6 +49,9 @@ template
 void fill_async<fp32_fast_tf32_t>(Scalar val, const Tile<fp32_fast_tf32_t> &A);
 
 template
+void fill_async<fp32_fast_fp16_t>(Scalar val, const Tile<fp32_fast_fp16_t> &A);
+
+template
 void fill_async<fp64_t>(Scalar val, const Tile<fp64_t> &A);
 
 // Explicit instantiation
@@ -60,6 +63,9 @@ void fill<bf16_t>(Scalar val, const Tile<bf16_t> &A);
 
 template
 void fill<fp32_fast_tf32_t>(Scalar val, const Tile<fp32_fast_tf32_t> &A);
+
+template
+void fill<fp32_fast_fp16_t>(Scalar val, const Tile<fp32_fast_fp16_t> &A);
 
 template
 void fill<fp64_t>(Scalar val, const Tile<fp64_t> &A);

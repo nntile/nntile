@@ -276,6 +276,8 @@ def fill_async(val: float, x: Tensor) -> None:
         core_tensor.fill_async_fp32(val, x)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.fill_async_fp32_fast_tf32(val, x)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.fill_async_fp32_fast_fp16(val, x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.fill_async_fp64(val, x)
     elif type(x) is core_tensor.Tensor_bf16:
@@ -294,6 +296,9 @@ def sum_slice_async(alpha: float, x: Tensor, beta: float, sum_slice: Tensor,
         ops.sum_slice_async_fp32(alpha, ts[0], beta, ts[1], axis, redux)
     elif is_tensor_of(ts, Tensor_fp32_fast_tf32):
         ops.sum_slice_async_fp32_fast_tf32(alpha, ts[0], beta, ts[1], axis,
+                                           redux)
+    elif is_tensor_of(ts, Tensor_fp32_fast_fp16):
+        ops.sum_slice_async_fp32_fast_fp16(alpha, ts[0], beta, ts[1], axis,
                                            redux)
     elif is_tensor_of(ts, Tensor_fp64):
         ops.sum_slice_async_fp64(alpha, ts[0], beta, ts[1], axis, redux)
@@ -390,6 +395,10 @@ def norm_slice_async(
         )
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.norm_slice_async_fp32_fast_tf32(
+            alpha, x, beta, norm_slice, axis, redux
+        )
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.norm_slice_async_fp32_fast_fp16(
             alpha, x, beta, norm_slice, axis, redux
         )
     elif type(x) is core_tensor.Tensor_fp64:
@@ -893,6 +902,10 @@ def add_slice3_async(
         core_tensor.add_slice3_async_fp32_fast_tf32(
             alpha, add_slice, beta, x, y, axis
         )
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.add_slice3_async_fp32_fast_fp16(
+            alpha, add_slice, beta, x, y, axis
+        )
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.add_slice3_async_fp64(alpha, add_slice, beta, x, y, axis)
     elif type(x) is core_tensor.Tensor_bf16:
@@ -919,6 +932,9 @@ def add_fiber_inplace_async(
         ops.add_fiber_inplace_async_fp32_fast_tf32(
             alpha, ts[0], beta, ts[1], axis, batch_ndim
         )
+    elif is_tensor_of(ts, Tensor_fp32_fast_fp16):
+        ops.add_fiber_inplace_async_fp32_fast_fp16(
+            alpha, ts[0], beta, ts[1], axis, batch_ndim)
     elif is_tensor_of(ts, Tensor_fp64):
         ops.add_fiber_inplace_async_fp64(
             alpha, ts[0], beta, ts[1], axis, batch_ndim
@@ -941,6 +957,8 @@ def prod_slice_async(
         core_tensor.prod_slice_async_fp32(prod_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.prod_slice_async_fp32_fast_tf32(prod_slice, alpha, x, axis)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.prod_slice_async_fp32_fast_fp16(prod_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.prod_slice_async_fp64(prod_slice, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_bf16:
@@ -979,6 +997,10 @@ def prod_fiber3_async(
         core_tensor.prod_fiber3_async_fp32(prod_fiber, alpha, x, y, axis)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.prod_fiber3_async_fp32_fast_tf32(
+            prod_fiber, alpha, x, y, axis
+        )
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.prod_fiber3_async_fp32_fast_fp16(
             prod_fiber, alpha, x, y, axis
         )
     elif type(x) is core_tensor.Tensor_fp64:
@@ -1074,6 +1096,8 @@ def clear_async(x: Tensor) -> None:
         core_tensor.clear_async_fp32(x)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.clear_async_fp32_fast_tf32(x)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.clear_async_fp32_fast_fp16(x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.clear_async_fp64(x)
     elif type(x) is core_tensor.Tensor_bf16:
@@ -1418,6 +1442,8 @@ def hypot_scalar_inverse_async(eps: float, alpha: float, x: Tensor) -> None:
         core_tensor.hypot_scalar_inverse_async_fp32(eps, alpha, x)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.hypot_scalar_inverse_async_fp32_fast_tf32(eps, alpha, x)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.hypot_scalar_inverse_async_fp32_fast_fp16(eps, alpha, x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.hypot_scalar_inverse_async_fp64(eps, alpha, x)
     elif type(x) is core_tensor.Tensor_bf16:

@@ -103,6 +103,10 @@ void add_fiber_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fas
         Scalar beta, const Tile<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim);
 
 template
+void add_fiber_inplace_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
+        const Tile<fp32_fast_fp16_t> &dst, Index axis, Index batch_ndim);
+
+template
 void add_fiber_inplace_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
         Scalar beta, const Tile<fp64_t> &dst, Index axis, Index batch_ndim);
 
@@ -118,6 +122,10 @@ void add_fiber_inplace<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar bet
 template
 void add_fiber_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
         const Tile<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim);
+
+template
+void add_fiber_inplace<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
+        const Tile<fp32_fast_fp16_t> &dst, Index axis, Index batch_ndim);
 
 template
 void add_fiber_inplace<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
