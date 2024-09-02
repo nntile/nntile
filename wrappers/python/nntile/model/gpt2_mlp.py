@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/gpt2_mlp.py
 # GPT2MLP submodule of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import torch
 from transformers.models.gpt2.modeling_gpt2 import (

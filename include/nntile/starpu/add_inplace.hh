@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/add.hh
+ * @file include/nntile/starpu/add_inplace.hh
  * Add operation on StarPU buffers
  *
  * @version 1.1.0
@@ -18,7 +18,7 @@
 #include <nntile/starpu/config.hh>
 #include <nntile/defs.h>
 
-namespace nntile::starpu::add
+namespace nntile::starpu::add_inplace
 {
 
 //! Structure for arguments
@@ -47,8 +47,7 @@ void cuda(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32,
-       codelet_bf16;
+extern Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
 
 template<typename T>
 constexpr Codelet *codelet()
@@ -88,7 +87,6 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index nelems, Scalar alpha, Handle src1, Scalar beta, Handle src2,
-        Handle dst);
+void submit(Index nelems, Scalar alpha, Handle src, Scalar beta, Handle dst);
 
-} // namespace nntile::starpu::add
+} // namespace nntile::starpu::add_inplace

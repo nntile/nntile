@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/layer/gpt2_attention.py
 # Attention layer got the GPT2 Model of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 import numpy as np
 import torch

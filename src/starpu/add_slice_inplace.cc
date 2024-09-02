@@ -149,7 +149,7 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta, Ha
     // If k is 1, then this operation reduces to add
     if(k == 1)
     {
-        add::submit<T>(m*n, alpha, src, beta, dst);
+        add::submit<T>(m*n, alpha, src1, src2, beta, dst);
         return;
     }
     // Access mode for the dst handle

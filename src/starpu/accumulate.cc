@@ -13,7 +13,7 @@
  * */
 
 #ifndef STARPU_SIMGRID
-#include "nntile/kernel/add.hh"
+#include "nntile/kernel/add_inplace.hh"
 #endif // STARPU_SIMGRID
 #include "nntile/starpu/accumulate.hh"
 #include <cstdlib>
@@ -34,7 +34,7 @@ void cpu(void *buffers[], void *cl_args)
     T *dst = interfaces[0]->get_ptr<T>();
     const T *src = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::add::cpu<T>(nelems, 1.0, src, 1.0, dst);
+    kernel::add_inplace::cpu<T>(nelems, 1.0, src, 1.0, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -53,7 +53,7 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::add::cuda<T>(stream, nelems, 1.0, src, 1.0, dst);
+    kernel::add_inplace::cuda<T>(stream, nelems, 1.0, src, 1.0, dst);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA

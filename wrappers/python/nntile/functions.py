@@ -695,20 +695,41 @@ def prod_inplace_async(x: Tensor, y: Tensor) -> None:
         raise TypeError
 
 
-def add_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
+def add_async(alpha: float, x: Tensor, beta: float, y: Tensor,
+        z: Tensor) -> None:
     """
     Wrapper for multiprecision add
     """
     if type(x) is not type(y):
         raise TypeError
+    if type(x) is not type(z):
+        raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.add_async_fp32(alpha, x, beta, y)
+        core_tensor.add_async_fp32(alpha, x, beta, y, z)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.add_async_fp32_fast_tf32(alpha, x, beta, y)
+        core_tensor.add_async_fp32_fast_tf32(alpha, x, beta, y, z)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.add_async_fp64(alpha, x, beta, y)
+        core_tensor.add_async_fp64(alpha, x, beta, y, z)
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.add_async_bf16(alpha, x, beta, y)
+        core_tensor.add_async_bf16(alpha, x, beta, y, z)
+    else:
+        raise TypeError
+
+
+def add_inplace_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
+    """
+    Wrapper for multiprecision add_inplace
+    """
+    if type(x) is not type(y):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.add_inplace_async_fp32(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.add_inplace_async_fp32_fast_tf32(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.add_inplace_async_fp64(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.add_inplace_async_bf16(alpha, x, beta, y)
     else:
         raise TypeError
 
