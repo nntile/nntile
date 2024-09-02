@@ -76,6 +76,10 @@ def gemm_async(
         core_tensor.gemm_async_fp32_fast_tf32(
             alpha, trans_A, A, trans_B, B, beta, C, ndim, batch_ndim, redux
         )
+    elif type(A) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.gemm_async_fp32_fast_fp16(
+            alpha, trans_A, A, trans_B, B, beta, C, ndim, batch_ndim, redux
+        )
     elif type(A) is core_tensor.Tensor_bf16:
         core_tensor.gemm_async_bf16(
             alpha, trans_A, A, trans_B, B, beta, C, ndim, batch_ndim, redux
@@ -623,6 +627,10 @@ def softmax_inplace_async(
         core_tensor.softmax_inplace_async_fp32_fast_tf32(
             maxsumexp, alpha, x, axis
         )
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.softmax_inplace_async_fp32_fast_fp16(
+            maxsumexp, alpha, x, axis
+        )
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.softmax_inplace_async_fp64(maxsumexp, alpha, x, axis)
     elif type(x) is core_tensor.Tensor_bf16:
@@ -824,6 +832,8 @@ def maxsumexp_async(
         core_tensor.maxsumexp_async_fp32(x, maxsumexp, axis, redux)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.maxsumexp_async_fp32_fast_tf32(x, maxsumexp, axis, redux)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.maxsumexp_async_fp32_fast_fp16(x, maxsumexp, axis, redux)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.maxsumexp_async_fp64(x, maxsumexp, axis, redux)
     elif type(x) is core_tensor.Tensor_bf16:
@@ -1366,6 +1376,8 @@ def mask_scalar_async(mask: Tensor_bool, alpha: float, x: Tensor,
         ops.mask_scalar_async_fp32(mask, alpha, x, batch_ndim)
     elif isinstance(x, Tensor_fp32_fast_tf32):
         ops.mask_scalar_async_fp32_fast_tf32(mask, alpha, x, batch_ndim)
+    elif isinstance(x, Tensor_fp32_fast_fp16):
+        ops.mask_scalar_async_fp32_fast_fp16(mask, alpha, x, batch_ndim)
     elif isinstance(x, Tensor_fp64):
         ops.mask_scalar_async_fp64(mask, alpha, x, batch_ndim)
     else:
@@ -1610,6 +1622,8 @@ def transpose_async(alpha: float, src: Tensor, dst: Tensor, ndim: int) -> None:
         core_tensor.transpose_async_fp32(alpha, src, dst, ndim)
     elif type(src) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.transpose_async_fp32_fast_tf32(alpha, src, dst, ndim)
+    elif type(src) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.transpose_async_fp32_fast_fp16(alpha, src, dst, ndim)
     elif type(src) is core_tensor.Tensor_fp64:
         core_tensor.transpose_async_fp64(alpha, src, dst, ndim)
     elif type(src) is core_tensor.Tensor_bf16:

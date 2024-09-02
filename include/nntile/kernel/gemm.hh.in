@@ -100,6 +100,20 @@ void cublas(cublasHandle_t handle, cublasOperation_t transA,
             CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
 
+// Overloaded call to cuBLAS GEMM for fp32_fast_fp16_t
+static inline
+void cublas(cublasHandle_t handle, cublasOperation_t transA,
+        cublasOperation_t transB, int M, int N, int K, float alpha,
+        const fp32_fast_fp16_t *A, int ldA, const fp32_fast_fp16_t *B, int ldB,
+        float beta, fp32_fast_fp16_t *C, int ldC)
+    noexcept
+{
+    cublasGemmEx(handle, transA, transB, M, N, K, &alpha, (const float *)A,
+            CUDA_R_32F, ldA, (const float *)B, CUDA_R_32F, ldB, &beta,
+            (float *)C, CUDA_R_32F, ldC, CUBLAS_COMPUTE_32F_FAST_16F,
+            CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+}
+
 // Overloaded call to cuBLAS GEMM for bf16_t
 static inline
 void cublas(cublasHandle_t handle, cublasOperation_t transA,
@@ -155,6 +169,22 @@ void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
             (const float *)A, CUDA_R_32F, ldA, strideA, (const float *)B,
             CUDA_R_32F, ldB, strideB, &beta, (float *)C, CUDA_R_32F, ldC,
             strideC, batchCount, CUBLAS_COMPUTE_32F_FAST_TF32,
+            CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+}
+
+// Overloaded call to batched cuBLAS gemm
+static inline
+void cublas_batch(cublasHandle_t handle, cublasOperation_t transA,
+        cublasOperation_t transB, int M, int N, int K, float alpha,
+        const fp32_fast_fp16_t *A, int ldA, long long int strideA,
+        const fp32_fast_fp16_t *B, int ldB, long long int strideB, float beta,
+        fp32_fast_fp16_t *C, int ldC, long long int strideC, int batchCount)
+    noexcept
+{
+    cublasGemmStridedBatchedEx(handle, transA, transB, M, N, K, &alpha,
+            (const float *)A, CUDA_R_32F, ldA, strideA, (const float *)B,
+            CUDA_R_32F, ldB, strideB, &beta, (float *)C, CUDA_R_32F, ldC,
+            strideC, batchCount, CUBLAS_COMPUTE_32F_FAST_16F,
             CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
 
