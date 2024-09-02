@@ -307,8 +307,7 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
 #endif // STARPU_SIMGRID
         tile_local.release();
     }
-    tensor::scatter<T>(tmp, tensor);
-    tmp.unregister();
+    tensor::scatter_async<T>(tmp, tensor);
     tensor.mpi_flush();
 }
 
