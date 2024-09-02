@@ -11,7 +11,6 @@
 #
 # @version 1.0.0
 
-import numpy as np
 from transformers import GPT2Config as GPT2ConfigTorch
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block as GPT2Block_torch
 
@@ -129,17 +128,15 @@ class GPT2Block(BaseModel):
             n_embd=self.config.hidden_size,
             n_layer=1,
             n_head=self.config.n_head,
-            n_inner = self.config.intermediate_size,
+            n_inner=self.config.intermediate_size,
             resid_pdrop=0.0,
-            embd_pdrop = 0.0,
+            embd_pdrop=0.0,
             attn_pdrop=0.0,
             layer_norm_epsilon=self.config.layer_norm_epsilon,
-            scale_attn_weights = True,
+            scale_attn_weights=True,
             use_cache=False,
-            scale_attn_by_inverse_layer_idx = False,
-            reorder_and_upcast_attn = False,
-            add_cross_attention=False,)
-
+            add_cross_attention=False,
+        )
         gpt2_block_torch = GPT2Block_torch(config_torch)
         gpt2_block_torch.ln_1 = self.layers[0].to_torch_with_grads()
         gpt2_block_torch.attn = self.layers[1].to_torch_with_grads()

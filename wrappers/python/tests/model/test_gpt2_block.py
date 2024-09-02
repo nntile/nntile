@@ -83,12 +83,12 @@ def generate_inputs(params: GPT2BlockTestParams,
     torch_layer_config = GPT2Config(
         n_embd=params.hidden_size,
         n_layer=1,
-        n_head = params.n_head,
-        n_inner = params.intermediate_size,
+        n_head=params.n_head,
+        n_inner=params.intermediate_size,
         resid_pdrop=0.0,
         embd_pdrop=0.0,
         attn_pdrop=0.0,
-        scale_attn_weights = True,
+        scale_attn_weights=True,
         use_cache=False,
         add_cross_attention=False,
     )
@@ -139,11 +139,10 @@ def generate_inputs(params: GPT2BlockTestParams,
     pytest.param('fp32_fast_tf32', marks=nocuda),
     pytest.param('bf16', marks=nocuda),
 ])
-
 class TestGPT2Decoder:
     def test_coercion(self, starpu_simple, torch_rng,
                       params: GPT2BlockTestParams, dtype: str):
-        torch_layer, nntile_layer, x, _ = generate_inputs(params, dtype)
+        torch_layer, nntile_layer, *_ = generate_inputs(params, dtype)
         torch_layer_other = nntile_layer.to_torch()
         nntile_layer.unregister()
 
