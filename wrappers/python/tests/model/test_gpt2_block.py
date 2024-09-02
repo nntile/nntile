@@ -21,8 +21,8 @@ import torch
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block, GPT2Config
 
 import nntile
-from nntile.model.gpt2_config import GPT2ConfigNNTile
 from nntile.model.gpt2_block import GPT2Block as GPT2Block_nntile
+from nntile.model.gpt2_config import GPT2ConfigNNTile
 from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
 
@@ -86,12 +86,10 @@ def generate_inputs(params: GPT2BlockTestParams,
         n_head = params.n_head,
         n_inner = params.intermediate_size,
         resid_pdrop=0.0,
-        embd_pdrop = 0.0,
+        embd_pdrop=0.0,
         attn_pdrop=0.0,
         scale_attn_weights = True,
         use_cache=False,
-        scale_attn_by_inverse_layer_idx = False,
-        reorder_and_upcast_attn = False,
         add_cross_attention=False,
     )
     torch_layer = GPT2Block(torch_layer_config)
@@ -181,9 +179,8 @@ class TestGPT2Decoder:
             to_numpy(nntile_layer.activations[0].grad).T
         )
         nntile_layer.unregister()
-
         rtol = dtype2tol[dtype]['rtol']
-        assert torch.norm(x.grad - grad_nntile) <= rtol * torch.norm(x.grad)    
+        assert torch.norm(x.grad - grad_nntile) <= rtol * torch.norm(x.grad)
 
         for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
                 torch_layer_other.named_parameters()):
