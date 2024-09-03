@@ -281,7 +281,7 @@ def test_forward_dynamic(starpu_simple, torch_rng,
     x_np = x.cpu().detach().numpy()
     x_nnt = nntile.tensor.TensorMoments(nntc.from_array(x_np.T), None, False)
 
-    logits_nnt = nntile_model.forward_dynamic(x_nnt)
+    logits_nnt, _ = nntile_model.forward_dynamic(x_nnt)
     y_nntile = torch.Tensor(nntc.to_numpy(logits_nnt.value).T)
 
     rtol = dtype2tol[dtype]['rtol']
@@ -300,7 +300,7 @@ def test_forward_dynamic(starpu_simple, torch_rng,
     )
     y_trunc_torch = y_trunc.last_hidden_state
 
-    logits_trunc_nnt = nntile_model.forward_dynamic(x_trunc_nnt)
+    logits_trunc_nnt, _ = nntile_model.forward_dynamic(x_trunc_nnt)
     y_trunc_nntile = torch.Tensor(nntc.to_numpy(logits_trunc_nnt.value).T)
 
     actual_diff = torch.norm(y_trunc_torch - y_trunc_nntile)

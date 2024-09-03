@@ -289,7 +289,7 @@ def test_llama_attn_forward_dynamic(
     y, _, _ = torch_layer(x, position_ids=pos_ids, attention_mask=mask)
 
     input_x = x.cpu().detach().numpy().T
-    y_nntile_logits = nntile_layer.forward_dynamic(
+    y_nntile_logits, _ = nntile_layer.forward_dynamic(
         TensorMoments(nntc.from_array(input_x), None, False)
     )
     y_nntile = torch.Tensor(nntc.to_numpy(y_nntile_logits.value).T)
@@ -298,7 +298,7 @@ def test_llama_attn_forward_dynamic(
     assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
     truncate_to_size = 4
-    y_nntile_logits_trunc = nntile_layer.forward_dynamic(
+    y_nntile_logits_trunc, _ = nntile_layer.forward_dynamic(
         TensorMoments(
             nntc.from_array(input_x[:, :truncate_to_size, :]), None, False
         )

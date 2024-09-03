@@ -11,7 +11,7 @@
 #
 # @version 1.1.0
 
-from typing import Dict
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -22,6 +22,7 @@ from nntile.layer import (
     Act, AddSlice, Attention, AttentionSingleHead, Embedding, FlashAttention,
     LayerNorm, Linear)
 from nntile.layer.add import Add
+from nntile.layer.cache_utils import KVCache
 from nntile.model.base_model import BaseModel
 from nntile.model.generation.llm import LLMGenerationMixin
 from nntile.tensor import (
@@ -351,6 +352,7 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         layers.append(lm_head_layer)
         activations.extend(lm_head_layer.activations_output)
 
+        self.seq_len = seq_len
         self.num_hidden_layers = num_hidden_layers
         self.next_tag = next_tag
         # Fill Base Model with the generated data
@@ -618,17 +620,21 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         self.forward_async()
         return self.get_output()
 
-    def forward_dynamic(self, x: TensorMoments, use_cache: bool = False):
-        if not use_cache:
-            self.kvcache_size = 0
+    def forward_dynamic(
+            self,
+            x: TensorMoments,
+            use_cache: bool = False,
+            kv_caches: Optional[List[KVCache]] = None
+        ):
         inp_emb, pos_emb, add_l = self.layers[0:3]
         seq_size = x.value.shape[0]
+
+        kvcache_size = len(kv_caches) if kv_caches else 0
         pos_ids_np = np.asfortranarray(
             np.arange(
-                self.kvcache_size, self.kvcache_size + seq_size, dtype=np.int64
+                kvcache_size, kvcache_size + seq_size, dtype=np.int64
             )
         )
-        self.kvcache_size += seq_size
         pos_ids_nnt_tm = TensorMoments(
             nntc.from_array(
                 pos_ids_np, basetile_shape=(x.value.basetile_shape[0],)
@@ -644,6 +650,11 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         layers_in_block = 8
         blocks_start = 3
         gpt_block_inout = embedded_input
+        if use_cache and kv_caches is None:
+            kv_caches = [
+                KVCache(self.seq_len, 1) for _ in range(self.num_hidden_layers)
+            ]
+
         for hidden_id in range(self.num_hidden_layers):
             # dispatch block
             block_start = blocks_start + hidden_id * layers_in_block
@@ -659,7 +670,12 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
             add2 = cur_block_layers[7]
 
             x_tmp = layer_norm1.forward_dynamic(gpt_block_inout)
-            x_tmp1 = attn.forward_dynamic(x_tmp, use_cache=use_cache)
+            x_tmp1, updated_cache = attn.forward_dynamic(
+                x_tmp, kv_cache=kv_caches[hidden_id] if kv_caches else None
+            )
+            if kv_caches:
+                kv_caches[hidden_id] = updated_cache
+
             x_tmp2 = add1.forward_dynamic(gpt_block_inout, x_tmp1)
             x_tmp3 = layer_norm2.forward_dynamic(x_tmp2)
             mlp_output = x_tmp3
@@ -671,7 +687,7 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
 
         last_out = last_ln.forward_dynamic(gpt_block_inout)
         last_out = last_linear.forward_dynamic(last_out)
-        return last_out
+        return last_out, kv_caches
 
     def unregister(self):
         super().unregister()

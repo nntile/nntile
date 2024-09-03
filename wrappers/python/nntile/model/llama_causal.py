@@ -11,11 +11,15 @@
 #
 # @version 1.1.0
 
+from typing import List, Optional
+
 import numpy as np
 from transformers import LlamaConfig as LlamaConfig_torch
 from transformers.models.llama.modeling_llama import (
     LlamaForCausalLM as LlamaCausalModel_torch)
 
+import nntile
+from nntile.layer.cache_utils import KVCache
 from nntile.model.generation.llm import LLMGenerationMixin
 from nntile.types import TensorMoments
 
@@ -55,12 +59,34 @@ class LlamaForCausalLM(BaseModel, LLMGenerationMixin):
 
         super().__init__(activations, layers)
 
-    def forward_dynamic(self, x: TensorMoments, use_cache: bool = False):
-        llama_logits = self.llama_model_.forward_dynamic(
-            x, use_cache=use_cache
+    def set_input(self, x: nntile.tensor.Tensor):
+        expected_shape = self.activations[0].value.shape
+        if not compare_shapes(x.shape, expected_shape):
+            raise Exception(
+                "Mismatch shapes. Got: ", x.shape,
+                " Expected: ", expected_shape
+            )
+
+        nntile.functions.copy_async(x, self.activations[0].value)
+
+    def get_output(self) -> nntile.tensor.Tensor:
+        return self.activations[-1].value
+
+    def forward(self, x: nntile.tensor.Tensor) -> nntile.tensor.Tensor:
+        self.set_input(x)
+        self.forward_async()
+        return self.get_output()
+
+    def forward_dynamic(
+            self, x: TensorMoments,
+            use_cache: bool = False,
+            kv_caches: Optional[List[KVCache]] = None
+        ):
+        llama_logits, kv_caches = self.llama_model_.forward_dynamic(
+            x, use_cache=use_cache, kv_caches=kv_caches
         )
         out_logits = self.lin_.forward_dynamic(llama_logits)
-        return out_logits
+        return out_logits, kv_caches
 
     @classmethod
     def from_pretrained(
@@ -213,3 +239,7 @@ def create_llama_model_from_torch_pretrained(
     )
 
     return llama_causal_nntile, next_tag
+
+
+def compare_shapes(iterable1, iterable2):
+    return all(x == y for x, y in zip(iterable1, iterable2))

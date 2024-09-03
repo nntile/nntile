@@ -211,7 +211,9 @@ class Handle
         // All the tasks using given starpu data handle shall be finished
         // before unregistering the handle
         //std::cerr << "[nntile] unregister_no_coherency\n";
-        starpu_data_unregister_no_coherency(ptr);
+
+        // async deregister with no blocks in main thread, but without breaking api
+        starpu_data_unregister_submit(ptr);
     }
     static void _deleter_temporary(starpu_data_handle_t ptr)
     {

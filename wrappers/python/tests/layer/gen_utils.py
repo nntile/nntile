@@ -15,6 +15,7 @@ import numpy as np
 
 import nntile
 import nntile.utils.constructors as nntc
+from nntile.layer.cache_utils import KVCache
 
 
 def generate_greedy_logits_padding(
@@ -26,9 +27,8 @@ def generate_greedy_logits_padding(
     while cur_seq_size < max_tokens:
         output_ids_np = nntc.to_numpy(output_ids)
 
-        logits = attn_layer.forward_dynamic(
-            nntile.tensor.TensorMoments(output_ids, None, False),
-            use_cache=False,
+        logits, _ = attn_layer.forward_dynamic(
+            nntile.tensor.TensorMoments(output_ids, None, False)
         )
         logits_np = nntc.to_numpy(logits.value)
 
@@ -50,12 +50,17 @@ def generate_greedy_logits_dynamic_kvcache(
 
     is_prefill = True
 
+    kv_cache = KVCache(
+        max_cache_size=attn_layer.k.value.shape[1],
+        seq_size_dim=1
+    )
+
     while cur_seq_size < max_tokens:
         output_ids_np = nntc.to_numpy(output_ids)
 
-        logits = attn_layer.forward_dynamic(
+        logits, kv_cache = attn_layer.forward_dynamic(
             nntile.tensor.TensorMoments(input_ids, None, False),
-            use_cache=(not is_prefill),
+            kv_cache=kv_cache
         )
         if is_prefill:
             is_prefill = False

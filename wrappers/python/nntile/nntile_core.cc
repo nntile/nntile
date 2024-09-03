@@ -307,8 +307,7 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
 #endif // STARPU_SIMGRID
         tile_local.release();
     }
-    tensor::scatter<T>(tmp, tensor);
-    tmp.unregister();
+    tensor::scatter_async<T>(tmp, tensor);
     tensor.mpi_flush();
 }
 
@@ -366,7 +365,7 @@ void tensor_to_array(const tensor::Tensor<T> &tensor,
             &flag);
     std::vector<int> tmp_distr{0};
     tensor::Tensor<T> tmp(tmp_traits, tmp_distr, tmp_tag);
-    tensor::gather<T>(tensor, tmp);
+    tensor::gather_async<T>(tensor, tmp);
     // Acquire tile and copy data
     int mpi_rank = starpu_mpi_world_rank();
     auto tile = tmp.get_tile(0);
