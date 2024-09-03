@@ -23,7 +23,7 @@ from nntile.inference.llm_async_engine import LlmAsyncInferenceEngine
 from nntile.inference.llm_sync_engine import LlmSyncInferenceEngine
 from nntile.model.gpt2 import GPT2Model as GPT2Model_nnt
 
-starpu_config = nntile.starpu.Config(4, 0, 0)
+starpu_config = nntile.starpu.Config(ncpus_=4, ncuda_=0, cublas_=0)
 nntile.starpu.init()
 
 logging.basicConfig(level=logging.INFO)
@@ -46,7 +46,8 @@ def parse_args():
         default="cache_hf",
         help="cache dir for huggingface objects",
     )
-    parser.add_argument("--async_server", action="store_true")
+    parser.add_argument("--async-server", action="store_true")
+    parser.add_argument("--max-seq-len", type=int, default=1024)
 
     args = parser.parse_args()
     print(f"Notice:\n {parser.usage}")
@@ -59,13 +60,17 @@ def main():
     tokenizer = GPT2TokenizerFast.from_pretrained("gpt2",
             cache_dir=args.cache_dir)
     model_nnt, _ = GPT2Model_nnt.from_pretrained(
-        "gpt2", 1, 1, 1024, 0, cache_dir=args.cache_dir
+        "gpt2", 1, 1, args.max_seq_len, 0, cache_dir=args.cache_dir
     )
 
     if args.async_server:
-        llm_engine = LlmAsyncInferenceEngine(model_nnt, tokenizer, 1024)
+        llm_engine = LlmAsyncInferenceEngine(
+            model_nnt, tokenizer, args.max_seq_len
+        )
     else:
-        llm_engine = LlmSyncInferenceEngine(model_nnt, tokenizer, 1024)
+        llm_engine = LlmSyncInferenceEngine(
+            model_nnt, tokenizer, args.max_seq_len
+        )
 
     server = SimpleLlmApiServer(
         llm_engine, params=SimpleLlmApiServerParams(host=args.host,
