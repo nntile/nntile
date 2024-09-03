@@ -10,6 +10,7 @@
 #
 # @version 1.1.0
 
+import inspect
 import logging
 from dataclasses import dataclass
 from typing import Annotated
@@ -56,11 +57,11 @@ class SimpleLlmApiServer(SimpleApiServerBase):
         app = FastAPI()
 
         @app.get("/info")
-        def info():
+        async def info():
             return "I am gpt2 model!"
 
         @app.post("/generate")
-        def generate(
+        async def generate(
             request: Annotated[
                 SimpleLlmApiServerGenerateRequest, Body(embed=True)
             ],
@@ -77,6 +78,9 @@ class SimpleLlmApiServer(SimpleApiServerBase):
                 ),
                 mode=request.mode,
             )
+            if inspect.isawaitable(generated_text):
+                generated_text = await generated_text
+
             return generated_text
 
         return app

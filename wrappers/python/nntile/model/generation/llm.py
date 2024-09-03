@@ -60,6 +60,27 @@ class LLMGenerationMixin:
 
         return output_ids
 
+    async def generate_async(
+        self,
+        input_ids: Tensor,
+        prefill_size: int,
+        params: GenerationParams,
+        mode: GenerationMode = GenerationMode.Greedy,
+    ):
+        if mode == GenerationMode.Greedy:
+            if params.need_static_padding:
+                raise Exception(
+                    "No support for async static inference"
+                )
+            else:
+                output_ids = await generate_greedy_dynamic_async(
+                    self, input_ids, self.eos_token_id, params
+                )
+        else:
+            raise Exception("Unsupported generation mode: ", mode)
+
+        return output_ids
+
 
 def generate_greedy(model, input_ids, prefill_size, eos_token_id, params):
     cur_seq_size = prefill_size
@@ -97,6 +118,42 @@ def generate_greedy_dynamic(model, input_ids, eos_token_id, params):
             use_cache=params.use_cache, kv_caches=kv_caches
         )
         output_value_np = nntc.to_numpy(logits_nnt.value)
+
+        # TODO: add starpu function for argmax
+        pred_token = np.argmax(output_value_np[:, -1, :])
+        if pred_token == eos_token_id:
+            return nntc.from_array(output_ids_np), cur_seq_size
+
+        # TODO: add starpu function for concatenation
+        output_ids_np = np.concatenate(
+            [output_ids_np, pred_token[None, None]], axis=0
+        )
+        if params.use_cache:
+            input_ids = nntc.from_array(
+                pred_token[None, None].astype(np.int64)
+            )
+        else:
+            input_ids = nntc.from_array(output_ids_np)
+        cur_seq_size += 1
+
+    return nntc.from_array(output_ids_np), cur_seq_size
+
+
+async def generate_greedy_dynamic_async(
+        model, input_ids, eos_token_id, params
+):
+    cur_seq_size = input_ids.shape[0]
+
+    kv_caches = None
+
+    output_ids_np = await nntc.to_numpy_async(input_ids)
+
+    while cur_seq_size < params.max_tokens:
+        logits_nnt, kv_caches = model.forward_dynamic(
+            nntile.tensor.TensorMoments(input_ids, None, False),
+            use_cache=params.use_cache, kv_caches=kv_caches
+        )
+        output_value_np = await nntc.to_numpy_async(logits_nnt.value)
 
         # TODO: add starpu function for argmax
         pred_token = np.argmax(output_value_np[:, -1, :])
