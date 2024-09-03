@@ -6,15 +6,15 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/layer/add_slice_inplace.py
+# @file wrappers/python/nntile/layer/add_slice.py
 # Add slice layer of NNTile Python package
 #
 # @version 1.1.0
 
 import nntile.utils.constructors as nntc
 from nntile.tensor import (
-    TensorMoments, TensorTraits, add_inplace_async, add_slice_inplace_async,
-    copy_async, sum_slice_async)
+    TensorMoments, TensorTraits, add_inplace_async, add_slice_async,
+    sum_slice_async)
 
 from .base_layer import BaseLayer
 
@@ -42,11 +42,9 @@ class AddSlice(BaseLayer):
 
     # Forward propagation of the add_slice layer
     def forward_async(self):
-        # Init Y as a copy of X
-        copy_async(self.x.value, self.u.value)
         # Add slice operation
-        add_slice_inplace_async(
-            1.0, self.y.value, 1.0, self.u.value, self.axis
+        add_slice_async(
+            1.0, self.y.value, 1.0, self.x.value, self.u.value, self.axis
         )
         self.x.value.wont_use()
         self.y.value.wont_use()
@@ -54,8 +52,7 @@ class AddSlice(BaseLayer):
 
     def forward_dynamic(self, x: TensorMoments, slice_tensor: TensorMoments):
         y = nntc.empty_like(x.value)
-        copy_async(x.value, y)
-        add_slice_inplace_async(1.0, slice_tensor.value, 1.0, y, self.axis)
+        add_slice_async(1.0, slice_tensor.value, 1.0, x.value, y, self.axis)
         return TensorMoments(y, None, False)
 
     def backward_async(self):
