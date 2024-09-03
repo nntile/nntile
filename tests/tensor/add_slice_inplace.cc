@@ -12,10 +12,12 @@
  * @version 1.1.0
  * */
 
+#include <iostream>
 #include "nntile/tensor/add_slice_inplace.hh"
 #include "nntile/tile/add_slice_inplace.hh"
 #include "nntile/starpu/add_slice_inplace.hh"
-#include "nntile/starpu/add.hh"
+#include "nntile/starpu/add_inplace.hh"
+#include "nntile/starpu/scal.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
@@ -156,7 +158,8 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    starpu::add::init();
+    starpu::scal::init();
+    starpu::add_inplace::init();
     starpu::add_slice_inplace::init();
     starpu::subcopy::init();
     starpu::copy::init();
@@ -168,3 +171,4 @@ int main(int argc, char **argv)
     validate<fp64_t>();
     return 0;
 }
+

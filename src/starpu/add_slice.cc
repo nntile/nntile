@@ -12,11 +12,11 @@
  * @version 1.1.0
  * */
 
-#include "nntile/starpu/add.hh"
 #ifndef STARPU_SIMGRID
 #include "nntile/kernel/add_slice.hh"
 #endif // STARPU_SIMGRID
 #include "nntile/starpu/add_slice.hh"
+#include "nntile/starpu/add.hh"
 #include <cstdlib>
 
 //! StarPU wrappers for add_slice operation
@@ -154,7 +154,7 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Scalar beta,
     // If k is 1, then this operation reduces to add
     if(k == 1)
     {
-        add::submit<T>(m*n, alpha, src1, src2, beta, dst);
+        add::submit<T>(m*n, alpha, src1, beta, src2, dst);
         return;
     }
     // Access mode for the dst handle
