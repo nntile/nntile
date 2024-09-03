@@ -19,10 +19,11 @@ from transformers import GPT2TokenizerFast
 import nntile
 from nntile.inference.llm_api_server import (
     SimpleLlmApiServer, SimpleLlmApiServerParams)
+from nntile.inference.llm_async_engine import LlmAsyncInferenceEngine
 from nntile.inference.llm_sync_engine import LlmSyncInferenceEngine
 from nntile.model.gpt2 import GPT2Model as GPT2Model_nnt
 
-starpu_config = nntile.starpu.Config(1, 0, 0)
+starpu_config = nntile.starpu.Config(4, 0, 0)
 nntile.starpu.init()
 
 logging.basicConfig(level=logging.INFO)
@@ -45,6 +46,7 @@ def parse_args():
         default="cache_hf",
         help="cache dir for huggingface objects",
     )
+    parser.add_argument("--async_server", action="store_true")
 
     args = parser.parse_args()
     print(f"Notice:\n {parser.usage}")
@@ -60,7 +62,10 @@ def main():
         "gpt2", 1, 1, 1024, 0, cache_dir=args.cache_dir
     )
 
-    llm_engine = LlmSyncInferenceEngine(model_nnt, tokenizer, 1024)
+    if args.async_server:
+        llm_engine = LlmAsyncInferenceEngine(model_nnt, tokenizer, 1024)
+    else:
+        llm_engine = LlmSyncInferenceEngine(model_nnt, tokenizer, 1024)
 
     server = SimpleLlmApiServer(
         llm_engine, params=SimpleLlmApiServerParams(host=args.host,

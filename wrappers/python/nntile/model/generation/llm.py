@@ -10,7 +10,6 @@
 #
 # @version 1.1.0
 
-import asyncio
 from dataclasses import dataclass
 from enum import Enum
 
@@ -145,24 +144,21 @@ async def generate_greedy_dynamic_async(
 ):
     cur_seq_size = input_ids.shape[0]
 
-    is_prefill = True
+    kv_caches = None
 
-    output_ids = input_ids
+    output_ids_np = await nntc.to_numpy_async(input_ids)
+
     while cur_seq_size < params.max_tokens:
-        output_ids_np = await nnt_constructors.to_numpy_async(output_ids)
-
-        logits_nnt = model.forward_dynamic(
+        logits_nnt, kv_caches = model.forward_dynamic(
             nntile.tensor.TensorMoments(input_ids, None, False),
-            use_cache=(not is_prefill),
+            use_cache=params.use_cache, kv_caches=kv_caches
         )
         output_value_np = await nntc.to_numpy_async(logits_nnt.value)
-        if params.use_cache and is_prefill:
-            is_prefill = False
 
         # TODO: add starpu function for argmax
         pred_token = np.argmax(output_value_np[:, -1, :])
         if pred_token == eos_token_id:
-            return output_ids, cur_seq_size
+            return nntc.from_array(output_ids_np), cur_seq_size
 
         # TODO: add starpu function for concatenation
         output_ids_np = np.concatenate(
@@ -174,8 +170,6 @@ async def generate_greedy_dynamic_async(
             )
         else:
             input_ids = nntc.from_array(output_ids_np)
-        output_ids = nntc.from_array(output_ids_np)
         cur_seq_size += 1
-        await asyncio.sleep(0)
 
-    return output_ids, cur_seq_size
+    return nntc.from_array(output_ids_np), cur_seq_size
