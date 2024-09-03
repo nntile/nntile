@@ -18,7 +18,7 @@ import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor, TensorMoments, TensorTraits, add_fiber_async, add_inplace_async,
-    add_slice3_async, add_slice_async, clear_async, fill_async,
+    add_slice_async, add_slice_inplace_async, clear_async, fill_async,
     hypot_scalar_inverse_async, norm_slice_async, prod_fiber3_async,
     prod_slice_async, sum_fiber_async, sum_slice_async, sumprod_fiber_async,
     sumprod_slice_async)
@@ -175,7 +175,7 @@ class LayerNorm(BaseLayer):
             redux=self.redux,
         )
         # Y = X - mean
-        add_slice3_async(
+        add_slice_async(
             -1.0, self.mean, 1.0, self.x.value, self.tmp_y_value, self.axis
         )
         # mean can be offloaded from GPU
@@ -236,7 +236,7 @@ class LayerNorm(BaseLayer):
             1.0 / num_layers, x.value, 0.0, mean, self.axis, redux=self.redux
         )
         # Y = X - mean
-        add_slice3_async(-1.0, mean, 1.0, x.value, tmp_y_value, self.axis)
+        add_slice_async(-1.0, mean, 1.0, x.value, tmp_y_value, self.axis)
         # mean can be offloaded from GPU
         mean.wont_use()
 
@@ -328,7 +328,9 @@ class LayerNorm(BaseLayer):
         # tmp_Y_grad can be deleted
         self.tmp_y_grad.invalidate_submit()
         # Subtract mean from tmp_Y_value
-        add_slice_async(-1.0, self.mean, 1.0, self.tmp_y_value, self.axis)
+        add_slice_inplace_async(
+            -1.0, self.mean, 1.0, self.tmp_y_value, self.axis
+        )
         # mean can be deleted
         self.mean.invalidate_submit()
         # Multiply tmp_Y_value by the inverse stddev

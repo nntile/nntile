@@ -21,12 +21,12 @@ namespace nntile::tile
 
 // Tile<T> addition of a tensor and a broadcasted slice
 template<typename T>
-void add_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-                     Index axis);
+void add_slice_async(Scalar alpha, const Tile<T> &src1, Scalar beta,
+        const Tile<T> &src2, const Tile<T> &dst, Index axis);
 
 // Tile<T> addition of a tensor and a broadcasted slice
 template<typename T>
-void add_slice(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-               Index axis);
+void add_slice(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
+        const Tile<T> &dst, Index axis);
 
 } // namespace nntile::tile

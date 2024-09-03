@@ -823,48 +823,54 @@ def maxsumexp_async(
         raise TypeError
 
 
-def add_slice_async(
+def add_slice_inplace_async(
     alpha: float, add_slice: Tensor, beta, x: Tensor, axis: int
+) -> None:
+    """
+    Wrapper for multiprecision add_slice_inplace
+    """
+    if type(add_slice) is not type(x):
+        raise TypeError
+    if type(x) is core_tensor.Tensor_fp32:
+        core_tensor.add_slice_inplace_async_fp32(
+            alpha, add_slice, beta, x, axis
+        )
+    elif type(x) is core_tensor.Tensor_fp64:
+        core_tensor.add_slice_inplace_async_fp64(
+            alpha, add_slice, beta, x, axis
+        )
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.add_slice_inplace_async_fp32_fast_tf32(
+            alpha, add_slice, beta, x, axis
+        )
+    elif type(x) is core_tensor.Tensor_bf16:
+        core_tensor.add_slice_inplace_async_bf16(
+            alpha, add_slice, beta, x, axis
+        )
+    else:
+        raise TypeError
+
+
+def add_slice_async(
+    alpha: float, add_slice: Tensor, beta, x: Tensor, y: Tensor, axis: int
 ) -> None:
     """
     Wrapper for multiprecision add_slice
     """
     if type(add_slice) is not type(x):
         raise TypeError
-    if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.add_slice_async_fp32(alpha, add_slice, beta, x, axis)
-    elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.add_slice_async_fp64(alpha, add_slice, beta, x, axis)
-    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.add_slice_async_fp32_fast_tf32(
-            alpha, add_slice, beta, x, axis
-        )
-    elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.add_slice_async_bf16(alpha, add_slice, beta, x, axis)
-    else:
-        raise TypeError
-
-
-def add_slice3_async(
-    alpha: float, add_slice: Tensor, beta, x: Tensor, y: Tensor, axis: int
-) -> None:
-    """
-    Wrapper for multiprecision add_slice3
-    """
-    if type(add_slice) is not type(x):
-        raise TypeError
     if type(x) is not type(y):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.add_slice3_async_fp32(alpha, add_slice, beta, x, y, axis)
+        core_tensor.add_slice_async_fp32(alpha, add_slice, beta, x, y, axis)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.add_slice3_async_fp32_fast_tf32(
+        core_tensor.add_slice_async_fp32_fast_tf32(
             alpha, add_slice, beta, x, y, axis
         )
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.add_slice3_async_fp64(alpha, add_slice, beta, x, y, axis)
+        core_tensor.add_slice_async_fp64(alpha, add_slice, beta, x, y, axis)
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.add_slice3_async_bf16(alpha, add_slice, beta, x, y, axis)
+        core_tensor.add_slice_async_bf16(alpha, add_slice, beta, x, y, axis)
     else:
         raise TypeError
 

@@ -19,7 +19,7 @@ from transformers.models.gpt2.modeling_gpt2 import (
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_async,
-    add_slice_async, clear_async, gemm_async, mask_scalar_async,
+    add_slice_inplace_async, clear_async, gemm_async, mask_scalar_async,
     maxsumexp_async, notrans, prod_inplace_async, softmax_inplace_async,
     sum_fiber_async, sumprod_slice_async, to_numpy, trans, transpose_async)
 
@@ -761,7 +761,9 @@ class GPT2Attention(BaseLayer):
             sumprod_slice_async(1.0, self.a.value, self.a.grad,
                     0.0, self.a_sumprod_slice, 0, redux=self.redux)
             # dA += -bias('kmlb,mlb->kmlb', dA, A_sumprod_slice)
-            add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
+            add_slice_inplace_async(
+                -1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0
+            )
             # A_sumprod_slice can be deleted
             # self.a_sumprod_slice.wont_use()
             self.a_sumprod_slice.invalidate_submit()

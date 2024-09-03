@@ -65,15 +65,15 @@ constexpr Codelet *codelet<bf16_t>()
 }
 
 template<>
-constexpr Codelet *codelet<fp64_t>()
-{
-    return &codelet_fp64;
-}
-
-template<>
 constexpr Codelet *codelet<fp32_fast_tf32_t>()
 {
     return &codelet_fp32_fast_tf32;
+}
+
+template<>
+constexpr Codelet *codelet<fp64_t>()
+{
+    return &codelet_fp64;
 }
 
 void init();
@@ -83,7 +83,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
-            Handle dst);
+void submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Scalar beta,
+        Handle src2, Handle dst);
 
 } // namespace nntile::starpu::add_slice

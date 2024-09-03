@@ -23,8 +23,8 @@ from nntile.layer.base_layer import BaseLayer
 from nntile.layer.cache_utils import KVCache
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
-    add_fiber_async, add_slice_async, clear_async, copy_intersection_async,
-    flash_maxsumexp_async, flash_softmax_gemm_async,
+    add_fiber_async, add_slice_inplace_async, clear_async,
+    copy_intersection_async, flash_maxsumexp_async, flash_softmax_gemm_async,
     flash_softmax_gemm_backward_async, gemm_async, mask_scalar_async,
     maxsumexp_async, notrans, prod_inplace_async, rope_async,
     rope_backward_async, softmax_inplace_async, sum_fiber_async,
@@ -822,7 +822,9 @@ class LlamaAttention(BaseLayer):
         # Repeat K_rope along fibers of proper axis
         # from (head_size, n_seq, n_batch, n_head_kv)
         # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
-        add_slice_async(1.0, self.k_rope.value, 0.0, self.k_rep.value, 3)
+        add_slice_inplace_async(
+            1.0, self.k_rope.value, 0.0, self.k_rep.value, 3
+        )
         # K_rope can be offloaded from GPU
         self.k_rope.value.wont_use()
         # V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V)
@@ -858,7 +860,7 @@ class LlamaAttention(BaseLayer):
         # Repeat V along fibers of proper axis
         # from (head_size, n_seq, n_batch, n_head_kv)
         # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
-        add_slice_async(1.0, self.v.value, 0.0, self.v_rep.value, 3)
+        add_slice_inplace_async(1.0, self.v.value, 0.0, self.v_rep.value, 3)
         # V can be offloaded from GPU
         self.v.value.wont_use()
 
@@ -1274,8 +1276,8 @@ class LlamaAttention(BaseLayer):
         v_rep_partial = nntc.empty(
             v_rep_shape, basetile_shape=v_rep_bt_shape, dtype=type(x)
         )
-        add_slice_async(1.0, k_rope_partial, 0.0, k_rep_partial, 3)
-        add_slice_async(1.0, v_partial, 0.0, v_rep_partial, 3)
+        add_slice_inplace_async(1.0, k_rope_partial, 0.0, k_rep_partial, 3)
+        add_slice_inplace_async(1.0, v_partial, 0.0, v_rep_partial, 3)
 
         return k_rep_partial, v_rep_partial
 
@@ -1372,13 +1374,15 @@ class LlamaAttention(BaseLayer):
         # Repeat K along fibers of proper axis
         # from (head_size, n_seq, n_batch, n_head_kv)
         # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
-        add_slice_async(1.0, self.k_rope.value, 0.0, self.k_rep.value, 3)
+        add_slice_inplace_async(
+            1.0, self.k_rope.value, 0.0, self.k_rep.value, 3
+        )
         # K_rope can be deleted
         self.k_rope.value.invalidate_submit()
         # Repeat V along fibers of proper axis
         # from (head_size, n_seq, n_batch, n_head_kv)
         # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
-        add_slice_async(1.0, self.v.value, 0.0, self.v_rep.value, 3)
+        add_slice_inplace_async(1.0, self.v.value, 0.0, self.v_rep.value, 3)
         # V can be deleted
         self.v.value.invalidate_submit()
         # Apply backward to (attention to Q_rope, K_rep and V_rep into B)
@@ -2151,7 +2155,9 @@ class LlamaAttention(BaseLayer):
                 redux=self.redux,
             )
             # dA += -bias('kmlbi,mlbi->kmlbi', dA, A_sumprod_slice)
-            add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
+            add_slice_inplace_async(
+                -1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0
+            )
             # A_sumprod_slice can be deleted
             self.a_sumprod_slice.invalidate_submit()
             # dA *= A
