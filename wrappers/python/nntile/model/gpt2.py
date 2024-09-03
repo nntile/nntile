@@ -628,12 +628,13 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         ):
         inp_emb, pos_emb, add_l = self.layers[0:3]
         seq_size = x.value.shape[0]
+
+        kvcache_size = len(kv_caches) if kv_caches else 0
         pos_ids_np = np.asfortranarray(
             np.arange(
-                self.kvcache_size, self.kvcache_size + seq_size, dtype=np.int64
+                kvcache_size, kvcache_size + seq_size, dtype=np.int64
             )
         )
-        self.kvcache_size += seq_size
         pos_ids_nnt_tm = TensorMoments(
             nntc.from_array(
                 pos_ids_np, basetile_shape=(x.value.basetile_shape[0],)

@@ -180,8 +180,6 @@ class Attention(BaseLayer):
         else:
             self.redux = 0
 
-        self.reset_cache()
-
         # need to fill with valid values for dynamic api usage
         clear_async(self.q.value)
         clear_async(self.k.value)
@@ -531,10 +529,6 @@ class Attention(BaseLayer):
         )
         # Return layer and next tag to be used
         return (layer, next_tag)
-
-    def reset_cache(self, value=0):
-        self.k_cache_size = value
-        self.v_cache_size = value
 
     def _forward_mlp_q_async(self):
         # Q_transposed = einsum('jkl,lmn->jkmn', W_Q, X_Q)
@@ -929,7 +923,6 @@ class Attention(BaseLayer):
 
     # Forward propagation of the attention layer
     def forward_async(self, effective_size=None):
-        self.reset_cache()
         # Compute query, key and value tensors
         self._forward_mlp_q_async()
         self._forward_mlp_k_async()
@@ -938,18 +931,14 @@ class Attention(BaseLayer):
         # compute attention and weight result
         self._forward_attn_async()
 
-        effective_size = effective_size or self.x_q.value.shape[1]
-        self.reset_cache(effective_size)
-
     def forward_dynamic(
             self, x: TensorMoments, kv_cache: Optional[KVCache] = None
         ):
-        if kv_cache and (x.value.shape[1] + len(kv_cache) > self.x_v.value.shape[1]):  # noqa: E501
+        if (kv_cache is not None) and (x.value.shape[1] + len(kv_cache) > self.x_v.value.shape[1]):  # noqa: E501
             raise Exception(
                 "Overload internal state: "
                 f"try add {x.value.shape[1]} "
                 f"to {len(kv_cache)}, max: {self.x_v.value.shape[1]}. "
-                "Maybe you forgot to call reset_cache between iterations?"
             )
 
         # Compute query, key and value tensors

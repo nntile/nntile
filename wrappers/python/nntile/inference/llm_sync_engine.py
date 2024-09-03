@@ -37,7 +37,7 @@ class LlmSyncInferenceEngine:
         # tokenize
         inputs = self.tokenizer(prompt, return_tensors="np")
         input_ids = inputs["input_ids"]
-        prefill_size = input_ids.shape[0]
+        prefill_size = input_ids.shape[1]
 
         # transform to compatible input
         if params.need_static_padding:

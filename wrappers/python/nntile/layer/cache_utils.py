@@ -15,10 +15,10 @@ class KVCache:
 
     def _init_from_tensor(self, tensor):
         cached_shape = tensor.shape
-        cached_shape[1] = self.max_cache_size
+        cached_shape[self.seq_size_dim] = self.max_cache_size
 
         cached_basetile_shape = tensor.basetile_shape
-        cached_basetile_shape[1] = self.max_cache_size
+        cached_basetile_shape[self.seq_size_dim] = self.max_cache_size
 
         init_cache_tensor = nntc.zeros(
             cached_shape,
@@ -51,10 +51,10 @@ class KVCache:
         # For correct softmax we should next use only currently cached seq_size
         # So copy here
         cached_shape = self.k.shape
-        cached_shape[1] = self.k_cache_size
+        cached_shape[self.seq_size_dim] = self.k_cache_size
 
         cached_basetile_shape = self.k.basetile_shape
-        cached_basetile_shape[1] = self.k_cache_size
+        cached_basetile_shape[self.seq_size_dim] = self.k_cache_size
 
         k_partial = nntc.empty(
             cached_shape,
@@ -71,10 +71,10 @@ class KVCache:
         # For correct softmax we should next use only currently cached seq_size
         # So copy here
         cached_shape = self.v.shape
-        cached_shape[1] = self.v_cache_size
+        cached_shape[self.seq_size_dim] = self.v_cache_size
 
         cached_basetile_shape = self.v.basetile_shape
-        cached_basetile_shape[1] = self.v_cache_size
+        cached_basetile_shape[self.seq_size_dim] = self.v_cache_size
 
         v_partial = nntc.empty(
             cached_shape,
