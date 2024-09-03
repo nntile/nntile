@@ -86,7 +86,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
 
     TensorTraits src2_single_traits(src2_shape, src2_shape);
     Tensor<T> src2_single(src2_single_traits, dist_root, last_tag);
-    
+
     if(mpi_rank == mpi_root)
     {
         auto tile = src1_single.get_tile(0);
@@ -128,7 +128,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     add_slice<T>(-1.0, src1, 0.5, src2, dst, axis);
     if(mpi_rank == mpi_root)
     {
-        tile::add_slice<T>(-1.0, src1_single.get_tile(0), 0.5, 
+        tile::add_slice<T>(-1.0, src1_single.get_tile(0), 0.5,
                 src2_single.get_tile(0), dst_single.get_tile(0), axis);
     }
     // Compare results
@@ -199,4 +199,3 @@ int main(int argc, char **argv)
     validate<fp64_t>();
     return 0;
 }
-
