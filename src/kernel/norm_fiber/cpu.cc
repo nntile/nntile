@@ -20,7 +20,7 @@ namespace nntile::kernel::norm_fiber
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src1, const T *src2,  Scalar beta_, T *dst)
+void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src1,  Scalar beta_,  const T *src2, T *dst)
     noexcept
 //! Norms over slices along the first and last axes into a fiber of a tensor
 /*! For a provided m-by-k-by-n input array computes norms over slices
@@ -128,22 +128,22 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src1, c
 // Explicit instantiation
 template
 void cpu<fp32_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        const fp32_t *src1, const fp32_t *src2, Scalar beta, fp32_t *dst)
+        const fp32_t *src1, Scalar beta,  const fp32_t *src2, fp32_t *dst)
     noexcept;
 
 template
 void cpu<fp64_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        const fp64_t *src1, const fp64_t *src2, Scalar beta, fp64_t *dst)
+        const fp64_t *src1, Scalar beta, const fp64_t *src2, fp64_t *dst)
     noexcept;
 
 template
 void cpu<bf16_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        const bf16_t *src1, const bf16_t *src2, Scalar beta, bf16_t *dst)
+        const bf16_t *src1, Scalar beta, const bf16_t *src2, bf16_t *dst)
     noexcept;
 
 template
 void cpu<fp32_fast_tf32_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        const fp32_fast_tf32_t *src1, const fp32_fast_tf32_t *src2, Scalar beta, fp32_fast_tf32_t *dst)
+        const fp32_fast_tf32_t *src1, Scalar beta, const fp32_fast_tf32_t *src2, fp32_fast_tf32_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::norm_fiber

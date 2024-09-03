@@ -23,7 +23,7 @@ namespace nntile::kernel::norm_fiber
 // Euclidean norms over slices into a fiber of a product of buffers on GPU
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, Scalar alpha,
-        const T *src1, const T *src2, Scalar beta, T *dst)
+        const T *src1, Scalar beta, const T *src2, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::norm_fiber

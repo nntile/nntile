@@ -22,8 +22,8 @@ namespace nntile::kernel::norm_fiber
 
 template<typename T>
 static __global__
-void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha, const T *src1, const T *src2,
-        Scalar beta, T *dst)
+void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha, const T *src1,
+        Scalar beta, const T *src2, T *dst)
 //! Sums over slices along the first and last axes into a fiber of a tensor
 /*! For a provided m-by-k-by-n input array computes sums over slices
  * along the first axis with m elements and the last axis with n elements,
@@ -95,7 +95,7 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha, const T *
 
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
-        Scalar alpha, const T *src, Scalar beta, T *dst)
+        Scalar alpha, const T *src1, Scalar beta, const T *src2, T *dst)
     noexcept
 //! Sums over slices along the first and last axes into a fiber of a tensor
 /*! For a provided m-by-k-by-n input array computes sums over slices
@@ -120,28 +120,28 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
     dim3 threads(1, std::min(int(m), 32), std::min(int(n), 32));
     dim3 blocks((k*batch+threads.x-1)/threads.x, 1, 1);
     (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(m, n, k, batch, alpha,
-            src, beta, dst);
+            src1, beta, src2, dst);
 }
 
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
-        Scalar alpha, const fp32_t *src1, const fp32_t *src2, Scalar beta, fp32_t *dst)
+        Scalar alpha, const fp32_t *src1, Scalar beta, const fp32_t *src2, fp32_t *dst)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
-        Scalar alpha, const fp64_t *src1, const fp64_t *src2, Scalar beta, fp64_t *dst)
+        Scalar alpha, const fp64_t *src1, Scalar beta, const fp64_t *src2, fp64_t *dst)
     noexcept;
 
 template
 void cuda<bf16_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
-        Scalar alpha, const bf16_t *src1, const bf16_t *src2, Scalar beta, bf16_t *dst)
+        Scalar alpha, const bf16_t *src1, Scalar beta, const bf16_t *src2, bf16_t *dst)
     noexcept;
 
 template
 void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index m, Index n, Index k, Index batch,
-        Scalar alpha, const fp32_fast_tf32_t *src1, const fp32_fast_tf32_t *src2, Scalar beta, fp32_fast_tf32_t *dst)
+        Scalar alpha, const fp32_fast_tf32_t *src1, Scalar beta, const fp32_fast_tf32_t *src2, fp32_fast_tf32_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::norm_fiber

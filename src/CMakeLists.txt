@@ -149,6 +149,7 @@ else()
             "kernel/rope/cuda.cu"
             "kernel/rope_backward/cuda.cu"
             "kernel/norm_fiber_inplace/cuda.cu"
+            "kernel/norm_fiber/cuda.cu"
             )
         endif(NNTILE_USE_CUDA)
 endif(HAVE_STARPU_SIMGRID)
@@ -228,6 +229,7 @@ set(STARPU_SRC
     "starpu/rope.cc"
     "starpu/rope_backward.cc"
     "starpu/norm_fiber_inplace.cc"
+    "starpu/norm_fiber.cc"
     )
 
 set(TILE_SRC
