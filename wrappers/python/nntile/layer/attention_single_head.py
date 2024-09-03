@@ -15,10 +15,10 @@ import numpy as np
 
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor, TensorMoments, TensorTraits, add_fiber_async, add_slice_async,
-    clear_async, gemm_async, mask_scalar_async, maxsumexp_async, notrans,
-    prod_inplace_async, softmax_inplace_async, sum_fiber_async,
-    sumprod_slice_async, trans)
+    Tensor, TensorMoments, TensorTraits, add_fiber_async,
+    add_slice_inplace_async, clear_async, gemm_async, mask_scalar_async,
+    maxsumexp_async, notrans, prod_inplace_async, softmax_inplace_async,
+    sum_fiber_async, sumprod_slice_async, trans)
 
 
 # Single-head attention
@@ -636,7 +636,9 @@ class AttentionSingleHead(BaseLayer):
                 redux=self.redux,
             )
             # dA += -bias('kml,ml->kml', dA, A_sumprod_slice)
-            add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
+            add_slice_inplace_async(
+                -1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0
+            )
             # A_sumprod_slice can be deleted
             self.a_sumprod_slice.invalidate_submit()
             # dA *= A

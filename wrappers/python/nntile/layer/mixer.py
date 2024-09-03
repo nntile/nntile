@@ -16,7 +16,7 @@ from nntile.layer.base_layer import BaseLayer
 from nntile.layer.layer_norm import LayerNorm
 from nntile.layer.linear import Linear
 from nntile.tensor import (
-    TensorMoments, TensorTraits, add_inplace_async, add_slice_async,
+    TensorMoments, TensorTraits, add_inplace_async, add_slice_inplace_async,
     clear_async, notrans, sum_slice_async, transpose_async)
 
 
@@ -73,7 +73,7 @@ class GAP(BaseLayer):
     def backward_async(self):
         alpha = 1 / (self.x.value.shape[0])
         transpose_async(1.0, self.y.grad, self.yT.grad, 1)
-        add_slice_async(alpha, self.yT.grad, 0.0, self.x.grad, 0)
+        add_slice_inplace_async(alpha, self.yT.grad, 0.0, self.x.grad, 0)
 
 
 class MixerMlp(BaseLayer):

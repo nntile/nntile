@@ -17,7 +17,7 @@ import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_async,
-    add_slice_async, clear_async, copy_intersection_async, gemm_async,
+    add_slice_inplace_async, clear_async, copy_intersection_async, gemm_async,
     mask_scalar_async, maxsumexp_async, notrans, prod_inplace_async,
     softmax_inplace_async, sum_fiber_async, sumprod_slice_async, trans,
     transpose_async)
@@ -1103,7 +1103,9 @@ class Attention(BaseLayer):
                 redux=self.redux,
             )
             # dA += -bias('kmlb,mlb->kmlb', dA, A_sumprod_slice)
-            add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
+            add_slice_inplace_async(
+                -1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0
+            )
             # A_sumprod_slice can be deleted
             # self.a_sumprod_slice.wont_use()
             self.a_sumprod_slice.invalidate_submit()
