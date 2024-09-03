@@ -1216,7 +1216,6 @@ class LlamaAttention(BaseLayer):
         x: Tensor,
         k_rope_partial: Tensor,
         v_partial: Tensor,
-        use_cache: bool,
         kv_cache: Optional[KVCache]
     ):
         """
@@ -1230,7 +1229,7 @@ class LlamaAttention(BaseLayer):
                 f"{k_rope_partial.shape[1]} != {v_partial.shape[1]}",
             )
 
-        if not use_cache:
+        if kv_cache is None:
             return k_rope_partial, v_partial, kv_cache
 
         if (v_partial.shape[1] + len(kv_cache) > self.x_v.value.shape[1]):
@@ -1283,7 +1282,6 @@ class LlamaAttention(BaseLayer):
     def forward_dynamic(
         self,
         x: TensorMoments,
-        use_cache: bool = False,
         kv_cache: Optional[KVCache] = None
     ):
         q_partial = self._forward_mlp_q_dynamic(x.value)
@@ -1297,7 +1295,7 @@ class LlamaAttention(BaseLayer):
         k_partial.invalidate_submit()
 
         k_rope_partial, v_partial, kv_cache = self._storeload_kvcache(
-            x.value, k_rope_partial, v_partial, use_cache, kv_cache
+            x.value, k_rope_partial, v_partial, kv_cache
         )
 
         k_rep_partial, v_rep_partial = self._broadcast_kv_dynamic(

@@ -82,7 +82,6 @@ class Llama(BaseModel):
         for lid, dec_layer in enumerate(self.decoders):
             dec_out, updated_cache = dec_layer.forward_dynamic(
                 dec_out,
-                use_cache=use_cache,
                 kv_cache=kv_caches[lid] if kv_caches else None
             )
             if kv_caches:
