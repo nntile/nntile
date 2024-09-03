@@ -62,7 +62,7 @@ class LlmSyncInferenceEngine:
         output_ids_np = output_ids_np[:effective_size]
 
         # construct generation result
-        generated_text = self.tokenizer.decode(output_ids_np)
+        generated_text = self.tokenizer.decode(output_ids_np.flatten())
         return generated_text
 
 
