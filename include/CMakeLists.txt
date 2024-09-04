@@ -425,6 +425,7 @@ set(TENSOR_HDR
     "nntile/tensor/conv2d_bwd_weight_inplace.hh"
     "nntile/tensor/rope.hh"
     "nntile/tensor/rope_backward.hh"
+    "nntile/tensor/strassen.hh"
     )
 
 set(LAYER_HDR

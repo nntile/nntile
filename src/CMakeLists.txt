@@ -369,6 +369,7 @@ set(TENSOR_SRC
     "tensor/rope.cc"
     "tensor/rope_backward.cc"
     "tensor/norm_fiber.cc"
+    "tensor/strassen.cc"
     )
 
 set(LAYER_SRC
