@@ -634,10 +634,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("softmax_async_bf16", &softmax_async<bf16_t>);
     m.def("softmax_async_fp32", &softmax_async<fp32_t>);
     m.def("softmax_async_fp32_fast_tf32", &softmax_async<fp32_fast_tf32_t>);
+    m.def("softmax_async_fp32_fast_fp16", &softmax_async<fp32_fast_fp16_t>);
     m.def("softmax_fp64", &softmax<fp64_t>);
     m.def("softmax_fp32", &softmax<fp32_t>);
     m.def("softmax_bf16", &softmax<bf16_t>);
     m.def("softmax_fp32_fast_tf32", &softmax<fp32_fast_tf32_t>);
+    m.def("softmax_fp32_fast_fp16", &softmax<fp32_fast_fp16_t>);
 
     m.def("softmax_inplace_async_fp64", &softmax_inplace_async<fp64_t>);
     m.def("softmax_inplace_async_bf16", &softmax_inplace_async<bf16_t>);
@@ -753,11 +755,13 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_async_fp64", &add_async<fp64_t>);
     m.def("add_async_fp32", &add_async<fp32_t>);
     m.def("add_async_fp32_fast_tf32", &add_async<fp32_fast_tf32_t>);
+    m.def("add_async_fp32_fast_fp16", &add_async<fp32_fast_fp16_t>);
     m.def("add_async_bf16", &add_async<bf16_t>);
     m.def("add_fp64", &add<fp64_t>);
     m.def("add_bf16", &add<bf16_t>);
     m.def("add_fp32", &add<fp32_t>);
     m.def("add_fp32_fast_tf32", &add<fp32_fast_tf32_t>);
+    m.def("add_fp32_fast_fp16", &add<fp32_fast_fp16_t>);
 
     m.def("add_inplace_async_fp64", &add_inplace_async<fp64_t>);
     m.def("add_inplace_async_fp32", &add_inplace_async<fp32_t>);
@@ -909,19 +913,23 @@ void def_mod_tensor(py::module_ &m)
     m.def("logsumexp_async_bf16", &logsumexp_async<bf16_t>);
     m.def("logsumexp_async_fp32", &logsumexp_async<fp32_t>);
     m.def("logsumexp_async_fp32_fast_tf32", &logsumexp_async<fp32_fast_tf32_t>);
+    m.def("logsumexp_async_fp32_fast_fp16", &logsumexp_async<fp32_fast_fp16_t>);
     m.def("logsumexp_fp64", &logsumexp<fp64_t>);
     m.def("logsumexp_bf16", &logsumexp<bf16_t>);
     m.def("logsumexp_fp32", &logsumexp<fp32_t>);
     m.def("logsumexp_fp32_fast_tf32", &logsumexp<fp32_fast_tf32_t>);
+    m.def("logsumexp_fp32_fast_fp16", &logsumexp<fp32_fast_fp16_t>);
 
     m.def("total_sum_accum_async_fp64", &total_sum_accum_async<fp64_t>);
     m.def("total_sum_accum_async_bf16", &total_sum_accum_async<bf16_t>);
     m.def("total_sum_accum_async_fp32", &total_sum_accum_async<fp32_t>);
     m.def("total_sum_accum_async_fp32_fast_tf32", &total_sum_accum_async<fp32_fast_tf32_t>);
+    m.def("total_sum_accum_async_fp32_fast_fp16", &total_sum_accum_async<fp32_fast_fp16_t>);
     m.def("total_sum_accum_fp64", &total_sum_accum<fp64_t>);
     m.def("total_sum_accum_fp32", &total_sum_accum<fp32_t>);
     m.def("total_sum_accum_bf16", &total_sum_accum<bf16_t>);
     m.def("total_sum_accum_fp32_fast_tf32", &total_sum_accum<fp32_fast_tf32_t>);
+    m.def("total_sum_accum_fp32_fast_fp16", &total_sum_accum<fp32_fast_fp16_t>);
 
     m.def("subtract_indexed_outputs_async_fp64",
             &subtract_indexed_outputs_async<fp64_t>);
@@ -931,10 +939,13 @@ void def_mod_tensor(py::module_ &m)
             &subtract_indexed_outputs_async<fp32_t>);
     m.def("subtract_indexed_outputs_async_fp32_fast_tf32",
             &subtract_indexed_outputs_async<fp32_fast_tf32_t>);
+    m.def("subtract_indexed_outputs_async_fp32_fast_fp16",
+            &subtract_indexed_outputs_async<fp32_fast_fp16_t>);
     m.def("subtract_indexed_outputs_fp64", &subtract_indexed_outputs<fp64_t>);
     m.def("subtract_indexed_outputs_bf16", &subtract_indexed_outputs<bf16_t>);
     m.def("subtract_indexed_outputs_fp32", &subtract_indexed_outputs<fp32_t>);
     m.def("subtract_indexed_outputs_fp32_fast_tf32", &subtract_indexed_outputs<fp32_fast_tf32_t>);
+    m.def("subtract_indexed_outputs_fp32_fast_fp16", &subtract_indexed_outputs<fp32_fast_fp16_t>);
 
     m.def("scal_async_fp64", &scal_async<fp64_t>);
     m.def("scal_async_bf16", &scal_async<bf16_t>);
@@ -1007,10 +1018,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("gelutanh_async_bf16", &gelutanh_async<bf16_t>);
     m.def("gelutanh_async_fp32", &gelutanh_async<fp32_t>);
     m.def("gelutanh_async_fp32_fast_tf32", &gelutanh_async<fp32_fast_tf32_t>);
+    m.def("gelutanh_async_fp32_fast_fp16", &gelutanh_async<fp32_fast_fp16_t>);
     m.def("gelutanh_fp64", &gelutanh<fp64_t>);
     m.def("gelutanh_fp32", &gelutanh<fp32_t>);
     m.def("gelutanh_bf16", &gelutanh<bf16_t>);
     m.def("gelutanh_fp32_fast_tf32", &gelutanh<fp32_fast_tf32_t>);
+    m.def("gelutanh_fp32_fast_fp16", &gelutanh<fp32_fast_fp16_t>);
 
     m.def("gelutanh_inplace_async_fp64", &gelutanh_inplace_async<fp64_t>);
     m.def("gelutanh_inplace_async_fp32", &gelutanh_inplace_async<fp32_t>);

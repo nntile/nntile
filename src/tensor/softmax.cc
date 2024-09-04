@@ -184,6 +184,11 @@ void softmax_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &maxsumexp,
         Index axis);
 
 template
+void softmax_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &maxsumexp,
+        const Tensor<fp32_fast_fp16_t> &src, Scalar alpha, const Tensor<fp32_fast_fp16_t> &dst,
+        Index axis);
+
+template
 void softmax_async<fp64_t>(const Tensor<fp64_t> &maxsumexp,
         const Tensor<fp64_t> &src, Scalar alpha, const Tensor<fp64_t> &dst,
         Index axis);
@@ -202,6 +207,11 @@ void softmax<fp32_t>(const Tensor<fp32_t> &maxsumexp,
 template
 void softmax<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &maxsumexp,
         const Tensor<fp32_fast_tf32_t> &src, Scalar alpha, const Tensor<fp32_fast_tf32_t> &dst,
+        Index axis);
+
+template
+void softmax<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &maxsumexp,
+        const Tensor<fp32_fast_fp16_t> &src, Scalar alpha, const Tensor<fp32_fast_fp16_t> &dst,
         Index axis);
 
 template

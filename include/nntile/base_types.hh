@@ -336,7 +336,7 @@ public:
         fp32_fast_fp16_t one{1.0}, one_p_eps{1.0};
         auto uintptr = reinterpret_cast<std::uint32_t *>(&one_p_eps);
         // Add a bit into mantissa of 1+eps to get actual value of 1+eps
-        *uintptr += 0x2000;
+        *uintptr += 0x10000;
         // Output difference of 1+eps and 1
         return static_cast<repr_t>(one_p_eps) - static_cast<repr_t>(one);
     }

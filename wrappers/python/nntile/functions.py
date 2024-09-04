@@ -224,6 +224,8 @@ def gelutanh_async(x: Tensor, y: Tensor) -> None:
         core_tensor.gelutanh_async_fp32(x, y)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.gelutanh_async_fp32_fast_tf32(x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.gelutanh_async_fp32_fast_fp16(x, y)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.gelutanh_async_fp64(x, y)
     elif type(x) is core_tensor.Tensor_bf16:
@@ -605,6 +607,8 @@ def softmax_async(
         core_tensor.softmax_async_fp32(maxsumexp, x, alpha, y, axis)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.softmax_async_fp32_fast_tf32(maxsumexp, x, alpha, y, axis)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.softmax_async_fp32_fast_fp16(maxsumexp, x, alpha, y, axis)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.softmax_async_fp64(maxsumexp, x, alpha, y, axis)
     elif type(x) is core_tensor.Tensor_bf16:
@@ -725,6 +729,8 @@ def add_async(alpha: float, x: Tensor, beta: float, y: Tensor,
         core_tensor.add_async_fp32(alpha, x, beta, y, z)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.add_async_fp32_fast_tf32(alpha, x, beta, y, z)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.add_async_fp32_fast_fp16(alpha, x, beta, y, z)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.add_async_fp64(alpha, x, beta, y, z)
     elif type(x) is core_tensor.Tensor_bf16:
@@ -1283,6 +1289,8 @@ def logsumexp_async(maxsumexp: Tensor, logsumexp: Tensor) -> None:
         core_tensor.logsumexp_async_fp32(maxsumexp, logsumexp)
     elif type(maxsumexp) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.logsumexp_async_fp32_fast_tf32(maxsumexp, logsumexp)
+    elif type(maxsumexp) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.logsumexp_async_fp32_fast_fp16(maxsumexp, logsumexp)
     elif type(maxsumexp) is core_tensor.Tensor_fp64:
         core_tensor.logsumexp_async_fp64(maxsumexp, logsumexp)
     elif type(maxsumexp) is core_tensor.Tensor_bf16:
@@ -1306,6 +1314,10 @@ def total_sum_accum_async(
         core_tensor.total_sum_accum_async_fp32_fast_tf32(
             alpha, logsumexp, src, class_labels, val
         )
+    elif type(logsumexp) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.total_sum_accum_async_fp32_fast_fp16(
+            alpha, logsumexp, src, class_labels, val
+        )
     elif type(logsumexp) is core_tensor.Tensor_fp64:
         core_tensor.total_sum_accum_async_fp64(
             alpha, logsumexp, src, class_labels, val
@@ -1325,6 +1337,10 @@ def subtract_indexed_outputs_async(
         core_tensor.subtract_indexed_outputs_async_fp32(val, class_labels, dst)
     elif type(dst) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.subtract_indexed_outputs_async_fp32_fast_tf32(
+            val, class_labels, dst
+        )
+    elif type(dst) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.subtract_indexed_outputs_async_fp32_fast_fp16(
             val, class_labels, dst
         )
     elif type(dst) is core_tensor.Tensor_fp64:
