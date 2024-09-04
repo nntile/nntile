@@ -6,15 +6,15 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/tensor/add_fiber.cc
+ * @file tests/tensor/add_fiber_inplace.cc
  * Tensor wrappers for addition of a tensor and a broadcasted fiber
  *
  * @version 1.1.0
  * */
 
-#include "nntile/tensor/add_fiber.hh"
-#include "nntile/tile/add_fiber.hh"
-#include "nntile/starpu/add_fiber.hh"
+#include "nntile/tensor/add_fiber_inplace.hh"
+#include "nntile/tile/add_fiber_inplace.hh"
+#include "nntile/starpu/add_fiber_inplace.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
@@ -84,11 +84,11 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     }
     Tensor<T> src(src_traits, src_distr, last_tag);
     scatter<T>(src_single, src);
-    // Perform tensor-wise and tile-wise add_fiber operations
-    add_fiber<T>(-1.0, src, 0.5, dst, axis, 0);
+    // Perform tensor-wise and tile-wise add_fiber_inplace operations
+    add_fiber_inplace<T>(-1.0, src, 0.5, dst, axis, 0);
     if(mpi_rank == mpi_root)
     {
-        tile::add_fiber<T>(-1.0, src_single.get_tile(0), 0.5,
+        tile::add_fiber_inplace<T>(-1.0, src_single.get_tile(0), 0.5,
                 dst_single.get_tile(0), axis, 0);
     }
     // Compare results
@@ -129,13 +129,13 @@ void validate()
     std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0};
     Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
         C(trC, dist0, last_tag);
-    TEST_THROW(add_fiber<T>(1.0, A, 0.0, A, 0, 0));
-    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, -1, 0));
-    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, 2, 0));
-    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, 0, 0));
-    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, 1, 0));
-    TEST_THROW(add_fiber<T>(1.0, C, 0.0, A, 0, 0));
-    TEST_THROW(add_fiber<T>(1.0, C, 0.0, A, 1, 0));
+    TEST_THROW(add_fiber_inplace<T>(1.0, A, 0.0, A, 0, 0));
+    TEST_THROW(add_fiber_inplace<T>(1.0, B, 0.0, A, -1, 0));
+    TEST_THROW(add_fiber_inplace<T>(1.0, B, 0.0, A, 2, 0));
+    TEST_THROW(add_fiber_inplace<T>(1.0, B, 0.0, A, 0, 0));
+    TEST_THROW(add_fiber_inplace<T>(1.0, B, 0.0, A, 1, 0));
+    TEST_THROW(add_fiber_inplace<T>(1.0, C, 0.0, A, 0, 0));
+    TEST_THROW(add_fiber_inplace<T>(1.0, C, 0.0, A, 1, 0));
 }
 
 int main(int argc, char **argv)
@@ -143,10 +143,10 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
-    starpu::add_fiber::init();
+    starpu::add_fiber_inplace::init();
     starpu::subcopy::init();
     starpu::copy::init();
-    starpu::add_fiber::restrict_where(STARPU_CPU);
+    starpu::add_fiber_inplace::restrict_where(STARPU_CPU);
     starpu::subcopy::restrict_where(STARPU_CPU);
     starpu::copy::restrict_where(STARPU_CPU);
     // Launch all tests

@@ -6,24 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/add_fiber.hh
+ * @file tests/kernel/add_fiber_inplace.cc
  * Per-element addition of a tensor and a broadcasted fiber
  *
  * @version 1.1.0
  * */
 
-#pragma once
+#include <iostream>
 
-#include <nntile/kernel/add_fiber/cpu.hh>
-#include <nntile/defs.h>
-#ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/add_fiber/cuda.hh>
-#endif // NNTILE_USE_CUDA
-
-//! @namespace nntile::kernel::add_fiber
-/*! Low-level implementations of add_fiber operation
- * */
-namespace nntile::kernel::add_fiber
+int main(int argc, char **argv)
 {
-
-} // namespace nntile::kernel::add_fiber
+    // Not implemented
+    std::cout << "This test is not yet implemented\n";
+    return -1;
+}

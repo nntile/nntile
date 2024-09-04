@@ -21,7 +21,7 @@
 #include <nntile/tile/axpy.hh>
 #include <nntile/tile/add_slice_inplace.hh>
 #include <nntile/tile/add_slice.hh>
-#include <nntile/tile/add_fiber.hh>
+#include <nntile/tile/add_fiber_inplace.hh>
 #include <nntile/tile/prod_slice.hh>
 #include <nntile/tile/prod_fiber.hh>
 #include <nntile/tile/prod_fiber3.hh>

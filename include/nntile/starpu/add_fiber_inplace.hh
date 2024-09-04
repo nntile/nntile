@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/add_fiber.hh
+ * @file include/nntile/starpu/add_fiber_inplace.hh
  * StarPU wrappers for addition of a tensor and a broadcasted fiber
  *
  * @version 1.1.0
@@ -18,7 +18,7 @@
 #include <nntile/starpu/config.hh>
 #include <nntile/defs.h>
 
-namespace nntile::starpu::add_fiber
+namespace nntile::starpu::add_fiber_inplace
 {
 
 //! Structure for arguments
@@ -32,7 +32,7 @@ struct args_t
     Scalar beta;
 };
 
-// StarPU wrapper for kernel::add_fiber::cpu<T>
+// StarPU wrapper for kernel::add_fiber_inplace::cpu<T>
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept;
@@ -80,4 +80,4 @@ template<typename T>
 void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src,
         Scalar beta, Handle dst);
 
-} // namespace nntile::starpu::add_fiber
+} // namespace nntile::starpu::add_fiber_inplace
