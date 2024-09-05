@@ -213,12 +213,13 @@ template
 void submit<bf16_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
         Scalar beta, Handle dst);
 
-void submit<fp32_fast_fp16_t>(Index m, Index n, Index k, Scalar alpha, Handle src1,
-        Scalar beta, Handle src2, Handle dst);
+template
+void submit<fp32_fast_fp16_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
+        Scalar beta, Handle dst);
 
 template
-void submit<fp64_t>(Index m, Index n, Index k, Scalar alpha, Handle src1,
-        Scalar beta, Handle src2, Handle dst);
+void submit<fp64_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
+        Scalar beta, Handle dst);
 
 template
 void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha,

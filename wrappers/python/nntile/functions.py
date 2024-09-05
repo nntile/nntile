@@ -878,6 +878,10 @@ def add_slice_inplace_async(
         core_tensor.add_slice_inplace_async_fp32_fast_tf32(
             alpha, add_slice, beta, x, axis
         )
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.add_slice_inplace_async_fp32_fast_fp16(
+            alpha, add_slice, beta, x, axis
+        )
     elif type(x) is core_tensor.Tensor_bf16:
         core_tensor.add_slice_inplace_async_bf16(
             alpha, add_slice, beta, x, axis
@@ -895,19 +899,19 @@ def add_slice_async(
     if type(add_slice) is not type(x):
         raise TypeError
     if type(x) is core_tensor.Tensor_fp32:
-        core_tensor.add_slice_async_fp32(alpha, add_slice, beta, x, axis)
+        core_tensor.add_slice_async_fp32(alpha, add_slice, beta, x, y, axis)
     elif type(x) is core_tensor.Tensor_fp64:
-        core_tensor.add_slice_async_fp64(alpha, add_slice, beta, x, axis)
+        core_tensor.add_slice_async_fp64(alpha, add_slice, beta, x, y, axis)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.add_slice_async_fp32_fast_tf32(
-            alpha, add_slice, beta, x, axis
+            alpha, add_slice, beta, x, y, axis
         )
     elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.add_slice_async_fp32_fast_fp16(
-            alpha, add_slice, beta, x, axis
+            alpha, add_slice, beta, x, y, axis
         )
     elif type(x) is core_tensor.Tensor_bf16:
-        core_tensor.add_slice_async_bf16(alpha, add_slice, beta, x, axis)
+        core_tensor.add_slice_async_bf16(alpha, add_slice, beta, x, y, axis)
     else:
         raise TypeError
 
