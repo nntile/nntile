@@ -875,19 +875,28 @@ def add_slice_async(
         raise TypeError
 
 
-def add_fiber_async(alpha: float, add_fiber: Tensor, beta, x: Tensor,
-                    axis: int, batch_ndim: int) -> None:
-    """Wrapper for multiprecision `add_fiber`."""
-    ts = (add_fiber, x)
+def add_fiber_inplace_async(
+    alpha: float, add_fiber_inplace: Tensor, beta, x: Tensor,
+    axis: int, batch_ndim: int
+) -> None:
+    """Wrapper for multiprecision `add_fiber_inplace`."""
+    ts = (add_fiber_inplace, x)
     if is_tensor_of(ts, Tensor_bf16):
-        ops.add_fiber_async_bf16(alpha, ts[0], beta, ts[1], axis, batch_ndim)
+        ops.add_fiber_inplace_async_bf16(
+            alpha, ts[0], beta, ts[1], axis, batch_ndim
+        )
     elif is_tensor_of(ts, Tensor_fp32):
-        ops.add_fiber_async_fp32(alpha, ts[0], beta, ts[1], axis, batch_ndim)
+        ops.add_fiber_inplace_async_fp32(
+            alpha, ts[0], beta, ts[1], axis, batch_ndim
+        )
     elif is_tensor_of(ts, Tensor_fp32_fast_tf32):
-        ops.add_fiber_async_fp32_fast_tf32(alpha, ts[0], beta, ts[1], axis,
-                                           batch_ndim)
+        ops.add_fiber_inplace_async_fp32_fast_tf32(
+            alpha, ts[0], beta, ts[1], axis, batch_ndim
+        )
     elif is_tensor_of(ts, Tensor_fp64):
-        ops.add_fiber_async_fp64(alpha, ts[0], beta, ts[1], axis, batch_ndim)
+        ops.add_fiber_inplace_async_fp64(
+            alpha, ts[0], beta, ts[1], axis, batch_ndim
+        )
     else:
         types = ', '.join(str(type(t)) for t in ts)
         raise TypeError(

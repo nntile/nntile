@@ -7,7 +7,7 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file wrappers/python/tests/nntile_core/test_tensor_sumprod_fiber.py
-# Test for tensor::add_fiber<T> Python wrapper
+# Test for tensor::sumprod_fiber<T> Python wrapper
 #
 # @version 1.1.0
 

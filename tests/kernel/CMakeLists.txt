@@ -17,7 +17,7 @@ set(TESTS
     "adamw_step"
     "add"
     "add_inplace"
-    "add_fiber"
+    "add_fiber_inplace"
     "add_slice_inplace"
     "add_slice"
     "addcdiv"
@@ -67,7 +67,7 @@ set(TESTS
 set(TESTS_NOT_IMPLEMENTED
     "adam_step"
     "adamw_step"
-    "add_fiber"
+    "add_fiber_inplace"
     "gelu_backward"
     "gelutanh"
     "gelutanh_backward"

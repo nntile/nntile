@@ -20,8 +20,8 @@ import torch.nn as nn
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    TensorMoments, TensorTraits, TransOp, add_fiber_async, gemm_async, notrans,
-    sum_fiber_async, to_numpy, trans)
+    TensorMoments, TensorTraits, TransOp, add_fiber_inplace_async, gemm_async,
+    notrans, sum_fiber_async, to_numpy, trans)
 
 
 class Linear(BaseLayer):
@@ -171,7 +171,7 @@ class Linear(BaseLayer):
                         self.w.value, 0.0, self.y.value, self.ndim, 0,
                         redux=self.redux)
             if self.b is not None:
-                add_fiber_async(1.0, self.b.value, 1.0, self.y.value,
+                add_fiber_inplace_async(1.0, self.b.value, 1.0, self.y.value,
                         self.y.value.ndim - 1, 0)
         else:
             # Y = einsum('ij,jk->ik', W, op(X))
@@ -182,7 +182,9 @@ class Linear(BaseLayer):
                         self.x.value, 0.0, self.y.value, self.ndim, 0,
                         redux=self.redux)
             if self.b is not None:
-                add_fiber_async(1.0, self.b.value, 1.0, self.y.value, 0, 0)
+                add_fiber_inplace_async(
+                    1.0, self.b.value, 1.0, self.y.value, 0, 0
+                )
         # Hint for StarPU that W tensor will
         # not be used soon and it is advised to offload data from GPU
         self.w.value.wont_use()
@@ -221,7 +223,7 @@ class Linear(BaseLayer):
             redux=self.redux,
         )
         if self.b is not None:
-            add_fiber_async(1.0, self.b.value, 1.0, y, 0, 0)
+            add_fiber_inplace_async(1.0, self.b.value, 1.0, y, 0, 0)
 
         # Hint for StarPU that W tensor will
         # not be used soon and it is advised to offload data from GPU

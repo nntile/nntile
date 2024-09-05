@@ -6,23 +6,23 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/add_fiber.cc
+ * @file src/starpu/add_fiber_inplace.cc
  * StarPU wrappers for addition of a tensor and a broadcasted fiber
  *
  * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID
-#include "nntile/kernel/add_fiber.hh"
+#include "nntile/kernel/add_fiber_inplace.hh"
 #endif // STARPU_SIMGRID
-#include "nntile/starpu/add_fiber.hh"
+#include "nntile/starpu/add_fiber_inplace.hh"
 #include <cstdlib>
 
-//! StarPU wrappers for add_fiber operation
-namespace nntile::starpu::add_fiber
+//! StarPU wrappers for add_fiber_inplace operation
+namespace nntile::starpu::add_fiber_inplace
 {
 
-//! StarPU wrapper for kernel::add_fiber::cpu<T>
+//! StarPU wrapper for kernel::add_fiber_inplace::cpu<T>
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
@@ -35,13 +35,13 @@ void cpu(void *buffers[], void *cl_args)
     const T *src = interfaces[0]->get_ptr<T>();
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
-    kernel::add_fiber::cpu<T>(args->m, args->n, args->k, args->batch,
+    kernel::add_fiber_inplace::cpu<T>(args->m, args->n, args->k, args->batch,
             args->alpha, src, args->beta, dst);
 #endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
-//! StarPU wrapper for kernel::add_fiber::cuda<T>
+//! StarPU wrapper for kernel::add_fiber_inplace::cuda<T>
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
@@ -56,13 +56,13 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::add_fiber::cuda<T>(stream, args->m, args->n, args->k, args->batch,
+    kernel::add_fiber_inplace::cuda<T>(stream, args->m, args->n, args->k, args->batch,
             args->alpha, src, args->beta, dst);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
 
-//! Footprint for add_fiber tasks
+//! Footprint for add_fiber_inplace tasks
 static
 uint32_t footprint(struct starpu_task *task)
 {
@@ -81,7 +81,7 @@ Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
 
 void init()
 {
-    codelet_fp32.init("nntile_add_fiber_fp32",
+    codelet_fp32.init("nntile_add_fiber_inplace_fp32",
             footprint,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -91,7 +91,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_bf16.init("nntile_add_fiber_bf16",
+    codelet_bf16.init("nntile_add_fiber_inplace_bf16",
             footprint,
             {cpu<bf16_t>},
 #ifdef NNTILE_USE_CUDA
@@ -101,7 +101,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_fp64.init("nntile_add_fiber_fp64",
+    codelet_fp64.init("nntile_add_fiber_inplace_fp64",
             footprint,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
@@ -110,7 +110,7 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
-    codelet_fp32_fast_tf32.init("nntile_add_fiber_fp32_fast_tf32",
+    codelet_fp32_fast_tf32.init("nntile_add_fiber_inplace_fp32_fast_tf32",
             footprint,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -140,7 +140,7 @@ void restore_where()
 template<typename T>
 void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src,
         Scalar beta, Handle dst)
-//! Insert add_fiber task into StarPU pool of tasks
+//! Insert add_fiber_inplace task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
  * throws an std::runtime_error() exception.
@@ -180,7 +180,7 @@ void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src,
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in add_fiber task submission");
+        throw std::runtime_error("Error in add_fiber_inplace task submission");
     }
 }
 
@@ -201,4 +201,4 @@ template
 void submit<fp64_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
         Handle src, Scalar beta, Handle dst);
 
-} // namespace nntile::starpu::add_fiber
+} // namespace nntile::starpu::add_fiber_inplace

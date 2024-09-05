@@ -20,7 +20,7 @@ set(TESTS
 set(TESTS_MPI
     "add"
     "add_inplace"
-    "add_fiber"
+    "add_fiber_inplace"
     "add_slice_inplace"
     "add_slice"
     "addcdiv"

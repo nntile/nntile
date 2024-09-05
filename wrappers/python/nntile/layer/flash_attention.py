@@ -15,7 +15,7 @@ import numpy as np
 
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor, TensorMoments, TensorTraits, add_fiber_async, clear_async,
+    Tensor, TensorMoments, TensorTraits, add_fiber_inplace_async, clear_async,
     flash_maxsumexp_async, flash_softmax_gemm_async,
     flash_softmax_gemm_backward_async, gemm_async, notrans, sum_fiber_async,
     trans, transpose_async)
@@ -546,9 +546,9 @@ class FlashAttention(BaseLayer):
         self.q_transposed.value.invalidate_submit()
         # Apply bias if needed
         if self.in_proj_bias_q is not None:
-            # batched add_fiber (head_size, batch=n_head) into
+            # batched add_fiber_inplace (head_size, batch=n_head) into
             # (head_size, n_seq, n_batch, batch=n_head)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_q.value, 1, self.q.value, 0, 1
             )
             self.in_proj_bias_q.value.wont_use()
@@ -576,9 +576,9 @@ class FlashAttention(BaseLayer):
         self.k_transposed.value.invalidate_submit()
         # Apply bias if needed
         if self.in_proj_bias_k is not None:
-            # batched add_fiber (head_size, batch=n_head) into
+            # batched add_fiber_inplace (head_size, batch=n_head) into
             # (head_size, n_seq, n_batch, batch=n_head)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_k.value, 1, self.k.value, 0, 1
             )
             self.in_proj_bias_k.value.wont_use()
@@ -606,9 +606,9 @@ class FlashAttention(BaseLayer):
         self.v_transposed.value.invalidate_submit()
         # Apply bias if needed
         if self.in_proj_bias_v is not None:
-            # batched add_fiber (head_size, batch=n_head) into
+            # batched add_fiber_inplace (head_size, batch=n_head) into
             # (head_size, n_seq, n_batch, batch=n_head)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_v.value, 1, self.v.value, 0, 1
             )
             self.in_proj_bias_v.value.wont_use()
@@ -667,7 +667,7 @@ class FlashAttention(BaseLayer):
         self.b_transposed.value.wont_use()
         # Apply bias if needed
         if self.out_proj_bias is not None:
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1.0, self.out_proj_bias.value, 1.0, self.y.value, 0, 0
             )
             self.out_proj_bias.value.wont_use()

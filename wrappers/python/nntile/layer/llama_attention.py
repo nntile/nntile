@@ -23,7 +23,7 @@ from nntile.layer.base_layer import BaseLayer
 from nntile.layer.cache_utils import KVCache
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
-    add_fiber_async, add_slice_inplace_async, clear_async,
+    add_fiber_inplace_async, add_slice_inplace_async, clear_async,
     copy_intersection_async, flash_maxsumexp_async, flash_softmax_gemm_async,
     flash_softmax_gemm_backward_async, gemm_async, mask_scalar_async,
     maxsumexp_async, notrans, prod_inplace_async, rope_async,
@@ -774,10 +774,11 @@ class LlamaAttention(BaseLayer):
         self.w_q.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_q is not None:
-            # batched add_fiber (head_size, batch=(kv_group_size, n_head_kv))
+            # batched add_fiber_inplace
+            # (head_size, batch=(kv_group_size, n_head_kv))
             # into
             # (head_size, n_seq, n_batch, batch=(kv_group_size, n_head_kv))
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_q.value, 1, self.q.value, 0, 2
             )
             self.in_proj_bias_q.value.wont_use()
@@ -809,9 +810,9 @@ class LlamaAttention(BaseLayer):
         self.w_k.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_k is not None:
-            # batched add_fiber (head_size, batch=n_head_kv) into
+            # batched add_fiber_inplace (head_size, batch=n_head_kv) into
             # (head_size, n_seq, n_batch, batch=n_head_kv)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_k.value, 1, self.k.value, 0, 1
             )
             self.in_proj_bias_k.value.wont_use()
@@ -851,9 +852,9 @@ class LlamaAttention(BaseLayer):
         self.w_v.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_v is not None:
-            # batched add_fiber (head_size, batch=n_head_kv) into
+            # batched add_fiber_inplace (head_size, batch=n_head_kv) into
             # (head_size, n_seq, n_batch, batch=n_head_kv)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_v.value, 1, self.v.value, 0, 1
             )
             self.in_proj_bias_v.value.wont_use()
@@ -899,7 +900,7 @@ class LlamaAttention(BaseLayer):
         self.b_transposed.value.wont_use()
         # Apply bias if needed
         if self.out_proj_bias is not None:
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1.0, self.out_proj_bias.value, 1.0, self.y.value, 0, 0
             )
             self.out_proj_bias.value.wont_use()
@@ -955,10 +956,11 @@ class LlamaAttention(BaseLayer):
         q_partial_tr.invalidate_submit()
 
         if self.in_proj_bias_q is not None:
-            # batched add_fiber (head_size, batch=(kv_group_size, n_head_kv))
+            # batched add_fiber_inplace
+            # (head_size, batch=(kv_group_size, n_head_kv))
             # into
             # (head_size, n_seq_dyn, n_batch_dyn, batch=(kv_group_size, n_head_kv)) # noqa: E501
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1.0, self.in_proj_bias_q.value, 1.0, q_partial, 0, 2
             )
 
@@ -1009,9 +1011,9 @@ class LlamaAttention(BaseLayer):
         # Rotate axes into (head_size, n_seq_dyn, n_batch_dyn, n_head_kv)
         transpose_async(1.0, k_partial_tr, k_partial, 1)
         if self.in_proj_bias_k is not None:
-            # batched add_fiber (head_size, batch=n_head_kv) into
+            # batched add_fiber_inplace (head_size, batch=n_head_kv) into
             # (head_size, n_seq_dyn, n_batch_dyn, batch=n_head_kv)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1.0, self.in_proj_bias_k.value, 1.0, k_partial, 0, 1
             )
 
@@ -1062,9 +1064,9 @@ class LlamaAttention(BaseLayer):
         # Rotate axes into (head_size, n_seq_dyn, n_batch_dyn, n_head_kv)
         transpose_async(1.0, v_partial_tr, v_partial, 1)
         if self.in_proj_bias_v is not None:
-            # batched add_fiber (head_size, batch=n_head_kv) into
+            # batched add_fiber_inplace (head_size, batch=n_head_kv) into
             # (head_size, n_seq_dyn, n_batch_dyn, batch=n_head_kv)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1.0, self.in_proj_bias_v.value, 1.0, v_partial, 0, 1
             )
 
@@ -1175,7 +1177,9 @@ class LlamaAttention(BaseLayer):
         )
 
         if self.out_proj_bias is not None:
-            add_fiber_async(1.0, self.out_proj_bias.value, 1.0, y_tensor, 0, 0)
+            add_fiber_inplace_async(
+                1.0, self.out_proj_bias.value, 1.0, y_tensor, 0, 0
+            )
 
         return y_tensor
 

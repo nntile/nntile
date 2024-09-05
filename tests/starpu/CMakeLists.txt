@@ -14,7 +14,7 @@
 # All unit tests without arguments to test executable
 set(TESTS
     "add"
-    "add_fiber"
+    "add_fiber_inplace"
     "add_slice_inplace"
     "add_slice"
     "addcdiv"
@@ -62,7 +62,7 @@ set(TESTS
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
     "add"
-    "add_fiber"
+    "add_fiber_inplace"
     "gelu_backward"
     "gelutanh"
     "gelutanh_backward"

@@ -17,11 +17,11 @@ from torch.nn import LayerNorm as LayerNormTorch
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor, TensorMoments, TensorTraits, add_fiber_async, add_inplace_async,
-    add_slice_async, add_slice_inplace_async, clear_async, fill_async,
-    hypot_scalar_inverse_async, norm_slice_async, prod_fiber3_async,
-    prod_slice_async, sum_fiber_async, sum_slice_async, sumprod_fiber_async,
-    sumprod_slice_async)
+    Tensor, TensorMoments, TensorTraits, add_fiber_inplace_async,
+    add_inplace_async, add_slice_async, add_slice_inplace_async, clear_async,
+    fill_async, hypot_scalar_inverse_async, norm_slice_async,
+    prod_fiber3_async, prod_slice_async, sum_fiber_async, sum_slice_async,
+    sumprod_fiber_async, sumprod_slice_async)
 
 
 class LayerNorm(BaseLayer):
@@ -208,7 +208,9 @@ class LayerNorm(BaseLayer):
         # gamma can be offloaded from GPU
         self.gamma.value.wont_use()
         # Shift output
-        add_fiber_async(1.0, self.beta.value, 1.0, self.y.value, self.axis, 0)
+        add_fiber_inplace_async(
+            1.0, self.beta.value, 1.0, self.y.value, self.axis, 0
+        )
         # beta can be offloaded from GPU
         self.beta.value.wont_use()
         # Y can be offloaded from GPU
@@ -263,7 +265,9 @@ class LayerNorm(BaseLayer):
         # gamma can be offloaded from GPU
         self.gamma.value.wont_use()
         # Shift output
-        add_fiber_async(1.0, self.beta.value, 1.0, y.value, self.axis, 0)
+        add_fiber_inplace_async(
+            1.0, self.beta.value, 1.0, y.value, self.axis, 0
+        )
         # beta can be offloaded from GPU
         self.beta.value.wont_use()
         return y

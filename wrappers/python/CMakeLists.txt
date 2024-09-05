@@ -51,7 +51,7 @@ file(GLOB_RECURSE PY_TESTS FOLLOW_SYMLINKS LIST_DIRECTORIES FALSE
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
-    "nntile_core/test_tensor_add_fiber.py"
+    "nntile_core/test_tensor_add_fiber_inplace.py"
     "nntile_core/test_tensor_sum_fiber.py"
     "nntile_core/test_tensor_sum_slice.py"
     "nntile_core/test_tensor_fill.py"
