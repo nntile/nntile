@@ -877,7 +877,7 @@ def add_slice_async(
 
 def add_fiber_inplace_async(
     alpha: float, add_fiber_inplace: Tensor, beta, x: Tensor,
-                  axis: int, batch_ndim: int
+    axis: int, batch_ndim: int
 ) -> None:
     """Wrapper for multiprecision `add_fiber_inplace`."""
     ts = (add_fiber_inplace, x)
