@@ -319,6 +319,7 @@ set(TILE_HDR
     "nntile/tile/sum_slice.hh"
     "nntile/tile/sum_fiber.hh"
     "nntile/tile/norm_fiber_inplace.hh"
+    "nntile/tile/norm_fiber.hh"
     "nntile/tile/norm_slice.hh"
     "nntile/tile/pow.hh"
     "nntile/tile/maxsumexp.hh"
