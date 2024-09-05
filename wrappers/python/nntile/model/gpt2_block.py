@@ -9,7 +9,7 @@
 # @file wrappers/python/nntile/model/gpt2_block.py
 # GPT2Block submodule of NNTile Python package
 #
-# @version 1.0.0
+# @version 1.1.0
 
 from transformers import GPT2Config as GPT2ConfigTorch
 from transformers.models.gpt2.modeling_gpt2 import GPT2Block as GPT2Block_torch
@@ -41,7 +41,6 @@ class GPT2Block(BaseModel):
                  config: GPT2ConfigNNTile,
                  ):
         # Init activations and list of layers
-        self.mlp = gpt2_mlp
         layers = [input_norm, attention_layer, post_attn_add, post_attn_norm]
         layers = layers + gpt2_mlp.layers + [post_mlp_add]
         activations = [x] + input_norm.activations_output + \
@@ -53,6 +52,10 @@ class GPT2Block(BaseModel):
         self.config = config
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
+        self.ln_1 = self.layers[0]
+        self.attn = self.layers[1]
+        self.ln_2 = self.layers[3]
+        self.mlp = gpt2_mlp
 
     @staticmethod
     def from_torch(
@@ -115,10 +118,9 @@ class GPT2Block(BaseModel):
             add_cross_attention=False,
         )
         gpt2_block_torch = GPT2Block_torch(config_torch)
-        gpt2_block_torch.ln_1 = self.layers[0].to_torch()
-        gpt2_block_torch.attn = self.layers[1].to_torch()
-        p_attn_n = self.layers[3]
-        gpt2_block_torch.ln_2 = p_attn_n.to_torch()
+        gpt2_block_torch.ln_1 = self.ln_1.to_torch()
+        gpt2_block_torch.attn = self.attn.to_torch()
+        gpt2_block_torch.ln_2 = self.ln_2.to_torch()
         gpt2_block_torch.mlp = self.mlp.to_torch()
 
         return gpt2_block_torch
@@ -138,9 +140,8 @@ class GPT2Block(BaseModel):
             add_cross_attention=False,
         )
         gpt2_block_torch = GPT2Block_torch(config_torch)
-        gpt2_block_torch.ln_1 = self.layers[0].to_torch_with_grads()
-        gpt2_block_torch.attn = self.layers[1].to_torch_with_grads()
-        p_attn_n = self.layers[3]
-        gpt2_block_torch.ln_2 = p_attn_n.to_torch_with_grads()
+        gpt2_block_torch.ln_1 = self.ln_1.to_torch_with_grads()
+        gpt2_block_torch.attn = self.attn.to_torch_with_grads()
+        gpt2_block_torch.ln_2 = self.ln_2.to_torch_with_grads()
         gpt2_block_torch.mlp = self.mlp.to_torch_with_grads()
         return gpt2_block_torch
