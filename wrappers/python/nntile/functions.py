@@ -266,6 +266,8 @@ def gelutanh_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
         core_tensor.gelutanh_backward_async_fp32(x, dy, dx)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.gelutanh_backward_async_fp32_fast_tf32(x, dy, dx)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.gelutanh_backward_async_fp32_fast_fp16(x, dy, dx)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.gelutanh_backward_async_fp64(x, dy, dx)
     elif type(x) is core_tensor.Tensor_bf16:
@@ -712,6 +714,8 @@ def prod_inplace_async(x: Tensor, y: Tensor) -> None:
         core_tensor.prod_inplace_async_fp32(x, y)
     elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.prod_inplace_async_fp32_fast_tf32(x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.prod_inplace_async_fp32_fast_fp16(x, y)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.prod_inplace_async_fp64(x, y)
     elif type(x) is core_tensor.Tensor_bf16:
@@ -1527,6 +1531,19 @@ def fused_adam_step(
         )
     elif type(p) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.adam_step_async_fp32_fast_tf32(
+            num_iter,
+            beta1,
+            beta2,
+            eps,
+            lr,
+            weight_decay,
+            grad,
+            first_moment,
+            second_moment,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.adam_step_async_fp32_fast_fp16(
             num_iter,
             beta1,
             beta2,

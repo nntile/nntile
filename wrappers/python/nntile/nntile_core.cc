@@ -688,10 +688,13 @@ void def_mod_tensor(py::module_ &m)
     m.def("prod_inplace_async_fp32", &prod_inplace_async<fp32_t>);
     m.def("prod_inplace_async_fp32_fast_tf32",
             &prod_inplace_async<fp32_fast_tf32_t>);
+    m.def("prod_inplace_async_fp32_fast_fp16",
+            &prod_inplace_async<fp32_fast_fp16_t>);
     m.def("prod_inplace_fp64", &prod_inplace<fp64_t>);
     m.def("prod_inplace_fp32", &prod_inplace<fp32_t>);
     m.def("prod_inplace_bf16", &prod_inplace<bf16_t>);
     m.def("prod_inplace_fp32_fast_tf32", &prod_inplace<fp32_fast_tf32_t>);
+    m.def("prod_inplace_fp32_fast_fp16", &prod_inplace<fp32_fast_fp16_t>);
 
     m.def("nrm2_async_fp64", &nrm2_async<fp64_t>);
     m.def("nrm2_async_fp32", &nrm2_async<fp32_t>);
@@ -966,10 +969,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("adam_step_async_bf16", &adam_step_async<bf16_t>);
     m.def("adam_step_async_fp32", &adam_step_async<fp32_t>);
     m.def("adam_step_async_fp32_fast_tf32", &adam_step_async<fp32_fast_tf32_t>);
+    m.def("adam_step_async_fp32_fast_fp16", &adam_step_async<fp32_fast_fp16_t>);
     m.def("adam_step_fp64", &adam_step<fp64_t>);
     m.def("adam_step_bf16", &adam_step<bf16_t>);
     m.def("adam_step_fp32", &adam_step<fp32_t>);
     m.def("adam_step_fp32_fast_tf32", &adam_step<fp32_fast_tf32_t>);
+    m.def("adam_step_fp32_fast_fp16", &adam_step<fp32_fast_fp16_t>);
 
     m.def("adamw_step_async_fp64", &adamw_step_async<fp64_t>);
     m.def("adamw_step_async_bf16", &adamw_step_async<bf16_t>);
@@ -1042,10 +1047,12 @@ void def_mod_tensor(py::module_ &m)
     m.def("gelutanh_backward_async_bf16", &gelutanh_backward_async<bf16_t>);
     m.def("gelutanh_backward_async_fp32", &gelutanh_backward_async<fp32_t>);
     m.def("gelutanh_backward_async_fp32_fast_tf32", &gelutanh_backward_async<fp32_fast_tf32_t>);
+    m.def("gelutanh_backward_async_fp32_fast_fp16", &gelutanh_backward_async<fp32_fast_fp16_t>);
     m.def("gelutanh_backward_fp64", &gelutanh_backward<fp64_t>);
     m.def("gelutanh_backward_fp32", &gelutanh_backward<fp32_t>);
     m.def("gelutanh_backward_bf16", &gelutanh_backward<bf16_t>);
     m.def("gelutanh_backward_fp32_fast_tf32", &gelutanh_backward<fp32_fast_tf32_t>);
+    m.def("gelutanh_backward_fp32_fast_fp16", &gelutanh_backward<fp32_fast_fp16_t>);
 
     m.def("dgelu_async_fp64", &dgelu_async<fp64_t>);
     m.def("dgelu_async_fp32", &dgelu_async<fp32_t>);
