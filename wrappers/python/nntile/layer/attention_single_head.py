@@ -15,7 +15,7 @@ import numpy as np
 
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor, TensorMoments, TensorTraits, add_fiber_async,
+    Tensor, TensorMoments, TensorTraits, add_fiber_inplace_async,
     add_slice_inplace_async, clear_async, gemm_async, mask_scalar_async,
     maxsumexp_async, notrans, prod_inplace_async, softmax_inplace_async,
     sum_fiber_async, sumprod_slice_async, trans)
@@ -402,9 +402,9 @@ class AttentionSingleHead(BaseLayer):
         self.w_q.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_q is not None:
-            # non-batched add_fiber (n_emb, batch_ndim=0) into
+            # non-batched add_fiber_inplace (n_emb, batch_ndim=0) into
             # (n_emb, n_seq, n_batch, batch_ndim=0)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_q.value, 1, self.q.value, 0, 0
             )
             self.in_proj_bias_q.value.wont_use()
@@ -428,9 +428,9 @@ class AttentionSingleHead(BaseLayer):
         self.w_k.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_k is not None:
-            # non-batched add_fiber (n_emb, batch_ndim=0) into
+            # non-batched add_fiber_inplace (n_emb, batch_ndim=0) into
             # (n_emb, n_seq, n_batch, batch_ndim=0)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_k.value, 1, self.k.value, 0, 0
             )
             self.in_proj_bias_k.value.wont_use()
@@ -454,9 +454,9 @@ class AttentionSingleHead(BaseLayer):
         self.w_v.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_v is not None:
-            # non-batched add_fiber (n_emb, batch_ndim=0) into
+            # non-batched add_fiber_inplace (n_emb, batch_ndim=0) into
             # (n_emb, n_seq, n_batch, batch_ndim=0)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_v.value, 1, self.v.value, 0, 0
             )
             self.in_proj_bias_v.value.wont_use()
@@ -535,7 +535,7 @@ class AttentionSingleHead(BaseLayer):
         self.b.value.wont_use()
         # Apply bias if needed
         if self.out_proj_bias is not None:
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1.0, self.out_proj_bias.value, 1.0, self.y.value, 0, 0
             )
             self.out_proj_bias.value.wont_use()

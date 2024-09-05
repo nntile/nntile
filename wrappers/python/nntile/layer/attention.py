@@ -19,7 +19,7 @@ import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.layer.cache_utils import KVCache
 from nntile.tensor import (
-    Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_async,
+    Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_inplace_async,
     add_slice_inplace_async, clear_async, copy_intersection_async, gemm_async,
     mask_scalar_async, maxsumexp_async, notrans, prod_inplace_async,
     softmax_inplace_async, sum_fiber_async, sumprod_slice_async, trans,
@@ -555,9 +555,9 @@ class Attention(BaseLayer):
         self.w_q.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_q is not None:
-            # batched add_fiber (head_size, batch=n_head) into
+            # batched add_fiber_inplace (head_size, batch=n_head) into
             # (head_size, n_seq, n_batch, batch=n_head)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_q.value, 1, self.q.value, 0, 1
             )
             self.in_proj_bias_q.value.wont_use()
@@ -602,7 +602,9 @@ class Attention(BaseLayer):
         transpose_async(1.0, q_partial_tr, q_partial, 1)
 
         if self.in_proj_bias_q is not None:
-            add_fiber_async(1, self.in_proj_bias_q.value, 1, q_partial, 0, 1)
+            add_fiber_inplace_async(
+                1, self.in_proj_bias_q.value, 1, q_partial, 0, 1
+            )
 
         return q_partial
 
@@ -631,9 +633,9 @@ class Attention(BaseLayer):
         self.w_k.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_k is not None:
-            # batched add_fiber (head_size, batch=n_head) into
+            # batched add_fiber_inplace (head_size, batch=n_head) into
             # (head_size, n_seq, n_batch, batch=n_head)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_k.value, 1, self.k.value, 0, 1
             )
             self.in_proj_bias_k.value.wont_use()
@@ -658,7 +660,9 @@ class Attention(BaseLayer):
         transpose_async(1.0, k_partial_tr, k_partial, 1)
 
         if self.in_proj_bias_k is not None:
-            add_fiber_async(1, self.in_proj_bias_k.value, 1, k_partial, 0, 1)
+            add_fiber_inplace_async(
+                1, self.in_proj_bias_k.value, 1, k_partial, 0, 1
+            )
 
         return k_partial
 
@@ -687,9 +691,9 @@ class Attention(BaseLayer):
         self.w_v.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_v is not None:
-            # batched add_fiber (head_size, batch=n_head) into
+            # batched add_fiber_inplace (head_size, batch=n_head) into
             # (head_size, n_seq, n_batch, batch=n_head)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_v.value, 1, self.v.value, 0, 1
             )
             self.in_proj_bias_v.value.wont_use()
@@ -714,7 +718,9 @@ class Attention(BaseLayer):
         transpose_async(1.0, v_partial_tr, v_partial, 1)
 
         if self.in_proj_bias_v is not None:
-            add_fiber_async(1, self.in_proj_bias_v.value, 1, v_partial, 0, 1)
+            add_fiber_inplace_async(
+                1, self.in_proj_bias_v.value, 1, v_partial, 0, 1
+            )
 
         return v_partial
 
@@ -799,7 +805,7 @@ class Attention(BaseLayer):
         self.b_transposed.value.wont_use()
         # Apply bias if needed
         if self.out_proj_bias is not None:
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1.0, self.out_proj_bias.value, 1.0, self.y.value, 0, 0
             )
             self.out_proj_bias.value.wont_use()
@@ -917,7 +923,9 @@ class Attention(BaseLayer):
 
         # Apply bias if needed
         if self.out_proj_bias is not None:
-            add_fiber_async(1.0, self.out_proj_bias.value, 1.0, y_tensor, 0, 0)
+            add_fiber_inplace_async(
+                1.0, self.out_proj_bias.value, 1.0, y_tensor, 0, 0
+            )
             self.out_proj_bias.value.wont_use()
         return y_tensor
 
