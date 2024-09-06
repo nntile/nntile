@@ -158,7 +158,8 @@ def handle_bus_message(buses_data, log_dir):
                 speed,
                 MEMORY_NODES_COUNTER_RECEIVED[name]
         )
-        
+
+
 def handle_scalars(scalars_data, log_dir):
     for scalar in scalars_data:
         name = scalar.get("name")
@@ -166,9 +167,8 @@ def handle_scalars(scalars_data, log_dir):
         if name not in WRITERS:
             WRITERS[name] = create_new_writer(log_dir, name)
         for value in values:
-            increaseStep(name, SCALARS) 
-            write_data(WRITERS[name], 'Scalars', value, SCALARS[name])        
-        
+            increaseStep(name, SCALARS)
+            write_data(WRITERS[name], 'Scalars', value, SCALARS[name])
 
 
 async def handle_client(log_dir, reader, writer):
