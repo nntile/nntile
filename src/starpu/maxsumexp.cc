@@ -76,7 +76,7 @@ uint32_t footprint(struct starpu_task *task)
 }
 
 Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
-codelet_fp32_fast_fp16;
+        codelet_fp32_fast_fp16;
 
 void init()
 {

@@ -48,9 +48,9 @@ void cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 extern Codelet codelet_NN_fp32, codelet_NN_fp64,
-       codelet_NT_fp32, codelet_NT_fp64,
-       codelet_TN_fp32, codelet_TN_fp64,
-       codelet_TT_fp32, codelet_TT_fp64;
+               codelet_NT_fp32, codelet_NT_fp64,
+               codelet_TN_fp32, codelet_TN_fp64,
+               codelet_TT_fp32, codelet_TT_fp64;
 
 //extern Codelet codelet_NN_fp16, codelet_NT_fp16,
 //       codelet_TN_fp16, codelet_TT_fp16;
