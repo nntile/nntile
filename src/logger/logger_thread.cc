@@ -140,7 +140,7 @@ void logger_main()
         }
         ss << "]";
         // Lock scalar for read scalars
-        std::lock_guard<std::mutex> lock(scalars_mutex);
+        std::unique_lock<std::mutex> lock(scalars_mutex);
         if (!scalars.empty())
         {
             ss << ",\"scalars\":[";
@@ -174,6 +174,10 @@ void logger_main()
             ss << "]";
         }
         ss << "}";
+        //Clear scalar map
+        scalars.clear();
+        //Unlock mutex
+        lock.unlock();
         // Serialize JSON object to string
         std::string message = ss.str() + "\n";
         // Send the message
