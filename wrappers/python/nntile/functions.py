@@ -1691,3 +1691,17 @@ def conv2d_bwd_weight_inplace_async(
         types = ', '.join(str(type(t)) for t in ts)
         raise TypeError(
             f'Tensor must share the same type but actual types are {types}.')
+
+
+def log_scalar_async(name: str, value: Tensor) -> None:
+    """Wrapper for multiprecision log_scalar"""
+    if isinstance(value, Tensor_fp32):
+        ops.log_scalar_async_fp32(name, value)
+    elif isinstance(value, Tensor_fp64):
+        ops.log_scalar_async_fp64(name, value)
+    elif isinstance(value, Tensor_fp32_fast_tf32):
+        ops.log_scalar_async_fp32_fast_tf32(name, value)
+    elif isinstance(value, Tensor_bf16):
+        ops.log_scalar_async_bf16(name, value)
+    else:
+        raise TypeError('Wrong tensor type {type(value)}.')

@@ -89,6 +89,7 @@ void logger_main()
         }
         ss << "],";
 
+        // Loop through buses (virtual links from one device to another)
         ss << "\"buses\":[";
         bool first_bus = true;
         for (busid = 0; busid < bus_cnt; busid++)
@@ -139,7 +140,8 @@ void logger_main()
             ss << "}";
         }
         ss << "]";
-        // Lock scalar for read scalars
+
+        // Read logged scalar values
         std::unique_lock<std::mutex> lock(scalars_mutex);
         if (!scalars.empty())
         {
@@ -212,8 +214,8 @@ void logger_shutdown()
     websocket_disconnect();
 }
 
-//! Add scalar to scalar map
-void add_scalar(const std::string &name, float value)
+//! Log scalar to scalar map
+void log_scalar(const std::string &name, float value)
 {
     std::lock_guard<std::mutex> lock(scalars_mutex);
     if (scalars.find(name) == scalars.end())
