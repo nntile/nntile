@@ -27,6 +27,7 @@ WRITERS = {}
 MEMORY_NODES_COUNTER_SEND = {}
 MEMORY_NODES_COUNTER_RECEIVED = {}
 MEMORY_NODES_COUNTER = {}
+SCALARS = {}
 BYTES_TO_GB = 1 / (1024 * 1024 * 1024)
 
 
@@ -157,6 +158,17 @@ def handle_bus_message(buses_data, log_dir):
                 speed,
                 MEMORY_NODES_COUNTER_RECEIVED[name]
         )
+        
+def handle_scalars(scalars_data, log_dir):
+    for scalar in scalars_data:
+        name = scalar.get("name")
+        values = scalar.get("values")
+        if name not in WRITERS:
+            WRITERS[name] = create_new_writer(log_dir, name)
+        for value in values:
+            increaseStep(name, SCALARS) 
+            write_data(WRITERS[name], 'Scalars', value, SCALARS[name])        
+        
 
 
 async def handle_client(log_dir, reader, writer):
@@ -172,6 +184,9 @@ async def handle_client(log_dir, reader, writer):
             workers_data = parsed_data.get("workers")
             buses_data = parsed_data.get("buses")
             memory_nodes_data = parsed_data.get("memory_nodes")
+            scalars_data = parsed_data.get("scalars")
+            if scalars_data:
+                handle_scalars(scalars_data, log_dir)
             handle_flops_message(workers_data, log_dir)
             handle_bus_message(buses_data, log_dir)
             handle_memory_nodes_message(memory_nodes_data, log_dir)

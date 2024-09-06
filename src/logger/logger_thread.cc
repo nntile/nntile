@@ -17,6 +17,9 @@
 #include <sstream>
 #include <thread>
 #include <atomic>
+#include <map>
+#include <vector>
+#include <mutex>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <starpu.h>
@@ -29,6 +32,10 @@ namespace nntile::logger
 std::thread logger_thread;
 //! Flag if thread is running and is in good state
 std::atomic<bool> logger_running(false);
+//! Mutex for work with scalar map
+std::mutex scalars_mutex;
+//! Scalar map
+std::map<std::string, std::vector<float>> scalars;
 
 //! Main routine for the logger thread
 void logger_main()
@@ -132,7 +139,40 @@ void logger_main()
             ss << "}";
         }
         ss << "]";
+        // Lock scalar for read scalars
+        std::lock_guard<std::mutex> lock(scalars_mutex);
+        if (!scalars.empty())
+        {
+            ss << ",\"scalars\":[";
+            bool first_scalar = true;
+            for (auto &[name, values] : scalars)
+            {
+                if (!values.empty())
+                {
+                    if (!first_scalar)
+                        ss << ",";
+                    first_scalar = false;
 
+                    ss << "{";
+                    ss << "\"name\":\"" << name << "\",";
+                    ss << "\"values\":[";
+
+                    bool first_value = true;
+                    for (float value : values)
+                    {
+                        if (!first_value)
+                            ss << ",";
+                        first_value = false;
+                        ss << value;
+                    }
+
+                    ss << "]}";
+
+                    values.clear();
+                }
+            }
+            ss << "]";
+        }
         ss << "}";
         // Serialize JSON object to string
         std::string message = ss.str() + "\n";
@@ -166,6 +206,17 @@ void logger_shutdown()
         logger_thread.join();
     }
     websocket_disconnect();
+}
+
+//! Add scalar to scalar map
+void add_scalar(const std::string &name, float value)
+{
+    std::lock_guard<std::mutex> lock(scalars_mutex);
+    if (scalars.find(name) == scalars.end())
+    {
+        scalars[name] = std::vector<float>();
+    }
+    scalars[name].push_back(value);
 }
 
 } // namespace nntile::logger

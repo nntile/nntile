@@ -25,4 +25,6 @@ void logger_init(const char *server_addr, int server_port);
 
 void logger_shutdown();
 
+void add_scalar(const std::string &name, float value);
+
 } // namespace nntile::logger
