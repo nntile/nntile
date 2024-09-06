@@ -6,26 +6,24 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/logger/logger_thread.hh
- * Headers for logger thread
+ * @file include/nntile/tensor/log_scalar.hh
+ * Log scalar value from Tensor<T>
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <atomic>
+#include <nntile/tensor/tensor.hh>
 #include <string>
 
-namespace nntile::logger
+namespace nntile::tensor
 {
 
-extern std::atomic<bool> logger_running;
+template<typename T>
+void log_scalar_async(const std::string &name, const Tensor<T> &value);
 
-void logger_init(const char *server_addr, int server_port);
+template<typename T>
+void log_scalar(const std::string &name, const Tensor<T> &value);
 
-void logger_shutdown();
-
-void log_scalar(const std::string &name, float value);
-
-} // namespace nntile::logger
+} // namespace nntile::tensor

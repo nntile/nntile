@@ -93,6 +93,7 @@
 #include <nntile/starpu/rope.hh>
 #include <nntile/starpu/rope_backward.hh>
 #include <nntile/starpu/norm_fiber.hh>
+#include <nntile/starpu/log_scalar.hh>
 
 //! @namespace nntile::starpu
 /*! This namespace holds StarPU wrappers
@@ -178,6 +179,7 @@ void init()
     conv2d_bwd_weight_inplace::init();
     rope::init();
     rope_backward::init();
+    log_scalar::init();
 }
 
 // Restrict StarPU codelets to certain computational units
@@ -258,6 +260,7 @@ void restrict_where(uint32_t where)
     conv2d_bwd_weight_inplace::restrict_where(where);
     rope::restrict_where(where);
     rope_backward::restrict_where(where);
+    log_scalar::restrict_where(where);
 }
 
 // Restore computational units for StarPU codelets
@@ -338,6 +341,7 @@ void restore_where()
     conv2d_bwd_weight_inplace::restore_where();
     rope::restore_where();
     rope_backward::restore_where();
+    log_scalar::restore_where();
 }
 
 } // namespace nntile::starpu

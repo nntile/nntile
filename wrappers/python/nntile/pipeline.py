@@ -7,14 +7,14 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file wrappers/python/nntile/pipeline.py
-# TRaining pipeline of NNTile Python package
+# Training pipeline of NNTile Python package
 #
 # @version 1.1.0
 
 from typing import Any, List
 
 from nntile.model.base_model import BaseModel
-from nntile.tensor import Tensor, clear_async, copy_async
+from nntile.tensor import Tensor, clear_async, copy_async, log_scalar_async
 
 
 class Pipeline(object):
@@ -36,7 +36,7 @@ class Pipeline(object):
         self.n_epochs = n_epochs
         self.loss_hist = []
 
-    def train_async(self):
+    def train_async(self, log_loss=True):
         for i_epoch in range(self.n_epochs):
             # print("Epoch ", i_epoch)
             num_batches = len(self.x)
@@ -79,6 +79,8 @@ class Pipeline(object):
                     if p.grad_required:
                         p.grad.invalidate_submit()
                 # Limit parallelism through value of loss
+                if log_loss:
+                    log_scalar_async("Train loss", self.loss.val)
                 loss_np = self.loss.get_val()
                 self.loss_hist.append(loss_np[0])
                 # print("Loss in {} epoch = {}".format(i_epoch, loss_np[0]))

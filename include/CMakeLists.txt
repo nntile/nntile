@@ -148,7 +148,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/accumulate_maxsumexp/cuda.hh"
         "nntile/kernel/add/cuda.hh"
         "nntile/kernel/add_slice_inplace/cuda.hh"
-	"nntile/kernel/add_inplace/cuda.hh"
+        "nntile/kernel/add_inplace/cuda.hh"
         "nntile/kernel/add_slice/cuda.hh"
         "nntile/kernel/add_fiber_inplace/cuda.hh"
         "nntile/kernel/prod_slice/cuda.hh"
@@ -285,6 +285,7 @@ set(STARPU_HDR
     "nntile/starpu/conv2d_bwd_weight_inplace.hh"
     "nntile/starpu/rope.hh"
     "nntile/starpu/rope_backward.hh"
+    "nntile/starpu/log_scalar.hh"
     )
 
 set(TILE_HDR
@@ -424,6 +425,7 @@ set(TENSOR_HDR
     "nntile/tensor/conv2d_bwd_input_inplace.hh"
     "nntile/tensor/conv2d_bwd_weight_inplace.hh"
     "nntile/tensor/rope.hh"
+    "nntile/tensor/log_scalar.hh"
     "nntile/tensor/rope_backward.hh"
     )
 

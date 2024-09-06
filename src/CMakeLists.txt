@@ -63,7 +63,7 @@ else()
         "kernel/gelu_backward/cpu.cc"
         "kernel/gelutanh_backward/cpu.cc"
         "kernel/add/cpu.cc"
-	"kernel/add_inplace/cpu.cc"
+        "kernel/add_inplace/cpu.cc"
         "kernel/add_scalar/cpu.cc"
         "kernel/embedding/cpu.cc"
         "kernel/embedding_backward/cpu.cc"
@@ -88,7 +88,7 @@ else()
             "kernel/accumulate_maxsumexp/cuda.cu"
             "kernel/add/cuda.cu"
             "kernel/add_slice_inplace/cuda.cu"
-	    "kernel/add_inplace/cuda.cu"
+            "kernel/add_inplace/cuda.cu"
             "kernel/add_slice/cuda.cu"
             "kernel/add_fiber_inplace/cuda.cu"
             "kernel/prod_slice/cuda.cu"
@@ -229,6 +229,7 @@ set(STARPU_SRC
     "starpu/rope.cc"
     "starpu/rope_backward.cc"
     "starpu/norm_fiber.cc"
+    "starpu/log_scalar.cc"
     )
 
 set(TILE_SRC
@@ -369,6 +370,7 @@ set(TENSOR_SRC
     "tensor/rope.cc"
     "tensor/rope_backward.cc"
     "tensor/norm_fiber.cc"
+    "tensor/log_scalar.cc"
     )
 
 set(LAYER_SRC
