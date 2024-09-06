@@ -94,4 +94,25 @@ void norm_fiber_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1, Scalar bet
         const Tile<bf16_t> &src2
         const Tile<bf16_t> &dst, Index axis, Index batch_ndim, int redux=0);
     
+// Explicit instantiation
+template
+void norm_fiber<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1, Scalar beta,
+        const Tile<fp32_t> &src2,
+        const Tile<fp32_t> &dst, Index axis, Index batch_ndim, int redux=0);
+
+template
+void norm_fiber<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src1, Scalar beta,
+        const Tile<fp32_fast_tf32_t> &src2,
+        const Tile<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim, int redux=0);
+
+template
+void norm_fiber<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1, Scalar beta,
+        const Tile<fp64_t> &src2,
+        const Tile<fp64_t> &dst, Index axis, Index batch_ndim, int redux=0);
+
+template
+void norm_fiber<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1, Scalar beta,
+        const Tile<bf16_t> &src2
+        const Tile<bf16_t> &dst, Index axis, Index batch_ndim, int redux=0);
+    
 } // namespace nntile::tile
