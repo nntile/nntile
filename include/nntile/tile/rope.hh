@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/tile/add_slice3.hh
+ * @file include/nntile/tile/rope.hh
  * Tile wrappers for the Rotary Positional Embedding
  *
  * @version 1.1.0

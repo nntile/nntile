@@ -102,7 +102,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_fp32_fast_fp16.init("nntile_add_slice3_fp32_fast_fp16",
+    codelet_fp32_fast_fp16.init("nntile_add_slice_inplace_fp32_fast_fp16",
             footprint,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -112,7 +112,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_fp64.init("nntile_add_slice3_fp64",
+    codelet_fp64.init("nntile_add_slice_inplace_fp64",
             footprint,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
