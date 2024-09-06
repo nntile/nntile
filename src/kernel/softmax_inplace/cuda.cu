@@ -201,4 +201,9 @@ void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index m, Index n, Index k,
         const fp32_fast_tf32_t *maxsumexp, Scalar alpha, fp32_fast_tf32_t *dst)
     noexcept;
 
+template
+void cuda<fp32_fast_fp16_t>(cudaStream_t stream, Index m, Index n, Index k,
+        const fp32_fast_fp16_t *maxsumexp, Scalar alpha, fp32_fast_fp16_t *dst)
+    noexcept;
+
 } // namespace nntile::kernel::softmax_inplace
