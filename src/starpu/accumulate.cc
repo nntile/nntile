@@ -59,7 +59,7 @@ void cuda(void *buffers[], void *cl_args)
 #endif // NNTILE_USE_CUDA
 
 Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32,
-        codelet_bf16;
+        codelet_bf16, codelet_fp32_fast_fp16;
 
 void init()
 {
@@ -105,6 +105,20 @@ void init()
             STARPU_RW | STARPU_COMMUTE);
     codelet_fp32_fast_tf32.modes[1] = STARPU_R;
 
+    codelet_fp32_fast_fp16.init("nntile_accumulate_fp32_fast_fp16",
+            nullptr,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+    codelet_fp32_fast_fp16.nbuffers = 2;
+    codelet_fp32_fast_fp16.modes[0] = static_cast<starpu_data_access_mode>(
+            STARPU_RW | STARPU_COMMUTE);
+    codelet_fp32_fast_fp16.modes[1] = STARPU_R;
+
 
     codelet_fp64.init("nntile_accumulate_fp64",
             nullptr,
@@ -125,6 +139,7 @@ void restrict_where(uint32_t where)
 {
     codelet_fp32.restrict_where(where);
     codelet_fp32_fast_tf32.restrict_where(where);
+    codelet_fp32_fast_fp16.restrict_where(where);
     codelet_fp64.restrict_where(where);
     codelet_bf16.restrict_where(where);
 }
@@ -133,6 +148,7 @@ void restore_where()
 {
     codelet_fp32.restore_where();
     codelet_fp32_fast_tf32.restore_where();
+    codelet_fp32_fast_fp16.restore_where();
     codelet_fp64.restore_where();
     codelet_bf16.restore_where();
 }
@@ -165,6 +181,9 @@ void submit<fp32_t>(Handle src, Handle dst);
 
 template
 void submit<fp32_fast_tf32_t>(Handle src, Handle dst);
+
+template
+void submit<fp32_fast_fp16_t>(Handle src, Handle dst);
 
 template
 void submit<fp64_t>(Handle src, Handle dst);

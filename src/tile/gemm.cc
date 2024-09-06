@@ -338,6 +338,12 @@ void gemm_async<fp32_fast_tf32_t>(Scalar alpha, const TransOp &transA,
         const Tile<fp32_fast_tf32_t> &C, Index ndim, Index batch_ndim);
 
 template
+void gemm_async<fp32_fast_fp16_t>(Scalar alpha, const TransOp &transA,
+        const Tile<fp32_fast_fp16_t> &A,
+        const TransOp &transB, const Tile<fp32_fast_fp16_t> &B, Scalar beta,
+        const Tile<fp32_fast_fp16_t> &C, Index ndim, Index batch_ndim);
+
+template
 void gemm_async<fp64_t>(Scalar alpha, const TransOp &transA,
         const Tile<fp64_t> &A,
         const TransOp &transB, const Tile<fp64_t> &B, Scalar beta,
@@ -361,6 +367,12 @@ void gemm<fp32_fast_tf32_t>(Scalar alpha, const TransOp &transA,
         const Tile<fp32_fast_tf32_t> &A,
         const TransOp &transB, const Tile<fp32_fast_tf32_t> &B, Scalar beta,
         const Tile<fp32_fast_tf32_t> &C, Index ndim, Index batch_ndim);
+
+template
+void gemm<fp32_fast_fp16_t>(Scalar alpha, const TransOp &transA,
+        const Tile<fp32_fast_fp16_t> &A,
+        const TransOp &transB, const Tile<fp32_fast_fp16_t> &B, Scalar beta,
+        const Tile<fp32_fast_fp16_t> &C, Index ndim, Index batch_ndim);
 
 template
 void gemm<fp64_t>(Scalar alpha, const TransOp &transA,

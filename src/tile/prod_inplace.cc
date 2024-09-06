@@ -55,6 +55,10 @@ void prod_inplace_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst);
 
 template
+void prod_inplace_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+        const Tile<fp32_fast_fp16_t> &dst);
+
+template
 void prod_inplace_async<fp64_t>(const Tile<fp64_t> &src,
         const Tile<fp64_t> &dst);
 
@@ -69,6 +73,10 @@ void prod_inplace<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 template
 void prod_inplace<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
         const Tile<fp32_fast_tf32_t> &dst);
+
+template
+void prod_inplace<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+        const Tile<fp32_fast_fp16_t> &dst);
 
 template
 void prod_inplace<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);

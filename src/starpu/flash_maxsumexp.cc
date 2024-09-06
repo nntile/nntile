@@ -123,7 +123,8 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
+        codelet_fp32_fast_fp16;
 
 void init()
 {
@@ -182,6 +183,20 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
+
+    codelet_fp32_fast_fp16.init("nntile_flash_maxsumexp_fp32_fast_fp16",
+            footprint,
+#ifdef NNTILE_USE_CBLAS
+            {},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_fast_fp16_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
 }
 
 void restrict_where(uint32_t where)
@@ -190,6 +205,7 @@ void restrict_where(uint32_t where)
     codelet_bf16.restrict_where(where);
     codelet_fp64.restrict_where(where);
     codelet_fp32_fast_tf32.restrict_where(where);
+    codelet_fp32_fast_fp16.restrict_where(where);
 }
 
 void restore_where()
@@ -198,6 +214,7 @@ void restore_where()
     codelet_bf16.restore_where();
     codelet_fp64.restore_where();
     codelet_fp32_fast_tf32.restore_where();
+    codelet_fp32_fast_fp16.restore_where();
 }
 
 template<typename T>
@@ -254,6 +271,10 @@ void submit<bf16_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
 
 template
 void submit<fp32_fast_tf32_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
+        Handle mask, Handle maxsumexp, Handle tmp, int redux);
+
+template
+void submit<fp32_fast_fp16_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle mask, Handle maxsumexp, Handle tmp, int redux);
 
 template

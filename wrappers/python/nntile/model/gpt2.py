@@ -26,8 +26,8 @@ from nntile.layer.cache_utils import KVCache
 from nntile.model.base_model import BaseModel
 from nntile.model.generation.llm import LLMGenerationMixin
 from nntile.tensor import (
-    Tensor, Tensor_bf16, Tensor_bool, Tensor_fp32, Tensor_fp32_fast_tf32,
-    Tensor_int64, TensorMoments, TensorTraits, notrans)
+    Tensor, Tensor_bf16, Tensor_bool, Tensor_fp32, Tensor_fp32_fast_fp16,
+    Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments, TensorTraits, notrans)
 
 
 class GPT2Config(Dict):
@@ -168,7 +168,7 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         self.dtype = config["dtype"]
         self.eos_token_id = config["eos_token_id"]
 
-        if self.dtype not in ["fp32", "tf32", "bf16"]:
+        if self.dtype not in ["fp32", "tf32", "bf16", "fp32_fast_fp16"]:
             raise TypeError("Only fp32, tf32 and bf16 are"
                             "supported for weight type")
 
@@ -194,69 +194,28 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         )
         self.mask.from_array(mask_np)
 
-        if self.dtype == "fp32":
-            wte_layer, next_tag = Embedding.generate_simple(
-                input_ids.value,
-                Tensor_fp32,
-                0,
-                vocab_size,
-                self.embed_dim,
-                embed_dim_tile,
-                vocab_embed_dim_tile,
-                next_tag,
-            )
-        elif self.dtype == "tf32":
-            wte_layer, next_tag = Embedding.generate_simple(
-                input_ids.value,
-                Tensor_fp32_fast_tf32,
-                0,
-                vocab_size,
-                self.embed_dim,
-                embed_dim_tile,
-                vocab_embed_dim_tile,
-                next_tag,
-            )
-        elif self.dtype == "bf16":
-            wte_layer, next_tag = Embedding.generate_simple(
-                input_ids.value,
-                Tensor_bf16,
-                0,
-                vocab_size,
-                self.embed_dim,
-                embed_dim_tile,
-                vocab_embed_dim_tile,
-                next_tag,
-            )
+        dtype2tensor_type = {"fp32": Tensor_fp32,
+                             "tf32": Tensor_fp32_fast_tf32,
+                             "bf16": Tensor_bf16,
+                             "fp32_fast_fp16": Tensor_fp32_fast_fp16
+                            }
 
+        wte_layer, next_tag = Embedding.generate_simple(
+                                input_ids.value,
+                                dtype2tensor_type[self.dtype],
+                                0,
+                                vocab_size,
+                                self.embed_dim,
+                                embed_dim_tile,
+                                vocab_embed_dim_tile,
+                                next_tag,
+                            )
         layers.append(wte_layer)
         activations.extend(wte_layer.activations_output)
 
-        if self.dtype == "fp32":
-            wpe_layer, next_tag = Embedding.generate_simple(
+        wpe_layer, next_tag = Embedding.generate_simple(
                 positional_ids.value,
-                Tensor_fp32,
-                0,
-                max_position_embeddings,
-                self.embed_dim,
-                embed_dim_tile,
-                vocab_embed_dim_tile,
-                next_tag,
-            )
-        elif self.dtype == "tf32":
-            wpe_layer, next_tag = Embedding.generate_simple(
-                positional_ids.value,
-                Tensor_fp32_fast_tf32,
-                0,
-                max_position_embeddings,
-                self.embed_dim,
-                embed_dim_tile,
-                vocab_embed_dim_tile,
-                next_tag,
-            )
-        elif self.dtype == "bf16":
-            wpe_layer, next_tag = Embedding.generate_simple(
-                positional_ids.value,
-                Tensor_bf16,
+                dtype2tensor_type[self.dtype],
                 0,
                 max_position_embeddings,
                 self.embed_dim,

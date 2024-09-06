@@ -56,6 +56,10 @@ void subtract_indexed_outputs_async<fp32_fast_tf32_t>(Scalar val,
         const Tile<int64_t> &labels, const Tile<fp32_fast_tf32_t> &dst);
 
 template
+void subtract_indexed_outputs_async<fp32_fast_fp16_t>(Scalar val, const Tile<int64_t> &labels,
+        const Tile<fp32_fast_fp16_t> &dst);
+
+template
 void subtract_indexed_outputs_async<fp64_t>(Scalar val,
         const Tile<int64_t> &labels, const Tile<fp64_t> &dst);
 
@@ -71,6 +75,10 @@ void subtract_indexed_outputs<fp32_t>(Scalar val, const Tile<int64_t> &labels,
 template
 void subtract_indexed_outputs<fp32_fast_tf32_t>(Scalar val, const Tile<int64_t> &labels,
         const Tile<fp32_fast_tf32_t> &dst);
+
+template
+void subtract_indexed_outputs<fp32_fast_fp16_t>(Scalar val, const Tile<int64_t> &labels,
+        const Tile<fp32_fast_fp16_t> &dst);
 
 template
 void subtract_indexed_outputs<fp64_t>(Scalar val, const Tile<int64_t> &labels,

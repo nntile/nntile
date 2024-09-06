@@ -112,6 +112,11 @@ void add_async<fp32_fast_tf32_t>(Scalar alpha,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
+void add_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src1,
+        Scalar beta, const Tensor<fp32_fast_fp16_t> &src2,
+        const Tensor<fp32_fast_fp16_t> &dst);
+
+template
 void add_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src1, Scalar beta,
         const Tensor<fp64_t> &src2, const Tensor<fp64_t> &dst);
 
@@ -129,6 +134,11 @@ template
 void add<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src1,
         Scalar beta, const Tensor<fp32_fast_tf32_t> &src2,
         const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void add<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src1,
+        Scalar beta, const Tensor<fp32_fast_fp16_t> &src2,
+        const Tensor<fp32_fast_fp16_t> &dst);
 
 template
 void add<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src1, Scalar beta,

@@ -84,6 +84,10 @@ void norm_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_
         Scalar beta, const Tile<fp32_fast_tf32_t> &dst, Index axis);
 
 template
+void norm_slice_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
+        const Tile<fp32_fast_fp16_t> &dst, Index axis);
+
+template
 void norm_slice_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
         Scalar beta, const Tile<fp64_t> &dst, Index axis);
 
@@ -99,6 +103,10 @@ void norm_slice<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
 template
 void norm_slice<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
         const Tile<fp32_fast_tf32_t> &dst, Index axis);
+
+template
+void norm_slice<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
+        const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
 void norm_slice<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,

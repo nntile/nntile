@@ -159,6 +159,10 @@ void add_slice_inplace_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_f
         Scalar beta, const Tensor<fp32_fast_tf32_t> &dst, Index axis);
 
 template
+void add_slice_inplace_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
+        const Tensor<fp32_fast_fp16_t> &dst, Index axis);
+
+template
 void add_slice_inplace_async<bf16_t>(Scalar alpha, const Tensor<bf16_t> &src, Scalar beta,
         const Tensor<bf16_t> &dst, Index axis);
 
@@ -170,6 +174,10 @@ void add_slice_inplace<fp32_t>(Scalar alpha, const Tensor<fp32_t> &src, Scalar b
 template
 void add_slice_inplace<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &src, Scalar beta,
         const Tensor<fp32_fast_tf32_t> &dst, Index axis);
+
+template
+void add_slice_inplace<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
+        const Tensor<fp32_fast_fp16_t> &dst, Index axis);
 
 template
 void add_slice_inplace<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,

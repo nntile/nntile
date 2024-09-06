@@ -67,7 +67,8 @@ parser.add_argument(
 )
 parser.add_argument("--torch-compile", action="store_true")
 parser.add_argument(
-    "--nntile-dtype", choices=["fp32", "fp64", "tf32", "bf16"], default="fp32"
+    "--nntile-dtype", choices=["fp32", "fp64", "tf32",
+                               "bf16", "fp32_fast_fp16"], default="fp32"
 )
 parser.add_argument("--check", action="store_true")
 parser.add_argument("--check-fp64", action="store_true")

@@ -99,6 +99,10 @@ void softmax_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &maxsumexp,
         Index axis);
 
 template
+void softmax_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &maxsumexp, const Tile<fp32_fast_fp16_t> &src,
+        Scalar alpha, const Tile<fp32_fast_fp16_t> &dst, Index axis);
+
+template
 void softmax_async<fp64_t>(const Tile<fp64_t> &maxsumexp,
         const Tile<fp64_t> &src, Scalar alpha, const Tile<fp64_t> &dst,
         Index axis);
@@ -115,6 +119,10 @@ void softmax<fp32_t>(const Tile<fp32_t> &maxsumexp, const Tile<fp32_t> &src,
 template
 void softmax<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &maxsumexp, const Tile<fp32_fast_tf32_t> &src,
         Scalar alpha, const Tile<fp32_fast_tf32_t> &dst, Index axis);
+
+template
+void softmax<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &maxsumexp, const Tile<fp32_fast_fp16_t> &src,
+        Scalar alpha, const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
 void softmax<fp64_t>(const Tile<fp64_t> &maxsumexp, const Tile<fp64_t> &src,

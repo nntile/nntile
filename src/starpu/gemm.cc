@@ -175,6 +175,9 @@ Codelet codelet_NN_fp32, codelet_NN_fp64, codelet_NT_fp32, codelet_NT_fp64,
 Codelet codelet_NN_fp32_fast_tf32, codelet_NT_fp32_fast_tf32,
         codelet_TN_fp32_fast_tf32, codelet_TT_fp32_fast_tf32;
 
+Codelet codelet_NN_fp32_fast_fp16, codelet_NT_fp32_fast_fp16,
+        codelet_TN_fp32_fast_fp16, codelet_TT_fp32_fast_fp16;
+
 Codelet codelet_NN_bf16, codelet_NT_bf16,
         codelet_TN_bf16, codelet_TT_bf16;
 
@@ -215,6 +218,46 @@ void init()
             {},
 #ifdef NNTILE_USE_CUDA
             {cuda<fp32_fast_tf32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
+    codelet_NN_fp32_fast_fp16.init("nntile_gemm_NN_fp32_fast_fp16",
+            footprint,
+            {},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_fast_fp16_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
+    codelet_NT_fp32_fast_fp16.init("nntile_gemm_NT_fp32_fast_fp16",
+            footprint,
+            {},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_fast_fp16_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
+    codelet_TN_fp32_fast_fp16.init("nntile_gemm_TN_fp32_fast_fp16",
+            footprint,
+            {},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_fast_fp16_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
+    codelet_TT_fp32_fast_fp16.init("nntile_gemm_TT_fp32_fast_fp16",
+            footprint,
+            {},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_fast_fp16_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -422,6 +465,11 @@ void restrict_where(uint32_t where)
     codelet_TN_fp32_fast_tf32.restrict_where(where);
     codelet_TT_fp32_fast_tf32.restrict_where(where);
 
+    codelet_NN_fp32_fast_fp16.restrict_where(where);
+    codelet_NT_fp32_fast_fp16.restrict_where(where);
+    codelet_TN_fp32_fast_fp16.restrict_where(where);
+    codelet_TT_fp32_fast_fp16.restrict_where(where);
+
     codelet_NN_bf16.restrict_where(where);
     codelet_NT_bf16.restrict_where(where);
     codelet_TN_bf16.restrict_where(where);
@@ -447,6 +495,11 @@ void restore_where()
     codelet_NT_fp32_fast_tf32.restore_where();
     codelet_TN_fp32_fast_tf32.restore_where();
     codelet_TT_fp32_fast_tf32.restore_where();
+
+    codelet_NN_fp32_fast_fp16.restore_where();
+    codelet_NT_fp32_fast_fp16.restore_where();
+    codelet_TN_fp32_fast_fp16.restore_where();
+    codelet_TT_fp32_fast_fp16.restore_where();
 
     codelet_NN_bf16.restore_where();
     codelet_NT_bf16.restore_where();
@@ -551,6 +604,11 @@ void submit<fp32_t>(const TransOp &transA, const TransOp &transB,
 
 template
 void submit<fp32_fast_tf32_t>(const TransOp &transA, const TransOp &transB,
+        Index m, Index n, Index k, Index batch, Scalar alpha, Handle A,
+        Handle B, Scalar beta, Handle C, int redux);
+
+template
+void submit<fp32_fast_fp16_t>(const TransOp &transA, const TransOp &transB,
         Index m, Index n, Index k, Index batch, Scalar alpha, Handle A,
         Handle B, Scalar beta, Handle C, int redux);
 
