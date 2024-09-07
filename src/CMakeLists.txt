@@ -109,6 +109,7 @@ else()
             "kernel/sqrt_inplace/cuda.cu"
             "kernel/addcdiv/cuda.cu"
             "kernel/relu_backward/cuda.cu"
+            "kernel/subcopy/cuda.cu"
             "kernel/sumnorm/cuda.cu"
             "kernel/fill/cuda.cu"
             "kernel/sum_slice/cuda.cu"

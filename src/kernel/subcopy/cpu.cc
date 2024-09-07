@@ -47,9 +47,6 @@ void cpu(Index ndim, const Index *src_start, const Index *src_stride,
  *      values.
  * */
 {
-    // using Y = typename CPUComputeType<T>::value;
-    // auto src = reinterpret_cast<const Y *>(src_);
-    // auto dst = reinterpret_cast<Y *>(dst_);
     using I = typename CPUComputeType<int64_t>::value;
     auto tmp_index = reinterpret_cast<I *>(tmp_index_);
     // Map temporary buffer into source index and destination index

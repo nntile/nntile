@@ -171,6 +171,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/relu/cuda.hh"
         "nntile/kernel/relu_forward/cuda.hh"
         "nntile/kernel/relu_backward/cuda.hh"
+        "nntile/kernel/subcopy/cuda.hh"
         "nntile/kernel/sumnorm/cuda.hh"
         "nntile/kernel/fill/cuda.hh"
         "nntile/kernel/sum_slice/cuda.hh"

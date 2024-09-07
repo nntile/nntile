@@ -20,7 +20,7 @@
 namespace nntile::starpu::subcopy
 {
 
-//! Complex copying through StarPU buffers is available only on CPU
+//! Complex copying through StarPU buffers on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
@@ -41,6 +41,31 @@ void cpu(void *buffers[], void *cl_args)
             copy_shape, src, dst_start, dst_stride, dst, tmp_index);
 #endif // STARPU_SIMGRID
 }
+
+#ifdef NNTILE_USE_CUDA
+//! Complex copying through StarPU buffers on CUDA
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept
+{
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
+    // Get arguments
+    const Index *ndim_ptr, *src_start, *src_stride, *copy_shape, *dst_start,
+          *dst_stride;
+    Config::unpack_args_ptr(cl_args, ndim_ptr, src_start, src_stride,
+            copy_shape, dst_start, dst_stride);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Launch kernel
+    kernel::subcopy::cuda<T>(stream, *ndim_ptr, src_start, src_stride,
+            copy_shape, src, dst_start, dst_stride, dst);
+#endif // STARPU_SIMGRID
+}
+#endif // NNTILE_USE_CUDA
 
 //! Footprint for copy tasks that depend on copy shape
 static
@@ -63,45 +88,68 @@ Codelet codelet_fp32, codelet_fp64, codelet_int64,
 
 void init()
 {
-//    codelet_fp16.init("nntile_subcopy_fp16",
-//            footprint,
-//            {cpu<fp32_t>},
-//            {}
-//            );
     codelet_fp32.init("nntile_subcopy_fp32",
             footprint,
             {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
             {}
+#endif // NNTILE_USE_CUDA
             );
     codelet_fp64.init("nntile_subcopy_fp64",
             footprint,
             {cpu<fp64_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
             {}
+#endif // NNTILE_USE_CUDA
             );
     codelet_int64.init("nntile_subcopy_int64",
             footprint,
             {cpu<int64_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<int64_t>}
+#else // NNTILE_USE_CUDA
             {}
+#endif // NNTILE_USE_CUDA
             );
     codelet_bool.init("nntile_subcopy_bool",
             footprint,
             {cpu<bool_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<bool_t>}
+#else // NNTILE_USE_CUDA
             {}
+#endif // NNTILE_USE_CUDA
             );
     codelet_fp32_fast_tf32.init("nntile_subcopy_fp32_fast_tf32",
             footprint,
             {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
             {}
+#endif // NNTILE_USE_CUDA
             );
     codelet_fp32_fast_fp16.init("nntile_subcopy_fp32_fast_fp16",
             footprint,
             {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
             {}
+#endif // NNTILE_USE_CUDA
             );
     codelet_bf16.init("nntile_subcopy_bf16",
             footprint,
             {cpu<bf16_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<bf16_t>}
+#else // NNTILE_USE_CUDA
             {}
+#endif // NNTILE_USE_CUDA
             );
 }
 
