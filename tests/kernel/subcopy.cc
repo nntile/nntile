@@ -18,14 +18,62 @@
 #include <vector>
 #include <stdexcept>
 #include <iostream>
+#include "nntile/kernel/cpu.hh"
+#include "nntile/kernel/cuda.hh"
 
 using namespace nntile;
 using namespace nntile::kernel::subcopy;
 
+#ifdef NNTILE_USE_CUDA
+template<typename T, int NDIM>
+void run_cuda(const std::array<Index, NDIM> &src_start,
+        const std::array<Index, NDIM> &src_stride,
+        const std::array<Index, NDIM> &copy_shape,
+        const std::vector<T> &src_data,
+        const std::array<Index, NDIM> &dst_start,
+        const std::array<Index, NDIM> &dst_stride,
+        std::vector<T> &dst_data)
+{
+    // Copy to device
+    T *dev_src, *dev_dst;
+    cudaError_t cuda_err = cudaMalloc(&dev_src, sizeof(T)*src_data.size());
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    cuda_err = cudaMalloc(&dev_dst, sizeof(T)*dst_data.size());
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    cuda_err = cudaMemcpy(dev_src, &src_data[0], sizeof(T)*src_data.size(),
+            cudaMemcpyHostToDevice);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    cuda_err = cudaMemcpy(dev_dst, &dst_data[0], sizeof(T)*dst_data.size(),
+            cudaMemcpyHostToDevice);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    // Init stream
+    cudaStream_t stream;
+    cuda_err = cudaStreamCreate(&stream);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    // Launch low-level CUDA kernel
+    std::cout << "Run kernel::subcopy::cuda<" << T::type_repr << ">\n";
+    cuda<T>(stream, NDIM, &src_start[0], &src_stride[0], &copy_shape[0],
+            dev_src, &dst_start[0], &dst_stride[0], dev_dst);
+    cuda_err = cudaStreamSynchronize(stream);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    // Copy result and deallocate device memory
+    cuda_err = cudaMemcpy(&dst_data[0], dev_dst, sizeof(T)*dst_data.size(),
+            cudaMemcpyDeviceToHost);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    cuda_err = cudaFree(dev_src);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    cuda_err = cudaFree(dev_dst);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+    cuda_err = cudaStreamDestroy(stream);
+    TEST_ASSERT(cuda_err == cudaSuccess);
+}
+#endif // NNTILE_USE_CUDA
+
 // Templated validation
 template<typename T, std::size_t NDIM>
-void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
-        std::array<Index, NDIM> copy_shape)
+void validate(const std::array<Index, NDIM> &src,
+        const std::array<Index, NDIM> &dst,
+        const std::array<Index, NDIM> &copy_shape)
 {
     using Y = typename T::repr_t;
     // Location of copy area in source and target buffers and their shapes
@@ -154,6 +202,52 @@ void validate(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
         }
     }
     std::cout << "Ok: kernel::subcopy::cpu<" << T::type_repr << ">\n";
+#ifdef NNTILE_USE_CUDA
+    dst_data = dst2_data;
+    run_cuda<T, NDIM>(src_start, src_stride, copy_shape, src_data, dst_start,
+            dst_stride, dst_data);
+    // Check destination
+    std::fill(dst_index.begin(), dst_index.end(), 0);
+    for(Index i = 0; i < dst_nelems; ++i)
+    {
+        // Find out if current element was overwritten or not
+        bool copied = true;
+        for(Index j = 0; j < NDIM; ++j)
+        {
+            if(dst_index[j] < dst_start[j]
+                    or dst_index[j] >= dst_start[j]+copy_shape[j])
+            {
+                copied = false;
+                break;
+            }
+        }
+        // Check if it was overwritten
+        if(copied)
+        {
+            TEST_ASSERT(Y(dst_data[i]) == Y{2});
+        }
+        // Check if it was not overwritten
+        else
+        {
+            TEST_ASSERT(Y(dst_data[i]) == Y{3});
+        }
+        // Get out if it was last element of destination buffer
+        if(i == dst_nelems-1)
+        {
+            break;
+        }
+        // Get index of the next element
+        ++dst_index[0];
+        Index j = 0;
+        while(dst_index[j] == dst_shape[j])
+        {
+            dst_index[j] = 0;
+            ++j;
+            ++dst_index[j];
+        }
+    }
+    std::cout << "Ok: kernel::subcopy::cuda<" << T::type_repr << ">\n";
+#endif // NNTILE_USE_CUDA
 }
 
 // Run multiple tests for a given precision

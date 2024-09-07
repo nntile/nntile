@@ -6,24 +6,25 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/kernel/subcopy.hh
- * Subtensor copy low-level kernels
+ * @file include/nntile/kernel/subcopy/cuda.hh
+ * Copy subarray based on contiguous indices
  *
  * @version 1.1.0
  * */
 
 #pragma once
 
-#include <nntile/kernel/subcopy/cpu.hh>
-#include <nntile/defs.h>
-#ifdef NNTILE_USE_CUDA
-#include <nntile/kernel/subcopy/cuda.hh>
-#endif // NNTILE_USE_CUDA
+#include <nntile/base_types.hh>
+#include <cuda_runtime.h>
 
-//! @namespace nntile::kernel::subcopy
-/*! Low-level implementations of copying subtensor
- * */
 namespace nntile::kernel::subcopy
 {
+
+// Complex copying of one multidimensional array into another
+template<typename T>
+void cuda(cudaStream_t stream, Index ndim, const Index *src_start,
+        const Index *src_stride, const Index *copy_shape, const T *src_,
+        const Index *dst_start, const Index *dst_stride, T *dst_)
+    noexcept;
 
 } // namespace nntile::kernel::subcopy
