@@ -668,12 +668,16 @@ void def_mod_tensor(py::module_ &m)
     m.def("scatter_async_bool", &scatter_async<bool_t>);
     m.def("scatter_async_bf16", &scatter_async<bf16_t>);
     m.def("scatter_async_fp32_fast_bf16", &scatter_async<fp32_fast_bf16_t>);
+    m.def("scatter_async_fp32_fast_fp16", &scatter_async<fp32_fast_fp16_t>);
+    m.def("scatter_async_fp32_fast_tf32", &scatter_async<fp32_fast_tf32_t>);
     m.def("scatter_fp64", &scatter<fp64_t>);
     m.def("scatter_fp32", &scatter<fp32_t>);
     m.def("scatter_int64", &scatter<nntile::int64_t>);
     m.def("scatter_bool", &scatter<bool_t>);
     m.def("scatter_bf16", &scatter<bf16_t>);
     m.def("scatter_fp32_fast_bf16", &scatter<fp32_fast_bf16_t>);
+    m.def("scatter_fp32_fast_fp16", &scatter<fp32_fast_fp16_t>);
+    m.def("scatter_fp32_fast_tf32", &scatter<fp32_fast_tf32_t>);
 
     m.def("randn_async_fp64", &randn_async<fp64_t>);
     m.def("randn_async_fp32", &randn_async<fp32_t>);
@@ -1078,11 +1082,13 @@ void def_mod_tensor(py::module_ &m)
     m.def("embedding_async_bf16", &embedding_async<bf16_t>);
     m.def("embedding_async_fp32_fast_tf32", &embedding_async<fp32_fast_tf32_t>);
     m.def("embedding_async_fp32_fast_fp16", &embedding_async<fp32_fast_fp16_t>);
+    m.def("embedding_async_fp32_fast_bf16", &embedding_async<fp32_fast_bf16_t>);
     m.def("embedding_fp64", &embedding<fp64_t>);
     m.def("embedding_fp32", &embedding<fp32_t>);
     m.def("embedding_bf16", &embedding<bf16_t>);
     m.def("embedding_fp32_fast_tf32", &embedding<fp32_fast_tf32_t>);
     m.def("embedding_fp32_fast_fp16", &embedding<fp32_fast_fp16_t>);
+    m.def("embedding_fp32_fast_bf16", &embedding<fp32_fast_bf16_t>);
 
     // Embedding backward pass
     m.def("embedding_backward_async_fp64", &embedding_backward_async<fp64_t>);

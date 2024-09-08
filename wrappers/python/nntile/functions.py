@@ -689,6 +689,10 @@ def scatter_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:
         core_tensor.scatter_async_bf16(x, y)
     elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
         core_tensor.scatter_async_fp32_fast_bf16(x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.scatter_async_fp32_fast_fp16(x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.scatter_async_fp32_fast_tf32(x, y)
     else:
         raise TypeError
 
@@ -1440,6 +1444,8 @@ def embedding_async(
         core_tensor.embedding_async_fp32_fast_tf32(index, vocab, embed, axis)
     elif type(embed) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.embedding_async_fp32_fast_fp16(index, vocab, embed, axis)
+    elif type(embed) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.embedding_async_fp32_fast_bf16(index, vocab, embed, axis)
     elif type(embed) is core_tensor.Tensor_fp64:
         core_tensor.embedding_async_fp64(index, vocab, embed, axis)
     elif type(embed) is core_tensor.Tensor_bf16:
