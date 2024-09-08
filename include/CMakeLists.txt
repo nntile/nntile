@@ -386,6 +386,7 @@ set(TENSOR_HDR
     "nntile/tensor/sum_slice.hh"
     "nntile/tensor/sum_fiber.hh"
     "nntile/tensor/norm_fiber_inplace.hh"
+    "nntile/tensor/norm_fiber.hh"
     "nntile/tensor/norm_slice.hh"
     "nntile/tensor/pow.hh"
     "nntile/tensor/flash_maxsumexp.hh"
