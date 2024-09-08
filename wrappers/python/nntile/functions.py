@@ -286,6 +286,8 @@ def fill_async(val: float, x: Tensor) -> None:
         core_tensor.fill_async_fp32_fast_tf32(val, x)
     elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.fill_async_fp32_fast_fp16(val, x)
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.fill_async_fp32_fast_bf16(val, x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.fill_async_fp64(val, x)
     elif type(x) is core_tensor.Tensor_bf16:
@@ -685,6 +687,8 @@ def scatter_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:
         core_tensor.scatter_async_bool(x, y)
     elif type(x) is core_tensor.Tensor_bf16:
         core_tensor.scatter_async_bf16(x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.scatter_async_fp32_fast_bf16(x, y)
     else:
         raise TypeError
 
@@ -1065,6 +1069,8 @@ def gather_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:
         core_tensor.gather_async_bool(x, y)
     elif type(x) is core_tensor.Tensor_bf16:
         core_tensor.gather_async_bf16(x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.gather_async_fp32_fast_bf16(x, y)
     else:
         raise TypeError
 
@@ -1124,6 +1130,8 @@ def clear_async(x: Tensor) -> None:
         core_tensor.clear_async_fp32_fast_tf32(x)
     elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.clear_async_fp32_fast_fp16(x)
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.clear_async_fp32_fast_bf16(x)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.clear_async_fp64(x)
     elif type(x) is core_tensor.Tensor_bf16:

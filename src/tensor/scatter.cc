@@ -200,6 +200,10 @@ void scatter<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
                                const Tensor<fp32_fast_fp16_t> &dst);
 
 template
+void scatter<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src,
+                               const Tensor<fp32_fast_bf16_t> &dst);
+
+template
 void scatter<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);
 
 template

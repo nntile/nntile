@@ -350,6 +350,62 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 
+class fp32_fast_bf16_t
+{
+public:
+    //! Basic type that must have the same size, as this type
+    using storage_t = float;
+    //! Basic type that must cover all possible values of this type
+    using repr_t = float;
+    //! Flag if copy from repr_t does not require conversion
+    static const bool trivial_copy_from_compat = true;
+    //! String to represent this type
+    static constexpr const char *type_repr = "fp32_fast_bf16_t";
+    //! Internal value of this type to hold actual data
+    storage_t value;
+    //! Constructor
+    NNTILE_HOST_DEVICE fp32_fast_bf16_t() = default;
+    //! Constructor from another value of this type
+    NNTILE_HOST_DEVICE fp32_fast_bf16_t(const fp32_fast_bf16_t &other) = default;
+    //! Constructor from a repr_t value
+    NNTILE_HOST_DEVICE explicit fp32_fast_bf16_t(const repr_t &other):
+        value(other)
+    {
+    }
+    //! Assignment from another value of this type
+    NNTILE_HOST_DEVICE fp32_fast_bf16_t &operator=(const fp32_fast_bf16_t &other) = default;
+    //! Assignment from a repr_t value
+    NNTILE_HOST_DEVICE fp32_fast_bf16_t &operator=(const repr_t &other)
+    {
+        value = other;
+        return *this;
+    }
+    //! Conversion to repr_t value
+    NNTILE_HOST_DEVICE explicit operator repr_t() const
+    {
+        return value;
+    }
+    //! Machine precision of this type
+    static repr_t epsilon()
+    {
+        // Init 1.0 and 1.0+eps identically
+        fp32_fast_bf16_t one{1.0}, one_p_eps{1.0};
+        auto uintptr = reinterpret_cast<std::uint32_t *>(&one_p_eps);
+        // Add a bit into mantissa of 1+eps to get actual value of 1+eps
+        *uintptr += 0x10000;
+        // Output difference of 1+eps and 1
+        return static_cast<repr_t>(one_p_eps) - static_cast<repr_t>(one);
+    }
+};
+
+//! Print function for nntile::fp32_fast_bf16_t
+inline std::ostream &operator<<(std::ostream &os,
+        const fp32_fast_bf16_t &value)
+{
+    os << static_cast<typename fp32_fast_bf16_t::repr_t>(value);
+    return os;
+}
+
 //! NNTile wrapper type BrainFloat16 type inside tensors
 class bf16_t
 {
