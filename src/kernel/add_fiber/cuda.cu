@@ -29,8 +29,8 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha_, const T 
  *
  * @param[in] m: Size of the first mode of dst tensor
  * @param[in] n: Size of the last mode of dst tensor
- * @param[in] k: Size of the middle mode of dst tensor and the only mode of src1,
- *     src2, tensors
+ * @param[in] k: Size of the middle mode of dst tensor and the only mode of src1
+ *     tensors
  * @param[in] batch: Size of the batch dimension
  * @param[in] alpha_: Scalar factor for src1
  * @param[in] src: Input contiguous vector with k elements
@@ -50,12 +50,13 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha_, const T 
         {
             // Value to add to the output slice
             const Y src1_val = alpha * Y{src1[i2+b*k]};
+	    const T *src2_fiber = src2 + ((i1+b*n)*k+i2)*m;
             // Output fiber to be updated
             T *dst_fiber = dst + ((i1+b*n)*k+i2)*m;
             // Read value from the output
-            T &dst_val = dst_fiber[i0];
-            // And update it
-            dst_val = T{beta * Y{dst_val} + src1_val};
+            T src2_val = src2_fiber[i0];
+            // And update output
+            dst_fiber[i0] = T{beta * Y{src2_val} + src1_val};
         }
     }
 }
@@ -70,8 +71,8 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
  *
  * @param[in] m: Size of the first mode of dst tensor
  * @param[in] n: Size of the last mode of dst tensor
- * @param[in] k: Size of the middle mode of dst tensor and the only mode of src1,
- *  	src2, tensors
+ * @param[in] k: Size of the middle mode of dst tensor and the only mode of src1
+ *  	tensors
  * @param[in] batch: Size of the batch dimension
  * @param[in] alpha: Scalar factor for src1
  * @param[in] src: Input contiguous vector with k elements

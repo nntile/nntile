@@ -60,7 +60,7 @@ void add_fiber_inplace_async(Scalar alpha, const Tile<T> &src, Scalar beta, cons
         }
     }
     // Do nothing if alpha is zero
-    if(alpha == 0.0)
+    if(alpha == 0.0 and beta == 1.0)
     {
         return;
     }

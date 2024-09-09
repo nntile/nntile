@@ -60,17 +60,20 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
     scatter<T>(dst_single, dst);
     // Define proper shape and basetile for the source tensor
-    std::vector<Index> src1_shape{shape[axis]},
-        src1_basetile{basetile[axis]};
+    //std::vector<Index> src1_shape{shape[axis]},
+       // src1_basetile{basetile[axis]};
 
-    std::vector<Index> src2_shape{shape[axis]},
-        src2_basetile{basetile[axis]};
+    //std::vector<Index> src2_shape{shape[axis]},
+        //src2_basetile{basetile[axis]};
+
+    std::vector<Index> src1_shape(shape), src1_basetile(basetile);
+    std::vector<Index> src2_shape(shape), src2_basetile(basetile);
 
     // Generate single-tile source tensor and init it
     TensorTraits src1_single_traits(src1_shape, src1_shape);
     Tensor<T> src1_single(src1_single_traits, dist_root, last_tag);
 
-    TensorTraits src2_single_traits(sr2_shape, src2_shape);
+    TensorTraits src2_single_traits(src2_shape, src2_shape);
     Tensor<T> src2_single(src2_single_traits, dist_root, last_tag);
 
     if(mpi_rank == mpi_root)
@@ -101,7 +104,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     Tensor<T> src1(src1_traits, src1_distr, last_tag);
     scatter<T>(src1_single, src1);
 
-    TensorTraits src1_traits(src2_shape, src2_basetile);
+    TensorTraits src2_traits(src2_shape, src2_basetile);
     std::vector<int> src2_distr(src2_traits.grid.nelems);
     for(Index i = 0; i < src2_traits.grid.nelems; ++i)
     {
@@ -110,11 +113,11 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     Tensor<T> src2(src2_traits, src2_distr, last_tag);
     scatter<T>(src2_single, src2);
     // Perform tensor-wise and tile-wise add_fiber operations
-    add_fiber<T>(-1.0, src1, 0.5, src2, dst, axis);
+    add_fiber<T>(-1.0, src1, 0.5, src2, dst, axis, 0);
     if(mpi_rank == mpi_root)
     {
         tile::add_fiber<T>(-1.0, src1_single.get_tile(0), 0.5,
-                src2_single.get_tile(0), dst_single.get_tile(0), axis);
+                src2_single.get_tile(0), dst_single.get_tile(0), axis, 0);
     }
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
@@ -154,13 +157,13 @@ void validate()
     std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0};
     Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
         C(trC, dist0, last_tag);
-    TEST_THROW(add_fiber<T>(1.0, A, 0.0, A, 0, 0));
-    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, -1, 0));
-    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, 2, 0));
-    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, 0, 0));
-    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, 1, 0));
-    TEST_THROW(add_fiber<T>(1.0, C, 0.0, A, 0, 0));
-    TEST_THROW(add_fiber<T>(1.0, C, 0.0, A, 1, 0));
+    TEST_THROW(add_fiber<T>(1.0, A, 0.0, A, C, 0, 0));
+    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, C, -1, 0));
+    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, B, 2, 0));
+    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, B, 0, 0));
+    TEST_THROW(add_fiber<T>(1.0, B, 0.0, A, A, 1, 0));
+    TEST_THROW(add_fiber<T>(1.0, C, 0.0, A, A, 0, 0));
+    TEST_THROW(add_fiber<T>(1.0, C, 0.0, A, B, 1, 0));
 }
 
 int main(int argc, char **argv)

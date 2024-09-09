@@ -76,11 +76,6 @@ void add_fiber_async(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<
         }
     }
 
-    // Do nothing if alpha is zero
-    if(alpha == 0.0)
-    {
-        return;
-    }
     // Reshape inputs for simplicity: src -> (k,batch), dst -> (m,k,n,batch)
     Index m, n, k, batch;
     batch = src1.matrix_shape[1][1];
