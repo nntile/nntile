@@ -83,6 +83,12 @@ void total_sum_accum_async<fp32_fast_fp16_t>(Scalar alpha,
         const Tile<fp32_t> &val);
 
 template
+void total_sum_accum_async<fp32_fast_bf16_t>(Scalar alpha,
+        const Tile<fp32_fast_bf16_t> &logsumexp,
+        const Tile<fp32_fast_bf16_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<fp32_t> &val);
+
+template
 void total_sum_accum_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &logsumexp,
         const Tile<fp64_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp32_t> &val);
@@ -108,6 +114,12 @@ template
 void total_sum_accum<fp32_fast_fp16_t>(Scalar alpha,
         const Tile<fp32_fast_fp16_t> &logsumexp,
         const Tile<fp32_fast_fp16_t> &src, const Tile<int64_t> &class_labels,
+        const Tile<fp32_t> &val);
+
+template
+void total_sum_accum<fp32_fast_bf16_t>(Scalar alpha,
+        const Tile<fp32_fast_bf16_t> &logsumexp,
+        const Tile<fp32_fast_bf16_t> &src, const Tile<int64_t> &class_labels,
         const Tile<fp32_t> &val);
 
 template
