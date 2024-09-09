@@ -38,7 +38,7 @@ void cpu(void *buffers[], void *cl_args)
     noexcept;
 
 extern Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
-               codelet_fp32_fast_fp16;
+               codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
 
 template<typename T>
 constexpr Codelet *codelet()
@@ -75,6 +75,12 @@ template<>
 constexpr Codelet *codelet<fp32_fast_fp16_t>()
 {
     return &codelet_fp32_fast_fp16;
+}
+
+template<>
+constexpr Codelet *codelet<fp32_fast_bf16_t>()
+{
+    return &codelet_fp32_fast_bf16;
 }
 
 void init();

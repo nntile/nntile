@@ -92,6 +92,10 @@ void sum_slice_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t
         const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
+void sum_slice_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
+        const Tile<fp32_fast_bf16_t> &dst, Index axis);
+
+template
 void sum_slice_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
         Scalar beta, const Tile<fp64_t> &dst, Index axis);
 
@@ -107,6 +111,10 @@ void sum_slice<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src
 template
 void sum_slice<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src, Scalar beta,
         const Tile<fp32_fast_fp16_t> &dst, Index axis);
+
+template
+void sum_slice<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src, Scalar beta,
+        const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
 void sum_slice<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
