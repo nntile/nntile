@@ -15,6 +15,7 @@
 set(TESTS
     "add"
     "add_fiber_inplace"
+    "add_fiber"
     "add_slice_inplace"
     "add_slice"
     "addcdiv"
@@ -68,6 +69,7 @@ set(TESTS
 set(TESTS_NOT_IMPLEMENTED
     "add"
     "add_fiber_inplace"
+    "add_fiber"
     "gelu_backward"
     "gelutanh"
     "gelutanh_backward"

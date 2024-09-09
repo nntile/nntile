@@ -24,19 +24,18 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src1,
     noexcept
 //! Per-element addition of a tensor and a broadcasted fiber on CPU
 /*! Performs the following operations:
- *      dst[i,l,j,b] = beta*dst[i,l,j,b] + alpha*src[l,b]
  *      dst[i,l,j,b] = beta*src2[i,l,j,b] + alpha*src1[l,b]
  *
  * @param[in] m: Size of the first mode of dst tensor
  * @param[in] n: Size of the last mode of dst tensor
  * @param[in] k: Size of the middle mode of dst tensor and the only mode of src1,
- *  src2 tensors
+ *  tensors
  * @param[in] batch: Size of the batch dimension
  * @param[in] alpha_: Scalar factor for src1
  * @param[in] src1: Input contiguous vector with k elements
  * @param[in] beta_: Scaling factor for src2
  * @param[in] src2: Input contiguous vector with k elements
- * @param[inout] dst: Input and output contiguous m-by-k-by-n array
+ * @param[inout] dst: Output contiguous m-by-k-by-n array
  * */
 {
     using Y = typename T::repr_t;
@@ -52,6 +51,7 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src1,
             // Cycle over the third axis of output buffer dst
             for(Index i1 = 0; i1 < n; ++i1)
             {
+                const T *src2_fiber = src2 + ((i1+b*n)*k+i2)*m;
                 // Output fiber to be updated
                 T *dst_fiber = dst + ((i1+b*n)*k+i2)*m;
                 // Overwrite or update output depending on beta
@@ -69,10 +69,10 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src1,
                     // Cycle over output fiber elements
                     for(Index i0 = 0; i0 < m; ++i0)
                     {
-                        // Read value from the output
-                        T &dst_val = dst_fiber[i0];
-                        // And update it
-                        dst_val = static_cast<T>(beta * Y{dst_val} + src1_val);
+                        // Read value from the input
+                        T src2_val = src2_fiber[i0];
+                        // And update output
+                        dst_fiber[i0] = static_cast<T>(beta * Y{src2_val} + src1_val);
                     }
                 }
             }

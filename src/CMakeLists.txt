@@ -240,6 +240,7 @@ set(TILE_SRC
     "tile/add_slice_inplace.cc"
     "tile/add_slice.cc"
     "tile/add_fiber_inplace.cc"
+    "tile/add_fiber.cc"
     "tile/prod_slice.cc"
     "tile/prod_fiber.cc"
     "tile/prod_fiber3.cc"

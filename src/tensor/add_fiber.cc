@@ -24,7 +24,7 @@ void add_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
 //! Tensor<T> addition of a tensor and a broadcasted fiber
 /*! Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
  * and performs the following operations:
- *      dst[i,l,j,b] = beta*dst[i,l,j,b] + alpha*src[l,b]
+ *      dst[i,l,j,b] = beta*src2[i,l,j,b] + alpha*src1[l,b]
  *
  * @param[in] alpha: Scalar factor for src1
  * @param[in] src: Input fiber, that is reshaped into 1D array
@@ -92,11 +92,6 @@ void add_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
                     "dst.basetile_shape[dst.ndim-batch_ndim+i]");
         }
     }
-    // Do nothing if alpha is zero
-    if(alpha == 0.0)
-    {
-        return;
-    }
     // Apply per-tile add_fiber asynchronously as needed
     int mpi_rank = starpu_mpi_world_rank();
     int ret;
@@ -107,8 +102,8 @@ void add_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
         auto dst_tile_handle = dst.get_tile_handle(i);
         int dst_tile_rank = dst_tile_handle.mpi_get_rank();
         // Get corresponding src1, src2 tile
-        std::vector<Index> src1_tile_index(src.ndim);
-        std::vector<Index> src2_tile_index(src.ndim);
+        std::vector<Index> src1_tile_index(src1.ndim);
+        std::vector<Index> src2_tile_index(src2.ndim);
         src1_tile_index[0] = dst_tile_index[axis];
         src2_tile_index[0] = dst_tile_index[axis];
         for(Index j = 0; j < batch_ndim; ++j)
@@ -117,9 +112,9 @@ void add_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
             src2_tile_index[j+1] = dst_tile_index[dst.ndim-batch_ndim+j];
         }
         auto src1_tile_handle = src1.get_tile_handle(src1_tile_index);
-        auto src2_tile_traits = src2.get_tile_traits(src2_tile_index);
+        auto src1_tile_traits = src1.get_tile_traits(src1_tile_index);
 
-        auto src1_tile_handle = src1.get_tile_handle(src1_tile_index);
+        auto src2_tile_handle = src2.get_tile_handle(src2_tile_index);
         auto src2_tile_traits = src2.get_tile_traits(src2_tile_index);
 
         int src1_tile_rank = src1_tile_handle.mpi_get_rank();
@@ -152,7 +147,6 @@ void add_fiber(Scalar alpha, const Tensor<T> &src1, Scalar beta,  const Tensor<T
 /*! Blocking version of add_fiber_async<T>.
  * Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
  * and performs the following operations:
- *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[l]
  *      dst[i,l,j] = beta*src2[i,l,j] + alpha*src1[l]
  * @param[in] alpha: Scalar factor for src1
  * @param[in] src: Input fiber, that is reshaped into 1D array

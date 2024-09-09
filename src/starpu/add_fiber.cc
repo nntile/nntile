@@ -33,8 +33,8 @@ void cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src1 = interfaces[0]->get_ptr<T>();
-    const T *src2 = interfaces[0]->get_ptr<T>();
-    T *dst = interfaces[1]->get_ptr<T>();
+    const T *src2 = interfaces[1]->get_ptr<T>();
+    T *dst = interfaces[2]->get_ptr<T>();
     // Launch kernel
     kernel::add_fiber::cpu<T>(args->m, args->n, args->k, args->batch,
             args->alpha, src1, args->beta, src2, dst);
@@ -53,8 +53,8 @@ void cuda(void *buffers[], void *cl_args)
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *src1 = interfaces[0]->get_ptr<T>();
-    const T *src2 = interfaces[0]->get_ptr<T>();
-    T *dst = interfaces[1]->get_ptr<T>();
+    const T *src2 = interfaces[1]->get_ptr<T>();
+    T *dst = interfaces[2]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
@@ -148,21 +148,6 @@ void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src1,
  * throws an std::runtime_error() exception.
  * */
 {
-    // Access mode for the dst handle
-    constexpr Scalar zero = 0, one = 1;
-    enum starpu_data_access_mode dst_mode;
-    if(beta == zero)
-    {
-        dst_mode = STARPU_W;
-    }
-    else if(beta == one)
-    {
-        dst_mode = Config::STARPU_RW_COMMUTE;
-    }
-    else
-    {
-        dst_mode = STARPU_RW;
-    }
     // Codelet arguments
     args_t* args = (args_t*)std::malloc(sizeof(*args));
     args->m = m;
@@ -177,7 +162,7 @@ void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src1,
             STARPU_R, static_cast<starpu_data_handle_t>(src1),
             STARPU_R, static_cast<starpu_data_handle_t>(src2),
             STARPU_CL_ARGS, args, sizeof(*args),
-            dst_mode, static_cast<starpu_data_handle_t>(dst),
+            STARPU_W, static_cast<starpu_data_handle_t>(dst),
             STARPU_FLOPS, nflops,
             0);
     // Check submission

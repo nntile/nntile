@@ -25,7 +25,6 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha_, const T 
         Scalar beta_, const T *src2, T *dst)
 //! Per-element addition of a tensor and a broadcasted fiber on CPU
 /*! Performs the following operations:
- *      dst[i,l,j,b] = beta*dst[i,l,j,b] + alpha*src[l,b]
  *	dst[i,l,j,b] = beta*src2[i,l,j,b] + alpha*src1[l,b]
  *
  * @param[in] m: Size of the first mode of dst tensor
@@ -36,7 +35,7 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha_, const T 
  * @param[in] alpha_: Scalar factor for src1
  * @param[in] src: Input contiguous vector with k elements
  * @param[in] beta_: Scaling factor for src2
- * @param[inout] dst: Input and output contiguous m-by-k-by-n array
+ * @param[inout] dst: Output contiguous m-by-k-by-n array
  * */
 {
     Index i2 = threadIdx.x + blockIdx.x*blockDim.x,
@@ -67,7 +66,6 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
     noexcept
 //! Per-element addition of a tensor and a broadcasted fiber on CPU
 /*! Performs the following operations:
- *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[l]
  *	dst[i,l,j] = beta*src2[i,l,j] + alpha*src1[l]
  *
  * @param[in] m: Size of the first mode of dst tensor
@@ -78,7 +76,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
  * @param[in] alpha: Scalar factor for src1
  * @param[in] src: Input contiguous vector with k elements
  * @param[in] beta: Scaling factor for src2
- * @param[inout] dst: Input and output contiguous m-by-k-by-n array
+ * @param[inout] dst: Output contiguous m-by-k-by-n array
  * */
 {
     // Both source and destination are Fortran-contiguous

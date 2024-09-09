@@ -60,36 +60,61 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
     scatter<T>(dst_single, dst);
     // Define proper shape and basetile for the source tensor
-    std::vector<Index> src_shape{shape[axis]},
-        src_basetile{basetile[axis]};
+    std::vector<Index> src1_shape{shape[axis]},
+        src1_basetile{basetile[axis]};
+
+    std::vector<Index> src2_shape{shape[axis]},
+        src2_basetile{basetile[axis]};
+
     // Generate single-tile source tensor and init it
-    TensorTraits src_single_traits(src_shape, src_shape);
-    Tensor<T> src_single(src_single_traits, dist_root, last_tag);
+    TensorTraits src1_single_traits(src1_shape, src1_shape);
+    Tensor<T> src1_single(src1_single_traits, dist_root, last_tag);
+
+    TensorTraits src2_single_traits(sr2_shape, src2_shape);
+    Tensor<T> src2_single(src2_single_traits, dist_root, last_tag);
+
     if(mpi_rank == mpi_root)
     {
-        auto tile = src_single.get_tile(0);
+        auto tile = src1_single.get_tile(0);
         auto tile_local = tile.acquire(STARPU_W);
-        for(Index i = 0; i < src_single.nelems; ++i)
+        for(Index i = 0; i < src1_single.nelems; ++i)
         {
             tile_local[i] = Y(-i);
         }
         tile_local.release();
+
+        auto tile2 = src2_single.get_tile(0);
+        auto tile2_local = tile2.acquire(STARPU_W);
+        for(Index i = 0; i < src2_single.nelems; ++i)
+        {
+            tile2_local[i] = Y(-3*i);
+        }
+        tile2_local.release();
     }
     // Scatter source tensor
-    TensorTraits src_traits(src_shape, src_basetile);
-    std::vector<int> src_distr(src_traits.grid.nelems);
-    for(Index i = 0; i < src_traits.grid.nelems; ++i)
+    TensorTraits src1_traits(src1_shape, src1_basetile);
+    std::vector<int> src1_distr(src1_traits.grid.nelems);
+    for(Index i = 0; i < src1_traits.grid.nelems; ++i)
     {
-        src_distr[i] = (i*i+1) % mpi_size;
+        src1_distr[i] = (i*i+1) % mpi_size;
     }
-    Tensor<T> src(src_traits, src_distr, last_tag);
-    scatter<T>(src_single, src);
+    Tensor<T> src1(src1_traits, src1_distr, last_tag);
+    scatter<T>(src1_single, src1);
+
+    TensorTraits src1_traits(src2_shape, src2_basetile);
+    std::vector<int> src2_distr(src2_traits.grid.nelems);
+    for(Index i = 0; i < src2_traits.grid.nelems; ++i)
+    {
+        src2_distr[i] = (i*i+1) % mpi_size;
+    }
+    Tensor<T> src2(src2_traits, src2_distr, last_tag);
+    scatter<T>(src2_single, src2);
     // Perform tensor-wise and tile-wise add_fiber operations
-    add_fiber<T>(-1.0, src, 0.5, dst, axis, 0);
+    add_fiber<T>(-1.0, src1, 0.5, src2, dst, axis);
     if(mpi_rank == mpi_root)
     {
-        tile::add_fiber<T>(-1.0, src_single.get_tile(0), 0.5,
-                dst_single.get_tile(0), axis, 0);
+        tile::add_fiber<T>(-1.0, src1_single.get_tile(0), 0.5,
+                src2_single.get_tile(0), dst_single.get_tile(0), axis);
     }
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);

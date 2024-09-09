@@ -26,4 +26,4 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, Scalar al
         const T *src1, Scalar beta, const T *src2, T *dst)
     noexcept;
 
-} // namespace nntile::kernel::add_fiber_inplace
+} // namespace nntile::kernel::add_fiber
