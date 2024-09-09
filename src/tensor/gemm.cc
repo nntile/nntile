@@ -514,6 +514,12 @@ void gemm_async<fp32_fast_fp16_t>(Scalar alpha, const TransOp &transA,
         const Tensor<fp32_fast_fp16_t> &C, Index ndim, Index batch_ndim, int redux);
 
 template
+void gemm_async<fp32_fast_bf16_t>(Scalar alpha, const TransOp &transA,
+        const Tensor<fp32_fast_bf16_t> &A,
+        const TransOp &transB, const Tensor<fp32_fast_bf16_t> &B, Scalar beta,
+        const Tensor<fp32_fast_bf16_t> &C, Index ndim, Index batch_ndim, int redux);
+
+template
 void gemm_async<fp64_t>(Scalar alpha, const TransOp &transA,
         const Tensor<fp64_t> &A,
         const TransOp &transB, const Tensor<fp64_t> &B, Scalar beta,
@@ -543,6 +549,12 @@ void gemm<fp32_fast_fp16_t>(Scalar alpha, const TransOp &transA,
         const Tensor<fp32_fast_fp16_t> &A,
         const TransOp &transB, const Tensor<fp32_fast_fp16_t> &B, Scalar beta,
         const Tensor<fp32_fast_fp16_t> &C, Index ndim, Index batch_ndim, int redux);
+
+template
+void gemm<fp32_fast_bf16_t>(Scalar alpha, const TransOp &transA,
+        const Tensor<fp32_fast_bf16_t> &A,
+        const TransOp &transB, const Tensor<fp32_fast_bf16_t> &B, Scalar beta,
+        const Tensor<fp32_fast_bf16_t> &C, Index ndim, Index batch_ndim, int redux);
 
 template
 void gemm<fp64_t>(Scalar alpha, const TransOp &transA,

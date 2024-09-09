@@ -53,6 +53,10 @@ void mask_scalar_async<fp32_fast_fp16_t>(const Tile<bool_t> &mask, Scalar val,
         const Tile<fp32_fast_fp16_t> &A);
 
 template
+void mask_scalar_async<fp32_fast_bf16_t>(const Tile<bool_t> &mask, Scalar val,
+        const Tile<fp32_fast_bf16_t> &A);
+
+template
 void mask_scalar_async<fp64_t>(const Tile<bool_t> &mask, Scalar val,
         const Tile<fp64_t> &A);
 
@@ -72,6 +76,10 @@ void mask_scalar<fp32_fast_tf32_t>(const Tile<bool_t> &mask, Scalar val,
 template
 void mask_scalar<fp32_fast_fp16_t>(const Tile<bool_t> &mask, Scalar val,
         const Tile<fp32_fast_fp16_t> &A);
+
+template
+void mask_scalar<fp32_fast_bf16_t>(const Tile<bool_t> &mask, Scalar val,
+        const Tile<fp32_fast_bf16_t> &A);
 
 template
 void mask_scalar<fp64_t>(const Tile<bool_t> &mask, Scalar val,
