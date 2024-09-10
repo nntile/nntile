@@ -60,14 +60,8 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
     scatter<T>(dst_single, dst);
     // Define proper shape and basetile for the source tensor
-    //std::vector<Index> src1_shape{shape[axis]},
-       // src1_basetile{basetile[axis]};
-
-    //std::vector<Index> src2_shape{shape[axis]},
-        //src2_basetile{basetile[axis]};
-
-    std::vector<Index> src1_shape(shape), src1_basetile(basetile);
-    std::vector<Index> src2_shape(shape), src2_basetile(basetile);
+    std::vector<Index> src1_shape{shape[axis]}, src1_basetile{basetile[axis]};
+    std::vector<Index> src2_shape{shape}, src2_basetile(basetile);
 
     // Generate single-tile source tensor and init it
     TensorTraits src1_single_traits(src1_shape, src1_shape);
@@ -114,10 +108,11 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     scatter<T>(src2_single, src2);
     // Perform tensor-wise and tile-wise add_fiber operations
     add_fiber<T>(-1.0, src1, 0.5, src2, dst, axis, 0);
+    add_fiber<T>(-1.0, src1_single, 0.5, src2_single, dst_single, axis, 0);
     if(mpi_rank == mpi_root)
     {
-        tile::add_fiber<T>(-1.0, src1_single.get_tile(0), 0.5,
-                src2_single.get_tile(0), dst_single.get_tile(0), axis, 0);
+        //tile::add_fiber<T>(-1.0, src1_single.get_tile(0), 0.5,
+        //        src2_single.get_tile(0), dst_single.get_tile(0), axis, 0);
     }
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);

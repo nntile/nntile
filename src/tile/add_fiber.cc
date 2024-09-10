@@ -37,9 +37,9 @@ void add_fiber_async(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<
     {
         throw std::runtime_error("src.ndim != batch_ndim+1");
     }
-    if(src2.ndim != batch_ndim+1)
+    if(src2.ndim != dst.ndim)
     {
-        throw std::runtime_error("src.ndim != batch_ndim+1");
+        throw std::runtime_error("src2.ndim != dst.ndim");
     }
     // Check axis
     if(axis < 0)
@@ -55,23 +55,15 @@ void add_fiber_async(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<
     {
         throw std::runtime_error("src1.shape[0] != dst.shape[axis]");
     }
-    if(src2.shape[0] != dst.shape[axis])
+    if(src2.shape != dst.shape)
     {
-        throw std::runtime_error("src2.shape[0] != dst.shape[axis]");
+        throw std::runtime_error("src2.shape != dst.shape");
     }
     for(Index i = 0; i < batch_ndim; ++i)
     {
         if(src1.shape[i+1] != dst.shape[dst.ndim-batch_ndim+i])
         {
             throw std::runtime_error("src1.shape[i+1] != "
-                    "dst.shape[dst.ndim-batch_ndim+i]");
-        }
-    }
-    for(Index i = 0; i < batch_ndim; ++i)
-    {
-        if(src2.shape[i+1] != dst.shape[dst.ndim-batch_ndim+i])
-        {
-            throw std::runtime_error("src2.shape[i+1] != "
                     "dst.shape[dst.ndim-batch_ndim+i]");
         }
     }

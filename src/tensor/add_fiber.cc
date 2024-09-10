@@ -37,9 +37,9 @@ void add_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
     {
         throw std::runtime_error("src1.ndim != batch_ndim+1");
     }
-    if(src2.ndim != batch_ndim+1)
+    if(src2.ndim != dst.ndim)
     {
-        throw std::runtime_error("src2.ndim != batch_ndim+1");
+        throw std::runtime_error("src2.ndim != dst.ndim");
     }
     // Check axis
     if(axis < 0)
@@ -55,19 +55,19 @@ void add_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
     {
         throw std::runtime_error("src1.shape[0] != dst.shape[axis]");
     }
-    if(src2.shape[0] != dst.shape[axis])
+    if(src2.shape != dst.shape)
     {
-        throw std::runtime_error("src2.shape[0] != dst.shape[axis]");
+        throw std::runtime_error("src2.shape != dst.shape");
     }
     if(src1.basetile_shape[0] != dst.basetile_shape[axis])
     {
         throw std::runtime_error("src1.basetile_shape[0] != "
                 "dst.basetile_shape[axis]");
     }
-    if(src2.basetile_shape[0] != dst.basetile_shape[axis])
+    if(src2.basetile_shape != dst.basetile_shape)
     {
-        throw std::runtime_error("src2.basetile_shape[0] != "
-                "dst.basetile_shape[axis]");
+        throw std::runtime_error("src2.basetile_shape != "
+                "dst.basetile_shape");
     }
     for(Index i = 0; i < batch_ndim; ++i)
     {
@@ -76,19 +76,9 @@ void add_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
             throw std::runtime_error("src1.shape[i+1] != "
                     "dst.shape[dst.ndim-batch_ndim+i]");
         }
-        if(src2.shape[i+1] != dst.shape[dst.ndim-batch_ndim+i])
-        {
-            throw std::runtime_error("src2.shape[i+1] != "
-                    "dst.shape[dst.ndim-batch_ndim+i]");
-        }
         if(src1.basetile_shape[i+1] != dst.basetile_shape[dst.ndim-batch_ndim+i])
         {
             throw std::runtime_error("src1.basetile_shape[i+1] != "
-                    "dst.basetile_shape[dst.ndim-batch_ndim+i]");
-        }
-        if(src2.basetile_shape[i+1] != dst.basetile_shape[dst.ndim-batch_ndim+i])
-        {
-            throw std::runtime_error("src2.basetile_shape[i+1] != "
                     "dst.basetile_shape[dst.ndim-batch_ndim+i]");
         }
     }
@@ -103,13 +93,11 @@ void add_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
         int dst_tile_rank = dst_tile_handle.mpi_get_rank();
         // Get corresponding src1, src2 tile
         std::vector<Index> src1_tile_index(src1.ndim);
-        std::vector<Index> src2_tile_index(src2.ndim);
+        std::vector<Index> src2_tile_index(dst_tile_index);
         src1_tile_index[0] = dst_tile_index[axis];
-        src2_tile_index[0] = dst_tile_index[axis];
         for(Index j = 0; j < batch_ndim; ++j)
         {
             src1_tile_index[j+1] = dst_tile_index[dst.ndim-batch_ndim+j];
-            src2_tile_index[j+1] = dst_tile_index[dst.ndim-batch_ndim+j];
         }
         auto src1_tile_handle = src1.get_tile_handle(src1_tile_index);
         auto src1_tile_traits = src1.get_tile_traits(src1_tile_index);
