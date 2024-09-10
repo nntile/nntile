@@ -903,6 +903,34 @@ def add_fiber_inplace_async(
             f'Tensor must share the same type but actual types are {types}.')
 
 
+def add_fiber_async(
+    alpha: float, add_fiber: Tensor, beta, x: Tensor, y: Tensor,
+    axis: int, batch_ndim: int
+) -> None:
+    """Wrapper for multiprecision `add_fiber`."""
+    ts = (add_fiber, x, y)
+    if is_tensor_of(ts, Tensor_bf16):
+        ops.add_fiber_async_bf16(
+            alpha, add_fiber, beta, x, y, axis, batch_ndim
+        )
+    elif is_tensor_of(ts, Tensor_fp32):
+        ops.add_fiber_async_fp32(
+            alpha, add_fiber, beta, x, y, axis, batch_ndim
+        )
+    elif is_tensor_of(ts, Tensor_fp32_fast_tf32):
+        ops.add_fiber_async_fp32_fast_tf32(
+            alpha, add_fiber, beta, x, y, axis, batch_ndim
+        )
+    elif is_tensor_of(ts, Tensor_fp64):
+        ops.add_fiber_async_fp64(
+            alpha, add_fiber, beta, x, y, axis, batch_ndim
+        )
+    else:
+        types = ', '.join(str(type(t)) for t in ts)
+        raise TypeError(
+            f'Tensor must share the same type but actual types are {types}.')
+
+
 def prod_slice_async(
     prod_slice: Tensor, alpha: float, x: Tensor, axis: int
 ) -> None:
