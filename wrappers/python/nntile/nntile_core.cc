@@ -873,6 +873,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("gather_async_bf16", &gather_async<bf16_t>);
     m.def("gather_async_fp32_fast_bf16", &gather_async<fp32_fast_bf16_t>);
     m.def("gather_async_fp32_fast_fp16", &gather_async<fp32_fast_fp16_t>);
+    m.def("gather_async_fp32_fast_tf32", &gather_async<fp32_fast_tf32_t>);
     m.def("gather_fp64", &gather<fp64_t>);
     m.def("gather_fp32", &gather<fp32_t>);
     m.def("gather_int64", &gather<nntile::int64_t>);
@@ -880,6 +881,7 @@ void def_mod_tensor(py::module_ &m)
     m.def("gather_bf16", &gather<bf16_t>);
     m.def("gather_fp32_fast_bf16", &gather<fp32_fast_bf16_t>);
     m.def("gather_fp32_fast_fp16", &gather<fp32_fast_fp16_t>);
+    m.def("gather_fp32_fast_tf32", &gather<fp32_fast_tf32_t>);
 
     m.def("copy_intersection_async_bool", &copy_intersection_async<bool_t>);
     m.def("copy_intersection_async_fp64", &copy_intersection_async<fp64_t>);
