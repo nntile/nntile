@@ -108,11 +108,10 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     scatter<T>(src2_single, src2);
     // Perform tensor-wise and tile-wise add_fiber operations
     add_fiber<T>(-1.0, src1, 0.5, src2, dst, axis, 0);
-    add_fiber<T>(-1.0, src1_single, 0.5, src2_single, dst_single, axis, 0);
     if(mpi_rank == mpi_root)
     {
-        //tile::add_fiber<T>(-1.0, src1_single.get_tile(0), 0.5,
-        //        src2_single.get_tile(0), dst_single.get_tile(0), axis, 0);
+        tile::add_fiber<T>(-1.0, src1_single.get_tile(0), 0.5,
+                src2_single.get_tile(0), dst_single.get_tile(0), axis, 0);
     }
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
