@@ -1149,6 +1149,8 @@ def gather_async(x: TensorFloatOrInt, y: TensorFloatOrInt) -> None:
         core_tensor.gather_async_bf16(x, y)
     elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
         core_tensor.gather_async_fp32_fast_bf16(x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.gather_async_fp32_fast_fp16(x, y)
     else:
         raise TypeError
 

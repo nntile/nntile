@@ -114,7 +114,7 @@ void cublas(cublasHandle_t handle, cublasOperation_t transA,
             CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
 
-// Overloaded call to cuBLAS GEMM for fp32_fast_fp16_t
+// Overloaded call to cuBLAS GEMM for fp32_fast_bf16_t
 static inline
 void cublas(cublasHandle_t handle, cublasOperation_t transA,
         cublasOperation_t transB, int M, int N, int K, float alpha,
