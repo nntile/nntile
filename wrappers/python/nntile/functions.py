@@ -506,6 +506,10 @@ def flash_softmax_gemm_async(
         core_tensor.flash_softmax_gemm_async_fp32_fast_fp16(
             Q, K, V, mask, maxsumexp, dst, tmp, redux
         )
+    elif type(Q) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.flash_softmax_gemm_async_fp32_fast_bf16(
+            Q, K, V, mask, maxsumexp, dst, tmp, redux
+        )
     elif type(Q) is core_tensor.Tensor_fp64:
         core_tensor.flash_softmax_gemm_async_fp64(
             Q, K, V, mask, maxsumexp, dst, tmp, redux
@@ -590,6 +594,22 @@ def flash_softmax_gemm_backward_async(
         )
     elif type(Q) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.flash_softmax_gemm_backward_async_fp32_fast_fp16(
+            Q,
+            dQ,
+            K,
+            dK,
+            V,
+            dV,
+            mask,
+            maxsumexp,
+            dst_grad,
+            tmp,
+            tmp_grad,
+            tmp_sumprod_slice,
+            redux,
+        )
+    elif type(Q) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.flash_softmax_gemm_backward_async_fp32_fast_bf16(
             Q,
             dQ,
             K,
@@ -885,6 +905,10 @@ def flash_maxsumexp_async(
         )
     elif type(Q) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.flash_maxsumexp_async_fp32_fast_fp16(
+            Q, K, mask, maxsumexp, tmp, redux
+        )
+    elif type(Q) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.flash_maxsumexp_async_fp32_fast_bf16(
             Q, K, mask, maxsumexp, tmp, redux
         )
     elif type(Q) is core_tensor.Tensor_fp64:

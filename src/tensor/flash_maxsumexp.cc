@@ -151,6 +151,11 @@ void flash_maxsumexp_async(const Tensor<fp32_fast_fp16_t> &Q, const Tensor<fp32_
         const Tensor<fp32_fast_fp16_t> &tmp, int redux);
 
 template
+void flash_maxsumexp_async(const Tensor<fp32_fast_bf16_t> &Q, const Tensor<fp32_fast_bf16_t> &K,
+        const Tensor<bool_t> &mask, const Tensor<fp32_fast_bf16_t> &maxsumexp,
+        const Tensor<fp32_fast_bf16_t> &tmp, int redux);
+
+template
 void flash_maxsumexp_async(const Tensor<fp32_t> &Q, const Tensor<fp32_t> &K,
         const Tensor<bool_t> &mask, const Tensor<fp32_t> &maxsumexp,
         const Tensor<fp32_t> &tmp, int redux);
@@ -180,6 +185,11 @@ template
 void flash_maxsumexp(const Tensor<fp32_fast_fp16_t> &Q, const Tensor<fp32_fast_fp16_t> &K,
         const Tensor<bool_t> &mask, const Tensor<fp32_fast_fp16_t> &maxsumexp,
         const Tensor<fp32_fast_fp16_t> &tmp, int redux);
+
+template
+void flash_maxsumexp(const Tensor<fp32_fast_bf16_t> &Q, const Tensor<fp32_fast_bf16_t> &K,
+        const Tensor<bool_t> &mask, const Tensor<fp32_fast_bf16_t> &maxsumexp,
+        const Tensor<fp32_fast_bf16_t> &tmp, int redux);
 
 template
 void flash_maxsumexp(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &K,

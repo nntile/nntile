@@ -255,6 +255,14 @@ void flash_softmax_gemm_backward_async(const Tensor<fp32_fast_fp16_t> &Q, const 
         const Tensor<fp32_fast_fp16_t> &tmp_sumprod_slice, int redux);
 
 template
+void flash_softmax_gemm_backward_async(const Tensor<fp32_fast_bf16_t> &Q, const Tensor<fp32_fast_bf16_t> &dQ,
+        const Tensor<fp32_fast_bf16_t> &K, const Tensor<fp32_fast_bf16_t> &dK, const Tensor<fp32_fast_bf16_t> &V,
+        const Tensor<fp32_fast_bf16_t> &dV, const Tensor<bool_t> &mask,
+        const Tensor<fp32_fast_bf16_t> &maxsumexp, const Tensor<fp32_fast_bf16_t> &dst_grad,
+        const Tensor<fp32_fast_bf16_t> &tmp, const Tensor<fp32_fast_bf16_t> &tmp_grad,
+        const Tensor<fp32_fast_bf16_t> &tmp_sumprod_slice, int redux);
+
+template
 void flash_softmax_gemm_backward_async(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &dQ,
         const Tensor<fp64_t> &K, const Tensor<fp64_t> &dK, const Tensor<fp64_t> &V,
         const Tensor<fp64_t> &dV, const Tensor<bool_t> &mask,
@@ -294,6 +302,14 @@ void flash_softmax_gemm_backward(const Tensor<fp32_fast_fp16_t> &Q, const Tensor
         const Tensor<fp32_fast_fp16_t> &maxsumexp, const Tensor<fp32_fast_fp16_t> &dst_grad,
         const Tensor<fp32_fast_fp16_t> &tmp, const Tensor<fp32_fast_fp16_t> &tmp_grad,
         const Tensor<fp32_fast_fp16_t> &tmp_sumprod_slice, int redux);
+
+template
+void flash_softmax_gemm_backward(const Tensor<fp32_fast_bf16_t> &Q, const Tensor<fp32_fast_bf16_t> &dQ,
+        const Tensor<fp32_fast_bf16_t> &K, const Tensor<fp32_fast_bf16_t> &dK, const Tensor<fp32_fast_bf16_t> &V,
+        const Tensor<fp32_fast_bf16_t> &dV, const Tensor<bool_t> &mask,
+        const Tensor<fp32_fast_bf16_t> &maxsumexp, const Tensor<fp32_fast_bf16_t> &dst_grad,
+        const Tensor<fp32_fast_bf16_t> &tmp, const Tensor<fp32_fast_bf16_t> &tmp_grad,
+        const Tensor<fp32_fast_bf16_t> &tmp_sumprod_slice, int redux);
 
 template
 void flash_softmax_gemm_backward(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &dQ,
