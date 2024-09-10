@@ -1644,6 +1644,19 @@ def fused_adam_step(
             second_moment,
             p,
         )
+    elif type(p) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.adam_step_async_fp32_fast_bf16(
+            num_iter,
+            beta1,
+            beta2,
+            eps,
+            lr,
+            weight_decay,
+            grad,
+            first_moment,
+            second_moment,
+            p,
+        )
     elif type(p) is core_tensor.Tensor_fp64:
         core_tensor.adam_step_async_fp64(
             num_iter,
@@ -1720,6 +1733,19 @@ def fused_adamw_step(
         )
     elif type(p) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.adamw_step_async_fp32_fast_fp16(
+            num_iter,
+            beta1,
+            beta2,
+            eps,
+            lr,
+            weight_decay,
+            grad,
+            first_moment,
+            second_moment,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.adamw_step_async_fp32_fast_bf16(
             num_iter,
             beta1,
             beta2,
