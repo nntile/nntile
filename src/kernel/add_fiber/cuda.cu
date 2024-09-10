@@ -76,8 +76,9 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
  *  	tensors
  * @param[in] batch: Size of the batch dimension
  * @param[in] alpha: Scalar factor for src1
- * @param[in] src: Input contiguous vector with k elements
+ * @param[in] src1: Input contiguous vector with k elements
  * @param[in] beta: Scaling factor for src2
+ * @param[in] src2: Input contiguous vector with k elements
  * @param[inout] dst: Output contiguous m-by-k-by-n array
  * */
 {
