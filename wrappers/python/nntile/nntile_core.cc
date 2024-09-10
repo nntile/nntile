@@ -586,11 +586,13 @@ void def_mod_tensor(py::module_ &m)
     m.def("sum_fiber_async_fp32", &sum_fiber_async<fp32_t>);
     m.def("sum_fiber_async_fp32_fast_tf32", &sum_fiber_async<fp32_fast_tf32_t>);
     m.def("sum_fiber_async_fp32_fast_fp16", &sum_fiber_async<fp32_fast_fp16_t>);
+    m.def("sum_fiber_async_fp32_fast_bf16", &sum_fiber_async<fp32_fast_bf16_t>);
     m.def("sum_fiber_fp64", &sum_fiber<fp64_t>);
     m.def("sum_fiber_fp32", &sum_fiber<fp32_t>);
     m.def("sum_fiber_bf16", &sum_fiber<bf16_t>);
     m.def("sum_fiber_fp32_fast_tf32", &sum_fiber<fp32_fast_tf32_t>);
     m.def("sum_fiber_fp32_fast_fp16", &sum_fiber<fp32_fast_fp16_t>);
+    m.def("sum_fiber_fp32_fast_bf16", &sum_fiber<fp32_fast_bf16_t>);
 
     m.def("norm_fiber_async_fp64", &norm_fiber_async<fp64_t>);
     m.def("norm_fiber_async_bf16", &norm_fiber_async<bf16_t>);
@@ -714,11 +716,14 @@ void def_mod_tensor(py::module_ &m)
             &prod_inplace_async<fp32_fast_tf32_t>);
     m.def("prod_inplace_async_fp32_fast_fp16",
             &prod_inplace_async<fp32_fast_fp16_t>);
+    m.def("prod_inplace_async_fp32_fast_bf16",
+            &prod_inplace_async<fp32_fast_bf16_t>);
     m.def("prod_inplace_fp64", &prod_inplace<fp64_t>);
     m.def("prod_inplace_fp32", &prod_inplace<fp32_t>);
     m.def("prod_inplace_bf16", &prod_inplace<bf16_t>);
     m.def("prod_inplace_fp32_fast_tf32", &prod_inplace<fp32_fast_tf32_t>);
     m.def("prod_inplace_fp32_fast_fp16", &prod_inplace<fp32_fast_fp16_t>);
+    m.def("prod_inplace_fp32_fast_bf16", &prod_inplace<fp32_fast_bf16_t>);
 
     m.def("nrm2_async_fp64", &nrm2_async<fp64_t>);
     m.def("nrm2_async_fp32", &nrm2_async<fp32_t>);
@@ -759,11 +764,13 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_slice_inplace_async_fp32", &add_slice_inplace_async<fp32_t>);
     m.def("add_slice_inplace_async_fp32_fast_tf32", &add_slice_inplace_async<fp32_fast_tf32_t>);
     m.def("add_slice_inplace_async_fp32_fast_fp16", &add_slice_inplace_async<fp32_fast_fp16_t>);
+    m.def("add_slice_inplace_async_fp32_fast_bf16", &add_slice_inplace_async<fp32_fast_bf16_t>);
     m.def("add_slice_inplace_fp64", &add_slice_inplace<fp64_t>);
     m.def("add_slice_inplace_bf16", &add_slice_inplace<bf16_t>);
     m.def("add_slice_inplace_fp32", &add_slice_inplace<fp32_t>);
     m.def("add_slice_inplace_fp32_fast_tf32", &add_slice_inplace<fp32_fast_tf32_t>);
     m.def("add_slice_inplace_fp32_fast_fp16", &add_slice_inplace<fp32_fast_fp16_t>);
+    m.def("add_slice_inplace_fp32_fast_bf16", &add_slice_inplace<fp32_fast_bf16_t>);
 
     m.def("add_slice_async_fp64", &add_slice_async<fp64_t>);
     m.def("add_slice_async_bf16", &add_slice_async<bf16_t>);
@@ -795,12 +802,14 @@ void def_mod_tensor(py::module_ &m)
     m.def("add_inplace_async_fp32", &add_inplace_async<fp32_t>);
     m.def("add_inplace_async_fp32_fast_tf32", &add_inplace_async<fp32_fast_tf32_t>);
     m.def("add_inplace_async_fp32_fast_fp16", &add_inplace_async<fp32_fast_fp16_t>);
+    m.def("add_inplace_async_fp32_fast_bf16", &add_inplace_async<fp32_fast_bf16_t>);
     m.def("add_inplace_async_bf16", &add_inplace_async<bf16_t>);
     m.def("add_inplace_fp64", &add_inplace<fp64_t>);
     m.def("add_inplace_bf16", &add_inplace<bf16_t>);
     m.def("add_inplace_fp32", &add_inplace<fp32_t>);
     m.def("add_inplace_fp32_fast_tf32", &add_inplace<fp32_fast_tf32_t>);
     m.def("add_inplace_fp32_fast_fp16", &add_inplace<fp32_fast_fp16_t>);
+    m.def("add_inplace_fp32_fast_bf16", &add_inplace<fp32_fast_bf16_t>);
 
     m.def("add_scalar_async_fp64", &add_scalar_async<fp64_t>);
     m.def("add_scalar_async_fp32", &add_scalar_async<fp32_t>);
@@ -1042,22 +1051,26 @@ void def_mod_tensor(py::module_ &m)
     m.def("sumprod_slice_async_fp32", &sumprod_slice_async<fp32_t>);
     m.def("sumprod_slice_async_fp32_fast_tf32", &sumprod_slice_async<fp32_fast_tf32_t>);
     m.def("sumprod_slice_async_fp32_fast_fp16", &sumprod_slice_async<fp32_fast_fp16_t>);
+    m.def("sumprod_slice_async_fp32_fast_bf16", &sumprod_slice_async<fp32_fast_bf16_t>);
     m.def("sumprod_slice_fp64", &sumprod_slice<fp64_t>);
     m.def("sumprod_slice_fp32", &sumprod_slice<fp32_t>);
     m.def("sumprod_slice_bf16", &sumprod_slice<bf16_t>);
     m.def("sumprod_slice_fp32_fast_tf32", &sumprod_slice<fp32_fast_tf32_t>);
     m.def("sumprod_slice_fp32_fast_fp16", &sumprod_slice<fp32_fast_fp16_t>);
+    m.def("sumprod_slice_fp32_fast_bf16", &sumprod_slice<fp32_fast_bf16_t>);
 
     m.def("sumprod_fiber_async_fp64", &sumprod_fiber_async<fp64_t>);
     m.def("sumprod_fiber_async_bf16", &sumprod_fiber_async<bf16_t>);
     m.def("sumprod_fiber_async_fp32", &sumprod_fiber_async<fp32_t>);
     m.def("sumprod_fiber_async_fp32_fast_tf32", &sumprod_fiber_async<fp32_fast_tf32_t>);
     m.def("sumprod_fiber_async_fp32_fast_fp16", &sumprod_fiber_async<fp32_fast_fp16_t>);
+    m.def("sumprod_fiber_async_fp32_fast_bf16", &sumprod_fiber_async<fp32_fast_bf16_t>);
     m.def("sumprod_fiber_fp64", &sumprod_fiber<fp64_t>);
     m.def("sumprod_fiber_fp32", &sumprod_fiber<fp32_t>);
     m.def("sumprod_fiber_bf16", &sumprod_fiber<bf16_t>);
     m.def("sumprod_fiber_fp32_fast_tf32", &sumprod_fiber<fp32_fast_tf32_t>);
     m.def("sumprod_fiber_fp32_fast_fp16", &sumprod_fiber<fp32_fast_fp16_t>);
+    m.def("sumprod_fiber_fp32_fast_bf16", &sumprod_fiber<fp32_fast_bf16_t>);
 
     // gelu and dgelu
     m.def("gelu_async_fp64", &gelu_async<fp64_t>);
@@ -1092,11 +1105,13 @@ void def_mod_tensor(py::module_ &m)
     m.def("gelutanh_backward_async_fp32", &gelutanh_backward_async<fp32_t>);
     m.def("gelutanh_backward_async_fp32_fast_tf32", &gelutanh_backward_async<fp32_fast_tf32_t>);
     m.def("gelutanh_backward_async_fp32_fast_fp16", &gelutanh_backward_async<fp32_fast_fp16_t>);
+    m.def("gelutanh_backward_async_fp32_fast_bf16", &gelutanh_backward_async<fp32_fast_bf16_t>);
     m.def("gelutanh_backward_fp64", &gelutanh_backward<fp64_t>);
     m.def("gelutanh_backward_fp32", &gelutanh_backward<fp32_t>);
     m.def("gelutanh_backward_bf16", &gelutanh_backward<bf16_t>);
     m.def("gelutanh_backward_fp32_fast_tf32", &gelutanh_backward<fp32_fast_tf32_t>);
     m.def("gelutanh_backward_fp32_fast_fp16", &gelutanh_backward<fp32_fast_fp16_t>);
+    m.def("gelutanh_backward_fp32_fast_bf16", &gelutanh_backward<fp32_fast_bf16_t>);
 
     m.def("dgelu_async_fp64", &dgelu_async<fp64_t>);
     m.def("dgelu_async_fp32", &dgelu_async<fp32_t>);
@@ -1127,11 +1142,13 @@ void def_mod_tensor(py::module_ &m)
     m.def("embedding_backward_async_fp32", &embedding_backward_async<fp32_t>);
     m.def("embedding_backward_async_fp32_fast_tf32", &embedding_backward_async<fp32_fast_tf32_t>);
     m.def("embedding_backward_async_fp32_fast_fp16", &embedding_backward_async<fp32_fast_fp16_t>);
+    m.def("embedding_backward_async_fp32_fast_bf16", &embedding_backward_async<fp32_fast_bf16_t>);
     m.def("embedding_backward_fp64", &embedding_backward<fp64_t>);
     m.def("embedding_backward_fp32", &embedding_backward<fp32_t>);
     m.def("embedding_backward_bf16", &embedding_backward<bf16_t>);
     m.def("embedding_backward_fp32_fast_tf32", &embedding_backward<fp32_fast_tf32_t>);
     m.def("embedding_backward_fp32_fast_fp16", &embedding_backward<fp32_fast_fp16_t>);
+    m.def("embedding_backward_fp32_fast_bf16", &embedding_backward<fp32_fast_bf16_t>);
 
     // FP32 <-> FP16
     //m.def("fp32_to_fp16_async", &fp32_to_fp16_async);

@@ -154,6 +154,11 @@ void sum_fiber_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16
         int redux);
 
 template
+void sum_fiber_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
+        const Tensor<fp32_fast_bf16_t> &dst, Index axis, Index batch_ndim,
+        int redux);
+
+template
 void sum_fiber_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         Scalar beta, const Tensor<fp64_t> &dst, Index axis, Index batch_ndim,
         int redux);
@@ -177,6 +182,11 @@ void sum_fiber<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &s
 template
 void sum_fiber<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
         const Tensor<fp32_fast_fp16_t> &dst, Index axis, Index batch_ndim,
+        int redux);
+
+template
+void sum_fiber<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
+        const Tensor<fp32_fast_bf16_t> &dst, Index axis, Index batch_ndim,
         int redux);
 
 template

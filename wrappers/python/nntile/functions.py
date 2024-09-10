@@ -274,6 +274,8 @@ def gelutanh_backward_async(x: Tensor, dy: Tensor, dx: Tensor) -> None:
         core_tensor.gelutanh_backward_async_fp32_fast_tf32(x, dy, dx)
     elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.gelutanh_backward_async_fp32_fast_fp16(x, dy, dx)
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.gelutanh_backward_async_fp32_fast_bf16(x, dy, dx)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.gelutanh_backward_async_fp64(x, dy, dx)
     elif type(x) is core_tensor.Tensor_bf16:
@@ -351,6 +353,10 @@ def sum_fiber_async(
         )
     elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.sum_fiber_async_fp32_fast_fp16(
+            alpha, x, beta, sum_fiber, axis, batch_ndim, redux
+        )
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.sum_fiber_async_fp32_fast_bf16(
             alpha, x, beta, sum_fiber, axis, batch_ndim, redux
         )
     elif type(x) is core_tensor.Tensor_fp64:
@@ -763,6 +769,8 @@ def prod_inplace_async(x: Tensor, y: Tensor) -> None:
         core_tensor.prod_inplace_async_fp32_fast_tf32(x, y)
     elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.prod_inplace_async_fp32_fast_fp16(x, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.prod_inplace_async_fp32_fast_bf16(x, y)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.prod_inplace_async_fp64(x, y)
     elif type(x) is core_tensor.Tensor_bf16:
@@ -808,6 +816,8 @@ def add_inplace_async(alpha: float, x: Tensor, beta: float, y: Tensor) -> None:
         core_tensor.add_inplace_async_fp32_fast_tf32(alpha, x, beta, y)
     elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.add_inplace_async_fp32_fast_fp16(alpha, x, beta, y)
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.add_inplace_async_fp32_fast_bf16(alpha, x, beta, y)
     elif type(x) is core_tensor.Tensor_fp64:
         core_tensor.add_inplace_async_fp64(alpha, x, beta, y)
     elif type(x) is core_tensor.Tensor_bf16:
@@ -935,6 +945,10 @@ def add_slice_inplace_async(
         )
     elif type(x) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.add_slice_inplace_async_fp32_fast_fp16(
+            alpha, add_slice, beta, x, axis
+        )
+    elif type(x) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.add_slice_inplace_async_fp32_fast_bf16(
             alpha, add_slice, beta, x, axis
         )
     elif type(x) is core_tensor.Tensor_bf16:
@@ -1296,6 +1310,10 @@ def sumprod_slice_async(
         core_tensor.sumprod_slice_async_fp32_fast_fp16(
             alpha, src1, src2, beta, dst, axis, redux
         )
+    elif type(src1) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.sumprod_slice_async_fp32_fast_bf16(
+            alpha, src1, src2, beta, dst, axis, redux
+        )
     elif type(src1) is core_tensor.Tensor_fp64:
         core_tensor.sumprod_slice_async_fp64(
             alpha, src1, src2, beta, dst, axis, redux
@@ -1334,6 +1352,10 @@ def sumprod_fiber_async(
         )
     elif type(src1) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.sumprod_fiber_async_fp32_fast_fp16(
+            alpha, src1, src2, beta, dst, axis, redux
+        )
+    elif type(src1) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.sumprod_fiber_async_fp32_fast_bf16(
             alpha, src1, src2, beta, dst, axis, redux
         )
     elif type(src1) is core_tensor.Tensor_fp64:
@@ -1515,6 +1537,9 @@ def embedding_backward_async(index: Tensor_int64, embed: Tensor, vocab: Tensor,
                                                     redux)
     elif is_tensor_of(ts, Tensor_fp32_fast_fp16):
         ops.embedding_backward_async_fp32_fast_fp16(index, ts[0], ts[1], axis,
+                                                    redux)
+    elif is_tensor_of(ts, Tensor_fp32_fast_bf16):
+        ops.embedding_backward_async_fp32_fast_bf16(index, ts[0], ts[1], axis,
                                                     redux)
     elif is_tensor_of(ts, Tensor_fp64):
         ops.embedding_backward_async_fp64(index, ts[0], ts[1], axis, redux)
