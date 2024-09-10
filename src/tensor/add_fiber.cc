@@ -135,7 +135,7 @@ void add_fiber(Scalar alpha, const Tensor<T> &src1, Scalar beta,  const Tensor<T
 /*! Blocking version of add_fiber_async<T>.
  * Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
  * and performs the following operations:
- *      dst[i,l,j] = beta*src2[i,l,j] + alpha*src1[l]
+ *      dst[i,l,j,b] = beta*src2[i,l,j,b] + alpha*src1[l,b]
  * @param[in] alpha: Scalar factor for src1
  * @param[in] src: Input fiber, that is reshaped into 1D array
  * @param[in] beta: Scaling factor for src2

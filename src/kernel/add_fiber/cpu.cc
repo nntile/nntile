@@ -28,7 +28,7 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src1,
  *
  * @param[in] m: Size of the first mode of dst tensor
  * @param[in] n: Size of the last mode of dst tensor
- * @param[in] k: Size of the middle mode of dst tensor and the only mode of src1,
+ * @param[in] k: Size of the middle mode of dst and src2 tensors and the only mode of src1
  *  tensors
  * @param[in] batch: Size of the batch dimension
  * @param[in] alpha_: Scalar factor for src1

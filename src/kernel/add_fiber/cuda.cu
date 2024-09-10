@@ -29,12 +29,13 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha_, const T 
  *
  * @param[in] m: Size of the first mode of dst tensor
  * @param[in] n: Size of the last mode of dst tensor
- * @param[in] k: Size of the middle mode of dst tensor and the only mode of src1
+ * @param[in] k: Size of the middle mode of dst and src2 tensor and the only mode of src1
  *     tensors
  * @param[in] batch: Size of the batch dimension
  * @param[in] alpha_: Scalar factor for src1
- * @param[in] src: Input contiguous vector with k elements
+ * @param[in] src1: Input contiguous vector with k elements
  * @param[in] beta_: Scaling factor for src2
+ * @param[in] src2: Input contiguous vector with k elements
  * @param[inout] dst: Output contiguous m-by-k-by-n array
  * */
 {
