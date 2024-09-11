@@ -35,7 +35,7 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha_, const T 
  * @param[in] alpha_: Scalar factor for src1
  * @param[in] src1: Input contiguous vector with k elements
  * @param[in] beta_: Scaling factor for src2
- * @param[in] src2: Input contiguous vector with k elements
+ * @param[in] src2: Input contiguous vector with k*b elements
  * @param[inout] dst: Output contiguous m-by-k-by-n array
  * */
 {
@@ -78,7 +78,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
  * @param[in] alpha: Scalar factor for src1
  * @param[in] src1: Input contiguous vector with k elements
  * @param[in] beta: Scaling factor for src2
- * @param[in] src2: Input contiguous vector with k elements
+ * @param[in] src2: Input contiguous vector with k*b elements
  * @param[inout] dst: Output contiguous m-by-k-by-n array
  * */
 {
