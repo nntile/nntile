@@ -24,6 +24,7 @@
 #include <nntile/tensor/add_slice_inplace.hh>
 #include <nntile/tensor/add_slice.hh>
 #include <nntile/tensor/add_fiber_inplace.hh>
+#include <nntile/tensor/add_fiber.hh>
 #include <nntile/tensor/prod_slice.hh>
 #include <nntile/tensor/prod_fiber.hh>
 #include <nntile/tensor/prod_fiber3.hh>
