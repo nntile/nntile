@@ -163,7 +163,7 @@ void norm_fiber_async<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf3
 
 template
 void norm_fiber_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src1,
-        Scalar beta, const Tensor<fp64_t> &src1,
+        Scalar beta, const Tensor<fp64_t> &src2,
         const Tensor<fp64_t> &dst, Index axis, Index batch_ndim,
         int redux);
 

@@ -292,6 +292,7 @@ set(TILE_SRC
     "tile/silu_backward.cc"
     "tile/rope.cc"
     "tile/norm_fiber_inplace.cc"
+    "tile/norm_fiber.cc"
     )
 
 set(TENSOR_SRC
@@ -369,6 +370,7 @@ set(TENSOR_SRC
     "tensor/rope.cc"
     "tensor/rope_backward.cc"
     "tensor/norm_fiber_inplace.cc"
+    "tensor/norm_fiber.cc"
     )
 
 set(LAYER_SRC
