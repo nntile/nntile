@@ -149,6 +149,10 @@ void norm_slice_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp1
         const Tensor<fp32_fast_fp16_t> &dst, Index axis, int redux);
 
 template
+void norm_slice_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
+        const Tensor<fp32_fast_bf16_t> &dst, Index axis, int redux);
+
+template
 void norm_slice_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         Scalar beta, const Tensor<fp64_t> &dst, Index axis, int redux);
 
@@ -168,6 +172,10 @@ void norm_slice<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t> &
 template
 void norm_slice<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
         const Tensor<fp32_fast_fp16_t> &dst, Index axis, int redux);
+
+template
+void norm_slice<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
+        const Tensor<fp32_fast_bf16_t> &dst, Index axis, int redux);
 
 template
 void norm_slice<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,

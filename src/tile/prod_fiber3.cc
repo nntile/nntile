@@ -99,6 +99,10 @@ void prod_fiber3_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src1, Sca
         const Tile<fp32_fast_fp16_t> &src2, const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
+void prod_fiber3_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src1, Scalar alpha,
+        const Tile<fp32_fast_bf16_t> &src2, const Tile<fp32_fast_bf16_t> &dst, Index axis);
+
+template
 void prod_fiber3_async<fp64_t>(const Tile<fp64_t> &src1, Scalar alpha,
         const Tile<fp64_t> &src2, const Tile<fp64_t> &dst, Index axis);
 
@@ -118,6 +122,10 @@ void prod_fiber3<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src1, Scalar al
 template
 void prod_fiber3<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src1, Scalar alpha,
         const Tile<fp32_fast_fp16_t> &src2, const Tile<fp32_fast_fp16_t> &dst, Index axis);
+
+template
+void prod_fiber3<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src1, Scalar alpha,
+        const Tile<fp32_fast_bf16_t> &src2, const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
 void prod_fiber3<fp64_t>(const Tile<fp64_t> &src1, Scalar alpha,

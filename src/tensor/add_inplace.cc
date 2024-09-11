@@ -99,6 +99,11 @@ void add_inplace_async<fp32_fast_fp16_t>(Scalar alpha,
         const Tensor<fp32_fast_fp16_t> &dst);
 
 template
+void add_inplace_async<fp32_fast_bf16_t>(Scalar alpha,
+        const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
+        const Tensor<fp32_fast_bf16_t> &dst);
+
+template
 void add_inplace_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src,
         Scalar beta, const Tensor<fp64_t> &dst);
 
@@ -120,6 +125,11 @@ template
 void add_inplace<fp32_fast_fp16_t>(Scalar alpha,
         const Tensor<fp32_fast_fp16_t> &src, Scalar beta,
         const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void add_inplace<fp32_fast_bf16_t>(Scalar alpha,
+        const Tensor<fp32_fast_bf16_t> &src, Scalar beta,
+        const Tensor<fp32_fast_bf16_t> &dst);
 
 template
 void add_inplace<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src, Scalar beta,

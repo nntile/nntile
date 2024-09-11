@@ -61,6 +61,9 @@ extern Codelet codelet_NN_fp32_fast_tf32, codelet_NT_fp32_fast_tf32,
 extern Codelet codelet_NN_fp32_fast_fp16, codelet_NT_fp32_fast_fp16,
        codelet_TN_fp32_fast_fp16, codelet_TT_fp32_fast_fp16;
 
+extern Codelet codelet_NN_fp32_fast_bf16, codelet_NT_fp32_fast_bf16,
+       codelet_TN_fp32_fast_bf16, codelet_TT_fp32_fast_bf16;
+
 extern Codelet codelet_NN_bf16, codelet_NT_bf16,
        codelet_TN_bf16, codelet_TT_bf16;
 
@@ -158,6 +161,36 @@ Codelet *codelet<fp32_fast_fp16_t>(TransOp transA, TransOp transB)
                 //case TransOp::Trans:
                 default:
                     return &codelet_TT_fp32_fast_fp16;
+            }
+    }
+}
+
+template<>
+Codelet *codelet<fp32_fast_bf16_t>(TransOp transA, TransOp transB)
+{
+    switch(transA.value)
+    {
+        case TransOp::NoTrans:
+            switch(transB.value)
+            {
+                case TransOp::NoTrans:
+                    return &codelet_NN_fp32_fast_bf16;
+                default:
+                // This parameter was already checked in gemm_check_opA_opB
+                //case TransOp::Trans:
+                    return &codelet_NT_fp32_fast_bf16;
+            }
+        // This parameter was already checked in gemm_check_opA_opB
+        //case TransOp::Trans:
+        default:
+            switch(transB.value)
+            {
+                case TransOp::NoTrans:
+                    return &codelet_TN_fp32_fast_bf16;
+                // This parameter was already checked in gemm_check_opA_opB
+                //case TransOp::Trans:
+                default:
+                    return &codelet_TT_fp32_fast_bf16;
             }
     }
 }

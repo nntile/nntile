@@ -145,6 +145,11 @@ void sumprod_fiber_async<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_
         Index axis, int redux);
 
 template
+void sumprod_fiber_async<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src1,
+        const Tensor<fp32_fast_bf16_t> &src2, Scalar beta, const Tensor<fp32_fast_bf16_t> &dst,
+        Index axis, int redux);
+
+template
 void sumprod_fiber_async<fp64_t>(Scalar alpha, const Tensor<fp64_t> &src1,
         const Tensor<fp64_t> &src2, Scalar beta, const Tensor<fp64_t> &dst,
         Index axis, int redux);
@@ -168,6 +173,11 @@ void sumprod_fiber<fp32_fast_tf32_t>(Scalar alpha, const Tensor<fp32_fast_tf32_t
 template
 void sumprod_fiber<fp32_fast_fp16_t>(Scalar alpha, const Tensor<fp32_fast_fp16_t> &src1,
         const Tensor<fp32_fast_fp16_t> &src2, Scalar beta, const Tensor<fp32_fast_fp16_t> &dst,
+        Index axis, int redux);
+
+template
+void sumprod_fiber<fp32_fast_bf16_t>(Scalar alpha, const Tensor<fp32_fast_bf16_t> &src1,
+        const Tensor<fp32_fast_bf16_t> &src2, Scalar beta, const Tensor<fp32_fast_bf16_t> &dst,
         Index axis, int redux);
 
 template

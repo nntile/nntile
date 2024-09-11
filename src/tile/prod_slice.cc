@@ -100,6 +100,10 @@ void prod_slice_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src, Scala
         const Tile<fp32_fast_fp16_t> &dst, Index axis);
 
 template
+void prod_slice_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src, Scalar alpha,
+        const Tile<fp32_fast_bf16_t> &dst, Index axis);
+
+template
 void prod_slice_async<fp64_t>(const Tile<fp64_t> &src, Scalar alpha,
         const Tile<fp64_t> &dst, Index axis);
 
@@ -119,6 +123,10 @@ void prod_slice<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src, Scalar alph
 template
 void prod_slice<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src, Scalar alpha,
         const Tile<fp32_fast_fp16_t> &dst, Index axis);
+
+template
+void prod_slice<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src, Scalar alpha,
+        const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
 void prod_slice<fp64_t>(const Tile<fp64_t> &src, Scalar alpha,
