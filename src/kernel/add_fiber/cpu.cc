@@ -32,9 +32,9 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src1,
  *  tensors
  * @param[in] batch: Size of the batch dimension
  * @param[in] alpha_: Scalar factor for src1
- * @param[in] src1: Input contiguous vector with k elements
+ * @param[in] src1: Input contiguous vector with k*batch elements
  * @param[in] beta_: Scaling factor for src2
- * @param[in] src2: Input contiguous vector with k*b elements
+ * @param[in] src2: Input contiguous tensor with m*k*n*batch elements
  * @param[inout] dst: Output contiguous m-by-k-by-n array
  * */
 {

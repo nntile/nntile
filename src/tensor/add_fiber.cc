@@ -27,8 +27,9 @@ void add_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
  *      dst[i,l,j,b] = beta*src2[i,l,j,b] + alpha*src1[l,b]
  *
  * @param[in] alpha: Scalar factor for src1
- * @param[in] src: Input fiber, that is reshaped into 1D array
+ * @param[in] src1: Input fiber, that is reshaped into 1D array
  * @param[in] beta: Scaling factor for src2
+ * @param[in] src2: Input contiguous tensor with m*k*n*batch elements
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
@@ -137,8 +138,9 @@ void add_fiber(Scalar alpha, const Tensor<T> &src1, Scalar beta,  const Tensor<T
  * and performs the following operations:
  *      dst[i,l,j,b] = beta*src2[i,l,j,b] + alpha*src1[l,b]
  * @param[in] alpha: Scalar factor for src1
- * @param[in] src: Input fiber, that is reshaped into 1D array
+ * @param[in] src1: Input fiber, that is reshaped into 1D array
  * @param[in] beta: Scaling factor for src2
+ * @param[in] src2: Input contiguous vector with k*b elements
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
