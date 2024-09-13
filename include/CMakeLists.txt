@@ -306,6 +306,7 @@ set(TILE_HDR
     "nntile/tile/add_slice.hh"
     "nntile/tile/add_fiber_inplace.hh"
     "nntile/tile/add_fiber.hh"
+    "nntile/tile/scal_fiber.hh"
     "nntile/tile/prod_slice.hh"
     "nntile/tile/prod_fiber.hh"
     "nntile/tile/prod_fiber3.hh"
