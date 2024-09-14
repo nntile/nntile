@@ -555,6 +555,15 @@ void def_mod_tensor(py::module_ &m)
     m.def("norm_fiber_inplace_fp32", &norm_fiber_inplace<fp32_t>);
     m.def("norm_fiber_inplace_bf16", &norm_fiber_inplace<bf16_t>);
     m.def("norm_fiber_inplace_fp32_fast_tf32", &norm_fiber_inplace<fp32_fast_tf32_t>);
+    
+    m.def("norm_fiber_async_fp64", &norm_fiber_async<fp64_t>);
+    m.def("norm_fiber_async_bf16", &norm_fiber_async<bf16_t>);
+    m.def("norm_fiber_async_fp32", &norm_fiber_async<fp32_t>);
+    m.def("norm_fiber_async_fp32_fast_tf32", &norm_fiber_async<fp32_fast_tf32_t>);
+    m.def("norm_fiber_fp64", &norm_fiber<fp64_t>);
+    m.def("norm_fiber_fp32", &norm_fiber<fp32_t>);
+    m.def("norm_fiber_bf16", &norm_fiber<bf16_t>);
+    m.def("norm_fiber_fp32_fast_tf32", &norm_fiber<fp32_fast_tf32_t>);
 
     m.def("norm_slice_async_fp64", &norm_slice_async<fp64_t>);
     m.def("norm_slice_async_bf16", &norm_slice_async<bf16_t>);
