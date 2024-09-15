@@ -11,7 +11,7 @@
 #
 # @version 1.1.0
 
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 from transformers import GPT2Config as GPT2ConfigTorch
@@ -21,10 +21,10 @@ from nntile.tensor import (
     Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_tf32, Tensor_int64,
     TensorMoments, TensorTraits)
 
-from ..layer import Embedding, LayerNorm, AddSlice
+from ..layer import AddSlice, Embedding, LayerNorm
 from .base_model import BaseModel
-from .gpt2_config import GPT2ConfigNNTile
 from .gpt2_block import GPT2Block
+from .gpt2_config import GPT2ConfigNNTile
 
 
 class GPT2(BaseModel):
@@ -152,7 +152,7 @@ class GPT2(BaseModel):
                                     torch_gpt2.ln_f,
                                     U,
                                     next_tag, config.redux)
-        X = TensorMoments(x_value, None, False) 
+        X = TensorMoments(x_value, None, False)
         gpt2_nntile = GPT2(X,
                             positional_ids,
                             wpe_layer,

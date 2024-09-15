@@ -22,8 +22,8 @@ from transformers import GPT2Config as GPT2ConfigTorch
 from transformers.models.gpt2.modeling_gpt2 import GPT2Model as GPT2Model_torch
 
 import nntile
-from nntile.model.gpt2_model import GPT2 as GPT2Model
 from nntile.model.gpt2_config import GPT2ConfigNNTile
+from nntile.model.gpt2_model import GPT2 as GPT2Model
 from nntile.tensor import to_numpy
 
 # NNTile dtype via corresponding Tensor type
@@ -57,6 +57,7 @@ class GPT2TestParams:
     n_head: int
     n_head_tile: int
     redux: bool = True
+
 
 single_tile = GPT2TestParams(
     vocab_size=32000,
@@ -157,7 +158,7 @@ class TestGPT2Model:
                       dtype: str,
                       num_hidden_layers: int):
 
-        torch_model, nntile_model,_,_ = generate_inputs(params, dtype,
+        torch_model, nntile_model, _, _ = generate_inputs(params, dtype,
                                                         num_hidden_layers)
 
         torch_model_other = nntile_model.to_torch()
