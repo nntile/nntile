@@ -10,32 +10,14 @@
 #
 # @version 1.1.0
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from enum import Enum
-
 import numpy as np
 
 import nntile
 import nntile.utils.constructors as nntc
+from nntile.model.generation.llm_params import GenerationMode, GenerationParams
+from nntile.model.generation.llm_samplers import get_sampler
 from nntile.tensor import Tensor
 from nntile.utils import constructors as nnt_constructors
-
-
-class GenerationMode(Enum):
-    Greedy = "Greedy"
-    TopK = "TopK"
-    TopP = "TopP"
-
-
-@dataclass
-class GenerationParams:
-    max_tokens: int
-    use_cache: bool = True
-    need_static_padding: bool = False
-    top_k: int | None = None
-    top_p_thr: float | None = None
-    temperature: float = 1
 
 
 class LLMGenerationMixin:
@@ -178,76 +160,3 @@ async def generate_autoregress_dynamic_async(
         cur_seq_size += 1
 
     return nntc.from_array(output_ids_np), cur_seq_size
-
-
-def softmax_fn(arr):
-    arr_exp = np.e**arr
-    return arr_exp / arr_exp.sum()
-
-
-def sample_topk(logits, k, temperature):
-    logits = logits[:, 0]
-    argsorted_logits = np.argsort(logits)
-    top_indices = argsorted_logits[-k:]
-    top_probas = softmax_fn(logits[top_indices] / temperature)
-    next_token = np.random.default_rng().choice(top_indices, p=top_probas)
-    return next_token
-
-
-def sample_topp(logits, p_thr, temperature):
-    logits = logits[:, 0]
-    argsorted_logits = np.argsort(logits)
-    sorted_probas = softmax_fn(logits[argsorted_logits])
-    cumsum_from_largest = np.cumsum(sorted_probas[::-1])
-
-    topp_k = np.searchsorted(cumsum_from_largest, p_thr)
-    top_indices = argsorted_logits[-topp_k:]
-    top_probas = softmax_fn(logits[top_indices] / temperature)
-    next_token = np.random.default_rng().choice(top_indices, p=top_probas)
-    return next_token
-
-
-def sample_greedy(logits):
-    logits = logits[:, 0]
-    next_token = np.argmax(logits)
-    return next_token
-
-
-class BaseSampler(ABC):
-    @abstractmethod
-    def sample(logits):
-        pass
-
-
-class GreedySampler(BaseSampler):
-    def sample(self, logits):
-        return sample_greedy(logits)
-
-
-class TopKSampler(BaseSampler):
-    def __init__(self, k, temperature):
-        self.k = k
-        self.temperature = temperature
-
-    def sample(self, logits):
-        return sample_topk(logits, self.k, self.temperature)
-
-
-class TopPSampler(BaseSampler):
-    def __init__(self, p_thr, temperature):
-        self.p_thr = p_thr
-        self.temperature = temperature
-
-    def sample(self, logits):
-        return sample_topp(logits, self.p_thr, self.temperature)
-
-
-def get_sampler(mode, params):
-    if mode == GenerationMode.Greedy:
-        return GreedySampler()
-    elif mode == GenerationMode.TopK:
-        return TopKSampler(params.top_k, params.temperature)
-    elif mode == GenerationMode.TopP:
-        return TopPSampler(params.top_p_thr, params.temperature)
-    else:
-        raise Exception("Unknown sampler")
