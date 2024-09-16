@@ -19,27 +19,22 @@ namespace nntile::tile
 {
 
 template<typename T>
-void scal_fiber_async(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
-                    const Tile<T> &dst, Index axis, Index batch_ndim)
+void scal_fiber_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
+                            Index axis, Index batch_ndim)
 //! Tile<T> addition of a tensor and a broadcasted fiber
 /*! Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
  * and performs the following operations:
- *      dst[i,l,j,b] = beta*src2[i,l,j,b] + alpha*src1[l,b]
+ *      dst[i,l,j,b] = alpha * src[l,b]
  *
- * @param[in] alpha: Scalar factor for src1
+ * @param[in] alpha: Scalar factor for src
  * @param[in] src: Input fiber, that is reshaped into 1D array
- * @param[in] beta: Scaling factor for src2
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
     // Check dimensions
-    if(src1.ndim != batch_ndim+1)
+    if(src.ndim != batch_ndim+1)
     {
         throw std::runtime_error("src.ndim != batch_ndim+1");
-    }
-    if(src2.ndim != dst.ndim)
-    {
-        throw std::runtime_error("src2.ndim != dst.ndim");
     }
     // Check axis
     if(axis < 0)
@@ -51,92 +46,79 @@ void scal_fiber_async(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile
         throw std::runtime_error("axis >= dst.ndim-batch_ndim");
     }
     // Check shapes of tiles
-    if(src1.shape[0] != dst.shape[axis])
+    if(src.shape[0] != dst.shape[axis])
     {
-        throw std::runtime_error("src1.shape[0] != dst.shape[axis]");
-    }
-    if(src2.shape != dst.shape)
-    {
-        throw std::runtime_error("src2.shape != dst.shape");
+        throw std::runtime_error("src.shape[0] != dst.shape[axis]");
     }
     for(Index i = 0; i < batch_ndim; ++i)
     {
-        if(src1.shape[i+1] != dst.shape[dst.ndim-batch_ndim+i])
+        if(src.shape[i+1] != dst.shape[dst.ndim-batch_ndim+i])
         {
-            throw std::runtime_error("src1.shape[i+1] != "
+            throw std::runtime_error("src.shape[i+1] != "
                     "dst.shape[dst.ndim-batch_ndim+i]");
         }
     }
 
     // Reshape inputs for simplicity: src -> (k,batch), dst -> (m,k,n,batch)
     Index m, n, k, batch;
-    batch = src1.matrix_shape[1][1];
+    batch = src.matrix_shape[1][1];
     m = dst.stride[axis];
     n = dst.matrix_shape[axis+1][1] / batch;
     k = dst.shape[axis];
     // Insert corresponding task
-    starpu::scal_fiber::submit<T>(m, n, k, batch, alpha, src1, beta, src2, dst);
+    starpu::scal_fiber::submit<T>(m, n, k, batch, alpha, src, dst);
 }
 
 template<typename T>
-void scal_fiber(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
-        const Tile<T> &dst, Index axis, Index batch_ndim)
+void scal_fiber(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
+        Index axis, Index batch_ndim)
 //! Tile<T> addition of a tensor and a broadcasted fiber
 /*! Blocking version of scal_fiber_async<T>.
  * Reshapes input tensor and fiber into 3-dimensional and 1-dimensional arrays
  * and performs the following operations:
- *      dst[i,l,j,b] = beta*src2[i,l,j,b] + alpha*src1[l,b]
+ *      dst[i,l,j,b] = alpha * src[l,b]
  *
- * @param[in] alpha: Scalar factor for src1
+ * @param[in] alpha: Scalar factor for src
  * @param[in] src: Input fiber, that is reshaped into 1D array
- * @param[in] beta: Scaling factor for src2
  * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
-    scal_fiber_async<T>(alpha, src1, beta, src2, dst, axis, batch_ndim);
+    scal_fiber_async<T>(alpha, src, dst, axis, batch_ndim);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
-void scal_fiber_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1,
-        Scalar beta, const Tile<fp32_t> &src2, const Tile<fp32_t> &dst,
-        Index axis, Index batch_ndim);
+void scal_fiber_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+        const Tile<fp32_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scal_fiber_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,
-        Scalar beta, const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst,
-        Index axis, Index batch_ndim);
+void scal_fiber_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+        const Tile<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scal_fiber_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1,
-        Scalar beta, const Tile<fp64_t> &src2, const Tile<fp64_t> &dst,
-        Index axis, Index batch_ndim);
+void scal_fiber_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+        const Tile<fp64_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scal_fiber_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1,
-        Scalar beta, const Tile<bf16_t> &src2, const Tile<bf16_t> &dst,
-        Index axis, Index batch_ndim);
+void scal_fiber_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src,
+        const Tile<bf16_t> &dst, Index axis, Index batch_ndim);
 
 // Explicit instantiation of template
 template
-void scal_fiber<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1,
-        Scalar beta, const Tile<fp32_t> &src2, const Tile<fp32_t> &dst,
-        Index axis, Index batch_ndim);
+void scal_fiber<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
+        const Tile<fp32_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scal_fiber<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,
-        Scalar beta, const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst,
-        Index axis, Index batch_ndim);
+void scal_fiber<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
+        const Tile<fp32_fast_tf32_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scal_fiber<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1,
-        Scalar beta, const Tile<fp64_t> &src2, const Tile<fp64_t> &dst,
-        Index axis, Index batch_ndim);
+void scal_fiber<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
+        const Tile<fp64_t> &dst, Index axis, Index batch_ndim);
 
 template
-void scal_fiber<bf16_t>(Scalar alpha, const Tile<bf16_t> &src1,
-        Scalar beta, const Tile<bf16_t> &src2, const Tile<bf16_t> &dst,
-        Index axis, Index batch_ndim);
+void scal_fiber<bf16_t>(Scalar alpha, const Tile<bf16_t> &src,
+        const Tile<bf16_t> &dst, Index axis, Index batch_ndim);
 
 } // namespace nntile::tile

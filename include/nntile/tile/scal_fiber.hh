@@ -21,12 +21,12 @@ namespace nntile::tile
 
 // Tile<T> addition of a tensor and a broadcasted fiber
 template<typename T>
-void scal_fiber_async(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
-        const Tile<T> &dst, Index axis, Index batch_ndim);
+void scal_fiber_async(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
+                Index axis, Index batch_ndim);
 
 // Tile<T> addition of a tensor and a broadcasted fiber
 template<typename T>
-void scal_fiber(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
-        const Tile<T> &dst, Index axis, Index batch_ndim);
+void scal_fiber(Scalar alpha, const Tile<T> &src, const Tile<T> &dst,
+                Index axis, Index batch_ndim);
 
 } // namespace nntile::tile
