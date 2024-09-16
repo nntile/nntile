@@ -32,12 +32,11 @@ void cpu(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t*>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *src1 = interfaces[0]->get_ptr<T>();
-    const T *src2 = interfaces[1]->get_ptr<T>();
-    T *dst = interfaces[2]->get_ptr<T>();
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[0]->get_ptr<T>();
     // Launch kernel
     kernel::scal_fiber::cpu<T>(args->m, args->n, args->k, args->batch,
-            args->alpha, src1, args->beta, src2, dst);
+            args->alpha, src, dst);
 #endif // STARPU_SIMGRID
 }
 
@@ -52,14 +51,13 @@ void cuda(void *buffers[], void *cl_args)
     auto args = reinterpret_cast<args_t*>(cl_args);
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
-    const T *src1 = interfaces[0]->get_ptr<T>();
-    const T *src2 = interfaces[1]->get_ptr<T>();
-    T *dst = interfaces[2]->get_ptr<T>();
+    const T *src = interfaces[0]->get_ptr<T>();
+    T *dst = interfaces[1]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     kernel::scal_fiber::cuda<T>(stream, args->m, args->n, args->k, args->batch,
-            args->alpha, src1, args->beta, src2, dst);
+            args->alpha, src, dst);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
@@ -140,8 +138,8 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src1,
-        Scalar beta, Handle src2, Handle dst)
+void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src,
+        Handle dst)
 //! Insert scal_fiber task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -155,12 +153,10 @@ void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src1,
     args->k = k;
     args->batch = batch;
     args->alpha = alpha;
-    args->beta = beta;
     double nflops = batch * k * (2*m*n+1);
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src1),
-            STARPU_R, static_cast<starpu_data_handle_t>(src2),
+            STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_W, static_cast<starpu_data_handle_t>(dst),
             STARPU_FLOPS, nflops,
@@ -175,18 +171,18 @@ void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src1,
 // Explicit instantiation
 template
 void submit<fp32_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        Handle src1, Scalar beta, Handle src2, Handle dst);
+        Handle src, Handle dst);
 
 template
 void submit<bf16_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        Handle src1, Scalar beta, Handle src2, Handle dst);
+        Handle src, Handle dst);
 
 template
 void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        Handle src1, Scalar beta, Handle src2, Handle dst);
+        Handle src, Handle dst);
 
 template
 void submit<fp64_t>(Index m, Index n, Index k, Index batch, Scalar alpha,
-        Handle src1, Scalar beta, Handle src2, Handle dst);
+        Handle src, Handle dst);
 
 } // namespace nntile::starpu::scal_fiber

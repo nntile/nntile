@@ -29,7 +29,6 @@ struct args_t
     Index k;
     Index batch;
     Scalar alpha;
-    Scalar beta;
 };
 
 // StarPU wrapper for kernel::scal_fiber::cpu<T>
@@ -77,7 +76,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src1,
-        Scalar beta, Handle src2, Handle dst);
+void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src,
+        Handle dst);
 
 } // namespace nntile::starpu::scal_fiber
