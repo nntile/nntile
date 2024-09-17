@@ -13,40 +13,49 @@
 from abc import ABC, abstractmethod
 
 import numpy as np
+from scipy.special import softmax
 
 from nntile.model.generation.llm_params import GenerationMode
 
 
-def softmax_fn(arr):
-    arr_exp = np.e**arr
-    return arr_exp / arr_exp.sum()
-
-
 def sample_topk(logits, k, temperature):
-    logits = logits[:, 0]
-    argsorted_logits = np.argsort(logits)
-    top_indices = argsorted_logits[-k:]
-    top_probas = softmax_fn(logits[top_indices] / temperature)
-    next_token = np.random.default_rng().choice(top_indices, p=top_probas)
-    return next_token
+    batch_extended = logits if len(logits.shape) > 1 else logits[:, None]
+    batch_indx = 0
+
+    sampled = np.empty((logits.shape[1],), dtype=np.int64)
+    for batch_indx in range(logits.shape[1]):
+        single_logits = batch_extended[:, batch_indx]
+        argsorted_logits = np.argsort(single_logits)
+        top_indices = argsorted_logits[-k:]
+        top_probas = softmax(single_logits[top_indices] / temperature, axis=0)
+        next_token = np.random.default_rng().choice(top_indices, p=top_probas)
+        sampled[batch_indx] = next_token
+    return sampled
 
 
 def sample_topp(logits, p_thr, temperature):
-    logits = logits[:, 0]
-    argsorted_logits = np.argsort(logits)
-    sorted_probas = softmax_fn(logits[argsorted_logits])
-    cumsum_from_largest = np.cumsum(sorted_probas[::-1])
+    batch_extended = logits if len(logits.shape) > 1 else logits[:, None]
 
-    topp_k = np.searchsorted(cumsum_from_largest, p_thr)
-    top_indices = argsorted_logits[-topp_k:]
-    top_probas = softmax_fn(logits[top_indices] / temperature)
-    next_token = np.random.default_rng().choice(top_indices, p=top_probas)
-    return next_token
+    sampled = np.empty((logits.shape[1],), dtype=np.int64)
+    for batch_indx in range(logits.shape[1]):
+        single_logits = batch_extended[:, batch_indx]
+        argsorted_logits = np.argsort(single_logits)
+        sorted_probas = softmax(
+            single_logits[argsorted_logits] / temperature,
+            axis=0
+        )
+        cumsum_from_largest = np.cumsum(sorted_probas[::-1])
+
+        topp_k = np.searchsorted(cumsum_from_largest, p_thr)
+        top_indices = argsorted_logits[-topp_k:]
+        top_probas = softmax(single_logits[top_indices] / temperature, axis=0)
+        next_token = np.random.default_rng().choice(top_indices, p=top_probas)
+        sampled[batch_indx] = next_token
+    return sampled
 
 
 def sample_greedy(logits):
-    logits = logits[:, 0]
-    next_token = np.argmax(logits)
+    next_token = np.argmax(logits, axis=0)
     return next_token
 
 
