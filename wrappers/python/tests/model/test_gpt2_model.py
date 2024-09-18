@@ -155,7 +155,7 @@ def generate_inputs(params: GPT2TestParams,
     pytest.param('bf16', marks=nocuda),
     pytest.param('fp32_fast_tf32', marks=nocuda),
     pytest.param('fp32_fast_fp16', marks=nocuda),
-    pytest.param('fp32_fast_bf16', marks=nocuda), 
+    pytest.param('fp32_fast_bf16', marks=nocuda),
 ])
 @pytest.mark.parametrize('num_hidden_layers', [1, 2, 3])
 class TestGPT2Model:
