@@ -22,7 +22,7 @@ def sample_topk(logits, k, temperature):
     assert len(logits.shape) <= 2, "Support logits or batch of logits only"
     batch_extended = logits if len(logits.shape) > 1 else logits[:, None]
 
-    sampled = np.empty((logits.shape[1],), dtype=np.int64)
+    sampled = np.empty((batch_extended.shape[1],), dtype=np.int64)
     for batch_indx in range(logits.shape[1]):
         single_logits = batch_extended[:, batch_indx]
         argsorted_logits = np.argsort(single_logits)
@@ -37,7 +37,7 @@ def sample_topp(logits, p_thr, temperature):
     assert len(logits.shape) <= 2, "Support logits or batch of logits only"
     batch_extended = logits if len(logits.shape) > 1 else logits[:, None]
 
-    sampled = np.empty((logits.shape[1],), dtype=np.int64)
+    sampled = np.empty((batch_extended.shape[1],), dtype=np.int64)
     for batch_indx in range(logits.shape[1]):
         single_logits = batch_extended[:, batch_indx]
         argsorted_logits = np.argsort(single_logits)
