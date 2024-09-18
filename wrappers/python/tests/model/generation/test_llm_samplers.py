@@ -7,7 +7,6 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file wrappers/python/tests/model/generation/test_llm_samplers.py
-# Test for implementation of Deep ReLU model in NNTile
 #
 # @version 1.1.0
 
@@ -37,6 +36,15 @@ def test_greedy(numpy_rng, embed_size, batch_size):
 
 @pytest.mark.parametrize("n_resamples", [20])
 def test_topk(n_resamples):
+    """
+    Testing for top-k sampling strategy
+    Lets take different k values, sample from same logits and check,
+    what exactly we get
+
+    As logits are low, their softmax probabilities will be comparable,
+    so all logits from top-k probas will be sampled after reasonable iterations
+    We just make assert we have exactly sampled only top-k tokens from logits
+    """
     inp = np.array([[0.39437038, 0.686569],
        [0.07847447, 0.92659984],
        [0.88788324, 0.06391566],
@@ -55,8 +63,10 @@ def test_topk(n_resamples):
             sampler = TopKSampler(k, temperature)
             tokens = sampler.sample(inp)
             sampled.append(tokens)
-
         sampled = np.vstack(sampled)
+
+        # Note, just for simplicity and batched implementation testing,
+        # where are manual calculation for top-k in each batch entry
         unique0 = np.unique(sampled[:, 0])
         unique1 = np.unique(sampled[:, 1])
 
@@ -66,6 +76,18 @@ def test_topk(n_resamples):
 
 @pytest.mark.parametrize("n_resamples", [20])
 def test_topp(n_resamples):
+    """
+    Testing for top-p sampling strategy
+    Lets take different p threshold values, sample from same logits and check,
+    what exactly we get
+    For each p_thr, we can find top-k logits what will be used to sampling from
+    So just use searchsorted for threshold number of elements
+
+    As logits are low, their softmax probabilities will be comparable,
+    so all logits from top-p probas will be sampled after reasonable iterations
+    We just make assert we have exactly sampled only top-p tokens from logits
+    """
+
     inp = np.array([[0.39437038, 0.686569],
        [0.07847447, 0.92659984],
        [0.88788324, 0.06391566],
@@ -90,8 +112,10 @@ def test_topp(n_resamples):
             sampler = TopPSampler(p_thr, temperature)
             tokens = sampler.sample(inp)
             sampled.append(tokens)
-
         sampled = np.vstack(sampled)
+
+        # Note, just for simplicity and batched implementation testing,
+        # where are manual calculation for top-k in each batch entry
         unique0 = np.unique(sampled[:, 0])
         unique1 = np.unique(sampled[:, 1])
 
