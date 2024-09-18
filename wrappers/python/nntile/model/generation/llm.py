@@ -10,26 +10,14 @@
 #
 # @version 1.1.0
 
-from dataclasses import dataclass
-from enum import Enum
-
 import numpy as np
 
 import nntile
 import nntile.utils.constructors as nntc
+from nntile.model.generation.llm_params import GenerationMode, GenerationParams
+from nntile.model.generation.llm_samplers import get_sampler
 from nntile.tensor import Tensor
 from nntile.utils import constructors as nnt_constructors
-
-
-class GenerationMode(Enum):
-    Greedy = "Greedy"
-
-
-@dataclass
-class GenerationParams:
-    max_tokens: int
-    use_cache: bool = True
-    need_static_padding: bool = False
 
 
 class LLMGenerationMixin:
@@ -40,23 +28,22 @@ class LLMGenerationMixin:
         params: GenerationParams,
         mode: GenerationMode = GenerationMode.Greedy,
     ):
-        if mode == GenerationMode.Greedy:
-            if params.need_static_padding:
-                # This path only for compatibility with statically defined
-                # model and not efficient on small examples
-                if params.use_cache:
-                    raise Exception(
-                        "No support for kvcache for static inference"
-                    )
-                output_ids = generate_greedy(
-                    self, input_ids, prefill_size, self.eos_token_id, params
+        sampler = get_sampler(mode, params)
+        if params.need_static_padding:
+            # This path only for compatibility with statically defined
+            # model and not efficient on small examples
+            if params.use_cache:
+                raise Exception(
+                    "No support for kvcache for static inference"
                 )
-            else:
-                output_ids = generate_greedy_dynamic(
-                    self, input_ids, self.eos_token_id, params
-                )
+            output_ids = generate_autoregress(
+                self, input_ids, prefill_size,
+                self.eos_token_id, params, sampler
+            )
         else:
-            raise Exception("Unsupported generation mode: ", mode)
+            output_ids = generate_autoregress_dynamic(
+                self, input_ids, self.eos_token_id, params, sampler
+            )
 
         return output_ids
 
@@ -67,22 +54,20 @@ class LLMGenerationMixin:
         params: GenerationParams,
         mode: GenerationMode = GenerationMode.Greedy,
     ):
-        if mode == GenerationMode.Greedy:
-            if params.need_static_padding:
-                raise Exception(
-                    "No support for async static inference"
-                )
-            else:
-                output_ids = await generate_greedy_dynamic_async(
-                    self, input_ids, self.eos_token_id, params
-                )
+        sampler = get_sampler(mode, params)
+        if params.need_static_padding:
+            raise Exception(
+                "No support for async static inference"
+            )
         else:
-            raise Exception("Unsupported generation mode: ", mode)
+            output_ids = await generate_autoregress_dynamic_async(
+                self, input_ids, self.eos_token_id, params, sampler
+            )
 
         return output_ids
 
 
-def generate_greedy(model, input_ids, prefill_size, eos_token_id, params):
+def generate_autoregress(model, input_ids, prefill_size, eos_token_id, params):
     cur_seq_size = prefill_size
 
     output_ids = input_ids
@@ -105,7 +90,9 @@ def generate_greedy(model, input_ids, prefill_size, eos_token_id, params):
     return output_ids, cur_seq_size
 
 
-def generate_greedy_dynamic(model, input_ids, eos_token_id, params):
+def generate_autoregress_dynamic(
+    model, input_ids, eos_token_id, params, sampler
+):
     cur_seq_size = input_ids.shape[0]
 
     kv_caches = None
@@ -120,7 +107,7 @@ def generate_greedy_dynamic(model, input_ids, eos_token_id, params):
         output_value_np = nntc.to_numpy(logits_nnt.value)
 
         # TODO: add starpu function for argmax
-        pred_token = np.argmax(output_value_np[:, -1, :])
+        pred_token = sampler.sample(output_value_np[:, -1, :])
         if pred_token == eos_token_id:
             return nntc.from_array(output_ids_np), cur_seq_size
 
@@ -139,8 +126,8 @@ def generate_greedy_dynamic(model, input_ids, eos_token_id, params):
     return nntc.from_array(output_ids_np), cur_seq_size
 
 
-async def generate_greedy_dynamic_async(
-        model, input_ids, eos_token_id, params
+async def generate_autoregress_dynamic_async(
+        model, input_ids, eos_token_id, params, sampler
 ):
     cur_seq_size = input_ids.shape[0]
 
@@ -156,7 +143,7 @@ async def generate_greedy_dynamic_async(
         output_value_np = await nntc.to_numpy_async(logits_nnt.value)
 
         # TODO: add starpu function for argmax
-        pred_token = np.argmax(output_value_np[:, -1, :])
+        pred_token = sampler.sample(output_value_np[:, -1, :])
         if pred_token == eos_token_id:
             return nntc.from_array(output_ids_np), cur_seq_size
 
