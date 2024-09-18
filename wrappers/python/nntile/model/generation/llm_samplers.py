@@ -23,7 +23,7 @@ def sample_topk(logits, k, temperature):
     batch_extended = logits if len(logits.shape) > 1 else logits[:, None]
 
     sampled = np.empty((batch_extended.shape[1],), dtype=np.int64)
-    for batch_indx in range(logits.shape[1]):
+    for batch_indx in range(batch_extended.shape[1]):
         single_logits = batch_extended[:, batch_indx]
         argsorted_logits = np.argsort(single_logits)
         top_indices = argsorted_logits[-k:]
@@ -38,7 +38,7 @@ def sample_topp(logits, p_thr, temperature):
     batch_extended = logits if len(logits.shape) > 1 else logits[:, None]
 
     sampled = np.empty((batch_extended.shape[1],), dtype=np.int64)
-    for batch_indx in range(logits.shape[1]):
+    for batch_indx in range(batch_extended.shape[1]):
         single_logits = batch_extended[:, batch_indx]
         argsorted_logits = np.argsort(single_logits)
         sorted_probas = softmax(
