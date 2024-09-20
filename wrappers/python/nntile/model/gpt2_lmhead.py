@@ -11,21 +11,17 @@
 #
 # @version 1.1.0
 
-from typing import List, Optional
-
-import numpy as np
 from transformers import GPT2Config as GPT2ConfigTorch
 from transformers.models.gpt2.modeling_gpt2 import (
     GPT2LMHeadModel as GPT2Model_torch)
 
 import nntile
 from nntile.model.generation.llm import LLMGenerationMixin
-from nntile.types import TensorMoments
 
 from ..layer import Linear
 from .base_model import BaseModel
-from .gpt2_model import GPT2 as GPT2_nntile
 from .gpt2_config import GPT2ConfigNNTile
+from .gpt2_model import GPT2 as GPT2_nntile
 
 
 class GPT2LMHead(BaseModel, LLMGenerationMixin):
@@ -76,7 +72,7 @@ class GPT2LMHead(BaseModel, LLMGenerationMixin):
         self.set_input(x)
         self.forward_async()
         return self.get_output()
-    
+
     @staticmethod
     def from_torch(torch_gpt2_lmhead,
                    batch_size, batch_size_tile,
@@ -149,7 +145,7 @@ class GPT2LMHead(BaseModel, LLMGenerationMixin):
         gpt2_model_torch.transformer = self.gpt2_model_.to_torch_with_grads()
         gpt2_model_torch.lm_head = self.lin_.to_torch_with_grads()
         return gpt2_model_torch
-    
+
     @classmethod
     def from_pretrained(
         cls,
@@ -216,8 +212,7 @@ def create_gpt2_model_from_torch_pretrained(
     nntile_model_config = PretrainedGpt2Configs[model_name]
 
     import torch.nn as nn
-    from transformers import GPT2LMHeadModel
-
+  
     model_torch = GPT2Model_torch.from_pretrained(
         model_name, cache_dir=cache_dir
     )
