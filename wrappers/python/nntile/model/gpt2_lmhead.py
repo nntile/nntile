@@ -167,7 +167,7 @@ class GPT2LMHead(BaseModel, LLMGenerationMixin):
             next_tag,
             cache_dir=cache_dir,
         )
-    
+
 
 def compare_shapes(iterable1, iterable2):
     return all(x == y for x, y in zip(iterable1, iterable2))
@@ -202,6 +202,7 @@ def create_gpt2_model_from_torch_pretrained(
     next_tag: int,
     cache_dir: str | None = None,
 ):
+    import torch.nn as nn
     if model_name not in PretrainedGpt2Configs:
         raise Exception(
             f"Unsupported pretrained model: {model_name}."
@@ -211,8 +212,6 @@ def create_gpt2_model_from_torch_pretrained(
 
     nntile_model_config = PretrainedGpt2Configs[model_name]
 
-    import torch.nn as nn
-  
     model_torch = GPT2Model_torch.from_pretrained(
         model_name, cache_dir=cache_dir
     )
