@@ -57,6 +57,7 @@ set(TESTS
     "mask_scalar"
     "scal"
     "transpose"
+    "norm_fiber"
     )
 
 # Describe all tests that are not yet implemented
