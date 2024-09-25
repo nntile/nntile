@@ -20,6 +20,12 @@ class GenerationMode(Enum):
     TopP = "TopP"
 
 
+class ParallelSamplingMode(Enum):
+    BeamSearch = "BeamSearch"
+    BeamSearchBigrams = "BeamSearchBigrams"
+    Parallel = "Parallel"
+
+
 @dataclass
 class GenerationParams:
     max_tokens: int
@@ -28,3 +34,7 @@ class GenerationParams:
     top_k: int | None = None
     top_p_thr: float | None = None
     temperature: float = 1
+    num_beams: int = 1
+    parallel_sampling_mode: ParallelSamplingMode = (
+        ParallelSamplingMode.BeamSearch
+    )
