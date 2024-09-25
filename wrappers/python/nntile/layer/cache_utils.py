@@ -16,18 +16,21 @@ from nntile.tensor import copy_intersection_async
 
 
 class KVCacheStorage:
-    def __init__(self):
-        self.kv_caches = None
-        self.is_initialized = False
+    def __init__(self, kv_caches=None):
+        self.kv_caches = kv_caches
+        if kv_caches is not None:
+            self._is_initialized = True
+        else:
+            self._is_initialized = False
 
     def is_initialized(self):
-        return self.is_initialized
+        return self._is_initialized
 
     def init(self, num_layers, max_cache_size, seq_size_dim=1):
         self.kv_caches = [
             KVCache(max_cache_size, seq_size_dim) for _ in range(num_layers)
         ]
-        self.is_initialized = True
+        self._is_initialized = True
 
     def get_cache(self):
         assert self.kv_caches
@@ -52,9 +55,9 @@ class ParallelSamplingCacheStorage(KVCacheStorage):
         ]
 
     def get_cache(self):
-        return self.get_prefill()
+        return self._get_prefill_list()
 
-    def get_prefill(self):
+    def _get_prefill_list(self):
         assert self.kv_caches
 
         prefill_kv_caches = [
@@ -68,7 +71,7 @@ class ParallelSamplingCacheStorage(KVCacheStorage):
         beam_kv_caches = [
             self.kv_caches[i].get_beam(beam) for i in range(self.num_layers)
         ]
-        return beam_kv_caches
+        return KVCacheStorage(beam_kv_caches)
 
     def reduce(self, beams_ids):
         assert self.kv_caches
