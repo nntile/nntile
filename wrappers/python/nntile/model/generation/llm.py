@@ -14,6 +14,8 @@ import numpy as np
 
 import nntile
 import nntile.utils.constructors as nntc
+from nntile.layer.cache_utils import KVCacheStorage
+from nntile.model.generation.llm_beamsearch import generate_parallel
 from nntile.model.generation.llm_params import GenerationMode, GenerationParams
 from nntile.model.generation.llm_samplers import get_sampler
 from nntile.tensor import Tensor
@@ -33,17 +35,33 @@ class LLMGenerationMixin:
             # This path only for compatibility with statically defined
             # model and not efficient on small examples
             if params.use_cache:
+                raise Exception("No support for kvcache for static inference")
+            if params.num_beams > 1:
                 raise Exception(
-                    "No support for kvcache for static inference"
+                    "No support for beam search in static inference"
                 )
             output_ids = generate_autoregress(
-                self, input_ids, prefill_size,
-                self.eos_token_id, params, sampler
+                self,
+                input_ids,
+                prefill_size,
+                self.eos_token_id,
+                params,
+                sampler,
             )
         else:
-            output_ids = generate_autoregress_dynamic(
-                self, input_ids, self.eos_token_id, params, sampler
-            )
+            if params.num_beams == 1:
+                output_ids = generate_autoregress_dynamic(
+                    self, input_ids, self.eos_token_id, params, sampler
+                )
+            else:
+                output_ids = generate_parallel(
+                    self,
+                    input_ids,
+                    self.eos_token_id,
+                    params.num_beams,
+                    params,
+                    params.parallel_sampling_mode,
+                )
 
         return output_ids
 
@@ -55,10 +73,13 @@ class LLMGenerationMixin:
         mode: GenerationMode = GenerationMode.Greedy,
     ):
         sampler = get_sampler(mode, params)
+
+        assert (
+            params.num_beams == 1
+        ), "No support for beam search in async inference"
+
         if params.need_static_padding:
-            raise Exception(
-                "No support for async static inference"
-            )
+            raise Exception("No support for async static inference")
         else:
             output_ids = await generate_autoregress_dynamic_async(
                 self, input_ids, self.eos_token_id, params, sampler
@@ -96,13 +117,16 @@ def generate_autoregress_dynamic(
     cur_seq_size = input_ids.shape[0]
 
     kv_caches = None
+    if params.use_cache:
+        kv_caches = KVCacheStorage()
 
     output_ids_np = nntc.to_numpy(input_ids)
 
     while cur_seq_size < params.max_tokens:
         logits_nnt, kv_caches = model.forward_dynamic(
             nntile.tensor.TensorMoments(input_ids, None, False),
-            use_cache=params.use_cache, kv_caches=kv_caches
+            use_cache=params.use_cache,
+            kv_caches=kv_caches,
         )
         output_value_np = nntc.to_numpy(logits_nnt.value)
 
@@ -128,18 +152,21 @@ def generate_autoregress_dynamic(
 
 
 async def generate_autoregress_dynamic_async(
-        model, input_ids, eos_token_id, params, sampler
+    model, input_ids, eos_token_id, params, sampler
 ):
     cur_seq_size = input_ids.shape[0]
 
     kv_caches = None
+    if params.use_cache:
+        kv_caches = KVCacheStorage()
 
     output_ids_np = await nntc.to_numpy_async(input_ids)
 
     while cur_seq_size < params.max_tokens:
         logits_nnt, kv_caches = model.forward_dynamic(
             nntile.tensor.TensorMoments(input_ids, None, False),
-            use_cache=params.use_cache, kv_caches=kv_caches
+            use_cache=params.use_cache,
+            kv_caches=kv_caches,
         )
         output_value_np = await nntc.to_numpy_async(logits_nnt.value)
 

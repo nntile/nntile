@@ -42,8 +42,7 @@ def sample_topp(logits, p_thr, temperature):
         single_logits = batch_extended[:, batch_indx]
         argsorted_logits = np.argsort(single_logits)
         sorted_probas = softmax(
-            single_logits[argsorted_logits] / temperature,
-            axis=0
+            single_logits[argsorted_logits] / temperature, axis=0
         )
         cumsum_from_largest = np.cumsum(sorted_probas[::-1])
 
