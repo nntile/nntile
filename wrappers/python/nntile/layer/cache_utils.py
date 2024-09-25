@@ -16,6 +16,12 @@ from nntile.tensor import copy_intersection_async
 
 
 class KVCacheStorage:
+    """
+    Stores kv caches for all layers of model
+    Used for autoregressive inference
+    Passed explicitly to model
+    """
+
     def __init__(self, kv_caches=None):
         self.kv_caches = kv_caches
         if kv_caches is not None:
@@ -27,6 +33,10 @@ class KVCacheStorage:
         return self._is_initialized
 
     def init(self, num_layers, max_cache_size, seq_size_dim=1):
+        """
+        Used for first initialization from inside the model
+        So model explicitly sets number of cached layers
+        """
         self.kv_caches = [
             KVCache(max_cache_size, seq_size_dim) for _ in range(num_layers)
         ]
@@ -38,12 +48,24 @@ class KVCacheStorage:
 
 
 class ParallelSamplingCacheStorage(KVCacheStorage):
+    """
+    Stores kv caches for all layers of model
+    Used for autoregressive parallel samling inference
+    Passed explicitly to model
+    """
+
     def __init__(self, num_beams):
         self.num_beams = num_beams
         self.num_layers = 0
         super().__init__()
 
     def init(self, num_layers, max_cache_size, seq_size_dim=1):
+        """
+        Used for first initialization from inside the model
+        So model explicitly sets number of cached layers
+
+        All caches shares same prefill cache and personal cache for decode
+        """
         self.num_layers = num_layers
         self.kv_caches = [
             ParallelSamplingKVCache(
@@ -55,6 +77,9 @@ class ParallelSamplingCacheStorage(KVCacheStorage):
         ]
 
     def get_cache(self):
+        """
+        Used for prefill to fill base for each cache
+        """
         return self._get_prefill_list()
 
     def _get_prefill_list(self):
@@ -66,6 +91,9 @@ class ParallelSamplingCacheStorage(KVCacheStorage):
         return prefill_kv_caches
 
     def get_beam(self, beam):
+        """
+        Used for decode so cache individual for each beam
+        """
         assert self.kv_caches
 
         beam_kv_caches = [
@@ -74,6 +102,11 @@ class ParallelSamplingCacheStorage(KVCacheStorage):
         return KVCacheStorage(beam_kv_caches)
 
     def reduce(self, beams_ids):
+        """
+        After forward pass there can be some beams
+        duplicates and evicting others
+        Cache implement logic via reduce method
+        """
         assert self.kv_caches
 
         for i in range(self.num_layers):
@@ -81,6 +114,10 @@ class ParallelSamplingCacheStorage(KVCacheStorage):
 
 
 class KVCache:
+    """
+    Stores all keys and values in preallocated tensors of big size
+    """
+
     def __init__(self, max_cache_size, seq_size_dim):
         self.max_cache_size = max_cache_size
         self.seq_size_dim = seq_size_dim
@@ -173,80 +210,12 @@ class KVCache:
         return self.k_cache_size
 
 
-class DynamicKVCacheWithBase:
-    def __init__(self, base, head):
-        assert base.seq_size_dim == head.seq_size_dim
-        self.base = base
-        self.head = head
-
-    def __len__(self):
-        return len(self.base) + len(self.head)
-
-    def append(self, k_partial, v_partial):
-        self.head.append(k_partial, v_partial)
-
-    @property
-    def k_partial(self):
-        k_partial_shape = self.base.k.shape
-        k_partial_basetile_shape = self.base.k.basetile_shape
-        k_partial_shape[self.base.seq_size_dim] = len(self.base) + len(
-            self.head
-        )
-        k_partial_basetile_shape[self.base.seq_size_dim] = len(
-            self.base
-        ) + len(self.head)
-
-        k_partial = nntc.zeros(
-            k_partial_shape,
-            basetile_shape=k_partial_basetile_shape,
-            dtype=type(self.base.k),
-        )
-
-        copy_intersection_async(
-            self.base.k, [0, 0, 0, 0], k_partial, [0, 0, 0, 0]
-        )
-
-        offset = len(self.base)
-        for block in self.head.iter_k():
-            copy_intersection_async(
-                block, [0, offset, 0, 0], k_partial, [0, 0, 0, 0]
-            )
-            offset += block.shape[self.head.seq_size_dim]
-
-        return k_partial
-
-    @property
-    def v_partial(self):
-        v_partial_shape = self.base.v.shape
-        v_partial_basetile_shape = self.base.v.basetile_shape
-        v_partial_shape[self.base.seq_size_dim] = len(self.base) + len(
-            self.head
-        )
-        v_partial_basetile_shape[self.base.seq_size_dim] = len(
-            self.base
-        ) + len(self.head)
-
-        v_partial = nntc.zeros(
-            v_partial_shape,
-            basetile_shape=v_partial_basetile_shape,
-            dtype=type(self.base.v),
-        )
-
-        copy_intersection_async(
-            self.base.v, [0, 0, 0, 0], v_partial, [0, 0, 0, 0]
-        )
-
-        offset = len(self.base)
-        for block in self.head.iter_v():
-            copy_intersection_async(
-                block, [0, offset, 0, 0], v_partial, [0, 0, 0, 0]
-            )
-            offset += block.shape[self.head.seq_size_dim]
-
-        return v_partial
-
-
 class DynamicKVCache:
+    """
+    Stores all keys and values in python list
+    Merges keys and values lists in one tensor on partial request
+    """
+
     def __init__(self, max_cache_size, seq_size_dim, clone_input=False):
         self.max_cache_size = max_cache_size
         self.seq_size_dim = seq_size_dim
@@ -350,7 +319,93 @@ class DynamicKVCache:
         return self.k_cache_size
 
 
+class DynamicKVCacheWithBase:
+    """
+    Allow to use simple KVCache as referred base
+    Stores all upcoming changes in dynamic head
+
+    Assumes base can be shared accross different objects (read only access)
+    Assumes head is unique for cache (write/read access)
+    """
+
+    def __init__(self, base, head):
+        assert base.seq_size_dim == head.seq_size_dim
+        self.base = base
+        self.head = head
+
+    def __len__(self):
+        return len(self.base) + len(self.head)
+
+    def append(self, k_partial, v_partial):
+        self.head.append(k_partial, v_partial)
+
+    @property
+    def k_partial(self):
+        k_partial_shape = self.base.k.shape
+        k_partial_basetile_shape = self.base.k.basetile_shape
+        k_partial_shape[self.base.seq_size_dim] = len(self.base) + len(
+            self.head
+        )
+        k_partial_basetile_shape[self.base.seq_size_dim] = len(
+            self.base
+        ) + len(self.head)
+
+        k_partial = nntc.zeros(
+            k_partial_shape,
+            basetile_shape=k_partial_basetile_shape,
+            dtype=type(self.base.k),
+        )
+
+        copy_intersection_async(
+            self.base.k, [0, 0, 0, 0], k_partial, [0, 0, 0, 0]
+        )
+
+        offset = len(self.base)
+        for block in self.head.iter_k():
+            copy_intersection_async(
+                block, [0, offset, 0, 0], k_partial, [0, 0, 0, 0]
+            )
+            offset += block.shape[self.head.seq_size_dim]
+
+        return k_partial
+
+    @property
+    def v_partial(self):
+        v_partial_shape = self.base.v.shape
+        v_partial_basetile_shape = self.base.v.basetile_shape
+        v_partial_shape[self.base.seq_size_dim] = len(self.base) + len(
+            self.head
+        )
+        v_partial_basetile_shape[self.base.seq_size_dim] = len(
+            self.base
+        ) + len(self.head)
+
+        v_partial = nntc.zeros(
+            v_partial_shape,
+            basetile_shape=v_partial_basetile_shape,
+            dtype=type(self.base.v),
+        )
+
+        copy_intersection_async(
+            self.base.v, [0, 0, 0, 0], v_partial, [0, 0, 0, 0]
+        )
+
+        offset = len(self.base)
+        for block in self.head.iter_v():
+            copy_intersection_async(
+                block, [0, offset, 0, 0], v_partial, [0, 0, 0, 0]
+            )
+            offset += block.shape[self.head.seq_size_dim]
+
+        return v_partial
+
+
 class ParallelSamplingKVCache:
+    """
+    Implement logic with share prefill cache accross
+    beams and modifying cache after each iteration
+    """
+
     def __init__(
         self, num_beams, max_cache_size, seq_size_dim, clone_input=False
     ):
