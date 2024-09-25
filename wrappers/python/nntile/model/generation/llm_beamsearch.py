@@ -19,20 +19,19 @@ from nntile.model.generation.llm_params import ParallelSamplingMode
 from nntile.tensor import TensorMoments
 
 
-def reduce_parallel(beams_logits):
+def reduce_parallel(beams_logits, sampler):
     logits = np.vstack(beams_logits)
-    indexes = logits.argmax(axis=1)
+    indexes = sampler.sample(logits.T).flatten()
     beams = list(range(indexes.shape[0]))
-    return indexes, beams
+    return indexes.tolist(), beams
 
 
-def reduce_global(beams_logits, num_samples):
+def reduce_global(beams_logits, sampler):
     logits = np.vstack(beams_logits)
     flat_logits = logits.flatten()
-    indexes = np.argpartition(flat_logits, -num_samples)[-num_samples:]
-    vals = flat_logits[indexes]
-    sorted_order = vals.argsort()
-    indexes_sorted = indexes[sorted_order]
+    indexes_sorted = sampler.sample(
+        flat_logits, num_samples=logits.shape[0]
+    ).flatten()
 
     beams = [index // logits.shape[1] for index in indexes_sorted]
     indexes = [index % logits.shape[1] for index in indexes_sorted]
@@ -45,6 +44,7 @@ def generate_parallel(
     max_tokens,
     eos_token_id,
     num_beams,
+    sampler,
     sampling_mode=ParallelSamplingMode.BeamSearch,
 ):
     assert input_ids.shape[1] == 1
@@ -92,7 +92,7 @@ def generate_parallel(
             beams_logits.append(last_decode_logits)
         if sampling_mode == ParallelSamplingMode.Parallel:
             tokens, beams_ids = reduce_parallel(
-                [bl[:, 0] for bl in beams_logits]
+                [bl[:, 0] for bl in beams_logits], sampler=sampler
             )
         else:
             prev_logits = logits[-1]
@@ -114,9 +114,7 @@ def generate_parallel(
                     for beam, bl in enumerate(beams_logits)
                 ]
 
-            tokens, beams_ids = reduce_global(
-                weighted_logits, len(beams_logits)
-            )
+            tokens, beams_ids = reduce_global(weighted_logits, sampler=sampler)
 
         cache_storage.reduce(beams_ids)
 

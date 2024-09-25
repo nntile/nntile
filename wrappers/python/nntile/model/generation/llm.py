@@ -64,6 +64,7 @@ class LLMGenerationMixin:
                     max_tokens=params.max_tokens,
                     eos_token_id=self.eos_token_id,
                     num_beams=params.num_beams,
+                    sampler=sampler,
                     sampling_mode=params.parallel_sampling_mode,
                 )
 
@@ -138,7 +139,7 @@ def generate_autoregress_dynamic(
 
         # TODO: add starpu function for argmax
         pred_token = sampler.sample(output_value_np[:, -1, :])
-        pred_token = pred_token[0]
+        pred_token = pred_token[0, 0]
         if pred_token == eos_token_id:
             return nntc.from_array(output_ids_np), cur_seq_size
 
@@ -178,16 +179,17 @@ async def generate_autoregress_dynamic_async(
 
         # TODO: add starpu function for argmax
         pred_token = sampler.sample(output_value_np[:, -1, :])
-        if pred_token[0] == eos_token_id:
+        pred_token = pred_token[0, 0]
+        if pred_token == eos_token_id:
             return nntc.from_array(output_ids_np), cur_seq_size
 
         # TODO: add starpu function for concatenation
         output_ids_np = np.concatenate(
-            [output_ids_np, np.array(pred_token)[None, :]], axis=0
+            [output_ids_np, pred_token[None, None]], axis=0
         )
         if use_cache:
             input_ids = nntc.from_array(
-                np.array(pred_token)[None, :].astype(np.int64)
+                pred_token[None, None].astype(np.int64)
             )
         else:
             input_ids = nntc.from_array(output_ids_np)
