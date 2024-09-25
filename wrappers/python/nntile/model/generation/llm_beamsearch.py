@@ -28,11 +28,11 @@ def reduce_global(beams_logits, num_samples):
 
 
 def generate_parallel(
-    model_nnt,
+    model,
     input_ids,
+    max_tokens,
     eos_token_id,
     num_beams,
-    params,
     sampling_mode=ParallelSamplingMode.BeamSearch,
 ):
     assert input_ids.shape[1] == 1
@@ -41,7 +41,7 @@ def generate_parallel(
 
     cache_storage = ParallelSamplingCacheStorage(num_beams)
 
-    out_prefill = model_nnt.forward_dynamic(
+    out_prefill = model.forward_dynamic(
         TensorMoments(input_ids, False, None), False, cache_storage
     )
     logits, _ = out_prefill
@@ -59,7 +59,7 @@ def generate_parallel(
         logits = [[last_logits for _ in range(num_beams)]]
     cur_seq_size += 1
 
-    while cur_seq_size < params.max_tokens:
+    while cur_seq_size < max_tokens:
         beams_logits = []
 
         for beam, t in enumerate(next_tokens):
@@ -68,7 +68,7 @@ def generate_parallel(
             next_token = np.asfortranarray([t]).astype(np.int64)[:, None]
             next_token_nnt = nntc.from_array(next_token)
 
-            out_decode = model_nnt.forward_dynamic(
+            out_decode = model.forward_dynamic(
                 TensorMoments(next_token_nnt, False, None),
                 True,
                 beam_kv_caches,

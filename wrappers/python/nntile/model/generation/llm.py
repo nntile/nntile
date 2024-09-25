@@ -41,26 +41,30 @@ class LLMGenerationMixin:
                     "No support for beam search in static inference"
                 )
             output_ids = generate_autoregress(
-                self,
-                input_ids,
-                prefill_size,
-                self.eos_token_id,
-                params,
-                sampler,
+                model=self,
+                input_ids=input_ids,
+                prefill_size=prefill_size,
+                max_tokens=params.max_tokens,
+                eos_token_id=self.eos_token_id,
             )
         else:
             if params.num_beams == 1:
                 output_ids = generate_autoregress_dynamic(
-                    self, input_ids, self.eos_token_id, params, sampler
+                    model=self,
+                    input_ids=input_ids,
+                    max_tokens=params.max_tokens,
+                    eos_token_id=self.eos_token_id,
+                    use_cache=params.use_cache,
+                    sampler=sampler,
                 )
             else:
                 output_ids = generate_parallel(
-                    self,
-                    input_ids,
-                    self.eos_token_id,
-                    params.num_beams,
-                    params,
-                    params.parallel_sampling_mode,
+                    model=self,
+                    input_ids=input_ids,
+                    max_tokens=params.max_tokens,
+                    eos_token_id=self.eos_token_id,
+                    num_beams=params.num_beams,
+                    sampling_mode=params.parallel_sampling_mode,
                 )
 
         return output_ids
@@ -88,11 +92,13 @@ class LLMGenerationMixin:
         return output_ids
 
 
-def generate_autoregress(model, input_ids, prefill_size, eos_token_id, params):
+def generate_autoregress(
+    model, input_ids, prefill_size, max_tokens, eos_token_id
+):
     cur_seq_size = prefill_size
 
     output_ids = input_ids
-    while cur_seq_size < params.max_tokens:
+    while cur_seq_size < max_tokens:
         logits = model.forward(output_ids)
 
         # TODO: add starpu function for argmax
@@ -112,20 +118,20 @@ def generate_autoregress(model, input_ids, prefill_size, eos_token_id, params):
 
 
 def generate_autoregress_dynamic(
-    model, input_ids, eos_token_id, params, sampler
+    model, input_ids, max_tokens, eos_token_id, use_cache, sampler
 ):
     cur_seq_size = input_ids.shape[0]
 
     kv_caches = None
-    if params.use_cache:
+    if use_cache:
         kv_caches = KVCacheStorage()
 
     output_ids_np = nntc.to_numpy(input_ids)
 
-    while cur_seq_size < params.max_tokens:
+    while cur_seq_size < max_tokens:
         logits_nnt, kv_caches = model.forward_dynamic(
             nntile.tensor.TensorMoments(input_ids, None, False),
-            use_cache=params.use_cache,
+            use_cache=use_cache,
             kv_caches=kv_caches,
         )
         output_value_np = nntc.to_numpy(logits_nnt.value)
@@ -140,7 +146,7 @@ def generate_autoregress_dynamic(
         output_ids_np = np.concatenate(
             [output_ids_np, pred_token[None, None]], axis=0
         )
-        if params.use_cache:
+        if use_cache:
             input_ids = nntc.from_array(
                 pred_token[None, None].astype(np.int64)
             )
@@ -152,20 +158,20 @@ def generate_autoregress_dynamic(
 
 
 async def generate_autoregress_dynamic_async(
-    model, input_ids, eos_token_id, params, sampler
+    model, input_ids, max_tokens, eos_token_id, use_cache, sampler
 ):
     cur_seq_size = input_ids.shape[0]
 
     kv_caches = None
-    if params.use_cache:
+    if use_cache:
         kv_caches = KVCacheStorage()
 
     output_ids_np = await nntc.to_numpy_async(input_ids)
 
-    while cur_seq_size < params.max_tokens:
+    while cur_seq_size < max_tokens:
         logits_nnt, kv_caches = model.forward_dynamic(
             nntile.tensor.TensorMoments(input_ids, None, False),
-            use_cache=params.use_cache,
+            use_cache=use_cache,
             kv_caches=kv_caches,
         )
         output_value_np = await nntc.to_numpy_async(logits_nnt.value)
@@ -179,7 +185,7 @@ async def generate_autoregress_dynamic_async(
         output_ids_np = np.concatenate(
             [output_ids_np, np.array(pred_token)[None, :]], axis=0
         )
-        if params.use_cache:
+        if use_cache:
             input_ids = nntc.from_array(
                 np.array(pred_token)[None, :].astype(np.int64)
             )
