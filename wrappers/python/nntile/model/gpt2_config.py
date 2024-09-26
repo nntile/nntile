@@ -26,7 +26,7 @@ class GPT2ConfigNNTile:
     n_head_tile: int
     activation_function: str = "gelutanh"
     dtype: str = "fp32"
-    flashattention: bool = False
+    flash_attention: bool = False
     layer_norm_epsilon: float = 1e-5
     max_position_embeddings: int = 1024
     num_hidden_layers: int = 1
