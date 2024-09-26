@@ -25,8 +25,8 @@ from transformers.models.gpt2.modeling_gpt2 import (
     GPT2LMHeadModel as GPT2LMHead_torch)
 
 import nntile
-from nntile.model.gpt2_lmhead import GPT2LMHead
 from nntile.model.gpt2_config import GPT2ConfigNNTile
+from nntile.model.gpt2_lmhead import GPT2LMHead
 
 # Create argument parser
 parser = argparse.ArgumentParser(prog="GPT2-based neural networks",
