@@ -18,7 +18,7 @@ from transformers import LlamaConfig as LlamaConfig_torch
 from transformers.models.llama.modeling_llama import (
     LlamaModel as LlamaModel_torch)
 
-from nntile.layer.cache_utils import KVCache
+from nntile.layer.cache_utils import KVCacheStorage
 from nntile.tensor import (
     Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_tf32, Tensor_int64,
     TensorMoments, TensorTraits)
@@ -69,12 +69,13 @@ class Llama(BaseModel):
             self,
             x: TensorMoments,
             use_cache: bool = False,
-            kv_caches: Optional[List[KVCache]] = None
+            kv_caches: Optional[KVCacheStorage] = None
         ):
-        if use_cache and kv_caches is None:
-            kv_caches = [
-                KVCache(self.seq_len, 1) for _ in range(len(self.decoders))
-            ]
+        cache_list = None
+        if kv_caches is not None:
+            if not kv_caches.is_initialized():
+                kv_caches.init(len(self.decoders), self.seq_len, 1)
+            cache_list = kv_caches.get_cache()
 
         x_emb = self.embd_layer.forward_dynamic(x)
 
@@ -82,10 +83,10 @@ class Llama(BaseModel):
         for lid, dec_layer in enumerate(self.decoders):
             dec_out, updated_cache = dec_layer.forward_dynamic(
                 dec_out,
-                kv_cache=kv_caches[lid] if kv_caches else None
+                kv_cache=cache_list[lid] if cache_list else None
             )
-            if kv_caches:
-                kv_caches[lid] = updated_cache
+            if cache_list:
+                cache_list[lid] = updated_cache
         normalized_outs = self.final_rmsnorm.forward_dynamic(dec_out)
         return normalized_outs, kv_caches
 

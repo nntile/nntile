@@ -28,10 +28,13 @@ def test_greedy(numpy_rng, embed_size, batch_size):
     sampler = get_sampler(mode, params)
 
     found_tokens = sampler.sample(logits)
-    expected_tokens = np.argmax(logits, axis=0)
+    expected_tokens = np.argmax(logits, axis=0)[
+        :, None
+    ]  # shape: [batch, num_samples]
 
-    assert (found_tokens == expected_tokens).all(), \
-    f"{found_tokens} != {expected_tokens}"
+    assert (
+        found_tokens == expected_tokens
+    ).all(), f"{found_tokens} != {expected_tokens}"
 
 
 @pytest.mark.parametrize("n_resamples", [20])
@@ -45,11 +48,14 @@ def test_topk(n_resamples):
     so all logits from top-k probas will be sampled after reasonable iterations
     We just make assert we have exactly sampled only top-k tokens from logits
     """
-    inp = np.array([[0.39437038, 0.686569],
-       [0.07847447, 0.92659984],
-       [0.88788324, 0.06391566],
-       [0.07849913, 0.84102763],
-       [0.77358009, 0.68963694]]
+    inp = np.array(
+        [
+            [0.39437038, 0.686569],
+            [0.07847447, 0.92659984],
+            [0.88788324, 0.06391566],
+            [0.07849913, 0.84102763],
+            [0.77358009, 0.68963694],
+        ]
     )
 
     expected0 = np.argsort(inp[:, 0])
@@ -62,7 +68,8 @@ def test_topk(n_resamples):
         for _ in range(n_resamples):
             sampler = TopKSampler(k, temperature)
             tokens = sampler.sample(inp)
-            sampled.append(tokens)
+            # no testing for batch here. So just flat tokens
+            sampled.append(tokens.flatten())
         sampled = np.vstack(sampled)
 
         # Note, just for simplicity and batched implementation testing,
@@ -88,11 +95,14 @@ def test_topp(n_resamples):
     We just make assert we have exactly sampled only top-p tokens from logits
     """
 
-    inp = np.array([[0.39437038, 0.686569],
-       [0.07847447, 0.92659984],
-       [0.88788324, 0.06391566],
-       [0.07849913, 0.84102763],
-       [0.77358009, 0.68963694]]
+    inp = np.array(
+        [
+            [0.39437038, 0.686569],
+            [0.07847447, 0.92659984],
+            [0.88788324, 0.06391566],
+            [0.07849913, 0.84102763],
+            [0.77358009, 0.68963694],
+        ]
     )
 
     sfi = scipy.special.softmax(inp, axis=0)
@@ -111,7 +121,8 @@ def test_topp(n_resamples):
         for _ in range(n_resamples):
             sampler = TopPSampler(p_thr, temperature)
             tokens = sampler.sample(inp)
-            sampled.append(tokens)
+            # no testing for batch here. So just flat tokens
+            sampled.append(tokens.flatten())
         sampled = np.vstack(sampled)
 
         # Note, just for simplicity and batched implementation testing,

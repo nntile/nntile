@@ -11,7 +11,7 @@
 #
 # @version 1.1.0
 
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 from transformers import LlamaConfig as LlamaConfig_torch
@@ -19,7 +19,7 @@ from transformers.models.llama.modeling_llama import (
     LlamaForCausalLM as LlamaCausalModel_torch)
 
 import nntile
-from nntile.layer.cache_utils import KVCache
+from nntile.layer.cache_utils import KVCacheStorage
 from nntile.model.generation.llm import LLMGenerationMixin
 from nntile.types import TensorMoments
 
@@ -80,7 +80,7 @@ class LlamaForCausalLM(BaseModel, LLMGenerationMixin):
     def forward_dynamic(
             self, x: TensorMoments,
             use_cache: bool = False,
-            kv_caches: Optional[List[KVCache]] = None
+            kv_caches: Optional[KVCacheStorage] = None
         ):
         llama_logits, kv_caches = self.llama_model_.forward_dynamic(
             x, use_cache=use_cache, kv_caches=kv_caches
