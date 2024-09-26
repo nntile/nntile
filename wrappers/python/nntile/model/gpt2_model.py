@@ -27,7 +27,7 @@ from .gpt2_block import GPT2Block
 from .gpt2_config import GPT2ConfigNNTile
 
 
-class GPT2(BaseModel):
+class GPT2Model(BaseModel):
     next_tag: int
     wte_layer: Embedding
     wpe_layer: Embedding
@@ -157,7 +157,7 @@ class GPT2(BaseModel):
                                     U,
                                     next_tag, config.redux)
         X = TensorMoments(x_value, None, False)
-        gpt2_nntile = GPT2(X,
+        gpt2_nntile = GPT2Model(X,
                             positional_ids,
                             wpe_layer,
                             wte_layer,

@@ -21,7 +21,7 @@ from nntile.model.generation.llm import LLMGenerationMixin
 from ..layer import Linear
 from .base_model import BaseModel
 from .gpt2_config import GPT2ConfigNNTile
-from .gpt2_model import GPT2 as GPT2_nntile
+from .gpt2_model import GPT2Model as GPT2_nntile
 
 
 class GPT2LMHead(BaseModel, LLMGenerationMixin):

@@ -25,7 +25,7 @@ from transformers.models.gpt2.modeling_gpt2 import (
 
 import nntile
 from nntile.model.gpt2_config import GPT2ConfigNNTile
-from nntile.model.gpt2_lmhead import GPT2LMHead as GPT2Model
+from nntile.model.gpt2_lmhead import GPT2LMHead
 from nntile.tensor import to_numpy
 
 # NNTile dtype via corresponding Tensor type
@@ -114,8 +114,8 @@ def generate_inputs(params: GPT2TestParams,
 
     torch_model = GPT2Model_torch(torch_config)
     torch_model.lm_head.weight = nn.Parameter(
-    torch_model.lm_head.weight.detach().clone()
-)
+        torch_model.lm_head.weight.detach().clone()
+    )
     nntile_config = GPT2ConfigNNTile(
             vocab_size=params.vocab_size,
             vocab_embed_dim_tile=params.vocab_embed_dim_tile,
@@ -130,7 +130,7 @@ def generate_inputs(params: GPT2TestParams,
     )
     gen = np.random.default_rng(42)
 
-    nntile_model, _ = GPT2Model.from_torch(
+    nntile_model, _ = GPT2LMHead.from_torch(
             torch_model, params.batch_size, params.batch_size_tile,
             params.seq_len, params.seq_len_tile, nntile_config, 0)
     nntile_model.clear_gradients()
