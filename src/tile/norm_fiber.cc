@@ -59,9 +59,9 @@ void norm_fiber_async(Scalar alpha, const Tile<T> &src1, Scalar beta,
     // Get sizes
     Index m, n, k, batch;
     batch = dst.matrix_shape[1][1];
-    m = src1.stride[axis];
-    n = src1.matrix_shape[axis+1][1] / batch;
-    k = src1.shape[axis];
+    m = src2.stride[axis];
+    n = src2.matrix_shape[axis+1][1] / batch;
+    k = src2.shape[axis];
     // Insert task
     starpu::norm_fiber::submit<T>(m, n, k, batch, alpha, src1, beta, src2, dst);
 }

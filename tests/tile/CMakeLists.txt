@@ -62,6 +62,7 @@ set(TESTS
     "traits"
     "scal"
     "hypot"
+    "norm_fiber"
     )
 
 # Describe all tests that are not yet implemented
