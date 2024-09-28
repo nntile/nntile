@@ -14,15 +14,18 @@
 import numpy as np
 import torch
 from transformers.models.bert.modeling_bert import (
-    BertConfig as BertConfig_torch, BertEmbeddings as BertEmbeddings_torch)
+    BertConfig as BertConfig_torch, BertEmbeddings as BertEmbeddings_torch,
+    BertSelfOutput as BertSelfOutput_torch)
 
 from nntile.tensor import (
     Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_bf16, Tensor_fp32_fast_fp16,
     Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments, TensorTraits, to_numpy)
 
+from ..layer.add import Add
 from ..layer.add_slice import AddSlice
 from ..layer.embedding import Embedding
 from ..layer.layer_norm import LayerNorm
+from ..layer.linear import Linear
 from .base_model import BaseModel
 from .bert_config import BertConfigNNTile
 
@@ -200,3 +203,105 @@ class BertEmbeddings(BaseModel):
                                     bert_embeddins_torch.parameters()):
             p_torch.grad = torch.tensor(to_numpy(p_nntile.grad).T)
         return bert_embeddins_torch
+
+
+class BertSelfOutput(BaseModel):
+    next_tag: int
+
+    def __init__(self, hidden_states: TensorMoments,
+                  input_tensor: TensorMoments,
+                  lin_layer: Linear,
+                  add_layer: Add,
+                  layer_norm: LayerNorm,
+                  config: BertConfigNNTile):
+
+        self.dtype = config.dtype
+
+        self.config = config
+
+        activations = [hidden_states, input_tensor]
+        activations.extend(lin_layer.activations_output)
+        activations.extend(add_layer.activations_output)
+        activations.extend(layer_norm.activations_output)
+
+        layers = [lin_layer,
+                  add_layer,
+                  layer_norm]
+
+        # Fill Base Model with the generated data
+        super().__init__(activations, layers)
+
+    @staticmethod
+    def from_torch(bert_selfoutput_torch, batch_size, batch_size_tile,
+                   seq_len, seq_len_tile, hidden_dim, hidden_dim_tile,
+                   config: BertConfigNNTile, next_tag: int):
+
+        if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
+                            "fp32_fast_fp16", "fp32_fast_bf16"]:
+            raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
+            "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
+
+        dtype2tensor_type = {"fp32": Tensor_fp32,
+                            "bf16": Tensor_bf16,
+                            "fp32_fast_tf32": Tensor_fp32_fast_tf32,
+                            "fp32_fast_fp16": Tensor_fp32_fast_fp16,
+                            "fp32_fast_bf16": Tensor_fp32_fast_bf16
+                            }
+        tensor_type = dtype2tensor_type[config.dtype]
+
+        x_shape = [hidden_dim, seq_len, batch_size]
+        x_basetile = [hidden_dim_tile, seq_len_tile, batch_size_tile]
+        x_traits = TensorTraits(x_shape, x_basetile)
+        x_distr = [0] * x_traits.grid.nelems
+        x_value = tensor_type(x_traits, x_distr, 0)
+        x_grad = tensor_type(x_traits, x_distr, 0)
+        X = TensorMoments(x_value, x_grad, True)
+
+        input_tensor_traits = TensorTraits(x_shape, x_basetile)
+        input_tensor_distr = [0] * input_tensor_traits.grid.nelems
+        input_tensor_value = tensor_type(input_tensor_traits,
+                                         input_tensor_distr, 0)
+        input_tensor_grad = tensor_type(input_tensor_traits,
+                                        input_tensor_distr, 0)
+        input_tensor = TensorMoments(input_tensor_value,
+                                     input_tensor_grad,
+                                     True)
+
+        lin_layer, next_tag = Linear.from_torch(bert_selfoutput_torch.dense, X,
+                                                hidden_dim_tile,
+                                                config.redux, next_tag)
+
+        add_layer, next_tag = Add.generate_simple(
+                                lin_layer.activations_output[0],
+                                input_tensor,
+                                next_tag)
+        lnorm, next_tag = LayerNorm.from_torch(
+                                bert_selfoutput_torch.LayerNorm,
+                                add_layer.activations_output[0],
+                                next_tag, config.redux)
+
+        bert_selfoutput_nntile = BertSelfOutput(X,
+                                                input_tensor,
+                                                lin_layer, add_layer,
+                                                lnorm, config)
+        return bert_selfoutput_nntile, next_tag
+
+    def to_torch(self):
+        config_torch = BertConfig_torch()
+        config_torch.hidden_size = self.config.hidden_size
+        config_torch.layer_norm_eps = self.config.layer_norm_epsilon
+        config_torch.hidden_dropout_prob = 0.
+
+        bert_selfoutput_torch = BertSelfOutput_torch(config_torch)
+        for p_nntile, p_torch in zip(self.parameters,
+                                    bert_selfoutput_torch.parameters()):
+            p_torch.data = torch.tensor(to_numpy(p_nntile.value),
+                                        requires_grad=True)
+        return bert_selfoutput_torch
+
+    def to_torch_with_grads(self):
+        bert_selfoutput_torch = self.to_torch()
+        for p_nntile, p_torch in zip(self.parameters,
+                                    bert_selfoutput_torch.parameters()):
+            p_torch.grad = torch.tensor(to_numpy(p_nntile.grad))
+        return bert_selfoutput_torch
