@@ -31,7 +31,7 @@ class BertConfigNNTile:
     max_position_embeddings: int = 512
     num_hidden_layers: int = 1
     redux: bool = True
-    hidden_dropout_prob = 0
-    attention_probs_dropout_prob = 0
-    classifier_dropout = 0
+    hidden_dropout_prob: float = 0
+    attention_probs_dropout_prob: float = 0
+    classifier_dropout: float = 0
     type_vocab_size: int = 2
