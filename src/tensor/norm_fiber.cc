@@ -66,11 +66,15 @@ void norm_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
                     "src1.basetile_shape[src1.ndim-batch_ndim+i]");
         }
     }
+    // src1 is big, src2 and dst is small
+    // dst[l,b] = hypot(beta*dst[l,b], alpha*norm(src[:,l,:,b])) - from kernel  inplace implimentation
+    //std::cout << "ndim " << src1.ndim << " " << src2.ndim << " " << dst.ndim << "\n";
+    
     // Do actual calculations
     int mpi_rank = starpu_mpi_world_rank();
     int ret;
-    Index ndim = src1.ndim;
     constexpr Scalar one = 1.0;
+    // go over bigger tensor
     for(Index i = 0; i < src1.grid.nelems; ++i)
     {
         auto src1_tile_handle = src1.get_tile_handle(i);
@@ -79,34 +83,36 @@ void norm_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
         auto src1_tile_index = src1.grid.linear_to_index(i);
         // Get corresponding dst tile
         std::vector<Index> dst_tile_index(dst.ndim);
-        std::vector<Index> src2_tile_index(dst.ndim);
-        
         dst_tile_index[0] = src1_tile_index[axis];
-        src2_tile_index[0] = src1_tile_index[axis];
         
         for(Index j = 0; j < batch_ndim; ++j)
         {
             dst_tile_index[j+1] = src1_tile_index[src1.ndim-batch_ndim+j];
-            src2_tile_index[j+1] = src1_tile_index[src1.ndim-batch_ndim+j];
+            //src1_tile_index[j+1] = src2_tile_index[src2.ndim-batch_ndim+j];
             
         }
+        
         auto dst_tile_handle = dst.get_tile_handle(dst_tile_index);
         auto dst_tile_traits = dst.get_tile_traits(dst_tile_index);
-        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
         auto src2_tile_handle = src2.get_tile_handle(dst_tile_index);
+        auto src2_tile_traits = src2.get_tile_traits(dst_tile_index);
+        int dst_tile_rank = dst_tile_handle.mpi_get_rank();
         
         // Transfer data
         src1_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
+        src2_tile_handle.mpi_transfer(dst_tile_rank, mpi_rank);
         // Execute on destination node
         if(mpi_rank == dst_tile_rank)
         {
-            // Get sizes
+            // Reshape inputs: dst_tile -> (k,batch), src1_tile -> (m,k,n,batch) like in kernel
             Index m, n, k, batch;
             batch = dst_tile_traits.matrix_shape[1][1];
             m = src1_tile_traits.stride[axis];
             n = src1_tile_traits.matrix_shape[axis+1][1] / batch;
             k = src1_tile_traits.shape[axis];
-            // Check if it is the first task for the output tile
+            // now it is the same as in inplace version!
+            // for shape [3,5,20,20] it is 3 400 5
+            //std::cout << "nmk: " << m << " " << n << " " << k << "\n";
             bool init_first = true;
             for(Index j = 0; j < src1.ndim-batch_ndim; ++j)
             {
@@ -116,26 +122,23 @@ void norm_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
                     break;
                 }
             }
-            // Insert task
+            // Insert corresponding task
             if(init_first)
             {
                 starpu::norm_fiber::submit<T>(m, n, k, batch, alpha,
-                        src1_tile_handle, beta, src2_tile_handle, dst_tile_handle);
+                    src1_tile_handle, beta, src2_tile_handle, dst_tile_handle);
             }
             else
             {
                 starpu::norm_fiber::submit<T>(m, n, k, batch, alpha,
-                        src1_tile_handle, one, src2_tile_handle, dst_tile_handle, redux);
+                    src1_tile_handle, one, src2_tile_handle, dst_tile_handle);
             }
         }
-    }
-    // Flush cache for the output tiles on every node
-    for(Index i = 0; i < dst.grid.nelems; ++i)
-    {
-        dst.get_tile_handle(i).mpi_flush();
-        //src2.get_tile_handle(i).mpi_flush();
+        // Flush cache for the output tile on every node
+        dst_tile_handle.mpi_flush();
         
     }
+
 }
 
 //! Tensor-wise norm_fiber
