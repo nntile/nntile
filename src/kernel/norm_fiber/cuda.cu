@@ -22,8 +22,8 @@ namespace nntile::kernel::norm_fiber
 
 template<typename T>
 static __global__
-void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha, const T *src,
-        Scalar beta, T *dst)
+void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src,
+        Scalar beta_, T *dst)
 //! Sums over slices along the first and last axes into a fiber of a tensor
 /*! For a provided m-by-k-by-n input array computes sums over slices
  * along the first axis with m elements and the last axis with n elements,
@@ -45,7 +45,7 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha, const T *
 {
     using Y = typename T::repr_t;
     constexpr Y zero{0.0};
-
+    Y alpha{alpha_}, beta{beta_};
     // Calculate global thread ID for batch and k dimensions
     Index i2_batched = blockIdx.x * blockDim.x + threadIdx.x;
     Index i2 = i2_batched % k;
