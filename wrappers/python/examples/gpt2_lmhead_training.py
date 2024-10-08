@@ -60,8 +60,10 @@ parser.add_argument("--hidden-size-tile", type=int, default=-1)
 parser.add_argument("--intermediate-size-tile", type=int, default=-1)
 parser.add_argument("--n-head-tile", type=int, default=-1)
 
-parser.add_argument("--dtype", choices=["fp32", "fp64", "tf32", "bf16"],
-                    default="fp32")
+parser.add_argument(
+    "--dtype", choices=["fp32", "fp64", "tf32",
+                               "bf16", "fp32_fast_fp16",
+                               "fp32_fast_bf16"], default="fp32")
 parser.add_argument("--restrict", choices=["cpu", "cuda", None],
         default=None)
 parser.add_argument("--flash-attention", action="store_true")
@@ -133,9 +135,10 @@ model_torch.lm_head.weight = nn.Parameter(
     model_torch.lm_head.weight.detach().clone()
 )
 inner_dim = (
-    config.n_inner if config.n_inner is not None else 4 * config.hidden_size
+    model_torch.config.n_inner if model_torch.config.n_inner is not None else
+      4 * model_torch.config.hidden_size
 )
-config.n_inner = inner_dim
+model_torch.config.n_inner = inner_dim
 
 # Initialize NNTile and StarPU
 time0 = time.time()
