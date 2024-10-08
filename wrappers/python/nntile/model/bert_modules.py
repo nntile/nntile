@@ -14,17 +14,20 @@
 import numpy as np
 import torch
 from transformers.models.bert.modeling_bert import (
-    BertConfig as BertConfig_torch, BertEmbeddings as BertEmbeddings_torch,
+    BertAttention as BertAttention_torch, BertConfig as BertConfig_torch,
+    BertEmbeddings as BertEmbeddings_torch,
     BertIntermediate as BertIntermediate_torch, BertOutput as BertOutput_torch,
     BertSelfOutput as BertSelfOutput_torch)
 
 from nntile.tensor import (
     Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_bf16, Tensor_fp32_fast_fp16,
-    Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments, TensorTraits, to_numpy)
+    Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments, TensorTraits, notrans,
+    to_numpy)
 
 from ..layer.act import Act
 from ..layer.add import Add
 from ..layer.add_slice import AddSlice
+from ..layer.bert_selfattention import BertSelfAttention
 from ..layer.embedding import Embedding
 from ..layer.layer_norm import LayerNorm
 from ..layer.linear import Linear
@@ -234,8 +237,11 @@ class BertSelfOutput(BaseModel):
         super().__init__(activations, layers)
 
     @staticmethod
-    def from_torch(bert_selfoutput_torch, batch_size, batch_size_tile,
-                   seq_len, seq_len_tile, hidden_dim, hidden_dim_tile,
+    def from_torch(bert_selfoutput_torch,
+                   X,
+                   input_tensor,
+                   hidden_dim,
+                   hidden_dim_tile,
                    config: BertConfigNNTile, next_tag: int):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
@@ -243,35 +249,22 @@ class BertSelfOutput(BaseModel):
             raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
             "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
 
-        dtype2tensor_type = {"fp32": Tensor_fp32,
-                            "bf16": Tensor_bf16,
-                            "fp32_fast_tf32": Tensor_fp32_fast_tf32,
-                            "fp32_fast_fp16": Tensor_fp32_fast_fp16,
-                            "fp32_fast_bf16": Tensor_fp32_fast_bf16
-                            }
-        tensor_type = dtype2tensor_type[config.dtype]
+        lin_layer, next_tag = Linear.generate_simple(X,
+                                                     "R",
+                                                     notrans,
+                                                     2,
+                                                     [hidden_dim],
+                                                     [hidden_dim_tile],
+                                                     next_tag)
+        w_torch = bert_selfoutput_torch.dense.weight.data
 
-        x_shape = [hidden_dim, seq_len, batch_size]
-        x_basetile = [hidden_dim_tile, seq_len_tile, batch_size_tile]
-        x_traits = TensorTraits(x_shape, x_basetile)
-        x_distr = [0] * x_traits.grid.nelems
-        x_value = tensor_type(x_traits, x_distr, 0)
-        x_grad = tensor_type(x_traits, x_distr, 0)
-        X = TensorMoments(x_value, x_grad, True)
-
-        input_tensor_traits = TensorTraits(x_shape, x_basetile)
-        input_tensor_distr = [0] * input_tensor_traits.grid.nelems
-        input_tensor_value = tensor_type(input_tensor_traits,
-                                         input_tensor_distr, 0)
-        input_tensor_grad = tensor_type(input_tensor_traits,
-                                        input_tensor_distr, 0)
-        input_tensor = TensorMoments(input_tensor_value,
-                                     input_tensor_grad,
-                                     True)
-
-        lin_layer, next_tag = Linear.from_torch(bert_selfoutput_torch.dense, X,
-                                                hidden_dim_tile,
-                                                config.redux, next_tag)
+        target_w_shape = lin_layer.w.value.shape
+        w_torch = w_torch.reshape((target_w_shape[0],
+                         target_w_shape[2],
+                         target_w_shape[1])).transpose(1, 2)
+        lin_layer.w.value.from_array(w_torch.numpy())
+        b_torch = bert_selfoutput_torch.dense.bias.data.numpy()
+        lin_layer.b.value.from_array(b_torch)
 
         add_layer, next_tag = Add.generate_simple(
                                 lin_layer.activations_output[0],
@@ -295,17 +288,36 @@ class BertSelfOutput(BaseModel):
         config_torch.hidden_dropout_prob = 0.
 
         bert_selfoutput_torch = BertSelfOutput_torch(config_torch)
-        for p_nntile, p_torch in zip(self.parameters,
-                                    bert_selfoutput_torch.parameters()):
-            p_torch.data = torch.tensor(to_numpy(p_nntile.value),
+        for p_nntile, (n, p_torch) in zip(self.parameters,
+                                    bert_selfoutput_torch.named_parameters()):
+            submodule_name = n.split(".")[0]
+            parameter_name = n.split(".")[1]
+            if parameter_name == "weight" and submodule_name == "dense":
+                nntile_weight = torch.tensor(to_numpy(p_nntile.value))
+                nntile_weight = nntile_weight.transpose(1, 2)
+                target_shape = bert_selfoutput_torch.dense.weight.shape
+                nntile_weight = nntile_weight.reshape(target_shape)
+                p_torch.data = nntile_weight.clone().detach()
+                p_torch.data.requires_grad_(True)
+            else:
+                p_torch.data = torch.tensor(to_numpy(p_nntile.value),
                                         requires_grad=True)
         return bert_selfoutput_torch
 
     def to_torch_with_grads(self):
         bert_selfoutput_torch = self.to_torch()
-        for p_nntile, p_torch in zip(self.parameters,
-                                    bert_selfoutput_torch.parameters()):
-            p_torch.grad = torch.tensor(to_numpy(p_nntile.grad))
+        for p_nntile, (n, p_torch) in zip(self.parameters,
+                                    bert_selfoutput_torch.named_parameters()):
+            submodule_name = n.split(".")[0]
+            parameter_name = n.split(".")[1]
+            if parameter_name == "weight" and submodule_name == "dense":
+                nntile_grad = torch.tensor(to_numpy(p_nntile.grad))
+                nntile_grad = nntile_grad.transpose(1, 2)
+                target_shape = bert_selfoutput_torch.dense.weight.shape
+                nntile_grad = nntile_grad.reshape(target_shape)
+                p_torch.grad = nntile_grad.clone().detach()
+            else:
+                p_torch.grad = torch.tensor(to_numpy(p_nntile.grad))
         return bert_selfoutput_torch
 
 
@@ -501,3 +513,68 @@ class BertOutput(BaseModel):
                                     bert_output_torch.parameters()):
             p_torch.grad = torch.tensor(to_numpy(p_nntile.grad))
         return bert_output_torch
+
+
+class BertAttention(BaseModel):
+    next_tag: int
+
+    def __init__(self, hidden_states: TensorMoments,
+                  attention: BertSelfAttention,
+                  self_output_layer: BertSelfOutput,
+                  config: BertConfigNNTile):
+
+        self.dtype = config.dtype
+
+        self.config = config
+        self.self_attention = attention
+        self.selfoutput = self_output_layer
+
+        activations = [hidden_states]
+        activations.extend(attention.activations_output)
+        activations.extend(self_output_layer.activations_output)
+
+        layers = [attention,
+                  self_output_layer]
+
+        # Fill Base Model with the generated data
+        super().__init__(activations, layers)
+
+    @staticmethod
+    def from_torch(bert_attention_torch, X,
+                   config: BertConfigNNTile, next_tag: int):
+
+        if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
+                            "fp32_fast_fp16", "fp32_fast_bf16"]:
+            raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
+            "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
+
+        selfattention_layer, next_tag = BertSelfAttention.from_torch(
+            bert_attention_torch.self)
+
+        selfoutput_layer, next_tag = BertSelfOutput.from_torch(
+            bert_attention_torch.output,
+            selfattention_layer.activations_output[0],
+            X,
+            config, next_tag)
+        bert_attention_nntile = BertAttention(X,
+                                              selfattention_layer,
+                                              selfoutput_layer,
+                                              config)
+        return bert_attention_nntile, next_tag
+
+    def to_torch(self):
+        config_torch = BertConfig_torch()
+        config_torch.hidden_size = self.config.hidden_size
+        config_torch.layer_norm_eps = self.config.layer_norm_epsilon
+        config_torch.hidden_dropout_prob = 0.
+        bert_attention_torch = BertAttention_torch(config_torch)
+        self.self_attention.to_torch(bert_attention_torch.self)
+        self.selfoutput.to_torch(bert_attention_torch.output)
+        return bert_attention_torch
+
+    # def to_torch_with_grads(self):
+    #     bert_selfoutput_torch = self.to_torch()
+    #     for p_nntile, p_torch in zip(self.parameters,
+    #                                 bert_selfoutput_torch.parameters()):
+    #         p_torch.grad = torch.tensor(to_numpy(p_nntile.grad))
+    #     return bert_selfoutput_torch
