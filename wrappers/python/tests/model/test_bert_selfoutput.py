@@ -25,7 +25,7 @@ from transformers.models.bert.modeling_bert import (
 import nntile
 from nntile.model.bert_config import BertConfigNNTile
 from nntile.model.bert_modules import BertSelfOutput as BertSelfOutputNNTile
-from nntile.tensor import to_numpy
+from nntile.tensor import TensorMoments, TensorTraits, to_numpy
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -121,17 +121,57 @@ def generate_inputs(params: BertTestParams,
             num_attention_heads=params.n_head,
             n_head_tile=params.n_head_tile,
             dtype=dtype,
-            type_vocab_size=params.type_vocab_size
+            type_vocab_size=params.type_vocab_size,
     )
     gen = np.random.default_rng(42)
+    tensor_type = dtype2nntile[dtype]
+    head_size = params.hidden_size // params.n_head
+    if params.hidden_size != head_size * params.n_head:
+        raise RuntimeError
+
+    x_shape = [params.n_head,
+               head_size,
+               params.seq_len,
+               params.batch_size]
+
+    x_basetile = [params.n_head_tile,
+                  head_size,
+                  params.seq_len_tile,
+                  params.batch_size_tile]
+
+    x_traits = TensorTraits(x_shape, x_basetile)
+    x_distr = [0] * x_traits.grid.nelems
+    x_value = tensor_type(x_traits, x_distr, 0)
+    x_grad = tensor_type(x_traits, x_distr, 0)
+    X = TensorMoments(x_value, x_grad, True)
+
+    input_tensor_shape = [params.hidden_size,
+                          params.seq_len,
+                          params.batch_size]
+    input_tensor_basetile = [params.hidden_size_tile,
+                            params.seq_len_tile,
+                            params.batch_size_tile]
+    input_tensor_traits = TensorTraits(input_tensor_shape,
+                                        input_tensor_basetile)
+    input_tensor_distr = [0] * input_tensor_traits.grid.nelems
+    input_tensor_value = tensor_type(input_tensor_traits,
+                                        input_tensor_distr, 0)
+    input_tensor_grad = tensor_type(input_tensor_traits,
+                                    input_tensor_distr, 0)
+    input_tensor_nntile = TensorMoments(input_tensor_value,
+                                        input_tensor_grad,
+                                        True)
 
     nntile_model, _ = BertSelfOutputNNTile.from_torch(
-            torch_model, params.batch_size, params.batch_size_tile,
-            params.seq_len, params.seq_len_tile,
-            params.hidden_size, params.hidden_size_tile,
+            torch_model,
+            X,
+            input_tensor_nntile,
+            params.hidden_size,
+            params.hidden_size_tile,
             nntile_config, 0)
     nntile_model.clear_gradients()
-    x_random = gen.standard_normal((params.hidden_size,
+    x_random = gen.standard_normal((params.n_head,
+                                    head_size,
                                     params.seq_len,
                                     params.batch_size),
                                     dtype=np.float32)
@@ -170,7 +210,7 @@ def generate_inputs(params: BertTestParams,
     pytest.param('fp32_fast_fp16', marks=nocuda),
     pytest.param('fp32_fast_bf16', marks=nocuda),
 ])
-class TestBertEmbeddings:
+class TestBertSelfOutput:
     def test_coercion(self, starpu_simple, torch_rng,
                       params: BertTestParams,
                       dtype: str):
@@ -190,7 +230,9 @@ class TestBertEmbeddings:
                      dtype: str):
         torch_model, nntile_model, x, input_tensor, _ = \
             generate_inputs(params, dtype)
-        y_torch = torch_model(x, input_tensor)
+        y_torch = torch_model(x.reshape(params.batch_size,
+                                        params.seq_len,
+                                        params.hidden_size), input_tensor)
         nntile_model.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_model.activations[-1].value).T)
 
@@ -204,7 +246,9 @@ class TestBertEmbeddings:
                       dtype: str):
         torch_model, nntile_model, x, input_tensor, y_grad = \
             generate_inputs(params, dtype)
-        y = torch_model(x, input_tensor)
+        y = torch_model(x.reshape(params.batch_size,
+                                  params.seq_len,
+                                  params.hidden_size), input_tensor)
         nntile_model.forward_async()
         res = (y * y_grad).sum()
         res.backward()
@@ -225,7 +269,6 @@ class TestBertEmbeddings:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
-
-        assert torch.norm(x_grad_nntile - x.grad) <= rtol * torch.norm(x.grad)
         assert torch.norm(input_tensor_nntile_grad - input_tensor.grad) <= \
             rtol * torch.norm(input_tensor.grad)
+        assert torch.norm(x_grad_nntile - x.grad) <= rtol * torch.norm(x.grad)
