@@ -132,8 +132,8 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
 int main(int argc, char **argv)
 {
     validate<fp64_t>(5, 5, 10, 1, 1.0, 0.0);
-    //validate<fp64_t>(32, 32, 10, 1, 1.0, 0.0);
-    //validate<fp32_t>(32, 32, 10, 1, 1.0, 0.0);
-    //validate<fp32_t>(32, 9, 10, 1, 1.0, 0.0);
+    validate<fp64_t>(32, 32, 10, 1, 1.0, 0.0);
+    validate<fp32_t>(32, 32, 10, 1, 1.0, 0.0);
+    validate<fp32_t>(32, 9, 10, 1, 1.0, 0.0);
     return 0;
 }

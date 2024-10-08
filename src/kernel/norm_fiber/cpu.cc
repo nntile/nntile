@@ -27,7 +27,7 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src1,  
  * along the first axis with m elements and the last axis with n elements,
  * resulting in output fiber of shape (k).
  * Mnemonically, the following operations are performed:
- *      dst[l,b] = hypot(beta*src1[l,b], alpha*norm(src2[:,l,:,b]))
+ *      dst[l,b] = hypot(beta*src2[l,b], alpha*norm(src1[:,l,:,b]))
  *
  * @param[in] m: Size of the first mode of src array
  * @param[in] n: Size of the last mode of src array
@@ -61,12 +61,12 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src1,  
             for(Index i1 = 0; i1 < n; ++i1)
             {
                 // Get corresponding slice
-                const T *src2_slice = src2 + ((i1+b*n)*k+i2)*m;
+                const T *src1_slice = src1 + ((i1+b*n)*k+i2)*m;
                 // Cycle over the first axis of input buffer
                 for(Index i0 = 0; i0 < m; ++i0)
                 {
                     // Read value from source
-                    Y val = std::fabs(Y{src2_slice[i0]});
+                    Y val = std::fabs(Y{src1_slice[i0]});
                     // Use Kahan summation rule to get scaled sum of square
                     if(val > 0)
                     {
@@ -101,7 +101,7 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src1,  
             }
             else if(norm_max > 0)
             {
-                Y tmp_res = std::fabs(beta * Y{src1[i2+b*k]});
+                Y tmp_res = std::fabs(beta * Y{src2[i2+b*k]});
                 if(norm_max >= tmp_res)
                 {
                     Y tmp1 = tmp_res / norm_max;
@@ -119,7 +119,7 @@ void cpu(Index m, Index n, Index k, Index batch, Scalar alpha_, const T *src1,  
             // norm_max==0
             else
             {
-                result = static_cast<T>(std::fabs(beta * Y{src1[i2+b*k]}));
+                result = static_cast<T>(std::fabs(beta * Y{src2[i2+b*k]}));
             }
         }
     }

@@ -30,21 +30,22 @@ void run_cuda(Index m, Index n, Index k, Index batch, Scalar alpha,
 {
     // Copy to device
     T *dev_src1, *dev_src2, *dev_dst;
-    cudaError_t cuda_err = cudaMalloc(&dev_src2, sizeof(T)*m*n*k*batch);
+    cudaError_t cuda_err = cudaMalloc(&dev_src1, sizeof(T)*m*n*k*batch);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMalloc(&dev_dst, sizeof(T)*k*batch);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMalloc(&dev_src1, sizeof(T)*k*batch);
+    cuda_err = cudaMalloc(&dev_src2, sizeof(T)*k*batch);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_src2, &src2[0], sizeof(T)*m*n*k*batch,
+    cuda_err = cudaMemcpy(dev_src1, &src1[0], sizeof(T)*m*n*k*batch,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
     cuda_err = cudaMemcpy(dev_dst, &dst[0], sizeof(T)*k*batch,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    cuda_err = cudaMemcpy(dev_src1, &src1[0], sizeof(T)*k*batch,
+    cuda_err = cudaMemcpy(dev_src2, &src2[0], sizeof(T)*k*batch,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
+    
     // Init stream
     cudaStream_t stream;
     cuda_err = cudaStreamCreate(&stream);
@@ -75,15 +76,15 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
     using Y = typename T::repr_t;
     const Y eps = T::epsilon();
     // Init test input
-    std::vector<T> src2(m*n*k*batch);
-    std::vector<T> src1(k*batch);
+    std::vector<T> src1(m*n*k*batch);
+    std::vector<T> src2(k*batch);
     std::vector<T> dst(k*batch);
-    T *src_pointer = &src2[0];
+    T *src_pointer = &src1[0];
     for(Index b = 0; b < batch; ++b) {
         for(Index i2 = 0; i2 < k; ++i2)
         {
-            dst[b*batch+i2] = Y{0.0};
-            src1[b*batch+i2] = Y{1.0};
+            dst[b*batch+i2] = Y{1.0};
+            src2[b*batch+i2] = Y{1.0};
             for(Index i1 = 0; i1 < n; ++i1)
             {
                 T *src_slice = src_pointer + ((i1+b*n)*k+i2)*m;
@@ -101,14 +102,18 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
     std::cout << "OK: kernel::norm_fiber::cpu<" << T::type_repr << ">\n";
     cpu<T>(m, n, k, batch, alpha, &src1[0], beta, &src2[0], &dst[0]);
     Y ref = sqrt(m*n);
-    Y val{dst[0]};
-    if(ref == Y{0})
+    for(Index i = 0; i < dst.size(); ++i)
     {
-        TEST_ASSERT(std::abs(val) <= 10*eps);
-    }
-    else
-    {
-        TEST_ASSERT(std::abs(val/ref-Y{1}) <= 10*eps);
+        Y val{dst[i]};
+        //std::cout << i << " " << dst[i] << "\n";
+        if(ref == Y{0})
+        {
+            TEST_ASSERT(std::abs(val) <= 10*eps);
+        }
+        else
+        {
+            TEST_ASSERT(std::abs(val/ref-Y{1}) <= 10*eps);
+        }
     }
     std::cout << "OK: kernel::norm_fiber::cpu<" << T::type_repr << ">\n";
 
@@ -117,14 +122,18 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
     std::vector<T> dst_cuda(dst_copy);
     std::cout << "Run kernel::norm_fiber::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(m, n, k, batch, alpha, src1, beta, src2, dst_cuda);
-    Y val_cuda{dst_cuda[0]};
-    if(ref == Y{0})
+    for(Index i = 0; i < dst_cuda.size(); ++i) 
     {
-        TEST_ASSERT(std::abs(val) <= 10*eps);
-    }
-    else
-    {
-        TEST_ASSERT(std::abs(val/ref-Y{1}) <= 10*eps);
+        Y val_cuda{dst_cuda[i]};
+        //std::cout << i << " " << dst_cuda[i] << "\n";
+        if(ref == Y{0})
+        {
+            TEST_ASSERT(std::abs(val_cuda) <= 10*eps);
+        }
+        else
+        {
+            TEST_ASSERT(std::abs(val_cuda/ref-Y{1}) <= 10*eps);
+        }
     }
     std::cout << "OK: kernel::norm_fiber::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA

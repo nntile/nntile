@@ -43,55 +43,44 @@ void cuda_kernel(Index m, Index n, Index k, Index batch, Scalar alpha, const T *
  *      norm over slices along the first and the last axes.
  * */
 {
-    Index i2_batched = threadIdx.x + blockIdx.x*blockDim.x;
-    Index i2 = i2_batched % k;
-    Index b = i2_batched / k;
-    Index i0_start = threadIdx.y, i0_step = blockDim.y;
-    Index i1_start = threadIdx.z, i1_step = blockDim.z;
     using Y = typename T::repr_t;
     constexpr Y zero{0.0};
-    // Init sum
-    Y sum = zero;
-    if(b < batch)
-    {
-        // Cycle over the third axis of input buffer
-        for(Index i1 = i1_start; i1 < n; i1 += i1_step)
-        {
-            // Get sum of a corresponding slice
-            const T *src2_slice = src2 + ((i1+b*n)*k+i2)*m;
-            // Cycle over the first axis of input buffer
-            for(Index i0 = i0_start; i0 < m; i0 += i0_step)
-            {
-                // Read value from source and Update sum
-                sum = ::hypot(sum, Y{src2_slice[i2*m]});
-            }
-        }
-        __shared__ Y block_sum[1];
-        if(i1_start == 0 and i0_start == 0)
-        {
-            block_sum[threadIdx.x] = zero;
-        }
-        __syncthreads();
-        atomicAdd(&block_sum[threadIdx.x], sum);
-        __syncthreads();
-        // Update output value
-        if(i1_start == 0 and i0_start == 0)
-        {
-            // Save result
-            sum = block_sum[threadIdx.x];
-            if(beta == zero)
-            {
-                sum = Y{::fabs(alpha) * sum};
-            }
-            else
-            {
-                sum = Y{::hypot(beta*Y{src1[i2_batched]}, alpha*sum)};
-            }
-            dst[i2_batched] = Y{sum};
-        }
-    }
 
+    // Calculate global thread ID for batch and k dimensions
+    Index i2_batched = blockIdx.x * blockDim.x + threadIdx.x;
+    Index i2 = i2_batched % k;
+    Index b = i2_batched / k;
+
+    if (b < batch && i2 < k)
+    {
+        Y sum = zero;
+
+        // Compute the hypot over the entire m*n slice for the current k and batch
+        for (Index i1 = 0; i1 < n; ++i1)
+        {
+            for (Index i0 = 0; i0 < m; ++i0)
+            {
+                Index src_idx = i0 + i2 * m + i1 * m * k + b * m * k * n;
+                Y val = Y{src1[src_idx]};
+                sum = ::hypot(sum, val);
+            }
+        }
+
+        // Apply alpha scaling and beta scaling, then update dst
+        Y result;
+        if (beta == zero)
+        {
+            result = Y{::fabs(alpha) * sum};
+        }
+        else
+        {
+            Y old_val = Y{src2[i2_batched]};
+            result = Y{::hypot(beta * old_val, alpha * sum)};
+        }
+        dst[i2_batched] = T{result};
+    }
 }
+
 
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
@@ -102,7 +91,7 @@ void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch,
  * along the first axis with m elements and the last axis with n elements,
  * resulting in output fiber of shape (k).
  * Mnemonically, the following operations are performed:
- *      dst[k,b] = beta*dst[k,b] + alpha*sum(src[:,k,:,b])
+ *      dst[k,b] = beta*src1[k,b] + alpha*sum(src2[:,k,:,b])
  *
  * @param[in] m: Size of the first mode of src array
  * @param[in] n: Size of the last mode of src array
