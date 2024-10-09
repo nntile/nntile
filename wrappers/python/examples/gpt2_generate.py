@@ -44,7 +44,8 @@ def parse_args():
                         default="fp32")
     parser.add_argument("--restrict", choices=["cpu", "cuda", None],
             default=None)
-    parser.add_argument("--prompt", type=str)
+    parser.add_argument("--prompt", type=str,
+            default="What do you think about catdogs?")
     parser.add_argument("--mode", choices=["Greedy"],
             default="Greedy")
     parser.add_argument("--max-tokens", type=int, default=100)
