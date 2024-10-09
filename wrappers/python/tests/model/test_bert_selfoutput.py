@@ -230,7 +230,8 @@ class TestBertSelfOutput:
                      dtype: str):
         torch_model, nntile_model, x, input_tensor, _ = \
             generate_inputs(params, dtype)
-        y_torch = torch_model(x.reshape(params.batch_size,
+        y_torch = torch_model(x.transpose(2, 3).reshape(
+                                        params.batch_size,
                                         params.seq_len,
                                         params.hidden_size), input_tensor)
         nntile_model.forward_async()
@@ -246,7 +247,7 @@ class TestBertSelfOutput:
                       dtype: str):
         torch_model, nntile_model, x, input_tensor, y_grad = \
             generate_inputs(params, dtype)
-        y = torch_model(x.reshape(params.batch_size,
+        y = torch_model(x.transpose(2, 3).reshape(params.batch_size,
                                   params.seq_len,
                                   params.hidden_size), input_tensor)
         nntile_model.forward_async()
