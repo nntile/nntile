@@ -416,9 +416,7 @@ class BertOutput(BaseModel):
         super().__init__(activations, layers)
 
     @staticmethod
-    def from_torch(bert_output_torch, batch_size, batch_size_tile,
-                   seq_len, seq_len_tile, intermediate_size,
-                   intermediate_size_tile,
+    def from_torch(bert_output_torch, X, input_tensor,
                    hidden_size_tile,
                    config: BertConfigNNTile, next_tag: int):
 
@@ -426,36 +424,6 @@ class BertOutput(BaseModel):
                             "fp32_fast_fp16", "fp32_fast_bf16"]:
             raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
             "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
-
-        dtype2tensor_type = {"fp32": Tensor_fp32,
-                            "bf16": Tensor_bf16,
-                            "fp32_fast_tf32": Tensor_fp32_fast_tf32,
-                            "fp32_fast_fp16": Tensor_fp32_fast_fp16,
-                            "fp32_fast_bf16": Tensor_fp32_fast_bf16
-                            }
-        tensor_type = dtype2tensor_type[config.dtype]
-
-        x_shape = [intermediate_size, seq_len, batch_size]
-        x_basetile = [intermediate_size_tile, seq_len_tile, batch_size_tile]
-        x_traits = TensorTraits(x_shape, x_basetile)
-        x_distr = [0] * x_traits.grid.nelems
-        x_value = tensor_type(x_traits, x_distr, 0)
-        x_grad = tensor_type(x_traits, x_distr, 0)
-        X = TensorMoments(x_value, x_grad, True)
-
-        input_tensor_shape = [config.hidden_size, seq_len, batch_size]
-        input_tensor_basetile = [hidden_size_tile, seq_len_tile,
-                                 batch_size_tile]
-        input_tensor_traits = TensorTraits(input_tensor_shape,
-                                           input_tensor_basetile)
-        input_tensor_distr = [0] * input_tensor_traits.grid.nelems
-        input_tensor_value = tensor_type(input_tensor_traits,
-                                         input_tensor_distr, 0)
-        input_tensor_grad = tensor_type(input_tensor_traits,
-                                        input_tensor_distr, 0)
-        input_tensor = TensorMoments(input_tensor_value,
-                                     input_tensor_grad,
-                                     True)
 
         lin_layer, next_tag = Linear.from_torch(bert_output_torch.dense, X,
                                                 hidden_size_tile,
