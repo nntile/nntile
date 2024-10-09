@@ -25,7 +25,7 @@ from transformers.models.bert.modeling_bert import (
 import nntile
 from nntile.model.bert_config import BertConfigNNTile
 from nntile.model.bert_modules import BertOutput as BertOutputNNTile
-from nntile.tensor import to_numpy
+from nntile.tensor import TensorMoments, TensorTraits, to_numpy
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -125,10 +125,40 @@ def generate_inputs(params: BertTestParams,
     )
     gen = np.random.default_rng(42)
 
+    x_shape = [params.intermediate_size,
+                params.seq_len,
+                params.batch_size]
+
+    x_basetile = [params.intermediate_size_tile,
+                  params.seq_len_tile,
+                  params.batch_size_tile]
+    x_traits = TensorTraits(x_shape, x_basetile)
+    x_distr = [0] * x_traits.grid.nelems
+
+    tensor_type = dtype2nntile[dtype]
+    x_value = tensor_type(x_traits, x_distr, 0)
+    x_grad = tensor_type(x_traits, x_distr, 0)
+    X = TensorMoments(x_value, x_grad, True)
+
+    input_tensor_shape = [params.hidden_size,
+                            params.seq_len,
+                            params.batch_size]
+    input_tensor_basetile = [params.hidden_size_tile,
+                                params.seq_len_tile,
+                                params.batch_size_tile]
+    input_tensor_traits = TensorTraits(input_tensor_shape,
+                                        input_tensor_basetile)
+    input_tensor_distr = [0] * input_tensor_traits.grid.nelems
+    input_tensor_value = tensor_type(input_tensor_traits,
+                                        input_tensor_distr, 0)
+    input_tensor_grad = tensor_type(input_tensor_traits,
+                                    input_tensor_distr, 0)
+    input_tensor = TensorMoments(input_tensor_value,
+                                    input_tensor_grad,
+                                    True)
+
     nntile_model, _ = BertOutputNNTile.from_torch(
-            torch_model, params.batch_size, params.batch_size_tile,
-            params.seq_len, params.seq_len_tile,
-            params.intermediate_size, params.intermediate_size_tile,
+            torch_model, X, input_tensor,
             params.hidden_size_tile,
             nntile_config, 0)
     nntile_model.clear_gradients()
