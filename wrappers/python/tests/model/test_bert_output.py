@@ -171,7 +171,7 @@ def generate_inputs(params: BertTestParams,
     pytest.param('fp32_fast_fp16', marks=nocuda),
     pytest.param('fp32_fast_bf16', marks=nocuda),
 ])
-class TestBertEmbeddings:
+class TestBertOutput:
     def test_coercion(self, starpu_simple, torch_rng,
                       params: BertTestParams,
                       dtype: str):

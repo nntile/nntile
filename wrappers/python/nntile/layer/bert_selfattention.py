@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/layer/gpt2_attention.py
-# Attention layer got the GPT2 Model of NNTile Python package
+# @file wrappers/python/nntile/layer/bert_selfattention.py
+# Selfattention layer for the Bert model of NNTile Python package
 #
 # @version 1.1.0
 
@@ -179,7 +179,7 @@ class BertSelfAttention(BaseLayer):
         else:
             self.redux = 0
 
-    # Simple generator for the linear layer
+    # Simple generator for the BertSelfAttention layer
     @staticmethod
     def generate_simple(x_q: TensorMoments,
                         x_k: TensorMoments,
