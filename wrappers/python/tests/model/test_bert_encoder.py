@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/model/test_bert_layer.py
-# Test for nntile.model.BertLayer
+# @file wrappers/python/tests/model/test_bert_encoder.py
+# Test for nntile.model.BertEncoder
 #
 # @version 1.1.0
 
@@ -17,11 +17,11 @@ import numpy as np
 import pytest
 import torch
 from transformers.models.bert.modeling_bert import (
-    BertConfig as BertConfig_torch, BertLayer as BertLayer_torch)
+    BertConfig as BertConfig_torch, BertEncoder as BertEncoder_torch)
 
 import nntile
 from nntile.model.bert_config import BertConfigNNTile
-from nntile.model.bert_layer import BertLayer as BertLayerNNTile
+from nntile.model.bert_encoder import BertEncoder as BertEncoderNNTile
 from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
 
@@ -37,10 +37,10 @@ dtype2nntile = {
 
 dtype2tol = {
         'fp32': {'rtol': 1e-6},
-        'fp32_fast_tf32': {'rtol': 7e-4},
+        'fp32_fast_tf32': {'rtol': 8e-4},
         'fp32_fast_bf16': {'rtol': 1.6e-2},
         'fp32_fast_fp16': {'rtol': 9e-4},
-        'bf16': {'rtol': 1.6e-2},
+        'bf16': {'rtol': 5e-2},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
@@ -87,7 +87,8 @@ multiple_tiles = BertLayerTestParams(
 )
 
 
-def generate_inputs(dtype: str, params: BertLayerTestParams):
+def generate_inputs(dtype: str, params: BertLayerTestParams,
+                    num_hidden_layers: int):
     rng = np.random.default_rng(42)
     torch_layer_config = BertConfig_torch(
         hidden_size=params.n_emb,
@@ -101,6 +102,7 @@ def generate_inputs(dtype: str, params: BertLayerTestParams):
         chunk_size_feed_forward=0,
         is_decoder=False,
         type_vocab_size=2,
+        num_hidden_layers=num_hidden_layers
     )
 
     nntile_config = BertConfigNNTile(
@@ -113,10 +115,11 @@ def generate_inputs(dtype: str, params: BertLayerTestParams):
         num_attention_heads=params.n_head,
         n_head_tile=params.n_head_tile,
         dtype=dtype,
-        activation_function=torch_layer_config.hidden_act
+        activation_function=torch_layer_config.hidden_act,
+        num_hidden_layers=num_hidden_layers
     )
 
-    torch_layer = BertLayer_torch(
+    torch_layer = BertEncoder_torch(
         torch_layer_config
     )
 
@@ -135,7 +138,7 @@ def generate_inputs(dtype: str, params: BertLayerTestParams):
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_(True)
-    nntile_layer, _ = BertLayerNNTile.from_torch(
+    nntile_layer, _ = BertEncoderNNTile.from_torch(
             torch_layer, X, nntile_config, 0)
     nntile_layer.clear_gradients()
     y_grad_random = rng.standard_normal((params.n_emb,
@@ -159,11 +162,18 @@ def generate_inputs(dtype: str, params: BertLayerTestParams):
     pytest.param('fp32_fast_bf16', marks=nocuda),
     pytest.param('fp32_fast_fp16', marks=nocuda),
 ])
+@pytest.mark.parametrize('num_hidden_layers', [
+    pytest.param(1, id='single layer'),
+    pytest.param(2, id='two layers'),
+    pytest.param(5, id='five layers'),
+])
 class TestBertLayer:
 
     def test_torch_coercion(self, starpu_simple, torch_rng, dtype: str,
-                            params: BertLayerTestParams):
-        torch_layer, nntile_layer, *_ = generate_inputs(dtype, params)
+                            params: BertLayerTestParams,
+                            num_hidden_layers: int):
+        torch_layer, nntile_layer, *_ = generate_inputs(dtype, params,
+                                                        num_hidden_layers)
         torch_layer_other = nntile_layer.to_torch()
         nntile_layer.unregister()
 
@@ -174,8 +184,9 @@ class TestBertLayer:
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
     def test_forward(self, starpu_simple, torch_rng, dtype: str,
-                     params: BertLayerTestParams):
-        torch_layer, nntile_layer, x, _ = generate_inputs(dtype, params)
+                     params: BertLayerTestParams, num_hidden_layers: int):
+        torch_layer, nntile_layer, x, _ = generate_inputs(dtype, params,
+                                                          num_hidden_layers)
         y = torch_layer(x)[0]
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.activations[-1].value).T)
@@ -185,8 +196,11 @@ class TestBertLayer:
             rtol * torch.norm(y)
 
     def test_backward(self, starpu_simple, torch_rng, dtype: str,
-                              params: BertLayerTestParams):
-        torch_layer, nntile_layer, x, y_grad = generate_inputs(dtype, params)
+                              params: BertLayerTestParams,
+                              num_hidden_layers: int):
+        torch_layer, nntile_layer, x, y_grad = generate_inputs(dtype,
+                                                               params,
+                                                               num_hidden_layers)
         y = torch_layer(x)[0]
         nntile_layer.forward_async()
         res = (y * y_grad).sum()
@@ -206,21 +220,24 @@ class TestBertLayer:
             # Bias gradients in selfattention are unstable,
             # so we concatenate them over q,k,v and test together below
             splitted_name = n1.split(".")
-            if (len(splitted_name) == 4 and
-                splitted_name[3] == "bias" and
-                splitted_name[0] == "attention" and
-                splitted_name[1] == "self"):
+            print(n1)
+            if (len(splitted_name) == 6 and
+                splitted_name[5] == "bias" and
+                splitted_name[2] == "attention" and
+                splitted_name[3] == "self"):
                 continue
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
-        bias_grad_torch = torch.hstack([
-            torch_layer.attention.self.query.bias.grad,
-            torch_layer.attention.self.key.bias.grad,
-            torch_layer.attention.self.value.bias.grad])
-        bias_grad_nntile = torch.hstack(
-            [torch_layer_other.attention.self.query.bias.grad,
-             torch_layer_other.attention.self.key.bias.grad,
-             torch_layer_other.attention.self.value.bias.grad])
-        assert torch.norm(bias_grad_torch - bias_grad_nntile) <= \
-            rtol * torch.norm(bias_grad_torch)
+        for layer, layer_other in zip(torch_layer.layer,
+                                      torch_layer_other.layer):
+            bias_grad_torch = torch.hstack([
+                layer.attention.self.query.bias.grad,
+                layer.attention.self.key.bias.grad,
+                layer.attention.self.value.bias.grad])
+            bias_grad_nntile = torch.hstack(
+                [layer_other.attention.self.query.bias.grad,
+                layer_other.attention.self.key.bias.grad,
+                layer_other.attention.self.value.bias.grad])
+            assert torch.norm(bias_grad_torch - bias_grad_nntile) <= \
+                rtol * torch.norm(bias_grad_torch)
