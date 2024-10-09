@@ -83,13 +83,13 @@ void copy_raw(Index nelems, const T *src, Y *dst)
 {
     if constexpr (trivial_copy)
     {
-        std::memcpy(dst, src, nelems*sizeof(T));
+        //std::memcpy(dst, src, nelems*sizeof(T));
     }
     else
     {
         for(Index i = 0; i < nelems; ++i)
         {
-            dst[i] = static_cast<Y>(src[i]);
+            //dst[i] = static_cast<Y>(src[i]);
         }
     }
 }
@@ -113,13 +113,14 @@ void tile_from_array(const tile::Tile<T> &tile,
             throw std::runtime_error("array.shape()[0] != 1");
         }
         // Acquire tile and copy a single element
-        auto tile_local = tile.acquire(STARPU_W);
+        //auto tile_local = tile.acquire(STARPU_W);
 #ifndef STARPU_SIMGRID
-        using Y = typename T::repr_t;
-        constexpr bool triv = T::trivial_copy_from_compat;
-        copy_raw<Y, T, triv>(1, array.data(), tile_local.get_ptr());
+        //using Y = typename T::repr_t;
+        //constexpr bool triv = T::trivial_copy_from_compat;
+        //copy_raw<Y, T, triv>(1, array.data(), tile_local.get_ptr());
 #endif // STARPU_SIMGRID
-        tile_local.release();
+        //tile_local.release();
+        tile::clear_async<T>(tile);
         return;
     }
     // Treat other cases
@@ -135,13 +136,14 @@ void tile_from_array(const tile::Tile<T> &tile,
         }
     }
     // Acquire tile and copy data
-    auto tile_local = tile.acquire(STARPU_W);
+    //auto tile_local = tile.acquire(STARPU_W);
 #ifndef STARPU_SIMGRID
-    using Y = typename T::repr_t;
-    constexpr bool triv = T::trivial_copy_from_compat;
-    copy_raw<Y, T, triv>(tile.nelems, array.data(), tile_local.get_ptr());
+    //using Y = typename T::repr_t;
+    //constexpr bool triv = T::trivial_copy_from_compat;
+    //copy_raw<Y, T, triv>(tile.nelems, array.data(), tile_local.get_ptr());
 #endif // STARPU_SIMGRID
-    tile_local.release();
+    //tile_local.release();
+    tile::clear_async<T>(tile);
 }
 
 // Tile -> numpy.ndarray
@@ -162,13 +164,14 @@ void tile_to_array(const tile::Tile<T> &tile,
             throw std::runtime_error("array.shape()[0] != 1");
         }
         // Acquire tile and copy a single element
-        auto tile_local = tile.acquire(STARPU_R);
+        //auto tile_local = tile.acquire(STARPU_R);
 #ifndef STARPU_SIMGRID
-        using Y = typename T::repr_t;
-        constexpr bool triv = T::trivial_copy_from_compat;
-        copy_raw<T, Y, triv>(1, tile_local.get_ptr(), array.mutable_data());
+        //using Y = typename T::repr_t;
+        //constexpr bool triv = T::trivial_copy_from_compat;
+        //copy_raw<T, Y, triv>(1, tile_local.get_ptr(), array.mutable_data());
 #endif // STARPU_SIMGRID
-        tile_local.release();
+        //tile_local.release();
+        tile::clear_async<T>(tile);
         return;
     }
     // Treat other cases
@@ -184,14 +187,15 @@ void tile_to_array(const tile::Tile<T> &tile,
         }
     }
     // Acquire tile and copy data
-    auto tile_local = tile.acquire(STARPU_R);
+    //auto tile_local = tile.acquire(STARPU_R);
 #ifndef STARPU_SIMGRID
-    using Y = typename T::repr_t;
-    constexpr bool triv = T::trivial_copy_from_compat;
-    copy_raw<T, Y, triv>(tile.nelems, tile_local.get_ptr(),
-        array.mutable_data());
+    //using Y = typename T::repr_t;
+    //constexpr bool triv = T::trivial_copy_from_compat;
+    //copy_raw<T, Y, triv>(tile.nelems, tile_local.get_ptr(),
+    //    array.mutable_data());
 #endif // STARPU_SIMGRID
-    tile_local.release();
+    //tile_local.release();
+    tile::clear_async<T>(tile);
 }
 
 // Extend (sub)module with nntile::tile::Tile<T>
@@ -264,13 +268,14 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
         auto tile = tensor.get_tile(0);
         if(mpi_rank == tile.mpi_get_rank())
         {
-            auto tile_local = tile.acquire(STARPU_W);
+            //auto tile_local = tile.acquire(STARPU_W);
 #ifndef STARPU_SIMGRID
-            using Y = typename T::repr_t;
-            constexpr bool triv = T::trivial_copy_from_compat;
-            copy_raw<Y, T, triv>(1, array.data(), tile_local.get_ptr());
+            //using Y = typename T::repr_t;
+            //constexpr bool triv = T::trivial_copy_from_compat;
+            //copy_raw<Y, T, triv>(1, array.data(), tile_local.get_ptr());
 #endif // STARPU_SIMGRID
-            tile_local.release();
+            //tile_local.release();
+            tile::clear_async<T>(tile);
         }
         tile.mpi_flush();
         return;
@@ -300,13 +305,14 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
     auto tile = tmp.get_tile(0);
     if(mpi_rank == tile.mpi_get_rank())
     {
-        auto tile_local = tile.acquire(STARPU_W);
+        //auto tile_local = tile.acquire(STARPU_W);
 #ifndef STARPU_SIMGRID
-        using Y = typename T::repr_t;
-        constexpr bool triv = T::trivial_copy_from_compat;
-        copy_raw<Y, T, triv>(tile.nelems, array.data(), tile_local.get_ptr());
+        //using Y = typename T::repr_t;
+        //constexpr bool triv = T::trivial_copy_from_compat;
+        //copy_raw<Y, T, triv>(tile.nelems, array.data(), tile_local.get_ptr());
 #endif // STARPU_SIMGRID
-        tile_local.release();
+        //tile_local.release();
+        tile::clear_async<T>(tile);
     }
     tensor::scatter_async<T>(tmp, tensor);
     tensor.mpi_flush();

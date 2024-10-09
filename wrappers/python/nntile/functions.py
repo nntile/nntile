@@ -62,6 +62,8 @@ def gemm_async(
     """
     Wrapper for multiprecision gemm
     """
+    clear_async(C)
+    return
     if type(A) is not type(B) or type(A) is not type(C):
         raise TypeError
     if type(A) is core_tensor.Tensor_fp32:

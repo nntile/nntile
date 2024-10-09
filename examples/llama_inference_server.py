@@ -25,6 +25,7 @@ from nntile.model.llama_causal import LlamaForCausalLM as LlamaForCausalLM_nnt
 
 starpu_config = nntile.starpu.Config(ncpus_=4, ncuda_=0, cublas_=0)
 nntile.starpu.init()
+nntile.starpu.restrict_cpu()
 
 logging.basicConfig(level=logging.INFO)
 

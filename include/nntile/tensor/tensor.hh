@@ -129,7 +129,7 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
-            starpu_data_invalidate_submit(tmp);
+            //starpu_data_invalidate_submit(tmp);
         }
     }
     //! Advice to evict data from GPU
@@ -138,7 +138,7 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
-            starpu_data_wont_use(tmp);
+            //starpu_data_wont_use(tmp);
         }
     }
     //! Flush tensor from MPI caches
@@ -156,9 +156,9 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
-            starpu_data_set_reduction_methods(tmp,
-                    nntile::starpu::accumulate::codelet<T>(),
-                    &nntile::starpu::clear::codelet);
+            //starpu_data_set_reduction_methods(tmp,
+            //        nntile::starpu::accumulate::codelet<T>(),
+            //        &nntile::starpu::clear::codelet);
         }
     }
     //! Set reduction function for hypot
@@ -167,9 +167,9 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
-            starpu_data_set_reduction_methods(tmp,
-                    nntile::starpu::accumulate_hypot::codelet<T>(),
-                    &nntile::starpu::clear::codelet);
+            //starpu_data_set_reduction_methods(tmp,
+            //        nntile::starpu::accumulate_hypot::codelet<T>(),
+            //        &nntile::starpu::clear::codelet);
         }
     }
     //! Set reduction function for maxsumexp
@@ -178,9 +178,9 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
-            starpu_data_set_reduction_methods(tmp,
-                    nntile::starpu::accumulate_maxsumexp::codelet<T>(),
-                    &nntile::starpu::clear::codelet);
+            //starpu_data_set_reduction_methods(tmp,
+            //        nntile::starpu::accumulate_maxsumexp::codelet<T>(),
+            //        &nntile::starpu::clear::codelet);
         }
     }
     //! Print scalar tensor asynchronously

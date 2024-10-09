@@ -19,6 +19,8 @@
 #include <memory>
 #include <cstring>
 #include <iostream>
+#include <mutex>
+#include <map>
 #include <starpu.h>
 // Disabled MPI for now
 //#include <starpu_mpi.h>
@@ -187,6 +189,10 @@ public:
     }
 };
 
+// Object for all registered handles
+static inline std::map<size_t, std::vector<starpu_data_handle_t>> handles_free;
+static inline std::mutex handles_free_mutex;
+
 // Forward declaration
 class HandleLocalData;
 
@@ -213,7 +219,10 @@ class Handle
         //std::cerr << "[nntile] unregister_no_coherency\n";
 
         // async deregister with no blocks in main thread, but without breaking api
-        starpu_data_unregister_submit(ptr);
+        //starpu_data_invalidate_submit(ptr);
+        size_t size = starpu_variable_get_elemsize(ptr);
+        std::lock_guard<std::mutex> lock(handles_free_mutex);
+        handles_free[size].push_back(ptr);
     }
     static void _deleter_temporary(starpu_data_handle_t ptr)
     {
@@ -222,7 +231,11 @@ class Handle
         // starpu as it will be deallocated during actual unregistering and at
         // the time of submission.
         //std::cerr << "[nntile] unregister_submit\n";
-        starpu_data_unregister_submit(ptr);
+        //starpu_data_unregister_submit(ptr);
+        //starpu_data_invalidate_submit(ptr);
+        size_t size = starpu_variable_get_elemsize(ptr);
+        std::lock_guard<std::mutex> lock(handles_free_mutex);
+        handles_free[size].push_back(ptr);
     }
     static std::shared_ptr<_starpu_data_state> _get_shared_ptr(
             starpu_data_handle_t ptr, starpu_data_access_mode mode)
@@ -414,9 +427,20 @@ class VariableHandle: public Handle
         {
             throw std::runtime_error("Zero size is not supported");
         }
-        starpu_data_handle_t tmp;
-        starpu_variable_data_register(&tmp, -1, 0, size);
-        return tmp;
+        std::lock_guard<std::mutex> lock(handles_free_mutex);
+        auto &handles_free_size = handles_free[size];
+        if(handles_free_size.empty())
+        {
+            starpu_data_handle_t tmp;
+            starpu_variable_data_register(&tmp, -1, 0, size);
+            return tmp;
+        }
+        else
+        {
+            auto tmp = handles_free_size.back();
+            handles_free_size.pop_back();
+            return tmp;
+        }
     }
     //! Register variable
     static starpu_data_handle_t _reg_data(void *ptr, size_t size)
