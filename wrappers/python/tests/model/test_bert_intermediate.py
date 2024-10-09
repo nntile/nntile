@@ -26,7 +26,7 @@ import nntile
 from nntile.model.bert_config import BertConfigNNTile
 from nntile.model.bert_modules import (
     BertIntermediate as BertIntermediateNNTile)
-from nntile.tensor import to_numpy
+from nntile.tensor import TensorMoments, TensorTraits, to_numpy
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -129,13 +129,6 @@ def generate_inputs(params: BertTestParams,
     print(torch_config.hidden_act)
     gen = np.random.default_rng(42)
 
-    nntile_model, _ = BertIntermediateNNTile.from_torch(
-            torch_model, params.batch_size, params.batch_size_tile,
-            params.seq_len, params.seq_len_tile,
-            params.hidden_size, params.hidden_size_tile,
-            params.intermediate_size_tile,
-            nntile_config, 0)
-    nntile_model.clear_gradients()
     x_random = gen.standard_normal((params.hidden_size,
                                     params.seq_len,
                                     params.batch_size),
@@ -143,7 +136,28 @@ def generate_inputs(params: BertTestParams,
 
     x_nntile = np.array(x_random, dtype=np.float32, order='F')
 
+    tensor_type = dtype2nntile[dtype]
+
+    x_shape = [params.hidden_size,
+               params.seq_len,
+               params.batch_size]
+    x_basetile = [params.hidden_size_tile,
+                  params.seq_len_tile,
+                  params.batch_size_tile]
+
+    x_traits = TensorTraits(x_shape, x_basetile)
+    x_distr = [0] * x_traits.grid.nelems
+    x_value = tensor_type(x_traits, x_distr, 0)
+    x_grad = tensor_type(x_traits, x_distr, 0)
+    X = TensorMoments(x_value, x_grad, True)
+
+    nntile_model, _ = BertIntermediateNNTile.from_torch(
+            torch_model, X,
+            params.intermediate_size_tile,
+            nntile_config, 0)
+    nntile_model.clear_gradients()
     nntile_model.activations[0].value.from_array(x_nntile)
+
     x_torch = torch.tensor(x_nntile.T)
     x_torch.requires_grad_()
 
