@@ -260,8 +260,8 @@ class BertSelfOutput(BaseModel):
 
         target_w_shape = lin_layer.w.value.shape
         w_torch = w_torch.reshape((target_w_shape[0],
-                         target_w_shape[2],
-                         target_w_shape[1])).transpose(1, 2)
+                         target_w_shape[1],
+                         target_w_shape[2]))
         lin_layer.w.value.from_array(w_torch.numpy())
         b_torch = bert_selfoutput_torch.dense.bias.data.numpy()
         lin_layer.b.value.from_array(b_torch)
@@ -294,7 +294,7 @@ class BertSelfOutput(BaseModel):
             parameter_name = n.split(".")[1]
             if parameter_name == "weight" and submodule_name == "dense":
                 nntile_weight = torch.tensor(to_numpy(p_nntile.value))
-                nntile_weight = nntile_weight.transpose(1, 2)
+                # nntile_weight = nntile_weight.transpose(1, 2)
                 target_shape = bert_selfoutput_torch.dense.weight.shape
                 nntile_weight = nntile_weight.reshape(target_shape)
                 p_torch.data = nntile_weight.clone().detach()
@@ -312,7 +312,7 @@ class BertSelfOutput(BaseModel):
             parameter_name = n.split(".")[1]
             if parameter_name == "weight" and submodule_name == "dense":
                 nntile_grad = torch.tensor(to_numpy(p_nntile.grad))
-                nntile_grad = nntile_grad.transpose(1, 2)
+                # nntile_grad = nntile_grad.transpose(1, 2)
                 target_shape = bert_selfoutput_torch.dense.weight.shape
                 nntile_grad = nntile_grad.reshape(target_shape)
                 p_torch.grad = nntile_grad.clone().detach()
@@ -531,10 +531,9 @@ class BertAttention(BaseModel):
 
         activations = [hidden_states]
         activations.extend(attention.activations_output)
-        activations.extend(self_output_layer.activations_output)
+        activations.extend(self_output_layer.activations[2:])
 
-        layers = [attention,
-                  self_output_layer]
+        layers = [attention] + self_output_layer.layers
 
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
@@ -549,12 +548,14 @@ class BertAttention(BaseModel):
             "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
 
         selfattention_layer, next_tag = BertSelfAttention.from_torch(
-            bert_attention_torch.self)
+            bert_attention_torch.self, X, X, X, config, next_tag)
 
         selfoutput_layer, next_tag = BertSelfOutput.from_torch(
             bert_attention_torch.output,
             selfattention_layer.activations_output[0],
             X,
+            config.hidden_size,
+            config.hidden_size_tile,
             config, next_tag)
         bert_attention_nntile = BertAttention(X,
                                               selfattention_layer,
@@ -565,16 +566,24 @@ class BertAttention(BaseModel):
     def to_torch(self):
         config_torch = BertConfig_torch()
         config_torch.hidden_size = self.config.hidden_size
+        config_torch.num_attention_heads = self.config.num_attention_heads
         config_torch.layer_norm_eps = self.config.layer_norm_epsilon
         config_torch.hidden_dropout_prob = 0.
+        config_torch.attention_probs_dropout_prob = 0.
         bert_attention_torch = BertAttention_torch(config_torch)
-        self.self_attention.to_torch(bert_attention_torch.self)
-        self.selfoutput.to_torch(bert_attention_torch.output)
+        bert_attention_torch.self = self.self_attention.to_torch()
+        bert_attention_torch.output = self.selfoutput.to_torch()
         return bert_attention_torch
 
-    # def to_torch_with_grads(self):
-    #     bert_selfoutput_torch = self.to_torch()
-    #     for p_nntile, p_torch in zip(self.parameters,
-    #                                 bert_selfoutput_torch.parameters()):
-    #         p_torch.grad = torch.tensor(to_numpy(p_nntile.grad))
-    #     return bert_selfoutput_torch
+    def to_torch_with_grads(self):
+        config_torch = BertConfig_torch()
+        config_torch.hidden_size = self.config.hidden_size
+        config_torch.num_attention_heads = self.config.num_attention_heads
+        config_torch.layer_norm_eps = self.config.layer_norm_epsilon
+        config_torch.hidden_dropout_prob = 0.
+        config_torch.attention_probs_dropout_prob = 0.
+        bert_attention_torch = BertAttention_torch(config_torch)
+        bert_attention_torch.self = self.self_attention.to_torch_with_grads()
+        bert_attention_torch.output = self.selfoutput.to_torch_with_grads()
+
+        return bert_attention_torch
