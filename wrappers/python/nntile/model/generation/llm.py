@@ -87,9 +87,9 @@ class LLMGenerationMixin:
             raise Exception("No support for async static inference")
         else:
             output_ids = await generate_autoregress_dynamic_async(
-                self, input_ids, self.eos_token_id, params, sampler
+                self, input_ids, params.max_tokens,
+                self.eos_token_id, params.use_cache, sampler
             )
-
         return output_ids
 
 
