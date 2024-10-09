@@ -344,8 +344,7 @@ class BertIntermediate(BaseModel):
         super().__init__(activations, layers)
 
     @staticmethod
-    def from_torch(bert_intermediate_torch, batch_size, batch_size_tile,
-                   seq_len, seq_len_tile, hidden_dim, hidden_dim_tile,
+    def from_torch(bert_intermediate_torch, X,
                    intermediate_size_tile,
                    config: BertConfigNNTile, next_tag: int):
 
@@ -353,22 +352,6 @@ class BertIntermediate(BaseModel):
                             "fp32_fast_fp16", "fp32_fast_bf16"]:
             raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
             "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
-
-        dtype2tensor_type = {"fp32": Tensor_fp32,
-                            "bf16": Tensor_bf16,
-                            "fp32_fast_tf32": Tensor_fp32_fast_tf32,
-                            "fp32_fast_fp16": Tensor_fp32_fast_fp16,
-                            "fp32_fast_bf16": Tensor_fp32_fast_bf16
-                            }
-        tensor_type = dtype2tensor_type[config.dtype]
-
-        x_shape = [hidden_dim, seq_len, batch_size]
-        x_basetile = [hidden_dim_tile, seq_len_tile, batch_size_tile]
-        x_traits = TensorTraits(x_shape, x_basetile)
-        x_distr = [0] * x_traits.grid.nelems
-        x_value = tensor_type(x_traits, x_distr, 0)
-        x_grad = tensor_type(x_traits, x_distr, 0)
-        X = TensorMoments(x_value, x_grad, True)
 
         lin_layer, next_tag = Linear.from_torch(bert_intermediate_torch.dense,
                                                 X,
