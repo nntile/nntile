@@ -17,10 +17,10 @@ import numpy as np
 from transformers import GPT2TokenizerFast
 
 import nntile
-from nntile.model.generation.llm_params import (
-        GenerationParams, GenerationMode, ParallelSamplingMode)
-from nntile.model.gpt2 import GPT2Model as GPT2Model_nnt
 import nntile.utils.constructors as nntc
+from nntile.model.generation.llm_params import (
+    GenerationMode, GenerationParams, ParallelSamplingMode)
+from nntile.model.gpt2 import GPT2Model as GPT2Model_nnt
 
 starpu_config = nntile.starpu.Config(ncpus_=4, ncuda_=1, cublas_=1)
 nntile.starpu.init()
@@ -88,7 +88,7 @@ def main():
         top_p_thr=args.top_p_thr,
         temperature=args.temperature,
         num_beams=args.num_beams,
-        parallel_sampling_mode=sampling_mode,        
+        parallel_sampling_mode=sampling_mode,
     )
 
     tokenized_input = tokenizer(args.prompt)
@@ -99,11 +99,12 @@ def main():
     outs = model_nnt.generate(
         input_ids_nnt, prefill_size, params=params, mode=mode
     )
-    generated_tokens, res_size = outs
+    generated_tokens, _ = outs
     generated_tokens_np = nntc.to_numpy(generated_tokens)
 
     if params.num_beams > 1:
-        generated_text = [ tokenizer.decode(beam_text) for beam_text in generated_tokens_np.T]
+        generated_text = [tokenizer.decode(beam_text) for beam_text in
+                generated_tokens_np.T]
     else:
         generated_text = tokenizer.decode(generated_tokens_np.flatten())
 
