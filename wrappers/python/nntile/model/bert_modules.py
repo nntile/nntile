@@ -68,6 +68,11 @@ class BertEmbeddings(BaseModel):
                   add_pos_embed,
                   layer_norm]
 
+        self.word_embed = word_embed
+        self.pos_embed = pos_embed
+        self.token_type_embed = token_type_embed
+        self.l_norm = layer_norm
+
         # Fill Base Model with the generated data
         super().__init__(activations, layers)
 
@@ -194,20 +199,36 @@ class BertEmbeddings(BaseModel):
         config_torch.layer_norm_eps = self.config.layer_norm_epsilon
         config_torch.type_vocab_size = self.config.type_vocab_size
         config_torch.hidden_dropout_prob = 0.
+        config_torch.pad_token_id = None
 
         bert_embeddings_torch = BertEmbeddings_torch(config_torch)
-        for p_nntile, p_torch in zip(self.parameters,
-                                    bert_embeddings_torch.parameters()):
-            p_torch.data = torch.tensor(to_numpy(p_nntile.value).T,
-                                        requires_grad=True)
+        bert_embeddings_torch.word_embeddings = self.word_embed.to_torch()
+        bert_embeddings_torch.position_embeddings = self.pos_embed.to_torch()
+        bert_embeddings_torch.token_type_embeddings = \
+            self.token_type_embed.to_torch()
+        bert_embeddings_torch.LayerNorm = self.l_norm.to_torch()
         return bert_embeddings_torch
 
     def to_torch_with_grads(self):
-        bert_embeddins_torch = self.to_torch()
-        for p_nntile, p_torch in zip(self.parameters,
-                                    bert_embeddins_torch.parameters()):
-            p_torch.grad = torch.tensor(to_numpy(p_nntile.grad).T)
-        return bert_embeddins_torch
+        config_torch = BertConfig_torch()
+        config_torch.vocab_size = self.config.vocab_size
+        config_torch.hidden_size = self.config.hidden_size
+        config_torch.max_position_embeddings = \
+                        self.config.max_position_embeddings
+        config_torch.layer_norm_eps = self.config.layer_norm_epsilon
+        config_torch.type_vocab_size = self.config.type_vocab_size
+        config_torch.hidden_dropout_prob = 0.
+        config_torch.pad_token_id = None
+
+        bert_embeddings_torch = BertEmbeddings_torch(config_torch)
+        bert_embeddings_torch.word_embeddings = \
+            self.word_embed.to_torch_with_grads()
+        bert_embeddings_torch.position_embeddings = \
+            self.pos_embed.to_torch_with_grads()
+        bert_embeddings_torch.token_type_embeddings = \
+            self.token_type_embed.to_torch_with_grads()
+        bert_embeddings_torch.LayerNorm = self.l_norm.to_torch_with_grads()
+        return bert_embeddings_torch
 
 
 class BertSelfOutput(BaseModel):
