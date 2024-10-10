@@ -16,7 +16,9 @@ import torch
 from transformers.models.bert.modeling_bert import (
     BertAttention as BertAttention_torch, BertConfig as BertConfig_torch,
     BertEmbeddings as BertEmbeddings_torch,
-    BertIntermediate as BertIntermediate_torch, BertOutput as BertOutput_torch,
+    BertIntermediate as BertIntermediate_torch,
+    BertLMPredictionHead as BertLMPredictionHead_torch,
+    BertOutput as BertOutput_torch,
     BertPredictionHeadTransform as BertPredictionHeadTransform_torch,
     BertSelfOutput as BertSelfOutput_torch)
 
@@ -638,3 +640,87 @@ class BertPredictionHeadTransform(BaseModel):
                                     bert_pred_head_transform_torch.parameters()):
             p_torch.grad = torch.tensor(to_numpy(p_nntile.grad))
         return bert_pred_head_transform_torch
+
+
+class BertLMPredictionHead(BaseModel):
+    next_tag: int
+
+    def __init__(self,
+                 transform: BertPredictionHeadTransform,
+                 lin_layer: Linear,
+                 config: BertConfigNNTile):
+
+        self.dtype = config.dtype
+
+        self.config = config
+
+        activations = []
+        activations.extend(transform.activations)
+        activations.extend(lin_layer.activations_output)
+
+        layers = []
+        layers.extend(transform.layers)
+        layers.append(lin_layer)
+        self.transform = transform
+        self.lin_decoder = lin_layer
+
+        # Fill Base Model with the generated data
+        super().__init__(activations, layers)
+
+    @staticmethod
+    def from_torch(bert_lm_pred_head, X,
+                   hidden_size_tile,
+                   config: BertConfigNNTile, next_tag: int):
+
+        if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
+                            "fp32_fast_fp16", "fp32_fast_bf16"]:
+            raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
+            "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
+
+        transform, next_tag = BertPredictionHeadTransform.from_torch(
+                                        bert_lm_pred_head.transform,
+                                        X, hidden_size_tile, config, next_tag)
+        lin_layer, next_tag = Linear.from_torch(
+                                    bert_lm_pred_head.decoder,
+                                    transform.activations[-1],
+                                    config.vocab_embed_dim_tile,
+                                    config.redux, next_tag)
+
+        bert_output_nntile = BertLMPredictionHead(transform,
+                                            lin_layer, config)
+        return bert_output_nntile, next_tag
+
+    def to_torch(self):
+        config_torch = BertConfig_torch()
+        config_torch.hidden_size = self.config.hidden_size
+        config_torch.intermediate_size = self.config.intermediate_size
+        config_torch.layer_norm_eps = self.config.layer_norm_epsilon
+        config_torch.vocab_size = self.config.vocab_size
+        config_torch.hidden_act = self.config.activation_function
+
+        bert_lm_pred_head_torch = \
+            BertLMPredictionHead_torch(config_torch)
+        bert_lm_pred_head_torch.transform = self.transform.to_torch()
+        bert_lm_pred_head_torch.decoder = self.lin_decoder.to_torch()
+        bert_lm_pred_head_torch.bias = torch.nn.Parameter(
+            torch.tensor(to_numpy(self.lin_decoder.b.value),
+                        requires_grad=True))
+        return bert_lm_pred_head_torch
+
+    def to_torch_with_grads(self):
+        config_torch = BertConfig_torch()
+        config_torch.hidden_size = self.config.hidden_size
+        config_torch.intermediate_size = self.config.intermediate_size
+        config_torch.layer_norm_eps = self.config.layer_norm_epsilon
+        config_torch.vocab_size = self.config.vocab_size
+        config_torch.hidden_act = self.config.activation_function
+
+        bert_lm_pred_head_torch = \
+            BertLMPredictionHead_torch(config_torch)
+        bert_lm_pred_head_torch.transform = \
+            self.transform.to_torch_with_grads()
+        bert_lm_pred_head_torch.decoder = \
+            self.lin_decoder.to_torch_with_grads()
+        bert_lm_pred_head_torch.bias.grad = torch.tensor(
+            to_numpy(self.lin_decoder.b.grad))
+        return bert_lm_pred_head_torch
