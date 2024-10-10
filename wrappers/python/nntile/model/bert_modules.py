@@ -669,7 +669,6 @@ class BertLMPredictionHead(BaseModel):
 
     @staticmethod
     def from_torch(bert_lm_pred_head, X,
-                   hidden_size_tile,
                    config: BertConfigNNTile, next_tag: int):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
@@ -679,7 +678,8 @@ class BertLMPredictionHead(BaseModel):
 
         transform, next_tag = BertPredictionHeadTransform.from_torch(
                                         bert_lm_pred_head.transform,
-                                        X, hidden_size_tile, config, next_tag)
+                                        X, config.hidden_size_tile,
+                                        config, next_tag)
         lin_layer, next_tag = Linear.from_torch(
                                     bert_lm_pred_head.decoder,
                                     transform.activations[-1],
