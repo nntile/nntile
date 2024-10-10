@@ -106,7 +106,7 @@ if args.pretrained == "remote":
     # Newer versions of transformers can use fast attention, so we disable it
     # through a parameter attn_implementation
     model_torch = GPT2LMHead_torch.from_pretrained(args.remote_model_name,
-                cache_dir=args.model_path, local_files_only=True)
+                cache_dir=args.model_path, local_files_only=False)
 elif args.pretrained == "local":
     if args.config_path:
         f = open(args.config_path)
@@ -126,7 +126,6 @@ elif args.pretrained == "local":
         if args.checkpoint_path:
             checkpoint = torch.load(args.checkpoint_path)
             model_torch.load_state_dict(checkpoint['model_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
 model_torch.eval()
 print(model_torch.config)
@@ -289,6 +288,11 @@ print("NNTile performance (model flops): {} Tflops/s".format(nflops_minibatch
 loss_np = np.zeros((1), dtype=np.float32)
 loss.val.to_array(loss_np)
 print("NNTile loss on the last batch: {}".format(loss_np[0]))
+model_torch = gpt2lmhead_nntile.to_torch()
+torch.save({
+            'model_state_dict': model_torch.state_dict(),
+            }, args.save_checkpoint_path)
+del model_torch
 loss.unregister()
 optimizer.unregister()
 for batch in batch_input + batch_output:
