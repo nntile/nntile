@@ -12,19 +12,18 @@
 # @version 1.1.0
 
 import argparse
-import logging
 
+import numpy as np
 from transformers import GPT2TokenizerFast
 
 import nntile
-from nntile.inference.llm_sync_engine import LlmSyncInferenceEngine
-from nntile.model.generation.llm_params import GenerationParams
+from nntile.model.generation.llm_params import (
+        GenerationParams, GenerationMode, ParallelSamplingMode)
 from nntile.model.gpt2 import GPT2Model as GPT2Model_nnt
+import nntile.utils.constructors as nntc
 
 starpu_config = nntile.starpu.Config(ncpus_=4, ncuda_=1, cublas_=1)
 nntile.starpu.init()
-
-logging.basicConfig(level=logging.INFO)
 
 
 def parse_args():
@@ -40,14 +39,20 @@ def parse_args():
     )
     parser.add_argument("--max-seq-len", type=int, default=1024)
     parser.add_argument("--model", type=str, default="gpt2")
-    parser.add_argument("--dtype", choices=["fp32", "fp64", "tf32", "bf16"],
-                        default="fp32")
     parser.add_argument("--restrict", choices=["cpu", "cuda", None],
             default=None)
     parser.add_argument("--prompt", type=str,
-            default="What do you think about catdogs?")
-    parser.add_argument("--mode", choices=["Greedy"],
-            default="Greedy")
+            default="What do you think about dogs?")
+    parser.add_argument(
+            "--generation-mode",
+            choices=[e.value for e in GenerationMode],
+            default="Greedy"
+    )
+    parser.add_argument(
+            "--parallel-sampling-mode",
+            choices=[e.value for e in ParallelSamplingMode],
+            default="BeamSearch"
+    )
     parser.add_argument("--max-tokens", type=int, default=100)
     parser.add_argument("--use-cache", action="store_true")
     parser.add_argument("--top-k", type=int, default=None)
@@ -63,27 +68,46 @@ def parse_args():
 def main():
     args = parse_args()
 
+    if args.restrict == "cuda":
+        nntile.starpu.restrict_cuda()
+    elif args.restrict == "cpu":
+        nntile.starpu.restrict_cpu()
+
     tokenizer = GPT2TokenizerFast.from_pretrained("gpt2",
             cache_dir=args.cache_dir)
     model_nnt, _ = GPT2Model_nnt.from_pretrained(
         args.model, 1, 1, args.max_seq_len, 0, cache_dir=args.cache_dir
     )
 
-    llm_engine = LlmSyncInferenceEngine(
-        model_nnt, tokenizer, args.max_seq_len
-    )
-
-    generation_params = GenerationParams(
+    mode = GenerationMode(args.generation_mode)
+    sampling_mode = ParallelSamplingMode(args.parallel_sampling_mode)
+    params = GenerationParams(
         max_tokens=args.max_tokens,
         use_cache=args.use_cache,
         top_k=args.top_k,
         top_p_thr=args.top_p_thr,
         temperature=args.temperature,
         num_beams=args.num_beams,
+        parallel_sampling_mode=sampling_mode,        
     )
 
-    result = llm_engine.generate(args.prompt, generation_params)
-    print(result)
+    tokenized_input = tokenizer(args.prompt)
+    input_ids = np.array(tokenized_input["input_ids"])
+    input_ids_nnt = nntc.from_array(input_ids[:, None])
+    prefill_size = -1
+
+    outs = model_nnt.generate(
+        input_ids_nnt, prefill_size, params=params, mode=mode
+    )
+    generated_tokens, res_size = outs
+    generated_tokens_np = nntc.to_numpy(generated_tokens)
+
+    if params.num_beams > 1:
+        generated_text = [ tokenizer.decode(beam_text) for beam_text in generated_tokens_np.T]
+    else:
+        generated_text = tokenizer.decode(generated_tokens_np.flatten())
+
+    print(generated_text)
 
 
 if __name__ == "__main__":
