@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/model/test_gpt2_model.py
-# Test for nntile.model.gpt2
+# @file wrappers/python/tests/model/test_gpt2_lmhead.py
+# Test for nntile.model.gpt2_lmhead
 # Each test is generated in float precision by Torch, then it is downcasted
 # into NNTile type. So, implementation of double precision is NOT checked.
 #
@@ -18,12 +18,14 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 import torch
+import torch.nn as nn
 from transformers import GPT2Config as GPT2ConfigTorch
-from transformers.models.gpt2.modeling_gpt2 import GPT2Model as GPT2Model_torch
+from transformers.models.gpt2.modeling_gpt2 import (
+    GPT2LMHeadModel as GPT2Model_torch)
 
 import nntile
 from nntile.model.gpt2_config import GPT2ConfigNNTile
-from nntile.model.gpt2_model import GPT2Model
+from nntile.model.gpt2_lmhead import GPT2LMHead
 from nntile.tensor import to_numpy
 
 # NNTile dtype via corresponding Tensor type
@@ -111,6 +113,9 @@ def generate_inputs(params: GPT2TestParams,
     )
 
     torch_model = GPT2Model_torch(torch_config)
+    torch_model.lm_head.weight = nn.Parameter(
+        torch_model.lm_head.weight.detach().clone()
+    )
     nntile_config = GPT2ConfigNNTile(
             vocab_size=params.vocab_size,
             vocab_embed_dim_tile=params.vocab_embed_dim_tile,
@@ -125,7 +130,7 @@ def generate_inputs(params: GPT2TestParams,
     )
     gen = np.random.default_rng(42)
 
-    nntile_model, _ = GPT2Model.from_torch(
+    nntile_model, _ = GPT2LMHead.from_torch(
             torch_model, params.batch_size, params.batch_size_tile,
             params.seq_len, params.seq_len_tile, nntile_config, 0)
     nntile_model.clear_gradients()
@@ -136,7 +141,7 @@ def generate_inputs(params: GPT2TestParams,
     x_nntile = np.array(x_random, dtype=np.int64, order='F')
     nntile_model.activations[0].value.from_array(x_nntile)
     x_torch = torch.tensor(x_nntile.T)
-    y_grad_random = gen.standard_normal((params.hidden_size,
+    y_grad_random = gen.standard_normal((params.vocab_size,
                                          params.seq_len,
                                          params.batch_size),
                                         dtype=np.float32)
@@ -182,7 +187,7 @@ class TestGPT2Model:
         torch_model, nntile_model, x, _ = generate_inputs(params, dtype,
                                                         num_hidden_layers)
         y = torch_model(x)
-        y_torch = y.last_hidden_state
+        y_torch = y.logits
         nntile_model.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_model.activations[-1].value).T)
         nntile_model.unregister()
@@ -198,7 +203,7 @@ class TestGPT2Model:
                                                         num_hidden_layers)
         y = torch_model(x)
         nntile_model.forward_async()
-        res = (y.last_hidden_state * y_grad).sum()
+        res = (y.logits * y_grad).sum()
         res.backward()
         nntile_model.backward_async()
         torch_model_other = nntile_model.to_torch_with_grads()
