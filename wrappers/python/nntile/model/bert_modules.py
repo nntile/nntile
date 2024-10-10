@@ -17,6 +17,7 @@ from transformers.models.bert.modeling_bert import (
     BertAttention as BertAttention_torch, BertConfig as BertConfig_torch,
     BertEmbeddings as BertEmbeddings_torch,
     BertIntermediate as BertIntermediate_torch, BertOutput as BertOutput_torch,
+    BertPredictionHeadTransform as BertPredictionHeadTransform_torch,
     BertSelfOutput as BertSelfOutput_torch)
 
 from nntile.tensor import (
@@ -559,3 +560,81 @@ class BertAttention(BaseModel):
         bert_attention_torch.output = self.selfoutput.to_torch_with_grads()
 
         return bert_attention_torch
+
+
+class BertPredictionHeadTransform(BaseModel):
+    next_tag: int
+
+    def __init__(self, hidden_states: TensorMoments,
+                  lin_layer: Linear,
+                  act_layer: Act,
+                  layer_norm: LayerNorm,
+                  config: BertConfigNNTile):
+
+        self.dtype = config.dtype
+
+        self.config = config
+
+        activations = [hidden_states]
+        activations.extend(lin_layer.activations_output)
+        activations.extend(act_layer.activations_output)
+        activations.extend(layer_norm.activations_output)
+
+        layers = [lin_layer,
+                  act_layer,
+                  layer_norm]
+
+        # Fill Base Model with the generated data
+        super().__init__(activations, layers)
+
+    @staticmethod
+    def from_torch(bert_pred_head_trans_torch, X,
+                   hidden_size_tile,
+                   config: BertConfigNNTile, next_tag: int):
+
+        if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
+                            "fp32_fast_fp16", "fp32_fast_bf16"]:
+            raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
+            "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
+
+        lin_layer, next_tag = Linear.from_torch(
+                                    bert_pred_head_trans_torch.dense, X,
+                                    hidden_size_tile,
+                                    config.redux, next_tag)
+
+        activation_layer, next_tag = Act.generate_simple(
+            lin_layer.activations_output[0],
+            config.activation_function, next_tag
+        )
+        lnorm, next_tag = LayerNorm.from_torch(
+                                bert_pred_head_trans_torch.LayerNorm,
+                                activation_layer.activations_output[0],
+                                next_tag, config.redux)
+
+        bert_output_nntile = BertPredictionHeadTransform(X,
+                                        lin_layer, activation_layer,
+                                        lnorm, config)
+        return bert_output_nntile, next_tag
+
+    def to_torch(self):
+        config_torch = BertConfig_torch()
+        config_torch.hidden_size = self.config.hidden_size
+        config_torch.intermediate_size = self.config.intermediate_size
+        config_torch.layer_norm_eps = self.config.layer_norm_epsilon
+        config_torch.hidden_dropout_prob = 0.
+        config_torch.hidden_act = self.config.activation_function
+
+        bert_pred_head_transform_torch = \
+            BertPredictionHeadTransform_torch(config_torch)
+        for p_nntile, p_torch in zip(self.parameters,
+                                    bert_pred_head_transform_torch.parameters()):
+            p_torch.data = torch.tensor(to_numpy(p_nntile.value),
+                                        requires_grad=True)
+        return bert_pred_head_transform_torch
+
+    def to_torch_with_grads(self):
+        bert_pred_head_transform_torch = self.to_torch()
+        for p_nntile, p_torch in zip(self.parameters,
+                                    bert_pred_head_transform_torch.parameters()):
+            p_torch.grad = torch.tensor(to_numpy(p_nntile.grad))
+        return bert_pred_head_transform_torch
