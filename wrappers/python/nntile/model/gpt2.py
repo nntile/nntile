@@ -593,7 +593,13 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         inp_emb, pos_emb, add_l = self.layers[0:3]
         seq_size = x.value.shape[0]
 
-        kvcache_size = len(kv_caches) if kv_caches else 0
+        cache_list = None
+        if kv_caches is not None:
+            if not kv_caches.is_initialized():
+                kv_caches.init(self.num_hidden_layers, self.seq_len, 1)
+            cache_list = kv_caches.get_cache()
+
+        kvcache_size = len(cache_list[0]) if kv_caches else 0
         pos_ids_np = np.asfortranarray(
             np.arange(
                 kvcache_size, kvcache_size + seq_size, dtype=np.int64
@@ -614,12 +620,6 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         layers_in_block = 8
         blocks_start = 3
         gpt_block_inout = embedded_input
-
-        cache_list = None
-        if kv_caches is not None:
-            if not kv_caches.is_initialized():
-                kv_caches.init(self.num_hidden_layers, self.seq_len, 1)
-            cache_list = kv_caches.get_cache()
 
         for hidden_id in range(self.num_hidden_layers):
             # dispatch block

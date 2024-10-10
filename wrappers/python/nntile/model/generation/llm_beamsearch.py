@@ -54,7 +54,7 @@ def generate_parallel(
     cache_storage = ParallelSamplingCacheStorage(num_beams)
 
     out_prefill = model.forward_dynamic(
-        TensorMoments(input_ids, False, None), False, cache_storage
+        TensorMoments(input_ids, None, False), False, cache_storage
     )
     logits, _ = out_prefill
     logits_np = nntc.to_numpy(logits.value)
@@ -81,7 +81,7 @@ def generate_parallel(
             next_token_nnt = nntc.from_array(next_token)
 
             out_decode = model.forward_dynamic(
-                TensorMoments(next_token_nnt, False, None),
+                TensorMoments(next_token_nnt, None, False),
                 True,
                 beam_kv_caches,
             )
