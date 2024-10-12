@@ -32,15 +32,15 @@ void validate_cpu(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar b
     using Y = typename T::repr_t;
     const Y eps = T::epsilon();
     // Init all the data
-    std::vector<T> src2(m*n*k*batch);
-    std::vector<T> src1(k*batch);
+    std::vector<T> src1(m*n*k*batch);
+    std::vector<T> src2(k*batch);
     std::vector<T> dst(k*batch);
-    T *src_pointer = &src2[0];
+    T *src_pointer = &src1[0];
     for(Index b = 0; b < batch; ++b) {
         for(Index i2 = 0; i2 < k; ++i2)
         {
             dst[b*batch+i2] = Y{0.0};
-            src1[b*batch+i2] = Y{1.0};
+            src2[b*batch+i2] = Y{1.0};
             for(Index i1 = 0; i1 < n; ++i1)
             {
                 T *src_slice = src_pointer + ((i1+b*n)*k+i2)*m;
@@ -57,8 +57,8 @@ void validate_cpu(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar b
     std::cout << "Run kernel::norm_slice::cpu<" << T::type_repr << ">\n";
     kernel::norm_fiber::cpu<T>(m, n, k, batch, alpha, &src1[0], beta, &src2[0], &dst[0]);
     // Check by actually submitting a task
-    VariableHandle src1_handle(&src1[0], sizeof(T)*k*batch, STARPU_R);
-    VariableHandle src2_handle(&src2[0], sizeof(T)*m*n*k*batch, STARPU_R);
+    VariableHandle src2_handle(&src2[0], sizeof(T)*k*batch, STARPU_R);
+    VariableHandle src1_handle(&src1[0], sizeof(T)*m*n*k*batch, STARPU_R);
     VariableHandle dst2_handle(&dst2[0], sizeof(T)*k*batch, STARPU_RW);
     norm_fiber::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::norm_slice::submit<" << T::type_repr << "> restricted to CPU\n";

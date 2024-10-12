@@ -28,14 +28,14 @@ void validate()
     Index batch = 5;
     Index m = 3;
     Index n = 20;
-    Index k = 20;
+    Index k = 1;
     Scalar alpha = 1.0, beta = 0.0;
     int redux = 0;
     Index batch_ndim = 0;
     int axis = 0;
-    // tiles 
-    Tile<T> src2({batch, m, n, k});
-    Tile<T> src1({batch});
+    // tiles
+    Tile<T> src1({batch, m, n, k});
+    Tile<T> src2({batch});
     Tile<T> dst({batch});
 
     // fill tiles
@@ -45,16 +45,16 @@ void validate()
         src1_local[i] = Y(1.0);
     }
     src1_local.release();
-    
+
     auto src2_local = src2.acquire(STARPU_W);
     for(Index i = 0; i < src2.nelems; ++i)
     {
         src2_local[i] = Y(1.0);
     }
     src2_local.release();
-    
-    
-    std::cout << "Run tile::norm_slice<" << T::type_repr << "> restricted to CPU\n"; 
+
+
+    std::cout << "Run tile::norm_slice<" << T::type_repr << "> restricted to CPU\n";
     norm_fiber<T>(alpha, src1, beta, src2, dst, axis, batch_ndim, redux);
     auto dst_local = dst.acquire(STARPU_R);
     auto val = Y(dst_local[0]);

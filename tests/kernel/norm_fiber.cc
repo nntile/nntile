@@ -45,7 +45,7 @@ void run_cuda(Index m, Index n, Index k, Index batch, Scalar alpha,
     cuda_err = cudaMemcpy(dev_src2, &src2[0], sizeof(T)*k*batch,
             cudaMemcpyHostToDevice);
     TEST_ASSERT(cuda_err == cudaSuccess);
-    
+
     // Init stream
     cudaStream_t stream;
     cuda_err = cudaStreamCreate(&stream);
@@ -122,7 +122,7 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
     std::vector<T> dst_cuda(dst_copy);
     std::cout << "Run kernel::norm_fiber::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(m, n, k, batch, alpha, src1, beta, src2, dst_cuda);
-    for(Index i = 0; i < dst_cuda.size(); ++i) 
+    for(Index i = 0; i < dst_cuda.size(); ++i)
     {
         Y val_cuda{dst_cuda[i]};
         //std::cout << i << " " << dst_cuda[i] << "\n";
