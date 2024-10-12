@@ -90,15 +90,19 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
     // Check low-level kernel
     std::cout << "OK: kernel::norm_fiber::cpu<" << T::type_repr << ">\n";
     cpu<T>(m, n, k, batch, alpha, &src[0], beta, &dst[0]);
-    Y ref = sqrt(m*n);
-    Y val{dst[0]};
-    if(ref == Y{0})
+    Y ref = std::sqrt(m*n);
+    for(Index i = 0; i < dst.size(); ++i)
     {
-        TEST_ASSERT(std::abs(val) <= 10*eps);
-    }
-    else
-    {
-        TEST_ASSERT(std::abs(val/ref-Y{1}) <= 10*eps);
+        Y val{dst[i]};
+        //std::cout << i << " " << dst[i] << "\n";
+        if(ref == Y{0})
+        {
+            TEST_ASSERT(std::abs(val) <= 10*eps);
+        }
+        else
+        {
+            TEST_ASSERT(std::abs(val/ref-Y{1}) <= 10*eps);
+        }
     }
     std::cout << "OK: kernel::norm_fiber::cpu<" << T::type_repr << ">\n";
 
@@ -107,14 +111,19 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
     std::vector<T> dst_cuda(dst_copy);
     std::cout << "Run kernel::norm_fiber::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(m, n, k, batch, alpha, src, beta, dst_cuda);
-    Y val_cuda{dst_cuda[0]};
-    if(ref == Y{0})
+
+    for(Index i = 0; i < dst_cuda.size(); ++i)
     {
-        TEST_ASSERT(std::abs(val) <= 10*eps);
-    }
-    else
-    {
-        TEST_ASSERT(std::abs(val/ref-Y{1}) <= 10*eps);
+        Y val_cuda{dst_cuda[i]};
+        //std::cout << i << " " << dst_cuda[i] << "\n";
+        if(ref == Y{0})
+        {
+            TEST_ASSERT(std::abs(val_cuda) <= 10*eps);
+        }
+        else
+        {
+            TEST_ASSERT(std::abs(val_cuda/ref-Y{1}) <= 10*eps);
+        }
     }
     std::cout << "OK: kernel::norm_fiber::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
@@ -122,8 +131,8 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
 
 int main(int argc, char **argv)
 {
+    validate<fp64_t>(5, 5, 10, 1, 1.0, 0.0);
     validate<fp64_t>(32, 32, 10, 1, 1.0, 0.0);
-    validate<fp64_t>(32, 9, 10, 1, 1.0, 0.0);
     validate<fp32_t>(32, 32, 10, 1, 1.0, 0.0);
     validate<fp32_t>(32, 9, 10, 1, 1.0, 0.0);
     return 0;
