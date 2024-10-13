@@ -20,7 +20,8 @@ namespace nntile::kernel::subtract_indexed_outputs
 
 template<typename T>
 static __global__
-void cuda_kernel(Index n_labels, Index n_outputs, Scalar val_, const Index* labels, T *dst)
+void cuda_kernel(Index n_labels, Index n_outputs, Index ignore_index,
+                 Scalar val_, const Index* labels, T *dst)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     using Y = typename T::repr_t;
@@ -28,13 +29,17 @@ void cuda_kernel(Index n_labels, Index n_outputs, Scalar val_, const Index* labe
     Y val{val_};
     if(i < n_outputs)
     {
+        if (labels[i] == ignore_index) {
+            memset(dst + i*n_labels, 0, n_labels * sizeof(T));
+            return;
+        }
         dst_val = Y{dst[labels[i] + i*n_labels]};
         dst[labels[i] + i*n_labels] = dst_val - val;
     }
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index n_labels, Index n_outputs, Scalar val,
+void cuda(cudaStream_t stream, Index n_labels, Index n_outputs, Index ignore_index, Scalar val,
         const int64_t *labels_, T *dst_)
     noexcept
 //! Subtraction of given val from indexed output of dst
@@ -53,24 +58,39 @@ void cuda(cudaStream_t stream, Index n_labels, Index n_outputs, Scalar val,
     dim3 blocks((n_outputs+255)/256), threads(256);
     using I = typename CUDAComputeType<int64_t>::value;
     auto labels = reinterpret_cast<const I *>(labels_);
-    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(n_labels, n_outputs,
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(n_labels, n_outputs, ignore_index,
             val, labels, dst_);
 }
 
 // Explicit instantiation
 template
-void cuda<fp32_t>(cudaStream_t stream, Index n_labels, Index n_outputs,
+void cuda<fp32_t>(cudaStream_t stream, Index n_labels, Index n_outputs, Index ignore_index,
         Scalar val, const int64_t *labels, fp32_t *dst)
     noexcept;
 
 template
-void cuda<fp64_t>(cudaStream_t stream, Index n_labels, Index n_outputs,
+void cuda<fp64_t>(cudaStream_t stream, Index n_labels, Index n_outputs, Index ignore_index,
         Scalar val, const int64_t *labels, fp64_t *dst)
     noexcept;
 
 template
-void cuda<bf16_t>(cudaStream_t stream, Index n_labels, Index n_outputs,
+void cuda<bf16_t>(cudaStream_t stream, Index n_labels, Index n_outputs, Index ignore_index,
         Scalar val, const int64_t *labels, bf16_t *dst)
+    noexcept;
+
+template
+void cuda<fp32_fast_bf16_t>(cudaStream_t stream, Index n_labels, Index n_outputs, Index ignore_index,
+        Scalar val, const int64_t *labels, fp32_fast_bf16_t *dst)
+    noexcept;
+
+template
+void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index n_labels, Index n_outputs, Index ignore_index,
+        Scalar val, const int64_t *labels, fp32_fast_tf32_t *dst)
+    noexcept;
+
+template
+void cuda<fp32_fast_fp16_t>(cudaStream_t stream, Index n_labels, Index n_outputs, Index ignore_index,
+        Scalar val, const int64_t *labels, fp32_fast_fp16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::subtract_indexed_outputs

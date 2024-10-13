@@ -20,7 +20,7 @@ namespace nntile::tensor
 
 template<typename T>
 void subtract_indexed_outputs_async(Scalar val, const Tensor<int64_t> &labels,
-        const Tensor<T> &dst)
+        const Tensor<T> &dst, Index ignore_index)
 {
     if(labels.ndim != dst.ndim-1)
     {
@@ -57,7 +57,7 @@ void subtract_indexed_outputs_async(Scalar val, const Tensor<int64_t> &labels,
         {
             // Insert task
             starpu::subtract_indexed_outputs::submit<T>(dst.shape[0],
-                    labels_traits.nelems, val, labels_tile_handle,
+                    labels_traits.nelems, ignore_index, val, labels_tile_handle,
                     dst_tile_handle);
         }
         dst_tile_handle.mpi_flush();
@@ -66,9 +66,9 @@ void subtract_indexed_outputs_async(Scalar val, const Tensor<int64_t> &labels,
 
 template<typename T>
 void subtract_indexed_outputs(Scalar val, const Tensor<int64_t> &labels,
-        const Tensor<T> &dst)
+        const Tensor<T> &dst, Index ignore_index)
 {
-    subtract_indexed_outputs_async<T>(val, labels, dst);
+    subtract_indexed_outputs_async<T>(val, labels, dst, ignore_index);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -76,51 +76,53 @@ void subtract_indexed_outputs(Scalar val, const Tensor<int64_t> &labels,
 // Explicit instantiation
 template
 void subtract_indexed_outputs_async<fp32_t>(Scalar val,
-        const Tensor<int64_t> &labels, const Tensor<fp32_t> &dst);
+        const Tensor<int64_t> &labels, const Tensor<fp32_t> &dst, Index ignore_index);
 
 template
 void subtract_indexed_outputs_async<fp32_fast_tf32_t>(Scalar val,
-        const Tensor<int64_t> &labels, const Tensor<fp32_fast_tf32_t> &dst);
+        const Tensor<int64_t> &labels, const Tensor<fp32_fast_tf32_t> &dst,
+        Index ignore_index);
 
 template
 void subtract_indexed_outputs_async<fp32_fast_fp16_t>(Scalar val, const Tensor<int64_t> &labels,
-        const Tensor<fp32_fast_fp16_t> &dst);
+        const Tensor<fp32_fast_fp16_t> &dst, Index ignore_index);
 
 template
 void subtract_indexed_outputs_async<fp32_fast_bf16_t>(Scalar val, const Tensor<int64_t> &labels,
-        const Tensor<fp32_fast_bf16_t> &dst);
+        const Tensor<fp32_fast_bf16_t> &dst, Index ignore_index);
 
 template
 void subtract_indexed_outputs_async<fp64_t>(Scalar val,
-        const Tensor<int64_t> &labels, const Tensor<fp64_t> &dst);
+        const Tensor<int64_t> &labels, const Tensor<fp64_t> &dst,
+        Index ignore_index);
 
 template
 void subtract_indexed_outputs_async<bf16_t>(Scalar val, const Tensor<int64_t> &labels,
-        const Tensor<bf16_t> &dst);
+        const Tensor<bf16_t> &dst, Index ignore_index);
 
 // Explicit instantiation
 template
 void subtract_indexed_outputs<fp32_t>(Scalar val, const Tensor<int64_t> &labels,
-        const Tensor<fp32_t> &dst);
+        const Tensor<fp32_t> &dst, Index ignore_index);
 
 template
 void subtract_indexed_outputs<fp32_fast_tf32_t>(Scalar val, const Tensor<int64_t> &labels,
-        const Tensor<fp32_fast_tf32_t> &dst);
+        const Tensor<fp32_fast_tf32_t> &dst, Index ignore_index);
 
 template
 void subtract_indexed_outputs<fp32_fast_fp16_t>(Scalar val, const Tensor<int64_t> &labels,
-        const Tensor<fp32_fast_fp16_t> &dst);
+        const Tensor<fp32_fast_fp16_t> &dst, Index ignore_index);
 
 template
 void subtract_indexed_outputs<fp32_fast_bf16_t>(Scalar val, const Tensor<int64_t> &labels,
-        const Tensor<fp32_fast_bf16_t> &dst);
+        const Tensor<fp32_fast_bf16_t> &dst, Index ignore_index);
 
 template
 void subtract_indexed_outputs<fp64_t>(Scalar val, const Tensor<int64_t> &labels,
-        const Tensor<fp64_t> &dst);
+        const Tensor<fp64_t> &dst, Index ignore_index);
 
 template
 void subtract_indexed_outputs<bf16_t>(Scalar val, const Tensor<int64_t> &labels,
-        const Tensor<bf16_t> &dst);
+        const Tensor<bf16_t> &dst, Index ignore_index);
 
 } // namespace nntile::tensor

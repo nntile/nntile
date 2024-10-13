@@ -26,6 +26,7 @@ struct args_t
     Scalar alpha;
     Index n_labels;
     Index n_outputs;
+    Index ignore_index;
 };
 
 // Total sum accumulating of StarPU buffer on CPU
@@ -93,7 +94,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Scalar alpha, Index n_labels, Index n_outputs, Handle logsumexp,
+void submit(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index, Handle logsumexp,
         Handle src, Handle class_labels, Handle val);
 
 } // namespace nntile::starpu::total_sum_accum
