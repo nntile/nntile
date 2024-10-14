@@ -37,7 +37,7 @@ void cpu(void *buffers[], void *cl_args)
     T *dst = interfaces[1]->get_ptr<T>();
     // Launch kernel
     kernel::subtract_indexed_outputs::cpu<T>(n_labels, n_outputs, ignore_index,
-                                             val, labels, dst);
+        val, labels, dst);
 #endif // STARPU_SIMGRID
 }
 
