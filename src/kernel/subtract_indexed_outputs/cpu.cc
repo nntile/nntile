@@ -14,6 +14,7 @@
 
 #include "nntile/kernel/subtract_indexed_outputs/cpu.hh"
 #include <cmath>
+#include <cstring>
 #include "nntile/kernel/cpu.hh"
 
 namespace nntile::kernel::subtract_indexed_outputs
