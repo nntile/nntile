@@ -30,7 +30,7 @@ void cuda_kernel(Index n_labels, Index n_outputs, Index ignore_index,
     if(i < n_outputs)
     {
         if (labels[i] == ignore_index) {
-            memset(dst + i*n_labels, 0, n_labels * sizeof(T));
+            ::memset(dst + i*n_labels, 0, n_labels * sizeof(T));
             return;
         }
         dst_val = Y{dst[labels[i] + i*n_labels]};

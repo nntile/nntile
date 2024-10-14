@@ -49,7 +49,7 @@ void cpu(Index n_labels, Index n_outputs, Index ignore_index,
     {
         if (labels[i] == ignore_index)
         {
-            memset(dst_ + i*n_labels, 0, n_labels * sizeof(T));
+            std::memset(dst_ + i*n_labels, 0, n_labels * sizeof(T));
         } else {
             dst_val = static_cast<Y>(dst_[labels[i] + i*n_labels]);
             dst_[labels[i] + i*n_labels] = static_cast<T>(dst_val - val);
