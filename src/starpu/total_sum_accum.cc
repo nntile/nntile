@@ -67,8 +67,7 @@ void cuda(void *buffers[], void *cl_args)
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     kernel::total_sum_accum::cuda<T>(stream, alpha, n_labels, n_outputs,
-                                     ignore_index, logsumexp, src, labels,
-                                     val);
+        ignore_index, logsumexp, src, labels, val);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA

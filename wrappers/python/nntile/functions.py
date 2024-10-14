@@ -1502,26 +1502,23 @@ def subtract_indexed_outputs_async(
     ignore_index: int
 ):
     if type(dst) is core_tensor.Tensor_fp32:
-        core_tensor.subtract_indexed_outputs_async_fp32(val, class_labels, dst,
-                                                        ignore_index)
+        core_tensor.subtract_indexed_outputs_async_fp32(
+            val, class_labels, dst, ignore_index)
     elif type(dst) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.subtract_indexed_outputs_async_fp32_fast_tf32(
-            val, class_labels, dst, ignore_index
-        )
+            val, class_labels, dst, ignore_index)
     elif type(dst) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.subtract_indexed_outputs_async_fp32_fast_fp16(
-            val, class_labels, dst, ignore_index
-        )
+            val, class_labels, dst, ignore_index)
     elif type(dst) is core_tensor.Tensor_fp32_fast_bf16:
         core_tensor.subtract_indexed_outputs_async_fp32_fast_bf16(
-            val, class_labels, dst, ignore_index
-        )
+            val, class_labels, dst, ignore_index)
     elif type(dst) is core_tensor.Tensor_fp64:
-        core_tensor.subtract_indexed_outputs_async_fp64(val, class_labels,
-                                                        dst, ignore_index)
+        core_tensor.subtract_indexed_outputs_async_fp64(
+            val, class_labels, dst, ignore_index)
     elif type(dst) is core_tensor.Tensor_bf16:
-        core_tensor.subtract_indexed_outputs_async_bf16(val, class_labels,
-                                                        dst, ignore_index)
+        core_tensor.subtract_indexed_outputs_async_bf16(
+            val, class_labels, dst, ignore_index)
     else:
         raise TypeError
 

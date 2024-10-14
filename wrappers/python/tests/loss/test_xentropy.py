@@ -19,9 +19,8 @@ import nntile
 from nntile.loss import CrossEntropy as cross_entropy
 from nntile.tensor import TensorMoments
 
-config = nntile.starpu.Config(1, 1, 0)
+config = nntile.starpu.Config(1, 1, 1)
 nntile.starpu.init()
-# nntile.starpu.restrict_cpu()
 
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
