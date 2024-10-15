@@ -49,10 +49,12 @@ class GPT2Model(BaseModel):
 
         self.config = config
 
-        if self.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
-                              "fp32_fast_fp16", "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
-            "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
+        if self.dtype not in ["fp32", "tf32",
+                              "bf16", "fp32_fast_fp16",
+                              "fp32_fast_bf16"]:
+            raise TypeError("Only fp32, tf32, bf16, fp32_fast_fp16,"
+                            "fp32_fast_bf16 are"
+                            "supported for weight type")
         activations = [input_ids, positional_ids]
         activations += wte_layer_.activations_output
         activations += wpe_layer_.activations_output
@@ -81,10 +83,12 @@ class GPT2Model(BaseModel):
                    config: GPT2ConfigNNTile,
                    next_tag: int):
 
-        if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
-                              "fp32_fast_fp16", "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
-            "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
+        if config.dtype not in ["fp32", "tf32",
+                              "bf16", "fp32_fast_fp16",
+                              "fp32_fast_bf16"]:
+            raise TypeError("Only fp32, tf32, bf16, fp32_fast_fp16,"
+                            "fp32_fast_bf16 are"
+                            "supported for weight type")
         positional_ids_traits = TensorTraits([seq_len], [seq_len_tile])
         positional_ids_distr = [0] * positional_ids_traits.grid.nelems
         positional_ids_value = Tensor_int64(
@@ -103,8 +107,8 @@ class GPT2Model(BaseModel):
         x_value = Tensor_int64(x_traits, x_distr, 0)
 
         dtype2tensor_type = {"fp32": Tensor_fp32,
+                             "tf32": Tensor_fp32_fast_tf32,
                              "bf16": Tensor_bf16,
-                             "fp32_fast_tf32": Tensor_fp32_fast_tf32,
                              "fp32_fast_fp16": Tensor_fp32_fast_fp16,
                              "fp32_fast_bf16": Tensor_fp32_fast_bf16
                             }
