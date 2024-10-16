@@ -110,7 +110,7 @@ def generate_inputs(params: BertTestParams,
         hidden_dropout_prob=0,
         # TODO: we have to introduce 'padding_idx' parameter in our
         # implementation of Embedding layer
-        pad_token_id=None
+        pad_token_id=-1
     )
 
     torch_model = BertEmbeddings_torch(torch_config)
