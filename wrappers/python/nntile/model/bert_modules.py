@@ -683,7 +683,7 @@ class BertLMPredictionHead(BaseModel):
         lin_layer, next_tag = Linear.from_torch(
                                     bert_lm_pred_head.decoder,
                                     transform.activations[-1],
-                                    config.vocab_embed_dim_tile,
+                                    config.vocab_size,
                                     config.redux, next_tag)
 
         bert_output_nntile = BertLMPredictionHead(transform,

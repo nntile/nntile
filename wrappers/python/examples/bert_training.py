@@ -70,6 +70,9 @@ parser.add_argument("--dataset-file", default="")
 
 parser.add_argument("--lr", type=float, default=0.0)
 parser.add_argument("--nepochs", type=int, default=1)
+parser.add_argument("--n_masks_per_seq", type=int, default=1)
+parser.add_argument("--label_mask_token", type=int, default=3)
+parser.add_argument("--n_masked_tokens_per_seq", type=int, default=3)
 
 parser.add_argument("--logger", action="store_true")
 parser.add_argument("--logger-server-addr", type=str,
@@ -168,12 +171,7 @@ bert_config_nntile = BertConfigNNTile(
 
 print(bert_config_nntile)
 
-single_batch_pos_ids = np.arange(args.seq_len).reshape(1, args.seq_len)
-pos_ids = np.repeat(single_batch_pos_ids, args.minibatch_size, axis=0)
-
-mask = np.array(np.triu(np.ones((args.seq_len, args.seq_len))),
-                    dtype=bool, order="F")
-llama_nntile, next_tag = BertForMaskedLM_nntile.from_torch(model_torch,
+bert_nntile, next_tag = BertForMaskedLM_nntile.from_torch(model_torch,
                                                 args.minibatch_size,
                                                 args.minibatch_size_tile,
                                                 args.seq_len,
@@ -211,46 +209,60 @@ train_tokens = train_tokens_trunc.reshape(num_train_batches,
                                     args.seq_len + 1)
 
 time0 = time.time()
-batch_input = []
-batch_output = []
+batch_masked_data = []
+batch_labels = []
 x_traits = nntile.tensor.TensorTraits(
         [args.seq_len, args.minibatch_size],
         [args.seq_len_tile, args.minibatch_size_tile])
 x_distr = [0] * x_traits.grid.nelems
-for i in range(num_train_batches):
-    minibatch_input = []
-    minibatch_output = []
-    for j in range(num_minibatch):
-        x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = x.next_tag
-        x.from_array(np.asfortranarray(train_tokens[i, j, :, :-1].T))
-        minibatch_input.append(x)
-        y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = y.next_tag
-        y.from_array(np.asfortranarray(train_tokens[i, j, :, 1:].T))
-        minibatch_output.append(y)
-    batch_input.append(minibatch_input)
-    batch_output.append(minibatch_output)
+
+rng = np.random.default_rng()
+for mask_idx in range(args.n_masks_per_seq):
+    for i in range(num_train_batches):
+        minibatch_masked_data = []
+        minibatch_labels = []
+        for j in range(num_minibatch):
+            current_mask = np.zeros((args.minibatch_size,
+                                     args.seq_len), dtype=bool)
+            idx_masked_tokens = rng.choice(args.seq_len,
+                                           size=(args.minibatch_size,
+                                                 args.n_masked_tokens_per_seq))
+            current_mask[:, idx_masked_tokens] = 1
+            x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
+            next_tag = x.next_tag
+            current_minibatch = train_tokens[i, j, :, :-1].copy()
+            current_minibatch[current_mask] = args.label_mask_token
+            x.from_array(np.asfortranarray(current_minibatch).T)
+            minibatch_masked_data.append(x)
+            y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
+            next_tag = y.next_tag
+            y.from_array(np.asfortranarray(train_tokens[i, j, :, :-1].T))
+            minibatch_labels.append(y)
+        batch_masked_data.append(minibatch_masked_data)
+        batch_labels.append(minibatch_labels)
 time1 = time.time() - time0
 print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
 # Set up learning rate and optimizer for training
 if args.optimizer == "adam":
-    optimizer = nntile.optimizer.Adam(llama_nntile.get_parameters(),
+    optimizer = nntile.optimizer.Adam(bert_nntile.get_parameters(),
             args.lr, next_tag)
 elif args.optimizer == "adamw":
-    optimizer = nntile.optimizer.AdamW(llama_nntile.get_parameters(),
+    optimizer = nntile.optimizer.AdamW(bert_nntile.get_parameters(),
             args.lr, next_tag)
 elif args.optimizer == "sgd":
-    optimizer = nntile.optimizer.SGD(llama_nntile.get_parameters(),
+    optimizer = nntile.optimizer.SGD(bert_nntile.get_parameters(),
             args.lr, next_tag)
 next_tag = optimizer.get_next_tag()
 # Define Cross Entropy loss function
 loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
-        llama_nntile.activations[-1], next_tag,
-        scale=1.0 / (args.batch_size * args.seq_len))
+        bert_nntile.activations[-1], next_tag,
+        scale=1.0 / (args.batch_size * args.n_masks_per_seq *
+                     args.n_masked_tokens_per_seq))
 # Set up training pipeline
-pipeline = nntile.pipeline.Pipeline(batch_input, batch_output,
-        llama_nntile, optimizer, loss, args.nepochs)
+pipeline = nntile.pipeline.Pipeline(batch_masked_data, batch_labels,
+        bert_nntile, optimizer, loss, args.nepochs)
+print(batch_masked_data[0][0].shape)
+print(bert_nntile.layers[0].w.value.shape)
 # Print pipeline memory info
 pipeline.print_meminfo()
 # Warmup training
@@ -265,18 +277,18 @@ print("NNTile training time: {} seconds".format(time1))
 print("NNTile training throughput tokens/sec: {}".format(
         args.nepochs * num_train_batches * args.batch_size
         * args.seq_len / time1))
-nflops_fwd_minibatch = llama_nntile.get_flops_forward()
-nflops_bwd_minibatch = llama_nntile.get_flops_backward()
-nflops_minibatch = nflops_fwd_minibatch + nflops_bwd_minibatch
-print("NNTile performance (model flops): {} Tflops/s".format(nflops_minibatch
-        * args.nepochs * num_train_batches * num_minibatch
-        / time1 * 1e-12))
+# nflops_fwd_minibatch = bert_nntile.get_flops_forward()
+# nflops_bwd_minibatch = bert_nntile.get_flops_backward()
+# nflops_minibatch = nflops_fwd_minibatch + nflops_bwd_minibatch
+# print("NNTile performance (model flops): {} Tflops/s".format(nflops_minibatch
+#         * args.nepochs * num_train_batches * num_minibatch
+#         / time1 * 1e-12))
 loss_np = np.zeros((1), dtype=np.float32)
 loss.val.to_array(loss_np)
 print("NNTile loss on the last batch: {}".format(loss_np[0]))
 loss.unregister()
 optimizer.unregister()
-for batch in batch_input + batch_output:
+for batch in batch_masked_data + batch_labels:
     for x in batch:
         x.unregister()
-llama_nntile.unregister()
+bert_nntile.unregister()
