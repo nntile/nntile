@@ -41,7 +41,7 @@ class Pipeline(object):
             # print("Epoch ", i_epoch)
             num_batches = len(self.x)
             for i_batch, (x_batch, y_batch) in enumerate(zip(self.x, self.y)):
-                # Zero out gradients of all weights and activations
+                # Zero out gradients of all weights
                 self.model.clear_parameters_grads()
                 clear_async(self.loss.val)
                 # Accumulate gradients from subbatches
