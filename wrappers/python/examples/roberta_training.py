@@ -274,6 +274,7 @@ pipeline.print_meminfo()
 # Warmup training
 # nntile.starpu.pause()
 nntile.starpu.profiling_enable()
+# Call separate pipeline for the single epoch for every masked data
 for i in range(args.nepochs):
     pipeline = nntile.pipeline.Pipeline(batch_masked_data[i], batch_labels[i],
         bert_nntile, optimizer, loss, 1)
