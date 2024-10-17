@@ -31,6 +31,7 @@ void cpu(void *buffers[], void *cl_args)
     Scalar alpha = args->alpha;
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
+    Index ignore_index = args->ignore_index;
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *logsumexp = interfaces[0]->get_ptr<T>();
@@ -38,7 +39,7 @@ void cpu(void *buffers[], void *cl_args)
     const int64_t* labels = interfaces[2]->get_ptr<int64_t>();
     float *val = interfaces[3]->get_ptr<float>();
     // Launch kernel
-    kernel::total_sum_accum::cpu<T>(alpha, n_labels, n_outputs, logsumexp, src,
+    kernel::total_sum_accum::cpu<T>(alpha, n_labels, n_outputs, ignore_index, logsumexp, src,
             labels, val);
 #endif // STARPU_SIMGRID
 }
@@ -55,6 +56,7 @@ void cuda(void *buffers[], void *cl_args)
     Scalar alpha = args->alpha;
     Index n_labels = args->n_labels;
     Index n_outputs = args->n_outputs;
+    Index ignore_index = args->ignore_index;
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     const T *logsumexp = interfaces[0]->get_ptr<T>();
@@ -65,7 +67,7 @@ void cuda(void *buffers[], void *cl_args)
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
     kernel::total_sum_accum::cuda<T>(stream, alpha, n_labels, n_outputs,
-            logsumexp, src, labels, val);
+        ignore_index, logsumexp, src, labels, val);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
@@ -172,14 +174,15 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Scalar alpha, Index n_labels, Index n_outputs, Handle logsumexp,
-        Handle src, Handle class_labels, Handle val)
+void submit(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
+            Handle logsumexp, Handle src, Handle class_labels, Handle val)
 {
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
     args->alpha = alpha;
     args->n_labels = n_labels;
     args->n_outputs = n_outputs;
+    args->ignore_index = ignore_index;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(logsumexp),
@@ -197,27 +200,27 @@ void submit(Scalar alpha, Index n_labels, Index n_outputs, Handle logsumexp,
 
 // Explicit instantiation
 template
-void submit<fp32_t>(Scalar alpha, Index n_labels, Index n_outputs,
+void submit<fp32_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
         Handle logsumexp, Handle src, Handle class_labels, Handle val);
 
 template
-void submit<fp32_fast_tf32_t>(Scalar alpha, Index n_labels, Index n_outputs,
+void submit<fp32_fast_tf32_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
         Handle logsumexp, Handle src, Handle class_labels, Handle val);
 
 template
-void submit<fp32_fast_fp16_t>(Scalar alpha, Index n_labels, Index n_outputs,
+void submit<fp32_fast_fp16_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
         Handle logsumexp, Handle src, Handle class_labels, Handle val);
 
 template
-void submit<fp32_fast_bf16_t>(Scalar alpha, Index n_labels, Index n_outputs,
+void submit<fp32_fast_bf16_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
         Handle logsumexp, Handle src, Handle class_labels, Handle val);
 
 template
-void submit<fp64_t>(Scalar alpha, Index n_labels, Index n_outputs,
+void submit<fp64_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
         Handle logsumexp, Handle src, Handle class_labels, Handle val);
 
 template
-void submit<bf16_t>(Scalar alpha, Index n_labels, Index n_outputs,
+void submit<bf16_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
         Handle logsumexp, Handle src, Handle class_labels, Handle val);
 
 } // namespace nntile::starpu::total_sum_accum

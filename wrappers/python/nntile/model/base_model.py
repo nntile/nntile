@@ -24,8 +24,10 @@ class BaseModel:
 
     # Construct model with all the provided data
     def __init__(
-        self, activations: List[TensorMoments], layers: List[BaseLayer]
+        self, activations: List[TensorMoments], layers: List[BaseLayer],
+        config=None
     ):
+        self.config = config
         self.activations = activations
         self.layers = layers
         self.parameters = []

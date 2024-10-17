@@ -22,11 +22,11 @@ namespace nntile::tensor
 template<typename T>
 void total_sum_accum_async(Scalar alpha, const Tensor<T> &logsumexp,
         const Tensor<T> &src, const Tensor<int64_t> &class_labels,
-        const Tensor<fp32_t> &val);
+        const Tensor<fp32_t> &val, Index ignore_index);
 
 template<typename T>
 void total_sum_accum(Scalar alpha, const Tensor<T> &logsumexp,
         const Tensor<T> &src, const Tensor<int64_t> &class_labels,
-        const Tensor<fp32_t> &val);
+        const Tensor<fp32_t> &val, Index ignore_index);
 
 } // namespace nntile::tensor
