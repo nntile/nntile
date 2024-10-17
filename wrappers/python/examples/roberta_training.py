@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/examples/bert_training.py
-# Bert training example
+# @file wrappers/python/examples/roberta_training.py
+# Roberta training example
 #
 # @version 1.1.0
 
@@ -70,7 +70,6 @@ parser.add_argument("--dataset-file", default="")
 
 parser.add_argument("--lr", type=float, default=0.0)
 parser.add_argument("--nepochs", type=int, default=1)
-parser.add_argument("--n-masks-per-seq", type=int, default=1)
 parser.add_argument("--label-mask-token", type=int, default=3)
 parser.add_argument("--n-masked-tokens-per-seq", type=int, default=3)
 
@@ -217,7 +216,9 @@ x_traits = nntile.tensor.TensorTraits(
 x_distr = [0] * x_traits.grid.nelems
 
 rng = np.random.default_rng()
-for mask_idx in range(args.n_masks_per_seq):
+for epoch_idx in range(args.nepochs):
+    masked_data_epoch = []
+    labels_epoch = []
     for i in range(num_train_batches):
         minibatch_masked_data = []
         minibatch_labels = []
@@ -242,8 +243,10 @@ for mask_idx in range(args.n_masks_per_seq):
             current_label[inverse_current_mask] = -100
             y.from_array(np.asfortranarray(current_label.T))
             minibatch_labels.append(y)
-        batch_masked_data.append(minibatch_masked_data)
-        batch_labels.append(minibatch_labels)
+        masked_data_epoch.append(minibatch_masked_data)
+        labels_epoch.append(minibatch_labels)
+    batch_masked_data.append(masked_data_epoch)
+    batch_labels.append(labels_epoch)
 time1 = time.time() - time0
 print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
 # Set up learning rate and optimizer for training
@@ -260,18 +263,21 @@ next_tag = optimizer.get_next_tag()
 # Define Cross Entropy loss function
 loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
         bert_nntile.activations[-1], next_tag,
-        scale=1.0 / (args.batch_size * args.n_masks_per_seq *
+        scale=1.0 / (args.batch_size *
                      args.n_masked_tokens_per_seq))
 # Set up training pipeline
-pipeline = nntile.pipeline.Pipeline(batch_masked_data, batch_labels,
-        bert_nntile, optimizer, loss, args.nepochs)
+pipeline = nntile.pipeline.Pipeline(batch_masked_data[0], batch_labels[0],
+        bert_nntile, optimizer, loss, 1)
 
 # Print pipeline memory info
 pipeline.print_meminfo()
 # Warmup training
 # nntile.starpu.pause()
 nntile.starpu.profiling_enable()
-pipeline.train_async()
+for i in range(args.nepochs):
+    pipeline = nntile.pipeline.Pipeline(batch_masked_data[i], batch_labels[i],
+        bert_nntile, optimizer, loss, 1)
+    pipeline.train_async()
 # nntile.starpu.resume()
 nntile.starpu.wait_for_all()
 nntile.starpu.profiling_disable()
@@ -291,7 +297,8 @@ loss.val.to_array(loss_np)
 print("NNTile loss on the last batch: {}".format(loss_np[0]))
 loss.unregister()
 optimizer.unregister()
-for batch in batch_masked_data + batch_labels:
-    for x in batch:
-        x.unregister()
+for epoch_data in batch_masked_data + batch_labels:
+    for batch in epoch_data:
+        for x in batch:
+            x.unregister()
 bert_nntile.unregister()
