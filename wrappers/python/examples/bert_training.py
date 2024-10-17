@@ -70,9 +70,9 @@ parser.add_argument("--dataset-file", default="")
 
 parser.add_argument("--lr", type=float, default=0.0)
 parser.add_argument("--nepochs", type=int, default=1)
-parser.add_argument("--n_masks_per_seq", type=int, default=1)
-parser.add_argument("--label_mask_token", type=int, default=3)
-parser.add_argument("--n_masked_tokens_per_seq", type=int, default=3)
+parser.add_argument("--n-masks-per-seq", type=int, default=1)
+parser.add_argument("--label-mask-token", type=int, default=3)
+parser.add_argument("--n-masked-tokens-per-seq", type=int, default=3)
 
 parser.add_argument("--logger", action="store_true")
 parser.add_argument("--logger-server-addr", type=str,
@@ -104,7 +104,7 @@ if args.pretrained == "remote":
     # Newer versions of transformers can use fast attention, so we disable it
     # through a parameter attn_implementation
     model_torch = BertForMaskedLM.from_pretrained(args.remote_model_name,
-                cache_dir=args.model_path, local_files_only=True)
+                cache_dir=args.model_path)
 elif args.pretrained == "local":
     if args.config_path:
         f = open(args.config_path)
@@ -236,7 +236,10 @@ for mask_idx in range(args.n_masks_per_seq):
             minibatch_masked_data.append(x)
             y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
             next_tag = y.next_tag
-            y.from_array(np.asfortranarray(train_tokens[i, j, :, :-1].T))
+            current_label = train_tokens[i, j, :, :-1].copy()
+            inverse_current_mask = np.array(1 - current_mask, dtype=bool)
+            current_label[inverse_current_mask] = -100
+            y.from_array(np.asfortranarray(current_label.T))
             minibatch_labels.append(y)
         batch_masked_data.append(minibatch_masked_data)
         batch_labels.append(minibatch_labels)
@@ -261,8 +264,7 @@ loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
 # Set up training pipeline
 pipeline = nntile.pipeline.Pipeline(batch_masked_data, batch_labels,
         bert_nntile, optimizer, loss, args.nepochs)
-print(batch_masked_data[0][0].shape)
-print(bert_nntile.layers[0].w.value.shape)
+
 # Print pipeline memory info
 pipeline.print_meminfo()
 # Warmup training

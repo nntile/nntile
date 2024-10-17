@@ -36,3 +36,4 @@ class BertConfigNNTile:
     classifier_dropout: float = 0
     type_vocab_size: int = 2
     position_embedding_type: str = "absolute"
+    name: str = "bert"
