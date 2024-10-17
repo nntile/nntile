@@ -63,8 +63,13 @@ class Pipeline(object):
                     # Invalidate activations[2:]. We have to keep
                     # activations[1] as it holds positional embedding indices,
                     # that are computed once
-                    for t in self.model.activations[2:]:
-                        t.value.invalidate_submit()
+                    if (self.model.config.name == "bert" or
+                        self.model.config.name == "roberta"):
+                        for t in self.model.activations[3:]:
+                            t.value.invalidate_submit()
+                    else:
+                        for t in self.model.activations[2:]:
+                            t.value.invalidate_submit()
                     # Invalidate gradients of activations
                     for t in self.model.activations:
                         if t.grad_required:

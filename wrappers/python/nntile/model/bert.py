@@ -131,7 +131,7 @@ class BertForMaskedLM(BaseModel):
         self.cls = cls
 
         # Fill Base Model with the generated data
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
 
     @staticmethod
     def from_torch(bert_for_masked_lm_torch,
