@@ -57,7 +57,9 @@ parser.add_argument("--hidden-size-tile", type=int, default=-1)
 parser.add_argument("--intermediate-size-tile", type=int, default=-1)
 parser.add_argument("--n-head-tile", type=int, default=-1)
 
-parser.add_argument("--dtype", choices=["fp32", "fp64", "tf32", "bf16"],
+parser.add_argument("--dtype", choices=["fp32", "fp64", "fp32_fast_tf32",
+                                        "bf16", "fp32_fast_bf16",
+                                        "fp32_fast_fp16"],
                     default="fp32")
 parser.add_argument("--restrict", choices=["cpu", "cuda", None],
         default=None)
@@ -295,6 +297,12 @@ print("NNTile training throughput tokens/sec: {}".format(
 loss_np = np.zeros((1), dtype=np.float32)
 loss.val.to_array(loss_np)
 print("NNTile loss on the last batch: {}".format(loss_np[0]))
+trained_torch_model = bert_nntile.to_torch()
+torch.save({
+            'model_state_dict': trained_torch_model.state_dict(),
+            }, args.save_checkpoint_path)
+del trained_torch_model
+
 loss.unregister()
 optimizer.unregister()
 for epoch_data in batch_masked_data + batch_labels:
