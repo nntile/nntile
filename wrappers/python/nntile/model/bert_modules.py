@@ -77,7 +77,7 @@ class BertEmbeddings(BaseModel):
         self.l_norm = layer_norm
 
         # Fill Base Model with the generated data
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
 
     @staticmethod
     def from_torch(bert_embedding_torch, batch_size, batch_size_tile,
@@ -258,7 +258,7 @@ class BertSelfOutput(BaseModel):
                   layer_norm]
 
         # Fill Base Model with the generated data
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
 
     @staticmethod
     def from_torch(bert_selfoutput_torch,
@@ -365,7 +365,7 @@ class BertIntermediate(BaseModel):
                   activation_layer]
 
         # Fill Base Model with the generated data
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
 
     @staticmethod
     def from_torch(bert_intermediate_torch, X,
@@ -437,7 +437,7 @@ class BertOutput(BaseModel):
                   layer_norm]
 
         # Fill Base Model with the generated data
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
 
     @staticmethod
     def from_torch(bert_output_torch, X, input_tensor,
@@ -511,7 +511,7 @@ class BertAttention(BaseModel):
         layers = [attention] + self_output_layer.layers
 
         # Fill Base Model with the generated data
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
 
     @staticmethod
     def from_torch(bert_attention_torch, X,
@@ -587,7 +587,7 @@ class BertPredictionHeadTransform(BaseModel):
                   layer_norm]
 
         # Fill Base Model with the generated data
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
 
     @staticmethod
     def from_torch(bert_pred_head_trans_torch, X,
@@ -624,7 +624,7 @@ class BertPredictionHeadTransform(BaseModel):
         config_torch.intermediate_size = self.config.intermediate_size
         config_torch.layer_norm_eps = self.config.layer_norm_epsilon
         config_torch.hidden_dropout_prob = 0.
-        config_torch.hidden_act = self.config.activation_function
+        config_torch.hidden_act = "gelu_pytorch_tanh"
 
         bert_pred_head_transform_torch = \
             BertPredictionHeadTransform_torch(config_torch)
@@ -665,7 +665,7 @@ class BertLMPredictionHead(BaseModel):
         self.lin_decoder = lin_layer
 
         # Fill Base Model with the generated data
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
 
     @staticmethod
     def from_torch(bert_lm_pred_head, X,
@@ -696,7 +696,7 @@ class BertLMPredictionHead(BaseModel):
         config_torch.intermediate_size = self.config.intermediate_size
         config_torch.layer_norm_eps = self.config.layer_norm_epsilon
         config_torch.vocab_size = self.config.vocab_size
-        config_torch.hidden_act = self.config.activation_function
+        config_torch.hidden_act = "gelu_pytorch_tanh"
 
         bert_lm_pred_head_torch = \
             BertLMPredictionHead_torch(config_torch)

@@ -92,6 +92,7 @@ for epoch in range(epochs):
         input_ids = batch['input_ids'].to(device)
         # attention_mask = batch['attention_mask'].to(device)
         labels = batch['labels'].to(device)
+        print(labels)
         # process
         outputs = model(input_ids,
                         # attention_mask=attention_mask,
@@ -104,3 +105,4 @@ for epoch in range(epochs):
         optim.step()
         # print relevant info to progress bar
         print("loss", loss.item())
+        break

@@ -42,7 +42,7 @@ class BertEncoder(BaseModel):
             layers.extend(b_layer.layers)
 
         # Fill Base Model with the generated data
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
 
     @staticmethod
     def from_torch(bert_encoder_torch, hidden_states: TensorMoments,

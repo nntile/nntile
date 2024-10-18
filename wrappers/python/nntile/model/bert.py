@@ -42,7 +42,7 @@ class BertModel(BaseModel):
         self.bert_encoder = bert_encoder
 
         # Fill Base Model with the generated data
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
 
     @staticmethod
     def from_torch(bert_torch, batch_size, batch_size_tile,
