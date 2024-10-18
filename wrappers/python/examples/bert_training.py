@@ -57,7 +57,9 @@ parser.add_argument("--hidden-size-tile", type=int, default=-1)
 parser.add_argument("--intermediate-size-tile", type=int, default=-1)
 parser.add_argument("--n-head-tile", type=int, default=-1)
 
-parser.add_argument("--dtype", choices=["fp32", "fp64", "tf32", "bf16"],
+parser.add_argument("--dtype", choices=["fp32", "fp64", "fp32_fast_tf32",
+                                        "bf16", "fp32_fast_bf16",
+                                        "fp32_fast_fp16"],
                     default="fp32")
 parser.add_argument("--restrict", choices=["cpu", "cuda", None],
         default=None)
@@ -124,7 +126,6 @@ elif args.pretrained == "local":
         if args.checkpoint_path:
             checkpoint = torch.load(args.checkpoint_path)
             model_torch.load_state_dict(checkpoint['model_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
 model_torch.eval()
 print(model_torch.config)
@@ -196,17 +197,17 @@ else:
 
 num_train_tokens = train_tokens_raw.shape[0]
 
-num_train_seq = num_train_tokens // (args.seq_len + 1)
+num_train_seq = num_train_tokens // args.seq_len
 num_train_batches = num_train_seq // args.batch_size
 num_train_tokens_truncated = num_train_batches * (args.batch_size
-        * (args.seq_len + 1))
+        * args.seq_len)
 train_tokens_trunc = np.array(
     train_tokens_raw[:num_train_tokens_truncated],
     order='F', dtype=np.int64)
 train_tokens = train_tokens_trunc.reshape(num_train_batches,
                                     num_minibatch,
                                     args.minibatch_size,
-                                    args.seq_len + 1)
+                                    args.seq_len)
 
 time0 = time.time()
 batch_masked_data = []
@@ -230,13 +231,13 @@ for mask_idx in range(args.n_masks_per_seq):
             current_mask[:, idx_masked_tokens] = 1
             x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
             next_tag = x.next_tag
-            current_minibatch = train_tokens[i, j, :, :-1].copy()
+            current_minibatch = train_tokens[i, j, :, :].copy()
             current_minibatch[current_mask] = args.label_mask_token
             x.from_array(np.asfortranarray(current_minibatch).T)
             minibatch_masked_data.append(x)
             y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
             next_tag = y.next_tag
-            current_label = train_tokens[i, j, :, :-1].copy()
+            current_label = train_tokens[i, j, :, :].copy()
             inverse_current_mask = np.array(1 - current_mask, dtype=bool)
             # Ignore index -100
             current_label[inverse_current_mask] = -100
@@ -289,6 +290,12 @@ print("NNTile training throughput tokens/sec: {}".format(
 loss_np = np.zeros((1), dtype=np.float32)
 loss.val.to_array(loss_np)
 print("NNTile loss on the last batch: {}".format(loss_np[0]))
+
+trained_torch_model = bert_nntile.to_torch()
+torch.save({
+            'model_state_dict': trained_torch_model.state_dict(),
+            }, args.save_checkpoint_path)
+del trained_torch_model
 loss.unregister()
 optimizer.unregister()
 for batch in batch_masked_data + batch_labels:

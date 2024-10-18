@@ -123,7 +123,6 @@ elif args.pretrained == "local":
         if args.checkpoint_path:
             checkpoint = torch.load(args.checkpoint_path)
             model_torch.load_state_dict(checkpoint['model_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
 model_torch.eval()
 print(model_torch.config)

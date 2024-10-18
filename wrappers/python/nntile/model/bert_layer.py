@@ -47,7 +47,7 @@ class BertLayer(BaseModel):
             output_block.layers
 
         # Fill Base Model with the generated data
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
 
     @staticmethod
     def from_torch(bert_layer_torch, hidden_states: TensorMoments,
