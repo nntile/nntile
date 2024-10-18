@@ -23,18 +23,20 @@ static __global__
 void cuda_kernel(Index nelems, T *data)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
-    constexpr T mone = -1, pt5 = 0.5;
-    const T f1 = mone / sqrt(T{2.0});
+    using Y = typename T::repr_t;
+    constexpr Y mone = -1, pt5 = 0.5;
+    const Y f1 = mone / sqrt(Y{2.0});
+
     if(i < nelems)
     {
-        T z = data[i];
-        T y = erfc(f1 * z);
-        data[i] = pt5 * z * y;
+        Y z = Y{data[i]};
+        Y y = erfc(f1 * z);
+        data[i] = T{pt5 * z * y};
     }
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, T *data_)
+void cuda(cudaStream_t stream, Index nelems, T *data)
     noexcept
 //! Inplace GeLU operation performed on CUDA
 /*! Uses very slow std::erfc() function, so consider using approximated version
@@ -42,13 +44,11 @@ void cuda(cudaStream_t stream, Index nelems, T *data_)
  * GeLU(z) = 0.5 z erfc(-z/sqrt(2))
  *
  * @params[in] nelems: Number of elements in a buffer
- * @params[inout] data_: Buffer to apply GeLU
+ * @params[inout] data: Buffer to apply GeLU
  * */
 {
     dim3 blocks((nelems+255)/256), threads(256);
-    using Y = typename CUDAComputeType<T>::value;
-    auto data = reinterpret_cast<Y *>(data_);
-    (cuda_kernel<Y>)<<<blocks, threads, 0, stream>>>(nelems, data);
+    (cuda_kernel<T>)<<<blocks, threads, 0, stream>>>(nelems, data);
 }
 
 // Explicit instantiation
@@ -58,6 +58,10 @@ void cuda<fp32_t>(cudaStream_t stream, Index nelems, fp32_t *data)
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index nelems, fp64_t *data)
+    noexcept;
+
+    template
+void cuda<bf16_t>(cudaStream_t stream, Index nelems, bf16_t *data)
     noexcept;
 
 } // namespace nntile::kernel::gelu

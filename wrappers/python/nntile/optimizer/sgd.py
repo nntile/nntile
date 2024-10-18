@@ -44,8 +44,8 @@ class SGD:
             self.momentum = np.float64(momentum)
             self.weight_decay = np.float64(weight_decay)
             self.damping = np.float64(damping)
+        self.states = []
         if momentum > 0:
-            self.states = []
             for p in self.params:
                 p_traits = TensorTraits(p.value.shape, p.value.basetile_shape)
                 self.states.append(

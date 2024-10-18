@@ -35,6 +35,7 @@ class CrossEntropy:
         logsumexp: Tensor,
         redux: bool = False,
         scale: float = 1.0,
+        ignore_index: int = -100
     ):
         self.model_output = model_output
         self.val = val
@@ -43,6 +44,7 @@ class CrossEntropy:
         self.maxsumexp = maxsumexp
         self.maxsumexp.set_reduction_maxsumexp()
         self.y = labels
+        self.ignore_index = ignore_index
         if redux:
             self.redux = 1
         else:
@@ -56,6 +58,7 @@ class CrossEntropy:
         next_tag: int,
         redux: bool = False,
         scale: float = 1.0,
+        ignore_index: int = -100
     ) -> tuple:
         shape = model_output.value.shape[1:]
         basetile = model_output.value.basetile_shape[1:]
@@ -84,6 +87,7 @@ class CrossEntropy:
             logsumexp,
             redux=redux,
             scale=scale,
+            ignore_index=ignore_index
         )
         return loss, next_tag
 
@@ -112,6 +116,7 @@ class CrossEntropy:
             self.model_output.value,
             self.y,
             self.val,
+            self.ignore_index
         )
         if self.model_output.grad_required is True:
             softmax_async(
@@ -122,7 +127,8 @@ class CrossEntropy:
                 0,
             )
             subtract_indexed_outputs_async(
-                self.scale, self.y, self.model_output.grad
+                self.scale, self.y, self.model_output.grad,
+                self.ignore_index
             )
         self.model_output.value.wont_use()
         self.model_output.grad.wont_use()
