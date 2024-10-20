@@ -25,6 +25,7 @@ struct args_t
     Index n_labels;
     Index n_outputs;
     Scalar value;
+    Index ignore_index;
 };
 
 template<typename T>
@@ -90,6 +91,7 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index n_labels, Index n_outputs, Scalar val, Handle labels, Handle dst);
+void submit(Index n_labels, Index n_outputs, Index ignore_index,
+            Scalar val, Handle labels, Handle dst);
 
 } // namespace nntile::starpu::subtract_indexed_column

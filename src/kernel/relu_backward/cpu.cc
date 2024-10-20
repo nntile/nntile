@@ -33,9 +33,6 @@ void cpu(Index nelems, const T *x, const T *dy, T *dx)
  * */
 {
     using Y = typename T::repr_t;
-    // auto x = reinterpret_cast<const Y *>(x_);
-    // auto dy = reinterpret_cast<const Y *>(dy_);
-    // auto dx = reinterpret_cast<Y *>(dx_);
     Y x_val{0.0};
     Y dx_val{0.0};
     Y dy_val{0.0};
