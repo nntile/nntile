@@ -183,8 +183,8 @@ print("Converting PyTorch model to NNTile",
         "requires {} seconds".format(time1))
 del model_torch
 
-splitted_darasetfile = args.dataset_file.split("/")
-if splitted_darasetfile[-1] == "train.bin":
+splitted_datasetfile = args.dataset_file.split("/")
+if splitted_datasetfile[-1] == "train.bin":
     train_data = np.memmap(Path(args.dataset_path) /
                             args.dataset_file,
                             dtype=np.uint16, mode='r')
@@ -297,11 +297,12 @@ print("NNTile training throughput tokens/sec: {}".format(
 loss_np = np.zeros((1), dtype=np.float32)
 loss.val.to_array(loss_np)
 print("NNTile loss on the last batch: {}".format(loss_np[0]))
-trained_torch_model = bert_nntile.to_torch()
-torch.save({
-            'model_state_dict': trained_torch_model.state_dict(),
-            }, args.save_checkpoint_path)
-del trained_torch_model
+if args.save_checkpoint_path:
+    trained_torch_model = bert_nntile.to_torch()
+    torch.save({
+                'model_state_dict': trained_torch_model.state_dict(),
+                }, args.save_checkpoint_path)
+    del trained_torch_model
 
 loss.unregister()
 optimizer.unregister()
