@@ -61,8 +61,16 @@ template
 void logsumexp_async<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void logsumexp_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src, const Tile<fp32_fast_tf32_t> &dst);
+void logsumexp_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+                                       const Tile<fp32_fast_tf32_t> &dst);
 
+template
+void logsumexp_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+                                 const Tile<fp32_fast_fp16_t> &dst);
+
+template
+void logsumexp_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+                                 const Tile<fp32_fast_bf16_t> &dst);
 
 template
 void logsumexp_async<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);
@@ -75,7 +83,16 @@ template
 void logsumexp<fp32_t>(const Tile<fp32_t> &src, const Tile<fp32_t> &dst);
 
 template
-void logsumexp<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src, const Tile<fp32_fast_tf32_t> &dst);
+void logsumexp<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &src,
+                                 const Tile<fp32_fast_tf32_t> &dst);
+
+template
+void logsumexp<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &src,
+                                 const Tile<fp32_fast_fp16_t> &dst);
+
+template
+void logsumexp<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &src,
+                                 const Tile<fp32_fast_bf16_t> &dst);
 
 template
 void logsumexp<fp64_t>(const Tile<fp64_t> &src, const Tile<fp64_t> &dst);

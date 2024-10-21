@@ -78,7 +78,8 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
+        codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
 
 void init()
 {
@@ -112,6 +113,26 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
+    codelet_fp32_fast_fp16.init("nntile_prod_fiber3_fp32_fast_fp16",
+            footprint,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
+    codelet_fp32_fast_bf16.init("nntile_prod_fiber3_fp32_fast_bf16",
+            footprint,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
     codelet_fp64.init("nntile_prod_fiber3_fp64",
             footprint,
             {cpu<fp64_t>},
@@ -128,6 +149,8 @@ void restrict_where(uint32_t where)
     codelet_fp32.restrict_where(where);
     codelet_bf16.restrict_where(where);
     codelet_fp32_fast_tf32.restrict_where(where);
+    codelet_fp32_fast_fp16.restrict_where(where);
+    codelet_fp32_fast_bf16.restrict_where(where);
     codelet_fp64.restrict_where(where);
 }
 
@@ -136,6 +159,8 @@ void restore_where()
     codelet_fp32.restore_where();
     codelet_bf16.restore_where();
     codelet_fp32_fast_tf32.restore_where();
+    codelet_fp32_fast_fp16.restore_where();
+    codelet_fp32_fast_bf16.restore_where();
     codelet_fp64.restore_where();
 }
 
@@ -154,7 +179,8 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src1, Handle src2,
     args->n = n;
     args->k = k;
     args->alpha = alpha;
-    double nflops = m * n * k;
+    // Put amount of bytes read and write inplace of gflops
+    double nflops = sizeof(T) * m * (2*k+1) * n;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src1),
@@ -181,8 +207,16 @@ void submit<bf16_t>(Index m, Index n, Index k, Scalar alpha, Handle src1,
 
 
 template
-void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha, Handle src1,
-        Handle src2, Handle dst);
+void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha,
+        Handle src1, Handle src2, Handle dst);
+
+template
+void submit<fp32_fast_fp16_t>(Index m, Index n, Index k, Scalar alpha,
+        Handle src1, Handle src2, Handle dst);
+
+template
+void submit<fp32_fast_bf16_t>(Index m, Index n, Index k, Scalar alpha,
+        Handle src1, Handle src2, Handle dst);
 
 template
 void submit<fp64_t>(Index m, Index n, Index k, Scalar alpha, Handle src1,

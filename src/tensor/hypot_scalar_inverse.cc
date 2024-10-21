@@ -62,6 +62,14 @@ void hypot_scalar_inverse_async<fp32_fast_tf32_t>(Scalar eps, Scalar alpha,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
+void hypot_scalar_inverse_async<fp32_fast_fp16_t>(Scalar eps, Scalar alpha,
+        const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void hypot_scalar_inverse_async<fp32_fast_bf16_t>(Scalar eps, Scalar alpha,
+        const Tensor<fp32_fast_bf16_t> &dst);
+
+template
 void hypot_scalar_inverse_async<fp64_t>(Scalar eps, Scalar alpha,
         const Tensor<fp64_t> &dst);
 
@@ -73,6 +81,14 @@ void hypot_scalar_inverse<fp32_t>(Scalar eps, Scalar alpha,
 template
 void hypot_scalar_inverse<fp32_fast_tf32_t>(Scalar eps, Scalar alpha,
         const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void hypot_scalar_inverse<fp32_fast_fp16_t>(Scalar eps, Scalar alpha,
+        const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void hypot_scalar_inverse<fp32_fast_bf16_t>(Scalar eps, Scalar alpha,
+        const Tensor<fp32_fast_bf16_t> &dst);
 
 template
 void hypot_scalar_inverse<fp64_t>(Scalar eps, Scalar alpha,

@@ -16,9 +16,11 @@ set(TESTS
     "adam_step"
     "adamw_step"
     "add"
+    "add_inplace"
+    "add_fiber_inplace"
     "add_fiber"
+    "add_slice_inplace"
     "add_slice"
-    "add_slice3"
     "addcdiv"
     "dgelu"
     "dgelutanh"
@@ -67,6 +69,7 @@ set(TESTS
 set(TESTS_NOT_IMPLEMENTED
     "adam_step"
     "adamw_step"
+    "add_fiber_inplace"
     "add_fiber"
     "gelu_backward"
     "gelutanh"
@@ -84,7 +87,7 @@ set(TESTS_NOT_IMPLEMENTED
     "scal"
     "softmax"
     "hypot"
-    "add_slice3"
+    "add_slice"
     "prod_fiber3"
     )
 

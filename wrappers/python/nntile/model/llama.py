@@ -11,13 +11,14 @@
 #
 # @version 1.1.0
 
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 from transformers import LlamaConfig as LlamaConfig_torch
 from transformers.models.llama.modeling_llama import (
     LlamaModel as LlamaModel_torch)
 
+from nntile.layer.cache_utils import KVCacheStorage
 from nntile.tensor import (
     Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_tf32, Tensor_int64,
     TensorMoments, TensorTraits)
@@ -53,6 +54,7 @@ class Llama(BaseModel):
         self.decoders = decoders
         self.embd_layer = emb_layer_
         self.final_rmsnorm = rms_norm_layer
+        self.seq_len = input_ids.value.shape[0]
 
         for dec_layer in decoders:
             activations.extend(dec_layer.activations[1:])
@@ -63,14 +65,30 @@ class Llama(BaseModel):
 
         super().__init__(activations, layers)
 
-    def forward_dynamic(self, x: TensorMoments):
+    def forward_dynamic(
+            self,
+            x: TensorMoments,
+            use_cache: bool = False,
+            kv_caches: Optional[KVCacheStorage] = None
+        ):
+        cache_list = None
+        if kv_caches is not None:
+            if not kv_caches.is_initialized():
+                kv_caches.init(len(self.decoders), self.seq_len, 1)
+            cache_list = kv_caches.get_cache()
+
         x_emb = self.embd_layer.forward_dynamic(x)
 
         dec_out = x_emb
-        for dec_layer in self.decoders:
-            dec_out = dec_layer.forward_dynamic(dec_out)
+        for lid, dec_layer in enumerate(self.decoders):
+            dec_out, updated_cache = dec_layer.forward_dynamic(
+                dec_out,
+                kv_cache=cache_list[lid] if cache_list else None
+            )
+            if cache_list:
+                cache_list[lid] = updated_cache
         normalized_outs = self.final_rmsnorm.forward_dynamic(dec_out)
-        return normalized_outs
+        return normalized_outs, kv_caches
 
     @staticmethod
     def from_torch(torch_llama,

@@ -23,7 +23,7 @@ namespace nntile::kernel::add_fiber
 // Per-element addition of a tensor and a broadcasted fiber on CUDA
 template<typename T>
 void cuda(cudaStream_t stream, Index m, Index n, Index k, Index batch, Scalar alpha,
-        const T *src, Scalar beta, T *dst)
+        const T *src1, Scalar beta, const T *src2, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::add_fiber

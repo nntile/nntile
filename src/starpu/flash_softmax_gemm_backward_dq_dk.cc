@@ -17,7 +17,7 @@
 #include "nntile/kernel/gemm.hh"
 #include "nntile/kernel/mask_scalar.hh"
 #include "nntile/kernel/softmax_inplace.hh"
-#include "nntile/kernel/add_slice.hh"
+#include "nntile/kernel/add_slice_inplace.hh"
 #include "nntile/kernel/prod_inplace.hh"
 #include "nntile/kernel/cpu.hh"
 #include "nntile/kernel/cuda.hh"
@@ -89,7 +89,7 @@ void cpu(void *buffers[], void *cl_args)
         dA_local += dA_offset;
         tmp_grad_local += tmp_grad_offset;
     }
-    kernel::add_slice::cpu<T>(1, args->seq*args->batch, args->seq,
+    kernel::add_slice_inplace::cpu<T>(1, args->seq*args->batch, args->seq,
             -1.0, sumprod_slice, 1.0, tmp_grad);
     kernel::prod_inplace::cpu<T>(args->seq*args->seq*args->batch, tmp,
             tmp_grad);
@@ -166,7 +166,7 @@ void cuda(void *buffers[], void *cl_args)
             args->seq, args->seq, args->head, 1.0, V, args->head, V_offset,
             dA, args->head, dA_offset, 0.0, tmp_grad, args->seq,
             tmp_grad_offset, args->batch);
-    kernel::add_slice::cuda<T>(stream, 1, args->seq*args->batch, args->seq,
+    kernel::add_slice_inplace::cuda<T>(stream, 1, args->seq*args->batch, args->seq,
             -1.0, sumprod_slice, 1.0, tmp_grad);
     kernel::prod_inplace::cuda<T>(stream, args->seq*args->seq*args->batch, tmp,
             tmp_grad);
@@ -202,7 +202,8 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
+        codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
 
 void init()
 {
@@ -245,6 +246,35 @@ void init()
             {}
 #endif // NNTILE_USE_CUDA
             );
+
+        codelet_fp32_fast_fp16.init("nntile_flash_softmax_gemm_backward_dq_dk_fp32_fast_fp16",
+            footprint,
+#ifdef NNTILE_USE_CBLAS
+            {},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_fast_fp16_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
+        codelet_fp32_fast_bf16.init("nntile_flash_softmax_gemm_backward_dq_dk_fp32_fast_bf16",
+            footprint,
+#ifdef NNTILE_USE_CBLAS
+            {},
+#else // NNTILE_USE_CBLAS
+            {},
+#endif // NNTILE_USE_CBLAS
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_fast_bf16_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
         codelet_bf16.init("nntile_flash_softmax_gemm_backward_dq_dk_bf16",
             footprint,
 #ifdef NNTILE_USE_CBLAS
@@ -266,6 +296,8 @@ void restrict_where(uint32_t where)
     codelet_bf16.restrict_where(where);
     codelet_fp64.restrict_where(where);
     codelet_fp32_fast_tf32.restrict_where(where);
+    codelet_fp32_fast_fp16.restrict_where(where);
+    codelet_fp32_fast_bf16.restrict_where(where);
 }
 
 void restore_where()
@@ -274,6 +306,8 @@ void restore_where()
     codelet_bf16.restore_where();
     codelet_fp64.restore_where();
     codelet_fp32_fast_tf32.restore_where();
+    codelet_fp32_fast_fp16.restore_where();
+    codelet_fp32_fast_bf16.restore_where();
 }
 
 template<typename T>
@@ -343,6 +377,18 @@ void submit<bf16_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
 
 template
 void submit<fp32_fast_tf32_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
+        Handle mask, Handle maxsumexp, Handle dA, Handle V,
+        Handle sumprod_slice, Handle dQ, Handle dK, Handle tmp,
+        Handle tmp_grad, int redux);
+
+template
+void submit<fp32_fast_fp16_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
+        Handle mask, Handle maxsumexp, Handle dA, Handle V,
+        Handle sumprod_slice, Handle dQ, Handle dK, Handle tmp,
+        Handle tmp_grad, int redux);
+
+template
+void submit<fp32_fast_bf16_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle mask, Handle maxsumexp, Handle dA, Handle V,
         Handle sumprod_slice, Handle dQ, Handle dK, Handle tmp,
         Handle tmp_grad, int redux);

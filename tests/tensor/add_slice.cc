@@ -7,15 +7,17 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file tests/tensor/add_slice.cc
- * Tensor wrappers for addition of a tensor and a broadcasted slice
+ * Per-element addition of a tensor and a broadcasted slice
  *
  * @version 1.1.0
  * */
 
+#include <iostream>
 #include "nntile/tensor/add_slice.hh"
 #include "nntile/tile/add_slice.hh"
 #include "nntile/starpu/add_slice.hh"
 #include "nntile/starpu/add.hh"
+#include "nntile/starpu/scal.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
 #include "nntile/starpu/subcopy.hh"
@@ -61,46 +63,73 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile,
     Tensor<T> dst(dst_traits, dst_distr, last_tag);
     scatter<T>(dst_single, dst);
     // Define proper shape and basetile for the source tensor
-    std::vector<Index> src_shape(dst_traits.ndim-1),
-        src_basetile(dst_traits.ndim-1);
+    std::vector<Index> src1_shape(dst_traits.ndim-1),
+        src1_basetile(dst_traits.ndim-1);
+
+    std::vector<Index> src2_shape(shape),
+        src2_basetile(basetile);
+
     for(Index i = 0; i < axis; ++i)
     {
-        src_shape[i] = shape[i];
-        src_basetile[i] = basetile[i];
+        src1_shape[i] = shape[i];
+        src1_basetile[i] = basetile[i];
+
     }
     for(Index i = axis+1; i < dst_traits.ndim; ++i)
     {
-        src_shape[i-1] = shape[i];
-        src_basetile[i-1] = basetile[i];
+        src1_shape[i-1] = shape[i];
+        src1_basetile[i-1] = basetile[i];
     }
     // Generate single-tile source tensor and init it
-    TensorTraits src_single_traits(src_shape, src_shape);
-    Tensor<T> src_single(src_single_traits, dist_root, last_tag);
+    TensorTraits src1_single_traits(src1_shape, src1_shape);
+    Tensor<T> src1_single(src1_single_traits, dist_root, last_tag);
+
+    TensorTraits src2_single_traits(src2_shape, src2_shape);
+    Tensor<T> src2_single(src2_single_traits, dist_root, last_tag);
+
     if(mpi_rank == mpi_root)
     {
-        auto tile = src_single.get_tile(0);
+        auto tile = src1_single.get_tile(0);
         auto tile_local = tile.acquire(STARPU_W);
-        for(Index i = 0; i < src_single.nelems; ++i)
+        for(Index i = 0; i < src1_single.nelems; ++i)
         {
             tile_local[i] = Y(-i);
         }
         tile_local.release();
+
+        auto tile2 = src2_single.get_tile(0);
+        auto tile2_local = tile2.acquire(STARPU_W);
+        for(Index i = 0; i < src2_single.nelems; ++i)
+        {
+            tile2_local[i] = Y(-3*i);
+        }
+        tile2_local.release();
     }
     // Scatter source tensor
-    TensorTraits src_traits(src_shape, src_basetile);
-    std::vector<int> src_distr(src_traits.grid.nelems);
-    for(Index i = 0; i < src_traits.grid.nelems; ++i)
+    TensorTraits src1_traits(src1_shape, src1_basetile);
+    std::vector<int> src1_distr(src1_traits.grid.nelems);
+    TensorTraits src2_traits(src2_shape, src2_basetile);
+    std::vector<int> src2_distr(src2_traits.grid.nelems);
+
+    for(Index i = 0; i < src1_traits.grid.nelems; ++i)
     {
-        src_distr[i] = (i*i+1) % mpi_size;
+        src1_distr[i] = (i*i+1) % mpi_size;
     }
-    Tensor<T> src(src_traits, src_distr, last_tag);
-    scatter<T>(src_single, src);
+     for(Index i = 0; i < src2_traits.grid.nelems; ++i)
+    {
+        src2_distr[i] = (i*i+1) % mpi_size;
+    }
+    Tensor<T> src1(src1_traits, src1_distr, last_tag);
+    scatter<T>(src1_single, src1);
+
+    Tensor<T> src2(src2_traits, src2_distr, last_tag);
+    scatter<T>(src2_single, src2);
     // Perform tensor-wise and tile-wise add_slice operations
-    add_slice<T>(-1.0, src, 0.5, dst, axis);
+    add_slice<T>(-1.0, src1, 0.5, src2, dst, axis);
     if(mpi_rank == mpi_root)
     {
-        tile::add_slice<T>(-1.0, src_single.get_tile(0), 0.5,
-                dst_single.get_tile(0), axis);
+        tile::add_slice<T>(-1.0, src1_single.get_tile(0), 0.5,
+                src2_single.get_tile(0), dst_single.get_tile(0), axis);
     }
     // Compare results
     Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
@@ -142,13 +171,14 @@ void validate()
     std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0};
     Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
         C(trC, dist0, last_tag);
-    TEST_THROW(add_slice<T>(1.0, A, 0.0, A, 0));
-    TEST_THROW(add_slice<T>(1.0, B, 0.0, A, -1));
-    TEST_THROW(add_slice<T>(1.0, B, 0.0, A, 2));
-    TEST_THROW(add_slice<T>(1.0, B, 0.0, A, 0));
-    TEST_THROW(add_slice<T>(1.0, B, 0.0, A, 1));
-    TEST_THROW(add_slice<T>(1.0, C, 0.0, A, 0));
-    TEST_THROW(add_slice<T>(1.0, C, 0.0, A, 1));
+
+    TEST_THROW(add_slice<T>(1.0, A, 0.0, B, C, 0));
+    TEST_THROW(add_slice<T>(1.0, A, 0.0, C, B, -1));
+    TEST_THROW(add_slice<T>(1.0, B, 0.0, C, A, 2));
+    TEST_THROW(add_slice<T>(1.0, B, 0.0, A, C, 0));
+    TEST_THROW(add_slice<T>(1.0, C, 0.0, B, A, 1));
+    TEST_THROW(add_slice<T>(1.0, C, 0.0, A, B, 0));
+    TEST_THROW(add_slice<T>(1.0, A, 0.0, A, B, 1));
 }
 
 int main(int argc, char **argv)
@@ -156,6 +186,7 @@ int main(int argc, char **argv)
     // Init StarPU for testing on CPU only
     starpu::Config starpu(1, 0, 0);
     // Init codelet
+    starpu::scal::init();
     starpu::add::init();
     starpu::add_slice::init();
     starpu::subcopy::init();

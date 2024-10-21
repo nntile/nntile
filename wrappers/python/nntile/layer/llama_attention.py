@@ -11,6 +11,8 @@
 #
 # @version 1.1.0
 
+from typing import Optional
+
 import numpy as np
 import torch
 from transformers.models.llama.modeling_llama import (
@@ -18,10 +20,11 @@ from transformers.models.llama.modeling_llama import (
 
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
+from nntile.layer.cache_utils import KVCache
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
-    add_fiber_async, add_slice_async, clear_async, copy_intersection_async,
-    flash_maxsumexp_async, flash_softmax_gemm_async,
+    add_fiber_inplace_async, add_slice_inplace_async, clear_async,
+    copy_intersection_async, flash_maxsumexp_async, flash_softmax_gemm_async,
     flash_softmax_gemm_backward_async, gemm_async, mask_scalar_async,
     maxsumexp_async, notrans, prod_inplace_async, rope_async,
     rope_backward_async, softmax_inplace_async, sum_fiber_async,
@@ -225,8 +228,6 @@ class LlamaAttention(BaseLayer):
         clear_async(self.q.value)
         clear_async(self.k.value)
         clear_async(self.v.value)
-
-        self.reset_cache()
 
     # Simple generator for the linear layer
     @staticmethod
@@ -744,9 +745,6 @@ class LlamaAttention(BaseLayer):
         # Return layer and next tag to be used
         return (layer, next_tag)
 
-    def reset_cache(self, value=0):
-        self.kv_cache_size = value
-
     # Forward propagation of the attention layer
     def forward_async(self):
         # Compute query, key and value tensors
@@ -776,10 +774,11 @@ class LlamaAttention(BaseLayer):
         self.w_q.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_q is not None:
-            # batched add_fiber (head_size, batch=(kv_group_size, n_head_kv))
+            # batched add_fiber_inplace
+            # (head_size, batch=(kv_group_size, n_head_kv))
             # into
             # (head_size, n_seq, n_batch, batch=(kv_group_size, n_head_kv))
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_q.value, 1, self.q.value, 0, 2
             )
             self.in_proj_bias_q.value.wont_use()
@@ -811,9 +810,9 @@ class LlamaAttention(BaseLayer):
         self.w_k.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_k is not None:
-            # batched add_fiber (head_size, batch=n_head_kv) into
+            # batched add_fiber_inplace (head_size, batch=n_head_kv) into
             # (head_size, n_seq, n_batch, batch=n_head_kv)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_k.value, 1, self.k.value, 0, 1
             )
             self.in_proj_bias_k.value.wont_use()
@@ -824,7 +823,9 @@ class LlamaAttention(BaseLayer):
         # Repeat K_rope along fibers of proper axis
         # from (head_size, n_seq, n_batch, n_head_kv)
         # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
-        add_slice_async(1.0, self.k_rope.value, 0.0, self.k_rep.value, 3)
+        add_slice_inplace_async(
+            1.0, self.k_rope.value, 0.0, self.k_rep.value, 3
+        )
         # K_rope can be offloaded from GPU
         self.k_rope.value.wont_use()
         # V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V)
@@ -851,16 +852,16 @@ class LlamaAttention(BaseLayer):
         self.w_v.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_v is not None:
-            # batched add_fiber (head_size, batch=n_head_kv) into
+            # batched add_fiber_inplace (head_size, batch=n_head_kv) into
             # (head_size, n_seq, n_batch, batch=n_head_kv)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_v.value, 1, self.v.value, 0, 1
             )
             self.in_proj_bias_v.value.wont_use()
         # Repeat V along fibers of proper axis
         # from (head_size, n_seq, n_batch, n_head_kv)
         # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
-        add_slice_async(1.0, self.v.value, 0.0, self.v_rep.value, 3)
+        add_slice_inplace_async(1.0, self.v.value, 0.0, self.v_rep.value, 3)
         # V can be offloaded from GPU
         self.v.value.wont_use()
 
@@ -899,7 +900,7 @@ class LlamaAttention(BaseLayer):
         self.b_transposed.value.wont_use()
         # Apply bias if needed
         if self.out_proj_bias is not None:
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1.0, self.out_proj_bias.value, 1.0, self.y.value, 0, 0
             )
             self.out_proj_bias.value.wont_use()
@@ -955,10 +956,11 @@ class LlamaAttention(BaseLayer):
         q_partial_tr.invalidate_submit()
 
         if self.in_proj_bias_q is not None:
-            # batched add_fiber (head_size, batch=(kv_group_size, n_head_kv))
+            # batched add_fiber_inplace
+            # (head_size, batch=(kv_group_size, n_head_kv))
             # into
             # (head_size, n_seq_dyn, n_batch_dyn, batch=(kv_group_size, n_head_kv)) # noqa: E501
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1.0, self.in_proj_bias_q.value, 1.0, q_partial, 0, 2
             )
 
@@ -1009,9 +1011,9 @@ class LlamaAttention(BaseLayer):
         # Rotate axes into (head_size, n_seq_dyn, n_batch_dyn, n_head_kv)
         transpose_async(1.0, k_partial_tr, k_partial, 1)
         if self.in_proj_bias_k is not None:
-            # batched add_fiber (head_size, batch=n_head_kv) into
+            # batched add_fiber_inplace (head_size, batch=n_head_kv) into
             # (head_size, n_seq_dyn, n_batch_dyn, batch=n_head_kv)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1.0, self.in_proj_bias_k.value, 1.0, k_partial, 0, 1
             )
 
@@ -1062,9 +1064,9 @@ class LlamaAttention(BaseLayer):
         # Rotate axes into (head_size, n_seq_dyn, n_batch_dyn, n_head_kv)
         transpose_async(1.0, v_partial_tr, v_partial, 1)
         if self.in_proj_bias_v is not None:
-            # batched add_fiber (head_size, batch=n_head_kv) into
+            # batched add_fiber_inplace (head_size, batch=n_head_kv) into
             # (head_size, n_seq_dyn, n_batch_dyn, batch=n_head_kv)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1.0, self.in_proj_bias_v.value, 1.0, v_partial, 0, 1
             )
 
@@ -1175,12 +1177,18 @@ class LlamaAttention(BaseLayer):
         )
 
         if self.out_proj_bias is not None:
-            add_fiber_async(1.0, self.out_proj_bias.value, 1.0, y_tensor, 0, 0)
+            add_fiber_inplace_async(
+                1.0, self.out_proj_bias.value, 1.0, y_tensor, 0, 0
+            )
 
         return y_tensor
 
     def _apply_rope_dynamic(
-        self, x: Tensor, q_partial: Tensor, k_partial: Tensor
+        self,
+        x: Tensor,
+        q_partial: Tensor,
+        k_partial: Tensor,
+        kv_cache_size: int
     ):
         q_rope_partial = nntc.empty(
             q_partial.shape,
@@ -1196,10 +1204,10 @@ class LlamaAttention(BaseLayer):
         sin_partial = nntc.zeros((self.sin.shape[0],) + tuple(x.shape[-2:]))
         cos_partial = nntc.zeros((self.cos.shape[0],) + tuple(x.shape[-2:]))
         copy_intersection_async(
-            self.sin, [0, 0, 0], sin_partial, [0, self.kv_cache_size, 0]
+            self.sin, [0, 0, 0], sin_partial, [0, kv_cache_size, 0]
         )
         copy_intersection_async(
-            self.cos, [0, 0, 0], cos_partial, [0, self.kv_cache_size, 0]
+            self.cos, [0, 0, 0], cos_partial, [0, kv_cache_size, 0]
         )
 
         rope_async(sin_partial, cos_partial, q_partial, q_rope_partial)
@@ -1214,7 +1222,7 @@ class LlamaAttention(BaseLayer):
         x: Tensor,
         k_rope_partial: Tensor,
         v_partial: Tensor,
-        use_cache: bool,
+        kv_cache: Optional[KVCache]
     ):
         """
         handles kv-cache routine.
@@ -1227,61 +1235,20 @@ class LlamaAttention(BaseLayer):
                 f"{k_rope_partial.shape[1]} != {v_partial.shape[1]}",
             )
 
-        if v_partial.shape[1] + self.kv_cache_size > self.x_v.value.shape[1]:
+        if kv_cache is None:
+            return k_rope_partial, v_partial, kv_cache
+
+        if (v_partial.shape[1] + len(kv_cache) > self.x_v.value.shape[1]):
             raise Exception(
                 "Overload internal state: "
                 f"try add {v_partial.shape[1]} "
                 f"to {self.kv_cache_size}, max: {self.x_v.value.shape[1]}. "
-                "Maybe you forgot to call reset_cache between iterations?"
             )
 
-        copy_intersection_async(
-            k_rope_partial,
-            [0, self.kv_cache_size, 0, 0],
-            self.k.value,
-            [0, 0, 0, 0],
-        )
-
-        copy_intersection_async(
-            v_partial,
-            [0, self.kv_cache_size, 0, 0],
-            self.v.value,
-            [0, 0, 0, 0],
-        )
-        self.kv_cache_size += v_partial.shape[1]
-
-        if not use_cache:
-            return k_rope_partial, v_partial
-
-        # For correct softmax we should next use only currently cached seq_size
-        # So copy here
-        k_cached_shape = self.k.value.shape
-        k_cached_shape[1] = self.kv_cache_size
-        k_cached_shape[2] = x.shape[2]
-        k_partial_cached = nntc.empty(
-            k_cached_shape,
-            dtype=type(k_rope_partial),
-            basetile_shape=tuple(k_cached_shape[:-1])
-            + (k_rope_partial.basetile_shape[-1],),
-        )
-        copy_intersection_async(
-            self.k.value, [0, 0, 0, 0], k_partial_cached, [0, 0, 0, 0]
-        )
-
-        cached_shape = self.v.value.shape
-        cached_shape[1] = self.kv_cache_size
-        cached_shape[2] = x.shape[2]
-        v_partial_cached = nntc.empty(
-            cached_shape,
-            dtype=type(v_partial),
-            basetile_shape=tuple(cached_shape[:-1])
-            + (v_partial.basetile_shape[-1],),
-        )
-        copy_intersection_async(
-            self.v.value, [0, 0, 0, 0], v_partial_cached, [0, 0, 0, 0]
-        )
-
-        return k_partial_cached, v_partial_cached
+        kv_cache.append(k_rope_partial, v_partial)
+        k_partial_cached = kv_cache.k_partial
+        v_partial_cached = kv_cache.v_partial
+        return k_partial_cached, v_partial_cached, kv_cache
 
     def _broadcast_kv_dynamic(
         self, x: Tensor, k_rope_partial: Tensor, v_partial: Tensor
@@ -1313,27 +1280,28 @@ class LlamaAttention(BaseLayer):
         v_rep_partial = nntc.empty(
             v_rep_shape, basetile_shape=v_rep_bt_shape, dtype=type(x)
         )
-        add_slice_async(1.0, k_rope_partial, 0.0, k_rep_partial, 3)
-        add_slice_async(1.0, v_partial, 0.0, v_rep_partial, 3)
+        add_slice_inplace_async(1.0, k_rope_partial, 0.0, k_rep_partial, 3)
+        add_slice_inplace_async(1.0, v_partial, 0.0, v_rep_partial, 3)
 
         return k_rep_partial, v_rep_partial
 
-    def forward_dynamic(self, x: TensorMoments, use_cache: bool = False):
-        if not use_cache:
-            self.reset_cache()
-
+    def forward_dynamic(
+        self,
+        x: TensorMoments,
+        kv_cache: Optional[KVCache] = None
+    ):
         q_partial = self._forward_mlp_q_dynamic(x.value)
         k_partial = self._forward_mlp_k_dynamic(x.value)
         v_partial = self._forward_mlp_v_dynamic(x.value)
 
         q_rope_partial, k_rope_partial = self._apply_rope_dynamic(
-            x.value, q_partial, k_partial
+            x.value, q_partial, k_partial, len(kv_cache) if kv_cache else 0
         )
         q_partial.invalidate_submit()
         k_partial.invalidate_submit()
 
-        k_rope_partial, v_partial = self._storeload_kvcache(
-            x.value, k_rope_partial, v_partial, use_cache
+        k_rope_partial, v_partial, kv_cache = self._storeload_kvcache(
+            x.value, k_rope_partial, v_partial, kv_cache
         )
 
         k_rep_partial, v_rep_partial = self._broadcast_kv_dynamic(
@@ -1346,7 +1314,7 @@ class LlamaAttention(BaseLayer):
             q_rope_partial, k_rep_partial, v_rep_partial
         )
 
-        return TensorMoments(y_tensor, None, False)
+        return TensorMoments(y_tensor, None, False), kv_cache
 
     # Backward propagation of the linear layer
     def backward_async(self):
@@ -1410,13 +1378,15 @@ class LlamaAttention(BaseLayer):
         # Repeat K along fibers of proper axis
         # from (head_size, n_seq, n_batch, n_head_kv)
         # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
-        add_slice_async(1.0, self.k_rope.value, 0.0, self.k_rep.value, 3)
+        add_slice_inplace_async(
+            1.0, self.k_rope.value, 0.0, self.k_rep.value, 3
+        )
         # K_rope can be deleted
         self.k_rope.value.invalidate_submit()
         # Repeat V along fibers of proper axis
         # from (head_size, n_seq, n_batch, n_head_kv)
         # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
-        add_slice_async(1.0, self.v.value, 0.0, self.v_rep.value, 3)
+        add_slice_inplace_async(1.0, self.v.value, 0.0, self.v_rep.value, 3)
         # V can be deleted
         self.v.value.invalidate_submit()
         # Apply backward to (attention to Q_rope, K_rep and V_rep into B)
@@ -2189,7 +2159,9 @@ class LlamaAttention(BaseLayer):
                 redux=self.redux,
             )
             # dA += -bias('kmlbi,mlbi->kmlbi', dA, A_sumprod_slice)
-            add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
+            add_slice_inplace_async(
+                -1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0
+            )
             # A_sumprod_slice can be deleted
             self.a_sumprod_slice.invalidate_submit()
             # dA *= A

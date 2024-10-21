@@ -11,13 +11,16 @@
 #
 # @version 1.1.0
 
+from typing import Optional
+
 import numpy as np
 
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
+from nntile.layer.cache_utils import KVCache
 from nntile.tensor import (
-    Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_async,
-    add_slice_async, clear_async, copy_intersection_async, gemm_async,
+    Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_inplace_async,
+    add_slice_inplace_async, clear_async, copy_intersection_async, gemm_async,
     mask_scalar_async, maxsumexp_async, notrans, prod_inplace_async,
     softmax_inplace_async, sum_fiber_async, sumprod_slice_async, trans,
     transpose_async)
@@ -177,15 +180,10 @@ class Attention(BaseLayer):
         else:
             self.redux = 0
 
-        self.reset_cache()
-
         # need to fill with valid values for dynamic api usage
         clear_async(self.q.value)
         clear_async(self.k.value)
         clear_async(self.v.value)
-
-        self.k_partial_cached = None
-        self.v_partial_cached = None
 
     # Simple generator for the linear layer
     @staticmethod
@@ -532,10 +530,6 @@ class Attention(BaseLayer):
         # Return layer and next tag to be used
         return (layer, next_tag)
 
-    def reset_cache(self, value=0):
-        self.k_cache_size = value
-        self.v_cache_size = value
-
     def _forward_mlp_q_async(self):
         # Q_transposed = einsum('jkl,lmn->jkmn', W_Q, X_Q)
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
@@ -561,9 +555,9 @@ class Attention(BaseLayer):
         self.w_q.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_q is not None:
-            # batched add_fiber (head_size, batch=n_head) into
+            # batched add_fiber_inplace (head_size, batch=n_head) into
             # (head_size, n_seq, n_batch, batch=n_head)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_q.value, 1, self.q.value, 0, 1
             )
             self.in_proj_bias_q.value.wont_use()
@@ -608,7 +602,9 @@ class Attention(BaseLayer):
         transpose_async(1.0, q_partial_tr, q_partial, 1)
 
         if self.in_proj_bias_q is not None:
-            add_fiber_async(1, self.in_proj_bias_q.value, 1, q_partial, 0, 1)
+            add_fiber_inplace_async(
+                1, self.in_proj_bias_q.value, 1, q_partial, 0, 1
+            )
 
         return q_partial
 
@@ -637,9 +633,9 @@ class Attention(BaseLayer):
         self.w_k.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_k is not None:
-            # batched add_fiber (head_size, batch=n_head) into
+            # batched add_fiber_inplace (head_size, batch=n_head) into
             # (head_size, n_seq, n_batch, batch=n_head)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_k.value, 1, self.k.value, 0, 1
             )
             self.in_proj_bias_k.value.wont_use()
@@ -664,26 +660,11 @@ class Attention(BaseLayer):
         transpose_async(1.0, k_partial_tr, k_partial, 1)
 
         if self.in_proj_bias_k is not None:
-            add_fiber_async(1, self.in_proj_bias_k.value, 1, k_partial, 0, 1)
+            add_fiber_inplace_async(
+                1, self.in_proj_bias_k.value, 1, k_partial, 0, 1
+            )
 
-        copy_intersection_async(
-            k_partial, [0, self.k_cache_size, 0, 0], self.k.value, [0, 0, 0, 0]
-        )
-        self.k_cache_size += x.shape[1]
-
-        # For correct softmax we should next use only currently cached seq_size
-        # So copy here
-        cached_shape = self.k.value.shape
-        cached_shape[1] = self.k_cache_size
-        k_partial_cached = nntc.empty(
-            cached_shape,
-            dtype=type(x),
-            basetile_shape=tuple(cached_shape[:-1]) + (self.n_head_tile,),
-        )
-        copy_intersection_async(
-            self.k.value, [0, 0, 0, 0], k_partial_cached, [0, 0, 0, 0]
-        )
-        return k_partial_cached
+        return k_partial
 
     def _forward_mlp_v_async(self):
         # V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V)
@@ -710,9 +691,9 @@ class Attention(BaseLayer):
         self.w_v.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_v is not None:
-            # batched add_fiber (head_size, batch=n_head) into
+            # batched add_fiber_inplace (head_size, batch=n_head) into
             # (head_size, n_seq, n_batch, batch=n_head)
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1, self.in_proj_bias_v.value, 1, self.v.value, 0, 1
             )
             self.in_proj_bias_v.value.wont_use()
@@ -737,26 +718,11 @@ class Attention(BaseLayer):
         transpose_async(1.0, v_partial_tr, v_partial, 1)
 
         if self.in_proj_bias_v is not None:
-            add_fiber_async(1, self.in_proj_bias_v.value, 1, v_partial, 0, 1)
+            add_fiber_inplace_async(
+                1, self.in_proj_bias_v.value, 1, v_partial, 0, 1
+            )
 
-        copy_intersection_async(
-            v_partial, [0, self.v_cache_size, 0, 0], self.v.value, [0, 0, 0, 0]
-        )
-        self.v_cache_size += x.shape[1]
-
-        # For correct softmax we should next use only currently cached seq_size
-        # So copy here
-        cached_shape = self.v.value.shape
-        cached_shape[1] = self.v_cache_size
-        v_partial_cached = nntc.empty(
-            cached_shape,
-            dtype=type(x),
-            basetile_shape=tuple(cached_shape[:-1]) + (self.n_head_tile,),
-        )
-        copy_intersection_async(
-            self.v.value, [0, 0, 0, 0], v_partial_cached, [0, 0, 0, 0]
-        )
-        return v_partial_cached
+        return v_partial
 
     def _forward_attn_async(self):
         # Get tensor for softmax
@@ -839,7 +805,7 @@ class Attention(BaseLayer):
         self.b_transposed.value.wont_use()
         # Apply bias if needed
         if self.out_proj_bias is not None:
-            add_fiber_async(
+            add_fiber_inplace_async(
                 1.0, self.out_proj_bias.value, 1.0, self.y.value, 0, 0
             )
             self.out_proj_bias.value.wont_use()
@@ -957,13 +923,14 @@ class Attention(BaseLayer):
 
         # Apply bias if needed
         if self.out_proj_bias is not None:
-            add_fiber_async(1.0, self.out_proj_bias.value, 1.0, y_tensor, 0, 0)
+            add_fiber_inplace_async(
+                1.0, self.out_proj_bias.value, 1.0, y_tensor, 0, 0
+            )
             self.out_proj_bias.value.wont_use()
         return y_tensor
 
     # Forward propagation of the attention layer
     def forward_async(self, effective_size=None):
-        self.reset_cache()
         # Compute query, key and value tensors
         self._forward_mlp_q_async()
         self._forward_mlp_k_async()
@@ -972,29 +939,32 @@ class Attention(BaseLayer):
         # compute attention and weight result
         self._forward_attn_async()
 
-        effective_size = effective_size or self.x_q.value.shape[1]
-        self.reset_cache(effective_size)
-
-    def forward_dynamic(self, x: TensorMoments, use_cache: bool = False):
-        if not use_cache:
-            self.reset_cache()
-
-        if x.value.shape[1] + self.v_cache_size > self.x_v.value.shape[1]:
+    def forward_dynamic(
+            self, x: TensorMoments, kv_cache: Optional[KVCache] = None
+        ):
+        if (kv_cache is not None) and (x.value.shape[1] + len(kv_cache) > self.x_v.value.shape[1]):  # noqa: E501
             raise Exception(
                 "Overload internal state: "
                 f"try add {x.value.shape[1]} "
-                f"to {self.v_cache_size}, max: {self.x_v.value.shape[1]}. "
-                "Maybe you forgot to call reset_cache between iterations?"
+                f"to {len(kv_cache)}, max: {self.x_v.value.shape[1]}. "
             )
 
         # Compute query, key and value tensors
         q_partial = self._forward_mlp_q_dynamic(x.value)
-        k = self._forward_mlp_k_dynamic(x.value)
-        v = self._forward_mlp_v_dynamic(x.value)
+        k_partial = self._forward_mlp_k_dynamic(x.value)
+        v_partial = self._forward_mlp_v_dynamic(x.value)
+
+        if kv_cache is not None:
+            kv_cache.append(k_partial, v_partial)
+            k = kv_cache.k_partial
+            v = kv_cache.v_partial
+        else:
+            k = k_partial
+            v = v_partial
 
         # compute attention and weight result
         y_tensor = self._forward_attn_dynamic(q_partial, k, v)
-        return TensorMoments(y_tensor, None, False)
+        return TensorMoments(y_tensor, None, False), kv_cache
 
     # Backward propagation of the linear layer
     def backward_async(self):
@@ -1103,7 +1073,9 @@ class Attention(BaseLayer):
                 redux=self.redux,
             )
             # dA += -bias('kmlb,mlb->kmlb', dA, A_sumprod_slice)
-            add_slice_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
+            add_slice_inplace_async(
+                -1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0
+            )
             # A_sumprod_slice can be deleted
             # self.a_sumprod_slice.wont_use()
             self.a_sumprod_slice.invalidate_submit()

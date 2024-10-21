@@ -11,14 +11,17 @@
 #
 # @version 1.1.0
 
+import torch
+from torch.nn import LayerNorm as LayerNormTorch
+
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor, TensorMoments, TensorTraits, add_async, add_fiber_async,
-    add_slice3_async, add_slice_async, clear_async, fill_async,
-    hypot_scalar_inverse_async, norm_slice_async, prod_fiber3_async,
-    prod_slice_async, sum_fiber_async, sum_slice_async, sumprod_fiber_async,
-    sumprod_slice_async)
+    Tensor, TensorMoments, TensorTraits, add_fiber_inplace_async,
+    add_inplace_async, add_slice_async, add_slice_inplace_async, clear_async,
+    fill_async, hypot_scalar_inverse_async, norm_slice_async,
+    prod_fiber3_async, prod_slice_async, sum_fiber_async, sum_slice_async,
+    sumprod_fiber_async, sumprod_slice_async)
 
 
 class LayerNorm(BaseLayer):
@@ -172,7 +175,7 @@ class LayerNorm(BaseLayer):
             redux=self.redux,
         )
         # Y = X - mean
-        add_slice3_async(
+        add_slice_async(
             -1.0, self.mean, 1.0, self.x.value, self.tmp_y_value, self.axis
         )
         # mean can be offloaded from GPU
@@ -205,7 +208,9 @@ class LayerNorm(BaseLayer):
         # gamma can be offloaded from GPU
         self.gamma.value.wont_use()
         # Shift output
-        add_fiber_async(1.0, self.beta.value, 1.0, self.y.value, self.axis, 0)
+        add_fiber_inplace_async(
+            1.0, self.beta.value, 1.0, self.y.value, self.axis, 0
+        )
         # beta can be offloaded from GPU
         self.beta.value.wont_use()
         # Y can be offloaded from GPU
@@ -233,7 +238,7 @@ class LayerNorm(BaseLayer):
             1.0 / num_layers, x.value, 0.0, mean, self.axis, redux=self.redux
         )
         # Y = X - mean
-        add_slice3_async(-1.0, mean, 1.0, x.value, tmp_y_value, self.axis)
+        add_slice_async(-1.0, mean, 1.0, x.value, tmp_y_value, self.axis)
         # mean can be offloaded from GPU
         mean.wont_use()
 
@@ -260,7 +265,9 @@ class LayerNorm(BaseLayer):
         # gamma can be offloaded from GPU
         self.gamma.value.wont_use()
         # Shift output
-        add_fiber_async(1.0, self.beta.value, 1.0, y.value, self.axis, 0)
+        add_fiber_inplace_async(
+            1.0, self.beta.value, 1.0, y.value, self.axis, 0
+        )
         # beta can be offloaded from GPU
         self.beta.value.wont_use()
         return y
@@ -312,7 +319,7 @@ class LayerNorm(BaseLayer):
         # Multiply tmp_Y_value by the mean
         prod_slice_async(self.mean, 1.0, self.tmp_y_value, self.axis)
         # Add tmp_Y_grad to tmp_Y_value
-        add_async(1.0, self.tmp_y_grad, 1.0, self.tmp_y_value)
+        add_inplace_async(1., self.tmp_y_grad, 1., self.tmp_y_value)
         # Get mean value of tmp_Y_grad over the given axis
         sum_slice_async(
             1.0 / self.l,
@@ -325,7 +332,9 @@ class LayerNorm(BaseLayer):
         # tmp_Y_grad can be deleted
         self.tmp_y_grad.invalidate_submit()
         # Subtract mean from tmp_Y_value
-        add_slice_async(-1.0, self.mean, 1.0, self.tmp_y_value, self.axis)
+        add_slice_inplace_async(
+            -1.0, self.mean, 1.0, self.tmp_y_value, self.axis
+        )
         # mean can be deleted
         self.mean.invalidate_submit()
         # Multiply tmp_Y_value by the inverse stddev
@@ -333,9 +342,43 @@ class LayerNorm(BaseLayer):
         # inv_stddev can be deleted
         self.inv_stddev.invalidate_submit()
         # Accumulate gradient from tmp_Y_value
-        # axpy_async(1.0, self.tmp_y_value, self.x.grad)
-        add_async(1.0, self.tmp_y_value, 1.0, self.x.grad)
+        add_inplace_async(1., self.tmp_y_value, 1., self.x.grad)
         # tmp_Y_value can be deleted
         self.tmp_y_value.invalidate_submit()
         # dX can offloade from GPU
         self.x.grad.wont_use()
+
+    @classmethod
+    def from_torch(cls,
+        torch_layer: LayerNormTorch, x: TensorMoments,
+        next_tag: int, redux: bool = False
+    ):
+        eps = torch_layer.eps
+        nntile_layer, next_tag = cls.generate_simple(x, 0, eps,
+                                                     next_tag, redux)
+        nntile_layer.gamma.value.from_array(
+            torch_layer.weight.data.cpu().detach().numpy())
+        nntile_layer.beta.value.from_array(
+            torch_layer.bias.data.cpu().detach().numpy())
+        return nntile_layer, next_tag
+
+    def to_torch(self) -> LayerNormTorch:
+        target_shape = self.activations_input[0].value.shape
+        torch_layer = LayerNormTorch(target_shape[self.axis],
+                                    self.eps**2)
+        torch_layer.weight.data = torch.tensor(
+                                nntc.to_numpy(self.gamma.value),
+                                requires_grad=True)
+        torch_layer.bias.data = torch.tensor(
+                                nntc.to_numpy(self.beta.value),
+                                requires_grad=True)
+        return torch_layer
+
+    def to_torch_with_grads(self) -> LayerNormTorch:
+        torch_layer = self.to_torch()
+        torch_layer.weight.grad = torch.tensor(
+                                nntc.to_numpy(self.gamma.grad))
+        torch_layer.bias.grad = torch.tensor(
+                                nntc.to_numpy(self.beta.grad))
+
+        return torch_layer

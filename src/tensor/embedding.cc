@@ -139,6 +139,14 @@ void embedding_async<fp32_fast_tf32_t>(const Tensor<int64_t> &index,
         const Tensor<fp32_fast_tf32_t> &vocab, const Tensor<fp32_fast_tf32_t> &embed, Index axis);
 
 template
+void embedding_async<fp32_fast_fp16_t>(const Tensor<int64_t> &index, const Tensor<fp32_fast_fp16_t> &vocab,
+        const Tensor<fp32_fast_fp16_t> &embed, Index axis);
+
+template
+void embedding_async<fp32_fast_bf16_t>(const Tensor<int64_t> &index, const Tensor<fp32_fast_bf16_t> &vocab,
+        const Tensor<fp32_fast_bf16_t> &embed, Index axis);
+
+template
 void embedding_async<fp64_t>(const Tensor<int64_t> &index,
         const Tensor<fp64_t> &vocab, const Tensor<fp64_t> &embed, Index axis);
 
@@ -155,6 +163,13 @@ template
 void embedding<fp32_fast_tf32_t>(const Tensor<int64_t> &index, const Tensor<fp32_fast_tf32_t> &vocab,
         const Tensor<fp32_fast_tf32_t> &embed, Index axis);
 
+template
+void embedding<fp32_fast_fp16_t>(const Tensor<int64_t> &index, const Tensor<fp32_fast_fp16_t> &vocab,
+        const Tensor<fp32_fast_fp16_t> &embed, Index axis);
+
+template
+void embedding<fp32_fast_bf16_t>(const Tensor<int64_t> &index, const Tensor<fp32_fast_bf16_t> &vocab,
+        const Tensor<fp32_fast_bf16_t> &embed, Index axis);
 
 template
 void embedding<fp64_t>(const Tensor<int64_t> &index, const Tensor<fp64_t> &vocab,

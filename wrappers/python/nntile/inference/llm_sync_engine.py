@@ -37,7 +37,7 @@ class LlmSyncInferenceEngine:
         # tokenize
         inputs = self.tokenizer(prompt, return_tensors="np")
         input_ids = inputs["input_ids"]
-        prefill_size = input_ids.shape[0]
+        prefill_size = input_ids.shape[1]
 
         # transform to compatible input
         if params.need_static_padding:
@@ -62,8 +62,7 @@ class LlmSyncInferenceEngine:
         output_ids_np = output_ids_np[:effective_size]
 
         # construct generation result
-        generation_result_list = self.tokenizer.batch_decode(output_ids_np)
-        generated_text = "".join(generation_result_list)
+        generated_text = self.tokenizer.decode(output_ids_np.flatten())
         return generated_text
 
 

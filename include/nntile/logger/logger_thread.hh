@@ -15,6 +15,7 @@
 #pragma once
 
 #include <atomic>
+#include <string>
 
 namespace nntile::logger
 {
@@ -24,5 +25,7 @@ extern std::atomic<bool> logger_running;
 void logger_init(const char *server_addr, int server_port);
 
 void logger_shutdown();
+
+void log_scalar(const std::string &name, float value);
 
 } // namespace nntile::logger

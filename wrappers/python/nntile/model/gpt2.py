@@ -11,7 +11,7 @@
 #
 # @version 1.1.0
 
-from typing import Dict
+from typing import Dict, Optional
 
 import numpy as np
 import torch
@@ -22,11 +22,13 @@ from nntile.layer import (
     Act, AddSlice, Attention, AttentionSingleHead, Embedding, FlashAttention,
     LayerNorm, Linear)
 from nntile.layer.add import Add
+from nntile.layer.cache_utils import KVCacheStorage
 from nntile.model.base_model import BaseModel
 from nntile.model.generation.llm import LLMGenerationMixin
 from nntile.tensor import (
-    Tensor, Tensor_bf16, Tensor_bool, Tensor_fp32, Tensor_fp32_fast_tf32,
-    Tensor_int64, TensorMoments, TensorTraits, notrans)
+    Tensor, Tensor_bf16, Tensor_bool, Tensor_fp32, Tensor_fp32_fast_bf16,
+    Tensor_fp32_fast_fp16, Tensor_fp32_fast_tf32, Tensor_int64, TensorMoments,
+    TensorTraits, notrans)
 
 
 class GPT2Config(Dict):
@@ -167,8 +169,11 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         self.dtype = config["dtype"]
         self.eos_token_id = config["eos_token_id"]
 
-        if self.dtype not in ["fp32", "tf32", "bf16"]:
-            raise TypeError("Only fp32, tf32 and bf16 are"
+        if self.dtype not in ["fp32", "tf32",
+                              "bf16", "fp32_fast_fp16",
+                              "fp32_fast_bf16"]:
+            raise TypeError("Only fp32, tf32, bf16, fp32_fast_fp16,"
+                            "fp32_fast_bf16 are"
                             "supported for weight type")
 
         if self.n_head == 1:
@@ -193,69 +198,29 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         )
         self.mask.from_array(mask_np)
 
-        if self.dtype == "fp32":
-            wte_layer, next_tag = Embedding.generate_simple(
-                input_ids.value,
-                Tensor_fp32,
-                0,
-                vocab_size,
-                self.embed_dim,
-                embed_dim_tile,
-                vocab_embed_dim_tile,
-                next_tag,
-            )
-        elif self.dtype == "tf32":
-            wte_layer, next_tag = Embedding.generate_simple(
-                input_ids.value,
-                Tensor_fp32_fast_tf32,
-                0,
-                vocab_size,
-                self.embed_dim,
-                embed_dim_tile,
-                vocab_embed_dim_tile,
-                next_tag,
-            )
-        elif self.dtype == "bf16":
-            wte_layer, next_tag = Embedding.generate_simple(
-                input_ids.value,
-                Tensor_bf16,
-                0,
-                vocab_size,
-                self.embed_dim,
-                embed_dim_tile,
-                vocab_embed_dim_tile,
-                next_tag,
-            )
+        dtype2tensor_type = {"fp32": Tensor_fp32,
+                             "tf32": Tensor_fp32_fast_tf32,
+                             "bf16": Tensor_bf16,
+                             "fp32_fast_fp16": Tensor_fp32_fast_fp16,
+                             "fp32_fast_bf16": Tensor_fp32_fast_bf16
+                            }
 
+        wte_layer, next_tag = Embedding.generate_simple(
+                                input_ids.value,
+                                dtype2tensor_type[self.dtype],
+                                0,
+                                vocab_size,
+                                self.embed_dim,
+                                embed_dim_tile,
+                                vocab_embed_dim_tile,
+                                next_tag,
+                            )
         layers.append(wte_layer)
         activations.extend(wte_layer.activations_output)
 
-        if self.dtype == "fp32":
-            wpe_layer, next_tag = Embedding.generate_simple(
+        wpe_layer, next_tag = Embedding.generate_simple(
                 positional_ids.value,
-                Tensor_fp32,
-                0,
-                max_position_embeddings,
-                self.embed_dim,
-                embed_dim_tile,
-                vocab_embed_dim_tile,
-                next_tag,
-            )
-        elif self.dtype == "tf32":
-            wpe_layer, next_tag = Embedding.generate_simple(
-                positional_ids.value,
-                Tensor_fp32_fast_tf32,
-                0,
-                max_position_embeddings,
-                self.embed_dim,
-                embed_dim_tile,
-                vocab_embed_dim_tile,
-                next_tag,
-            )
-        elif self.dtype == "bf16":
-            wpe_layer, next_tag = Embedding.generate_simple(
-                positional_ids.value,
-                Tensor_bf16,
+                dtype2tensor_type[self.dtype],
                 0,
                 max_position_embeddings,
                 self.embed_dim,
@@ -351,6 +316,7 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         layers.append(lm_head_layer)
         activations.extend(lm_head_layer.activations_output)
 
+        self.seq_len = seq_len
         self.num_hidden_layers = num_hidden_layers
         self.next_tag = next_tag
         # Fill Base Model with the generated data
@@ -618,17 +584,27 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         self.forward_async()
         return self.get_output()
 
-    def forward_dynamic(self, x: TensorMoments, use_cache: bool = False):
-        if not use_cache:
-            self.kvcache_size = 0
+    def forward_dynamic(
+            self,
+            x: TensorMoments,
+            use_cache: bool = False,
+            kv_caches: Optional[KVCacheStorage] = None
+        ):
         inp_emb, pos_emb, add_l = self.layers[0:3]
         seq_size = x.value.shape[0]
+
+        cache_list = None
+        if kv_caches is not None:
+            if not kv_caches.is_initialized():
+                kv_caches.init(self.num_hidden_layers, self.seq_len, 1)
+            cache_list = kv_caches.get_cache()
+
+        kvcache_size = len(cache_list[0]) if kv_caches else 0
         pos_ids_np = np.asfortranarray(
             np.arange(
-                self.kvcache_size, self.kvcache_size + seq_size, dtype=np.int64
+                kvcache_size, kvcache_size + seq_size, dtype=np.int64
             )
         )
-        self.kvcache_size += seq_size
         pos_ids_nnt_tm = TensorMoments(
             nntc.from_array(
                 pos_ids_np, basetile_shape=(x.value.basetile_shape[0],)
@@ -644,6 +620,7 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         layers_in_block = 8
         blocks_start = 3
         gpt_block_inout = embedded_input
+
         for hidden_id in range(self.num_hidden_layers):
             # dispatch block
             block_start = blocks_start + hidden_id * layers_in_block
@@ -659,7 +636,12 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
             add2 = cur_block_layers[7]
 
             x_tmp = layer_norm1.forward_dynamic(gpt_block_inout)
-            x_tmp1 = attn.forward_dynamic(x_tmp, use_cache=use_cache)
+            x_tmp1, updated_cache = attn.forward_dynamic(
+                x_tmp, kv_cache=cache_list[hidden_id] if cache_list else None
+            )
+            if cache_list:
+                cache_list[hidden_id] = updated_cache
+
             x_tmp2 = add1.forward_dynamic(gpt_block_inout, x_tmp1)
             x_tmp3 = layer_norm2.forward_dynamic(x_tmp2)
             mlp_output = x_tmp3
@@ -671,7 +653,7 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
 
         last_out = last_ln.forward_dynamic(gpt_block_inout)
         last_out = last_linear.forward_dynamic(last_out)
-        return last_out
+        return last_out, kv_caches
 
     def unregister(self):
         super().unregister()

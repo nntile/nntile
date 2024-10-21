@@ -15,10 +15,10 @@ import math
 
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    TensorMoments, add_async, add_fiber_async, copy_async, empty,
-    hypot_scalar_inverse_async, norm_fiber_inplace_async, ones, pow_async,
-    prod_async, prod_fiber_async, prod_inplace_async, sum_fiber_async,
-    sumprod_fiber_async)
+    TensorMoments, add_fiber_async, add_fiber_inplace_async, add_inplace_async,
+    copy_async, empty, hypot_scalar_inverse_async, norm_fiber_async, ones,
+    pow_async, prod_async, prod_fiber3_async, prod_fiber_async,
+    prod_inplace_async, sum_fiber_async, sumprod_fiber_async)
 
 
 class BatchNorm2d(BaseLayer):
@@ -94,9 +94,6 @@ class BatchNorm2d(BaseLayer):
         self.y.grad.wont_use()
 
     def _normalize_forward(self):
-        # TODO: add add_fiber3_async and remove copy
-        copy_async(self.x.value, self.x_normalized)
-
         # mean
         x_mean = self.tmp_buff_channels
         sum_fiber_async(1.0 / self.numel_in_channel, self.x.value,
@@ -104,7 +101,10 @@ class BatchNorm2d(BaseLayer):
         self.x.value.wont_use()
 
         # X_res = X - mean
-        add_fiber_async(-1.0, x_mean, 1.0, self.x_normalized, 1, 0)
+        add_fiber_async(
+            -1.0, x_mean, 1.0, self.x.value, self.x_normalized, 1, 0
+        )
+
         self.tmp_buff_channels.wont_use()
         # copy for backward
         copy_async(self.x_normalized, self.x_unbiased_copy)
@@ -124,11 +124,12 @@ class BatchNorm2d(BaseLayer):
 
     def _learnable_transform_forward(self):
         # y = weight * y + bias
-        copy_async(self.x_normalized, self.y.value)
-        self.x_normalized.wont_use()
-        prod_fiber_async(self.weight.value, 1.0, self.y.value, 1)
+        prod_fiber3_async(
+            self.weight.value, 1.0, self.x_normalized, self.y.value, 1
+        )
         self.weight.value.wont_use()
-        add_fiber_async(1.0, self.bias.value, 1.0, self.y.value, 1, 0)
+        add_fiber_inplace_async(1.0, self.bias.value, 1.0, self.y.value, 1, 0)
+        self.x_normalized.wont_use()
         self.bias.value.wont_use()
 
     def _compute_grad_normalized_input_over_x(self, grad_nnt):
@@ -140,7 +141,7 @@ class BatchNorm2d(BaseLayer):
                             grad_nnt, 0.0, grad_mean, 1, 0)
 
         # grad computing over mean
-        add_fiber_async(-1.0, grad_mean, 1.0, grad_nnt, 1, 0)
+        add_fiber_inplace_async(-1.0, grad_mean, 1.0, grad_nnt, 1, 0)
         self.tmp_buff_channels.invalidate_submit()
 
     def _compute_grad_inv_std_over_x(self, grad_nnt):
@@ -166,7 +167,11 @@ class BatchNorm2d(BaseLayer):
         # empty([self.n_channels])
         mean_grad = self.tmp_buff_channels
 
-        add_async(
+        # x_normalized_grad = 1.0/ self.numel_in_channel * 2
+        #       * (A-xmean[None, :, None, None])
+        # x_grad = (-1.0*x_normalized_grad.sum([0,2,3])[None, :, None,None]
+        #       / self.numel_in_channel + x_normalized_grad)
+        add_inplace_async(
             1.0 / self.numel_in_channel * 2,
             self.x_unbiased_copy,
             0.0,
@@ -176,7 +181,7 @@ class BatchNorm2d(BaseLayer):
             -1.0 / self.numel_in_channel,
                 x_normalized_grad, 0.0, mean_grad, 1, 0
         )
-        add_fiber_async(1.0, mean_grad, 1.0, x_normalized_grad, 1, 0)
+        add_fiber_inplace_async(1.0, mean_grad, 1.0, x_normalized_grad, 1, 0)
         self.tmp_buff_channels.invalidate_submit()
 
         # d(variance)/d(inv_std) = (xvar_grad*x_normalized_grad)
@@ -208,11 +213,11 @@ class BatchNorm2d(BaseLayer):
         self.x_unbiased_copy.invalidate_submit()
 
         # grad_x = nominator_grad_x + inv_denominator_grad_x
-        add_async(1.0, inv_denominator_grad_x, 1.0, nominator_grad_x)
+        add_inplace_async(1.0, inv_denominator_grad_x, 1.0, nominator_grad_x)
         self.tmp_buff_full.invalidate_submit()
 
         # accumulate calculated gradient
-        add_async(1.0, nominator_grad_x, 1.0, self.x.grad)
+        add_inplace_async(1.0, nominator_grad_x, 1.0, self.x.grad)
         self.x_grad_tmp.invalidate_submit()
 
     def _learnable_transform_backward(self):

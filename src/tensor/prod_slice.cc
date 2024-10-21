@@ -153,6 +153,14 @@ void prod_slice_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src, Sca
         const Tensor<fp32_fast_tf32_t> &dst, Index axis);
 
 template
+void prod_slice_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src, Scalar alpha,
+        const Tensor<fp32_fast_fp16_t> &dst, Index axis);
+
+template
+void prod_slice_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src, Scalar alpha,
+        const Tensor<fp32_fast_bf16_t> &dst, Index axis);
+
+template
 void prod_slice_async<fp64_t>(const Tensor<fp64_t> &src, Scalar alpha,
         const Tensor<fp64_t> &dst, Index axis);
 
@@ -168,6 +176,14 @@ void prod_slice<fp32_t>(const Tensor<fp32_t> &src, Scalar alpha,
 template
 void prod_slice<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src, Scalar alpha,
         const Tensor<fp32_fast_tf32_t> &dst, Index axis);
+
+template
+void prod_slice<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src, Scalar alpha,
+        const Tensor<fp32_fast_fp16_t> &dst, Index axis);
+
+template
+void prod_slice<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src, Scalar alpha,
+        const Tensor<fp32_fast_bf16_t> &dst, Index axis);
 
 template
 void prod_slice<fp64_t>(const Tensor<fp64_t> &src, Scalar alpha,

@@ -15,11 +15,10 @@
 #pragma once
 
 #include <nntile/kernel/subcopy/cpu.hh>
-// No support for subcopy on CUDA
-//#include <nntile/defs.h>
-//#ifdef NNTILE_USE_CUDA
-//#include <nntile/kernel/subcopy/cuda.hh>
-//#endif // NNTILE_USE_CUDA
+#include <nntile/defs.h>
+#ifdef NNTILE_USE_CUDA
+#include <nntile/kernel/subcopy/cuda.hh>
+#endif // NNTILE_USE_CUDA
 
 //! @namespace nntile::kernel::subcopy
 /*! Low-level implementations of copying subtensor

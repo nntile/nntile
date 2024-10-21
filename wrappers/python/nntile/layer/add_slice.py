@@ -13,7 +13,7 @@
 
 import nntile.utils.constructors as nntc
 from nntile.tensor import (
-    TensorMoments, TensorTraits, add_async, add_slice_async, copy_async,
+    TensorMoments, TensorTraits, add_inplace_async, add_slice_async,
     sum_slice_async)
 
 from .base_layer import BaseLayer
@@ -42,24 +42,23 @@ class AddSlice(BaseLayer):
 
     # Forward propagation of the add_slice layer
     def forward_async(self):
-        # Init Y as a copy of X
-        copy_async(self.x.value, self.u.value)
         # Add slice operation
-        add_slice_async(1, self.y.value, 1, self.u.value, self.axis)
+        add_slice_async(
+            1.0, self.y.value, 1.0, self.x.value, self.u.value, self.axis
+        )
         self.x.value.wont_use()
         self.y.value.wont_use()
         self.u.value.wont_use()
 
     def forward_dynamic(self, x: TensorMoments, slice_tensor: TensorMoments):
         y = nntc.empty_like(x.value)
-        copy_async(x.value, y)
-        add_slice_async(1.0, slice_tensor.value, 1.0, y, self.axis)
+        add_slice_async(1.0, slice_tensor.value, 1.0, x.value, y, self.axis)
         return TensorMoments(y, None, False)
 
     def backward_async(self):
-        add_async(1, self.u.grad, 1, self.x.grad)
+        add_inplace_async(1.0, self.u.grad, 1.0, self.x.grad)
         sum_slice_async(
-            1, self.u.grad, 1, self.y.grad, self.axis, redux=self.redux
+            1.0, self.u.grad, 1.0, self.y.grad, self.axis, redux=self.redux
         )
         self.x.grad.wont_use()
         self.y.grad.wont_use()

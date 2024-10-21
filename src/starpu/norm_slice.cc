@@ -76,7 +76,8 @@ uint32_t footprint(struct starpu_task *task)
     return hash;
 }
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
+        codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
 
 void init()
 {
@@ -110,6 +111,26 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
+    codelet_fp32_fast_fp16.init("nntile_norm_slice_fp32_fast_fp16",
+            footprint,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
+    codelet_fp32_fast_bf16.init("nntile_norm_slice_fp32_fast_bf16",
+            footprint,
+            {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
+            );
+
     codelet_fp64.init("nntile_norm_slice_fp64",
             footprint,
             {cpu<fp64_t>},
@@ -126,6 +147,8 @@ void restrict_where(uint32_t where)
     codelet_fp32.restrict_where(where);
     codelet_bf16.restrict_where(where);
     codelet_fp32_fast_tf32.restrict_where(where);
+    codelet_fp32_fast_fp16.restrict_where(where);
+    codelet_fp32_fast_bf16.restrict_where(where);
     codelet_fp64.restrict_where(where);
 }
 
@@ -134,6 +157,8 @@ void restore_where()
     codelet_fp32.restore_where();
     codelet_bf16.restore_where();
     codelet_fp32_fast_tf32.restore_where();
+    codelet_fp32_fast_fp16.restore_where();
+    codelet_fp32_fast_bf16.restore_where();
     codelet_fp64.restore_where();
 }
 
@@ -176,11 +201,17 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
     args->k = k;
     args->alpha = alpha;
     args->beta = beta;
+    // Put amount of bytes read and write inplace of gflops
+    size_t src_nbytes = sizeof(T) * m * k * n;
+    size_t dst_nbytes = sizeof(T) * m * n;
+    double nflops = beta == 0.0 ? src_nbytes + dst_nbytes :
+        src_nbytes + 2*dst_nbytes;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_R, static_cast<starpu_data_handle_t>(src),
             STARPU_CL_ARGS, args, sizeof(*args),
             dst_mode, static_cast<starpu_data_handle_t>(dst),
+            STARPU_FLOPS, nflops,
             0);
     // Check submission
     if(ret != 0)
@@ -200,6 +231,14 @@ void submit<bf16_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
 
 template
 void submit<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
+        Scalar beta, Handle dst, int redux);
+
+template
+void submit<fp32_fast_fp16_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
+        Scalar beta, Handle dst, int redux);
+
+template
+void submit<fp32_fast_bf16_t>(Index m, Index n, Index k, Scalar alpha, Handle src,
         Scalar beta, Handle dst, int redux);
 
 template

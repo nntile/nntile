@@ -58,6 +58,14 @@ void gelutanh_backward_async<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &x, 
         const Tile<fp32_fast_tf32_t> &dx);
 
 template
+void gelutanh_backward_async<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &x, const Tile<fp32_fast_fp16_t> &dy,
+        const Tile<fp32_fast_fp16_t> &dx);
+
+template
+void gelutanh_backward_async<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &x, const Tile<fp32_fast_bf16_t> &dy,
+        const Tile<fp32_fast_bf16_t> &dx);
+
+template
 void gelutanh_backward_async<fp64_t>(const Tile<fp64_t> &x, const Tile<fp64_t> &dy,
         const Tile<fp64_t> &dx);
 
@@ -73,6 +81,14 @@ void gelutanh_backward<fp32_t>(const Tile<fp32_t> &x, const Tile<fp32_t> &dy,
 template
 void gelutanh_backward<fp32_fast_tf32_t>(const Tile<fp32_fast_tf32_t> &x, const Tile<fp32_fast_tf32_t> &dy,
         const Tile<fp32_fast_tf32_t> &dx);
+
+template
+void gelutanh_backward<fp32_fast_fp16_t>(const Tile<fp32_fast_fp16_t> &x, const Tile<fp32_fast_fp16_t> &dy,
+        const Tile<fp32_fast_fp16_t> &dx);
+
+template
+void gelutanh_backward<fp32_fast_bf16_t>(const Tile<fp32_fast_bf16_t> &x, const Tile<fp32_fast_bf16_t> &dy,
+        const Tile<fp32_fast_bf16_t> &dx);
 
 template
 void gelutanh_backward<fp64_t>(const Tile<fp64_t> &x, const Tile<fp64_t> &dy,

@@ -19,20 +19,21 @@ namespace nntile::kernel::add_slice
 {
 
 template<typename T>
-void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_,
-        T *dst)
+void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src1, Scalar beta_,
+        const T *src2, T *dst)
     noexcept
 //! Per-element addition of a tensor and a broadcasted slice on CPU
 /*! Performs the following operations:
- *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[i,j]
+ *      dst[i,l,j] = alpha*src1[i,j] + beta*src2[i,l,j]
  *
- * @param[in] m: Size of the first mode of src and dst tensors
- * @param[in] n: Size of the last mode of src and dst tensors
- * @param[in] k: Size of the middle mode of dst tensor
- * @param[in] alpha_: Scalar factor for src
- * @param[in] src: Input contiguous m-by-n array
- * @param[in] beta_: Scaling factor for dst
- * @param[inout] dst: Input and output contiguous m-by-k-by-n array
+ * @param[in] m: Size of the first mode of src1, src2 and dst tensors
+ * @param[in] n: Size of the last mode of src1, src2 and dst tensors
+ * @param[in] k: Size of the middle mode of src2 and dst tensor
+ * @param[in] alpha_: Scalar factor for src1
+ * @param[in] src1_: Input contiguous m-by-n array
+ * @param[in] beta_: Scaling factor for src1
+ * @param[in] src2_: Input contiguous m-by-k-by-n array
+ * @param[out] dst_: Output contiguous m-by-k-by-n array
  * */
 {
     using Y = typename T::repr_t;
@@ -44,10 +45,12 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_,
         // Cycle over row of the output buffer dst
         for(Index i1 = 0; i1 < m; ++i1)
         {
+            // Pointer to a corresponding fiber of the input array src2
+            const T *src2_fiber = src2 + i2*mk + i1;
             // Pointer to a corresponding fiber of the output array dst
             T *dst_fiber = dst + i2*mk + i1;
             // Value to add to the output fiber
-            const Y src_val = alpha * Y{src[i2*m+i1]};
+            const Y src1_val = alpha * Y{src1[i2*m+i1]};
             // Overwrite or update output depending on beta
             if(beta == zero)
             {
@@ -55,7 +58,7 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_,
                 for(Index i0 = 0; i0 < k; ++i0)
                 {
                     // Set output value
-                    dst_fiber[i0*m] = static_cast<T>(src_val);
+                    dst_fiber[i0*m] = static_cast<T>(src1_val);
                 }
             }
             else
@@ -63,10 +66,8 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_,
                 // Cycle over output fiber elements
                 for(Index i0 = 0; i0 < k; ++i0)
                 {
-                    // Read value from the output
-                    T &dst_val = dst_fiber[i0*m];
                     // And update it
-                    dst_val = static_cast<T>(beta*Y{dst_val} + src_val);
+                    dst_fiber[i0*m] = static_cast<T>(beta * Y{src2_fiber[i0*m]} + src1_val);
                 }
             }
         }
@@ -75,23 +76,18 @@ void cpu(Index m, Index n, Index k, Scalar alpha_, const T *src, Scalar beta_,
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_t *src,
-        Scalar beta, fp32_t *dst)
+void cpu<fp32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_t *src1,
+        Scalar beta, const fp32_t *src2, fp32_t *dst)
     noexcept;
 
 template
-void cpu<fp32_fast_tf32_t>(Index m, Index n, Index k, Scalar alpha, const fp32_fast_tf32_t *src,
-        Scalar beta, fp32_fast_tf32_t *dst)
+void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src1,
+        Scalar beta, const fp64_t *src2, fp64_t *dst)
     noexcept;
 
 template
-void cpu<bf16_t>(Index m, Index n, Index k, Scalar alpha, const bf16_t *src,
-        Scalar beta, bf16_t *dst)
-    noexcept;
-
-template
-void cpu<fp64_t>(Index m, Index n, Index k, Scalar alpha, const fp64_t *src,
-        Scalar beta, fp64_t *dst)
+void cpu<bf16_t>(Index m, Index n, Index k, Scalar alpha, const bf16_t *src1,
+        Scalar beta, const bf16_t *src2, bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::add_slice

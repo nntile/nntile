@@ -10,6 +10,7 @@
 #
 # @version 1.1.0
 
+import inspect
 import logging
 from dataclasses import dataclass
 from typing import Annotated
@@ -41,6 +42,12 @@ class SimpleLlmApiServerGenerateRequest(BaseModel):
     use_cache: bool = Field(
         default=True, description="Use key value cache for generation"
     )
+    top_k: int = Field(
+        default=None, description="number values to consider for TopK sampling"
+    )
+    top_p_thr: float = Field(
+        default=None, description="probability threshold for TopP sampling"
+    )
     need_static_padding: bool = Field(
         default=False,
         description="Padd input tensor and use static model via forward_async",
@@ -56,11 +63,11 @@ class SimpleLlmApiServer(SimpleApiServerBase):
         app = FastAPI()
 
         @app.get("/info")
-        def info():
+        async def info():
             return "I am gpt2 model!"
 
         @app.post("/generate")
-        def generate(
+        async def generate(
             request: Annotated[
                 SimpleLlmApiServerGenerateRequest, Body(embed=True)
             ],
@@ -74,9 +81,14 @@ class SimpleLlmApiServer(SimpleApiServerBase):
                     max_tokens=request.max_tokens,
                     use_cache=request.use_cache,
                     need_static_padding=request.need_static_padding,
+                    top_k=request.top_k,
+                    top_p_thr=request.top_p_thr,
                 ),
                 mode=request.mode,
             )
+            if inspect.isawaitable(generated_text):
+                generated_text = await generated_text
+
             return generated_text
 
         return app

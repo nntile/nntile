@@ -145,6 +145,14 @@ void maxsumexp_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst, Index axis, int redux);
 
 template
+void maxsumexp_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src, const Tensor<fp32_fast_fp16_t> &dst,
+        Index axis, int redux);
+
+template
+void maxsumexp_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src, const Tensor<fp32_fast_bf16_t> &dst,
+        Index axis, int redux);
+
+template
 void maxsumexp_async<fp64_t>(const Tensor<fp64_t> &src,
         const Tensor<fp64_t> &dst, Index axis, int redux);
 
@@ -159,6 +167,14 @@ void maxsumexp<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst,
 
 template
 void maxsumexp<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src, const Tensor<fp32_fast_tf32_t> &dst,
+        Index axis, int redux);
+
+template
+void maxsumexp<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src, const Tensor<fp32_fast_fp16_t> &dst,
+        Index axis, int redux);
+
+template
+void maxsumexp<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src, const Tensor<fp32_fast_bf16_t> &dst,
         Index axis, int redux);
 
 template

@@ -70,7 +70,8 @@ void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
 {
     dim3 threads(256);
     dim3 blocks((nelems+1023)/1024);
-    (cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(nelems, src, dst);
+    (cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(nelems, src,
+            dst);
 }
 
 // Explicit instantiation
@@ -82,6 +83,16 @@ void cuda<fp32_t>(cudaStream_t stream, Index nelems, const fp32_t *src,
 template
 void cuda<fp32_fast_tf32_t>(cudaStream_t stream, Index nelems,
         const fp32_fast_tf32_t *src, fp32_fast_tf32_t *dst)
+    noexcept;
+
+template
+void cuda<fp32_fast_fp16_t>(cudaStream_t stream, Index nelems,
+        const fp32_fast_fp16_t *src, fp32_fast_fp16_t *dst)
+    noexcept;
+
+template
+void cuda<fp32_fast_bf16_t>(cudaStream_t stream, Index nelems,
+        const fp32_fast_bf16_t *src, fp32_fast_bf16_t *dst)
     noexcept;
 
 template

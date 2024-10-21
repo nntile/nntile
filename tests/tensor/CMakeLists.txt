@@ -19,9 +19,11 @@ set(TESTS
 
 set(TESTS_MPI
     "add"
+    "add_inplace"
+    "add_fiber_inplace"
     "add_fiber"
+    "add_slice_inplace"
     "add_slice"
-    "add_slice3"
     "addcdiv"
     "axpy"
     "clear"
@@ -74,7 +76,6 @@ set(TESTS_MPI
 
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
-    "add"
     "gelu_backward"
     "gelutanh"
     "gelutanh_backward"
@@ -87,7 +88,7 @@ set(TESTS_NOT_IMPLEMENTED
     "scal"
     "softmax"
     "hypot"
-    "add_slice3"
+    "add_slice"
     "prod_fiber3"
     "tensor"
     )

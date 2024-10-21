@@ -20,102 +20,88 @@ namespace nntile::kernel::add
 
 template<typename T, int BLOCK, int LOOP>
 static __global__
-void cuda_kernel(Index nelems, Scalar alpha_, const T *src, Scalar beta_, T *dst)
+void cuda_kernel(Index nelems, Scalar alpha_, const T *src1, Scalar beta_,
+        const T *src2, T *dst)
 //! Add two buffers on CUDA
 /*! Performs the following operation:
- *      dst[i] = alpha*src[i] + beta*dst[i],
+ *      dst[i] = alpha*src1[i] + beta*src2[i],
  * where alpha and beta are non-zero scalars.
  *
  * @param[in] nelems: Size of the src and dst tensors
- * @param[in] alpha_: Scalar multiplier for the src tensor
- * @param[in] src: Source tensor
- * @param[in] beta_: Scalar multiplier for the dst tensor
- * @param[inout] dst: Destination of the add operation
+ * @param[in] alpha_: Scalar multiplier for the src1 tensor
+ * @param[in] src1: Source tensor
+ * @param[in] beta_: Scalar multiplier for the scr2 tensor
+ * @param[in] src2: Source tensor
+ * @param[out] dst: Destination of the add operation
  * */
 {
     int i = threadIdx.x + blockIdx.x*BLOCK;
     using Y = typename T::repr_t;
-    __shared__ T src1_block[BLOCK];
-    __shared__ T src2_block[BLOCK];
+    Y dst_block[LOOP];
+    Y src_block[LOOP];
     Y alpha = Y{alpha_};
     Y beta = Y{beta_};
     constexpr int BLOCK_STEP = BLOCK / LOOP;
     if((blockIdx.x+1)*BLOCK <= nelems)
     {
-        for(int j = 0; j < BLOCK; j += BLOCK_STEP)
+        for(int j = 0; j < LOOP; ++j)
         {
-            src1_block[threadIdx.x+j] = src[i+j];
-        }
-        __syncthreads();
-        for(int j = 0; j < BLOCK; j += BLOCK_STEP)
-        {
-            src2_block[threadIdx.x+j] = dst[i+j];
-        }
-        __syncthreads();
-        for(int j = 0; j < BLOCK; j += BLOCK_STEP)
-        {
-            dst[i+j] = static_cast<T>(
-                    alpha*static_cast<Y>(src1_block[threadIdx.x+j]) +
-                    beta*static_cast<Y>(src2_block[threadIdx.x+j]));
+            dst_block[j] = static_cast<Y>(src1[i+j*BLOCK_STEP]);
+            src_block[j] = static_cast<Y>(src2[i+j*BLOCK_STEP]);
+            dst_block[j] = alpha*src_block[j] + beta*dst_block[j];
+            dst[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
         }
     }
     else
     {
-        for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
+        int j_max = (nelems-i+BLOCK_STEP-1) / BLOCK_STEP;
+        for(int j = 0; j < j_max; ++j)
         {
-            src1_block[threadIdx.x+j] = src[i+j];
-        }
-        __syncthreads();
-        for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
-        {
-            src2_block[threadIdx.x+j] = dst[i+j];
-        }
-        __syncthreads();
-        for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
-        {
-            dst[i+j] = static_cast<T>(
-                    alpha*static_cast<Y>(src1_block[threadIdx.x+j]) +
-                    beta*static_cast<Y>(src2_block[threadIdx.x+j]));
+            dst_block[j] = static_cast<Y>(src1[i+j*BLOCK_STEP]);
+            src_block[j] = static_cast<Y>(src2[i+j*BLOCK_STEP]);
+            dst_block[j] = alpha*src_block[j] + beta*dst_block[j];
+            dst[i+j*BLOCK_STEP] = static_cast<T>(dst_block[j]);
         }
     }
 }
 
 template<typename T>
-void cuda(cudaStream_t stream, Index nelems, Scalar alpha_, const T *src_,
-        Scalar beta_, T *dst_)
+void cuda(cudaStream_t stream, Index nelems, Scalar alpha_, const T *src1_,
+        Scalar beta_, const T *src2_, T *dst_)
     noexcept
 //! Add two buffers on CUDA
 /*! Performs the following operation:
- *      dst[i] = alpha*src[i] + beta*dst[i],
+ *      dst[i] = alpha*src1[i] + beta*src2[i],
  * where alpha and beta are non-zero scalars.
  *
  * @param[in] nelems: Size of the src and dst tensors
- * @param[in] alpha_: Scalar multiplier for the src tensor
- * @param[in] src_: Source tensor
- * @param[in] beta_: Scalar multiplier for the dst tensor
- * @param[inout] dst_: Destination of the add operation
+ * @param[in] alpha_: Scalar multiplier for the src1 tensor
+ * @param[in] src1_: Source tensor
+ * @param[in] beta_: Scalar multiplier for the src2 tensor
+ * @param[in] src2_: Source tensor
+ * @param[out] dst_: Destination of the add operation
  * */
 {
-    dim3 threads(128);
+    dim3 threads(256);
     dim3 blocks((nelems+1023)/1024);
-    (cuda_kernel<T, 1024, 8>)<<<blocks, threads, 0, stream>>>(nelems, alpha_,
-            src_, beta_, dst_);
+    (cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(nelems, alpha_,
+            src1_, beta_, src2_, dst_);
 }
 
 // Explicit instantiation
 template
 void cuda<fp32_t>(cudaStream_t stream, Index nelems, Scalar alpha,
-        const fp32_t *src, Scalar beta, fp32_t *dst)
+        const fp32_t *src1, Scalar beta, const fp32_t *src2, fp32_t *dst)
     noexcept;
 
 template
 void cuda<fp64_t>(cudaStream_t stream, Index nelems, Scalar alpha,
-        const fp64_t *src, Scalar beta, fp64_t *dst)
+        const fp64_t *src1, Scalar beta, const fp64_t *src2, fp64_t *dst)
     noexcept;
 
 template
 void cuda<bf16_t>(cudaStream_t stream, Index nelems, Scalar alpha,
-        const bf16_t *src, Scalar beta, bf16_t *dst)
+        const bf16_t *src1, Scalar beta, const bf16_t *src2, bf16_t *dst)
     noexcept;
 
 } // namespace nntile::kernel::add

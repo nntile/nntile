@@ -14,9 +14,10 @@
 # All unit tests without arguments to test executable
 set(TESTS
     "add"
+    "add_fiber_inplace"
     "add_fiber"
+    "add_slice_inplace"
     "add_slice"
-    "add_slice3"
     "addcdiv"
     "axpy"
     "clear"
@@ -68,6 +69,7 @@ set(TESTS
 # Describe all tests that are not yet implemented
 set(TESTS_NOT_IMPLEMENTED
     "add"
+    "add_fiber_inplace"
     "add_fiber"
     "gelu_backward"
     "gelutanh"
@@ -85,7 +87,7 @@ set(TESTS_NOT_IMPLEMENTED
     "scal"
     "softmax"
     "hypot"
-    "add_slice3"
+    "add_slice"
     "prod_fiber3"
     )
 

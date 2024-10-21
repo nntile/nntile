@@ -150,6 +150,14 @@ void gather_async<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
         const Tensor<fp32_fast_tf32_t> &dst);
 
 template
+void gather_async<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+                              const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void gather_async<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src,
+                              const Tensor<fp32_fast_bf16_t> &dst);
+
+template
 void gather_async<bf16_t>(const Tensor<bf16_t> &src,
         const Tensor<bf16_t> &dst);
 
@@ -160,6 +168,14 @@ void gather<fp32_t>(const Tensor<fp32_t> &src, const Tensor<fp32_t> &dst);
 template
 void gather<fp32_fast_tf32_t>(const Tensor<fp32_fast_tf32_t> &src,
                               const Tensor<fp32_fast_tf32_t> &dst);
+
+template
+void gather<fp32_fast_fp16_t>(const Tensor<fp32_fast_fp16_t> &src,
+                              const Tensor<fp32_fast_fp16_t> &dst);
+
+template
+void gather<fp32_fast_bf16_t>(const Tensor<fp32_fast_bf16_t> &src,
+                              const Tensor<fp32_fast_bf16_t> &dst);
 
 template
 void gather<fp64_t>(const Tensor<fp64_t> &src, const Tensor<fp64_t> &dst);

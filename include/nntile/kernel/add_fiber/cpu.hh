@@ -21,8 +21,8 @@ namespace nntile::kernel::add_fiber
 
 // Per-element addition of a tensor and a broadcasted fiber on CPU
 template<typename T>
-void cpu(Index m, Index n, Index k, Index batch, Scalar alpha, const T *src, Scalar beta,
-        T *dst)
+void cpu(Index m, Index n, Index k, Index batch, Scalar alpha, const T *src1, Scalar beta,
+        const T *src2, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::add_fiber

@@ -19,23 +19,28 @@ namespace nntile::tile
 {
 
 template<typename T>
-void add_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-        Index axis)
+void add_slice_async(Scalar alpha, const Tile<T> &src1, Scalar beta,
+        const Tile<T> &src2, const Tile<T> &dst, Index axis)
 //! Tile<T> addition of a tensor and a broadcasted slice
 /*! Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
  * and performs the following operations:
- *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[i,j]
+ *      dst[i,l,j] = alpha*src1[i,j] + beta*src2[i,l,j]
  *
- * @param[in] alpha: Scalar factor for src
- * @param[in] src: Input slice, that is reshaped into 2D array
- * @param[in] beta: Scaling factor for dst
- * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
+ * @param[in] alpha: Scalar factor for src1
+ * @param[in] src1: Input slice, that is reshaped into 2D array
+ * @param[in] beta: Scaling factor for src2
+ * @param[in] src2: Input tensor
+ * @param[out] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
     // Check dimensions
-    if(dst.ndim != src.ndim+1)
+    if(dst.ndim != src1.ndim+1)
     {
-        throw std::runtime_error("dst.ndim != src.ndim+1");
+        throw std::runtime_error("dst.ndim != src1.ndim+1");
+    }
+    if(dst.ndim != src2.ndim)
+    {
+        throw std::runtime_error("dst.ndim != src2.ndim");
     }
     // Check axis
     if(axis < 0)
@@ -49,17 +54,21 @@ void add_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T
     // Check shapes of tiles
     for(Index i = 0; i < axis; ++i)
     {
-        if(dst.shape[i] != src.shape[i])
+        if(dst.shape[i] != src1.shape[i])
         {
-            throw std::runtime_error("dst.shape[i] != src.shape[i]");
+            throw std::runtime_error("dst.shape[i] != src1.shape[i]");
         }
     }
     for(Index i = axis+1; i < dst.ndim; ++i)
     {
-        if(dst.shape[i] != src.shape[i-1])
+        if(dst.shape[i] != src1.shape[i-1])
         {
-            throw std::runtime_error("dst.shape[i] != src.shape[i-1]");
+            throw std::runtime_error("dst.shape[i] != src1.shape[i-1]");
         }
+    }
+    if(dst.shape != src2.shape)
+    {
+        throw std::runtime_error("dst.shape != src2.shape");
     }
     // Reshape inputs for simplicity: src -> (m,n), dst -> (m,k,n)
     Index m, n, k;
@@ -67,12 +76,12 @@ void add_slice_async(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T
     n = dst.matrix_shape[axis+1][1];
     k = dst.shape[axis];
     // Insert corresponding task
-    starpu::add_slice::submit<T>(m, n, k, alpha, src, beta, dst);
+    starpu::add_slice::submit<T>(m, n, k, alpha, src1, beta, src2, dst);
 }
 
 template<typename T>
-void add_slice(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst,
-               Index axis)
+void add_slice(Scalar alpha, const Tile<T> &src1, Scalar beta, const Tile<T> &src2,
+        const Tile<T> &dst, Index axis)
 //! Tile<T> addition of a tensor and a broadcasted slice
 /*! Blocking version of add_slice_async<T>.
  * Reshapes input tensor and slice into 3-dimensional and 2-dimensional arrays
@@ -80,47 +89,67 @@ void add_slice(Scalar alpha, const Tile<T> &src, Scalar beta, const Tile<T> &dst
  *      dst[i,l,j] = beta*dst[i,l,j] + alpha*src[i,j]
  *
  * @param[in] alpha: Scalar factor for src
- * @param[in] src: Input slice, that is reshaped into 2D array
+ * @param[in] src1: Input slice, that is reshaped into 2D array
  * @param[in] beta: Scaling factor for dst
- * @param[inout] dst: Resulting tensor, that is reshaped into 3D array
+ * @param[in] src2: Input tensor
+ * @param[out] dst: Resulting tensor, that is reshaped into 3D array
  * */
 {
-    add_slice_async<T>(alpha, src, beta, dst, axis);
+    add_slice_async<T>(alpha, src1, beta, src2, dst, axis);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation of template
 template
-void add_slice_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src,
-        Scalar beta, const Tile<fp32_t> &dst, Index axis);
+void add_slice_async<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1,
+        Scalar beta, const Tile<fp32_t> &src2, const Tile<fp32_t> &dst,
+        Index axis);
 
 template
-void add_slice_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src,
-        Scalar beta, const Tile<fp64_t> &dst, Index axis);
+void add_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src1,
+        Scalar beta, const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst,
+        Index axis);
 
 template
-void add_slice_async<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src,
-        Scalar beta, const Tile<fp32_fast_tf32_t> &dst, Index axis);
+void add_slice_async<fp64_t>(Scalar alpha, const Tile<fp64_t> &src1,
+        Scalar beta, const Tile<fp64_t> &src2, const Tile<fp64_t> &dst,
+        Index axis);
+
+template
+void add_slice_async<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src1, Scalar beta,
+        const Tile<fp32_fast_fp16_t> &src2, const Tile<fp32_fast_fp16_t> &dst, Index axis);
+
+template
+void add_slice_async<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src1, Scalar beta,
+        const Tile<fp32_fast_bf16_t> &src2, const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
 void add_slice_async<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
-        const Tile<bf16_t> &dst, Index axis);
+        const Tile<bf16_t> &src2, const Tile<bf16_t> &dst, Index axis);
 
 // Explicit instantiation of template
 template
-void add_slice<fp32_t>(Scalar alpha, const Tile<fp32_t> &src, Scalar beta,
-        const Tile<fp32_t> &dst, Index axis);
+void add_slice<fp32_t>(Scalar alpha, const Tile<fp32_t> &src1, Scalar beta,
+        const Tile<fp32_t> &src2, const Tile<fp32_t> &dst, Index axis);
 
 template
-void add_slice<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src, Scalar beta,
-        const Tile<fp32_fast_tf32_t> &dst, Index axis);
+void add_slice<fp32_fast_tf32_t>(Scalar alpha, const Tile<fp32_fast_tf32_t> &src1, Scalar beta,
+        const Tile<fp32_fast_tf32_t> &src2, const Tile<fp32_fast_tf32_t> &dst, Index axis);
+
+template
+void add_slice<fp32_fast_fp16_t>(Scalar alpha, const Tile<fp32_fast_fp16_t> &src1, Scalar beta,
+        const Tile<fp32_fast_fp16_t> &src2, const Tile<fp32_fast_fp16_t> &dst, Index axis);
+
+template
+void add_slice<fp32_fast_bf16_t>(Scalar alpha, const Tile<fp32_fast_bf16_t> &src1, Scalar beta,
+        const Tile<fp32_fast_bf16_t> &src2, const Tile<fp32_fast_bf16_t> &dst, Index axis);
 
 template
 void add_slice<fp64_t>(Scalar alpha, const Tile<fp64_t> &src, Scalar beta,
-        const Tile<fp64_t> &dst, Index axis);
+        const Tile<fp64_t> &src2, const Tile<fp64_t> &dst, Index axis);
 
 template
 void add_slice<bf16_t>(Scalar alpha, const Tile<bf16_t> &src, Scalar beta,
-        const Tile<bf16_t> &dst, Index axis);
+        const Tile<bf16_t> &src2, const Tile<bf16_t> &dst, Index axis);
 
 } // namespace nntile::tile
