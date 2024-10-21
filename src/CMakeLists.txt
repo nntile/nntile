@@ -80,7 +80,9 @@ else()
         "kernel/conv2d_bwd_weight_inplace/cpu.cc"
         "kernel/rope/cpu.cc"
         "kernel/rope_backward/cpu.cc"
+        "kernel/norm_fiber_inplace/cpu.cc"
         "kernel/norm_fiber/cpu.cc"
+        
         )
 
     if(NNTILE_USE_CUDA)
@@ -151,6 +153,7 @@ else()
             "kernel/conv2d_bwd_weight_inplace/cuda.cu"
             "kernel/rope/cuda.cu"
             "kernel/rope_backward/cuda.cu"
+            "kernel/norm_fiber_inplace/cuda.cu"
             "kernel/norm_fiber/cuda.cu"
             )
         endif(NNTILE_USE_CUDA)
@@ -232,6 +235,7 @@ set(STARPU_SRC
     "starpu/conv2d_bwd_weight_inplace.cc"
     "starpu/rope.cc"
     "starpu/rope_backward.cc"
+    "starpu/norm_fiber_inplace.cc"
     "starpu/norm_fiber.cc"
     "starpu/log_scalar.cc"
     )
@@ -296,6 +300,7 @@ set(TILE_SRC
     "tile/silu_forward.cc"
     "tile/silu_backward.cc"
     "tile/rope.cc"
+    "tile/norm_fiber_inplace.cc"
     "tile/norm_fiber.cc"
     )
 
@@ -375,6 +380,7 @@ set(TENSOR_SRC
     "tensor/conv2d_bwd_weight_inplace.cc"
     "tensor/rope.cc"
     "tensor/rope_backward.cc"
+    "tensor/norm_fiber_inplace.cc"
     "tensor/norm_fiber.cc"
     "tensor/log_scalar.cc"
     )
