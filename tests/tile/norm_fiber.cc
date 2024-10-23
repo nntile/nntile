@@ -58,7 +58,7 @@ void validate()
     norm_fiber<T>(alpha, src1, beta, src2, dst, axis, batch_ndim, redux);
     auto dst_local = dst.acquire(STARPU_R);
     auto val = Y(dst_local[0]);
-    auto ref = Y(sqrt((m*n*k)));
+    auto ref = Y(std::sqrt((m*n*k)));
     TEST_ASSERT(std::abs(val/ref-Y{1}) <= 10*eps)
     std::cout << "OK: tile::norm_slice<" << T::type_repr << "> restricted to CPU\n";
     dst_local.release();
