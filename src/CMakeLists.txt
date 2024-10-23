@@ -82,7 +82,7 @@ else()
         "kernel/rope_backward/cpu.cc"
         "kernel/norm_fiber_inplace/cpu.cc"
         "kernel/norm_fiber/cpu.cc"
-        
+
         )
 
     if(NNTILE_USE_CUDA)
