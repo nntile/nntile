@@ -90,7 +90,7 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
     // Check low-level kernel
     std::cout << "OK: kernel::norm_fiber_inplace::cpu<" << T::type_repr << ">\n";
     cpu<T>(m, n, k, batch, alpha, &src[0], beta, &dst[0]);
-    Y ref = sqrt(m*n);
+    Y ref = std::sqrt(m*n);
     for(Index i = 0; i < dst.size(); ++i)
     {
         Y val{dst[i]};
