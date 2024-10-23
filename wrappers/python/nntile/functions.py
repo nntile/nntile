@@ -403,7 +403,7 @@ def norm_fiber_inplace_async(
         )
     else:
         raise TypeError
-        
+
 
 def norm_fiber_async(
     alpha: float,
@@ -440,7 +440,7 @@ def norm_fiber_async(
         )
     else:
         raise TypeError
-        
+
 
 def norm_slice_async(
     alpha: float,

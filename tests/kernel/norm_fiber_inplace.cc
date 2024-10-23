@@ -91,7 +91,7 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
     std::cout << "OK: kernel::norm_fiber_inplace::cpu<" << T::type_repr << ">\n";
     cpu<T>(m, n, k, batch, alpha, &src[0], beta, &dst[0]);
     Y ref = sqrt(m*n);
-    for(Index i = 0; i < dst.size(); ++i) 
+    for(Index i = 0; i < dst.size(); ++i)
     {
         Y val{dst[i]};
         //std::cout << i << " " << dst[i] << "\n";
@@ -111,8 +111,8 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
     std::vector<T> dst_cuda(dst_copy);
     std::cout << "Run kernel::norm_fiber_inplace::cuda<" << T::type_repr << ">\n";
     run_cuda<T>(m, n, k, batch, alpha, src, beta, dst_cuda);
-    
-    for(Index i = 0; i < dst_cuda.size(); ++i) 
+
+    for(Index i = 0; i < dst_cuda.size(); ++i)
     {
         Y val_cuda{dst_cuda[i]};
         //std::cout << i << " " << dst_cuda[i] << "\n";
