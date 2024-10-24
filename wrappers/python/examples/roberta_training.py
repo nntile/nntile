@@ -7,7 +7,8 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file wrappers/python/examples/roberta_training.py
-# Roberta training example
+# Roberta training example. The original Roberta model is similar
+# to the Bert model, but the masking procedure is different
 #
 # @version 1.1.0
 
@@ -19,23 +20,23 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch.optim import SGD, Adam, AdamW
-from transformers import BertConfig, BertForMaskedLM
+from transformers import RobertaConfig, RobertaForMaskedLM
 
 import nntile
-from nntile.model.bert import BertForMaskedLM as BertForMaskedLM_nntile
 from nntile.model.bert_config import BertConfigNNTile
+from nntile.model.roberta import RobertaForMaskedLM as BertForMaskedLM_nntile
 
 # Create argument parser
 parser = argparse.ArgumentParser(prog="Bert neural networks",
         description="This example presents an NNTile implementation of a "
-        "Bert/RoBERTa models and compare them against the Huggingface. "
+        "RoBERTa model and compare them against the Huggingface. "
         "It checks relative accuracy of a forward pass (values of "
         "activations) and backward pass (gradients of parameters and "
         "activations) and a throughput of inference and training. It can "
         "also fine-tune a pretrained NNTile model on a chosen dataset.")
 
 parser.add_argument("--remote_model_name", type=str,
-                    default="bert-base-uncased")
+                    default="FacebookAI/roberta-base")
 
 parser.add_argument("--pretrained", choices=["local", "remote"],
                     default="local")
@@ -104,15 +105,15 @@ assert args.nepochs > 0
 if args.pretrained == "remote":
     # Newer versions of transformers can use fast attention, so we disable it
     # through a parameter attn_implementation
-    model_torch = BertForMaskedLM.from_pretrained(args.remote_model_name,
+    model_torch = RobertaForMaskedLM.from_pretrained(args.remote_model_name,
                 cache_dir=args.model_path)
 elif args.pretrained == "local":
     if args.config_path:
         f = open(args.config_path)
         conf_dict = json.load(f)
         f.close()
-        config = BertConfig(**conf_dict)
-        model_torch = BertForMaskedLM(config)
+        config = RobertaConfig(**conf_dict)
+        model_torch = RobertaForMaskedLM(config)
         tokenizer = None
         if args.optimizer == "adam":
             optimizer = Adam(model_torch.parameters(), args.lr)
@@ -218,8 +219,6 @@ x_distr = [0] * x_traits.grid.nelems
 
 rng = np.random.default_rng()
 for epoch_idx in range(args.nepochs):
-    masked_data_epoch = []
-    labels_epoch = []
     for i in range(num_train_batches):
         minibatch_masked_data = []
         minibatch_labels = []
@@ -244,10 +243,8 @@ for epoch_idx in range(args.nepochs):
             current_label[inverse_current_mask] = -100
             y.from_array(np.asfortranarray(current_label.T))
             minibatch_labels.append(y)
-        masked_data_epoch.append(minibatch_masked_data)
-        labels_epoch.append(minibatch_labels)
-    batch_masked_data.append(masked_data_epoch)
-    batch_labels.append(labels_epoch)
+    batch_masked_data.append(minibatch_masked_data)
+    batch_labels.append(minibatch_labels)
 time1 = time.time() - time0
 print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
 # Set up learning rate and optimizer for training
@@ -267,7 +264,7 @@ loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
         scale=1.0 / (args.batch_size *
                      args.n_masked_tokens_per_seq))
 # Set up training pipeline
-pipeline = nntile.pipeline.Pipeline(batch_masked_data[0], batch_labels[0],
+pipeline = nntile.pipeline.Pipeline(batch_masked_data, batch_labels,
         bert_nntile, optimizer, loss, 1)
 
 # Print pipeline memory info
@@ -276,10 +273,7 @@ pipeline.print_meminfo()
 # nntile.starpu.pause()
 nntile.starpu.profiling_enable()
 # Call separate pipeline for the single epoch for every masked data
-for i in range(args.nepochs):
-    pipeline = nntile.pipeline.Pipeline(batch_masked_data[i], batch_labels[i],
-        bert_nntile, optimizer, loss, 1)
-    pipeline.train_async()
+pipeline.train_async()
 # nntile.starpu.resume()
 nntile.starpu.wait_for_all()
 nntile.starpu.profiling_disable()
@@ -306,8 +300,7 @@ if args.save_checkpoint_path:
 
 loss.unregister()
 optimizer.unregister()
-for epoch_data in batch_masked_data + batch_labels:
-    for batch in epoch_data:
-        for x in batch:
-            x.unregister()
+for batch in batch_masked_data + batch_labels:
+    for x in batch:
+        x.unregister()
 bert_nntile.unregister()

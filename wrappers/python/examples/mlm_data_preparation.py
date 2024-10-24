@@ -8,7 +8,7 @@
 #
 # @file wrappers/python/examples/mlm_data_preparation.py
 # Data preparation for mask language modeling
-# (explicit masking appers in the training script)
+# (explicit masking appears in the training script)
 #
 # @version 1.1.0
 
