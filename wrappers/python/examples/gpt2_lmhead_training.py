@@ -73,7 +73,7 @@ parser.add_argument("--use-redux", action="store_true")
 parser.add_argument("--dataset-path", default=".data")
 parser.add_argument("--dataset-file", default="")
 
-parser.add_argument("--lr", type=float, default=0.0)
+parser.add_argument("--lr", type=float, default=1e-4)
 parser.add_argument("--nepochs", type=int, default=1)
 
 parser.add_argument("--logger", action="store_true")
@@ -182,11 +182,6 @@ gpt2_config_nntile = GPT2ConfigNNTile(
 
 print(gpt2_config_nntile)
 
-single_batch_pos_ids = np.arange(args.seq_len).reshape(1, args.seq_len)
-pos_ids = np.repeat(single_batch_pos_ids, args.minibatch_size, axis=0)
-
-# mask = np.array(np.triu(np.ones((args.seq_len, args.seq_len))),
-#                     dtype=bool, order="F")
 gpt2lmhead_nntile, next_tag = GPT2LMHead.from_torch(model_torch,
                                                 args.minibatch_size,
                                                 args.minibatch_size_tile,
@@ -199,8 +194,8 @@ print("Converting PyTorch model to NNTile",
         "requires {} seconds".format(time1))
 del model_torch
 
-splitted_darasetfile = args.dataset_file.split("/")
-if splitted_darasetfile[-1] == "train.bin":
+splitted_datasetfile = args.dataset_file.split("/")
+if splitted_datasetfile[-1] == "train.bin":
     train_data = np.memmap(Path(args.dataset_path) /
                             args.dataset_file,
                             dtype=np.uint16, mode='r')
@@ -267,7 +262,6 @@ pipeline = nntile.pipeline.Pipeline(batch_input, batch_output,
         gpt2lmhead_nntile, optimizer, loss, args.nepochs)
 # Print pipeline memory info
 pipeline.print_meminfo()
-# Warmup training
 # nntile.starpu.pause()
 nntile.starpu.profiling_enable()
 pipeline.train_async()

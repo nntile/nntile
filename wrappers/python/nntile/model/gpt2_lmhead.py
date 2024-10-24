@@ -7,7 +7,7 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file wrappers/python/nntile/model/gpt2_lmhead.py
-# LlamaCausal model of NNTile Python package
+# GPT2LMHead model of NNTile Python package
 #
 # @version 1.1.0
 
