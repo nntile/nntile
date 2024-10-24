@@ -21,8 +21,8 @@ namespace nntile::kernel::subtract_indexed_outputs
 {
 
 template<typename T>
-void cuda(cudaStream_t stream, Index n_labels, Index n_outputs, Scalar val,
-        const int64_t *labels, T *dst)
+void cuda(cudaStream_t stream, Index n_labels, Index n_outputs, Index ignore_index,
+          Scalar val, const int64_t *labels, T *dst)
     noexcept;
 
 } // namespace nntile::kernel::subtract_indexed_outputs
