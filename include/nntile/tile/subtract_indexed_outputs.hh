@@ -20,10 +20,10 @@ namespace nntile::tile
 
 template<typename T>
 void subtract_indexed_outputs_async(Scalar val, const Tile<int64_t> &labels,
-        const Tile<T> &dst);
+        const Tile<T> &dst, Index ignore_index);
 
 template<typename T>
 void subtract_indexed_outputs(Scalar val, const Tile<int64_t> &labels,
-        const Tile<T> &dst);
+        const Tile<T> &dst, Index ignore_index);
 
 } // namespace nntile::tile

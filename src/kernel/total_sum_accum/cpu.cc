@@ -21,7 +21,7 @@ namespace nntile::kernel::total_sum_accum
 {
 
 template<typename T>
-void cpu(Scalar alpha, Index n_labels, Index n_outputs, const T* logsumexp_,
+void cpu(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index, const T* logsumexp_,
         const T* src_, const int64_t* labels_, float *val)
     noexcept
 //! Total sum accumulating from logsumexp and corrected by elements from src
@@ -45,37 +45,40 @@ void cpu(Scalar alpha, Index n_labels, Index n_outputs, const T* logsumexp_,
     auto labels = reinterpret_cast<const I *>(labels_);
     for(Index i = 0; i < n_outputs; ++i)
     {
-        // Kahan summation rule for the following:
-        //      *val += logsumexp[i] - src[labels[i] + i*n_labels];
-        float logsumexp_val = static_cast<Y>(logsumexp_[i]);
-        float src_val = static_cast<Y>(src_[labels[i] + i*n_labels]);
-        y = logsumexp_val - c;
-        t = sum + y;
-        c = (t-sum) - y;
-        sum = t;
-        y = -src_val - c;
-        t = sum + y;
-        c = (t-sum) - y;
-        sum = t;
+        if (labels[i] != ignore_index)
+        {
+            // Kahan summation rule for the following:
+            //      *val += logsumexp[i] - src[labels[i] + i*n_labels];
+            float logsumexp_val = static_cast<Y>(logsumexp_[i]);
+            float src_val = static_cast<Y>(src_[labels[i] + i*n_labels]);
+            y = logsumexp_val - c;
+            t = sum + y;
+            c = (t-sum) - y;
+            sum = t;
+            y = -src_val - c;
+            t = sum + y;
+            c = (t-sum) - y;
+            sum = t;
+        }
     }
     *val = (*val-alpha*c) + alpha*sum;
 }
 
 // Explicit instantiation
 template
-void cpu<fp32_t>(Scalar alpha, Index n_labels, Index n_outputs,
+void cpu<fp32_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
         const fp32_t* logsumexp, const fp32_t* src, const int64_t* labels,
         float *val)
     noexcept;
 
 template
-void cpu<fp64_t>(Scalar alpha, Index n_labels, Index n_outputs,
+void cpu<fp64_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
         const fp64_t* logsumexp, const fp64_t* src, const int64_t* labels,
         float *val)
     noexcept;
 
 template
-void cpu<bf16_t>(Scalar alpha, Index n_labels, Index n_outputs,
+void cpu<bf16_t>(Scalar alpha, Index n_labels, Index n_outputs, Index ignore_index,
         const bf16_t* logsumexp, const bf16_t* src, const int64_t* labels,
         float *val)
     noexcept;

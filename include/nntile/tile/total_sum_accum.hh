@@ -22,11 +22,11 @@ namespace nntile::tile
 template<typename T>
 void total_sum_accum_async(Scalar alpha, const Tile<T> &logsumexp,
         const Tile<T> &src, const Tile<int64_t> &class_labels,
-        const Tile<fp32_t> &val);
+        const Tile<fp32_t> &val, Index ignore_index);
 
 template<typename T>
 void total_sum_accum(Scalar alpha, const Tile<T> &logsumexp,
         const Tile<T> &src, const Tile<int64_t> &class_labels,
-        const Tile<fp32_t> &val);
+        const Tile<fp32_t> &val, Index ignore_index);
 
 } // namespace nntile::tile
