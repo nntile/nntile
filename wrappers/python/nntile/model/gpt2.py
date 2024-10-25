@@ -121,7 +121,7 @@ class GPT2MLP(BaseModel):
         activations.extend(new_layer.activations_output)
         self.next_tag = next_tag
         # Fill Base Model with the generated data
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
 
     # Randomly init all linear layers
     def init_randn_async(self):

@@ -57,7 +57,7 @@ class LlamaForCausalLM(BaseModel, LLMGenerationMixin):
 
         activations.extend(lin_head_.activations_output)
 
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
 
     def set_input(self, x: nntile.tensor.Tensor):
         expected_shape = self.activations[0].value.shape
