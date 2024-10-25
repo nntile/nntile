@@ -23,11 +23,12 @@ from torch.optim import SGD, Adam, AdamW
 from transformers import RobertaConfig, RobertaForMaskedLM
 
 import nntile
-from nntile.model.bert_config import BertConfigNNTile
-from nntile.model.roberta import RobertaForMaskedLM as BertForMaskedLM_nntile
+from nntile.model.bert_config import BertConfigNNTile as RobertaConfigNNTile
+from nntile.model.roberta import (
+    RobertaForMaskedLM as RobertaForMaskedLM_nntile)
 
 # Create argument parser
-parser = argparse.ArgumentParser(prog="Bert neural networks",
+parser = argparse.ArgumentParser(prog="Roberta neural network",
         description="This example presents an NNTile implementation of a "
         "RoBERTa model and compare them against the Huggingface. "
         "It checks relative accuracy of a forward pass (values of "
@@ -155,7 +156,7 @@ if args.hidden_size_tile == -1:
 if args.intermediate_size_tile == -1:
     args.intermediate_size_tile = model_torch.config.intermediate_size
 
-bert_config_nntile = BertConfigNNTile(
+roberta_config_nntile = RobertaConfigNNTile(
     vocab_size=model_torch.config.vocab_size,
     vocab_embed_dim_tile=model_torch.config.hidden_size,
     hidden_size=model_torch.config.hidden_size,
@@ -170,14 +171,14 @@ bert_config_nntile = BertConfigNNTile(
     # flash_attention=args.flash_attention
 )
 
-print(bert_config_nntile)
+print(roberta_config_nntile)
 
-bert_nntile, next_tag = BertForMaskedLM_nntile.from_torch(model_torch,
+roberta_nntile, next_tag = RobertaForMaskedLM_nntile.from_torch(model_torch,
                                                 args.minibatch_size,
                                                 args.minibatch_size_tile,
                                                 args.seq_len,
                                                 args.seq_len_tile,
-                                                bert_config_nntile,
+                                                roberta_config_nntile,
                                                 next_tag)
 time1 = time.time() - time0
 print("Converting PyTorch model to NNTile",
@@ -197,17 +198,17 @@ else:
 
 num_train_tokens = train_tokens_raw.shape[0]
 
-num_train_seq = num_train_tokens // (args.seq_len + 1)
+num_train_seq = num_train_tokens // args.seq_len
 num_train_batches = num_train_seq // args.batch_size
 num_train_tokens_truncated = num_train_batches * (args.batch_size
-        * (args.seq_len + 1))
+        * args.seq_len)
 train_tokens_trunc = np.array(
     train_tokens_raw[:num_train_tokens_truncated],
     order='F', dtype=np.int64)
 train_tokens = train_tokens_trunc.reshape(num_train_batches,
                                     num_minibatch,
                                     args.minibatch_size,
-                                    args.seq_len + 1)
+                                    args.seq_len)
 
 time0 = time.time()
 batch_masked_data = []
@@ -225,47 +226,49 @@ for epoch_idx in range(args.nepochs):
         for j in range(num_minibatch):
             current_mask = np.zeros((args.minibatch_size,
                                      args.seq_len), dtype=bool)
-            idx_masked_tokens = rng.choice(args.seq_len,
-                                           size=(args.minibatch_size,
-                                                 args.n_masked_tokens_per_seq))
-            current_mask[:, idx_masked_tokens] = 1
+            idx_masked_tokens = np.array([
+                rng.choice(args.seq_len, size=(args.n_masked_tokens_per_seq,),
+                           replace=False) for i in range(args.minibatch_size)])
+            for i in range(args.minibatch_size):
+                current_mask[i, idx_masked_tokens[i]] = 1
+
             x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
             next_tag = x.next_tag
-            current_minibatch = train_tokens[i, j, :, :-1].copy()
+            current_minibatch = train_tokens[i, j, :, :].copy()
             current_minibatch[current_mask] = args.label_mask_token
             x.from_array(np.asfortranarray(current_minibatch).T)
             minibatch_masked_data.append(x)
             y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
             next_tag = y.next_tag
-            current_label = train_tokens[i, j, :, :-1].copy()
+            current_label = train_tokens[i, j, :, :].copy()
             inverse_current_mask = np.array(1 - current_mask, dtype=bool)
-            # Ignore index -100
+            # Ignore index = -100
             current_label[inverse_current_mask] = -100
             y.from_array(np.asfortranarray(current_label.T))
             minibatch_labels.append(y)
-    batch_masked_data.append(minibatch_masked_data)
-    batch_labels.append(minibatch_labels)
+        batch_masked_data.append(minibatch_masked_data)
+        batch_labels.append(minibatch_labels)
 time1 = time.time() - time0
 print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
 # Set up learning rate and optimizer for training
 if args.optimizer == "adam":
-    optimizer = nntile.optimizer.Adam(bert_nntile.get_parameters(),
+    optimizer = nntile.optimizer.Adam(roberta_nntile.get_parameters(),
             args.lr, next_tag)
 elif args.optimizer == "adamw":
-    optimizer = nntile.optimizer.AdamW(bert_nntile.get_parameters(),
+    optimizer = nntile.optimizer.AdamW(roberta_nntile.get_parameters(),
             args.lr, next_tag)
 elif args.optimizer == "sgd":
-    optimizer = nntile.optimizer.SGD(bert_nntile.get_parameters(),
+    optimizer = nntile.optimizer.SGD(roberta_nntile.get_parameters(),
             args.lr, next_tag)
 next_tag = optimizer.get_next_tag()
 # Define Cross Entropy loss function
 loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
-        bert_nntile.activations[-1], next_tag,
+        roberta_nntile.activations[-1], next_tag,
         scale=1.0 / (args.batch_size *
                      args.n_masked_tokens_per_seq))
 # Set up training pipeline
 pipeline = nntile.pipeline.Pipeline(batch_masked_data, batch_labels,
-        bert_nntile, optimizer, loss, 1)
+        roberta_nntile, optimizer, loss, 1)
 
 # Print pipeline memory info
 pipeline.print_meminfo()
@@ -282,17 +285,11 @@ print("NNTile training time: {} seconds".format(time1))
 print("NNTile training throughput tokens/sec: {}".format(
         args.nepochs * num_train_batches * args.batch_size
         * args.seq_len / time1))
-# nflops_fwd_minibatch = bert_nntile.get_flops_forward()
-# nflops_bwd_minibatch = bert_nntile.get_flops_backward()
-# nflops_minibatch = nflops_fwd_minibatch + nflops_bwd_minibatch
-# print("NNTile performance (model flops): {} Tflops/s".format(nflops_minibatch
-#         * args.nepochs * num_train_batches * num_minibatch
-#         / time1 * 1e-12))
 loss_np = np.zeros((1), dtype=np.float32)
 loss.val.to_array(loss_np)
 print("NNTile loss on the last batch: {}".format(loss_np[0]))
 if args.save_checkpoint_path:
-    trained_torch_model = bert_nntile.to_torch()
+    trained_torch_model = roberta_nntile.to_torch()
     torch.save({
                 'model_state_dict': trained_torch_model.state_dict(),
                 }, args.save_checkpoint_path)
@@ -303,4 +300,4 @@ optimizer.unregister()
 for batch in batch_masked_data + batch_labels:
     for x in batch:
         x.unregister()
-bert_nntile.unregister()
+roberta_nntile.unregister()
