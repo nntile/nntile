@@ -168,6 +168,7 @@ roberta_config_nntile = RobertaConfigNNTile(
     intermediate_size_tile=args.intermediate_size_tile,
     n_head_tile=args.n_head_tile,
     dtype=args.dtype,
+    type_vocab_size=1,
     # flash_attention=args.flash_attention
 )
 
