@@ -7,7 +7,7 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file wrappers/python/tests/model/bert_modules.py
-# Test for nntile.model.bert_modules.lm_prediction_head
+# Test for nntile.model.roberta_modules.roberta_lm_head
 # Each test is generated in float precision by Torch, then it is downcasted
 # into NNTile type. So, implementation of double precision is NOT checked.
 #
@@ -18,13 +18,13 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 import torch
-from transformers import BertConfig as BertConfigTorch
-from transformers.models.bert.modeling_bert import (
-    BertLMPredictionHead as BertLMPredictionHead_torch)
+from transformers import RobertaConfig as RobertaConfigTorch
+from transformers.models.roberta.modeling_roberta import (
+    RobertaLMHead as RobertaLMHead_torch)
 
 import nntile
-from nntile.model.bert_config import BertConfigNNTile
-from nntile.model.bert_modules import BertLMPredictionHead
+from nntile.model.bert_config import BertConfigNNTile as RobertaConfigNNTile
+from nntile.model.roberta_modules import RobertaLMHead
 from nntile.tensor import TensorMoments, TensorTraits, to_numpy
 
 # NNTile dtype via corresponding Tensor type
@@ -48,7 +48,7 @@ nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
 
 
 @dataclass
-class BertTestParams:
+class RobertaTestParams:
     vocab_size: int
     vocab_embed_dim_tile: int
     hidden_size: int
@@ -65,7 +65,7 @@ class BertTestParams:
     redux: bool = True
 
 
-single_tile = BertTestParams(
+single_tile = RobertaTestParams(
     vocab_size=32000,
     vocab_embed_dim_tile=128,
     hidden_size=128,
@@ -78,10 +78,10 @@ single_tile = BertTestParams(
     seq_len_tile=32,
     n_head=16,
     n_head_tile=16,
-    type_vocab_size=2
+    type_vocab_size=1
     )
 
-multiple_tiles = BertTestParams(
+multiple_tiles = RobertaTestParams(
     vocab_size=32000,
     vocab_embed_dim_tile=32,
     hidden_size=128,
@@ -94,12 +94,12 @@ multiple_tiles = BertTestParams(
     seq_len_tile=32,
     n_head=16,
     n_head_tile=8,
-    type_vocab_size=2)
+    type_vocab_size=1)
 
 
-def generate_inputs(params: BertTestParams,
+def generate_inputs(params: RobertaTestParams,
                     dtype: str):
-    torch_config = BertConfigTorch(
+    torch_config = RobertaConfigTorch(
         vocab_size=params.vocab_size,
         hidden_size=params.hidden_size,
         num_attention_heads=params.n_head,
@@ -110,8 +110,8 @@ def generate_inputs(params: BertTestParams,
         hidden_dropout_prob=0,
     )
 
-    torch_model = BertLMPredictionHead_torch(torch_config)
-    nntile_config = BertConfigNNTile(
+    torch_model = RobertaLMHead_torch(torch_config)
+    nntile_config = RobertaConfigNNTile(
             vocab_size=params.vocab_size,
             vocab_embed_dim_tile=params.vocab_embed_dim_tile,
             hidden_size=params.hidden_size,
@@ -122,7 +122,7 @@ def generate_inputs(params: BertTestParams,
             n_head_tile=params.n_head_tile,
             dtype=dtype,
             type_vocab_size=params.type_vocab_size,
-            activation_function=torch_config.hidden_act
+            activation_function="gelu"
     )
     gen = np.random.default_rng(42)
     tensor_type = dtype2nntile[dtype]
@@ -144,7 +144,7 @@ def generate_inputs(params: BertTestParams,
     x_grad = tensor_type(x_traits, x_distr, 0)
     X = TensorMoments(x_value, x_grad, True)
 
-    nntile_model, _ = BertLMPredictionHead.from_torch(
+    nntile_model, _ = RobertaLMHead.from_torch(
             torch_model,
             X,
             nntile_config, 0)
@@ -180,9 +180,9 @@ def generate_inputs(params: BertTestParams,
     pytest.param('fp32_fast_fp16', marks=nocuda),
     pytest.param('fp32_fast_bf16', marks=nocuda),
 ])
-class TestBertPredictionHeadTransform:
+class TestRobertaLMHead:
     def test_coercion(self, starpu_simple, torch_rng,
-                      params: BertTestParams,
+                      params: RobertaTestParams,
                       dtype: str):
 
         torch_model, nntile_model, _, _ = generate_inputs(params, dtype)
@@ -196,7 +196,7 @@ class TestBertPredictionHeadTransform:
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
     def test_forward(self, starpu_simple, torch_rng,
-                     params: BertTestParams,
+                     params: RobertaTestParams,
                      dtype: str):
         torch_model, nntile_model, x, _ = \
             generate_inputs(params, dtype)
@@ -210,7 +210,7 @@ class TestBertPredictionHeadTransform:
         nntile_model.unregister()
 
     def test_backward(self, starpu_simple, torch_rng,
-                      params: BertTestParams,
+                      params: RobertaTestParams,
                       dtype: str):
         torch_model, nntile_model, x, y_grad = \
             generate_inputs(params, dtype)

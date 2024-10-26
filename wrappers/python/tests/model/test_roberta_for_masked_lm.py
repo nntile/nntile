@@ -133,7 +133,7 @@ def generate_inputs(params: RobertaTestParams,
             n_head_tile=params.n_head_tile,
             dtype=dtype,
             type_vocab_size=params.type_vocab_size,
-            activation_function="gelutanh",
+            activation_function="gelu",
             num_hidden_layers=num_hidden_layers,
             layer_norm_epsilon=torch_config.layer_norm_eps
     )
@@ -162,19 +162,19 @@ def generate_inputs(params: RobertaTestParams,
 
 @pytest.mark.parametrize('params', [
     pytest.param(single_tile, id='single_tile'),
-    # pytest.param(multiple_tiles, id='multiple_tiles'),
+    pytest.param(multiple_tiles, id='multiple_tiles'),
 ])
 @pytest.mark.parametrize('dtype', [
     'fp32',
-    # pytest.param('bf16', marks=nocuda),
-    # pytest.param('fp32_fast_tf32', marks=nocuda),
-    # pytest.param('fp32_fast_fp16', marks=nocuda),
-    # pytest.param('fp32_fast_bf16', marks=nocuda),
+    pytest.param('bf16', marks=nocuda),
+    pytest.param('fp32_fast_tf32', marks=nocuda),
+    pytest.param('fp32_fast_fp16', marks=nocuda),
+    pytest.param('fp32_fast_bf16', marks=nocuda),
 ])
 @pytest.mark.parametrize('num_hidden_layers', [
     pytest.param(1, id='single layer'),
-    # pytest.param(2, id='two layers'),
-    # pytest.param(5, id='five layers'),
+    pytest.param(2, id='two layers'),
+    pytest.param(5, id='five layers'),
 ])
 class TestBertModel:
     def test_coercion(self, starpu_simple, torch_rng,
@@ -238,8 +238,8 @@ class TestBertModel:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
-        for layer, layer_other in zip(torch_model.bert.encoder.layer,
-                                      torch_model_other.bert.encoder.layer):
+        for layer, layer_other in zip(torch_model.roberta.encoder.layer,
+                                      torch_model_other.roberta.encoder.layer):
             bias_grad_torch = torch.hstack([
                 layer.attention.self.query.bias.grad,
                 layer.attention.self.key.bias.grad,
