@@ -17,7 +17,7 @@ import torch
 from transformers.models.roberta.modeling_roberta import (
     RobertaConfig as RobertaConfig_torch, RobertaLMHead as RobertaLMHead_torch)
 
-from nntile.tensor import to_numpy
+from nntile.tensor import TensorMoments, to_numpy
 
 from ..layer.act import Act
 from ..layer.layer_norm import LayerNorm
@@ -29,7 +29,7 @@ from .bert_config import BertConfigNNTile
 class RobertaLMHead(BaseModel):
     next_tag: int
 
-    def __init__(self,
+    def __init__(self, X: TensorMoments,
                  lin1_layer: Linear,
                  act_fun: Act,
                  layer_norm: LayerNorm,
@@ -40,7 +40,7 @@ class RobertaLMHead(BaseModel):
 
         self.config = config
 
-        activations = []
+        activations = [X]
         activations.extend(lin1_layer.activations_output)
         activations.extend(act_fun.activations_output)
         activations.extend(layer_norm.activations_output)
@@ -71,11 +71,11 @@ class RobertaLMHead(BaseModel):
         lin1_layer, next_tag = Linear.from_torch(
                                     roberta_lm_head.dense,
                                     X,
-                                    config.hidden_size,
+                                    config.hidden_size_tile,
                                     config.redux, next_tag)
         activation_layer, next_tag = Act.generate_simple(
             lin1_layer.activations_output[0],
-            "gelutanh", next_tag
+            "gelu", next_tag
         )
 
         layer_norm, next_tag = LayerNorm.from_torch(roberta_lm_head.layer_norm,
@@ -88,7 +88,7 @@ class RobertaLMHead(BaseModel):
                                     config.vocab_size,
                                     config.redux, next_tag)
 
-        roberta_lmhead_nntile = RobertaLMHead(lin1_layer,
+        roberta_lmhead_nntile = RobertaLMHead(X, lin1_layer,
                                               activation_layer,
                                               layer_norm,
                                               lin2_layer,
@@ -101,7 +101,6 @@ class RobertaLMHead(BaseModel):
         config_torch.intermediate_size = self.config.intermediate_size
         config_torch.layer_norm_eps = self.config.layer_norm_epsilon
         config_torch.vocab_size = self.config.vocab_size
-        # config_torch.hidden_act = "gelu_pytorch_tanh"
 
         roberta_lm_head_torch = RobertaLMHead_torch(config_torch)
         roberta_lm_head_torch.dense = self.lin1_layer.to_torch()
@@ -127,5 +126,5 @@ class RobertaLMHead(BaseModel):
         roberta_lm_head_torch.decoder = \
             self.lin2_layer.to_torch_with_grads()
         roberta_lm_head_torch.bias.grad = torch.tensor(
-            to_numpy(self.lin_decoder.b.grad))
+            to_numpy(self.lin2_layer.b.grad))
         return roberta_lm_head_torch
