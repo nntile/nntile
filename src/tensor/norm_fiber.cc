@@ -6,7 +6,7 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src1/tensor/norm_fiber.cc
+ * @file src/tensor/norm_fiber.cc
  * Euclidean norms over slices into a fiber of a product of a Tensor<T>
  *
  * @version 1.1.0
@@ -66,9 +66,6 @@ void norm_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
                     "src1.basetile_shape[src1.ndim-batch_ndim+i]");
         }
     }
-    // src1 is big, src2 and dst is small
-    // dst[l,b] = hypot(beta*dst[l,b], alpha*norm(src[:,l,:,b])) - from kernel  inplace implimentation
-    //std::cout << "ndim " << src1.ndim << " " << src2.ndim << " " << dst.ndim << "\n";
 
     // Do actual calculations
     int mpi_rank = starpu_mpi_world_rank();
@@ -88,8 +85,6 @@ void norm_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
         for(Index j = 0; j < batch_ndim; ++j)
         {
             dst_tile_index[j+1] = src1_tile_index[src1.ndim-batch_ndim+j];
-            //src1_tile_index[j+1] = src2_tile_index[src2.ndim-batch_ndim+j];
-
         }
 
         auto dst_tile_handle = dst.get_tile_handle(dst_tile_index);
@@ -110,9 +105,6 @@ void norm_fiber_async(Scalar alpha, const Tensor<T> &src1, Scalar beta,
             m = src1_tile_traits.stride[axis];
             n = src1_tile_traits.matrix_shape[axis+1][1] / batch;
             k = src1_tile_traits.shape[axis];
-            // now it is the same as in inplace version!
-            // for shape [3,5,20,20] it is 3 400 5
-            //std::cout << "nmk: " << m << " " << n << " " << k << "\n";
             bool init_first = true;
             for(Index j = 0; j < src1.ndim-batch_ndim; ++j)
             {
