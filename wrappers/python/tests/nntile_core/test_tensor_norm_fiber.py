@@ -7,7 +7,7 @@
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
 # @file wrappers/python/tests/nntile_core/test_tensor_norm_fiber.py
-# Test for tensor::add_scalar<T> Python wrapper
+# Test for tensor::norm_fiber<T> Python wrapper
 #
 # @version 1.1.0
 
@@ -37,18 +37,12 @@ norm_fiber_inplace = {
 }
 
 
-@pytest.mark.parametrize(
-    'dtype, inplace, input_shape', [
-        (np.float32, True, [3, 5, 20, 20]),
-        (np.float64, True, [3, 5, 20, 20]),
-        (np.float32, True, [7, 5, 21, 21]),
-        (np.float64, True, [7, 5, 21, 21]),
-        (np.float32, False, [3, 5, 20, 20]),
-        (np.float64, False, [3, 5, 20, 20]),
-        (np.float32, False, [7, 5, 21, 21]),
-        (np.float64, False, [7, 5, 21, 21]),
-    ]
-)
+@pytest.mark.parametrize('dtype', [np.float32, np.float64])
+@pytest.mark.parametrize('inplace', [True, False])
+@pytest.mark.parametrize('input_shape', [
+    [3, 5, 20, 20],
+    [7, 5, 21, 21]
+])
 def test_norm_fiber_async(dtype, inplace, input_shape):
     # Describe single-tile tensor, located at node 0
     mpi_distr = [0]
