@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/model/bert_modules.py
-# Test for nntile.model.bert_modules.lm_prediction_head
+# @file wrappers/python/tests/model/test_roberta_for_masked_lm.py
+# Test for nntile.model.roberta.roberta_for_masked_lm
 # Each test is generated in float precision by Torch, then it is downcasted
 # into NNTile type. So, implementation of double precision is NOT checked.
 #
@@ -18,14 +18,14 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 import torch
-from transformers import BertConfig as BertConfigTorch
-from transformers.models.bert.modeling_bert import (
-    BertLMPredictionHead as BertLMPredictionHead_torch)
+from transformers import RobertaConfig as RobertaConfigTorch
+from transformers.models.roberta.modeling_roberta import (
+    RobertaForMaskedLM as RobertaForMaskedLM_torch)
 
 import nntile
-from nntile.model.bert_config import BertConfigNNTile
-from nntile.model.bert_modules import BertLMPredictionHead
-from nntile.tensor import TensorMoments, TensorTraits, to_numpy
+from nntile.model.bert_config import BertConfigNNTile as RobertaConfigNNTile
+from nntile.model.roberta import RobertaForMaskedLM
+from nntile.tensor import to_numpy
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -38,7 +38,7 @@ dtype2nntile = {
 
 dtype2tol = {
         'fp32': {'rtol': 1e-5},
-        'bf16': {'rtol': 7e-2},
+        'bf16': {'rtol': 6e-2},
         'fp32_fast_tf32': {'rtol': 2e-3},
         'fp32_fast_fp16': {'rtol': 8e-3},
         'fp32_fast_bf16': {'rtol': 8e-3},
@@ -48,7 +48,7 @@ nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
 
 
 @dataclass
-class BertTestParams:
+class RobertaTestParams:
     vocab_size: int
     vocab_embed_dim_tile: int
     hidden_size: int
@@ -65,7 +65,7 @@ class BertTestParams:
     redux: bool = True
 
 
-single_tile = BertTestParams(
+single_tile = RobertaTestParams(
     vocab_size=32000,
     vocab_embed_dim_tile=128,
     hidden_size=128,
@@ -78,10 +78,10 @@ single_tile = BertTestParams(
     seq_len_tile=32,
     n_head=16,
     n_head_tile=16,
-    type_vocab_size=2
+    type_vocab_size=1
     )
 
-multiple_tiles = BertTestParams(
+multiple_tiles = RobertaTestParams(
     vocab_size=32000,
     vocab_embed_dim_tile=32,
     hidden_size=128,
@@ -94,12 +94,12 @@ multiple_tiles = BertTestParams(
     seq_len_tile=32,
     n_head=16,
     n_head_tile=8,
-    type_vocab_size=2)
+    type_vocab_size=1)
 
 
-def generate_inputs(params: BertTestParams,
-                    dtype: str):
-    torch_config = BertConfigTorch(
+def generate_inputs(params: RobertaTestParams,
+                    dtype: str, num_hidden_layers: int):
+    torch_config = RobertaConfigTorch(
         vocab_size=params.vocab_size,
         hidden_size=params.hidden_size,
         num_attention_heads=params.n_head,
@@ -108,10 +108,21 @@ def generate_inputs(params: BertTestParams,
         add_cross_attention=False,
         type_vocab_size=params.type_vocab_size,
         hidden_dropout_prob=0,
+        attention_probs_dropout_prob=0.0,
+        _attn_implementation="eager",
+        chunk_size_feed_forward=0,
+        is_decoder=False,
+        num_hidden_layers=num_hidden_layers,
+        # TODO: we have to introduce 'padding_idx' parameter in our
+        # implementation of Embedding layer
+        pad_token_id=-1
     )
 
-    torch_model = BertLMPredictionHead_torch(torch_config)
-    nntile_config = BertConfigNNTile(
+    torch_model = RobertaForMaskedLM_torch(torch_config)
+    # Disentangle weight in final linear layer and first embedding
+    torch_model.lm_head.decoder.weight = torch.nn.Parameter(
+            torch_model.lm_head.decoder.weight.detach().clone())
+    nntile_config = RobertaConfigNNTile(
             vocab_size=params.vocab_size,
             vocab_embed_dim_tile=params.vocab_embed_dim_tile,
             hidden_size=params.hidden_size,
@@ -122,43 +133,23 @@ def generate_inputs(params: BertTestParams,
             n_head_tile=params.n_head_tile,
             dtype=dtype,
             type_vocab_size=params.type_vocab_size,
-            activation_function=torch_config.hidden_act
+            activation_function="gelu",
+            num_hidden_layers=num_hidden_layers,
+            layer_norm_epsilon=torch_config.layer_norm_eps
     )
     gen = np.random.default_rng(42)
-    tensor_type = dtype2nntile[dtype]
-    head_size = params.hidden_size // params.n_head
-    if params.hidden_size != head_size * params.n_head:
-        raise RuntimeError
 
-    x_shape = [params.hidden_size,
-               params.seq_len,
-               params.batch_size]
-
-    x_basetile = [params.hidden_size_tile,
-                  params.seq_len_tile,
-                  params.batch_size_tile]
-
-    x_traits = TensorTraits(x_shape, x_basetile)
-    x_distr = [0] * x_traits.grid.nelems
-    x_value = tensor_type(x_traits, x_distr, 0)
-    x_grad = tensor_type(x_traits, x_distr, 0)
-    X = TensorMoments(x_value, x_grad, True)
-
-    nntile_model, _ = BertLMPredictionHead.from_torch(
-            torch_model,
-            X,
-            nntile_config, 0)
+    nntile_model, _ = RobertaForMaskedLM.from_torch(
+            torch_model, params.batch_size, params.batch_size_tile,
+            params.seq_len, params.seq_len_tile, nntile_config, 0)
     nntile_model.clear_gradients()
-    x_random = gen.standard_normal((params.hidden_size,
-                                    params.seq_len,
-                                    params.batch_size),
-                                    dtype=np.float32)
+    x_random = gen.integers(params.seq_len,
+                            size=nntile_model.activations[0].value.shape,
+                            dtype=np.int64)
 
-    x_nntile = np.array(x_random, dtype=np.float32, order='F')
+    x_nntile = np.array(x_random, dtype=np.int64, order='F')
     nntile_model.activations[0].value.from_array(x_nntile)
     x_torch = torch.tensor(x_nntile.T)
-    x_torch.requires_grad_()
-
     y_grad_random = gen.standard_normal((params.vocab_size,
                                          params.seq_len,
                                          params.batch_size),
@@ -180,12 +171,19 @@ def generate_inputs(params: BertTestParams,
     pytest.param('fp32_fast_fp16', marks=nocuda),
     pytest.param('fp32_fast_bf16', marks=nocuda),
 ])
-class TestBertPredictionHeadTransform:
+@pytest.mark.parametrize('num_hidden_layers', [
+    pytest.param(1, id='single layer'),
+    pytest.param(2, id='two layers'),
+    pytest.param(5, id='five layers'),
+])
+class TestBertModel:
     def test_coercion(self, starpu_simple, torch_rng,
-                      params: BertTestParams,
-                      dtype: str):
+                      params: RobertaTestParams,
+                      dtype: str, num_hidden_layers: int):
 
-        torch_model, nntile_model, _, _ = generate_inputs(params, dtype)
+        torch_model, nntile_model, _, _ = generate_inputs(params,
+                                                          dtype,
+                                                          num_hidden_layers)
 
         torch_model_other = nntile_model.to_torch()
         nntile_model.unregister()
@@ -196,33 +194,32 @@ class TestBertPredictionHeadTransform:
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
     def test_forward(self, starpu_simple, torch_rng,
-                     params: BertTestParams,
-                     dtype: str):
-        torch_model, nntile_model, x, _ = \
-            generate_inputs(params, dtype)
-        y_torch = torch_model(x)
+                     params: RobertaTestParams,
+                     dtype: str, num_hidden_layers: int):
+        torch_model, nntile_model, x, _ = generate_inputs(params,
+                                                          dtype,
+                                                          num_hidden_layers)
+        y_torch = torch_model(x).logits
         nntile_model.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_model.activations[-1].value).T)
-
-        rtol = dtype2tol[dtype]['rtol']
-
-        assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
         nntile_model.unregister()
 
+        rtol = dtype2tol[dtype]['rtol']
+        assert torch.norm(y_torch - y_nntile) <= rtol * torch.norm(y_torch)
+
     def test_backward(self, starpu_simple, torch_rng,
-                      params: BertTestParams,
-                      dtype: str):
-        torch_model, nntile_model, x, y_grad = \
-            generate_inputs(params, dtype)
-        y = torch_model(x)
+                      params: RobertaTestParams,
+                      dtype: str, num_hidden_layers: int):
+        torch_model, nntile_model, x, y_grad = generate_inputs(params,
+                                                               dtype,
+                                                               num_hidden_layers)
+        y = torch_model(x).logits
         nntile_model.forward_async()
         res = (y * y_grad).sum()
         res.backward()
 
         nntile_model.backward_async()
         torch_model_other = nntile_model.to_torch_with_grads()
-        x_grad_nntile = torch.tensor(
-            to_numpy(nntile_model.activations[0].grad).T)
         nntile_model.unregister()
 
         rtol = dtype2tol[dtype]['rtol']
@@ -230,7 +227,26 @@ class TestBertPredictionHeadTransform:
                 torch_model_other.named_parameters()):
             assert n1 == n2
             assert p1.requires_grad == p2.requires_grad
+            # Bias gradients in selfattention are unstable,
+            # so we concatenate them over q,k,v and test together below
+            splitted_name = n1.split(".")
+            if (len(splitted_name) == 8 and
+                splitted_name[7] == "bias" and
+                splitted_name[4] == "attention" and
+                splitted_name[5] == "self"):
+                continue
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
-        assert torch.norm(x_grad_nntile - x.grad) <= rtol * torch.norm(x.grad)
+        for layer, layer_other in zip(torch_model.roberta.encoder.layer,
+                                      torch_model_other.roberta.encoder.layer):
+            bias_grad_torch = torch.hstack([
+                layer.attention.self.query.bias.grad,
+                layer.attention.self.key.bias.grad,
+                layer.attention.self.value.bias.grad])
+            bias_grad_nntile = torch.hstack(
+                [layer_other.attention.self.query.bias.grad,
+                layer_other.attention.self.key.bias.grad,
+                layer_other.attention.self.value.bias.grad])
+            assert torch.norm(bias_grad_torch - bias_grad_nntile) <= \
+                rtol * torch.norm(bias_grad_torch)

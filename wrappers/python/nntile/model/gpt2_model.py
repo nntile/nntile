@@ -74,7 +74,7 @@ class GPT2Model(BaseModel):
         layers.append(lnorm_layer)
         activations.extend(lnorm_layer.activations_output)
 
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
 
     @staticmethod
     def from_torch(torch_gpt2: GPT2Model_torch,

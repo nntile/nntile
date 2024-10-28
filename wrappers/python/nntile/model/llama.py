@@ -63,7 +63,7 @@ class Llama(BaseModel):
         activations.extend(rms_norm_layer.activations_output)
         layers.append(rms_norm_layer)
 
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
 
     def forward_dynamic(
             self,

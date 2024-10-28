@@ -128,7 +128,7 @@ class RobertaForMaskedLM(BaseModel):
         layers.extend(lm_head.layers)
         activations = []
         activations.extend(roberta.activations)
-        activations.extend(lm_head.activations)
+        activations.extend(lm_head.activations[1:])
         self.roberta = roberta
         self.lm_head = lm_head
 

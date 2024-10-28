@@ -57,7 +57,7 @@ class LlamaDecoder(BaseModel):
                       post_mlp_add.activations_output
         self.config = config
         # Fill Base Model with the generated data
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
 
     def forward_dynamic(
         self,
