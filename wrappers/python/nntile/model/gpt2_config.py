@@ -32,3 +32,4 @@ class GPT2ConfigNNTile:
     num_hidden_layers: int = 1
     redux: bool = False
     eos_token_id: int = 50256
+    name: str = "gpt2"
