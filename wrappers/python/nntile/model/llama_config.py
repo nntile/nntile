@@ -38,3 +38,4 @@ class LlamaConfigNNTile:
     num_hidden_layers: int = 1
     mlp_bias: bool = False
     flash_attention: bool = True
+    name: str = "llama"

@@ -75,6 +75,8 @@ void def_mod_starpu(py::module_ &m)
     m.def("profiling_disable", [](){
             //starpu_profiling_status_set(STARPU_PROFILING_DISABLE);
             starpu_fxt_stop_profiling();});
+    m.def("iteration_push", &starpu_iteration_push);
+    m.def("iteration_pop", &starpu_iteration_pop);
 }
 
 //! Copy from raw pointer to a raw pointer with a possible conversion
