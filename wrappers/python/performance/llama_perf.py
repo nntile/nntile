@@ -45,6 +45,10 @@ parser.add_argument("--submodule", choices=["mlp", "decoder",
                                             "attention", "causal_llama"],
                     default="mlp")
 
+parser.add_argument("--attn_implementation",
+                    choices=["eager", "sdpa"],
+                    default="eager")
+
 parser.add_argument("--use-torch", action="store_true")
 parser.add_argument("--use-nntile", action="store_true")
 
@@ -108,6 +112,7 @@ f = open(args.config_path)
 conf_dict = json.load(f)
 f.close()
 llama_torch_config = LlamaConfig(**conf_dict)
+llama_torch_config._attn_implementation = args.attn_implementation
 
 if args.use_nntile:
     # Initialize NNTile and StarPU
@@ -192,8 +197,8 @@ if args.submodule == "mlp":
             "{} seconds".format(time1))
         del torch_layer_
 elif args.submodule == "decoder":
-    # TODO: Move this option to args
-    llama_torch_config._attn_implementation = "eager"
+    # # TODO: Move this option to args
+    # llama_torch_config._attn_implementation = "eager"
     # layer_idx input param is None since
     # we do not use caching and explcitly state this
     torch_layer_ = LlamaDecoderLayer(llama_torch_config,
