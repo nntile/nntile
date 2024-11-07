@@ -59,6 +59,7 @@ set(TESTS
     "scal"
     "transpose"
     "norm_fiber"
+    "norm_fiber_inplace"
     )
 
 # Describe all tests that are not yet implemented
