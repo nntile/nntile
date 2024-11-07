@@ -197,8 +197,6 @@ if args.submodule == "mlp":
             "{} seconds".format(time1))
         del torch_layer_
 elif args.submodule == "decoder":
-    # # TODO: Move this option to args
-    # llama_torch_config._attn_implementation = "eager"
     # layer_idx input param is None since
     # we do not use caching and explcitly state this
     torch_layer_ = LlamaDecoderLayer(llama_torch_config,
@@ -287,7 +285,7 @@ elif args.submodule == "attention":
                 torch_layer_, X, pos_ids, mask, llama_config_nntile, 0)
         del torch_layer_
 elif args.submodule == "causal_llama":
-    raise ValueError("Causal LLaMa isnot supported yet!")
+    raise ValueError("Causal LLaMa is not supported yet!")
 
 if args.use_torch and args.torch_compile:
     torch_layer = torch.compile(torch_layer_)
