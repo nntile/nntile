@@ -291,11 +291,21 @@ elif args.submodule == "causal_llama":
 
 if args.use_torch and args.torch_compile:
     torch_layer = torch.compile(torch_layer_)
-    torch.set_float32_matmul_precision('high')
 elif args.use_torch:
     torch_layer = torch_layer_
 
 if args.use_torch:
+    if args.dtype == "bf16":
+        torch_layer = torch_layer.bfloat16()
+        x_torch = x_torch.bfloat16()
+        pos_ids_torch = pos_ids_torch.bfloat16()
+        mask_torch = mask_torch.bfloat16()
+    if args.dtype == "fp32_fast_bf16":
+        torch.set_float32_matmul_precision('medium')
+    if args.dtype == "fp32_fast_tf32":
+        torch.set_float32_matmul_precision('high')
+    if args.dtype == "fp32":
+        torch.set_float32_matmul_precision('highest')
     torch_layer = torch_layer.to(torch_device)
     torch_layer.eval()
     x_torch = x_torch.to(torch_device)
@@ -317,11 +327,11 @@ if args.use_torch:
         output = torch_layer(x_torch)
     elif args.submodule == "decoder":
         output = torch_layer(x_torch,
-                            position_ids=torch.tensor(pos_ids).to(torch_device),
+                            position_ids=pos_ids_torch,
                             attention_mask=mask_torch)
     elif args.submodule == "attention":
         output = torch_layer(x_torch,
-                            position_ids=torch.tensor(pos_ids).to(torch_device),
+                            position_ids=pos_ids_torch,
                             attention_mask=mask_torch)
     fin_torch_time = time.time()
 
