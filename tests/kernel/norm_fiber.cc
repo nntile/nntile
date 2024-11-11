@@ -137,7 +137,6 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
     }
     std::cout << "OK: kernel::norm_fiber::cuda<" << T::type_repr << ">\n";
 #endif // NNTILE_USE_CUDA
-
 }
 
 int main(int argc, char **argv)
