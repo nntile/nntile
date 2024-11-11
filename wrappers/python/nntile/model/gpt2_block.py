@@ -51,7 +51,7 @@ class GPT2Block(BaseModel):
                       post_mlp_add.activations_output
         self.config = config
         # Fill Base Model with the generated data
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
         self.ln_1 = self.layers[0]
         self.attn = self.layers[1]
         self.ln_2 = self.layers[3]

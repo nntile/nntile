@@ -14,6 +14,7 @@
 from typing import Any, List
 
 from nntile.model.base_model import BaseModel
+from nntile.nntile_core.starpu import iteration_pop, iteration_push
 from nntile.tensor import Tensor, clear_async, copy_async, log_scalar_async
 
 
@@ -38,10 +39,14 @@ class Pipeline(object):
 
     def train_async(self, log_loss=True):
         for i_epoch in range(self.n_epochs):
+            # Provide epoch number to the FXT trace
+            iteration_push(i_epoch)
             # print("Epoch ", i_epoch)
             num_batches = len(self.x)
             for i_batch, (x_batch, y_batch) in enumerate(zip(self.x, self.y)):
-                # Zero out gradients of all weights and activations
+                # Provide batch number to the FXT trace
+                iteration_push(i_batch)
+                # Zero out gradients of all weights
                 self.model.clear_parameters_grads()
                 clear_async(self.loss.val)
                 # Accumulate gradients from subbatches
@@ -63,8 +68,13 @@ class Pipeline(object):
                     # Invalidate activations[2:]. We have to keep
                     # activations[1] as it holds positional embedding indices,
                     # that are computed once
-                    for t in self.model.activations[2:]:
-                        t.value.invalidate_submit()
+                    if (self.model.config.name == "bert" or
+                        self.model.config.name == "roberta"):
+                        for t in self.model.activations[3:]:
+                            t.value.invalidate_submit()
+                    else:
+                        for t in self.model.activations[2:]:
+                            t.value.invalidate_submit()
                     # Invalidate gradients of activations
                     for t in self.model.activations:
                         if t.grad_required:
@@ -87,10 +97,14 @@ class Pipeline(object):
                 print("Batch={}/{} Epoch={}/{} Loss={}".format(
                         i_batch + 1, num_batches, i_epoch + 1, self.n_epochs,
                         loss_np[0]), flush=True)
+                # Finish current batch in the FXT trace
+                iteration_pop()
             # nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
             # self.loss.get_val(nntile_xentropy_np)
             # print("Last batch loss after in {} epoch = {}".format(
             #       i_epoch, nntile_xentropy_np[0]))
+            # Finish current epoch in the FXT trace
+            iteration_pop()
 
     def print_meminfo(self):
         params_nbytes = 0

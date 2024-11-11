@@ -19,7 +19,7 @@ namespace nntile::tile
 
 template<typename T>
 void subtract_indexed_outputs_async(Scalar val, const Tile<int64_t> &labels,
-        const Tile<T> &dst)
+        const Tile<T> &dst, Index ignore_index)
 {
 // TODO - add description
     if(labels.ndim != dst.ndim-1)
@@ -34,66 +34,71 @@ void subtract_indexed_outputs_async(Scalar val, const Tile<int64_t> &labels,
         }
     }
     // Insert task
-    starpu::subtract_indexed_outputs::submit<T>(dst.shape[0], labels.nelems,
+    starpu::subtract_indexed_outputs::submit<T>(dst.shape[0], labels.nelems, ignore_index,
             val, labels, dst);
 }
 
 template<typename T>
 void subtract_indexed_outputs(Scalar val, const Tile<int64_t> &labels,
-        const Tile<T> &dst)
+        const Tile<T> &dst, Index ignore_index)
 {
-    subtract_indexed_outputs_async<T>(val, labels, dst);
+    subtract_indexed_outputs_async<T>(val, labels, dst, ignore_index);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
 void subtract_indexed_outputs_async<fp32_t>(Scalar val,
-        const Tile<int64_t> &labels, const Tile<fp32_t> &dst);
+        const Tile<int64_t> &labels, const Tile<fp32_t> &dst,
+        Index ignore_index);
 
 template
 void subtract_indexed_outputs_async<fp32_fast_tf32_t>(Scalar val,
-        const Tile<int64_t> &labels, const Tile<fp32_fast_tf32_t> &dst);
+        const Tile<int64_t> &labels, const Tile<fp32_fast_tf32_t> &dst,
+        Index ignore_index);
 
 template
 void subtract_indexed_outputs_async<fp32_fast_fp16_t>(Scalar val, const Tile<int64_t> &labels,
-        const Tile<fp32_fast_fp16_t> &dst);
+        const Tile<fp32_fast_fp16_t> &dst, Index ignore_index);
 
 template
 void subtract_indexed_outputs_async<fp32_fast_bf16_t>(Scalar val, const Tile<int64_t> &labels,
-        const Tile<fp32_fast_bf16_t> &dst);
+        const Tile<fp32_fast_bf16_t> &dst, Index ignore_index);
 
 template
 void subtract_indexed_outputs_async<fp64_t>(Scalar val,
-        const Tile<int64_t> &labels, const Tile<fp64_t> &dst);
+        const Tile<int64_t> &labels, const Tile<fp64_t> &dst,
+        Index ignore_index);
 
 template
 void subtract_indexed_outputs_async<bf16_t>(Scalar val,
-        const Tile<int64_t> &labels, const Tile<bf16_t> &dst);
+        const Tile<int64_t> &labels, const Tile<bf16_t> &dst,
+        Index ignore_index);
 
 // Explicit instantiation
 template
 void subtract_indexed_outputs<fp32_t>(Scalar val, const Tile<int64_t> &labels,
-        const Tile<fp32_t> &dst);
+        const Tile<fp32_t> &dst, Index ignore_index);
 
 template
 void subtract_indexed_outputs<fp32_fast_tf32_t>(Scalar val, const Tile<int64_t> &labels,
-        const Tile<fp32_fast_tf32_t> &dst);
+        const Tile<fp32_fast_tf32_t> &dst, Index ignore_index);
 
 template
 void subtract_indexed_outputs<fp32_fast_fp16_t>(Scalar val, const Tile<int64_t> &labels,
-        const Tile<fp32_fast_fp16_t> &dst);
+        const Tile<fp32_fast_fp16_t> &dst, Index ignore_index);
 
 template
 void subtract_indexed_outputs<fp32_fast_bf16_t>(Scalar val, const Tile<int64_t> &labels,
-        const Tile<fp32_fast_bf16_t> &dst);
+        const Tile<fp32_fast_bf16_t> &dst, Index ignore_index);
 
 template
 void subtract_indexed_outputs<fp64_t>(Scalar val, const Tile<int64_t> &labels,
-        const Tile<fp64_t> &dst);
+        const Tile<fp64_t> &dst, Index ignore_index);
 
 template
 void subtract_indexed_outputs<bf16_t>(Scalar val,
-        const Tile<int64_t> &labels, const Tile<bf16_t> &dst);
+        const Tile<int64_t> &labels, const Tile<bf16_t> &dst,
+        Index ignore_index);
 
 } // namespace nntile::tile

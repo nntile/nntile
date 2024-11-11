@@ -21,10 +21,10 @@ namespace nntile::tensor
 
 template<typename T>
 void subtract_indexed_outputs_async(Scalar val, const Tensor<int64_t> &labels,
-        const Tensor<T> &dst);
+        const Tensor<T> &dst, Index ignore_index);
 
 template<typename T>
 void subtract_indexed_outputs(Scalar val, const Tensor<int64_t> &labels,
-        const Tensor<T> &dst);
+        const Tensor<T> &dst, Index ignore_index);
 
 } // namespace nntile::tensor

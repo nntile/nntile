@@ -23,7 +23,7 @@ from transformers.models.gpt2.modeling_gpt2 import GPT2Model as GPT2Model_torch
 
 import nntile
 from nntile.model.gpt2_config import GPT2ConfigNNTile
-from nntile.model.gpt2_model import GPT2 as GPT2Model
+from nntile.model.gpt2_model import GPT2Model
 from nntile.tensor import to_numpy
 
 # NNTile dtype via corresponding Tensor type

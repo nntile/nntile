@@ -27,7 +27,7 @@ from .gpt2_block import GPT2Block
 from .gpt2_config import GPT2ConfigNNTile
 
 
-class GPT2(BaseModel):
+class GPT2Model(BaseModel):
     next_tag: int
     wte_layer: Embedding
     wpe_layer: Embedding
@@ -49,10 +49,12 @@ class GPT2(BaseModel):
 
         self.config = config
 
-        if self.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
-                              "fp32_fast_fp16", "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
-            "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
+        if self.dtype not in ["fp32", "tf32",
+                              "bf16", "fp32_fast_fp16",
+                              "fp32_fast_bf16"]:
+            raise TypeError("Only fp32, tf32, bf16, fp32_fast_fp16,"
+                            "fp32_fast_bf16 are"
+                            "supported for weight type")
         activations = [input_ids, positional_ids]
         activations += wte_layer_.activations_output
         activations += wpe_layer_.activations_output
@@ -72,7 +74,7 @@ class GPT2(BaseModel):
         layers.append(lnorm_layer)
         activations.extend(lnorm_layer.activations_output)
 
-        super().__init__(activations, layers)
+        super().__init__(activations, layers, config)
 
     @staticmethod
     def from_torch(torch_gpt2: GPT2Model_torch,
@@ -81,10 +83,12 @@ class GPT2(BaseModel):
                    config: GPT2ConfigNNTile,
                    next_tag: int):
 
-        if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
-                              "fp32_fast_fp16", "fp32_fast_bf16"]:
-            raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
-            "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
+        if config.dtype not in ["fp32", "tf32",
+                              "bf16", "fp32_fast_fp16",
+                              "fp32_fast_bf16"]:
+            raise TypeError("Only fp32, tf32, bf16, fp32_fast_fp16,"
+                            "fp32_fast_bf16 are"
+                            "supported for weight type")
         positional_ids_traits = TensorTraits([seq_len], [seq_len_tile])
         positional_ids_distr = [0] * positional_ids_traits.grid.nelems
         positional_ids_value = Tensor_int64(
@@ -103,8 +107,8 @@ class GPT2(BaseModel):
         x_value = Tensor_int64(x_traits, x_distr, 0)
 
         dtype2tensor_type = {"fp32": Tensor_fp32,
+                             "tf32": Tensor_fp32_fast_tf32,
                              "bf16": Tensor_bf16,
-                             "fp32_fast_tf32": Tensor_fp32_fast_tf32,
                              "fp32_fast_fp16": Tensor_fp32_fast_fp16,
                              "fp32_fast_bf16": Tensor_fp32_fast_bf16
                             }
@@ -157,7 +161,7 @@ class GPT2(BaseModel):
                                     U,
                                     next_tag, config.redux)
         X = TensorMoments(x_value, None, False)
-        gpt2_nntile = GPT2(X,
+        gpt2_nntile = GPT2Model(X,
                             positional_ids,
                             wpe_layer,
                             wte_layer,
