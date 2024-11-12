@@ -52,6 +52,10 @@ parser.add_argument("--attn_implementation",
 parser.add_argument("--use-torch", action="store_true")
 parser.add_argument("--use-nntile", action="store_true")
 
+parser.add_argument("--n-fwd", type=int, default=1)
+parser.add_argument("--n-fwd-bwd", type=int, default=1)
+
+
 parser.add_argument("--seq-len", type=int, default=1024)
 parser.add_argument("--seq-len-tile", type=int, default=-1)
 parser.add_argument("--minibatch-size", type=int, default=1)
@@ -69,7 +73,7 @@ parser.add_argument("--restrict", choices=["cpu", "cuda", None],
 parser.add_argument("--flash-attention", action="store_true")
 parser.add_argument("--use-redux", action="store_true")
 parser.add_argument("--torch-compile", action="store_true")
-parser.add_argument("--num_warmup_calls", type=int, default=1)
+parser.add_argument("--num-warmup-calls", type=int, default=1)
 parser.add_argument("--logger", action="store_true")
 parser.add_argument("--logger-server-addr", type=str,
                     default="localhost")
@@ -322,18 +326,23 @@ if args.use_torch:
 
     start_torch_time = time.time()
     if args.submodule == "mlp":
-        output = torch_layer(x_torch)
+        for n_fwd_idx in range(args.n_fwd):
+            output = torch_layer(x_torch)
     elif args.submodule == "decoder":
-        output = torch_layer(x_torch,
+        for n_fwd_idx in range(args.n_fwd):
+            output = torch_layer(x_torch,
                             position_ids=pos_ids_torch,
                             attention_mask=mask_torch)
     elif args.submodule == "attention":
-        output = torch_layer(x_torch,
+        for n_fwd_idx in range(args.n_fwd):
+            output = torch_layer(x_torch,
                             position_ids=pos_ids_torch,
                             attention_mask=mask_torch)
     fin_torch_time = time.time()
 
-    print("PyTorch timing = {}".format(fin_torch_time - start_torch_time))
+    print("PyTorch timing averaged over {} runs = {}".format(args.n_fwd,
+                                (fin_torch_time - start_torch_time) /
+                                args.n_fwd))
 
 if args.use_nntile:
 
@@ -343,8 +352,9 @@ if args.use_nntile:
 
     start_nntile_time = time.time()
     nntile.starpu.profiling_enable()
-    nntile_module.forward_async()
-    nntile.starpu.wait_for_all()
+    for fwd_idx in range(args.n_fwd):
+        nntile_module.forward_async()
+        nntile.starpu.wait_for_all()
     nntile.starpu.profiling_disable()
     fin_nntile_time = time.time()
 
@@ -352,4 +362,5 @@ if args.use_nntile:
     if args.submodule == "attention":
         nntile_module.x.unregister()
         nntile_module.y.unregister()
-    print("NNTile timing = {}".format(fin_nntile_time - start_nntile_time))
+    print("NNTile timing averaged over {} runs = {}".format(args.n_fwd,
+                    (fin_nntile_time - start_nntile_time) / args.n_fwd))
