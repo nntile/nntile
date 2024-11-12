@@ -44,11 +44,14 @@ Main contributors are:
 
 Authors of the **NNTile** would like to thank Ivan Oseledets for bringing idea
 of this project to life.
+
 The work was generously supported by the Center in the field of Artificial
 Intelligence in the direction of optimizing management decisions to reduce the
 carbon footprint on the basis of the Skolkovo Institute of Science and
 Technology under Contract No. 70-2021-00145/10841 dated 02.11.2021 (items
 2.3.1, 2.3.3, 3.3.2 and 3.3.4) and Contract No. 10825/3978620 dated 26.08.2021.
+
+This work was supported by FASIE (fasie.ru).
 
 ## Assembly
 
@@ -85,6 +88,14 @@ Argument `CUDA_ARCHS` defines target CUDA architectures to be supported by
 ## Minimal requirements
 
 NNTile does supports CUDA devices only of compute capability 8.0 or higher
+
+## Jupyter notebook examples
+
+Several examples (GPT2, LLaMa) can be found in `notebooks` directory. With a present
+docker image one can launch Jupyter server with a help of the following command:
+```shell
+docker run -it -p 8888:8888 nntile /bin/bash -c "jupyter notebook --notebook-dir=/workspace/nntile --ip='*' --port=8888 --no-browser --allow-root"
+```
 
 ## Minimal working GPT example
 
