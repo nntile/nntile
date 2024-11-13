@@ -169,7 +169,8 @@ roberta_config_nntile = RobertaConfigNNTile(
     n_head_tile=args.n_head_tile,
     dtype=args.dtype,
     type_vocab_size=1,
-    # flash_attention=args.flash_attention
+    redux=args.use_redux,
+    flashattention=args.flash_attention
 )
 
 print(roberta_config_nntile)
@@ -229,9 +230,9 @@ for epoch_idx in range(args.nepochs):
                                      args.seq_len), dtype=bool)
             idx_masked_tokens = np.array([
                 rng.choice(args.seq_len, size=(args.n_masked_tokens_per_seq,),
-                           replace=False) for i in range(args.minibatch_size)])
-            for i in range(args.minibatch_size):
-                current_mask[i, idx_masked_tokens[i]] = 1
+                           replace=False) for k in range(args.minibatch_size)])
+            for k in range(args.minibatch_size):
+                current_mask[k, idx_masked_tokens[k]] = 1
 
             x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
             next_tag = x.next_tag
