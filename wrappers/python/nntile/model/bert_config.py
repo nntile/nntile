@@ -30,7 +30,7 @@ class BertConfigNNTile:
     layer_norm_epsilon: float = 1e-5
     max_position_embeddings: int = 512
     num_hidden_layers: int = 1
-    redux: bool = True
+    redux: bool = False
     hidden_dropout_prob: float = 0
     attention_probs_dropout_prob: float = 0
     classifier_dropout: float = 0
