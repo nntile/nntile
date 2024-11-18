@@ -13,7 +13,7 @@
 
 import torch
 from transformers.models.gpt_neo.modeling_gpt_neo import (
-    GPTNeoMLP as GPTNeoMlpTorch, GPTNeoConfig as GPTNeoConfigTorch)
+    GPTNeoConfig as GPTNeoConfigTorch, GPTNeoMLP as GPTNeoMlpTorch)
 
 from nntile.tensor import TensorMoments, notrans, to_numpy
 

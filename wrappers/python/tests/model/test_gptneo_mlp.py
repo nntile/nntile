@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 import torch
 from transformers.models.gpt_neo.modeling_gpt_neo import (
-    GPTNeoMLP as GPTNeoMLPTorch, GPTNeoConfig as GPTNeoConfigTorch)
+    GPTNeoConfig as GPTNeoConfigTorch, GPTNeoMLP as GPTNeoMLPTorch)
 
 import nntile
 from nntile.model.gptneo_config import GPTNeoConfig
