@@ -31,6 +31,6 @@ class GPTNeoConfig:
     max_position_embeddings: int = 2048
     num_hidden_layers: int = 1
     redux: bool = False
-    bos_token_id=50256
+    bos_token_id: int = 50256
     eos_token_id: int = 50256
     name: str = "gpt-neo"

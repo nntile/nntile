@@ -152,7 +152,6 @@ class TestGPT2MLP:
         for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
                 torch_layer_other.named_parameters()):
             assert n1 == n2
-            print(p1.shape,p2.shape)
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
     def test_forward(self, starpu_simple, torch_rng,
