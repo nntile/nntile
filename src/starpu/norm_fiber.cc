@@ -169,7 +169,7 @@ void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src1,
     }
     else
     {
-        dst_mode = STARPU_RW;
+        dst_mode = STARPU_W;
     }
     // Codelet arguments
     args_t *args = (args_t *)std::malloc(sizeof(*args));
@@ -181,8 +181,8 @@ void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src1,
     args->beta = beta;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_W, static_cast<starpu_data_handle_t>(src1),
-            STARPU_W, static_cast<starpu_data_handle_t>(src2),
+            STARPU_R, static_cast<starpu_data_handle_t>(src1),
+            STARPU_R, static_cast<starpu_data_handle_t>(src2),
             STARPU_CL_ARGS, args, sizeof(*args),
             dst_mode, static_cast<starpu_data_handle_t>(dst),
             0);
