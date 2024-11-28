@@ -39,7 +39,7 @@ void validate_cpu(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar b
     for(Index b = 0; b < batch; ++b) {
         for(Index i2 = 0; i2 < k; ++i2)
         {
-            dst[b*batch+i2] = Y{0.0};
+            dst[b*batch+i2] = Y{1.0};
             src2[b*batch+i2] = Y{1.0};
             for(Index i1 = 0; i1 < n; ++i1)
             {
