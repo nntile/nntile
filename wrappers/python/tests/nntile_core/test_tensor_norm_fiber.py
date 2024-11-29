@@ -106,5 +106,4 @@ def test_norm_fiber_async(dtype, inplace, input_shape):
     A.unregister()
     B.unregister()
     C.unregister()
-
-    assert np.allclose(np_B[0], ref[0])
+    assert np.allclose(np_B.flatten(), ref.flatten())
