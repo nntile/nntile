@@ -37,6 +37,23 @@ norm_fiber_inplace = {
 }
 
 
+def get_ref_value(beta, dst, alpha, src):
+    """
+    Hardcored emulation kernel of norm fiber using numpy,
+    only for this test.
+    """
+    nntile_shape = [src.shape[0], src.shape[1], src.shape[2] * src.shape[3]]
+    src = src.reshape(nntile_shape)[:, :, :, None]
+    # M, K, N, batch
+    _, K, _, batch = src.shape
+    dst = dst.reshape([K, batch])
+    for k in range(K):
+        for b in range(batch):
+            norm_value = np.linalg.norm(src[:, k, :, b])
+            dst[k, b] = np.hypot(beta * dst[k, b], alpha * norm_value)
+    return dst
+
+
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
 @pytest.mark.parametrize('inplace', [True, False])
 @pytest.mark.parametrize('input_shape', [
@@ -54,22 +71,24 @@ def test_norm_fiber_async(dtype, inplace, input_shape):
     shape_B = shape_A[1:2]
     shape_C = shape_A[1:2]
 
+    rng = np.random.default_rng(0)
+
     # data generation
     traits_A = nntile.tensor.TensorTraits(shape_A, shape_A)
     A = Tensor[dtype](traits_A, mpi_distr, next_tag)
-    np_A = np.ones(shape_A, order='F').astype(dtype)
+    np_A = rng.random(shape_A).astype(dtype, order='F')
     A.from_array(np_A)
     next_tag = A.next_tag
 
     traits_B = nntile.tensor.TensorTraits(shape_B, shape_B)
     B = Tensor[dtype](traits_B, mpi_distr, next_tag)
-    np_B = np.ones(shape_B, order='F').astype(dtype)
+    np_B = rng.random(shape_B).astype(dtype, order='F')
     B.from_array(np_B)
     next_tag = B.next_tag
 
     traits_C = nntile.tensor.TensorTraits(shape_C, shape_C)
     C = Tensor[dtype](traits_C, mpi_distr, next_tag)
-    np_C = np.ones(shape_C, order='F').astype(dtype)
+    np_C = rng.random(shape_C).astype(dtype, order='F')
     C.from_array(np_C)
     next_tag = C.next_tag
 
@@ -82,10 +101,10 @@ def test_norm_fiber_async(dtype, inplace, input_shape):
     nntile.starpu.wait_for_all()
 
     # reference value
-    ref = (input_shape[0] * input_shape[2] * input_shape[3]) ** 0.5
+    ref = get_ref_value(beta, np_B, alpha, np_A)
 
     A.unregister()
     B.unregister()
     C.unregister()
 
-    assert np.allclose(np_B[0], ref)
+    assert np.allclose(np_B[0], ref[0])
