@@ -84,7 +84,7 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
         for(Index i2 = 0; i2 < k; ++i2)
         {
             dst[b*batch+i2] = Y{1.0};
-            src2[b*batch+i2] = Y{1.0};
+            src2[b*batch+i2] = Y{10.0};
             for(Index i1 = 0; i1 < n; ++i1)
             {
                 T *src_slice = src_pointer + ((i1+b*n)*k+i2)*m;
@@ -101,11 +101,10 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
     // Check low-level kernel
     std::cout << "OK: kernel::norm_fiber::cpu<" << T::type_repr << ">\n";
     cpu<T>(m, n, k, batch, alpha, &src1[0], beta, &src2[0], &dst[0]);
-    Y ref = std::sqrt(m*n);
+    Y ref = std::sqrt(m*n + beta*10.0*10.0);
     for(Index i = 0; i < dst.size(); ++i)
     {
         Y val{dst[i]};
-        //std::cout << i << " " << dst[i] << "\n";
         if(ref == Y{0})
         {
             TEST_ASSERT(std::abs(val) <= 10*eps);
@@ -125,7 +124,6 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
     for(Index i = 0; i < dst_cuda.size(); ++i)
     {
         Y val_cuda{dst_cuda[i]};
-        //std::cout << i << " " << dst_cuda[i] << "\n";
         if(ref == Y{0})
         {
             TEST_ASSERT(std::abs(val_cuda) <= 10*eps);
@@ -141,6 +139,10 @@ void validate(Index m, Index n, Index k, Index batch, Scalar alpha, Scalar beta)
 
 int main(int argc, char **argv)
 {
+    validate<fp64_t>(32, 32, 10, 1, 1.0, 1.0);
+    validate<fp64_t>(32, 9, 10, 1, 1.0, 1.0);
+    validate<fp32_t>(32, 32, 10, 1, 1.0, 1.0);
+    validate<fp32_t>(32, 9, 10, 1, 1.0, 1.0);
     validate<fp64_t>(32, 32, 10, 1, 1.0, 0.0);
     validate<fp64_t>(32, 9, 10, 1, 1.0, 0.0);
     validate<fp32_t>(32, 32, 10, 1, 1.0, 0.0);
