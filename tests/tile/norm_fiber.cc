@@ -53,7 +53,14 @@ void validate()
         src2_local[i] = Y(1.0);
     }
     src2_local.release();
-
+    
+    
+    auto dst_local_w = dst.acquire(STARPU_W);
+    for(Index i = 0; i < dst.nelems; ++i)
+    {
+        dst_local_w[i] = Y(-1.0);
+    }
+    dst_local_w.release();
 
     std::cout << "Run tile::norm_fiber<" << T::type_repr << "> restricted to CPU\n";
     norm_fiber<T>(alpha, src1, beta, src2, dst, axis, batch_ndim, redux);
