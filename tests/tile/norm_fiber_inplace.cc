@@ -41,17 +41,17 @@ void validate()
     // fill tiles
     auto src1_local = src1.acquire(STARPU_W);
     auto dst_local_w = dst.acquire(STARPU_W);
-    
+
     for(Index i = 0; i < src1.nelems; ++i)
     {
         src1_local[i] = Y(-1.0);
     }
-    
+
     for(Index i = 0; i < dst.nelems; ++i)
     {
         dst_local_w[i] = Y(-1.0);
     }
-    
+
     src1_local.release();
     dst_local_w.release();
 
