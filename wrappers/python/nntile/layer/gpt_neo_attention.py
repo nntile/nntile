@@ -13,7 +13,7 @@
 
 import numpy as np
 import torch
-from transformers.models.gpt2.modeling_gpt_neo import (
+from transformers.models.gpt_neo.modeling_gpt_neo import (
     GPTNeoAttention as GPTNeoAttentionTorch, GPTNeoConfig as GPTNeoConfigTorch)
 
 from nntile.layer.base_layer import BaseLayer
@@ -80,25 +80,12 @@ class GPTNeoAttention(BaseLayer):
         a_sumprod_slice: Tensor,
         b: TensorMoments,
         b_transposed: TensorMoments,
-        in_proj_bias_q: TensorMoments,
-        in_proj_bias_k: TensorMoments,
-        in_proj_bias_v: TensorMoments,
         out_proj_bias: TensorMoments,
         layer_id: int,
         attention_type: str,
         mask=None,
         redux: bool = False
         ):
-        qkv_bias_list = []
-        if in_proj_bias_q:
-            qkv_bias_list.append(in_proj_bias_q)
-            in_proj_bias_q.grad.set_reduction_add()
-        if in_proj_bias_k:
-            qkv_bias_list.append(in_proj_bias_k)
-            in_proj_bias_k.grad.set_reduction_add()
-        if in_proj_bias_v:
-            qkv_bias_list.append(in_proj_bias_v)
-            in_proj_bias_v.grad.set_reduction_add()
         if out_proj_bias:
             bias_list_out_proj = [out_proj_bias]
             out_proj_bias.grad.set_reduction_add()
@@ -108,7 +95,7 @@ class GPTNeoAttention(BaseLayer):
         super().__init__(
             [x_q, x_k, x_v],
             [y],
-            [w_q, w_k, w_v] + qkv_bias_list + [w] + bias_list_out_proj,
+            [w_q, w_k, w_v] + [w] + bias_list_out_proj,
             [
                 q_transposed,
                 q,
@@ -166,9 +153,6 @@ class GPTNeoAttention(BaseLayer):
         self.b.value.set_reduction_add()
         self.b_transposed = b_transposed
         self.b_transposed.grad.set_reduction_add()
-        self.in_proj_bias_q = in_proj_bias_q
-        self.in_proj_bias_k = in_proj_bias_k
-        self.in_proj_bias_v = in_proj_bias_v
         self.out_proj_bias = out_proj_bias
         self.n_head = w_q.value.shape[0]
         n_emb = x_q.value.shape[0]
@@ -192,7 +176,7 @@ class GPTNeoAttention(BaseLayer):
                         x_v: TensorMoments,
                         n_head: int, n_head_tile: int, next_tag: int,
                         layer_id: int, attention_type: str, mask=None,
-                        bias=False, redux: bool = False):
+                        redux: bool = False):
         # Get sizes
         n_emb, n_seq, n_batch = x_q.value.shape
         n_emb_tile, n_seq_tile, n_batch_tile = x_q.value.basetile_shape
@@ -334,10 +318,6 @@ class GPTNeoAttention(BaseLayer):
         a_sumprod_slice_distr = [0] * a_sumprod_slice_traits.grid.nelems
         b_distr = [0] * b_traits.grid.nelems
         b_transposed_distr = [0] * b_transposed_traits.grid.nelems
-        if bias:
-            in_proj_bias_qkv_traits = TensorTraits([head_size, n_head],
-                                        [head_size_tile, n_head_tile])
-            in_proj_bias_qkv_distr = [0] * in_proj_bias_qkv_traits.grid.nelems
         # Define all the lists
         # w_q
         w_q_value = type(x_q.value)(w_q_traits, w_q_distr, next_tag)
@@ -345,78 +325,18 @@ class GPTNeoAttention(BaseLayer):
         w_q_grad = type(x_q.value)(w_q_traits, w_q_distr, next_tag)
         next_tag = w_q_grad.next_tag
         w_q = TensorMoments(w_q_value, w_q_grad, True)
-        if bias:
-            in_proj_bias_q_value = type(x_q.value)(
-                in_proj_bias_qkv_traits,
-                in_proj_bias_qkv_distr,
-                next_tag
-            )
-            next_tag = in_proj_bias_q_value.next_tag
-            in_proj_bias_q_grad = type(x_q.value)(
-                in_proj_bias_qkv_traits,
-                in_proj_bias_qkv_distr,
-                next_tag
-            )
-            next_tag = in_proj_bias_q_grad.next_tag
-            bias_inproj_q = TensorMoments(
-                in_proj_bias_q_value,
-                in_proj_bias_q_grad,
-                True
-            )
-        else:
-            bias_inproj_q = None
         # w_k
         w_k_value = type(x_q.value)(w_k_traits, w_k_distr, next_tag)
         next_tag = w_k_value.next_tag
         w_k_grad = type(x_q.value)(w_k_traits, w_k_distr, next_tag)
         next_tag = w_k_grad.next_tag
         w_k = TensorMoments(w_k_value, w_k_grad, True)
-        if bias:
-            in_proj_bias_k_value = type(x_q.value)(
-                in_proj_bias_qkv_traits,
-                in_proj_bias_qkv_distr,
-                next_tag
-            )
-            next_tag = in_proj_bias_k_value.next_tag
-            in_proj_bias_k_grad = type(x_q.value)(
-                in_proj_bias_qkv_traits,
-                in_proj_bias_qkv_distr,
-                next_tag
-            )
-            next_tag = in_proj_bias_k_grad.next_tag
-            bias_inproj_k = TensorMoments(
-                in_proj_bias_k_value,
-                in_proj_bias_k_grad,
-                True
-            )
-        else:
-            bias_inproj_k = None
         # w_v
         w_v_value = type(x_q.value)(w_v_traits, w_v_distr, next_tag)
         next_tag = w_v_value.next_tag
         w_v_grad = type(x_q.value)(w_v_traits, w_v_distr, next_tag)
         next_tag = w_v_grad.next_tag
         w_v = TensorMoments(w_v_value, w_v_grad, True)
-        if bias:
-            in_proj_bias_v_value = type(x_q.value)(
-                in_proj_bias_qkv_traits,
-                in_proj_bias_qkv_distr,
-                next_tag
-            )
-            next_tag = in_proj_bias_v_value.next_tag
-            in_proj_bias_v_grad = type(x_q.value)(
-                in_proj_bias_qkv_traits,
-                in_proj_bias_qkv_distr,
-                next_tag
-            )
-            next_tag = in_proj_bias_v_grad.next_tag
-            bias_inproj_v = TensorMoments(
-                in_proj_bias_v_value,
-                in_proj_bias_v_grad,
-                True
-            )
-        else:
-            bias_inproj_v = None
         # w
         w_value = type(x_q.value)(w_traits, w_distr, next_tag)
         next_tag = w_value.next_tag
@@ -539,29 +459,26 @@ class GPTNeoAttention(BaseLayer):
             b_transposed_grad,
             True
         )
-        # Allocate tensors for bias for q, k, v and output projection
-        if bias:
-            out_proj_bias_traits = TensorTraits([n_emb], [n_emb_tile])
-            out_proj_bias_distr = [0] * out_proj_bias_traits.grid.nelems
-            out_proj_bias_value = type(x_q.value)(
-                out_proj_bias_traits,
-                out_proj_bias_distr,
-                next_tag
-            )
-            next_tag = out_proj_bias_value.next_tag
-            out_proj_bias_grad = type(x_q.value)(
-                out_proj_bias_traits,
-                out_proj_bias_distr,
-                next_tag
-            )
-            next_tag = out_proj_bias_grad.next_tag
-            out_proj_bias = TensorMoments(
-                out_proj_bias_value,
-                out_proj_bias_grad,
-                True
-            )
-        else:
-            out_proj_bias = None
+        # Allocate tensors for bias for output projection
+        out_proj_bias_traits = TensorTraits([n_emb], [n_emb_tile])
+        out_proj_bias_distr = [0] * out_proj_bias_traits.grid.nelems
+        out_proj_bias_value = type(x_q.value)(
+            out_proj_bias_traits,
+            out_proj_bias_distr,
+            next_tag
+        )
+        next_tag = out_proj_bias_value.next_tag
+        out_proj_bias_grad = type(x_q.value)(
+            out_proj_bias_traits,
+            out_proj_bias_distr,
+            next_tag
+        )
+        next_tag = out_proj_bias_grad.next_tag
+        out_proj_bias = TensorMoments(
+            out_proj_bias_value,
+            out_proj_bias_grad,
+            True
+        )
         # Allocate tensor for output y
         y_traits = TensorTraits(x_q.value.shape, x_q.value.basetile_shape)
         y_value = type(x_q.value)(y_traits, x_q.value.distribution, next_tag)
@@ -590,7 +507,7 @@ class GPTNeoAttention(BaseLayer):
         layer = GPTNeoAttention(x_q, x_k, x_v, y, w_q, w_k, w_v, w,
                 q_transposed, q, k_transposed, k, v_transposed,
                 v, a, a_maxsumexp, a_sumprod_slice, b, b_transposed,
-                bias_inproj_q, bias_inproj_k, bias_inproj_v, out_proj_bias,
+                out_proj_bias,
                 layer_id, attention_type, layer_mask, redux=redux)
         # Return layer and next tag to be used
         return (layer, next_tag)
@@ -611,13 +528,6 @@ class GPTNeoAttention(BaseLayer):
         # self.q_transposed.value.wont_use()
         self.q_transposed.value.invalidate_submit()
         self.w_q.value.wont_use()
-        # Apply bias if needed
-        if self.in_proj_bias_q is not None:
-            # batched add_fiber_inplace (head_size, batch=n_head) into
-            # (head_size, n_seq, n_batch, batch=n_head)
-            add_fiber_inplace_async(1, self.in_proj_bias_q.value, 1,
-                    self.q.value, 0, 1)
-            self.in_proj_bias_q.value.wont_use()
         # K_transposed = einsum('jkl,lmn->jkmn', W_K, X_K)
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
@@ -631,13 +541,6 @@ class GPTNeoAttention(BaseLayer):
         # self.k_transposed.value.wont_use()
         self.k_transposed.value.invalidate_submit()
         self.w_k.value.wont_use()
-        # Apply bias if needed
-        if self.in_proj_bias_k is not None:
-            # batched add_fiber_inplace (head_size, batch=n_head) into
-            # (head_size, n_seq, n_batch, batch=n_head)
-            add_fiber_inplace_async(1, self.in_proj_bias_k.value, 1,
-                            self.k.value, 0, 1)
-            self.in_proj_bias_k.value.wont_use()
         # V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V)
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
@@ -651,19 +554,15 @@ class GPTNeoAttention(BaseLayer):
         # self.v_transposed.value.wont_use()
         self.v_transposed.value.invalidate_submit()
         self.w_v.value.wont_use()
-        # Apply bias if needed
-        if self.in_proj_bias_v is not None:
-            # batched add_fiber_inplace (head_size, batch=n_head) into
-            # (head_size, n_seq, n_batch, batch=n_head)
-            add_fiber_inplace_async(1, self.in_proj_bias_v.value, 1,
-                            self.v.value, 0, 1)
-            self.in_proj_bias_v.value.wont_use()
         # Get tensor for softmax
         # A = 1.0/sqrt(head_size) * einsum('jklb,jmlb->kmlb', K, Q)
         # single batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
         # by (head_size, n_seq, batch=n_batch, batch=n_head) into
         # (n_seq, n_seq, batch=n_batch, batch=n_head)
-        gemm_async(1.0 / self.head_size ** 0.5, trans, self.k.value,
+        # gemm_async(1.0 / self.head_size ** 0.5, trans, self.k.value,
+        #             notrans, self.q.value, 0.0, self.a.value, 1, 2,
+        #             redux=self.redux)
+        gemm_async(1.0, trans, self.k.value,
                     notrans, self.q.value, 0.0, self.a.value, 1, 2,
                     redux=self.redux)
         clear_async(self.a_maxsumexp)
@@ -708,12 +607,11 @@ class GPTNeoAttention(BaseLayer):
         # self.b.value.wont_use()
         self.b.value.invalidate_submit()
         self.b_transposed.value.wont_use()
-        # Apply bias if needed
-        if self.out_proj_bias is not None:
-            add_fiber_inplace_async(
-                1.0, self.out_proj_bias.value, 1.0, self.y.value, 0, 0
-            )
-            self.out_proj_bias.value.wont_use()
+        # Apply out bias
+        add_fiber_inplace_async(
+            1.0, self.out_proj_bias.value, 1.0, self.y.value, 0, 0
+        )
+        self.out_proj_bias.value.wont_use()
         self.y.value.wont_use()
 
     # Backward propagation of the linear layer
@@ -789,7 +687,7 @@ class GPTNeoAttention(BaseLayer):
         # A = 1.0/sqrt(head_size) * einsum('jklb,jmlb->kmlb', K, Q)
         if self.k.grad_required:
             # dK = 1.0/sqrt(head_size) * einsum('jmlb,kmlb->jklb', Q, dA)
-            gemm_async(1.0 / self.head_size ** 0.5, notrans, self.q.value,
+            gemm_async(1.0, notrans, self.q.value,
                         trans, self.a.grad, 0.0, self.k.grad, 1, 2,
                         redux=self.redux)
         # Q can be deleted
@@ -797,7 +695,7 @@ class GPTNeoAttention(BaseLayer):
         self.q.value.invalidate_submit()
         if self.q.grad_required:
             # dQ = 1.0/sqrt(head_size) * einsum('jklb,kmlb->jmlb', K, dA)
-            gemm_async(1.0 / self.head_size ** 0.5, notrans, self.k.value,
+            gemm_async(1.0, notrans, self.k.value,
                         notrans, self.a.grad, 0.0, self.q.grad, 1, 2,
                         redux=self.redux)
         # K can be deleted
@@ -806,12 +704,6 @@ class GPTNeoAttention(BaseLayer):
         # dA can be deleted
         # self.a.grad.wont_use()
         self.a.grad.invalidate_submit()
-        # Backward for bias of V
-        if self.in_proj_bias_v is not None:
-            if self.in_proj_bias_v.grad_required:
-                sum_fiber_async(1, self.v.grad, 1, self.in_proj_bias_v.grad,
-                        0, 1, redux=self.redux)
-                self.in_proj_bias_v.grad.wont_use()
         # Backward for axes rotation (V_transposed->V)
         if self.v_transposed.grad_required:
             # Rotate axes (head_size, n_seq, n_batch, n_head) into
@@ -842,12 +734,6 @@ class GPTNeoAttention(BaseLayer):
         # dV_transposed can be deleted
         # self.v_transposed.grad.wont_use()
         self.v_transposed.grad.invalidate_submit()
-        # Backward for bias of K
-        if self.in_proj_bias_k is not None:
-            if self.in_proj_bias_k.grad_required:
-                sum_fiber_async(1, self.k.grad, 1, self.in_proj_bias_k.grad,
-                        0, 1, redux=self.redux)
-                self.in_proj_bias_k.grad.wont_use()
         # Backward for axes rotation (K_transposed->K)
         if self.k_transposed.grad_required:
             # Rotate axes (head_size, n_seq, n_batch, n_head) into
@@ -878,12 +764,6 @@ class GPTNeoAttention(BaseLayer):
         # dK_transposed can be deleted
         # self.k_transposed.grad.wont_use()
         self.k_transposed.grad.invalidate_submit()
-        # Backward for bias of Q
-        if self.in_proj_bias_q is not None:
-            if self.in_proj_bias_q.grad_required:
-                sum_fiber_async(1, self.q.grad, 1, self.in_proj_bias_q.grad,
-                        0, 1, redux=self.redux)
-                self.in_proj_bias_q.grad.wont_use()
         # Backward for axes rotation (Q_transposed->Q)
         if self.q_transposed.grad_required:
             # Rotate axes (head_size, n_seq, n_batch, n_head) into
@@ -935,63 +815,43 @@ class GPTNeoAttention(BaseLayer):
             x_q,
             x_k,
             x_v,
-            n_head=torch_layer.num_heads,
-            n_head_tile=config.n_head_tile,
+            n_head=config.num_heads,
+            n_head_tile=config.num_heads_tile,
             next_tag=next_tag,
-            bias=True,
             layer_id=torch_layer.layer_id,
             attention_type=attn_type,
             mask=mask_np,
             redux=config.redux,
         )
 
-        weight_torch_np = torch_layer.q_proj.weight.cpu().detach().numpy()
+        weight_torch_np = torch_layer.attention.q_proj.weight.cpu().detach().numpy()
         layer.w_q.value.from_array(
-            weight_torch_np.T.reshape(
+            weight_torch_np.reshape(
                 layer.n_head, layer.head_size, n_emb
             )
         )
-        weight_torch_np = torch_layer.k_proj.weight.cpu().detach().numpy()
+        weight_torch_np = torch_layer.attention.k_proj.weight.cpu().detach().numpy()
         layer.w_k.value.from_array(
-            weight_torch_np.T.reshape(
+            weight_torch_np.reshape(
                 layer.n_head, layer.head_size, n_emb
             )
         )
-        weight_torch_np = torch_layer.v_proj.weight.cpu().detach().numpy()
+        weight_torch_np = torch_layer.attention.v_proj.weight.cpu().detach().numpy()
         layer.w_v.value.from_array(
-            weight_torch_np.T.reshape(
+            weight_torch_np.reshape(
                 layer.n_head, layer.head_size, n_emb
             )
         )
-
-        bias_torch_np = torch_layer.q_proj.bias.cpu().detach().numpy()
-        layer.in_proj_bias_q.value.from_array(
-            bias_torch_np[0 : n_emb]
-            .reshape(layer.n_head, layer.head_size)
-            .T
-        )
-        layer.in_proj_bias_k.value.from_array(
-            bias_torch_np[n_emb : 2 * n_emb]
-            .reshape(layer.n_head, layer.head_size)
-            .T
-        )
-        layer.in_proj_bias_v.value.from_array(
-            bias_torch_np[2 * n_emb : 3 * n_emb]
-            .reshape(layer.n_head, layer.head_size)
-            .T
-        )
-
         layer.w.value.from_array(
-            torch_layer.c_proj.weight
+            torch_layer.attention.out_proj.weight
             .cpu()
             .detach()
             .numpy()
-            .T
             .reshape(n_emb, layer.n_head, layer.head_size)
         )
 
         layer.out_proj_bias.value.from_array(
-            torch_layer.c_proj.bias
+            torch_layer.attention.out_proj.bias
             .cpu()
             .detach()
             .numpy()
@@ -1011,42 +871,37 @@ class GPTNeoAttention(BaseLayer):
             torch_layer_config, layer_id=self.layer_id
         )
 
-        weight_torch_np = np.empty((n_emb, 3 * n_emb))
-        weight_torch_np[:, : n_emb] = to_numpy(
+        weight_torch_np = np.empty((n_emb, n_emb))
+        weight_torch_np = to_numpy(
             self.w_q.value
-            ).reshape(n_emb, n_emb).T
-        weight_torch_np[:, n_emb : 2 * n_emb] = to_numpy(
-            self.w_k.value
-            ).reshape(n_emb, n_emb).T
-        weight_torch_np[:, 2 * n_emb : 3 * n_emb] = to_numpy(
-            self.w_v.value
-            ).reshape(n_emb, n_emb).T
-        torch_layer.c_attn.weight.data = torch.tensor(
+            ).reshape(n_emb, n_emb)
+        torch_layer.attention.q_proj.weight.data = torch.tensor(
             weight_torch_np,
             requires_grad=True,
         )
 
-        bias_torch_np = np.empty((3 * n_emb,))
-        bias_torch_np[: n_emb] = to_numpy(
-            self.in_proj_bias_q.value
-            ).T.reshape(n_emb,)
-        bias_torch_np[n_emb : 2 * n_emb] = to_numpy(
-            self.in_proj_bias_k.value
-            ).T.reshape(n_emb,)
-        bias_torch_np[2 * n_emb : 3 * n_emb] = to_numpy(
-            self.in_proj_bias_v.value
-            ).T.reshape(n_emb,)
-        torch_layer.c_attn.bias.data = torch.tensor(
-            bias_torch_np,
+        weight_torch_np = to_numpy(
+            self.w_k.value
+            ).reshape(n_emb, n_emb)
+        torch_layer.attention.k_proj.weight.data = torch.tensor(
+            weight_torch_np,
             requires_grad=True,
         )
 
-        torch_layer.c_proj.weight.data = torch.tensor(
-            to_numpy(self.w.value)
-            .reshape(n_emb, n_emb).T,
+        weight_torch_np = to_numpy(
+            self.w_v.value
+            ).reshape(n_emb, n_emb)
+        torch_layer.attention.v_proj.weight.data = torch.tensor(
+            weight_torch_np,
             requires_grad=True,
         )
-        torch_layer.c_proj.bias.data = torch.tensor(
+
+        torch_layer.attention.out_proj.weight.data = torch.tensor(
+            to_numpy(self.w.value)
+            .reshape(n_emb, n_emb),
+            requires_grad=True,
+        )
+        torch_layer.attention.out_proj.bias.data = torch.tensor(
             to_numpy(self.out_proj_bias.value),
             requires_grad=True,
         )
@@ -1055,39 +910,33 @@ class GPTNeoAttention(BaseLayer):
     def to_torch_with_grads(self) -> GPTNeoAttentionTorch:
         n_embd = self.head_size * self.n_head
         torch_layer = self.to_torch()
-        weight_torch_np = np.empty((n_embd, 3 * n_embd))
-        weight_torch_np[:, : n_embd] = to_numpy(
+        weight_torch_np = np.empty((n_embd, n_embd))
+        weight_torch_np = to_numpy(
             self.w_q.grad
-            ).reshape(n_embd, n_embd).T
-        weight_torch_np[:, n_embd : 2 * n_embd] = to_numpy(
-            self.w_k.grad
-            ).reshape(n_embd, n_embd).T
-        weight_torch_np[:, 2 * n_embd : 3 * n_embd] = to_numpy(
-            self.w_v.grad
-            ).reshape(n_embd, n_embd).T
-        torch_layer.c_attn.weight.grad = torch.tensor(
+            ).reshape(n_embd, n_embd)
+        torch_layer.attention.q_proj.weight.grad = torch.tensor(
             weight_torch_np
         )
 
-        bias_torch_np = np.empty((3 * n_embd,))
-        bias_torch_np[: n_embd] = to_numpy(
-            self.in_proj_bias_q.grad
-            ).T.reshape(n_embd,)
-        bias_torch_np[n_embd : 2 * n_embd] = to_numpy(
-            self.in_proj_bias_k.grad
-            ).T.reshape(n_embd,)
-        bias_torch_np[2 * n_embd : 3 * n_embd] = to_numpy(
-            self.in_proj_bias_v.grad
-            ).T.reshape(n_embd,)
-        torch_layer.c_attn.bias.grad = torch.tensor(
-            bias_torch_np
+        weight_torch_np = to_numpy(
+            self.w_k.grad
+            ).reshape(n_embd, n_embd)
+        torch_layer.attention.k_proj.weight.grad = torch.tensor(
+            weight_torch_np
         )
 
-        torch_layer.c_proj.weight.grad = torch.tensor(
-            to_numpy(self.w.grad)
-            .reshape(n_embd, n_embd).T
+        weight_torch_np = to_numpy(
+            self.w_v.grad
+            ).reshape(n_embd, n_embd)
+        torch_layer.attention.v_proj.weight.grad = torch.tensor(
+            weight_torch_np
         )
-        torch_layer.c_proj.bias.grad = torch.tensor(
+
+        torch_layer.attention.out_proj.weight.grad = torch.tensor(
+            to_numpy(self.w.grad)
+            .reshape(n_embd, n_embd)
+        )
+        torch_layer.attention.out_proj.bias.grad = torch.tensor(
             to_numpy(self.out_proj_bias.grad)
         )
         return torch_layer

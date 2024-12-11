@@ -23,6 +23,7 @@ from .conv2d import Conv2d
 from .embedding import Embedding
 from .flash_attention import FlashAttention
 from .gpt2_attention import GPT2Attention
+from .gpt_neo_attention import GPTNeoAttention
 from .layer_norm import LayerNorm
 from .linear import Linear
 from .llama_attention import LlamaAttention
