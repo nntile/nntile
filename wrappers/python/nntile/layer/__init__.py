@@ -34,5 +34,5 @@ from .rms_norm import RMSNorm
 __all__ = ('Act', 'Add', 'AddSlice', 'Attention', 'AttentionSingleHead',
         'BaseLayer', 'BatchNorm2d', 'Conv2d', 'Embedding', 'FlashAttention',
         'GAP', 'LayerNorm', 'Linear', 'LlamaAttention', 'GPT2Attention',
-        'BertSelfAttention',
+        'GPTNeoAttention', 'BertSelfAttention',
         'Mixer', 'MixerMlp', 'RMSNorm', 'Prod')
