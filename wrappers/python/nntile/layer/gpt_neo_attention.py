@@ -803,14 +803,17 @@ class GPTNeoAttention(BaseLayer):
         config: GPTNeoConfig,
         next_tag: int = 0
     ):  # -> Self: does not work with Python 3.10
+        torch_attn = torch_layer.attention
         n_emb, n_seq, _ = x_q.value.shape
         attn_type = "global"
         mask_np = np.array(
             np.triu(np.ones((n_seq, n_seq))), dtype=bool, order="F"
         )
         if torch_layer.layer_id % 2 == 1:
-            attn_type= "local"
-            mask_np = np.bitwise_xor(mask_np, np.triu(mask_np, config.window_size))
+            attn_type = "local"
+            mask_np = np.bitwise_xor(
+                mask_np, np.triu(mask_np, config.window_size)
+            )
         layer, next_tag = cls.generate_simple(
             x_q,
             x_k,
@@ -824,26 +827,26 @@ class GPTNeoAttention(BaseLayer):
             redux=config.redux,
         )
 
-        weight_torch_np = torch_layer.attention.q_proj.weight.cpu().detach().numpy()
+        weight_torch_np = torch_attn.q_proj.weight.cpu().detach().numpy()
         layer.w_q.value.from_array(
             weight_torch_np.reshape(
                 layer.n_head, layer.head_size, n_emb
             )
         )
-        weight_torch_np = torch_layer.attention.k_proj.weight.cpu().detach().numpy()
+        weight_torch_np = torch_attn.k_proj.weight.cpu().detach().numpy()
         layer.w_k.value.from_array(
             weight_torch_np.reshape(
                 layer.n_head, layer.head_size, n_emb
             )
         )
-        weight_torch_np = torch_layer.attention.v_proj.weight.cpu().detach().numpy()
+        weight_torch_np = torch_attn.v_proj.weight.cpu().detach().numpy()
         layer.w_v.value.from_array(
             weight_torch_np.reshape(
                 layer.n_head, layer.head_size, n_emb
             )
         )
         layer.w.value.from_array(
-            torch_layer.attention.out_proj.weight
+            torch_attn.out_proj.weight
             .cpu()
             .detach()
             .numpy()
@@ -851,7 +854,7 @@ class GPTNeoAttention(BaseLayer):
         )
 
         layer.out_proj_bias.value.from_array(
-            torch_layer.attention.out_proj.bias
+            torch_attn.out_proj.bias
             .cpu()
             .detach()
             .numpy()

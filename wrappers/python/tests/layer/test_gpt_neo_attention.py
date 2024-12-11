@@ -104,7 +104,7 @@ def generate_inputs(dtype: str, params: GPTNeoAttentionTestParams):
         use_cache=False,
         resid_dropout=0.0,
         attention_dropout=0.0,
-        window_size = params.window_size
+        window_size=params.window_size
     )
 
     nntile_config = GPTNeoConfig(
