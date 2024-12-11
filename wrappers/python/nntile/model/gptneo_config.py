@@ -29,8 +29,10 @@ class GPTNeoConfig:
     flash_attention: bool = False
     layer_norm_epsilon: float = 1e-5
     max_position_embeddings: int = 2048
-    num_hidden_layers: int = 1
+    num_hidden_layers: int = 24
+    local_attn: bool = True
     redux: bool = False
     bos_token_id: int = 50256
     eos_token_id: int = 50256
     name: str = "gpt-neo"
+    window_size: int = 256
