@@ -1647,9 +1647,9 @@ class LlamaAttention(BaseLayer):
     ):  # -> Self: does not work with Python 3.10
         layer, next_tag = cls.generate_simple(
             x,
-            n_head=torch_layer.num_heads,
+            n_head=torch_layer.config.num_attention_heads,
             n_head_tile=config.n_head_tile,
-            n_head_kv=torch_layer.num_key_value_heads,
+            n_head_kv=torch_layer.config.num_key_value_heads,
             position_ids=position_ids,
             theta=config.rope_theta,
             next_tag=next_tag,
