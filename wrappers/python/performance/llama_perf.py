@@ -45,8 +45,8 @@ parser.add_argument("--submodule", choices=["mlp", "decoder",
                                             "attention", "causal_llama"],
                     default="mlp")
 
-parser.add_argument("--attn_implementation",
-                    choices=["eager", "sdpa"],
+parser.add_argument("--attn-implementation",
+                    choices=["eager", "sdpa", "flash_attention_2"],
                     default="eager")
 
 parser.add_argument("--use-torch", action="store_true")
@@ -310,8 +310,9 @@ if args.use_torch:
     if args.dtype == "bf16":
         torch_layer = torch_layer.bfloat16()
         x_torch = x_torch.bfloat16()
-        pos_ids_torch = pos_ids_torch.bfloat16()
-        mask_torch = mask_torch.bfloat16()
+        if args.submodule in ("decoder", "attention"):
+            pos_ids_torch = pos_ids_torch.bfloat16()
+            mask_torch = mask_torch.bfloat16()
     if args.dtype == "fp32_fast_bf16":
         torch.set_float32_matmul_precision('medium')
     if args.dtype == "fp32_fast_tf32":
