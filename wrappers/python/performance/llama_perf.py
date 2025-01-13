@@ -52,8 +52,8 @@ parser.add_argument("--attn_implementation",
 parser.add_argument("--use-torch", action="store_true")
 parser.add_argument("--use-nntile", action="store_true")
 
-parser.add_argument("--n-fwd", type=int, default=1)
-parser.add_argument("--n-fwd-bwd", type=int, default=1)
+parser.add_argument("--n-fwd", type=int, default=0)
+parser.add_argument("--n-fwd-bwd", type=int, default=0)
 
 
 parser.add_argument("--seq-len", type=int, default=1024)
@@ -102,6 +102,8 @@ assert args.seq_len_tile > 0
 assert args.minibatch_size > 0
 assert args.minibatch_size_tile > 0
 assert args.minibatch_size % args.minibatch_size_tile == 0
+assert (args.n_fwd == 0 and args.n_fwd_bwd > 0) or \
+       (args.n_fwd > 0 and args.n_fwd_bwd == 0)
 
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
@@ -284,9 +286,12 @@ elif args.submodule == "attention":
         pos_ids = gen.integers(args.seq_len,
                             size=(args.minibatch_size, args.seq_len),
                             dtype=np.int64)
-
+        time0 = time.time()
         nntile_module, _ = LlamaAttention_nntile.from_torch(
                 torch_layer_, X, pos_ids, mask, llama_config_nntile, 0)
+        time1 = time.time() - time0
+        print("Converting PyTorch model to NNTile requires ",
+            "{} seconds".format(time1))
         del torch_layer_
 elif args.submodule == "causal_llama":
     raise ValueError("Causal LLaMa is not supported yet!")
@@ -295,6 +300,11 @@ if args.use_torch and args.torch_compile:
     torch_layer = torch.compile(torch_layer_)
 elif args.use_torch:
     torch_layer = torch_layer_
+
+if args.n_fwd > 0:
+    n_runs = args.n_fwd
+elif args.n_fwd_bwd > 0:
+    n_runs = args.n_fwd_bwd
 
 if args.use_torch:
     if args.dtype == "bf16":
@@ -318,42 +328,72 @@ if args.use_torch:
         elif args.submodule == "decoder":
             output = torch_layer(x_torch,
                                 position_ids=pos_ids_torch,
-                                attention_mask=mask_torch)
+                                attention_mask=mask_torch)[0]
         elif args.submodule == "attention":
             output = torch_layer(x_torch,
                             position_ids=pos_ids_torch,
-                            attention_mask=mask_torch)
+                            attention_mask=mask_torch)[0]
+        if args.n_fwd_bwd > 0:
+            loss = torch.sum(output)
+            loss.backward()
 
     start_torch_time = time.time()
-    if args.submodule == "mlp":
-        for n_fwd_idx in range(args.n_fwd):
+    for n_fwd_idx in range(n_runs):
+        if args.submodule == "mlp":
             output = torch_layer(x_torch)
-    elif args.submodule == "decoder":
-        for n_fwd_idx in range(args.n_fwd):
+        elif args.submodule == "decoder":
             output = torch_layer(x_torch,
                             position_ids=pos_ids_torch,
-                            attention_mask=mask_torch)
-    elif args.submodule == "attention":
-        for n_fwd_idx in range(args.n_fwd):
+                            attention_mask=mask_torch)[0]
+        elif args.submodule == "attention":
             output = torch_layer(x_torch,
                             position_ids=pos_ids_torch,
-                            attention_mask=mask_torch)
+                            attention_mask=mask_torch)[0]
+        if args.n_fwd_bwd > 0:
+            loss = torch.sum(output)
+            loss.backward()
     fin_torch_time = time.time()
-
-    print("PyTorch timing averaged over {} runs = {}".format(args.n_fwd,
+    if args.n_fwd_bwd > 0:
+        print("PyTorch timing averaged over {} runs fwd + bwd = {}".format(n_runs,
                                 (fin_torch_time - start_torch_time) /
-                                args.n_fwd))
+                                n_runs))
+    elif args.n_fwd > 0:
+        print("PyTorch timing averaged over {} runs of only fwd = {}".format(n_runs,
+                                (fin_torch_time - start_torch_time) /
+                                n_runs))
 
 if args.use_nntile:
 
     for n_wup in range(args.num_warmup_calls):
         nntile_module.forward_async()
+        if args.n_fwd_bwd > 0:
+            nntile_module.clear_gradients()
+            if args.submodule in ("mlp", "decoder"):
+                nntile_module.activations[-1].grad.from_array(
+                    np.ones(nntile_module.activations[-1].value.shape,
+                    np.float32, 'F'))
+            elif args.submodule == "attention":
+                nntile_module.y.grad.from_array(
+                    np.ones(nntile_module.y.value.shape,
+                    np.float32, 'F'))
+            nntile_module.backward_async()
         nntile.starpu.wait_for_all()
 
     start_nntile_time = time.time()
     nntile.starpu.profiling_enable()
-    for fwd_idx in range(args.n_fwd):
+    for run_idx in range(n_runs):
         nntile_module.forward_async()
+        if args.n_fwd_bwd > 0:
+            nntile_module.clear_gradients()
+            if args.submodule in ("mlp", "decoder"):
+                nntile_module.activations[-1].grad.from_array(
+                    np.ones(nntile_module.activations[-1].value.shape,
+                    np.float32, 'F'))
+            elif args.submodule == "attention":
+                nntile_module.y.grad.from_array(
+                    np.ones(nntile_module.y.value.shape,
+                    np.float32, 'F'))
+            nntile_module.backward_async()
         nntile.starpu.wait_for_all()
     nntile.starpu.profiling_disable()
     fin_nntile_time = time.time()
@@ -362,5 +402,9 @@ if args.use_nntile:
     if args.submodule == "attention":
         nntile_module.x.unregister()
         nntile_module.y.unregister()
-    print("NNTile timing averaged over {} runs = {}".format(args.n_fwd,
-                    (fin_nntile_time - start_nntile_time) / args.n_fwd))
+    if args.n_fwd_bwd > 0:
+        print("NNTile timing averaged over {} runs of fwd + bwd = {}".format(n_runs,
+                    (fin_nntile_time - start_nntile_time) / n_runs))
+    elif args.n_fwd > 0:
+        print("NNTile timing averaged over {} runs of fwd = {}".format(n_runs,
+                    (fin_nntile_time - start_nntile_time) / n_runs))
