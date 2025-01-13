@@ -924,7 +924,7 @@ class GPT2Attention(BaseLayer):
             x_q,
             x_k,
             x_v,
-            n_head=torch_layer.num_heads,
+            n_head=torch_layer.config.num_attention_heads,
             n_head_tile=config.n_head_tile,
             next_tag=next_tag,
             bias=True,

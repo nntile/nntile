@@ -18,7 +18,8 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 import torch
-from transformers.models.llama.modeling_llama import LlamaConfig, LlamaModel
+from transformers.models.llama.modeling_llama import (
+    LlamaConfig, LlamaModel, LlamaRotaryEmbedding)
 
 import nntile
 from nntile.model.llama_config import LlamaConfigNNTile
@@ -123,6 +124,10 @@ def generate_inputs(params: LlamaDecoderTestParams,
     pos_ids = gen.integers(params.seq_len,
                            size=(params.n_batch, params.seq_len),
                            dtype=np.int64)
+    pos_ids_torch = torch.tensor(pos_ids, dtype=torch.long)
+    rotary_emb = LlamaRotaryEmbedding(config=torch_layer_config)
+    pos_embs_torch = rotary_emb(torch_layer.self_attn.v_proj.weight,
+            pos_ids_torch)
     mask = np.array(np.triu(np.ones((params.seq_len, params.seq_len))),
                     dtype=bool, order="F")
     nntile_layer, _ = LlamaDecoder_nntile.from_torch(torch_layer, X,
@@ -133,7 +138,8 @@ def generate_inputs(params: LlamaDecoderTestParams,
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
     nntile_layer.activations[-1].grad.from_array(y_grad_nntile)
     y_grad_torch = torch.Tensor(y_grad_nntile.T)
-    return torch_layer, nntile_layer, x_torch, y_grad_torch, pos_ids, mask
+    return torch_layer, nntile_layer, x_torch, y_grad_torch, pos_ids_torch, \
+            pos_embs_torch, mask
 
 
 @pytest.mark.parametrize('params', [
@@ -150,7 +156,7 @@ def generate_inputs(params: LlamaDecoderTestParams,
     # True # Temporarily disabled to investigate later
 ])
 @pytest.mark.parametrize('flash_attention', [True, False])
-class TestLlamaMLP:
+class TestLlamaDecoder:
     def test_coercion(self, starpu_simple, torch_rng,
                       params: LlamaDecoderTestParams, dtype: str,
                       att_bias: bool, flash_attention: bool):
@@ -170,14 +176,15 @@ class TestLlamaMLP:
                      dtype: str,
                      att_bias: bool,
                      flash_attention: bool):
-        torch_layer, nntile_layer, x, _, pos_ids, mask = generate_inputs(
-                params, dtype, att_bias, flash_attention)
+        torch_layer, nntile_layer, x, _, pos_ids, pos_embs, mask = \
+                generate_inputs(params, dtype, att_bias, flash_attention)
         mask_torch = torch.Tensor(np.array(1 - mask, dtype=np.float32)).T \
             * torch.finfo(torch.float32).min
         mask_torch = mask_torch[None, None, :, :].expand(params.n_batch,
                                                          1, -1, -1)
-        y = torch_layer(x, position_ids=torch.tensor(pos_ids),
-                        attention_mask=mask_torch)[0]
+        y = torch_layer(x, position_embeddings=pos_embs,
+                        attention_mask=mask_torch,
+                        position_ids=pos_ids)[0]
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.activations[-1].value).T)
         nntile_layer.unregister()
@@ -187,15 +194,16 @@ class TestLlamaMLP:
     def test_backward(self, starpu_simple, torch_rng,
                       params: LlamaDecoderTestParams, dtype: str,
                       att_bias: bool, flash_attention: bool):
-        torch_layer, nntile_layer, x, y_grad, pos_ids, mask = \
+        torch_layer, nntile_layer, x, y_grad, pos_ids, pos_embs, mask = \
             generate_inputs(params, dtype, att_bias, flash_attention)
         torch_layer_other = nntile_layer.to_torch()
         mask_torch = torch.Tensor(np.array(1 - mask, dtype=np.float32)).T \
             * torch.finfo(torch.float32).min
         mask_torch = mask_torch[None, None, :, :].expand(params.n_batch,
                                                          1, -1, -1)
-        y = torch_layer(x, position_ids=torch.tensor(pos_ids),
-                        attention_mask=mask_torch)[0]
+        y = torch_layer(x, position_embeddings=pos_embs,
+                        attention_mask=mask_torch,
+                        position_ids=pos_ids)[0]
         nntile_layer.forward_async()
         res = (y * y_grad).sum()
         res.backward()

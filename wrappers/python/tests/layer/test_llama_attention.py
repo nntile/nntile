@@ -21,7 +21,8 @@ import torch
 from gen_utils import (
     generate_greedy_logits_dynamic_kvcache, generate_greedy_logits_padding)
 from transformers.models.llama.modeling_llama import (
-    LlamaAttention as LlamaAttention_torch, LlamaConfig as LlamaConfig_torch)
+    LlamaAttention as LlamaAttention_torch, LlamaConfig as LlamaConfig_torch,
+    LlamaRotaryEmbedding)
 
 import nntile
 import nntile.utils.constructors as nntc
@@ -147,6 +148,8 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool,
             size=(params.n_batch, params.n_seq),
             dtype=np.int64)
     pos_ids_torch = torch.tensor(pos_ids, dtype=torch.long)
+    rotary_emb = LlamaRotaryEmbedding(config=torch_layer_config)
+    pos_embs_torch = rotary_emb(torch_layer.v_proj.weight, pos_ids_torch)
     mask = rng.integers(2, size=(params.n_seq, params.n_seq))
     mask_np = np.array(mask, dtype=bool, order='F')
     mask_torch = torch.Tensor(np.array(1 - mask, dtype=np.float32)).T \
@@ -159,8 +162,8 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool,
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
     nntile_layer.y.grad.from_array(y_grad_nntile)
     y_grad_torch = torch.Tensor(y_grad_nntile.T)
-    return torch_layer, nntile_layer, x_torch, pos_ids_torch, mask_torch, \
-            y_grad_torch
+    return torch_layer, nntile_layer, x_torch, pos_ids_torch, pos_embs_torch, \
+            mask_torch, y_grad_torch
 
 
 @pytest.mark.parametrize('bias', [
@@ -198,9 +201,10 @@ class TestLlamaAttention:
     def test_forward(self, starpu_simple, torch_rng, dtype: str,
                      params: LlamaAttentionTestParams, bias: bool,
                             flash_attention: bool):
-        torch_layer, nntile_layer, x, pos_ids, mask, *_ = \
+        torch_layer, nntile_layer, x, pos_ids, pos_embs, mask, *_ = \
                 generate_inputs(dtype, params, bias, flash_attention)
-        y, _, _ = torch_layer(x, position_ids=pos_ids, attention_mask=mask)
+        y, *_ = torch_layer(x, position_embeddings=pos_embs,
+                attention_mask=mask, position_ids=pos_ids)
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.y.value).T)
         nntile_layer.unregister()
@@ -213,9 +217,10 @@ class TestLlamaAttention:
     def test_backward(self, starpu_simple, torch_rng, dtype: str,
                               params: LlamaAttentionTestParams, bias: bool,
                             flash_attention: bool):
-        torch_layer, nntile_layer, x, pos_ids, mask, y_grad = \
+        torch_layer, nntile_layer, x, pos_ids, pos_embs, mask, y_grad = \
                 generate_inputs(dtype, params, bias, flash_attention)
-        y, _, _ = torch_layer(x, position_ids=pos_ids, attention_mask=mask)
+        y, *_ = torch_layer(x, position_embeddings=pos_embs,
+                attention_mask=mask, position_ids=pos_ids)
         nntile_layer.forward_async()
         res = (y * y_grad).sum()
         res.backward()
@@ -282,11 +287,11 @@ def test_llama_attn_forward_dynamic(
     bias: bool,
     flash_attention: bool,
 ):
-    torch_layer, nntile_layer, x, pos_ids, mask, *_ = generate_inputs(
-        dtype, params, bias, flash_attention
-    )
+    torch_layer, nntile_layer, x, pos_ids, pos_embs, mask, *_ = \
+            generate_inputs(dtype, params, bias, flash_attention)
 
-    y, _, _ = torch_layer(x, position_ids=pos_ids, attention_mask=mask)
+    y, *_ = torch_layer(x, position_embeddings=pos_embs, attention_mask=mask,
+            position_ids=pos_ids)
 
     input_x = x.cpu().detach().numpy().T
     y_nntile_logits, _ = nntile_layer.forward_dynamic(
@@ -305,10 +310,12 @@ def test_llama_attn_forward_dynamic(
     )
     y_nntile_trunc = torch.Tensor(nntc.to_numpy(y_nntile_logits_trunc.value).T)
 
-    y_torch_trunc, _, _ = torch_layer(
+    y_torch_trunc, *_ = torch_layer(
         x[:, :truncate_to_size, :],
-        position_ids=pos_ids[:, :truncate_to_size],
+        position_embeddings=(pos_embs[0][:, :truncate_to_size],
+            pos_embs[1][:, :truncate_to_size]),
         attention_mask=mask[:, :, :truncate_to_size, :truncate_to_size],
+        position_ids=pos_ids[:, :truncate_to_size],
     )
 
     rtol = dtype2tol[dtype]["rtol"]
