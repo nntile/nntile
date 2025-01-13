@@ -16,7 +16,7 @@ from typing import List, Union
 import numpy as np
 
 import nntile
-from nntile.tensor import Tensor, TensorMoments, randn_async, clear_async
+from nntile.tensor import Tensor, TensorMoments, clear_async, randn_async
 
 
 class BaseLayer(object):

@@ -357,11 +357,13 @@ if args.use_torch:
             torch.cuda.synchronize()
     fin_torch_time = time.time()
     if args.n_fwd_bwd > 0:
-        print("PyTorch timing averaged over {} runs fwd + bwd = {}".format(n_runs,
+        print("PyTorch timing averaged over {} runs fwd + bwd = {}".format(
+                                n_runs,
                                 (fin_torch_time - start_torch_time) /
                                 n_runs))
     elif args.n_fwd > 0:
-        print("PyTorch timing averaged over {} runs of only fwd = {}".format(n_runs,
+        print("PyTorch timing averaged over {} runs of only fwd = {}".format(
+                                n_runs,
                                 (fin_torch_time - start_torch_time) /
                                 n_runs))
 
@@ -406,8 +408,10 @@ if args.use_nntile:
         nntile_module.x.unregister()
         nntile_module.y.unregister()
     if args.n_fwd_bwd > 0:
-        print("NNTile timing averaged over {} runs of fwd + bwd = {}".format(n_runs,
+        print("NNTile timing averaged over {} runs of fwd + bwd = {}".format(
+                    n_runs,
                     (fin_nntile_time - start_nntile_time) / n_runs))
     elif args.n_fwd > 0:
-        print("NNTile timing averaged over {} runs of fwd = {}".format(n_runs,
+        print("NNTile timing averaged over {} runs of fwd = {}".format(
+                    n_runs,
                     (fin_nntile_time - start_nntile_time) / n_runs))
