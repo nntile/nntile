@@ -50,7 +50,11 @@ class Pipeline(object):
                 self.model.clear_parameters_grads()
                 clear_async(self.loss.val)
                 # Accumulate gradients from subbatches
-                for x_minibatch, y_minibatch in zip(x_batch, y_batch):
+                for i_minibatch in range(len(x_batch)):
+                    # Provide minibatch number to the FXT trace
+                    iteration_push(i_minibatch)
+                    x_minibatch = x_batch[i_minibatch]
+                    y_minibatch = y_batch[i_minibatch]
                     # Clear gradients of inter-layer activations
                     self.model.clear_activations_grads()
                     # Copy input batch into activation[0] of the model
@@ -79,6 +83,10 @@ class Pipeline(object):
                     for t in self.model.activations:
                         if t.grad_required:
                             t.grad.invalidate_submit()
+                    # Finish current minibatch in the FXT trace
+                    iteration_pop()
+                # Provide optimization step its own minibatch number
+                iteration_push(len(x_batch))
                 # Apply optimizer after gradients for entire batch are
                 # accumulated
                 self.opt.step()
@@ -97,6 +105,8 @@ class Pipeline(object):
                 print("Batch={}/{} Epoch={}/{} Loss={}".format(
                         i_batch + 1, num_batches, i_epoch + 1, self.n_epochs,
                         loss_np[0]), flush=True)
+                # Finish optimization step in the FXT trace
+                iteration_pop()
                 # Finish current batch in the FXT trace
                 iteration_pop()
             # nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
