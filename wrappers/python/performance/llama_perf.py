@@ -352,6 +352,8 @@ if args.use_torch:
         if args.n_fwd_bwd > 0:
             loss = torch.sum(output)
             loss.backward()
+        if torch_device == "cuda":
+            torch.cuda.synchronize()
     fin_torch_time = time.time()
     if args.n_fwd_bwd > 0:
         print("PyTorch timing averaged over {} runs fwd + bwd = {}".format(n_runs,
