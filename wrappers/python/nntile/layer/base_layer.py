@@ -16,7 +16,7 @@ from typing import List, Union
 import numpy as np
 
 import nntile
-from nntile.tensor import Tensor, TensorMoments, randn_async
+from nntile.tensor import Tensor, TensorMoments, clear_async, randn_async
 
 
 class BaseLayer(object):
@@ -74,3 +74,28 @@ class BaseLayer(object):
 
     def get_backward_flops(self):
         return 0
+
+    # Clear all gradients (parameters, activations and temporaries)
+    def clear_gradients(self):
+        self.clear_parameters_grads()
+        self.clear_activations_grads()
+        self.clear_temporaries_grads()
+
+    # Clear gradients of parameters
+    def clear_parameters_grads(self):
+        for tensor in self.parameters:
+            if tensor.grad is not None and tensor.grad_required:
+                clear_async(tensor.grad)
+
+    # Clear gradients of inter-layer activations
+    def clear_activations_grads(self):
+        for tensor in self.activations_output + self.activations_input:
+            if tensor.grad is not None and tensor.grad_required:
+                clear_async(tensor.grad)
+
+    def clear_temporaries_grads(self):
+        for tensor in self.temporaries:
+            if (isinstance(tensor, TensorMoments) and
+               tensor.grad is not None and
+               tensor.grad_required):
+                clear_async(tensor.grad)
