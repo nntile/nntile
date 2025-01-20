@@ -165,7 +165,9 @@ class TestGPTNeoBlock:
         torch_module, nntile_module, x, _ = generate_inputs(params, dtype)
         y = torch_module(x)[0]
         nntile_module.forward_async()
-        y_nntile = torch.Tensor(to_numpy(nntile_module.activations[-1].value).T)
+        y_nntile = torch.Tensor(
+            to_numpy(nntile_module.activations[-1].value).T
+        )
         nntile_module.unregister()
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
