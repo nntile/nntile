@@ -30,7 +30,7 @@ class BatchNormTestParams:
 
     atol: float = field(init=False)
 
-    eps: float = 1e-05
+    eps: float = 1.5e-04
     redux: bool = False
 
     def __post_init__(self):
