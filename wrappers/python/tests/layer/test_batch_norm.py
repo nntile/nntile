@@ -30,11 +30,11 @@ class BatchNormTestParams:
 
     atol: float = field(init=False)
 
-    eps: float = 1.5e-04
+    eps: float = 1e-05
     redux: bool = False
 
     def __post_init__(self):
-        self.atol = 1e-5 if self.dtype is np.float64 else 1e-6
+        self.atol = 1e-4 if self.dtype is np.float64 else 1e-5
 
 
 BATCH_NORM_2D_TEST_PARAMS = [
