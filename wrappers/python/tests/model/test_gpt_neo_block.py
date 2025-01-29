@@ -55,7 +55,6 @@ class GPTNeoBlockTestParams:
     intermediate_size_tile: int
     n_batch: int
     n_batch_tile: int
-    layer_id: int
     redux: bool = True
     seq_len: int = 100
     seq_len_tile: int = 100
@@ -71,8 +70,7 @@ single_tile = GPTNeoBlockTestParams(
     seq_len=32,
     seq_len_tile=32,
     n_batch=3,
-    n_batch_tile=3,
-    layer_id=0)
+    n_batch_tile=3)
 
 multiple_tiles = GPTNeoBlockTestParams(
     hidden_size=128,
@@ -82,11 +80,11 @@ multiple_tiles = GPTNeoBlockTestParams(
     seq_len=128,
     seq_len_tile=32,
     n_batch=4,
-    n_batch_tile=1,
-    layer_id=1)
+    n_batch_tile=1)
 
 
 def generate_inputs(params: GPTNeoBlockTestParams,
+                    layer_id: int,
                     dtype: str):
     torch_layer_config = GPTNeoConfigTorch(
         hidden_size=params.hidden_size,
@@ -97,7 +95,7 @@ def generate_inputs(params: GPTNeoBlockTestParams,
         attention_dropout=0.0,
         use_cache=False,
     )
-    torch_module = GPTNeoBlockTorch(torch_layer_config, params.layer_id)
+    torch_module = GPTNeoBlockTorch(torch_layer_config, layer_id)
     nntile_config = GPTNeoConfig(
         vocab_size=torch_layer_config.vocab_size,
         vocab_embed_dim_tile=params.hidden_size,
@@ -146,10 +144,16 @@ def generate_inputs(params: GPTNeoBlockTestParams,
     pytest.param('fp32_fast_fp16', marks=nocuda),
     pytest.param('fp32_fast_bf16', marks=nocuda),
 ])
+@pytest.mark.parametrize('layer_id', [
+    pytest.param(1, id='odd_layer_id'),
+    pytest.param(2, id='even_layer_id'),
+])
 class TestGPTNeoBlock:
-    def test_coercion(self, starpu_simple, torch_rng,
+    def test_coercion(self, starpu_simple, torch_rng, layer_id: int,
                       params: GPTNeoBlockTestParams, dtype: str):
-        torch_module, nntile_layer, *_ = generate_inputs(params, dtype)
+        torch_module, nntile_layer, *_ = generate_inputs(
+            params, layer_id, dtype
+        )
         nntile2torch_module = nntile_layer.to_torch()
         nntile_layer.unregister()
 
@@ -159,10 +163,11 @@ class TestGPTNeoBlock:
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
-                     params: GPTNeoBlockTestParams,
-                     dtype: str):
-        torch_module, nntile_module, x, _ = generate_inputs(params, dtype)
+    def test_forward(self, starpu_simple, torch_rng, layer_id: int,
+                     params: GPTNeoBlockTestParams, dtype: str):
+        torch_module, nntile_module, x, _ = generate_inputs(
+            params, layer_id, dtype
+        )
         y = torch_module(x)[0]
         nntile_module.forward_async()
         y_nntile = torch.Tensor(
@@ -172,10 +177,11 @@ class TestGPTNeoBlock:
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng,
-                      params: GPTNeoBlockTestParams,
-                      dtype: str):
-        torch_module, nntile_module, x, y_grad = generate_inputs(params, dtype)
+    def test_backward(self, starpu_simple, torch_rng, layer_id: int,
+                      params: GPTNeoBlockTestParams, dtype: str):
+        torch_module, nntile_module, x, y_grad = generate_inputs(
+            params, layer_id, dtype
+        )
         nntile2torch_module = nntile_module.to_torch()
         y = torch_module(x)[0]
         nntile_module.forward_async()
