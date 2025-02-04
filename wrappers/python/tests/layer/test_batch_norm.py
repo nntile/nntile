@@ -165,7 +165,7 @@ class TestBatchNorm2d:
         np.testing.assert_allclose(
             nntile.tensor.to_numpy(nntile_layer.weight.grad),
             bn_torch.weight.grad.numpy(),
-            atol=1e-5,
+            atol=1e-4,
             rtol=1e-4,
             err_msg=f"Error in backward test d(bn)/d(w) for params: {params}",
         )

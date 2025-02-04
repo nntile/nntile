@@ -53,6 +53,7 @@ set(TESTS
     "subcopy"
     "subtract_indexed_column"
     "sum_fiber"
+    "norm_fiber_inplace"
     "norm_fiber"
     "sum_slice"
     "sumnorm"
