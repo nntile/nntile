@@ -23,7 +23,7 @@ from transformers.models.gpt_neo.modeling_gpt_neo import (
 
 import nntile
 from nntile.model.gpt_neo_block import GPTNeoBlock
-from nntile.model.gptneo_config import GPTNeoConfig
+from nntile.model.gpt_neo_config import GPTNeoConfig
 from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
 
