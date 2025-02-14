@@ -22,8 +22,8 @@ from transformers.models.gpt_neo.modeling_gpt_neo import (
     GPTNeoConfig as GPTNeoConfigTorch, GPTNeoMLP as GPTNeoMLPTorch)
 
 import nntile
-from nntile.model.gptneo_config import GPTNeoConfig
-from nntile.model.gptneo_mlp import GPTNeoMLP
+from nntile.model.gpt_neo_config import GPTNeoConfig
+from nntile.model.gpt_neo_mlp import GPTNeoMLP
 from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
 

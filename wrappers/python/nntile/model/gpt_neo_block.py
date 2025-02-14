@@ -21,7 +21,7 @@ from ..layer.gpt_neo_attention import GPTNeoAttention
 from ..layer.layer_norm import LayerNorm
 from .base_model import BaseModel
 from .gpt_neo_config import GPTNeoConfig
-from .gptneo_mlp import GPTNeoMLP
+from .gpt_neo_mlp import GPTNeoMLP
 
 
 class GPTNeoBlock(BaseModel):
