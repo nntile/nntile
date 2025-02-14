@@ -20,7 +20,7 @@ from ..layer.add import Add
 from ..layer.gpt_neo_attention import GPTNeoAttention
 from ..layer.layer_norm import LayerNorm
 from .base_model import BaseModel
-from .gptneo_config import GPTNeoConfig
+from .gpt_neo_config import GPTNeoConfig
 from .gptneo_mlp import GPTNeoMLP
 
 
