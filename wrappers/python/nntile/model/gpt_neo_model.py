@@ -15,7 +15,7 @@ from typing import List
 
 import numpy as np
 from transformers.models.gpt_neo.modeling_gpt_neo import (
-    GPTNeoModel as GPTNeoModelTorch, GPTNeoConfig as GPTNeoConfigTorch)
+    GPTNeoConfig as GPTNeoConfigTorch, GPTNeoModel as GPTNeoModelTorch)
 
 from nntile.tensor import (
     Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_bf16, Tensor_fp32_fast_fp16,
