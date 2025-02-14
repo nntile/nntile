@@ -105,6 +105,7 @@ def generate_inputs(params: GPTNeoBlockTestParams,
         intermediate_size_tile=params.intermediate_size_tile,
         num_heads=params.num_heads,
         num_heads_tile=params.num_heads_tile,
+        attention_types=torch_layer_config.attention_types,
         dtype=dtype
     )
     x_shape = [params.hidden_size, params.seq_len, params.n_batch]

@@ -101,6 +101,7 @@ def generate_inputs(params: GPTNeoMLPTestParams, dtype: str):
         intermediate_size_tile=params.intermediate_size_tile,
         num_heads=torch_layer_config.num_heads,
         num_heads_tile=torch_layer_config.num_heads,
+        attention_types=torch_layer_config.attention_types,
         dtype=dtype
     )
     x_shape = [params.hidden_size, params.seq_len, params.n_batch]
@@ -140,7 +141,7 @@ def generate_inputs(params: GPTNeoMLPTestParams, dtype: str):
     pytest.param('fp32_fast_fp16', marks=nocuda),
     pytest.param('fp32_fast_bf16', marks=nocuda),
 ])
-class TestGPT2MLP:
+class TestGPTNeoMLP:
 
     def test_coercion(self, starpu_simple, torch_rng,
                       params: GPTNeoMLPTestParams, dtype: str):

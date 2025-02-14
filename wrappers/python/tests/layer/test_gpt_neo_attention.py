@@ -116,6 +116,7 @@ def generate_inputs(dtype: str, params: GPTNeoAttentionTestParams):
         intermediate_size_tile=torch_layer_config.intermediate_size,
         num_heads=params.n_head,
         num_heads_tile=params.n_head_tile,
+        attention_types=torch_layer_config.attention_types,
         dtype=dtype,
         window_size=params.window_size
     )
