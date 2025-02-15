@@ -70,6 +70,7 @@ set(TESTS_NOT_IMPLEMENTED
     "add"
     "add_fiber_inplace"
     "add_fiber"
+    "scal_fiber"
     "gelu_backward"
     "gelutanh"
     "gelutanh_backward"

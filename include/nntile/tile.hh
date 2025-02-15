@@ -23,6 +23,7 @@
 #include <nntile/tile/add_slice.hh>
 #include <nntile/tile/add_fiber_inplace.hh>
 #include <nntile/tile/add_fiber.hh>
+#include <nntile/tile/scal_fiber.hh>
 #include <nntile/tile/prod_slice.hh>
 #include <nntile/tile/prod_fiber.hh>
 #include <nntile/tile/prod_fiber3.hh>
