@@ -14,6 +14,7 @@
 import argparse
 import json
 import time
+import os
 
 import numpy as np
 import torch
@@ -52,15 +53,15 @@ parser.add_argument("--attn-implementation",
 parser.add_argument("--use-torch", action="store_true")
 parser.add_argument("--use-nntile", action="store_true")
 
-parser.add_argument("--n-fwd", type=int, default=0)
-parser.add_argument("--n-fwd-bwd", type=int, default=0)
-
+parser.add_argument("--n-iters", type=int, default=0)
+parser.add_argument("--mode", choices=["fwd", "fwd-bwd"], default="fwd")
 
 parser.add_argument("--seq-len", type=int, default=1024)
 parser.add_argument("--seq-len-tile", type=int, default=-1)
 parser.add_argument("--minibatch-size", type=int, default=1)
 parser.add_argument("--minibatch-size-tile", type=int, default=-1)
 
+parser.add_argument("--hidden-size", type=int, default=-1)
 parser.add_argument("--hidden-size-tile", type=int, default=-1)
 parser.add_argument("--intermediate-size-tile", type=int, default=-1)
 parser.add_argument("--n-head-tile", type=int, default=-1)
@@ -78,6 +79,7 @@ parser.add_argument("--logger", action="store_true")
 parser.add_argument("--logger-server-addr", type=str,
                     default="localhost")
 parser.add_argument("--logger-server-port", type=int, default=5001)
+parser.add_argument("--results-folder", type=str, default=".results")
 
 # Parse arguments
 args = parser.parse_args()
@@ -102,8 +104,9 @@ assert args.seq_len_tile > 0
 assert args.minibatch_size > 0
 assert args.minibatch_size_tile > 0
 assert args.minibatch_size % args.minibatch_size_tile == 0
-assert (args.n_fwd == 0 and args.n_fwd_bwd > 0) or \
-       (args.n_fwd > 0 and args.n_fwd_bwd == 0)
+
+if not os.path.isdir(args.results_folder):
+    os.mkdir(args.results_folder)
 
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
@@ -119,6 +122,8 @@ conf_dict = json.load(f)
 f.close()
 llama_torch_config = LlamaConfig(**conf_dict)
 llama_torch_config._attn_implementation = args.attn_implementation
+if args.hidden_size != -1:
+    llama_torch_config.hidden_size = args.hidden_size
 
 if args.use_nntile:
     # Initialize NNTile and StarPU
@@ -301,11 +306,7 @@ if args.use_torch and args.torch_compile:
 elif args.use_torch:
     torch_layer = torch_layer_
 
-if args.n_fwd > 0:
-    n_runs = args.n_fwd
-elif args.n_fwd_bwd > 0:
-    n_runs = args.n_fwd_bwd
-
+timings = []
 if args.use_torch:
     if args.dtype == "bf16":
         torch_layer = torch_layer.bfloat16()
@@ -334,15 +335,14 @@ if args.use_torch:
             output = torch_layer(x_torch,
                             position_ids=pos_ids_torch,
                             attention_mask=mask_torch)[0]
-        if args.n_fwd_bwd > 0:
+        if args.mode == "fwd-bwd":
             loss = torch.sum(output)
             loss.backward()
 
     if torch_device == "cuda":
         torch.cuda.synchronize()
-
-    start_torch_time = time.time()
-    for n_fwd_idx in range(n_runs):
+    for n_fwd_idx in range(args.n_iters):
+        start_torch_time = time.time()
         if args.submodule == "mlp":
             output = torch_layer(x_torch)
         elif args.submodule == "decoder":
@@ -353,28 +353,24 @@ if args.use_torch:
             output = torch_layer(x_torch,
                             position_ids=pos_ids_torch,
                             attention_mask=mask_torch)[0]
-        if args.n_fwd_bwd > 0:
+        if args.mode == "fwd-bwd":
             loss = torch.sum(output)
             loss.backward()
-    if torch_device == "cuda":
-        torch.cuda.synchronize()
-    fin_torch_time = time.time()
-    if args.n_fwd_bwd > 0:
+        if torch_device == "cuda":
+            torch.cuda.synchronize()
+        timings.append(time.time() - start_torch_time)
+    if args.mode == "fwd-bwd":
         print("PyTorch timing averaged over {} runs fwd + bwd = {}".format(
-                                n_runs,
-                                (fin_torch_time - start_torch_time) /
-                                n_runs))
-    elif args.n_fwd > 0:
+                                args.n_iters, np.mean(np.array(timings))))
+    elif args.mode == "fwd":
         print("PyTorch timing averaged over {} runs of only fwd = {}".format(
-                                n_runs,
-                                (fin_torch_time - start_torch_time) /
-                                n_runs))
+                                args.n_iters, np.mean(np.array(timings))))
 
 if args.use_nntile:
 
     for n_wup in range(args.num_warmup_calls):
         nntile_module.forward_async()
-        if args.n_fwd_bwd > 0:
+        if args.mode == "fwd-bwd":
             nntile_module.clear_gradients()
             if args.submodule in ("mlp", "decoder"):
                 nntile_module.activations[-1].grad.from_array(
@@ -387,11 +383,11 @@ if args.use_nntile:
             nntile_module.backward_async()
         nntile.starpu.wait_for_all()
 
-    start_nntile_time = time.time()
     nntile.starpu.profiling_enable()
-    for run_idx in range(n_runs):
+    for run_idx in range(args.n_iters):
+        start_nntile_time = time.time()
         nntile_module.forward_async()
-        if args.n_fwd_bwd > 0:
+        if args.mode == "fwd-bwd":
             nntile_module.clear_gradients()
             if args.submodule in ("mlp", "decoder"):
                 nntile_module.activations[-1].grad.from_array(
@@ -403,18 +399,25 @@ if args.use_nntile:
                     np.float32, 'F'))
             nntile_module.backward_async()
         nntile.starpu.wait_for_all()
+        timings.append(time.time() - start_nntile_time)
     nntile.starpu.profiling_disable()
-    fin_nntile_time = time.time()
 
     nntile_module.unregister()
     if args.submodule == "attention":
         nntile_module.x.unregister()
         nntile_module.y.unregister()
-    if args.n_fwd_bwd > 0:
+    if args.mode == "fwd-bwd":
         print("NNTile timing averaged over {} runs of fwd + bwd = {}".format(
-                    n_runs,
-                    (fin_nntile_time - start_nntile_time) / n_runs))
-    elif args.n_fwd > 0:
+                    args.n_iters,
+                    np.mean(np.array(timings))))
+    elif args.mode == "fwd":
         print("NNTile timing averaged over {} runs of fwd = {}".format(
-                    n_runs,
-                    (fin_nntile_time - start_nntile_time) / n_runs))
+                    args.n_iters,
+                    np.mean(np.array(timings))))
+if args.use_nntile:
+    backend = "nntile"
+elif args.use_torch:
+    backend = "torch"
+filename = backend + "_hidden-size_" + str(llama_torch_config.hidden_size)
+np.savez(args.results_folder + "/" + filename, timings=timings,
+         hidden_size=llama_torch_config.hidden_size)
