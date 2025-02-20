@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/model/gptneo_config.py
-# GPT Neo model config
+# @file wrappers/python/nntile/model/gpt_neo_config.py
+# GPTNeo model config
 #
 # @version 1.1.0
 
@@ -24,6 +24,7 @@ class GPTNeoConfig:
     intermediate_size_tile: int
     num_heads: int
     num_heads_tile: int
+    attention_types: list
     activation_function: str = "gelutanh"
     dtype: str = "fp32"
     flash_attention: bool = False

@@ -20,7 +20,7 @@ from nntile.tensor import TensorMoments, notrans, to_numpy
 from ..layer.act import Act
 from ..layer.linear import Linear
 from .base_model import BaseModel
-from .gptneo_config import GPTNeoConfig
+from .gpt_neo_config import GPTNeoConfig
 
 
 class GPTNeoMLP(BaseModel):

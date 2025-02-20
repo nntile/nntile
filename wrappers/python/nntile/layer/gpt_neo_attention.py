@@ -23,7 +23,7 @@ from nntile.tensor import (
     maxsumexp_async, notrans, prod_inplace_async, softmax_inplace_async,
     sum_fiber_async, sumprod_slice_async, to_numpy, trans, transpose_async)
 
-from ..model.gptneo_config import GPTNeoConfig
+from ..model.gpt_neo_config import GPTNeoConfig
 
 
 # Multi-head attention
