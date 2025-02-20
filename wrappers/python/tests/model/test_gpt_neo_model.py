@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/model/test_gpt2_model.py
-# Test for nntile.model.gpt2
+# @file wrappers/python/tests/model/test_gpt_neo_model.py
+# Test for nntile.model.gpt_neo
 # Each test is generated in float precision by Torch, then it is downcasted
 # into NNTile type. So, implementation of double precision is NOT checked.
 #
@@ -152,10 +152,10 @@ def generate_inputs(params: GPTNeoTestParams,
 ])
 @pytest.mark.parametrize('dtype', [
     'fp32',
-    # pytest.param('bf16', marks=nocuda),
-    # pytest.param('fp32_fast_tf32', marks=nocuda),
-    # pytest.param('fp32_fast_fp16', marks=nocuda),
-    # pytest.param('fp32_fast_bf16', marks=nocuda),
+    pytest.param('bf16', marks=nocuda),
+    pytest.param('fp32_fast_tf32', marks=nocuda),
+    pytest.param('fp32_fast_fp16', marks=nocuda),
+    pytest.param('fp32_fast_bf16', marks=nocuda),
 ])
 @pytest.mark.parametrize('attn_pattern',
                          [["global", "local"],
