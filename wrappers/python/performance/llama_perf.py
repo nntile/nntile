@@ -15,13 +15,14 @@ import argparse
 import json
 import time
 import os
+import pathlib
 
 import numpy as np
 import torch
 from transformers import LlamaConfig
 # from transformers import LlamaForCausalLM
 from transformers.models.llama.modeling_llama import (
-    LlamaAttention, LlamaDecoderLayer, LlamaMLP)
+    LlamaAttention, LlamaDecoderLayer, LlamaMLP, LlamaRotaryEmbedding)
 
 import nntile
 from nntile.layer.llama_attention import (
@@ -106,7 +107,8 @@ assert args.minibatch_size_tile > 0
 assert args.minibatch_size % args.minibatch_size_tile == 0
 
 if not os.path.isdir(args.results_folder):
-    os.mkdir(args.results_folder)
+    path2res_filder = pathlib.Path(args.results_folder)
+    pathlib.Path.mkdir(path2res_filder, parents=True)
 
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
@@ -257,7 +259,7 @@ elif args.submodule == "attention":
     # we do not use caching and explcitly state this
     torch_layer_ = LlamaAttention(
         llama_torch_config, layer_idx=None
-    )
+    ).to(torch_device)
     mask = np.array(np.triu(np.ones((args.seq_len, args.seq_len))),
                         dtype=bool, order="F")
     pos_ids = gen.integers(args.seq_len,
@@ -268,7 +270,11 @@ elif args.submodule == "attention":
                 * torch.finfo(torch.float32).min
         mask_torch = mask_torch[None, None, :, :].expand(args.minibatch_size,
                                                 1, -1, -1).to(torch_device)
-        pos_ids_torch = torch.tensor(pos_ids).to(torch_device)
+        pos_ids_torch = torch.tensor(pos_ids, dtype=torch.long).to(torch_device)
+        rotary_emb = LlamaRotaryEmbedding(config=llama_torch_config).to(torch_device)
+        pos_embs = rotary_emb(torch_layer_.v_proj.weight,
+                                    pos_ids_torch)
+
     x_shape = [llama_torch_config.hidden_size,
                 args.seq_len, args.minibatch_size]
     x_random = gen.standard_normal(x_shape, dtype=np.float32)
@@ -332,7 +338,7 @@ if args.use_torch:
                                 position_ids=pos_ids_torch,
                                 attention_mask=mask_torch)[0]
         elif args.submodule == "attention":
-            output = torch_layer(x_torch,
+            output = torch_layer(x_torch, position_embeddings=pos_embs,
                             position_ids=pos_ids_torch,
                             attention_mask=mask_torch)[0]
         if args.mode == "fwd-bwd":
@@ -350,7 +356,7 @@ if args.use_torch:
                             position_ids=pos_ids_torch,
                             attention_mask=mask_torch)[0]
         elif args.submodule == "attention":
-            output = torch_layer(x_torch,
+            output = torch_layer(x_torch, position_embeddings=pos_embs,
                             position_ids=pos_ids_torch,
                             attention_mask=mask_torch)[0]
         if args.mode == "fwd-bwd":
