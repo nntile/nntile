@@ -91,8 +91,7 @@ class GPTNeoXMLP(BaseModel):
     def to_torch(self):
         config_torch = GPTNeoXConfigTorch(
             hidden_size=self.hidden_size,
-            intermediate_size=self.intermediate_size,
-            use_cache=False,
+            intermediate_size=self.intermediate_size
         )        
         mlp_torch = GPTNeoXMlpTorch(config_torch)
         for p_nntile, p_torch in zip(self.parameters,
@@ -104,8 +103,7 @@ class GPTNeoXMLP(BaseModel):
     def to_torch_with_grads(self):
         config_torch = GPTNeoXConfigTorch(
             hidden_size=self.hidden_size,
-            intermediate_size=self.intermediate_size,
-            use_cache=False,
+            intermediate_size=self.intermediate_size
         ) 
         mlp_torch = GPTNeoXMlpTorch(config_torch)
         for p_nntile, p_torch in zip(self.parameters,
