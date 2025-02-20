@@ -6,7 +6,7 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/model/gptneo_mlp.py
+# @file wrappers/python/nntile/model/gpt_neox_mlp.py
 # GPTNeoMLP submodule of NNTile Python package
 #
 # @version 1.1.0
