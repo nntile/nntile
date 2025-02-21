@@ -66,6 +66,7 @@ parser.add_argument("--hidden-size", type=int, default=-1)
 parser.add_argument("--hidden-size-tile", type=int, default=-1)
 parser.add_argument("--intermediate-size-tile", type=int, default=-1)
 parser.add_argument("--n-head-tile", type=int, default=-1)
+parser.add_argument("--head-dim", type=int, default=-1)
 
 parser.add_argument("--dtype", choices=["fp32", "fp32_fast_tf32", "bf16",
                                         "fp32_fast_fp16", "fp32_fast_bf16"],
@@ -124,8 +125,18 @@ conf_dict = json.load(f)
 f.close()
 llama_torch_config = LlamaConfig(**conf_dict)
 llama_torch_config._attn_implementation = args.attn_implementation
+
 if args.hidden_size != -1:
     llama_torch_config.hidden_size = args.hidden_size
+    assert args.hidden_size % llama_torch_config.num_attention_heads == 0
+    llama_torch_config.head_dim = args.hidden_size // llama_torch_config.num_attention_heads
+
+if args.hidden_size != -1 and args.head_dim != -1:
+    llama_torch_config.head_dim = args.head_dim
+    llama_torch_config.num_attention_heads = args.hidden_size // args.head_dim
+    llama_torch_config.num_key_value_heads = args.hidden_size // args.head_dim
+
+print(llama_torch_config)
 
 if args.use_nntile:
     # Initialize NNTile and StarPU
@@ -259,13 +270,14 @@ elif args.submodule == "attention":
     # we do not use caching and explcitly state this
     torch_layer_ = LlamaAttention(
         llama_torch_config, layer_idx=None
-    ).to(torch_device)
+    )
     mask = np.array(np.triu(np.ones((args.seq_len, args.seq_len))),
                         dtype=bool, order="F")
     pos_ids = gen.integers(args.seq_len,
                             size=(args.minibatch_size, args.seq_len),
                             dtype=np.int64)
     if args.use_torch:
+        torch_layer_ = torch_layer_.to(torch_device)
         mask_torch = torch.Tensor(np.array(1 - mask, dtype=np.float32)).T \
                 * torch.finfo(torch.float32).min
         mask_torch = mask_torch[None, None, :, :].expand(args.minibatch_size,
