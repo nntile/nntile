@@ -67,6 +67,7 @@ parser.add_argument("--hidden-size-tile", type=int, default=-1)
 parser.add_argument("--intermediate-size-tile", type=int, default=-1)
 parser.add_argument("--n-head-tile", type=int, default=-1)
 parser.add_argument("--head-dim", type=int, default=-1)
+parser.add_argument("--kv-heads-ratio", type=int, default=1)
 
 parser.add_argument("--dtype", choices=["fp32", "fp32_fast_tf32", "bf16",
                                         "fp32_fast_fp16", "fp32_fast_bf16"],
@@ -134,7 +135,8 @@ if args.hidden_size != -1:
 if args.hidden_size != -1 and args.head_dim != -1:
     llama_torch_config.head_dim = args.head_dim
     llama_torch_config.num_attention_heads = args.hidden_size // args.head_dim
-    llama_torch_config.num_key_value_heads = args.hidden_size // args.head_dim
+    assert llama_torch_config.num_attention_heads % args.kv_heads_ratio == 0
+    llama_torch_config.num_key_value_heads = llama_torch_config.num_attention_heads // args.kv_heads_ratio
 
 print(llama_torch_config)
 
@@ -434,8 +436,11 @@ if args.use_nntile:
                     np.mean(np.array(timings))))
 if args.use_nntile:
     backend = "nntile"
-elif args.use_torch:
+elif args.use_torch and args.torch_compile == False:
     backend = "torch"
+elif args.use_torch and args.torch_compile:
+    backend = "torch-compile"
+
 filename = backend + "_hidden-size_" + str(llama_torch_config.hidden_size)
 np.savez(args.results_folder + "/" + filename, timings=timings,
          hidden_size=llama_torch_config.hidden_size)
