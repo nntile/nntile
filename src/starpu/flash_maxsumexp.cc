@@ -20,8 +20,14 @@
 #include <cmath>
 #include <limits>
 
+#include "nntile/kernel/gemm.hh"
+#include "nntile/kernel/maxsumexp.hh"
+#include "nntile/kernel/mask_scalar.hh"
+
 namespace nntile::starpu::flash_maxsumexp
 {
+
+using namespace nntile::kernel::gemm;
 
 #ifdef NNTILE_USE_CBLAS
 //! Rematerialize and compute maxsumexp along middle axis of StarPU buffer on CPU
@@ -58,9 +64,15 @@ void cuda(void *buffers[], void *cl_args)
     const T *Q = interfaces[1]->get_ptr<T>();
     const bool_t *mask = interfaces[2]->get_ptr<bool_t>();
     T *maxsumexp = interfaces[3]->get_ptr<T>();
+    // T *tmp;
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
+    // cublasHandle_t handle = starpu_cublas_get_local_handle();
+    // cublasSetStream(handle, stream);
+    // cudaMalloc(&tmp, args->batch * args->seq * args->seq * sizeof(T));
     // Launch kernel (commented out code shows operations)
+    kernel::flash_maxsumexp::cuda<T>(stream, args->batch, args->seq, args->head,
+            K, Q, mask, maxsumexp);
     // Index K_offset = args->head * args->seq;
     // Index Q_offset = K_offset;
     // Index tmp_offset = args->seq * args->seq;
@@ -73,8 +85,8 @@ void cuda(void *buffers[], void *cl_args)
     //         mask, -std::numeric_limits<Y>::infinity(), tmp);
     // kernel::maxsumexp::cuda<T>(stream, 1, args->seq*args->batch, args->seq,
     //         tmp, maxsumexp);
-    kernel::flash_maxsumexp::cuda<T>(stream, args->batch, args->seq, args->head,
-            K, Q, mask, maxsumexp);
+    // cudaStreamSynchronize(stream);
+    // cudaFree(tmp);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA

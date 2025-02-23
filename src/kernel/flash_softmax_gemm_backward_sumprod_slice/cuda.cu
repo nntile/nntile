@@ -85,20 +85,22 @@ __global__ void flash_softmax_gemm_backward_sumprod_slice_kernel(
             softmax_shared[tid] = softmax_val;
             __syncthreads();
 
-            // Load dA[h,i,b] and V[h,j,b] into shared memory
-            const Index dA_base = head * (seq_idx + seq * batch_idx);  // [head, seq_i, batch]
-            const Index V_base = head * (j + seq * batch_idx);  // [head, seq_j, batch]
+            // Load dA[h,i,b] into shared memory
+            const Index dA_base = head * (j + seq * batch_idx);  // [head, seq, batch]
             if (tid < head) {
                 K_shared[tid] = Y{dA[dA_base + tid]};  // Load dA[h,i,b]
-                V_shared[tid] = Y{V[V_base + tid]};  // Load V[h,j,b]
             }
             __syncthreads();
 
             // Update dV = dA * softmax^T
-            // For each i, accumulate dA[h,i,b] * softmax[j,i] into dV[h,j,b]
+            // For position (i,j):
+            // - dA is [head, seq, batch] in Fortran order
+            // - softmax is [seq, seq] in Fortran order, but we need its transpose
+            // - dV is [head, seq, batch] in Fortran order
+            // So we accumulate dA[h,i,b] * softmax[j,i] into dV[h,i,b]
             for (Index d = 0; d < head; ++d) {
-                const Index dV_idx = d + head * (j + seq * batch_idx);  // [head, seq_j, batch]
-                Y dv_val = K_shared[d] * softmax_shared[tid];  // dA[h,i,b] * softmax[j,i]
+                const Index dV_idx = d + head * (j + seq * batch_idx);  // [head, seq, batch]
+                Y dv_val = K_shared[d] * softmax_val;  // dA[h,i,b] * softmax[j,i]
                 if constexpr (std::is_same_v<Y, float>) {
                     atomicAdd(reinterpret_cast<float*>(&dV[dV_idx]), dv_val);
                 } else if constexpr (std::is_same_v<Y, double>) {
@@ -110,9 +112,9 @@ __global__ void flash_softmax_gemm_backward_sumprod_slice_kernel(
             // tmp_grad = V^T * dA
             Y tmp_grad = 0;
             for (Index d = 0; d < head; ++d) {
-                tmp_grad += V_shared[d] * K_shared[d];  // K_shared contains dA
+                tmp_grad += Y{V[d + head * (j + seq * batch_idx)]} * K_shared[d];  // V[h,j,b] * dA[h,i,b]
             }
-            sumprod += tmp_grad * softmax_shared[tid];
+            sumprod += tmp_grad * softmax_val;
         }
 
         // Store sumprod result

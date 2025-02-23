@@ -23,22 +23,22 @@ namespace nntile::kernel::flash_maxsumexp
 /**
  * CUDA kernel to compute maximum and sum of exponentials for Flash Attention
  * Fuses the following operations:
- * 1. Scaled dot product: tmp = (Q@K')/sqrt(head_dim)
+ * 1. Scaled dot product: tmp = (K'@Q)/sqrt(head)
  * 2. Masking: Apply mask values (-inf) to tmp where mask is 0
- * 3. MaxSumExp: Compute max and sum(exp()) along last dimension
+ * 3. MaxSumExp: Compute max and sum(exp()) along the first dimension
+ * All operations are performed on Fortran (column-major) order batched matrices
  *
- * @param maxsumexp Output buffer for maximum values and sum of exponentials [batch*seq, 2]
- * @param Q         Query matrix [batch, num_heads, seq, head_dim]
- * @param K         Key matrix [batch, num_heads, seq, head_dim]
- * @param mask      Attention mask [batch, seq, seq] or nullptr
+ * @param stream    CUDA stream
  * @param batch     Batch size
  * @param seq       Sequence length
  * @param head      Number of attention heads
- * @param stream    CUDA stream
+ * @param K         Key matrix [head, seq, batch]
+ * @param Q         Query matrix [head, seq, batch]
+ * @param mask      Attention mask [seq, seq]
+ * @param maxsumexp Output buffer for maximum values and sum of exponentials [2, seq, batch]
  */
 template<typename T>
 void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
-          const T *K, const T *Q, const bool_t *mask, T *maxsumexp)
-    noexcept;
+          const T *K, const T *Q, const bool_t *mask, T *maxsumexp) noexcept;
 
 } // namespace nntile::kernel::flash_maxsumexp

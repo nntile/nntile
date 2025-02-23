@@ -214,3 +214,7 @@ endif()
 if(BUILD_PYTHON_WRAPPERS)
     add_subdirectory("wrappers/python")
 endif()
+
+target_compile_options(nntile PUBLIC
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
+)
