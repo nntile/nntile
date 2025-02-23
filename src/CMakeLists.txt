@@ -23,7 +23,7 @@ else()
         "kernel/add_slice_inplace/cpu.cc"
         "kernel/add_slice/cpu.cc"
         "kernel/add_fiber_inplace/cpu.cc"
-	"kernel/add_fiber/cpu.cc"
+	    "kernel/add_fiber/cpu.cc"
         "kernel/prod_slice/cpu.cc"
         "kernel/prod_fiber/cpu.cc"
         "kernel/prod_fiber3/cpu.cc"
@@ -92,7 +92,7 @@ else()
             "kernel/add_inplace/cuda.cu"
             "kernel/add_slice/cuda.cu"
             "kernel/add_fiber_inplace/cuda.cu"
-	    "kernel/add_fiber/cuda.cu"
+	        "kernel/add_fiber/cuda.cu"
             "kernel/prod_slice/cuda.cu"
             "kernel/prod_fiber/cuda.cu"
             "kernel/prod_fiber3/cuda.cu"
@@ -152,7 +152,16 @@ else()
             "kernel/rope/cuda.cu"
             "kernel/rope_backward/cuda.cu"
             "kernel/norm_fiber/cuda.cu"
+            "kernel/flash_maxsumexp/cuda.cu"
+            "kernel/flash_softmax_gemm/cuda.cu"
+            "kernel/flash_softmax_gemm_backward_dq_dk/cuda.cu"
+            "kernel/flash_softmax_gemm_backward_sumprod_slice/cuda.cu"
             )
+        set_source_files_properties(
+            ${KERNEL_SRC}
+            PROPERTIES
+            COMPILE_FLAGS "--expt-relaxed-constexpr"
+        )
         endif(NNTILE_USE_CUDA)
 endif(HAVE_STARPU_SIMGRID)
 

@@ -23,8 +23,7 @@ namespace nntile::tensor
 //! Compute max and sum of exponents of slices along given axis
 template<typename T>
 void flash_maxsumexp_async(const Tensor<T> &Q, const Tensor<T> &K,
-        const Tensor<bool_t> &mask, const Tensor<T> &maxsumexp,
-        const Tensor<T> &tmp, int redux)
+        const Tensor<bool_t> &mask, const Tensor<T> &maxsumexp, int redux)
 {
 //    // Check dimensions
 //    if(src.ndim != dst.ndim)
@@ -104,8 +103,7 @@ void flash_maxsumexp_async(const Tensor<T> &Q, const Tensor<T> &K,
         auto maxsumexp_tile_handle = maxsumexp.get_tile_handle(i);
         // Obtain indices of applicable source tiles
         auto maxsumexp_tile_index = maxsumexp.grid.linear_to_index(i);
-        std::vector<Index> tmp_tile_index(maxsumexp_tile_index),
-            q_tile_index(maxsumexp_tile_index),
+        std::vector<Index> q_tile_index(maxsumexp_tile_index),
             k_tile_index(maxsumexp_tile_index),
             mask_tile_index(2);
         auto q_tile_handle = Q.get_tile_handle(q_tile_index);
@@ -114,27 +112,23 @@ void flash_maxsumexp_async(const Tensor<T> &Q, const Tensor<T> &K,
         // result
         for(Index j = 0; j < K.grid.shape[1]; ++j)
         {
-            tmp_tile_index[0] = j;
             k_tile_index[1] = j;
             mask_tile_index[0] = j;
-            auto tmp_tile_handle = tmp.get_tile_handle(tmp_tile_index);
             auto k_tile_handle = K.get_tile_handle(k_tile_index);
             auto mask_tile_handle = mask.get_tile_handle(mask_tile_index);
             // Insert tasks
             starpu::flash_maxsumexp::submit<T>(n_seq_tile, head_size,
                     n_batch_tile*n_head_tile, k_tile_handle, q_tile_handle,
-                    mask_tile_handle, maxsumexp_tile_handle, tmp_tile_handle,
-                    redux=0);
+                    mask_tile_handle, maxsumexp_tile_handle, redux);
         }
     }
 }
 
 template<typename T>
 void flash_maxsumexp(const Tensor<T> &Q, const Tensor<T> &K,
-        const Tensor<bool_t> &mask, const Tensor<T> &maxsumexp,
-        const Tensor<T> &tmp, int redux)
+        const Tensor<bool_t> &mask, const Tensor<T> &maxsumexp, int redux)
 {
-    flash_maxsumexp_async<T>(Q, K, mask, maxsumexp, tmp, redux);
+    flash_maxsumexp_async<T>(Q, K, mask, maxsumexp, redux);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -142,63 +136,51 @@ void flash_maxsumexp(const Tensor<T> &Q, const Tensor<T> &K,
 // Explicit instantiation
 template
 void flash_maxsumexp_async(const Tensor<fp32_fast_tf32_t> &Q, const Tensor<fp32_fast_tf32_t> &K,
-        const Tensor<bool_t> &mask, const Tensor<fp32_fast_tf32_t> &maxsumexp,
-        const Tensor<fp32_fast_tf32_t> &tmp, int redux);
+        const Tensor<bool_t> &mask, const Tensor<fp32_fast_tf32_t> &maxsumexp, int redux);
 
 template
 void flash_maxsumexp_async(const Tensor<fp32_fast_fp16_t> &Q, const Tensor<fp32_fast_fp16_t> &K,
-        const Tensor<bool_t> &mask, const Tensor<fp32_fast_fp16_t> &maxsumexp,
-        const Tensor<fp32_fast_fp16_t> &tmp, int redux);
+        const Tensor<bool_t> &mask, const Tensor<fp32_fast_fp16_t> &maxsumexp, int redux);
 
 template
 void flash_maxsumexp_async(const Tensor<fp32_fast_bf16_t> &Q, const Tensor<fp32_fast_bf16_t> &K,
-        const Tensor<bool_t> &mask, const Tensor<fp32_fast_bf16_t> &maxsumexp,
-        const Tensor<fp32_fast_bf16_t> &tmp, int redux);
+        const Tensor<bool_t> &mask, const Tensor<fp32_fast_bf16_t> &maxsumexp, int redux);
 
 template
 void flash_maxsumexp_async(const Tensor<fp32_t> &Q, const Tensor<fp32_t> &K,
-        const Tensor<bool_t> &mask, const Tensor<fp32_t> &maxsumexp,
-        const Tensor<fp32_t> &tmp, int redux);
+        const Tensor<bool_t> &mask, const Tensor<fp32_t> &maxsumexp, int redux);
 
 template
 void flash_maxsumexp_async(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &K,
-        const Tensor<bool_t> &mask, const Tensor<fp64_t> &maxsumexp,
-        const Tensor<fp64_t> &tmp, int redux);
+        const Tensor<bool_t> &mask, const Tensor<fp64_t> &maxsumexp, int redux);
 
 template
 void flash_maxsumexp_async(const Tensor<bf16_t> &Q, const Tensor<bf16_t> &K,
-        const Tensor<bool_t> &mask, const Tensor<bf16_t> &maxsumexp,
-        const Tensor<bf16_t> &tmp, int redux);
+        const Tensor<bool_t> &mask, const Tensor<bf16_t> &maxsumexp, int redux);
 
 // Explicit instantiation
 template
 void flash_maxsumexp(const Tensor<fp32_t> &Q, const Tensor<fp32_t> &K,
-        const Tensor<bool_t> &mask, const Tensor<fp32_t> &maxsumexp,
-        const Tensor<fp32_t> &tmp, int redux);
+        const Tensor<bool_t> &mask, const Tensor<fp32_t> &maxsumexp, int redux);
 
 template
 void flash_maxsumexp(const Tensor<fp32_fast_tf32_t> &Q, const Tensor<fp32_fast_tf32_t> &K,
-        const Tensor<bool_t> &mask, const Tensor<fp32_fast_tf32_t> &maxsumexp,
-        const Tensor<fp32_fast_tf32_t> &tmp, int redux);
+        const Tensor<bool_t> &mask, const Tensor<fp32_fast_tf32_t> &maxsumexp, int redux);
 
 template
 void flash_maxsumexp(const Tensor<fp32_fast_fp16_t> &Q, const Tensor<fp32_fast_fp16_t> &K,
-        const Tensor<bool_t> &mask, const Tensor<fp32_fast_fp16_t> &maxsumexp,
-        const Tensor<fp32_fast_fp16_t> &tmp, int redux);
+        const Tensor<bool_t> &mask, const Tensor<fp32_fast_fp16_t> &maxsumexp, int redux);
 
 template
 void flash_maxsumexp(const Tensor<fp32_fast_bf16_t> &Q, const Tensor<fp32_fast_bf16_t> &K,
-        const Tensor<bool_t> &mask, const Tensor<fp32_fast_bf16_t> &maxsumexp,
-        const Tensor<fp32_fast_bf16_t> &tmp, int redux);
+        const Tensor<bool_t> &mask, const Tensor<fp32_fast_bf16_t> &maxsumexp, int redux);
 
 template
 void flash_maxsumexp(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &K,
-        const Tensor<bool_t> &mask, const Tensor<fp64_t> &maxsumexp,
-        const Tensor<fp64_t> &tmp, int redux);
+        const Tensor<bool_t> &mask, const Tensor<fp64_t> &maxsumexp, int redux);
 
 template
 void flash_maxsumexp(const Tensor<bf16_t> &Q, const Tensor<bf16_t> &K,
-        const Tensor<bool_t> &mask, const Tensor<bf16_t> &maxsumexp,
-        const Tensor<bf16_t> &tmp, int redux);
+        const Tensor<bool_t> &mask, const Tensor<bf16_t> &maxsumexp, int redux);
 
 } // namespace nntile::tensor

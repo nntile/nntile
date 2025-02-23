@@ -26,7 +26,6 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
         const Tensor<T> &K, const Tensor<T> &dK, const Tensor<T> &V,
         const Tensor<T> &dV, const Tensor<bool_t> &mask,
         const Tensor<T> &maxsumexp, const Tensor<T> &dst_grad,
-        const Tensor<T> &tmp, const Tensor<T> &tmp_grad,
         const Tensor<T> &tmp_sumprod_slice, int redux)
 {
 //    // Check dimensions
@@ -109,8 +108,7 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
         auto dV_tile_handle = dV.get_tile_handle(i);
         auto dV_tile_index = dV.grid.linear_to_index(i);
         // Indices of all required tensors
-        std::vector<Index> tmp_tile_index(dV_tile_index),
-            q_tile_index(dV_tile_index), dq_tile_index(dV_tile_index),
+        std::vector<Index> q_tile_index(dV_tile_index), dq_tile_index(dV_tile_index),
             k_tile_index(dV_tile_index), dk_tile_index(dV_tile_index),
             v_tile_index(dV_tile_index), dst_grad_tile_index(dV_tile_index),
             mask_tile_index(2), maxsumexp_tile_index(dV_tile_index),
@@ -118,8 +116,6 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
             tmp_sumprod_slice_tile_index(Q.ndim-1);
         auto k_tile_handle = K.get_tile_handle(k_tile_index);
         auto v_tile_handle = V.get_tile_handle(v_tile_index);
-        tmp_tile_index[0] = dV_tile_index[1];
-        tmp_grad_tile_index[0] = dV_tile_index[1];
         for(Index j = 1; j < Q.ndim-1; ++j)
         {
             tmp_sumprod_slice_tile_index[j] = dV_tile_index[j+1];
@@ -133,31 +129,25 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
         // result into destination tensor
         for(Index j = 0; j < Q.grid.shape[1]; ++j)
         {
-            tmp_tile_index[1] = j;
-            tmp_grad_tile_index[1] = j;
             q_tile_index[1] = j;
             dst_grad_tile_index[1] = j;
             mask_tile_index[1] = j;
             maxsumexp_tile_index[1] = j;
             tmp_sumprod_slice_tile_index[0] = j;
-            auto tmp_tile_handle = tmp.get_tile_handle(tmp_tile_index);
-            auto tmp_grad_tile_handle = tmp_grad.get_tile_handle(
-                    tmp_grad_tile_index);
-            auto tmp_sumprod_slice_tile_handle = tmp_sumprod_slice
-                .get_tile_handle(tmp_sumprod_slice_tile_index);
             auto q_tile_handle = Q.get_tile_handle(q_tile_index);
             auto dst_grad_tile_handle = dst_grad.get_tile_handle(
                     dst_grad_tile_index);
             auto mask_tile_handle = mask.get_tile_handle(mask_tile_index);
             auto maxsumexp_tile_handle = maxsumexp.get_tile_handle(
                     maxsumexp_tile_index);
+            auto tmp_sumprod_slice_tile_handle = tmp_sumprod_slice
+                .get_tile_handle(tmp_sumprod_slice_tile_index);
             // Insert a fused task
             starpu::flash_softmax_gemm_backward_sumprod_slice::submit<T>(
                     n_seq_tile, head_size, n_batch_tile*n_head_tile,
                     k_tile_handle, q_tile_handle, mask_tile_handle,
                     maxsumexp_tile_handle, dst_grad_tile_handle, v_tile_handle,
-                    dV_tile_handle, tmp_sumprod_slice_tile_handle,
-                    tmp_tile_handle, tmp_grad_tile_handle, redux=0);
+                    dV_tile_handle, tmp_sumprod_slice_tile_handle, redux);
         }
     }
     // Cycle for all tiles of dK/dV tensor
@@ -166,17 +156,13 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
         auto dK_tile_handle = dK.get_tile_handle(i);
         auto dV_tile_index = dV.grid.linear_to_index(i);
         // Indices of all required tensors
-        std::vector<Index> tmp_tile_index(dV_tile_index),
-            q_tile_index(dV_tile_index), dq_tile_index(dV_tile_index),
+        std::vector<Index> q_tile_index(dV_tile_index), dq_tile_index(dV_tile_index),
             k_tile_index(dV_tile_index), dk_tile_index(dV_tile_index),
             v_tile_index(dV_tile_index), dst_grad_tile_index(dV_tile_index),
             mask_tile_index(2), maxsumexp_tile_index(dV_tile_index),
-            tmp_grad_tile_index(dV_tile_index),
             tmp_sumprod_slice_tile_index(Q.ndim-1);
         auto k_tile_handle = K.get_tile_handle(k_tile_index);
         auto v_tile_handle = V.get_tile_handle(v_tile_index);
-        tmp_tile_index[0] = dV_tile_index[1];
-        tmp_grad_tile_index[0] = dV_tile_index[1];
         for(Index j = 1; j < Q.ndim-1; ++j)
         {
             tmp_sumprod_slice_tile_index[j] = dV_tile_index[j+1];
@@ -184,20 +170,15 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
         mask_tile_index[0] = dV_tile_index[1];
         for(Index j = 0; j < dQ.grid.shape[1]; ++j)
         {
-            tmp_tile_index[1] = j;
-            tmp_grad_tile_index[1] = j;
             q_tile_index[1] = j;
             dst_grad_tile_index[1] = j;
             mask_tile_index[1] = j;
             maxsumexp_tile_index[1] = j;
             tmp_sumprod_slice_tile_index[0] = j;
             dq_tile_index[1] = j;
-            auto tmp_tile_handle = tmp.get_tile_handle(tmp_tile_index);
-            auto tmp_grad_tile_handle = tmp_grad.get_tile_handle(
-                    tmp_grad_tile_index);
+            auto q_tile_handle = Q.get_tile_handle(q_tile_index);
             auto tmp_sumprod_slice_tile_handle = tmp_sumprod_slice
                 .get_tile_handle(tmp_sumprod_slice_tile_index);
-            auto q_tile_handle = Q.get_tile_handle(q_tile_index);
             auto dst_grad_tile_handle = dst_grad.get_tile_handle(
                     dst_grad_tile_index);
             auto mask_tile_handle = mask.get_tile_handle(mask_tile_index);
@@ -210,7 +191,7 @@ void flash_softmax_gemm_backward_async(const Tensor<T> &Q, const Tensor<T> &dQ,
                     k_tile_handle, q_tile_handle, mask_tile_handle,
                     maxsumexp_tile_handle, dst_grad_tile_handle, v_tile_handle,
                     tmp_sumprod_slice_tile_handle, dQ_tile_handle, dK_tile_handle,
-                    tmp_tile_handle, tmp_grad_tile_handle, redux=0);
+                    redux);
         }
     }
 }
@@ -220,11 +201,10 @@ void flash_softmax_gemm_backward(const Tensor<T> &Q, const Tensor<T> &dQ,
         const Tensor<T> &K, const Tensor<T> &dK, const Tensor<T> &V,
         const Tensor<T> &dV, const Tensor<bool_t> &mask,
         const Tensor<T> &maxsumexp, const Tensor<T> &dst_grad,
-        const Tensor<T> &tmp, const Tensor<T> &tmp_grad,
         const Tensor<T> &tmp_sumprod_slice, int redux)
 {
     flash_softmax_gemm_backward_async<T>(Q, dQ, K, dK, V, dV, mask, maxsumexp,
-            dst_grad, tmp, tmp_grad, tmp_sumprod_slice, redux);
+            dst_grad, tmp_sumprod_slice, redux);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -235,7 +215,6 @@ void flash_softmax_gemm_backward_async(const Tensor<fp32_t> &Q, const Tensor<fp3
         const Tensor<fp32_t> &K, const Tensor<fp32_t> &dK, const Tensor<fp32_t> &V,
         const Tensor<fp32_t> &dV, const Tensor<bool_t> &mask,
         const Tensor<fp32_t> &maxsumexp, const Tensor<fp32_t> &dst_grad,
-        const Tensor<fp32_t> &tmp, const Tensor<fp32_t> &tmp_grad,
         const Tensor<fp32_t> &tmp_sumprod_slice, int redux);
 
 template
@@ -243,7 +222,6 @@ void flash_softmax_gemm_backward_async(const Tensor<fp32_fast_tf32_t> &Q, const 
         const Tensor<fp32_fast_tf32_t> &K, const Tensor<fp32_fast_tf32_t> &dK, const Tensor<fp32_fast_tf32_t> &V,
         const Tensor<fp32_fast_tf32_t> &dV, const Tensor<bool_t> &mask,
         const Tensor<fp32_fast_tf32_t> &maxsumexp, const Tensor<fp32_fast_tf32_t> &dst_grad,
-        const Tensor<fp32_fast_tf32_t> &tmp, const Tensor<fp32_fast_tf32_t> &tmp_grad,
         const Tensor<fp32_fast_tf32_t> &tmp_sumprod_slice, int redux);
 
 template
@@ -251,7 +229,6 @@ void flash_softmax_gemm_backward_async(const Tensor<fp32_fast_fp16_t> &Q, const 
         const Tensor<fp32_fast_fp16_t> &K, const Tensor<fp32_fast_fp16_t> &dK, const Tensor<fp32_fast_fp16_t> &V,
         const Tensor<fp32_fast_fp16_t> &dV, const Tensor<bool_t> &mask,
         const Tensor<fp32_fast_fp16_t> &maxsumexp, const Tensor<fp32_fast_fp16_t> &dst_grad,
-        const Tensor<fp32_fast_fp16_t> &tmp, const Tensor<fp32_fast_fp16_t> &tmp_grad,
         const Tensor<fp32_fast_fp16_t> &tmp_sumprod_slice, int redux);
 
 template
@@ -259,7 +236,6 @@ void flash_softmax_gemm_backward_async(const Tensor<fp32_fast_bf16_t> &Q, const 
         const Tensor<fp32_fast_bf16_t> &K, const Tensor<fp32_fast_bf16_t> &dK, const Tensor<fp32_fast_bf16_t> &V,
         const Tensor<fp32_fast_bf16_t> &dV, const Tensor<bool_t> &mask,
         const Tensor<fp32_fast_bf16_t> &maxsumexp, const Tensor<fp32_fast_bf16_t> &dst_grad,
-        const Tensor<fp32_fast_bf16_t> &tmp, const Tensor<fp32_fast_bf16_t> &tmp_grad,
         const Tensor<fp32_fast_bf16_t> &tmp_sumprod_slice, int redux);
 
 template
@@ -267,7 +243,6 @@ void flash_softmax_gemm_backward_async(const Tensor<fp64_t> &Q, const Tensor<fp6
         const Tensor<fp64_t> &K, const Tensor<fp64_t> &dK, const Tensor<fp64_t> &V,
         const Tensor<fp64_t> &dV, const Tensor<bool_t> &mask,
         const Tensor<fp64_t> &maxsumexp, const Tensor<fp64_t> &dst_grad,
-        const Tensor<fp64_t> &tmp, const Tensor<fp64_t> &tmp_grad,
         const Tensor<fp64_t> &tmp_sumprod_slice, int redux);
 
 template
@@ -275,7 +250,6 @@ void flash_softmax_gemm_backward_async(const Tensor<bf16_t> &Q, const Tensor<bf1
         const Tensor<bf16_t> &K, const Tensor<bf16_t> &dK, const Tensor<bf16_t> &V,
         const Tensor<bf16_t> &dV, const Tensor<bool_t> &mask,
         const Tensor<bf16_t> &maxsumexp, const Tensor<bf16_t> &dst_grad,
-        const Tensor<bf16_t> &tmp, const Tensor<bf16_t> &tmp_grad,
         const Tensor<bf16_t> &tmp_sumprod_slice, int redux);
 
 // Explicit instantiation
@@ -284,7 +258,6 @@ void flash_softmax_gemm_backward(const Tensor<fp32_t> &Q, const Tensor<fp32_t> &
         const Tensor<fp32_t> &K, const Tensor<fp32_t> &dK, const Tensor<fp32_t> &V,
         const Tensor<fp32_t> &dV, const Tensor<bool_t> &mask,
         const Tensor<fp32_t> &maxsumexp, const Tensor<fp32_t> &dst_grad,
-        const Tensor<fp32_t> &tmp, const Tensor<fp32_t> &tmp_grad,
         const Tensor<fp32_t> &tmp_sumprod_slice, int redux);
 
 template
@@ -292,7 +265,6 @@ void flash_softmax_gemm_backward(const Tensor<fp32_fast_tf32_t> &Q, const Tensor
         const Tensor<fp32_fast_tf32_t> &K, const Tensor<fp32_fast_tf32_t> &dK, const Tensor<fp32_fast_tf32_t> &V,
         const Tensor<fp32_fast_tf32_t> &dV, const Tensor<bool_t> &mask,
         const Tensor<fp32_fast_tf32_t> &maxsumexp, const Tensor<fp32_fast_tf32_t> &dst_grad,
-        const Tensor<fp32_fast_tf32_t> &tmp, const Tensor<fp32_fast_tf32_t> &tmp_grad,
         const Tensor<fp32_fast_tf32_t> &tmp_sumprod_slice, int redux);
 
 template
@@ -300,7 +272,6 @@ void flash_softmax_gemm_backward(const Tensor<fp32_fast_fp16_t> &Q, const Tensor
         const Tensor<fp32_fast_fp16_t> &K, const Tensor<fp32_fast_fp16_t> &dK, const Tensor<fp32_fast_fp16_t> &V,
         const Tensor<fp32_fast_fp16_t> &dV, const Tensor<bool_t> &mask,
         const Tensor<fp32_fast_fp16_t> &maxsumexp, const Tensor<fp32_fast_fp16_t> &dst_grad,
-        const Tensor<fp32_fast_fp16_t> &tmp, const Tensor<fp32_fast_fp16_t> &tmp_grad,
         const Tensor<fp32_fast_fp16_t> &tmp_sumprod_slice, int redux);
 
 template
@@ -308,7 +279,6 @@ void flash_softmax_gemm_backward(const Tensor<fp32_fast_bf16_t> &Q, const Tensor
         const Tensor<fp32_fast_bf16_t> &K, const Tensor<fp32_fast_bf16_t> &dK, const Tensor<fp32_fast_bf16_t> &V,
         const Tensor<fp32_fast_bf16_t> &dV, const Tensor<bool_t> &mask,
         const Tensor<fp32_fast_bf16_t> &maxsumexp, const Tensor<fp32_fast_bf16_t> &dst_grad,
-        const Tensor<fp32_fast_bf16_t> &tmp, const Tensor<fp32_fast_bf16_t> &tmp_grad,
         const Tensor<fp32_fast_bf16_t> &tmp_sumprod_slice, int redux);
 
 template
@@ -316,7 +286,6 @@ void flash_softmax_gemm_backward(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &
         const Tensor<fp64_t> &K, const Tensor<fp64_t> &dK, const Tensor<fp64_t> &V,
         const Tensor<fp64_t> &dV, const Tensor<bool_t> &mask,
         const Tensor<fp64_t> &maxsumexp, const Tensor<fp64_t> &dst_grad,
-        const Tensor<fp64_t> &tmp, const Tensor<fp64_t> &tmp_grad,
         const Tensor<fp64_t> &tmp_sumprod_slice, int redux);
 
 template
@@ -324,7 +293,6 @@ void flash_softmax_gemm_backward(const Tensor<bf16_t> &Q, const Tensor<bf16_t> &
         const Tensor<bf16_t> &K, const Tensor<bf16_t> &dK, const Tensor<bf16_t> &V,
         const Tensor<bf16_t> &dV, const Tensor<bool_t> &mask,
         const Tensor<bf16_t> &maxsumexp, const Tensor<bf16_t> &dst_grad,
-        const Tensor<bf16_t> &tmp, const Tensor<bf16_t> &tmp_grad,
         const Tensor<bf16_t> &tmp_sumprod_slice, int redux);
 
 } // namespace nntile::tensor

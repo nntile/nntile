@@ -142,6 +142,10 @@ set(KERNEL_HDR
     "nntile/kernel/rope/cpu.hh"
     "nntile/kernel/rope_backward.hh"
     "nntile/kernel/rope_backward/cpu.hh"
+    "nntile/kernel/flash_maxsumexp.hh"
+    "nntile/kernel/flash_softmax_gemm.hh"
+    "nntile/kernel/flash_softmax_gemm_backward_sumprod_slice.hh"
+    "nntile/kernel/flash_softmax_gemm_backward_dq_dk.hh"
     )
 
 if(NNTILE_USE_CUDA)
@@ -211,6 +215,10 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/conv2d_bwd_weight_inplace/cuda.hh"
         "nntile/kernel/rope/cuda.hh"
         "nntile/kernel/rope_backward/cuda.hh"
+        "nntile/kernel/flash_maxsumexp/cuda.hh"
+        "nntile/kernel/flash_softmax_gemm/cuda.hh"
+        "nntile/kernel/flash_softmax_gemm_backward_sumprod_slice/cuda.hh"
+        "nntile/kernel/flash_softmax_gemm_backward_dq_dk/cuda.hh"
         )
 endif()
 

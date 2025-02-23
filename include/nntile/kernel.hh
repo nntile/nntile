@@ -77,6 +77,10 @@
 #include <nntile/kernel/rope.hh>
 #include <nntile/kernel/rope_backward.hh>
 #include <nntile/kernel/norm_fiber.hh>
+#include <nntile/kernel/flash_maxsumexp.hh>
+#include <nntile/kernel/flash_softmax_gemm.hh>
+#include <nntile/kernel/flash_softmax_gemm_backward_dq_dk.hh>
+#include <nntile/kernel/flash_softmax_gemm_backward_sumprod_slice.hh>
 
 //! @namespace nntile::kernel
 /*! This namespace holds low-level routines for codelets

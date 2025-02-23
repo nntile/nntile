@@ -43,7 +43,6 @@ class FlashAttention(BaseLayer):
     k: TensorMoments
     v_transposed: TensorMoments
     v: TensorMoments
-    a: TensorMoments
     a_maxsumexp: Tensor
     a_sumprod_slice: Tensor
     b: TensorMoments
@@ -143,9 +142,6 @@ class FlashAttention(BaseLayer):
         self.v_transposed.value.set_reduction_add()
         self.v = v
         self.v.grad.set_reduction_add()
-        self.a = a
-        self.a.value.set_reduction_add()
-        self.a.grad.set_reduction_add()
         self.a_maxsumexp = a_maxsumexp
         self.a_maxsumexp.set_reduction_maxsumexp()
         self.a_sumprod_slice = a_sumprod_slice
@@ -619,7 +615,6 @@ class FlashAttention(BaseLayer):
             self.k.value,
             self.mask,
             self.a_maxsumexp,
-            self.a.value,
             redux=self.redux,
         )
         # Use flash-like softmax+gemm
@@ -630,7 +625,6 @@ class FlashAttention(BaseLayer):
             self.mask,
             self.a_maxsumexp,
             self.b.value,
-            self.a.value,
             redux=self.redux,
         )
         # Q, K, V, mask and A_maxsumexp can be offloaded from GPU
@@ -639,8 +633,6 @@ class FlashAttention(BaseLayer):
         self.v.value.wont_use()
         self.mask.wont_use()
         self.a_maxsumexp.wont_use()
-        # A can deleted
-        self.a.value.invalidate_submit()
         # Accumulate result from all the heads
         # rotate axes (head_size, n_seq, n_batch, n_head) into
         # (n_head, head_size, n_seq, n_batch) and then
@@ -744,8 +736,6 @@ class FlashAttention(BaseLayer):
             self.mask,
             self.a_maxsumexp,
             self.b.grad,
-            self.a.value,
-            self.a.grad,
             self.a_sumprod_slice,
             redux=self.redux,
         )
@@ -761,10 +751,6 @@ class FlashAttention(BaseLayer):
         self.a_maxsumexp.invalidate_submit()
         # dB can be deleted
         self.b.grad.invalidate_submit()
-        # A can be deleted
-        self.a.value.invalidate_submit()
-        # dA can be deleted
-        self.a.grad.invalidate_submit()
         # A_sumprod_slice can be deleted
         self.a_sumprod_slice.invalidate_submit()
         # Backward for bias of V

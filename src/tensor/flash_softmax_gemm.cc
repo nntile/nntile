@@ -26,8 +26,7 @@ namespace nntile::tensor
 template<typename T>
 void flash_softmax_gemm_async(const Tensor<T> &Q, const Tensor<T> &K,
         const Tensor<T> &V, const Tensor<bool_t> &mask,
-        const Tensor<T> &maxsumexp, const Tensor<T> &dst,
-        const Tensor<T> &tmp, int redux)
+        const Tensor<T> &maxsumexp, const Tensor<T> &dst, int redux)
 {
 //    // Check dimensions
 //    if(src.ndim != dst.ndim)
@@ -107,8 +106,7 @@ void flash_softmax_gemm_async(const Tensor<T> &Q, const Tensor<T> &K,
         auto maxsumexp_tile_handle = maxsumexp.get_tile_handle(i);
         // Obtain indices of applicable source tiles
         auto maxsumexp_tile_index = maxsumexp.grid.linear_to_index(i);
-        std::vector<Index> tmp_tile_index(maxsumexp_tile_index),
-            q_tile_index(maxsumexp_tile_index),
+        std::vector<Index> q_tile_index(maxsumexp_tile_index),
             k_tile_index(maxsumexp_tile_index),
             v_tile_index(maxsumexp_tile_index),
             dst_tile_index(maxsumexp_tile_index),
@@ -122,11 +120,9 @@ void flash_softmax_gemm_async(const Tensor<T> &Q, const Tensor<T> &K,
         // result into destination tensor
         for(Index j = 0; j < K.grid.shape[1]; ++j)
         {
-            tmp_tile_index[0] = j;
             k_tile_index[1] = j;
             v_tile_index[1] = j;
             mask_tile_index[0] = j;
-            auto tmp_tile_handle = tmp.get_tile_handle(tmp_tile_index);
             auto k_tile_handle = K.get_tile_handle(k_tile_index);
             auto v_tile_handle = V.get_tile_handle(v_tile_index);
             auto mask_tile_handle = mask.get_tile_handle(mask_tile_index);
@@ -135,7 +131,7 @@ void flash_softmax_gemm_async(const Tensor<T> &Q, const Tensor<T> &K,
                     n_seq_tile, head_size, n_batch_tile*n_head_tile,
                     k_tile_handle, q_tile_handle, mask_tile_handle,
                     maxsumexp_tile_handle, v_tile_handle, dst_tile_handle,
-                    tmp_tile_handle, redux=0);
+                    redux=0);
         }
     }
 }
@@ -143,10 +139,9 @@ void flash_softmax_gemm_async(const Tensor<T> &Q, const Tensor<T> &K,
 template<typename T>
 void flash_softmax_gemm(const Tensor<T> &Q, const Tensor<T> &K,
         const Tensor<T> &V, const Tensor<bool_t> &mask,
-        const Tensor<T> &maxsumexp, const Tensor<T> &dst,
-        const Tensor<T> &tmp, int redux)
+        const Tensor<T> &maxsumexp, const Tensor<T> &dst, int redux)
 {
-    flash_softmax_gemm_async<T>(Q, K, V, mask, maxsumexp, dst, tmp, redux);
+    flash_softmax_gemm_async<T>(Q, K, V, mask, maxsumexp, dst, redux);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
@@ -155,74 +150,68 @@ void flash_softmax_gemm(const Tensor<T> &Q, const Tensor<T> &K,
 template
 void flash_softmax_gemm_async(const Tensor<fp32_t> &Q, const Tensor<fp32_t> &K,
         const Tensor<fp32_t> &V, const Tensor<bool_t> &mask,
-        const Tensor<fp32_t> &maxsumexp, const Tensor<fp32_t> &dst,
-        const Tensor<fp32_t> &tmp, int redux);
+        const Tensor<fp32_t> &maxsumexp, const Tensor<fp32_t> &dst, int redux);
 
 template
 void flash_softmax_gemm_async(const Tensor<fp32_fast_tf32_t> &Q, const Tensor<fp32_fast_tf32_t> &K,
         const Tensor<fp32_fast_tf32_t> &V, const Tensor<bool_t> &mask,
         const Tensor<fp32_fast_tf32_t> &maxsumexp, const Tensor<fp32_fast_tf32_t> &dst,
-        const Tensor<fp32_fast_tf32_t> &tmp, int redux);
+        int redux);
 
 template
 void flash_softmax_gemm_async(const Tensor<fp32_fast_fp16_t> &Q, const Tensor<fp32_fast_fp16_t> &K,
         const Tensor<fp32_fast_fp16_t> &V, const Tensor<bool_t> &mask,
         const Tensor<fp32_fast_fp16_t> &maxsumexp, const Tensor<fp32_fast_fp16_t> &dst,
-        const Tensor<fp32_fast_fp16_t> &tmp, int redux);
+        int redux);
 
 template
 void flash_softmax_gemm_async(const Tensor<fp32_fast_bf16_t> &Q, const Tensor<fp32_fast_bf16_t> &K,
         const Tensor<fp32_fast_bf16_t> &V, const Tensor<bool_t> &mask,
         const Tensor<fp32_fast_bf16_t> &maxsumexp, const Tensor<fp32_fast_bf16_t> &dst,
-        const Tensor<fp32_fast_bf16_t> &tmp, int redux);
+        int redux);
 
 template
 void flash_softmax_gemm_async(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &K,
         const Tensor<fp64_t> &V, const Tensor<bool_t> &mask,
-        const Tensor<fp64_t> &maxsumexp, const Tensor<fp64_t> &dst,
-        const Tensor<fp64_t> &tmp, int redux);
+        const Tensor<fp64_t> &maxsumexp, const Tensor<fp64_t> &dst, int redux);
 
 template
 void flash_softmax_gemm_async(const Tensor<bf16_t> &Q, const Tensor<bf16_t> &K,
         const Tensor<bf16_t> &V, const Tensor<bool_t> &mask,
-        const Tensor<bf16_t> &maxsumexp, const Tensor<bf16_t> &dst,
-        const Tensor<bf16_t> &tmp, int redux);
+        const Tensor<bf16_t> &maxsumexp, const Tensor<bf16_t> &dst, int redux);
 
 // Explicit instantiation
 template
 void flash_softmax_gemm(const Tensor<fp32_t> &Q, const Tensor<fp32_t> &K,
         const Tensor<fp32_t> &V, const Tensor<bool_t> &mask,
-        const Tensor<fp32_t> &maxsumexp, const Tensor<fp32_t> &dst,
-        const Tensor<fp32_t> &tmp, int redux);
+        const Tensor<fp32_t> &maxsumexp, const Tensor<fp32_t> &dst, int redux);
 
 template
 void flash_softmax_gemm(const Tensor<fp32_fast_tf32_t> &Q, const Tensor<fp32_fast_tf32_t> &K,
         const Tensor<fp32_fast_tf32_t> &V, const Tensor<bool_t> &mask,
         const Tensor<fp32_fast_tf32_t> &maxsumexp, const Tensor<fp32_fast_tf32_t> &dst,
-        const Tensor<fp32_fast_tf32_t> &tmp, int redux);
+        int redux);
 
 template
 void flash_softmax_gemm(const Tensor<fp32_fast_fp16_t> &Q, const Tensor<fp32_fast_fp16_t> &K,
         const Tensor<fp32_fast_fp16_t> &V, const Tensor<bool_t> &mask,
         const Tensor<fp32_fast_fp16_t> &maxsumexp, const Tensor<fp32_fast_fp16_t> &dst,
-        const Tensor<fp32_fast_fp16_t> &tmp, int redux);
+        int redux);
 
 template
 void flash_softmax_gemm(const Tensor<fp32_fast_bf16_t> &Q, const Tensor<fp32_fast_bf16_t> &K,
         const Tensor<fp32_fast_bf16_t> &V, const Tensor<bool_t> &mask,
         const Tensor<fp32_fast_bf16_t> &maxsumexp, const Tensor<fp32_fast_bf16_t> &dst,
-        const Tensor<fp32_fast_bf16_t> &tmp, int redux);
+        int redux);
 
 template
 void flash_softmax_gemm(const Tensor<fp64_t> &Q, const Tensor<fp64_t> &K,
         const Tensor<fp64_t> &V, const Tensor<bool_t> &mask,
-        const Tensor<fp64_t> &maxsumexp, const Tensor<fp64_t> &dst,
-        const Tensor<fp64_t> &tmp, int redux);
+        const Tensor<fp64_t> &maxsumexp, const Tensor<fp64_t> &dst, int redux);
 
 template
 void flash_softmax_gemm(const Tensor<bf16_t> &Q, const Tensor<bf16_t> &K,
         const Tensor<bf16_t> &V, const Tensor<bool_t> &mask,
-        const Tensor<bf16_t> &maxsumexp, const Tensor<bf16_t> &dst,
-        const Tensor<bf16_t> &tmp, int redux);
+        const Tensor<bf16_t> &maxsumexp, const Tensor<bf16_t> &dst, int redux);
 
 } // namespace nntile::tensor

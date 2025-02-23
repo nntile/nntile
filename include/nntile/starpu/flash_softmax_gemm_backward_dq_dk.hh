@@ -95,7 +95,6 @@ void restore_where();
 template<typename T>
 void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle mask, Handle maxsumexp, Handle dA, Handle V,
-        Handle sumprod_slice, Handle dQ, Handle dK, Handle tmp,
-        Handle tmp_grad, int redux=0);
+        Handle sumprod_slice, Handle dQ, Handle dK, int redux=0);
 
 } // namespace nntile::starpu::flash_softmax_gemm_backward_dq_dk

@@ -493,7 +493,6 @@ def flash_softmax_gemm_async(
     mask: Tensor_bool,
     maxsumexp: Tensor,
     dst: Tensor,
-    tmp: Tensor,
     redux: int = 0,
     fp32_fast_tf32: int = 0,
 ) -> None:
@@ -508,31 +507,29 @@ def flash_softmax_gemm_async(
         raise TypeError
     if type(Q) is not type(dst):
         raise TypeError
-    if type(Q) is not type(tmp):
-        raise TypeError
     if type(Q) is core_tensor.Tensor_fp32:
         core_tensor.flash_softmax_gemm_async_fp32(
-            Q, K, V, mask, maxsumexp, dst, tmp, redux
+            Q, K, V, mask, maxsumexp, dst, redux
         )
     elif type(Q) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.flash_softmax_gemm_async_fp32_fast_tf32(
-            Q, K, V, mask, maxsumexp, dst, tmp, redux
+            Q, K, V, mask, maxsumexp, dst, redux
         )
     elif type(Q) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.flash_softmax_gemm_async_fp32_fast_fp16(
-            Q, K, V, mask, maxsumexp, dst, tmp, redux
+            Q, K, V, mask, maxsumexp, dst, redux
         )
     elif type(Q) is core_tensor.Tensor_fp32_fast_bf16:
         core_tensor.flash_softmax_gemm_async_fp32_fast_bf16(
-            Q, K, V, mask, maxsumexp, dst, tmp, redux
+            Q, K, V, mask, maxsumexp, dst, redux
         )
     elif type(Q) is core_tensor.Tensor_fp64:
         core_tensor.flash_softmax_gemm_async_fp64(
-            Q, K, V, mask, maxsumexp, dst, tmp, redux
+            Q, K, V, mask, maxsumexp, dst, redux
         )
     elif type(Q) is core_tensor.Tensor_bf16:
         core_tensor.flash_softmax_gemm_async_bf16(
-            Q, K, V, mask, maxsumexp, dst, tmp, redux
+            Q, K, V, mask, maxsumexp, dst, redux
         )
     else:
         raise TypeError
@@ -548,8 +545,6 @@ def flash_softmax_gemm_backward_async(
     mask: Tensor_bool,
     maxsumexp: Tensor,
     dst_grad: Tensor,
-    tmp: Tensor,
-    tmp_grad: Tensor,
     tmp_sumprod_slice: Tensor,
     redux: int = 0,
 ) -> None:
@@ -570,10 +565,6 @@ def flash_softmax_gemm_backward_async(
         raise TypeError
     if type(Q) is not type(dst_grad):
         raise TypeError
-    if type(Q) is not type(tmp):
-        raise TypeError
-    if type(Q) is not type(tmp_grad):
-        raise TypeError
     if type(Q) is not type(tmp_sumprod_slice):
         raise TypeError
     if type(Q) is core_tensor.Tensor_fp32:
@@ -587,8 +578,6 @@ def flash_softmax_gemm_backward_async(
             mask,
             maxsumexp,
             dst_grad,
-            tmp,
-            tmp_grad,
             tmp_sumprod_slice,
             redux,
         )
@@ -603,8 +592,6 @@ def flash_softmax_gemm_backward_async(
             mask,
             maxsumexp,
             dst_grad,
-            tmp,
-            tmp_grad,
             tmp_sumprod_slice,
             redux,
         )
@@ -619,8 +606,6 @@ def flash_softmax_gemm_backward_async(
             mask,
             maxsumexp,
             dst_grad,
-            tmp,
-            tmp_grad,
             tmp_sumprod_slice,
             redux,
         )
@@ -635,8 +620,6 @@ def flash_softmax_gemm_backward_async(
             mask,
             maxsumexp,
             dst_grad,
-            tmp,
-            tmp_grad,
             tmp_sumprod_slice,
             redux,
         )
@@ -651,8 +634,6 @@ def flash_softmax_gemm_backward_async(
             mask,
             maxsumexp,
             dst_grad,
-            tmp,
-            tmp_grad,
             tmp_sumprod_slice,
             redux,
         )
@@ -667,8 +648,6 @@ def flash_softmax_gemm_backward_async(
             mask,
             maxsumexp,
             dst_grad,
-            tmp,
-            tmp_grad,
             tmp_sumprod_slice,
             redux,
         )
@@ -899,7 +878,6 @@ def flash_maxsumexp_async(
     K: Tensor,
     mask: Tensor_bool,
     maxsumexp: Tensor,
-    tmp: Tensor,
     redux: int = 0,
 ) -> None:
     """
@@ -909,31 +887,29 @@ def flash_maxsumexp_async(
         raise TypeError
     if type(Q) is not type(maxsumexp):
         raise TypeError
-    if type(Q) is not type(tmp):
-        raise TypeError
     if type(Q) is core_tensor.Tensor_fp32:
         core_tensor.flash_maxsumexp_async_fp32(
-            Q, K, mask, maxsumexp, tmp, redux
+            Q, K, mask, maxsumexp, redux
         )
     elif type(Q) is core_tensor.Tensor_fp32_fast_tf32:
         core_tensor.flash_maxsumexp_async_fp32_fast_tf32(
-            Q, K, mask, maxsumexp, tmp, redux
+            Q, K, mask, maxsumexp, redux
         )
     elif type(Q) is core_tensor.Tensor_fp32_fast_fp16:
         core_tensor.flash_maxsumexp_async_fp32_fast_fp16(
-            Q, K, mask, maxsumexp, tmp, redux
+            Q, K, mask, maxsumexp, redux
         )
     elif type(Q) is core_tensor.Tensor_fp32_fast_bf16:
         core_tensor.flash_maxsumexp_async_fp32_fast_bf16(
-            Q, K, mask, maxsumexp, tmp, redux
+            Q, K, mask, maxsumexp, redux
         )
     elif type(Q) is core_tensor.Tensor_fp64:
         core_tensor.flash_maxsumexp_async_fp64(
-            Q, K, mask, maxsumexp, tmp, redux
+            Q, K, mask, maxsumexp, redux
         )
     elif type(Q) is core_tensor.Tensor_bf16:
         core_tensor.flash_maxsumexp_async_bf16(
-            Q, K, mask, maxsumexp, tmp, redux
+            Q, K, mask, maxsumexp, redux
         )
     else:
         raise TypeError

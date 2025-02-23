@@ -94,6 +94,6 @@ void restore_where();
 
 template<typename T>
 void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
-        Handle mask, Handle maxsumexp, Handle tmp, int redux=0);
+        Handle mask, Handle maxsumexp, int redux=0);
 
 } // namespace nntile::starpu::flash_maxsumexp

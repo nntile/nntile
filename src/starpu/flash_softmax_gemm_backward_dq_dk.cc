@@ -14,6 +14,11 @@
 
 #include "nntile/starpu/flash_softmax_gemm_backward_dq_dk.hh"
 #ifndef STARPU_SIMGRID
+#include "nntile/kernel/flash_softmax_gemm_backward_dq_dk.hh"
+#endif // STARPU_SIMGRID
+#include <cstdlib>
+#include <cmath>
+#include <limits>
 #include "nntile/kernel/gemm.hh"
 #include "nntile/kernel/mask_scalar.hh"
 #include "nntile/kernel/softmax_inplace.hh"
@@ -21,10 +26,6 @@
 #include "nntile/kernel/prod_inplace.hh"
 #include "nntile/kernel/cpu.hh"
 #include "nntile/kernel/cuda.hh"
-#endif // STARPU_SIMGRID
-#include <cstdlib>
-#include <cmath>
-#include <limits>
 
 namespace nntile::starpu::flash_softmax_gemm_backward_dq_dk
 {
@@ -51,71 +52,7 @@ void cpu(void *buffers[], void *cl_args)
     const T *sumprod_slice = interfaces[6]->get_ptr<T>();
     T *dQ = interfaces[7]->get_ptr<T>();
     T *dK = interfaces[8]->get_ptr<T>();
-    T *tmp = interfaces[9]->get_ptr<T>();
-    T *tmp_grad = interfaces[10]->get_ptr<T>();
     // Launch kernels
-    Index K_offset = args->head * args->seq;
-    Index Q_offset = K_offset;
-    Index tmp_offset = args->seq * args->seq;
-    using Y = typename nntile::kernel::CPUComputeType<T>::value;
-    const T *K_local = K;
-    const T *Q_local = Q;
-    T *tmp_local = tmp;
-    for(Index i = 0; i < args->batch; ++i)
-    {
-        cblas(CblasTrans, CblasNoTrans, args->seq, args->seq, args->head,
-                1.0/std::sqrt(args->head), K_local, args->head, Q_local,
-                args->head, 0.0, tmp_local, args->seq);
-        K_local += K_offset;
-        Q_local += Q_offset;
-        tmp_local += tmp_offset;
-    }
-    kernel::mask_scalar::cpu<T>(args->seq*args->seq, args->batch, mask,
-            -std::numeric_limits<Y>::infinity(), tmp);
-    kernel::softmax_inplace::cpu<T>(1, args->seq*args->batch, args->seq,
-            maxsumexp, 1.0, tmp);
-    Index dA_offset = K_offset;
-    Index V_offset = K_offset;
-    Index tmp_grad_offset = tmp_offset;
-    const T *dA_local = dA;
-    const T *V_local = V;
-    T *tmp_grad_local = tmp_grad;
-    for(Index i = 0; i < args->batch; ++i)
-    {
-        cblas(CblasTrans, CblasNoTrans, args->seq, args->seq, args->head,
-                1.0, V_local, args->head, dA_local, args->head, 0.0,
-                tmp_grad_local, args->seq);
-        V_local += V_offset;
-        dA_local += dA_offset;
-        tmp_grad_local += tmp_grad_offset;
-    }
-    kernel::add_slice_inplace::cpu<T>(1, args->seq*args->batch, args->seq,
-            -1.0, sumprod_slice, 1.0, tmp_grad);
-    kernel::prod_inplace::cpu<T>(args->seq*args->seq*args->batch, tmp,
-            tmp_grad);
-    kernel::mask_scalar::cpu<T>(args->seq*args->seq, args->batch, mask,
-            0.0, tmp_grad);
-    Index dQ_offset = K_offset;
-    Index dK_offset = K_offset;
-    T *dQ_local = dQ;
-    T *dK_local = dK;
-    K_local = K;
-    Q_local = Q;
-    tmp_grad_local = tmp_grad;
-    for(Index i = 0; i < args->batch; ++i)
-    {
-        cblas(CblasNoTrans, CblasNoTrans, args->head, args->seq, args->seq,
-                1.0/std::sqrt(args->head), K_local, args->head, tmp_grad_local,
-                args->seq, 1.0, dQ_local, args->head);
-        cblas(CblasNoTrans, CblasTrans, args->head, args->seq, args->seq,
-                1.0/std::sqrt(args->head), Q_local, args->head, tmp_grad_local,
-                args->seq, 1.0, dK_local, args->head);
-        K_local += K_offset;
-        Q_local += Q_offset;
-        tmp_grad_local += tmp_grad_offset;
-        dQ_local += dQ_offset;
-        dK_local += dK_offset;
-    }
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CBLAS
@@ -140,13 +77,15 @@ void cuda(void *buffers[], void *cl_args)
     const T *sumprod_slice = interfaces[6]->get_ptr<T>();
     T *dQ = interfaces[7]->get_ptr<T>();
     T *dK = interfaces[8]->get_ptr<T>();
-    T *tmp = interfaces[9]->get_ptr<T>();
-    T *tmp_grad = interfaces[10]->get_ptr<T>();
+    T *tmp, *tmp_grad;
     // Get CUDA stream
     cublasHandle_t handle = starpu_cublas_get_local_handle();
     cudaStream_t stream = starpu_cuda_get_local_stream();
     cublasSetStream(handle, stream);
-    // Launch kernels
+    cudaStreamSynchronize(stream);
+    cudaMalloc(&tmp, args->batch *  args->seq * args->seq * sizeof(T));
+    cudaMalloc(&tmp_grad, args->batch * args->seq * args->seq * sizeof(T));
+    // Launch kernels (commented out code shows operations)
     Index K_offset = args->head * args->seq;
     Index Q_offset = K_offset;
     Index tmp_offset = args->seq * args->seq;
@@ -182,6 +121,12 @@ void cuda(void *buffers[], void *cl_args)
             args->head, args->seq, args->seq, 1.0/std::sqrt(args->head),
             Q, args->head, Q_offset, tmp_grad, args->seq, tmp_grad_offset, 1.0,
             dK, args->head, dK_offset, args->batch);
+    cudaStreamSynchronize(stream);
+    cudaFree(tmp);
+    cudaFree(tmp_grad);
+    // kernel::flash_softmax_gemm_backward_dq_dk::cuda<T>(stream,
+    //         args->batch, args->seq, args->head,
+    //         K, Q, mask, maxsumexp, dA, V, sumprod_slice, dQ, dK);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
@@ -210,7 +155,7 @@ void init()
     codelet_fp32.init("nntile_flash_softmax_gemm_backward_dq_dk_fp32",
             footprint,
 #ifdef NNTILE_USE_CBLAS
-            {cpu<fp32_t>},
+            {},// {cpu<fp32_t>},
 #else // NNTILE_USE_CBLAS
             {},
 #endif // NNTILE_USE_CBLAS
@@ -223,7 +168,7 @@ void init()
     codelet_fp64.init("nntile_flash_softmax_gemm_backward_dq_dk_fp64",
             footprint,
 #ifdef NNTILE_USE_CBLAS
-            {cpu<fp64_t>},
+            {},// {cpu<fp64_t>},
 #else // NNTILE_USE_CBLAS
             {},
 #endif // NNTILE_USE_CBLAS
@@ -313,8 +258,7 @@ void restore_where()
 template<typename T>
 void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle mask, Handle maxsumexp, Handle dA, Handle V,
-        Handle sumprod_slice, Handle dQ, Handle dK, Handle tmp,
-        Handle tmp_grad, int redux)
+        Handle sumprod_slice, Handle dQ, Handle dK, int redux)
 //! Insert flash_maxsumexp task into StarPU pool of tasks
 /*! No argument checking is performed. All the inputs are packed and passed to
  * starpu_task_insert() function. If task submission fails, this routines
@@ -349,8 +293,6 @@ void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
             STARPU_R, static_cast<starpu_data_handle_t>(sumprod_slice),
             rw_mode, static_cast<starpu_data_handle_t>(dQ),
             rw_mode, static_cast<starpu_data_handle_t>(dK),
-            STARPU_SCRATCH, static_cast<starpu_data_handle_t>(tmp),
-            STARPU_SCRATCH, static_cast<starpu_data_handle_t>(tmp_grad),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
             0);
@@ -366,37 +308,31 @@ void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
 template
 void submit<fp32_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle mask, Handle maxsumexp, Handle dA, Handle V,
-        Handle sumprod_slice, Handle dQ, Handle dK, Handle tmp,
-        Handle tmp_grad, int redux);
+        Handle sumprod_slice, Handle dQ, Handle dK, int redux);
 
 template
 void submit<bf16_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle mask, Handle maxsumexp, Handle dA, Handle V,
-        Handle sumprod_slice, Handle dQ, Handle dK, Handle tmp,
-        Handle tmp_grad, int redux);
+        Handle sumprod_slice, Handle dQ, Handle dK, int redux);
 
 template
 void submit<fp32_fast_tf32_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle mask, Handle maxsumexp, Handle dA, Handle V,
-        Handle sumprod_slice, Handle dQ, Handle dK, Handle tmp,
-        Handle tmp_grad, int redux);
+        Handle sumprod_slice, Handle dQ, Handle dK, int redux);
 
 template
 void submit<fp32_fast_fp16_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle mask, Handle maxsumexp, Handle dA, Handle V,
-        Handle sumprod_slice, Handle dQ, Handle dK, Handle tmp,
-        Handle tmp_grad, int redux);
+        Handle sumprod_slice, Handle dQ, Handle dK, int redux);
 
 template
 void submit<fp32_fast_bf16_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle mask, Handle maxsumexp, Handle dA, Handle V,
-        Handle sumprod_slice, Handle dQ, Handle dK, Handle tmp,
-        Handle tmp_grad, int redux);
+        Handle sumprod_slice, Handle dQ, Handle dK, int redux);
 
 template
 void submit<fp64_t>(Index seq, Index head, Index batch, Handle K, Handle Q,
         Handle mask, Handle maxsumexp, Handle dA, Handle V,
-        Handle sumprod_slice, Handle dQ, Handle dK, Handle tmp,
-        Handle tmp_grad, int redux);
+        Handle sumprod_slice, Handle dQ, Handle dK, int redux);
 
 } // namespace nntile::starpu::flash_softmax_gemm_backward_dq_dk
