@@ -42,10 +42,10 @@ __global__ void flash_softmax_gemm_kernel(Index batch, Index seq, Index head,
     const Index kv_block_start = kv_split_idx * kv_split_size;
     const Index kv_block_end = ::min(kv_block_start + kv_split_size, seq);
 
-    // Shared memory for tiles - all arrays transposed for better memory access
+    // Shared memory for tiles - double buffer for both K and V
     __shared__ T Q_tile[Q_BLOCK][HEAD_BLOCK];    // Transposed layout
-    __shared__ T K_tile[KV_BLOCK][HEAD_BLOCK];   // Transposed layout
-    __shared__ T V_tile[KV_BLOCK][HEAD_BLOCK];   // Transposed layout
+    __shared__ T K_tile[2][KV_BLOCK][HEAD_BLOCK];   // Double buffered, transposed layout
+    __shared__ T V_tile[2][KV_BLOCK][HEAD_BLOCK];   // Double buffered, transposed layout
     __shared__ Y softmax_tile[Q_BLOCK][KV_BLOCK]; // Transposed layout [Q][KV]
     __shared__ bool_t mask_tile[Q_BLOCK][KV_BLOCK];  // Transposed layout
     __shared__ Y accum[Q_BLOCK][HEAD_BLOCK];     // Transposed layout
@@ -83,35 +83,41 @@ __global__ void flash_softmax_gemm_kernel(Index batch, Index seq, Index head,
     __syncthreads();
 
     // Process all K,V tiles
+    int current_buffer = 0;
     for (Index kv_tile_idx = kv_block_start; kv_tile_idx < kv_block_end;
             kv_tile_idx += KV_BLOCK)
     {
-        // Load only K tile using vec4
+        // Load current K and V tiles
         for (int kv = threadIdx.x; kv < KV_BLOCK; kv += blockDim.x) {
             const Index kv_idx = kv_tile_idx + kv;
             if (kv_idx < seq) {
                 const T* K_base = K + head * (kv_idx + seq * batch_idx);
+                const T* V_base = V + head * (kv_idx + seq * batch_idx);
+
+                // Load current K and V tiles
                 for (int h = threadIdx.y * 4; h < HEAD_BLOCK; h += blockDim.y * 4) {
                     if (h + 3 < HEAD_BLOCK) {
-                        reinterpret_cast<vec4_t&>(K_tile[kv][h]) =
+                        reinterpret_cast<vec4_t&>(K_tile[current_buffer][kv][h]) =
                             *reinterpret_cast<const vec4_t*>(&K_base[h]);
+                        reinterpret_cast<vec4_t&>(V_tile[current_buffer][kv][h]) =
+                            *reinterpret_cast<const vec4_t*>(&V_base[h]);
                     } else {
                         for (int i = 0; i < 4 && h + i < HEAD_BLOCK; ++i) {
-                            K_tile[kv][h + i] = K_base[h + i];
+                            K_tile[current_buffer][kv][h + i] = K_base[h + i];
+                            V_tile[current_buffer][kv][h + i] = V_base[h + i];
                         }
                     }
                 }
             }
         }
+        __syncthreads();
 
-        // Load mask tile using scalar operations
+        // Load mask tile
         for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
             const Index q_idx = q_tile_idx * Q_BLOCK + q;
             for (int kv = threadIdx.y; kv < KV_BLOCK; kv += blockDim.y) {
                 const Index kv_idx = kv_tile_idx + kv;
-                // Store in transposed layout [q][kv]
                 if (q_idx < seq && kv_idx < seq) {
-                    // Mask is in [seq, seq] layout, row-major order
                     mask_tile[q][kv] = bool{mask[kv_idx + q_idx * seq]};
                 } else {
                     mask_tile[q][kv] = false;
@@ -120,7 +126,32 @@ __global__ void flash_softmax_gemm_kernel(Index batch, Index seq, Index head,
         }
         __syncthreads();
 
-        // Compute K^T @ Q and store result in transposed softmax_tile
+        // Start loading next K and V tiles if not last iteration
+        if (kv_tile_idx + KV_BLOCK < kv_block_end) {
+            for (int kv = threadIdx.x; kv < KV_BLOCK; kv += blockDim.x) {
+                const Index kv_idx = kv_tile_idx + kv + KV_BLOCK;
+                if (kv_idx < seq) {
+                    const T* K_next = K + head * (kv_idx + seq * batch_idx);
+                    const T* V_next = V + head * (kv_idx + seq * batch_idx);
+
+                    for (int h = threadIdx.y * 4; h < HEAD_BLOCK; h += blockDim.y * 4) {
+                        if (h + 3 < HEAD_BLOCK) {
+                            reinterpret_cast<vec4_t&>(K_tile[1-current_buffer][kv][h]) =
+                                *reinterpret_cast<const vec4_t*>(&K_next[h]);
+                            reinterpret_cast<vec4_t&>(V_tile[1-current_buffer][kv][h]) =
+                                *reinterpret_cast<const vec4_t*>(&V_next[h]);
+                        } else {
+                            for (int i = 0; i < 4 && h + i < HEAD_BLOCK; ++i) {
+                                K_tile[1-current_buffer][kv][h + i] = K_next[h + i];
+                                V_tile[1-current_buffer][kv][h + i] = V_next[h + i];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Compute K^T @ Q using current K buffer
         for (int kv = threadIdx.y; kv < KV_BLOCK; kv += blockDim.y) {
             for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
                 const Index kv_idx = kv_tile_idx + kv;
@@ -131,7 +162,7 @@ __global__ void flash_softmax_gemm_kernel(Index batch, Index seq, Index head,
                     #pragma unroll
                     for (int h = 0; h < HEAD_BLOCK; h += 4) {
                         if (h + 3 < HEAD_BLOCK) {
-                            vec4_t k_vec = reinterpret_cast<const vec4_t&>(K_tile[kv][h]);
+                            vec4_t k_vec = reinterpret_cast<const vec4_t&>(K_tile[current_buffer][kv][h]);
                             vec4_t q_vec = reinterpret_cast<const vec4_t&>(Q_tile[q][h]);
 
                             sum_vec.x += k_vec.x * q_vec.x;
@@ -140,7 +171,7 @@ __global__ void flash_softmax_gemm_kernel(Index batch, Index seq, Index head,
                             sum_vec.w += k_vec.w * q_vec.w;
                         } else {
                             for (int i = 0; i < 4 && h + i < HEAD_BLOCK; ++i) {
-                                sum_vec.x += Y{K_tile[kv][h + i]} * Y{Q_tile[q][h + i]};
+                                sum_vec.x += Y{K_tile[current_buffer][kv][h + i]} * Y{Q_tile[q][h + i]};
                             }
                         }
                     }
@@ -148,7 +179,7 @@ __global__ void flash_softmax_gemm_kernel(Index batch, Index seq, Index head,
                     Y final_sum = sum_vec.x + sum_vec.y + sum_vec.z + sum_vec.w;
 
                     if (mask_tile[q][kv]) {
-                        softmax_tile[q][kv] = final_sum * Y{scale};  // Note transposed indexing
+                        softmax_tile[q][kv] = final_sum * Y{scale};
                     } else {
                         softmax_tile[q][kv] = -std::numeric_limits<Y>::infinity();
                     }
@@ -175,51 +206,26 @@ __global__ void flash_softmax_gemm_kernel(Index batch, Index seq, Index head,
         }
         __syncthreads();
 
-        // Load V tile just before using it
-        for (int kv = threadIdx.x; kv < KV_BLOCK; kv += blockDim.x) {
-            const Index kv_idx = kv_tile_idx + kv;
-            if (kv_idx < seq) {
-                const T* V_base = V + head * (kv_idx + seq * batch_idx);
-                for (int h = threadIdx.y * 4; h < HEAD_BLOCK; h += blockDim.y * 4) {
-                    if (h + 3 < HEAD_BLOCK) {
-                        reinterpret_cast<vec4_t&>(V_tile[kv][h]) =
-                            *reinterpret_cast<const vec4_t*>(&V_base[h]);
-                    } else {
-                        for (int i = 0; i < 4 && h + i < HEAD_BLOCK; ++i) {
-                            V_tile[kv][h + i] = V_base[h + i];
-                        }
-                    }
-                }
-            }
-        }
-        __syncthreads();
-
-        // Compute V @ softmax immediately after loading V
+        // Compute V @ softmax using current V buffer
         for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
             for (int h = threadIdx.y * 4; h < HEAD_BLOCK; h += blockDim.y * 4) {
                 if (h + 3 < HEAD_BLOCK) {
                     vec4_t sum_vec = {0, 0, 0, 0};
                     for (int kv = 0; kv < KV_BLOCK; ++kv) {
                         if (mask_tile[q][kv]) {
-                            // Load 4 elements from V_tile
-                            vec4_t v_vec = reinterpret_cast<const vec4_t&>(V_tile[kv][h]);
+                            vec4_t v_vec = reinterpret_cast<const vec4_t&>(V_tile[current_buffer][kv][h]);
                             Y s = softmax_tile[q][kv];
-
-                            // Multiply and accumulate vectorized
                             sum_vec.x += v_vec.x * s;
                             sum_vec.y += v_vec.y * s;
                             sum_vec.z += v_vec.z * s;
                             sum_vec.w += v_vec.w * s;
                         }
                     }
-                    // Load current accumulator values
                     vec4_t acc_vec = reinterpret_cast<const vec4_t&>(accum[q][h]);
-                    // Add component by component
                     acc_vec.x += sum_vec.x;
                     acc_vec.y += sum_vec.y;
                     acc_vec.z += sum_vec.z;
                     acc_vec.w += sum_vec.w;
-                    // Store back
                     reinterpret_cast<vec4_t&>(accum[q][h]) = acc_vec;
                 } else {
                     // Handle boundary case
@@ -227,7 +233,7 @@ __global__ void flash_softmax_gemm_kernel(Index batch, Index seq, Index head,
                         Y sum = 0;
                         for (int kv = 0; kv < KV_BLOCK; ++kv) {
                             if (mask_tile[q][kv]) {
-                                sum += Y{V_tile[kv][h + i]} * softmax_tile[q][kv];
+                                sum += Y{V_tile[current_buffer][kv][h + i]} * softmax_tile[q][kv];
                             }
                         }
                         accum[q][h + i] += sum;
@@ -236,6 +242,9 @@ __global__ void flash_softmax_gemm_kernel(Index batch, Index seq, Index head,
             }
         }
         __syncthreads();
+
+        // Swap buffers for next iteration
+        current_buffer = 1 - current_buffer;
     }
 
     // Write accumulated results using vectorized loads and scalar atomic adds
