@@ -81,49 +81,49 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cublasHandle_t handle = starpu_cublas_get_local_handle();
     cudaStream_t stream = starpu_cuda_get_local_stream();
-    cublasSetStream(handle, stream);
-    cudaStreamSynchronize(stream);
-    cudaMalloc(&tmp, args->batch *  args->seq * args->seq * sizeof(T));
-    cudaMalloc(&tmp_grad, args->batch * args->seq * args->seq * sizeof(T));
-    // Launch kernels (commented out code shows operations)
-    Index K_offset = args->head * args->seq;
-    Index Q_offset = K_offset;
-    Index tmp_offset = args->seq * args->seq;
-    cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
-            args->seq, args->seq, args->head, 1.0/std::sqrt(args->head),
-            K, args->head, K_offset, Q, args->head, Q_offset,
-            0.0, tmp, args->seq, tmp_offset, args->batch);
-    using Y = typename T::repr_t;
-    kernel::mask_scalar::cuda<T>(stream, args->seq*args->seq, args->batch, mask,
-            -std::numeric_limits<Y>::infinity(), tmp);
-    kernel::softmax_inplace::cuda<T>(stream, 1, args->seq*args->batch, args->seq,
-            maxsumexp, 1.0, tmp);
-    Index V_offset = K_offset;
-    Index dA_offset = K_offset;
-    Index tmp_grad_offset = tmp_offset;
-    cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
-            args->seq, args->seq, args->head, 1.0, V, args->head, V_offset,
-            dA, args->head, dA_offset, 0.0, tmp_grad, args->seq,
-            tmp_grad_offset, args->batch);
-    kernel::add_slice_inplace::cuda<T>(stream, 1, args->seq*args->batch, args->seq,
-            -1.0, sumprod_slice, 1.0, tmp_grad);
-    kernel::prod_inplace::cuda<T>(stream, args->seq*args->seq*args->batch, tmp,
-            tmp_grad);
-    kernel::mask_scalar::cuda<T>(stream, args->seq*args->seq, args->batch, mask,
-            0.0, tmp_grad);
-    Index dQ_offset = K_offset;
-    Index dK_offset = K_offset;
-    cublas_batch(handle, CUBLAS_OP_N, CUBLAS_OP_N,
-            args->head, args->seq, args->seq, 1.0/std::sqrt(args->head),
-            K, args->head, K_offset, tmp_grad, args->seq, tmp_grad_offset, 1.0,
-            dQ, args->head, dQ_offset, args->batch);
-    cublas_batch(handle, CUBLAS_OP_N, CUBLAS_OP_T,
-            args->head, args->seq, args->seq, 1.0/std::sqrt(args->head),
-            Q, args->head, Q_offset, tmp_grad, args->seq, tmp_grad_offset, 1.0,
-            dK, args->head, dK_offset, args->batch);
-    cudaStreamSynchronize(stream);
-    cudaFree(tmp);
-    cudaFree(tmp_grad);
+//     cublasSetStream(handle, stream);
+//     cudaStreamSynchronize(stream);
+//     cudaMalloc(&tmp, args->batch *  args->seq * args->seq * sizeof(T));
+//     cudaMalloc(&tmp_grad, args->batch * args->seq * args->seq * sizeof(T));
+//     // Launch kernels (commented out code shows operations)
+//     Index K_offset = args->head * args->seq;
+//     Index Q_offset = K_offset;
+//     Index tmp_offset = args->seq * args->seq;
+//     cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
+//             args->seq, args->seq, args->head, 1.0/std::sqrt(args->head),
+//             K, args->head, K_offset, Q, args->head, Q_offset,
+//             0.0, tmp, args->seq, tmp_offset, args->batch);
+//     using Y = typename T::repr_t;
+//     kernel::mask_scalar::cuda<T>(stream, args->seq*args->seq, args->batch, mask,
+//             -std::numeric_limits<Y>::infinity(), tmp);
+//     kernel::softmax_inplace::cuda<T>(stream, 1, args->seq*args->batch, args->seq,
+//             maxsumexp, 1.0, tmp);
+//     Index V_offset = K_offset;
+//     Index dA_offset = K_offset;
+//     Index tmp_grad_offset = tmp_offset;
+//     cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
+//             args->seq, args->seq, args->head, 1.0, V, args->head, V_offset,
+//             dA, args->head, dA_offset, 0.0, tmp_grad, args->seq,
+//             tmp_grad_offset, args->batch);
+//     kernel::add_slice_inplace::cuda<T>(stream, 1, args->seq*args->batch, args->seq,
+//             -1.0, sumprod_slice, 1.0, tmp_grad);
+//     kernel::prod_inplace::cuda<T>(stream, args->seq*args->seq*args->batch, tmp,
+//             tmp_grad);
+//     kernel::mask_scalar::cuda<T>(stream, args->seq*args->seq, args->batch, mask,
+//             0.0, tmp_grad);
+//     Index dQ_offset = K_offset;
+//     Index dK_offset = K_offset;
+//     cublas_batch(handle, CUBLAS_OP_N, CUBLAS_OP_N,
+//             args->head, args->seq, args->seq, 1.0/std::sqrt(args->head),
+//             K, args->head, K_offset, tmp_grad, args->seq, tmp_grad_offset, 1.0,
+//             dQ, args->head, dQ_offset, args->batch);
+//     cublas_batch(handle, CUBLAS_OP_N, CUBLAS_OP_T,
+//             args->head, args->seq, args->seq, 1.0/std::sqrt(args->head),
+//             Q, args->head, Q_offset, tmp_grad, args->seq, tmp_grad_offset, 1.0,
+//             dK, args->head, dK_offset, args->batch);
+//     cudaStreamSynchronize(stream);
+//     cudaFree(tmp);
+//     cudaFree(tmp_grad);
     // kernel::flash_softmax_gemm_backward_dq_dk::cuda<T>(stream,
     //         args->batch, args->seq, args->head,
     //         K, Q, mask, maxsumexp, dA, V, sumprod_slice, dQ, dK);

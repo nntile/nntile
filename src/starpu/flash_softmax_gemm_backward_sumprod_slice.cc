@@ -78,48 +78,48 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cublasHandle_t handle = starpu_cublas_get_local_handle();
     cudaStream_t stream = starpu_cuda_get_local_stream();
-    cublasSetStream(handle, stream);
-    cudaStreamSynchronize(stream);
-    cudaMalloc(&tmp, args->batch *  args->seq * args->seq * sizeof(T));
-    cudaMalloc(&tmp_grad, args->batch * args->seq * args->seq * sizeof(T));
-    cudaMalloc(&tmp_grad_slice, args->batch * args->seq * sizeof(T));
-    // Launch kernels (commented out code shows operations)
-    Index K_offset = args->head * args->seq;
-    Index Q_offset = K_offset;
-    Index tmp_offset = args->seq * args->seq;
-    cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
-            args->seq, args->seq, args->head, 1.0/std::sqrt(args->head),
-            K, args->head, K_offset, Q, args->head, Q_offset,
-            0.0, tmp, args->seq, tmp_offset, args->batch);
-    using Y = typename T::repr_t;
-    kernel::mask_scalar::cuda<T>(stream, args->seq*args->seq, args->batch, mask,
-            -std::numeric_limits<Y>::infinity(), tmp);
-    kernel::softmax_inplace::cuda<T>(stream, 1, args->seq*args->batch,
-            args->seq, maxsumexp, 1.0, tmp);
-    Index dA_offset = K_offset;
-    Index dV_offset = K_offset;
-    cublas_batch(handle, CUBLAS_OP_N, CUBLAS_OP_T,
-            args->head, args->seq, args->seq, 1.0, dA, args->head, dA_offset,
-            tmp, args->seq, tmp_offset, 1.0, dV, args->head, dV_offset,
-            args->batch);
-    Index tmp_grad_offset = tmp_offset;
-    Index V_offset = K_offset;
-    cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
-            args->seq, args->seq, args->head, 1.0, V, args->head, V_offset,
-            dA, args->head, dA_offset, 0.0, tmp_grad, args->seq,
-            tmp_grad_offset, args->batch);
-    kernel::sumprod_slice::cuda<T>(stream, 1, args->seq*args->batch, args->seq,
-            1.0, tmp_grad, tmp, 1.0, sumprod_slice);
-    // kernel::flash_softmax_gemm_backward_sumprod_slice::cuda<T>(stream,
-    //     args->batch, args->seq, args->head,
-    //     K, Q, mask, maxsumexp, dA, V, dV, sumprod_slice);
-    // kernel::flash_softmax_gemm_backward_sumprod_slice::cuda<T>(stream,
-    //     args->batch, args->seq, args->head,
-    //     K, Q, mask, maxsumexp, dA, V, dV, tmp_grad_slice);
-    cudaStreamSynchronize(stream);
-    cudaFree(tmp);
-    cudaFree(tmp_grad);
-    cudaFree(tmp_grad_slice);
+//     cublasSetStream(handle, stream);
+//     cudaStreamSynchronize(stream);
+//     cudaMalloc(&tmp, args->batch *  args->seq * args->seq * sizeof(T));
+//     cudaMalloc(&tmp_grad, args->batch * args->seq * args->seq * sizeof(T));
+//     cudaMalloc(&tmp_grad_slice, args->batch * args->seq * sizeof(T));
+//     // Launch kernels (commented out code shows operations)
+//     Index K_offset = args->head * args->seq;
+//     Index Q_offset = K_offset;
+//     Index tmp_offset = args->seq * args->seq;
+//     cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
+//             args->seq, args->seq, args->head, 1.0/std::sqrt(args->head),
+//             K, args->head, K_offset, Q, args->head, Q_offset,
+//             0.0, tmp, args->seq, tmp_offset, args->batch);
+//     using Y = typename T::repr_t;
+//     kernel::mask_scalar::cuda<T>(stream, args->seq*args->seq, args->batch, mask,
+//             -std::numeric_limits<Y>::infinity(), tmp);
+//     kernel::softmax_inplace::cuda<T>(stream, 1, args->seq*args->batch,
+//             args->seq, maxsumexp, 1.0, tmp);
+//     Index dA_offset = K_offset;
+//     Index dV_offset = K_offset;
+//     cublas_batch(handle, CUBLAS_OP_N, CUBLAS_OP_T,
+//             args->head, args->seq, args->seq, 1.0, dA, args->head, dA_offset,
+//             tmp, args->seq, tmp_offset, 1.0, dV, args->head, dV_offset,
+//             args->batch);
+//     Index tmp_grad_offset = tmp_offset;
+//     Index V_offset = K_offset;
+//     cublas_batch(handle, CUBLAS_OP_T, CUBLAS_OP_N,
+//             args->seq, args->seq, args->head, 1.0, V, args->head, V_offset,
+//             dA, args->head, dA_offset, 0.0, tmp_grad, args->seq,
+//             tmp_grad_offset, args->batch);
+//     kernel::sumprod_slice::cuda<T>(stream, 1, args->seq*args->batch, args->seq,
+//             1.0, tmp_grad, tmp, 1.0, sumprod_slice);
+//     // kernel::flash_softmax_gemm_backward_sumprod_slice::cuda<T>(stream,
+//     //     args->batch, args->seq, args->head,
+//     //     K, Q, mask, maxsumexp, dA, V, dV, sumprod_slice);
+//     // kernel::flash_softmax_gemm_backward_sumprod_slice::cuda<T>(stream,
+//     //     args->batch, args->seq, args->head,
+//     //     K, Q, mask, maxsumexp, dA, V, dV, tmp_grad_slice);
+//     cudaStreamSynchronize(stream);
+//     cudaFree(tmp);
+//     cudaFree(tmp_grad);
+//     cudaFree(tmp_grad_slice);
 #endif // STARPU_SIMGRID
 }
 #endif // NNTILE_USE_CUDA
