@@ -21,96 +21,134 @@
 namespace nntile::kernel::flash_softmax_gemm
 {
 
-template<typename T>
+template<typename T, int HEAD_BLOCK, int Q_BLOCK, int KV_BLOCK>
 __global__ void flash_softmax_gemm_kernel(Index batch, Index seq, Index head,
         T scale, const T *K, const T *Q, const bool_t *mask,
         const T *maxsumexp, const T *V, T *A)
 {
     using Y = typename T::repr_t;
-    // Get global thread indices
-    const Index batch_idx = blockIdx.y;
-    const Index seq_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    const Index tid = threadIdx.x;
+    // Block indices
+    const Index batch_idx = blockIdx.z;  // Batch index
+    const Index q_tile_idx = blockIdx.y; // Q tile index
 
-    constexpr Y inf = Y{1.0} / Y{0.0};
+    // Shared memory for tiles
+    __shared__ T Q_tile[HEAD_BLOCK][Q_BLOCK];    // Q tile
+    __shared__ T K_tile[HEAD_BLOCK][KV_BLOCK];   // K tile
+    __shared__ T V_tile[HEAD_BLOCK][KV_BLOCK];   // V tile
+    __shared__ Y softmax_tile[KV_BLOCK][Q_BLOCK]; // K^T @ Q result
+    __shared__ bool_t mask_tile[KV_BLOCK][Q_BLOCK]; // Mask tile
+    __shared__ Y accum[HEAD_BLOCK][Q_BLOCK];     // Accumulator for V @ softmax
 
-    // Shared memory for K values and softmax values
-    __shared__ Y K_shared[256];  // One row of K at a time
-    __shared__ Y softmax_shared[256];  // Softmax values for the block
+    // Initialize accumulator to zero
+    for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
+        for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
+            accum[h][q] = 0;
+        }
+    }
+    __syncthreads();
 
-    if (seq_idx < seq)
-    {
-        // Calculate base offsets
-        // In Fortran order: [head, seq, batch]
-        const Index Q_base = head * (seq_idx + seq * batch_idx);
-        const Index maxsumexp_base = 2*(seq_idx + seq * batch_idx);
-        const Index A_base = head * (seq_idx + seq * batch_idx);
-
-        // Get pre-computed max and sumexp values
-        const Y max_val = Y{maxsumexp[maxsumexp_base]};
-        const Y sumexp = Y{maxsumexp[maxsumexp_base + 1]};
-
-        // Initialize output accumulator
-        Y A_local[256] = {0};  // Assuming head <= 256
-
-        // First compute all softmax values
-        for (Index j = 0; j < seq; ++j)
-        {
-            // Load K values for this j into shared memory
-            const Index K_base = head * (j + seq * batch_idx);
-            for (Index d = tid; d < head; d += blockDim.x)
-            {
-                K_shared[d] = Y{K[K_base + d]};
+    // Load Q tile once - it stays constant for all K,V tiles
+    for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
+        for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
+            const Index q_idx = q_tile_idx * Q_BLOCK + q;
+            if (q_idx < seq) {
+                Q_tile[h][q] = Q[h + head * (q_idx + seq * batch_idx)];
             }
-            __syncthreads();
+        }
+    }
+    __syncthreads();
 
-            // Compute dot product Q[h,i,b] * K[h,j,b]
-            Y dot_prod = 0;
-            for (Index d = 0; d < head; ++d)
-            {
-                dot_prod += Y{Q[d + Q_base]} * K_shared[d];
-            }
-            dot_prod *= Y{scale};
-
-            // Apply mask and compute softmax value
-            if (mask != nullptr && !mask[j + seq * seq_idx])
-            {
-                softmax_shared[tid] = 0;
-            }
-            else
-            {
-                softmax_shared[tid] = ::exp(dot_prod - max_val) / sumexp;
-            }
-            __syncthreads();
-
-            // Now multiply by V in chunks to better utilize memory bandwidth
-            const Index V_base = head * (j + seq * batch_idx);
-            for (Index d_start = 0; d_start < head; d_start += blockDim.x)
-            {
-                // Load chunk of V into shared memory
-                if (d_start + tid < head)
-                {
-                    K_shared[tid] = Y{V[V_base + d_start + tid]};
+    // Process all K,V tiles
+    for (Index kv_tile_idx = 0; kv_tile_idx < seq; kv_tile_idx += KV_BLOCK) {
+        // Load K and V tiles
+        for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
+            for (int kv = threadIdx.x; kv < KV_BLOCK; kv += blockDim.x) {
+                const Index kv_idx = kv_tile_idx + kv;
+                if (kv_idx < seq) {
+                    K_tile[h][kv] = K[h + head * (kv_idx + seq * batch_idx)];
+                    V_tile[h][kv] = V[h + head * (kv_idx + seq * batch_idx)];
                 }
-                __syncthreads();
-
-                // Multiply and accumulate for this chunk
-                const Index chunk_size = ::min(Index(blockDim.x), head - d_start);
-                for (Index d = 0; d < chunk_size; ++d)
-                {
-                    if (d_start + d < head)
-                    {
-                        A_local[d_start + d] += softmax_shared[tid] * K_shared[d];
-                    }
-                }
-                __syncthreads();
             }
         }
 
-        // Store results
-        for (Index d = 0; d < head; ++d)
-        {
-            A[d + A_base] = T{A_local[d]};
+        // Load mask tile
+        for (int kv = threadIdx.y; kv < KV_BLOCK; kv += blockDim.y) {
+            for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
+                const Index kv_idx = kv_tile_idx + kv;
+                const Index q_idx = q_tile_idx * Q_BLOCK + q;
+                if (kv_idx < seq && q_idx < seq) {
+                    mask_tile[kv][q] = mask[kv_idx + q_idx * seq];
+                } else {
+                    mask_tile[kv][q] = false;
+                }
+            }
+        }
+        __syncthreads();
+
+        // Compute K^T @ Q and apply mask
+        for (int kv = threadIdx.y; kv < KV_BLOCK; kv += blockDim.y) {
+            for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
+                const Index kv_idx = kv_tile_idx + kv;
+                const Index q_idx = q_tile_idx * Q_BLOCK + q;
+
+                if (kv_idx < seq && q_idx < seq) {
+                    // Compute dot product for this element
+                    Y sum = 0;
+                    for (int h = 0; h < HEAD_BLOCK; ++h) {
+                        sum += Y{K_tile[h][kv]} * Y{Q_tile[h][q]};
+                    }
+
+                    // Apply mask and scaling
+                    if (mask_tile[kv][q]) {
+                        softmax_tile[kv][q] = sum * Y{scale};
+                    } else {
+                        softmax_tile[kv][q] = -std::numeric_limits<Y>::infinity();
+                    }
+                }
+            }
+        }
+        __syncthreads();
+
+        // Apply softmax using pre-computed maxsumexp
+        for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
+            const Index q_idx = q_tile_idx * Q_BLOCK + q;
+            if (q_idx < seq) {
+                const Y max_val = Y{maxsumexp[2 * (q_idx + seq * batch_idx)]};
+                const Y sumexp = Y{maxsumexp[2 * (q_idx + seq * batch_idx) + 1]};
+
+                for (int kv = threadIdx.y; kv < KV_BLOCK; kv += blockDim.y) {
+                    if (mask_tile[kv][q]) {
+                        softmax_tile[kv][q] = ::exp(softmax_tile[kv][q] - max_val) / sumexp;
+                    } else {
+                        softmax_tile[kv][q] = 0;
+                    }
+                }
+            }
+        }
+        __syncthreads();
+
+        // Compute V @ softmax and accumulate
+        for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
+            for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
+                Y sum = 0;
+                for (int kv = 0; kv < KV_BLOCK; ++kv) {
+                    if (mask_tile[kv][q]) {
+                        sum += Y{V_tile[h][kv]} * softmax_tile[kv][q];
+                    }
+                }
+                accum[h][q] += sum;
+            }
+        }
+        __syncthreads();
+    }
+
+    // Write accumulated results to output
+    for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
+        for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
+            const Index q_idx = q_tile_idx * Q_BLOCK + q;
+            if (q_idx < seq) {
+                A[h + head * (q_idx + seq * batch_idx)] = T{accum[h][q]};
+            }
         }
     }
 }
@@ -120,20 +158,24 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
           const T *K, const T *Q, const bool_t *mask, const T *maxsumexp,
           const T *V, T *A) noexcept
 {
+    // Define block and grid sizes
+    constexpr int HEAD_BLOCK = 64;
+    constexpr int Q_BLOCK = 16;
+    constexpr int KV_BLOCK = 16;
+
+    dim3 threads(8, 8);  // 64 threads per block
+    dim3 blocks(1, (seq + Q_BLOCK - 1) / Q_BLOCK, batch);
+
     // Calculate scaling factor
     using Y = typename T::repr_t;
     T scale = T(Y(1.0) / std::sqrt(Y(head)));
 
-    // Configure kernel launch parameters
-    const int block_size = 256;
-    const int blocks_per_seq = (seq + block_size - 1) / block_size;
-
-    dim3 grid(blocks_per_seq, batch);
-    dim3 block(block_size);
+    // Clear the output
+    //cudaMemsetAsync(A, 0, batch * head * seq * sizeof(T), stream);
 
     // Launch kernel
-    flash_softmax_gemm_kernel<T><<<grid, block, 0, stream>>>(batch, seq, head,
-        scale, K, Q, mask, maxsumexp, V, A);
+    flash_softmax_gemm_kernel<T, HEAD_BLOCK, Q_BLOCK, KV_BLOCK>
+        <<<blocks, threads, 0, stream>>>(batch, seq, head, scale, K, Q, mask, maxsumexp, V, A);
 }
 
 // Explicit instantiation

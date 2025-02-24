@@ -250,15 +250,36 @@ __global__ void flash_maxsumexp_kernel(Index batch, Index seq,
     }
 }
 
-template<typename T>
+template<typename T> // TODO: support SPLIT_K
 void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
-          const T *K, const T *Q, const bool_t *mask, T *maxsumexp) noexcept
+        const T *K, const T *Q, const bool_t *mask, T *maxsumexp) noexcept
 {
-    // Calculate grid size for tiles
+    // Shape of a temporary array maxsumexp_tmp is (2, seq, SPLIT_K, batch)
+    // Shapes of K and Q are (head, seq, batch)
+    // We virtually split K into SPLIT_K parts and compute maxsumexp for each
+    // part separately
+    // For this we reshape K into (head, seq/SPLIT_K, SPLIT_K, batch) without
+    // touching the data (this reshape is free)
+    // Then we compute maxsumexp for each split separately
+    // 1. Entire Q is multiplied on split of K
+    //      we virtually allocate intermediate temporary array shared_mem_tmp
+    //      of shape (seq/SPLIT_K, seq, SPLIT_K, batch) and multiply a split
+    //      of K.T by Q
+    //      shared_mem_tmp[split_seq_idx, seq_idx, split_idx, batch_idx]
+    //      = scale * sum( K[:, split_seq_idx, split_idx, batch_idx] *
+    //                     Q[:, seq_idx, batch_idx] )
+    // 2. We compute max and sumexp for each gemm of split of K
+    //      maxsumexp_tmp[0, seq_idx, split_idx, batch_idx] =
+    //          max(shared_mem_tmp[:, seq_idx, split_idx, batch_idx])
+    //      maxsumexp_tmp[1, seq_idx, split_idx, batch_idx] =
+    //          sumexp(shared_mem_tmp[:, seq_idx, split_idx, batch_idx] -
+    //                 maxsumexp_tmp[0, seq_idx, split_idx, batch_idx])
+    // Such a scheme will be done in future
     constexpr Index SEQ_BLOCK_SIZE_Q = 16;
+    constexpr Index SEQ_BLOCK_SIZE_K = 128;
     // Shape of output blocking is defined by SEQ_BLOCK_SIZE_Q
     dim3 blocks((seq + SEQ_BLOCK_SIZE_Q - 1) / SEQ_BLOCK_SIZE_Q, batch);
-    dim3 threads(32, 16);  // 64 threads per block
+    dim3 threads(16, 16);  // 256 threads per block
 
     // Calculate scale factor 1/sqrt(head)
     using Y = typename T::repr_t;
@@ -267,8 +288,6 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
     // Launch kernel
     if(head == 64)
     {
-        // Low head_dim allows larger SEQ_BLOCK_SIZE_K
-        constexpr Index SEQ_BLOCK_SIZE_K = 128;
         flash_maxsumexp_kernel<T, SEQ_BLOCK_SIZE_K, SEQ_BLOCK_SIZE_Q, 64>
             <<<blocks, threads, 0, stream>>>(batch, seq, scale, K, Q, mask, maxsumexp);
     }
