@@ -148,7 +148,7 @@ void restore_where()
 template<typename T>
 void submit(Index nelems, Handle src, Handle dst)
 {
-    Index *nelems_ = new Index{nelems};
+    Index *nelems_ = (Index*)malloc(nelems * sizeof(Index));
     // Put amount of read-write bytes into flop count
     double nflops = sizeof(T) * 3 * nelems;
     int ret = starpu_task_insert(codelet<T>(),
