@@ -70,10 +70,8 @@ static __device__ void gemm_smem_sync(const T smem_K[SEQ_BLOCK_SIZE_K][HEAD_SIZE
             {
                 c_frag.x[k] *= float{scale};
             }
-            __syncthreads();
             // Store results back to shared memory
             store_matrix_sync(&smem_KQ[i][j], c_frag, SEQ_BLOCK_SIZE_K, mem_col_major);
-            __syncthreads();
         }
     }
     // General case
@@ -92,8 +90,8 @@ static __device__ void gemm_smem_sync(const T smem_K[SEQ_BLOCK_SIZE_K][HEAD_SIZE
                 smem_KQ[i][j] = sum * Y(scale);
             }
         }
-        __syncthreads();
     }
+    __syncthreads();
 }
 
 template<typename T, Index SEQ_BLOCK_SIZE_K, Index SEQ_BLOCK_SIZE_Q, Index HEAD_SIZE>
@@ -118,14 +116,15 @@ __global__ void flash_maxsumexp_kernel(Index batch, Index seq,
     const int batch_idx = blockIdx.y;                     // batch index
 
     // Get warp and lane ids
+    const Index block_size = blockDim.x * blockDim.y;
     const Index thread_id = threadIdx.x + threadIdx.y * blockDim.x;
     const Index warp_size = 32;
-    const Index num_warps = blockDim.x * blockDim.y / warp_size;
+    const Index num_warps = block_size / warp_size;
     const Index warp_id = thread_id / warp_size;
     const Index lane_id = thread_id % warp_size;
 
-    // Load maxsumexp[0:seq, batch_idx] into smem_max and smem_sumexp
-    for(int j = threadIdx.x; j < SEQ_BLOCK_SIZE_Q; j += blockDim.x)
+    // Load maxsumexp[0:SEQ_BLOCK_SIZE_Q, batch_idx] into smem_max and smem_sumexp
+    for(int j = thread_id; j < SEQ_BLOCK_SIZE_Q; j += block_size)
     {
         if(block_col + j < seq)
         {
@@ -136,10 +135,14 @@ __global__ void flash_maxsumexp_kernel(Index batch, Index seq,
                 smem_max[j] = -std::numeric_limits<ElementAccumulator>::infinity();
             }
         }
+        else
+        {
+            smem_max[j] = -std::numeric_limits<ElementAccumulator>::infinity();
+            smem_sumexp[j] = 0;
+        }
     }
-    __syncthreads();
 
-    // Load Q[0:HEAD_SIZE, block_row:block_row+SEQ_BLOCK_SIZE, batch_idx]
+    // Load Q[block_row:block_row+SEQ_BLOCK_SIZE_Q, 0:HEAD_SIZE, batch_idx]
     for(int j = threadIdx.x; j < SEQ_BLOCK_SIZE_Q; j += blockDim.x)
     {
         if(block_col + j < seq)
@@ -149,12 +152,19 @@ __global__ void flash_maxsumexp_kernel(Index batch, Index seq,
                 smem_Q[j][i] = Q[i + HEAD_SIZE * (block_col + j) + HEAD_SIZE * seq * batch_idx];
             }
         }
+        else
+        {
+            for(int i = threadIdx.y; i < HEAD_SIZE; i += blockDim.y)
+            {
+                smem_Q[j][i] = 0;
+            }
+        }
     }
-    __syncthreads();
 
+    // Loop through all blocks of K
     for(int block_row = 0; block_row < seq; block_row += SEQ_BLOCK_SIZE_K)
     {
-        // Load K[0:HEAD_SIZE, block_col:block_col+SEQ_BLOCK_SIZE_K, batch_idx]
+        // Load K[block_row:block_row+SEQ_BLOCK_SIZE_K, 0:HEAD_SIZE, batch_idx]
         for(int j = threadIdx.y; j < SEQ_BLOCK_SIZE_K; j += blockDim.y)
         {
             if(block_row + j < seq)
@@ -180,6 +190,8 @@ __global__ void flash_maxsumexp_kernel(Index batch, Index seq,
                 }
             }
         }
+
+        // Synchronize threads within the block to ensure all data is loaded
         __syncthreads();
 
         // Compute tile product scale * K^T @ Q in Fortran order
@@ -187,7 +199,7 @@ __global__ void flash_maxsumexp_kernel(Index batch, Index seq,
                 smem_Q, smem_mask, scale, smem_KQ);
 
         // Compute max in each column
-        for(int j = thread_id; j < SEQ_BLOCK_SIZE_Q; j += blockDim.x * blockDim.y)
+        for(int j = thread_id; j < SEQ_BLOCK_SIZE_Q; j += block_size)
         {
             if(block_col + j < seq)
             {
@@ -220,10 +232,15 @@ __global__ void flash_maxsumexp_kernel(Index batch, Index seq,
                 smem_sumexp[j] = sumexp;
             }
         }
+        // Sync is required because we are using smem_mask, that will be updated
+        // in the next iteration of the loop
+        __syncthreads();
     }
-    __syncthreads();
+    // Here we are not using __syncthreads() because there is only one thread
+    // that "owns" required data in smem_max and smem_sumexp. With such an
+    // approach we do not need any smem_max and smem_sumexp shared arrays
     // Store result to maxsumexp
-    for(int j = thread_id; j < SEQ_BLOCK_SIZE_Q; j += blockDim.x * blockDim.y)
+    for(int j = thread_id; j < SEQ_BLOCK_SIZE_Q; j += block_size)
     {
         if(block_col + j < seq)
         {
@@ -238,10 +255,10 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
           const T *K, const T *Q, const bool_t *mask, T *maxsumexp) noexcept
 {
     // Calculate grid size for tiles
-    constexpr Index SEQ_BLOCK_SIZE_Q = 128;
+    constexpr Index SEQ_BLOCK_SIZE_Q = 16;
     // Shape of output blocking is defined by SEQ_BLOCK_SIZE_Q
     dim3 blocks((seq + SEQ_BLOCK_SIZE_Q - 1) / SEQ_BLOCK_SIZE_Q, batch);
-    dim3 threads(8, 8);  // 64 threads per block
+    dim3 threads(32, 16);  // 64 threads per block
 
     // Calculate scale factor 1/sqrt(head)
     using Y = typename T::repr_t;
@@ -251,7 +268,7 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
     if(head == 64)
     {
         // Low head_dim allows larger SEQ_BLOCK_SIZE_K
-        constexpr Index SEQ_BLOCK_SIZE_K = 16;
+        constexpr Index SEQ_BLOCK_SIZE_K = 128;
         flash_maxsumexp_kernel<T, SEQ_BLOCK_SIZE_K, SEQ_BLOCK_SIZE_Q, 64>
             <<<blocks, threads, 0, stream>>>(batch, seq, scale, K, Q, mask, maxsumexp);
     }
