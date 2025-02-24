@@ -24,10 +24,10 @@ namespace nntile::kernel::flash_maxsumexp
 
 template<typename T, typename Y, Index SEQ_BLOCK_SIZE_K, Index SEQ_BLOCK_SIZE_Q, Index HEAD_SIZE>
 static __device__ void gemm_smem_sync(const T smem_K[SEQ_BLOCK_SIZE_K][HEAD_SIZE],
-        const T smem_Q[HEAD_SIZE][SEQ_BLOCK_SIZE_Q],
-        const bool_t smem_mask[SEQ_BLOCK_SIZE_K][SEQ_BLOCK_SIZE_Q],
+        const T smem_Q[SEQ_BLOCK_SIZE_Q][HEAD_SIZE],
+        const bool_t smem_mask[SEQ_BLOCK_SIZE_Q][SEQ_BLOCK_SIZE_K],
         T scale,
-        Y smem_KQ[SEQ_BLOCK_SIZE_K][SEQ_BLOCK_SIZE_Q])
+        Y smem_KQ[SEQ_BLOCK_SIZE_Q][SEQ_BLOCK_SIZE_K])
 {
     using namespace nvcuda::wmma;
     // Get warp and lane ids
@@ -43,25 +43,25 @@ static __device__ void gemm_smem_sync(const T smem_K[SEQ_BLOCK_SIZE_K][HEAD_SIZE
         auto smem_Q_float = reinterpret_cast<const float *>(smem_Q);
         // Define fragments using float precision TF32 supports only 16x16x8 grid
         fragment<matrix_a, 16, 16, 8, precision::tf32, row_major> a_frag;
-        fragment<matrix_b, 16, 16, 8, precision::tf32, row_major> b_frag;
+        fragment<matrix_b, 16, 16, 8, precision::tf32, col_major> b_frag;
         fragment<accumulator, 16, 16, 8, float> c_frag;
 
         // Load data into fragments and perform matrix multiplication
         for(int w = warp_id; w < (SEQ_BLOCK_SIZE_K / 16) * (SEQ_BLOCK_SIZE_Q / 16); w += num_warps)
         {
-            int i = (w / (SEQ_BLOCK_SIZE_Q / 16)) * 16;
-            int j = (w % (SEQ_BLOCK_SIZE_Q / 16)) * 16;
+            int i = (w / (SEQ_BLOCK_SIZE_K / 16)) * 16;
+            int j = (w % (SEQ_BLOCK_SIZE_K / 16)) * 16;
             // Initialize accumulator fragment
             fill_fragment(c_frag, 0.0f);
             for(int k = 0; k < HEAD_SIZE; k += 8)
             {
                 // Load matrix A and B from shared memory into fragments
-                // K[SEQ_BLOCK_SIZE, HEAD_SIZE] - leading dimension is HEAD_SIZE
+                // K[SEQ_BLOCK_SIZE_K, HEAD_SIZE] - leading dimension is HEAD_SIZE
                 load_matrix_sync(a_frag,
-                    smem_K_float + i * HEAD_SIZE + k, HEAD_SIZE);
-                // Q[HEAD_SIZE, SEQ_BLOCK_SIZE] - leading dimension is SEQ_BLOCK_SIZE
+                    smem_K_float + j * HEAD_SIZE + k, HEAD_SIZE);
+                // Q[SEQ_BLOCK_SIZE_Q, HEAD_SIZE] - leading dimension is HEAD_SIZE
                 load_matrix_sync(b_frag,
-                    smem_Q_float + k * SEQ_BLOCK_SIZE_Q + j, SEQ_BLOCK_SIZE_Q);
+                    smem_Q_float + i * HEAD_SIZE + k, HEAD_SIZE);
                 // Perform matrix multiplication and accumulate
                 mma_sync(c_frag, a_frag, b_frag, c_frag);
             }
@@ -72,22 +72,22 @@ static __device__ void gemm_smem_sync(const T smem_K[SEQ_BLOCK_SIZE_K][HEAD_SIZE
             }
             __syncthreads();
             // Store results back to shared memory
-            store_matrix_sync(&smem_KQ[i][j], c_frag, SEQ_BLOCK_SIZE_Q, mem_row_major);
+            store_matrix_sync(&smem_KQ[i][j], c_frag, SEQ_BLOCK_SIZE_K, mem_col_major);
             __syncthreads();
         }
     }
     // General case
     else
     {
-        for(int i = threadIdx.x; i < SEQ_BLOCK_SIZE_K; i += blockDim.x)
+        for(int i = threadIdx.x; i < SEQ_BLOCK_SIZE_Q; i += blockDim.x)
         {
-            for(int j = threadIdx.y; j < SEQ_BLOCK_SIZE_Q; j += blockDim.y)
+            for(int j = threadIdx.y; j < SEQ_BLOCK_SIZE_K; j += blockDim.y)
             {
                 Y sum = 0;
                 for(int k = 0; k < HEAD_SIZE; ++k)
                 {
-                    // K[i,k] * Q[k,j] for K @ Q
-                    sum += Y(smem_K[i][k]) * Y(smem_Q[k][j]);
+                    // K[j,k] * Q[i,k] for K @ Q
+                    sum += Y(smem_K[j][k]) * Y(smem_Q[i][k]);
                 }
                 smem_KQ[i][j] = sum * Y(scale);
             }
@@ -106,12 +106,12 @@ __global__ void flash_maxsumexp_kernel(Index batch, Index seq,
         std::is_same<T, nntile::fp64_t>::value, double, float>::type;
 
     // Shared memory
-    __shared__ T smem_Q[HEAD_SIZE][SEQ_BLOCK_SIZE_Q];
+    __shared__ T smem_Q[SEQ_BLOCK_SIZE_Q][HEAD_SIZE];
     __shared__ T smem_K[SEQ_BLOCK_SIZE_K][HEAD_SIZE];
-    __shared__ bool_t smem_mask[SEQ_BLOCK_SIZE_K][SEQ_BLOCK_SIZE_Q];
+    __shared__ bool_t smem_mask[SEQ_BLOCK_SIZE_Q][SEQ_BLOCK_SIZE_K];
     __shared__ ElementAccumulator smem_max[SEQ_BLOCK_SIZE_Q];
     __shared__ ElementAccumulator smem_sumexp[SEQ_BLOCK_SIZE_Q];
-    __shared__ ElementAccumulator smem_KQ[SEQ_BLOCK_SIZE_K][SEQ_BLOCK_SIZE_Q];
+    __shared__ ElementAccumulator smem_KQ[SEQ_BLOCK_SIZE_Q][SEQ_BLOCK_SIZE_K];
 
     // Block indices - each block processes one tile of output
     const int block_col = blockIdx.x * SEQ_BLOCK_SIZE_Q;  // seq_j index
@@ -140,13 +140,13 @@ __global__ void flash_maxsumexp_kernel(Index batch, Index seq,
     __syncthreads();
 
     // Load Q[0:HEAD_SIZE, block_row:block_row+SEQ_BLOCK_SIZE, batch_idx]
-    for(int i = threadIdx.x; i < HEAD_SIZE; i += blockDim.x)
+    for(int j = threadIdx.x; j < SEQ_BLOCK_SIZE_Q; j += blockDim.x)
     {
-        for(int j = threadIdx.y; j < SEQ_BLOCK_SIZE_Q; j += blockDim.y)
+        if(block_col + j < seq)
         {
-            if(block_col + j < seq)
+            for(int i = threadIdx.y; i < HEAD_SIZE; i += blockDim.y)
             {
-                smem_Q[i][j] = Q[i + HEAD_SIZE * (block_col + j) + HEAD_SIZE * seq * batch_idx];
+                smem_Q[j][i] = Q[i + HEAD_SIZE * (block_col + j) + HEAD_SIZE * seq * batch_idx];
             }
         }
     }
@@ -155,25 +155,28 @@ __global__ void flash_maxsumexp_kernel(Index batch, Index seq,
     for(int block_row = 0; block_row < seq; block_row += SEQ_BLOCK_SIZE_K)
     {
         // Load K[0:HEAD_SIZE, block_col:block_col+SEQ_BLOCK_SIZE_K, batch_idx]
-        for(int i = threadIdx.x; i < HEAD_SIZE; i += blockDim.x)
+        for(int j = threadIdx.y; j < SEQ_BLOCK_SIZE_K; j += blockDim.y)
         {
-            for(int j = threadIdx.y; j < SEQ_BLOCK_SIZE_K; j += blockDim.y)
+            if(block_row + j < seq)
             {
-                if(block_row + j < seq)
+                for(int i = threadIdx.x; i < HEAD_SIZE; i += blockDim.x)
                 {
                     smem_K[j][i] = K[i + HEAD_SIZE * (block_row + j) + HEAD_SIZE * seq * batch_idx];
                 }
             }
         }
 
-        // Load mask[block_row:block_row+SEQ_BLOCK_SIZE, block_col:block_col+SEQ_BLOCK_SIZE]
-        for(int i = threadIdx.x; i < SEQ_BLOCK_SIZE_K; i += blockDim.x)
+        // Load mask[block_col:block_col+SEQ_BLOCK_SIZE_Q, block_row:block_row+SEQ_BLOCK_SIZE_K]
+        for(int i = threadIdx.x; i < SEQ_BLOCK_SIZE_Q; i += blockDim.x)
         {
-            for(int j = threadIdx.y; j < SEQ_BLOCK_SIZE_Q; j += blockDim.y)
+            if(block_col + i < seq)
             {
-                if(block_row + i < seq && block_col + j < seq)
+                for(int j = threadIdx.y; j < SEQ_BLOCK_SIZE_K; j += blockDim.y)
                 {
-                    smem_mask[i][j] = mask[block_row + i + seq * (block_col + j)];
+                    if(block_row + j < seq)
+                    {
+                        smem_mask[i][j] = mask[block_row + j + seq * (block_col + i)];
+                    }
                 }
             }
         }
@@ -194,9 +197,9 @@ __global__ void flash_maxsumexp_kernel(Index batch, Index seq,
                 // Acquire maximum value in the column
                 for(int i = 0; i < SEQ_BLOCK_SIZE_K; ++i)
                 {
-                    if(block_row + i < seq && smem_mask[i][j])
+                    if(block_row + i < seq && smem_mask[j][i])
                     {
-                        max_val = ::max(max_val, smem_KQ[i][j]);
+                        max_val = ::max(max_val, smem_KQ[j][i]);
                     }
                 }
                 // Update sumexp if needed
@@ -207,11 +210,10 @@ __global__ void flash_maxsumexp_kernel(Index batch, Index seq,
                 // Compute sumexp in the column
                 for(int i = 0; i < SEQ_BLOCK_SIZE_K; ++i)
                 {
-                    if(block_row + i < seq && smem_mask[i][j])
+                    if(block_row + i < seq && smem_mask[j][i])
                     {
-                        sumexp += ::exp(smem_KQ[i][j] - max_val);
+                        sumexp += ::exp(smem_KQ[j][i] - max_val);
                     }
-
                 }
                 // Update max and sumexp
                 smem_max[j] = max_val;
@@ -236,7 +238,7 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
           const T *K, const T *Q, const bool_t *mask, T *maxsumexp) noexcept
 {
     // Calculate grid size for tiles
-    constexpr Index SEQ_BLOCK_SIZE_Q = 32;
+    constexpr Index SEQ_BLOCK_SIZE_Q = 128;
     // Shape of output blocking is defined by SEQ_BLOCK_SIZE_Q
     dim3 blocks((seq + SEQ_BLOCK_SIZE_Q - 1) / SEQ_BLOCK_SIZE_Q, batch);
     dim3 threads(8, 8);  // 64 threads per block
@@ -249,7 +251,7 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
     if(head == 64)
     {
         // Low head_dim allows larger SEQ_BLOCK_SIZE_K
-        constexpr Index SEQ_BLOCK_SIZE_K = 64;
+        constexpr Index SEQ_BLOCK_SIZE_K = 16;
         flash_maxsumexp_kernel<T, SEQ_BLOCK_SIZE_K, SEQ_BLOCK_SIZE_Q, 64>
             <<<blocks, threads, 0, stream>>>(batch, seq, scale, K, Q, mask, maxsumexp);
     }
