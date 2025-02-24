@@ -130,14 +130,14 @@ void cuda_kernel(Index m, Index m_per_block, Index n, Index n_per_block,
     }
 }
 
-template<typename T, int BLOCK_ROW, int LOOP>
+template<typename T, Index BLOCK_ROW, Index LOOP>
 static __global__
 void cuda_kernel_m1(Index n, Index k, const T *src, T *dst)
 {
     Index src_l_block_end = (k/BLOCK_ROW) * BLOCK_ROW;
     using Y = typename T::repr_t;
     constexpr Y one = 1.0;
-    constexpr int BLOCK_ROW_STEP = BLOCK_ROW / LOOP;
+    constexpr Index BLOCK_ROW_STEP = BLOCK_ROW / LOOP;
     T src_val[LOOP];
     volatile __shared__ Y dst_block_max[BLOCK_ROW_STEP];
     volatile __shared__ Y dst_block_sumexp[BLOCK_ROW_STEP];
@@ -147,11 +147,11 @@ void cuda_kernel_m1(Index n, Index k, const T *src, T *dst)
             src_l += BLOCK_ROW)
     {
         const T *src_fiber = src + src_l + blockIdx.x*k;
-        for(int c = 0; c < LOOP; ++c)
+        for(Index c = 0; c < LOOP; ++c)
         {
             src_val[c] = src_fiber[c*BLOCK_ROW_STEP];
         }
-        for(int c = 0; c < LOOP; ++c)
+        for(Index c = 0; c < LOOP; ++c)
         {
             Y val = static_cast<Y>(src_val[c]);
             if(not ::isinf(val))
@@ -171,12 +171,12 @@ void cuda_kernel_m1(Index n, Index k, const T *src, T *dst)
     // Pointer to a corresponding fiber of the input arrays
     Index src_l = threadIdx.x + src_l_block_end;
     const T *src_fiber = src + src_l + blockIdx.x*k;
-    int c_max = (k-src_l+BLOCK_ROW_STEP-1) / BLOCK_ROW_STEP;
-    for(int c = 0; c < c_max; ++c)
+    Index c_max = (k-src_l+BLOCK_ROW_STEP-1) / BLOCK_ROW_STEP;
+    for(Index c = 0; c < c_max; ++c)
     {
         src_val[c] = src_fiber[c*BLOCK_ROW_STEP];
     }
-    for(int c = 0; c < c_max; ++c)
+    for(Index c = 0; c < c_max; ++c)
     {
         Y val = static_cast<Y>(src_val[c]);
         if(not ::isinf(val))
@@ -197,7 +197,7 @@ void cuda_kernel_m1(Index n, Index k, const T *src, T *dst)
     dst_block_sumexp[threadIdx.x] = dst_sumexp;
     __syncthreads();
     // Inter-warp reduction
-    for(int c = BLOCK_ROW_STEP>>1; c > 32; c >>= 1)
+    for(Index c = BLOCK_ROW_STEP>>1; c > 32; c >>= 1)
     {
         if(threadIdx.x < c)
         {

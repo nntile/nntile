@@ -26,15 +26,15 @@ void cuda_kernel(Index nelems, const T *src, T *dst)
     using Y = typename T::repr_t;
     __shared__ T src1_block[BLOCK];
     __shared__ T src2_block[BLOCK];
-    constexpr int BLOCK_STEP = BLOCK / LOOP;
+    constexpr Index BLOCK_STEP = BLOCK / LOOP;
     if((blockIdx.x+1)*BLOCK <= nelems)
     {
-        for(int j = 0; j < BLOCK; j += BLOCK_STEP)
+        for(Index j = 0; j < BLOCK; j += BLOCK_STEP)
         {
             src1_block[threadIdx.x+j] = src[i+j];
             src2_block[threadIdx.x+j] = dst[i+j];
         }
-        for(int j = 0; j < BLOCK; j += BLOCK_STEP)
+        for(Index j = 0; j < BLOCK; j += BLOCK_STEP)
         {
             dst[i+j] = static_cast<T>(
                     static_cast<Y>(src1_block[threadIdx.x+j]) *
@@ -43,12 +43,12 @@ void cuda_kernel(Index nelems, const T *src, T *dst)
     }
     else
     {
-        for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
+        for(Index j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
         {
             src1_block[threadIdx.x+j] = src[i+j];
             src2_block[threadIdx.x+j] = dst[i+j];
         }
-        for(int j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
+        for(Index j = 0; j < nelems-blockIdx.x*BLOCK; j += BLOCK_STEP)
         {
             dst[i+j] = static_cast<T>(
                     static_cast<Y>(src1_block[threadIdx.x+j]) *
