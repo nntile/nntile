@@ -264,13 +264,16 @@ __global__ void flash_softmax_gemm_kernel(Index batch, Index seq,
     const Index kv_block_start = kv_split_idx * kv_split_size;
     const Index kv_block_end = ::min(kv_block_start + kv_split_size, seq);
 
-    __shared__ T Q_tile[HEAD_BLOCK][Q_BLOCK+1];    // Transposed Q tile for current head block only
-    __shared__ T KV_tile[HEAD_BLOCK][KV_BLOCK+1]; // Transposed KV tile for better memory access
+    __shared__ T Q_tile[2][HEAD_BLOCK][Q_BLOCK+1];    // Transposed Q tile for current head block only
+    __shared__ T KV_tile[2][HEAD_BLOCK][KV_BLOCK+1]; // Double buffered KV tile for better memory access
     __shared__ Y softmax_tile[Q_BLOCK][KV_BLOCK+1]; // Will also encode mask information
     __shared__ Y accum[Q_BLOCK][HEAD_BLOCK+1];    // Reduced size accumulator for current head block
 
     // Process K,V tiles
     for (Index kv_tile_idx = kv_block_start; kv_tile_idx < kv_block_end; kv_tile_idx += KV_BLOCK) {
+        // Initialize buffer index for double buffering
+        int buf_idx = 0;
+
         // When loading mask, set softmax_tile to 0 or -infinity based on mask
         for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
             const Index q_idx = q_tile_idx * Q_BLOCK + q;
@@ -285,39 +288,98 @@ __global__ void flash_softmax_gemm_kernel(Index batch, Index seq,
         }
         __syncthreads();
 
+        // Load starting K tile for starting head block into the current buffer
+        for (int kv = threadIdx.x; kv < KV_BLOCK; kv += blockDim.x) {
+            const Index kv_idx = kv_tile_idx + kv;
+            if (kv_idx < seq) {
+                // When checking if K row is needed, use is_finite instead of mask_tile
+                bool needed = false;
+                for (int q = 0; q < Q_BLOCK; ++q) {
+                    if (std::isfinite(softmax_tile[q][kv])) {
+                        needed = true;
+                        break;
+                    }
+                }
+
+                if (needed) {
+                    const T* K_base = K + HEAD_SIZE * (kv_idx + seq * batch_idx);
+                    for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
+                        KV_tile[buf_idx][h][kv] = K_base[h];
+                    }
+                }
+            }
+        }
+
+        // Load starting Q tile for starting head block into the current buffer
+        for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
+            const Index q_idx = q_tile_idx * Q_BLOCK + q;
+            const T* Q_base = Q + HEAD_SIZE * (q_idx + seq * batch_idx);
+            for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
+                Q_tile[buf_idx][h][q] = Q_base[h];
+            }
+        }
+        __syncthreads();
+
         // Process head dimension in blocks to compute K'Q
-        for (int head_offset = 0; head_offset < HEAD_SIZE; head_offset += HEAD_BLOCK) {
-            // Load Q tile for current head block (part of the full Q) - transposed access
-            for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
-                const Index q_idx = q_tile_idx * Q_BLOCK + q;
-                const T* Q_base = Q + HEAD_SIZE * (q_idx + seq * batch_idx);
-                for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
-                    Q_tile[h][q] = Q_base[head_offset + h];
-                }
-            }
+        for (int head_offset = 0; head_offset < HEAD_SIZE; head_offset += HEAD_BLOCK)
+        {
+            // Prefetch next Q and K tiles if not at the last iteration
+            if (head_offset + HEAD_BLOCK < HEAD_SIZE) {
+                // K tile prefetch
+                int next_buf_idx = 1 - buf_idx;
+                for (int kv = threadIdx.x; kv < KV_BLOCK; kv += blockDim.x) {
+                    const Index kv_idx = kv_tile_idx + kv;
+                    if (kv_idx < seq) {
+                        bool needed = false;
+                        for (int q = 0; q < Q_BLOCK; ++q) {
+                            if (std::isfinite(softmax_tile[q][kv])) {
+                                needed = true;
+                                break;
+                            }
+                        }
 
-            // Load K tile for current head block - only for positions where softmax_tile is finite
-            for (int kv = threadIdx.x; kv < KV_BLOCK; kv += blockDim.x) {
-                const Index kv_idx = kv_tile_idx + kv;
-                if (kv_idx < seq) {
-                    // When checking if K row is needed, use is_finite instead of mask_tile
-                    bool needed = false;
-                    for (int q = 0; q < Q_BLOCK; ++q) {
-                        if (std::isfinite(softmax_tile[q][kv])) {
-                            needed = true;
-                            break;
+                        if (needed) {
+                            const T* K_base = K + HEAD_SIZE * (kv_idx + seq * batch_idx) + (head_offset + HEAD_BLOCK);
+                            for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
+                                KV_tile[next_buf_idx][h][kv] = K_base[h];
+                            }
                         }
                     }
-
-                    if (needed) {
-                        const T* K_base = K + HEAD_SIZE * (kv_idx + seq * batch_idx) + head_offset;
+                }
+                // Q tile prefetch
+                for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
+                    const Index q_idx = q_tile_idx * Q_BLOCK + q;
+                    if (q_idx < seq) {
+                        const T* Q_base = Q + HEAD_SIZE * (q_idx + seq * batch_idx) + (head_offset + HEAD_BLOCK);
                         for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
-                            KV_tile[h][kv] = K_base[h];
+                            Q_tile[next_buf_idx][h][q] = Q_base[h];
                         }
                     }
                 }
             }
-            __syncthreads();
+            // At the last iteration prefetch the first (head_offset==0) V tile
+            else {
+                int next_buf_idx = 1 - buf_idx;
+                for (int kv = threadIdx.x; kv < KV_BLOCK; kv += blockDim.x) {
+                    const Index kv_idx = kv_tile_idx + kv;
+                    if (kv_idx < seq) {
+                        bool needed = false;
+                        for (int q = 0; q < Q_BLOCK; ++q) {
+                            if (std::isfinite(softmax_tile[q][kv])) {
+                                needed = true;
+                                break;
+                            }
+                        }
+
+                        if (needed) {
+                            const T* V_base = V + HEAD_SIZE * (kv_idx + seq * batch_idx);
+                            for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
+                                KV_tile[next_buf_idx][h][kv] = V_base[h];
+                            }
+                        }
+                    }
+                }
+            }
 
             // Accumulate partial K'Q for this head block - optimized version for remaining KV tiles
             // Using gemm_smem_TN to compute softmax_tile = Q_tile^T * KV_tile
@@ -332,11 +394,14 @@ __global__ void flash_softmax_gemm_kernel(Index batch, Index seq,
             // - ldB = KV_BLOCK+1 (stride between rows of KV_tile)
             // - ldC = KV_BLOCK+1 (stride between rows of softmax_tile)
             gemm_smem_TN<T, Y, Q_BLOCK, KV_BLOCK, HEAD_BLOCK, Q_BLOCK+1, KV_BLOCK+1, KV_BLOCK+1>(
-                &Q_tile[0][0],           // A matrix - now starting at 0 since we only have current head block
-                &KV_tile[0][0],          // B matrix
+                &Q_tile[buf_idx][0][0],           // A matrix - now starting at 0 since we only have current head block
+                &KV_tile[buf_idx][0][0], // B matrix - use current buffer
                 &softmax_tile[0][0]      // C matrix
             );
             __syncthreads();
+
+            // Swap buffers for next iteration
+            buf_idx = 1 - buf_idx;
         }
 
         // Apply softmax
@@ -367,28 +432,29 @@ __global__ void flash_softmax_gemm_kernel(Index batch, Index seq,
             }
             __syncthreads();
 
-            // Load V tile for current head block - only for positions where softmax_tile is non-zero
-            for (int kv = threadIdx.x; kv < KV_BLOCK; kv += blockDim.x) {
-                const Index kv_idx = kv_tile_idx + kv;
-                if (kv_idx < seq) {
-                    // When checking if V row is needed, check if softmax_tile is non-zero
-                    bool needed = false;
-                    for (int q = 0; q < Q_BLOCK; ++q) {
-                        if (softmax_tile[q][kv] != 0) {
-                            needed = true;
-                            break;
+            // Prefetch next V tile if not at the last iteration
+            if (head_offset + HEAD_BLOCK < HEAD_SIZE) {
+                int next_buf_idx = 1 - buf_idx;
+                for (int kv = threadIdx.x; kv < KV_BLOCK; kv += blockDim.x) {
+                    const Index kv_idx = kv_tile_idx + kv;
+                    if (kv_idx < seq) {
+                        bool needed = false;
+                        for (int q = 0; q < Q_BLOCK; ++q) {
+                            if (std::isfinite(softmax_tile[q][kv])) {
+                                needed = true;
+                                break;
+                            }
                         }
-                    }
 
-                    if (needed) {
-                        const T* V_base = V + HEAD_SIZE * (kv_idx + seq * batch_idx) + head_offset;
-                        for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
-                            KV_tile[h][kv] = V_base[h];
+                        if (needed) {
+                            const T* V_base = V + HEAD_SIZE * (kv_idx + seq * batch_idx) + (head_offset + HEAD_BLOCK);
+                            for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
+                                KV_tile[next_buf_idx][h][kv] = V_base[h];
+                            }
                         }
                     }
                 }
             }
-            __syncthreads();
 
             // Compute V @ softmax for this head block using optimized gemm_smem_NT
             // For gemm_smem_NT(A, B, C) computing C += A * B^T:
@@ -403,7 +469,7 @@ __global__ void flash_softmax_gemm_kernel(Index batch, Index seq,
             // - ldC = HEAD_BLOCK+1 (stride between rows of accum)
             gemm_smem_NT<T, Y, Q_BLOCK, HEAD_BLOCK, KV_BLOCK, KV_BLOCK+1, KV_BLOCK+1, HEAD_BLOCK+1>(
                 &softmax_tile[0][0],  // A matrix - softmax values
-                &KV_tile[0][0],       // B matrix - V values (will be transposed)
+                &KV_tile[buf_idx][0][0],       // B matrix - V values (will be transposed)
                 &accum[0][0]          // C matrix - accumulator for output
             );
             __syncthreads();
@@ -423,6 +489,9 @@ __global__ void flash_softmax_gemm_kernel(Index batch, Index seq,
                 }
             }
             __syncthreads(); // Ensure all threads are done with accum before reusing it
+
+            // Swap buffers for next iteration
+            buf_idx = 1 - buf_idx;
         }
     }
 }
@@ -462,7 +531,7 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
     // Note: HEAD_BLOCK must be divisible by 4 for optimal vectorized memory access
     if (head == 64) {
         constexpr int HEAD_SIZE = 64;
-        constexpr int HEAD_BLOCK = 32;  // Process in 4 blocks, must be divisible by 4
+        constexpr int HEAD_BLOCK = 16;  // Process in 4 blocks, must be divisible by 4
         flash_softmax_gemm_kernel<T, HEAD_SIZE, HEAD_BLOCK, Q_BLOCK, KV_BLOCK, KV_SPLIT>
             <<<blocks, threads, 0, stream>>>(batch, seq, scale, K, Q, mask, maxsumexp, V, A);
     } // TODO: enable other heads later
