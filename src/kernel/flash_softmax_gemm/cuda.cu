@@ -245,7 +245,7 @@ __device__ void gemm_smem_TN(const T *A, const T *B, Y *C) {
     }
 }
 
-template<typename T, Index HEAD_SIZE, Index HEAD_BLOCK, Index Q_BLOCK, Index KV_BLOCK, Index KV_SPLIT>
+template<typename T, Index HEAD_SIZE, Index HEAD_BLOCK, Index Q_BLOCK, Index THREAD_Q_BLOCK, Index KV_BLOCK, Index THREAD_KV_BLOCK, Index KV_SPLIT>
 __global__ void flash_softmax_gemm_kernel(
     Index batch, Index seq, T scale,
     const T *K, const T *Q, const bool_t *mask, const T *maxsumexp,
@@ -265,10 +265,6 @@ __global__ void flash_softmax_gemm_kernel(
     const Index kv_split_size = kv_split_num_blocks * KV_BLOCK;
     const Index kv_block_start = kv_split_idx * kv_split_size;
     const Index kv_block_end = ::min(kv_block_start + kv_split_size, seq);
-
-    // Define thread-local dimensions for softmax tile
-    constexpr int THREAD_Q_BLOCK = 4; // Each thread handles 4 rows
-    constexpr int THREAD_KV_BLOCK = 4; // Each thread handles 4 columns
 
     // Thread indices for accessing the softmax tile
     const int tx = threadIdx.x;
@@ -406,28 +402,72 @@ __global__ void flash_softmax_gemm_kernel(
             }
 
             // Compute K'Q directly into thread-local registers
-            for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset) {
-                const int q = q_start + q_offset;
-                const Index q_idx = q_tile_idx * Q_BLOCK + q;
+            // Replace only this specific section, leaving all data loading code intact
+            {
+                // Constants for register blocking
+                constexpr int REG_BLOCK_SIZE = 4; // Process 4 elements at a time
 
-                if (q_idx < seq) {
-                    for (int kv_offset = 0; kv_offset < THREAD_KV_BLOCK; ++kv_offset) {
+                // Process HEAD_BLOCK in chunks for better register usage
+                for (int h_chunk = 0; h_chunk < HEAD_BLOCK; h_chunk += REG_BLOCK_SIZE)
+                {
+                    // Prefetch Q values into registers
+                    Y q_reg[THREAD_Q_BLOCK][REG_BLOCK_SIZE];
+                    #pragma unroll
+                    for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset)
+                    {
+                        const int q = q_start + q_offset;
+                        #pragma unroll
+                        for (int h_offset = 0; h_offset < REG_BLOCK_SIZE; ++h_offset)
+                        {
+                            q_reg[q_offset][h_offset] = Y{Q_tile[buf_idx][h_chunk + h_offset][q]};
+                        }
+                    }
+
+                    // Prefetch K values into registers and compute partial products
+                    for (int kv_offset = 0; kv_offset < THREAD_KV_BLOCK; ++kv_offset)
+                    {
                         const int kv = kv_start + kv_offset;
-                        const Index kv_idx = kv_tile_idx + kv;
-
-                        // Skip computation if the position is masked
-                        if (!std::isfinite(softmax_reg[q_offset][kv_offset]) || kv_idx >= seq) {
-                            continue;
+                        // Only process if this position is valid (not masked out)
+                        bool valid_kv = false;
+                        for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset)
+                        {
+                            if (std::isfinite(softmax_reg[q_offset][kv_offset]))
+                            {
+                                valid_kv = true;
+                                break;
+                            }
                         }
 
-                        // Compute dot product for this position
-                        Y dot_prod = 0;
-                        for (int h = 0; h < HEAD_BLOCK; ++h) {
-                            dot_prod += Y{Q_tile[buf_idx][h][q]} * Y{KV_tile[buf_idx][h][kv]};
-                        }
+                        if (valid_kv)
+                        {
+                            // Prefetch K values for this KV position
+                            Y k_reg[REG_BLOCK_SIZE];
+                            #pragma unroll
+                            for (int h_offset = 0; h_offset < REG_BLOCK_SIZE; ++h_offset)
+                            {
+                                k_reg[h_offset] = Y{KV_tile[buf_idx][h_chunk + h_offset][kv]};
+                            }
 
-                        // Scale and accumulate to register
-                        softmax_reg[q_offset][kv_offset] += Y{scale} * dot_prod;
+                            // Compute partial dot products for each q_offset
+                            #pragma unroll
+                            for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset)
+                            {
+                                if (std::isfinite(softmax_reg[q_offset][kv_offset]))
+                                {
+                                    Y dot_product = 0;
+
+                                    // Unrolled dot product computation
+                                    #pragma unroll
+                                    for (int h_offset = 0; h_offset < REG_BLOCK_SIZE; ++h_offset)
+                                    {
+                                        dot_product += q_reg[q_offset][h_offset] * k_reg[h_offset];
+                                    }
+
+                                    // Accumulate to softmax register
+                                    softmax_reg[q_offset][kv_offset] += dot_product * Y{scale};
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -539,12 +579,18 @@ __global__ void flash_softmax_gemm_kernel(
                 if (q_idx < seq) {
                     T* A_base = A + HEAD_SIZE * (q_idx + seq * batch_idx) + head_offset;
                     for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
-                        if (accum[q][h] != 0) {
-                            if constexpr (std::is_same_v<T, fp32_t>) {
+                        if (accum[q][h] != 0)
+                        {
+                            if constexpr (std::is_same_v<T, fp32_t>)
+                            {
                                 atomicAdd((float *)&A_base[h], accum[q][h]);
-                            } else if constexpr (std::is_same_v<T, fp64_t>) {
+                            }
+                            else if constexpr (std::is_same_v<T, fp64_t>)
+                            {
                                 atomicAdd((double *)&A_base[h], accum[q][h]);
-                            } else {
+                            }
+                            else
+                            {
                                 // For other types, use a critical section or other atomic approach
                                 // This is a simplified version that may not work for all types
                                 A_base[h] = T(Y(A_base[h]) + accum[q][h]);
@@ -567,21 +613,15 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
           const T *V, T *A) noexcept
 {
     // Define block and grid sizes
-    constexpr int Q_BLOCK = 64;
-    constexpr int KV_BLOCK = 64;
+    constexpr int THREAD_X = 16;
+    constexpr int THREAD_Y = 32;
+    constexpr int THREAD_Q_BLOCK = 4;
+    constexpr int THREAD_KV_BLOCK = 4;
+    constexpr int Q_BLOCK = THREAD_X * THREAD_Q_BLOCK;
+    constexpr int KV_BLOCK = THREAD_Y * THREAD_KV_BLOCK;
     constexpr int KV_SPLIT = 4;  // Balance between parallelism and overhead
 
-    // For head=64, use 8x8 threads (64 total)
-    // For head=128, use 8x16 threads (128 total)
-    // For head=256, use 16x16 threads (256 total)
-    dim3 threads;
-    if (head <= 64) {
-        threads = dim3(16, 16);
-    } else if (head <= 128) {
-        threads = dim3(8, 16);
-    } else {
-        threads = dim3(16, 16);
-    }
+    dim3 threads(THREAD_X, THREAD_Y);
 
     dim3 blocks((seq + Q_BLOCK - 1) / Q_BLOCK, batch, KV_SPLIT);
 
@@ -596,8 +636,9 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
     // Note: HEAD_BLOCK must be divisible by 4 for optimal vectorized memory access
     if (head == 64) {
         constexpr int HEAD_SIZE = 64;
-        constexpr int HEAD_BLOCK = 16;  // Process in 4 blocks, must be divisible by 4
-        flash_softmax_gemm_kernel<T, HEAD_SIZE, HEAD_BLOCK, Q_BLOCK, KV_BLOCK, KV_SPLIT>
+        constexpr int HEAD_BLOCK = 8;  // Process in 4 blocks, must be divisible by 4
+        flash_softmax_gemm_kernel<T, HEAD_SIZE, HEAD_BLOCK, Q_BLOCK,
+                THREAD_Q_BLOCK, KV_BLOCK, THREAD_KV_BLOCK, KV_SPLIT>
             <<<blocks, threads, 0, stream>>>(batch, seq, scale, K, Q, mask, maxsumexp, V, A);
     } // TODO: enable other heads later
     // } else if (head == 128) {
