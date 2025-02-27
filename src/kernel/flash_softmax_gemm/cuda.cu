@@ -21,240 +21,262 @@
 namespace nntile::kernel::flash_softmax_gemm
 {
 
-
 /**
- * Optimized shared memory matrix multiplication: C += A * B^T
+ * @brief Copy 2D block from global to shared memory
  *
- * This function assumes all matrices are already in shared memory.
- * B is transposed during multiplication (A * B^T).
- * All matrices are in row-major format.
- * No bounds checking is performed as sizes are guaranteed to be multiples of 4 or 8.
- * Uses double buffering to overlap computation with memory loads.
+ * @tparam T_gmem Type of data in global memory
+ * @tparam T_smem Type of data in shared memory
+ * @tparam BLOCK_ROWS Number of rows in the block
+ * @tparam BLOCK_COLS Number of columns in the block
  *
- * @tparam T Data type for input matrices A and B
- * @tparam Y Data type for output matrix C
- * @tparam M Number of rows in A and C
- * @tparam N Number of columns in B^T and C
- * @tparam K Number of columns in A and rows in B^T
- * @tparam ldA Leading dimension of A (stride between rows)
- * @tparam ldB Leading dimension of B (stride between rows)
- * @tparam ldC Leading dimension of C (stride between rows)
- * @param A Input matrix A in shared memory (M x ldA)
- * @param B Input matrix B in shared memory (N x ldB)
- * @param C Output matrix C in shared memory (M x ldC)
+ * @param gmem_ptr Pointer to the start of the block in global memory
+ * @param smem_ptr Pointer to the start of the block in shared memory
+ * @param gmem_ld Leading dimension of the global memory matrix
+ * @param smem_ld Leading dimension of the shared memory matrix
+ * @param thread_id Linear thread ID within the block
+ * @param block_size Total number of threads in the block
  */
-template<typename T, typename Y, int M, int N, int K, int ldA, int ldB, int ldC>
-__device__ void gemm_smem_NT(const Y *A, const T *B, Y *C) {
-    // Thread block dimensions
-    const int tx = threadIdx.x;
-    const int ty = threadIdx.y;
+template<typename T_gmem, typename T_smem,
+         Index BLOCK_ROWS, Index BLOCK_COLS>
+__device__ void gmem_to_smem(
+    const T_gmem* gmem_ptr,
+    T_smem* smem_ptr,
+    const Index gmem_ld,
+    const Index smem_ld,
+    const Index thread_id,
+    const Index block_size)
+{
+    // Total number of elements to copy
+    constexpr Index TOTAL_ELEMENTS = BLOCK_ROWS * BLOCK_COLS;
+    // Make sure total elements is a multiple of 32 (warp size)
+    static_assert(TOTAL_ELEMENTS % 32 == 0, "Total elements must be a multiple of 32");
 
-    // Number of threads in each dimension
-    const int THREAD_X = blockDim.x;
-    const int THREAD_Y = blockDim.y;
+    // Number of elements each thread will copy
+    const Index ELEMENTS_PER_THREAD = (TOTAL_ELEMENTS + block_size - 1) / block_size;
 
-    // Each thread computes a 2x2 block of the output
-    constexpr int THREAD_TILE_M = 4;
-    constexpr int THREAD_TILE_N = 2;
+    // Each thread copies ELEMENTS_PER_THREAD elements in an interleaved pattern
+    for (Index i = 0; i < ELEMENTS_PER_THREAD; ++i) {
+        // Calculate linear index for this thread's current element
+        const Index linear_idx = thread_id + i * block_size;
 
-    // Loop over output tiles
-    for (int m_base = ty * THREAD_TILE_M; m_base < M; m_base += THREAD_Y * THREAD_TILE_M) {
-        for (int n_base = tx * THREAD_TILE_N; n_base < N; n_base += THREAD_X * THREAD_TILE_N) {
-            // Registers for accumulation
-            Y sum[THREAD_TILE_M][THREAD_TILE_N] = {0};
+        // Skip if beyond the total elements
+        if (linear_idx >= TOTAL_ELEMENTS) {
+            break;
+        }
 
-            // Double buffering registers for A and B
-            Y a_vals[2][THREAD_TILE_M];
-            Y b_vals[2][THREAD_TILE_N];
+        // Convert linear index to 2D coordinates
+        const Index row = linear_idx / BLOCK_COLS;
+        const Index col = linear_idx % BLOCK_COLS;
 
-            // Preload first batch of data
-            int buf_idx = 0;
-            #pragma unroll
-            for (int m_offset = 0; m_offset < THREAD_TILE_M; ++m_offset) {
-                const int m_idx = m_base + m_offset;
-                a_vals[buf_idx][m_offset] = Y{A[m_idx * ldA + 0]};
-            }
-
-            #pragma unroll
-            for (int n_offset = 0; n_offset < THREAD_TILE_N; ++n_offset) {
-                const int n_idx = n_base + n_offset;
-                b_vals[buf_idx][n_offset] = Y{B[n_idx * ldB + 0]};
-            }
-
-            // Loop over inner dimension with aggressive unrolling and double buffering
-            #pragma unroll 4
-            for (int k = 0; k < K-1; ++k) {
-                // Swap buffers
-                buf_idx = 1 - buf_idx;
-
-                // Load next batch of data while computing with current batch
-                #pragma unroll
-                for (int m_offset = 0; m_offset < THREAD_TILE_M; ++m_offset) {
-                    const int m_idx = m_base + m_offset;
-                    a_vals[buf_idx][m_offset] = Y{A[m_idx * ldA + (k+1)]};
-                }
-
-                #pragma unroll
-                for (int n_offset = 0; n_offset < THREAD_TILE_N; ++n_offset) {
-                    const int n_idx = n_base + n_offset;
-                    b_vals[buf_idx][n_offset] = Y{B[n_idx * ldB + (k+1)]};
-                }
-
-                // Compute outer product with current data
-                #pragma unroll
-                for (int m_offset = 0; m_offset < THREAD_TILE_M; ++m_offset) {
-                    #pragma unroll
-                    for (int n_offset = 0; n_offset < THREAD_TILE_N; ++n_offset) {
-                        sum[m_offset][n_offset] += a_vals[1-buf_idx][m_offset] * b_vals[1-buf_idx][n_offset];
-                    }
-                }
-            }
-
-            // Process the last iteration (no need to load more data)
-            #pragma unroll
-            for (int m_offset = 0; m_offset < THREAD_TILE_M; ++m_offset) {
-                #pragma unroll
-                for (int n_offset = 0; n_offset < THREAD_TILE_N; ++n_offset) {
-                    sum[m_offset][n_offset] += a_vals[buf_idx][m_offset] * b_vals[buf_idx][n_offset];
-                }
-            }
-
-            // Store results to C
-            #pragma unroll
-            for (int m_offset = 0; m_offset < THREAD_TILE_M; ++m_offset) {
-                const int m_idx = m_base + m_offset;
-                #pragma unroll
-                for (int n_offset = 0; n_offset < THREAD_TILE_N; ++n_offset) {
-                    const int n_idx = n_base + n_offset;
-                    C[m_idx * ldC + n_idx] += sum[m_offset][n_offset];
-                }
-            }
+        // Copy element from global to shared memory
+        if (row < BLOCK_ROWS && col < BLOCK_COLS) {
+            smem_ptr[row + col * smem_ld] = T_smem{gmem_ptr[row + col * gmem_ld]};
         }
     }
 }
 
 /**
- * Optimized shared memory matrix multiplication: C += A^T * B
+ * @brief Vectorized copy 2D block from global to shared memory
  *
- * This function assumes all matrices are already in shared memory.
- * A is transposed during multiplication (A^T * B).
- * All matrices are in row-major format.
- * Uses double buffering to overlap computation with memory loads.
+ * @tparam T_gmem Type of data in global memory
+ * @tparam T_smem Type of data in shared memory
+ * @tparam BLOCK_ROWS Number of rows in the block
+ * @tparam BLOCK_COLS Number of columns in the block
  *
- * @tparam T Data type for input matrices A and B
- * @tparam Y Data type for output matrix C
- * @tparam M Number of rows in A^T and C
- * @tparam N Number of columns in B and C
- * @tparam K Number of columns in A^T and rows in B
- * @tparam ldA Leading dimension of A (stride between rows)
- * @tparam ldB Leading dimension of B (stride between rows)
- * @tparam ldC Leading dimension of C (stride between rows)
- * @param A Input matrix A in shared memory (K x ldA)
- * @param B Input matrix B in shared memory (K x ldB)
- * @param C Output matrix C in shared memory (M x ldC)
+ * @param gmem_ptr Pointer to the start of the block in global memory
+ * @param smem_ptr Pointer to the start of the block in shared memory
+ * @param gmem_ld Leading dimension of the global memory matrix
+ * @param smem_ld Leading dimension of the shared memory matrix
+ * @param thread_id Linear thread ID within the block
+ * @param block_size Total number of threads in the block
  */
-template<typename T, typename Y, int M, int N, int K, int ldA, int ldB, int ldC>
-__device__ void gemm_smem_TN(const T *A, const T *B, Y *C) {
-    // Thread block dimensions
-    const int tx = threadIdx.x;
-    const int ty = threadIdx.y;
+template<typename T_gmem, typename T_smem,
+         Index BLOCK_ROWS, Index BLOCK_COLS>
+__device__ void gmem_to_smem_vec4(
+    const T_gmem* gmem_ptr,
+    T_smem* smem_ptr,
+    const Index gmem_ld,
+    const Index smem_ld,
+    const Index thread_id,
+    const Index block_size)
+{
+    // Ensure block columns is a multiple of 4 for vectorized loads
+    static_assert(BLOCK_COLS % 4 == 0, "Block columns must be a multiple of 4 for vectorized loads");
 
-    // Number of threads in each dimension
-    const int THREAD_X = blockDim.x;
-    const int THREAD_Y = blockDim.y;
+    // Total number of vector elements to copy (each vector contains 4 elements)
+    constexpr Index TOTAL_VEC_ELEMENTS = (BLOCK_ROWS * BLOCK_COLS) / 4;
 
-    // Each thread computes a 4x2 block of the output
-    constexpr int THREAD_TILE_M = 4;
-    constexpr int THREAD_TILE_N = 2;
+    // Number of vector elements each thread will copy
+    constexpr Index VEC_ELEMENTS_PER_THREAD = (TOTAL_VEC_ELEMENTS + block_size - 1) / block_size;
 
-    // Loop over output tiles
-    for (int m_base = ty * THREAD_TILE_M; m_base < M; m_base += THREAD_Y * THREAD_TILE_M) {
-        for (int n_base = tx * THREAD_TILE_N; n_base < N; n_base += THREAD_X * THREAD_TILE_N) {
-            // Registers for accumulation
-            Y sum[THREAD_TILE_M][THREAD_TILE_N] = {0};
+    // Each thread copies VEC_ELEMENTS_PER_THREAD vector elements
+    for (Index i = 0; i < VEC_ELEMENTS_PER_THREAD; ++i) {
+        // Calculate linear index for this thread's current vector element
+        const Index linear_vec_idx = thread_id + i * block_size;
 
-            // Double buffering registers for A and B
-            Y a_vals[2][THREAD_TILE_M];
-            Y b_vals[2][THREAD_TILE_N];
+        // Skip if beyond the total vector elements
+        if (linear_vec_idx >= TOTAL_VEC_ELEMENTS) {
+            break;
+        }
 
-            // Preload first batch of data
-            int buf_idx = 0;
-            #pragma unroll
-            for (int m_offset = 0; m_offset < THREAD_TILE_M; ++m_offset) {
-                const int m_idx = m_base + m_offset;
-                // Access A with transpose: A[0][m_idx] becomes A[0 * ldA + m_idx]
-                a_vals[buf_idx][m_offset] = Y{A[0 * ldA + m_idx]};
-            }
+        // Convert linear vector index to 2D coordinates
+        // Each vector spans 4 columns
+        const Index row = linear_vec_idx / (BLOCK_COLS / 4);
+        const Index vec_col = linear_vec_idx % (BLOCK_COLS / 4);
+        const Index col = vec_col * 4;
 
-            #pragma unroll
-            for (int n_offset = 0; n_offset < THREAD_TILE_N; ++n_offset) {
-                const int n_idx = n_base + n_offset;
-                b_vals[buf_idx][n_offset] = Y{B[0 * ldB + n_idx]};
-            }
+        // Copy vector element (4 consecutive values) from global to shared memory
+        if (row < BLOCK_ROWS && col + 3 < BLOCK_COLS) {
+            // Use vectorized load for better memory bandwidth
+            const float4* gmem_vec_ptr = reinterpret_cast<const float4*>(&gmem_ptr[row + col * gmem_ld]);
+            float4 vec_val = *gmem_vec_ptr;
 
-            // Loop over inner dimension with aggressive unrolling and double buffering
-            #pragma unroll 4
-            for (int k = 0; k < K-1; ++k) {
-                // Swap buffers
-                buf_idx = 1 - buf_idx;
-
-                // Load next batch of data while computing with current batch
-                #pragma unroll
-                for (int m_offset = 0; m_offset < THREAD_TILE_M; ++m_offset) {
-                    const int m_idx = m_base + m_offset;
-                    // Access A with transpose: A[k+1][m_idx] becomes A[(k+1) * ldA + m_idx]
-                    a_vals[buf_idx][m_offset] = Y{A[(k+1) * ldA + m_idx]};
-                }
-
-                #pragma unroll
-                for (int n_offset = 0; n_offset < THREAD_TILE_N; ++n_offset) {
-                    const int n_idx = n_base + n_offset;
-                    b_vals[buf_idx][n_offset] = Y{B[(k+1) * ldB + n_idx]};
-                }
-
-                // Compute outer product with current data
-                #pragma unroll
-                for (int m_offset = 0; m_offset < THREAD_TILE_M; ++m_offset) {
-                    #pragma unroll
-                    for (int n_offset = 0; n_offset < THREAD_TILE_N; ++n_offset) {
-                        sum[m_offset][n_offset] += a_vals[1-buf_idx][m_offset] * b_vals[1-buf_idx][n_offset];
-                    }
-                }
-            }
-
-            // Process the last iteration (no need to load more data)
-            #pragma unroll
-            for (int m_offset = 0; m_offset < THREAD_TILE_M; ++m_offset) {
-                #pragma unroll
-                for (int n_offset = 0; n_offset < THREAD_TILE_N; ++n_offset) {
-                    sum[m_offset][n_offset] += a_vals[buf_idx][m_offset] * b_vals[buf_idx][n_offset];
-                }
-            }
-
-            // Store results to C
-            #pragma unroll
-            for (int m_offset = 0; m_offset < THREAD_TILE_M; ++m_offset) {
-                const int m_idx = m_base + m_offset;
-                #pragma unroll
-                for (int n_offset = 0; n_offset < THREAD_TILE_N; ++n_offset) {
-                    const int n_idx = n_base + n_offset;
-                    C[m_idx * ldC + n_idx] += sum[m_offset][n_offset];
-                }
-            }
+            // Store individual elements to shared memory
+            smem_ptr[row + col * smem_ld] = T_smem{reinterpret_cast<float*>(&vec_val)[0]};
+            smem_ptr[row + (col + 1) * smem_ld] = T_smem{reinterpret_cast<float*>(&vec_val)[1]};
+            smem_ptr[row + (col + 2) * smem_ld] = T_smem{reinterpret_cast<float*>(&vec_val)[2]};
+            smem_ptr[row + (col + 3) * smem_ld] = T_smem{reinterpret_cast<float*>(&vec_val)[3]};
         }
     }
 }
 
-template<typename T, Index HEAD_SIZE, Index HEAD_BLOCK, Index Q_BLOCK, Index THREAD_Q_BLOCK, Index KV_BLOCK, Index THREAD_KV_BLOCK, Index KV_SPLIT>
+/**
+ * @brief Copy 2D block from global to shared memory with transposition
+ *
+ * @tparam T_gmem Type of data in global memory
+ * @tparam T_smem Type of data in shared memory
+ * @tparam BLOCK_ROWS Number of rows in the input block (columns in output)
+ * @tparam BLOCK_COLS Number of columns in the input block (rows in output)
+ *
+ * @param gmem_ptr Pointer to the start of the block in global memory
+ * @param smem_ptr Pointer to the start of the block in shared memory
+ * @param gmem_ld Leading dimension of the global memory matrix
+ * @param smem_ld Leading dimension of the shared memory matrix
+ * @param thread_id Linear thread ID within the block
+ * @param block_size Total number of threads in the block
+ */
+template<typename T_gmem, typename T_smem,
+         Index BLOCK_ROWS, Index BLOCK_COLS>
+__device__ void gmem_to_smem_transposed(
+    const T_gmem* gmem_ptr,
+    T_smem* smem_ptr,
+    const Index gmem_ld,
+    const Index smem_ld,
+    const Index thread_id,
+    const Index block_size)
+{
+    // Total number of elements to copy
+    constexpr Index TOTAL_ELEMENTS = BLOCK_ROWS * BLOCK_COLS;
+    // Make sure total elements is a multiple of 32 (warp size)
+    static_assert(TOTAL_ELEMENTS % 32 == 0, "Total elements must be a multiple of 32");
+
+    // Number of elements each thread will copy
+    const Index ELEMENTS_PER_THREAD = (TOTAL_ELEMENTS + block_size - 1) / block_size;
+
+    // Each thread copies ELEMENTS_PER_THREAD elements in an interleaved pattern
+    for (Index i = 0; i < ELEMENTS_PER_THREAD; ++i) {
+        // Calculate linear index for this thread's current element
+        const Index linear_idx = thread_id + i * block_size;
+
+        // Skip if beyond the total elements
+        if (linear_idx >= TOTAL_ELEMENTS) {
+            break;
+        }
+
+        // Convert linear index to 2D coordinates in the input matrix
+        const Index row_in = linear_idx / BLOCK_COLS;
+        const Index col_in = linear_idx % BLOCK_COLS;
+
+        // Transpose: row_out = col_in, col_out = row_in
+        if (row_in < BLOCK_ROWS && col_in < BLOCK_COLS) {
+            // Read from global memory in row-major order
+            const T_gmem val = gmem_ptr[row_in + col_in * gmem_ld];
+
+            // Write to shared memory with transposition (col_in becomes row, row_in becomes col)
+            smem_ptr[col_in + row_in * smem_ld] = T_smem{val};
+        }
+    }
+}
+
+/**
+ * @brief Vectorized copy 2D block from global to shared memory with transposition
+ *
+ * @tparam T_gmem Type of data in global memory
+ * @tparam T_smem Type of data in shared memory
+ * @tparam BLOCK_ROWS Number of rows in the input block (columns in output)
+ * @tparam BLOCK_COLS Number of columns in the input block (rows in output)
+ *
+ * @param gmem_ptr Pointer to the start of the block in global memory
+ * @param smem_ptr Pointer to the start of the block in shared memory
+ * @param gmem_ld Leading dimension of the global memory matrix
+ * @param smem_ld Leading dimension of the shared memory matrix
+ * @param thread_id Linear thread ID within the block
+ * @param block_size Total number of threads in the block
+ */
+template<typename T_gmem, typename T_smem,
+         Index BLOCK_ROWS, Index BLOCK_COLS>
+__device__ void gmem_to_smem_transposed_vec4(
+    const T_gmem* gmem_ptr,
+    T_smem* smem_ptr,
+    const Index gmem_ld,
+    const Index smem_ld,
+    const Index thread_id,
+    const Index block_size)
+{
+    // Ensure block rows is a multiple of 4 for vectorized loads
+    static_assert(BLOCK_ROWS % 4 == 0, "Block rows must be a multiple of 4 for vectorized loads");
+
+    // Total number of vector elements to copy (each vector contains 4 elements)
+    constexpr Index TOTAL_VEC_ELEMENTS = (BLOCK_ROWS * BLOCK_COLS) / 4;
+
+    // Number of vector elements each thread will copy
+    const Index VEC_ELEMENTS_PER_THREAD = (TOTAL_VEC_ELEMENTS + block_size - 1) / block_size;
+
+    // Each thread copies VEC_ELEMENTS_PER_THREAD vector elements
+    for (Index i = 0; i < VEC_ELEMENTS_PER_THREAD; ++i) {
+        // Calculate linear index for this thread's current vector element
+        const Index linear_vec_idx = thread_id + i * block_size;
+
+        // Skip if beyond the total vector elements
+        if (linear_vec_idx >= TOTAL_VEC_ELEMENTS) {
+            break;
+        }
+
+        // Each vector spans 4 rows in the same column
+        const Index col_in = linear_vec_idx / (BLOCK_ROWS / 4);
+        const Index row_vec = linear_vec_idx % (BLOCK_ROWS / 4);
+        const Index row_in = row_vec * 4;
+
+        // Only process if within bounds
+        if (col_in < BLOCK_COLS && row_in + 3 < BLOCK_ROWS) {
+            // Use vectorized load for better memory bandwidth
+            // Load 4 consecutive rows from the same column
+            float4 vec_val;
+
+            // Manual load of 4 consecutive rows (can't use direct float4 load due to non-contiguous memory)
+            vec_val = *reinterpret_cast<const float4*>(&gmem_ptr[row_in + col_in * gmem_ld]);
+
+            // Store with transposition - the column in input becomes row in output
+            // Each of the 4 rows becomes a column in the transposed output
+            smem_ptr[col_in + (row_in + 0) * smem_ld] = T_smem{vec_val.x};
+            smem_ptr[col_in + (row_in + 1) * smem_ld] = T_smem{vec_val.y};
+            smem_ptr[col_in + (row_in + 2) * smem_ld] = T_smem{vec_val.z};
+            smem_ptr[col_in + (row_in + 3) * smem_ld] = T_smem{vec_val.w};
+        }
+    }
+}
+
+template<typename T_gmem, typename T_smem, typename T_accum, Index HEAD_SIZE, Index HEAD_BLOCK, Index THREAD_HEAD_BLOCK, Index Q_BLOCK, Index THREAD_Q_BLOCK, Index KV_BLOCK, Index THREAD_KV_BLOCK, Index KV_SPLIT>
 __global__ void flash_softmax_gemm_kernel(
-    Index batch, Index seq, T scale,
-    const T *K, const T *Q, const bool_t *mask, const T *maxsumexp,
-    const T *V, T *A)
+    Index batch, Index seq, T_accum scale,
+    const T_gmem *K, const T_gmem *Q, const bool_t *mask, const T_gmem *maxsumexp,
+    const T_gmem *V, T_gmem *A)
 {
     using namespace std;
-    using Y = typename T::repr_t;
 
     // Get global indices
+    const Index thread_id = threadIdx.x + threadIdx.y * blockDim.x;
+    const Index block_size = blockDim.x * blockDim.y;
     const Index batch_idx = blockIdx.y;
     const Index q_tile_idx = blockIdx.x;
     const Index kv_split_idx = blockIdx.z;
@@ -271,202 +293,238 @@ __global__ void flash_softmax_gemm_kernel(
     const int ty = threadIdx.y;
     const int q_start = tx * THREAD_Q_BLOCK;
     const int kv_start = ty * THREAD_KV_BLOCK;
+    const int head_start = ty * THREAD_HEAD_BLOCK;
+
+    // Constants for warp-level processing
+    constexpr int WARP_SIZE = 32;
+    const int warp_id = thread_id / WARP_SIZE;
+    const int lane_id = thread_id % WARP_SIZE;
+
+    // Calculate number of warps in the block
+    const int num_warps = block_size / WARP_SIZE;
+
+    // Define tile dimensions for each warp to process
+    constexpr int WARP_TILE_Q = 8;    // Width of tile processed by a warp
+    constexpr int WARP_TILE_KV = 4;   // Height of tile processed by a warp
+
+    // Calculate thread's position within the warp's tile using interleaved pattern
+    const int thread_q_idx = lane_id % WARP_TILE_Q;  // WARP_TILE_Q threads in q dimension
+    const int thread_kv_idx = lane_id / WARP_TILE_Q; // WARP_TILE_KV threads in kv dimension
+
+    // Calculate total number of tiles
+    const int total_q_tiles = (Q_BLOCK + WARP_TILE_Q - 1) / WARP_TILE_Q;
+    const int total_kv_tiles = (KV_BLOCK + WARP_TILE_KV - 1) / WARP_TILE_KV;
+    const int total_tiles = total_q_tiles * total_kv_tiles;
 
     // Shared memory allocations
-    __shared__ T Q_tile[2][HEAD_BLOCK][Q_BLOCK+1];    // Double buffered Q tile
-    __shared__ T KV_tile[2][HEAD_BLOCK][KV_BLOCK+1];  // Double buffered KV tile
-    __shared__ Y accum[Q_BLOCK][HEAD_BLOCK+1];        // Accumulator for current head block
+    __shared__ T_smem Q_tile[2][HEAD_BLOCK][Q_BLOCK+1];    // Double buffered Q tile
+    __shared__ T_smem KV_tile[2][HEAD_BLOCK][KV_BLOCK+1];  // Double buffered KV tile
+    __shared__ T_smem softmax_tile[KV_BLOCK][Q_BLOCK+1];
     __shared__ bool is_needed[KV_BLOCK];
 
     // Thread-local registers for softmax tile
-    Y softmax_reg[THREAD_Q_BLOCK][THREAD_KV_BLOCK];
+    T_accum softmax_reg[THREAD_Q_BLOCK][THREAD_KV_BLOCK];
     bool is_needed_reg[THREAD_KV_BLOCK];
 
     // Process K,V tiles
-    for (Index kv_tile_idx = kv_block_start; kv_tile_idx < kv_block_end; kv_tile_idx += KV_BLOCK) {
+    for (Index kv_tile_idx = kv_block_start; kv_tile_idx < kv_block_end; kv_tile_idx += KV_BLOCK)
+    {
         // Initialize buffer index for double buffering
         int buf_idx = 0;
 
         // Initialize softmax registers with mask information
-        for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset) {
+        for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset)
+        {
             const Index q_idx = q_tile_idx * Q_BLOCK + q_start + q_offset;
-            for (int kv_offset = 0; kv_offset < THREAD_KV_BLOCK; ++kv_offset) {
+            for (int kv_offset = 0; kv_offset < THREAD_KV_BLOCK; ++kv_offset)
+            {
                 const Index kv_idx = kv_tile_idx + kv_start + kv_offset;
-                if (q_idx < seq && kv_idx < seq && bool{mask[kv_idx + q_idx * seq]}) {
+                if (bool{mask[kv_idx + q_idx * seq]})
+                {
                     softmax_reg[q_offset][kv_offset] = 0; // Valid position
-                } else {
-                    softmax_reg[q_offset][kv_offset] = -std::numeric_limits<Y>::infinity(); // Invalid
+                }
+                else
+                {
+                    softmax_reg[q_offset][kv_offset] = -std::numeric_limits<T_accum>::infinity(); // Invalid
                 }
             }
         }
         __syncthreads();
 
         // Clear is_needed flags
-        for (int kv = threadIdx.x + threadIdx.y * blockDim.x;
-                kv < KV_BLOCK;
-                kv += blockDim.x * blockDim.y) {
+        for (int kv = thread_id; kv < KV_BLOCK; kv += block_size)
+        {
             is_needed[kv] = false;
         }
         __syncthreads();
 
         // Mark which K rows are needed
-        for (int kv_offset = 0; kv_offset < THREAD_KV_BLOCK; ++kv_offset) {
+        for (int kv_offset = 0; kv_offset < THREAD_KV_BLOCK; ++kv_offset)
+        {
             const int kv = kv_start + kv_offset;
-            if (kv < KV_BLOCK) {
-                for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset) {
-                    if (std::isfinite(softmax_reg[q_offset][kv_offset])) {
-                        is_needed[kv] = true;
-                        break;
-                    }
+            for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset)
+            {
+                if (!is_needed[kv] && ::isfinite(softmax_reg[q_offset][kv_offset]))
+                {
+                    is_needed[kv] = true;
                 }
             }
         }
         __syncthreads();
 
         // Load which K rows are needed into thread-local registers
-        for (int kv_offset = 0; kv_offset < THREAD_KV_BLOCK; ++kv_offset) {
+        for (int kv_offset = 0; kv_offset < THREAD_KV_BLOCK; ++kv_offset)
+        {
             const int kv = kv_start + kv_offset;
             is_needed_reg[kv_offset] = is_needed[kv];
         }
 
         // Load Q tile for the first head block
-        for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
-            const Index q_idx = q_tile_idx * Q_BLOCK + q;
-            if (q_idx < seq) {
-                const T* Q_base = Q + HEAD_SIZE * (q_idx + seq * batch_idx);
-                for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
-                    Q_tile[buf_idx][h][q] = Q_base[h];
-                }
-            }
-        }
+        gmem_to_smem_transposed_vec4<T_gmem, T_smem, HEAD_BLOCK, Q_BLOCK>(
+            Q + HEAD_SIZE * (q_tile_idx * Q_BLOCK + seq * batch_idx),
+            &Q_tile[buf_idx][0][0],
+            HEAD_SIZE,
+            Q_BLOCK+1,
+            thread_id,
+            block_size
+        );
 
         // Load K tile for the first head block
-        for (int kv = kv_start; kv < kv_start + THREAD_KV_BLOCK; ++kv) {
-            const Index kv_idx = kv_tile_idx + kv;
-            const int kv_offset = kv - kv_start;
-            if (kv_idx < seq && is_needed_reg[kv_offset]) {
-                const T* K_base = K + HEAD_SIZE * (kv_idx + seq * batch_idx);
-                for (int h = threadIdx.x; h < HEAD_BLOCK; h += blockDim.x) {
-                    KV_tile[buf_idx][h][kv] = K_base[h];
-                }
-            }
-        }
+        gmem_to_smem_transposed_vec4<T_gmem, T_smem, HEAD_BLOCK, KV_BLOCK>(
+            K + HEAD_SIZE * (kv_tile_idx + seq * batch_idx),
+            &KV_tile[buf_idx][0][0],
+            HEAD_SIZE,
+            KV_BLOCK+1,
+            thread_id,
+            block_size
+        );
 
         // Wait for all threads to load the first K and Q tiles
         __syncthreads();
 
         // Process head dimension in blocks to compute K'Q
-        for (int head_offset = 0; head_offset < HEAD_SIZE; head_offset += HEAD_BLOCK) {
+        for (int head_offset = 0; head_offset < HEAD_SIZE; head_offset += HEAD_BLOCK)
+        {
+            // Buffer index for next iteration
+            int next_buf_idx = 1 - buf_idx;
 
             // Prefetch next Q and K tile if not at the last iteration
-            if (head_offset + HEAD_BLOCK < HEAD_SIZE) {
+            if (head_offset + HEAD_BLOCK < HEAD_SIZE)
+            {
                 // Load next Q tile
-                int next_buf_idx = 1 - buf_idx;
-                for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
-                    const Index q_idx = q_tile_idx * Q_BLOCK + q;
-                    if (q_idx < seq) {
-                        const T* Q_base = Q + HEAD_SIZE * (q_idx + seq * batch_idx) + (head_offset + HEAD_BLOCK);
-                        for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
-                            Q_tile[next_buf_idx][h][q] = Q_base[h];
-                        }
-                    }
-                }
+                gmem_to_smem_transposed_vec4<T_gmem, T_smem, HEAD_BLOCK, Q_BLOCK>(
+                    Q + HEAD_SIZE * (q_tile_idx * Q_BLOCK + seq * batch_idx)
+                        + (head_offset + HEAD_BLOCK),
+                    &Q_tile[next_buf_idx][0][0],
+                    HEAD_SIZE,
+                    Q_BLOCK+1,
+                    thread_id,
+                    block_size
+                );
 
                 // Load next K tile
-                for (int kv = kv_start; kv < kv_start + THREAD_KV_BLOCK; ++kv) {
-                    const Index kv_idx = kv_tile_idx + kv;
-                    const int kv_offset = kv - kv_start;
-                    if (kv_idx < seq && is_needed_reg[kv_offset]) {
-                        const T* K_base = K + HEAD_SIZE * (kv_idx + seq * batch_idx) + (head_offset + HEAD_BLOCK);
-                        for (int h = threadIdx.x; h < HEAD_BLOCK; h += blockDim.x) {
-                            KV_tile[next_buf_idx][h][kv] = K_base[h];
-                        }
-                    }
-                }
+                gmem_to_smem_transposed_vec4<T_gmem, T_smem, HEAD_BLOCK, KV_BLOCK>(
+                    K + HEAD_SIZE * (kv_tile_idx + seq * batch_idx)
+                        + (head_offset + HEAD_BLOCK),
+                    &KV_tile[next_buf_idx][0][0],
+                    HEAD_SIZE,
+                    KV_BLOCK+1,
+                    thread_id,
+                    block_size
+                );
             }
             // If this is the last head block, prefetch the first V tile
             else
             {
                 // Load the first V tile
-                int next_buf_idx = 1 - buf_idx;
-                for (int kv = kv_start; kv < kv_start + THREAD_KV_BLOCK; ++kv) {
-                    const Index kv_idx = kv_tile_idx + kv;
-                    const int kv_offset = kv - kv_start;
-                    if (kv_idx < seq && is_needed_reg[kv_offset]) {
-                        const T* V_base = V + HEAD_SIZE * (kv_idx + seq * batch_idx);
-                        for (int h = threadIdx.x; h < HEAD_BLOCK; h += blockDim.x) {
-                            KV_tile[next_buf_idx][h][kv] = V_base[h];
+                gmem_to_smem_transposed_vec4<T_gmem, T_smem, HEAD_BLOCK, KV_BLOCK>(
+                    V + HEAD_SIZE * (kv_tile_idx + seq * batch_idx),
+                    &KV_tile[next_buf_idx][0][0],
+                    HEAD_SIZE,
+                    KV_BLOCK+1,
+                    thread_id,
+                    block_size
+                );
+            }
+
+            // Optimized K'Q multiplication with interleaved thread access pattern
+            // Writing directly to shared memory softmax_tile
+            {
+                // First, initialize softmax_tile with the values from softmax_reg
+                for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset) {
+                    const int q = q_start + q_offset;
+                    for (int kv_offset = 0; kv_offset < THREAD_KV_BLOCK; ++kv_offset) {
+                        const int kv = kv_start + kv_offset;
+                        if (kv < KV_BLOCK && q < Q_BLOCK) {
+                            softmax_tile[kv][q] = T_smem{softmax_reg[q_offset][kv_offset]};
                         }
                     }
                 }
-            }
+                __syncthreads();
 
-            // Compute K'Q directly into thread-local registers
-            // Replace only this specific section, leaving all data loading code intact
-            {
-                // Constants for register blocking
-                constexpr int REG_BLOCK_SIZE = 4; // Process 4 elements at a time
+                // Process tiles in a round-robin fashion across warps
+                for (int tile_idx = warp_id; tile_idx < total_tiles; tile_idx += num_warps) {
+                    // Convert linear tile index to 2D coordinates
+                    const int q_tile_idx = tile_idx % total_q_tiles;
+                    const int kv_tile_idx = tile_idx / total_q_tiles;
 
-                // Process HEAD_BLOCK in chunks for better register usage
-                for (int h_chunk = 0; h_chunk < HEAD_BLOCK; h_chunk += REG_BLOCK_SIZE)
-                {
-                    // Prefetch Q values into registers
-                    Y q_reg[THREAD_Q_BLOCK][REG_BLOCK_SIZE];
-                    #pragma unroll
-                    for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset)
+                    // Calculate starting positions for this tile
+                    const int q_tile_start = q_tile_idx * WARP_TILE_Q;
+                    const int kv_tile_start = kv_tile_idx * WARP_TILE_KV;
+
+                    // Each thread processes multiple elements with stride
+                    for (int kv_offset = 0; kv_offset < WARP_TILE_KV; kv_offset += 4)
                     {
-                        const int q = q_start + q_offset;
-                        #pragma unroll
-                        for (int h_offset = 0; h_offset < REG_BLOCK_SIZE; ++h_offset)
+                        const int kv = kv_tile_start + kv_offset + thread_kv_idx;
+                        if (kv >= KV_BLOCK) continue;
+
+                        // Check if this KV row is needed
+                        if (!is_needed[kv]) continue;
+
+                        for (int q_offset = 0; q_offset < WARP_TILE_Q; q_offset += 8)
                         {
-                            q_reg[q_offset][h_offset] = Y{Q_tile[buf_idx][h_chunk + h_offset][q]};
-                        }
-                    }
+                            const int q = q_tile_start + q_offset + thread_q_idx;
+                            if (q >= Q_BLOCK) continue;
 
-                    // Prefetch K values into registers and compute partial products
-                    for (int kv_offset = 0; kv_offset < THREAD_KV_BLOCK; ++kv_offset)
-                    {
-                        const int kv = kv_start + kv_offset;
-                        // Only process if this position is valid (not masked out)
-                        bool valid_kv = false;
-                        for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset)
-                        {
-                            if (std::isfinite(softmax_reg[q_offset][kv_offset]))
-                            {
-                                valid_kv = true;
-                                break;
-                            }
-                        }
+                            // Only compute if this position is valid (not masked out)
+                            if (::isfinite(softmax_tile[kv][q])) {
+                                // Compute dot product for this (q,kv) position
+                                T_accum dot_product = 0;
 
-                        if (valid_kv)
-                        {
-                            // Prefetch K values for this KV position
-                            Y k_reg[REG_BLOCK_SIZE];
-                            #pragma unroll
-                            for (int h_offset = 0; h_offset < REG_BLOCK_SIZE; ++h_offset)
-                            {
-                                k_reg[h_offset] = Y{KV_tile[buf_idx][h_chunk + h_offset][kv]};
-                            }
+                                // Process HEAD_BLOCK elements in chunks for better register usage
+                                for (int h = 0; h < HEAD_BLOCK; h += 4) {
+                                    // Load 4 elements from K and Q into registers
+                                    T_accum k_reg[4], q_reg[4];
 
-                            // Compute partial dot products for each q_offset
-                            #pragma unroll
-                            for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset)
-                            {
-                                if (std::isfinite(softmax_reg[q_offset][kv_offset]))
-                                {
-                                    Y dot_product = 0;
-
-                                    // Unrolled dot product computation
                                     #pragma unroll
-                                    for (int h_offset = 0; h_offset < REG_BLOCK_SIZE; ++h_offset)
-                                    {
-                                        dot_product += q_reg[q_offset][h_offset] * k_reg[h_offset];
+                                    for (int h_offset = 0; h_offset < 4 && h + h_offset < HEAD_BLOCK; ++h_offset) {
+                                        k_reg[h_offset] = T_accum{KV_tile[buf_idx][h + h_offset][kv]};
+                                        q_reg[h_offset] = T_accum{Q_tile[buf_idx][h + h_offset][q]};
                                     }
 
-                                    // Accumulate to softmax register
-                                    softmax_reg[q_offset][kv_offset] += dot_product * Y{scale};
+                                    // Compute partial dot product
+                                    #pragma unroll
+                                    for (int h_offset = 0; h_offset < 4 && h + h_offset < HEAD_BLOCK; ++h_offset) {
+                                        dot_product += k_reg[h_offset] * q_reg[h_offset];
+                                    }
                                 }
+
+                                // Write directly to shared memory
+                                softmax_tile[kv][q] += T_smem{dot_product * scale};
                             }
+                        }
+                    }
+                }
+
+                __syncthreads(); // Ensure all threads are done with the computation
+
+                // Copy back from shared memory to thread-local registers for the softmax calculation
+                for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset) {
+                    const int q = q_start + q_offset;
+                    for (int kv_offset = 0; kv_offset < THREAD_KV_BLOCK; ++kv_offset) {
+                        const int kv = kv_start + kv_offset;
+                        if (kv < KV_BLOCK && q < Q_BLOCK) {
+                            softmax_reg[q_offset][kv_offset] = T_accum{softmax_tile[kv][q]};
                         }
                     }
                 }
@@ -478,124 +536,93 @@ __global__ void flash_softmax_gemm_kernel(
         }
 
         // Apply softmax to thread-local registers
-        for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset) {
-            const Index q_idx = q_tile_idx * Q_BLOCK + q_start + q_offset;
-            if (q_idx < seq) {
-                // Get pre-computed max and sumexp from maxsumexp
-                const Index maxsumexp_idx = 2 * (q_idx + seq * batch_idx);
-                const Y max_val = Y{maxsumexp[maxsumexp_idx]};
-                const Y sumexp = Y{maxsumexp[maxsumexp_idx + 1]};
+        for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset)
+        {
+            const int q = q_start + q_offset;
+            const Index q_idx = q_tile_idx * Q_BLOCK + q;
+            // Get pre-computed max and sumexp from maxsumexp
+            const Index maxsumexp_idx = 2 * (q_idx + seq * batch_idx);
+            const T_accum max_val = T_accum{maxsumexp[maxsumexp_idx]};
+            const T_accum sumexp = T_accum{maxsumexp[maxsumexp_idx + 1]};
 
-                // Apply softmax to each element in this row
-                for (int kv_offset = 0; kv_offset < THREAD_KV_BLOCK; ++kv_offset) {
-                    const Index kv_idx = kv_tile_idx + kv_start + kv_offset;
-                    if (std::isfinite(softmax_reg[q_offset][kv_offset]) && kv_idx < seq) {
-                        softmax_reg[q_offset][kv_offset] =
-                            std::exp(softmax_reg[q_offset][kv_offset] - max_val) / sumexp;
-                    } else {
-                        softmax_reg[q_offset][kv_offset] = 0;
-                    }
+            // Apply softmax to each element in this row
+            for (int kv_offset = 0; kv_offset < THREAD_KV_BLOCK; ++kv_offset)
+            {
+                const int kv = kv_start + kv_offset;
+                const Index kv_idx = kv_tile_idx + kv_start + kv_offset;
+                if (::isfinite(softmax_reg[q_offset][kv_offset]))
+                {
+                    softmax_tile[kv][q] =
+                        T_smem{::exp(softmax_reg[q_offset][kv_offset] - max_val) / sumexp};
                 }
-            } else {
-                // Zero out rows beyond sequence length
-                for (int kv_offset = 0; kv_offset < THREAD_KV_BLOCK; ++kv_offset) {
-                    softmax_reg[q_offset][kv_offset] = 0;
+                else
+                {
+                    softmax_tile[kv][q] = 0;
                 }
             }
         }
 
         // Process head dimension in blocks to compute V @ softmax
-        buf_idx = 0; // Reset buffer index
-        for (int head_offset = 0; head_offset < HEAD_SIZE; head_offset += HEAD_BLOCK) {
-            // Initialize the accumulator for this head block
-            for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
-                for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
-                    accum[q][h] = 0;
-                }
+        for (int head_offset = 0; head_offset < HEAD_SIZE; head_offset += HEAD_BLOCK)
+        {
+            // Prefetch next V tile if not at the last iteration
+            if (head_offset + HEAD_BLOCK < HEAD_SIZE)
+            {
+                int next_buf_idx = 1 - buf_idx;
+                gmem_to_smem_transposed_vec4<T_gmem, T_smem, HEAD_BLOCK, KV_BLOCK>(
+                    V + HEAD_SIZE * (kv_tile_idx + seq * batch_idx)
+                        + (head_offset + HEAD_BLOCK),
+                    &KV_tile[next_buf_idx][0][0],
+                    HEAD_SIZE,
+                    KV_BLOCK+1,
+                    thread_id,
+                    block_size);
             }
+
             __syncthreads();
 
-            // Prefetch next V tile if not at the last iteration
-            if (head_offset + HEAD_BLOCK < HEAD_SIZE) {
-                int next_buf_idx = 1 - buf_idx;
-                for (int kv = kv_start; kv < kv_start + THREAD_KV_BLOCK; ++kv) {
-                    const Index kv_idx = kv_tile_idx + kv;
-                    const int kv_offset = kv - kv_start;
-                    if (kv_idx < seq && is_needed_reg[kv_offset]) {
-                        const T* V_base = V + HEAD_SIZE * (kv_idx + seq * batch_idx) + (head_offset + HEAD_BLOCK);
-                        for (int h = threadIdx.x; h < HEAD_BLOCK; h += blockDim.x) {
-                            KV_tile[next_buf_idx][h][kv] = V_base[h];
-                        }
-                    }
+            // Compute local sums for V @ softmax'
+            T_accum local_sums[THREAD_Q_BLOCK][THREAD_HEAD_BLOCK];
+            for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset)
+            {
+                for (int h_offset = 0; h_offset < THREAD_HEAD_BLOCK; ++h_offset)
+                {
+                    local_sums[q_offset][h_offset] = T_accum{0};
                 }
             }
 
-            // Compute local sums for V @ softmax
-            Y local_sums[THREAD_Q_BLOCK][HEAD_BLOCK];
-            for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset) {
-                for (int h = 0; h < HEAD_BLOCK; ++h) {
-                    local_sums[q_offset][h] = 0;
-                }
-            }
-
-            // Compute V @ softmax using thread-local registers
-            for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset) {
+            // Compute V @ softmax' using thread-local registers
+            for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset)
+            {
                 const int q = q_start + q_offset;
                 const Index q_idx = q_tile_idx * Q_BLOCK + q;
 
-                if (q_idx < seq) {
-                    for (int kv_offset = 0; kv_offset < THREAD_KV_BLOCK; ++kv_offset) {
-                        const int kv = kv_start + kv_offset;
-                        const Index kv_idx = kv_tile_idx + kv;
-
-                        if (kv_idx < seq && softmax_reg[q_offset][kv_offset] > 0) {
-                            const Y softmax_val = softmax_reg[q_offset][kv_offset];
-                            for (int h = 0; h < HEAD_BLOCK; ++h) {
-                                local_sums[q_offset][h] += softmax_val * Y{KV_tile[buf_idx][h][kv]};
-                            }
+                for (int kv = 0; kv < KV_BLOCK; ++kv)
+                {
+                    const T_smem softmax_val_smem = softmax_tile[kv][q];
+                    if (softmax_val_smem > 0)
+                    {
+                        for (int h_offset = 0; h_offset < THREAD_HEAD_BLOCK; ++h_offset)
+                        {
+                            local_sums[q_offset][h_offset] +=
+                                T_accum{softmax_val_smem * KV_tile[buf_idx][h_offset+head_start][kv]};
                         }
                     }
                 }
             }
 
-            // Atomically add local sums to shared memory accumulator
-            for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset) {
-                const int q = q_start + q_offset;
-                const Index q_idx = q_tile_idx * Q_BLOCK + q;
-
-                if (q_idx < seq) {
-                    for (int h = 0; h < HEAD_BLOCK; ++h) {
-                        if (local_sums[q_offset][h] != 0) {
-                            atomicAdd(&accum[q][h], local_sums[q_offset][h]);
-                        }
-                    }
-                }
-            }
             __syncthreads();
 
             // Atomic accumulation to global memory for this head block
-            for (int q = threadIdx.x; q < Q_BLOCK; q += blockDim.x) {
+            for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset)
+            {
+                const int q = q_start + q_offset;
                 const Index q_idx = q_tile_idx * Q_BLOCK + q;
-                if (q_idx < seq) {
-                    T* A_base = A + HEAD_SIZE * (q_idx + seq * batch_idx) + head_offset;
-                    for (int h = threadIdx.y; h < HEAD_BLOCK; h += blockDim.y) {
-                        if (accum[q][h] != 0)
-                        {
-                            if constexpr (std::is_same_v<T, fp32_t>)
-                            {
-                                atomicAdd((float *)&A_base[h], accum[q][h]);
-                            }
-                            else if constexpr (std::is_same_v<T, fp64_t>)
-                            {
-                                atomicAdd((double *)&A_base[h], accum[q][h]);
-                            }
-                            else
-                            {
-                                // For other types, use a critical section or other atomic approach
-                                // This is a simplified version that may not work for all types
-                                A_base[h] = T(Y(A_base[h]) + accum[q][h]);
-                            }
-                        }
+                T_gmem* A_base = A + HEAD_SIZE * (q_idx + seq * batch_idx) + head_offset;
+                for (int h_offset = 0; h_offset < THREAD_HEAD_BLOCK; ++h_offset) {
+                    if (local_sums[q_offset][h_offset] != 0.0)
+                    {
+                        atomicAdd(&A_base[h_offset+head_start], T_gmem{local_sums[q_offset][h_offset]});
                     }
                 }
             }
@@ -613,15 +640,16 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
           const T *V, T *A) noexcept
 {
     // Define block and grid sizes
-    constexpr int THREAD_X = 16;
-    constexpr int THREAD_Y = 32;
+    constexpr int THREAD_Q = 8;
+    constexpr int THREAD_KV = 8;
     constexpr int THREAD_Q_BLOCK = 4;
     constexpr int THREAD_KV_BLOCK = 4;
-    constexpr int Q_BLOCK = THREAD_X * THREAD_Q_BLOCK;
-    constexpr int KV_BLOCK = THREAD_Y * THREAD_KV_BLOCK;
-    constexpr int KV_SPLIT = 4;  // Balance between parallelism and overhead
+    constexpr int THREAD_HEAD_BLOCK = 2;
+    constexpr int Q_BLOCK = THREAD_Q * THREAD_Q_BLOCK;
+    constexpr int KV_BLOCK = THREAD_KV * THREAD_KV_BLOCK;
+    constexpr int KV_SPLIT = 1;  // Balance between parallelism and overhead
 
-    dim3 threads(THREAD_X, THREAD_Y);
+    dim3 threads(THREAD_Q, THREAD_KV);
 
     dim3 blocks((seq + Q_BLOCK - 1) / Q_BLOCK, batch, KV_SPLIT);
 
@@ -636,10 +664,22 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
     // Note: HEAD_BLOCK must be divisible by 4 for optimal vectorized memory access
     if (head == 64) {
         constexpr int HEAD_SIZE = 64;
-        constexpr int HEAD_BLOCK = 8;  // Process in 4 blocks, must be divisible by 4
-        flash_softmax_gemm_kernel<T, HEAD_SIZE, HEAD_BLOCK, Q_BLOCK,
-                THREAD_Q_BLOCK, KV_BLOCK, THREAD_KV_BLOCK, KV_SPLIT>
-            <<<blocks, threads, 0, stream>>>(batch, seq, scale, K, Q, mask, maxsumexp, V, A);
+        constexpr int HEAD_BLOCK = 16;  // Process in 4 blocks, must be divisible by 4
+        if constexpr (std::is_same_v<T, nntile::fp32_t>)
+        {
+            flash_softmax_gemm_kernel<float, float, float,
+                    HEAD_SIZE, HEAD_BLOCK, THREAD_HEAD_BLOCK, Q_BLOCK,
+                    THREAD_Q_BLOCK, KV_BLOCK, THREAD_KV_BLOCK, KV_SPLIT>
+                <<<blocks, threads, 0, stream>>>(batch, seq, scale.value,
+                    reinterpret_cast<const float*>(K), reinterpret_cast<const float*>(Q), mask,
+                    reinterpret_cast<const float*>(maxsumexp), reinterpret_cast<const float*>(V),
+                    reinterpret_cast<float*>(A));
+        }
+        else
+        {
+            std::cerr << "Unsupported type: " << typeid(T).name() << std::endl;
+        }
+        // TODO: enable other types T later
     } // TODO: enable other heads later
     // } else if (head == 128) {
     //     constexpr int HEAD_SIZE = 128;
@@ -652,6 +692,12 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
     //     flash_softmax_gemm_kernel<T, HEAD_SIZE, HEAD_BLOCK, Q_BLOCK, KV_BLOCK, KV_SPLIT>
     //         <<<blocks, threads, 0, stream>>>(batch, seq, scale, K, Q, mask, maxsumexp, V, A);
     // }
+
+    // Make sure these values are equal or properly aligned
+    static_assert(Q_BLOCK % (THREAD_Q * THREAD_Q_BLOCK) == 0,
+                  "Q_BLOCK must be divisible by THREAD_Q * THREAD_Q_BLOCK");
+    static_assert(KV_BLOCK % (THREAD_KV * THREAD_KV_BLOCK) == 0,
+                  "KV_BLOCK must be divisible by THREAD_KV * THREAD_KV_BLOCK");
 }
 
 // Explicit instantiation
