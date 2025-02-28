@@ -266,7 +266,9 @@ __device__ void gmem_to_smem_transposed_vec4(
     }
 }
 
-template<typename T_gmem, typename T_smem, typename T_accum, Index HEAD_SIZE, Index HEAD_BLOCK, Index THREAD_HEAD_BLOCK, Index Q_BLOCK, Index THREAD_Q_BLOCK, Index KV_BLOCK, Index THREAD_KV_BLOCK, Index KV_SPLIT, Index NUM_WARPS>
+template<typename T_gmem, typename T_smem, typename T_accum,
+         Index HEAD_SIZE, Index HEAD_BLOCK,
+         Index Q_BLOCK, Index KV_BLOCK, Index KV_SPLIT, Index NUM_WARPS>
 __global__ void flash_softmax_gemm_kernel(
     Index batch, Index seq, T_accum scale,
     const T_gmem *K, const T_gmem *Q, const bool_t *mask, const T_gmem *maxsumexp,
@@ -275,8 +277,8 @@ __global__ void flash_softmax_gemm_kernel(
     using namespace std;
 
     // Get global indices
-    const Index thread_id = threadIdx.x + threadIdx.y * blockDim.x;
-    const Index block_size = blockDim.x * blockDim.y;
+    const Index thread_id = threadIdx.x;
+    const Index block_size = blockDim.x;
     const Index batch_idx = blockIdx.y;
     const Index q_block_idx = blockIdx.x;
     const Index kv_split_idx = blockIdx.z;
@@ -288,13 +290,6 @@ __global__ void flash_softmax_gemm_kernel(
     const Index kv_block_start = kv_split_idx * kv_split_size;
     const Index kv_block_end = ::min(kv_block_start + kv_split_size, seq);
 
-    // Thread indices for accessing the softmax tile
-    const int tx = threadIdx.x;
-    const int ty = threadIdx.y;
-    const int q_start = tx * THREAD_Q_BLOCK;
-    const int kv_start = ty * THREAD_KV_BLOCK;
-    const int head_start = ty * THREAD_HEAD_BLOCK;
-
     // Constants for warp-level processing
     constexpr int WARP_SIZE = 32;
     const int warp_id = thread_id / WARP_SIZE;
@@ -303,19 +298,33 @@ __global__ void flash_softmax_gemm_kernel(
     // Calculate number of warps in the block
     const int num_warps = block_size / WARP_SIZE;
 
-    // Define tile dimensions for each warp to process
-    constexpr int WARP_TILE_Q = 8;    // Width of tile processed by a warp
-    constexpr int WARP_TILE_KV = 4;   // Height of tile processed by a warp
+    // Define tile dimensions for K'Q multiplication
+    constexpr int WARP_TILE_KQ_Q = 8;    // Width of tile processed by a warp
+    constexpr int WARP_TILE_KQ_K = 4;    // Height of tile processed by a warp
 
     // Calculate thread's position within the warp's tile using interleaved pattern
-    const int thread_q_idx = lane_id % WARP_TILE_Q;  // WARP_TILE_Q threads in q dimension
-    const int thread_kv_idx = lane_id / WARP_TILE_Q; // WARP_TILE_KV threads in kv dimension
+    const int thread_kq_q_idx = lane_id % WARP_TILE_KQ_Q;  // WARP_TILE_KQ_Q threads in q dimension
+    const int thread_kq_k_idx = lane_id / WARP_TILE_KQ_Q;  // WARP_TILE_KQ_K threads in k dimension
 
     // Calculate total number of tiles
-    constexpr int total_q_tiles = Q_BLOCK / WARP_TILE_Q; // Q_BLOCK is a multiple of WARP_TILE_Q
-    constexpr int total_kv_tiles = KV_BLOCK / WARP_TILE_KV; // KV_BLOCK is a multiple of WARP_TILE_KV
-    constexpr int total_tiles = total_q_tiles * total_kv_tiles;
-    constexpr int softmax_reg_size = total_tiles / NUM_WARPS;
+    constexpr int total_kq_q_tiles = Q_BLOCK / WARP_TILE_KQ_Q; // Q_BLOCK is a multiple of WARP_TILE_KQ_Q
+    constexpr int total_kq_k_tiles = KV_BLOCK / WARP_TILE_KQ_K; // KV_BLOCK is a multiple of WARP_TILE_KQ_K
+    constexpr int total_kq_tiles = total_kq_q_tiles * total_kq_k_tiles;
+    constexpr int softmax_reg_size = total_kq_tiles / NUM_WARPS;
+
+    // Define tile dimensions for VS' multiplication
+    constexpr int WARP_TILE_VS_Q = 8;    // Width of tile processed by a warp
+    constexpr int WARP_TILE_VS_H = 4;    // Height of tile processed by a warp (head dimension)
+
+    // Calculate total number of tiles
+    constexpr int total_vs_q_tiles = Q_BLOCK / WARP_TILE_VS_Q;
+    constexpr int total_vs_h_tiles = HEAD_BLOCK / WARP_TILE_VS_H;
+    constexpr int total_vs_tiles = total_vs_q_tiles * total_vs_h_tiles;
+    constexpr int output_reg_size = total_vs_tiles / NUM_WARPS;
+
+    // Thread's position within the warp's tile using interleaved pattern
+    const int thread_vs_q_idx = lane_id % WARP_TILE_VS_Q;  // 8 threads in q dimension
+    const int thread_vs_h_idx = lane_id / WARP_TILE_VS_Q;  // 4 threads in h dimension
 
     // Shared memory allocations
     __shared__ T_smem Q_tile[2][HEAD_BLOCK][Q_BLOCK+1];    // Double buffered Q tile
@@ -325,7 +334,6 @@ __global__ void flash_softmax_gemm_kernel(
 
     // Thread-local registers for softmax tile
     T_accum softmax_reg[softmax_reg_size];
-    bool is_needed_reg[THREAD_KV_BLOCK];
 
     // Process K,V blocks
     for (Index kv_block_idx = kv_block_start; kv_block_idx < kv_block_end; kv_block_idx += KV_BLOCK)
@@ -342,27 +350,27 @@ __global__ void flash_softmax_gemm_kernel(
 
         // Initialize softmax registers with mask information
         // We do it the same way, as we will do gemm K'Q to ensure maximal register usage
-        for (int tile_idx = warp_id; tile_idx < total_tiles; tile_idx += num_warps)
+        for (int tile_idx = warp_id; tile_idx < total_kq_tiles; tile_idx += num_warps)
         {
             // Convert linear tile index to 2D coordinates
-            const int q_tile_idx = tile_idx % total_q_tiles;
-            const int kv_tile_idx = tile_idx / total_q_tiles;
+            const int q_tile_idx = tile_idx % total_kq_q_tiles;
+            const int k_tile_idx = tile_idx / total_kq_q_tiles;
 
             // Calculate starting positions for this tile
-            const int q_tile_start = q_tile_idx * WARP_TILE_Q;
-            const int kv_tile_start = kv_tile_idx * WARP_TILE_KV;
+            const int q_tile_start = q_tile_idx * WARP_TILE_KQ_Q;
+            const int k_tile_start = k_tile_idx * WARP_TILE_KQ_K;
 
             // Each thread processes single element
-            const int q = q_tile_start + thread_q_idx;
-            const int kv = kv_tile_start + thread_kv_idx;
+            const int q = q_tile_start + thread_kq_q_idx;
+            const int k = k_tile_start + thread_kq_k_idx;
             const int reg_idx = (tile_idx - warp_id) / NUM_WARPS;
 
-            if (bool{mask[kv + kv_block_idx + (q + q_block_idx * Q_BLOCK) * seq]})
+            if (bool{mask[k + kv_block_idx + (q + q_block_idx * Q_BLOCK) * seq]})
             {
                 softmax_reg[reg_idx] = 0;
-                if (!is_needed[kv])
+                if (!is_needed[k])
                 {
-                    is_needed[kv] = true;
+                    is_needed[k] = true;
                 }
             }
             else
@@ -446,20 +454,20 @@ __global__ void flash_softmax_gemm_kernel(
             // Accumulating in thread-local registers and only writing to shared memory at the end
             {
                 // Process tiles in a round-robin fashion across warps
-                for (int tile_idx = warp_id; tile_idx < total_tiles; tile_idx += num_warps)
+                for (int tile_idx = warp_id; tile_idx < total_kq_tiles; tile_idx += num_warps)
                 {
                     // Convert linear tile index to 2D coordinates
-                    const int q_tile_idx = tile_idx % total_q_tiles;
-                    const int kv_tile_idx = tile_idx / total_q_tiles;
+                    const int q_tile_idx = tile_idx % total_kq_q_tiles;
+                    const int k_tile_idx = tile_idx / total_kq_q_tiles;
 
                     // Calculate starting positions for this tile
-                    const int q_tile_start = q_tile_idx * WARP_TILE_Q;
-                    const int kv_tile_start = kv_tile_idx * WARP_TILE_KV;
+                    const int q_tile_start = q_tile_idx * WARP_TILE_KQ_Q;
+                    const int k_tile_start = k_tile_idx * WARP_TILE_KQ_K;
 
                     // Each thread processes single element
-                    const int q = q_tile_start + thread_q_idx;
-                    const int kv = kv_tile_start + thread_kv_idx;
-                    const int reg_idx = (tile_idx - warp_id) / NUM_WARPS;
+                    const int q = q_tile_start + thread_kq_q_idx;
+                    const int k = k_tile_start + thread_kq_k_idx;
+                    const int reg_idx = (tile_idx - warp_id) / num_warps;
 
                     // Only compute if this position is valid (not masked out)
                     if (::isfinite(softmax_reg[reg_idx]))
@@ -473,14 +481,14 @@ __global__ void flash_softmax_gemm_kernel(
                             T_accum k_reg[4], q_reg[4];
 
                             #pragma unroll
-                            for (int h_offset = 0; h_offset < 4; ++h_offset) {
-                                k_reg[h_offset] = T_accum{KV_tile[buf_idx][h + h_offset][kv]};
+                            for (int h_offset = 0; h_offset < 4 && h + h_offset < HEAD_BLOCK; ++h_offset) {
+                                k_reg[h_offset] = T_accum{KV_tile[buf_idx][h + h_offset][k]};
                                 q_reg[h_offset] = T_accum{Q_tile[buf_idx][h + h_offset][q]};
                             }
 
                             // Compute partial dot product
                             #pragma unroll
-                            for (int h_offset = 0; h_offset < 4; ++h_offset) {
+                            for (int h_offset = 0; h_offset < 4 && h + h_offset < HEAD_BLOCK; ++h_offset) {
                                 dot_product += k_reg[h_offset] * q_reg[h_offset];
                             }
                         }
@@ -497,18 +505,18 @@ __global__ void flash_softmax_gemm_kernel(
         }
 
         // Apply softmax to thread-local registers and write results to shared memory
-        for (int tile_idx = warp_id; tile_idx < total_tiles; tile_idx += num_warps) {
+        for (int tile_idx = warp_id; tile_idx < total_kq_tiles; tile_idx += num_warps) {
             // Convert linear tile index to 2D coordinates
-            const int q_tile_idx = tile_idx % total_q_tiles;
-            const int kv_tile_idx = tile_idx / total_q_tiles;
+            const int q_tile_idx = tile_idx % total_kq_q_tiles;
+            const int k_tile_idx = tile_idx / total_kq_q_tiles;
 
             // Calculate starting positions for this tile
-            const int q_tile_start = q_tile_idx * WARP_TILE_Q;
-            const int kv_tile_start = kv_tile_idx * WARP_TILE_KV;
+            const int q_tile_start = q_tile_idx * WARP_TILE_KQ_Q;
+            const int k_tile_start = k_tile_idx * WARP_TILE_KQ_K;
 
             // Each thread writes its accumulated result (single element) to shared memory
-            const int q = q_tile_start + thread_q_idx;
-            const int kv = kv_tile_start + thread_kv_idx;
+            const int q = q_tile_start + thread_kq_q_idx;
+            const int k = k_tile_start + thread_kq_k_idx;
             const int reg_idx = (tile_idx - warp_id) / NUM_WARPS;
 
             // Get pre-computed max and sumexp from maxsumexp
@@ -525,7 +533,7 @@ __global__ void flash_softmax_gemm_kernel(
             {
                 softmax_reg[reg_idx] = 0;
             }
-            softmax_tile[kv][q] = T_smem{softmax_reg[reg_idx]};
+            softmax_tile[k][q] = T_smem{softmax_reg[reg_idx]};
         }
         __syncthreads();
 
@@ -546,53 +554,50 @@ __global__ void flash_softmax_gemm_kernel(
                     block_size);
             }
 
-            __syncthreads();
-
-            // Compute local sums for V @ softmax'
-            T_accum local_sums[THREAD_Q_BLOCK][THREAD_HEAD_BLOCK];
-            for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset)
+            // Compute V @ softmax' using warp-based tiling approach
             {
-                for (int h_offset = 0; h_offset < THREAD_HEAD_BLOCK; ++h_offset)
-                {
-                    local_sums[q_offset][h_offset] = T_accum{0};
-                }
-            }
+                // Process tiles in a round-robin fashion across warps
+                for (int tile_idx = warp_id; tile_idx < total_vs_tiles; tile_idx += num_warps) {
+                    // Convert linear tile index to 2D coordinates
+                    const int q_tile_idx = tile_idx % total_vs_q_tiles;
+                    const int h_tile_idx = tile_idx / total_vs_q_tiles;
 
-            // Compute V @ softmax' using thread-local registers
-            for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset)
-            {
-                const int q = q_start + q_offset;
-                const Index q_idx = q_block_idx * Q_BLOCK + q;
+                    // Calculate starting positions for this tile
+                    const int q_tile_start = q_tile_idx * WARP_TILE_VS_Q;
+                    const int h_tile_start = h_tile_idx * WARP_TILE_VS_H;
 
-                for (int kv = 0; kv < KV_BLOCK; ++kv)
-                {
-                    const T_smem softmax_val_smem = softmax_tile[kv][q];
-                    if (softmax_val_smem > 0)
-                    {
-                        for (int h_offset = 0; h_offset < THREAD_HEAD_BLOCK; ++h_offset)
-                        {
-                            local_sums[q_offset][h_offset] +=
-                                T_accum{softmax_val_smem * KV_tile[buf_idx][h_offset+head_start][kv]};
+                    // Each thread processes a single element in the output tile
+                    const int q = q_tile_start + thread_vs_q_idx;
+                    const int h = h_tile_start + thread_vs_h_idx;
+                    const int reg_idx = (tile_idx - warp_id) / num_warps;
+
+                    T_accum output_reg = 0;
+
+                    // Only compute if within bounds
+                    if (q < Q_BLOCK && h < HEAD_BLOCK) {
+                        // Compute dot product across all KV elements
+                        for (int kv = 0; kv < KV_BLOCK; ++kv) {
+                            // Only process if this KV element is needed
+                            if (is_needed[kv]) {
+                                const T_smem softmax_val = softmax_tile[kv][q];
+
+                                // Only accumulate if softmax value is non-zero and finite
+                                if (softmax_val > 0 && ::isfinite(softmax_val)) {
+                                    const T_smem v_val = KV_tile[buf_idx][h][kv];
+                                    if (::isfinite(v_val)) {
+                                        output_reg += T_accum{softmax_val * v_val};
+                                    }
+                                }
+                            }
                         }
                     }
+                    const Index q_idx = q_block_idx * Q_BLOCK + q;
+                    T_gmem* A_base = A + HEAD_SIZE * (q_idx + seq * batch_idx) + head_offset;
+
+                    atomicAdd(&A_base[h], T_gmem{output_reg});
                 }
             }
 
-            __syncthreads();
-
-            // Atomic accumulation to global memory for this head block
-            for (int q_offset = 0; q_offset < THREAD_Q_BLOCK; ++q_offset)
-            {
-                const int q = q_start + q_offset;
-                const Index q_idx = q_block_idx * Q_BLOCK + q;
-                T_gmem* A_base = A + HEAD_SIZE * (q_idx + seq * batch_idx) + head_offset;
-                for (int h_offset = 0; h_offset < THREAD_HEAD_BLOCK; ++h_offset) {
-                    if (local_sums[q_offset][h_offset] != 0.0)
-                    {
-                        atomicAdd(&A_base[h_offset+head_start], T_gmem{local_sums[q_offset][h_offset]});
-                    }
-                }
-            }
             __syncthreads();
 
             // Swap buffers for next iteration
@@ -607,18 +612,17 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
           const T *V, T *A) noexcept
 {
     // Define block and grid sizes
-    constexpr int THREAD_Q = 8;
-    constexpr int THREAD_KV = 8;
-    constexpr int THREAD_Q_BLOCK = 4;
-    constexpr int THREAD_KV_BLOCK = 4;
-    constexpr int THREAD_HEAD_BLOCK = 2;
-    constexpr int NUM_WARPS = 2;
-    constexpr int Q_BLOCK = THREAD_Q * THREAD_Q_BLOCK;
-    constexpr int KV_BLOCK = THREAD_KV * THREAD_KV_BLOCK;
-    constexpr int KV_SPLIT = 1;  // Balance between parallelism and overhead
+    constexpr int NUM_THREADS = 64;  // Total number of threads per block
+    constexpr int NUM_WARPS = NUM_THREADS / 32;     // Number of warps per block
+    constexpr int Q_BLOCK = 32;      // Size of Q block
+    constexpr int KV_BLOCK = 32;     // Size of KV block
+    constexpr int KV_SPLIT = 1;      // Balance between parallelism and overhead
 
-    dim3 threads(THREAD_Q, THREAD_KV);
+    // Ensure we have the right number of threads for the warps
+    static_assert(NUM_THREADS % 32 == 0, "NUM_THREADS must be a multiple of 32 (warp size)");
 
+    // Use 1D thread blocks instead of 2D
+    dim3 threads(NUM_THREADS);
     dim3 blocks((seq + Q_BLOCK - 1) / Q_BLOCK, batch, KV_SPLIT);
 
     // Calculate scaling factor
@@ -636,8 +640,7 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
         if constexpr (std::is_same_v<T, nntile::fp32_t>)
         {
             flash_softmax_gemm_kernel<float, float, float,
-                    HEAD_SIZE, HEAD_BLOCK, THREAD_HEAD_BLOCK, Q_BLOCK,
-                    THREAD_Q_BLOCK, KV_BLOCK, THREAD_KV_BLOCK, KV_SPLIT, NUM_WARPS>
+                    HEAD_SIZE, HEAD_BLOCK, Q_BLOCK, KV_BLOCK, KV_SPLIT, NUM_WARPS>
                 <<<blocks, threads, 0, stream>>>(batch, seq, scale.value,
                     reinterpret_cast<const float*>(K), reinterpret_cast<const float*>(Q), mask,
                     reinterpret_cast<const float*>(maxsumexp), reinterpret_cast<const float*>(V),
@@ -662,10 +665,10 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
     // }
 
     // Make sure these values are equal or properly aligned
-    static_assert(Q_BLOCK % (THREAD_Q * THREAD_Q_BLOCK) == 0,
-                  "Q_BLOCK must be divisible by THREAD_Q * THREAD_Q_BLOCK");
-    static_assert(KV_BLOCK % (THREAD_KV * THREAD_KV_BLOCK) == 0,
-                  "KV_BLOCK must be divisible by THREAD_KV * THREAD_KV_BLOCK");
+    static_assert(Q_BLOCK % (NUM_THREADS / NUM_WARPS) == 0,
+                  "Q_BLOCK must be divisible by NUM_THREADS / NUM_WARPS");
+    static_assert(KV_BLOCK % (NUM_THREADS / NUM_WARPS) == 0,
+                  "KV_BLOCK must be divisible by NUM_THREADS / NUM_WARPS");
 }
 
 // Explicit instantiation
