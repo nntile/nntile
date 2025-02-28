@@ -73,6 +73,7 @@
 #include <nntile/tile/hypot.hh>
 #include <nntile/tile/adam_step.hh>
 #include <nntile/tile/adamw_step.hh>
+#include <nntile/tile/muon_step.hh>
 #include <nntile/tile/silu_forward.hh>
 #include <nntile/tile/silu_backward.hh>
 #include <nntile/tile/rope.hh>
