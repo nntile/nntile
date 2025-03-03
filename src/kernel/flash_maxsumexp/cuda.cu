@@ -276,7 +276,7 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
     //                 maxsumexp_tmp[0, seq_idx, split_idx, batch_idx])
     // Such a scheme will be done in future
     constexpr Index SEQ_BLOCK_SIZE_Q = 16;
-    constexpr Index SEQ_BLOCK_SIZE_K = 128;
+    constexpr Index SEQ_BLOCK_SIZE_K = 32;
     // Shape of output blocking is defined by SEQ_BLOCK_SIZE_Q
     dim3 blocks((seq + SEQ_BLOCK_SIZE_Q - 1) / SEQ_BLOCK_SIZE_Q, batch);
     dim3 threads(16, 16);  // 256 threads per block
@@ -290,16 +290,6 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
     {
         flash_maxsumexp_kernel<T, SEQ_BLOCK_SIZE_K, SEQ_BLOCK_SIZE_Q, 64>
             <<<blocks, threads, 0, stream>>>(batch, seq, scale, K, Q, mask, maxsumexp);
-    }
-    else if(head == 128)
-    {
-        flash_maxsumexp_kernel<T, 16, 16, 128><<<blocks, threads, 0, stream>>>(
-            batch, seq, scale, K, Q, mask, maxsumexp);
-    }
-    else if(head == 256)
-    {
-        flash_maxsumexp_kernel<T, 16, 16, 256><<<blocks, threads, 0, stream>>>(
-            batch, seq, scale, K, Q, mask, maxsumexp);
     }
     else
     {

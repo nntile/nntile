@@ -62,6 +62,7 @@ set(TESTS
     "mask_scalar"
     "scal"
     "transpose"
+    "flash_softmax_gemm"
     )
 
 # Describe all tests that are not yet implemented
