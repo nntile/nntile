@@ -68,8 +68,11 @@ void test_flash_softmax_gemm()
 
     // Start timer
     auto start = std::chrono::high_resolution_clock::now();
-    nntile::kernel::flash_softmax_gemm::cuda<T>(stream, batch_size*num_heads,
-            seq_len, head_dim, K_dev, Q_dev, mask_dev, maxsumexp_dev, V_dev, A_dev);
+    for (int i = 0; i < 1000; ++i)
+    {
+        nntile::kernel::flash_softmax_gemm::cuda<T>(stream, batch_size*num_heads,
+                seq_len, head_dim, K_dev, Q_dev, mask_dev, maxsumexp_dev, V_dev, A_dev);
+    }
     cudaStreamSynchronize(stream);
     auto end = std::chrono::high_resolution_clock::now();
     std::cout << "Time taken: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
