@@ -101,6 +101,7 @@ torch.manual_seed(0)
 # Create model from config and disconnect embedding and lm head
 with open(args.config_path, "r") as fd:
     conf_dict = json.load(fd)
+    print('conf dict: ', conf_dict)
 config = GPT2Config(**conf_dict)
 config.n_inner = 4 * config.n_embd
 model_torch = GPT2LMHeadModel(config)
@@ -221,6 +222,7 @@ model_nntile_config = GPT2Config_nntile(
     args.redux,
     args.dtype,
 )
+print('model_nntile_config: ', model_nntile_config)
 model_nntile, next_tag = GPT2Model_nntile.from_torch(
     model_torch,
     args.minibatch,
@@ -231,6 +233,8 @@ model_nntile, next_tag = GPT2Model_nntile.from_torch(
     next_tag,
 )
 del model_torch
+print('model_nntile: ', model_nntile)
+print('model_nntile_config(real): ', model_nntile.config)
 
 # Measure throughput of the forward pass by NNTile
 if args.nforward > 0:

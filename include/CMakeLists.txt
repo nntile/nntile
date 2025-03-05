@@ -130,6 +130,8 @@ set(KERNEL_HDR
     "nntile/kernel/adam_step/cpu.hh"
     "nntile/kernel/adamw_step.hh"
     "nntile/kernel/adamw_step/cpu.hh"
+    "nntile/kernel/lion_step.hh"
+    "nntile/kernel/lion_step/cpu.hh"
     "nntile/kernel/transpose.hh"
     "nntile/kernel/transpose/cpu.hh"
     "nntile/kernel/conv2d_inplace.hh"
@@ -284,6 +286,7 @@ set(STARPU_HDR
     "nntile/starpu/mask_scalar.hh"
     "nntile/starpu/adam_step.hh"
     "nntile/starpu/adamw_step.hh"
+    "nntile/starpu/lion_step.hh"
     "nntile/starpu/transpose.hh"
     "nntile/starpu/conv2d_inplace.hh"
     "nntile/starpu/conv2d_bwd_input_inplace.hh"
@@ -353,6 +356,7 @@ set(TILE_HDR
     "nntile/tile/hypot.hh"
     "nntile/tile/adam_step.hh"
     "nntile/tile/adamw_step.hh"
+    "nntile/tile/lion_step.hh"
     "nntile/tile/rope.hh"
     )
 
@@ -427,6 +431,7 @@ set(TENSOR_HDR
     "nntile/tensor/hypot_scalar_inverse.hh"
     "nntile/tensor/adam_step.hh"
     "nntile/tensor/adamw_step.hh"
+    "nntile/tensor/lion_step.hh"
     "nntile/tensor/transpose.hh"
     "nntile/tensor/conv2d_inplace.hh"
     "nntile/tensor/conv2d_bwd_input_inplace.hh"
