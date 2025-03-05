@@ -198,9 +198,10 @@ if args.submodule == "mlp":
     x_shape = [llama_torch_config.hidden_size,
                 args.seq_len, args.minibatch_size]
     input_data = gen.standard_normal(x_shape, dtype=np.float32)
-    x_torch = torch.Tensor(np.array(input_data,
+    x_torch = torch.tensor(np.array(input_data,
                                     dtype=np.float32,
-                                    order="F").T)
+                                    order="F").T,
+                                    requires_grad=True)
     if args.use_nntile:
         x_nntile = np.array(input_data, dtype=np.float32, order="F")
         x_type = dtype2nntile[args.dtype]
@@ -238,6 +239,9 @@ elif args.submodule == "decoder":
         mask_torch = mask_torch[None, None, :, :].expand(args.minibatch_size,
                                                 1, -1, -1).to(torch_device)
         pos_ids_torch = torch.tensor(pos_ids).to(torch_device)
+        rotary_emb = LlamaRotaryEmbedding(config=llama_torch_config).to(torch_device)
+        pos_embs = rotary_emb(torch_layer_.self_attn.v_proj.weight,
+                                    pos_ids_torch)
     gen = np.random.default_rng(42)
     x_shape = [llama_torch_config.hidden_size,
                 args.seq_len, args.minibatch_size]
@@ -334,6 +338,7 @@ if args.use_torch:
         if args.submodule in ("decoder", "attention"):
             pos_ids_torch = pos_ids_torch.bfloat16()
             mask_torch = mask_torch.bfloat16()
+            pos_embs = pos_embs.bfloat16()
     if args.dtype == "fp32_fast_bf16":
         torch.set_float32_matmul_precision('medium')
     if args.dtype == "fp32_fast_tf32":
@@ -349,6 +354,7 @@ if args.use_torch:
             output = torch_layer(x_torch)
         elif args.submodule == "decoder":
             output = torch_layer(x_torch,
+                                position_embeddings=pos_embs,
                                 position_ids=pos_ids_torch,
                                 attention_mask=mask_torch)[0]
         elif args.submodule == "attention":
@@ -367,8 +373,9 @@ if args.use_torch:
             output = torch_layer(x_torch)
         elif args.submodule == "decoder":
             output = torch_layer(x_torch,
-                            position_ids=pos_ids_torch,
-                            attention_mask=mask_torch)[0]
+                                 position_embeddings=pos_embs,
+                                 position_ids=pos_ids_torch,
+                                 attention_mask=mask_torch)[0]
         elif args.submodule == "attention":
             output = torch_layer(x_torch, position_embeddings=pos_embs,
                             position_ids=pos_ids_torch,
@@ -376,6 +383,8 @@ if args.use_torch:
         if args.mode == "fwd-bwd":
             loss = torch.sum(output)
             loss.backward()
+            torch_layer.zero_grad()
+
         if torch_device == "cuda":
             torch.cuda.synchronize()
         timings.append(time.time() - start_torch_time)
