@@ -154,6 +154,7 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         config: GPT2Config,
         next_tag: int,
     ):
+        self.config = config
         # Check parameter side
         vocab_size = config["vocab_size"]
         vocab_embed_dim_tile = config["vocab_embed_dim_tile"]
@@ -320,7 +321,11 @@ class GPT2Model(BaseModel, LLMGenerationMixin):
         self.num_hidden_layers = num_hidden_layers
         self.next_tag = next_tag
         # Fill Base Model with the generated data
+        print('before super: ', self.config)
         super().__init__(activations, layers)
+        print('after super: ', self.config)
+        self.config = config
+        print('after fix: ', self.config)
 
         self.kvcache_size = 0
 
