@@ -281,9 +281,9 @@ __global__ void flash_softmax_gemm_kernel(
     // Calculate offsets for different shared memory arrays
     constexpr int MAX_BLOCK_SIZE = Q_BLOCK * sizeof(T_smem);
     // constexpr int SUMEXP_BLOCK_SIZE = Q_BLOCK * sizeof(T_smem);
-    constexpr int Q_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (Q_BLOCK+1) * sizeof(T_smem);
+    constexpr int Q_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (Q_BLOCK+8) * sizeof(T_smem);
     // constexpr int K_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (K_BLOCK+1) * sizeof(T_smem);
-    constexpr int SOFTMAX_BLOCK_SIZE = K_BLOCK * (Q_BLOCK+8) * sizeof(T_smem);
+    constexpr int SOFTMAX_BLOCK_SIZE = (K_BLOCK+4) * Q_BLOCK * sizeof(T_smem);
     // constexpr int V_BLOCK_SIZE = 2 * VS_HEAD_BLOCK * (V_BLOCK+1) * sizeof(T_smem);
     // constexpr int A_BLOCK_SIZE = VS_HEAD_BLOCK * (Q_BLOCK+1) * sizeof(T_smem);
 
@@ -311,11 +311,12 @@ __global__ void flash_softmax_gemm_kernel(
     };
 
     auto softmax_idx = [&](int k, int q) -> int {
-        return k * (Q_BLOCK+4) + q;
+        return q * (K_BLOCK+4) + k;
     };
 
     auto V_idx = [&](int buf, int h, int k) -> int {
         return buf * VS_HEAD_BLOCK * (V_BLOCK+1) + h * (V_BLOCK+1) + k;
+        // return buf * (VS_HEAD_BLOCK+1) * (V_BLOCK) + h + (VS_HEAD_BLOCK+1) * k;
     };
 
     auto A_idx = [&](int buf, int h, int q) -> int {
@@ -823,7 +824,7 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
         // Calculate shared memory size
         constexpr int Q_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (Q_BLOCK+1) * sizeof(float);
         constexpr int K_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (K_BLOCK+1) * sizeof(float);
-        constexpr int SOFTMAX_BLOCK_SIZE = K_BLOCK * (Q_BLOCK+8) * sizeof(float);
+        constexpr int SOFTMAX_BLOCK_SIZE = (K_BLOCK+4) * Q_BLOCK * sizeof(float);
         constexpr int V_BLOCK_SIZE = 2 * VS_HEAD_BLOCK * (V_BLOCK+1) * sizeof(float);
         // constexpr int A_BLOCK_SIZE = VS_HEAD_BLOCK * (Q_BLOCK+1) * sizeof(float);
         constexpr int SHARED_MEM_SIZE = std::max(Q_BLOCK_SIZE + K_BLOCK_SIZE,
