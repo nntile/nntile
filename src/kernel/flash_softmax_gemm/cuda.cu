@@ -275,47 +275,17 @@ __global__ void flash_softmax_gemm_kernel(
     const int warp_id = thread_id / WARP_SIZE;
     const int lane_id = thread_id % WARP_SIZE;
 
-    // Calculate number of warps in the block
-    const int num_warps = block_size / WARP_SIZE;
-
-    // Define tile dimensions for K'Q multiplication
-    constexpr int WARP_TILE_KQ_Q = 8;    // Width of tile processed by a warp
-    constexpr int WARP_TILE_KQ_K = 4;    // Height of tile processed by a warp
-
-    // Calculate thread's position within the warp's tile using interleaved pattern
-    const int thread_kq_q_idx = lane_id % WARP_TILE_KQ_Q;  // WARP_TILE_KQ_Q threads in q dimension
-    const int thread_kq_k_idx = lane_id / WARP_TILE_KQ_Q;  // WARP_TILE_KQ_K threads in k dimension
-
-    // Calculate total number of tiles
-    constexpr int total_kq_q_tiles = Q_BLOCK / WARP_TILE_KQ_Q; // Q_BLOCK is a multiple of WARP_TILE_KQ_Q
-    constexpr int total_kq_k_tiles = K_BLOCK / WARP_TILE_KQ_K; // K_BLOCK is a multiple of WARP_TILE_KQ_K
-    constexpr int total_kq_tiles = total_kq_q_tiles * total_kq_k_tiles;
-    constexpr int softmax_reg_size = total_kq_tiles / NUM_WARPS;
-
-    // Define tile dimensions for VS' multiplication
-    constexpr int WARP_TILE_VS_Q = 16;    // Width of tile processed by a warp
-    constexpr int WARP_TILE_VS_H = 2;    // Height of tile processed by a warp (head dimension)
-
-    // Calculate total number of tiles
-    constexpr int total_vs_q_tiles = Q_BLOCK / WARP_TILE_VS_Q;
-    constexpr int total_vs_h_tiles = VS_HEAD_BLOCK / WARP_TILE_VS_H;
-    constexpr int total_vs_tiles = total_vs_q_tiles * total_vs_h_tiles;
-    constexpr int output_reg_size = total_vs_tiles / NUM_WARPS;
-
-    // Thread's position within the warp's tile using interleaved pattern
-    const int thread_vs_q_idx = lane_id % WARP_TILE_VS_Q;  // 16 threads in q dimension
-    const int thread_vs_h_idx = lane_id / WARP_TILE_VS_Q;  // 2 threads in h dimension
-
     // Dynamic shared memory allocation
     extern __shared__ char shared_mem[];
 
     // Calculate offsets for different shared memory arrays
     constexpr int MAX_BLOCK_SIZE = Q_BLOCK * sizeof(T_smem);
-    constexpr int SUMEXP_BLOCK_SIZE = Q_BLOCK * sizeof(T_smem);
+    // constexpr int SUMEXP_BLOCK_SIZE = Q_BLOCK * sizeof(T_smem);
     constexpr int Q_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (Q_BLOCK+1) * sizeof(T_smem);
-    constexpr int K_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (K_BLOCK+1) * sizeof(T_smem);
+    // constexpr int K_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (K_BLOCK+1) * sizeof(T_smem);
     constexpr int SOFTMAX_BLOCK_SIZE = K_BLOCK * (Q_BLOCK+8) * sizeof(T_smem);
-    constexpr int V_BLOCK_SIZE = 2 * VS_HEAD_BLOCK * (V_BLOCK+1) * sizeof(T_smem);
+    // constexpr int V_BLOCK_SIZE = 2 * VS_HEAD_BLOCK * (V_BLOCK+1) * sizeof(T_smem);
+    // constexpr int A_BLOCK_SIZE = VS_HEAD_BLOCK * (Q_BLOCK+1) * sizeof(T_smem);
 
     // Assign pointers to shared memory regions with proper offsets
     T_smem* max_block = reinterpret_cast<T_smem*>(shared_mem);
@@ -325,6 +295,7 @@ __global__ void flash_softmax_gemm_kernel(
     T_smem* K_block = reinterpret_cast<T_smem*>(shared_mem + Q_BLOCK_SIZE);
     T_smem* softmax_block = reinterpret_cast<T_smem*>(shared_mem);
     T_smem* V_block = reinterpret_cast<T_smem*>(shared_mem + SOFTMAX_BLOCK_SIZE);
+    // T_smem* A_block = reinterpret_cast<T_smem*>(shared_mem + SOFTMAX_BLOCK_SIZE + V_BLOCK_SIZE);
 
     // Helper functions for indexing into the 1D arrays
     auto mask_idx = [&](int q, int k) -> int {
@@ -340,11 +311,15 @@ __global__ void flash_softmax_gemm_kernel(
     };
 
     auto softmax_idx = [&](int k, int q) -> int {
-        return k * (Q_BLOCK+8) + q;
+        return k * (Q_BLOCK+4) + q;
     };
 
     auto V_idx = [&](int buf, int h, int k) -> int {
         return buf * VS_HEAD_BLOCK * (V_BLOCK+1) + h * (V_BLOCK+1) + k;
+    };
+
+    auto A_idx = [&](int buf, int h, int q) -> int {
+        return buf * VS_HEAD_BLOCK * (Q_BLOCK+1) + h * (Q_BLOCK+1) + q;
     };
 
     // Number of tiles of a block of softmax(mask(K'Q)) in each dimension
@@ -364,11 +339,11 @@ __global__ void flash_softmax_gemm_kernel(
     constexpr int VS_TILE_PER_WARP = (VS_TILE_NUM + NUM_WARPS - 1) / NUM_WARPS;
 
     // Warp for softmax(mask(K'Q)) tile is the following grid of threads
-    constexpr int KQ_WARP_K_THREADS = 8;
+    constexpr int KQ_WARP_K_THREADS = 4;
     constexpr int KQ_WARP_Q_THREADS = 32 / KQ_WARP_K_THREADS;
 
     // Warp for V @ softmax tile is the following grid of threads
-    constexpr int VS_WARP_HEAD_THREADS = 4;
+    constexpr int VS_WARP_HEAD_THREADS = 8;
     constexpr int VS_WARP_Q_THREADS = 32 / VS_WARP_HEAD_THREADS;
 
     // Number of softmax(mask(K'Q)) tile elements per thread
@@ -455,8 +430,6 @@ __global__ void flash_softmax_gemm_kernel(
                 int thread_k_idx = lane_id / KQ_WARP_Q_THREADS;
                 int q_local = q_tile_idx * KQ_Q_TILE + thread_q_idx;
                 int k_local = k_tile_idx * KQ_K_TILE + thread_k_idx;
-                int q = q_block_idx * Q_BLOCK + q_local;
-                int k = kv_block_idx + k_local;
                 #pragma unroll
                 for (int i = 0; i < KQ_TILE_K_PER_THREAD; ++i)
                 {
@@ -630,7 +603,7 @@ __global__ void flash_softmax_gemm_kernel(
         // Stage 2: Compute VS
         {
             // Thread-local registers for the output VS
-            T_accum output_reg[VS_TILE_PER_WARP][VS_TILE_HEAD_PER_THREAD][
+            T_accum A_reg[VS_TILE_PER_WARP][VS_TILE_HEAD_PER_THREAD][
                 VS_TILE_Q_PER_THREAD];
 
             // Since VS is of shape HEAD_SIZE x Q_BLOCK, we process head
@@ -663,7 +636,7 @@ __global__ void flash_softmax_gemm_kernel(
                         #pragma unroll
                         for (int j = 0; j < VS_TILE_Q_PER_THREAD; ++j)
                         {
-                            output_reg[tile_idx_loop][i][j] = 0.0;
+                            A_reg[tile_idx_loop][i][j] = 0.0;
                         }
                     }
                 }
@@ -736,7 +709,7 @@ __global__ void flash_softmax_gemm_kernel(
                                 #pragma unroll
                                 for (int j = 0; j < VS_TILE_Q_PER_THREAD; ++j)
                                 {
-                                    output_reg[tile_idx_loop][i][j] +=
+                                    A_reg[tile_idx_loop][i][j] +=
                                         T_accum{a_vals[i] * b_vals[j]};
                                 }
                             }
@@ -777,7 +750,9 @@ __global__ void flash_softmax_gemm_kernel(
                             const Index head_idx = head_offset + head_idx_local;
                             const Index q_idx = q_block_idx * Q_BLOCK + q_idx_local;
                             const Index a_idx = head_idx + HEAD_SIZE * (q_idx + seq * batch_idx);
-                            atomicAdd(&A[a_idx], T_gmem{output_reg[tile_idx_loop][i][j]});
+                            atomicAdd(&A[a_idx], T_gmem{A_reg[tile_idx_loop][i][j]});
+                            //A_block[A_idx(buf_idx, head_idx_local, q_idx_local)] =
+                            //    T_smem{output_reg[tile_idx_loop][i][j]};
                         }
                     }
                 }
@@ -850,7 +825,9 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
         constexpr int K_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (K_BLOCK+1) * sizeof(float);
         constexpr int SOFTMAX_BLOCK_SIZE = K_BLOCK * (Q_BLOCK+8) * sizeof(float);
         constexpr int V_BLOCK_SIZE = 2 * VS_HEAD_BLOCK * (V_BLOCK+1) * sizeof(float);
-        constexpr int SHARED_MEM_SIZE = std::max(Q_BLOCK_SIZE + K_BLOCK_SIZE, SOFTMAX_BLOCK_SIZE + V_BLOCK_SIZE);
+        // constexpr int A_BLOCK_SIZE = VS_HEAD_BLOCK * (Q_BLOCK+1) * sizeof(float);
+        constexpr int SHARED_MEM_SIZE = std::max(Q_BLOCK_SIZE + K_BLOCK_SIZE,
+                SOFTMAX_BLOCK_SIZE + V_BLOCK_SIZE);
 
         constexpr int KQ_Q_TILE = 32;
         constexpr int KQ_K_TILE = 32;
