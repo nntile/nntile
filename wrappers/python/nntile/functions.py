@@ -2031,3 +2031,94 @@ def log_scalar_async(name: str, value: Tensor) -> None:
         ops.log_scalar_async_bf16(name, value)
     else:
         raise TypeError('Wrong tensor type {type(value)}.')
+    
+
+def fused_lars_step(
+    p: Tensor,
+    grad: Tensor,
+    momentum_buffer: Tensor,
+    lars_coefficient: float,
+    momentum: float,
+    gamma0: float,
+    num_steps: int,
+    weight_decay: float,
+    num_iter: int,
+):
+    if type(p) is not type(grad):
+        raise TypeError
+    if type(p) is not type(momentum_buffer):
+        raise TypeError
+    if type(p) is core_tensor.Tensor_fp32:
+        core_tensor.lars_step_async_fp32(
+            num_iter,
+            num_steps,
+            lars_coefficient,
+            momentum,
+            gamma0,
+            weight_decay,
+            grad,
+            momentum_buffer,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp32_fast_tf32:
+        core_tensor.lars_step_async_fp32_fast_tf32(
+            num_iter,
+            num_steps,
+            lars_coefficient,
+            momentum,
+            gamma0,
+            weight_decay,
+            grad,
+            momentum_buffer,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp32_fast_fp16:
+        core_tensor.lars_step_async_fp32_fast_fp16(
+            num_iter,
+            num_steps,
+            lars_coefficient,
+            momentum,
+            gamma0,
+            weight_decay,
+            grad,
+            momentum_buffer,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp32_fast_bf16:
+        core_tensor.lars_step_async_fp32_fast_bf16(
+            num_iter,
+            num_steps,
+            lars_coefficient,
+            momentum,
+            gamma0,
+            weight_decay,
+            grad,
+            momentum_buffer,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_fp64:
+        core_tensor.lars_step_async_fp64(
+            num_iter,
+            num_steps,
+            lars_coefficient,
+            momentum,
+            gamma0,
+            weight_decay,
+            grad,
+            momentum_buffer,
+            p,
+        )
+    elif type(p) is core_tensor.Tensor_bf16:
+        core_tensor.lars_step_async_bf16(
+            num_iter,
+            num_steps,
+            lars_coefficient,
+            momentum,
+            gamma0,
+            weight_decay,
+            grad,
+            momentum_buffer,
+            p,
+        )
+    else:
+        raise TypeError

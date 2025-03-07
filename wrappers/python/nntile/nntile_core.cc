@@ -1062,6 +1062,19 @@ void def_mod_tensor(py::module_ &m)
     m.def("adamw_step_fp32_fast_fp16", &adamw_step<fp32_fast_fp16_t>);
     m.def("adamw_step_fp32_fast_bf16", &adamw_step<fp32_fast_bf16_t>);
 
+    m.def("lars_step_async_bf16", &lars_step_async<bf16_t>);
+    m.def("lars_step_async_fp64", &lars_step_async<fp64_t>);
+    m.def("lars_step_async_fp32", &lars_step_async<fp32_t>);
+    m.def("lars_step_async_fp32_fast_tf32", &lars_step_async<fp32_fast_tf32_t>);
+    m.def("lars_step_async_fp32_fast_fp16", &lars_step_async<fp32_fast_fp16_t>);
+    m.def("lars_step_async_fp32_fast_bf16", &lars_step_async<fp32_fast_bf16_t>);
+    m.def("lars_step_fp64", &lars_step<fp64_t>);
+    m.def("lars_step_bf16", &lars_step<bf16_t>);
+    m.def("lars_step_fp32", &lars_step<fp32_t>);
+    m.def("lars_step_fp32_fast_tf32", &lars_step<fp32_fast_tf32_t>);
+    m.def("lars_step_fp32_fast_fp16", &lars_step<fp32_fast_fp16_t>);
+    m.def("lars_step_fp32_fast_bf16", &lars_step<fp32_fast_bf16_t>);
+    
     m.def("scal_inplace_async_fp64", &scal_inplace_async<fp64_t>);
     m.def("scal_inplace_async_fp32", &scal_inplace_async<fp32_t>);
     m.def("scal_inplace_async_fp32_fast_tf32", &scal_inplace_async<fp32_fast_tf32_t>);
