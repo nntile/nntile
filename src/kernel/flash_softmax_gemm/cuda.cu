@@ -283,9 +283,10 @@ __global__ void flash_softmax_gemm_kernel(
     // constexpr int SUMEXP_BLOCK_SIZE = Q_BLOCK * sizeof(T_smem);
     constexpr int Q_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (Q_BLOCK+8) * sizeof(T_smem);
     // constexpr int K_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (K_BLOCK+1) * sizeof(T_smem);
-    constexpr int SOFTMAX_BLOCK_SIZE = (K_BLOCK+4) * Q_BLOCK * sizeof(T_smem);
-    // constexpr int V_BLOCK_SIZE = 2 * VS_HEAD_BLOCK * (V_BLOCK+1) * sizeof(T_smem);
-    // constexpr int A_BLOCK_SIZE = VS_HEAD_BLOCK * (Q_BLOCK+1) * sizeof(T_smem);
+    constexpr int SOFTMAX_BLOCK_SIZE = K_BLOCK * (Q_BLOCK+4) * sizeof(T_smem);
+    // constexpr int SOFTMAX_BLOCK_SIZE = V_BLOCK * (Q_BLOCK+4) * sizeof(T_smem);
+    constexpr int V_BLOCK_SIZE = 2 * VS_HEAD_BLOCK * (V_BLOCK+1) * sizeof(T_smem);
+    // constexpr int A_BLOCK_SIZE = 2 * VS_HEAD_BLOCK * (Q_BLOCK+1) * sizeof(T_smem);
 
     // Assign pointers to shared memory regions with proper offsets
     T_smem* max_block = reinterpret_cast<T_smem*>(shared_mem);
@@ -295,7 +296,7 @@ __global__ void flash_softmax_gemm_kernel(
     T_smem* K_block = reinterpret_cast<T_smem*>(shared_mem + Q_BLOCK_SIZE);
     T_smem* softmax_block = reinterpret_cast<T_smem*>(shared_mem);
     T_smem* V_block = reinterpret_cast<T_smem*>(shared_mem + SOFTMAX_BLOCK_SIZE);
-    // T_smem* A_block = reinterpret_cast<T_smem*>(shared_mem + SOFTMAX_BLOCK_SIZE + V_BLOCK_SIZE);
+    T_smem* A_block = reinterpret_cast<T_smem*>(shared_mem + SOFTMAX_BLOCK_SIZE + V_BLOCK_SIZE);
 
     // Helper functions for indexing into the 1D arrays
     auto mask_idx = [&](int q, int k) -> int {
@@ -311,7 +312,7 @@ __global__ void flash_softmax_gemm_kernel(
     };
 
     auto softmax_idx = [&](int k, int q) -> int {
-        return q * (K_BLOCK+4) + k;
+        return k * (Q_BLOCK+4) + q;
     };
 
     auto V_idx = [&](int buf, int h, int k) -> int {
@@ -340,7 +341,7 @@ __global__ void flash_softmax_gemm_kernel(
     constexpr int VS_TILE_PER_WARP = (VS_TILE_NUM + NUM_WARPS - 1) / NUM_WARPS;
 
     // Warp for softmax(mask(K'Q)) tile is the following grid of threads
-    constexpr int KQ_WARP_K_THREADS = 4;
+    constexpr int KQ_WARP_K_THREADS = 8;
     constexpr int KQ_WARP_Q_THREADS = 32 / KQ_WARP_K_THREADS;
 
     // Warp for V @ softmax tile is the following grid of threads
@@ -357,8 +358,8 @@ __global__ void flash_softmax_gemm_kernel(
     constexpr int VS_TILE_Q_PER_THREAD = VS_Q_TILE / VS_WARP_Q_THREADS;
 
     // Thread-local registers for max and sumexp of softmax(mask(K'Q))
-    T_accum max_reg[KQ_Q_TILE_NUM][KQ_TILE_Q_PER_THREAD];
-    T_accum sumexp_reg[KQ_Q_TILE_NUM][KQ_TILE_Q_PER_THREAD];
+    T_accum max_reg[KQ_TILE_PER_WARP][KQ_TILE_Q_PER_THREAD];
+    T_accum sumexp_reg[KQ_TILE_PER_WARP][KQ_TILE_Q_PER_THREAD];
 
     for (int i = 2 * thread_id; i < Q_BLOCK; i += 2 * block_size)
     {
@@ -371,16 +372,28 @@ __global__ void flash_softmax_gemm_kernel(
     }
     __syncthreads();
 
-    int q_lane_id = lane_id % KQ_WARP_Q_THREADS;
+    // int magic_number = (warp_id % KQ_Q_TILE_NUM) * KQ_Q_TILE;
+    // magic_number += lane_id % KQ_WARP_Q_THREADS;
     #pragma unroll
-    for (int i = 0; i < KQ_Q_TILE_NUM; ++i)
+    for (int tile_idx_loop = 0; tile_idx_loop < KQ_TILE_PER_WARP;
+            ++tile_idx_loop)
     {
+        int tile_idx = warp_id + tile_idx_loop * NUM_WARPS;
+        if(tile_idx >= KQ_TILE_NUM)
+        {
+            // break;
+        }
+        int q_tile_idx = (tile_idx % KQ_Q_TILE_NUM);
+        int thread_q_idx = lane_id % KQ_WARP_Q_THREADS;
+        int q_local = q_tile_idx * KQ_Q_TILE + thread_q_idx;
         #pragma unroll
         for (int j = 0; j < KQ_TILE_Q_PER_THREAD; ++j)
         {
-            int q_idx = i * KQ_Q_TILE + q_lane_id + j * KQ_WARP_Q_THREADS;
-            max_reg[i][j] = max_block[q_idx];
-            sumexp_reg[i][j] = sumexp_block[q_idx];
+            int q_idx = q_local + j * KQ_WARP_Q_THREADS;
+            max_reg[tile_idx_loop][j] = max_block[q_idx];
+            sumexp_reg[tile_idx_loop][j] = sumexp_block[q_idx];
+            // max_reg[tile_idx_loop][j] = max_block[magic_number + j * KQ_WARP_Q_THREADS];
+            // sumexp_reg[tile_idx_loop][j] = sumexp_block[magic_number + j * KQ_WARP_Q_THREADS];
         }
     }
     __syncthreads();
@@ -439,6 +452,8 @@ __global__ void flash_softmax_gemm_kernel(
                     {
                         if (mask_block[mask_idx(q_local + KQ_WARP_Q_THREADS * j,
                                 k_local + KQ_WARP_K_THREADS * i)])
+                        // if (mask_block[mask_idx(magic_number + KQ_WARP_Q_THREADS * j,
+                        //         k_local + KQ_WARP_K_THREADS * i)])
                         {
                             softmax_reg[tile_idx_loop][i][j] = 0;
                         }
@@ -544,6 +559,7 @@ __global__ void flash_softmax_gemm_kernel(
                         {
                             // Load from Q_block
                             b_vals[j] = Q_block[Q_idx(buf_idx, h,
+                                // magic_number + KQ_WARP_Q_THREADS * j)];
                                 q + KQ_WARP_Q_THREADS * j)];
                         }
                         #pragma unroll
@@ -584,16 +600,16 @@ __global__ void flash_softmax_gemm_kernel(
                 #pragma unroll
                 for (int j = 0; j < KQ_TILE_Q_PER_THREAD; ++j)
                 {
-                    const T_accum max_val = max_reg[q_tile_idx][j];
-                    const T_accum sumexp = sumexp_reg[q_tile_idx][j];
+                    const T_accum max_val = max_reg[tile_idx_loop][j];
+                    const T_accum sumexp = sumexp_reg[tile_idx_loop][j];
                     #pragma unroll
                     for (int i = 0; i < KQ_TILE_K_PER_THREAD; ++i)
                     {
-                        softmax_reg[tile_idx_loop][i][j] =
-                            ::exp(scale * softmax_reg[tile_idx_loop][i][j]
-                                - max_val
-                            ) * sumexp;
+                        T_accum val = scale * softmax_reg[tile_idx_loop][i][j];
+                        softmax_reg[tile_idx_loop][i][j] = sumexp
+                            * ::exp(val - max_val);
                         softmax_block[softmax_idx(k + KQ_WARP_K_THREADS * i,
+                            // magic_number + KQ_WARP_Q_THREADS * j)] =
                             q + KQ_WARP_Q_THREADS * j)] =
                             T_smem{softmax_reg[tile_idx_loop][i][j]};
                     }
@@ -752,16 +768,16 @@ __global__ void flash_softmax_gemm_kernel(
                             const Index q_idx = q_block_idx * Q_BLOCK + q_idx_local;
                             const Index a_idx = head_idx + HEAD_SIZE * (q_idx + seq * batch_idx);
                             atomicAdd(&A[a_idx], T_gmem{A_reg[tile_idx_loop][i][j]});
-                            //A_block[A_idx(buf_idx, head_idx_local, q_idx_local)] =
-                            //    T_smem{output_reg[tile_idx_loop][i][j]};
+                            // A_block[A_idx(buf_idx, head_idx_local, q_idx_local)] =
+                            //     T_smem{A_reg[tile_idx_loop][i][j]};
                         }
                     }
                 }
 
                 __syncthreads();
             }
-        }
-    } // End of stage 2
+        } // End of stage 2
+    }
 }
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -783,6 +799,9 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
     constexpr int NUM_THREADS = 128;  // Total number of threads per block
     constexpr int NUM_WARPS = NUM_THREADS / 32; // Number of warps per block
 
+    // Ensure we have the right number of threads for the warps
+    static_assert(NUM_THREADS % 32 == 0, "NUM_THREADS must be a multiple of 32 (warp size)");
+
     // K'Q matmul is done by blocks:
     // K is split into blocks of size KQ_HEAD_BLOCK x K_BLOCK
     // Q is split into blocks of size KQ_HEAD_BLOCK x Q_BLOCK
@@ -802,8 +821,25 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
     // CUDA block. This is done to balance between parallelism and overhead.
     constexpr int KV_SPLIT = 1;
 
-    // Ensure we have the right number of threads for the warps
-    static_assert(NUM_THREADS % 32 == 0, "NUM_THREADS must be a multiple of 32 (warp size)");
+    // Calculate shared memory size
+    constexpr int Q_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (Q_BLOCK+1) * sizeof(float);
+    constexpr int K_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (K_BLOCK+1) * sizeof(float);
+    constexpr int SOFTMAX_BLOCK_SIZE = K_BLOCK * (Q_BLOCK+4) * sizeof(float);
+    constexpr int V_BLOCK_SIZE = 2 * VS_HEAD_BLOCK * (V_BLOCK+1) * sizeof(float);
+    // constexpr int A_BLOCK_SIZE = 2 * VS_HEAD_BLOCK * (Q_BLOCK+1) * sizeof(float);
+    constexpr int SHARED_MEM_SIZE = std::max(Q_BLOCK_SIZE + K_BLOCK_SIZE,
+            SOFTMAX_BLOCK_SIZE + V_BLOCK_SIZE);
+
+    constexpr int KQ_Q_TILE = 32;
+    constexpr int KQ_K_TILE = 32;
+    constexpr int VS_HEAD_TILE = 32;
+    constexpr int VS_Q_TILE = 32;
+    static_assert(K_BLOCK * Q_BLOCK >= KQ_Q_TILE * KQ_K_TILE * NUM_WARPS,
+            "K_BLOCK * Q_BLOCK must be greater than KQ_Q_TILE * KQ_K_TILE "
+            "* NUM_WARPS");
+    static_assert(Q_BLOCK * VS_HEAD_BLOCK >= VS_Q_TILE * VS_HEAD_TILE * NUM_WARPS,
+            "Q_BLOCK * VS_HEAD_BLOCK must be greater than VS_Q_TILE * VS_HEAD_TILE "
+            "* NUM_WARPS");
 
     // Use 1D thread blocks instead of 2D
     dim3 threads(NUM_THREADS);
@@ -817,23 +853,9 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
     cudaMemsetAsync(A, 0, batch * head * seq * sizeof(T), stream);
 
     // Launch kernel based on head size
-    // Note: KQ_HEAD_BLOCK and VS_HEAD_BLOCK must be divisible by 4 for optimal vectorized memory access
-    if (head == 64) {
+    if (head == 64)
+    {
         constexpr int HEAD_SIZE = 64;
-
-        // Calculate shared memory size
-        constexpr int Q_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (Q_BLOCK+1) * sizeof(float);
-        constexpr int K_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (K_BLOCK+1) * sizeof(float);
-        constexpr int SOFTMAX_BLOCK_SIZE = (K_BLOCK+4) * Q_BLOCK * sizeof(float);
-        constexpr int V_BLOCK_SIZE = 2 * VS_HEAD_BLOCK * (V_BLOCK+1) * sizeof(float);
-        // constexpr int A_BLOCK_SIZE = VS_HEAD_BLOCK * (Q_BLOCK+1) * sizeof(float);
-        constexpr int SHARED_MEM_SIZE = std::max(Q_BLOCK_SIZE + K_BLOCK_SIZE,
-                SOFTMAX_BLOCK_SIZE + V_BLOCK_SIZE);
-
-        constexpr int KQ_Q_TILE = 32;
-        constexpr int KQ_K_TILE = 32;
-        constexpr int VS_HEAD_TILE = 32;
-        constexpr int VS_Q_TILE = 32;
 
         if constexpr (std::is_same_v<T, nntile::fp32_t>)
         {
@@ -860,6 +882,62 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
         }
         // TODO: enable other types T later
     } // TODO: enable other heads later
+    else if (head == 128)
+    {
+        constexpr int HEAD_SIZE = 128;
+        if constexpr (std::is_same_v<T, nntile::fp32_t>)
+        {
+            cudaFuncSetAttribute(
+                flash_softmax_gemm_kernel<float, float, float,
+                    HEAD_SIZE, Q_BLOCK, K_BLOCK, KQ_HEAD_BLOCK, KQ_Q_TILE,
+                    KQ_K_TILE, VS_HEAD_BLOCK, V_BLOCK, VS_HEAD_TILE,
+                    VS_Q_TILE, KV_SPLIT, NUM_WARPS>,
+                    cudaFuncAttributeMaxDynamicSharedMemorySize, 160000);
+
+            flash_softmax_gemm_kernel<float, float, float,
+                    HEAD_SIZE, Q_BLOCK, K_BLOCK, KQ_HEAD_BLOCK, KQ_Q_TILE,
+                    KQ_K_TILE, VS_HEAD_BLOCK, V_BLOCK, VS_HEAD_TILE,
+                    VS_Q_TILE, KV_SPLIT, NUM_WARPS>
+                <<<blocks, threads, SHARED_MEM_SIZE, stream>>>(batch, seq, scale.value,
+                    reinterpret_cast<const float*>(K), reinterpret_cast<const float*>(Q), mask,
+                    reinterpret_cast<const float*>(maxsumexp), reinterpret_cast<const float*>(V),
+                    reinterpret_cast<float*>(A));
+            gpuErrchk( cudaPeekAtLastError() );
+        }
+        else
+        {
+            std::cerr << "Unsupported type: " << typeid(T).name() << std::endl;
+        }
+        // TODO: enable other types T later
+    }
+    else if (head == 256)
+    {
+        constexpr int HEAD_SIZE = 256;
+        if constexpr (std::is_same_v<T, nntile::fp32_t>)
+        {
+            cudaFuncSetAttribute(
+                flash_softmax_gemm_kernel<float, float, float,
+                    HEAD_SIZE, Q_BLOCK, K_BLOCK, KQ_HEAD_BLOCK, KQ_Q_TILE,
+                    KQ_K_TILE, VS_HEAD_BLOCK, V_BLOCK, VS_HEAD_TILE,
+                    VS_Q_TILE, KV_SPLIT, NUM_WARPS>,
+                    cudaFuncAttributeMaxDynamicSharedMemorySize, 160000);
+
+            flash_softmax_gemm_kernel<float, float, float,
+                    HEAD_SIZE, Q_BLOCK, K_BLOCK, KQ_HEAD_BLOCK, KQ_Q_TILE,
+                    KQ_K_TILE, VS_HEAD_BLOCK, V_BLOCK, VS_HEAD_TILE,
+                    VS_Q_TILE, KV_SPLIT, NUM_WARPS>
+                <<<blocks, threads, SHARED_MEM_SIZE, stream>>>(batch, seq, scale.value,
+                    reinterpret_cast<const float*>(K), reinterpret_cast<const float*>(Q), mask,
+                    reinterpret_cast<const float*>(maxsumexp), reinterpret_cast<const float*>(V),
+                    reinterpret_cast<float*>(A));
+            gpuErrchk( cudaPeekAtLastError() );
+        }
+        else
+        {
+            std::cerr << "Unsupported type: " << typeid(T).name() << std::endl;
+        }
+        // TODO: enable other types T later
+    }
 }
 
 // Explicit instantiation
