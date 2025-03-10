@@ -317,12 +317,20 @@ __global__ void flash_maxsumexp_kernel(
     T_smem* max_reduce = reinterpret_cast<T_smem*>(shared_mem + Q_BLOCK_SIZE + K_BLOCK_SIZE);
     T_smem* sumexp_reduce = reinterpret_cast<T_smem*>(shared_mem + Q_BLOCK_SIZE + K_BLOCK_SIZE + MAX_REDUCE_SIZE);
 
-    // Init max and sum of exponents for the entire block
-    // We only need to initialize the first buffer (index 0) which will store the accumulated results
-    for (int i = thread_id; i < KQ_K_TILE_NUM * Q_BLOCK; i += block_size)
+    // Init max and sum of exponents for the entire block of threads
+    if(thread_id < Q_BLOCK)
     {
-        max_reduce[i] = -std::numeric_limits<T_accum>::infinity();
-        sumexp_reduce[i] = 0;
+        max_reduce[max_idx(0, thread_id)] = maxsumexp[2 * (thread_id + seq * batch_idx)];
+        sumexp_reduce[sumexp_idx(0, thread_id)] = maxsumexp[2 * (thread_id + seq * batch_idx) + 1];
+        if(sumexp_reduce[sumexp_idx(0, thread_id)] == 0.0)
+        {
+            max_reduce[max_idx(0, thread_id)] = -std::numeric_limits<T_accum>::infinity();
+        }
+        for(int i = 1; i < KQ_K_TILE_NUM; ++i)
+        {
+            max_reduce[max_idx(i, thread_id)] = -std::numeric_limits<T_accum>::infinity();
+            sumexp_reduce[sumexp_idx(i, thread_id)] = 0.0;
+        }
     }
     __syncthreads();
 
@@ -387,6 +395,7 @@ __global__ void flash_maxsumexp_kernel(
                 }
             }
 
+            // Sync to ensure all threads have loaded the mask(K'Q) block
             __syncthreads();
 
             // Load the first Q block of shape KQ_HEAD_BLOCK x Q_BLOCK
@@ -409,14 +418,14 @@ __global__ void flash_maxsumexp_kernel(
                 block_size
             );
 
-            // Wait for all threads to load the first K and Q blocks
-            __syncthreads();
-
             // Process head dimension in chunks to compute entire block of K'Q
             #pragma unroll 1
             for (int head_offset = 0; head_offset < HEAD_SIZE;
                     head_offset += KQ_HEAD_BLOCK)
             {
+                // Synchronize to ensure all threads have loaded the current K and Q blocks
+                __syncthreads();
+
                 // Buffer index for next iteration
                 int next_buf_idx = 1 - buf_idx;
 
@@ -492,8 +501,6 @@ __global__ void flash_maxsumexp_kernel(
                     }
                 }
 
-                __syncthreads();
-
                 // Swap buffers for next iteration
                 buf_idx = 1 - buf_idx;
             }
@@ -524,38 +531,30 @@ __global__ void flash_maxsumexp_kernel(
                     #pragma unroll
                     for (int i = 0; i < KQ_TILE_K_PER_THREAD; ++i)
                     {
-                        if (std::isfinite(kq_reg[tile_idx_loop][i][j]))
-                        {
-                            kq_reg[tile_idx_loop][i][j] *= scale;
-                            new_warp_max = ::max(new_warp_max, kq_reg[tile_idx_loop][i][j]);
-                        }
+                        kq_reg[tile_idx_loop][i][j] *= scale;
+                        new_warp_max = ::max(new_warp_max, kq_reg[tile_idx_loop][i][j]);
                     }
 
                     // Use warp shuffle to perform reduction within each warp
-                    for (int k = 1; k < KQ_WARP_K_THREADS; ++k)
+                    #pragma unroll
+                    for (int offset = KQ_WARP_K_THREADS/2; offset > 0; offset /= 2)
                     {
                         // Calculate the lane ID of the thread to communicate with
-                        int target_lane = thread_q_idx + k * KQ_WARP_Q_THREADS;
+                        int target_lane = lane_id + offset * KQ_WARP_Q_THREADS;
 
                         // Get the max value from that thread
                         T_accum other = __shfl_sync(0xffffffff, new_warp_max, target_lane);
 
-                        // Update our max value if the first thread in the column
-                        if (thread_k_idx == 0)
-                        {
-                            if (std::isfinite(other))
-                            {
-                                new_warp_max = ::max(new_warp_max, other);
-                            }
-                        }
+                        // Update our max value
+                        new_warp_max = ::max(new_warp_max, other);
                     }
 
                     // Step 2: Only the first thread in each column updates the per-warp maximum
-                    if (thread_k_idx == 0)
+                    if (thread_k_idx == 0 && std::isfinite(new_warp_max))
                     {
                         // Update the per-warp maximum and sum of exponentials by comparing with the current value
                         T_accum current_warp_max = T_accum{max_reduce[max_idx(k_tile_idx, q_idx)]};
-                        if(std::isfinite(new_warp_max) && new_warp_max > current_warp_max)
+                        if(new_warp_max > current_warp_max)
                         {
                             max_reduce[max_idx(k_tile_idx, q_idx)] = T_smem{new_warp_max};
                             sumexp_reduce[sumexp_idx(k_tile_idx, q_idx)] *= ::exp(current_warp_max - new_warp_max);
@@ -563,9 +562,6 @@ __global__ void flash_maxsumexp_kernel(
                     }
                 }
             }
-
-            // Synchronize to ensure all warps have updated their maximums
-            __syncthreads();
 
             // Now compute the sum of exponentials for each column using the per-warp maximums
             #pragma unroll
@@ -599,24 +595,22 @@ __global__ void flash_maxsumexp_kernel(
                         }
                     }
 
-                    // Perform reduction using shuffle operations
-                    for (int k = 1; k < KQ_WARP_K_THREADS; k++)
+                    // Perform logarithmic reduction using shuffle operations
+                    #pragma unroll
+                    for (int offset = KQ_WARP_K_THREADS/2; offset > 0; offset /= 2)
                     {
                         // Calculate the lane ID of the thread to communicate with
-                        int target_lane = thread_q_idx + k * KQ_WARP_Q_THREADS;
+                        int target_lane = lane_id + offset * KQ_WARP_Q_THREADS;
 
                         // Get the sum value from that thread
                         T_accum other = __shfl_sync(0xffffffff, new_warp_sum_exp, target_lane);
 
-                        // Add to our sum if the first thread in the column
-                        if (thread_k_idx == 0)
-                        {
-                            new_warp_sum_exp += other;
-                        }
+                        // Add to our sum
+                        new_warp_sum_exp += other;
                     }
 
                     // Only the first thread in each column updates the per-warp sum
-                    if (thread_k_idx == 0)
+                    if (thread_k_idx == 0 && new_warp_sum_exp > 0.0)
                     {
                         // Update the per-warp sum by adding the current value
                         T_accum current_warp_sum_exp = T_accum{sumexp_reduce[sumexp_idx(k_tile_idx, q_idx)]};
@@ -624,61 +618,40 @@ __global__ void flash_maxsumexp_kernel(
                     }
                 }
             }
-            __syncthreads();
         } // End of stage 2
     }
+
+    // Sync to ensure all threads have completed stage 2
+    __syncthreads();
 
     // Stage 3: Combine per-warp maximums and sums into per-block values and update global memory
     if (thread_id < Q_BLOCK)
     {
         // Read maximum and sumexp from global memory
         int q_idx = q_block_idx * Q_BLOCK + thread_id;
-        T_accum global_max = T_accum{maxsumexp[2 * (q_idx + seq * batch_idx)]};
-        T_accum global_sum_exp = T_accum{maxsumexp[2 * (q_idx + seq * batch_idx) + 1]};
-        // maxsumexp is initialized with zeros, so we need to check if it is still zero
-        if (global_sum_exp == 0.0)
-        {
-            global_max = -std::numeric_limits<T_accum>::infinity();
-        }
 
         // Convert per-warp maximums into per-block maximum
         T_accum block_max_val = -std::numeric_limits<T_accum>::infinity();
+        #pragma unroll
         for (int k = 0; k < KQ_K_TILE_NUM; ++k)
         {
             block_max_val = ::max(block_max_val, T_accum{max_reduce[max_idx(k, thread_id)]});
         }
 
-        // Compute sum of exponentials across all k_tile_idx values
-        T_accum block_sum_exp = 0;
+        // Update global max and sumexp only if global max (including value read from the global memory) is not -inf
         if (std::isfinite(block_max_val))
         {
+            // Compute sum of exponentials across all k_tile_idx values
+            T_accum block_sum_exp = 0;
+            #pragma unroll
             for (int k = 0; k < KQ_K_TILE_NUM; ++k)
             {
                 block_sum_exp += T_accum{sumexp_reduce[sumexp_idx(k, thread_id)]}
                     * ::exp(T_accum{max_reduce[max_idx(k, thread_id)]} - block_max_val);
             }
-        }
-
-        // Update global sumexp
-        if (std::isfinite(block_max_val))
-        {
-            if (block_max_val > global_max)
-            {
-                // Update global sumexp
-                global_sum_exp = global_sum_exp * ::exp(global_max - block_max_val) + block_sum_exp;
-
-                // Write the final max and sumexp values to global memory
-                maxsumexp[2 * (q_idx + seq * batch_idx)] = T_gmem{block_max_val};
-                maxsumexp[2 * (q_idx + seq * batch_idx) + 1] = T_gmem{global_sum_exp};
-            }
-            else
-            {
-                // Update global sumexp
-                global_sum_exp = block_sum_exp * ::exp(block_max_val - global_max) + global_sum_exp;
-
-                // Write the final max (untouched) and sumexp values to global memory
-                maxsumexp[2 * (q_idx + seq * batch_idx) + 1] = T_gmem{global_sum_exp};
-            }
+            // Write the final max and sumexp values to global memory
+            maxsumexp[2 * (q_idx + seq * batch_idx)] = T_gmem{block_max_val};
+            maxsumexp[2 * (q_idx + seq * batch_idx) + 1] = T_gmem{block_sum_exp};
         }
     }
 }
