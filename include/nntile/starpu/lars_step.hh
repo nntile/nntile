@@ -24,10 +24,9 @@ namespace nntile::starpu::lars_step
 struct args_t
 {
     Index num_iter;
-    // Index num_elems; TODO don't understand what is this for
+    Index num_elems;
     Index num_steps;
     Scalar gamma_0;
-    Scalar eps;
     Scalar momentum;
     Scalar weight_decay;
     Scalar lars_coefficient;
@@ -98,8 +97,8 @@ void restrict_where(uint32_t where);
 void restore_where();
 
 template<typename T>
-void submit(Index num_iter, Index num_steps, Scalar gamma_0, Scalar eps,
+void submit(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0,
             Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
-            Handle grad, Handle first_moment, Handle second_moment, Handle p);
+            Handle grad, Handle momentum_buffer, Handle p);
 
 } // namespace nntile::starpu::lars_step
