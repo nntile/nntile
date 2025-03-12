@@ -85,6 +85,7 @@
 #include <nntile/tensor/hypot_scalar_inverse.hh>
 #include <nntile/tensor/adam_step.hh>
 #include <nntile/tensor/adamw_step.hh>
+#include <nntile/tensor/lars_step.hh>
 #include <nntile/tensor/transpose.hh>
 #include <nntile/tensor/silu_forward.hh>
 #include <nntile/tensor/silu_backward.hh>

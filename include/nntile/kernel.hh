@@ -68,6 +68,7 @@
 #include <nntile/kernel/scal.hh>
 #include <nntile/kernel/adam_step.hh>
 #include <nntile/kernel/adamw_step.hh>
+#include <nntile/kernel/lars_step.hh>
 #include <nntile/kernel/transpose.hh>
 #include <nntile/kernel/silu_forward.hh>
 #include <nntile/kernel/silu_backward.hh>
