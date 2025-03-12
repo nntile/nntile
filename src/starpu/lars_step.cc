@@ -33,9 +33,8 @@ void cpu(void *buffers[], void *cl_args)
     // Get interfaces
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *grad = interfaces[0]->get_ptr<T>();
-    T *first_moments = interfaces[1]->get_ptr<T>();
-    T *second_moments = interfaces[2]->get_ptr<T>();
-    T* p = interfaces[3]->get_ptr<T>();
+    T *momentum_buffer = interfaces[1]->get_ptr<T>();
+    T *weights = interfaces[2]->get_ptr<T>();
     // Launch kernel
     kernel::lars_step::cpu<T>(args->num_iter, args->num_elems, args->num_steps, args->gamma_0,
         args->momentum, args->weight_decay, args->lars_coefficient,
@@ -56,7 +55,7 @@ void cuda(void *buffers[], void *cl_args)
     auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
     T *grad = interfaces[0]->get_ptr<T>();
     T *momentum_buffer = interfaces[1]->get_ptr<T>();
-    T* p = interfaces[2]->get_ptr<T>();
+    T *p = interfaces[2]->get_ptr<T>();
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
