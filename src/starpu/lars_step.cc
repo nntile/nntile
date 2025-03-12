@@ -153,7 +153,7 @@ void restore_where()
 }
 
 template<typename T>
-void submit(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum,
+void submit(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0, Scalar momentum,
     Scalar weight_decay, Scalar lars_coefficient,
     Handle grad, Handle momentum_buffer, Handle p)
 {
@@ -192,32 +192,32 @@ void submit(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum,
 
 // Explicit instantiaion
 template
-void submit<fp32_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum,
+void submit<fp32_t>(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0, Scalar momentum,
     Scalar weight_decay, Scalar lars_coefficient,
     Handle grad, Handle momentum_buffer, Handle p);
 
 template
-void submit<fp32_fast_tf32_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum,
+void submit<fp32_fast_tf32_t>(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0, Scalar momentum,
     Scalar weight_decay, Scalar lars_coefficient,
     Handle grad, Handle momentum_buffer, Handle p);
 
 template
-void submit<fp32_fast_fp16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum,
+void submit<fp32_fast_fp16_t>(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0, Scalar momentum,
     Scalar weight_decay, Scalar lars_coefficient,
     Handle grad, Handle momentum_buffer, Handle p);
 
 template
-void submit<fp32_fast_bf16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum,
+void submit<fp32_fast_bf16_t>(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0, Scalar momentum,
     Scalar weight_decay, Scalar lars_coefficient,
     Handle grad, Handle momentum_buffer, Handle p);
 
 template
-void submit<fp64_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum,
+void submit<fp64_t>(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0, Scalar momentum,
     Scalar weight_decay, Scalar lars_coefficient,
     Handle grad, Handle momentum_buffer, Handle p);
 
 template
-void submit<bf16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum,
+void submit<bf16_t>(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0, Scalar momentum,
     Scalar weight_decay, Scalar lars_coefficient,
     Handle grad, Handle momentum_buffer, Handle p);
 
