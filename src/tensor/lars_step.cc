@@ -20,7 +20,7 @@ namespace nntile::tensor
 
 //! Asynchronous tensor-wise fuse LARS step
 template<typename T>
-void lars_step_async(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
+void lars_step_async(Index num_iter, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                            const Tensor<T> &grad, const Tensor<T> &momentum_buffer, const Tensor<T> &p)
 {
     if (p.matrix_shape != grad.matrix_shape)
@@ -63,62 +63,62 @@ void lars_step_async(Index num_iter, Index num_steps, Scalar gamma_0, Scalar mom
 
 //! Blocking version of tensor-wise addcdiv operation
 template<typename T>
-void lars_step(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
-                           const Tensor<T> &grad, const Tensor<T> &momentum_buffer, const Tensor<T> &p)
+void lars_step(Index num_iter, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
+    const Tensor<T> &grad, const Tensor<T> &momentum_buffer, const Tensor<T> &p)
 {
-    lars_step_async<T>(num_iter, num_steps, gamma_0, momentum, weight_decay, lars_coefficient, grad, momentum_buffer, p);
+    lars_step_async<T>(num_iter, gamma_0, momentum, weight_decay, lars_coefficient, grad, momentum_buffer, p);
     starpu_task_wait_for_all();
     starpu_mpi_wait_for_all(MPI_COMM_WORLD);
 }
 
 // Explicit instantiation
 template
-void lars_step_async<fp32_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
+void lars_step_async<fp32_t>(Index num_iter, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                            const Tensor<fp32_t> &grad, const Tensor<fp32_t> &momentum_buffer, const Tensor<fp32_t> &p);
 
 template
-void lars_step_async<fp32_fast_tf32_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
+void lars_step_async<fp32_fast_tf32_t>(Index num_iter, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                            const Tensor<fp32_fast_tf32_t> &grad, const Tensor<fp32_fast_tf32_t> &momentum_buffer, const Tensor<fp32_fast_tf32_t> &p);
 
 template
-void lars_step_async<fp32_fast_fp16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
+void lars_step_async<fp32_fast_fp16_t>(Index num_iter, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                            const Tensor<fp32_fast_fp16_t> &grad, const Tensor<fp32_fast_fp16_t> &momentum_buffer, const Tensor<fp32_fast_fp16_t> &p);
 
 template
-void lars_step_async<fp32_fast_bf16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
+void lars_step_async<fp32_fast_bf16_t>(Index num_iter, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                            const Tensor<fp32_fast_bf16_t> &grad, const Tensor<fp32_fast_bf16_t> &momentum_buffer, const Tensor<fp32_fast_bf16_t> &p);
 
 template
-void lars_step_async<fp64_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
+void lars_step_async<fp64_t>(Index num_iter, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                            const Tensor<fp64_t> &grad, const Tensor<fp64_t> &momentum_buffer, const Tensor<fp64_t> &p);
 
 template
-void lars_step_async<bf16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
+void lars_step_async<bf16_t>(Index num_iter, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                            const Tensor<bf16_t> &grad, const Tensor<bf16_t> &momentum_buffer, const Tensor<bf16_t> &p);
 
 // Explicit instantiation
 template
-void lars_step<fp32_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
+void lars_step<fp32_t>(Index num_iter, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                            const Tensor<fp32_t> &grad, const Tensor<fp32_t> &momentum_buffer, const Tensor<fp32_t> &p);
 
 template
-void lars_step<fp32_fast_tf32_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
+void lars_step<fp32_fast_tf32_t>(Index num_iter, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                            const Tensor<fp32_fast_tf32_t> &grad, const Tensor<fp32_fast_tf32_t> &momentum_buffer, const Tensor<fp32_fast_tf32_t> &p);
 
 template
-void lars_step<fp32_fast_fp16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
+void lars_step<fp32_fast_fp16_t>(Index num_iter, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                            const Tensor<fp32_fast_fp16_t> &grad, const Tensor<fp32_fast_fp16_t> &momentum_buffer, const Tensor<fp32_fast_fp16_t> &p);
 
 template
-void lars_step<fp32_fast_bf16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
+void lars_step<fp32_fast_bf16_t>(Index num_iter, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                            const Tensor<fp32_fast_bf16_t> &grad, const Tensor<fp32_fast_bf16_t> &momentum_buffer, const Tensor<fp32_fast_bf16_t> &p);
 
 template
-void lars_step<fp64_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
+void lars_step<fp64_t>(Index num_iter, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                            const Tensor<fp64_t> &grad, const Tensor<fp64_t> &momentum_buffer, const Tensor<fp64_t> &p);
 
 template
-void lars_step<bf16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
+void lars_step<bf16_t>(Index num_iter, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                            const Tensor<bf16_t> &grad, const Tensor<bf16_t> &momentum_buffer, const Tensor<bf16_t> &p);
 
 } // namespace nntile::tensor
