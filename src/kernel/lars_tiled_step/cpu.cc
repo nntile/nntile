@@ -16,11 +16,24 @@ void cpu(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0, Scala
     // Compute the learning rate adjustment
     Y gamma_t = gamma_0 * std::pow(1 - static_cast<Y>(num_iter) / static_cast<Y>(num_steps), 2);
 
-    Y norm_weights = cblas_dnrm2(num_elems, &weights, 1);  // L2 norm of weights
-    Y norm_grad = cblas_dnrm2(num_elems, &grad, 1);       // L2 norm of grad
+    Y norm_grad = 0.0;
+    Y norm_weights = 0.0;
+
+    for(Index i = 0; i < num_elems; ++i)
+    {
+        // Obtain the stochastic gradient for the current mini-batch
+        Y p_val=static_cast<Y>(weights[i]), grad_val = static_cast<Y>(grad[i]);
+        
+        // Update the momentum
+        norm_grad += grad_val*grad_val
+        norm_weights += p_val*p_val
+    }
+
+    norm_weights = std::sqrt(norm_weights);  // L2 norm of weights
+    norm_grad = std::sqrt(norm_grad);       // L2 norm of grad
 
     // Compute local learning rate
-    Y local_lr = lars_coefficient * std::sqrt(norm_weights) / 
+    Y local_lr = lars_coefficient * norm_weights / 
                      (norm_grad + beta * norm_weights);
         
     // Cycle over the parameters (num_elems)
