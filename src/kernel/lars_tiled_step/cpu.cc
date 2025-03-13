@@ -25,8 +25,8 @@ void cpu(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0, Scala
         Y p_val=static_cast<Y>(weights[i]), grad_val = static_cast<Y>(grad[i]);
         
         // Update the momentum
-        norm_grad += grad_val*grad_val
-        norm_weights += p_val*p_val
+        norm_grad += grad_val*grad_val;
+        norm_weights += p_val*p_val;
     }
 
     norm_weights = std::sqrt(norm_weights);  // L2 norm of weights
