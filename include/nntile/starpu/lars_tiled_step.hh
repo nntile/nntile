@@ -29,7 +29,7 @@ struct args_t
     Scalar gamma_0;
     Scalar momentum;
     Scalar weight_decay;
-    Scalar lars_tiled_coefficient;
+    Scalar lars_coefficient;
 };
 
 // Apply LarsTiled step to StarPU buffers on CPU
@@ -98,7 +98,7 @@ void restore_where();
 
 template<typename T>
 void submit(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0,
-            Scalar momentum, Scalar weight_decay, Scalar lars_tiled_coefficient,
+            Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
             Handle grad, Handle momentum_buffer, Handle p);
 
 } // namespace nntile::starpu::lars_tiled_step

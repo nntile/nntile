@@ -6,7 +6,7 @@
 namespace nntile::kernel::lars_tiled_step {
 
 template<typename T>
-void lars_tiled_step(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_tiled_coefficient,
+void lars_tiled_step(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                            const T *grad, T *momentum_buffer, T *weights) noexcept
 {
     using Y = typename T::repr_t;
@@ -37,7 +37,7 @@ void lars_tiled_step(Index num_iter, Index num_elems, Index num_steps, Scalar ga
 
 // Explicit instantiation
 template
-void lars_tiled_step<fp32_t>(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_tiled_coefficient,
+void lars_tiled_step<fp32_t>(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                                     const fp32_t *grad, fp32_t *momentum_buffer, fp32_t *weights) noexcept;
 
 } // namespace nntile::kernel::lars_tiled_step

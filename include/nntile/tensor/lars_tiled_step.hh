@@ -21,11 +21,11 @@ namespace nntile::tensor
 
 template<typename T>
 void lars_tiled_step_async(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay,
-    Scalar lars_tiled_coefficient, const Tensor<T> &grad, const Tensor<T> &momentum_buffer, const Tensor<T> &p);
+    Scalar lars_coefficient, const Tensor<T> &grad, const Tensor<T> &momentum_buffer, const Tensor<T> &p);
 
                    
 template<typename T>
 void lars_tiled_step(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay,
-    Scalar lars_tiled_coefficient, const Tensor<T> &grad, const Tensor<T> &momentum_buffer, const Tensor<T> &p);
+    Scalar lars_coefficient, const Tensor<T> &grad, const Tensor<T> &momentum_buffer, const Tensor<T> &p);
 
 } // namespace nntile::tensor

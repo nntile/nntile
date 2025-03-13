@@ -23,13 +23,13 @@ namespace nntile::tile
  * @param[in] num_steps: global number of steps for decaying learning rate
  * @param[in] gamma_0: global learning rate
  * @param[in] momentum: parameter for moving average of first moments
- * @param[in] lars_tiled_coefficient: lars_tiled coefficient for computing local learning rate
+ * @param[in] lars_coefficient: lars_tiled coefficient for computing local learning rate
  * @param[in] grad: Input buffer stored gradient
  * @param[in] momentum_buffer: Input buffer stored first moments
  * @param[inout] p: Input buffers with parameter that are updated in the end
  * */
 template<typename T>
-void lars_tiled_step_async(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_tiled_coefficient,
+void lars_tiled_step_async(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                      const Tile<T> &grad, const Tile<T> &momentum_buffer, const Tile<T> &p)
 {
     // Check shapes
@@ -42,7 +42,7 @@ void lars_tiled_step_async(Index num_iter, Index num_steps, Scalar gamma_0, Scal
         throw std::runtime_error("Shapes of first_moment and parameters are not equal");
     }
     // Submit task
-    starpu::lars_tiled_step::submit<T>(num_iter, p.nelems, num_steps, gamma_0, momentum, weight_decay, lars_tiled_coefficient,
+    starpu::lars_tiled_step::submit<T>(num_iter, p.nelems, num_steps, gamma_0, momentum, weight_decay, lars_coefficient,
                                  grad, momentum_buffer, p);
 }
 
@@ -51,67 +51,67 @@ void lars_tiled_step_async(Index num_iter, Index num_steps, Scalar gamma_0, Scal
  * @param[in] num_steps: global number of steps for decaying learning rate
  * @param[in] gamma_0: global learning rate
  * @param[in] momentum: parameter for moving average of first moments
- * @param[in] lars_tiled_coefficient: lars_tiled coefficient for computing local learning rate
+ * @param[in] lars_coefficient: lars_tiled coefficient for computing local learning rate
  * @param[in] grad: Input buffer stored gradient
  * @param[in] momentum_buffer: Input buffer stored first moments
  * @param[inout] p: Input buffers with parameter that are updated in the end
  * */
 template<typename T>
-void lars_tiled_step(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_tiled_coefficient,
+void lars_tiled_step(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                const Tile<T> &grad, const Tile<T> &momentum_buffer, const Tile<T> &p)
 {
-    lars_tiled_step_async<T>(num_iter, num_steps, gamma_0, momentum, weight_decay, lars_tiled_coefficient, grad, momentum_buffer, p);
+    lars_tiled_step_async<T>(num_iter, num_steps, gamma_0, momentum, weight_decay, lars_coefficient, grad, momentum_buffer, p);
     starpu_task_wait_for_all();
 }
 
 // Explicit instantiation
 template
-void lars_tiled_step_async<fp32_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_tiled_coefficient,
+void lars_tiled_step_async<fp32_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
     const Tile<fp32_t> &grad, const Tile<fp32_t> &momentum_buffer, const Tile<fp32_t> &p);
 
 template
-void lars_tiled_step_async<fp32_fast_tf32_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_tiled_coefficient,
+void lars_tiled_step_async<fp32_fast_tf32_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
     const Tile<fp32_fast_tf32_t> &grad, const Tile<fp32_fast_tf32_t> &momentum_buffer, const Tile<fp32_fast_tf32_t> &p);
 
 template
-void lars_tiled_step_async<fp32_fast_fp16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_tiled_coefficient,
+void lars_tiled_step_async<fp32_fast_fp16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
     const Tile<fp32_fast_fp16_t> &grad, const Tile<fp32_fast_fp16_t> &momentum_buffer, const Tile<fp32_fast_fp16_t> &p);
 
 template
-void lars_tiled_step_async<fp32_fast_bf16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_tiled_coefficient,
+void lars_tiled_step_async<fp32_fast_bf16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
     const Tile<fp32_fast_bf16_t> &grad, const Tile<fp32_fast_bf16_t> &momentum_buffer, const Tile<fp32_fast_bf16_t> &p);
 
 template
-void lars_tiled_step_async<fp64_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_tiled_coefficient,
+void lars_tiled_step_async<fp64_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
     const Tile<fp64_t> &grad, const Tile<fp64_t> &momentum_buffer, const Tile<fp64_t> &p);
 
 template
-void lars_tiled_step_async<bf16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_tiled_coefficient,
+void lars_tiled_step_async<bf16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
     const Tile<bf16_t> &grad, const Tile<bf16_t> &momentum_buffer, const Tile<bf16_t> &p);
 
 // Explicit instantiation
 template
-void lars_tiled_step<fp32_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_tiled_coefficient,
+void lars_tiled_step<fp32_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                const Tile<fp32_t> &grad, const Tile<fp32_t> &momentum_buffer, const Tile<fp32_t> &p);
 
 template
-void lars_tiled_step<fp32_fast_tf32_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_tiled_coefficient,
+void lars_tiled_step<fp32_fast_tf32_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                const Tile<fp32_fast_tf32_t> &grad, const Tile<fp32_fast_tf32_t> &momentum_buffer, const Tile<fp32_fast_tf32_t> &p);
 
 template
-void lars_tiled_step<fp32_fast_fp16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_tiled_coefficient,
+void lars_tiled_step<fp32_fast_fp16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                const Tile<fp32_fast_fp16_t> &grad, const Tile<fp32_fast_fp16_t> &momentum_buffer, const Tile<fp32_fast_fp16_t> &p);
 
 template
-void lars_tiled_step<fp32_fast_bf16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_tiled_coefficient,
+void lars_tiled_step<fp32_fast_bf16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                const Tile<fp32_fast_bf16_t> &grad, const Tile<fp32_fast_bf16_t> &momentum_buffer, const Tile<fp32_fast_bf16_t> &p);
 
 template
-void lars_tiled_step<fp64_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_tiled_coefficient,
+void lars_tiled_step<fp64_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                const Tile<fp64_t> &grad, const Tile<fp64_t> &momentum_buffer, const Tile<fp64_t> &p);
 
 template
-void lars_tiled_step<bf16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_tiled_coefficient,
+void lars_tiled_step<bf16_t>(Index num_iter, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
                const Tile<bf16_t> &grad, const Tile<bf16_t> &momentum_buffer, const Tile<bf16_t> &p);
 
 } // namespace nntile::tile
