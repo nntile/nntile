@@ -74,6 +74,7 @@ set(TESTS_NOT_IMPLEMENTED
     "gelu_backward"
     "gelutanh"
     "gelutanh_backward"
+    "lars_tiled_step"
     "logsumexp"
     "pow"
     "prod_fiber"
