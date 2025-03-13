@@ -4,7 +4,7 @@
 #include <vector>
 #include <cblas.h> // Include CBLAS header for using cblas_dnrm2
 
-namespace nntile::kernel::lars_step {
+namespace nntile::kernel::lars_tiled_step {
 
 template<typename T>
 void cpu(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0, Scalar momentum, Scalar weight_decay, Scalar lars_coefficient,
