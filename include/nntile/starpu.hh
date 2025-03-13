@@ -85,7 +85,7 @@
 #include <nntile/starpu/mask_scalar.hh>
 #include <nntile/starpu/adam_step.hh>
 #include <nntile/starpu/adamw_step.hh>
-#include <nntile/starpu/lars_step.hh>
+#include <nntile/starpu/lars_tiled_step.hh>
 #include <nntile/starpu/transpose.hh>
 #include <nntile/starpu/silu_forward.hh>
 #include <nntile/starpu/silu_backward.hh>
@@ -174,7 +174,7 @@ void init()
     mask_scalar::init();
     adam_step::init();
     adamw_step::init();
-    lars_step::init();
+    lars_tiled_step::init();
     transpose::init();
     silu_forward::init();
     silu_backward::init();
@@ -257,7 +257,7 @@ void restrict_where(uint32_t where)
     mask_scalar::restrict_where(where);
     adam_step::restrict_where(where);
     adamw_step::restrict_where(where);
-    lars_step::restrict_where(where);
+    lars_tiled_step::restrict_where(where);
     transpose::restrict_where(where);
     silu_forward::restrict_where(where);
     silu_backward::restrict_where(where);
@@ -340,7 +340,7 @@ void restore_where()
     mask_scalar::restore_where();
     adam_step::restore_where();
     adamw_step::restore_where();
-    lars_step::restore_where();
+    lars_tiled_step::restore_where();
     transpose::restore_where();
     silu_forward::restore_where();
     silu_backward::restore_where();

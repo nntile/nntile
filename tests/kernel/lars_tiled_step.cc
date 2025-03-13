@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file tests/kernel/lars_step.cc
- * Fused Lars optimizer step
+ * @file tests/kernel/lars_tiled_step.cc
+ * Fused LarsTiled optimizer step
  *
  * @version 1.1.0
  * */

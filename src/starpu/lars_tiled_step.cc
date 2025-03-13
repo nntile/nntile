@@ -6,23 +6,23 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file src/starpu/lars_step.cc
+ * @file src/starpu/lars_tiled_step.cc
  * Per-element addcdiv operation of StarPU buffers
  *
  * @version 1.1.0
  * */
 
 #ifndef STARPU_SIMGRID
-#include "nntile/kernel/lars_step.hh"
+#include "nntile/kernel/lars_tiled_step.hh"
 #endif // STARPU_SIMGRID
-#include "nntile/starpu/lars_step.hh"
+#include "nntile/starpu/lars_tiled_step.hh"
 #include <cstdlib>
 
-//! StarPU wrappers for one step of Lars optimizer
-namespace nntile::starpu::lars_step
+//! StarPU wrappers for one step of LarsTiled optimizer
+namespace nntile::starpu::lars_tiled_step
 {
 
-//! Apply Lars step on StarPU buffers on CPU
+//! Apply LarsTiled step on StarPU buffers on CPU
 template<typename T>
 void cpu(void *buffers[], void *cl_args)
     noexcept
@@ -36,14 +36,14 @@ void cpu(void *buffers[], void *cl_args)
     T *momentum_buffer = interfaces[1]->get_ptr<T>();
     T *p = interfaces[2]->get_ptr<T>();
     // Launch kernel
-    kernel::lars_step::cpu<T>(args->num_iter, args->num_elems, args->num_steps, args->gamma_0,
+    kernel::lars_tiled_step::cpu<T>(args->num_iter, args->num_elems, args->num_steps, args->gamma_0,
         args->momentum, args->weight_decay, args->lars_coefficient,
         grad, momentum_buffer, p);
 #endif // STARPU_SIMGRID
 }
 
 #ifdef NNTILE_USE_CUDA
-//! Apply Lars step operation on StarPU buffer on CUDA
+//! Apply LarsTiled step operation on StarPU buffer on CUDA
 template<typename T>
 void cuda(void *buffers[], void *cl_args)
     noexcept
@@ -59,7 +59,7 @@ void cuda(void *buffers[], void *cl_args)
     // Get CUDA stream
     cudaStream_t stream = starpu_cuda_get_local_stream();
     // Launch kernel
-    kernel::lars_step::cuda<T>(stream, args->num_iter, args->num_elems, args->num_steps, args->gamma_0,
+    kernel::lars_tiled_step::cuda<T>(stream, args->num_iter, args->num_elems, args->num_steps, args->gamma_0,
         args->momentum, args->weight_decay, args->lars_coefficient,
         grad, momentum_buffer, p);
 #endif // STARPU_SIMGRID
@@ -71,7 +71,7 @@ Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
 
 void init()
 {
-    codelet_fp32.init("nntile_lars_step_fp32",
+    codelet_fp32.init("nntile_lars_tiled_step_fp32",
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -81,7 +81,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_bf16.init("nntile_lars_step_bf16",
+    codelet_bf16.init("nntile_lars_tiled_step_bf16",
             nullptr,
             {cpu<bf16_t>},
 #ifdef NNTILE_USE_CUDA
@@ -91,7 +91,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_fp32_fast_tf32.init("nntile_lars_step_fp32_fast_tf32",
+    codelet_fp32_fast_tf32.init("nntile_lars_tiled_step_fp32_fast_tf32",
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -101,7 +101,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_fp32_fast_fp16.init("nntile_lars_step_fp32_fast_fp16",
+    codelet_fp32_fast_fp16.init("nntile_lars_tiled_step_fp32_fast_fp16",
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -111,7 +111,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_fp32_fast_bf16.init("nntile_lars_step_fp32_fast_bf16",
+    codelet_fp32_fast_bf16.init("nntile_lars_tiled_step_fp32_fast_bf16",
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
@@ -121,7 +121,7 @@ void init()
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_fp64.init("nntile_lars_step_fp64",
+    codelet_fp64.init("nntile_lars_tiled_step_fp64",
             nullptr,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
@@ -186,7 +186,7 @@ void submit(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0, Sc
     // Check submission
     if(ret != 0)
     {
-        throw std::runtime_error("Error in lars_step task submission");
+        throw std::runtime_error("Error in lars_tiled_step task submission");
     }
 }
 
@@ -221,4 +221,4 @@ void submit<bf16_t>(Index num_iter, Index num_elems, Index num_steps, Scalar gam
     Scalar weight_decay, Scalar lars_coefficient,
     Handle grad, Handle momentum_buffer, Handle p);
 
-} // namespace nntile::starpu::lars_step
+} // namespace nntile::starpu::lars_tiled_step

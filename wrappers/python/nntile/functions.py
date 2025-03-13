@@ -2033,7 +2033,7 @@ def log_scalar_async(name: str, value: Tensor) -> None:
         raise TypeError('Wrong tensor type {type(value)}.')
     
 
-def fused_lars_step(
+def fused_lars_tiled_step(
     p: Tensor,
     grad: Tensor,
     momentum_buffer: Tensor,
@@ -2049,7 +2049,7 @@ def fused_lars_step(
     if type(p) is not type(momentum_buffer):
         raise TypeError
     if type(p) is core_tensor.Tensor_fp32:
-        core_tensor.lars_step_async_fp32(
+        core_tensor.lars_tiled_step_async_fp32(
             num_iter,
             num_steps,
             gamma0,
@@ -2061,7 +2061,7 @@ def fused_lars_step(
             p,
         )
     elif type(p) is core_tensor.Tensor_fp32_fast_tf32:
-        core_tensor.lars_step_async_fp32_fast_tf32(
+        core_tensor.lars_tiled_step_async_fp32_fast_tf32(
             num_iter,
             num_steps,
             gamma0,
@@ -2073,7 +2073,7 @@ def fused_lars_step(
             p,
         )
     elif type(p) is core_tensor.Tensor_fp32_fast_fp16:
-        core_tensor.lars_step_async_fp32_fast_fp16(
+        core_tensor.lars_tiled_step_async_fp32_fast_fp16(
             num_iter,
             num_steps,
             gamma0,
@@ -2085,7 +2085,7 @@ def fused_lars_step(
             p,
         )
     elif type(p) is core_tensor.Tensor_fp32_fast_bf16:
-        core_tensor.lars_step_async_fp32_fast_bf16(
+        core_tensor.lars_tiled_step_async_fp32_fast_bf16(
             num_iter,
             num_steps,
             gamma0,
@@ -2097,7 +2097,7 @@ def fused_lars_step(
             p,
         )
     elif type(p) is core_tensor.Tensor_fp64:
-        core_tensor.lars_step_async_fp64(
+        core_tensor.lars_tiled_step_async_fp64(
             num_iter,
             num_steps,
             gamma0,
@@ -2109,7 +2109,7 @@ def fused_lars_step(
             p,
         )
     elif type(p) is core_tensor.Tensor_bf16:
-        core_tensor.lars_step_async_bf16(
+        core_tensor.lars_tiled_step_async_bf16(
             num_iter,
             num_steps,
             gamma0,

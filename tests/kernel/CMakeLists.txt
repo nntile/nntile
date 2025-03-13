@@ -32,7 +32,7 @@ set(TESTS
     "gelutanh_inplace"
     "gelutanh_backward"
     "hypot"
-    "lars_step"
+    "lars_tiled_step"
     "logsumexp"
     "maximum"
     "norm_slice"

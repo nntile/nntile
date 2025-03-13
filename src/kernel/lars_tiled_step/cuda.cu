@@ -1,9 +1,9 @@
-#include "nntile/kernel/lars_step/cuda.hh"
+#include "nntile/kernel/lars_tiled_step/cuda.hh"
 #include "nntile/kernel/cuda.hh"
 #include <cmath>
 #include <vector>
 
-namespace nntile::kernel::lars_step
+namespace nntile::kernel::lars_tiled_step
 {
 
 template<typename T>
@@ -43,4 +43,4 @@ void cuda(cudaStream_t stream, Index num_iter, Index num_elems, Index num_steps,
                 Y{momentum}, Y{weight_decay}, Y{eta}, gradients, momentum_buffer, weights);
 }
 
-} // namespace nntile::kernel::lars_step
+} // namespace nntile::kernel::lars_tiled_step
