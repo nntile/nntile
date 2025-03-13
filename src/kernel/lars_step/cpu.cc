@@ -30,7 +30,7 @@ void lars_step(Index num_iter, Index num_elems, Index num_steps, Scalar gamma_0,
                                  gamma_t * local_lr * (grad_val + beta * static_cast<Y>(weights[i]));
             
             // Update the weights
-            weights[i] -= momentum_buffer[i];
+            weights[i] = weights[i] - momentum_buffer[i];
         }
     
 }
