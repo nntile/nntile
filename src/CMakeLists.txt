@@ -144,7 +144,7 @@ else()
             "kernel/hypot_scalar_inverse/cuda.cu"
             "kernel/adam_step/cuda.cu"
             "kernel/adamw_step/cuda.cu"
-            "kernel/lars_tiled_step/cuda.cc"
+            "kernel/lars_tiled_step/cuda.cu"
             "kernel/transpose/cuda.cu"
             "kernel/silu_forward/cuda.cu"
             "kernel/silu_backward/cuda.cu"
