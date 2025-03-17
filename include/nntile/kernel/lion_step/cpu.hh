@@ -21,7 +21,7 @@
  
  template<typename T>
  void cpu(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
-         Scalar eps, Scalar lr, Scalar weight_decay, const T *grad,
+         Scalar lr, Scalar weight_decay, const T *grad,
          T *first_moment, T *p)
      noexcept;
  
