@@ -24,10 +24,10 @@
  struct args_t
  {
      Index num_iter;
-     Index num_elems;
-     Scalar beta_1;
-     Scalar beta_2;
-     Scalar eps;
+     // Index num_elems;
+     // Scalar beta_1;
+     // Scalar beta_2;
+     // Scalar eps;
      Scalar lr;
      Scalar weight_decay;
  };
@@ -91,7 +91,7 @@
  
  template<typename T>
  void submit(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-             Handle grad, Handle first_moment, Handle second_moment, Handle p);
+             Handle grad, Handle first_moment, Handle p);
  
  } // namespace nntile::starpu::lion_step
  
