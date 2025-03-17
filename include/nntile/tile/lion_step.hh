@@ -22,13 +22,13 @@
  // Asynchronous tile-wise Lion step operation
  template<typename T>
  void lion_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-                      const Tile<T> &grad, const Tile<T> &first_moment, const Tile<T> &second_moment,
+                      const Tile<T> &grad, const Tile<T> &first_moment,
                       const Tile<T> &p);
  
  // Blocking version of tile-wise Lion step operation
  template<typename T>
  void lion_step(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-                const Tile<T> &grad, const Tile<T> &first_moment, const Tile<T> &second_moment,
+                const Tile<T> &grad, const Tile<T> &first_moment,
                 const Tile<T> &p);
  
  } // namespace nntile::tile
