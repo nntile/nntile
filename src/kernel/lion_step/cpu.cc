@@ -21,8 +21,8 @@
  
  template<typename T>
  void cpu(Index num_iter, Index num_elems, Scalar beta_1_, Scalar beta_2_,
-         Scalar eps_, Scalar lr_, Scalar weight_decay_, const T *grad,
-         T *first_moment, T *second_moment, T *p)
+          Scalar lr_, Scalar weight_decay_, const T *grad,
+         T *first_moment, T *p)
      noexcept
  //! Fused Lion step on buffers
  /*!
@@ -31,12 +31,10 @@
   * @param[in] num_elems: Number of elements in buffers
   * @param[in] beta_1_: parameter for moving average of first moments
   * @param[in] beta_2_: parameter for moving average of second moments
-  * @param[in] eps_: small scalar to avoid division by zero
   * @param[in] lr_: learning rate
   * @param[in] weight_decay_: coefficient for l2 regularizer
   * @param[in] grad_: Input buffer stored gradient, can be updated if weight_decay > 0
   * @param[inout] first_moment_: Input buffer stored first moments
-  * @param[inout] second_moment_: Input buffer stored square root of second moments for stability
   * @param[inout] p_: Input buffers with parameter that are updated in the end
   * */
  {
