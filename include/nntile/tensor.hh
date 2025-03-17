@@ -21,9 +21,8 @@
 
 // Tensor operations
 #include <nntile/tensor/axpy.hh>
-#include <nntile/tensor/add_slice_inplace.hh>
 #include <nntile/tensor/add_slice.hh>
-#include <nntile/tensor/add_fiber_inplace.hh>
+#include <nntile/tensor/add_slice3.hh>
 #include <nntile/tensor/add_fiber.hh>
 #include <nntile/tensor/prod_slice.hh>
 #include <nntile/tensor/prod_fiber.hh>
@@ -42,7 +41,6 @@
 #include <nntile/tensor/nrm2.hh>
 #include <nntile/tensor/normalize.hh>
 #include <nntile/tensor/prod.hh>
-#include <nntile/tensor/prod_inplace.hh>
 #include <nntile/tensor/randn.hh>
 #include <nntile/tensor/relu.hh>
 #include <nntile/tensor/relu_forward.hh>
@@ -74,7 +72,6 @@
 #include <nntile/tensor/gelu_backward.hh>
 #include <nntile/tensor/gelutanh_backward.hh>
 #include <nntile/tensor/add.hh>
-#include <nntile/tensor/add_inplace.hh>
 #include <nntile/tensor/add_scalar.hh>
 #include <nntile/tensor/embedding.hh>
 #include <nntile/tensor/embedding_backward.hh>
@@ -84,6 +81,8 @@
 #include <nntile/tensor/hypot.hh>
 #include <nntile/tensor/hypot_scalar_inverse.hh>
 #include <nntile/tensor/adam_step.hh>
+#include <nntile/tensor/lion_step.hh>
+
 #include <nntile/tensor/adamw_step.hh>
 #include <nntile/tensor/transpose.hh>
 #include <nntile/tensor/silu_forward.hh>
@@ -94,7 +93,6 @@
 #include <nntile/tensor/rope.hh>
 #include <nntile/tensor/rope_backward.hh>
 #include <nntile/tensor/norm_fiber.hh>
-#include <nntile/tensor/log_scalar.hh>
 
 //! @namespace nntile::tensor
 /*! This namespace holds high-level routines for Tensor<T>
