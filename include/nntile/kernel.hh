@@ -15,9 +15,8 @@
 #pragma once
 
 #include <nntile/kernel/accumulate_maxsumexp.hh>
-#include <nntile/kernel/add_slice_inplace.hh>
 #include <nntile/kernel/add_slice.hh>
-#include <nntile/kernel/add_fiber_inplace.hh>
+#include <nntile/kernel/add_slice3.hh>
 #include <nntile/kernel/add_fiber.hh>
 #include <nntile/kernel/prod_slice.hh>
 #include <nntile/kernel/prod_fiber.hh>
@@ -31,7 +30,6 @@
 #include <nntile/kernel/hypot.hh>
 #include <nntile/kernel/normalize.hh>
 #include <nntile/kernel/prod.hh>
-#include <nntile/kernel/prod_inplace.hh>
 #include <nntile/kernel/randn.hh>
 #include <nntile/kernel/relu.hh>
 #include <nntile/kernel/relu_forward.hh>
@@ -58,7 +56,6 @@
 #include <nntile/kernel/gelu_backward.hh>
 #include <nntile/kernel/gelutanh_backward.hh>
 #include <nntile/kernel/add.hh>
-#include <nntile/kernel/add_inplace.hh>
 #include <nntile/kernel/add_scalar.hh>
 #include <nntile/kernel/embedding.hh>
 #include <nntile/kernel/embedding_backward.hh>
@@ -67,6 +64,7 @@
 #include <nntile/kernel/mask_scalar.hh>
 #include <nntile/kernel/scal.hh>
 #include <nntile/kernel/adam_step.hh>
+#include <nntile/kernel/lion_step.hh>
 #include <nntile/kernel/adamw_step.hh>
 #include <nntile/kernel/transpose.hh>
 #include <nntile/kernel/silu_forward.hh>
