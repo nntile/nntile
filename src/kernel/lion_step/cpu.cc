@@ -83,20 +83,20 @@
  // Explicit instantiation
  template
  void cpu<fp32_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
-         Scalar eps, Scalar lr, Scalar weight_decay, const fp32_t *grad,
-         fp32_t *first_moment, fp32_t *second_moment, fp32_t *p)
+         Scalar lr, Scalar weight_decay, const fp32_t *grad,
+         fp32_t *first_moment, fp32_t *p)
      noexcept;
  
  template
  void cpu<fp64_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
-         Scalar eps, Scalar lr, Scalar weight_decay, const fp64_t *grad,
-         fp64_t *first_moment, fp64_t *second_moment, fp64_t *p)
+         Scalar lr, Scalar weight_decay, const fp64_t *grad,
+         fp64_t *first_moment, fp64_t *p)
      noexcept;
  
  template
  void cpu<bf16_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
-         Scalar eps, Scalar lr, Scalar weight_decay, const bf16_t *grad,
-         bf16_t *first_moment, bf16_t *second_moment, bf16_t *p)
+         Scalar lr, Scalar weight_decay, const bf16_t *grad,
+         bf16_t *first_moment, bf16_t *p)
      noexcept;
  
  } // namespace nntile::kernel::lion_step
