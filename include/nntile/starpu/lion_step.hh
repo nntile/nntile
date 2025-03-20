@@ -36,6 +36,13 @@
  template<typename T>
  void cpu(void *buffers[], void *cl_args)
      noexcept;
+
+#ifdef NNTILE_USE_CUDA
+// Apply Lion step of StarPU buffers on CUDA
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+    noexcept;
+#endif // NNTILE_USE_CUDA
  
  extern Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
                 codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
@@ -90,7 +97,7 @@
  void restore_where();
  
  template<typename T>
- void submit(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
+ void submit(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
              Handle grad, Handle first_moment, Handle p);
  
  } // namespace nntile::starpu::lion_step
