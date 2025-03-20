@@ -38,7 +38,7 @@
      T* p = interfaces[3]->get_ptr<T>();
      // Launch kernel
      kernel::lion_step::cpu<T>(args->num_iter, args->num_elems, args->beta_1,
-             args->beta_2, args->eps, args->lr, args->weight_decay, grad,
+             args->beta_2, args->lr, args->weight_decay, grad,
              first_moments, second_moments, p);
  #endif // STARPU_SIMGRID
  }
@@ -132,7 +132,7 @@ void init()
  }
  
  template<typename T>
- void submit(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
+ void submit(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
              Handle grad, Handle first_moment, Handle second_moment, Handle p)
  {
      // Codelet arguments
@@ -141,7 +141,6 @@ void init()
      args->num_elems = num_elems;
      args->beta_1 = beta_1;
      args->beta_2 = beta_2;
-     args->eps = eps;
      args->lr = lr;
      args->weight_decay = weight_decay;
      //double nflops = 5 * nelems;
@@ -172,32 +171,32 @@ void init()
  // Explicit instantiaion
  template
  void submit<fp32_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
-             Scalar eps, Scalar lr, Scalar weight_decay,
+             Scalar lr, Scalar weight_decay,
              Handle grad, Handle first_moment, Handle second_moment, Handle p);
  
  template
  void submit<fp32_fast_tf32_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
-             Scalar eps, Scalar lr, Scalar weight_decay,
+             Scalar lr, Scalar weight_decay,
              Handle grad, Handle first_moment, Handle second_moment, Handle p);
  
  template
  void submit<fp32_fast_fp16_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
-             Scalar eps, Scalar lr, Scalar weight_decay,
+             Scalar lr, Scalar weight_decay,
              Handle grad, Handle first_moment, Handle second_moment, Handle p);
  
  template
  void submit<fp32_fast_bf16_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
-             Scalar eps, Scalar lr, Scalar weight_decay,
+             Scalar lr, Scalar weight_decay,
              Handle grad, Handle first_moment, Handle second_moment, Handle p);
  
  template
  void submit<fp64_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
-             Scalar eps, Scalar lr, Scalar weight_decay,
+             Scalar lr, Scalar weight_decay,
              Handle grad, Handle first_moment, Handle second_moment, Handle p);
  
  template
  void submit<bf16_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
-             Scalar eps, Scalar lr, Scalar weight_decay,
+             Scalar lr, Scalar weight_decay,
              Handle grad, Handle first_moment, Handle second_moment, Handle p);
  
  } // namespace nntile::starpu::lion_step
