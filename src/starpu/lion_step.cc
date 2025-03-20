@@ -52,61 +52,61 @@ void init()
             nullptr,
             {cpu<fp32_t>},
             {}
-// #ifdef NNTILE_USE_CUDA
-//             {cuda<fp32_t>}
-// #else // NNTILE_USE_CUDA
-//             {}
-// #endif // NNTILE_USE_CUDA
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+            {}
+#endif // NNTILE_USE_CUDA
             );
 
     codelet_bf16.init("nntile_adam_step_bf16",
             nullptr,
             {cpu<bf16_t>},
-// #ifdef NNTILE_USE_CUDA
-            // {cuda<bf16_t>}
-// #else // NNTILE_USE_CUDA
+#ifdef NNTILE_USE_CUDA
+            {cuda<bf16_t>}
+#else // NNTILE_USE_CUDA
             {}
-// #endif // NNTILE_USE_CUDA
+#endif // NNTILE_USE_CUDA
             );
 
     codelet_fp32_fast_tf32.init("nntile_adam_step_fp32_fast_tf32",
             nullptr,
             {cpu<fp32_t>},
-// #ifdef NNTILE_USE_CUDA
-            // {cuda<fp32_t>}
-// #else // NNTILE_USE_CUDA
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
             {}
-// #endif // NNTILE_USE_CUDA
+#endif // NNTILE_USE_CUDA
             );
 
     codelet_fp32_fast_fp16.init("nntile_adam_step_fp32_fast_fp16",
             nullptr,
             {cpu<fp32_t>},
-// #ifdef NNTILE_USE_CUDA
-            // {cuda<fp32_t>}
-// #else // NNTILE_USE_CUDA
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
             {}
-// #endif // NNTILE_USE_CUDA
+#endif // NNTILE_USE_CUDA
             );
 
     codelet_fp32_fast_bf16.init("nntile_adam_step_fp32_fast_bf16",
             nullptr,
             {cpu<fp32_t>},
-// #ifdef NNTILE_USE_CUDA
-            // {cuda<fp32_t>}
-// #else // NNTILE_USE_CUDA
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
             {}
-// #endif // NNTILE_USE_CUDA
+#endif // NNTILE_USE_CUDA
             );
 
     codelet_fp64.init("nntile_adam_step_fp64",
             nullptr,
             {cpu<fp64_t>},
-// #ifdef NNTILE_USE_CUDA
-            // {cuda<fp64_t>}
-// #else // NNTILE_USE_CUDA
+#ifdef NNTILE_USE_CUDA
+            {cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
             {}
-// #endif // NNTILE_USE_CUDA
+#endif // NNTILE_USE_CUDA
             );
 }
 
