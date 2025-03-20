@@ -20,12 +20,12 @@
  {
  
  template<typename T>
- void lion_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
+ void lion_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
      const Tensor<T> &grad, const Tensor<T> &first_moment,
                     const Tensor<T> &p);
  
  template<typename T>
- void lion_step(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
+ void lion_step(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
      const Tensor<T> &grad, const Tensor<T> &first_moment,
                     const Tensor<T> &p);
  
