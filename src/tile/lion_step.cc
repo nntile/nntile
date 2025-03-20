@@ -30,8 +30,8 @@
   * @param[inout] p: Input buffers with parameter that are updated in the end
   * */
  template<typename T>
- void lion_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-                      const Tile<T> &grad, const Tile<T> &first_moment, const Tile<T> &second_moment,
+ void lion_step_async(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
+                      const Tile<T> &grad, const Tile<T> &first_moment, 
                       const Tile<T> &p)
  {
      // Check shapes
@@ -43,13 +43,13 @@
      {
          throw std::runtime_error("Shapes of first_moment and parameters are not equal");
      }
-     if(second_moment.shape != p.shape)
-     {
-         throw std::runtime_error("Shapes of first_moment and parameters are not equal");
-     }
+     // if(second_moment.shape != p.shape)
+     // {
+     //     throw std::runtime_error("Shapes of first_moment and parameters are not equal");
+     // }
      // Submit task
-     starpu::lion_step::submit<T>(num_iter, p.nelems, beta_1, beta_2, eps, lr, weight_decay,
-                                  grad, first_moment, second_moment, p);
+     starpu::lion_step::submit<T>(num_iter, p.nelems, beta_1, beta_2, lr, weight_decay,
+                                  grad, first_moment, p);
  }
  
  //! Blocking version of tile-wise fused Lion step
@@ -64,74 +64,74 @@
   * @param[inout] p: Input buffers with parameter that are updated in the end
   * */
  template<typename T>
- void lion_step(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-                const Tile<T> &grad, const Tile<T> &first_moment, const Tile<T> &second_moment,
+ void lion_step(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
+                const Tile<T> &grad, const Tile<T> &first_moment, 
                 const Tile<T> &p)
  {
-     lion_step_async<T>(num_iter, beta_1, beta_2, eps, lr, weight_decay, grad, first_moment, second_moment, p);
+     lion_step_async<T>(num_iter, beta_1, beta_2, lr, weight_decay, grad, first_moment, p);
      starpu_task_wait_for_all();
  }
  
  // Explicit instantiation
  template
- void lion_step_async<fp32_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-                      const Tile<fp32_t> &grad, const Tile<fp32_t> &first_moment, const Tile<fp32_t> &second_moment,
+ void lion_step_async<fp32_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
+                      const Tile<fp32_t> &grad, const Tile<fp32_t> &first_moment, 
                       const Tile<fp32_t> &p);
  
  template
- void lion_step_async<fp32_fast_tf32_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-                      const Tile<fp32_fast_tf32_t> &grad, const Tile<fp32_fast_tf32_t> &first_moment, const Tile<fp32_fast_tf32_t> &second_moment,
+ void lion_step_async<fp32_fast_tf32_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
+                      const Tile<fp32_fast_tf32_t> &grad, const Tile<fp32_fast_tf32_t> &first_moment, 
                       const Tile<fp32_fast_tf32_t> &p);
  
  template
- void lion_step_async<fp32_fast_fp16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-                      const Tile<fp32_fast_fp16_t> &grad, const Tile<fp32_fast_fp16_t> &first_moment, const Tile<fp32_fast_fp16_t> &second_moment,
+ void lion_step_async<fp32_fast_fp16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
+                      const Tile<fp32_fast_fp16_t> &grad, const Tile<fp32_fast_fp16_t> &first_moment, 
                       const Tile<fp32_fast_fp16_t> &p);
  
  template
- void lion_step_async<fp32_fast_bf16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-                      const Tile<fp32_fast_bf16_t> &grad, const Tile<fp32_fast_bf16_t> &first_moment, const Tile<fp32_fast_bf16_t> &second_moment,
+ void lion_step_async<fp32_fast_bf16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
+                      const Tile<fp32_fast_bf16_t> &grad, const Tile<fp32_fast_bf16_t> &first_moment, 
                       const Tile<fp32_fast_bf16_t> &p);
  
  template
- void lion_step_async<fp64_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-                      const Tile<fp64_t> &grad, const Tile<fp64_t> &first_moment, const Tile<fp64_t> &second_moment,
+ void lion_step_async<fp64_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
+                      const Tile<fp64_t> &grad, const Tile<fp64_t> &first_moment, 
                       const Tile<fp64_t> &p);
  
  template
- void lion_step_async<bf16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-                const Tile<bf16_t> &grad, const Tile<bf16_t> &first_moment, const Tile<bf16_t> &second_moment,
+ void lion_step_async<bf16_t>(Index num_iter, Scalar beta_1, Scalar beta_2,  Scalar lr, Scalar weight_decay,
+                const Tile<bf16_t> &grad, const Tile<bf16_t> &first_moment, 
                 const Tile<bf16_t> &p);
  
  // Explicit instantiation
  template
- void lion_step<fp32_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-                const Tile<fp32_t> &grad, const Tile<fp32_t> &first_moment, const Tile<fp32_t> &second_moment,
+ void lion_step<fp32_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
+                const Tile<fp32_t> &grad, const Tile<fp32_t> &first_moment, 
                 const Tile<fp32_t> &p);
  
  template
- void lion_step<fp32_fast_tf32_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-                      const Tile<fp32_fast_tf32_t> &grad, const Tile<fp32_fast_tf32_t> &first_moment, const Tile<fp32_fast_tf32_t> &second_moment,
+ void lion_step<fp32_fast_tf32_t>(Index num_iter, Scalar beta_1, Scalar beta_2,  Scalar lr, Scalar weight_decay,
+                      const Tile<fp32_fast_tf32_t> &grad, const Tile<fp32_fast_tf32_t> &first_moment,
                       const Tile<fp32_fast_tf32_t> &p);
  
  template
- void lion_step<fp32_fast_fp16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-                      const Tile<fp32_fast_fp16_t> &grad, const Tile<fp32_fast_fp16_t> &first_moment, const Tile<fp32_fast_fp16_t> &second_moment,
+ void lion_step<fp32_fast_fp16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
+                      const Tile<fp32_fast_fp16_t> &grad, const Tile<fp32_fast_fp16_t> &first_moment, 
                       const Tile<fp32_fast_fp16_t> &p);
  
  template
- void lion_step<fp32_fast_bf16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-                      const Tile<fp32_fast_bf16_t> &grad, const Tile<fp32_fast_bf16_t> &first_moment, const Tile<fp32_fast_bf16_t> &second_moment,
+ void lion_step<fp32_fast_bf16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
+                      const Tile<fp32_fast_bf16_t> &grad, const Tile<fp32_fast_bf16_t> &first_moment, 
                       const Tile<fp32_fast_bf16_t> &p);
  
  template
- void lion_step<fp64_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-                const Tile<fp64_t> &grad, const Tile<fp64_t> &first_moment, const Tile<fp64_t> &second_moment,
+ void lion_step<fp64_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
+                const Tile<fp64_t> &grad, const Tile<fp64_t> &first_moment, 
                 const Tile<fp64_t> &p);
  
  template
- void lion_step<bf16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-                const Tile<bf16_t> &grad, const Tile<bf16_t> &first_moment, const Tile<bf16_t> &second_moment,
+ void lion_step<bf16_t>(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
+                const Tile<bf16_t> &grad, const Tile<bf16_t> &first_moment,
                 const Tile<bf16_t> &p);
  
  } // namespace nntile::tile
