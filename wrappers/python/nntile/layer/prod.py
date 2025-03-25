@@ -39,7 +39,8 @@ class Prod(BaseLayer):
         prod_async(self.x.value, self.y.value, self.res.value)
         self.x.value.wont_use()
         self.y.value.wont_use()
-        self.res.value.wont_use()
+        # Disable the next line to avoid offloading of the output tensor
+        # self.res.value.wont_use()
 
     def forward_dynamic(self, x: TensorMoments, y: TensorMoments):
         res = nntc.empty(x.value.shape, basetile_shape=x.value.basetile_shape)
@@ -51,6 +52,8 @@ class Prod(BaseLayer):
         prod_async(self.x.value, self.res.grad, self.y.grad)
         self.x.value.wont_use()
         self.y.value.wont_use()
-        self.x.grad.wont_use()
-        self.y.grad.wont_use()
+        # Disable the next line to avoid offloading of the input gradient
+        # self.x.grad.wont_use()
+        # Disable the next line to avoid offloading of the input gradient
+        # self.y.grad.wont_use()
         self.res.grad.wont_use()

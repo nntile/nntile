@@ -87,7 +87,8 @@ class Embedding(BaseLayer):
         embedding_async(self.x, self.w.value, self.y.value, self.axis)
         self.x.wont_use()
         self.w.value.wont_use()
-        self.y.value.wont_use()
+        # Disable the next line to avoid offloading of the output tensor
+        # self.y.value.wont_use()
 
     def forward_dynamic(self, x: TensorMoments):
         y_shape = x.value.shape.copy()

@@ -83,14 +83,16 @@ class BatchNorm2d(BaseLayer):
         self._normalize_forward()
         self._learnable_transform_forward()
 
-        self.y.value.wont_use()
+        # Disable the next line to avoid offloading of the output tensor
+        # self.y.value.wont_use()
 
     def backward_async(self):
         self._learnable_transform_backward()
         self._normalize_backward()
 
         # could be earlier. But this is straightforward we delete grad
-        self.x.grad.wont_use()
+        # Disable the next line to avoid offloading of the input gradient
+        # self.x.grad.wont_use()
         self.y.grad.wont_use()
 
     def _normalize_forward(self):

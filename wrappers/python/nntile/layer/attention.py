@@ -809,7 +809,8 @@ class Attention(BaseLayer):
                 1.0, self.out_proj_bias.value, 1.0, self.y.value, 0, 0
             )
             self.out_proj_bias.value.wont_use()
-        self.y.value.wont_use()
+        # Disable the next line to avoid offloading of the output tensor
+        # self.y.value.wont_use()
 
     def _forward_attn_dynamic(self, q, k, v):
         a_tmp = nntc.empty(
@@ -1165,8 +1166,9 @@ class Attention(BaseLayer):
             )
         # W_V can be offloaded from GPU
         self.w_v.value.wont_use()
+        # Disable the next line to avoid offloading of the input gradient
         # dX_V can be offloaded from GPU
-        self.x_v.grad.wont_use()
+        # self.x_v.grad.wont_use()
         if self.w_v.grad_required:
             # dW_V += einsum('jkmn,lmn->jkl', dV_transposed, X_V)
             gemm_async(
@@ -1226,8 +1228,9 @@ class Attention(BaseLayer):
             )
         # W_K can be offloaded from GPU
         self.w_k.value.wont_use()
+        # Disable the next line to avoid offloading of the input gradient
         # dX_K can be offloaded from GPU
-        self.x_k.grad.wont_use()
+        # self.x_k.grad.wont_use()
         if self.w_k.grad_required:
             # dW_K += einsum('jkmn,lmn->jkl', dK_transposed, X_K)
             gemm_async(
@@ -1285,11 +1288,11 @@ class Attention(BaseLayer):
                 0,
                 redux=self.redux,
             )
-            self.x_q.grad.wont_use()
         # W_Q can be offloaded from GPU
         self.w_q.value.wont_use()
+        # Disable the next line to avoid offloading of the input gradient
         # dX_Q can be offloaded from GPU
-        self.x_q.grad.wont_use()
+        # self.x_q.grad.wont_use()
         if self.w_q.grad_required:
             # dW_Q += einsum('jkmn,lmn->jkl', dQ_transposed, X_Q)
             gemm_async(

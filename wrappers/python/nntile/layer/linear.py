@@ -189,7 +189,8 @@ class Linear(BaseLayer):
         # not be used soon and it is advised to offload data from GPU
         self.w.value.wont_use()
         self.x.value.wont_use()
-        self.y.value.wont_use()
+        # Disable the next line to avoid offloading of the output tensor
+        # self.y.value.wont_use()
         if self.b is not None:
             self.b.value.wont_use()
 
@@ -316,8 +317,9 @@ class Linear(BaseLayer):
                     gemm_async(1.0, trans, self.y.grad, notrans,
                                 self.w.value, 1.0, self.x.grad, gemm_ndim, 0,
                                 redux=self.redux)
-            # Hint StarPU to offload certain buffers
-            self.x.grad.wont_use()
+            # Disable the next line to avoid offloading of the input gradient
+            # # Hint StarPU to offload certain buffers
+            # self.x.grad.wont_use()
         self.x.value.wont_use()
         self.y.value.wont_use()
         self.y.grad.wont_use()

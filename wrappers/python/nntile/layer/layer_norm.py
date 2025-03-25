@@ -213,8 +213,9 @@ class LayerNorm(BaseLayer):
         )
         # beta can be offloaded from GPU
         self.beta.value.wont_use()
-        # Y can be offloaded from GPU
-        self.y.value.wont_use()
+        # Disable the next line to avoid offloading of the output tensor
+        # # Y can be offloaded from GPU
+        # self.y.value.wont_use()
 
     # Forward propagation of the normalization layer
     def forward_dynamic(self, x: TensorMoments):
@@ -345,8 +346,9 @@ class LayerNorm(BaseLayer):
         add_inplace_async(1., self.tmp_y_value, 1., self.x.grad)
         # tmp_Y_value can be deleted
         self.tmp_y_value.invalidate_submit()
-        # dX can offloade from GPU
-        self.x.grad.wont_use()
+        # Disable the next line to avoid offloading of the input gradient
+        # # dX can offloade from GPU
+        # self.x.grad.wont_use()
 
     @classmethod
     def from_torch(cls,

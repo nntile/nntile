@@ -48,7 +48,8 @@ class AddSlice(BaseLayer):
         )
         self.x.value.wont_use()
         self.y.value.wont_use()
-        self.u.value.wont_use()
+        # Disable the next line to avoid offloading of the output tensor
+        # self.u.value.wont_use()
 
     def forward_dynamic(self, x: TensorMoments, slice_tensor: TensorMoments):
         y = nntc.empty_like(x.value)
@@ -60,8 +61,10 @@ class AddSlice(BaseLayer):
         sum_slice_async(
             1.0, self.u.grad, 1.0, self.y.grad, self.axis, redux=self.redux
         )
-        self.x.grad.wont_use()
-        self.y.grad.wont_use()
+        # Disable the next line to avoid offloading of the input gradient
+        # self.x.grad.wont_use()
+        # Disable the next line to avoid offloading of the input gradient
+        # self.y.grad.wont_use()
         self.u.grad.wont_use()
 
     # Simple generator for the add_slice layer

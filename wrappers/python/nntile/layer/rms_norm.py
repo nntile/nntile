@@ -139,8 +139,9 @@ class RMSNorm(BaseLayer):
         self.tmp_y_value.wont_use()
         # gamma can be offloaded from GPU
         self.gamma.value.wont_use()
-        # Y can be offloaded from GPU
-        self.y.value.wont_use()
+        # Disable the next line to avoid offloading of the output tensor
+        # # Y can be offloaded from GPU
+        # self.y.value.wont_use()
 
     # Dynamic forward propagation of the normalization layer
     def forward_dynamic(self, x: TensorMoments):
@@ -208,8 +209,9 @@ class RMSNorm(BaseLayer):
         add_inplace_async(1., self.tmp_y_value, 1., self.x.grad)
         # tmp_Y_value can be deleted
         self.tmp_y_value.invalidate_submit()
-        # dX can offloade from GPU
-        self.x.grad.wont_use()
+        # Disable the next line to avoid offloading of the input gradient
+        # # dX can offloade from GPU
+        # self.x.grad.wont_use()
 
     @staticmethod
     def from_torch(torch_rmsnorm, x: TensorMoments,
