@@ -20,14 +20,14 @@ import pathlib
 import numpy as np
 import torch
 from transformers import LlamaConfig
-# from transformers import LlamaForCausalLM
+from transformers import LlamaForCausalLM
 from transformers.models.llama.modeling_llama import (
     LlamaAttention, LlamaDecoderLayer, LlamaMLP, LlamaRotaryEmbedding)
 
 import nntile
 from nntile.layer.llama_attention import (
     LlamaAttention as LlamaAttention_nntile)
-# from nntile.model.llama_causal import LlamaForCausalLM as Llama_nntile
+from nntile.model.llama_causal import LlamaForCausalLM as Llama_nntile
 from nntile.model.llama_config import LlamaConfigNNTile
 from nntile.model.llama_decoder import LlamaDecoder as LlamaDecoder_nntile
 from nntile.model.llama_mlp import LlamaMLP as LlamaMLP_nntile
@@ -44,7 +44,7 @@ parser = argparse.ArgumentParser(prog="Test performance script for LLaMa",
 
 parser.add_argument("--config-path", type=str, default="")
 parser.add_argument("--submodule", choices=["mlp", "decoder",
-                                            "attention", "causal_llama"],
+                                            "attention", "causal-llama"],
                     default="mlp")
 
 parser.add_argument("--attn-implementation",
@@ -64,6 +64,7 @@ parser.add_argument("--minibatch-size-tile", type=int, default=-1)
 
 parser.add_argument("--hidden-size", type=int, default=-1)
 parser.add_argument("--hidden-size-tile", type=int, default=-1)
+parser.add_argument("--intermediate-size", type=int, default=-1)
 parser.add_argument("--intermediate-size-tile", type=int, default=-1)
 parser.add_argument("--n-head-tile", type=int, default=-1)
 parser.add_argument("--head-dim", type=int, default=-1)
@@ -138,7 +139,9 @@ if args.hidden_size != -1 and args.head_dim != -1:
     assert llama_torch_config.num_attention_heads % args.kv_heads_ratio == 0
     llama_torch_config.num_key_value_heads = llama_torch_config.num_attention_heads // args.kv_heads_ratio
 
-print(llama_torch_config)
+if args.intermediate_size != -1:
+    llama_torch_config.intermediate_size = args.intermediate_size
+# print(llama_torch_config)
 
 if args.use_nntile:
     # Initialize NNTile and StarPU
@@ -322,8 +325,52 @@ elif args.submodule == "attention":
         print("Converting PyTorch model to NNTile requires ",
             "{} seconds".format(time1))
         del torch_layer_
-elif args.submodule == "causal_llama":
-    raise ValueError("Causal LLaMa is not supported yet!")
+elif args.submodule == "causal-llama":
+    torch_layer_ = LlamaForCausalLM(llama_torch_config)
+    mask = np.array(np.triu(np.ones((args.seq_len, args.seq_len))),
+                        dtype=bool, order="F")
+    gen = np.random.default_rng(42)
+    pos_ids = gen.integers(args.seq_len,
+                            size=(args.minibatch_size, args.seq_len),
+                            dtype=np.int64)
+    if args.use_torch:
+        # mask_torch = torch.Tensor(np.array(1 - mask, dtype=np.float32)).T \
+        #         * torch.finfo(torch.float32).min
+        # mask_torch = mask_torch[None, None, :, :].expand(args.minibatch_size,
+        #                                         1, -1, -1).to(torch_device)
+        pos_ids_torch = torch.tensor(pos_ids).to(torch_device)
+        # rotary_emb = LlamaRotaryEmbedding(config=llama_torch_config).to(torch_device)
+        # pos_embs = rotary_emb(torch_layer_.self_attn.v_proj.weight,
+        #                             pos_ids_torch)
+
+    x_shape = [args.seq_len, args.minibatch_size]
+    x_random = gen.integers(args.seq_len, size=x_shape, dtype=np.int64)
+    x_torch = torch.tensor(np.array(x_random, order="F").T,
+                           requires_grad=False)
+    if args.use_nntile:
+
+        x_basetile = [
+                    args.seq_len_tile,
+                    args.minibatch_size_tile]
+        x_traits = TensorTraits(x_shape, x_basetile)
+        x_distr = [0] * x_traits.grid.nelems
+        x_type = dtype2nntile[args.dtype]
+        x_nntile = np.array(x_random, dtype=np.int64, order="F")
+        time0 = time.time()
+        nntile_module, _ = Llama_nntile.from_torch(torch_layer_,
+                                                   args.minibatch_size,
+                                                   args.minibatch_size_tile,
+                                                   args.seq_len,
+                                                   args.seq_len_tile,
+                                                   pos_ids, mask,
+                                                   llama_config_nntile, 0)
+        nntile_module.activations[0].value.from_array(x_nntile)
+        time1 = time.time() - time0
+        print("Converting PyTorch model to NNTile requires ",
+            "{} seconds".format(time1))
+        del torch_layer_
+
+    # raise ValueError("Causal LLaMa is not supported yet!")
 
 if args.use_torch and args.torch_compile:
     torch_layer = torch.compile(torch_layer_)
@@ -361,6 +408,9 @@ if args.use_torch:
             output = torch_layer(x_torch, position_embeddings=pos_embs,
                             position_ids=pos_ids_torch,
                             attention_mask=mask_torch)[0]
+        elif args.submodule == "causal-llama":
+            output = torch_layer(x_torch,
+                                position_ids=pos_ids_torch).logits
         if args.mode == "fwd-bwd":
             loss = torch.sum(output)
             loss.backward()
@@ -380,6 +430,10 @@ if args.use_torch:
             output = torch_layer(x_torch, position_embeddings=pos_embs,
                             position_ids=pos_ids_torch,
                             attention_mask=mask_torch)[0]
+        elif args.submodule == "causal-llama":
+            output = torch_layer(x_torch,
+                                 position_ids=pos_ids_torch,
+                                 return_dict=True).logits
         if args.mode == "fwd-bwd":
             loss = torch.sum(output)
             loss.backward()
@@ -401,7 +455,7 @@ if args.use_nntile:
         nntile_module.forward_async()
         if args.mode == "fwd-bwd":
             nntile_module.clear_gradients()
-            if args.submodule in ("mlp", "decoder"):
+            if args.submodule in ("mlp", "decoder", "causal-llama"):
                 nntile_module.activations[-1].grad.from_array(
                     np.ones(nntile_module.activations[-1].value.shape,
                     np.float32, 'F'))
@@ -418,7 +472,7 @@ if args.use_nntile:
         nntile_module.forward_async()
         if args.mode == "fwd-bwd":
             nntile_module.clear_gradients()
-            if args.submodule in ("mlp", "decoder"):
+            if args.submodule in ("mlp", "decoder", "causal-llama"):
                 nntile_module.activations[-1].grad.from_array(
                     np.ones(nntile_module.activations[-1].value.shape,
                     np.float32, 'F'))
@@ -450,6 +504,16 @@ elif args.use_torch and args.torch_compile == False:
 elif args.use_torch and args.torch_compile:
     backend = "torch-compile"
 
-filename = backend + "_hidden-size_" + str(llama_torch_config.hidden_size)
+filename = "hsizetile_{}_intermsizetile_{}".format(args.hidden_size_tile,
+                                                    args.intermediate_size_tile)
+# if args.seq_len_tile != -1:
+#     filename = filename + "seqlentile_" + str(args.seq_len_tile)
+
+# if args.hidden_size_tile != -1:
+#     filename = filename + "hsizetile_" + str(args.hidden_size_tile)
+
+# np.savez(args.results_folder + "/" + filename, timings=timings,
+#          hidden_size=llama_torch_config.hidden_size)
+
 np.savez(args.results_folder + "/" + filename, timings=timings,
-         hidden_size=llama_torch_config.hidden_size)
+         hsize=args.hidden_size, seqlen_tile=args.hidden_size_tile, args=args)
