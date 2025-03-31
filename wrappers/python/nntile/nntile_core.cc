@@ -516,6 +516,15 @@ void def_mod_tensor(py::module_ &m)
     m.def("relu_fp32", &relu<fp32_t>);
     m.def("relu_fp32_fast_tf32", &relu<fp32_fast_tf32_t>);
 
+    // Add activation functions for Tensor<T>
+    m.def("sgd_momentum_async_fp64", &sgd_momentum_async<fp64_t>);
+    m.def("sgd_momentum_async_fp32_fast_tf32", &sgd_momentum_async<fp32_fast_tf32_t>);
+    m.def("sgd_momentum_async_fp32", &sgd_momentum_async<fp32_t>);
+    m.def("sgd_momentum_fp64", &sgd_momentum<fp64_t>);
+    m.def("sgd_momentum_fp32", &sgd_momentum<fp32_t>);
+    m.def("sgd_momentum_fp32_fast_tf32", &sgd_momentum<fp32_fast_tf32_t>);
+
+
     m.def("relu_forward_async_fp64", &relu_forward_async<fp64_t>);
     m.def("relu_forward_async_fp32", &relu_forward_async<fp32_t>);
     m.def("relu_forward_async_bf16", &relu_forward_async<bf16_t>);
