@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/tests/layer/test_gptneo_mlp.py
-# Test for nntile.model.GPTNeoMLP
+# @file wrappers/python/tests/layer/test_gpt_neo_block.py
+# Test for nntile.model.gpt_neo_block
 # Each test is generated in float precision by PyTorch, then it is downcasted
 # into NNTile type. So, implementation of double precision is NOT checked.
 #
@@ -19,11 +19,11 @@ import numpy as np
 import pytest
 import torch
 from transformers.models.gpt_neo.modeling_gpt_neo import (
-    GPTNeoConfig as GPTNeoConfigTorch, GPTNeoMLP as GPTNeoMLPTorch)
+    GPTNeoBlock as GPTNeoBlockTorch, GPTNeoConfig as GPTNeoConfigTorch)
 
 import nntile
-from nntile.model.gptneo_config import GPTNeoConfig
-from nntile.model.gptneo_mlp import GPTNeoMLP
+from nntile.model.gpt_neo_block import GPTNeoBlock
+from nntile.model.gpt_neo_config import GPTNeoConfig
 from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
 
@@ -38,17 +38,17 @@ dtype2nntile = {
 
 dtype2tol = {
         'fp32': {'rtol': 1e-6},
-        'fp32_fast_tf32': {'rtol': 6e-4},
+        'fp32_fast_tf32': {'rtol': 8e-4},
         'bf16': {'rtol': 1.6e-2},
-        'fp32_fast_fp16': {'rtol': 6e-4},
-        'fp32_fast_bf16': {'rtol': 4e-3},
+        'fp32_fast_fp16': {'rtol': 8e-4},
+        'fp32_fast_bf16': {'rtol': 5e-3},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='no cuda')
 
 
 @dataclass
-class GPTNeoMLPTestParams:
+class GPTNeoBlockTestParams:
     hidden_size: int
     hidden_size_tile: int
     intermediate_size: int
@@ -58,40 +58,44 @@ class GPTNeoMLPTestParams:
     redux: bool = True
     seq_len: int = 100
     seq_len_tile: int = 100
+    num_heads: int = 16
+    num_heads_tile: int = 16
 
 
-multiple_tiles = GPTNeoMLPTestParams(
-    hidden_size=128,
-    hidden_size_tile=32,
-    intermediate_size=64,
-    intermediate_size_tile=16,
-    seq_len=256,
-    seq_len_tile=16,
-    n_batch=4,
-    n_batch_tile=1)
-
-single_tile = GPTNeoMLPTestParams(
+single_tile = GPTNeoBlockTestParams(
     hidden_size=128,
     hidden_size_tile=128,
     intermediate_size=64,
     intermediate_size_tile=64,
-    seq_len=64,
-    seq_len_tile=64,
+    seq_len=32,
+    seq_len_tile=32,
     n_batch=3,
-    n_batch_tile=3,
-)
+    n_batch_tile=3)
+
+multiple_tiles = GPTNeoBlockTestParams(
+    hidden_size=128,
+    hidden_size_tile=32,
+    intermediate_size=64,
+    intermediate_size_tile=16,
+    seq_len=128,
+    seq_len_tile=32,
+    n_batch=4,
+    n_batch_tile=1)
 
 
-def generate_inputs(params: GPTNeoMLPTestParams, dtype: str):
+def generate_inputs(params: GPTNeoBlockTestParams,
+                    layer_id: int,
+                    dtype: str):
     torch_layer_config = GPTNeoConfigTorch(
         hidden_size=params.hidden_size,
-        resid_pdrop=0.0,
+        num_heads=params.num_heads,
+        intermediate_size=params.intermediate_size,
+        resid_dropout=0.0,
+        embed_dropout=0.0,
+        attention_dropout=0.0,
         use_cache=False,
     )
-    torch_layer = GPTNeoMLPTorch(
-        params.intermediate_size,
-        torch_layer_config
-    )
+    torch_module = GPTNeoBlockTorch(torch_layer_config, layer_id)
     nntile_config = GPTNeoConfig(
         vocab_size=torch_layer_config.vocab_size,
         vocab_embed_dim_tile=params.hidden_size,
@@ -99,8 +103,9 @@ def generate_inputs(params: GPTNeoMLPTestParams, dtype: str):
         hidden_size_tile=params.hidden_size_tile,
         intermediate_size=params.intermediate_size,
         intermediate_size_tile=params.intermediate_size_tile,
-        num_heads=torch_layer_config.num_heads,
-        num_heads_tile=torch_layer_config.num_heads,
+        num_heads=params.num_heads,
+        num_heads_tile=params.num_heads_tile,
+        attention_types=torch_layer_config.attention_types,
         dtype=dtype
     )
     x_shape = [params.hidden_size, params.seq_len, params.n_batch]
@@ -119,14 +124,14 @@ def generate_inputs(params: GPTNeoMLPTestParams, dtype: str):
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_()
-    nntile_layer, _ = GPTNeoMLP.from_torch(torch_layer, X,
-                                                nntile_config, 0)
-    nntile_layer.clear_gradients()
+    nntile_module, _ = GPTNeoBlock.from_torch(torch_module, X,
+                                                     nntile_config, 0)
+    nntile_module.clear_gradients()
     y_grad_random = gen.standard_normal(x_shape, dtype=np.float32)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
-    nntile_layer.activations[-1].grad.from_array(y_grad_nntile)
+    nntile_module.activations[-1].grad.from_array(y_grad_nntile)
     y_grad_torch = torch.Tensor(y_grad_nntile.T)
-    return torch_layer, nntile_layer, x_torch, y_grad_torch
+    return torch_module, nntile_module, x_torch, y_grad_torch
 
 
 @pytest.mark.parametrize('params', [
@@ -135,56 +140,65 @@ def generate_inputs(params: GPTNeoMLPTestParams, dtype: str):
 ])
 @pytest.mark.parametrize('dtype', [
     'fp32',
-    pytest.param('fp32_fast_tf32', marks=nocuda),
     pytest.param('bf16', marks=nocuda),
+    pytest.param('fp32_fast_tf32', marks=nocuda),
     pytest.param('fp32_fast_fp16', marks=nocuda),
     pytest.param('fp32_fast_bf16', marks=nocuda),
 ])
-class TestGPT2MLP:
-
-    def test_coercion(self, starpu_simple, torch_rng,
-                      params: GPTNeoMLPTestParams, dtype: str):
-        torch_layer, nntile_layer, _, _ = generate_inputs(params, dtype)
-        torch_layer_other = nntile_layer.to_torch()
+@pytest.mark.parametrize('layer_id', [
+    pytest.param(1, id='odd_layer_id'),
+    pytest.param(2, id='even_layer_id'),
+])
+class TestGPTNeoBlock:
+    def test_coercion(self, starpu_simple, torch_rng, layer_id: int,
+                      params: GPTNeoBlockTestParams, dtype: str):
+        torch_module, nntile_layer, *_ = generate_inputs(
+            params, layer_id, dtype
+        )
+        nntile2torch_module = nntile_layer.to_torch()
         nntile_layer.unregister()
 
         rtol = dtype2tol[dtype]['rtol']
-        for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
-                torch_layer_other.named_parameters()):
+        for (n1, p1), (n2, p2) in zip(torch_module.named_parameters(),
+                nntile2torch_module.named_parameters()):
             assert n1 == n2
             assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
 
-    def test_forward(self, starpu_simple, torch_rng,
-                     params: GPTNeoMLPTestParams,
-                     dtype: str):
-        torch_layer, nntile_layer, x, _ = generate_inputs(params, dtype)
-        y = torch_layer(x)
-        nntile_layer.forward_async()
-        y_nntile = torch.Tensor(to_numpy(nntile_layer.activations[-1].value).T)
-        nntile_layer.unregister()
+    def test_forward(self, starpu_simple, torch_rng, layer_id: int,
+                     params: GPTNeoBlockTestParams, dtype: str):
+        torch_module, nntile_module, x, _ = generate_inputs(
+            params, layer_id, dtype
+        )
+        y = torch_module(x)[0]
+        nntile_module.forward_async()
+        y_nntile = torch.Tensor(
+            to_numpy(nntile_module.activations[-1].value).T
+        )
+        nntile_module.unregister()
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    def test_backward(self, starpu_simple, torch_rng,
-                              params: GPTNeoMLPTestParams,
-                              dtype: str):
-        torch_layer, nntile_layer, x, y_grad = generate_inputs(params, dtype)
-        torch_layer_other = nntile_layer.to_torch()
-        y = torch_layer(x)
-        nntile_layer.forward_async()
+    def test_backward(self, starpu_simple, torch_rng, layer_id: int,
+                      params: GPTNeoBlockTestParams, dtype: str):
+        torch_module, nntile_module, x, y_grad = generate_inputs(
+            params, layer_id, dtype
+        )
+        nntile2torch_module = nntile_module.to_torch()
+        y = torch_module(x)[0]
+        nntile_module.forward_async()
         res = (y * y_grad).sum()
         res.backward()
-        nntile_layer.backward_async()
-        torch_layer_other = nntile_layer.to_torch_with_grads()
+        nntile_module.backward_async()
+        nntile2torch_module = nntile_module.to_torch_with_grads()
         grad_nntile = torch.Tensor(
-            to_numpy(nntile_layer.activations[0].grad).T
+            to_numpy(nntile_module.activations[0].grad).T
         )
-        nntile_layer.unregister()
+        nntile_module.unregister()
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(x.grad - grad_nntile) <= rtol * torch.norm(x.grad)
 
-        for (n1, p1), (n2, p2) in zip(torch_layer.named_parameters(),
-                torch_layer_other.named_parameters()):
+        for (n1, p1), (n2, p2) in zip(torch_module.named_parameters(),
+                nntile2torch_module.named_parameters()):
             assert n1 == n2
             assert p1.requires_grad == p2.requires_grad
             if p1.requires_grad:

@@ -20,7 +20,7 @@ from transformers.models.gpt_neo.modeling_gpt_neo import (
     GPTNeoAttention as GPTNeoAttentionTorch, GPTNeoConfig as GPTNeoConfigTorch)
 
 import nntile
-from nntile.model.gptneo_config import GPTNeoConfig
+from nntile.model.gpt_neo_config import GPTNeoConfig
 from nntile.tensor import TensorMoments, TensorTraits
 from nntile.utils.constructors import to_numpy
 
@@ -116,6 +116,7 @@ def generate_inputs(dtype: str, params: GPTNeoAttentionTestParams):
         intermediate_size_tile=torch_layer_config.intermediate_size,
         num_heads=params.n_head,
         num_heads_tile=params.n_head_tile,
+        attention_types=torch_layer_config.attention_types,
         dtype=dtype,
         window_size=params.window_size
     )

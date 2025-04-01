@@ -877,8 +877,8 @@ class LlamaAttention(BaseLayer):
         # Rotate axes (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
         # into (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
         transpose_async(1.0, self.b.value, self.b_transposed.value, 3)
-        # B can be deleted
-        self.b.value.invalidate_submit()
+        # B can be offloaded from GPU
+        self.b.value.wont_use()
         # Y = einsum('jklm,klmni->jni', W, B_transposed)
         # gemm (n_emb, kv_group_size, n_head_kv, head_size) by
         # (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
@@ -1348,6 +1348,7 @@ class LlamaAttention(BaseLayer):
             )
         # B_transposed can be deleted
         self.b_transposed.value.invalidate_submit()
+        # W_out can be offloaded from GPU
         self.w.grad.wont_use()
         if self.b_transposed.grad_required:
             # dB_transposed = einsum('jklm,jni->klmni', W, dY)
@@ -1372,7 +1373,7 @@ class LlamaAttention(BaseLayer):
             # rotate axes (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
             # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
             transpose_async(1.0, self.b_transposed.grad, self.b.grad, 2)
-        # self.b_transposed.grad.wont_use()
+        # dB_transposed can be deleted
         self.b_transposed.grad.invalidate_submit()
 
         # Repeat K along fibers of proper axis
@@ -2144,20 +2145,16 @@ class LlamaAttention(BaseLayer):
                 3,
                 redux=self.redux,
             )
-        # dB can be deleted
+        # Calculate A_sumprod_slice based on B and its grad
+        if self.a.grad_required:
+            # A_sumprod_slice = einsum('kmlb,kmlb->mlb', B, dB)
+            sumprod_slice_async(1.0, self.b.value, self.b.grad,
+                    0.0, self.a_sumprod_slice, 0, redux=self.redux)
+        # B and dB can be deleted
+        self.b.value.invalidate_submit()
         self.b.grad.invalidate_submit()
         # Backward for A = softmax(A, axis=0)
         if self.a.grad_required:
-            # A_sumprod_slice = einsum('kmlbi,kmlbi->mlbi', A, dA)
-            sumprod_slice_async(
-                1.0,
-                self.a.value,
-                self.a.grad,
-                0.0,
-                self.a_sumprod_slice,
-                0,
-                redux=self.redux,
-            )
             # dA += -bias('kmlbi,mlbi->kmlbi', dA, A_sumprod_slice)
             add_slice_inplace_async(
                 -1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0

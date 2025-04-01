@@ -23,7 +23,7 @@ from nntile.tensor import (
     maxsumexp_async, notrans, prod_inplace_async, softmax_inplace_async,
     sum_fiber_async, sumprod_slice_async, to_numpy, trans, transpose_async)
 
-from ..model.gptneo_config import GPTNeoConfig
+from ..model.gpt_neo_config import GPTNeoConfig
 
 
 # Multi-head attention
@@ -604,8 +604,7 @@ class GPTNeoAttention(BaseLayer):
                     redux=self.redux)
         # W, B and B_transposed can be offloaded from GPU
         self.w.value.wont_use()
-        # self.b.value.wont_use()
-        self.b.value.invalidate_submit()
+        self.b.value.wont_use()
         self.b_transposed.value.wont_use()
         # Apply out bias
         add_fiber_inplace_async(
@@ -629,7 +628,6 @@ class GPTNeoAttention(BaseLayer):
                         self.b_transposed.value, 1.0, self.w.grad, 2, 0,
                         redux=self.redux)
         # B_transposed can be deleted
-        # self.b_transposed.value.wont_use()
         self.b_transposed.value.invalidate_submit()
         self.w.grad.wont_use()
         if self.b_transposed.grad_required:
@@ -645,8 +643,15 @@ class GPTNeoAttention(BaseLayer):
             # rotate axes (n_head, head_size, n_seq, n_batch) into
             # (head_size, n_seq, n_batch, n_head) and then
             transpose_async(1.0, self.b_transposed.grad, self.b.grad, 1)
-        # self.b_transposed.grad.wont_use()
+        # dB_transposed can be deleted
         self.b_transposed.grad.invalidate_submit()
+        # Calculate A_sumprod_slice based on B and its grad
+        if self.a.grad_required:
+            # A_sumprod_slice = einsum('kmlb,kmlb->mlb', B, dB)
+            sumprod_slice_async(1.0, self.b.value, self.b.grad,
+                    0.0, self.a_sumprod_slice, 0, redux=self.redux)
+        # B can be deleted now
+        self.b.value.invalidate_submit()
         # Backward for B = einsum('jklb,kmlb->jmlb', V, A)
         if self.a.grad_required:
             # dA = einsum('jklb,jmlb->kmlb', V, dB)
@@ -660,7 +665,6 @@ class GPTNeoAttention(BaseLayer):
             gemm_async(1.0, notrans, self.b.grad, trans,
                        self.a.value, 0.0, self.v.grad, 1, 2, redux=self.redux)
         # dB can be deleted
-        # self.b.grad.wont_use()
         self.b.grad.invalidate_submit()
         # Backward for A = softmax(A, axis=0)
         if self.a.grad_required:
