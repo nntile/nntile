@@ -697,8 +697,7 @@ class GPT2Attention(BaseLayer):
                     redux=self.redux)
         # W, B and B_transposed can be offloaded from GPU
         self.w.value.wont_use()
-        # self.b.value.wont_use()
-        self.b.value.invalidate_submit()
+        self.b.value.wont_use()
         self.b_transposed.value.wont_use()
         # Apply bias if needed
         if self.out_proj_bias is not None:
@@ -723,8 +722,8 @@ class GPT2Attention(BaseLayer):
                         self.b_transposed.value, 1.0, self.w.grad, 2, 0,
                         redux=self.redux)
         # B_transposed can be deleted
-        # self.b_transposed.value.wont_use()
         self.b_transposed.value.invalidate_submit()
+        # W_out can be offloaded from GPU
         self.w.grad.wont_use()
         if self.b_transposed.grad_required:
             # dB_transposed = einsum('jkl,jmn->klmn', W, dY)
@@ -739,8 +738,15 @@ class GPT2Attention(BaseLayer):
             # rotate axes (n_head, head_size, n_seq, n_batch) into
             # (head_size, n_seq, n_batch, n_head) and then
             transpose_async(1.0, self.b_transposed.grad, self.b.grad, 1)
-        # self.b_transposed.grad.wont_use()
+        # dB_transposed can be deleted
         self.b_transposed.grad.invalidate_submit()
+        # Calculate A_sumprod_slice based on B and its grad
+        if self.a.grad_required:
+            # A_sumprod_slice = einsum('kmlb,kmlb->mlb', B, dB)
+            sumprod_slice_async(1.0, self.b.value, self.b.grad,
+                    0.0, self.a_sumprod_slice, 0, redux=self.redux)
+        # B can be deleted now
+        self.b.value.invalidate_submit()
         # Backward for B = einsum('jklb,kmlb->jmlb', V, A)
         if self.a.grad_required:
             # dA = einsum('jklb,jmlb->kmlb', V, dB)
@@ -754,13 +760,9 @@ class GPT2Attention(BaseLayer):
             gemm_async(1.0, notrans, self.b.grad, trans,
                        self.a.value, 0.0, self.v.grad, 1, 2, redux=self.redux)
         # dB can be deleted
-        # self.b.grad.wont_use()
         self.b.grad.invalidate_submit()
         # Backward for A = softmax(A, axis=0)
         if self.a.grad_required:
-            # A_sumprod_slice = einsum('kmlb,kmlb->mlb', A, dA)
-            sumprod_slice_async(1.0, self.a.value, self.a.grad,
-                    0.0, self.a_sumprod_slice, 0, redux=self.redux)
             # dA += -bias('kmlb,mlb->kmlb', dA, A_sumprod_slice)
             add_slice_inplace_async(
                 -1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0
