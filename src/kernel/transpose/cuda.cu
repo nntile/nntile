@@ -20,7 +20,7 @@
 namespace nntile::kernel::transpose
 {
 
-template<typename T, int BLOCK_ROW, int BLOCK_COL, int BLOCK_LOOP>
+template<typename T, Index BLOCK_ROW, Index BLOCK_COL, Index BLOCK_LOOP>
 static __global__
 void cuda_kernel(Index m, Index n, Scalar alpha_, const T *src, T *dst)
 //! Transpose buffers on CPU
@@ -47,8 +47,8 @@ void cuda_kernel(Index m, Index n, Scalar alpha_, const T *src, T *dst)
     {
         __shared__ T block[BLOCK_ROW][BLOCK_COL+1];
         const T *src_slice = src + global_src_i + global_src_j*m;
-        constexpr int BLOCK_COL_STEP = BLOCK_COL / BLOCK_LOOP;
-        for(int k = 0; k < BLOCK_COL; k += BLOCK_COL_STEP)
+        constexpr Index BLOCK_COL_STEP = BLOCK_COL / BLOCK_LOOP;
+        for(Index k = 0; k < BLOCK_COL; k += BLOCK_COL_STEP)
         {
             block[src_i][src_j+k] = T{alpha * Y{src_slice[k*m]}};
         }
@@ -60,15 +60,15 @@ void cuda_kernel(Index m, Index n, Scalar alpha_, const T *src, T *dst)
         Index global_dst_j = dst_j + dst_block_j*BLOCK_ROW;
         T *dst_slice = dst + global_dst_i + global_dst_j*n;
         __syncthreads();
-        constexpr int BLOCK_ROW_STEP = BLOCK_ROW / BLOCK_LOOP;
-        for(int k = 0; k < BLOCK_ROW; k += BLOCK_ROW_STEP)
+        constexpr Index BLOCK_ROW_STEP = BLOCK_ROW / BLOCK_LOOP;
+        for(Index k = 0; k < BLOCK_ROW; k += BLOCK_ROW_STEP)
         {
             dst_slice[k*n] = block[dst_j+k][dst_i];
         }
     }
     else if(global_src_i < m)
     {
-        constexpr int BLOCK_COL_STEP = BLOCK_COL / BLOCK_LOOP;
+        constexpr Index BLOCK_COL_STEP = BLOCK_COL / BLOCK_LOOP;
         for(Index new_j = 0; new_j < BLOCK_COL; new_j += BLOCK_COL_STEP)
         {
             if(global_src_j+new_j >= n)
