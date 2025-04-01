@@ -1,4 +1,4 @@
-/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+/*! @copyright (c) 2022-present Skolkovo Institute of Science and Technolog::y
  *                              (Skoltech), Russia. All rights reserved.
  *                 2023-present Artificial Intelligence Research Institute
  *                              (AIRI), Russia. All rights reserved.
@@ -12,98 +12,120 @@
  * @version 1.1.0
  * */
 
- #ifndef STARPU_SIMGRID
- #include "nntile/kernel/lion_step.hh"
- #endif // STARPU_SIMGRID
- #include "nntile/starpu/lion_step.hh"
- #include <cstdlib>
+#ifndef STARPU_SIMGRID
+#include "nntile/kernel/lion_step.hh"
+#endif // STARPU_SIMGRID
+#include "nntile/starpu/lion_step.hh"
+#include <cstdlib>
  
- //! StarPU wrappers for one step of Lion optimizer
- namespace nntile::starpu::lion_step
- {
+//! StarPU wrappers for one step of Lion optimizer
+namespace nntile::starpu::lion_step
+{
  
  //! Apply Lion step on StarPU buffers on CPU
- template<typename T>
- void cpu(void *buffers[], void *cl_args)
-     noexcept
- {
- #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
+template<typename T>
+void cpu(void *buffers[], void *cl_args)
+    noexcept
+{
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
      // Get arguments
      auto args = reinterpret_cast<args_t *>(cl_args);
      // Get interfaces
      auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
      T *grad = interfaces[0]->get_ptr<T>();
      T *first_moments = interfaces[1]->get_ptr<T>();
-     T *second_moments = interfaces[2]->get_ptr<T>();
-     T* p = interfaces[3]->get_ptr<T>();
+     T* p = interfaces[2]->get_ptr<T>();
      // Launch kernel
      kernel::lion_step::cpu<T>(args->num_iter, args->num_elems, args->beta_1,
              args->beta_2, args->lr, args->weight_decay, grad,
-             first_moments, second_moments, p);
- #endif // STARPU_SIMGRID
- }
+             first_moments, p);
+#endif // STARPU_SIMGRID
+}
+
+#ifdef NNTILE_USE_CUDA
+template<typename T>
+void cuda(void *buffers[], void *cl_args)
+     noexcept
+{
+#ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
+    // Get arguments
+    auto args = reinterpret_cast<args_t *>(cl_args);
+    // Get interfaces
+    auto interfaces = reinterpret_cast<VariableInterface **>(buffers);
+    T *grad = interfaces[0]->get_ptr<T>();
+    T *first_moments = interfaces[1]->get_ptr<T>();
+    T* p = interfaces[2]->get_ptr<T>();
+    // Get CUDA stream
+    cudaStream_t stream = starpu_cuda_get_local_stream();
+    // Launch kernel
+    kernel::lion_step::cuda<T>(stream, args->num_iter, args->num_elems, args->beta_1, args->beta_2,
+                               args->lr, args->weight_decay, grad, 
+                               first_moments, p);
+#endif // STARPU_SIMGRID
+}
+#endif // NNTILE_USE_CUDA
+
  
- Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
-         codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
+Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
+        codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
 
 void init()
 {
-    codelet_fp32.init("nntile_adam_step_fp32",
+    codelet_fp32.init("nntile_lion_step_fp32",
             nullptr,
             {cpu<fp32_t>},
-            {}
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
+	        {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_bf16.init("nntile_adam_step_bf16",
+    codelet_bf16.init("nntile_lion_step_bf16",
             nullptr,
             {cpu<bf16_t>},
 #ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
+    	    {cuda<bf16_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_fp32_fast_tf32.init("nntile_adam_step_fp32_fast_tf32",
+    codelet_fp32_fast_tf32.init("nntile_lion_step_fp32_fast_tf32",
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
+    	    {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_fp32_fast_fp16.init("nntile_adam_step_fp32_fast_fp16",
+    codelet_fp32_fast_fp16.init("nntile_lion_step_fp32_fast_fp16",
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
+    	    {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_fp32_fast_bf16.init("nntile_adam_step_fp32_fast_bf16",
+    codelet_fp32_fast_bf16.init("nntile_lion_step_fp32_fast_bf16",
             nullptr,
             {cpu<fp32_t>},
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
+    	    {cuda<fp32_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
             );
 
-    codelet_fp64.init("nntile_adam_step_fp64",
+    codelet_fp64.init("nntile_lion_step_fp64",
             nullptr,
             {cpu<fp64_t>},
 #ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
+    	    {cuda<fp64_t>}
 #else // NNTILE_USE_CUDA
             {}
 #endif // NNTILE_USE_CUDA
@@ -133,7 +155,7 @@ void init()
  
  template<typename T>
  void submit(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
-             Handle grad, Handle first_moment, Handle second_moment, Handle p)
+             Handle grad, Handle first_moment, Handle p)
  {
      // Codelet arguments
      args_t* args = (args_t*)std::malloc(sizeof(*args));
@@ -157,7 +179,6 @@ void init()
      int ret = starpu_task_insert(codelet<T>(),
              STARPU_R, static_cast<starpu_data_handle_t>(grad),
              moments_mode, static_cast<starpu_data_handle_t>(first_moment),
-             moments_mode, static_cast<starpu_data_handle_t>(second_moment),
              STARPU_RW, static_cast<starpu_data_handle_t>(p),
              STARPU_CL_ARGS, args, sizeof(*args),
              0);
@@ -172,32 +193,32 @@ void init()
  template
  void submit<fp32_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
              Scalar lr, Scalar weight_decay,
-             Handle grad, Handle first_moment, Handle second_moment, Handle p);
+             Handle grad, Handle first_moment, Handle p);
  
  template
  void submit<fp32_fast_tf32_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
              Scalar lr, Scalar weight_decay,
-             Handle grad, Handle first_moment, Handle second_moment, Handle p);
+             Handle grad, Handle first_moment, Handle p);
  
  template
  void submit<fp32_fast_fp16_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
              Scalar lr, Scalar weight_decay,
-             Handle grad, Handle first_moment, Handle second_moment, Handle p);
+             Handle grad, Handle first_moment, Handle p);
  
  template
  void submit<fp32_fast_bf16_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
              Scalar lr, Scalar weight_decay,
-             Handle grad, Handle first_moment, Handle second_moment, Handle p);
+             Handle grad, Handle first_moment, Handle p);
  
  template
  void submit<fp64_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
              Scalar lr, Scalar weight_decay,
-             Handle grad, Handle first_moment, Handle second_moment, Handle p);
+             Handle grad, Handle first_moment, Handle p);
  
  template
  void submit<bf16_t>(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2,
              Scalar lr, Scalar weight_decay,
-             Handle grad, Handle first_moment, Handle second_moment, Handle p);
+             Handle grad, Handle first_moment, Handle p);
  
  } // namespace nntile::starpu::lion_step
  

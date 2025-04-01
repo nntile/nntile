@@ -15,6 +15,7 @@
  #pragma once
 
  #include <nntile/kernel/lion_step/cpu.hh>
+ #include <nntile/kernel/lion_step/cuda.hh>
  #include <nntile/defs.h>
  
  //! @namespace nntile::kernel::lion_step

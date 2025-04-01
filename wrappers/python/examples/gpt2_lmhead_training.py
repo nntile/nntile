@@ -45,7 +45,7 @@ parser.add_argument("--pretrained", choices=["local", "remote"],
 parser.add_argument("--checkpoint-path", type=str, default="")
 parser.add_argument("--config-path", type=str, default="")
 parser.add_argument("--save-checkpoint-path", type=str, default=".model")
-parser.add_argument("--optimizer", choices=["sgd", "adam", "adamw"],
+parser.add_argument("--optimizer", choices=["sgd", "adam", "adamw", "lion"],
                     default="adam")
 
 

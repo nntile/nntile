@@ -1864,9 +1864,7 @@ def fused_lion_step(
     p: Tensor,
     grad: Tensor,
     first_moment: Tensor,
-    second_moment: Tensor,
     lr: float,
-    eps: float,
     beta1: float,
     beta2: float,
     weight_decay: float,
@@ -1876,19 +1874,15 @@ def fused_lion_step(
         raise TypeError
     if type(p) is not type(first_moment):
         raise TypeError
-    if type(p) is not type(second_moment):
-        raise TypeError
     if type(p) is core_tensor.Tensor_fp32:
         core_tensor.lion_step_async_fp32(
             num_iter,
             beta1,
             beta2,
-            eps,
             lr,
             weight_decay,
             grad,
             first_moment,
-            second_moment,
             p,
         )
     elif type(p) is core_tensor.Tensor_fp32_fast_tf32:
@@ -1896,12 +1890,10 @@ def fused_lion_step(
             num_iter,
             beta1,
             beta2,
-            eps,
             lr,
             weight_decay,
             grad,
             first_moment,
-            second_moment,
             p,
         )
     elif type(p) is core_tensor.Tensor_fp32_fast_fp16:
@@ -1909,12 +1901,10 @@ def fused_lion_step(
             num_iter,
             beta1,
             beta2,
-            eps,
             lr,
             weight_decay,
             grad,
             first_moment,
-            second_moment,
             p,
         )
     elif type(p) is core_tensor.Tensor_fp32_fast_bf16:
@@ -1922,12 +1912,10 @@ def fused_lion_step(
             num_iter,
             beta1,
             beta2,
-            eps,
             lr,
             weight_decay,
             grad,
             first_moment,
-            second_moment,
             p,
         )
     elif type(p) is core_tensor.Tensor_fp64:
@@ -1935,12 +1923,10 @@ def fused_lion_step(
             num_iter,
             beta1,
             beta2,
-            eps,
             lr,
             weight_decay,
             grad,
             first_moment,
-            second_moment,
             p,
         )
     elif type(p) is core_tensor.Tensor_bf16:
@@ -1948,12 +1934,10 @@ def fused_lion_step(
             num_iter,
             beta1,
             beta2,
-            eps,
             lr,
             weight_decay,
             grad,
             first_moment,
-            second_moment,
             p,
         )
     else:

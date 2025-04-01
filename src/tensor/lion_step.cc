@@ -34,11 +34,6 @@
          throw std::runtime_error("Parameter shape is not equal to first_moment shape");
      }
  
-     // if (p.matrix_shape != second_moment.matrix_shape)
-     // {
-     //     throw std::runtime_error("Parameter shape is not equal to second_moment shape");
-     // }
- 
      int mpi_size = starpu_mpi_world_size();
      int mpi_rank = starpu_mpi_world_rank();
  
@@ -48,7 +43,6 @@
          auto p_tile_handle = p.get_tile_handle(i);
          auto grad_tile_handle = grad.get_tile_handle(i);
          auto first_moment_tile_handle = first_moment.get_tile_handle(i);
-         auto second_moment_tile_handle = second_moment.get_tile_handle(i);
          // MPI rank of the destination tile
          int p_tile_rank = p_tile_handle.mpi_get_rank();
          int grad_tile_rank = grad_tile_handle.mpi_get_rank();
@@ -57,14 +51,12 @@
          // Transfer data
          grad_tile_handle.mpi_transfer(p_tile_rank, mpi_rank);
          first_moment_tile_handle.mpi_transfer(p_tile_rank, mpi_rank);
-         second_moment_tile_handle.mpi_transfer(p_tile_rank, mpi_rank);
          // Execute only on destination node
          if(mpi_rank == p_tile_rank)
          {
              auto traits = p.get_tile_traits(i);
              starpu::lion_step::submit<T>(num_iter, traits.nelems, beta_1, beta_2, lr, weight_decay,
                                           grad_tile_handle, first_moment_tile_handle,
-                                          // second_moment_tile_handle,
                                           p_tile_handle);
          }
          // Flush cache for the output tile on every node
@@ -76,7 +68,6 @@
  template<typename T>
  void lion_step(Index num_iter, Scalar beta_1, Scalar beta_2, Scalar lr, Scalar weight_decay,
                 const Tensor<T> &grad, const Tensor<T> &first_moment, 
-                // const Tensor<T> &second_moment,
                 const Tensor<T> &p)
  {
      lion_step_async<T>(num_iter, beta_1, beta_2, lr, weight_decay, grad, first_moment, p);

@@ -24,10 +24,9 @@
  struct args_t
  {
      Index num_iter;
-     // Index num_elems;
-     // Scalar beta_1;
-     // Scalar beta_2;
-     // Scalar eps;
+     Index num_elems;
+     Scalar beta_1;
+     Scalar beta_2;
      Scalar lr;
      Scalar weight_decay;
  };
