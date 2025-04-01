@@ -168,7 +168,6 @@ class TestGPT2Attention:
         nntile_layer.x_k.unregister()
         nntile_layer.x_v.unregister()
         nntile_layer.y.unregister()
-        print(torch.norm(y_nntile), torch.norm(y))
         rtol = dtype2tol[dtype]['rtol']
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
