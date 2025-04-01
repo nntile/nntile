@@ -504,8 +504,13 @@ elif args.use_torch and args.torch_compile == False:
 elif args.use_torch and args.torch_compile:
     backend = "torch-compile"
 
-filename = "hsizetile_{}_intermsizetile_{}".format(args.hidden_size_tile,
-                                                    args.intermediate_size_tile)
+# filename = "hsizetile_{}_intermsizetile_{}".format(args.hidden_size_tile,
+#                                                     args.intermediate_size_tile)
+
+filename = "hsizetile_{}_seqlentile_{}_intermtile_{}".format(
+                                            args.hidden_size_tile,
+                                            args.seq_len_tile,
+                                            args.intermediate_size_tile)
 # if args.seq_len_tile != -1:
 #     filename = filename + "seqlentile_" + str(args.seq_len_tile)
 
@@ -516,4 +521,4 @@ filename = "hsizetile_{}_intermsizetile_{}".format(args.hidden_size_tile,
 #          hidden_size=llama_torch_config.hidden_size)
 
 np.savez(args.results_folder + "/" + filename, timings=timings,
-         hsize=args.hidden_size, seqlen_tile=args.hidden_size_tile, args=args)
+         args=args)
