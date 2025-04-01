@@ -18,11 +18,11 @@
 namespace nntile::kernel::prod_inplace
 {
 
-template<typename T, int BLOCK, int LOOP>
+template<typename T, Index BLOCK, Index LOOP>
 static __global__
 void cuda_kernel(Index nelems, const T *src, T *dst)
 {
-    int i = threadIdx.x + blockIdx.x*BLOCK;
+    Index i = threadIdx.x + blockIdx.x*BLOCK;
     using Y = typename T::repr_t;
     __shared__ T src1_block[BLOCK];
     __shared__ T src2_block[BLOCK];
@@ -69,7 +69,7 @@ void cuda(cudaStream_t stream, Index nelems, const T *src, T *dst)
  * */
 {
     dim3 threads(256);
-    dim3 blocks((nelems+1023)/1024);
+    dim3 blocks((nelems+1023L)/1024L);
     (cuda_kernel<T, 1024, 4>)<<<blocks, threads, 0, stream>>>(nelems, src,
             dst);
 }
