@@ -35,6 +35,26 @@ n_iters = 20
 mode = args.mode
 num_warmup_calls = 5
 
+hidden_size = 16384
+seqlen = 4096
+intermediatesize = 53248
+if num_cuda == 1:
+    hidden_size_tiles = [hidden_size // ht for ht in [1, 2, 4]]
+    seqlen_tiles = [seqlen // stile for stile in [1, 2]]
+    # intermsize_tiles = [intermediatesize // itile for itile in [2, 4, 8]]
+    intermsize_tiles = [intermediatesize // itile for itile in [1]]
+elif num_cuda == 4:
+    hidden_size_tiles = [hidden_size // ht for ht in [4, 8, 16]]
+    seqlen_tiles = [seqlen // stile for stile in [2]]
+    intermsize_tiles = [intermediatesize // itile for itile in [8, 13, 16]]
+    # intermsize_tiles = [intermediatesize // itile for itile in [8]]
+elif num_cuda == 2:
+    hidden_size_tiles = [hidden_size // ht for ht in [2, 4, 8]]
+    # seqlen_tiles = [seqlen // stile for stile in [2, 4]]
+    seqlen_tiles = [seqlen // stile for stile in [1]]
+    intermsize_tiles = [intermediatesize // itile for itile in [2, 4, 8]]
+    # intermsize_tiles = [intermediatesize // itile for itile in [2]]
+
 config_path = "./llama_405b_config.json"
 model_name = config_path.split("/")[1][:-5]
 
@@ -42,28 +62,21 @@ cmd_string = "STARPU_MAX_MEMORY_USE=1 STARPU_ENABLE_STATS=1 STARPU_PROFILING=1 S
 cmd_string = cmd_string + "CUDA_VISIBLE_DEVICES={} STARPU_WORKERS_NOBIND=1 STARPU_SILENT=1 STARPU_NCPU=1 STARPU_NCUDA={}".format(cuda_device, num_cuda)
 cmd_string = cmd_string + " python3 llama_perf.py --config-path=" + config_path
 cmd_string = cmd_string + " --restrict=" + device + " --mode=" + mode + " --n-iters=" + str(n_iters)
-cmd_string = cmd_string + " --num-warmup-calls=" + str(num_warmup_calls) + " --submodule=mlp"
+cmd_string = cmd_string + " --num-warmup-calls=" + str(num_warmup_calls) + " --submodule=decoder"
 if backend == "torch":
     cmd_string = cmd_string + " --use-torch"
 elif backend == "nntile":
     cmd_string = cmd_string + " --use-nntile"
 elif backend == "torch-compile":
     cmd_string = cmd_string + " --use-torch --torch-compile"
-current_cmd = cmd_string + " --seq-len=4096"
+current_cmd = cmd_string + " --seq-len={}".format(seqlen)
 current_cmd = current_cmd + " --hidden-size=-1"
-current_cmd = current_cmd + " --results-folder=.results/gpu" + str(num_cuda) + "/" + model_name + "/mlp_" + mode
+current_cmd = current_cmd + " --results-folder=.results/gpu" + str(num_cuda) + "/" + model_name + "/decoder_" + mode + "/seqlen_{}".format(seqlen)
 
-hidden_size = 16384
-intermediate_size = 53248
-
-hidden_size_tiles = [hidden_size // (2 ** i) for i in range(0, 5)]
-# intermediate_size_tiles = [intermediate_size // (2 ** i) for i in range(4, 5)]
-# intermediate_size_tiles = [intermediate_size // 32, intermediate_size // 13,
-#                            intermediate_size // 26]
-intermediate_size_tiles = [intermediate_size // 52]
-
-for j, hsize_tile in enumerate(hidden_size_tiles):
+for hsize_tile in hidden_size_tiles:
     current_cmd_h  = current_cmd + " --hidden-size-tile=" + str(hsize_tile)
-    for i, interm_size_tile in enumerate(intermediate_size_tiles):
-        current_cmd_hinterm = current_cmd_h + " --intermediate-size-tile=" + str(interm_size_tile)
-        os.system(current_cmd_hinterm)
+    for slen_tile in seqlen_tiles:
+        current_cmd_h_seqlen = current_cmd_h + " --seq-len-tile=" + str(slen_tile)
+        for intermtile in intermsize_tiles:
+            current_cmd_h_seqlen_interm = current_cmd_h_seqlen + " --intermediate-size-tile=" + str(intermtile)
+            os.system(current_cmd_h_seqlen_interm)
