@@ -63,6 +63,7 @@ set(TESTS
     "scal"
     "transpose"
     "flash_softmax_gemm"
+    "flash_maxsumexp"
     )
 
 # Describe all tests that are not yet implemented

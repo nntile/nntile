@@ -125,8 +125,10 @@ __device__ void gmem_to_smem_transposed_vec4(
         }
 
         // Each vector spans 4 rows in the same column
-        const Index col_in = linear_vec_idx / (BLOCK_ROWS / 4);
-        const Index row_vec = linear_vec_idx % (BLOCK_ROWS / 4);
+        // const Index col_in = linear_vec_idx / (BLOCK_ROWS / 4);
+        // const Index row_vec = linear_vec_idx % (BLOCK_ROWS / 4);
+        const Index col_in = linear_vec_idx % BLOCK_COLS;
+        const Index row_vec = linear_vec_idx / BLOCK_COLS;
         const Index row_in = row_vec * 4;
 
         // Only process if within bounds
@@ -195,8 +197,10 @@ __device__ void gmem_to_smem_vec4(
         }
 
         // Each vector spans 4 rows in the same column
-        const Index col_in = linear_vec_idx / (BLOCK_ROWS / 4);
-        const Index row_vec = linear_vec_idx % (BLOCK_ROWS / 4);
+        // const Index col_in = linear_vec_idx / (BLOCK_ROWS / 4);
+        // const Index row_vec = linear_vec_idx % (BLOCK_ROWS / 4);
+        const Index col_in = linear_vec_idx % BLOCK_COLS;
+        const Index row_vec = linear_vec_idx / BLOCK_COLS;
         const Index row_in = row_vec * 4;
 
         // Only process if within bounds
@@ -259,9 +263,9 @@ __global__ void flash_softmax_gemm_kernel(
     // Get global indices
     const Index thread_id = threadIdx.x;
     const Index block_size = blockDim.x;
-    const Index batch_idx = blockIdx.z;
+    const Index batch_idx = blockIdx.y;
     const Index q_block_idx = blockIdx.x;
-    const Index kv_split_idx = blockIdx.y;
+    const Index kv_split_idx = blockIdx.z;
 
     // Calculate tile ranges
     const Index num_kv_blocks = (seq + K_BLOCK - 1) / K_BLOCK;
@@ -281,11 +285,14 @@ __global__ void flash_softmax_gemm_kernel(
     // Calculate offsets for different shared memory arrays
     constexpr int MAX_BLOCK_SIZE = Q_BLOCK * sizeof(T_smem);
     // constexpr int SUMEXP_BLOCK_SIZE = Q_BLOCK * sizeof(T_smem);
-    constexpr int Q_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (Q_BLOCK+1) * sizeof(T_smem);
+    constexpr int LDQ = Q_BLOCK + 4;
+    constexpr int Q_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * LDQ * sizeof(T_smem);
+    constexpr int LDK = K_BLOCK + 4;
     // constexpr int K_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (K_BLOCK+1) * sizeof(T_smem);
     constexpr int SOFTMAX_BLOCK_SIZE = K_BLOCK * (Q_BLOCK+4) * sizeof(T_smem);
     // constexpr int SOFTMAX_BLOCK_SIZE = V_BLOCK * (Q_BLOCK+4) * sizeof(T_smem);
-    constexpr int V_BLOCK_SIZE = 2 * (VS_HEAD_BLOCK+1) * V_BLOCK * sizeof(T_smem);
+    constexpr int LDV = V_BLOCK + 4;
+    constexpr int V_BLOCK_SIZE = 2 * VS_HEAD_BLOCK * LDV * sizeof(T_smem);
     constexpr int A_BLOCK_SIZE = VS_HEAD_BLOCK * (Q_BLOCK+4) * sizeof(T_smem);
 
     // Assign pointers to shared memory regions with proper offsets
@@ -304,11 +311,11 @@ __global__ void flash_softmax_gemm_kernel(
     };
 
     auto Q_idx = [&](int buf, int h, int q) -> int {
-        return buf * KQ_HEAD_BLOCK * (Q_BLOCK+1) + h * (Q_BLOCK+1) + q;
+        return buf * KQ_HEAD_BLOCK * LDQ + h * LDQ + q;
     };
 
     auto K_idx = [&](int buf, int h, int k) -> int {
-        return buf * KQ_HEAD_BLOCK * (K_BLOCK+1) + h * (K_BLOCK+1) + k;
+        return buf * KQ_HEAD_BLOCK * LDK + h * LDK + k;
     };
 
     auto softmax_idx = [&](int k, int q) -> int {
@@ -316,7 +323,7 @@ __global__ void flash_softmax_gemm_kernel(
     };
 
     auto V_idx = [&](int buf, int h, int k) -> int {
-        return buf * VS_HEAD_BLOCK * (V_BLOCK+1) + h * (V_BLOCK+1) + k;
+        return buf * VS_HEAD_BLOCK * LDV + h * LDV + k;
         // return buf * (VS_HEAD_BLOCK+1) * (V_BLOCK) + h + (VS_HEAD_BLOCK+1) * k;
     };
 
@@ -374,7 +381,7 @@ __global__ void flash_softmax_gemm_kernel(
 
     // int magic_number = (warp_id % KQ_Q_TILE_NUM) * KQ_Q_TILE;
     // magic_number += lane_id % KQ_WARP_Q_THREADS;
-    #pragma unroll
+    //#pragma unroll
     for (int tile_idx_loop = 0; tile_idx_loop < KQ_TILE_PER_WARP;
             ++tile_idx_loop)
     {
@@ -382,7 +389,7 @@ __global__ void flash_softmax_gemm_kernel(
         int q_tile_idx = (tile_idx % KQ_Q_TILE_NUM);
         int thread_q_idx = lane_id % KQ_WARP_Q_THREADS;
         int q_local = q_tile_idx * KQ_Q_TILE + thread_q_idx;
-        #pragma unroll
+        //#pragma unroll
         for (int j = 0; j < KQ_TILE_Q_PER_THREAD; ++j)
         {
             int q_idx = q_local + j * KQ_WARP_Q_THREADS;
@@ -398,18 +405,20 @@ __global__ void flash_softmax_gemm_kernel(
     for (Index kv_block_idx = kv_block_start; kv_block_idx < kv_block_end;
             kv_block_idx += K_BLOCK)
     {
+        T_accum softmax_reg[KQ_TILE_PER_WARP][KQ_TILE_K_PER_THREAD][
+            KQ_TILE_Q_PER_THREAD];
         // Stage 1: Compute softmax(mask(K'Q))
         {
             // Thread-local registers for softmax(mask(K'Q))
-            T_accum softmax_reg[KQ_TILE_PER_WARP][KQ_TILE_K_PER_THREAD][
-                KQ_TILE_Q_PER_THREAD];
+            // T_accum softmax_reg[KQ_TILE_PER_WARP][KQ_TILE_K_PER_THREAD][
+            //     KQ_TILE_Q_PER_THREAD];
 
             // Initialize buffer index for double buffering
             int buf_idx = 0;
 
             // Initialize mask tile
             int j = thread_id % Q_BLOCK;
-            #pragma unroll
+            //#pragma unroll
             for (int i = 16 * (thread_id / Q_BLOCK); i < K_BLOCK;
                     i += 16 * (block_size / Q_BLOCK))
             {
@@ -418,14 +427,14 @@ __global__ void flash_softmax_gemm_kernel(
                 bool *mask_val_bool = reinterpret_cast<bool*>(&mask_val);
                 for (int k = 0; k < 16; ++k)
                 {
-                    mask_block[mask_idx(j, i+k)] = T_smem(mask_val_bool[k]);
+                    mask_block[mask_idx(j, i+k)] = bool(mask_val_bool[k]);
                 }
             }
             __syncthreads();
 
             // Initialize K'Q block on registers with mask information
             // We do it the same way as gemm K'Q to ensure maximal register usage
-            #pragma unroll
+            //#pragma unroll
             for(int tile_idx_loop = 0; tile_idx_loop < KQ_TILE_PER_WARP;
                     ++tile_idx_loop)
             {
@@ -436,10 +445,10 @@ __global__ void flash_softmax_gemm_kernel(
                 int thread_k_idx = lane_id / KQ_WARP_Q_THREADS;
                 int q_local = q_tile_idx * KQ_Q_TILE + thread_q_idx;
                 int k_local = k_tile_idx * KQ_K_TILE + thread_k_idx;
-                #pragma unroll
+                //#pragma unroll
                 for (int i = 0; i < KQ_TILE_K_PER_THREAD; ++i)
                 {
-                    #pragma unroll
+                    //#pragma unroll
                     for (int j = 0; j < KQ_TILE_Q_PER_THREAD; ++j)
                     {
                         if (mask_block[mask_idx(q_local + KQ_WARP_Q_THREADS * j,
@@ -465,7 +474,7 @@ __global__ void flash_softmax_gemm_kernel(
                 Q + HEAD_SIZE * (q_block_idx * Q_BLOCK + seq * batch_idx),
                 Q_block + Q_idx(buf_idx, 0, 0),
                 HEAD_SIZE,
-                Q_BLOCK + 1,
+                LDQ,
                 thread_id,
                 block_size
             );
@@ -475,7 +484,7 @@ __global__ void flash_softmax_gemm_kernel(
                 K + HEAD_SIZE * (kv_block_idx + seq * batch_idx),
                 K_block + K_idx(buf_idx, 0, 0),
                 HEAD_SIZE,
-                K_BLOCK + 1,
+                LDK,
                 thread_id,
                 block_size
             );
@@ -484,7 +493,7 @@ __global__ void flash_softmax_gemm_kernel(
             __syncthreads();
 
             // Process head dimension in chunks to compute entire block of K'Q
-            #pragma unroll 1
+            //#pragma unroll 1
             for (int head_offset = 0; head_offset < HEAD_SIZE;
                     head_offset += KQ_HEAD_BLOCK)
             {
@@ -501,7 +510,7 @@ __global__ void flash_softmax_gemm_kernel(
                             + (head_offset + KQ_HEAD_BLOCK),
                         Q_block + Q_idx(next_buf_idx, 0, 0),
                         HEAD_SIZE,
-                        Q_BLOCK + 1,
+                        LDQ,
                         thread_id,
                         block_size
                     );
@@ -513,14 +522,14 @@ __global__ void flash_softmax_gemm_kernel(
                             + (head_offset + KQ_HEAD_BLOCK),
                         K_block + K_idx(next_buf_idx, 0, 0),
                         HEAD_SIZE,
-                        K_BLOCK + 1,
+                        LDK,
                         thread_id,
                         block_size
                     );
                 }
 
                 // Accumulate block of K'Q
-                #pragma unroll
+                //#pragma unroll
                 for (int tile_idx_loop = 0; tile_idx_loop < KQ_TILE_PER_WARP;
                         ++tile_idx_loop)
                 {
@@ -570,7 +579,7 @@ __global__ void flash_softmax_gemm_kernel(
             }
 
             // Apply softmax to thread-local registers and write results to shared memory
-            #pragma unroll
+            //#pragma unroll
             for (int tile_idx_loop = 0; tile_idx_loop < KQ_TILE_PER_WARP;
                     ++tile_idx_loop)
             {
@@ -604,13 +613,13 @@ __global__ void flash_softmax_gemm_kernel(
         // Stage 2: Compute VS
         {
             // Thread-local registers for the output VS
-            T_accum A_reg[VS_TILE_PER_WARP][VS_TILE_HEAD_PER_THREAD][
-                VS_TILE_Q_PER_THREAD];
+            // T_accum A_reg[VS_TILE_PER_WARP][VS_TILE_HEAD_PER_THREAD][
+            //     VS_TILE_Q_PER_THREAD];
 
             // Since VS is of shape HEAD_SIZE x Q_BLOCK, we process head
             // dimension in chunks of VS_HEAD_BLOCK. These chunks are
             // independent, they are processed sequentially one by one.
-            #pragma unroll 2
+            //#pragma unroll 2
             for (int head_offset = 0; head_offset < HEAD_SIZE;
                     head_offset += VS_HEAD_BLOCK)
             {
@@ -622,12 +631,12 @@ __global__ void flash_softmax_gemm_kernel(
                         + head_offset,
                     V_block + V_idx(buf_idx, 0, 0),
                     HEAD_SIZE,
-                    V_BLOCK + 1,
+                    LDV,
                     thread_id,
                     block_size);
 
                 // Clear the output registers
-                #pragma unroll
+                // #pragma unroll
                 for (int tile_idx_loop = 0; tile_idx_loop < VS_TILE_PER_WARP;
                         ++tile_idx_loop)
                 {
@@ -637,7 +646,8 @@ __global__ void flash_softmax_gemm_kernel(
                         #pragma unroll
                         for (int j = 0; j < VS_TILE_Q_PER_THREAD; ++j)
                         {
-                            A_reg[tile_idx_loop][i][j] = 0.0;
+                            // A_reg[tile_idx_loop][i][j] = 0.0;
+                            softmax_reg[tile_idx_loop][i][j] = 0.0;
                         }
                     }
                 }
@@ -648,7 +658,7 @@ __global__ void flash_softmax_gemm_kernel(
                 // VS_HEAD_BLOCK x K_BLOCK by S block of shape
                 // K_BLOCK x Q_BLOCK. We do it in chunks of size V_BLOCK
                 // along dimension of size K_BLOCK.
-                #pragma unroll 2
+                // #pragma unroll 2
                 for (int v_block_idx = 0; v_block_idx < K_BLOCK;
                         v_block_idx += V_BLOCK)
                 {
@@ -663,21 +673,23 @@ __global__ void flash_softmax_gemm_kernel(
                             V + HEAD_SIZE * next_v_idx_start + head_offset,
                             V_block + V_idx(next_buf_idx, 0, 0),
                             HEAD_SIZE,
-                            V_BLOCK + 1,
+                            LDV,
                             thread_id,
                             block_size);
                     }
 
                     // Process tiles in a round-robin fashion across warps
-                    #pragma unroll
+                    // #pragma unroll
                     for (int tile_idx_loop = 0; tile_idx_loop < VS_TILE_PER_WARP;
                             ++tile_idx_loop)
                     {
                         int tile_idx = warp_id + tile_idx_loop * NUM_WARPS;
                         int head_tile_idx = (tile_idx % VS_HEAD_TILE_NUM);
                         int q_tile_idx = (tile_idx / VS_HEAD_TILE_NUM);
-                        int thread_head_idx = lane_id % VS_WARP_HEAD_THREADS;
-                        int thread_q_idx = lane_id / VS_WARP_HEAD_THREADS;
+                        // int thread_head_idx = lane_id % VS_WARP_HEAD_THREADS;
+                        // int thread_q_idx = lane_id / VS_WARP_HEAD_THREADS;
+                        int thread_head_idx = lane_id / VS_WARP_Q_THREADS;
+                        int thread_q_idx = lane_id % VS_WARP_Q_THREADS;
                         int h = head_tile_idx * VS_HEAD_TILE + thread_head_idx;
                         int q = q_tile_idx * VS_Q_TILE + thread_q_idx;
                         #pragma unroll 8
@@ -706,7 +718,8 @@ __global__ void flash_softmax_gemm_kernel(
                                 #pragma unroll
                                 for (int j = 0; j < VS_TILE_Q_PER_THREAD; ++j)
                                 {
-                                    A_reg[tile_idx_loop][i][j] +=
+                                    // A_reg[tile_idx_loop][i][j] +=
+                                    softmax_reg[tile_idx_loop][i][j] +=
                                         T_accum{a_vals[i] * b_vals[j]};
                                 }
                             }
@@ -721,7 +734,7 @@ __global__ void flash_softmax_gemm_kernel(
                 }
 
                 // Process tiles in a round-robin fashion across warps
-                #pragma unroll
+                // #pragma unroll
                 for (int tile_idx_loop = 0; tile_idx_loop < VS_TILE_PER_WARP;
                         ++tile_idx_loop)
                 {
@@ -743,7 +756,8 @@ __global__ void flash_softmax_gemm_kernel(
                             const Index head_idx = head_offset + head_idx_local;
                             const Index q_idx = q_block_idx * Q_BLOCK + q_idx_local;
                             const Index a_idx = head_idx + HEAD_SIZE * (q_idx + seq * batch_idx);
-                            atomicAdd(&A[a_idx], T_gmem{A_reg[tile_idx_loop][i][j]});
+                            // atomicAdd(&A[a_idx], T_gmem{A_reg[tile_idx_loop][i][j]});
+                            atomicAdd(&A[a_idx], T_gmem{softmax_reg[tile_idx_loop][i][j]});
                             // A_block[A_idx(head_idx_local, q_idx_local)] =
                             //      T_smem{A_reg[tile_idx_loop][i][j]};
                         }
@@ -782,7 +796,7 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
     // Q is split into blocks of size KQ_HEAD_BLOCK x Q_BLOCK
     // K'Q is split into blocks of size K_BLOCK x Q_BLOCK
     constexpr int Q_BLOCK = 64;
-    constexpr int K_BLOCK = 64;
+    constexpr int K_BLOCK = 128;
     constexpr int KQ_HEAD_BLOCK = 16;
 
     // V @ softmax is done by blocks:
@@ -794,19 +808,22 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
 
     // Split K and V into KV_SPLIT parts, each part is processed by a different
     // CUDA block. This is done to balance between parallelism and overhead.
-    constexpr int KV_SPLIT = 1;
+    constexpr int KV_SPLIT = 4;
 
     // Calculate shared memory size
-    constexpr int Q_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (Q_BLOCK+1) * sizeof(float);
-    constexpr int K_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (K_BLOCK+1) * sizeof(float);
+    constexpr int LDQ = Q_BLOCK + 4;
+    constexpr int LDK = K_BLOCK + 4;
+    constexpr int LDV = V_BLOCK + 4;
+    constexpr int Q_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * LDQ * sizeof(float);
+    constexpr int K_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * LDK * sizeof(float);
     constexpr int SOFTMAX_BLOCK_SIZE = K_BLOCK * (Q_BLOCK+4) * sizeof(float);
-    constexpr int V_BLOCK_SIZE = 2 * VS_HEAD_BLOCK * (V_BLOCK+1) * sizeof(float);
+    constexpr int V_BLOCK_SIZE = 2 * VS_HEAD_BLOCK * LDV * sizeof(float);
     constexpr int A_BLOCK_SIZE = VS_HEAD_BLOCK * (Q_BLOCK+4) * sizeof(float);
     constexpr int SHARED_MEM_SIZE = std::max(Q_BLOCK_SIZE + K_BLOCK_SIZE,
             SOFTMAX_BLOCK_SIZE + V_BLOCK_SIZE);
 
     constexpr int KQ_Q_TILE = 32;
-    constexpr int KQ_K_TILE = 32;
+    constexpr int KQ_K_TILE = 64;
     constexpr int VS_HEAD_TILE = 32;
     constexpr int VS_Q_TILE = 32;
     static_assert(K_BLOCK * Q_BLOCK >= KQ_Q_TILE * KQ_K_TILE * NUM_WARPS,
@@ -818,7 +835,7 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
 
     // Use 1D thread blocks instead of 2D
     dim3 threads(NUM_THREADS);
-    dim3 blocks((seq + Q_BLOCK - 1) / Q_BLOCK, KV_SPLIT, batch);
+    dim3 blocks((seq + Q_BLOCK - 1) / Q_BLOCK, batch, KV_SPLIT);
 
     // Calculate scaling factor
     using Y = typename T::repr_t;
@@ -890,12 +907,12 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
         constexpr int HEAD_SIZE = 256;
         if constexpr (std::is_same_v<T, nntile::fp32_t>)
         {
-            cudaFuncSetAttribute(
-                flash_softmax_gemm_kernel<float, float, float,
-                    HEAD_SIZE, Q_BLOCK, K_BLOCK, KQ_HEAD_BLOCK, KQ_Q_TILE,
-                    KQ_K_TILE, VS_HEAD_BLOCK, V_BLOCK, VS_HEAD_TILE,
-                    VS_Q_TILE, KV_SPLIT, NUM_WARPS>,
-                    cudaFuncAttributeMaxDynamicSharedMemorySize, SHARED_MEM_SIZE);
+            // cudaFuncSetAttribute(
+            //     flash_softmax_gemm_kernel<float, float, float,
+            //         HEAD_SIZE, Q_BLOCK, K_BLOCK, KQ_HEAD_BLOCK, KQ_Q_TILE,
+            //         KQ_K_TILE, VS_HEAD_BLOCK, V_BLOCK, VS_HEAD_TILE,
+            //         VS_Q_TILE, KV_SPLIT, NUM_WARPS>,
+            //         cudaFuncAttributeMaxDynamicSharedMemorySize, SHARED_MEM_SIZE);
 
             flash_softmax_gemm_kernel<float, float, float,
                     HEAD_SIZE, Q_BLOCK, K_BLOCK, KQ_HEAD_BLOCK, KQ_Q_TILE,

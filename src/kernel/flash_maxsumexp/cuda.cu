@@ -219,11 +219,10 @@ __device__ void gmem_to_smem_vec4(
     }
 }
 
-
 template<typename T_gmem, typename T_smem, typename T_accum,
          Index HEAD_SIZE, Index Q_BLOCK, Index K_BLOCK,
          Index KQ_HEAD_BLOCK, Index KQ_Q_TILE, Index KQ_K_TILE,
-         Index K_SPLIT, Index NUM_WARPS>
+         Index K_SPLIT, Index NUM_COMP_WARPS>
 __global__ void flash_maxsumexp_kernel(
     Index batch, Index seq, T_accum scale,
     const T_gmem * __restrict K, const T_gmem * __restrict Q,
@@ -266,12 +265,12 @@ __global__ void flash_maxsumexp_kernel(
         return q * (K_BLOCK+4) + k;
     };
 
-    auto Q_idx = [&](int buf, int h, int q) -> int {
-        return buf * KQ_HEAD_BLOCK * (Q_BLOCK+1) + h * (Q_BLOCK+1) + q;
+    auto Q_idx = [&](int h, int q) -> int {
+        return h * (Q_BLOCK + 32/KQ_HEAD_BLOCK) + q;
     };
 
     auto K_idx = [&](int buf, int h, int k) -> int {
-        return buf * KQ_HEAD_BLOCK * (K_BLOCK+1) + h * (K_BLOCK+1) + k;
+        return buf * KQ_HEAD_BLOCK * (K_BLOCK + 32/KQ_HEAD_BLOCK) + h * (K_BLOCK + 32/KQ_HEAD_BLOCK) + k;
     };
 
     auto max_idx = [&](int k_tile, int q) -> int {
@@ -287,14 +286,22 @@ __global__ void flash_maxsumexp_kernel(
     constexpr int KQ_Q_TILE_NUM = Q_BLOCK / KQ_Q_TILE;
     constexpr int KQ_TILE_NUM = KQ_K_TILE_NUM * KQ_Q_TILE_NUM;
 
-    // Number of tiles of softmax(mask(K'Q)) per warp in a block
-    constexpr int KQ_TILE_PER_WARP = (KQ_TILE_NUM + NUM_WARPS - 1) / NUM_WARPS;
+    // Number of tiles of softmax(mask(K'Q)) per computing warp in a block
+    constexpr int KQ_TILE_PER_WARP = KQ_TILE_NUM / NUM_COMP_WARPS;
 
-    // Warp for softmax(mask(K'Q)) tile is the following grid of threads
+    // if(thread_id == 0)
+    // {
+    //     printf("KQ_K_TILE_NUM: %d\n", KQ_K_TILE_NUM);
+    //     printf("KQ_Q_TILE_NUM: %d\n", KQ_Q_TILE_NUM);
+    //     printf("KQ_TILE_NUM: %d\n", KQ_TILE_NUM);
+    //     printf("KQ_TILE_PER_WARP: %d\n", KQ_TILE_PER_WARP);
+    // }
+
+    // Computing warp for softmax(mask(K'Q)) tile is the following grid of threads
     constexpr int KQ_WARP_K_THREADS = 8;
     constexpr int KQ_WARP_Q_THREADS = 32 / KQ_WARP_K_THREADS;
 
-    // Number of softmax(mask(K'Q)) tile elements per thread
+    // Number of softmax(mask(K'Q)) tile elements per thread in a computing warp
     constexpr int KQ_TILE_K_PER_THREAD = KQ_K_TILE / KQ_WARP_K_THREADS;
     constexpr int KQ_TILE_Q_PER_THREAD = KQ_Q_TILE / KQ_WARP_Q_THREADS;
 
@@ -303,19 +310,19 @@ __global__ void flash_maxsumexp_kernel(
 
     // Calculate offsets for different shared memory arrays
     constexpr int MAX_BLOCK_SIZE = Q_BLOCK * sizeof(T_smem);
-    // constexpr int SUMEXP_BLOCK_SIZE = Q_BLOCK * sizeof(T_smem);
-    constexpr int Q_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (Q_BLOCK+1) * sizeof(T_smem);
-    constexpr int K_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (K_BLOCK+1) * sizeof(T_smem);
+    constexpr int SUMEXP_BLOCK_SIZE = Q_BLOCK * sizeof(T_smem);
+    constexpr int Q_BLOCK_SIZE = HEAD_SIZE * (Q_BLOCK+32/KQ_HEAD_BLOCK) * sizeof(T_smem);
+    constexpr int K_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (K_BLOCK+32/KQ_HEAD_BLOCK) * sizeof(T_smem);
     constexpr int MAX_REDUCE_SIZE = KQ_K_TILE_NUM * Q_BLOCK * sizeof(T_smem);
     constexpr int SUMEXP_REDUCE_SIZE = KQ_K_TILE_NUM * Q_BLOCK * sizeof(T_smem);
     constexpr int SHARED_MEM_SIZE = Q_BLOCK_SIZE + K_BLOCK_SIZE + MAX_REDUCE_SIZE + SUMEXP_REDUCE_SIZE;
 
     // Assign pointers to shared memory regions with proper offsets
-    bool* mask_block = reinterpret_cast<bool*>(shared_mem);
-    T_smem* Q_block = reinterpret_cast<T_smem*>(shared_mem);
-    T_smem* K_block = reinterpret_cast<T_smem*>(shared_mem + Q_BLOCK_SIZE);
-    T_smem* max_reduce = reinterpret_cast<T_smem*>(shared_mem + Q_BLOCK_SIZE + K_BLOCK_SIZE);
-    T_smem* sumexp_reduce = reinterpret_cast<T_smem*>(shared_mem + Q_BLOCK_SIZE + K_BLOCK_SIZE + MAX_REDUCE_SIZE);
+    T_accum* max_reduce = reinterpret_cast<T_accum*>(shared_mem);
+    T_accum* sumexp_reduce = reinterpret_cast<T_accum*>(shared_mem + MAX_REDUCE_SIZE);
+    T_smem* Q_block = reinterpret_cast<T_smem*>(shared_mem + MAX_REDUCE_SIZE + SUMEXP_REDUCE_SIZE);
+    T_smem* K_block = reinterpret_cast<T_smem*>(shared_mem + MAX_REDUCE_SIZE + SUMEXP_REDUCE_SIZE + Q_BLOCK_SIZE);
+    bool* mask_block = reinterpret_cast<bool*>(shared_mem + MAX_REDUCE_SIZE + SUMEXP_REDUCE_SIZE + Q_BLOCK_SIZE + K_BLOCK_SIZE);
 
     // Init max and sum of exponents for the entire block of threads
     if(thread_id < Q_BLOCK)
@@ -326,12 +333,19 @@ __global__ void flash_maxsumexp_kernel(
         {
             max_reduce[max_idx(0, thread_id)] = -std::numeric_limits<T_accum>::infinity();
         }
-        for(int i = 1; i < KQ_K_TILE_NUM; ++i)
+        for(int i = 1; i < KQ_K_TILE_NUM; i++)
         {
             max_reduce[max_idx(i, thread_id)] = -std::numeric_limits<T_accum>::infinity();
             sumexp_reduce[sumexp_idx(i, thread_id)] = 0.0;
         }
     }
+
+    // for(int i = thread_id/Q_BLOCK + 1; i < KQ_K_TILE_NUM; i += block_size/Q_BLOCK)
+    // // for(int i = thread_id/Q_BLOCK; i < KQ_K_TILE_NUM; i += block_size/Q_BLOCK)
+    // {
+    //     max_reduce[max_idx(i, thread_id % Q_BLOCK)] = -std::numeric_limits<T_accum>::infinity();
+    //     sumexp_reduce[sumexp_idx(i, thread_id % Q_BLOCK)] = 0.0;
+    // }
     __syncthreads();
 
     // Process K blocks
@@ -348,48 +362,53 @@ __global__ void flash_maxsumexp_kernel(
 
             // Initialize mask tile
             int j = thread_id % Q_BLOCK;
+            if(warp_id < NUM_COMP_WARPS)
             #pragma unroll
             for (int i = 16 * (thread_id / Q_BLOCK); i < K_BLOCK;
-                    i += 16 * (block_size / Q_BLOCK))
+                    i += 16 * (NUM_COMP_WARPS * 32 / Q_BLOCK))
             {
                 float4 mask_val = *reinterpret_cast<const float4*>(
                     &mask[k_block_idx + i + (j + q_block_idx * Q_BLOCK) * seq]);
                 bool *mask_val_bool = reinterpret_cast<bool*>(&mask_val);
+                #pragma unroll
                 for (int k = 0; k < 16; ++k)
                 {
-                    mask_block[mask_idx(j, i+k)] = T_smem(mask_val_bool[k]);
+                    mask_block[mask_idx(j, i+k)] = mask_val_bool[k];
                 }
             }
             __syncthreads();
 
             // Initialize K'Q block on registers with mask information
             // We do it the same way as gemm K'Q to ensure maximal register usage
-            #pragma unroll
-            for(int tile_idx_loop = 0; tile_idx_loop < KQ_TILE_PER_WARP;
-                    ++tile_idx_loop)
+            if(warp_id < NUM_COMP_WARPS)
             {
-                int tile_idx = warp_id + tile_idx_loop * NUM_WARPS;
-                int q_tile_idx = (tile_idx % KQ_Q_TILE_NUM);
-                int k_tile_idx = (tile_idx / KQ_Q_TILE_NUM);
-                int thread_q_idx = lane_id % KQ_WARP_Q_THREADS;
-                int thread_k_idx = lane_id / KQ_WARP_Q_THREADS;
-                int q_local = q_tile_idx * KQ_Q_TILE + thread_q_idx;
-                int k_local = k_tile_idx * KQ_K_TILE + thread_k_idx;
                 #pragma unroll
-                for (int i = 0; i < KQ_TILE_K_PER_THREAD; ++i)
+                for(int tile_idx_loop = 0; tile_idx_loop < KQ_TILE_PER_WARP;
+                        ++tile_idx_loop)
                 {
+                    int tile_idx = warp_id + tile_idx_loop * NUM_COMP_WARPS;
+                    int q_tile_idx = (tile_idx % KQ_Q_TILE_NUM);
+                    int k_tile_idx = (tile_idx / KQ_Q_TILE_NUM);
+                    int thread_q_idx = lane_id % KQ_WARP_Q_THREADS;
+                    int thread_k_idx = lane_id / KQ_WARP_Q_THREADS;
+                    int q_local = q_tile_idx * KQ_Q_TILE + thread_q_idx;
+                    int k_local = k_tile_idx * KQ_K_TILE + thread_k_idx;
                     #pragma unroll
-                    for (int j = 0; j < KQ_TILE_Q_PER_THREAD; ++j)
+                    for (int i = 0; i < KQ_TILE_K_PER_THREAD; ++i)
                     {
-                        if (mask_block[mask_idx(q_local + KQ_WARP_Q_THREADS * j,
-                                k_local + KQ_WARP_K_THREADS * i)])
+                        #pragma unroll
+                        for (int j = 0; j < KQ_TILE_Q_PER_THREAD; ++j)
                         {
-                            kq_reg[tile_idx_loop][i][j] = 0;
-                        }
-                        else
-                        {
-                            kq_reg[tile_idx_loop][i][j] =
-                                -std::numeric_limits<T_accum>::infinity();
+                            if (mask_block[mask_idx(q_local + KQ_WARP_Q_THREADS * j,
+                                    k_local + KQ_WARP_K_THREADS * i)])
+                            {
+                                kq_reg[tile_idx_loop][i][j] = 0;
+                            }
+                            else
+                            {
+                                kq_reg[tile_idx_loop][i][j] =
+                                    -std::numeric_limits<T_accum>::infinity();
+                            }
                         }
                     }
                 }
@@ -399,27 +418,33 @@ __global__ void flash_maxsumexp_kernel(
             __syncthreads();
 
             // Load the first Q block of shape KQ_HEAD_BLOCK x Q_BLOCK
-            gmem_to_smem_transposed_vec4<T_gmem, T_smem, KQ_HEAD_BLOCK, Q_BLOCK>(
-                Q + HEAD_SIZE * (q_block_idx * Q_BLOCK + seq * batch_idx),
-                Q_block + Q_idx(buf_idx, 0, 0),
-                HEAD_SIZE,
-                Q_BLOCK + 1,
-                thread_id,
-                block_size
-            );
+            if(warp_id < NUM_COMP_WARPS)
+            {
+                if (k_block_idx == k_block_start)
+                {
+                    gmem_to_smem_transposed_vec4<T_gmem, T_smem, KQ_HEAD_BLOCK, Q_BLOCK>(
+                        Q + HEAD_SIZE * (q_block_idx * Q_BLOCK + seq * batch_idx),
+                        Q_block + Q_idx(0, 0),
+                        HEAD_SIZE,
+                        Q_BLOCK + 32/KQ_HEAD_BLOCK,
+                        thread_id,
+                        NUM_COMP_WARPS * 32
+                    );
+                }
 
-            // Load the first K block of shape KQ_HEAD_BLOCK x K_BLOCK
-            gmem_to_smem_transposed_vec4<T_gmem, T_smem, KQ_HEAD_BLOCK, K_BLOCK>(
-                K + HEAD_SIZE * (k_block_idx + seq * batch_idx),
-                K_block + K_idx(buf_idx, 0, 0),
-                HEAD_SIZE,
-                K_BLOCK + 1,
-                thread_id,
-                block_size
-            );
+                // Load the first K block of shape KQ_HEAD_BLOCK x K_BLOCK
+                gmem_to_smem_transposed_vec4<T_gmem, T_smem, KQ_HEAD_BLOCK, K_BLOCK>(
+                    K + HEAD_SIZE * (k_block_idx + seq * batch_idx),
+                    K_block + K_idx(buf_idx, 0, 0),
+                    HEAD_SIZE,
+                    K_BLOCK + 32/KQ_HEAD_BLOCK,
+                    thread_id,
+                    NUM_COMP_WARPS * 32
+                );
+            }
 
             // Process head dimension in chunks to compute entire block of K'Q
-            #pragma unroll 1
+            // #pragma unroll 1
             for (int head_offset = 0; head_offset < HEAD_SIZE;
                     head_offset += KQ_HEAD_BLOCK)
             {
@@ -430,19 +455,22 @@ __global__ void flash_maxsumexp_kernel(
                 int next_buf_idx = 1 - buf_idx;
 
                 // Load next Q and K blocks
-                if (head_offset + KQ_HEAD_BLOCK < HEAD_SIZE)
+                if (head_offset + KQ_HEAD_BLOCK < HEAD_SIZE and warp_id < NUM_COMP_WARPS)
                 {
                     // Load next Q block of shape KQ_HEAD_BLOCK x Q_BLOCK
-                    gmem_to_smem_transposed_vec4<
-                        T_gmem, T_smem, KQ_HEAD_BLOCK, Q_BLOCK>(
-                        Q + HEAD_SIZE * (q_block_idx * Q_BLOCK + seq * batch_idx)
-                            + (head_offset + KQ_HEAD_BLOCK),
-                        Q_block + Q_idx(next_buf_idx, 0, 0),
-                        HEAD_SIZE,
-                        Q_BLOCK + 1,
-                        thread_id,
-                        block_size
-                    );
+                    if (k_block_idx == k_block_start)
+                    {
+                        gmem_to_smem_transposed_vec4<
+                            T_gmem, T_smem, KQ_HEAD_BLOCK, Q_BLOCK>(
+                            Q + HEAD_SIZE * (q_block_idx * Q_BLOCK + seq * batch_idx)
+                                + (head_offset + KQ_HEAD_BLOCK),
+                            Q_block + Q_idx(head_offset + KQ_HEAD_BLOCK, 0),
+                            HEAD_SIZE,
+                            Q_BLOCK + 32/KQ_HEAD_BLOCK,
+                            thread_id,
+                            NUM_COMP_WARPS * 32
+                        );
+                    }
 
                     // Load next K block of shape KQ_HEAD_BLOCK x K_BLOCK
                     gmem_to_smem_transposed_vec4<
@@ -451,69 +479,104 @@ __global__ void flash_maxsumexp_kernel(
                             + (head_offset + KQ_HEAD_BLOCK),
                         K_block + K_idx(next_buf_idx, 0, 0),
                         HEAD_SIZE,
-                        K_BLOCK + 1,
+                        K_BLOCK + 32/KQ_HEAD_BLOCK,
                         thread_id,
-                        block_size
+                        NUM_COMP_WARPS * 32
                     );
                 }
 
+                __syncthreads();
+
                 // Accumulate block of K'Q
-                #pragma unroll
-                for (int tile_idx_loop = 0; tile_idx_loop < KQ_TILE_PER_WARP;
-                        ++tile_idx_loop)
+                if(warp_id < NUM_COMP_WARPS)
                 {
-                    int tile_idx = warp_id + tile_idx_loop * NUM_WARPS;
-                    int q_tile_idx = (tile_idx % KQ_Q_TILE_NUM);
-                    int k_tile_idx = (tile_idx / KQ_Q_TILE_NUM);
-                    int thread_q_idx = lane_id % KQ_WARP_Q_THREADS;
-                    int thread_k_idx = lane_id / KQ_WARP_Q_THREADS;
-                    int q = q_tile_idx * KQ_Q_TILE + thread_q_idx;
-                    int k = k_tile_idx * KQ_K_TILE + thread_k_idx;
-                    #pragma unroll 8
-                    for (int h = 0; h < KQ_HEAD_BLOCK; ++h)
+                    #pragma unroll
+                    for (int tile_idx_loop = 0; tile_idx_loop < KQ_TILE_PER_WARP;
+                            ++tile_idx_loop)
                     {
+                        int tile_idx = warp_id + tile_idx_loop * NUM_COMP_WARPS;
+                        int q_tile_idx = (tile_idx % KQ_Q_TILE_NUM);
+                        int k_tile_idx = (tile_idx / KQ_Q_TILE_NUM);
+                        int thread_q_idx = lane_id % KQ_WARP_Q_THREADS;
+                        int thread_k_idx = lane_id / KQ_WARP_Q_THREADS;
+                        int q = q_tile_idx * KQ_Q_TILE + thread_q_idx;
+                        int k = k_tile_idx * KQ_K_TILE + thread_k_idx;
                         float a_vals[KQ_TILE_K_PER_THREAD],
                             b_vals[KQ_TILE_Q_PER_THREAD];
-                        #pragma unroll
-                        for (int i = 0; i < KQ_TILE_K_PER_THREAD; ++i)
+                        #pragma unroll 8
+                        for (int h = 0; h < KQ_HEAD_BLOCK; ++h)
                         {
-                            // Load from K_block (it is transposed)
-                            a_vals[i] = K_block[K_idx(buf_idx, h,
-                                k + KQ_WARP_K_THREADS * i)];
-                        }
-                        #pragma unroll
-                        for (int j = 0; j < KQ_TILE_Q_PER_THREAD; ++j)
-                        {
-                            // Load from Q_block
-                            b_vals[j] = Q_block[Q_idx(buf_idx, h,
-                                q + KQ_WARP_Q_THREADS * j)];
-                        }
-                        #pragma unroll
-                        for (int i = 0; i < KQ_TILE_K_PER_THREAD; ++i)
-                        {
+                            // #pragma unroll
+                            // for (int i = 0; i < KQ_TILE_K_PER_THREAD; ++i)
+                            // {
+                            //     // Load from K_block (it is transposed)
+                            //     a_vals[i] = K_block[K_idx(buf_idx, h,
+                            //         k + KQ_WARP_K_THREADS * i)];
+                            // }
                             #pragma unroll
                             for (int j = 0; j < KQ_TILE_Q_PER_THREAD; ++j)
                             {
-                                kq_reg[tile_idx_loop][i][j] +=
-                                    a_vals[i] * b_vals[j];
+                                // Load from Q_block
+                                b_vals[j] = Q_block[Q_idx(head_offset + h,
+                                    q + KQ_WARP_Q_THREADS * j)];
+                            }
+                            #pragma unroll
+                            for (int i = 0; i < KQ_TILE_K_PER_THREAD; ++i)
+                            {
+                                T_smem k_val = K_block[K_idx(buf_idx, h,
+                                    k + KQ_WARP_K_THREADS * i)];
+                                #pragma unroll
+                                for (int j = 0; j < KQ_TILE_Q_PER_THREAD; ++j)
+                                {
+                                    kq_reg[tile_idx_loop][i][j] +=
+                                        k_val * b_vals[j];
+                                }
                             }
                         }
                     }
                 }
+                __syncthreads();
 
                 // Swap buffers for next iteration
                 buf_idx = 1 - buf_idx;
             }
         } // End of stage 1
 
-        // Stage 2: Compute per-block per-warp maximums and update global per-warp maximums
+        __syncthreads();
+
+        // // Stage 2: Compute per-block per-warp maximums and update global per-warp maximums
+        // if(warp_id < NUM_COMP_WARPS && thread_id == 0)
+        // {
+        //     printf("Stage 2 - warp %d processing tiles:\n", warp_id);
+        //     for(int tile_idx_loop = 0; tile_idx_loop < KQ_TILE_PER_WARP; ++tile_idx_loop)
+        //     {
+        //         int tile_idx = warp_id + tile_idx_loop * NUM_COMP_WARPS;
+        //         int q_tile_idx = (tile_idx % KQ_Q_TILE_NUM);
+        //         int k_tile_idx = (tile_idx / KQ_Q_TILE_NUM);
+        //         printf("  tile_idx_loop=%d: tile_idx=%d (k=%d,q=%d)\n",
+        //                tile_idx_loop, tile_idx, k_tile_idx, q_tile_idx);
+
+        //         // Print some values from this tile
+        //         printf("    First few values in tile:\n");
+        //         for(int i = 0; i < 2; ++i)
+        //         {
+        //             for(int j = 0; j < 2; ++j)
+        //             {
+        //                 printf("    kq_reg[%d][%d][%d] = %f\n",
+        //                        tile_idx_loop, i, j, kq_reg[tile_idx_loop][i][j]);
+        //             }
+        //         }
+        //     }
+        // }
+
+        if(warp_id < NUM_COMP_WARPS)
         {
             // Multiply by scale inplace and compute per-warp maximums for current K'Q block
             #pragma unroll
             for (int tile_idx_loop = 0; tile_idx_loop < KQ_TILE_PER_WARP;
                     ++tile_idx_loop)
             {
-                int tile_idx = warp_id + tile_idx_loop * NUM_WARPS;
+                int tile_idx = warp_id + tile_idx_loop * NUM_COMP_WARPS;
                 int q_tile_idx = (tile_idx % KQ_Q_TILE_NUM);
                 int k_tile_idx = (tile_idx / KQ_Q_TILE_NUM);
                 int thread_q_idx = lane_id % KQ_WARP_Q_THREADS;
@@ -537,14 +600,10 @@ __global__ void flash_maxsumexp_kernel(
 
                     // Use warp shuffle to perform reduction within each warp
                     #pragma unroll
-                    for (int offset = KQ_WARP_K_THREADS/2; offset > 0; offset /= 2)
+                    for (int offset = WARP_SIZE/2; offset > KQ_WARP_Q_THREADS/2; offset /= 2)
                     {
-                        // Calculate the lane ID of the thread to communicate with
-                        int target_lane = lane_id + offset * KQ_WARP_Q_THREADS;
-
                         // Get the max value from that thread
-                        T_accum other = __shfl_sync(0xffffffff, new_warp_max, target_lane);
-
+                        T_accum other = __shfl_down_sync(0xffffffff, new_warp_max, offset);
                         // Update our max value
                         new_warp_max = ::max(new_warp_max, other);
                     }
@@ -556,18 +615,22 @@ __global__ void flash_maxsumexp_kernel(
                         T_accum current_warp_max = T_accum{max_reduce[max_idx(k_tile_idx, q_idx)]};
                         if(new_warp_max > current_warp_max)
                         {
-                            max_reduce[max_idx(k_tile_idx, q_idx)] = T_smem{new_warp_max};
+                            max_reduce[max_idx(k_tile_idx, q_idx)] = new_warp_max;
                             sumexp_reduce[sumexp_idx(k_tile_idx, q_idx)] *= ::exp(current_warp_max - new_warp_max);
                         }
                     }
+                    __syncwarp();
                 }
             }
 
+            __syncthreads();
+
             // Now compute the sum of exponentials for each column using the per-warp maximums
             #pragma unroll
-            for (int tile_idx_loop = 0; tile_idx_loop < KQ_TILE_PER_WARP; ++tile_idx_loop)
+            for (int tile_idx_loop = 0; tile_idx_loop < KQ_TILE_PER_WARP;
+                    ++tile_idx_loop)
             {
-                int tile_idx = warp_id + tile_idx_loop * NUM_WARPS;
+                int tile_idx = warp_id + tile_idx_loop * NUM_COMP_WARPS;
                 int q_tile_idx = (tile_idx % KQ_Q_TILE_NUM);
                 int k_tile_idx = (tile_idx / KQ_Q_TILE_NUM);
                 int thread_q_idx = lane_id % KQ_WARP_Q_THREADS;
@@ -597,14 +660,10 @@ __global__ void flash_maxsumexp_kernel(
 
                     // Perform logarithmic reduction using shuffle operations
                     #pragma unroll
-                    for (int offset = KQ_WARP_K_THREADS/2; offset > 0; offset /= 2)
+                    for (int offset = WARP_SIZE/2; offset > KQ_WARP_Q_THREADS/2; offset /= 2)
                     {
-                        // Calculate the lane ID of the thread to communicate with
-                        int target_lane = lane_id + offset * KQ_WARP_Q_THREADS;
-
                         // Get the sum value from that thread
-                        T_accum other = __shfl_sync(0xffffffff, new_warp_sum_exp, target_lane);
-
+                        T_accum other = __shfl_down_sync(0xffffffff, new_warp_sum_exp, offset);
                         // Add to our sum
                         new_warp_sum_exp += other;
                     }
@@ -613,21 +672,24 @@ __global__ void flash_maxsumexp_kernel(
                     if (thread_k_idx == 0 && new_warp_sum_exp > 0.0)
                     {
                         // Update the per-warp sum by adding the current value
-                        T_accum current_warp_sum_exp = T_accum{sumexp_reduce[sumexp_idx(k_tile_idx, q_idx)]};
-                        sumexp_reduce[sumexp_idx(k_tile_idx, q_idx)] = T_smem{current_warp_sum_exp + new_warp_sum_exp};
+                        T_accum current_warp_sum_exp = sumexp_reduce[sumexp_idx(k_tile_idx, q_idx)];
+                        sumexp_reduce[sumexp_idx(k_tile_idx, q_idx)] = current_warp_sum_exp + new_warp_sum_exp;
                     }
+                    __syncwarp();
                 }
             }
+        }
+        else
+        {
+            __syncthreads();
         } // End of stage 2
+        __syncthreads();
     }
-
-    // Sync to ensure all threads have completed stage 2
-    __syncthreads();
 
     // Stage 3: Combine per-warp maximums and sums into per-block values and update global memory
     if (thread_id < Q_BLOCK)
     {
-        // Read maximum and sumexp from global memory
+        __syncthreads();
         int q_idx = q_block_idx * Q_BLOCK + thread_id;
 
         // Convert per-warp maximums into per-block maximum
@@ -635,7 +697,7 @@ __global__ void flash_maxsumexp_kernel(
         #pragma unroll
         for (int k = 0; k < KQ_K_TILE_NUM; ++k)
         {
-            block_max_val = ::max(block_max_val, T_accum{max_reduce[max_idx(k, thread_id)]});
+            block_max_val = ::max(block_max_val, max_reduce[max_idx(k, thread_id)]);
         }
 
         // Update global max and sumexp only if global max (including value read from the global memory) is not -inf
@@ -646,8 +708,8 @@ __global__ void flash_maxsumexp_kernel(
             #pragma unroll
             for (int k = 0; k < KQ_K_TILE_NUM; ++k)
             {
-                block_sum_exp += T_accum{sumexp_reduce[sumexp_idx(k, thread_id)]}
-                    * ::exp(T_accum{max_reduce[max_idx(k, thread_id)]} - block_max_val);
+                block_sum_exp += sumexp_reduce[sumexp_idx(k, thread_id)]
+                    * ::exp(max_reduce[max_idx(k, thread_id)] - block_max_val);
             }
             // Write the final max and sumexp values to global memory
             maxsumexp[2 * (q_idx + seq * batch_idx)] = T_gmem{block_max_val};
@@ -670,42 +732,6 @@ template<typename T> // TODO: support SPLIT_K
 void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
         const T *K, const T *Q, const bool_t *mask, T *maxsumexp) noexcept
 {
-    // Define block and grid sizes
-    constexpr int NUM_THREADS = 128;  // Total number of threads per block
-    constexpr int NUM_WARPS = NUM_THREADS / 32; // Number of warps per block
-
-    // Ensure we have the right number of threads for the warps
-    static_assert(NUM_THREADS % 32 == 0, "NUM_THREADS must be a multiple of 32 (warp size)");
-
-    // K'Q matmul is done by blocks:
-    // K is split into blocks of size KQ_HEAD_BLOCK x K_BLOCK
-    // Q is split into blocks of size KQ_HEAD_BLOCK x Q_BLOCK
-    // K'Q is split into blocks of size K_BLOCK x Q_BLOCK
-    constexpr int Q_BLOCK = 64;
-    constexpr int K_BLOCK = 64;
-    constexpr int KQ_HEAD_BLOCK = 16;
-
-    // Split K and V into KV_SPLIT parts, each part is processed by a different
-    // CUDA block. This is done to balance between parallelism and overhead.
-    constexpr int K_SPLIT = 1;
-
-    // Calculate shared memory size
-    constexpr int Q_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (Q_BLOCK+1) * sizeof(float);
-    constexpr int K_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (K_BLOCK+1) * sizeof(float);
-    constexpr int KQ_Q_TILE = 32;
-    constexpr int KQ_K_TILE = 32;
-    constexpr int KQ_K_TILE_NUM = K_BLOCK / KQ_K_TILE;
-    constexpr int MAX_REDUCE_SIZE = KQ_K_TILE_NUM * Q_BLOCK * sizeof(float);
-    constexpr int SUMEXP_REDUCE_SIZE = KQ_K_TILE_NUM * Q_BLOCK * sizeof(float);
-    constexpr int SHARED_MEM_SIZE = Q_BLOCK_SIZE + K_BLOCK_SIZE + MAX_REDUCE_SIZE + SUMEXP_REDUCE_SIZE;
-    static_assert(K_BLOCK * Q_BLOCK >= KQ_Q_TILE * KQ_K_TILE * NUM_WARPS,
-            "K_BLOCK * Q_BLOCK must be greater than KQ_Q_TILE * KQ_K_TILE "
-            "* NUM_WARPS");
-
-    // Use 1D thread blocks instead of 2D
-    dim3 threads(NUM_THREADS);
-    dim3 blocks((seq + Q_BLOCK - 1) / Q_BLOCK, K_SPLIT, batch);
-
     // Calculate scaling factor
     using Y = typename T::repr_t;
     T scale = T(Y(1.0) / std::sqrt(Y(head)));
@@ -715,17 +741,58 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
     {
         constexpr int HEAD_SIZE = 64;
 
+        // Define block and grid sizes
+        constexpr int NUM_THREADS = 128;  // Total number of threads per block
+        constexpr int NUM_WARPS = NUM_THREADS / 32; // Number of warps per block
+        constexpr int NUM_COMP_WARPS = 4; // Number of compute warps per block
+
+        // Ensure we have the right number of threads for the warps
+        static_assert(NUM_THREADS % 32 == 0, "NUM_THREADS must be a multiple of 32 (warp size)");
+
+        // K'Q matmul is done by blocks:
+        // K is split into blocks of size KQ_HEAD_BLOCK x K_BLOCK
+        // Q is split into blocks of size KQ_HEAD_BLOCK x Q_BLOCK
+        // K'Q is split into blocks of size K_BLOCK x Q_BLOCK
+        constexpr int Q_BLOCK = 64;
+        static_assert(Q_BLOCK % 32 == 0, "Q_BLOCK must be a multiple of 32");
+        static_assert(Q_BLOCK <= NUM_THREADS, "Q_BLOCK must be less than or equal to NUM_THREADS");
+        constexpr int K_BLOCK = 128;
+        constexpr int KQ_HEAD_BLOCK = 16;
+
+        // Split K and V into KV_SPLIT parts, each part is processed by a different
+        // CUDA block. This is done to balance between parallelism and overhead.
+        constexpr int K_SPLIT = 1;
+
+        // Calculate shared memory size
+        constexpr int MASK_BLOCK_SIZE = Q_BLOCK * (K_BLOCK+4) * sizeof(bool);
+        constexpr int Q_BLOCK_SIZE = HEAD_SIZE * (Q_BLOCK+32/KQ_HEAD_BLOCK) * sizeof(float);
+        constexpr int K_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (K_BLOCK+32/KQ_HEAD_BLOCK) * sizeof(float);
+        constexpr int KQ_Q_TILE = 32;
+        constexpr int KQ_K_TILE = 64;
+        constexpr int KQ_K_TILE_NUM = K_BLOCK / KQ_K_TILE;
+        constexpr int MAX_REDUCE_SIZE = KQ_K_TILE_NUM * Q_BLOCK * sizeof(float);
+        constexpr int SUMEXP_REDUCE_SIZE = KQ_K_TILE_NUM * Q_BLOCK * sizeof(float);
+        constexpr int SHARED_MEM_SIZE = MAX_REDUCE_SIZE + SUMEXP_REDUCE_SIZE + Q_BLOCK_SIZE
+            + K_BLOCK_SIZE + MASK_BLOCK_SIZE;
+        static_assert(K_BLOCK * Q_BLOCK >= KQ_Q_TILE * KQ_K_TILE * NUM_COMP_WARPS,
+                "K_BLOCK * Q_BLOCK must be greater than KQ_Q_TILE * KQ_K_TILE "
+                "* NUM_COMP_WARPS");
+
+        // Use 1D thread blocks instead of 2D
+        dim3 threads(NUM_THREADS);
+        dim3 blocks((seq + Q_BLOCK - 1) / Q_BLOCK, K_SPLIT, batch);
+
         if constexpr (std::is_same_v<T, nntile::fp32_t>)
         {
             cudaFuncSetAttribute(
                 flash_maxsumexp_kernel<float, float, float,
                     HEAD_SIZE, Q_BLOCK, K_BLOCK, KQ_HEAD_BLOCK, KQ_Q_TILE,
-                    KQ_K_TILE, K_SPLIT, NUM_WARPS>,
+                    KQ_K_TILE, K_SPLIT, NUM_COMP_WARPS>,
                     cudaFuncAttributeMaxDynamicSharedMemorySize, SHARED_MEM_SIZE);
 
             flash_maxsumexp_kernel<float, float, float,
                     HEAD_SIZE, Q_BLOCK, K_BLOCK, KQ_HEAD_BLOCK, KQ_Q_TILE,
-                    KQ_K_TILE, K_SPLIT, NUM_WARPS>
+                    KQ_K_TILE, K_SPLIT, NUM_COMP_WARPS>
                 <<<blocks, threads, SHARED_MEM_SIZE, stream>>>(batch, seq, scale.value,
                     reinterpret_cast<const float*>(K), reinterpret_cast<const float*>(Q), mask,
                     reinterpret_cast<float*>(maxsumexp));
@@ -736,7 +803,79 @@ void cuda(cudaStream_t stream, Index batch, Index seq, Index head,
             std::cerr << "Unsupported type: " << typeid(T).name() << std::endl;
         }
         // TODO: enable other types T later
-    } // TODO: enable other heads later
+    }
+    else if (head == 128)
+    {
+        constexpr int HEAD_SIZE = 128;
+
+        // Define block and grid sizes
+        constexpr int NUM_THREADS = 128;  // Total number of threads per block
+        constexpr int NUM_WARPS = NUM_THREADS / 32; // Number of warps per block
+        constexpr int NUM_COMP_WARPS = 4; // Number of compute warps per block
+
+        // Ensure we have the right number of threads for the warps
+        static_assert(NUM_THREADS % 32 == 0, "NUM_THREADS must be a multiple of 32 (warp size)");
+
+        // K'Q matmul is done by blocks:
+        // K is split into blocks of size KQ_HEAD_BLOCK x K_BLOCK
+        // Q is split into blocks of size KQ_HEAD_BLOCK x Q_BLOCK
+        // K'Q is split into blocks of size K_BLOCK x Q_BLOCK
+        constexpr int Q_BLOCK = 64;
+        static_assert(Q_BLOCK % 32 == 0, "Q_BLOCK must be a multiple of 32");
+        static_assert(Q_BLOCK <= NUM_THREADS, "Q_BLOCK must be less than or equal to NUM_THREADS");
+        constexpr int K_BLOCK = 128;
+        constexpr int KQ_HEAD_BLOCK = 16;
+
+        // Split K and V into KV_SPLIT parts, each part is processed by a different
+        // CUDA block. This is done to balance between parallelism and overhead.
+        constexpr int K_SPLIT = 1;
+
+        // Calculate shared memory size
+        constexpr int MASK_BLOCK_SIZE = Q_BLOCK * (K_BLOCK+4) * sizeof(bool);
+        constexpr int Q_BLOCK_SIZE = HEAD_SIZE * (Q_BLOCK+32/KQ_HEAD_BLOCK) * sizeof(float);
+        constexpr int K_BLOCK_SIZE = 2 * KQ_HEAD_BLOCK * (K_BLOCK+32/KQ_HEAD_BLOCK) * sizeof(float);
+        constexpr int KQ_Q_TILE = 32;
+        constexpr int KQ_K_TILE = 64;
+        constexpr int KQ_K_TILE_NUM = K_BLOCK / KQ_K_TILE;
+        constexpr int MAX_REDUCE_SIZE = KQ_K_TILE_NUM * Q_BLOCK * sizeof(float);
+        constexpr int SUMEXP_REDUCE_SIZE = KQ_K_TILE_NUM * Q_BLOCK * sizeof(float);
+        constexpr int SHARED_MEM_SIZE = std::max(Q_BLOCK_SIZE + MASK_BLOCK_SIZE,
+                Q_BLOCK_SIZE + K_BLOCK_SIZE + MAX_REDUCE_SIZE + SUMEXP_REDUCE_SIZE);
+        static_assert(K_BLOCK * Q_BLOCK >= KQ_Q_TILE * KQ_K_TILE * NUM_COMP_WARPS,
+                "K_BLOCK * Q_BLOCK must be greater than KQ_Q_TILE * KQ_K_TILE "
+                "* NUM_COMP_WARPS");
+
+        // Use 1D thread blocks instead of 2D
+        dim3 threads(NUM_THREADS);
+        dim3 blocks((seq + Q_BLOCK - 1) / Q_BLOCK, K_SPLIT, batch);
+
+        if constexpr (std::is_same_v<T, nntile::fp32_t>)
+        {
+            cudaFuncSetAttribute(
+                flash_maxsumexp_kernel<float, float, float,
+                    HEAD_SIZE, Q_BLOCK, K_BLOCK, KQ_HEAD_BLOCK, KQ_Q_TILE,
+                    KQ_K_TILE, K_SPLIT, NUM_COMP_WARPS>,
+                    cudaFuncAttributeMaxDynamicSharedMemorySize, SHARED_MEM_SIZE);
+
+            flash_maxsumexp_kernel<float, float, float,
+                    HEAD_SIZE, Q_BLOCK, K_BLOCK, KQ_HEAD_BLOCK, KQ_Q_TILE,
+                    KQ_K_TILE, K_SPLIT, NUM_COMP_WARPS>
+                <<<blocks, threads, SHARED_MEM_SIZE, stream>>>(batch, seq, scale.value,
+                    reinterpret_cast<const float*>(K), reinterpret_cast<const float*>(Q), mask,
+                    reinterpret_cast<float*>(maxsumexp));
+            gpuErrchk( cudaPeekAtLastError() );
+        }
+        else
+        {
+            std::cerr << "Unsupported type: " << typeid(T).name() << std::endl;
+        }
+        // TODO: enable other types T later
+    }
+    // TODO: enable other heads later
+    else
+    {
+        std::cerr << "Unsupported head size: " << head << std::endl;
+    }
 }
 
 // Explicit instantiation

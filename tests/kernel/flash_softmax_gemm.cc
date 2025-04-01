@@ -31,7 +31,7 @@ void test_flash_softmax_gemm()
     // Define dimensions
     const Index batch_size = 1;
     const Index seq_len = 4096;
-    const Index num_heads = 12;
+    const Index num_heads = 64;
     const Index head_dim = 64;
 
     // Create a random number generator
@@ -68,7 +68,7 @@ void test_flash_softmax_gemm()
 
     // Start timer
     auto start = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i < 1000; ++i)
+    for (int i = 0; i < 100; ++i)
     {
         nntile::kernel::flash_softmax_gemm::cuda<T>(stream, batch_size*num_heads,
                 seq_len, head_dim, K_dev, Q_dev, mask_dev, maxsumexp_dev, V_dev, A_dev);

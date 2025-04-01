@@ -39,9 +39,6 @@ class Pipeline(object):
 
     def train_async(self, log_loss=True):
         for i_epoch in range(self.n_epochs):
-            # Provide epoch number to the FXT trace
-            iteration_push(i_epoch)
-            # print("Epoch ", i_epoch)
             num_batches = len(self.x)
             for i_batch, (x_batch, y_batch) in enumerate(zip(self.x, self.y)):
                 # Provide batch number to the FXT trace
@@ -50,7 +47,10 @@ class Pipeline(object):
                 self.model.clear_parameters_grads()
                 clear_async(self.loss.val)
                 # Accumulate gradients from subbatches
-                for x_minibatch, y_minibatch in zip(x_batch, y_batch):
+                for i_minibatch, (x_minibatch, y_minibatch) \
+                        in enumerate(zip(x_batch, y_batch)):
+                    # Provide minibatch number to the FXT trace
+                    iteration_push(i_minibatch)
                     # Clear gradients of inter-layer activations
                     self.model.clear_activations_grads()
                     # Copy input batch into activation[0] of the model
@@ -79,6 +79,11 @@ class Pipeline(object):
                     for t in self.model.activations:
                         if t.grad_required:
                             t.grad.invalidate_submit()
+                    # Indicate end of a minibatch to the FXT trace
+                    iteration_pop()
+                # Set maximum unsigned integer value to the FXT trace to
+                # indicate start of optimization step
+                iteration_push(2**31 - 1)
                 # Apply optimizer after gradients for entire batch are
                 # accumulated
                 self.opt.step()
@@ -97,14 +102,13 @@ class Pipeline(object):
                 print("Batch={}/{} Epoch={}/{} Loss={}".format(
                         i_batch + 1, num_batches, i_epoch + 1, self.n_epochs,
                         loss_np[0]), flush=True)
-                # Finish current batch in the FXT trace
+                # Indicate end of optimization step to the FXT trace
                 iteration_pop()
             # nntile_xentropy_np = np.zeros((1,), dtype=np.float32, order="F")
             # self.loss.get_val(nntile_xentropy_np)
             # print("Last batch loss after in {} epoch = {}".format(
             #       i_epoch, nntile_xentropy_np[0]))
             # Finish current epoch in the FXT trace
-            iteration_pop()
 
     def print_meminfo(self):
         params_nbytes = 0
