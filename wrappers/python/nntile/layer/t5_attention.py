@@ -23,11 +23,57 @@ from nntile.tensor import (
     add_slice_inplace_async, clear_async, copy_intersection_async, gemm_async,
     mask_scalar_async, maxsumexp_async, notrans, prod_inplace_async,
     softmax_inplace_async, sum_fiber_async, sumprod_slice_async, trans,
-    transpose_async)
+    transpose_async, embedding_async, embedding_backward_async, add_async, copy_async)
 from nntile.tensor import TensorMoments, Tensor, TensorTraits
 from transformers.models.t5.modeling_t5 import T5Attention as T5AttentionTorch
 from nntile.model.t5_config import T5ConfigNNTile
 
+def relative_position_bucket_numpy(relative_position, bidirectional=True, num_buckets=32, max_distance=128):
+        """
+        Adapted from Mesh Tensorflow:
+        https://github.com/tensorflow/mesh/blob/0cb87fe07da627bf0b7e60475d59f95ed6b5be3d/mesh_tensorflow/transformer/transformer_layers.py#L593
+
+        Translate relative position to a bucket number for relative attention. The relative position is defined as
+        memory_position - query_position, i.e. the distance in tokens from the attending position to the attended-to
+        position. If bidirectional=False, then positive relative positions are invalid. We use smaller buckets for
+        small absolute relative_position and larger buckets for larger absolute relative_positions. All relative
+        positions >=max_distance map to the same bucket. All relative positions <=-max_distance map to the same bucket.
+        This should allow for more graceful generalization to longer sequences than the model has been trained on
+
+        Args:
+            relative_position: a numpy array
+            bidirectional: a boolean - whether the attention is bidirectional
+            num_buckets: an integer
+            max_distance: an integer
+
+        Returns:
+            a numpy array with the same shape as relative_position, containing int32 values in the range [0, num_buckets)
+        """
+        relative_buckets = 0
+        if bidirectional:
+            num_buckets //= 2
+            relative_buckets += (relative_position > 0).astype(np.int32) * num_buckets
+            relative_position = np.abs(relative_position)
+        else:
+            relative_position = -np.minimum(relative_position, np.zeros_like(relative_position))
+        # now relative_position is in the range [0, inf)
+
+        # half of the buckets are for exact increments in positions
+        max_exact = num_buckets // 2
+        is_small = relative_position < max_exact
+
+        # The other half of the buckets are for logarithmically bigger bins in positions up to max_distance
+        relative_position_if_large = max_exact + (
+            np.log(relative_position.astype(np.float32) / max_exact)
+            / np.log(max_distance / max_exact)
+            * (num_buckets - max_exact)
+        ).astype(np.int32)
+        relative_position_if_large = np.minimum(
+            relative_position_if_large, np.full_like(relative_position_if_large, num_buckets - 1)
+        )
+
+        relative_buckets += np.where(is_small, relative_position, relative_position_if_large)
+        return relative_buckets
 
 # Multi-head attention
 # Inputs:
@@ -86,7 +132,11 @@ class T5Attention(BaseLayer):
         in_proj_bias_v: TensorMoments,
         out_proj_bias: TensorMoments,
         mask=None,
-        scale_attn: bool = True,
+        scale_attn: bool = False,
+        has_relative_bias: bool = False,
+        relative_bias_position_buckets: TensorMoments = None,
+        relative_bias_embedding: TensorMoments = None,
+        relative_bias: TensorMoments = None,
         redux: bool = False,
     ):
         qkv_bias_list = []
@@ -104,11 +154,18 @@ class T5Attention(BaseLayer):
             out_proj_bias.grad.set_reduction_add()
         else:
             bias_list_out_proj = []
+        
+        if has_relative_bias:
+            # assert relative_bias_position_buckets is not None, "relative_bias_position_buckets must be provided if has_relative_bias is True"
+            assert relative_bias is not None, "relative_bias must be provided if has_relative_bias is True"
+            assert relative_bias_embedding is not None, "relative_bias_embedding must be provided if has_relative_bias is True"
+            relative_bias_embedding.grad.set_reduction_add()
+
         # Redirect to BaseClass initialization
         super().__init__(
             [x_q, x_k, x_v],
             [y],
-            [w_q, w_k, w_v] + qkv_bias_list + [w] + bias_list_out_proj,
+            [w_q, w_k, w_v] + qkv_bias_list + [w] + [relative_bias_embedding] if has_relative_bias else [] + bias_list_out_proj,
             [
                 q_transposed,
                 q,
@@ -116,7 +173,10 @@ class T5Attention(BaseLayer):
                 k,
                 v_transposed,
                 v,
-                a,
+                a
+            ] + [
+                # relative_bias_position_buckets, 
+                relative_bias,] if has_relative_bias else [] + [
                 a_maxsumexp,
                 a_sumprod_slice,
                 b,
@@ -170,6 +230,11 @@ class T5Attention(BaseLayer):
         self.n_head_tile = w_q.value.basetile_shape[0]
         self.n_emb = x_q.value.shape[0]
         self.n_emb_tile = x_q.value.basetile_shape[0]
+        
+        self.has_relative_bias = has_relative_bias
+        self.relative_bias_position_buckets = relative_bias_position_buckets
+        self.relative_bias = relative_bias
+        self.relative_bias_embedding = relative_bias_embedding
 
         # inner dim is the same for all the tensors, but can be different from n_emb
         self.head_size = self.w_q.value.shape[1]
@@ -200,7 +265,9 @@ class T5Attention(BaseLayer):
         inner_dim_tile: int = None,
         bias=False,
         mask=None,
-        scale_attn: bool = True,
+        scale_attn: bool = False,
+        has_relative_bias: bool = False,
+        relative_vocab_size: int = 0,
         redux: bool = False,
     ):
         # Get sizes
@@ -245,6 +312,14 @@ class T5Attention(BaseLayer):
         a_sumprod_slice_shape = [n_seq, n_batch, n_head]
         b_shape = [head_size, n_seq, n_batch, n_head]
         b_transposed_shape = [n_head, head_size, n_seq, n_batch]
+        if has_relative_bias:
+            relative_bias_shape = [n_seq, n_seq, n_batch,n_head]
+            relative_bias_basetile = [n_seq_tile, n_seq_tile, n_batch_tile, n_head_tile]
+            
+            assert relative_vocab_size > 0, "relative_vocab_size must be greater than 0"
+            relative_bias_embedding_shape = [n_head, relative_vocab_size]
+            relative_bias_embedding_basetile = [n_head_tile, relative_vocab_size]
+            
         # Define tile shapes of each tensor
         w_q_basetile = [n_head_tile, head_size_tile, n_emb_tile]
         w_k_basetile = [n_head_tile, head_size_tile, n_emb_k_tile]
@@ -309,6 +384,13 @@ class T5Attention(BaseLayer):
         b_transposed_traits = TensorTraits(
             b_transposed_shape, b_transposed_basetile
         )
+        if has_relative_bias:
+            relative_bias_traits = TensorTraits(relative_bias_shape, relative_bias_basetile)
+            relative_bias_distr = [0] * relative_bias_traits.grid.nelems
+            
+            relative_bias_embedding_traits = TensorTraits(relative_bias_embedding_shape, relative_bias_embedding_basetile)
+            relative_bias_embedding_distr = [0] * relative_bias_embedding_traits.grid.nelems
+            
         # TODO change distribution
         w_q_distr = [0] * w_q_traits.grid.nelems
         w_k_distr = [0] * w_k_traits.grid.nelems
@@ -485,6 +567,23 @@ class T5Attention(BaseLayer):
         b_transposed = TensorMoments(
             b_transposed_value, b_transposed_grad, True
         )
+        
+        relative_bias = None
+        relative_bias_embedding = None
+        if has_relative_bias:
+            relative_bias_value = type(x_q.value)(relative_bias_traits, relative_bias_distr, next_tag)
+            next_tag = relative_bias_value.next_tag
+            # we dont need gradient for relative bias values, as they constant for all the positions across equal size tensors
+            # relative_bias_grad = type(x_q.value)(relative_bias_traits, relative_bias_distr, next_tag)
+            # next_tag = relative_bias_grad.next_tag
+            relative_bias = TensorMoments(relative_bias_value, None, False)
+            
+            relative_bias_embedding_value = type(x_q.value)(relative_bias_embedding_traits, relative_bias_embedding_distr, next_tag)
+            next_tag = relative_bias_embedding_value.next_tag
+            relative_bias_embedding_grad = type(x_q.value)(relative_bias_embedding_traits, relative_bias_embedding_distr, next_tag)
+            next_tag = relative_bias_embedding_grad.next_tag
+            relative_bias_embedding = TensorMoments(relative_bias_embedding_value, relative_bias_embedding_grad, True)
+            
         # Allocate tensors for bias for q, k, v and output projection
         if bias:
             out_proj_bias_traits = TensorTraits([n_emb], [n_emb_tile])
@@ -536,6 +635,9 @@ class T5Attention(BaseLayer):
             out_proj_bias,
             mask,
             scale_attn=scale_attn,
+            has_relative_bias=has_relative_bias,
+            relative_bias = relative_bias,
+            relative_bias_embedding = relative_bias_embedding,
             redux=redux,
         )
         # Return layer and next tag to be used
@@ -561,6 +663,12 @@ class T5Attention(BaseLayer):
             inner_dim_tile=config.d_ff_tile,
             bias=False,
             mask=mask,
+            scale_attn=False,
+            has_relative_bias=torch_layer.has_relative_attention_bias,
+            relative_vocab_size=(
+                torch_layer.relative_attention_bias.weight.shape[0]
+                if torch_layer.has_relative_attention_bias else 0
+            ),
             redux=config.redux,
         )
 
@@ -589,6 +697,11 @@ class T5Attention(BaseLayer):
             .detach()
             .numpy()
         )
+        
+        if attn.has_relative_bias:
+            attn.relative_bias_embedding.value.from_array(
+                torch_layer.relative_attention_bias.weight.T.cpu().detach().numpy()
+            )
 
         return attn, next_tag
 
@@ -785,6 +898,46 @@ class T5Attention(BaseLayer):
             )
 
         return v_partial
+    
+    def _add_positional_bias_async(self):
+        query_length, key_length = self.a.value.shape[:2]
+        context_position = np.arange(query_length, dtype=np.int32)[:, None]
+        memory_position = np.arange(key_length, dtype=np.int32)[None, :]
+        relative_position = memory_position - context_position  # shape (query_length, key_length)
+        print("relative_position: ", relative_position, flush=True)
+        relative_position_bucket = relative_position_bucket_numpy(
+            relative_position, 
+            bidirectional=True, 
+            num_buckets=32, 
+            max_distance=128
+        )
+        print("relative_position_bucket: ", relative_position_bucket.shape, self.a.value.shape, flush=True)
+        relative_position_bucket = relative_position_bucket[None, ...]
+        if self.a.value.shape[2] > 1:
+            relative_position_bucket = relative_position_bucket.repeat((self.a.value.shape[2], 1, 1))
+            
+        print("relative_position_bucket: ", relative_position_bucket, flush=True)
+        relative_position_bucket_nnt = nntc.from_array(relative_position_bucket.T)
+        
+        print("EMBED AS: ", relative_position_bucket_nnt.shape, self.relative_bias_embedding.value.shape, self.relative_bias.value.shape, flush=True)
+        embedding_async(
+            relative_position_bucket_nnt,
+            self.relative_bias_embedding.value,
+            self.relative_bias.value,
+            axis=3 # so result will batch self.a.shape 
+        )
+        
+        add_async(1.0, self.a.value, 1.0, self.relative_bias.value, self.a.value)
+            
+    def _add_positional_bias_backward(self):
+        copy_async(self.a.grad, self.relative_bias.grad)
+        
+        embedding_backward_async(
+            self.relative_bias.value,
+            self.relative_bias_embedding.grad,
+            self.relative_bias.grad,
+            axis=3
+        )
 
     def _forward_attn_async(self):
         # Get tensor for softmax
@@ -804,6 +957,9 @@ class T5Attention(BaseLayer):
             2,
             redux=self.redux,
         )
+        if self.has_relative_bias:
+            self._add_positional_bias_async()
+        
         clear_async(self.a_maxsumexp)
         # Q and K can be offloaded from GPU
         self.q.value.wont_use()
@@ -1143,6 +1299,10 @@ class T5Attention(BaseLayer):
             self.a_sumprod_slice.invalidate_submit()
             # dA *= A
             prod_inplace_async(self.a.value, self.a.grad)
+            
+            if self.has_relative_bias:
+                self._add_positional_bias_backward()
+            
         # A can be deleted
         # self.a.value.wont_use()
         self.a.value.invalidate_submit()
