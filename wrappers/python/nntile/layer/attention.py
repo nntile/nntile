@@ -83,6 +83,7 @@ class Attention(BaseLayer):
         in_proj_bias_v: TensorMoments,
         out_proj_bias: TensorMoments,
         mask=None,
+        scale_attn: bool = True,
         redux: bool = False,
     ):
         qkv_bias_list = []
@@ -167,11 +168,8 @@ class Attention(BaseLayer):
         self.n_emb = x_q.value.shape[0]
         self.n_emb_tile = x_q.value.basetile_shape[0]
 
-        head_size = self.n_emb // self.n_head
-        # Stupid check, that is not necessary, as the code shall work
-        if self.n_emb != head_size * self.n_head:
-            raise RuntimeError
-        self.head_size = head_size
+        # inner dim is the same for all the tensors, but can be different from n_emb
+        self.head_size = self.w_q.value.shape[1]
         self.mask = mask
         if mask:
             self.val = -np.float32(np.inf)
@@ -179,6 +177,7 @@ class Attention(BaseLayer):
             self.redux = 1
         else:
             self.redux = 0
+        self.scale_attn = scale_attn
 
         # need to fill with valid values for dynamic api usage
         clear_async(self.q.value)
@@ -194,16 +193,24 @@ class Attention(BaseLayer):
         n_head: int,
         n_head_tile: int,
         next_tag: int,
+        inner_dim: int = None,
+        inner_dim_tile: int = None,
         bias=False,
         mask=None,
+        scale_attn: bool = True,
         redux: bool = False,
     ):
         # Get sizes
+        n_batch_tile = x_q.value.basetile_shape[2]
         n_emb, n_seq, n_batch = x_q.value.shape
         n_emb_tile, n_seq_tile, n_batch_tile = x_q.value.basetile_shape
-        head_size = n_emb // n_head
+        
+        inner_dim = n_emb if inner_dim is None else inner_dim
+        inner_dim_tile = n_emb_tile if inner_dim_tile is None else inner_dim_tile
+        
+        head_size = inner_dim // n_head
         # Stupid check, that is not necessary, as the code shall work
-        if n_emb != head_size * n_head:
+        if inner_dim != head_size * n_head:
             raise RuntimeError
         n_emb_k = x_k.value.shape[0]
         n_emb_k_tile = x_k.value.basetile_shape[0]
@@ -525,6 +532,7 @@ class Attention(BaseLayer):
             bias_inproj_v,
             out_proj_bias,
             mask,
+            scale_attn=scale_attn,
             redux=redux,
         )
         # Return layer and next tag to be used
@@ -731,7 +739,7 @@ class Attention(BaseLayer):
         # by (head_size, n_seq, batch=n_batch, batch=n_head) into
         # (n_seq, n_seq, batch=n_batch, batch=n_head)
         gemm_async(
-            1.0 / self.head_size**0.5,
+            1.0 / self.head_size**0.5 if self.scale_attn else 1.0,
             trans,
             self.k.value,
             notrans,

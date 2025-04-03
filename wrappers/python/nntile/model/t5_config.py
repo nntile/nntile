@@ -20,9 +20,10 @@ class T5ConfigNNTile:
     d_model_tile: int
     d_ff: int
     d_ff_tile: int
+    n_head: int
+    n_head_tile: int
     dense_act_fn: str = "gelu"
     dropout_rate: float = 0
     is_gated_act: bool = True
     layer_norm_epsilon: float = 1e-5
-
     redux: bool = False
