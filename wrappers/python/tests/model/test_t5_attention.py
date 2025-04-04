@@ -25,6 +25,7 @@ import nntile
 from nntile.model.t5_config import T5ConfigNNTile
 from nntile.layer.t5_attention import T5Attention, relative_position_bucket_numpy
 from nntile.tensor import TensorMoments, TensorTraits
+from transformers.models.t5.modeling_t5 import T5Attention as T5AttentionTorch
 from nntile.utils.constructors import to_numpy
 
 # NNTile dtype via corresponding Tensor type
@@ -53,7 +54,7 @@ class T5AttentionTestParams:
     n_head_tile: int
     n_batch: int
     n_batch_tile: int
-    has_relative_bias: bool = False
+    has_relative_bias: bool = True
     redux: bool = True
     seq_len: int = 100
     seq_len_tile: int = 100
@@ -83,6 +84,7 @@ single_tile = T5AttentionTestParams(
     seq_len_tile=64,
     n_batch=3,
     n_batch_tile=3,
+    has_relative_bias=True,
 )
 
 
@@ -93,9 +95,8 @@ def generate_inputs(params: T5AttentionTestParams, dtype: str):
         d_ff=params.d_ff,
         num_heads=params.n_head,
         dropout_rate=0.0,
-        has_relative_attention_bias=params.has_relative_bias,
     )
-    torch_layer = T5AttentionTorch(torch_config)
+    torch_layer = T5AttentionTorch(torch_config, has_relative_attention_bias=params.has_relative_bias)
 
     # Configure NNTile T5 layer
     nntile_config = T5ConfigNNTile(
@@ -162,22 +163,6 @@ def generate_inputs(params: T5AttentionTestParams, dtype: str):
     ],
 )
 class TestT5Attention:
-
-    # def test_coercion(
-    #     self, starpu_simple, torch_rng, params: T5AttentionTestParams, dtype: str
-    # ):
-    #     """Test that weights from PyTorch can be converted to NNTile and back"""
-    #     torch_layer, nntile_layer, _, _ = generate_inputs(params, dtype)
-    #     torch_layer_other = nntile_layer.to_torch()
-    #     nntile_layer.unregister()
-
-    #     rtol = dtype2tol[dtype]["rtol"]
-    #     for (n1, p1), (n2, p2) in zip(
-    #         torch_layer.named_parameters(), torch_layer_other.named_parameters()
-    #     ):
-    #         assert n1 == n2
-    #         assert torch.norm(p1 - p2) <= rtol * torch.norm(p1)
-
     def test_forward(
         self, starpu_simple, torch_rng, params: T5AttentionTestParams, dtype: str
     ):
@@ -188,33 +173,31 @@ class TestT5Attention:
         y_nntile = torch.Tensor(to_numpy(nntile_layer.activations_output[0].value).T)
         # nntile_layer.unregister()
         rtol = dtype2tol[dtype]["rtol"]
+        print("y: ", y)
+        print("y_nntile: ", y_nntile)
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    # def test_backward(
-    #     self, starpu_simple, torch_rng, params: T5AttentionTestParams, dtype: str
-    # ):
-    #     """Test that backward pass gives same results in PyTorch and NNTile"""
-    #     torch_layer, nntile_layer, x, y_grad = generate_inputs(params, dtype)
-    #     torch_layer_other = nntile_layer.to_torch()
-    #     y, _, _ = torch_layer(x)
-    #     nntile_layer.forward_async()
-    #     res = (y * y_grad).sum()
-    #     res.backward()
-    #     nntile_layer.backward_async()
-    #     torch_layer_other = nntile_layer.to_torch_with_grads()
-    #     grad_nntile = torch.Tensor(to_numpy(nntile_layer.activations[0].grad).T)
-    #     nntile_layer.unregister()
-    #     rtol = dtype2tol[dtype]["rtol"]
-    #     assert torch.norm(x.grad - grad_nntile) <= rtol * torch.norm(x.grad)
+    def test_backward(
+        self, starpu_simple, torch_rng, params: T5AttentionTestParams, dtype: str
+    ):
+        """Test that backward pass gives same results in PyTorch and NNTile"""
+        torch_layer, nntile_layer, x, y_grad = generate_inputs(params, dtype)
 
-    #     for (n1, p1), (n2, p2) in zip(
-    #         torch_layer.named_parameters(), torch_layer_other.named_parameters()
-    #     ):
-    #         assert n1 == n2
-    #         assert p1.requires_grad == p2.requires_grad
-    #         if p1.requires_grad:
-    #             g1, g2 = p1.grad, p2.grad
-    #             assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
+        y, _, _ = torch_layer(x)
+        nntile_layer.forward_async()
+        res = (y * y_grad).sum()
+        res.backward()
+        nntile_layer.backward_async()
+
+        grad_nntile = torch.Tensor(to_numpy(nntile_layer.activations_input[0].grad).T)
+        rtol = dtype2tol[dtype]["rtol"]
+        
+        assert torch.norm(x.grad - grad_nntile) <= rtol * torch.norm(x.grad)
+        if params.has_relative_bias:
+            nnt_bias_grad = torch.Tensor(to_numpy(nntile_layer.relative_bias_embedding.grad).T)
+            assert torch.norm(nnt_bias_grad - torch_layer.relative_attention_bias.weight.grad) <= rtol * torch.norm(torch_layer.relative_attention_bias.weight.grad)
+            
+        nntile_layer.unregister()
 
     def test_relative_position_bucket(
         self, torch_rng, params: T5AttentionTestParams, dtype: str

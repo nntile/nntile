@@ -572,11 +572,9 @@ class T5Attention(BaseLayer):
         relative_bias_embedding = None
         if has_relative_bias:
             relative_bias_value = type(x_q.value)(relative_bias_traits, relative_bias_distr, next_tag)
+            relative_bias_grad = type(x_q.value)(relative_bias_traits, relative_bias_distr, next_tag)
             next_tag = relative_bias_value.next_tag
-            # we dont need gradient for relative bias values, as they constant for all the positions across equal size tensors
-            # relative_bias_grad = type(x_q.value)(relative_bias_traits, relative_bias_distr, next_tag)
-            # next_tag = relative_bias_grad.next_tag
-            relative_bias = TensorMoments(relative_bias_value, None, False)
+            relative_bias = TensorMoments(relative_bias_value, relative_bias_grad, True)
             
             relative_bias_embedding_value = type(x_q.value)(relative_bias_embedding_traits, relative_bias_embedding_distr, next_tag)
             next_tag = relative_bias_embedding_value.next_tag
@@ -904,24 +902,20 @@ class T5Attention(BaseLayer):
         context_position = np.arange(query_length, dtype=np.int32)[:, None]
         memory_position = np.arange(key_length, dtype=np.int32)[None, :]
         relative_position = memory_position - context_position  # shape (query_length, key_length)
-        print("relative_position: ", relative_position, flush=True)
-        relative_position_bucket = relative_position_bucket_numpy(
+        relative_position_bucket_numpy = relative_position_bucket_numpy(
             relative_position, 
             bidirectional=True, 
             num_buckets=32, 
             max_distance=128
         )
-        print("relative_position_bucket: ", relative_position_bucket.shape, self.a.value.shape, flush=True)
-        relative_position_bucket = relative_position_bucket[None, ...]
+        relative_position_bucket_numpy = relative_position_bucket_numpy[None, ...]
         if self.a.value.shape[2] > 1:
-            relative_position_bucket = relative_position_bucket.repeat((self.a.value.shape[2], 1, 1))
+            relative_position_bucket_numpy = relative_position_bucket_numpy.repeat(self.a.value.shape[2], axis=0)
             
-        print("relative_position_bucket: ", relative_position_bucket, flush=True)
-        relative_position_bucket_nnt = nntc.from_array(relative_position_bucket.T)
+        self.relative_position_bucket_nnt = nntc.from_array(relative_position_bucket_numpy.T)
         
-        print("EMBED AS: ", relative_position_bucket_nnt.shape, self.relative_bias_embedding.value.shape, self.relative_bias.value.shape, flush=True)
         embedding_async(
-            relative_position_bucket_nnt,
+            self.relative_position_bucket_nnt,
             self.relative_bias_embedding.value,
             self.relative_bias.value,
             axis=3 # so result will batch self.a.shape 
@@ -933,9 +927,9 @@ class T5Attention(BaseLayer):
         copy_async(self.a.grad, self.relative_bias.grad)
         
         embedding_backward_async(
-            self.relative_bias.value,
-            self.relative_bias_embedding.grad,
+            self.relative_position_bucket_nnt,
             self.relative_bias.grad,
+            self.relative_bias_embedding.grad,
             axis=3
         )
 
@@ -1315,7 +1309,7 @@ class T5Attention(BaseLayer):
         if self.k.grad_required:
             # dK = 1.0/sqrt(head_size) * einsum('jmlb,kmlb->jklb', Q, dA)
             gemm_async(
-                1.0 / self.head_size**0.5,
+                1.0 / self.head_size**0.5 if self.scale_attn else 1.0,
                 notrans,
                 self.q.value,
                 trans,
@@ -1332,7 +1326,7 @@ class T5Attention(BaseLayer):
         if self.q.grad_required:
             # dQ = 1.0/sqrt(head_size) * einsum('jklb,kmlb->jmlb', K, dA)
             gemm_async(
-                1.0 / self.head_size**0.5,
+                1.0 / self.head_size**0.5 if self.scale_attn else 1.0,
                 notrans,
                 self.k.value,
                 notrans,
