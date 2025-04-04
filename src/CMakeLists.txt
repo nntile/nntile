@@ -40,6 +40,7 @@ else()
         "kernel/prod_inplace/cpu.cc"
         "kernel/randn/cpu.cc"
         "kernel/relu/cpu.cc"
+	"kernel/sgd_momentum/cpu.cc"
         "kernel/relu_forward/cpu.cc"
         "kernel/relu_backward/cpu.cc"
         "kernel/subcopy/cpu.cc"
@@ -186,6 +187,7 @@ set(STARPU_SRC
     "starpu/prod_inplace.cc"
     "starpu/randn.cc"
     "starpu/relu.cc"
+    "starpu/sgd_momentum.cc"
     "starpu/relu_forward.cc"
     "starpu/relu_backward.cc"
     "starpu/subcopy.cc"
@@ -327,6 +329,7 @@ set(TENSOR_SRC
     "tensor/prod_inplace.cc"
     "tensor/randn.cc"
     "tensor/relu.cc"
+    "tensor/sgd_momentum.cc"
     "tensor/relu_forward.cc"
     "tensor/relu_backward.cc"
     "tensor/scatter.cc"
@@ -396,11 +399,8 @@ set(OPTIMIZER_SRC
 
 set(LOGGER_SRC
     "logger/logger_thread.cc"
-    "logger/websocket_client.cc"
-    )
+    "logger/websocket_client.cc")
 
 set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC}
     ${LOGGER_SRC})
-    #${LAYER_SRC} ${MODEL_SRC} ${OPTIMIZER_SRC})
-
 target_sources(nntile PRIVATE ${SRC})

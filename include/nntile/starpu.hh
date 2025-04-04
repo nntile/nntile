@@ -46,6 +46,7 @@
 #include <nntile/starpu/prod_inplace.hh>
 #include <nntile/starpu/randn.hh>
 #include <nntile/starpu/relu.hh>
+#include <nntile/starpu/sgd_momentum.hh>
 #include <nntile/starpu/relu_forward.hh>
 #include <nntile/starpu/relu_backward.hh>
 #include <nntile/starpu/subcopy.hh>
@@ -127,10 +128,11 @@ void init()
     gemm::init();
     hypot::init();
     hypot_scalar_inverse::init();
-    nrm2::init();
+   nrm2::init();
     normalize::init();
     randn::init();
     relu::init();
+    sgd_momentum::init();
     relu_forward::init();
     relu_backward::init();
     prod::init();
@@ -215,6 +217,7 @@ void restrict_where(uint32_t where)
     prod_inplace::restrict_where(where);
     randn::restrict_where(where);
     relu::restrict_where(where);
+    sgd_momentum::restrict_where(where);
     relu_forward::restrict_where(where);
     relu_backward::restrict_where(where);
     subcopy::restrict_where(where);
@@ -297,6 +300,7 @@ void restore_where()
     prod_inplace::restore_where();
     randn::restore_where();
     relu::restore_where();
+    sgd_momentum::restore_where();
     relu_forward::restore_where();
     relu_backward::restore_where();
     subcopy::restore_where();
