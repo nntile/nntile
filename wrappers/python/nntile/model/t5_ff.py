@@ -119,7 +119,6 @@ class T5DenseGatedActDense(BaseModel):
 
         torch_params = list(torch_ff_layer.parameters())
         for i, p in enumerate(t5_ff_nntile.parameters):
-            print(i, p.value.shape, torch_params[i].cpu().detach().numpy().shape)
             p.value.from_array(torch_params[i].cpu().detach().numpy())
         return t5_ff_nntile, t5_ff_nntile.next_tag
 

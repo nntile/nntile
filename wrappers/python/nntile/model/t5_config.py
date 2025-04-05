@@ -18,6 +18,8 @@ from dataclasses import dataclass
 class T5ConfigNNTile:
     d_model: int
     d_model_tile: int
+    d_kv: int
+    d_kv_tile: int
     d_ff: int
     d_ff_tile: int
     n_head: int
@@ -26,4 +28,5 @@ class T5ConfigNNTile:
     dropout_rate: float = 0
     is_gated_act: bool = True
     layer_norm_epsilon: float = 1e-5
+    is_decoder: bool = False
     redux: bool = False

@@ -657,8 +657,8 @@ class T5Attention(BaseLayer):
             n_head=config.n_head,
             n_head_tile=config.n_head_tile,
             next_tag=next_tag,
-            inner_dim=config.d_ff,
-            inner_dim_tile=config.d_ff_tile,
+            inner_dim=config.d_kv * config.n_head,
+            inner_dim_tile=config.d_kv_tile,
             bias=False,
             mask=mask,
             scale_attn=False,
@@ -902,17 +902,17 @@ class T5Attention(BaseLayer):
         context_position = np.arange(query_length, dtype=np.int32)[:, None]
         memory_position = np.arange(key_length, dtype=np.int32)[None, :]
         relative_position = memory_position - context_position  # shape (query_length, key_length)
-        relative_position_bucket_numpy = relative_position_bucket_numpy(
+        relative_position_bucket_np_value = relative_position_bucket_numpy(
             relative_position, 
             bidirectional=True, 
             num_buckets=32, 
             max_distance=128
         )
-        relative_position_bucket_numpy = relative_position_bucket_numpy[None, ...]
+        relative_position_bucket_np_value = relative_position_bucket_np_value[None, ...]
         if self.a.value.shape[2] > 1:
-            relative_position_bucket_numpy = relative_position_bucket_numpy.repeat(self.a.value.shape[2], axis=0)
+            relative_position_bucket_np_value = relative_position_bucket_np_value.repeat(self.a.value.shape[2], axis=0)
             
-        self.relative_position_bucket_nnt = nntc.from_array(relative_position_bucket_numpy.T)
+        self.relative_position_bucket_nnt = nntc.from_array(relative_position_bucket_np_value.T)
         
         embedding_async(
             self.relative_position_bucket_nnt,

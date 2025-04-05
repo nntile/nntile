@@ -48,6 +48,8 @@ nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason="no cuda")
 class T5AttentionTestParams:
     d_model: int
     d_model_tile: int
+    d_kv: int
+    d_kv_tile: int
     d_ff: int
     d_ff_tile: int
     n_head: int
@@ -63,6 +65,8 @@ class T5AttentionTestParams:
 multiple_tiles = T5AttentionTestParams(
     d_model=512,
     d_model_tile=128,
+    d_kv=64,
+    d_kv_tile=16,
     d_ff=384,
     d_ff_tile=96,
     n_head=6,
@@ -76,6 +80,8 @@ multiple_tiles = T5AttentionTestParams(
 single_tile = T5AttentionTestParams(
     d_model=512,
     d_model_tile=512,
+    d_kv=64,
+    d_kv_tile=64,
     d_ff=384,
     d_ff_tile=384,
     n_head=6,
@@ -92,6 +98,7 @@ def generate_inputs(params: T5AttentionTestParams, dtype: str):
     # Configure PyTorch T5 layer
     torch_config = T5ConfigTorch(
         d_model=params.d_model,
+        d_kv=params.d_kv,
         d_ff=params.d_ff,
         num_heads=params.n_head,
         dropout_rate=0.0,
@@ -102,6 +109,8 @@ def generate_inputs(params: T5AttentionTestParams, dtype: str):
     nntile_config = T5ConfigNNTile(
         d_model=params.d_model,
         d_model_tile=params.d_model_tile,
+        d_kv=params.d_kv,
+        d_kv_tile=params.d_kv_tile,
         d_ff=params.d_ff,
         d_ff_tile=params.d_ff_tile,
         n_head=params.n_head,
