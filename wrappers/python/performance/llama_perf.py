@@ -157,15 +157,15 @@ if args.use_nntile:
     next_tag = 0
 # Restrict computations to CUDA if possible
 if args.restrict == "cuda":
-    if args.use_nntile:
-        nntile.starpu.restrict_cuda()
     if args.use_torch:
         torch_device = "cuda"
-elif args.restrict == "cpu":
     if args.use_nntile:
-        nntile.starpu.restrict_cpu()
+        nntile.starpu.restrict_cuda()
+elif args.restrict == "cpu":
     if args.use_torch:
         torch_device = "cpu"
+    if args.use_nntile:
+        nntile.starpu.restrict_cpu()
 
 time0 = time.time()
 if args.n_head_tile == -1:
@@ -378,6 +378,7 @@ elif args.use_torch:
     torch_layer = torch_layer_
 
 timings = []
+
 if args.use_torch:
     if args.dtype == "bf16":
         torch_layer = torch_layer.bfloat16()
@@ -449,7 +450,15 @@ if args.use_torch:
         print("PyTorch timing averaged over {} runs of only fwd = {}".format(
                                 args.n_iters, np.mean(np.array(timings))))
 
+
 if args.use_nntile:
+
+    # if args.restrict == "cuda":
+    #     if args.use_nntile:
+    #         nntile.starpu.restrict_cuda()
+    # elif args.restrict == "cpu":
+    #     if args.use_nntile:
+    #         nntile.starpu.restrict_cpu()
 
     for n_wup in range(args.num_warmup_calls):
         nntile_module.forward_async()
@@ -466,7 +475,9 @@ if args.use_nntile:
             nntile_module.backward_async()
         nntile.starpu.wait_for_all()
 
+    nntile.starpu.profiling_init()
     nntile.starpu.profiling_enable()
+    nntile.starpu.profiling_bus_display_summary()
     for run_idx in range(args.n_iters):
         start_nntile_time = time.time()
         nntile_module.forward_async()
@@ -484,6 +495,10 @@ if args.use_nntile:
         nntile.starpu.wait_for_all()
         timings.append(time.time() - start_nntile_time)
     nntile.starpu.profiling_disable()
+    nntile.starpu.profiling_bus_display_summary()
+
+    print("Flops forward = {}".format(nntile_module.get_flops_forward()))
+    print("Flops backward = {}".format(nntile_module.get_flops_backward()))
 
     nntile_module.unregister()
     if args.submodule == "attention":

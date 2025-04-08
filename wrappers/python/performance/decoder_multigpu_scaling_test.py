@@ -31,31 +31,31 @@ else:
     num_cuda = len(cuda_device.split(","))
 print(num_cuda)
 
-n_iters = 20
+n_iters = 1
 mode = args.mode
-num_warmup_calls = 5
+num_warmup_calls = 1 # 5
 
-hidden_size = 16384
+hidden_size = 24576
 seqlen = 4096
-intermediatesize = 53248
+intermediatesize = 79872
 if num_cuda == 1:
-    hidden_size_tiles = [hidden_size // ht for ht in [1, 2, 4]]
-    seqlen_tiles = [seqlen // stile for stile in [1, 2]]
+    hidden_size_tiles = [hidden_size // ht for ht in [2]]
+    seqlen_tiles = [seqlen // stile for stile in [1]]
     # intermsize_tiles = [intermediatesize // itile for itile in [2, 4, 8]]
-    intermsize_tiles = [intermediatesize // itile for itile in [1]]
+    intermsize_tiles = [intermediatesize // itile for itile in [4]]
 elif num_cuda == 4:
-    hidden_size_tiles = [hidden_size // ht for ht in [4, 8, 16]]
-    seqlen_tiles = [seqlen // stile for stile in [2]]
-    intermsize_tiles = [intermediatesize // itile for itile in [8, 13, 16]]
+    hidden_size_tiles = [hidden_size // ht for ht in [2, 4, 8]]
+    seqlen_tiles = [seqlen // stile for stile in [2, 4, 8]]
+    intermsize_tiles = [intermediatesize // itile for itile in [1]]
     # intermsize_tiles = [intermediatesize // itile for itile in [8]]
 elif num_cuda == 2:
     hidden_size_tiles = [hidden_size // ht for ht in [2, 4, 8]]
-    # seqlen_tiles = [seqlen // stile for stile in [2, 4]]
-    seqlen_tiles = [seqlen // stile for stile in [1]]
-    intermsize_tiles = [intermediatesize // itile for itile in [2, 4, 8]]
+    seqlen_tiles = [seqlen // stile for stile in [1, 2, 4]]
+    # seqlen_tiles = [seqlen // stile for stile in [2]]
+    intermsize_tiles = [intermediatesize // itile for itile in [1]]
     # intermsize_tiles = [intermediatesize // itile for itile in [2]]
 
-config_path = "./llama_405b_config.json"
+config_path = "./llama_405b_config_modified.json"
 model_name = config_path.split("/")[1][:-5]
 
 cmd_string = "STARPU_MAX_MEMORY_USE=1 STARPU_ENABLE_STATS=1 STARPU_PROFILING=1 STARPU_SCHED=dmdasd "
@@ -79,4 +79,5 @@ for hsize_tile in hidden_size_tiles:
         current_cmd_h_seqlen = current_cmd_h + " --seq-len-tile=" + str(slen_tile)
         for intermtile in intermsize_tiles:
             current_cmd_h_seqlen_interm = current_cmd_h_seqlen + " --intermediate-size-tile=" + str(intermtile)
+            print(current_cmd_h_seqlen_interm)
             os.system(current_cmd_h_seqlen_interm)

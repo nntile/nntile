@@ -33,7 +33,7 @@ void cuda_kernel(Index nelems, Scalar alpha_, const T* src, Scalar beta_, T* dst
  * @param[inout] dst_: Destination of the hypot operation
  * */
 {
-    int i = threadIdx.x + blockIdx.x*blockDim.x;
+    Index i = threadIdx.x + blockIdx.x*blockDim.x;
     using Y = typename T::repr_t;
     constexpr Y zero{0.0};
     Y alpha{alpha_};
