@@ -159,13 +159,13 @@ if args.use_nntile:
 if args.restrict == "cuda":
     if args.use_torch:
         torch_device = "cuda"
-    if args.use_nntile:
-        nntile.starpu.restrict_cuda()
+    # if args.use_nntile:
+    #     nntile.starpu.restrict_cuda()
 elif args.restrict == "cpu":
     if args.use_torch:
         torch_device = "cpu"
-    if args.use_nntile:
-        nntile.starpu.restrict_cpu()
+    # if args.use_nntile:
+    #     nntile.starpu.restrict_cpu()
 
 time0 = time.time()
 if args.n_head_tile == -1:
@@ -453,47 +453,43 @@ if args.use_torch:
 
 if args.use_nntile:
 
-    # if args.restrict == "cuda":
-    #     if args.use_nntile:
-    #         nntile.starpu.restrict_cuda()
-    # elif args.restrict == "cpu":
-    #     if args.use_nntile:
-    #         nntile.starpu.restrict_cpu()
+    if args.restrict == "cuda":
+        if args.use_nntile:
+            nntile.starpu.restrict_cuda()
+    elif args.restrict == "cpu":
+        if args.use_nntile:
+            nntile.starpu.restrict_cpu()
+
+
+    if args.mode == "fwd-bwd":
+        nntile_module.clear_gradients()
+        if args.submodule in ("mlp", "decoder", "causal-llama"):
+            nntile_module.activations[-1].grad.from_array(
+                        np.ones(nntile_module.activations[-1].value.shape,
+                        np.float32, 'F'))
+        elif args.submodule == "attention":
+            nntile_module.y.grad.from_array(
+                        np.ones(nntile_module.y.value.shape,
+                        np.float32, 'F'))
 
     for n_wup in range(args.num_warmup_calls):
         nntile_module.forward_async()
         if args.mode == "fwd-bwd":
-            nntile_module.clear_gradients()
-            if args.submodule in ("mlp", "decoder", "causal-llama"):
-                nntile_module.activations[-1].grad.from_array(
-                    np.ones(nntile_module.activations[-1].value.shape,
-                    np.float32, 'F'))
-            elif args.submodule == "attention":
-                nntile_module.y.grad.from_array(
-                    np.ones(nntile_module.y.value.shape,
-                    np.float32, 'F'))
             nntile_module.backward_async()
         nntile.starpu.wait_for_all()
 
     nntile.starpu.profiling_init()
     nntile.starpu.profiling_enable()
     nntile.starpu.profiling_bus_display_summary()
+
     for run_idx in range(args.n_iters):
         start_nntile_time = time.time()
         nntile_module.forward_async()
         if args.mode == "fwd-bwd":
-            nntile_module.clear_gradients()
-            if args.submodule in ("mlp", "decoder", "causal-llama"):
-                nntile_module.activations[-1].grad.from_array(
-                    np.ones(nntile_module.activations[-1].value.shape,
-                    np.float32, 'F'))
-            elif args.submodule == "attention":
-                nntile_module.y.grad.from_array(
-                    np.ones(nntile_module.y.value.shape,
-                    np.float32, 'F'))
             nntile_module.backward_async()
         nntile.starpu.wait_for_all()
         timings.append(time.time() - start_nntile_time)
+
     nntile.starpu.profiling_disable()
     nntile.starpu.profiling_bus_display_summary()
 
