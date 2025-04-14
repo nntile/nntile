@@ -769,9 +769,6 @@ class LlamaAttention(BaseLayer):
         transpose_async(1.0, self.q_transposed.value, self.q.value, 2)
         # Q_transposed can be deleted
         self.q_transposed.value.invalidate_submit()
-        # X_Q and W_Q can be offloaded from GPU
-        self.x_q.value.wont_use()
-        self.w_q.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_q is not None:
             # batched add_fiber_inplace
@@ -781,7 +778,6 @@ class LlamaAttention(BaseLayer):
             add_fiber_inplace_async(
                 1, self.in_proj_bias_q.value, 1, self.q.value, 0, 2
             )
-            self.in_proj_bias_q.value.wont_use()
         # Perform RoPE on Q
         rope_async(self.sin, self.cos, self.q.value, self.q_rope.value)
         # Q can be deleted
@@ -805,9 +801,6 @@ class LlamaAttention(BaseLayer):
         transpose_async(1.0, self.k_transposed.value, self.k.value, 1)
         # K_transposed can be deleted
         self.k_transposed.value.invalidate_submit()
-        # X_K and W_K can be offloaded from GPU
-        self.x_k.value.wont_use()
-        self.w_k.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_k is not None:
             # batched add_fiber_inplace (head_size, batch=n_head_kv) into
@@ -815,7 +808,6 @@ class LlamaAttention(BaseLayer):
             add_fiber_inplace_async(
                 1, self.in_proj_bias_k.value, 1, self.k.value, 0, 1
             )
-            self.in_proj_bias_k.value.wont_use()
         # Perform RoPE on K
         rope_async(self.sin, self.cos, self.k.value, self.k_rope.value)
         # K can be deleted
@@ -826,8 +818,6 @@ class LlamaAttention(BaseLayer):
         add_slice_inplace_async(
             1.0, self.k_rope.value, 0.0, self.k_rep.value, 3
         )
-        # K_rope can be offloaded from GPU
-        self.k_rope.value.wont_use()
         # V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V)
         # gemm (n_head_kv, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head_kv, head_size, n_seq, n_batch)
@@ -847,9 +837,6 @@ class LlamaAttention(BaseLayer):
         transpose_async(1.0, self.v_transposed.value, self.v.value, 1)
         # V_transposed can be deleted
         self.v_transposed.value.invalidate_submit()
-        # X_V and W_V can be offloaded from GPU
-        self.x_v.value.wont_use()
-        self.w_v.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_v is not None:
             # batched add_fiber_inplace (head_size, batch=n_head_kv) into
@@ -857,13 +844,10 @@ class LlamaAttention(BaseLayer):
             add_fiber_inplace_async(
                 1, self.in_proj_bias_v.value, 1, self.v.value, 0, 1
             )
-            self.in_proj_bias_v.value.wont_use()
         # Repeat V along fibers of proper axis
         # from (head_size, n_seq, n_batch, n_head_kv)
         # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
         add_slice_inplace_async(1.0, self.v.value, 0.0, self.v_rep.value, 3)
-        # V can be offloaded from GPU
-        self.v.value.wont_use()
 
         # Apply attention to Q_rope, K_rep and V_rep into B
         if self.flash_attention:
@@ -877,8 +861,6 @@ class LlamaAttention(BaseLayer):
         # Rotate axes (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
         # into (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
         transpose_async(1.0, self.b.value, self.b_transposed.value, 3)
-        # B can be offloaded from GPU
-        self.b.value.wont_use()
         # Y = einsum('jklm,klmni->jni', W, B_transposed)
         # gemm (n_emb, kv_group_size, n_head_kv, head_size) by
         # (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
@@ -895,16 +877,11 @@ class LlamaAttention(BaseLayer):
             0,
             redux=self.redux,
         )
-        # W and B_transposed can be offloaded from GPU
-        self.w.value.wont_use()
-        self.b_transposed.value.wont_use()
         # Apply bias if needed
         if self.out_proj_bias is not None:
             add_fiber_inplace_async(
                 1.0, self.out_proj_bias.value, 1.0, self.y.value, 0, 0
             )
-            self.out_proj_bias.value.wont_use()
-        self.y.value.wont_use()
 
     def _forward_mlp_q_dynamic(self, x):
         q_partial_tr_bt_shape = tuple(
@@ -1330,7 +1307,6 @@ class LlamaAttention(BaseLayer):
                     0,
                     redux=self.redux,
                 )
-                self.out_proj_bias.grad.wont_use()
         # Backward for Y = einsum('jklm,klmni->jni', W, B_transposed)
         if self.w.grad_required:
             # dW += einsum('jni,klmni->jklm', dY, B_transposed)
@@ -1348,8 +1324,6 @@ class LlamaAttention(BaseLayer):
             )
         # B_transposed can be deleted
         self.b_transposed.value.invalidate_submit()
-        # W_out can be offloaded from GPU
-        self.w.grad.wont_use()
         if self.b_transposed.grad_required:
             # dB_transposed = einsum('jklm,jni->klmni', W, dY)
             gemm_async(
@@ -1364,10 +1338,6 @@ class LlamaAttention(BaseLayer):
                 0,
                 redux=self.redux,
             )
-        # W can be offloaded from GPU
-        self.w.value.wont_use()
-        # dY can be offloaded from GPU
-        self.y.grad.wont_use()
         # Backward for axes rotation
         if self.b.grad_required:
             # rotate axes (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
@@ -1412,7 +1382,6 @@ class LlamaAttention(BaseLayer):
                     1,
                     redux=self.redux,
                 )
-                self.in_proj_bias_v.grad.wont_use()
         # Backward for axes rotation (V_transposed->V)
         if self.v_transposed.grad_required:
             # Rotate axes (head_size, n_seq, n_batch, n_head_kv) into
@@ -1435,10 +1404,6 @@ class LlamaAttention(BaseLayer):
                 0,
                 redux=self.redux,
             )
-        # W_V can be offloaded from GPU
-        self.w_v.value.wont_use()
-        # dX_V can be offloaded from GPU
-        self.x_v.grad.wont_use()
         if self.w_v.grad_required:
             # dW_V += einsum('jkmn,lmn->jkl', dV_transposed, X_V)
             gemm_async(
@@ -1453,10 +1418,6 @@ class LlamaAttention(BaseLayer):
                 0,
                 redux=self.redux,
             )
-        # dW_V can be offloaded from GPU
-        self.w_v.grad.wont_use()
-        # X_V can be offloaded from GPU
-        self.x_v.value.wont_use()
         # dV_transposed can be deleted
         self.v_transposed.grad.invalidate_submit()
 
@@ -1484,7 +1445,6 @@ class LlamaAttention(BaseLayer):
                     1,
                     redux=self.redux,
                 )
-                self.in_proj_bias_k.grad.wont_use()
         # Backward for axes rotation (K_transposed->K)
         if self.k_transposed.grad_required:
             # Rotate axes (head_size, n_seq, n_batch, n_head_kv) into
@@ -1507,10 +1467,6 @@ class LlamaAttention(BaseLayer):
                 0,
                 redux=self.redux,
             )
-        # W_K can be offloaded from GPU
-        self.w_k.value.wont_use()
-        # dX_K can be offloaded from GPU
-        self.x_k.grad.wont_use()
         if self.w_k.grad_required:
             # dW_K += einsum('jkmn,lmn->jkl', dK_transposed, X_K)
             gemm_async(
@@ -1525,10 +1481,6 @@ class LlamaAttention(BaseLayer):
                 0,
                 redux=self.redux,
             )
-        # dW_K can be offloaded from GPU
-        self.w_k.grad.wont_use()
-        # X_K can be offloaded from GPU
-        self.x_k.value.wont_use()
         # dK_transposed can be deleted
         self.k_transposed.grad.invalidate_submit()
         # Backward for RoPE for Q
@@ -1548,7 +1500,6 @@ class LlamaAttention(BaseLayer):
                     2,
                     redux=self.redux,
                 )
-                self.in_proj_bias_q.grad.wont_use()
         # Backward for axes rotation (Q_transposed->Q)
         if self.q_transposed.grad_required:
             # Rotate axes (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
@@ -1573,11 +1524,6 @@ class LlamaAttention(BaseLayer):
                 0,
                 redux=self.redux,
             )
-            self.x_q.grad.wont_use()
-        # W_Q can be offloaded from GPU
-        self.w_q.value.wont_use()
-        # dX_Q can be offloaded from GPU
-        self.x_q.grad.wont_use()
         if self.w_q.grad_required:
             # dW_Q += einsum('ijkmn,lmn->ijkl', dQ_transposed, X_Q)
             gemm_async(
@@ -1592,10 +1538,6 @@ class LlamaAttention(BaseLayer):
                 0,
                 redux=self.redux,
             )
-        # dW_Q can be offloaded from GPU
-        self.w_q.grad.wont_use()
-        # X_Q can be offloaded from GPU
-        self.x_q.value.wont_use()
         # dQ_transposed can be deleted
         self.q_transposed.grad.invalidate_submit()
 
@@ -2010,12 +1952,6 @@ class LlamaAttention(BaseLayer):
             self.a.value,
             redux=self.redux,
         )
-        # Q_rope, K_rep, V_rep, mask and A_maxsumexp can be offloaded from GPU
-        self.q_rope.value.wont_use()
-        self.k_rep.value.wont_use()
-        self.v_rep.value.wont_use()
-        self.mask.wont_use()
-        self.a_maxsumexp.wont_use()
         # A can be deleted
         self.a.value.invalidate_submit()
 
@@ -2043,8 +1979,6 @@ class LlamaAttention(BaseLayer):
         self.k_rep.value.invalidate_submit()
         # V_rep can be deleted
         self.v_rep.value.invalidate_submit()
-        # mask can be offloaded from GPU
-        self.mask.wont_use()
         # A_maxsumexp can be deleted
         self.a_maxsumexp.invalidate_submit()
         # dB can be deleted
@@ -2076,15 +2010,11 @@ class LlamaAttention(BaseLayer):
             redux=self.redux,
         )
         clear_async(self.a_maxsumexp)
-        # Q_rope, K_rep can be offloaded from GPU
-        self.q_rope.value.wont_use()
-        self.k_rep.value.wont_use()
         # Calculate softmax inplace
         # A = softmax(A, axis=0)
         # Apply mask if needed
         if self.mask:
             mask_scalar_async(self.mask, self.val, self.a.value, 3)
-            self.mask.wont_use()
         # Calculate max and sumexp along axis
         maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=self.redux)
         # Finally, get the inplace softmax
@@ -2109,9 +2039,6 @@ class LlamaAttention(BaseLayer):
             3,
             redux=self.redux,
         )
-        # V_rep and A can be offloaded from GPU
-        self.v_rep.value.wont_use()
-        self.a.value.wont_use()
 
     def _attention_bwd(self):
         # Backward for B = einsum('jklbi,kmlbi->jmlbi', V_rep, A)
@@ -2168,7 +2095,6 @@ class LlamaAttention(BaseLayer):
         # Backward for mask if needed
         if self.mask:
             mask_scalar_async(self.mask, 0.0, self.a.grad, 3)
-            self.mask.wont_use()
         # Backward for:
         # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q_rope)
         if self.k_rep.grad_required:

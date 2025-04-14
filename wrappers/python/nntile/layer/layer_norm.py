@@ -178,10 +178,6 @@ class LayerNorm(BaseLayer):
         add_slice_async(
             -1.0, self.mean, 1.0, self.x.value, self.tmp_y_value, self.axis
         )
-        # mean can be offloaded from GPU
-        self.mean.wont_use()
-        # X can be offloaded from GPU
-        self.x.value.wont_use()
         # Compute standard deviation of self.y.value
         # fill_async(self.eps, self.inv_stddev)
         norm_slice_async(
@@ -197,24 +193,14 @@ class LayerNorm(BaseLayer):
         # pow_async(1.0, -1.0, self.inv_stddev)
         # Finally, normalize input
         prod_slice_async(self.inv_stddev, 1.0, self.tmp_y_value, self.axis)
-        # inv_stddev can be offloaded from GPU
-        self.inv_stddev.wont_use()
         # Scale normalized input for the backward phase
         prod_fiber3_async(
             self.gamma.value, 1.0, self.tmp_y_value, self.y.value, self.axis
         )
-        # tmp_Y_value can be offloaded from GPU
-        self.tmp_y_value.wont_use()
-        # gamma can be offloaded from GPU
-        self.gamma.value.wont_use()
         # Shift output
         add_fiber_inplace_async(
             1.0, self.beta.value, 1.0, self.y.value, self.axis, 0
         )
-        # beta can be offloaded from GPU
-        self.beta.value.wont_use()
-        # Y can be offloaded from GPU
-        self.y.value.wont_use()
 
     # Forward propagation of the normalization layer
     def forward_dynamic(self, x: TensorMoments):
@@ -239,8 +225,6 @@ class LayerNorm(BaseLayer):
         )
         # Y = X - mean
         add_slice_async(-1.0, mean, 1.0, x.value, tmp_y_value, self.axis)
-        # mean can be offloaded from GPU
-        mean.wont_use()
 
         # Compute standard deviation of self.y.value
         norm_slice_async(
@@ -254,22 +238,14 @@ class LayerNorm(BaseLayer):
         hypot_scalar_inverse_async(self.eps, 1.0, inv_stddev)
         # Finally, normalize input
         prod_slice_async(inv_stddev, 1.0, tmp_y_value, self.axis)
-        # inv_stddev can be offloaded from GPU
-        inv_stddev.wont_use()
         # Scale normalized input for the backward phase
         prod_fiber3_async(
             self.gamma.value, 1.0, tmp_y_value, y.value, self.axis
         )
-        # tmp_Y_value can be offloaded from GPU
-        tmp_y_value.wont_use()
-        # gamma can be offloaded from GPU
-        self.gamma.value.wont_use()
         # Shift output
         add_fiber_inplace_async(
             1.0, self.beta.value, 1.0, y.value, self.axis, 0
         )
-        # beta can be offloaded from GPU
-        self.beta.value.wont_use()
         return y
 
     # Backward propagation of the normalization layer
@@ -284,8 +260,6 @@ class LayerNorm(BaseLayer):
             0,
             redux=self.redux,
         )
-        # d_beta can be offloaded from GPU
-        self.beta.grad.wont_use()
         # Accumulate gradient over gamma
         sumprod_fiber_async(
             1.0,
@@ -296,16 +270,10 @@ class LayerNorm(BaseLayer):
             self.axis,
             redux=self.redux,
         )
-        # d_gamma can be offloaded from GPU
-        self.gamma.grad.wont_use()
         # Define gradient over normalized input
         prod_fiber3_async(
             self.gamma.value, 1.0, self.y.grad, self.tmp_y_grad, self.axis
         )
-        # dY can be offloaded from GPU
-        self.y.grad.wont_use()
-        # gamma can be offloaded from GPU
-        self.gamma.value.wont_use()
         # Get mean of product of tmp_Y_grad and tmp_Y_value over the given axis
         sumprod_slice_async(
             -1.0 / self.l,
@@ -345,8 +313,6 @@ class LayerNorm(BaseLayer):
         add_inplace_async(1., self.tmp_y_value, 1., self.x.grad)
         # tmp_Y_value can be deleted
         self.tmp_y_value.invalidate_submit()
-        # dX can offloade from GPU
-        self.x.grad.wont_use()
 
     @classmethod
     def from_torch(cls,

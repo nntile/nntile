@@ -130,17 +130,9 @@ class RMSNorm(BaseLayer):
         # Finally, normalize input
         copy_async(self.x.value, self.tmp_y_value)
         prod_slice_async(self.inv_stddev, 1.0, self.tmp_y_value, self.axis)
-        # inv_stddev can be offloaded from GPU
-        self.inv_stddev.wont_use()
         # Scale normalized input for the backward phase
         prod_fiber3_async(self.gamma.value, 1.0, self.tmp_y_value,
                 self.y.value, self.axis)
-        # tmp_Y_value can be offloaded from GPU
-        self.tmp_y_value.wont_use()
-        # gamma can be offloaded from GPU
-        self.gamma.value.wont_use()
-        # Y can be offloaded from GPU
-        self.y.value.wont_use()
 
     # Dynamic forward propagation of the normalization layer
     def forward_dynamic(self, x: TensorMoments):
@@ -180,15 +172,9 @@ class RMSNorm(BaseLayer):
         # Accumulate gradient over gamma
         sumprod_fiber_async(1.0, self.y.grad, self.tmp_y_value, 1.0,
                 self.gamma.grad, self.axis, redux=self.redux)
-        # d_gamma can be offloaded from GPU
-        self.gamma.grad.wont_use()
         # Define gradient over normalized input
         prod_fiber3_async(self.gamma.value, 1.0, self.y.grad,
                 self.tmp_y_grad, self.axis)
-        # dY can be offloaded from GPU
-        self.y.grad.wont_use()
-        # gamma can be offloaded from GPU
-        self.gamma.value.wont_use()
         # Get mean of product of tmp_Y_grad and tmp_Y_value over the given axis
         sumprod_slice_async(-1.0 / self.l, self.tmp_y_grad, self.tmp_y_value,
                 0.0, self.mean, self.axis, redux=self.redux)
@@ -208,8 +194,6 @@ class RMSNorm(BaseLayer):
         add_inplace_async(1., self.tmp_y_value, 1., self.x.grad)
         # tmp_Y_value can be deleted
         self.tmp_y_value.invalidate_submit()
-        # dX can offloade from GPU
-        self.x.grad.wont_use()
 
     @staticmethod
     def from_torch(torch_rmsnorm, x: TensorMoments,

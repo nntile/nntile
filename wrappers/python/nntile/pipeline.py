@@ -82,10 +82,8 @@ class Pipeline(object):
                 # Apply optimizer after gradients for entire batch are
                 # accumulated
                 self.opt.step()
-                # Invalidate gradients of parameters and hint to offload
-                # parameters
+                # Invalidate gradients of parameters
                 for p in self.model.parameters:
-                    p.value.wont_use()
                     if p.grad_required:
                         p.grad.invalidate_submit()
                 # Limit parallelism through value of loss

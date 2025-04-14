@@ -172,7 +172,6 @@ int main(int argc, char **argv)
         copy_async(mixer_x[i], mixer_x[i+1]);
         // Layer normalization
         copy_async(mixer_x[i], mixer_x_norm);
-        mixer_x[i].wont_use();
         norm_sum_ssq_async(mixer_x_norm, sum_ssq1, 2);
         norm_avg_dev_async(sum_ssq1, avg_dev1, n_channels, eps);
         sum_ssq1.invalidate_submit();

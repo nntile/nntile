@@ -63,18 +63,14 @@ void run_forward(const std::vector<Index> &shape,
         {
             gemm_async(one, TransOp::NoTrans, X[j], TransOp::NoTrans, W[j],
                     zero, X[j+1]);
-            //X[j].wont_use();
-            //W[j].wont_use();
             if(j > 0)
             {
                 X[j].invalidate_submit();
             }
-            W[j].wont_use();
             //bias_async(B[j], X[j+1], 0);
             //relu_async(X[j+1]);
         }
         //copy_intersection_async(X[nlayers], X[0]);
-        //X[nlayers].wont_use();
         X[nlayers].invalidate_submit();
     }
     starpu_task_wait_for_all();

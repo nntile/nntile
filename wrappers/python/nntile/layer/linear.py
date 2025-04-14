@@ -185,13 +185,6 @@ class Linear(BaseLayer):
                 add_fiber_inplace_async(
                     1.0, self.b.value, 1.0, self.y.value, 0, 0
                 )
-        # Hint for StarPU that W tensor will
-        # not be used soon and it is advised to offload data from GPU
-        self.w.value.wont_use()
-        self.x.value.wont_use()
-        self.y.value.wont_use()
-        if self.b is not None:
-            self.b.value.wont_use()
 
     def forward_dynamic(self, x: TensorMoments):
         # TODO: think about dynamic dispatch for side and x_trans
@@ -224,13 +217,6 @@ class Linear(BaseLayer):
         )
         if self.b is not None:
             add_fiber_inplace_async(1.0, self.b.value, 1.0, y, 0, 0)
-
-        # Hint for StarPU that W tensor will
-        # not be used soon and it is advised to offload data from GPU
-        self.w.value.wont_use()
-        x.value.wont_use()
-        if self.b is not None:
-            self.b.value.wont_use()
 
         return TensorMoments(y, None, False)
 
@@ -267,10 +253,6 @@ class Linear(BaseLayer):
                     gemm_async(1.0, notrans, self.y.grad, notrans,
                                 self.x.value, 1.0, self.w.grad, gemm_ndim, 0,
                                 redux=self.redux)
-            # Hint StarPU to offload gradient over W if needed
-            self.w.grad.wont_use()
-            self.x.value.wont_use()
-            self.y.grad.wont_use()
         if self.b is not None:
             if self.b.grad_required:
                 if self.side == 'L':
@@ -279,8 +261,6 @@ class Linear(BaseLayer):
                 else:
                     sum_fiber_async(1.0, self.y.grad, 1.0, self.b.grad, 0, 0,
                             redux=self.redux)
-                self.b.grad.wont_use()
-                self.y.grad.wont_use()
         # Gradient over X (input)
         if self.x.grad_required:
             gemm_ndim = self.w.value.ndim - self.ndim
@@ -316,12 +296,6 @@ class Linear(BaseLayer):
                     gemm_async(1.0, trans, self.y.grad, notrans,
                                 self.w.value, 1.0, self.x.grad, gemm_ndim, 0,
                                 redux=self.redux)
-            # Hint StarPU to offload certain buffers
-            self.x.grad.wont_use()
-        self.x.value.wont_use()
-        self.y.value.wont_use()
-        self.y.grad.wont_use()
-        self.w.value.wont_use()
 
     def to_torch(self):
         lin_torch = nn.Linear(self.w.value.shape[1],

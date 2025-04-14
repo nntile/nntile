@@ -85,9 +85,6 @@ class Embedding(BaseLayer):
     def forward_async(self):
         clear_async(self.y.value)
         embedding_async(self.x, self.w.value, self.y.value, self.axis)
-        self.x.wont_use()
-        self.w.value.wont_use()
-        self.y.value.wont_use()
 
     def forward_dynamic(self, x: TensorMoments):
         y_shape = x.value.shape.copy()
@@ -109,9 +106,6 @@ class Embedding(BaseLayer):
         embedding_backward_async(
             self.x, self.y.grad, self.w.grad, self.axis, redux=0
         )
-        self.x.wont_use()
-        self.y.grad.wont_use()
-        self.w.grad.wont_use()
 
     def to_torch(self):
         torch_emb = Embedding_torch(

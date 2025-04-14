@@ -85,12 +85,8 @@ class Adam:
                 self.weight_decay,
                 self.num_iter,
             )
-            p.value.wont_use()
             # dP can be deleted
-            # p.grad.wont_use()
             p.grad.invalidate_submit()
-            self.first_moments[i].wont_use()
-            self.second_moments[i].wont_use()
         self.num_iter += 1
 
     def save_state(self, path, dtype="fp32"):

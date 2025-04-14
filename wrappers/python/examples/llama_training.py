@@ -28,11 +28,8 @@ from nntile.model.llama_config import LlamaConfigNNTile
 # Create argument parser
 parser = argparse.ArgumentParser(prog="LLaMa-based neural networks",
         description="This example presents an NNTile implementation of a "
-        "LLaMa-family of models and compares it against the Huggingface. "
-        "It checks relative accuracy of a forward pass (values of "
-        "activations) and backward pass (gradients of parameters and "
-        "activations) and a throughput of inference and training. It can "
-        "also fine-tune a pretrained NNTile model on a chosen dataset.")
+        "LLaMa-family of models. It can pretrain a model from scratch or "
+        "fine-tune a pretrained NNTile model on a chosen dataset.")
 
 parser.add_argument("--remote_model_name", type=str,
                     default="kimihailv/llama-1.3b")
@@ -189,8 +186,8 @@ print("Converting PyTorch model to NNTile",
         "requires {} seconds".format(time1))
 del model_torch
 
-splitted_darasetfile = args.dataset_file.split("/")
-if splitted_darasetfile[-1] == "train.bin":
+splitted_datasetfile = args.dataset_file.split("/")
+if splitted_datasetfile[-1] == "train.bin":
     train_data = np.memmap(Path(args.dataset_path) /
                             args.dataset_file,
                             dtype=np.uint16, mode='r')

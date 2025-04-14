@@ -130,9 +130,3 @@ class CrossEntropy:
                 self.scale, self.y, self.model_output.grad,
                 self.ignore_index
             )
-        self.model_output.value.wont_use()
-        self.model_output.grad.wont_use()
-        self.maxsumexp.wont_use()
-        self.logsumexp.wont_use()
-        self.val.wont_use()
-        self.y.wont_use()

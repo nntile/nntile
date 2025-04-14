@@ -43,8 +43,6 @@ public:
         constexpr T one = 1, zero = 0;
         constexpr TransOp opN(TransOp::NoTrans);
         tensor::gemm_async<T>(one, opN, weight, opN, input, zero, output, 1);
-        input.wont_use();
-        weight.wont_use();
     }
     virtual void backward_async(const tensor::Tensor<T> &forward_input,
             const tensor::Tensor<T> &input,
@@ -56,7 +54,6 @@ public:
                 grad_weight, 1);
         forward_input.invalidate_submit();
         tensor::gemm_async<T>(one, opT, weight, opN, input, zero, output, 1);
-        weight.wont_use();
         input.invalidate_submit();
     }
 };
