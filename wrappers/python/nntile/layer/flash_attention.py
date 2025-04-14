@@ -539,9 +539,6 @@ class FlashAttention(BaseLayer):
         )
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.q_transposed.value, self.q.value, 1)
-        # X_Q and W_Q can be offloaded from GPU
-        self.x_q.value.wont_use()
-        self.w_q.value.wont_use()
         # Q_transposed can be deleted
         self.q_transposed.value.invalidate_submit()
         # Apply bias if needed
@@ -551,7 +548,6 @@ class FlashAttention(BaseLayer):
             add_fiber_inplace_async(
                 1, self.in_proj_bias_q.value, 1, self.q.value, 0, 1
             )
-            self.in_proj_bias_q.value.wont_use()
         # K_transposed = einsum('jkl,lmn->jkmn', W_K, X_K)
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
@@ -569,9 +565,6 @@ class FlashAttention(BaseLayer):
         )
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.k_transposed.value, self.k.value, 1)
-        # X_K and W_K can be offloaded from GPU
-        self.x_k.value.wont_use()
-        self.w_k.value.wont_use()
         # K_transposed can be deleted
         self.k_transposed.value.invalidate_submit()
         # Apply bias if needed
@@ -581,7 +574,6 @@ class FlashAttention(BaseLayer):
             add_fiber_inplace_async(
                 1, self.in_proj_bias_k.value, 1, self.k.value, 0, 1
             )
-            self.in_proj_bias_k.value.wont_use()
         # V_transposed = einsum('jkl,lmn->jkmn', W_V, X_V)
         # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
         # (n_head, head_size, n_seq, n_batch)
@@ -599,9 +591,6 @@ class FlashAttention(BaseLayer):
         )
         # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.v_transposed.value, self.v.value, 1)
-        # X_V and W_V can be offloaded from GPU
-        self.x_v.value.wont_use()
-        self.w_v.value.wont_use()
         # K_transposed can be deleted
         self.v_transposed.value.invalidate_submit()
         # Apply bias if needed
@@ -611,7 +600,6 @@ class FlashAttention(BaseLayer):
             add_fiber_inplace_async(
                 1, self.in_proj_bias_v.value, 1, self.v.value, 0, 1
             )
-            self.in_proj_bias_v.value.wont_use()
         # Use flash-like maxsumexp
         clear_async(self.a_maxsumexp)
         flash_maxsumexp_async(
@@ -633,12 +621,6 @@ class FlashAttention(BaseLayer):
             self.a.value,
             redux=self.redux,
         )
-        # Q, K, V, mask and A_maxsumexp can be offloaded from GPU
-        self.q.value.wont_use()
-        self.k.value.wont_use()
-        self.v.value.wont_use()
-        self.mask.wont_use()
-        self.a_maxsumexp.wont_use()
         # A can deleted
         self.a.value.invalidate_submit()
         # Accumulate result from all the heads
@@ -662,16 +644,11 @@ class FlashAttention(BaseLayer):
             0,
             redux=self.redux,
         )
-        # W and B_transposed can be offloaded from GPU
-        self.w.value.wont_use()
-        self.b_transposed.value.wont_use()
         # Apply bias if needed
         if self.out_proj_bias is not None:
             add_fiber_inplace_async(
                 1.0, self.out_proj_bias.value, 1.0, self.y.value, 0, 0
             )
-            self.out_proj_bias.value.wont_use()
-        self.y.value.wont_use()
 
     # Backward propagation of the linear layer
     def backward_async(self):
@@ -687,7 +664,6 @@ class FlashAttention(BaseLayer):
                     0,
                     redux=self.redux,
                 )
-                self.out_proj_bias.grad.wont_use()
         # Backward for Y = einsum('jkl,klmn->jmn', W, B_transposed)
         if self.w.grad_required:
             # dW += einsum('jmn,klmn->jkl', dY, B_transposed)
@@ -705,8 +681,6 @@ class FlashAttention(BaseLayer):
             )
         # B_transposed can be deleted
         self.b_transposed.value.invalidate_submit()
-        # dW can be offloaded from GPU
-        self.w.grad.wont_use()
         if self.b_transposed.grad_required:
             # dB_transposed = einsum('jkl,jmn->klmn', W, dY)
             gemm_async(
@@ -721,10 +695,6 @@ class FlashAttention(BaseLayer):
                 0,
                 redux=self.redux,
             )
-        # W can be offloaded from GPU
-        self.w.value.wont_use()
-        # dY can be offloaded from GPU
-        self.y.grad.wont_use()
         # Backward for axes rotation
         if self.b.grad_required:
             # rotate axes (n_head, head_size, n_seq, n_batch) into
@@ -755,8 +725,6 @@ class FlashAttention(BaseLayer):
         self.k.value.invalidate_submit()
         # V can be deleted
         self.v.value.invalidate_submit()
-        # mask can be offloaded from GPU
-        self.mask.wont_use()
         # A_maxsumexp can be deleted
         self.a_maxsumexp.invalidate_submit()
         # dB can be deleted
@@ -779,7 +747,6 @@ class FlashAttention(BaseLayer):
                     1,
                     redux=self.redux,
                 )
-                self.in_proj_bias_v.grad.wont_use()
         # Backward for axes rotation (V_transposed->V)
         if self.v_transposed.grad_required:
             # Rotate axes (head_size, n_seq, n_batch, n_head) into
@@ -802,10 +769,6 @@ class FlashAttention(BaseLayer):
                 0,
                 redux=self.redux,
             )
-        # W_V can be offloaded from GPU
-        self.w_v.value.wont_use()
-        # dX_V can be offloaded from GPU
-        self.x_v.grad.wont_use()
         if self.w_v.grad_required:
             # dW_V += einsum('jkmn,lmn->jkl', dV_transposed, X_V)
             gemm_async(
@@ -820,10 +783,6 @@ class FlashAttention(BaseLayer):
                 0,
                 redux=self.redux,
             )
-        # dW_V can be offloaded from GPU
-        self.w_v.grad.wont_use()
-        # X_V can be offloaded from GPU
-        self.x_v.value.wont_use()
         # dV_transposed can be deleted
         self.v_transposed.grad.invalidate_submit()
         # Backward for bias of K
@@ -838,7 +797,6 @@ class FlashAttention(BaseLayer):
                     1,
                     redux=self.redux,
                 )
-                self.in_proj_bias_k.grad.wont_use()
         # Backward for axes rotation (K_transposed->K)
         if self.k_transposed.grad_required:
             # Rotate axes (head_size, n_seq, n_batch, n_head) into
@@ -861,10 +819,6 @@ class FlashAttention(BaseLayer):
                 0,
                 redux=self.redux,
             )
-        # W_K can be offloaded from GPU
-        self.w_k.value.wont_use()
-        # dX_K can be offloaded from GPU
-        self.x_k.grad.wont_use()
         if self.w_k.grad_required:
             # dW_K += einsum('jkmn,lmn->jkl', dK_transposed, X_K)
             gemm_async(
@@ -879,10 +833,6 @@ class FlashAttention(BaseLayer):
                 0,
                 redux=self.redux,
             )
-        # dW_K can be offloaded from GPU
-        self.w_k.grad.wont_use()
-        # X_K can be offloaded from GPU
-        self.x_k.value.wont_use()
         # dK_transposed can be deleted
         self.k_transposed.grad.invalidate_submit()
         # Backward for bias of Q
@@ -897,7 +847,6 @@ class FlashAttention(BaseLayer):
                     1,
                     redux=self.redux,
                 )
-                self.in_proj_bias_q.grad.wont_use()
         # Backward for axes rotation (Q_transposed->Q)
         if self.q_transposed.grad_required:
             # Rotate axes (head_size, n_seq, n_batch, n_head) into
@@ -920,11 +869,6 @@ class FlashAttention(BaseLayer):
                 0,
                 redux=self.redux,
             )
-            self.x_q.grad.wont_use()
-        # W_Q can be offloaded from GPU
-        self.w_q.value.wont_use()
-        # dX_Q can be offloaded from GPU
-        self.x_q.grad.wont_use()
         if self.w_q.grad_required:
             # dW_Q += einsum('jkmn,lmn->jkl', dQ_transposed, X_Q)
             gemm_async(
@@ -939,9 +883,5 @@ class FlashAttention(BaseLayer):
                 0,
                 redux=self.redux,
             )
-        # dW_Q can be offloaded from GPU
-        self.w_q.grad.wont_use()
-        # X_Q can be offloaded from GPU
-        self.x_q.value.wont_use()
         # dQ_transposed can be deleted
         self.q_transposed.grad.invalidate_submit()

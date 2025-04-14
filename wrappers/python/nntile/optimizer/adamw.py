@@ -87,10 +87,6 @@ class AdamW:
             )
             # dP can be deleted
             p.grad.invalidate_submit()
-            # Parameters and states can be offloaded from GPU
-            p.value.wont_use()
-            self.first_moments[i].wont_use()
-            self.second_moments[i].wont_use()
         self.num_iter += 1
 
     def save_state(self, path, dtype="fp32"):

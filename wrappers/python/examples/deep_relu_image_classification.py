@@ -332,10 +332,6 @@ for x in batch_data:
     for mini_x in x:
         nntile.tensor.copy_async(mini_x, m.activations[0].value)
         m.forward_async()
-        for t in m.activations:
-            t.value.wont_use()
-        for p in m.parameters:
-            p.value.wont_use()
 nntile.starpu.wait_for_all()
 time0 += time.time()
 

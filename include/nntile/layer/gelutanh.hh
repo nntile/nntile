@@ -28,7 +28,6 @@ public:
             const tensor::Tensor<T> &output) const
     {
         tensor::copy_async<T>(input, output);
-        input.wont_use();
         tensor::gelutanh_async<T>(output);
     }
     void backward_async(const tensor::Tensor<T> &input,

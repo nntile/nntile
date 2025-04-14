@@ -83,32 +83,23 @@ class BatchNorm2d(BaseLayer):
         self._normalize_forward()
         self._learnable_transform_forward()
 
-        self.y.value.wont_use()
-
     def backward_async(self):
         self._learnable_transform_backward()
         self._normalize_backward()
-
-        # could be earlier. But this is straightforward we delete grad
-        self.x.grad.wont_use()
-        self.y.grad.wont_use()
 
     def _normalize_forward(self):
         # mean
         x_mean = self.tmp_buff_channels
         sum_fiber_async(1.0 / self.numel_in_channel, self.x.value,
                             0.0, x_mean, 1, 0)
-        self.x.value.wont_use()
 
         # X_res = X - mean
         add_fiber_async(
             -1.0, x_mean, 1.0, self.x.value, self.x_normalized, 1, 0
         )
 
-        self.tmp_buff_channels.wont_use()
         # copy for backward
         copy_async(self.x_normalized, self.x_unbiased_copy)
-        self.x_unbiased_copy.wont_use()
 
         # inverse std using norm_fiber
         norm_fiber_async(
@@ -120,17 +111,13 @@ class BatchNorm2d(BaseLayer):
 
         # X_res = X_res/std
         prod_fiber_async(self.inv_std, 1.0, self.x_normalized, 1)
-        self.inv_std.wont_use()
 
     def _learnable_transform_forward(self):
         # y = weight * y + bias
         prod_fiber3_async(
             self.weight.value, 1.0, self.x_normalized, self.y.value, 1
         )
-        self.weight.value.wont_use()
         add_fiber_inplace_async(1.0, self.bias.value, 1.0, self.y.value, 1, 0)
-        self.x_normalized.wont_use()
-        self.bias.value.wont_use()
 
     def _compute_grad_normalized_input_over_x(self, grad_nnt):
         """
@@ -223,7 +210,6 @@ class BatchNorm2d(BaseLayer):
     def _learnable_transform_backward(self):
         # bias_grad = grad
         sum_fiber_async(1.0, self.y.grad, 0.0, self.bias.grad, 1, 0)
-        self.bias.grad.wont_use()
 
         # weight_grad = x_normalized * grad
         sumprod_fiber_async(
@@ -235,9 +221,7 @@ class BatchNorm2d(BaseLayer):
             1,
             redux=self.redux,
         )
-        self.weight.grad.wont_use()
         self.x_normalized.invalidate_submit()
 
         # norm_grad = grad * weight
         prod_fiber_async(self.weight.value, 1.0, self.y.grad, 1)
-        self.weight.value.wont_use()

@@ -75,8 +75,6 @@ class Act(BaseLayer):
         if self.funcname == "gelu":
             copy_async(self.x.value, self.y.value)
             gelu_async(self.y.value)
-        self.x.value.wont_use()
-        self.y.value.wont_use()
 
     def forward_dynamic(self, x: TensorMoments):
         y = nntc.zeros(
@@ -101,6 +99,3 @@ class Act(BaseLayer):
         # Gradient over X (input)
         if self.x.grad_required:
             self.dfunc(self.x.value, self.y.grad, self.x.grad)
-            self.x.value.wont_use()
-            self.x.grad.wont_use()
-            self.y.grad.wont_use()

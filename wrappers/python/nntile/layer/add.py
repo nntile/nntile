@@ -38,9 +38,6 @@ class Add(BaseLayer):
 
     def forward_async(self):
         add_async(1.0, self.x.value, 1.0, self.y.value, self.res.value)
-        self.x.value.wont_use()
-        self.y.value.wont_use()
-        self.res.value.wont_use()
 
     def forward_dynamic(self, x1: TensorMoments, x2: TensorMoments):
         y = nntc.empty_like(x1.value)
@@ -50,6 +47,3 @@ class Add(BaseLayer):
     def backward_async(self):
         add_inplace_async(1.0, self.res.grad, 1.0, self.x.grad)
         add_inplace_async(1.0, self.res.grad, 1.0, self.y.grad)
-        self.x.grad.wont_use()
-        self.y.grad.wont_use()
-        self.res.grad.wont_use()

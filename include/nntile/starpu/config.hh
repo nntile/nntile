@@ -19,6 +19,7 @@
 #include <memory>
 #include <cstring>
 #include <iostream>
+#include <cstdlib>
 #include <starpu.h>
 // Disabled MPI for now
 //#include <starpu_mpi.h>
@@ -64,6 +65,10 @@ public:
             const char *logger_server_addr="localhost",
             int logger_server_port=5001, int verbose_=0)
     {
+        // Set STARPU_WORKERS_NOBIND=1 to avoid problems when using
+        // NNTile on shared resources
+        setenv("STARPU_WORKERS_NOBIND", "1", 1);
+        // Disable automatic start of profiling
         starpu_fxt_autostart_profiling(0);
         // Init StarPU configuration with default values at first
         int ret = starpu_conf_init(this);
