@@ -649,11 +649,12 @@ class T5Attention(BaseLayer):
         mask: np.ndarray,
         config: T5ConfigNNTile,
         next_tag: int,
+        encoder_output: TensorMoments = None,
     ):
         attn, next_tag = T5Attention.generate_simple(
             x_q=x,
-            x_k=x,
-            x_v=x,
+            x_k=encoder_output or x, # for cross-attention
+            x_v=encoder_output or x,
             n_head=config.n_head,
             n_head_tile=config.n_head_tile,
             next_tag=next_tag,
