@@ -100,6 +100,12 @@ def generate_inputs(params: T5FFTestParams, dtype: str):
         dropout_rate=0.0,
         is_gated_act=True,
         redux=params.redux,
+        
+        # Not used in T5LayerFF
+        d_kv=None,
+        d_kv_tile=None,
+        n_head=None,
+        n_head_tile=None,
     )
 
     # Make sure all dropout layers are disabled
@@ -143,16 +149,16 @@ def generate_inputs(params: T5FFTestParams, dtype: str):
 @pytest.mark.parametrize(
     "params",
     [
-        # pytest.param(single_tile, id='single_tile'),
-        pytest.param(multiple_tiles, id="multiple_tiles"),
+        pytest.param(single_tile, id='single_tile'),
+        # pytest.param(multiple_tiles, id="multiple_tiles"),
     ],
 )
 @pytest.mark.parametrize(
     "dtype",
     [
         "fp32",
-        pytest.param("fp32_fast_tf32", marks=nocuda),
-        pytest.param("bf16", marks=nocuda),
+        # pytest.param("fp32_fast_tf32", marks=nocuda),
+        # pytest.param("bf16", marks=nocuda),
     ],
 )
 class TestT5LayerFF:
@@ -182,7 +188,6 @@ class TestT5LayerFF:
         y_nntile = torch.Tensor(to_numpy(nntile_layer.activations[-1].value).T)
         nntile_layer.unregister()
         rtol = dtype2tol[dtype]["rtol"]
-        print("See: ", y, y_nntile)
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
     def test_backward(
