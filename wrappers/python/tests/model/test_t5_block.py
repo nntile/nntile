@@ -25,7 +25,7 @@ import nntile
 from nntile.model.t5_config import T5ConfigNNTile
 from nntile.model.t5_block import T5Block
 from nntile.tensor import TensorMoments, TensorTraits
-from nntile.utils.constructors import to_numpy
+import nntile.utils.constructors as nntc
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -62,7 +62,7 @@ class T5BlockTestParams:
     is_gated_act: bool = True
 
 
-single_tile = T5BlockTestParams(
+encoder_single_tile = T5BlockTestParams(
     d_model=512,
     d_model_tile=512,
     d_kv=64,
@@ -76,6 +76,23 @@ single_tile = T5BlockTestParams(
     n_batch=1,
     n_batch_tile=1,
     is_decoder=False,
+    is_gated_act=True,
+)
+
+decoder_single_tile = T5BlockTestParams(
+    d_model=512,
+    d_model_tile=512,
+    d_kv=64,
+    d_kv_tile=64,
+    d_ff=1024,
+    d_ff_tile=1024,
+    n_head=8,
+    n_head_tile=8,
+    seq_len=64,
+    seq_len_tile=64,
+    n_batch=1,
+    n_batch_tile=1,
+    is_decoder=True,
     is_gated_act=True,
 )
 
@@ -149,9 +166,16 @@ def generate_inputs(params: T5BlockTestParams, dtype: str):
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_()
+    
+    eo_torch, eo_nnt = None, None
+    if params.is_decoder:
+        eo_random = gen.standard_normal(x_shape, dtype=np.float32)
+        eo_nntile = np.array(eo_random, dtype=np.float32, order="F")
+        eo_torch = torch.Tensor(eo_nntile.T)
+        eo_nnt = TensorMoments(nntc.from_array(eo_random, x_basetile), nntc.zeros(eo_random.shape, x_basetile), True)
 
     # Initialize NNTile layer from PyTorch layer
-    nntile_block, _ = T5Block.from_torch(torch_block, X, nntile_config, 0)
+    nntile_block, _ = T5Block.from_torch(torch_block, X, nntile_config, 0, encoder_output=eo_nnt)
     nntile_block.activations[0].value.from_array(x_nntile)
 
     # Generate random gradient for backward pass
@@ -160,13 +184,14 @@ def generate_inputs(params: T5BlockTestParams, dtype: str):
     # nntile_block.activations[-1].grad.from_array(y_grad_nntile)
     y_grad_torch = torch.Tensor(y_grad_nntile.T)
 
-    return torch_block, nntile_block, x_torch, y_grad_torch
+    return torch_block, nntile_block, x_torch, y_grad_torch, eo_torch, eo_nnt
 
 
 @pytest.mark.parametrize(
     "params",
     [
-        pytest.param(single_tile, id="single_tile"),
+        pytest.param(encoder_single_tile, id="encoder_single_tile"),
+        pytest.param(decoder_single_tile, id="decoder_single_tile"),
         # pytest.param(multiple_tiles, id="multiple_tiles"),
     ],
 )
@@ -183,14 +208,14 @@ class TestT5Block:
         self, starpu_simple, torch_rng, params: T5BlockTestParams, dtype: str
     ):
         """Test that forward pass gives same results in PyTorch and NNTile"""
-        torch_block, nntile_block, x, _ = generate_inputs(params, dtype)
+        torch_block, nntile_block, x, _, eo_torch, eo_nnt = generate_inputs(params, dtype)
         
         # PyTorch forward pass
-        y, _ = torch_block(x)
+        y = torch_block(x, encoder_hidden_states=eo_torch)[0]
         
         # NNTile forward pass
         nntile_block.forward_async()
-        y_nntile = torch.Tensor(to_numpy(nntile_block.activations[-1].value).T)
+        y_nntile = torch.Tensor(nntc.to_numpy(nntile_block.activations[-1].value).T)
         nntile_block.unregister()
         
         # Compare results
