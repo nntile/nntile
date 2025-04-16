@@ -134,9 +134,9 @@ def generate_inputs(params: BertTestParams,
     )
     gen = np.random.default_rng(42)
 
-    nntile_model, _ = BertModelNNTile.from_torch(
+    nntile_model = BertModelNNTile.from_torch(
             torch_model, params.batch_size, params.batch_size_tile,
-            params.seq_len, params.seq_len_tile, nntile_config, 0)
+            params.seq_len, params.seq_len_tile, nntile_config)
     nntile_model.clear_gradients()
     x_random = gen.integers(params.seq_len,
                             size=nntile_model.activations[0].value.shape,

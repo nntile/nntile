@@ -28,7 +28,6 @@ from .gpt2_config import GPT2ConfigNNTile
 
 
 class GPT2Model(BaseModel):
-    next_tag: int
     wte_layer: Embedding
     wpe_layer: Embedding
     add_slice_layer: AddSlice
@@ -80,8 +79,7 @@ class GPT2Model(BaseModel):
     def from_torch(torch_gpt2: GPT2Model_torch,
                    batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
-                   config: GPT2ConfigNNTile,
-                   next_tag: int):
+                   config: GPT2ConfigNNTile):
 
         if config.dtype not in ["fp32", "tf32",
                               "bf16", "fp32_fast_fp16",
@@ -92,9 +90,8 @@ class GPT2Model(BaseModel):
         positional_ids_traits = TensorTraits([seq_len], [seq_len_tile])
         positional_ids_distr = [0] * positional_ids_traits.grid.nelems
         positional_ids_value = Tensor_int64(
-            positional_ids_traits, positional_ids_distr, next_tag
+            positional_ids_traits, positional_ids_distr
         )
-        next_tag = positional_ids_value.next_tag
         positional_ids_value.from_array(
             np.array(np.arange(seq_len), order="F", dtype=np.int64)
         )
@@ -104,7 +101,7 @@ class GPT2Model(BaseModel):
         x_basetile = [seq_len_tile, batch_size_tile]
         x_traits = TensorTraits(x_shape, x_basetile)
         x_distr = [0] * x_traits.grid.nelems
-        x_value = Tensor_int64(x_traits, x_distr, 0)
+        x_value = Tensor_int64(x_traits, x_distr)
 
         dtype2tensor_type = {"fp32": Tensor_fp32,
                              "tf32": Tensor_fp32_fast_tf32,
@@ -115,25 +112,23 @@ class GPT2Model(BaseModel):
 
         tensor_type = dtype2tensor_type[config.dtype]
 
-        wte_layer, next_tag = Embedding.generate_simple(
+        wte_layer = Embedding.generate_simple(
                                 x_value,
                                 tensor_type,
                                 0,
                                 config.vocab_size,
                                 config.hidden_size,
                                 config.hidden_size_tile,
-                                config.hidden_size_tile,
-                                next_tag)
+                                config.hidden_size_tile)
 
-        wpe_layer, next_tag = Embedding.generate_simple(
+        wpe_layer = Embedding.generate_simple(
                                 positional_ids.value,
                                 tensor_type,
                                 0,
                                 config.max_position_embeddings,
                                 config.hidden_size,
                                 config.hidden_size_tile,
-                                config.hidden_size_tile,
-                                next_tag)
+                                config.hidden_size_tile)
 
         wte_layer.w.value.from_array(
             torch_gpt2.wte.weight.cpu().detach().numpy().T
@@ -141,25 +136,25 @@ class GPT2Model(BaseModel):
         wpe_layer.w.value.from_array(
             torch_gpt2.wpe.weight.cpu().detach().numpy().T
         )
-        add_slice_layer, next_tag = AddSlice.generate_simple(
+        add_slice_layer = AddSlice.generate_simple(
             wte_layer.activations_output[0], wpe_layer.activations_output[0],
-            2, next_tag, redux=config.redux
+            2, redux=config.redux
         )
 
         U = add_slice_layer.activations_output[0]
         gpt2block_list = []
 
         for gpt2_block_torch in torch_gpt2.h:
-            gpt2block_nntile, next_tag = GPT2Block.from_torch(
-                gpt2_block_torch, U, config, next_tag
+            gpt2block_nntile = GPT2Block.from_torch(
+                gpt2_block_torch, U, config
             )
             U = gpt2block_nntile.activations[-1]
             gpt2block_list.append(gpt2block_nntile)
 
-        lnorm_final, next_tag = LayerNorm.from_torch(
+        lnorm_final = LayerNorm.from_torch(
                                     torch_gpt2.ln_f,
                                     U,
-                                    next_tag, config.redux)
+                                    config.redux)
         X = TensorMoments(x_value, None, False)
         gpt2_nntile = GPT2Model(X,
                             positional_ids,
@@ -170,7 +165,7 @@ class GPT2Model(BaseModel):
                             lnorm_final,
                             config)
 
-        return gpt2_nntile, next_tag
+        return gpt2_nntile
 
     def to_torch(self):
         config_torch = GPT2ConfigTorch(

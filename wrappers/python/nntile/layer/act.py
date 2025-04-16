@@ -50,19 +50,17 @@ class Act(BaseLayer):
 
     # Simple generator for the normalization layer
     @staticmethod
-    def generate_simple(x: TensorMoments, funcname: str, next_tag: int):
+    def generate_simple(x: TensorMoments, funcname: str):
         # Get traits of X
         x_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
         # Create Y with the same traits and distribution as X
-        y_value = type(x.value)(x_traits, x.value.distribution, next_tag)
-        next_tag = y_value.next_tag
-        y_grad = type(x.value)(x_traits, x.value.distribution, next_tag)
-        next_tag = y_grad.next_tag
+        y_value = type(x.value)(x_traits, x.value.distribution)
+        y_grad = type(x.value)(x_traits, x.value.distribution)
         y = TensorMoments(y_value, y_grad, True)
         # Create activation layer with all the provided tensors
         layer = Act(x, y, funcname)
-        # Return layer and next tag to be used
-        return (layer, next_tag)
+        # Return layer
+        return layer
 
     # Forward propagation of the activation layer
     def forward_async(self):

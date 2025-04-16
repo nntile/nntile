@@ -159,10 +159,10 @@ void submit(Index m, Index n, Index k, Index batch, Scalar alpha, Handle src1,
     double nflops = batch * k * (2*m*n+1);
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src1),
-            STARPU_R, static_cast<starpu_data_handle_t>(src2),
+            STARPU_R, src1.get(),
+            STARPU_R, src2.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
-            STARPU_W, static_cast<starpu_data_handle_t>(dst),
+            STARPU_W, dst.get(),
             STARPU_FLOPS, nflops,
             0);
     // Check submission

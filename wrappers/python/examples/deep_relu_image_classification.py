@@ -111,19 +111,18 @@ print("Number of test batches: {}".format(len(test_loader)))
 
 time0 = -time.time()
 # Set up StarPU+MPI and init codelets
-config = nntile.starpu.Config(
-    -1,
-    -1,
-    1,
-    args.nntile_logger,
-    args.nntile_logger_server_addr,
-    args.nntile_logger_server_port,
-)
-nntile.starpu.init()
+nntile.nntile_init(
+    ncpus=-1,
+    ncuda=-1,
+    cublas=1,
+    ooc=0,
+    logger=args.logger,
+    logger_addr=args.logger_server_addr,
+    logger_port=args.logger_server_port,
+    verbose=0)
 nntile.starpu.restrict_cuda()
 time0 += time.time()
 print("StarPU + NNTile + MPI init in {} seconds".format(time0))
-next_tag = 0
 
 # Number of FLOPs for training per batch
 n_flops_train_first_layer = (
@@ -162,14 +161,13 @@ for train_batch_data, train_batch_labels in train_loader:
     current_labels = train_batch_labels.numpy()
     for idx in range(args.batch // args.minibatch):
         if args.dtype == "fp32":
-            x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
+            x = nntile.tensor.Tensor_fp32(x_traits, x_distr)
         elif args.dtype == "tf32":
             x = nntile.tensor.Tensor_fp32_fast_tf32(
-                x_traits, x_distr, next_tag
+                x_traits, x_distr
             )
         elif args.dtype == "bf16":
-            x = nntile.tensor.Tensor_bf16(x_traits, x_distr, next_tag)
-        next_tag = x.next_tag
+            x = nntile.tensor.Tensor_bf16(x_traits, x_distr)
         x.from_array(
             current_data[
                 idx * args.minibatch : (idx + 1) * args.minibatch, :
@@ -177,8 +175,7 @@ for train_batch_data, train_batch_labels in train_loader:
         )
         current_minibatch_data.append(x)
 
-        y = nntile.tensor.Tensor_int64(y_traits, y_distr, next_tag)
-        next_tag = y.next_tag
+        y = nntile.tensor.Tensor_int64(y_traits, y_distr)
 
         y.from_array(
             current_labels[idx * args.minibatch : (idx + 1) * args.minibatch]
@@ -196,12 +193,11 @@ print("From PyTorch loader to NNTile batches in {} seconds".format(time0))
 # Define tensor X for input batches
 time0 = -time.time()
 if args.dtype == "fp32":
-    x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
+    x = nntile.tensor.Tensor_fp32(x_traits, x_distr)
 elif args.dtype == "tf32":
-    x = nntile.tensor.Tensor_fp32_fast_tf32(x_traits, x_distr, next_tag)
+    x = nntile.tensor.Tensor_fp32_fast_tf32(x_traits, x_distr)
 elif args.dtype == "bf16":
-    x = nntile.tensor.Tensor_bf16(x_traits, x_distr, next_tag)
-next_tag = x.next_tag
+    x = nntile.tensor.Tensor_bf16(x_traits, x_distr)
 x_grad = None
 x_grad_required = False
 x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
@@ -216,21 +212,19 @@ m = model.DeepReLU(
     args.hidden_dim_tile,
     args.depth,
     n_classes,
-    next_tag,
 )
 
 print("Model is init")
 
 
-next_tag = m.next_tag
 # Set up learning rate and optimizer for training
-# optimizer = nntile.optimizer.SGD(m.get_parameters(), args.lr, next_tag, \
+# optimizer = nntile.optimizer.SGD(m.get_parameters(), args.lr, \
 #        momentum=0.0, nesterov=False, weight_decay=0.0)
-optimizer = optimizer.Adam(m.get_parameters(), args.lr, next_tag)
-# optimizer = optimizer.AdamW(m.get_parameters(), args.lr, next_tag)
+optimizer = optimizer.Adam(m.get_parameters(), args.lr)
+# optimizer = optimizer.AdamW(m.get_parameters(), args.lr)
 
 # Set up Cross Entropy loss function for the model
-loss, next_tag = loss.CrossEntropy.generate_simple(m.activations[-1], next_tag)
+loss = loss.CrossEntropy.generate_simple(m.activations[-1])
 
 # Set up training pipeline
 pipeline = pipeline.Pipeline(
@@ -388,20 +382,3 @@ for test_batch_data, test_batch_label in test_loader:
 if total_num_samples > 0:
     test_top1_accuracy /= total_num_samples
     print("Test accuracy of the trained Deep ReLU model =", test_top1_accuracy)
-
-# Unregister all tensors related to model
-m.unregister()
-
-# Unregister optimizer states
-optimizer.unregister()
-
-# Unregister loss function
-loss.unregister()
-
-# Unregister input/output batches
-for minibatch in batch_data:
-    for x in minibatch:
-        x.unregister()
-for minibatch in batch_labels:
-    for y in minibatch:
-        y.unregister()

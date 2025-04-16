@@ -26,15 +26,13 @@ class Add(BaseLayer):
         super().__init__([x, y], [res], [], [])
 
     @staticmethod
-    def generate_simple(x: TensorMoments, y: TensorMoments, next_tag: int):
+    def generate_simple(x: TensorMoments, y: TensorMoments):
         res_traits = TensorTraits(y.value.shape, y.value.basetile_shape)
         res_distr = [0] * res_traits.grid.nelems
-        res_value = type(y.value)(res_traits, res_distr, next_tag)
-        next_tag = res_value.next_tag
-        res_grad = type(y.value)(res_traits, res_distr, next_tag)
-        next_tag = res_grad.next_tag
+        res_value = type(y.value)(res_traits, res_distr)
+        res_grad = type(y.value)(res_traits, res_distr)
         res = TensorMoments(res_value, res_grad, True)
-        return Add(x, y, res), next_tag
+        return Add(x, y, res)
 
     def forward_async(self):
         add_async(1.0, self.x.value, 1.0, self.y.value, self.res.value)

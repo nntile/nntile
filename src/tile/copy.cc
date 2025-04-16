@@ -34,8 +34,7 @@ void copy_async(const Tile<T> &src, const Tile<T> &dst)
     }
     Index ndim = src.ndim;
     // Submit copy procedure
-    int ret = starpu_data_cpy(static_cast<starpu_data_handle_t>(dst),
-            static_cast<starpu_data_handle_t>(src), 1, nullptr, nullptr);
+    int ret = starpu_data_cpy(dst.get(), src.get(), 1, nullptr, nullptr);
     if(ret != 0)
     {
         throw std::runtime_error("Error in starpu_data_cpy");

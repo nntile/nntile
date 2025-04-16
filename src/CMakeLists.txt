@@ -157,6 +157,7 @@ else()
 endif(HAVE_STARPU_SIMGRID)
 
 set(STARPU_SRC
+    "starpu/config.cc"
     "starpu/accumulate.cc"
     "starpu/accumulate_hypot.cc"
     "starpu/accumulate_maxsumexp.cc"
@@ -399,7 +400,7 @@ set(LOGGER_SRC
     "logger/websocket_client.cc"
     )
 
-set(SRC ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC}
+set(SRC "config.cc" ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC}
     ${LOGGER_SRC})
     #${LAYER_SRC} ${MODEL_SRC} ${OPTIMIZER_SRC})
 

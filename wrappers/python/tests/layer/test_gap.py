@@ -18,8 +18,14 @@ import torch
 import nntile
 from nntile.layer import GAP as Gap_Layer
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
+nntile.nntile_init(
+    ncpus=1,
+    ncuda=0,
+    cublas=0,
+    ooc=0,
+    logger=0,
+    verbose=0,
+)
 
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
@@ -36,13 +42,10 @@ def test_gap(dtype: np.dtype):
     A_shape = [8, 2, 4]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
-    next_tag = 0
 
     # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A_grad.next_tag
+    A = Tensor[dtype](A_traits, mpi_distr)
+    A_grad = Tensor[dtype](A_traits, mpi_distr)
 
     # Set initial values of tensors
     rand_A = np.random.default_rng(42).standard_normal(A_shape)
@@ -50,7 +53,7 @@ def test_gap(dtype: np.dtype):
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
 
     # Define mlp_mixer layer
-    layer, next_tag = Gap_Layer.generate_simple(A_moments, next_tag)
+    layer = Gap_Layer.generate_simple(A_moments)
 
     A.from_array(np_A)
     layer.forward_async()

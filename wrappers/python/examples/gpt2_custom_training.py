@@ -187,13 +187,18 @@ nflops_seq = nflops_seq_fwd + nflops_seq_bwd
 
 # Initialize NNTile and StarPU
 time0 = time.time()
-# Set up StarPU+MPI and init codelets
-nntile_config = nntile.starpu.Config(
-    -1, -1, 1, args.logger, args.logger_server_addr, args.logger_server_port
+nntile.nntile_init(
+    ncpus=-1,
+    ncuda=-1,
+    cublas=1,
+    ooc=0,
+    logger=args.logger,
+    logger_server_addr=args.logger_server_addr,
+    logger_server_port=args.logger_server_port,
+    verbose=0,
 )
 nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
-nntile.starpu.init()
 # Restrict computations to CUDA if possible
 if args.restrict == "cuda":
     nntile.starpu.restrict_cuda()
@@ -201,7 +206,6 @@ elif args.restrict == "cpu":
     nntile.starpu.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1), flush=True)
-next_tag = 0
 
 # Prepare GPT2 model based on the NNTile backend
 model_nntile_config = GPT2Config_nntile(
@@ -221,14 +225,13 @@ model_nntile_config = GPT2Config_nntile(
     args.redux,
     args.dtype,
 )
-model_nntile, next_tag = GPT2Model_nntile.from_torch(
+model_nntile = GPT2Model_nntile.from_torch(
     model_torch,
     args.minibatch,
     args.minibatch_tile,
     config.n_positions,
     args.seq_tile,
     model_nntile_config,
-    next_tag,
 )
 del model_torch
 
@@ -378,12 +381,10 @@ for i in range(num_train_batches):
     minibatch_input = []
     minibatch_output = []
     for j in range(num_minibatch):
-        x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = x.next_tag
+        x = nntile.tensor.Tensor_int64(x_traits, x_distr)
         x.from_array(np.asfortranarray(train_tokens[i, j, :, :-1].T))
         minibatch_input.append(x)
-        y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = y.next_tag
+        y = nntile.tensor.Tensor_int64(x_traits, x_distr)
         y.from_array(np.asfortranarray(train_tokens[i, j, :, 1:].T))
         minibatch_output.append(y)
     batch_input.append(minibatch_input)
@@ -398,7 +399,6 @@ if args.optimizer == "adamw":
     optimizer = nntile.optimizer.AdamW(
         model_nntile.get_parameters(),
         args.lr,
-        next_tag,
         eps=args.optimizer_eps,
         start_lr=args.start_lr,
         full_lr_iter=args.full_lr_iter,
@@ -408,7 +408,6 @@ elif args.optimizer == "adam":
     optimizer = nntile.optimizer.Adam(
         model_nntile.get_parameters(),
         args.lr,
-        next_tag,
         eps=args.optimizer_eps,
         weight_decay=args.weight_decay,
     )
@@ -416,10 +415,8 @@ elif args.optimizer == "sgd":
     optimizer = nntile.optimizer.SGD(
         model_nntile.get_parameters(),
         args.lr,
-        next_tag,
         weight_decay=args.weight_decay,
     )
-next_tag = optimizer.get_next_tag()
 # Load optimizer state if needed
 if args.load_optimizer is not None:
     optimizer.load_state(args.load_optimizer)
@@ -431,8 +428,8 @@ if args.loss_reduction == "sum":
     loss_scale = 1.0
 elif args.loss_reduction == "mean":
     loss_scale = 1.0 / (args.batch * config.n_positions)
-loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
-    model_nntile.activations[-1], next_tag, scale=loss_scale
+loss = nntile.loss.CrossEntropy.generate_simple(
+    model_nntile.activations[-1], scale=loss_scale
 )
 # Set up training pipeline
 pipeline = nntile.pipeline.Pipeline(
@@ -516,13 +513,3 @@ if args.save_checkpoint is not None:
 # Save optimizer state if needed
 if args.save_optimizer is not None:
     optimizer.save_state(args.save_optimizer, dtype=args.save_optimizer_dtype)
-
-# Unregister all StarPU buffers
-loss.unregister()
-optimizer.unregister()
-for batch in batch_input + batch_output:
-    for x in batch:
-        x.unregister()
-
-# Unregister all tensors related to model, that are still registered
-model_nntile.unregister()

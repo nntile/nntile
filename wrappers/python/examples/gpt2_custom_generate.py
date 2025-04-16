@@ -128,11 +128,15 @@ nflops_seq = nflops_seq_fwd
 
 # Initialize NNTile and StarPU
 time0 = time.time()
-# Set up StarPU+MPI and init codelets
-nntile_config = nntile.starpu.Config(-1, -1, 1)
+nntile.nntile_init(
+    ncpus=-1,
+    ncuda=-1,
+    cublas=1,
+    ooc=0,
+    logger=0,
+    verbose=0)
 nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
-nntile.starpu.init()
 # Restrict computations to CUDA if possible
 if args.restrict == "cuda":
     nntile.starpu.restrict_cuda()
@@ -140,7 +144,6 @@ elif args.restrict == "cpu":
     nntile.starpu.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1), flush=True)
-next_tag = 0
 
 # Prepare GPT2 model based on the NNTile backend
 model_nntile_config = GPT2Config_nntile(
@@ -159,14 +162,13 @@ model_nntile_config = GPT2Config_nntile(
     args.flashattention,
     args.redux,
 )
-model_nntile, next_tag = GPT2Model_nntile.from_torch(
+model_nntile = GPT2Model_nntile.from_torch(
     model_torch,
     args.minibatch,
     args.minibatch_tile,
     config.n_positions,
     args.seq_tile,
     model_nntile_config,
-    next_tag,
     args.fp32_fast_tf32,
 )
 # model_torch.eval()
@@ -223,21 +225,3 @@ print(
         nflops_seq * args.ntokens / time1 * 1e-12
     )
 )
-
-# Unregister intermediate activations to free some space
-for t in model_nntile.activations:
-    t.unregister()
-
-# Unregister gradients of parameters to free some space
-for t in model_nntile.parameters:
-    if t.grad is not None and t.grad_required:
-        t.grad.unregister()
-
-# Unregister temporaries of each layer to free some space
-for layer in model_nntile.layers:
-    for t in layer.temporaries:
-        if t is not None:
-            t.unregister()
-
-# Unregister all tensors related to model, that are still registered
-model_nntile.unregister()

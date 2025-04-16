@@ -136,7 +136,7 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool,
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[dtype]
-    x_value = x_type(x_traits, x_distr, 0)
+    x_value = x_type(x_traits, x_distr)
     x_grad = zeros_like(x_value)
     X = TensorMoments(x_value, x_grad, grad_required=True)
     x_random = rng.standard_normal(x_shape)
@@ -156,8 +156,8 @@ def generate_inputs(dtype: str, params: LlamaAttentionTestParams, bias: bool,
             * torch.finfo(torch.float32).min
     mask_torch = mask_torch[None, None, :, :].expand(params.n_batch, 1, -1, -1)
 
-    nntile_layer, _ = nntile.layer.LlamaAttention.from_torch(
-            torch_layer, X, pos_ids, mask_np, nntile_layer_config, 0)
+    nntile_layer = nntile.layer.LlamaAttention.from_torch(
+            torch_layer, X, pos_ids, mask_np, nntile_layer_config)
     y_grad_random = rng.standard_normal(x_shape)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
     nntile_layer.y.grad.from_array(y_grad_nntile)

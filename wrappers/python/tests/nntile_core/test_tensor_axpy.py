@@ -16,8 +16,7 @@ import pytest
 
 import nntile
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
+nntile.nntile_init(ncpus=1, ncuda=0, cublas=0, ooc=0, logger=0, verbose=0)
 
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
@@ -34,13 +33,10 @@ def test_axpy(dtype, scalar_type: str):
     # Describe single-tile tensor, located at node 0
     shape = [2, 3, 4]
     mpi_distr = [0]
-    next_tag = 0
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    B = Tensor[dtype](traits, mpi_distr, next_tag)
-    next_tag = B.next_tag
+    A = Tensor[dtype](traits, mpi_distr)
+    B = Tensor[dtype](traits, mpi_distr)
 
     # Set initial values of tensors
     rng = np.random.default_rng(42)
@@ -55,7 +51,7 @@ def test_axpy(dtype, scalar_type: str):
         case 'nntile':
             const_traits = nntile.tensor.TensorTraits([], [])
             alpha_np = rng.standard_normal(1).astype(dtype, 'F')
-            alpha = Tensor[dtype](const_traits, mpi_distr, next_tag)
+            alpha = Tensor[dtype](const_traits, mpi_distr)
             alpha.from_array(alpha_np)
         case 'numpy':
             alpha_np = dtype(rng.standard_normal())

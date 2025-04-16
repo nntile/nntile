@@ -63,7 +63,7 @@ void scatter_async(const Tensor<T> &src, const Tensor<T> &dst)
     // Do the slow complex copy
     // Temporary buffer for indexing, that is allocated per-worker when needed
     Index ndim = src.ndim;
-    starpu::VariableHandle scratch(2*ndim*sizeof(int64_t), STARPU_SCRATCH);
+    starpu::VariableHandle scratch(2*ndim*sizeof(int64_t));
     // We define starting coordinates and shapes for all complex copies of
     // tiles
     std::vector<Index> src_tile_start(ndim), dst_tile_start(ndim);
@@ -90,34 +90,11 @@ void scatter_async(const Tensor<T> &src, const Tensor<T> &dst)
                     src_tile_handle, dst_tile_handle, scratch, STARPU_W);
             // Perform MPI copy only if destination node is different
             auto tile_tag = dst_tile_handle.mpi_get_tag();
-            if(mpi_rank != dst_tile_rank)
-            {
-                // No need to check for cached send, as output was just updated
-                //ret = starpu_mpi_isend_detached(
-                //        static_cast<starpu_data_handle_t>(dst_tile_handle),
-                //        dst_tile_rank, tile_tag, MPI_COMM_WORLD, nullptr,
-                //        nullptr);
-                //if(ret != 0)
-                //{
-                //    throw std::runtime_error("Error in starpu_mpi_isend_"
-                //            "detached");
-                //}
-            }
         }
         // Init receive of source tile for owner of destination tile
         else if(mpi_rank == dst_tile_rank)
         {
             auto tile_tag = dst_tile_handle.mpi_get_tag();
-            // No need to check for cached recv, as output was just updated
-            //ret = starpu_mpi_irecv_detached(
-            //        static_cast<starpu_data_handle_t>(dst_tile_handle),
-            //        src_tile_rank, tile_tag, MPI_COMM_WORLD, nullptr,
-            //        nullptr);
-            //if(ret != 0)
-            //{
-            //    throw std::runtime_error("Error in starpu_mpi_irecv_"
-            //            "detached");
-            //}
         }
         // Get out if it was the last tile
         if(i == dst.grid.nelems-1)
@@ -134,6 +111,8 @@ void scatter_async(const Tensor<T> &src, const Tensor<T> &dst)
             ++dst_tile_index[k];
         }
     }
+    // Unregister scratch buffer in an async manner
+    scratch.unregister_submit();
 }
 
 //! Blocking version of tensor-wise scatter operation

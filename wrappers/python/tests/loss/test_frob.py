@@ -18,8 +18,14 @@ from numpy.testing import assert_equal
 import nntile
 from nntile.loss import Frob
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
+nntile.nntile_init(
+    ncpus=1,
+    ncuda=0,
+    cublas=0,
+    ooc=0,
+    logger=0,
+    verbose=0,
+)
 
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
@@ -35,19 +41,16 @@ def test_frob(dtype: np.dtype):
     A_shape = [4, 5, 6]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
-    next_tag = 0
     # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A_grad.next_tag
+    A = Tensor[dtype](A_traits, mpi_distr)
+    A_grad = Tensor[dtype](A_traits, mpi_distr)
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Set initial values of tensors
     rand_A = rng.standard_normal(A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')
     A.from_array(np_A)
     # Define loss function object
-    loss, next_tag = Frob.generate_simple(A_moments, next_tag)
+    loss = Frob.generate_simple(A_moments)
     # Check loss and gradient
     rand_B = rng.standard_normal(A_shape)
     np_B = np.array(rand_B, dtype=dtype, order='F')

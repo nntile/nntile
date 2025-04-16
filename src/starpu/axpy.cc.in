@@ -278,9 +278,9 @@ void submit(Handle alpha, Index nelems, Handle src, Handle dst)
     Index *nelems_ = new Index{nelems};
     // Submit task
     int ret = starpu_task_insert(codelet_tensor_alpha<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(alpha),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
+            STARPU_R, alpha.get(),
+            STARPU_R, src.get(),
+            STARPU_RW, dst.get(),
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
             //STARPU_FLOPS, nflops,
             0);
@@ -323,8 +323,8 @@ void submit(Scalar alpha, Index nelems, Handle src, Handle dst)
     auto cl_args = new args2_t{nelems, alpha};
     // Submit task
     int ret = starpu_task_insert(codelet_scalar_alpha<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
+            STARPU_R, src.get(),
+            STARPU_RW, dst.get(),
             STARPU_CL_ARGS, cl_args, sizeof(*cl_args),
             //STARPU_FLOPS, nflops,
             0);

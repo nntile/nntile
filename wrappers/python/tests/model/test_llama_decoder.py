@@ -113,7 +113,7 @@ def generate_inputs(params: LlamaDecoderTestParams,
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
     x_type = dtype2nntile[dtype]
-    x_value = x_type(x_traits, x_distr, 0)
+    x_value = x_type(x_traits, x_distr)
     x_grad = zeros_like(x_value)
     X = TensorMoments(x_value, x_grad, grad_required=True)
     gen = np.random.default_rng(42)
@@ -130,9 +130,9 @@ def generate_inputs(params: LlamaDecoderTestParams,
             pos_ids_torch)
     mask = np.array(np.triu(np.ones((params.seq_len, params.seq_len))),
                     dtype=bool, order="F")
-    nntile_layer, _ = LlamaDecoder_nntile.from_torch(torch_layer, X,
+    nntile_layer = LlamaDecoder_nntile.from_torch(torch_layer, X,
                                                      pos_ids, mask,
-                                                     nntile_config, 0)
+                                                     nntile_config)
     nntile_layer.clear_gradients()
     y_grad_random = gen.standard_normal(x_shape, dtype=np.float32)
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")

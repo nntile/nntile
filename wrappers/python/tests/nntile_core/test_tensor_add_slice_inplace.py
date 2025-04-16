@@ -16,8 +16,7 @@ import pytest
 
 import nntile
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
+nntile.nntile_init(ncpus=1, ncuda=0, cublas=0, ooc=0, logger=0, verbose=0)
 
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
@@ -39,18 +38,15 @@ def test_add_slice_inplace(dtype):
     for i in range(ndim):
         B_shape.append(A_shape[:i] + A_shape[i + 1:])
     mpi_distr = [0]
-    next_tag = 0
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     B_traits = []
     for i in range(ndim):
         B_traits.append(nntile.tensor.TensorTraits(B_shape[i], B_shape[i]))
     # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
+    A = Tensor[dtype](A_traits, mpi_distr)
     B = []
     for i in range(ndim):
-        B.append(Tensor[dtype](B_traits[i], mpi_distr, next_tag))
-        next_tag = B[-1].next_tag
+        B.append(Tensor[dtype](B_traits[i], mpi_distr))
     # Set initial values of tensors
     rng = np.random.default_rng(42)
     rand_A = rng.standard_normal(A_shape)

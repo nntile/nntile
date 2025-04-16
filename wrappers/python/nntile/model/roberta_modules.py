@@ -27,7 +27,6 @@ from .bert_config import BertConfigNNTile
 
 
 class RobertaLMHead(BaseModel):
-    next_tag: int
 
     def __init__(self, X: TensorMoments,
                  lin1_layer: Linear,
@@ -61,39 +60,38 @@ class RobertaLMHead(BaseModel):
 
     @staticmethod
     def from_torch(roberta_lm_head, X,
-                   config: BertConfigNNTile, next_tag: int):
+                   config: BertConfigNNTile):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
                             "fp32_fast_fp16", "fp32_fast_bf16"]:
             raise TypeError("Only fp32, fp32_fast_tf32, bf16,"
             "fp32_fast_fp16, and fp32_fast_bf16 supported for weight type")
 
-        lin1_layer, next_tag = Linear.from_torch(
+        lin1_layer = Linear.from_torch(
                                     roberta_lm_head.dense,
                                     X,
                                     config.hidden_size_tile,
-                                    config.redux, next_tag)
-        activation_layer, next_tag = Act.generate_simple(
+                                    config.redux)
+        activation_layer = Act.generate_simple(
             lin1_layer.activations_output[0],
-            "gelu", next_tag
+            "gelu"
         )
 
-        layer_norm, next_tag = LayerNorm.from_torch(roberta_lm_head.layer_norm,
-                                                   activation_layer.activations_output[0],
-                                                   next_tag)
+        layer_norm = LayerNorm.from_torch(roberta_lm_head.layer_norm,
+                                          activation_layer.activations_output[0])
 
-        lin2_layer, next_tag = Linear.from_torch(
+        lin2_layer = Linear.from_torch(
                                     roberta_lm_head.decoder,
                                     layer_norm.activations_output[0],
                                     config.vocab_size,
-                                    config.redux, next_tag)
+                                    config.redux)
 
         roberta_lmhead_nntile = RobertaLMHead(X, lin1_layer,
                                               activation_layer,
                                               layer_norm,
                                               lin2_layer,
                                               config)
-        return roberta_lmhead_nntile, next_tag
+        return roberta_lmhead_nntile
 
     def to_torch(self):
         config_torch = RobertaConfig_torch()

@@ -181,8 +181,8 @@ void submit(Index m, Index n, Index k, Handle maxsumexp, Scalar alpha,
     double nflops = sizeof(T) * m * (2*k+1) * n;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(maxsumexp),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
+            STARPU_R, maxsumexp.get(),
+            STARPU_RW, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
             0);

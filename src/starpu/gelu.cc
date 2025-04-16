@@ -148,7 +148,7 @@ void submit(Index nelems, Handle data)
     Index *nelems_ = new Index{nelems};
     //double nflops = 5 * nelems;
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_RW, static_cast<starpu_data_handle_t>(data),
+            STARPU_RW, data.get(),
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
             //STARPU_FLOPS, nflops,
             0);

@@ -193,9 +193,9 @@ void submit(Index m, Index n, Index k, Index k_start, Index k_size,
     }
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(index),
-            STARPU_R, static_cast<starpu_data_handle_t>(embed),
-            vocab_mode, static_cast<starpu_data_handle_t>(vocab),
+            STARPU_R, index.get(),
+            STARPU_R, embed.get(),
+            vocab_mode, vocab.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
             0);

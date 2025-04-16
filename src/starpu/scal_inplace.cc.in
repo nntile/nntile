@@ -234,7 +234,7 @@ void submit(Index nelems, Scalar alpha, Handle data)
     cl_args->alpha = alpha;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_RW, static_cast<starpu_data_handle_t>(data),
+            STARPU_RW, data.get(),
             STARPU_CL_ARGS, cl_args, sizeof(*cl_args),
             //STARPU_FLOPS, nflops,
             0);

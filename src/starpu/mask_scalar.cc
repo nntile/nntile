@@ -176,8 +176,8 @@ void submit(Index nrows, Index ncols, Handle mask, Scalar val, Handle data)
     double nflops = sizeof(T) * nrows * (ncols+1);
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_RW, static_cast<starpu_data_handle_t>(data),
-            STARPU_R, static_cast<starpu_data_handle_t>(mask),
+            STARPU_RW, data.get(),
+            STARPU_R, mask.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
             0);

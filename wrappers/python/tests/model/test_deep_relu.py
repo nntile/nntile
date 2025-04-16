@@ -86,12 +86,17 @@ def test_deep_relu(bias: bool, device: str, optimizer: str, input_dim: int = 5,
 
     # Set up StarPU+MPI and init codelets
     time0 = -time.time()
-    _config = nntile.starpu.Config(-1, -1, 1)
-    nntile.starpu.init()
+    nntile.nntile_init(
+        ncpus=1,
+        ncuda=0,
+        cublas=0,
+        ooc=0,
+        logger=0,
+        verbose=0,
+    )
     nntile.starpu.restrict_cuda()
     time0 += time.time()
     print("StarPU + NNTile + MPI init in {} seconds".format(time0))
-    next_tag = 0
 
     time0 = -time.time()
     # Convert data from PyTorch format to NNTile format
@@ -108,13 +113,11 @@ def test_deep_relu(bias: bool, device: str, optimizer: str, input_dim: int = 5,
         minibatch_x = []
         minibatch_y = []
         for i_minibatch in range(num_minibatches):
-            x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
-            next_tag = x.next_tag
+            x = nntile.tensor.Tensor_fp32(x_traits, x_distr)
             x_np = np.array(X_torch[i_batch][i_minibatch].cpu().numpy(), order="F", dtype=np.float32)
             x.from_array(x_np.T)
             minibatch_x.append(x)
-            y = nntile.tensor.Tensor_int64(y_traits, y_distr, next_tag)
-            next_tag = y.next_tag
+            y = nntile.tensor.Tensor_int64(y_traits, y_distr)
             y.from_array(y_torch[i_batch][i_minibatch].cpu().numpy())
             minibatch_y.append(y)
         batch_data.append(minibatch_x)
@@ -129,19 +132,17 @@ def test_deep_relu(bias: bool, device: str, optimizer: str, input_dim: int = 5,
     time0 = -time.time()
 
     # Define deep ReLU network
-    nntile_model, next_tag = nntile.model.DeepReLU.from_torch(init_torch_mlp, minibatch_size, n_classes,
-                                                          "relu", next_tag)
+    nntile_model = nntile.model.DeepReLU.from_torch(init_torch_mlp, minibatch_size, n_classes,
+                                                          "relu")
 
     # Set up Cross Entropy loss function for the model
-    loss, next_tag = nntile.loss.CrossEntropy.generate_simple(nntile_model.activations[-1],
-                                                            next_tag)
+    loss = nntile.loss.CrossEntropy.generate_simple(nntile_model.activations[-1])
     nntile_loss_hist = []
 
     if optimizer == "adam":
-        nntile_optimizer = nntile.optimizer.FusedAdam(nntile_model.get_parameters(), lr, next_tag)
+        nntile_optimizer = nntile.optimizer.FusedAdam(nntile_model.get_parameters(), lr)
     elif optimizer == "sgd":
-        nntile_optimizer = nntile.optimizer.SGD(nntile_model.get_parameters(), lr, next_tag)
-    next_tag = nntile_optimizer.get_next_tag()
+        nntile_optimizer = nntile.optimizer.SGD(nntile_model.get_parameters(), lr)
 
     pipeline = nntile.pipeline.Pipeline(batch_data, batch_labels, nntile_model, nntile_optimizer,
                                         loss, n_epoch)
