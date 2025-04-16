@@ -55,7 +55,6 @@ class CrossEntropy:
     @staticmethod
     def generate_simple(
         model_output: TensorMoments,
-        next_tag: int,
         redux: bool = False,
         scale: float = 1.0,
         ignore_index: int = -100
@@ -63,22 +62,16 @@ class CrossEntropy:
         shape = model_output.value.shape[1:]
         basetile = model_output.value.basetile_shape[1:]
         labels_traits = TensorTraits(shape, basetile)
-        labels = Tensor_int64(
-            labels_traits, model_output.value.distribution, next_tag
-        )
-        next_tag = labels.next_tag
+        labels = Tensor_int64(labels_traits, model_output.value.distribution)
         maxsumexp_traits = TensorTraits([2] + shape, [2] + basetile)
         maxsumexp = type(model_output.value)(
-            maxsumexp_traits, model_output.value.distribution, next_tag
+            maxsumexp_traits, model_output.value.distribution
         )
-        next_tag = maxsumexp.next_tag
         val_traits = TensorTraits([], [])
-        val = Tensor_fp32(val_traits, [0], next_tag)
-        next_tag = val.next_tag
+        val = Tensor_fp32(val_traits, [0])
         logsumexp = type(model_output.value)(
-            labels_traits, model_output.value.distribution, next_tag
+            labels_traits, model_output.value.distribution
         )
-        next_tag = logsumexp.next_tag
         loss = CrossEntropy(
             model_output,
             labels,
@@ -89,7 +82,7 @@ class CrossEntropy:
             scale=scale,
             ignore_index=ignore_index
         )
-        return loss, next_tag
+        return loss
 
     def unregister(self):
         self.logsumexp.unregister()

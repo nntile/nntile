@@ -59,27 +59,28 @@ public:
     //! Construct a tile, allocated/deallocated by StarPU
     explicit Tile(const std::vector<Index> &shape_):
         TileTraits(shape_),
-        starpu::VariableHandle(nelems*sizeof(T), STARPU_R)
+        starpu::VariableHandle(nelems * sizeof(T))
     {
     }
     //! Construct a tile, allocated/deallocated by StarPU
     explicit Tile(const TileTraits &traits):
         TileTraits(traits),
-        starpu::VariableHandle(nelems*sizeof(T), STARPU_R)
+        starpu::VariableHandle(nelems * sizeof(T))
     {
     }
     //! Construct a tile out of provided contiguous memory buffer
     Tile(const std::vector<Index> &shape_, T *ptr, Index ptr_nelems):
         TileTraits(shape_),
-        starpu::VariableHandle(ptr, _get_size(ptr_nelems), STARPU_RW)
+        starpu::VariableHandle(ptr, _get_size(ptr_nelems))
     {
     }
     //! Construct a tile out of provided contiguous memory buffer
     Tile(const TileTraits &traits, T *ptr, Index ptr_nelems):
         TileTraits(traits),
-        starpu::VariableHandle(ptr, _get_size(ptr_nelems), STARPU_RW)
+        starpu::VariableHandle(ptr, _get_size(ptr_nelems))
     {
     }
+    //! Acquire tile locally in CPU RAM
     TileLocalData<T> acquire(starpu_data_access_mode mode)
         const;
 

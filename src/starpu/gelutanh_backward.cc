@@ -153,9 +153,9 @@ void submit(Index nelems, Handle x, Handle dy, Handle dx)
     Index *nelems_ = (Index *)std::malloc(sizeof(*nelems_));
     *nelems_ = nelems;
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(x),
-            STARPU_R, static_cast<starpu_data_handle_t>(dy),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dx),
+            STARPU_R, x.get(),
+            STARPU_R, dy.get(),
+            STARPU_RW, dx.get(),
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
             0);
     // Check submission
@@ -190,9 +190,9 @@ void submit_mpi(Index nelems, Handle x, Handle dy, Handle dx, int exec_rank)
     // Build a task with initializing data transfers
     struct starpu_task *task = starpu_task_build(
             codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(x),
-            STARPU_R, static_cast<starpu_data_handle_t>(dy),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dx),
+            STARPU_R, x.get(),
+            STARPU_R, dy.get(),
+            STARPU_RW, dx.get(),
             0);
     // Only execution node will have non-nullptr task
     if(task)
@@ -213,15 +213,6 @@ void submit_mpi(Index nelems, Handle x, Handle dy, Handle dx, int exec_rank)
                     "submission");
         }
     }
-    // Data transfers after the task
-//    starpu_mpi_task_post_build(MPI_COMM_WORLD,
-//            codelet<T>(),
-//            STARPU_R, static_cast<starpu_data_handle_t>(x),
-//            STARPU_R, static_cast<starpu_data_handle_t>(dy),
-//            STARPU_RW, static_cast<starpu_data_handle_t>(dx),
-//            STARPU_EXECUTE_ON_NODE, exec_rank,
-//            0);
-
 }
 
 // Explicit instantiaion

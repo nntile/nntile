@@ -128,9 +128,9 @@ void submit(Index m, Index n, Index k, Handle src, Handle dst)
     //double nflops = m * n * k;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
+            STARPU_R, src.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
-            Config::STARPU_RW_COMMUTE, static_cast<starpu_data_handle_t>(dst),
+            Config::STARPU_RW_COMMUTE, dst.get(),
             //STARPU_FLOPS, nflops,
             0);
     // Check submission

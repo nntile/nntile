@@ -14,6 +14,7 @@
 
 #include "nntile/tensor/copy_intersection.hh"
 #include "nntile/starpu/subcopy.hh"
+#include "nntile/config.hh"
 
 namespace nntile::tensor
 {
@@ -62,9 +63,12 @@ void copy_intersection_async(const Tensor<T> &src,
         if(mpi_rank == dst_tile_rank)
         {
             ret = starpu_data_cpy(
-                    static_cast<starpu_data_handle_t>(dst_tile_handle),
-                    static_cast<starpu_data_handle_t>(src_tile_handle),
-                    1, nullptr, nullptr);
+                dst_tile_handle.get(),
+                src_tile_handle.get(),
+                1,
+                nullptr,
+                nullptr
+            );
             if(ret != 0)
             {
                 throw std::runtime_error("Error in starpu_data_cpy");
@@ -89,9 +93,12 @@ void copy_intersection_async(const Tensor<T> &src,
             if(mpi_rank == dst_tile_rank)
             {
                 ret = starpu_data_cpy(
-                        static_cast<starpu_data_handle_t>(dst_tile_handle),
-                        static_cast<starpu_data_handle_t>(src_tile_handle),
-                        1, nullptr, nullptr);
+                    dst_tile_handle.get(),
+                    src_tile_handle.get(),
+                    1,
+                    nullptr,
+                    nullptr
+                );
                 if(ret != 0)
                 {
                     throw std::runtime_error("Error in starpu_data_cpy");
@@ -104,7 +111,7 @@ void copy_intersection_async(const Tensor<T> &src,
     }
     // Do the slow complex copy
     // Temporary buffer for indexing, that is allocated per-worker when needed
-    starpu::VariableHandle scratch(2*src.ndim*sizeof(Index), STARPU_SCRATCH);
+    starpu::VariableHandle scratch(2*src.ndim*sizeof(Index));
     Index ndim = src.ndim;
     // We define starting coordinates and shapes for all complex copies of
     // tiles
@@ -265,10 +272,12 @@ void copy_intersection_async(const Tensor<T> &src,
             if(mpi_rank == dst_tile_rank)
             {
                 ret = starpu_data_cpy(
-                        static_cast<starpu_data_handle_t>(dst_tile_handle),
-                        static_cast<starpu_data_handle_t>(
-                            src_first_tile_handle),
-                        1, nullptr, nullptr);
+                    dst_tile_handle.get(),
+                    src_first_tile_handle.get(),
+                    1,
+                    nullptr,
+                    nullptr
+                );
                 if(ret != 0)
                 {
                     throw std::runtime_error("Error in starpu_data_cpy");
@@ -395,6 +404,8 @@ void copy_intersection_async(const Tensor<T> &src,
             ++dst_tile_index[k];
         }
     }
+    // Unregister scratch in an async way
+    scratch.unregister_submit();
 }
 
 //! Blocking version of tensor-wise copy operation

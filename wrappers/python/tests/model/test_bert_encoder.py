@@ -129,8 +129,8 @@ def generate_inputs(dtype: str, params: BertLayerTestParams,
 
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
-    x_value = x_type(x_traits, x_distr, 0)
-    x_grad = x_type(x_traits, x_distr, 0)
+    x_value = x_type(x_traits, x_distr)
+    x_grad = x_type(x_traits, x_distr)
     X = TensorMoments(x_value, x_grad, grad_required=True)
 
     x_random = rng.standard_normal(x_shape, dtype=np.float32)
@@ -138,8 +138,8 @@ def generate_inputs(dtype: str, params: BertLayerTestParams,
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_(True)
-    nntile_layer, _ = BertEncoderNNTile.from_torch(
-            torch_layer, X, nntile_config, 0)
+    nntile_layer = BertEncoderNNTile.from_torch(
+            torch_layer, X, nntile_config)
     nntile_layer.clear_gradients()
     y_grad_random = rng.standard_normal((params.n_emb,
                                          params.n_seq,

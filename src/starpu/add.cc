@@ -198,10 +198,10 @@ void submit(Index nelems, Scalar alpha, Handle src1, Scalar beta, Handle src2,
     double nflops = sizeof(T) * 3 * nelems;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src1),
-            STARPU_R, static_cast<starpu_data_handle_t>(src2),
+            STARPU_R, src1.get(),
+            STARPU_R, src2.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
-            STARPU_W, static_cast<starpu_data_handle_t>(dst),
+            STARPU_W, dst.get(),
             STARPU_FLOPS, nflops,
             0);
     // Check submission

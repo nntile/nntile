@@ -123,7 +123,7 @@ void submit(Index num_elements, Scalar alpha, Scalar beta, Handle dst)
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
             STARPU_CL_ARGS, args, sizeof(*args),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dst), 0);
+            STARPU_RW, dst.get(), 0);
             // STARPU_FLOPS, nflops);
     // Check submission
     if(ret != 0)

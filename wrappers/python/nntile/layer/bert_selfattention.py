@@ -184,7 +184,7 @@ class BertSelfAttention(BaseLayer):
     def generate_simple(x_q: TensorMoments,
                         x_k: TensorMoments,
                         x_v: TensorMoments,
-                        n_head: int, n_head_tile: int, next_tag: int,
+                        n_head: int, n_head_tile: int,
                         bias=False, mask=None, redux: bool = False):
         # Get sizes
         n_emb, n_seq, n_batch = x_q.value.shape
@@ -330,24 +330,18 @@ class BertSelfAttention(BaseLayer):
             in_proj_bias_qkv_distr = [0] * in_proj_bias_qkv_traits.grid.nelems
         # Define all the lists
         # w_q
-        w_q_value = type(x_q.value)(w_q_traits, w_q_distr, next_tag)
-        next_tag = w_q_value.next_tag
-        w_q_grad = type(x_q.value)(w_q_traits, w_q_distr, next_tag)
-        next_tag = w_q_grad.next_tag
+        w_q_value = type(x_q.value)(w_q_traits, w_q_distr)
+        w_q_grad = type(x_q.value)(w_q_traits, w_q_distr)
         w_q = TensorMoments(w_q_value, w_q_grad, True)
         if bias:
             in_proj_bias_q_value = type(x_q.value)(
                 in_proj_bias_qkv_traits,
-                in_proj_bias_qkv_distr,
-                next_tag
+                in_proj_bias_qkv_distr
             )
-            next_tag = in_proj_bias_q_value.next_tag
             in_proj_bias_q_grad = type(x_q.value)(
                 in_proj_bias_qkv_traits,
-                in_proj_bias_qkv_distr,
-                next_tag
+                in_proj_bias_qkv_distr
             )
-            next_tag = in_proj_bias_q_grad.next_tag
             bias_inproj_q = TensorMoments(
                 in_proj_bias_q_value,
                 in_proj_bias_q_grad,
@@ -356,24 +350,18 @@ class BertSelfAttention(BaseLayer):
         else:
             bias_inproj_q = None
         # w_k
-        w_k_value = type(x_q.value)(w_k_traits, w_k_distr, next_tag)
-        next_tag = w_k_value.next_tag
-        w_k_grad = type(x_q.value)(w_k_traits, w_k_distr, next_tag)
-        next_tag = w_k_grad.next_tag
+        w_k_value = type(x_q.value)(w_k_traits, w_k_distr)
+        w_k_grad = type(x_q.value)(w_k_traits, w_k_distr)
         w_k = TensorMoments(w_k_value, w_k_grad, True)
         if bias:
             in_proj_bias_k_value = type(x_q.value)(
                 in_proj_bias_qkv_traits,
-                in_proj_bias_qkv_distr,
-                next_tag
+                in_proj_bias_qkv_distr
             )
-            next_tag = in_proj_bias_k_value.next_tag
             in_proj_bias_k_grad = type(x_q.value)(
                 in_proj_bias_qkv_traits,
-                in_proj_bias_qkv_distr,
-                next_tag
+                in_proj_bias_qkv_distr
             )
-            next_tag = in_proj_bias_k_grad.next_tag
             bias_inproj_k = TensorMoments(
                 in_proj_bias_k_value,
                 in_proj_bias_k_grad,
@@ -382,24 +370,18 @@ class BertSelfAttention(BaseLayer):
         else:
             bias_inproj_k = None
         # w_v
-        w_v_value = type(x_q.value)(w_v_traits, w_v_distr, next_tag)
-        next_tag = w_v_value.next_tag
-        w_v_grad = type(x_q.value)(w_v_traits, w_v_distr, next_tag)
-        next_tag = w_v_grad.next_tag
+        w_v_value = type(x_q.value)(w_v_traits, w_v_distr)
+        w_v_grad = type(x_q.value)(w_v_traits, w_v_distr)
         w_v = TensorMoments(w_v_value, w_v_grad, True)
         if bias:
             in_proj_bias_v_value = type(x_q.value)(
                 in_proj_bias_qkv_traits,
-                in_proj_bias_qkv_distr,
-                next_tag
+                in_proj_bias_qkv_distr
             )
-            next_tag = in_proj_bias_v_value.next_tag
             in_proj_bias_v_grad = type(x_q.value)(
                 in_proj_bias_qkv_traits,
-                in_proj_bias_qkv_distr,
-                next_tag
+                in_proj_bias_qkv_distr
             )
-            next_tag = in_proj_bias_v_grad.next_tag
             bias_inproj_v = TensorMoments(
                 in_proj_bias_v_value,
                 in_proj_bias_v_grad,
@@ -407,128 +389,75 @@ class BertSelfAttention(BaseLayer):
             )
         else:
             bias_inproj_v = None
-        # # w
-        # w_value = type(x_q.value)(w_traits, w_distr, next_tag)
-        # next_tag = w_value.next_tag
-        # w_grad = type(x_q.value)(w_traits, w_distr, next_tag)
-        # next_tag = w_grad.next_tag
-        # w = TensorMoments(w_value, w_grad, True)
         # q_transposed
         q_transposed_value = type(x_q.value)(
             q_transposed_traits,
-            q_transposed_distr,
-            next_tag
+            q_transposed_distr
         )
-        next_tag = q_transposed_value.next_tag
         q_transposed_grad = type(x_q.value)(
             q_transposed_traits,
-            q_transposed_distr,
-            next_tag
+            q_transposed_distr
         )
-        next_tag = q_transposed_grad.next_tag
         q_transposed = TensorMoments(
             q_transposed_value,
             q_transposed_grad,
             True
         )
         # q
-        q_value = type(x_q.value)(q_traits, q_distr, next_tag)
-        next_tag = q_value.next_tag
-        q_grad = type(x_q.value)(q_traits, q_distr, next_tag)
-        next_tag = q_grad.next_tag
+        q_value = type(x_q.value)(q_traits, q_distr)
+        q_grad = type(x_q.value)(q_traits, q_distr)
         q = TensorMoments(q_value, q_grad, True)
         # k_transposed
         k_transposed_value = type(x_q.value)(
             k_transposed_traits,
-            k_transposed_distr,
-            next_tag
+            k_transposed_distr
         )
-        next_tag = k_transposed_value.next_tag
         k_transposed_grad = type(x_q.value)(
             k_transposed_traits,
-            k_transposed_distr,
-            next_tag
+            k_transposed_distr
         )
-        next_tag = k_transposed_grad.next_tag
         k_transposed = TensorMoments(
             k_transposed_value,
             k_transposed_grad,
             True
         )
         # k
-        k_value = type(x_q.value)(k_traits, k_distr, next_tag)
-        next_tag = k_value.next_tag
-        k_grad = type(x_q.value)(k_traits, k_distr, next_tag)
-        next_tag = k_grad.next_tag
+        k_value = type(x_q.value)(k_traits, k_distr)
+        k_grad = type(x_q.value)(k_traits, k_distr)
         k = TensorMoments(k_value, k_grad, True)
         # v_transposed
         v_transposed_value = type(x_q.value)(
             v_transposed_traits,
-            v_transposed_distr,
-            next_tag
+            v_transposed_distr
         )
-        next_tag = v_transposed_value.next_tag
         v_transposed_grad = type(x_q.value)(
             v_transposed_traits,
-            v_transposed_distr,
-            next_tag
+            v_transposed_distr
         )
-        next_tag = v_transposed_grad.next_tag
         v_transposed = TensorMoments(
             v_transposed_value,
             v_transposed_grad,
             True
         )
         # v
-        v_value = type(x_q.value)(v_traits, v_distr, next_tag)
-        next_tag = v_value.next_tag
-        v_grad = type(x_q.value)(v_traits, v_distr, next_tag)
-        next_tag = v_grad.next_tag
+        v_value = type(x_q.value)(v_traits, v_distr)
+        v_grad = type(x_q.value)(v_traits, v_distr)
         v = TensorMoments(v_value, v_grad, True)
         # a
-        a_value = type(x_q.value)(a_traits, a_distr, next_tag)
-        next_tag = a_value.next_tag
-        a_grad = type(x_q.value)(a_traits, a_distr, next_tag)
-        next_tag = a_grad.next_tag
+        a_value = type(x_q.value)(a_traits, a_distr)
+        a_grad = type(x_q.value)(a_traits, a_distr)
         a = TensorMoments(a_value, a_grad, True)
         # a_maxsumexp
-        a_maxsumexp = type(x_q.value)(
-            a_maxsumexp_traits,
-            a_maxsumexp_distr,
-            next_tag
-        )
-        next_tag = a_maxsumexp.next_tag
+        a_maxsumexp = type(x_q.value)(a_maxsumexp_traits, a_maxsumexp_distr)
         # a_sumprod_slice
         a_sumprod_slice = type(x_q.value)(
             a_sumprod_slice_traits,
-            a_sumprod_slice_distr,
-            next_tag
+            a_sumprod_slice_distr
         )
-        next_tag = a_sumprod_slice.next_tag
         # b
-        b_value = type(x_q.value)(b_traits, b_distr, next_tag)
-        next_tag = b_value.next_tag
-        b_grad = type(x_q.value)(b_traits, b_distr, next_tag)
-        next_tag = b_grad.next_tag
+        b_value = type(x_q.value)(b_traits, b_distr)
+        b_grad = type(x_q.value)(b_traits, b_distr)
         b = TensorMoments(b_value, b_grad, True)
-        # b_transposed
-        # b_transposed_value = type(x_q.value)(
-        #     b_transposed_traits,
-        #     b_transposed_distr,
-        #     next_tag
-        # )
-        # next_tag = b_transposed_value.next_tag
-        # b_transposed_grad = type(x_q.value)(
-        #     b_transposed_traits,
-        #     b_transposed_distr,
-        #     next_tag
-        # )
-        # next_tag = b_transposed_grad.next_tag
-        # b_transposed = TensorMoments(
-        #     b_transposed_value,
-        #     b_transposed_grad,
-        #     True
-        # )
         # Allocate tensor for output y
         y_shape = [n_head, head_size, n_seq, n_batch]
         y_basetile_shape = [
@@ -539,10 +468,8 @@ class BertSelfAttention(BaseLayer):
         ]
         y_traits = TensorTraits(y_shape, y_basetile_shape)
         y_distr = [0] * y_traits.grid.nelems
-        y_value = type(x_q.value)(y_traits, y_distr, next_tag)
-        next_tag = y_value.next_tag
-        y_grad = type(x_q.value)(y_traits, y_distr, next_tag)
-        next_tag = y_grad.next_tag
+        y_value = type(x_q.value)(y_traits, y_distr)
+        y_grad = type(x_q.value)(y_traits, y_distr)
         y = TensorMoments(y_value, y_grad, True)
         # Mask
         if mask is not None:
@@ -554,10 +481,8 @@ class BertSelfAttention(BaseLayer):
             )
             layer_mask = Tensor_bool(
                     layer_mask_traits,
-                    [0] * layer_mask_traits.grid.nelems,
-                    next_tag
+                    [0] * layer_mask_traits.grid.nelems
             )
-            next_tag = layer_mask.next_tag
             layer_mask.from_array(mask)
         else:
             layer_mask = None
@@ -567,8 +492,8 @@ class BertSelfAttention(BaseLayer):
                 v, a, a_maxsumexp, a_sumprod_slice, b,
                 bias_inproj_q, bias_inproj_k, bias_inproj_v,
                 layer_mask, redux=redux)
-        # Return layer and next tag to be used
-        return (layer, next_tag)
+        # Return layer
+        return layer
 
     # Forward propagation of the attention layer
     def forward_async(self):
@@ -898,21 +823,19 @@ class BertSelfAttention(BaseLayer):
     def from_torch(cls,
         torch_layer: BertSelfAttention_torch,
         x_q: TensorMoments, x_k: TensorMoments, x_v: TensorMoments,
-        config: BertConfigNNTile,
-        next_tag: int = 0
+        config: BertConfigNNTile
     ):  # -> Self: does not work with Python 3.10
         n_emb, n_seq, _ = x_q.value.shape
 
         mask_np = np.array(
             np.ones((n_seq, n_seq)), dtype=bool, order="F"
         )
-        layer, next_tag = cls.generate_simple(
+        layer = cls.generate_simple(
             x_q,
             x_k,
             x_v,
             n_head=config.num_attention_heads,
             n_head_tile=config.n_head_tile,
-            next_tag=next_tag,
             bias=True,
             mask=mask_np,
             redux=config.redux,
@@ -949,7 +872,7 @@ class BertSelfAttention(BaseLayer):
         layer.in_proj_bias_v.value.from_array(
             bias_value_torch_np.reshape(layer.n_head, layer.head_size).T
         )
-        return layer, next_tag
+        return layer
 
     def to_torch(self) -> BertSelfAttention_torch:
         n_emb = self.head_size * self.n_head

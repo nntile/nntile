@@ -147,11 +147,15 @@ if args.mode == "train":
     # Create Nntile copy of the loaded model
     # Initialize NNTile and StarPU
     time0 = time.time()
-    # Set up StarPU+MPI and init codelets
-    nntile_config = nntile.starpu.Config(-1, -1, 1)
+    nntile.nntile_init(
+        ncpus=-1,
+        ncuda=-1,
+        cublas=1,
+        ooc=0,
+        logger=0,
+        verbose=0)
     nntile.starpu.profiling_init()
     nntile.starpu.profiling_disable()
-    nntile.starpu.init()
     # Restrict computations to CUDA if possible
     if args.nntile_restrict == "cuda":
         nntile.starpu.restrict_cuda()
@@ -159,7 +163,6 @@ if args.mode == "train":
     #     nntile.starpu.restrict_cpu()
     time1 = time.time() - time0
     print("StarPU + NNTile + MPI init in {} seconds".format(time1))
-    next_tag = 0
     nntile_model_config = GPT2Config_nntile(
         config.vocab_size,
         args.n_embd_tile,
@@ -176,14 +179,13 @@ if args.mode == "train":
         args.nntile_flashattention,
         args.nntile_use_redux,
     )
-    nntile_model, next_tag = GPT2Model_nntile.from_torch(
+    nntile_model = GPT2Model_nntile.from_torch(
         model_torch,
         args.minibatch_size,
         args.minibatch_size_tile,
         config.n_positions,
         args.seq_len_tile,
         nntile_model_config,
-        next_tag,
     )
     # Create random dataset for train sumulation
     num_train_batches = args.num_samples // args.batch_size
@@ -265,14 +267,12 @@ if args.mode == "train":
         minibatch_input = []
         minibatch_output = []
         for j in range(num_minibatch):
-            x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-            next_tag = x.next_tag
+            x = nntile.tensor.Tensor_int64(x_traits, x_distr)
             x.from_array(
                 np.asfortranarray(random_dataset[i, j, :, :-1].cpu().T)
             )
             minibatch_input.append(x)
-            y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-            next_tag = y.next_tag
+            y = nntile.tensor.Tensor_int64(x_traits, x_distr)
             y.from_array(
                 np.asfortranarray(random_dataset[i, j, :, 1:].cpu().T)
             )
@@ -284,16 +284,15 @@ if args.mode == "train":
     # Set up learning rate and optimizer for training
     if args.optimizer == "sgd":
         nntile_optimizer = nntile.optimizer.SGD(
-            nntile_model.get_parameters(), args.lr, next_tag
+            nntile_model.get_parameters(), args.lr
         )
     elif args.optimizer == "adam":
         nntile_optimizer = nntile.optimizer.FusedAdam(
-            nntile_model.get_parameters(), args.lr, next_tag
+            nntile_model.get_parameters(), args.lr
         )
-    next_tag = nntile_optimizer.get_next_tag()
     # Define Cross Entropy loss function
-    loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
-        nntile_model.activations[-1], next_tag
+    loss = nntile.loss.CrossEntropy.generate_simple(
+        nntile_model.activations[-1]
     )
     # Set up training pipeline
     pipeline = nntile.pipeline.Pipeline(
@@ -340,11 +339,3 @@ if args.mode == "train":
     loss_np = np.zeros((1), dtype=np.float32)
     loss.val.to_array(loss_np)
     print("NNTile loss on the last batch: {}".format(loss_np[0]))
-    loss.unregister()
-    nntile_optimizer.unregister()
-    for batch in batch_input + batch_output:
-        for x in batch:
-            x.unregister()
-
-# Unregister all tensors related to model
-nntile_model.unregister()

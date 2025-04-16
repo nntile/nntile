@@ -23,8 +23,14 @@ from nntile.torch_models.mlp_mixer import MixerMlp as TorchMixerMlp
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
           np.float64: nntile.tensor.Tensor_fp64}
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
+nntile.nntile_init(
+    ncpus=1,
+    ncuda=0,
+    cublas=0,
+    ooc=0,
+    logger=0,
+    verbose=0,
+)
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
@@ -41,13 +47,10 @@ def test_mixer_mlp_with_torch(side: str, dtype: np.dtype):
     A_shape = [n_patches, 2, n_channels]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     mpi_distr = [0]
-    next_tag = 0
 
     # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    A_grad = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A_grad.next_tag
+    A = Tensor[dtype](A_traits, mpi_distr)
+    A_grad = Tensor[dtype](A_traits, mpi_distr)
 
     # Set initial values of tensors
     rng = np.random.default_rng(42)
@@ -56,7 +59,7 @@ def test_mixer_mlp_with_torch(side: str, dtype: np.dtype):
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
 
     # Define mlp_mixer layer
-    layer, next_tag = MixerMlp.generate_simple(A_moments, side, next_tag)
+    layer = MixerMlp.generate_simple(A_moments, side)
 
     rand_W1 = rng.standard_normal(layer.linear_1.w.value.shape)
     np_W1 = np.array(rand_W1, dtype=dtype, order='F')
@@ -74,7 +77,7 @@ def test_mixer_mlp_with_torch(side: str, dtype: np.dtype):
 
     np_Y2 = np.zeros(layer.y.value.shape, dtype=dtype, order="F")
     layer.y.value.to_array(np_Y2)
-    fro_loss, next_tag = nntile.loss.Frob.generate_simple(layer.y, next_tag)
+    fro_loss = nntile.loss.Frob.generate_simple(layer.y)
     np_zero = np.zeros(layer.y.value.shape, dtype=dtype, order="F")
     fro_loss.y.from_array(np_zero)
     fro_loss.calc_async()

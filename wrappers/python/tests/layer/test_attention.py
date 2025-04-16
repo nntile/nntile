@@ -47,20 +47,13 @@ def test_attention(starpu_simple, dtype: np.dtype):
     X_K_traits = nntile.tensor.TensorTraits(X_K_shape, X_K_shape)
     X_V_traits = nntile.tensor.TensorTraits(X_V_shape, X_V_shape)
     mpi_distr = [0]
-    next_tag = 0
     # Tensor objects
-    X_Q_value = Tensor[dtype](X_Q_traits, mpi_distr, next_tag)
-    next_tag = X_Q_value.next_tag
-    X_Q_grad = Tensor[dtype](X_Q_traits, mpi_distr, next_tag)
-    next_tag = X_Q_grad.next_tag
-    X_K_value = Tensor[dtype](X_K_traits, mpi_distr, next_tag)
-    next_tag = X_K_value.next_tag
-    X_K_grad = Tensor[dtype](X_K_traits, mpi_distr, next_tag)
-    next_tag = X_K_grad.next_tag
-    X_V_value = Tensor[dtype](X_V_traits, mpi_distr, next_tag)
-    next_tag = X_V_value.next_tag
-    X_V_grad = Tensor[dtype](X_V_traits, mpi_distr, next_tag)
-    next_tag = X_V_grad.next_tag
+    X_Q_value = Tensor[dtype](X_Q_traits, mpi_distr)
+    X_Q_grad = Tensor[dtype](X_Q_traits, mpi_distr)
+    X_K_value = Tensor[dtype](X_K_traits, mpi_distr)
+    X_K_grad = Tensor[dtype](X_K_traits, mpi_distr)
+    X_V_value = Tensor[dtype](X_V_traits, mpi_distr)
+    X_V_grad = Tensor[dtype](X_V_traits, mpi_distr)
     # Set initial value for input
     rng = np.random.default_rng(42)
     rand_X_Q = rng.standard_normal(X_Q_shape)
@@ -79,8 +72,8 @@ def test_attention(starpu_simple, dtype: np.dtype):
     nntile.tensor.clear_async(X_V_grad)
     X_V = nntile.tensor.TensorMoments(X_V_value, X_V_grad, True)
     # Define attention layer
-    layer, next_tag = Attention.generate_simple(
-        X_Q, X_K, X_V, n_head, n_head_tile, next_tag, True
+    layer = Attention.generate_simple(
+        X_Q, X_K, X_V, n_head, n_head_tile, True
     )
     # Define numpy arrays and nntile tensors
     rand_W_Q = rng.standard_normal(layer.w_q.value.shape)
@@ -287,8 +280,8 @@ def test_dynamic(
         inp3, grad=nntc.zeros(inp3.shape, dtype=type(inp)), grad_required=False
     )
 
-    attn, _ = Attention.generate_simple(
-        inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, 0, bias=False
+    attn = Attention.generate_simple(
+        inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, bias=False
     )
     attn.init_randn_async()
 
@@ -327,8 +320,8 @@ def test_kvcache(starpu_simple, numpy_rng, n_head, n_head_tile):
         inp3, grad=nntc.zeros(inp3.shape, dtype=type(inp)), grad_required=False
     )
 
-    attn, _ = Attention.generate_simple(
-        inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, 0, bias=False
+    attn = Attention.generate_simple(
+        inp_tm, inp_tm2, inp_tm3, n_head, n_head_tile, bias=False
     )
     attn.init_randn_async()
 

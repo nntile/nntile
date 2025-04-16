@@ -19,8 +19,14 @@ import nntile
 from nntile.loss import CrossEntropy as cross_entropy
 from nntile.tensor import TensorMoments
 
-config = nntile.starpu.Config(1, 1, 1)
-nntile.starpu.init()
+nntile.nntile_init(
+    ncpus=1,
+    ncuda=0,
+    cublas=0,
+    ooc=0,
+    logger=0,
+    verbose=0,
+)
 
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
@@ -84,32 +90,24 @@ def test_cross_entropy(dtype: np.dtype, reduction: str,
     xentropy_val_torch.backward()
 
     x_type = dtype2nntile[dtype]
-    next_tag = 0
     final_layer_output_traits = nntile.tensor.TensorTraits(
         [nclasses, batch_size], [nclasses, batch_size])
     mpi_distr = [0]
-    final_layer_output_tensor = x_type(final_layer_output_traits,
-                                              mpi_distr, next_tag)
-    next_tag = final_layer_output_tensor.next_tag
+    final_layer_output_tensor = x_type(final_layer_output_traits, mpi_distr)
     final_layer_output_tensor.from_array(final_layer_output.T)
 
     final_layer_grad_output_traits = nntile.tensor.TensorTraits(
         [nclasses, batch_size], [nclasses, batch_size])
-    final_layer_output_grad = x_type(final_layer_grad_output_traits,
-                                     mpi_distr, next_tag)
-    next_tag = final_layer_output_grad.next_tag
+    final_layer_output_grad = x_type(final_layer_grad_output_traits, mpi_distr)
     final_layer_output_tm = TensorMoments(final_layer_output_tensor,
                                           final_layer_output_grad, True)
 
     # Create crossentropy loss
     if reduction == "sum":
-        xentropy_loss, next_tag = cross_entropy.generate_simple(
-                                final_layer_output_tm,
-                                next_tag)
+        xentropy_loss = cross_entropy.generate_simple(final_layer_output_tm)
     elif reduction == "mean":
-        xentropy_loss, next_tag = cross_entropy.generate_simple(
+        xentropy_loss = cross_entropy.generate_simple(
                                 final_layer_output_tm,
-                                next_tag,
                                 scale=1. / np.sum(true_class_lables != -100))
     xentropy_loss.y.from_array(true_class_lables)
     xentropy_loss.calc_async()

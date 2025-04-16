@@ -17,7 +17,7 @@ from numpy.testing import assert_equal
 
 import nntile
 
-config = nntile.starpu.Config(1, 0, 0)
+nntile.nntile_init(ncpus=1, ncuda=0, cublas=0, ooc=0, logger=0, verbose=0)
 
 Tile = {np.float32: nntile.tile.Tile_fp32,
         np.float64: nntile.tile.Tile_fp64}

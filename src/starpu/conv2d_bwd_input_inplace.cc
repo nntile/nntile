@@ -180,10 +180,10 @@ void submit(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
     }
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src1),
-            STARPU_R, static_cast<starpu_data_handle_t>(src2),
+            STARPU_R, src1.get(),
+            STARPU_R, src2.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
-            dst_mode, static_cast<starpu_data_handle_t>(dst),
+            dst_mode, dst.get(),
             0);
     // Check submission
     if(ret != 0)

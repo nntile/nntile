@@ -43,14 +43,13 @@ public:
     std::vector<starpu::VariableHandle> tile_handles;
     //! Distribution of tiles
     std::vector<int> tile_distr;
-    //! Next tag to be used
-    starpu_mpi_tag_t next_tag;
-    //! Flag to really use wont_use
-    int wont_use_flag;
+
     //! Constructor
-    explicit Tensor(const TensorTraits &traits,
+    explicit Tensor(
+            const TensorTraits &traits,
             const std::vector<int> &distribution,
-            starpu_mpi_tag_t &last_tag):
+            const char *name = nullptr
+        ):
         TensorTraits(traits),
         tile_distr(distribution),
         wont_use_flag(0)
@@ -65,7 +64,6 @@ public:
         tile_handles.reserve(grid.nelems);
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            // At first check if last tag is less than maximal tag
             // Get tile index
             const auto tile_index = grid.linear_to_index(i);
             // Get shape of corresponding tile
@@ -73,21 +71,36 @@ public:
             // Generate traits for the tile
             tile_traits.emplace_back(tile_shape);
             // Set StarPU-managed handle
-            tile_handles.emplace_back(sizeof(T)*tile_traits[i].nelems,
-                    STARPU_R);
+            tile_handles.emplace_back(sizeof(T)*tile_traits[i].nelems);
+            // Set coordinate of the tile
+            starpu_data_set_coordinates(
+                tile_handles[i].get(),
+                tile_index.size(),
+                tile_index.data()
+            );
+            // Set name of the tile the same as the tensor name
+            if(name != nullptr)
+            {
+                starpu_data_set_name(
+                    tile_handles[i].get(),
+                    name
+                );
+            }
             // Disable Out-of-Core by default
             starpu_data_set_ooc_flag(
                 static_cast<starpu_data_handle_t>(tile_handles[i]),
                 0
             );
-            // Register tile with MPI
-            //starpu_mpi_data_register(
-            //        static_cast<starpu_data_handle_t>(tile_handles[i]),
-            //        last_tag, distribution[i]);
-            //++last_tag;
         }
-        next_tag = last_tag;
     }
+
+    //! Destructor unregisters all tiles in an async manner
+    ~Tensor()
+    {
+        unregister_submit();
+    }
+
+    //! Get tile by linear offset
     tile::Tile<T> get_tile(Index linear_offset) const
     {
         if(linear_offset < 0 or linear_offset >= grid.nelems)
@@ -123,7 +136,7 @@ public:
         Index linear_offset = grid.index_to_linear(tile_index);
         return tile_handles[linear_offset];
     }
-    //! Unregister underlying handles without waiting for destructor
+    //! Unregister underlying handles in a blocking manner
     void unregister()
     {
         for(Index i = 0; i < grid.nelems; ++i)
@@ -131,12 +144,28 @@ public:
             tile_handles[i].unregister();
         }
     }
-    //! Invalidate tensor values
+    //! Unregister underlying handles in an async manner
+    void unregister_submit()
+    {
+        for(Index i = 0; i < grid.nelems; ++i)
+        {
+            tile_handles[i].unregister_submit();
+        }
+    }
+    //! Unregister underlying handles in a blocking manner without coherency
+    void unregister_no_coherency()
+    {
+        for(Index i = 0; i < grid.nelems; ++i)
+        {
+            tile_handles[i].unregister_no_coherency();
+        }
+    }
+    //! Invalidate tensor values in an async manner
     void invalidate_submit() const
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            auto tmp = get_tile_handle(i).get();
             starpu_data_invalidate_submit(tmp);
         }
     }
@@ -181,7 +210,7 @@ public:
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            auto tmp = get_tile_handle(i).get();
             //starpu_mpi_cache_flush(MPI_COMM_WORLD, tmp);
         }
     }
@@ -190,7 +219,7 @@ public:
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            auto tmp = get_tile_handle(i).get();
             starpu_data_set_reduction_methods(tmp,
                     nntile::starpu::accumulate::codelet<T>(),
                     &nntile::starpu::clear::codelet);
@@ -201,7 +230,7 @@ public:
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            auto tmp = get_tile_handle(i).get();
             starpu_data_set_reduction_methods(tmp,
                     nntile::starpu::accumulate_hypot::codelet<T>(),
                     &nntile::starpu::clear::codelet);
@@ -212,7 +241,7 @@ public:
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            auto tmp = get_tile_handle(i).get();
             starpu_data_set_reduction_methods(tmp,
                     nntile::starpu::accumulate_maxsumexp::codelet<T>(),
                     &nntile::starpu::clear::codelet);
@@ -225,7 +254,7 @@ public:
         {
             throw std::runtime_error("Only scalar tensors can be printed");
         }
-        auto handle = static_cast<starpu_data_handle_t>(get_tile_handle(0));
+        auto handle = get_tile_handle(0).get();
         void **args = reinterpret_cast<void **>(std::malloc(sizeof(*args)));
         *args = reinterpret_cast<void *>(handle);
         int ret = starpu_data_acquire_cb(handle, STARPU_R,

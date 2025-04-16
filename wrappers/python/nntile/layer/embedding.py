@@ -48,7 +48,6 @@ class Embedding(BaseLayer):
         emb_size: int,
         y_emb_tile: int,
         w_emb_tile: int,
-        next_tag: int,
     ):
         # Check embedding tile sizes
         if y_emb_tile % w_emb_tile != 0:
@@ -58,10 +57,8 @@ class Embedding(BaseLayer):
         w_basetile = [w_emb_tile, vocab_size]
         w_traits = TensorTraits(w_shape, w_basetile)
         w_distr = [0] * w_traits.grid.nelems
-        w_value = TensorType(w_traits, w_distr, next_tag)
-        next_tag = w_value.next_tag
-        w_grad = TensorType(w_traits, w_distr, next_tag)
-        next_tag = w_grad.next_tag
+        w_value = TensorType(w_traits, w_distr)
+        w_grad = TensorType(w_traits, w_distr)
         w = TensorMoments(w_value, w_grad, True)
         # Output embeddings
         y_shape = x.shape.copy()
@@ -70,15 +67,13 @@ class Embedding(BaseLayer):
         y_basetile.insert(axis, y_emb_tile)
         y_traits = TensorTraits(y_shape, y_basetile)
         y_distr = [0] * y_traits.grid.nelems
-        y_value = TensorType(y_traits, y_distr, next_tag)
-        next_tag = y_value.next_tag
-        y_grid = TensorType(y_traits, y_distr, next_tag)
-        next_tag = y_grid.next_tag
+        y_value = TensorType(y_traits, y_distr)
+        y_grid = TensorType(y_traits, y_distr)
         y = TensorMoments(y_value, y_grid, True)
         # Create embedding layer with all the provided data
         layer = Embedding(x, y, w, axis)
-        # Return layer and next tag to be used
-        return (layer, next_tag)
+        # Return layer
+        return layer
 
     # Forward propagation of the embedding layer
     def forward_async(self):

@@ -23,6 +23,9 @@
 // StarPU init/deinit and data handles
 #include <nntile/starpu.hh>
 
+// NNTile configuration
+#include <nntile/config.hh>
+
 // Kernel-level operations
 #ifndef STARPU_SIMGRID
 #include <nntile/kernel.hh>

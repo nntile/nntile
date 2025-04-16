@@ -32,19 +32,6 @@ void def_mod_starpu(py::module_ &m)
 {
     using namespace nntile::starpu;
     using namespace std::chrono_literals;
-    py::class_<Config>(m, "Config").
-        def(py::init<int, int, int, int, const char *, int, int, int, size_t, const char *>(),
-                py::arg("ncpus_")=-1,
-                py::arg("ncuda_")=-1,
-                py::arg("cublas_")=-1,
-                py::arg("logger")=0,
-                py::arg("logger_server_addr")="",
-                py::arg("logger_server_port")=5001,
-                py::arg("verbose")=0,
-                py::arg("ooc")=0,
-                py::arg("ooc_size")=1073741824UL,
-                py::arg("ooc_path")="/tmp/nntile_ooc").
-        def("shutdown", &Config::shutdown);
     m.def("init", init);
     m.def("pause", starpu_pause);
     m.def("resume", starpu_resume);
@@ -212,6 +199,9 @@ void def_class_tile(py::module_ &m, const char *name)
     py::class_<Tile<T>, TileTraits>(m, name, py::multiple_inheritance()).
         def(py::init<const TileTraits &>()).
         def("unregister", &Tile<T>::unregister).
+        def("unregister_submit", &Tile<T>::unregister_submit).
+        def("unregister_no_coherency", &Tile<T>::unregister_no_coherency).
+        def("invalidate_submit", &Tile<T>::invalidate_submit).
         def("from_array", tile_from_array<T>).
         def("to_array", tile_to_array<T>);
     m.def("tile_from_array", tile_from_array<T>);
@@ -300,12 +290,8 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
     }
     // Create temporary single-tile tensor
     tensor::TensorTraits tmp_traits(tensor.shape, tensor.shape);
-    std::int64_t tmp_tag = 0;
-    int flag;
-    //starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
-    //        &flag);
     std::vector<int> tmp_distr{0};
-    tensor::Tensor<T> tmp(tmp_traits, tmp_distr, tmp_tag);
+    tensor::Tensor<T> tmp(tmp_traits, tmp_distr);
     // Acquire tile and copy data
     int mpi_rank = starpu_mpi_world_rank();
     auto tile = tmp.get_tile(0);
@@ -321,6 +307,7 @@ void tensor_from_array(const tensor::Tensor<T> &tensor,
     }
     tensor::scatter_async<T>(tmp, tensor);
     tensor.mpi_flush();
+    tmp.unregister_submit();
 }
 
 // Tensor -> numpy.ndarray
@@ -371,12 +358,8 @@ void tensor_to_array(const tensor::Tensor<T> &tensor,
     }
     // Create temporary single-tile tensor
     tensor::TensorTraits tmp_traits(tensor.shape, tensor.shape);
-    std::int64_t tmp_tag = 0;
-    int flag;
-    //starpu_mpi_comm_get_attr(MPI_COMM_WORLD, STARPU_MPI_TAG_UB, &tmp_tag, \
-            &flag);
     std::vector<int> tmp_distr{0};
-    tensor::Tensor<T> tmp(tmp_traits, tmp_distr, tmp_tag);
+    tensor::Tensor<T> tmp(tmp_traits, tmp_distr);
     tensor::gather_async<T>(tensor, tmp);
     // Acquire tile and copy data
     int mpi_rank = starpu_mpi_world_rank();
@@ -392,7 +375,7 @@ void tensor_to_array(const tensor::Tensor<T> &tensor,
 #endif // STARPU_SIMGRID
         tile_local.release();
     }
-    tmp.unregister();
+    tmp.unregister_submit();
 }
 
 template<typename T>
@@ -428,13 +411,12 @@ void def_class_tensor(py::module_ &m, const char *name)
 {
     using namespace nntile::tensor;
     py::class_<Tensor<T>, TensorTraits>(m, name, py::multiple_inheritance()).
-        def(py::init<const TensorTraits &, const std::vector<int> &,
-                starpu_mpi_tag_t &>()).
-        def_readonly("next_tag", &Tensor<T>::next_tag).
+        def(py::init<const TensorTraits &, const std::vector<int> &, const char *>(),
+            py::arg("traits"), py::arg("distr"), py::arg("name") = nullptr).
         def("unregister", &Tensor<T>::unregister).
-        // Temporary disable invalidate_submit and use wont_use instead
+        def("unregister_submit", &Tensor<T>::unregister_submit).
+        def("unregister_no_coherency", &Tensor<T>::unregister_no_coherency).
         def("invalidate_submit", &Tensor<T>::invalidate_submit).
-        //def("invalidate_submit", &Tensor<T>::wont_use).
         def("wont_use", &Tensor<T>::wont_use).
         def("from_array", &tensor_from_array<T>).
         def("to_array", &tensor_to_array<T>).
@@ -1340,6 +1322,29 @@ void def_mod_tensor(py::module_ &m)
 // Main extension module with all wrappers
 PYBIND11_MODULE(nntile_core, m)
 {
+    // Add NNTile initialization function
+    m.def("nntile_init", [](int ncpus, int ncuda, int cublas, int ooc,
+            const char *ooc_path, int ooc_size, int ooc_disk_node_id,
+            int logger, const char *logger_server_addr, int logger_server_port,
+            int verbose)
+        {
+            nntile::config.init(ncpus, ncuda, cublas, ooc, ooc_path, ooc_size,
+                ooc_disk_node_id, logger, logger_server_addr, logger_server_port,
+                verbose);
+        },
+        py::arg("ncpus")=0,
+        py::arg("ncuda")=0,
+        py::arg("cublas")=1,
+        py::arg("ooc")=0,
+        py::arg("ooc_path")="/tmp/nntile_ooc",
+        py::arg("ooc_size")=16777216,
+        py::arg("ooc_disk_node_id")=-1,
+        py::arg("logger")=0,
+        py::arg("logger_server_addr")="",
+        py::arg("logger_server_port")=5001,
+        py::arg("verbose")=0);
+    // Add NNTile shutdown function
+    m.def("nntile_shutdown", []{nntile::config.shutdown();});
     // Add starpu submodule
     auto starpu = m.def_submodule("starpu");
     def_mod_starpu(starpu);

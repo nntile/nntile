@@ -16,8 +16,7 @@ import pytest
 
 import nntile
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
+nntile.nntile_init(ncpus=1, ncuda=0, cublas=0, ooc=0, logger=0, verbose=0)
 
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
@@ -34,15 +33,12 @@ def test_gemm(dtype):
     matrix_shape = [2, 2]
     batch = 3
     mpi_distr = [0]
-    next_tag = 0
     shape = [*matrix_shape, batch]
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    B = Tensor[dtype](traits, mpi_distr, next_tag)
-    next_tag = B.next_tag
-    C = Tensor[dtype](traits, mpi_distr, next_tag)
+    A = Tensor[dtype](traits, mpi_distr)
+    B = Tensor[dtype](traits, mpi_distr)
+    C = Tensor[dtype](traits, mpi_distr)
     # Set initial values of tensors
     rng = np.random.default_rng(42)
     src_A = rng.standard_normal(shape).astype(dtype, 'F')

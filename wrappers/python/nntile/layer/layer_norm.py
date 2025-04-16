@@ -84,18 +84,15 @@ class LayerNorm(BaseLayer):
         x: TensorMoments,
         axis: int,
         eps: float,
-        next_tag: int,
         redux: bool = False,
     ):
         # Get traits of X
         x_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
         # Create Y with the same traits and distribution as X
         x_distr = x.value.distribution
-        y_value = type(x.value)(x_traits, x_distr, next_tag)
-        next_tag = y_value.next_tag
+        y_value = type(x.value)(x_traits, x_distr)
         # Create grad Y with the same traits and distribution as X
-        y_grad = type(x.value)(x_traits, x_distr, next_tag)
-        next_tag = y_grad.next_tag
+        y_grad = type(x.value)(x_traits, x_distr)
         # Wrap Y
         y = TensorMoments(y_value, y_grad, True)
         # Gamma parameter
@@ -105,23 +102,17 @@ class LayerNorm(BaseLayer):
         gamma_distr = []
         for i in range(x.value.grid.shape[axis]):
             gamma_distr.append(x_distr[x.value.grid.stride[axis] * i])
-        gamma_value = type(x.value)(gamma_traits, gamma_distr, next_tag)
-        next_tag = gamma_value.next_tag
-        gamma_grad = type(x.value)(gamma_traits, gamma_distr, next_tag)
-        next_tag = gamma_grad.next_tag
+        gamma_value = type(x.value)(gamma_traits, gamma_distr)
+        gamma_grad = type(x.value)(gamma_traits, gamma_distr)
         gamma = TensorMoments(gamma_value, gamma_grad, True)
         # Beta parameter
-        beta_value = type(x.value)(gamma_traits, gamma_distr, next_tag)
-        next_tag = beta_value.next_tag
-        beta_grad = type(x.value)(gamma_traits, gamma_distr, next_tag)
-        next_tag = beta_grad.next_tag
+        beta_value = type(x.value)(gamma_traits, gamma_distr)
+        beta_grad = type(x.value)(gamma_traits, gamma_distr)
         beta = TensorMoments(beta_value, beta_grad, True)
         # Temporary tensor for normalized input
-        tmp_y_value = type(x.value)(x_traits, x_distr, next_tag)
-        next_tag = tmp_y_value.next_tag
+        tmp_y_value = type(x.value)(x_traits, x_distr)
         # Temporary tensor for gradient of normalized input
-        tmp_y_grad = type(x.value)(x_traits, x_distr, next_tag)
-        next_tag = tmp_y_grad.next_tag
+        tmp_y_grad = type(x.value)(x_traits, x_distr)
         # Define auxiliary tensors to hold mean, inverse of stddev and scalar
         # products along given axis
         mean_shape = x.value.shape[:axis] + x.value.shape[axis + 1 :]
@@ -139,10 +130,8 @@ class LayerNorm(BaseLayer):
             )
             x_tile_offset = x.value.grid.index_to_linear(x_tile_index)
             mean_distr.append(x_distr[x_tile_offset])
-        mean = type(x.value)(mean_traits, mean_distr, next_tag)
-        next_tag = mean.next_tag
-        inv_stddev = type(x.value)(mean_traits, mean_distr, next_tag)
-        next_tag = inv_stddev.next_tag
+        mean = type(x.value)(mean_traits, mean_distr)
+        inv_stddev = type(x.value)(mean_traits, mean_distr)
         # Create LayerNorm object with all the provided tensors
         layer = LayerNorm(
             x,
@@ -160,8 +149,8 @@ class LayerNorm(BaseLayer):
         # Init gamma and beta
         clear_async(beta.value)
         fill_async(1.0, gamma.value)
-        # Return layer and next tag to be used
-        return (layer, next_tag)
+        # Return layer
+        return layer
 
     # Forward propagation of the normalization layer
     def forward_async(self):
@@ -351,16 +340,15 @@ class LayerNorm(BaseLayer):
     @classmethod
     def from_torch(cls,
         torch_layer: LayerNormTorch, x: TensorMoments,
-        next_tag: int, redux: bool = False
+        redux: bool = False
     ):
         eps = torch_layer.eps
-        nntile_layer, next_tag = cls.generate_simple(x, 0, eps,
-                                                     next_tag, redux)
+        nntile_layer = cls.generate_simple(x, 0, eps, redux)
         nntile_layer.gamma.value.from_array(
             torch_layer.weight.data.cpu().detach().numpy())
         nntile_layer.beta.value.from_array(
             torch_layer.bias.data.cpu().detach().numpy())
-        return nntile_layer, next_tag
+        return nntile_layer
 
     def to_torch(self) -> LayerNormTorch:
         target_shape = self.activations_input[0].value.shape

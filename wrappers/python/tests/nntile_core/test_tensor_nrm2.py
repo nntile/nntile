@@ -16,8 +16,7 @@ import pytest
 
 import nntile
 
-config = nntile.starpu.Config(1, 0, 0)
-nntile.starpu.init()
+nntile.nntile_init(ncpus=1, ncuda=0, cublas=0, ooc=0, logger=0, verbose=0)
 
 # Define mapping between numpy and nntile types
 Tensor = {np.float32: nntile.tensor.Tensor_fp32,
@@ -34,16 +33,13 @@ def test_nrm2(dtype):
     shape = [2, 3, 4]
     ndim = len(shape)
     mpi_distr = [0]
-    next_tag = 0
     A_traits = nntile.tensor.TensorTraits(shape, shape)
     B_traits = nntile.tensor.TensorTraits([], [])
     tmp_traits = nntile.tensor.TensorTraits([1] * ndim, [1] * ndim)
     # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr, next_tag)
-    next_tag = A.next_tag
-    B = Tensor[dtype](B_traits, mpi_distr, next_tag)
-    next_tag = B.next_tag
-    tmp = Tensor[dtype](tmp_traits, mpi_distr, next_tag)
+    A = Tensor[dtype](A_traits, mpi_distr)
+    B = Tensor[dtype](B_traits, mpi_distr)
+    tmp = Tensor[dtype](tmp_traits, mpi_distr)
     # Set initial values of tensors
     rand_A = np.random.default_rng(42).standard_normal(shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')

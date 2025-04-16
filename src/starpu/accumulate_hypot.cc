@@ -180,8 +180,8 @@ void submit(Handle src, Handle dst)
     //double nflops;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_RW|STARPU_COMMUTE, static_cast<starpu_data_handle_t>(dst),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
+            STARPU_RW | STARPU_COMMUTE, dst.get(),
+            STARPU_R, src.get(),
             // STARPU_FLOPS, nflops,
             0);
     // Check submission

@@ -208,9 +208,9 @@ void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
         src_nbytes + 2*dst_nbytes;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src),
+            STARPU_R, src.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
-            dst_mode, static_cast<starpu_data_handle_t>(dst),
+            dst_mode, dst.get(),
             STARPU_FLOPS, nflops,
             0);
     // Check submission

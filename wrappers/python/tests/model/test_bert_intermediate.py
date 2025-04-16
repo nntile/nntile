@@ -147,14 +147,14 @@ def generate_inputs(params: BertTestParams,
 
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
-    x_value = tensor_type(x_traits, x_distr, 0)
-    x_grad = tensor_type(x_traits, x_distr, 0)
+    x_value = tensor_type(x_traits, x_distr)
+    x_grad = tensor_type(x_traits, x_distr)
     X = TensorMoments(x_value, x_grad, True)
 
-    nntile_model, _ = BertIntermediateNNTile.from_torch(
+    nntile_model = BertIntermediateNNTile.from_torch(
             torch_model, X,
             params.intermediate_size_tile,
-            nntile_config, 0)
+            nntile_config)
     nntile_model.clear_gradients()
     nntile_model.activations[0].value.from_array(x_nntile)
 

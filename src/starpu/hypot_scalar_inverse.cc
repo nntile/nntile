@@ -161,7 +161,7 @@ void submit(Index nelems, Scalar eps, Scalar alpha, Handle dst)
     args->alpha = alpha;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
+            STARPU_RW, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             0);
     // Check submission

@@ -24,7 +24,6 @@ from .bert_layer import BertLayer
 
 
 class BertEncoder(BaseModel):
-    next_tag: int
 
     def __init__(self, hidden_states: TensorMoments,
                   list_bert_layers: List,
@@ -46,8 +45,7 @@ class BertEncoder(BaseModel):
 
     @staticmethod
     def from_torch(bert_encoder_torch, hidden_states: TensorMoments,
-                   config: BertConfigNNTile,
-                   next_tag: int):
+                   config: BertConfigNNTile):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16",
                             "fp32_fast_fp16", "fp32_fast_bf16"]:
@@ -57,10 +55,9 @@ class BertEncoder(BaseModel):
         list_bert_layers = []
         cur_hidden_states = hidden_states
         for bert_layers_torch in bert_encoder_torch.layer:
-            current_layer, next_tag = BertLayer.from_torch(bert_layers_torch,
-                                                             cur_hidden_states,
-                                                             config,
-                                                             next_tag)
+            current_layer = BertLayer.from_torch(bert_layers_torch,
+                                                 cur_hidden_states,
+                                                 config)
             cur_hidden_states = current_layer.activations[-1]
             list_bert_layers.append(current_layer)
 
@@ -68,7 +65,7 @@ class BertEncoder(BaseModel):
                                         list_bert_layers,
                                         config)
 
-        return bert_layer_nntile, next_tag
+        return bert_layer_nntile
 
     def _make_default_torch_model(self):
         config_torch = BertConfig_torch()

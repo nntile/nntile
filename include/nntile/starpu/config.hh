@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/starpu/config.hh
- * StarPU initialization/finalization and smart data handles
+ * StarPU configuration, data handles and codelets base classes
  *
  * @version 1.1.0
  * */
@@ -19,11 +19,12 @@
 #include <memory>
 #include <cstring>
 #include <iostream>
+#include <unordered_set>
+#include <mutex>
 #include <starpu.h>
 // Disabled MPI for now
 //#include <starpu_mpi.h>
 #include <nntile/defs.h>
-#include <nntile/logger/logger_thread.hh>
 
 namespace nntile
 {
@@ -54,108 +55,89 @@ static int starpu_mpi_barrier(int comm)
 namespace starpu
 {
 
-//! Convenient StarPU initialization and shutdown
-class Config: public starpu_conf
+//! Convenient StarPU configuration class
+class Config
 {
-    int cublas;
-    int verbose;
-    int disk_node_id;
+    //! StarPU configuration without explicit default value
+    // It will be zero-initialized due to global configuration variable
+    starpu_conf starpu_config;
+    //! Flag if StarPU codelets are initialized
+    bool codelets_initialized = false;
+    //! Whether cuBLAS is enabled with the configuration
+    bool cublas = false;
+    //! Whether Out-of-Core is enabled with the configuration
+    bool ooc = false;
+    //! Out-of-core path
+    const char *ooc_path = nullptr;
+    //! Out-of-core size
+    size_t ooc_size = 16777216;
+    //! Out-of-core disk node id
+    int ooc_disk_node_id = -1;
+    //! Verbosity level
+    int verbose = 0;
+    //! Container for all data handles
+    std::unordered_set<starpu_data_handle_t> data_handles;
+    //! Automatically unregistered data handles
+    std::unordered_set<starpu_data_handle_t> auto_unreg_data_handles;
+    //! Mutex for data handles
+    std::mutex data_handles_mutex;
 public:
-    explicit Config(int ncpus_=-1, int ncuda_=-1, int cublas_=-1, int logger=0,
-            const char *logger_server_addr="localhost",
-            int logger_server_port=5001, int verbose_=0,
-            int ooc_=0, size_t ooc_size_=1073741824UL, const char *ooc_path_="/tmp/nntile_ooc")
-    {
-        starpu_fxt_autostart_profiling(0);
-        // Init StarPU configuration with default values at first
-        int ret = starpu_conf_init(this);
-        if(ret != 0)
-        {
-            throw std::runtime_error("starpu_conf_init error");
-        }
-        // Set number of workers
-        ncpus = ncpus_;
-#ifdef NNTILE_USE_CUDA
-        ncuda = ncuda_;
-#else // NNTILE_USE_CUDA
-        ncuda = 0;
-#endif // NNTILE_USE_CUDA
-        // Set history-based scheduler to utilize performance models
-        sched_policy_name = "dmda";
-        // Save initial value
-        cublas = cublas_;
-        // Verbosity level
-        verbose = verbose_;
-        // Init StarPU (master-slave)
-        ret = starpu_init(this);
-        if(ret != 0)
-        {
-            throw std::runtime_error("Error in starpu_initialize()");
-        }
-        else
-        {
-            int ncpus_ = starpu_worker_get_count_by_type(STARPU_CPU_WORKER);
-            int ncuda_ = starpu_worker_get_count_by_type(STARPU_CUDA_WORKER);
-            if(verbose > 0)
-            {
-                std::cout << "Initialized NCPU=" << ncpus_ << " NCUDA=" <<
-                    ncuda_ << "\n";
-            }
-        }
-#ifdef NNTILE_USE_CUDA
-        if(cublas != 0)
-        {
-            starpu_cublas_init();
-            if(verbose > 0)
-            {
-                std::cout << "Initialized cuBLAS\n";
-            }
-        }
-#endif // NNTILE_USE_CUDA
-        if(ooc_ != 0)
-        {
-            disk_node_id = starpu_disk_register(&starpu_disk_unistd_ops, (void *) ooc_path_, ooc_size_);
-        }
-        else
-        {
-            disk_node_id = -1;
-        }
+    // Constructor is the default one
+    Config() = default;
 
-        if(logger != 0)
-        {
-            nntile::logger::logger_init(logger_server_addr, logger_server_port);
-        }
-    }
+    //! Proper destructor for the only available configuration object
     ~Config()
     {
+        // It is safe to call shutdown multiple times
         shutdown();
     }
-    void shutdown()
-    {
-        if(nntile::logger::logger_running)
-        {
-            nntile::logger::logger_shutdown();
-        }
-#ifdef NNTILE_USE_CUDA
-        if(cublas != 0)
-        {
-            starpu_cublas_shutdown();
-            if(verbose > 0)
-            {
-                std::cout << "Shutdown cuBLAS\n";
-            }
-        }
-#endif // NNTILE_USE_CUDA
-        starpu_shutdown();
-        if(verbose > 0)
-        {
-            std::cout << "Shutdown StarPU\n";
-        }
-    }
+
+    //! Initialize StarPU and NNTile with the configuration
+    void init(
+        int ncpus=-1,
+        int ncuda=-1,
+        int cublas_=1,
+        int ooc_=0,
+        const char *ooc_path_="/tmp/nntile_ooc",
+        size_t ooc_size_=16777216,
+        int ooc_disk_node_id_=-1,
+        int verbose_=0
+    );
+
+    //! Shutdown StarPU
+    void shutdown();
+
+    //! Initialize StarPU codelets
+    void init_codelets();
+
+    //! Insert a data handle into the container
+    void data_handle_register(starpu_data_handle_t handle);
+
+    //! Pop a data handle from the container
+    /* Tries to pop a data handle from the container of all registered data
+     * handles. If the data is still registered, pops it from the container
+     * and returns True. If the data handle is not registered, checks if it
+     * was automatically unregistered and pops it from the auto-unregistered
+     * container and returns False. Otherwise, throws an error. Return value
+     * indicates if the data handle is still registered.
+     */
+    bool data_handle_pop(starpu_data_handle_t handle);
+
+    //! Unregister a data handle from the container
+    void data_handle_unregister(starpu_data_handle_t handle);
+
+    //! Unregister a data handle without coherency
+    void data_handle_unregister_no_coherency(starpu_data_handle_t handle);
+
+    //! Unregister a data handle in an async manner
+    void data_handle_unregister_submit(starpu_data_handle_t handle);
+
     //! StarPU commute data access mode
     static constexpr starpu_data_access_mode STARPU_RW_COMMUTE
+
     //    = STARPU_RW; // Temporarily disabled commute mode
         = static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE);
+
     // Unpack args by pointers without copying actual data
     template<typename... Ts>
     static
@@ -170,11 +152,13 @@ public:
             unpack_args_ptr_single_arg(cl_args, nargs, args...);
         }
     }
+
     // Unpack with no argument remaining
     static
     void unpack_args_ptr_single_arg(void *cl_args, int nargs)
     {
     }
+
     // Unpack arguments one by one
     template<typename T, typename... Ts>
     static
@@ -198,100 +182,82 @@ public:
     }
 };
 
+//! Global StarPU configuration object
+extern Config config;
+
 // Forward declaration
 class HandleLocalData;
 
-//! StarPU data handle as a shared pointer to its internal state
-//
-// This class takes the ownership of the data handle. That said, it unregisters
-// the data handle automatically at the end of lifetime.
+//! StarPU data handle wrapper
 class Handle
 {
-    // Different deleters for the handle
-    static void _deleter(starpu_data_handle_t ptr)
-    {
-        // Unregister data and bring back result
-        // All the tasks using given starpu data handle shall be finished
-        // before unregistering the handle
-        //std::cerr << "[nntile] unregister\n";
-        starpu_data_unregister(ptr);
-    }
-    static void _deleter_no_coherency(starpu_data_handle_t ptr)
-    {
-        // Unregister data without bringing back result
-        // All the tasks using given starpu data handle shall be finished
-        // before unregistering the handle
-        //std::cerr << "[nntile] unregister_no_coherency\n";
-
-        // async deregister with no blocks in main thread, but without breaking api
-        starpu_data_unregister_submit(ptr);
-    }
-    static void _deleter_temporary(starpu_data_handle_t ptr)
-    {
-        // Lazily unregister data as it is defined as temporary and may still
-        // be in use. This shall only appear in use for data, allocated by
-        // starpu as it will be deallocated during actual unregistering and at
-        // the time of submission.
-        //std::cerr << "[nntile] unregister_submit\n";
-        starpu_data_unregister_submit(ptr);
-    }
-    static std::shared_ptr<_starpu_data_state> _get_shared_ptr(
-            starpu_data_handle_t ptr, starpu_data_access_mode mode)
-    {
-        switch(mode)
-        {
-            case STARPU_R:
-                //std::cerr << "[nntile] register READ\n";
-                return std::shared_ptr<_starpu_data_state>(ptr,
-                        _deleter_no_coherency);
-            case STARPU_RW:
-            case STARPU_W:
-                //std::cerr << "[nntile] register WRITE\n";
-                return std::shared_ptr<_starpu_data_state>(ptr,
-                        _deleter);
-            case STARPU_SCRATCH:
-                //std::cerr << "[nntile] register SCRATCH\n";
-                return std::shared_ptr<_starpu_data_state>(ptr,
-                        _deleter_temporary);
-            default:
-                throw std::runtime_error("Invalid value of mode");
-        }
-    }
 public:
     //! Shared handle itself
-    std::shared_ptr<_starpu_data_state> handle;
+    starpu_data_handle_t handle = nullptr;
     //! Default constructor with nullptr
-    Handle():
-        handle(nullptr)
-    {
-    }
+    Handle() = default;
     //! Constructor with shared pointer
-    explicit Handle(std::shared_ptr<_starpu_data_state> handle_):
+    explicit Handle(starpu_data_handle_t handle_):
         handle(handle_)
     {
-    }
-    //! Constructor owns registered handle and unregisters it when needed
-    explicit Handle(starpu_data_handle_t handle_,
-            starpu_data_access_mode mode):
-        handle(_get_shared_ptr(handle_, mode))
-    {
+        nntile::starpu::config.data_handle_register(handle);
     }
     //! Destructor is virtual as this is a base class
     virtual ~Handle()
     {
     }
-    //! Convert to starpu_data_handle_t (only if explicitly asked)
-    explicit operator starpu_data_handle_t() const
+    //! Get the handle itself
+    starpu_data_handle_t get() const
     {
-        return handle.get();
+        return handle;
+    }
+    //! Set name of the handle
+    void set_name(const char *name)
+    {
+        starpu_data_set_name(handle, name);
     }
     //! Acquire data locally
     HandleLocalData acquire(starpu_data_access_mode mode) const;
-    //! Unregister underlying handle without waiting for destructor
+
+    //! Unregister a data handle normally
     void unregister()
     {
-        handle.reset();
+        // Only unregister if handle is not nullptr
+        if(handle != nullptr)
+        {
+            nntile::starpu::config.data_handle_unregister(handle);
+            handle = nullptr;
+        }
     }
+
+    //! Unregister a data handle without coherency
+    void unregister_no_coherency()
+    {
+        // Only unregister if handle is not nullptr
+        if(handle != nullptr)
+        {
+            nntile::starpu::config.data_handle_unregister_no_coherency(handle);
+            handle = nullptr;
+        }
+    }
+
+    //! Unregister a data handle in an async manner
+    void unregister_submit()
+    {
+        // Only unregister if handle is not nullptr
+        if(handle != nullptr)
+        {
+            nntile::starpu::config.data_handle_unregister_submit(handle);
+            handle = nullptr;
+        }
+    }
+
+    //! Invalidate data handle in an async manner
+    void invalidate_submit() const
+    {
+        starpu_data_invalidate_submit(handle);
+    }
+
     //! Get rank of the MPI node owning the data handle
     int mpi_get_rank() const
     {
@@ -353,7 +319,7 @@ public:
     }
     void acquire(starpu_data_access_mode mode)
     {
-        auto starpu_handle = static_cast<starpu_data_handle_t>(handle);
+        auto starpu_handle = handle.get();
         int status = starpu_data_acquire(starpu_handle, mode);
         if(status != 0)
         {
@@ -369,7 +335,7 @@ public:
             return true;
         }
 
-        auto starpu_handle = static_cast<starpu_data_handle_t>(handle);
+        auto starpu_handle = handle.get();
         int status = starpu_data_acquire_try(starpu_handle, mode);
         if(status != 0)
         {
@@ -383,7 +349,7 @@ public:
 
     void release()
     {
-        starpu_data_release(static_cast<starpu_data_handle_t>(handle));
+        starpu_data_release(handle.get());
         acquired = false;
         ptr = nullptr;
     }
@@ -421,10 +387,18 @@ class VariableHandle: public Handle
     //! Register variable for StarPU-owned memory
     static starpu_data_handle_t _reg_data(size_t size)
     {
+        // Check if StarPU is initialized
+        if(!starpu_is_initialized())
+        {
+            throw std::runtime_error("StarPU is not initialized, cannot register"
+                " data handle");
+        }
+        // Check if size is positive
         if(size == 0)
         {
             throw std::runtime_error("Zero size is not supported");
         }
+        // Register the data handle
         starpu_data_handle_t tmp;
         starpu_variable_data_register(&tmp, -1, 0, size);
         // Disable OOC by default
@@ -434,10 +408,18 @@ class VariableHandle: public Handle
     //! Register variable
     static starpu_data_handle_t _reg_data(void *ptr, size_t size)
     {
+        // Check if StarPU is initialized
+        if(!starpu_is_initialized())
+        {
+            throw std::runtime_error("StarPU is not initialized, cannot register"
+                " data handle");
+        }
+        // Check if size is positive
         if(size == 0)
         {
             throw std::runtime_error("Zero size is not supported");
         }
+        // Register the data handle
         starpu_data_handle_t tmp;
         starpu_variable_data_register(&tmp, STARPU_MAIN_RAM,
                 reinterpret_cast<uintptr_t>(ptr), size);
@@ -447,14 +429,13 @@ class VariableHandle: public Handle
     }
 public:
     //! Constructor for variable that is (de)allocated by StarPU
-    explicit VariableHandle(size_t size, starpu_data_access_mode mode):
-        Handle(_reg_data(size), mode)
+    explicit VariableHandle(size_t size):
+        Handle(_reg_data(size))
     {
     }
     //! Constructor for variable that is (de)allocated by user
-    explicit VariableHandle(void *ptr, size_t size,
-            starpu_data_access_mode mode):
-        Handle(_reg_data(ptr, size), mode)
+    explicit VariableHandle(void *ptr, size_t size):
+        Handle(_reg_data(ptr, size))
     {
     }
 };
@@ -546,5 +527,5 @@ public:
     }
 };
 
-} // namespace config
+} // namespace starpu
 } // namespace nntile

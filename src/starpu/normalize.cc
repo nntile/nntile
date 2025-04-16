@@ -138,9 +138,9 @@ void submit(Index m, Index n, Index k, Index l, Scalar eps, Handle gamma_beta,
     double nflops = 14 * m * n * k;
     // Submit task
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(gamma_beta),
-            STARPU_R, static_cast<starpu_data_handle_t>(sumnorm),
-            STARPU_RW, static_cast<starpu_data_handle_t>(dst),
+            STARPU_R, gamma_beta.get(),
+            STARPU_R, sumnorm.get(),
+            STARPU_RW, dst.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             STARPU_FLOPS, nflops,
             0);

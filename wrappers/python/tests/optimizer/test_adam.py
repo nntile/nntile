@@ -20,13 +20,6 @@ import torch.optim as optim
 import nntile
 
 
-@pytest.fixture(scope='module')
-def starpu():
-    nntile_config = nntile.starpu.Config(1, 0, 0)
-    nntile.starpu.init()
-    yield nntile_config
-
-
 @pytest.mark.xfail(reason='not implemented')
 @pytest.mark.parametrize('dim,num_steps,device,lr', [
     (1000, 100, 'cpu', 1),
@@ -34,20 +27,16 @@ def starpu():
     (1000, 10, 'cpu', 1e-4),
     (1000, 100, 'cpu', 1e-4),
 ])
-def test_adam(starpu, dim, num_steps, device, lr, tol=1e-5):
+def test_adam(starpu_simple, dim, num_steps, device, lr, tol=1e-5):
     torch_param = torch.randn((dim, ), device=device, requires_grad=True,
                               dtype=torch.float32)
-    next_tag = 0
     x_traits = nntile.tensor.TensorTraits([dim], [dim])
     x_distr = [0] * x_traits.grid.nelems
-    x = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
-    next_tag = x.next_tag
+    x = nntile.tensor.Tensor_fp32(x_traits, x_distr)
     x.from_array(torch_param.detach().cpu().numpy())
-    x_grad = nntile.tensor.Tensor_fp32(x_traits, x_distr, next_tag)
-    next_tag = x_grad.next_tag
+    x_grad = nntile.tensor.Tensor_fp32(x_traits, x_distr)
     nntile_param = nntile.tensor.TensorMoments(x, x_grad, True)
-    nntile_optimizer = nntile.optimizer.FusedAdam([nntile_param], lr, next_tag)
-    next_tag = nntile_optimizer.get_next_tag()
+    nntile_optimizer = nntile.optimizer.FusedAdam([nntile_param], lr)
 
     torch_optimizer = optim.Adam([torch_param], lr=lr)
     nntile_param_np = np.zeros((dim,), dtype=np.float32, order="F")

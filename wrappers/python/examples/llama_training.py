@@ -128,12 +128,16 @@ print(model_torch.config)
 
 # Initialize NNTile and StarPU
 time0 = time.time()
-# Set up StarPU+MPI and init codelets
-nntile_config = nntile.starpu.Config(-1, -1, 1, args.logger,
-        args.logger_server_addr, args.logger_server_port)
+nntile.nntile_init(
+    ncpus=-1,
+    ncuda=-1,
+    cublas=1,
+    logger=args.logger,
+    logger_server_addr=args.logger_server_addr,
+    logger_server_port=args.logger_server_port
+)
 nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
-nntile.starpu.init()
 # Restrict computations to CUDA if possible
 if args.restrict == "cuda":
     nntile.starpu.restrict_cuda()
@@ -141,7 +145,6 @@ elif args.restrict == "cpu":
     nntile.starpu.restrict_cpu()
 time1 = time.time() - time0
 print("StarPU + NNTile + MPI init in {} seconds".format(time1))
-next_tag = 0
 
 time0 = time.time()
 if args.n_head_tile == -1:
@@ -175,15 +178,14 @@ pos_ids = np.repeat(single_batch_pos_ids, args.minibatch_size, axis=0)
 
 mask = np.array(np.triu(np.ones((args.seq_len, args.seq_len))),
                     dtype=bool, order="F")
-llama_nntile, next_tag = Llama_nntile.from_torch(model_torch,
-                                                args.minibatch_size,
-                                                args.minibatch_size_tile,
-                                                args.seq_len,
-                                                args.seq_len_tile,
-                                                pos_ids,
-                                                mask,
-                                                llama_config_nntile,
-                                                next_tag)
+llama_nntile = Llama_nntile.from_torch(model_torch,
+                                        args.minibatch_size,
+                                        args.minibatch_size_tile,
+                                        args.seq_len,
+                                        args.seq_len_tile,
+                                        pos_ids,
+                                        mask,
+                                        llama_config_nntile)
 time1 = time.time() - time0
 print("Converting PyTorch model to NNTile",
         "requires {} seconds".format(time1))
@@ -225,12 +227,10 @@ for i in range(num_train_batches):
     minibatch_input = []
     minibatch_output = []
     for j in range(num_minibatch):
-        x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = x.next_tag
+        x = nntile.tensor.Tensor_int64(x_traits, x_distr)
         x.from_array(np.asfortranarray(train_tokens[i, j, :, :-1].T))
         minibatch_input.append(x)
-        y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-        next_tag = y.next_tag
+        y = nntile.tensor.Tensor_int64(x_traits, x_distr)
         y.from_array(np.asfortranarray(train_tokens[i, j, :, 1:].T))
         minibatch_output.append(y)
     batch_input.append(minibatch_input)
@@ -240,17 +240,16 @@ print("From PyTorch loader to NNTile batches in {} seconds".format(time1))
 # Set up learning rate and optimizer for training
 if args.optimizer == "adam":
     optimizer = nntile.optimizer.Adam(llama_nntile.get_parameters(),
-            args.lr, next_tag)
+            args.lr)
 elif args.optimizer == "adamw":
     optimizer = nntile.optimizer.AdamW(llama_nntile.get_parameters(),
-            args.lr, next_tag)
+            args.lr)
 elif args.optimizer == "sgd":
     optimizer = nntile.optimizer.SGD(llama_nntile.get_parameters(),
-            args.lr, next_tag)
-next_tag = optimizer.get_next_tag()
+            args.lr)
 # Define Cross Entropy loss function
-loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
-        llama_nntile.activations[-1], next_tag,
+loss = nntile.loss.CrossEntropy.generate_simple(
+        llama_nntile.activations[-1],
         scale=1.0 / (args.batch_size * args.seq_len))
 # Set up training pipeline
 pipeline = nntile.pipeline.Pipeline(batch_input, batch_output,
@@ -278,9 +277,3 @@ print("NNTile performance (model flops): {} Tflops/s".format(nflops_minibatch
 loss_np = np.zeros((1), dtype=np.float32)
 loss.val.to_array(loss_np)
 print("NNTile loss on the last batch: {}".format(loss_np[0]))
-loss.unregister()
-optimizer.unregister()
-for batch in batch_input + batch_output:
-    for x in batch:
-        x.unregister()
-llama_nntile.unregister()

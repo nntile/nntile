@@ -123,15 +123,18 @@ llama_torch_config._attn_implementation = args.attn_implementation
 if args.use_nntile:
     # Initialize NNTile and StarPU
     time0 = time.time()
-    # Set up StarPU+MPI and init codelets
-    nntile_config = nntile.starpu.Config(-1, -1, 1, args.logger,
-            args.logger_server_addr, args.logger_server_port)
+    nntile.nntile_init(
+        ncpus=-1,
+        ncuda=-1,
+        cublas=1,
+        ooc=0,
+        logger=args.logger,
+        logger_server_addr=args.logger_server_addr,
+        logger_server_port=args.logger_server_port)
     nntile.starpu.profiling_init()
     nntile.starpu.profiling_disable()
-    nntile.starpu.init()
     time1 = time.time() - time0
     print("StarPU + NNTile + MPI init in {} seconds".format(time1))
-    next_tag = 0
 # Restrict computations to CUDA if possible
 if args.restrict == "cuda":
     if args.use_nntile:
@@ -190,9 +193,9 @@ if args.submodule == "mlp":
                     args.minibatch_size_tile]
         x_traits = TensorTraits(x_shape, x_basetile)
         x_distr = [0] * x_traits.grid.nelems
-        x_value = x_type(x_traits, x_distr, 0)
+        x_value = x_type(x_traits, x_distr)
         x_value.from_array(x_nntile)
-        x_grad = x_type(x_traits, x_distr, 0)
+        x_grad = x_type(x_traits, x_distr)
         X = TensorMoments(x_value, x_grad, grad_required=True)
 
         time0 = time.time()
@@ -232,8 +235,8 @@ elif args.submodule == "decoder":
         x_traits = TensorTraits(x_shape, x_basetile)
         x_distr = [0] * x_traits.grid.nelems
         x_type = dtype2nntile[args.dtype]
-        x_value = x_type(x_traits, x_distr, 0)
-        x_grad = x_type(x_traits, x_distr, 0)
+        x_value = x_type(x_traits, x_distr)
+        x_grad = x_type(x_traits, x_distr)
         X = TensorMoments(x_value, x_grad, grad_required=True)
         x_nntile = np.array(x_random, dtype=np.float32, order="F")
         x_value.from_array(x_nntile)
@@ -277,8 +280,8 @@ elif args.submodule == "attention":
         x_traits = TensorTraits(x_shape, x_basetile)
         x_distr = [0] * x_traits.grid.nelems
         x_type = dtype2nntile[args.dtype]
-        x_value = x_type(x_traits, x_distr, 0)
-        x_grad = x_type(x_traits, x_distr, 0)
+        x_value = x_type(x_traits, x_distr)
+        x_grad = x_type(x_traits, x_distr)
         X = TensorMoments(x_value, x_grad, grad_required=True)
         x_nntile = np.array(x_random, dtype=np.float32, order="F")
         x_value.from_array(x_nntile)

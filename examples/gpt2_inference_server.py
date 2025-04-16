@@ -23,8 +23,7 @@ from nntile.inference.llm_async_engine import LlmAsyncInferenceEngine
 from nntile.inference.llm_sync_engine import LlmSyncInferenceEngine
 from nntile.model.gpt2 import GPT2Model as GPT2Model_nnt
 
-starpu_config = nntile.starpu.Config(ncpus_=4, ncuda_=0, cublas_=0)
-nntile.starpu.init()
+nntile.nntile_init(ncpus=4, ncuda=0, cublas=0, ooc=0, logger=0, verbose=0)
 
 logging.basicConfig(level=logging.INFO)
 

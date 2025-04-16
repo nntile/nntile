@@ -141,8 +141,8 @@ def generate_inputs(params: BertTestParams,
 
     x_traits = TensorTraits(x_shape, x_basetile)
     x_distr = [0] * x_traits.grid.nelems
-    x_value = tensor_type(x_traits, x_distr, 0)
-    x_grad = tensor_type(x_traits, x_distr, 0)
+    x_value = tensor_type(x_traits, x_distr)
+    x_grad = tensor_type(x_traits, x_distr)
     X = TensorMoments(x_value, x_grad, True)
 
     input_tensor_shape = [params.hidden_size,
@@ -155,20 +155,20 @@ def generate_inputs(params: BertTestParams,
                                         input_tensor_basetile)
     input_tensor_distr = [0] * input_tensor_traits.grid.nelems
     input_tensor_value = tensor_type(input_tensor_traits,
-                                        input_tensor_distr, 0)
+                                        input_tensor_distr)
     input_tensor_grad = tensor_type(input_tensor_traits,
-                                    input_tensor_distr, 0)
+                                    input_tensor_distr)
     input_tensor_nntile = TensorMoments(input_tensor_value,
                                         input_tensor_grad,
                                         True)
 
-    nntile_model, _ = BertSelfOutputNNTile.from_torch(
+    nntile_model = BertSelfOutputNNTile.from_torch(
             torch_model,
             X,
             input_tensor_nntile,
             params.hidden_size,
             params.hidden_size_tile,
-            nntile_config, 0)
+            nntile_config)
     nntile_model.clear_gradients()
     x_random = gen.standard_normal((params.n_head,
                                     head_size,

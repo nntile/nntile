@@ -12,67 +12,84 @@
  * @version 1.1.0
  * */
 
+#include <iostream>
 #include "nntile/config.hh"
-#include "nntile/defs.h"
+#include "nntile/logger.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile
 {
 
-//! Initialize entire software stack for the NNTile
-void Config::init(int &argc, char **&argv)
+void Config::init(int ncpu,
+        int ncuda,
+        int cublas,
+        int ooc,
+        const char *ooc_path,
+        size_t ooc_size,
+        int ooc_disk_node_id,
+        int logger,
+        const char *logger_server_addr,
+        int logger_server_port,
+        int verbose)
 {
-    // At first initialize StarPU with MPI and cuBLAS support
-    int ret;
-    ret = starpu_conf_init(this);
-    if(ret != STARPU_SUCCESS)
+    // Set verbose level
+    this->verbose = verbose;
+
+    // Initialize StarPU
+    starpu::config.init(ncpu, ncuda, cublas, ooc, ooc_path, ooc_size,
+            ooc_disk_node_id, verbose);
+
+    // Initialize logger if enabled
+    this->logger = logger;
+    if(logger)
     {
-        throw std::runtime_error("Error in starpu_conf_init()");
+        this->logger_server_addr = logger_server_addr;
+        this->logger_server_port = logger_server_port;
+        nntile::logger::logger_init(logger_server_addr, logger_server_port);
+        if(verbose > 0)
+        {
+            std::cout << "Initialized logger\n";
+        }
     }
-    ret = starpu_initialize(&argc, &argv, this);
-    if(ret != STARPU_SUCCESS)
+
+    // Finally, mark the configuration as initialized
+    initialized = true;
+    if(verbose > 0)
     {
-        throw std::runtime_error("Error in starpu_initalize()");
+        std::cout << "Finished initialization of NNTile\n";
     }
-    ret = starpu_mpi_init_conf(&argc, &argv, 1, MPI_COMM_WORLD, this);
-    if(ret != STARPU_SUCCESS)
-    {
-        throw std::runtime_error("Error in starpu_mpi_init_conf()");
-    }
-#ifdef NNTILE_USE_CUDA
-    ret = starpu_cublas_init();
-    if(ret != STARPU_SUCCESS)
-    {
-        throw std::runtime_error("Error in starpu_cublas_init()");
-    }
-#endif
-    // Initialize all codelets
-    bias_init();
 }
 
-//! Finalize entire software stack
 void Config::shutdown()
 {
-    // One by one shutdown cuBLAS, MPI and StarPU
-    int ret;
-#ifdef NNTILE_USE_CUDA
-    ret = starpu_cublas_shutdown();
-    if(ret != STARPU_SUCCESS)
+    // Ignore if not initialized
+    if(!initialized)
     {
-        throw std::runtime_error("Error in starpu_cublas_shutdown()");
+        return;
     }
-#endif
-    ret = starpu_mpi_shutdown();
-    if(ret != STARPU_SUCCESS)
+
+    // Shutdown logger if enabled
+    if(nntile::logger::logger_running)
     {
-        throw std::runtime_error("Error in starpu_mpi_shutdown()");
+        nntile::logger::logger_shutdown();
+        if(verbose > 0)
+        {
+            std::cout << "Shutdown logger\n";
+        }
     }
-    ret = starpu_shutdown();
-    if(ret != STARPU_SUCCESS)
+
+    // Shutdown StarPU
+    starpu::config.shutdown();
+
+    // Finally, mark the configuration as uninitialized
+    initialized = false;
+    if(verbose > 0)
     {
-        throw std::runtime_error("Error in starpu_shutdown()");
+        std::cout << "Finished shutdown of NNTile\n";
     }
 }
 
+//! Global NNTile configuration object
 Config config;
 
 } // namespace nntile

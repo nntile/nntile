@@ -30,7 +30,6 @@ from .llama_mlp import LlamaMLP as LlamaMLP_nntile
 
 
 class LlamaDecoder(BaseModel):
-    next_tag: int
     llama_mlp: LlamaMLP_nntile
     input_norm: RMSNorm
     post_attn_norm: RMSNorm
@@ -84,38 +83,35 @@ class LlamaDecoder(BaseModel):
         torch_llama_decoder, x: TensorMoments,
         position_ids: np.ndarray,
         mask: np.ndarray,
-        config: LlamaConfigNNTile, next_tag: int):
+        config: LlamaConfigNNTile):
         """
         torch_llama_decoder is HF module for LlamaDecoder block
         """
-        rms_norm_input_layer, next_tag = RMSNorm.from_torch(
+        rms_norm_input_layer = RMSNorm.from_torch(
             torch_llama_decoder.input_layernorm, x,
             0, config.rms_norm_eps,
-            next_tag, config.redux)
-        attention_layer, next_tag = LlamaAttention.from_torch(
+            config.redux)
+        attention_layer = LlamaAttention.from_torch(
             torch_llama_decoder.self_attn,
             rms_norm_input_layer.activations_output[0],
             position_ids,
             mask,
-            config,
-            next_tag)
-        post_attn_add, next_tag = Add.generate_simple(
-            x, attention_layer.activations_output[0],
-            next_tag)
+            config)
+        post_attn_add = Add.generate_simple(
+            x, attention_layer.activations_output[0])
 
-        rms_norm_post_attn_layer, next_tag = RMSNorm.from_torch(
+        rms_norm_post_attn_layer = RMSNorm.from_torch(
             torch_llama_decoder.post_attention_layernorm,
             post_attn_add.activations_output[0],
             0, config.rms_norm_eps,
-            next_tag, config.redux)
-        llama_mlp_module, next_tag = LlamaMLP_nntile.from_torch(
+            config.redux)
+        llama_mlp_module = LlamaMLP_nntile.from_torch(
             torch_llama_decoder.mlp,
             rms_norm_post_attn_layer.activations_output[0],
-            config, next_tag)
-        post_mlp_add, next_tag = Add.generate_simple(
+            config)
+        post_mlp_add = Add.generate_simple(
             llama_mlp_module.activations[-1],
-            post_attn_add.activations_output[0],
-            next_tag)
+            post_attn_add.activations_output[0])
 
         nntile_llama_decoder = LlamaDecoder(x, attention_layer,
                                             llama_mlp_module,
@@ -125,7 +121,7 @@ class LlamaDecoder(BaseModel):
                                             post_mlp_add,
                                             config)
 
-        return nntile_llama_decoder, next_tag
+        return nntile_llama_decoder
 
     def to_torch(self):
         config_torch = LlamaConfig_torch(

@@ -30,19 +30,17 @@ class FP32_to_FP16(BaseLayer):
 
     # Simple generator for the conversion layer
     @staticmethod
-    def generate_simple(x: TensorMoments, next_tag: int):
+    def generate_simple(x: TensorMoments):
         # Get traits of X
         x_traits = TensorTraits(x.value.shape, x.value.basetile_shape)
         # Create Y with the same traits and distribution as X
-        y_value = Tensor_fp16(x_traits, x.value.distribution, next_tag)
-        next_tag = y_value.next_tag
-        y_grad = Tensor_fp16(x_traits, x.value.distribution, next_tag)
-        next_tag = y_grad.next_tag
+        y_value = Tensor_fp16(x_traits, x.value.distribution)
+        y_grad = Tensor_fp16(x_traits, x.value.distribution)
         y = TensorMoments(y_value, y_grad, True)
         # Create activation layer with all the provided tensors
         layer = FP32_to_FP16(x, y)
-        # Return layer and next tag to be used
-        return (layer, next_tag)
+        # Return layer
+        return layer
 
     # Forward propagation of the activation layer
     def forward_async(self):

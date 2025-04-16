@@ -116,8 +116,8 @@ def generate_inputs(dtype: str, params: BertAttentionTestParams):
 
     x_q_traits = TensorTraits(x_shape, x_basetile)
     x_q_distr = [0] * x_q_traits.grid.nelems
-    x_value = x_type(x_q_traits, x_q_distr, 0)
-    x_grad = x_type(x_q_traits, x_q_distr, 0)
+    x_value = x_type(x_q_traits, x_q_distr)
+    x_grad = x_type(x_q_traits, x_q_distr)
     X = TensorMoments(x_value, x_grad, grad_required=True)
 
     x_random = rng.standard_normal(x_shape)
@@ -125,8 +125,8 @@ def generate_inputs(dtype: str, params: BertAttentionTestParams):
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_(True)
-    nntile_layer, _ = BertAttentionNNTile.from_torch(
-            torch_layer, X, nntile_config, 0
+    nntile_layer = BertAttentionNNTile.from_torch(
+            torch_layer, X, nntile_config
     )
     nntile_layer.clear_gradients()
     y_grad_random = rng.standard_normal((params.n_emb,

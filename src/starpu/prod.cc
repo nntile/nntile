@@ -129,9 +129,9 @@ void submit(Index nelems, Handle src1, Handle src2, Handle dst)
     // Put amount of read-write bytes into flop count
     double nflops = sizeof(T) * 3 * nelems;
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(src1),
-            STARPU_R, static_cast<starpu_data_handle_t>(src2),
-            STARPU_W, static_cast<starpu_data_handle_t>(dst),
+            STARPU_R, src1.get(),
+            STARPU_R, src2.get(),
+            STARPU_W, dst.get(),
             STARPU_CL_ARGS, nelems_, sizeof(*nelems_),
             STARPU_FLOPS, nflops,
             0);

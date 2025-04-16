@@ -22,8 +22,14 @@ from nntile.model.generation.llm_params import (
     GenerationMode, GenerationParams, ParallelSamplingMode)
 from nntile.model.gpt2 import GPT2Model as GPT2Model_nnt
 
-starpu_config = nntile.starpu.Config(ncpus_=4, ncuda_=1, cublas_=1)
-nntile.starpu.init()
+nntile.nntile_init(
+    ncpus=4,
+    ncuda=1,
+    cublas=1,
+    ooc=0,
+    logger=0,
+    verbose=0,
+)
 
 
 def parse_args():

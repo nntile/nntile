@@ -30,7 +30,6 @@ from .llama_decoder import LlamaDecoder
 
 
 class Llama(BaseModel):
-    next_tag: int
     embd_layer: Embedding
     final_rmsnorm: RMSNorm
     list_decoder: List[LlamaDecoder]
@@ -40,8 +39,7 @@ class Llama(BaseModel):
                  emb_layer_: Embedding,
                  decoders: List[LlamaDecoder],
                  rms_norm_layer: RMSNorm,
-                 config: LlamaConfigNNTile,
-                 ):
+                 config: LlamaConfigNNTile):
         self.dtype = config.dtype
 
         self.config = config
@@ -96,8 +94,7 @@ class Llama(BaseModel):
                    seq_len, seq_len_tile,
                    position_ids: np.ndarray,
                    mask: np.ndarray,
-                   config: LlamaConfigNNTile,
-                   next_tag: int):
+                   config: LlamaConfigNNTile):
 
         if config.dtype not in ["fp32", "fp32_fast_tf32", "bf16"]:
             raise TypeError("Only fp32, fp32_fast_tf32 and bf16 are"
@@ -107,7 +104,7 @@ class Llama(BaseModel):
         x_basetile = [seq_len_tile, batch_size_tile]
         x_traits = TensorTraits(x_shape, x_basetile)
         x_distr = [0] * x_traits.grid.nelems
-        x_value = Tensor_int64(x_traits, x_distr, 0)
+        x_value = Tensor_int64(x_traits, x_distr)
 
         dtype2tensor_type = {"fp32": Tensor_fp32,
                              "bf16": Tensor_bf16,
@@ -116,30 +113,29 @@ class Llama(BaseModel):
 
         tensor_type = dtype2tensor_type[config.dtype]
 
-        embed_layer, next_tag = Embedding.generate_simple(
+        embed_layer = Embedding.generate_simple(
                                     x_value, tensor_type, 0,
                                     config.vocab_size,
                                     config.hidden_size,
                                     config.hidden_size_tile,
-                                    config.hidden_size_tile,
-                                    next_tag)
+                                    config.hidden_size_tile)
 
         embed_layer.w.value.from_array(torch_llama.embed_tokens.weight.cpu().detach().numpy().T)
         U = embed_layer.activations_output[0]
         decoders_list = []
 
         for decoder_llama_torch in torch_llama.layers:
-            decoder_nntile_layer, next_tag = LlamaDecoder.from_torch(
-                decoder_llama_torch, U, position_ids, mask, config, next_tag)
+            decoder_nntile_layer = LlamaDecoder.from_torch(
+                decoder_llama_torch, U, position_ids, mask, config)
             U = decoder_nntile_layer.activations[-1]
             decoders_list.append(decoder_nntile_layer)
 
-        rms_norm_final, next_tag = RMSNorm.from_torch(
+        rms_norm_final = RMSNorm.from_torch(
                                     torch_llama.norm,
                                     decoders_list[-1].activations[-1],
                                     0,
                                     config.rms_norm_eps,
-                                    next_tag, config.redux)
+                                    config.redux)
         X = TensorMoments(x_value, None, False)
         llama_nntile = Llama(X,
                              embed_layer,
@@ -147,7 +143,7 @@ class Llama(BaseModel):
                              rms_norm_final,
                              config)
 
-        return llama_nntile, next_tag
+        return llama_nntile
 
     def to_torch(self):
         config_torch = LlamaConfig_torch(

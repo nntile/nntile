@@ -178,10 +178,10 @@ void submit(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2, Scala
         moments_mode = STARPU_RW;
     }
     int ret = starpu_task_insert(codelet<T>(),
-            STARPU_R, static_cast<starpu_data_handle_t>(grad),
-            moments_mode, static_cast<starpu_data_handle_t>(first_moment),
-            moments_mode, static_cast<starpu_data_handle_t>(second_moment),
-            STARPU_RW, static_cast<starpu_data_handle_t>(p),
+            STARPU_R, grad.get(),
+            moments_mode, first_moment.get(),
+            moments_mode, second_moment.get(),
+            STARPU_RW, p.get(),
             STARPU_CL_ARGS, args, sizeof(*args),
             0);
     // Check submission

@@ -18,9 +18,7 @@ import torch
 import nntile
 
 # Set up StarPU configuration and init it
-config = nntile.starpu.Config(1, 0, 0)
-# Init all NNTile-StarPU codelets
-nntile.starpu.init()
+nntile.nntile_init(ncpus=1, ncuda=0, cublas=0, ooc=0, logger=0, verbose=0)
 # Define list of tested types
 dtypes = [np.float32, np.float64]
 # Define mapping between numpy and nntile types
@@ -79,36 +77,33 @@ def test_conv2d(
     # Pass test with unappropriate shapes
     if shape_Y[0] <= 0 or shape_Y[1] <= 0:
         return
-    next_tag = 0
 
     shape = [*shape_X, in_channels, batch]
     tile_shape = [*shape_X_tile, in_channels, batch_tile]
     traits = nntile.tensor.TensorTraits(shape, tile_shape)
     mpi_distr = [0] * traits.grid.nelems
-    X = Tensor[dtype](traits, mpi_distr, next_tag)
+    X = Tensor[dtype](traits, mpi_distr)
     src_X = np.array(
             numpy_rng.standard_normal(shape, dtype=dtype),
             dtype=dtype,
             order="F"
     )
-    next_tag = X.next_tag
 
     shape = [*shape_W, in_channels, out_channels]
     traits = nntile.tensor.TensorTraits(shape, shape)
     mpi_distr = [0] * traits.grid.nelems
-    W = Tensor[dtype](traits, mpi_distr, next_tag)
+    W = Tensor[dtype](traits, mpi_distr)
     src_W = np.array(
             numpy_rng.standard_normal(shape, dtype=dtype),
             dtype=dtype,
             order="F"
     )
-    next_tag = W.next_tag
 
     shape = shape_Y
     tile_shape = [*shape_Y_tile, out_channels, batch_tile]
     traits = nntile.tensor.TensorTraits(shape, tile_shape)
     mpi_distr = [0] * traits.grid.nelems
-    Y = Tensor[dtype](traits, mpi_distr, next_tag)
+    Y = Tensor[dtype](traits, mpi_distr)
     src_Y = np.array(
             numpy_rng.standard_normal(shape, dtype=dtype),
             dtype=dtype,
