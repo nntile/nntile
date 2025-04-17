@@ -106,7 +106,11 @@ class T5Block(BaseModel):
             layers.extend(cross_attention.layers)
         layers.extend(feed_forward.layers)
 
-        activations = attention.activations
+        if self.is_decoder:
+            activations = [x, cross_attention.activations[0]]
+        else:
+            activations = [x]
+        activations.extend(attention.activations[1:])
         if cross_attention is not None:
             activations.extend(cross_attention.activations[1:])
         activations.extend(feed_forward.activations[1:])
