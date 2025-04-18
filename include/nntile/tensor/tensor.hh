@@ -47,14 +47,22 @@ public:
     //! Constructor
     explicit Tensor(
             const TensorTraits &traits,
-            const std::vector<int> &distribution,
+            const std::vector<int> &distribution = std::vector<int>(),
             const char *name = nullptr
         ):
         TensorTraits(traits),
         tile_distr(distribution)
     {
+        // Check if distribution is empty
+        if(tile_distr.size() == 0)
+        {
+            // Define it as a vector of zeros for now. In far future, when we
+            // will have MPI support, we will need to use certain distribution
+            // strategy
+            tile_distr = std::vector<int>(grid.nelems, 0);
+        }
         // Check distribution
-        if(distribution.size() != grid.nelems)
+        if(tile_distr.size() != grid.nelems)
         {
             throw std::runtime_error("Wrong distribution");
         }

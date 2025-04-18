@@ -400,7 +400,7 @@ set(LOGGER_SRC
     "logger/websocket_client.cc"
     )
 
-set(SRC "config.cc" ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC}
+set(SRC "context.cc" ${KERNEL_SRC} ${STARPU_SRC} ${TILE_SRC} ${TENSOR_SRC}
     ${LOGGER_SRC})
     #${LAYER_SRC} ${MODEL_SRC} ${OPTIMIZER_SRC})
 

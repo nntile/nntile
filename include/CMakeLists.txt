@@ -16,7 +16,7 @@ set(BASE_HDR
     "nntile.hh"
     "nntile/base_types.hh"
     "nntile/constants.hh"
-    "nntile/config.hh"
+    "nntile/context.hh"
     )
 
 set(KERNEL_HDR
