@@ -1322,29 +1322,22 @@ void def_mod_tensor(py::module_ &m)
 // Main extension module with all wrappers
 PYBIND11_MODULE(nntile_core, m)
 {
-    // Add NNTile initialization function
-    m.def("nntile_init", [](int ncpus, int ncuda, int cublas, int ooc,
-            const char *ooc_path, int ooc_size, int ooc_disk_node_id,
-            int logger, const char *logger_server_addr, int logger_server_port,
-            int verbose)
-        {
-            nntile::config.init(ncpus, ncuda, cublas, ooc, ooc_path, ooc_size,
-                ooc_disk_node_id, logger, logger_server_addr, logger_server_port,
-                verbose);
-        },
-        py::arg("ncpus")=0,
-        py::arg("ncuda")=0,
-        py::arg("cublas")=1,
-        py::arg("ooc")=0,
-        py::arg("ooc_path")="/tmp/nntile_ooc",
-        py::arg("ooc_size")=16777216,
-        py::arg("ooc_disk_node_id")=-1,
-        py::arg("logger")=0,
-        py::arg("logger_server_addr")="",
-        py::arg("logger_server_port")=5001,
-        py::arg("verbose")=0);
-    // Add NNTile shutdown function
-    m.def("nntile_shutdown", []{nntile::config.shutdown();});
+    // Add NNTile configuration class
+    py::class_<nntile::Config>(m, "Config")
+        .def(
+            py::init<int, int, int, int, const char *, size_t, int,
+                const char *, int, int>(),
+            py::arg("ncpus")=-1,
+            py::arg("ncuda")=-1,
+            py::arg("cublas")=1,
+            py::arg("ooc")=0,
+            py::arg("ooc_path")="/tmp/nntile_ooc",
+            py::arg("ooc_size")=16777216,
+            py::arg("logger")=0,
+            py::arg("logger_server_addr")="",
+            py::arg("logger_server_port")=5001,
+            py::arg("verbose")=0)
+        .def("shutdown", &nntile::Config::shutdown);
     // Add starpu submodule
     auto starpu = m.def_submodule("starpu");
     def_mod_starpu(starpu);

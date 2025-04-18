@@ -28,9 +28,9 @@ class Add(BaseLayer):
     @staticmethod
     def generate_simple(x: TensorMoments, y: TensorMoments):
         res_traits = TensorTraits(y.value.shape, y.value.basetile_shape)
-        res_distr = [0] * res_traits.grid.nelems
-        res_value = type(y.value)(res_traits, res_distr)
-        res_grad = type(y.value)(res_traits, res_distr)
+        # Create result tensor with the same distribution as y
+        res_value = type(y.value)(res_traits, y.value.distribution)
+        res_grad = type(y.value)(res_traits, y.value.distribution)
         res = TensorMoments(res_value, res_grad, True)
         return Add(x, y, res)
 

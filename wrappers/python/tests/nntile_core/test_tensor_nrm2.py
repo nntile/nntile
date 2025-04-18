@@ -32,14 +32,13 @@ def test_nrm2(dtype):
     # Describe single-tile tensor, located at node 0
     shape = [2, 3, 4]
     ndim = len(shape)
-    mpi_distr = [0]
     A_traits = nntile.tensor.TensorTraits(shape, shape)
     B_traits = nntile.tensor.TensorTraits([], [])
     tmp_traits = nntile.tensor.TensorTraits([1] * ndim, [1] * ndim)
     # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr)
-    B = Tensor[dtype](B_traits, mpi_distr)
-    tmp = Tensor[dtype](tmp_traits, mpi_distr)
+    A = Tensor[dtype](A_traits)
+    B = Tensor[dtype](B_traits)
+    tmp = Tensor[dtype](tmp_traits)
     # Set initial values of tensors
     rand_A = np.random.default_rng(42).standard_normal(shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')

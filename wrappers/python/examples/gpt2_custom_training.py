@@ -376,15 +376,14 @@ batch_output = []
 x_traits = nntile.tensor.TensorTraits(
     [config.n_positions, args.minibatch], [args.seq_tile, args.minibatch_tile]
 )
-x_distr = [0] * x_traits.grid.nelems
 for i in range(num_train_batches):
     minibatch_input = []
     minibatch_output = []
     for j in range(num_minibatch):
-        x = nntile.tensor.Tensor_int64(x_traits, x_distr)
+        x = nntile.tensor.Tensor_int64(x_traits)
         x.from_array(np.asfortranarray(train_tokens[i, j, :, :-1].T))
         minibatch_input.append(x)
-        y = nntile.tensor.Tensor_int64(x_traits, x_distr)
+        y = nntile.tensor.Tensor_int64(x_traits)
         y.from_array(np.asfortranarray(train_tokens[i, j, :, 1:].T))
         minibatch_output.append(y)
     batch_input.append(minibatch_input)

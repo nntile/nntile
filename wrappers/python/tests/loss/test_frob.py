@@ -40,10 +40,9 @@ def test_frob(dtype: np.dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [4, 5, 6]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
-    mpi_distr = [0]
     # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr)
-    A_grad = Tensor[dtype](A_traits, mpi_distr)
+    A = Tensor[dtype](A_traits)
+    A_grad = Tensor[dtype](A_traits)
     A_moments = nntile.tensor.TensorMoments(A, A_grad, True)
     # Set initial values of tensors
     rand_A = rng.standard_normal(A_shape)

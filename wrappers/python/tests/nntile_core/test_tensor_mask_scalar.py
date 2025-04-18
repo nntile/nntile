@@ -33,12 +33,11 @@ mask_scalar_func = {np.float32: nntile.nntile_core.tensor.mask_scalar_fp32,
 def test_mask_scalar(dtype):
     # Describe single-tile tensor, located at node 0
     shape = [3, 3, 10]
-    mpi_distr = [0]
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr)
+    A = Tensor[dtype](traits)
     mask_traits = nntile.tensor.TensorTraits(shape[:2], shape[:2])
-    mask = Tensor[bool](mask_traits, mpi_distr)
+    mask = Tensor[bool](mask_traits)
     # Set initial values of tensors
     rand_A = np.random.default_rng(42).standard_normal(shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')

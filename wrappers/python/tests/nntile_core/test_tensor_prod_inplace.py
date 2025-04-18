@@ -32,11 +32,10 @@ prod_inplace = {np.float32: nntile.nntile_core.tensor.prod_inplace_fp32,
 def test_prod_inplace(dtype):
     # Describe single-tile tensor, located at node 0
     shape = [2, 3, 4]
-    mpi_distr = [0]
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr)
-    B = Tensor[dtype](traits, mpi_distr)
+    A = Tensor[dtype](traits)
+    B = Tensor[dtype](traits)
     # Set initial values of tensors
     rng = np.random.default_rng(42)
     rand_A = rng.standard_normal(shape)

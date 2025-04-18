@@ -192,10 +192,9 @@ if args.submodule == "mlp":
                     args.seq_len_tile,
                     args.minibatch_size_tile]
         x_traits = TensorTraits(x_shape, x_basetile)
-        x_distr = [0] * x_traits.grid.nelems
-        x_value = x_type(x_traits, x_distr)
+        x_value = x_type(x_traits)
         x_value.from_array(x_nntile)
-        x_grad = x_type(x_traits, x_distr)
+        x_grad = x_type(x_traits)
         X = TensorMoments(x_value, x_grad, grad_required=True)
 
         time0 = time.time()
@@ -233,10 +232,9 @@ elif args.submodule == "decoder":
                     args.seq_len_tile,
                     args.minibatch_size_tile]
         x_traits = TensorTraits(x_shape, x_basetile)
-        x_distr = [0] * x_traits.grid.nelems
         x_type = dtype2nntile[args.dtype]
-        x_value = x_type(x_traits, x_distr)
-        x_grad = x_type(x_traits, x_distr)
+        x_value = x_type(x_traits)
+        x_grad = x_type(x_traits)
         X = TensorMoments(x_value, x_grad, grad_required=True)
         x_nntile = np.array(x_random, dtype=np.float32, order="F")
         x_value.from_array(x_nntile)
@@ -278,10 +276,9 @@ elif args.submodule == "attention":
                     args.seq_len_tile,
                     args.minibatch_size_tile]
         x_traits = TensorTraits(x_shape, x_basetile)
-        x_distr = [0] * x_traits.grid.nelems
         x_type = dtype2nntile[args.dtype]
-        x_value = x_type(x_traits, x_distr)
-        x_grad = x_type(x_traits, x_distr)
+        x_value = x_type(x_traits)
+        x_grad = x_type(x_traits)
         X = TensorMoments(x_value, x_grad, grad_required=True)
         x_nntile = np.array(x_random, dtype=np.float32, order="F")
         x_value.from_array(x_nntile)

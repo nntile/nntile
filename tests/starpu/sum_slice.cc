@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/starpu/config.hh"
 #include "nntile/starpu/sum_slice.hh"
 #include "nntile/kernel/sum_slice.hh"
 #include "../testing.hh"
@@ -47,9 +48,8 @@ void validate_cpu(Index m, Index n, Index k, Scalar alpha, Scalar beta)
     std::cout << "Run kernel::sum_slice::cpu<" << T::type_repr << ">\n";
     kernel::sum_slice::cpu<T>(m, n, k, alpha, &src[0], beta, &sum_dst[0]);
     // Check by actually submitting a task
-    VariableHandle src_handle(&src[0], sizeof(T)*m*n*k, STARPU_R),
-        sum_dst2_handle(&sum_dst2[0], sizeof(T)*m*n, STARPU_RW);
-    sum_slice::restrict_where(STARPU_CPU);
+    VariableHandle src_handle(&src[0], sizeof(T)*m*n*k),
+        sum_dst2_handle(&sum_dst2[0], sizeof(T)*m*n);
     std::cout << "Run starpu::sum_slice::submit<" << T::type_repr << "> restricted to CPU\n";
     sum_slice::submit<T>(m, n, k, alpha, src_handle, beta, sum_dst2_handle);
     starpu_task_wait_for_all();
@@ -64,10 +64,14 @@ void validate_cpu(Index m, Index n, Index k, Scalar alpha, Scalar beta)
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    Config starpu(1, 1, 0);
-    // Init codelet
-    sum_slice::init();
+    // Initialize StarPU (it will automatically shutdown itself on exit)
+    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto config = starpu::Config(
+        ncpus, ncuda, cublas, ooc, ooc_path, ooc_size, ooc_disk_node_id, verbose
+    );
+
     // Launch all tests
     validate_cpu<fp32_t>(3, 5, 7, 1.0, -1.0);
     validate_cpu<fp32_t>(3, 5, 7, 2.0, 0.0);
@@ -75,5 +79,6 @@ int main(int argc, char **argv)
     validate_cpu<fp64_t>(3, 5, 7, 1.0, -1.0);
     validate_cpu<fp64_t>(3, 5, 7, 2.0, 0.0);
     validate_cpu<fp64_t>(3, 5, 7, 0.0, 1.0);
+
     return 0;
 }

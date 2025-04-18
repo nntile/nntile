@@ -32,13 +32,12 @@ def test_gemm(dtype):
     # Describe single-tile tensor, located at node 0
     matrix_shape = [2, 2]
     batch = 3
-    mpi_distr = [0]
     shape = [*matrix_shape, batch]
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr)
-    B = Tensor[dtype](traits, mpi_distr)
-    C = Tensor[dtype](traits, mpi_distr)
+    A = Tensor[dtype](traits)
+    B = Tensor[dtype](traits)
+    C = Tensor[dtype](traits)
     # Set initial values of tensors
     rng = np.random.default_rng(42)
     src_A = rng.standard_normal(shape).astype(dtype, 'F')

@@ -31,12 +31,11 @@ add_scalar = {np.float32: nntile.nntile_core.tensor.add_scalar_fp32,
 def test_add_scalar(dtype):
     # Describe single-tile tensor, located at node 0
     shape = [2, 3, 4]
-    mpi_distr = [0]
     alpha = 10.
     beta = -5.5
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr)
+    A = Tensor[dtype](traits)
     # Set initial values of tensors
     rand_A = np.random.default_rng(42).standard_normal(shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')

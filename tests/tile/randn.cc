@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/starpu/config.hh"
 #include "nntile/tile/randn.hh"
 #include "nntile/starpu/randn.hh"
 #include "../testing.hh"
@@ -29,7 +30,7 @@ void validate()
     unsigned long long seed = -1;
     Scalar mean = 1, stddev = 2;
     // Check some valid parameters
-    starpu::VariableHandle tmp_index(sizeof(nntile::int64_t)*2*3, STARPU_R);
+    starpu::VariableHandle tmp_index(sizeof(nntile::int64_t)*2*3);
     starpu::randn::submit<T>(3, dst.nelems, seed, mean, stddev, start,
         dst.shape, dst.stride, underlying_shape, dst, tmp_index);
     randn(dst2, start, underlying_shape, seed, mean, stddev);
@@ -64,13 +65,18 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::randn::init();
-    starpu::randn::restrict_where(STARPU_CPU);
+    // Initialize StarPU
+    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    starpu::config.init(ncpus, ncuda, cublas, ooc, ooc_path, ooc_size,
+        ooc_disk_node_id, verbose);
+
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();
+
+    // Shutdown StarPU
+    starpu::config.shutdown();
     return 0;
 }

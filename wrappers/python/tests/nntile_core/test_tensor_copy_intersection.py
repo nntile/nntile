@@ -38,11 +38,9 @@ def test_clear(dtype):
     B_offset = [7, 10, 13]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     B_traits = nntile.tensor.TensorTraits(B_shape, B_shape)
-    A_distr = [0]
-    B_distr = [0]
     # Tensor objects
-    A = Tensor[dtype](A_traits, A_distr)
-    B = Tensor[dtype](B_traits, B_distr)
+    A = Tensor[dtype](A_traits)
+    B = Tensor[dtype](B_traits)
     # Set initial values of tensors
 
     rng = np.random.default_rng(42)

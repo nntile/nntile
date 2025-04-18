@@ -32,11 +32,10 @@ axpy = {np.float32: nntile.nntile_core.tensor.axpy_fp32,
 def test_axpy(dtype, scalar_type: str):
     # Describe single-tile tensor, located at node 0
     shape = [2, 3, 4]
-    mpi_distr = [0]
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr)
-    B = Tensor[dtype](traits, mpi_distr)
+    A = Tensor[dtype](traits)
+    B = Tensor[dtype](traits)
 
     # Set initial values of tensors
     rng = np.random.default_rng(42)
@@ -51,7 +50,7 @@ def test_axpy(dtype, scalar_type: str):
         case 'nntile':
             const_traits = nntile.tensor.TensorTraits([], [])
             alpha_np = rng.standard_normal(1).astype(dtype, 'F')
-            alpha = Tensor[dtype](const_traits, mpi_distr)
+            alpha = Tensor[dtype](const_traits)
             alpha.from_array(alpha_np)
         case 'numpy':
             alpha_np = dtype(rng.standard_normal())

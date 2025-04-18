@@ -24,21 +24,17 @@ int main(int argc, char **argv)
 {
     // Initialize StarPU and MPI
     //starpu_fxt_autostart_profiling(0);
-    starpu::Config starpu(1, 0, 0);
+    nntile::config.init(1, 0, 0);
     starpu_fxt_stop_profiling();
-    starpu::init();
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     std::vector<int> mpi_grid = {2, 1};
-    int mpi_root = 0;
-    starpu_mpi_tag_t last_tag = 0;
     // Setup MNIST dataset for training
     Index n_pixels = 28 * 28; // MNIST contains 28x28 images
     Index n_images = 10000; // MNIST train contains 60k images
     tensor::TensorTraits mnist_single_traits({n_pixels, n_images},
             {n_pixels, n_images});
-    std::vector<int> distr_root = {mpi_root};
-    tensor::Tensor<T> mnist_single(mnist_single_traits, distr_root, last_tag);
+    tensor::Tensor<T> mnist_single(mnist_single_traits);
     if(mpi_rank == mpi_root)
     {
         // Read MNIST as byte-sized unsigned integers [0..255]
@@ -72,9 +68,7 @@ int main(int argc, char **argv)
     Index n_images_tile = 1024;
     tensor::TensorTraits mnist_traits({n_pixels, n_images},
             {n_pixels_tile, n_images_tile});
-    std::vector<int> mnist_distr = tensor::distributions::block_cyclic(
-            mnist_traits.grid.shape, mpi_grid, 0, mpi_size);
-    tensor::Tensor<T> mnist(mnist_traits, mnist_distr, last_tag);
+    tensor::Tensor<T> mnist(mnist_traits);
     tensor::scatter<T>(mnist_single, mnist);
     // Setup for the MLP encoder-decoder neural network
     Index n_mlp_encoder = 4; // Number of MLP layers in the encoder
@@ -94,18 +88,6 @@ int main(int argc, char **argv)
         decoder_first_linear1_traits({n_pixels_mlp, n_latent},
             {n_pixels_mlp_tile, n_latent}),
         outputs_mid_traits({n_latent, n_images}, {n_latent, n_images_tile});
-    std::vector<int> mlp_linear1_distr = tensor::distributions::block_cyclic(
-            mlp_linear1_traits.grid.shape, mpi_grid, 0, mpi_size),
-        mlp_linear2_distr = tensor::distributions::block_cyclic(
-            mlp_linear2_traits.grid.shape, mpi_grid, 0, mpi_size),
-        encoder_last_linear2_distr = tensor::distributions::block_cyclic(
-            encoder_last_linear2_traits.grid.shape, mpi_grid, 0, mpi_size),
-        decoder_first_linear1_distr = tensor::distributions::block_cyclic(
-            decoder_first_linear1_traits.grid.shape, mpi_grid, 0, mpi_size),
-        mlp_gelu_distr = tensor::distributions::block_cyclic(
-            mlp_gelu_traits.grid.shape, mpi_grid, 0, mpi_size),
-        outputs_mid_distr = tensor::distributions::block_cyclic(
-            outputs_mid_traits.grid.shape, mpi_grid, 0, mpi_size);
     // Temporary outputs
     std::vector<tensor::Tensor<T>> outputs;
     outputs.reserve(n_mlp_encoder+n_mlp_decoder);
@@ -116,52 +98,47 @@ int main(int argc, char **argv)
     std::vector<Index> zeros = {0, 0};
     for(Index i = 0; i < n_mlp_encoder-1; ++i)
     {
-        encoder.emplace_back(mlp_linear1_traits, mlp_linear1_distr,
-                mlp_linear2_traits, mlp_linear2_distr, mlp_gelu_traits,
-                mlp_gelu_distr, last_tag);
+        encoder.emplace_back(mlp_linear1_traits, mlp_linear2_traits,
+                mlp_gelu_traits);
         tensor::randn<T>(encoder[i].get_linear1().get_weight(), zeros,
                 mlp_linear1_traits.shape, seed, mean, stddev);
         ++seed;
         tensor::randn<T>(encoder[i].get_linear2().get_weight(), zeros,
                 mlp_linear2_traits.shape, seed, mean, stddev);
         ++seed;
-        outputs.emplace_back(mnist_traits, mnist_distr, last_tag);
+        outputs.emplace_back(mnist_traits);
     }
-    encoder.emplace_back(mlp_linear1_traits, mlp_linear1_distr,
-            encoder_last_linear2_traits, encoder_last_linear2_distr,
-            mlp_gelu_traits, mlp_gelu_distr, last_tag);
+    encoder.emplace_back(mlp_linear1_traits, mlp_linear2_traits,
+            encoder_last_linear2_traits, mlp_gelu_traits);
     tensor::randn<T>(encoder[n_mlp_encoder-1].get_linear1().get_weight(),
             zeros, mlp_linear1_traits.shape, seed, mean, stddev);
     ++seed;
     tensor::randn<T>(encoder[n_mlp_encoder-1].get_linear2().get_weight(),
             zeros, encoder_last_linear2_traits.shape, seed, mean, stddev);
     ++seed;
-    outputs.emplace_back(outputs_mid_traits, outputs_mid_distr, last_tag);
+    outputs.emplace_back(outputs_mid_traits);
     // Set decoder
     decoder.reserve(n_mlp_encoder);
-    decoder.emplace_back(decoder_first_linear1_traits,
-            decoder_first_linear1_distr,
-            mlp_linear2_traits, mlp_linear2_distr, mlp_gelu_traits,
-            mlp_gelu_distr, last_tag);
+    decoder.emplace_back(decoder_first_linear1_traits, mlp_linear2_traits,
+            mlp_gelu_traits);
     tensor::randn<T>(decoder[0].get_linear1().get_weight(), zeros,
             decoder_first_linear1_traits.shape, seed, mean, stddev);
     ++seed;
     tensor::randn<T>(decoder[0].get_linear2().get_weight(), zeros,
             mlp_linear2_traits.shape, seed, mean, stddev);
     ++seed;
-    outputs.emplace_back(mnist_traits, mnist_distr, last_tag);
+    outputs.emplace_back(mnist_traits);
     for(Index i = 1; i < n_mlp_decoder; ++i)
     {
-        decoder.emplace_back(mlp_linear1_traits, mlp_linear1_distr,
-                mlp_linear2_traits, mlp_linear2_distr, mlp_gelu_traits,
-                mlp_gelu_distr, last_tag);
+        decoder.emplace_back(mlp_linear1_traits, mlp_linear2_traits,
+                mlp_gelu_traits);
         tensor::randn<T>(decoder[i].get_linear1().get_weight(), zeros,
                 mlp_linear1_traits.shape, seed, mean, stddev);
         ++seed;
         tensor::randn<T>(decoder[i].get_linear2().get_weight(), zeros,
                 mlp_linear2_traits.shape, seed, mean, stddev);
         ++seed;
-        outputs.emplace_back(mnist_traits, mnist_distr, last_tag);
+        outputs.emplace_back(mnist_traits);
     }
     // Do the forward-backward
     Index niter = 1;

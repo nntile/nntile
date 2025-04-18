@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/starpu/config.hh"
 #include "nntile/starpu/add_slice_inplace.hh"
 #include "nntile/kernel/add_slice_inplace.hh"
 #include "../testing.hh"
@@ -46,8 +47,8 @@ void validate_cpu(Index m, Index n, Index k)
     std::cout << "Run kernel::add_slice_inplace::cpu<" << T::type_repr << ">\n";
     kernel::add_slice_inplace::cpu<T>(m, n, k, 0.5, &src[0], -0.5, &dst[0]);
     // Check by actually submitting a task
-    VariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
-        dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
+    VariableHandle src_handle(&src[0], sizeof(T)*m*n),
+        dst2_handle(&dst2[0], sizeof(T)*m*n*k);
     add_slice_inplace::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::add_slice_inplace::submit<" << T::type_repr << "> restricted to CPU\n";
     add_slice_inplace::submit<T>(m, n, k, 0.5, src_handle, -0.5, dst2_handle);
@@ -118,8 +119,8 @@ void validate_cuda(Index m, Index n, Index k)
     cuda_err = cudaFree(dev_dst);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
-    VariableHandle src_handle(&src[0], sizeof(T)*m*n, STARPU_R),
-        dst2_handle(&dst2[0], sizeof(T)*m*n*k, STARPU_RW);
+    VariableHandle src_handle(&src[0], sizeof(T)*m*n),
+        dst2_handle(&dst2[0], sizeof(T)*m*n*k);
     add_slice_inplace::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::add_slice_inplace::submit<" << T::type_repr << "> restricted to CUDA\n";
     add_slice_inplace::submit<T>(m, n, k, 0.5, src_handle, -0.5, dst2_handle);
@@ -136,10 +137,13 @@ void validate_cuda(Index m, Index n, Index k)
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    Config starpu(1, 1, 0);
-    // Init codelet
-    add_slice_inplace::init();
+    // Initialize StarPU (it will automatically shutdown itself on exit)
+    int ncpus=1, ncuda=1, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto config = starpu::Config(
+        ncpus, ncuda, cublas, ooc, ooc_path, ooc_size, ooc_disk_node_id, verbose
+    );
     // Launch all tests
     // Bias for middle axis
     validate_cpu<fp32_t>(3, 5, 7);
@@ -149,5 +153,6 @@ int main(int argc, char **argv)
     validate_cuda<fp32_t>(3, 5, 7);
     validate_cuda<fp64_t>(3, 5, 7);
 #endif // NNTILE_USE_CUDA
+
     return 0;
 }

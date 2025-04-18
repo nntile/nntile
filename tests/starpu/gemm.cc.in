@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/starpu/config.hh"
 #include "nntile/starpu/gemm.hh"
 #include "../testing.hh"
 #include <vector>
@@ -108,9 +109,9 @@ void validate_cpu(TransOp transA, TransOp transB, Index m, Index n, Index k,
                 ldB, beta, &C[b*m*n], m);
     }
     // Check by actually submitting a task
-    VariableHandle A_handle(&A[0], sizeof(T)*A.size(), STARPU_R),
-        B_handle(&B[0], sizeof(T)*B.size(), STARPU_R),
-        C2_handle(&C2[0], sizeof(T)*C.size(), STARPU_RW);
+    VariableHandle A_handle(&A[0], sizeof(T)*A.size()),
+        B_handle(&B[0], sizeof(T)*B.size()),
+        C2_handle(&C2[0], sizeof(T)*C.size());
     gemm::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::gemm::submit<" << T::type_repr << "> restricted to CPU\n";
     gemm::submit<T>(transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
@@ -278,9 +279,9 @@ void validate_cuda(TransOp transA, TransOp transB, Index m, Index n, Index k,
     cuda_err = cudaFree(dev_C);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
-    VariableHandle A_handle(&A[0], sizeof(T)*A.size(), STARPU_R),
-        B_handle(&B[0], sizeof(T)*B.size(), STARPU_R),
-        C2_handle(&C2[0], sizeof(T)*C.size(), STARPU_RW);
+    VariableHandle A_handle(&A[0], sizeof(T)*A.size()),
+        B_handle(&B[0], sizeof(T)*B.size()),
+        C2_handle(&C2[0], sizeof(T)*C.size());
     gemm::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::gemm::submit<" << T::type_repr << "> restricted to CUDA\n";
     gemm::submit<T>(transA, transB, m, n, k, batch, alpha, A_handle, B_handle,
@@ -324,10 +325,14 @@ void validate_cuda_many()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    Config starpu(1, 1, 1);
-    // Init codelet
-    gemm::init();
+    // Initialize StarPU (it will automatically shutdown itself on exit)
+    int ncpus=1, ncuda=1, cublas=1, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto config = starpu::Config(
+        ncpus, ncuda, cublas, ooc, ooc_path, ooc_size, ooc_disk_node_id, verbose
+    );
+
     // Launch all tests
 #ifdef NNTILE_USE_CBLAS
     validate_cpu_many<fp32_t>();
@@ -337,5 +342,6 @@ int main(int argc, char **argv)
     validate_cuda_many<fp32_t>();
     validate_cuda_many<fp64_t>();
 #endif // NNTILE_USE_CUDA
+
     return 0;
 }

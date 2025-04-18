@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/starpu/config.hh"
 #include "nntile/starpu/sumprod_slice.hh"
 #include "nntile/kernel/sumprod_slice.hh"
 #include "../testing.hh"
@@ -49,9 +50,9 @@ void validate_cpu(Index m, Index n, Index k, Scalar alpha, Scalar beta)
     kernel::sumprod_slice::cpu<T>(m, n, k, alpha, &src1[0], &src2[0], beta,
             &dst[0]);
     // Check by actually submitting a task
-    VariableHandle src1_handle(&src1[0], sizeof(T)*m*n*k, STARPU_R),
-        src2_handle(&src2[0], sizeof(T)*m*n*k, STARPU_R),
-        dst2_handle(&dst2[0], sizeof(T)*m*n, STARPU_RW);
+    VariableHandle src1_handle(&src1[0], sizeof(T)*m*n*k),
+        src2_handle(&src2[0], sizeof(T)*m*n*k),
+        dst2_handle(&dst2[0], sizeof(T)*m*n);
     sumprod_slice::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::sumprod_slice::submit<" << T::type_repr << "> restricted to CPU\n";
     sumprod_slice::submit<T>(m, n, k, alpha, src1_handle, src2_handle, beta,
@@ -132,9 +133,9 @@ void validate_cuda(Index m, Index n, Index k, Scalar alpha, Scalar beta)
     cuda_err = cudaFree(dev_dst);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
-    VariableHandle src1_handle(&src1[0], sizeof(T)*m*n*k, STARPU_R),
-        src2_handle(&src2[0], sizeof(T)*m*n*k, STARPU_R),
-        dst2_handle(&dst2[0], sizeof(T)*m*n, STARPU_RW);
+    VariableHandle src1_handle(&src1[0], sizeof(T)*m*n*k),
+        src2_handle(&src2[0], sizeof(T)*m*n*k),
+        dst2_handle(&dst2[0], sizeof(T)*m*n);
     sumprod_slice::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::sumprod_slice::submit<" << T::type_repr << "> restricted to CUDA\n";
     sumprod_slice::submit<T>(m, n, k, alpha, src1_handle, src2_handle, beta,
@@ -152,10 +153,14 @@ void validate_cuda(Index m, Index n, Index k, Scalar alpha, Scalar beta)
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    Config starpu(1, 1, 0);
-    // Init codelet
-    sumprod_slice::init();
+    // Initialize StarPU (it will automatically shutdown itself on exit)
+    int ncpus=1, ncuda=1, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto config = starpu::Config(
+        ncpus, ncuda, cublas, ooc, ooc_path, ooc_size, ooc_disk_node_id, verbose
+    );
+
     // Launch all tests
     validate_cpu<fp32_t>(3, 5, 7, 2.0, -1.0);
     validate_cpu<fp32_t>(3, 5, 7, -1.0, 0.0);
@@ -167,5 +172,6 @@ int main(int argc, char **argv)
     validate_cuda<fp64_t>(3, 5, 7, 2.0, -1.0);
     validate_cuda<fp64_t>(3, 5, 7, -1.0, 0.0);
 #endif // NNTILE_USE_CUDA
+
     return 0;
 }

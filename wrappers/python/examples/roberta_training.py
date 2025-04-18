@@ -222,7 +222,6 @@ batch_labels = []
 x_traits = nntile.tensor.TensorTraits(
         [args.seq_len, args.minibatch_size],
         [args.seq_len_tile, args.minibatch_size_tile])
-x_distr = [0] * x_traits.grid.nelems
 
 rng = np.random.default_rng()
 for epoch_idx in range(args.nepochs):
@@ -238,12 +237,12 @@ for epoch_idx in range(args.nepochs):
             for k in range(args.minibatch_size):
                 current_mask[k, idx_masked_tokens[k]] = 1
 
-            x = nntile.tensor.Tensor_int64(x_traits, x_distr)
+            x = nntile.tensor.Tensor_int64(x_traits)
             current_minibatch = train_tokens[i, j, :, :].copy()
             current_minibatch[current_mask] = args.label_mask_token
             x.from_array(np.asfortranarray(current_minibatch).T)
             minibatch_masked_data.append(x)
-            y = nntile.tensor.Tensor_int64(x_traits, x_distr)
+            y = nntile.tensor.Tensor_int64(x_traits)
             current_label = train_tokens[i, j, :, :].copy()
             inverse_current_mask = np.array(1 - current_mask, dtype=bool)
             # Ignore index = -100

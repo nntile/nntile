@@ -12,6 +12,8 @@
  * @version 1.1.0
  * */
 
+#include "nntile/starpu/config.hh"
+#include "nntile/starpu/config.hh"
 #include "nntile/starpu/clear.hh"
 #include "../testing.hh"
 #ifdef NNTILE_USE_CUDA
@@ -35,7 +37,7 @@ void validate(std::size_t size)
     // Create copy of data
     std::vector<char> data(data_init);
     // Check by actually submitting a task
-    VariableHandle data_handle(&data[0], size, STARPU_RW);
+    VariableHandle data_handle(&data[0], size);
     clear::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::clear::submit restricted to CPU\n";
     clear::submit(data_handle);
@@ -50,7 +52,7 @@ void validate(std::size_t size)
 #ifdef NNTILE_USE_CUDA
     // Check by actually submitting a task
     data = data_init;
-    data_handle = VariableHandle(&data[0], size, STARPU_RW);
+    data_handle = VariableHandle(&data[0], size);
     clear::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::clear::submit restricted to CUDA\n";
     clear::submit(data_handle);
@@ -67,12 +69,17 @@ void validate(std::size_t size)
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    Config starpu(1, 1, 0);
-    // Init codelet
-    clear::init();
+    // Initialize StarPU (it will automatically shutdown itself on exit)
+    int ncpus=1, ncuda=1, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto config = starpu::Config(
+        ncpus, ncuda, cublas, ooc, ooc_path, ooc_size, ooc_disk_node_id, verbose
+    );
+
     // Launch all tests
     validate(1);
     validate(100000);
+
     return 0;
 }

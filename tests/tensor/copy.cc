@@ -27,7 +27,6 @@ void check(const std::vector<Index> &shape,
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
-    starpu_mpi_tag_t last_tag = 0;
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     // Traits of source and destination tensors
@@ -42,7 +41,7 @@ void check(const std::vector<Index> &shape,
         dst_distr[i] = (i*i+2) % mpi_size;
     }
     // Init source tensor
-    Tensor<T> src(src_traits, src_distr, last_tag);
+    Tensor<T> src(src_traits, src_distr);
     for(Index i = 0; i < ntiles; ++i)
     {
         if(src_distr[i] == mpi_rank)
@@ -69,7 +68,7 @@ void check(const std::vector<Index> &shape,
         }
     }
     // Define destination tensor
-    Tensor<T> dst(dst_traits, dst_distr, last_tag);
+    Tensor<T> dst(dst_traits, dst_distr);
     // Copy tensor
     copy<T>(src, dst);
     // Check copy
@@ -111,24 +110,24 @@ void validate()
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions
-    starpu_mpi_tag_t last_tag = 0;
     std::vector<Index> sh34 = {3, 4}, sh23 = {2, 3}, sh33 = {3, 3},
         sh24 = {2, 4};
     TensorTraits trA(sh34, sh23), trB(sh33, sh23), trC(sh34, sh24);
     std::vector<int> dist0000 = {0, 0, 0, 0}, dist00 = {0, 0};
-    Tensor<T> A(trA, dist0000, last_tag),
-        B(trB, dist00, last_tag),
-        C(trC, dist00, last_tag);
+    Tensor<T> A(trA, dist0000),
+        B(trB, dist00),
+        C(trC, dist00);
     TEST_THROW(copy<T>(A, B));
     TEST_THROW(copy<T>(A, C));
 }
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::copy::init();
+    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    starpu::config.init(ncpus, ncuda, cublas, ooc, ooc_path, ooc_size,
+        ooc_disk_node_id, verbose);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

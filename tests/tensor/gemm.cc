@@ -32,17 +32,16 @@ void check()
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_size = starpu_mpi_world_size();
     int mpi_root = 0;
-    starpu_mpi_tag_t last_tag = 0;
     TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
     Scalar one = 1, zero = 0;
     // Init single-tiled tensors
     std::vector<Index> sh2222 = {2, 2, 2, 2, 2};
     TensorTraits tr2222(sh2222, sh2222);
     std::vector<int> dist0 = {mpi_root};
-    Tensor<T> A_single(tr2222, dist0, last_tag),
-        B_single(tr2222, dist0, last_tag),
-        C_single(tr2222, dist0, last_tag),
-        D_single(tr2222, dist0, last_tag);
+    Tensor<T> A_single(tr2222, dist0),
+        B_single(tr2222, dist0),
+        C_single(tr2222, dist0),
+        D_single(tr2222, dist0);
     auto A_single_tile = A_single.get_tile(0),
          B_single_tile = B_single.get_tile(0),
          C_single_tile = C_single.get_tile(0),
@@ -73,9 +72,9 @@ void check()
     }
     std::vector<Index> sh1111 = {1, 1, 1, 1, 1};
     TensorTraits tr1111(sh2222, sh1111);
-    Tensor<T> A(tr1111, distr, last_tag),
-        B(tr1111, distr, last_tag),
-        D(tr1111, distr, last_tag);
+    Tensor<T> A(tr1111, distr),
+        B(tr1111, distr),
+        D(tr1111, distr);
     scatter<T>(A_single, A);
     scatter<T>(B_single, B);
     scatter<T>(D_single, D);
@@ -223,7 +222,6 @@ void validate()
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions
-    starpu_mpi_tag_t last_tag = 0;
     TransOp opT(TransOp::Trans), opN(TransOp::NoTrans);
     Scalar one = 1, zero = 0;
     std::vector<Index> shape11 = {1, 1}, shape12 = {1, 2},
@@ -233,13 +231,13 @@ void validate()
         tr12_(shape12, shape11), tr21_(shape21, shape11),
         tr333(shape333, shape333);
     std::vector<int> dist0 = {0}, dist00 = {0, 0};
-    Tensor<T> mat11(tr11, dist0, last_tag),
-        mat12(tr12, dist0, last_tag),
-        mat12_(tr12_, dist00, last_tag),
-        mat21(tr21, dist0, last_tag),
-        mat21_(tr21_, dist00, last_tag),
-        mat22(tr22, dist0, last_tag),
-        mat333(tr333, dist0, last_tag);
+    Tensor<T> mat11(tr11, dist0),
+        mat12(tr12, dist0),
+        mat12_(tr12_, dist00),
+        mat21(tr21, dist0),
+        mat21_(tr21_, dist00),
+        mat22(tr22, dist0),
+        mat333(tr333, dist0);
     auto fail_trans_val = static_cast<TransOp::Value>(-1);
     auto opF = *reinterpret_cast<TransOp *>(&fail_trans_val);
     // Check ndim
@@ -280,13 +278,11 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::gemm::init();
-    starpu::subcopy::init();
-    starpu::gemm::restrict_where(STARPU_CPU);
-    starpu::subcopy::restrict_where(STARPU_CPU);
+    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    starpu::config.init(ncpus, ncuda, cublas, ooc, ooc_path, ooc_size,
+        ooc_disk_node_id, verbose);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

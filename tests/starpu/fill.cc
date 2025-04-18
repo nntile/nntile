@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/starpu/config.hh"
 #include "nntile/starpu/fill.hh"
 #include "nntile/kernel/fill.hh"
 #include "../testing.hh"
@@ -42,7 +43,7 @@ void validate_cpu(Index nelems)
     std::cout << "Run kernel::fill::cpu<" << T::type_repr << ">\n";
     kernel::fill::cpu<T>(nelems, val, &data[0]);
     // Check by actually submitting a task
-    VariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
+    VariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
     fill::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::fill::submit<" << T::type_repr << "> restricted to CPU\n";
     fill::submit<T>(nelems, val, data2_handle);
@@ -102,7 +103,7 @@ void validate_cuda(Index nelems)
     cuda_err = cudaFree(dev_data);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
-    VariableHandle data2_handle(&data2[0], sizeof(T)*nelems, STARPU_RW);
+    VariableHandle data2_handle(&data2[0], sizeof(T)*nelems);
     fill::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::fill::submit<" << T::type_repr << "> restricted to CUDA\n";
     fill::submit<T>(nelems, val, data2_handle);
@@ -119,10 +120,14 @@ void validate_cuda(Index nelems)
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    Config starpu(1, 1, 0);
-    // Init codelet
-    fill::init();
+    // Initialize StarPU (it will automatically shutdown itself on exit)
+    int ncpus=1, ncuda=1, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto config = starpu::Config(
+        ncpus, ncuda, cublas, ooc, ooc_path, ooc_size, ooc_disk_node_id, verbose
+    );
+
     // Launch all tests
     validate_cpu<fp32_t>(1);
     validate_cpu<fp32_t>(10000);
@@ -134,5 +139,6 @@ int main(int argc, char **argv)
     validate_cuda<fp64_t>(1);
     validate_cuda<fp64_t>(10000);
 #endif // NNTILE_USE_CUDA
+
     return 0;
 }

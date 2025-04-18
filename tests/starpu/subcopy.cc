@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/starpu/config.hh"
 #include "nntile/starpu/subcopy.hh"
 #include "nntile/kernel/subcopy.hh"
 #include "../testing.hh"
@@ -93,10 +94,9 @@ void validate_cpu(std::array<Index, NDIM> src, std::array<Index, NDIM> dst,
             &copy_shape[0], &src_data[0], &dst_start[0], &dst_stride[0],
             &dst_data[0], &tmp_index[0]);
     // Check by actually submitting a task
-    VariableHandle src_handle(&src_data[0], sizeof(T)*src_nelems,
-            STARPU_R),
-        dst2_handle(&dst2_data[0], sizeof(T)*dst_nelems, STARPU_RW),
-        tmp_handle(&tmp_index[0], sizeof(Index)*NDIM*2, STARPU_R);
+    VariableHandle src_handle(&src_data[0], sizeof(T)*src_nelems),
+        dst2_handle(&dst2_data[0], sizeof(T)*dst_nelems),
+        tmp_handle(&tmp_index[0], sizeof(Index)*NDIM*2);
     subcopy::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::subcopy::submit<" << T::type_repr << "> restricted to "
         "CPU\n";
@@ -130,13 +130,18 @@ void validate_many()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    Config starpu(1, 0, 0);
-    // Init codelet
-    subcopy::init();
+    // Initialize StarPU (it will automatically shutdown itself on exit)
+    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto config = starpu::Config(
+        ncpus, ncuda, cublas, ooc, ooc_path, ooc_size, ooc_disk_node_id, verbose
+    );
+
     // Launch all tests
     validate_many<fp32_t>();
     validate_many<fp64_t>();
     validate_many<nntile::int64_t>();
+
     return 0;
 }

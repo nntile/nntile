@@ -14,136 +14,85 @@
 
 #pragma once
 
+// Standard library headers
 #include <stdexcept>
+#include <memory>
+
+// Third-party headers
 #include <starpu.h>
 // Disabled MPI for now
 //#include <starpu_mpi.h>
-#include <nntile/defs.h>
-#include <nntile/context.hh>
+
+// Other NNTile headers
 
 namespace nntile::starpu
 {
+
+//! Push a data handle into the list of registered data handles
+void data_handle_push(starpu_data_handle_t handle);
+
+//! Pop a data handle from the list of registered data handles
+/* If the data handle is found in the list of registered data handles,
+ * the function removes it from the list and returns the data handle.
+ * Otherwise, the function returns a nullptr. */
+starpu_data_handle_t data_handle_pop(starpu_data_handle_t handle);
+
+//! Unregister all data handles
+/* This function is called when the NNTile context is shut down. */
+void data_handle_unregister_all();
 
 // Forward declaration
 class HandleLocalData;
 
 //! StarPU data handle wrapper
-class Handle
+class Handle: public std::shared_ptr<_starpu_data_state>
 {
+    //! Deleter for the shared pointer uses async unregistration
+    static void _deleter(starpu_data_handle_t handle);
+
 public:
-    //! Shared handle itself
-    starpu_data_handle_t handle = nullptr;
-
-    //! NNTile context
-    Context &context;
-
     //! Default constructor with nullptr
     Handle() = default;
 
     //! Constructor with shared pointer
-    explicit Handle(starpu_data_handle_t handle_, Context &context_):
-        handle(handle_), context(context_)
+    explicit Handle(starpu_data_handle_t handle):
+        std::shared_ptr<_starpu_data_state>(handle, _deleter)
     {
-        context.data_handle_register(handle);
+        data_handle_push(handle);
     }
 
     //! Destructor is virtual as this is a base class
-    virtual ~Handle()
-    {
-    }
-
-    //! Get the handle itself
-    starpu_data_handle_t get() const
-    {
-        return handle;
-    }
+    virtual ~Handle() = default;
 
     //! Set name of the handle
-    void set_name(const char *name)
-    {
-        starpu_data_set_name(handle, name);
-    }
+    void set_name(const char *name);
 
     //! Acquire data locally
     HandleLocalData acquire(starpu_data_access_mode mode) const;
 
     //! Unregister a data handle normally
-    void unregister()
-    {
-        // Only unregister if handle is not nullptr
-        if(handle != nullptr)
-        {
-            context.data_handle_unregister(handle);
-            handle = nullptr;
-        }
-    }
+    void unregister();
 
     //! Unregister a data handle without coherency
-    void unregister_no_coherency()
-    {
-        // Only unregister if handle is not nullptr
-        if(handle != nullptr)
-        {
-            context.data_handle_unregister_no_coherency(handle);
-            handle = nullptr;
-        }
-    }
+    void unregister_no_coherency();
 
     //! Unregister a data handle in an async manner
-    void unregister_submit()
-    {
-        // Only unregister if handle is not nullptr
-        if(handle != nullptr)
-        {
-            context.data_handle_unregister_submit(handle);
-            handle = nullptr;
-        }
-    }
+    void unregister_submit();
 
     //! Invalidate data handle in an async manner
-    void invalidate_submit() const
-    {
-        starpu_data_invalidate_submit(handle);
-    }
+    void invalidate_submit() const;
 
     //! Get rank of the MPI node owning the data handle
-    int mpi_get_rank() const
-    {
-        return 0;
-        //return starpu_mpi_data_get_rank(handle.get());
-    }
+    int mpi_get_rank() const;
 
     //! Get tag of the data handle
-    int mpi_get_tag() const
-    {
-        return 0;
-        //return starpu_mpi_data_get_tag(handle.get());
-    }
+    int mpi_get_tag() const;
 
     //! Transfer data to a provided node rank
-    void mpi_transfer(int dst_rank, int mpi_rank) const
-    {
-        //if(mpi_rank == dst_rank or mpi_rank == mpi_get_rank())
-        //{
-        //    // This function shall be removed in near future, all data
-        //    // transfers shall be initiated by starpu_mpi_task_build and others
-        //    starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
-        //            handle.get(), dst_rank, nullptr, nullptr);
-        //    //int ret = starpu_mpi_get_data_on_node_detached(MPI_COMM_WORLD,
-        //    //        handle.get(), dst_rank, nullptr, nullptr);
-        //    //if(ret != 0)
-        //    //{
-        //    //    throw std::runtime_error("Error in starpu_mpi_get_data_on_"
-        //    //            "node_detached");
-        //    //}
-        //}
-    }
+    void mpi_transfer(int dst_rank, int mpi_rank) const;
 
     //! Flush cached data
-    void mpi_flush() const
-    {
-        //starpu_mpi_cache_flush(MPI_COMM_WORLD, handle.get());
-    }
+    void mpi_flush() const;
 };
 
 //! Local data handle wrapper
@@ -183,44 +132,13 @@ public:
     }
 
     //! Acquire the data in a blocking manner
-    void acquire(starpu_data_access_mode mode)
-    {
-        auto starpu_handle = handle.get();
-        int status = starpu_data_acquire(starpu_handle, mode);
-        if(status != 0)
-        {
-            throw std::runtime_error("status != 0");
-        }
-        acquired = true;
-        ptr = starpu_data_get_local_ptr(starpu_handle);
-    }
+    void acquire(starpu_data_access_mode mode);
 
     //! Try to acquire the data in a non-blocking manner
-    bool try_acquire(starpu_data_access_mode mode)
-    {
-        if (acquired) {
-            return true;
-        }
-
-        auto starpu_handle = handle.get();
-        int status = starpu_data_acquire_try(starpu_handle, mode);
-        if(status != 0)
-        {
-            return false;
-        }
-
-        acquired = true;
-        ptr = starpu_data_get_local_ptr(starpu_handle);
-        return true;
-    }
+    bool try_acquire(starpu_data_access_mode mode);
 
     //! Release the data
-    void release()
-    {
-        starpu_data_release(handle.get());
-        acquired = false;
-        ptr = nullptr;
-    }
+    void release();
 
     //! Get pointer to the local data
     void *get_ptr() const
@@ -228,13 +146,6 @@ public:
         return ptr;
     }
 };
-
-//! Acquire the data in a blocking manner
-inline
-HandleLocalData Handle::acquire(starpu_data_access_mode mode) const
-{
-    return HandleLocalData(*this, mode, true);
-}
 
 //! Wrapper for struct starpu_variable_interface
 class VariableInterface: public starpu_variable_interface
@@ -258,60 +169,24 @@ public:
 class VariableHandle: public Handle
 {
     //! Check prereqs for registration
-    static void _check_prereqs(size_t size, const Context &context)
-    {
-        // Check if context is initialized
-        if(context.initialized == 0)
-        {
-            throw std::runtime_error("Context is not initialized, cannot register"
-                " data handle");
-        }
-        // Check if size is positive
-        if(size == 0)
-        {
-            throw std::runtime_error("Zero size is not supported");
-        }
-    }
+    static void _check_prereqs(size_t size);
+
     //! Register variable for StarPU-owned memory
-    static starpu_data_handle_t _reg_data(size_t size)
-    {
-        // Register the data handle
-        starpu_data_handle_t tmp;
-        starpu_variable_data_register(&tmp, -1, 0, size);
-        return tmp;
-    }
+    static starpu_data_handle_t _reg_data(size_t size);
 
     //! Register variable for user-owned memory
-    static starpu_data_handle_t _reg_data(void *ptr, size_t size,
-            const Context &context)
-    {
-        // Check if context is initialized
-        if(context.initialized == 0)
-        {
-            throw std::runtime_error("Context is not initialized, cannot register"
-                " data handle");
-        }
-        // Check if size is positive
-        if(size == 0)
-        {
-            throw std::runtime_error("Zero size is not supported");
-        }
-        // Register the data handle
-        starpu_data_handle_t tmp;
-        starpu_variable_data_register(&tmp, STARPU_MAIN_RAM,
-                reinterpret_cast<uintptr_t>(ptr), size);
-        return tmp;
-    }
+    static starpu_data_handle_t _reg_data(void *ptr, size_t size);
 public:
+
     //! Constructor for variable that is managed by StarPU
-    explicit VariableHandle(size_t size, Context &context):
-        Handle((_check_prereqs(size, context), _reg_data(size)), context)
+    explicit VariableHandle(size_t size):
+        Handle((_check_prereqs(size), _reg_data(size)))
     {
     }
 
     //! Constructor for variable that is managed by user
-    explicit VariableHandle(void *ptr, size_t size, Context &context):
-        Handle((_check_prereqs(size, context), _reg_data(ptr, size)), context)
+    explicit VariableHandle(void *ptr, size_t size):
+        Handle((_check_prereqs(size), _reg_data(ptr, size)))
     {
     }
 };

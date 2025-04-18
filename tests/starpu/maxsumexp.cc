@@ -12,6 +12,7 @@
  * @version 1.1.0
  * */
 
+#include "nntile/starpu/config.hh"
 #include "nntile/starpu/maxsumexp.hh"
 #include "nntile/kernel/maxsumexp.hh"
 #include "../testing.hh"
@@ -48,8 +49,8 @@ void validate_cpu(Index m, Index n, Index k)
     std::cout << "Run kernel::maxsumexp::cpu<" << T::type_repr << ">\n";
     kernel::maxsumexp::cpu<T>(m, n, k, &src[0], &maxsumexp[0]);
     // Check by actually submitting a task
-    VariableHandle src_handle(&src[0], sizeof(T)*m*n*k, STARPU_R),
-        maxsumexp2_handle(&maxsumexp2[0], sizeof(T)*2*m*n, STARPU_RW);
+    VariableHandle src_handle(&src[0], sizeof(T)*m*n*k),
+        maxsumexp2_handle(&maxsumexp2[0], sizeof(T)*2*m*n);
     maxsumexp::restrict_where(STARPU_CPU);
     std::cout << "Run starpu::maxsumexp::submit<" << T::type_repr << "> restricted to CPU\n";
     maxsumexp::submit<T>(m, n, k, src_handle, maxsumexp2_handle);
@@ -121,8 +122,8 @@ void validate_cuda(Index m, Index n, Index k)
     cuda_err = cudaFree(dev_maxsumexp);
     TEST_ASSERT(cuda_err == cudaSuccess);
     // Check by actually submitting a task
-    VariableHandle src_handle(&src[0], sizeof(T)*m*n*k, STARPU_R),
-        maxsumexp2_handle(&maxsumexp2[0], sizeof(T)*2*m*n, STARPU_RW);
+    VariableHandle src_handle(&src[0], sizeof(T)*m*n*k),
+        maxsumexp2_handle(&maxsumexp2[0], sizeof(T)*2*m*n);
     maxsumexp::restrict_where(STARPU_CUDA);
     std::cout << "Run starpu::maxsumexp::submit<" << T::type_repr << "> restricted to CUDA\n";
     maxsumexp::submit<T>(m, n, k, src_handle, maxsumexp2_handle);
@@ -139,10 +140,14 @@ void validate_cuda(Index m, Index n, Index k)
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing
-    Config starpu(1, 1, 0);
-    // Init codelet
-    maxsumexp::init();
+    // Initialize StarPU (it will automatically shutdown itself on exit)
+    int ncpus=1, ncuda=1, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    auto config = starpu::Config(
+        ncpus, ncuda, cublas, ooc, ooc_path, ooc_size, ooc_disk_node_id, verbose
+    );
+
     // Launch all tests
     validate_cpu<fp32_t>(3, 5, 7);
     validate_cpu<fp64_t>(3, 5, 7);
@@ -150,5 +155,6 @@ int main(int argc, char **argv)
     validate_cuda<fp32_t>(3, 5, 7);
     validate_cuda<fp64_t>(3, 5, 7);
 #endif // NNTILE_USE_CUDA
+
     return 0;
 }

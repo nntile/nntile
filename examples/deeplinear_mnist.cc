@@ -71,13 +71,11 @@ int main(int argc, char **argv)
     // Proceed with other things
     std::vector<int> mpi_grid = {2, 1};
     int mpi_root = 0;
-    starpu_mpi_tag_t last_tag = 0;
     // Setup MNIST dataset for training
     Index n_pixels = 28 * 28; // MNIST contains 28x28 images
     tensor::TensorTraits mnist_single_traits({n_pixels, n_images},
             {n_pixels, n_images});
-    std::vector<int> distr_root = {mpi_root};
-    tensor::Tensor<T> mnist_single(mnist_single_traits, distr_root, last_tag);
+    tensor::Tensor<T> mnist_single(mnist_single_traits);
     if(mpi_rank == mpi_root)
     {
         // Read MNIST as byte-sized unsigned integers [0..255]
@@ -111,9 +109,7 @@ int main(int argc, char **argv)
     Index n_images_tile = 1024;
     tensor::TensorTraits mnist_traits({n_pixels, n_images},
             {n_pixels_tile, n_images_tile});
-    std::vector<int> mnist_distr = tensor::distributions::block_cyclic(
-            mnist_traits.grid.shape, mpi_grid, 0, mpi_size);
-    tensor::Tensor<T> mnist(mnist_traits, mnist_distr, last_tag);
+    tensor::Tensor<T> mnist(mnist_traits);
     tensor::scatter<T>(mnist_single, mnist);
     // Set the deep linear network
     std::vector<layer::Linear<T>> linear;
@@ -128,33 +124,26 @@ int main(int argc, char **argv)
         w1_traits({n_pixels, n_pixels}, {n_pixels_tile, n_pixels_tile}),
         w2_traits({n_pixels, n_pixels}, {n_pixels_tile, n_pixels_tile}),
         w3_traits({n_pixels, n_pixels}, {n_pixels_tile, n_pixels_tile});
-    std::vector<int> tmp_distr = tensor::distributions::block_cyclic(
-            tmp_traits.grid.shape, mpi_grid, 0, mpi_size),
-        w1_distr = tensor::distributions::block_cyclic(
-            w1_traits.grid.shape, mpi_grid, 0, mpi_size),
-        w2_distr = tensor::distributions::block_cyclic(
-            w2_traits.grid.shape, mpi_grid, 0, mpi_size),
-        w3_distr = tensor::distributions::block_cyclic(
-            w3_traits.grid.shape, mpi_grid, 0, mpi_size);
+
     params.reserve(n_linear);
     grads.reserve(n_linear);
     tmps.reserve(n_linear+1);
     linear.reserve(n_linear);
-    params.emplace_back(w1_traits, w1_distr, last_tag);
-    grads.emplace_back(w1_traits, w1_distr, last_tag);
-    tmps.emplace_back(mnist_traits, tmp_distr, last_tag);
-    tmps.emplace_back(tmp_traits, tmp_distr, last_tag);
+    params.emplace_back(w1_traits);
+    grads.emplace_back(w1_traits);
+    tmps.emplace_back(mnist_traits);
+    tmps.emplace_back(tmp_traits);
     linear.emplace_back(mnist_traits, tmp_traits, params[0], grads[0]);
     for(Index i = 1; i < n_linear-1; ++i)
     {
-        params.emplace_back(w2_traits, w2_distr, last_tag);
-        grads.emplace_back(w2_traits, w2_distr, last_tag);
-        tmps.emplace_back(tmp_traits, tmp_distr, last_tag);
+        params.emplace_back(w2_traits);
+        grads.emplace_back(w2_traits);
+        tmps.emplace_back(tmp_traits);
         linear.emplace_back(tmp_traits, tmp_traits, params[i], grads[i]);
     }
-    params.emplace_back(w3_traits, w3_distr, last_tag);
-    grads.emplace_back(w3_traits, w3_distr, last_tag);
-    tmps.emplace_back(mnist_traits, mnist_distr, last_tag);
+    params.emplace_back(w3_traits);
+    grads.emplace_back(w3_traits);
+    tmps.emplace_back(mnist_traits);
     linear.emplace_back(tmp_traits, mnist_traits, params[n_linear-1],
             grads[n_linear-1]);
     // Init linear layers
@@ -172,8 +161,8 @@ int main(int argc, char **argv)
     Index n_iter = 100;
     tensor::TensorTraits loss_traits({}, {}),
                  tmp_loss_traits(mnist_traits.grid.shape, {1, 1});
-    tensor::Tensor<T> loss(loss_traits, distr_root, last_tag);
-    tensor::Tensor<T> tmp_loss(tmp_loss_traits, mnist_distr, last_tag);
+    tensor::Tensor<T> loss(loss_traits);
+    tensor::Tensor<T> tmp_loss(tmp_loss_traits);
     // Start timer
     starpu_mpi_barrier(MPI_COMM_WORLD);
     double time_elapsed = -MPI_Wtime();
