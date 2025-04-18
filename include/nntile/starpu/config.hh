@@ -59,10 +59,12 @@ class Config: public starpu_conf
 {
     int cublas;
     int verbose;
+    int disk_node_id;
 public:
     explicit Config(int ncpus_=-1, int ncuda_=-1, int cublas_=-1, int logger=0,
             const char *logger_server_addr="localhost",
-            int logger_server_port=5001, int verbose_=0)
+            int logger_server_port=5001, int verbose_=0,
+            int ooc_=0, size_t ooc_size_=1073741824UL, const char *ooc_path_="/tmp/nntile_ooc")
     {
         starpu_fxt_autostart_profiling(0);
         // Init StarPU configuration with default values at first
@@ -110,10 +112,19 @@ public:
             }
         }
 #endif // NNTILE_USE_CUDA
-       if(logger != 0)
-       {
-           nntile::logger::logger_init(logger_server_addr, logger_server_port);
-       }
+        if(ooc_ != 0)
+        {
+            disk_node_id = starpu_disk_register(&starpu_disk_unistd_ops, (void *) ooc_path_, ooc_size_);
+        }
+        else
+        {
+            disk_node_id = -1;
+        }
+
+        if(logger != 0)
+        {
+            nntile::logger::logger_init(logger_server_addr, logger_server_port);
+        }
     }
     ~Config()
     {
@@ -416,6 +427,8 @@ class VariableHandle: public Handle
         }
         starpu_data_handle_t tmp;
         starpu_variable_data_register(&tmp, -1, 0, size);
+        // Disable OOC by default
+        starpu_data_set_ooc_flag(tmp, 0);
         return tmp;
     }
     //! Register variable
@@ -428,6 +441,8 @@ class VariableHandle: public Handle
         starpu_data_handle_t tmp;
         starpu_variable_data_register(&tmp, STARPU_MAIN_RAM,
                 reinterpret_cast<uintptr_t>(ptr), size);
+        // Disable OOC by default
+        starpu_data_set_ooc_flag(tmp, 0);
         return tmp;
     }
 public:

@@ -11,16 +11,17 @@
 #
 # @version 1.1.0
 
-from typing import List
+from typing import List, Union
 
 from nntile.layer.base_layer import BaseLayer
-from nntile.tensor import TensorMoments, clear_async
+from nntile.tensor import Tensor, TensorMoments, clear_async
 
 
 class BaseModel:
     activations: List[TensorMoments]
     parameters: List[TensorMoments]
     layers: List[BaseLayer]
+    temporaries: List[Union[Tensor, TensorMoments]]
 
     # Construct model with all the provided data
     def __init__(
@@ -33,6 +34,9 @@ class BaseModel:
         self.parameters = []
         for layer in layers:
             self.parameters.extend(layer.parameters)
+        self.temporaries = []
+        for layer in layers:
+            self.temporaries.extend(layer.temporaries)
 
     # Add a new layer with corresponding new activations
     def append(self, layer: BaseLayer):
@@ -95,3 +99,59 @@ class BaseModel:
         for layer in self.layers:
             flops += layer.get_backward_flops()
         return flops
+
+    def ooc_force_parameters(self, portion: float = 0.0):
+        """Choose the first `portion` of parameters force them to be OOC
+            in advance"""
+        enable_count = int(len(self.parameters) * portion)
+        disabled_count = len(self.parameters) - enable_count
+        for i in range(enable_count):
+            self.parameters[i].value.ooc_enable()
+        for i in range(disabled_count):
+            self.parameters[enable_count + i].value.ooc_disable()
+
+    def ooc_force_gradients(self, portion: float = 0.0):
+        """Choose the first `portion` of gradients force them to be OOC
+            in advance"""
+        enable_count = int(len(self.parameters) * portion)
+        disabled_count = len(self.parameters) - enable_count
+        for i in range(enable_count):
+            if self.parameters[i].grad is not None:
+                self.parameters[i].grad.ooc_enable()
+        for i in range(disabled_count):
+            if self.parameters[enable_count + i].grad is not None:
+                self.parameters[enable_count + i].grad.ooc_disable()
+
+    def ooc_force_activations(self, portion: float = 0.0):
+        """Choose the first `portion` of activations force them to be OOC
+            in advance"""
+        enable_count = int(len(self.activations) * portion)
+        disabled_count = len(self.activations) - enable_count
+        for i in range(enable_count):
+            self.activations[i].value.ooc_enable()
+            if self.activations[i].grad is not None:
+                self.activations[i].grad.ooc_enable()
+        for i in range(disabled_count):
+            self.activations[enable_count + i].value.ooc_disable()
+            if self.activations[enable_count + i].grad is not None:
+                self.activations[enable_count + i].grad.ooc_disable()
+
+    def ooc_force_temporaries(self, portion: float = 0.0):
+        """Choose the first `portion` of temporaries force them to be OOC
+        in advance"""
+        enable_count = int(len(self.temporaries) * portion)
+        disabled_count = len(self.temporaries) - enable_count
+        for i in range(enable_count):
+            if isinstance(self.temporaries[i], TensorMoments):
+                self.temporaries[i].value.ooc_enable()
+                if self.temporaries[i].grad is not None:
+                    self.temporaries[i].grad.ooc_enable()
+            else:
+                self.temporaries[i].ooc_enable()
+        for i in range(disabled_count):
+            if isinstance(self.temporaries[enable_count + i], TensorMoments):
+                self.temporaries[enable_count + i].value.ooc_disable()
+                if self.temporaries[enable_count + i].grad is not None:
+                    self.temporaries[enable_count + i].grad.ooc_disable()
+            else:
+                self.temporaries[enable_count + i].ooc_disable()

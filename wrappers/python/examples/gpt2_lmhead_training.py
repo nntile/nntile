@@ -81,6 +81,15 @@ parser.add_argument("--logger-server-addr", type=str,
                     default="localhost")
 parser.add_argument("--logger-server-port", type=int, default=5001)
 
+parser.add_argument("--ooc", action="store_true")
+parser.add_argument("--ooc-path", type=str, default="/tmp/nntile_ooc")
+parser.add_argument("--ooc-size", type=int, default=1073741824)
+parser.add_argument("--ooc-force-portion-parameters", type=float, default=0.0)
+parser.add_argument("--ooc-force-portion-gradients", type=float, default=0.0)
+parser.add_argument("--ooc-force-portion-activations", type=float, default=0.0)
+parser.add_argument("--ooc-force-portion-temporaries", type=float, default=0.0)
+parser.add_argument("--ooc-force-portion-optimizer", type=float, default=0.0)
+
 # Parse arguments
 args = parser.parse_args()
 print(args)
@@ -100,6 +109,16 @@ assert args.batch_size % args.minibatch_size == 0
 num_minibatch = args.batch_size // args.minibatch_size
 assert args.minibatch_size % args.minibatch_size_tile == 0
 assert args.nepochs > 0
+assert args.ooc_force_portion_parameters >= 0.0
+assert args.ooc_force_portion_parameters <= 1.0
+assert args.ooc_force_portion_gradients >= 0.0
+assert args.ooc_force_portion_gradients <= 1.0
+assert args.ooc_force_portion_activations >= 0.0
+assert args.ooc_force_portion_activations <= 1.0
+assert args.ooc_force_portion_temporaries >= 0.0
+assert args.ooc_force_portion_temporaries <= 1.0
+assert args.ooc_force_portion_optimizer >= 0.0
+assert args.ooc_force_portion_optimizer <= 1.0
 
 # Load named pretrained PyTorch model
 if args.pretrained == "remote":
@@ -142,8 +161,10 @@ model_torch.config.n_inner = inner_dim
 # Initialize NNTile and StarPU
 time0 = time.time()
 # Set up StarPU+MPI and init codelets
+verbose = 0
 nntile_config = nntile.starpu.Config(-1, -1, 1, args.logger,
-        args.logger_server_addr, args.logger_server_port)
+        args.logger_server_addr, args.logger_server_port, verbose,
+        args.ooc, args.ooc_size, args.ooc_path)
 nntile.starpu.profiling_init()
 nntile.starpu.profiling_disable()
 nntile.starpu.init()
@@ -194,6 +215,13 @@ print("Converting PyTorch model to NNTile",
         "requires {} seconds".format(time1))
 del model_torch
 
+# Set OOC force for parameters, gradients and activations
+gpt2lmhead_nntile.ooc_force_parameters(args.ooc_force_portion_parameters)
+gpt2lmhead_nntile.ooc_force_gradients(args.ooc_force_portion_gradients)
+gpt2lmhead_nntile.ooc_force_activations(args.ooc_force_portion_activations)
+gpt2lmhead_nntile.ooc_force_temporaries(args.ooc_force_portion_temporaries)
+
+# Get train tokens
 splitted_datasetfile = args.dataset_file.split("/")
 if splitted_datasetfile[-1] == "train.bin":
     train_data = np.memmap(Path(args.dataset_path) /
@@ -252,7 +280,10 @@ elif args.optimizer == "adamw":
 elif args.optimizer == "sgd":
     optimizer = nntile.optimizer.SGD(gpt2lmhead_nntile.get_parameters(),
             args.lr, next_tag)
+# Set OOC force for optimizer
+optimizer.ooc_force(args.ooc_force_portion_optimizer)
 next_tag = optimizer.get_next_tag()
+
 # Define Cross Entropy loss function
 loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
         gpt2lmhead_nntile.activations[-1], next_tag,

@@ -161,3 +161,15 @@ class Adam:
             nbytes += self.first_moments[i].get_nbytes()
             nbytes += self.second_moments[i].get_nbytes()
         return nbytes
+
+    def ooc_force(self, portion: float = 0.0):
+        """Choose the first `portion` of parameters, whose optimizer
+        states are forced to be OOC in advance"""
+        enable_count = int(len(self.first_moments) * portion)
+        disabled_count = len(self.first_moments) - enable_count
+        for i in range(enable_count):
+            self.first_moments[i].ooc_enable()
+            self.second_moments[i].ooc_enable()
+        for i in range(disabled_count):
+            self.first_moments[enable_count + i].ooc_disable()
+            self.second_moments[enable_count + i].ooc_disable()

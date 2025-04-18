@@ -33,11 +33,17 @@ void def_mod_starpu(py::module_ &m)
     using namespace nntile::starpu;
     using namespace std::chrono_literals;
     py::class_<Config>(m, "Config").
-        def(py::init<int, int, int, int, const char *, int>(),
-                py::arg("ncpus_")=-1, py::arg("ncuda_")=-1,
-                py::arg("cublas_")=-1, py::arg("logger")=0,
+        def(py::init<int, int, int, int, const char *, int, int, int, size_t, const char *>(),
+                py::arg("ncpus_")=-1,
+                py::arg("ncuda_")=-1,
+                py::arg("cublas_")=-1,
+                py::arg("logger")=0,
                 py::arg("logger_server_addr")="",
-                py::arg("logger_server_port")=5001).
+                py::arg("logger_server_port")=5001,
+                py::arg("verbose")=0,
+                py::arg("ooc")=0,
+                py::arg("ooc_size")=1073741824UL,
+                py::arg("ooc_path")="/tmp/nntile_ooc").
         def("shutdown", &Config::shutdown);
     m.def("init", init);
     m.def("pause", starpu_pause);
@@ -431,7 +437,6 @@ void def_class_tensor(py::module_ &m, const char *name)
         def("from_array", &tensor_from_array<T>).
         def("to_array", &tensor_to_array<T>).
         def("try_gathered_to_array", &tensor_try_gathered_to_array<T>).
-
         def("set_reduction_add", &Tensor<T>::set_reduction_add).
         def("set_reduction_hypot", &Tensor<T>::set_reduction_hypot).
         def("set_reduction_maxsumexp", &Tensor<T>::set_reduction_maxsumexp).
@@ -440,6 +445,10 @@ void def_class_tensor(py::module_ &m, const char *name)
         def("get_tile", static_cast<tile::Tile<T>(Tensor<T>::*)(Index) const>(
                     &Tensor<T>::get_tile)).
         def("get_nbytes", &Tensor<T>::get_nbytes).
+        // Enable OOC
+        def("ooc_enable", &Tensor<T>::ooc_enable).
+        // Disable OOC
+        def("ooc_disable", &Tensor<T>::ooc_disable).
         def_readonly("distribution", &Tensor<T>::tile_distr);
     m.def("tensor_to_array", tensor_to_array<T>);
     m.def("tensor_from_array", tensor_from_array<T>);

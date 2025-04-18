@@ -216,6 +216,22 @@ public:
     {
         return sizeof(T) * nelems;
     }
+    void ooc_enable()
+    {
+        for(Index i = 0; i < grid.nelems; ++i)
+        {
+            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            starpu_data_set_ooc_flag(tmp, 1);
+        }
+    }
+    void ooc_disable()
+    {
+        for(Index i = 0; i < grid.nelems; ++i)
+        {
+            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            starpu_data_set_ooc_flag(tmp, 0);
+        }
+    }
 };
 
 } // namespace nntile::tensor

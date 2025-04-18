@@ -27,3 +27,6 @@ class Empty:
 
     def get_nbytes(self):
         return 0
+
+    def ooc_force(self, portion: float = 0.0):
+        pass
