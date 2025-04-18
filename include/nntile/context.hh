@@ -15,8 +15,6 @@
 #pragma once
 
 // Standard library headers
-#include <unordered_set>
-#include <mutex>
 
 // Third-party headers
 #include <starpu.h>
@@ -51,15 +49,6 @@ public:
     //! Verbosity level
     int verbose;
 
-    //! Container for all registered data handles
-    std::unordered_set<starpu_data_handle_t> data_handles;
-
-    //! Container for all automatically unregistered data handles
-    std::unordered_set<starpu_data_handle_t> data_handles_auto_unreg;
-
-    //! Mutex for a case of multi-threaded garbage collection
-    std::mutex data_handles_mutex;
-
     //! Constructor of the context
     Context(
         int ncpus=-1,
@@ -83,29 +72,6 @@ public:
 
     //! Shut down the context on demand
     void shutdown();
-
-    //! Register a data handle into the context
-    void data_handle_register(starpu_data_handle_t handle);
-
-    //! Pop a data handle from the container
-    bool data_handle_pop(starpu_data_handle_t handle);
-
-    //! Unregister a data handle from the context
-    void data_handle_unregister(starpu_data_handle_t handle);
-
-    //! Unregister a data handle from the context without coherency
-    void data_handle_unregister_no_coherency(starpu_data_handle_t handle);
-
-    //! Unregister a data handle from the context in an async manner
-    void data_handle_unregister_submit(starpu_data_handle_t handle);
-
-    //! Unregister all data handles
-    /* This procedure moves all unregistered data handles into a separate
-     * container to double deregistration of the same data handles due to
-     * order of objects destruction, which is guaranteed to be reverse to the
-     * order of objects creation for the C++ language, but not for the Python
-     * language. */
-    void data_handle_unregister_all();
 };
 
 } // namespace nntile

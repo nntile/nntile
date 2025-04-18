@@ -92,13 +92,12 @@ def test_cross_entropy(dtype: np.dtype, reduction: str,
     x_type = dtype2nntile[dtype]
     final_layer_output_traits = nntile.tensor.TensorTraits(
         [nclasses, batch_size], [nclasses, batch_size])
-    mpi_distr = [0]
-    final_layer_output_tensor = x_type(final_layer_output_traits, mpi_distr)
+    final_layer_output_tensor = x_type(final_layer_output_traits)
     final_layer_output_tensor.from_array(final_layer_output.T)
 
     final_layer_grad_output_traits = nntile.tensor.TensorTraits(
         [nclasses, batch_size], [nclasses, batch_size])
-    final_layer_output_grad = x_type(final_layer_grad_output_traits, mpi_distr)
+    final_layer_output_grad = x_type(final_layer_grad_output_traits)
     final_layer_output_tm = TensorMoments(final_layer_output_tensor,
                                           final_layer_output_grad, True)
 

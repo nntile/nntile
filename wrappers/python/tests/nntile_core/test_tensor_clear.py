@@ -33,9 +33,8 @@ def test_clear(dtype):
     # Describe single-tile tensor, located at node 0
     A_shape = [2, 3, 4]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
-    A_distr = [0]
     # Tensor objects
-    A = Tensor[dtype](A_traits, A_distr)
+    A = Tensor[dtype](A_traits)
     # Set initial values of tensors
     rand_A = np.random.default_rng(42).standard_normal(A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')

@@ -149,9 +149,7 @@ batch_labels = []
 x_traits = nntile.tensor.TensorTraits(
     [n_pixels, args.minibatch], [args.pixels_tile, args.minibatch_tile]
 )
-x_distr = [0] * x_traits.grid.nelems
 y_traits = nntile.tensor.TensorTraits([args.minibatch], [args.minibatch_tile])
-y_distr = [0] * y_traits.grid.nelems
 for train_batch_data, train_batch_labels in train_loader:
     if train_batch_data.shape[0] != args.batch:
         break
@@ -161,13 +159,13 @@ for train_batch_data, train_batch_labels in train_loader:
     current_labels = train_batch_labels.numpy()
     for idx in range(args.batch // args.minibatch):
         if args.dtype == "fp32":
-            x = nntile.tensor.Tensor_fp32(x_traits, x_distr)
+            x = nntile.tensor.Tensor_fp32(x_traits)
         elif args.dtype == "tf32":
             x = nntile.tensor.Tensor_fp32_fast_tf32(
-                x_traits, x_distr
+                x_traits
             )
         elif args.dtype == "bf16":
-            x = nntile.tensor.Tensor_bf16(x_traits, x_distr)
+            x = nntile.tensor.Tensor_bf16(x_traits)
         x.from_array(
             current_data[
                 idx * args.minibatch : (idx + 1) * args.minibatch, :
@@ -175,7 +173,7 @@ for train_batch_data, train_batch_labels in train_loader:
         )
         current_minibatch_data.append(x)
 
-        y = nntile.tensor.Tensor_int64(y_traits, y_distr)
+        y = nntile.tensor.Tensor_int64(y_traits)
 
         y.from_array(
             current_labels[idx * args.minibatch : (idx + 1) * args.minibatch]
@@ -193,11 +191,11 @@ print("From PyTorch loader to NNTile batches in {} seconds".format(time0))
 # Define tensor X for input batches
 time0 = -time.time()
 if args.dtype == "fp32":
-    x = nntile.tensor.Tensor_fp32(x_traits, x_distr)
+    x = nntile.tensor.Tensor_fp32(x_traits)
 elif args.dtype == "tf32":
-    x = nntile.tensor.Tensor_fp32_fast_tf32(x_traits, x_distr)
+    x = nntile.tensor.Tensor_fp32_fast_tf32(x_traits)
 elif args.dtype == "bf16":
-    x = nntile.tensor.Tensor_bf16(x_traits, x_distr)
+    x = nntile.tensor.Tensor_bf16(x_traits)
 x_grad = None
 x_grad_required = False
 x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)

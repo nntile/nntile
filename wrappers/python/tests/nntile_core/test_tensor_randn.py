@@ -35,10 +35,9 @@ def test_randn(dtype):
     seed = 1
     mean = 1.0
     dev = 0.5
-    mpi_distr = [0]
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr)
+    A = Tensor[dtype](traits)
     # Set initial values of tensors
     randn[dtype](A, [0] * ndim, shape, seed, mean, dev)
     np_A = np.zeros(shape, dtype=dtype, order='F')

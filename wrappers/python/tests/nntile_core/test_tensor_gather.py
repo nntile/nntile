@@ -36,11 +36,9 @@ def test_gather(dtype):
     ndim = len(A_shape)
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     B_traits = nntile.tensor.TensorTraits(A_shape, B_basetile)
-    A_distr = [0]
-    B_distr = [0] * B_traits.grid.nelems
     # Tensor objects
-    A = Tensor[dtype](A_traits, A_distr)
-    B = Tensor[dtype](B_traits, B_distr)
+    A = Tensor[dtype](A_traits)
+    B = Tensor[dtype](B_traits)
     # Set initial values of tensors
     rand_A = np.random.default_rng(42).standard_normal(A_shape)
     np_A = np.array(rand_A, dtype=dtype, order='F')

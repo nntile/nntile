@@ -13,9 +13,8 @@
 
 from . import (
     functions, inference, layer, loss, model, optimizer, pipeline, tensor)
-from .nntile_core import (
-    TransOp, nntile_init, nntile_shutdown, notrans, starpu, tile, trans)
+from .nntile_core import Config, TransOp, notrans, starpu, tile, trans
 
 __all__ = ('functions', 'inference', 'layer', 'loss', 'model', 'optimizer',
            'pipeline', 'tensor', 'TransOp', 'notrans', 'starpu', 'tile',
-           'trans', 'nntile_init', 'nntile_shutdown')
+           'trans', 'Config')

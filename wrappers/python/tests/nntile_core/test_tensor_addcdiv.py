@@ -32,12 +32,11 @@ nntile.nntile_init(ncpus=1, ncuda=0, cublas=0, ooc=0, logger=0, verbose=0)
 def test_addcdiv(dtype):
     # Describe single-tile tensor, located at node 0
     shape = [2, 3, 4]
-    mpi_distr = [0]
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr)
-    B = Tensor[dtype](traits, mpi_distr)
-    C = Tensor[dtype](traits, mpi_distr)
+    A = Tensor[dtype](traits)
+    B = Tensor[dtype](traits)
+    C = Tensor[dtype](traits)
 
     # Set initial values of tensors
     rng = np.random.default_rng(42)

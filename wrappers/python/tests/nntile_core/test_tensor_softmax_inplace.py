@@ -35,16 +35,15 @@ def test_softmax_inplace(dtype):
     ndim = len(A_shape)
     for i in range(ndim):
         B_shape.append([2] + A_shape[:i] + A_shape[i + 1:])
-    mpi_distr = [0]
     A_traits = nntile.tensor.TensorTraits(A_shape, A_shape)
     B_traits = []
     for i in range(ndim):
         B_traits.append(nntile.tensor.TensorTraits(B_shape[i], B_shape[i]))
     # Tensor objects
-    A = Tensor[dtype](A_traits, mpi_distr)
+    A = Tensor[dtype](A_traits)
     B = []
     for i in range(ndim):
-        B.append(Tensor[dtype](B_traits[i], mpi_distr))
+        B.append(Tensor[dtype](B_traits[i]))
     # Set initial values of tensors
     rng = np.random.default_rng(42)
     rand_A = rng.standard_normal(A_shape)

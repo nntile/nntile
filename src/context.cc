@@ -24,7 +24,7 @@
 
 // Other NNTile headers
 #include "nntile/logger.hh"
-#include "nntile/starpu.hh"
+#include "nntile/starpu/handle.hh"
 
 namespace nntile
 {
@@ -48,7 +48,7 @@ Context::Context(
     verbose(verbose)
 {
     // Throw an error if StarPU is already initialized
-    // We only support a single context for now
+    // We only support a single active context for now
     if(starpu_is_initialized())
     {
         throw std::runtime_error("StarPU is already initialized");
@@ -181,7 +181,7 @@ Context::Context(
     // Initialize logger if enabled
     if(logger != 0)
     {
-        nntile::logger::logger_init(logger_server_addr, logger_server_port);
+        logger::logger_init(logger_server_addr, logger_server_port);
         if(verbose > 0)
         {
             std::cout << "Initialized logger\n";
@@ -205,16 +205,17 @@ void Context::shutdown()
     }
 
     // StarPU must be still initialized
-    // Because we only support a single context for now
+    // Because we only support a single active context for now and the current
+    // context is still active
     if(!starpu_is_initialized())
     {
         throw std::runtime_error("StarPU must be still initialized");
     }
 
     // Shutdown logger if enabled
-    if(nntile::logger::logger_running)
+    if(logger::logger_running)
     {
-        nntile::logger::logger_shutdown();
+        logger::logger_shutdown();
         if(verbose > 0)
         {
             std::cout << "Shutdown logger\n";
@@ -222,7 +223,7 @@ void Context::shutdown()
     }
 
     // Unregister all remaining data handles
-    data_handle_unregister_all();
+    starpu::data_handle_unregister_all();
 
     // Shutdown cuBLAS if enabled
 #ifdef NNTILE_USE_CUDA
@@ -247,172 +248,6 @@ void Context::shutdown()
     if(verbose > 0)
     {
         std::cout << "Finished shutdown of NNTile\n";
-    }
-}
-
-//! Register a data handle into the context
-void Context::data_handle_register(starpu_data_handle_t handle)
-{
-    // Check if the configuration object is initialized
-    if(initialized == 0)
-    {
-        throw std::runtime_error("NNTile context is not initialized");
-    }
-
-    // Lock the data handles mutex to avoid race condition
-    const std::lock_guard<std::mutex> lock(data_handles_mutex);
-
-    data_handles.insert(handle);
-    if(verbose > 1)
-    {
-        std::cout << "Registered data handle " << handle << "\n";
-    }
-}
-
-//! Pop a data handle from the container
-bool Context::data_handle_pop(starpu_data_handle_t handle)
-{
-    // Check if the context is initialized
-    if(initialized == 0)
-    {
-        throw std::runtime_error("NNTile context is not initialized");
-    }
-
-    // Lock the data handles mutex to avoid race condition
-    const std::lock_guard<std::mutex> lock(data_handles_mutex);
-
-    // Check if the data handle is registered
-    auto it = data_handles.find(handle);
-    if(it != data_handles.end())
-    {
-        data_handles.erase(it);
-        if(verbose > 1)
-        {
-            std::cout << "Data handle " << handle << " removed from "
-                "registered data handles\n";
-        }
-        // Tell the caller that the data handle is still registered
-        return true;
-    }
-    // If it is not registered, check if it was automatically unregistered
-    // Automatic unregistration is performed in case a user explicitly calls
-    // nntile::config.shutdown() or due to Python garbage collector
-    auto it_auto = data_handles_auto_unreg.find(handle);
-    if(it_auto != data_handles_auto_unreg.end())
-    {
-        data_handles_auto_unreg.erase(it_auto);
-        // Verbose level is set to zero after shutdown, so we do not print
-        // Tell the caller that the data handle is not registered
-        return false;
-    }
-    // Throw an error if the data handle is not registered and not
-    // automatically unregistered
-    std::stringstream ss;
-    ss << "Data handle " << handle << " to be unregistered was not found";
-    throw std::runtime_error(ss.str());
-}
-
-//! Unregister a data handle from the context
-void Context::data_handle_unregister(starpu_data_handle_t handle)
-{
-    // Check if the context is initialized
-    if(initialized == 0)
-    {
-        throw std::runtime_error("NNTile context is not initialized");
-    }
-
-    // Pop the data handle from the container
-    if(data_handle_pop(handle))
-    {
-        // Unregister the data handle
-        starpu_data_unregister(handle);
-        if(verbose > 1)
-        {
-            std::cout << "Unregistered data handle " << handle << "\n";
-        }
-    }
-}
-
-//! Unregister a data handle from the context without coherency
-void Context::data_handle_unregister_no_coherency(starpu_data_handle_t handle)
-{
-    // Check if the context is initialized
-    if(initialized == 0)
-    {
-        throw std::runtime_error("NNTile context is not initialized");
-    }
-
-    // Pop the data handle from the container
-    if(data_handle_pop(handle))
-    {
-        // Unregister the data handle without coherency
-        starpu_data_unregister_no_coherency(handle);
-        if(verbose > 1)
-        {
-            std::cout << "Unregistered data handle " << handle <<
-                " (no coherency)\n";
-        }
-    }
-}
-
-//! Unregister a data handle from the context in an async manner
-void Context::data_handle_unregister_submit(starpu_data_handle_t handle)
-{
-    // Check if the context is initialized
-    if(initialized == 0)
-    {
-        throw std::runtime_error("NNTile context is not initialized");
-    }
-
-    // Pop the data handle from the container
-    if(data_handle_pop(handle))
-    {
-        // Unregister the data handle in an async manner
-        starpu_data_unregister_submit(handle);
-        if(verbose > 1)
-        {
-            std::cout << "Unregistered data handle " << handle <<
-                " (submit)\n";
-        }
-    }
-}
-
-//! Unregister all data handles
-void Context::data_handle_unregister_all()
-{
-    // Check if the context is initialized
-    if(initialized == 0)
-    {
-        throw std::runtime_error("NNTile context is not initialized");
-    }
-
-    // Lock the data handles mutex to avoid race condition
-    const std::lock_guard<std::mutex> lock(data_handles_mutex);
-
-    // Print the number of remaining data handles
-    if(verbose > 0)
-    {
-        std::cout << "There are " << data_handles.size()
-            << " remaining data handles to unregister\n";
-    }
-
-    // Unregister all data handles
-    for(auto handle: data_handles)
-    {
-        starpu_data_unregister(handle);
-        if(verbose > 1)
-        {
-            std::cout << "Automatically unregistered data handle " <<
-                handle << "\n";
-        }
-    }
-
-    // Save the list of automatically unregistered data handles
-    data_handles_auto_unreg = std::move(data_handles);
-    if(verbose > 0)
-    {
-        std::cout << "Automatically unregistered all remaining data "
-            "handles\n";
     }
 }
 

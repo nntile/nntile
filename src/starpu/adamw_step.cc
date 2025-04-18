@@ -12,11 +12,19 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/adamw_step.hh"
-#endif // STARPU_SIMGRID
+// Related header
 #include "nntile/starpu/adamw_step.hh"
+
+// Standard library headers
 #include <cstdlib>
+
+// Third-party headers
+#include <starpu.h>
+
+// Other NNTile headers
+#ifndef STARPU_SIMGRID
+#   include "nntile/kernel/adamw_step.hh"
+#endif // STARPU_SIMGRID
 
 //! StarPU wrappers for one step of AdamW optimizer
 namespace nntile::starpu::adamw_step
@@ -68,90 +76,80 @@ void cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
-        codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
+Codelet codelet_fp64(
+    "nntile_adamw_step_fp64",
+    nullptr,
+    {cpu<fp64_t>},
+#ifdef NNTILE_USE_CUDA
+    {cuda<fp64_t>}
+#else // NNTILE_USE_CUDA
+    {}
+#endif // NNTILE_USE_CUDA
+);
 
-void init()
+Codelet codelet_fp32(
+    "nntile_adamw_step_fp32",
+    nullptr,
+    {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+    {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+    {}
+#endif // NNTILE_USE_CUDA
+);
+
+Codelet codelet_fp32_fast_tf32(
+    "nntile_adamw_step_fp32_fast_tf32",
+    nullptr,
+    {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+    {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+    {}
+#endif // NNTILE_USE_CUDA
+);
+
+Codelet codelet_fp32_fast_fp16(
+    "nntile_adamw_step_fp32_fast_fp16",
+    nullptr,
+    {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+    {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+    {}
+#endif // NNTILE_USE_CUDA
+);
+
+Codelet codelet_fp32_fast_bf16(
+    "nntile_adamw_step_fp32_fast_bf16",
+    nullptr,
+    {cpu<fp32_t>},
+#ifdef NNTILE_USE_CUDA
+    {cuda<fp32_t>}
+#else // NNTILE_USE_CUDA
+    {}
+#endif // NNTILE_USE_CUDA
+);
+
+Codelet codelet_bf16(
+    "nntile_adamw_step_bf16",
+    nullptr,
+    {cpu<bf16_t>},
+#ifdef NNTILE_USE_CUDA
+    {cuda<bf16_t>}
+#else // NNTILE_USE_CUDA
+    {}
+#endif // NNTILE_USE_CUDA
+);
+
+void append_codelets(std::vector<Codelet> &codelets)
 {
-    codelet_fp32.init("nntile_adamw_step_fp32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_bf16.init("nntile_adamw_step_bf16",
-            nullptr,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_tf32.init("nntile_adamw_step_fp32_fast_tf32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_fp16.init("nntile_adamw_step_fp32_fast_fp16",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp32_fast_bf16.init("nntile_adamw_step_fp32_fast_bf16",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-
-    codelet_fp64.init("nntile_adamw_step_fp64",
-            nullptr,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-    codelet_fp32_fast_fp16.restrict_where(where);
-    codelet_fp32_fast_bf16.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_bf16.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-    codelet_fp32_fast_fp16.restore_where();
-    codelet_fp32_fast_bf16.restore_where();
-    codelet_fp64.restore_where();
+    codelets.push_back(codelet_fp64);
+    codelets.push_back(codelet_fp32);
+    codelets.push_back(codelet_fp32_fast_tf32);
+    codelets.push_back(codelet_fp32_fast_fp16);
+    codelets.push_back(codelet_fp32_fast_bf16);
+    codelets.push_back(codelet_bf16);
 }
 
 template<typename T>

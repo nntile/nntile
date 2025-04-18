@@ -29,9 +29,8 @@ class TestTensor:
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     def test_init(self, dtype):
         shape = [3, 4]
-        mpi_distr = [0]
         traits = nntile.tensor.TensorTraits(shape, shape)
-        tensor = Tensor[dtype](traits, mpi_distr)
+        tensor = Tensor[dtype](traits)
         src = np.random.default_rng(42) \
             .standard_normal(shape) \
             .astype(dtype, 'F')

@@ -32,15 +32,13 @@ void check(Scalar alpha, const std::vector<Index> &shape,
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
-    starpu_mpi_tag_t last_tag = 0;
-    int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_root = 0;
     // Generate single-tile source tensor and init it
     TensorTraits data_single_traits(shape, shape);
     std::vector<int> dist_root = {mpi_root};
-    Tensor<T> data_single(data_single_traits, dist_root, last_tag);
-    Tensor<T> data2_single(data_single_traits, dist_root, last_tag);
+    Tensor<T> data_single(data_single_traits, dist_root);
+    Tensor<T> data2_single(data_single_traits, dist_root);
     if(mpi_rank == mpi_root)
     {
         auto tile = data_single.get_tile(0);
@@ -58,7 +56,7 @@ void check(Scalar alpha, const std::vector<Index> &shape,
     {
         data_distr[i] = (i+1) % mpi_size;
     }
-    Tensor<T> data(data_traits, data_distr, last_tag);
+    Tensor<T> data(data_traits, data_distr);
     scatter<T>(data_single, data);
     // Perform tensor-wise and tile-wise scal_inplace operations
     scal_inplace<T>(alpha, data);
@@ -96,13 +94,11 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::scal_inplace::init();
-    starpu::subcopy::init();
-    starpu::scal_inplace::restrict_where(STARPU_CPU);
-    starpu::subcopy::restrict_where(STARPU_CPU);
+    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    starpu::config.init(ncpus, ncuda, cublas, ooc, ooc_path, ooc_size,
+        ooc_disk_node_id, verbose);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

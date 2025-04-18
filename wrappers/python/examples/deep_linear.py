@@ -69,16 +69,14 @@ rng = np.random.Generator(44)
 x_traits = nntile.tensor.TensorTraits(
     [n_cols, batch_size], [n_cols_tile, batch_size_tile]
 )
-x_distr = [0] * x_traits.grid.nelems
 y_traits = nntile.tensor.TensorTraits(
     [n_rows, batch_size], [n_rows_tile, batch_size_tile]
 )
-y_distr = [0] * y_traits.grid.nelems
 
 # Define tensor X for input batches
 # It shall move into DeepLinear generator in some future
-x = nntile.tensor.Tensor_fp32(x_traits, x_distr)
-# x_grad = nntile.tensor.Tensor_fp32(x_traits, x_distr)
+x = nntile.tensor.Tensor_fp32(x_traits)
+# x_grad = nntile.tensor.Tensor_fp32(x_traits)
 x_grad = None
 x_grad_required = False
 x_moments = nntile.tensor.TensorMoments(x, x_grad, x_grad_required)
@@ -113,13 +111,13 @@ for i in range(n_batches):
     # Wrap numpy tensor into NNTile tensor
     x_full.from_array(X)
     # Scatter input batch
-    x = nntile.tensor.Tensor_fp32(x_traits, x_distr)
+    x = nntile.tensor.Tensor_fp32(x_traits)
     nntile.nntile_core.tensor.scatter_fp32(x_full, x)
     batch_input.append(x)
     # Wrap numpy tensor into NNTile tensor
     y_full.from_array(Y)
     # Scatter output batch
-    y = nntile.tensor.Tensor_fp32(y_traits, y_distr)
+    y = nntile.tensor.Tensor_fp32(y_traits)
     nntile.nntile_core.tensor.scatter_fp32(y_full, y)
     batch_output.append(y)
 

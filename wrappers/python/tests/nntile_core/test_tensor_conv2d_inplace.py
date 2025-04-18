@@ -81,8 +81,7 @@ def test_conv2d(
     shape = [*shape_X, in_channels, batch]
     tile_shape = [*shape_X_tile, in_channels, batch_tile]
     traits = nntile.tensor.TensorTraits(shape, tile_shape)
-    mpi_distr = [0] * traits.grid.nelems
-    X = Tensor[dtype](traits, mpi_distr)
+    X = Tensor[dtype](traits)
     src_X = np.array(
             numpy_rng.standard_normal(shape, dtype=dtype),
             dtype=dtype,
@@ -91,8 +90,7 @@ def test_conv2d(
 
     shape = [*shape_W, in_channels, out_channels]
     traits = nntile.tensor.TensorTraits(shape, shape)
-    mpi_distr = [0] * traits.grid.nelems
-    W = Tensor[dtype](traits, mpi_distr)
+    W = Tensor[dtype](traits)
     src_W = np.array(
             numpy_rng.standard_normal(shape, dtype=dtype),
             dtype=dtype,
@@ -102,8 +100,7 @@ def test_conv2d(
     shape = shape_Y
     tile_shape = [*shape_Y_tile, out_channels, batch_tile]
     traits = nntile.tensor.TensorTraits(shape, tile_shape)
-    mpi_distr = [0] * traits.grid.nelems
-    Y = Tensor[dtype](traits, mpi_distr)
+    Y = Tensor[dtype](traits)
     src_Y = np.array(
             numpy_rng.standard_normal(shape, dtype=dtype),
             dtype=dtype,

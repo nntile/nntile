@@ -18,6 +18,8 @@
 // Standard library headers
 #include <stdexcept>
 #include <cstring>
+#include <vector>
+#include <mutex>
 
 // Third-party headers
 
@@ -27,28 +29,20 @@
 namespace nntile::starpu
 {
 
-//! Default constructor
-Codelet::Codelet()
-{
-    // Zero-initialize codelet
-    // It will set initialized to 0
-    std::memset(this, 0, sizeof(*this));
-}
+// List of all codelets
+std::vector<Codelet> codelets;
 
-//! Initialize codelet
-void Codelet::init(
+//! Mutex for codelets
+std::mutex codelets_mutex;
+
+//! Default constructor
+Codelet::Codelet(
     const char *name_,
     uint32_t (*footprint_)(starpu_task *),
     std::initializer_list<starpu_cpu_func_t> cpu_funcs_,
     std::initializer_list<starpu_cuda_func_t> cuda_funcs_
 )
 {
-    // Ignore if the codelet is already initialized
-    if(initialized != 0)
-    {
-        return;
-    }
-
     // Initialize perfmodel
     starpu_codelet::model = this;
     starpu_perfmodel::type = STARPU_HISTORY_BASED;
@@ -114,20 +108,11 @@ void Codelet::init(
         }
     }
 #endif // NNTILE_USE_CUDA
-
-    // Set initialized flag
-    initialized = 1;
 }
 
 //! Restrict where the codelet should be executed
 void Codelet::restrict_where(uint32_t where_)
 {
-    // Check if the codelet is initialized
-    if(initialized == 0)
-    {
-        throw std::runtime_error("Codelet is not initialized");
-    }
-
     // Restrict only if the provided where is supported
     if((where_default & where_) == where_)
     {
@@ -138,12 +123,6 @@ void Codelet::restrict_where(uint32_t where_)
 //! Restore where the codelet should be executed
 void Codelet::restore_where()
 {
-    // Check if the codelet is initialized
-    if(initialized == 0)
-    {
-        throw std::runtime_error("Codelet is not initialized");
-    }
-
     // Restore the default where
     starpu_codelet::where = where_default;
 }

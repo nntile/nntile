@@ -12,15 +12,12 @@
  * @version 1.1.0
  * */
 
-#include <iostream>
+#include "nntile/starpu/config.hh"
 #include "nntile/tensor/add.hh"
 #include "nntile/tile/add.hh"
 #include "nntile/starpu/add.hh"
-#include "nntile/starpu/scal.hh"
 #include "nntile/tensor/scatter.hh"
 #include "nntile/tensor/gather.hh"
-#include "nntile/starpu/subcopy.hh"
-#include "nntile/starpu/copy.hh"
 #include "../testing.hh"
 
 using namespace nntile;
@@ -34,14 +31,13 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     // Barrier to wait for cleanup of previously used tags
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Some preparation
-    starpu_mpi_tag_t last_tag = 0;
     int mpi_size = starpu_mpi_world_size();
     int mpi_rank = starpu_mpi_world_rank();
     int mpi_root = 0;
     // Generate single-tile destination tensor and init it
     TensorTraits dst_single_traits(shape, shape);
     std::vector<int> dist_root = {mpi_root};
-    Tensor<T> dst_single(dst_single_traits, dist_root, last_tag);
+    Tensor<T> dst_single(dst_single_traits, dist_root);
     if(mpi_rank == mpi_root)
     {
         auto tile = dst_single.get_tile(0);
@@ -59,7 +55,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     {
         dst_distr[i] = (i+1) % mpi_size;
     }
-    Tensor<T> dst(dst_traits, dst_distr, last_tag);
+    Tensor<T> dst(dst_traits, dst_distr);
     scatter<T>(dst_single, dst);
     // Define proper shape and basetile for the source tensor
 
@@ -69,10 +65,10 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
     // Generate single-tile source tensor and init it
 
     TensorTraits src1_single_traits(src1_shape, src1_shape);
-    Tensor<T> src1_single(src1_single_traits, dist_root, last_tag);
+    Tensor<T> src1_single(src1_single_traits, dist_root);
 
     TensorTraits src2_single_traits(src2_shape, src2_shape);
-    Tensor<T> src2_single(src2_single_traits, dist_root, last_tag);
+    Tensor<T> src2_single(src2_single_traits, dist_root);
 
     if(mpi_rank == mpi_root)
     {
@@ -105,8 +101,8 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
         src2_distr[i] = (i*i+1) % mpi_size;
     }
 
-    Tensor<T> src1(src1_traits, src1_distr, last_tag);
-    Tensor<T> src2(src2_traits, src2_distr, last_tag);
+    Tensor<T> src1(src1_traits, src1_distr);
+    Tensor<T> src2(src2_traits, src2_distr);
     scatter<T>(src1_single, src1);
     scatter<T>(src2_single, src2);
     // Perform tensor-wise and tile-wise add operations
@@ -118,7 +114,7 @@ void check(const std::vector<Index> &shape, const std::vector<Index> &basetile)
                 src2_single.get_tile(0), dst_single.get_tile(0));
     }
     // Compare results
-    Tensor<T> dst2_single(dst_single_traits, dist_root, last_tag);
+    Tensor<T> dst2_single(dst_single_traits, dist_root);
     gather<T>(dst, dst2_single);
     if(mpi_rank == mpi_root)
     {
@@ -151,12 +147,11 @@ void validate()
     // Sync to guarantee old data tags are cleaned up and can be reused
     starpu_mpi_barrier(MPI_COMM_WORLD);
     // Check throwing exceptions
-    starpu_mpi_tag_t last_tag = 0;
     std::vector<Index> sh34 = {3, 4}, sh23 = {2, 3}, sh3 = {3}, sh4 = {4};
     TensorTraits trA(sh34, sh23), trB(sh3, sh3), trC(sh4, sh4);
     std::vector<int> dist0000 = {0, 0, 0, 0}, dist0 = {0};
-    Tensor<T> A(trA, dist0000, last_tag), B(trB, dist0, last_tag),
-        C(trC, dist0, last_tag);
+    Tensor<T> A(trA, dist0000), B(trB, dist0),
+        C(trC, dist0);
 
     TEST_THROW(add<T>(1.0, A, 0.0, B, C));
     TEST_THROW(add<T>(1.0, A, 0.0, C, B));
@@ -169,16 +164,11 @@ void validate()
 
 int main(int argc, char **argv)
 {
-    // Init StarPU for testing on CPU only
-    starpu::Config starpu(1, 0, 0);
-    // Init codelet
-    starpu::scal::init();
-    starpu::add::init();
-    starpu::subcopy::init();
-    starpu::copy::init();
-    starpu::add::restrict_where(STARPU_CPU);
-    starpu::subcopy::restrict_where(STARPU_CPU);
-    starpu::copy::restrict_where(STARPU_CPU);
+    int ncpus=1, ncuda=0, cublas=0, ooc=0, ooc_disk_node_id=-1, verbose=0;
+    const char *ooc_path = "/tmp/nntile_ooc";
+    size_t ooc_size = 16777216;
+    starpu::config.init(ncpus, ncuda, cublas, ooc, ooc_path, ooc_size,
+        ooc_disk_node_id, verbose);
     // Launch all tests
     validate<fp32_t>();
     validate<fp64_t>();

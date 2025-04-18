@@ -31,10 +31,9 @@ relu = {np.float32: nntile.nntile_core.tensor.relu_fp32,
 def test_relu(dtype):
     # Describe single-tile tensor, located at node 0
     shape = [2, 2]
-    mpi_distr = [0]
     traits = nntile.tensor.TensorTraits(shape, shape)
     # Tensor objects
-    A = Tensor[dtype](traits, mpi_distr)
+    A = Tensor[dtype](traits)
     # Set initial values of tensors
     rand = np.random.default_rng(42).standard_normal(shape)
     src_A = np.array(rand, dtype=dtype, order='F')

@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/starpu/codelet.hh
- * StarPU codelets base class
+ * StarPU codelet base class
  *
  * @version 1.1.0
  * */
@@ -22,6 +22,7 @@
 
 // Other NNTile headers
 
+
 namespace nntile::starpu
 {
 
@@ -32,14 +33,11 @@ public:
     //! Default value for where the codelet should be executed
     uint32_t where_default;
 
-    //! Whether the codelet is initialized
-    int initialized;
+    //! No default constructor
+    Codelet() = delete;
 
-    //! Default constructor
-    Codelet();
-
-    //! Initialize codelet
-    void init(
+    //! Constructor
+    Codelet(
         const char *name_,
         uint32_t (*footprint_)(starpu_task *),
         std::initializer_list<starpu_cpu_func_t> cpu_funcs_,
@@ -52,5 +50,14 @@ public:
     //! Restore where the codelet should be executed
     void restore_where();
 };
+
+// //! Initialize all codelets
+// void init_all_codelets();
+
+// //! Restrict all codelets to a given computational unit
+// void restrict_all_codelets(uint32_t where);
+
+// //! Restore all codelets
+// void restore_all_codelets();
 
 } // namespace nntile

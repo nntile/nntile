@@ -14,8 +14,15 @@
 
 #pragma once
 
+// Standard library headers
+#include <stdexcept>
+
+// Third-party headers
+
+// Other NNTile headers
 #include <nntile/base_types.hh>
-#include <nntile/starpu/config.hh>
+#include <nntile/starpu/codelet.hh>
+#include <nntile/starpu/handle.hh>
 
 namespace nntile::starpu::adamw_step
 {
@@ -44,8 +51,8 @@ void cuda(void *buffers[], void *cl_args)
     noexcept;
 #endif // NNTILE_USE_CUDA
 
-extern Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
-               codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
+extern Codelet codelet_fp64, codelet_fp32, codelet_fp32_fast_tf32, codelet_fp32_fast_fp16,
+               codelet_fp32_fast_bf16, codelet_bf16;
 
 template<typename T>
 constexpr Codelet *codelet()
@@ -55,15 +62,15 @@ constexpr Codelet *codelet()
 }
 
 template<>
-constexpr Codelet *codelet<fp32_t>()
+constexpr Codelet *codelet<fp64_t>()
 {
-    return &codelet_fp32;
+    return &codelet_fp64;
 }
 
 template<>
-constexpr Codelet *codelet<bf16_t>()
+constexpr Codelet *codelet<fp32_t>()
 {
-    return &codelet_bf16;
+    return &codelet_fp32;
 }
 
 template<>
@@ -85,19 +92,28 @@ constexpr Codelet *codelet<fp32_fast_bf16_t>()
 }
 
 template<>
-constexpr Codelet *codelet<fp64_t>()
+constexpr Codelet *codelet<bf16_t>()
 {
-    return &codelet_fp64;
+    return &codelet_bf16;
 }
-
-void init();
 
 void restrict_where(uint32_t where);
 
 void restore_where();
 
 template<typename T>
-void submit(Index num_iter, Index num_elems, Scalar beta_1, Scalar beta_2, Scalar eps, Scalar lr, Scalar weight_decay,
-            Handle grad, Handle first_moment, Handle second_moment, Handle p);
+void submit(
+    Index num_iter,
+    Index num_elems,
+    Scalar beta_1,
+    Scalar beta_2,
+    Scalar eps,
+    Scalar lr,
+    Scalar weight_decay,
+    Handle grad,
+    Handle first_moment,
+    Handle second_moment,
+    Handle param
+);
 
 } // namespace nntile::starpu::adamw_step
