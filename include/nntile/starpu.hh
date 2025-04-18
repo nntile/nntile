@@ -103,7 +103,7 @@ namespace nntile::starpu
 {
 
 // Init all codelets
-void init()
+static void init()
 {
     accumulate::init();
     accumulate_hypot::init();
@@ -185,7 +185,7 @@ void init()
 }
 
 // Restrict StarPU codelets to certain computational units
-void restrict_where(uint32_t where)
+static void restrict_where(uint32_t where)
 {
     accumulate::restrict_where(where);
     accumulate_hypot::restrict_where(where);
@@ -267,7 +267,7 @@ void restrict_where(uint32_t where)
 }
 
 // Restore computational units for StarPU codelets
-void restore_where()
+static void restore_where()
 {
     accumulate::restore_where();
     accumulate_hypot::restore_where();

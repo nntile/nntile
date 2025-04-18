@@ -16,8 +16,9 @@
 
 #include <nntile/base_types.hh>
 #include <nntile/starpu/config.hh>
+#include <nntile/starpu/handle.hh>
 #include <nntile/defs.h>
-
+#include <nntile/context.hh>
 namespace nntile::starpu::add_slice_inplace
 {
 

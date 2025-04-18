@@ -16,6 +16,7 @@
 #include "nntile/kernel/randn.hh"
 #endif // STARPU_SIMGRID
 #include "nntile/starpu/randn.hh"
+#include "nntile/starpu/config.hh"
 
 namespace nntile::starpu::randn
 {
