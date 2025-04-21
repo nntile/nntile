@@ -30,3 +30,10 @@ class T5ConfigNNTile:
     layer_norm_epsilon: float = 1e-5
     is_decoder: bool = False
     redux: bool = False
+    num_layers: int = 4
+
+
+@dataclass
+class T5EncoderDecoderConfig:
+    encoder_config: T5ConfigNNTile
+    decoder_config: T5ConfigNNTile
