@@ -13,6 +13,7 @@
 
 from dataclasses import dataclass
 
+import nntile.functions
 import numpy as np
 import pytest
 import torch
@@ -35,7 +36,7 @@ dtype2nntile = {
 }
 
 dtype2tol = {
-    "fp32": {"rtol": 3e-4},
+    "fp32": {"rtol": 4e-5},
     "fp32_fast_tf32": {"rtol": 7e-4},
     "bf16": {"rtol": 1.2e-2},
 }
@@ -158,6 +159,9 @@ def generate_inputs(params: T5BlockTestParams, dtype: str):
     x_value = x_type(x_traits, x_distr, 0)
     x_grad = x_type(x_traits, x_distr, 0)
     X = TensorMoments(x_value, x_grad, grad_required=True)
+    
+    print("TYPE: ", type(X.grad), X.grad)
+    nntile.functions.fill_async(0.0, X.grad)
 
     # Generate random input data
     gen = np.random.default_rng(42)
@@ -176,7 +180,7 @@ def generate_inputs(params: T5BlockTestParams, dtype: str):
 
     # Initialize NNTile layer from PyTorch layer
     nntile_block, _ = T5Block.from_torch(torch_block, X, nntile_config, 0, encoder_output=eo_nnt)
-    nntile_block.activations[0].value.from_array(x_nntile)
+    # nntile_block.activations[0].value.from_array(x_nntile)
 
     # Generate random gradient for backward pass
     y_grad_random = gen.standard_normal(x_shape, dtype=np.float32)
@@ -222,26 +226,26 @@ class TestT5Block:
         rtol = dtype2tol[dtype]["rtol"]
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
 
-    # def test_backward(
-    #     self, starpu_simple, torch_rng, params: T5BlockTestParams, dtype: str
-    # ):
-    #     """Test that backward pass gives same results in PyTorch and NNTile"""
-    #     torch_block, nntile_block, x, y_grad, eo_torch, eo_nnt = generate_inputs(params, dtype)
+    def test_backward(
+        self, starpu_simple, torch_rng, params: T5BlockTestParams, dtype: str
+    ):
+        """Test that backward pass gives same results in PyTorch and NNTile"""
+        torch_block, nntile_block, x, y_grad, eo_torch, eo_nnt = generate_inputs(params, dtype)
 
-    #     # PyTorch forward and backward pass
-    #     y = torch_block(x, encoder_hidden_states=eo_torch)[0]
-    #     res = (y * y_grad).sum()
-    #     res.backward()
+        # PyTorch forward and backward pass
+        y = torch_block(x, encoder_hidden_states=eo_torch)[0]
+        res = (y * y_grad).sum()
+        res.backward()
         
-    #     # NNTile forward and backward pass
-    #     nntile_block.forward_async()
-    #     nntile_block.backward_async()
+        # NNTile forward and backward pass
+        nntile_block.forward_async()
+        nntile_block.backward_async()
 
-    #     # Compare gradients
-    #     grad_nntile = torch.Tensor(nntc.to_numpy(nntile_block.activations_input[0].grad).T)
-    #     rtol = dtype2tol[dtype]["rtol"]
+        # Compare gradients
+        grad_nntile = torch.Tensor(nntc.to_numpy(nntile_block.activations[0].grad).T)
+        rtol = dtype2tol[dtype]["rtol"]
         
-    #     assert torch.norm(x.grad - grad_nntile) <= rtol * torch.norm(x.grad)
+        assert torch.norm(x.grad - grad_nntile) <= rtol * torch.norm(x.grad)
         
-    #     # Clean up
-    #     nntile_block.unregister()
+        # Clean up
+        nntile_block.unregister()
