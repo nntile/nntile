@@ -138,6 +138,7 @@ class T5Attention(BaseLayer):
         relative_bias_embedding: TensorMoments = None,
         relative_bias: TensorMoments = None,
         redux: bool = False,
+        is_decoder: bool = False,
     ):
         qkv_bias_list = []
         if in_proj_bias_q:
@@ -246,7 +247,7 @@ class T5Attention(BaseLayer):
         else:
             self.redux = 0
         self.scale_attn = scale_attn
-
+        self.is_decoder = is_decoder
         # need to fill with valid values for dynamic api usage
         clear_async(self.q.value)
         clear_async(self.k.value)
@@ -269,6 +270,7 @@ class T5Attention(BaseLayer):
         has_relative_bias: bool = False,
         relative_vocab_size: int = 0,
         redux: bool = False,
+        is_decoder: bool = False,
     ):
         # Get sizes
         n_batch_tile = x_q.value.basetile_shape[2]
@@ -284,16 +286,16 @@ class T5Attention(BaseLayer):
             raise RuntimeError
         n_emb_k = x_k.value.shape[0]
         n_emb_k_tile = x_k.value.basetile_shape[0]
-        if [n_seq, n_batch] != x_k.value.shape[1:]:
-            raise ValueError("Invalid shape of x_k")
-        if [n_seq_tile, n_batch_tile] != x_k.value.basetile_shape[1:]:
-            raise ValueError("Invalid basetile shape of x_k")
+        # if [n_seq, n_batch] != x_k.value.shape[1:]:
+        #     raise ValueError(f"Invalid shape of x_k: {x_k.value.shape[1:]} != {[n_seq, n_batch]}")
+        # if [n_seq_tile, n_batch_tile] != x_k.value.basetile_shape[1:]:
+        #     raise ValueError(f"Invalid basetile shape of x_k: {x_k.value.basetile_shape[1:]} != {[n_seq_tile, n_batch_tile]}")
         n_emb_v = x_v.value.shape[0]
         n_emb_v_tile = x_v.value.basetile_shape[0]
-        if [n_seq, n_batch] != x_v.value.shape[1:]:
-            raise ValueError("Invalid shape of x_v")
-        if [n_seq_tile, n_batch_tile] != x_v.value.basetile_shape[1:]:
-            raise ValueError("Invalid basetile shape of x_v")
+        # if [n_seq, n_batch] != x_v.value.shape[1:]:
+        #     raise ValueError(f"Invalid shape of x_v: {x_v.value.shape[1:]} != {[n_seq, n_batch]}")
+        # if [n_seq_tile, n_batch_tile] != x_v.value.basetile_shape[1:]:
+        #     raise ValueError(f"Invalid basetile shape of x_v: {x_v.value.basetile_shape[1:]} != {[n_seq_tile, n_batch_tile]}")
         # Fixed for now
         head_size_tile = head_size
         # Define shape of each tensor
@@ -637,6 +639,7 @@ class T5Attention(BaseLayer):
             relative_bias = relative_bias,
             relative_bias_embedding = relative_bias_embedding,
             redux=redux,
+            is_decoder=is_decoder,
         )
         # Return layer and next tag to be used
         return (layer, next_tag)
@@ -651,6 +654,11 @@ class T5Attention(BaseLayer):
         next_tag: int,
         encoder_output: TensorMoments = None,
     ):
+        mask_nntile = None
+        if config.is_decoder and encoder_output is None:
+            mask = np.tril(np.ones((x.value.shape[1], x.value.shape[1]), dtype=bool), k=0)
+            mask_nntile = nntc.from_array(mask.T)
+        
         attn, next_tag = T5Attention.generate_simple(
             x_q=x,
             x_k=encoder_output or x, # for cross-attention
@@ -661,7 +669,7 @@ class T5Attention(BaseLayer):
             inner_dim=config.d_kv * config.n_head,
             inner_dim_tile=config.d_kv_tile,
             bias=False,
-            mask=mask,
+            mask=mask_nntile,
             scale_attn=False,
             has_relative_bias=torch_layer.has_relative_attention_bias,
             relative_vocab_size=(
@@ -669,6 +677,7 @@ class T5Attention(BaseLayer):
                 if torch_layer.has_relative_attention_bias else 0
             ),
             redux=config.redux,
+            is_decoder=config.is_decoder,
         )
 
         attn.w_q.value.from_array(
@@ -905,7 +914,7 @@ class T5Attention(BaseLayer):
         relative_position = memory_position - context_position  # shape (query_length, key_length)
         relative_position_bucket_np_value = relative_position_bucket_numpy(
             relative_position, 
-            bidirectional=True, 
+            bidirectional=(not self.is_decoder), 
             num_buckets=32, 
             max_distance=128
         )
