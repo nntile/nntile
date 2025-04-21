@@ -138,12 +138,20 @@ class T5Block(BaseModel):
     
 class T5Stack(BaseModel):
     blocks: list[T5Block]
+    final_layer_norm: RMSNorm
     
-    def __init__(self, x: TensorMoments, blocks: list[T5Block], config: T5ConfigNNTile):
+    def __init__(self, x: TensorMoments, blocks: list[T5Block], final_layer_norm: RMSNorm, config: T5ConfigNNTile):
         self.blocks = blocks
-        
-        activations = blocks[0].activations + sum([block.activations[1:] for block in blocks[1:]])
-        layers = sum([b.layers for b in blocks])
+        self.final_layer_norm = final_layer_norm
+
+        activations = [x]
+        for block in blocks:
+            activations.extend(block.activations[1:])
+        activations.append(final_layer_norm.activations_output[0])
+        layers = []
+        for block in blocks:
+            layers.extend(block.layers)
+        layers.append(final_layer_norm)
         super().__init__(activations, layers, config)
     
     @classmethod
@@ -152,16 +160,19 @@ class T5Stack(BaseModel):
         torch_stack: T5StackTorch, 
         x: TensorMoments, 
         config: T5ConfigNNTile,
-        next_tag: int
+        next_tag: int,
+        encoder_output: TensorMoments = None
     ):
         blocks = []
         next_inp = x
         for layer_idx in range(len(torch_stack.block)):
             torch_block = torch_stack.block[layer_idx]
-            block, next_tag = T5Block.from_torch(torch_block, next_inp, config, next_tag)
+            block, next_tag = T5Block.from_torch(torch_block, next_inp, config, next_tag, encoder_output=encoder_output)
             blocks.append(block)
             next_inp = block.activations[-1]
+            
+        final_layer_norm, next_tag = RMSNorm.from_torch(torch_stack.final_layer_norm, next_inp, 0, config.layer_norm_epsilon, next_tag, redux=config.redux)
         
-        stack = cls(x, blocks, config)
+        stack = cls(x, blocks, final_layer_norm, config)
         return stack, next_tag
     
