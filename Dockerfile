@@ -47,15 +47,15 @@ FROM devbase AS sandbox
 # parallel build
 ARG MAKE_JOBS=1
 
-ARG STARPU_VERSION=starpu-1.4.7
+# Use starpu-1.4 commit 9b274af
+ARG STARPU_VERSION=9b274af
+
+WORKDIR /usr/src
 
 RUN set -xe && \
-    mkdir -p /usr/src && \
-    STARPU_LABEL=$STARPU_VERSION && \
-    (curl -SL https://gitlab.inria.fr/starpu/starpu/-/archive/$STARPU_LABEL/starpu-$STARPU_LABEL.tar.gz | \
-    tar -xzC /usr/src) && \
-    ln -s /usr/src/starpu-$STARPU_LABEL /usr/src/starpu && \
+    git clone https://github.com/starpu-runtime/starpu.git && \
     cd /usr/src/starpu && \
+    git checkout 9b274afb95c02675e9e5d46cdcfc9191ec257fed && \
     ./autogen.sh && \
     ./configure \
         --disable-build-doc \
@@ -71,7 +71,7 @@ RUN set -xe && \
         --enable-maxbuffers=16 \
         --with-fxt && \
     make -j $MAKE_JOBS install && \
-    rm -rf /usr/src/starpu /usr/src/starpu-$STARPU_LABEL && \
+    rm -rf /usr/src/starpu && \
     echo '/usr/local/lib' > /etc/ld.so.conf.d/nntile.conf && \
     ldconfig
 
