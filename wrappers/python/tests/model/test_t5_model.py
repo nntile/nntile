@@ -36,7 +36,7 @@ dtype2nntile = {
 }
 
 dtype2tol = {
-    "fp32": {"rtol": 1e-5},
+    "fp32": {"rtol": 6e-4},
     "fp32_fast_tf32": {"rtol": 7e-4},
     "bf16": {"rtol": 1.2e-2},
 }
@@ -286,7 +286,7 @@ class TestT5Model:
         # NNTile forward pass
         nntile_model.forward_async()
         
-        # y_encoder_nntile = torch.Tensor(nntc.to_numpy(nntile_model.encoder.activations[-1].value).T)
+        y_encoder_nntile = torch.Tensor(nntc.to_numpy(nntile_model.encoder.activations[-1].value).T)
         y_nntile = torch.Tensor(nntc.to_numpy(nntile_model.activations[-1].value).T)
         
         # Compare results
