@@ -649,16 +649,11 @@ class T5Attention(BaseLayer):
         cls,
         torch_layer: T5AttentionTorch,
         x: TensorMoments,
-        mask: np.ndarray,
+        mask: Tensor,
         config: T5ConfigNNTile,
         next_tag: int,
         encoder_output: TensorMoments = None,
     ):
-        mask_nntile = None
-        if config.is_decoder and encoder_output is None:
-            mask = np.tril(np.ones((x.value.shape[1], x.value.shape[1]), dtype=bool), k=0)
-            mask_nntile = nntc.from_array(mask.T)
-        
         attn, next_tag = T5Attention.generate_simple(
             x_q=x,
             x_k=encoder_output or x, # for cross-attention
@@ -669,7 +664,7 @@ class T5Attention(BaseLayer):
             inner_dim=config.d_kv * config.n_head,
             inner_dim_tile=config.d_kv_tile,
             bias=False,
-            mask=mask_nntile,
+            mask=mask,
             scale_attn=False,
             has_relative_bias=torch_layer.has_relative_attention_bias,
             relative_vocab_size=(
@@ -973,7 +968,8 @@ class T5Attention(BaseLayer):
         # Apply mask if needed
         if self.mask:
             mask_scalar_async(self.mask, self.val, self.a.value, 2)
-            self.mask.wont_use()
+            # self.mask.wont_use()
+            # add_async(-1e30, self.mask, 1.0, self.a.value, self.a.value)
         # Calculate max and sumexp along axis
         maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=self.redux)
         # Finally, get the inplace softmax
