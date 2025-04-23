@@ -168,6 +168,12 @@ class T5Stack(BaseModel):
         for layer_idx in range(len(torch_stack.block)):
             torch_block = torch_stack.block[layer_idx]
             block, next_tag = T5Block.from_torch(torch_block, next_inp, config, next_tag, encoder_output=encoder_output)
+            if layer_idx > 0:
+                # this is temporal crutch to be compatible with hugginface model
+                # TODO: just store embeddings outside and pass to constructor
+                block.attention.attention.has_relative_bias = True
+                block.attention.attention.relative_bias = blocks[0].attention.attention.relative_bias
+                block.attention.attention.relative_bias_embedding = blocks[0].attention.attention.relative_bias_embedding
             blocks.append(block)
             next_inp = block.activations[-1]
             
