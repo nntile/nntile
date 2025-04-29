@@ -31,9 +31,11 @@ class T5ConfigNNTile:
     is_decoder: bool = False
     redux: bool = False
     num_layers: int = 4
-
+    vocab_size: int = 32000
+    dtype: str = "fp32"
 
 @dataclass
 class T5EncoderDecoderConfig:
     encoder_config: T5ConfigNNTile
     decoder_config: T5ConfigNNTile
+    name: str = "t5_encoder_decoder"

@@ -19,6 +19,7 @@ from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor_int64, TensorMoments, TensorTraits, clear_async, embedding_async,
     embedding_backward_async, to_numpy)
+from nntile.tensor import Tensor_fp32
 
 
 class Embedding(BaseLayer):
@@ -112,6 +113,32 @@ class Embedding(BaseLayer):
         self.x.wont_use()
         self.y.grad.wont_use()
         self.w.grad.wont_use()
+        
+    @classmethod
+    def from_torch(cls, torch_embedding, x, next_tag, dtype=Tensor_fp32, embedding_tile_size = None):
+        # Get embedding dimensions
+        vocab_size = torch_embedding.weight.shape[0]
+        emb_size = torch_embedding.weight.shape[1]
+        
+        if embedding_tile_size is None:
+            embedding_tile_size = emb_size
+        
+        # Create embedding layer
+        layer, next_tag = cls.generate_simple(
+            x.value, 
+            dtype, 
+            0,  # axis
+            vocab_size,
+            emb_size,
+            embedding_tile_size,
+            embedding_tile_size,
+            next_tag
+        )
+        
+        # Copy weights from PyTorch
+        layer.w.value.from_array(torch_embedding.weight.cpu().detach().numpy().T)
+        
+        return layer, next_tag
 
     def to_torch(self):
         torch_emb = Embedding_torch(

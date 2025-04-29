@@ -7,6 +7,8 @@ from transformers.models.t5.modeling_t5 import T5Model as T5ModelTorch
 from nntile.model.base_model import BaseModel
 from nntile.model.t5_lmhead import T5ClassificationHead
 from transformers.models.t5.modeling_t5 import T5ForSequenceClassification as T5ForSequenceClassificationTorch
+from nntile.tensor import Tensor_fp32, Tensor_bf16, Tensor_fp32_fast_tf32
+
 
 class T5Model(BaseModel):
     def __init__(self, x: TensorMoments, decoder_x: TensorMoments, 
@@ -41,18 +43,33 @@ class T5Model(BaseModel):
         return cls(x, decoder_x, encoder, decoder, encoder_config, decoder_config), next_tag
 
 class T5ForSequenceClassification(BaseModel):
-    def __init__(self, x: TensorMoments, transformer: T5Model, lm_head: T5ClassificationHead, next_tag: int):
+    def __init__(self, x: TensorMoments, decoder_x: TensorMoments, embedding_layer, embedding_layer_decoder, transformer: T5Model, lm_head: T5ClassificationHead, next_tag: int):
+        self.embedding = embedding_layer
+        self.embedding_decoder = embedding_layer_decoder
         self.transformer = transformer
         self.classification_head = lm_head
         
-        activations = [x] + transformer.activations[1:] + lm_head.activations[1:]
-        layers = transformer.layers + lm_head.layers
+        # activations = [x] + [self.embedding.activations_output[0]] + transformer.activations[1:] + lm_head.activations[1:]
+        # layers = [self.embedding] + transformer.layers + lm_head.layers
+        
+        activations = [x, decoder_x] + [self.embedding.activations_output[0]] + transformer.activations[1:] + lm_head.activations[1:]
+        layers = [self.embedding, self.embedding_decoder] + transformer.layers + lm_head.layers
         
         super().__init__(activations, layers, transformer.config)
         
     @classmethod
-    def from_torch(cls, torch_model: T5ForSequenceClassificationTorch, x: TensorMoments, config: T5ConfigNNTile, next_tag: int=0):
-        transformer, next_tag = T5Model.from_torch(torch_model.transformer, x, config, next_tag)
-        lm_head, next_tag = T5ClassificationHead.from_torch(torch_model.lm_head, transformer.activations[-1], config, next_tag)
+    def from_torch(cls, torch_model: T5ForSequenceClassificationTorch, x: TensorMoments, decoder_x: TensorMoments, config: T5ConfigNNTile, next_tag: int=0):
+        dtype2tensor_type = {
+            "fp32": Tensor_fp32,
+            "bf16": Tensor_bf16,
+            "fp32_fast_tf32": Tensor_fp32_fast_tf32
+        }
+
+        tensor_type = dtype2tensor_type[config.dtype]
         
-        return cls(x, transformer, lm_head, next_tag), next_tag
+        embedding_layer, next_tag = nntile.layer.embedding.Embedding.from_torch(torch_model.transformer.shared, x, next_tag, dtype=tensor_type, embedding_tile_size=config.d_model_tile)
+        embedding_layer_decoder, next_tag = nntile.layer.embedding.Embedding.from_torch(torch_model.transformer.shared, decoder_x, next_tag, dtype=tensor_type, embedding_tile_size=config.d_model_tile)
+        transformer, next_tag = T5Model.from_torch(torch_model.transformer, embedding_layer.activations_output[0], embedding_layer_decoder.activations_output[0], config, next_tag)
+        lm_head, next_tag = T5ClassificationHead.from_torch(torch_model.classification_head, transformer.activations[-1], config, torch_model.config.num_labels, next_tag)
+        
+        return cls(x, decoder_x, embedding_layer, embedding_layer_decoder, transformer, lm_head, next_tag), next_tag
