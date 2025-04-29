@@ -1,13 +1,14 @@
 
-
+import numpy as np
 from typing import Optional
 from nntile.layer.add import Add
 from nntile.layer.rms_norm import RMSNorm
 from nntile.layer.t5_attention import T5Attention
 from nntile.model.base_model import BaseModel
 from nntile.model.t5_config import T5ConfigNNTile
-from nntile.tensor import TensorMoments
+from nntile.tensor import TensorMoments, Tensor
 from nntile.model.t5_ff import T5LayerFF
+import nntile.utils.constructors as nntc
 
 from transformers.models.t5.modeling_t5 import (
     T5LayerSelfAttention as T5LayerSelfAttentionTorch, 
@@ -36,15 +37,17 @@ class T5LayerSelfAttention(BaseModel):
         torch_layer: T5LayerSelfAttentionTorch, 
         x: TensorMoments, 
         config: T5ConfigNNTile, 
-        next_tag: int
+        next_tag: int,
+        attention_mask: Tensor = None
     ):
         layer_norm, next_tag = RMSNorm.from_torch(torch_layer.layer_norm, x, 0, config.layer_norm_epsilon, next_tag, redux=config.redux)
+        
         attention, next_tag = T5Attention.from_torch(
             torch_layer.SelfAttention, 
             layer_norm.activations_output[0], 
-            None, 
+            attention_mask, 
             config, 
-            next_tag
+            next_tag,
         )
         add, next_tag = Add.generate_simple(x, attention.activations_output[0], next_tag)
         layer = cls(x, attention, layer_norm, add, config)
@@ -121,9 +124,10 @@ class T5Block(BaseModel):
         x: TensorMoments, 
         config: T5ConfigNNTile, 
         next_tag: int,
+        attention_mask: Tensor = None,
         encoder_output: TensorMoments = None
     ):
-        attention, next_tag = T5LayerSelfAttention.from_torch(torch_block.layer[0], x, config, next_tag)
+        attention, next_tag = T5LayerSelfAttention.from_torch(torch_block.layer[0], x, config, next_tag, attention_mask=attention_mask)
         cross_attention, next_tag = (
             T5LayerCrossAttention.from_torch(torch_block.layer[1], attention.activations[-1], encoder_output, config, next_tag) 
             if config.is_decoder 
@@ -163,11 +167,16 @@ class T5Stack(BaseModel):
         next_tag: int,
         encoder_output: TensorMoments = None
     ):
+        attention_mask = None
+        if config.is_decoder:
+            attention_mask_np = np.tril(np.ones((x.value.shape[1], x.value.shape[1]), dtype=bool), k=0)
+            attention_mask = nntc.from_array(attention_mask_np.T)
+
         blocks = []
         next_inp = x
         for layer_idx in range(len(torch_stack.block)):
             torch_block = torch_stack.block[layer_idx]
-            block, next_tag = T5Block.from_torch(torch_block, next_inp, config, next_tag, encoder_output=encoder_output)
+            block, next_tag = T5Block.from_torch(torch_block, next_inp, config, next_tag, encoder_output=encoder_output, attention_mask=attention_mask)
             if layer_idx > 0:
                 # this is temporal crutch to be compatible with hugginface model
                 # TODO: just store embeddings outside and pass to constructor
