@@ -18,6 +18,7 @@ from nntile.layer.linear import Linear
 from nntile.layer.act import Act
 from nntile.model.t5_config import T5ConfigNNTile
 import torch
+from transformers.models.t5.modeling_t5 import T5Config as T5ConfigTorch
 
 
 class T5ClassificationHead(BaseModel):
@@ -104,10 +105,9 @@ class T5ClassificationHead(BaseModel):
     def to_torch(self):
         """Convert NNTile T5ClassificationHead to PyTorch T5ClassificationHead"""
         # Import inside function to avoid circular imports
-        from transformers.models.t5.modeling_t5 import T5Config
         
         # Create PyTorch config
-        torch_config = T5Config(
+        torch_config = T5ConfigTorch(
             d_model=self.config.d_model,
             num_labels=self.num_labels
         )

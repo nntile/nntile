@@ -5,6 +5,8 @@ import copy
 from nntile.tensor import TensorMoments
 from transformers.models.t5.modeling_t5 import T5Model as T5ModelTorch
 from nntile.model.base_model import BaseModel
+from nntile.model.t5_lmhead import T5ClassificationHead
+from transformers.models.t5.modeling_t5 import T5ForSequenceClassification as T5ForSequenceClassificationTorch
 
 class T5Model(BaseModel):
     def __init__(self, x: TensorMoments, decoder_x: TensorMoments, 
@@ -37,3 +39,20 @@ class T5Model(BaseModel):
         decoder, next_tag = T5Stack.from_torch(torch_model.decoder, decoder_x, decoder_config, next_tag=next_tag, encoder_output=encoder_output)
 
         return cls(x, decoder_x, encoder, decoder, encoder_config, decoder_config), next_tag
+
+class T5ForSequenceClassification(BaseModel):
+    def __init__(self, x: TensorMoments, transformer: T5Model, lm_head: T5ClassificationHead, next_tag: int):
+        self.transformer = transformer
+        self.classification_head = lm_head
+        
+        activations = [x] + transformer.activations[1:] + lm_head.activations[1:]
+        layers = transformer.layers + lm_head.layers
+        
+        super().__init__(activations, layers, transformer.config)
+        
+    @classmethod
+    def from_torch(cls, torch_model: T5ForSequenceClassificationTorch, x: TensorMoments, config: T5ConfigNNTile, next_tag: int=0):
+        transformer, next_tag = T5Model.from_torch(torch_model.transformer, x, config, next_tag)
+        lm_head, next_tag = T5ClassificationHead.from_torch(torch_model.lm_head, transformer.activations[-1], config, next_tag)
+        
+        return cls(x, transformer, lm_head, next_tag), next_tag
