@@ -106,15 +106,14 @@ if args.pretrained == "remote":
     model_torch = T5ForSequenceClassification_torch.from_pretrained(
         args.remote_model_name,
         cache_dir=args.model_path,
-        local_files_only=False, 
-        num_labels=args.num_labels)
+        local_files_only=False)
 elif args.pretrained == "local":
     if args.config_path:
         f = open(args.config_path)
         conf_dict = json.load(f)
         f.close()
         config = T5ConfigTorch(**conf_dict)
-        model_torch = T5ForSequenceClassification_torch(config, num_labels=args.num_labels)
+        model_torch = T5ForSequenceClassification_torch(config)
         tokenizer = None
         if args.optimizer == "adam":
             optimizer = Adam(model_torch.parameters(), args.lr)
