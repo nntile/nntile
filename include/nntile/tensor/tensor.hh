@@ -75,6 +75,11 @@ public:
             // Set StarPU-managed handle
             tile_handles.emplace_back(sizeof(T)*tile_traits[i].nelems,
                     STARPU_R);
+            // Disable Out-of-Core by default
+            starpu_data_set_ooc_flag(
+                static_cast<starpu_data_handle_t>(tile_handles[i]),
+                0
+            );
             // Register tile with MPI
             //starpu_mpi_data_register(
             //        static_cast<starpu_data_handle_t>(tile_handles[i]),
@@ -145,11 +150,24 @@ public:
             // Do wont_use only if we enforce offloading to RAM or Disk
             if(wont_use_flag == 1 or starpu_data_get_ooc_flag(tmp) == 1)
             {
+                // Advise to offload the data to disk
                 starpu_data_wont_use(tmp);
                 // Clear out the data from the GPU nodes
-                for(int node = 1; node < STARPU_MAXNODES; ++node)
+                for(int node = 0; node < STARPU_MAXNODES; ++node)
                 {
                     if(starpu_node_get_kind(node) == STARPU_CUDA_RAM
+                        and starpu_data_can_evict(tmp, node, STARPU_FETCH))
+                    {
+                        starpu_data_evict_from_node(tmp, node);
+                    }
+                }
+            }
+            // Evict also from RAM if Disk is enabled
+            if(starpu_data_get_ooc_flag(tmp) == 1)
+            {
+                for(int node = 0; node < STARPU_MAXNODES; ++node)
+                {
+                    if(starpu_node_get_kind(node) == STARPU_CPU_RAM
                         and starpu_data_can_evict(tmp, node, STARPU_FETCH))
                     {
                         starpu_data_evict_from_node(tmp, node);
@@ -263,7 +281,6 @@ public:
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
             starpu_data_set_ooc_flag(tmp, 1);
         }
-        wont_use_flag = 1;
     }
     //! Disable data offloading to disk when wont_use is called
     void force_offload_disk_disable()
@@ -273,7 +290,6 @@ public:
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
             starpu_data_set_ooc_flag(tmp, 0);
         }
-        wont_use_flag = 0;
     }
 };
 
