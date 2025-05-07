@@ -100,58 +100,127 @@ class BaseModel:
             flops += layer.get_backward_flops()
         return flops
 
-    def ooc_force_parameters(self, portion: float = 0.0):
+    def force_offload_disk_parameters(self, portion: float = 0.0):
         """Choose the first `portion` of parameters force them to be OOC
             in advance"""
         enable_count = int(len(self.parameters) * portion)
         disabled_count = len(self.parameters) - enable_count
         for i in range(enable_count):
-            self.parameters[i].value.ooc_enable()
+            self.parameters[i].value.force_offload_disk_enable()
         for i in range(disabled_count):
-            self.parameters[enable_count + i].value.ooc_disable()
+            self.parameters[enable_count + i].value \
+                .force_offload_disk_disable()
 
-    def ooc_force_gradients(self, portion: float = 0.0):
+    def force_offload_disk_gradients(self, portion: float = 0.0):
         """Choose the first `portion` of gradients force them to be OOC
             in advance"""
         enable_count = int(len(self.parameters) * portion)
         disabled_count = len(self.parameters) - enable_count
         for i in range(enable_count):
             if self.parameters[i].grad is not None:
-                self.parameters[i].grad.ooc_enable()
+                self.parameters[i].grad.force_offload_disk_enable()
         for i in range(disabled_count):
             if self.parameters[enable_count + i].grad is not None:
-                self.parameters[enable_count + i].grad.ooc_disable()
+                self.parameters[enable_count + i].grad \
+                    .force_offload_disk_disable()
 
-    def ooc_force_activations(self, portion: float = 0.0):
+    def force_offload_disk_activations(self, portion: float = 0.0):
         """Choose the first `portion` of activations force them to be OOC
             in advance"""
         enable_count = int(len(self.activations) * portion)
         disabled_count = len(self.activations) - enable_count
         for i in range(enable_count):
-            self.activations[i].value.ooc_enable()
+            self.activations[i].value.force_offload_disk_enable()
             if self.activations[i].grad is not None:
-                self.activations[i].grad.ooc_enable()
+                self.activations[i].grad.force_offload_disk_enable()
         for i in range(disabled_count):
-            self.activations[enable_count + i].value.ooc_disable()
+            self.activations[enable_count + i].value \
+                .force_offload_disk_disable()
             if self.activations[enable_count + i].grad is not None:
-                self.activations[enable_count + i].grad.ooc_disable()
+                self.activations[enable_count + i].grad \
+                    .force_offload_disk_disable()
 
-    def ooc_force_temporaries(self, portion: float = 0.0):
+    def force_offload_disk_temporaries(self, portion: float = 0.0):
         """Choose the first `portion` of temporaries force them to be OOC
         in advance"""
         enable_count = int(len(self.temporaries) * portion)
         disabled_count = len(self.temporaries) - enable_count
         for i in range(enable_count):
             if isinstance(self.temporaries[i], TensorMoments):
-                self.temporaries[i].value.ooc_enable()
+                self.temporaries[i].value.force_offload_disk_enable()
                 if self.temporaries[i].grad is not None:
-                    self.temporaries[i].grad.ooc_enable()
+                    self.temporaries[i].grad.force_offload_disk_enable()
             else:
-                self.temporaries[i].ooc_enable()
+                self.temporaries[i].force_offload_disk_enable()
         for i in range(disabled_count):
             if isinstance(self.temporaries[enable_count + i], TensorMoments):
-                self.temporaries[enable_count + i].value.ooc_disable()
+                self.temporaries[enable_count + i].value \
+                    .force_offload_disk_disable()
                 if self.temporaries[enable_count + i].grad is not None:
-                    self.temporaries[enable_count + i].grad.ooc_disable()
+                    self.temporaries[enable_count + i].grad \
+                        .force_offload_disk_disable()
             else:
-                self.temporaries[enable_count + i].ooc_disable()
+                self.temporaries[enable_count + i] \
+                    .force_offload_disk_disable()
+
+    def force_offload_ram_parameters(self, portion: float = 0.0):
+        """Choose the first `portion` of parameters force them to be
+            offloaded to RAM in advance"""
+        enable_count = int(len(self.parameters) * portion)
+        disabled_count = len(self.parameters) - enable_count
+        for i in range(enable_count):
+            self.parameters[i].value.force_offload_ram_enable()
+        for i in range(disabled_count):
+            self.parameters[enable_count + i].value \
+                .force_offload_ram_disable()
+
+    def force_offload_ram_gradients(self, portion: float = 0.0):
+        """Choose the first `portion` of gradients force them to be
+            offloaded to RAM in advance"""
+        enable_count = int(len(self.parameters) * portion)
+        disabled_count = len(self.parameters) - enable_count
+        for i in range(enable_count):
+            if self.parameters[i].grad is not None:
+                self.parameters[i].grad.force_offload_ram_enable()
+        for i in range(disabled_count):
+            if self.parameters[enable_count + i].grad is not None:
+                self.parameters[enable_count + i].grad \
+                    .force_offload_ram_disable()
+
+    def force_offload_ram_activations(self, portion: float = 0.0):
+        """Choose the first `portion` of activations force them to be
+            offloaded to RAM in advance"""
+        enable_count = int(len(self.activations) * portion)
+        disabled_count = len(self.activations) - enable_count
+        for i in range(enable_count):
+            self.activations[i].value.force_offload_ram_enable()
+            if self.activations[i].grad is not None:
+                self.activations[i].grad.force_offload_ram_enable()
+        for i in range(disabled_count):
+            self.activations[enable_count + i].value \
+                .force_offload_ram_disable()
+            if self.activations[enable_count + i].grad is not None:
+                self.activations[enable_count + i].grad \
+                    .force_offload_ram_disable()
+
+    def force_offload_ram_temporaries(self, portion: float = 0.0):
+        """Choose the first `portion` of temporaries force them to be
+            offloaded to RAM in advance"""
+        enable_count = int(len(self.temporaries) * portion)
+        disabled_count = len(self.temporaries) - enable_count
+        for i in range(enable_count):
+            if isinstance(self.temporaries[i], TensorMoments):
+                self.temporaries[i].value.force_offload_ram_enable()
+                if self.temporaries[i].grad is not None:
+                    self.temporaries[i].grad.force_offload_ram_enable()
+            else:
+                self.temporaries[i].force_offload_ram_enable()
+        for i in range(disabled_count):
+            if isinstance(self.temporaries[enable_count + i], TensorMoments):
+                self.temporaries[enable_count + i].value \
+                    .force_offload_ram_disable()
+                if self.temporaries[enable_count + i].grad is not None:
+                    self.temporaries[enable_count + i].grad \
+                        .force_offload_ram_disable()
+            else:
+                self.temporaries[enable_count + i].force_offload_ram_disable()

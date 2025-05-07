@@ -84,11 +84,28 @@ parser.add_argument("--logger-server-port", type=int, default=5001)
 parser.add_argument("--ooc", action="store_true")
 parser.add_argument("--ooc-path", type=str, default="/tmp/nntile_ooc")
 parser.add_argument("--ooc-size", type=int, default=1073741824)
-parser.add_argument("--ooc-force-portion-parameters", type=float, default=0.0)
-parser.add_argument("--ooc-force-portion-gradients", type=float, default=0.0)
-parser.add_argument("--ooc-force-portion-activations", type=float, default=0.0)
-parser.add_argument("--ooc-force-portion-temporaries", type=float, default=0.0)
-parser.add_argument("--ooc-force-portion-optimizer", type=float, default=0.0)
+
+parser.add_argument("--force-offload-disk-portion-parameters", type=float,
+                    default=0.0)
+parser.add_argument("--force-offload-disk-portion-gradients", type=float,
+                    default=0.0)
+parser.add_argument("--force-offload-disk-portion-activations", type=float,
+                    default=0.0)
+parser.add_argument("--force-offload-disk-portion-temporaries", type=float,
+                    default=0.0)
+parser.add_argument("--force-offload-disk-portion-optimizer", type=float,
+                    default=0.0)
+
+parser.add_argument("--force-offload-ram-portion-parameters", type=float,
+                    default=0.0)
+parser.add_argument("--force-offload-ram-portion-gradients", type=float,
+                    default=0.0)
+parser.add_argument("--force-offload-ram-portion-activations", type=float,
+                    default=0.0)
+parser.add_argument("--force-offload-ram-portion-temporaries", type=float,
+                    default=0.0)
+parser.add_argument("--force-offload-ram-portion-optimizer", type=float,
+                    default=0.0)
 
 # Parse arguments
 args = parser.parse_args()
@@ -109,16 +126,27 @@ assert args.batch_size % args.minibatch_size == 0
 num_minibatch = args.batch_size // args.minibatch_size
 assert args.minibatch_size % args.minibatch_size_tile == 0
 assert args.nepochs > 0
-assert args.ooc_force_portion_parameters >= 0.0
-assert args.ooc_force_portion_parameters <= 1.0
-assert args.ooc_force_portion_gradients >= 0.0
-assert args.ooc_force_portion_gradients <= 1.0
-assert args.ooc_force_portion_activations >= 0.0
-assert args.ooc_force_portion_activations <= 1.0
-assert args.ooc_force_portion_temporaries >= 0.0
-assert args.ooc_force_portion_temporaries <= 1.0
-assert args.ooc_force_portion_optimizer >= 0.0
-assert args.ooc_force_portion_optimizer <= 1.0
+assert args.force_offload_disk_portion_parameters >= 0.0
+assert args.force_offload_disk_portion_parameters <= 1.0
+assert args.force_offload_disk_portion_gradients >= 0.0
+assert args.force_offload_disk_portion_gradients <= 1.0
+assert args.force_offload_disk_portion_activations >= 0.0
+assert args.force_offload_disk_portion_activations <= 1.0
+assert args.force_offload_disk_portion_temporaries >= 0.0
+assert args.force_offload_disk_portion_temporaries <= 1.0
+assert args.force_offload_disk_portion_optimizer >= 0.0
+assert args.force_offload_disk_portion_optimizer <= 1.0
+
+assert args.force_offload_ram_portion_parameters >= 0.0
+assert args.force_offload_ram_portion_parameters <= 1.0
+assert args.force_offload_ram_portion_gradients >= 0.0
+assert args.force_offload_ram_portion_gradients <= 1.0
+assert args.force_offload_ram_portion_activations >= 0.0
+assert args.force_offload_ram_portion_activations <= 1.0
+assert args.force_offload_ram_portion_temporaries >= 0.0
+assert args.force_offload_ram_portion_temporaries <= 1.0
+assert args.force_offload_ram_portion_optimizer >= 0.0
+assert args.force_offload_ram_portion_optimizer <= 1.0
 
 # Load named pretrained PyTorch model
 if args.pretrained == "remote":
@@ -215,11 +243,17 @@ print("Converting PyTorch model to NNTile",
         "requires {} seconds".format(time1))
 del model_torch
 
-# Set OOC force for parameters, gradients and activations
-gpt2lmhead_nntile.ooc_force_parameters(args.ooc_force_portion_parameters)
-gpt2lmhead_nntile.ooc_force_gradients(args.ooc_force_portion_gradients)
-gpt2lmhead_nntile.ooc_force_activations(args.ooc_force_portion_activations)
-gpt2lmhead_nntile.ooc_force_temporaries(args.ooc_force_portion_temporaries)
+# Set forced offloading to disk for parameters, gradients and activations
+gpt2lmhead_nntile.force_offload_disk_parameters(args.force_offload_disk_portion_parameters)
+gpt2lmhead_nntile.force_offload_disk_gradients(args.force_offload_disk_portion_gradients)
+gpt2lmhead_nntile.force_offload_disk_activations(args.force_offload_disk_portion_activations)
+gpt2lmhead_nntile.force_offload_disk_temporaries(args.force_offload_disk_portion_temporaries)
+
+# Set forced offloading to RAM for parameters, gradients and activations
+gpt2lmhead_nntile.force_offload_ram_parameters(args.force_offload_ram_portion_parameters)
+gpt2lmhead_nntile.force_offload_ram_gradients(args.force_offload_ram_portion_gradients)
+gpt2lmhead_nntile.force_offload_ram_activations(args.force_offload_ram_portion_activations)
+gpt2lmhead_nntile.force_offload_ram_temporaries(args.force_offload_ram_portion_temporaries)
 
 # Get train tokens
 splitted_datasetfile = args.dataset_file.split("/")
@@ -280,9 +314,12 @@ elif args.optimizer == "adamw":
 elif args.optimizer == "sgd":
     optimizer = nntile.optimizer.SGD(gpt2lmhead_nntile.get_parameters(),
             args.lr, next_tag)
-# Set OOC force for optimizer
-optimizer.ooc_force(args.ooc_force_portion_optimizer)
 next_tag = optimizer.get_next_tag()
+
+# Set OOC force for optimizer
+optimizer.force_offload_disk(args.force_offload_disk_portion_optimizer)
+# Set RAM force for optimizer
+optimizer.force_offload_ram(args.force_offload_ram_portion_optimizer)
 
 # Define Cross Entropy loss function
 loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
@@ -294,10 +331,12 @@ pipeline = nntile.pipeline.Pipeline(batch_input, batch_output,
 # Print pipeline memory info
 pipeline.print_meminfo()
 # nntile.starpu.pause()
+nntile.starpu.profiling_init()
 nntile.starpu.profiling_enable()
 pipeline.train_async()
 # nntile.starpu.resume()
 nntile.starpu.wait_for_all()
+nntile.starpu.profiling_bus_display_summary()
 nntile.starpu.profiling_disable()
 time1 = time.time() - time0
 print("NNTile training time: {} seconds".format(time1))

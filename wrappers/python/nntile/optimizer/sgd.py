@@ -92,12 +92,22 @@ class SGD:
             nbytes += state.get_nbytes()
         return nbytes
 
-    def ooc_force(self, portion: float = 0.0):
+    def force_offload_disk(self, portion: float = 0.0):
         """Choose the first `portion` of parameters, whose optimizer
-        states are forced to be OOC in advance"""
+        states are forced to be offloaded to disk in advance"""
         enable_count = int(len(self.states) * portion)
         disabled_count = len(self.states) - enable_count
         for i in range(enable_count):
-            self.states[i].ooc_enable()
+            self.states[i].force_offload_disk_enable()
         for i in range(disabled_count):
-            self.states[enable_count + i].ooc_disable()
+            self.states[enable_count + i].force_offload_disk_disable()
+
+    def force_offload_ram(self, portion: float = 0.0):
+        """Choose the first `portion` of parameters, whose optimizer
+        states are forced to be offloaded to RAM in advance"""
+        enable_count = int(len(self.states) * portion)
+        disabled_count = len(self.states) - enable_count
+        for i in range(enable_count):
+            self.states[i].force_offload_ram_enable()
+        for i in range(disabled_count):
+            self.states[enable_count + i].force_offload_ram_disable()

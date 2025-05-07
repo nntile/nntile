@@ -28,5 +28,8 @@ class Empty:
     def get_nbytes(self):
         return 0
 
-    def ooc_force(self, portion: float = 0.0):
+    def force_offload_disk(self, portion: float = 0.0):
+        pass
+
+    def force_offload_ram(self, portion: float = 0.0):
         pass

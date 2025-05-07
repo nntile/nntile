@@ -45,12 +45,15 @@ public:
     std::vector<int> tile_distr;
     //! Next tag to be used
     starpu_mpi_tag_t next_tag;
+    //! Flag to really use wont_use
+    int wont_use_flag;
     //! Constructor
     explicit Tensor(const TensorTraits &traits,
             const std::vector<int> &distribution,
             starpu_mpi_tag_t &last_tag):
         TensorTraits(traits),
-        tile_distr(distribution)
+        tile_distr(distribution),
+        wont_use_flag(0)
     {
         // Check distribution
         if(distribution.size() != grid.nelems)
@@ -135,10 +138,24 @@ public:
     //! Advice to evict data from GPU
     void wont_use() const
     {
+        // Form a list of tiles to be evicted from GPU with help of starpu_data_wont_use
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
-            starpu_data_wont_use(tmp);
+            // Do wont_use only if we enforce offloading to RAM or Disk
+            if(wont_use_flag == 1 or starpu_data_get_ooc_flag(tmp) == 1)
+            {
+                starpu_data_wont_use(tmp);
+                // Clear out the data from the GPU nodes
+                for(int node = 1; node < STARPU_MAXNODES; ++node)
+                {
+                    if(starpu_node_get_kind(node) == STARPU_CUDA_RAM
+                        and starpu_data_can_evict(tmp, node, STARPU_FETCH))
+                    {
+                        starpu_data_evict_from_node(tmp, node);
+                    }
+                }
+            }
         }
     }
     //! Flush tensor from MPI caches
@@ -216,21 +233,47 @@ public:
     {
         return sizeof(T) * nelems;
     }
-    void ooc_enable()
+    //! Enable data offloading to RAM when wont_use is called
+    void force_offload_ram_enable()
+    {
+        for(Index i = 0; i < grid.nelems; ++i)
+        {
+            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            // Set write-through mask to enable offloading after each update
+            starpu_data_set_wt_mask(tmp, 1 << STARPU_MAIN_RAM);
+        }
+        wont_use_flag = 1;
+    }
+    //! Disable data offloading to RAM when wont_use is called
+    void force_offload_ram_disable()
+    {
+        for(Index i = 0; i < grid.nelems; ++i)
+        {
+            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            // Set write-through mask to disable offloading after each update
+            starpu_data_set_wt_mask(tmp, 0);
+        }
+        wont_use_flag = 0;
+    }
+    //! Enforce data offloading to disk when wont_use is called
+    void force_offload_disk_enable()
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
             starpu_data_set_ooc_flag(tmp, 1);
         }
+        wont_use_flag = 1;
     }
-    void ooc_disable()
+    //! Disable data offloading to disk when wont_use is called
+    void force_offload_disk_disable()
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
             starpu_data_set_ooc_flag(tmp, 0);
         }
+        wont_use_flag = 0;
     }
 };
 
