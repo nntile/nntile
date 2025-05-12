@@ -22,11 +22,11 @@ from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
     add_fiber_inplace_async, add_slice_inplace_async, clear_async,
-    copy_intersection_async, flash_maxsumexp_async, flash_softmax_gemm_async,
-    flash_softmax_gemm_backward_async, gemm_async, mask_scalar_async,
-    maxsumexp_async, notrans, prod_inplace_async, rope_async,
-    rope_backward_async, softmax_inplace_async, sum_fiber_async,
-    sum_slice_async, sumprod_slice_async, to_numpy, trans, transpose_async)
+    gemm_async, mask_scalar_async, maxsumexp_async, notrans,
+    prod_inplace_async, rope_async, rope_backward_async,
+    softmax_inplace_async, sum_fiber_async, sumprod_slice_async,
+    to_numpy, trans, transpose_async
+)
 
 from ..model.gpt_neox_config import GPTNeoXConfig
 
@@ -219,8 +219,6 @@ class GPTNeoXAttention(BaseLayer):
         # Get sizes
         n_emb, n_seq, n_batch = x.value.shape
         n_emb_tile, n_seq_tile, n_batch_tile = x.value.basetile_shape
-        n_emb_k = n_emb_v = n_emb
-        n_emb_k_tile = n_emb_v_tile = n_emb_tile
         head_size = n_emb // n_head
         # Stupid check, that is not necessary, as the code shall work
         if n_emb != head_size * n_head:
@@ -230,8 +228,8 @@ class GPTNeoXAttention(BaseLayer):
         head_size_tile = head_size
         # Define shape of each tensor
         w_q_shape = [n_head, head_size, n_emb]
-        w_k_shape = [n_head, head_size, n_emb_k]
-        w_v_shape = [n_head, head_size, n_emb_v]
+        w_k_shape = [n_head, head_size, n_emb]
+        w_v_shape = [n_head, head_size, n_emb]
         w_shape = [n_emb, n_head, head_size]
         q_transposed_shape = [
             n_head,
@@ -264,8 +262,8 @@ class GPTNeoXAttention(BaseLayer):
             head_size_tile,
             n_emb_tile,
         ]
-        w_k_basetile = [n_head_tile, head_size_tile, n_emb_k_tile]
-        w_v_basetile = [n_head_tile, head_size_tile, n_emb_v_tile]
+        w_k_basetile = [n_head_tile, head_size_tile, n_emb_tile]
+        w_v_basetile = [n_head_tile, head_size_tile, n_emb_tile]
         w_basetile = [n_emb_tile, n_head_tile, head_size_tile]
         q_transposed_basetile = [
             n_head_tile,
@@ -658,10 +656,9 @@ class GPTNeoXAttention(BaseLayer):
     # Forward propagation of the attention layer
     def forward_async(self):
         # Compute query, key and value tensors
-        # Q_transposed = einsum('ijkl,lmn->ijkmn', W_Q, X_Q)
-        # gemm (kv_group_size, n_head_kv, head_size, n_emb)
-        # by (n_emb, n_seq, n_batch)
-        # into (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
+        # Q_transposed = einsum('jkl,lmn->jkmn', W_Q, X_Q)
+        # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
+        # (n_head, head_size, n_seq, n_batch)
         gemm_async(
             1.0,
             notrans,
@@ -674,8 +671,7 @@ class GPTNeoXAttention(BaseLayer):
             0,
             redux=self.redux,
         )
-        # Rotate axes into
-        # (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
+        # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.q_transposed.value, self.q.value, 1)
         # Q_transposed can be deleted
         self.q_transposed.value.invalidate_submit()
@@ -685,9 +681,9 @@ class GPTNeoXAttention(BaseLayer):
         # Apply bias if needed
         if self.in_proj_bias_q is not None:
             # batched add_fiber_inplace
-            # (head_size, batch=(kv_group_size, n_head_kv))
+            # (head_size, n_head)
             # into
-            # (head_size, n_seq, n_batch, batch=(kv_group_size, n_head_kv))
+            # (head_size, n_seq, n_batch, n_head)
             add_fiber_inplace_async(
                 1, self.in_proj_bias_q.value, 1, self.q.value, 0, 1
             )
@@ -697,8 +693,8 @@ class GPTNeoXAttention(BaseLayer):
         # Q can be deleted
         self.q.value.invalidate_submit()
         # K_transposed = einsum('jkl,lmn->jkmn', W_K, X_K)
-        # gemm (n_head_kv, head_size, n_emb) by (n_emb, n_seq, n_batch) into
-        # (n_head_kv, head_size, n_seq, n_batch)
+        # gemm (n_head, head_size, n_emb) by (n_emb, n_seq, n_batch) into
+        # (n_head, head_size, n_seq, n_batch)
         gemm_async(
             1.0,
             notrans,
@@ -711,7 +707,7 @@ class GPTNeoXAttention(BaseLayer):
             0,
             redux=self.redux,
         )
-        # Rotate axes into (head_size, n_seq, n_batch, n_head_kv)
+        # Rotate axes into (head_size, n_seq, n_batch, n_head)
         transpose_async(1.0, self.k_transposed.value, self.k.value, 1)
         # K_transposed can be deleted
         self.k_transposed.value.invalidate_submit()
@@ -720,8 +716,8 @@ class GPTNeoXAttention(BaseLayer):
         self.w_k.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_k is not None:
-            # batched add_fiber_inplace (head_size, batch=n_head_kv) into
-            # (head_size, n_seq, n_batch, batch=n_head_kv)
+            # batched add_fiber_inplace (head_size, n_head) into
+            # (head_size, n_seq, n_batch, n_head)
             add_fiber_inplace_async(
                 1, self.in_proj_bias_k.value, 1, self.k.value, 0, 1
             )
@@ -755,8 +751,8 @@ class GPTNeoXAttention(BaseLayer):
         self.w_v.value.wont_use()
         # Apply bias if needed
         if self.in_proj_bias_v is not None:
-            # batched add_fiber_inplace (head_size, batch=n_head_kv) into
-            # (head_size, n_seq, n_batch, batch=n_head_kv)
+            # batched add_fiber_inplace (head_size, n_head) into
+            # (head_size, n_seq, n_batch, n_head)
             add_fiber_inplace_async(
                 1, self.in_proj_bias_v.value, 1, self.v.value, 0, 1
             )
@@ -764,14 +760,14 @@ class GPTNeoXAttention(BaseLayer):
 
         self._attention_fwd()
 
-        # Rotate axes (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
-        # into (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
+        # Rotate axes (head_size, n_seq, n_batch, n_head) into
+        # (n_head, head_size, n_seq, n_batch)
         transpose_async(1.0, self.b.value, self.b_transposed.value, 3)
         # B can be offloaded from GPU
         self.b.value.wont_use()
         # Y = einsum('jklm,klmni->jni', W, B_transposed)
-        # gemm (n_emb, kv_group_size, n_head_kv, head_size) by
-        # (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
+        # gemm (n_emb, n_head, head_size) by
+        # (n_head, head_size, n_seq, n_batch)
         # into (n_emb, n_seq, n_batch)
         gemm_async(
             1.0,
@@ -812,9 +808,9 @@ class GPTNeoXAttention(BaseLayer):
                     redux=self.redux,
                 )
                 self.out_proj_bias.grad.wont_use()
-        # Backward for Y = einsum('jklm,klmni->jni', W, B_transposed)
+        # Backward for Y = einsum('jkl,klmn->jmn', W, B_transposed)
         if self.w.grad_required:
-            # dW += einsum('jni,klmni->jklm', dY, B_transposed)
+            # dW += einsum('jmn,klmn->jkl', dY, B_transposed)
             gemm_async(
                 1.0,
                 notrans,
@@ -832,7 +828,7 @@ class GPTNeoXAttention(BaseLayer):
         # W_out can be offloaded from GPU
         self.w.grad.wont_use()
         if self.b_transposed.grad_required:
-            # dB_transposed = einsum('jklm,jni->klmni', W, dY)
+            # dB_transposed = einsum('jkl,jmn->klmn', W, dY)
             gemm_async(
                 1.0,
                 trans,
@@ -851,8 +847,8 @@ class GPTNeoXAttention(BaseLayer):
         self.y.grad.wont_use()
         # Backward for axes rotation
         if self.b.grad_required:
-            # rotate axes (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
-            # into (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
+            # rotate axes (n_head, head_size, n_seq, n_batch) into
+            # (head_size, n_seq, n_batch, n_head)
             transpose_async(1.0, self.b_transposed.grad, self.b.grad, 1)
         # dB_transposed can be deleted
         self.b_transposed.grad.invalidate_submit()
@@ -875,8 +871,8 @@ class GPTNeoXAttention(BaseLayer):
                 self.in_proj_bias_v.grad.wont_use()
         # Backward for axes rotation (V_transposed->V)
         if self.v_transposed.grad_required:
-            # Rotate axes (head_size, n_seq, n_batch, n_head_kv) into
-            # (n_head_kv, head_size, n_seq, n_batch)
+            # Rotate axes (head_size, n_seq, n_batch, n_head) into
+            # (n_head, head_size, n_seq, n_batch)
             transpose_async(1.0, self.v.grad, self.v_transposed.grad, 3)
         # dV can be deleted
         self.v.grad.invalidate_submit()
@@ -942,8 +938,8 @@ class GPTNeoXAttention(BaseLayer):
                 self.in_proj_bias_k.grad.wont_use()
         # Backward for axes rotation (K_transposed->K)
         if self.k_transposed.grad_required:
-            # Rotate axes (head_size, n_seq, n_batch, n_head_kv) into
-            # (n_head_kv, head_size, n_seq, n_batch)
+            # Rotate axes (head_size, n_seq, n_batch, n_head) into
+            # (n_head, head_size, n_seq, n_batch)
             transpose_async(1.0, self.k.grad, self.k_transposed.grad, 3)
         # dK can be deleted
         self.k.grad.invalidate_submit()
@@ -1006,16 +1002,16 @@ class GPTNeoXAttention(BaseLayer):
                 self.in_proj_bias_q.grad.wont_use()
         # Backward for axes rotation (Q_transposed->Q)
         if self.q_transposed.grad_required:
-            # Rotate axes (head_size, n_seq, n_batch, kv_group_size, n_head_kv)
-            # into (kv_group_size, n_head_kv, head_size, n_seq, n_batch)
+            # Rotate axes (head_size, n_seq, n_batch, n_head) into
+            # (n_head, head_size, n_seq, n_batch)
             transpose_async(1.0, self.q.grad, self.q_transposed.grad, 3)
         # dQ can be deleted
         self.q.grad.invalidate_submit()
         # dQ_rope can be deleted
         self.q_rope.grad.invalidate_submit()
-        # Backward for Q_transposed = einsum('ijkl,lmn->ijkmn', W_Q, X_Q)
+        # Backward for Q_transposed = einsum('jkl,lmn->jkmn', W_Q, X_Q)
         if self.x_q.grad_required:
-            # dX_Q += einsum('ijkl,ijkmn->lmn', W_Q, dQ_transposed)
+            # dX_Q += einsum('jkl,jkmn->lmn', W_Q, dQ_transposed)
             gemm_async(
                 1.0,
                 trans,
@@ -1034,7 +1030,7 @@ class GPTNeoXAttention(BaseLayer):
         # dX_Q can be offloaded from GPU
         self.x_q.grad.wont_use()
         if self.w_q.grad_required:
-            # dW_Q += einsum('ijkmn,lmn->ijkl', dQ_transposed, X_Q)
+            # dW_Q += einsum('jkmn,lmn->jkl', dQ_transposed, X_Q)
             gemm_async(
                 1.0,
                 notrans,
@@ -1352,9 +1348,9 @@ class GPTNeoXAttention(BaseLayer):
         self.a.value.wont_use()
 
     def _attention_bwd(self):
-        # Backward for B = einsum('jklbi,kmlbi->jmlbi', V_rep, A)
+        # Backward for B = einsum('jklb,kmlb->jmlb', V, A)
         if self.a.grad_required:
-            # dA = einsum('jklbi,jmlbi->kmlbi', V_rep, dB)
+            # dA = einsum('jklb,jmlb->kmlb', V, dB)
             gemm_async(
                 1.0,
                 trans,
@@ -1370,7 +1366,7 @@ class GPTNeoXAttention(BaseLayer):
         # V can be deleted
         self.v.value.invalidate_submit()
         if self.v.grad_required:
-            # dV = einsum('jmlbi,kmlbi->jklbi', dB, A)
+            # dV = einsum('jmlb,kmlb->jklb', dB, A)
             gemm_async(
                 1.0,
                 notrans,
@@ -1393,7 +1389,7 @@ class GPTNeoXAttention(BaseLayer):
         self.b.grad.invalidate_submit()
         # Backward for A = softmax(A, axis=0)
         if self.a.grad_required:
-            # dA += -bias('kmlbi,mlbi->kmlbi', dA, A_sumprod_slice)
+            # dA += -bias('kmlb,mlb->kmlb', dA, A_sumprod_slice)
             add_slice_inplace_async(
                 -1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0
             )
@@ -1408,10 +1404,10 @@ class GPTNeoXAttention(BaseLayer):
             mask_scalar_async(self.causal_mask, 0.0, self.a.grad, 2)
             self.causal_mask.wont_use()
         # Backward for:
-        # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q_rope)
+        # A = 1.0/sqrt(head_size) * einsum('jklb,jmlb->kmlb', K_rope, Q_rope)
         if self.k_rope.grad_required:
             # dK = 1.0/sqrt(head_size)
-            #          * einsum('jmlbi,kmlbi->jklbi', Q_rope, dA)
+            #          * einsum('jmlb,kmlb->jklb', Q_rope, dA)
             gemm_async(
                 1.0 / self.head_size**0.5,
                 notrans,
@@ -1426,7 +1422,7 @@ class GPTNeoXAttention(BaseLayer):
             )
         if self.q_rope.grad_required:
             # dQ_rope = 1.0/sqrt(head_size)
-            #      * einsum('jklbi,kmlbi->jmlbi', K_rep, dA)
+            #      * einsum('jklb,kmlb->jmlb', K_rope, dA)
             gemm_async(
                 1.0 / self.head_size**0.5,
                 notrans,

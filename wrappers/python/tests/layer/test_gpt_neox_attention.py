@@ -28,10 +28,6 @@ from transformers.models.gpt_neox.modeling_gpt_neox import (
     GPTNeoXConfig as ConfigTorch
 )
 
-# import sys
-# sys.path.insert(0, '/home/gkarpov/Projects/transformers/src/')
-# from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXAttention as AttentionTorch, GPTNeoXRotaryEmbedding, GPTNeoXConfig as ConfigTorch
-
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
         'fp32': nntile.tensor.Tensor_fp32,
@@ -151,8 +147,6 @@ def generate_inputs(dtype: str, params: GPTNeoXAttentionTestParams):
         pos_ids_torch
     )
 
-    # mask = rng.integers(1,2, size=(params.n_seq, params.n_seq))
-    # mask_np = np.array(mask, dtype=bool, order='F')
     mask_np = np.array(
             np.triu(np.ones((params.n_seq, params.n_seq))), dtype=bool, order="F"
         )
@@ -169,7 +163,7 @@ def generate_inputs(dtype: str, params: GPTNeoXAttentionTestParams):
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
     nntile_layer.y.grad.from_array(y_grad_nntile)
     y_grad_torch = torch.Tensor(y_grad_nntile.T)
-    return torch_layer, nntile_layer, x_torch, pos_ids_torch, pos_embs_torch, \
+    return torch_layer, nntile_layer, x_torch, pos_embs_torch, \
             mask_torch, y_grad_torch
 
 
@@ -201,8 +195,11 @@ class TestGPTNeoXAttention:
 
     def test_forward(self, starpu_simple, torch_rng, dtype: str,
                      params: GPTNeoXAttentionTestParams):
-        torch_layer, nntile_layer, x, pos_ids, pos_embs, mask, *_ = generate_inputs(dtype, params)
-        y, _ = torch_layer(x, attention_mask=mask, position_embeddings=pos_embs)
+        torch_layer, nntile_layer, x, pos_embs, mask, *_ = \
+            generate_inputs(dtype, params)
+        y, _ = torch_layer(
+            x, attention_mask=mask, position_embeddings=pos_embs
+        )
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.y.value).T)
         nntile_layer.unregister()
@@ -213,8 +210,11 @@ class TestGPTNeoXAttention:
 
     def test_backward(self, starpu_simple, torch_rng, dtype: str,
                       params: GPTNeoXAttentionTestParams):
-        torch_layer, nntile_layer, x, pos_ids, pos_embs, mask, y_grad = generate_inputs(dtype, params)
-        y, _ = torch_layer(x, attention_mask=mask, position_embeddings=pos_embs)
+        torch_layer, nntile_layer, x, pos_embs, mask, y_grad = \
+            generate_inputs(dtype, params)
+        y, _ = torch_layer(
+            x, attention_mask=mask, position_embeddings=pos_embs
+        )
         nntile_layer.forward_async()
         res = (y * y_grad).sum()
         res.backward()
