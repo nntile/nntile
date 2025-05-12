@@ -1108,11 +1108,10 @@ class GPTNeoXAttention(BaseLayer):
         weight_torch = (
             torch_layer.query_key_value.weight.cpu().detach().numpy()
         )
-        l = int(3 * layer.head_size)
-        weight_reshaped = weight_torch.reshape(layer.n_head, l, n_emb)
-        w_q_parts = weight_reshaped[:, :layer.head_size, :]
-        w_k_parts = weight_reshaped[:, layer.head_size: 2 * layer.head_size, :]
-        w_v_parts = weight_reshaped[:, 2 * layer.head_size: 3 * layer.head_size, :]
+        w_qkv = weight_torch.reshape(layer.n_head, 3 * layer.head_size, n_emb)
+        w_q_parts = w_qkv[:, :layer.head_size, :]
+        w_k_parts = w_qkv[:, layer.head_size: 2 * layer.head_size, :]
+        w_v_parts = w_qkv[:, 2 * layer.head_size: 3 * layer.head_size, :]
         layer.w_q.value.from_array(
             cls.rotate_tensor_in(
                 w_q_parts.reshape(*layer.w_q.value.shape),
@@ -1180,8 +1179,7 @@ class GPTNeoXAttention(BaseLayer):
             attention_dropout=0.0,
         )
         torch_layer = GPTNeoXAttention_torch(torch_layer_config)
-        l = int(3 * self.head_size)
-        w_qkv_np = np.empty((self.n_head, l, self.n_emb))
+        w_qkv_np = np.empty((self.n_head, 3 * self.head_size, self.n_emb))
 
         w_q_parts = __class__.rotate_tensor_out(
             to_numpy(self.w_q.value), 1
@@ -1239,8 +1237,7 @@ class GPTNeoXAttention(BaseLayer):
     def to_torch_with_grads(self) -> GPTNeoXAttention_torch:
         bias = self.in_proj_bias_q is not None
         torch_layer = self.to_torch()
-        l = int(3 * self.head_size)
-        w_qkv_np = np.empty((self.n_head, l, self.n_emb))
+        w_qkv_np = np.empty((self.n_head, 3 * self.head_size, self.n_emb))
 
         w_q_parts = __class__.rotate_tensor_out(
             to_numpy(self.w_q.grad), 1
@@ -1288,7 +1285,6 @@ class GPTNeoXAttention(BaseLayer):
                 bias_torch_np
             )
         return torch_layer
-
 
     def _attention_fwd(self):
         # Get tensor for softmax

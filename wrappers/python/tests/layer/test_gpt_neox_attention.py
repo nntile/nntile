@@ -16,15 +16,14 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 import torch
+from transformers.models.gpt_neox.modeling_gpt_neox import (
+    GPTNeoXAttention as AttentionTorch, GPTNeoXConfig as ConfigTorch,
+    GPTNeoXRotaryEmbedding as RotaryEmbeddingTorch)
 
 import nntile
 from nntile.model.gpt_neox_config import GPTNeoXConfig
 from nntile.tensor import TensorMoments, TensorTraits, clear_async
 from nntile.utils.constructors import to_numpy
-
-from transformers.models.gpt_neox.modeling_gpt_neox import (
-    GPTNeoXAttention as AttentionTorch, GPTNeoXConfig as ConfigTorch,
-    GPTNeoXRotaryEmbedding as RotaryEmbeddingTorch)
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
