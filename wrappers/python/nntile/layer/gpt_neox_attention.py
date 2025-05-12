@@ -11,8 +11,6 @@
 #
 # @version 1.1.0
 
-from typing import Optional
-
 import numpy as np
 import torch
 from transformers.models.gpt_neox.modeling_gpt_neox import (
@@ -791,7 +789,6 @@ class GPTNeoXAttention(BaseLayer):
             self.out_proj_bias.value.wont_use()
         self.y.value.wont_use()
 
-
     # Backward propagation of the linear layer
     def backward_async(self):
         # Apply backward of bias if needed
@@ -1108,7 +1105,9 @@ class GPTNeoXAttention(BaseLayer):
             mask=mask,
             redux=config.redux,
         )
-        weight_torch = torch_layer.query_key_value.weight.cpu().detach().numpy()
+        weight_torch = (
+            torch_layer.query_key_value.weight.cpu().detach().numpy()
+        )
         l = int(3 * layer.head_size)
         weight_reshaped = weight_torch.reshape(layer.n_head, l, n_emb)
         w_q_parts = weight_reshaped[:, :layer.head_size, :]
@@ -1145,7 +1144,9 @@ class GPTNeoXAttention(BaseLayer):
                 .detach()
                 .numpy()
             )
-            bias_torch_np = torch_layer.query_key_value.bias.cpu().detach().numpy()
+            bias_torch_np = (
+                torch_layer.query_key_value.bias.cpu().detach().numpy()
+            )
             layer.in_proj_bias_q.value.from_array(
                 cls.rotate_tensor_in(
                     bias_torch_np[0 : n_emb]
@@ -1180,7 +1181,7 @@ class GPTNeoXAttention(BaseLayer):
         )
         torch_layer = GPTNeoXAttention_torch(torch_layer_config)
         l = int(3 * self.head_size)
-        weight_torch_np = np.empty((self.n_head, l, self.n_emb))
+        w_qkv_np = np.empty((self.n_head, l, self.n_emb))
 
         w_q_parts = __class__.rotate_tensor_out(
             to_numpy(self.w_q.value), 1
@@ -1188,15 +1189,17 @@ class GPTNeoXAttention(BaseLayer):
         w_k_parts = __class__.rotate_tensor_out(
             to_numpy(self.w_k.value), 1
         ).reshape(self.n_head, self.head_size, self.n_emb)
-        w_v_parts = to_numpy(self.w_v.value).reshape(self.n_head, self.head_size, self.n_emb)
+        w_v_parts = to_numpy(self.w_v.value).reshape(
+            self.n_head, self.head_size, self.n_emb
+        )
 
-        weight_torch_np[:, :self.head_size, :] = w_q_parts
-        weight_torch_np[:, self.head_size: 2 * self.head_size, :] = w_k_parts
-        weight_torch_np[:, 2 * self.head_size: 3 * self.head_size, :] = w_v_parts
-        weight_torch_np = weight_torch_np.reshape(3 * self.n_emb, self.n_emb)
+        w_qkv_np[:, :self.head_size, :] = w_q_parts
+        w_qkv_np[:, self.head_size: 2 * self.head_size, :] = w_k_parts
+        w_qkv_np[:, 2 * self.head_size: 3 * self.head_size, :] = w_v_parts
+        w_qkv_np = w_qkv_np.reshape(3 * self.n_emb, self.n_emb)
 
         torch_layer.query_key_value.weight.data = torch.tensor(
-            weight_torch_np,
+            w_qkv_np,
             requires_grad=True,
         )
 
@@ -1212,14 +1215,18 @@ class GPTNeoXAttention(BaseLayer):
                 requires_grad=True,
             )
             bias_torch_np = np.empty((3 * self.n_emb,))
-            bias_torch_np[: self.n_emb] = __class__.rotate_tensor_out(
-                to_numpy(self.in_proj_bias_q.value),
-                0
-            ).T.flatten()
-            bias_torch_np[self.n_emb : 2 * self.n_emb] = __class__.rotate_tensor_out(
-                to_numpy(self.in_proj_bias_k.value),
-                0
-            ).T.flatten()
+            bias_torch_np[: self.n_emb] = (
+                __class__.rotate_tensor_out(
+                    to_numpy(self.in_proj_bias_q.value),
+                    0
+                ).T.flatten()
+            )
+            bias_torch_np[self.n_emb : 2 * self.n_emb] = (
+                __class__.rotate_tensor_out(
+                    to_numpy(self.in_proj_bias_k.value),
+                    0
+                ).T.flatten()
+            )
             bias_torch_np[2 * self.n_emb : 3 * self.n_emb] = to_numpy(
                 self.in_proj_bias_v.value
             ).T.flatten()
@@ -1233,7 +1240,7 @@ class GPTNeoXAttention(BaseLayer):
         bias = self.in_proj_bias_q is not None
         torch_layer = self.to_torch()
         l = int(3 * self.head_size)
-        weight_torch_np = np.empty((self.n_head, l, self.n_emb))
+        w_qkv_np = np.empty((self.n_head, l, self.n_emb))
 
         w_q_parts = __class__.rotate_tensor_out(
             to_numpy(self.w_q.grad), 1
@@ -1241,15 +1248,17 @@ class GPTNeoXAttention(BaseLayer):
         w_k_parts = __class__.rotate_tensor_out(
             to_numpy(self.w_k.grad), 1
         ).reshape(self.n_head, self.head_size, self.n_emb)
-        w_v_parts = to_numpy(self.w_v.grad).reshape(self.n_head, self.head_size, self.n_emb)
+        w_v_parts = to_numpy(self.w_v.grad).reshape(
+            self.n_head, self.head_size, self.n_emb
+        )
 
-        weight_torch_np[:, :self.head_size, :] = w_q_parts
-        weight_torch_np[:, self.head_size: 2 * self.head_size, :] = w_k_parts
-        weight_torch_np[:, 2 * self.head_size: 3 * self.head_size, :] = w_v_parts
-        weight_torch_np = weight_torch_np.reshape(3 * self.n_emb, self.n_emb)
+        w_qkv_np[:, :self.head_size, :] = w_q_parts
+        w_qkv_np[:, self.head_size: 2 * self.head_size, :] = w_k_parts
+        w_qkv_np[:, 2 * self.head_size: 3 * self.head_size, :] = w_v_parts
+        w_qkv_np = w_qkv_np.reshape(3 * self.n_emb, self.n_emb)
 
         torch_layer.query_key_value.weight.grad = torch.tensor(
-            weight_torch_np
+            w_qkv_np
         )
 
         torch_layer.dense.weight.grad = torch.tensor(
@@ -1266,13 +1275,15 @@ class GPTNeoXAttention(BaseLayer):
                 to_numpy(self.in_proj_bias_q.grad),
                 0
             ).T.flatten()
-            bias_torch_np[self.n_emb : 2 * self.n_emb] = __class__.rotate_tensor_out(
-                to_numpy(self.in_proj_bias_k.grad),
-                0
-            ).T.flatten()
-            bias_torch_np[2 * self.n_emb : 3 * self.n_emb] = to_numpy(
-                self.in_proj_bias_v.grad
-            ).T.flatten()
+            bias_torch_np[self.n_emb : 2 * self.n_emb] = (
+                __class__.rotate_tensor_out(
+                    to_numpy(self.in_proj_bias_k.grad),
+                    0
+                ).T.flatten()
+            )
+            bias_torch_np[2 * self.n_emb : 3 * self.n_emb] = (
+                to_numpy(self.in_proj_bias_v.grad).T.flatten()
+            )
             torch_layer.query_key_value.bias.grad = torch.tensor(
                 bias_torch_np
             )

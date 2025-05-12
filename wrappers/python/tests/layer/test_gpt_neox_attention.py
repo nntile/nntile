@@ -23,8 +23,8 @@ from nntile.tensor import TensorMoments, TensorTraits, clear_async
 from nntile.utils.constructors import to_numpy
 
 from transformers.models.gpt_neox.modeling_gpt_neox import (
-    GPTNeoXAttention as AttentionTorch,
-    GPTNeoXConfig as ConfigTorch)
+    GPTNeoXAttention as AttentionTorch, GPTNeoXConfig as ConfigTorch,
+    GPTNeoXRotaryEmbedding as RotaryEmbeddingTorch)
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -117,8 +117,8 @@ def generate_inputs(dtype: str, params: GPTNeoXAttentionTestParams):
     torch_layer = AttentionTorch(
         torch_layer_config
     )
-
-    x_shape = [params.n_emb, params.n_seq, params.n_batch]
+    n_emb, n_seq, n_batch = params.n_emb, params.n_seq, params.n_batch
+    x_shape = [n_emb, n_seq, n_batch]
     x_basetile = [params.n_emb_tile, params.n_seq_tile, params.n_batch_tile]
     x_type = dtype2nntile[dtype]
 
@@ -134,24 +134,21 @@ def generate_inputs(dtype: str, params: GPTNeoXAttentionTestParams):
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_()
 
-    pos_ids = rng.integers(params.n_seq,
-            size=(params.n_batch, params.n_seq),
-            dtype=np.int64)
+    pos_ids = rng.integers(n_seq, size=(n_batch, n_seq), dtype=np.int64)
     pos_ids_torch = torch.tensor(pos_ids, dtype=torch.long)
 
-    rotary_emb = GPTNeoXRotaryEmbedding(config=torch_layer_config)
+    rotary_emb = RotaryEmbeddingTorch(config=torch_layer_config)
     pos_embs_torch = rotary_emb(
-        torch_layer.query_key_value.weight[2 * params.n_emb: 3 * params.n_emb, :],
+        torch_layer.query_key_value.weight[2 * n_emb: 3 * n_emb, :],
         pos_ids_torch
     )
 
     mask_np = np.array(
-            np.triu(np.ones((params.n_seq, params.n_seq))), dtype=bool, order="F"
+            np.triu(np.ones((n_seq, n_seq))), dtype=bool, order="F"
         )
     mask_torch = torch.Tensor(np.array(1 - mask_np, dtype=np.float32)).T \
             * torch.finfo(torch.float32).min
-    mask_torch = mask_torch[None, None, :, :].expand(params.n_batch, 1, -1, -1)
-
+    mask_torch = mask_torch[None, None, :, :].expand(n_batch, 1, -1, -1)
 
     nntile_layer, _ = nntile.layer.GPTNeoXAttention.from_torch(
         torch_layer, X, pos_ids, mask_np, nntile_config, 0
