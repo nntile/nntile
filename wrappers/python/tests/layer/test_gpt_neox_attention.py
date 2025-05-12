@@ -24,9 +24,7 @@ from nntile.utils.constructors import to_numpy
 
 from transformers.models.gpt_neox.modeling_gpt_neox import (
     GPTNeoXAttention as AttentionTorch,
-    GPTNeoXRotaryEmbedding,
-    GPTNeoXConfig as ConfigTorch
-)
+    GPTNeoXConfig as ConfigTorch)
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {

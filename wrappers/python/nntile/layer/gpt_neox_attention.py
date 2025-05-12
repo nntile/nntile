@@ -16,17 +16,16 @@ from typing import Optional
 import numpy as np
 import torch
 from transformers.models.gpt_neox.modeling_gpt_neox import (
-    GPTNeoXAttention as GPTNeoXAttention_torch, GPTNeoXConfig as GPTNeoXConfig_torch)
+    GPTNeoXAttention as GPTNeoXAttention_torch,
+    GPTNeoXConfig as GPTNeoXConfig_torch)
 
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
     Tensor, Tensor_bool, TensorMoments, TensorOrNone, TensorTraits,
-    add_fiber_inplace_async, add_slice_inplace_async, clear_async,
-    gemm_async, mask_scalar_async, maxsumexp_async, notrans,
-    prod_inplace_async, rope_async, rope_backward_async,
-    softmax_inplace_async, sum_fiber_async, sumprod_slice_async,
-    to_numpy, trans, transpose_async
-)
+    add_fiber_inplace_async, add_slice_inplace_async, clear_async, gemm_async,
+    mask_scalar_async, maxsumexp_async, notrans, prod_inplace_async,
+    rope_async, rope_backward_async, softmax_inplace_async, sum_fiber_async,
+    sumprod_slice_async, to_numpy, trans, transpose_async)
 
 from ..model.gpt_neox_config import GPTNeoXConfig
 
@@ -1182,22 +1181,20 @@ class GPTNeoXAttention(BaseLayer):
         torch_layer = GPTNeoXAttention_torch(torch_layer_config)
         l = int(3 * self.head_size)
         weight_torch_np = np.empty((self.n_head, l, self.n_emb))
-               
+
         w_q_parts = __class__.rotate_tensor_out(
             to_numpy(self.w_q.value), 1
         ).reshape(self.n_head, self.head_size, self.n_emb)
-
         w_k_parts = __class__.rotate_tensor_out(
             to_numpy(self.w_k.value), 1
         ).reshape(self.n_head, self.head_size, self.n_emb)
-
         w_v_parts = to_numpy(self.w_v.value).reshape(self.n_head, self.head_size, self.n_emb)
 
         weight_torch_np[:, :self.head_size, :] = w_q_parts
         weight_torch_np[:, self.head_size: 2 * self.head_size, :] = w_k_parts
         weight_torch_np[:, 2 * self.head_size: 3 * self.head_size, :] = w_v_parts
         weight_torch_np = weight_torch_np.reshape(3 * self.n_emb, self.n_emb)
-        
+
         torch_layer.query_key_value.weight.data = torch.tensor(
             weight_torch_np,
             requires_grad=True,
@@ -1237,22 +1234,20 @@ class GPTNeoXAttention(BaseLayer):
         torch_layer = self.to_torch()
         l = int(3 * self.head_size)
         weight_torch_np = np.empty((self.n_head, l, self.n_emb))
-               
+
         w_q_parts = __class__.rotate_tensor_out(
             to_numpy(self.w_q.grad), 1
         ).reshape(self.n_head, self.head_size, self.n_emb)
-
         w_k_parts = __class__.rotate_tensor_out(
             to_numpy(self.w_k.grad), 1
         ).reshape(self.n_head, self.head_size, self.n_emb)
-
         w_v_parts = to_numpy(self.w_v.grad).reshape(self.n_head, self.head_size, self.n_emb)
 
         weight_torch_np[:, :self.head_size, :] = w_q_parts
         weight_torch_np[:, self.head_size: 2 * self.head_size, :] = w_k_parts
         weight_torch_np[:, 2 * self.head_size: 3 * self.head_size, :] = w_v_parts
         weight_torch_np = weight_torch_np.reshape(3 * self.n_emb, self.n_emb)
-        
+
         torch_layer.query_key_value.weight.grad = torch.tensor(
             weight_torch_np
         )
@@ -1286,14 +1281,10 @@ class GPTNeoXAttention(BaseLayer):
 
     def _attention_fwd(self):
         # Get tensor for softmax
-        # A = 1.0/sqrt(head_size) * einsum('jklbi,jmlbi->kmlbi', K_rep, Q_rope)
-        # single batched gemm
-        # (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
-        # by (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
-        # into (n_seq, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
-        # q_rope_np = to_numpy(self.q_rope.value)
-        # print(q_rope_np.shape)
-        # print(q_rope_np.transpose(2, 3, 1, 0))
+        # A = 1.0/sqrt(head_size) * einsum('jklb,jmlb->kmlb', K, Q)
+        # single batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
+        # by (head_size, n_seq, batch=n_batch, batch=n_head) into
+        # (n_seq, n_seq, batch=n_batch, batch=n_head)
         gemm_async(
             1.0 / (self.head_size ** 0.5),
             trans,
@@ -1326,11 +1317,10 @@ class GPTNeoXAttention(BaseLayer):
         # A_maxsumexp can be deleted
         self.a_maxsumexp.invalidate_submit()
         # Apply value tensor
-        # B = einsum('jklbi,kmlbi->jmlbi', V_rep, A)
-        # batched gemm
-        # (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
-        # by (n_seq, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
-        # into (head_size, n_seq, batch=(n_batch, kv_group_size, n_head_kv))
+        # B = einsum('jklb,kmlb->jmlb', V, A)
+        # batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
+        # by (n_seq, n_seq, batch=n_batch, batch=n_head) into
+        # (head_size, n_seq, batch=n_batch, batch=n_head)
         gemm_async(
             1.0,
             notrans,
