@@ -67,13 +67,16 @@ void def_mod_starpu(py::module_ &m)
     m.def("restrict_cpu", [](){restrict_where(STARPU_CPU);});
     m.def("restrict_restore", [](){restore_where();});
     m.def("profiling_init", [](){
-            //starpu_profiling_init();
+        //     starpu_profiling_init();
             });
+    m.def("profiling_bus_display_summary", [](){
+        //     starpu_profiling_bus_helper_display_summary();
+                });
     m.def("profiling_enable", [](){
-            //starpu_profiling_status_set(STARPU_PROFILING_ENABLE);
+        //     starpu_profiling_status_set(STARPU_PROFILING_ENABLE);
             starpu_fxt_start_profiling();});
     m.def("profiling_disable", [](){
-            //starpu_profiling_status_set(STARPU_PROFILING_DISABLE);
+        //     starpu_profiling_status_set(STARPU_PROFILING_DISABLE);
             starpu_fxt_stop_profiling();});
     m.def("iteration_push", &starpu_iteration_push);
     m.def("iteration_pop", &starpu_iteration_pop);
