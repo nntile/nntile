@@ -33,11 +33,17 @@ void def_mod_starpu(py::module_ &m)
     using namespace nntile::starpu;
     using namespace std::chrono_literals;
     py::class_<Config>(m, "Config").
-        def(py::init<int, int, int, int, const char *, int>(),
-                py::arg("ncpus_")=-1, py::arg("ncuda_")=-1,
-                py::arg("cublas_")=-1, py::arg("logger")=0,
+        def(py::init<int, int, int, int, const char *, int, int, int, size_t, const char *>(),
+                py::arg("ncpus_")=-1,
+                py::arg("ncuda_")=-1,
+                py::arg("cublas_")=-1,
+                py::arg("logger")=0,
                 py::arg("logger_server_addr")="",
-                py::arg("logger_server_port")=5001).
+                py::arg("logger_server_port")=5001,
+                py::arg("verbose")=0,
+                py::arg("ooc")=0,
+                py::arg("ooc_size")=1073741824UL,
+                py::arg("ooc_path")="/tmp/nntile_ooc").
         def("shutdown", &Config::shutdown);
     m.def("init", init);
     m.def("pause", starpu_pause);
@@ -67,14 +73,16 @@ void def_mod_starpu(py::module_ &m)
     m.def("restrict_cpu", [](){restrict_where(STARPU_CPU);});
     m.def("restrict_restore", [](){restore_where();});
     m.def("profiling_init", [](){
-            //starpu_profiling_init();
+            starpu_profiling_init();
             });
     m.def("profiling_enable", [](){
-            //starpu_profiling_status_set(STARPU_PROFILING_ENABLE);
+            starpu_profiling_status_set(STARPU_PROFILING_ENABLE);
             starpu_fxt_start_profiling();});
     m.def("profiling_disable", [](){
-            //starpu_profiling_status_set(STARPU_PROFILING_DISABLE);
+            starpu_profiling_status_set(STARPU_PROFILING_DISABLE);
             starpu_fxt_stop_profiling();});
+    m.def("profiling_bus_display_summary", [](){
+            starpu_profiling_bus_helper_display_summary();});
     m.def("iteration_push", &starpu_iteration_push);
     m.def("iteration_pop", &starpu_iteration_pop);
 }
@@ -431,7 +439,6 @@ void def_class_tensor(py::module_ &m, const char *name)
         def("from_array", &tensor_from_array<T>).
         def("to_array", &tensor_to_array<T>).
         def("try_gathered_to_array", &tensor_try_gathered_to_array<T>).
-
         def("set_reduction_add", &Tensor<T>::set_reduction_add).
         def("set_reduction_hypot", &Tensor<T>::set_reduction_hypot).
         def("set_reduction_maxsumexp", &Tensor<T>::set_reduction_maxsumexp).
@@ -440,6 +447,14 @@ void def_class_tensor(py::module_ &m, const char *name)
         def("get_tile", static_cast<tile::Tile<T>(Tensor<T>::*)(Index) const>(
                     &Tensor<T>::get_tile)).
         def("get_nbytes", &Tensor<T>::get_nbytes).
+        // Enable offloading to RAM
+        def("force_offload_ram_enable", &Tensor<T>::force_offload_ram_enable).
+        // Disable offloading to RAM
+        def("force_offload_ram_disable", &Tensor<T>::force_offload_ram_disable).
+        // Enable offloading to disk
+        def("force_offload_disk_enable", &Tensor<T>::force_offload_disk_enable).
+        // Disable offloading to disk
+        def("force_offload_disk_disable", &Tensor<T>::force_offload_disk_disable).
         def_readonly("distribution", &Tensor<T>::tile_distr);
     m.def("tensor_to_array", tensor_to_array<T>);
     m.def("tensor_from_array", tensor_from_array<T>);

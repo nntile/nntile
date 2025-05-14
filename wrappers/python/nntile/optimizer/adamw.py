@@ -170,3 +170,27 @@ class AdamW:
             nbytes += self.first_moments[i].get_nbytes()
             nbytes += self.second_moments[i].get_nbytes()
         return nbytes
+
+    def force_offload_disk(self, portion: float = 0.0):
+        """Choose the first `portion` of parameters, whose optimizer
+        states are forced to be offloaded to disk in advance"""
+        enable_count = int(len(self.first_moments) * portion)
+        disabled_count = len(self.first_moments) - enable_count
+        for i in range(enable_count):
+            self.first_moments[i].force_offload_disk_enable()
+            self.second_moments[i].force_offload_disk_enable()
+        for i in range(disabled_count):
+            self.first_moments[enable_count + i].force_offload_disk_disable()
+            self.second_moments[enable_count + i].force_offload_disk_disable()
+
+    def force_offload_ram(self, portion: float = 0.0):
+        """Choose the first `portion` of parameters, whose optimizer
+        states are forced to be offloaded to RAM in advance"""
+        enable_count = int(len(self.first_moments) * portion)
+        disabled_count = len(self.first_moments) - enable_count
+        for i in range(enable_count):
+            self.first_moments[i].force_offload_ram_enable()
+            self.second_moments[i].force_offload_ram_enable()
+        for i in range(disabled_count):
+            self.first_moments[enable_count + i].force_offload_ram_disable()
+            self.second_moments[enable_count + i].force_offload_ram_disable()
