@@ -19,7 +19,9 @@ from nntile.layer.act import Act
 from nntile.model.t5_config import T5ConfigNNTile
 import torch
 from transformers.models.t5.modeling_t5 import T5Config as T5ConfigTorch
-
+from transformers.models.t5.modeling_t5 import T5ClassificationHead as T5ClassificationHeadTorch
+from nntile.tensor import to_numpy
+        
 
 class T5ClassificationHead(BaseModel):
     next_tag: int
@@ -101,7 +103,6 @@ class T5ClassificationHead(BaseModel):
         t5_head_nntile.out_proj.b.value.from_array(torch_head.out_proj.bias.cpu().detach().numpy())
         
         return t5_head_nntile, t5_head_nntile.next_tag
-    
     def to_torch(self):
         """Convert NNTile T5ClassificationHead to PyTorch T5ClassificationHead"""
         # Import inside function to avoid circular imports
@@ -113,15 +114,13 @@ class T5ClassificationHead(BaseModel):
         )
         
         # Create PyTorch T5ClassificationHead
-        torch_head = torch.nn.Module()
-        torch_head.dense = torch.nn.Linear(self.config.d_model, self.config.d_model)
-        torch_head.out_proj = torch.nn.Linear(self.config.d_model, self.num_labels)
+        torch_head = T5ClassificationHeadTorch(torch_config)
         
         # Copy parameters from NNTile to PyTorch
-        torch_head.dense.weight.data = torch.tensor(nntc.to_numpy(self.dense.w.value), requires_grad=True)
-        torch_head.dense.bias.data = torch.tensor(nntc.to_numpy(self.dense.b.value), requires_grad=True)
-        torch_head.out_proj.weight.data = torch.tensor(nntc.to_numpy(self.out_proj.w.value), requires_grad=True)
-        torch_head.out_proj.bias.data = torch.tensor(nntc.to_numpy(self.out_proj.b.value), requires_grad=True)
+        torch_head.dense.weight.data = torch.tensor(to_numpy(self.dense.w.value), requires_grad=True)
+        torch_head.dense.bias.data = torch.tensor(to_numpy(self.dense.b.value), requires_grad=True)
+        torch_head.out_proj.weight.data = torch.tensor(to_numpy(self.out_proj.w.value), requires_grad=True)
+        torch_head.out_proj.bias.data = torch.tensor(to_numpy(self.out_proj.b.value), requires_grad=True)
         
         return torch_head
     

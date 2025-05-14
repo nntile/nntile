@@ -14,6 +14,7 @@
 from typing import Optional
 
 import numpy as np
+import torch
 
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
@@ -27,6 +28,7 @@ from nntile.tensor import (
 from nntile.tensor import TensorMoments, Tensor, TensorTraits
 from transformers.models.t5.modeling_t5 import T5Attention as T5AttentionTorch
 from nntile.model.t5_config import T5ConfigNNTile
+from transformers.models.t5.configuration_t5 import T5Config as T5ConfigTorch
 
 def relative_position_bucket_numpy(relative_position, bidirectional=True, num_buckets=32, max_distance=128):
         """
@@ -707,6 +709,42 @@ class T5Attention(BaseLayer):
             )
 
         return attn, next_tag
+    
+    def to_torch(self):
+        """Convert NNTile T5Attention to PyTorch T5Attention"""
+        # Create PyTorch config
+        torch_config = T5ConfigTorch(
+            d_model=self.n_emb,
+            d_ff=None, # self.n_emb * 4,  # Default value
+            num_heads=self.n_head,
+            dropout_rate=0.0,
+            layer_norm_epsilon=None, # 1e-6,  # Default value
+            is_gated_act=True,
+            is_encoder_decoder=True
+        )
+
+        # Create PyTorch attention layer
+        torch_attention = T5AttentionTorch(torch_config, has_relative_attention_bias=self.has_relative_bias)
+        from nntile.tensor import to_numpy
+        # Convert weights
+        # Reshape and convert weights from NNTile format to PyTorch format
+        q_weight = torch.tensor(to_numpy(self.w_q.value)).reshape(-1, self.n_emb)
+        k_weight = torch.tensor(to_numpy(self.w_k.value)).reshape(-1, self.n_emb)
+        v_weight = torch.tensor(to_numpy(self.w_v.value)).reshape(-1, self.n_emb)
+        o_weight = torch.tensor(to_numpy(self.w.value)).reshape(self.n_emb, -1)
+        
+        torch_attention.q.weight.data = q_weight
+        torch_attention.k.weight.data = k_weight
+        torch_attention.v.weight.data = v_weight
+        torch_attention.o.weight.data = o_weight
+        
+        # Convert relative attention bias if present
+        if self.has_relative_bias:
+            relative_bias = torch.tensor(to_numpy(self.relative_bias_embedding.value)).T
+            torch_attention.relative_attention_bias.weight.data = relative_bias
+            torch_attention.has_relative_attention_bias = True
+        
+        return torch_attention
 
     def _forward_mlp_q_async(self):
         # Q_transposed = einsum('jkl,lmn->jkmn', W_Q, X_Q)

@@ -1,4 +1,3 @@
-
 import numpy as np
 from typing import Optional
 from nntile.layer.add import Add
@@ -14,7 +13,8 @@ from transformers.models.t5.modeling_t5 import (
     T5LayerSelfAttention as T5LayerSelfAttentionTorch, 
     T5Block as T5BlockTorch, 
     T5Stack as T5StackTorch,
-    T5LayerCrossAttention as T5LayerCrossAttentionTorch
+    T5LayerCrossAttention as T5LayerCrossAttentionTorch,
+    T5Config as T5ConfigTorch
 )
 
 class T5LayerSelfAttention(BaseModel):
@@ -53,6 +53,28 @@ class T5LayerSelfAttention(BaseModel):
         layer = cls(x, attention, layer_norm, add, config)
         return layer, next_tag
 
+    def to_torch(self):
+        """Convert NNTile T5LayerSelfAttention to PyTorch T5LayerSelfAttention"""
+        # Create PyTorch config
+        torch_config = T5ConfigTorch(
+            d_model=self.config.d_model,
+            d_ff=self.config.d_ff,
+            num_heads=self.config.n_head,
+            dropout_rate=0.0,
+            layer_norm_epsilon=self.config.layer_norm_epsilon,
+            is_gated_act=self.config.is_gated_act,
+            is_encoder_decoder=True
+        )
+
+        # Create PyTorch layer
+        torch_layer = T5LayerSelfAttentionTorch(torch_config)
+        
+        # Convert components
+        torch_layer.layer_norm = self.layer_norm.to_torch()
+        torch_layer.SelfAttention = self.attention.to_torch()
+        
+        return torch_layer
+
 
 class T5LayerCrossAttention(BaseModel):
     cross_attention: T5Attention
@@ -90,7 +112,29 @@ class T5LayerCrossAttention(BaseModel):
         add, next_tag = Add.generate_simple(x, attention.activations_output[0], next_tag)
         layer = cls(x, encoder_output, attention, layer_norm, add, config)
         return layer, next_tag
-    
+
+    def to_torch(self):
+        """Convert NNTile T5LayerCrossAttention to PyTorch T5LayerCrossAttention"""
+        # Create PyTorch config
+        torch_config = T5ConfigTorch(
+            d_model=self.config.d_model,
+            d_ff=self.config.d_ff,
+            num_heads=self.config.n_head,
+            dropout_rate=0.0,
+            layer_norm_epsilon=self.config.layer_norm_epsilon,
+            is_gated_act=self.config.is_gated_act,
+            is_encoder_decoder=True
+        )
+
+        # Create PyTorch layer
+        torch_layer = T5LayerCrossAttentionTorch(torch_config)
+        
+        # Convert components
+        torch_layer.layer_norm = self.layer_norm.to_torch()
+        torch_layer.EncDecAttention = self.attention.to_torch()
+        
+        return torch_layer
+
 class T5Block(BaseModel):
     is_decoder: bool
     attention: T5LayerSelfAttention 
@@ -139,6 +183,32 @@ class T5Block(BaseModel):
         block = cls(x, attention, feed_forward, config, cross_attention=cross_attention)
         return block, next_tag
     
+    def to_torch(self):
+        """Convert NNTile T5Block to PyTorch T5Block"""
+        # Create PyTorch config
+        torch_config = T5ConfigTorch(
+            d_model=self.config.d_model,
+            d_ff=self.config.d_ff,
+            num_heads=self.config.n_head,
+            dropout_rate=0.0,
+            layer_norm_epsilon=self.config.layer_norm_epsilon,
+            is_gated_act=self.config.is_gated_act,
+            is_encoder_decoder=True,
+            is_decoder=self.is_decoder
+        )
+
+        # Create PyTorch block
+        torch_block = T5BlockTorch(torch_config)
+        
+        # Convert layers
+        torch_block.layer[0] = self.attention.to_torch()
+        if self.is_decoder:
+            torch_block.layer[1] = self.cross_attention.to_torch()
+            torch_block.layer[2] = self.feed_forward.to_torch()
+        else:
+            torch_block.layer[1] = self.feed_forward.to_torch()
+            
+        return torch_block
     
 class T5Stack(BaseModel):
     blocks: list[T5Block]
@@ -190,4 +260,34 @@ class T5Stack(BaseModel):
         
         stack = cls(x, blocks, final_layer_norm, config)
         return stack, next_tag
+    
+    def to_torch(self):
+        """Convert NNTile T5Stack to PyTorch T5Stack"""
+        # Create PyTorch config
+        torch_config = T5ConfigTorch(
+            d_model=self.config.d_model,
+            d_ff=self.config.d_ff,
+            num_layers=len(self.blocks),
+            num_heads=self.config.n_head,
+            dropout_rate=0.0,
+            layer_norm_epsilon=self.config.layer_norm_epsilon,
+            is_gated_act=self.config.is_gated_act,
+            is_encoder_decoder=True,
+            is_decoder=self.config.is_decoder,
+            use_cache=False if not self.config.is_decoder else True,
+        )
+
+        # Create PyTorch stack
+        torch_stack = T5StackTorch(torch_config)
+        
+        # Convert blocks
+        for i, block in enumerate(self.blocks):
+            torch_block = block.to_torch()
+            torch_stack.block[i] = torch_block
+            
+        # Convert final layer norm
+        torch_stack.final_layer_norm = self.final_layer_norm.to_torch()
+        
+        return torch_stack
+    
     
