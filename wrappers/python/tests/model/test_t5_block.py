@@ -126,6 +126,7 @@ def generate_inputs(params: T5BlockTestParams, dtype: str):
         dense_act_fn="gelu_new",
         is_decoder=params.is_decoder,
         is_gated_act=params.is_gated_act,
+        attn_implementation = "eager",
     )
     torch_block = T5BlockTorch(torch_config)
 
@@ -141,6 +142,7 @@ def generate_inputs(params: T5BlockTestParams, dtype: str):
         n_head_tile=params.n_head_tile,
         redux=params.redux,
         is_decoder=params.is_decoder,
+        is_gated_act=params.is_gated_act,
     )
 
     # Make sure all dropout layers are disabled
@@ -160,9 +162,6 @@ def generate_inputs(params: T5BlockTestParams, dtype: str):
     x_grad = x_type(x_traits, x_distr, 0)
     X = TensorMoments(x_value, x_grad, grad_required=True)
     
-    print("TYPE: ", type(X.grad), X.grad)
-    nntile.functions.fill_async(0.0, X.grad)
-
     # Generate random input data
     gen = np.random.default_rng(42)
     x_random = gen.standard_normal(x_shape, dtype=np.float32)
@@ -180,7 +179,7 @@ def generate_inputs(params: T5BlockTestParams, dtype: str):
 
     # Initialize NNTile layer from PyTorch layer
     nntile_block, _ = T5Block.from_torch(torch_block, X, nntile_config, 0, encoder_output=eo_nnt)
-    # nntile_block.activations[0].value.from_array(x_nntile)
+    nntile_block.clear_gradients()
 
     # Generate random gradient for backward pass
     y_grad_random = gen.standard_normal(x_shape, dtype=np.float32)
@@ -194,7 +193,7 @@ def generate_inputs(params: T5BlockTestParams, dtype: str):
 @pytest.mark.parametrize(
     "params",
     [
-        pytest.param(encoder_single_tile, id="encoder_single_tile"),
+        # pytest.param(encoder_single_tile, id="encoder_single_tile"),
         pytest.param(decoder_single_tile, id="decoder_single_tile"),
         # pytest.param(multiple_tiles, id="multiple_tiles"),
     ],

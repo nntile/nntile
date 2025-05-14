@@ -240,7 +240,7 @@ class T5Stack(BaseModel):
         attention_mask = None
         if config.is_decoder:
             attention_mask_np = np.tril(np.ones((x.value.shape[1], x.value.shape[1]), dtype=bool), k=0)
-            attention_mask = nntc.from_array(attention_mask_np.T)
+            attention_mask = nntc.from_array(attention_mask_np.T, basetile_shape=(x.value.basetile_shape[1], x.value.basetile_shape[1]))
 
         blocks = []
         next_inp = x

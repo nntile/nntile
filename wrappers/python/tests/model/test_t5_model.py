@@ -20,11 +20,13 @@ import torch
 from transformers.models.t5.modeling_t5 import (
     T5Model as T5ModelTorch,
     T5Config as T5ConfigTorch,
+    T5ForSequenceClassification as T5ForSequenceClassificationTorch,
 )
+from transformers import T5Tokenizer
 
 import nntile
 from nntile.model.t5_config import T5ConfigNNTile
-from nntile.model.t5_model import T5Model
+from nntile.model.t5_model import T5Model, T5ForSequenceClassification
 from nntile.tensor import TensorMoments, TensorTraits
 import nntile.utils.constructors as nntc
 
@@ -95,7 +97,7 @@ multiple_tiles = T5ModelTestParams(
     d_ff_tile=256,
     n_head=8,
     n_head_tile=2,
-    enc_seq_len=128,
+    enc_seq_len=64,
     enc_seq_len_tile=32,
     dec_seq_len=64,
     dec_seq_len_tile=32,
@@ -118,6 +120,8 @@ def generate_inputs(params: T5ModelTestParams, dtype: str):
         is_gated_act=params.is_gated_act,
         num_layers=params.num_layers,
         attn_implementation = "eager",
+        decoder_start_token_id=0,
+        pad_token_id=0,
     )
     torch_model = T5ModelTorch(torch_config)
     print("Torch model: ", torch_model)
@@ -208,8 +212,8 @@ def generate_inputs(params: T5ModelTestParams, dtype: str):
 @pytest.mark.parametrize(
     "params",
     [
-        pytest.param(single_tile, id="single_tile"),
-        # pytest.param(multiple_tiles, id="multiple_tiles"),
+        # pytest.param(single_tile, id="single_tile"),
+        pytest.param(multiple_tiles, id="multiple_tiles"),
     ],
 )
 @pytest.mark.parametrize(
@@ -335,3 +339,98 @@ class TestT5Model:
         
         # Clean up
         nntile_model.unregister()
+
+    def test_t5_to_torch_for_sequence_classification(
+        self, starpu_simple, torch_rng, params: T5ModelTestParams, dtype: str
+    ):
+        """Test that converting T5ForSequenceClassification to torch and back gives same results"""
+        # Create PyTorch T5ForSequenceClassification model
+        torch_config = T5ConfigTorch(
+            d_model=params.d_model,
+            d_ff=params.d_ff,
+            d_kv=params.d_kv,
+            num_heads=params.n_head,
+            dropout_rate=0.0,
+            dense_act_fn="gelu_new",
+            is_gated_act=params.is_gated_act,
+            num_layers=params.num_layers,
+            num_labels=2,  # Binary classification for testing
+            attn_implementation="eager",
+            decoder_start_token_id=0,
+            pad_token_id=0,
+        )
+        torch_model = T5ForSequenceClassificationTorch(torch_config)
+        torch_model.eval()
+
+        # Configure NNTile T5 model config
+        nntile_config = T5ConfigNNTile(
+            d_model=params.d_model,
+            d_model_tile=params.d_model_tile,
+            d_kv=params.d_kv,
+            d_kv_tile=params.d_kv_tile,
+            d_ff=params.d_ff,
+            d_ff_tile=params.d_ff_tile,
+            n_head=params.n_head,
+            n_head_tile=params.n_head_tile,
+            redux=params.redux,
+            num_layers=params.num_layers,
+            is_gated_act=params.is_gated_act,
+            dtype=dtype,
+        )
+
+        # Set encoder input tensor dimensions
+        # Set encoder input tensor dimensions
+        enc_shape = [params.enc_seq_len, params.n_batch]
+        enc_basetile = [params.enc_seq_len_tile, params.n_batch_tile]
+        enc_traits = TensorTraits(enc_shape, enc_basetile)
+        enc_distr = [0] * enc_traits.grid.nelems
+        enc_value = nntile.tensor.Tensor_int64(enc_traits, enc_distr, 0)
+        enc_grad = nntile.tensor.Tensor_int64(enc_traits, enc_distr, 0)
+        enc_X = TensorMoments(enc_value, None, False)
+
+        # Set decoder input tensor dimensions
+        dec_shape = [params.dec_seq_len, params.n_batch]
+        dec_basetile = [params.dec_seq_len_tile, params.n_batch_tile]
+        dec_traits = TensorTraits(dec_shape, dec_basetile)
+        dec_distr = [0] * dec_traits.grid.nelems
+        dec_value = nntile.tensor.Tensor_int64(dec_traits, dec_distr, 0)
+        dec_grad = nntile.tensor.Tensor_int64(dec_traits, dec_distr, 0)
+        dec_X = TensorMoments(dec_value, None, False)
+
+        # Convert to NNTile model
+        nntile_model, _ = T5ForSequenceClassification.from_torch(torch_model, enc_X, dec_X, nntile_config, next_tag=0)
+
+        # Convert back to PyTorch
+        torch_model_converted = nntile_model.to_torch()
+
+        # Generate random input data
+        gen = np.random.default_rng(42)
+        enc_random = gen.integers(0, 100, enc_shape, dtype=np.int64)
+        dec_random = gen.integers(0, 100, dec_shape, dtype=np.int64)
+        enc_torch = torch.Tensor(enc_random.T).long()
+        dec_torch = torch.Tensor(dec_random.T).long()
+
+        text = "This movie was fantastic!"
+        # Initialize tokenizer from transformers
+        tokenizer = T5Tokenizer.from_pretrained("t5-small")
+        # Run forward pass on both models
+        with torch.no_grad():
+            inputs = tokenizer(text, return_tensors="pt")
+            y_original = torch_model(
+                **inputs,
+                use_cache=False,
+            ).logits
+
+            inputs = tokenizer(text, return_tensors="pt")
+            y_converted = torch_model_converted(
+                **inputs,
+                use_cache=False,
+            ).logits
+
+        # Compare results
+        rtol = dtype2tol[dtype]["rtol"]
+        assert torch.norm(y_original - y_converted) <= rtol * torch.norm(y_original)
+
+        # Clean up
+        nntile_model.unregister()
+
