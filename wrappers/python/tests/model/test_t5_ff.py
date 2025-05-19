@@ -55,27 +55,26 @@ class T5FFTestParams:
     seq_len: int = 100
     seq_len_tile: int = 100
 
-
-multiple_tiles = T5FFTestParams(
-    d_model=512,
-    d_model_tile=128,
-    d_ff=1024,
-    d_ff_tile=256,
-    seq_len=256,
-    seq_len_tile=64,
-    n_batch=4,
-    n_batch_tile=1,
-)
-
 single_tile = T5FFTestParams(
-    d_model=512,
-    d_model_tile=512,
-    d_ff=1024,
-    d_ff_tile=1024,
+    d_model=128,
+    d_model_tile=128,
+    d_ff=128,
+    d_ff_tile=128,
     seq_len=64,
     seq_len_tile=64,
-    n_batch=3,
-    n_batch_tile=3,
+    n_batch=2,
+    n_batch_tile=2,
+)
+
+multiple_tiles = T5FFTestParams(
+    d_model=128,
+    d_model_tile=32,
+    d_ff=128,
+    d_ff_tile=32,
+    seq_len=64,
+    seq_len_tile=16,
+    n_batch=4,
+    n_batch_tile=1,
 )
 
 
@@ -150,15 +149,15 @@ def generate_inputs(params: T5FFTestParams, dtype: str):
     "params",
     [
         pytest.param(single_tile, id='single_tile'),
-        # pytest.param(multiple_tiles, id="multiple_tiles"),
+        pytest.param(multiple_tiles, id="multiple_tiles"),
     ],
 )
 @pytest.mark.parametrize(
     "dtype",
     [
         "fp32",
-        # pytest.param("fp32_fast_tf32", marks=nocuda),
-        # pytest.param("bf16", marks=nocuda),
+        pytest.param("fp32_fast_tf32", marks=nocuda),
+        pytest.param("bf16", marks=nocuda),
     ],
 )
 class TestT5LayerFF:

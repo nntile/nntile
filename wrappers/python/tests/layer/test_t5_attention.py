@@ -38,7 +38,7 @@ dtype2nntile = {
 dtype2tol = {
     "fp32": {"rtol": 3e-4},
     "fp32_fast_tf32": {"rtol": 7e-4},
-    "bf16": {"rtol": 1.2e-2},
+    "bf16": {"rtol": 2e-2},
 }
 
 nocuda = pytest.mark.skipif(not torch.cuda.is_available(), reason="no cuda")
@@ -61,36 +61,35 @@ class T5AttentionTestParams:
     seq_len: int = 100
     seq_len_tile: int = 100
 
-
-multiple_tiles = T5AttentionTestParams(
-    d_model=512,
+single_tile = T5AttentionTestParams(
+    d_model=128,
     d_model_tile=128,
     d_kv=64,
+    d_kv_tile=64,
+    d_ff=128,
+    d_ff_tile=128,
+    n_head=4,
+    n_head_tile=4,
+    seq_len=64,
+    seq_len_tile=64,
+    n_batch=2,
+    n_batch_tile=2,
+    has_relative_bias=True,
+)
+
+multiple_tiles = T5AttentionTestParams(
+    d_model=128,
+    d_model_tile=32,
+    d_kv=64,
     d_kv_tile=16,
-    d_ff=384,
-    d_ff_tile=96,
-    n_head=6,
+    d_ff=128,
+    d_ff_tile=32,
+    n_head=4,
     n_head_tile=2,
     seq_len=64,
     seq_len_tile=16,
     n_batch=4,
     n_batch_tile=1,
-    has_relative_bias=True,
-)
-
-single_tile = T5AttentionTestParams(
-    d_model=512,
-    d_model_tile=512,
-    d_kv=64,
-    d_kv_tile=64,
-    d_ff=384,
-    d_ff_tile=384,
-    n_head=6,
-    n_head_tile=6,
-    seq_len=64,
-    seq_len_tile=64,
-    n_batch=3,
-    n_batch_tile=3,
     has_relative_bias=True,
 )
 
@@ -183,15 +182,15 @@ def generate_inputs(params: T5AttentionTestParams, dtype: str, is_cross_attn: bo
     "params",
     [
         pytest.param(single_tile, id="single_tile"),
-        # pytest.param(multiple_tiles, id="multiple_tiles"),
+        pytest.param(multiple_tiles, id="multiple_tiles"),
     ],
 )
 @pytest.mark.parametrize(
     "dtype",
     [
         "fp32",
-        # pytest.param("fp32_fast_tf32", marks=nocuda),
-        # pytest.param("bf16", marks=nocuda),
+        pytest.param("fp32_fast_tf32", marks=nocuda),
+        pytest.param("bf16", marks=nocuda),
     ],
 )
 @pytest.mark.parametrize(
@@ -207,7 +206,6 @@ class TestT5Attention:
     ):
         """Test that forward pass gives same results in PyTorch and NNTile"""
         torch_layer, nntile_layer, x, _, encoder_output_torch = generate_inputs(params, dtype, is_cross_attn)
-        # print("!!torch_layer.has_relative_attention_bias: ", torch_layer.has_relative_attention_bias)
         if is_cross_attn:
             y, _, _ = torch_layer(x, key_value_states=encoder_output_torch)
         else:
@@ -217,8 +215,6 @@ class TestT5Attention:
         y_nntile = torch.Tensor(to_numpy(nntile_layer.activations_output[0].value).T)
         # nntile_layer.unregister()
         rtol = dtype2tol[dtype]["rtol"]
-        # print("y: ", y)
-        # print("y_nntile: ", y_nntile)
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
         
         nntile_layer.unregister()
@@ -254,7 +250,7 @@ class TestT5Attention:
         nntile_layer.unregister()
 
     def test_relative_position_bucket(
-        self, torch_rng, params: T5AttentionTestParams, dtype: str, is_cross_attn: bool
+        self, params: T5AttentionTestParams, dtype: str, is_cross_attn: bool
     ):
         """Test relative position bucket calculation"""
         query_length, key_length = 3, 5

@@ -124,7 +124,6 @@ def generate_inputs(params: T5ModelTestParams, dtype: str):
         pad_token_id=0,
     )
     torch_model = T5ModelTorch(torch_config)
-    print("Torch model: ", torch_model)
 
     # Configure NNTile T5 model config
     nntile_config = T5ConfigNNTile(
@@ -212,7 +211,7 @@ def generate_inputs(params: T5ModelTestParams, dtype: str):
 @pytest.mark.parametrize(
     "params",
     [
-        # pytest.param(single_tile, id="single_tile"),
+        pytest.param(single_tile, id="single_tile"),
         pytest.param(multiple_tiles, id="multiple_tiles"),
     ],
 )
@@ -220,8 +219,8 @@ def generate_inputs(params: T5ModelTestParams, dtype: str):
     "dtype",
     [
         "fp32",
-        # pytest.param("fp32_fast_tf32", marks=nocuda),
-        # pytest.param("bf16", marks=nocuda),
+        pytest.param("fp32_fast_tf32", marks=nocuda),
+        pytest.param("bf16", marks=nocuda),
     ],
 )
 class TestT5Model:
@@ -231,20 +230,15 @@ class TestT5Model:
         """Test that forward pass gives same results in PyTorch and NNTile"""
         torch_model, nntile_model, enc_x, dec_x, _, enc_attn_mask, dec_attn_mask = generate_inputs(params, dtype)
         
-        print(f"enc_x: ", enc_x.shape)
-        
         # PyTorch forward pass
         y = torch_model(
             input_ids=None,
-            # attention_mask=enc_attn_mask,
             decoder_input_ids=None,
-            # decoder_attention_mask=dec_attn_mask,
             encoder_outputs=[enc_x],
             inputs_embeds=None,
             decoder_inputs_embeds=dec_x,
-            # decoder_attention_mask = ~torch.triu(torch.ones((1, dec_x.shape[1], dec_x.shape[1]), dtype=torch.bool), diagonal=1),
         )
-        # print("Y: ", y)
+
         y_encoder = y.encoder_last_hidden_state
         y = y.last_hidden_state
         
@@ -256,9 +250,7 @@ class TestT5Model:
         
         # Compare results
         rtol = dtype2tol[dtype]["rtol"]
-        print(f"Y_NNTILE: {y_encoder_nntile.flatten()[:50]} Y_EXPECTED: {y_encoder.flatten()[:50]}")
         assert torch.norm(y_encoder - y_encoder_nntile) <= rtol * torch.norm(y_encoder)
-        print(f"DECODER Y_NNTILE: {y_nntile.flatten()[:50]} Y_EXPECTED: {y.flatten()[:50]}")
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
         
         # Clean up
@@ -274,14 +266,11 @@ class TestT5Model:
         # PyTorch forward pass
         y = torch_model(
             input_ids=None,
-            # attention_mask=enc_attn_mask,
             decoder_input_ids=None,
-            # decoder_attention_mask=dec_attn_mask,
             encoder_outputs=None,
             inputs_embeds=enc_x,
             decoder_inputs_embeds=dec_x,
         )
-        # print("Y: ", y)
         y_encoder = y.encoder_last_hidden_state
         y = y.last_hidden_state
         
@@ -295,9 +284,7 @@ class TestT5Model:
         
         # Compare results
         rtol = dtype2tol[dtype]["rtol"]
-        # print(f"Y_NNTILE: {y_encoder_nntile.flatten()[:50]} Y_EXPECTED: {y_encoder.flatten()[:50]}")
-        # assert torch.norm(y_encoder - y_encoder_nntile) <= rtol * torch.norm(y_encoder)
-        print(f"DECODER Y_NNTILE: {y_nntile.flatten()[:50]} Y_EXPECTED: {y.flatten()[:50]}")
+        assert torch.norm(y_encoder - y_encoder_nntile) <= rtol * torch.norm(y_encoder)
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
         
         # Clean up
@@ -433,4 +420,3 @@ class TestT5Model:
 
         # Clean up
         nntile_model.unregister()
-

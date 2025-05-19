@@ -78,9 +78,6 @@ multiple_tiles = T5ClassificationHeadTestParams(
     n_batch_tile=1,
 )
 
-from torch import nn
-import torch
-
 class T5ClassificationHeadTest(nn.Module):
     """Head for sentence-level classification tasks."""
 
@@ -110,8 +107,6 @@ def generate_inputs(params: T5ClassificationHeadTestParams, dtype: str):
     # torch_head = T5ClassificationHeadTorch(torch_config)
     torch_head = T5ClassificationHeadTest(torch_config)
     torch_head.eval()  # Set to evaluation mode
-    
-    print("torch_head: ", torch_head, flush=True)
 
     # Configure NNTile model config
     nntile_config = T5ConfigNNTile(

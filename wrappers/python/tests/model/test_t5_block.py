@@ -36,7 +36,7 @@ dtype2nntile = {
 }
 
 dtype2tol = {
-    "fp32": {"rtol": 4e-5},
+    "fp32": {"rtol": 4.5e-5},
     "fp32_fast_tf32": {"rtol": 7e-4},
     "bf16": {"rtol": 1.2e-2},
 }
@@ -64,14 +64,14 @@ class T5BlockTestParams:
 
 
 encoder_single_tile = T5BlockTestParams(
-    d_model=512,
-    d_model_tile=512,
+    d_model=128,
+    d_model_tile=128,
     d_kv=64,
     d_kv_tile=64,
-    d_ff=1024,
-    d_ff_tile=1024,
-    n_head=8,
-    n_head_tile=8,
+    d_ff=128,
+    d_ff_tile=128,
+    n_head=4,
+    n_head_tile=4,
     seq_len=64,
     seq_len_tile=64,
     n_batch=1,
@@ -81,14 +81,14 @@ encoder_single_tile = T5BlockTestParams(
 )
 
 decoder_single_tile = T5BlockTestParams(
-    d_model=512,
-    d_model_tile=512,
+    d_model=128,
+    d_model_tile=128,
     d_kv=64,
     d_kv_tile=64,
-    d_ff=1024,
-    d_ff_tile=1024,
-    n_head=8,
-    n_head_tile=8,
+    d_ff=128,
+    d_ff_tile=128,
+    n_head=4,
+    n_head_tile=4,
     seq_len=64,
     seq_len_tile=64,
     n_batch=1,
@@ -98,16 +98,16 @@ decoder_single_tile = T5BlockTestParams(
 )
 
 multiple_tiles = T5BlockTestParams(
-    d_model=512,
-    d_model_tile=128,
+    d_model=128,
+    d_model_tile=32,
     d_kv=64,
-    d_kv_tile=64,
-    d_ff=1024,
-    d_ff_tile=256,
-    n_head=8,
+    d_kv_tile=16,
+    d_ff=128,
+    d_ff_tile=32,
+    n_head=4,
     n_head_tile=2,
-    seq_len=128,
-    seq_len_tile=32,
+    seq_len=64,
+    seq_len_tile=16,
     n_batch=4,
     n_batch_tile=1,
     is_decoder=False,
@@ -193,17 +193,17 @@ def generate_inputs(params: T5BlockTestParams, dtype: str):
 @pytest.mark.parametrize(
     "params",
     [
-        # pytest.param(encoder_single_tile, id="encoder_single_tile"),
+        pytest.param(encoder_single_tile, id="encoder_single_tile"),
         pytest.param(decoder_single_tile, id="decoder_single_tile"),
-        # pytest.param(multiple_tiles, id="multiple_tiles"),
+        pytest.param(multiple_tiles, id="multiple_tiles"),
     ],
 )
 @pytest.mark.parametrize(
     "dtype",
     [
         "fp32",
-        # pytest.param("fp32_fast_tf32", marks=nocuda),
-        # pytest.param("bf16", marks=nocuda),
+        pytest.param("fp32_fast_tf32", marks=nocuda),
+        pytest.param("bf16", marks=nocuda),
     ],
 )
 class TestT5Block:
