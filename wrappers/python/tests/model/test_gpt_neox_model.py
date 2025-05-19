@@ -273,4 +273,3 @@ class TestGPTNeoXModel:
             if p1.requires_grad:
                 g1, g2 = p1.grad, p2.grad
                 assert torch.norm(g1 - g2) <= rtol * torch.norm(g1)
-
