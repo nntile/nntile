@@ -17,15 +17,8 @@ from torch.nn import Embedding as Embedding_torch
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor_fp32,
-    Tensor_int64,
-    TensorMoments,
-    TensorTraits,
-    clear_async,
-    embedding_async,
-    embedding_backward_async,
-    to_numpy,
-)
+    Tensor_fp32, Tensor_int64, TensorMoments, TensorTraits, clear_async,
+    embedding_async, embedding_backward_async, to_numpy)
 
 
 class Embedding(BaseLayer):

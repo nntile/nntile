@@ -204,7 +204,7 @@ class T5ForSequenceClassification(BaseModel):
         )
 
     def to_torch(self):
-        """Convert NNTile T5ForSequenceClassification 
+        """Convert NNTile T5ForSequenceClassification
         to PyTorch T5ForSequenceClassification
         """
         # Create PyTorch config

@@ -21,8 +21,7 @@ import torch
 from torch.optim import SGD, Adam, AdamW
 from transformers import T5Config as T5ConfigTorch
 from transformers.models.t5.modeling_t5 import (
-    T5ForSequenceClassification as T5ForSequenceClassification_torch,
-)
+    T5ForSequenceClassification as T5ForSequenceClassification_torch)
 
 import nntile
 from nntile.model.t5_config import T5ConfigNNTile
