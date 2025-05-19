@@ -11,18 +11,17 @@
 #
 # @version 1.1.0
 
-from nntile.model.base_model import BaseModel
-from nntile.tensor import TensorMoments, notrans
-import nntile.utils.constructors as nntc
-from nntile.layer.linear import Linear
-from nntile.layer.act import Act
-from nntile.model.t5_config import T5ConfigNNTile
 import torch
-from transformers.models.t5.modeling_t5 import T5Config as T5ConfigTorch
 from transformers.models.t5.modeling_t5 import (
     T5ClassificationHead as T5ClassificationHeadTorch,
-)
-from nntile.tensor import to_numpy
+    T5Config as T5ConfigTorch)
+
+import nntile.utils.constructors as nntc
+from nntile.layer.act import Act
+from nntile.layer.linear import Linear
+from nntile.model.base_model import BaseModel
+from nntile.model.t5_config import T5ConfigNNTile
+from nntile.tensor import TensorMoments, notrans, to_numpy
 
 
 class T5ClassificationHead(BaseModel):

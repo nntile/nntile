@@ -15,38 +15,20 @@ from typing import Optional
 
 import numpy as np
 import torch
+from transformers.models.t5.configuration_t5 import T5Config as T5ConfigTorch
+from transformers.models.t5.modeling_t5 import T5Attention as T5AttentionTorch
 
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.layer.cache_utils import KVCache
-from nntile.tensor import (
-    Tensor,
-    Tensor_bool,
-    TensorMoments,
-    TensorTraits,
-    add_fiber_inplace_async,
-    add_slice_inplace_async,
-    clear_async,
-    copy_intersection_async,
-    gemm_async,
-    mask_scalar_async,
-    maxsumexp_async,
-    notrans,
-    prod_inplace_async,
-    softmax_inplace_async,
-    sum_fiber_async,
-    sumprod_slice_async,
-    trans,
-    transpose_async,
-    embedding_async,
-    embedding_backward_async,
-    add_async,
-    copy_async,
-)
-from nntile.tensor import TensorMoments, Tensor, TensorTraits
-from transformers.models.t5.modeling_t5 import T5Attention as T5AttentionTorch
 from nntile.model.t5_config import T5ConfigNNTile
-from transformers.models.t5.configuration_t5 import T5Config as T5ConfigTorch
+from nntile.tensor import (
+    Tensor, Tensor_bool, TensorMoments, TensorTraits, add_async,
+    add_fiber_inplace_async, add_slice_inplace_async, clear_async, copy_async,
+    copy_intersection_async, embedding_async, embedding_backward_async,
+    gemm_async, mask_scalar_async, maxsumexp_async, notrans,
+    prod_inplace_async, softmax_inplace_async, sum_fiber_async,
+    sumprod_slice_async, trans, transpose_async)
 
 
 def relative_position_bucket_numpy(

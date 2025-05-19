@@ -11,21 +11,20 @@
 #
 # @version 1.1.0
 
-import nntile
-from nntile.model.t5_block import T5Stack, T5Block
-from nntile.model.t5_config import T5ConfigNNTile, T5EncoderDecoderConfig
 import copy
-from nntile.tensor import TensorMoments
+
 from transformers.models.t5.modeling_t5 import (
-    T5Model as T5ModelTorch,
     T5Config as T5ConfigTorch,
-)
-from nntile.model.base_model import BaseModel
-from nntile.model.t5_lmhead import T5ClassificationHead
-from transformers.models.t5.modeling_t5 import (
     T5ForSequenceClassification as T5ForSequenceClassificationTorch,
-)
-from nntile.tensor import Tensor_fp32, Tensor_bf16, Tensor_fp32_fast_tf32
+    T5Model as T5ModelTorch)
+
+import nntile
+from nntile.model.base_model import BaseModel
+from nntile.model.t5_block import T5Stack
+from nntile.model.t5_config import T5ConfigNNTile, T5EncoderDecoderConfig
+from nntile.model.t5_lmhead import T5ClassificationHead
+from nntile.tensor import (
+    Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_tf32, TensorMoments)
 
 
 class T5Model(BaseModel):
@@ -114,30 +113,6 @@ class T5Model(BaseModel):
 
         return torch_model
 
-    # def to_torch_with_grads(self):
-    #     """Convert NNTile T5Model to PyTorch T5Model with gradients"""
-    #     # Create PyTorch config
-    #     torch_config = T5ConfigTorch(
-    #         d_model=self.encoder_config.d_model,
-    #         d_ff=self.encoder_config.d_ff,
-    #         num_layers=self.encoder_config.num_layers,
-    #         num_decoder_layers=self.decoder_config.num_layers,
-    #         num_heads=self.encoder_config.num_heads,
-    #         dropout_rate=0.0,
-    #         layer_norm_epsilon=self.encoder_config.layer_norm_epsilon,
-    #         is_gated_act=True,
-    #         is_encoder_decoder=True
-    #     )
-
-    #     # Create PyTorch model
-    #     torch_model = T5ModelTorch(torch_config)
-
-    #     # Convert encoder and decoder with gradients
-    #     torch_model.encoder = self.encoder.to_torch_with_grads()
-    #     torch_model.decoder = self.decoder.to_torch_with_grads()
-
-    #     return torch_model
-
 
 class T5ForSequenceClassification(BaseModel):
     def __init__(
@@ -154,9 +129,6 @@ class T5ForSequenceClassification(BaseModel):
         self.embedding_decoder = embedding_layer_decoder
         self.transformer = transformer
         self.classification_head = lm_head
-
-        # activations = [x] + [self.embedding.activations_output[0]] + transformer.activations[1:] + lm_head.activations[1:]
-        # layers = [self.embedding] + transformer.layers + lm_head.layers
 
         activations = (
             [x, decoder_x]
@@ -232,7 +204,9 @@ class T5ForSequenceClassification(BaseModel):
         )
 
     def to_torch(self):
-        """Convert NNTile T5ForSequenceClassification to PyTorch T5ForSequenceClassification"""
+        """Convert NNTile T5ForSequenceClassification 
+        to PyTorch T5ForSequenceClassification
+        """
         # Create PyTorch config
         torch_config = T5ConfigTorch(
             d_model=self.transformer.encoder_config.d_model,
@@ -261,30 +235,3 @@ class T5ForSequenceClassification(BaseModel):
         torch_model.classification_head = self.classification_head.to_torch()
 
         return torch_model
-
-    # def to_torch_with_grads(self):
-    #     """Convert NNTile T5ForSequenceClassification to PyTorch T5ForSequenceClassification with gradients"""
-    #     # Create PyTorch config
-    #     torch_config = T5ConfigTorch(
-    #         d_model=self.transformer.encoder_config.d_model,
-    #         d_ff=self.transformer.encoder_config.d_ff,
-    #         num_layers=self.transformer.encoder_config.num_layers,
-    #         num_decoder_layers=self.transformer.decoder_config.num_layers,
-    #         num_heads=self.transformer.encoder_config.num_heads,
-    #         dropout_rate=0.0,
-    #         layer_norm_epsilon=self.transformer.encoder_config.layer_norm_epsilon,
-    #         is_gated_act=True,
-    #         is_encoder_decoder=True,
-    #         num_labels=self.classification_head.num_labels,
-    #         decoder_start_token_id=0,
-    #         pad_token_id=0
-    #     )
-
-    #     # Create PyTorch model
-    #     torch_model = T5ForSequenceClassificationTorch(torch_config)
-
-    #     # Convert transformer and classification head with gradients
-    #     torch_model.transformer = self.transformer.to_torch_with_grads()
-    #     torch_model.classification_head = self.classification_head.to_torch_with_grads()
-
-    #     return torch_model

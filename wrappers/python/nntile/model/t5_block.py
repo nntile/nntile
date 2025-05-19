@@ -1,21 +1,19 @@
-import numpy as np
 from typing import Optional
+
+import numpy as np
+from transformers.models.t5.modeling_t5 import (
+    T5Block as T5BlockTorch, T5Config as T5ConfigTorch,
+    T5LayerCrossAttention as T5LayerCrossAttentionTorch,
+    T5LayerSelfAttention as T5LayerSelfAttentionTorch, T5Stack as T5StackTorch)
+
+import nntile.utils.constructors as nntc
 from nntile.layer.add import Add
 from nntile.layer.rms_norm import RMSNorm
 from nntile.layer.t5_attention import T5Attention
 from nntile.model.base_model import BaseModel
 from nntile.model.t5_config import T5ConfigNNTile
-from nntile.tensor import TensorMoments, Tensor
 from nntile.model.t5_ff import T5LayerFF
-import nntile.utils.constructors as nntc
-
-from transformers.models.t5.modeling_t5 import (
-    T5LayerSelfAttention as T5LayerSelfAttentionTorch,
-    T5Block as T5BlockTorch,
-    T5Stack as T5StackTorch,
-    T5LayerCrossAttention as T5LayerCrossAttentionTorch,
-    T5Config as T5ConfigTorch,
-)
+from nntile.tensor import Tensor, TensorMoments
 
 
 class T5LayerSelfAttention(BaseModel):
