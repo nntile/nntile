@@ -17,11 +17,11 @@ import numpy as np
 import pytest
 import torch
 from transformers.models.gpt_neox.modeling_gpt_neox import (
-    GPTNeoXModel as ModelTorch, GPTNeoXConfig as ConfigTorch)
+    GPTNeoXConfig as ConfigTorch, GPTNeoXModel as ModelTorch)
 
 import nntile
-from nntile.model.gpt_neox_model import GPTNeoXModel
 from nntile.model.gpt_neox_config import GPTNeoXConfig
+from nntile.model.gpt_neox_model import GPTNeoXModel
 from nntile.utils.constructors import to_numpy
 
 # NNTile dtype via corresponding Tensor type
@@ -112,7 +112,7 @@ multiple_tiles = GPTNeoXModelTestParams(
 
 
 def generate_inputs(params: GPTNeoXModelTestParams,
-                    dtype: str, 
+                    dtype: str,
                     num_hidden_layers: int,
                     att_bias: bool):
     rng = np.random.default_rng(42)
@@ -194,8 +194,8 @@ def generate_inputs(params: GPTNeoXModelTestParams,
 ])
 @pytest.mark.parametrize('dtype', [
     'fp32',
-    # pytest.param('fp32_fast_tf32', marks=nocuda),
-    # pytest.param('bf16', marks=nocuda),
+    pytest.param('fp32_fast_tf32', marks=nocuda),
+    pytest.param('bf16', marks=nocuda),
 ])
 @pytest.mark.parametrize('num_hidden_layers', [0, 1, 2])
 @pytest.mark.parametrize('att_bias', [

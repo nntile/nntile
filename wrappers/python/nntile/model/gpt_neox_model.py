@@ -15,7 +15,7 @@ from typing import List
 
 import numpy as np
 from transformers.models.gpt_neox.modeling_gpt_neox import (
-    GPTNeoXConfig as GPTNeoXConfigTorch, GPTNeoXModel as GPTNeoXModelTorch)
+    GPTNeoXConfig as ConfigTorch, GPTNeoXModel as ModelTorch)
 
 from nntile.tensor import (
     Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_bf16, Tensor_fp32_fast_fp16,
@@ -68,7 +68,7 @@ class GPTNeoXModel(BaseModel):
         super().__init__(activations, layers, config)
 
     @staticmethod
-    def from_torch(torch_model: GPTNeoXModelTorch,
+    def from_torch(model_torch: ModelTorch,
                    batch_size, batch_size_tile,
                    seq_len, seq_len_tile,
                    position_ids: np.ndarray,
@@ -108,13 +108,13 @@ class GPTNeoXModel(BaseModel):
                                 next_tag)
 
         emb_layer.w.value.from_array(
-            torch_model.embed_in.weight.cpu().detach().numpy().T
+            model_torch.embed_in.weight.cpu().detach().numpy().T
         )
 
         U = emb_layer.activations_output[0]
         gpt_neox_block_list = []
 
-        for block_torch in torch_model.layers:
+        for block_torch in model_torch.layers:
             block_nntile, next_tag = GPTNeoXBlock.from_torch(
                 block_torch, U, position_ids, mask, config, next_tag
             )
@@ -122,7 +122,7 @@ class GPTNeoXModel(BaseModel):
             gpt_neox_block_list.append(block_nntile)
 
         lnorm_final, next_tag = LayerNorm.from_torch(
-                                    torch_model.final_layer_norm,
+                                    model_torch.final_layer_norm,
                                     U,
                                     next_tag, config.redux)
         X = TensorMoments(x_value, None, False)
@@ -135,7 +135,7 @@ class GPTNeoXModel(BaseModel):
         return nntile_model, next_tag
 
     def to_torch(self):
-        config_torch = GPTNeoXConfigTorch(
+        config_torch = ConfigTorch(
             vocab_size=self.config.vocab_size,
             hidden_size=self.config.hidden_size,
             num_hidden_layers=self.config.num_hidden_layers,
@@ -150,7 +150,7 @@ class GPTNeoXModel(BaseModel):
             use_cache=False,
         )
 
-        torch_model = GPTNeoXModelTorch(config_torch)
+        torch_model = ModelTorch(config_torch)
         torch_model.embed_in = self.emb_layer.to_torch()
         for i in range(self.config.num_hidden_layers):
             torch_model.layers[i] = self.gpt_neox_blocks[i].to_torch()
@@ -160,7 +160,7 @@ class GPTNeoXModel(BaseModel):
         return torch_model
 
     def to_torch_with_grads(self):
-        config_torch = GPTNeoXConfigTorch(
+        config_torch = ConfigTorch(
             vocab_size=self.config.vocab_size,
             hidden_size=self.config.hidden_size,
             num_hidden_layers=self.config.num_hidden_layers,
@@ -175,7 +175,7 @@ class GPTNeoXModel(BaseModel):
             use_cache=False,
         )
 
-        torch_model = GPTNeoXModelTorch(config_torch)
+        torch_model = ModelTorch(config_torch)
         torch_model.embed_in = self.emb_layer.to_torch_with_grads()
         for i in range(self.config.num_hidden_layers):
             torch_model.layers[i] = (
