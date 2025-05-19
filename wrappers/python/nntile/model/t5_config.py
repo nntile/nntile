@@ -34,6 +34,7 @@ class T5ConfigNNTile:
     vocab_size: int = 32000
     dtype: str = "fp32"
 
+
 @dataclass
 class T5EncoderDecoderConfig:
     encoder_config: T5ConfigNNTile

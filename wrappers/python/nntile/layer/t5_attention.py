@@ -20,62 +20,89 @@ import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.layer.cache_utils import KVCache
 from nntile.tensor import (
-    Tensor, Tensor_bool, TensorMoments, TensorTraits, add_fiber_inplace_async,
-    add_slice_inplace_async, clear_async, copy_intersection_async, gemm_async,
-    mask_scalar_async, maxsumexp_async, notrans, prod_inplace_async,
-    softmax_inplace_async, sum_fiber_async, sumprod_slice_async, trans,
-    transpose_async, embedding_async, embedding_backward_async, add_async, copy_async)
+    Tensor,
+    Tensor_bool,
+    TensorMoments,
+    TensorTraits,
+    add_fiber_inplace_async,
+    add_slice_inplace_async,
+    clear_async,
+    copy_intersection_async,
+    gemm_async,
+    mask_scalar_async,
+    maxsumexp_async,
+    notrans,
+    prod_inplace_async,
+    softmax_inplace_async,
+    sum_fiber_async,
+    sumprod_slice_async,
+    trans,
+    transpose_async,
+    embedding_async,
+    embedding_backward_async,
+    add_async,
+    copy_async,
+)
 from nntile.tensor import TensorMoments, Tensor, TensorTraits
 from transformers.models.t5.modeling_t5 import T5Attention as T5AttentionTorch
 from nntile.model.t5_config import T5ConfigNNTile
 from transformers.models.t5.configuration_t5 import T5Config as T5ConfigTorch
 
-def relative_position_bucket_numpy(relative_position, bidirectional=True, num_buckets=32, max_distance=128):
-        """
-        Adapted from Mesh Tensorflow:
-        https://github.com/tensorflow/mesh/blob/0cb87fe07da627bf0b7e60475d59f95ed6b5be3d/mesh_tensorflow/transformer/transformer_layers.py#L593
 
-        Translate relative position to a bucket number for relative attention. The relative position is defined as
-        memory_position - query_position, i.e. the distance in tokens from the attending position to the attended-to
-        position. If bidirectional=False, then positive relative positions are invalid. We use smaller buckets for
-        small absolute relative_position and larger buckets for larger absolute relative_positions. All relative
-        positions >=max_distance map to the same bucket. All relative positions <=-max_distance map to the same bucket.
-        This should allow for more graceful generalization to longer sequences than the model has been trained on
+def relative_position_bucket_numpy(
+    relative_position, bidirectional=True, num_buckets=32, max_distance=128
+):
+    """
+    Adapted from Mesh Tensorflow:
+    https://github.com/tensorflow/mesh/blob/0cb87fe07da627bf0b7e60475d59f95ed6b5be3d/mesh_tensorflow/transformer/transformer_layers.py#L593
 
-        Args:
-            relative_position: a numpy array
-            bidirectional: a boolean - whether the attention is bidirectional
-            num_buckets: an integer
-            max_distance: an integer
+    Translate relative position to a bucket number for relative attention. The relative position is defined as
+    memory_position - query_position, i.e. the distance in tokens from the attending position to the attended-to
+    position. If bidirectional=False, then positive relative positions are invalid. We use smaller buckets for
+    small absolute relative_position and larger buckets for larger absolute relative_positions. All relative
+    positions >=max_distance map to the same bucket. All relative positions <=-max_distance map to the same bucket.
+    This should allow for more graceful generalization to longer sequences than the model has been trained on
 
-        Returns:
-            a numpy array with the same shape as relative_position, containing int32 values in the range [0, num_buckets)
-        """
-        relative_buckets = 0
-        if bidirectional:
-            num_buckets //= 2
-            relative_buckets += (relative_position > 0).astype(np.int32) * num_buckets
-            relative_position = np.abs(relative_position)
-        else:
-            relative_position = -np.minimum(relative_position, np.zeros_like(relative_position))
-        # now relative_position is in the range [0, inf)
+    Args:
+        relative_position: a numpy array
+        bidirectional: a boolean - whether the attention is bidirectional
+        num_buckets: an integer
+        max_distance: an integer
 
-        # half of the buckets are for exact increments in positions
-        max_exact = num_buckets // 2
-        is_small = relative_position < max_exact
-
-        # The other half of the buckets are for logarithmically bigger bins in positions up to max_distance
-        relative_position_if_large = max_exact + (
-            np.log(relative_position.astype(np.float32) / max_exact)
-            / np.log(max_distance / max_exact)
-            * (num_buckets - max_exact)
-        ).astype(np.int32)
-        relative_position_if_large = np.minimum(
-            relative_position_if_large, np.full_like(relative_position_if_large, num_buckets - 1)
+    Returns:
+        a numpy array with the same shape as relative_position, containing int32 values in the range [0, num_buckets)
+    """
+    relative_buckets = 0
+    if bidirectional:
+        num_buckets //= 2
+        relative_buckets += (relative_position > 0).astype(np.int32) * num_buckets
+        relative_position = np.abs(relative_position)
+    else:
+        relative_position = -np.minimum(
+            relative_position, np.zeros_like(relative_position)
         )
+    # now relative_position is in the range [0, inf)
 
-        relative_buckets += np.where(is_small, relative_position, relative_position_if_large)
-        return relative_buckets
+    # half of the buckets are for exact increments in positions
+    max_exact = num_buckets // 2
+    is_small = relative_position < max_exact
+
+    # The other half of the buckets are for logarithmically bigger bins in positions up to max_distance
+    relative_position_if_large = max_exact + (
+        np.log(relative_position.astype(np.float32) / max_exact)
+        / np.log(max_distance / max_exact)
+        * (num_buckets - max_exact)
+    ).astype(np.int32)
+    relative_position_if_large = np.minimum(
+        relative_position_if_large,
+        np.full_like(relative_position_if_large, num_buckets - 1),
+    )
+
+    relative_buckets += np.where(
+        is_small, relative_position, relative_position_if_large
+    )
+    return relative_buckets
+
 
 # Multi-head attention
 # Inputs:
@@ -157,34 +184,41 @@ class T5Attention(BaseLayer):
             out_proj_bias.grad.set_reduction_add()
         else:
             bias_list_out_proj = []
-        
+
         if has_relative_bias:
             # assert relative_bias_position_buckets is not None, "relative_bias_position_buckets must be provided if has_relative_bias is True"
-            assert relative_bias is not None, "relative_bias must be provided if has_relative_bias is True"
-            assert relative_bias_embedding is not None, "relative_bias_embedding must be provided if has_relative_bias is True"
+            assert (
+                relative_bias is not None
+            ), "relative_bias must be provided if has_relative_bias is True"
+            assert (
+                relative_bias_embedding is not None
+            ), "relative_bias_embedding must be provided if has_relative_bias is True"
             relative_bias_embedding.grad.set_reduction_add()
 
         # Redirect to BaseClass initialization
         super().__init__(
             [x_q, x_k, x_v],
             [y],
-            [w_q, w_k, w_v] + qkv_bias_list + [w] + [relative_bias_embedding] if has_relative_bias else [] + bias_list_out_proj,
-            [
-                q_transposed,
-                q,
-                k_transposed,
-                k,
-                v_transposed,
-                v,
-                a
-            ] + [
-                # relative_bias_position_buckets, 
-                relative_bias,] if has_relative_bias else [] + [
-                a_maxsumexp,
-                a_sumprod_slice,
-                b,
-                b_transposed,
-            ],
+            (
+                [w_q, w_k, w_v] + qkv_bias_list + [w] + [relative_bias_embedding]
+                if has_relative_bias
+                else [] + bias_list_out_proj
+            ),
+            (
+                [q_transposed, q, k_transposed, k, v_transposed, v, a]
+                + [
+                    # relative_bias_position_buckets,
+                    relative_bias,
+                ]
+                if has_relative_bias
+                else []
+                + [
+                    a_maxsumexp,
+                    a_sumprod_slice,
+                    b,
+                    b_transposed,
+                ]
+            ),
         )
         self.x_q = x_q
         self.x_q.grad.set_reduction_add()
@@ -233,7 +267,7 @@ class T5Attention(BaseLayer):
         self.n_head_tile = w_q.value.basetile_shape[0]
         self.n_emb = x_q.value.shape[0]
         self.n_emb_tile = x_q.value.basetile_shape[0]
-        
+
         self.has_relative_bias = has_relative_bias
         self.relative_bias_position_buckets = relative_bias_position_buckets
         self.relative_bias = relative_bias
@@ -278,10 +312,10 @@ class T5Attention(BaseLayer):
         n_batch_tile = x_q.value.basetile_shape[2]
         n_emb, n_seq, n_batch = x_q.value.shape
         n_emb_tile, n_seq_tile, n_batch_tile = x_q.value.basetile_shape
-        
+
         inner_dim = n_emb if inner_dim is None else inner_dim
         inner_dim_tile = n_emb_tile if inner_dim_tile is None else inner_dim_tile
-        
+
         head_size = inner_dim // n_head
         # Stupid check, that is not necessary, as the code shall work
         if inner_dim != head_size * n_head:
@@ -317,13 +351,13 @@ class T5Attention(BaseLayer):
         b_shape = [head_size, n_seq, n_batch, n_head]
         b_transposed_shape = [n_head, head_size, n_seq, n_batch]
         if has_relative_bias:
-            relative_bias_shape = [n_seq, n_seq, n_batch,n_head]
+            relative_bias_shape = [n_seq, n_seq, n_batch, n_head]
             relative_bias_basetile = [n_seq_tile, n_seq_tile, n_batch_tile, n_head_tile]
-            
+
             assert relative_vocab_size > 0, "relative_vocab_size must be greater than 0"
             relative_bias_embedding_shape = [n_head, relative_vocab_size]
             relative_bias_embedding_basetile = [n_head_tile, relative_vocab_size]
-            
+
         # Define tile shapes of each tensor
         w_q_basetile = [n_head_tile, head_size_tile, n_emb_tile]
         w_k_basetile = [n_head_tile, head_size_tile, n_emb_k_tile]
@@ -365,36 +399,32 @@ class T5Attention(BaseLayer):
         w_k_traits = TensorTraits(w_k_shape, w_k_basetile)
         w_v_traits = TensorTraits(w_v_shape, w_v_basetile)
         w_traits = TensorTraits(w_shape, w_basetile)
-        q_transposed_traits = TensorTraits(
-            q_transposed_shape, q_transposed_basetile
-        )
+        q_transposed_traits = TensorTraits(q_transposed_shape, q_transposed_basetile)
         q_traits = TensorTraits(q_shape, q_basetile)
-        k_transposed_traits = TensorTraits(
-            k_transposed_shape, k_transposed_basetile
-        )
+        k_transposed_traits = TensorTraits(k_transposed_shape, k_transposed_basetile)
         k_traits = TensorTraits(k_shape, k_basetile)
-        v_transposed_traits = TensorTraits(
-            v_transposed_shape, v_transposed_basetile
-        )
+        v_transposed_traits = TensorTraits(v_transposed_shape, v_transposed_basetile)
         v_traits = TensorTraits(v_shape, v_basetile)
         a_traits = TensorTraits(a_shape, a_basetile)
-        a_maxsumexp_traits = TensorTraits(
-            a_maxsumexp_shape, a_maxsumexp_basetile
-        )
+        a_maxsumexp_traits = TensorTraits(a_maxsumexp_shape, a_maxsumexp_basetile)
         a_sumprod_slice_traits = TensorTraits(
             a_sumprod_slice_shape, a_sumprod_slice_basetile
         )
         b_traits = TensorTraits(b_shape, b_basetile)
-        b_transposed_traits = TensorTraits(
-            b_transposed_shape, b_transposed_basetile
-        )
+        b_transposed_traits = TensorTraits(b_transposed_shape, b_transposed_basetile)
         if has_relative_bias:
-            relative_bias_traits = TensorTraits(relative_bias_shape, relative_bias_basetile)
+            relative_bias_traits = TensorTraits(
+                relative_bias_shape, relative_bias_basetile
+            )
             relative_bias_distr = [0] * relative_bias_traits.grid.nelems
-            
-            relative_bias_embedding_traits = TensorTraits(relative_bias_embedding_shape, relative_bias_embedding_basetile)
-            relative_bias_embedding_distr = [0] * relative_bias_embedding_traits.grid.nelems
-            
+
+            relative_bias_embedding_traits = TensorTraits(
+                relative_bias_embedding_shape, relative_bias_embedding_basetile
+            )
+            relative_bias_embedding_distr = [
+                0
+            ] * relative_bias_embedding_traits.grid.nelems
+
         # TODO change distribution
         w_q_distr = [0] * w_q_traits.grid.nelems
         w_k_distr = [0] * w_k_traits.grid.nelems
@@ -492,9 +522,7 @@ class T5Attention(BaseLayer):
             q_transposed_traits, q_transposed_distr, next_tag
         )
         next_tag = q_transposed_grad.next_tag
-        q_transposed = TensorMoments(
-            q_transposed_value, q_transposed_grad, True
-        )
+        q_transposed = TensorMoments(q_transposed_value, q_transposed_grad, True)
         # q
         q_value = type(x_q.value)(q_traits, q_distr, next_tag)
         next_tag = q_value.next_tag
@@ -510,9 +538,7 @@ class T5Attention(BaseLayer):
             k_transposed_traits, k_transposed_distr, next_tag
         )
         next_tag = k_transposed_grad.next_tag
-        k_transposed = TensorMoments(
-            k_transposed_value, k_transposed_grad, True
-        )
+        k_transposed = TensorMoments(k_transposed_value, k_transposed_grad, True)
         # k
         k_value = type(x_q.value)(k_traits, k_distr, next_tag)
         next_tag = k_value.next_tag
@@ -528,9 +554,7 @@ class T5Attention(BaseLayer):
             v_transposed_traits, v_transposed_distr, next_tag
         )
         next_tag = v_transposed_grad.next_tag
-        v_transposed = TensorMoments(
-            v_transposed_value, v_transposed_grad, True
-        )
+        v_transposed = TensorMoments(v_transposed_value, v_transposed_grad, True)
         # v
         v_value = type(x_q.value)(v_traits, v_distr, next_tag)
         next_tag = v_value.next_tag
@@ -544,9 +568,7 @@ class T5Attention(BaseLayer):
         next_tag = a_grad.next_tag
         a = TensorMoments(a_value, a_grad, True)
         # a_maxsumexp
-        a_maxsumexp = type(x_q.value)(
-            a_maxsumexp_traits, a_maxsumexp_distr, next_tag
-        )
+        a_maxsumexp = type(x_q.value)(a_maxsumexp_traits, a_maxsumexp_distr, next_tag)
         next_tag = a_maxsumexp.next_tag
         # a_sumprod_slice
         a_sumprod_slice = type(x_q.value)(
@@ -568,24 +590,32 @@ class T5Attention(BaseLayer):
             b_transposed_traits, b_transposed_distr, next_tag
         )
         next_tag = b_transposed_grad.next_tag
-        b_transposed = TensorMoments(
-            b_transposed_value, b_transposed_grad, True
-        )
-        
+        b_transposed = TensorMoments(b_transposed_value, b_transposed_grad, True)
+
         relative_bias = None
         relative_bias_embedding = None
         if has_relative_bias:
-            relative_bias_value = type(x_q.value)(relative_bias_traits, relative_bias_distr, next_tag)
-            relative_bias_grad = type(x_q.value)(relative_bias_traits, relative_bias_distr, next_tag)
+            relative_bias_value = type(x_q.value)(
+                relative_bias_traits, relative_bias_distr, next_tag
+            )
+            relative_bias_grad = type(x_q.value)(
+                relative_bias_traits, relative_bias_distr, next_tag
+            )
             next_tag = relative_bias_value.next_tag
             relative_bias = TensorMoments(relative_bias_value, relative_bias_grad, True)
-            
-            relative_bias_embedding_value = type(x_q.value)(relative_bias_embedding_traits, relative_bias_embedding_distr, next_tag)
+
+            relative_bias_embedding_value = type(x_q.value)(
+                relative_bias_embedding_traits, relative_bias_embedding_distr, next_tag
+            )
             next_tag = relative_bias_embedding_value.next_tag
-            relative_bias_embedding_grad = type(x_q.value)(relative_bias_embedding_traits, relative_bias_embedding_distr, next_tag)
+            relative_bias_embedding_grad = type(x_q.value)(
+                relative_bias_embedding_traits, relative_bias_embedding_distr, next_tag
+            )
             next_tag = relative_bias_embedding_grad.next_tag
-            relative_bias_embedding = TensorMoments(relative_bias_embedding_value, relative_bias_embedding_grad, True)
-            
+            relative_bias_embedding = TensorMoments(
+                relative_bias_embedding_value, relative_bias_embedding_grad, True
+            )
+
         # Allocate tensors for bias for q, k, v and output projection
         if bias:
             out_proj_bias_traits = TensorTraits([n_emb], [n_emb_tile])
@@ -598,9 +628,7 @@ class T5Attention(BaseLayer):
                 out_proj_bias_traits, out_proj_bias_distr, next_tag
             )
             next_tag = out_proj_bias_grad.next_tag
-            out_proj_bias = TensorMoments(
-                out_proj_bias_value, out_proj_bias_grad, True
-            )
+            out_proj_bias = TensorMoments(out_proj_bias_value, out_proj_bias_grad, True)
         else:
             out_proj_bias = None
         # Allocate tensor for output y
@@ -638,8 +666,8 @@ class T5Attention(BaseLayer):
             mask,
             scale_attn=scale_attn,
             has_relative_bias=has_relative_bias,
-            relative_bias = relative_bias,
-            relative_bias_embedding = relative_bias_embedding,
+            relative_bias=relative_bias,
+            relative_bias_embedding=relative_bias_embedding,
             redux=redux,
             is_decoder=is_decoder,
         )
@@ -658,7 +686,7 @@ class T5Attention(BaseLayer):
     ):
         attn, next_tag = T5Attention.generate_simple(
             x_q=x,
-            x_k=encoder_output or x, # for cross-attention
+            x_k=encoder_output or x,  # for cross-attention
             x_v=encoder_output or x,
             n_head=config.n_head,
             n_head_tile=config.n_head_tile,
@@ -671,7 +699,8 @@ class T5Attention(BaseLayer):
             has_relative_bias=torch_layer.has_relative_attention_bias,
             relative_vocab_size=(
                 torch_layer.relative_attention_bias.weight.shape[0]
-                if torch_layer.has_relative_attention_bias else 0
+                if torch_layer.has_relative_attention_bias
+                else 0
             ),
             redux=config.redux,
             is_decoder=config.is_decoder,
@@ -702,48 +731,51 @@ class T5Attention(BaseLayer):
             .detach()
             .numpy()
         )
-        
+
         if attn.has_relative_bias:
             attn.relative_bias_embedding.value.from_array(
                 torch_layer.relative_attention_bias.weight.T.cpu().detach().numpy()
             )
 
         return attn, next_tag
-    
+
     def to_torch(self):
         """Convert NNTile T5Attention to PyTorch T5Attention"""
         # Create PyTorch config
         torch_config = T5ConfigTorch(
             d_model=self.n_emb,
-            d_ff=None, # self.n_emb * 4,  # Default value
+            d_ff=None,  # self.n_emb * 4,  # Default value
             num_heads=self.n_head,
             dropout_rate=0.0,
-            layer_norm_epsilon=None, # 1e-6,  # Default value
+            layer_norm_epsilon=None,  # 1e-6,  # Default value
             is_gated_act=True,
-            is_encoder_decoder=True
+            is_encoder_decoder=True,
         )
 
         # Create PyTorch attention layer
-        torch_attention = T5AttentionTorch(torch_config, has_relative_attention_bias=self.has_relative_bias)
+        torch_attention = T5AttentionTorch(
+            torch_config, has_relative_attention_bias=self.has_relative_bias
+        )
         from nntile.tensor import to_numpy
+
         # Convert weights
         # Reshape and convert weights from NNTile format to PyTorch format
         q_weight = torch.tensor(to_numpy(self.w_q.value)).reshape(-1, self.n_emb)
         k_weight = torch.tensor(to_numpy(self.w_k.value)).reshape(-1, self.n_emb)
         v_weight = torch.tensor(to_numpy(self.w_v.value)).reshape(-1, self.n_emb)
         o_weight = torch.tensor(to_numpy(self.w.value)).reshape(self.n_emb, -1)
-        
+
         torch_attention.q.weight.data = q_weight
         torch_attention.k.weight.data = k_weight
         torch_attention.v.weight.data = v_weight
         torch_attention.o.weight.data = o_weight
-        
+
         # Convert relative attention bias if present
         if self.has_relative_bias:
             relative_bias = torch.tensor(to_numpy(self.relative_bias_embedding.value)).T
             torch_attention.relative_attention_bias.weight.data = relative_bias
             torch_attention.has_relative_attention_bias = True
-        
+
         return torch_attention
 
     def _forward_mlp_q_async(self):
@@ -773,9 +805,7 @@ class T5Attention(BaseLayer):
         if self.in_proj_bias_q is not None:
             # batched add_fiber_inplace (head_size, batch=n_head) into
             # (head_size, n_seq, n_batch, batch=n_head)
-            add_fiber_inplace_async(
-                1, self.in_proj_bias_q.value, 1, self.q.value, 0, 1
-            )
+            add_fiber_inplace_async(1, self.in_proj_bias_q.value, 1, self.q.value, 0, 1)
             self.in_proj_bias_q.value.wont_use()
 
     def _get_tmp_tr_for_cache(self, x):
@@ -818,9 +848,7 @@ class T5Attention(BaseLayer):
         transpose_async(1.0, q_partial_tr, q_partial, 1)
 
         if self.in_proj_bias_q is not None:
-            add_fiber_inplace_async(
-                1, self.in_proj_bias_q.value, 1, q_partial, 0, 1
-            )
+            add_fiber_inplace_async(1, self.in_proj_bias_q.value, 1, q_partial, 0, 1)
 
         return q_partial
 
@@ -851,9 +879,7 @@ class T5Attention(BaseLayer):
         if self.in_proj_bias_k is not None:
             # batched add_fiber_inplace (head_size, batch=n_head) into
             # (head_size, n_seq, n_batch, batch=n_head)
-            add_fiber_inplace_async(
-                1, self.in_proj_bias_k.value, 1, self.k.value, 0, 1
-            )
+            add_fiber_inplace_async(1, self.in_proj_bias_k.value, 1, self.k.value, 0, 1)
             self.in_proj_bias_k.value.wont_use()
 
     def _forward_mlp_k_dynamic(self, x: Tensor):
@@ -876,9 +902,7 @@ class T5Attention(BaseLayer):
         transpose_async(1.0, k_partial_tr, k_partial, 1)
 
         if self.in_proj_bias_k is not None:
-            add_fiber_inplace_async(
-                1, self.in_proj_bias_k.value, 1, k_partial, 0, 1
-            )
+            add_fiber_inplace_async(1, self.in_proj_bias_k.value, 1, k_partial, 0, 1)
 
         return k_partial
 
@@ -909,9 +933,7 @@ class T5Attention(BaseLayer):
         if self.in_proj_bias_v is not None:
             # batched add_fiber_inplace (head_size, batch=n_head) into
             # (head_size, n_seq, n_batch, batch=n_head)
-            add_fiber_inplace_async(
-                1, self.in_proj_bias_v.value, 1, self.v.value, 0, 1
-            )
+            add_fiber_inplace_async(1, self.in_proj_bias_v.value, 1, self.v.value, 0, 1)
             self.in_proj_bias_v.value.wont_use()
 
     def _forward_mlp_v_dynamic(self, x: Tensor):
@@ -934,48 +956,53 @@ class T5Attention(BaseLayer):
         transpose_async(1.0, v_partial_tr, v_partial, 1)
 
         if self.in_proj_bias_v is not None:
-            add_fiber_inplace_async(
-                1, self.in_proj_bias_v.value, 1, v_partial, 0, 1
-            )
+            add_fiber_inplace_async(1, self.in_proj_bias_v.value, 1, v_partial, 0, 1)
 
         return v_partial
-    
+
     def _add_positional_bias_async(self):
         query_length, key_length = self.a.value.shape[:2]
         context_position = np.arange(query_length, dtype=np.int32)[:, None]
         memory_position = np.arange(key_length, dtype=np.int32)[None, :]
-        relative_position = memory_position - context_position  # shape (query_length, key_length)
+        relative_position = (
+            memory_position - context_position
+        )  # shape (query_length, key_length)
         relative_position_bucket_np_value = relative_position_bucket_numpy(
-            relative_position, 
-            bidirectional=(not self.is_decoder), 
-            num_buckets=32, 
-            max_distance=128
+            relative_position,
+            bidirectional=(not self.is_decoder),
+            num_buckets=32,
+            max_distance=128,
         )
         relative_position_bucket_np_value = relative_position_bucket_np_value[None, ...]
         if self.a.value.shape[2] > 1:
-            relative_position_bucket_np_value = relative_position_bucket_np_value.repeat(self.a.value.shape[2], axis=0)
-            
-        self.relative_position_bucket_nnt = nntc.from_array(relative_position_bucket_np_value.T, self.relative_bias.value.basetile_shape[:3])
-        
+            relative_position_bucket_np_value = (
+                relative_position_bucket_np_value.repeat(self.a.value.shape[2], axis=0)
+            )
+
+        self.relative_position_bucket_nnt = nntc.from_array(
+            relative_position_bucket_np_value.T,
+            self.relative_bias.value.basetile_shape[:3],
+        )
+
         embedding_async(
             self.relative_position_bucket_nnt,
             self.relative_bias_embedding.value,
             self.relative_bias.value,
-            axis=3 # so result will batch self.a.shape 
+            axis=3,  # so result will batch self.a.shape
         )
-        
+
         # print("INTERNAL TYPE: ", type(self.relative_bias.value), nntc.to_numpy(self.relative_bias.value))
-        
+
         add_async(1.0, self.a.value, 1.0, self.relative_bias.value, self.a.value)
-            
+
     def _add_positional_bias_backward(self):
         copy_async(self.a.grad, self.relative_bias.grad)
-        
+
         embedding_backward_async(
             self.relative_position_bucket_nnt,
             self.relative_bias.grad,
             self.relative_bias_embedding.grad,
-            axis=3
+            axis=3,
         )
 
     def _forward_attn_async(self):
@@ -998,7 +1025,7 @@ class T5Attention(BaseLayer):
         )
         if self.has_relative_bias:
             self._add_positional_bias_async()
-        
+
         clear_async(self.a_maxsumexp)
         # Q and K can be offloaded from GPU
         self.q.value.wont_use()
@@ -1081,9 +1108,7 @@ class T5Attention(BaseLayer):
         a_maxsumexp_tmp = nntc.empty(
             (2,) + tuple(a_tmp.shape[1:]),
             dtype=type(q),
-            basetile_shape=(2,)
-            + tuple(a_tmp.shape[1:-1])
-            + (self.n_head_tile,),
+            basetile_shape=(2,) + tuple(a_tmp.shape[1:-1]) + (self.n_head_tile,),
         )
         b_tmp = nntc.empty(
             q.shape,
@@ -1093,8 +1118,7 @@ class T5Attention(BaseLayer):
         b_tr_tmp = nntc.empty(
             (self.n_head, self.head_size) + tuple(q.shape[1:3]),
             dtype=type(q),
-            basetile_shape=(self.n_head_tile, self.head_size)
-            + tuple(q.shape[1:3]),
+            basetile_shape=(self.n_head_tile, self.head_size) + tuple(q.shape[1:3]),
         )  # (n_head, head_size, n_seq, n_batch)
         self.y_tensor = nntc.empty(
             (self.n_emb,) + tuple(q.shape[1:3]),
@@ -1129,7 +1153,11 @@ class T5Attention(BaseLayer):
         # A = softmax(A, axis=0)
         # Apply mask if needed
         if self.mask:
-            mask_tmp = nntc.empty(a_tmp.shape[:2], basetile_shape=a_tmp.basetile_shape[:2], dtype=Tensor_bool)
+            mask_tmp = nntc.empty(
+                a_tmp.shape[:2],
+                basetile_shape=a_tmp.basetile_shape[:2],
+                dtype=Tensor_bool,
+            )
             copy_intersection_async(
                 self.mask, [0, 0], mask_tmp, [0, k.shape[1] - q.shape[1]]
             )
@@ -1147,9 +1175,7 @@ class T5Attention(BaseLayer):
         # batched gemm (head_size, n_seq, batch=n_batch, batch=n_head)
         # by (n_seq, n_seq, batch=n_batch, batch=n_head) into
         # (head_size, n_seq, batch=n_batch, batch=n_head)
-        gemm_async(
-            1.0, notrans, v, notrans, a_tmp, 0.0, b_tmp, 1, 2, redux=self.redux
-        )
+        gemm_async(1.0, notrans, v, notrans, a_tmp, 0.0, b_tmp, 1, 2, redux=self.redux)
         # V and A can be offloaded from GPU
         v.wont_use()
         a_tmp.wont_use()
@@ -1181,9 +1207,7 @@ class T5Attention(BaseLayer):
 
         # Apply bias if needed
         if self.out_proj_bias is not None:
-            add_fiber_inplace_async(
-                1.0, self.out_proj_bias.value, 1.0, y_tensor, 0, 0
-            )
+            add_fiber_inplace_async(1.0, self.out_proj_bias.value, 1.0, y_tensor, 0, 0)
             self.out_proj_bias.value.wont_use()
         return y_tensor
 
@@ -1197,10 +1221,10 @@ class T5Attention(BaseLayer):
         # compute attention and weight result
         self._forward_attn_async()
 
-    def forward_dynamic(
-            self, x: TensorMoments, kv_cache: Optional[KVCache] = None
-        ):
-        if (kv_cache is not None) and (x.value.shape[1] + len(kv_cache) > self.x_v.value.shape[1]):  # noqa: E501
+    def forward_dynamic(self, x: TensorMoments, kv_cache: Optional[KVCache] = None):
+        if (kv_cache is not None) and (
+            x.value.shape[1] + len(kv_cache) > self.x_v.value.shape[1]
+        ):  # noqa: E501
             raise Exception(
                 "Overload internal state: "
                 f"try add {x.value.shape[1]} "
@@ -1331,18 +1355,16 @@ class T5Attention(BaseLayer):
                 redux=self.redux,
             )
             # dA += -bias('kmlb,mlb->kmlb', dA, A_sumprod_slice)
-            add_slice_inplace_async(
-                -1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0
-            )
+            add_slice_inplace_async(-1.0, self.a_sumprod_slice, 1.0, self.a.grad, 0)
             # A_sumprod_slice can be deleted
             # self.a_sumprod_slice.wont_use()
             self.a_sumprod_slice.invalidate_submit()
             # dA *= A
             prod_inplace_async(self.a.value, self.a.grad)
-            
+
             if self.has_relative_bias:
                 self._add_positional_bias_backward()
-            
+
         # A can be deleted
         # self.a.value.wont_use()
         self.a.value.invalidate_submit()
