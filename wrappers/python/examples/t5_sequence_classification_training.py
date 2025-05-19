@@ -18,7 +18,6 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import torch.nn as nn
 from torch.optim import SGD, Adam, AdamW
 from transformers import T5Config as T5ConfigTorch
 from transformers.models.t5.modeling_t5 import (
@@ -28,7 +27,6 @@ import nntile
 from nntile.model.t5_config import T5ConfigNNTile
 from nntile.model.t5_model import T5ForSequenceClassification
 from nntile.tensor import TensorMoments
-import nntile.utils.constructors as nntc
 
 # Create argument parser
 parser = argparse.ArgumentParser(prog="T5-based sequence classification",
@@ -162,13 +160,13 @@ t5_config_nntile = T5ConfigNNTile(
     d_ff=model_torch.config.d_ff,
     d_ff_tile=args.d_ff_tile,
     d_kv=model_torch.config.d_kv,
-    d_kv_tile=model_torch.config.d_kv, # d_kv_tile=args.d_kv_tile, 
+    d_kv_tile=model_torch.config.d_kv,  # d_kv_tile=args.d_kv_tile, 
     num_layers=model_torch.config.num_layers,
     # num_decoder_layers=model_torch.config.num_decoder_layers,
     n_head=model_torch.config.num_heads,
     n_head_tile=args.num_heads_tile,
     # relative_attention_num_buckets=model_torch.config.relative_attention_num_buckets,
-    dropout_rate=0.0, #model_torch.config.dropout_rate,
+    dropout_rate=0.0,  # model_torch.config.dropout_rate,
     layer_norm_epsilon=model_torch.config.layer_norm_epsilon,
     # initializer_factor=model_torch.config.initializer_factor,
     # feed_forward_proj=model_torch.config.feed_forward_proj,
@@ -219,7 +217,7 @@ else:
     print("Using dummy training data")
     num_train_samples = 1000
     vocab_size = 32000
-    data_ids = np.random.randint(0, 32000, size=(num_train_samples, args.seq_len+1), dtype=np.int64)
+    data_ids = np.random.randint(0, 32000, size=(num_train_samples, args.seq_len + 1), dtype=np.int64)
     train_input_ids = data_ids[:, :-1]
     train_labels = data_ids[:, 1:]
     
