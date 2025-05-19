@@ -17,18 +17,14 @@ import numpy as np
 import pytest
 import torch
 import torch.nn as nn
+# Import the official HuggingFace implementation
+from transformers.models.t5.modeling_t5 import T5Config as T5ConfigTorch
 
 import nntile
+import nntile.utils.constructors as nntc
 from nntile.model.t5_config import T5ConfigNNTile
 from nntile.model.t5_lmhead import T5ClassificationHead
 from nntile.tensor import TensorMoments, TensorTraits
-import nntile.utils.constructors as nntc
-
-# Import the official HuggingFace implementation
-from transformers.models.t5.modeling_t5 import (
-    T5ClassificationHead as T5ClassificationHeadTorch,
-    T5Config as T5ConfigTorch,
-)
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {

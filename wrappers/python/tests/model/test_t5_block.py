@@ -13,20 +13,18 @@
 
 from dataclasses import dataclass
 
-import nntile.functions
 import numpy as np
 import pytest
 import torch
 from transformers.models.t5.modeling_t5 import (
-    T5Block as T5BlockTorch,
-    T5Config as T5ConfigTorch,
-)
+    T5Block as T5BlockTorch, T5Config as T5ConfigTorch)
 
 import nntile
-from nntile.model.t5_config import T5ConfigNNTile
-from nntile.model.t5_block import T5Block
-from nntile.tensor import TensorMoments, TensorTraits
+import nntile.functions
 import nntile.utils.constructors as nntc
+from nntile.model.t5_block import T5Block
+from nntile.model.t5_config import T5ConfigNNTile
+from nntile.tensor import TensorMoments, TensorTraits
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -217,7 +215,7 @@ class TestT5Block:
         self, starpu_simple, torch_rng, params: T5BlockTestParams, dtype: str
     ):
         """Test that forward pass gives same results in PyTorch and NNTile"""
-        torch_block, nntile_block, x, _, eo_torch, eo_nnt = generate_inputs(
+        torch_block, nntile_block, x, _, eo_torch, _eo_nnt = generate_inputs(
             params, dtype
         )
 
@@ -237,7 +235,7 @@ class TestT5Block:
         self, starpu_simple, torch_rng, params: T5BlockTestParams, dtype: str
     ):
         """Test that backward pass gives same results in PyTorch and NNTile"""
-        torch_block, nntile_block, x, y_grad, eo_torch, eo_nnt = generate_inputs(
+        torch_block, nntile_block, x, y_grad, eo_torch, _eo_nnt = generate_inputs(
             params, dtype
         )
 

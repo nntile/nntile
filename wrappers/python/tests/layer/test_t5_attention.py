@@ -17,15 +17,13 @@ import numpy as np
 import pytest
 import torch
 from transformers.models.t5.modeling_t5 import (
-    T5Attention as T5AttentionTorch,
-    T5Config as T5ConfigTorch,
-)
+    T5Attention as T5AttentionTorch, T5Config as T5ConfigTorch)
 
 import nntile
+from nntile.layer.t5_attention import (
+    T5Attention, relative_position_bucket_numpy)
 from nntile.model.t5_config import T5ConfigNNTile
-from nntile.layer.t5_attention import T5Attention, relative_position_bucket_numpy
 from nntile.tensor import TensorMoments, TensorTraits
-from transformers.models.t5.modeling_t5 import T5Attention as T5AttentionTorch
 from nntile.utils.constructors import to_numpy
 
 # NNTile dtype via corresponding Tensor type

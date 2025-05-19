@@ -17,9 +17,7 @@ import numpy as np
 import pytest
 import torch
 from transformers.models.t5.modeling_t5 import (
-    T5LayerFF as T5LayerFFTorch,
-    T5Config as T5ConfigTorch,
-)
+    T5Config as T5ConfigTorch, T5LayerFF as T5LayerFFTorch)
 
 import nntile
 from nntile.model.t5_config import T5ConfigNNTile

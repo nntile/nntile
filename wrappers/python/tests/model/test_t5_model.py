@@ -13,22 +13,21 @@
 
 from dataclasses import dataclass
 
-import nntile.functions
 import numpy as np
 import pytest
 import torch
+from transformers import T5Tokenizer
 from transformers.models.t5.modeling_t5 import (
-    T5Model as T5ModelTorch,
     T5Config as T5ConfigTorch,
     T5ForSequenceClassification as T5ForSequenceClassificationTorch,
-)
-from transformers import T5Tokenizer
+    T5Model as T5ModelTorch)
 
 import nntile
-from nntile.model.t5_config import T5ConfigNNTile
-from nntile.model.t5_model import T5Model, T5ForSequenceClassification
-from nntile.tensor import TensorMoments, TensorTraits
+import nntile.functions
 import nntile.utils.constructors as nntc
+from nntile.model.t5_config import T5ConfigNNTile
+from nntile.model.t5_model import T5ForSequenceClassification, T5Model
+from nntile.tensor import TensorMoments, TensorTraits
 
 # NNTile dtype via corresponding Tensor type
 dtype2nntile = {
@@ -238,7 +237,7 @@ class TestT5Model:
         self, starpu_simple, torch_rng, params: T5ModelTestParams, dtype: str
     ):
         """Test that forward pass gives same results in PyTorch and NNTile"""
-        torch_model, nntile_model, enc_x, dec_x, _, enc_attn_mask, dec_attn_mask = (
+        torch_model, nntile_model, enc_x, dec_x, _, _enc_attn_mask, _dec_attn_mask = (
             generate_inputs(params, dtype)
         )
 
@@ -276,7 +275,7 @@ class TestT5Model:
         self, starpu_simple, torch_rng, params: T5ModelTestParams, dtype: str
     ):
         """Test that forward pass gives same results in PyTorch and NNTile"""
-        torch_model, nntile_model, enc_x, dec_x, _, enc_attn_mask, dec_attn_mask = (
+        torch_model, nntile_model, enc_x, dec_x, _, _enc_attn_mask, _dec_attn_mask = (
             generate_inputs(params, dtype)
         )
 
@@ -403,7 +402,7 @@ class TestT5Model:
         enc_traits = TensorTraits(enc_shape, enc_basetile)
         enc_distr = [0] * enc_traits.grid.nelems
         enc_value = nntile.tensor.Tensor_int64(enc_traits, enc_distr, 0)
-        enc_grad = nntile.tensor.Tensor_int64(enc_traits, enc_distr, 0)
+        nntile.tensor.Tensor_int64(enc_traits, enc_distr, 0)
         enc_X = TensorMoments(enc_value, None, False)
 
         # Set decoder input tensor dimensions
@@ -412,7 +411,7 @@ class TestT5Model:
         dec_traits = TensorTraits(dec_shape, dec_basetile)
         dec_distr = [0] * dec_traits.grid.nelems
         dec_value = nntile.tensor.Tensor_int64(dec_traits, dec_distr, 0)
-        dec_grad = nntile.tensor.Tensor_int64(dec_traits, dec_distr, 0)
+        nntile.tensor.Tensor_int64(dec_traits, dec_distr, 0)
         dec_X = TensorMoments(dec_value, None, False)
 
         # Convert to NNTile model
@@ -427,8 +426,8 @@ class TestT5Model:
         gen = np.random.default_rng(42)
         enc_random = gen.integers(0, 100, enc_shape, dtype=np.int64)
         dec_random = gen.integers(0, 100, dec_shape, dtype=np.int64)
-        enc_torch = torch.Tensor(enc_random.T).long()
-        dec_torch = torch.Tensor(dec_random.T).long()
+        torch.Tensor(enc_random.T).long()
+        torch.Tensor(dec_random.T).long()
 
         text = "This movie was fantastic!"
         # Initialize tokenizer from transformers
