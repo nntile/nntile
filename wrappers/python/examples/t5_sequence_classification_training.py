@@ -10,6 +10,7 @@
 # T5ForSequenceClassification training example
 #
 # @version 1.1.0
+# ruff: noqa: E501
 
 import argparse
 import json

@@ -10,6 +10,7 @@
 # Test for nntile.model.t5_lmhead - T5ClassificationHead
 #
 # @version 1.1.0
+# ruff: noqa: E501
 
 from dataclasses import dataclass
 

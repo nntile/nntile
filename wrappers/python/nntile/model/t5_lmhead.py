@@ -10,6 +10,7 @@
 # T5 LMHead submodule of NNTile Python package
 #
 # @version 1.1.0
+# ruff: noqa: E501
 
 import torch
 from transformers.models.t5.modeling_t5 import (

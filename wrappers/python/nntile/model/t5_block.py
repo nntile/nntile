@@ -1,3 +1,17 @@
+# @copyright (c) 2022-present Skolkovo Institute of Science and Technology
+#                              (Skoltech), Russia. All rights reserved.
+#                2023-present Artificial Intelligence Research Institute
+#                              (AIRI), Russia. All rights reserved.
+#
+# NNTile is software framework for fast training of big neural networks on
+# distributed-memory heterogeneous systems based on StarPU runtime system.
+#
+# @file wrappers/python/nntile/model/t5_block.py
+# T5 Block of NNTile Python package
+#
+# @version 1.1.0
+# ruff: noqa: E501
+
 from typing import Optional
 
 import numpy as np
@@ -74,7 +88,8 @@ class T5LayerSelfAttention(BaseModel):
         return layer, next_tag
 
     def to_torch(self):
-        """Convert NNTile T5LayerSelfAttention to PyTorch T5LayerSelfAttention"""
+        """Convert NNTile T5LayerSelfAttention
+        to PyTorch T5LayerSelfAttention"""
         # Create PyTorch config
         torch_config = T5ConfigTorch(
             d_model=self.config.d_model,
@@ -155,7 +170,8 @@ class T5LayerCrossAttention(BaseModel):
         return layer, next_tag
 
     def to_torch(self):
-        """Convert NNTile T5LayerCrossAttention to PyTorch T5LayerCrossAttention"""
+        """Convert NNTile T5LayerCrossAttention
+        to PyTorch T5LayerCrossAttention"""
         # Create PyTorch config
         torch_config = T5ConfigTorch(
             d_model=self.config.d_model,

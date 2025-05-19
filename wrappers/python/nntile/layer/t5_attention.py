@@ -10,6 +10,7 @@
 # T5 Attention layer of NNTile Python package
 #
 # @version 1.1.0
+# ruff: noqa: E501
 
 from typing import Optional
 
