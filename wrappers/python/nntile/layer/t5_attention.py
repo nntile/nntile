@@ -255,6 +255,7 @@ class T5Attention(BaseLayer):
         self.relative_bias_position_buckets = relative_bias_position_buckets
         self.relative_bias = relative_bias
         self.relative_bias_embedding = relative_bias_embedding
+        self.temp_grad_relative_bias_embedding = None
 
         # inner dim is the same for all the tensors, but can be different from n_emb
         self.head_size = self.w_q.value.shape[1]
@@ -971,13 +972,26 @@ class T5Attention(BaseLayer):
 
     def _add_positional_bias_backward(self):
         copy_async(self.a.grad, self.relative_bias.grad)
-
+        
+        if self.temp_grad_relative_bias_embedding is None:
+            self.temp_grad_relative_bias_embedding = nntc.empty(
+                self.relative_bias_embedding.grad.shape,
+                dtype=type(self.relative_bias_embedding.grad),
+                basetile_shape=self.relative_bias_embedding.grad.basetile_shape
+            )
+        
+        clear_async(self.temp_grad_relative_bias_embedding)
+        
+        # Run embedding_backward_async on the temporary tensor
         embedding_backward_async(
             self.relative_position_bucket_nnt,
             self.relative_bias.grad,
-            self.relative_bias_embedding.grad,
+            self.temp_grad_relative_bias_embedding,
             axis=3,
         )
+        
+        # Add the temporary gradient to the original grad tensor
+        add_async(1.0, self.temp_grad_relative_bias_embedding, 1.0, self.relative_bias_embedding.grad, self.relative_bias_embedding.grad)
 
     def _forward_attn_async(self):
         # Get tensor for softmax
