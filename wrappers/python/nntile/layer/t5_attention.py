@@ -305,16 +305,9 @@ class T5Attention(BaseLayer):
             raise RuntimeError
         n_emb_k = x_k.value.shape[0]
         n_emb_k_tile = x_k.value.basetile_shape[0]
-        # if [n_seq, n_batch] != x_k.value.shape[1:]:
-        #     raise ValueError(f"Invalid shape of x_k: {x_k.value.shape[1:]} != {[n_seq, n_batch]}")
-        # if [n_seq_tile, n_batch_tile] != x_k.value.basetile_shape[1:]:
-        #     raise ValueError(f"Invalid basetile shape of x_k: {x_k.value.basetile_shape[1:]} != {[n_seq_tile, n_batch_tile]}")
         n_emb_v = x_v.value.shape[0]
         n_emb_v_tile = x_v.value.basetile_shape[0]
-        # if [n_seq, n_batch] != x_v.value.shape[1:]:
-        #     raise ValueError(f"Invalid shape of x_v: {x_v.value.shape[1:]} != {[n_seq, n_batch]}")
-        # if [n_seq_tile, n_batch_tile] != x_v.value.basetile_shape[1:]:
-        #     raise ValueError(f"Invalid basetile shape of x_v: {x_v.value.basetile_shape[1:]} != {[n_seq_tile, n_batch_tile]}")
+
         # Fixed for now
         head_size_tile = head_size
         # Define shape of each tensor
