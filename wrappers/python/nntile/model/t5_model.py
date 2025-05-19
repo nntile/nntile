@@ -25,7 +25,7 @@ from nntile.model.t5_block import T5Stack
 from nntile.model.t5_config import T5ConfigNNTile, T5EncoderDecoderConfig
 from nntile.model.t5_lmhead import T5ClassificationHead
 from nntile.tensor import (
-    Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_tf32, TensorMoments)
+    Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_tf32, Tensor_fp32_fast_fp16, Tensor_fp32_fast_bf16, TensorMoments)
 
 
 class T5Model(BaseModel):
@@ -158,6 +158,8 @@ class T5ForSequenceClassification(BaseModel):
             "fp32": Tensor_fp32,
             "bf16": Tensor_bf16,
             "fp32_fast_tf32": Tensor_fp32_fast_tf32,
+            "fp32_fast_fp16": Tensor_fp32_fast_fp16,
+            "fp32_fast_bf16": Tensor_fp32_fast_bf16,
         }
 
         tensor_type = dtype2tensor_type[config.dtype]
