@@ -963,7 +963,7 @@ class T5Attention(BaseLayer):
             )
 
         self.relative_position_bucket_nnt = nntc.from_array(
-            relative_position_bucket_np_value.T,
+            relative_position_bucket_np_value.T.astype(np.int64),
             self.relative_bias.value.basetile_shape[:3],
         )
 
@@ -973,8 +973,6 @@ class T5Attention(BaseLayer):
             self.relative_bias.value,
             axis=3,  # so result will batch self.a.shape
         )
-
-        # print("INTERNAL TYPE: ", type(self.relative_bias.value), nntc.to_numpy(self.relative_bias.value))
 
         add_async(1.0, self.a.value, 1.0, self.relative_bias.value, self.a.value)
 
