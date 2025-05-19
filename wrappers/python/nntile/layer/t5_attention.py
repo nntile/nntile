@@ -6,8 +6,8 @@
 # NNTile is software framework for fast training of big neural networks on
 # distributed-memory heterogeneous systems based on StarPU runtime system.
 #
-# @file wrappers/python/nntile/layer/attention.py
-# Attention layer of NNTile Python package
+# @file wrappers/python/nntile/layer/t5_attention.py
+# T5 Attention layer of NNTile Python package
 #
 # @version 1.1.0
 
@@ -964,6 +964,8 @@ class T5Attention(BaseLayer):
             axis=3 # so result will batch self.a.shape 
         )
         
+        # print("INTERNAL TYPE: ", type(self.relative_bias.value), nntc.to_numpy(self.relative_bias.value))
+        
         add_async(1.0, self.a.value, 1.0, self.relative_bias.value, self.a.value)
             
     def _add_positional_bias_backward(self):
@@ -1127,7 +1129,7 @@ class T5Attention(BaseLayer):
         # A = softmax(A, axis=0)
         # Apply mask if needed
         if self.mask:
-            mask_tmp = nntc.empty(a_tmp.shape[:2], dtype=Tensor_bool)
+            mask_tmp = nntc.empty(a_tmp.shape[:2], basetile_shape=a_tmp.basetile_shape[:2], dtype=Tensor_bool)
             copy_intersection_async(
                 self.mask, [0, 0], mask_tmp, [0, k.shape[1] - q.shape[1]]
             )
