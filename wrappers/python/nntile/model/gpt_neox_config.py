@@ -33,6 +33,5 @@ class GPTNeoXConfig:
     redux: bool = False
     bos_token_id: int = 50256
     eos_token_id: int = 50256
-    rotary_pct: float = 0.25
     rotary_emb_base: int = 10000
     name: str = "gpt-neox"
