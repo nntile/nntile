@@ -14,7 +14,7 @@
 import numpy as np
 import torch
 from transformers.models.gpt_neox.modeling_gpt_neox import (
-    GPTNeoXLayer as GPTNeoXBlockTorch, GPTNeoXConfig as GPTNeoXConfigTorch)
+    GPTNeoXConfig as ConfigTorch, GPTNeoXLayer as BlockTorch)
 
 from nntile.tensor import TensorMoments
 
@@ -113,7 +113,7 @@ class GPTNeoXBlock(BaseModel):
         return gpt_neox_block, next_tag
 
     def to_torch(self):
-        torch_config = GPTNeoXConfigTorch(
+        torch_config = ConfigTorch(
             hidden_size=self.config.hidden_size,
             num_attention_heads=self.config.num_heads,
             intermediate_size=self.config.intermediate_size,
@@ -125,7 +125,7 @@ class GPTNeoXBlock(BaseModel):
             layer_norm_eps=self.config.layer_norm_epsilon,
         )
         layer_id = 0
-        block_torch = GPTNeoXBlockTorch(torch_config, layer_id)
+        block_torch = BlockTorch(torch_config, layer_id)
         block_torch.input_layernorm = self.ln_1.to_torch()
         block_torch.attention = self.attn.to_torch()
         block_torch.post_attention_layernorm = self.ln_2.to_torch()
@@ -133,7 +133,7 @@ class GPTNeoXBlock(BaseModel):
         return block_torch
 
     def to_torch_with_grads(self):
-        torch_config = GPTNeoXConfigTorch(
+        torch_config = ConfigTorch(
             hidden_size=self.config.hidden_size,
             num_attention_heads=self.config.num_heads,
             intermediate_size=self.config.intermediate_size,
@@ -145,7 +145,7 @@ class GPTNeoXBlock(BaseModel):
             layer_norm_eps=self.config.layer_norm_epsilon,
         )
         layer_id = 0
-        block_torch = GPTNeoXBlockTorch(torch_config, layer_id)
+        block_torch = BlockTorch(torch_config, layer_id)
         block_torch.input_layernorm = self.ln_1.to_torch_with_grads()
         block_torch.attention = self.attn.to_torch_with_grads()
         block_torch.post_attention_layernorm = self.ln_2.to_torch_with_grads()

@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 import torch
 from transformers.models.gpt_neox.modeling_gpt_neox import (
-    GPTNeoXLayer as BlockTorch, GPTNeoXConfig as ConfigTorch,
+    GPTNeoXConfig as ConfigTorch, GPTNeoXLayer as BlockTorch,
     GPTNeoXRotaryEmbedding as RotaryEmbeddingTorch)
 
 import nntile
