@@ -17,9 +17,8 @@ from torch.nn import Embedding as Embedding_torch
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor_int64, TensorMoments, TensorTraits, clear_async, embedding_async,
-    embedding_backward_async, to_numpy)
-from nntile.tensor import Tensor_fp32
+    Tensor_fp32, Tensor_int64, TensorMoments, TensorTraits, clear_async,
+    embedding_async, embedding_backward_async, to_numpy)
 
 
 class Embedding(BaseLayer):
@@ -115,7 +114,9 @@ class Embedding(BaseLayer):
         self.w.grad.wont_use()
         
     @classmethod
-    def from_torch(cls, torch_embedding, x, next_tag, dtype=Tensor_fp32, embedding_tile_size = None):
+    def from_torch(
+        cls, torch_embedding, x, next_tag, dtype=Tensor_fp32, embedding_tile_size=None
+    ):
         # Get embedding dimensions
         vocab_size = torch_embedding.weight.shape[0]
         emb_size = torch_embedding.weight.shape[1]
