@@ -10,6 +10,7 @@
 # Embedding layer of NNTile Python package
 #
 # @version 1.1.0
+# ruff: noqa: E501
 
 import torch
 from torch.nn import Embedding as Embedding_torch
@@ -17,8 +18,8 @@ from torch.nn import Embedding as Embedding_torch
 import nntile.utils.constructors as nntc
 from nntile.layer.base_layer import BaseLayer
 from nntile.tensor import (
-    Tensor_int64, TensorMoments, TensorTraits, clear_async, embedding_async,
-    embedding_backward_async, to_numpy)
+    Tensor_fp32, Tensor_int64, TensorMoments, TensorTraits, clear_async,
+    embedding_async, embedding_backward_async, to_numpy)
 
 
 class Embedding(BaseLayer):
@@ -27,9 +28,7 @@ class Embedding(BaseLayer):
     w: TensorMoments
 
     # Construct linear layer with all the provided data
-    def __init__(
-        self, x: Tensor_int64, y: TensorMoments, w: TensorMoments, axis: int
-    ):
+    def __init__(self, x: Tensor_int64, y: TensorMoments, w: TensorMoments, axis: int):
         # Redirect to BaseClass initialization
         super().__init__([x], [y], [w], [])
         # Named storage
@@ -96,9 +95,7 @@ class Embedding(BaseLayer):
         y_basetile = x.value.basetile_shape.copy()
         y_basetile.insert(self.axis, self.y.value.basetile_shape[self.axis])
 
-        y = nntc.empty(
-            y_shape, basetile_shape=y_basetile, dtype=type(self.w.value)
-        )
+        y = nntc.empty(y_shape, basetile_shape=y_basetile, dtype=type(self.w.value))
         embedding_async(x.value, self.w.value, y, self.axis)
         return TensorMoments(y, None, False)
 
@@ -106,26 +103,48 @@ class Embedding(BaseLayer):
     def backward_async(self):
         # redux=1 leads to performance loss, as each embedding_backward is a
         # sparse operation, but reduction plays with a full dense vocabulary
-        embedding_backward_async(
-            self.x, self.y.grad, self.w.grad, self.axis, redux=0
-        )
+        embedding_backward_async(self.x, self.y.grad, self.w.grad, self.axis, redux=0)
         self.x.wont_use()
         self.y.grad.wont_use()
         self.w.grad.wont_use()
 
-    def to_torch(self):
-        torch_emb = Embedding_torch(
-            self.w.value.shape[1], self.w.value.shape[0]
+    @classmethod
+    def from_torch(
+        cls, torch_embedding, x, next_tag, dtype=Tensor_fp32, embedding_tile_size=None
+    ):
+        # Get embedding dimensions
+        vocab_size = torch_embedding.weight.shape[0]
+        emb_size = torch_embedding.weight.shape[1]
+
+        if embedding_tile_size is None:
+            embedding_tile_size = emb_size
+
+        # Create embedding layer
+        layer, next_tag = cls.generate_simple(
+            x.value,
+            dtype,
+            0,  # axis
+            vocab_size,
+            emb_size,
+            embedding_tile_size,
+            embedding_tile_size,
+            next_tag,
         )
+
+        # Copy weights from PyTorch
+        layer.w.value.from_array(torch_embedding.weight.cpu().detach().numpy().T)
+
+        return layer, next_tag
+
+    def to_torch(self):
+        torch_emb = Embedding_torch(self.w.value.shape[1], self.w.value.shape[0])
         torch_emb.weight.data = torch.tensor(
             to_numpy(self.w.value).T, requires_grad=True
         )
         return torch_emb
 
     def to_torch_with_grads(self):
-        torch_emb = Embedding_torch(
-            self.w.value.shape[1], self.w.value.shape[0]
-        )
+        torch_emb = Embedding_torch(self.w.value.shape[1], self.w.value.shape[0])
         torch_emb.weight.data = torch.tensor(
             to_numpy(self.w.value).T, requires_grad=True
         )
