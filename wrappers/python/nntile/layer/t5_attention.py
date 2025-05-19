@@ -1009,8 +1009,7 @@ class T5Attention(BaseLayer):
         # Apply mask if needed
         if self.mask:
             mask_scalar_async(self.mask, self.val, self.a.value, 2)
-            # self.mask.wont_use()
-            # add_async(-1e30, self.mask, 1.0, self.a.value, self.a.value)
+
         # Calculate max and sumexp along axis
         maxsumexp_async(self.a.value, self.a_maxsumexp, 0, redux=self.redux)
         # Finally, get the inplace softmax
