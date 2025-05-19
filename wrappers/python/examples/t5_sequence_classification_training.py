@@ -216,7 +216,7 @@ else:
     print("Using dummy training data")
     num_train_samples = 1000
     vocab_size = 32000
-    data_ids = np.random.randint(
+    data_ids = np.random.default_rng().integers(
         0, 32000, size=(num_train_samples, args.seq_len + 1), dtype=np.int64
     )
     train_input_ids = data_ids[:, :-1]
