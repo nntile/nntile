@@ -31,7 +31,7 @@ class T5ConfigNNTile:
     is_decoder: bool = False
     redux: bool = False
     num_layers: int = 4
-    vocab_size: int = 32000
+    vocab_size: int = 32100
     dtype: str = "fp32"
 
 
