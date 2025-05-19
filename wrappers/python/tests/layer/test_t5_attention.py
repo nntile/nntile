@@ -61,6 +61,7 @@ class T5AttentionTestParams:
     seq_len: int = 100
     seq_len_tile: int = 100
 
+
 single_tile = T5AttentionTestParams(
     d_model=128,
     d_model_tile=128,
@@ -103,7 +104,9 @@ def generate_inputs(params: T5AttentionTestParams, dtype: str, is_cross_attn: bo
         num_heads=params.n_head,
         dropout_rate=0.0,
     )
-    torch_layer = T5AttentionTorch(torch_config, has_relative_attention_bias=params.has_relative_bias)
+    torch_layer = T5AttentionTorch(
+        torch_config, has_relative_attention_bias=params.has_relative_bias
+    )
 
     # Configure NNTile T5 layer
     nntile_config = T5ConfigNNTile(
@@ -142,29 +145,37 @@ def generate_inputs(params: T5AttentionTestParams, dtype: str, is_cross_attn: bo
     x_value.from_array(x_nntile)
     x_torch = torch.Tensor(x_nntile.T)
     x_torch.requires_grad_()
-    
+
     encoder_output_torch = None
     if is_cross_attn:
         encoder_output_traits = TensorTraits(x_shape, x_basetile)
         encoder_output_distr = [0] * encoder_output_traits.grid.nelems
         encoder_output_type = dtype2nntile[dtype]
-        
-        encoder_output_value = encoder_output_type(encoder_output_traits, encoder_output_distr, 0)
-        encoder_output_grad = encoder_output_type(encoder_output_traits, encoder_output_distr, 0)
-        
+
+        encoder_output_value = encoder_output_type(
+            encoder_output_traits, encoder_output_distr, 0
+        )
+        encoder_output_grad = encoder_output_type(
+            encoder_output_traits, encoder_output_distr, 0
+        )
+
         encoder_output_random = gen.standard_normal(x_shape, dtype=np.float32)
-        encoder_output_nntile = np.array(encoder_output_random, dtype=np.float32, order="F")
+        encoder_output_nntile = np.array(
+            encoder_output_random, dtype=np.float32, order="F"
+        )
         encoder_output_value.from_array(encoder_output_nntile)
         encoder_output_torch = torch.Tensor(encoder_output_nntile.T)
         encoder_output_torch.requires_grad_()
-        
-        encoder_output = TensorMoments(encoder_output_value, encoder_output_grad, grad_required=True)
 
-        
-        
+        encoder_output = TensorMoments(
+            encoder_output_value, encoder_output_grad, grad_required=True
+        )
+
     # Initialize NNTile layer from PyTorch layer
     if is_cross_attn:
-        nntile_layer, _ = T5Attention.from_torch(torch_layer, X, None, nntile_config, 0, encoder_output=encoder_output)
+        nntile_layer, _ = T5Attention.from_torch(
+            torch_layer, X, None, nntile_config, 0, encoder_output=encoder_output
+        )
     else:
         nntile_layer, _ = T5Attention.from_torch(torch_layer, X, None, nntile_config, 0)
     # nntile_layer.clear_gradients()
@@ -202,34 +213,48 @@ def generate_inputs(params: T5AttentionTestParams, dtype: str, is_cross_attn: bo
 )
 class TestT5Attention:
     def test_forward(
-        self, starpu_simple, torch_rng, params: T5AttentionTestParams, dtype: str, is_cross_attn: bool
+        self,
+        starpu_simple,
+        torch_rng,
+        params: T5AttentionTestParams,
+        dtype: str,
+        is_cross_attn: bool,
     ):
         """Test that forward pass gives same results in PyTorch and NNTile"""
-        torch_layer, nntile_layer, x, _, encoder_output_torch = generate_inputs(params, dtype, is_cross_attn)
+        torch_layer, nntile_layer, x, _, encoder_output_torch = generate_inputs(
+            params, dtype, is_cross_attn
+        )
         if is_cross_attn:
             y, _, _ = torch_layer(x, key_value_states=encoder_output_torch)
         else:
             y, _, _ = torch_layer(x)
-            
+
         nntile_layer.forward_async()
         y_nntile = torch.Tensor(to_numpy(nntile_layer.activations_output[0].value).T)
         # nntile_layer.unregister()
         rtol = dtype2tol[dtype]["rtol"]
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
-        
+
         nntile_layer.unregister()
 
     def test_backward(
-        self, starpu_simple, torch_rng, params: T5AttentionTestParams, dtype: str, is_cross_attn: bool
+        self,
+        starpu_simple,
+        torch_rng,
+        params: T5AttentionTestParams,
+        dtype: str,
+        is_cross_attn: bool,
     ):
         """Test that backward pass gives same results in PyTorch and NNTile"""
-        torch_layer, nntile_layer, x, y_grad, encoder_output_torch = generate_inputs(params, dtype, is_cross_attn)
+        torch_layer, nntile_layer, x, y_grad, encoder_output_torch = generate_inputs(
+            params, dtype, is_cross_attn
+        )
 
         if is_cross_attn:
             y, _, _ = torch_layer(x, key_value_states=encoder_output_torch)
         else:
             y, _, _ = torch_layer(x)
-            
+
         nntile_layer.forward_async()
         res = (y * y_grad).sum()
         res.backward()
@@ -237,16 +262,24 @@ class TestT5Attention:
 
         grad_nntile = torch.Tensor(to_numpy(nntile_layer.activations_input[0].grad).T)
         rtol = dtype2tol[dtype]["rtol"]
-        
+
         assert torch.norm(x.grad - grad_nntile) <= rtol * torch.norm(x.grad)
         if params.has_relative_bias:
-            nnt_bias_grad = torch.Tensor(to_numpy(nntile_layer.relative_bias_embedding.grad).T)
-            assert torch.norm(nnt_bias_grad - torch_layer.relative_attention_bias.weight.grad) <= rtol * torch.norm(torch_layer.relative_attention_bias.weight.grad)
-            
+            nnt_bias_grad = torch.Tensor(
+                to_numpy(nntile_layer.relative_bias_embedding.grad).T
+            )
+            assert torch.norm(
+                nnt_bias_grad - torch_layer.relative_attention_bias.weight.grad
+            ) <= rtol * torch.norm(torch_layer.relative_attention_bias.weight.grad)
+
         if is_cross_attn:
-            encoder_output_grad = torch.Tensor(to_numpy(nntile_layer.activations_input[1].grad).T)
-            assert torch.norm(encoder_output_grad - encoder_output_torch.grad) <= rtol * torch.norm(encoder_output_torch.grad)
-            
+            encoder_output_grad = torch.Tensor(
+                to_numpy(nntile_layer.activations_input[1].grad).T
+            )
+            assert torch.norm(
+                encoder_output_grad - encoder_output_torch.grad
+            ) <= rtol * torch.norm(encoder_output_torch.grad)
+
         nntile_layer.unregister()
 
     def test_relative_position_bucket(
@@ -267,13 +300,13 @@ class TestT5Attention:
         )
 
         # Expected buckets for bidirectional case
-        expected_buckets_bidirectional = np.array([
-            [0, 17, 18, 19, 20],
-            [1, 0, 17, 18, 19],
-            [2, 1, 0, 17, 18]
-        ], dtype=np.int32)
+        expected_buckets_bidirectional = np.array(
+            [[0, 17, 18, 19, 20], [1, 0, 17, 18, 19], [2, 1, 0, 17, 18]], dtype=np.int32
+        )
 
-        np.testing.assert_array_equal(buckets_bidirectional, expected_buckets_bidirectional)
+        np.testing.assert_array_equal(
+            buckets_bidirectional, expected_buckets_bidirectional
+        )
 
         # Test unidirectional case
         buckets_unidirectional = relative_position_bucket_numpy(
@@ -284,12 +317,10 @@ class TestT5Attention:
         )
 
         # Expected buckets for unidirectional case
-        expected_buckets_unidirectional = np.array([
-            [0, 0, 0, 0, 0],
-            [1, 0, 0, 0, 0],
-            [2, 1, 0, 0, 0]
-        ], dtype=np.int32)
-    
+        expected_buckets_unidirectional = np.array(
+            [[0, 0, 0, 0, 0], [1, 0, 0, 0, 0], [2, 1, 0, 0, 0]], dtype=np.int32
+        )
+
         np.testing.assert_array_equal(
             buckets_unidirectional, expected_buckets_unidirectional
-        ) 
+        )

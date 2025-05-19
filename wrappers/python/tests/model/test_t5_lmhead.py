@@ -78,6 +78,7 @@ multiple_tiles = T5ClassificationHeadTestParams(
     n_batch_tile=1,
 )
 
+
 class T5ClassificationHeadTest(nn.Module):
     """Head for sentence-level classification tasks."""
 
@@ -143,11 +144,15 @@ def generate_inputs(params: T5ClassificationHeadTestParams, dtype: str):
     x_torch.requires_grad_()
 
     # Create NNTile model
-    nntile_head, _ = T5ClassificationHead.from_torch(torch_head, x, nntile_config, params.num_labels, next_tag=0)
+    nntile_head, _ = T5ClassificationHead.from_torch(
+        torch_head, x, nntile_config, params.num_labels, next_tag=0
+    )
     nntile_head.clear_gradients()
 
     # Generate random gradient for backward pass
-    y_grad_random = gen.standard_normal([params.num_labels, params.seq_len, params.n_batch], dtype=np.float32)
+    y_grad_random = gen.standard_normal(
+        [params.num_labels, params.seq_len, params.n_batch], dtype=np.float32
+    )
     y_grad_nntile = np.array(y_grad_random, dtype=np.float32, order="F")
     nntile_head.activations[-1].grad.from_array(y_grad_nntile)
     y_grad_torch = torch.Tensor(y_grad_nntile.T)
@@ -171,31 +176,35 @@ def generate_inputs(params: T5ClassificationHeadTestParams, dtype: str):
     ],
 )
 class TestT5ClassificationHead:
-    def test_forward(self, starpu_simple, params: T5ClassificationHeadTestParams, dtype: str):
+    def test_forward(
+        self, starpu_simple, params: T5ClassificationHeadTestParams, dtype: str
+    ):
         """Test that forward pass gives same results in PyTorch and NNTile"""
         torch_head, nntile_head, x_torch, _ = generate_inputs(params, dtype)
-        
+
         # PyTorch forward pass
         y_torch = torch_head(x_torch)
-        
+
         # NNTile forward pass
         nntile_head.forward_async()
         # nntile.starpu.wait_for_all()
         y_nntile = torch.Tensor(nntc.to_numpy(nntile_head.activations[-1].value).T)
-        
+
         # Check if results match
         np.testing.assert_allclose(
             y_torch.detach().numpy(), y_nntile.detach().numpy(), **dtype2tol[dtype]
         )
 
-    def test_backward(self, starpu_simple, params: T5ClassificationHeadTestParams, dtype: str):
+    def test_backward(
+        self, starpu_simple, params: T5ClassificationHeadTestParams, dtype: str
+    ):
         """Test that backward pass gives same results in PyTorch and NNTile"""
         torch_head, nntile_head, x_torch, y_grad_torch = generate_inputs(params, dtype)
-        
+
         # PyTorch forward and backward pass
         y_torch = torch_head(x_torch)
         y_torch.backward(y_grad_torch)
-        
+
         # NNTile forward and backward pass
         nntile_head.forward_async()
         nntile_head.backward_async()
@@ -203,5 +212,7 @@ class TestT5ClassificationHead:
         # Compare gradients for input
         x_grad_nntile = torch.Tensor(nntc.to_numpy(nntile_head.activations[0].grad).T)
         np.testing.assert_allclose(
-            x_torch.grad.detach().numpy(), x_grad_nntile.detach().numpy(), **dtype2tol[dtype]
+            x_torch.grad.detach().numpy(),
+            x_grad_nntile.detach().numpy(),
+            **dtype2tol[dtype],
         )

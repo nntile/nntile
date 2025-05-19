@@ -119,7 +119,7 @@ def generate_inputs(params: T5ModelTestParams, dtype: str):
         dense_act_fn="gelu_new",
         is_gated_act=params.is_gated_act,
         num_layers=params.num_layers,
-        attn_implementation = "eager",
+        attn_implementation="eager",
         decoder_start_token_id=0,
         pad_token_id=0,
     )
@@ -187,25 +187,35 @@ def generate_inputs(params: T5ModelTestParams, dtype: str):
     dec_torch.requires_grad_()
 
     # Initialize NNTile model from PyTorch model
-    nntile_model, _ = T5Model.from_torch(torch_model, enc_X, dec_X, nntile_config, next_tag=0)
-    
+    nntile_model, _ = T5Model.from_torch(
+        torch_model, enc_X, dec_X, nntile_config, next_tag=0
+    )
+
     # for test_forward_decoder_only
     nntile_model.encoder.activations[-1].value.from_array(enc_nntile)
 
     # Generate random gradient for backward pass
     dec_grad_random = gen.standard_normal(dec_shape, dtype=np.float32)
     dec_grad_nntile = np.array(dec_grad_random, dtype=np.float32, order="F")
-    
+
     nntile_model.clear_gradients()
     nntile_model.activations[-1].grad.from_array(dec_grad_nntile)
-    
+
     dec_grad_torch = torch.Tensor(dec_grad_nntile.T)
 
     # Create encoder attention mask for PyTorch model
     enc_attn_mask = torch.ones((params.n_batch, params.enc_seq_len), dtype=torch.long)
     dec_attn_mask = torch.ones((params.n_batch, params.dec_seq_len), dtype=torch.long)
 
-    return torch_model, nntile_model, enc_torch, dec_torch, dec_grad_torch, enc_attn_mask, dec_attn_mask
+    return (
+        torch_model,
+        nntile_model,
+        enc_torch,
+        dec_torch,
+        dec_grad_torch,
+        enc_attn_mask,
+        dec_attn_mask,
+    )
 
 
 @pytest.mark.parametrize(
@@ -228,8 +238,10 @@ class TestT5Model:
         self, starpu_simple, torch_rng, params: T5ModelTestParams, dtype: str
     ):
         """Test that forward pass gives same results in PyTorch and NNTile"""
-        torch_model, nntile_model, enc_x, dec_x, _, enc_attn_mask, dec_attn_mask = generate_inputs(params, dtype)
-        
+        torch_model, nntile_model, enc_x, dec_x, _, enc_attn_mask, dec_attn_mask = (
+            generate_inputs(params, dtype)
+        )
+
         # PyTorch forward pass
         y = torch_model(
             input_ids=None,
@@ -241,28 +253,33 @@ class TestT5Model:
 
         y_encoder = y.encoder_last_hidden_state
         y = y.last_hidden_state
-        
+
         # NNTile forward pass
         nntile_model.decoder.forward_async()
-        
-        y_encoder_nntile = torch.Tensor(nntc.to_numpy(nntile_model.encoder.activations[-1].value).T)
-        y_nntile = torch.Tensor(nntc.to_numpy(nntile_model.decoder.activations[-1].value).T)
-        
+
+        y_encoder_nntile = torch.Tensor(
+            nntc.to_numpy(nntile_model.encoder.activations[-1].value).T
+        )
+        y_nntile = torch.Tensor(
+            nntc.to_numpy(nntile_model.decoder.activations[-1].value).T
+        )
+
         # Compare results
         rtol = dtype2tol[dtype]["rtol"]
         assert torch.norm(y_encoder - y_encoder_nntile) <= rtol * torch.norm(y_encoder)
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
-        
+
         # Clean up
         nntile_model.unregister()
-    
-    
+
     def test_forward(
         self, starpu_simple, torch_rng, params: T5ModelTestParams, dtype: str
     ):
         """Test that forward pass gives same results in PyTorch and NNTile"""
-        torch_model, nntile_model, enc_x, dec_x, _, enc_attn_mask, dec_attn_mask = generate_inputs(params, dtype)
-        
+        torch_model, nntile_model, enc_x, dec_x, _, enc_attn_mask, dec_attn_mask = (
+            generate_inputs(params, dtype)
+        )
+
         # PyTorch forward pass
         y = torch_model(
             input_ids=None,
@@ -273,28 +290,38 @@ class TestT5Model:
         )
         y_encoder = y.encoder_last_hidden_state
         y = y.last_hidden_state
-        
+
         nntile_model.clear_gradients()
-        
+
         # NNTile forward pass
         nntile_model.forward_async()
-        
-        y_encoder_nntile = torch.Tensor(nntc.to_numpy(nntile_model.encoder.activations[-1].value).T)
+
+        y_encoder_nntile = torch.Tensor(
+            nntc.to_numpy(nntile_model.encoder.activations[-1].value).T
+        )
         y_nntile = torch.Tensor(nntc.to_numpy(nntile_model.activations[-1].value).T)
-        
+
         # Compare results
         rtol = dtype2tol[dtype]["rtol"]
         assert torch.norm(y_encoder - y_encoder_nntile) <= rtol * torch.norm(y_encoder)
         assert torch.norm(y - y_nntile) <= rtol * torch.norm(y)
-        
+
         # Clean up
         nntile_model.unregister()
-    
+
     def test_backward(
         self, starpu_simple, torch_rng, params: T5ModelTestParams, dtype: str
     ):
         """Test that backward pass gives same results in PyTorch and NNTile"""
-        torch_model, nntile_model, enc_x, dec_x, dec_grad, enc_attn_mask, dec_attn_mask = generate_inputs(params, dtype)
+        (
+            torch_model,
+            nntile_model,
+            enc_x,
+            dec_x,
+            dec_grad,
+            enc_attn_mask,
+            dec_attn_mask,
+        ) = generate_inputs(params, dtype)
 
         # PyTorch forward and backward pass
         y = torch_model(
@@ -306,24 +333,28 @@ class TestT5Model:
             inputs_embeds=enc_x,
             decoder_inputs_embeds=dec_x,
         ).last_hidden_state
-        
+
         res = (y * dec_grad).sum()
         res.backward()
-        
+
         # NNTile forward and backward pass
-        
+
         nntile_model.forward_async()
         nntile_model.backward_async()
 
         # Compare encoder gradients
-        dec_grad_nntile = torch.Tensor(nntc.to_numpy(nntile_model.decoder.activations[0].grad).T)
-        enc_grad_nntile = torch.Tensor(nntc.to_numpy(nntile_model.activations[0].grad).T)
-        
+        dec_grad_nntile = torch.Tensor(
+            nntc.to_numpy(nntile_model.decoder.activations[0].grad).T
+        )
+        enc_grad_nntile = torch.Tensor(
+            nntc.to_numpy(nntile_model.activations[0].grad).T
+        )
+
         rtol = dtype2tol[dtype]["rtol"]
-        
+
         assert torch.norm(enc_x.grad - enc_grad_nntile) <= rtol * torch.norm(enc_x.grad)
         assert torch.norm(dec_x.grad - dec_grad_nntile) <= rtol * torch.norm(dec_x.grad)
-        
+
         # Clean up
         nntile_model.unregister()
 
@@ -385,7 +416,9 @@ class TestT5Model:
         dec_X = TensorMoments(dec_value, None, False)
 
         # Convert to NNTile model
-        nntile_model, _ = T5ForSequenceClassification.from_torch(torch_model, enc_X, dec_X, nntile_config, next_tag=0)
+        nntile_model, _ = T5ForSequenceClassification.from_torch(
+            torch_model, enc_X, dec_X, nntile_config, next_tag=0
+        )
 
         # Convert back to PyTorch
         torch_model_converted = nntile_model.to_torch()

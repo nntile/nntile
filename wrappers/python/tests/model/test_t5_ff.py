@@ -55,6 +55,7 @@ class T5FFTestParams:
     seq_len: int = 100
     seq_len_tile: int = 100
 
+
 single_tile = T5FFTestParams(
     d_model=128,
     d_model_tile=128,
@@ -99,7 +100,6 @@ def generate_inputs(params: T5FFTestParams, dtype: str):
         dropout_rate=0.0,
         is_gated_act=True,
         redux=params.redux,
-        
         # Not used in T5LayerFF
         d_kv=None,
         d_kv_tile=None,
@@ -148,7 +148,7 @@ def generate_inputs(params: T5FFTestParams, dtype: str):
 @pytest.mark.parametrize(
     "params",
     [
-        pytest.param(single_tile, id='single_tile'),
+        pytest.param(single_tile, id="single_tile"),
         pytest.param(multiple_tiles, id="multiple_tiles"),
     ],
 )
