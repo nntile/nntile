@@ -112,7 +112,7 @@ multiple_tiles = GPTNeoXModelTestParams(
 
 
 def generate_inputs(params: GPTNeoXModelTestParams,
-                    dtype: str, 
+                    dtype: str,
                     num_hidden_layers: int,
                     att_bias: bool):
     rng = np.random.default_rng(42)
