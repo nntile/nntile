@@ -31,7 +31,9 @@ class T5ConfigNNTile:
     is_decoder: bool = False
     redux: bool = False
     num_layers: int = 4
-    vocab_size: int = 32000
+    vocab_size: int = 32100
+    decoder_start_token_id: int = 0
+    eos_token_id: int = 1
     dtype: str = "fp32"
 
 

@@ -20,7 +20,60 @@ from nntile.model.generation.llm_params import GenerationMode, GenerationParams
 from nntile.model.generation.llm_samplers import get_sampler
 from nntile.tensor import Tensor
 from nntile.utils import constructors as nnt_constructors
+import torch.nn.functional as F
 
+class EncoderDecoderGenerationMixin:
+    def generate(
+        self,
+        encoder_input_ids: Tensor,
+        decoder_input_ids: Tensor = None,
+        params: GenerationParams = None,
+        mode: GenerationMode = GenerationMode.Greedy,
+    ):
+        if params is None:
+            params = GenerationParams()
+        
+        sampler = get_sampler(mode, params)
+        
+        # Run encoder once to get encoder hidden states
+    #             nntile.functions.copy_async(x, self.activations[0].value)
+
+    # def get_output(self) -> Tensor:
+    #     return self.activations[-1].value
+        
+        print("SHAPES: ", encoder_input_ids.shape, self.embedding.activations_input[0].shape)
+        # nntile.functions.copy_async(encoder_input_ids, self.embedding.activations_input[0])
+        
+        # if encoder_input_ids.shape[0] < self.embedding.activations_input[0].shape[0]:
+            
+        #     encoder_input_ids = F.pad(encoder_input_ids, (self.embedding.activations_input[0].shape[0] - encoder_input_ids.shape[0], 0))
+        
+        nntile.functions.copy_async(encoder_input_ids, self.embedding.activations_input[0])
+        self.embedding.forward_async()
+        self.transformer.encoder.forward_async()
+        # encoder_hidden_states = self.activations[0].value
+        
+        # Initialize decoder input if not provided
+        if decoder_input_ids is None:
+            # Create a tensor with just the start token
+            decoder_input_ids = nntc.from_array(
+                np.array(
+                    [
+                        [self.config.decoder_config.decoder_start_token_id]
+                        +[0]*(self.embedding.activations_input[0].shape[0]-1)
+                    ]
+                    , dtype=np.int64, order='F'
+                ).T
+            )
+            
+        output_ids = generate_autoregress_encoder_decoder(
+            model=self,
+            input_ids=decoder_input_ids,
+            prefill_size=1,
+            max_tokens=params.max_tokens,
+            eos_token_id=self.config.decoder_config.eos_token_id,
+        )
+        return output_ids
 
 class LLMGenerationMixin:
     def generate(
@@ -93,6 +146,41 @@ class LLMGenerationMixin:
         return output_ids
 
 
+def generate_autoregress_encoder_decoder(
+    model, input_ids, prefill_size, max_tokens, eos_token_id
+):
+    cur_seq_size = 1
+
+    output_ids = input_ids
+    while cur_seq_size < max_tokens:
+        # logits = model.forward(output_ids)
+        # if output_ids.shape[0] < model.embedding_decoder.activations_input[0].shape[0]:
+        #     output_ids = F.pad(output_ids, (model.embedding_decoder.activations_input[0].shape[0] - output_ids.shape[0], 0))
+        
+        print("TYPES: ", type(output_ids), type(model.embedding_decoder.activations_input[0]))
+        print("SHAPES: ", output_ids.shape, model.embedding_decoder.activations_input[0].shape)
+        nntile.functions.copy_async(output_ids, model.embedding_decoder.activations_input[0])
+        model.embedding_decoder.forward_async()
+        model.transformer.decoder.forward_async()
+        model.lm_head.forward_async()
+        logits = model.lm_head.activations_output[0].value
+
+        # TODO: add starpu function for argmax
+        logits_np = nnt_constructors.to_numpy(logits)
+        pred_token = np.argmax(logits_np[:, cur_seq_size - 1, :])
+
+        if pred_token == eos_token_id:
+            return output_ids, cur_seq_size
+
+        # TODO: add starpu function for scalar assign
+        output_ids_np = nnt_constructors.to_numpy(output_ids)
+        output_ids_np[cur_seq_size, 0] = pred_token
+        output_ids = nntc.from_array(output_ids_np)
+        cur_seq_size += 1
+
+    return output_ids, cur_seq_size
+
+
 def generate_autoregress(
     model, input_ids, prefill_size, max_tokens, eos_token_id
 ):
@@ -100,7 +188,11 @@ def generate_autoregress(
 
     output_ids = input_ids
     while cur_seq_size < max_tokens:
-        logits = model.forward(output_ids)
+        # logits = model.forward(output_ids)
+        nntile.functions.copy_async(output_ids, model.embedding_decoder.activations_input[0].value)
+        model.embedding_decoder.forward_async()
+        model.forward_async()
+        logits = model.lm_head.activations_output[0].value
 
         # TODO: add starpu function for argmax
         logits_np = nnt_constructors.to_numpy(logits)
