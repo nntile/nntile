@@ -169,7 +169,7 @@ t5_config_nntile = T5ConfigNNTile(
     layer_norm_epsilon=model_torch.config.layer_norm_epsilon,
     # initializer_factor=model_torch.config.initializer_factor,
     # feed_forward_proj=model_torch.config.feed_forward_proj,
-    # dtype=args.dtype,
+    dtype=args.dtype,
     redux=args.use_redux,
 )
 
@@ -189,9 +189,9 @@ x_np = np.ones((args.seq_len, args.minibatch_size), dtype=np.int64, order="F")
 x.from_array(x_np)
 x_tm = TensorMoments(x, None, False)
 
-x_decoder = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-x_decoder_grad = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-next_tag = x_decoder.next_tag
+# x_decoder = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
+# x_decoder_grad = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
+# next_tag = x_decoder.next_tag
 
 # x_tm_decoder = TensorMoments(x_decoder, None, False)
 
@@ -227,7 +227,7 @@ if splitted_datasetfile[-1] == "train.bin":
     train_input_ids = train_tokens[:, :, :, :-1].reshape(-1, args.seq_len)
     train_labels = train_tokens[:, :, :, 1:].reshape(-1, args.seq_len)
     print("train_labels: ", train_labels.shape, flush=True)
-    print("train_labels: ", train_labels.max(), flush=True)
+    print("train_tokens: ", train_tokens.max(), flush=True)
 else:
     # For demonstration purposes, create dummy data
     print("Using dummy training data")
@@ -294,7 +294,7 @@ next_tag = optimizer.get_next_tag()
 
 # Define Cross Entropy loss function for classification
 loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
-    t5_model.activations[-1], next_tag, scale=1.0 / (args.batch_size * args.seq_len)
+    t5_model.activations[-1], next_tag, scale=1.0 / (args.batch_size)
 )
 
 # Set up training pipeline
@@ -348,6 +348,8 @@ torch.save(
     args.save_checkpoint_path,
 )
 del model_torch
+
+nntile.starpu.wait_for_all()
 
 # Clean up resources
 loss.unregister()
