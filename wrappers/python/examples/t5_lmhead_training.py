@@ -45,7 +45,7 @@ parser.add_argument("--remote_model_name", type=str, default="google/flan-t5-sma
 parser.add_argument("--pretrained", choices=["local", "remote"], default="remote")
 parser.add_argument("--checkpoint-path", type=str, default="")
 parser.add_argument("--config-path", type=str, default="")
-parser.add_argument("--save-checkpoint-path", type=str, default=".model")
+parser.add_argument("--save-checkpoint-path", type=str, default="model.pt")
 parser.add_argument("--optimizer", choices=["sgd", "adam", "adamw"], default="adam")
 
 parser.add_argument("--model-path", default=".model")
@@ -121,7 +121,7 @@ elif args.pretrained == "local":
             raise ValueError
         if args.checkpoint_path:
             checkpoint = torch.load(args.checkpoint_path)
-            model_torch.load_state_dict(checkpoint["model_state_dict"])
+            model_torch.load_state_dict(checkpoint["model_state_dict"], strict=False)
 
 model_torch.eval()
 print(model_torch.config)
@@ -207,23 +207,37 @@ del model_torch
 # Note: This is a simplified dataset loading assuming preprocessed data
 # In a real application, you would use a proper dataset loader
 splitted_datasetfile = args.dataset_file.split("/")
-if splitted_datasetfile[-1].endswith(".npz"):
-    train_data = np.load(Path(args.dataset_path) / args.dataset_file)
-    train_input_ids = train_data["input_ids"]
-    train_labels = train_data["labels"]
+if splitted_datasetfile[-1] == "train.bin":
+    train_data = np.memmap(Path(args.dataset_path) / args.dataset_file,
+                          dtype=np.uint16, mode='r')
+    train_tokens_raw = np.array(train_data, order='F', dtype=np.int64)
+    del train_data
+
+    num_train_tokens = train_tokens_raw.shape[0]
+    num_train_seq = num_train_tokens // (args.seq_len + 1)
+    num_train_batches = num_train_seq // args.batch_size
+    num_train_tokens_truncated = num_train_batches * (args.batch_size * (args.seq_len + 1))
+    train_tokens_trunc = np.array(train_tokens_raw[:num_train_tokens_truncated],
+                                order='F', dtype=np.int64)
+    train_tokens = train_tokens_trunc.reshape(num_train_batches,
+                                            num_minibatch,
+                                            args.minibatch_size,
+                                            args.seq_len + 1)
+
+    train_input_ids = train_tokens[:, :, :, :-1].reshape(-1, args.seq_len)
+    train_labels = train_tokens[:, :, :, 1:].reshape(-1, args.seq_len)
+    print("train_labels: ", train_labels.shape, flush=True)
+    print("train_labels: ", train_labels.max(), flush=True)
 else:
     # For demonstration purposes, create dummy data
     print("Using dummy training data")
     num_train_samples = 1000
-    vocab_size = 32000
+    vocab_size = 32100
     data_ids = np.random.default_rng().integers(
-        0, 32000, size=(num_train_samples, args.seq_len + 1), dtype=np.int64
+        0, 32100, size=(num_train_samples, args.seq_len + 1), dtype=np.int64
     )
     train_input_ids = data_ids[:, :-1]
     train_labels = data_ids[:, 1:]
-
-    # train_input_ids = np.ones((num_train_samples, args.seq_len), dtype=np.int64)
-    # train_labels = np.random.randint(0, args.num_labels, size=(num_train_samples,), dtype=np.int64)
 
 num_train_samples = train_input_ids.shape[0]
 num_train_batches = num_train_samples // args.batch_size
@@ -254,14 +268,14 @@ for i in range(num_train_batches):
         x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
         next_tag = x.next_tag
         x.from_array(np.asfortranarray(train_input_ids[start_idx:end_idx, :].T))
-        print("add minibatch x: ", x.shape)
+        # print("add minibatch x: ", x.shape)
         minibatch_input.append(x)
 
         # Create output tensor (labels)
         y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
         next_tag = y.next_tag
         y.from_array(np.asfortranarray(train_labels[start_idx:end_idx, :].T))
-        print("add minibatch y: ", y.shape)
+        # print("add minibatch y: ", y.shape)
         minibatch_output.append(y)
 
     batch_input.append(minibatch_input)
@@ -280,7 +294,7 @@ next_tag = optimizer.get_next_tag()
 
 # Define Cross Entropy loss function for classification
 loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
-    t5_model.activations[-1], next_tag, scale=1.0 / args.batch_size
+    t5_model.activations[-1], next_tag, scale=1.0 / (args.batch_size * args.seq_len)
 )
 
 # Set up training pipeline
