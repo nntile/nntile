@@ -256,6 +256,7 @@ class T5Attention(BaseLayer):
         self.relative_bias = relative_bias
         self.relative_bias_embedding = relative_bias_embedding
         self.temp_grad_relative_bias_embedding = None
+        self.relative_position_bucket_nnt = None
 
         # inner dim is the same for all the tensors, but can be different from n_emb
         self.head_size = self.w_q.value.shape[1]
@@ -273,6 +274,17 @@ class T5Attention(BaseLayer):
         clear_async(self.k.value)
         clear_async(self.v.value)
 
+    def unregister(self):
+        if self.relative_bias_embedding is not None:
+            self.relative_bias_embedding.unregister()
+            self.relative_bias_embedding = None
+    
+        if self.relative_position_bucket_nnt is not None:
+            self.relative_position_bucket_nnt.unregister()
+            self.relative_position_bucket_nnt = None
+            
+        super().unregister()
+    
     # Simple generator for the linear layer
     @staticmethod
     def generate_simple(
@@ -956,6 +968,9 @@ class T5Attention(BaseLayer):
                 relative_position_bucket_np_value.repeat(self.a.value.shape[2], axis=0)
             )
 
+        if self.relative_position_bucket_nnt is not None:
+            self.relative_position_bucket_nnt.unregister()
+            self.relative_position_bucket_nnt = None
         self.relative_position_bucket_nnt = nntc.from_array(
             relative_position_bucket_np_value.T.astype(np.int64),
             self.relative_bias.value.basetile_shape[:3],
