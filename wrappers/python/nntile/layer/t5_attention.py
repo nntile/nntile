@@ -968,13 +968,15 @@ class T5Attention(BaseLayer):
                 relative_position_bucket_np_value.repeat(self.a.value.shape[2], axis=0)
             )
 
-        if self.relative_position_bucket_nnt is not None:
-            self.relative_position_bucket_nnt.unregister()
-            self.relative_position_bucket_nnt = None
-        self.relative_position_bucket_nnt = nntc.from_array(
-            relative_position_bucket_np_value.T.astype(np.int64),
-            self.relative_bias.value.basetile_shape[:3],
-        )
+        if self.relative_position_bucket_nnt is None:
+            self.relative_position_bucket_nnt = nntc.from_array(
+                relative_position_bucket_np_value.T.astype(np.int64),
+                self.relative_bias.value.basetile_shape[:3],
+            )
+        else:
+            self.relative_position_bucket_nnt.from_array(
+                relative_position_bucket_np_value.T.astype(np.int64),
+            )
 
         embedding_async(
             self.relative_position_bucket_nnt,
