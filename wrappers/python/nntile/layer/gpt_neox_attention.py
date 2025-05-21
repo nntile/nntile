@@ -1101,7 +1101,6 @@ class GPTNeoXAttention(BaseLayer):
             position_ids=position_ids,
             theta=config.rotary_emb_base,
             next_tag=next_tag,
-            bias=torch_layer.dense.bias is not None,
             mask=mask,
             redux=config.redux,
         )
