@@ -168,8 +168,9 @@ class T5Attention(BaseLayer):
         else:
             bias_list_out_proj = []
 
+        # Prepare the list of parameters for BaseLayer
+        parameters_for_base = [w_q, w_k, w_v] + qkv_bias_list + [w] + bias_list_out_proj
         if has_relative_bias:
-            # assert relative_bias_position_buckets is not None, "relative_bias_position_buckets must be provided if has_relative_bias is True"
             assert (
                 relative_bias is not None
             ), "relative_bias must be provided if has_relative_bias is True"
@@ -177,31 +178,21 @@ class T5Attention(BaseLayer):
                 relative_bias_embedding is not None
             ), "relative_bias_embedding must be provided if has_relative_bias is True"
             relative_bias_embedding.grad.set_reduction_add()
+            parameters_for_base.append(relative_bias_embedding)
+
+        # Prepare the list of intermediates for BaseLayer
+        intermediates_for_base = [q_transposed, q, k_transposed, k, v_transposed, v, a]
+        if has_relative_bias:
+            # intermediates_for_base.append(relative_bias_position_buckets) # Typically not an intermediate needing unregister
+            intermediates_for_base.append(relative_bias)
+        intermediates_for_base.extend([a_maxsumexp, a_sumprod_slice, b, b_transposed])
 
         # Redirect to BaseClass initialization
         super().__init__(
             [x_q, x_k, x_v],
             [y],
-            (
-                [w_q, w_k, w_v] + qkv_bias_list + [w] + [relative_bias_embedding]
-                if has_relative_bias
-                else [] + bias_list_out_proj
-            ),
-            (
-                [q_transposed, q, k_transposed, k, v_transposed, v, a]
-                + [
-                    # relative_bias_position_buckets,
-                    relative_bias,
-                ]
-                if has_relative_bias
-                else []
-                + [
-                    a_maxsumexp,
-                    a_sumprod_slice,
-                    b,
-                    b_transposed,
-                ]
-            ),
+            parameters_for_base,
+            intermediates_for_base,
         )
         self.x_q = x_q
         self.x_q.grad.set_reduction_add()
@@ -274,10 +265,14 @@ class T5Attention(BaseLayer):
         clear_async(self.k.value)
         clear_async(self.v.value)
 
-    def unregister(self):
-        if self.relative_bias_embedding is not None:
-            self.relative_bias_embedding.unregister()
-            self.relative_bias_embedding = None
+    def unregister(self):        
+        if self.mask is not None:
+            self.mask.unregister()
+            self.mask = None
+        
+        if self.temp_grad_relative_bias_embedding is not None:
+            self.temp_grad_relative_bias_embedding.unregister()
+            self.temp_grad_relative_bias_embedding = None
     
         if self.relative_position_bucket_nnt is not None:
             self.relative_position_bucket_nnt.unregister()
@@ -950,32 +945,29 @@ class T5Attention(BaseLayer):
         return v_partial
 
     def _add_positional_bias_async(self):
-        query_length, key_length = self.a.value.shape[:2]
-        context_position = np.arange(query_length, dtype=np.int32)[:, None]
-        memory_position = np.arange(key_length, dtype=np.int32)[None, :]
-        relative_position = (
-            memory_position - context_position
-        )  # shape (query_length, key_length)
-        relative_position_bucket_np_value = relative_position_bucket_numpy(
-            relative_position,
-            bidirectional=(not self.is_decoder),
-            num_buckets=32,
-            max_distance=128,
-        )
-        relative_position_bucket_np_value = relative_position_bucket_np_value[None, ...]
-        if self.a.value.shape[2] > 1:
-            relative_position_bucket_np_value = (
-                relative_position_bucket_np_value.repeat(self.a.value.shape[2], axis=0)
-            )
-
         if self.relative_position_bucket_nnt is None:
+            query_length, key_length = self.a.value.shape[:2]
+            context_position = np.arange(query_length, dtype=np.int32)[:, None]
+            memory_position = np.arange(key_length, dtype=np.int32)[None, :]
+            relative_position = (
+                memory_position - context_position
+            )  # shape (query_length, key_length)
+            relative_position_bucket_np_value = relative_position_bucket_numpy(
+                relative_position,
+                bidirectional=(not self.is_decoder),
+                num_buckets=32,
+                max_distance=128,
+            )
+            relative_position_bucket_np_value = relative_position_bucket_np_value[None, ...]
+            if self.a.value.shape[2] > 1:
+                relative_position_bucket_np_value = (
+                    relative_position_bucket_np_value.repeat(self.a.value.shape[2], axis=0)
+                )
+
+ 
             self.relative_position_bucket_nnt = nntc.from_array(
                 relative_position_bucket_np_value.T.astype(np.int64),
                 self.relative_bias.value.basetile_shape[:3],
-            )
-        else:
-            self.relative_position_bucket_nnt.from_array(
-                relative_position_bucket_np_value.T.astype(np.int64),
             )
 
         embedding_async(
