@@ -26,6 +26,7 @@ from transformers.models.gpt_neox.modeling_gpt_neox import (
 import nntile
 from nntile.model.gpt_neox_causal import GPTNeoXForCausalLM
 from nntile.model.gpt_neox_config import GPTNeoXConfig
+
 # Create argument parser
 parser = argparse.ArgumentParser(prog="GPTNeoX-based neural networks",
         description="This example presents an NNTile implementation of a "
