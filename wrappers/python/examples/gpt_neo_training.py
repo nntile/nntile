@@ -26,9 +26,8 @@ from transformers.models.gpt_neo.modeling_gpt_neo import (
     GPTNeoForCausalLM as ModelTorch)
 
 import nntile
-from nntile.model.gpt_neo_config import GPTNeoConfig
 from nntile.model.gpt_neo_causal import GPTNeoForCausalLM
-from nntile.tensor import TensorMoments
+from nntile.model.gpt_neo_config import GPTNeoConfig
 
 # Create argument parser
 parser = argparse.ArgumentParser(

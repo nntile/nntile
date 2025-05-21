@@ -18,16 +18,14 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import torch.nn as nn
 from torch.optim import SGD, Adam, AdamW
 from transformers import GPTNeoXConfig as ConfigTorch
 from transformers.models.gpt_neox.modeling_gpt_neox import (
     GPTNeoXForCausalLM as ModelTorch)
 
 import nntile
-from nntile.model.gpt_neox_config import GPTNeoXConfig
 from nntile.model.gpt_neox_causal import GPTNeoXForCausalLM
-
+from nntile.model.gpt_neox_config import GPTNeoXConfig
 # Create argument parser
 parser = argparse.ArgumentParser(prog="GPTNeoX-based neural networks",
         description="This example presents an NNTile implementation of a "
@@ -175,7 +173,9 @@ config_nntile = GPTNeoXConfig(
 )
 
 print(config_nntile)
-single_batch_pos_ids = np.arange(args.seq_len, dtype=np.int64).reshape(1, args.seq_len)
+single_batch_pos_ids = np.arange(
+    args.seq_len, dtype=np.int64
+).reshape(1, args.seq_len)
 pos_ids = np.repeat(single_batch_pos_ids, args.minibatch_size, axis=0)
 
 mask = np.array(
