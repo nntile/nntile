@@ -27,6 +27,64 @@ namespace py = pybind11;
 
 constexpr auto _wait_for_all_sleep_time = std::chrono::milliseconds(1);
 
+// namespace nntile {
+// namespace starpu {
+// class ShutdownManager;
+
+
+// } // namespace starpu
+// } // namespace nntile
+
+namespace nntile {
+namespace starpu {
+
+// Define the static member here
+ShutdownManager* ShutdownManager::instance = nullptr;
+
+} // namespace starpu
+} // namespace nntile
+
+// Define a wrapper for tensors that implements IShutdownable
+template <typename T>
+class TensorWrapper : public nntile::starpu::IShutdownable {
+private:
+    std::shared_ptr<nntile::tensor::Tensor<T>> tensor_ptr;
+    
+public:
+    TensorWrapper(nntile::tensor::Tensor<T>* tensor) : tensor_ptr(tensor, [](nntile::tensor::Tensor<T>*){}) {}
+    
+    virtual void clearHandles() override {
+        if (tensor_ptr) {
+            tensor_ptr->unregister();
+            // tensor_ptr->tile_handles.clear();
+        }
+    }
+};
+
+// In nntile_core.cc - Python-specific wrapper
+template <typename T>
+class PyTensorWrapper : public nntile::starpu::IShutdownable {
+private:
+    std::weak_ptr<nntile::tensor::Tensor<T>> tensor_weak_ptr;
+    
+public:
+    PyTensorWrapper(std::shared_ptr<nntile::tensor::Tensor<T>> tensor_ptr) 
+        : tensor_weak_ptr(tensor_ptr) {}
+    
+    virtual void clearHandles() override {
+        // Try to get a shared_ptr from the weak_ptr
+        if (auto tensor_ptr = tensor_weak_ptr.lock()) {
+            // If we got a valid pointer, the tensor still exists
+            try {
+                tensor_ptr->unregister();
+            } catch (const std::exception& e) {
+                std::cerr << "Warning: Exception during tensor cleanup: " << e.what() << std::endl;
+            }
+        }
+        // If we can't lock the weak_ptr, the tensor is already gone
+    }
+};
+
 // Extend (sub)module with nntile::starpu functionality
 void def_mod_starpu(py::module_ &m)
 {
@@ -209,7 +267,7 @@ template<typename T>
 void def_class_tile(py::module_ &m, const char *name)
 {
     using namespace nntile::tile;
-    py::class_<Tile<T>, TileTraits>(m, name, py::multiple_inheritance()).
+    py::class_<Tile<T>, TileTraits, std::shared_ptr<Tile<T>>>(m, name, py::multiple_inheritance()).
         def(py::init<const TileTraits &>()).
         def("unregister", &Tile<T>::unregister).
         def("from_array", tile_from_array<T>).
@@ -223,7 +281,7 @@ void def_mod_tile(py::module_ &m)
 {
     using namespace nntile::tile;
     // Define wrapper for the Class
-    py::class_<TileTraits>(m, "TileTraits").
+    py::class_<TileTraits, std::shared_ptr<TileTraits>>(m, "TileTraits").
         // Constructor
         def(py::init<const std::vector<Index> &>()).
         // __repr__ function for print(object)
@@ -427,10 +485,17 @@ template<typename T>
 void def_class_tensor(py::module_ &m, const char *name)
 {
     using namespace nntile::tensor;
-    py::class_<Tensor<T>, TensorTraits>(m, name, py::multiple_inheritance()).
-        def(py::init<const TensorTraits &, const std::vector<int> &,
-                starpu_mpi_tag_t &>()).
-        def_readonly("next_tag", &Tensor<T>::next_tag).
+    py::class_<Tensor<T>, TensorTraits, std::shared_ptr<Tensor<T>>>(m, name, py::multiple_inheritance())
+        .def(py::init([](const TensorTraits &traits, const std::vector<int> &distr, starpu_mpi_tag_t &tag) {
+                auto tensor = std::make_shared<Tensor<T>>(traits, distr, tag);
+
+                // Register with ShutdownManager
+                auto wrapper = std::make_shared<PyTensorWrapper<T>>(tensor);
+                nntile::starpu::ShutdownManager::getInstance()->registerObject(wrapper);
+
+                return tensor;
+        }))
+        .def_readonly("next_tag", &Tensor<T>::next_tag).
         def("unregister", &Tensor<T>::unregister).
         // Temporary disable invalidate_submit and use wont_use instead
         def("invalidate_submit", &Tensor<T>::invalidate_submit).
@@ -473,7 +538,7 @@ void def_mod_tensor(py::module_ &m)
 {
     using namespace nntile::tensor;
     // Define wrapper for TensorTraits
-    py::class_<TensorTraits, tile::TileTraits>(m, "TensorTraits",
+    py::class_<TensorTraits, tile::TileTraits, std::shared_ptr<TensorTraits>>(m, "TensorTraits",
             py::multiple_inheritance()).
         // Constructor
         def(py::init<const std::vector<Index> &,

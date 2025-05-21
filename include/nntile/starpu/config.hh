@@ -54,6 +54,53 @@ static int starpu_mpi_barrier(int comm)
 namespace starpu
 {
 
+// Define an interface for tensors that can be shutdown
+class IShutdownable {
+public:
+    virtual void clearHandles() = 0;
+    virtual ~IShutdownable() {}
+};
+
+class ShutdownManager {
+private:
+    static ShutdownManager* instance;
+    std::vector<std::shared_ptr<IShutdownable>> managed_objects;
+    bool is_shutting_down = false;
+    
+    ShutdownManager() {}
+    
+public:
+    static ShutdownManager* getInstance() {
+        std::cout << "Getting instance\n";
+        if (instance == nullptr) {
+            instance = new ShutdownManager();
+        }
+        return instance;
+    }
+    
+    void registerObject(std::shared_ptr<IShutdownable> obj) {
+        std::cerr << "Registering object\n";
+        if (!is_shutting_down) {
+            managed_objects.push_back(obj);
+        }
+    }
+    
+    void shutdown() {
+        is_shutting_down = true;
+        
+        // Clean up all tensors first by explicitly calling their clearHandles method
+        for (auto& obj : managed_objects) {
+            std::cerr << "Clearing handles for object\n";
+            obj->clearHandles();
+        }
+        managed_objects.clear();
+    }
+    
+    ~ShutdownManager() {
+        shutdown();
+    }
+};
+
 //! Convenient StarPU initialization and shutdown
 class Config: public starpu_conf
 {
@@ -146,11 +193,15 @@ public:
             }
         }
 #endif // NNTILE_USE_CUDA
+        ShutdownManager::getInstance()->shutdown();
+        starpu_task_wait_for_all();
         starpu_shutdown();
         if(verbose > 0)
         {
             std::cout << "Shutdown StarPU\n";
         }
+
+        delete ShutdownManager::getInstance();
     }
     //! StarPU commute data access mode
     static constexpr starpu_data_access_mode STARPU_RW_COMMUTE
