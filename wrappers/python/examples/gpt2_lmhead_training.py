@@ -45,7 +45,7 @@ parser.add_argument("--pretrained", choices=["local", "remote"],
 parser.add_argument("--checkpoint-path", type=str, default="")
 parser.add_argument("--config-path", type=str, default="")
 parser.add_argument("--save-checkpoint-path", type=str, default=".model")
-parser.add_argument("--optimizer", choices=["sgd", "adam", "adamw"],
+parser.add_argument("--optimizer", choices=["sgd", "adam", "adamw", "lion"],
                     default="adam")
 
 
@@ -167,6 +167,9 @@ elif args.pretrained == "local":
         elif args.optimizer == "sgd":
             optimizer = SGD(model_torch.parameters(), args.lr)
         elif args.optimizer == "adamw":
+            optimizer = AdamW(model_torch.parameters(), args.lr)
+        # there is no torch implementation for LION, however, I don't see how this optimizer is used
+        elif args.optimizer == "lion":
             optimizer = AdamW(model_torch.parameters(), args.lr)
         else:
             raise ValueError
@@ -310,6 +313,9 @@ if args.optimizer == "adam":
             args.lr, next_tag)
 elif args.optimizer == "adamw":
     optimizer = nntile.optimizer.AdamW(gpt2lmhead_nntile.get_parameters(),
+            args.lr, next_tag)
+elif args.optimizer == "lion":
+    optimizer = nntile.optimizer.Lion(gpt2lmhead_nntile.get_parameters(),
             args.lr, next_tag)
 elif args.optimizer == "sgd":
     optimizer = nntile.optimizer.SGD(gpt2lmhead_nntile.get_parameters(),

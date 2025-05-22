@@ -45,7 +45,7 @@ parser.add_argument("--checkpoint_path", type=str, default="")
 parser.add_argument("--config_path", type=str, default="")
 parser.add_argument("--save_checkpoint_path", type=str, default=".model")
 parser.add_argument(
-    "--optimizer", choices=["sgd", "adam", "adamw"], default="adam"
+    "--optimizer", choices=["sgd", "adam", "adamw", "lion"], default="adam"
 )
 
 
@@ -738,6 +738,10 @@ if args.nntile_nepochs > 0:
         optimizer = nntile.optimizer.SGD(
             nntile_model.get_parameters(), args.lr, next_tag
         )
+    elif args.optimizer == "lion":
+        optimizer = nntile.optimizer.Lion(
+            nntile_model.get_parameters(), args.lr, next_tag
+        )
     next_tag = optimizer.get_next_tag()
     # Define Cross Entropy loss function
     loss, next_tag = nntile.loss.CrossEntropy.generate_simple(
@@ -827,6 +831,8 @@ if args.torch_nepochs > 0:
         optimizer = SGD(model_torch.parameters(), args.lr)
     elif args.optimizer == "adamw":
         optimizer = AdamW(model_torch.parameters(), args.lr)
+    elif args.optimizer == "lion":
+        optimizer = Lion(model_torch.parameters(), args.lr)
     else:
         raise ValueError
     # Warmup training
