@@ -964,7 +964,6 @@ class T5Attention(BaseLayer):
                     relative_position_bucket_np_value.repeat(self.a.value.shape[2], axis=0)
                 )
 
- 
             self.relative_position_bucket_nnt = nntc.from_array(
                 relative_position_bucket_np_value.T.astype(np.int64),
                 self.relative_bias.value.basetile_shape[:3],
