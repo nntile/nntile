@@ -181,7 +181,6 @@ x_traits = nntile.tensor.TensorTraits(
 )
 x_distr = [0] * x_traits.grid.nelems
 x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-x_grad = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
 next_tag = x.next_tag
 
 # Create dummy array with input tokens for initialization
