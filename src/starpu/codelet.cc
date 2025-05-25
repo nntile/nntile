@@ -6,14 +6,17 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/codelet.hh
- * StarPU codelets base class
+ * @file src/starpu/codelet.cc
+ * StarPU codelet wrapper and codelet pack
  *
  * @version 1.1.0
  * */
 
 // Related header
 #include "nntile/starpu/codelet.hh"
+
+// NNTile definitions
+#include "nntile/defs.h"
 
 // Standard library headers
 #include <stdexcept>
@@ -24,50 +27,46 @@
 // Third-party headers
 
 // Other NNTile headers
-#include "nntile/defs.h"
+
 
 namespace nntile::starpu
 {
 
-// List of all codelets
-std::vector<Codelet> codelets;
-
-//! Mutex for codelets
-std::mutex codelets_mutex;
-
 //! Default constructor
 Codelet::Codelet(
-    const char *name_,
-    uint32_t (*footprint_)(starpu_task *),
-    std::initializer_list<starpu_cpu_func_t> cpu_funcs_,
-    std::initializer_list<starpu_cuda_func_t> cuda_funcs_
+    const char *name,
+    uint32_t (*footprint)(starpu_task *),
+    std::initializer_list<starpu_cpu_func_t> cpu_funcs,
+    std::initializer_list<starpu_cuda_func_t> cuda_funcs
 )
 {
-    // Initialize perfmodel
+    // Link performance model to the codelet
     starpu_codelet::model = this;
+
+    // Set performance model to history-based
     starpu_perfmodel::type = STARPU_HISTORY_BASED;
 
     // Set codelet name and performance model symbol
-    starpu_codelet::name = name_;
-    starpu_perfmodel::symbol = name_;
+    starpu_codelet::name = name;
+    starpu_perfmodel::symbol = name;
 
     // Set footprint function
-    starpu_perfmodel::footprint = footprint_;
+    starpu_perfmodel::footprint = footprint;
 
     // Set runtime decision on number of buffers and access modes
     starpu_codelet::nbuffers = STARPU_VARIABLE_NBUFFERS;
 
     // Check if the number of CPU implementations is too large
-    if(cpu_funcs_.size() > STARPU_MAXIMPLEMENTATIONS)
+    if(cpu_funcs.size() > STARPU_MAXIMPLEMENTATIONS)
     {
         throw std::runtime_error("Too many CPU func implementations");
     }
 
     // Add CPU implementations
-    if(cpu_funcs_.size() > 0)
+    if(cpu_funcs.size() > 0)
     {
-        auto it = cpu_funcs_.begin();
-        for(int i = 0; i < cpu_funcs_.size(); ++i, ++it)
+        auto it = cpu_funcs.begin();
+        for(int i = 0; i < cpu_funcs.size(); ++i, ++it)
         {
             if(*it)
             {
@@ -83,16 +82,16 @@ Codelet::Codelet(
 
 #ifdef NNTILE_USE_CUDA
     // Check if the number of CUDA implementations is too large
-    if(cuda_funcs_.size() > STARPU_MAXIMPLEMENTATIONS)
+    if(cuda_funcs.size() > STARPU_MAXIMPLEMENTATIONS)
     {
         throw std::runtime_error("Too many CUDA func implementations");
     }
 
     // Add CUDA implementations
-    if(cuda_funcs_.size() > 0)
+    if(cuda_funcs.size() > 0)
     {
-        auto it = cuda_funcs_.begin();
-        for(int i = 0; i < cuda_funcs_.size(); ++i, ++it)
+        auto it = cuda_funcs.begin();
+        for(int i = 0; i < cuda_funcs.size(); ++i, ++it)
         {
             if(*it)
             {
@@ -111,12 +110,12 @@ Codelet::Codelet(
 }
 
 //! Restrict where the codelet should be executed
-void Codelet::restrict_where(uint32_t where_)
+void Codelet::restrict_where(uint32_t where)
 {
     // Restrict only if the provided where is supported
-    if((where_default & where_) == where_)
+    if((where_default & where) == where)
     {
-        starpu_codelet::where = where_;
+        starpu_codelet::where = where;
     }
 }
 

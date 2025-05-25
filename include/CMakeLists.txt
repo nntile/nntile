@@ -291,6 +291,7 @@ set(STARPU_HDR
     "nntile/starpu/rope.hh"
     "nntile/starpu/rope_backward.hh"
     "nntile/starpu/log_scalar.hh"
+    "nntile/starpu/flash_sdpa_fwd_cudnn.hh"
     )
 
 set(TILE_HDR

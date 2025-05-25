@@ -15,7 +15,7 @@
 #pragma once
 
 #include <nntile/tile/traits.hh>
-#include <nntile/starpu/config.hh>
+#include <nntile/starpu/handle.hh>
 
 namespace nntile::tile
 {

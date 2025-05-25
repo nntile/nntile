@@ -20,8 +20,6 @@
 
 // Third-party headers
 #include <starpu.h>
-// Disabled MPI for now
-//#include <starpu_mpi.h>
 
 // Other NNTile headers
 
@@ -47,8 +45,8 @@ class HandleLocalData;
 //! StarPU data handle wrapper
 class Handle: public std::shared_ptr<_starpu_data_state>
 {
-    //! Deleter for the shared pointer uses async unregistration
-    static void _deleter(starpu_data_handle_t handle);
+    //! Custom deleter for StarPU data handle uses async unregistration
+    static void _deleter_async(starpu_data_handle_t handle);
 
 public:
     //! Default constructor with nullptr
@@ -56,18 +54,21 @@ public:
 
     //! Constructor with shared pointer
     explicit Handle(starpu_data_handle_t handle):
-        std::shared_ptr<_starpu_data_state>(handle, _deleter)
+        std::shared_ptr<_starpu_data_state>(handle, _deleter_async)
     {
         data_handle_push(handle);
     }
 
-    //! Destructor is virtual as this is a base class
-    virtual ~Handle() = default;
+    //! Destructor uses async unregistration
+    virtual ~Handle()
+    {
+        unregister_submit();
+    }
 
     //! Set name of the handle
     void set_name(const char *name);
 
-    //! Acquire data locally
+    //! Acquire data in CPU RAM
     HandleLocalData acquire(starpu_data_access_mode mode) const;
 
     //! Unregister a data handle normally

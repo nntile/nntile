@@ -35,48 +35,87 @@
 namespace nntile
 {
 
-//! Integer type for sizes and indices outside StarPU buffers
+//! Integer type for sizes and indices outside NNTile tensors
 using Index = std::int64_t;
 
-//! Floating point type for scalar values outside StarPU buffers
+//! Floating point type for scalar values outside NNTile tensors
 using Scalar = float;
 
-//! NNTile wrapper type for 64-bit signed integers inside NNTile tensors
-class int64_t
+//! Default conversion function from StorageT to ReprT
+template<typename StorageT, typename ReprT>
+inline NNTILE_HOST_DEVICE ReprT convert(const StorageT &value)
+{
+    return static_cast<ReprT>(value);
+}
+
+//! Base type for all NNTile types inside NNTile tensors
+/*! It is used to avoid code duplication for all NNTile types. Each type only
+ * allows construction and assignment from a compatible standard type.
+ * Arithmetic operations are intentionally disabled.
+ *
+ * @tparam StorageT: memory layout type
+ * @tparam ReprT: standard type for representation
+ * @tparam to_repr: conversion function from StorageT to ReprT
+ * @tparam to_storage: conversion function from ReprT to StorageT
+ */
+template<
+    typename StorageT,
+    typename ReprT = StorageT,
+    ReprT (*to_repr)(const StorageT &) = convert<StorageT, ReprT>,
+    StorageT (*to_storage)(const ReprT &) = convert<ReprT, StorageT>
+>
+class BaseType
 {
 public:
-    //! Basic type that must have the same size, as this type
-    using storage_t = std::int64_t;
-    //! Basic type that must cover all possible values of this type
-    using repr_t = std::int64_t;
+    //! Storage type of the integer value
+    using storage_t = StorageT;
+
+    //! Representation type of the integer value
+    using repr_t = ReprT;
+
     //! Flag if copy from repr_t does not require conversion
-    static const bool trivial_copy_from_compat = true;
+    static constexpr bool trivial_copy_from_compat = trivial_copy_from_repr;
+
     //! String to represent this type
-    static constexpr const char *type_repr = "int64_t";
+    static constexpr const char *type_repr = "BaseInt";
+
     //! Internal value of this type to hold actual data
     storage_t value;
+
     //! Constructor
-    NNTILE_HOST_DEVICE int64_t() = default;
+    NNTILE_HOST_DEVICE BaseInt() = default;
+
     //! Constructor from another value of this type
-    NNTILE_HOST_DEVICE int64_t(const int64_t &other) = default;
+    NNTILE_HOST_DEVICE BaseInt(const BaseInt &other) = default;
+
     //! Constructor from a repr_t value
-    NNTILE_HOST_DEVICE explicit int64_t(const repr_t &other):
-        value(other)
+    NNTILE_HOST_DEVICE explicit BaseInt(const repr_t &other):
+        value(to_storage(other))
     {
     }
     //! Assignment from another value of this type
-    NNTILE_HOST_DEVICE int64_t &operator=(const int64_t &other) = default;
+    NNTILE_HOST_DEVICE BaseInt &operator=(const BaseInt &other) = default;
+
     //! Assignment from a repr_t value
-    NNTILE_HOST_DEVICE int64_t &operator=(const repr_t &other)
+    NNTILE_HOST_DEVICE BaseInt &operator=(const repr_t &other)
     {
         value = other;
         return *this;
     }
+
     //! Conversion to repr_t value
     NNTILE_HOST_DEVICE explicit operator repr_t() const
     {
-        return value;
+        return to_repr(value);
     }
+};
+
+//! NNTile wrapper type for 64-bit signed integers inside NNTile tensors
+class int64_t: public BaseInt<std::int64_t, std::int64_t>
+{
+public:
+    //! String to represent this type
+    static constexpr const char *type_repr = "nntile::int64_t";
 };
 
 //! Print function for nntile::int64_t
@@ -101,7 +140,7 @@ public:
     //! Internal value of this type to hold actual data
     storage_t value;
     //! Constructor
-    bool_t() = default;
+    NNTILE_HOST_DEVICE bool_t() = default;
     //! Constructor from another value of this type
     NNTILE_HOST_DEVICE bool_t(const bool_t &other) = default;
     //! Constructor from a repr_t value
@@ -132,48 +171,61 @@ inline std::ostream &operator<<(std::ostream &os, const bool_t &value)
 }
 
 //! NNTile wrapper type for double inside NNTile tensors
-class fp64_t
+class fp64_t: public BaseFloat<double, double>
 {
 public:
-    //! Basic type that must have the same size, as this type
-    using storage_t = double;
-    //! Basic type that must cover all possible values of this type
-    using repr_t = double;
-    //! Flag if copy from repr_t does not require conversion
-    static const bool trivial_copy_from_compat = true;
+    // Inherit all constructors
+    using BaseFloat<double, double>::BaseFloat;
+
+    // Inherit all assignment operators
+    using BaseFloat<double, double>::operator=;
+
     //! String to represent this type
-    static constexpr const char *type_repr = "fp64_t";
-    //! Internal value of this type to hold actual data
-    storage_t value;
-    //! Constructor
-    NNTILE_HOST_DEVICE fp64_t() = default;
-    //! Constructor from another value of this type
-    NNTILE_HOST_DEVICE fp64_t(const fp64_t &other) = default;
-    //! Constructor from a repr_t value
-    NNTILE_HOST_DEVICE explicit fp64_t(const repr_t &other):
-        value(other)
-    {
-    }
-    //! Assignment from another value of this type
-    NNTILE_HOST_DEVICE fp64_t &operator=(const fp64_t &other) = default;
-    //! Assignment from a repr_t value
-    NNTILE_HOST_DEVICE fp64_t &operator=(const repr_t &other)
-    {
-        value = other;
-        return *this;
-    }
-    //! Conversion to repr_t value
-    NNTILE_HOST_DEVICE explicit operator repr_t() const
-    {
-        return value;
-    }
-    //! Machine precision of this type
-    static repr_t epsilon()
-    {
-        // Just use std::numeric_limits
-        return std::numeric_limits<double>::epsilon();
-    }
+    static constexpr const char *type_repr = "nntile::fp64_t";
 };
+
+// class fp64_t
+// {
+// public:
+//     //! Basic type that must have the same size, as this type
+//     using storage_t = double;
+//     //! Basic type that must cover all possible values of this type
+//     using repr_t = double;
+//     //! Flag if copy from repr_t does not require conversion
+//     static const bool trivial_copy_from_compat = true;
+//     //! String to represent this type
+//     static constexpr const char *type_repr = "fp64_t";
+//     //! Internal value of this type to hold actual data
+//     storage_t value;
+//     //! Constructor
+//     NNTILE_HOST_DEVICE fp64_t() = default;
+//     //! Constructor from another value of this type
+//     NNTILE_HOST_DEVICE fp64_t(const fp64_t &other) = default;
+//     //! Constructor from a repr_t value
+//     NNTILE_HOST_DEVICE explicit fp64_t(const repr_t &other):
+//         value(other)
+//     {
+//     }
+//     //! Assignment from another value of this type
+//     NNTILE_HOST_DEVICE fp64_t &operator=(const fp64_t &other) = default;
+//     //! Assignment from a repr_t value
+//     NNTILE_HOST_DEVICE fp64_t &operator=(const repr_t &other)
+//     {
+//         value = other;
+//         return *this;
+//     }
+//     //! Conversion to repr_t value
+//     NNTILE_HOST_DEVICE explicit operator repr_t() const
+//     {
+//         return value;
+//     }
+//     //! Machine precision of this type
+//     static repr_t epsilon()
+//     {
+//         // Just use std::numeric_limits
+//         return std::numeric_limits<double>::epsilon();
+//     }
+// };
 
 //! Print function for nntile::fp64_t
 inline std::ostream &operator<<(std::ostream &os, const fp64_t &value)

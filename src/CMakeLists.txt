@@ -161,7 +161,7 @@ endif(HAVE_STARPU_SIMGRID)
 set(STARPU_SRC
     "starpu/handle.cc"
     "starpu/codelet.cc"
-    # "starpu/accumulate.cc"
+    "starpu/accumulate.cc"
     # "starpu/accumulate_hypot.cc"
     # "starpu/accumulate_maxsumexp.cc"
     # "starpu/add_slice_inplace.cc"
@@ -227,7 +227,7 @@ set(STARPU_SRC
     # "starpu/mask_scalar.cc"
     # "starpu/scal.cc"
     # "starpu/adam_step.cc"
-    "starpu/adamw_step.cc"
+    # "starpu/adamw_step.cc"
     # "starpu/transpose.cc"
     # "starpu/silu_forward.cc"
     # "starpu/silu_backward.cc"
@@ -238,6 +238,7 @@ set(STARPU_SRC
     # "starpu/rope_backward.cc"
     # "starpu/norm_fiber.cc"
     # "starpu/log_scalar.cc"
+    # "starpu/flash_sdpa_fwd_cudnn.cc"
     )
 
 set(TILE_SRC

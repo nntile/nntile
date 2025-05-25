@@ -33,7 +33,7 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake_modules")
 # List of options and cache variables
 # Build shared libraries instead of static
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static" ON)
-option(USE_CUDA "Use CUDA toolkit" ON)
+option(USE_CUDA "Use CUDA toolkit (cuBLAS and cuDNN are required)" ON)
 option(USE_CBLAS "Use CPU CBLAS" ON)
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_DOCS "Build Doxygen-based documentation" OFF)
@@ -56,6 +56,9 @@ add_library(nntile)
 
 # Get the pkg-config
 find_package(PkgConfig REQUIRED)
+
+# Add external sources/headers
+add_subdirectory("external")
 
 # Get the StarPU as the first dependency. StarPU defines if we are in
 # simulation by SimGrid mode or not.
@@ -80,11 +83,11 @@ endif()
 #add_compile_options(-Wall -Wextra)# -Wpedantic-errors)
 
 set(NNTILE_USE_CUDA OFF)
+set(NNTILE_LINK_CUDA OFF)
 # Emulate CUDA in case of SimGrid mode
 if(HAVE_STARPU_SIMGRID)
     if(USE_CUDA)
         set(NNTILE_USE_CUDA ON)
-        set(NNTILE_LINK_CUDA OFF)
     endif()
 # Check if CUDA is available only in normal mode (no SimGrid)
 elseif(USE_CUDA)
@@ -92,9 +95,14 @@ elseif(USE_CUDA)
     check_language(CUDA)
     if(CMAKE_CUDA_COMPILER)
         enable_language(CUDA)
-        # Get cublas
-        find_package(CUDAToolkit 10.1)
-	target_link_libraries(nntile PUBLIC CUDA::cublas)
+        find_package(CUDAToolkit 10.1 REQUIRED)
+        add_subdirectory("external/cudnn_frontend")
+        # Show paths to cudnn source and include corresponding CMake file
+        message(STATUS "cuDNN frontend SOURCE: ${cudnn_frontend_SOURCE_DIR}")
+        message(STATUS "cuDNN frontend BINARY: ${cudnn_frontend_BINARY_DIR}")
+        include(${cudnn_frontend_SOURCE_DIR}/cmake/cuDNN.cmake)
+        target_link_libraries(nntile PUBLIC CUDA::cublas CUDNN::cudnn_all)
+        target_include_directories(nntile PRIVATE ${cudnn_frontend_SOURCE_DIR}/include)
         set(NNTILE_USE_CUDA ON)
         set(NNTILE_LINK_CUDA ON)
     endif()
@@ -195,9 +203,6 @@ add_subdirectory("src")
 
 # Add sirectory with headers
 add_subdirectory("include")
-
-# Add external sources/headers
-add_subdirectory("external")
 
 # Add subdirectory with tests
 if(BUILD_TESTS AND NOT HAVE_STARPU_SIMGRID)

@@ -26,6 +26,7 @@
 
 // Other NNTile headers
 
+
 namespace nntile::starpu
 {
 
@@ -104,23 +105,20 @@ void data_handle_unregister_all()
     data_handles.clear();
 }
 
-//! Deleter for the shared pointer uses async unregistration
-void Handle::_deleter(starpu_data_handle_t handle)
-{
-    // Check if the data handle is still registered
-    if(data_handle_pop(handle) != nullptr)
-    {
-        // Unregister the data handle in an async manner
-        starpu_data_unregister_submit(handle);
-    }
-}
-
 //! Set name of the handle
 void Handle::set_name(const char *name)
 {
     starpu_data_set_name(get(), name);
 }
 
+// Unregister the data handle in an async manner if it is not nullptr
+void Handle::_deleter_async(starpu_data_handle_t handle)
+{
+    if(handle != nullptr)
+    {
+        starpu_data_unregister_submit(handle);
+    }
+}
 
 //! Acquire the data in a blocking manner
 HandleLocalData Handle::acquire(starpu_data_access_mode mode) const
@@ -134,8 +132,8 @@ void Handle::unregister()
     // Only unregister if the data handle is still registered
     if(data_handle_pop(get()) != nullptr)
     {
-        // Unregister the data handle in an async manner
-        starpu_data_unregister_submit(get());
+        // Unregister the data handle
+        starpu_data_unregister(get());
         // Reset the shared pointer
         reset();
     }
@@ -147,8 +145,8 @@ void Handle::unregister_no_coherency()
     // Only unregister if the data handle is still registered
     if(data_handle_pop(get()) != nullptr)
     {
-        // Unregister the data handle in an async manner
-        starpu_data_unregister_submit(get());
+        // Unregister the data handle without coherency
+        starpu_data_unregister_no_coherency(get());
         // Reset the shared pointer
         reset();
     }

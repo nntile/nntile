@@ -20,7 +20,13 @@
 #include <sstream>
 #include <stdexcept>
 
+// Compile-time NNTile definitions
+#include "nntile/defs.h"
+
 // Third-party headers
+#ifdef NNTILE_USE_CUDA
+#include <cudnn_frontend.h>
+#endif // NNTILE_USE_CUDA
 
 // Other NNTile headers
 #include "nntile/logger.hh"
@@ -29,26 +35,47 @@
 namespace nntile
 {
 
-//! Constructor of the context
+#ifdef NNTILE_USE_CUDA
+//! Global varaible for cuDNN handles
+static cudnnHandle_t cudnn_handles[STARPU_NMAXWORKERS];
+
+//! Specific function to initialize cuDNN per CUDA worker
+static void cudnn_init(void *args [[maybe_unused]])
+{
+    // Get current worker ID and initialize cuDNN handle
+    int worker_id = starpu_worker_get_id();
+    cudnnCreate(&cudnn_handles[worker_id]);
+    // Get CUDA stream for the current worker and set it to the cuDNN handle
+    auto stream = starpu_cuda_get_local_stream();
+    cudnnSetStream(cudnn_handles[worker_id], stream);
+}
+
+//! Specific function to shut down cuDNN per CUDA worker
+static void cudnn_shutdown(void *args [[maybe_unused]])
+{
+    // Get current worker ID and initialize cuDNN handle
+    int worker_id = starpu_worker_get_id();
+    cudnnDestroy(cudnn_handles[worker_id]);
+}
+#endif // NNTILE_USE_CUDA
+
+// Constructor of the singleton context
 Context::Context(
-        int ncpus,
-        int ncuda,
-        int cublas,
-        int ooc,
-        const char *ooc_path,
-        size_t ooc_size,
-        int logger,
-        const char *logger_server_addr,
-        int logger_server_port,
-        int verbose):
+    int ncpu,
+    int ncuda,
+    int ooc,
+    const char *ooc_path,
+    size_t ooc_size,
+    int logger,
+    const char *logger_addr,
+    int logger_port,
+    int verbose
+):
     initialized(0),
-    cublas(cublas),
-    ooc(ooc),
-    logger(logger),
+    ooc_disk_node_id(-1),
     verbose(verbose)
 {
     // Throw an error if StarPU is already initialized
-    // We only support a single active context for now
     if(starpu_is_initialized())
     {
         throw std::runtime_error("StarPU is already initialized");
@@ -85,11 +112,11 @@ Context::Context(
     }
     if(verbose > 0)
     {
-        std::cout << "Initialized StarPU configuration\n";
+        std::cout << "Initialized StarPU configuration object\n";
     }
 
     // Unset env variable for number of CPU workers if specified
-    if(ncpus != -1)
+    if(ncpu != -1)
     {
         if(getenv("STARPU_NCPU") != nullptr)
         {
@@ -100,13 +127,14 @@ Context::Context(
                     "of CPU workers in the NNTile configuration\n";
             }
         }
-        starpu_config.ncpus = ncpus;
+        starpu_config.ncpus = ncpu;
         if(verbose > 0)
         {
-            std::cout << "Set STARPU_NCPU to " << ncpus << "\n";
+            std::cout << "Set STARPU_NCPU to " << ncpu << "\n";
         }
     }
 
+#ifdef NNTILE_USE_CUDA
     // Unset env variable for number of CUDA workers if specified
     if(ncuda != -1)
     {
@@ -125,6 +153,7 @@ Context::Context(
             std::cout << "Set STARPU_NCUDA to " << ncuda << "\n";
         }
     }
+#endif // NNTILE_USE_CUDA
 
     // Set history-based scheduler to utilize performance models in case
     // it was not specified by the user
@@ -146,21 +175,26 @@ Context::Context(
     }
     if(verbose > 0)
     {
-        int ncpus_ = starpu_worker_get_count_by_type(STARPU_CPU_WORKER);
-        int ncuda_ = starpu_worker_get_count_by_type(STARPU_CUDA_WORKER);
-        std::cout << "Initialized StarPU with NCPU=" << ncpus_ <<
-            " NCUDA=" << ncuda_ << "\n";
+        // Read number of CPU and CUDA workers from StarPU
+        ncpu = starpu_worker_get_count_by_type(STARPU_CPU_WORKER);
+        ncuda = starpu_worker_get_count_by_type(STARPU_CUDA_WORKER);
+        std::cout << "Initialized StarPU with NCPU=" << ncpu <<
+            " NCUDA=" << ncuda << "\n";
     }
 
-    // Initialize cuBLAS if enabled
 #ifdef NNTILE_USE_CUDA
-    if(cublas != 0)
+    // Initialize cuBLAS
+    starpu_cublas_init();
+    if(verbose > 0)
     {
-        starpu_cublas_init();
-        if(verbose > 0)
-        {
-            std::cout << "Initialized cuBLAS\n";
-        }
+        std::cout << "Initialized cuBLAS on all CUDA workers\n";
+    }
+
+    // Initialize cuDNN
+    starpu_execute_on_each_worker(cudnn_init, nullptr, STARPU_CUDA);
+    if(verbose > 0)
+    {
+        std::cout << "Initialized cuDNN on all CUDA workers\n";
     }
 #endif // NNTILE_USE_CUDA
 
@@ -174,14 +208,14 @@ Context::Context(
         );
         if(verbose > 0)
         {
-            std::cout << "Initialized Out-of-Core\n";
+            std::cout << "Initialized Out-of-Core disk\n";
         }
     }
 
     // Initialize logger if enabled
     if(logger != 0)
     {
-        logger::logger_init(logger_server_addr, logger_server_port);
+        logger::logger_init(logger_addr, logger_port);
         if(verbose > 0)
         {
             std::cout << "Initialized logger\n";
@@ -189,6 +223,7 @@ Context::Context(
     }
 
     // Finally, tell the user that the context is initialized
+    initialized = 1;
     if(verbose > 0)
     {
         std::cout << "NNTile context is initialized\n";
@@ -212,7 +247,7 @@ void Context::shutdown()
         throw std::runtime_error("StarPU must be still initialized");
     }
 
-    // Shutdown logger if enabled
+    // Shutdown logger if it is running
     if(logger::logger_running)
     {
         logger::logger_shutdown();
@@ -225,15 +260,19 @@ void Context::shutdown()
     // Unregister all remaining data handles
     starpu::data_handle_unregister_all();
 
-    // Shutdown cuBLAS if enabled
 #ifdef NNTILE_USE_CUDA
-    if(cublas)
+    // Shutdown cuBLAS if enabled
+    starpu_cublas_shutdown();
+    if(verbose > 0)
     {
-        starpu_cublas_shutdown();
-        if(verbose > 0)
-        {
-            std::cout << "Shutdown cuBLAS\n";
-        }
+        std::cout << "Shutdown cuBLAS on all CUDA workers\n";
+    }
+
+    // Shutdown cuDNN if enabled
+    starpu_execute_on_each_worker(cudnn_shutdown, nullptr, STARPU_CUDA);
+    if(verbose > 0)
+    {
+        std::cout << "Shutdown cuDNN on all CUDA workers\n";
     }
 #endif // NNTILE_USE_CUDA
 
@@ -245,6 +284,7 @@ void Context::shutdown()
     };
 
     // Tell the user that the shutdown is finished
+    initialized = 0;
     if(verbose > 0)
     {
         std::cout << "Finished shutdown of NNTile\n";

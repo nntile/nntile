@@ -7,7 +7,7 @@
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
  * @file include/nntile/starpu/codelet.hh
- * StarPU codelet base class
+ * StarPU codelet wrapper and codelet pack
  *
  * @version 1.1.0
  * */
@@ -20,8 +20,8 @@
 // Third-party headers
 #include <starpu.h>
 
-// Other NNTile headers
-
+// NNTile headers
+#include "nntile/base_types.hh"
 
 namespace nntile::starpu
 {
@@ -37,27 +37,28 @@ public:
     Codelet() = delete;
 
     //! Constructor
+    /*! @param[in] name: Name of the codelet, that will be seen in StarPU
+     *      graphs and performance modeling files
+     *  @param[in] footprint: Footprint function for the codelet
+     *  @param[in] cpu_funcs: CPU implementations of the codelet
+     *  @param[in] cuda_funcs: CUDA implementations of the codelet
+     * */
     Codelet(
-        const char *name_,
-        uint32_t (*footprint_)(starpu_task *),
-        std::initializer_list<starpu_cpu_func_t> cpu_funcs_,
-        std::initializer_list<starpu_cuda_func_t> cuda_funcs_
+        const char *name,
+        uint32_t (*footprint)(starpu_task *),
+        std::initializer_list<starpu_cpu_func_t> cpu_funcs,
+        std::initializer_list<starpu_cuda_func_t> cuda_funcs
     );
 
     //! Restrict where the codelet should be executed
-    void restrict_where(uint32_t where_);
+    /*! @param[in] where: Where the codelet should be executed, possible values
+     *      are STARPU_CPU, STARPU_CUDA, STARPU_NOWHERE and their combinations
+     *      of form STARPU_CPU | STARPU_CUDA
+     * */
+    void restrict_where(uint32_t where);
 
     //! Restore where the codelet should be executed
     void restore_where();
 };
-
-// //! Initialize all codelets
-// void init_all_codelets();
-
-// //! Restrict all codelets to a given computational unit
-// void restrict_all_codelets(uint32_t where);
-
-// //! Restore all codelets
-// void restore_all_codelets();
 
 } // namespace nntile

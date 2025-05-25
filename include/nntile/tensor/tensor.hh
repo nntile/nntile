@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <nntile/tensor/traits.hh>
 #include <nntile/tile/tile.hh>
+#include <nntile/starpu/codelet.hh>
 //#include <starpu_mpi.h>
 #include <starpu.h>
 #include <nntile/starpu/accumulate.hh>
@@ -43,12 +44,14 @@ public:
     std::vector<starpu::VariableHandle> tile_handles;
     //! Distribution of tiles
     std::vector<int> tile_distr;
+    //! Flag to really use wont_use
+    int wont_use_flag;
 
     //! Constructor
     explicit Tensor(
             const TensorTraits &traits,
-            const std::vector<int> &distribution = std::vector<int>(),
-            const char *name = nullptr
+            const std::vector<int> &distribution=std::vector<int>(),
+            const char *name=nullptr
         ):
         TensorTraits(traits),
         tile_distr(distribution),
@@ -96,7 +99,7 @@ public:
             }
             // Disable Out-of-Core by default
             starpu_data_set_ooc_flag(
-                static_cast<starpu_data_handle_t>(tile_handles[i]),
+                tile_handles[i].get(),
                 0
             );
         }
@@ -173,7 +176,7 @@ public:
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            auto tmp = get_tile_handle(i).get();
+            auto tmp = tile_handles[i].get();
             starpu_data_invalidate_submit(tmp);
         }
     }
@@ -183,7 +186,7 @@ public:
         // Form a list of tiles to be evicted from GPU with help of starpu_data_wont_use
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            auto tmp = tile_handles[i].get();
             // Do wont_use only if we enforce offloading to RAM or Disk
             if(wont_use_flag == 1 or starpu_data_get_ooc_flag(tmp) == 1)
             {
@@ -218,7 +221,7 @@ public:
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            auto tmp = get_tile_handle(i).get();
+            auto tmp = tile_handles[i].get();
             //starpu_mpi_cache_flush(MPI_COMM_WORLD, tmp);
         }
     }
@@ -227,7 +230,7 @@ public:
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            auto tmp = get_tile_handle(i).get();
+            auto tmp = tile_handles[i].get();
             starpu_data_set_reduction_methods(tmp,
                     nntile::starpu::accumulate::codelet<T>(),
                     &nntile::starpu::clear::codelet);
@@ -238,7 +241,7 @@ public:
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            auto tmp = get_tile_handle(i).get();
+            auto tmp = tile_handles[i].get();
             starpu_data_set_reduction_methods(tmp,
                     nntile::starpu::accumulate_hypot::codelet<T>(),
                     &nntile::starpu::clear::codelet);
@@ -249,7 +252,7 @@ public:
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            auto tmp = get_tile_handle(i).get();
+            auto tmp = tile_handles[i].get();
             starpu_data_set_reduction_methods(tmp,
                     nntile::starpu::accumulate_maxsumexp::codelet<T>(),
                     &nntile::starpu::clear::codelet);
@@ -262,7 +265,7 @@ public:
         {
             throw std::runtime_error("Only scalar tensors can be printed");
         }
-        auto handle = get_tile_handle(0).get();
+        auto handle = tile_handles[0].get();
         void **args = reinterpret_cast<void **>(std::malloc(sizeof(*args)));
         *args = reinterpret_cast<void *>(handle);
         int ret = starpu_data_acquire_cb(handle, STARPU_R,
@@ -293,7 +296,7 @@ public:
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            auto tmp = tile_handles[i].get();
             // Set write-through mask to enable offloading after each update
             starpu_data_set_wt_mask(tmp, 1 << STARPU_MAIN_RAM);
         }
@@ -304,7 +307,7 @@ public:
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            auto tmp = tile_handles[i].get();
             // Set write-through mask to disable offloading after each update
             starpu_data_set_wt_mask(tmp, 0);
         }
@@ -315,7 +318,7 @@ public:
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            auto tmp = tile_handles[i].get();
             starpu_data_set_ooc_flag(tmp, 1);
         }
     }
@@ -324,7 +327,7 @@ public:
     {
         for(Index i = 0; i < grid.nelems; ++i)
         {
-            auto tmp = static_cast<starpu_data_handle_t>(get_tile_handle(i));
+            auto tmp = tile_handles[i].get();
             starpu_data_set_ooc_flag(tmp, 0);
         }
     }
