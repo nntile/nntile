@@ -265,21 +265,21 @@ class T5Attention(BaseLayer):
         clear_async(self.k.value)
         clear_async(self.v.value)
 
-    def unregister(self):        
+    def unregister(self):
         if self.mask is not None:
             self.mask.unregister()
             self.mask = None
-        
+
         if self.temp_grad_relative_bias_embedding is not None:
             self.temp_grad_relative_bias_embedding.unregister()
             self.temp_grad_relative_bias_embedding = None
-    
+
         if self.relative_position_bucket_nnt is not None:
             self.relative_position_bucket_nnt.unregister()
             self.relative_position_bucket_nnt = None
-            
+
         super().unregister()
-    
+
     # Simple generator for the linear layer
     @staticmethod
     def generate_simple(
@@ -980,16 +980,16 @@ class T5Attention(BaseLayer):
 
     def _add_positional_bias_backward(self):
         copy_async(self.a.grad, self.relative_bias.grad)
-        
+
         if self.temp_grad_relative_bias_embedding is None:
             self.temp_grad_relative_bias_embedding = nntc.empty(
                 self.relative_bias_embedding.grad.shape,
                 dtype=type(self.relative_bias_embedding.grad),
                 basetile_shape=self.relative_bias_embedding.grad.basetile_shape
             )
-        
+
         clear_async(self.temp_grad_relative_bias_embedding)
-        
+
         # Run embedding_backward_async on the temporary tensor
         embedding_backward_async(
             self.relative_position_bucket_nnt,
@@ -997,7 +997,7 @@ class T5Attention(BaseLayer):
             self.temp_grad_relative_bias_embedding,
             axis=3,
         )
-        
+
         # Add the temporary gradient to the original grad tensor
         add_async(1.0, self.temp_grad_relative_bias_embedding, 1.0, self.relative_bias_embedding.grad, self.relative_bias_embedding.grad)
 
