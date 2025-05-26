@@ -110,20 +110,43 @@ Codelet::Codelet(
 }
 
 //! Restrict where the codelet should be executed
-void Codelet::restrict_where(uint32_t where)
+Codelet &Codelet::restrict_where(uint32_t where)
 {
     // Restrict only if the provided where is supported
     if((where_default & where) == where)
     {
         starpu_codelet::where = where;
     }
+
+    // Return the codelet
+    return *this;
 }
 
 //! Restore where the codelet should be executed
-void Codelet::restore_where()
+Codelet &Codelet::restore_where()
 {
     // Restore the default where
     starpu_codelet::where = where_default;
+
+    // Return the codelet
+    return *this;
+}
+
+//! Set modes for the codelet manually
+Codelet &Codelet::set_modes(std::initializer_list<starpu_data_access_mode> modes)
+{
+    // Set number of buffers
+    nbuffers = modes.size();
+
+    // Set modes
+    auto it = modes.begin();
+    for(int i = 0; i < nbuffers; ++i, ++it)
+    {
+        this->modes[i] = *it;
+    }
+
+    // Return the codelet
+    return *this;
 }
 
 } // namespace nntile

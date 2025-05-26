@@ -12,11 +12,14 @@
  * @version 1.1.0
  * */
 
-#ifndef STARPU_SIMGRID
-#include "nntile/kernel/add_inplace.hh"
-#endif // STARPU_SIMGRID
+// Corresponding header
 #include "nntile/starpu/accumulate.hh"
+
+// Standard libraries
 #include <cstdlib>
+
+// Other NNTile headers
+#include "nntile/kernel/add_inplace.hh"
 
 //! StarPU wrappers for accumulate operation
 namespace nntile::starpu::accumulate
@@ -24,7 +27,7 @@ namespace nntile::starpu::accumulate
 
 //! Apply accumulate operation for StarPU buffers in CPU
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
+void KernelWrapper<T>::cpu(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -41,7 +44,7 @@ void cpu(void *buffers[], void *cl_args)
 #ifdef NNTILE_USE_CUDA
 //! Apply accumulate for StarPU buffers on CUDA
 template<typename T>
-void cuda(void *buffers[], void *cl_args)
+void KernelWrapper<T>::cuda(void *buffers[], void *cl_args)
     noexcept
 {
 #ifndef STARPU_SIMGRID // Run the code only if this is not a simulation
@@ -58,116 +61,34 @@ void cuda(void *buffers[], void *cl_args)
 }
 #endif // NNTILE_USE_CUDA
 
-Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32,
-        codelet_bf16, codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
+//! Define codelet pack
+codelet_pack_t codelet_pack = codelet_pack_t(
+    "nntile_accumulate",
+    nullptr
+).set_modes({
+    static_cast<starpu_data_access_mode>(STARPU_RW | STARPU_COMMUTE),
+    STARPU_R
+});
 
-void init()
-{
-    codelet_fp32.init("nntile_accumulate_fp32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp32.nbuffers = 2;
-    codelet_fp32.modes[0] = static_cast<starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
-    codelet_fp32.modes[1] = STARPU_R;
+// void restrict_where(uint32_t where)
+// {
+//     codelet_fp64.restrict_where(where);
+//     codelet_fp32.restrict_where(where);
+//     codelet_fp32_fast_tf32.restrict_where(where);
+//     codelet_fp32_fast_fp16.restrict_where(where);
+//     codelet_fp32_fast_bf16.restrict_where(where);
+//     codelet_bf16.restrict_where(where);
+// }
 
-    codelet_bf16.init("nntile_accumulate_bf16",
-            nullptr,
-            {cpu<bf16_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<bf16_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_bf16.nbuffers = 2;
-    codelet_bf16.modes[0] = static_cast<starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
-    codelet_bf16.modes[1] = STARPU_R;
-
-    codelet_fp32_fast_tf32.init("nntile_accumulate_fp32_fast_tf32",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp32_fast_tf32.nbuffers = 2;
-    codelet_fp32_fast_tf32.modes[0] = static_cast<starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
-    codelet_fp32_fast_tf32.modes[1] = STARPU_R;
-
-    codelet_fp32_fast_fp16.init("nntile_accumulate_fp32_fast_fp16",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp32_fast_fp16.nbuffers = 2;
-    codelet_fp32_fast_fp16.modes[0] = static_cast<starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
-    codelet_fp32_fast_fp16.modes[1] = STARPU_R;
-
-    codelet_fp32_fast_bf16.init("nntile_accumulate_fp32_fast_bf16",
-            nullptr,
-            {cpu<fp32_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp32_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp32_fast_bf16.nbuffers = 2;
-    codelet_fp32_fast_bf16.modes[0] = static_cast<starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
-    codelet_fp32_fast_bf16.modes[1] = STARPU_R;
-
-
-    codelet_fp64.init("nntile_accumulate_fp64",
-            nullptr,
-            {cpu<fp64_t>},
-#ifdef NNTILE_USE_CUDA
-            {cuda<fp64_t>}
-#else // NNTILE_USE_CUDA
-            {}
-#endif // NNTILE_USE_CUDA
-            );
-    codelet_fp64.nbuffers = 2;
-    codelet_fp64.modes[0] = static_cast<starpu_data_access_mode>(
-            STARPU_RW | STARPU_COMMUTE);
-    codelet_fp64.modes[1] = STARPU_R;
-}
-
-void restrict_where(uint32_t where)
-{
-    codelet_fp32.restrict_where(where);
-    codelet_fp32_fast_tf32.restrict_where(where);
-    codelet_fp32_fast_fp16.restrict_where(where);
-    codelet_fp32_fast_bf16.restrict_where(where);
-    codelet_fp64.restrict_where(where);
-    codelet_bf16.restrict_where(where);
-}
-
-void restore_where()
-{
-    codelet_fp32.restore_where();
-    codelet_fp32_fast_tf32.restore_where();
-    codelet_fp32_fast_fp16.restore_where();
-    codelet_fp32_fast_bf16.restore_where();
-    codelet_fp64.restore_where();
-    codelet_bf16.restore_where();
-}
+// void restore_where()
+// {
+//     codelet_fp64.restore_where();
+//     codelet_fp32.restore_where();
+//     codelet_fp32_fast_tf32.restore_where();
+//     codelet_fp32_fast_bf16.restore_where();
+//     codelet_fp32_fast_fp16.restore_where();
+//     codelet_bf16.restore_where();
+// }
 
 template<typename T>
 void submit(Handle src, Handle dst)
@@ -179,7 +100,7 @@ void submit(Handle src, Handle dst)
 {
     //double nflops;
     // Submit task
-    int ret = starpu_task_insert(codelet<T>(),
+    int ret = starpu_task_insert(codelet_pack.get_codelet<T>(),
             STARPU_RW | STARPU_COMMUTE, dst.get(),
             STARPU_R, src.get(),
             // STARPU_FLOPS, nflops,
@@ -193,6 +114,9 @@ void submit(Handle src, Handle dst)
 
 // Explicit instantiation
 template
+void submit<fp64_t>(Handle src, Handle dst);
+
+template
 void submit<fp32_t>(Handle src, Handle dst);
 
 template
@@ -203,9 +127,6 @@ void submit<fp32_fast_fp16_t>(Handle src, Handle dst);
 
 template
 void submit<fp32_fast_bf16_t>(Handle src, Handle dst);
-
-template
-void submit<fp64_t>(Handle src, Handle dst);
 
 template
 void submit<bf16_t>(Handle src, Handle dst);
