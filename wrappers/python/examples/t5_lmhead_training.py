@@ -22,11 +22,11 @@ import torch
 from torch.optim import SGD, Adam, AdamW
 from transformers import T5Config as T5ConfigTorch
 from transformers.models.t5.modeling_t5 import (
-    T5ForSequenceClassification as T5ForSequenceClassification_torch)
+    T5ForConditionalGeneration as T5ForConditionalGeneration_torch)
 
 import nntile
 from nntile.model.t5_config import T5ConfigNNTile
-from nntile.model.t5_model import T5ForSequenceClassification
+from nntile.model.t5_model import T5ForConditionalGeneration
 from nntile.tensor import TensorMoments
 
 # Create argument parser
@@ -58,7 +58,6 @@ parser.add_argument("--minibatch-size-tile", type=int, default=-1)
 parser.add_argument("--d-model-tile", type=int, default=-1)
 parser.add_argument("--d-ff-tile", type=int, default=-1)
 parser.add_argument("--num-heads-tile", type=int, default=-1)
-parser.add_argument("--num-labels", type=int, default=2)
 
 parser.add_argument(
     "--dtype",
@@ -100,7 +99,7 @@ assert args.nepochs > 0
 
 # Load named pretrained PyTorch model
 if args.pretrained == "remote":
-    model_torch = T5ForSequenceClassification_torch.from_pretrained(
+    model_torch = T5ForConditionalGeneration_torch.from_pretrained(
         args.remote_model_name, cache_dir=args.model_path, local_files_only=False
     )
 elif args.pretrained == "local":
@@ -109,8 +108,7 @@ elif args.pretrained == "local":
         conf_dict = json.load(f)
         f.close()
         config = T5ConfigTorch(**conf_dict)
-        model_torch = T5ForSequenceClassification_torch(config)
-        tokenizer = None
+        model_torch = T5ForConditionalGeneration_torch(config)
         if args.optimizer == "adam":
             optimizer = Adam(model_torch.parameters(), args.lr)
         elif args.optimizer == "sgd":
@@ -159,16 +157,12 @@ t5_config_nntile = T5ConfigNNTile(
     d_ff=model_torch.config.d_ff,
     d_ff_tile=args.d_ff_tile,
     d_kv=model_torch.config.d_kv,
-    d_kv_tile=model_torch.config.d_kv,  # d_kv_tile=args.d_kv_tile,
+    d_kv_tile=model_torch.config.d_kv,
     num_layers=model_torch.config.num_layers,
-    # num_decoder_layers=model_torch.config.num_decoder_layers,
     n_head=model_torch.config.num_heads,
     n_head_tile=args.num_heads_tile,
-    # relative_attention_num_buckets=model_torch.config.relative_attention_num_buckets,
     dropout_rate=0.0,  # model_torch.config.dropout_rate,
     layer_norm_epsilon=model_torch.config.layer_norm_epsilon,
-    # initializer_factor=model_torch.config.initializer_factor,
-    # feed_forward_proj=model_torch.config.feed_forward_proj,
     dtype=args.dtype,
     redux=args.use_redux,
 )
@@ -188,14 +182,8 @@ x_np = np.ones((args.seq_len, args.minibatch_size), dtype=np.int64, order="F")
 x.from_array(x_np)
 x_tm = TensorMoments(x, None, False)
 
-# x_decoder = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-# x_decoder_grad = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
-# next_tag = x_decoder.next_tag
-
-# x_tm_decoder = TensorMoments(x_decoder, None, False)
-
 # Convert PyTorch model to NNTile
-t5_model, next_tag = T5ForSequenceClassification.from_torch(
+t5_model, next_tag = T5ForConditionalGeneration.from_torch(
     model_torch, x_tm, x_tm, t5_config_nntile, next_tag
 )
 time1 = time.time() - time0
@@ -205,8 +193,7 @@ del model_torch
 # Load training dataset - assuming dataset format with input_ids and labels
 # Note: This is a simplified dataset loading assuming preprocessed data
 # In a real application, you would use a proper dataset loader
-splitted_datasetfile = args.dataset_file.split("/")
-if splitted_datasetfile[-1] == "train.bin":
+if args.dataset_file and args.dataset_file.endswith("train.bin"):
     train_data = np.memmap(Path(args.dataset_path) / args.dataset_file,
                           dtype=np.uint16, mode='r')
     train_tokens_raw = np.array(train_data, order='F', dtype=np.int64)
@@ -231,9 +218,8 @@ else:
     # For demonstration purposes, create dummy data
     print("Using dummy training data")
     num_train_samples = 1000
-    vocab_size = 32100
     data_ids = np.random.default_rng().integers(
-        0, 32100, size=(num_train_samples, args.seq_len + 1), dtype=np.int64
+        0, t5_model.config.encoder_config.vocab_size, size=(num_train_samples, args.seq_len + 1), dtype=np.int64
     )
     train_input_ids = data_ids[:, :-1]
     train_labels = data_ids[:, 1:]
@@ -250,11 +236,6 @@ x_traits = nntile.tensor.TensorTraits(
 )
 x_distr = [0] * x_traits.grid.nelems
 
-y_traits = nntile.tensor.TensorTraits(
-    [1, args.minibatch_size], [1, args.minibatch_size_tile]
-)
-y_distr = [0] * y_traits.grid.nelems
-
 for i in range(num_train_batches):
     minibatch_input = []
     minibatch_output = []
@@ -267,14 +248,12 @@ for i in range(num_train_batches):
         x = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
         next_tag = x.next_tag
         x.from_array(np.asfortranarray(train_input_ids[start_idx:end_idx, :].T))
-        # print("add minibatch x: ", x.shape)
         minibatch_input.append(x)
 
         # Create output tensor (labels)
         y = nntile.tensor.Tensor_int64(x_traits, x_distr, next_tag)
         next_tag = y.next_tag
         y.from_array(np.asfortranarray(train_labels[start_idx:end_idx, :].T))
-        # print("add minibatch y: ", y.shape)
         minibatch_output.append(y)
 
     batch_input.append(minibatch_input)
