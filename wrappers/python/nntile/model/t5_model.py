@@ -16,11 +16,12 @@ import copy
 
 from transformers.models.t5.modeling_t5 import (
     T5Config as T5ConfigTorch,
-    T5ForSequenceClassification as T5ForSequenceClassificationTorch,
     T5ForConditionalGeneration as T5ForConditionalGenerationTorch,
+    T5ForSequenceClassification as T5ForSequenceClassificationTorch,
     T5Model as T5ModelTorch)
 
 import nntile
+from nntile.layer.linear import Linear
 from nntile.model.base_model import BaseModel
 from nntile.model.t5_block import T5Stack
 from nntile.model.t5_config import T5ConfigNNTile, T5EncoderDecoderConfig
@@ -28,7 +29,6 @@ from nntile.model.t5_lmhead import T5ClassificationHead
 from nntile.tensor import (
     Tensor_bf16, Tensor_fp32, Tensor_fp32_fast_bf16, Tensor_fp32_fast_fp16,
     Tensor_fp32_fast_tf32, TensorMoments)
-from nntile.layer.linear import Linear
 
 
 class T5Model(BaseModel):
