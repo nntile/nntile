@@ -15,17 +15,17 @@
 // Related header
 #include "nntile/context.hh"
 
+// Compile-time NNTile definitions
+#include "nntile/defs.h"
+
 // Standard library headers
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
 
-// Compile-time NNTile definitions
-#include "nntile/defs.h"
-
 // Third-party headers
 #ifdef NNTILE_USE_CUDA
-#include <cudnn_frontend.h>
+#   include <cudnn_frontend.h>
 #endif // NNTILE_USE_CUDA
 
 // Other NNTile headers
@@ -36,7 +36,7 @@ namespace nntile
 {
 
 #ifdef NNTILE_USE_CUDA
-//! Global varaible for cuDNN handles
+//! Global variable for cuDNN handles
 static cudnnHandle_t cudnn_handles[STARPU_NMAXWORKERS];
 
 //! Specific function to initialize cuDNN per CUDA worker
@@ -81,16 +81,8 @@ Context::Context(
         throw std::runtime_error("StarPU is already initialized");
     }
 
-    // Init all codelets
-    // nntile::starpu::init();
-    if(verbose > 0)
-    {
-        std::cout << "Initialized codelets\n";
-    }
-
-    // Override env variable STARPU_WORKERS_NOBIND
-    // to disable binding of workers to cores
-    // to avoid performance degradation on shared systems
+    // Override env variable STARPU_WORKERS_NOBIND to disable binding of
+    // workers to cores to avoid performance degradation on shared systems
     setenv("STARPU_WORKERS_NOBIND", "1", 1);
     if(verbose > 0)
     {

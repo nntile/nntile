@@ -14,14 +14,17 @@
 
 #pragma once
 
+// Compile-time definitions
+#include <nntile/defs.h>
+
+// Standard library headers
 #include <cstdint>
 #include <assert.h>
 #include <iostream>
 #include <limits>
 #include <string>
 
-// TODO: add conversions aside from CUDA
-#include <nntile/defs.h>
+// Third-party headers
 #ifdef NNTILE_USE_CUDA
 #   include <cuda_bf16.h>
 #endif // NNTILE_USE_CUDA
@@ -64,7 +67,7 @@ public:
     storage_t value;
 
     //! Default conversion function from storage_t to repr_t does nothing
-    /*! If a conversion is required, this function shall be overridden with a
+    /*! If a conversion is required, this function shall be overloaded with a
      * corresponding conversion function.
      */
     static NNTILE_HOST_DEVICE repr_t to_repr(const storage_t &value)
@@ -73,7 +76,7 @@ public:
     }
 
     //! Default conversion function from repr_t to storage_t does nothing
-    /*! If a conversion is required, this function shall be overridden with a
+    /*! If a conversion is required, this function shall be overloaded with a
      * corresponding conversion function.
      */
     static NNTILE_HOST_DEVICE storage_t to_storage(const repr_t &value)
@@ -81,28 +84,29 @@ public:
         return value;
     }
 
-    //! Constructor
+    //! Default constructor with no arguments
     NNTILE_HOST_DEVICE BaseType() = default;
 
-    //! Constructor from another value of this type
+    //! Default copy constructor
     NNTILE_HOST_DEVICE explicit BaseType(const BaseType &other) = default;
 
-    //! Constructor from a repr_t value
+    //! Constructor from a compatible standard type value
     NNTILE_HOST_DEVICE explicit BaseType(const repr_t &other):
         value(to_storage(other))
     {
     }
-    //! Assignment from another value of this type
+
+    //! Default assignment from another value of this type
     NNTILE_HOST_DEVICE BaseType &operator=(const BaseType &other) = default;
 
-    //! Assignment from a repr_t value
+    //! Assignment from a compatible standard type value
     NNTILE_HOST_DEVICE BaseType &operator=(const repr_t &other)
     {
         value = other;
         return *this;
     }
 
-    //! Conversion to repr_t value
+    //! Conversion to compatible standard type value
     NNTILE_HOST_DEVICE explicit operator repr_t() const
     {
         return to_repr(value);

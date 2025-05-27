@@ -54,7 +54,7 @@ public:
     *      variable is used
     * @param[in] ncuda: number of CUDA workers, -1 means that STARPU_NCUDA env
     *      variable is used
-    * @param[in] ooc: whether OOC is enabled
+    * @param[in] ooc: enable Out-of-Core (OOC) support
     * @param[in] ooc_path: path to the OOC disk
     * @param[in] ooc_size: size of the OOC disk in bytes
     * @param[in] logger: whether logger is enabled
@@ -82,6 +82,9 @@ public:
     }
 
     //! Shut down the context on demand
+    /*! It is safe to call this function multiple times, provided previous
+     * calls did not fail.
+     */
     void shutdown();
 };
 

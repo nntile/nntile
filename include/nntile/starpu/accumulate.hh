@@ -34,7 +34,7 @@ struct KernelWrapper
     static void cpu(void *buffers[], void *cl_args)
         noexcept;
 
-    static constexpr std::initializer_list<starpu_cpu_func_t> cpu_funcs = {
+    static constexpr func_array cpu_funcs = {
         cpu
     };
 
@@ -42,11 +42,11 @@ struct KernelWrapper
     static void cuda(void *buffers[], void *cl_args)
         noexcept;
 
-    static constexpr std::initializer_list<starpu_cuda_func_t> cuda_funcs = {
+    static constexpr func_array cuda_funcs = {
         cuda
     };
 #else // NNTILE_USE_CUDA
-    static constexpr std::initializer_list<starpu_cuda_func_t> cuda_funcs = {};
+    static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
 };
 

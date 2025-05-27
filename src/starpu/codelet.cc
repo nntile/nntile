@@ -36,8 +36,8 @@ namespace nntile::starpu
 Codelet::Codelet(
     const char *name,
     uint32_t (*footprint)(starpu_task *),
-    std::initializer_list<starpu_cpu_func_t> cpu_funcs,
-    std::initializer_list<starpu_cuda_func_t> cuda_funcs
+    func_array cpu_funcs,
+    func_array cuda_funcs
 )
 {
     // Link performance model to the codelet
@@ -56,57 +56,32 @@ Codelet::Codelet(
     // Set runtime decision on number of buffers and access modes
     starpu_codelet::nbuffers = STARPU_VARIABLE_NBUFFERS;
 
-    // Check if the number of CPU implementations is too large
-    if(cpu_funcs.size() > STARPU_MAXIMPLEMENTATIONS)
-    {
-        throw std::runtime_error("Too many CPU func implementations");
-    }
-
     // Add CPU implementations
-    if(cpu_funcs.size() > 0)
+    for(int i = 0; i < STARPU_MAXIMPLEMENTATIONS; ++i)
     {
-        auto it = cpu_funcs.begin();
-        for(int i = 0; i < cpu_funcs.size(); ++i, ++it)
+        // If the implementation is not nullptr, add it to the codelet
+        if(cpu_funcs[i])
         {
-            if(*it)
-            {
-//#ifdef STARPU_SIMGRID // Put fake function address in case of simulation
-//                    starpu_codelet::cpu_funcs[i] = (starpu_cpu_func_t)0;
-//#else // Put real function address
-                starpu_codelet::cpu_funcs[i] = *it;
-//#endif
-                starpu_codelet::where = where_default = STARPU_CPU;
-            }
+            starpu_codelet::cpu_funcs[i] = cpu_funcs[i];
+            where_default = where_default | STARPU_CPU;
         }
     }
 
 #ifdef NNTILE_USE_CUDA
-    // Check if the number of CUDA implementations is too large
-    if(cuda_funcs.size() > STARPU_MAXIMPLEMENTATIONS)
-    {
-        throw std::runtime_error("Too many CUDA func implementations");
-    }
-
     // Add CUDA implementations
-    if(cuda_funcs.size() > 0)
+    for(int i = 0; i < STARPU_MAXIMPLEMENTATIONS; ++i)
     {
-        auto it = cuda_funcs.begin();
-        for(int i = 0; i < cuda_funcs.size(); ++i, ++it)
+        // If the implementation is not nullptr, add it to the codelet
+        if(cuda_funcs[i])
         {
-            if(*it)
-            {
-//#ifdef STARPU_SIMGRID // Put fake function address in case of simulation
-//                    starpu_codelet::cuda_funcs[i] = (starpu_cuda_func_t)0;
-//#else // Put real function address
-                starpu_codelet::cuda_funcs[i] = *it;
-//#endif
-                starpu_codelet::cuda_flags[i] = STARPU_CUDA_ASYNC;
-                where_default = where_default | STARPU_CUDA;
-                starpu_codelet::where = where_default;
-            }
+            starpu_codelet::cuda_funcs[i] = cuda_funcs[i];
+            where_default = where_default | STARPU_CUDA;
         }
     }
 #endif // NNTILE_USE_CUDA
+
+    // Set default value of where
+    starpu_codelet::where = where_default;
 }
 
 //! Restrict where the codelet should be executed
@@ -133,16 +108,21 @@ Codelet &Codelet::restore_where()
 }
 
 //! Set modes for the codelet manually
-Codelet &Codelet::set_modes(std::initializer_list<starpu_data_access_mode> modes)
+Codelet &Codelet::set_modes(std::vector<starpu_data_access_mode> modes)
 {
+    // Check if the number of modes is too large
+    if(modes.size() > STARPU_NMAXBUFS)
+    {
+        throw std::runtime_error("Too many data access modes");
+    }
+
     // Set number of buffers
-    nbuffers = modes.size();
+    starpu_codelet::nbuffers = modes.size();
 
     // Set modes
-    auto it = modes.begin();
-    for(int i = 0; i < nbuffers; ++i, ++it)
+    for(int i = 0; i < starpu_codelet::nbuffers; ++i)
     {
-        this->modes[i] = *it;
+        starpu_codelet::modes[i] = modes[i];
     }
 
     // Return the codelet

@@ -15,7 +15,8 @@
 #pragma once
 
 // Standard library headers
-#include <initializer_list>
+#include <array>
+#include <vector>
 
 // Third-party headers
 #include <starpu.h>
@@ -26,15 +27,24 @@
 namespace nntile::starpu
 {
 
+//! Type for array of StarPU wrapper functions
+using func_array = std::array<starpu_cpu_func_t, STARPU_MAXIMPLEMENTATIONS>;
+
 //! StarPU codelet+perfmodel wrapper
 class Codelet: public starpu_codelet, public starpu_perfmodel
 {
 public:
     //! Default value for where the codelet should be executed
-    uint32_t where_default;
-
-    //! No default constructor
-    Codelet() = delete;
+    /*! Possibles values are (not limited to):
+     *  - STARPU_CPU: execute the codelet on CPU only
+     *  - STARPU_CUDA: execute the codelet on CUDA only
+     *  - STARPU_NOWHERE: do not execute the codelet at all. It requires
+     *      codelet to have no CPU or CUDA implementations. A task,
+     *      corresponding to such a codelet, is just a synchornization point
+     *      and does not require any data to be transferred.
+     *  - STARPU_CPU | STARPU_CUDA: execute the codelet on CPU and CUDA
+     * */
+    uint32_t where_default = STARPU_NOWHERE;
 
     //! Constructor
     /*! @param[in] name: Name of the codelet, that will be seen in StarPU
@@ -46,8 +56,8 @@ public:
     Codelet(
         const char *name,
         uint32_t (*footprint)(starpu_task *),
-        std::initializer_list<starpu_cpu_func_t> cpu_funcs,
-        std::initializer_list<starpu_cuda_func_t> cuda_funcs
+        func_array cpu_funcs,
+        func_array cuda_funcs
     );
 
     //! Restrict where the codelet should be executed
@@ -63,7 +73,7 @@ public:
     //! Set modes for the codelet manually
     /*! @param[in] modes: Modes for the handle
      * */
-    Codelet &set_modes(std::initializer_list<starpu_data_access_mode> modes);
+    Codelet &set_modes(std::vector<starpu_data_access_mode> modes);
 };
 
 //! Codelet wrapper for a specific type
@@ -84,8 +94,8 @@ public:
     CodeletTyped(
         const char *base_name,
         uint32_t (*footprint)(starpu_task *),
-        std::initializer_list<starpu_cpu_func_t> cpu_funcs,
-        std::initializer_list<starpu_cuda_func_t> cuda_funcs
+        func_array cpu_funcs,
+        func_array cuda_funcs
     ):
         Codelet(
             get_name(base_name).c_str(),
@@ -119,7 +129,7 @@ public:
     }
 
     //! Set modes for the codelet pack
-    CodeletPack &set_modes(std::initializer_list<starpu_data_access_mode> modes)
+    CodeletPack &set_modes(std::vector<starpu_data_access_mode> modes)
     {
         (static_cast<CodeletTyped<Ts> &>(*this).set_modes(modes), ...);
         return *this;
