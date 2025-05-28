@@ -214,7 +214,7 @@ jobs:
           # Optional dependencies.
           python -m pip install -i https://download.pytorch.org/whl/cpu \
             torch torchvision
-          python -m pip install datasets scipy tokenizers transformers
+          python -m pip install datasets scipy tokenizers transformers sentencepiece
           # Testing dependencies.
           python -m pip install mypy 'pytest>=8.2' pytest-cov pytest-dirty
       - name: Run dirty tests with PyTest
