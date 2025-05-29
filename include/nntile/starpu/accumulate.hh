@@ -17,9 +17,6 @@
 // Compile-time definitions
 #include <nntile/defs.h>
 
-// Standard libraries
-#include <stdexcept>
-
 // NNTile headers
 #include <nntile/starpu/codelet.hh>
 #include <nntile/starpu/handle.hh>
@@ -64,7 +61,11 @@ using codelet_pack_t = CodeletPack<
 // Declare codelet pack
 extern codelet_pack_t codelet_pack;
 
+//! Submit accumulate task
 template<typename T>
-void submit(Handle src, Handle dst);
+void submit(
+    Handle src,
+    Handle dst
+);
 
 } // namespace nntile::starpu::accumulate

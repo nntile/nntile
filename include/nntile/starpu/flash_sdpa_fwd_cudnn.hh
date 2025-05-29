@@ -6,8 +6,8 @@
  * NNTile is software framework for fast training of big neural networks on
  * distributed-memory heterogeneous systems based on StarPU runtime system.
  *
- * @file include/nntile/starpu/subtract_indexed_outputs.hh
- * Subtraction of a given value from certain matrix elements for StarPU buffer
+ * @file include/nntile/starpu/flash_sdpa_fwd_cudnn.hh
+ * Cudnn forward pass for SDPA
  *
  * @version 1.1.0
  * */
@@ -21,27 +21,22 @@
 #include <nntile/starpu/codelet.hh>
 #include <nntile/starpu/handle.hh>
 
-namespace nntile::starpu::subtract_indexed_outputs
+namespace nntile::starpu::flash_sdpa_fwd_cudnn
 {
 
+//! Structure for arguments
 struct args_t
 {
-    Index n_labels;
-    Index n_outputs;
-    Scalar value;
-    Index ignore_index;
+    Index seq;
+    Index head;
+    Index batch;
 };
 
 //! Wrapper for all kernel functions
 template<typename T>
 struct KernelWrapper
 {
-    static void cpu(void *buffers[], void *cl_args)
-        noexcept;
-
-    static constexpr func_array cpu_funcs = {
-        cpu
-    };
+    static constexpr func_array cpu_funcs = {};
 
 #ifdef NNTILE_USE_CUDA
     static void cuda(void *buffers[], void *cl_args)
@@ -58,26 +53,25 @@ struct KernelWrapper
 //! Codelet pack type for the current operation
 using codelet_pack_t = CodeletPack<
     KernelWrapper,
-    nntile::fp64_t,
-    nntile::fp32_t,
-    nntile::fp32_fast_tf32_t,
-    nntile::fp32_fast_fp16_t,
-    nntile::fp32_fast_bf16_t,
     nntile::bf16_t
 >;
 
 // Declare codelet pack
 extern codelet_pack_t codelet_pack;
 
-//! Submit subtract_indexed_outputs task
+//! Submit flash_sdpa_fwd_cudnn task
 template<typename T>
 void submit(
-    Index n_labels,
-    Index n_outputs,
-    Index ignore_index,
-    Scalar val,
-    Handle labels,
-    Handle dst
+    Index seq,
+    Index head,
+    Index batch,
+    Handle K,
+    Handle Q,
+    Handle mask,
+    Handle logsumexp,
+    Handle V,
+    Handle A,
+    int redux=0
 );
 
-} // namespace nntile::starpu::subtract_indexed_outputs
+} // namespace nntile::starpu::flash_sdpa_fwd_cudnn

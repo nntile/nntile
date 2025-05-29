@@ -14,82 +14,70 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
-#include <nntile/starpu/config.hh>
+// Compile-time definitions
 #include <nntile/defs.h>
+
+// NNTile headers
+#include <nntile/starpu/codelet.hh>
+#include <nntile/starpu/handle.hh>
 
 namespace nntile::starpu::gelu_backward
 {
 
-// Apply GeLU backward to StarPU buffer on CPU
+//! Wrapper for all kernel functions
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
-    noexcept;
+struct KernelWrapper
+{
+    static void cpu(void *buffers[], void *cl_args)
+        noexcept;
+
+    static constexpr func_array cpu_funcs = {
+        cpu
+    };
 
 #ifdef NNTILE_USE_CUDA
-// Apply GeLU backward of StarPU buffer on CUDA
-template<typename T>
-void cuda(void *buffers[], void *cl_args)
-    noexcept;
+    static void cuda(void *buffers[], void *cl_args)
+        noexcept;
+
+    static constexpr func_array cuda_funcs = {
+        cuda
+    };
+#else // NNTILE_USE_CUDA
+    static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
+};
 
-extern Codelet codelet_fp32, codelet_fp64, codelet_bf16,
-               codelet_fp32_fast_bf16, codelet_fp32_fast_fp16,
-               codelet_fp32_fast_tf32;;
+//! Codelet pack type for the current operation
+using codelet_pack_t = CodeletPack<
+    KernelWrapper,
+    nntile::fp64_t,
+    nntile::fp32_t,
+    nntile::fp32_fast_tf32_t,
+    nntile::fp32_fast_fp16_t,
+    nntile::fp32_fast_bf16_t,
+    nntile::bf16_t
+>;
 
+// Declare codelet pack
+extern codelet_pack_t codelet_pack;
+
+//! Submit gelu_backward task
 template<typename T>
-constexpr Codelet *codelet()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
+void submit(
+    Index nelems,
+    Handle x,
+    Handle dy,
+    Handle dx
+);
 
-template<>
-constexpr Codelet *codelet<fp32_t>()
-{
-    return &codelet_fp32;
-}
-
-template<>
-constexpr Codelet *codelet<fp64_t>()
-{
-    return &codelet_fp64;
-}
-
-template<>
-constexpr Codelet *codelet<bf16_t>()
-{
-    return &codelet_bf16;
-}
-
-template<>
-constexpr Codelet *codelet<fp32_fast_bf16_t>()
-{
-    return &codelet_fp32_fast_bf16;
-}
-
-template<>
-constexpr Codelet *codelet<fp32_fast_fp16_t>()
-{
-    return &codelet_fp32_fast_fp16;
-}
-
-template<>
-constexpr Codelet *codelet<fp32_fast_tf32_t>()
-{
-    return &codelet_fp32_fast_tf32;
-}
-
-void init();
-
-void restrict_where(uint32_t where);
-
-void restore_where();
-
+//! Submit gelu_backward task with MPI
 template<typename T>
-void submit(Index nelems, Handle x, Handle dy, Handle dx);
-
-template<typename T>
-void submit_mpi(Index nelems, Handle x, Handle dy, Handle dx, int exec_rank);
+void submit_mpi(
+    Index nelems,
+    Handle x,
+    Handle dy,
+    Handle dx,
+    int exec_rank
+);
 
 } // namespace nntile::starpu::gelu_backward

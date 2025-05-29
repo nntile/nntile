@@ -14,8 +14,12 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
-#include <nntile/starpu/config.hh>
+// Compile-time definitions
+#include <nntile/defs.h>
+
+// NNTile headers
+#include <nntile/starpu/codelet.hh>
+#include <nntile/starpu/handle.hh>
 
 namespace nntile::starpu::norm_slice
 {
@@ -30,72 +34,54 @@ struct args_t
     Scalar beta;
 };
 
-// StarPU wrapper for kernel::norm_slice::cpu<T>
+//! Wrapper for all kernel functions
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
-    noexcept;
+struct KernelWrapper
+{
+    static void cpu(void *buffers[], void *cl_args)
+        noexcept;
+
+    static constexpr func_array cpu_funcs = {
+        cpu
+    };
 
 #ifdef NNTILE_USE_CUDA
-// StarPU wrapper for kernel::norm_slice::cuda<T>
-template<typename T>
-void cuda(void *buffers[], void *cl_args)
-    noexcept;
+    static void cuda(void *buffers[], void *cl_args)
+        noexcept;
+
+    static constexpr func_array cuda_funcs = {
+        cuda
+    };
+#else // NNTILE_USE_CUDA
+    static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
+};
 
-extern Codelet codelet_fp32, codelet_fp64, codelet_fp32_fast_tf32, codelet_bf16,
-               codelet_fp32_fast_fp16, codelet_fp32_fast_bf16;
+//! Codelet pack type for the current operation
+using codelet_pack_t = CodeletPack<
+    KernelWrapper,
+    nntile::fp64_t,
+    nntile::fp32_t,
+    nntile::fp32_fast_tf32_t,
+    nntile::fp32_fast_fp16_t,
+    nntile::fp32_fast_bf16_t,
+    nntile::bf16_t
+>;
 
+// Declare codelet pack
+extern codelet_pack_t codelet_pack;
+
+//! Submit norm_slice task
 template<typename T>
-constexpr Codelet *codelet()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
-
-template<>
-constexpr Codelet *codelet<fp32_t>()
-{
-    return &codelet_fp32;
-}
-
-template<>
-constexpr Codelet *codelet<bf16_t>()
-{
-    return &codelet_bf16;
-}
-
-template<>
-constexpr Codelet *codelet<fp32_fast_tf32_t>()
-{
-    return &codelet_fp32_fast_tf32;
-}
-
-template<>
-constexpr Codelet *codelet<fp32_fast_fp16_t>()
-{
-    return &codelet_fp32_fast_fp16;
-}
-
-template<>
-constexpr Codelet *codelet<fp32_fast_bf16_t>()
-{
-    return &codelet_fp32_fast_bf16;
-}
-
-template<>
-constexpr Codelet *codelet<fp64_t>()
-{
-    return &codelet_fp64;
-}
-
-void init();
-
-void restrict_where(uint32_t where);
-
-void restore_where();
-
-template<typename T>
-void submit(Index m, Index n, Index k, Scalar alpha, Handle src, Scalar beta,
-        Handle dst, int redux=0);
+void submit(
+    Index m,
+    Index n,
+    Index k,
+    Scalar alpha,
+    Handle src,
+    Scalar beta,
+    Handle dst,
+    int redux=0
+);
 
 } // namespace nntile::starpu::norm_slice

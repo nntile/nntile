@@ -231,9 +231,16 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = tile_handles[i].get();
-            starpu_data_set_reduction_methods(tmp,
-                    nntile::starpu::accumulate::codelet<T>(),
-                    &nntile::starpu::clear::codelet);
+            const auto accumulate_codelet_pack =
+                nntile::starpu::accumulate::codelet_pack;
+            const auto accumulate_codelet =
+                accumulate_codelet_pack.get_codelet_ptr<T>();
+            const auto clear_codelet = &nntile::starpu::clear::codelet;
+            starpu_data_set_reduction_methods(
+                tmp,
+                accumulate_codelet,
+                clear_codelet
+            );
         }
     }
     //! Set reduction function for hypot
@@ -242,9 +249,16 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = tile_handles[i].get();
-            starpu_data_set_reduction_methods(tmp,
-                    nntile::starpu::accumulate_hypot::codelet<T>(),
-                    &nntile::starpu::clear::codelet);
+            const auto accumulate_codelet_pack =
+                nntile::starpu::accumulate_hypot::codelet_pack;
+            const auto accumulate_codelet =
+                accumulate_codelet_pack.get_codelet_ptr<T>();
+            const auto clear_codelet = &nntile::starpu::clear::codelet;
+            starpu_data_set_reduction_methods(
+                tmp,
+                accumulate_codelet,
+                clear_codelet
+            );
         }
     }
     //! Set reduction function for maxsumexp
@@ -253,9 +267,16 @@ public:
         for(Index i = 0; i < grid.nelems; ++i)
         {
             auto tmp = tile_handles[i].get();
-            starpu_data_set_reduction_methods(tmp,
-                    nntile::starpu::accumulate_maxsumexp::codelet<T>(),
-                    &nntile::starpu::clear::codelet);
+            const auto accumulate_codelet_pack =
+                nntile::starpu::accumulate_maxsumexp::codelet_pack;
+            const auto accumulate_codelet =
+                accumulate_codelet_pack.get_codelet_ptr<T>();
+            const auto clear_codelet = &nntile::starpu::clear::codelet;
+            starpu_data_set_reduction_methods(
+                tmp,
+                accumulate_codelet,
+                clear_codelet
+            );
         }
     }
     //! Print scalar tensor asynchronously

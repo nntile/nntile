@@ -15,9 +15,12 @@
 
 #pragma once
 
-#include <nntile/base_types.hh>
+// Compile-time definitions
 #include <nntile/defs.h>
-#include <nntile/starpu/config.hh>
+
+// NNTile headers
+#include <nntile/starpu/codelet.hh>
+#include <nntile/starpu/handle.hh>
 
 namespace nntile::starpu::conv2d_bwd_input_inplace
 {
@@ -44,61 +47,66 @@ struct args_t
     Scalar beta;
 };
 
+//! Wrapper for all kernel functions
 template<typename T>
-void cpu(void *buffers[], void *cl_args)
-    noexcept;
+struct KernelWrapper
+{
+    static void cpu(void *buffers[], void *cl_args)
+        noexcept;
+
+    static constexpr func_array cpu_funcs = {
+        cpu
+    };
 
 #ifdef NNTILE_USE_CUDA
-template<typename T>
-void cuda(void *buffers[], void *cl_args)
-    noexcept;
+    static void cuda(void *buffers[], void *cl_args)
+        noexcept;
+
+    static constexpr func_array cuda_funcs = {
+        cuda
+    };
+#else // NNTILE_USE_CUDA
+    static constexpr func_array cuda_funcs = {};
 #endif // NNTILE_USE_CUDA
+};
 
-extern Codelet codelet_bf16, codelet_fp32, codelet_fp32_fast_tf32,
-       codelet_fp64;
+//! Codelet pack type for the current operation
+using codelet_pack_t = CodeletPack<
+    KernelWrapper,
+    nntile::fp64_t,
+    nntile::fp32_t,
+    nntile::fp32_fast_tf32_t,
+    nntile::fp32_fast_fp16_t,
+    nntile::fp32_fast_bf16_t,
+    nntile::bf16_t
+>;
 
+// Declare codelet pack
+extern codelet_pack_t codelet_pack;
+
+//! Submit conv2d_bwd_input_inplace task
 template <typename T>
-constexpr Codelet *codelet()
-{
-    throw std::runtime_error("Non-supported type");
-    return nullptr;
-}
-
-template <>
-constexpr Codelet *codelet<bf16_t>()
-{
-    return &codelet_bf16;
-}
-
-template <>
-constexpr Codelet *codelet<fp32_t>()
-{
-    return &codelet_fp32;
-}
-
-template <>
-constexpr Codelet *codelet<fp32_fast_tf32_t>()
-{
-    return &codelet_fp32_fast_tf32;
-}
-
-template <>
-constexpr Codelet *codelet<fp64_t>()
-{
-    return &codelet_fp64;
-}
-
-void init();
-
-void restrict_where(uint32_t where);
-
-void restore_where();
-
-template <typename T>
-void submit(Index src1_m, Index src1_n, Index stride_m, Index stride_n,
-        Index src1_channels, Index batch, Index src2_m, Index src2_n,
-        Index dilation_m, Index dilation_n, Index dst_channels, Index offset_m,
-        Index offset_n, Scalar alpha, Handle src1, Handle src2, Index dst_m,
-        Index dst_n, Scalar beta, Handle dst);
+void submit(
+    Index src1_m,
+    Index src1_n,
+    Index stride_m,
+    Index stride_n,
+    Index src1_channels,
+    Index batch,
+    Index src2_m,
+    Index src2_n,
+    Index dilation_m,
+    Index dilation_n,
+    Index dst_channels,
+    Index offset_m,
+    Index offset_n,
+    Scalar alpha,
+    Handle src1,
+    Handle src2,
+    Index dst_m,
+    Index dst_n,
+    Scalar beta,
+    Handle dst
+);
 
 } // namespace nntile::starpu::conv2d_bwd_input_inplace

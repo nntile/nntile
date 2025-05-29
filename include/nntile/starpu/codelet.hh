@@ -70,10 +70,14 @@ public:
     //! Restore where the codelet should be executed
     Codelet &restore_where();
 
-    //! Set modes for the codelet manually
-    /*! @param[in] modes: Modes for the handle
+    //! Set modes for the codelet
+    /*! @param[in] modes: Modes for the codelet
      * */
-    Codelet &set_modes(std::vector<starpu_data_access_mode> modes);
+    Codelet &set_modes_fixed(std::vector<starpu_data_access_mode> modes);
+
+    //! Set runtime decision on number of buffers and access modes
+    /*! This is done by default for all the codelets. */
+    Codelet &set_modes_variable();
 };
 
 //! Codelet wrapper for a specific type
@@ -129,15 +133,22 @@ public:
     }
 
     //! Set modes for the codelet pack
-    CodeletPack &set_modes(std::vector<starpu_data_access_mode> modes)
+    CodeletPack &set_modes_fixed(std::vector<starpu_data_access_mode> modes)
     {
-        (static_cast<CodeletTyped<Ts> &>(*this).set_modes(modes), ...);
+        (static_cast<CodeletTyped<Ts> &>(*this).set_modes_fixed(modes), ...);
+        return *this;
+    }
+
+    //! Set runtime decision on number of buffers and access modes
+    CodeletPack &set_modes_variable()
+    {
+        (static_cast<CodeletTyped<Ts> &>(*this).set_modes_variable(), ...);
         return *this;
     }
 
     //! Get codelet for a specific type
     template<typename U>
-    CodeletTyped<U> *get_codelet()
+    CodeletTyped<U> *get_codelet_ptr()
     {
         return static_cast<CodeletTyped<U> *>(this);
     }
