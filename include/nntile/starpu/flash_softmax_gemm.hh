@@ -75,8 +75,18 @@ extern codelet_pack_t codelet_pack;
 
 //! Submit flash_softmax_gemm task
 template<typename T>
-void submit(Index seq, Index head, Index batch, Handle K, Handle Q,
-        Handle mask, Handle maxsumexp, Handle V, Handle A, Handle tmp,
-        int redux=0);
+void submit(
+    Index seq,
+    Index head,
+    Index batch,
+    Handle K,
+    Handle Q,
+    Handle mask,
+    Handle maxsumexp,
+    Handle V,
+    Handle A,
+    Handle tmp,
+    int redux=0
+);
 
 } // namespace nntile::starpu::flash_softmax_gemm

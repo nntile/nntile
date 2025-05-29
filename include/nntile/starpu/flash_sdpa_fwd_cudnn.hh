@@ -9,6 +9,7 @@
  * @file include/nntile/starpu/flash_sdpa_fwd_cudnn.hh
  * Cudnn forward pass for SDPA
  *
+ * TODO: This file is yet under development.
  * @version 1.1.0
  * */
 
@@ -51,6 +52,8 @@ struct KernelWrapper
 };
 
 //! Codelet pack type for the current operation
+/*! No FP64, FP32 or accelerated FP32 types are supported due to cuDNN
+ * limitations. */
 using codelet_pack_t = CodeletPack<
     KernelWrapper,
     nntile::bf16_t

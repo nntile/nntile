@@ -153,7 +153,7 @@ if(NNTILE_USE_CUDA)
         "nntile/kernel/add_inplace/cuda.hh"
         "nntile/kernel/add_slice/cuda.hh"
         "nntile/kernel/add_fiber_inplace/cuda.hh"
-	"nntile/kernel/add_fiber/cuda.hh"
+        "nntile/kernel/add_fiber/cuda.hh"
         "nntile/kernel/prod_slice/cuda.hh"
         "nntile/kernel/prod_fiber/cuda.hh"
         "nntile/kernel/prod_fiber3/cuda.hh"
